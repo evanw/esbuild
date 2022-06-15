@@ -1858,6 +1858,56 @@ c {
 /* entry.css */
 
 ================================================================================
+TestLoaderCopyWithBundleEntryPoint
+---------- /out/assets/some.file ----------
+stuff
+---------- /out/src/entry.js ----------
+// Users/user/project/src/entry.js
+import x from "../assets/some.file";
+console.log(x);
+
+---------- /out/src/entry.css ----------
+/* Users/user/project/src/entry.css */
+body {
+  background: url(../assets/some.file);
+}
+
+================================================================================
+TestLoaderCopyWithBundleFromCSS
+---------- /out/some-BYATPJRB.file ----------
+stuff
+---------- /out/src/entry.css ----------
+/* Users/user/project/src/entry.css */
+body {
+  background: url(../some-BYATPJRB.file);
+}
+
+================================================================================
+TestLoaderCopyWithBundleFromJS
+---------- /out/some-BYATPJRB.file ----------
+stuff
+---------- /out/src/entry.js ----------
+// Users/user/project/src/entry.js
+import x from "../some-BYATPJRB.file";
+console.log(x);
+
+================================================================================
+TestLoaderCopyWithFormat
+---------- /out/src/entry.js ----------
+(() => {
+  console.log("entry");
+})();
+
+---------- /out/assets/some.file ----------
+stuff
+================================================================================
+TestLoaderCopyWithTransform
+---------- /out/src/entry.js ----------
+console.log("entry");
+
+---------- /out/assets/some.file ----------
+stuff
+================================================================================
 TestLoaderDataURLApplicationJSON
 ---------- /out/entry.js ----------
 // <data:application/json,"%31%32%33">

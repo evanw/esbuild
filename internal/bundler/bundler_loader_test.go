@@ -959,3 +959,125 @@ func TestLoaderDataURLUnknownMIME(t *testing.T) {
 		},
 	})
 }
+
+func TestLoaderCopyWithBundleFromJS(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import x from "../assets/some.file"
+				console.log(x)
+			`,
+			"/Users/user/project/assets/some.file": `stuff`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputBase: "/Users/user/project",
+			AbsOutputDir:  "/out",
+			ExtensionToLoader: map[string]config.Loader{
+				".js":   config.LoaderJS,
+				".file": config.LoaderCopy,
+			},
+		},
+	})
+}
+
+func TestLoaderCopyWithBundleFromCSS(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.css": `
+				body {
+					background: url(../assets/some.file);
+				}
+			`,
+			"/Users/user/project/assets/some.file": `stuff`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.css"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputBase: "/Users/user/project",
+			AbsOutputDir:  "/out",
+			ExtensionToLoader: map[string]config.Loader{
+				".css":  config.LoaderCSS,
+				".file": config.LoaderCopy,
+			},
+		},
+	})
+}
+
+func TestLoaderCopyWithBundleEntryPoint(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import x from "../assets/some.file"
+				console.log(x)
+			`,
+			"/Users/user/project/src/entry.css": `
+				body {
+					background: url(../assets/some.file);
+				}
+			`,
+			"/Users/user/project/assets/some.file": `stuff`,
+		},
+		entryPaths: []string{
+			"/Users/user/project/src/entry.js",
+			"/Users/user/project/src/entry.css",
+			"/Users/user/project/assets/some.file",
+		},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputBase: "/Users/user/project",
+			AbsOutputDir:  "/out",
+			ExtensionToLoader: map[string]config.Loader{
+				".js":   config.LoaderJS,
+				".css":  config.LoaderCSS,
+				".file": config.LoaderCopy,
+			},
+		},
+	})
+}
+
+func TestLoaderCopyWithTransform(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js":     `console.log('entry')`,
+			"/Users/user/project/assets/some.file": `stuff`,
+		},
+		entryPaths: []string{
+			"/Users/user/project/src/entry.js",
+			"/Users/user/project/assets/some.file",
+		},
+		options: config.Options{
+			Mode:          config.ModePassThrough,
+			AbsOutputBase: "/Users/user/project",
+			AbsOutputDir:  "/out",
+			ExtensionToLoader: map[string]config.Loader{
+				".js":   config.LoaderJS,
+				".file": config.LoaderCopy,
+			},
+		},
+	})
+}
+
+func TestLoaderCopyWithFormat(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js":     `console.log('entry')`,
+			"/Users/user/project/assets/some.file": `stuff`,
+		},
+		entryPaths: []string{
+			"/Users/user/project/src/entry.js",
+			"/Users/user/project/assets/some.file",
+		},
+		options: config.Options{
+			Mode:          config.ModeConvertFormat,
+			OutputFormat:  config.FormatIIFE,
+			AbsOutputBase: "/Users/user/project",
+			AbsOutputDir:  "/out",
+			ExtensionToLoader: map[string]config.Loader{
+				".js":   config.LoaderJS,
+				".file": config.LoaderCopy,
+			},
+		},
+	})
+}

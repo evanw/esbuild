@@ -229,30 +229,32 @@ func validateTreeShaking(value TreeShaking, bundle bool, format Format) bool {
 
 func validateLoader(value Loader) config.Loader {
 	switch value {
-	case LoaderNone:
-		return config.LoaderNone
-	case LoaderJS:
-		return config.LoaderJS
-	case LoaderJSX:
-		return config.LoaderJSX
-	case LoaderTS:
-		return config.LoaderTS
-	case LoaderTSX:
-		return config.LoaderTSX
-	case LoaderJSON:
-		return config.LoaderJSON
-	case LoaderText:
-		return config.LoaderText
 	case LoaderBase64:
 		return config.LoaderBase64
+	case LoaderBinary:
+		return config.LoaderBinary
+	case LoaderCopy:
+		return config.LoaderCopy
+	case LoaderCSS:
+		return config.LoaderCSS
 	case LoaderDataURL:
 		return config.LoaderDataURL
 	case LoaderFile:
 		return config.LoaderFile
-	case LoaderBinary:
-		return config.LoaderBinary
-	case LoaderCSS:
-		return config.LoaderCSS
+	case LoaderJS:
+		return config.LoaderJS
+	case LoaderJSON:
+		return config.LoaderJSON
+	case LoaderJSX:
+		return config.LoaderJSX
+	case LoaderNone:
+		return config.LoaderNone
+	case LoaderText:
+		return config.LoaderText
+	case LoaderTS:
+		return config.LoaderTS
+	case LoaderTSX:
+		return config.LoaderTSX
 	case LoaderDefault:
 		return config.LoaderDefault
 	default:
@@ -1022,6 +1024,10 @@ func rebuildImpl(
 		for _, loader := range options.ExtensionToLoader {
 			if loader == config.LoaderFile {
 				log.AddError(nil, logger.Range{}, "Cannot use the \"file\" loader without an output path")
+				break
+			}
+			if loader == config.LoaderCopy {
+				log.AddError(nil, logger.Range{}, "Cannot use the \"copy\" loader without an output path")
 				break
 			}
 		}

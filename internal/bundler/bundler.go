@@ -314,7 +314,18 @@ func parseFile(args parseArgs) {
 		result.ok = true
 
 		// Mark that this file is from the "file" loader
-		result.file.inputFile.UniqueKeyForFileLoader = uniqueKey
+		result.file.inputFile.UniqueKeyForAdditionalFile = uniqueKey
+
+	case config.LoaderCopy:
+		uniqueKey := fmt.Sprintf("%sA%08d", args.uniqueKeyPrefix, args.sourceIndex)
+		uniqueKeyPath := uniqueKey + source.KeyPath.IgnoredSuffix
+		result.file.inputFile.Repr = &graph.CopyRepr{
+			URLForCode: uniqueKeyPath,
+		}
+		result.ok = true
+
+		// Mark that this file is from the "copy" loader
+		result.file.inputFile.UniqueKeyForAdditionalFile = uniqueKey
 
 	default:
 		var message string
@@ -358,9 +369,8 @@ func parseFile(args parseArgs) {
 
 	// Run the resolver on the parse thread so it's not run on the main thread.
 	// That way the main thread isn't blocked if the resolver takes a while.
-	if args.options.Mode == config.ModeBundle && !args.skipResolve {
+	if recordsPtr := result.file.inputFile.Repr.ImportRecords(); args.options.Mode == config.ModeBundle && !args.skipResolve && recordsPtr != nil {
 		// Clone the import records because they will be mutated later
-		recordsPtr := result.file.inputFile.Repr.ImportRecords()
 		records := append([]ast.ImportRecord{}, *recordsPtr...)
 		*recordsPtr = records
 		result.resolveResults = make([]*resolver.ResolveResult, len(records))
@@ -1126,7 +1136,7 @@ func ScanBundle(
 	s.preprocessInjectedFiles()
 	entryPointMeta := s.addEntryPoints(entryPoints)
 	s.scanAllDependencies()
-	files := s.processScannedFiles()
+	files := s.processScannedFiles(entryPointMeta)
 
 	return Bundle{
 		fs:              fs,
@@ -1643,8 +1653,8 @@ func (s *scanner) scanAllDependencies() {
 		}
 
 		// Don't try to resolve paths if we're not bundling
-		if s.options.Mode == config.ModeBundle {
-			records := *result.file.inputFile.Repr.ImportRecords()
+		if recordsPtr := result.file.inputFile.Repr.ImportRecords(); s.options.Mode == config.ModeBundle && recordsPtr != nil {
+			records := *recordsPtr
 			for importRecordIndex := range records {
 				record := &records[importRecordIndex]
 
@@ -1690,12 +1700,18 @@ func (s *scanner) scanAllDependencies() {
 	}
 }
 
-func (s *scanner) processScannedFiles() []scannerFile {
+func (s *scanner) processScannedFiles(entryPointMeta []graph.EntryPoint) []scannerFile {
 	s.timer.Begin("Process scanned files")
 	defer s.timer.End("Process scanned files")
 
+	// Build a set of entry point source indices for quick lookup
+	entryPointSourceIndices := make(map[uint32]bool, len(entryPointMeta))
+	for _, meta := range entryPointMeta {
+		entryPointSourceIndices[meta.SourceIndex] = true
+	}
+
 	// Now that all files have been scanned, process the final file import records
-	for i, result := range s.results {
+	for sourceIndex, result := range s.results {
 		if !result.ok {
 			continue
 		}
@@ -1710,8 +1726,8 @@ func (s *scanner) processScannedFiles() []scannerFile {
 		}
 
 		// Don't try to resolve paths if we're not bundling
-		if s.options.Mode == config.ModeBundle {
-			records := *result.file.inputFile.Repr.ImportRecords()
+		if recordsPtr := result.file.inputFile.Repr.ImportRecords(); s.options.Mode == config.ModeBundle && recordsPtr != nil {
+			records := *recordsPtr
 			tracker := logger.MakeLineColumnTracker(&result.file.inputFile.Source)
 
 			for importRecordIndex := range records {
@@ -1743,6 +1759,7 @@ func (s *scanner) processScannedFiles() []scannerFile {
 				}
 
 				// Generate metadata about each import
+				otherFile := &s.results[record.SourceIndex.GetIndex()].file
 				if s.options.NeedsMetafile {
 					if isFirstImport {
 						isFirstImport = false
@@ -1751,14 +1768,13 @@ func (s *scanner) processScannedFiles() []scannerFile {
 						sb.WriteString(",\n        ")
 					}
 					sb.WriteString(fmt.Sprintf("{\n          \"path\": %s,\n          \"kind\": %s\n        }",
-						js_printer.QuoteForJSON(s.results[record.SourceIndex.GetIndex()].file.inputFile.Source.PrettyPath, s.options.ASCIIOnly),
+						js_printer.QuoteForJSON(otherFile.inputFile.Source.PrettyPath, s.options.ASCIIOnly),
 						js_printer.QuoteForJSON(record.Kind.StringForMetafile(), s.options.ASCIIOnly)))
 				}
 
 				switch record.Kind {
 				case ast.ImportAt, ast.ImportAtConditional:
 					// Using a JavaScript file with CSS "@import" is not allowed
-					otherFile := &s.results[record.SourceIndex.GetIndex()].file
 					if _, ok := otherFile.inputFile.Repr.(*graph.JSRepr); ok {
 						s.log.AddError(&tracker, record.Range,
 							fmt.Sprintf("Cannot import %q into a CSS file", otherFile.inputFile.Source.PrettyPath))
@@ -1769,7 +1785,6 @@ func (s *scanner) processScannedFiles() []scannerFile {
 
 				case ast.ImportURL:
 					// Using a JavaScript or CSS file with CSS "url()" is not allowed
-					otherFile := &s.results[record.SourceIndex.GetIndex()].file
 					switch otherRepr := otherFile.inputFile.Repr.(type) {
 					case *graph.CSSRepr:
 						s.log.AddError(&tracker, record.Range,
@@ -1783,11 +1798,18 @@ func (s *scanner) processScannedFiles() []scannerFile {
 					}
 				}
 
+				// If the imported file uses the "copy" loader, then move it from
+				// "SourceIndex" to "CopySourceIndex" so we don't end up bundling it.
+				if _, ok := otherFile.inputFile.Repr.(*graph.CopyRepr); ok {
+					record.CopySourceIndex = record.SourceIndex
+					record.SourceIndex = ast.Index32{}
+					continue
+				}
+
 				// If an import from a JavaScript file targets a CSS file, generate a
 				// JavaScript stub to ensure that JavaScript files only ever import
 				// other JavaScript files.
 				if _, ok := result.file.inputFile.Repr.(*graph.JSRepr); ok {
-					otherFile := &s.results[record.SourceIndex.GetIndex()].file
 					if css, ok := otherFile.inputFile.Repr.(*graph.CSSRepr); ok {
 						if s.options.WriteToStdout {
 							s.log.AddError(&tracker, record.Range,
@@ -1879,14 +1901,23 @@ func (s *scanner) processScannedFiles() []scannerFile {
 
 		result.file.jsonMetadataChunk = sb.String()
 
-		// If this file is from the "file" loader, generate an additional file
-		if result.file.inputFile.UniqueKeyForFileLoader != "" {
+		// If this file is from the "file" or "copy" loaders, generate an additional file
+		if result.file.inputFile.UniqueKeyForAdditionalFile != "" {
 			bytes := []byte(result.file.inputFile.Source.Contents)
+			template := s.options.AssetPathTemplate
+
+			// Use the entry path template instead of the asset path template if this
+			// file is an entry point and uses the "copy" loader. With the "file" loader
+			// the JS stub is the entry point, but with the "copy" loader the file is
+			// the entry point itself.
+			if result.file.inputFile.Loader == config.LoaderCopy && entryPointSourceIndices[uint32(sourceIndex)] {
+				template = s.options.EntryPathTemplate
+			}
 
 			// Add a hash to the file name to prevent multiple files with the same name
 			// but different contents from colliding
 			var hash string
-			if config.HasPlaceholder(s.options.AssetPathTemplate, config.HashPlaceholder) {
+			if config.HasPlaceholder(template, config.HashPlaceholder) {
 				h := xxhash.New()
 				h.Write(bytes)
 				hash = hashForFileName(h.Sum(nil))
@@ -1902,9 +1933,9 @@ func (s *scanner) processScannedFiles() []scannerFile {
 				/* customFilePath */ "",
 			)
 
-			// Apply the asset path template
+			// Apply the path template
 			templateExt := strings.TrimPrefix(originalExt, ".")
-			relPath := config.TemplateToString(config.SubstituteTemplate(s.options.AssetPathTemplate, config.PathPlaceholders{
+			relPath := config.TemplateToString(config.SubstituteTemplate(template, config.PathPlaceholders{
 				Dir:  &dir,
 				Name: &base,
 				Hash: &hash,
@@ -1933,7 +1964,7 @@ func (s *scanner) processScannedFiles() []scannerFile {
 			}}
 		}
 
-		s.results[i] = result
+		s.results[sourceIndex] = result
 	}
 
 	// The linker operates on an array of files, so construct that now. This
@@ -2253,9 +2284,13 @@ func findReachableFiles(files []graph.InputFile, entryPoints []graph.EntryPoint)
 			if repr, ok := file.Repr.(*graph.JSRepr); ok && repr.CSSSourceIndex.IsValid() {
 				visit(repr.CSSSourceIndex.GetIndex())
 			}
-			for _, record := range *file.Repr.ImportRecords() {
-				if record.SourceIndex.IsValid() {
-					visit(record.SourceIndex.GetIndex())
+			if recordsPtr := file.Repr.ImportRecords(); recordsPtr != nil {
+				for _, record := range *recordsPtr {
+					if record.SourceIndex.IsValid() {
+						visit(record.SourceIndex.GetIndex())
+					} else if record.CopySourceIndex.IsValid() {
+						visit(record.CopySourceIndex.GetIndex())
+					}
 				}
 			}
 

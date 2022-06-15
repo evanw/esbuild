@@ -126,8 +126,12 @@ type ImportRecord struct {
 	ErrorHandlerLoc logger.Loc
 
 	// The resolved source index for an internal import (within the bundle) or
-	// nil for an external import (not included in the bundle)
+	// invalid for an external import (not included in the bundle)
 	SourceIndex Index32
+
+	// Files imported via the "copy" loader use this instead of "SourceIndex"
+	// because they are sort of like external imports, and are not bundled.
+	CopySourceIndex Index32
 
 	Flags ImportRecordFlags
 	Kind  ImportKind
