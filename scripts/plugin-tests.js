@@ -1230,6 +1230,7 @@ let pluginTests = {
     } catch (e) {
       assert.deepStrictEqual(e.warnings, [])
       assert.deepStrictEqual(e.errors, [{
+        id: '',
         pluginName: '',
         text: 'Expected ";" but found "y"',
         location: {
@@ -1250,6 +1251,7 @@ let pluginTests = {
   async transformUndefinedDetailForWarning({ esbuild }) {
     const result = await esbuild.transform('typeof x == "null"')
     assert.deepStrictEqual(result.warnings, [{
+      id: 'impossible-typeof',
       pluginName: '',
       text: 'The "typeof" operator will never evaluate to "null"',
       location: {
@@ -1282,6 +1284,7 @@ let pluginTests = {
     } catch (e) {
       assert.deepStrictEqual(e.warnings, [])
       assert.deepStrictEqual(e.errors, [{
+        id: '',
         pluginName: '',
         text: 'Expected ";" but found "y"',
         location: {
@@ -1306,6 +1309,7 @@ let pluginTests = {
       logLevel: 'silent',
     })
     assert.deepStrictEqual(result.warnings, [{
+      id: 'impossible-typeof',
       pluginName: '',
       text: 'The "typeof" operator will never evaluate to "null"',
       location: {
@@ -1427,6 +1431,7 @@ let pluginTests = {
       assert.strictEqual(e.warnings.length, 0)
       assert.strictEqual(e.errors.length, 1)
       assert.deepStrictEqual(e.errors[0], {
+        id: '',
         pluginName: 'the-plugin',
         text: 'some error',
         location: {
@@ -1500,6 +1505,7 @@ let pluginTests = {
     })
     assert.strictEqual(result.warnings.length, 1)
     assert.deepStrictEqual(result.warnings[0], {
+      id: '',
       pluginName: 'other-plugin',
       text: 'some warning',
       location: {
@@ -1575,6 +1581,7 @@ let pluginTests = {
       assert.strictEqual(e.warnings.length, 0)
       assert.strictEqual(e.errors.length, 1)
       assert.deepStrictEqual(e.errors[0], {
+        id: '',
         pluginName: 'the-plugin',
         text: 'some error',
         location: {
@@ -1647,6 +1654,7 @@ let pluginTests = {
     })
     assert.strictEqual(result.warnings.length, 1)
     assert.deepStrictEqual(result.warnings[0], {
+      id: '',
       pluginName: 'the-plugin',
       text: 'some warning',
       location: {
