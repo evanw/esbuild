@@ -11351,34 +11351,32 @@ func (p *parser) valueForThis(
 		}
 
 		// Otherwise, replace top-level "this" with either "undefined" or "exports"
-		if p.options.mode != config.ModePassThrough {
-			if p.isFileConsideredToHaveESMExports {
-				// Warn about "this" becoming undefined, but only once per file
-				if shouldWarn && !p.warnedThisIsUndefined {
-					p.warnedThisIsUndefined = true
+		if p.isFileConsideredToHaveESMExports {
+			// Warn about "this" becoming undefined, but only once per file
+			if shouldWarn && !p.warnedThisIsUndefined {
+				p.warnedThisIsUndefined = true
 
-					// Show the warning as a debug message if we're in "node_modules"
-					kind := logger.Warning
-					if p.suppressWarningsAboutWeirdCode {
-						kind = logger.Debug
-					}
-					data := p.tracker.MsgData(js_lexer.RangeOfIdentifier(p.source, loc),
-						"Top-level \"this\" will be replaced with undefined since this file is an ECMAScript module")
-					data.Location.Suggestion = "undefined"
-					p.log.AddMsgID(logger.MsgID_JS_ThisIsUndefinedInESM, logger.Msg{Kind: kind, Data: data, Notes: p.whyESModule()})
+				// Show the warning as a debug message if we're in "node_modules"
+				kind := logger.Warning
+				if p.suppressWarningsAboutWeirdCode {
+					kind = logger.Debug
 				}
-
-				// In an ES6 module, "this" is supposed to be undefined. Instead of
-				// doing this at runtime using "fn.call(undefined)", we do it at
-				// compile time using expression substitution here.
-				return js_ast.Expr{Loc: loc, Data: js_ast.EUndefinedShared}, true
-			} else {
-				// In a CommonJS module, "this" is supposed to be the same as "exports".
-				// Instead of doing this at runtime using "fn.call(module.exports)", we
-				// do it at compile time using expression substitution here.
-				p.recordUsage(p.exportsRef)
-				return js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: p.exportsRef}}, true
+				data := p.tracker.MsgData(js_lexer.RangeOfIdentifier(p.source, loc),
+					"Top-level \"this\" will be replaced with undefined since this file is an ECMAScript module")
+				data.Location.Suggestion = "undefined"
+				p.log.AddMsgID(logger.MsgID_JS_ThisIsUndefinedInESM, logger.Msg{Kind: kind, Data: data, Notes: p.whyESModule()})
 			}
+
+			// In an ES6 module, "this" is supposed to be undefined. Instead of
+			// doing this at runtime using "fn.call(undefined)", we do it at
+			// compile time using expression substitution here.
+			return js_ast.Expr{Loc: loc, Data: js_ast.EUndefinedShared}, true
+		} else if p.options.mode != config.ModePassThrough {
+			// In a CommonJS module, "this" is supposed to be the same as "exports".
+			// Instead of doing this at runtime using "fn.call(module.exports)", we
+			// do it at compile time using expression substitution here.
+			p.recordUsage(p.exportsRef)
+			return js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: p.exportsRef}}, true
 		}
 	}
 
@@ -13632,15 +13630,13 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					// and exported symbols due to scope hoisting. Except don't warn when
 					// this code is in a 3rd-party library because there's nothing people
 					// will be able to do about the warning.
-					if p.options.mode == config.ModeBundle {
-						text := "Using direct eval with a bundler is not recommended and may cause problems"
-						kind := logger.Debug
-						if p.isFileConsideredESM && !p.suppressWarningsAboutWeirdCode {
-							kind = logger.Warning
-						}
-						p.log.AddIDWithNotes(logger.MsgID_JS_DirectEval, kind, &p.tracker, js_lexer.RangeOfIdentifier(p.source, e.Target.Loc), text,
-							[]logger.MsgData{{Text: "You can read more about direct eval and bundling here: https://esbuild.github.io/link/direct-eval"}})
+					text := "Using direct eval with a bundler is not recommended and may cause problems"
+					kind := logger.Debug
+					if p.options.mode == config.ModeBundle && p.isFileConsideredESM && !p.suppressWarningsAboutWeirdCode {
+						kind = logger.Warning
 					}
+					p.log.AddIDWithNotes(logger.MsgID_JS_DirectEval, kind, &p.tracker, js_lexer.RangeOfIdentifier(p.source, e.Target.Loc), text,
+						[]logger.MsgData{{Text: "You can read more about direct eval and bundling here: https://esbuild.github.io/link/direct-eval"}})
 				}
 			}
 

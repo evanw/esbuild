@@ -38,7 +38,7 @@ export default [
     return __async(this, null, function* () {
     });
   },
-  () => __async(this, null, function* () {
+  () => __async(void 0, null, function* () {
   }),
   { foo() {
     return __async(this, null, function* () {
