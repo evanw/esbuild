@@ -1912,69 +1912,58 @@ func (c *linkerContext) generateCodeForLazyExport(sourceIndex uint32) {
 	// parts so they can be tree shaken individually.
 	part.Stmts = nil
 
-	type prevExport struct {
-		ref       js_ast.Ref
-		partIndex uint32
-	}
-
-	generateExport := func(name string, alias string, value js_ast.Expr) prevExport {
-		// Generate a new symbol
+	// Generate a new symbol and link the export into the graph for tree shaking
+	generateExport := func(name string, alias string) (js_ast.Ref, uint32) {
 		ref := c.graph.GenerateNewSymbol(sourceIndex, js_ast.SymbolOther, name)
-
-		// Generate an ES6 export
-		var stmt js_ast.Stmt
-		if alias == "default" {
-			stmt = js_ast.Stmt{Loc: value.Loc, Data: &js_ast.SExportDefault{
-				DefaultName: js_ast.LocRef{Loc: value.Loc, Ref: ref},
-				Value:       js_ast.Stmt{Loc: value.Loc, Data: &js_ast.SExpr{Value: value}},
-			}}
-		} else {
-			stmt = js_ast.Stmt{Loc: value.Loc, Data: &js_ast.SLocal{
-				IsExport: true,
-				Decls: []js_ast.Decl{{
-					Binding:    js_ast.Binding{Loc: value.Loc, Data: &js_ast.BIdentifier{Ref: ref}},
-					ValueOrNil: value,
-				}},
-			}}
-		}
-
-		// Link the export into the graph for tree shaking
 		partIndex := c.graph.AddPartToFile(sourceIndex, js_ast.Part{
-			Stmts:                []js_ast.Stmt{stmt},
 			DeclaredSymbols:      []js_ast.DeclaredSymbol{{Ref: ref, IsTopLevel: true}},
 			CanBeRemovedIfUnused: true,
 		})
 		c.graph.GenerateSymbolImportAndUse(sourceIndex, partIndex, repr.AST.ModuleRef, 1, sourceIndex)
+		repr.Meta.TopLevelSymbolToPartsOverlay[ref] = []uint32{partIndex}
 		repr.Meta.ResolvedExports[alias] = graph.ExportData{Ref: ref, SourceIndex: sourceIndex}
-		return prevExport{ref: ref, partIndex: partIndex}
+		return ref, partIndex
 	}
 
 	// Unwrap JSON objects into separate top-level variables
-	var prevExports []js_ast.Ref
 	jsonValue := lazy.Value
 	if object, ok := jsonValue.Data.(*js_ast.EObject); ok {
-		clone := *object
-		clone.Properties = append(make([]js_ast.Property, 0, len(clone.Properties)), clone.Properties...)
-		for i, property := range clone.Properties {
+		for _, property := range object.Properties {
 			if str, ok := property.Key.Data.(*js_ast.EString); ok &&
 				(!file.IsEntryPoint() || js_lexer.IsIdentifierUTF16(str.Value) ||
 					!c.options.UnsupportedJSFeatures.Has(compat.ArbitraryModuleNamespaceNames)) {
-				name := helpers.UTF16ToString(str.Value)
-				exportRef := generateExport(name, name, property.ValueOrNil).ref
-				prevExports = append(prevExports, exportRef)
-				clone.Properties[i].ValueOrNil = js_ast.Expr{Loc: property.Key.Loc, Data: &js_ast.EIdentifier{Ref: exportRef}}
+				if name := helpers.UTF16ToString(str.Value); name != "default" {
+					ref, partIndex := generateExport(name, name)
+
+					// This initializes the generated variable with a copy of the property
+					// value, which is INCORRECT for values that are objects/arrays because
+					// they will have separate object identity. This is fixed up later in
+					// "generateCodeForFileInChunkJS" by changing the object literal to
+					// reference this generated variable instead.
+					//
+					// Changing the object literal is deferred until that point instead of
+					// doing it now because we only want to do this for top-level variables
+					// that actually end up being used, and we don't know which ones will
+					// end up actually being used at this point (since import binding hasn't
+					// happened yet). So we need to wait until after tree shaking happens.
+					repr.AST.Parts[partIndex].Stmts = []js_ast.Stmt{{Loc: property.ValueOrNil.Loc, Data: &js_ast.SLocal{
+						IsExport: true,
+						Decls: []js_ast.Decl{{
+							Binding:    js_ast.Binding{Loc: property.ValueOrNil.Loc, Data: &js_ast.BIdentifier{Ref: ref}},
+							ValueOrNil: property.ValueOrNil,
+						}},
+					}}}
+				}
 			}
 		}
-		jsonValue.Data = &clone
 	}
 
 	// Generate the default export
-	finalExportPartIndex := generateExport(file.InputFile.Source.IdentifierName+"_default", "default", jsonValue).partIndex
-
-	// The default export depends on all of the previous exports
-	for _, exportRef := range prevExports {
-		c.graph.GenerateSymbolImportAndUse(sourceIndex, finalExportPartIndex, exportRef, 1, sourceIndex)
-	}
+	ref, partIndex := generateExport(file.InputFile.Source.IdentifierName+"_default", "default")
+	repr.AST.Parts[partIndex].Stmts = []js_ast.Stmt{{Loc: jsonValue.Loc, Data: &js_ast.SExportDefault{
+		DefaultName: js_ast.LocRef{Loc: jsonValue.Loc, Ref: ref},
+		Value:       js_ast.Stmt{Loc: jsonValue.Loc, Data: &js_ast.SExpr{Value: jsonValue}},
+	}}}
 }
 
 func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
@@ -3927,6 +3916,13 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 		stmtList.insideWrapperSuffix = nil
 	}
 
+	var partIndexForLazyDefaultExport ast.Index32
+	if repr.AST.HasLazyExport {
+		if defaultExport, ok := repr.Meta.ResolvedExports["default"]; ok {
+			partIndexForLazyDefaultExport = ast.MakeIndex32(repr.TopLevelSymbolToParts(defaultExport.Ref)[0])
+		}
+	}
+
 	// Add all other parts in this chunk
 	for partIndex := partRange.partIndexBegin; partIndex < partRange.partIndexEnd; partIndex++ {
 		part := repr.AST.Parts[partIndex]
@@ -3946,7 +3942,71 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 			continue
 		}
 
-		c.convertStmtsForChunk(partRange.sourceIndex, &stmtList, part.Stmts)
+		stmts := part.Stmts
+
+		// If this could be a JSON file that exports a top-level object literal, go
+		// over the non-default top-level properties that ended up being imported
+		// and substitute references to them into the main top-level object literal.
+		// So this JSON file:
+		//
+		//   {
+		//     "foo": [1, 2, 3],
+		//     "bar": [4, 5, 6],
+		//   }
+		//
+		// is initially compiled into this:
+		//
+		//   export var foo = [1, 2, 3];
+		//   export var bar = [4, 5, 6];
+		//   export default {
+		//     foo: [1, 2, 3],
+		//     bar: [4, 5, 6],
+		//   };
+		//
+		// But we turn it into this if both "foo" and "default" are imported:
+		//
+		//   export var foo = [1, 2, 3];
+		//   export default {
+		//     foo,
+		//     bar: [4, 5, 6],
+		//   };
+		//
+		if partIndexForLazyDefaultExport.IsValid() && partIndex == partIndexForLazyDefaultExport.GetIndex() {
+			stmt := stmts[0]
+			defaultExport := stmt.Data.(*js_ast.SExportDefault)
+			defaultExpr := defaultExport.Value.Data.(*js_ast.SExpr)
+
+			// Be careful: the top-level value in a JSON file is not necessarily an object
+			if object, ok := defaultExpr.Value.Data.(*js_ast.EObject); ok {
+				objectClone := *object
+				objectClone.Properties = append([]js_ast.Property{}, objectClone.Properties...)
+
+				// If any top-level properties ended up being imported directly, change
+				// the property to just reference the corresponding variable instead
+				for i, property := range object.Properties {
+					if str, ok := property.Key.Data.(*js_ast.EString); ok {
+						if name := helpers.UTF16ToString(str.Value); name != "default" {
+							if export, ok := repr.Meta.ResolvedExports[name]; ok {
+								if part := repr.AST.Parts[repr.TopLevelSymbolToParts(export.Ref)[0]]; part.IsLive {
+									ref := part.Stmts[0].Data.(*js_ast.SLocal).Decls[0].Binding.Data.(*js_ast.BIdentifier).Ref
+									objectClone.Properties[i].ValueOrNil = js_ast.Expr{Loc: property.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}}
+								}
+							}
+						}
+					}
+				}
+
+				// Avoid mutating the original AST
+				defaultExprClone := *defaultExpr
+				defaultExprClone.Value.Data = &objectClone
+				defaultExportClone := *defaultExport
+				defaultExportClone.Value.Data = &defaultExprClone
+				stmt.Data = &defaultExportClone
+				stmts = []js_ast.Stmt{stmt}
+			}
+		}
+
+		c.convertStmtsForChunk(partRange.sourceIndex, &stmtList, stmts)
 	}
 
 	// Hoist all import statements before any normal statements. ES6 imports

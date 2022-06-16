@@ -352,9 +352,7 @@ var require_x = __commonJS({
 });
 
 // y.json
-var y1 = true;
-var y2 = false;
-var y_default = { y1, y2 };
+var y_default = { y1: true, y2: false };
 
 // z.json
 var small = "some small text";
@@ -430,16 +428,14 @@ TestLoaderJSONNoBundleIIFE
 TestLoaderJSONSharedWithMultipleEntriesIssue413
 ---------- /out/a.js ----------
 // data.json
-var test = 123;
-var data_default = { test };
+var data_default = { test: 123 };
 
 // a.js
 console.log("a:", data_default);
 
 ---------- /out/b.js ----------
 // data.json
-var test = 123;
-var data_default = { test };
+var data_default = { test: 123 };
 
 // b.js
 console.log("b:", data_default);
