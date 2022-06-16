@@ -669,6 +669,7 @@ func convertMessagesToPublic(kind logger.MsgKind, msgs []logger.Msg) []Message {
 				})
 			}
 			filtered = append(filtered, Message{
+				ID:         logger.MsgIDToString(msg.ID),
 				PluginName: msg.PluginName,
 				Text:       msg.Data.Text,
 				Location:   convertLocationToPublic(msg.Data.Location),
@@ -709,6 +710,7 @@ func convertMessagesToInternal(msgs []logger.Msg, kind logger.MsgKind, messages 
 			})
 		}
 		msgs = append(msgs, logger.Msg{
+			ID:         logger.StringToMaximumMsgID(message.ID),
 			PluginName: message.PluginName,
 			Kind:       kind,
 			Data: logger.MsgData{

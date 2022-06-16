@@ -193,6 +193,7 @@ type Location struct {
 }
 
 type Message struct {
+	ID         string
 	PluginName string
 	Text       string
 	Location   *Location

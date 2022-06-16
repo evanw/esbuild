@@ -148,6 +148,7 @@ export interface StdinOptions {
 }
 
 export interface Message {
+  id: string;
   pluginName: string;
   text: string;
   location: Location | null;
@@ -402,6 +403,7 @@ export interface OnLoadResult {
 }
 
 export interface PartialMessage {
+  id?: string;
   pluginName?: string;
   text?: string;
   location?: Partial<Location> | null;

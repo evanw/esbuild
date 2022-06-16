@@ -1081,6 +1081,7 @@ func encodeMessages(msgs []api.Message) []interface{} {
 	values := make([]interface{}, len(msgs))
 	for i, msg := range msgs {
 		value := map[string]interface{}{
+			"id":         msg.ID,
 			"pluginName": msg.PluginName,
 			"text":       msg.Text,
 			"location":   encodeLocation(msg.Location),
@@ -1131,6 +1132,7 @@ func decodeMessages(values []interface{}) []api.Message {
 	for i, value := range values {
 		obj := value.(map[string]interface{})
 		msg := api.Message{
+			ID:         obj["id"].(string),
 			PluginName: obj["pluginName"].(string),
 			Text:       obj["text"].(string),
 			Location:   decodeLocation(obj["location"]),
@@ -1170,6 +1172,7 @@ func decodeLocationToPrivate(value interface{}) *logger.MsgLocation {
 
 func decodeMessageToPrivate(obj map[string]interface{}) logger.Msg {
 	msg := logger.Msg{
+		ID:         logger.StringToMaximumMsgID(obj["id"].(string)),
 		PluginName: obj["pluginName"].(string),
 		Data: logger.MsgData{
 			Text:       obj["text"].(string),

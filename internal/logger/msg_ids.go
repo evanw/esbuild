@@ -303,3 +303,18 @@ func MsgIDToString(id MsgID) string {
 
 	return ""
 }
+
+// Some message IDs are more diverse internally than externally (in case we
+// want to expand the set of them later on). So just map these to the largest
+// one arbitrarily since you can't tell the difference externally anyway.
+func StringToMaximumMsgID(id string) MsgID {
+	overrides := make(map[MsgID]LogLevel)
+	maxID := MsgID_None
+	StringToMsgIDs(id, LevelInfo, overrides)
+	for id := range overrides {
+		if id > maxID {
+			maxID = id
+		}
+	}
+	return maxID
+}

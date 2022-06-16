@@ -1212,7 +1212,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
               sendRequest<protocol.RebuildRequest, protocol.BuildResponse>(refs, { command: 'rebuild', key },
                 (error2, response2) => {
                   if (error2) {
-                    const message: types.Message = { pluginName: '', text: error2, location: null, notes: [], detail: void 0 };
+                    const message: types.Message = { id: '', pluginName: '', text: error2, location: null, notes: [], detail: void 0 };
                     return callback(failureErrorWithLog('Build failed', [message], []), null);
                   }
                   buildResponseToResult(response2, (error3, result3) => {
@@ -1521,7 +1521,7 @@ function extractErrorMessageV8(e: any, streamIn: StreamIn, stash: ObjectStash | 
   } catch {
   }
 
-  return { pluginName, text, location, notes: note ? [note] : [], detail: stash ? stash.store(e) : -1 }
+  return { id: '', pluginName, text, location, notes: note ? [note] : [], detail: stash ? stash.store(e) : -1 }
 }
 
 function parseStackLinesV8(streamIn: StreamIn, lines: string[], ident: string): types.Location | null {
@@ -1631,6 +1631,7 @@ function sanitizeMessages(messages: types.PartialMessage[], property: string, st
 
   for (const message of messages) {
     let keys: OptionKeys = {};
+    let id = getFlag(message, keys, 'id', mustBeString);
     let pluginName = getFlag(message, keys, 'pluginName', mustBeString);
     let text = getFlag(message, keys, 'text', mustBeString);
     let location = getFlag(message, keys, 'location', mustBeObjectOrNull);
@@ -1654,6 +1655,7 @@ function sanitizeMessages(messages: types.PartialMessage[], property: string, st
     }
 
     messagesClone.push({
+      id: id || '',
       pluginName: pluginName || fallbackPluginName,
       text: text || '',
       location: sanitizeLocation(location, where),
