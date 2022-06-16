@@ -226,6 +226,7 @@ let initializeWasCalled = false;
 export let initialize: typeof types.initialize = options => {
   options = common.validateInitializeOptions(options || {});
   if (options.wasmURL) throw new Error(`The "wasmURL" option only works in the browser`)
+  if (options.wasmModule) throw new Error(`The "wasmModule" option only works in the browser`)
   if (options.worker) throw new Error(`The "worker" option only works in the browser`)
   if (initializeWasCalled) throw new Error('Cannot call "initialize" more than once')
   ensureServiceIsRunning()
