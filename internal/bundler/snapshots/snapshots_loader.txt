@@ -1,3 +1,20 @@
+TestAmbiguousReexportMsg
+---------- /out/entry.js ----------
+// a.js
+var a = 1;
+
+// b.js
+var b = 3;
+
+// c.js
+var c = 4;
+export {
+  a,
+  b,
+  c
+};
+
+================================================================================
 TestAutoDetectMimeTypeFromExtension
 ---------- /out.js ----------
 // test.svg

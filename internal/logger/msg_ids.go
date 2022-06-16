@@ -49,6 +49,7 @@ const (
 	MsgID_CSS_UnsupportedCSSProperty
 
 	// Bundler
+	MsgID_Bundler_AmbiguousReexport
 	MsgID_Bundler_DifferentPathCase
 	MsgID_Bundler_IgnoredBareImport
 	MsgID_Bundler_IgnoredDynamicImport
@@ -156,6 +157,8 @@ func StringToMsgIDs(str string, logLevel LogLevel, overrides map[MsgID]LogLevel)
 		overrides[MsgID_CSS_UnsupportedCSSProperty] = logLevel
 
 	// Bundler
+	case "ambiguous-reexport":
+		overrides[MsgID_Bundler_AmbiguousReexport] = logLevel
 	case "different-path-case":
 		overrides[MsgID_Bundler_DifferentPathCase] = logLevel
 	case "ignored-bare-import":
@@ -266,6 +269,8 @@ func MsgIDToString(id MsgID) string {
 		return "unsupported-css-property"
 
 	// Bundler
+	case MsgID_Bundler_AmbiguousReexport:
+		return "ambiguous-reexport"
 	case MsgID_Bundler_DifferentPathCase:
 		return "different-path-case"
 	case MsgID_Bundler_IgnoredBareImport:

@@ -1443,21 +1443,42 @@ func (c *linkerContext) scanImportsAndExports() {
 			aliases := make([]string, 0, len(repr.Meta.ResolvedExports))
 		nextAlias:
 			for alias, export := range repr.Meta.ResolvedExports {
+				otherFile := &c.graph.Files[export.SourceIndex].InputFile
+				otherRepr := otherFile.Repr.(*graph.JSRepr)
+
 				// Re-exporting multiple symbols with the same name causes an ambiguous
 				// export. These names cannot be used and should not end up in generated code.
-				otherRepr := c.graph.Files[export.SourceIndex].InputFile.Repr.(*graph.JSRepr)
 				if len(export.PotentiallyAmbiguousExportStarRefs) > 0 {
 					mainRef := export.Ref
+					mainLoc := export.NameLoc
 					if imported, ok := otherRepr.Meta.ImportsToBind[export.Ref]; ok {
 						mainRef = imported.Ref
+						mainLoc = imported.NameLoc
 					}
+
 					for _, ambiguousExport := range export.PotentiallyAmbiguousExportStarRefs {
-						ambiguousRepr := c.graph.Files[ambiguousExport.SourceIndex].InputFile.Repr.(*graph.JSRepr)
+						ambiguousFile := &c.graph.Files[ambiguousExport.SourceIndex].InputFile
+						ambiguousRepr := ambiguousFile.Repr.(*graph.JSRepr)
 						ambiguousRef := ambiguousExport.Ref
+						ambiguousLoc := ambiguousExport.NameLoc
 						if imported, ok := ambiguousRepr.Meta.ImportsToBind[ambiguousExport.Ref]; ok {
 							ambiguousRef = imported.Ref
+							ambiguousLoc = imported.NameLoc
 						}
+
 						if mainRef != ambiguousRef {
+							file := &c.graph.Files[sourceIndex].InputFile
+							otherTracker := logger.MakeLineColumnTracker(&otherFile.Source)
+							ambiguousTracker := logger.MakeLineColumnTracker(&ambiguousFile.Source)
+							c.log.AddIDWithNotes(logger.MsgID_Bundler_AmbiguousReexport, logger.Debug, nil, logger.Range{},
+								fmt.Sprintf("Re-export of %q in %q is ambiguous and has been removed", alias, file.Source.PrettyPath),
+								[]logger.MsgData{
+									otherTracker.MsgData(js_lexer.RangeOfIdentifier(otherFile.Source, mainLoc),
+										fmt.Sprintf("One definition of %q comes from %q here:", alias, otherFile.Source.PrettyPath)),
+									ambiguousTracker.MsgData(js_lexer.RangeOfIdentifier(ambiguousFile.Source, ambiguousLoc),
+										fmt.Sprintf("Another definition of %q comes from %q here:", alias, ambiguousFile.Source.PrettyPath)),
+								},
+							)
 							continue nextAlias
 						}
 					}

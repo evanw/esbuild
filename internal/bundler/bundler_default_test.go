@@ -6397,3 +6397,28 @@ ident.js: DEBUG: Indirect calls to "require" will not be bundled
 `,
 	})
 }
+
+func TestAmbiguousReexportMsg(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export * from './a'
+				export * from './b'
+				export * from './c'
+			`,
+			"/a.js": `export let a = 1, x = 2`,
+			"/b.js": `export let b = 3; export { b as x }`,
+			"/c.js": `export let c = 4, x = 5`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+		debugLogs: true,
+		expectedCompileLog: `DEBUG: Re-export of "x" in "entry.js" is ambiguous and has been removed
+a.js: NOTE: One definition of "x" comes from "a.js" here:
+b.js: NOTE: Another definition of "x" comes from "b.js" here:
+`,
+	})
+}
