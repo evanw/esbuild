@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+* Allow `define` to match optional chain expressions ([#2324](https://github.com/evanw/esbuild/issues/2324))
+
+    Previously esbuild's `define` feature only matched member expressions that did not use optional chaining. With this release, esbuild will now also match those that use optional chaining:
+
+    ```js
+    // Original code
+    console.log(a.b, a?.b)
+
+    // Old output (with --define:a.b=c)
+    console.log(c, a?.b);
+
+    // New output (with --define:a.b=c)
+    console.log(c, c);
+    ```
+
+    This is for compatibility with Webpack's [`DefinePlugin`](https://webpack.js.org/plugins/define-plugin/), which behaves the same way.
+
 ## 0.14.45
 
 * Add a log message for ambiguous re-exports ([#2322](https://github.com/evanw/esbuild/issues/2322))

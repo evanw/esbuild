@@ -10601,8 +10601,7 @@ func (p *parser) isDotOrIndexDefineMatch(expr js_ast.Expr, parts []string) bool 
 		if len(parts) > 1 {
 			// Intermediates must be dot expressions
 			last := len(parts) - 1
-			return e.OptionalChain == js_ast.OptionalChainNone && parts[last] == e.Name &&
-				p.isDotOrIndexDefineMatch(e.Target, parts[:last])
+			return parts[last] == e.Name && p.isDotOrIndexDefineMatch(e.Target, parts[:last])
 		}
 
 	case *js_ast.EIndex:
@@ -10610,8 +10609,7 @@ func (p *parser) isDotOrIndexDefineMatch(expr js_ast.Expr, parts []string) bool 
 			if str, ok := e.Index.Data.(*js_ast.EString); ok {
 				// Intermediates must be dot expressions
 				last := len(parts) - 1
-				return e.OptionalChain == js_ast.OptionalChainNone && parts[last] == helpers.UTF16ToString(str.Value) &&
-					p.isDotOrIndexDefineMatch(e.Target, parts[:last])
+				return parts[last] == helpers.UTF16ToString(str.Value) && p.isDotOrIndexDefineMatch(e.Target, parts[:last])
 			}
 		}
 

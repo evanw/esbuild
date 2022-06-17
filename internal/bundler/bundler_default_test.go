@@ -4454,6 +4454,77 @@ func TestDefineThis(t *testing.T) {
 	})
 }
 
+func TestDefineOptionalChain(t *testing.T) {
+	defines := config.ProcessDefines(map[string]config.DefineData{
+		"a.b.c": {
+			DefineExpr: &config.DefineExpr{
+				Constant: &js_ast.ENumber{Value: 1},
+			},
+		},
+	})
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log([
+					a.b.c,
+					a?.b.c,
+					a.b?.c,
+				], [
+					a['b']['c'],
+					a?.['b']['c'],
+					a['b']?.['c'],
+				], [
+					a[b][c],
+					a?.[b][c],
+					a[b]?.[c],
+				])
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			Defines:       &defines,
+		},
+	})
+}
+
+func TestDefineOptionalChainLowered(t *testing.T) {
+	defines := config.ProcessDefines(map[string]config.DefineData{
+		"a.b.c": {
+			DefineExpr: &config.DefineExpr{
+				Constant: &js_ast.ENumber{Value: 1},
+			},
+		},
+	})
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log([
+					a.b.c,
+					a?.b.c,
+					a.b?.c,
+				], [
+					a['b']['c'],
+					a?.['b']['c'],
+					a['b']?.['c'],
+				], [
+					a[b][c],
+					a?.[b][c],
+					a[b]?.[c],
+				])
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                  config.ModeBundle,
+			AbsOutputFile:         "/out.js",
+			Defines:               &defines,
+			UnsupportedJSFeatures: compat.OptionalChain,
+		},
+	})
+}
+
 func TestKeepNamesTreeShaking(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
