@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.45
 
 * Add a log message for ambiguous re-exports ([#2322](https://github.com/evanw/esbuild/issues/2322))
 
