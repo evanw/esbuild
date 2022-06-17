@@ -4,10 +4,10 @@
 
 * Add a log message for ambiguous re-exports ([#2322](https://github.com/evanw/esbuild/issues/2322))
 
-    In JavaScript, you can re-export symbols from another file using `export * from './another-file'`. When you do this from multiple files that export different symbols with the same name, this creates an ambiguous export which is causes that name to not be exported. This is harmless if you don't plan on using the ambiguous export name, so esbuild doesn't have a warning for this. But if you do want a warning for this (or if you want to make it an error), you can now opt-in to seeing this log message with `--log-override:ambiguous-import=warning` or `--log-override:ambiguous-import=error`. The log message looks like this:
+    In JavaScript, you can re-export symbols from another file using `export * from './another-file'`. When you do this from multiple files that export different symbols with the same name, this creates an ambiguous export which is causes that name to not be exported. This is harmless if you don't plan on using the ambiguous export name, so esbuild doesn't have a warning for this. But if you do want a warning for this (or if you want to make it an error), you can now opt-in to seeing this log message with `--log-override:ambiguous-reexport=warning` or `--log-override:ambiguous-reexport=error`. The log message looks like this:
 
     ```
-    ▲ [WARNING] Re-export of "common" in "example.js" is ambiguous and has been removed [ambiguous-import]
+    ▲ [WARNING] Re-export of "common" in "example.js" is ambiguous and has been removed [ambiguous-reexport]
 
       One definition of "common" comes from "a.js" here:
 
