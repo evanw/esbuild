@@ -77,6 +77,10 @@
 
     Notice how there is no longer an unnecessary generated variable for `foo` since it's never imported. And if you only import the `default` export, esbuild will now reproduce the original JSON object in the output with all top-level properties compactly inline.
 
+* Add `id` to warnings returned from the API
+
+    With this release, warnings returned from esbuild's API now have an `id` property. This identifies which kind of log message it is, which can be used to more easily filter out certain warnings. For example, reassigning a `const` variable will generate a message with an `id` of `"assign-to-constant"`. This also gives you the identifier you need to apply a log override for that kind of message: https://esbuild.github.io/api/#log-override.
+
 ## 0.14.44
 
 * Add a `copy` loader ([#2255](https://github.com/evanw/esbuild/issues/2255))
