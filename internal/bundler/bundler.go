@@ -442,7 +442,7 @@ func parseFile(args parseArgs) {
 						text, suggestion, notes := ResolveFailureErrorTextSuggestionNotes(args.res, record.Path.Text, record.Kind,
 							pluginName, args.fs, absResolveDir, args.options.Platform, source.PrettyPath)
 						debug.LogErrorMsg(args.log, &source, record.Range, text, suggestion, notes)
-					} else if args.log.Level <= logger.LevelDebug && !didLogError && record.Flags.Has(ast.HandlesImportErrors) {
+					} else if !didLogError && record.Flags.Has(ast.HandlesImportErrors) {
 						args.log.AddIDWithNotes(logger.MsgID_Bundler_IgnoredDynamicImport, logger.Debug, &tracker, record.Range,
 							fmt.Sprintf("Importing %q was allowed even though it could not be resolved because dynamic import failures appear to be handled here:",
 								record.Path.Text), []logger.MsgData{tracker.MsgData(js_lexer.RangeOfIdentifier(source, record.ErrorHandlerLoc),
@@ -620,11 +620,12 @@ func extractSourceMapFromComment(
 			log.AddID(logger.MsgID_None, logger.Debug, &tracker, comment.Range, fmt.Sprintf("Failed to read file %q: %s", res.PrettyPath(path), originalError.Error()))
 		}
 		if err != nil {
+			kind := logger.Warning
 			if err == syscall.ENOENT {
 				// Don't report a warning because this is likely unactionable
-				return logger.Path{}, nil
+				kind = logger.Debug
 			}
-			log.AddID(logger.MsgID_SourceMap_MissingSourceMap, logger.Warning, &tracker, comment.Range,
+			log.AddID(logger.MsgID_SourceMap_MissingSourceMap, kind, &tracker, comment.Range,
 				fmt.Sprintf("Cannot read file %q: %s", res.PrettyPath(path), err.Error()))
 			return logger.Path{}, nil
 		}
