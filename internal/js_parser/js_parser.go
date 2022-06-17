@@ -202,6 +202,7 @@ type parser struct {
 	regExpRef                js_ast.Ref
 	runtimePublicFieldImport js_ast.Ref
 	superCtorRef             js_ast.Ref
+	jsxDevRef                js_ast.Ref
 
 	// For lowering private methods
 	weakMapRef js_ast.Ref
@@ -8996,6 +8997,16 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			for _, item := range *s.Items {
 				p.recordDeclaredSymbol(item.Name.Ref)
 			}
+
+			// Recognize code like this: "import { jsxDEV as _jsxDEV } from 'react/jsx-dev-runtime'"
+			if p.importRecords[s.ImportRecordIndex].Path.Text == "react/jsx-dev-runtime" {
+				for _, item := range *s.Items {
+					if item.Alias == "jsxDEV" {
+						p.jsxDevRef = item.Name.Ref
+						break
+					}
+				}
+			}
 		}
 
 	case *js_ast.SExportClause:
@@ -13590,7 +13601,25 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 		// Visit the arguments
 		for i, arg := range e.Args {
-			arg = p.visitExpr(arg)
+			if i == 5 && len(e.Args) == 6 {
+				// Hack: Silence the "this is undefined" warning when running esbuild on
+				// JSX that has been specifically compiled in the style of React 17+:
+				//
+				//   import { jsxDEV as _jsxDEV } from "react/jsx-dev-runtime";
+				//   export var Foo = () => _jsxDEV("div", {}, void 0, false, { fileName: "Foo.tsx", lineNumber: 1, columnNumber: 23 }, this);
+				//
+				oldSilenceWarningAboutThisBeingUndefined := p.fnOnlyDataVisit.silenceWarningAboutThisBeingUndefined
+				if _, ok := arg.Data.(*js_ast.EThis); ok {
+					if id, ok := e.Target.Data.(*js_ast.EImportIdentifier); ok && id.Ref == p.jsxDevRef {
+						p.fnOnlyDataVisit.silenceWarningAboutThisBeingUndefined = true
+					}
+				}
+				arg = p.visitExpr(arg)
+				p.fnOnlyDataVisit.silenceWarningAboutThisBeingUndefined = oldSilenceWarningAboutThisBeingUndefined
+			} else {
+				arg = p.visitExpr(arg)
+			}
+
 			if _, ok := arg.Data.(*js_ast.ESpread); ok {
 				hasSpread = true
 			}
@@ -15179,6 +15208,7 @@ func newParser(log logger.Log, source logger.Source, lexer js_lexer.Lexer, optio
 		importMetaRef:            js_ast.InvalidRef,
 		runtimePublicFieldImport: js_ast.InvalidRef,
 		superCtorRef:             js_ast.InvalidRef,
+		jsxDevRef:                js_ast.InvalidRef,
 
 		// For lowering private methods
 		weakMapRef:     js_ast.InvalidRef,

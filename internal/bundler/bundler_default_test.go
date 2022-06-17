@@ -6493,3 +6493,64 @@ b.js: NOTE: Another definition of "x" comes from "b.js" here:
 `,
 	})
 }
+
+func TestThisIsUndefinedWarningBabelCompiledJSX(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/no1.js": `
+				import { jsxDEV as _jsxDEV } from "react/jsx-dev-runtime";
+				export var Foo = () => _jsxDEV("div", {}, void 0, false, { fileName: "Foo.tsx", lineNumber: 1, columnNumber: 23 }, this);
+			`,
+			"/no2.js": `
+				import { jsxDEV } from "react/jsx-dev-runtime";
+				export var Foo = () => jsxDEV("div", {}, void 0, false, { fileName: "Foo.tsx", lineNumber: 1, columnNumber: 23 }, this);
+			`,
+
+			"/yes1.js": `
+				import { jsxDEV as _jsxDEV } from "react/jsx-runtime";
+				export var Foo = () => _jsxDEV("div", {}, void 0, false, { fileName: "Foo.tsx", lineNumber: 1, columnNumber: 23 }, this);
+			`,
+			"/yes2.js": `
+				import { jsxDEV as _jsxDEV } from "react/jsx-dev-runtime";
+				export var Foo = () => _jsxDEV("div", {}, void 0, false, this, { fileName: "Foo.tsx", lineNumber: 1, columnNumber: 23 });
+			`,
+			"/yes3.js": `
+				import { jsxDEV as _jsxDEV } from "react/jsx-dev-runtime";
+				export var Foo = () => _jsxDEV("div", {}, void 0, false, { fileName: "Foo.tsx", lineNumber: 1, columnNumber: 23 }, this, null);
+			`,
+			"/yes4.js": `
+				import { _jsxDEV } from "react/jsx-dev-runtime";
+				export var Foo = () => _jsxDEV("div", {}, void 0, false, { fileName: "Foo.tsx", lineNumber: 1, columnNumber: 23 }, this);
+			`,
+
+			"/node_modules/react/jsx-runtime.js": `
+				export var jsxDEV
+			`,
+			"/node_modules/react/jsx-dev-runtime.js": `
+				export var jsxDEV, _jsxDEV
+			`,
+		},
+		entryPaths: []string{
+			"/no1.js",
+			"/no2.js",
+
+			"/yes1.js",
+			"/yes2.js",
+			"/yes3.js",
+			"/yes4.js",
+		},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+		expectedScanLog: `yes1.js: WARNING: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+yes1.js: NOTE: This file is considered to be an ECMAScript module because of the "export" keyword here:
+yes2.js: WARNING: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+yes2.js: NOTE: This file is considered to be an ECMAScript module because of the "export" keyword here:
+yes3.js: WARNING: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+yes3.js: NOTE: This file is considered to be an ECMAScript module because of the "export" keyword here:
+yes4.js: WARNING: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+yes4.js: NOTE: This file is considered to be an ECMAScript module because of the "export" keyword here:
+`,
+	})
+}
