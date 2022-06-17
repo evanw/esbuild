@@ -635,6 +635,15 @@ type fnOnlyDataVisit struct {
 	// or a class declaration). That means the top-level module scope "this" value
 	// has been shadowed and is now inaccessible.
 	isThisNested bool
+
+	// Do not warn about "this" being undefined for code that the TypeScript
+	// compiler generates that looks like this:
+	//
+	//   var __rest = (this && this.__rest) || function (s, e) {
+	//     ...
+	//   };
+	//
+	silenceWarningAboutThisBeingUndefined bool
 }
 
 const bloomFilterSize = 251
@@ -11351,7 +11360,7 @@ func (p *parser) valueForThis(
 		// Otherwise, replace top-level "this" with either "undefined" or "exports"
 		if p.isFileConsideredToHaveESMExports {
 			// Warn about "this" becoming undefined, but only once per file
-			if shouldWarn && !p.warnedThisIsUndefined {
+			if shouldWarn && !p.warnedThisIsUndefined && !p.fnOnlyDataVisit.silenceWarningAboutThisBeingUndefined {
 				p.warnedThisIsUndefined = true
 
 				// Show the warning as a debug message if we're in "node_modules"
@@ -12064,6 +12073,10 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		isTemplateTag := e == p.templateTag
 		isStmtExpr := e == p.stmtExprValue
 		wasAnonymousNamedExpr := p.isAnonymousNamedExpr(e.Right)
+		oldSilenceWarningAboutThisBeingUndefined := p.fnOnlyDataVisit.silenceWarningAboutThisBeingUndefined
+		if _, ok := e.Left.Data.(*js_ast.EThis); ok && e.Op == js_ast.BinOpLogicalAnd {
+			p.fnOnlyDataVisit.silenceWarningAboutThisBeingUndefined = true
+		}
 		e.Left, _ = p.visitExprInOut(e.Left, exprIn{
 			assignTarget:               e.Op.BinaryAssignTarget(),
 			shouldMangleStringsAsProps: e.Op == js_ast.BinOpIn,
@@ -12112,6 +12125,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		default:
 			e.Right = p.visitExpr(e.Right)
 		}
+		p.fnOnlyDataVisit.silenceWarningAboutThisBeingUndefined = oldSilenceWarningAboutThisBeingUndefined
 
 		// Always put constants on the right for equality comparisons to help
 		// reduce the number of cases we have to check during pattern matching. We

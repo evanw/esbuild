@@ -833,6 +833,43 @@ export var x;
 })(x || (x = {}));
 
 ================================================================================
+TestTSThisIsUndefinedWarning
+---------- /out/warning1.js ----------
+// warning1.ts
+var foo = void 0;
+export {
+  foo
+};
+
+---------- /out/warning2.js ----------
+// warning2.ts
+var foo = (void 0).foo;
+export {
+  foo
+};
+
+---------- /out/warning3.js ----------
+// warning3.ts
+var foo = void 0 ? (void 0).foo : null;
+export {
+  foo
+};
+
+---------- /out/silent1.js ----------
+// silent1.ts
+var foo = void 0;
+export {
+  foo
+};
+
+---------- /out/silent2.js ----------
+// silent2.ts
+var foo = void 0;
+export {
+  foo
+};
+
+================================================================================
 TestTypeScriptDecoratorScopeIssue2147
 ---------- /out.js ----------
 var _a;
