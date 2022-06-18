@@ -16,7 +16,7 @@ import (
 const SourceIndex = uint32(0)
 
 func CanUseES6(unsupportedFeatures compat.JSFeature) bool {
-	return !unsupportedFeatures.Has(compat.Let) && !unsupportedFeatures.Has(compat.ForOf)
+	return !unsupportedFeatures.Has(compat.ConstAndLet) && !unsupportedFeatures.Has(compat.ForOf)
 }
 
 func code(isES6 bool) string {

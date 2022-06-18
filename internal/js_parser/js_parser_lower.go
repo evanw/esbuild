@@ -71,11 +71,8 @@ func (p *parser) markSyntaxFeature(feature compat.JSFeature, r logger.Range) (di
 	case compat.NewTarget:
 		name = "new.target"
 
-	case compat.Const:
-		name = "const"
-
-	case compat.Let:
-		name = "let"
+	case compat.ConstAndLet:
+		name = p.source.TextForRange(r)
 
 	case compat.Class:
 		name = "class syntax"

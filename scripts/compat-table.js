@@ -31,8 +31,8 @@ const features = {
   'destructuring, assignment': { target: 'Destructuring' },
   'destructuring, parameters': { target: 'Destructuring' },
   'new.target': { target: 'NewTarget' },
-  'const': { target: 'Const' },
-  'let': { target: 'Let' },
+  'const': { target: 'ConstAndLet' },
+  'let': { target: 'ConstAndLet' },
   'arrow functions': { target: 'Arrow' },
   'class': { target: 'Class' },
   'generators': { target: 'Generator' },
@@ -135,13 +135,12 @@ mergeVersions('ObjectAccessors', { es5: true })
 mergeVersions('ArraySpread', { es2015: true })
 mergeVersions('Arrow', { es2015: true })
 mergeVersions('Class', { es2015: true })
-mergeVersions('Const', { es2015: true })
+mergeVersions('ConstAndLet', { es2015: true })
 mergeVersions('DefaultArgument', { es2015: true })
 mergeVersions('Destructuring', { es2015: true })
 mergeVersions('DynamicImport', { es2015: true })
 mergeVersions('ForOf', { es2015: true })
 mergeVersions('Generator', { es2015: true })
-mergeVersions('Let', { es2015: true })
 mergeVersions('NewTarget', { es2015: true })
 mergeVersions('ObjectExtensions', { es2015: true })
 mergeVersions('RegExpStickyAndUnicodeFlags', { es2015: true })

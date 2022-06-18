@@ -60,7 +60,7 @@ const (
 	ClassPrivateStaticMethod
 	ClassStaticBlocks
 	ClassStaticField
-	Const
+	ConstAndLet
 	DefaultArgument
 	Destructuring
 	DynamicImport
@@ -72,7 +72,6 @@ const (
 	Hashbang
 	ImportAssertions
 	ImportMeta
-	Let
 	LogicalAssignment
 	NestedRestBinding
 	NewTarget
@@ -266,7 +265,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Opera:   {{start: v{60, 0, 0}}},
 		Safari:  {{start: v{14, 1, 0}}},
 	},
-	Const: {
+	ConstAndLet: {
 		Chrome:  {{start: v{49, 0, 0}}},
 		Edge:    {{start: v{14, 0, 0}}},
 		ES:      {{start: v{2015, 0, 0}}},
@@ -377,17 +376,6 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Node:    {{start: v{10, 4, 0}}},
 		Opera:   {{start: v{51, 0, 0}}},
 		Safari:  {{start: v{11, 1, 0}}},
-	},
-	Let: {
-		Chrome:  {{start: v{49, 0, 0}}},
-		Edge:    {{start: v{14, 0, 0}}},
-		ES:      {{start: v{2015, 0, 0}}},
-		Firefox: {{start: v{51, 0, 0}}},
-		IE:      {{start: v{11, 0, 0}}},
-		IOS:     {{start: v{11, 0, 0}}},
-		Node:    {{start: v{6, 0, 0}}},
-		Opera:   {{start: v{36, 0, 0}}},
-		Safari:  {{start: v{11, 0, 0}}},
 	},
 	LogicalAssignment: {
 		Chrome:  {{start: v{85, 0, 0}}},

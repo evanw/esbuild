@@ -4299,7 +4299,7 @@ func (p *parser) parseExprOrLetStmt(opts parseStmtOpts) (js_ast.Expr, js_ast.Stm
 			if opts.lexicalDecl != lexicalDeclAllowAll {
 				p.forbidLexicalDecl(letRange.Loc)
 			}
-			p.markSyntaxFeature(compat.Let, letRange)
+			p.markSyntaxFeature(compat.ConstAndLet, letRange)
 			decls := p.parseAndDeclareDecls(js_ast.SymbolOther, opts)
 			return js_ast.Expr{}, js_ast.Stmt{Loc: letRange.Loc, Data: &js_ast.SLocal{
 				Kind:     js_ast.LocalLet,
@@ -6193,7 +6193,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		if opts.lexicalDecl != lexicalDeclAllowAll {
 			p.forbidLexicalDecl(loc)
 		}
-		p.markSyntaxFeature(compat.Const, p.lexer.Range())
+		p.markSyntaxFeature(compat.ConstAndLet, p.lexer.Range())
 		p.lexer.Next()
 
 		if p.options.ts.Parse && p.lexer.Token == js_lexer.TEnum {
@@ -6442,7 +6442,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			initOrNil = js_ast.Stmt{Loc: initLoc, Data: &js_ast.SLocal{Kind: js_ast.LocalVar, Decls: decls}}
 
 		case js_lexer.TConst:
-			p.markSyntaxFeature(compat.Const, p.lexer.Range())
+			p.markSyntaxFeature(compat.ConstAndLet, p.lexer.Range())
 			p.lexer.Next()
 			decls = p.parseAndDeclareDecls(js_ast.SymbolConst, parseStmtOpts{})
 			initOrNil = js_ast.Stmt{Loc: initLoc, Data: &js_ast.SLocal{Kind: js_ast.LocalConst, Decls: decls}}
@@ -7523,7 +7523,7 @@ func (p *parser) visitStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt {
 		// Reuse memory from "before"
 		before = before[:0]
 		kind := js_ast.LocalLet
-		if p.options.unsupportedJSFeatures.Has(compat.Let) {
+		if p.options.unsupportedJSFeatures.Has(compat.ConstAndLet) {
 			kind = js_ast.LocalVar
 		}
 		if len(letDecls) > 0 {
