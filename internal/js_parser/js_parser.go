@@ -1742,7 +1742,7 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 
 	case js_lexer.TBigIntegerLiteral:
 		key = js_ast.Expr{Loc: p.lexer.Loc(), Data: &js_ast.EBigInt{Value: p.lexer.Identifier.String}}
-		p.markSyntaxFeature(compat.BigInt, p.lexer.Range())
+		p.markSyntaxFeature(compat.Bigint, p.lexer.Range())
 		p.lexer.Next()
 
 	case js_lexer.TPrivateIdentifier:
@@ -2212,7 +2212,7 @@ func (p *parser) parsePropertyBinding() js_ast.PropertyBinding {
 
 	case js_lexer.TBigIntegerLiteral:
 		key = js_ast.Expr{Loc: p.lexer.Loc(), Data: &js_ast.EBigInt{Value: p.lexer.Identifier.String}}
-		p.markSyntaxFeature(compat.BigInt, p.lexer.Range())
+		p.markSyntaxFeature(compat.Bigint, p.lexer.Range())
 		p.lexer.Next()
 
 	case js_lexer.TOpenBracket:
@@ -3062,7 +3062,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 
 	case js_lexer.TBigIntegerLiteral:
 		value := p.lexer.Identifier
-		p.markSyntaxFeature(compat.BigInt, p.lexer.Range())
+		p.markSyntaxFeature(compat.Bigint, p.lexer.Range())
 		p.lexer.Next()
 		return js_ast.Expr{Loc: loc, Data: &js_ast.EBigInt{Value: value.String}}
 

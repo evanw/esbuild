@@ -52,7 +52,7 @@ const features = {
   'Asynchronous Iterators: async generators': { target: 'AsyncGenerator' },
   'Asynchronous Iterators: for-await-of loops': { target: 'ForAwait' },
   'optional catch binding': { target: 'OptionalCatchBinding' },
-  'BigInt: basic functionality': { target: 'BigInt' },
+  'BigInt: basic functionality': { target: 'Bigint' },
   'optional chaining operator (?.)': { target: 'OptionalChain' },
   'nullish coalescing operator (??)': { target: 'NullishCoalescing' },
   'Logical Assignment': { target: 'LogicalAssignment' },
@@ -160,7 +160,7 @@ mergeVersions('RegExpLookbehindAssertions', { es2018: true })
 mergeVersions('RegExpNamedCaptureGroups', { es2018: true })
 mergeVersions('RegExpUnicodePropertyEscapes', { es2018: true })
 mergeVersions('OptionalCatchBinding', { es2019: true })
-mergeVersions('BigInt', { es2020: true })
+mergeVersions('Bigint', { es2020: true })
 mergeVersions('ImportMeta', { es2020: true })
 mergeVersions('NullishCoalescing', { es2020: true })
 mergeVersions('OptionalChain', { es2020: true })

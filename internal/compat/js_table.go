@@ -48,7 +48,7 @@ const (
 	Arrow
 	AsyncAwait
 	AsyncGenerator
-	BigInt
+	Bigint
 	Class
 	ClassField
 	ClassPrivateAccessor
@@ -147,7 +147,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Opera:   {{start: v{50, 0, 0}}},
 		Safari:  {{start: v{12, 0, 0}}},
 	},
-	BigInt: {
+	Bigint: {
 		Chrome:  {{start: v{67, 0, 0}}},
 		Edge:    {{start: v{79, 0, 0}}},
 		ES:      {{start: v{2020, 0, 0}}},

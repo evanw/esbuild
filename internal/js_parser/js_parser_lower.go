@@ -107,7 +107,7 @@ func (p *parser) markSyntaxFeature(feature compat.JSFeature, r logger.Range) (di
 			"Using a string as a module namespace identifier name is not supported in %s", where), notes)
 		return
 
-	case compat.BigInt:
+	case compat.Bigint:
 		// Transforming these will never be supported
 		p.log.AddErrorWithNotes(&p.tracker, r, fmt.Sprintf(
 			"Big integer literals are not available in %s", where), notes)
