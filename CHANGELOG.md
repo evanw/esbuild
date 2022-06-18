@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-* Add the ability to override support for individual syntax features ([2290](https://github.com/evanw/esbuild/issues/2290), [#2308](https://github.com/evanw/esbuild/issues/2308), [#2060](https://github.com/evanw/esbuild/issues/2060))
+* Add the ability to override support for individual syntax features ([#2060](https://github.com/evanw/esbuild/issues/2060), [#2290](https://github.com/evanw/esbuild/issues/2290), [#2308](https://github.com/evanw/esbuild/issues/2308))
 
     The `target` setting already lets you configure esbuild to restrict its output by only making use of syntax features that are known to be supported in the configured target environment. For example, setting `target` to `chrome50` causes esbuild to automatically transform optional chain expressions into the equivalent older JavaScript and prevents you from using BigInts, among many other things. However, sometimes you may want to customize this set of unsupported syntax features at the individual feature level.
 
@@ -77,6 +77,8 @@
     * `modern-rgb-hsl`
     * `inset-property`
     * `nesting`
+
+    Since you can now specify `--supported:object-rest-spread=false` yourself to work around the V8 performance issue mentioned above, esbuild will no longer automatically transform all instances of object spread when targeting a V8-based JavaScript runtime going forward.
 
     _Note that JavaScript feature transformation is very complex and allowing full customization of the set of supported syntax features could cause bugs in esbuild due to new interactions between multiple features that were never possible before. Consider this to be an experimental feature._
 
