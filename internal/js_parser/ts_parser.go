@@ -175,6 +175,7 @@ const (
 	tsTypeIdentifierAsserts
 	tsTypeIdentifierPrefix
 	tsTypeIdentifierPrimitive
+	tsTypeIdentifierInfer
 )
 
 // Use a map to improve lookup speed
@@ -185,7 +186,6 @@ var tsTypeIdentifierMap = map[string]tsTypeIdentifierKind{
 
 	"keyof":    tsTypeIdentifierPrefix,
 	"readonly": tsTypeIdentifierPrefix,
-	"infer":    tsTypeIdentifierPrefix,
 
 	"any":       tsTypeIdentifierPrimitive,
 	"never":     tsTypeIdentifierPrimitive,
@@ -197,6 +197,8 @@ var tsTypeIdentifierMap = map[string]tsTypeIdentifierKind{
 	"boolean":   tsTypeIdentifierPrimitive,
 	"bigint":    tsTypeIdentifierPrimitive,
 	"symbol":    tsTypeIdentifierPrimitive,
+
+	"infer": tsTypeIdentifierInfer,
 }
 
 func (p *parser) skipTypeScriptTypeWithOpts(level js_ast.L, opts skipTypeOpts) {
@@ -307,6 +309,20 @@ loop:
 				//
 				if p.lexer.Token != js_lexer.TColon || (!opts.isIndexSignature && !opts.allowTupleLabels) {
 					p.skipTypeScriptType(js_ast.LPrefix)
+				}
+				break loop
+
+			case tsTypeIdentifierInfer:
+				p.lexer.Next()
+
+				// "type Foo = Bar extends [infer T] ? T : null"
+				// "type Foo = Bar extends [infer T extends string] ? T : null"
+				if p.lexer.Token != js_lexer.TColon || (!opts.isIndexSignature && !opts.allowTupleLabels) {
+					p.lexer.Expect(js_lexer.TIdentifier)
+					if p.lexer.Token == js_lexer.TExtends {
+						p.lexer.Next()
+						p.skipTypeScriptType(js_ast.LPrefix)
+					}
 				}
 				break loop
 

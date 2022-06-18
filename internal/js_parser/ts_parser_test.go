@@ -135,7 +135,7 @@ func TestTSTypes(t *testing.T) {
 	expectPrintedTS(t, "let x: [infer: string]", "let x;\n")
 	expectParseErrorTS(t, "let x: A extends B ? keyof : string", "<stdin>: ERROR: Unexpected \":\"\n")
 	expectParseErrorTS(t, "let x: A extends B ? readonly : string", "<stdin>: ERROR: Unexpected \":\"\n")
-	expectParseErrorTS(t, "let x: A extends B ? infer : string", "<stdin>: ERROR: Unexpected \":\"\n")
+	expectParseErrorTS(t, "let x: A extends B ? infer : string", "<stdin>: ERROR: Expected identifier but found \":\"\n")
 	expectParseErrorTS(t, "let x: {[new: string]: number}", "<stdin>: ERROR: Expected \"(\" but found \":\"\n")
 	expectParseErrorTS(t, "let x: {[import: string]: number}", "<stdin>: ERROR: Expected \"(\" but found \":\"\n")
 	expectParseErrorTS(t, "let x: {[typeof: string]: number}", "<stdin>: ERROR: Expected identifier but found \":\"\n")
@@ -177,6 +177,9 @@ func TestTSTypes(t *testing.T) {
 	expectPrintedTS(t, "type Foo = a.b \n & c.d", "")
 	expectPrintedTS(t, "type Foo = \n | a.b \n | c.d", "")
 	expectPrintedTS(t, "type Foo = \n & a.b \n & c.d", "")
+	expectPrintedTS(t, "type Foo = Bar extends [infer T] ? T : null", "")
+	expectPrintedTS(t, "type Foo = Bar extends [infer T extends string] ? T : null", "")
+	expectPrintedTS(t, "let x: A extends B<infer C extends D> ? D : never", "let x;\n")
 
 	expectPrintedTS(t, "let x: A.B<X.Y>", "let x;\n")
 	expectPrintedTS(t, "let x: A.B<X.Y>=2", "let x = 2;\n")

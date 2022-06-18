@@ -82,6 +82,19 @@
 
     _Note that JavaScript feature transformation is very complex and allowing full customization of the set of supported syntax features could cause bugs in esbuild due to new interactions between multiple features that were never possible before. Consider this to be an experimental feature._
 
+* Implement `extends` constraints on `infer` type variables ([#2330](https://github.com/evanw/esbuild/issues/2330))
+
+    TypeScript 4.7 introduced the ability to write an `extends` constraint after an `infer` type variable, which looks like this:
+
+    ```ts
+    type FirstIfString<T> =
+      T extends [infer S extends string, ...unknown[]]
+        ? S
+        : never;
+    ```
+
+    You can read the blog post for more details: https://devblogs.microsoft.com/typescript/announcing-typescript-4-7/#extends-constraints-on-infer-type-variables. Previously this was a syntax error in esbuild but with this release, esbuild can now parse this syntax correctly.
+
 * Allow `define` to match optional chain expressions ([#2324](https://github.com/evanw/esbuild/issues/2324))
 
     Previously esbuild's `define` feature only matched member expressions that did not use optional chaining. With this release, esbuild will now also match those that use optional chaining:
