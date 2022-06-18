@@ -341,7 +341,15 @@ function jsFeatureString(feature) {
   return feature.replace(/([A-Z])/g, '-$1').slice(1).toLowerCase()
 }
 
-function writeInnerMap(obj) {
+function simpleMap(entries) {
+  let maxLength = 0
+  for (const [key] of entries) {
+    maxLength = Math.max(maxLength, key.length + 1)
+  }
+  return entries.map(([key, value]) => `\t${(key + ':').padEnd(maxLength)} ${value},`).join('\n')
+}
+
+function jsTableMap(obj) {
   const keys = Object.keys(obj).sort()
   const maxLength = keys.reduce((a, b) => Math.max(a, b.length + 1), 0)
   if (keys.length === 0) return '{}'
@@ -379,11 +387,11 @@ ${Object.keys(versions).sort().map((x, i) => `\t${x}${i ? '' : ' JSFeature = 1 <
 )
 
 var StringToJSFeature = map[string]JSFeature{
-${Object.keys(versions).sort().map(x => `\t"${jsFeatureString(x)}": ${x},`).join('\n')}
+${simpleMap(Object.keys(versions).sort().map(x => [`"${jsFeatureString(x)}"`, x]))}
 }
 
 var JSFeatureToString = map[JSFeature]string{
-${Object.keys(versions).sort().map(x => `\t${x}: "${jsFeatureString(x)}",`).join('\n')}
+${simpleMap(Object.keys(versions).sort().map(x => [x, `"${jsFeatureString(x)}"`]))}
 }
 
 func (features JSFeature) Has(feature JSFeature) bool {
@@ -395,7 +403,7 @@ func (features JSFeature) ApplyOverrides(overrides JSFeature, mask JSFeature) JS
 }
 
 var jsTable = map[JSFeature]map[Engine][]versionRange{
-${Object.keys(versions).sort().map(x => `\t${x}: ${writeInnerMap(versions[x])},`).join('\n')}
+${Object.keys(versions).sort().map(x => `\t${x}: ${jsTableMap(versions[x])},`).join('\n')}
 }
 
 // Return all features that are not available in at least one environment
