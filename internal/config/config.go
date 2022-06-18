@@ -255,6 +255,11 @@ type Options struct {
 	UnsupportedJSFeatures  compat.JSFeature
 	UnsupportedCSSFeatures compat.CSSFeature
 
+	UnsupportedJSFeatureOverrides      compat.JSFeature
+	UnsupportedJSFeatureOverridesMask  compat.JSFeature
+	UnsupportedCSSFeatureOverrides     compat.CSSFeature
+	UnsupportedCSSFeatureOverridesMask compat.CSSFeature
+
 	TS                TSOptions
 	Mode              Mode
 	PreserveSymlinks  bool

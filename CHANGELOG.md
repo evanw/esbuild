@@ -2,6 +2,84 @@
 
 ## Unreleased
 
+* Add the ability to override support for individual syntax features ([2290](https://github.com/evanw/esbuild/issues/2290), [#2308](https://github.com/evanw/esbuild/issues/2308), [#2060](https://github.com/evanw/esbuild/issues/2060))
+
+    The `target` setting already lets you configure esbuild to restrict its output by only making use of syntax features that are known to be supported in the configured target environment. For example, setting `target` to `chrome50` causes esbuild to automatically transform optional chain expressions into the equivalent older JavaScript and prevents you from using BigInts, among many other things. However, sometimes you may want to customize this set of unsupported syntax features at the individual feature level.
+
+    Some examples of why you might want to do this:
+
+    * JavaScript runtimes often do a quick implementation of newer syntax features that is slower than the equivalent older JavaScript, and you can get a speedup by telling esbuild to pretend this syntax feature isn't supported. For example, V8 has a [long-standing performance bug regarding object spread](https://bugs.chromium.org/p/v8/issues/detail?id=11536) that can be avoided by manually copying properties instead of using object spread syntax. Right now esbuild hard-codes this optimization if you set `target` to a V8-based runtime.
+
+    * There are many less-used JavaScript runtimes in addition to the ones present in browsers, and these runtimes sometimes just decide not to implement parts of the specification, which might make sense for runtimes intended for embedded environments. For example, the developers behind Facebook's JavaScript runtime [Hermes](https://hermesengine.dev/) have decided to not implement classes despite it being a major JavaScript feature that was added seven years ago and that is used in virtually every large JavaScript project.
+
+    * You may be processing esbuild's output with another tool, and you may want esbuild to transform certain features and the other tool to transform certain other features. For example, if you are using esbuild to transform files individually to ES5 but you are then feeding the output into Webpack for bundling, you may want to preserve `import()` expressions even though they are a syntax error in ES5.
+
+    With this release, you can now use `--supported:feature=false` to force `feature` to be unsupported. This will cause esbuild to either rewrite code that uses the feature into older code that doesn't use the feature (if esbuild is able to), or to emit a build error (if esbuild is unable to). For example, you can use `--supported:arrow=false` to turn arrow functions into function expressions and `--supported:bigint=false` to make it an error to use a BigInt literal. You can also use `--supported:feature=true` to force it to be supported, which means esbuild will pass it through without transforming it. Keep in mind that this is an advanced feature. For most use cases you will probably want to just use `target` instead of using this.
+
+    The full set of currently-allowed features are as follows:
+
+    **JavaScript:**
+    * `arbitrary-module-namespace-names`
+    * `array-spread`
+    * `arrow`
+    * `async-await`
+    * `async-generator`
+    * `bigint`
+    * `class`
+    * `class-field`
+    * `class-private-accessor`
+    * `class-private-brand-check`
+    * `class-private-field`
+    * `class-private-method`
+    * `class-private-static-accessor`
+    * `class-private-static-field`
+    * `class-private-static-method`
+    * `class-static-blocks`
+    * `class-static-field`
+    * `const-and-let`
+    * `default-argument`
+    * `destructuring`
+    * `dynamic-import`
+    * `exponent-operator`
+    * `export-star-as`
+    * `for-await`
+    * `for-of`
+    * `generator`
+    * `hashbang`
+    * `import-assertions`
+    * `import-meta`
+    * `logical-assignment`
+    * `nested-rest-binding`
+    * `new-target`
+    * `node-colon-prefix-import`
+    * `node-colon-prefix-require`
+    * `nullish-coalescing`
+    * `object-accessors`
+    * `object-extensions`
+    * `object-rest-spread`
+    * `optional-catch-binding`
+    * `optional-chain`
+    * `reg-exp-dot-all-flag`
+    * `reg-exp-lookbehind-assertions`
+    * `reg-exp-match-indices`
+    * `reg-exp-named-capture-groups`
+    * `reg-exp-sticky-and-unicode-flags`
+    * `reg-exp-unicode-property-escapes`
+    * `rest-argument`
+    * `template-literal`
+    * `top-level-await`
+    * `typeof-exotic-object-is-object`
+    * `unicode-escapes`
+
+    **CSS:**
+    * `hex-rgba`
+    * `rebecca-purple`
+    * `modern-rgb-hsl`
+    * `inset-property`
+    * `nesting`
+
+    _Note that JavaScript feature transformation is very complex and allowing full customization of the set of supported syntax features could cause bugs in esbuild due to new interactions between multiple features that were never possible before. Consider this to be an experimental feature._
+
 * Allow `define` to match optional chain expressions ([#2324](https://github.com/evanw/esbuild/issues/2324))
 
     Previously esbuild's `define` feature only matched member expressions that did not use optional chaining. With this release, esbuild will now also match those that use optional chaining:

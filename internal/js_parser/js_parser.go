@@ -379,9 +379,11 @@ type Options struct {
 }
 
 type optionsThatSupportStructuralEquality struct {
-	originalTargetEnv     string
-	moduleTypeData        js_ast.ModuleTypeData
-	unsupportedJSFeatures compat.JSFeature
+	originalTargetEnv                 string
+	moduleTypeData                    js_ast.ModuleTypeData
+	unsupportedJSFeatures             compat.JSFeature
+	unsupportedJSFeatureOverrides     compat.JSFeature
+	unsupportedJSFeatureOverridesMask compat.JSFeature
 
 	// Byte-sized values go here (gathered together here to keep this object compact)
 	ts                      config.TSOptions
@@ -413,25 +415,27 @@ func OptionsFromConfig(options *config.Options) Options {
 		reserveProps:   options.ReserveProps,
 
 		optionsThatSupportStructuralEquality: optionsThatSupportStructuralEquality{
-			unsupportedJSFeatures:   options.UnsupportedJSFeatures,
-			originalTargetEnv:       options.OriginalTargetEnv,
-			ts:                      options.TS,
-			mode:                    options.Mode,
-			platform:                options.Platform,
-			outputFormat:            options.OutputFormat,
-			moduleTypeData:          options.ModuleTypeData,
-			targetFromAPI:           options.TargetFromAPI,
-			asciiOnly:               options.ASCIIOnly,
-			keepNames:               options.KeepNames,
-			minifySyntax:            options.MinifySyntax,
-			minifyIdentifiers:       options.MinifyIdentifiers,
-			omitRuntimeForTests:     options.OmitRuntimeForTests,
-			ignoreDCEAnnotations:    options.IgnoreDCEAnnotations,
-			treeShaking:             options.TreeShaking,
-			dropDebugger:            options.DropDebugger,
-			mangleQuoted:            options.MangleQuoted,
-			unusedImportFlagsTS:     options.UnusedImportFlagsTS,
-			useDefineForClassFields: options.UseDefineForClassFields,
+			unsupportedJSFeatures:             options.UnsupportedJSFeatures,
+			unsupportedJSFeatureOverrides:     options.UnsupportedJSFeatureOverrides,
+			unsupportedJSFeatureOverridesMask: options.UnsupportedJSFeatureOverridesMask,
+			originalTargetEnv:                 options.OriginalTargetEnv,
+			ts:                                options.TS,
+			mode:                              options.Mode,
+			platform:                          options.Platform,
+			outputFormat:                      options.OutputFormat,
+			moduleTypeData:                    options.ModuleTypeData,
+			targetFromAPI:                     options.TargetFromAPI,
+			asciiOnly:                         options.ASCIIOnly,
+			keepNames:                         options.KeepNames,
+			minifySyntax:                      options.MinifySyntax,
+			minifyIdentifiers:                 options.MinifyIdentifiers,
+			omitRuntimeForTests:               options.OmitRuntimeForTests,
+			ignoreDCEAnnotations:              options.IgnoreDCEAnnotations,
+			treeShaking:                       options.TreeShaking,
+			dropDebugger:                      options.DropDebugger,
+			mangleQuoted:                      options.MangleQuoted,
+			unusedImportFlagsTS:               options.UnusedImportFlagsTS,
+			useDefineForClassFields:           options.UseDefineForClassFields,
 		},
 	}
 }
@@ -15289,6 +15293,11 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 	// TypeScript "target" setting is ignored.
 	if options.targetFromAPI == config.TargetWasUnconfigured && options.tsTarget != nil {
 		options.unsupportedJSFeatures |= options.tsTarget.UnsupportedJSFeatures
+
+		// Re-apply overrides to make sure they always win
+		options.unsupportedJSFeatures = options.unsupportedJSFeatures.ApplyOverrides(
+			options.unsupportedJSFeatureOverrides,
+			options.unsupportedJSFeatureOverridesMask)
 	}
 
 	p := newParser(log, source, js_lexer.NewLexer(log, source, options.ts), &options)

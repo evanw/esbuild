@@ -344,6 +344,10 @@ function upper(text) {
   return text[0].toUpperCase() + text.slice(1)
 }
 
+function jsFeatureString(feature) {
+  return feature.replace(/([A-Z])/g, '-$1').slice(1).toLowerCase()
+}
+
 function writeInnerMap(obj) {
   const keys = Object.keys(obj).sort()
   const maxLength = keys.reduce((a, b) => Math.max(a, b.length + 1), 0)
@@ -381,8 +385,20 @@ const (
 ${Object.keys(versions).sort().map((x, i) => `\t${x}${i ? '' : ' JSFeature = 1 << iota'}`).join('\n')}
 )
 
+var StringToJSFeature = map[string]JSFeature{
+${Object.keys(versions).sort().map(x => `\t"${jsFeatureString(x)}": ${x},`).join('\n')}
+}
+
+var JSFeatureToString = map[JSFeature]string{
+${Object.keys(versions).sort().map(x => `\t${x}: "${jsFeatureString(x)}",`).join('\n')}
+}
+
 func (features JSFeature) Has(feature JSFeature) bool {
 \treturn (features & feature) != 0
+}
+
+func (features JSFeature) ApplyOverrides(overrides JSFeature, mask JSFeature) JSFeature {
+\treturn (features & ^mask) | (overrides & mask)
 }
 
 var jsTable = map[JSFeature]map[Engine][]versionRange{

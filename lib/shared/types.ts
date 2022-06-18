@@ -21,6 +21,8 @@ interface CommonOptions {
   globalName?: string;
   /** Documentation: https://esbuild.github.io/api/#target */
   target?: string | string[];
+  /** Documentation: https://esbuild.github.io/api/#supported */
+  supported?: Record<string, boolean>;
 
   /** Documentation: https://esbuild.github.io/api/#mangle-props */
   mangleProps?: RegExp;

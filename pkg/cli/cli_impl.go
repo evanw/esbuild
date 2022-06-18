@@ -23,6 +23,7 @@ func newBuildOptions() api.BuildOptions {
 		Footer:      make(map[string]string),
 		Loader:      make(map[string]api.Loader),
 		LogOverride: make(map[string]api.LogLevel),
+		Supported:   make(map[string]bool),
 	}
 }
 
@@ -30,6 +31,7 @@ func newTransformOptions() api.TransformOptions {
 	return api.TransformOptions{
 		Define:      make(map[string]string),
 		LogOverride: make(map[string]api.LogLevel),
+		Supported:   make(map[string]bool),
 	}
 }
 
@@ -457,6 +459,24 @@ func parseOptionsImpl(
 				transformOpts.LogOverride[value[:equals]] = logLevel
 			}
 
+		case strings.HasPrefix(arg, "--supported:"):
+			value := arg[len("--supported:"):]
+			equals := strings.IndexByte(value, '=')
+			if equals == -1 {
+				return parseOptionsExtras{}, cli_helpers.MakeErrorWithNote(
+					fmt.Sprintf("Missing \"=\" in %q", arg),
+					"You need to use \"=\" to specify both the name of the feature and whether it is supported or not. "+
+						"For example, \"--supported:arrow=false\" marks arrow functions as unsupported.",
+				)
+			}
+			if isSupported, err := parseBoolFlag(arg, true); err != nil {
+				return parseOptionsExtras{}, err
+			} else if buildOpts != nil {
+				buildOpts.Supported[value[:equals]] = isSupported
+			} else {
+				transformOpts.Supported[value[:equals]] = isSupported
+			}
+
 		case strings.HasPrefix(arg, "--pure:"):
 			value := arg[len("--pure:"):]
 			if buildOpts != nil {
@@ -787,6 +807,7 @@ func parseOptionsImpl(
 				"log-override":  true,
 				"out-extension": true,
 				"pure":          true,
+				"supported":     true,
 			}
 
 			note := ""

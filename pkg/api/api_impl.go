@@ -375,6 +375,30 @@ func validateFeatures(log logger.Log, target Target, engines []Engine) (config.T
 	return targetFromAPI, compat.UnsupportedJSFeatures(constraints), compat.UnsupportedCSSFeatures(constraints), targetEnv
 }
 
+func validateSupported(log logger.Log, supported map[string]bool) (
+	jsFeature compat.JSFeature,
+	jsMask compat.JSFeature,
+	cssFeature compat.CSSFeature,
+	cssMask compat.CSSFeature,
+) {
+	for k, v := range supported {
+		if js, ok := compat.StringToJSFeature[k]; ok {
+			jsMask |= js
+			if !v {
+				jsFeature |= js
+			}
+		} else if css, ok := compat.StringToCSSFeature[k]; ok {
+			cssMask |= css
+			if !v {
+				cssFeature |= css
+			}
+		} else {
+			log.AddError(nil, logger.Range{}, fmt.Sprintf("%q is not a valid feature name for the \"supported\" setting", k))
+		}
+	}
+	return
+}
+
 func validateGlobalName(log logger.Log, text string) []string {
 	if text != "" {
 		source := logger.Source{
@@ -872,6 +896,7 @@ func rebuildImpl(
 		panic(err.Error())
 	}
 	targetFromAPI, jsFeatures, cssFeatures, targetEnv := validateFeatures(log, buildOpts.Target, buildOpts.Engines)
+	jsOverrides, jsMask, cssOverrides, cssMask := validateSupported(log, buildOpts.Supported)
 	outJS, outCSS := validateOutputExtensions(log, buildOpts.OutExtensions)
 	bannerJS, bannerCSS := validateBannerOrFooter(log, "banner", buildOpts.Banner)
 	footerJS, footerCSS := validateBannerOrFooter(log, "footer", buildOpts.Footer)
@@ -879,10 +904,14 @@ func rebuildImpl(
 	defines, injectedDefines := validateDefines(log, buildOpts.Define, buildOpts.Pure, buildOpts.Platform, minify, buildOpts.Drop)
 	mangleCache := cloneMangleCache(log, buildOpts.MangleCache)
 	options := config.Options{
-		TargetFromAPI:          targetFromAPI,
-		UnsupportedJSFeatures:  jsFeatures,
-		UnsupportedCSSFeatures: cssFeatures,
-		OriginalTargetEnv:      targetEnv,
+		TargetFromAPI:                      targetFromAPI,
+		UnsupportedJSFeatures:              jsFeatures.ApplyOverrides(jsOverrides, jsMask),
+		UnsupportedCSSFeatures:             cssFeatures.ApplyOverrides(cssOverrides, cssMask),
+		UnsupportedJSFeatureOverrides:      jsOverrides,
+		UnsupportedJSFeatureOverridesMask:  jsMask,
+		UnsupportedCSSFeatureOverrides:     cssOverrides,
+		UnsupportedCSSFeatureOverridesMask: cssMask,
+		OriginalTargetEnv:                  targetEnv,
 		JSX: config.JSXOptions{
 			Preserve: buildOpts.JSXMode == JSXModePreserve,
 			Factory:  validateJSXExpr(log, buildOpts.JSXFactory, "factory"),
@@ -1387,38 +1416,43 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 
 	// Convert and validate the transformOpts
 	targetFromAPI, jsFeatures, cssFeatures, targetEnv := validateFeatures(log, transformOpts.Target, transformOpts.Engines)
+	jsOverrides, jsMask, cssOverrides, cssMask := validateSupported(log, transformOpts.Supported)
 	defines, injectedDefines := validateDefines(log, transformOpts.Define, transformOpts.Pure, PlatformNeutral, false /* minify */, transformOpts.Drop)
 	mangleCache := cloneMangleCache(log, transformOpts.MangleCache)
 	options := config.Options{
-		TargetFromAPI:           targetFromAPI,
-		UnsupportedJSFeatures:   jsFeatures,
-		UnsupportedCSSFeatures:  cssFeatures,
-		OriginalTargetEnv:       targetEnv,
-		TSTarget:                tsTarget,
-		TSAlwaysStrict:          tsAlwaysStrict,
-		JSX:                     jsx,
-		Defines:                 defines,
-		InjectedDefines:         injectedDefines,
-		SourceMap:               validateSourceMap(transformOpts.Sourcemap),
-		LegalComments:           validateLegalComments(transformOpts.LegalComments, false /* bundle */),
-		SourceRoot:              transformOpts.SourceRoot,
-		ExcludeSourcesContent:   transformOpts.SourcesContent == SourcesContentExclude,
-		OutputFormat:            validateFormat(transformOpts.Format),
-		GlobalName:              validateGlobalName(log, transformOpts.GlobalName),
-		MinifySyntax:            transformOpts.MinifySyntax,
-		MinifyWhitespace:        transformOpts.MinifyWhitespace,
-		MinifyIdentifiers:       transformOpts.MinifyIdentifiers,
-		MangleProps:             validateRegex(log, "mangle props", transformOpts.MangleProps),
-		ReserveProps:            validateRegex(log, "reserve props", transformOpts.ReserveProps),
-		MangleQuoted:            transformOpts.MangleQuoted == MangleQuotedTrue,
-		DropDebugger:            (transformOpts.Drop & DropDebugger) != 0,
-		ASCIIOnly:               validateASCIIOnly(transformOpts.Charset),
-		IgnoreDCEAnnotations:    transformOpts.IgnoreAnnotations,
-		TreeShaking:             validateTreeShaking(transformOpts.TreeShaking, false /* bundle */, transformOpts.Format),
-		AbsOutputFile:           transformOpts.Sourcefile + "-out",
-		KeepNames:               transformOpts.KeepNames,
-		UseDefineForClassFields: useDefineForClassFieldsTS,
-		UnusedImportFlagsTS:     unusedImportFlagsTS,
+		TargetFromAPI:                      targetFromAPI,
+		UnsupportedJSFeatures:              jsFeatures.ApplyOverrides(jsOverrides, jsMask),
+		UnsupportedCSSFeatures:             cssFeatures.ApplyOverrides(cssOverrides, cssMask),
+		UnsupportedJSFeatureOverrides:      jsOverrides,
+		UnsupportedJSFeatureOverridesMask:  jsMask,
+		UnsupportedCSSFeatureOverrides:     cssOverrides,
+		UnsupportedCSSFeatureOverridesMask: cssMask,
+		OriginalTargetEnv:                  targetEnv,
+		TSTarget:                           tsTarget,
+		TSAlwaysStrict:                     tsAlwaysStrict,
+		JSX:                                jsx,
+		Defines:                            defines,
+		InjectedDefines:                    injectedDefines,
+		SourceMap:                          validateSourceMap(transformOpts.Sourcemap),
+		LegalComments:                      validateLegalComments(transformOpts.LegalComments, false /* bundle */),
+		SourceRoot:                         transformOpts.SourceRoot,
+		ExcludeSourcesContent:              transformOpts.SourcesContent == SourcesContentExclude,
+		OutputFormat:                       validateFormat(transformOpts.Format),
+		GlobalName:                         validateGlobalName(log, transformOpts.GlobalName),
+		MinifySyntax:                       transformOpts.MinifySyntax,
+		MinifyWhitespace:                   transformOpts.MinifyWhitespace,
+		MinifyIdentifiers:                  transformOpts.MinifyIdentifiers,
+		MangleProps:                        validateRegex(log, "mangle props", transformOpts.MangleProps),
+		ReserveProps:                       validateRegex(log, "reserve props", transformOpts.ReserveProps),
+		MangleQuoted:                       transformOpts.MangleQuoted == MangleQuotedTrue,
+		DropDebugger:                       (transformOpts.Drop & DropDebugger) != 0,
+		ASCIIOnly:                          validateASCIIOnly(transformOpts.Charset),
+		IgnoreDCEAnnotations:               transformOpts.IgnoreAnnotations,
+		TreeShaking:                        validateTreeShaking(transformOpts.TreeShaking, false /* bundle */, transformOpts.Format),
+		AbsOutputFile:                      transformOpts.Sourcefile + "-out",
+		KeepNames:                          transformOpts.KeepNames,
+		UseDefineForClassFields:            useDefineForClassFieldsTS,
+		UnusedImportFlagsTS:                unusedImportFlagsTS,
 		Stdin: &config.StdinInfo{
 			Loader:     validateLoader(transformOpts.Loader),
 			Contents:   input,

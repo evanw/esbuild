@@ -4379,9 +4379,46 @@ let transformTests = {
     }
   },
 
+  async supported({ esbuild }) {
+    const check = async (options, input, expected) => {
+      try {
+        assert.strictEqual((await esbuild.transform(input, options)).code, expected)
+      } catch (e) {
+        if (e.errors) assert.strictEqual(e.errors[0].text, expected)
+        else throw e
+      }
+    }
+
+    await Promise.all([
+      // JS: lower
+      check({ supported: { arrow: true } }, `x = () => y`, `x = () => y;\n`),
+      check({ supported: { arrow: false } }, `x = () => y`, `x = function() {\n  return y;\n};\n`),
+      check({ supported: { arrow: true }, target: 'es5' }, `x = () => y`, `x = () => y;\n`),
+      check({ supported: { arrow: false }, target: 'es5' }, `x = () => y`, `x = function() {\n  return y;\n};\n`),
+      check({ supported: { arrow: true }, target: 'es2022' }, `x = () => y`, `x = () => y;\n`),
+      check({ supported: { arrow: false }, target: 'es2022' }, `x = () => y`, `x = function() {\n  return y;\n};\n`),
+
+      // JS: error
+      check({ supported: { bigint: true } }, `x = 1n`, `x = 1n;\n`),
+      check({ supported: { bigint: false } }, `x = 1n`, `Big integer literals are not available in the configured target environment`),
+      check({ supported: { bigint: true }, target: 'es5' }, `x = 1n`, `x = 1n;\n`),
+      check({ supported: { bigint: false }, target: 'es5' }, `x = 1n`, `Big integer literals are not available in the configured target environment ("es5" + 1 override)`),
+      check({ supported: { bigint: true }, target: 'es2022' }, `x = 1n`, `x = 1n;\n`),
+      check({ supported: { bigint: false }, target: 'es2022' }, `x = 1n`, `Big integer literals are not available in the configured target environment ("es2022" + 1 override)`),
+
+      // CSS: lower
+      check({ supported: { 'hex-rgba': true }, loader: 'css' }, `a { color: #1234 }`, `a {\n  color: #1234;\n}\n`),
+      check({ supported: { 'hex-rgba': false }, loader: 'css' }, `a { color: #1234 }`, `a {\n  color: rgba(17, 34, 51, 0.267);\n}\n`),
+
+      // Check for "+ 2 overrides"
+      check({ supported: { bigint: false, arrow: true }, target: 'es2022' }, `x = 1n`, `Big integer literals are not available in the configured target environment ("es2022" + 2 overrides)`),
+    ])
+  },
+
   async regExpFeatures({ esbuild }) {
     const check = async (target, input, expected) =>
       assert.strictEqual((await esbuild.transform(input, { target })).code, expected)
+
     await Promise.all([
       // RegExpStickyAndUnicodeFlags
       check('es6', `x1 = /./y`, `x1 = /./y;\n`),

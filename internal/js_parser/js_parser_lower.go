@@ -16,15 +16,31 @@ import (
 
 func (p *parser) prettyPrintTargetEnvironment(feature compat.JSFeature) (where string, notes []logger.MsgData) {
 	where = "the configured target environment"
+	overrides := ""
+	if p.options.unsupportedJSFeatureOverridesMask != 0 {
+		count := 0
+		mask := p.options.unsupportedJSFeatureOverridesMask
+		for mask != 0 {
+			if (mask & 1) != 0 {
+				count++
+			}
+			mask >>= 1
+		}
+		s := "s"
+		if count == 1 {
+			s = ""
+		}
+		overrides = fmt.Sprintf(" + %d override%s", count, s)
+	}
 	if tsTarget := p.options.tsTarget; tsTarget != nil &&
 		p.options.targetFromAPI == config.TargetWasUnconfigured &&
 		tsTarget.UnsupportedJSFeatures.Has(feature) {
 		tracker := logger.MakeLineColumnTracker(&tsTarget.Source)
-		where = fmt.Sprintf("%s (%q)", where, tsTarget.Target)
+		where = fmt.Sprintf("%s (%q%s)", where, tsTarget.Target, overrides)
 		notes = []logger.MsgData{tracker.MsgData(tsTarget.Range, fmt.Sprintf(
 			"The target environment was set to %q here:", tsTarget.Target))}
 	} else if p.options.originalTargetEnv != "" {
-		where = fmt.Sprintf("%s (%s)", where, p.options.originalTargetEnv)
+		where = fmt.Sprintf("%s (%s%s)", where, p.options.originalTargetEnv, overrides)
 	}
 	return
 }
