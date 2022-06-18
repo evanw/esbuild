@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.46
 
 * Add the ability to override support for individual syntax features ([#2060](https://github.com/evanw/esbuild/issues/2060), [#2290](https://github.com/evanw/esbuild/issues/2290), [#2308](https://github.com/evanw/esbuild/issues/2308))
 
