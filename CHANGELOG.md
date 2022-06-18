@@ -59,12 +59,12 @@
     * `object-rest-spread`
     * `optional-catch-binding`
     * `optional-chain`
-    * `reg-exp-dot-all-flag`
-    * `reg-exp-lookbehind-assertions`
-    * `reg-exp-match-indices`
-    * `reg-exp-named-capture-groups`
-    * `reg-exp-sticky-and-unicode-flags`
-    * `reg-exp-unicode-property-escapes`
+    * `regexp-dot-all-flag`
+    * `regexp-lookbehind-assertions`
+    * `regexp-match-indices`
+    * `regexp-named-capture-groups`
+    * `regexp-sticky-and-unicode-flags`
+    * `regexp-unicode-property-escapes`
     * `rest-argument`
     * `template-literal`
     * `top-level-await`

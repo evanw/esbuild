@@ -37,7 +37,7 @@ const features = {
   'class': { target: 'Class' },
   'generators': { target: 'Generator' },
   'Unicode code point escapes': { target: 'UnicodeEscapes' },
-  'RegExp "y" and "u" flags': { target: 'RegExpStickyAndUnicodeFlags' },
+  'RegExp "y" and "u" flags': { target: 'RegexpStickyAndUnicodeFlags' },
 
   // >ES6 features
   'exponentiation (**) operator': { target: 'ExponentOperator' },
@@ -45,10 +45,10 @@ const features = {
   'nested rest destructuring, parameters': { target: 'NestedRestBinding' },
   'async functions': { target: 'AsyncAwait' },
   'object rest/spread properties': { target: 'ObjectRestSpread' },
-  'RegExp Lookbehind Assertions': { target: 'RegExpLookbehindAssertions' },
-  'RegExp named capture groups': { target: 'RegExpNamedCaptureGroups' },
-  'RegExp Unicode Property Escapes': { target: 'RegExpUnicodePropertyEscapes' },
-  's (dotAll) flag for regular expressions': { target: 'RegExpDotAllFlag' },
+  'RegExp Lookbehind Assertions': { target: 'RegexpLookbehindAssertions' },
+  'RegExp named capture groups': { target: 'RegexpNamedCaptureGroups' },
+  'RegExp Unicode Property Escapes': { target: 'RegexpUnicodePropertyEscapes' },
+  's (dotAll) flag for regular expressions': { target: 'RegexpDotAllFlag' },
   'Asynchronous Iterators: async generators': { target: 'AsyncGenerator' },
   'Asynchronous Iterators: for-await-of loops': { target: 'ForAwait' },
   'optional catch binding': { target: 'OptionalCatchBinding' },
@@ -143,7 +143,7 @@ mergeVersions('ForOf', { es2015: true })
 mergeVersions('Generator', { es2015: true })
 mergeVersions('NewTarget', { es2015: true })
 mergeVersions('ObjectExtensions', { es2015: true })
-mergeVersions('RegExpStickyAndUnicodeFlags', { es2015: true })
+mergeVersions('RegexpStickyAndUnicodeFlags', { es2015: true })
 mergeVersions('RestArgument', { es2015: true })
 mergeVersions('TemplateLiteral', { es2015: true })
 mergeVersions('UnicodeEscapes', { es2015: true })
@@ -155,10 +155,10 @@ mergeVersions('AsyncAwait', { es2017: true })
 mergeVersions('AsyncGenerator', { es2018: true })
 mergeVersions('ForAwait', { es2018: true })
 mergeVersions('ObjectRestSpread', { es2018: true })
-mergeVersions('RegExpDotAllFlag', { es2018: true })
-mergeVersions('RegExpLookbehindAssertions', { es2018: true })
-mergeVersions('RegExpNamedCaptureGroups', { es2018: true })
-mergeVersions('RegExpUnicodePropertyEscapes', { es2018: true })
+mergeVersions('RegexpDotAllFlag', { es2018: true })
+mergeVersions('RegexpLookbehindAssertions', { es2018: true })
+mergeVersions('RegexpNamedCaptureGroups', { es2018: true })
+mergeVersions('RegexpUnicodePropertyEscapes', { es2018: true })
 mergeVersions('OptionalCatchBinding', { es2019: true })
 mergeVersions('Bigint', { es2020: true })
 mergeVersions('ImportMeta', { es2020: true })
@@ -178,7 +178,7 @@ mergeVersions('ClassStaticBlocks', { es2022: true })
 mergeVersions('ClassStaticField', { es2022: true })
 mergeVersions('TopLevelAwait', { es2022: true })
 mergeVersions('ArbitraryModuleNamespaceNames', { es2022: true })
-mergeVersions('RegExpMatchIndices', { es2022: true })
+mergeVersions('RegexpMatchIndices', { es2022: true })
 mergeVersions('ImportAssertions', {})
 
 // Manually copied from https://caniuse.com/?search=export%20*%20as
@@ -295,7 +295,7 @@ mergeVersions('ClassStaticBlocks', {
 })
 
 // Manually copied from https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/RegExp/hasIndices
-mergeVersions('RegExpMatchIndices', {
+mergeVersions('RegexpMatchIndices', {
   chrome90: true,
   edge90: true,
   firefox88: true,

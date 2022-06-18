@@ -11633,17 +11633,17 @@ pattern:
 			tail := pattern[i:]
 
 			if strings.HasPrefix(tail, "?<=") || strings.HasPrefix(tail, "?<!") {
-				if p.options.unsupportedJSFeatures.Has(compat.RegExpLookbehindAssertions) {
-					feature = compat.RegExpLookbehindAssertions
+				if p.options.unsupportedJSFeatures.Has(compat.RegexpLookbehindAssertions) {
+					feature = compat.RegexpLookbehindAssertions
 					what = "Lookbehind assertions in regular expressions are not available"
 					r = logger.Range{Loc: logger.Loc{Start: loc.Start + int32(i) + 1}, Len: 3}
 					isUnsupported = true
 					break pattern
 				}
 			} else if strings.HasPrefix(tail, "?<") {
-				if p.options.unsupportedJSFeatures.Has(compat.RegExpNamedCaptureGroups) {
+				if p.options.unsupportedJSFeatures.Has(compat.RegexpNamedCaptureGroups) {
 					if end := strings.IndexByte(tail, '>'); end >= 0 {
-						feature = compat.RegExpNamedCaptureGroups
+						feature = compat.RegexpNamedCaptureGroups
 						what = "Named capture groups in regular expressions are not available"
 						r = logger.Range{Loc: logger.Loc{Start: loc.Start + int32(i) + 1}, Len: int32(end) + 1}
 						isUnsupported = true
@@ -11667,9 +11667,9 @@ pattern:
 			tail := pattern[i:]
 
 			if isUnicode && (strings.HasPrefix(tail, "p{") || strings.HasPrefix(tail, "P{")) {
-				if p.options.unsupportedJSFeatures.Has(compat.RegExpUnicodePropertyEscapes) {
+				if p.options.unsupportedJSFeatures.Has(compat.RegexpUnicodePropertyEscapes) {
 					if end := strings.IndexByte(tail, '}'); end >= 0 {
-						feature = compat.RegExpUnicodePropertyEscapes
+						feature = compat.RegexpUnicodePropertyEscapes
 						what = "Unicode property escapes in regular expressions are not available"
 						r = logger.Range{Loc: logger.Loc{Start: loc.Start + int32(i)}, Len: int32(end) + 2}
 						isUnsupported = true
@@ -11689,22 +11689,22 @@ pattern:
 				continue // These are part of ES5 and are always supported
 
 			case 's':
-				if !p.options.unsupportedJSFeatures.Has(compat.RegExpDotAllFlag) {
+				if !p.options.unsupportedJSFeatures.Has(compat.RegexpDotAllFlag) {
 					continue // This is part of ES2018
 				}
-				feature = compat.RegExpDotAllFlag
+				feature = compat.RegexpDotAllFlag
 
 			case 'y', 'u':
-				if !p.options.unsupportedJSFeatures.Has(compat.RegExpStickyAndUnicodeFlags) {
+				if !p.options.unsupportedJSFeatures.Has(compat.RegexpStickyAndUnicodeFlags) {
 					continue // These are part of ES2018
 				}
-				feature = compat.RegExpStickyAndUnicodeFlags
+				feature = compat.RegexpStickyAndUnicodeFlags
 
 			case 'd':
-				if !p.options.unsupportedJSFeatures.Has(compat.RegExpMatchIndices) {
+				if !p.options.unsupportedJSFeatures.Has(compat.RegexpMatchIndices) {
 					continue // This is part of ES2022
 				}
-				feature = compat.RegExpMatchIndices
+				feature = compat.RegexpMatchIndices
 
 			default:
 				// Unknown flags are never supported

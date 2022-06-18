@@ -83,12 +83,12 @@ const (
 	ObjectRestSpread
 	OptionalCatchBinding
 	OptionalChain
-	RegExpDotAllFlag
-	RegExpLookbehindAssertions
-	RegExpMatchIndices
-	RegExpNamedCaptureGroups
-	RegExpStickyAndUnicodeFlags
-	RegExpUnicodePropertyEscapes
+	RegexpDotAllFlag
+	RegexpLookbehindAssertions
+	RegexpMatchIndices
+	RegexpNamedCaptureGroups
+	RegexpStickyAndUnicodeFlags
+	RegexpUnicodePropertyEscapes
 	RestArgument
 	TemplateLiteral
 	TopLevelAwait
@@ -137,12 +137,12 @@ var StringToJSFeature = map[string]JSFeature{
 	"object-rest-spread": ObjectRestSpread,
 	"optional-catch-binding": OptionalCatchBinding,
 	"optional-chain": OptionalChain,
-	"reg-exp-dot-all-flag": RegExpDotAllFlag,
-	"reg-exp-lookbehind-assertions": RegExpLookbehindAssertions,
-	"reg-exp-match-indices": RegExpMatchIndices,
-	"reg-exp-named-capture-groups": RegExpNamedCaptureGroups,
-	"reg-exp-sticky-and-unicode-flags": RegExpStickyAndUnicodeFlags,
-	"reg-exp-unicode-property-escapes": RegExpUnicodePropertyEscapes,
+	"regexp-dot-all-flag": RegexpDotAllFlag,
+	"regexp-lookbehind-assertions": RegexpLookbehindAssertions,
+	"regexp-match-indices": RegexpMatchIndices,
+	"regexp-named-capture-groups": RegexpNamedCaptureGroups,
+	"regexp-sticky-and-unicode-flags": RegexpStickyAndUnicodeFlags,
+	"regexp-unicode-property-escapes": RegexpUnicodePropertyEscapes,
 	"rest-argument": RestArgument,
 	"template-literal": TemplateLiteral,
 	"top-level-await": TopLevelAwait,
@@ -191,12 +191,12 @@ var JSFeatureToString = map[JSFeature]string{
 	ObjectRestSpread: "object-rest-spread",
 	OptionalCatchBinding: "optional-catch-binding",
 	OptionalChain: "optional-chain",
-	RegExpDotAllFlag: "reg-exp-dot-all-flag",
-	RegExpLookbehindAssertions: "reg-exp-lookbehind-assertions",
-	RegExpMatchIndices: "reg-exp-match-indices",
-	RegExpNamedCaptureGroups: "reg-exp-named-capture-groups",
-	RegExpStickyAndUnicodeFlags: "reg-exp-sticky-and-unicode-flags",
-	RegExpUnicodePropertyEscapes: "reg-exp-unicode-property-escapes",
+	RegexpDotAllFlag: "regexp-dot-all-flag",
+	RegexpLookbehindAssertions: "regexp-lookbehind-assertions",
+	RegexpMatchIndices: "regexp-match-indices",
+	RegexpNamedCaptureGroups: "regexp-named-capture-groups",
+	RegexpStickyAndUnicodeFlags: "regexp-sticky-and-unicode-flags",
+	RegexpUnicodePropertyEscapes: "regexp-unicode-property-escapes",
 	RestArgument: "rest-argument",
 	TemplateLiteral: "template-literal",
 	TopLevelAwait: "top-level-await",
@@ -583,7 +583,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Opera:   {{start: v{77, 0, 0}}},
 		Safari:  {{start: v{13, 1, 0}}},
 	},
-	RegExpDotAllFlag: {
+	RegexpDotAllFlag: {
 		Chrome:  {{start: v{62, 0, 0}}},
 		Edge:    {{start: v{79, 0, 0}}},
 		ES:      {{start: v{2018, 0, 0}}},
@@ -593,7 +593,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Opera:   {{start: v{49, 0, 0}}},
 		Safari:  {{start: v{11, 1, 0}}},
 	},
-	RegExpLookbehindAssertions: {
+	RegexpLookbehindAssertions: {
 		Chrome:  {{start: v{62, 0, 0}}},
 		Edge:    {{start: v{79, 0, 0}}},
 		ES:      {{start: v{2018, 0, 0}}},
@@ -601,7 +601,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Node:    {{start: v{8, 10, 0}}},
 		Opera:   {{start: v{49, 0, 0}}},
 	},
-	RegExpMatchIndices: {
+	RegexpMatchIndices: {
 		Chrome:  {{start: v{90, 0, 0}}},
 		Edge:    {{start: v{90, 0, 0}}},
 		ES:      {{start: v{2022, 0, 0}}},
@@ -610,7 +610,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Opera:   {{start: v{76, 0, 0}}},
 		Safari:  {{start: v{15, 0, 0}}},
 	},
-	RegExpNamedCaptureGroups: {
+	RegexpNamedCaptureGroups: {
 		Chrome:  {{start: v{64, 0, 0}}},
 		Edge:    {{start: v{79, 0, 0}}},
 		ES:      {{start: v{2018, 0, 0}}},
@@ -620,7 +620,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Opera:   {{start: v{51, 0, 0}}},
 		Safari:  {{start: v{11, 1, 0}}},
 	},
-	RegExpStickyAndUnicodeFlags: {
+	RegexpStickyAndUnicodeFlags: {
 		Chrome:  {{start: v{50, 0, 0}}},
 		Edge:    {{start: v{13, 0, 0}}},
 		ES:      {{start: v{2015, 0, 0}}},
@@ -630,7 +630,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Opera:   {{start: v{37, 0, 0}}},
 		Safari:  {{start: v{12, 0, 0}}},
 	},
-	RegExpUnicodePropertyEscapes: {
+	RegexpUnicodePropertyEscapes: {
 		Chrome:  {{start: v{64, 0, 0}}},
 		Edge:    {{start: v{79, 0, 0}}},
 		ES:      {{start: v{2018, 0, 0}}},
