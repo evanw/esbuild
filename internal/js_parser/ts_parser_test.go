@@ -2194,6 +2194,13 @@ func TestTSTypeOnlyExport(t *testing.T) {
 	expectPrintedTS(t, "{ let Foo; } export {Foo}", "{\n  let Foo;\n}\nexport {};\n")
 	expectPrintedTS(t, "export {Foo}", "export {};\n")
 	expectParseError(t, "export {Foo}", "<stdin>: ERROR: \"Foo\" is not declared in this file\n")
+
+	// This is a syntax error in TypeScript, but we parse it anyway because
+	// people blame esbuild when it doesn't parse. It's silently discarded
+	// because we always discard all type annotations (even invalid ones).
+	expectPrintedTS(t, "export type * from 'foo'\nbar", "bar;\n")
+	expectPrintedTS(t, "export type * as foo from 'bar'; foo", "foo;\n")
+	expectPrintedTS(t, "export type * as 'f o' from 'bar'; foo", "foo;\n")
 }
 
 func TestTSOptionalChain(t *testing.T) {

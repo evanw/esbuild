@@ -988,16 +988,44 @@ func (p *parser) skipTypeScriptInterfaceStmt(opts parseStmtOpts) {
 }
 
 func (p *parser) skipTypeScriptTypeStmt(opts parseStmtOpts) {
-	if opts.isExport && p.lexer.Token == js_lexer.TOpenBrace {
-		// "export type {foo}"
-		// "export type {foo} from 'bar'"
-		p.parseExportClause()
-		if p.lexer.IsContextualKeyword("from") {
+	if opts.isExport {
+		switch p.lexer.Token {
+		case js_lexer.TOpenBrace:
+			// "export type {foo}"
+			// "export type {foo} from 'bar'"
+			p.parseExportClause()
+			if p.lexer.IsContextualKeyword("from") {
+				p.lexer.Next()
+				p.parsePath()
+			}
+			p.lexer.ExpectOrInsertSemicolon()
+			return
+
+		// This is invalid TypeScript, and is rejected by the TypeScript compiler:
+		//
+		//   example.ts:1:1 - error TS1383: Only named exports may use 'export type'.
+		//
+		//   1 export type * from './types'
+		//     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+		//
+		// However, people may not know this and then blame esbuild for it not
+		// working. So we parse it anyway and then discard it (since we always
+		// discard all types). People who do this should be running the TypeScript
+		// type checker when using TypeScript, which will then report this error.
+		case js_lexer.TAsterisk:
+			// "export type * from 'path'"
 			p.lexer.Next()
+			if p.lexer.IsContextualKeyword("as") {
+				// "export type * as ns from 'path'"
+				p.lexer.Next()
+				p.parseClauseAlias("export")
+				p.lexer.Next()
+			}
+			p.lexer.ExpectContextualKeyword("from")
 			p.parsePath()
+			p.lexer.ExpectOrInsertSemicolon()
+			return
 		}
-		p.lexer.ExpectOrInsertSemicolon()
-		return
 	}
 
 	name := p.lexer.Identifier.String
