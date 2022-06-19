@@ -3792,14 +3792,34 @@ let transformTests = {
     vm.createContext(globals)
     vm.runInContext(code, globals)
     assert.strictEqual(globals.π["π 𐀀"].𐀀["𐀀 π"].default, 123)
+    assert.strictEqual(code.slice(0, code.indexOf('(() => {\n')), `var \\u03C0;
+(((\\u03C0 ||= {})["\\u03C0 \\uD800\\uDC00"] ||= {})["\\uD800\\uDC00"] ||= {})["\\uD800\\uDC00 \\u03C0"] = `)
+  },
+
+  async iifeGlobalNameUnicodeNoEscape({ esbuild }) {
+    const { code } = await esbuild.transform(`export default 123`, { format: 'iife', globalName: 'π["π 𐀀"].𐀀["𐀀 π"]', charset: 'utf8' })
+    const globals = {}
+    vm.createContext(globals)
+    vm.runInContext(code, globals)
+    assert.strictEqual(globals.π["π 𐀀"].𐀀["𐀀 π"].default, 123)
+    assert.strictEqual(code.slice(0, code.indexOf('(() => {\n')), `var π;
+(((π ||= {})["π 𐀀"] ||= {})["𐀀"] ||= {})["𐀀 π"] = `)
+  },
+
+  async iifeGlobalNameUnicodeEscapeNoLogicalAssignment({ esbuild }) {
+    const { code } = await esbuild.transform(`export default 123`, { format: 'iife', globalName: 'π["π 𐀀"].𐀀["𐀀 π"]', supported: { 'logical-assignment': false } })
+    const globals = {}
+    vm.createContext(globals)
+    vm.runInContext(code, globals)
+    assert.strictEqual(globals.π["π 𐀀"].𐀀["𐀀 π"].default, 123)
     assert.strictEqual(code.slice(0, code.indexOf('(() => {\n')), `var \\u03C0 = \\u03C0 || {};
 \\u03C0["\\u03C0 \\uD800\\uDC00"] = \\u03C0["\\u03C0 \\uD800\\uDC00"] || {};
 \\u03C0["\\u03C0 \\uD800\\uDC00"]["\\uD800\\uDC00"] = \\u03C0["\\u03C0 \\uD800\\uDC00"]["\\uD800\\uDC00"] || {};
 \\u03C0["\\u03C0 \\uD800\\uDC00"]["\\uD800\\uDC00"]["\\uD800\\uDC00 \\u03C0"] = `)
   },
 
-  async iifeGlobalNameUnicodeNoEscape({ esbuild }) {
-    const { code } = await esbuild.transform(`export default 123`, { format: 'iife', globalName: 'π["π 𐀀"].𐀀["𐀀 π"]', charset: 'utf8' })
+  async iifeGlobalNameUnicodeNoEscapeNoLogicalAssignment({ esbuild }) {
+    const { code } = await esbuild.transform(`export default 123`, { format: 'iife', globalName: 'π["π 𐀀"].𐀀["𐀀 π"]', supported: { 'logical-assignment': false }, charset: 'utf8' })
     const globals = {}
     vm.createContext(globals)
     vm.runInContext(code, globals)

@@ -5131,13 +5131,39 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 
 func (c *linkerContext) generateGlobalNamePrefix() string {
 	var text string
-	prefix := c.options.GlobalName[0]
+	globalName := c.options.GlobalName
+	prefix := globalName[0]
 	space := " "
 	join := ";\n"
 
 	if c.options.MinifyWhitespace {
 		space = ""
 		join = ";"
+	}
+
+	// Use "||=" to make the code more compact when it's supported
+	if len(globalName) > 1 && !c.options.UnsupportedJSFeatures.Has(compat.LogicalAssignment) {
+		if js_printer.CanEscapeIdentifier(prefix, c.options.UnsupportedJSFeatures, c.options.ASCIIOnly) {
+			if c.options.ASCIIOnly {
+				prefix = string(js_printer.QuoteIdentifier(nil, prefix, c.options.UnsupportedJSFeatures))
+			}
+			text = fmt.Sprintf("var %s%s", prefix, join)
+		} else {
+			prefix = fmt.Sprintf("this[%s]", js_printer.QuoteForJSON(prefix, c.options.ASCIIOnly))
+		}
+		for _, name := range globalName[1:] {
+			var dotOrIndex string
+			if js_printer.CanEscapeIdentifier(name, c.options.UnsupportedJSFeatures, c.options.ASCIIOnly) {
+				if c.options.ASCIIOnly {
+					name = string(js_printer.QuoteIdentifier(nil, name, c.options.UnsupportedJSFeatures))
+				}
+				dotOrIndex = fmt.Sprintf(".%s", name)
+			} else {
+				dotOrIndex = fmt.Sprintf("[%s]", js_printer.QuoteForJSON(name, c.options.ASCIIOnly))
+			}
+			prefix = fmt.Sprintf("(%s%s||=%s{})%s", prefix, space, space, dotOrIndex)
+		}
+		return fmt.Sprintf("%s%s%s=%s", text, prefix, space, space)
 	}
 
 	if js_printer.CanEscapeIdentifier(prefix, c.options.UnsupportedJSFeatures, c.options.ASCIIOnly) {
@@ -5150,7 +5176,7 @@ func (c *linkerContext) generateGlobalNamePrefix() string {
 		text = fmt.Sprintf("%s%s=%s", prefix, space, space)
 	}
 
-	for _, name := range c.options.GlobalName[1:] {
+	for _, name := range globalName[1:] {
 		oldPrefix := prefix
 		if js_printer.CanEscapeIdentifier(name, c.options.UnsupportedJSFeatures, c.options.ASCIIOnly) {
 			if c.options.ASCIIOnly {

@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+* Make global names more compact when `||=` is available ([#2331](https://github.com/evanw/esbuild/issues/2331))
+
+    With this release, the code esbuild generates for the `--global-name=` setting is now slightly shorter when you don't configure esbuild such that the `||=` operator is unsupported (e.g. with `--target=chrome80` or `--supported:logical-assignment=false`):
+
+    ```js
+    // Original code
+    exports.foo = 123
+
+    // Old output (with --format=iife --global-name=foo.bar.baz --minify)
+    var foo=foo||{};foo.bar=foo.bar||{};foo.bar.baz=(()=>{var b=(a,o)=>()=>(o||a((o={exports:{}}).exports,o),o.exports);var c=b(f=>{f.foo=123});return c();})();
+
+    // New output (with --format=iife --global-name=foo.bar.baz --minify)
+    var foo;((foo||={}).bar||={}).baz=(()=>{var b=(a,o)=>()=>(o||a((o={exports:{}}).exports,o),o.exports);var c=b(f=>{f.foo=123});return c();})();
+    ```
+
 ## 0.14.46
 
 * Add the ability to override support for individual syntax features ([#2060](https://github.com/evanw/esbuild/issues/2060), [#2290](https://github.com/evanw/esbuild/issues/2290), [#2308](https://github.com/evanw/esbuild/issues/2308))
