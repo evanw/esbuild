@@ -2616,6 +2616,23 @@
         `,
       }),
     )
+
+    // Check variable initializer inlining
+    tests.push(
+      test(['in.js', '--outfile=node.js'].concat(minify), {
+        'in.js': `
+          function foo() {
+            if (this !== globalThis) throw 'fail'
+          }
+          function main() {
+            let obj = { bar: foo };
+            let fn = obj.bar;
+            (0, fn)();
+          }
+          main()
+        `,
+      }),
+    );
   }
 
   // Test minification of top-level symbols

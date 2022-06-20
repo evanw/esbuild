@@ -8285,6 +8285,15 @@ func (p *parser) substituteSingleUseSymbolInExpr(
 		}
 
 	case *js_ast.ECall:
+		// Don't substitute something into a call target that could change "this"
+		_, isDot := replacement.Data.(*js_ast.EDot)
+		_, isIndex := replacement.Data.(*js_ast.EIndex)
+		if isDot || isIndex {
+			if id, ok := e.Target.Data.(*js_ast.EIdentifier); ok && id.Ref == ref {
+				break
+			}
+		}
+
 		if value, status := p.substituteSingleUseSymbolInExpr(e.Target, ref, replacement, replacementCanBeRemoved); status != substituteContinue {
 			e.Target = value
 			return expr, status

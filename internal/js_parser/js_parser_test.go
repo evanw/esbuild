@@ -4315,6 +4315,20 @@ func TestMangleInlineLocals(t *testing.T) {
 	expectPrintedMangleTarget(t, 2015, "(x => { let y = x; throw y ?? z })()", "((x) => {\n  let y = x;\n  throw y != null ? y : z;\n})();\n")
 	expectPrintedMangleTarget(t, 2015, "(x => { let y = x; y.z ??= z })()", "((x) => {\n  var _a;\n  let y = x;\n  (_a = y.z) != null || (y.z = z);\n})();\n")
 	expectPrintedMangleTarget(t, 2015, "(x => { let y = x; y?.z })()", "((x) => {\n  let y = x;\n  y == null || y.z;\n})();\n")
+
+	// Cannot substitute into call targets when it would change "this"
+	check("let x = arg0; x()", "arg0();")
+	check("let x = arg0; (0, x)()", "arg0();")
+	check("let x = arg0.foo; x.bar()", "arg0.foo.bar();")
+	check("let x = arg0.foo; x[bar]()", "arg0.foo[bar]();")
+	check("let x = arg0.foo; x()", "let x = arg0.foo;\nx();")
+	check("let x = arg0[foo]; x()", "let x = arg0[foo];\nx();")
+	check("let x = arg0?.foo; x()", "let x = arg0?.foo;\nx();")
+	check("let x = arg0?.[foo]; x()", "let x = arg0?.[foo];\nx();")
+	check("let x = arg0.foo; (0, x)()", "let x = arg0.foo;\nx();")
+	check("let x = arg0[foo]; (0, x)()", "let x = arg0[foo];\nx();")
+	check("let x = arg0?.foo; (0, x)()", "let x = arg0?.foo;\nx();")
+	check("let x = arg0?.[foo]; (0, x)()", "let x = arg0?.[foo];\nx();")
 }
 
 func TestTrimCodeInDeadControlFlow(t *testing.T) {
