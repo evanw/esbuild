@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.47
 
 * Make global names more compact when `||=` is available ([#2331](https://github.com/evanw/esbuild/issues/2331))
 
