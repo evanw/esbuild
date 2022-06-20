@@ -6342,6 +6342,35 @@ func TestMangleNoQuotedProps(t *testing.T) {
 	})
 }
 
+func TestMangleNoQuotedPropsMinifySyntax(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				x['_doNotMangleThis'];
+				x?.['_doNotMangleThis'];
+				x[y ? '_doNotMangleThis' : z];
+				x?.[y ? '_doNotMangleThis' : z];
+				x[y ? z : '_doNotMangleThis'];
+				x?.[y ? z : '_doNotMangleThis'];
+				({ '_doNotMangleThis': x });
+				(class { '_doNotMangleThis' = x });
+				var { '_doNotMangleThis': x } = y;
+				'_doNotMangleThis' in x;
+				(y ? '_doNotMangleThis' : z) in x;
+				(y ? z : '_doNotMangleThis') in x;
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModePassThrough,
+			AbsOutputDir: "/out",
+			MangleProps:  regexp.MustCompile("_"),
+			MangleQuoted: false,
+			MinifySyntax: true,
+		},
+	})
+}
+
 func TestMangleQuotedProps(t *testing.T) {
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{

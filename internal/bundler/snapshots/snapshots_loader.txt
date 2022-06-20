@@ -476,6 +476,15 @@ var { "_doNotMangleThis": x } = y;
 (y ? z : "_doNotMangleThis") in x;
 
 ================================================================================
+TestMangleNoQuotedPropsMinifySyntax
+---------- /out/entry.js ----------
+x._doNotMangleThis, x?._doNotMangleThis, x[y ? "_doNotMangleThis" : z], x?.[y ? "_doNotMangleThis" : z], x[y ? z : "_doNotMangleThis"], x?.[y ? z : "_doNotMangleThis"], class {
+  _doNotMangleThis = x;
+};
+var { _doNotMangleThis: x } = y;
+"_doNotMangleThis" in x, (y ? "_doNotMangleThis" : z) in x, (y ? z : "_doNotMangleThis") in x;
+
+================================================================================
 TestMangleProps
 ---------- /out/entry1.js ----------
 export function shouldMangle() {

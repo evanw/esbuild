@@ -17,6 +17,23 @@
     var foo;((foo||={}).bar||={}).baz=(()=>{var b=(a,o)=>()=>(o||a((o={exports:{}}).exports,o),o.exports);var c=b(f=>{f.foo=123});return c();})();
     ```
 
+* Fix `--mangle-quoted=false` with `--minify-syntax=true`
+
+    If property mangling is active and `--mangle-quoted` is disabled, quoted properties are supposed to be preserved. However, there was a case when this didn't happen if `--minify-syntax` was enabled, since that internally transforms `x['y']` into `x.y` to reduce code size. This issue has been fixed:
+
+    ```js
+    // Original code
+    x.foo = x['bar'] = { foo: y, 'bar': z }
+
+    // Old output (with --mangle-props=. --mangle-quoted=false --minify-syntax=true)
+    x.a = x.b = { a: y, bar: z };
+
+    // New output (with --mangle-props=. --mangle-quoted=false --minify-syntax=true)
+    x.a = x.bar = { a: y, bar: z };
+    ```
+
+    Notice how the property `foo` is always used unquoted but the property `bar` is always used quoted, so `foo` should be consistently mangled while `bar` should be consistently not mangled.
+
 ## 0.14.46
 
 * Add the ability to override support for individual syntax features ([#2060](https://github.com/evanw/esbuild/issues/2060), [#2290](https://github.com/evanw/esbuild/issues/2290), [#2308](https://github.com/evanw/esbuild/issues/2308))

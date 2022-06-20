@@ -2321,8 +2321,21 @@ func (p *parser) symbolForMangledProp(name string) js_ast.Ref {
 	return ref
 }
 
-func (p *parser) dotOrMangledPropParse(target js_ast.Expr, name js_lexer.MaybeSubstring, nameLoc logger.Loc, optionalChain js_ast.OptionalChain) js_ast.E {
-	if p.isMangledProp(name.String) {
+type wasOriginallyDotOrIndex uint8
+
+const (
+	wasOriginallyDot wasOriginallyDotOrIndex = iota
+	wasOriginallyIndex
+)
+
+func (p *parser) dotOrMangledPropParse(
+	target js_ast.Expr,
+	name js_lexer.MaybeSubstring,
+	nameLoc logger.Loc,
+	optionalChain js_ast.OptionalChain,
+	original wasOriginallyDotOrIndex,
+) js_ast.E {
+	if (original != wasOriginallyIndex || p.options.mangleQuoted) && p.isMangledProp(name.String) {
 		return &js_ast.EIndex{
 			Target:        target,
 			Index:         js_ast.Expr{Loc: nameLoc, Data: &js_ast.EMangledProp{Ref: p.storeNameInRef(name)}},
@@ -3645,7 +3658,7 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 				name := p.lexer.Identifier
 				nameLoc := p.lexer.Loc()
 				p.lexer.Next()
-				left = js_ast.Expr{Loc: left.Loc, Data: p.dotOrMangledPropParse(left, name, nameLoc, oldOptionalChain)}
+				left = js_ast.Expr{Loc: left.Loc, Data: p.dotOrMangledPropParse(left, name, nameLoc, oldOptionalChain, wasOriginallyDot)}
 			}
 
 			optionalChain = oldOptionalChain
@@ -3735,7 +3748,7 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 					name := p.lexer.Identifier
 					nameLoc := p.lexer.Loc()
 					p.lexer.Next()
-					left = js_ast.Expr{Loc: left.Loc, Data: p.dotOrMangledPropParse(left, name, nameLoc, optionalStart)}
+					left = js_ast.Expr{Loc: left.Loc, Data: p.dotOrMangledPropParse(left, name, nameLoc, optionalStart, wasOriginallyDot)}
 				}
 			}
 
@@ -4416,7 +4429,7 @@ func (p *parser) parseJSXTag() (logger.Range, string, js_ast.Expr) {
 		}
 
 		chain += "." + member.String
-		tag = js_ast.Expr{Loc: loc, Data: p.dotOrMangledPropParse(tag, member, memberRange.Loc, js_ast.OptionalChainNone)}
+		tag = js_ast.Expr{Loc: loc, Data: p.dotOrMangledPropParse(tag, member, memberRange.Loc, js_ast.OptionalChainNone, wasOriginallyDot)}
 		tagRange.Len = memberRange.Loc.Start + memberRange.Len - tagRange.Loc.Start
 	}
 
@@ -12748,7 +12761,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		// "a['b']" => "a.b"
 		if p.options.minifySyntax {
 			if str, ok := e.Index.Data.(*js_ast.EString); ok && js_lexer.IsIdentifierUTF16(str.Value) {
-				dot := p.dotOrMangledPropParse(e.Target, js_lexer.MaybeSubstring{String: helpers.UTF16ToString(str.Value)}, e.Index.Loc, e.OptionalChain)
+				dot := p.dotOrMangledPropParse(e.Target, js_lexer.MaybeSubstring{String: helpers.UTF16ToString(str.Value)}, e.Index.Loc, e.OptionalChain, wasOriginallyIndex)
 				if isCallTarget {
 					p.callTarget = dot
 				}
