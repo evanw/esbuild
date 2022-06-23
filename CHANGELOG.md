@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+* Add support for font file MIME types ([#2337](https://github.com/evanw/esbuild/issues/2337))
+
+    This release adds support for font file MIME types to esbuild, which means they are now recognized by the built-in local web server and they are now used when a font file is loaded using the `dataurl` loader. The full set of newly-added file extension MIME type mappings is as follows:
+
+    * `.eot` => `application/vnd.ms-fontobject`
+    * `.otf` => `font/otf`
+    * `.sfnt` => `font/sfnt`
+    * `.ttf` => `font/ttf`
+    * `.woff` => `font/woff`
+    * `.woff2` => `font/woff2`
+
 ## 0.14.47
 
 * Make global names more compact when `||=` is available ([#2331](https://github.com/evanw/esbuild/issues/2331))

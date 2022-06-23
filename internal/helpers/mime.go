@@ -3,21 +3,34 @@ package helpers
 import "strings"
 
 var builtinTypesLower = map[string]string{
+	// Text
 	".css":  "text/css; charset=utf-8",
-	".gif":  "image/gif",
 	".htm":  "text/html; charset=utf-8",
 	".html": "text/html; charset=utf-8",
-	".jpeg": "image/jpeg",
-	".jpg":  "image/jpeg",
 	".js":   "text/javascript; charset=utf-8",
 	".json": "application/json",
 	".mjs":  "text/javascript; charset=utf-8",
-	".pdf":  "application/pdf",
+	".xml":  "text/xml; charset=utf-8",
+
+	// Images
+	".gif":  "image/gif",
+	".jpeg": "image/jpeg",
+	".jpg":  "image/jpeg",
 	".png":  "image/png",
 	".svg":  "image/svg+xml",
-	".wasm": "application/wasm",
 	".webp": "image/webp",
-	".xml":  "text/xml; charset=utf-8",
+
+	// Fonts
+	".eot":   "application/vnd.ms-fontobject",
+	".otf":   "font/otf",
+	".sfnt":  "font/sfnt",
+	".ttf":   "font/ttf",
+	".woff":  "font/woff",
+	".woff2": "font/woff2",
+
+	// Other
+	".pdf":  "application/pdf",
+	".wasm": "application/wasm",
 }
 
 // This is used instead of Go's built-in "mime.TypeByExtension" function because
