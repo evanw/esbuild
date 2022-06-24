@@ -1837,7 +1837,7 @@ func TestTsConfigAlwaysStrictTrueEmitDirectiveFormat(t *testing.T) {
 	})
 }
 
-func TestTsConfigAlwaysStrictTrueEmitDirectiveBundle(t *testing.T) {
+func TestTsConfigAlwaysStrictTrueEmitDirectiveBundleIIFE(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/implicit.ts": `
@@ -1860,6 +1860,63 @@ func TestTsConfigAlwaysStrictTrueEmitDirectiveBundle(t *testing.T) {
 		options: config.Options{
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/Users/user/project/out",
+			OutputFormat: config.FormatIIFE,
+		},
+	})
+}
+
+func TestTsConfigAlwaysStrictTrueEmitDirectiveBundleCJS(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/implicit.ts": `
+				console.log('this file should start with "use strict"')
+			`,
+			"/Users/user/project/src/explicit.ts": `
+				'use strict'
+				console.log('this file should start with "use strict"')
+			`,
+			"/Users/user/project/tsconfig.json": `{
+				"compilerOptions": {
+					"alwaysStrict": true
+				}
+			}`,
+		},
+		entryPaths: []string{
+			"/Users/user/project/src/implicit.ts",
+			"/Users/user/project/src/explicit.ts",
+		},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/Users/user/project/out",
+			OutputFormat: config.FormatCommonJS,
+		},
+	})
+}
+
+func TestTsConfigAlwaysStrictTrueEmitDirectiveBundleESM(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/implicit.ts": `
+				console.log('this file should not start with "use strict"')
+			`,
+			"/Users/user/project/src/explicit.ts": `
+				'use strict'
+				console.log('this file should not start with "use strict"')
+			`,
+			"/Users/user/project/tsconfig.json": `{
+				"compilerOptions": {
+					"alwaysStrict": true
+				}
+			}`,
+		},
+		entryPaths: []string{
+			"/Users/user/project/src/implicit.ts",
+			"/Users/user/project/src/explicit.ts",
+		},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/Users/user/project/out",
+			OutputFormat: config.FormatESModule,
 		},
 	})
 }

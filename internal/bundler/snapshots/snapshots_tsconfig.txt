@@ -14,7 +14,7 @@ var import_util = __toESM(require_util());
 console.log((0, import_util.default)());
 
 ================================================================================
-TestTsConfigAlwaysStrictTrueEmitDirectiveBundle
+TestTsConfigAlwaysStrictTrueEmitDirectiveBundleCJS
 ---------- /Users/user/project/out/implicit.js ----------
 "use strict";
 
@@ -26,6 +26,32 @@ console.log('this file should start with "use strict"');
 
 // Users/user/project/src/explicit.ts
 console.log('this file should start with "use strict"');
+
+================================================================================
+TestTsConfigAlwaysStrictTrueEmitDirectiveBundleESM
+---------- /Users/user/project/out/implicit.js ----------
+// Users/user/project/src/implicit.ts
+console.log('this file should not start with "use strict"');
+
+---------- /Users/user/project/out/explicit.js ----------
+// Users/user/project/src/explicit.ts
+console.log('this file should not start with "use strict"');
+
+================================================================================
+TestTsConfigAlwaysStrictTrueEmitDirectiveBundleIIFE
+---------- /Users/user/project/out/implicit.js ----------
+"use strict";
+(() => {
+  // Users/user/project/src/implicit.ts
+  console.log('this file should start with "use strict"');
+})();
+
+---------- /Users/user/project/out/explicit.js ----------
+"use strict";
+(() => {
+  // Users/user/project/src/explicit.ts
+  console.log('this file should start with "use strict"');
+})();
 
 ================================================================================
 TestTsConfigAlwaysStrictTrueEmitDirectiveFormat

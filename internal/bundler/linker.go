@@ -4871,8 +4871,9 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 			isExecutable = true
 		}
 
-		// Add the top-level directive if present
-		if repr.AST.Directive != "" {
+		// Add the top-level directive if present (but omit "use strict" in ES
+		// modules because all ES modules are automatically in strict mode)
+		if repr.AST.Directive != "" && (repr.AST.Directive != "use strict" || c.options.OutputFormat != config.FormatESModule) {
 			quoted := string(js_printer.QuoteForJSON(repr.AST.Directive, c.options.ASCIIOnly)) + ";" + newline
 			prevOffset.AdvanceString(quoted)
 			j.AddString(quoted)
