@@ -245,14 +245,16 @@ type MaybeSubstring struct {
 }
 
 type Lexer struct {
-	CommentsToPreserveBefore []js_ast.Comment
-	AllOriginalComments      []js_ast.Comment
-	Identifier               MaybeSubstring
-	log                      logger.Log
-	source                   logger.Source
-	JSXFactoryPragmaComment  logger.Span
-	JSXFragmentPragmaComment logger.Span
-	SourceMappingURL         logger.Span
+	CommentsToPreserveBefore     []js_ast.Comment
+	AllOriginalComments          []js_ast.Comment
+	Identifier                   MaybeSubstring
+	log                          logger.Log
+	source                       logger.Source
+	JSXFactoryPragmaComment      logger.Span
+	JSXFragmentPragmaComment     logger.Span
+	JSXRuntimePragmaComment      logger.Span
+	JSXImportSourcePragmaComment logger.Span
+	SourceMappingURL             logger.Span
 
 	// Escape sequences in string literals are decoded lazily because they are
 	// not interpreted inside tagged templates, and tagged templates can contain
@@ -2769,6 +2771,14 @@ func (lexer *Lexer) scanCommentText() {
 			} else if hasPrefixWithWordBoundary(rest, "jsxFrag") {
 				if arg, ok := scanForPragmaArg(pragmaSkipSpaceFirst, lexer.start+i+1, "jsxFrag", rest); ok {
 					lexer.JSXFragmentPragmaComment = arg
+				}
+			} else if hasPrefixWithWordBoundary(rest, "jsxRuntime") {
+				if arg, ok := scanForPragmaArg(pragmaSkipSpaceFirst, lexer.start+i+1, "jsxRuntime", rest); ok {
+					lexer.JSXRuntimePragmaComment = arg
+				}
+			} else if hasPrefixWithWordBoundary(rest, "jsxImportSource") {
+				if arg, ok := scanForPragmaArg(pragmaSkipSpaceFirst, lexer.start+i+1, "jsxImportSource", rest); ok {
+					lexer.JSXImportSourcePragmaComment = arg
 				}
 			} else if i == 2 && strings.HasPrefix(rest, " sourceMappingURL=") {
 				if arg, ok := scanForPragmaArg(pragmaNoSpaceFirst, lexer.start+i+1, " sourceMappingURL=", rest); ok {

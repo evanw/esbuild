@@ -15269,6 +15269,8 @@ func newParser(log logger.Log, source logger.Source, lexer js_lexer.Lexer, optio
 var defaultJSXFactory = []string{"React", "createElement"}
 var defaultJSXFragment = []string{"React", "Fragment"}
 
+const defaultJSXImportSource = "react"
+
 func Parse(log logger.Log, source logger.Source, options Options) (result js_ast.AST, ok bool) {
 	ok = true
 	defer func() {
@@ -15286,6 +15288,9 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 	}
 	if len(options.jsx.Fragment.Parts) == 0 && options.jsx.Fragment.Constant == nil {
 		options.jsx.Fragment = config.DefineExpr{Parts: defaultJSXFragment}
+	}
+	if len(options.jsx.ImportSource) == 0 {
+		options.jsx.ImportSource = defaultJSXImportSource
 	}
 
 	if !options.ts.Parse {
@@ -15656,8 +15661,21 @@ func (p *parser) prepareForVisitPass() {
 
 	// Handle "@jsx" and "@jsxFrag" pragmas now that lexing is done
 	if p.options.jsx.Parse {
+		if jsxRuntime := p.lexer.JSXRuntimePragmaComment; jsxRuntime.Text != "" {
+			if jsxRuntime.Text == "automatic" {
+				p.options.jsx.AutomaticRuntime = true
+			} else if jsxRuntime.Text == "classic" {
+				p.options.jsx.AutomaticRuntime = false
+			} else {
+				p.log.AddID(logger.MsgID_JS_UnsupportedJSXComment, logger.Warning, &p.tracker, jsxRuntime.Range,
+					fmt.Sprintf("Invalid JSX runtime: %s", jsxRuntime.Text))
+			}
+		}
 		if jsxFactory := p.lexer.JSXFactoryPragmaComment; jsxFactory.Text != "" {
-			if expr, _ := ParseDefineExprOrJSON(jsxFactory.Text); len(expr.Parts) > 0 {
+			if p.options.jsx.AutomaticRuntime {
+				p.log.AddID(logger.MsgID_JS_UnsupportedJSXComment, logger.Warning, &p.tracker, jsxFactory.Range,
+					fmt.Sprintf("JSX factory cannot be set when runtime is automatic: %s", jsxFactory.Text))
+			} else if expr, _ := ParseDefineExprOrJSON(jsxFactory.Text); len(expr.Parts) > 0 {
 				p.options.jsx.Factory = expr
 			} else {
 				p.log.AddID(logger.MsgID_JS_UnsupportedJSXComment, logger.Warning, &p.tracker, jsxFactory.Range,
@@ -15665,11 +15683,22 @@ func (p *parser) prepareForVisitPass() {
 			}
 		}
 		if jsxFragment := p.lexer.JSXFragmentPragmaComment; jsxFragment.Text != "" {
-			if expr, _ := ParseDefineExprOrJSON(jsxFragment.Text); len(expr.Parts) > 0 || expr.Constant != nil {
+			if p.options.jsx.AutomaticRuntime {
+				p.log.AddID(logger.MsgID_JS_UnsupportedJSXComment, logger.Warning, &p.tracker, jsxFragment.Range,
+					fmt.Sprintf("JSX fragment cannot be set when runtime is automatic: %s", jsxFragment.Text))
+			} else if expr, _ := ParseDefineExprOrJSON(jsxFragment.Text); len(expr.Parts) > 0 || expr.Constant != nil {
 				p.options.jsx.Fragment = expr
 			} else {
 				p.log.AddID(logger.MsgID_JS_UnsupportedJSXComment, logger.Warning, &p.tracker, jsxFragment.Range,
 					fmt.Sprintf("Invalid JSX fragment: %s", jsxFragment.Text))
+			}
+		}
+		if jsxImportSource := p.lexer.JSXImportSourcePragmaComment; jsxImportSource.Text != "" {
+			if !p.options.jsx.AutomaticRuntime {
+				p.log.AddID(logger.MsgID_JS_UnsupportedJSXComment, logger.Warning, &p.tracker, jsxImportSource.Range,
+					fmt.Sprintf("JSX import source cannot be set when runtime is classic: %s", jsxImportSource.Text))
+			} else {
+				p.options.jsx.ImportSource = jsxImportSource.Text
 			}
 		}
 	}
