@@ -3877,6 +3877,21 @@ let transformTests = {
     assert.strictEqual(code, `console.log(<div />);\n`)
   },
 
+  async jsxRuntimeAutomatic({ esbuild }) {
+    const { code } = await esbuild.transform(`console.log(<div/>)`, { loader: 'jsx', jsxRuntime: 'automatic' })
+    assert.strictEqual(code, `console.log(/* @__PURE__ */ jsx("div", {}));\nimport {\n  jsx\n} from "react/jsx-runtime";\n`)
+  },
+
+  async jsxDevelopment({ esbuild }) {
+    const { code } = await esbuild.transform(`console.log(<div/>)`, { loader: 'jsx', jsxRuntime: 'automatic', jsxDevelopment: true })
+    assert.strictEqual(code, `console.log(/* @__PURE__ */ jsxDEV("div", {}, void 0, false, {\n  fileName: "<stdin>",\n  lineNumber: 1,\n  columnNumber: 12\n}, this));\nimport {\n  jsxDEV\n} from "react/jsx-dev-runtime";\n`)
+  },
+
+  async jsxImportSource({ esbuild }) {
+    const { code } = await esbuild.transform(`console.log(<div/>)`, { loader: 'jsx', jsxRuntime: 'automatic', jsxImportSource: 'notreact' })
+    assert.strictEqual(code, `console.log(/* @__PURE__ */ jsx("div", {}));\nimport {\n  jsx\n} from "notreact/jsx-runtime";\n`)
+  },
+
   async ts({ esbuild }) {
     const { code } = await esbuild.transform(`enum Foo { FOO }`, { loader: 'ts' })
     assert.strictEqual(code, `var Foo = /* @__PURE__ */ ((Foo2) => {\n  Foo2[Foo2["FOO"] = 0] = "FOO";\n  return Foo2;\n})(Foo || {});\n`)
