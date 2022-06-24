@@ -28,6 +28,11 @@ console.log('this file should start with "use strict"');
 console.log('this file should start with "use strict"');
 
 ================================================================================
+TestTsConfigAlwaysStrictDontAddDirectiveWhenOutputFormatIsESM
+---------- /Users/user/project/out/implicit.js ----------
+console.log('this file should not start with "use strict"');
+
+================================================================================
 TestTsConfigAlwaysStrictTrueEmitDirectiveFormat
 ---------- /Users/user/project/out/implicit.js ----------
 "use strict";

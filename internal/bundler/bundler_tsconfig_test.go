@@ -1863,3 +1863,25 @@ func TestTsConfigAlwaysStrictTrueEmitDirectiveBundle(t *testing.T) {
 		},
 	})
 }
+
+func TestTsConfigAlwaysStrictDontAddDirectiveWhenOutputFormatIsESM(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/implicit.ts": `
+				console.log('this file should not start with "use strict"')
+			`,
+			"/Users/user/project/tsconfig.json": `{
+				"compilerOptions": {
+					"alwaysStrict": true
+				}
+			}`,
+		},
+		entryPaths: []string{
+			"/Users/user/project/src/implicit.ts",
+		},
+		options: config.Options{
+			AbsOutputDir: "/Users/user/project/out",
+			OutputFormat: config.FormatESModule,
+		},
+	})
+}

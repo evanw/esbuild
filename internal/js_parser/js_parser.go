@@ -15344,7 +15344,7 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 
 	// Insert a "use strict" directive if "alwaysStrict" is active
 	directive := ""
-	if tsAlwaysStrict := p.options.tsAlwaysStrict; tsAlwaysStrict != nil && tsAlwaysStrict.Value {
+	if tsAlwaysStrict := p.options.tsAlwaysStrict; tsAlwaysStrict != nil && tsAlwaysStrict.Value && p.options.outputFormat != config.FormatESModule {
 		directive = "use strict"
 	}
 
