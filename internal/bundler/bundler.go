@@ -1195,6 +1195,12 @@ func (s *scanner) maybeParseFile(
 	if len(resolveResult.JSXFragment) > 0 {
 		optionsClone.JSX.Fragment = config.DefineExpr{Parts: resolveResult.JSXFragment}
 	}
+	if resolveResult.JSX != config.TSJSXNone {
+		optionsClone.JSX.SetOptionsFromTSJSX(resolveResult.JSX)
+	}
+	if resolveResult.JSXImportSource != "" {
+		optionsClone.JSX.ImportSource = resolveResult.JSXImportSource
+	}
 	if resolveResult.UseDefineForClassFieldsTS != config.Unspecified {
 		optionsClone.UseDefineForClassFields = resolveResult.UseDefineForClassFieldsTS
 	}

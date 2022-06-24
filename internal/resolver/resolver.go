@@ -102,8 +102,10 @@ type ResolveResult struct {
 	PluginData interface{}
 
 	// If not empty, these should override the default values
-	JSXFactory  []string // Default if empty: "React.createElement"
-	JSXFragment []string // Default if empty: "React.Fragment"
+	JSXFactory      []string // Default if empty: "React.createElement"
+	JSXFragment     []string // Default if empty: "React.Fragment"
+	JSXImportSource string   // Default if empty: "react"
+	JSX             config.TSJSX
 
 	DifferentCase *fs.DifferentCase
 
@@ -627,6 +629,8 @@ func (r resolverQuery) finalizeResolve(result *ResolveResult) {
 					} else {
 						result.JSXFactory = dirInfo.enclosingTSConfigJSON.JSXFactory
 						result.JSXFragment = dirInfo.enclosingTSConfigJSON.JSXFragmentFactory
+						result.JSX = dirInfo.enclosingTSConfigJSON.JSX
+						result.JSXImportSource = dirInfo.enclosingTSConfigJSON.JSXImportSource
 						result.UseDefineForClassFieldsTS = dirInfo.enclosingTSConfigJSON.UseDefineForClassFields
 						result.UnusedImportFlagsTS = config.UnusedImportFlagsFromTsconfigValues(
 							dirInfo.enclosingTSConfigJSON.PreserveImportsNotUsedAsValues,
