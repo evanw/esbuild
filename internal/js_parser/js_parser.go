@@ -15407,7 +15407,7 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 				}
 			}
 		}
-		before = p.generateImportStmt(file.Source.KeyPath.Text, exportsNoConflict, file.Source.Index, before, symbols)
+		before = p.generateImportStmt(file.Source.KeyPath.Text, exportsNoConflict, &file.Source.Index, before, symbols)
 	}
 
 	// Bind symbols in a second pass over the AST. I started off doing this in a
@@ -15807,7 +15807,7 @@ func (p *parser) computeCharacterFrequency() *js_ast.CharFreq {
 func (p *parser) generateImportStmt(
 	path string,
 	imports []string,
-	sourceIndex uint32,
+	sourceIndex *uint32,
 	parts []js_ast.Part,
 	symbols map[string]js_ast.Ref,
 ) []js_ast.Part {
@@ -15816,7 +15816,9 @@ func (p *parser) generateImportStmt(
 	declaredSymbols := make([]js_ast.DeclaredSymbol, len(imports))
 	clauseItems := make([]js_ast.ClauseItem, len(imports))
 	importRecordIndex := p.addImportRecord(ast.ImportStmt, logger.Loc{}, path, nil)
-	p.importRecords[importRecordIndex].SourceIndex = ast.MakeIndex32(sourceIndex)
+	if sourceIndex != nil {
+		p.importRecords[importRecordIndex].SourceIndex = ast.MakeIndex32(*sourceIndex)
+	}
 
 	// Create per-import information
 	for i, alias := range imports {
@@ -15853,7 +15855,8 @@ func (p *parser) toAST(parts []js_ast.Part, hashbang string, directive string) j
 			keys = append(keys, key)
 		}
 		sort.Strings(keys)
-		parts = p.generateImportStmt("<runtime>", keys, runtime.SourceIndex, parts, p.runtimeImports)
+		sourceIndex := runtime.SourceIndex
+		parts = p.generateImportStmt("<runtime>", keys, &sourceIndex, parts, p.runtimeImports)
 	}
 
 	// Handle import paths after the whole file has been visited because we need
