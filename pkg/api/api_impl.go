@@ -913,9 +913,12 @@ func rebuildImpl(
 		UnsupportedCSSFeatureOverridesMask: cssMask,
 		OriginalTargetEnv:                  targetEnv,
 		JSX: config.JSXOptions{
-			Preserve: buildOpts.JSXMode == JSXModePreserve,
-			Factory:  validateJSXExpr(log, buildOpts.JSXFactory, "factory"),
-			Fragment: validateJSXExpr(log, buildOpts.JSXFragment, "fragment"),
+			Preserve:         buildOpts.JSXMode == JSXModePreserve,
+			Factory:          validateJSXExpr(log, buildOpts.JSXFactory, "factory"),
+			Fragment:         validateJSXExpr(log, buildOpts.JSXFragment, "fragment"),
+			AutomaticRuntime: buildOpts.JSXRuntime == JSXRuntimeAutomatic,
+			ImportSource:     buildOpts.JSXImportSource,
+			Development:      buildOpts.JSXDevelopment,
 		},
 		Defines:               defines,
 		InjectedDefines:       injectedDefines,
@@ -1372,9 +1375,12 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 	var unusedImportFlagsTS config.UnusedImportFlagsTS
 	useDefineForClassFieldsTS := config.Unspecified
 	jsx := config.JSXOptions{
-		Preserve: transformOpts.JSXMode == JSXModePreserve,
-		Factory:  validateJSXExpr(log, transformOpts.JSXFactory, "factory"),
-		Fragment: validateJSXExpr(log, transformOpts.JSXFragment, "fragment"),
+		Preserve:         transformOpts.JSXMode == JSXModePreserve,
+		Factory:          validateJSXExpr(log, transformOpts.JSXFactory, "factory"),
+		Fragment:         validateJSXExpr(log, transformOpts.JSXFragment, "fragment"),
+		AutomaticRuntime: transformOpts.JSXRuntime == JSXRuntimeAutomatic,
+		Development:      transformOpts.JSXDevelopment,
+		ImportSource:     transformOpts.JSXImportSource,
 	}
 
 	// Settings from "tsconfig.json" override those

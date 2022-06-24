@@ -13,10 +13,14 @@ import (
 )
 
 type JSXOptions struct {
-	Factory  DefineExpr
-	Fragment DefineExpr
-	Parse    bool
-	Preserve bool
+	Factory          DefineExpr
+	Fragment         DefineExpr
+	Parse            bool
+	Preserve         bool
+	AutomaticRuntime bool
+	ImportSource     string
+	Development      bool
+}
 }
 
 type TSOptions struct {

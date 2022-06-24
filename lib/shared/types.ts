@@ -55,6 +55,12 @@ interface CommonOptions {
   jsxFactory?: string;
   /** Documentation: https://esbuild.github.io/api/#jsx-fragment */
   jsxFragment?: string;
+  /** Documentation: https://esbuild.github.io/api/#jsx-runtime */
+  jsxRuntime?: 'classic' | 'automatic';
+  /** Documentation: https://esbuild.github.io/api/#jsx-import-source */
+  jsxImportSource?: string;
+  /** Documentation: https://esbuild.github.io/api/#jsx-development */
+  jsxDevelopment?: boolean;
 
   /** Documentation: https://esbuild.github.io/api/#define */
   define?: { [key: string]: string };

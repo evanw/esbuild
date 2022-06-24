@@ -638,6 +638,43 @@ func parseOptionsImpl(
 				transformOpts.JSXFragment = value
 			}
 
+		case strings.HasPrefix(arg, "--jsx-runtime="):
+			value := arg[len("--jsx-runtime="):]
+			var runtime api.JSXRuntime
+			switch value {
+			case "classic":
+				runtime = api.JSXRuntimeClassic
+			case "automatic":
+				runtime = api.JSXRuntimeAutomatic
+			default:
+				return parseOptionsExtras{}, cli_helpers.MakeErrorWithNote(
+					fmt.Sprintf("Invalid value %q in %q", value, arg),
+					"Valid values are \"classic\" or \"automatic\".",
+				)
+			}
+			if buildOpts != nil {
+				buildOpts.JSXRuntime = runtime
+			} else {
+				transformOpts.JSXRuntime = runtime
+			}
+
+		case strings.HasPrefix(arg, "--jsx-import-source="):
+			value := arg[len("--jsx-import-source="):]
+			if buildOpts != nil {
+				buildOpts.JSXImportSource = value
+			} else {
+				transformOpts.JSXImportSource = value
+			}
+
+		case isBoolFlag(arg, "--jsx-development"):
+			if value, err := parseBoolFlag(arg, true); err != nil {
+				return parseOptionsExtras{}, err
+			} else if buildOpts != nil {
+				buildOpts.JSXDevelopment = value
+			} else {
+				transformOpts.JSXDevelopment = value
+			}
+
 		case strings.HasPrefix(arg, "--banner=") && transformOpts != nil:
 			transformOpts.Banner = arg[len("--banner="):]
 
