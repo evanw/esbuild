@@ -149,26 +149,34 @@ func expectPrintedJSX(t *testing.T, contents string, expected string) {
 	})
 }
 
-func expectParseErrorTargetJSX(t *testing.T, esVersion int, contents string, expected string) {
+type JSXAutomaticTestOptions struct {
+	Development            bool
+	ImportSource           string
+	OmitJSXRuntimeForTests bool
+}
+
+func expectParseErrorJSXAutomatic(t *testing.T, contents string, expected string, options JSXAutomaticTestOptions) {
 	t.Helper()
 	expectParseErrorCommon(t, contents, expected, config.Options{
-		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
-			compat.ES: {esVersion},
-		}),
+		OmitJSXRuntimeForTests: options.OmitJSXRuntimeForTests,
 		JSX: config.JSXOptions{
-			Parse: true,
+			AutomaticRuntime: true,
+			Parse:            true,
+			Development:      options.Development,
+			ImportSource:     options.ImportSource,
 		},
 	})
 }
 
-func expectPrintedTargetJSX(t *testing.T, esVersion int, contents string, expected string) {
+func expectPrintedJSXAutomatic(t *testing.T, contents string, expected string, options JSXAutomaticTestOptions) {
 	t.Helper()
 	expectPrintedCommon(t, contents, expected, config.Options{
-		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
-			compat.ES: {esVersion},
-		}),
+		OmitJSXRuntimeForTests: options.OmitJSXRuntimeForTests,
 		JSX: config.JSXOptions{
-			Parse: true,
+			AutomaticRuntime: true,
+			Parse:            true,
+			Development:      options.Development,
+			ImportSource:     options.ImportSource,
 		},
 	})
 }
@@ -4716,6 +4724,90 @@ func TestJSXPragmas(t *testing.T) {
 	expectPrintedJSX(t, "// @jsxFrag a.b.c\n<></>", "/* @__PURE__ */ React.createElement(a.b.c, null);\n")
 	expectPrintedJSX(t, "/*@jsxFrag a.b.c*/\n<></>", "/* @__PURE__ */ React.createElement(a.b.c, null);\n")
 	expectPrintedJSX(t, "/* @jsxFrag a.b.c */\n<></>", "/* @__PURE__ */ React.createElement(a.b.c, null);\n")
+}
+
+func TestJSXAutomatic(t *testing.T) {
+	// Prod, without imports
+	prodOpts := JSXAutomaticTestOptions{Development: false, OmitJSXRuntimeForTests: true}
+	expectPrintedJSXAutomatic(t, "<div>></div>", "/* @__PURE__ */ jsx(\"div\", {\n  children: \">\"\n});\n", prodOpts)
+	expectPrintedJSXAutomatic(t, "<div>{1}}</div>", "/* @__PURE__ */ jsxs(\"div\", {\n  children: [\n    1,\n    \"}\"\n  ]\n});\n", prodOpts)
+	expectPrintedJSXAutomatic(t, "<div key={true} />", "/* @__PURE__ */ jsx(\"div\", {}, true);\n", prodOpts)
+	expectPrintedJSXAutomatic(t, "<div key=\"key\" />", "/* @__PURE__ */ jsx(\"div\", {}, \"key\");\n", prodOpts)
+	expectPrintedJSXAutomatic(t, "<div key=\"key\" {...props} />", "/* @__PURE__ */ jsx(\"div\", {\n  ...props\n}, \"key\");\n", prodOpts)
+	expectPrintedJSXAutomatic(t, "<div {...props} key=\"key\" />", "/* @__PURE__ */ createElement(\"div\", {\n  ...props,\n  key: \"key\"\n});\n", prodOpts) // Falls back to createElement
+	expectPrintedJSXAutomatic(t, "<div>{...children}</div>", "/* @__PURE__ */ jsxs(\"div\", {\n  children: [\n    ...children\n  ]\n});\n", prodOpts)
+	expectPrintedJSXAutomatic(t, "<div>{...children}<a/></div>", "/* @__PURE__ */ jsxs(\"div\", {\n  children: [\n    ...children,\n    /* @__PURE__ */ jsx(\"a\", {})\n  ]\n});\n", prodOpts)
+	expectPrintedJSXAutomatic(t, "<>></>", "/* @__PURE__ */ jsx(Fragment, {\n  children: \">\"\n});\n", prodOpts)
+
+	// Prod, with imports
+	prodImportOpts := JSXAutomaticTestOptions{Development: false}
+	expectPrintedJSXAutomatic(t, "<div/>", "/* @__PURE__ */ jsx(\"div\", {});\nimport {\n  jsx\n} from \"react/jsx-runtime\";\n", prodImportOpts)
+	expectPrintedJSXAutomatic(t, "<><a/><b/></>", "/* @__PURE__ */ jsxs(Fragment, {\n  children: [\n    /* @__PURE__ */ jsx(\"a\", {}),\n    /* @__PURE__ */ jsx(\"b\", {})\n  ]\n});\nimport {\n  Fragment,\n  jsx,\n  jsxs\n} from \"react/jsx-runtime\";\n", prodImportOpts)
+	expectPrintedJSXAutomatic(t, "<div {...props} key=\"key\" />", "/* @__PURE__ */ createElement(\"div\", {\n  ...props,\n  key: \"key\"\n});\nimport {\n  createElement\n} from \"react\";\n", prodImportOpts)
+	expectPrintedJSXAutomatic(t, "<><div {...props} key=\"key\" /></>", "/* @__PURE__ */ jsx(Fragment, {\n  children: /* @__PURE__ */ createElement(\"div\", {\n    ...props,\n    key: \"key\"\n  })\n});\nimport {\n  Fragment,\n  jsx\n} from \"react/jsx-runtime\";\nimport {\n  createElement\n} from \"react\";\n", prodImportOpts)
+
+	prodImportSourceOpts := JSXAutomaticTestOptions{Development: false, ImportSource: "my-jsx-lib"}
+	expectPrintedJSXAutomatic(t, "<div/>", "/* @__PURE__ */ jsx(\"div\", {});\nimport {\n  jsx\n} from \"my-jsx-lib/jsx-runtime\";\n", prodImportSourceOpts)
+	expectPrintedJSXAutomatic(t, "<div {...props} key=\"key\" />", "/* @__PURE__ */ createElement(\"div\", {\n  ...props,\n  key: \"key\"\n});\nimport {\n  createElement\n} from \"my-jsx-lib\";\n", prodImportSourceOpts)
+
+	expectParseErrorJSXAutomatic(t, "<a key/>", "<stdin>: ERROR: Please provide an explicit key value. Using \"key\" as a shorthand for \"key={true}\" is not allowed.\n<stdin>: NOTE: The property \"key\" was defined here:\n", prodOpts)
+
+	// Dev, without imports
+	devOpts := JSXAutomaticTestOptions{Development: true, OmitJSXRuntimeForTests: true}
+	expectPrintedJSXAutomatic(t, "<div>></div>", "/* @__PURE__ */ jsxDEV(\"div\", {\n  children: \">\"\n}, void 0, false, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 0\n}, this);\n", devOpts)
+	expectPrintedJSXAutomatic(t, "<div>{1}}</div>", "/* @__PURE__ */ jsxDEV(\"div\", {\n  children: [\n    1,\n    \"}\"\n  ]\n}, void 0, true, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 0\n}, this);\n", devOpts)
+	expectPrintedJSXAutomatic(t, "<div key={true} />", "/* @__PURE__ */ jsxDEV(\"div\", {}, true, false, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 0\n}, this);\n", devOpts)
+	expectPrintedJSXAutomatic(t, "<div key=\"key\" />", "/* @__PURE__ */ jsxDEV(\"div\", {}, \"key\", false, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 0\n}, this);\n", devOpts)
+	expectPrintedJSXAutomatic(t, "<div key=\"key\" {...props} />", "/* @__PURE__ */ jsxDEV(\"div\", {\n  ...props\n}, \"key\", false, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 0\n}, this);\n", devOpts)
+	expectPrintedJSXAutomatic(t, "<div {...props} key=\"key\" />", "/* @__PURE__ */ createElement(\"div\", {\n  ...props,\n  key: \"key\"\n});\n", devOpts) // Falls back to createElement
+	expectPrintedJSXAutomatic(t, "<div>{...children}</div>", "/* @__PURE__ */ jsxDEV(\"div\", {\n  children: [\n    ...children\n  ]\n}, void 0, true, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 0\n}, this);\n", devOpts)
+	expectPrintedJSXAutomatic(t, "<div>\n  {...children}\n  <a/></div>", "/* @__PURE__ */ jsxDEV(\"div\", {\n  children: [\n    ...children,\n    /* @__PURE__ */ jsxDEV(\"a\", {}, void 0, false, {\n      fileName: \"<stdin>\",\n      lineNumber: 3,\n      columnNumber: 2\n    }, this)\n  ]\n}, void 0, true, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 0\n}, this);\n", devOpts)
+	expectPrintedJSXAutomatic(t, "<>></>", "/* @__PURE__ */ jsxDEV(Fragment, {\n  children: \">\"\n}, void 0, false, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 0\n}, this);\n", devOpts)
+
+	// Dev, with imports
+	devImportOpts := JSXAutomaticTestOptions{Development: true}
+	expectPrintedJSXAutomatic(t, "<div/>", "/* @__PURE__ */ jsxDEV(\"div\", {}, void 0, false, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 0\n}, this);\nimport {\n  jsxDEV\n} from \"react/jsx-dev-runtime\";\n", devImportOpts)
+	expectPrintedJSXAutomatic(t, "<>\n  <a/>\n  <b/>\n</>", "/* @__PURE__ */ jsxDEV(Fragment, {\n  children: [\n    /* @__PURE__ */ jsxDEV(\"a\", {}, void 0, false, {\n      fileName: \"<stdin>\",\n      lineNumber: 2,\n      columnNumber: 2\n    }, this),\n    /* @__PURE__ */ jsxDEV(\"b\", {}, void 0, false, {\n      fileName: \"<stdin>\",\n      lineNumber: 3,\n      columnNumber: 2\n    }, this)\n  ]\n}, void 0, true, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 0\n}, this);\nimport {\n  Fragment,\n  jsxDEV\n} from \"react/jsx-dev-runtime\";\n", devImportOpts)
+
+	devImportSourceOpts := JSXAutomaticTestOptions{Development: true, ImportSource: "preact"}
+	expectPrintedJSXAutomatic(t, "<div/>", "/* @__PURE__ */ jsxDEV(\"div\", {}, void 0, false, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 0\n}, this);\nimport {\n  jsxDEV\n} from \"preact/jsx-dev-runtime\";\n", devImportSourceOpts)
+	expectPrintedJSXAutomatic(t, "<>\n  <a/>\n  <b/>\n</>", "/* @__PURE__ */ jsxDEV(Fragment, {\n  children: [\n    /* @__PURE__ */ jsxDEV(\"a\", {}, void 0, false, {\n      fileName: \"<stdin>\",\n      lineNumber: 2,\n      columnNumber: 2\n    }, this),\n    /* @__PURE__ */ jsxDEV(\"b\", {}, void 0, false, {\n      fileName: \"<stdin>\",\n      lineNumber: 3,\n      columnNumber: 2\n    }, this)\n  ]\n}, void 0, true, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 0\n}, this);\nimport {\n  Fragment,\n  jsxDEV\n} from \"preact/jsx-dev-runtime\";\n", devImportSourceOpts)
+
+	expectParseErrorJSXAutomatic(t, "<a key/>", "<stdin>: ERROR: Please provide an explicit key value. Using \"key\" as a shorthand for \"key={true}\" is not allowed.\n<stdin>: NOTE: The property \"key\" was defined here:\n", devOpts)
+}
+
+func TestJSXAutomaticPragmas(t *testing.T) {
+	expectPrintedJSX(t, "// @jsxRuntime automatic\n<a/>", "/* @__PURE__ */ jsx(\"a\", {});\nimport {\n  jsx\n} from \"react/jsx-runtime\";\n")
+	expectPrintedJSX(t, "/*@jsxRuntime automatic*/\n<a/>", "/* @__PURE__ */ jsx(\"a\", {});\nimport {\n  jsx\n} from \"react/jsx-runtime\";\n")
+	expectPrintedJSX(t, "/* @jsxRuntime automatic */\n<a/>", "/* @__PURE__ */ jsx(\"a\", {});\nimport {\n  jsx\n} from \"react/jsx-runtime\";\n")
+	expectPrintedJSX(t, "<a/>\n/*@jsxRuntime automatic*/", "/* @__PURE__ */ jsx(\"a\", {});\nimport {\n  jsx\n} from \"react/jsx-runtime\";\n")
+	expectPrintedJSX(t, "<a/>\n/* @jsxRuntime automatic */", "/* @__PURE__ */ jsx(\"a\", {});\nimport {\n  jsx\n} from \"react/jsx-runtime\";\n")
+
+	expectPrintedJSX(t, "// @jsxRuntime classic\n<a/>", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
+	expectPrintedJSX(t, "/*@jsxRuntime classic*/\n<a/>", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
+	expectPrintedJSX(t, "/* @jsxRuntime classic */\n<a/>", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
+	expectPrintedJSX(t, "<a/>\n/*@jsxRuntime classic*/\n", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
+	expectPrintedJSX(t, "<a/>\n/* @jsxRuntime classic */\n", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
+
+	expectParseErrorJSX(t, "// @jsxRuntime foo\n<a/>", "<stdin>: WARNING: Invalid JSX runtime: foo\n")
+
+	expectPrintedJSX(t, "// @jsxRuntime automatic @jsxImportSource src\n<a/>", "/* @__PURE__ */ jsx(\"a\", {});\nimport {\n  jsx\n} from \"src/jsx-runtime\";\n")
+	expectPrintedJSX(t, "/*@jsxRuntime automatic @jsxImportSource src*/\n<a/>", "/* @__PURE__ */ jsx(\"a\", {});\nimport {\n  jsx\n} from \"src/jsx-runtime\";\n")
+	expectPrintedJSX(t, "/*@jsxRuntime automatic*//*@jsxImportSource src*/\n<a/>", "/* @__PURE__ */ jsx(\"a\", {});\nimport {\n  jsx\n} from \"src/jsx-runtime\";\n")
+	expectPrintedJSX(t, "/* @jsxRuntime automatic */\n/* @jsxImportSource src */\n<a/>", "/* @__PURE__ */ jsx(\"a\", {});\nimport {\n  jsx\n} from \"src/jsx-runtime\";\n")
+	expectPrintedJSX(t, "<a/>\n/*@jsxRuntime automatic @jsxImportSource src*/", "/* @__PURE__ */ jsx(\"a\", {});\nimport {\n  jsx\n} from \"src/jsx-runtime\";\n")
+	expectPrintedJSX(t, "<a/>\n/*@jsxRuntime automatic*/\n/*@jsxImportSource src*/", "/* @__PURE__ */ jsx(\"a\", {});\nimport {\n  jsx\n} from \"src/jsx-runtime\";\n")
+	expectPrintedJSX(t, "<a/>\n/* @jsxRuntime automatic */\n/* @jsxImportSource src */", "/* @__PURE__ */ jsx(\"a\", {});\nimport {\n  jsx\n} from \"src/jsx-runtime\";\n")
+
+	expectPrintedJSX(t, "// @jsxRuntime classic @jsxImportSource src\n<a/>", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
+	expectParseErrorJSX(t, "// @jsxRuntime classic @jsxImportSource src\n<a/>", "<stdin>: WARNING: JSX import source cannot be set when runtime is classic: src\n")
+	expectParseErrorJSX(t, "// @jsxImportSource src\n<a/>", "<stdin>: WARNING: JSX import source cannot be set when runtime is classic: src\n")
+
+	expectPrintedJSX(t, "// @jsxRuntime automatic @jsx h\n<a/>", "/* @__PURE__ */ jsx(\"a\", {});\nimport {\n  jsx\n} from \"react/jsx-runtime\";\n")
+	expectParseErrorJSX(t, "// @jsxRuntime automatic @jsx h\n<a/>", "<stdin>: WARNING: JSX factory cannot be set when runtime is automatic: h\n")
+
+	expectPrintedJSX(t, "// @jsxRuntime automatic @jsxFrag f\n<></>", "/* @__PURE__ */ jsx(Fragment, {});\nimport {\n  Fragment,\n  jsx\n} from \"react/jsx-runtime\";\n")
+	expectParseErrorJSX(t, "// @jsxRuntime automatic @jsxFrag f\n<></>", "<stdin>: WARNING: JSX fragment cannot be set when runtime is automatic: f\n")
 }
 
 func TestPreserveOptionalChainParentheses(t *testing.T) {

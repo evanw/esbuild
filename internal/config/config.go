@@ -305,6 +305,7 @@ type Options struct {
 	WriteToStdout bool
 
 	OmitRuntimeForTests     bool
+	OmitJSXRuntimeForTests  bool
 	UnusedImportFlagsTS     UnusedImportFlagsTS
 	UseDefineForClassFields MaybeBool
 	ASCIIOnly               bool

@@ -401,6 +401,7 @@ type optionsThatSupportStructuralEquality struct {
 	minifySyntax            bool
 	minifyIdentifiers       bool
 	omitRuntimeForTests     bool
+	omitJSXRuntimeForTests  bool
 	ignoreDCEAnnotations    bool
 	treeShaking             bool
 	dropDebugger            bool
@@ -435,6 +436,7 @@ func OptionsFromConfig(options *config.Options) Options {
 			minifySyntax:                      options.MinifySyntax,
 			minifyIdentifiers:                 options.MinifyIdentifiers,
 			omitRuntimeForTests:               options.OmitRuntimeForTests,
+			omitJSXRuntimeForTests:            options.OmitJSXRuntimeForTests,
 			ignoreDCEAnnotations:              options.IgnoreDCEAnnotations,
 			treeShaking:                       options.TreeShaking,
 			dropDebugger:                      options.DropDebugger,
