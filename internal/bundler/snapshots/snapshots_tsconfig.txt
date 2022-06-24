@@ -315,6 +315,76 @@ function fib(input) {
 console.log(fib(10));
 
 ================================================================================
+TestTsConfigReactJSX
+---------- /Users/user/project/out.js ----------
+// Users/user/project/entry.tsx
+console.log(/* @__PURE__ */ jsxs(Fragment, {
+  children: [
+    /* @__PURE__ */ jsx("div", {}),
+    /* @__PURE__ */ jsx("div", {})
+  ]
+}));
+import {
+  Fragment,
+  jsx,
+  jsxs
+} from "notreact/jsx-runtime";
+
+================================================================================
+TestTsConfigReactJSXDev
+---------- /Users/user/project/out.js ----------
+// Users/user/project/entry.tsx
+console.log(/* @__PURE__ */ jsxDEV(Fragment, {
+  children: [
+    /* @__PURE__ */ jsxDEV("div", {}, void 0, false, {
+      fileName: "Users/user/project/entry.tsx",
+      lineNumber: 2,
+      columnNumber: 18
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", {}, void 0, false, {
+      fileName: "Users/user/project/entry.tsx",
+      lineNumber: 2,
+      columnNumber: 24
+    }, this)
+  ]
+}, void 0, true, {
+  fileName: "Users/user/project/entry.tsx",
+  lineNumber: 2,
+  columnNumber: 16
+}, this));
+import {
+  Fragment,
+  jsxDEV
+} from "react/jsx-dev-runtime";
+
+================================================================================
+TestTsConfigReactJSXWithDevInMainConfig
+---------- /Users/user/project/out.js ----------
+// Users/user/project/entry.tsx
+console.log(/* @__PURE__ */ jsxDEV(Fragment, {
+  children: [
+    /* @__PURE__ */ jsxDEV("div", {}, void 0, false, {
+      fileName: "Users/user/project/entry.tsx",
+      lineNumber: 2,
+      columnNumber: 18
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", {}, void 0, false, {
+      fileName: "Users/user/project/entry.tsx",
+      lineNumber: 2,
+      columnNumber: 24
+    }, this)
+  ]
+}, void 0, true, {
+  fileName: "Users/user/project/entry.tsx",
+  lineNumber: 2,
+  columnNumber: 16
+}, this));
+import {
+  Fragment,
+  jsxDEV
+} from "react/jsx-dev-runtime";
+
+================================================================================
 TestTsConfigWithStatementAlwaysStrictFalse
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/src/entry.ts
