@@ -12107,28 +12107,37 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				// Arguments to jsx()
 				args := []js_ast.Expr{e.TagOrNil}
 
-				// For jsx(), "key", "__source" (dev), and "__self" (dev) are passed in as
-				// separate arguments rather than in the args object. We go through the
-				// props and filter out these three keywords so we can pass them in
-				// as separate arguments later.
-				extracted := make(map[string]js_ast.Property, 3)
-				properties := make([]js_ast.Property, 0, len(e.Properties)+len(e.Children))
+				// Props argument
+				properties := make([]js_ast.Property, 0, len(e.Properties)+1)
 
+				// For jsx(), "key" is passed in as a separate argument, so filter it out
+				// from the props here. Also, check for __source and __self, which might have
+				// been added by some upstream plugin. Their presence here would represent a
+				// configuration error.
+				hasKey := false
+				keyProperty := js_ast.Expr{Data: js_ast.EUndefinedShared}
 				for _, property := range e.Properties {
 					if str, ok := property.Key.Data.(*js_ast.EString); ok {
-						key := helpers.UTF16ToString(str.Value)
-						switch key {
+						propName := helpers.UTF16ToString(str.Value)
+						switch propName {
 						case "key":
 							if property.Flags.Has(js_ast.PropertyWasShorthand) {
 								r := js_lexer.RangeOfIdentifier(p.source, property.Loc)
 								p.log.AddErrorWithNotes(&p.tracker, r,
 									"Please provide an explicit key value. Using \"key\" as a shorthand for \"key={true}\" is not allowed.",
 									[]logger.MsgData{p.tracker.MsgData(js_lexer.RangeOfIdentifier(p.source, property.Loc),
-										fmt.Sprintf("The property %q was defined here:", key))})
+										fmt.Sprintf("The property %q was defined here:", propName))})
+							} else {
+								keyProperty = property.ValueOrNil
+								hasKey = true
 							}
-							fallthrough
+							continue
 						case "__source", "__self":
-							extracted[key] = property
+							r := js_lexer.RangeOfIdentifier(p.source, property.Loc)
+							p.log.AddErrorWithNotes(&p.tracker, r,
+								fmt.Sprintf("Duplicate \"%s\" prop found. Both __source and __self are set automatically by esbuild. These may have been set automatically by a plugin.", propName),
+								[]logger.MsgData{p.tracker.MsgData(js_lexer.RangeOfIdentifier(p.source, property.Loc),
+									fmt.Sprintf("The property %q was defined here:", propName))})
 							continue
 						}
 					}
@@ -12146,9 +12155,11 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 						childrenValue = js_ast.Expr{Data: &js_ast.EArray{Items: e.Children}}
 					} else if len(e.Children) == 1 {
 						if _, ok := e.Children[0].Data.(*js_ast.ESpread); ok {
-							// Special case for spread children
+							// TypeScript considers spread children to be static, but Babel considers
+							// it to be an error ("Spread children are not supported in React.").
+							// We'll follow TypeScript's behavior here because spread children may be
+							// valid with non-React source runtimes.
 							childrenValue = js_ast.Expr{Data: &js_ast.EArray{Items: []js_ast.Expr{e.Children[0]}}}
-							// TypeScript considers spread children to be static
 							isStaticChildren = true
 						} else {
 							childrenValue = e.Children[0]
@@ -12170,56 +12181,45 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					Properties: properties,
 				}))
 
-				if p.options.jsx.Development {
-					// "key"
-					if keyProperty, ok := extracted["key"]; ok {
-						args = append(args, keyProperty.ValueOrNil)
-					} else {
-						args = append(args, js_ast.Expr{Data: js_ast.EUndefinedShared})
-					}
+				// "key"
+				if hasKey || p.options.jsx.Development {
+					args = append(args, keyProperty)
+				}
 
+				if p.options.jsx.Development {
 					// "isStaticChildren"
 					args = append(args, js_ast.Expr{Data: &js_ast.EBoolean{Value: isStaticChildren}})
 
 					// "__source"
-					if sourceProperty, ok := extracted["__source"]; ok {
-						args = append(args, sourceProperty.ValueOrNil)
-					} else {
-						// Resolving the location to a specific line and column could be expensive, but it
-						// only happens in development mode and is a documented tradeoff.
-						prettyLoc := p.tracker.MsgLocationOrNil(js_lexer.RangeOfIdentifier(p.source, expr.Loc))
-						args = append(args, js_ast.Expr{Data: &js_ast.EObject{
-							Properties: []js_ast.Property{
-								{
-									Kind:       js_ast.PropertyNormal,
-									Key:        js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16("fileName")}},
-									ValueOrNil: js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16(p.source.PrettyPath)}},
-								},
-								{
-									Kind:       js_ast.PropertyNormal,
-									Key:        js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16("lineNumber")}},
-									ValueOrNil: js_ast.Expr{Data: &js_ast.ENumber{Value: float64(prettyLoc.Line)}},
-								},
-								{
-									Kind:       js_ast.PropertyNormal,
-									Key:        js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16("columnNumber")}},
-									ValueOrNil: js_ast.Expr{Data: &js_ast.ENumber{Value: float64(prettyLoc.Column)}},
-								},
+					// Resolving the location to a specific line and column could be expensive, but it
+					// only happens in development mode and is a documented tradeoff.
+					prettyLoc := p.tracker.MsgLocationOrNil(js_lexer.RangeOfIdentifier(p.source, expr.Loc))
+					args = append(args, js_ast.Expr{Data: &js_ast.EObject{
+						Properties: []js_ast.Property{
+							{
+								Kind:       js_ast.PropertyNormal,
+								Key:        js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16("fileName")}},
+								ValueOrNil: js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16(p.source.PrettyPath)}},
 							},
-						}})
-					}
+							{
+								Kind:       js_ast.PropertyNormal,
+								Key:        js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16("lineNumber")}},
+								ValueOrNil: js_ast.Expr{Data: &js_ast.ENumber{Value: float64(prettyLoc.Line)}},
+							},
+							{
+								Kind:       js_ast.PropertyNormal,
+								Key:        js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16("columnNumber")}},
+								ValueOrNil: js_ast.Expr{Data: &js_ast.ENumber{Value: float64(prettyLoc.Column)}},
+							},
+						},
+					}})
 
 					// "__self"
-					if selfProperty, ok := extracted["__self"]; ok {
-						args = append(args, selfProperty.ValueOrNil)
-					} else if p.fnOrArrowDataParse.isThisDisallowed {
+					if p.fnOrArrowDataParse.isThisDisallowed {
 						args = append(args, js_ast.Expr{Data: js_ast.EUndefinedShared})
 					} else {
 						args = append(args, js_ast.Expr{Data: js_ast.EThisShared})
 					}
-				} else if keyProperty, ok := extracted["key"]; ok {
-					// Production, "key"
-					args = append(args, keyProperty.ValueOrNil)
 				}
 
 				jsx := JSXImportJSX

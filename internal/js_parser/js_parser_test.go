@@ -4751,6 +4751,8 @@ func TestJSXAutomatic(t *testing.T) {
 	expectPrintedJSXAutomatic(t, "<div {...props} key=\"key\" />", "/* @__PURE__ */ createElement(\"div\", {\n  ...props,\n  key: \"key\"\n});\nimport {\n  createElement\n} from \"my-jsx-lib\";\n", prodImportSourceOpts)
 
 	expectParseErrorJSXAutomatic(t, "<a key/>", "<stdin>: ERROR: Please provide an explicit key value. Using \"key\" as a shorthand for \"key={true}\" is not allowed.\n<stdin>: NOTE: The property \"key\" was defined here:\n", prodOpts)
+	expectParseErrorJSXAutomatic(t, "<div __self={self} />", "<stdin>: ERROR: Duplicate \"__self\" prop found. Both __source and __self are set automatically by esbuild. These may have been set automatically by a plugin.\n<stdin>: NOTE: The property \"__self\" was defined here:\n", prodOpts)
+	expectParseErrorJSXAutomatic(t, "<div __source=\"/path/to/source.jsx\" />", "<stdin>: ERROR: Duplicate \"__source\" prop found. Both __source and __self are set automatically by esbuild. These may have been set automatically by a plugin.\n<stdin>: NOTE: The property \"__source\" was defined here:\n", prodOpts)
 
 	// Dev, without imports
 	devOpts := JSXAutomaticTestOptions{Development: true, OmitJSXRuntimeForTests: true}
@@ -4774,6 +4776,8 @@ func TestJSXAutomatic(t *testing.T) {
 	expectPrintedJSXAutomatic(t, "<>\n  <a/>\n  <b/>\n</>", "/* @__PURE__ */ jsxDEV(Fragment, {\n  children: [\n    /* @__PURE__ */ jsxDEV(\"a\", {}, void 0, false, {\n      fileName: \"<stdin>\",\n      lineNumber: 2,\n      columnNumber: 2\n    }, this),\n    /* @__PURE__ */ jsxDEV(\"b\", {}, void 0, false, {\n      fileName: \"<stdin>\",\n      lineNumber: 3,\n      columnNumber: 2\n    }, this)\n  ]\n}, void 0, true, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 0\n}, this);\nimport {\n  Fragment,\n  jsxDEV\n} from \"preact/jsx-dev-runtime\";\n", devImportSourceOpts)
 
 	expectParseErrorJSXAutomatic(t, "<a key/>", "<stdin>: ERROR: Please provide an explicit key value. Using \"key\" as a shorthand for \"key={true}\" is not allowed.\n<stdin>: NOTE: The property \"key\" was defined here:\n", devOpts)
+	expectParseErrorJSXAutomatic(t, "<div __self={self} />", "<stdin>: ERROR: Duplicate \"__self\" prop found. Both __source and __self are set automatically by esbuild. These may have been set automatically by a plugin.\n<stdin>: NOTE: The property \"__self\" was defined here:\n", devOpts)
+	expectParseErrorJSXAutomatic(t, "<div __source=\"/path/to/source.jsx\" />", "<stdin>: ERROR: Duplicate \"__source\" prop found. Both __source and __self are set automatically by esbuild. These may have been set automatically by a plugin.\n<stdin>: NOTE: The property \"__source\" was defined here:\n", devOpts)
 }
 
 func TestJSXAutomaticPragmas(t *testing.T) {
