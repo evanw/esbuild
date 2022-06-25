@@ -15741,13 +15741,6 @@ func LazyExportAST(log logger.Log, source logger.Source, options Options, expr j
 	return ast
 }
 
-type JSXExprKind uint8
-
-const (
-	JSXFactory JSXExprKind = iota
-	JSXFragment
-)
-
 func ParseDefineExprOrJSON(text string) (config.DefineExpr, js_ast.E) {
 	if text == "" {
 		return config.DefineExpr{}, nil
