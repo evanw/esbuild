@@ -4778,6 +4778,26 @@ func TestJSXAutomatic(t *testing.T) {
 	expectParseErrorJSXAutomatic(t, "<a key/>", "<stdin>: ERROR: Please provide an explicit key value. Using \"key\" as a shorthand for \"key={true}\" is not allowed.\n<stdin>: NOTE: The property \"key\" was defined here:\n", devOpts)
 	expectParseErrorJSXAutomatic(t, "<div __self={self} />", "<stdin>: ERROR: Duplicate \"__self\" prop found. Both __source and __self are set automatically by esbuild. These may have been set automatically by a plugin.\n<stdin>: NOTE: The property \"__self\" was defined here:\n", devOpts)
 	expectParseErrorJSXAutomatic(t, "<div __source=\"/path/to/source.jsx\" />", "<stdin>: ERROR: Duplicate \"__source\" prop found. Both __source and __self are set automatically by esbuild. These may have been set automatically by a plugin.\n<stdin>: NOTE: The property \"__source\" was defined here:\n", devOpts)
+
+	// JSX namespaced names
+	for _, colon := range []string{":", " :", ": ", " : "} {
+		expectPrintedJSXAutomatic(t, "<a"+colon+"b/>", "/* @__PURE__ */ jsx(\"a:b\", {});\n", prodOpts)
+		expectPrintedJSXAutomatic(t, "<a-b"+colon+"c-d/>", "/* @__PURE__ */ jsx(\"a-b:c-d\", {});\n", prodOpts)
+		expectPrintedJSXAutomatic(t, "<a-"+colon+"b-/>", "/* @__PURE__ */ jsx(\"a-:b-\", {});\n", prodOpts)
+		expectPrintedJSXAutomatic(t, "<Te"+colon+"st/>", "/* @__PURE__ */ jsx(\"Te:st\", {});\n", prodOpts)
+		expectPrintedJSXAutomatic(t, "<x a"+colon+"b/>", "/* @__PURE__ */ jsx(\"x\", {\n  \"a:b\": true\n});\n", prodOpts)
+		expectPrintedJSXAutomatic(t, "<x a-b"+colon+"c-d/>", "/* @__PURE__ */ jsx(\"x\", {\n  \"a-b:c-d\": true\n});\n", prodOpts)
+		expectPrintedJSXAutomatic(t, "<x a-"+colon+"b-/>", "/* @__PURE__ */ jsx(\"x\", {\n  \"a-:b-\": true\n});\n", prodOpts)
+		expectPrintedJSXAutomatic(t, "<x Te"+colon+"st/>", "/* @__PURE__ */ jsx(\"x\", {\n  \"Te:st\": true\n});\n", prodOpts)
+		expectPrintedJSXAutomatic(t, "<x a"+colon+"b={0}/>", "/* @__PURE__ */ jsx(\"x\", {\n  \"a:b\": 0\n});\n", prodOpts)
+		expectPrintedJSXAutomatic(t, "<x a-b"+colon+"c-d={0}/>", "/* @__PURE__ */ jsx(\"x\", {\n  \"a-b:c-d\": 0\n});\n", prodOpts)
+		expectPrintedJSXAutomatic(t, "<x a-"+colon+"b-={0}/>", "/* @__PURE__ */ jsx(\"x\", {\n  \"a-:b-\": 0\n});\n", prodOpts)
+		expectPrintedJSXAutomatic(t, "<x Te"+colon+"st={0}/>", "/* @__PURE__ */ jsx(\"x\", {\n  \"Te:st\": 0\n});\n", prodOpts)
+		expectPrintedJSXAutomatic(t, "<a-b a-b={a-b}/>", "/* @__PURE__ */ jsx(\"a-b\", {\n  \"a-b\": a - b\n});\n", prodOpts)
+		expectParseErrorJSXAutomatic(t, "<x"+colon+"/>", "<stdin>: ERROR: Expected identifier after \"x:\" in namespaced JSX name\n", prodOpts)
+		expectParseErrorJSXAutomatic(t, "<x"+colon+"y"+colon+"/>", "<stdin>: ERROR: Expected \">\" but found \":\"\n", prodOpts)
+		expectParseErrorJSXAutomatic(t, "<x"+colon+"0y/>", "<stdin>: ERROR: Expected identifier after \"x:\" in namespaced JSX name\n", prodOpts)
+	}
 }
 
 func TestJSXAutomaticPragmas(t *testing.T) {
