@@ -525,3 +525,23 @@ func TestSplittingPublicPathEntryName(t *testing.T) {
 		},
 	})
 }
+
+func TestSplittingSha256Name(t *testing.T) {
+	splitting_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/a.js": `
+				import("./b")
+			`,
+			"/b.js": `
+				console.log('b')
+			`,
+		},
+		entryPaths: []string{"/a.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			CodeSplitting: true,
+			HashFunction:  config.HashSHA256,
+			OutputFormat:  config.FormatESModule,
+		},
+	})
+}

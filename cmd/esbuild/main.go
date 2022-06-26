@@ -75,6 +75,7 @@ var helpText = func(colors logger.Colors) string {
   --global-name=...         The name of the global for the IIFE format
   --ignore-annotations      Enable this to work with packages that have
                             incorrect tree-shaking annotations
+  --hash-function=base32    Hash function to use for filenames (base32 | sha256)
   --inject:F                Import the file F into all input files and
                             automatically replace matching globals with imports
   --jsx-factory=...         What to use for JSX instead of React.createElement
