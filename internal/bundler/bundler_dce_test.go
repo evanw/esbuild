@@ -2777,7 +2777,7 @@ func TestConstValueInliningNoBundle(t *testing.T) {
 			`,
 			"/exprs-before.js": `
 				function nested() {
-					const x = [, '', {}, 0n, /./, function() {}, () => {}]
+					const x_REMOVE = [, '', {}, 0n, /./, function() {}, () => {}]
 					const y_REMOVE = 1
 					function foo() {
 						return y_REMOVE

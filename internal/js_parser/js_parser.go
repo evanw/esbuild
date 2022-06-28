@@ -7702,6 +7702,36 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 			}
 
 		case *js_ast.SLocal:
+			// Drop unused local variables
+			//
+			// The declaration must not be exported. We can't just check for the
+			// "export" keyword because something might do "export {id};" later on.
+			// Instead we just ignore all top-level declarations for now. That means
+			// this optimization currently only applies in nested scopes.
+			//
+			// Ignore declarations if the scope is shadowed by a direct "eval" call.
+			// The eval'd code may indirectly reference this symbol and the actual
+			// use count may be greater than 0.
+			if p.currentScope != p.moduleScope && !p.currentScope.ContainsDirectEval {
+				// Ignore "var" declarations unless we are running in function body.
+				// Because we may not have visited all of their uses yet by this point.
+				if s.Kind != js_ast.LocalVar || kind == stmtsFnBody {
+					newDecls := make([]js_ast.Decl, 0)
+					for _, decl := range s.Decls {
+						if id, ok := decl.Binding.Data.(*js_ast.BIdentifier); ok {
+							if !p.isSymbolUsed(id.Ref, s.Kind == js_ast.LocalVar) && (decl.ValueOrNil.Data == nil || p.exprCanBeRemovedIfUnused(decl.ValueOrNil)) {
+								continue
+							}
+						}
+						newDecls = append(newDecls, decl)
+					}
+					if len(newDecls) == 0 {
+						continue
+					}
+					s.Decls = newDecls
+				}
+			}
+
 			// Merge adjacent local statements
 			if len(result) > 0 {
 				prevStmt := result[len(result)-1]
@@ -8088,6 +8118,21 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 	}
 
 	return result
+}
+
+func (p *parser) isSymbolUsed(ref js_ast.Ref, checkMerged bool) bool {
+	for {
+		symbol := p.symbols[ref.InnerIndex]
+		if symbol.UseCountEstimate > 0 {
+			return true
+		}
+		if !checkMerged || symbol.Link == js_ast.InvalidRef {
+			break
+		}
+
+		ref = symbol.Link
+	}
+	return false
 }
 
 func (p *parser) substituteSingleUseSymbolInStmt(stmt js_ast.Stmt, ref js_ast.Ref, replacement js_ast.Expr) bool {

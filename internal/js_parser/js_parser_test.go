@@ -2964,7 +2964,7 @@ func TestMangleIndex(t *testing.T) {
 func TestMangleBlock(t *testing.T) {
 	expectPrintedMangle(t, "while(1) { while (1) {} }", "for (; ; )\n  for (; ; )\n    ;\n")
 	expectPrintedMangle(t, "while(1) { const x = y; }", "for (; ; ) {\n  const x = y;\n}\n")
-	expectPrintedMangle(t, "while(1) { let x; }", "for (; ; ) {\n  let x;\n}\n")
+	expectPrintedMangle(t, "while(1) { let x; }", "for (; ; )\n  ;\n")
 	expectPrintedMangle(t, "while(1) { var x; }", "for (; ; )\n  var x;\n")
 	expectPrintedMangle(t, "while(1) { class X {} }", "for (; ; ) {\n  class X {\n  }\n}\n")
 	expectPrintedMangle(t, "while(1) { function x() {} }", "for (; ; )\n  var x = function() {\n  };\n")
@@ -4187,7 +4187,7 @@ func TestMangleInlineLocals(t *testing.T) {
 	check("let x = arg0; return y ? x : z;", "let x = arg0;\nreturn y ? x : z;")
 	check("let x = arg0; return y ? z : x;", "let x = arg0;\nreturn y ? z : x;")
 	check("let x = arg0; return (arg1 ? 1 : 2) ? x : 3;", "return arg0;")
-	check("let x = arg0; return (arg1 ? 1 : 2) ? 3 : x;", "let x = arg0;\nreturn 3;")
+	check("let x = arg0; return (arg1 ? 1 : 2) ? 3 : x;", "return 3;")
 	check("let x = arg0; return (arg1 ? y : 1) ? x : 2;", "let x = arg0;\nreturn !arg1 || y ? x : 2;")
 	check("let x = arg0; return (arg1 ? 1 : y) ? x : 2;", "let x = arg0;\nreturn arg1 || y ? x : 2;")
 	check("let x = arg0; return (arg1 ? y : 1) ? 2 : x;", "let x = arg0;\nreturn !arg1 || y ? 2 : x;")
@@ -4344,8 +4344,8 @@ func TestTrimCodeInDeadControlFlow(t *testing.T) {
 	expectPrintedMangle(t, "if (1) a(); else { debugger }", "a();\n")
 
 	expectPrintedMangle(t, "if (0) {let a = 1} else a()", "a();\n")
-	expectPrintedMangle(t, "if (1) {let a = 1} else a()", "{\n  let a = 1;\n}\n")
-	expectPrintedMangle(t, "if (0) a(); else {let a = 1}", "{\n  let a = 1;\n}\n")
+	expectPrintedMangle(t, "if (1) {let a = 1} else a()", "")
+	expectPrintedMangle(t, "if (0) a(); else {let a = 1}", "")
 	expectPrintedMangle(t, "if (1) a(); else {let a = 1}", "a();\n")
 
 	expectPrintedMangle(t, "if (1) a(); else { var a = b }", "if (1)\n  a();\nelse\n  var a;\n")
@@ -5284,4 +5284,24 @@ func TestAutoPureForWeakMap(t *testing.T) {
 	expectPrinted(t, "new WeakMap([x])", "new WeakMap([x]);\n")
 	expectPrinted(t, "new WeakMap([x, []])", "new WeakMap([x, []]);\n")
 	expectPrinted(t, "new WeakMap([[], x])", "new WeakMap([[], x]);\n")
+}
+
+func TestDropLocalUnusedVariable(t *testing.T) {
+	expectPrintedMangle(t, "var v = 0", "var v = 0;\n")
+	expectPrintedMangle(t, "let v = 0", "let v = 0;\n")
+	expectPrintedMangle(t, "const v = 0", "const v = 0;\n")
+	expectPrintedMangle(t, "{ var v = 0 }", "var v = 0;\n")
+	expectPrintedMangle(t, "{ let v = 0 }", "")
+	expectPrintedMangle(t, "{ let v = 3; let v2 = v + 5 }", "{\n  let v2 = 3 + 5;\n}\n") // does not support multi-level
+	expectPrintedMangle(t, "{ const v = 3; const v2 = v + 5 }", "")
+	expectPrintedMangle(t, "{ const v = 0 }", "")
+	expectPrintedMangle(t, "{ const v = (() => 'foo')() }", "{\n  const v = (() => \"foo\")();\n}\n")
+	expectPrintedMangle(t, "{ const v = /* #__PURE__ */ (() => 'foo')() }", "")
+	expectPrintedMangle(t, "{ const v = 0; console.log(v) }", "console.log(0);\n")
+	// expectPrintedMangle(t, "function f() { const v = 0; eval('v') }", "function f() {\n  const v = 0;\n  eval(\"v\");\n}\n")
+	expectPrintedMangle(t, "function f() { var v }", "function f() {\n}\n")
+	expectPrintedMangle(t, "function f() { let v }", "function f() {\n}\n")
+	expectPrintedMangle(t, "function f() { var v; console.log(v); }", "function f() {\n  var v;\n  console.log(v);\n}\n")
+	expectPrintedMangle(t, "function f() { var v; function g(){ v = 2 } }", "function f() {\n  var v;\n  function g() {\n    v = 2;\n  }\n}\n")
+	expectPrintedMangle(t, "function f() { function g(){ v = 2 }; var v; }", "function f() {\n  function g() {\n    v = 2;\n  }\n  var v;\n}\n")
 }

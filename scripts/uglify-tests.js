@@ -255,6 +255,7 @@ async function test_case(esbuild, test, basename) {
       'let.js: issue_4229',
       'let.js: issue_4245',
       'let.js: use_before_init_3',
+      'let.js: issue_4276_1',
 
       // Error difference
       'dead-code.js: dead_code_2_should_warn',
