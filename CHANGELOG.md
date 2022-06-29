@@ -29,6 +29,10 @@
     let t=123;export{t as foo};
     ```
 
+* Attempt to have esbuild work with Deno on FreeBSD ([#2356](https://github.com/evanw/esbuild/issues/2356))
+
+    Deno doesn't support FreeBSD, but it's possible to build Deno for FreeBSD with some additional patches on top. This release of esbuild changes esbuild's Deno installer to download esbuild's FreeBSD binary in this situation. This configuration is unsupported although in theory everything should work.
+
 ## 0.14.47
 
 * Make global names more compact when `||=` is available ([#2331](https://github.com/evanw/esbuild/issues/2331))
