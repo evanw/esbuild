@@ -886,17 +886,6 @@ func parseTargets(targets []string, arg string) (target api.Target, engines []ap
 		"es2022": api.ES2022,
 	}
 
-	validEngines := map[string]api.EngineName{
-		"chrome":  api.EngineChrome,
-		"edge":    api.EngineEdge,
-		"firefox": api.EngineFirefox,
-		"ie":      api.EngineIE,
-		"ios":     api.EngineIOS,
-		"node":    api.EngineNode,
-		"opera":   api.EngineOpera,
-		"safari":  api.EngineSafari,
-	}
-
 outer:
 	for _, value := range targets {
 		if valid, ok := validTargets[strings.ToLower(value)]; ok {

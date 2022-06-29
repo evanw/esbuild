@@ -329,26 +329,7 @@ func validateFeatures(log logger.Log, target Target, engines []Engine) (config.T
 				if patch, err := strconv.Atoi(match[3]); err == nil {
 					version = append(version, patch)
 				}
-				switch engine.Name {
-				case EngineChrome:
-					constraints[compat.Chrome] = version
-				case EngineEdge:
-					constraints[compat.Edge] = version
-				case EngineFirefox:
-					constraints[compat.Firefox] = version
-				case EngineIE:
-					constraints[compat.IE] = version
-				case EngineIOS:
-					constraints[compat.IOS] = version
-				case EngineNode:
-					constraints[compat.Node] = version
-				case EngineOpera:
-					constraints[compat.Opera] = version
-				case EngineSafari:
-					constraints[compat.Safari] = version
-				default:
-					panic("Invalid engine name")
-				}
+				constraints[convertEngineName(engine.Name)] = version
 				continue
 			}
 		}
