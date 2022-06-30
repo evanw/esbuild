@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.48
 
 * Enable using esbuild in Deno via WebAssembly ([#2323](https://github.com/evanw/esbuild/issues/2323))
 
