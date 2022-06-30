@@ -263,7 +263,7 @@ let ensureServiceIsRunning = (): Service => {
     },
     readFileSync: fs.readFileSync,
     isSync: false,
-    isBrowser: false,
+    isWriteUnavailable: false,
     esbuild: ourselves,
   });
 
@@ -365,7 +365,7 @@ let runServiceSync = (callback: (service: common.StreamService) => void): void =
       stdin = bytes;
     },
     isSync: true,
-    isBrowser: false,
+    runtime: 'node',
     esbuild: ourselves,
   });
   callback(service);

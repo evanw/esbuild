@@ -223,7 +223,7 @@ let ensureServiceIsRunning = (): Promise<Service> => {
           startWriteFromQueueWorker()
         },
         isSync: false,
-        isBrowser: false,
+        isWriteUnavailable: false,
         esbuild: ourselves,
       })
 

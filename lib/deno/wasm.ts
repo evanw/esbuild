@@ -1,84 +1,88 @@
 import * as types from "../shared/types"
 import * as common from "../shared/common"
-import * as ourselves from "./browser"
+import * as ourselves from "./wasm"
 
 declare const ESBUILD_VERSION: string;
 declare let WEB_WORKER_SOURCE_CODE: string
 declare let WEB_WORKER_FUNCTION: (postMessage: (data: Uint8Array) => void) => (event: { data: Uint8Array | ArrayBuffer | WebAssembly.Module }) => void
 
-export let version = ESBUILD_VERSION;
+export let version = ESBUILD_VERSION
 
 export let build: typeof types.build = (options: types.BuildOptions): Promise<any> =>
-  ensureServiceIsRunning().build(options);
+  ensureServiceIsRunning().then(service =>
+    service.build(options))
 
 export const serve: typeof types.serve = () => {
-  throw new Error(`The "serve" API only works in node`);
-};
+  throw new Error(`The "serve" API does not work in Deno via WebAssembly`)
+}
 
 export const transform: typeof types.transform = (input, options) =>
-  ensureServiceIsRunning().transform(input, options);
+  ensureServiceIsRunning().then(service =>
+    service.transform(input, options))
 
 export const formatMessages: typeof types.formatMessages = (messages, options) =>
-  ensureServiceIsRunning().formatMessages(messages, options);
+  ensureServiceIsRunning().then(service =>
+    service.formatMessages(messages, options))
 
 export const analyzeMetafile: typeof types.analyzeMetafile = (metafile, options) =>
-  ensureServiceIsRunning().analyzeMetafile(metafile, options);
+  ensureServiceIsRunning().then(service =>
+    service.analyzeMetafile(metafile, options))
 
 export const buildSync: typeof types.buildSync = () => {
-  throw new Error(`The "buildSync" API only works in node`);
-};
+  throw new Error(`The "buildSync" API does not work in Deno`)
+}
 
 export const transformSync: typeof types.transformSync = () => {
-  throw new Error(`The "transformSync" API only works in node`);
-};
+  throw new Error(`The "transformSync" API does not work in Deno`)
+}
 
 export const formatMessagesSync: typeof types.formatMessagesSync = () => {
-  throw new Error(`The "formatMessagesSync" API only works in node`);
-};
+  throw new Error(`The "formatMessagesSync" API does not work in Deno`)
+}
 
 export const analyzeMetafileSync: typeof types.analyzeMetafileSync = () => {
-  throw new Error(`The "analyzeMetafileSync" API only works in node`);
-};
+  throw new Error(`The "analyzeMetafileSync" API does not work in Deno`)
+}
+
+export const stop = () => {
+  if (stopService) stopService()
+}
 
 interface Service {
-  build: typeof types.build;
-  transform: typeof types.transform;
-  formatMessages: typeof types.formatMessages;
-  analyzeMetafile: typeof types.analyzeMetafile;
+  build: typeof types.build
+  transform: typeof types.transform
+  formatMessages: typeof types.formatMessages
+  analyzeMetafile: typeof types.analyzeMetafile
 }
 
-let initializePromise: Promise<void> | undefined;
-let longLivedService: Service | undefined;
+let initializePromise: Promise<Service> | undefined;
+let stopService: (() => void) | undefined
 
-let ensureServiceIsRunning = (): Service => {
-  if (longLivedService) return longLivedService;
-  if (initializePromise) throw new Error('You need to wait for the promise returned from "initialize" to be resolved before calling this');
-  throw new Error('You need to call "initialize" before calling this');
+let ensureServiceIsRunning = (): Promise<Service> => {
+  return initializePromise || startRunningService('', undefined, true)
 }
 
-export const initialize: typeof types.initialize = options => {
-  options = common.validateInitializeOptions(options || {});
+export const initialize: typeof types.initialize = async (options) => {
+  options = common.validateInitializeOptions(options || {})
   let wasmURL = options.wasmURL;
   let wasmModule = options.wasmModule;
   let useWorker = options.worker !== false;
-  if (!wasmURL && !wasmModule) throw new Error('Must provide either the "wasmURL" option or the "wasmModule" option');
   if (initializePromise) throw new Error('Cannot call "initialize" more than once');
   initializePromise = startRunningService(wasmURL || '', wasmModule, useWorker);
   initializePromise.catch(() => {
     // Let the caller try again if this fails
     initializePromise = void 0;
   });
-  return initializePromise;
+  await initializePromise;
 }
 
-const startRunningService = async (wasmURL: string, wasmModule: WebAssembly.Module | undefined, useWorker: boolean): Promise<void> => {
-  let wasm: ArrayBuffer | WebAssembly.Module;
+const startRunningService = async (wasmURL: string, wasmModule: WebAssembly.Module | undefined, useWorker: boolean): Promise<Service> => {
+  let wasm: WebAssembly.Module;
   if (wasmModule) {
     wasm = wasmModule;
   } else {
-    let res = await fetch(wasmURL);
-    if (!res.ok) throw new Error(`Failed to download ${JSON.stringify(wasmURL)}`);
-    wasm = await res.arrayBuffer();
+    if (!wasmURL) wasmURL = new URL('esbuild.wasm', import.meta.url).href
+    wasm = await WebAssembly.compileStreaming(fetch(wasmURL))
   }
 
   let worker: {
@@ -90,7 +94,7 @@ const startRunningService = async (wasmURL: string, wasmModule: WebAssembly.Modu
   if (useWorker) {
     // Run esbuild off the main thread
     let blob = new Blob([`onmessage=${WEB_WORKER_SOURCE_CODE}(postMessage)`], { type: 'text/javascript' })
-    worker = new Worker(URL.createObjectURL(blob))
+    worker = new Worker(URL.createObjectURL(blob), { type: 'module' })
   } else {
     // Run esbuild on the main thread
     let onmessage = WEB_WORKER_FUNCTION((data: Uint8Array) => worker.onmessage!({ data }))
@@ -114,7 +118,13 @@ const startRunningService = async (wasmURL: string, wasmModule: WebAssembly.Modu
     esbuild: ourselves,
   })
 
-  longLivedService = {
+  stopService = () => {
+    worker.terminate()
+    initializePromise = undefined
+    stopService = undefined
+  }
+
+  return {
     build: (options: types.BuildOptions): Promise<any> =>
       new Promise<types.BuildResult>((resolve, reject) =>
         service.buildOrServe({
@@ -160,8 +170,3 @@ const startRunningService = async (wasmURL: string, wasmModule: WebAssembly.Modu
         })),
   }
 }
-
-// Export this module's exports as an export named "default" to try to work
-// around problems due to the "default" import mess. See the comment in
-// "node.ts" for more detail.
-export default ourselves
