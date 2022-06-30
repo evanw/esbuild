@@ -219,9 +219,6 @@ module.exports = ${JSON.stringify(exit0Map, null, 2)};
     fs.copyFileSync(path.join(npmWasmDir, 'bin', 'esbuild'), path.join(dir, 'bin', 'esbuild'));
     fs.copyFileSync(path.join(npmWasmDir, 'esbuild.wasm'), path.join(dir, 'esbuild.wasm'));
   }
-
-  // And copy the WebAssembly file over to the Deno library as well
-  fs.copyFileSync(path.join(npmWasmDir, 'esbuild.wasm'), path.join(repoDir, 'deno', 'esbuild.wasm'));
 }
 
 const buildDenoLib = (esbuildPath) => {
@@ -262,6 +259,9 @@ const buildDenoLib = (esbuildPath) => {
     `\n`
   fs.writeFileSync(path.join(denoDir, 'mod.d.ts'), types_ts)
   fs.writeFileSync(path.join(denoDir, 'wasm.d.ts'), types_ts)
+
+  // And copy the WebAssembly file over to the Deno library as well
+  fs.copyFileSync(path.join(repoDir, 'npm', 'esbuild-wasm', 'esbuild.wasm'), path.join(repoDir, 'deno', 'esbuild.wasm'));
 }
 
 // Writing a file atomically is important for watch mode tests since we don't
