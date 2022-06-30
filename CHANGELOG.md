@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+* Enable using esbuild in Deno via WebAssembly ([#2323](https://github.com/evanw/esbuild/issues/2323))
+
+    The native implementation of esbuild is much faster than the WebAssembly version, but some people don't want to give Deno the `--allow-run` permission necessary to run esbuild and are ok waiting longer for their builds to finish when using the WebAssembly backend. With this release, you can now use esbuild via WebAssembly in Deno. To do this you will need to import from `wasm.js` instead of `mod.js`:
+
+    ```js
+    import * as esbuild from 'https://deno.land/x/esbuild@v0.14.48/wasm.js'
+    const ts = 'let test: boolean = true'
+    const result = await esbuild.transform(ts, { loader: 'ts' })
+    console.log('result:', result)
+    ```
+
+    Make sure you run Deno with `--allow-net` so esbuild can download the WebAssembly module. Using esbuild like this starts up a worker thread that runs esbuild in parallel (unless you call `esbuild.initialize({ worker: false })` to tell esbuild to run on the main thread). If you want to, you can call `esbuild.stop()` to terminate the worker if you won't be using esbuild anymore and you want to reclaim the memory.
+
+    Note that Deno appears to have a bug where background WebAssembly optimization can prevent the process from exiting for many seconds. If you are trying to use Deno and WebAssembly to run esbuild quickly, you may need to manually call `Deno.exit(0)` after your code has finished running.
+
 * Add support for font file MIME types ([#2337](https://github.com/evanw/esbuild/issues/2337))
 
     This release adds support for font file MIME types to esbuild, which means they are now recognized by the built-in local web server and they are now used when a font file is loaded using the `dataurl` loader. The full set of newly-added file extension MIME type mappings is as follows:

@@ -350,7 +350,7 @@ platform-neutral: esbuild
 	node scripts/esbuild.js npm/esbuild/package.json --version
 	node scripts/esbuild.js ./esbuild --neutral
 
-platform-deno: esbuild
+platform-deno: platform-wasm
 	node scripts/esbuild.js ./esbuild --deno
 
 publish-all: check-go-version
@@ -489,7 +489,8 @@ publish-deno:
 	test -d deno/.git || (rm -fr deno && git clone git@github.com:esbuild/deno-esbuild.git deno)
 	cd deno && git fetch && git checkout main && git reset --hard origin/main
 	@$(MAKE) --no-print-directory platform-deno
-	cd deno && git commit -am "publish $(ESBUILD_VERSION) to deno"
+	cd deno && git add mod.js mod.d.ts wasm.js wasm.d.ts esbuild.wasm
+	cd deno && git commit -m "publish $(ESBUILD_VERSION) to deno"
 	cd deno && git tag "v$(ESBUILD_VERSION)"
 	cd deno && git push origin main "v$(ESBUILD_VERSION)"
 
