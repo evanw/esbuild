@@ -365,7 +365,7 @@ let runServiceSync = (callback: (service: common.StreamService) => void): void =
       stdin = bytes;
     },
     isSync: true,
-    runtime: 'node',
+    isWriteUnavailable: false,
     esbuild: ourselves,
   });
   callback(service);
