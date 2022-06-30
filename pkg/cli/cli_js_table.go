@@ -8,9 +8,11 @@ var validEngines = map[string]api.EngineName{
 	"chrome":  api.EngineChrome,
 	"edge":    api.EngineEdge,
 	"firefox": api.EngineFirefox,
+	"hermes":  api.EngineHermes,
 	"ie":      api.EngineIE,
 	"ios":     api.EngineIOS,
 	"node":    api.EngineNode,
 	"opera":   api.EngineOpera,
+	"rhino":   api.EngineRhino,
 	"safari":  api.EngineSafari,
 }

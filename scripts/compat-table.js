@@ -95,6 +95,10 @@ const engines = [
   'node',
   'opera',
   'safari',
+
+  // Uncommon JavaScript runtimes
+  'hermes',
+  'rhino',
 ]
 
 function mergeVersions(target, res) {

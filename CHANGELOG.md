@@ -33,6 +33,10 @@
 
     Deno doesn't support FreeBSD, but it's possible to build Deno for FreeBSD with some additional patches on top. This release of esbuild changes esbuild's Deno installer to download esbuild's FreeBSD binary in this situation. This configuration is unsupported although in theory everything should work.
 
+* Add some more target JavaScript engines ([#2357](https://github.com/evanw/esbuild/issues/2357))
+
+    This release adds the [Rhino](https://github.com/mozilla/rhino) and [Hermes](https://hermesengine.dev/) JavaScript engines to the set of engine identifiers that can be passed to the `--target` flag. You can use this to restrict esbuild to only using JavaScript features that are supported on those engines in the output files that esbuild generates.
+
 ## 0.14.47
 
 * Make global names more compact when `||=` is available ([#2331](https://github.com/evanw/esbuild/issues/2331))
