@@ -1487,6 +1487,125 @@ func TestTreeShakingImportIdentifier(t *testing.T) {
 	})
 }
 
+func TestTreeShakingObjectProperty(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				let remove1 = { x: 'x' }
+				let remove2 = { x() {} }
+				let remove3 = { get x() {} }
+				let remove4 = { set x(_) {} }
+				let remove5 = { async x() {} }
+				let remove6 = { ['x']: 'x' }
+				let remove7 = { ['x']() {} }
+				let remove8 = { get ['x']() {} }
+				let remove9 = { set ['x'](_) {} }
+				let remove10 = { async ['x']() {} }
+				let remove11 = { [0]: 'x' }
+				let remove12 = { [null]: 'x' }
+				let remove13 = { [undefined]: 'x' }
+				let remove14 = { [false]: 'x' }
+				let remove15 = { [0n]: 'x' }
+				let remove16 = { toString() {} }
+
+				let keep1 = { x }
+				let keep2 = { x: x }
+				let keep3 = { ...x }
+				let keep4 = { [x]: 'x' }
+				let keep5 = { [x]() {} }
+				let keep6 = { get [x]() {} }
+				let keep7 = { set [x](_) {} }
+				let keep8 = { async [x]() {} }
+				let keep9 = { [{ toString() {} }]: 'x' }
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModePassThrough,
+			TreeShaking:   true,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestTreeShakingClassProperty(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				let remove1 = class { x }
+				let remove2 = class { x = x }
+				let remove3 = class { x() {} }
+				let remove4 = class { get x() {} }
+				let remove5 = class { set x(_) {} }
+				let remove6 = class { async x() {} }
+				let remove7 = class { ['x'] = x }
+				let remove8 = class { ['x']() {} }
+				let remove9 = class { get ['x']() {} }
+				let remove10 = class { set ['x'](_) {} }
+				let remove11 = class { async ['x']() {} }
+				let remove12 = class { [0] = 'x' }
+				let remove13 = class { [null] = 'x' }
+				let remove14 = class { [undefined] = 'x' }
+				let remove15 = class { [false] = 'x' }
+				let remove16 = class { [0n] = 'x' }
+				let remove17 = class { toString() {} }
+
+				let keep1 = class { [x] = 'x' }
+				let keep2 = class { [x]() {} }
+				let keep3 = class { get [x]() {} }
+				let keep4 = class { set [x](_) {} }
+				let keep5 = class { async [x]() {} }
+				let keep6 = class { [{ toString() {} }] = 'x' }
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModePassThrough,
+			TreeShaking:   true,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestTreeShakingClassStaticProperty(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				let remove1 = class { static x }
+				let remove3 = class { static x() {} }
+				let remove4 = class { static get x() {} }
+				let remove5 = class { static set x(_) {} }
+				let remove6 = class { static async x() {} }
+				let remove8 = class { static ['x']() {} }
+				let remove9 = class { static get ['x']() {} }
+				let remove10 = class { static set ['x'](_) {} }
+				let remove11 = class { static async ['x']() {} }
+				let remove12 = class { static [0] = 'x' }
+				let remove13 = class { static [null] = 'x' }
+				let remove14 = class { static [undefined] = 'x' }
+				let remove15 = class { static [false] = 'x' }
+				let remove16 = class { static [0n] = 'x' }
+				let remove17 = class { static toString() {} }
+
+				let keep1 = class { static x = x }
+				let keep2 = class { static ['x'] = x }
+				let keep3 = class { static [x] = 'x' }
+				let keep4 = class { static [x]() {} }
+				let keep5 = class { static get [x]() {} }
+				let keep6 = class { static set [x](_) {} }
+				let keep7 = class { static async [x]() {} }
+				let keep8 = class { static [{ toString() {} }] = 'x' }
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModePassThrough,
+			TreeShaking:   true,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
 func TestTreeShakingUnaryOperators(t *testing.T) {
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
@@ -3008,6 +3127,90 @@ func TestCrossModuleConstantFolding(t *testing.T) {
 			"/enum-entry.ts",
 			"/const-entry.js",
 			"/nested-entry.ts",
+		},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			MinifySyntax: true,
+		},
+	})
+}
+
+func TestMultipleDeclarationTreeShaking(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/var2.js": `
+				var x = 1
+				console.log(x)
+				var x = 2
+			`,
+			"/var3.js": `
+				var x = 1
+				console.log(x)
+				var x = 2
+				console.log(x)
+				var x = 3
+			`,
+			"/function2.js": `
+				function x() { return 1 }
+				console.log(x())
+				function x() { return 2 }
+			`,
+			"/function3.js": `
+				function x() { return 1 }
+				console.log(x())
+				function x() { return 2 }
+				console.log(x())
+				function x() { return 3 }
+			`,
+		},
+		entryPaths: []string{
+			"/var2.js",
+			"/var3.js",
+			"/function2.js",
+			"/function3.js",
+		},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			MinifySyntax: false,
+		},
+	})
+}
+
+func TestMultipleDeclarationTreeShakingMinifySyntax(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/var2.js": `
+				var x = 1
+				console.log(x)
+				var x = 2
+			`,
+			"/var3.js": `
+				var x = 1
+				console.log(x)
+				var x = 2
+				console.log(x)
+				var x = 3
+			`,
+			"/function2.js": `
+				function x() { return 1 }
+				console.log(x())
+				function x() { return 2 }
+			`,
+			"/function3.js": `
+				function x() { return 1 }
+				console.log(x())
+				function x() { return 2 }
+				console.log(x())
+				function x() { return 3 }
+			`,
+		},
+		entryPaths: []string{
+			"/var2.js",
+			"/var3.js",
+			"/function2.js",
+			"/function3.js",
 		},
 		options: config.Options{
 			Mode:         config.ModeBundle,

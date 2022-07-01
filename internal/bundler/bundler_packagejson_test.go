@@ -848,6 +848,28 @@ func TestPackageJsonBrowserIssue2002B(t *testing.T) {
 	})
 }
 
+// See https://github.com/evanw/esbuild/issues/2239
+func TestPackageJsonBrowserIssue2002C(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `require('pkg/sub')`,
+			"/Users/user/project/src/node_modules/pkg/package.json": `{
+				"browser": {
+					"./sub": "./sub/foo.js",
+					"./sub/sub.js": "./sub/bar.js"
+				}
+			}`,
+			"/Users/user/project/src/node_modules/pkg/sub/foo.js": `require('sub')`,
+			"/Users/user/project/src/node_modules/sub/index.js":   `works()`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
 func TestPackageJsonDualPackageHazardImportOnly(t *testing.T) {
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
@@ -1979,10 +2001,12 @@ func TestPackageJsonExportsNoConditionsMatch(t *testing.T) {
 		expectedScanLog: `Users/user/project/src/entry.js: ERROR: Could not resolve "pkg1"
 Users/user/project/node_modules/pkg1/package.json: NOTE: The path "." is not currently exported by package "pkg1":
 Users/user/project/node_modules/pkg1/package.json: NOTE: None of the conditions provided ("what") match any of the currently active conditions ("browser", "default", "import"):
+Users/user/project/node_modules/pkg1/package.json: NOTE: Consider enabling the "what" condition if this package expects it to be enabled. You can use 'Conditions: []string{"what"}' to do that:
 NOTE: You can mark the path "pkg1" as external to exclude it from the bundle, which will remove this error.
 Users/user/project/src/entry.js: ERROR: Could not resolve "pkg1/foo.js"
 Users/user/project/node_modules/pkg1/package.json: NOTE: The path "./foo.js" is not currently exported by package "pkg1":
 Users/user/project/node_modules/pkg1/package.json: NOTE: None of the conditions provided ("what") match any of the currently active conditions ("browser", "default", "import"):
+Users/user/project/node_modules/pkg1/package.json: NOTE: Consider enabling the "what" condition if this package expects it to be enabled. You can use 'Conditions: []string{"what"}' to do that:
 NOTE: You can mark the path "pkg1/foo.js" as external to exclude it from the bundle, which will remove this error.
 `,
 	})
@@ -2019,12 +2043,12 @@ func TestPackageJsonExportsMustUseRequire(t *testing.T) {
 		expectedScanLog: `Users/user/project/src/entry.js: ERROR: Could not resolve "pkg1"
 Users/user/project/node_modules/pkg1/package.json: NOTE: The path "." is not currently exported by package "pkg1":
 Users/user/project/node_modules/pkg1/package.json: NOTE: None of the conditions provided ("require") match any of the currently active conditions ("browser", "default", "import"):
-Users/user/project/src/entry.js: NOTE: Consider using a "require()" call to import this file:
+Users/user/project/src/entry.js: NOTE: Consider using a "require()" call to import this file, which will work because the "require" condition is supported by this package:
 NOTE: You can mark the path "pkg1" as external to exclude it from the bundle, which will remove this error.
 Users/user/project/src/entry.js: ERROR: Could not resolve "pkg1/foo.js"
 Users/user/project/node_modules/pkg1/package.json: NOTE: The path "./foo.js" is not currently exported by package "pkg1":
 Users/user/project/node_modules/pkg1/package.json: NOTE: None of the conditions provided ("require") match any of the currently active conditions ("browser", "default", "import"):
-Users/user/project/src/entry.js: NOTE: Consider using a "require()" call to import this file:
+Users/user/project/src/entry.js: NOTE: Consider using a "require()" call to import this file, which will work because the "require" condition is supported by this package:
 NOTE: You can mark the path "pkg1/foo.js" as external to exclude it from the bundle, which will remove this error.
 `,
 	})
@@ -2061,12 +2085,12 @@ func TestPackageJsonExportsMustUseImport(t *testing.T) {
 		expectedScanLog: `Users/user/project/src/entry.js: ERROR: Could not resolve "pkg1"
 Users/user/project/node_modules/pkg1/package.json: NOTE: The path "." is not currently exported by package "pkg1":
 Users/user/project/node_modules/pkg1/package.json: NOTE: None of the conditions provided ("import") match any of the currently active conditions ("browser", "default", "require"):
-Users/user/project/src/entry.js: NOTE: Consider using an "import" statement to import this file:
+Users/user/project/src/entry.js: NOTE: Consider using an "import" statement to import this file, which will work because the "import" condition is supported by this package:
 NOTE: You can mark the path "pkg1" as external to exclude it from the bundle, which will remove this error. You can also surround this "require" call with a try/catch block to handle this failure at run-time instead of bundle-time.
 Users/user/project/src/entry.js: ERROR: Could not resolve "pkg1/foo.js"
 Users/user/project/node_modules/pkg1/package.json: NOTE: The path "./foo.js" is not currently exported by package "pkg1":
 Users/user/project/node_modules/pkg1/package.json: NOTE: None of the conditions provided ("import") match any of the currently active conditions ("browser", "default", "require"):
-Users/user/project/src/entry.js: NOTE: Consider using an "import" statement to import this file:
+Users/user/project/src/entry.js: NOTE: Consider using an "import" statement to import this file, which will work because the "import" condition is supported by this package:
 NOTE: You can mark the path "pkg1/foo.js" as external to exclude it from the bundle, which will remove this error. You can also surround this "require" call with a try/catch block to handle this failure at run-time instead of bundle-time.
 `,
 	})
@@ -2368,6 +2392,224 @@ func TestPackageJsonTypeShouldBeTypes(t *testing.T) {
 		},
 		expectedScanLog: `Users/user/project/package.json: WARNING: "./src/index.d.ts" is not a valid value for the "type" field
 Users/user/project/package.json: NOTE: TypeScript type declarations use the "types" field, not the "type" field:
+`,
+	})
+}
+
+func TestPackageJsonImportSelfUsingRequire(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/index.js": `
+				module.exports = 'index'
+				console.log(
+					require("xyz"),
+					require("xyz/bar"),
+				)
+			`,
+			"/Users/user/project/src/foo-import.js": `
+				export default 'foo'
+			`,
+			"/Users/user/project/src/foo-require.js": `
+				module.exports = 'foo'
+			`,
+			"/Users/user/project/package.json": `
+				{
+					"name": "xyz",
+					"exports": {
+						".": "./src/index.js",
+						"./bar": {
+							"import": "./src/foo-import.js",
+							"require": "./src/foo-require.js"
+						}
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/index.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+			MainFields:    []string{},
+		},
+	})
+}
+
+func TestPackageJsonImportSelfUsingImport(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/index.js": `
+				import xyz from "xyz"
+				import foo from "xyz/bar"
+				export default 'index'
+				console.log(xyz, foo)
+			`,
+			"/Users/user/project/src/foo-import.js": `
+				export default 'foo'
+			`,
+			"/Users/user/project/src/foo-require.js": `
+				module.exports = 'foo'
+			`,
+			"/Users/user/project/package.json": `
+				{
+					"name": "xyz",
+					"exports": {
+						".": "./src/index.js",
+						"./bar": {
+							"import": "./src/foo-import.js",
+							"require": "./src/foo-require.js"
+						}
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/index.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+			MainFields:    []string{},
+		},
+	})
+}
+
+func TestPackageJsonImportSelfUsingRequireScoped(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/index.js": `
+				module.exports = 'index'
+				console.log(
+					require("@some-scope/xyz"),
+					require("@some-scope/xyz/bar"),
+				)
+			`,
+			"/Users/user/project/src/foo-import.js": `
+				export default 'foo'
+			`,
+			"/Users/user/project/src/foo-require.js": `
+				module.exports = 'foo'
+			`,
+			"/Users/user/project/package.json": `
+				{
+					"name": "@some-scope/xyz",
+					"exports": {
+						".": "./src/index.js",
+						"./bar": {
+							"import": "./src/foo-import.js",
+							"require": "./src/foo-require.js"
+						}
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/index.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+			MainFields:    []string{},
+		},
+	})
+}
+
+func TestPackageJsonImportSelfUsingImportScoped(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/index.js": `
+				import xyz from "@some-scope/xyz"
+				import foo from "@some-scope/xyz/bar"
+				export default 'index'
+				console.log(xyz, foo)
+			`,
+			"/Users/user/project/src/foo-import.js": `
+				export default 'foo'
+			`,
+			"/Users/user/project/src/foo-require.js": `
+				module.exports = 'foo'
+			`,
+			"/Users/user/project/package.json": `
+				{
+					"name": "@some-scope/xyz",
+					"exports": {
+						".": "./src/index.js",
+						"./bar": {
+							"import": "./src/foo-import.js",
+							"require": "./src/foo-require.js"
+						}
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/index.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+			MainFields:    []string{},
+		},
+	})
+}
+
+func TestPackageJsonImportSelfUsingRequireFailure(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/index.js": `
+				require("xyz/src/foo.js")
+			`,
+			"/Users/user/project/src/foo.js": `
+				module.exports = 'foo'
+			`,
+			"/Users/user/project/package.json": `
+				{
+					"name": "xyz",
+					"exports": {
+						".": "./src/index.js",
+						"./bar": "./src/foo.js"
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/index.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+			MainFields:    []string{},
+		},
+		expectedScanLog: `Users/user/project/src/index.js: ERROR: Could not resolve "xyz/src/foo.js"
+Users/user/project/package.json: NOTE: The path "./src/foo.js" is not exported by package "xyz":
+Users/user/project/package.json: NOTE: The file "./src/foo.js" is exported at path "./bar":
+Users/user/project/src/index.js: NOTE: Import from "xyz/bar" to get the file "Users/user/project/src/foo.js":
+NOTE: You can mark the path "xyz/src/foo.js" as external to exclude it from the bundle, which will remove this error. You can also surround this "require" call with a try/catch block to handle this failure at run-time instead of bundle-time.
+`,
+	})
+}
+
+func TestPackageJsonImportSelfUsingImportFailure(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/index.js": `
+				import "xyz/src/foo.js"
+			`,
+			"/Users/user/project/src/foo.js": `
+				export default 'foo'
+			`,
+			"/Users/user/project/package.json": `
+				{
+					"name": "xyz",
+					"exports": {
+						".": "./src/index.js",
+						"./bar": "./src/foo.js"
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/index.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+			MainFields:    []string{},
+		},
+		expectedScanLog: `Users/user/project/src/index.js: ERROR: Could not resolve "xyz/src/foo.js"
+Users/user/project/package.json: NOTE: The path "./src/foo.js" is not exported by package "xyz":
+Users/user/project/package.json: NOTE: The file "./src/foo.js" is exported at path "./bar":
+Users/user/project/src/index.js: NOTE: Import from "xyz/bar" to get the file "Users/user/project/src/foo.js":
+NOTE: You can mark the path "xyz/src/foo.js" as external to exclude it from the bundle, which will remove this error.
 `,
 	})
 }

@@ -135,7 +135,7 @@ func TestTSTypes(t *testing.T) {
 	expectPrintedTS(t, "let x: [infer: string]", "let x;\n")
 	expectParseErrorTS(t, "let x: A extends B ? keyof : string", "<stdin>: ERROR: Unexpected \":\"\n")
 	expectParseErrorTS(t, "let x: A extends B ? readonly : string", "<stdin>: ERROR: Unexpected \":\"\n")
-	expectParseErrorTS(t, "let x: A extends B ? infer : string", "<stdin>: ERROR: Unexpected \":\"\n")
+	expectParseErrorTS(t, "let x: A extends B ? infer : string", "<stdin>: ERROR: Expected identifier but found \":\"\n")
 	expectParseErrorTS(t, "let x: {[new: string]: number}", "<stdin>: ERROR: Expected \"(\" but found \":\"\n")
 	expectParseErrorTS(t, "let x: {[import: string]: number}", "<stdin>: ERROR: Expected \"(\" but found \":\"\n")
 	expectParseErrorTS(t, "let x: {[typeof: string]: number}", "<stdin>: ERROR: Expected identifier but found \":\"\n")
@@ -177,6 +177,9 @@ func TestTSTypes(t *testing.T) {
 	expectPrintedTS(t, "type Foo = a.b \n & c.d", "")
 	expectPrintedTS(t, "type Foo = \n | a.b \n | c.d", "")
 	expectPrintedTS(t, "type Foo = \n & a.b \n & c.d", "")
+	expectPrintedTS(t, "type Foo = Bar extends [infer T] ? T : null", "")
+	expectPrintedTS(t, "type Foo = Bar extends [infer T extends string] ? T : null", "")
+	expectPrintedTS(t, "let x: A extends B<infer C extends D> ? D : never", "let x;\n")
 
 	expectPrintedTS(t, "let x: A.B<X.Y>", "let x;\n")
 	expectPrintedTS(t, "let x: A.B<X.Y>=2", "let x = 2;\n")
@@ -287,6 +290,87 @@ func TestTSTypes(t *testing.T) {
 	expectParseErrorTS(t, "let x: abstract () => void = Foo", "<stdin>: ERROR: Expected \";\" but found \"(\"\n")
 	expectParseErrorTS(t, "let x: abstract <T>() => Foo<T>", "<stdin>: ERROR: Expected \";\" but found \"(\"\n")
 	expectParseErrorTS(t, "let x: abstract <T extends object>() => Foo<T>", "<stdin>: ERROR: Expected \"?\" but found \">\"\n")
+
+	// TypeScript 4.7
+	jsxErrorArrow := "<stdin>: ERROR: The character \">\" is not valid inside a JSX element\n" +
+		"NOTE: Did you mean to escape it as \"{'>'}\" instead?\n" +
+		"<stdin>: ERROR: Unexpected end of file\n"
+	expectPrintedTS(t, "type Foo<in T> = T", "")
+	expectPrintedTS(t, "type Foo<out T> = T", "")
+	expectPrintedTS(t, "type Foo<in out> = T", "")
+	expectPrintedTS(t, "type Foo<out out> = T", "")
+	expectPrintedTS(t, "type Foo<in out out> = T", "")
+	expectPrintedTS(t, "type Foo<in X, out Y> = [X, Y]", "")
+	expectPrintedTS(t, "type Foo<out X, in Y> = [X, Y]", "")
+	expectPrintedTS(t, "type Foo<out X, out Y extends keyof X> = [X, Y]", "")
+	expectParseErrorTS(t, "type Foo<i\\u006E T> = T", "<stdin>: ERROR: Expected identifier but found \"i\\\\u006E\"\n")
+	expectParseErrorTS(t, "type Foo<ou\\u0074 T> = T", "<stdin>: ERROR: Expected \">\" but found \"T\"\n")
+	expectParseErrorTS(t, "type Foo<in in> = T", "<stdin>: ERROR: The modifier \"in\" is not valid here:\n<stdin>: ERROR: Expected identifier but found \">\"\n")
+	expectParseErrorTS(t, "type Foo<out in> = T", "<stdin>: ERROR: The modifier \"in\" is not valid here:\n<stdin>: ERROR: Expected identifier but found \">\"\n")
+	expectParseErrorTS(t, "type Foo<out in T> = T", "<stdin>: ERROR: The modifier \"in\" is not valid here:\n")
+	expectParseErrorTS(t, "type Foo<public T> = T", "<stdin>: ERROR: Expected \">\" but found \"T\"\n")
+	expectParseErrorTS(t, "type Foo<in out in T> = T", "<stdin>: ERROR: The modifier \"in\" is not valid here:\n")
+	expectParseErrorTS(t, "type Foo<in out out T> = T", "<stdin>: ERROR: The modifier \"out\" is not valid here:\n")
+	expectPrintedTS(t, "class Foo<in T> {}", "class Foo {\n}\n")
+	expectPrintedTS(t, "class Foo<out T> {}", "class Foo {\n}\n")
+	expectPrintedTS(t, "export default class Foo<in T> {}", "export default class Foo {\n}\n")
+	expectPrintedTS(t, "export default class Foo<out T> {}", "export default class Foo {\n}\n")
+	expectPrintedTS(t, "export default class <in T> {}", "export default class {\n}\n")
+	expectPrintedTS(t, "export default class <out T> {}", "export default class {\n}\n")
+	expectPrintedTS(t, "interface Foo<in T> {}", "")
+	expectPrintedTS(t, "interface Foo<out T> {}", "")
+	expectPrintedTS(t, "declare class Foo<in T> {}", "")
+	expectPrintedTS(t, "declare class Foo<out T> {}", "")
+	expectPrintedTS(t, "declare interface Foo<in T> {}", "")
+	expectPrintedTS(t, "declare interface Foo<out T> {}", "")
+	expectParseErrorTS(t, "function foo<in T>() {}", "<stdin>: ERROR: The modifier \"in\" is not valid here:\n")
+	expectParseErrorTS(t, "function foo<out T>() {}", "<stdin>: ERROR: The modifier \"out\" is not valid here:\n")
+	expectParseErrorTS(t, "export default function foo<in T>() {}", "<stdin>: ERROR: The modifier \"in\" is not valid here:\n")
+	expectParseErrorTS(t, "export default function foo<out T>() {}", "<stdin>: ERROR: The modifier \"out\" is not valid here:\n")
+	expectParseErrorTS(t, "export default function <in T>() {}", "<stdin>: ERROR: The modifier \"in\" is not valid here:\n")
+	expectParseErrorTS(t, "export default function <out T>() {}", "<stdin>: ERROR: The modifier \"out\" is not valid here:\n")
+	expectParseErrorTS(t, "let foo: Foo<in T>", "<stdin>: ERROR: Unexpected \"in\"\n")
+	expectParseErrorTS(t, "let foo: Foo<out T>", "<stdin>: ERROR: Expected \">\" but found \"T\"\n")
+	expectParseErrorTS(t, "declare function foo<in T>()", "<stdin>: ERROR: The modifier \"in\" is not valid here:\n")
+	expectParseErrorTS(t, "declare function foo<out T>()", "<stdin>: ERROR: The modifier \"out\" is not valid here:\n")
+	expectParseErrorTS(t, "declare let foo: Foo<in T>", "<stdin>: ERROR: Unexpected \"in\"\n")
+	expectParseErrorTS(t, "declare let foo: Foo<out T>", "<stdin>: ERROR: Expected \">\" but found \"T\"\n")
+	expectParseErrorTS(t, "Foo = class <in T> {}", "<stdin>: ERROR: The modifier \"in\" is not valid here:\n")
+	expectParseErrorTS(t, "Foo = class <out T> {}", "<stdin>: ERROR: The modifier \"out\" is not valid here:\n")
+	expectParseErrorTS(t, "foo = function <in T>() {}", "<stdin>: ERROR: The modifier \"in\" is not valid here:\n")
+	expectParseErrorTS(t, "foo = function <out T>() {}", "<stdin>: ERROR: The modifier \"out\" is not valid here:\n")
+	expectParseErrorTS(t, "class Foo { foo<in T>(): T {} }", "<stdin>: ERROR: The modifier \"in\" is not valid here:\n")
+	expectParseErrorTS(t, "class Foo { foo<out T>(): T {} }", "<stdin>: ERROR: The modifier \"out\" is not valid here:\n")
+	expectParseErrorTS(t, "foo = { foo<in T>(): T {} }", "<stdin>: ERROR: The modifier \"in\" is not valid here:\n")
+	expectParseErrorTS(t, "foo = { foo<out T>(): T {} }", "<stdin>: ERROR: The modifier \"out\" is not valid here:\n")
+	expectParseErrorTS(t, "<in T>() => {}", "<stdin>: ERROR: The modifier \"in\" is not valid here:\n")
+	expectParseErrorTS(t, "<out T>() => {}", "<stdin>: ERROR: The modifier \"out\" is not valid here:\n")
+	expectParseErrorTS(t, "<in T, out T>() => {}", "<stdin>: ERROR: The modifier \"in\" is not valid here:\n<stdin>: ERROR: The modifier \"out\" is not valid here:\n")
+	expectParseErrorTS(t, "let x: <in T>() => {}", "<stdin>: ERROR: The modifier \"in\" is not valid here:\n")
+	expectParseErrorTS(t, "let x: <out T>() => {}", "<stdin>: ERROR: The modifier \"out\" is not valid here:\n")
+	expectParseErrorTS(t, "let x: <in T, out T>() => {}", "<stdin>: ERROR: The modifier \"in\" is not valid here:\n<stdin>: ERROR: The modifier \"out\" is not valid here:\n")
+	expectParseErrorTS(t, "let x: new <in T>() => {}", "<stdin>: ERROR: The modifier \"in\" is not valid here:\n")
+	expectParseErrorTS(t, "let x: new <out T>() => {}", "<stdin>: ERROR: The modifier \"out\" is not valid here:\n")
+	expectParseErrorTS(t, "let x: new <in T, out T>() => {}", "<stdin>: ERROR: The modifier \"in\" is not valid here:\n<stdin>: ERROR: The modifier \"out\" is not valid here:\n")
+	expectParseErrorTS(t, "let x: { y<in T>(): any }", "<stdin>: ERROR: The modifier \"in\" is not valid here:\n")
+	expectParseErrorTS(t, "let x: { y<out T>(): any }", "<stdin>: ERROR: The modifier \"out\" is not valid here:\n")
+	expectParseErrorTS(t, "let x: { y<in T, out T>(): any }", "<stdin>: ERROR: The modifier \"in\" is not valid here:\n<stdin>: ERROR: The modifier \"out\" is not valid here:\n")
+	expectPrintedTSX(t, "<in T></in>", "/* @__PURE__ */ React.createElement(\"in\", {\n  T: true\n});\n")
+	expectPrintedTSX(t, "<out T></out>", "/* @__PURE__ */ React.createElement(\"out\", {\n  T: true\n});\n")
+	expectPrintedTSX(t, "<in out T></in>", "/* @__PURE__ */ React.createElement(\"in\", {\n  out: true,\n  T: true\n});\n")
+	expectPrintedTSX(t, "<out in T></out>", "/* @__PURE__ */ React.createElement(\"out\", {\n  in: true,\n  T: true\n});\n")
+	expectPrintedTSX(t, "<in T extends={true}></in>", "/* @__PURE__ */ React.createElement(\"in\", {\n  T: true,\n  extends: true\n});\n")
+	expectPrintedTSX(t, "<out T extends={true}></out>", "/* @__PURE__ */ React.createElement(\"out\", {\n  T: true,\n  extends: true\n});\n")
+	expectPrintedTSX(t, "<in out T extends={true}></in>", "/* @__PURE__ */ React.createElement(\"in\", {\n  out: true,\n  T: true,\n  extends: true\n});\n")
+	expectParseErrorTSX(t, "<in T,>() => {}", "<stdin>: ERROR: Expected \">\" but found \",\"\n")
+	expectParseErrorTSX(t, "<out T,>() => {}", "<stdin>: ERROR: Expected \">\" but found \",\"\n")
+	expectParseErrorTSX(t, "<in out T,>() => {}", "<stdin>: ERROR: Expected \">\" but found \",\"\n")
+	expectParseErrorTSX(t, "<in T extends any>() => {}", jsxErrorArrow)
+	expectParseErrorTSX(t, "<out T extends any>() => {}", jsxErrorArrow)
+	expectParseErrorTSX(t, "<in out T extends any>() => {}", jsxErrorArrow)
+	expectPrintedTS(t, "class Container { get data(): typeof this.#data {} }", "class Container {\n  get data() {\n  }\n}\n")
+	expectPrintedTS(t, "const a: typeof this.#a = 1;", "const a = 1;\n")
+	expectParseErrorTS(t, "const a: typeof #a = 1;", "<stdin>: ERROR: Expected identifier but found \"#a\"\n")
 }
 
 func TestTSAsCast(t *testing.T) {
@@ -489,6 +573,26 @@ func TestTSPrivateIdentifiers(t *testing.T) {
 	expectPrintedTS(t, "class Foo { static #foo() {} }", "class Foo {\n  static #foo() {\n  }\n}\n")
 	expectPrintedTS(t, "class Foo { static get #foo() {} }", "class Foo {\n  static get #foo() {\n  }\n}\n")
 	expectPrintedTS(t, "class Foo { static set #foo(x) {} }", "class Foo {\n  static set #foo(x) {\n  }\n}\n")
+
+	// Decorators are not valid on private members
+	expectParseErrorTS(t, "class Foo { @dec #foo }", "<stdin>: ERROR: Expected identifier but found \"#foo\"\n")
+	expectParseErrorTS(t, "class Foo { @dec #foo = 1 }", "<stdin>: ERROR: Expected identifier but found \"#foo\"\n")
+	expectParseErrorTS(t, "class Foo { @dec #foo() {} }", "<stdin>: ERROR: Expected identifier but found \"#foo\"\n")
+	expectParseErrorTS(t, "class Foo { @dec get #foo() {} }", "<stdin>: ERROR: Expected identifier but found \"#foo\"\n")
+	expectParseErrorTS(t, "class Foo { @dec set #foo() {x} }", "<stdin>: ERROR: Expected identifier but found \"#foo\"\n")
+	expectParseErrorTS(t, "class Foo { @dec static #foo }", "<stdin>: ERROR: Expected identifier but found \"#foo\"\n")
+	expectParseErrorTS(t, "class Foo { @dec static #foo = 1 }", "<stdin>: ERROR: Expected identifier but found \"#foo\"\n")
+	expectParseErrorTS(t, "class Foo { @dec static #foo() {} }", "<stdin>: ERROR: Expected identifier but found \"#foo\"\n")
+	expectParseErrorTS(t, "class Foo { @dec static get #foo() {} }", "<stdin>: ERROR: Expected identifier but found \"#foo\"\n")
+	expectParseErrorTS(t, "class Foo { @dec static set #foo() {x} }", "<stdin>: ERROR: Expected identifier but found \"#foo\"\n")
+
+	// Decorators are not able to access private names, since they use the scope
+	// that encloses the class declaration. Note that the TypeScript compiler has
+	// a bug where it doesn't handle this case and generates invalid code as a
+	// result: https://github.com/microsoft/TypeScript/issues/48515.
+	expectParseErrorTS(t, "class Foo { static #foo; @dec(Foo.#foo) bar }", "<stdin>: ERROR: Private name \"#foo\" must be declared in an enclosing class\n")
+	expectParseErrorTS(t, "class Foo { static #foo; @dec(Foo.#foo) bar() {} }", "<stdin>: ERROR: Private name \"#foo\" must be declared in an enclosing class\n")
+	expectParseErrorTS(t, "class Foo { static #foo; bar(@dec(Foo.#foo) x) {} }", "<stdin>: ERROR: Private name \"#foo\" must be declared in an enclosing class\n")
 }
 
 func TestTSInterface(t *testing.T) {
@@ -1457,6 +1561,71 @@ func TestTSDecorator(t *testing.T) {
 	// Decorators aren't allowed on class constructors
 	expectParseErrorTS(t, "class Foo { @dec constructor() {} }", "<stdin>: ERROR: TypeScript does not allow decorators on class constructors\n")
 	expectParseErrorTS(t, "class Foo { @dec public constructor() {} }", "<stdin>: ERROR: TypeScript does not allow decorators on class constructors\n")
+
+	// Check use of "await"
+	friendlyAwaitErrorWithNote := "<stdin>: ERROR: \"await\" can only be used inside an \"async\" function\n" +
+		"<stdin>: NOTE: Consider adding the \"async\" keyword here:\n"
+	expectPrintedTS(t, "async function foo() { @dec(await x) class Foo {} }",
+		"async function foo() {\n  let Foo = class {\n  };\n  Foo = __decorateClass([\n    dec(await x)\n  ], Foo);\n}\n")
+	expectPrintedTS(t, "async function foo() { class Foo { @dec(await x) foo() {} } }",
+		"async function foo() {\n  class Foo {\n    foo() {\n    }\n  }\n  __decorateClass([\n    dec(await x)\n  ], Foo.prototype, \"foo\", 1);\n}\n")
+	expectPrintedTS(t, "async function foo() { class Foo { foo(@dec(await x) y) {} } }",
+		"async function foo() {\n  class Foo {\n    foo(y) {\n    }\n  }\n  __decorateClass([\n    __decorateParam(0, dec(await x))\n  ], Foo.prototype, \"foo\", 1);\n}\n")
+	expectParseErrorTS(t, "function foo() { @dec(await x) class Foo {} }", friendlyAwaitErrorWithNote)
+	expectParseErrorTS(t, "function foo() { class Foo { @dec(await x) foo() {} } }", friendlyAwaitErrorWithNote)
+	expectParseErrorTS(t, "function foo() { class Foo { foo(@dec(await x) y) {} } }", friendlyAwaitErrorWithNote)
+	expectParseErrorTS(t, "function foo() { class Foo { @dec(await x) async foo() {} } }", friendlyAwaitErrorWithNote)
+	expectParseErrorTS(t, "function foo() { class Foo { async foo(@dec(await x) y) {} } }",
+		"<stdin>: ERROR: The keyword \"await\" cannot be used here:\n<stdin>: ERROR: Expected \")\" but found \"x\"\n")
+
+	// Check lowered use of "await"
+	expectPrintedTargetTS(t, 2015, "async function foo() { @dec(await x) class Foo {} }",
+		`function foo() {
+  return __async(this, null, function* () {
+    let Foo = class {
+    };
+    Foo = __decorateClass([
+      dec(yield x)
+    ], Foo);
+  });
+}
+`)
+	expectPrintedTargetTS(t, 2015, "async function foo() { class Foo { @dec(await x) foo() {} } }",
+		`function foo() {
+  return __async(this, null, function* () {
+    class Foo {
+      foo() {
+      }
+    }
+    __decorateClass([
+      dec(yield x)
+    ], Foo.prototype, "foo", 1);
+  });
+}
+`)
+	expectPrintedTargetTS(t, 2015, "async function foo() { class Foo { foo(@dec(await x) y) {} } }",
+		`function foo() {
+  return __async(this, null, function* () {
+    class Foo {
+      foo(y) {
+      }
+    }
+    __decorateClass([
+      __decorateParam(0, dec(yield x))
+    ], Foo.prototype, "foo", 1);
+  });
+}
+`)
+
+	// Check use of "yield"
+	expectPrintedTS(t, "function *foo() { @dec(yield x) class Foo {} }", // We currently allow this but TypeScript doesn't
+		"function* foo() {\n  let Foo = class {\n  };\n  Foo = __decorateClass([\n    dec(yield x)\n  ], Foo);\n}\n")
+	expectPrintedTS(t, "function *foo() { class Foo { @dec(yield x) foo() {} } }", // We currently allow this but TypeScript doesn't
+		"function* foo() {\n  class Foo {\n    foo() {\n    }\n  }\n  __decorateClass([\n    dec(yield x)\n  ], Foo.prototype, \"foo\", 1);\n}\n")
+	expectParseErrorTS(t, "function *foo() { class Foo { foo(@dec(yield x) y) {} } }", // TypeScript doesn't allow this (although it could because it would work fine)
+		"<stdin>: ERROR: Cannot use \"yield\" outside a generator function\n")
+	expectParseErrorTS(t, "function foo() { @dec(yield x) class Foo {} }", "<stdin>: ERROR: Cannot use \"yield\" outside a generator function\n")
+	expectParseErrorTS(t, "function foo() { class Foo { @dec(yield x) foo() {} } }", "<stdin>: ERROR: Cannot use \"yield\" outside a generator function\n")
 }
 
 func TestTSTry(t *testing.T) {
@@ -1554,6 +1723,119 @@ func TestTSArrow(t *testing.T) {
 		"<stdin>: ERROR: Transforming default arguments to the configured target environment is not supported yet\n")
 }
 
+func TestTSSuperCall(t *testing.T) {
+	expectPrintedTS(t, "class A extends B { x = 1 }",
+		`class A extends B {
+  constructor() {
+    super(...arguments);
+    this.x = 1;
+  }
+}
+`)
+
+	expectPrintedTS(t, "class A extends B { x }",
+		`class A extends B {
+}
+`)
+
+	expectPrintedTS(t, "class A extends B { x = 1; constructor() { foo() } }",
+		`class A extends B {
+  constructor() {
+    this.x = 1;
+    foo();
+  }
+}
+`)
+
+	expectPrintedTS(t, "class A extends B { x; constructor() { foo() } }",
+		`class A extends B {
+  constructor() {
+    foo();
+  }
+}
+`)
+
+	expectPrintedTS(t, "class A extends B { x = 1; constructor() { foo(); super(1); } }",
+		`class A extends B {
+  constructor() {
+    foo();
+    super(1);
+    this.x = 1;
+  }
+}
+`)
+
+	expectPrintedTS(t, "class A extends B { x; constructor() { foo(); super(1); } }",
+		`class A extends B {
+  constructor() {
+    foo();
+    super(1);
+  }
+}
+`)
+
+	expectPrintedTS(t, "class A extends B { constructor(public x = 1) { foo(); super(1); } }",
+		`class A extends B {
+  constructor(x = 1) {
+    foo();
+    super(1);
+    this.x = x;
+  }
+}
+`)
+
+	expectPrintedTS(t, "class A extends B { constructor(public x = 1) { foo(); super(1); super(2); } }",
+		`class A extends B {
+  constructor(x = 1) {
+    var __super = (...args) => {
+      super(...args);
+      this.x = x;
+    };
+    foo();
+    __super(1);
+    __super(2);
+  }
+}
+`)
+
+	expectPrintedTS(t, "class A extends B { constructor(public x = 1) { if (false) super(1); super(2); } }", `class A extends B {
+  constructor(x = 1) {
+    if (false)
+      __super(1);
+    super(2);
+    this.x = x;
+  }
+}
+`)
+
+	expectPrintedTS(t, "class A extends B { constructor(public x = 1) { if (foo) super(1); super(2); } }", `class A extends B {
+  constructor(x = 1) {
+    var __super = (...args) => {
+      super(...args);
+      this.x = x;
+    };
+    if (foo)
+      __super(1);
+    __super(2);
+  }
+}
+`)
+
+	expectPrintedTS(t, "class A extends B { constructor(public x = 1) { if (foo) super(1); else super(2); } }", `class A extends B {
+  constructor(x = 1) {
+    var __super = (...args) => {
+      super(...args);
+      this.x = x;
+    };
+    if (foo)
+      __super(1);
+    else
+      __super(2);
+  }
+}
+`)
+}
+
 func TestTSCall(t *testing.T) {
 	expectPrintedTS(t, "foo()", "foo();\n")
 	expectPrintedTS(t, "foo<number>()", "foo();\n")
@@ -1564,6 +1846,8 @@ func TestTSNew(t *testing.T) {
 	expectPrintedTS(t, "new Foo()", "new Foo();\n")
 	expectPrintedTS(t, "new Foo<number>()", "new Foo();\n")
 	expectPrintedTS(t, "new Foo<number, boolean>()", "new Foo();\n")
+	expectPrintedTS(t, "new Foo<number>", "new Foo();\n")
+	expectPrintedTS(t, "new Foo<number, boolean>", "new Foo();\n")
 
 	expectPrintedTS(t, "new Foo!()", "new Foo();\n")
 	expectPrintedTS(t, "new Foo!<number>()", "new Foo();\n")
@@ -1575,6 +1859,121 @@ func TestTSNew(t *testing.T) {
 	expectParseErrorTS(t, "new Foo<number>!()", "<stdin>: ERROR: Unexpected \")\"\n")
 	expectParseErrorTS(t, "new Foo\n!.Bar()", "<stdin>: ERROR: Unexpected \".\"\n")
 	expectParseError(t, "new Foo!()", "<stdin>: ERROR: Unexpected \"!\"\n")
+}
+
+func TestTSInstantiationExpression(t *testing.T) {
+	expectPrintedTS(t, "f<number>", "f;\n")
+	expectPrintedTS(t, "f<number, boolean>", "f;\n")
+	expectPrintedTS(t, "f.g<number>", "f.g;\n")
+	expectPrintedTS(t, "f<number>.g", "f.g;\n")
+	expectPrintedTS(t, "f<number>.g<number>", "f.g;\n")
+	expectPrintedTS(t, "f['g']<number>", "f[\"g\"];\n")
+	expectPrintedTS(t, "(f<number>)<number>", "f;\n")
+
+	// Function call
+	expectPrintedTS(t, "const x1 = f<true>\n(true);", "const x1 = f(true);\n")
+	// Relational expression
+	expectPrintedTS(t, "const x1 = f<true>\ntrue;", "const x1 = f < true > true;\n")
+	// Instantiation expression
+	expectPrintedTS(t, "const x1 = f<true>;\n(true);", "const x1 = f;\ntrue;\n")
+
+	expectPrintedTS(t, "f<number>?.();", "f?.();\n")
+	expectPrintedTS(t, "f?.<number>();", "f?.();\n")
+	expectPrintedTS(t, "f<<T>() => T>?.();", "f?.();\n")
+	expectPrintedTS(t, "f?.<<T>() => T>();", "f?.();\n")
+
+	expectPrintedTS(t, "f<number>['g'];", "f < number > [\"g\"];\n")
+
+	expectPrintedTS(t, "type T21 = typeof Array<string>; f();", "f();\n")
+	expectPrintedTS(t, "type T22 = typeof Array<string, number>; f();", "f();\n")
+
+	// This behavior matches TypeScript 4.7.0 nightly (specifically "typescript@4.7.0-dev.20220421")
+	// after various fixes from Microsoft that landed after the TypeScript 4.7.0 beta
+	expectPrintedTS(t, "f<x>, g<y>;", "f, g;\n")
+	expectPrintedTS(t, "f<<T>() => T>;", "f;\n")
+	expectPrintedTS(t, "f.x<<T>() => T>;", "f.x;\n")
+	expectPrintedTS(t, "f['x']<<T>() => T>;", "f[\"x\"];\n")
+	expectPrintedTS(t, "f<x>g<y>;", "f < x > g;\n")
+	expectPrintedTS(t, "f<x>=g<y>;", "f = g;\n")
+	expectPrintedTS(t, "f<x>>g<y>;", "f < x >> g;\n")
+	expectPrintedTS(t, "f<x>>>g<y>;", "f < x >>> g;\n")
+	expectParseErrorTS(t, "f<x>>=g<y>;", "<stdin>: ERROR: Invalid assignment target\n")
+	expectParseErrorTS(t, "f<x>>>=g<y>;", "<stdin>: ERROR: Invalid assignment target\n")
+	expectPrintedTS(t, "f<x> = g<y>;", "f = g;\n")
+	expectParseErrorTS(t, "f<x> > g<y>;", "<stdin>: ERROR: Unexpected \">\"\n")
+	expectParseErrorTS(t, "f<x> >> g<y>;", "<stdin>: ERROR: Unexpected \">>\"\n")
+	expectParseErrorTS(t, "f<x> >>> g<y>;", "<stdin>: ERROR: Unexpected \">>>\"\n")
+	expectParseErrorTS(t, "f<x> >= g<y>;", "<stdin>: ERROR: Unexpected \">=\"\n")
+	expectParseErrorTS(t, "f<x> >>= g<y>;", "<stdin>: ERROR: Unexpected \">>=\"\n")
+	expectParseErrorTS(t, "f<x> >>>= g<y>;", "<stdin>: ERROR: Unexpected \">>>=\"\n")
+	expectPrintedTS(t, "[f<x>];", "[f];\n")
+	expectPrintedTS(t, "f<x> ? g<y> : h<z>;", "f ? g : h;\n")
+	expectPrintedTS(t, "{ f<x> }", "{\n  f;\n}\n")
+	expectPrintedTS(t, "f<x> + g<y>;", "f < x > +g;\n")
+	expectPrintedTS(t, "f<x> - g<y>;", "f < x > -g;\n")
+	expectParseErrorTS(t, "f<x> * g<y>;", "<stdin>: ERROR: Unexpected \"*\"\n")
+	expectParseErrorTS(t, "f<x> == g<y>;", "<stdin>: ERROR: Unexpected \"==\"\n")
+	expectParseErrorTS(t, "f<x> ?? g<y>;", "<stdin>: ERROR: Unexpected \"??\"\n")
+	expectParseErrorTS(t, "f<x> in g<y>;", "<stdin>: ERROR: Unexpected \"in\"\n")
+	expectParseErrorTS(t, "f<x> instanceof g<y>;", "<stdin>: ERROR: Unexpected \"instanceof\"\n")
+
+	expectParseErrorTS(t, "const a8 = f<number><number>;", "<stdin>: ERROR: Unexpected \";\"\n")
+	expectParseErrorTS(t, "const b1 = f?.<number>;", "<stdin>: ERROR: Expected \"(\" but found \";\"\n")
+
+	// See: https://github.com/microsoft/TypeScript/issues/48711
+	expectPrintedTS(t, "type x = y\n<number>\nz", "z;\n")
+	expectPrintedTSX(t, "type x = y\n<number>\nz\n</number>", "/* @__PURE__ */ React.createElement(\"number\", null, \"z\");\n")
+	expectPrintedTS(t, "type x = typeof y\n<number>\nz", "z;\n")
+	expectPrintedTSX(t, "type x = typeof y\n<number>\nz\n</number>", "/* @__PURE__ */ React.createElement(\"number\", null, \"z\");\n")
+	expectPrintedTS(t, "interface Foo { \n (a: number): a \n <T>(): void \n }", "")
+	expectPrintedTSX(t, "interface Foo { \n (a: number): a \n <T>(): void \n }", "")
+	expectPrintedTS(t, "interface Foo { \n (a: number): typeof a \n <T>(): void \n }", "")
+	expectPrintedTSX(t, "interface Foo { \n (a: number): typeof a \n <T>(): void \n }", "")
+	expectParseErrorTS(t, "type x = y\n<number>\nz\n</number>", "<stdin>: ERROR: Unterminated regular expression\n")
+	expectParseErrorTSX(t, "type x = y\n<number>\nz", "<stdin>: ERROR: Unexpected end of file\n")
+	expectParseErrorTS(t, "type x = typeof y\n<number>\nz\n</number>", "<stdin>: ERROR: Unterminated regular expression\n")
+	expectParseErrorTSX(t, "type x = typeof y\n<number>\nz", "<stdin>: ERROR: Unexpected end of file\n")
+
+	// See: https://github.com/microsoft/TypeScript/issues/48654
+	expectPrintedTS(t, "x<true>\ny", "x < true > y;\n")
+	expectPrintedTS(t, "x<true>\nif (y) {}", "x;\nif (y) {\n}\n")
+	expectPrintedTS(t, "x<true>\nimport 'y'", "x;\nimport \"y\";\n")
+	expectPrintedTS(t, "x<true>\nimport('y')", "x < true > import(\"y\");\n")
+	expectPrintedTS(t, "x<true>\nimport.meta", "x < true > import.meta;\n")
+	expectPrintedTS(t, "new x<number>\ny", "new x() < number > y;\n")
+	expectPrintedTS(t, "new x<number>\nif (y) {}", "new x();\nif (y) {\n}\n")
+	expectPrintedTS(t, "new x<true>\nimport 'y'", "new x();\nimport \"y\";\n")
+	expectPrintedTS(t, "new x<true>\nimport('y')", "new x() < true > import(\"y\");\n")
+	expectPrintedTS(t, "new x<true>\nimport.meta", "new x() < true > import.meta;\n")
+
+	// See: https://github.com/microsoft/TypeScript/issues/48759
+	expectParseErrorTS(t, "x<true>\nimport<T>('y')", "<stdin>: ERROR: Expected \"(\" but found \"<\"\n")
+	expectParseErrorTS(t, "new x<true>\nimport<T>('y')", "<stdin>: ERROR: Expected \"(\" but found \"<\"\n")
+
+	// See: https://github.com/evanw/esbuild/issues/2201
+	expectParseErrorTS(t, "return Array < ;", "<stdin>: ERROR: Unexpected \";\"\n")
+	expectParseErrorTS(t, "return Array < > ;", "<stdin>: ERROR: Unexpected \">\"\n")
+	expectParseErrorTS(t, "return Array < , > ;", "<stdin>: ERROR: Unexpected \",\"\n")
+	expectPrintedTS(t, "return Array < number > ;", "return Array;\n")
+	expectPrintedTS(t, "return Array < number > 1;", "return Array < number > 1;\n")
+	expectPrintedTS(t, "return Array < number > +1;", "return Array < number > 1;\n")
+	expectPrintedTS(t, "return Array < number > (1);", "return Array(1);\n")
+	expectPrintedTS(t, "return Array < number >> 1;", "return Array < number >> 1;\n")
+	expectPrintedTS(t, "return Array < number >>> 1;", "return Array < number >>> 1;\n")
+	expectPrintedTS(t, "return Array < Array < number >> ;", "return Array;\n")
+	expectPrintedTS(t, "return Array < Array < number > > ;", "return Array;\n")
+	expectParseErrorTS(t, "return Array < Array < number > > 1;", "<stdin>: ERROR: Unexpected \">\"\n")
+	expectPrintedTS(t, "return Array < Array < number >> 1;", "return Array < Array < number >> 1;\n")
+	expectParseErrorTS(t, "return Array < Array < number > > +1;", "<stdin>: ERROR: Unexpected \">\"\n")
+	expectPrintedTS(t, "return Array < Array < number >> +1;", "return Array < Array < number >> 1;\n")
+	expectPrintedTS(t, "return Array < Array < number >> (1);", "return Array(1);\n")
+	expectPrintedTS(t, "return Array < Array < number > > (1);", "return Array(1);\n")
+	expectParseErrorTS(t, "return Array < number > in x;", "<stdin>: ERROR: Unexpected \"in\"\n")
+	expectParseErrorTS(t, "return Array < Array < number >> in x;", "<stdin>: ERROR: Unexpected \"in\"\n")
+	expectParseErrorTS(t, "return Array < Array < number > > in x;", "<stdin>: ERROR: Unexpected \">\"\n")
+	expectPrintedTS(t, "for (var x = Array < number > in y) ;", "x = Array;\nfor (var x in y)\n  ;\n")
+	expectPrintedTS(t, "for (var x = Array < Array < number >> in y) ;", "x = Array;\nfor (var x in y)\n  ;\n")
+	expectPrintedTS(t, "for (var x = Array < Array < number > > in y) ;", "x = Array;\nfor (var x in y)\n  ;\n")
 }
 
 func TestTSExponentiation(t *testing.T) {
@@ -1798,13 +2197,24 @@ func TestTSTypeOnlyExport(t *testing.T) {
 	expectPrintedTS(t, "{ let Foo; } export {Foo}", "{\n  let Foo;\n}\nexport {};\n")
 	expectPrintedTS(t, "export {Foo}", "export {};\n")
 	expectParseError(t, "export {Foo}", "<stdin>: ERROR: \"Foo\" is not declared in this file\n")
+
+	// This is a syntax error in TypeScript, but we parse it anyway because
+	// people blame esbuild when it doesn't parse. It's silently discarded
+	// because we always discard all type annotations (even invalid ones).
+	expectPrintedTS(t, "export type * from 'foo'\nbar", "bar;\n")
+	expectPrintedTS(t, "export type * as foo from 'bar'; foo", "foo;\n")
+	expectPrintedTS(t, "export type * as 'f o' from 'bar'; foo", "foo;\n")
 }
 
 func TestTSOptionalChain(t *testing.T) {
 	expectParseError(t, "a?.<T>()", "<stdin>: ERROR: Expected identifier but found \"<\"\n")
+	expectParseError(t, "a?.<<T>() => T>()", "<stdin>: ERROR: Expected identifier but found \"<<\"\n")
 	expectPrintedTS(t, "a?.<T>()", "a?.();\n")
+	expectPrintedTS(t, "a?.<<T>() => T>()", "a?.();\n")
 	expectParseErrorTS(t, "a?.<T>b", "<stdin>: ERROR: Expected \"(\" but found \"b\"\n")
 	expectParseErrorTS(t, "a?.<T>[b]", "<stdin>: ERROR: Expected \"(\" but found \"[\"\n")
+	expectParseErrorTS(t, "a?.<<T>() => T>b", "<stdin>: ERROR: Expected \"(\" but found \"b\"\n")
+	expectParseErrorTS(t, "a?.<<T>() => T>[b]", "<stdin>: ERROR: Expected \"(\" but found \"[\"\n")
 
 	expectPrintedTS(t, "a?.b.c", "a?.b.c;\n")
 	expectPrintedTS(t, "(a?.b).c", "(a?.b).c;\n")
@@ -1817,7 +2227,10 @@ func TestTSOptionalChain(t *testing.T) {
 	expectPrintedTS(t, "a?.b(c)", "a?.b(c);\n")
 	expectPrintedTS(t, "(a?.b)(c)", "(a?.b)(c);\n")
 	expectPrintedTS(t, "a?.b!(c)", "a?.b(c);\n")
+
 	expectPrintedTS(t, "a?.b<T>(c)", "a?.b(c);\n")
+	expectPrintedTS(t, "a?.b<+T>(c)", "a?.b < +T > c;\n")
+	expectPrintedTS(t, "a?.b<<T>() => T>(c)", "a?.b(c);\n")
 }
 
 func TestTSJSX(t *testing.T) {
@@ -1834,7 +2247,7 @@ func TestTSJSX(t *testing.T) {
 
 	expectPrintedTSX(t, "<x>a{}c</x>", "/* @__PURE__ */ React.createElement(\"x\", null, \"a\", \"c\");\n")
 	expectPrintedTSX(t, "<x>a{b}c</x>", "/* @__PURE__ */ React.createElement(\"x\", null, \"a\", b, \"c\");\n")
-	expectPrintedTSX(t, "<x>a{...b}c</x>", "/* @__PURE__ */ React.createElement(\"x\", null, \"a\", b, \"c\");\n")
+	expectPrintedTSX(t, "<x>a{...b}c</x>", "/* @__PURE__ */ React.createElement(\"x\", null, \"a\", ...b, \"c\");\n")
 
 	expectPrintedTSX(t, "const x = <Foo<T>></Foo>", "const x = /* @__PURE__ */ React.createElement(Foo, null);\n")
 	expectPrintedTSX(t, "const x = <Foo<T> data-foo></Foo>", "const x = /* @__PURE__ */ React.createElement(Foo, {\n  \"data-foo\": true\n});\n")
@@ -1907,7 +2320,7 @@ func TestTSNoAmbiguousLessThan(t *testing.T) {
 		"<stdin>: ERROR: This syntax is not allowed in files with the \".mts\" or \".cts\" extension\n")
 	expectParseErrorTSNoAmbiguousLessThan(t, "<x>y</x>",
 		"<stdin>: ERROR: This syntax is not allowed in files with the \".mts\" or \".cts\" extension\n"+
-			"<stdin>: ERROR: Unexpected end of file\n")
+			"<stdin>: ERROR: Unterminated regular expression\n")
 	expectParseErrorTSNoAmbiguousLessThan(t, "<x extends></x>",
 		"<stdin>: ERROR: This syntax is not allowed in files with the \".mts\" or \".cts\" extension\n"+
 			"<stdin>: ERROR: Unexpected \">\"\n")

@@ -22,10 +22,10 @@ type InputFile struct {
 	InputSourceMap *sourcemap.SourceMap
 
 	// If this file ends up being used in the bundle, these are additional files
-	// that must be written to the output directory. It's used by the "file"
-	// loader.
-	AdditionalFiles        []OutputFile
-	UniqueKeyForFileLoader string
+	// that must be written to the output directory. It's used by the "file" and
+	// "copy" loaders.
+	AdditionalFiles            []OutputFile
+	UniqueKeyForAdditionalFile string
 
 	SideEffects SideEffects
 	Source      logger.Source
@@ -113,4 +113,13 @@ type CSSRepr struct {
 
 func (repr *CSSRepr) ImportRecords() *[]ast.ImportRecord {
 	return &repr.AST.ImportRecords
+}
+
+type CopyRepr struct {
+	// The URL that replaces the contents of any import record paths for this file
+	URLForCode string
+}
+
+func (repr *CopyRepr) ImportRecords() *[]ast.ImportRecord {
+	return nil
 }

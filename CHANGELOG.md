@@ -1,5 +1,1551 @@
 # Changelog
 
+## 0.14.48
+
+* Enable using esbuild in Deno via WebAssembly ([#2323](https://github.com/evanw/esbuild/issues/2323))
+
+    The native implementation of esbuild is much faster than the WebAssembly version, but some people don't want to give Deno the `--allow-run` permission necessary to run esbuild and are ok waiting longer for their builds to finish when using the WebAssembly backend. With this release, you can now use esbuild via WebAssembly in Deno. To do this you will need to import from `wasm.js` instead of `mod.js`:
+
+    ```js
+    import * as esbuild from 'https://deno.land/x/esbuild@v0.14.48/wasm.js'
+    const ts = 'let test: boolean = true'
+    const result = await esbuild.transform(ts, { loader: 'ts' })
+    console.log('result:', result)
+    ```
+
+    Make sure you run Deno with `--allow-net` so esbuild can download the WebAssembly module. Using esbuild like this starts up a worker thread that runs esbuild in parallel (unless you call `esbuild.initialize({ worker: false })` to tell esbuild to run on the main thread). If you want to, you can call `esbuild.stop()` to terminate the worker if you won't be using esbuild anymore and you want to reclaim the memory.
+
+    Note that Deno appears to have a bug where background WebAssembly optimization can prevent the process from exiting for many seconds. If you are trying to use Deno and WebAssembly to run esbuild quickly, you may need to manually call `Deno.exit(0)` after your code has finished running.
+
+* Add support for font file MIME types ([#2337](https://github.com/evanw/esbuild/issues/2337))
+
+    This release adds support for font file MIME types to esbuild, which means they are now recognized by the built-in local web server and they are now used when a font file is loaded using the `dataurl` loader. The full set of newly-added file extension MIME type mappings is as follows:
+
+    * `.eot` => `application/vnd.ms-fontobject`
+    * `.otf` => `font/otf`
+    * `.sfnt` => `font/sfnt`
+    * `.ttf` => `font/ttf`
+    * `.woff` => `font/woff`
+    * `.woff2` => `font/woff2`
+
+* Remove `"use strict";` when targeting ESM ([#2347](https://github.com/evanw/esbuild/issues/2347))
+
+    All ES module code is automatically in strict mode, so a `"use strict";` directive is unnecessary. With this release, esbuild will now remove the `"use strict";` directive if the output format is ESM. This change makes the generated output file a few bytes smaller:
+
+    ```js
+    // Original code
+    'use strict'
+    export let foo = 123
+
+    // Old output (with --format=esm --minify)
+    "use strict";let t=123;export{t as foo};
+
+    // New output (with --format=esm --minify)
+    let t=123;export{t as foo};
+    ```
+
+* Attempt to have esbuild work with Deno on FreeBSD ([#2356](https://github.com/evanw/esbuild/issues/2356))
+
+    Deno doesn't support FreeBSD, but it's possible to build Deno for FreeBSD with some additional patches on top. This release of esbuild changes esbuild's Deno installer to download esbuild's FreeBSD binary in this situation. This configuration is unsupported although in theory everything should work.
+
+* Add some more target JavaScript engines ([#2357](https://github.com/evanw/esbuild/issues/2357))
+
+    This release adds the [Rhino](https://github.com/mozilla/rhino) and [Hermes](https://hermesengine.dev/) JavaScript engines to the set of engine identifiers that can be passed to the `--target` flag. You can use this to restrict esbuild to only using JavaScript features that are supported on those engines in the output files that esbuild generates.
+
+## 0.14.47
+
+* Make global names more compact when `||=` is available ([#2331](https://github.com/evanw/esbuild/issues/2331))
+
+    With this release, the code esbuild generates for the `--global-name=` setting is now slightly shorter when you don't configure esbuild such that the `||=` operator is unsupported (e.g. with `--target=chrome80` or `--supported:logical-assignment=false`):
+
+    ```js
+    // Original code
+    exports.foo = 123
+
+    // Old output (with --format=iife --global-name=foo.bar.baz --minify)
+    var foo=foo||{};foo.bar=foo.bar||{};foo.bar.baz=(()=>{var b=(a,o)=>()=>(o||a((o={exports:{}}).exports,o),o.exports);var c=b(f=>{f.foo=123});return c();})();
+
+    // New output (with --format=iife --global-name=foo.bar.baz --minify)
+    var foo;((foo||={}).bar||={}).baz=(()=>{var b=(a,o)=>()=>(o||a((o={exports:{}}).exports,o),o.exports);var c=b(f=>{f.foo=123});return c();})();
+    ```
+
+* Fix `--mangle-quoted=false` with `--minify-syntax=true`
+
+    If property mangling is active and `--mangle-quoted` is disabled, quoted properties are supposed to be preserved. However, there was a case when this didn't happen if `--minify-syntax` was enabled, since that internally transforms `x['y']` into `x.y` to reduce code size. This issue has been fixed:
+
+    ```js
+    // Original code
+    x.foo = x['bar'] = { foo: y, 'bar': z }
+
+    // Old output (with --mangle-props=. --mangle-quoted=false --minify-syntax=true)
+    x.a = x.b = { a: y, bar: z };
+
+    // New output (with --mangle-props=. --mangle-quoted=false --minify-syntax=true)
+    x.a = x.bar = { a: y, bar: z };
+    ```
+
+    Notice how the property `foo` is always used unquoted but the property `bar` is always used quoted, so `foo` should be consistently mangled while `bar` should be consistently not mangled.
+
+* Fix a minification bug regarding `this` and property initializers
+
+    When minification is enabled, esbuild attempts to inline the initializers of variables that have only been used once into the start of the following expression to reduce code size. However, there was a bug where this transformation could change the value of `this` when the initializer is a property access and the start of the following expression is a call expression. This release fixes the bug:
+
+    ```js
+    // Original code
+    function foo(obj) {
+      let fn = obj.prop;
+      fn();
+    }
+
+    // Old output (with --minify)
+    function foo(f){f.prop()}
+
+    // New output (with --minify)
+    function foo(o){let f=o.prop;f()}
+    ```
+
+## 0.14.46
+
+* Add the ability to override support for individual syntax features ([#2060](https://github.com/evanw/esbuild/issues/2060), [#2290](https://github.com/evanw/esbuild/issues/2290), [#2308](https://github.com/evanw/esbuild/issues/2308))
+
+    The `target` setting already lets you configure esbuild to restrict its output by only making use of syntax features that are known to be supported in the configured target environment. For example, setting `target` to `chrome50` causes esbuild to automatically transform optional chain expressions into the equivalent older JavaScript and prevents you from using BigInts, among many other things. However, sometimes you may want to customize this set of unsupported syntax features at the individual feature level.
+
+    Some examples of why you might want to do this:
+
+    * JavaScript runtimes often do a quick implementation of newer syntax features that is slower than the equivalent older JavaScript, and you can get a speedup by telling esbuild to pretend this syntax feature isn't supported. For example, V8 has a [long-standing performance bug regarding object spread](https://bugs.chromium.org/p/v8/issues/detail?id=11536) that can be avoided by manually copying properties instead of using object spread syntax. Right now esbuild hard-codes this optimization if you set `target` to a V8-based runtime.
+
+    * There are many less-used JavaScript runtimes in addition to the ones present in browsers, and these runtimes sometimes just decide not to implement parts of the specification, which might make sense for runtimes intended for embedded environments. For example, the developers behind Facebook's JavaScript runtime [Hermes](https://hermesengine.dev/) have decided to not implement classes despite it being a major JavaScript feature that was added seven years ago and that is used in virtually every large JavaScript project.
+
+    * You may be processing esbuild's output with another tool, and you may want esbuild to transform certain features and the other tool to transform certain other features. For example, if you are using esbuild to transform files individually to ES5 but you are then feeding the output into Webpack for bundling, you may want to preserve `import()` expressions even though they are a syntax error in ES5.
+
+    With this release, you can now use `--supported:feature=false` to force `feature` to be unsupported. This will cause esbuild to either rewrite code that uses the feature into older code that doesn't use the feature (if esbuild is able to), or to emit a build error (if esbuild is unable to). For example, you can use `--supported:arrow=false` to turn arrow functions into function expressions and `--supported:bigint=false` to make it an error to use a BigInt literal. You can also use `--supported:feature=true` to force it to be supported, which means esbuild will pass it through without transforming it. Keep in mind that this is an advanced feature. For most use cases you will probably want to just use `target` instead of using this.
+
+    The full set of currently-allowed features are as follows:
+
+    **JavaScript:**
+    * `arbitrary-module-namespace-names`
+    * `array-spread`
+    * `arrow`
+    * `async-await`
+    * `async-generator`
+    * `bigint`
+    * `class`
+    * `class-field`
+    * `class-private-accessor`
+    * `class-private-brand-check`
+    * `class-private-field`
+    * `class-private-method`
+    * `class-private-static-accessor`
+    * `class-private-static-field`
+    * `class-private-static-method`
+    * `class-static-blocks`
+    * `class-static-field`
+    * `const-and-let`
+    * `default-argument`
+    * `destructuring`
+    * `dynamic-import`
+    * `exponent-operator`
+    * `export-star-as`
+    * `for-await`
+    * `for-of`
+    * `generator`
+    * `hashbang`
+    * `import-assertions`
+    * `import-meta`
+    * `logical-assignment`
+    * `nested-rest-binding`
+    * `new-target`
+    * `node-colon-prefix-import`
+    * `node-colon-prefix-require`
+    * `nullish-coalescing`
+    * `object-accessors`
+    * `object-extensions`
+    * `object-rest-spread`
+    * `optional-catch-binding`
+    * `optional-chain`
+    * `regexp-dot-all-flag`
+    * `regexp-lookbehind-assertions`
+    * `regexp-match-indices`
+    * `regexp-named-capture-groups`
+    * `regexp-sticky-and-unicode-flags`
+    * `regexp-unicode-property-escapes`
+    * `rest-argument`
+    * `template-literal`
+    * `top-level-await`
+    * `typeof-exotic-object-is-object`
+    * `unicode-escapes`
+
+    **CSS:**
+    * `hex-rgba`
+    * `rebecca-purple`
+    * `modern-rgb-hsl`
+    * `inset-property`
+    * `nesting`
+
+    Since you can now specify `--supported:object-rest-spread=false` yourself to work around the V8 performance issue mentioned above, esbuild will no longer automatically transform all instances of object spread when targeting a V8-based JavaScript runtime going forward.
+
+    _Note that JavaScript feature transformation is very complex and allowing full customization of the set of supported syntax features could cause bugs in esbuild due to new interactions between multiple features that were never possible before. Consider this to be an experimental feature._
+
+* Implement `extends` constraints on `infer` type variables ([#2330](https://github.com/evanw/esbuild/issues/2330))
+
+    TypeScript 4.7 introduced the ability to write an `extends` constraint after an `infer` type variable, which looks like this:
+
+    ```ts
+    type FirstIfString<T> =
+      T extends [infer S extends string, ...unknown[]]
+        ? S
+        : never;
+    ```
+
+    You can read the blog post for more details: https://devblogs.microsoft.com/typescript/announcing-typescript-4-7/#extends-constraints-on-infer-type-variables. Previously this was a syntax error in esbuild but with this release, esbuild can now parse this syntax correctly.
+
+* Allow `define` to match optional chain expressions ([#2324](https://github.com/evanw/esbuild/issues/2324))
+
+    Previously esbuild's `define` feature only matched member expressions that did not use optional chaining. With this release, esbuild will now also match those that use optional chaining:
+
+    ```js
+    // Original code
+    console.log(a.b, a?.b)
+
+    // Old output (with --define:a.b=c)
+    console.log(c, a?.b);
+
+    // New output (with --define:a.b=c)
+    console.log(c, c);
+    ```
+
+    This is for compatibility with Webpack's [`DefinePlugin`](https://webpack.js.org/plugins/define-plugin/), which behaves the same way.
+
+## 0.14.45
+
+* Add a log message for ambiguous re-exports ([#2322](https://github.com/evanw/esbuild/issues/2322))
+
+    In JavaScript, you can re-export symbols from another file using `export * from './another-file'`. When you do this from multiple files that export different symbols with the same name, this creates an ambiguous export which is causes that name to not be exported. This is harmless if you don't plan on using the ambiguous export name, so esbuild doesn't have a warning for this. But if you do want a warning for this (or if you want to make it an error), you can now opt-in to seeing this log message with `--log-override:ambiguous-reexport=warning` or `--log-override:ambiguous-reexport=error`. The log message looks like this:
+
+    ```
+    ▲ [WARNING] Re-export of "common" in "example.js" is ambiguous and has been removed [ambiguous-reexport]
+
+      One definition of "common" comes from "a.js" here:
+
+        a.js:2:11:
+          2 │ export let common = 2
+            ╵            ~~~~~~
+
+      Another definition of "common" comes from "b.js" here:
+
+        b.js:3:14:
+          3 │ export { b as common }
+            ╵               ~~~~~~
+    ```
+
+* Optimize the output of the JSON loader ([#2161](https://github.com/evanw/esbuild/issues/2161))
+
+    The `json` loader (which is enabled by default for `.json` files) parses the file as JSON and generates a JavaScript file with the parsed expression as the `default` export. This behavior is standard and works in both node and the browser (well, as long as you use an [import assertion](https://v8.dev/features/import-assertions)). As an extension, esbuild also allows you to import additional top-level properties of the JSON object directly as a named export. This is beneficial for tree shaking. For example:
+
+    ```js
+    import { version } from 'esbuild/package.json'
+    console.log(version)
+    ```
+
+    If you bundle the above code with esbuild, you'll get something like the following:
+
+    ```js
+    // node_modules/esbuild/package.json
+    var version = "0.14.44";
+
+    // example.js
+    console.log(version);
+    ```
+
+    Most of the `package.json` file is irrelevant and has been omitted from the output due to tree shaking. The way esbuild implements this is to have the JavaScript file that's generated from the JSON look something like this with a separate exported variable for each property on the top-level object:
+
+    ```js
+    // node_modules/esbuild/package.json
+    export var name = "esbuild";
+    export var version = "0.14.44";
+    export var repository = "https://github.com/evanw/esbuild";
+    export var bin = {
+      esbuild: "bin/esbuild"
+    };
+    ...
+    export default {
+      name,
+      version,
+      repository,
+      bin,
+      ...
+    };
+    ```
+
+    However, this means that if you import the `default` export instead of a named export, you will get non-optimal output. The `default` export references all top-level properties, leading to many unnecessary variables in the output. With this release esbuild will now optimize this case to only generate additional variables for top-level object properties that are actually imported:
+
+    ```js
+    // Original code
+    import all, { bar } from 'data:application/json,{"foo":[1,2,3],"bar":[4,5,6]}'
+    console.log(all, bar)
+
+    // Old output (with --bundle --minify --format=esm)
+    var a=[1,2,3],l=[4,5,6],r={foo:a,bar:l};console.log(r,l);
+
+    // New output (with --bundle --minify --format=esm)
+    var l=[4,5,6],r={foo:[1,2,3],bar:l};console.log(r,l);
+    ```
+
+    Notice how there is no longer an unnecessary generated variable for `foo` since it's never imported. And if you only import the `default` export, esbuild will now reproduce the original JSON object in the output with all top-level properties compactly inline.
+
+* Add `id` to warnings returned from the API
+
+    With this release, warnings returned from esbuild's API now have an `id` property. This identifies which kind of log message it is, which can be used to more easily filter out certain warnings. For example, reassigning a `const` variable will generate a message with an `id` of `"assign-to-constant"`. This also gives you the identifier you need to apply a log override for that kind of message: https://esbuild.github.io/api/#log-override.
+
+## 0.14.44
+
+* Add a `copy` loader ([#2255](https://github.com/evanw/esbuild/issues/2255))
+
+    You can configure the "loader" for a specific file extension in esbuild, which is a way of telling esbuild how it should treat that file. For example, the `text` loader means the file is imported as a string while the `binary` loader means the file is imported as a `Uint8Array`. If you want the imported file to stay a separate file, the only option was previously the `file` loader (which is intended to be similar to Webpack's [`file-loader`](https://v4.webpack.js.org/loaders/file-loader/) package). This loader copies the file to the output directory and imports the path to that output file as a string. This is useful for a web application because you can refer to resources such as `.png` images by importing them for their URL. However, it's not helpful if you need the imported file to stay a separate file but to still behave the way it normally would when the code is run without bundling.
+
+    With this release, there is now a new loader called `copy` that copies the loaded file to the output directory and then rewrites the path of the import statement or `require()` call to point to the copied file instead of the original file. This will automatically add a content hash to the output name by default (which can be configured with the `--asset-names=` setting). You can use this by specifying `copy` for a specific file extension, such as with `--loader:.png=copy`.
+
+* Fix a regression in arrow function lowering ([#2302](https://github.com/evanw/esbuild/pull/2302))
+
+    This release fixes a regression with lowering arrow functions to function expressions in ES5. This feature was introduced in version 0.7.2 and regressed in version 0.14.30.
+
+    In JavaScript, regular `function` expressions treat `this` as an implicit argument that is determined by how the function is called, but arrow functions treat `this` as a variable that is captured in the closure from the surrounding lexical scope. This is emulated in esbuild by storing the value of `this` in a variable before changing the arrow function into a function expression.
+
+    However, the code that did this didn't treat `this` expressions as a usage of that generated variable. Version 0.14.30 began omitting unused generated variables, which caused the transformation of `this` to break. This regression happened due to missing test coverage. With this release, the problem has been fixed:
+
+    ```js
+    // Original code
+    function foo() {
+      return () => this
+    }
+
+    // Old output (with --target=es5)
+    function foo() {
+      return function() {
+        return _this;
+      };
+    }
+
+    // New output (with --target=es5)
+    function foo() {
+      var _this = this;
+      return function() {
+        return _this;
+      };
+    }
+    ```
+
+    This fix was contributed by [@nkeynes](https://github.com/nkeynes).
+
+* Allow entity names as define values ([#2292](https://github.com/evanw/esbuild/issues/2292))
+
+    The "define" feature allows you to replace certain expressions with certain other expressions at compile time. For example, you might want to replace the global identifier `IS_PRODUCTION` with the boolean value `true` when building for production. Previously the only expressions you could substitute in were either identifier expressions or anything that is valid JSON syntax. This limitation exists because supporting more complex expressions is more complex (for example, substituting in a `require()` call could potentially pull in additional files, which would need to be handled). With this release, you can now also now define something as a member expression chain of the form `foo.abc.xyz`.
+
+* Implement package self-references ([#2312](https://github.com/evanw/esbuild/issues/2312))
+
+    This release implements a rarely-used feature in node where a package can import itself by name instead of using relative imports. You can read more about this feature here: https://nodejs.org/api/packages.html#self-referencing-a-package-using-its-name. For example, assuming the `package.json` in a given package looks like this:
+
+    ```json
+    // package.json
+    {
+      "name": "a-package",
+      "exports": {
+        ".": "./main.mjs",
+        "./foo": "./foo.js"
+      }
+    }
+    ```
+
+    Then any module in that package can reference an export in the package itself:
+
+    ```js
+    // ./a-module.mjs
+    import { something } from 'a-package'; // Imports "something" from ./main.mjs.
+    ```
+
+    Self-referencing is also available when using `require`, both in an ES module, and in a CommonJS one. For example, this code will also work:
+
+    ```js
+    // ./a-module.js
+    const { something } = require('a-package/foo'); // Loads from ./foo.js.
+    ```
+
+* Add a warning for assigning to an import ([#2319](https://github.com/evanw/esbuild/issues/2319))
+
+    Import bindings are immutable in JavaScript, and assigning to them will throw an error. So instead of doing this:
+
+    ```js
+    import { foo } from 'foo'
+    foo++
+    ```
+
+    You need to do something like this instead:
+
+    ```js
+    import { foo, setFoo } from 'foo'
+    setFoo(foo + 1)
+    ```
+
+    This is already an error if you try to bundle this code with esbuild. However, this was previously allowed silently when bundling is disabled, which can lead to confusion for people who don't know about this aspect of how JavaScript works. So with this release, there is now a warning when you do this:
+
+    ```
+    ▲ [WARNING] This assignment will throw because "foo" is an import [assign-to-import]
+
+        example.js:2:0:
+          2 │ foo++
+            ╵ ~~~
+
+      Imports are immutable in JavaScript. To modify the value of this import, you must export a setter
+      function in the imported file (e.g. "setFoo") and then import and call that function here instead.
+    ```
+
+    This new warning can be turned off with `--log-override:assign-to-import=silent` if you don't want to see it.
+
+* Implement `alwaysStrict` in `tsconfig.json` ([#2264](https://github.com/evanw/esbuild/issues/2264))
+
+    This release adds `alwaysStrict` to the set of TypeScript `tsconfig.json` configuration values that esbuild supports. When this is enabled, esbuild will forbid syntax that isn't allowed in strict mode and will automatically insert `"use strict";` at the top of generated output files. This matches the behavior of the TypeScript compiler: https://www.typescriptlang.org/tsconfig#alwaysStrict.
+
+## 0.14.43
+
+* Fix TypeScript parse error whe a generic function is the first type argument ([#2306](https://github.com/evanw/esbuild/issues/2306))
+
+    In TypeScript, the `<<` token may need to be split apart into two `<` tokens if it's present in a type argument context. This was already correctly handled for all type expressions and for identifier expressions such as in the following code:
+
+    ```ts
+    // These cases already worked in the previous release
+    let foo: Array<<T>() => T>;
+    bar<<T>() => T>;
+    ```
+
+    However, normal expressions of the following form were previously incorrectly treated as syntax errors:
+
+    ```ts
+    // These cases were broken but have now been fixed
+    foo.bar<<T>() => T>;
+    foo?.<<T>() => T>();
+    ```
+
+    With this release, these cases now parsed correctly.
+
+* Fix minification regression with pure IIFEs ([#2279](https://github.com/evanw/esbuild/issues/2279))
+
+    An Immediately Invoked Function Expression (IIFE) is a function call to an anonymous function, and is a way of introducing a new function-level scope in JavaScript since JavaScript lacks a way to do this otherwise. And a pure function call is a function call with the special `/* @__PURE__ */` comment before it, which tells JavaScript build tools that the function call can be considered to have no side effects (and can be removed if it's unused).
+
+    Version 0.14.9 of esbuild introduced a regression that changed esbuild's behavior when these two features were combined. If the IIFE body contains a single expression, the resulting output still contained that expression instead of being empty. This is a minor regression because you normally wouldn't write code like this, so this shouldn't come up in practice, and it doesn't cause any correctness issues (just larger-than-necessary output). It's unusual that you would tell esbuild "remove this if the result is unused" and then not store the result anywhere, since the result is unused by construction. But regardless, the issue has now been fixed.
+
+    For example, the following code is a pure IIFE, which means it should be completely removed when minification is enabled. Previously it was replaced by the contents of the IIFE but it's now completely removed:
+
+    ```js
+    // Original code
+    /* @__PURE__ */ (() => console.log(1))()
+
+    // Old output (with --minify)
+    console.log(1);
+
+    // New output (with --minify)
+    ```
+
+* Add log messages for indirect `require` references ([#2231](https://github.com/evanw/esbuild/issues/2231))
+
+    A long time ago esbuild used to warn about indirect uses of `require` because they break esbuild's ability to analyze the dependencies of the code and cause dependencies to not be bundled, resulting in a potentially broken bundle. However, this warning was removed because many people wanted the warning to be removed. Some packages have code that uses `require` like this but on a code path that isn't used at run-time, so their code still happens to work even though the bundle is incomplete. For example, the following code will _not_ bundle `bindings`:
+
+    ```js
+    // Prevent React Native packager from seeing modules required with this
+    const nodeRequire = require;
+
+    function getRealmConstructor(environment) {
+      switch (environment) {
+        case "node.js":
+        case "electron":
+          return nodeRequire("bindings")("realm.node").Realm;
+      }
+    }
+    ```
+
+    Version 0.11.11 of esbuild removed this warning, which means people no longer have a way to know at compile time whether their bundle is broken in this way. Now that esbuild has custom log message levels, this warning can be added back in a way that should make both people happy. With this release, there is now a log message for this that defaults to the `debug` log level, which normally isn't visible. You can either do `--log-override:indirect-require=warning` to make this log message a warning (and therefore visible) or use `--log-level=debug` to see this and all other `debug` log messages.
+
+## 0.14.42
+
+* Fix a parser hang on invalid CSS ([#2276](https://github.com/evanw/esbuild/issues/2276))
+
+    Previously invalid CSS with unbalanced parentheses could cause esbuild's CSS parser to hang. An example of such an input is the CSS file `:x(`. This hang has been fixed.
+
+* Add support for custom log message levels
+
+    This release allows you to override the default log level of esbuild's individual log messages. For example, CSS syntax errors are treated as warnings instead of errors by default because CSS grammar allows for rules containing syntax errors to be ignored. However, if you would like for esbuild to consider CSS syntax errors to be build errors, you can now configure that like this:
+
+    * CLI
+
+        ```sh
+        $ esbuild example.css --log-override:css-syntax-error=error
+        ```
+
+    * JS API
+
+        ```js
+        let result = await esbuild.build({
+          entryPoints: ['example.css'],
+          logOverride: {
+            'css-syntax-error': 'error',
+          },
+        })
+        ```
+
+    * Go API
+
+        ```go
+        result := api.Build(api.BuildOptions{
+          EntryPoints: []string{"example.ts"},
+          LogOverride: map[string]api.LogLevel{
+            "css-syntax-error": api.LogLevelError,
+          },
+        })
+        ```
+
+    You can also now use this feature to silence warnings that you are not interested in. Log messages are referred to by their identifier. Each identifier is stable (i.e. shouldn't change over time) except there is no guarantee that the log message will continue to exist. A given log message may potentially be removed in the future, in which case esbuild will ignore log levels set for that identifier. The current list of supported log level identifiers for use with this feature can be found below:
+
+    **JavaScript:**
+    * `assign-to-constant`
+    * `call-import-namespace`
+    * `commonjs-variable-in-esm`
+    * `delete-super-property`
+    * `direct-eval`
+    * `duplicate-case`
+    * `duplicate-object-key`
+    * `empty-import-meta`
+    * `equals-nan`
+    * `equals-negative-zero`
+    * `equals-new-object`
+    * `html-comment-in-js`
+    * `impossible-typeof`
+    * `private-name-will-throw`
+    * `semicolon-after-return`
+    * `suspicious-boolean-not`
+    * `this-is-undefined-in-esm`
+    * `unsupported-dynamic-import`
+    * `unsupported-jsx-comment`
+    * `unsupported-regexp`
+    * `unsupported-require-call`
+
+    **CSS:**
+    * `css-syntax-error`
+    * `invalid-@charset`
+    * `invalid-@import`
+    * `invalid-@nest`
+    * `invalid-@layer`
+    * `invalid-calc`
+    * `js-comment-in-css`
+    * `unsupported-@charset`
+    * `unsupported-@namespace`
+    * `unsupported-css-property`
+
+    **Bundler:**
+    * `different-path-case`
+    * `ignored-bare-import`
+    * `ignored-dynamic-import`
+    * `import-is-undefined`
+    * `package.json`
+    * `require-resolve-not-external`
+    * `tsconfig.json`
+
+    **Source maps:**
+    * `invalid-source-mappings`
+    * `sections-in-source-map`
+    * `missing-source-map`
+    * `unsupported-source-map-comment`
+
+    Documentation about which identifiers correspond to which log messages will be added in the future, but hasn't been written yet. Note that it's not possible to configure the log level for a build error. This is by design because changing that would cause esbuild to incorrectly proceed in the building process generate invalid build output. You can only configure the log level for non-error log messages (although you can turn non-errors into errors).
+
+## 0.14.41
+
+* Fix a minification regression in 0.14.40 ([#2270](https://github.com/evanw/esbuild/issues/2270), [#2271](https://github.com/evanw/esbuild/issues/2271), [#2273](https://github.com/evanw/esbuild/pull/2273))
+
+    Version 0.14.40 substituted string property keys with numeric property keys if the number has the same string representation as the original string. This was done in three places: computed member expressions, object literal properties, and class fields. However, negative numbers are only valid in computed member expressions while esbuild incorrectly applied this substitution for negative numbers in all places. This release fixes the regression by only doing this substitution for negative numbers in computed member expressions.
+
+    This fix was contributed by [@susiwen8](https://github.com/susiwen8).
+
+## 0.14.40
+
+* Correct esbuild's implementation of `"preserveValueImports": true` ([#2268](https://github.com/evanw/esbuild/issues/2268))
+
+    TypeScript's [`preserveValueImports` setting](https://www.typescriptlang.org/tsconfig#preserveValueImports) tells the compiler to preserve unused imports, which can sometimes be necessary because otherwise TypeScript will remove unused imports as it assumes they are type annotations. This setting is useful for programming environments that strip TypeScript types as part of a larger code transformation where additional code is appended later that will then make use of those unused imports, such as with [Svelte](https://svelte.dev/) or [Vue](https://vuejs.org/).
+
+    This release fixes an issue where esbuild's implementation of `preserveValueImports` diverged from the official TypeScript compiler. If the import clause is present but empty of values (even if it contains types), then the import clause should be considered a type-only import clause. This was an oversight, and has now been fixed:
+
+    ```ts
+    // Original code
+    import "keep"
+    import { k1 } from "keep"
+    import k2, { type t1 } from "keep"
+    import {} from "remove"
+    import { type t2 } from "remove"
+
+    // Old output under "preserveValueImports": true
+    import "keep";
+    import { k1 } from "keep";
+    import k2, {} from "keep";
+    import {} from "remove";
+    import {} from "remove";
+
+    // New output under "preserveValueImports": true (matches the TypeScript compiler)
+    import "keep";
+    import { k1 } from "keep";
+    import k2 from "keep";
+    ```
+
+* Avoid regular expression syntax errors in older browsers ([#2215](https://github.com/evanw/esbuild/issues/2215))
+
+    Previously esbuild always passed JavaScript regular expression literals through unmodified from the input to the output. This is undesirable when the regular expression uses newer features that the configured target environment doesn't support. For example, the `d` flag (i.e. the [match indices feature](https://v8.dev/features/regexp-match-indices)) is new in ES2022 and doesn't work in older browsers. If esbuild generated a regular expression literal containing the `d` flag, then older browsers would consider esbuild's output to be a syntax error and none of the code would run.
+
+    With this release, esbuild now detects when an unsupported feature is being used and converts the regular expression literal into a `new RegExp()` constructor instead. One consequence of this is that the syntax error is transformed into a run-time error, which allows the output code to run (and to potentially handle the run-time error). Another consequence of this is that it allows you to include a polyfill that overwrites the `RegExp` constructor in older browsers with one that supports modern features. Note that esbuild does not handle polyfills for you, so you will need to include a `RegExp` polyfill yourself if you want one.
+
+    ```js
+    // Original code
+    console.log(/b/d.exec('abc').indices)
+
+    // New output (with --target=chrome90)
+    console.log(/b/d.exec("abc").indices);
+
+    // New output (with --target=chrome89)
+    console.log(new RegExp("b", "d").exec("abc").indices);
+    ```
+
+    This is currently done transparently without a warning. If you would like to debug this transformation to see where in your code esbuild is transforming regular expression literals and why, you can pass `--log-level=debug` to esbuild and review the information present in esbuild's debug logs.
+
+* Add Opera to more internal feature compatibility tables ([#2247](https://github.com/evanw/esbuild/issues/2247), [#2252](https://github.com/evanw/esbuild/pull/2252))
+
+    The internal compatibility tables that esbuild uses to determine which environments support which features are derived from multiple sources. Most of it is automatically derived from [these ECMAScript compatibility tables](https://kangax.github.io/compat-table/), but missing information is manually copied from [MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/), GitHub PR comments, and various other websites. Version 0.14.35 of esbuild introduced Opera as a possible target environment which was automatically picked up by the compatibility table script, but the manually-copied information wasn't updated to include Opera. This release fixes this omission so Opera feature compatibility should now be accurate.
+
+    This was contributed by [@lbwa](https://github.com/lbwa).
+
+* Ignore `EPERM` errors on directories ([#2261](https://github.com/evanw/esbuild/issues/2261))
+
+    Previously bundling with esbuild when inside a sandbox environment which does not have permission to access the parent directory did not work because esbuild would try to read the directory to search for a `node_modules` folder and would then fail the build when that failed. In practice this caused issues with running esbuild with `sandbox-exec` on macOS. With this release, esbuild will treat directories with permission failures as empty to allow for the `node_modules` search to continue past the denied directory and into its parent directory. This means it should now be possible to bundle with esbuild in these situations. This fix is similar to the fix in version 0.9.1 but is for `EPERM` while that fix was for `EACCES`.
+
+* Remove an irrelevant extra `"use strict"` directive ([#2264](https://github.com/evanw/esbuild/issues/2264))
+
+    The presence of a `"use strict"` directive in the output file is controlled by the presence of one in the entry point. However, there was a bug that would include one twice if the output format is ESM. This bug has been fixed.
+
+* Minify strings into integers inside computed properties ([#2214](https://github.com/evanw/esbuild/issues/2214))
+
+    This release now minifies `a["0"]` into `a[0]` when the result is equivalent:
+
+    ```js
+    // Original code
+    console.log(x['0'], { '0': x }, class { '0' = x })
+
+    // Old output (with --minify)
+    console.log(x["0"],{"0":x},class{"0"=x});
+
+    // New output (with --minify)
+    console.log(x[0],{0:x},class{0=x});
+    ```
+
+    This transformation currently only happens when the numeric property represents an integer within the signed 32-bit integer range.
+
+## 0.14.39
+
+* Fix code generation for `export default` and `/* @__PURE__ */` call ([#2203](https://github.com/evanw/esbuild/issues/2203))
+
+    The `/* @__PURE__ */` comment annotation can be added to function calls to indicate that they are side-effect free. These annotations are passed through into the output by esbuild since many JavaScript tools understand them. However, there was an edge case where printing this comment before a function call caused esbuild to fail to parenthesize a function literal because it thought it was no longer at the start of the expression. This problem has been fixed:
+
+    ```js
+    // Original code
+    export default /* @__PURE__ */ (function() {
+    })()
+
+    // Old output
+    export default /* @__PURE__ */ function() {
+    }();
+
+    // New output
+    export default /* @__PURE__ */ (function() {
+    })();
+    ```
+
+* Preserve `...` before JSX child expressions ([#2245](https://github.com/evanw/esbuild/issues/2245))
+
+    TypeScript 4.5 changed how JSX child expressions that start with `...` are emitted. Previously the `...` was omitted but starting with TypeScript 4.5, the `...` is now preserved instead. This release updates esbuild to match TypeScript's new output in this case:
+
+    ```jsx
+    // Original code
+    console.log(<a>{...b}</a>)
+
+    // Old output
+    console.log(/* @__PURE__ */ React.createElement("a", null, b));
+
+    // New output
+    console.log(/* @__PURE__ */ React.createElement("a", null, ...b));
+    ```
+
+    Note that this behavior is TypeScript-specific. Babel doesn't support the `...` token at all (it gives the error "Spread children are not supported in React").
+
+* Slightly adjust esbuild's handling of the `browser` field in `package.json` ([#2239](https://github.com/evanw/esbuild/issues/2239))
+
+    This release changes esbuild's interpretation of `browser` path remapping to fix a regression that was introduced in esbuild version 0.14.21. Browserify has a bug where it incorrectly matches package paths to relative paths in the `browser` field, and esbuild replicates this bug for compatibility with Browserify. I have a set of tests that I use to verify that esbuild's replication of this Browserify is accurate here: https://github.com/evanw/package-json-browser-tests. However, I was missing a test case and esbuild's behavior diverges from Browserify in this case. This release now handles this edge case as well:
+
+    * `entry.js`:
+
+        ```js
+        require('pkg/sub')
+        ```
+
+    * `node_modules/pkg/package.json`:
+
+        ```json
+        {
+          "browser": {
+            "./sub": "./sub/foo.js",
+            "./sub/sub.js": "./sub/foo.js"
+          }
+        }
+        ```
+
+    * `node_modules/pkg/sub/foo.js`:
+
+        ```js
+        require('sub')
+        ```
+
+    * `node_modules/sub/index.js`:
+
+        ```js
+        console.log('works')
+        ```
+
+    The import path `sub` in `require('sub')` was previously matching the remapping `"./sub/sub.js": "./sub/foo.js"` but with this release it should now no longer match that remapping. Now `require('sub')` will only match the remapping `"./sub/sub": "./sub/foo.js"` (without the trailing `.js`). Browserify apparently only matches without the `.js` suffix here.
+
+## 0.14.38
+
+* Further fixes to TypeScript 4.7 instantiation expression parsing ([#2201](https://github.com/evanw/esbuild/issues/2201))
+
+    This release fixes some additional edge cases with parsing instantiation expressions from the upcoming version 4.7 of TypeScript. Previously it was allowed for an instantiation expression to precede a binary operator but with this release, that's no longer allowed. This was sometimes valid in the TypeScript 4.7 beta but is no longer allowed in the latest version of TypeScript 4.7. Fixing this also fixed a regression that was introduced by the previous release of esbuild:
+
+    | Code           | TS 4.6.3     | TS 4.7.0 beta | TS 4.7.0 nightly | esbuild 0.14.36 | esbuild 0.14.37 | esbuild 0.14.38 |
+    |----------------|--------------|---------------|------------------|-----------------|-----------------|-----------------|
+    | `a<b> == c<d>` | Invalid      | `a == c`      | Invalid          | `a == c`        | `a == c`        | Invalid         |
+    | `a<b> in c<d>` | Invalid      | Invalid       | Invalid          | Invalid         | `a in c`        | Invalid         |
+    | `a<b>>=c<d>`   | Invalid      | Invalid       | Invalid          | Invalid         | `a >= c`        | Invalid         |
+    | `a<b>=c<d>`    | Invalid      | `a < b >= c`  | `a = c`          | `a < b >= c`    | `a = c`         | `a = c`         |
+    | `a<b>>c<d>`    | `a < b >> c` | `a < b >> c`  | `a < b >> c`     | `a < b >> c`    | `a > c`         | `a < b >> c`    |
+
+    This table illustrates some of the more significant changes between all of these parsers. The most important part is that esbuild 0.14.38 now matches the behavior of the latest TypeScript compiler for all of these cases.
+
+## 0.14.37
+
+* Add support for TypeScript's `moduleSuffixes` field from TypeScript 4.7
+
+    The upcoming version of TypeScript adds the `moduleSuffixes` field to `tsconfig.json` that introduces more rules to import path resolution. Setting `moduleSuffixes` to `[".ios", ".native", ""]` will try to look at the the relative files `./foo.ios.ts`, `./foo.native.ts`, and finally `./foo.ts` for an import path of `./foo`. Note that the empty string `""` in `moduleSuffixes` is necessary for TypeScript to also look-up `./foo.ts`. This was announced in the [TypeScript 4.7 beta blog post](https://devblogs.microsoft.com/typescript/announcing-typescript-4-7-beta/#resolution-customization-with-modulesuffixes).
+
+* Match the new ASI behavior from TypeScript nightly builds ([#2188](https://github.com/evanw/esbuild/pull/2188))
+
+    This release updates esbuild to match some very recent behavior changes in the TypeScript parser regarding automatic semicolon insertion. For more information, see TypeScript issues #48711 and #48654 (I'm not linking to them directly to avoid Dependabot linkback spam on these issues due to esbuild's popularity). The result is that the following TypeScript code is now considered valid TypeScript syntax:
+
+    ```ts
+    class A<T> {}
+    new A<number> /* ASI now happens here */
+    if (0) {}
+
+    interface B {
+      (a: number): typeof a /* ASI now happens here */
+      <T>(): void
+    }
+    ```
+
+    This fix was contributed by [@g-plane](https://github.com/g-plane).
+
+## 0.14.36
+
+* Revert path metadata validation for now ([#2177](https://github.com/evanw/esbuild/issues/2177))
+
+    This release reverts the path metadata validation that was introduced in the previous release. This validation has uncovered a potential issue with how esbuild handles `onResolve` callbacks in plugins that will need to be fixed before path metadata validation is re-enabled.
+
+## 0.14.35
+
+* Add support for parsing `typeof` on #private fields from TypeScript 4.7 ([#2174](https://github.com/evanw/esbuild/pull/2174))
+
+    The upcoming version of TypeScript now lets you use `#private` fields in `typeof` type expressions:
+
+    https://devblogs.microsoft.com/typescript/announcing-typescript-4-7-beta/#typeof-on-private-fields
+
+    ```ts
+    class Container {
+      #data = "hello!";
+
+      get data(): typeof this.#data {
+        return this.#data;
+      }
+
+      set data(value: typeof this.#data) {
+        this.#data = value;
+      }
+    }
+    ```
+
+    With this release, esbuild can now parse these new type expressions as well. This feature was contributed by [@magic-akari](https://github.com/magic-akari).
+
+* Add Opera and IE to internal CSS feature support matrix ([#2170](https://github.com/evanw/esbuild/pull/2170))
+
+    Version 0.14.18 of esbuild added Opera and IE as available target environments, and added them to the internal JS feature support matrix. CSS feature support was overlooked, however. This release adds knowledge of Opera and IE to esbuild's internal CSS feature support matrix:
+
+    ```css
+    /* Original input */
+    a {
+      color: rgba(0, 0, 0, 0.5);
+    }
+
+    /* Old output (with --target=opera49 --minify) */
+    a{color:rgba(0,0,0,.5)}
+
+    /* New output (with --target=opera49 --minify) */
+    a{color:#00000080}
+    ```
+
+    The fix for this issue was contributed by [@sapphi-red](https://github.com/sapphi-red).
+
+* Change TypeScript class field behavior when targeting ES2022
+
+    TypeScript 4.3 introduced a breaking change where class field behavior changes from assign semantics to define semantics when the `target` setting in `tsconfig.json` is set to `ESNext`. Specifically, the default value for TypeScript's `useDefineForClassFields` setting when unspecified is `true` if and only if `target` is `ESNext`. TypeScript 4.6 introduced another change where this behavior now happens for both `ESNext` and `ES2022`. Presumably this will be the case for `ES2023` and up as well. With this release, esbuild's behavior has also been changed to match. Now configuring esbuild with `--target=es2022` will also cause TypeScript files to use the new class field behavior.
+
+* Validate that path metadata returned by plugins is consistent
+
+    The plugin API assumes that all metadata for the same path returned by a plugin's `onResolve` callback is consistent. Previously this assumption was just assumed without any enforcement. Starting with this release, esbuild will now enforce this by generating a build error if this assumption is violated. The lack of validation has not been an issue (I have never heard of this being a problem), but it still seems like a good idea to enforce it. Here's a simple example of a plugin that generates inconsistent `sideEffects` metadata:
+
+    ```js
+    let buggyPlugin = {
+      name: 'buggy',
+      setup(build) {
+        let count = 0
+        build.onResolve({ filter: /^react$/ }, args => {
+          return {
+            path: require.resolve(args.path),
+            sideEffects: count++ > 0,
+          }
+        })
+      },
+    }
+    ```
+
+    Since esbuild processes everything in parallel, the set of metadata that ends up being used for a given path is essentially random since it's whatever the task scheduler decides to schedule first. Thus if a plugin does not consistently provide the same metadata for a given path, subsequent builds may return different results. This new validation check prevents this problem.
+
+    Here's the new error message that's shown when this happens:
+
+    ```
+    ✘ [ERROR] [plugin buggy] Detected inconsistent metadata for the path "node_modules/react/index.js" when it was imported here:
+
+        button.tsx:1:30:
+          1 │ import { createElement } from 'react'
+            ╵                               ~~~~~~~
+
+      The original metadata for that path comes from when it was imported here:
+
+        app.tsx:1:23:
+          1 │ import * as React from 'react'
+            ╵                        ~~~~~~~
+
+      The difference in metadata is displayed below:
+
+       {
+      -  "sideEffects": true,
+      +  "sideEffects": false,
+       }
+
+      This is a bug in the "buggy" plugin. Plugins provide metadata for a given path in an "onResolve"
+      callback. All metadata provided for the same path must be consistent to ensure deterministic
+      builds. Due to parallelism, one set of provided metadata will be randomly chosen for a given path,
+      so providing inconsistent metadata for the same path can cause non-determinism.
+    ```
+
+* Suggest enabling a missing condition when `exports` map fails ([#2163](https://github.com/evanw/esbuild/issues/2163))
+
+    This release adds another suggestion to the error message that happens when an `exports` map lookup fails if the failure could potentially be fixed by adding a missing condition. Here's what the new error message looks like (which now suggests `--conditions=module` as a possible workaround):
+
+    ```
+    ✘ [ERROR] Could not resolve "@sentry/electron/main"
+
+        index.js:1:24:
+          1 │ import * as Sentry from '@sentry/electron/main'
+            ╵                         ~~~~~~~~~~~~~~~~~~~~~~~
+
+      The path "./main" is not currently exported by package "@sentry/electron":
+
+        node_modules/@sentry/electron/package.json:8:13:
+          8 │   "exports": {
+            ╵              ^
+
+      None of the conditions provided ("require", "module") match any of the currently active conditions
+      ("browser", "default", "import"):
+
+        node_modules/@sentry/electron/package.json:16:14:
+          16 │     "./main": {
+             ╵               ^
+
+      Consider enabling the "module" condition if this package expects it to be enabled. You can use
+      "--conditions=module" to do that:
+
+        node_modules/@sentry/electron/package.json:18:6:
+          18 │       "module": "./esm/main/index.js"
+             ╵       ~~~~~~~~
+
+      Consider using a "require()" call to import this file, which will work because the "require"
+      condition is supported by this package:
+
+        index.js:1:24:
+          1 │ import * as Sentry from '@sentry/electron/main'
+            ╵                         ~~~~~~~~~~~~~~~~~~~~~~~
+
+      You can mark the path "@sentry/electron/main" as external to exclude it from the bundle, which
+      will remove this error.
+    ```
+
+    This particular package had an issue where it was using the Webpack-specific `module` condition without providing a `default` condition. It looks like the intent in this case was to use the standard `import` condition instead. This specific change wasn't suggested here because this error message is for package consumers, not package authors.
+
+## 0.14.34
+
+Something went wrong with the publishing script for the previous release. Publishing again.
+
+## 0.14.33
+
+* Fix a regression regarding `super` ([#2158](https://github.com/evanw/esbuild/issues/2158))
+
+    This fixes a regression from the previous release regarding classes with a super class, a private member, and a static field in the scenario where the static field needs to be lowered but where private members are supported by the configured target environment. In this scenario, esbuild could incorrectly inject the instance field initializers that use `this` into the constructor before the call to `super()`, which is invalid. This problem has now been fixed (notice that `this` is now used after `super()` instead of before):
+
+    ```js
+    // Original code
+    class Foo extends Object {
+      static FOO;
+      constructor() {
+        super();
+      }
+      #foo;
+    }
+
+    // Old output (with --bundle)
+    var _foo;
+    var Foo = class extends Object {
+      constructor() {
+        __privateAdd(this, _foo, void 0);
+        super();
+      }
+    };
+    _foo = new WeakMap();
+    __publicField(Foo, "FOO");
+
+    // New output (with --bundle)
+    var _foo;
+    var Foo = class extends Object {
+      constructor() {
+        super();
+        __privateAdd(this, _foo, void 0);
+      }
+    };
+    _foo = new WeakMap();
+    __publicField(Foo, "FOO");
+    ```
+
+    During parsing, esbuild scans the class and makes certain decisions about the class such as whether to lower all static fields, whether to lower each private member, or whether calls to `super()` need to be tracked and adjusted. Previously esbuild made two passes through the class members to compute this information. However, with the new `super()` call lowering logic added in the previous release, we now need three passes to capture the whole dependency chain for this case: 1) lowering static fields requires 2) lowering private members which requires 3) adjusting `super()` calls.
+
+    The reason lowering static fields requires lowering private members is because lowering static fields moves their initializers outside of the class body, where they can't access private members anymore. Consider this code:
+
+    ```js
+    class Foo {
+      get #foo() {}
+      static bar = new Foo().#foo
+    }
+    ```
+
+    We can't just lower static fields without also lowering private members, since that causes a syntax error:
+
+    ```js
+    class Foo {
+      get #foo() {}
+    }
+    Foo.bar = new Foo().#foo;
+    ```
+
+    And the reason lowering private members requires adjusting `super()` calls is because the injected private member initializers use `this`, which is only accessible after `super()` calls in the constructor.
+
+* Fix an issue with `--keep-names` not keeping some names ([#2149](https://github.com/evanw/esbuild/issues/2149))
+
+    This release fixes a regression with `--keep-names` from version 0.14.26. PR [#2062](https://github.com/evanw/esbuild/pull/2062) attempted to remove superfluous calls to the `__name` helper function by omitting calls of the form `__name(foo, "foo")` where the name of the symbol in the first argument is equal to the string in the second argument. This was assuming that the initializer for the symbol would automatically be assigned the expected `.name` property by the JavaScript VM, which turned out to be an incorrect assumption. To fix the regression, this PR has been reverted.
+
+    The assumption is true in many cases but isn't true when the initializer is moved into another automatically-generated variable, which can sometimes be necessary during the various syntax transformations that esbuild does. For example, consider the following code:
+
+    ```js
+    class Foo {
+      static get #foo() { return Foo.name }
+      static get foo() { return this.#foo }
+    }
+    let Bar = Foo
+    Foo = { name: 'Bar' }
+    console.log(Foo.name, Bar.name)
+    ```
+
+    This code should print `Bar Foo`. With `--keep-names --target=es6` that code is lowered by esbuild into the following code (omitting the helper function definitions for brevity):
+
+    ```js
+    var _foo, foo_get;
+    const _Foo = class {
+      static get foo() {
+        return __privateGet(this, _foo, foo_get);
+      }
+    };
+    let Foo = _Foo;
+    __name(Foo, "Foo");
+    _foo = new WeakSet();
+    foo_get = /* @__PURE__ */ __name(function() {
+      return _Foo.name;
+    }, "#foo");
+    __privateAdd(Foo, _foo);
+    let Bar = Foo;
+    Foo = { name: "Bar" };
+    console.log(Foo.name, Bar.name);
+    ```
+
+    The injection of the automatically-generated `_Foo` variable is necessary to preserve the semantics of the captured `Foo` binding for methods defined within the class body, even when the definition needs to be moved outside of the class body during code transformation. Due to a JavaScript quirk, this binding is immutable and does not change even if `Foo` is later reassigned. The PR that was reverted was incorrectly removing the call to `__name(Foo, "Foo")`, which turned out to be necessary after all in this case.
+
+* Print some large integers using hexadecimal when minifying ([#2162](https://github.com/evanw/esbuild/issues/2162))
+
+    When `--minify` is active, esbuild will now use one fewer byte to represent certain large integers:
+
+    ```js
+    // Original code
+    x = 123456787654321;
+
+    // Old output (with --minify)
+    x=123456787654321;
+
+    // New output (with --minify)
+    x=0x704885f926b1;
+    ```
+
+    This works because a hexadecimal representation can be shorter than a decimal representation starting at around 10<sup>12</sup> and above.
+
+    _This optimization made me realize that there's probably an opportunity to optimize printed numbers for smaller gzipped size instead of or in addition to just optimizing for minimal uncompressed byte count. The gzip algorithm does better with repetitive sequences, so for example `0xFFFFFFFF` is probably a better representation than `4294967295` even though the byte counts are the same. As far as I know, no JavaScript minifier does this optimization yet. I don't know enough about how gzip works to know if this is a good idea or what the right metric for this might be._
+
+* Add Linux ARM64 support for Deno ([#2156](https://github.com/evanw/esbuild/issues/2156))
+
+    This release adds Linux ARM64 support to esbuild's [Deno](https://deno.land/) API implementation, which allows esbuild to be used with Deno on a Raspberry Pi.
+
+## 0.14.32
+
+* Fix `super` usage in lowered private methods ([#2039](https://github.com/evanw/esbuild/issues/2039))
+
+    Previously esbuild failed to transform `super` property accesses inside private methods in the case when private methods have to be lowered because the target environment doesn't support them. The generated code still contained the `super` keyword even though the method was moved outside of the class body, which is a syntax error in JavaScript. This release fixes this transformation issue and now produces valid code:
+
+    ```js
+    // Original code
+    class Derived extends Base {
+      #foo() { super.foo() }
+      bar() { this.#foo() }
+    }
+
+    // Old output (with --target=es6)
+    var _foo, foo_fn;
+    class Derived extends Base {
+      constructor() {
+        super(...arguments);
+        __privateAdd(this, _foo);
+      }
+      bar() {
+        __privateMethod(this, _foo, foo_fn).call(this);
+      }
+    }
+    _foo = new WeakSet();
+    foo_fn = function() {
+      super.foo();
+    };
+
+    // New output (with --target=es6)
+    var _foo, foo_fn;
+    const _Derived = class extends Base {
+      constructor() {
+        super(...arguments);
+        __privateAdd(this, _foo);
+      }
+      bar() {
+        __privateMethod(this, _foo, foo_fn).call(this);
+      }
+    };
+    let Derived = _Derived;
+    _foo = new WeakSet();
+    foo_fn = function() {
+      __superGet(_Derived.prototype, this, "foo").call(this);
+    };
+    ```
+
+    Because of this change, lowered `super` property accesses on instances were rewritten so that they can exist outside of the class body. This rewrite affects code generation for all `super` property accesses on instances including those inside lowered `async` functions. The new approach is different but should be equivalent to the old approach:
+
+    ```js
+    // Original code
+    class Foo {
+      foo = async () => super.foo()
+    }
+
+    // Old output (with --target=es6)
+    class Foo {
+      constructor() {
+        __publicField(this, "foo", () => {
+          var __superGet = (key) => super[key];
+          return __async(this, null, function* () {
+            return __superGet("foo").call(this);
+          });
+        });
+      }
+    }
+
+    // New output (with --target=es6)
+    class Foo {
+      constructor() {
+        __publicField(this, "foo", () => __async(this, null, function* () {
+          return __superGet(Foo.prototype, this, "foo").call(this);
+        }));
+      }
+    }
+    ```
+
+* Fix some tree-shaking bugs regarding property side effects
+
+    This release fixes some cases where side effects in computed properties were not being handled correctly. Specifically primitives and private names as properties should not be considered to have side effects, and object literals as properties should be considered to have side effects:
+
+    ```js
+    // Original code
+    let shouldRemove = { [1]: 2 }
+    let shouldRemove2 = class { #foo }
+    let shouldKeep = class { [{ toString() { sideEffect() } }] }
+
+    // Old output (with --tree-shaking=true)
+    let shouldRemove = { [1]: 2 };
+    let shouldRemove2 = class {
+      #foo;
+    };
+
+    // New output (with --tree-shaking=true)
+    let shouldKeep = class {
+      [{ toString() {
+        sideEffect();
+      } }];
+    };
+    ```
+
+* Add the `wasmModule` option to the `initialize` JS API ([#1093](https://github.com/evanw/esbuild/issues/1093))
+
+    The `initialize` JS API must be called when using esbuild in the browser to provide the WebAssembly module for esbuild to use. Previously the only way to do that was using the `wasmURL` API option like this:
+
+    ```js
+    await esbuild.initialize({
+      wasmURL: '/node_modules/esbuild-wasm/esbuild.wasm',
+    })
+    console.log(await esbuild.transform('1+2'))
+    ```
+
+    With this release, you can now also initialize esbuild using a `WebAssembly.Module` instance using the `wasmModule` API option instead. The example above is equivalent to the following code:
+
+    ```js
+    await esbuild.initialize({
+      wasmModule: await WebAssembly.compileStreaming(fetch('/node_modules/esbuild-wasm/esbuild.wasm'))
+    })
+    console.log(await esbuild.transform('1+2'))
+    ```
+
+    This could be useful for environments where you want more control over how the WebAssembly download happens or where downloading the WebAssembly module is not possible.
+
+## 0.14.31
+
+* Add support for parsing "optional variance annotations" from TypeScript 4.7 ([#2102](https://github.com/evanw/esbuild/pull/2102))
+
+    The upcoming version of TypeScript now lets you specify `in` and/or `out` on certain type parameters (specifically only on a type alias, an interface declaration, or a class declaration). These modifiers control type paramemter covariance and contravariance:
+
+    ```ts
+    type Provider<out T> = () => T;
+    type Consumer<in T> = (x: T) => void;
+    type Mapper<in T, out U> = (x: T) => U;
+    type Processor<in out T> = (x: T) => T;
+    ```
+
+    With this release, esbuild can now parse these new type parameter modifiers. This feature was contributed by [@magic-akari](https://github.com/magic-akari).
+
+* Improve support for `super()` constructor calls in nested locations ([#2134](https://github.com/evanw/esbuild/issues/2134))
+
+    In JavaScript, derived classes must call `super()` somewhere in the `constructor` method before being able to access `this`. Class public instance fields, class private instance fields, and TypeScript constructor parameter properties can all potentially cause code which uses `this` to be inserted into the constructor body, which must be inserted after the `super()` call. To make these insertions straightforward to implement, the TypeScript compiler doesn't allow calling `super()` somewhere other than in a root-level statement in the constructor body in these cases.
+
+    Previously esbuild's class transformations only worked correctly when `super()` was called in a root-level statement in the constructor body, just like the TypeScript compiler. But with this release, esbuild should now generate correct code as long as the call to `super()` appears anywhere in the constructor body:
+
+    ```ts
+    // Original code
+    class Foo extends Bar {
+      constructor(public skip = false) {
+        if (skip) {
+          super(null)
+          return
+        }
+        super({ keys: [] })
+      }
+    }
+
+    // Old output (incorrect)
+    class Foo extends Bar {
+      constructor(skip = false) {
+        if (skip) {
+          super(null);
+          return;
+        }
+        super({ keys: [] });
+        this.skip = skip;
+      }
+    }
+
+    // New output (correct)
+    class Foo extends Bar {
+      constructor(skip = false) {
+        var __super = (...args) => {
+          super(...args);
+          this.skip = skip;
+        };
+        if (skip) {
+          __super(null);
+          return;
+        }
+        __super({ keys: [] });
+      }
+    }
+    ```
+
+* Add support for the new `@container` CSS rule ([#2127](https://github.com/evanw/esbuild/pull/2127))
+
+    This release adds support for [`@container`](https://drafts.csswg.org/css-contain-3/#container-rule) in CSS files. This means esbuild will now pretty-print and minify these rules better since it now better understands the internal structure of these rules:
+
+    ```css
+    /* Original code */
+    @container (width <= 150px) {
+      #inner {
+        color: yellow;
+      }
+    }
+
+    /* Old output (with --minify) */
+    @container (width <= 150px){#inner {color: yellow;}}
+
+    /* New output (with --minify) */
+    @container (width <= 150px){#inner{color:#ff0}}
+    ```
+
+    This was contributed by [@yisibl](https://github.com/yisibl).
+
+* Avoid CSS cascade-dependent keywords in the `font-family` property ([#2135](https://github.com/evanw/esbuild/pull/2135))
+
+    In CSS, [`initial`](https://developer.mozilla.org/en-US/docs/Web/CSS/initial), [`inherit`](https://developer.mozilla.org/en-US/docs/Web/CSS/inherit), and [`unset`](https://developer.mozilla.org/en-US/docs/Web/CSS/unset) are [CSS-wide keywords](https://drafts.csswg.org/css-values-4/#css-wide-keywords) which means they have special behavior when they are specified as a property value. For example, while `font-family: 'Arial'` (as a string) and `font-family: Arial` (as an identifier) are the same, `font-family: 'inherit'` (as a string) uses the font family named `inherit` but `font-family: inherit` (as an identifier) inherits the font family from the parent element. This means esbuild must not unquote these CSS-wide keywords (and `default`, which is also reserved) during minification to avoid changing the meaning of the minified CSS.
+
+    The current draft of the new CSS Cascading and Inheritance Level 5 specification adds another concept called [cascade-dependent keywords](https://drafts.csswg.org/css-cascade-5/#defaulting-keywords) of which there are two: [`revert`](https://developer.mozilla.org/en-US/docs/Web/CSS/revert) and [`revert-layer`](https://developer.mozilla.org/en-US/docs/Web/CSS/revert-layer). This release of esbuild guards against unquoting these additional keywords as well to avoid accidentally breaking pages that use a font with the same name:
+
+    ```css
+    /* Original code */
+    a { font-family: 'revert'; }
+    b { font-family: 'revert-layer', 'Segoe UI', serif; }
+
+    /* Old output (with --minify) */
+    a{font-family:revert}b{font-family:revert-layer,Segoe UI,serif}
+
+    /* New output (with --minify) */
+    a{font-family:"revert"}b{font-family:"revert-layer",Segoe UI,serif}
+    ```
+
+    This fix was contributed by [@yisibl](https://github.com/yisibl).
+
+## 0.14.30
+
+* Change the context of TypeScript parameter decorators ([#2147](https://github.com/evanw/esbuild/issues/2147))
+
+    While TypeScript parameter decorators are expressions, they are not evaluated where they exist in the code. They are moved to after the class declaration and evaluated there instead. Specifically this TypeScript code:
+
+    ```ts
+    class Class {
+      method(@decorator() arg) {}
+    }
+    ```
+
+    becomes this JavaScript code:
+
+    ```js
+    class Class {
+      method(arg) {}
+    }
+    __decorate([
+      __param(0, decorator())
+    ], Class.prototype, "method", null);
+    ```
+
+    This has several consequences:
+
+    * Whether `await` is allowed inside a decorator expression or not depends on whether the class declaration itself is in an `async` context or not. With this release, you can now use `await` inside a decorator expression when the class declaration is either inside an `async` function or is at the top-level of an ES module and top-level await is supported. Note that the TypeScript compiler currently has a bug regarding this edge case: https://github.com/microsoft/TypeScript/issues/48509.
+
+        ```ts
+        // Using "await" inside a decorator expression is now allowed
+        async function fn(foo: Promise<any>) {
+          class Class {
+            method(@decorator(await foo) arg) {}
+          }
+          return Class
+        }
+        ```
+
+        Also while TypeScript currently allows `await` to be used like this in `async` functions, it doesn't currently allow `yield` to be used like this in generator functions. It's not yet clear whether this behavior with `yield` is a bug or by design, so I haven't made any changes to esbuild's handling of `yield` inside decorator expressions in this release.
+
+    * Since the scope of a decorator expression is the scope enclosing the class declaration, they cannot access private identifiers. Previously this was incorrectly allowed but with this release, esbuild no longer allows this. Note that the TypeScript compiler currently has a bug regarding this edge case: https://github.com/microsoft/TypeScript/issues/48515.
+
+        ```ts
+        // Using private names inside a decorator expression is no longer allowed
+        class Class {
+          static #priv = 123
+          method(@decorator(Class.#priv) arg) {}
+        }
+        ```
+
+    * Since the scope of a decorator expression is the scope enclosing the class declaration, identifiers inside parameter decorator expressions should never be resolved to a parameter of the enclosing method. Previously this could happen, which was a bug with esbuild. This bug no longer happens in this release.
+
+        ```ts
+        // Name collisions now resolve to the outer name instead of the inner name
+        let arg = 1
+        class Class {
+          method(@decorator(arg) arg = 2) {}
+        }
+        ```
+
+        Specifically previous versions of esbuild generated the following incorrect JavaScript (notice the use of `arg2`):
+
+        ```js
+        let arg = 1;
+        class Class {
+          method(arg2 = 2) {
+          }
+        }
+        __decorateClass([
+          __decorateParam(0, decorator(arg2))
+        ], Class.prototype, "method", 1);
+        ```
+
+        This release now generates the following correct JavaScript (notice the use of `arg`):
+
+        ```js
+        let arg = 1;
+        class Class {
+          method(arg2 = 2) {
+          }
+        }
+        __decorateClass([
+          __decorateParam(0, decorator(arg))
+        ], Class.prototype, "method", 1);
+        ```
+
+* Fix some obscure edge cases with `super` property access
+
+    This release fixes the following obscure problems with `super` when targeting an older JavaScript environment such as `--target=es6`:
+
+    1. The compiler could previously crash when a lowered `async` arrow function contained a class with a field initializer that used a `super` property access:
+
+        ```js
+        let foo = async () => class extends Object {
+          bar = super.toString
+        }
+        ```
+
+    2. The compiler could previously generate incorrect code when a lowered `async` method of a derived class contained a nested class with a computed class member involving a `super` property access on the derived class:
+
+        ```js
+        class Base {
+          foo() { return 'bar' }
+        }
+        class Derived extends Base {
+          async foo() {
+            return new class { [super.foo()] = 'success' }
+          }
+        }
+        new Derived().foo().then(obj => console.log(obj.bar))
+        ```
+
+    3. The compiler could previously generate incorrect code when a default-exported class contained a `super` property access inside a lowered static private class field:
+
+        ```js
+        class Foo {
+          static foo = 123
+        }
+        export default class extends Foo {
+          static #foo = super.foo
+          static bar = this.#foo
+        }
+        ```
+
+## 0.14.29
+
+* Fix a minification bug with a double-nested `if` inside a label followed by `else` ([#2139](https://github.com/evanw/esbuild/issues/2139))
+
+    This fixes a minification bug that affects the edge case where `if` is followed by `else` and the `if` contains a label that contains a nested `if`. Normally esbuild's AST printer automatically wraps the body of a single-statement `if` in braces to avoid the "dangling else" `if`/`else` ambiguity common to C-like languages (where the `else` accidentally becomes associated with the inner `if` instead of the outer `if`). However, I was missing automatic wrapping of label statements, which did not have test coverage because they are a rarely-used feature. This release fixes the bug:
+
+    ```js
+    // Original code
+    if (a)
+      b: {
+        if (c) break b
+      }
+    else if (d)
+      e()
+
+    // Old output (with --minify)
+    if(a)e:if(c)break e;else d&&e();
+
+    // New output (with --minify)
+    if(a){e:if(c)break e}else d&&e();
+    ```
+
+* Fix edge case regarding `baseUrl` and `paths` in `tsconfig.json` ([#2119](https://github.com/evanw/esbuild/issues/2119))
+
+    In `tsconfig.json`, TypeScript forbids non-relative values inside `paths` if `baseUrl` is not present, and esbuild does too. However, TypeScript checked this after the entire `tsconfig.json` hierarchy was parsed while esbuild incorrectly checked this immediately when parsing the file containing the `paths` map. This caused incorrect warnings to be generated for `tsconfig.json` files that specify a `baseUrl` value and that inherit a `paths` value from an `extends` clause. Now esbuild will only check for non-relative `paths` values after the entire hierarchy has been parsed to avoid generating incorrect warnings.
+
+* Better handle errors where the esbuild binary executable is corrupted or missing ([#2129](https://github.com/evanw/esbuild/issues/2129))
+
+    If the esbuild binary executable is corrupted or missing, previously there was one situation where esbuild's JavaScript API could hang instead of generating an error. This release changes esbuild's library code to generate an error instead in this case.
+
+## 0.14.28
+
+* Add support for some new CSS rules ([#2115](https://github.com/evanw/esbuild/issues/2115), [#2116](https://github.com/evanw/esbuild/issues/2116), [#2117](https://github.com/evanw/esbuild/issues/2117))
+
+    This release adds support for [`@font-palette-values`](https://drafts.csswg.org/css-fonts-4/#font-palette-values), [`@counter-style`](https://developer.mozilla.org/en-US/docs/Web/CSS/@counter-style), and [`@font-feature-values`](https://developer.mozilla.org/en-US/docs/Web/CSS/@font-feature-values). This means esbuild will now pretty-print and minify these rules better since it now better understands the internal structure of these rules:
+
+    ```css
+    /* Original code */
+    @font-palette-values --Foo { base-palette: 1; }
+    @counter-style bar { symbols: b a r; }
+    @font-feature-values Bop { @styleset { test: 1; } }
+
+    /* Old output (with --minify) */
+    @font-palette-values --Foo{base-palette: 1;}@counter-style bar{symbols: b a r;}@font-feature-values Bop{@styleset {test: 1;}}
+
+    /* New output (with --minify) */
+    @font-palette-values --Foo{base-palette:1}@counter-style bar{symbols:b a r}@font-feature-values Bop{@styleset{test:1}}
+    ```
+
+* Upgrade to Go 1.18.0 ([#2105](https://github.com/evanw/esbuild/issues/2105))
+
+    Binary executables for this version are now published with Go version 1.18.0. The [Go release notes](https://go.dev/doc/go1.18) say that the linker generates smaller binaries and that on 64-bit ARM chips, compiled binaries run around 10% faster. On an M1 MacBook Pro, esbuild's benchmark runs approximately 8% faster than before and the binary executable is approximately 4% smaller than before.
+
+    This also fixes a regression from version 0.14.26 of esbuild where the browser builds of the `esbuild-wasm` package could fail to be bundled due to the use of built-in node libraries. The primary WebAssembly shim for Go 1.18.0 no longer uses built-in node libraries.
+
+## 0.14.27
+
+* Avoid generating an enumerable `default` import for CommonJS files in Babel mode ([#2097](https://github.com/evanw/esbuild/issues/2097))
+
+    Importing a CommonJS module into an ES module can be done in two different ways. In node mode the `default` import is always set to `module.exports`, while in Babel mode the `default` import passes through to `module.exports.default` instead. Node mode is triggered when the importing file ends in `.mjs`, has `type: "module"` in its `package.json` file, or the imported module does not have a `__esModule` marker.
+
+    Previously esbuild always created the forwarding `default` import in Babel mode, even if `module.exports` had no property called `default`. This was problematic because the getter named `default` still showed up as a property on the imported namespace object, and could potentially interfere with code that iterated over the properties of the imported namespace object. With this release the getter named `default` will now only be added in Babel mode if the `default` property exists at the time of the import.
+
+* Fix a circular import edge case regarding ESM-to-CommonJS conversion ([#1894](https://github.com/evanw/esbuild/issues/1894), [#2059](https://github.com/evanw/esbuild/pull/2059))
+
+    This fixes a regression that was introduced in version 0.14.5 of esbuild. Ever since that version, esbuild now creates two separate export objects when you convert an ES module file into a CommonJS module: one for ES modules and one for CommonJS modules. The one for CommonJS modules is written to `module.exports` and exported from the file, and the one for ES modules is internal and can be accessed by bundling code that imports the entry point (for example, the entry point might import itself to be able to inspect its own exports).
+
+    The reason for these two separate export objects is that CommonJS modules are supposed to see a special export called `__esModule` which indicates that the module used to be an ES module, while ES modules are not supposed to see any automatically-added export named `__esModule`. This matters for real-world code both because people sometimes iterate over the properties of ES module export namespace objects and because some people write ES module code containing their own exports named `__esModule` that they expect other ES module code to be able to read.
+
+    However, this change to split exports into two separate objects broke ES module re-exports in the edge case where the imported module is involved in an import cycle. This happened because the CommonJS `module.exports` object was no longer mutated as exports were added. Instead it was being initialized at the end of the generated file after the import statements to other modules (which are converted into `require()` calls). This release changes `module.exports` initialization to happen earlier in the file and then double-writes further exports to both the ES module and CommonJS module export objects.
+
+    This fix was contributed by [@indutny](https://github.com/indutny).
+
+## 0.14.26
+
+* Fix a tree shaking regression regarding `var` declarations ([#2080](https://github.com/evanw/esbuild/issues/2080), [#2085](https://github.com/evanw/esbuild/pull/2085), [#2098](https://github.com/evanw/esbuild/issues/2098), [#2099](https://github.com/evanw/esbuild/issues/2099))
+
+    Version 0.14.8 of esbuild enabled removal of duplicate function declarations when minification is enabled (see [#610](https://github.com/evanw/esbuild/issues/610)):
+
+    ```js
+    // Original code
+    function x() { return 1 }
+    console.log(x())
+    function x() { return 2 }
+
+    // Output (with --minify-syntax)
+    console.log(x());
+    function x() {
+      return 2;
+    }
+    ```
+
+    This transformation is safe because function declarations are "hoisted" in JavaScript, which means they are all done first before any other code is evaluted. This means the last function declaration will overwrite all previous function declarations with the same name.
+
+    However, this introduced an unintentional regression for `var` declarations in which all but the last declaration was dropped if tree-shaking was enabled. This only happens for top-level `var` declarations that re-declare the same variable multiple times. This regression has now been fixed:
+
+    ```js
+    // Original code
+    var x = 1
+    console.log(x)
+    var x = 2
+
+    // Old output (with --tree-shaking=true)
+    console.log(x);
+    var x = 2;
+
+    // New output (with --tree-shaking=true)
+    var x = 1;
+    console.log(x);
+    var x = 2;
+    ```
+
+    This case now has test coverage.
+
+* Add support for parsing "instantiation expressions" from TypeScript 4.7 ([#2038](https://github.com/evanw/esbuild/pull/2038))
+
+    The upcoming version of TypeScript now lets you specify `<...>` type parameters on a JavaScript identifier without using a call expression:
+
+    ```ts
+    const ErrorMap = Map<string, Error>;  // new () => Map<string, Error>
+    const errorMap = new ErrorMap();  // Map<string, Error>
+    ```
+
+    With this release, esbuild can now parse these new type annotations. This feature was contributed by [@g-plane](https://github.com/g-plane).
+
+* Avoid `new Function` in esbuild's library code ([#2081](https://github.com/evanw/esbuild/issues/2081))
+
+    Some JavaScript environments such as Cloudflare Workers or Deno Deploy don't allow `new Function` because they disallow dynamic JavaScript evaluation. Previously esbuild's WebAssembly-based library used this to construct the WebAssembly worker function. With this release, the code is now inlined without using `new Function` so it will be able to run even when this restriction is in place.
+
+* Drop superfluous `__name()` calls ([#2062](https://github.com/evanw/esbuild/pull/2062))
+
+    When the `--keep-names` option is specified, esbuild inserts calls to a `__name` helper function to ensure that the `.name` property on function and class objects remains consistent even if the function or class name is renamed to avoid a name collision or because name minification is enabled. With this release, esbuild will now try to omit these calls to the `__name` helper function when the name of the function or class object was not renamed during the linking process after all:
+
+    ```js
+    // Original code
+    import { foo as foo1 } from 'data:text/javascript,export function foo() { return "foo1" }'
+    import { foo as foo2 } from 'data:text/javascript,export function foo() { return "foo2" }'
+    console.log(foo1.name, foo2.name)
+
+    // Old output (with --bundle --keep-names)
+    (() => {
+      var __defProp = Object.defineProperty;
+      var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
+      function foo() {
+        return "foo1";
+      }
+      __name(foo, "foo");
+      function foo2() {
+        return "foo2";
+      }
+      __name(foo2, "foo");
+      console.log(foo.name, foo2.name);
+    })();
+
+    // New output (with --bundle --keep-names)
+    (() => {
+      var __defProp = Object.defineProperty;
+      var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
+      function foo() {
+        return "foo1";
+      }
+      function foo2() {
+        return "foo2";
+      }
+      __name(foo2, "foo");
+      console.log(foo.name, foo2.name);
+    })();
+    ```
+
+    Notice how one of the calls to `__name` is now no longer printed. This change was contributed by [@indutny](https://github.com/indutny).
+
 ## 0.14.25
 
 * Reduce minification of CSS transforms to avoid Safari bugs ([#2057](https://github.com/evanw/esbuild/issues/2057))
@@ -153,7 +1699,7 @@
 
 * Remove simplified statement-level literal expressions ([#2063](https://github.com/evanw/esbuild/issues/2063))
 
-    With this release, esbuild now removes simplified statement-level expressions if the simplified result is a literal expression even when minification is disabled. Previously this was only done when minification is enabled. This change was only made because some people are bothered by seeing top-level literal expressions. This change has no effect on code behavior.
+    With this release, esbuild now removes simplified statement-level expressions if the simplified result is a literal expression even when minification is disabled. Previously this was only done when minification is enabled. This change was only made because some people are bothered by seeing top-level literal expressions. This change has no effect on code behavior.
 
 * Ignore `.d.ts` rules in `paths` in `tsconfig.json` files ([#2074](https://github.com/evanw/esbuild/issues/2074), [#2075](https://github.com/evanw/esbuild/pull/2075))
 
@@ -3435,15 +4981,15 @@ In addition to the breaking changes above, the following features are also inclu
 
 * Minify the syntax `Infinity` to `1 / 0` ([#1385](https://github.com/evanw/esbuild/pull/1385))
 
-	The `--minify-syntax` flag (automatically enabled by `--minify`) will now minify the expression `Infinity` to `1 / 0`, which uses fewer bytes:
+    The `--minify-syntax` flag (automatically enabled by `--minify`) will now minify the expression   `Infinity` to `1 / 0`, which uses fewer bytes:
 
-	```js
-	// Original code
-	const a = Infinity;
+    ```js
+    // Original code
+    const a = Infinity;
 
-	// Output with "--minify-syntax"
-	const a = 1 / 0;
-	```
+    // Output with "--minify-syntax"
+    const a = 1 / 0;
+    ```
 
     This change was contributed by [@Gusted](https://github.com/Gusted).
 
@@ -5097,7 +6643,7 @@ In addition to the breaking changes above, the following features are also inclu
 
 * Fix some obscure TypeScript type parsing edge cases
 
-    In TypeScript, type parameters come after a type and are placed in angle brackets like `Foo<T>`. However, certain built-in types do not accept type parameters including primitive types such as `number`. This means `if (x as number < 1) {}` is not a syntax error while `if (x as Foo < 1) {}` is a syntax error. This release changes TypeScript type parsing to allow type parameters in a more restricted set of situations, which should hopefully better resolve these type parsing ambiguities.
+    In TypeScript, type parameters come after a type and are placed in angle brackets like `Foo<T>`. However, certain built-in types do not accept type parameters including primitive types such as `number`. This means `if (x as number < 1) {}` is not a syntax error while `if (x as Foo < 1) {}` is a syntax error. This release changes TypeScript type parsing to allow type parameters in a more restricted set of situations, which should hopefully better resolve these type parsing ambiguities.
 
 ## 0.10.2
 

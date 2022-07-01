@@ -23,7 +23,7 @@ jobs:
 
       - name: Test pnpm
         run: |
-          npm i -g pnpm@next
+          npm i -g pnpm@next-7
           time make test-e2e-pnpm
 
       - name: Test yarn

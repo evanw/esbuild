@@ -35,6 +35,9 @@ let mustBeArray = <T>(value: T[] | undefined): string | null =>
 let mustBeObject = (value: Object | undefined): string | null =>
   typeof value === 'object' && value !== null && !Array.isArray(value) ? null : 'an object';
 
+let mustBeWebAssemblyModule = (value: WebAssembly.Module | undefined): string | null =>
+  value instanceof WebAssembly.Module ? null : 'a WebAssembly.Module';
+
 let mustBeArrayOrRecord = <T extends string>(value: T[] | Record<T, T> | undefined): string | null =>
   typeof value === 'object' && value !== null ? null : 'an array or an object';
 
@@ -75,10 +78,12 @@ function checkForInvalidFlags(object: Object, keys: OptionKeys, where: string): 
 export function validateInitializeOptions(options: types.InitializeOptions): types.InitializeOptions {
   let keys: OptionKeys = Object.create(null);
   let wasmURL = getFlag(options, keys, 'wasmURL', mustBeString);
+  let wasmModule = getFlag(options, keys, 'wasmModule', mustBeWebAssemblyModule);
   let worker = getFlag(options, keys, 'worker', mustBeBoolean);
-  checkForInvalidFlags(options, keys, 'in startService() call');
+  checkForInvalidFlags(options, keys, 'in initialize() call');
   return {
     wasmURL,
+    wasmModule,
     worker,
   };
 }
@@ -136,6 +141,8 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   let jsxFactory = getFlag(options, keys, 'jsxFactory', mustBeString);
   let jsxFragment = getFlag(options, keys, 'jsxFragment', mustBeString);
   let define = getFlag(options, keys, 'define', mustBeObject);
+  let logOverride = getFlag(options, keys, 'logOverride', mustBeObject);
+  let supported = getFlag(options, keys, 'supported', mustBeObject);
   let pure = getFlag(options, keys, 'pure', mustBeArray);
   let keepNames = getFlag(options, keys, 'keepNames', mustBeBoolean);
 
@@ -169,6 +176,18 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
     for (let key in define) {
       if (key.indexOf('=') >= 0) throw new Error(`Invalid define: ${key}`);
       flags.push(`--define:${key}=${define[key]}`);
+    }
+  }
+  if (logOverride) {
+    for (let key in logOverride) {
+      if (key.indexOf('=') >= 0) throw new Error(`Invalid log override: ${key}`);
+      flags.push(`--log-override:${key}=${logOverride[key]}`);
+    }
+  }
+  if (supported) {
+    for (let key in supported) {
+      if (key.indexOf('=') >= 0) throw new Error(`Invalid supported: ${key}`);
+      flags.push(`--supported:${key}=${supported[key]}`);
     }
   }
   if (pure) for (let fn of pure) flags.push(`--pure:${fn}`);
@@ -405,13 +424,13 @@ export interface StreamIn {
   writeToStdin: (data: Uint8Array) => void;
   readFileSync?: (path: string, encoding: 'utf8') => string;
   isSync: boolean;
-  isBrowser: boolean;
+  isWriteUnavailable: boolean;
   esbuild: types.PluginBuild['esbuild'];
 }
 
 export interface StreamOut {
   readFromStdout: (data: Uint8Array) => void;
-  afterClose: () => void;
+  afterClose: (error: Error | null) => void;
   service: StreamService;
 }
 
@@ -481,7 +500,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
   let pluginCallbacks = new Map<number, PluginCallback>();
   let watchCallbacks = new Map<number, WatchCallback>();
   let serveCallbacks = new Map<number, ServeCallbacks>();
-  let isClosed = false;
+  let closeData: { reason: string } | null = null;
   let nextRequestID = 0;
   let nextBuildKey = 0;
 
@@ -516,20 +535,21 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     }
   };
 
-  let afterClose = () => {
+  let afterClose = (error: Error | null) => {
     // When the process is closed, fail all pending requests
-    isClosed = true;
+    closeData = { reason: error ? ': ' + (error.message || error) : '' };
+    const text = 'The service was stopped' + closeData.reason;
     for (let callback of responseCallbacks.values()) {
-      callback('The service was stopped', null);
+      callback(text, null);
     }
     responseCallbacks.clear();
     for (let callbacks of serveCallbacks.values()) {
-      callbacks.onWait('The service was stopped');
+      callbacks.onWait(text);
     }
     serveCallbacks.clear();
     for (let callback of watchCallbacks.values()) {
       try {
-        callback(new Error('The service was stopped'), null);
+        callback(new Error(text), null);
       } catch (e) {
         console.error(e)
       }
@@ -538,7 +558,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
   };
 
   let sendRequest = <Req, Res>(refs: Refs | null, value: Req, callback: (error: string | null, response: Res | null) => void): void => {
-    if (isClosed) return callback('The service is no longer running', null);
+    if (closeData) return callback('The service is no longer running' + closeData.reason, null);
     let id = nextRequestID++;
     responseCallbacks.set(id, (error, response) => {
       try {
@@ -552,7 +572,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
   };
 
   let sendResponse = (id: number, value: protocol.Value): void => {
-    if (isClosed) throw new Error('The service is no longer running');
+    if (closeData) throw new Error('The service is no longer running' + closeData.reason);
     streamIn.writeToStdin(protocol.encodePacket({ id, isRequest: false, value }));
   };
 
@@ -1138,7 +1158,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
         if (callerRefs) callerRefs.unref()
       },
     }
-    let writeDefault = !streamIn.isBrowser;
+    let writeDefault = !streamIn.isWriteUnavailable;
     let {
       entries,
       flags,
@@ -1195,11 +1215,11 @@ export function createChannel(streamIn: StreamIn): StreamOut {
           if (!rebuild) {
             let isDisposed = false;
             (rebuild as any) = () => new Promise<types.BuildResult>((resolve, reject) => {
-              if (isDisposed || isClosed) throw new Error('Cannot rebuild');
+              if (isDisposed || closeData) throw new Error('Cannot rebuild');
               sendRequest<protocol.RebuildRequest, protocol.BuildResponse>(refs, { command: 'rebuild', key },
                 (error2, response2) => {
                   if (error2) {
-                    const message: types.Message = { pluginName: '', text: error2, location: null, notes: [], detail: void 0 };
+                    const message: types.Message = { id: '', pluginName: '', text: error2, location: null, notes: [], detail: void 0 };
                     return callback(failureErrorWithLog('Build failed', [message], []), null);
                   }
                   buildResponseToResult(response2, (error3, result3) => {
@@ -1267,7 +1287,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
       });
     };
 
-    if (write && streamIn.isBrowser) throw new Error(`Cannot enable "write" in the browser`);
+    if (write && streamIn.isWriteUnavailable) throw new Error(`The "write" option is unavailable in this environment`);
     if (incremental && streamIn.isSync) throw new Error(`Cannot use "incremental" with a synchronous build`);
     if (watch && streamIn.isSync) throw new Error(`Cannot use "watch" with a synchronous build`);
     sendRequest<protocol.BuildRequest, protocol.BuildResponse>(refs, request, (error, response) => {
@@ -1508,7 +1528,7 @@ function extractErrorMessageV8(e: any, streamIn: StreamIn, stash: ObjectStash | 
   } catch {
   }
 
-  return { pluginName, text, location, notes: note ? [note] : [], detail: stash ? stash.store(e) : -1 }
+  return { id: '', pluginName, text, location, notes: note ? [note] : [], detail: stash ? stash.store(e) : -1 }
 }
 
 function parseStackLinesV8(streamIn: StreamIn, lines: string[], ident: string): types.Location | null {
@@ -1618,6 +1638,7 @@ function sanitizeMessages(messages: types.PartialMessage[], property: string, st
 
   for (const message of messages) {
     let keys: OptionKeys = {};
+    let id = getFlag(message, keys, 'id', mustBeString);
     let pluginName = getFlag(message, keys, 'pluginName', mustBeString);
     let text = getFlag(message, keys, 'text', mustBeString);
     let location = getFlag(message, keys, 'location', mustBeObjectOrNull);
@@ -1641,6 +1662,7 @@ function sanitizeMessages(messages: types.PartialMessage[], property: string, st
     }
 
     messagesClone.push({
+      id: id || '',
       pluginName: pluginName || fallbackPluginName,
       text: text || '',
       location: sanitizeLocation(location, where),

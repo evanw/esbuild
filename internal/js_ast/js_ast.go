@@ -269,6 +269,20 @@ type ClassStaticBlock struct {
 	Loc   logger.Loc
 }
 
+type PropertyFlags uint8
+
+const (
+	PropertyIsComputed PropertyFlags = 1 << iota
+	PropertyIsMethod
+	PropertyIsStatic
+	PropertyWasShorthand
+	PropertyPreferQuotedKey
+)
+
+func (flags PropertyFlags) Has(flag PropertyFlags) bool {
+	return (flags & flag) != 0
+}
+
 type Property struct {
 	ClassStaticBlock *ClassStaticBlock
 
@@ -290,12 +304,9 @@ type Property struct {
 
 	TSDecorators []Expr
 
-	Kind            PropertyKind
-	IsComputed      bool
-	IsMethod        bool
-	IsStatic        bool
-	WasShorthand    bool
-	PreferQuotedKey bool
+	Loc   logger.Loc
+	Kind  PropertyKind
+	Flags PropertyFlags
 }
 
 type PropertyBinding struct {
@@ -1024,17 +1035,6 @@ type SContinue struct {
 	Label *LocRef
 }
 
-func IsSuperCall(stmt Stmt) bool {
-	if expr, ok := stmt.Data.(*SExpr); ok {
-		if call, ok := expr.Value.Data.(*ECall); ok {
-			if _, ok := call.Target.Data.(*ESuper); ok {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 type ClauseItem struct {
 	Alias string
 
@@ -1518,6 +1518,7 @@ const (
 	ExplicitStrictMode
 	ImplicitStrictModeClass
 	ImplicitStrictModeESM
+	ImplicitStrictModeTSAlwaysStrict
 )
 
 func (s *Scope) RecursiveSetStrictMode(kind StrictModeKind) {

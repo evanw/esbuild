@@ -959,3 +959,205 @@ func TestLoaderDataURLUnknownMIME(t *testing.T) {
 		},
 	})
 }
+
+func TestLoaderDataURLExtensionBasedMIME(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.foo": `
+				export { default as css }   from "./example.css"
+				export { default as eot }   from "./example.eot"
+				export { default as gif }   from "./example.gif"
+				export { default as htm }   from "./example.htm"
+				export { default as html }  from "./example.html"
+				export { default as jpeg }  from "./example.jpeg"
+				export { default as jpg }   from "./example.jpg"
+				export { default as js }    from "./example.js"
+				export { default as json }  from "./example.json"
+				export { default as mjs }   from "./example.mjs"
+				export { default as otf }   from "./example.otf"
+				export { default as pdf }   from "./example.pdf"
+				export { default as png }   from "./example.png"
+				export { default as sfnt }  from "./example.sfnt"
+				export { default as svg }   from "./example.svg"
+				export { default as ttf }   from "./example.ttf"
+				export { default as wasm }  from "./example.wasm"
+				export { default as webp }  from "./example.webp"
+				export { default as woff }  from "./example.woff"
+				export { default as woff2 } from "./example.woff2"
+				export { default as xml }   from "./example.xml"
+			`,
+			"/example.css":   `css`,
+			"/example.eot":   `eot`,
+			"/example.gif":   `gif`,
+			"/example.htm":   `htm`,
+			"/example.html":  `html`,
+			"/example.jpeg":  `jpeg`,
+			"/example.jpg":   `jpg`,
+			"/example.js":    `js`,
+			"/example.json":  `json`,
+			"/example.mjs":   `mjs`,
+			"/example.otf":   `otf`,
+			"/example.pdf":   `pdf`,
+			"/example.png":   `png`,
+			"/example.sfnt":  `sfnt`,
+			"/example.svg":   `svg`,
+			"/example.ttf":   `ttf`,
+			"/example.wasm":  `wasm`,
+			"/example.webp":  `webp`,
+			"/example.woff":  `woff`,
+			"/example.woff2": `woff2`,
+			"/example.xml":   `xml`,
+		},
+		entryPaths: []string{"/entry.foo"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			ExtensionToLoader: map[string]config.Loader{
+				".foo":   config.LoaderJS,
+				".css":   config.LoaderDataURL,
+				".eot":   config.LoaderDataURL,
+				".gif":   config.LoaderDataURL,
+				".htm":   config.LoaderDataURL,
+				".html":  config.LoaderDataURL,
+				".jpeg":  config.LoaderDataURL,
+				".jpg":   config.LoaderDataURL,
+				".js":    config.LoaderDataURL,
+				".json":  config.LoaderDataURL,
+				".mjs":   config.LoaderDataURL,
+				".otf":   config.LoaderDataURL,
+				".pdf":   config.LoaderDataURL,
+				".png":   config.LoaderDataURL,
+				".sfnt":  config.LoaderDataURL,
+				".svg":   config.LoaderDataURL,
+				".ttf":   config.LoaderDataURL,
+				".wasm":  config.LoaderDataURL,
+				".webp":  config.LoaderDataURL,
+				".woff":  config.LoaderDataURL,
+				".woff2": config.LoaderDataURL,
+				".xml":   config.LoaderDataURL,
+			},
+		},
+	})
+}
+
+func TestLoaderCopyWithBundleFromJS(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import x from "../assets/some.file"
+				console.log(x)
+			`,
+			"/Users/user/project/assets/some.file": `stuff`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputBase: "/Users/user/project",
+			AbsOutputDir:  "/out",
+			ExtensionToLoader: map[string]config.Loader{
+				".js":   config.LoaderJS,
+				".file": config.LoaderCopy,
+			},
+		},
+	})
+}
+
+func TestLoaderCopyWithBundleFromCSS(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.css": `
+				body {
+					background: url(../assets/some.file);
+				}
+			`,
+			"/Users/user/project/assets/some.file": `stuff`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.css"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputBase: "/Users/user/project",
+			AbsOutputDir:  "/out",
+			ExtensionToLoader: map[string]config.Loader{
+				".css":  config.LoaderCSS,
+				".file": config.LoaderCopy,
+			},
+		},
+	})
+}
+
+func TestLoaderCopyWithBundleEntryPoint(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import x from "../assets/some.file"
+				console.log(x)
+			`,
+			"/Users/user/project/src/entry.css": `
+				body {
+					background: url(../assets/some.file);
+				}
+			`,
+			"/Users/user/project/assets/some.file": `stuff`,
+		},
+		entryPaths: []string{
+			"/Users/user/project/src/entry.js",
+			"/Users/user/project/src/entry.css",
+			"/Users/user/project/assets/some.file",
+		},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputBase: "/Users/user/project",
+			AbsOutputDir:  "/out",
+			ExtensionToLoader: map[string]config.Loader{
+				".js":   config.LoaderJS,
+				".css":  config.LoaderCSS,
+				".file": config.LoaderCopy,
+			},
+		},
+	})
+}
+
+func TestLoaderCopyWithTransform(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js":     `console.log('entry')`,
+			"/Users/user/project/assets/some.file": `stuff`,
+		},
+		entryPaths: []string{
+			"/Users/user/project/src/entry.js",
+			"/Users/user/project/assets/some.file",
+		},
+		options: config.Options{
+			Mode:          config.ModePassThrough,
+			AbsOutputBase: "/Users/user/project",
+			AbsOutputDir:  "/out",
+			ExtensionToLoader: map[string]config.Loader{
+				".js":   config.LoaderJS,
+				".file": config.LoaderCopy,
+			},
+		},
+	})
+}
+
+func TestLoaderCopyWithFormat(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js":     `console.log('entry')`,
+			"/Users/user/project/assets/some.file": `stuff`,
+		},
+		entryPaths: []string{
+			"/Users/user/project/src/entry.js",
+			"/Users/user/project/assets/some.file",
+		},
+		options: config.Options{
+			Mode:          config.ModeConvertFormat,
+			OutputFormat:  config.FormatIIFE,
+			AbsOutputBase: "/Users/user/project",
+			AbsOutputDir:  "/out",
+			ExtensionToLoader: map[string]config.Loader{
+				".js":   config.LoaderJS,
+				".file": config.LoaderCopy,
+			},
+		},
+	})
+}

@@ -14,10 +14,103 @@ var import_util = __toESM(require_util());
 console.log((0, import_util.default)());
 
 ================================================================================
+TestTsConfigAlwaysStrictTrueEmitDirectiveBundleCJS
+---------- /Users/user/project/out/implicit.js ----------
+"use strict";
+
+// Users/user/project/src/implicit.ts
+console.log('this file should start with "use strict"');
+
+---------- /Users/user/project/out/explicit.js ----------
+"use strict";
+
+// Users/user/project/src/explicit.ts
+console.log('this file should start with "use strict"');
+
+================================================================================
+TestTsConfigAlwaysStrictTrueEmitDirectiveBundleESM
+---------- /Users/user/project/out/implicit.js ----------
+// Users/user/project/src/implicit.ts
+console.log('this file should not start with "use strict"');
+
+---------- /Users/user/project/out/explicit.js ----------
+// Users/user/project/src/explicit.ts
+console.log('this file should not start with "use strict"');
+
+================================================================================
+TestTsConfigAlwaysStrictTrueEmitDirectiveBundleIIFE
+---------- /Users/user/project/out/implicit.js ----------
+"use strict";
+(() => {
+  // Users/user/project/src/implicit.ts
+  console.log('this file should start with "use strict"');
+})();
+
+---------- /Users/user/project/out/explicit.js ----------
+"use strict";
+(() => {
+  // Users/user/project/src/explicit.ts
+  console.log('this file should start with "use strict"');
+})();
+
+================================================================================
+TestTsConfigAlwaysStrictTrueEmitDirectiveFormat
+---------- /Users/user/project/out/implicit.js ----------
+"use strict";
+console.log('this file should start with "use strict"');
+
+---------- /Users/user/project/out/explicit.js ----------
+"use strict";
+console.log('this file should start with "use strict"');
+
+================================================================================
+TestTsConfigAlwaysStrictTrueEmitDirectivePassThrough
+---------- /Users/user/project/out/implicit.js ----------
+"use strict";
+console.log('this file should start with "use strict"');
+
+---------- /Users/user/project/out/explicit.js ----------
+"use strict";
+console.log('this file should start with "use strict"');
+
+================================================================================
+TestTsConfigBaseURLExtendsPaths
+---------- /Users/user/project/out.js ----------
+// Users/user/project/lib/foo.ts
+var foo = 123;
+
+// Users/user/project/src/entry.ts
+console.log(foo);
+
+================================================================================
 TestTsConfigJSX
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/entry.tsx
 console.log(/* @__PURE__ */ R.c(R.F, null, /* @__PURE__ */ R.c("div", null), /* @__PURE__ */ R.c("div", null)));
+
+================================================================================
+TestTsConfigModuleSuffixesInsert
+---------- /Users/user/project/out.js ----------
+// Users/user/project/src/foo.a.ts
+console.log("foo.a");
+
+// Users/user/project/src/bar.a.ts
+console.log("bar.a");
+
+// Users/user/project/src/baz.a.ts
+console.log("baz.a");
+
+================================================================================
+TestTsConfigModuleSuffixesNoInsert
+---------- /Users/user/project/out.js ----------
+// Users/user/project/src/foo.b.ts
+console.log("foo.b");
+
+// Users/user/project/src/bar.ts
+console.log("bar");
+
+// Users/user/project/src/baz.b.ts
+console.log("baz.b");
 
 ================================================================================
 TestTsConfigNestedJSX
@@ -109,6 +202,15 @@ var baseurl_nested_default = {
 
 // Users/user/project/entry.ts
 console.log(baseurl_dot_default, baseurl_nested_default);
+
+================================================================================
+TestTsConfigPathsExtendsBaseURL
+---------- /Users/user/project/out.js ----------
+// Users/user/project/base/test/lib/foo.ts
+var foo = 123;
+
+// Users/user/project/src/entry.ts
+console.log(foo);
 
 ================================================================================
 TestTsConfigPathsNoBaseURL
@@ -211,6 +313,27 @@ function fib(input) {
 
 // Users/user/project/entry.ts
 console.log(fib(10));
+
+================================================================================
+TestTsConfigWithStatementAlwaysStrictFalse
+---------- /Users/user/project/out.js ----------
+// Users/user/project/src/entry.ts
+with (x)
+  y;
+
+================================================================================
+TestTsConfigWithStatementStrictFalse
+---------- /Users/user/project/out.js ----------
+// Users/user/project/src/entry.ts
+with (x)
+  y;
+
+================================================================================
+TestTsConfigWithStatementStrictTrueAlwaysStrictFalse
+---------- /Users/user/project/out.js ----------
+// Users/user/project/src/entry.ts
+with (x)
+  y;
 
 ================================================================================
 TestTsconfigImportsNotUsedAsValuesPreserve
@@ -351,10 +474,28 @@ console.log(1);
 ================================================================================
 TestTsconfigPreserveValueImports
 ---------- /Users/user/project/out.js ----------
-import { x, y } from "./foo";
-import z from "./foo";
-import * as ns from "./foo";
-console.log(1, 2, 3);
+import { b1 } from "b";
+import { c1 } from "c";
+import { d1, d2 } from "d";
+import f1 from "f";
+import g1, { g2 } from "g";
+import h1 from "h";
+import * as i1 from "i";
+import "j";
+
+================================================================================
+TestTsconfigPreserveValueImportsAndImportsNotUsedAsValuesPreserve
+---------- /Users/user/project/out.js ----------
+import {} from "a";
+import { b1 } from "b";
+import { c1 } from "c";
+import { d1, d2 } from "d";
+import {} from "e";
+import f1, {} from "f";
+import g1, { g2 } from "g";
+import h1, {} from "h";
+import * as i1 from "i";
+import "j";
 
 ================================================================================
 TestTsconfigRemoveUnusedImports

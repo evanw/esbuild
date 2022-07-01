@@ -6,7 +6,7 @@ GO_FLAGS += "-ldflags=-s -w"
 # Avoid embedding the build path in the executable for more reproducible builds
 GO_FLAGS += -trimpath
 
-esbuild: cmd/esbuild/version.go cmd/esbuild/*.go pkg/*/*.go internal/*/*.go go.mod
+esbuild: version-go cmd/esbuild/*.go pkg/*/*.go internal/*/*.go go.mod
 	CGO_ENABLED=0 go build $(GO_FLAGS) ./cmd/esbuild
 
 test:
@@ -20,7 +20,7 @@ test-all:
 	@$(MAKE) --no-print-directory -j6 test-common test-deno ts-type-tests test-wasm-node test-wasm-browser lib-typecheck
 
 check-go-version:
-	@go version | grep ' go1\.17\.8 ' || (echo 'Please install Go version 1.17.8' && false)
+	@go version | grep ' go1\.18\.3 ' || (echo 'Please install Go version 1.18.3' && false)
 
 # Note: Don't add "-race" here by default. The Go race detector is currently
 # only supported on the following configurations:
@@ -67,23 +67,23 @@ test-wasm-browser: platform-wasm | scripts/browser/node_modules
 test-deno: esbuild platform-deno
 	ESBUILD_BINARY_PATH="$(shell pwd)/esbuild" deno test --allow-run --allow-env --allow-net --allow-read --allow-write --no-check scripts/deno-tests.js
 
-register-test: cmd/esbuild/version.go | scripts/node_modules
+register-test: version-go | scripts/node_modules
 	node scripts/esbuild.js npm/esbuild/package.json --version
 	node scripts/register-test.js
 
-verify-source-map: cmd/esbuild/version.go | scripts/node_modules
+verify-source-map: version-go | scripts/node_modules
 	node scripts/esbuild.js npm/esbuild/package.json --version
 	node scripts/verify-source-map.js
 
-end-to-end-tests: cmd/esbuild/version.go | scripts/node_modules
+end-to-end-tests: version-go | scripts/node_modules
 	node scripts/esbuild.js npm/esbuild/package.json --version
 	node scripts/end-to-end-tests.js
 
-js-api-tests: cmd/esbuild/version.go | scripts/node_modules
+js-api-tests: version-go | scripts/node_modules
 	node scripts/esbuild.js npm/esbuild/package.json --version
 	node scripts/js-api-tests.js
 
-plugin-tests: cmd/esbuild/version.go | scripts/node_modules
+plugin-tests: version-go | scripts/node_modules
 	node scripts/plugin-tests.js
 
 ts-type-tests: | scripts/node_modules
@@ -201,7 +201,18 @@ test-e2e-yarn-berry:
 	# Clean up
 	rm -fr e2e-yb
 
-cmd/esbuild/version.go: version.txt
+# Note: This used to only be rebuilt when "version.txt" was newer than
+# "cmd/esbuild/version.go", but that caused the publishing script to publish
+# invalid builds in the case when the publishing script failed once, the change
+# to "cmd/esbuild/version.go" was reverted, and then the publishing script was
+# run again, since in that case "cmd/esbuild/version.go" has a later mtime than
+# "version.txt" but is still outdated.
+#
+# To avoid this problem, we now always run this step regardless of mtime status.
+# This step still avoids writing to "cmd/esbuild/version.go" if it already has
+# the correct contents, so it won't unnecessarily invalidate anything that uses
+# "cmd/esbuild/version.go" as a dependency.
+version-go:
 	node scripts/esbuild.js --update-version-go
 
 wasm-napi-exit0-darwin:
@@ -261,19 +272,19 @@ platform-all:
 		platform-windows-32 \
 		platform-windows-arm64
 
-platform-windows: cmd/esbuild/version.go
+platform-windows: version-go
 	node scripts/esbuild.js npm/esbuild-windows-64/package.json --version
 	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build $(GO_FLAGS) -o npm/esbuild-windows-64/esbuild.exe ./cmd/esbuild
 
-platform-windows-32: cmd/esbuild/version.go
+platform-windows-32: version-go
 	node scripts/esbuild.js npm/esbuild-windows-32/package.json --version
 	CGO_ENABLED=0 GOOS=windows GOARCH=386 go build $(GO_FLAGS) -o npm/esbuild-windows-32/esbuild.exe ./cmd/esbuild
 
-platform-windows-arm64: cmd/esbuild/version.go
+platform-windows-arm64: version-go
 	node scripts/esbuild.js npm/esbuild-windows-arm64/package.json --version
 	CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build $(GO_FLAGS) -o npm/esbuild-windows-arm64/esbuild.exe ./cmd/esbuild
 
-platform-unixlike: cmd/esbuild/version.go
+platform-unixlike: version-go
 	@test -n "$(GOOS)" || (echo "The environment variable GOOS must be provided" && false)
 	@test -n "$(GOARCH)" || (echo "The environment variable GOARCH must be provided" && false)
 	@test -n "$(NPMDIR)" || (echo "The environment variable NPMDIR must be provided" && false)
@@ -339,7 +350,7 @@ platform-neutral: esbuild
 	node scripts/esbuild.js npm/esbuild/package.json --version
 	node scripts/esbuild.js ./esbuild --neutral
 
-platform-deno: esbuild
+platform-deno: platform-wasm
 	node scripts/esbuild.js ./esbuild --deno
 
 publish-all: check-go-version
@@ -478,9 +489,49 @@ publish-deno:
 	test -d deno/.git || (rm -fr deno && git clone git@github.com:esbuild/deno-esbuild.git deno)
 	cd deno && git fetch && git checkout main && git reset --hard origin/main
 	@$(MAKE) --no-print-directory platform-deno
-	cd deno && git commit -am "publish $(ESBUILD_VERSION) to deno"
+	cd deno && git add mod.js mod.d.ts wasm.js wasm.d.ts esbuild.wasm
+	cd deno && git commit -m "publish $(ESBUILD_VERSION) to deno"
 	cd deno && git tag "v$(ESBUILD_VERSION)"
 	cd deno && git push origin main "v$(ESBUILD_VERSION)"
+
+validate-build:
+	@test -n "$(TARGET)" || (echo "The environment variable TARGET must be provided" && false)
+	@test -n "$(PACKAGE)" || (echo "The environment variable PACKAGE must be provided" && false)
+	@test -n "$(SUBPATH)" || (echo "The environment variable SUBPATH must be provided" && false)
+	@echo && echo "🔷 Checking $(PACKAGE)"
+	@rm -fr validate && mkdir validate
+	@$(MAKE) --no-print-directory "$(TARGET)"
+	@curl -s "https://registry.npmjs.org/$(PACKAGE)/-/$(PACKAGE)-$(ESBUILD_VERSION).tgz" > validate/esbuild.tgz
+	@cd validate && tar xf esbuild.tgz
+	@ls -l "npm/$(PACKAGE)/$(SUBPATH)" "validate/package/$(SUBPATH)" && \
+		shasum "npm/$(PACKAGE)/$(SUBPATH)" "validate/package/$(SUBPATH)" && \
+		cmp "npm/$(PACKAGE)/$(SUBPATH)" "validate/package/$(SUBPATH)"
+	@rm -fr validate
+
+# This checks that the published binaries are bitwise-identical to the locally-build binaries
+validate-builds:
+	git fetch --all --tags && git checkout "v$(ESBUILD_VERSION)"
+	@$(MAKE) --no-print-directory TARGET=platform-android PACKAGE=esbuild-android-64 SUBPATH=esbuild.wasm validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-android-arm64 PACKAGE=esbuild-android-arm64 SUBPATH=bin/esbuild validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-darwin PACKAGE=esbuild-darwin-64 SUBPATH=bin/esbuild validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-darwin-arm64 PACKAGE=esbuild-darwin-arm64 SUBPATH=bin/esbuild validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-freebsd PACKAGE=esbuild-freebsd-64 SUBPATH=bin/esbuild validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-freebsd-arm64 PACKAGE=esbuild-freebsd-arm64 SUBPATH=bin/esbuild validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-linux PACKAGE=esbuild-linux-64 SUBPATH=bin/esbuild validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-linux-32 PACKAGE=esbuild-linux-32 SUBPATH=bin/esbuild validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-linux-arm PACKAGE=esbuild-linux-arm SUBPATH=bin/esbuild validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-linux-arm64 PACKAGE=esbuild-linux-arm64 SUBPATH=bin/esbuild validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-linux-mips64le PACKAGE=esbuild-linux-mips64le SUBPATH=bin/esbuild validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-linux-ppc64le PACKAGE=esbuild-linux-ppc64le SUBPATH=bin/esbuild validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-linux-riscv64 PACKAGE=esbuild-linux-riscv64 SUBPATH=bin/esbuild validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-linux-s390x PACKAGE=esbuild-linux-s390x SUBPATH=bin/esbuild validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-netbsd PACKAGE=esbuild-netbsd-64 SUBPATH=bin/esbuild validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-openbsd PACKAGE=esbuild-openbsd-64 SUBPATH=bin/esbuild validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-sunos PACKAGE=esbuild-sunos-64 SUBPATH=bin/esbuild validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-wasm PACKAGE=esbuild-wasm SUBPATH=esbuild.wasm validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-windows PACKAGE=esbuild-windows-64 SUBPATH=esbuild.exe validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-windows-32 PACKAGE=esbuild-windows-32 SUBPATH=esbuild.exe validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-windows-arm64 PACKAGE=esbuild-windows-64 SUBPATH=esbuild.exe validate-build
 
 clean:
 	rm -f esbuild
@@ -507,7 +558,7 @@ clean:
 	rm -rf npm/esbuild-sunos-64/bin
 	rm -rf npm/esbuild/bin
 	rm -f npm/esbuild-wasm/esbuild.wasm npm/esbuild-wasm/wasm_exec.js npm/esbuild-wasm/exit0.js
-	rm -r npm/esbuild/install.js
+	rm -f npm/esbuild/install.js
 	rm -rf npm/esbuild/lib
 	rm -rf npm/esbuild-wasm/esm
 	rm -rf npm/esbuild-wasm/lib

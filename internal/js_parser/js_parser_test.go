@@ -19,7 +19,7 @@ func expectParseErrorCommon(t *testing.T, contents string, expected string, opti
 	t.Helper()
 	t.Run(contents, func(t *testing.T) {
 		t.Helper()
-		log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug)
+		log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug, nil)
 		Parse(log, test.SourceForTest(contents), OptionsFromConfig(&options))
 		msgs := log.Done()
 		text := ""
@@ -48,7 +48,7 @@ func expectPrintedCommon(t *testing.T, contents string, expected string, options
 	t.Helper()
 	t.Run(contents, func(t *testing.T) {
 		t.Helper()
-		log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug)
+		log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug, nil)
 		options.OmitRuntimeForTests = true
 		tree, ok := Parse(log, test.SourceForTest(contents), OptionsFromConfig(&options))
 		msgs := log.Done()
@@ -577,12 +577,16 @@ func TestAwait(t *testing.T) {
 }
 
 func TestRegExp(t *testing.T) {
+	expectPrinted(t, "/x/d", "/x/d;\n")
 	expectPrinted(t, "/x/g", "/x/g;\n")
 	expectPrinted(t, "/x/i", "/x/i;\n")
 	expectPrinted(t, "/x/m", "/x/m;\n")
 	expectPrinted(t, "/x/s", "/x/s;\n")
 	expectPrinted(t, "/x/u", "/x/u;\n")
 	expectPrinted(t, "/x/y", "/x/y;\n")
+
+	expectParseError(t, "/)/", "<stdin>: ERROR: Unexpected \")\" in regular expression\n")
+	expectPrinted(t, "/[\\])]/", "/[\\])]/;\n")
 
 	expectParseError(t, "/x/msuygig",
 		`<stdin>: ERROR: Duplicate flag "g" in regular expression
@@ -1122,6 +1126,12 @@ func TestPattern(t *testing.T) {
 
 	expectPrinted(t, "let {1_2_3n: x} = y", "let { 123n: x } = y;\n")
 	expectPrinted(t, "let {0x1_2_3n: x} = y", "let { 0x123n: x } = y;\n")
+
+	expectParseError(t, "var [ (x) ] = 0", "<stdin>: ERROR: Expected identifier but found \"(\"\n")
+	expectParseError(t, "var [ ...(x) ] = 0", "<stdin>: ERROR: Expected identifier but found \"(\"\n")
+	expectParseError(t, "var { (x) } = 0", "<stdin>: ERROR: Expected identifier but found \"(\"\n")
+	expectParseError(t, "var { x: (y) } = 0", "<stdin>: ERROR: Expected identifier but found \"(\"\n")
+	expectParseError(t, "var { ...(x) } = 0", "<stdin>: ERROR: Expected identifier but found \"(\"\n")
 }
 
 func TestAssignTarget(t *testing.T) {
@@ -1135,6 +1145,12 @@ func TestAssignTarget(t *testing.T) {
 	expectParseError(t, "({...x} = 0)", "")
 	expectParseError(t, "({x = 0} = 0)", "")
 	expectParseError(t, "({x: y = 0} = 0)", "")
+
+	expectParseError(t, "[ (y) ] = 0", "")
+	expectParseError(t, "[ ...(y) ] = 0", "")
+	expectParseError(t, "({ (y) } = 0)", "<stdin>: ERROR: Expected identifier but found \"(\"\n")
+	expectParseError(t, "({ y: (z) } = 0)", "")
+	expectParseError(t, "({ ...(y) } = 0)", "")
 
 	expectParseError(t, "[...x = y] = 0", "<stdin>: ERROR: Invalid assignment target\n")
 	expectParseError(t, "x() = 0", "<stdin>: ERROR: Invalid assignment target\n")
@@ -1202,6 +1218,20 @@ func TestObject(t *testing.T) {
 	expectParseError(t, "({get x() {}, set x(y) {}, set x(y) {}})", duplicateWarning)
 	expectParseError(t, "({get x() {}, set x(y) {}})", "")
 	expectParseError(t, "({set x(y) {}, get x() {}})", "")
+
+	// Check the string-to-int optimization
+	expectPrintedMangle(t, "x = { '0': y }", "x = { 0: y };\n")
+	expectPrintedMangle(t, "x = { '123': y }", "x = { 123: y };\n")
+	expectPrintedMangle(t, "x = { '-123': y }", "x = { \"-123\": y };\n")
+	expectPrintedMangle(t, "x = { '-0': y }", "x = { \"-0\": y };\n")
+	expectPrintedMangle(t, "x = { '01': y }", "x = { \"01\": y };\n")
+	expectPrintedMangle(t, "x = { '-01': y }", "x = { \"-01\": y };\n")
+	expectPrintedMangle(t, "x = { '0x1': y }", "x = { \"0x1\": y };\n")
+	expectPrintedMangle(t, "x = { '-0x1': y }", "x = { \"-0x1\": y };\n")
+	expectPrintedMangle(t, "x = { '2147483647': y }", "x = { 2147483647: y };\n")
+	expectPrintedMangle(t, "x = { '2147483648': y }", "x = { \"2147483648\": y };\n")
+	expectPrintedMangle(t, "x = { '-2147483648': y }", "x = { \"-2147483648\": y };\n")
+	expectPrintedMangle(t, "x = { '-2147483649': y }", "x = { \"-2147483649\": y };\n")
 }
 
 func TestComputedProperty(t *testing.T) {
@@ -1544,6 +1574,20 @@ func TestClass(t *testing.T) {
 		"class Foo {\n  constructor() {\n  }\n  [\"constructor\"]() {\n  }\n}\n")
 	expectPrintedMangle(t, "class Foo { static constructor() {} static ['constructor']() {} }",
 		"class Foo {\n  static constructor() {\n  }\n  static constructor() {\n  }\n}\n")
+
+	// Check the string-to-int optimization
+	expectPrintedMangle(t, "class x { '0' = y }", "class x {\n  0 = y;\n}\n")
+	expectPrintedMangle(t, "class x { '123' = y }", "class x {\n  123 = y;\n}\n")
+	expectPrintedMangle(t, "class x { ['-123'] = y }", "class x {\n  \"-123\" = y;\n}\n")
+	expectPrintedMangle(t, "class x { '-0' = y }", "class x {\n  \"-0\" = y;\n}\n")
+	expectPrintedMangle(t, "class x { '01' = y }", "class x {\n  \"01\" = y;\n}\n")
+	expectPrintedMangle(t, "class x { '-01' = y }", "class x {\n  \"-01\" = y;\n}\n")
+	expectPrintedMangle(t, "class x { '0x1' = y }", "class x {\n  \"0x1\" = y;\n}\n")
+	expectPrintedMangle(t, "class x { '-0x1' = y }", "class x {\n  \"-0x1\" = y;\n}\n")
+	expectPrintedMangle(t, "class x { '2147483647' = y }", "class x {\n  2147483647 = y;\n}\n")
+	expectPrintedMangle(t, "class x { '2147483648' = y }", "class x {\n  \"2147483648\" = y;\n}\n")
+	expectPrintedMangle(t, "class x { ['-2147483648'] = y }", "class x {\n  \"-2147483648\" = y;\n}\n")
+	expectPrintedMangle(t, "class x { ['-2147483649'] = y }", "class x {\n  \"-2147483649\" = y;\n}\n")
 }
 
 func TestSuperCall(t *testing.T) {
@@ -1568,6 +1612,8 @@ func TestSuperCall(t *testing.T) {
 	expectPrinted(t, "class Foo extends Bar { constructor(x = () => super()) {} }",
 		"class Foo extends Bar {\n  constructor(x = () => super()) {\n  }\n}\n")
 
+	expectPrintedMangleTarget(t, 2015, "class A extends B { x; constructor() { super() } }",
+		"class A extends B {\n  constructor() {\n    super();\n    __publicField(this, \"x\");\n  }\n}\n")
 	expectPrintedMangleTarget(t, 2015, "class A extends B { x = 1; constructor() { super() } }",
 		"class A extends B {\n  constructor() {\n    super();\n    __publicField(this, \"x\", 1);\n  }\n}\n")
 	expectPrintedMangleTarget(t, 2015, "class A extends B { x = 1; constructor() { super(); c() } }",
@@ -1584,6 +1630,10 @@ func TestSuperCall(t *testing.T) {
 		"class A extends B {\n  constructor() {\n    super();\n    __publicField(this, \"x\", 1);\n    return c;\n  }\n}\n")
 	expectPrintedMangleTarget(t, 2015, "class A extends B { x = 1; constructor() { super(); throw c } }",
 		"class A extends B {\n  constructor() {\n    super();\n    __publicField(this, \"x\", 1);\n    throw c;\n  }\n}\n")
+	expectPrintedMangleTarget(t, 2015, "class A extends B { x = 1; constructor() { if (true) super(1); else super(2); } }",
+		"class A extends B {\n  constructor() {\n    super(1);\n    __publicField(this, \"x\", 1);\n  }\n}\n")
+	expectPrintedMangleTarget(t, 2015, "class A extends B { x = 1; constructor() { if (foo) super(1); else super(2); } }",
+		"class A extends B {\n  constructor() {\n    var __super = (...args) => {\n      super(...args);\n      __publicField(this, \"x\", 1);\n    };\n    foo ? __super(1) : __super(2);\n  }\n}\n")
 }
 
 func TestSuperProp(t *testing.T) {
@@ -1806,8 +1856,8 @@ func TestAsync(t *testing.T) {
 	expectPrinted(t, "new async function() { await 0 }", "new async function() {\n  await 0;\n}();\n")
 	expectPrinted(t, "new async function() { await 0 }.x", "new async function() {\n  await 0;\n}.x();\n")
 
-	friendlyAwaitError := "<stdin>: ERROR: \"await\" can only be used inside an \"async\" function\n" +
-		"<stdin>: NOTE: Consider adding the \"async\" keyword here:\n"
+	friendlyAwaitError := "<stdin>: ERROR: \"await\" can only be used inside an \"async\" function\n"
+	friendlyAwaitErrorWithNote := friendlyAwaitError + "<stdin>: NOTE: Consider adding the \"async\" keyword here:\n"
 
 	expectPrinted(t, "async", "async;\n")
 	expectPrinted(t, "async + 1", "async + 1;\n")
@@ -1830,7 +1880,7 @@ func TestAsync(t *testing.T) {
 	expectPrinted(t, "new (async().x)", "new (async()).x();\n")
 	expectParseError(t, "async x;", "<stdin>: ERROR: Expected \"=>\" but found \";\"\n")
 	expectParseError(t, "async (...x,) => {}", "<stdin>: ERROR: Unexpected \",\" after rest pattern\n")
-	expectParseError(t, "async => await 0", friendlyAwaitError)
+	expectParseError(t, "async => await 0", friendlyAwaitErrorWithNote)
 	expectParseError(t, "new async => {}", "<stdin>: ERROR: Expected \";\" but found \"=>\"\n")
 	expectParseError(t, "new async () => {}", "<stdin>: ERROR: Expected \";\" but found \"=>\"\n")
 
@@ -1869,8 +1919,10 @@ func TestAsync(t *testing.T) {
 	expectParseError(t, "async function foo() { class Foo { foo(x = await y) {} } }", friendlyAwaitError)
 	expectParseError(t, "async function foo() { (class { foo(x = await y) {} }) }", friendlyAwaitError)
 	expectParseError(t, "async function foo() { (x = await y) => {} }", "<stdin>: ERROR: Cannot use an \"await\" expression here:\n")
+	expectParseError(t, "async function foo(x = await y) {}", "<stdin>: ERROR: The keyword \"await\" cannot be used here:\n<stdin>: ERROR: Expected \")\" but found \"y\"\n")
+	expectParseError(t, "async function foo({ [await y]: x }) {}", "<stdin>: ERROR: The keyword \"await\" cannot be used here:\n<stdin>: ERROR: Expected \"]\" but found \"y\"\n")
 	expectPrinted(t, "async function foo() { (x = await y) }", "async function foo() {\n  x = await y;\n}\n")
-	expectParseError(t, "function foo() { (x = await y) }", friendlyAwaitError)
+	expectParseError(t, "function foo() { (x = await y) }", friendlyAwaitErrorWithNote)
 
 	// Newlines
 	expectPrinted(t, "(class { async \n foo() {} })", "(class {\n  async;\n  foo() {\n  }\n});\n")
@@ -1881,7 +1933,7 @@ func TestAsync(t *testing.T) {
 	// Top-level await
 	expectPrinted(t, "await foo;", "await foo;\n")
 	expectPrinted(t, "for await(foo of bar);", "for await (foo of bar)\n  ;\n")
-	expectParseError(t, "function foo() { await foo }", friendlyAwaitError)
+	expectParseError(t, "function foo() { await foo }", friendlyAwaitErrorWithNote)
 	expectParseError(t, "function foo() { for await(foo of bar); }", "<stdin>: ERROR: Cannot use \"await\" outside an async function\n")
 	expectPrinted(t, "function foo(x = await) {}", "function foo(x = await) {\n}\n")
 	expectParseError(t, "function foo(x = await y) {}", friendlyAwaitError)
@@ -1970,6 +2022,17 @@ func TestArrow(t *testing.T) {
 	expectParseError(t, "({a: b, c() {}}) => {}", "<stdin>: ERROR: Invalid binding pattern\n")
 	expectParseError(t, "({a: b, get c() {}}) => {}", "<stdin>: ERROR: Invalid binding pattern\n")
 	expectParseError(t, "({a: b, set c(x) {}}) => {}", "<stdin>: ERROR: Invalid binding pattern\n")
+
+	expectParseError(t, "x = ([ (y) ]) => 0", "<stdin>: ERROR: Invalid binding pattern\n")
+	expectParseError(t, "x = ([ ...(y) ]) => 0", "<stdin>: ERROR: Invalid binding pattern\n")
+	expectParseError(t, "x = ({ (y) }) => 0", "<stdin>: ERROR: Expected identifier but found \"(\"\n")
+	expectParseError(t, "x = ({ y: (z) }) => 0", "<stdin>: ERROR: Invalid binding pattern\n")
+	expectParseError(t, "x = ({ ...(y) }) => 0", "<stdin>: ERROR: Invalid binding pattern\n")
+
+	expectPrinted(t, "x = ([ y = [ (z) ] ]) => 0", "x = ([y = [z]]) => 0;\n")
+	expectPrinted(t, "x = ([ y = [ ...(z) ] ]) => 0", "x = ([y = [...z]]) => 0;\n")
+	expectPrinted(t, "x = ({ y = { y: (z) } }) => 0", "x = ({ y = { y: z } }) => 0;\n")
+	expectPrinted(t, "x = ({ y = { ...(y) } }) => 0", "x = ({ y = { ...y } }) => 0;\n")
 
 	expectPrinted(t, "x => function() {}", "(x) => function() {\n};\n")
 	expectPrinted(t, "(x) => function() {}", "(x) => function() {\n};\n")
@@ -2882,6 +2945,20 @@ func TestMangleIndex(t *testing.T) {
 	expectPrintedMangle(t, "x?.['y z']", "x?.[\"y z\"];\n")
 	expectPrintedMangle(t, "x?.['y']()", "x?.y();\n")
 	expectPrintedMangle(t, "x?.['y z']()", "x?.[\"y z\"]();\n")
+
+	// Check the string-to-int optimization
+	expectPrintedMangle(t, "x['0']", "x[0];\n")
+	expectPrintedMangle(t, "x['123']", "x[123];\n")
+	expectPrintedMangle(t, "x['-123']", "x[-123];\n")
+	expectPrintedMangle(t, "x['-0']", "x[\"-0\"];\n")
+	expectPrintedMangle(t, "x['01']", "x[\"01\"];\n")
+	expectPrintedMangle(t, "x['-01']", "x[\"-01\"];\n")
+	expectPrintedMangle(t, "x['0x1']", "x[\"0x1\"];\n")
+	expectPrintedMangle(t, "x['-0x1']", "x[\"-0x1\"];\n")
+	expectPrintedMangle(t, "x['2147483647']", "x[2147483647];\n")
+	expectPrintedMangle(t, "x['2147483648']", "x[\"2147483648\"];\n")
+	expectPrintedMangle(t, "x['-2147483648']", "x[-2147483648];\n")
+	expectPrintedMangle(t, "x['-2147483649']", "x[\"-2147483649\"];\n")
 }
 
 func TestMangleBlock(t *testing.T) {
@@ -3192,6 +3269,16 @@ func TestMangleIf(t *testing.T) {
 	expectPrintedMangle(t, "(x ? 1 : y) || foo();", "x || y || foo();\n")
 }
 
+func TestMangleWrapToAvoidAmbiguousElse(t *testing.T) {
+	expectPrintedMangle(t, "if (a) { if (b) return c } else return d", "if (a) {\n  if (b)\n    return c;\n} else\n  return d;\n")
+	expectPrintedMangle(t, "if (a) while (1) { if (b) return c } else return d", "if (a) {\n  for (; ; )\n    if (b)\n      return c;\n} else\n  return d;\n")
+	expectPrintedMangle(t, "if (a) for (;;) { if (b) return c } else return d", "if (a) {\n  for (; ; )\n    if (b)\n      return c;\n} else\n  return d;\n")
+	expectPrintedMangle(t, "if (a) for (x in y) { if (b) return c } else return d", "if (a) {\n  for (x in y)\n    if (b)\n      return c;\n} else\n  return d;\n")
+	expectPrintedMangle(t, "if (a) for (x of y) { if (b) return c } else return d", "if (a) {\n  for (x of y)\n    if (b)\n      return c;\n} else\n  return d;\n")
+	expectPrintedMangle(t, "if (a) with (x) { if (b) return c } else return d", "if (a) {\n  with (x)\n    if (b)\n      return c;\n} else\n  return d;\n")
+	expectPrintedMangle(t, "if (a) x: { if (b) return c } else return d", "if (a) {\n  x:\n    if (b)\n      return c;\n} else\n  return d;\n")
+}
+
 func TestMangleOptionalChain(t *testing.T) {
 	expectPrintedMangle(t, "let a; return a != null ? a.b : undefined", "let a;\nreturn a?.b;\n")
 	expectPrintedMangle(t, "let a; return a != null ? a[b] : undefined", "let a;\nreturn a?.[b];\n")
@@ -3474,6 +3561,18 @@ func TestMangleCall(t *testing.T) {
 	expectPrintedMangle(t, "x = foo(1, ...[,2,,], 3)", "x = foo(1, void 0, 2, void 0, 3);\n")
 }
 
+func TestMangleNew(t *testing.T) {
+	expectPrintedMangle(t, "x = new foo(1, ...[], 2)", "x = new foo(1, 2);\n")
+	expectPrintedMangle(t, "x = new foo(1, ...2, 3)", "x = new foo(1, ...2, 3);\n")
+	expectPrintedMangle(t, "x = new foo(1, ...[2], 3)", "x = new foo(1, 2, 3);\n")
+	expectPrintedMangle(t, "x = new foo(1, ...[2, 3], 4)", "x = new foo(1, 2, 3, 4);\n")
+	expectPrintedMangle(t, "x = new foo(1, ...[2, ...y, 3], 4)", "x = new foo(1, 2, ...y, 3, 4);\n")
+	expectPrintedMangle(t, "x = new foo(1, ...{a, b}, 4)", "x = new foo(1, ...{ a, b }, 4);\n")
+
+	// Holes must become undefined
+	expectPrintedMangle(t, "x = new foo(1, ...[,2,,], 3)", "x = new foo(1, void 0, 2, void 0, 3);\n")
+}
+
 func TestMangleArray(t *testing.T) {
 	expectPrintedMangle(t, "x = [1, ...[], 2]", "x = [1, 2];\n")
 	expectPrintedMangle(t, "x = [1, ...2, 3]", "x = [1, ...2, 3];\n")
@@ -3587,6 +3686,10 @@ func TestMangleIIFE(t *testing.T) {
 	expectPrintedMangle(t, "(function() { a() })()", "(function() {\n  a();\n})();\n")
 	expectPrintedMangle(t, "(function*() { a() })()", "(function* () {\n  a();\n})();\n")
 	expectPrintedMangle(t, "(async function() { a() })()", "(async function() {\n  a();\n})();\n")
+
+	expectPrintedMangle(t, "(() => x)()", "x;\n")
+	expectPrintedMangle(t, "/* @__PURE__ */ (() => x)()", "")
+	expectPrintedMangle(t, "/* @__PURE__ */ (() => x)(y, z)", "y, z;\n")
 }
 
 func TestMangleTemplate(t *testing.T) {
@@ -4212,6 +4315,20 @@ func TestMangleInlineLocals(t *testing.T) {
 	expectPrintedMangleTarget(t, 2015, "(x => { let y = x; throw y ?? z })()", "((x) => {\n  let y = x;\n  throw y != null ? y : z;\n})();\n")
 	expectPrintedMangleTarget(t, 2015, "(x => { let y = x; y.z ??= z })()", "((x) => {\n  var _a;\n  let y = x;\n  (_a = y.z) != null || (y.z = z);\n})();\n")
 	expectPrintedMangleTarget(t, 2015, "(x => { let y = x; y?.z })()", "((x) => {\n  let y = x;\n  y == null || y.z;\n})();\n")
+
+	// Cannot substitute into call targets when it would change "this"
+	check("let x = arg0; x()", "arg0();")
+	check("let x = arg0; (0, x)()", "arg0();")
+	check("let x = arg0.foo; x.bar()", "arg0.foo.bar();")
+	check("let x = arg0.foo; x[bar]()", "arg0.foo[bar]();")
+	check("let x = arg0.foo; x()", "let x = arg0.foo;\nx();")
+	check("let x = arg0[foo]; x()", "let x = arg0[foo];\nx();")
+	check("let x = arg0?.foo; x()", "let x = arg0?.foo;\nx();")
+	check("let x = arg0?.[foo]; x()", "let x = arg0?.[foo];\nx();")
+	check("let x = arg0.foo; (0, x)()", "let x = arg0.foo;\nx();")
+	check("let x = arg0[foo]; (0, x)()", "let x = arg0[foo];\nx();")
+	check("let x = arg0?.foo; (0, x)()", "let x = arg0?.foo;\nx();")
+	check("let x = arg0?.[foo]; (0, x)()", "let x = arg0?.[foo];\nx();")
 }
 
 func TestTrimCodeInDeadControlFlow(t *testing.T) {
@@ -4426,6 +4543,7 @@ func TestJSX(t *testing.T) {
 	expectPrintedJSX(t, "<a>&lt;&gt;</a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"<>\");\n")
 	expectPrintedJSX(t, "<a>&wrong;</a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"&wrong;\");\n")
 	expectPrintedJSX(t, "<a>🙂</a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"🙂\");\n")
+	expectPrintedJSX(t, "<a>{...children}</a>", "/* @__PURE__ */ React.createElement(\"a\", null, ...children);\n")
 
 	// Note: The TypeScript compiler and Babel disagree. This matches TypeScript.
 	expectPrintedJSX(t, "<a b=\"   c\"/>", "/* @__PURE__ */ React.createElement(\"a\", {\n  b: \"   c\"\n});\n")
@@ -4520,7 +4638,6 @@ func TestJSX(t *testing.T) {
 		"<stdin>: ERROR: Expected closing tag \"c.d\" to match opening tag \"a.b\"\n<stdin>: NOTE: The opening tag \"a.b\" is here:\n")
 	expectParseErrorJSX(t, "<a-b.c>", "<stdin>: ERROR: Expected \">\" but found \".\"\n")
 	expectParseErrorJSX(t, "<a.b-c>", "<stdin>: ERROR: Unexpected \"-\"\n")
-	expectParseErrorJSX(t, "<a>{...children}</a>", "<stdin>: ERROR: Unexpected \"...\"\n")
 
 	expectPrintedJSX(t, "< /**/ a/>", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
 	expectPrintedJSX(t, "< //\n a/>", "/* @__PURE__ */ React.createElement(\"a\", null);\n")

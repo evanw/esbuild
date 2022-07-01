@@ -1,6 +1,6 @@
 export type Platform = 'browser' | 'node' | 'neutral';
 export type Format = 'iife' | 'cjs' | 'esm';
-export type Loader = 'js' | 'jsx' | 'ts' | 'tsx' | 'css' | 'json' | 'text' | 'base64' | 'file' | 'dataurl' | 'binary' | 'default';
+export type Loader = 'js' | 'jsx' | 'ts' | 'tsx' | 'css' | 'json' | 'text' | 'base64' | 'file' | 'dataurl' | 'binary' | 'copy' | 'default';
 export type LogLevel = 'verbose' | 'debug' | 'info' | 'warning' | 'error' | 'silent';
 export type Charset = 'ascii' | 'utf8';
 export type Drop = 'console' | 'debugger';
@@ -21,6 +21,8 @@ interface CommonOptions {
   globalName?: string;
   /** Documentation: https://esbuild.github.io/api/#target */
   target?: string | string[];
+  /** Documentation: https://esbuild.github.io/api/#supported */
+  supported?: Record<string, boolean>;
 
   /** Documentation: https://esbuild.github.io/api/#mangle-props */
   mangleProps?: RegExp;
@@ -67,6 +69,8 @@ interface CommonOptions {
   logLevel?: LogLevel;
   /** Documentation: https://esbuild.github.io/api/#log-limit */
   logLimit?: number;
+  /** Documentation: https://esbuild.github.io/api/#log-override */
+  logOverride?: Record<string, LogLevel>;
 }
 
 export interface BuildOptions extends CommonOptions {
@@ -146,6 +150,7 @@ export interface StdinOptions {
 }
 
 export interface Message {
+  id: string;
   pluginName: string;
   text: string;
   location: Location | null;
@@ -400,6 +405,7 @@ export interface OnLoadResult {
 }
 
 export interface PartialMessage {
+  id?: string;
   pluginName?: string;
   text?: string;
   location?: Partial<Location> | null;
@@ -570,6 +576,16 @@ export interface InitializeOptions {
    * esbuild in the browser.
    */
   wasmURL?: string
+
+  /**
+   * The result of calling "new WebAssembly.Module(buffer)" where "buffer"
+   * is a typed array or ArrayBuffer containing the binary code of the
+   * "esbuild.wasm" file.
+   *
+   * You can use this as an alternative to "wasmURL" for environments where it's
+   * not possible to download the WebAssembly module.
+   */
+  wasmModule?: WebAssembly.Module
 
   /**
    * By default esbuild runs the WebAssembly-based browser API in a web worker

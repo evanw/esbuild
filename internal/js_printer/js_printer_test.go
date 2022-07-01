@@ -23,7 +23,7 @@ func expectPrintedCommon(t *testing.T, name string, contents string, expected st
 	t.Helper()
 	t.Run(name, func(t *testing.T) {
 		t.Helper()
-		log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug)
+		log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug, nil)
 		tree, ok := js_parser.Parse(log, test.SourceForTest(contents), js_parser.OptionsFromConfig(&options))
 		msgs := log.Done()
 		text := ""
@@ -262,6 +262,16 @@ func TestNumber(t *testing.T) {
 	expectPrinted(t, "x = -0xffff_ffff_ffff_fbff", "x = -1844674407370955e4;\n")
 	expectPrinted(t, "x = -0x1_0000_0000_0000_0000", "x = -18446744073709552e3;\n")
 	expectPrinted(t, "x = -0x1_0000_0000_0000_1000", "x = -18446744073709556e3;\n")
+
+	// Check the hex vs. decimal decision boundary when minifying
+	expectPrinted(t, "x = 999999999999", "x = 999999999999;\n")
+	expectPrinted(t, "x = 1000000000001", "x = 1000000000001;\n")
+	expectPrinted(t, "x = 0xFFFFFFFFFFFFF80", "x = 1152921504606846800;\n")
+	expectPrinted(t, "x = 0x1000000000000000", "x = 1152921504606847e3;\n")
+	expectPrintedMinify(t, "x = 999999999999", "x=999999999999;")
+	expectPrintedMinify(t, "x = 1000000000001", "x=0xe8d4a51001;")
+	expectPrintedMinify(t, "x = 0xFFFFFFFFFFFFF80", "x=0xfffffffffffff80;")
+	expectPrintedMinify(t, "x = 0x1000000000000000", "x=1152921504606847e3;")
 }
 
 func TestArray(t *testing.T) {
@@ -537,6 +547,16 @@ func TestPureComment(t *testing.T) {
 	expectPrinted(t,
 		"/*@__PURE__*/new (function() {})()",
 		"/* @__PURE__ */ new function() {\n}();\n")
+
+	expectPrinted(t,
+		"export default (function() {})",
+		"export default (function() {\n});\n")
+	expectPrinted(t,
+		"export default (function() {})()",
+		"export default (function() {\n})();\n")
+	expectPrinted(t,
+		"export default /*@__PURE__*/(function() {})()",
+		"export default /* @__PURE__ */ (function() {\n})();\n")
 }
 
 func TestGenerator(t *testing.T) {

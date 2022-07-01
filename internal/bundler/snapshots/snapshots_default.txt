@@ -415,6 +415,43 @@ console.log(import_meta.y);
 ---------- /out/dead-code.js ----------
 
 ================================================================================
+TestDefineOptionalChain
+---------- /out.js ----------
+// entry.js
+console.log([
+  1,
+  1,
+  1
+], [
+  1,
+  1,
+  1
+], [
+  a[b][c],
+  a?.[b][c],
+  a[b]?.[c]
+]);
+
+================================================================================
+TestDefineOptionalChainLowered
+---------- /out.js ----------
+// entry.js
+var _a;
+console.log([
+  1,
+  1,
+  1
+], [
+  1,
+  1,
+  1
+], [
+  a[b][c],
+  a == null ? void 0 : a[b][c],
+  (_a = a[b]) == null ? void 0 : _a[c]
+]);
+
+================================================================================
 TestDefineThis
 ---------- /out.js ----------
 // entry.js
@@ -857,8 +894,8 @@ TestExportWildcardFSNodeCommonJS
 ---------- /out.js ----------
 // entry.js
 var entry_exports = {};
-__reExport(entry_exports, require("fs"));
 module.exports = __toCommonJS(entry_exports);
+__reExport(entry_exports, require("fs"), module.exports);
 
 ================================================================================
 TestExportWildcardFSNodeES6
@@ -1370,6 +1407,64 @@ console.log(/* @__PURE__ */ React.createElement("[", null));
 console.log(/* @__PURE__ */ React.createElement("]", null));
 
 ================================================================================
+TestJSXImportMetaProperty
+---------- /out/factory.js ----------
+// factory.jsx
+var import_meta = {};
+console.log([
+  /* @__PURE__ */ import_meta.factory("x", null),
+  /* @__PURE__ */ import_meta.factory("x", null)
+]);
+f = function() {
+  console.log([
+    /* @__PURE__ */ import_meta.factory("y", null),
+    /* @__PURE__ */ import_meta.factory("y", null)
+  ]);
+};
+
+---------- /out/fragment.js ----------
+// fragment.jsx
+var import_meta = {};
+console.log([
+  /* @__PURE__ */ import_meta.factory(import_meta.fragment, null, "x"),
+  /* @__PURE__ */ import_meta.factory(import_meta.fragment, null, "x")
+]), f = function() {
+  console.log([
+    /* @__PURE__ */ import_meta.factory(import_meta.fragment, null, "y"),
+    /* @__PURE__ */ import_meta.factory(import_meta.fragment, null, "y")
+  ]);
+};
+
+================================================================================
+TestJSXImportMetaValue
+---------- /out/factory.js ----------
+// factory.jsx
+var import_meta = {};
+console.log([
+  /* @__PURE__ */ import_meta("x", null),
+  /* @__PURE__ */ import_meta("x", null)
+]);
+f = function() {
+  console.log([
+    /* @__PURE__ */ import_meta("y", null),
+    /* @__PURE__ */ import_meta("y", null)
+  ]);
+};
+
+---------- /out/fragment.js ----------
+// fragment.jsx
+var import_meta = {};
+console.log([
+  /* @__PURE__ */ import_meta(import_meta, null, "x"),
+  /* @__PURE__ */ import_meta(import_meta, null, "x")
+]), f = function() {
+  console.log([
+    /* @__PURE__ */ import_meta(import_meta, null, "y"),
+    /* @__PURE__ */ import_meta(import_meta, null, "y")
+  ]);
+};
+
+================================================================================
 TestJSXImportsCommonJS
 ---------- /out.js ----------
 // custom-react.js
@@ -1394,6 +1489,134 @@ function frag() {
 
 // entry.jsx
 console.log(/* @__PURE__ */ elem("div", null), /* @__PURE__ */ elem(frag, null, "fragment"));
+
+================================================================================
+TestJSXThisPropertyCommonJS
+---------- /out/factory.js ----------
+// factory.jsx
+var require_factory = __commonJS({
+  "factory.jsx"(exports) {
+    console.log([
+      /* @__PURE__ */ exports.factory("x", null),
+      /* @__PURE__ */ exports.factory("x", null)
+    ]);
+    f = function() {
+      console.log([
+        /* @__PURE__ */ this.factory("y", null),
+        /* @__PURE__ */ this.factory("y", null)
+      ]);
+    };
+  }
+});
+export default require_factory();
+
+---------- /out/fragment.js ----------
+// fragment.jsx
+var require_fragment = __commonJS({
+  "fragment.jsx"(exports) {
+    console.log([
+      /* @__PURE__ */ exports.factory(exports.fragment, null, "x"),
+      /* @__PURE__ */ exports.factory(exports.fragment, null, "x")
+    ]), f = function() {
+      console.log([
+        /* @__PURE__ */ this.factory(this.fragment, null, "y"),
+        /* @__PURE__ */ this.factory(this.fragment, null, "y")
+      ]);
+    };
+  }
+});
+export default require_fragment();
+
+================================================================================
+TestJSXThisPropertyESM
+---------- /out/factory.js ----------
+// factory.jsx
+console.log([
+  /* @__PURE__ */ (void 0).factory("x", null),
+  /* @__PURE__ */ (void 0).factory("x", null)
+]);
+f = function() {
+  console.log([
+    /* @__PURE__ */ this.factory("y", null),
+    /* @__PURE__ */ this.factory("y", null)
+  ]);
+};
+
+---------- /out/fragment.js ----------
+// fragment.jsx
+console.log([
+  /* @__PURE__ */ (void 0).factory((void 0).fragment, null, "x"),
+  /* @__PURE__ */ (void 0).factory((void 0).fragment, null, "x")
+]), f = function() {
+  console.log([
+    /* @__PURE__ */ this.factory(this.fragment, null, "y"),
+    /* @__PURE__ */ this.factory(this.fragment, null, "y")
+  ]);
+};
+
+================================================================================
+TestJSXThisValueCommonJS
+---------- /out/factory.js ----------
+// factory.jsx
+var require_factory = __commonJS({
+  "factory.jsx"(exports) {
+    console.log([
+      /* @__PURE__ */ exports("x", null),
+      /* @__PURE__ */ exports("x", null)
+    ]);
+    f = function() {
+      console.log([
+        /* @__PURE__ */ this("y", null),
+        /* @__PURE__ */ this("y", null)
+      ]);
+    };
+  }
+});
+export default require_factory();
+
+---------- /out/fragment.js ----------
+// fragment.jsx
+var require_fragment = __commonJS({
+  "fragment.jsx"(exports) {
+    console.log([
+      /* @__PURE__ */ exports(exports, null, "x"),
+      /* @__PURE__ */ exports(exports, null, "x")
+    ]), f = function() {
+      console.log([
+        /* @__PURE__ */ this(this, null, "y"),
+        /* @__PURE__ */ this(this, null, "y")
+      ]);
+    };
+  }
+});
+export default require_fragment();
+
+================================================================================
+TestJSXThisValueESM
+---------- /out/factory.js ----------
+// factory.jsx
+console.log([
+  /* @__PURE__ */ (void 0)("x", null),
+  /* @__PURE__ */ (void 0)("x", null)
+]);
+f = function() {
+  console.log([
+    /* @__PURE__ */ this("y", null),
+    /* @__PURE__ */ this("y", null)
+  ]);
+};
+
+---------- /out/fragment.js ----------
+// fragment.jsx
+console.log([
+  /* @__PURE__ */ (void 0)(void 0, null, "x"),
+  /* @__PURE__ */ (void 0)(void 0, null, "x")
+]), f = function() {
+  console.log([
+    /* @__PURE__ */ this(this, null, "y"),
+    /* @__PURE__ */ this(this, null, "y")
+  ]);
+};
 
 ================================================================================
 TestKeepNamesTreeShaking
@@ -1672,21 +1895,69 @@ c {
 /* entry.css */
 
 ================================================================================
+TestLoaderCopyWithBundleEntryPoint
+---------- /out/assets/some.file ----------
+stuff
+---------- /out/src/entry.js ----------
+// Users/user/project/src/entry.js
+import x from "../assets/some.file";
+console.log(x);
+
+---------- /out/src/entry.css ----------
+/* Users/user/project/src/entry.css */
+body {
+  background: url(../assets/some.file);
+}
+
+================================================================================
+TestLoaderCopyWithBundleFromCSS
+---------- /out/some-BYATPJRB.file ----------
+stuff
+---------- /out/src/entry.css ----------
+/* Users/user/project/src/entry.css */
+body {
+  background: url(../some-BYATPJRB.file);
+}
+
+================================================================================
+TestLoaderCopyWithBundleFromJS
+---------- /out/some-BYATPJRB.file ----------
+stuff
+---------- /out/src/entry.js ----------
+// Users/user/project/src/entry.js
+import x from "../some-BYATPJRB.file";
+console.log(x);
+
+================================================================================
+TestLoaderCopyWithFormat
+---------- /out/src/entry.js ----------
+(() => {
+  console.log("entry");
+})();
+
+---------- /out/assets/some.file ----------
+stuff
+================================================================================
+TestLoaderCopyWithTransform
+---------- /out/src/entry.js ----------
+console.log("entry");
+
+---------- /out/assets/some.file ----------
+stuff
+================================================================================
 TestLoaderDataURLApplicationJSON
 ---------- /out/entry.js ----------
 // <data:application/json,"%31%32%33">
 var json_31_32_33_default = "123";
 
 // <data:application/json;base64,eyJ3b3JrcyI6dHJ1ZX0=>
-var works = true;
-var json_base64_eyJ3b3JrcyI6dHJ1ZX0_default = { works };
+var json_base64_eyJ3b3JrcyI6dHJ1ZX0_default = { works: true };
 
 // <data:application/json;charset=UTF-8,%31%32%33>
 var json_charset_UTF_8_31_32_33_default = 123;
 
 // <data:application/json;charset=UTF-8;base64,eyJ3b3JrcyI6dHJ1ZX0=>
-var works2 = true;
-var json_charset_UTF_8_base64_eyJ3b3JrcyI6dHJ1ZX0_default = { works: works2 };
+var json_charset_UTF_8_base64_eyJ3b3JrcyI6dHJ1ZX0_default = { works: true };
 
 // entry.js
 console.log([
@@ -1695,6 +1966,95 @@ console.log([
   json_charset_UTF_8_31_32_33_default,
   json_charset_UTF_8_base64_eyJ3b3JrcyI6dHJ1ZX0_default
 ]);
+
+================================================================================
+TestLoaderDataURLExtensionBasedMIME
+---------- /out/entry.js ----------
+// example.css
+var example_default = "data:text/css;charset=utf-8;base64,Y3Nz";
+
+// example.eot
+var example_default2 = "data:application/vnd.ms-fontobject;base64,ZW90";
+
+// example.gif
+var example_default3 = "data:image/gif;base64,Z2lm";
+
+// example.htm
+var example_default4 = "data:text/html;charset=utf-8;base64,aHRt";
+
+// example.html
+var example_default5 = "data:text/html;charset=utf-8;base64,aHRtbA==";
+
+// example.jpeg
+var example_default6 = "data:image/jpeg;base64,anBlZw==";
+
+// example.jpg
+var example_default7 = "data:image/jpeg;base64,anBn";
+
+// example.js
+var example_default8 = "data:text/javascript;charset=utf-8;base64,anM=";
+
+// example.json
+var example_default9 = "data:application/json;base64,anNvbg==";
+
+// example.mjs
+var example_default10 = "data:text/javascript;charset=utf-8;base64,bWpz";
+
+// example.otf
+var example_default11 = "data:font/otf;base64,b3Rm";
+
+// example.pdf
+var example_default12 = "data:application/pdf;base64,cGRm";
+
+// example.png
+var example_default13 = "data:image/png;base64,cG5n";
+
+// example.sfnt
+var example_default14 = "data:font/sfnt;base64,c2ZudA==";
+
+// example.svg
+var example_default15 = "data:image/svg+xml;base64,c3Zn";
+
+// example.ttf
+var example_default16 = "data:font/ttf;base64,dHRm";
+
+// example.wasm
+var example_default17 = "data:application/wasm;base64,d2FzbQ==";
+
+// example.webp
+var example_default18 = "data:image/webp;base64,d2VicA==";
+
+// example.woff
+var example_default19 = "data:font/woff;base64,d29mZg==";
+
+// example.woff2
+var example_default20 = "data:font/woff2;base64,d29mZjI=";
+
+// example.xml
+var example_default21 = "data:text/xml;charset=utf-8;base64,eG1s";
+export {
+  example_default as css,
+  example_default2 as eot,
+  example_default3 as gif,
+  example_default4 as htm,
+  example_default5 as html,
+  example_default6 as jpeg,
+  example_default7 as jpg,
+  example_default8 as js,
+  example_default9 as json,
+  example_default10 as mjs,
+  example_default11 as otf,
+  example_default12 as pdf,
+  example_default13 as png,
+  example_default14 as sfnt,
+  example_default15 as svg,
+  example_default16 as ttf,
+  example_default17 as wasm,
+  example_default18 as webp,
+  example_default19 as woff,
+  example_default20 as woff2,
+  example_default21 as xml
+};
 
 ================================================================================
 TestLoaderDataURLTextCSS
@@ -2364,11 +2724,11 @@ __export(entry_exports, {
   bar: () => import_bar.default,
   foo: () => import_foo.default
 });
+module.exports = __toCommonJS(entry_exports);
 var import_foo = __toESM(require("foo"));
 
 // bar.js
 var import_bar = __toESM(require("bar"));
-module.exports = __toCommonJS(entry_exports);
 
 ================================================================================
 TestReExportDefaultExternalES6
@@ -2410,9 +2770,9 @@ __export(entry_exports, {
   bar: () => import_bar.default,
   foo: () => import_foo.default
 });
+module.exports = __toCommonJS(entry_exports);
 var import_foo = __toESM(require("./foo"));
 var import_bar = __toESM(require("./bar"));
-module.exports = __toCommonJS(entry_exports);
 
 ================================================================================
 TestReExportDefaultNoBundleES6
@@ -3568,6 +3928,37 @@ for await (foo of bar)
   ;
 
 ================================================================================
+TestUseStrictDirectiveBundleCJSIssue2264
+---------- /out.js ----------
+"use strict";
+
+// entry.js
+var entry_exports = {};
+__export(entry_exports, {
+  a: () => a
+});
+module.exports = __toCommonJS(entry_exports);
+var a = 1;
+
+================================================================================
+TestUseStrictDirectiveBundleESMIssue2264
+---------- /out.js ----------
+// entry.js
+var a = 1;
+export {
+  a
+};
+
+================================================================================
+TestUseStrictDirectiveBundleIIFEIssue2264
+---------- /out.js ----------
+"use strict";
+(() => {
+  // entry.js
+  var a = 1;
+})();
+
+================================================================================
 TestUseStrictDirectiveBundleIssue1837
 ---------- /out.js ----------
 (() => {
@@ -3690,76 +4081,22 @@ x === [];
 // plugin-dir/node_modules/equals-object.js
 x === [];
 
-// write-getter.js
-var Foo = class {
-  get #foo() {
-  }
-  foo() {
-    this.#foo = 123;
-  }
-};
-
-// node_modules/write-getter.js
-var Foo2 = class {
-  get #foo() {
-  }
-  foo() {
-    this.#foo = 123;
-  }
-};
-
-// plugin-dir/node_modules/write-getter.js
-var Foo3 = class {
-  get #foo() {
-  }
-  foo() {
-    this.#foo = 123;
-  }
-};
-
-// read-setter.js
-var Foo4 = class {
-  set #foo(x2) {
-  }
-  foo() {
-    return this.#foo;
-  }
-};
-
-// node_modules/read-setter.js
-var Foo5 = class {
-  set #foo(x2) {
-  }
-  foo() {
-    return this.#foo;
-  }
-};
-
-// plugin-dir/node_modules/read-setter.js
-var Foo6 = class {
-  set #foo(x2) {
-  }
-  foo() {
-    return this.#foo;
-  }
-};
-
 // delete-super.js
-var Foo7 = class extends Bar {
+var Foo = class extends Bar {
   foo() {
     delete super.foo;
   }
 };
 
 // node_modules/delete-super.js
-var Foo8 = class extends Bar {
+var Foo2 = class extends Bar {
   foo() {
     delete super.foo;
   }
 };
 
 // plugin-dir/node_modules/delete-super.js
-var Foo9 = class extends Bar {
+var Foo3 = class extends Bar {
   foo() {
     delete super.foo;
   }

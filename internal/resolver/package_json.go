@@ -17,6 +17,7 @@ import (
 )
 
 type packageJSON struct {
+	name           string
 	mainFields     map[string]mainField
 	moduleTypeData js_ast.ModuleTypeData
 
@@ -99,7 +100,14 @@ func (r resolverQuery) checkBrowserMap(resolveDirInfo *dirInfo, inputPath string
 	packageJSON := resolveDirInfo.enclosingBrowserScope.packageJSON
 	browserMap := packageJSON.browserMap
 
-	checkPath := func(pathToCheck string) bool {
+	type implicitExtensions uint8
+
+	const (
+		includeImplicitExtensions implicitExtensions = iota
+		skipImplicitExtensions
+	)
+
+	checkPath := func(pathToCheck string, implicitExtensions implicitExtensions) bool {
 		if r.debugLogs != nil {
 			r.debugLogs.addNote(fmt.Sprintf("Checking for %q in the \"browser\" map in %q",
 				pathToCheck, packageJSON.source.KeyPath.Text))
@@ -116,15 +124,17 @@ func (r resolverQuery) checkBrowserMap(resolveDirInfo *dirInfo, inputPath string
 		}
 
 		// If that failed, try adding implicit extensions
-		for _, ext := range r.options.ExtensionOrder {
-			extPath := pathToCheck + ext
-			if r.debugLogs != nil {
-				r.debugLogs.addNote(fmt.Sprintf("  Checking for %q", extPath))
-			}
-			remapped, ok = browserMap[extPath]
-			if ok {
-				inputPath = extPath
-				return true
+		if implicitExtensions == includeImplicitExtensions {
+			for _, ext := range r.options.ExtensionOrder {
+				extPath := pathToCheck + ext
+				if r.debugLogs != nil {
+					r.debugLogs.addNote(fmt.Sprintf("  Checking for %q", extPath))
+				}
+				remapped, ok = browserMap[extPath]
+				if ok {
+					inputPath = extPath
+					return true
+				}
 			}
 		}
 
@@ -145,15 +155,17 @@ func (r resolverQuery) checkBrowserMap(resolveDirInfo *dirInfo, inputPath string
 		}
 
 		// If that failed, try adding implicit extensions
-		for _, ext := range r.options.ExtensionOrder {
-			extPath := indexPath + ext
-			if r.debugLogs != nil {
-				r.debugLogs.addNote(fmt.Sprintf("  Checking for %q", extPath))
-			}
-			remapped, ok = browserMap[extPath]
-			if ok {
-				inputPath = extPath
-				return true
+		if implicitExtensions == includeImplicitExtensions {
+			for _, ext := range r.options.ExtensionOrder {
+				extPath := indexPath + ext
+				if r.debugLogs != nil {
+					r.debugLogs.addNote(fmt.Sprintf("  Checking for %q", extPath))
+				}
+				remapped, ok = browserMap[extPath]
+				if ok {
+					inputPath = extPath
+					return true
+				}
 			}
 		}
 
@@ -175,11 +187,11 @@ func (r resolverQuery) checkBrowserMap(resolveDirInfo *dirInfo, inputPath string
 	}
 
 	// First try the import path as a package path
-	if !checkPath(inputPath) && IsPackagePath(inputPath) {
+	if !checkPath(inputPath, includeImplicitExtensions) && IsPackagePath(inputPath) {
 		// If a package path didn't work, try the import path as a relative path
 		switch kind {
 		case absolutePathKind:
-			checkPath("./" + inputPath)
+			checkPath("./"+inputPath, includeImplicitExtensions)
 
 		case packagePathKind:
 			// Browserify allows a browser map entry of "./pkg" to override a package
@@ -206,7 +218,10 @@ func (r resolverQuery) checkBrowserMap(resolveDirInfo *dirInfo, inputPath string
 					relativePathPrefix += strings.ReplaceAll(relPath, "\\", "/") + "/"
 				}
 
-				checkPath(relativePathPrefix + inputPath)
+				// Browserify lets "require('pkg')" match "./pkg" but not "./pkg.js".
+				// So don't add implicit extensions specifically in this place so we
+				// match Browserify's behavior.
+				checkPath(relativePathPrefix+inputPath, skipImplicitExtensions)
 			}
 		}
 	}
@@ -232,7 +247,7 @@ func (r resolverQuery) parsePackageJSON(inputPath string) *packageJSON {
 		r.debugLogs.addNote(fmt.Sprintf("Failed to read file %q: %s", packageJSONPath, originalError.Error()))
 	}
 	if err != nil {
-		r.log.Add(logger.Error, nil, logger.Range{},
+		r.log.AddError(nil, logger.Range{},
 			fmt.Sprintf("Cannot read file %q: %s",
 				r.PrettyPath(logger.Path{Text: packageJSONPath, Namespace: "file"}), err.Error()))
 		return nil
@@ -257,6 +272,13 @@ func (r resolverQuery) parsePackageJSON(inputPath string) *packageJSON {
 	packageJSON := &packageJSON{
 		source:     jsonSource,
 		mainFields: make(map[string]mainField),
+	}
+
+	// Read the "name" field
+	if nameJSON, _, ok := getProperty(json, "name"); ok {
+		if nameValue, ok := getString(nameJSON); ok {
+			packageJSON.name = nameValue
+		}
 	}
 
 	// Read the "type" field
@@ -291,12 +313,12 @@ func (r resolverQuery) parsePackageJSON(inputPath string) *packageJSON {
 					}
 				}
 
-				r.log.AddWithNotes(kind, &tracker, jsonSource.RangeOfString(typeJSON.Loc),
+				r.log.AddIDWithNotes(logger.MsgID_PackageJSON_InvalidType, kind, &tracker, jsonSource.RangeOfString(typeJSON.Loc),
 					fmt.Sprintf("%q is not a valid value for the \"type\" field", typeValue),
 					notes)
 			}
 		} else {
-			r.log.Add(logger.Warning, &tracker, logger.Range{Loc: typeJSON.Loc},
+			r.log.AddID(logger.MsgID_PackageJSON_InvalidType, logger.Warning, &tracker, logger.Range{Loc: typeJSON.Loc},
 				"The value for \"type\" must be a string")
 		}
 	}
@@ -352,7 +374,7 @@ func (r resolverQuery) parsePackageJSON(inputPath string) *packageJSON {
 							browserMap[key] = nil
 						}
 					} else {
-						r.log.Add(logger.Warning, &tracker, logger.Range{Loc: prop.ValueOrNil.Loc},
+						r.log.AddID(logger.MsgID_PackageJSON_InvalidBrowser, logger.Warning, &tracker, logger.Range{Loc: prop.ValueOrNil.Loc},
 							"Each \"browser\" mapping must be a string or a boolean")
 					}
 				}
@@ -389,7 +411,7 @@ func (r resolverQuery) parsePackageJSON(inputPath string) *packageJSON {
 			for _, itemJSON := range data.Items {
 				item, ok := itemJSON.Data.(*js_ast.EString)
 				if !ok || item.Value == nil {
-					r.log.Add(logger.Warning, &tracker, logger.Range{Loc: itemJSON.Loc},
+					r.log.AddID(logger.MsgID_PackageJSON_InvalidSideEffects, logger.Warning, &tracker, logger.Range{Loc: itemJSON.Loc},
 						"Expected string in array for \"sideEffects\"")
 					continue
 				}
@@ -413,7 +435,7 @@ func (r resolverQuery) parsePackageJSON(inputPath string) *packageJSON {
 			}
 
 		default:
-			r.log.Add(logger.Warning, &tracker, logger.Range{Loc: sideEffectsJSON.Loc},
+			r.log.AddID(logger.MsgID_PackageJSON_InvalidSideEffects, logger.Warning, &tracker, logger.Range{Loc: sideEffectsJSON.Loc},
 				"The value for \"sideEffects\" must be a boolean or an array")
 		}
 	}
@@ -422,7 +444,7 @@ func (r resolverQuery) parsePackageJSON(inputPath string) *packageJSON {
 	if importsJSON, _, ok := getProperty(json, "imports"); ok {
 		if importsMap := parseImportsExportsMap(jsonSource, r.log, importsJSON); importsMap != nil {
 			if importsMap.root.kind != pjObject {
-				r.log.Add(logger.Warning, &tracker, importsMap.root.firstToken,
+				r.log.AddID(logger.MsgID_PackageJSON_InvalidImportsOrExports, logger.Warning, &tracker, importsMap.root.firstToken,
 					"The value for \"imports\" must be an object")
 			}
 			packageJSON.importsMap = importsMap
@@ -598,7 +620,7 @@ func parseImportsExportsMap(source logger.Source, log logger.Log, json js_ast.Ex
 					isConditionalSugar = curIsConditionalSugar
 				} else if isConditionalSugar != curIsConditionalSugar {
 					prevEntry := mapData[i-1]
-					log.AddWithNotes(logger.Warning, &tracker, keyRange,
+					log.AddIDWithNotes(logger.MsgID_PackageJSON_InvalidImportsOrExports, logger.Warning, &tracker, keyRange,
 						"This object cannot contain keys that both start with \".\" and don't start with \".\"",
 						[]logger.MsgData{tracker.MsgData(prevEntry.keyRange,
 							fmt.Sprintf("The key %q is incompatible with the previous key %q:", key, prevEntry.key))})
@@ -642,7 +664,7 @@ func parseImportsExportsMap(source logger.Source, log logger.Log, json js_ast.Ex
 			firstToken.Loc = expr.Loc
 		}
 
-		log.Add(logger.Warning, &tracker, firstToken,
+		log.AddID(logger.MsgID_PackageJSON_InvalidImportsOrExports, logger.Warning, &tracker, firstToken,
 			"This value must be a string, an object, an array, or null")
 		return pjEntry{
 			kind:       pjInvalid,
@@ -701,8 +723,9 @@ func (status pjStatus) isUndefined() bool {
 
 type pjDebug struct {
 	// If the status is "pjStatusUndefinedNoConditionsMatch", this is the set of
-	// conditions that didn't match. This information is used for error messages.
-	unmatchedConditions []string
+	// conditions that didn't match, in the order that they were found in the file.
+	// This information is used for error messages.
+	unmatchedConditions []logger.Span
 
 	// This is the range of the token to use for error messages
 	token logger.Range
@@ -1056,9 +1079,9 @@ func (r resolverQuery) esmPackageTargetResolve(
 				// More information: https://github.com/evanw/esbuild/issues/1484
 				target = lastMapEntry.value
 			}
-			keys := make([]string, len(target.mapData))
+			keys := make([]logger.Span, len(target.mapData))
 			for i, p := range target.mapData {
-				keys[i] = p.key
+				keys[i] = logger.Span{Text: p.key, Range: p.keyRange}
 			}
 			return "", pjStatusUndefinedNoConditionsMatch, pjDebug{
 				token:               target.firstToken,

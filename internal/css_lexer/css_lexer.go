@@ -280,7 +280,7 @@ func (lexer *lexer) next() {
 					for end < len(contents) && !isNewline(rune(contents[end])) {
 						end++
 					}
-					lexer.log.Add(logger.Warning, &lexer.tracker, logger.Range{Loc: loc, Len: 2},
+					lexer.log.AddID(logger.MsgID_CSS_JSCommentInCSS, logger.Warning, &lexer.tracker, logger.Range{Loc: loc, Len: 2},
 						"Comments in CSS use \"/* ... */\" instead of \"//\"")
 					lexer.oldSingleLineCommentEnd.Start = int32(end)
 					lexer.Token.Flags |= DidWarnAboutSingleLineComment
@@ -412,7 +412,7 @@ func (lexer *lexer) next() {
 				lexer.Token.Kind = lexer.consumeIdentLike()
 			} else {
 				lexer.step()
-				lexer.log.Add(logger.Error, &lexer.tracker, lexer.Token.Range, "Invalid escape")
+				lexer.log.AddError(&lexer.tracker, lexer.Token.Range, "Invalid escape")
 				lexer.Token.Kind = TDelim
 			}
 
@@ -512,7 +512,7 @@ func (lexer *lexer) consumeToEndOfMultiLineComment(startRange logger.Range) {
 			}
 
 		case eof: // This indicates the end of the file
-			lexer.log.AddWithNotes(logger.Error, &lexer.tracker, logger.Range{Loc: logger.Loc{Start: lexer.Token.Range.End()}},
+			lexer.log.AddErrorWithNotes(&lexer.tracker, logger.Range{Loc: logger.Loc{Start: lexer.Token.Range.End()}},
 				"Expected \"*/\" to terminate multi-line comment",
 				[]logger.MsgData{lexer.tracker.MsgData(startRange, "The multi-line comment starts here:")})
 			return
@@ -700,7 +700,7 @@ validURL:
 
 		case eof:
 			loc := logger.Loc{Start: lexer.Token.Range.End()}
-			lexer.log.Add(logger.Error, &lexer.tracker, logger.Range{Loc: loc}, "Expected \")\" to end URL token")
+			lexer.log.AddError(&lexer.tracker, logger.Range{Loc: loc}, "Expected \")\" to end URL token")
 			return TBadURL
 
 		case ' ', '\t', '\n', '\r', '\f':
@@ -710,7 +710,7 @@ validURL:
 			}
 			if lexer.codePoint != ')' {
 				loc := logger.Loc{Start: lexer.Token.Range.End()}
-				lexer.log.Add(logger.Error, &lexer.tracker, logger.Range{Loc: loc}, "Expected \")\" to end URL token")
+				lexer.log.AddError(&lexer.tracker, logger.Range{Loc: loc}, "Expected \")\" to end URL token")
 				break validURL
 			}
 			lexer.step()
@@ -718,13 +718,13 @@ validURL:
 
 		case '"', '\'', '(':
 			r := logger.Range{Loc: logger.Loc{Start: lexer.Token.Range.End()}, Len: 1}
-			lexer.log.Add(logger.Error, &lexer.tracker, r, "Expected \")\" to end URL token")
+			lexer.log.AddError(&lexer.tracker, r, "Expected \")\" to end URL token")
 			break validURL
 
 		case '\\':
 			if !lexer.isValidEscape() {
 				r := logger.Range{Loc: logger.Loc{Start: lexer.Token.Range.End()}, Len: 1}
-				lexer.log.Add(logger.Error, &lexer.tracker, r, "Invalid escape")
+				lexer.log.AddError(&lexer.tracker, r, "Invalid escape")
 				break validURL
 			}
 			lexer.consumeEscape()
@@ -732,7 +732,7 @@ validURL:
 		default:
 			if isNonPrintable(lexer.codePoint) {
 				r := logger.Range{Loc: logger.Loc{Start: lexer.Token.Range.End()}, Len: 1}
-				lexer.log.Add(logger.Error, &lexer.tracker, r, "Unexpected non-printable character in URL token")
+				lexer.log.AddError(&lexer.tracker, r, "Unexpected non-printable character in URL token")
 			}
 			lexer.step()
 		}
@@ -775,13 +775,13 @@ func (lexer *lexer) consumeString() T {
 			// Otherwise, fall through to ignore the character after the backslash
 
 		case eof:
-			lexer.log.Add(logger.Error, &lexer.tracker,
+			lexer.log.AddError(&lexer.tracker,
 				logger.Range{Loc: logger.Loc{Start: lexer.Token.Range.End()}},
 				"Unterminated string token")
 			return TBadString
 
 		case '\n', '\r', '\f':
-			lexer.log.Add(logger.Error, &lexer.tracker,
+			lexer.log.AddError(&lexer.tracker,
 				logger.Range{Loc: logger.Loc{Start: lexer.Token.Range.End()}},
 				"Unterminated string token")
 			return TBadString

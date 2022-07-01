@@ -29,7 +29,8 @@ type Log struct {
 
 	Done func() []Msg
 
-	Level LogLevel
+	Level     LogLevel
+	Overrides map[MsgID]LogLevel
 }
 
 type LogLevel int8
@@ -149,6 +150,7 @@ type Msg struct {
 	PluginName string
 	Data       MsgData
 	Kind       MsgKind
+	ID         MsgID
 }
 
 type MsgData struct {
@@ -520,7 +522,8 @@ func NewStderrLog(options OutputOptions) Log {
 	}
 
 	return Log{
-		Level: options.LogLevel,
+		Level:     options.LogLevel,
+		Overrides: options.Overrides,
 
 		AddMsg: func(msg Msg) {
 			mutex.Lock()
@@ -932,13 +935,14 @@ const (
 	DeferLogNoVerboseOrDebug
 )
 
-func NewDeferLog(kind DeferLogKind) Log {
+func NewDeferLog(kind DeferLogKind, overrides map[MsgID]LogLevel) Log {
 	var msgs SortableMsgs
 	var mutex sync.Mutex
 	var hasErrors bool
 
 	return Log{
-		Level: LevelInfo,
+		Level:     LevelInfo,
+		Overrides: overrides,
 
 		AddMsg: func(msg Msg) {
 			if kind == DeferLogNoVerboseOrDebug && (msg.Kind == Verbose || msg.Kind == Debug) {
@@ -983,11 +987,12 @@ type OutputOptions struct {
 	IncludeSource bool
 	Color         UseColor
 	LogLevel      LogLevel
+	Overrides     map[MsgID]LogLevel
 }
 
 func (msg Msg) String(options OutputOptions, terminalInfo TerminalInfo) string {
 	// Format the message
-	text := msgString(options.IncludeSource, terminalInfo, msg.Kind, msg.Data, msg.PluginName)
+	text := msgString(options.IncludeSource, terminalInfo, msg.ID, msg.Kind, msg.Data, msg.PluginName)
 
 	// Format the notes
 	var oldData MsgData
@@ -995,7 +1000,7 @@ func (msg Msg) String(options OutputOptions, terminalInfo TerminalInfo) string {
 		if options.IncludeSource && (i == 0 || strings.IndexByte(oldData.Text, '\n') >= 0 || oldData.Location != nil) {
 			text += "\n"
 		}
-		text += msgString(options.IncludeSource, terminalInfo, Note, note, "")
+		text += msgString(options.IncludeSource, terminalInfo, MsgID_None, Note, note, "")
 		oldData = note
 	}
 
@@ -1022,7 +1027,7 @@ func emptyMarginText(maxMargin int, isLast bool) string {
 	return fmt.Sprintf("      %s │ ", space)
 }
 
-func msgString(includeSource bool, terminalInfo TerminalInfo, kind MsgKind, data MsgData, pluginName string) string {
+func msgString(includeSource bool, terminalInfo TerminalInfo, id MsgID, kind MsgKind, data MsgData, pluginName string) string {
 	if !includeSource {
 		if loc := data.Location; loc != nil {
 			return fmt.Sprintf("%s: %s: %s\n", loc.File, kind.String(), data.Text)
@@ -1120,11 +1125,16 @@ func msgString(includeSource bool, terminalInfo TerminalInfo, kind MsgKind, data
 		pluginName = fmt.Sprintf("%s%s[plugin %s]%s ", colors.Bold, colors.Magenta, pluginName, colors.Reset)
 	}
 
-	return fmt.Sprintf("%s%s %s[%s%s%s]%s %s%s%s%s\n%s",
+	msgID := MsgIDToString(id)
+	if msgID != "" {
+		msgID = fmt.Sprintf(" [%s]", msgID)
+	}
+
+	return fmt.Sprintf("%s%s %s[%s%s%s]%s %s%s%s%s%s\n%s",
 		iconColor, kind.Icon(),
 		kindColorBrackets, kindColorText, kind.String(), kindColorBrackets, colors.Reset,
 		pluginName,
-		colors.Bold, data.Text, colors.Reset,
+		colors.Bold, data.Text, colors.Reset, msgID,
 		location,
 	)
 }
@@ -1598,17 +1608,67 @@ func renderTabStops(withTabs string, spacesPerTab int) string {
 	return withoutTabs.String()
 }
 
-func (log Log) Add(kind MsgKind, tracker *LineColumnTracker, r Range, text string) {
+func (log Log) AddError(tracker *LineColumnTracker, r Range, text string) {
 	log.AddMsg(Msg{
-		Kind: kind,
+		Kind: Error,
 		Data: tracker.MsgData(r, text),
 	})
 }
 
-func (log Log) AddWithNotes(kind MsgKind, tracker *LineColumnTracker, r Range, text string, notes []MsgData) {
+func (log Log) AddID(id MsgID, kind MsgKind, tracker *LineColumnTracker, r Range, text string) {
+	if override, ok := allowOverride(log.Overrides, id, kind); ok {
+		log.AddMsg(Msg{
+			ID:   id,
+			Kind: override,
+			Data: tracker.MsgData(r, text),
+		})
+	}
+}
+
+func (log Log) AddErrorWithNotes(tracker *LineColumnTracker, r Range, text string, notes []MsgData) {
 	log.AddMsg(Msg{
-		Kind:  kind,
+		Kind:  Error,
 		Data:  tracker.MsgData(r, text),
 		Notes: notes,
 	})
+}
+
+func (log Log) AddIDWithNotes(id MsgID, kind MsgKind, tracker *LineColumnTracker, r Range, text string, notes []MsgData) {
+	if override, ok := allowOverride(log.Overrides, id, kind); ok {
+		log.AddMsg(Msg{
+			ID:    id,
+			Kind:  override,
+			Data:  tracker.MsgData(r, text),
+			Notes: notes,
+		})
+	}
+}
+
+func (log Log) AddMsgID(id MsgID, msg Msg) {
+	if override, ok := allowOverride(log.Overrides, id, msg.Kind); ok {
+		msg.ID = id
+		msg.Kind = override
+		log.AddMsg(msg)
+	}
+}
+
+func allowOverride(overrides map[MsgID]LogLevel, id MsgID, kind MsgKind) (MsgKind, bool) {
+	if logLevel, ok := overrides[id]; ok {
+		switch logLevel {
+		case LevelVerbose:
+			return Verbose, true
+		case LevelDebug:
+			return Debug, true
+		case LevelInfo:
+			return Info, true
+		case LevelWarning:
+			return Warning, true
+		case LevelError:
+			return Error, true
+		default:
+			// Setting the log level to "silent" silences this log message
+			return MsgKind(0), false
+		}
+	}
+	return kind, true
 }

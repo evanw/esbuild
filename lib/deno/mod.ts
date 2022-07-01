@@ -52,6 +52,7 @@ let initializeWasCalled = false
 export const initialize: typeof types.initialize = async (options) => {
   options = common.validateInitializeOptions(options || {})
   if (options.wasmURL) throw new Error(`The "wasmURL" option only works in the browser`)
+  if (options.wasmModule) throw new Error(`The "wasmModule" option only works in the browser`)
   if (options.worker) throw new Error(`The "worker" option only works in the browser`)
   if (initializeWasCalled) throw new Error('Cannot call "initialize" more than once')
   await ensureServiceIsRunning()
@@ -145,9 +146,14 @@ async function install(): Promise<string> {
     'x86_64-pc-windows-msvc': 'esbuild-windows-64',
   }
   const knownUnixlikePackages: Record<string, string> = {
+    // These are the only platforms that Deno supports
     'aarch64-apple-darwin': 'esbuild-darwin-arm64',
+    'aarch64-unknown-linux-gnu': 'esbuild-linux-arm64',
     'x86_64-apple-darwin': 'esbuild-darwin-64',
     'x86_64-unknown-linux-gnu': 'esbuild-linux-64',
+
+    // These platforms are not supported by Deno
+    'x86_64-unknown-freebsd': 'esbuild-freebsd-64',
   }
 
   // Pick a package to install
@@ -217,14 +223,14 @@ let ensureServiceIsRunning = (): Promise<Service> => {
           startWriteFromQueueWorker()
         },
         isSync: false,
-        isBrowser: false,
+        isWriteUnavailable: false,
         esbuild: ourselves,
       })
 
       const stdoutBuffer = new Uint8Array(4 * 1024 * 1024)
       const readMoreStdout = () => child.stdout.read(stdoutBuffer).then(n => {
         if (n === null) {
-          afterClose()
+          afterClose(null)
         } else {
           readFromStdout(stdoutBuffer.subarray(0, n))
           readMoreStdout()
@@ -232,7 +238,7 @@ let ensureServiceIsRunning = (): Promise<Service> => {
       }).catch(e => {
         if (e instanceof Deno.errors.Interrupted || e instanceof Deno.errors.BadResource) {
           // ignore the error if read was interrupted (stdout was closed)
-          afterClose()
+          afterClose(e)
         } else {
           throw e;
         }

@@ -132,18 +132,19 @@ type Loader uint8
 
 const (
 	LoaderNone Loader = iota
+	LoaderBase64
+	LoaderBinary
+	LoaderCopy
+	LoaderCSS
+	LoaderDataURL
+	LoaderDefault
+	LoaderFile
 	LoaderJS
+	LoaderJSON
 	LoaderJSX
+	LoaderText
 	LoaderTS
 	LoaderTSX
-	LoaderJSON
-	LoaderText
-	LoaderBase64
-	LoaderDataURL
-	LoaderFile
-	LoaderBinary
-	LoaderCSS
-	LoaderDefault
 )
 
 type Platform uint8
@@ -163,19 +164,6 @@ const (
 	FormatESModule
 )
 
-type EngineName uint8
-
-const (
-	EngineChrome EngineName = iota
-	EngineEdge
-	EngineFirefox
-	EngineIE
-	EngineIOS
-	EngineNode
-	EngineOpera
-	EngineSafari
-)
-
 type Engine struct {
 	Name    EngineName
 	Version string
@@ -192,6 +180,7 @@ type Location struct {
 }
 
 type Message struct {
+	ID         string
 	PluginName string
 	Text       string
 	Location   *Location
@@ -260,16 +249,18 @@ const (
 // Build API
 
 type BuildOptions struct {
-	Color    StderrColor // Documentation: https://esbuild.github.io/api/#color
-	LogLimit int         // Documentation: https://esbuild.github.io/api/#log-limit
-	LogLevel LogLevel    // Documentation: https://esbuild.github.io/api/#log-level
+	Color       StderrColor         // Documentation: https://esbuild.github.io/api/#color
+	LogLevel    LogLevel            // Documentation: https://esbuild.github.io/api/#log-level
+	LogLimit    int                 // Documentation: https://esbuild.github.io/api/#log-limit
+	LogOverride map[string]LogLevel // Documentation: https://esbuild.github.io/api/#log-override
 
 	Sourcemap      SourceMap      // Documentation: https://esbuild.github.io/api/#sourcemap
 	SourceRoot     string         // Documentation: https://esbuild.github.io/api/#source-root
 	SourcesContent SourcesContent // Documentation: https://esbuild.github.io/api/#sources-content
 
-	Target  Target   // Documentation: https://esbuild.github.io/api/#target
-	Engines []Engine // Documentation: https://esbuild.github.io/api/#target
+	Target    Target          // Documentation: https://esbuild.github.io/api/#target
+	Engines   []Engine        // Documentation: https://esbuild.github.io/api/#target
+	Supported map[string]bool // Documentation: https://esbuild.github.io/api/#supported
 
 	MangleProps       string                 // Documentation: https://esbuild.github.io/api/#mangle-props
 	ReserveProps      string                 // Documentation: https://esbuild.github.io/api/#mangle-props
@@ -374,16 +365,18 @@ func Build(options BuildOptions) BuildResult {
 // Transform API
 
 type TransformOptions struct {
-	Color    StderrColor // Documentation: https://esbuild.github.io/api/#color
-	LogLimit int         // Documentation: https://esbuild.github.io/api/#log-limit
-	LogLevel LogLevel    // Documentation: https://esbuild.github.io/api/#log-level
+	Color       StderrColor         // Documentation: https://esbuild.github.io/api/#color
+	LogLevel    LogLevel            // Documentation: https://esbuild.github.io/api/#log-level
+	LogLimit    int                 // Documentation: https://esbuild.github.io/api/#log-limit
+	LogOverride map[string]LogLevel // Documentation: https://esbuild.github.io/api/#log-override
 
 	Sourcemap      SourceMap      // Documentation: https://esbuild.github.io/api/#sourcemap
 	SourceRoot     string         // Documentation: https://esbuild.github.io/api/#source-root
 	SourcesContent SourcesContent // Documentation: https://esbuild.github.io/api/#sources-content
 
-	Target  Target   // Documentation: https://esbuild.github.io/api/#target
-	Engines []Engine // Documentation: https://esbuild.github.io/api/#target
+	Target    Target          // Documentation: https://esbuild.github.io/api/#target
+	Engines   []Engine        // Documentation: https://esbuild.github.io/api/#target
+	Supported map[string]bool // Documentation: https://esbuild.github.io/api/#supported
 
 	Format     Format // Documentation: https://esbuild.github.io/api/#format
 	GlobalName string // Documentation: https://esbuild.github.io/api/#global-name

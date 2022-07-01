@@ -1,3 +1,20 @@
+TestAmbiguousReexportMsg
+---------- /out/entry.js ----------
+// a.js
+var a = 1;
+
+// b.js
+var b = 3;
+
+// c.js
+var c = 4;
+export {
+  a,
+  b,
+  c
+};
+
+================================================================================
 TestAutoDetectMimeTypeFromExtension
 ---------- /out.js ----------
 // test.svg
@@ -39,6 +56,24 @@ a:after {
 a:after {
   content: "entry2";
 }
+
+================================================================================
+TestIndirectRequireMessage
+---------- /out/array.js ----------
+
+---------- /out/assign.js ----------
+// assign.js
+__require = x;
+
+---------- /out/dot.js ----------
+// dot.js
+var x = __require.cache;
+
+---------- /out/ident.js ----------
+
+---------- /out/index.js ----------
+// index.js
+var x = __require[cache];
 
 ================================================================================
 TestJSXPreserveCapitalLetter
@@ -317,9 +352,7 @@ var require_x = __commonJS({
 });
 
 // y.json
-var y1 = true;
-var y2 = false;
-var y_default = { y1, y2 };
+var y_default = { y1: true, y2: false };
 
 // z.json
 var small = "some small text";
@@ -395,16 +428,14 @@ TestLoaderJSONNoBundleIIFE
 TestLoaderJSONSharedWithMultipleEntriesIssue413
 ---------- /out/a.js ----------
 // data.json
-var test = 123;
-var data_default = { test };
+var data_default = { test: 123 };
 
 // a.js
 console.log("a:", data_default);
 
 ---------- /out/b.js ----------
 // data.json
-var test = 123;
-var data_default = { test };
+var data_default = { test: 123 };
 
 // b.js
 console.log("b:", data_default);
@@ -443,6 +474,15 @@ var { "_doNotMangleThis": x } = y;
 "_doNotMangleThis" in x;
 (y ? "_doNotMangleThis" : z) in x;
 (y ? z : "_doNotMangleThis") in x;
+
+================================================================================
+TestMangleNoQuotedPropsMinifySyntax
+---------- /out/entry.js ----------
+x._doNotMangleThis, x?._doNotMangleThis, x[y ? "_doNotMangleThis" : z], x?.[y ? "_doNotMangleThis" : z], x[y ? z : "_doNotMangleThis"], x?.[y ? z : "_doNotMangleThis"], class {
+  _doNotMangleThis = x;
+};
+var { _doNotMangleThis: x } = y;
+"_doNotMangleThis" in x, (y ? "_doNotMangleThis" : z) in x, (y ? z : "_doNotMangleThis") in x;
 
 ================================================================================
 TestMangleProps
@@ -864,6 +904,26 @@ var { [(z, "a")]: x } = y;
 (y, "a") in x;
 
 ================================================================================
+TestMangleQuotedPropsMinifySyntax
+---------- /out/keep.js ----------
+foo("_keepThisProperty"), foo("_keepThisProperty"), foo(x ? "_keepThisProperty" : "_keepThisPropertyToo"), x[foo("_keepThisProperty")], x?.[foo("_keepThisProperty")], foo("_keepThisProperty") + "", class {
+  [foo("_keepThisProperty")] = x;
+};
+var { [foo("_keepThisProperty")]: x } = y;
+foo("_keepThisProperty") in x;
+
+---------- /out/mangle.js ----------
+x.a, x?.a, x[y ? "a" : z], x?.[y ? "a" : z], x[y ? z : "a"], x?.[y ? z : "a"], x[y, "a"], x?.[y, "a"], "a" + "", (y, "a") + "", class {
+  a = x;
+}, class {
+  ["a"] = x;
+}, class {
+  [(y, "a")] = x;
+};
+var { a: x } = y, { ["a"]: x } = y, { [(z, "a")]: x } = y;
+"a" in x, (y ? "a" : z) in x, (y ? z : "a") in x, y, "a" in x;
+
+================================================================================
 TestMinifyIdentifiersImportPathFrequencyAnalysis
 ---------- /out/import.js ----------
 var o=123;console.log(o,"no identifier in this file should be named W, X, Y, or Z");
@@ -962,12 +1022,75 @@ export default {
 };
 
 ================================================================================
+TestThisIsUndefinedWarningBabelCompiledJSX
+---------- /out/no1.js ----------
+// node_modules/react/jsx-dev-runtime.js
+var jsxDEV;
+
+// no1.js
+var Foo = () => jsxDEV("div", {}, void 0, false, { fileName: "Foo.tsx", lineNumber: 1, columnNumber: 23 }, void 0);
+export {
+  Foo
+};
+
+---------- /out/no2.js ----------
+// node_modules/react/jsx-dev-runtime.js
+var jsxDEV;
+
+// no2.js
+var Foo = () => jsxDEV("div", {}, void 0, false, { fileName: "Foo.tsx", lineNumber: 1, columnNumber: 23 }, void 0);
+export {
+  Foo
+};
+
+---------- /out/yes1.js ----------
+// node_modules/react/jsx-runtime.js
+var jsxDEV;
+
+// yes1.js
+var Foo = () => jsxDEV("div", {}, void 0, false, { fileName: "Foo.tsx", lineNumber: 1, columnNumber: 23 }, void 0);
+export {
+  Foo
+};
+
+---------- /out/yes2.js ----------
+// node_modules/react/jsx-dev-runtime.js
+var jsxDEV;
+
+// yes2.js
+var Foo = () => jsxDEV("div", {}, void 0, false, void 0, { fileName: "Foo.tsx", lineNumber: 1, columnNumber: 23 });
+export {
+  Foo
+};
+
+---------- /out/yes3.js ----------
+// node_modules/react/jsx-dev-runtime.js
+var jsxDEV;
+
+// yes3.js
+var Foo = () => jsxDEV("div", {}, void 0, false, { fileName: "Foo.tsx", lineNumber: 1, columnNumber: 23 }, void 0, null);
+export {
+  Foo
+};
+
+---------- /out/yes4.js ----------
+// node_modules/react/jsx-dev-runtime.js
+var _jsxDEV;
+
+// yes4.js
+var Foo = () => _jsxDEV("div", {}, void 0, false, { fileName: "Foo.tsx", lineNumber: 1, columnNumber: 23 }, void 0);
+export {
+  Foo
+};
+
+================================================================================
 TestToESMWrapperOmission
 ---------- /out/entry.js ----------
 var entry_exports = {};
+module.exports = __toCommonJS(entry_exports);
 var import_a_nowrap = require("a_nowrap");
 var import_b_nowrap = require("b_nowrap");
-__reExport(entry_exports, require("c_nowrap"));
+__reExport(entry_exports, require("c_nowrap"), module.exports);
 var d = __toESM(require("d_WRAP"));
 var import_e_WRAP = __toESM(require("e_WRAP"));
 var import_f_WRAP = __toESM(require("f_WRAP"));
@@ -984,7 +1107,6 @@ x = h;
 i.x();
 j.x``;
 x = Promise.resolve().then(() => __toESM(require("k_WRAP")));
-module.exports = __toCommonJS(entry_exports);
 
 ================================================================================
 TestWarnCommonJSExportsInESMBundle
@@ -994,10 +1116,10 @@ var cjs_in_esm_exports = {};
 __export(cjs_in_esm_exports, {
   foo: () => foo
 });
+module.exports = __toCommonJS(cjs_in_esm_exports);
 var foo = 1;
 exports.foo = 2;
 module.exports = 3;
-module.exports = __toCommonJS(cjs_in_esm_exports);
 
 ---------- /out/import-in-cjs.js ----------
 // import-in-cjs.js
@@ -1016,19 +1138,19 @@ var cjs_in_esm_exports = {};
 __export(cjs_in_esm_exports, {
   foo: () => foo
 });
+module.exports = __toCommonJS(cjs_in_esm_exports);
 let foo = 1;
 exports.foo = 2;
 module.exports = 3;
-module.exports = __toCommonJS(cjs_in_esm_exports);
 
 ---------- /out/cjs-in-esm2.js ----------
 var cjs_in_esm2_exports = {};
 __export(cjs_in_esm2_exports, {
   foo: () => foo
 });
+module.exports = __toCommonJS(cjs_in_esm2_exports);
 let foo = 1;
 module.exports.bar = 3;
-module.exports = __toCommonJS(cjs_in_esm2_exports);
 
 ---------- /out/import-in-cjs.js ----------
 var import_bar = require("bar");

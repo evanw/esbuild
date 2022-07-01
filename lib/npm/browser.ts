@@ -4,6 +4,7 @@ import * as ourselves from "./browser"
 
 declare const ESBUILD_VERSION: string;
 declare let WEB_WORKER_SOURCE_CODE: string
+declare let WEB_WORKER_FUNCTION: (postMessage: (data: Uint8Array) => void) => (event: { data: Uint8Array | ArrayBuffer | WebAssembly.Module }) => void
 
 export let version = ESBUILD_VERSION;
 
@@ -58,11 +59,11 @@ let ensureServiceIsRunning = (): Service => {
 export const initialize: typeof types.initialize = options => {
   options = common.validateInitializeOptions(options || {});
   let wasmURL = options.wasmURL;
+  let wasmModule = options.wasmModule;
   let useWorker = options.worker !== false;
-  if (!wasmURL) throw new Error('Must provide the "wasmURL" option');
-  wasmURL += '';
+  if (!wasmURL && !wasmModule) throw new Error('Must provide either the "wasmURL" option or the "wasmModule" option');
   if (initializePromise) throw new Error('Cannot call "initialize" more than once');
-  initializePromise = startRunningService(wasmURL, useWorker);
+  initializePromise = startRunningService(wasmURL || '', wasmModule, useWorker);
   initializePromise.catch(() => {
     // Let the caller try again if this fails
     initializePromise = void 0;
@@ -70,35 +71,32 @@ export const initialize: typeof types.initialize = options => {
   return initializePromise;
 }
 
-const startRunningService = async (wasmURL: string, useWorker: boolean): Promise<void> => {
-  let res = await fetch(wasmURL);
-  if (!res.ok) throw new Error(`Failed to download ${JSON.stringify(wasmURL)}`);
-  let wasm = await res.arrayBuffer();
-  let code = `{` +
-    `let global={};` +
-    `for(let o=self;o;o=Object.getPrototypeOf(o))` +
-    `for(let k of Object.getOwnPropertyNames(o))` +
-    `if(!(k in global))` +
-    `Object.defineProperty(global,k,{get:()=>self[k]});` +
-    WEB_WORKER_SOURCE_CODE +
-    `}`
+const startRunningService = async (wasmURL: string, wasmModule: WebAssembly.Module | undefined, useWorker: boolean): Promise<void> => {
+  let wasm: ArrayBuffer | WebAssembly.Module;
+  if (wasmModule) {
+    wasm = wasmModule;
+  } else {
+    let res = await fetch(wasmURL);
+    if (!res.ok) throw new Error(`Failed to download ${JSON.stringify(wasmURL)}`);
+    wasm = await res.arrayBuffer();
+  }
+
   let worker: {
     onmessage: ((event: any) => void) | null
-    postMessage: (data: Uint8Array | ArrayBuffer) => void
+    postMessage: (data: Uint8Array | ArrayBuffer | WebAssembly.Module) => void
     terminate: () => void
   }
 
   if (useWorker) {
     // Run esbuild off the main thread
-    let blob = new Blob([code], { type: 'text/javascript' })
+    let blob = new Blob([`onmessage=${WEB_WORKER_SOURCE_CODE}(postMessage)`], { type: 'text/javascript' })
     worker = new Worker(URL.createObjectURL(blob))
   } else {
     // Run esbuild on the main thread
-    let fn = new Function('postMessage', code + `var onmessage; return m => onmessage(m)`)
-    let onmessage = fn((data: Uint8Array) => worker.onmessage!({ data }))
+    let onmessage = WEB_WORKER_FUNCTION((data: Uint8Array) => worker.onmessage!({ data }))
     worker = {
       onmessage: null,
-      postMessage: data => onmessage({ data }),
+      postMessage: data => setTimeout(() => onmessage({ data })),
       terminate() {
       },
     }
@@ -112,7 +110,7 @@ const startRunningService = async (wasmURL: string, useWorker: boolean): Promise
       worker.postMessage(bytes)
     },
     isSync: false,
-    isBrowser: true,
+    isWriteUnavailable: true,
     esbuild: ourselves,
   })
 

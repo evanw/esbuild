@@ -33,14 +33,30 @@ type TSConfigJSON struct {
 	// the wildcard is substituted into the fallback path. The keys represent
 	// module-style path names and the fallback paths are relative to the
 	// "baseUrl" value in the "tsconfig.json" file.
-	Paths map[string][]string
+	Paths *TSConfigPaths
 
 	TSTarget                       *config.TSTarget
+	TSStrict                       *config.TSAlwaysStrict
+	TSAlwaysStrict                 *config.TSAlwaysStrict
 	JSXFactory                     []string
 	JSXFragmentFactory             []string
+	ModuleSuffixes                 []string
 	UseDefineForClassFields        config.MaybeBool
 	PreserveImportsNotUsedAsValues bool
 	PreserveValueImports           bool
+}
+
+type TSConfigPath struct {
+	Text string
+	Loc  logger.Loc
+}
+
+type TSConfigPaths struct {
+	Map map[string][]TSConfigPath
+
+	// This may be different from the original "tsconfig.json" source if the
+	// "paths" value is from another file via an "extends" clause.
+	Source logger.Source
 }
 
 func ParseTSConfigJSON(
@@ -103,6 +119,22 @@ func ParseTSConfigJSON(
 			}
 		}
 
+		// Parse "moduleSuffixes"
+		if valueJSON, _, ok := getProperty(compilerOptionsJSON, "moduleSuffixes"); ok {
+			if value, ok := valueJSON.Data.(*js_ast.EArray); ok {
+				result.ModuleSuffixes = make([]string, 0, len(value.Items))
+				for _, item := range value.Items {
+					if str, ok := item.Data.(*js_ast.EString); ok {
+						result.ModuleSuffixes = append(result.ModuleSuffixes, helpers.UTF16ToString(str.Value))
+					} else {
+						log.AddID(logger.MsgID_TsconfigJSON_InvalidModuleSuffixes, logger.Warning, &tracker, logger.Range{Loc: item.Loc}, "Expected module suffix to be a string")
+						result.ModuleSuffixes = nil
+						break
+					}
+				}
+			}
+		}
+
 		// Parse "useDefineForClassFields"
 		if valueJSON, _, ok := getProperty(compilerOptionsJSON, "useDefineForClassFields"); ok {
 			if value, ok := getBool(valueJSON); ok {
@@ -122,6 +154,7 @@ func ParseTSConfigJSON(
 				ok := true
 
 				// See https://www.typescriptlang.org/tsconfig#target
+				targetIsAtLeastES2022 := false
 				switch strings.ToLower(value) {
 				case "es5":
 					constraints[compat.ES] = []int{5}
@@ -141,12 +174,13 @@ func ParseTSConfigJSON(
 					constraints[compat.ES] = []int{2021}
 				case "es2022":
 					constraints[compat.ES] = []int{2022}
+					targetIsAtLeastES2022 = true
 				case "esnext":
-					// Nothing to do in this case
+					targetIsAtLeastES2022 = true
 				default:
 					ok = false
 					if !helpers.IsInsideNodeModules(source.KeyPath.Text) {
-						log.Add(logger.Warning, &tracker, r,
+						log.AddID(logger.MsgID_TsconfigJSON_InvalidTarget, logger.Warning, &tracker, r,
 							fmt.Sprintf("Unrecognized target environment %q", value))
 					}
 				}
@@ -158,7 +192,34 @@ func ParseTSConfigJSON(
 						Range:                 r,
 						Target:                value,
 						UnsupportedJSFeatures: compat.UnsupportedJSFeatures(constraints),
+						TargetIsAtLeastES2022: targetIsAtLeastES2022,
 					}
+				}
+			}
+		}
+
+		// Parse "strict"
+		if valueJSON, keyLoc, ok := getProperty(compilerOptionsJSON, "strict"); ok {
+			if value, ok := getBool(valueJSON); ok {
+				valueRange := js_lexer.RangeOfIdentifier(source, valueJSON.Loc)
+				result.TSStrict = &config.TSAlwaysStrict{
+					Name:   "strict",
+					Value:  value,
+					Source: source,
+					Range:  logger.Range{Loc: keyLoc, Len: valueRange.End() - keyLoc.Start},
+				}
+			}
+		}
+
+		// Parse "alwaysStrict"
+		if valueJSON, keyLoc, ok := getProperty(compilerOptionsJSON, "alwaysStrict"); ok {
+			if value, ok := getBool(valueJSON); ok {
+				valueRange := js_lexer.RangeOfIdentifier(source, valueJSON.Loc)
+				result.TSStrict = &config.TSAlwaysStrict{
+					Name:   "alwaysStrict",
+					Value:  value,
+					Source: source,
+					Range:  logger.Range{Loc: keyLoc, Len: valueRange.End() - keyLoc.Start},
 				}
 			}
 		}
@@ -170,8 +231,10 @@ func ParseTSConfigJSON(
 				case "preserve", "error":
 					result.PreserveImportsNotUsedAsValues = true
 				case "remove":
+					// Clear away any inherited values from the base config
+					result.PreserveImportsNotUsedAsValues = false
 				default:
-					log.Add(logger.Warning, &tracker, source.RangeOfString(valueJSON.Loc),
+					log.AddID(logger.MsgID_TsconfigJSON_InvalidImportsNotUsedAsValues, logger.Warning, &tracker, source.RangeOfString(valueJSON.Loc),
 						fmt.Sprintf("Invalid value %q for \"importsNotUsedAsValues\"", value))
 				}
 			}
@@ -193,7 +256,7 @@ func ParseTSConfigJSON(
 				} else {
 					result.BaseURLForPaths = "."
 				}
-				result.Paths = make(map[string][]string)
+				result.Paths = &TSConfigPaths{Source: source, Map: make(map[string][]TSConfigPath)}
 				for _, prop := range paths.Properties {
 					if key, ok := getString(prop.Key); ok {
 						if !isValidTSConfigPathPattern(key, log, &source, &tracker, prop.Key.Loc) {
@@ -224,14 +287,13 @@ func ParseTSConfigJSON(
 						if array, ok := prop.ValueOrNil.Data.(*js_ast.EArray); ok {
 							for _, item := range array.Items {
 								if str, ok := getString(item); ok {
-									if isValidTSConfigPathPattern(str, log, &source, &tracker, item.Loc) &&
-										(hasBaseURL || isValidTSConfigPathNoBaseURLPattern(str, log, &source, &tracker, item.Loc)) {
-										result.Paths[key] = append(result.Paths[key], str)
+									if isValidTSConfigPathPattern(str, log, &source, &tracker, item.Loc) {
+										result.Paths.Map[key] = append(result.Paths.Map[key], TSConfigPath{Text: str, Loc: item.Loc})
 									}
 								}
 							}
 						} else {
-							log.Add(logger.Warning, &tracker, source.RangeOfString(prop.ValueOrNil.Loc), fmt.Sprintf(
+							log.AddID(logger.MsgID_TsconfigJSON_InvalidPaths, logger.Warning, &tracker, source.RangeOfString(prop.ValueOrNil.Loc), fmt.Sprintf(
 								"Substitutions for pattern %q should be an array", key))
 						}
 					}
@@ -251,7 +313,7 @@ func parseMemberExpressionForJSX(log logger.Log, source *logger.Source, tracker 
 	for _, part := range parts {
 		if !js_lexer.IsIdentifier(part) {
 			warnRange := source.RangeOfString(loc)
-			log.Add(logger.Warning, tracker, warnRange, fmt.Sprintf("Invalid JSX member expression: %q", text))
+			log.AddID(logger.MsgID_TsconfigJSON_InvalidJSX, logger.Warning, tracker, warnRange, fmt.Sprintf("Invalid JSX member expression: %q", text))
 			return nil
 		}
 	}
@@ -264,7 +326,7 @@ func isValidTSConfigPathPattern(text string, log logger.Log, source *logger.Sour
 		if text[i] == '*' {
 			if foundAsterisk {
 				r := source.RangeOfString(loc)
-				log.Add(logger.Warning, tracker, r, fmt.Sprintf(
+				log.AddID(logger.MsgID_TsconfigJSON_InvalidPaths, logger.Warning, tracker, r, fmt.Sprintf(
 					"Invalid pattern %q, must have at most one \"*\" character", text))
 				return false
 			}
@@ -278,7 +340,7 @@ func isSlash(c byte) bool {
 	return c == '/' || c == '\\'
 }
 
-func isValidTSConfigPathNoBaseURLPattern(text string, log logger.Log, source *logger.Source, tracker *logger.LineColumnTracker, loc logger.Loc) bool {
+func isValidTSConfigPathNoBaseURLPattern(text string, log logger.Log, source *logger.Source, tracker **logger.LineColumnTracker, loc logger.Loc) bool {
 	var c0 byte
 	var c1 byte
 	var c2 byte
@@ -315,7 +377,11 @@ func isValidTSConfigPathNoBaseURLPattern(text string, log logger.Log, source *lo
 	}
 
 	r := source.RangeOfString(loc)
-	log.Add(logger.Warning, tracker, r, fmt.Sprintf(
+	if *tracker == nil {
+		t := logger.MakeLineColumnTracker(source)
+		*tracker = &t
+	}
+	log.AddID(logger.MsgID_TsconfigJSON_InvalidPaths, logger.Warning, *tracker, r, fmt.Sprintf(
 		"Non-relative path %q is not allowed when \"baseUrl\" is not set (did you forget a leading \"./\"?)", text))
 	return false
 }

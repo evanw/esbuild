@@ -1,11 +1,4 @@
 <svg width="640" height="250" fill="black" font-family="sans-serif" xmlns="http://www.w3.org/2000/svg">
-  <style>
-    @media (prefers-color-scheme: dark) {
-      #bg { fill: #0D1116; }
-      text { fill: #C9D1D9; }
-    }
-  </style>
-  <rect id="bg" width="640" height="250" fill="white"/>
   <circle cx="125" cy="125" r="75" fill="#FFCF00"/>
   <path d="M85.625 89.375L121.25 125L85.625 160.625M130.625 89.375L166.25 125L130.625 160.625" fill="none" stroke="#191919" stroke-width="18"/>
   <text x="241" y="152" font-size="100" font-weight="bold">esbuild</text>

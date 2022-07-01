@@ -1162,13 +1162,55 @@ func TestTsconfigPreserveValueImports(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.ts": `
-				import {x, y} from "./foo"
-				import z from "./foo"
-				import * as ns from "./foo"
-				console.log(1 as x, 2 as z, 3 as ns.y)
+				import {} from "a"
+				import {b1} from "b"
+				import {c1, type c2} from "c"
+				import {d1, d2, type d3} from "d"
+				import {type e1, type e2} from "e"
+				import f1, {} from "f"
+				import g1, {g2} from "g"
+				import h1, {type h2} from "h"
+				import * as i1 from "i"
+				import "j"
 			`,
 			"/Users/user/project/src/tsconfig.json": `{
 				"compilerOptions": {
+					"preserveValueImports": true
+				}
+			}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeConvertFormat,
+			OutputFormat:  config.FormatESModule,
+			AbsOutputFile: "/Users/user/project/out.js",
+			ExternalSettings: config.ExternalSettings{
+				PostResolve: config.ExternalMatchers{Exact: map[string]bool{
+					"/Users/user/project/src/foo": true,
+				}},
+			},
+		},
+	})
+}
+
+func TestTsconfigPreserveValueImportsAndImportsNotUsedAsValuesPreserve(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.ts": `
+				import {} from "a"
+				import {b1} from "b"
+				import {c1, type c2} from "c"
+				import {d1, d2, type d3} from "d"
+				import {type e1, type e2} from "e"
+				import f1, {} from "f"
+				import g1, {g2} from "g"
+				import h1, {type h2} from "h"
+				import * as i1 from "i"
+				import "j"
+			`,
+			"/Users/user/project/src/tsconfig.json": `{
+				"compilerOptions": {
+					"importsNotUsedAsValues": "preserve",
 					"preserveValueImports": true
 				}
 			}`,
@@ -1415,5 +1457,466 @@ func TestTsconfigOverriddenTargetWarning(t *testing.T) {
 		},
 		expectedScanLog: `Users/user/project/src/entry.ts: ERROR: Top-level await is not available in the configured target environment (es2020)
 `,
+	})
+}
+
+func TestTsConfigNoBaseURLExtendsPaths(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.ts": `
+				import { foo } from "foo"
+				console.log(foo)
+			`,
+			"/Users/user/project/lib/foo.ts": `
+				export let foo = 123
+			`,
+			"/Users/user/project/tsconfig.json": `{
+				"extends": "./base/defaults"
+			}`,
+			"/Users/user/project/base/defaults.json": `{
+				"compilerOptions": {
+					"paths": {
+						"*": ["lib/*"]
+					}
+				}
+			}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expectedScanLog: `Users/user/project/base/defaults.json: WARNING: Non-relative path "lib/*" is not allowed when "baseUrl" is not set (did you forget a leading "./"?)
+Users/user/project/src/entry.ts: ERROR: Could not resolve "foo"
+NOTE: You can mark the path "foo" as external to exclude it from the bundle, which will remove this error.
+`,
+	})
+}
+
+func TestTsConfigBaseURLExtendsPaths(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.ts": `
+				import { foo } from "foo"
+				console.log(foo)
+			`,
+			"/Users/user/project/lib/foo.ts": `
+				export let foo = 123
+			`,
+			"/Users/user/project/tsconfig.json": `{
+				"extends": "./base/defaults",
+				"compilerOptions": {
+					"baseUrl": "."
+				}
+			}`,
+			"/Users/user/project/base/defaults.json": `{
+				"compilerOptions": {
+					"paths": {
+						"*": ["lib/*"]
+					}
+				}
+			}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
+func TestTsConfigPathsExtendsBaseURL(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.ts": `
+				import { foo } from "foo"
+				console.log(foo)
+			`,
+			"/Users/user/project/base/test/lib/foo.ts": `
+				export let foo = 123
+			`,
+			"/Users/user/project/tsconfig.json": `{
+				"extends": "./base/defaults",
+				"compilerOptions": {
+					"paths": {
+						"*": ["lib/*"]
+					}
+				}
+			}`,
+			"/Users/user/project/base/defaults.json": `{
+				"compilerOptions": {
+					"baseUrl": "test"
+				}
+			}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
+func TestTsConfigModuleSuffixesInsert(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.ts": `
+				import "./foo"
+				import "./bar.js"
+				import "./baz.a.js"
+			`,
+
+			"/Users/user/project/src/foo.a.ts": `console.log('foo.a')`,
+			"/Users/user/project/src/foo.b.ts": `console.log('foo.b')`,
+			"/Users/user/project/src/foo.ts":   `console.log('foo')`,
+
+			"/Users/user/project/src/bar.a.ts": `console.log('bar.a')`,
+			"/Users/user/project/src/bar.b.ts": `console.log('bar.b')`,
+			"/Users/user/project/src/bar.ts":   `console.log('bar')`,
+
+			"/Users/user/project/src/baz.a.ts": `console.log('baz.a')`,
+			"/Users/user/project/src/baz.b.ts": `console.log('baz.b')`,
+			"/Users/user/project/src/baz.ts":   `console.log('baz')`,
+
+			"/Users/user/project/tsconfig.json": `{
+				"compilerOptions": {
+					"moduleSuffixes": [".a", ".b", ""]
+				}
+			}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
+func TestTsConfigModuleSuffixesNoInsert(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.ts": `
+				import "./foo.b"
+				import "./bar.js"
+				import "./baz.b.js"
+			`,
+
+			"/Users/user/project/src/foo.a.ts": `console.log('foo.a')`,
+			"/Users/user/project/src/foo.b.ts": `console.log('foo.b')`,
+			"/Users/user/project/src/foo.ts":   `console.log('foo')`,
+
+			"/Users/user/project/src/bar.ts": `console.log('bar')`,
+
+			"/Users/user/project/src/baz.a.ts": `console.log('baz.a')`,
+			"/Users/user/project/src/baz.b.ts": `console.log('baz.b')`,
+			"/Users/user/project/src/baz.ts":   `console.log('baz')`,
+
+			"/Users/user/project/tsconfig.json": `{
+				"compilerOptions": {
+					"moduleSuffixes": [".a", ".b", ""]
+				}
+			}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
+func TestTsConfigModuleSuffixesNoEmpty(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.ts": `
+				import "./foo.js"
+				import "./bar"
+			`,
+
+			"/Users/user/project/src/foo.b.ts": `console.log('foo.b')`,
+			"/Users/user/project/src/bar.ts":   `console.log('bar')`,
+
+			"/Users/user/project/tsconfig.json": `{
+				"compilerOptions": {
+					"moduleSuffixes": [".a", ".b"]
+				}
+			}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expectedScanLog: `Users/user/project/src/entry.ts: ERROR: Could not resolve "./bar"
+`,
+	})
+}
+
+func TestTsConfigWithStatementAlwaysStrictFalse(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.ts": `
+				with (x) y
+			`,
+			"/Users/user/project/tsconfig.json": `{
+				"compilerOptions": {
+					"alwaysStrict": false
+				}
+			}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
+func TestTsConfigWithStatementAlwaysStrictTrue(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.ts": `
+				with (x) y
+			`,
+			"/Users/user/project/tsconfig.json": `{
+				"compilerOptions": {
+					"alwaysStrict": true
+				}
+			}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expectedScanLog: `Users/user/project/src/entry.ts: ERROR: With statements cannot be used in strict mode
+Users/user/project/tsconfig.json: NOTE: TypeScript's "alwaysStrict" setting was enabled here:
+`,
+	})
+}
+
+func TestTsConfigWithStatementStrictFalse(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.ts": `
+				with (x) y
+			`,
+			"/Users/user/project/tsconfig.json": `{
+				"compilerOptions": {
+					"strict": false
+				}
+			}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
+func TestTsConfigWithStatementStrictTrue(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.ts": `
+				with (x) y
+			`,
+			"/Users/user/project/tsconfig.json": `{
+				"compilerOptions": {
+					"strict": true
+				}
+			}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expectedScanLog: `Users/user/project/src/entry.ts: ERROR: With statements cannot be used in strict mode
+Users/user/project/tsconfig.json: NOTE: TypeScript's "strict" setting was enabled here:
+`,
+	})
+}
+
+func TestTsConfigWithStatementStrictFalseAlwaysStrictTrue(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.ts": `
+				with (x) y
+			`,
+			"/Users/user/project/tsconfig.json": `{
+				"compilerOptions": {
+					"strict": false,
+					"alwaysStrict": true
+				}
+			}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expectedScanLog: `Users/user/project/src/entry.ts: ERROR: With statements cannot be used in strict mode
+Users/user/project/tsconfig.json: NOTE: TypeScript's "alwaysStrict" setting was enabled here:
+`,
+	})
+}
+
+func TestTsConfigWithStatementStrictTrueAlwaysStrictFalse(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.ts": `
+				with (x) y
+			`,
+			"/Users/user/project/tsconfig.json": `{
+				"compilerOptions": {
+					"strict": true,
+					"alwaysStrict": false
+				}
+			}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
+func TestTsConfigAlwaysStrictTrueEmitDirectivePassThrough(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/implicit.ts": `
+				console.log('this file should start with "use strict"')
+			`,
+			"/Users/user/project/src/explicit.ts": `
+				'use strict'
+				console.log('this file should start with "use strict"')
+			`,
+			"/Users/user/project/tsconfig.json": `{
+				"compilerOptions": {
+					"alwaysStrict": true
+				}
+			}`,
+		},
+		entryPaths: []string{
+			"/Users/user/project/src/implicit.ts",
+			"/Users/user/project/src/explicit.ts",
+		},
+		options: config.Options{
+			Mode:         config.ModePassThrough,
+			AbsOutputDir: "/Users/user/project/out",
+		},
+	})
+}
+
+func TestTsConfigAlwaysStrictTrueEmitDirectiveFormat(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/implicit.ts": `
+				console.log('this file should start with "use strict"')
+			`,
+			"/Users/user/project/src/explicit.ts": `
+				'use strict'
+				console.log('this file should start with "use strict"')
+			`,
+			"/Users/user/project/tsconfig.json": `{
+				"compilerOptions": {
+					"alwaysStrict": true
+				}
+			}`,
+		},
+		entryPaths: []string{
+			"/Users/user/project/src/implicit.ts",
+			"/Users/user/project/src/explicit.ts",
+		},
+		options: config.Options{
+			Mode:         config.ModeConvertFormat,
+			AbsOutputDir: "/Users/user/project/out",
+		},
+	})
+}
+
+func TestTsConfigAlwaysStrictTrueEmitDirectiveBundleIIFE(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/implicit.ts": `
+				console.log('this file should start with "use strict"')
+			`,
+			"/Users/user/project/src/explicit.ts": `
+				'use strict'
+				console.log('this file should start with "use strict"')
+			`,
+			"/Users/user/project/tsconfig.json": `{
+				"compilerOptions": {
+					"alwaysStrict": true
+				}
+			}`,
+		},
+		entryPaths: []string{
+			"/Users/user/project/src/implicit.ts",
+			"/Users/user/project/src/explicit.ts",
+		},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/Users/user/project/out",
+			OutputFormat: config.FormatIIFE,
+		},
+	})
+}
+
+func TestTsConfigAlwaysStrictTrueEmitDirectiveBundleCJS(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/implicit.ts": `
+				console.log('this file should start with "use strict"')
+			`,
+			"/Users/user/project/src/explicit.ts": `
+				'use strict'
+				console.log('this file should start with "use strict"')
+			`,
+			"/Users/user/project/tsconfig.json": `{
+				"compilerOptions": {
+					"alwaysStrict": true
+				}
+			}`,
+		},
+		entryPaths: []string{
+			"/Users/user/project/src/implicit.ts",
+			"/Users/user/project/src/explicit.ts",
+		},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/Users/user/project/out",
+			OutputFormat: config.FormatCommonJS,
+		},
+	})
+}
+
+func TestTsConfigAlwaysStrictTrueEmitDirectiveBundleESM(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/implicit.ts": `
+				console.log('this file should not start with "use strict"')
+			`,
+			"/Users/user/project/src/explicit.ts": `
+				'use strict'
+				console.log('this file should not start with "use strict"')
+			`,
+			"/Users/user/project/tsconfig.json": `{
+				"compilerOptions": {
+					"alwaysStrict": true
+				}
+			}`,
+		},
+		entryPaths: []string{
+			"/Users/user/project/src/implicit.ts",
+			"/Users/user/project/src/explicit.ts",
+		},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/Users/user/project/out",
+			OutputFormat: config.FormatESModule,
+		},
 	})
 }

@@ -42,7 +42,7 @@ var helpText = func(colors logger.Colors) string {
                         is browser and cjs when platform is node)
   --loader:X=L          Use loader L to load file extension X, where L is
                         one of: js | jsx | ts | tsx | css | json | text |
-                        base64 | file | dataurl | binary
+                        base64 | file | dataurl | binary | copy
   --minify              Minify the output (sets all --minify-* flags)
   --outdir=...          The output directory (for multiple entry points)
   --outfile=...         The output file (for one entry point)
@@ -87,6 +87,7 @@ var helpText = func(colors logger.Colors) string {
   --log-level=...           Disable logging (verbose | debug | info | warning |
                             error | silent, default info)
   --log-limit=...           Maximum message count or 0 to disable (default 6)
+  --log-override:X=Y        Use log level Y for log messages with identifier X
   --main-fields=...         Override the main file order in package.json
                             (default "browser,module,main" when platform is
                             browser and "main,module" when platform is node)
@@ -112,6 +113,7 @@ var helpText = func(colors logger.Colors) string {
   --sourcemap=external      Do not link to the source map with a comment
   --sourcemap=inline        Emit the source map with an inline data URL
   --sources-content=false   Omit "sourcesContent" in generated source maps
+  --supported:F=...         Consider syntax F to be supported (true | false)
   --tree-shaking=...        Force tree shaking on or off (false | true)
   --tsconfig=...            Use this tsconfig.json file instead of other ones
   --version                 Print the current version (` + esbuildVersion + `) and exit

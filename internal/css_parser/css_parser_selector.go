@@ -36,7 +36,7 @@ func (p *parser) parseSelectorList(opts parseSelectorOpts) (list []css_ast.Compl
 		if firstHasNestPrefix && !hasNestPrefix && opts.atNestRange.Len == 0 {
 			data := p.tracker.MsgData(logger.Range{Loc: loc}, "Every selector in a nested style rule must start with \"&\"")
 			data.Location.Suggestion = "&"
-			p.log.AddMsg(logger.Msg{
+			p.log.AddMsgID(logger.MsgID_CSS_InvalidAtNest, logger.Msg{
 				Kind:  logger.Warning,
 				Data:  data,
 				Notes: []logger.MsgData{p.tracker.MsgData(firstRange, "This is a nested style rule because of the \"&\" here:")},
@@ -51,6 +51,7 @@ func (p *parser) parseSelectorList(opts parseSelectorOpts) (list []css_ast.Compl
 type parseSelectorOpts struct {
 	atNestRange  logger.Range
 	allowNesting bool
+	isTopLevel   bool
 }
 
 func (p *parser) parseComplexSelector(opts parseSelectorOpts) (result css_ast.ComplexSelector, ok bool, hasNestPrefix bool) {
@@ -90,7 +91,8 @@ func (p *parser) parseComplexSelector(opts parseSelectorOpts) (result css_ast.Co
 
 	// Validate nest selector consistency
 	if opts.atNestRange.Len != 0 && !isNestContaining {
-		p.log.AddWithNotes(logger.Warning, &p.tracker, logger.Range{Loc: loc}, "Every selector in a nested style rule must contain \"&\"",
+		p.log.AddIDWithNotes(logger.MsgID_CSS_InvalidAtNest, logger.Warning, &p.tracker, logger.Range{Loc: loc},
+			"Every selector in a nested style rule must contain \"&\"",
 			[]logger.MsgData{p.tracker.MsgData(opts.atNestRange, "This is a nested style rule because of the \"@nest\" here:")})
 	}
 
@@ -107,13 +109,13 @@ func (p *parser) nameToken() css_ast.NameToken {
 
 func (p *parser) maybeWarnAboutNesting(r logger.Range, opts parseSelectorOpts) {
 	if !opts.allowNesting {
-		p.log.Add(logger.Warning, &p.tracker, r, "CSS nesting syntax cannot be used outside of a style rule")
+		p.log.AddID(logger.MsgID_CSS_InvalidAtNest, logger.Warning, &p.tracker, r, "CSS nesting syntax cannot be used outside of a style rule")
 	} else if p.options.UnsupportedCSSFeatures.Has(compat.Nesting) {
 		text := "CSS nesting syntax is not supported in the configured target environment"
 		if p.options.OriginalTargetEnv != "" {
 			text = fmt.Sprintf("%s (%s)", text, p.options.OriginalTargetEnv)
 		}
-		p.log.Add(logger.Warning, &p.tracker, r, text)
+		p.log.AddID(logger.MsgID_CSS_InvalidAtNest, logger.Warning, &p.tracker, r, text)
 	}
 }
 
@@ -168,7 +170,6 @@ subclassSelectors:
 			p.expect(css_lexer.TIdent)
 
 		case css_lexer.TOpenBracket:
-			p.advance()
 			attr, good := p.parseAttributeSelector()
 			if !good {
 				return
@@ -230,6 +231,9 @@ subclassSelectors:
 }
 
 func (p *parser) parseAttributeSelector() (attr css_ast.SSAttribute, ok bool) {
+	matchingLoc := p.current().Range.Loc
+	p.advance()
+
 	// Parse the namespaced name
 	switch p.current().Kind {
 	case css_lexer.TDelimBar, css_lexer.TDelimAsterisk:
@@ -313,7 +317,7 @@ func (p *parser) parseAttributeSelector() (attr css_ast.SSAttribute, ok bool) {
 		}
 	}
 
-	p.expect(css_lexer.TCloseBracket)
+	p.expectWithMatchingLoc(css_lexer.TCloseBracket, matchingLoc)
 	ok = true
 	return
 }
@@ -323,9 +327,10 @@ func (p *parser) parsePseudoClassSelector() css_ast.SSPseudoClass {
 
 	if p.peek(css_lexer.TFunction) {
 		text := p.decoded()
+		matchingLoc := logger.Loc{Start: p.current().Range.End() - 1}
 		p.advance()
 		args := p.convertTokens(p.parseAnyValue())
-		p.expect(css_lexer.TCloseParen)
+		p.expectWithMatchingLoc(css_lexer.TCloseParen, matchingLoc)
 		return css_ast.SSPseudoClass{Name: text, Args: args}
 	}
 
@@ -366,6 +371,9 @@ loop:
 
 		case css_lexer.TOpenBrace:
 			p.stack = append(p.stack, css_lexer.TCloseBrace)
+
+		case css_lexer.TEndOfFile:
+			break loop
 		}
 
 		p.advance()

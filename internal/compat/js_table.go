@@ -9,10 +9,12 @@ const (
 	Edge
 	ES
 	Firefox
+	Hermes
 	IE
 	IOS
 	Node
 	Opera
+	Rhino
 	Safari
 )
 
@@ -26,6 +28,8 @@ func (e Engine) String() string {
 		return "es"
 	case Firefox:
 		return "firefox"
+	case Hermes:
+		return "hermes"
 	case IE:
 		return "ie"
 	case IOS:
@@ -34,6 +38,8 @@ func (e Engine) String() string {
 		return "node"
 	case Opera:
 		return "opera"
+	case Rhino:
+		return "rhino"
 	case Safari:
 		return "safari"
 	}
@@ -48,7 +54,7 @@ const (
 	Arrow
 	AsyncAwait
 	AsyncGenerator
-	BigInt
+	Bigint
 	Class
 	ClassField
 	ClassPrivateAccessor
@@ -60,7 +66,7 @@ const (
 	ClassPrivateStaticMethod
 	ClassStaticBlocks
 	ClassStaticField
-	Const
+	ConstAndLet
 	DefaultArgument
 	Destructuring
 	DynamicImport
@@ -72,7 +78,6 @@ const (
 	Hashbang
 	ImportAssertions
 	ImportMeta
-	Let
 	LogicalAssignment
 	NestedRestBinding
 	NewTarget
@@ -84,6 +89,12 @@ const (
 	ObjectRestSpread
 	OptionalCatchBinding
 	OptionalChain
+	RegexpDotAllFlag
+	RegexpLookbehindAssertions
+	RegexpMatchIndices
+	RegexpNamedCaptureGroups
+	RegexpStickyAndUnicodeFlags
+	RegexpUnicodePropertyEscapes
 	RestArgument
 	TemplateLiteral
 	TopLevelAwait
@@ -91,8 +102,120 @@ const (
 	UnicodeEscapes
 )
 
+var StringToJSFeature = map[string]JSFeature{
+	"arbitrary-module-namespace-names": ArbitraryModuleNamespaceNames,
+	"array-spread":                     ArraySpread,
+	"arrow":                            Arrow,
+	"async-await":                      AsyncAwait,
+	"async-generator":                  AsyncGenerator,
+	"bigint":                           Bigint,
+	"class":                            Class,
+	"class-field":                      ClassField,
+	"class-private-accessor":           ClassPrivateAccessor,
+	"class-private-brand-check":        ClassPrivateBrandCheck,
+	"class-private-field":              ClassPrivateField,
+	"class-private-method":             ClassPrivateMethod,
+	"class-private-static-accessor":    ClassPrivateStaticAccessor,
+	"class-private-static-field":       ClassPrivateStaticField,
+	"class-private-static-method":      ClassPrivateStaticMethod,
+	"class-static-blocks":              ClassStaticBlocks,
+	"class-static-field":               ClassStaticField,
+	"const-and-let":                    ConstAndLet,
+	"default-argument":                 DefaultArgument,
+	"destructuring":                    Destructuring,
+	"dynamic-import":                   DynamicImport,
+	"exponent-operator":                ExponentOperator,
+	"export-star-as":                   ExportStarAs,
+	"for-await":                        ForAwait,
+	"for-of":                           ForOf,
+	"generator":                        Generator,
+	"hashbang":                         Hashbang,
+	"import-assertions":                ImportAssertions,
+	"import-meta":                      ImportMeta,
+	"logical-assignment":               LogicalAssignment,
+	"nested-rest-binding":              NestedRestBinding,
+	"new-target":                       NewTarget,
+	"node-colon-prefix-import":         NodeColonPrefixImport,
+	"node-colon-prefix-require":        NodeColonPrefixRequire,
+	"nullish-coalescing":               NullishCoalescing,
+	"object-accessors":                 ObjectAccessors,
+	"object-extensions":                ObjectExtensions,
+	"object-rest-spread":               ObjectRestSpread,
+	"optional-catch-binding":           OptionalCatchBinding,
+	"optional-chain":                   OptionalChain,
+	"regexp-dot-all-flag":              RegexpDotAllFlag,
+	"regexp-lookbehind-assertions":     RegexpLookbehindAssertions,
+	"regexp-match-indices":             RegexpMatchIndices,
+	"regexp-named-capture-groups":      RegexpNamedCaptureGroups,
+	"regexp-sticky-and-unicode-flags":  RegexpStickyAndUnicodeFlags,
+	"regexp-unicode-property-escapes":  RegexpUnicodePropertyEscapes,
+	"rest-argument":                    RestArgument,
+	"template-literal":                 TemplateLiteral,
+	"top-level-await":                  TopLevelAwait,
+	"typeof-exotic-object-is-object":   TypeofExoticObjectIsObject,
+	"unicode-escapes":                  UnicodeEscapes,
+}
+
+var JSFeatureToString = map[JSFeature]string{
+	ArbitraryModuleNamespaceNames: "arbitrary-module-namespace-names",
+	ArraySpread:                   "array-spread",
+	Arrow:                         "arrow",
+	AsyncAwait:                    "async-await",
+	AsyncGenerator:                "async-generator",
+	Bigint:                        "bigint",
+	Class:                         "class",
+	ClassField:                    "class-field",
+	ClassPrivateAccessor:          "class-private-accessor",
+	ClassPrivateBrandCheck:        "class-private-brand-check",
+	ClassPrivateField:             "class-private-field",
+	ClassPrivateMethod:            "class-private-method",
+	ClassPrivateStaticAccessor:    "class-private-static-accessor",
+	ClassPrivateStaticField:       "class-private-static-field",
+	ClassPrivateStaticMethod:      "class-private-static-method",
+	ClassStaticBlocks:             "class-static-blocks",
+	ClassStaticField:              "class-static-field",
+	ConstAndLet:                   "const-and-let",
+	DefaultArgument:               "default-argument",
+	Destructuring:                 "destructuring",
+	DynamicImport:                 "dynamic-import",
+	ExponentOperator:              "exponent-operator",
+	ExportStarAs:                  "export-star-as",
+	ForAwait:                      "for-await",
+	ForOf:                         "for-of",
+	Generator:                     "generator",
+	Hashbang:                      "hashbang",
+	ImportAssertions:              "import-assertions",
+	ImportMeta:                    "import-meta",
+	LogicalAssignment:             "logical-assignment",
+	NestedRestBinding:             "nested-rest-binding",
+	NewTarget:                     "new-target",
+	NodeColonPrefixImport:         "node-colon-prefix-import",
+	NodeColonPrefixRequire:        "node-colon-prefix-require",
+	NullishCoalescing:             "nullish-coalescing",
+	ObjectAccessors:               "object-accessors",
+	ObjectExtensions:              "object-extensions",
+	ObjectRestSpread:              "object-rest-spread",
+	OptionalCatchBinding:          "optional-catch-binding",
+	OptionalChain:                 "optional-chain",
+	RegexpDotAllFlag:              "regexp-dot-all-flag",
+	RegexpLookbehindAssertions:    "regexp-lookbehind-assertions",
+	RegexpMatchIndices:            "regexp-match-indices",
+	RegexpNamedCaptureGroups:      "regexp-named-capture-groups",
+	RegexpStickyAndUnicodeFlags:   "regexp-sticky-and-unicode-flags",
+	RegexpUnicodePropertyEscapes:  "regexp-unicode-property-escapes",
+	RestArgument:                  "rest-argument",
+	TemplateLiteral:               "template-literal",
+	TopLevelAwait:                 "top-level-await",
+	TypeofExoticObjectIsObject:    "typeof-exotic-object-is-object",
+	UnicodeEscapes:                "unicode-escapes",
+}
+
 func (features JSFeature) Has(feature JSFeature) bool {
 	return (features & feature) != 0
+}
+
+func (features JSFeature) ApplyOverrides(overrides JSFeature, mask JSFeature) JSFeature {
+	return (features & ^mask) | (overrides & mask)
 }
 
 var jsTable = map[JSFeature]map[Engine][]versionRange{
@@ -107,6 +230,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Edge:    {{start: v{13, 0, 0}}},
 		ES:      {{start: v{2015, 0, 0}}},
 		Firefox: {{start: v{36, 0, 0}}},
+		Hermes:  {{start: v{0, 7, 0}}},
 		IOS:     {{start: v{10, 0, 0}}},
 		Node:    {{start: v{5, 0, 0}}},
 		Opera:   {{start: v{33, 0, 0}}},
@@ -117,9 +241,11 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Edge:    {{start: v{13, 0, 0}}},
 		ES:      {{start: v{2015, 0, 0}}},
 		Firefox: {{start: v{45, 0, 0}}},
+		Hermes:  {{start: v{0, 7, 0}}},
 		IOS:     {{start: v{10, 0, 0}}},
 		Node:    {{start: v{6, 0, 0}}},
 		Opera:   {{start: v{36, 0, 0}}},
+		Rhino:   {{start: v{1, 7, 13}}},
 		Safari:  {{start: v{10, 0, 0}}},
 	},
 	AsyncAwait: {
@@ -142,7 +268,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Opera:   {{start: v{50, 0, 0}}},
 		Safari:  {{start: v{12, 0, 0}}},
 	},
-	BigInt: {
+	Bigint: {
 		Chrome:  {{start: v{67, 0, 0}}},
 		Edge:    {{start: v{79, 0, 0}}},
 		ES:      {{start: v{2020, 0, 0}}},
@@ -150,6 +276,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		IOS:     {{start: v{14, 0, 0}}},
 		Node:    {{start: v{10, 4, 0}}},
 		Opera:   {{start: v{54, 0, 0}}},
+		Rhino:   {{start: v{1, 7, 14}}},
 		Safari:  {{start: v{14, 0, 0}}},
 	},
 	Class: {
@@ -243,9 +370,12 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Safari:  {{start: v{15, 0, 0}}},
 	},
 	ClassStaticBlocks: {
-		Chrome: {{start: v{91, 0, 0}}},
-		ES:     {{start: v{2022, 0, 0}}},
-		Node:   {{start: v{16, 11, 0}}},
+		Chrome:  {{start: v{91, 0, 0}}},
+		Edge:    {{start: v{94, 0, 0}}},
+		ES:      {{start: v{2022, 0, 0}}},
+		Firefox: {{start: v{93, 0, 0}}},
+		Node:    {{start: v{16, 11, 0}}},
+		Opera:   {{start: v{80, 0, 0}}},
 	},
 	ClassStaticField: {
 		Chrome:  {{start: v{73, 0, 0}}},
@@ -257,15 +387,17 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Opera:   {{start: v{60, 0, 0}}},
 		Safari:  {{start: v{14, 1, 0}}},
 	},
-	Const: {
+	ConstAndLet: {
 		Chrome:  {{start: v{49, 0, 0}}},
 		Edge:    {{start: v{14, 0, 0}}},
 		ES:      {{start: v{2015, 0, 0}}},
 		Firefox: {{start: v{51, 0, 0}}},
+		Hermes:  {{start: v{0, 7, 0}}},
 		IE:      {{start: v{11, 0, 0}}},
 		IOS:     {{start: v{11, 0, 0}}},
 		Node:    {{start: v{6, 0, 0}}},
 		Opera:   {{start: v{36, 0, 0}}},
+		Rhino:   {{start: v{1, 7, 13}}},
 		Safari:  {{start: v{11, 0, 0}}},
 	},
 	DefaultArgument: {
@@ -273,6 +405,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Edge:    {{start: v{14, 0, 0}}},
 		ES:      {{start: v{2015, 0, 0}}},
 		Firefox: {{start: v{53, 0, 0}}},
+		Hermes:  {{start: v{0, 7, 0}}},
 		IOS:     {{start: v{10, 0, 0}}},
 		Node:    {{start: v{6, 0, 0}}},
 		Opera:   {{start: v{36, 0, 0}}},
@@ -283,9 +416,11 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Edge:    {{start: v{18, 0, 0}}},
 		ES:      {{start: v{2015, 0, 0}}},
 		Firefox: {{start: v{53, 0, 0}}},
+		Hermes:  {{start: v{0, 7, 0}}},
 		IOS:     {{start: v{10, 0, 0}}},
 		Node:    {{start: v{6, 5, 0}}},
 		Opera:   {{start: v{38, 0, 0}}},
+		Rhino:   {{start: v{1, 7, 14}}},
 		Safari:  {{start: v{10, 0, 0}}},
 	},
 	DynamicImport: {
@@ -295,6 +430,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Firefox: {{start: v{67, 0, 0}}},
 		IOS:     {{start: v{11, 0, 0}}},
 		Node:    {{start: v{12, 20, 0}, end: v{13, 0, 0}}, {start: v{13, 2, 0}}},
+		Opera:   {{start: v{50, 0, 0}}},
 		Safari:  {{start: v{11, 1, 0}}},
 	},
 	ExponentOperator: {
@@ -302,9 +438,11 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Edge:    {{start: v{14, 0, 0}}},
 		ES:      {{start: v{2016, 0, 0}}},
 		Firefox: {{start: v{52, 0, 0}}},
+		Hermes:  {{start: v{0, 7, 0}}},
 		IOS:     {{start: v{10, 3, 0}}},
 		Node:    {{start: v{7, 0, 0}}},
 		Opera:   {{start: v{39, 0, 0}}},
+		Rhino:   {{start: v{1, 7, 14}}},
 		Safari:  {{start: v{10, 1, 0}}},
 	},
 	ExportStarAs: {
@@ -313,6 +451,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		ES:      {{start: v{2020, 0, 0}}},
 		Firefox: {{start: v{80, 0, 0}}},
 		Node:    {{start: v{12, 0, 0}}},
+		Opera:   {{start: v{60, 0, 0}}},
 	},
 	ForAwait: {
 		Chrome:  {{start: v{63, 0, 0}}},
@@ -329,9 +468,11 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Edge:    {{start: v{15, 0, 0}}},
 		ES:      {{start: v{2015, 0, 0}}},
 		Firefox: {{start: v{53, 0, 0}}},
+		Hermes:  {{start: v{0, 7, 0}}},
 		IOS:     {{start: v{10, 0, 0}}},
 		Node:    {{start: v{6, 5, 0}}},
 		Opera:   {{start: v{38, 0, 0}}},
+		Rhino:   {{start: v{1, 7, 13}}},
 		Safari:  {{start: v{10, 0, 0}}},
 	},
 	Generator: {
@@ -339,9 +480,11 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Edge:    {{start: v{13, 0, 0}}},
 		ES:      {{start: v{2015, 0, 0}}},
 		Firefox: {{start: v{53, 0, 0}}},
+		Hermes:  {{start: v{0, 7, 0}}},
 		IOS:     {{start: v{10, 0, 0}}},
 		Node:    {{start: v{6, 0, 0}}},
 		Opera:   {{start: v{37, 0, 0}}},
+		Rhino:   {{start: v{1, 7, 13}}},
 		Safari:  {{start: v{10, 0, 0}}},
 	},
 	Hashbang: {
@@ -364,24 +507,15 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Firefox: {{start: v{62, 0, 0}}},
 		IOS:     {{start: v{12, 0, 0}}},
 		Node:    {{start: v{10, 4, 0}}},
+		Opera:   {{start: v{51, 0, 0}}},
 		Safari:  {{start: v{11, 1, 0}}},
-	},
-	Let: {
-		Chrome:  {{start: v{49, 0, 0}}},
-		Edge:    {{start: v{14, 0, 0}}},
-		ES:      {{start: v{2015, 0, 0}}},
-		Firefox: {{start: v{51, 0, 0}}},
-		IE:      {{start: v{11, 0, 0}}},
-		IOS:     {{start: v{11, 0, 0}}},
-		Node:    {{start: v{6, 0, 0}}},
-		Opera:   {{start: v{36, 0, 0}}},
-		Safari:  {{start: v{11, 0, 0}}},
 	},
 	LogicalAssignment: {
 		Chrome:  {{start: v{85, 0, 0}}},
 		Edge:    {{start: v{85, 0, 0}}},
 		ES:      {{start: v{2021, 0, 0}}},
 		Firefox: {{start: v{79, 0, 0}}},
+		Hermes:  {{start: v{0, 7, 0}}},
 		IOS:     {{start: v{14, 0, 0}}},
 		Node:    {{start: v{15, 0, 0}}},
 		Opera:   {{start: v{71, 0, 0}}},
@@ -392,6 +526,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Edge:    {{start: v{14, 0, 0}}},
 		ES:      {{start: v{2016, 0, 0}}},
 		Firefox: {{start: v{47, 0, 0}}},
+		Hermes:  {{start: v{0, 7, 0}}},
 		IOS:     {{start: v{10, 3, 0}}},
 		Node:    {{start: v{6, 0, 0}}},
 		Opera:   {{start: v{36, 0, 0}}},
@@ -402,6 +537,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Edge:    {{start: v{14, 0, 0}}},
 		ES:      {{start: v{2015, 0, 0}}},
 		Firefox: {{start: v{41, 0, 0}}},
+		Hermes:  {{start: v{0, 7, 0}}},
 		IOS:     {{start: v{10, 0, 0}}},
 		Node:    {{start: v{5, 0, 0}}},
 		Opera:   {{start: v{33, 0, 0}}},
@@ -418,6 +554,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Edge:    {{start: v{80, 0, 0}}},
 		ES:      {{start: v{2020, 0, 0}}},
 		Firefox: {{start: v{72, 0, 0}}},
+		Hermes:  {{start: v{0, 7, 0}}},
 		IOS:     {{start: v{13, 4, 0}}},
 		Node:    {{start: v{14, 0, 0}}},
 		Opera:   {{start: v{67, 0, 0}}},
@@ -428,10 +565,12 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Edge:    {{start: v{12, 0, 0}}},
 		ES:      {{start: v{5, 0, 0}}},
 		Firefox: {{start: v{2, 0, 0}}},
+		Hermes:  {{start: v{0, 7, 0}}},
 		IE:      {{start: v{9, 0, 0}}},
 		IOS:     {{start: v{6, 0, 0}}},
-		Node:    {{start: v{0, 10, 0}}},
+		Node:    {{start: v{0, 4, 0}}},
 		Opera:   {{start: v{10, 10, 0}}},
+		Rhino:   {{start: v{1, 7, 13}}},
 		Safari:  {{start: v{3, 1, 0}}},
 	},
 	ObjectExtensions: {
@@ -439,15 +578,21 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Edge:    {{start: v{12, 0, 0}}},
 		ES:      {{start: v{2015, 0, 0}}},
 		Firefox: {{start: v{34, 0, 0}}},
+		Hermes:  {{start: v{0, 7, 0}}},
 		IOS:     {{start: v{10, 0, 0}}},
 		Node:    {{start: v{4, 0, 0}}},
 		Opera:   {{start: v{31, 0, 0}}},
+		Rhino:   {{start: v{1, 7, 14}}},
 		Safari:  {{start: v{10, 0, 0}}},
 	},
 	ObjectRestSpread: {
+		Chrome:  {{start: v{60, 0, 0}}},
+		Edge:    {{start: v{79, 0, 0}}},
 		ES:      {{start: v{2018, 0, 0}}},
 		Firefox: {{start: v{55, 0, 0}}},
+		Hermes:  {{start: v{0, 7, 0}}},
 		IOS:     {{start: v{11, 3, 0}}},
+		Node:    {{start: v{8, 3, 0}}},
 		Opera:   {{start: v{47, 0, 0}}},
 		Safari:  {{start: v{11, 1, 0}}},
 	},
@@ -456,6 +601,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Edge:    {{start: v{79, 0, 0}}},
 		ES:      {{start: v{2019, 0, 0}}},
 		Firefox: {{start: v{58, 0, 0}}},
+		Hermes:  {{start: v{0, 7, 0}}},
 		IOS:     {{start: v{11, 3, 0}}},
 		Node:    {{start: v{10, 0, 0}}},
 		Opera:   {{start: v{53, 0, 0}}},
@@ -466,16 +612,78 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Edge:    {{start: v{91, 0, 0}}},
 		ES:      {{start: v{2020, 0, 0}}},
 		Firefox: {{start: v{74, 0, 0}}},
+		Hermes:  {{start: v{0, 7, 0}}},
 		IOS:     {{start: v{13, 4, 0}}},
 		Node:    {{start: v{16, 9, 0}}},
 		Opera:   {{start: v{77, 0, 0}}},
 		Safari:  {{start: v{13, 1, 0}}},
+	},
+	RegexpDotAllFlag: {
+		Chrome:  {{start: v{62, 0, 0}}},
+		Edge:    {{start: v{79, 0, 0}}},
+		ES:      {{start: v{2018, 0, 0}}},
+		Firefox: {{start: v{78, 0, 0}}},
+		Hermes:  {{start: v{0, 7, 0}}},
+		IOS:     {{start: v{11, 3, 0}}},
+		Node:    {{start: v{8, 10, 0}}},
+		Opera:   {{start: v{49, 0, 0}}},
+		Safari:  {{start: v{11, 1, 0}}},
+	},
+	RegexpLookbehindAssertions: {
+		Chrome:  {{start: v{62, 0, 0}}},
+		Edge:    {{start: v{79, 0, 0}}},
+		ES:      {{start: v{2018, 0, 0}}},
+		Firefox: {{start: v{78, 0, 0}}},
+		Hermes:  {{start: v{0, 7, 0}}},
+		Node:    {{start: v{8, 10, 0}}},
+		Opera:   {{start: v{49, 0, 0}}},
+	},
+	RegexpMatchIndices: {
+		Chrome:  {{start: v{90, 0, 0}}},
+		Edge:    {{start: v{90, 0, 0}}},
+		ES:      {{start: v{2022, 0, 0}}},
+		Firefox: {{start: v{88, 0, 0}}},
+		IOS:     {{start: v{15, 0, 0}}},
+		Opera:   {{start: v{76, 0, 0}}},
+		Safari:  {{start: v{15, 0, 0}}},
+	},
+	RegexpNamedCaptureGroups: {
+		Chrome:  {{start: v{64, 0, 0}}},
+		Edge:    {{start: v{79, 0, 0}}},
+		ES:      {{start: v{2018, 0, 0}}},
+		Firefox: {{start: v{78, 0, 0}}},
+		IOS:     {{start: v{11, 3, 0}}},
+		Node:    {{start: v{10, 0, 0}}},
+		Opera:   {{start: v{51, 0, 0}}},
+		Safari:  {{start: v{11, 1, 0}}},
+	},
+	RegexpStickyAndUnicodeFlags: {
+		Chrome:  {{start: v{50, 0, 0}}},
+		Edge:    {{start: v{13, 0, 0}}},
+		ES:      {{start: v{2015, 0, 0}}},
+		Firefox: {{start: v{46, 0, 0}}},
+		Hermes:  {{start: v{0, 7, 0}}},
+		IOS:     {{start: v{12, 0, 0}}},
+		Node:    {{start: v{6, 0, 0}}},
+		Opera:   {{start: v{37, 0, 0}}},
+		Safari:  {{start: v{12, 0, 0}}},
+	},
+	RegexpUnicodePropertyEscapes: {
+		Chrome:  {{start: v{64, 0, 0}}},
+		Edge:    {{start: v{79, 0, 0}}},
+		ES:      {{start: v{2018, 0, 0}}},
+		Firefox: {{start: v{78, 0, 0}}},
+		IOS:     {{start: v{11, 3, 0}}},
+		Node:    {{start: v{10, 0, 0}}},
+		Opera:   {{start: v{51, 0, 0}}},
+		Safari:  {{start: v{11, 1, 0}}},
 	},
 	RestArgument: {
 		Chrome:  {{start: v{47, 0, 0}}},
 		Edge:    {{start: v{12, 0, 0}}},
 		ES:      {{start: v{2015, 0, 0}}},
 		Firefox: {{start: v{43, 0, 0}}},
+		Hermes:  {{start: v{0, 7, 0}}},
 		IOS:     {{start: v{10, 0, 0}}},
 		Node:    {{start: v{6, 0, 0}}},
 		Opera:   {{start: v{34, 0, 0}}},
@@ -486,9 +694,11 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Edge:    {{start: v{13, 0, 0}}},
 		ES:      {{start: v{2015, 0, 0}}},
 		Firefox: {{start: v{34, 0, 0}}},
+		Hermes:  {{start: v{0, 7, 0}}},
 		IOS:     {{start: v{9, 0, 0}}},
 		Node:    {{start: v{4, 0, 0}}},
 		Opera:   {{start: v{28, 0, 0}}},
+		Rhino:   {{start: v{1, 7, 14}}},
 		Safari:  {{start: v{9, 0, 0}}},
 	},
 	TopLevelAwait: {
@@ -497,6 +707,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		ES:      {{start: v{2022, 0, 0}}},
 		Firefox: {{start: v{89, 0, 0}}},
 		Node:    {{start: v{14, 8, 0}}},
+		Opera:   {{start: v{75, 0, 0}}},
 		Safari:  {{start: v{15, 0, 0}}},
 	},
 	TypeofExoticObjectIsObject: {
@@ -514,6 +725,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Edge:    {{start: v{12, 0, 0}}},
 		ES:      {{start: v{2015, 0, 0}}},
 		Firefox: {{start: v{53, 0, 0}}},
+		Hermes:  {{start: v{0, 7, 0}}},
 		IOS:     {{start: v{9, 0, 0}}},
 		Node:    {{start: v{4, 0, 0}}},
 		Opera:   {{start: v{31, 0, 0}}},

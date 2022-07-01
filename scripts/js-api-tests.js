@@ -3573,16 +3573,28 @@ let transformTests = {
   },
 
   async tsImplicitUseDefineForClassFields({ esbuild }) {
-    const { code: code1 } = await esbuild.transform(`class Foo { foo }`, {
+    var { code } = await esbuild.transform(`class Foo { foo }`, {
       loader: 'ts',
     })
-    assert.strictEqual(code1, `class Foo {\n}\n`)
+    assert.strictEqual(code, `class Foo {\n}\n`)
 
-    const { code: code2 } = await esbuild.transform(`class Foo { foo }`, {
+    var { code } = await esbuild.transform(`class Foo { foo }`, {
+      target: 'es2021',
+      loader: 'ts',
+    })
+    assert.strictEqual(code, `class Foo {\n}\n`)
+
+    var { code } = await esbuild.transform(`class Foo { foo }`, {
+      target: 'es2022',
+      loader: 'ts',
+    })
+    assert.strictEqual(code, `class Foo {\n  foo;\n}\n`)
+
+    var { code } = await esbuild.transform(`class Foo { foo }`, {
       target: 'esnext',
       loader: 'ts',
     })
-    assert.strictEqual(code2, `class Foo {\n  foo;\n}\n`)
+    assert.strictEqual(code, `class Foo {\n  foo;\n}\n`)
   },
 
   async tsconfigRawJSX({ esbuild }) {
@@ -3729,6 +3741,20 @@ let transformTests = {
   async cssCharsetUTF8({ esbuild }) {
     const { code } = await esbuild.transform(`.π:after { content: 'π' }`, { loader: 'css', charset: 'utf8' })
     assert.strictEqual(code, `.π:after {\n  content: "π";\n}\n`)
+  },
+
+  async cssSyntaxErrorWarning({ esbuild }) {
+    const { code } = await esbuild.transform(`. {}`, { loader: 'css' })
+    assert.strictEqual(code, `.\\  {\n}\n`)
+  },
+
+  async cssSyntaxErrorWarningOverride({ esbuild }) {
+    try {
+      await esbuild.transform(`. {}`, { loader: 'css', logOverride: { 'css-syntax-error': 'error' } })
+      throw new Error('Expected a transform failure')
+    } catch (e) {
+      assert.strictEqual((e && e.message || e) + '', `Transform failed with 1 error:\n<stdin>:1:1: ERROR: Expected identifier but found whitespace`)
+    }
   },
 
   async cssMinify({ esbuild }) {
@@ -3894,14 +3920,34 @@ let transformTests = {
     vm.createContext(globals)
     vm.runInContext(code, globals)
     assert.strictEqual(globals.π["π 𐀀"].𐀀["𐀀 π"].default, 123)
+    assert.strictEqual(code.slice(0, code.indexOf('(() => {\n')), `var \\u03C0;
+(((\\u03C0 ||= {})["\\u03C0 \\uD800\\uDC00"] ||= {})["\\uD800\\uDC00"] ||= {})["\\uD800\\uDC00 \\u03C0"] = `)
+  },
+
+  async iifeGlobalNameUnicodeNoEscape({ esbuild }) {
+    const { code } = await esbuild.transform(`export default 123`, { format: 'iife', globalName: 'π["π 𐀀"].𐀀["𐀀 π"]', charset: 'utf8' })
+    const globals = {}
+    vm.createContext(globals)
+    vm.runInContext(code, globals)
+    assert.strictEqual(globals.π["π 𐀀"].𐀀["𐀀 π"].default, 123)
+    assert.strictEqual(code.slice(0, code.indexOf('(() => {\n')), `var π;
+(((π ||= {})["π 𐀀"] ||= {})["𐀀"] ||= {})["𐀀 π"] = `)
+  },
+
+  async iifeGlobalNameUnicodeEscapeNoLogicalAssignment({ esbuild }) {
+    const { code } = await esbuild.transform(`export default 123`, { format: 'iife', globalName: 'π["π 𐀀"].𐀀["𐀀 π"]', supported: { 'logical-assignment': false } })
+    const globals = {}
+    vm.createContext(globals)
+    vm.runInContext(code, globals)
+    assert.strictEqual(globals.π["π 𐀀"].𐀀["𐀀 π"].default, 123)
     assert.strictEqual(code.slice(0, code.indexOf('(() => {\n')), `var \\u03C0 = \\u03C0 || {};
 \\u03C0["\\u03C0 \\uD800\\uDC00"] = \\u03C0["\\u03C0 \\uD800\\uDC00"] || {};
 \\u03C0["\\u03C0 \\uD800\\uDC00"]["\\uD800\\uDC00"] = \\u03C0["\\u03C0 \\uD800\\uDC00"]["\\uD800\\uDC00"] || {};
 \\u03C0["\\u03C0 \\uD800\\uDC00"]["\\uD800\\uDC00"]["\\uD800\\uDC00 \\u03C0"] = `)
   },
 
-  async iifeGlobalNameUnicodeNoEscape({ esbuild }) {
-    const { code } = await esbuild.transform(`export default 123`, { format: 'iife', globalName: 'π["π 𐀀"].𐀀["𐀀 π"]', charset: 'utf8' })
+  async iifeGlobalNameUnicodeNoEscapeNoLogicalAssignment({ esbuild }) {
+    const { code } = await esbuild.transform(`export default 123`, { format: 'iife', globalName: 'π["π 𐀀"].𐀀["𐀀 π"]', supported: { 'logical-assignment': false }, charset: 'utf8' })
     const globals = {}
     vm.createContext(globals)
     vm.runInContext(code, globals)
@@ -3989,15 +4035,30 @@ let transformTests = {
   },
 
   async defineBuiltInConstants({ esbuild }) {
-    const define = { a: 'NaN', b: 'Infinity', c: 'undefined', d: 'something' }
-    const { code } = await esbuild.transform(`console.log([typeof a, typeof b, typeof c, typeof d])`, { define })
-    assert.strictEqual(code, `console.log(["number", "number", "undefined", typeof something]);\n`)
+    const define = { a: 'NaN', b: 'Infinity', c: 'undefined', d: 'something', e: 'null' }
+    const { code } = await esbuild.transform(`console.log([typeof a, typeof b, typeof c, typeof d, typeof e])`, { define })
+    assert.strictEqual(code, `console.log(["number", "number", "undefined", typeof something, "object"]);\n`)
   },
 
   async defineArray({ esbuild }) {
     const define = { 'process.env.NODE_ENV': '[1,2,3]', 'something.else': '[2,3,4]' }
     const { code } = await esbuild.transform(`console.log(process.env.NODE_ENV)`, { define })
     assert.strictEqual(code, `var define_process_env_NODE_ENV_default = [1, 2, 3];\nconsole.log(define_process_env_NODE_ENV_default);\n`)
+  },
+
+  async defineThis({ esbuild }) {
+    const { code } = await esbuild.transform(`console.log(a, b); export {}`, { define: { a: 'this', b: 'this.foo' }, format: 'esm' })
+    assert.strictEqual(code, `console.log(void 0, (void 0).foo);\n`)
+  },
+
+  async defineImportMetaESM({ esbuild }) {
+    const { code } = await esbuild.transform(`console.log(a, b); export {}`, { define: { a: 'import.meta', b: 'import.meta.foo' }, format: 'esm' })
+    assert.strictEqual(code, `console.log(import.meta, import.meta.foo);\n`)
+  },
+
+  async defineImportMetaIIFE({ esbuild }) {
+    const { code } = await esbuild.transform(`console.log(a, b); export {}`, { define: { a: 'import.meta', b: 'import.meta.foo' }, format: 'iife' })
+    assert.strictEqual(code, `(() => {\n  const import_meta = {};\n  console.log(import_meta, import_meta.foo);\n})();\n`)
   },
 
   async json({ esbuild }) {
@@ -4464,6 +4525,77 @@ let transformTests = {
       assert.strictEqual(e.errors[0].text,
         'Big integer literals are not available in the configured target environment ("chrome1", "es5", "firefox3", "safari2")')
     }
+  },
+
+  async supported({ esbuild }) {
+    const check = async (options, input, expected) => {
+      try {
+        assert.strictEqual((await esbuild.transform(input, options)).code, expected)
+      } catch (e) {
+        if (e.errors) assert.strictEqual(e.errors[0].text, expected)
+        else throw e
+      }
+    }
+
+    await Promise.all([
+      // JS: lower
+      check({ supported: { arrow: true } }, `x = () => y`, `x = () => y;\n`),
+      check({ supported: { arrow: false } }, `x = () => y`, `x = function() {\n  return y;\n};\n`),
+      check({ supported: { arrow: true }, target: 'es5' }, `x = () => y`, `x = () => y;\n`),
+      check({ supported: { arrow: false }, target: 'es5' }, `x = () => y`, `x = function() {\n  return y;\n};\n`),
+      check({ supported: { arrow: true }, target: 'es2022' }, `x = () => y`, `x = () => y;\n`),
+      check({ supported: { arrow: false }, target: 'es2022' }, `x = () => y`, `x = function() {\n  return y;\n};\n`),
+
+      // JS: error
+      check({ supported: { bigint: true } }, `x = 1n`, `x = 1n;\n`),
+      check({ supported: { bigint: false } }, `x = 1n`, `Big integer literals are not available in the configured target environment`),
+      check({ supported: { bigint: true }, target: 'es5' }, `x = 1n`, `x = 1n;\n`),
+      check({ supported: { bigint: false }, target: 'es5' }, `x = 1n`, `Big integer literals are not available in the configured target environment ("es5" + 1 override)`),
+      check({ supported: { bigint: true }, target: 'es2022' }, `x = 1n`, `x = 1n;\n`),
+      check({ supported: { bigint: false }, target: 'es2022' }, `x = 1n`, `Big integer literals are not available in the configured target environment ("es2022" + 1 override)`),
+
+      // CSS: lower
+      check({ supported: { 'hex-rgba': true }, loader: 'css' }, `a { color: #1234 }`, `a {\n  color: #1234;\n}\n`),
+      check({ supported: { 'hex-rgba': false }, loader: 'css' }, `a { color: #1234 }`, `a {\n  color: rgba(17, 34, 51, 0.267);\n}\n`),
+
+      // Check for "+ 2 overrides"
+      check({ supported: { bigint: false, arrow: true }, target: 'es2022' }, `x = 1n`, `Big integer literals are not available in the configured target environment ("es2022" + 2 overrides)`),
+    ])
+  },
+
+  async regExpFeatures({ esbuild }) {
+    const check = async (target, input, expected) =>
+      assert.strictEqual((await esbuild.transform(input, { target })).code, expected)
+
+    await Promise.all([
+      // RegExpStickyAndUnicodeFlags
+      check('es6', `x1 = /./y`, `x1 = /./y;\n`),
+      check('es6', `x2 = /./u`, `x2 = /./u;\n`),
+      check('es5', `x3 = /./y`, `x3 = new RegExp(".", "y");\n`),
+      check('es5', `x4 = /./u`, `x4 = new RegExp(".", "u");\n`),
+
+      // RegExpDotAllFlag
+      check('es2018', `x1 = /a.b/s`, `x1 = /a.b/s;\n`),
+      check('es2017', `x2 = /a.b/s`, `x2 = new RegExp("a.b", "s");\n`),
+
+      // RegExpLookbehindAssertions
+      check('es2018', `x1 = /(?<=x)/`, `x1 = /(?<=x)/;\n`),
+      check('es2018', `x2 = /(?<!x)/`, `x2 = /(?<!x)/;\n`),
+      check('es2017', `x3 = /(?<=x)/`, `x3 = new RegExp("(?<=x)");\n`),
+      check('es2017', `x4 = /(?<!x)/`, `x4 = new RegExp("(?<!x)");\n`),
+
+      // RegExpNamedCaptureGroups
+      check('es2018', `x1 = /(?<a>b)/`, `x1 = /(?<a>b)/;\n`),
+      check('es2017', `x2 = /(?<a>b)/`, `x2 = new RegExp("(?<a>b)");\n`),
+
+      // RegExpUnicodePropertyEscapes
+      check('es2018', `x1 = /\\p{Emoji}/u`, `x1 = /\\p{Emoji}/u;\n`),
+      check('es2017', `x2 = /\\p{Emoji}/u`, `x2 = new RegExp("\\\\p{Emoji}", "u");\n`),
+
+      // RegExpMatchIndices
+      check('es2022', `x1 = /y/d`, `x1 = /y/d;\n`),
+      check('es2021', `x2 = /y/d`, `x2 = new RegExp("y", "d");\n`),
+    ])
   },
 
   // Future syntax

@@ -13,15 +13,10 @@ import (
 )
 
 type JSXOptions struct {
-	Factory  JSXExpr
-	Fragment JSXExpr
+	Factory  DefineExpr
+	Fragment DefineExpr
 	Parse    bool
 	Preserve bool
-}
-
-type JSXExpr struct {
-	Constant js_ast.E
-	Parts    []string
 }
 
 type TSOptions struct {
@@ -65,19 +60,20 @@ type Loader uint8
 
 const (
 	LoaderNone Loader = iota
+	LoaderBase64
+	LoaderBinary
+	LoaderCopy
+	LoaderCSS
+	LoaderDataURL
+	LoaderDefault
+	LoaderFile
 	LoaderJS
+	LoaderJSON
 	LoaderJSX
+	LoaderText
 	LoaderTS
 	LoaderTSNoAmbiguousLessThan // Used with ".mts" and ".cts"
 	LoaderTSX
-	LoaderJSON
-	LoaderText
-	LoaderBase64
-	LoaderDataURL
-	LoaderFile
-	LoaderBinary
-	LoaderCSS
-	LoaderDefault
 )
 
 func (loader Loader) IsTypeScript() bool {
@@ -199,6 +195,7 @@ type Options struct {
 	ModuleTypeData js_ast.ModuleTypeData
 	Defines        *ProcessedDefines
 	TSTarget       *TSTarget
+	TSAlwaysStrict *TSAlwaysStrict
 	MangleProps    *regexp.Regexp
 	ReserveProps   *regexp.Regexp
 
@@ -258,6 +255,11 @@ type Options struct {
 	UnsupportedJSFeatures  compat.JSFeature
 	UnsupportedCSSFeatures compat.CSSFeature
 
+	UnsupportedJSFeatureOverrides      compat.JSFeature
+	UnsupportedJSFeatureOverridesMask  compat.JSFeature
+	UnsupportedCSSFeatureOverrides     compat.CSSFeature
+	UnsupportedCSSFeatureOverridesMask compat.CSSFeature
+
 	TS                TSOptions
 	Mode              Mode
 	PreserveSymlinks  bool
@@ -274,7 +276,7 @@ type Options struct {
 	WriteToStdout bool
 
 	OmitRuntimeForTests     bool
-	UnusedImportsTS         UnusedImportsTS
+	UnusedImportFlagsTS     UnusedImportFlagsTS
 	UseDefineForClassFields MaybeBool
 	ASCIIOnly               bool
 	KeepNames               bool
@@ -300,37 +302,73 @@ const (
 	TargetWasConfigured
 
 	// In this state, "useDefineForClassFields" is true unless overridden
-	TargetWasConfiguredIncludingESNext
+	TargetWasConfiguredAndAtLeastES2022
 )
 
-type UnusedImportsTS uint8
+type UnusedImportFlagsTS uint8
 
+// With !UnusedImportKeepStmt && !UnusedImportKeepValues:
+//
+//   "import 'foo'"                      => "import 'foo'"
+//   "import * as unused from 'foo'"     => ""
+//   "import { unused } from 'foo'"      => ""
+//   "import { type unused } from 'foo'" => ""
+//
+// With UnusedImportKeepStmt && !UnusedImportKeepValues:
+//
+//   "import 'foo'"                      => "import 'foo'"
+//   "import * as unused from 'foo'"     => "import 'foo'"
+//   "import { unused } from 'foo'"      => "import 'foo'"
+//   "import { type unused } from 'foo'" => "import 'foo'"
+//
+// With !UnusedImportKeepStmt && UnusedImportKeepValues:
+//
+//   "import 'foo'"                      => "import 'foo'"
+//   "import * as unused from 'foo'"     => "import * as unused from 'foo'"
+//   "import { unused } from 'foo'"      => "import { unused } from 'foo'"
+//   "import { type unused } from 'foo'" => ""
+//
+// With UnusedImportKeepStmt && UnusedImportKeepValues:
+//
+//   "import 'foo'"                      => "import 'foo'"
+//   "import * as unused from 'foo'"     => "import * as unused from 'foo'"
+//   "import { unused } from 'foo'"      => "import { unused } from 'foo'"
+//   "import { type unused } from 'foo'" => "import {} from 'foo'"
+//
 const (
-	// "import { unused } from 'foo'" => "" (TypeScript's default behavior)
-	UnusedImportsRemoveStmt UnusedImportsTS = iota
-
-	// "import { unused } from 'foo'" => "import 'foo'" ("importsNotUsedAsValues" != "remove")
-	UnusedImportsKeepStmtRemoveValues
-
-	// "import { unused } from 'foo'" => "import { unused } from 'foo'" ("preserveValueImports" == true)
-	UnusedImportsKeepValues
+	UnusedImportKeepStmt   UnusedImportFlagsTS = 1 << iota // "importsNotUsedAsValues" != "remove"
+	UnusedImportKeepValues                                 // "preserveValueImports" == true
 )
 
-func UnusedImportsFromTsconfigValues(preserveImportsNotUsedAsValues bool, preserveValueImports bool) UnusedImportsTS {
+func UnusedImportFlagsFromTsconfigValues(preserveImportsNotUsedAsValues bool, preserveValueImports bool) (flags UnusedImportFlagsTS) {
 	if preserveValueImports {
-		return UnusedImportsKeepValues
+		flags |= UnusedImportKeepValues
 	}
 	if preserveImportsNotUsedAsValues {
-		return UnusedImportsKeepStmtRemoveValues
+		flags |= UnusedImportKeepStmt
 	}
-	return UnusedImportsRemoveStmt
+	return
 }
 
 type TSTarget struct {
-	Target                string
-	Source                logger.Source
-	Range                 logger.Range
+	// This information is only used for error messages
+	Target string
+	Source logger.Source
+	Range  logger.Range
+
+	// This information can affect code transformation
 	UnsupportedJSFeatures compat.JSFeature
+	TargetIsAtLeastES2022 bool
+}
+
+type TSAlwaysStrict struct {
+	// This information is only used for error messages
+	Name   string
+	Source logger.Source
+	Range  logger.Range
+
+	// This information can affect code transformation
+	Value bool
 }
 
 type PathPlaceholder uint8

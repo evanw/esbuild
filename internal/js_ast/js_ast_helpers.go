@@ -346,9 +346,13 @@ func ConvertBindingToExpr(binding Binding, wrapIdentifier func(logger.Loc, Ref) 
 			if property.IsSpread {
 				kind = PropertySpread
 			}
+			var flags PropertyFlags
+			if property.IsComputed {
+				flags |= PropertyIsComputed
+			}
 			properties[i] = Property{
 				Kind:             kind,
-				IsComputed:       property.IsComputed,
+				Flags:            flags,
 				Key:              property.Key,
 				ValueOrNil:       value,
 				InitializerOrNil: property.DefaultValueOrNil,
@@ -518,7 +522,7 @@ func SimplifyUnusedExpr(expr Expr, unsupportedFeatures compat.JSFeature, isUnbou
 						if value.Data != nil {
 							// Keep the value
 							property.ValueOrNil = value
-						} else if !property.IsComputed {
+						} else if !property.Flags.Has(PropertyIsComputed) {
 							// Skip this property if the key doesn't need to be computed
 							continue
 						} else {
@@ -538,7 +542,7 @@ func SimplifyUnusedExpr(expr Expr, unsupportedFeatures compat.JSFeature, isUnbou
 		// object properties with side effects. Apply this simplification recursively.
 		var result Expr
 		for _, property := range e.Properties {
-			if property.IsComputed {
+			if property.Flags.Has(PropertyIsComputed) {
 				// Make sure "ToString" is still evaluated on the key
 				result = JoinWithComma(result, Expr{Loc: property.Key.Loc, Data: &EBinary{
 					Op:    BinOpAdd,
@@ -670,10 +674,11 @@ func SimplifyUnusedExpr(expr Expr, unsupportedFeatures compat.JSFeature, isUnbou
 		// A call that has been marked "__PURE__" can be removed if all arguments
 		// can be removed. The annotation causes us to ignore the target.
 		if e.CanBeUnwrappedIfUnused {
-			expr = Expr{}
+			var result Expr
 			for _, arg := range e.Args {
-				expr = JoinWithComma(expr, SimplifyUnusedExpr(arg, unsupportedFeatures, isUnbound))
+				result = JoinWithComma(result, SimplifyUnusedExpr(arg, unsupportedFeatures, isUnbound))
 			}
+			return result
 		}
 
 		// Attempt to shorten IIFEs
@@ -725,10 +730,11 @@ func SimplifyUnusedExpr(expr Expr, unsupportedFeatures compat.JSFeature, isUnbou
 		// A constructor call that has been marked "__PURE__" can be removed if all
 		// arguments can be removed. The annotation causes us to ignore the target.
 		if e.CanBeUnwrappedIfUnused {
-			expr = Expr{}
+			var result Expr
 			for _, arg := range e.Args {
-				expr = JoinWithComma(expr, SimplifyUnusedExpr(arg, unsupportedFeatures, isUnbound))
+				result = JoinWithComma(result, SimplifyUnusedExpr(arg, unsupportedFeatures, isUnbound))
 			}
+			return result
 		}
 	}
 

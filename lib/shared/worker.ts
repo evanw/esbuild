@@ -1,11 +1,17 @@
 // This file is part of the web worker source code
 
+interface Go {
+  argv: string[]
+  importObject: WebAssembly.Imports
+  run(instance: WebAssembly.Instance): void
+}
+
 declare const ESBUILD_VERSION: string;
 declare function postMessage(message: any): void;
 
-onmessage = ({ data: wasm }) => {
+onmessage = ({ data: wasm }: { data: ArrayBuffer | WebAssembly.Module }) => {
   let decoder = new TextDecoder()
-  let fs = (global as any).fs
+  let fs = (globalThis as any).fs
 
   let stderr = ''
   fs.writeSync = (fd: number, buffer: Uint8Array) => {
@@ -57,9 +63,14 @@ onmessage = ({ data: wasm }) => {
     callback(null, count)
   }
 
-  let go = new (global as any).Go()
+  let go: Go = new (globalThis as any).Go()
   go.argv = ['', `--service=${ESBUILD_VERSION}`]
 
-  WebAssembly.instantiate(wasm, go.importObject)
-    .then(({ instance }) => go.run(instance))
+  if (wasm instanceof WebAssembly.Module) {
+    WebAssembly.instantiate(wasm, go.importObject)
+      .then(instance => go.run(instance))
+  } else {
+    WebAssembly.instantiate(wasm, go.importObject)
+      .then(({ instance }) => go.run(instance))
+  }
 }
