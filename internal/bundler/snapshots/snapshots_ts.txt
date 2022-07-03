@@ -1,3 +1,9 @@
+TestConstEnumComments
+---------- /out.js ----------
+// foo.ts
+console.log(14);
+
+================================================================================
 TestExportTypeIssue379
 ---------- /out.js ----------
 // a.ts

@@ -223,6 +223,28 @@ func TestTSDeclareConstEnum(t *testing.T) {
 	})
 }
 
+func TestConstEnumComments(t *testing.T) {
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/bar.ts": `
+			export const enum PRCD {
+				"*/%" = 14,
+			}
+			`,
+			"/foo.ts": `
+			import { PRCD } from "./bar";
+
+			console.log(PRCD["*/%"]);
+			`,
+		},
+		entryPaths: []string{"/foo.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
 func TestTSImportEmptyNamespace(t *testing.T) {
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
