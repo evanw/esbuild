@@ -29,6 +29,7 @@
     "esbuild-linux-ppc64le": "0.14.48",
     "esbuild-linux-riscv64": "0.14.48",
     "esbuild-linux-s390x": "0.14.48",
+    "esbuild-linux-loong64": "0.14.48",
     "esbuild-netbsd-64": "0.14.48",
     "esbuild-openbsd-64": "0.14.48",
     "esbuild-sunos-64": "0.14.48",

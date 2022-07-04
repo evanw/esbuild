@@ -263,6 +263,7 @@ platform-all:
 		platform-linux-ppc64le \
 		platform-linux-riscv64 \
 		platform-linux-s390x \
+		platform-linux-loong64 \
 		platform-netbsd \
 		platform-neutral \
 		platform-openbsd \
@@ -339,6 +340,9 @@ platform-linux-riscv64:
 platform-linux-s390x:
 	@$(MAKE) --no-print-directory GOOS=linux GOARCH=s390x NPMDIR=npm/esbuild-linux-s390x platform-unixlike
 
+platform-linux-loong64:
+	@$(MAKE) --no-print-directory GOOS=linux GOARCH=loong64 NPMDIR=npm/esbuild-linux-loong64 platform-unixlike
+	
 platform-sunos:
 	@$(MAKE) --no-print-directory GOOS=illumos GOARCH=amd64 NPMDIR=npm/esbuild-sunos-64 platform-unixlike
 
@@ -408,7 +412,8 @@ publish-all: check-go-version
 		publish-linux-arm64 \
 		publish-linux-mips64le \
 		publish-linux-ppc64le \
-		publish-linux-s390x
+		publish-linux-s390x \
+		publish-linux-loong64
 
 	# Do these last to avoid race conditions
 	@echo Enter one-time password:
@@ -476,6 +481,9 @@ publish-linux-riscv64: platform-linux-riscv64
 publish-linux-s390x: platform-linux-s390x
 	test -n "$(OTP)" && cd npm/esbuild-linux-s390x && npm publish --otp="$(OTP)"
 
+publish-linux-loong64: platform-linux-loong64
+	test -n "$(OTP)" && cd npm/esbuild-linux-loong64 && npm publish --otp="$(OTP)"
+
 publish-sunos: platform-sunos
 	test -n "$(OTP)" && cd npm/esbuild-sunos-64 && npm publish --otp="$(OTP)"
 
@@ -525,6 +533,7 @@ validate-builds:
 	@$(MAKE) --no-print-directory TARGET=platform-linux-ppc64le PACKAGE=esbuild-linux-ppc64le SUBPATH=bin/esbuild validate-build
 	@$(MAKE) --no-print-directory TARGET=platform-linux-riscv64 PACKAGE=esbuild-linux-riscv64 SUBPATH=bin/esbuild validate-build
 	@$(MAKE) --no-print-directory TARGET=platform-linux-s390x PACKAGE=esbuild-linux-s390x SUBPATH=bin/esbuild validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-linux-loong64 PACKAGE=esbuild-linux-loong64 SUBPATH=bin/esbuild validate-build
 	@$(MAKE) --no-print-directory TARGET=platform-netbsd PACKAGE=esbuild-netbsd-64 SUBPATH=bin/esbuild validate-build
 	@$(MAKE) --no-print-directory TARGET=platform-openbsd PACKAGE=esbuild-openbsd-64 SUBPATH=bin/esbuild validate-build
 	@$(MAKE) --no-print-directory TARGET=platform-sunos PACKAGE=esbuild-sunos-64 SUBPATH=bin/esbuild validate-build
@@ -553,6 +562,7 @@ clean:
 	rm -rf npm/esbuild-linux-ppc64le/bin
 	rm -rf npm/esbuild-linux-riscv64/bin
 	rm -rf npm/esbuild-linux-s390x/bin
+	rm -rf npm/esbuild-linux-loong64/bin
 	rm -rf npm/esbuild-netbsd-64/bin
 	rm -rf npm/esbuild-openbsd-64/bin
 	rm -rf npm/esbuild-sunos-64/bin
