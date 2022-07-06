@@ -9666,7 +9666,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			if c.ValueOrNil.Data != nil {
 				c.ValueOrNil = p.visitExpr(c.ValueOrNil)
 				p.warnAboutEqualityCheck("case", c.ValueOrNil, c.ValueOrNil.Loc)
-				p.warnAboutTypeofAndString(s.Test, c.ValueOrNil)
+				p.warnAboutTypeofAndString(s.Test, c.ValueOrNil, onlyCheckOriginalOrder)
 			}
 			c.Body = p.visitStmts(c.Body, stmtsNormal)
 
@@ -10820,7 +10820,20 @@ func (p *parser) checkForUnrepresentableIdentifier(loc logger.Loc, name string) 
 	}
 }
 
-func (p *parser) warnAboutTypeofAndString(a js_ast.Expr, b js_ast.Expr) {
+type typeofStringOrder uint8
+
+const (
+	onlyCheckOriginalOrder typeofStringOrder = iota
+	checkBothOrders
+)
+
+func (p *parser) warnAboutTypeofAndString(a js_ast.Expr, b js_ast.Expr, order typeofStringOrder) {
+	if order == checkBothOrders {
+		if _, ok := a.Data.(*js_ast.EString); ok {
+			a, b = b, a
+		}
+	}
+
 	if typeof, ok := a.Data.(*js_ast.EUnary); ok && typeof.Op == js_ast.UnOpTypeof {
 		if str, ok := b.Data.(*js_ast.EString); ok {
 			value := helpers.UTF16ToString(str.Value)
@@ -10856,15 +10869,22 @@ func canChangeStrictToLoose(a js_ast.Expr, b js_ast.Expr) bool {
 }
 
 func (p *parser) maybeSimplifyEqualityComparison(loc logger.Loc, e *js_ast.EBinary) (js_ast.Expr, bool) {
+	value, primitive := e.Left, e.Right
+
+	// Detect when the primitive comes first and flip the order of our checks
+	if isPrimitiveLiteral(value.Data) {
+		value, primitive = primitive, value
+	}
+
 	// "!x === true" => "!x"
 	// "!x === false" => "!!x"
 	// "!x !== true" => "!!x"
 	// "!x !== false" => "!x"
-	if boolean, ok := e.Right.Data.(*js_ast.EBoolean); ok && js_ast.KnownPrimitiveType(e.Left) == js_ast.PrimitiveBoolean {
+	if boolean, ok := primitive.Data.(*js_ast.EBoolean); ok && js_ast.KnownPrimitiveType(value) == js_ast.PrimitiveBoolean {
 		if boolean.Value == (e.Op == js_ast.BinOpLooseNe || e.Op == js_ast.BinOpStrictNe) {
-			return js_ast.Not(e.Left), true
+			return js_ast.Not(value), true
 		} else {
-			return e.Left, true
+			return value, true
 		}
 	}
 
@@ -10875,17 +10895,18 @@ func (p *parser) maybeSimplifyEqualityComparison(loc logger.Loc, e *js_ast.EBina
 		// return something random. The only case of this happening was Internet
 		// Explorer returning "unknown" for some objects, which messes with this
 		// optimization. So we don't do this when targeting Internet Explorer.
-		if typeof, ok := e.Left.Data.(*js_ast.EUnary); ok && typeof.Op == js_ast.UnOpTypeof {
-			if str, ok := e.Right.Data.(*js_ast.EString); ok && helpers.UTF16EqualsString(str.Value, "undefined") {
+		if typeof, ok := value.Data.(*js_ast.EUnary); ok && typeof.Op == js_ast.UnOpTypeof {
+			if str, ok := primitive.Data.(*js_ast.EString); ok && helpers.UTF16EqualsString(str.Value, "undefined") {
+				flip := value == e.Right
 				op := js_ast.BinOpLt
-				if e.Op == js_ast.BinOpLooseEq || e.Op == js_ast.BinOpStrictEq {
+				if (e.Op == js_ast.BinOpLooseEq || e.Op == js_ast.BinOpStrictEq) != flip {
 					op = js_ast.BinOpGt
 				}
-				return js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
-					Op:    op,
-					Left:  e.Left,
-					Right: js_ast.Expr{Loc: e.Right.Loc, Data: &js_ast.EString{Value: []uint16{'u'}}},
-				}}, true
+				primitive.Data = &js_ast.EString{Value: []uint16{'u'}}
+				if flip {
+					value, primitive = primitive, value
+				}
+				return js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{Op: op, Left: value, Right: primitive}}, true
 			}
 		}
 	}
@@ -11477,18 +11498,29 @@ func stringToEquivalentNumberValue(value []uint16) (float64, bool) {
 func isBinaryNullAndUndefined(left js_ast.Expr, right js_ast.Expr, op js_ast.OpCode) (js_ast.Expr, js_ast.Expr, bool) {
 	if a, ok := left.Data.(*js_ast.EBinary); ok && a.Op == op {
 		if b, ok := right.Data.(*js_ast.EBinary); ok && b.Op == op {
-			if idA, ok := a.Left.Data.(*js_ast.EIdentifier); ok {
-				if idB, ok := b.Left.Data.(*js_ast.EIdentifier); ok && idA.Ref == idB.Ref {
+			idA, eqA := a.Left, a.Right
+			idB, eqB := b.Left, b.Right
+
+			// Detect when the identifier comes second and flip the order of our checks
+			if _, ok := eqA.Data.(*js_ast.EIdentifier); ok {
+				idA, eqA = eqA, idA
+			}
+			if _, ok := eqB.Data.(*js_ast.EIdentifier); ok {
+				idB, eqB = eqB, idB
+			}
+
+			if idA, ok := idA.Data.(*js_ast.EIdentifier); ok {
+				if idB, ok := idB.Data.(*js_ast.EIdentifier); ok && idA.Ref == idB.Ref {
 					// "a === null || a === void 0"
-					if _, ok := a.Right.Data.(*js_ast.ENull); ok {
-						if _, ok := b.Right.Data.(*js_ast.EUndefined); ok {
+					if _, ok := eqA.Data.(*js_ast.ENull); ok {
+						if _, ok := eqB.Data.(*js_ast.EUndefined); ok {
 							return a.Left, a.Right, true
 						}
 					}
 
 					// "a === void 0 || a === null"
-					if _, ok := a.Right.Data.(*js_ast.EUndefined); ok {
-						if _, ok := b.Right.Data.(*js_ast.ENull); ok {
+					if _, ok := eqA.Data.(*js_ast.EUndefined); ok {
+						if _, ok := eqB.Data.(*js_ast.ENull); ok {
 							return b.Left, b.Right, true
 						}
 					}
@@ -12164,16 +12196,6 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 		p.fnOnlyDataVisit.silenceWarningAboutThisBeingUndefined = oldSilenceWarningAboutThisBeingUndefined
 
-		// Always put constants on the right for equality comparisons to help
-		// reduce the number of cases we have to check during pattern matching. We
-		// can only reorder expressions that do not have any side effects.
-		switch e.Op {
-		case js_ast.BinOpLooseEq, js_ast.BinOpLooseNe, js_ast.BinOpStrictEq, js_ast.BinOpStrictNe:
-			if isPrimitiveLiteral(e.Left.Data) && !isPrimitiveLiteral(e.Right.Data) {
-				e.Left, e.Right = e.Right, e.Left
-			}
-		}
-
 		// Post-process the binary expression
 		switch e.Op {
 		case js_ast.BinOpComma:
@@ -12200,11 +12222,13 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			if !p.warnAboutEqualityCheck("==", e.Left, afterOpLoc) {
 				p.warnAboutEqualityCheck("==", e.Right, afterOpLoc)
 			}
-			p.warnAboutTypeofAndString(e.Left, e.Right)
+			p.warnAboutTypeofAndString(e.Left, e.Right, checkBothOrders)
 
 			if p.options.minifySyntax {
 				// "x == void 0" => "x == null"
-				if _, ok := e.Right.Data.(*js_ast.EUndefined); ok {
+				if _, ok := e.Left.Data.(*js_ast.EUndefined); ok {
+					e.Left.Data = js_ast.ENullShared
+				} else if _, ok := e.Right.Data.(*js_ast.EUndefined); ok {
 					e.Right.Data = js_ast.ENullShared
 				}
 
@@ -12221,7 +12245,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			if !p.warnAboutEqualityCheck("===", e.Left, afterOpLoc) {
 				p.warnAboutEqualityCheck("===", e.Right, afterOpLoc)
 			}
-			p.warnAboutTypeofAndString(e.Left, e.Right)
+			p.warnAboutTypeofAndString(e.Left, e.Right, checkBothOrders)
 
 			if p.options.minifySyntax {
 				// "typeof x === 'undefined'" => "typeof x == 'undefined'"
@@ -12242,11 +12266,13 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			if !p.warnAboutEqualityCheck("!=", e.Left, afterOpLoc) {
 				p.warnAboutEqualityCheck("!=", e.Right, afterOpLoc)
 			}
-			p.warnAboutTypeofAndString(e.Left, e.Right)
+			p.warnAboutTypeofAndString(e.Left, e.Right, checkBothOrders)
 
 			if p.options.minifySyntax {
 				// "x != void 0" => "x != null"
-				if _, ok := e.Right.Data.(*js_ast.EUndefined); ok {
+				if _, ok := e.Left.Data.(*js_ast.EUndefined); ok {
+					e.Left.Data = js_ast.ENullShared
+				} else if _, ok := e.Right.Data.(*js_ast.EUndefined); ok {
 					e.Right.Data = js_ast.ENullShared
 				}
 
@@ -12263,7 +12289,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			if !p.warnAboutEqualityCheck("!==", e.Left, afterOpLoc) {
 				p.warnAboutEqualityCheck("!==", e.Right, afterOpLoc)
 			}
-			p.warnAboutTypeofAndString(e.Left, e.Right)
+			p.warnAboutTypeofAndString(e.Left, e.Right, checkBothOrders)
 
 			if p.options.minifySyntax {
 				// "typeof x !== 'undefined'" => "typeof x != 'undefined'"
