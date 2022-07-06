@@ -223,18 +223,31 @@ func TestTSDeclareConstEnum(t *testing.T) {
 	})
 }
 
-func TestConstEnumComments(t *testing.T) {
+func TestTSConstEnumComments(t *testing.T) {
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/bar.ts": `
-			export const enum PRCD {
-				"*/%" = 14,
-			}
+				export const enum Foo {
+					"%/*" = 1,
+					"*/%" = 2,
+				}
 			`,
 			"/foo.ts": `
-			import { PRCD } from "./bar";
-
-			console.log(PRCD["*/%"]);
+				import { Foo } from "./bar";
+				const enum Bar {
+					"%/*" = 1,
+					"*/%" = 2,
+				}
+				console.log({
+					'should have comments': [
+						Foo["%/*"],
+						Bar["%/*"],
+					],
+					'should not have comments': [
+						Foo["*/%"],
+						Bar["*/%"],
+					],
+				});
 			`,
 		},
 		entryPaths: []string{"/foo.ts"},

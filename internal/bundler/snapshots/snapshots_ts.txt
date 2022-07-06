@@ -1,9 +1,3 @@
-TestConstEnumComments
----------- /out.js ----------
-// foo.ts
-console.log(14);
-
-================================================================================
 TestExportTypeIssue379
 ---------- /out.js ----------
 // a.ts
@@ -36,6 +30,21 @@ var foo4 = 123;
 
 // entry.ts
 console.log(a_exports, b_exports, c_exports, d_exports);
+
+================================================================================
+TestTSConstEnumComments
+---------- /out.js ----------
+// foo.ts
+console.log({
+  "should have comments": [
+    1 /* %/* */,
+    1 /* %/* */
+  ],
+  "should not have comments": [
+    2,
+    2
+  ]
+});
 
 ================================================================================
 TestTSDeclareClass

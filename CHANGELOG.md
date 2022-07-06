@@ -1,5 +1,39 @@
 # Changelog
 
+## Unreleased
+
+* Fix generated TypeScript `enum` comments containing `*/` ([#2369](https://github.com/evanw/esbuild/issues/2369), [#2371](https://github.com/evanw/esbuild/pull/2371))
+
+    TypeScript `enum` values that are equal to a number or string literal are inlined (references to the enum are replaced with the literal value) and have a `/* ... */` comment after them with the original enum name to improve readability. However, this comment is omitted if the enum name contains the character sequence `*/` because that would end the comment early and cause a syntax error:
+
+    ```ts
+    // Original TypeScript
+    enum Foo { '/*' = 1, '*/' = 2 }
+    console.log(Foo['/*'], Foo['*/'])
+
+    // Generated JavaScript
+    console.log(1 /* /* */, 2);
+    ```
+
+    This was originally handled correctly when TypeScript `enum` inlining was initially implemented since it was only supported within a single file. However, when esbuild was later extended to support TypeScript `enum` inlining across files, this special case where the enum name contains `*/` was not handled in that new code. Starting with this release, esbuild will now handle enums with names containing `*/` correctly when they are inlined across files:
+
+    ```ts
+    // foo.ts
+    export enum Foo { '/*' = 1, '*/' = 2 }
+
+    // bar.ts
+    import { Foo } from './foo'
+    console.log(Foo['/*'], Foo['*/'])
+
+    // Old output (with --bundle --format=esm)
+    console.log(1 /* /* */, 2 /* */ */);
+
+    // New output (with --bundle --format=esm)
+    console.log(1 /* /* */, 2);
+    ```
+
+    This fix was contributed by [@magic-akari](https://github.com/magic-akari).
+
 ## 0.14.48
 
 * Enable using esbuild in Deno via WebAssembly ([#2323](https://github.com/evanw/esbuild/issues/2323))

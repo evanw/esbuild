@@ -1940,7 +1940,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 							} else {
 								p.printNumber(value.Number, level)
 							}
-							if !p.options.MinifyWhitespace && !p.options.MinifyIdentifiers {
+							if !p.options.MinifyWhitespace && !p.options.MinifyIdentifiers && !strings.Contains(e.Name, "*/") {
 								p.print(" /* ")
 								p.print(e.Name)
 								p.print(" */")
