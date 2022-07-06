@@ -12196,6 +12196,26 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 		p.fnOnlyDataVisit.silenceWarningAboutThisBeingUndefined = oldSilenceWarningAboutThisBeingUndefined
 
+		// Always put constants consistently on the same side for equality
+		// comparisons to help improve compression. In theory, dictionary-based
+		// compression methods may already have a dictionary entry for code that
+		// is similar to previous code. Note that we can only reorder expressions
+		// that do not have any side effects.
+		//
+		// Constants are currently ordered on the right instead of the left because
+		// it results in slightly smalller gzip size on our primary benchmark
+		// (although slightly larger uncompressed size). The size difference is
+		// less than 0.1% so it really isn't that important an optimization.
+		if p.options.minifySyntax {
+			switch e.Op {
+			case js_ast.BinOpLooseEq, js_ast.BinOpLooseNe, js_ast.BinOpStrictEq, js_ast.BinOpStrictNe:
+				// "1 === x" => "x === 1"
+				if isPrimitiveLiteral(e.Left.Data) && !isPrimitiveLiteral(e.Right.Data) {
+					e.Left, e.Right = e.Right, e.Left
+				}
+			}
+		}
+
 		// Post-process the binary expression
 		switch e.Op {
 		case js_ast.BinOpComma:
