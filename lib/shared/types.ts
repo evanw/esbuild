@@ -17,7 +17,7 @@ interface CommonOptions {
 
   /** Documentation: https://esbuild.github.io/api/#format */
   format?: Format;
-  /** Documentation: https://esbuild.github.io/api/#globalName */
+  /** Documentation: https://esbuild.github.io/api/#global-name */
   globalName?: string;
   /** Documentation: https://esbuild.github.io/api/#target */
   target?: string | string[];
@@ -96,7 +96,7 @@ export interface BuildOptions extends CommonOptions {
   loader?: { [ext: string]: Loader };
   /** Documentation: https://esbuild.github.io/api/#resolve-extensions */
   resolveExtensions?: string[];
-  /** Documentation: https://esbuild.github.io/api/#mainFields */
+  /** Documentation: https://esbuild.github.io/api/#main-fields */
   mainFields?: string[];
   /** Documentation: https://esbuild.github.io/api/#conditions */
   conditions?: string[];
