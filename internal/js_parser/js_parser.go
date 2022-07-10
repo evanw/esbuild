@@ -1984,10 +1984,6 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 		}
 
 		if p.lexer.Token == js_lexer.TEquals {
-			if opts.tsDeclareRange.Len != 0 {
-				p.log.AddError(&p.tracker, p.lexer.Range(), "Class fields that use \"declare\" cannot be initialized")
-			}
-
 			p.lexer.Next()
 
 			// "this" and "super" property access is allowed in field initializers

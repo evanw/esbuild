@@ -60,6 +60,33 @@
 
     This fix was contributed by [@magic-akari](https://github.com/magic-akari).
 
+* Allow `declare` class fields to be initialized ([#2380](https://github.com/evanw/esbuild/issues/2380))
+
+    This release fixes an oversight in the TypeScript parser that disallowed initializers for `declare` class fields. TypeScript actually allows the following limited initializer expressions for `readonly` fields:
+
+    ```ts
+    declare const enum a { b = 0 }
+
+    class Foo {
+      // These are allowed by TypeScript
+      declare readonly a = 0
+      declare readonly b = -0
+      declare readonly c = 0n
+      declare readonly d = -0n
+      declare readonly e = 'x'
+      declare readonly f = `x`
+      declare readonly g = a.b
+      declare readonly h = a['b']
+
+      // These are not allowed by TypeScript
+      declare readonly x = (0)
+      declare readonly y = null
+      declare readonly z = -a.b
+    }
+    ```
+
+    So with this release, esbuild now allows initializers for `declare` class fields too. To future-proof this in case TypeScript allows more expressions as initializers in the future (such as `null`), esbuild will allow any expression as an initializer and will leave the specifics of TypeScript's special-casing here to the TypeScript type checker.
+
 * Fix a bug in esbuild's feature compatibility table generator ([#2365](https://github.com/evanw/esbuild/issues/2365))
 
     Passing specific JavaScript engines to esbuild's `--target` flag restricts esbuild to only using JavaScript features that are supported on those engines in the output files that esbuild generates. The data for this feature is automatically derived from this compatibility table with a script: https://kangax.github.io/compat-table/.
