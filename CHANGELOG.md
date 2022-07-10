@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.49
 
 * Keep inlined constants when direct `eval` is present ([#2361](https://github.com/evanw/esbuild/issues/2361))
 
