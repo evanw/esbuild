@@ -97,6 +97,33 @@ function bar() {
 console.log(123, bar());
 
 ================================================================================
+TestConstValueInliningDirectEval
+---------- /out/top-level-no-eval.js ----------
+const x = 1;
+console.log(1, evil("x"));
+
+---------- /out/top-level-eval.js ----------
+const x = 1;
+console.log(1, eval("x"));
+
+---------- /out/nested-no-eval.js ----------
+console.log(1, evil("x"));
+
+---------- /out/nested-eval.js ----------
+(() => {
+  const x = 1;
+  console.log(1, eval("x"));
+})();
+
+---------- /out/ts-namespace-no-eval.js ----------
+var y;
+((y2) => (y2.x = 1, console.log(1, evil("x"))))(y ||= {});
+
+---------- /out/ts-namespace-eval.js ----------
+var z;
+((z) => (z.x = 1, console.log(1, eval("x"))))(z ||= {});
+
+================================================================================
 TestConstValueInliningNoBundle
 ---------- /out/top-level.js ----------
 const n_keep = null, u_keep = void 0, i_keep = 1234567, f_keep = 123.456, s_keep = "";

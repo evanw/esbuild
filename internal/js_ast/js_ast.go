@@ -486,6 +486,8 @@ var ESuperShared = &ESuper{}
 var ENullShared = &ENull{}
 var EUndefinedShared = &EUndefined{}
 var EThisShared = &EThis{}
+var SEmptyShared = &SEmpty{}
+var SDebuggerShared = &SDebugger{}
 
 type ENew struct {
 	Target        Expr

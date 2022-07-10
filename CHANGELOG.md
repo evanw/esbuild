@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+* Keep inlined constants when direct `eval` is present ([#2361](https://github.com/evanw/esbuild/issues/2361))
+
+    Version 0.14.19 of esbuild added inlining of certain `const` variables during minification, which replaces all references to the variable with the initializer and then removes the variable declaration. However, this could generate incorrect code when direct `eval` is present because the direct `eval` could reference the constant by name. This release fixes the problem by preserving the `const` variable declaration in this case:
+
+    ```js
+    // Original code
+    console.log((() => { const x = 123; return x + eval('x') }))
+
+    // Old output (with --minify)
+    console.log(()=>123+eval("x"));
+
+    // New output (with --minify)
+    console.log(()=>{const x=123;return 123+eval("x")});
+    ```
+
 * Fix an incorrect error in TypeScript when targeting ES5 ([#2375](https://github.com/evanw/esbuild/issues/2375))
 
     Previously when compiling TypeScript code to ES5, esbuild could incorrectly consider the following syntax forms as a transformation error:

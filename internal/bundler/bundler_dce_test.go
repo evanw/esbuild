@@ -3014,6 +3014,58 @@ const-update.js: NOTE: The symbol "x" was declared a constant here:
 	})
 }
 
+func TestConstValueInliningDirectEval(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/top-level-no-eval.js": `
+				const x = 1
+				console.log(x, evil('x'))
+			`,
+			"/top-level-eval.js": `
+				const x = 1
+				console.log(x, eval('x'))
+			`,
+			"/nested-no-eval.js": `
+				(() => {
+					const x = 1
+					console.log(x, evil('x'))
+				})()
+			`,
+			"/nested-eval.js": `
+				(() => {
+					const x = 1
+					console.log(x, eval('x'))
+				})()
+			`,
+			"/ts-namespace-no-eval.ts": `
+				namespace y {
+					export const x = 1
+					console.log(x, evil('x'))
+				}
+			`,
+			"/ts-namespace-eval.ts": `
+				namespace z {
+					export const x = 1
+					console.log(x, eval('x'))
+				}
+			`,
+		},
+		entryPaths: []string{
+			"/top-level-no-eval.js",
+			"/top-level-eval.js",
+			"/nested-no-eval.js",
+			"/nested-eval.js",
+			"/ts-namespace-no-eval.ts",
+			"/ts-namespace-eval.ts",
+		},
+		options: config.Options{
+			Mode:         config.ModePassThrough,
+			AbsOutputDir: "/out",
+			MinifySyntax: true,
+		},
+	})
+}
+
 func TestCrossModuleConstantFolding(t *testing.T) {
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
