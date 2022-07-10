@@ -2808,7 +2808,8 @@ func (p *parser) convertExprToBinding(expr js_ast.Expr, invalidLog invalidLog) (
 		if e.CommaAfterSpread.Start != 0 {
 			invalidLog.invalidTokens = append(invalidLog.invalidTokens, logger.Range{Loc: e.CommaAfterSpread, Len: 1})
 		}
-		p.markSyntaxFeature(compat.Destructuring, p.source.RangeOfOperatorAfter(expr.Loc, "["))
+		invalidLog.syntaxFeatures = append(invalidLog.syntaxFeatures,
+			syntaxFeature{feature: compat.Destructuring, token: p.source.RangeOfOperatorAfter(expr.Loc, "[")})
 		items := []js_ast.ArrayBinding{}
 		isSpread := false
 		for _, item := range e.Items {
@@ -2833,7 +2834,8 @@ func (p *parser) convertExprToBinding(expr js_ast.Expr, invalidLog invalidLog) (
 		if e.CommaAfterSpread.Start != 0 {
 			invalidLog.invalidTokens = append(invalidLog.invalidTokens, logger.Range{Loc: e.CommaAfterSpread, Len: 1})
 		}
-		p.markSyntaxFeature(compat.Destructuring, p.source.RangeOfOperatorAfter(expr.Loc, "{"))
+		invalidLog.syntaxFeatures = append(invalidLog.syntaxFeatures,
+			syntaxFeature{feature: compat.Destructuring, token: p.source.RangeOfOperatorAfter(expr.Loc, "{")})
 		properties := []js_ast.PropertyBinding{}
 		for _, item := range e.Properties {
 			if item.Flags.Has(js_ast.PropertyIsMethod) || item.Kind == js_ast.PropertyGet || item.Kind == js_ast.PropertySet {

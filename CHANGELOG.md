@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+* Fix an incorrect error in TypeScript when targeting ES5 ([#2375](https://github.com/evanw/esbuild/issues/2375))
+
+    Previously when compiling TypeScript code to ES5, esbuild could incorrectly consider the following syntax forms as a transformation error:
+
+    ```ts
+    0 ? ([]) : 1 ? ({}) : 2;
+    ```
+
+    The error messages looked like this:
+
+    ```
+    ✘ [ERROR] Transforming destructuring to the configured target environment ("es5") is not supported yet
+
+        example.ts:1:5:
+          1 │ 0 ? ([]) : 1 ? ({}) : 2;
+            ╵      ^
+
+    ✘ [ERROR] Transforming destructuring to the configured target environment ("es5") is not supported yet
+
+        example.ts:1:16:
+          1 │ 0 ? ([]) : 1 ? ({}) : 2;
+            ╵                 ^
+    ```
+
+    These parenthesized literals followed by a colon look like the start of an arrow function expression followed by a TypeScript return type (e.g. `([]) : 1` could be the start of the TypeScript arrow function `([]): 1 => 1`). Unlike in JavaScript, parsing arrow functions in TypeScript requires backtracking. In this case esbuild correctly determined that this expression wasn't an arrow function after all but the check for destructuring was incorrectly not covered under the backtracking process. With this release, the error message is now only reported if the parser successfully parses an arrow function without backtracking.
+
 * Fix generated TypeScript `enum` comments containing `*/` ([#2369](https://github.com/evanw/esbuild/issues/2369), [#2371](https://github.com/evanw/esbuild/pull/2371))
 
     TypeScript `enum` values that are equal to a number or string literal are inlined (references to the enum are replaced with the literal value) and have a `/* ... */` comment after them with the original enum name to improve readability. However, this comment is omitted if the enum name contains the character sequence `*/` because that would end the comment early and cause a syntax error:
