@@ -13,6 +13,7 @@ var builtinTypesLower = map[string]string{
 	".xml":  "text/xml; charset=utf-8",
 
 	// Images
+	".avif": "image/avif",
 	".gif":  "image/gif",
 	".jpeg": "image/jpeg",
 	".jpg":  "image/jpeg",
