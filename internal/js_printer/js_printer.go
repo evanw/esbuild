@@ -2743,8 +2743,15 @@ func (p *printer) printNonNegativeFloat(absValue float64) {
 		}
 	}
 
-	// Numbers in this range can potentially be printed with one fewer byte as hex
-	if p.options.MinifyWhitespace && absValue >= 1_000_000_000_000 && absValue <= 0xFFFF_FFFF_FFFF_FFFF {
+	// Numbers in this range can potentially be printed with one fewer byte as
+	// hex. This compares against 0xFFFF_FFFF_FFFF_F800 instead of comparing
+	// against 0xFFFF_FFFF_FFFF_FFFF because 0xFFFF_FFFF_FFFF_FFFF when converted
+	// to float64 rounds up to 0x1_0000_0000_0000_0180, which can no longer fit
+	// into uint64. In Go, the result of converting float64 to uint64 outside of
+	// the uint64 range is implementation-dependent and is different on amd64 vs.
+	// arm64. The float64 value 0xFFFF_FFFF_FFFF_F800 is the biggest value that
+	// is below the float64 value 0x1_0000_0000_0000_0180, so we use that instead.
+	if p.options.MinifyWhitespace && absValue >= 1_000_000_000_000 && absValue <= 0xFFFF_FFFF_FFFF_F800 {
 		if asInt := uint64(absValue); absValue == float64(asInt) {
 			if hex := strconv.FormatUint(asInt, 16); 2+len(hex) < len(result) {
 				result = append(append(result[:0], '0', 'x'), hex...)

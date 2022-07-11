@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix a cross-platform consistency bug ([#2383](https://github.com/evanw/esbuild/issues/2383))
+
+    Previously esbuild would minify `0xFFFF_FFFF_FFFF_FFFF` as `0xffffffffffffffff` (18 bytes) on arm64 chips and as `18446744073709552e3` (19 bytes) on x86_64 chips. The reason was that the number was converted to a 64-bit unsigned integer internally for printing as hexadecimal, the 64-bit floating-point number `0xFFFF_FFFF_FFFF_FFFF` is actually `0x1_0000_0000_0000_0180` (i.e. it's rounded up, not down), and converting `float64` to `uint64` is implementation-dependent in Go when the input is out of bounds. This was fixed by changing the upper limit for which esbuild uses hexadecimal numbers during minification to `0xFFFF_FFFF_FFFF_F800`, which is the next representable 64-bit floating-point number below `0x1_0000_0000_0000_0180`, and which fits in a `uint64`. As a result, esbuild will now consistently never minify `0xFFFF_FFFF_FFFF_FFFF` as `0xffffffffffffffff` anymore, which means the output should now be consistent across platforms.
+
 ## 0.14.49
 
 * Keep inlined constants when direct `eval` is present ([#2361](https://github.com/evanw/esbuild/issues/2361))
