@@ -6,6 +6,10 @@
 
     Previously esbuild would minify `0xFFFF_FFFF_FFFF_FFFF` as `0xffffffffffffffff` (18 bytes) on arm64 chips and as `18446744073709552e3` (19 bytes) on x86_64 chips. The reason was that the number was converted to a 64-bit unsigned integer internally for printing as hexadecimal, the 64-bit floating-point number `0xFFFF_FFFF_FFFF_FFFF` is actually `0x1_0000_0000_0000_0180` (i.e. it's rounded up, not down), and converting `float64` to `uint64` is implementation-dependent in Go when the input is out of bounds. This was fixed by changing the upper limit for which esbuild uses hexadecimal numbers during minification to `0xFFFF_FFFF_FFFF_F800`, which is the next representable 64-bit floating-point number below `0x1_0000_0000_0000_0180`, and which fits in a `uint64`. As a result, esbuild will now consistently never minify `0xFFFF_FFFF_FFFF_FFFF` as `0xffffffffffffffff` anymore, which means the output should now be consistent across platforms.
 
+* Fix a hang with the synchronous API when the package is corrupted ([#2396](https://github.com/evanw/esbuild/issues/2396))
+
+    An error message is already thrown when the esbuild package is corrupted and esbuild can't be run. However, if you are using a synchronous call in the JavaScript API in worker mode, esbuild will use a child worker to initialize esbuild once so that the overhead of initializing esbuild can be amortized across multiple synchronous API calls. However, errors thrown during initialization weren't being propagated correctly which resulted in a hang while the main thread waited forever for the child worker to finish initializing. With this release, initialization errors are now propagated correctly so calling a synchronous API call when the package is corrupted should now result in an error instead of a hang.
+
 ## 0.14.49
 
 * Keep inlined constants when direct `eval` is present ([#2361](https://github.com/evanw/esbuild/issues/2361))
