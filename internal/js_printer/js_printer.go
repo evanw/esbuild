@@ -1748,13 +1748,28 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 
 		// Omit the "()" when minifying, but only when safe to do so
 		if !p.options.MinifyWhitespace || len(e.Args) > 0 || level >= js_ast.LPostfix {
+			isMultiLine := e.IsMultiLine && len(e.Args) > 0 && !p.options.MinifyWhitespace
 			p.print("(")
+			if isMultiLine {
+				p.options.Indent++
+			}
 			for i, arg := range e.Args {
-				if i != 0 {
+				if isMultiLine {
+					if i != 0 {
+						p.print(",")
+					}
+					p.printNewline()
+					p.printIndent()
+				} else if i != 0 {
 					p.print(",")
 					p.printSpace()
 				}
 				p.printExpr(arg, js_ast.LComma, 0)
+			}
+			if isMultiLine {
+				p.options.Indent--
+				p.printNewline()
+				p.printIndent()
 			}
 			if e.CloseParenLoc.Start > expr.Loc.Start {
 				p.addSourceMapping(e.CloseParenLoc)
@@ -1847,18 +1862,35 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		if e.OptionalChain == js_ast.OptionalChainStart {
 			p.print("?.")
 		}
+
+		isMultiLine := e.IsMultiLine && len(e.Args) > 0 && !p.options.MinifyWhitespace
 		p.print("(")
+		if isMultiLine {
+			p.options.Indent++
+		}
 		for i, arg := range e.Args {
-			if i != 0 {
+			if isMultiLine {
+				if i != 0 {
+					p.print(",")
+				}
+				p.printNewline()
+				p.printIndent()
+			} else if i != 0 {
 				p.print(",")
 				p.printSpace()
 			}
 			p.printExpr(arg, js_ast.LComma, 0)
 		}
+		if isMultiLine {
+			p.options.Indent--
+			p.printNewline()
+			p.printIndent()
+		}
 		if e.CloseParenLoc.Start > expr.Loc.Start {
 			p.addSourceMapping(e.CloseParenLoc)
 		}
 		p.print(")")
+
 		if wrap {
 			p.print(")")
 		}

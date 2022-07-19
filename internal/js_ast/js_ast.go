@@ -493,6 +493,7 @@ type ENew struct {
 	Target        Expr
 	Args          []Expr
 	CloseParenLoc logger.Loc
+	IsMultiLine   bool
 
 	// True if there is a comment containing "@__PURE__" or "#__PURE__" preceding
 	// this call expression. See the comment inside ECall for more details.
@@ -519,6 +520,7 @@ type ECall struct {
 	CloseParenLoc logger.Loc
 	OptionalChain OptionalChain
 	IsDirectEval  bool
+	IsMultiLine   bool
 
 	// True if there is a comment containing "@__PURE__" or "#__PURE__" preceding
 	// this call expression. This is an annotation used for tree shaking, and

@@ -8,7 +8,10 @@ TestConstValueInliningBundle
 ---------- /out/exported-entry.js ----------
 // exported-entry.js
 var y_keep = 2;
-console.log(1, 2);
+console.log(
+  1,
+  2
+);
 export {
   y_keep
 };
@@ -127,23 +130,61 @@ var z;
 TestConstValueInliningNoBundle
 ---------- /out/top-level.js ----------
 const n_keep = null, u_keep = void 0, i_keep = 1234567, f_keep = 123.456, s_keep = "";
-console.log(null, null, void 0, void 0, 1234567, 1234567, 123.456, 123.456, s_keep, s_keep);
+console.log(
+  null,
+  null,
+  void 0,
+  void 0,
+  1234567,
+  1234567,
+  123.456,
+  123.456,
+  s_keep,
+  s_keep
+);
 
 ---------- /out/nested-block.js ----------
 {
   const s_keep = "";
-  console.log(null, null, void 0, void 0, 1234567, 1234567, 123.456, 123.456, s_keep, s_keep);
+  console.log(
+    null,
+    null,
+    void 0,
+    void 0,
+    1234567,
+    1234567,
+    123.456,
+    123.456,
+    s_keep,
+    s_keep
+  );
 }
 
 ---------- /out/nested-function.js ----------
 function nested() {
   const s_keep = "";
-  console.log(null, null, void 0, void 0, 1234567, 1234567, 123.456, 123.456, s_keep, s_keep);
+  console.log(
+    null,
+    null,
+    void 0,
+    void 0,
+    1234567,
+    1234567,
+    123.456,
+    123.456,
+    s_keep,
+    s_keep
+  );
 }
 
 ---------- /out/namespace-export.js ----------
 var ns;
-((ns2) => (ns2.y_keep = 2, console.log(1, 1, 2, 2)))(ns ||= {});
+((ns2) => (ns2.y_keep = 2, console.log(
+  1,
+  1,
+  2,
+  2
+)))(ns ||= {});
 
 ---------- /out/comment-before.js ----------
 {
@@ -187,12 +228,22 @@ function foo() {
 
 ---------- /out/backwards-reference-top-level.js ----------
 const x = y, y = 1;
-console.log(x, x, y, y);
+console.log(
+  x,
+  x,
+  y,
+  y
+);
 
 ---------- /out/backwards-reference-nested-function.js ----------
 function foo() {
   const x = y, y = 1;
-  console.log(x, x, y, y);
+  console.log(
+    x,
+    x,
+    y,
+    y
+  );
 }
 
 ================================================================================
