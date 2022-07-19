@@ -144,7 +144,7 @@ func DecodeVLQ(encoded []byte, start int) (int, int) {
 	return value, start
 }
 
-func DecodeVLQUTF16(encoded []uint16) (int, int, bool) {
+func DecodeVLQUTF16(encoded []uint16) (int32, int, bool) {
 	n := len(encoded)
 	if n == 0 {
 		return 0, 0, false
@@ -153,12 +153,12 @@ func DecodeVLQUTF16(encoded []uint16) (int, int, bool) {
 	// Scan over the input
 	current := 0
 	shift := 0
-	vlq := 0
+	var vlq int32
 	for {
 		if current >= n {
 			return 0, 0, false
 		}
-		index := bytes.IndexByte(base64, byte(encoded[current]))
+		index := int32(bytes.IndexByte(base64, byte(encoded[current])))
 		if index < 0 {
 			return 0, 0, false
 		}
