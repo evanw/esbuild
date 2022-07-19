@@ -2983,10 +2983,10 @@ func sanitizeFilePathForVirtualModulePath(path string) string {
 // In this case we just pick an arbitrary but consistent order.
 func (c *linkerContext) findImportedCSSFilesInJSOrder(entryPoint uint32) (order []uint32) {
 	visited := make(map[uint32]bool)
-	var visit func(uint32, ast.Index32)
+	var visit func(uint32)
 
 	// Include this file and all files it imports
-	visit = func(sourceIndex uint32, importerIndex ast.Index32) {
+	visit = func(sourceIndex uint32) {
 		if visited[sourceIndex] {
 			return
 		}
@@ -3013,7 +3013,7 @@ func (c *linkerContext) findImportedCSSFilesInJSOrder(entryPoint uint32) (order 
 			// this is the only way to do it.
 			for _, importRecordIndex := range part.ImportRecordIndices {
 				if record := &repr.AST.ImportRecords[importRecordIndex]; record.SourceIndex.IsValid() {
-					visit(record.SourceIndex.GetIndex(), ast.MakeIndex32(sourceIndex))
+					visit(record.SourceIndex.GetIndex())
 				}
 			}
 		}
@@ -3025,7 +3025,7 @@ func (c *linkerContext) findImportedCSSFilesInJSOrder(entryPoint uint32) (order 
 	}
 
 	// Include all files reachable from the entry point
-	visit(entryPoint, ast.Index32{})
+	visit(entryPoint)
 
 	return
 }
@@ -3052,10 +3052,10 @@ func (c *linkerContext) findImportedFilesInCSSOrder(entryPoints []uint32) (exter
 
 	visited := make(map[uint32]bool)
 	externals := make(map[logger.Path]externalImportsCSS)
-	var visit func(uint32, ast.Index32)
+	var visit func(uint32)
 
 	// Include this file and all files it imports
-	visit = func(sourceIndex uint32, importerIndex ast.Index32) {
+	visit = func(sourceIndex uint32) {
 		if !visited[sourceIndex] {
 			visited[sourceIndex] = true
 			repr := c.graph.Files[sourceIndex].InputFile.Repr.(*graph.CSSRepr)
@@ -3070,7 +3070,7 @@ func (c *linkerContext) findImportedFilesInCSSOrder(entryPoints []uint32) (exter
 				if atImport, ok := topLevelRules[i].Data.(*css_ast.RAtImport); ok {
 					if record := &repr.AST.ImportRecords[atImport.ImportRecordIndex]; record.SourceIndex.IsValid() {
 						// Follow internal dependencies
-						visit(record.SourceIndex.GetIndex(), ast.MakeIndex32(sourceIndex))
+						visit(record.SourceIndex.GetIndex())
 					} else {
 						// Record external dependencies
 						external := externals[record.Path]
@@ -3114,7 +3114,7 @@ func (c *linkerContext) findImportedFilesInCSSOrder(entryPoints []uint32) (exter
 
 	// Include all files reachable from any entry point
 	for i := len(entryPoints) - 1; i >= 0; i-- {
-		visit(entryPoints[i], ast.Index32{})
+		visit(entryPoints[i])
 	}
 
 	// Reverse the order afterward when traversing in CSS order
