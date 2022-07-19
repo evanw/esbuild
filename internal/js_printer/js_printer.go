@@ -384,6 +384,14 @@ func (p *printer) printSymbol(ref js_ast.Ref) {
 	p.printIdentifier(p.renamer.NameForSymbol(ref))
 }
 
+func (p *printer) mangledPropName(ref js_ast.Ref) string {
+	ref = js_ast.FollowSymbols(p.symbols, ref)
+	if name, ok := p.options.MangledProps[ref]; ok {
+		return name
+	}
+	return p.renamer.NameForSymbol(ref)
+}
+
 func (p *printer) printClauseAlias(alias string) {
 	if js_lexer.IsIdentifier(alias) {
 		p.printSpaceBeforeIdentifier()
@@ -625,7 +633,7 @@ func (p *printer) printBinding(binding js_ast.Binding) {
 						}
 					} else if mangled, ok := property.Key.Data.(*js_ast.EMangledProp); ok {
 						p.addSourceMapping(property.Key.Loc)
-						if name := p.renamer.NameForSymbol(mangled.Ref); p.canPrintIdentifier(name) {
+						if name := p.mangledPropName(mangled.Ref); p.canPrintIdentifier(name) {
 							p.printIdentifier(name)
 
 							// Use a shorthand property if the names are the same
@@ -890,7 +898,7 @@ func (p *printer) printProperty(item js_ast.Property) {
 		p.printSymbol(key.Ref)
 
 	case *js_ast.EMangledProp:
-		if name := p.renamer.NameForSymbol(key.Ref); p.canPrintIdentifier(name) {
+		if name := p.mangledPropName(key.Ref); p.canPrintIdentifier(name) {
 			p.printSpaceBeforeIdentifier()
 			p.addSourceMapping(item.Key.Loc)
 			p.printIdentifier(name)
@@ -1538,7 +1546,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 
 	case *js_ast.EMangledProp:
 		p.addSourceMapping(expr.Loc)
-		p.printQuotedUTF8(p.renamer.NameForSymbol(e.Ref), true)
+		p.printQuotedUTF8(p.mangledPropName(e.Ref), true)
 
 	case *js_ast.EJSXElement:
 		// Start the opening tag
@@ -1560,7 +1568,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			p.printSpaceBeforeIdentifier()
 			p.addSourceMapping(property.Key.Loc)
 			if mangled, ok := property.Key.Data.(*js_ast.EMangledProp); ok {
-				p.printSymbol(mangled.Ref)
+				p.printIdentifier(p.mangledPropName(mangled.Ref))
 			} else {
 				p.print(helpers.UTF16ToString(property.Key.Data.(*js_ast.EString).Value))
 			}
@@ -1984,7 +1992,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			p.printSymbol(index.Ref)
 
 		case *js_ast.EMangledProp:
-			if name := p.renamer.NameForSymbol(index.Ref); p.canPrintIdentifier(name) {
+			if name := p.mangledPropName(index.Ref); p.canPrintIdentifier(name) {
 				if e.OptionalChain != js_ast.OptionalChainStart {
 					p.print(".")
 				}
@@ -3643,6 +3651,9 @@ type Options struct {
 
 	// Cross-module inlining of detected inlinable constants is also done during printing
 	ConstValues map[js_ast.Ref]js_ast.ConstValue
+
+	// Property mangling results go here
+	MangledProps map[js_ast.Ref]string
 
 	// This will be present if the input file had a source map. In that case we
 	// want to map all the way back to the original input file(s).

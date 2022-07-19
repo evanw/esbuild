@@ -50,6 +50,9 @@ type linkerContext struct {
 	uniqueKeyPrefix      string
 	uniqueKeyPrefixBytes []byte // This is just "uniqueKeyPrefix" in byte form
 
+	// Property mangling results go here
+	mangledProps map[js_ast.Ref]string
+
 	// We may need to refer to the CommonJS "module" symbol for exports
 	unboundModuleRef js_ast.Ref
 
@@ -330,6 +333,9 @@ func (c *linkerContext) mangleProps(mangleCache map[string]interface{}) {
 	c.timer.Begin("Mangle props")
 	defer c.timer.End("Mangle props")
 
+	mangledProps := make(map[js_ast.Ref]string)
+	c.mangledProps = mangledProps
+
 	// Reserve all JS keywords
 	reservedProps := make(map[string]bool)
 	for keyword := range js_lexer.Keywords {
@@ -347,7 +353,7 @@ func (c *linkerContext) mangleProps(mangleCache map[string]interface{}) {
 
 	// Merge all mangled property symbols together
 	freq := js_ast.CharFreq{}
-	mangledProps := make(map[string]js_ast.Ref)
+	mergedProps := make(map[string]js_ast.Ref)
 	for _, sourceIndex := range c.graph.ReachableFiles {
 		// Don't mangle anything in the runtime code
 		if sourceIndex == runtime.SourceIndex {
@@ -363,10 +369,10 @@ func (c *linkerContext) mangleProps(mangleCache map[string]interface{}) {
 
 			// Merge each mangled property with other ones of the same name
 			for name, ref := range repr.AST.MangledProps {
-				if existing, ok := mangledProps[name]; ok {
+				if existing, ok := mergedProps[name]; ok {
 					js_ast.MergeSymbols(c.graph.Symbols, ref, existing)
 				} else {
-					mangledProps[name] = ref
+					mergedProps[name] = ref
 				}
 			}
 
@@ -378,9 +384,9 @@ func (c *linkerContext) mangleProps(mangleCache map[string]interface{}) {
 	}
 
 	// Sort by use count (note: does not currently account for live vs. dead code)
-	sorted := make(renamer.StableSymbolCountArray, 0, len(mangledProps))
+	sorted := make(renamer.StableSymbolCountArray, 0, len(mergedProps))
 	stableSourceIndices := c.graph.StableSourceIndices
-	for _, ref := range mangledProps {
+	for _, ref := range mergedProps {
 		sorted = append(sorted, renamer.StableSymbolCount{
 			StableSourceIndex: stableSourceIndices[ref.SourceIndex],
 			Ref:               ref,
@@ -398,7 +404,7 @@ func (c *linkerContext) mangleProps(mangleCache map[string]interface{}) {
 		// Don't change existing mappings
 		if existing, ok := mangleCache[symbol.OriginalName]; ok {
 			if existing != false {
-				symbol.OriginalName = existing.(string)
+				mangledProps[symbolCount.Ref] = existing.(string)
 			}
 			continue
 		}
@@ -417,7 +423,7 @@ func (c *linkerContext) mangleProps(mangleCache map[string]interface{}) {
 		if mangleCache != nil {
 			mangleCache[symbol.OriginalName] = name
 		}
-		symbol.OriginalName = name
+		mangledProps[symbolCount.Ref] = name
 	}
 }
 
@@ -4185,6 +4191,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 		InputSourceMap:               inputSourceMap,
 		LineOffsetTables:             lineOffsetTables,
 		RequireOrImportMetaForSource: c.requireOrImportMetaForSource,
+		MangledProps:                 c.mangledProps,
 	}
 	tree := repr.AST
 	tree.Directive = "" // This is handled elsewhere
@@ -4500,6 +4507,7 @@ func (c *linkerContext) generateEntryPointTailJS(
 		LegalComments:                c.options.LegalComments,
 		UnsupportedFeatures:          c.options.UnsupportedJSFeatures,
 		RequireOrImportMetaForSource: c.requireOrImportMetaForSource,
+		MangledProps:                 c.mangledProps,
 	}
 	result.PrintResult = js_printer.Print(tree, c.graph.Symbols, r, printOptions)
 	return
