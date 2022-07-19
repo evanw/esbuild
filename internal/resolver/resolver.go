@@ -16,7 +16,6 @@ import (
 	"github.com/evanw/esbuild/internal/fs"
 	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/js_ast"
-	"github.com/evanw/esbuild/internal/js_printer"
 	"github.com/evanw/esbuild/internal/logger"
 )
 
@@ -2028,7 +2027,7 @@ func (r resolverQuery) finalizeImportsExportsResult(
 
 					// Provide an inline suggestion message with the correct import path
 					actualImportPath := path.Join(esmPackageName, subpath)
-					r.debugMeta.suggestionText = string(js_printer.QuoteForJSON(actualImportPath, false))
+					r.debugMeta.suggestionText = string(helpers.QuoteForJSON(actualImportPath, false))
 					r.debugMeta.suggestionMessage = fmt.Sprintf("Import from %q to get the file %q:",
 						actualImportPath, r.PrettyPath(absolute.Primary))
 				}
