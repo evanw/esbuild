@@ -2821,9 +2821,10 @@ func (p *parser) convertExprToBinding(expr js_ast.Expr, invalidLog invalidLog) (
 			items = append(items, js_ast.ArrayBinding{Binding: binding, DefaultValueOrNil: initializerOrNil})
 		}
 		return js_ast.Binding{Loc: expr.Loc, Data: &js_ast.BArray{
-			Items:        items,
-			HasSpread:    isSpread,
-			IsSingleLine: e.IsSingleLine,
+			Items:           items,
+			HasSpread:       isSpread,
+			IsSingleLine:    e.IsSingleLine,
+			CloseBracketLoc: e.CloseBracketLoc,
 		}}, invalidLog
 
 	case *js_ast.EObject:
@@ -2852,8 +2853,9 @@ func (p *parser) convertExprToBinding(expr js_ast.Expr, invalidLog invalidLog) (
 			})
 		}
 		return js_ast.Binding{Loc: expr.Loc, Data: &js_ast.BObject{
-			Properties:   properties,
-			IsSingleLine: e.IsSingleLine,
+			Properties:    properties,
+			IsSingleLine:  e.IsSingleLine,
+			CloseBraceLoc: e.CloseBraceLoc,
 		}}, invalidLog
 
 	default:
@@ -5149,11 +5151,13 @@ func (p *parser) parseBinding() js_ast.Binding {
 		if p.lexer.HasNewlineBefore {
 			isSingleLine = false
 		}
+		closeBracketLoc := p.lexer.Loc()
 		p.lexer.Expect(js_lexer.TCloseBracket)
 		return js_ast.Binding{Loc: loc, Data: &js_ast.BArray{
-			Items:        items,
-			HasSpread:    hasSpread,
-			IsSingleLine: isSingleLine,
+			Items:           items,
+			HasSpread:       hasSpread,
+			IsSingleLine:    isSingleLine,
+			CloseBracketLoc: closeBracketLoc,
 		}}
 
 	case js_lexer.TOpenBrace:
@@ -5193,10 +5197,12 @@ func (p *parser) parseBinding() js_ast.Binding {
 		if p.lexer.HasNewlineBefore {
 			isSingleLine = false
 		}
+		closeBraceLoc := p.lexer.Loc()
 		p.lexer.Expect(js_lexer.TCloseBrace)
 		return js_ast.Binding{Loc: loc, Data: &js_ast.BObject{
-			Properties:   properties,
-			IsSingleLine: isSingleLine,
+			Properties:    properties,
+			IsSingleLine:  isSingleLine,
+			CloseBraceLoc: closeBraceLoc,
 		}}
 	}
 

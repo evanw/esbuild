@@ -382,14 +382,16 @@ type BMissing struct{}
 type BIdentifier struct{ Ref Ref }
 
 type BArray struct {
-	Items        []ArrayBinding
-	HasSpread    bool
-	IsSingleLine bool
+	Items           []ArrayBinding
+	CloseBracketLoc logger.Loc
+	HasSpread       bool
+	IsSingleLine    bool
 }
 
 type BObject struct {
-	Properties   []PropertyBinding
-	IsSingleLine bool
+	Properties    []PropertyBinding
+	CloseBraceLoc logger.Loc
+	IsSingleLine  bool
 }
 
 type Expr struct {

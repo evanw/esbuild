@@ -577,6 +577,7 @@ func (p *printer) printBinding(binding js_ast.Binding) {
 				p.printIndent()
 			}
 		}
+		p.addSourceMapping(b.CloseBracketLoc)
 		p.print("]")
 
 	case *js_ast.BObject:
@@ -675,6 +676,7 @@ func (p *printer) printBinding(binding js_ast.Binding) {
 				p.printSpace()
 			}
 		}
+		p.addSourceMapping(b.CloseBraceLoc)
 		p.print("}")
 
 	default:
