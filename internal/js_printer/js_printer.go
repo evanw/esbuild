@@ -3039,8 +3039,6 @@ const (
 )
 
 func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
-	p.addSourceMapping(stmt.Loc)
-
 	switch s := stmt.Data.(type) {
 	case *js_ast.SComment:
 		text := s.Text
@@ -3061,9 +3059,11 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 			}
 		}
 
+		p.addSourceMapping(stmt.Loc)
 		p.printIndentedComment(text)
 
 	case *js_ast.SFunction:
+		p.addSourceMapping(stmt.Loc)
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
 		if s.IsExport {
@@ -3083,6 +3083,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 		p.printNewline()
 
 	case *js_ast.SClass:
+		p.addSourceMapping(stmt.Loc)
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
 		if s.IsExport {
@@ -3095,11 +3096,13 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 		p.printNewline()
 
 	case *js_ast.SEmpty:
+		p.addSourceMapping(stmt.Loc)
 		p.printIndent()
 		p.print(";")
 		p.printNewline()
 
 	case *js_ast.SExportDefault:
+		p.addSourceMapping(stmt.Loc)
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
 		p.print("export default")
@@ -3147,6 +3150,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 		}
 
 	case *js_ast.SExportStar:
+		p.addSourceMapping(stmt.Loc)
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
 		p.print("export")
@@ -3166,6 +3170,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 		p.printSemicolonAfterStatement()
 
 	case *js_ast.SExportClause:
+		p.addSourceMapping(stmt.Loc)
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
 		p.print("export")
@@ -3209,6 +3214,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 		p.printSemicolonAfterStatement()
 
 	case *js_ast.SExportFrom:
+		p.addSourceMapping(stmt.Loc)
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
 		p.print("export")
@@ -3257,6 +3263,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 		p.printSemicolonAfterStatement()
 
 	case *js_ast.SLocal:
+		p.addSourceMapping(stmt.Loc)
 		switch s.Kind {
 		case js_ast.LocalConst:
 			p.printDeclStmt(s.IsExport, "const", s.Decls)
@@ -3267,10 +3274,12 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 		}
 
 	case *js_ast.SIf:
+		p.addSourceMapping(stmt.Loc)
 		p.printIndent()
 		p.printIf(s)
 
 	case *js_ast.SDoWhile:
+		p.addSourceMapping(stmt.Loc)
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
 		p.print("do")
@@ -3294,6 +3303,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 		p.printSemicolonAfterStatement()
 
 	case *js_ast.SForIn:
+		p.addSourceMapping(stmt.Loc)
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
 		p.print("for")
@@ -3309,6 +3319,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 		p.printBody(s.Body)
 
 	case *js_ast.SForOf:
+		p.addSourceMapping(stmt.Loc)
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
 		p.print("for")
@@ -3332,6 +3343,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 		p.printBody(s.Body)
 
 	case *js_ast.SWhile:
+		p.addSourceMapping(stmt.Loc)
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
 		p.print("while")
@@ -3342,6 +3354,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 		p.printBody(s.Body)
 
 	case *js_ast.SWith:
+		p.addSourceMapping(stmt.Loc)
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
 		p.print("with")
@@ -3352,13 +3365,20 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 		p.printBody(s.Body)
 
 	case *js_ast.SLabel:
-		p.printIndent()
+		// Avoid printing a source mapping that masks the one from the label
+		if !p.options.MinifyWhitespace && p.options.Indent > 0 {
+			p.addSourceMapping(stmt.Loc)
+			p.printIndent()
+		}
+
 		p.printSpaceBeforeIdentifier()
+		p.addSourceMapping(s.Name.Loc)
 		p.printSymbol(s.Name.Ref)
 		p.print(":")
 		p.printBody(s.Stmt)
 
 	case *js_ast.STry:
+		p.addSourceMapping(stmt.Loc)
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
 		p.print("try")
@@ -3405,6 +3425,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 			}
 		}
 
+		p.addSourceMapping(stmt.Loc)
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
 		p.print("for")
@@ -3427,6 +3448,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 		p.printBody(s.Body)
 
 	case *js_ast.SSwitch:
+		p.addSourceMapping(stmt.Loc)
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
 		p.print("switch")
@@ -3479,6 +3501,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 	case *js_ast.SImport:
 		itemCount := 0
 
+		p.addSourceMapping(stmt.Loc)
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
 		p.print("import")
@@ -3559,23 +3582,27 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 		p.printSemicolonAfterStatement()
 
 	case *js_ast.SBlock:
+		p.addSourceMapping(stmt.Loc)
 		p.printIndent()
 		p.printBlock(stmt.Loc, *s)
 		p.printNewline()
 
 	case *js_ast.SDebugger:
+		p.addSourceMapping(stmt.Loc)
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
 		p.print("debugger")
 		p.printSemicolonAfterStatement()
 
 	case *js_ast.SDirective:
+		p.addSourceMapping(stmt.Loc)
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
 		p.printQuotedUTF16(s.Value, false /* allowBacktick */)
 		p.printSemicolonAfterStatement()
 
 	case *js_ast.SBreak:
+		p.addSourceMapping(stmt.Loc)
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
 		p.print("break")
@@ -3586,6 +3613,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 		p.printSemicolonAfterStatement()
 
 	case *js_ast.SContinue:
+		p.addSourceMapping(stmt.Loc)
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
 		p.print("continue")
@@ -3596,6 +3624,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 		p.printSemicolonAfterStatement()
 
 	case *js_ast.SReturn:
+		p.addSourceMapping(stmt.Loc)
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
 		p.print("return")
@@ -3606,6 +3635,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 		p.printSemicolonAfterStatement()
 
 	case *js_ast.SThrow:
+		p.addSourceMapping(stmt.Loc)
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
 		p.print("throw")
@@ -3623,6 +3653,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 				// If this statement is not in a block, then we still need to emit something
 				if (flags & canOmitStatement) == 0 {
 					// "if (x) empty();" => "if (x) ;"
+					p.addSourceMapping(stmt.Loc)
 					p.printIndent()
 					p.print(";")
 					p.printNewline()
@@ -3633,7 +3664,13 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 			}
 		}
 
-		p.printIndent()
+		// Avoid printing a source mapping when the expression would print one in
+		// the same spot. We don't want to accidentally mask the mapping it emits.
+		if !p.options.MinifyWhitespace && p.options.Indent > 0 {
+			p.addSourceMapping(stmt.Loc)
+			p.printIndent()
+		}
+
 		p.stmtStart = len(p.js)
 		p.printExpr(value, js_ast.LLowest, exprResultIsUnused)
 		p.printSemicolonAfterStatement()
