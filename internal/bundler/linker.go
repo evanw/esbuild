@@ -5950,6 +5950,7 @@ func (c *linkerContext) generateSourceMapForChunk(
 	mappingsStart := j.Length()
 	prevEndState := sourcemap.SourceMapState{}
 	prevColumnOffset := 0
+	totalQuotedNameLen := 0
 	for _, result := range results {
 		chunk := result.sourceMapChunk
 		offset := result.generatedOffset
@@ -5971,6 +5972,7 @@ func (c *linkerContext) generateSourceMapForChunk(
 			SourceIndex:     sourcesIndex,
 			GeneratedLine:   offset.Lines,
 			GeneratedColumn: offset.Columns,
+			OriginalName:    totalQuotedNameLen,
 		}
 		if offset.Lines == 0 {
 			startState.GeneratedColumn += prevColumnOffset
@@ -5980,9 +5982,24 @@ func (c *linkerContext) generateSourceMapForChunk(
 		sourcemap.AppendSourceMapChunk(&j, prevEndState, startState, chunk.Buffer)
 
 		// Generate the relative offset to start from next time
+		prevOriginalName := prevEndState.OriginalName
 		prevEndState = chunk.EndState
 		prevEndState.SourceIndex += sourcesIndex
+		if chunk.Buffer.FirstNameOffset.IsValid() {
+			prevEndState.OriginalName += totalQuotedNameLen
+		} else {
+			// It's possible for a chunk to have mappings but for none of those
+			// mappings to have an associated name. The name is optional and is
+			// omitted when the mapping is for a non-name token or if the final
+			// and original names are the same. In that case we need to restore
+			// the previous original name end state since it wasn't modified after
+			// all. If we don't do this, then files after this will adjust their
+			// name offsets assuming that the previous generated mapping has this
+			// file's offset, which is wrong.
+			prevEndState.OriginalName = prevOriginalName
+		}
 		prevColumnOffset = chunk.FinalGeneratedColumn
+		totalQuotedNameLen += len(chunk.QuotedNames)
 
 		// If this was all one line, include the column offset from the start
 		if prevEndState.GeneratedLine == 0 {
@@ -5992,8 +6009,23 @@ func (c *linkerContext) generateSourceMapForChunk(
 	}
 	mappingsEnd := j.Length()
 
+	// Write the names
+	isFirstName := true
+	j.AddString("\",\n  \"names\": [")
+	for _, result := range results {
+		for _, quotedName := range result.sourceMapChunk.QuotedNames {
+			if isFirstName {
+				isFirstName = false
+			} else {
+				j.AddString(", ")
+			}
+			j.AddBytes(quotedName)
+		}
+	}
+	j.AddString("]")
+
 	// Finish the source map
-	j.AddString("\",\n  \"names\": []\n}\n")
+	j.AddString("\n}\n")
 	bytes := j.Done()
 
 	if !canHaveShifts {
