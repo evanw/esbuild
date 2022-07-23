@@ -1568,6 +1568,7 @@ func (p *parser) importJSXSymbol(loc logger.Loc, jsx JSXImport) js_ast.Expr {
 	p.recordUsage(ref)
 	return p.handleIdentifier(loc, &js_ast.EIdentifier{Ref: ref}, identifierOpts{
 		wasOriginallyIdentifier: true,
+		matchAgainstDefines:     true, // Allow defines to rewrite imported JSX symbols
 	})
 }
 
