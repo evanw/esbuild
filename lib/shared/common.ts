@@ -430,7 +430,7 @@ export interface StreamIn {
   writeToStdin: (data: Uint8Array) => void;
   readFileSync?: (path: string, encoding: 'utf8') => string;
   isSync: boolean;
-  isBrowser: boolean;
+  isWriteUnavailable: boolean;
   esbuild: types.PluginBuild['esbuild'];
 }
 
@@ -1164,7 +1164,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
         if (callerRefs) callerRefs.unref()
       },
     }
-    let writeDefault = !streamIn.isBrowser;
+    let writeDefault = !streamIn.isWriteUnavailable;
     let {
       entries,
       flags,
@@ -1293,7 +1293,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
       });
     };
 
-    if (write && streamIn.isBrowser) throw new Error(`Cannot enable "write" in the browser`);
+    if (write && streamIn.isWriteUnavailable) throw new Error(`The "write" option is unavailable in this environment`);
     if (incremental && streamIn.isSync) throw new Error(`Cannot use "incremental" with a synchronous build`);
     if (watch && streamIn.isSync) throw new Error(`Cannot use "watch" with a synchronous build`);
     sendRequest<protocol.BuildRequest, protocol.BuildResponse>(refs, request, (error, response) => {

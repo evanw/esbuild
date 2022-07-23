@@ -709,6 +709,7 @@ flatten:
 					}},
 					Args:                   append([]js_ast.Expr{thisArg}, e.Args...),
 					CanBeUnwrappedIfUnused: e.CanBeUnwrappedIfUnused,
+					IsMultiLine:            e.IsMultiLine,
 				}}
 				break
 			}
@@ -726,6 +727,7 @@ flatten:
 					}},
 					Args:                   append([]js_ast.Expr{privateThisFunc()}, e.Args...),
 					CanBeUnwrappedIfUnused: e.CanBeUnwrappedIfUnused,
+					IsMultiLine:            e.IsMultiLine,
 				}})
 				privateThisFunc = nil
 				break
@@ -735,6 +737,7 @@ flatten:
 				Target:                 result,
 				Args:                   e.Args,
 				CanBeUnwrappedIfUnused: e.CanBeUnwrappedIfUnused,
+				IsMultiLine:            e.IsMultiLine,
 			}}
 
 		case *js_ast.EUnary:
@@ -784,7 +787,8 @@ func (p *parser) lowerParenthesizedOptionalChain(loc logger.Loc, e *js_ast.ECall
 			Name:    "call",
 			NameLoc: loc,
 		}},
-		Args: append(append(make([]js_ast.Expr, 0, len(e.Args)+1), childOut.thisArgFunc()), e.Args...),
+		Args:        append(append(make([]js_ast.Expr, 0, len(e.Args)+1), childOut.thisArgFunc()), e.Args...),
+		IsMultiLine: e.IsMultiLine,
 	}})
 }
 

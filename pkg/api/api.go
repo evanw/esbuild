@@ -171,19 +171,6 @@ const (
 	FormatESModule
 )
 
-type EngineName uint8
-
-const (
-	EngineChrome EngineName = iota
-	EngineEdge
-	EngineFirefox
-	EngineIE
-	EngineIOS
-	EngineNode
-	EngineOpera
-	EngineSafari
-)
-
 type Engine struct {
 	Name    EngineName
 	Version string

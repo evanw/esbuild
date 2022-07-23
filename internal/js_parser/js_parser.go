@@ -2040,10 +2040,6 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 		}
 
 		if p.lexer.Token == js_lexer.TEquals {
-			if opts.tsDeclareRange.Len != 0 {
-				p.log.AddError(&p.tracker, p.lexer.Range(), "Class fields that use \"declare\" cannot be initialized")
-			}
-
 			p.lexer.Next()
 
 			// "this" and "super" property access is allowed in field initializers
@@ -2864,7 +2860,8 @@ func (p *parser) convertExprToBinding(expr js_ast.Expr, invalidLog invalidLog) (
 		if e.CommaAfterSpread.Start != 0 {
 			invalidLog.invalidTokens = append(invalidLog.invalidTokens, logger.Range{Loc: e.CommaAfterSpread, Len: 1})
 		}
-		p.markSyntaxFeature(compat.Destructuring, p.source.RangeOfOperatorAfter(expr.Loc, "["))
+		invalidLog.syntaxFeatures = append(invalidLog.syntaxFeatures,
+			syntaxFeature{feature: compat.Destructuring, token: p.source.RangeOfOperatorAfter(expr.Loc, "[")})
 		items := []js_ast.ArrayBinding{}
 		isSpread := false
 		for _, item := range e.Items {
@@ -2880,16 +2877,18 @@ func (p *parser) convertExprToBinding(expr js_ast.Expr, invalidLog invalidLog) (
 			items = append(items, js_ast.ArrayBinding{Binding: binding, DefaultValueOrNil: initializerOrNil})
 		}
 		return js_ast.Binding{Loc: expr.Loc, Data: &js_ast.BArray{
-			Items:        items,
-			HasSpread:    isSpread,
-			IsSingleLine: e.IsSingleLine,
+			Items:           items,
+			HasSpread:       isSpread,
+			IsSingleLine:    e.IsSingleLine,
+			CloseBracketLoc: e.CloseBracketLoc,
 		}}, invalidLog
 
 	case *js_ast.EObject:
 		if e.CommaAfterSpread.Start != 0 {
 			invalidLog.invalidTokens = append(invalidLog.invalidTokens, logger.Range{Loc: e.CommaAfterSpread, Len: 1})
 		}
-		p.markSyntaxFeature(compat.Destructuring, p.source.RangeOfOperatorAfter(expr.Loc, "{"))
+		invalidLog.syntaxFeatures = append(invalidLog.syntaxFeatures,
+			syntaxFeature{feature: compat.Destructuring, token: p.source.RangeOfOperatorAfter(expr.Loc, "{")})
 		properties := []js_ast.PropertyBinding{}
 		for _, item := range e.Properties {
 			if item.Flags.Has(js_ast.PropertyIsMethod) || item.Kind == js_ast.PropertyGet || item.Kind == js_ast.PropertySet {
@@ -2910,8 +2909,9 @@ func (p *parser) convertExprToBinding(expr js_ast.Expr, invalidLog invalidLog) (
 			})
 		}
 		return js_ast.Binding{Loc: expr.Loc, Data: &js_ast.BObject{
-			Properties:   properties,
-			IsSingleLine: e.IsSingleLine,
+			Properties:    properties,
+			IsSingleLine:  e.IsSingleLine,
+			CloseBraceLoc: e.CloseBraceLoc,
 		}}, invalidLog
 
 	default:
@@ -3266,12 +3266,18 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 		target := p.parseExprWithFlags(js_ast.LMember, flags)
 		args := []js_ast.Expr{}
 		var closeParenLoc logger.Loc
+		var isMultiLine bool
 
 		if p.lexer.Token == js_lexer.TOpenParen {
-			args, closeParenLoc = p.parseCallArgs()
+			args, closeParenLoc, isMultiLine = p.parseCallArgs()
 		}
 
-		return js_ast.Expr{Loc: loc, Data: &js_ast.ENew{Target: target, Args: args, CloseParenLoc: closeParenLoc}}
+		return js_ast.Expr{Loc: loc, Data: &js_ast.ENew{
+			Target:        target,
+			Args:          args,
+			CloseParenLoc: closeParenLoc,
+			IsMultiLine:   isMultiLine,
+		}}
 
 	case js_lexer.TOpenBracket:
 		p.lexer.Next()
@@ -3755,12 +3761,13 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 				if level >= js_ast.LCall {
 					return left
 				}
-				args, closeParenLoc := p.parseCallArgs()
+				args, closeParenLoc, isMultiLine := p.parseCallArgs()
 				left = js_ast.Expr{Loc: left.Loc, Data: &js_ast.ECall{
 					Target:        left,
 					Args:          args,
 					CloseParenLoc: closeParenLoc,
 					OptionalChain: optionalStart,
+					IsMultiLine:   isMultiLine,
 				}}
 
 			case js_lexer.TLessThan, js_lexer.TLessThanLessThan:
@@ -3776,12 +3783,13 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 				if level >= js_ast.LCall {
 					return left
 				}
-				args, closeParenLoc := p.parseCallArgs()
+				args, closeParenLoc, isMultiLine := p.parseCallArgs()
 				left = js_ast.Expr{Loc: left.Loc, Data: &js_ast.ECall{
 					Target:        left,
 					Args:          args,
 					CloseParenLoc: closeParenLoc,
 					OptionalChain: optionalStart,
+					IsMultiLine:   isMultiLine,
 				}}
 
 			default:
@@ -3877,12 +3885,13 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 			if level >= js_ast.LCall {
 				return left
 			}
-			args, closeParenLoc := p.parseCallArgs()
+			args, closeParenLoc, isMultiLine := p.parseCallArgs()
 			left = js_ast.Expr{Loc: left.Loc, Data: &js_ast.ECall{
 				Target:        left,
 				Args:          args,
 				CloseParenLoc: closeParenLoc,
 				OptionalChain: oldOptionalChain,
+				IsMultiLine:   isMultiLine,
 			}}
 			optionalChain = oldOptionalChain
 
@@ -4387,7 +4396,7 @@ func (p *parser) parseExprOrLetStmt(opts parseStmtOpts) (js_ast.Expr, js_ast.Stm
 	return p.parseSuffix(expr, js_ast.LLowest, nil, 0), js_ast.Stmt{}, nil
 }
 
-func (p *parser) parseCallArgs() (args []js_ast.Expr, closeParenLoc logger.Loc) {
+func (p *parser) parseCallArgs() (args []js_ast.Expr, closeParenLoc logger.Loc, isMultiLine bool) {
 	// Allow "in" inside call arguments
 	oldAllowIn := p.allowIn
 	p.allowIn = true
@@ -4395,6 +4404,9 @@ func (p *parser) parseCallArgs() (args []js_ast.Expr, closeParenLoc logger.Loc) 
 	p.lexer.Expect(js_lexer.TOpenParen)
 
 	for p.lexer.Token != js_lexer.TCloseParen {
+		if p.lexer.HasNewlineBefore {
+			isMultiLine = true
+		}
 		loc := p.lexer.Loc()
 		isSpread := p.lexer.Token == js_lexer.TDotDotDot
 		if isSpread {
@@ -4409,9 +4421,15 @@ func (p *parser) parseCallArgs() (args []js_ast.Expr, closeParenLoc logger.Loc) 
 		if p.lexer.Token != js_lexer.TComma {
 			break
 		}
+		if p.lexer.HasNewlineBefore {
+			isMultiLine = true
+		}
 		p.lexer.Next()
 	}
 
+	if p.lexer.HasNewlineBefore {
+		isMultiLine = true
+	}
 	closeParenLoc = p.lexer.Loc()
 	p.lexer.Expect(js_lexer.TCloseParen)
 	p.allowIn = oldAllowIn
@@ -5189,11 +5207,13 @@ func (p *parser) parseBinding() js_ast.Binding {
 		if p.lexer.HasNewlineBefore {
 			isSingleLine = false
 		}
+		closeBracketLoc := p.lexer.Loc()
 		p.lexer.Expect(js_lexer.TCloseBracket)
 		return js_ast.Binding{Loc: loc, Data: &js_ast.BArray{
-			Items:        items,
-			HasSpread:    hasSpread,
-			IsSingleLine: isSingleLine,
+			Items:           items,
+			HasSpread:       hasSpread,
+			IsSingleLine:    isSingleLine,
+			CloseBracketLoc: closeBracketLoc,
 		}}
 
 	case js_lexer.TOpenBrace:
@@ -5233,10 +5253,12 @@ func (p *parser) parseBinding() js_ast.Binding {
 		if p.lexer.HasNewlineBefore {
 			isSingleLine = false
 		}
+		closeBraceLoc := p.lexer.Loc()
 		p.lexer.Expect(js_lexer.TCloseBrace)
 		return js_ast.Binding{Loc: loc, Data: &js_ast.BObject{
-			Properties:   properties,
-			IsSingleLine: isSingleLine,
+			Properties:    properties,
+			IsSingleLine:  isSingleLine,
+			CloseBraceLoc: closeBraceLoc,
 		}}
 	}
 
@@ -5883,7 +5905,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 	switch p.lexer.Token {
 	case js_lexer.TSemicolon:
 		p.lexer.Next()
-		return js_ast.Stmt{Loc: loc, Data: &js_ast.SEmpty{}}
+		return js_ast.Stmt{Loc: loc, Data: js_ast.SEmptyShared}
 
 	case js_lexer.TExport:
 		previousExportKeyword := p.esmExportKeyword
@@ -6863,7 +6885,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 	case js_lexer.TDebugger:
 		p.lexer.Next()
 		p.lexer.ExpectOrInsertSemicolon()
-		return js_ast.Stmt{Loc: loc, Data: &js_ast.SDebugger{}}
+		return js_ast.Stmt{Loc: loc, Data: js_ast.SDebuggerShared}
 
 	case js_lexer.TOpenBrace:
 		p.pushScopeForParsePass(js_ast.ScopeBlock, loc)
@@ -7664,6 +7686,41 @@ func isDirectiveSupported(s *js_ast.SDirective) bool {
 }
 
 func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt {
+	// Remove inlined constants now that we know whether any of these statements
+	// contained a direct eval() or not. This can't be done earlier when we
+	// encounter the constant because we haven't encountered the eval() yet.
+	// Inlined constants are not removed if they are in a top-level scope or
+	// if they are exported (which could be in a nested TypeScript namespace).
+	if p.currentScope.Parent != nil && !p.currentScope.ContainsDirectEval {
+		for i, stmt := range stmts {
+			switch s := stmt.Data.(type) {
+			case *js_ast.SEmpty, *js_ast.SComment, *js_ast.SDirective, *js_ast.SDebugger, *js_ast.STypeScript:
+				continue
+
+			case *js_ast.SLocal:
+				if !s.IsExport {
+					end := 0
+					for _, d := range s.Decls {
+						if id, ok := d.Binding.Data.(*js_ast.BIdentifier); ok {
+							if _, ok := p.constValues[id.Ref]; ok {
+								continue
+							}
+						}
+						s.Decls[end] = d
+						end++
+					}
+					if end == 0 {
+						stmts[i].Data = js_ast.SEmptyShared
+					} else {
+						s.Decls = s.Decls[:end]
+					}
+				}
+				continue
+			}
+			break
+		}
+	}
+
 	// Merge adjacent statements during mangling
 	result := make([]js_ast.Stmt, 0, len(stmts))
 	isControlFlowDead := false
@@ -8460,7 +8517,7 @@ func (p *parser) visitSingleStmt(stmt js_ast.Stmt, kind stmtsKind) js_ast.Stmt {
 // One statement could potentially expand to several statements
 func stmtsToSingleStmt(loc logger.Loc, stmts []js_ast.Stmt) js_ast.Stmt {
 	if len(stmts) == 0 {
-		return js_ast.Stmt{Loc: loc, Data: &js_ast.SEmpty{}}
+		return js_ast.Stmt{Loc: loc, Data: js_ast.SEmptyShared}
 	}
 	if len(stmts) == 1 {
 		// "let" and "const" must be put in a block when in a single-statement context
@@ -8605,7 +8662,7 @@ func dropFirstStatement(body js_ast.Stmt, replaceOrNil js_ast.Stmt) js_ast.Stmt 
 	if replaceOrNil.Data != nil {
 		return replaceOrNil
 	}
-	return js_ast.Stmt{Loc: body.Loc, Data: &js_ast.SEmpty{}}
+	return js_ast.Stmt{Loc: body.Loc, Data: js_ast.SEmptyShared}
 }
 
 func mangleFor(s *js_ast.SFor) {
@@ -9310,9 +9367,8 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		// Local statements do not end the const local prefix
 		p.currentScope.IsAfterConstLocalPrefix = wasAfterAfterConstLocalPrefix
 
-		end := 0
 		for i := range s.Decls {
-			d := s.Decls[i]
+			d := &s.Decls[i]
 			p.visitBinding(d.Binding, bindingOpts{})
 
 			// Visit the initializer
@@ -9364,13 +9420,6 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 								p.constValues = make(map[js_ast.Ref]js_ast.ConstValue)
 							}
 							p.constValues[id.Ref] = value
-
-							// Only keep this declaration if it's top-level or exported (which
-							// could be in a nested TypeScript namespace), otherwise erase it
-							if p.currentScope.Parent == nil || s.IsExport {
-								s.Decls[end] = d
-								end++
-							}
 							continue
 						}
 					}
@@ -9383,19 +9432,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 					p.currentScope.IsAfterConstLocalPrefix = true
 				}
 			}
-
-			// Keep the declaration if we didn't continue the loop above
-			s.Decls[end] = d
-			end++
 		}
-
-		// Remove this declaration entirely if all symbols are inlined constants
-		if end == 0 {
-			return stmts
-		}
-
-		// Trim the removed declarations
-		s.Decls = s.Decls[:end]
 
 		// Handle being exported inside a namespace
 		if s.IsExport && p.enclosingNamespaceArgRef != nil {
@@ -9502,7 +9539,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 				stmt = s.Stmts[0]
 			} else if len(s.Stmts) == 0 {
 				// Trim empty blocks
-				stmt = js_ast.Stmt{Loc: stmt.Loc, Data: &js_ast.SEmpty{}}
+				stmt = js_ast.Stmt{Loc: stmt.Loc, Data: js_ast.SEmptyShared}
 			}
 		}
 
@@ -9722,7 +9759,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			if c.ValueOrNil.Data != nil {
 				c.ValueOrNil = p.visitExpr(c.ValueOrNil)
 				p.warnAboutEqualityCheck("case", c.ValueOrNil, c.ValueOrNil.Loc)
-				p.warnAboutTypeofAndString(s.Test, c.ValueOrNil)
+				p.warnAboutTypeofAndString(s.Test, c.ValueOrNil, onlyCheckOriginalOrder)
 			}
 			c.Body = p.visitStmts(c.Body, stmtsNormal)
 
@@ -10773,20 +10810,25 @@ func (p *parser) instantiateDefineExpr(loc logger.Loc, expr config.DefineExpr, o
 	}
 
 	// Check both user-specified defines and known globals
-	if defines, ok := p.options.defines.DotDefines[parts[len(parts)-1]]; ok {
-	next:
-		for _, define := range defines {
-			if len(define.Parts) == len(parts) {
-				for i := range parts {
-					if parts[i] != define.Parts[i] {
-						continue next
+	if opts.matchAgainstDefines {
+		// Make sure define resolution is not recursive
+		opts.matchAgainstDefines = false
+
+		if defines, ok := p.options.defines.DotDefines[parts[len(parts)-1]]; ok {
+		next:
+			for _, define := range defines {
+				if len(define.Parts) == len(parts) {
+					for i := range parts {
+						if parts[i] != define.Parts[i] {
+							continue next
+						}
+					}
+
+					// Substitute user-specified defines
+					if define.Data.DefineExpr != nil {
+						return p.instantiateDefineExpr(loc, *define.Data.DefineExpr, opts)
 					}
 				}
-			}
-
-			// Substitute user-specified defines
-			if define.Data.DefineExpr != nil {
-				return p.instantiateDefineExpr(loc, *define.Data.DefineExpr, opts)
 			}
 		}
 	}
@@ -10876,7 +10918,20 @@ func (p *parser) checkForUnrepresentableIdentifier(loc logger.Loc, name string) 
 	}
 }
 
-func (p *parser) warnAboutTypeofAndString(a js_ast.Expr, b js_ast.Expr) {
+type typeofStringOrder uint8
+
+const (
+	onlyCheckOriginalOrder typeofStringOrder = iota
+	checkBothOrders
+)
+
+func (p *parser) warnAboutTypeofAndString(a js_ast.Expr, b js_ast.Expr, order typeofStringOrder) {
+	if order == checkBothOrders {
+		if _, ok := a.Data.(*js_ast.EString); ok {
+			a, b = b, a
+		}
+	}
+
 	if typeof, ok := a.Data.(*js_ast.EUnary); ok && typeof.Op == js_ast.UnOpTypeof {
 		if str, ok := b.Data.(*js_ast.EString); ok {
 			value := helpers.UTF16ToString(str.Value)
@@ -10912,15 +10967,22 @@ func canChangeStrictToLoose(a js_ast.Expr, b js_ast.Expr) bool {
 }
 
 func (p *parser) maybeSimplifyEqualityComparison(loc logger.Loc, e *js_ast.EBinary) (js_ast.Expr, bool) {
+	value, primitive := e.Left, e.Right
+
+	// Detect when the primitive comes first and flip the order of our checks
+	if isPrimitiveLiteral(value.Data) {
+		value, primitive = primitive, value
+	}
+
 	// "!x === true" => "!x"
 	// "!x === false" => "!!x"
 	// "!x !== true" => "!!x"
 	// "!x !== false" => "!x"
-	if boolean, ok := e.Right.Data.(*js_ast.EBoolean); ok && js_ast.KnownPrimitiveType(e.Left) == js_ast.PrimitiveBoolean {
+	if boolean, ok := primitive.Data.(*js_ast.EBoolean); ok && js_ast.KnownPrimitiveType(value) == js_ast.PrimitiveBoolean {
 		if boolean.Value == (e.Op == js_ast.BinOpLooseNe || e.Op == js_ast.BinOpStrictNe) {
-			return js_ast.Not(e.Left), true
+			return js_ast.Not(value), true
 		} else {
-			return e.Left, true
+			return value, true
 		}
 	}
 
@@ -10931,17 +10993,18 @@ func (p *parser) maybeSimplifyEqualityComparison(loc logger.Loc, e *js_ast.EBina
 		// return something random. The only case of this happening was Internet
 		// Explorer returning "unknown" for some objects, which messes with this
 		// optimization. So we don't do this when targeting Internet Explorer.
-		if typeof, ok := e.Left.Data.(*js_ast.EUnary); ok && typeof.Op == js_ast.UnOpTypeof {
-			if str, ok := e.Right.Data.(*js_ast.EString); ok && helpers.UTF16EqualsString(str.Value, "undefined") {
+		if typeof, ok := value.Data.(*js_ast.EUnary); ok && typeof.Op == js_ast.UnOpTypeof {
+			if str, ok := primitive.Data.(*js_ast.EString); ok && helpers.UTF16EqualsString(str.Value, "undefined") {
+				flip := value == e.Right
 				op := js_ast.BinOpLt
-				if e.Op == js_ast.BinOpLooseEq || e.Op == js_ast.BinOpStrictEq {
+				if (e.Op == js_ast.BinOpLooseEq || e.Op == js_ast.BinOpStrictEq) != flip {
 					op = js_ast.BinOpGt
 				}
-				return js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
-					Op:    op,
-					Left:  e.Left,
-					Right: js_ast.Expr{Loc: e.Right.Loc, Data: &js_ast.EString{Value: []uint16{'u'}}},
-				}}, true
+				primitive.Data = &js_ast.EString{Value: []uint16{'u'}}
+				if flip {
+					value, primitive = primitive, value
+				}
+				return js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{Op: op, Left: value, Right: primitive}}, true
 			}
 		}
 	}
@@ -11533,18 +11596,29 @@ func stringToEquivalentNumberValue(value []uint16) (float64, bool) {
 func isBinaryNullAndUndefined(left js_ast.Expr, right js_ast.Expr, op js_ast.OpCode) (js_ast.Expr, js_ast.Expr, bool) {
 	if a, ok := left.Data.(*js_ast.EBinary); ok && a.Op == op {
 		if b, ok := right.Data.(*js_ast.EBinary); ok && b.Op == op {
-			if idA, ok := a.Left.Data.(*js_ast.EIdentifier); ok {
-				if idB, ok := b.Left.Data.(*js_ast.EIdentifier); ok && idA.Ref == idB.Ref {
+			idA, eqA := a.Left, a.Right
+			idB, eqB := b.Left, b.Right
+
+			// Detect when the identifier comes second and flip the order of our checks
+			if _, ok := eqA.Data.(*js_ast.EIdentifier); ok {
+				idA, eqA = eqA, idA
+			}
+			if _, ok := eqB.Data.(*js_ast.EIdentifier); ok {
+				idB, eqB = eqB, idB
+			}
+
+			if idA, ok := idA.Data.(*js_ast.EIdentifier); ok {
+				if idB, ok := idB.Data.(*js_ast.EIdentifier); ok && idA.Ref == idB.Ref {
 					// "a === null || a === void 0"
-					if _, ok := a.Right.Data.(*js_ast.ENull); ok {
-						if _, ok := b.Right.Data.(*js_ast.EUndefined); ok {
+					if _, ok := eqA.Data.(*js_ast.ENull); ok {
+						if _, ok := eqB.Data.(*js_ast.EUndefined); ok {
 							return a.Left, a.Right, true
 						}
 					}
 
 					// "a === void 0 || a === null"
-					if _, ok := a.Right.Data.(*js_ast.EUndefined); ok {
-						if _, ok := b.Right.Data.(*js_ast.ENull); ok {
+					if _, ok := eqA.Data.(*js_ast.EUndefined); ok {
+						if _, ok := eqB.Data.(*js_ast.ENull); ok {
 							return b.Left, b.Right, true
 						}
 					}
@@ -12050,6 +12124,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				} else {
 					e.TagOrNil = p.instantiateDefineExpr(expr.Loc, p.options.jsx.Fragment, identifierOpts{
 						wasOriginallyIdentifier: true,
+						matchAgainstDefines:     true, // Allow defines to rewrite the JSX fragment factory
 					})
 				}
 			}
@@ -12092,6 +12167,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				} else {
 					target = p.instantiateDefineExpr(expr.Loc, p.options.jsx.Factory, identifierOpts{
 						wasOriginallyIdentifier: true,
+						matchAgainstDefines:     true, // Allow defines to rewrite the JSX factory
 					})
 				}
 				p.warnAboutImportNamespaceCall(target, exprKindCall)
@@ -12382,13 +12458,23 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 		p.fnOnlyDataVisit.silenceWarningAboutThisBeingUndefined = oldSilenceWarningAboutThisBeingUndefined
 
-		// Always put constants on the right for equality comparisons to help
-		// reduce the number of cases we have to check during pattern matching. We
-		// can only reorder expressions that do not have any side effects.
-		switch e.Op {
-		case js_ast.BinOpLooseEq, js_ast.BinOpLooseNe, js_ast.BinOpStrictEq, js_ast.BinOpStrictNe:
-			if isPrimitiveLiteral(e.Left.Data) && !isPrimitiveLiteral(e.Right.Data) {
-				e.Left, e.Right = e.Right, e.Left
+		// Always put constants consistently on the same side for equality
+		// comparisons to help improve compression. In theory, dictionary-based
+		// compression methods may already have a dictionary entry for code that
+		// is similar to previous code. Note that we can only reorder expressions
+		// that do not have any side effects.
+		//
+		// Constants are currently ordered on the right instead of the left because
+		// it results in slightly smalller gzip size on our primary benchmark
+		// (although slightly larger uncompressed size). The size difference is
+		// less than 0.1% so it really isn't that important an optimization.
+		if p.options.minifySyntax {
+			switch e.Op {
+			case js_ast.BinOpLooseEq, js_ast.BinOpLooseNe, js_ast.BinOpStrictEq, js_ast.BinOpStrictNe:
+				// "1 === x" => "x === 1"
+				if isPrimitiveLiteral(e.Left.Data) && !isPrimitiveLiteral(e.Right.Data) {
+					e.Left, e.Right = e.Right, e.Left
+				}
 			}
 		}
 
@@ -12418,11 +12504,13 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			if !p.warnAboutEqualityCheck("==", e.Left, afterOpLoc) {
 				p.warnAboutEqualityCheck("==", e.Right, afterOpLoc)
 			}
-			p.warnAboutTypeofAndString(e.Left, e.Right)
+			p.warnAboutTypeofAndString(e.Left, e.Right, checkBothOrders)
 
 			if p.options.minifySyntax {
 				// "x == void 0" => "x == null"
-				if _, ok := e.Right.Data.(*js_ast.EUndefined); ok {
+				if _, ok := e.Left.Data.(*js_ast.EUndefined); ok {
+					e.Left.Data = js_ast.ENullShared
+				} else if _, ok := e.Right.Data.(*js_ast.EUndefined); ok {
 					e.Right.Data = js_ast.ENullShared
 				}
 
@@ -12439,7 +12527,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			if !p.warnAboutEqualityCheck("===", e.Left, afterOpLoc) {
 				p.warnAboutEqualityCheck("===", e.Right, afterOpLoc)
 			}
-			p.warnAboutTypeofAndString(e.Left, e.Right)
+			p.warnAboutTypeofAndString(e.Left, e.Right, checkBothOrders)
 
 			if p.options.minifySyntax {
 				// "typeof x === 'undefined'" => "typeof x == 'undefined'"
@@ -12460,11 +12548,13 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			if !p.warnAboutEqualityCheck("!=", e.Left, afterOpLoc) {
 				p.warnAboutEqualityCheck("!=", e.Right, afterOpLoc)
 			}
-			p.warnAboutTypeofAndString(e.Left, e.Right)
+			p.warnAboutTypeofAndString(e.Left, e.Right, checkBothOrders)
 
 			if p.options.minifySyntax {
 				// "x != void 0" => "x != null"
-				if _, ok := e.Right.Data.(*js_ast.EUndefined); ok {
+				if _, ok := e.Left.Data.(*js_ast.EUndefined); ok {
+					e.Left.Data = js_ast.ENullShared
+				} else if _, ok := e.Right.Data.(*js_ast.EUndefined); ok {
 					e.Right.Data = js_ast.ENullShared
 				}
 
@@ -12481,7 +12571,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			if !p.warnAboutEqualityCheck("!==", e.Left, afterOpLoc) {
 				p.warnAboutEqualityCheck("!==", e.Right, afterOpLoc)
 			}
-			p.warnAboutTypeofAndString(e.Left, e.Right)
+			p.warnAboutTypeofAndString(e.Left, e.Right, checkBothOrders)
 
 			if p.options.minifySyntax {
 				// "typeof x !== 'undefined'" => "typeof x != 'undefined'"
@@ -14415,6 +14505,7 @@ type identifierOpts struct {
 	isDeleteTarget          bool
 	preferQuotedKey         bool
 	wasOriginallyIdentifier bool
+	matchAgainstDefines     bool
 }
 
 func (p *parser) handleIdentifier(loc logger.Loc, e *js_ast.EIdentifier, opts identifierOpts) js_ast.Expr {

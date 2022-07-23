@@ -79,7 +79,7 @@ var base64 = []byte("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456
 //   V    V
 //   101011
 //
-func EncodeVLQ(value int) []byte {
+func encodeVLQ(encoded []byte, value int) []byte {
 	var vlq int
 	if value < 0 {
 		vlq = ((-value) << 1) | 1
@@ -87,13 +87,13 @@ func EncodeVLQ(value int) []byte {
 		vlq = value << 1
 	}
 
-	// Handle the common case up front without allocations
+	// Handle the common case
 	if (vlq >> 5) == 0 {
 		digit := vlq & 31
-		return base64[digit : digit+1]
+		encoded = append(encoded, base64[digit])
+		return encoded
 	}
 
-	encoded := []byte{}
 	for {
 		digit := vlq & 31
 		vlq >>= 5
@@ -144,7 +144,7 @@ func DecodeVLQ(encoded []byte, start int) (int, int) {
 	return value, start
 }
 
-func DecodeVLQUTF16(encoded []uint16) (int, int, bool) {
+func DecodeVLQUTF16(encoded []uint16) (int32, int, bool) {
 	n := len(encoded)
 	if n == 0 {
 		return 0, 0, false
@@ -153,12 +153,12 @@ func DecodeVLQUTF16(encoded []uint16) (int, int, bool) {
 	// Scan over the input
 	current := 0
 	shift := 0
-	vlq := 0
+	var vlq int32
 	for {
 		if current >= n {
 			return 0, 0, false
 		}
-		index := bytes.IndexByte(base64, byte(encoded[current]))
+		index := int32(bytes.IndexByte(base64, byte(encoded[current])))
 		if index < 0 {
 			return 0, 0, false
 		}
@@ -351,7 +351,7 @@ func (pieces SourceMapPieces) Finalize(shifts []SourceMapShift) []byte {
 			panic("Unexpected line change when shifting source maps")
 		}
 		shiftColumnDelta := shift.After.Columns - shift.Before.Columns
-		j.AddBytes(EncodeVLQ(generatedColumnDelta + shiftColumnDelta - prevShiftColumnDelta))
+		j.AddBytes(encodeVLQ(nil, generatedColumnDelta+shiftColumnDelta-prevShiftColumnDelta))
 		prevShiftColumnDelta = shiftColumnDelta
 
 		// Finally, start the next run after the end of this generated column offset
@@ -436,19 +436,19 @@ func appendMappingToBuffer(buffer []byte, lastByte byte, prevState SourceMapStat
 	}
 
 	// Record the generated column (the line is recorded using ';' elsewhere)
-	buffer = append(buffer, EncodeVLQ(currentState.GeneratedColumn-prevState.GeneratedColumn)...)
+	buffer = encodeVLQ(buffer, currentState.GeneratedColumn-prevState.GeneratedColumn)
 	prevState.GeneratedColumn = currentState.GeneratedColumn
 
 	// Record the generated source
-	buffer = append(buffer, EncodeVLQ(currentState.SourceIndex-prevState.SourceIndex)...)
+	buffer = encodeVLQ(buffer, currentState.SourceIndex-prevState.SourceIndex)
 	prevState.SourceIndex = currentState.SourceIndex
 
 	// Record the original line
-	buffer = append(buffer, EncodeVLQ(currentState.OriginalLine-prevState.OriginalLine)...)
+	buffer = encodeVLQ(buffer, currentState.OriginalLine-prevState.OriginalLine)
 	prevState.OriginalLine = currentState.OriginalLine
 
 	// Record the original column
-	buffer = append(buffer, EncodeVLQ(currentState.OriginalColumn-prevState.OriginalColumn)...)
+	buffer = encodeVLQ(buffer, currentState.OriginalColumn-prevState.OriginalColumn)
 	prevState.OriginalColumn = currentState.OriginalColumn
 
 	return buffer

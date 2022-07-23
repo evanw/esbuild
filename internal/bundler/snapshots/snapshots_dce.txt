@@ -8,7 +8,10 @@ TestConstValueInliningBundle
 ---------- /out/exported-entry.js ----------
 // exported-entry.js
 var y_keep = 2;
-console.log(1, 2);
+console.log(
+  1,
+  2
+);
 export {
   y_keep
 };
@@ -97,26 +100,91 @@ function bar() {
 console.log(123, bar());
 
 ================================================================================
+TestConstValueInliningDirectEval
+---------- /out/top-level-no-eval.js ----------
+const x = 1;
+console.log(1, evil("x"));
+
+---------- /out/top-level-eval.js ----------
+const x = 1;
+console.log(1, eval("x"));
+
+---------- /out/nested-no-eval.js ----------
+console.log(1, evil("x"));
+
+---------- /out/nested-eval.js ----------
+(() => {
+  const x = 1;
+  console.log(1, eval("x"));
+})();
+
+---------- /out/ts-namespace-no-eval.js ----------
+var y;
+((y2) => (y2.x = 1, console.log(1, evil("x"))))(y ||= {});
+
+---------- /out/ts-namespace-eval.js ----------
+var z;
+((z) => (z.x = 1, console.log(1, eval("x"))))(z ||= {});
+
+================================================================================
 TestConstValueInliningNoBundle
 ---------- /out/top-level.js ----------
 const n_keep = null, u_keep = void 0, i_keep = 1234567, f_keep = 123.456, s_keep = "";
-console.log(null, null, void 0, void 0, 1234567, 1234567, 123.456, 123.456, s_keep, s_keep);
+console.log(
+  null,
+  null,
+  void 0,
+  void 0,
+  1234567,
+  1234567,
+  123.456,
+  123.456,
+  s_keep,
+  s_keep
+);
 
 ---------- /out/nested-block.js ----------
 {
   const s_keep = "";
-  console.log(null, null, void 0, void 0, 1234567, 1234567, 123.456, 123.456, s_keep, s_keep);
+  console.log(
+    null,
+    null,
+    void 0,
+    void 0,
+    1234567,
+    1234567,
+    123.456,
+    123.456,
+    s_keep,
+    s_keep
+  );
 }
 
 ---------- /out/nested-function.js ----------
 function nested() {
   const s_keep = "";
-  console.log(null, null, void 0, void 0, 1234567, 1234567, 123.456, 123.456, s_keep, s_keep);
+  console.log(
+    null,
+    null,
+    void 0,
+    void 0,
+    1234567,
+    1234567,
+    123.456,
+    123.456,
+    s_keep,
+    s_keep
+  );
 }
 
 ---------- /out/namespace-export.js ----------
 var ns;
-((ns2) => (ns2.y_keep = 2, console.log(1, 1, 2, 2)))(ns ||= {});
+((ns2) => (ns2.y_keep = 2, console.log(
+  1,
+  1,
+  2,
+  2
+)))(ns ||= {});
 
 ---------- /out/comment-before.js ----------
 {
@@ -160,12 +228,22 @@ function foo() {
 
 ---------- /out/backwards-reference-top-level.js ----------
 const x = y, y = 1;
-console.log(x, x, y, y);
+console.log(
+  x,
+  x,
+  y,
+  y
+);
 
 ---------- /out/backwards-reference-nested-function.js ----------
 function foo() {
   const x = y, y = 1;
-  console.log(x, x, y, y);
+  console.log(
+    x,
+    x,
+    y,
+    y
+  );
 }
 
 ================================================================================
@@ -358,14 +436,14 @@ TestDCETypeOfEqualsStringGuardCondition
   var keep_1 = typeof x != "object" && x;
   var keep_1 = typeof x === "object" || x;
   var keep_1 = typeof x == "object" || x;
-  var keep_1 = typeof x !== "object" ? x : null;
-  var keep_1 = typeof x != "object" ? x : null;
-  var keep_1 = typeof x === "object" ? null : x;
-  var keep_1 = typeof x == "object" ? null : x;
-  var keep_1 = typeof x !== "object" && x;
-  var keep_1 = typeof x != "object" && x;
-  var keep_1 = typeof x === "object" || x;
-  var keep_1 = typeof x == "object" || x;
+  var keep_1 = "object" !== typeof x ? x : null;
+  var keep_1 = "object" != typeof x ? x : null;
+  var keep_1 = "object" === typeof x ? null : x;
+  var keep_1 = "object" == typeof x ? null : x;
+  var keep_1 = "object" !== typeof x && x;
+  var keep_1 = "object" != typeof x && x;
+  var keep_1 = "object" === typeof x || x;
+  var keep_1 = "object" == typeof x || x;
   var keep_2 = typeof x !== "undefined" ? y : null;
   var keep_2 = typeof x != "undefined" ? y : null;
   var keep_2 = typeof x === "undefined" ? null : y;
@@ -374,14 +452,14 @@ TestDCETypeOfEqualsStringGuardCondition
   var keep_2 = typeof x != "undefined" && y;
   var keep_2 = typeof x === "undefined" || y;
   var keep_2 = typeof x == "undefined" || y;
-  var keep_2 = typeof x !== "undefined" ? y : null;
-  var keep_2 = typeof x != "undefined" ? y : null;
-  var keep_2 = typeof x === "undefined" ? null : y;
-  var keep_2 = typeof x == "undefined" ? null : y;
-  var keep_2 = typeof x !== "undefined" && y;
-  var keep_2 = typeof x != "undefined" && y;
-  var keep_2 = typeof x === "undefined" || y;
-  var keep_2 = typeof x == "undefined" || y;
+  var keep_2 = "undefined" !== typeof x ? y : null;
+  var keep_2 = "undefined" != typeof x ? y : null;
+  var keep_2 = "undefined" === typeof x ? null : y;
+  var keep_2 = "undefined" == typeof x ? null : y;
+  var keep_2 = "undefined" !== typeof x && y;
+  var keep_2 = "undefined" != typeof x && y;
+  var keep_2 = "undefined" === typeof x || y;
+  var keep_2 = "undefined" == typeof x || y;
   var keep_3 = typeof x !== "undefined" ? null : x;
   var keep_3 = typeof x != "undefined" ? null : x;
   var keep_3 = typeof x === "undefined" ? x : null;
@@ -390,14 +468,14 @@ TestDCETypeOfEqualsStringGuardCondition
   var keep_3 = typeof x != "undefined" || x;
   var keep_3 = typeof x === "undefined" && x;
   var keep_3 = typeof x == "undefined" && x;
-  var keep_3 = typeof x !== "undefined" ? null : x;
-  var keep_3 = typeof x != "undefined" ? null : x;
-  var keep_3 = typeof x === "undefined" ? x : null;
-  var keep_3 = typeof x == "undefined" ? x : null;
-  var keep_3 = typeof x !== "undefined" || x;
-  var keep_3 = typeof x != "undefined" || x;
-  var keep_3 = typeof x === "undefined" && x;
-  var keep_3 = typeof x == "undefined" && x;
+  var keep_3 = "undefined" !== typeof x ? null : x;
+  var keep_3 = "undefined" != typeof x ? null : x;
+  var keep_3 = "undefined" === typeof x ? x : null;
+  var keep_3 = "undefined" == typeof x ? x : null;
+  var keep_3 = "undefined" !== typeof x || x;
+  var keep_3 = "undefined" != typeof x || x;
+  var keep_3 = "undefined" === typeof x && x;
+  var keep_3 = "undefined" == typeof x && x;
 })();
 
 ================================================================================

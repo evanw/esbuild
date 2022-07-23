@@ -399,7 +399,13 @@ for (const e of x)
 TestDefineImportMeta
 ---------- /out.js ----------
 // entry.js
-console.log(1, 2, 3, 2 .baz, 1 .bar);
+console.log(
+  1,
+  2,
+  3,
+  2 .baz,
+  1 .bar
+);
 
 ================================================================================
 TestDefineImportMetaES5
@@ -413,6 +419,13 @@ var import_meta = {};
 console.log(import_meta.y);
 
 ---------- /out/dead-code.js ----------
+
+================================================================================
+TestDefineInfiniteLoopIssue2407
+---------- /out.js ----------
+// entry.js
+b.c();
+y();
 
 ================================================================================
 TestDefineOptionalChain
@@ -455,12 +468,30 @@ console.log([
 TestDefineThis
 ---------- /out.js ----------
 // entry.js
-ok(1, 2, 3, 2 .baz, 1 .bar);
+ok(
+  1,
+  2,
+  3,
+  2 .baz,
+  1 .bar
+);
 (() => {
-  ok(1, 2, 3, 2 .baz, 1 .bar);
+  ok(
+    1,
+    2,
+    3,
+    2 .baz,
+    1 .bar
+  );
 })();
 (function() {
-  doNotSubstitute(this, this.foo, this.foo.bar, this.foo.baz, this.bar);
+  doNotSubstitute(
+    this,
+    this.foo,
+    this.foo.bar,
+    this.foo.baz,
+    this.bar
+  );
 })();
 
 ================================================================================
@@ -1352,9 +1383,11 @@ TestInjectJSX
 // inject.js
 function el() {
 }
+function frag() {
+}
 
 // entry.jsx
-console.log(/* @__PURE__ */ el("div", null));
+console.log(/* @__PURE__ */ el(frag, null, /* @__PURE__ */ el("div", null)));
 
 ================================================================================
 TestInjectNoBundle

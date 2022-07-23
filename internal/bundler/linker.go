@@ -50,6 +50,9 @@ type linkerContext struct {
 	uniqueKeyPrefix      string
 	uniqueKeyPrefixBytes []byte // This is just "uniqueKeyPrefix" in byte form
 
+	// Property mangling results go here
+	mangledProps map[js_ast.Ref]string
+
 	// We may need to refer to the CommonJS "module" symbol for exports
 	unboundModuleRef js_ast.Ref
 
@@ -330,6 +333,9 @@ func (c *linkerContext) mangleProps(mangleCache map[string]interface{}) {
 	c.timer.Begin("Mangle props")
 	defer c.timer.End("Mangle props")
 
+	mangledProps := make(map[js_ast.Ref]string)
+	c.mangledProps = mangledProps
+
 	// Reserve all JS keywords
 	reservedProps := make(map[string]bool)
 	for keyword := range js_lexer.Keywords {
@@ -347,7 +353,7 @@ func (c *linkerContext) mangleProps(mangleCache map[string]interface{}) {
 
 	// Merge all mangled property symbols together
 	freq := js_ast.CharFreq{}
-	mangledProps := make(map[string]js_ast.Ref)
+	mergedProps := make(map[string]js_ast.Ref)
 	for _, sourceIndex := range c.graph.ReachableFiles {
 		// Don't mangle anything in the runtime code
 		if sourceIndex == runtime.SourceIndex {
@@ -363,10 +369,10 @@ func (c *linkerContext) mangleProps(mangleCache map[string]interface{}) {
 
 			// Merge each mangled property with other ones of the same name
 			for name, ref := range repr.AST.MangledProps {
-				if existing, ok := mangledProps[name]; ok {
+				if existing, ok := mergedProps[name]; ok {
 					js_ast.MergeSymbols(c.graph.Symbols, ref, existing)
 				} else {
-					mangledProps[name] = ref
+					mergedProps[name] = ref
 				}
 			}
 
@@ -378,9 +384,9 @@ func (c *linkerContext) mangleProps(mangleCache map[string]interface{}) {
 	}
 
 	// Sort by use count (note: does not currently account for live vs. dead code)
-	sorted := make(renamer.StableSymbolCountArray, 0, len(mangledProps))
+	sorted := make(renamer.StableSymbolCountArray, 0, len(mergedProps))
 	stableSourceIndices := c.graph.StableSourceIndices
-	for _, ref := range mangledProps {
+	for _, ref := range mergedProps {
 		sorted = append(sorted, renamer.StableSymbolCount{
 			StableSourceIndex: stableSourceIndices[ref.SourceIndex],
 			Ref:               ref,
@@ -398,7 +404,7 @@ func (c *linkerContext) mangleProps(mangleCache map[string]interface{}) {
 		// Don't change existing mappings
 		if existing, ok := mangleCache[symbol.OriginalName]; ok {
 			if existing != false {
-				symbol.OriginalName = existing.(string)
+				mangledProps[symbolCount.Ref] = existing.(string)
 			}
 			continue
 		}
@@ -417,7 +423,7 @@ func (c *linkerContext) mangleProps(mangleCache map[string]interface{}) {
 		if mangleCache != nil {
 			mangleCache[symbol.OriginalName] = name
 		}
-		symbol.OriginalName = name
+		mangledProps[symbolCount.Ref] = name
 	}
 }
 
@@ -2983,10 +2989,10 @@ func sanitizeFilePathForVirtualModulePath(path string) string {
 // In this case we just pick an arbitrary but consistent order.
 func (c *linkerContext) findImportedCSSFilesInJSOrder(entryPoint uint32) (order []uint32) {
 	visited := make(map[uint32]bool)
-	var visit func(uint32, ast.Index32)
+	var visit func(uint32)
 
 	// Include this file and all files it imports
-	visit = func(sourceIndex uint32, importerIndex ast.Index32) {
+	visit = func(sourceIndex uint32) {
 		if visited[sourceIndex] {
 			return
 		}
@@ -3013,7 +3019,7 @@ func (c *linkerContext) findImportedCSSFilesInJSOrder(entryPoint uint32) (order 
 			// this is the only way to do it.
 			for _, importRecordIndex := range part.ImportRecordIndices {
 				if record := &repr.AST.ImportRecords[importRecordIndex]; record.SourceIndex.IsValid() {
-					visit(record.SourceIndex.GetIndex(), ast.MakeIndex32(sourceIndex))
+					visit(record.SourceIndex.GetIndex())
 				}
 			}
 		}
@@ -3025,7 +3031,7 @@ func (c *linkerContext) findImportedCSSFilesInJSOrder(entryPoint uint32) (order 
 	}
 
 	// Include all files reachable from the entry point
-	visit(entryPoint, ast.Index32{})
+	visit(entryPoint)
 
 	return
 }
@@ -3052,10 +3058,10 @@ func (c *linkerContext) findImportedFilesInCSSOrder(entryPoints []uint32) (exter
 
 	visited := make(map[uint32]bool)
 	externals := make(map[logger.Path]externalImportsCSS)
-	var visit func(uint32, ast.Index32)
+	var visit func(uint32)
 
 	// Include this file and all files it imports
-	visit = func(sourceIndex uint32, importerIndex ast.Index32) {
+	visit = func(sourceIndex uint32) {
 		if !visited[sourceIndex] {
 			visited[sourceIndex] = true
 			repr := c.graph.Files[sourceIndex].InputFile.Repr.(*graph.CSSRepr)
@@ -3070,7 +3076,7 @@ func (c *linkerContext) findImportedFilesInCSSOrder(entryPoints []uint32) (exter
 				if atImport, ok := topLevelRules[i].Data.(*css_ast.RAtImport); ok {
 					if record := &repr.AST.ImportRecords[atImport.ImportRecordIndex]; record.SourceIndex.IsValid() {
 						// Follow internal dependencies
-						visit(record.SourceIndex.GetIndex(), ast.MakeIndex32(sourceIndex))
+						visit(record.SourceIndex.GetIndex())
 					} else {
 						// Record external dependencies
 						external := externals[record.Path]
@@ -3114,7 +3120,7 @@ func (c *linkerContext) findImportedFilesInCSSOrder(entryPoints []uint32) (exter
 
 	// Include all files reachable from any entry point
 	for i := len(entryPoints) - 1; i >= 0; i-- {
-		visit(entryPoints[i], ast.Index32{})
+		visit(entryPoints[i])
 	}
 
 	// Reverse the order afterward when traversing in CSS order
@@ -4185,6 +4191,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 		InputSourceMap:               inputSourceMap,
 		LineOffsetTables:             lineOffsetTables,
 		RequireOrImportMetaForSource: c.requireOrImportMetaForSource,
+		MangledProps:                 c.mangledProps,
 	}
 	tree := repr.AST
 	tree.Directive = "" // This is handled elsewhere
@@ -4500,6 +4507,7 @@ func (c *linkerContext) generateEntryPointTailJS(
 		LegalComments:                c.options.LegalComments,
 		UnsupportedFeatures:          c.options.UnsupportedJSFeatures,
 		RequireOrImportMetaForSource: c.requireOrImportMetaForSource,
+		MangledProps:                 c.mangledProps,
 	}
 	result.PrintResult = js_printer.Print(tree, c.graph.Symbols, r, printOptions)
 	return
@@ -4874,7 +4882,7 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 		// Add the top-level directive if present (but omit "use strict" in ES
 		// modules because all ES modules are automatically in strict mode)
 		if repr.AST.Directive != "" && (repr.AST.Directive != "use strict" || c.options.OutputFormat != config.FormatESModule) {
-			quoted := string(js_printer.QuoteForJSON(repr.AST.Directive, c.options.ASCIIOnly)) + ";" + newline
+			quoted := string(helpers.QuoteForJSON(repr.AST.Directive, c.options.ASCIIOnly)) + ";" + newline
 			prevOffset.AdvanceString(quoted)
 			j.AddString(quoted)
 			newlineBeforeComment = true
@@ -4925,8 +4933,8 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 				jMeta.AddString(",")
 			}
 			jMeta.AddString(fmt.Sprintf("\n        {\n          \"path\": %s,\n          \"kind\": %s\n        }",
-				js_printer.QuoteForJSON(c.res.PrettyPath(logger.Path{Text: chunks[chunkImport.chunkIndex].uniqueKey, Namespace: "file"}), c.options.ASCIIOnly),
-				js_printer.QuoteForJSON(chunkImport.importKind.StringForMetafile(), c.options.ASCIIOnly)))
+				helpers.QuoteForJSON(c.res.PrettyPath(logger.Path{Text: chunks[chunkImport.chunkIndex].uniqueKey, Namespace: "file"}), c.options.ASCIIOnly),
+				helpers.QuoteForJSON(chunkImport.importKind.StringForMetafile(), c.options.ASCIIOnly)))
 		}
 		if !isFirstMeta {
 			jMeta.AddString("\n      ")
@@ -4962,14 +4970,14 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 				jMeta.AddString(",")
 			}
 			jMeta.AddString(fmt.Sprintf("\n        %s",
-				js_printer.QuoteForJSON(alias, c.options.ASCIIOnly)))
+				helpers.QuoteForJSON(alias, c.options.ASCIIOnly)))
 		}
 		if !isFirstMeta {
 			jMeta.AddString("\n      ")
 		}
 		if chunk.isEntryPoint {
 			entryPoint := c.graph.Files[chunk.sourceIndex].InputFile.Source.PrettyPath
-			jMeta.AddString(fmt.Sprintf("],\n      \"entryPoint\": %s,\n      \"inputs\": {", js_printer.QuoteForJSON(entryPoint, c.options.ASCIIOnly)))
+			jMeta.AddString(fmt.Sprintf("],\n      \"entryPoint\": %s,\n      \"inputs\": {", helpers.QuoteForJSON(entryPoint, c.options.ASCIIOnly)))
 		} else {
 			jMeta.AddString("],\n      \"inputs\": {")
 		}
@@ -5115,7 +5123,7 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 				path := c.graph.Files[sourceIndex].InputFile.Source.PrettyPath
 				extra := c.generateExtraDataForFileJS(sourceIndex)
 				jMeta.AddString(fmt.Sprintf("\n        %s: {\n          \"bytesInOutput\": %d\n        %s}",
-					js_printer.QuoteForJSON(path, c.options.ASCIIOnly), metaByteCount[path], extra))
+					helpers.QuoteForJSON(path, c.options.ASCIIOnly), metaByteCount[path], extra))
 			}
 			if !isFirstMeta {
 				jMeta.AddString("\n      ")
@@ -5150,7 +5158,7 @@ func (c *linkerContext) generateGlobalNamePrefix() string {
 			}
 			text = fmt.Sprintf("var %s%s", prefix, join)
 		} else {
-			prefix = fmt.Sprintf("this[%s]", js_printer.QuoteForJSON(prefix, c.options.ASCIIOnly))
+			prefix = fmt.Sprintf("this[%s]", helpers.QuoteForJSON(prefix, c.options.ASCIIOnly))
 		}
 		for _, name := range globalName[1:] {
 			var dotOrIndex string
@@ -5160,7 +5168,7 @@ func (c *linkerContext) generateGlobalNamePrefix() string {
 				}
 				dotOrIndex = fmt.Sprintf(".%s", name)
 			} else {
-				dotOrIndex = fmt.Sprintf("[%s]", js_printer.QuoteForJSON(name, c.options.ASCIIOnly))
+				dotOrIndex = fmt.Sprintf("[%s]", helpers.QuoteForJSON(name, c.options.ASCIIOnly))
 			}
 			prefix = fmt.Sprintf("(%s%s||=%s{})%s", prefix, space, space, dotOrIndex)
 		}
@@ -5173,7 +5181,7 @@ func (c *linkerContext) generateGlobalNamePrefix() string {
 		}
 		text = fmt.Sprintf("var %s%s=%s", prefix, space, space)
 	} else {
-		prefix = fmt.Sprintf("this[%s]", js_printer.QuoteForJSON(prefix, c.options.ASCIIOnly))
+		prefix = fmt.Sprintf("this[%s]", helpers.QuoteForJSON(prefix, c.options.ASCIIOnly))
 		text = fmt.Sprintf("%s%s=%s", prefix, space, space)
 	}
 
@@ -5185,7 +5193,7 @@ func (c *linkerContext) generateGlobalNamePrefix() string {
 			}
 			prefix = fmt.Sprintf("%s.%s", prefix, name)
 		} else {
-			prefix = fmt.Sprintf("%s[%s]", prefix, js_printer.QuoteForJSON(name, c.options.ASCIIOnly))
+			prefix = fmt.Sprintf("%s[%s]", prefix, helpers.QuoteForJSON(name, c.options.ASCIIOnly))
 		}
 		text += fmt.Sprintf("%s%s||%s{}%s%s%s=%s", oldPrefix, space, space, join, prefix, space, space)
 	}
@@ -5351,8 +5359,8 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 				jMeta.AddString(",")
 			}
 			jMeta.AddString(fmt.Sprintf("\n        {\n          \"path\": %s,\n          \"kind\": %s\n        }",
-				js_printer.QuoteForJSON(c.res.PrettyPath(logger.Path{Text: chunks[chunkImport.chunkIndex].uniqueKey, Namespace: "file"}), c.options.ASCIIOnly),
-				js_printer.QuoteForJSON(chunkImport.importKind.StringForMetafile(), c.options.ASCIIOnly)))
+				helpers.QuoteForJSON(c.res.PrettyPath(logger.Path{Text: chunks[chunkImport.chunkIndex].uniqueKey, Namespace: "file"}), c.options.ASCIIOnly),
+				helpers.QuoteForJSON(chunkImport.importKind.StringForMetafile(), c.options.ASCIIOnly)))
 		}
 		if !isFirstMeta {
 			jMeta.AddString("\n      ")
@@ -5365,7 +5373,7 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 			// and there is already an output file for the JavaScript entry point.
 			if _, ok := file.InputFile.Repr.(*graph.CSSRepr); ok {
 				jMeta.AddString(fmt.Sprintf("],\n      \"entryPoint\": %s,\n      \"inputs\": {",
-					js_printer.QuoteForJSON(file.InputFile.Source.PrettyPath, c.options.ASCIIOnly)))
+					helpers.QuoteForJSON(file.InputFile.Source.PrettyPath, c.options.ASCIIOnly)))
 			} else {
 				jMeta.AddString("],\n      \"inputs\": {")
 			}
@@ -5428,7 +5436,7 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 				jMeta.AddString(",")
 			}
 			jMeta.AddString(fmt.Sprintf("\n        %s: {\n          \"bytesInOutput\": %d\n        }",
-				js_printer.QuoteForJSON(c.graph.Files[compileResult.sourceIndex].InputFile.Source.PrettyPath, c.options.ASCIIOnly),
+				helpers.QuoteForJSON(c.graph.Files[compileResult.sourceIndex].InputFile.Source.PrettyPath, c.options.ASCIIOnly),
 				len(compileResult.CSS)))
 		}
 	}
@@ -5906,13 +5914,13 @@ func (c *linkerContext) generateSourceMapForChunk(
 			}
 		}
 
-		j.AddBytes(js_printer.QuoteForJSON(item.prettyPath, c.options.ASCIIOnly))
+		j.AddBytes(helpers.QuoteForJSON(item.prettyPath, c.options.ASCIIOnly))
 	}
 	j.AddString("]")
 
 	if c.options.SourceRoot != "" {
 		j.AddString(",\n  \"sourceRoot\": ")
-		j.AddBytes(js_printer.QuoteForJSON(c.options.SourceRoot, c.options.ASCIIOnly))
+		j.AddBytes(helpers.QuoteForJSON(c.options.SourceRoot, c.options.ASCIIOnly))
 	}
 
 	// Write the sourcesContent

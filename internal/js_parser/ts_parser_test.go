@@ -510,7 +510,7 @@ func TestTSClass(t *testing.T) {
 	expectPrintedTS(t, "class Foo { override public foo: number }", "class Foo {\n}\n")
 	expectPrintedTS(t, "class Foo { public override foo: number }", "class Foo {\n}\n")
 	expectPrintedTS(t, "class Foo { declare override public foo: number }", "class Foo {\n}\n")
-	expectParseErrorTS(t, "class Foo { declare foo = 123 }", "<stdin>: ERROR: Class fields that use \"declare\" cannot be initialized\n")
+	expectPrintedTS(t, "class Foo { declare foo = 123 }", "class Foo {\n}\n")
 
 	expectPrintedTS(t, "class Foo { public static foo: number }", "class Foo {\n}\n")
 	expectPrintedTS(t, "class Foo { private static foo: number }", "class Foo {\n}\n")
@@ -524,8 +524,8 @@ func TestTSClass(t *testing.T) {
 	expectPrintedTS(t, "class Foo { public override static foo: number }", "class Foo {\n}\n")
 	expectPrintedTS(t, "class Foo { public static override foo: number }", "class Foo {\n}\n")
 	expectPrintedTS(t, "class Foo { declare override public static foo: number }", "class Foo {\n}\n")
-	expectParseErrorTS(t, "class Foo { declare static foo = 123 }", "<stdin>: ERROR: Class fields that use \"declare\" cannot be initialized\n")
-	expectParseErrorTS(t, "class Foo { static declare foo = 123 }", "<stdin>: ERROR: Class fields that use \"declare\" cannot be initialized\n")
+	expectPrintedTS(t, "class Foo { declare static foo = 123 }", "class Foo {\n}\n")
+	expectPrintedTS(t, "class Foo { static declare foo = 123 }", "class Foo {\n}\n")
 
 	expectParseErrorTS(t, "class Foo { declare #foo }", "<stdin>: ERROR: \"declare\" cannot be used with a private identifier\n")
 	expectParseErrorTS(t, "class Foo { declare [foo: string]: number }", "<stdin>: ERROR: \"declare\" cannot be used with an index signature\n")
@@ -2379,4 +2379,19 @@ func TestMangleTSStringEnumLength(t *testing.T) {
 
 	expectPrintedMangleTS(t, "enum x { y = '👯‍♂️' } z = x.y.length",
 		"var x = /* @__PURE__ */ ((x) => (x.y = \"👯‍♂️\", x))(x || {});\nz = 5;\n")
+}
+
+func TestTSES5(t *testing.T) {
+	// Errors from lowering hypothetical arrow function arguments to ES5 should
+	// not leak out when backtracking. This comes up when parentheses are followed
+	// by a colon in TypeScript because the colon could deliminate an arrow
+	// function return type. See: https://github.com/evanw/esbuild/issues/2375.
+	expectPrintedTargetTS(t, 2015, "0 ? ([]) : 0", "0 ? [] : 0;\n")
+	expectPrintedTargetTS(t, 2015, "0 ? ({}) : 0", "0 ? {} : 0;\n")
+	expectPrintedTargetTS(t, 5, "0 ? ([]) : 0", "0 ? [] : 0;\n")
+	expectPrintedTargetTS(t, 5, "0 ? ({}) : 0", "0 ? {} : 0;\n")
+	expectPrintedTargetTS(t, 2015, "0 ? ([]): 0 => 0 : 0", "0 ? ([]) => 0 : 0;\n")
+	expectPrintedTargetTS(t, 2015, "0 ? ({}): 0 => 0 : 0", "0 ? ({}) => 0 : 0;\n")
+	expectParseErrorTargetTS(t, 5, "0 ? ([]): 0 => 0 : 0", "<stdin>: ERROR: Transforming destructuring to the configured target environment is not supported yet\n")
+	expectParseErrorTargetTS(t, 5, "0 ? ({}): 0 => 0 : 0", "<stdin>: ERROR: Transforming destructuring to the configured target environment is not supported yet\n")
 }

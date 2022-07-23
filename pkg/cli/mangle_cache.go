@@ -11,7 +11,6 @@ import (
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/js_parser"
-	"github.com/evanw/esbuild/internal/js_printer"
 	"github.com/evanw/esbuild/internal/logger"
 )
 
@@ -130,12 +129,12 @@ func printMangleCache(mangleCache map[string]interface{}, originalOrder []string
 		} else {
 			j.AddString("\n  ")
 		}
-		j.AddBytes(js_printer.QuoteForJSON(key, asciiOnly))
+		j.AddBytes(helpers.QuoteForJSON(key, asciiOnly))
 
 		// Print the value
 		if value := mangleCache[key]; value != false {
 			j.AddString(": ")
-			j.AddBytes(js_printer.QuoteForJSON(value.(string), asciiOnly))
+			j.AddBytes(helpers.QuoteForJSON(value.(string), asciiOnly))
 		} else {
 			j.AddString(": false")
 		}

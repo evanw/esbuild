@@ -21,7 +21,7 @@ func AssertEqualWithDiff(t *testing.T, observed interface{}, expected interface{
 		stringA := fmt.Sprintf("%v", observed)
 		stringB := fmt.Sprintf("%v", expected)
 		color := !fs.CheckIfWindows()
-		t.Fatal(diff(stringB, stringA, color))
+		t.Fatal("\n" + diff(stringB, stringA, color))
 	}
 }
 

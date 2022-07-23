@@ -2,6 +2,167 @@
 
 ## Unreleased
 
+* Fix an accidental infinite loop with `--define` substitution ([#2407](https://github.com/evanw/esbuild/issues/2407))
+
+    This is a fix for a regression that was introduced in esbuild version 0.14.44 where certain `--define` substitutions could result in esbuild crashing with a stack overflow. The problem was an incorrect fix for #2292. The fix merged the code paths for `--define` and `--jsx-factory` rewriting since the value substitution is now the same for both. However, doing this accidentally made `--define` substitution recursive since the JSX factory needs to be able to match against `--define` substitutions to integrate with the `--inject` feature. The fix is to only do one additional level of matching against define substitutions, and to only do this for JSX factories. Now these cases are able to build successfully without a stack overflow.
+
+* Fix a cross-platform consistency bug ([#2383](https://github.com/evanw/esbuild/issues/2383))
+
+    Previously esbuild would minify `0xFFFF_FFFF_FFFF_FFFF` as `0xffffffffffffffff` (18 bytes) on arm64 chips and as `18446744073709552e3` (19 bytes) on x86_64 chips. The reason was that the number was converted to a 64-bit unsigned integer internally for printing as hexadecimal, the 64-bit floating-point number `0xFFFF_FFFF_FFFF_FFFF` is actually `0x1_0000_0000_0000_0180` (i.e. it's rounded up, not down), and converting `float64` to `uint64` is implementation-dependent in Go when the input is out of bounds. This was fixed by changing the upper limit for which esbuild uses hexadecimal numbers during minification to `0xFFFF_FFFF_FFFF_F800`, which is the next representable 64-bit floating-point number below `0x1_0000_0000_0000_0180`, and which fits in a `uint64`. As a result, esbuild will now consistently never minify `0xFFFF_FFFF_FFFF_FFFF` as `0xffffffffffffffff` anymore, which means the output should now be consistent across platforms.
+
+* Fix a hang with the synchronous API when the package is corrupted ([#2396](https://github.com/evanw/esbuild/issues/2396))
+
+    An error message is already thrown when the esbuild package is corrupted and esbuild can't be run. However, if you are using a synchronous call in the JavaScript API in worker mode, esbuild will use a child worker to initialize esbuild once so that the overhead of initializing esbuild can be amortized across multiple synchronous API calls. However, errors thrown during initialization weren't being propagated correctly which resulted in a hang while the main thread waited forever for the child worker to finish initializing. With this release, initialization errors are now propagated correctly so calling a synchronous API call when the package is corrupted should now result in an error instead of a hang.
+
+## 0.14.49
+
+* Keep inlined constants when direct `eval` is present ([#2361](https://github.com/evanw/esbuild/issues/2361))
+
+    Version 0.14.19 of esbuild added inlining of certain `const` variables during minification, which replaces all references to the variable with the initializer and then removes the variable declaration. However, this could generate incorrect code when direct `eval` is present because the direct `eval` could reference the constant by name. This release fixes the problem by preserving the `const` variable declaration in this case:
+
+    ```js
+    // Original code
+    console.log((() => { const x = 123; return x + eval('x') }))
+
+    // Old output (with --minify)
+    console.log(()=>123+eval("x"));
+
+    // New output (with --minify)
+    console.log(()=>{const x=123;return 123+eval("x")});
+    ```
+
+* Fix an incorrect error in TypeScript when targeting ES5 ([#2375](https://github.com/evanw/esbuild/issues/2375))
+
+    Previously when compiling TypeScript code to ES5, esbuild could incorrectly consider the following syntax forms as a transformation error:
+
+    ```ts
+    0 ? ([]) : 1 ? ({}) : 2;
+    ```
+
+    The error messages looked like this:
+
+    ```
+    ✘ [ERROR] Transforming destructuring to the configured target environment ("es5") is not supported yet
+
+        example.ts:1:5:
+          1 │ 0 ? ([]) : 1 ? ({}) : 2;
+            ╵      ^
+
+    ✘ [ERROR] Transforming destructuring to the configured target environment ("es5") is not supported yet
+
+        example.ts:1:16:
+          1 │ 0 ? ([]) : 1 ? ({}) : 2;
+            ╵                 ^
+    ```
+
+    These parenthesized literals followed by a colon look like the start of an arrow function expression followed by a TypeScript return type (e.g. `([]) : 1` could be the start of the TypeScript arrow function `([]): 1 => 1`). Unlike in JavaScript, parsing arrow functions in TypeScript requires backtracking. In this case esbuild correctly determined that this expression wasn't an arrow function after all but the check for destructuring was incorrectly not covered under the backtracking process. With this release, the error message is now only reported if the parser successfully parses an arrow function without backtracking.
+
+* Fix generated TypeScript `enum` comments containing `*/` ([#2369](https://github.com/evanw/esbuild/issues/2369), [#2371](https://github.com/evanw/esbuild/pull/2371))
+
+    TypeScript `enum` values that are equal to a number or string literal are inlined (references to the enum are replaced with the literal value) and have a `/* ... */` comment after them with the original enum name to improve readability. However, this comment is omitted if the enum name contains the character sequence `*/` because that would end the comment early and cause a syntax error:
+
+    ```ts
+    // Original TypeScript
+    enum Foo { '/*' = 1, '*/' = 2 }
+    console.log(Foo['/*'], Foo['*/'])
+
+    // Generated JavaScript
+    console.log(1 /* /* */, 2);
+    ```
+
+    This was originally handled correctly when TypeScript `enum` inlining was initially implemented since it was only supported within a single file. However, when esbuild was later extended to support TypeScript `enum` inlining across files, this special case where the enum name contains `*/` was not handled in that new code. Starting with this release, esbuild will now handle enums with names containing `*/` correctly when they are inlined across files:
+
+    ```ts
+    // foo.ts
+    export enum Foo { '/*' = 1, '*/' = 2 }
+
+    // bar.ts
+    import { Foo } from './foo'
+    console.log(Foo['/*'], Foo['*/'])
+
+    // Old output (with --bundle --format=esm)
+    console.log(1 /* /* */, 2 /* */ */);
+
+    // New output (with --bundle --format=esm)
+    console.log(1 /* /* */, 2);
+    ```
+
+    This fix was contributed by [@magic-akari](https://github.com/magic-akari).
+
+* Allow `declare` class fields to be initialized ([#2380](https://github.com/evanw/esbuild/issues/2380))
+
+    This release fixes an oversight in the TypeScript parser that disallowed initializers for `declare` class fields. TypeScript actually allows the following limited initializer expressions for `readonly` fields:
+
+    ```ts
+    declare const enum a { b = 0 }
+
+    class Foo {
+      // These are allowed by TypeScript
+      declare readonly a = 0
+      declare readonly b = -0
+      declare readonly c = 0n
+      declare readonly d = -0n
+      declare readonly e = 'x'
+      declare readonly f = `x`
+      declare readonly g = a.b
+      declare readonly h = a['b']
+
+      // These are not allowed by TypeScript
+      declare readonly x = (0)
+      declare readonly y = null
+      declare readonly z = -a.b
+    }
+    ```
+
+    So with this release, esbuild now allows initializers for `declare` class fields too. To future-proof this in case TypeScript allows more expressions as initializers in the future (such as `null`), esbuild will allow any expression as an initializer and will leave the specifics of TypeScript's special-casing here to the TypeScript type checker.
+
+* Fix a bug in esbuild's feature compatibility table generator ([#2365](https://github.com/evanw/esbuild/issues/2365))
+
+    Passing specific JavaScript engines to esbuild's `--target` flag restricts esbuild to only using JavaScript features that are supported on those engines in the output files that esbuild generates. The data for this feature is automatically derived from this compatibility table with a script: https://kangax.github.io/compat-table/.
+
+    However, the script had a bug that could incorrectly consider a JavaScript syntax feature to be supported in a given engine even when it doesn't actually work in that engine. Specifically this bug happened when a certain aspect of JavaScript syntax has always worked incorrectly in that engine and the bug in that engine has never been fixed. This situation hasn't really come up before because previously esbuild pretty much only targeted JavaScript engines that always fix their bugs, but the two new JavaScript engines that were added in the previous release ([Hermes](https://hermesengine.dev/) and [Rhino](https://github.com/mozilla/rhino)) have many aspects of the JavaScript specification that have never been implemented, and may never be implemented. For example, the `let` and `const` keywords are not implemented correctly in those engines.
+
+    With this release, esbuild's compatibility table generator script has been fixed and as a result, esbuild will now correctly consider a JavaScript syntax feature to be unsupported in a given engine if there is some aspect of that syntax that is broken in all known versions of that engine. This means that the following JavaScript syntax features are no longer considered to be supported by these engines (represented using esbuild's internal names for these syntax features):
+
+    Hermes:
+    - `arrow`
+    - `const-and-let`
+    - `default-argument`
+    - `generator`
+    - `optional-catch-binding`
+    - `optional-chain`
+    - `rest-argument`
+    - `template-literal`
+
+    Rhino:
+    - `arrow`
+    - `const-and-let`
+    - `destructuring`
+    - `for-of`
+    - `generator`
+    - `object-extensions`
+    - `template-literal`
+
+    IE:
+    - `const-and-let`
+
+## 0.14.48
+
+* Enable using esbuild in Deno via WebAssembly ([#2323](https://github.com/evanw/esbuild/issues/2323))
+
+    The native implementation of esbuild is much faster than the WebAssembly version, but some people don't want to give Deno the `--allow-run` permission necessary to run esbuild and are ok waiting longer for their builds to finish when using the WebAssembly backend. With this release, you can now use esbuild via WebAssembly in Deno. To do this you will need to import from `wasm.js` instead of `mod.js`:
+
+    ```js
+    import * as esbuild from 'https://deno.land/x/esbuild@v0.14.48/wasm.js'
+    const ts = 'let test: boolean = true'
+    const result = await esbuild.transform(ts, { loader: 'ts' })
+    console.log('result:', result)
+    ```
+
+    Make sure you run Deno with `--allow-net` so esbuild can download the WebAssembly module. Using esbuild like this starts up a worker thread that runs esbuild in parallel (unless you call `esbuild.initialize({ worker: false })` to tell esbuild to run on the main thread). If you want to, you can call `esbuild.stop()` to terminate the worker if you won't be using esbuild anymore and you want to reclaim the memory.
+
+    Note that Deno appears to have a bug where background WebAssembly optimization can prevent the process from exiting for many seconds. If you are trying to use Deno and WebAssembly to run esbuild quickly, you may need to manually call `Deno.exit(0)` after your code has finished running.
+
 * Add support for font file MIME types ([#2337](https://github.com/evanw/esbuild/issues/2337))
 
     This release adds support for font file MIME types to esbuild, which means they are now recognized by the built-in local web server and they are now used when a font file is loaded using the `dataurl` loader. The full set of newly-added file extension MIME type mappings is as follows:
@@ -28,6 +189,14 @@
     // New output (with --format=esm --minify)
     let t=123;export{t as foo};
     ```
+
+* Attempt to have esbuild work with Deno on FreeBSD ([#2356](https://github.com/evanw/esbuild/issues/2356))
+
+    Deno doesn't support FreeBSD, but it's possible to build Deno for FreeBSD with some additional patches on top. This release of esbuild changes esbuild's Deno installer to download esbuild's FreeBSD binary in this situation. This configuration is unsupported although in theory everything should work.
+
+* Add some more target JavaScript engines ([#2357](https://github.com/evanw/esbuild/issues/2357))
+
+    This release adds the [Rhino](https://github.com/mozilla/rhino) and [Hermes](https://hermesengine.dev/) JavaScript engines to the set of engine identifiers that can be passed to the `--target` flag. You can use this to restrict esbuild to only using JavaScript features that are supported on those engines in the output files that esbuild generates.
 
 ## 0.14.47
 

@@ -146,10 +146,14 @@ async function install(): Promise<string> {
     'x86_64-pc-windows-msvc': 'esbuild-windows-64',
   }
   const knownUnixlikePackages: Record<string, string> = {
+    // These are the only platforms that Deno supports
     'aarch64-apple-darwin': 'esbuild-darwin-arm64',
     'aarch64-unknown-linux-gnu': 'esbuild-linux-arm64',
     'x86_64-apple-darwin': 'esbuild-darwin-64',
     'x86_64-unknown-linux-gnu': 'esbuild-linux-64',
+
+    // These platforms are not supported by Deno
+    'x86_64-unknown-freebsd': 'esbuild-freebsd-64',
   }
 
   // Pick a package to install
@@ -219,7 +223,7 @@ let ensureServiceIsRunning = (): Promise<Service> => {
           startWriteFromQueueWorker()
         },
         isSync: false,
-        isBrowser: false,
+        isWriteUnavailable: false,
         esbuild: ourselves,
       })
 

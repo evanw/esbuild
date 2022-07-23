@@ -91,11 +91,11 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 	var mappings mappingArray
 	mappingsLen := len(mappingsRaw)
 	sourcesLen := len(sources)
-	generatedLine := 0
-	generatedColumn := 0
-	sourceIndex := 0
-	originalLine := 0
-	originalColumn := 0
+	var generatedLine int32
+	var generatedColumn int32
+	var sourceIndex int32
+	var originalLine int32
+	var originalColumn int32
 	current := 0
 	errorText := ""
 	errorLen := 0
@@ -153,7 +153,7 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 			break
 		}
 		sourceIndex += sourceIndexDelta
-		if sourceIndex < 0 || sourceIndex >= sourcesLen {
+		if sourceIndex < 0 || sourceIndex >= int32(sourcesLen) {
 			errorText = fmt.Sprintf("Invalid source index value: %d", sourceIndex)
 			errorLen = i
 			break
@@ -208,11 +208,11 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 		}
 
 		mappings = append(mappings, sourcemap.Mapping{
-			GeneratedLine:   int32(generatedLine),
-			GeneratedColumn: int32(generatedColumn),
-			SourceIndex:     int32(sourceIndex),
-			OriginalLine:    int32(originalLine),
-			OriginalColumn:  int32(originalColumn),
+			GeneratedLine:   generatedLine,
+			GeneratedColumn: generatedColumn,
+			SourceIndex:     sourceIndex,
+			OriginalLine:    originalLine,
+			OriginalColumn:  originalColumn,
 		})
 	}
 

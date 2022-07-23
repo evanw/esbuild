@@ -266,12 +266,18 @@ func TestNumber(t *testing.T) {
 	// Check the hex vs. decimal decision boundary when minifying
 	expectPrinted(t, "x = 999999999999", "x = 999999999999;\n")
 	expectPrinted(t, "x = 1000000000001", "x = 1000000000001;\n")
-	expectPrinted(t, "x = 0xFFFFFFFFFFFFF80", "x = 1152921504606846800;\n")
-	expectPrinted(t, "x = 0x1000000000000000", "x = 1152921504606847e3;\n")
+	expectPrinted(t, "x = 0x0FFF_FFFF_FFFF_FF80", "x = 1152921504606846800;\n")
+	expectPrinted(t, "x = 0x1000_0000_0000_0000", "x = 1152921504606847e3;\n")
+	expectPrinted(t, "x = 0xFFFF_FFFF_FFFF_F000", "x = 18446744073709548e3;\n")
+	expectPrinted(t, "x = 0xFFFF_FFFF_FFFF_F800", "x = 1844674407370955e4;\n")
+	expectPrinted(t, "x = 0xFFFF_FFFF_FFFF_FFFF", "x = 18446744073709552e3;\n")
 	expectPrintedMinify(t, "x = 999999999999", "x=999999999999;")
 	expectPrintedMinify(t, "x = 1000000000001", "x=0xe8d4a51001;")
-	expectPrintedMinify(t, "x = 0xFFFFFFFFFFFFF80", "x=0xfffffffffffff80;")
-	expectPrintedMinify(t, "x = 0x1000000000000000", "x=1152921504606847e3;")
+	expectPrintedMinify(t, "x = 0x0FFF_FFFF_FFFF_FF80", "x=0xfffffffffffff80;")
+	expectPrintedMinify(t, "x = 0x1000_0000_0000_0000", "x=1152921504606847e3;")
+	expectPrintedMinify(t, "x = 0xFFFF_FFFF_FFFF_F000", "x=0xfffffffffffff000;")
+	expectPrintedMinify(t, "x = 0xFFFF_FFFF_FFFF_F800", "x=1844674407370955e4;")
+	expectPrintedMinify(t, "x = 0xFFFF_FFFF_FFFF_FFFF", "x=18446744073709552e3;")
 }
 
 func TestArray(t *testing.T) {

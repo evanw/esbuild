@@ -6,8 +6,8 @@ import (
 
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/graph"
+	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/js_ast"
-	"github.com/evanw/esbuild/internal/js_printer"
 )
 
 // Set this to true and then load the resulting metafile in "graph-debugger.html"
@@ -29,7 +29,7 @@ func (c *linkerContext) generateExtraDataForFileJS(sourceIndex uint32) string {
 
 	quoteSym := func(ref js_ast.Ref) string {
 		name := fmt.Sprintf("%d:%d [%s]", ref.SourceIndex, ref.InnerIndex, c.graph.Symbols.Get(ref).OriginalName)
-		return string(js_printer.QuoteForJSON(name, c.options.ASCIIOnly))
+		return string(helpers.QuoteForJSON(name, c.options.ASCIIOnly))
 	}
 
 	sb.WriteString(`,"parts":[`)
@@ -74,7 +74,7 @@ func (c *linkerContext) generateExtraDataForFileJS(sourceIndex uint32) string {
 				sb.WriteByte(',')
 			}
 			path := c.graph.Files[record.SourceIndex.GetIndex()].InputFile.Source.PrettyPath
-			sb.WriteString(fmt.Sprintf(`{"source":%s}`, js_printer.QuoteForJSON(path, c.options.ASCIIOnly)))
+			sb.WriteString(fmt.Sprintf(`{"source":%s}`, helpers.QuoteForJSON(path, c.options.ASCIIOnly)))
 		}
 		sb.WriteByte(']')
 
@@ -114,7 +114,7 @@ func (c *linkerContext) generateExtraDataForFileJS(sourceIndex uint32) string {
 				sb.WriteByte(',')
 			}
 			sb.WriteString(fmt.Sprintf(`{"source":%s,"partIndex":%d}`,
-				js_printer.QuoteForJSON(c.graph.Files[dep.SourceIndex].InputFile.Source.PrettyPath, c.options.ASCIIOnly),
+				helpers.QuoteForJSON(c.graph.Files[dep.SourceIndex].InputFile.Source.PrettyPath, c.options.ASCIIOnly),
 				dep.PartIndex,
 			))
 		}
@@ -122,7 +122,7 @@ func (c *linkerContext) generateExtraDataForFileJS(sourceIndex uint32) string {
 
 		// code
 		sb.WriteString(`,"code":`)
-		sb.Write(js_printer.QuoteForJSON(strings.TrimRight(code, "\n"), c.options.ASCIIOnly))
+		sb.Write(helpers.QuoteForJSON(strings.TrimRight(code, "\n"), c.options.ASCIIOnly))
 
 		sb.WriteByte('}')
 	}
