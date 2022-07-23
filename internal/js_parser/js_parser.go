@@ -10754,20 +10754,25 @@ func (p *parser) instantiateDefineExpr(loc logger.Loc, expr config.DefineExpr, o
 	}
 
 	// Check both user-specified defines and known globals
-	if defines, ok := p.options.defines.DotDefines[parts[len(parts)-1]]; ok {
-	next:
-		for _, define := range defines {
-			if len(define.Parts) == len(parts) {
-				for i := range parts {
-					if parts[i] != define.Parts[i] {
-						continue next
+	if opts.matchAgainstDefines {
+		// Make sure define resolution is not recursive
+		opts.matchAgainstDefines = false
+
+		if defines, ok := p.options.defines.DotDefines[parts[len(parts)-1]]; ok {
+		next:
+			for _, define := range defines {
+				if len(define.Parts) == len(parts) {
+					for i := range parts {
+						if parts[i] != define.Parts[i] {
+							continue next
+						}
+					}
+
+					// Substitute user-specified defines
+					if define.Data.DefineExpr != nil {
+						return p.instantiateDefineExpr(loc, *define.Data.DefineExpr, opts)
 					}
 				}
-			}
-
-			// Substitute user-specified defines
-			if define.Data.DefineExpr != nil {
-				return p.instantiateDefineExpr(loc, *define.Data.DefineExpr, opts)
 			}
 		}
 	}
@@ -12060,6 +12065,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			if e.TagOrNil.Data == nil {
 				e.TagOrNil = p.instantiateDefineExpr(expr.Loc, p.options.jsx.Fragment, identifierOpts{
 					wasOriginallyIdentifier: true,
+					matchAgainstDefines:     true, // Allow defines to rewrite the JSX fragment factory
 				})
 			}
 
@@ -12079,6 +12085,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			// Call createElement()
 			target := p.instantiateDefineExpr(expr.Loc, p.options.jsx.Factory, identifierOpts{
 				wasOriginallyIdentifier: true,
+				matchAgainstDefines:     true, // Allow defines to rewrite the JSX factory
 			})
 			p.warnAboutImportNamespaceCall(target, exprKindCall)
 			return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ECall{
@@ -14280,6 +14287,7 @@ type identifierOpts struct {
 	isDeleteTarget          bool
 	preferQuotedKey         bool
 	wasOriginallyIdentifier bool
+	matchAgainstDefines     bool
 }
 
 func (p *parser) handleIdentifier(loc logger.Loc, e *js_ast.EIdentifier, opts identifierOpts) js_ast.Expr {

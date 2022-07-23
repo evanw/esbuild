@@ -4172,14 +4172,20 @@ func TestInjectJSX(t *testing.T) {
 				Parts: []string{"el"},
 			},
 		},
+		"React.Fragment": {
+			DefineExpr: &config.DefineExpr{
+				Parts: []string{"frag"},
+			},
+		},
 	})
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.jsx": `
-				console.log(<div/>)
+				console.log(<><div/></>)
 			`,
 			"/inject.js": `
 				export function el() {}
+				export function frag() {}
 			`,
 		},
 		entryPaths: []string{"/entry.jsx"},
@@ -4555,6 +4561,46 @@ func TestDefineOptionalChainLowered(t *testing.T) {
 			AbsOutputFile:         "/out.js",
 			Defines:               &defines,
 			UnsupportedJSFeatures: compat.OptionalChain,
+		},
+	})
+}
+
+// See: https://github.com/evanw/esbuild/issues/2407
+func TestDefineInfiniteLoopIssue2407(t *testing.T) {
+	defines := config.ProcessDefines(map[string]config.DefineData{
+		"a.b": {
+			DefineExpr: &config.DefineExpr{
+				Parts: []string{"b", "c"},
+			},
+		},
+		"b.c": {
+			DefineExpr: &config.DefineExpr{
+				Parts: []string{"c", "a"},
+			},
+		},
+		"c.a": {
+			DefineExpr: &config.DefineExpr{
+				Parts: []string{"a", "b"},
+			},
+		},
+		"x.y": {
+			DefineExpr: &config.DefineExpr{
+				Parts: []string{"y"},
+			},
+		},
+	})
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				a.b()
+				x.y()
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			Defines:       &defines,
 		},
 	})
 }

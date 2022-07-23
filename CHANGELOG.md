@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+* Fix an accidental infinite loop with `--define` substitution ([#2407](https://github.com/evanw/esbuild/issues/2407))
+
+    This is a fix for a regression that was introduced in esbuild version 0.14.44 where certain `--define` substitutions could result in esbuild crashing with a stack overflow. The problem was an incorrect fix for #2292. The fix merged the code paths for `--define` and `--jsx-factory` rewriting since the value substitution is now the same for both. However, doing this accidentally made `--define` substitution recursive since the JSX factory needs to be able to match against `--define` substitutions to integrate with the `--inject` feature. The fix is to only do one additional level of matching against define substitutions, and to only do this for JSX factories. Now these cases are able to build successfully without a stack overflow.
+
 * Fix a cross-platform consistency bug ([#2383](https://github.com/evanw/esbuild/issues/2383))
 
     Previously esbuild would minify `0xFFFF_FFFF_FFFF_FFFF` as `0xffffffffffffffff` (18 bytes) on arm64 chips and as `18446744073709552e3` (19 bytes) on x86_64 chips. The reason was that the number was converted to a 64-bit unsigned integer internally for printing as hexadecimal, the 64-bit floating-point number `0xFFFF_FFFF_FFFF_FFFF` is actually `0x1_0000_0000_0000_0180` (i.e. it's rounded up, not down), and converting `float64` to `uint64` is implementation-dependent in Go when the input is out of bounds. This was fixed by changing the upper limit for which esbuild uses hexadecimal numbers during minification to `0xFFFF_FFFF_FFFF_F800`, which is the next representable 64-bit floating-point number below `0x1_0000_0000_0000_0180`, and which fits in a `uint64`. As a result, esbuild will now consistently never minify `0xFFFF_FFFF_FFFF_FFFF` as `0xffffffffffffffff` anymore, which means the output should now be consistent across platforms.

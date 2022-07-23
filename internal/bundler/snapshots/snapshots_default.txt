@@ -421,6 +421,13 @@ console.log(import_meta.y);
 ---------- /out/dead-code.js ----------
 
 ================================================================================
+TestDefineInfiniteLoopIssue2407
+---------- /out.js ----------
+// entry.js
+b.c();
+y();
+
+================================================================================
 TestDefineOptionalChain
 ---------- /out.js ----------
 // entry.js
@@ -1376,9 +1383,11 @@ TestInjectJSX
 // inject.js
 function el() {
 }
+function frag() {
+}
 
 // entry.jsx
-console.log(/* @__PURE__ */ el("div", null));
+console.log(/* @__PURE__ */ el(frag, null, /* @__PURE__ */ el("div", null)));
 
 ================================================================================
 TestInjectNoBundle
