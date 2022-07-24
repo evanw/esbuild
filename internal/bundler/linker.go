@@ -5681,6 +5681,15 @@ func (c *linkerContext) generateIsolatedHash(chunk *chunkInfo, channel chan []by
 		hashWriteLengthPrefixed(hash, []byte(part.Data))
 	}
 
+	// Also hash the public path. If provided, this is used whenever files
+	// reference each other such as cross-chunk imports, asset file references,
+	// and source map comments. We always include the hash in all chunks instead
+	// of trying to figure out which chunks will include the public path for
+	// simplicity and for robustness to code changes in the future.
+	if c.options.PublicPath != "" {
+		hashWriteLengthPrefixed(hash, []byte(c.options.PublicPath))
+	}
+
 	// Include the generated output content in the hash. This excludes the
 	// randomly-generated import paths (the unique keys) and only includes the
 	// data in the spans between them.

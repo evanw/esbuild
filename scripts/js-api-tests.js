@@ -712,17 +712,17 @@ let buildTests = {
     assert.deepStrictEqual(value.outputFiles.length, 3)
     assert.deepStrictEqual(value.outputFiles[0].path, path.join(outdir, 'a', 'in1.js'))
     assert.deepStrictEqual(value.outputFiles[1].path, path.join(outdir, 'b', 'in2.js'))
-    assert.deepStrictEqual(value.outputFiles[2].path, path.join(outdir, 'chunk-22JQAFLY.js'))
+    assert.deepStrictEqual(value.outputFiles[2].path, path.join(outdir, 'chunk-3MCOY2GR.js'))
     assert.deepStrictEqual(value.outputFiles[0].text, `import {
   foo
-} from "https://www.example.com/assets/chunk-22JQAFLY.js";
+} from "https://www.example.com/assets/chunk-3MCOY2GR.js";
 export {
   foo as input1
 };
 `)
     assert.deepStrictEqual(value.outputFiles[1].text, `import {
   foo
-} from "https://www.example.com/assets/chunk-22JQAFLY.js";
+} from "https://www.example.com/assets/chunk-3MCOY2GR.js";
 export {
   foo as input2
 };
@@ -736,6 +736,43 @@ export {
   foo
 };
 `)
+  },
+
+  async publicPathHashing({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    const data = path.join(testDir, 'data.bin')
+    const outdir = path.join(testDir, 'out')
+    await writeFileAsync(input, `export {default} from ${JSON.stringify(data)}`)
+    await writeFileAsync(data, `stuff`)
+
+    const [result1, result2] = await Promise.all([
+      esbuild.build({
+        entryPoints: [input],
+        bundle: true,
+        outdir,
+        format: 'cjs',
+        loader: { '.bin': 'file' },
+        entryNames: '[name]-[hash]',
+        write: false,
+      }),
+      esbuild.build({
+        entryPoints: [input],
+        bundle: true,
+        outdir,
+        format: 'cjs',
+        loader: { '.bin': 'file' },
+        entryNames: '[name]-[hash]',
+        publicPath: 'https://www.example.com',
+        write: false,
+      }),
+    ])
+
+    const names1 = result1.outputFiles.map(x => path.basename(x.path)).sort()
+    const names2 = result2.outputFiles.map(x => path.basename(x.path)).sort()
+
+    // Check that the public path is included in chunk hashes but not asset hashes
+    assert.deepStrictEqual(names1, ['data-BYATPJRB.bin', 'in-OGEHLZ72.js'])
+    assert.deepStrictEqual(names2, ['data-BYATPJRB.bin', 'in-IF4VVJK4.js'])
   },
 
   async fileLoaderPublicPath({ esbuild, testDir }) {
@@ -1028,7 +1065,7 @@ body {
     const inEntry1 = makeInPath(entry1);
     const inEntry2 = makeInPath(entry2);
     const inImported = makeInPath(imported);
-    const chunk = 'chunk-MDV3DDWZ.js';
+    const chunk = 'chunk-ELD4XOGW.js';
     const outEntry1 = makeOutPath(path.basename(entry1));
     const outEntry2 = makeOutPath(path.basename(entry2));
     const outChunk = makeOutPath(chunk);
