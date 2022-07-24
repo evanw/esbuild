@@ -2295,6 +2295,7 @@ func TestTSJSX(t *testing.T) {
 	expectParseErrorTSX(t, "(<T>(y) => {}</T>)", invalid)
 	expectParseErrorTSX(t, "(<T extends>(y) => {}</T>)", invalid)
 	expectParseErrorTSX(t, "(<T extends={false}>(y) => {}</T>)", invalid)
+	expectPrintedTSX(t, "(<T = X>(y) => {})", "(y) => {\n};\n")
 	expectPrintedTSX(t, "(<T extends X>(y) => {})", "(y) => {\n};\n")
 	expectPrintedTSX(t, "(<T extends X = Y>(y) => {})", "(y) => {\n};\n")
 	expectPrintedTSX(t, "(<T,>() => {})", "() => {\n};\n")
@@ -2303,7 +2304,7 @@ func TestTSJSX(t *testing.T) {
 	expectParseErrorTSX(t, "(<T>() => {})", invalid+"<stdin>: ERROR: Unexpected end of file\n")
 	expectParseErrorTSX(t, "(<[]>(y))", "<stdin>: ERROR: Expected identifier but found \"[\"\n")
 	expectParseErrorTSX(t, "(<T[]>(y))", "<stdin>: ERROR: Expected \">\" but found \"[\"\n")
-	expectParseErrorTSX(t, "(<T = X>(y))", "<stdin>: ERROR: Expected \">\" but found \"=\"\n")
+	expectParseErrorTSX(t, "(<T = X>(y))", "<stdin>: ERROR: Expected \"=>\" but found \")\"\n")
 	expectParseErrorTSX(t, "(<T, X>(y))", "<stdin>: ERROR: Expected \"=>\" but found \")\"\n")
 	expectParseErrorTSX(t, "(<T, X>y => {})", "<stdin>: ERROR: Expected \"(\" but found \"y\"\n")
 }

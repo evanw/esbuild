@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+* Update parser for arrow functions with initial default type parameters in `.tsx` files ([#2410](https://github.com/evanw/esbuild/issues/2410))
+
+    TypeScript 4.6 introduced a [change to the parsing of JSX syntax in `.tsx` files](https://github.com/microsoft/TypeScript/issues/47062). Now a `<` token followed by an identifier and then a `=` token is parsed as an arrow function with a default type parameter instead of as a JSX element. This release updates esbuild's parser to match TypeScript's parser.
+
 * Fix an accidental infinite loop with `--define` substitution ([#2407](https://github.com/evanw/esbuild/issues/2407))
 
     This is a fix for a regression that was introduced in esbuild version 0.14.44 where certain `--define` substitutions could result in esbuild crashing with a stack overflow. The problem was an incorrect fix for #2292. The fix merged the code paths for `--define` and `--jsx-factory` rewriting since the value substitution is now the same for both. However, doing this accidentally made `--define` substitution recursive since the JSX factory needs to be able to match against `--define` substitutions to integrate with the `--inject` feature. The fix is to only do one additional level of matching against define substitutions, and to only do this for JSX factories. Now these cases are able to build successfully without a stack overflow.
