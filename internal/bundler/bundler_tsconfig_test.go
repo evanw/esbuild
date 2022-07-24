@@ -1920,3 +1920,36 @@ func TestTsConfigAlwaysStrictTrueEmitDirectiveBundleESM(t *testing.T) {
 		},
 	})
 }
+
+// https://github.com/evanw/esbuild/issues/2411
+func TestTsconfigJsonExtendsCollidingDirectoryName(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/entry.tsx": `
+				console.log(<div/>, <></>)
+			`,
+			"/Users/user/project/tsconfig.json": `
+				{
+					"extends": "config-package/lib",
+					"compilerOptions": {
+						"jsxFragmentFactory": "derivedFragment"
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/config-package/lib/.gitkeep": "",
+			"/Users/user/project/node_modules/config-package/lib.json": `
+				{
+					"compilerOptions": {
+						"jsxFactory": "baseFactory",
+						"jsxFragmentFactory": "baseFragment"
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/entry.tsx"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}

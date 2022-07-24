@@ -561,3 +561,9 @@ Foo = class {
 ================================================================================
 TestTsconfigWarningsInsideNodeModules
 ---------- /Users/user/project/out.js ----------
+
+================================================================================
+TestTsconfigJsonExtendsCollidingDirectoryName
+---------- /Users/user/project/out.js ----------
+// Users/user/project/entry.tsx
+console.log(/* @__PURE__ */ baseFactory("div", null), /* @__PURE__ */ baseFactory(derivedFragment, null));
