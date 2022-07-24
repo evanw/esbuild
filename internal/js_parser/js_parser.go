@@ -4597,6 +4597,24 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 		}}
 	}
 
+	// Attempt to provide a better error message for people incorrectly trying to
+	// use arrow functions in TSX (which doesn't work because they are JSX elements)
+	if p.options.ts.Parse && len(properties) == 0 && startText != "" && p.lexer.Token == js_lexer.TGreaterThan &&
+		strings.HasPrefix(p.source.Contents[p.lexer.Loc().Start:], ">(") {
+		badArrowInTSXRange := p.lexer.BadArrowInTSXRange
+		badArrowInTSXSuggestion := p.lexer.BadArrowInTSXSuggestion
+
+		p.lexer.CouldBeBadArrowInTSX++
+		p.lexer.BadArrowInTSXRange = logger.Range{Loc: loc, Len: p.lexer.Range().End() - loc.Start}
+		p.lexer.BadArrowInTSXSuggestion = fmt.Sprintf("<%s,>", startText)
+
+		defer func() {
+			p.lexer.CouldBeBadArrowInTSX--
+			p.lexer.BadArrowInTSXRange = badArrowInTSXRange
+			p.lexer.BadArrowInTSXSuggestion = badArrowInTSXSuggestion
+		}()
+	}
+
 	// Use ExpectJSXElementChild() so we parse child strings
 	p.lexer.ExpectJSXElementChild(js_lexer.TGreaterThan)
 
