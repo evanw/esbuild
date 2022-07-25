@@ -58,7 +58,7 @@ let mustBeStringOrUint8Array = (value: string | Uint8Array | undefined): string 
 
 type OptionKeys = { [key: string]: boolean };
 
-function getFlag<T, K extends keyof T>(object: T, keys: OptionKeys, key: K, mustBeFn: (value: T[K]) => string | null): T[K] | undefined {
+function getFlag<T, K extends (keyof T & string)>(object: T, keys: OptionKeys, key: K, mustBeFn: (value: T[K]) => string | null): T[K] | undefined {
   let value = object[key];
   keys[key + ''] = true;
   if (value === undefined) return undefined;
