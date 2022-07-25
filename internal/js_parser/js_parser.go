@@ -4536,6 +4536,26 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 				break parseAttributes
 			}
 		}
+
+		// Check for and warn about duplicate attributes
+		if len(properties) > 1 && !p.suppressWarningsAboutWeirdCode {
+			keys := make(map[string]logger.Loc)
+			for _, property := range properties {
+				if property.Kind != js_ast.PropertySpread {
+					if str, ok := property.Key.Data.(*js_ast.EString); ok {
+						key := helpers.UTF16ToString(str.Value)
+						if prevLoc, ok := keys[key]; ok {
+							r := js_lexer.RangeOfIdentifier(p.source, property.Key.Loc)
+							p.log.AddIDWithNotes(logger.MsgID_JS_DuplicateObjectKey, logger.Warning, &p.tracker, r,
+								fmt.Sprintf("Duplicate %q attribute in JSX element", key),
+								[]logger.MsgData{p.tracker.MsgData(js_lexer.RangeOfIdentifier(p.source, prevLoc),
+									fmt.Sprintf("The original %q attribute is here:", key))})
+						}
+						keys[key] = property.Key.Loc
+					}
+				}
+			}
+		}
 	}
 
 	// People sometimes try to use the output of "JSON.stringify()" as a JSX
