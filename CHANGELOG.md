@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+* Emit `names` in source maps ([#1296](https://github.com/evanw/esbuild/issues/1296))
+
+    The [source map specification](https://sourcemaps.info/spec.html) includes an optional `names` field that can associate an identifier with a mapping entry. This can be used to record the original name for an identifier, which is useful if the identifier was renamed to something else in the generated code. When esbuild was originally written, this field wasn't widely used, but now there are some debuggers that make use of it to provide better debugging of minified code. With this release, esbuild now includes a `names` field in the source maps that it generates. To save space, the original name is only recorded when it's different from the final name.
+
 * Update parser for arrow functions with initial default type parameters in `.tsx` files ([#2410](https://github.com/evanw/esbuild/issues/2410))
 
     TypeScript 4.6 introduced a [change to the parsing of JSX syntax in `.tsx` files](https://github.com/microsoft/TypeScript/issues/47062). Now a `<` token followed by an identifier and then a `=` token is parsed as an arrow function with a default type parameter instead of as a JSX element. This release updates esbuild's parser to match TypeScript's parser.
