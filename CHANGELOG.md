@@ -26,6 +26,10 @@
 
     An error message is already thrown when the esbuild package is corrupted and esbuild can't be run. However, if you are using a synchronous call in the JavaScript API in worker mode, esbuild will use a child worker to initialize esbuild once so that the overhead of initializing esbuild can be amortized across multiple synchronous API calls. However, errors thrown during initialization weren't being propagated correctly which resulted in a hang while the main thread waited forever for the child worker to finish initializing. With this release, initialization errors are now propagated correctly so calling a synchronous API call when the package is corrupted should now result in an error instead of a hang.
 
+* Fix `tsconfig.json` files that collide with directory names ([#2411](https://github.com/evanw/esbuild/issues/2411))
+
+    TypeScript lets you write `tsconfig.json` files with `extends` clauses that refer to another config file using an implicit `.json` file extension. However, if the config file without the `.json` extension existed as a directory name, esbuild and TypeScript had different behavior. TypeScript ignores the directory and continues looking for the config file by adding the `.json` extension while esbuild previously terminated the search and then failed to load the config file (because it's a directory). With this release, esbuild will now ignore exact matches when resolving `extends` fields in `tsconfig.json` files if the exact match results in a directory.
+
 ## 0.14.49
 
 * Keep inlined constants when direct `eval` is present ([#2361](https://github.com/evanw/esbuild/issues/2361))
