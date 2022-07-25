@@ -145,6 +145,7 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   let supported = getFlag(options, keys, 'supported', mustBeObject);
   let pure = getFlag(options, keys, 'pure', mustBeArray);
   let keepNames = getFlag(options, keys, 'keepNames', mustBeBoolean);
+  let platform = getFlag(options, keys, 'platform', mustBeString);
 
   if (legalComments) flags.push(`--legal-comments=${legalComments}`);
   if (sourceRoot !== void 0) flags.push(`--source-root=${sourceRoot}`);
@@ -155,6 +156,7 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   }
   if (format) flags.push(`--format=${format}`);
   if (globalName) flags.push(`--global-name=${globalName}`);
+  if (platform) flags.push(`--platform=${platform}`);
 
   if (minify) flags.push('--minify');
   if (minifySyntax) flags.push('--minify-syntax');
@@ -230,7 +232,6 @@ function flagsForBuildOptions(
   let outfile = getFlag(options, keys, 'outfile', mustBeString);
   let outdir = getFlag(options, keys, 'outdir', mustBeString);
   let outbase = getFlag(options, keys, 'outbase', mustBeString);
-  let platform = getFlag(options, keys, 'platform', mustBeString);
   let tsconfig = getFlag(options, keys, 'tsconfig', mustBeString);
   let resolveExtensions = getFlag(options, keys, 'resolveExtensions', mustBeArray);
   let nodePathsInput = getFlag(options, keys, 'nodePaths', mustBeArray);
@@ -276,7 +277,6 @@ function flagsForBuildOptions(
   if (outfile) flags.push(`--outfile=${outfile}`);
   if (outdir) flags.push(`--outdir=${outdir}`);
   if (outbase) flags.push(`--outbase=${outbase}`);
-  if (platform) flags.push(`--platform=${platform}`);
   if (tsconfig) flags.push(`--tsconfig=${tsconfig}`);
   if (resolveExtensions) {
     let values: string[] = [];

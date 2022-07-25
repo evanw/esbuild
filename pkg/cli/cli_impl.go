@@ -552,48 +552,48 @@ func parseOptionsImpl(
 			}
 			buildOpts.OutExtensions[value[:equals]] = value[equals+1:]
 
-		case strings.HasPrefix(arg, "--platform=") && buildOpts != nil:
+		case strings.HasPrefix(arg, "--platform="):
 			value := arg[len("--platform="):]
+			var platform api.Platform
 			switch value {
 			case "browser":
-				buildOpts.Platform = api.PlatformBrowser
+				platform = api.PlatformBrowser
 			case "node":
-				buildOpts.Platform = api.PlatformNode
+				platform = api.PlatformNode
 			case "neutral":
-				buildOpts.Platform = api.PlatformNeutral
+				platform = api.PlatformNeutral
 			default:
 				return parseOptionsExtras{}, cli_helpers.MakeErrorWithNote(
 					fmt.Sprintf("Invalid value %q in %q", value, arg),
 					"Valid values are \"browser\", \"node\", or \"neutral\".",
 				)
 			}
+			if buildOpts != nil {
+				buildOpts.Platform = platform
+			} else {
+				transformOpts.Platform = platform
+			}
 
 		case strings.HasPrefix(arg, "--format="):
 			value := arg[len("--format="):]
+			var format api.Format
 			switch value {
 			case "iife":
-				if buildOpts != nil {
-					buildOpts.Format = api.FormatIIFE
-				} else {
-					transformOpts.Format = api.FormatIIFE
-				}
+				format = api.FormatIIFE
 			case "cjs":
-				if buildOpts != nil {
-					buildOpts.Format = api.FormatCommonJS
-				} else {
-					transformOpts.Format = api.FormatCommonJS
-				}
+				format = api.FormatCommonJS
 			case "esm":
-				if buildOpts != nil {
-					buildOpts.Format = api.FormatESModule
-				} else {
-					transformOpts.Format = api.FormatESModule
-				}
+				format = api.FormatESModule
 			default:
 				return parseOptionsExtras{}, cli_helpers.MakeErrorWithNote(
 					fmt.Sprintf("Invalid value %q in %q", value, arg),
 					"Valid values are \"iife\", \"cjs\", or \"esm\".",
 				)
+			}
+			if buildOpts != nil {
+				buildOpts.Format = format
+			} else {
+				transformOpts.Format = format
 			}
 
 		case strings.HasPrefix(arg, "--external:") && buildOpts != nil:

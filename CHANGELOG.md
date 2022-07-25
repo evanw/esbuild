@@ -30,6 +30,12 @@
 
     TypeScript lets you write `tsconfig.json` files with `extends` clauses that refer to another config file using an implicit `.json` file extension. However, if the config file without the `.json` extension existed as a directory name, esbuild and TypeScript had different behavior. TypeScript ignores the directory and continues looking for the config file by adding the `.json` extension while esbuild previously terminated the search and then failed to load the config file (because it's a directory). With this release, esbuild will now ignore exact matches when resolving `extends` fields in `tsconfig.json` files if the exact match results in a directory.
 
+* Add `platform` to the transform API ([#2362](https://github.com/evanw/esbuild/issues/2362))
+
+    The `platform` option is mainly relevant for bundling because it mostly affects path resolution (e.g. activating the `"browser"` field in `package.json` files), so it was previously only available for the build API. With this release, it has additionally be made available for the transform API for a single reason: you can now set `--platform=node` when transforming a string so that esbuild will add export annotations for node, which is only relevant when `--format=cjs` is also present.
+
+    This has to do with an implementation detail of node that parses the AST of CommonJS files to discover named exports when importing CommonJS from ESM. However, this new addition to esbuild's API is of questionable usefulness. Node's loader API (the main use case for using esbuild's transform API like this) actually bypasses the content returned from the loader and parses the AST that's present on the file system, so you won't actually be able to use esbuild's API for this. See the linked issue for more information.
+
 ## 0.14.49
 
 * Keep inlined constants when direct `eval` is present ([#2361](https://github.com/evanw/esbuild/issues/2361))

@@ -4322,6 +4322,16 @@ let transformTests = {
     assert.strictEqual(result, 3)
   },
 
+  async platformNode({ esbuild }) {
+    const { code } = await esbuild.transform(`export let foo = 123`, { format: 'cjs', platform: 'node' })
+    assert(code.slice(code.indexOf('let foo')), `let foo = 123;
+// Annotate the CommonJS export names for ESM import in node:
+0 && (module.exports = {
+  foo
+});
+`)
+  },
+
   async dynamicImportString({ esbuild }) {
     const { code } = await esbuild.transform(`import('foo')`, { target: 'chrome63' })
     assert.strictEqual(code, `import("foo");\n`)

@@ -150,7 +150,8 @@ const (
 type Platform uint8
 
 const (
-	PlatformBrowser Platform = iota
+	PlatformDefault Platform = iota
+	PlatformBrowser
 	PlatformNode
 	PlatformNeutral
 )
@@ -378,8 +379,9 @@ type TransformOptions struct {
 	Engines   []Engine        // Documentation: https://esbuild.github.io/api/#target
 	Supported map[string]bool // Documentation: https://esbuild.github.io/api/#supported
 
-	Format     Format // Documentation: https://esbuild.github.io/api/#format
-	GlobalName string // Documentation: https://esbuild.github.io/api/#global-name
+	Platform   Platform // Documentation: https://esbuild.github.io/api/#platform
+	Format     Format   // Documentation: https://esbuild.github.io/api/#format
+	GlobalName string   // Documentation: https://esbuild.github.io/api/#global-name
 
 	MangleProps       string                 // Documentation: https://esbuild.github.io/api/#mangle-props
 	ReserveProps      string                 // Documentation: https://esbuild.github.io/api/#mangle-props
