@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.50
 
 * Emit `names` in source maps ([#1296](https://github.com/evanw/esbuild/issues/1296))
 
