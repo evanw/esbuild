@@ -1207,6 +1207,11 @@ export function createChannel(streamIn: StreamIn): StreamOut {
       copyResponseToResult(response!, result);
       runOnEndCallbacks(result, logPluginError, () => {
         if (result.errors.length > 0) {
+          if (response!.rebuild) {
+            sendRequest<protocol.RebuildDisposeRequest, null>(refs, { command: 'rebuild-dispose', key }, () => {
+              // We don't care about the result
+            });
+          }
           return callback(failureErrorWithLog('Build failed', result.errors, result.warnings), null);
         }
 
