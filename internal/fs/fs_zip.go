@@ -3,6 +3,7 @@ package fs
 import (
 	"archive/zip"
 	"io/ioutil"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -159,6 +160,8 @@ func tryToReadZipArchive(zipPath string, archive *zipFile) {
 }
 
 func (fs *zipFS) ReadDirectory(path string) (entries DirEntries, canonicalError error, originalError error) {
+	path = mangleYarnPnPVirtualPath(path)
+
 	entries, canonicalError, originalError = fs.inner.ReadDirectory(path)
 	if canonicalError != syscall.ENOENT && canonicalError != syscall.ENOTDIR {
 		return
@@ -197,6 +200,8 @@ func (fs *zipFS) ReadDirectory(path string) (entries DirEntries, canonicalError 
 }
 
 func (fs *zipFS) ReadFile(path string) (contents string, canonicalError error, originalError error) {
+	path = mangleYarnPnPVirtualPath(path)
+
 	contents, canonicalError, originalError = fs.inner.ReadFile(path)
 	if canonicalError != syscall.ENOENT {
 		return
@@ -242,11 +247,15 @@ func (fs *zipFS) ReadFile(path string) (contents string, canonicalError error, o
 }
 
 func (fs *zipFS) OpenFile(path string) (result OpenedFile, canonicalError error, originalError error) {
+	path = mangleYarnPnPVirtualPath(path)
+
 	result, canonicalError, originalError = fs.inner.OpenFile(path)
 	return
 }
 
 func (fs *zipFS) ModKey(path string) (modKey ModKey, err error) {
+	path = mangleYarnPnPVirtualPath(path)
+
 	modKey, err = fs.inner.ModKey(path)
 	return
 }
@@ -260,6 +269,9 @@ func (fs *zipFS) Abs(path string) (string, bool) {
 }
 
 func (fs *zipFS) Dir(path string) string {
+	if prefix, suffix, ok := parseYarnPnPVirtualPath(path); ok && suffix == "" {
+		return prefix
+	}
 	return fs.inner.Dir(path)
 }
 
@@ -289,4 +301,69 @@ func (fs *zipFS) kind(dir string, base string) (symlink string, kind EntryKind) 
 
 func (fs *zipFS) WatchData() WatchData {
 	return fs.inner.WatchData()
+}
+
+func parseYarnPnPVirtualPath(path string) (string, string, bool) {
+	i := 0
+
+	for {
+		start := i
+		slash := strings.IndexAny(path[i:], "/\\")
+		if slash == -1 {
+			break
+		}
+		i += slash + 1
+
+		// Replace the segments "__virtual__/<segment>/<n>" with N times the ".." operation
+		if path[start:i-1] == "__virtual__" {
+			if slash := strings.IndexAny(path[i:], "/\\"); slash != -1 {
+				var count string
+				var suffix string
+				j := i + slash + 1
+
+				// Find the range of the count
+				if slash := strings.IndexAny(path[j:], "/\\"); slash != -1 {
+					count = path[j : j+slash]
+					suffix = path[j+slash:]
+				} else {
+					count = path[j:]
+				}
+
+				// Parse the count
+				if n, err := strconv.ParseInt(count, 10, 64); err == nil {
+					prefix := path[:start]
+
+					// Apply N times the ".." operator
+					for n > 0 && (strings.HasSuffix(prefix, "/") || strings.HasSuffix(prefix, "\\")) {
+						slash := strings.LastIndexAny(prefix[:len(prefix)-1], "/\\")
+						if slash == -1 {
+							break
+						}
+						prefix = prefix[:slash+1]
+						n--
+					}
+
+					// Make sure the prefix and suffix work well when joined together
+					if suffix == "" && strings.IndexAny(prefix, "/\\") != strings.LastIndexAny(prefix, "/\\") {
+						prefix = prefix[:len(prefix)-1]
+					} else if prefix == "" {
+						prefix = "."
+					} else if strings.HasPrefix(suffix, "/") || strings.HasPrefix(suffix, "\\") {
+						suffix = suffix[1:]
+					}
+
+					return prefix, suffix, true
+				}
+			}
+		}
+	}
+
+	return "", "", false
+}
+
+func mangleYarnPnPVirtualPath(path string) string {
+	if prefix, suffix, ok := parseYarnPnPVirtualPath(path); ok {
+		return prefix + suffix
+	}
+	return path
 }
