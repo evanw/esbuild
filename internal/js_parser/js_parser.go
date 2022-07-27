@@ -149,6 +149,10 @@ type parser struct {
 	loopBody         js_ast.S
 	moduleScope      *js_ast.Scope
 
+	// This is internal-only data used for the implementation of Yarn PnP
+	manifestForYarnPnP     js_ast.Expr
+	stringLocalsForYarnPnP map[js_ast.Ref]stringLocalForYarnPnP
+
 	// This helps recognize the "await import()" pattern. When this is present,
 	// warnings about non-string import paths will be omitted inside try blocks.
 	awaitTarget js_ast.E
@@ -341,6 +345,11 @@ type parser struct {
 	isControlFlowDead        bool
 }
 
+type stringLocalForYarnPnP struct {
+	value []uint16
+	loc   logger.Loc
+}
+
 type injectedSymbolSource struct {
 	source logger.Source
 	loc    logger.Loc
@@ -414,6 +423,17 @@ type optionsThatSupportStructuralEquality struct {
 	mangleQuoted            bool
 	unusedImportFlagsTS     config.UnusedImportFlagsTS
 	useDefineForClassFields config.MaybeBool
+
+	// This is an internal-only option used for the implementation of Yarn PnP
+	decodeHydrateRuntimeStateYarnPnP bool
+}
+
+func OptionsForYarnPnP() Options {
+	return Options{
+		optionsThatSupportStructuralEquality: optionsThatSupportStructuralEquality{
+			decodeHydrateRuntimeStateYarnPnP: true,
+		},
+	}
 }
 
 func OptionsFromConfig(options *config.Options) Options {
@@ -9463,6 +9483,18 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 						}
 					}
 				}
+
+				// Yarn's PnP data may be stored in a variable: https://github.com/yarnpkg/berry/pull/4320
+				if p.options.decodeHydrateRuntimeStateYarnPnP {
+					if str, ok := d.ValueOrNil.Data.(*js_ast.EString); ok {
+						if id, ok := d.Binding.Data.(*js_ast.BIdentifier); ok {
+							if p.stringLocalsForYarnPnP == nil {
+								p.stringLocalsForYarnPnP = make(map[js_ast.Ref]stringLocalForYarnPnP)
+							}
+							p.stringLocalsForYarnPnP[id.Ref] = stringLocalForYarnPnP{value: str.Value, loc: d.ValueOrNil.Loc}
+						}
+					}
+				}
 			}
 
 			// Attempt to continue the const local prefix
@@ -14039,6 +14071,46 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			e.Args[i] = arg
 		}
 
+		// Our hack for reading Yarn PnP files is implemented here:
+		if p.options.decodeHydrateRuntimeStateYarnPnP {
+			if id, ok := e.Target.Data.(*js_ast.EIdentifier); ok && p.symbols[id.Ref.InnerIndex].OriginalName == "hydrateRuntimeState" && len(e.Args) >= 1 {
+				switch arg := e.Args[0].Data.(type) {
+				case *js_ast.EObject:
+					// "hydrateRuntimeState(<object literal>)"
+					if arg := e.Args[0]; isValidJSON(arg) {
+						p.manifestForYarnPnP = arg
+					}
+
+				case *js_ast.ECall:
+					// "hydrateRuntimeState(JSON.parse(<something>))"
+					if len(arg.Args) == 1 {
+						if dot, ok := arg.Target.Data.(*js_ast.EDot); ok && dot.Name == "parse" {
+							if id, ok := dot.Target.Data.(*js_ast.EIdentifier); ok {
+								if symbol := &p.symbols[id.Ref.InnerIndex]; symbol.Kind == js_ast.SymbolUnbound && symbol.OriginalName == "JSON" {
+									arg := arg.Args[0]
+									switch a := arg.Data.(type) {
+									case *js_ast.EString:
+										// "hydrateRuntimeState(JSON.parse(<string literal>))"
+										source := logger.Source{KeyPath: p.source.KeyPath, Contents: helpers.UTF16ToString(a.Value)}
+										log := logger.NewStringInJSLog(p.log, &p.tracker, arg.Loc, source.Contents)
+										p.manifestForYarnPnP, _ = ParseJSON(log, source, JSONOptions{})
+
+									case *js_ast.EIdentifier:
+										// "hydrateRuntimeState(JSON.parse(<identifier>))"
+										if data, ok := p.stringLocalsForYarnPnP[a.Ref]; ok {
+											source := logger.Source{KeyPath: p.source.KeyPath, Contents: helpers.UTF16ToString(data.value)}
+											log := logger.NewStringInJSLog(p.log, &p.tracker, data.loc, source.Contents)
+											p.manifestForYarnPnP, _ = ParseJSON(log, source, JSONOptions{})
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
 		// Stop now if this call must be removed
 		if out.methodCallMustBeReplacedWithUndefined {
 			p.isControlFlowDead = oldIsControlFlowDead
@@ -16486,6 +16558,7 @@ func (p *parser) toAST(before, parts, after []js_ast.Part, hashbang string, dire
 		ApproximateLineCount:            int32(p.lexer.ApproximateNewlineCount) + 1,
 		MangledProps:                    p.mangledProps,
 		ReservedProps:                   p.reservedProps,
+		ManifestForYarnPnP:              p.manifestForYarnPnP,
 
 		// CommonJS features
 		UsesExportsRef: usesExportsRef,

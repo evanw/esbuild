@@ -1771,6 +1771,9 @@ type AST struct {
 	ModuleScope    *Scope
 	CharFreq       *CharFreq
 
+	// This is internal-only data used for the implementation of Yarn PnP
+	ManifestForYarnPnP Expr
+
 	Hashbang  string
 	Directive string
 	URLForCSS string
