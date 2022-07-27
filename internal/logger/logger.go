@@ -388,6 +388,20 @@ func (s *Source) RangeOfString(loc Loc) Range {
 		}
 	}
 
+	if quote == '`' {
+		// Search for the matching quote character
+		for i := 1; i < len(text); i++ {
+			c := text[i]
+			if c == quote {
+				return Range{Loc: loc, Len: int32(i + 1)}
+			} else if c == '\\' {
+				i += 1
+			} else if c == '$' && i+1 < len(text) && text[i+1] == '{' {
+				break // Only return the range for no-substitution template literals
+			}
+		}
+	}
+
 	return Range{Loc: loc, Len: 0}
 }
 
