@@ -4745,14 +4745,14 @@ func TestJSXAutomatic(t *testing.T) {
 
 	// Prod, with runtime imports
 	pr := JSXAutomaticTestOptions{Development: false}
-	expectPrintedJSXAutomatic(t, pr, "<div/>", "/* @__PURE__ */ jsx(\"div\", {});\nimport {\n  jsx\n} from \"react/jsx-runtime\";\n")
-	expectPrintedJSXAutomatic(t, pr, "<><a/><b/></>", "/* @__PURE__ */ jsxs(Fragment, {\n  children: [\n    /* @__PURE__ */ jsx(\"a\", {}),\n    /* @__PURE__ */ jsx(\"b\", {})\n  ]\n});\nimport {\n  Fragment,\n  jsx,\n  jsxs\n} from \"react/jsx-runtime\";\n")
-	expectPrintedJSXAutomatic(t, pr, "<div {...props} key=\"key\" />", "/* @__PURE__ */ createElement(\"div\", {\n  ...props,\n  key: \"key\"\n});\nimport {\n  createElement\n} from \"react\";\n")
-	expectPrintedJSXAutomatic(t, pr, "<><div {...props} key=\"key\" /></>", "/* @__PURE__ */ jsx(Fragment, {\n  children: /* @__PURE__ */ createElement(\"div\", {\n    ...props,\n    key: \"key\"\n  })\n});\nimport {\n  Fragment,\n  jsx\n} from \"react/jsx-runtime\";\nimport {\n  createElement\n} from \"react\";\n")
+	expectPrintedJSXAutomatic(t, pr, "<div/>", "import { jsx } from \"react/jsx-runtime\";\n/* @__PURE__ */ jsx(\"div\", {});\n")
+	expectPrintedJSXAutomatic(t, pr, "<><a/><b/></>", "import { Fragment, jsx, jsxs } from \"react/jsx-runtime\";\n/* @__PURE__ */ jsxs(Fragment, {\n  children: [\n    /* @__PURE__ */ jsx(\"a\", {}),\n    /* @__PURE__ */ jsx(\"b\", {})\n  ]\n});\n")
+	expectPrintedJSXAutomatic(t, pr, "<div {...props} key=\"key\" />", "import { createElement } from \"react\";\n/* @__PURE__ */ createElement(\"div\", {\n  ...props,\n  key: \"key\"\n});\n")
+	expectPrintedJSXAutomatic(t, pr, "<><div {...props} key=\"key\" /></>", "import { Fragment, jsx } from \"react/jsx-runtime\";\nimport { createElement } from \"react\";\n/* @__PURE__ */ jsx(Fragment, {\n  children: /* @__PURE__ */ createElement(\"div\", {\n    ...props,\n    key: \"key\"\n  })\n});\n")
 
 	pri := JSXAutomaticTestOptions{Development: false, ImportSource: "my-jsx-lib"}
-	expectPrintedJSXAutomatic(t, pri, "<div/>", "/* @__PURE__ */ jsx(\"div\", {});\nimport {\n  jsx\n} from \"my-jsx-lib/jsx-runtime\";\n")
-	expectPrintedJSXAutomatic(t, pri, "<div {...props} key=\"key\" />", "/* @__PURE__ */ createElement(\"div\", {\n  ...props,\n  key: \"key\"\n});\nimport {\n  createElement\n} from \"my-jsx-lib\";\n")
+	expectPrintedJSXAutomatic(t, pri, "<div/>", "import { jsx } from \"my-jsx-lib/jsx-runtime\";\n/* @__PURE__ */ jsx(\"div\", {});\n")
+	expectPrintedJSXAutomatic(t, pri, "<div {...props} key=\"key\" />", "import { createElement } from \"my-jsx-lib\";\n/* @__PURE__ */ createElement(\"div\", {\n  ...props,\n  key: \"key\"\n});\n")
 
 	// Dev, without runtime imports
 	d := JSXAutomaticTestOptions{Development: true, OmitJSXRuntimeForTests: true}
@@ -4779,12 +4779,12 @@ func TestJSXAutomatic(t *testing.T) {
 
 	// Dev, with runtime imports
 	dr := JSXAutomaticTestOptions{Development: true}
-	expectPrintedJSXAutomatic(t, dr, "<div/>", "/* @__PURE__ */ jsxDEV(\"div\", {}, void 0, false, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 1\n}, this);\nimport {\n  jsxDEV\n} from \"react/jsx-dev-runtime\";\n")
-	expectPrintedJSXAutomatic(t, dr, "<>\n  <a/>\n  <b/>\n</>", "/* @__PURE__ */ jsxDEV(Fragment, {\n  children: [\n    /* @__PURE__ */ jsxDEV(\"a\", {}, void 0, false, {\n      fileName: \"<stdin>\",\n      lineNumber: 2,\n      columnNumber: 3\n    }, this),\n    /* @__PURE__ */ jsxDEV(\"b\", {}, void 0, false, {\n      fileName: \"<stdin>\",\n      lineNumber: 3,\n      columnNumber: 3\n    }, this)\n  ]\n}, void 0, true, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 1\n}, this);\nimport {\n  Fragment,\n  jsxDEV\n} from \"react/jsx-dev-runtime\";\n")
+	expectPrintedJSXAutomatic(t, dr, "<div/>", "import { jsxDEV } from \"react/jsx-dev-runtime\";\n/* @__PURE__ */ jsxDEV(\"div\", {}, void 0, false, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 1\n}, this);\n")
+	expectPrintedJSXAutomatic(t, dr, "<>\n  <a/>\n  <b/>\n</>", "import { Fragment, jsxDEV } from \"react/jsx-dev-runtime\";\n/* @__PURE__ */ jsxDEV(Fragment, {\n  children: [\n    /* @__PURE__ */ jsxDEV(\"a\", {}, void 0, false, {\n      fileName: \"<stdin>\",\n      lineNumber: 2,\n      columnNumber: 3\n    }, this),\n    /* @__PURE__ */ jsxDEV(\"b\", {}, void 0, false, {\n      fileName: \"<stdin>\",\n      lineNumber: 3,\n      columnNumber: 3\n    }, this)\n  ]\n}, void 0, true, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 1\n}, this);\n")
 
 	dri := JSXAutomaticTestOptions{Development: true, ImportSource: "preact"}
-	expectPrintedJSXAutomatic(t, dri, "<div/>", "/* @__PURE__ */ jsxDEV(\"div\", {}, void 0, false, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 1\n}, this);\nimport {\n  jsxDEV\n} from \"preact/jsx-dev-runtime\";\n")
-	expectPrintedJSXAutomatic(t, dri, "<>\n  <a/>\n  <b/>\n</>", "/* @__PURE__ */ jsxDEV(Fragment, {\n  children: [\n    /* @__PURE__ */ jsxDEV(\"a\", {}, void 0, false, {\n      fileName: \"<stdin>\",\n      lineNumber: 2,\n      columnNumber: 3\n    }, this),\n    /* @__PURE__ */ jsxDEV(\"b\", {}, void 0, false, {\n      fileName: \"<stdin>\",\n      lineNumber: 3,\n      columnNumber: 3\n    }, this)\n  ]\n}, void 0, true, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 1\n}, this);\nimport {\n  Fragment,\n  jsxDEV\n} from \"preact/jsx-dev-runtime\";\n")
+	expectPrintedJSXAutomatic(t, dri, "<div/>", "import { jsxDEV } from \"preact/jsx-dev-runtime\";\n/* @__PURE__ */ jsxDEV(\"div\", {}, void 0, false, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 1\n}, this);\n")
+	expectPrintedJSXAutomatic(t, dri, "<>\n  <a/>\n  <b/>\n</>", "import { Fragment, jsxDEV } from \"preact/jsx-dev-runtime\";\n/* @__PURE__ */ jsxDEV(Fragment, {\n  children: [\n    /* @__PURE__ */ jsxDEV(\"a\", {}, void 0, false, {\n      fileName: \"<stdin>\",\n      lineNumber: 2,\n      columnNumber: 3\n    }, this),\n    /* @__PURE__ */ jsxDEV(\"b\", {}, void 0, false, {\n      fileName: \"<stdin>\",\n      lineNumber: 3,\n      columnNumber: 3\n    }, this)\n  ]\n}, void 0, true, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 1\n}, this);\n")
 
 	// JSX namespaced names
 	for _, colon := range []string{":", " :", ": ", " : "} {
@@ -4808,11 +4808,11 @@ func TestJSXAutomatic(t *testing.T) {
 }
 
 func TestJSXAutomaticPragmas(t *testing.T) {
-	expectPrintedJSX(t, "// @jsxRuntime automatic\n<a/>", "/* @__PURE__ */ jsx(\"a\", {});\nimport {\n  jsx\n} from \"react/jsx-runtime\";\n")
-	expectPrintedJSX(t, "/*@jsxRuntime automatic*/\n<a/>", "/* @__PURE__ */ jsx(\"a\", {});\nimport {\n  jsx\n} from \"react/jsx-runtime\";\n")
-	expectPrintedJSX(t, "/* @jsxRuntime automatic */\n<a/>", "/* @__PURE__ */ jsx(\"a\", {});\nimport {\n  jsx\n} from \"react/jsx-runtime\";\n")
-	expectPrintedJSX(t, "<a/>\n/*@jsxRuntime automatic*/", "/* @__PURE__ */ jsx(\"a\", {});\nimport {\n  jsx\n} from \"react/jsx-runtime\";\n")
-	expectPrintedJSX(t, "<a/>\n/* @jsxRuntime automatic */", "/* @__PURE__ */ jsx(\"a\", {});\nimport {\n  jsx\n} from \"react/jsx-runtime\";\n")
+	expectPrintedJSX(t, "// @jsxRuntime automatic\n<a/>", "import { jsx } from \"react/jsx-runtime\";\n/* @__PURE__ */ jsx(\"a\", {});\n")
+	expectPrintedJSX(t, "/*@jsxRuntime automatic*/\n<a/>", "import { jsx } from \"react/jsx-runtime\";\n/* @__PURE__ */ jsx(\"a\", {});\n")
+	expectPrintedJSX(t, "/* @jsxRuntime automatic */\n<a/>", "import { jsx } from \"react/jsx-runtime\";\n/* @__PURE__ */ jsx(\"a\", {});\n")
+	expectPrintedJSX(t, "<a/>\n/*@jsxRuntime automatic*/", "import { jsx } from \"react/jsx-runtime\";\n/* @__PURE__ */ jsx(\"a\", {});\n")
+	expectPrintedJSX(t, "<a/>\n/* @jsxRuntime automatic */", "import { jsx } from \"react/jsx-runtime\";\n/* @__PURE__ */ jsx(\"a\", {});\n")
 
 	expectPrintedJSX(t, "// @jsxRuntime classic\n<a/>", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
 	expectPrintedJSX(t, "/*@jsxRuntime classic*/\n<a/>", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
@@ -4822,22 +4822,22 @@ func TestJSXAutomaticPragmas(t *testing.T) {
 
 	expectParseErrorJSX(t, "// @jsxRuntime foo\n<a/>", "<stdin>: WARNING: Invalid JSX runtime: foo\n")
 
-	expectPrintedJSX(t, "// @jsxRuntime automatic @jsxImportSource src\n<a/>", "/* @__PURE__ */ jsx(\"a\", {});\nimport {\n  jsx\n} from \"src/jsx-runtime\";\n")
-	expectPrintedJSX(t, "/*@jsxRuntime automatic @jsxImportSource src*/\n<a/>", "/* @__PURE__ */ jsx(\"a\", {});\nimport {\n  jsx\n} from \"src/jsx-runtime\";\n")
-	expectPrintedJSX(t, "/*@jsxRuntime automatic*//*@jsxImportSource src*/\n<a/>", "/* @__PURE__ */ jsx(\"a\", {});\nimport {\n  jsx\n} from \"src/jsx-runtime\";\n")
-	expectPrintedJSX(t, "/* @jsxRuntime automatic */\n/* @jsxImportSource src */\n<a/>", "/* @__PURE__ */ jsx(\"a\", {});\nimport {\n  jsx\n} from \"src/jsx-runtime\";\n")
-	expectPrintedJSX(t, "<a/>\n/*@jsxRuntime automatic @jsxImportSource src*/", "/* @__PURE__ */ jsx(\"a\", {});\nimport {\n  jsx\n} from \"src/jsx-runtime\";\n")
-	expectPrintedJSX(t, "<a/>\n/*@jsxRuntime automatic*/\n/*@jsxImportSource src*/", "/* @__PURE__ */ jsx(\"a\", {});\nimport {\n  jsx\n} from \"src/jsx-runtime\";\n")
-	expectPrintedJSX(t, "<a/>\n/* @jsxRuntime automatic */\n/* @jsxImportSource src */", "/* @__PURE__ */ jsx(\"a\", {});\nimport {\n  jsx\n} from \"src/jsx-runtime\";\n")
+	expectPrintedJSX(t, "// @jsxRuntime automatic @jsxImportSource src\n<a/>", "import { jsx } from \"src/jsx-runtime\";\n/* @__PURE__ */ jsx(\"a\", {});\n")
+	expectPrintedJSX(t, "/*@jsxRuntime automatic @jsxImportSource src*/\n<a/>", "import { jsx } from \"src/jsx-runtime\";\n/* @__PURE__ */ jsx(\"a\", {});\n")
+	expectPrintedJSX(t, "/*@jsxRuntime automatic*//*@jsxImportSource src*/\n<a/>", "import { jsx } from \"src/jsx-runtime\";\n/* @__PURE__ */ jsx(\"a\", {});\n")
+	expectPrintedJSX(t, "/* @jsxRuntime automatic */\n/* @jsxImportSource src */\n<a/>", "import { jsx } from \"src/jsx-runtime\";\n/* @__PURE__ */ jsx(\"a\", {});\n")
+	expectPrintedJSX(t, "<a/>\n/*@jsxRuntime automatic @jsxImportSource src*/", "import { jsx } from \"src/jsx-runtime\";\n/* @__PURE__ */ jsx(\"a\", {});\n")
+	expectPrintedJSX(t, "<a/>\n/*@jsxRuntime automatic*/\n/*@jsxImportSource src*/", "import { jsx } from \"src/jsx-runtime\";\n/* @__PURE__ */ jsx(\"a\", {});\n")
+	expectPrintedJSX(t, "<a/>\n/* @jsxRuntime automatic */\n/* @jsxImportSource src */", "import { jsx } from \"src/jsx-runtime\";\n/* @__PURE__ */ jsx(\"a\", {});\n")
 
 	expectPrintedJSX(t, "// @jsxRuntime classic @jsxImportSource src\n<a/>", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
 	expectParseErrorJSX(t, "// @jsxRuntime classic @jsxImportSource src\n<a/>", "<stdin>: WARNING: JSX import source cannot be set when runtime is classic: src\n")
 	expectParseErrorJSX(t, "// @jsxImportSource src\n<a/>", "<stdin>: WARNING: JSX import source cannot be set when runtime is classic: src\n")
 
-	expectPrintedJSX(t, "// @jsxRuntime automatic @jsx h\n<a/>", "/* @__PURE__ */ jsx(\"a\", {});\nimport {\n  jsx\n} from \"react/jsx-runtime\";\n")
+	expectPrintedJSX(t, "// @jsxRuntime automatic @jsx h\n<a/>", "import { jsx } from \"react/jsx-runtime\";\n/* @__PURE__ */ jsx(\"a\", {});\n")
 	expectParseErrorJSX(t, "// @jsxRuntime automatic @jsx h\n<a/>", "<stdin>: WARNING: JSX factory cannot be set when runtime is automatic: h\n")
 
-	expectPrintedJSX(t, "// @jsxRuntime automatic @jsxFrag f\n<></>", "/* @__PURE__ */ jsx(Fragment, {});\nimport {\n  Fragment,\n  jsx\n} from \"react/jsx-runtime\";\n")
+	expectPrintedJSX(t, "// @jsxRuntime automatic @jsxFrag f\n<></>", "import { Fragment, jsx } from \"react/jsx-runtime\";\n/* @__PURE__ */ jsx(Fragment, {});\n")
 	expectParseErrorJSX(t, "// @jsxRuntime automatic @jsxFrag f\n<></>", "<stdin>: WARNING: JSX fragment cannot be set when runtime is automatic: f\n")
 }
 

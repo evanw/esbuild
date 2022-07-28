@@ -318,22 +318,19 @@ console.log(fib(10));
 TestTsConfigReactJSX
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/entry.tsx
+import { Fragment, jsx, jsxs } from "notreact/jsx-runtime";
 console.log(/* @__PURE__ */ jsxs(Fragment, {
   children: [
     /* @__PURE__ */ jsx("div", {}),
     /* @__PURE__ */ jsx("div", {})
   ]
 }));
-import {
-  Fragment,
-  jsx,
-  jsxs
-} from "notreact/jsx-runtime";
 
 ================================================================================
 TestTsConfigReactJSXDev
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/entry.tsx
+import { Fragment, jsxDEV } from "react/jsx-dev-runtime";
 console.log(/* @__PURE__ */ jsxDEV(Fragment, {
   children: [
     /* @__PURE__ */ jsxDEV("div", {}, void 0, false, {
@@ -352,15 +349,12 @@ console.log(/* @__PURE__ */ jsxDEV(Fragment, {
   lineNumber: 2,
   columnNumber: 17
 }, this));
-import {
-  Fragment,
-  jsxDEV
-} from "react/jsx-dev-runtime";
 
 ================================================================================
 TestTsConfigReactJSXWithDevInMainConfig
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/entry.tsx
+import { Fragment, jsxDEV } from "react/jsx-dev-runtime";
 console.log(/* @__PURE__ */ jsxDEV(Fragment, {
   children: [
     /* @__PURE__ */ jsxDEV("div", {}, void 0, false, {
@@ -379,10 +373,6 @@ console.log(/* @__PURE__ */ jsxDEV(Fragment, {
   lineNumber: 2,
   columnNumber: 17
 }, this));
-import {
-  Fragment,
-  jsxDEV
-} from "react/jsx-dev-runtime";
 
 ================================================================================
 TestTsConfigWithStatementAlwaysStrictFalse

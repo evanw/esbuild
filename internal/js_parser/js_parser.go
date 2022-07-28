@@ -15863,8 +15863,7 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 	// Pop the module scope to apply the "ContainsDirectEval" rules
 	p.popScope()
 
-	parts = append(append(before, parts...), after...)
-	result = p.toAST(parts, hashbang, directive)
+	result = p.toAST(before, parts, after, hashbang, directive)
 	result.SourceMapComment = p.lexer.SourceMappingURL
 	return
 }
@@ -15895,7 +15894,7 @@ func LazyExportAST(log logger.Log, source logger.Source, options Options, expr j
 	}
 	p.symbolUses = nil
 
-	ast := p.toAST([]js_ast.Part{nsExportPart, part}, "", "")
+	ast := p.toAST(nil, []js_ast.Part{nsExportPart, part}, nil, "", "")
 	ast.HasLazyExport = true
 	return ast
 }
@@ -16216,31 +16215,32 @@ func (p *parser) generateImportStmt(
 			NamespaceRef:      namespaceRef,
 			Items:             &clauseItems,
 			ImportRecordIndex: importRecordIndex,
+			IsSingleLine:      true,
 		}}},
 	})
 }
 
-func (p *parser) toAST(parts []js_ast.Part, hashbang string, directive string) js_ast.AST {
+// Sort the keys for determinism
+func sortedKeysOfMapStringRef(in map[string]js_ast.Ref) []string {
+	keys := make([]string, 0, len(in))
+	for key := range in {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func (p *parser) toAST(before, parts, after []js_ast.Part, hashbang string, directive string) js_ast.AST {
 	// Insert an import statement for any runtime imports we generated
 	if len(p.runtimeImports) > 0 && !p.options.omitRuntimeForTests {
-		// Sort the imports for determinism
-		keys := make([]string, 0, len(p.runtimeImports))
-		for key := range p.runtimeImports {
-			keys = append(keys, key)
-		}
-		sort.Strings(keys)
+		keys := sortedKeysOfMapStringRef(p.runtimeImports)
 		sourceIndex := runtime.SourceIndex
-		parts = p.generateImportStmt("<runtime>", keys, &sourceIndex, parts, p.runtimeImports)
+		before = p.generateImportStmt("<runtime>", keys, &sourceIndex, before, p.runtimeImports)
 	}
 
 	// Insert an import statement for any jsx runtime imports we generated
 	if len(p.jsxRuntimeImports) > 0 && !p.options.omitJSXRuntimeForTests {
-		// Sort the imports for determinism
-		keys := make([]string, 0, len(p.jsxRuntimeImports))
-		for key := range p.jsxRuntimeImports {
-			keys = append(keys, key)
-		}
-		sort.Strings(keys)
+		keys := sortedKeysOfMapStringRef(p.jsxRuntimeImports)
 
 		// Determine the runtime source and whether it's prod or dev
 		path := p.options.jsx.ImportSource
@@ -16250,21 +16250,31 @@ func (p *parser) toAST(parts []js_ast.Part, hashbang string, directive string) j
 			path = path + "/jsx-runtime"
 		}
 
-		parts = p.generateImportStmt(path, keys, nil, parts, p.jsxRuntimeImports)
+		before = p.generateImportStmt(path, keys, nil, before, p.jsxRuntimeImports)
 	}
 
 	// Insert an import statement for any legacy jsx imports we generated (i.e., createElement)
 	if len(p.jsxLegacyImports) > 0 && !p.options.omitJSXRuntimeForTests {
-		// Sort the imports for determinism
-		keys := make([]string, 0, len(p.jsxLegacyImports))
-		for key := range p.jsxLegacyImports {
-			keys = append(keys, key)
-		}
-		sort.Strings(keys)
-
+		keys := sortedKeysOfMapStringRef(p.jsxLegacyImports)
 		path := p.options.jsx.ImportSource
-		parts = p.generateImportStmt(path, keys, nil, parts, p.jsxLegacyImports)
+		before = p.generateImportStmt(path, keys, nil, before, p.jsxLegacyImports)
 	}
+
+	// Generated imports are inserted before other code instead of appending them
+	// to the end of the file. Appending them should work fine because JavaScript
+	// import statements are "hoisted" to run before the importing file. However,
+	// some buggy JavaScript toolchains such as the TypeScript compiler convert
+	// ESM into CommonJS by replacing "import" statements inline without doing
+	// any hoisting, which is incorrect. See the following issue for more info:
+	// https://github.com/microsoft/TypeScript/issues/16166. Since JSX-related
+	// imports are present in the generated code when bundling is disabled, and
+	// could therefore be processed by these buggy tools, it's more robust to put
+	// them at the top even though it means potentially reallocating almost the
+	// entire array of parts.
+	if len(before) > 0 {
+		parts = append(before, parts...)
+	}
+	parts = append(parts, after...)
 
 	// Handle import paths after the whole file has been visited because we need
 	// symbol usage counts to be able to remove unused type-only imports in

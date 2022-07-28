@@ -1427,15 +1427,12 @@ var require_custom_react = __commonJS({
 
 // entry.jsx
 var import_custom_react = __toESM(require_custom_react());
+import { Fragment as Fragment2, jsx as jsx2 } from "react/jsx-runtime";
 console.log(/* @__PURE__ */ jsx2("div", {
   jsx: import_custom_react.jsx
 }), /* @__PURE__ */ jsx2(Fragment2, {
   children: /* @__PURE__ */ jsx2(import_custom_react.Fragment, {})
 }));
-import {
-  Fragment as Fragment2,
-  jsx as jsx2
-} from "react/jsx-runtime";
 
 ================================================================================
 TestJSXAutomaticImportsES6
@@ -1447,15 +1444,12 @@ function Fragment() {
 }
 
 // entry.jsx
+import { Fragment as Fragment2, jsx as jsx2 } from "react/jsx-runtime";
 console.log(/* @__PURE__ */ jsx2("div", {
   jsx
 }), /* @__PURE__ */ jsx2(Fragment2, {
   children: /* @__PURE__ */ jsx2(Fragment, {})
 }));
-import {
-  Fragment as Fragment2,
-  jsx as jsx2
-} from "react/jsx-runtime";
 
 ================================================================================
 TestJSXConstantFragments
