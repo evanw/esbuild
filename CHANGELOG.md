@@ -2,7 +2,7 @@
 
 ## 0.14.51
 
-* Add support for React 17's `automatic` JSX transform ([#334](https://github.com/evanw/esbuild/issues/334), [#718](https://github.com/evanw/esbuild/issues/718), [#1172](https://github.com/evanw/esbuild/issues/1172), [#2318](https://github.com/evanw/esbuild/issues/2318), [#334](https://github.com/evanw/esbuild/pull/2349))
+* Add support for React 17's `automatic` JSX transform ([#334](https://github.com/evanw/esbuild/issues/334), [#718](https://github.com/evanw/esbuild/issues/718), [#1172](https://github.com/evanw/esbuild/issues/1172), [#2318](https://github.com/evanw/esbuild/issues/2318), [#2349](https://github.com/evanw/esbuild/pull/2349))
 
     This adds support for the [new "automatic" JSX runtime from React 17+](https://reactjs.org/blog/2020/09/22/introducing-the-new-jsx-transform.html) to esbuild for both the build and transform APIs.
 
