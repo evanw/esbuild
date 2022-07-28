@@ -3526,6 +3526,37 @@ let transformTests = {
       loader: 'jsx',
     })
     assert.strictEqual(code2, `/* @__PURE__ */ factory(fragment, null, /* @__PURE__ */ factory("div", null));\n`)
+
+    const { code: code3 } = await esbuild.transform(`<><div/></>`, {
+      tsconfigRaw: {
+        compilerOptions: {
+          jsx: 'react-jsx'
+        },
+      },
+      loader: 'jsx',
+    })
+    assert.strictEqual(code3, `import { Fragment, jsx } from "react/jsx-runtime";\n/* @__PURE__ */ jsx(Fragment, {\n  children: /* @__PURE__ */ jsx("div", {})\n});\n`)
+
+    const { code: code4 } = await esbuild.transform(`<><div/></>`, {
+      tsconfigRaw: {
+        compilerOptions: {
+          jsx: 'react-jsx',
+          jsxImportSource: 'notreact'
+        },
+      },
+      loader: 'jsx',
+    })
+    assert.strictEqual(code4, `import { Fragment, jsx } from "notreact/jsx-runtime";\n/* @__PURE__ */ jsx(Fragment, {\n  children: /* @__PURE__ */ jsx("div", {})\n});\n`)
+
+    const { code: code5 } = await esbuild.transform(`<><div/></>`, {
+      tsconfigRaw: {
+        compilerOptions: {
+          jsx: 'react-jsxdev'
+        },
+      },
+      loader: 'jsx',
+    })
+    assert.strictEqual(code5, `import { Fragment, jsxDEV } from "react/jsx-dev-runtime";\n/* @__PURE__ */ jsxDEV(Fragment, {\n  children: /* @__PURE__ */ jsxDEV("div", {}, void 0, false, {\n    fileName: "<stdin>",\n    lineNumber: 1,\n    columnNumber: 3\n  }, this)\n}, void 0, false, {\n  fileName: "<stdin>",\n  lineNumber: 1,\n  columnNumber: 1\n}, this);\n`)
   },
 
   // Note: tree shaking is disabled when the output format isn't IIFE
@@ -3881,6 +3912,21 @@ let transformTests = {
   async jsxPreserve({ esbuild }) {
     const { code } = await esbuild.transform(`console.log(<div/>)`, { loader: 'jsx', jsx: 'preserve' })
     assert.strictEqual(code, `console.log(<div />);\n`)
+  },
+
+  async jsxRuntimeAutomatic({ esbuild }) {
+    const { code } = await esbuild.transform(`console.log(<div/>)`, { loader: 'jsx', jsx: 'automatic' })
+    assert.strictEqual(code, `import { jsx } from "react/jsx-runtime";\nconsole.log(/* @__PURE__ */ jsx("div", {}));\n`)
+  },
+
+  async jsxDev({ esbuild }) {
+    const { code } = await esbuild.transform(`console.log(<div/>)`, { loader: 'jsx', jsx: 'automatic', jsxDev: true })
+    assert.strictEqual(code, `import { jsxDEV } from "react/jsx-dev-runtime";\nconsole.log(/* @__PURE__ */ jsxDEV("div", {}, void 0, false, {\n  fileName: "<stdin>",\n  lineNumber: 1,\n  columnNumber: 13\n}, this));\n`)
+  },
+
+  async jsxImportSource({ esbuild }) {
+    const { code } = await esbuild.transform(`console.log(<div/>)`, { loader: 'jsx', jsx: 'automatic', jsxImportSource: 'notreact' })
+    assert.strictEqual(code, `import { jsx } from "notreact/jsx-runtime";\nconsole.log(/* @__PURE__ */ jsx("div", {}));\n`)
   },
 
   async ts({ esbuild }) {

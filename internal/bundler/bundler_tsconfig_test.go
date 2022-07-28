@@ -601,6 +601,91 @@ func TestTsConfigNestedJSX(t *testing.T) {
 	})
 }
 
+func TestTsConfigReactJSX(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/entry.tsx": `
+				console.log(<><div/><div/></>)
+			`,
+			"/Users/user/project/tsconfig.json": `
+				{
+					"compilerOptions": {
+						"jsx": "react-jsx",
+						"jsxImportSource": "notreact"
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/entry.tsx"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{Exact: map[string]bool{
+					"notreact/jsx-runtime": true,
+				}},
+			},
+		},
+	})
+}
+
+func TestTsConfigReactJSXDev(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/entry.tsx": `
+				console.log(<><div/><div/></>)
+			`,
+			"/Users/user/project/tsconfig.json": `
+				{
+					"compilerOptions": {
+						"jsx": "react-jsxdev"
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/entry.tsx"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{Exact: map[string]bool{
+					"react/jsx-dev-runtime": true,
+				}},
+			},
+		},
+	})
+}
+
+func TestTsConfigReactJSXWithDevInMainConfig(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/entry.tsx": `
+				console.log(<><div/><div/></>)
+			`,
+			"/Users/user/project/tsconfig.json": `
+				{
+					"compilerOptions": {
+						"jsx": "react-jsx"
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/entry.tsx"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+			JSX: config.JSXOptions{
+				Development: true,
+			},
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{Exact: map[string]bool{
+					"react/jsx-dev-runtime": true,
+				}},
+			},
+		},
+	})
+}
+
 func TestTsconfigJsonBaseUrl(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{

@@ -220,6 +220,13 @@ func (p *parser) markStrictModeFeature(feature strictModeFeature, r logger.Range
 			notes = []logger.MsgData{t.MsgData(tsAlwaysStrict.Range, fmt.Sprintf(
 				"TypeScript's %q setting was enabled here:", tsAlwaysStrict.Name))}
 
+		case js_ast.ImplicitStrictModeJSXAutomaticRuntime:
+			notes = []logger.MsgData{p.tracker.MsgData(logger.Range{Loc: p.firstJSXElementLoc, Len: 1},
+				"This file is implicitly in strict mode due to the JSX element here:"),
+				{Text: "When React's \"automatic\" JSX transform is enabled, using a JSX element automatically inserts " +
+					"an \"import\" statement at the top of the file for the corresponding the JSX helper function. " +
+					"This means the file is considered an ECMAScript module, and all ECMAScript modules use strict mode."}}
+
 		case js_ast.ExplicitStrictMode:
 			notes = []logger.MsgData{p.tracker.MsgData(p.source.RangeOfString(p.currentScope.UseStrictLoc),
 				"Strict mode is triggered by the \"use strict\" directive here:")}

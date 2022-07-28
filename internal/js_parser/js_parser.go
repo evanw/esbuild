@@ -194,6 +194,11 @@ type parser struct {
 	tempRefCount         int
 	topLevelTempRefCount int
 
+	// We need to scan over the source contents to recover the line and column offsets
+	jsxSourceLoc    int
+	jsxSourceLine   int
+	jsxSourceColumn int
+
 	exportsRef               js_ast.Ref
 	requireRef               js_ast.Ref
 	moduleRef                js_ast.Ref
@@ -203,6 +208,11 @@ type parser struct {
 	runtimePublicFieldImport js_ast.Ref
 	superCtorRef             js_ast.Ref
 	jsxDevRef                js_ast.Ref
+
+	// Imports from "react/jsx-runtime" and "react", respectively.
+	// (Or whatever was specified in the "importSource" option)
+	jsxRuntimeImports map[string]js_ast.Ref
+	jsxLegacyImports  map[string]js_ast.Ref
 
 	// For lowering private methods
 	weakMapRef js_ast.Ref
@@ -216,6 +226,7 @@ type parser struct {
 
 	latestArrowArgLoc      logger.Loc
 	forbidSuffixAfterAsLoc logger.Loc
+	firstJSXElementLoc     logger.Loc
 
 	fnOrArrowDataVisit fnOrArrowDataVisit
 
@@ -396,6 +407,7 @@ type optionsThatSupportStructuralEquality struct {
 	minifySyntax            bool
 	minifyIdentifiers       bool
 	omitRuntimeForTests     bool
+	omitJSXRuntimeForTests  bool
 	ignoreDCEAnnotations    bool
 	treeShaking             bool
 	dropDebugger            bool
@@ -430,6 +442,7 @@ func OptionsFromConfig(options *config.Options) Options {
 			minifySyntax:                      options.MinifySyntax,
 			minifyIdentifiers:                 options.MinifyIdentifiers,
 			omitRuntimeForTests:               options.OmitRuntimeForTests,
+			omitJSXRuntimeForTests:            options.OmitJSXRuntimeForTests,
 			ignoreDCEAnnotations:              options.IgnoreDCEAnnotations,
 			treeShaking:                       options.TreeShaking,
 			dropDebugger:                      options.DropDebugger,
@@ -1513,6 +1526,55 @@ func (p *parser) callRuntime(loc logger.Loc, name string, args []js_ast.Expr) js
 		Target: p.importFromRuntime(loc, name),
 		Args:   args,
 	}}
+}
+
+type JSXImport uint8
+
+const (
+	JSXImportJSX JSXImport = iota
+	JSXImportJSXS
+	JSXImportFragment
+	JSXImportCreateElement
+)
+
+func (p *parser) importJSXSymbol(loc logger.Loc, jsx JSXImport) js_ast.Expr {
+	var symbols map[string]js_ast.Ref
+	var name string
+
+	switch jsx {
+	case JSXImportJSX:
+		symbols = p.jsxRuntimeImports
+		if p.options.jsx.Development {
+			name = "jsxDEV"
+		} else {
+			name = "jsx"
+		}
+	case JSXImportJSXS:
+		symbols = p.jsxRuntimeImports
+		if p.options.jsx.Development {
+			name = "jsxDEV"
+		} else {
+			name = "jsxs"
+		}
+	case JSXImportFragment:
+		symbols = p.jsxRuntimeImports
+		name = "Fragment"
+	case JSXImportCreateElement:
+		symbols = p.jsxLegacyImports
+		name = "createElement"
+	}
+
+	ref, ok := symbols[name]
+	if !ok {
+		ref = p.newSymbol(js_ast.SymbolOther, name)
+		p.moduleScope.Generated = append(p.moduleScope.Generated, ref)
+		p.isImportItem[ref] = true
+		symbols[name] = ref
+	}
+	p.recordUsage(ref)
+	return p.handleIdentifier(loc, &js_ast.EIdentifier{Ref: ref}, identifierOpts{
+		wasOriginallyIdentifier: true,
+	})
 }
 
 func (p *parser) valueToSubstituteForRequire(loc logger.Loc) js_ast.Expr {
@@ -4455,6 +4517,11 @@ func (p *parser) parseJSXTag() (logger.Range, string, js_ast.Expr) {
 }
 
 func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
+	// Keep track of the location of the first JSX element for error messages
+	if p.firstJSXElementLoc.Start == -1 {
+		p.firstJSXElementLoc = loc
+	}
+
 	// Parse the tag
 	startRange, startText, startTagOrNil := p.parseJSXTag()
 
@@ -12058,6 +12125,38 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 	case *js_ast.EJSXElement:
 		propsLoc := expr.Loc
+
+		// Resolving the location index to a specific line and column in
+		// development mode is not too expensive because we seek from the
+		// previous JSX element. It amounts to at most a single additional
+		// scan over the source code. Note that this has to happen before
+		// we visit anything about this JSX element to make sure that we
+		// only ever need to scan forward, not backward.
+		var jsxSourceLine int
+		var jsxSourceColumn int
+		if p.options.jsx.Development && p.options.jsx.AutomaticRuntime {
+			for p.jsxSourceLoc < int(propsLoc.Start) {
+				r, size := utf8.DecodeRuneInString(p.source.Contents[p.jsxSourceLoc:])
+				p.jsxSourceLoc += size
+				if r == '\n' || r == '\r' || r == '\u2028' || r == '\u2029' {
+					if r == '\r' && p.jsxSourceLoc < len(p.source.Contents) && p.source.Contents[p.jsxSourceLoc] == '\n' {
+						p.jsxSourceLoc++ // Handle Windows-style CRLF newlines
+					}
+					p.jsxSourceLine++
+					p.jsxSourceColumn = 0
+				} else {
+					// Babel and TypeScript count columns in UTF-16 code units
+					if r < 0xFFFF {
+						p.jsxSourceColumn++
+					} else {
+						p.jsxSourceColumn += 2
+					}
+				}
+			}
+			jsxSourceLine = p.jsxSourceLine
+			jsxSourceColumn = p.jsxSourceColumn
+		}
+
 		if e.TagOrNil.Data != nil {
 			propsLoc = e.TagOrNil.Loc
 			e.TagOrNil = p.visitExpr(e.TagOrNil)
@@ -12101,39 +12200,195 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		} else {
 			// A missing tag is a fragment
 			if e.TagOrNil.Data == nil {
-				e.TagOrNil = p.instantiateDefineExpr(expr.Loc, p.options.jsx.Fragment, identifierOpts{
-					wasOriginallyIdentifier: true,
-					matchAgainstDefines:     true, // Allow defines to rewrite the JSX fragment factory
-				})
+				if p.options.jsx.AutomaticRuntime {
+					e.TagOrNil = p.importJSXSymbol(expr.Loc, JSXImportFragment)
+				} else {
+					e.TagOrNil = p.instantiateDefineExpr(expr.Loc, p.options.jsx.Fragment, identifierOpts{
+						wasOriginallyIdentifier: true,
+						matchAgainstDefines:     true, // Allow defines to rewrite the JSX fragment factory
+					})
+				}
 			}
 
-			// Arguments to createElement()
-			args := []js_ast.Expr{e.TagOrNil}
-			if len(e.Properties) > 0 {
-				args = append(args, p.lowerObjectSpread(propsLoc, &js_ast.EObject{
-					Properties: e.Properties,
-				}))
+			shouldUseCreateElement := !p.options.jsx.AutomaticRuntime
+			if !shouldUseCreateElement {
+				// Even for runtime="automatic", <div {...props} key={key} /> is special cased to createElement
+				// See https://github.com/babel/babel/blob/e482c763466ba3f44cb9e3467583b78b7f030b4a/packages/babel-plugin-transform-react-jsx/src/create-plugin.ts#L352
+				seenPropsSpread := false
+				for _, property := range e.Properties {
+					if seenPropsSpread && property.Kind == js_ast.PropertyNormal {
+						if str, ok := property.Key.Data.(*js_ast.EString); ok && helpers.UTF16EqualsString(str.Value, "key") {
+							shouldUseCreateElement = true
+							break
+						}
+					} else if property.Kind == js_ast.PropertySpread {
+						seenPropsSpread = true
+					}
+				}
+			}
+
+			if shouldUseCreateElement {
+				// Arguments to createElement()
+				args := []js_ast.Expr{e.TagOrNil}
+				if len(e.Properties) > 0 {
+					args = append(args, p.lowerObjectSpread(propsLoc, &js_ast.EObject{
+						Properties: e.Properties,
+					}))
+				} else {
+					args = append(args, js_ast.Expr{Loc: propsLoc, Data: js_ast.ENullShared})
+				}
+				if len(e.Children) > 0 {
+					args = append(args, e.Children...)
+				}
+
+				// Call createElement()
+				var target js_ast.Expr
+				if p.options.jsx.AutomaticRuntime {
+					target = p.importJSXSymbol(expr.Loc, JSXImportCreateElement)
+				} else {
+					target = p.instantiateDefineExpr(expr.Loc, p.options.jsx.Factory, identifierOpts{
+						wasOriginallyIdentifier: true,
+						matchAgainstDefines:     true, // Allow defines to rewrite the JSX factory
+					})
+					p.warnAboutImportNamespaceCall(target, exprKindCall)
+				}
+				return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ECall{
+					Target:        target,
+					Args:          args,
+					CloseParenLoc: e.CloseLoc,
+
+					// Enable tree shaking
+					CanBeUnwrappedIfUnused: !p.options.ignoreDCEAnnotations,
+				}}, exprOut{}
 			} else {
-				args = append(args, js_ast.Expr{Loc: propsLoc, Data: js_ast.ENullShared})
-			}
-			if len(e.Children) > 0 {
-				args = append(args, e.Children...)
-			}
+				// Arguments to jsx()
+				args := []js_ast.Expr{e.TagOrNil}
 
-			// Call createElement()
-			target := p.instantiateDefineExpr(expr.Loc, p.options.jsx.Factory, identifierOpts{
-				wasOriginallyIdentifier: true,
-				matchAgainstDefines:     true, // Allow defines to rewrite the JSX factory
-			})
-			p.warnAboutImportNamespaceCall(target, exprKindCall)
-			return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ECall{
-				Target:        target,
-				Args:          args,
-				CloseParenLoc: e.CloseLoc,
+				// Props argument
+				properties := make([]js_ast.Property, 0, len(e.Properties)+1)
 
-				// Enable tree shaking
-				CanBeUnwrappedIfUnused: !p.options.ignoreDCEAnnotations,
-			}}, exprOut{}
+				// For jsx(), "key" is passed in as a separate argument, so filter it out
+				// from the props here. Also, check for __source and __self, which might have
+				// been added by some upstream plugin. Their presence here would represent a
+				// configuration error.
+				hasKey := false
+				keyProperty := js_ast.Expr{Loc: expr.Loc, Data: js_ast.EUndefinedShared}
+				for _, property := range e.Properties {
+					if str, ok := property.Key.Data.(*js_ast.EString); ok {
+						propName := helpers.UTF16ToString(str.Value)
+						switch propName {
+						case "key":
+							if property.Flags.Has(js_ast.PropertyWasShorthand) {
+								r := js_lexer.RangeOfIdentifier(p.source, property.Loc)
+								msg := logger.Msg{
+									Kind:  logger.Error,
+									Data:  p.tracker.MsgData(r, "Please provide an explicit value for \"key\":"),
+									Notes: []logger.MsgData{{Text: "Using \"key\" as a shorthand for \"key={true}\" is not allowed when using React's \"automatic\" JSX transform."}},
+								}
+								msg.Data.Location.Suggestion = "key={true}"
+								p.log.AddMsg(msg)
+							} else {
+								keyProperty = property.ValueOrNil
+								hasKey = true
+							}
+							continue
+
+						case "__source", "__self":
+							r := js_lexer.RangeOfIdentifier(p.source, property.Loc)
+							p.log.AddErrorWithNotes(&p.tracker, r,
+								fmt.Sprintf("Duplicate \"%s\" prop found:", propName),
+								[]logger.MsgData{{Text: "Both \"__source\" and \"__self\" are set automatically by esbuild when using React's \"automatic\" JSX transform. " +
+									"This duplicate prop may have come from a plugin."}})
+							continue
+						}
+					}
+					properties = append(properties, property)
+				}
+
+				isStaticChildren := len(e.Children) > 1
+
+				// Children are passed in as an explicit prop
+				if len(e.Children) > 0 {
+					childrenValue := e.Children[0]
+
+					if len(e.Children) > 1 {
+						childrenValue.Data = &js_ast.EArray{Items: e.Children}
+					} else if _, ok := childrenValue.Data.(*js_ast.ESpread); ok {
+						// TypeScript considers spread children to be static, but Babel considers
+						// it to be an error ("Spread children are not supported in React.").
+						// We'll follow TypeScript's behavior here because spread children may be
+						// valid with non-React source runtimes.
+						childrenValue.Data = &js_ast.EArray{Items: []js_ast.Expr{childrenValue}}
+						isStaticChildren = true
+					}
+
+					properties = append(properties, js_ast.Property{
+						Key: js_ast.Expr{
+							Data: &js_ast.EString{Value: helpers.StringToUTF16("children")},
+							Loc:  childrenValue.Loc,
+						},
+						ValueOrNil: childrenValue,
+						Kind:       js_ast.PropertyNormal,
+						Loc:        childrenValue.Loc,
+					})
+				}
+
+				args = append(args, p.lowerObjectSpread(propsLoc, &js_ast.EObject{
+					Properties: properties,
+				}))
+
+				// "key"
+				if hasKey || p.options.jsx.Development {
+					args = append(args, keyProperty)
+				}
+
+				if p.options.jsx.Development {
+					// "isStaticChildren"
+					args = append(args, js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EBoolean{Value: isStaticChildren}})
+
+					// "__source"
+					args = append(args, js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EObject{
+						Properties: []js_ast.Property{
+							{
+								Kind:       js_ast.PropertyNormal,
+								Key:        js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EString{Value: helpers.StringToUTF16("fileName")}},
+								ValueOrNil: js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EString{Value: helpers.StringToUTF16(p.source.PrettyPath)}},
+							},
+							{
+								Kind:       js_ast.PropertyNormal,
+								Key:        js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EString{Value: helpers.StringToUTF16("lineNumber")}},
+								ValueOrNil: js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(jsxSourceLine + 1)}}, // 1-based lines
+							},
+							{
+								Kind:       js_ast.PropertyNormal,
+								Key:        js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EString{Value: helpers.StringToUTF16("columnNumber")}},
+								ValueOrNil: js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(jsxSourceColumn + 1)}}, // 1-based columns
+							},
+						},
+					}})
+
+					// "__self"
+					if p.fnOrArrowDataParse.isThisDisallowed {
+						args = append(args, js_ast.Expr{Loc: expr.Loc, Data: js_ast.EUndefinedShared})
+					} else {
+						args = append(args, js_ast.Expr{Loc: expr.Loc, Data: js_ast.EThisShared})
+					}
+				}
+
+				jsx := JSXImportJSX
+				if isStaticChildren {
+					jsx = JSXImportJSXS
+				}
+
+				return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ECall{
+					Target:        p.importJSXSymbol(expr.Loc, jsx),
+					Args:          args,
+					CloseParenLoc: e.CloseLoc,
+
+					// Enable tree shaking
+					CanBeUnwrappedIfUnused: !p.options.ignoreDCEAnnotations,
+				}}, exprOut{}
+			}
 		}
 
 	case *js_ast.ETemplate:
@@ -15360,6 +15615,7 @@ func newParser(log logger.Log, source logger.Source, lexer js_lexer.Lexer, optio
 		promiseRef:               js_ast.InvalidRef,
 		regExpRef:                js_ast.InvalidRef,
 		afterArrowBodyLoc:        logger.Loc{Start: -1},
+		firstJSXElementLoc:       logger.Loc{Start: -1},
 		importMetaRef:            js_ast.InvalidRef,
 		runtimePublicFieldImport: js_ast.InvalidRef,
 		superCtorRef:             js_ast.InvalidRef,
@@ -15383,6 +15639,10 @@ func newParser(log logger.Log, source logger.Source, lexer js_lexer.Lexer, optio
 		namedImports:            make(map[js_ast.Ref]js_ast.NamedImport),
 		namedExports:            make(map[string]js_ast.NamedExport),
 
+		// For JSX runtime imports
+		jsxRuntimeImports: make(map[string]js_ast.Ref),
+		jsxLegacyImports:  make(map[string]js_ast.Ref),
+
 		suppressWarningsAboutWeirdCode: helpers.IsInsideNodeModules(source.KeyPath.Text),
 	}
 
@@ -15397,6 +15657,8 @@ func newParser(log logger.Log, source logger.Source, lexer js_lexer.Lexer, optio
 
 var defaultJSXFactory = []string{"React", "createElement"}
 var defaultJSXFragment = []string{"React", "Fragment"}
+
+const defaultJSXImportSource = "react"
 
 func Parse(log logger.Log, source logger.Source, options Options) (result js_ast.AST, ok bool) {
 	ok = true
@@ -15415,6 +15677,9 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 	}
 	if len(options.jsx.Fragment.Parts) == 0 && options.jsx.Fragment.Constant == nil {
 		options.jsx.Fragment = config.DefineExpr{Parts: defaultJSXFragment}
+	}
+	if len(options.jsx.ImportSource) == 0 {
+		options.jsx.ImportSource = defaultJSXImportSource
 	}
 
 	if !options.ts.Parse {
@@ -15531,7 +15796,7 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 				}
 			}
 		}
-		before = p.generateImportStmt(file.Source.KeyPath.Text, exportsNoConflict, file.Source.Index, before, symbols)
+		before = p.generateImportStmt(file.Source.KeyPath.Text, exportsNoConflict, &file.Source.Index, before, symbols)
 	}
 
 	// Bind symbols in a second pass over the AST. I started off doing this in a
@@ -15606,8 +15871,7 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 	// Pop the module scope to apply the "ContainsDirectEval" rules
 	p.popScope()
 
-	parts = append(append(before, parts...), after...)
-	result = p.toAST(parts, hashbang, directive)
+	result = p.toAST(before, parts, after, hashbang, directive)
 	result.SourceMapComment = p.lexer.SourceMappingURL
 	return
 }
@@ -15638,17 +15902,10 @@ func LazyExportAST(log logger.Log, source logger.Source, options Options, expr j
 	}
 	p.symbolUses = nil
 
-	ast := p.toAST([]js_ast.Part{nsExportPart, part}, "", "")
+	ast := p.toAST(nil, []js_ast.Part{nsExportPart, part}, nil, "", "")
 	ast.HasLazyExport = true
 	return ast
 }
-
-type JSXExprKind uint8
-
-const (
-	JSXFactory JSXExprKind = iota
-	JSXFragment
-)
 
 func ParseDefineExprOrJSON(text string) (config.DefineExpr, js_ast.E) {
 	if text == "" {
@@ -15785,22 +16042,60 @@ func (p *parser) prepareForVisitPass() {
 
 	// Handle "@jsx" and "@jsxFrag" pragmas now that lexing is done
 	if p.options.jsx.Parse {
+		if jsxRuntime := p.lexer.JSXRuntimePragmaComment; jsxRuntime.Text != "" {
+			if jsxRuntime.Text == "automatic" {
+				p.options.jsx.AutomaticRuntime = true
+			} else if jsxRuntime.Text == "classic" {
+				p.options.jsx.AutomaticRuntime = false
+			} else {
+				p.log.AddIDWithNotes(logger.MsgID_JS_UnsupportedJSXComment, logger.Warning, &p.tracker, jsxRuntime.Range,
+					fmt.Sprintf("Invalid JSX runtime: %q", jsxRuntime.Text),
+					[]logger.MsgData{{Text: "The JSX runtime can only be set to either \"classic\" or \"automatic\"."}})
+			}
+		}
+
 		if jsxFactory := p.lexer.JSXFactoryPragmaComment; jsxFactory.Text != "" {
-			if expr, _ := ParseDefineExprOrJSON(jsxFactory.Text); len(expr.Parts) > 0 {
+			if p.options.jsx.AutomaticRuntime {
+				p.log.AddID(logger.MsgID_JS_UnsupportedJSXComment, logger.Warning, &p.tracker, jsxFactory.Range,
+					"The JSX factory cannot be set when using React's \"automatic\" JSX transform")
+			} else if expr, _ := ParseDefineExprOrJSON(jsxFactory.Text); len(expr.Parts) > 0 {
 				p.options.jsx.Factory = expr
 			} else {
 				p.log.AddID(logger.MsgID_JS_UnsupportedJSXComment, logger.Warning, &p.tracker, jsxFactory.Range,
 					fmt.Sprintf("Invalid JSX factory: %s", jsxFactory.Text))
 			}
 		}
+
 		if jsxFragment := p.lexer.JSXFragmentPragmaComment; jsxFragment.Text != "" {
-			if expr, _ := ParseDefineExprOrJSON(jsxFragment.Text); len(expr.Parts) > 0 || expr.Constant != nil {
+			if p.options.jsx.AutomaticRuntime {
+				p.log.AddID(logger.MsgID_JS_UnsupportedJSXComment, logger.Warning, &p.tracker, jsxFragment.Range,
+					"The JSX fragment cannot be set when using React's \"automatic\" JSX transform")
+			} else if expr, _ := ParseDefineExprOrJSON(jsxFragment.Text); len(expr.Parts) > 0 || expr.Constant != nil {
 				p.options.jsx.Fragment = expr
 			} else {
 				p.log.AddID(logger.MsgID_JS_UnsupportedJSXComment, logger.Warning, &p.tracker, jsxFragment.Range,
 					fmt.Sprintf("Invalid JSX fragment: %s", jsxFragment.Text))
 			}
 		}
+
+		if jsxImportSource := p.lexer.JSXImportSourcePragmaComment; jsxImportSource.Text != "" {
+			if !p.options.jsx.AutomaticRuntime {
+				p.log.AddIDWithNotes(logger.MsgID_JS_UnsupportedJSXComment, logger.Warning, &p.tracker, jsxImportSource.Range,
+					fmt.Sprintf("The JSX import source cannot be set without also enabling React's \"automatic\" JSX transform"),
+					[]logger.MsgData{{Text: "You can enable React's \"automatic\" JSX transform for this file by using a \"@jsxRuntime automatic\" comment."}})
+			} else {
+				p.options.jsx.ImportSource = jsxImportSource.Text
+			}
+		}
+	}
+
+	// Force-enable strict mode if the JSX "automatic" runtime is enabled and
+	// there is at least one JSX element. This is because the automatically-
+	// generated import statement turns the file into an ES module. This behavior
+	// matches TypeScript which also does this. See this PR for more information:
+	// https://github.com/microsoft/TypeScript/pull/39199
+	if p.currentScope.StrictMode == js_ast.SloppyMode && p.options.jsx.AutomaticRuntime && p.firstJSXElementLoc.Start != -1 {
+		p.currentScope.StrictMode = js_ast.ImplicitStrictModeJSXAutomaticRuntime
 	}
 }
 
@@ -15907,7 +16202,7 @@ func (p *parser) computeCharacterFrequency() *js_ast.CharFreq {
 func (p *parser) generateImportStmt(
 	path string,
 	imports []string,
-	sourceIndex uint32,
+	sourceIndex *uint32,
 	parts []js_ast.Part,
 	symbols map[string]js_ast.Ref,
 ) []js_ast.Part {
@@ -15916,7 +16211,9 @@ func (p *parser) generateImportStmt(
 	declaredSymbols := make([]js_ast.DeclaredSymbol, len(imports))
 	clauseItems := make([]js_ast.ClauseItem, len(imports))
 	importRecordIndex := p.addImportRecord(ast.ImportStmt, logger.Loc{}, path, nil)
-	p.importRecords[importRecordIndex].SourceIndex = ast.MakeIndex32(sourceIndex)
+	if sourceIndex != nil {
+		p.importRecords[importRecordIndex].SourceIndex = ast.MakeIndex32(*sourceIndex)
+	}
 
 	// Create per-import information
 	for i, alias := range imports {
@@ -15940,21 +16237,66 @@ func (p *parser) generateImportStmt(
 			NamespaceRef:      namespaceRef,
 			Items:             &clauseItems,
 			ImportRecordIndex: importRecordIndex,
+			IsSingleLine:      true,
 		}}},
 	})
 }
 
-func (p *parser) toAST(parts []js_ast.Part, hashbang string, directive string) js_ast.AST {
+// Sort the keys for determinism
+func sortedKeysOfMapStringRef(in map[string]js_ast.Ref) []string {
+	keys := make([]string, 0, len(in))
+	for key := range in {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func (p *parser) toAST(before, parts, after []js_ast.Part, hashbang string, directive string) js_ast.AST {
 	// Insert an import statement for any runtime imports we generated
 	if len(p.runtimeImports) > 0 && !p.options.omitRuntimeForTests {
-		// Sort the imports for determinism
-		keys := make([]string, 0, len(p.runtimeImports))
-		for key := range p.runtimeImports {
-			keys = append(keys, key)
-		}
-		sort.Strings(keys)
-		parts = p.generateImportStmt("<runtime>", keys, runtime.SourceIndex, parts, p.runtimeImports)
+		keys := sortedKeysOfMapStringRef(p.runtimeImports)
+		sourceIndex := runtime.SourceIndex
+		before = p.generateImportStmt("<runtime>", keys, &sourceIndex, before, p.runtimeImports)
 	}
+
+	// Insert an import statement for any jsx runtime imports we generated
+	if len(p.jsxRuntimeImports) > 0 && !p.options.omitJSXRuntimeForTests {
+		keys := sortedKeysOfMapStringRef(p.jsxRuntimeImports)
+
+		// Determine the runtime source and whether it's prod or dev
+		path := p.options.jsx.ImportSource
+		if p.options.jsx.Development {
+			path = path + "/jsx-dev-runtime"
+		} else {
+			path = path + "/jsx-runtime"
+		}
+
+		before = p.generateImportStmt(path, keys, nil, before, p.jsxRuntimeImports)
+	}
+
+	// Insert an import statement for any legacy jsx imports we generated (i.e., createElement)
+	if len(p.jsxLegacyImports) > 0 && !p.options.omitJSXRuntimeForTests {
+		keys := sortedKeysOfMapStringRef(p.jsxLegacyImports)
+		path := p.options.jsx.ImportSource
+		before = p.generateImportStmt(path, keys, nil, before, p.jsxLegacyImports)
+	}
+
+	// Generated imports are inserted before other code instead of appending them
+	// to the end of the file. Appending them should work fine because JavaScript
+	// import statements are "hoisted" to run before the importing file. However,
+	// some buggy JavaScript toolchains such as the TypeScript compiler convert
+	// ESM into CommonJS by replacing "import" statements inline without doing
+	// any hoisting, which is incorrect. See the following issue for more info:
+	// https://github.com/microsoft/TypeScript/issues/16166. Since JSX-related
+	// imports are present in the generated code when bundling is disabled, and
+	// could therefore be processed by these buggy tools, it's more robust to put
+	// them at the top even though it means potentially reallocating almost the
+	// entire array of parts.
+	if len(before) > 0 {
+		parts = append(before, parts...)
+	}
+	parts = append(parts, after...)
 
 	// Handle import paths after the whole file has been visited because we need
 	// symbol usage counts to be able to remove unused type-only imports in

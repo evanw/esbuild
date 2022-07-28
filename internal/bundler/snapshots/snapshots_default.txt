@@ -1416,6 +1416,42 @@ console.log(collide);
 console.log(re_export);
 
 ================================================================================
+TestJSXAutomaticImportsCommonJS
+---------- /out.js ----------
+// custom-react.js
+var require_custom_react = __commonJS({
+  "custom-react.js"(exports, module) {
+    module.exports = {};
+  }
+});
+
+// entry.jsx
+var import_custom_react = __toESM(require_custom_react());
+import { Fragment as Fragment2, jsx as jsx2 } from "react/jsx-runtime";
+console.log(/* @__PURE__ */ jsx2("div", {
+  jsx: import_custom_react.jsx
+}), /* @__PURE__ */ jsx2(Fragment2, {
+  children: /* @__PURE__ */ jsx2(import_custom_react.Fragment, {})
+}));
+
+================================================================================
+TestJSXAutomaticImportsES6
+---------- /out.js ----------
+// custom-react.js
+function jsx() {
+}
+function Fragment() {
+}
+
+// entry.jsx
+import { Fragment as Fragment2, jsx as jsx2 } from "react/jsx-runtime";
+console.log(/* @__PURE__ */ jsx2("div", {
+  jsx
+}), /* @__PURE__ */ jsx2(Fragment2, {
+  children: /* @__PURE__ */ jsx2(Fragment, {})
+}));
+
+================================================================================
 TestJSXConstantFragments
 ---------- /out.js ----------
 // default.jsx

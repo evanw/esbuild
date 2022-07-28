@@ -610,10 +610,12 @@ func parseOptionsImpl(
 				mode = api.JSXModeTransform
 			case "preserve":
 				mode = api.JSXModePreserve
+			case "automatic":
+				mode = api.JSXModeAutomatic
 			default:
 				return parseOptionsExtras{}, cli_helpers.MakeErrorWithNote(
 					fmt.Sprintf("Invalid value %q in %q", value, arg),
-					"Valid values are \"transform\" or \"preserve\".",
+					"Valid values are \"transform\", \"automatic\", or \"preserve\".",
 				)
 			}
 			if buildOpts != nil {
@@ -636,6 +638,23 @@ func parseOptionsImpl(
 				buildOpts.JSXFragment = value
 			} else {
 				transformOpts.JSXFragment = value
+			}
+
+		case strings.HasPrefix(arg, "--jsx-import-source="):
+			value := arg[len("--jsx-import-source="):]
+			if buildOpts != nil {
+				buildOpts.JSXImportSource = value
+			} else {
+				transformOpts.JSXImportSource = value
+			}
+
+		case isBoolFlag(arg, "--jsx-dev"):
+			if value, err := parseBoolFlag(arg, true); err != nil {
+				return parseOptionsExtras{}, err
+			} else if buildOpts != nil {
+				buildOpts.JSXDev = value
+			} else {
+				transformOpts.JSXDev = value
 			}
 
 		case strings.HasPrefix(arg, "--banner=") && transformOpts != nil:
@@ -734,6 +753,7 @@ func parseOptionsImpl(
 				"allow-overwrite":    true,
 				"bundle":             true,
 				"ignore-annotations": true,
+				"jsx-dev":            true,
 				"keep-names":         true,
 				"minify-identifiers": true,
 				"minify-syntax":      true,
@@ -761,6 +781,7 @@ func parseOptionsImpl(
 				"ignore-annotations": true,
 				"jsx-factory":        true,
 				"jsx-fragment":       true,
+				"jsx-import-source":  true,
 				"jsx":                true,
 				"keep-names":         true,
 				"legal-comments":     true,

@@ -539,6 +539,88 @@ func TestJSXConstantFragments(t *testing.T) {
 	})
 }
 
+func TestJSXAutomaticImportsCommonJS(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.jsx": `
+				import {jsx, Fragment} from './custom-react'
+				console.log(<div jsx={jsx}/>, <><Fragment/></>)
+			`,
+			"/custom-react.js": `
+				module.exports = {}
+			`,
+		},
+		entryPaths: []string{"/entry.jsx"},
+		options: config.Options{
+			Mode: config.ModeBundle,
+			JSX: config.JSXOptions{
+				AutomaticRuntime: true,
+			},
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{Exact: map[string]bool{
+					"react/jsx-runtime": true,
+				}},
+			},
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestJSXAutomaticImportsES6(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.jsx": `
+				import {jsx, Fragment} from './custom-react'
+				console.log(<div jsx={jsx}/>, <><Fragment/></>)
+			`,
+			"/custom-react.js": `
+				export function jsx() {}
+				export function Fragment() {}
+			`,
+		},
+		entryPaths: []string{"/entry.jsx"},
+		options: config.Options{
+			Mode: config.ModeBundle,
+			JSX: config.JSXOptions{
+				AutomaticRuntime: true,
+			},
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{Exact: map[string]bool{
+					"react/jsx-runtime": true,
+				}},
+			},
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestJSXAutomaticSyntaxInJS(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log(<div/>)
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode: config.ModeBundle,
+			JSX: config.JSXOptions{
+				AutomaticRuntime: true,
+			},
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{Exact: map[string]bool{
+					"react/jsx-runtime": true,
+				}},
+			},
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `entry.js: ERROR: The JSX syntax extension is not currently enabled
+NOTE: The esbuild loader for this file is currently set to "js" but it must be set to "jsx" to be able to parse JSX syntax. ` +
+			`You can use 'Loader: map[string]api.Loader{".js": api.LoaderJSX}' to do that.
+`,
+	})
+}
+
 func TestNodeModules(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{

@@ -320,6 +320,33 @@ const testCaseBundleCSS = {
   `,
 }
 
+const testCaseJSXRuntime = {
+  'entry.jsx': `
+    import { A0, A1, A2 } from './a.jsx';
+    console.log(<A0><A1/><A2/></A0>)
+  `,
+  'a.jsx': `
+    import {jsx} from './b-dir/b'
+    import {Fragment} from './b-dir/c-dir/c'
+    export function A0() { return <Fragment id="A0"><>a0</></Fragment> }
+    export function A1() { return <div {...jsx} data-testid="A1">a1</div> }
+    export function A2() { return <A1 id="A2"><a/><b/></A1> }
+  `,
+  'b-dir/b.js': `
+    export const jsx = {id: 'jsx'}
+  `,
+  'b-dir/c-dir/c.jsx': `
+    exports.Fragment = function() { return <></> }
+  `,
+}
+
+const toSearchJSXRuntime = {
+  A0: 'a.jsx',
+  A1: 'a.jsx',
+  A2: 'a.jsx',
+  jsx: 'b-dir/b.js',
+}
+
 const testCaseNames = {
   'entry.js': `
     import "./nested1"
@@ -757,6 +784,18 @@ async function main() {
           ext: 'css',
           flags: flags.concat('--outfile=out.css', '--bundle'),
           entryPoints: ['entry.css'],
+          crlf,
+        }),
+        check('jsx-runtime' + suffix, testCaseJSXRuntime, toSearchJSXRuntime, {
+          ext: 'js',
+          flags: flags.concat('--outfile=out.js', '--bundle', '--jsx=automatic', '--external:react/jsx-runtime'),
+          entryPoints: ['entry.jsx'],
+          crlf,
+        }),
+        check('jsx-dev-runtime' + suffix, testCaseJSXRuntime, toSearchJSXRuntime, {
+          ext: 'js',
+          flags: flags.concat('--outfile=out.js', '--bundle', '--jsx=automatic', '--jsx-dev', '--external:react/jsx-dev-runtime'),
+          entryPoints: ['entry.jsx'],
           crlf,
         }),
 

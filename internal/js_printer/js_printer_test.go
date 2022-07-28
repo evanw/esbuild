@@ -953,15 +953,15 @@ func TestAvoidSlashScript(t *testing.T) {
 	expectPrinted(t, "/*! </SCRIPT \n </SCRIPT */", "/*! <\\/SCRIPT \n <\\/SCRIPT */\n")
 	expectPrinted(t, "/*! </ScRiPt \n </ScRiPt */", "/*! <\\/ScRiPt \n <\\/ScRiPt */\n")
 	expectPrinted(t, "String.raw`</script`",
-		"var _a;\nString.raw(_a || (_a = __template([\"<\\/script\"])));\nimport {\n  __template\n} from \"<runtime>\";\n")
+		"import { __template } from \"<runtime>\";\nvar _a;\nString.raw(_a || (_a = __template([\"<\\/script\"])));\n")
 	expectPrinted(t, "String.raw`</script${a}`",
-		"var _a;\nString.raw(_a || (_a = __template([\"<\\/script\", \"\"])), a);\nimport {\n  __template\n} from \"<runtime>\";\n")
+		"import { __template } from \"<runtime>\";\nvar _a;\nString.raw(_a || (_a = __template([\"<\\/script\", \"\"])), a);\n")
 	expectPrinted(t, "String.raw`${a}</script`",
-		"var _a;\nString.raw(_a || (_a = __template([\"\", \"<\\/script\"])), a);\nimport {\n  __template\n} from \"<runtime>\";\n")
+		"import { __template } from \"<runtime>\";\nvar _a;\nString.raw(_a || (_a = __template([\"\", \"<\\/script\"])), a);\n")
 	expectPrinted(t, "String.raw`</SCRIPT`",
-		"var _a;\nString.raw(_a || (_a = __template([\"<\\/SCRIPT\"])));\nimport {\n  __template\n} from \"<runtime>\";\n")
+		"import { __template } from \"<runtime>\";\nvar _a;\nString.raw(_a || (_a = __template([\"<\\/SCRIPT\"])));\n")
 	expectPrinted(t, "String.raw`</ScRiPt`",
-		"var _a;\nString.raw(_a || (_a = __template([\"<\\/ScRiPt\"])));\nimport {\n  __template\n} from \"<runtime>\";\n")
+		"import { __template } from \"<runtime>\";\nvar _a;\nString.raw(_a || (_a = __template([\"<\\/ScRiPt\"])));\n")
 
 	// Negative cases
 	expectPrinted(t, "x = '</'", "x = \"</\";\n")

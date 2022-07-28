@@ -897,9 +897,12 @@ func rebuildImpl(
 		UnsupportedCSSFeatureOverridesMask: cssMask,
 		OriginalTargetEnv:                  targetEnv,
 		JSX: config.JSXOptions{
-			Preserve: buildOpts.JSXMode == JSXModePreserve,
-			Factory:  validateJSXExpr(log, buildOpts.JSXFactory, "factory"),
-			Fragment: validateJSXExpr(log, buildOpts.JSXFragment, "fragment"),
+			Preserve:         buildOpts.JSXMode == JSXModePreserve,
+			AutomaticRuntime: buildOpts.JSXMode == JSXModeAutomatic,
+			Factory:          validateJSXExpr(log, buildOpts.JSXFactory, "factory"),
+			Fragment:         validateJSXExpr(log, buildOpts.JSXFragment, "fragment"),
+			Development:      buildOpts.JSXDev,
+			ImportSource:     buildOpts.JSXImportSource,
 		},
 		Defines:               defines,
 		InjectedDefines:       injectedDefines,
@@ -1356,9 +1359,12 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 	var unusedImportFlagsTS config.UnusedImportFlagsTS
 	useDefineForClassFieldsTS := config.Unspecified
 	jsx := config.JSXOptions{
-		Preserve: transformOpts.JSXMode == JSXModePreserve,
-		Factory:  validateJSXExpr(log, transformOpts.JSXFactory, "factory"),
-		Fragment: validateJSXExpr(log, transformOpts.JSXFragment, "fragment"),
+		Preserve:         transformOpts.JSXMode == JSXModePreserve,
+		AutomaticRuntime: transformOpts.JSXMode == JSXModeAutomatic,
+		Factory:          validateJSXExpr(log, transformOpts.JSXFactory, "factory"),
+		Fragment:         validateJSXExpr(log, transformOpts.JSXFragment, "fragment"),
+		Development:      transformOpts.JSXDev,
+		ImportSource:     transformOpts.JSXImportSource,
 	}
 
 	// Settings from "tsconfig.json" override those
@@ -1372,11 +1378,17 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 			Contents:   transformOpts.TsconfigRaw,
 		}
 		if result := resolver.ParseTSConfigJSON(log, source, &caches.JSONCache, nil); result != nil {
+			if result.JSX != config.TSJSXNone {
+				jsx.SetOptionsFromTSJSX(result.JSX)
+			}
 			if len(result.JSXFactory) > 0 {
 				jsx.Factory = config.DefineExpr{Parts: result.JSXFactory}
 			}
 			if len(result.JSXFragmentFactory) > 0 {
 				jsx.Fragment = config.DefineExpr{Parts: result.JSXFragmentFactory}
+			}
+			if len(result.JSXImportSource) > 0 {
+				jsx.ImportSource = result.JSXImportSource
 			}
 			if result.UseDefineForClassFields != config.Unspecified {
 				useDefineForClassFieldsTS = result.UseDefineForClassFields

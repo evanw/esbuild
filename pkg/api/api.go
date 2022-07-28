@@ -110,6 +110,7 @@ type JSXMode uint8
 const (
 	JSXModeTransform JSXMode = iota
 	JSXModePreserve
+	JSXModeAutomatic
 )
 
 type Target uint8
@@ -276,9 +277,11 @@ type BuildOptions struct {
 	IgnoreAnnotations bool                   // Documentation: https://esbuild.github.io/api/#ignore-annotations
 	LegalComments     LegalComments          // Documentation: https://esbuild.github.io/api/#legal-comments
 
-	JSXMode     JSXMode // Documentation: https://esbuild.github.io/api/#jsx-mode
-	JSXFactory  string  // Documentation: https://esbuild.github.io/api/#jsx-factory
-	JSXFragment string  // Documentation: https://esbuild.github.io/api/#jsx-fragment
+	JSXMode         JSXMode // Documentation: https://esbuild.github.io/api/#jsx-mode
+	JSXFactory      string  // Documentation: https://esbuild.github.io/api/#jsx-factory
+	JSXFragment     string  // Documentation: https://esbuild.github.io/api/#jsx-fragment
+	JSXImportSource string  // Documentation: https://esbuild.github.io/api/#jsx-import-source
+	JSXDev          bool    // Documentation: https://esbuild.github.io/api/#jsx-dev
 
 	Define    map[string]string // Documentation: https://esbuild.github.io/api/#define
 	Pure      []string          // Documentation: https://esbuild.github.io/api/#pure
@@ -396,9 +399,11 @@ type TransformOptions struct {
 	IgnoreAnnotations bool                   // Documentation: https://esbuild.github.io/api/#ignore-annotations
 	LegalComments     LegalComments          // Documentation: https://esbuild.github.io/api/#legal-comments
 
-	JSXMode     JSXMode // Documentation: https://esbuild.github.io/api/#jsx
-	JSXFactory  string  // Documentation: https://esbuild.github.io/api/#jsx-factory
-	JSXFragment string  // Documentation: https://esbuild.github.io/api/#jsx-fragment
+	JSXMode         JSXMode // Documentation: https://esbuild.github.io/api/#jsx
+	JSXFactory      string  // Documentation: https://esbuild.github.io/api/#jsx-factory
+	JSXFragment     string  // Documentation: https://esbuild.github.io/api/#jsx-fragment
+	JSXImportSource string  // Documentation: https://esbuild.github.io/api/#jsx-import-source
+	JSXDev          bool    // Documentation: https://esbuild.github.io/api/#jsx-dev
 
 	TsconfigRaw string // Documentation: https://esbuild.github.io/api/#tsconfig-raw
 	Banner      string // Documentation: https://esbuild.github.io/api/#banner
