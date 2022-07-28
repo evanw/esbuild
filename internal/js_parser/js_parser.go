@@ -12267,7 +12267,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				// been added by some upstream plugin. Their presence here would represent a
 				// configuration error.
 				hasKey := false
-				keyProperty := js_ast.Expr{Data: js_ast.EUndefinedShared}
+				keyProperty := js_ast.Expr{Loc: expr.Loc, Data: js_ast.EUndefinedShared}
 				for _, property := range e.Properties {
 					if str, ok := property.Key.Data.(*js_ast.EString); ok {
 						propName := helpers.UTF16ToString(str.Value)
@@ -12300,32 +12300,27 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 				// Children are passed in as an explicit prop
 				if len(e.Children) > 0 {
-					childrenLoc := e.Children[0].Loc
-					var childrenValue js_ast.Expr
+					childrenValue := e.Children[0]
 
 					if len(e.Children) > 1 {
-						childrenValue = js_ast.Expr{Data: &js_ast.EArray{Items: e.Children}}
-					} else if len(e.Children) == 1 {
-						if _, ok := e.Children[0].Data.(*js_ast.ESpread); ok {
-							// TypeScript considers spread children to be static, but Babel considers
-							// it to be an error ("Spread children are not supported in React.").
-							// We'll follow TypeScript's behavior here because spread children may be
-							// valid with non-React source runtimes.
-							childrenValue = js_ast.Expr{Data: &js_ast.EArray{Items: []js_ast.Expr{e.Children[0]}}}
-							isStaticChildren = true
-						} else {
-							childrenValue = e.Children[0]
-						}
+						childrenValue.Data = &js_ast.EArray{Items: e.Children}
+					} else if _, ok := childrenValue.Data.(*js_ast.ESpread); ok {
+						// TypeScript considers spread children to be static, but Babel considers
+						// it to be an error ("Spread children are not supported in React.").
+						// We'll follow TypeScript's behavior here because spread children may be
+						// valid with non-React source runtimes.
+						childrenValue.Data = &js_ast.EArray{Items: []js_ast.Expr{childrenValue}}
+						isStaticChildren = true
 					}
 
 					properties = append(properties, js_ast.Property{
 						Key: js_ast.Expr{
 							Data: &js_ast.EString{Value: helpers.StringToUTF16("children")},
-							Loc:  childrenLoc,
+							Loc:  childrenValue.Loc,
 						},
 						ValueOrNil: childrenValue,
 						Kind:       js_ast.PropertyNormal,
-						Loc:        childrenLoc,
+						Loc:        childrenValue.Loc,
 					})
 				}
 
@@ -12340,34 +12335,34 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 				if p.options.jsx.Development {
 					// "isStaticChildren"
-					args = append(args, js_ast.Expr{Data: &js_ast.EBoolean{Value: isStaticChildren}})
+					args = append(args, js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EBoolean{Value: isStaticChildren}})
 
 					// "__source"
-					args = append(args, js_ast.Expr{Data: &js_ast.EObject{
+					args = append(args, js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EObject{
 						Properties: []js_ast.Property{
 							{
 								Kind:       js_ast.PropertyNormal,
-								Key:        js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16("fileName")}},
-								ValueOrNil: js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16(p.source.PrettyPath)}},
+								Key:        js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EString{Value: helpers.StringToUTF16("fileName")}},
+								ValueOrNil: js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EString{Value: helpers.StringToUTF16(p.source.PrettyPath)}},
 							},
 							{
 								Kind:       js_ast.PropertyNormal,
-								Key:        js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16("lineNumber")}},
-								ValueOrNil: js_ast.Expr{Data: &js_ast.ENumber{Value: float64(jsxSourceLine + 1)}}, // 1-based lines
+								Key:        js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EString{Value: helpers.StringToUTF16("lineNumber")}},
+								ValueOrNil: js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(jsxSourceLine + 1)}}, // 1-based lines
 							},
 							{
 								Kind:       js_ast.PropertyNormal,
-								Key:        js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16("columnNumber")}},
-								ValueOrNil: js_ast.Expr{Data: &js_ast.ENumber{Value: float64(jsxSourceColumn + 1)}}, // 1-based columns
+								Key:        js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EString{Value: helpers.StringToUTF16("columnNumber")}},
+								ValueOrNil: js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(jsxSourceColumn + 1)}}, // 1-based columns
 							},
 						},
 					}})
 
 					// "__self"
 					if p.fnOrArrowDataParse.isThisDisallowed {
-						args = append(args, js_ast.Expr{Data: js_ast.EUndefinedShared})
+						args = append(args, js_ast.Expr{Loc: expr.Loc, Data: js_ast.EUndefinedShared})
 					} else {
-						args = append(args, js_ast.Expr{Data: js_ast.EThisShared})
+						args = append(args, js_ast.Expr{Loc: expr.Loc, Data: js_ast.EThisShared})
 					}
 				}
 
