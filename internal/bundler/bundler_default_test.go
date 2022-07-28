@@ -5494,14 +5494,14 @@ func TestDuplicatePropertyWarning(t *testing.T) {
 				import './outside-node-modules'
 				import 'inside-node-modules'
 			`,
-			"/outside-node-modules/index.js": `
-				console.log({ a: 1, a: 2 })
+			"/outside-node-modules/index.jsx": `
+				console.log({ a: 1, a: 2 }, <div a2 a2={3}/>)
 			`,
 			"/outside-node-modules/package.json": `
 				{ "b": 1, "b": 2 }
 			`,
-			"/node_modules/inside-node-modules/index.js": `
-				console.log({ c: 1, c: 2 })
+			"/node_modules/inside-node-modules/index.jsx": `
+				console.log({ c: 1, c: 2 }, <div c2 c2={3}/>)
 			`,
 			"/node_modules/inside-node-modules/package.json": `
 				{ "d": 1, "d": 2 }
@@ -5512,8 +5512,10 @@ func TestDuplicatePropertyWarning(t *testing.T) {
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/out",
 		},
-		expectedScanLog: `outside-node-modules/index.js: WARNING: Duplicate key "a" in object literal
-outside-node-modules/index.js: NOTE: The original key "a" is here:
+		expectedScanLog: `outside-node-modules/index.jsx: WARNING: Duplicate key "a" in object literal
+outside-node-modules/index.jsx: NOTE: The original key "a" is here:
+outside-node-modules/index.jsx: WARNING: Duplicate "a2" attribute in JSX element
+outside-node-modules/index.jsx: NOTE: The original "a2" attribute is here:
 outside-node-modules/package.json: WARNING: Duplicate key "b" in object literal
 outside-node-modules/package.json: NOTE: The original key "b" is here:
 `,

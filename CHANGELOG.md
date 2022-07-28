@@ -1,10 +1,22 @@
 # Changelog
 
-## Unreleased
+## 0.14.50
+
+* Emit `names` in source maps ([#1296](https://github.com/evanw/esbuild/issues/1296))
+
+    The [source map specification](https://sourcemaps.info/spec.html) includes an optional `names` field that can associate an identifier with a mapping entry. This can be used to record the original name for an identifier, which is useful if the identifier was renamed to something else in the generated code. When esbuild was originally written, this field wasn't widely used, but now there are some debuggers that make use of it to provide better debugging of minified code. With this release, esbuild now includes a `names` field in the source maps that it generates. To save space, the original name is only recorded when it's different from the final name.
+
+* Update parser for arrow functions with initial default type parameters in `.tsx` files ([#2410](https://github.com/evanw/esbuild/issues/2410))
+
+    TypeScript 4.6 introduced a [change to the parsing of JSX syntax in `.tsx` files](https://github.com/microsoft/TypeScript/issues/47062). Now a `<` token followed by an identifier and then a `=` token is parsed as an arrow function with a default type parameter instead of as a JSX element. This release updates esbuild's parser to match TypeScript's parser.
 
 * Fix an accidental infinite loop with `--define` substitution ([#2407](https://github.com/evanw/esbuild/issues/2407))
 
     This is a fix for a regression that was introduced in esbuild version 0.14.44 where certain `--define` substitutions could result in esbuild crashing with a stack overflow. The problem was an incorrect fix for #2292. The fix merged the code paths for `--define` and `--jsx-factory` rewriting since the value substitution is now the same for both. However, doing this accidentally made `--define` substitution recursive since the JSX factory needs to be able to match against `--define` substitutions to integrate with the `--inject` feature. The fix is to only do one additional level of matching against define substitutions, and to only do this for JSX factories. Now these cases are able to build successfully without a stack overflow.
+
+* Include the "public path" value in hashes ([#2403](https://github.com/evanw/esbuild/issues/2403))
+
+    The `--public-path=` configuration value affects the paths that esbuild uses to reference files from other files and is used in various situations such as cross-chunk imports in JS and references to asset files from CSS files. However, it wasn't included in the hash calculations used for file names due to an oversight. This meant that changing the public path setting incorrectly didn't result in the hashes in file names changing even though the contents of the files changed. This release fixes the issue by including a hash of the public path in all non-asset output files.
 
 * Fix a cross-platform consistency bug ([#2383](https://github.com/evanw/esbuild/issues/2383))
 
@@ -13,6 +25,16 @@
 * Fix a hang with the synchronous API when the package is corrupted ([#2396](https://github.com/evanw/esbuild/issues/2396))
 
     An error message is already thrown when the esbuild package is corrupted and esbuild can't be run. However, if you are using a synchronous call in the JavaScript API in worker mode, esbuild will use a child worker to initialize esbuild once so that the overhead of initializing esbuild can be amortized across multiple synchronous API calls. However, errors thrown during initialization weren't being propagated correctly which resulted in a hang while the main thread waited forever for the child worker to finish initializing. With this release, initialization errors are now propagated correctly so calling a synchronous API call when the package is corrupted should now result in an error instead of a hang.
+
+* Fix `tsconfig.json` files that collide with directory names ([#2411](https://github.com/evanw/esbuild/issues/2411))
+
+    TypeScript lets you write `tsconfig.json` files with `extends` clauses that refer to another config file using an implicit `.json` file extension. However, if the config file without the `.json` extension existed as a directory name, esbuild and TypeScript had different behavior. TypeScript ignores the directory and continues looking for the config file by adding the `.json` extension while esbuild previously terminated the search and then failed to load the config file (because it's a directory). With this release, esbuild will now ignore exact matches when resolving `extends` fields in `tsconfig.json` files if the exact match results in a directory.
+
+* Add `platform` to the transform API ([#2362](https://github.com/evanw/esbuild/issues/2362))
+
+    The `platform` option is mainly relevant for bundling because it mostly affects path resolution (e.g. activating the `"browser"` field in `package.json` files), so it was previously only available for the build API. With this release, it has additionally be made available for the transform API for a single reason: you can now set `--platform=node` when transforming a string so that esbuild will add export annotations for node, which is only relevant when `--format=cjs` is also present.
+
+    This has to do with an implementation detail of node that parses the AST of CommonJS files to discover named exports when importing CommonJS from ESM. However, this new addition to esbuild's API is of questionable usefulness. Node's loader API (the main use case for using esbuild's transform API like this) actually bypasses the content returned from the loader and parses the AST that's present on the file system, so you won't actually be able to use esbuild's API for this. See the linked issue for more information.
 
 ## 0.14.49
 

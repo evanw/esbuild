@@ -937,6 +937,16 @@ func (r resolverQuery) parseTSConfig(file string, visited map[string]bool) (*TSC
 					filesToCheck := []string{r.fs.Join(join, "tsconfig.json"), join, join + ".json"}
 					for _, fileToCheck := range filesToCheck {
 						base, err := r.parseTSConfig(fileToCheck, visited)
+
+						// Explicitly ignore matches if they are directories instead of files
+						if err != nil && err != syscall.ENOENT {
+							if entries, _, dirErr := r.fs.ReadDirectory(r.fs.Dir(fileToCheck)); dirErr == nil {
+								if entry, _ := entries.Get(r.fs.Base(fileToCheck)); entry != nil && entry.Kind(r.fs) == fs.DirEntry {
+									continue
+								}
+							}
+						}
+
 						if err == nil {
 							return base
 						} else if err == syscall.ENOENT {
@@ -966,19 +976,34 @@ func (r resolverQuery) parseTSConfig(file string, visited map[string]bool) (*TSC
 			if !r.fs.IsAbs(extends) {
 				extendsFile = r.fs.Join(fileDir, extends)
 			}
-			for _, fileToCheck := range []string{extendsFile, extendsFile + ".json"} {
-				base, err := r.parseTSConfig(fileToCheck, visited)
-				if err == nil {
-					return base
-				} else if err == syscall.ENOENT {
-					continue
-				} else if err == errParseErrorImportCycle {
+			base, err := r.parseTSConfig(extendsFile, visited)
+
+			// TypeScript's handling of "extends" has some specific edge cases. We
+			// must only try adding ".json" if it's not already present, which is
+			// unlike how node path resolution works. We also need to explicitly
+			// ignore matches if they are directories instead of files. Some users
+			// name directories the same name as their config files.
+			if err != nil && !strings.HasSuffix(extendsFile, ".json") {
+				if entries, _, dirErr := r.fs.ReadDirectory(r.fs.Dir(extendsFile)); dirErr == nil {
+					extendsBase := r.fs.Base(extendsFile)
+					if entry, _ := entries.Get(extendsBase); entry == nil || entry.Kind(r.fs) != fs.FileEntry {
+						if entry, _ := entries.Get(extendsBase + ".json"); entry != nil && entry.Kind(r.fs) == fs.FileEntry {
+							base, err = r.parseTSConfig(extendsFile+".json", visited)
+						}
+					}
+				}
+			}
+
+			if err == nil {
+				return base
+			} else if err != syscall.ENOENT {
+				if err == errParseErrorImportCycle {
 					r.log.AddID(logger.MsgID_TsconfigJSON_Cycle, logger.Warning, &tracker, extendsRange,
 						fmt.Sprintf("Base config file %q forms cycle", extends))
 				} else if err != errParseErrorAlreadyLogged {
 					r.log.AddError(&tracker, extendsRange,
 						fmt.Sprintf("Cannot read file %q: %s",
-							r.PrettyPath(logger.Path{Text: fileToCheck, Namespace: "file"}), err.Error()))
+							r.PrettyPath(logger.Path{Text: extendsFile, Namespace: "file"}), err.Error()))
 				}
 				return nil
 			}

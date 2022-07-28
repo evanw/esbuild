@@ -255,6 +255,7 @@ type Lexer struct {
 	JSXRuntimePragmaComment      logger.Span
 	JSXImportSourcePragmaComment logger.Span
 	SourceMappingURL             logger.Span
+	BadArrowInTSXSuggestion      string
 
 	// Escape sequences in string literals are decoded lazily because they are
 	// not interpreted inside tagged templates, and tagged templates can contain
@@ -272,6 +273,8 @@ type Lexer struct {
 	start                           int
 	end                             int
 	ApproximateNewlineCount         int
+	CouldBeBadArrowInTSX            int
+	BadArrowInTSXRange              logger.Range
 	LegacyOctalLoc                  logger.Loc
 	AwaitKeywordLoc                 logger.Loc
 	FnOrArrowStartLoc               logger.Loc
@@ -947,23 +950,36 @@ func (lexer *Lexer) NextJSXElementChild() {
 					} else {
 						replacement = "{'>'}"
 					}
-					msg := logger.Msg{Kind: logger.Error, Data: lexer.tracker.MsgData(logger.Range{Loc: logger.Loc{Start: int32(lexer.end)}, Len: 1},
-						fmt.Sprintf("The character \"%c\" is not valid inside a JSX element", lexer.codePoint)),
-						Notes: []logger.MsgData{{Text: fmt.Sprintf("Did you mean to escape it as %q instead?", replacement)}}}
-					msg.Data.Location.Suggestion = replacement
-					if !lexer.ts.Parse {
-						// TypeScript treats this as an error but Babel doesn't treat this
-						// as an error yet, so allow this in JS for now. Babel version 8
-						// was supposed to be released in 2021 but was never released. If
-						// it's released in the future, this can be changed to an error too.
-						//
-						// More context:
-						// * TypeScript change: https://github.com/microsoft/TypeScript/issues/36341
-						// * Babel 8 change: https://github.com/babel/babel/issues/11042
-						// * Babel 8 release: https://github.com/babel/babel/issues/10746
-						//
-						msg.Kind = logger.Warning
+					msg := logger.Msg{
+						Kind: logger.Error,
+						Data: lexer.tracker.MsgData(logger.Range{Loc: logger.Loc{Start: int32(lexer.end)}, Len: 1},
+							fmt.Sprintf("The character \"%c\" is not valid inside a JSX element", lexer.codePoint)),
 					}
+
+					// Attempt to provide a better error message if this looks like an arrow function
+					if lexer.CouldBeBadArrowInTSX > 0 && lexer.codePoint == '>' && lexer.source.Contents[lexer.end-1] == '=' {
+						msg.Notes = []logger.MsgData{lexer.tracker.MsgData(lexer.BadArrowInTSXRange,
+							"TypeScript's TSX syntax interprets arrow functions with a single generic type parameter as an opening JSX element. "+
+								"If you want it to be interpreted as an arrow function instead, you need to add a trailing comma after the type parameter to disambiguate:")}
+						msg.Notes[0].Location.Suggestion = lexer.BadArrowInTSXSuggestion
+					} else {
+						msg.Notes = []logger.MsgData{{Text: fmt.Sprintf("Did you mean to escape it as %q instead?", replacement)}}
+						msg.Data.Location.Suggestion = replacement
+						if !lexer.ts.Parse {
+							// TypeScript treats this as an error but Babel doesn't treat this
+							// as an error yet, so allow this in JS for now. Babel version 8
+							// was supposed to be released in 2021 but was never released. If
+							// it's released in the future, this can be changed to an error too.
+							//
+							// More context:
+							// * TypeScript change: https://github.com/microsoft/TypeScript/issues/36341
+							// * Babel 8 change: https://github.com/babel/babel/issues/11042
+							// * Babel 8 release: https://github.com/babel/babel/issues/10746
+							//
+							msg.Kind = logger.Warning
+						}
+					}
+
 					lexer.log.AddMsg(msg)
 					lexer.step()
 

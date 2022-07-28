@@ -97,8 +97,10 @@ func validatePathTemplate(template string) []config.PathTemplate {
 	return parts
 }
 
-func validatePlatform(value Platform) config.Platform {
+func validatePlatform(value Platform, defaultPlatform config.Platform) config.Platform {
 	switch value {
+	case PlatformDefault:
+		return defaultPlatform
 	case PlatformBrowser:
 		return config.PlatformBrowser
 	case PlatformNode:
@@ -487,7 +489,7 @@ func validateDefines(
 	log logger.Log,
 	defines map[string]string,
 	pureFns []string,
-	platform Platform,
+	platform config.Platform,
 	minify bool,
 	drop Drop,
 ) (*config.ProcessedDefines, []config.InjectedDefine) {
@@ -553,7 +555,7 @@ func validateDefines(
 	// that must be handled to avoid all React code crashing instantly. This
 	// is only done if it's not already defined so that you can override it if
 	// necessary.
-	if platform == PlatformBrowser {
+	if platform == config.PlatformBrowser {
 		if _, process := rawDefines["process"]; !process {
 			if _, processEnv := rawDefines["process.env"]; !processEnv {
 				if _, processEnvNodeEnv := rawDefines["process.env.NODE_ENV"]; !processEnvNodeEnv {
@@ -882,7 +884,8 @@ func rebuildImpl(
 	bannerJS, bannerCSS := validateBannerOrFooter(log, "banner", buildOpts.Banner)
 	footerJS, footerCSS := validateBannerOrFooter(log, "footer", buildOpts.Footer)
 	minify := buildOpts.MinifyWhitespace && buildOpts.MinifyIdentifiers && buildOpts.MinifySyntax
-	defines, injectedDefines := validateDefines(log, buildOpts.Define, buildOpts.Pure, buildOpts.Platform, minify, buildOpts.Drop)
+	platform := validatePlatform(buildOpts.Platform, config.PlatformBrowser)
+	defines, injectedDefines := validateDefines(log, buildOpts.Define, buildOpts.Pure, platform, minify, buildOpts.Drop)
 	mangleCache := cloneMangleCache(log, buildOpts.MangleCache)
 	options := config.Options{
 		TargetFromAPI:                      targetFromAPI,
@@ -903,7 +906,7 @@ func rebuildImpl(
 		},
 		Defines:               defines,
 		InjectedDefines:       injectedDefines,
-		Platform:              validatePlatform(buildOpts.Platform),
+		Platform:              platform,
 		SourceMap:             validateSourceMap(buildOpts.Sourcemap),
 		LegalComments:         validateLegalComments(buildOpts.LegalComments, buildOpts.Bundle),
 		SourceRoot:            buildOpts.SourceRoot,
@@ -1410,7 +1413,8 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 	// Convert and validate the transformOpts
 	targetFromAPI, jsFeatures, cssFeatures, targetEnv := validateFeatures(log, transformOpts.Target, transformOpts.Engines)
 	jsOverrides, jsMask, cssOverrides, cssMask := validateSupported(log, transformOpts.Supported)
-	defines, injectedDefines := validateDefines(log, transformOpts.Define, transformOpts.Pure, PlatformNeutral, false /* minify */, transformOpts.Drop)
+	platform := validatePlatform(transformOpts.Platform, config.PlatformNeutral)
+	defines, injectedDefines := validateDefines(log, transformOpts.Define, transformOpts.Pure, platform, false /* minify */, transformOpts.Drop)
 	mangleCache := cloneMangleCache(log, transformOpts.MangleCache)
 	options := config.Options{
 		TargetFromAPI:                      targetFromAPI,
@@ -1426,6 +1430,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		JSX:                                jsx,
 		Defines:                            defines,
 		InjectedDefines:                    injectedDefines,
+		Platform:                           platform,
 		SourceMap:                          validateSourceMap(transformOpts.Sourcemap),
 		LegalComments:                      validateLegalComments(transformOpts.LegalComments, false /* bundle */),
 		SourceRoot:                         transformOpts.SourceRoot,

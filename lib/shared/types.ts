@@ -23,6 +23,8 @@ interface CommonOptions {
   target?: string | string[];
   /** Documentation: https://esbuild.github.io/api/#supported */
   supported?: Record<string, boolean>;
+  /** Documentation: https://esbuild.github.io/api/#platform */
+  platform?: Platform;
 
   /** Documentation: https://esbuild.github.io/api/#mangle-props */
   mangleProps?: RegExp;
@@ -94,8 +96,6 @@ export interface BuildOptions extends CommonOptions {
   outdir?: string;
   /** Documentation: https://esbuild.github.io/api/#outbase */
   outbase?: string;
-  /** Documentation: https://esbuild.github.io/api/#platform */
-  platform?: Platform;
   /** Documentation: https://esbuild.github.io/api/#external */
   external?: string[];
   /** Documentation: https://esbuild.github.io/api/#loader */
