@@ -1,5 +1,60 @@
 # Changelog
 
+## Unreleased
+
+* Add support for React 17's `automatic` JSX transform ([#334](https://github.com/evanw/esbuild/issues/334), [#718](https://github.com/evanw/esbuild/issues/718), [#1172](https://github.com/evanw/esbuild/issues/1172), [#2318](https://github.com/evanw/esbuild/issues/2318), [#334](https://github.com/evanw/esbuild/pull/2349))
+
+    This adds support for the [new "automatic" JSX runtime from React 17+](https://reactjs.org/blog/2020/09/22/introducing-the-new-jsx-transform.html) to esbuild for both the build and transform APIs.
+
+    **New CLI flags and API options:**
+    - `--jsx`, `jsx` &mdash; Set this to `"automatic"` to opt in to this new transform
+    - `--jsx-dev`, `jsxDev` &mdash; Toggles development mode for the automatic runtime
+    - `--jsx-import-source`, `jsxImportSource` &mdash; Overrides the root import for runtime functions (default `"react"`)
+
+    **New JSX pragma comments:**
+    - `@jsxRuntime` &mdash; Sets the runtime (`automatic` or `classic`)
+    - `@jsxImportSource` &mdash; Sets the import source (only valid with automatic runtime)
+
+    The existing `@jsxFragment` and `@jsxFactory` pragma comments are only valid with "classic" runtime.
+
+    **TSConfig resolving:**
+    Along with accepting the new options directly via CLI or API, option inference from `tsconfig.json` compiler options was also implemented:
+
+    - `"jsx": "preserve"` or `"jsx": "react-native"` &rarr; Same as `--jsx=preserve` in esbuild
+    - `"jsx": "react"` &rarr; Same as `--jsx=transform` in esbuild (which is the default behavior)
+    - `"jsx": "react-jsx"` &rarr; Same as `--jsx=automatic` in esbuild
+    - `"jsx": "react-jsxdev"` &rarr; Same as `--jsx=automatic --jsx-dev` in esbuild
+
+    It also reads the value of `"jsxImportSource"` from `tsconfig.json` if specified.
+
+    For `react-jsx` it's important to note that it doesn't implicitly disable `--jsx-dev`. This is to support the case where a user sets `"react-jsx"` in their `tsconfig.json` but then toggles development mode directly in esbuild.
+
+    **esbuild vs Babel vs TS vs...**
+
+    There are a few differences between the various technologies that implement automatic JSX runtimes. The JSX transform in esbuild follows a mix of Babel's and TypeScript's behavior:
+
+    - When an element has `__source` or `__self` props:
+        - Babel: Print an error about a deprecated transform plugin
+        - TypeScript: Allow the props
+        - swc: Hard crash
+        - **esbuild**: Print an error &mdash; Following Babel was chosen for this one because this might help people catch configuration issues where JSX files are being parsed by multiple tools
+
+    - Element has an "implicit true" key prop, e.g. `<a key />`:
+        - Babel: Print an error indicating that "key" props require an explicit value
+        - TypeScript: Silently omit the "key" prop
+        - swc: Hard crash
+        - **esbuild**: Print an error like Babel &mdash; This might help catch legitimate programming mistakes
+
+    - Element has spread children, e.g. `<a>{...children}</a>`
+        - Babel: Print an error stating that React doesn't support spread children
+        - TypeScript: Use static jsx function and pass children as-is, including spread operator
+        - swc: same as Babel
+        - **esbuild**: Same as TypeScript
+
+    Also note that TypeScript has some bugs regarding JSX development mode and the generation of `lineNumber` and `columnNumber` values. Babel's values are accurate though, so esbuild's line and column numbers match Babel. Both numbers are 1-based and columns are counted in terms of UTF-16 code units.
+
+    This feature was contributed by [@jgoz](https://github.com/jgoz).
+
 ## 0.14.50
 
 * Emit `names` in source maps ([#1296](https://github.com/evanw/esbuild/issues/1296))
