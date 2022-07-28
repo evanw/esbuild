@@ -12274,21 +12274,25 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 						case "key":
 							if property.Flags.Has(js_ast.PropertyWasShorthand) {
 								r := js_lexer.RangeOfIdentifier(p.source, property.Loc)
-								p.log.AddErrorWithNotes(&p.tracker, r,
-									"Please provide an explicit key value. Using \"key\" as a shorthand for \"key={true}\" is not allowed.",
-									[]logger.MsgData{p.tracker.MsgData(js_lexer.RangeOfIdentifier(p.source, property.Loc),
-										fmt.Sprintf("The property %q was defined here:", propName))})
+								msg := logger.Msg{
+									Kind:  logger.Error,
+									Data:  p.tracker.MsgData(r, "Please provide an explicit value for \"key\":"),
+									Notes: []logger.MsgData{{Text: "Using \"key\" as a shorthand for \"key={true}\" is not allowed when using React's \"automatic\" JSX transform."}},
+								}
+								msg.Data.Location.Suggestion = "key={true}"
+								p.log.AddMsg(msg)
 							} else {
 								keyProperty = property.ValueOrNil
 								hasKey = true
 							}
 							continue
+
 						case "__source", "__self":
 							r := js_lexer.RangeOfIdentifier(p.source, property.Loc)
 							p.log.AddErrorWithNotes(&p.tracker, r,
-								fmt.Sprintf("Duplicate \"%s\" prop found. Both __source and __self are set automatically by esbuild. These may have been set automatically by a plugin.", propName),
-								[]logger.MsgData{p.tracker.MsgData(js_lexer.RangeOfIdentifier(p.source, property.Loc),
-									fmt.Sprintf("The property %q was defined here:", propName))})
+								fmt.Sprintf("Duplicate \"%s\" prop found:", propName),
+								[]logger.MsgData{{Text: "Both \"__source\" and \"__self\" are set automatically by esbuild when using React's \"automatic\" JSX transform. " +
+									"This duplicate prop may have come from a plugin."}})
 							continue
 						}
 					}
@@ -16037,14 +16041,16 @@ func (p *parser) prepareForVisitPass() {
 			} else if jsxRuntime.Text == "classic" {
 				p.options.jsx.AutomaticRuntime = false
 			} else {
-				p.log.AddID(logger.MsgID_JS_UnsupportedJSXComment, logger.Warning, &p.tracker, jsxRuntime.Range,
-					fmt.Sprintf("Invalid JSX runtime: %s", jsxRuntime.Text))
+				p.log.AddIDWithNotes(logger.MsgID_JS_UnsupportedJSXComment, logger.Warning, &p.tracker, jsxRuntime.Range,
+					fmt.Sprintf("Invalid JSX runtime: %q", jsxRuntime.Text),
+					[]logger.MsgData{{Text: "The JSX runtime can only be set to either \"classic\" or \"automatic\"."}})
 			}
 		}
+
 		if jsxFactory := p.lexer.JSXFactoryPragmaComment; jsxFactory.Text != "" {
 			if p.options.jsx.AutomaticRuntime {
 				p.log.AddID(logger.MsgID_JS_UnsupportedJSXComment, logger.Warning, &p.tracker, jsxFactory.Range,
-					fmt.Sprintf("JSX factory cannot be set when runtime is automatic: %s", jsxFactory.Text))
+					"The JSX factory cannot be set when using React's \"automatic\" JSX transform")
 			} else if expr, _ := ParseDefineExprOrJSON(jsxFactory.Text); len(expr.Parts) > 0 {
 				p.options.jsx.Factory = expr
 			} else {
@@ -16052,10 +16058,11 @@ func (p *parser) prepareForVisitPass() {
 					fmt.Sprintf("Invalid JSX factory: %s", jsxFactory.Text))
 			}
 		}
+
 		if jsxFragment := p.lexer.JSXFragmentPragmaComment; jsxFragment.Text != "" {
 			if p.options.jsx.AutomaticRuntime {
 				p.log.AddID(logger.MsgID_JS_UnsupportedJSXComment, logger.Warning, &p.tracker, jsxFragment.Range,
-					fmt.Sprintf("JSX fragment cannot be set when runtime is automatic: %s", jsxFragment.Text))
+					"The JSX fragment cannot be set when using React's \"automatic\" JSX transform")
 			} else if expr, _ := ParseDefineExprOrJSON(jsxFragment.Text); len(expr.Parts) > 0 || expr.Constant != nil {
 				p.options.jsx.Fragment = expr
 			} else {
@@ -16063,10 +16070,12 @@ func (p *parser) prepareForVisitPass() {
 					fmt.Sprintf("Invalid JSX fragment: %s", jsxFragment.Text))
 			}
 		}
+
 		if jsxImportSource := p.lexer.JSXImportSourcePragmaComment; jsxImportSource.Text != "" {
 			if !p.options.jsx.AutomaticRuntime {
-				p.log.AddID(logger.MsgID_JS_UnsupportedJSXComment, logger.Warning, &p.tracker, jsxImportSource.Range,
-					fmt.Sprintf("JSX import source cannot be set when runtime is classic: %s", jsxImportSource.Text))
+				p.log.AddIDWithNotes(logger.MsgID_JS_UnsupportedJSXComment, logger.Warning, &p.tracker, jsxImportSource.Range,
+					fmt.Sprintf("The JSX import source cannot be set without also enabling React's \"automatic\" JSX transform"),
+					[]logger.MsgData{{Text: "You can enable React's \"automatic\" JSX transform for this file by using a \"@jsxRuntime automatic\" comment."}})
 			} else {
 				p.options.jsx.ImportSource = jsxImportSource.Text
 			}

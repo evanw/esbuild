@@ -4739,9 +4739,18 @@ func TestJSXAutomatic(t *testing.T) {
 	expectPrintedJSXAutomatic(t, p, "<div>{...children}<a/></div>", "/* @__PURE__ */ jsxs(\"div\", {\n  children: [\n    ...children,\n    /* @__PURE__ */ jsx(\"a\", {})\n  ]\n});\n")
 	expectPrintedJSXAutomatic(t, p, "<>></>", "/* @__PURE__ */ jsx(Fragment, {\n  children: \">\"\n});\n")
 
-	expectParseErrorJSXAutomatic(t, p, "<a key/>", "<stdin>: ERROR: Please provide an explicit key value. Using \"key\" as a shorthand for \"key={true}\" is not allowed.\n<stdin>: NOTE: The property \"key\" was defined here:\n")
-	expectParseErrorJSXAutomatic(t, p, "<div __self={self} />", "<stdin>: ERROR: Duplicate \"__self\" prop found. Both __source and __self are set automatically by esbuild. These may have been set automatically by a plugin.\n<stdin>: NOTE: The property \"__self\" was defined here:\n")
-	expectParseErrorJSXAutomatic(t, p, "<div __source=\"/path/to/source.jsx\" />", "<stdin>: ERROR: Duplicate \"__source\" prop found. Both __source and __self are set automatically by esbuild. These may have been set automatically by a plugin.\n<stdin>: NOTE: The property \"__source\" was defined here:\n")
+	expectParseErrorJSXAutomatic(t, p, "<a key/>",
+		`<stdin>: ERROR: Please provide an explicit value for "key":
+NOTE: Using "key" as a shorthand for "key={true}" is not allowed when using React's "automatic" JSX transform.
+`)
+	expectParseErrorJSXAutomatic(t, p, "<div __self={self} />",
+		`<stdin>: ERROR: Duplicate "__self" prop found:
+NOTE: Both "__source" and "__self" are set automatically by esbuild when using React's "automatic" JSX transform. This duplicate prop may have come from a plugin.
+`)
+	expectParseErrorJSXAutomatic(t, p, "<div __source=\"/path/to/source.jsx\" />",
+		`<stdin>: ERROR: Duplicate "__source" prop found:
+NOTE: Both "__source" and "__self" are set automatically by esbuild when using React's "automatic" JSX transform. This duplicate prop may have come from a plugin.
+`)
 
 	// Prod, with runtime imports
 	pr := JSXAutomaticTestOptions{Development: false}
@@ -4766,9 +4775,18 @@ func TestJSXAutomatic(t *testing.T) {
 	expectPrintedJSXAutomatic(t, d, "<div>\n  {...children}\n  <a/></div>", "/* @__PURE__ */ jsxDEV(\"div\", {\n  children: [\n    ...children,\n    /* @__PURE__ */ jsxDEV(\"a\", {}, void 0, false, {\n      fileName: \"<stdin>\",\n      lineNumber: 3,\n      columnNumber: 3\n    }, this)\n  ]\n}, void 0, true, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 1\n}, this);\n")
 	expectPrintedJSXAutomatic(t, d, "<>></>", "/* @__PURE__ */ jsxDEV(Fragment, {\n  children: \">\"\n}, void 0, false, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 1\n}, this);\n")
 
-	expectParseErrorJSXAutomatic(t, d, "<a key/>", "<stdin>: ERROR: Please provide an explicit key value. Using \"key\" as a shorthand for \"key={true}\" is not allowed.\n<stdin>: NOTE: The property \"key\" was defined here:\n")
-	expectParseErrorJSXAutomatic(t, d, "<div __self={self} />", "<stdin>: ERROR: Duplicate \"__self\" prop found. Both __source and __self are set automatically by esbuild. These may have been set automatically by a plugin.\n<stdin>: NOTE: The property \"__self\" was defined here:\n")
-	expectParseErrorJSXAutomatic(t, d, "<div __source=\"/path/to/source.jsx\" />", "<stdin>: ERROR: Duplicate \"__source\" prop found. Both __source and __self are set automatically by esbuild. These may have been set automatically by a plugin.\n<stdin>: NOTE: The property \"__source\" was defined here:\n")
+	expectParseErrorJSXAutomatic(t, d, "<a key/>",
+		`<stdin>: ERROR: Please provide an explicit value for "key":
+NOTE: Using "key" as a shorthand for "key={true}" is not allowed when using React's "automatic" JSX transform.
+`)
+	expectParseErrorJSXAutomatic(t, d, "<div __self={self} />",
+		`<stdin>: ERROR: Duplicate "__self" prop found:
+NOTE: Both "__source" and "__self" are set automatically by esbuild when using React's "automatic" JSX transform. This duplicate prop may have come from a plugin.
+`)
+	expectParseErrorJSXAutomatic(t, d, "<div __source=\"/path/to/source.jsx\" />",
+		`<stdin>: ERROR: Duplicate "__source" prop found:
+NOTE: Both "__source" and "__self" are set automatically by esbuild when using React's "automatic" JSX transform. This duplicate prop may have come from a plugin.
+`)
 
 	// Line/column offset tests. Unlike Babel, TypeScript sometimes points to a
 	// location other than the start of the element. I'm not sure if that's a bug
@@ -4820,7 +4838,10 @@ func TestJSXAutomaticPragmas(t *testing.T) {
 	expectPrintedJSX(t, "<a/>\n/*@jsxRuntime classic*/\n", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
 	expectPrintedJSX(t, "<a/>\n/* @jsxRuntime classic */\n", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
 
-	expectParseErrorJSX(t, "// @jsxRuntime foo\n<a/>", "<stdin>: WARNING: Invalid JSX runtime: foo\n")
+	expectParseErrorJSX(t, "// @jsxRuntime foo\n<a/>",
+		`<stdin>: WARNING: Invalid JSX runtime: "foo"
+NOTE: The JSX runtime can only be set to either "classic" or "automatic".
+`)
 
 	expectPrintedJSX(t, "// @jsxRuntime automatic @jsxImportSource src\n<a/>", "import { jsx } from \"src/jsx-runtime\";\n/* @__PURE__ */ jsx(\"a\", {});\n")
 	expectPrintedJSX(t, "/*@jsxRuntime automatic @jsxImportSource src*/\n<a/>", "import { jsx } from \"src/jsx-runtime\";\n/* @__PURE__ */ jsx(\"a\", {});\n")
@@ -4831,14 +4852,20 @@ func TestJSXAutomaticPragmas(t *testing.T) {
 	expectPrintedJSX(t, "<a/>\n/* @jsxRuntime automatic */\n/* @jsxImportSource src */", "import { jsx } from \"src/jsx-runtime\";\n/* @__PURE__ */ jsx(\"a\", {});\n")
 
 	expectPrintedJSX(t, "// @jsxRuntime classic @jsxImportSource src\n<a/>", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
-	expectParseErrorJSX(t, "// @jsxRuntime classic @jsxImportSource src\n<a/>", "<stdin>: WARNING: JSX import source cannot be set when runtime is classic: src\n")
-	expectParseErrorJSX(t, "// @jsxImportSource src\n<a/>", "<stdin>: WARNING: JSX import source cannot be set when runtime is classic: src\n")
+	expectParseErrorJSX(t, "// @jsxRuntime classic @jsxImportSource src\n<a/>",
+		`<stdin>: WARNING: The JSX import source cannot be set without also enabling React's "automatic" JSX transform
+NOTE: You can enable React's "automatic" JSX transform for this file by using a "@jsxRuntime automatic" comment.
+`)
+	expectParseErrorJSX(t, "// @jsxImportSource src\n<a/>",
+		`<stdin>: WARNING: The JSX import source cannot be set without also enabling React's "automatic" JSX transform
+NOTE: You can enable React's "automatic" JSX transform for this file by using a "@jsxRuntime automatic" comment.
+`)
 
 	expectPrintedJSX(t, "// @jsxRuntime automatic @jsx h\n<a/>", "import { jsx } from \"react/jsx-runtime\";\n/* @__PURE__ */ jsx(\"a\", {});\n")
-	expectParseErrorJSX(t, "// @jsxRuntime automatic @jsx h\n<a/>", "<stdin>: WARNING: JSX factory cannot be set when runtime is automatic: h\n")
+	expectParseErrorJSX(t, "// @jsxRuntime automatic @jsx h\n<a/>", "<stdin>: WARNING: The JSX factory cannot be set when using React's \"automatic\" JSX transform\n")
 
 	expectPrintedJSX(t, "// @jsxRuntime automatic @jsxFrag f\n<></>", "import { Fragment, jsx } from \"react/jsx-runtime\";\n/* @__PURE__ */ jsx(Fragment, {});\n")
-	expectParseErrorJSX(t, "// @jsxRuntime automatic @jsxFrag f\n<></>", "<stdin>: WARNING: JSX fragment cannot be set when runtime is automatic: f\n")
+	expectParseErrorJSX(t, "// @jsxRuntime automatic @jsxFrag f\n<></>", "<stdin>: WARNING: The JSX fragment cannot be set when using React's \"automatic\" JSX transform\n")
 }
 
 func TestPreserveOptionalChainParentheses(t *testing.T) {
