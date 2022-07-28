@@ -1525,6 +1525,7 @@ const (
 	ImplicitStrictModeClass
 	ImplicitStrictModeESM
 	ImplicitStrictModeTSAlwaysStrict
+	ImplicitStrictModeJSXAutomaticRuntime
 )
 
 func (s *Scope) RecursiveSetStrictMode(kind StrictModeKind) {

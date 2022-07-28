@@ -226,6 +226,7 @@ type parser struct {
 
 	latestArrowArgLoc      logger.Loc
 	forbidSuffixAfterAsLoc logger.Loc
+	firstJSXElementLoc     logger.Loc
 
 	fnOrArrowDataVisit fnOrArrowDataVisit
 
@@ -4516,6 +4517,11 @@ func (p *parser) parseJSXTag() (logger.Range, string, js_ast.Expr) {
 }
 
 func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
+	// Keep track of the location of the first JSX element for error messages
+	if p.firstJSXElementLoc.Start == -1 {
+		p.firstJSXElementLoc = loc
+	}
+
 	// Parse the tag
 	startRange, startText, startTagOrNil := p.parseJSXTag()
 
@@ -15609,6 +15615,7 @@ func newParser(log logger.Log, source logger.Source, lexer js_lexer.Lexer, optio
 		promiseRef:               js_ast.InvalidRef,
 		regExpRef:                js_ast.InvalidRef,
 		afterArrowBodyLoc:        logger.Loc{Start: -1},
+		firstJSXElementLoc:       logger.Loc{Start: -1},
 		importMetaRef:            js_ast.InvalidRef,
 		runtimePublicFieldImport: js_ast.InvalidRef,
 		superCtorRef:             js_ast.InvalidRef,
@@ -16080,6 +16087,15 @@ func (p *parser) prepareForVisitPass() {
 				p.options.jsx.ImportSource = jsxImportSource.Text
 			}
 		}
+	}
+
+	// Force-enable strict mode if the JSX "automatic" runtime is enabled and
+	// there is at least one JSX element. This is because the automatically-
+	// generated import statement turns the file into an ES module. This behavior
+	// matches TypeScript which also does this. See this PR for more information:
+	// https://github.com/microsoft/TypeScript/pull/39199
+	if p.currentScope.StrictMode == js_ast.SloppyMode && p.options.jsx.AutomaticRuntime && p.firstJSXElementLoc.Start != -1 {
+		p.currentScope.StrictMode = js_ast.ImplicitStrictModeJSXAutomaticRuntime
 	}
 }
 

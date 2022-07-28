@@ -4823,6 +4823,18 @@ NOTE: Both "__source" and "__self" are set automatically by esbuild when using R
 		expectParseErrorJSXAutomatic(t, p, "<x"+colon+"y"+colon+"/>", "<stdin>: ERROR: Expected \">\" but found \":\"\n")
 		expectParseErrorJSXAutomatic(t, p, "<x"+colon+"0y/>", "<stdin>: ERROR: Expected identifier after \"x:\" in namespaced JSX name\n")
 	}
+
+	// Enabling the "automatic" runtime means that any JSX element will cause the
+	// file to be implicitly in strict mode due to the automatically-generated
+	// import statement. This is the same behavior as the TypeScript compiler.
+	strictModeError := "<stdin>: ERROR: With statements cannot be used in strict mode\n" +
+		"<stdin>: NOTE: This file is implicitly in strict mode due to the JSX element here:\n" +
+		"NOTE: When React's \"automatic\" JSX transform is enabled, using a JSX element automatically inserts an \"import\" statement at the top of the file " +
+		"for the corresponding the JSX helper function. This means the file is considered an ECMAScript module, and all ECMAScript modules use strict mode.\n"
+	expectPrintedJSX(t, "with (x) y(<z/>)", "with (x)\n  y(/* @__PURE__ */ React.createElement(\"z\", null));\n")
+	expectPrintedJSXAutomatic(t, p, "with (x) y", "with (x)\n  y;\n")
+	expectParseErrorJSX(t, "with (x) y(<z/>) // @jsxRuntime automatic", strictModeError)
+	expectParseErrorJSXAutomatic(t, p, "with (x) y(<z/>)", strictModeError)
 }
 
 func TestJSXAutomaticPragmas(t *testing.T) {
