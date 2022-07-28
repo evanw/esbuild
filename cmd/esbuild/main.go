@@ -77,13 +77,13 @@ var helpText = func(colors logger.Colors) string {
                             incorrect tree-shaking annotations
   --inject:F                Import the file F into all input files and
                             automatically replace matching globals with imports
+  --jsx-dev                 Use React's automatic runtime in development mode
   --jsx-factory=...         What to use for JSX instead of React.createElement
   --jsx-fragment=...        What to use for JSX instead of React.Fragment
-  --jsx=...                 Set to "preserve" to disable transforming JSX to JS
-  --jsx-runtime=...         Set to "automatic" to use the new JSX transform
-  --jsx-development         Use the automatic runtime in development mode
   --jsx-import-source=...   Override the package name for the automatic runtime
                             (default "react")
+  --jsx=...                 Set to "automatic" to use React's automatic runtime
+                            or to "preserve" to disable transforming JSX to JS
   --keep-names              Preserve "name" on functions and classes
   --legal-comments=...      Where to place legal comments (none | inline |
                             eof | linked | external, default eof when bundling

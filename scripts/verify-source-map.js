@@ -788,13 +788,13 @@ async function main() {
         }),
         check('jsx-runtime' + suffix, testCaseJSXRuntime, toSearchJSXRuntime, {
           ext: 'js',
-          flags: flags.concat('--outfile=out.js', '--bundle', '--jsx-runtime=automatic', '--external:react/jsx-runtime'),
+          flags: flags.concat('--outfile=out.js', '--bundle', '--jsx=automatic', '--external:react/jsx-runtime'),
           entryPoints: ['entry.jsx'],
           crlf,
         }),
         check('jsx-dev-runtime' + suffix, testCaseJSXRuntime, toSearchJSXRuntime, {
           ext: 'js',
-          flags: flags.concat('--outfile=out.js', '--bundle', '--jsx-runtime=automatic', '--jsx-development', '--external:react/jsx-dev-runtime'),
+          flags: flags.concat('--outfile=out.js', '--bundle', '--jsx=automatic', '--jsx-dev', '--external:react/jsx-dev-runtime'),
           entryPoints: ['entry.jsx'],
           crlf,
         }),

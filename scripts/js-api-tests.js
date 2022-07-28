@@ -3915,17 +3915,17 @@ let transformTests = {
   },
 
   async jsxRuntimeAutomatic({ esbuild }) {
-    const { code } = await esbuild.transform(`console.log(<div/>)`, { loader: 'jsx', jsxRuntime: 'automatic' })
+    const { code } = await esbuild.transform(`console.log(<div/>)`, { loader: 'jsx', jsx: 'automatic' })
     assert.strictEqual(code, `import { jsx } from "react/jsx-runtime";\nconsole.log(/* @__PURE__ */ jsx("div", {}));\n`)
   },
 
-  async jsxDevelopment({ esbuild }) {
-    const { code } = await esbuild.transform(`console.log(<div/>)`, { loader: 'jsx', jsxRuntime: 'automatic', jsxDevelopment: true })
+  async jsxDev({ esbuild }) {
+    const { code } = await esbuild.transform(`console.log(<div/>)`, { loader: 'jsx', jsx: 'automatic', jsxDev: true })
     assert.strictEqual(code, `import { jsxDEV } from "react/jsx-dev-runtime";\nconsole.log(/* @__PURE__ */ jsxDEV("div", {}, void 0, false, {\n  fileName: "<stdin>",\n  lineNumber: 1,\n  columnNumber: 13\n}, this));\n`)
   },
 
   async jsxImportSource({ esbuild }) {
-    const { code } = await esbuild.transform(`console.log(<div/>)`, { loader: 'jsx', jsxRuntime: 'automatic', jsxImportSource: 'notreact' })
+    const { code } = await esbuild.transform(`console.log(<div/>)`, { loader: 'jsx', jsx: 'automatic', jsxImportSource: 'notreact' })
     assert.strictEqual(code, `import { jsx } from "notreact/jsx-runtime";\nconsole.log(/* @__PURE__ */ jsx("div", {}));\n`)
   },
 

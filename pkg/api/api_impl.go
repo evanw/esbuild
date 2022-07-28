@@ -898,11 +898,11 @@ func rebuildImpl(
 		OriginalTargetEnv:                  targetEnv,
 		JSX: config.JSXOptions{
 			Preserve:         buildOpts.JSXMode == JSXModePreserve,
+			AutomaticRuntime: buildOpts.JSXMode == JSXModeAutomatic,
 			Factory:          validateJSXExpr(log, buildOpts.JSXFactory, "factory"),
 			Fragment:         validateJSXExpr(log, buildOpts.JSXFragment, "fragment"),
-			AutomaticRuntime: buildOpts.JSXRuntime == JSXRuntimeAutomatic,
+			Development:      buildOpts.JSXDev,
 			ImportSource:     buildOpts.JSXImportSource,
-			Development:      buildOpts.JSXDevelopment,
 		},
 		Defines:               defines,
 		InjectedDefines:       injectedDefines,
@@ -1360,10 +1360,10 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 	useDefineForClassFieldsTS := config.Unspecified
 	jsx := config.JSXOptions{
 		Preserve:         transformOpts.JSXMode == JSXModePreserve,
+		AutomaticRuntime: transformOpts.JSXMode == JSXModeAutomatic,
 		Factory:          validateJSXExpr(log, transformOpts.JSXFactory, "factory"),
 		Fragment:         validateJSXExpr(log, transformOpts.JSXFragment, "fragment"),
-		AutomaticRuntime: transformOpts.JSXRuntime == JSXRuntimeAutomatic,
-		Development:      transformOpts.JSXDevelopment,
+		Development:      transformOpts.JSXDev,
 		ImportSource:     transformOpts.JSXImportSource,
 	}
 

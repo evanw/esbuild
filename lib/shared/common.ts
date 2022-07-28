@@ -140,9 +140,8 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   let jsx = getFlag(options, keys, 'jsx', mustBeString);
   let jsxFactory = getFlag(options, keys, 'jsxFactory', mustBeString);
   let jsxFragment = getFlag(options, keys, 'jsxFragment', mustBeString);
-  let jsxRuntime = getFlag(options, keys, 'jsxRuntime', mustBeString);
   let jsxImportSource = getFlag(options, keys, 'jsxImportSource', mustBeString);
-  let jsxDevelopment = getFlag(options, keys, 'jsxDevelopment', mustBeBoolean);
+  let jsxDev = getFlag(options, keys, 'jsxDev', mustBeBoolean);
   let define = getFlag(options, keys, 'define', mustBeObject);
   let logOverride = getFlag(options, keys, 'logOverride', mustBeObject);
   let supported = getFlag(options, keys, 'supported', mustBeObject);
@@ -176,9 +175,8 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   if (jsx) flags.push(`--jsx=${jsx}`);
   if (jsxFactory) flags.push(`--jsx-factory=${jsxFactory}`);
   if (jsxFragment) flags.push(`--jsx-fragment=${jsxFragment}`);
-  if (jsxRuntime) flags.push(`--jsx-runtime=${jsxRuntime}`);
   if (jsxImportSource) flags.push(`--jsx-import-source=${jsxImportSource}`);
-  if (jsxDevelopment) flags.push(`--jsx-development`);
+  if (jsxDev) flags.push(`--jsx-dev`);
 
   if (define) {
     for (let key in define) {
