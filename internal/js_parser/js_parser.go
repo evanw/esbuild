@@ -194,6 +194,11 @@ type parser struct {
 	tempRefCount         int
 	topLevelTempRefCount int
 
+	// We need to scan over the source contents to recover the line and column offsets
+	jsxSourceLoc    int
+	jsxSourceLine   int
+	jsxSourceColumn int
+
 	exportsRef               js_ast.Ref
 	requireRef               js_ast.Ref
 	moduleRef                js_ast.Ref
@@ -12115,6 +12120,38 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 	case *js_ast.EJSXElement:
 		propsLoc := expr.Loc
+
+		// Resolving the location index to a specific line and column in
+		// development mode is not too expensive because we seek from the
+		// previous JSX element. It amounts to at most a single additional
+		// scan over the source code. Note that this has to happen before
+		// we visit anything about this JSX element to make sure that we
+		// only ever need to scan forward, not backward.
+		var jsxSourceLine int
+		var jsxSourceColumn int
+		if p.options.jsx.Development && p.options.jsx.AutomaticRuntime {
+			for p.jsxSourceLoc < int(propsLoc.Start) {
+				r, size := utf8.DecodeRuneInString(p.source.Contents[p.jsxSourceLoc:])
+				p.jsxSourceLoc += size
+				if r == '\n' || r == '\r' || r == '\u2028' || r == '\u2029' {
+					if r == '\r' && p.jsxSourceLoc < len(p.source.Contents) && p.source.Contents[p.jsxSourceLoc] == '\n' {
+						p.jsxSourceLoc++ // Handle Windows-style CRLF newlines
+					}
+					p.jsxSourceLine++
+					p.jsxSourceColumn = 0
+				} else {
+					// Babel and TypeScript count columns in UTF-16 code units
+					if r < 0xFFFF {
+						p.jsxSourceColumn++
+					} else {
+						p.jsxSourceColumn += 2
+					}
+				}
+			}
+			jsxSourceLine = p.jsxSourceLine
+			jsxSourceColumn = p.jsxSourceColumn
+		}
+
 		if e.TagOrNil.Data != nil {
 			propsLoc = e.TagOrNil.Loc
 			e.TagOrNil = p.visitExpr(e.TagOrNil)
@@ -12306,9 +12343,6 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					args = append(args, js_ast.Expr{Data: &js_ast.EBoolean{Value: isStaticChildren}})
 
 					// "__source"
-					// Resolving the location to a specific line and column could be expensive, but it
-					// only happens in development mode and is a documented tradeoff.
-					prettyLoc := p.tracker.MsgLocationOrNil(js_lexer.RangeOfIdentifier(p.source, expr.Loc))
 					args = append(args, js_ast.Expr{Data: &js_ast.EObject{
 						Properties: []js_ast.Property{
 							{
@@ -12319,12 +12353,12 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 							{
 								Kind:       js_ast.PropertyNormal,
 								Key:        js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16("lineNumber")}},
-								ValueOrNil: js_ast.Expr{Data: &js_ast.ENumber{Value: float64(prettyLoc.Line)}},
+								ValueOrNil: js_ast.Expr{Data: &js_ast.ENumber{Value: float64(jsxSourceLine + 1)}}, // 1-based lines
 							},
 							{
 								Kind:       js_ast.PropertyNormal,
 								Key:        js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16("columnNumber")}},
-								ValueOrNil: js_ast.Expr{Data: &js_ast.ENumber{Value: float64(prettyLoc.Column)}},
+								ValueOrNil: js_ast.Expr{Data: &js_ast.ENumber{Value: float64(jsxSourceColumn + 1)}}, // 1-based columns
 							},
 						},
 					}})

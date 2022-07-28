@@ -339,18 +339,18 @@ console.log(/* @__PURE__ */ jsxDEV(Fragment, {
     /* @__PURE__ */ jsxDEV("div", {}, void 0, false, {
       fileName: "Users/user/project/entry.tsx",
       lineNumber: 2,
-      columnNumber: 18
+      columnNumber: 19
     }, this),
     /* @__PURE__ */ jsxDEV("div", {}, void 0, false, {
       fileName: "Users/user/project/entry.tsx",
       lineNumber: 2,
-      columnNumber: 24
+      columnNumber: 25
     }, this)
   ]
 }, void 0, true, {
   fileName: "Users/user/project/entry.tsx",
   lineNumber: 2,
-  columnNumber: 16
+  columnNumber: 17
 }, this));
 import {
   Fragment,
@@ -366,18 +366,18 @@ console.log(/* @__PURE__ */ jsxDEV(Fragment, {
     /* @__PURE__ */ jsxDEV("div", {}, void 0, false, {
       fileName: "Users/user/project/entry.tsx",
       lineNumber: 2,
-      columnNumber: 18
+      columnNumber: 19
     }, this),
     /* @__PURE__ */ jsxDEV("div", {}, void 0, false, {
       fileName: "Users/user/project/entry.tsx",
       lineNumber: 2,
-      columnNumber: 24
+      columnNumber: 25
     }, this)
   ]
 }, void 0, true, {
   fileName: "Users/user/project/entry.tsx",
   lineNumber: 2,
-  columnNumber: 16
+  columnNumber: 17
 }, this));
 import {
   Fragment,

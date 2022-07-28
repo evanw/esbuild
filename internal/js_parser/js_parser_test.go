@@ -4756,28 +4756,35 @@ func TestJSXAutomatic(t *testing.T) {
 
 	// Dev, without runtime imports
 	d := JSXAutomaticTestOptions{Development: true, OmitJSXRuntimeForTests: true}
-	expectPrintedJSXAutomatic(t, d, "<div>></div>", "/* @__PURE__ */ jsxDEV(\"div\", {\n  children: \">\"\n}, void 0, false, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 0\n}, this);\n")
-	expectPrintedJSXAutomatic(t, d, "<div>{1}}</div>", "/* @__PURE__ */ jsxDEV(\"div\", {\n  children: [\n    1,\n    \"}\"\n  ]\n}, void 0, true, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 0\n}, this);\n")
-	expectPrintedJSXAutomatic(t, d, "<div key={true} />", "/* @__PURE__ */ jsxDEV(\"div\", {}, true, false, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 0\n}, this);\n")
-	expectPrintedJSXAutomatic(t, d, "<div key=\"key\" />", "/* @__PURE__ */ jsxDEV(\"div\", {}, \"key\", false, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 0\n}, this);\n")
-	expectPrintedJSXAutomatic(t, d, "<div key=\"key\" {...props} />", "/* @__PURE__ */ jsxDEV(\"div\", {\n  ...props\n}, \"key\", false, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 0\n}, this);\n")
+	expectPrintedJSXAutomatic(t, d, "<div>></div>", "/* @__PURE__ */ jsxDEV(\"div\", {\n  children: \">\"\n}, void 0, false, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 1\n}, this);\n")
+	expectPrintedJSXAutomatic(t, d, "<div>{1}}</div>", "/* @__PURE__ */ jsxDEV(\"div\", {\n  children: [\n    1,\n    \"}\"\n  ]\n}, void 0, true, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 1\n}, this);\n")
+	expectPrintedJSXAutomatic(t, d, "<div key={true} />", "/* @__PURE__ */ jsxDEV(\"div\", {}, true, false, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 1\n}, this);\n")
+	expectPrintedJSXAutomatic(t, d, "<div key=\"key\" />", "/* @__PURE__ */ jsxDEV(\"div\", {}, \"key\", false, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 1\n}, this);\n")
+	expectPrintedJSXAutomatic(t, d, "<div key=\"key\" {...props} />", "/* @__PURE__ */ jsxDEV(\"div\", {\n  ...props\n}, \"key\", false, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 1\n}, this);\n")
 	expectPrintedJSXAutomatic(t, d, "<div {...props} key=\"key\" />", "/* @__PURE__ */ createElement(\"div\", {\n  ...props,\n  key: \"key\"\n});\n") // Falls back to createElement
-	expectPrintedJSXAutomatic(t, d, "<div>{...children}</div>", "/* @__PURE__ */ jsxDEV(\"div\", {\n  children: [\n    ...children\n  ]\n}, void 0, true, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 0\n}, this);\n")
-	expectPrintedJSXAutomatic(t, d, "<div>\n  {...children}\n  <a/></div>", "/* @__PURE__ */ jsxDEV(\"div\", {\n  children: [\n    ...children,\n    /* @__PURE__ */ jsxDEV(\"a\", {}, void 0, false, {\n      fileName: \"<stdin>\",\n      lineNumber: 3,\n      columnNumber: 2\n    }, this)\n  ]\n}, void 0, true, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 0\n}, this);\n")
-	expectPrintedJSXAutomatic(t, d, "<>></>", "/* @__PURE__ */ jsxDEV(Fragment, {\n  children: \">\"\n}, void 0, false, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 0\n}, this);\n")
+	expectPrintedJSXAutomatic(t, d, "<div>{...children}</div>", "/* @__PURE__ */ jsxDEV(\"div\", {\n  children: [\n    ...children\n  ]\n}, void 0, true, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 1\n}, this);\n")
+	expectPrintedJSXAutomatic(t, d, "<div>\n  {...children}\n  <a/></div>", "/* @__PURE__ */ jsxDEV(\"div\", {\n  children: [\n    ...children,\n    /* @__PURE__ */ jsxDEV(\"a\", {}, void 0, false, {\n      fileName: \"<stdin>\",\n      lineNumber: 3,\n      columnNumber: 3\n    }, this)\n  ]\n}, void 0, true, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 1\n}, this);\n")
+	expectPrintedJSXAutomatic(t, d, "<>></>", "/* @__PURE__ */ jsxDEV(Fragment, {\n  children: \">\"\n}, void 0, false, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 1\n}, this);\n")
 
 	expectParseErrorJSXAutomatic(t, d, "<a key/>", "<stdin>: ERROR: Please provide an explicit key value. Using \"key\" as a shorthand for \"key={true}\" is not allowed.\n<stdin>: NOTE: The property \"key\" was defined here:\n")
 	expectParseErrorJSXAutomatic(t, d, "<div __self={self} />", "<stdin>: ERROR: Duplicate \"__self\" prop found. Both __source and __self are set automatically by esbuild. These may have been set automatically by a plugin.\n<stdin>: NOTE: The property \"__self\" was defined here:\n")
 	expectParseErrorJSXAutomatic(t, d, "<div __source=\"/path/to/source.jsx\" />", "<stdin>: ERROR: Duplicate \"__source\" prop found. Both __source and __self are set automatically by esbuild. These may have been set automatically by a plugin.\n<stdin>: NOTE: The property \"__source\" was defined here:\n")
 
+	// Line/column offset tests. Unlike Babel, TypeScript sometimes points to a
+	// location other than the start of the element. I'm not sure if that's a bug
+	// or not, but it seems weird. So I decided to match Babel instead.
+	expectPrintedJSXAutomatic(t, d, "\r\n<x/>", "/* @__PURE__ */ jsxDEV(\"x\", {}, void 0, false, {\n  fileName: \"<stdin>\",\n  lineNumber: 2,\n  columnNumber: 1\n}, this);\n")
+	expectPrintedJSXAutomatic(t, d, "\n\r<x/>", "/* @__PURE__ */ jsxDEV(\"x\", {}, void 0, false, {\n  fileName: \"<stdin>\",\n  lineNumber: 3,\n  columnNumber: 1\n}, this);\n")
+	expectPrintedJSXAutomatic(t, d, "let 𐀀 = <x>🍕🍕🍕<y/></x>", "let 𐀀 = /* @__PURE__ */ jsxDEV(\"x\", {\n  children: [\n    \"🍕🍕🍕\",\n    /* @__PURE__ */ jsxDEV(\"y\", {}, void 0, false, {\n      fileName: \"<stdin>\",\n      lineNumber: 1,\n      columnNumber: 19\n    }, this)\n  ]\n}, void 0, true, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 10\n}, this);\n")
+
 	// Dev, with runtime imports
 	dr := JSXAutomaticTestOptions{Development: true}
-	expectPrintedJSXAutomatic(t, dr, "<div/>", "/* @__PURE__ */ jsxDEV(\"div\", {}, void 0, false, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 0\n}, this);\nimport {\n  jsxDEV\n} from \"react/jsx-dev-runtime\";\n")
-	expectPrintedJSXAutomatic(t, dr, "<>\n  <a/>\n  <b/>\n</>", "/* @__PURE__ */ jsxDEV(Fragment, {\n  children: [\n    /* @__PURE__ */ jsxDEV(\"a\", {}, void 0, false, {\n      fileName: \"<stdin>\",\n      lineNumber: 2,\n      columnNumber: 2\n    }, this),\n    /* @__PURE__ */ jsxDEV(\"b\", {}, void 0, false, {\n      fileName: \"<stdin>\",\n      lineNumber: 3,\n      columnNumber: 2\n    }, this)\n  ]\n}, void 0, true, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 0\n}, this);\nimport {\n  Fragment,\n  jsxDEV\n} from \"react/jsx-dev-runtime\";\n")
+	expectPrintedJSXAutomatic(t, dr, "<div/>", "/* @__PURE__ */ jsxDEV(\"div\", {}, void 0, false, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 1\n}, this);\nimport {\n  jsxDEV\n} from \"react/jsx-dev-runtime\";\n")
+	expectPrintedJSXAutomatic(t, dr, "<>\n  <a/>\n  <b/>\n</>", "/* @__PURE__ */ jsxDEV(Fragment, {\n  children: [\n    /* @__PURE__ */ jsxDEV(\"a\", {}, void 0, false, {\n      fileName: \"<stdin>\",\n      lineNumber: 2,\n      columnNumber: 3\n    }, this),\n    /* @__PURE__ */ jsxDEV(\"b\", {}, void 0, false, {\n      fileName: \"<stdin>\",\n      lineNumber: 3,\n      columnNumber: 3\n    }, this)\n  ]\n}, void 0, true, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 1\n}, this);\nimport {\n  Fragment,\n  jsxDEV\n} from \"react/jsx-dev-runtime\";\n")
 
 	dri := JSXAutomaticTestOptions{Development: true, ImportSource: "preact"}
-	expectPrintedJSXAutomatic(t, dri, "<div/>", "/* @__PURE__ */ jsxDEV(\"div\", {}, void 0, false, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 0\n}, this);\nimport {\n  jsxDEV\n} from \"preact/jsx-dev-runtime\";\n")
-	expectPrintedJSXAutomatic(t, dri, "<>\n  <a/>\n  <b/>\n</>", "/* @__PURE__ */ jsxDEV(Fragment, {\n  children: [\n    /* @__PURE__ */ jsxDEV(\"a\", {}, void 0, false, {\n      fileName: \"<stdin>\",\n      lineNumber: 2,\n      columnNumber: 2\n    }, this),\n    /* @__PURE__ */ jsxDEV(\"b\", {}, void 0, false, {\n      fileName: \"<stdin>\",\n      lineNumber: 3,\n      columnNumber: 2\n    }, this)\n  ]\n}, void 0, true, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 0\n}, this);\nimport {\n  Fragment,\n  jsxDEV\n} from \"preact/jsx-dev-runtime\";\n")
+	expectPrintedJSXAutomatic(t, dri, "<div/>", "/* @__PURE__ */ jsxDEV(\"div\", {}, void 0, false, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 1\n}, this);\nimport {\n  jsxDEV\n} from \"preact/jsx-dev-runtime\";\n")
+	expectPrintedJSXAutomatic(t, dri, "<>\n  <a/>\n  <b/>\n</>", "/* @__PURE__ */ jsxDEV(Fragment, {\n  children: [\n    /* @__PURE__ */ jsxDEV(\"a\", {}, void 0, false, {\n      fileName: \"<stdin>\",\n      lineNumber: 2,\n      columnNumber: 3\n    }, this),\n    /* @__PURE__ */ jsxDEV(\"b\", {}, void 0, false, {\n      fileName: \"<stdin>\",\n      lineNumber: 3,\n      columnNumber: 3\n    }, this)\n  ]\n}, void 0, true, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 1\n}, this);\nimport {\n  Fragment,\n  jsxDEV\n} from \"preact/jsx-dev-runtime\";\n")
 
 	// JSX namespaced names
 	for _, colon := range []string{":", " :", ": ", " : "} {
