@@ -1573,7 +1573,6 @@ func (p *parser) importJSXSymbol(loc logger.Loc, jsx JSXImport) js_ast.Expr {
 	p.recordUsage(ref)
 	return p.handleIdentifier(loc, &js_ast.EIdentifier{Ref: ref}, identifierOpts{
 		wasOriginallyIdentifier: true,
-		matchAgainstDefines:     true, // Allow defines to rewrite imported JSX symbols
 	})
 }
 
@@ -12245,8 +12244,8 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 						wasOriginallyIdentifier: true,
 						matchAgainstDefines:     true, // Allow defines to rewrite the JSX factory
 					})
+					p.warnAboutImportNamespaceCall(target, exprKindCall)
 				}
-				p.warnAboutImportNamespaceCall(target, exprKindCall)
 				return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ECall{
 					Target:        target,
 					Args:          args,
@@ -12371,10 +12370,8 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					jsx = JSXImportJSXS
 				}
 
-				target := p.importJSXSymbol(expr.Loc, jsx)
-				p.warnAboutImportNamespaceCall(target, exprKindCall)
 				return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ECall{
-					Target:        target,
+					Target:        p.importJSXSymbol(expr.Loc, jsx),
 					Args:          args,
 					CloseParenLoc: e.CloseLoc,
 
