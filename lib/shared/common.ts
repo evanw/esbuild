@@ -210,7 +210,7 @@ function flagsForBuildOptions(
   entries: [string, string][],
   flags: string[],
   write: boolean,
-  stdinContents: string | null,
+  stdinContents: Uint8Array | null,
   stdinResolveDir: string | null,
   absWorkingDir: string | undefined,
   incremental: boolean,
@@ -221,7 +221,7 @@ function flagsForBuildOptions(
   let flags: string[] = [];
   let entries: [string, string][] = [];
   let keys: OptionKeys = Object.create(null);
-  let stdinContents: string | null = null;
+  let stdinContents: Uint8Array | null = null;
   let stdinResolveDir: string | null = null;
   let watchMode: types.WatchMode | null = null;
   pushLogFlags(flags, options, keys, isTTY, logLevelDefault);
@@ -354,7 +354,7 @@ function flagsForBuildOptions(
 
   if (stdin) {
     let stdinKeys: OptionKeys = Object.create(null);
-    let contents = getFlag(stdin, stdinKeys, 'contents', mustBeString);
+    let contents = getFlag(stdin, stdinKeys, 'contents', mustBeStringOrUint8Array);
     let resolveDir = getFlag(stdin, stdinKeys, 'resolveDir', mustBeString);
     let sourcefile = getFlag(stdin, stdinKeys, 'sourcefile', mustBeString);
     let loader = getFlag(stdin, stdinKeys, 'loader', mustBeString);
@@ -363,7 +363,8 @@ function flagsForBuildOptions(
     if (sourcefile) flags.push(`--sourcefile=${sourcefile}`);
     if (loader) flags.push(`--loader=${loader}`);
     if (resolveDir) stdinResolveDir = resolveDir + '';
-    stdinContents = contents ? contents + '' : '';
+    if (typeof contents === 'string') stdinContents = protocol.encodeUTF8(contents)
+    else if (contents instanceof Uint8Array) stdinContents = contents
   }
 
   let nodePaths: string[] = [];
@@ -439,7 +440,7 @@ export interface StreamOut {
 }
 
 export interface StreamFS {
-  writeFile(contents: string, callback: (path: string | null) => void): void;
+  writeFile(contents: string | Uint8Array, callback: (path: string | null) => void): void;
   readFile(path: string, callback: (err: Error | null, contents: string | null) => void): void;
 }
 
@@ -462,7 +463,7 @@ export interface StreamService {
   transform(args: {
     callName: string,
     refs: Refs | null,
-    input: string,
+    input: string | Uint8Array,
     options: types.TransformOptions,
     isTTY: boolean,
     fs: StreamFS,
@@ -1348,7 +1349,8 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     // that doesn't work.
     let start = (inputPath: string | null) => {
       try {
-        if (typeof input !== 'string') throw new Error('The input to "transform" must be a string');
+        if (typeof input !== 'string' && !(input instanceof Uint8Array))
+          throw new Error('The input to "transform" must be a string or a Uint8Array');
         let {
           flags,
           mangleCache,
@@ -1357,7 +1359,9 @@ export function createChannel(streamIn: StreamIn): StreamOut {
           command: 'transform',
           flags,
           inputFS: inputPath !== null,
-          input: inputPath !== null ? inputPath : input,
+          input: inputPath !== null ? protocol.encodeUTF8(inputPath)
+            : typeof input === 'string' ? protocol.encodeUTF8(input)
+              : input,
         };
         if (mangleCache) request.mangleCache = mangleCache;
         sendRequest<protocol.TransformRequest, protocol.TransformResponse>(refs, request, (error, response) => {
@@ -1412,7 +1416,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
         });
       }
     };
-    if (typeof input === 'string' && input.length > 1024 * 1024) {
+    if ((typeof input === 'string' || input instanceof Uint8Array) && input.length > 1024 * 1024) {
       let next = start;
       start = () => fs.writeFile(input, next);
     }

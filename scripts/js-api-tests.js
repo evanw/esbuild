@@ -599,6 +599,28 @@ let buildTests = {
     assert.strictEqual(result.__esModule, true)
   },
 
+  async buildLoaderStdinBase64({ esbuild }) {
+    // UTF-16
+    var result = await esbuild.build({
+      stdin: {
+        contents: `\xFF`,
+        loader: 'base64',
+      },
+      write: false,
+    })
+    assert.strictEqual(result.outputFiles[0].text, `module.exports = "w78=";\n`)
+
+    // Binary
+    var result = await esbuild.build({
+      stdin: {
+        contents: new Uint8Array([0xFF]),
+        loader: 'base64',
+      },
+      write: false,
+    })
+    assert.strictEqual(result.outputFiles[0].text, `module.exports = "/w==";\n`)
+  },
+
   async fileLoader({ esbuild, testDir }) {
     const input = path.join(testDir, 'in.js')
     const data = path.join(testDir, 'data.bin')
@@ -3147,10 +3169,10 @@ async function futureSyntax(esbuild, js, targetBelow, targetAbove) {
 let transformTests = {
   async transformWithNonString({ esbuild }) {
     try {
-      await esbuild.transform(Buffer.from(`1+2`))
+      await esbuild.transform(Object.create({ toString() { return '1+2' } }))
       throw new Error('Expected an error to be thrown');
     } catch (e) {
-      assert.strictEqual(e.errors[0].text, 'The input to "transform" must be a string')
+      assert.strictEqual(e.errors ? e.errors[0].text : e + '', 'The input to "transform" must be a string or a Uint8Array')
     }
   },
 
@@ -3174,6 +3196,16 @@ let transformTests = {
         throw e;
       }
     }
+  },
+
+  async transformLoaderBase64({ esbuild }) {
+    // UTF-16
+    var result = await esbuild.transform(`\xFF`, { loader: 'base64' })
+    assert.strictEqual(result.code, `module.exports = "w78=";\n`)
+
+    // Binary
+    var result = await esbuild.transform(new Uint8Array([0xFF]), { loader: 'base64' })
+    assert.strictEqual(result.code, `module.exports = "/w==";\n`)
   },
 
   async avoidTDZ({ esbuild }) {
@@ -4841,10 +4873,10 @@ let syncTests = {
 
   async transformSyncWithNonString({ esbuild }) {
     try {
-      esbuild.transformSync(Buffer.from(`1+2`))
+      esbuild.transformSync(Object.create({ toString() { return '1+2' } }))
       throw new Error('Expected an error to be thrown');
     } catch (e) {
-      assert.strictEqual(e.errors[0].text, 'The input to "transform" must be a string')
+      assert.strictEqual(e.errors ? e.errors[0].text : e + '', 'The input to "transform" must be a string or a Uint8Array')
     }
   },
 

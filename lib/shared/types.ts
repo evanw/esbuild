@@ -147,7 +147,7 @@ export interface WatchMode {
 }
 
 export interface StdinOptions {
-  contents: string;
+  contents: string | Uint8Array;
   resolveDir?: string;
   sourcefile?: string;
   loader?: Loader;
@@ -499,7 +499,7 @@ export declare function serve(serveOptions: ServeOptions, buildOptions: BuildOpt
  *
  * Documentation: https://esbuild.github.io/api/#transform-api
  */
-export declare function transform(input: string, options?: TransformOptions): Promise<TransformResult>;
+export declare function transform(input: string | Uint8Array, options?: TransformOptions): Promise<TransformResult>;
 
 /**
  * Converts log messages to formatted message strings suitable for printing in

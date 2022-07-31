@@ -435,11 +435,11 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 	}
 
 	// Optionally allow input from the stdin channel
-	if stdin, ok := request["stdinContents"].(string); ok {
+	if stdin, ok := request["stdinContents"].([]byte); ok {
 		if options.Stdin == nil {
 			options.Stdin = &api.StdinOptions{}
 		}
-		options.Stdin.Contents = stdin
+		options.Stdin.Contents = string(stdin)
 		if resolveDir, ok := request["stdinResolveDir"].(string); ok {
 			options.Stdin.ResolveDir = resolveDir
 		}
@@ -920,7 +920,7 @@ func (service *serviceType) convertPlugins(key int, jsPlugins interface{}, activ
 
 func (service *serviceType) handleTransformRequest(id uint32, request map[string]interface{}) []byte {
 	inputFS := request["inputFS"].(bool)
-	input := request["input"].(string)
+	input := string(request["input"].([]byte))
 	flags := decodeStringArray(request["flags"].([]interface{}))
 
 	options, err := cli.ParseTransformOptions(flags)

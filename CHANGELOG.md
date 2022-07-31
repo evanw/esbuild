@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+* Allow binary data as input to the JS `transform` and `build` APIs ([#2424](https://github.com/evanw/esbuild/issues/2424))
+
+    Previously esbuild's `transform` and `build` APIs could only take a string. However, some people want to use esbuild to convert binary data to base64 text. This is problematic because JavaScript strings represent UTF-16 text and esbuild internally operates on arrays of bytes, so all strings coming from JavaScript undergo UTF-16 to UTF-8 conversion before use. This meant that using esbuild in this way was doing base64 encoding of the UTF-8 encoding of the text, which was undesired.
+
+    With this release, esbuild now accepts `Uint8Array` in addition to string as an input format for the `transform` and `build` APIs. Now you can use esbuild to convert binary data to base64 text:
+
+    ```js
+    // Original code
+    import esbuild from 'esbuild'
+    console.log([
+      (await esbuild.transform('\xFF', { loader: 'base64' })).code,
+      (await esbuild.build({ stdin: { contents: '\xFF', loader: 'base64' }, write: false })).outputFiles[0].text,
+    ])
+    console.log([
+      (await esbuild.transform(new Uint8Array([0xFF]), { loader: 'base64' })).code,
+      (await esbuild.build({ stdin: { contents: new Uint8Array([0xFF]), loader: 'base64' }, write: false })).outputFiles[0].text,
+    ])
+
+    // Old output
+    [ 'module.exports = "w78=";\n', 'module.exports = "w78=";\n' ]
+    /* ERROR: The input to "transform" must be a string */
+
+    // New output
+    [ 'module.exports = "w78=";\n', 'module.exports = "w78=";\n' ]
+    [ 'module.exports = "/w==";\n', 'module.exports = "/w==";\n' ]
+    ```
+
 * Update the getter for `text` in build results ([#2423](https://github.com/evanw/esbuild/issues/2423))
 
     Output files in build results returned from esbuild's JavaScript API have both a `contents` and a `text` property to return the contents of the output file. The `contents` property is a binary UTF-8 Uint8Array and the `text` property is a JavaScript UTF-16 string. The `text` property is a getter that does the UTF-8 to UTF-16 conversion only if it's needed for better performance.
