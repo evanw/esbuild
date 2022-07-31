@@ -298,7 +298,7 @@ let ensureServiceIsRunning = (): Promise<Service> => {
                 },
                 writeFile(contents, callback) {
                   Deno.makeTempFile().then(
-                    tempFile => Deno.writeFile(tempFile, new TextEncoder().encode(contents)).then(
+                    tempFile => Deno.writeFile(tempFile, typeof contents === 'string' ? new TextEncoder().encode(contents) : contents).then(
                       () => callback(tempFile),
                       () => callback(null)),
                     () => callback(null))
