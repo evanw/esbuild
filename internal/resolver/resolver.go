@@ -173,10 +173,9 @@ type resolver struct {
 
 	// These are sets that represent various conditions for the "exports" field
 	// in package.json.
-	esmConditionsDefault             map[string]bool
-	esmConditionsImport              map[string]bool
-	esmConditionsRequire             map[string]bool
-	esmConditionsImportWithoutModule map[string]bool
+	esmConditionsDefault map[string]bool
+	esmConditionsImport  map[string]bool
+	esmConditionsRequire map[string]bool
 
 	// A special filtered import order for CSS "@import" imports.
 	//
@@ -241,11 +240,6 @@ func NewResolver(fs fs.FS, log logger.Log, caches *cache.CacheSet, options confi
 	esmConditionsDefault := map[string]bool{"default": true}
 	esmConditionsImport := map[string]bool{"import": true}
 	esmConditionsRequire := map[string]bool{"require": true}
-	var esmConditionsImportWithoutModule map[string]bool
-	if options.Conditions == nil && options.Platform == config.PlatformBrowser {
-		esmConditionsImport["module"] = true
-		esmConditionsImportWithoutModule = map[string]bool{"import": true}
-	}
 	for _, condition := range options.Conditions {
 		esmConditionsDefault[condition] = true
 	}
@@ -258,22 +252,18 @@ func NewResolver(fs fs.FS, log logger.Log, caches *cache.CacheSet, options confi
 	for key := range esmConditionsDefault {
 		esmConditionsImport[key] = true
 		esmConditionsRequire[key] = true
-		if esmConditionsImportWithoutModule != nil {
-			esmConditionsImportWithoutModule[key] = true
-		}
 	}
 
 	return &resolver{
-		fs:                               fs,
-		log:                              log,
-		options:                          options,
-		caches:                           caches,
-		dirCache:                         make(map[string]*dirInfo),
-		atImportExtensionOrder:           atImportExtensionOrder,
-		esmConditionsDefault:             esmConditionsDefault,
-		esmConditionsImport:              esmConditionsImport,
-		esmConditionsRequire:             esmConditionsRequire,
-		esmConditionsImportWithoutModule: esmConditionsImportWithoutModule,
+		fs:                     fs,
+		log:                    log,
+		options:                options,
+		caches:                 caches,
+		dirCache:               make(map[string]*dirInfo),
+		atImportExtensionOrder: atImportExtensionOrder,
+		esmConditionsDefault:   esmConditionsDefault,
+		esmConditionsImport:    esmConditionsImport,
+		esmConditionsRequire:   esmConditionsRequire,
 	}
 }
 
@@ -1760,7 +1750,7 @@ func (r resolverQuery) matchTSConfigPaths(tsConfigJSON *TSConfigJSON, path strin
 	return PathPair{}, false, nil
 }
 
-func (r resolverQuery) loadPackageImports(importPath string, dirInfoPackageJSON *dirInfo) (result PathPair, ok bool, diffCase *fs.DifferentCase) {
+func (r resolverQuery) loadPackageImports(importPath string, dirInfoPackageJSON *dirInfo) (PathPair, bool, *fs.DifferentCase) {
 	packageJSON := dirInfoPackageJSON.packageJSON
 
 	if r.debugLogs != nil {
@@ -1797,7 +1787,7 @@ func (r resolverQuery) loadPackageImports(importPath string, dirInfoPackageJSON 
 		// The import path was remapped via "imports" to another import path
 		// that now needs to be resolved too. Set "forbidImports" to true
 		// so we don't try to resolve "imports" again and end up in a loop.
-		result, ok, diffCase = r.loadNodeModules(resolvedPath, dirInfoPackageJSON, true /* forbidImports */)
+		absolute, ok, diffCase := r.loadNodeModules(resolvedPath, dirInfoPackageJSON, true /* forbidImports */)
 		if !ok {
 			tracker := logger.MakeLineColumnTracker(&packageJSON.source)
 			r.debugMeta.notes = append(
@@ -1805,41 +1795,14 @@ func (r resolverQuery) loadPackageImports(importPath string, dirInfoPackageJSON 
 					fmt.Sprintf("The remapped path %q could not be resolved:", resolvedPath))},
 				r.debugMeta.notes...)
 		}
-	} else {
-		result, ok, diffCase = r.finalizeImportsExportsResult(
-			dirInfoPackageJSON.absPath, conditions, *packageJSON.importsMap, packageJSON,
-			resolvedPath, status, debug,
-			"", "", "",
-		)
+		return absolute, ok, diffCase
 	}
 
-	// If the "import" condition is active and we also checked for the "module"
-	// condition, then do the search again for the secondary path but without
-	// the "module" condition.
-	if ok && r.esmConditionsImportWithoutModule != nil {
-		switch r.kind {
-		case ast.ImportStmt, ast.ImportDynamic:
-			conditions = r.esmConditionsImportWithoutModule
-			resolvedPath, status, debug := r.esmPackageImportsResolve(importPath, packageJSON.importsMap.root, conditions)
-			resolvedPath, status, debug = r.esmHandlePostConditions(resolvedPath, status, debug)
-			if status == pjStatusPackageResolve {
-				if secondary, ok, _ := r.loadNodeModules(resolvedPath, dirInfoPackageJSON, true /* forbidImports */); ok {
-					result.Secondary = secondary.Primary
-				}
-			} else {
-				secondary, ok, _ := r.finalizeImportsExportsResult(
-					dirInfoPackageJSON.absPath, conditions, *packageJSON.importsMap, packageJSON,
-					resolvedPath, status, debug,
-					"", "", "",
-				)
-				if ok {
-					result.Secondary = secondary.Primary
-				}
-			}
-		}
-	}
-
-	return result, ok, diffCase
+	return r.finalizeImportsExportsResult(
+		dirInfoPackageJSON.absPath, conditions, *packageJSON.importsMap, packageJSON,
+		resolvedPath, status, debug,
+		"", "", "",
+	)
 }
 
 func (r resolverQuery) esmResolveAlgorithm(esmPackageName string, esmPackageSubpath string, packageJSON *packageJSON, absPkgPath string, absPath string) (PathPair, bool, *fs.DifferentCase) {
@@ -1852,17 +1815,18 @@ func (r resolverQuery) esmResolveAlgorithm(esmPackageName string, esmPackageSubp
 	// The condition set is determined by the kind of import
 	conditions := r.esmConditionsDefault
 	switch r.kind {
+	case ast.ImportStmt, ast.ImportDynamic:
+		conditions = r.esmConditionsImport
 	case ast.ImportRequire, ast.ImportRequireResolve:
 		conditions = r.esmConditionsRequire
-
-	// Treat entry points as imports instead of requires for consistency with
-	// Webpack and Rollup. More information:
-	//
-	// * https://github.com/evanw/esbuild/issues/1956
-	// * https://github.com/nodejs/node/issues/41686
-	// * https://github.com/evanw/entry-point-resolve-test
-	//
-	case ast.ImportStmt, ast.ImportDynamic, ast.ImportEntryPoint:
+	case ast.ImportEntryPoint:
+		// Treat entry points as imports instead of requires for consistency with
+		// Webpack and Rollup. More information:
+		//
+		// * https://github.com/evanw/esbuild/issues/1956
+		// * https://github.com/nodejs/node/issues/41686
+		// * https://github.com/evanw/entry-point-resolve-test
+		//
 		conditions = r.esmConditionsImport
 	}
 
@@ -1875,33 +1839,11 @@ func (r resolverQuery) esmResolveAlgorithm(esmPackageName string, esmPackageSubp
 	resolvedPath, status, debug := r.esmPackageExportsResolve("/", esmPackageSubpath, packageJSON.exportsMap.root, conditions)
 	resolvedPath, status, debug = r.esmHandlePostConditions(resolvedPath, status, debug)
 
-	result, ok, diffCase := r.finalizeImportsExportsResult(
+	return r.finalizeImportsExportsResult(
 		absPkgPath, conditions, *packageJSON.exportsMap, packageJSON,
 		resolvedPath, status, debug,
 		esmPackageName, esmPackageSubpath, absPath,
 	)
-
-	// If the "import" condition is active and we also checked for the "module"
-	// condition, then do the search again for the secondary path but without
-	// the "module" condition.
-	if ok && r.esmConditionsImportWithoutModule != nil {
-		switch r.kind {
-		case ast.ImportStmt, ast.ImportDynamic, ast.ImportEntryPoint:
-			conditions = r.esmConditionsImportWithoutModule
-			resolvedPath, status, debug := r.esmPackageExportsResolve("/", esmPackageSubpath, packageJSON.exportsMap.root, conditions)
-			resolvedPath, status, debug = r.esmHandlePostConditions(resolvedPath, status, debug)
-			secondary, ok, _ := r.finalizeImportsExportsResult(
-				absPkgPath, conditions, *packageJSON.exportsMap, packageJSON,
-				resolvedPath, status, debug,
-				esmPackageName, esmPackageSubpath, absPath,
-			)
-			if ok {
-				result.Secondary = secondary.Primary
-			}
-		}
-	}
-
-	return result, ok, diffCase
 }
 
 func (r resolverQuery) loadNodeModules(importPath string, dirInfo *dirInfo, forbidImports bool) (PathPair, bool, *fs.DifferentCase) {

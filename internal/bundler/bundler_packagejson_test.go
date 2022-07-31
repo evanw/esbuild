@@ -1618,7 +1618,7 @@ func TestPackageJsonExportsEntryPointRequireOnly(t *testing.T) {
 		},
 		expectedScanLog: `ERROR: Could not resolve "pkg"
 node_modules/pkg/package.json: NOTE: The path "." is not currently exported by package "pkg":
-node_modules/pkg/package.json: NOTE: None of the conditions provided ("require") match any of the currently active conditions ("browser", "default", "import", "module"):
+node_modules/pkg/package.json: NOTE: None of the conditions provided ("require") match any of the currently active conditions ("browser", "default", "import"):
 `,
 	})
 }
@@ -2000,12 +2000,12 @@ func TestPackageJsonExportsNoConditionsMatch(t *testing.T) {
 		},
 		expectedScanLog: `Users/user/project/src/entry.js: ERROR: Could not resolve "pkg1"
 Users/user/project/node_modules/pkg1/package.json: NOTE: The path "." is not currently exported by package "pkg1":
-Users/user/project/node_modules/pkg1/package.json: NOTE: None of the conditions provided ("what") match any of the currently active conditions ("browser", "default", "import", "module"):
+Users/user/project/node_modules/pkg1/package.json: NOTE: None of the conditions provided ("what") match any of the currently active conditions ("browser", "default", "import"):
 Users/user/project/node_modules/pkg1/package.json: NOTE: Consider enabling the "what" condition if this package expects it to be enabled. You can use 'Conditions: []string{"what"}' to do that:
 NOTE: You can mark the path "pkg1" as external to exclude it from the bundle, which will remove this error.
 Users/user/project/src/entry.js: ERROR: Could not resolve "pkg1/foo.js"
 Users/user/project/node_modules/pkg1/package.json: NOTE: The path "./foo.js" is not currently exported by package "pkg1":
-Users/user/project/node_modules/pkg1/package.json: NOTE: None of the conditions provided ("what") match any of the currently active conditions ("browser", "default", "import", "module"):
+Users/user/project/node_modules/pkg1/package.json: NOTE: None of the conditions provided ("what") match any of the currently active conditions ("browser", "default", "import"):
 Users/user/project/node_modules/pkg1/package.json: NOTE: Consider enabling the "what" condition if this package expects it to be enabled. You can use 'Conditions: []string{"what"}' to do that:
 NOTE: You can mark the path "pkg1/foo.js" as external to exclude it from the bundle, which will remove this error.
 `,
@@ -2042,12 +2042,12 @@ func TestPackageJsonExportsMustUseRequire(t *testing.T) {
 		},
 		expectedScanLog: `Users/user/project/src/entry.js: ERROR: Could not resolve "pkg1"
 Users/user/project/node_modules/pkg1/package.json: NOTE: The path "." is not currently exported by package "pkg1":
-Users/user/project/node_modules/pkg1/package.json: NOTE: None of the conditions provided ("require") match any of the currently active conditions ("browser", "default", "import", "module"):
+Users/user/project/node_modules/pkg1/package.json: NOTE: None of the conditions provided ("require") match any of the currently active conditions ("browser", "default", "import"):
 Users/user/project/src/entry.js: NOTE: Consider using a "require()" call to import this file, which will work because the "require" condition is supported by this package:
 NOTE: You can mark the path "pkg1" as external to exclude it from the bundle, which will remove this error.
 Users/user/project/src/entry.js: ERROR: Could not resolve "pkg1/foo.js"
 Users/user/project/node_modules/pkg1/package.json: NOTE: The path "./foo.js" is not currently exported by package "pkg1":
-Users/user/project/node_modules/pkg1/package.json: NOTE: None of the conditions provided ("require") match any of the currently active conditions ("browser", "default", "import", "module"):
+Users/user/project/node_modules/pkg1/package.json: NOTE: None of the conditions provided ("require") match any of the currently active conditions ("browser", "default", "import"):
 Users/user/project/src/entry.js: NOTE: Consider using a "require()" call to import this file, which will work because the "require" condition is supported by this package:
 NOTE: You can mark the path "pkg1/foo.js" as external to exclude it from the bundle, which will remove this error.
 `,
@@ -2611,182 +2611,5 @@ Users/user/project/package.json: NOTE: The file "./src/foo.js" is exported at pa
 Users/user/project/src/index.js: NOTE: Import from "xyz/bar" to get the file "Users/user/project/src/foo.js":
 NOTE: You can mark the path "xyz/src/foo.js" as external to exclude it from the bundle, which will remove this error.
 `,
-	})
-}
-
-func TestPackageJsonExportsPickModule(t *testing.T) {
-	packagejson_suite.expectBundled(t, bundled{
-		files: map[string]string{
-			"/Users/user/project/src/entry.js": `
-				import 'pkg1'
-				import 'pkg1/foo.js'
-			`,
-			"/Users/user/project/node_modules/pkg1/package.json": `
-				{
-					"exports": {
-						".": {
-							"module": "./foo-module.js",
-							"default": "./foo.js"
-						},
-						"./foo.js": {
-							"module": "./foo-module.js",
-							"default": "./foo.js"
-						}
-					}
-				}
-			`,
-			"/Users/user/project/node_modules/pkg1/foo-module.js": `
-				console.log('success')
-			`,
-			"/Users/user/project/node_modules/pkg1/foo.js": `
-				console.log('FAILURE')
-			`,
-		},
-		entryPaths: []string{"/Users/user/project/src/entry.js"},
-		options: config.Options{
-			Mode:          config.ModeBundle,
-			AbsOutputFile: "/Users/user/project/out.js",
-		},
-	})
-}
-
-func TestPackageJsonExportsModuleDifferentImportAndRequireResults(t *testing.T) {
-	packagejson_suite.expectBundled(t, bundled{
-		files: map[string]string{
-			"/Users/user/project/src/entry.js": `
-				import 'pkg1'
-				require('pkg1')
-			`,
-			"/Users/user/project/node_modules/pkg1/package.json": `
-				{
-					"exports": {
-						".": {
-							"module": "./foo-module.js",
-							"import": "./foo-import.js",
-							"require": "./foo-require.js",
-							"default": "./foo.js"
-						}
-					}
-				}
-			`,
-			"/Users/user/project/node_modules/pkg1/foo-module.js": `
-				console.log('module')
-			`,
-			"/Users/user/project/node_modules/pkg1/foo-import.js": `
-				console.log('import FAILURE')
-			`,
-			"/Users/user/project/node_modules/pkg1/foo-require.js": `
-				console.log('require')
-			`,
-			"/Users/user/project/node_modules/pkg1/foo.js": `
-				console.log('default FAILURE')
-			`,
-		},
-		entryPaths: []string{"/Users/user/project/src/entry.js"},
-		options: config.Options{
-			Mode:          config.ModeBundle,
-			AbsOutputFile: "/Users/user/project/out.js",
-		},
-	})
-}
-
-func TestPackageJsonExportsDoNotPickModuleDueToRequire(t *testing.T) {
-	packagejson_suite.expectBundled(t, bundled{
-		files: map[string]string{
-			"/Users/user/project/src/entry.js": `
-				import 'pkg1'
-				import 'pkg1/foo.js'
-				require('../node_modules/pkg1/foo.js')
-			`,
-			"/Users/user/project/node_modules/pkg1/package.json": `
-				{
-					"exports": {
-						".": {
-							"module": "./foo-module.js",
-							"default": "./foo.js"
-						},
-						"./foo.js": {
-							"module": "./foo-module.js",
-							"default": "./foo.js"
-						}
-					}
-				}
-			`,
-			"/Users/user/project/node_modules/pkg1/foo-module.js": `
-				console.log('FAILURE')
-			`,
-			"/Users/user/project/node_modules/pkg1/foo.js": `
-				console.log('success')
-			`,
-		},
-		entryPaths: []string{"/Users/user/project/src/entry.js"},
-		options: config.Options{
-			Mode:          config.ModeBundle,
-			AbsOutputFile: "/Users/user/project/out.js",
-		},
-	})
-}
-
-func TestPackageJsonExportsDoNotPickModuleDueToPlatformNeutral(t *testing.T) {
-	packagejson_suite.expectBundled(t, bundled{
-		files: map[string]string{
-			"/Users/user/project/src/entry.js": `
-				import 'pkg1'
-			`,
-			"/Users/user/project/node_modules/pkg1/package.json": `
-				{
-					"exports": {
-						".": {
-							"module": "./foo-module.js",
-							"default": "./foo.js"
-						}
-					}
-				}
-			`,
-			"/Users/user/project/node_modules/pkg1/foo-module.js": `
-				console.log('FAILURE')
-			`,
-			"/Users/user/project/node_modules/pkg1/foo.js": `
-				console.log('success')
-			`,
-		},
-		entryPaths: []string{"/Users/user/project/src/entry.js"},
-		options: config.Options{
-			Mode:          config.ModeBundle,
-			AbsOutputFile: "/Users/user/project/out.js",
-			Platform:      config.PlatformNeutral,
-		},
-	})
-}
-
-func TestPackageJsonExportsDoNotPickModuleDueToCustomConditions(t *testing.T) {
-	packagejson_suite.expectBundled(t, bundled{
-		files: map[string]string{
-			"/Users/user/project/src/entry.js": `
-				import 'pkg1'
-			`,
-			"/Users/user/project/node_modules/pkg1/package.json": `
-				{
-					"exports": {
-						".": {
-							"module": "./foo-module.js",
-							"default": "./foo.js"
-						}
-					}
-				}
-			`,
-			"/Users/user/project/node_modules/pkg1/foo-module.js": `
-				console.log('FAILURE')
-			`,
-			"/Users/user/project/node_modules/pkg1/foo.js": `
-				console.log('success')
-			`,
-		},
-		entryPaths: []string{"/Users/user/project/src/entry.js"},
-		options: config.Options{
-			Mode:          config.ModeBundle,
-			AbsOutputFile: "/Users/user/project/out.js",
-			Conditions:    []string{},
-		},
 	})
 }

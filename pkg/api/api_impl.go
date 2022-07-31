@@ -939,6 +939,7 @@ func rebuildImpl(
 		ExternalSettings:      validateExternals(log, realFS, buildOpts.External),
 		TsConfigOverride:      validatePath(log, realFS, buildOpts.Tsconfig, "tsconfig path"),
 		MainFields:            buildOpts.MainFields,
+		Conditions:            append([]string{}, buildOpts.Conditions...),
 		PublicPath:            buildOpts.PublicPath,
 		KeepNames:             buildOpts.KeepNames,
 		InjectAbsPaths:        make([]string, len(buildOpts.Inject)),
@@ -950,9 +951,6 @@ func rebuildImpl(
 		PreserveSymlinks:      buildOpts.PreserveSymlinks,
 		WatchMode:             buildOpts.Watch != nil,
 		Plugins:               plugins,
-	}
-	if buildOpts.Conditions != nil { // Preserve nil values
-		options.Conditions = append([]string{}, buildOpts.Conditions...)
 	}
 	if options.MainFields != nil {
 		options.MainFields = append([]string{}, options.MainFields...)
