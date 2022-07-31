@@ -1689,12 +1689,28 @@ function sanitizeStringArray(values: any[], property: string): string[] {
 }
 
 function convertOutputFiles({ path, contents }: protocol.BuildOutputFile): types.OutputFile {
+  // The text is lazily-generated for performance reasons. If no one asks for
+  // it, then it never needs to be generated.
   let text: string | null = null;
   return {
     path,
     contents,
     get text() {
-      if (text === null) text = protocol.decodeUTF8(contents);
+      // People want to be able to set "contents" and have esbuild automatically
+      // derive "text" for them, so grab the contents off of this object instead
+      // of using our original value.
+      const binary = this.contents;
+
+      // This deliberately doesn't do bidirectional derivation because that could
+      // result in the inefficiency. For example, if we did do this and then you
+      // set "contents" and "text" and then asked for "contents", the second
+      // setter for "text" will have erased our cached "contents" value so we'd
+      // need to regenerate it again. Instead, "contents" is unambiguously the
+      // primary value and "text" is unambiguously the derived value.
+      if (text === null || binary !== contents) {
+        contents = binary;
+        text = protocol.decodeUTF8(binary);
+      }
       return text;
     },
   }

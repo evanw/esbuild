@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+* Update the getter for `text` in build results ([#2423](https://github.com/evanw/esbuild/issues/2423))
+
+    Output files in build results returned from esbuild's JavaScript API have both a `contents` and a `text` property to return the contents of the output file. The `contents` property is a binary UTF-8 Uint8Array and the `text` property is a JavaScript UTF-16 string. The `text` property is a getter that does the UTF-8 to UTF-16 conversion only if it's needed for better performance.
+
+    Previously if you mutate the build results object, you had to overwrite both `contents` and `text` since the value returned from the `text` getter is the original text returned by esbuild. Some people find this confusing so with this release, the getter for `text` has been updated to do the UTF-8 to UTF-16 conversion on the current value of the `contents` property instead of the original value.
+
 ## 0.14.51
 
 * Add support for React 17's `automatic` JSX transform ([#334](https://github.com/evanw/esbuild/issues/334), [#718](https://github.com/evanw/esbuild/issues/718), [#1172](https://github.com/evanw/esbuild/issues/1172), [#2318](https://github.com/evanw/esbuild/issues/2318), [#2349](https://github.com/evanw/esbuild/pull/2349))
