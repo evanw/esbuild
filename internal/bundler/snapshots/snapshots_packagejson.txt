@@ -559,6 +559,33 @@ TestPackageJsonExportsDefaultOverImportAndRequire
 console.log("SUCCESS");
 
 ================================================================================
+TestPackageJsonExportsDoNotPickModuleDueToCustomConditions
+---------- /Users/user/project/out.js ----------
+// Users/user/project/node_modules/pkg1/foo.js
+console.log("success");
+
+================================================================================
+TestPackageJsonExportsDoNotPickModuleDueToPlatformNeutral
+---------- /Users/user/project/out.js ----------
+// Users/user/project/node_modules/pkg1/foo.js
+console.log("success");
+
+================================================================================
+TestPackageJsonExportsDoNotPickModuleDueToRequire
+---------- /Users/user/project/out.js ----------
+// Users/user/project/node_modules/pkg1/foo.js
+var require_foo = __commonJS({
+  "Users/user/project/node_modules/pkg1/foo.js"() {
+    console.log("success");
+  }
+});
+
+// Users/user/project/src/entry.js
+var import_pkg1 = __toESM(require_foo());
+var import_foo = __toESM(require_foo());
+require_foo();
+
+================================================================================
 TestPackageJsonExportsEntryPointImportOverRequire
 ---------- /out.js ----------
 // node_modules/pkg/import.js
@@ -581,6 +608,22 @@ TestPackageJsonExportsImportOverRequire
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/node_modules/pkg/import.js
 console.log("SUCCESS");
+
+================================================================================
+TestPackageJsonExportsModuleDifferentImportAndRequireResults
+---------- /Users/user/project/out.js ----------
+// Users/user/project/node_modules/pkg1/foo-require.js
+var require_foo_require = __commonJS({
+  "Users/user/project/node_modules/pkg1/foo-require.js"() {
+    console.log("require");
+  }
+});
+
+// Users/user/project/node_modules/pkg1/foo-module.js
+console.log("module");
+
+// Users/user/project/src/entry.js
+require_foo_require();
 
 ================================================================================
 TestPackageJsonExportsNeutral
@@ -608,6 +651,12 @@ console.log("SUCCESS");
 
 // Users/user/project/node_modules/pkg2/1/bar.js
 console.log("SUCCESS");
+
+================================================================================
+TestPackageJsonExportsPickModule
+---------- /Users/user/project/out.js ----------
+// Users/user/project/node_modules/pkg1/foo-module.js
+console.log("success");
 
 ================================================================================
 TestPackageJsonExportsRequireOverImport

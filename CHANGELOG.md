@@ -2,6 +2,38 @@
 
 ## Unreleased
 
+* Sometimes autmatically add `module` to `conditions` ([#2417](https://github.com/evanw/esbuild/issues/2417))
+
+    Sorry about the wall of text below. This situation is pretty complex to explain fully.
+
+    Node's specification for `package.json` has a feature where you can add an `exports` map to say how package subpaths should map to the underlying file system. For example, you can have the subpath `/lib` map to `/dist/lib.min.js` within your package. Furthermore, you can have these mappings change depending on "conditions" which are named boolean flags. For example, there is a condition called `import` that is true when the path comes from an `import` statement and a condition called `require` that is true when the path comes from an `require` call.
+
+    Node lets you import CommonJS into ESM but doesn't let you import ESM into CommonJS. One good reason for this limitation is that ESM code can perform top-level await, which cannot work with the synchronous CommonJS `require` API. So the easiest way of making a package that works everywhere in Node is to just write it using CommonJS. However, some people want to publish code as ESM for various reasons. One reason is that ESM code is easier for your bundler to analyze, which means it's easier to perform tree-shaking to reduce the size of your bundle. So you can use `exports` to provide an ESM package for more optimal code when the `import` condition is true, but still provide a CommonJS package for compatibility when the `require` condition is true.
+
+    This design introduces a major problem which is known as the [dual package hazard](https://nodejs.org/api/packages.html#dual-package-hazard). By providing both interfaces, your package could end up being instantiated multiple times (once for ESM and once for CommonJS). This can introduce bugs if your package expects to only be loaded once. For example, your package might use `instanceof` to check if an object is an instance of yours, but this will break if it's an object from the other instantiation of your package. Another problem this causes is that a bundle containing your package may be twice as big as expected, which isn't helpful when it's supposed to be downloaded over the network.
+
+    This problem isn't something esbuild can fix for you because it's a deliberate design decision from Node, and the behavior is [very rigidly specified](https://nodejs.org/api/esm.html#resolution-algorithm). Node's intended way to fix this is for you to use CommonJS as your main implementation and for the ESM implementation to be a lightweight wrapper that just loads the CommonJS implementation and re-exports it as ESM. However, while this helps avoid bugs due to duplicate implications, this is even worse for bundling because it adds even more code, especially for bundlers like esbuild that only perform tree shaking on ESM code but not on CommonJS code. Node designed their module system for Node, not for bundlers.
+
+    One solution the community has come up with is to activate the custom `module` condition when bundling, and then author packages that always resolve to the ESM version of the package regardless of whether the package was imported or required when the `module` condition is true. This forces the bundler to always choose the ESM version of the package. This typically works even with `require` calls when using bundlers because bundlers typically allow you to import ESM from CommonJS (which Node doesn't allow). The `module` condition is active by default in Webpack.
+
+    However, this can introduce compatibility issues into CommonJS code because of `default` exports. Long story short: If a package's ESM version does `export default () => {...}` and the CommonJS version does `module.exports = () => {...}`, swapping the CommonJS version for the ESM version means that `require("pkg")()` breaks (because you would have to do `require("pkg").default()` instead). So this is not something that esbuild should do unconditionally. Using the ESM version with CommonJS require is also inefficient because this means esbuild has to generate additional ESM-to-CommonJS adapter code, so just using the CommonJS package in this case is more efficient.
+
+    With this release, esbuild will now try to use the `module` condition by default when a package is imported via an `import` statement. But if the path that the import would be resolved to without the `module` condition active is ever used (e.g. via `require`), then esbuild will not include the `module` path and will exclusively use the non-`module` path. This means you can now author a package like this:
+
+    ```json
+    {
+      "name": "pkg",
+      "exports": {
+        ".": {
+          "module": "./index-esm.js",
+          "default": "./index-cjs.js"
+        }
+      }
+    }
+    ```
+
+    And esbuild will only bundle `index-esm.js` if you always `import "pkg"` but will only bundle `index-cjs.js` if you ever `require("pkg")`. This avoids the dual-package hazard while allowing for tree-shaking and also still retaining full CommonJS compatibility. This new behavior is similar to esbuild's existing behavior regarding "main fields" (the predecessor to the `exports` field) and will only happen if esbuild's platform is set to `browser` (since that's when tree-shaking matters for size reasons) and if you have not explicitly configured any custom conditions. You can disable this new behavior by explicitly specifying custom conditions (even if it's just an empty `--conditions=` setting).
+
 * Allow binary data as input to the JS `transform` and `build` APIs ([#2424](https://github.com/evanw/esbuild/issues/2424))
 
     Previously esbuild's `transform` and `build` APIs could only take a string. However, some people want to use esbuild to convert binary data to base64 text. This is problematic because JavaScript strings represent UTF-16 text and esbuild internally operates on arrays of bytes, so all strings coming from JavaScript undergo UTF-16 to UTF-8 conversion before use. This meant that using esbuild in this way was doing base64 encoding of the UTF-8 encoding of the text, which was undesired.
