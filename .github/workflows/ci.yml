@@ -63,7 +63,7 @@ jobs:
       - name: go vet
         run: go vet ./cmd/... ./internal/... ./pkg/...
 
-      - name: Deno Tests
+      - name: Deno Tests (non-Windows)
         # Deno tests currently don't run on Windows because of "esbuild" vs.
         # "esbuild.exe" in the test harness. This should be fixed...
         if: matrix.os != 'windows-latest'
@@ -73,7 +73,7 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: make no-filepath
 
-      - name: Make sure "check-go-version" works
+      - name: Make sure "check-go-version" works (non-Windows)
         if: matrix.os != 'windows-latest'
         run: make check-go-version
 
@@ -84,7 +84,7 @@ jobs:
       - name: npm ci
         run: cd scripts && npm ci
 
-      - name: Register Test (ESBUILD_WORKER_THREADS=0)
+      - name: Register Test (ESBUILD_WORKER_THREADS=0, non-Windows)
         if: matrix.os != 'windows-latest'
         run: ESBUILD_WORKER_THREADS=0 node scripts/register-test.js
 
@@ -97,7 +97,7 @@ jobs:
       - name: E2E Tests
         run: node scripts/end-to-end-tests.js
 
-      - name: JS API Tests (ESBUILD_WORKER_THREADS=0)
+      - name: JS API Tests (ESBUILD_WORKER_THREADS=0, non-Windows)
         if: matrix.os != 'windows-latest'
         run: ESBUILD_WORKER_THREADS=0 node scripts/js-api-tests.js
 
@@ -122,11 +122,11 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: make test-wasm-browser
 
-      - name: WebAssembly API Tests (node)
+      - name: WebAssembly API Tests (node, Linux)
         if: matrix.os == 'ubuntu-latest'
         run: make test-wasm-node
 
-      - name: WebAssembly API Tests (node)
+      - name: WebAssembly API Tests (node, non-Linux)
         if: matrix.os != 'ubuntu-latest'
         run: node scripts/wasm-tests.js
 
