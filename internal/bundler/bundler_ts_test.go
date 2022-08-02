@@ -1969,10 +1969,9 @@ func TestTSEnumExportClause(t *testing.T) {
 // This checks that we don't generate a warning for code that the TypeScript
 // compiler generates that looks like this:
 //
-//   var __rest = (this && this.__rest) || function (s, e) {
-//     ...
-//   };
-//
+//	var __rest = (this && this.__rest) || function (s, e) {
+//	  ...
+//	};
 func TestTSThisIsUndefinedWarning(t *testing.T) {
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{

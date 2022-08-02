@@ -76,12 +76,11 @@ var base64 = []byte("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456
 // bit. The continuation bit tells us whether there are more digits in this
 // value following this digit.
 //
-//   Continuation
-//   |    Sign
-//   |    |
-//   V    V
-//   101011
-//
+//	Continuation
+//	|    Sign
+//	|    |
+//	V    V
+//	101011
 func encodeVLQ(encoded []byte, value int) []byte {
 	var vlq int
 	if value < 0 {

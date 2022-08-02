@@ -2974,11 +2974,11 @@ func sanitizeFilePathForVirtualModulePath(path string) string {
 // order that JavaScript modules were evaluated in before the top-level await
 // feature was introduced.
 //
-//     A
-//    / \
-//   B   C
-//    \ /
-//     D
+//	  A
+//	 / \
+//	B   C
+//	 \ /
+//	  D
 //
 // If A imports B and then C, B imports D, and C imports D, then the JavaScript
 // traversal order is D B C A.
@@ -3042,11 +3042,11 @@ func (c *linkerContext) findImportedCSSFilesInJSOrder(entryPoint uint32) (order 
 // CSS file multiple times is equivalent to evaluating it once at the last
 // location. So we drop all but the last evaluation in the order.
 //
-//     A
-//    / \
-//   B   C
-//    \ /
-//     D
+//	  A
+//	 / \
+//	B   C
+//	 \ /
+//	  D
 //
 // If A imports B and then C, B imports D, and C imports D, then the CSS
 // traversal order is B D C A.

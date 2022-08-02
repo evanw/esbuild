@@ -24,10 +24,10 @@ import (
 //
 // 1. Parse the source into an AST, create the scope tree, and declare symbols.
 //
-// 2. Visit each node in the AST, bind identifiers to declared symbols, do
-//    constant folding, substitute compile-time variable definitions, and
-//    lower certain syntactic constructs as appropriate given the language
-//    target.
+//  2. Visit each node in the AST, bind identifiers to declared symbols, do
+//     constant folding, substitute compile-time variable definitions, and
+//     lower certain syntactic constructs as appropriate given the language
+//     target.
 //
 // So many things have been put in so few passes because we want to minimize
 // the number of full-tree passes to improve performance. However, we need
@@ -1707,20 +1707,19 @@ func (p *parser) logDeferredArrowArgErrors(errors *deferredErrors) {
 //
 // Specifically, for await:
 //
-//   // This is ok
-//   async function foo() { (x = await y) }
+//	// This is ok
+//	async function foo() { (x = await y) }
 //
-//   // This is an error
-//   async function foo() { (x = await y) => {} }
+//	// This is an error
+//	async function foo() { (x = await y) => {} }
 //
 // And for yield:
 //
-//   // This is ok
-//   function* foo() { (x = yield y) }
+//	// This is ok
+//	function* foo() { (x = yield y) }
 //
-//   // This is an error
-//   function* foo() { (x = yield y) => {} }
-//
+//	// This is an error
+//	function* foo() { (x = yield y) => {} }
 type deferredArrowArgErrors struct {
 	invalidExprAwait logger.Range
 	invalidExprYield logger.Range
@@ -7455,10 +7454,10 @@ func findIdentifiers(binding js_ast.Binding, identifiers []js_ast.Decl) []js_ast
 // can. Everything can be trimmed except for hoisted declarations ("var" and
 // "function"), which affect the parent scope. For example:
 //
-//   function foo() {
-//     if (false) { var x; }
-//     x = 1;
-//   }
+//	function foo() {
+//	  if (false) { var x; }
+//	  x = 1;
+//	}
 //
 // We can't trim the entire branch as dead or calling foo() will incorrectly
 // assign to a global variable instead.
@@ -10106,22 +10105,21 @@ func isUnsightlyPrimitive(data js_ast.E) bool {
 // a constant declared later on, then we need to end the const local prefix.
 // We want to avoid situations like this:
 //
-//   const x = y; // This is supposed to throw due to TDZ
-//   const y = 1;
+//	const x = y; // This is supposed to throw due to TDZ
+//	const y = 1;
 //
 // or this:
 //
-//   const x = 1;
-//   const y = foo(); // This is supposed to throw due to TDZ
-//   const z = 2;
-//   const foo = () => z;
+//	const x = 1;
+//	const y = foo(); // This is supposed to throw due to TDZ
+//	const z = 2;
+//	const foo = () => z;
 //
 // But a situation like this is ok:
 //
-//   const x = 1;
-//   const y = [() => z];
-//   const z = 2;
-//
+//	const x = 1;
+//	const y = [() => z];
+//	const z = 2;
 func isSafeForConstLocalPrefix(expr js_ast.Expr) bool {
 	switch e := expr.Data.(type) {
 	case *js_ast.EMissing, *js_ast.EString, *js_ast.ERegExp, *js_ast.EBigInt, *js_ast.EFunction, *js_ast.EArrow:
@@ -10254,14 +10252,14 @@ const (
 //
 // Example usage:
 //
-//   // "value" => "value + value"
-//   // "value()" => "(_a = value(), _a + _a)"
-//   valueFunc, wrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, value)
-//   return wrapFunc(js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
-//     Op: js_ast.BinOpAdd,
-//     Left: valueFunc(),
-//     Right: valueFunc(),
-//   }})
+//	// "value" => "value + value"
+//	// "value()" => "(_a = value(), _a + _a)"
+//	valueFunc, wrapFunc := p.captureValueWithPossibleSideEffects(loc, 2, value)
+//	return wrapFunc(js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
+//	  Op: js_ast.BinOpAdd,
+//	  Left: valueFunc(),
+//	  Right: valueFunc(),
+//	}})
 //
 // This returns a function for generating references instead of a raw reference
 // because AST nodes are supposed to be unique in memory, not aliases of other

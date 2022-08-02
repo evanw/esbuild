@@ -3,18 +3,17 @@
 //
 // Example usage:
 //
-//     package main
+//	package main
 //
-//     import (
-//         "os"
+//	import (
+//	    "os"
 //
-//         "github.com/evanw/esbuild/pkg/cli"
-//     )
+//	    "github.com/evanw/esbuild/pkg/cli"
+//	)
 //
-//     func main() {
-//         os.Exit(cli.Run(os.Args[1:]))
-//     }
-//
+//	func main() {
+//	    os.Exit(cli.Run(os.Args[1:]))
+//	}
 package cli
 
 import (
@@ -38,14 +37,13 @@ func Run(osArgs []string) int {
 //
 // Example usage:
 //
-//     options, err := cli.ParseBuildOptions([]string{
-//         "input.js",
-//         "--bundle",
-//         "--minify",
-//     })
+//	options, err := cli.ParseBuildOptions([]string{
+//	    "input.js",
+//	    "--bundle",
+//	    "--minify",
+//	})
 //
-//     result := api.Build(options)
-//
+//	result := api.Build(options)
 func ParseBuildOptions(osArgs []string) (options api.BuildOptions, err error) {
 	options = newBuildOptions()
 	_, errWithNote := parseOptionsImpl(osArgs, &options, nil, kindExternal)
@@ -61,14 +59,13 @@ func ParseBuildOptions(osArgs []string) (options api.BuildOptions, err error) {
 //
 // Example usage:
 //
-//     options, err := cli.ParseTransformOptions([]string{
-//         "--minify",
-//         "--loader=tsx",
-//         "--define:DEBUG=false",
-//     })
+//	options, err := cli.ParseTransformOptions([]string{
+//	    "--minify",
+//	    "--loader=tsx",
+//	    "--define:DEBUG=false",
+//	})
 //
-//     result := api.Transform(input, options)
-//
+//	result := api.Transform(input, options)
 func ParseTransformOptions(osArgs []string) (options api.TransformOptions, err error) {
 	options = newTransformOptions()
 	_, errWithNote := parseOptionsImpl(osArgs, nil, &options, kindExternal)
@@ -85,14 +82,13 @@ func ParseTransformOptions(osArgs []string) (options api.TransformOptions, err e
 //
 // Example usage:
 //
-//     serveOptions, args, err := cli.ParseServeOptions([]string{
-//         "--serve=8000",
-//     })
+//	serveOptions, args, err := cli.ParseServeOptions([]string{
+//	    "--serve=8000",
+//	})
 //
-//     buildOptions, err := cli.ParseBuildOptions(args)
+//	buildOptions, err := cli.ParseBuildOptions(args)
 //
-//     result := api.Serve(serveOptions, buildOptions)
-//
+//	result := api.Serve(serveOptions, buildOptions)
 func ParseServeOptions(osArgs []string) (options api.ServeOptions, remainingArgs []string, err error) {
 	return parseServeOptionsImpl(osArgs)
 }

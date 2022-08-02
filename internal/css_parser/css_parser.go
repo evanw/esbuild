@@ -521,17 +521,17 @@ var nonDeprecatedElementsSupportedByIE7 = map[string]bool{
 // if any of the selectors are unsafe, since then browsers which don't support
 // that particular feature would ignore the entire merged qualified rule:
 //
-//   Input:
-//     a { color: red }
-//     b { color: red }
-//     input::-moz-placeholder { color: red }
+//	Input:
+//	  a { color: red }
+//	  b { color: red }
+//	  input::-moz-placeholder { color: red }
 //
-//   Valid output:
-//     a, b { color: red }
-//     input::-moz-placeholder { color: red }
+//	Valid output:
+//	  a, b { color: red }
+//	  input::-moz-placeholder { color: red }
 //
-//   Invalid output:
-//     a, b, input::-moz-placeholder { color: red }
+//	Invalid output:
+//	  a, b, input::-moz-placeholder { color: red }
 //
 // This considers IE 7 and above to be a browser that a user could possibly use.
 // Versions of IE less than 6 are not considered.
