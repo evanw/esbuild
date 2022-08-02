@@ -26,7 +26,6 @@ import (
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/js_parser"
-	"github.com/evanw/esbuild/internal/js_printer"
 	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/resolver"
 	"github.com/evanw/esbuild/internal/runtime"
@@ -505,7 +504,7 @@ func ResolveFailureErrorTextSuggestionNotes(
 				hint = fmt.Sprintf("Use the relative path %q to reference the file %q. "+
 					"Without the leading \"./\", the path %q is being interpreted as a package path instead.",
 					"./"+path, res.PrettyPath(query.PathPair.Primary), path)
-				suggestion = string(js_printer.QuoteForJSON("./"+path, false))
+				suggestion = string(helpers.QuoteForJSON("./"+path, false))
 			}
 		}
 	}
@@ -1195,6 +1194,12 @@ func (s *scanner) maybeParseFile(
 	if len(resolveResult.JSXFragment) > 0 {
 		optionsClone.JSX.Fragment = config.DefineExpr{Parts: resolveResult.JSXFragment}
 	}
+	if resolveResult.JSX != config.TSJSXNone {
+		optionsClone.JSX.SetOptionsFromTSJSX(resolveResult.JSX)
+	}
+	if resolveResult.JSXImportSource != "" {
+		optionsClone.JSX.ImportSource = resolveResult.JSXImportSource
+	}
 	if resolveResult.UseDefineForClassFieldsTS != config.Unspecified {
 		optionsClone.UseDefineForClassFields = resolveResult.UseDefineForClassFieldsTS
 	}
@@ -1723,7 +1728,7 @@ func (s *scanner) processScannedFiles(entryPointMeta []graph.EntryPoint) []scann
 
 		// Begin the metadata chunk
 		if s.options.NeedsMetafile {
-			sb.Write(js_printer.QuoteForJSON(result.file.inputFile.Source.PrettyPath, s.options.ASCIIOnly))
+			sb.Write(helpers.QuoteForJSON(result.file.inputFile.Source.PrettyPath, s.options.ASCIIOnly))
 			sb.WriteString(fmt.Sprintf(": {\n      \"bytes\": %d,\n      \"imports\": [", len(result.file.inputFile.Source.Contents)))
 		}
 
@@ -1770,8 +1775,8 @@ func (s *scanner) processScannedFiles(entryPointMeta []graph.EntryPoint) []scann
 						sb.WriteString(",\n        ")
 					}
 					sb.WriteString(fmt.Sprintf("{\n          \"path\": %s,\n          \"kind\": %s\n        }",
-						js_printer.QuoteForJSON(otherFile.inputFile.Source.PrettyPath, s.options.ASCIIOnly),
-						js_printer.QuoteForJSON(record.Kind.StringForMetafile(), s.options.ASCIIOnly)))
+						helpers.QuoteForJSON(otherFile.inputFile.Source.PrettyPath, s.options.ASCIIOnly),
+						helpers.QuoteForJSON(record.Kind.StringForMetafile(), s.options.ASCIIOnly)))
 				}
 
 				switch record.Kind {
@@ -1948,7 +1953,7 @@ func (s *scanner) processScannedFiles(entryPointMeta []graph.EntryPoint) []scann
 			var jsonMetadataChunk string
 			if s.options.NeedsMetafile {
 				inputs := fmt.Sprintf("{\n        %s: {\n          \"bytesInOutput\": %d\n        }\n      }",
-					js_printer.QuoteForJSON(result.file.inputFile.Source.PrettyPath, s.options.ASCIIOnly),
+					helpers.QuoteForJSON(result.file.inputFile.Source.PrettyPath, s.options.ASCIIOnly),
 					len(bytes),
 				)
 				jsonMetadataChunk = fmt.Sprintf(
@@ -2349,7 +2354,7 @@ func (b *Bundle) computeDataForSourceMapsInParallel(options *config.Options, rea
 				if !options.ExcludeSourcesContent {
 					if sm == nil {
 						// Simple case: no nested source map
-						result.quotedContents = [][]byte{js_printer.QuoteForJSON(f.inputFile.Source.Contents, options.ASCIIOnly)}
+						result.quotedContents = [][]byte{helpers.QuoteForJSON(f.inputFile.Source.Contents, options.ASCIIOnly)}
 					} else {
 						// Complex case: nested source map
 						result.quotedContents = make([][]byte, len(sm.Sources))
@@ -2361,7 +2366,7 @@ func (b *Bundle) computeDataForSourceMapsInParallel(options *config.Options, rea
 								if value := sm.SourcesContent[i]; value.Quoted != "" {
 									if options.ASCIIOnly && !isASCIIOnly(value.Quoted) {
 										// Re-quote non-ASCII values if output is ASCII-only
-										quotedContents = js_printer.QuoteForJSON(helpers.UTF16ToString(value.Value), options.ASCIIOnly)
+										quotedContents = helpers.QuoteForJSON(helpers.UTF16ToString(value.Value), options.ASCIIOnly)
 									} else {
 										// Otherwise just use the value directly from the input file
 										quotedContents = []byte(value.Quoted)
@@ -2423,7 +2428,7 @@ func (b *Bundle) generateMetadataJSON(results []graph.OutputFile, allReachableFi
 				sb.WriteString(",\n    ")
 			}
 			paths[path] = true
-			sb.WriteString(fmt.Sprintf("%s: ", js_printer.QuoteForJSON(path, asciiOnly)))
+			sb.WriteString(fmt.Sprintf("%s: ", helpers.QuoteForJSON(path, asciiOnly)))
 			sb.WriteString(result.JSONMetadataChunk)
 		}
 	}

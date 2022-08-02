@@ -12,7 +12,7 @@ export interface BuildRequest {
   entries: [string, string][]; // Use an array instead of a map to preserve order
   flags: string[];
   write: boolean;
-  stdinContents: string | null;
+  stdinContents: Uint8Array | null;
   stdinResolveDir: string | null;
   absWorkingDir: string;
   incremental: boolean;
@@ -100,7 +100,7 @@ export interface OnWatchRebuildRequest {
 export interface TransformRequest {
   command: 'transform';
   flags: string[];
-  input: string;
+  input: Uint8Array;
   inputFS: boolean;
   mangleCache?: Record<string, string | false>;
 }

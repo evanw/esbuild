@@ -510,7 +510,7 @@ func TestTSClass(t *testing.T) {
 	expectPrintedTS(t, "class Foo { override public foo: number }", "class Foo {\n}\n")
 	expectPrintedTS(t, "class Foo { public override foo: number }", "class Foo {\n}\n")
 	expectPrintedTS(t, "class Foo { declare override public foo: number }", "class Foo {\n}\n")
-	expectParseErrorTS(t, "class Foo { declare foo = 123 }", "<stdin>: ERROR: Class fields that use \"declare\" cannot be initialized\n")
+	expectPrintedTS(t, "class Foo { declare foo = 123 }", "class Foo {\n}\n")
 
 	expectPrintedTS(t, "class Foo { public static foo: number }", "class Foo {\n}\n")
 	expectPrintedTS(t, "class Foo { private static foo: number }", "class Foo {\n}\n")
@@ -524,8 +524,8 @@ func TestTSClass(t *testing.T) {
 	expectPrintedTS(t, "class Foo { public override static foo: number }", "class Foo {\n}\n")
 	expectPrintedTS(t, "class Foo { public static override foo: number }", "class Foo {\n}\n")
 	expectPrintedTS(t, "class Foo { declare override public static foo: number }", "class Foo {\n}\n")
-	expectParseErrorTS(t, "class Foo { declare static foo = 123 }", "<stdin>: ERROR: Class fields that use \"declare\" cannot be initialized\n")
-	expectParseErrorTS(t, "class Foo { static declare foo = 123 }", "<stdin>: ERROR: Class fields that use \"declare\" cannot be initialized\n")
+	expectPrintedTS(t, "class Foo { declare static foo = 123 }", "class Foo {\n}\n")
+	expectPrintedTS(t, "class Foo { static declare foo = 123 }", "class Foo {\n}\n")
 
 	expectParseErrorTS(t, "class Foo { declare #foo }", "<stdin>: ERROR: \"declare\" cannot be used with a private identifier\n")
 	expectParseErrorTS(t, "class Foo { declare [foo: string]: number }", "<stdin>: ERROR: \"declare\" cannot be used with an index signature\n")
@@ -2292,18 +2292,25 @@ func TestTSJSX(t *testing.T) {
 	expectPrintedTS(t, "const x = <[]>(y, z) => {}", "const x = (y, z) => {\n};\n")
 
 	invalid := "<stdin>: ERROR: The character \">\" is not valid inside a JSX element\nNOTE: Did you mean to escape it as \"{'>'}\" instead?\n"
-	expectParseErrorTSX(t, "(<T>(y) => {}</T>)", invalid)
+	invalidWithHint := "<stdin>: ERROR: The character \">\" is not valid inside a JSX element\n<stdin>: NOTE: TypeScript's TSX syntax interprets " +
+		"arrow functions with a single generic type parameter as an opening JSX element. If you want it to be interpreted as an arrow function instead, " +
+		"you need to add a trailing comma after the type parameter to disambiguate:\n"
+	expectParseErrorTSX(t, "(<T>(y) => {}</T>)", invalidWithHint)
+	expectParseErrorTSX(t, "(<T>(x: X<Y>) => {}</Y></T>)", invalidWithHint)
 	expectParseErrorTSX(t, "(<T extends>(y) => {}</T>)", invalid)
 	expectParseErrorTSX(t, "(<T extends={false}>(y) => {}</T>)", invalid)
+	expectPrintedTSX(t, "(<T = X>(y) => {})", "(y) => {\n};\n")
 	expectPrintedTSX(t, "(<T extends X>(y) => {})", "(y) => {\n};\n")
 	expectPrintedTSX(t, "(<T extends X = Y>(y) => {})", "(y) => {\n};\n")
 	expectPrintedTSX(t, "(<T,>() => {})", "() => {\n};\n")
 	expectPrintedTSX(t, "(<T, X>(y) => {})", "(y) => {\n};\n")
 	expectPrintedTSX(t, "(<T, X>(y): (() => {}) => {})", "(y) => {\n};\n")
-	expectParseErrorTSX(t, "(<T>() => {})", invalid+"<stdin>: ERROR: Unexpected end of file\n")
+	expectParseErrorTSX(t, "(<T>() => {})", invalidWithHint+"<stdin>: ERROR: Unexpected end of file\n")
+	expectParseErrorTSX(t, "(<T>(x: X<Y>) => {})", invalidWithHint+"<stdin>: ERROR: Unexpected end of file\n")
+	expectParseErrorTSX(t, "(<T>(x: X<Y>) => {})</Y>", invalidWithHint+"<stdin>: ERROR: Unexpected end of file\n")
 	expectParseErrorTSX(t, "(<[]>(y))", "<stdin>: ERROR: Expected identifier but found \"[\"\n")
 	expectParseErrorTSX(t, "(<T[]>(y))", "<stdin>: ERROR: Expected \">\" but found \"[\"\n")
-	expectParseErrorTSX(t, "(<T = X>(y))", "<stdin>: ERROR: Expected \">\" but found \"=\"\n")
+	expectParseErrorTSX(t, "(<T = X>(y))", "<stdin>: ERROR: Expected \"=>\" but found \")\"\n")
 	expectParseErrorTSX(t, "(<T, X>(y))", "<stdin>: ERROR: Expected \"=>\" but found \")\"\n")
 	expectParseErrorTSX(t, "(<T, X>y => {})", "<stdin>: ERROR: Expected \"(\" but found \"y\"\n")
 }
@@ -2379,4 +2386,19 @@ func TestMangleTSStringEnumLength(t *testing.T) {
 
 	expectPrintedMangleTS(t, "enum x { y = '👯‍♂️' } z = x.y.length",
 		"var x = /* @__PURE__ */ ((x) => (x.y = \"👯‍♂️\", x))(x || {});\nz = 5;\n")
+}
+
+func TestTSES5(t *testing.T) {
+	// Errors from lowering hypothetical arrow function arguments to ES5 should
+	// not leak out when backtracking. This comes up when parentheses are followed
+	// by a colon in TypeScript because the colon could deliminate an arrow
+	// function return type. See: https://github.com/evanw/esbuild/issues/2375.
+	expectPrintedTargetTS(t, 2015, "0 ? ([]) : 0", "0 ? [] : 0;\n")
+	expectPrintedTargetTS(t, 2015, "0 ? ({}) : 0", "0 ? {} : 0;\n")
+	expectPrintedTargetTS(t, 5, "0 ? ([]) : 0", "0 ? [] : 0;\n")
+	expectPrintedTargetTS(t, 5, "0 ? ({}) : 0", "0 ? {} : 0;\n")
+	expectPrintedTargetTS(t, 2015, "0 ? ([]): 0 => 0 : 0", "0 ? ([]) => 0 : 0;\n")
+	expectPrintedTargetTS(t, 2015, "0 ? ({}): 0 => 0 : 0", "0 ? ({}) => 0 : 0;\n")
+	expectParseErrorTargetTS(t, 5, "0 ? ([]): 0 => 0 : 0", "<stdin>: ERROR: Transforming destructuring to the configured target environment is not supported yet\n")
+	expectParseErrorTargetTS(t, 5, "0 ? ({}): 0 => 0 : 0", "<stdin>: ERROR: Transforming destructuring to the configured target environment is not supported yet\n")
 }

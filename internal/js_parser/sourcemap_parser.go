@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/logger"
@@ -26,6 +27,7 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 
 	var sources []string
 	var sourcesContent []sourcemap.SourceContent
+	var names []string
 	var mappingsRaw []uint16
 	var mappingsStart int32
 	hasVersion := false
@@ -75,6 +77,18 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 					}
 				}
 			}
+
+		case "names":
+			if value, ok := prop.ValueOrNil.Data.(*js_ast.EArray); ok {
+				names = nil
+				for _, item := range value.Items {
+					if element, ok := item.Data.(*js_ast.EString); ok {
+						names = append(names, helpers.UTF16ToString(element.Value))
+					} else {
+						names = append(names, "")
+					}
+				}
+			}
 		}
 	}
 
@@ -91,11 +105,13 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 	var mappings mappingArray
 	mappingsLen := len(mappingsRaw)
 	sourcesLen := len(sources)
-	generatedLine := 0
-	generatedColumn := 0
-	sourceIndex := 0
-	originalLine := 0
-	originalColumn := 0
+	namesLen := len(names)
+	var generatedLine int32
+	var generatedColumn int32
+	var sourceIndex int32
+	var originalLine int32
+	var originalColumn int32
+	var originalName int32
 	current := 0
 	errorText := ""
 	errorLen := 0
@@ -153,7 +169,7 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 			break
 		}
 		sourceIndex += sourceIndexDelta
-		if sourceIndex < 0 || sourceIndex >= sourcesLen {
+		if sourceIndex < 0 || sourceIndex >= int32(sourcesLen) {
 			errorText = fmt.Sprintf("Invalid source index value: %d", sourceIndex)
 			errorLen = i
 			break
@@ -190,8 +206,16 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 		}
 		current += i
 
-		// Ignore the optional name index
-		if _, i, ok := sourcemap.DecodeVLQUTF16(mappingsRaw[current:]); ok {
+		// Read the original name
+		var optionalName ast.Index32
+		if originalNameDelta, i, ok := sourcemap.DecodeVLQUTF16(mappingsRaw[current:]); ok {
+			originalName += originalNameDelta
+			if originalName < 0 || originalName >= int32(namesLen) {
+				errorText = fmt.Sprintf("Invalid name index value: %d", originalName)
+				errorLen = i
+				break
+			}
+			optionalName = ast.MakeIndex32(uint32(originalName))
 			current += i
 		}
 
@@ -208,11 +232,12 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 		}
 
 		mappings = append(mappings, sourcemap.Mapping{
-			GeneratedLine:   int32(generatedLine),
-			GeneratedColumn: int32(generatedColumn),
-			SourceIndex:     int32(sourceIndex),
-			OriginalLine:    int32(originalLine),
-			OriginalColumn:  int32(originalColumn),
+			GeneratedLine:   generatedLine,
+			GeneratedColumn: generatedColumn,
+			SourceIndex:     sourceIndex,
+			OriginalLine:    originalLine,
+			OriginalColumn:  originalColumn,
+			OriginalName:    optionalName,
 		})
 	}
 
@@ -235,6 +260,7 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 		Sources:        sources,
 		SourcesContent: sourcesContent,
 		Mappings:       mappings,
+		Names:          names,
 	}
 }
 

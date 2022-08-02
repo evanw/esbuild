@@ -20,7 +20,7 @@ test-all:
 	@$(MAKE) --no-print-directory -j6 test-common test-deno ts-type-tests test-wasm-node test-wasm-browser lib-typecheck
 
 check-go-version:
-	@go version | grep ' go1\.18\.3 ' || (echo 'Please install Go version 1.18.3' && false)
+	@go version | grep ' go1\.19 ' || (echo 'Please install Go version 1.19' && false)
 
 # Note: Don't add "-race" here by default. The Go race detector is currently
 # only supported on the following configurations:

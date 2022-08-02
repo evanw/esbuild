@@ -217,7 +217,10 @@ var require_test2 = __commonJS({
 });
 
 // entry.js
-console.log(require_test(), require_test2());
+console.log(
+  require_test(),
+  require_test2()
+);
 
 ================================================================================
 TestLoaderFileOneSourceTwoDifferentOutputPathsCSS

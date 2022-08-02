@@ -599,6 +599,28 @@ let buildTests = {
     assert.strictEqual(result.__esModule, true)
   },
 
+  async buildLoaderStdinBase64({ esbuild }) {
+    // UTF-16
+    var result = await esbuild.build({
+      stdin: {
+        contents: `\xFF`,
+        loader: 'base64',
+      },
+      write: false,
+    })
+    assert.strictEqual(result.outputFiles[0].text, `module.exports = "w78=";\n`)
+
+    // Binary
+    var result = await esbuild.build({
+      stdin: {
+        contents: new Uint8Array([0xFF]),
+        loader: 'base64',
+      },
+      write: false,
+    })
+    assert.strictEqual(result.outputFiles[0].text, `module.exports = "/w==";\n`)
+  },
+
   async fileLoader({ esbuild, testDir }) {
     const input = path.join(testDir, 'in.js')
     const data = path.join(testDir, 'data.bin')
@@ -712,17 +734,17 @@ let buildTests = {
     assert.deepStrictEqual(value.outputFiles.length, 3)
     assert.deepStrictEqual(value.outputFiles[0].path, path.join(outdir, 'a', 'in1.js'))
     assert.deepStrictEqual(value.outputFiles[1].path, path.join(outdir, 'b', 'in2.js'))
-    assert.deepStrictEqual(value.outputFiles[2].path, path.join(outdir, 'chunk-22JQAFLY.js'))
+    assert.deepStrictEqual(value.outputFiles[2].path, path.join(outdir, 'chunk-3MCOY2GR.js'))
     assert.deepStrictEqual(value.outputFiles[0].text, `import {
   foo
-} from "https://www.example.com/assets/chunk-22JQAFLY.js";
+} from "https://www.example.com/assets/chunk-3MCOY2GR.js";
 export {
   foo as input1
 };
 `)
     assert.deepStrictEqual(value.outputFiles[1].text, `import {
   foo
-} from "https://www.example.com/assets/chunk-22JQAFLY.js";
+} from "https://www.example.com/assets/chunk-3MCOY2GR.js";
 export {
   foo as input2
 };
@@ -736,6 +758,43 @@ export {
   foo
 };
 `)
+  },
+
+  async publicPathHashing({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    const data = path.join(testDir, 'data.bin')
+    const outdir = path.join(testDir, 'out')
+    await writeFileAsync(input, `export {default} from ${JSON.stringify(data)}`)
+    await writeFileAsync(data, `stuff`)
+
+    const [result1, result2] = await Promise.all([
+      esbuild.build({
+        entryPoints: [input],
+        bundle: true,
+        outdir,
+        format: 'cjs',
+        loader: { '.bin': 'file' },
+        entryNames: '[name]-[hash]',
+        write: false,
+      }),
+      esbuild.build({
+        entryPoints: [input],
+        bundle: true,
+        outdir,
+        format: 'cjs',
+        loader: { '.bin': 'file' },
+        entryNames: '[name]-[hash]',
+        publicPath: 'https://www.example.com',
+        write: false,
+      }),
+    ])
+
+    const names1 = result1.outputFiles.map(x => path.basename(x.path)).sort()
+    const names2 = result2.outputFiles.map(x => path.basename(x.path)).sort()
+
+    // Check that the public path is included in chunk hashes but not asset hashes
+    assert.deepStrictEqual(names1, ['data-BYATPJRB.bin', 'in-OGEHLZ72.js'])
+    assert.deepStrictEqual(names2, ['data-BYATPJRB.bin', 'in-IF4VVJK4.js'])
   },
 
   async fileLoaderPublicPath({ esbuild, testDir }) {
@@ -1028,7 +1087,7 @@ body {
     const inEntry1 = makeInPath(entry1);
     const inEntry2 = makeInPath(entry2);
     const inImported = makeInPath(imported);
-    const chunk = 'chunk-MDV3DDWZ.js';
+    const chunk = 'chunk-ELD4XOGW.js';
     const outEntry1 = makeOutPath(path.basename(entry1));
     const outEntry2 = makeOutPath(path.basename(entry2));
     const outChunk = makeOutPath(chunk);
@@ -3110,10 +3169,10 @@ async function futureSyntax(esbuild, js, targetBelow, targetAbove) {
 let transformTests = {
   async transformWithNonString({ esbuild }) {
     try {
-      await esbuild.transform(Buffer.from(`1+2`))
+      await esbuild.transform(Object.create({ toString() { return '1+2' } }))
       throw new Error('Expected an error to be thrown');
     } catch (e) {
-      assert.strictEqual(e.errors[0].text, 'The input to "transform" must be a string')
+      assert.strictEqual(e.errors ? e.errors[0].text : e + '', 'The input to "transform" must be a string or a Uint8Array')
     }
   },
 
@@ -3137,6 +3196,16 @@ let transformTests = {
         throw e;
       }
     }
+  },
+
+  async transformLoaderBase64({ esbuild }) {
+    // UTF-16
+    var result = await esbuild.transform(`\xFF`, { loader: 'base64' })
+    assert.strictEqual(result.code, `module.exports = "w78=";\n`)
+
+    // Binary
+    var result = await esbuild.transform(new Uint8Array([0xFF]), { loader: 'base64' })
+    assert.strictEqual(result.code, `module.exports = "/w==";\n`)
   },
 
   async avoidTDZ({ esbuild }) {
@@ -3489,6 +3558,37 @@ let transformTests = {
       loader: 'jsx',
     })
     assert.strictEqual(code2, `/* @__PURE__ */ factory(fragment, null, /* @__PURE__ */ factory("div", null));\n`)
+
+    const { code: code3 } = await esbuild.transform(`<><div/></>`, {
+      tsconfigRaw: {
+        compilerOptions: {
+          jsx: 'react-jsx'
+        },
+      },
+      loader: 'jsx',
+    })
+    assert.strictEqual(code3, `import { Fragment, jsx } from "react/jsx-runtime";\n/* @__PURE__ */ jsx(Fragment, {\n  children: /* @__PURE__ */ jsx("div", {})\n});\n`)
+
+    const { code: code4 } = await esbuild.transform(`<><div/></>`, {
+      tsconfigRaw: {
+        compilerOptions: {
+          jsx: 'react-jsx',
+          jsxImportSource: 'notreact'
+        },
+      },
+      loader: 'jsx',
+    })
+    assert.strictEqual(code4, `import { Fragment, jsx } from "notreact/jsx-runtime";\n/* @__PURE__ */ jsx(Fragment, {\n  children: /* @__PURE__ */ jsx("div", {})\n});\n`)
+
+    const { code: code5 } = await esbuild.transform(`<><div/></>`, {
+      tsconfigRaw: {
+        compilerOptions: {
+          jsx: 'react-jsxdev'
+        },
+      },
+      loader: 'jsx',
+    })
+    assert.strictEqual(code5, `import { Fragment, jsxDEV } from "react/jsx-dev-runtime";\n/* @__PURE__ */ jsxDEV(Fragment, {\n  children: /* @__PURE__ */ jsxDEV("div", {}, void 0, false, {\n    fileName: "<stdin>",\n    lineNumber: 1,\n    columnNumber: 3\n  }, this)\n}, void 0, false, {\n  fileName: "<stdin>",\n  lineNumber: 1,\n  columnNumber: 1\n}, this);\n`)
   },
 
   // Note: tree shaking is disabled when the output format isn't IIFE
@@ -3844,6 +3944,21 @@ let transformTests = {
   async jsxPreserve({ esbuild }) {
     const { code } = await esbuild.transform(`console.log(<div/>)`, { loader: 'jsx', jsx: 'preserve' })
     assert.strictEqual(code, `console.log(<div />);\n`)
+  },
+
+  async jsxRuntimeAutomatic({ esbuild }) {
+    const { code } = await esbuild.transform(`console.log(<div/>)`, { loader: 'jsx', jsx: 'automatic' })
+    assert.strictEqual(code, `import { jsx } from "react/jsx-runtime";\nconsole.log(/* @__PURE__ */ jsx("div", {}));\n`)
+  },
+
+  async jsxDev({ esbuild }) {
+    const { code } = await esbuild.transform(`console.log(<div/>)`, { loader: 'jsx', jsx: 'automatic', jsxDev: true })
+    assert.strictEqual(code, `import { jsxDEV } from "react/jsx-dev-runtime";\nconsole.log(/* @__PURE__ */ jsxDEV("div", {}, void 0, false, {\n  fileName: "<stdin>",\n  lineNumber: 1,\n  columnNumber: 13\n}, this));\n`)
+  },
+
+  async jsxImportSource({ esbuild }) {
+    const { code } = await esbuild.transform(`console.log(<div/>)`, { loader: 'jsx', jsx: 'automatic', jsxImportSource: 'notreact' })
+    assert.strictEqual(code, `import { jsx } from "notreact/jsx-runtime";\nconsole.log(/* @__PURE__ */ jsx("div", {}));\n`)
   },
 
   async ts({ esbuild }) {
@@ -4283,6 +4398,16 @@ let transformTests = {
     `, { minifyIdentifiers: true })
     const result = new Function('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$', code)(1)
     assert.strictEqual(result, 3)
+  },
+
+  async platformNode({ esbuild }) {
+    const { code } = await esbuild.transform(`export let foo = 123`, { format: 'cjs', platform: 'node' })
+    assert(code.slice(code.indexOf('let foo')), `let foo = 123;
+// Annotate the CommonJS export names for ESM import in node:
+0 && (module.exports = {
+  foo
+});
+`)
   },
 
   async dynamicImportString({ esbuild }) {
@@ -4748,10 +4873,10 @@ let syncTests = {
 
   async transformSyncWithNonString({ esbuild }) {
     try {
-      esbuild.transformSync(Buffer.from(`1+2`))
+      esbuild.transformSync(Object.create({ toString() { return '1+2' } }))
       throw new Error('Expected an error to be thrown');
     } catch (e) {
-      assert.strictEqual(e.errors[0].text, 'The input to "transform" must be a string')
+      assert.strictEqual(e.errors ? e.errors[0].text : e + '', 'The input to "transform" must be a string or a Uint8Array')
     }
   },
 

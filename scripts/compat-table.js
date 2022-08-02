@@ -101,6 +101,23 @@ const engines = [
   'rhino',
 ]
 
+function getValueOfTest(value) {
+  // Handle values like this:
+  //
+  //   {
+  //     val: true,
+  //     note_id: "ff-shorthand-methods",
+  //     ...
+  //   }
+  //
+  if (typeof value === 'object' && value !== null) {
+    return value.val === true
+  }
+
+  // String values such as "flagged" are considered to be false
+  return value === true
+}
+
 function mergeVersions(target, res) {
   // The original data set will contain something like "chrome44: true" for a
   // given feature. And the interpolation script will expand this to something
@@ -109,7 +126,7 @@ function mergeVersions(target, res) {
   const lowestVersionMap = {}
 
   for (const key in res) {
-    if (res[key] === true) {
+    if (getValueOfTest(res[key])) {
       const match = /^([a-z_]+)[0-9_]+$/.exec(key)
       if (match) {
         const engine = match[1]
@@ -316,9 +333,17 @@ for (const test of [...es5.tests, ...es6.tests, ...stage4.tests, ...stage1to3.te
   if (feature) {
     feature.found = true
     if (test.subtests) {
-      for (const subtest of test.subtests) {
-        mergeVersions(feature.target, subtest.res)
-      }
+      const res = {}
+
+      // Intersect all subtests (so a key is only true if it's true in all subtests)
+      for (const subtest of test.subtests)
+        for (const key in subtest.res)
+          res[key] = true
+      for (const subtest of test.subtests)
+        for (const key in res)
+          res[key] &&= getValueOfTest(subtest.res[key] ?? false)
+
+      mergeVersions(feature.target, res)
     } else {
       mergeVersions(feature.target, test.res)
     }

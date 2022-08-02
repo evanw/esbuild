@@ -863,7 +863,7 @@ func (p *parser) isTSArrowFnJSX() (isTSArrowFn bool) {
 	// Look ahead to see if this should be an arrow function instead
 	if p.lexer.Token == js_lexer.TIdentifier {
 		p.lexer.Next()
-		if p.lexer.Token == js_lexer.TComma {
+		if p.lexer.Token == js_lexer.TComma || p.lexer.Token == js_lexer.TEquals {
 			isTSArrowFn = true
 		} else if p.lexer.Token == js_lexer.TExtends {
 			p.lexer.Next()

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"unicode/utf8"
 
+	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/logger"
 )
@@ -12,15 +13,17 @@ type Mapping struct {
 	GeneratedLine   int32 // 0-based
 	GeneratedColumn int32 // 0-based count of UTF-16 code units
 
-	SourceIndex    int32 // 0-based
-	OriginalLine   int32 // 0-based
-	OriginalColumn int32 // 0-based count of UTF-16 code units
+	SourceIndex    int32       // 0-based
+	OriginalLine   int32       // 0-based
+	OriginalColumn int32       // 0-based count of UTF-16 code units
+	OriginalName   ast.Index32 // 0-based, optional
 }
 
 type SourceMap struct {
 	Sources        []string
 	SourcesContent []SourceContent
 	Mappings       []Mapping
+	Names          []string
 }
 
 type SourceContent struct {
@@ -79,7 +82,7 @@ var base64 = []byte("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456
 //   V    V
 //   101011
 //
-func EncodeVLQ(value int) []byte {
+func encodeVLQ(encoded []byte, value int) []byte {
 	var vlq int
 	if value < 0 {
 		vlq = ((-value) << 1) | 1
@@ -87,13 +90,13 @@ func EncodeVLQ(value int) []byte {
 		vlq = value << 1
 	}
 
-	// Handle the common case up front without allocations
+	// Handle the common case
 	if (vlq >> 5) == 0 {
 		digit := vlq & 31
-		return base64[digit : digit+1]
+		encoded = append(encoded, base64[digit])
+		return encoded
 	}
 
-	encoded := []byte{}
 	for {
 		digit := vlq & 31
 		vlq >>= 5
@@ -144,7 +147,7 @@ func DecodeVLQ(encoded []byte, start int) (int, int) {
 	return value, start
 }
 
-func DecodeVLQUTF16(encoded []uint16) (int, int, bool) {
+func DecodeVLQUTF16(encoded []uint16) (int32, int, bool) {
 	n := len(encoded)
 	if n == 0 {
 		return 0, 0, false
@@ -153,12 +156,12 @@ func DecodeVLQUTF16(encoded []uint16) (int, int, bool) {
 	// Scan over the input
 	current := 0
 	shift := 0
-	vlq := 0
+	var vlq int32
 	for {
 		if current >= n {
 			return 0, 0, false
 		}
-		index := bytes.IndexByte(base64, byte(encoded[current]))
+		index := int32(bytes.IndexByte(base64, byte(encoded[current])))
 		if index < 0 {
 			return 0, 0, false
 		}
@@ -318,6 +321,13 @@ func (pieces SourceMapPieces) Finalize(shifts []SourceMapShift) []byte {
 		_, current = DecodeVLQ(pieces.Mappings, current) // The original line
 		_, current = DecodeVLQ(pieces.Mappings, current) // The original column
 
+		// Skip over the original name
+		if current < len(pieces.Mappings) {
+			if c := pieces.Mappings[current]; c != ',' && c != ';' {
+				_, current = DecodeVLQ(pieces.Mappings, current)
+			}
+		}
+
 		// Skip a trailing comma
 		if current < len(pieces.Mappings) && pieces.Mappings[current] == ',' {
 			current++
@@ -351,7 +361,7 @@ func (pieces SourceMapPieces) Finalize(shifts []SourceMapShift) []byte {
 			panic("Unexpected line change when shifting source maps")
 		}
 		shiftColumnDelta := shift.After.Columns - shift.Before.Columns
-		j.AddBytes(EncodeVLQ(generatedColumnDelta + shiftColumnDelta - prevShiftColumnDelta))
+		j.AddBytes(encodeVLQ(nil, generatedColumnDelta+shiftColumnDelta-prevShiftColumnDelta))
 		prevShiftColumnDelta = shiftColumnDelta
 
 		// Finally, start the next run after the end of this generated column offset
@@ -378,6 +388,8 @@ type SourceMapState struct {
 	SourceIndex     int
 	OriginalLine    int
 	OriginalColumn  int
+	OriginalName    int
+	HasOriginalName bool
 }
 
 // Source map chunks are computed in parallel for speed. Each chunk is relative
@@ -388,7 +400,7 @@ type SourceMapState struct {
 // After all chunks are computed, they are joined together in a second pass.
 // This rewrites the first mapping in each chunk to be relative to the end
 // state of the previous chunk.
-func AppendSourceMapChunk(j *helpers.Joiner, prevEndState SourceMapState, startState SourceMapState, sourceMap []byte) {
+func AppendSourceMapChunk(j *helpers.Joiner, prevEndState SourceMapState, startState SourceMapState, buffer MappingsBuffer) {
 	// Handle line breaks in between this mapping and the previous one
 	if startState.GeneratedLine != 0 {
 		j.AddBytes(bytes.Repeat([]byte{';'}, startState.GeneratedLine))
@@ -397,12 +409,11 @@ func AppendSourceMapChunk(j *helpers.Joiner, prevEndState SourceMapState, startS
 
 	// Skip past any leading semicolons, which indicate line breaks
 	semicolons := 0
-	for sourceMap[semicolons] == ';' {
+	for buffer.Data[semicolons] == ';' {
 		semicolons++
 	}
 	if semicolons > 0 {
-		j.AddBytes(sourceMap[:semicolons])
-		sourceMap = sourceMap[semicolons:]
+		j.AddBytes(buffer.Data[:semicolons])
 		prevEndState.GeneratedColumn = 0
 		startState.GeneratedColumn = 0
 	}
@@ -410,11 +421,16 @@ func AppendSourceMapChunk(j *helpers.Joiner, prevEndState SourceMapState, startS
 	// Strip off the first mapping from the buffer. The first mapping should be
 	// for the start of the original file (the printer always generates one for
 	// the start of the file).
-	generatedColumn, i := DecodeVLQ(sourceMap, 0)
-	sourceIndex, i := DecodeVLQ(sourceMap, i)
-	originalLine, i := DecodeVLQ(sourceMap, i)
-	originalColumn, i := DecodeVLQ(sourceMap, i)
-	sourceMap = sourceMap[i:]
+	//
+	// Note that we do not want to strip off the original name, even though it
+	// could be a part of the first mapping. This will be handled using a special
+	// case below instead. Original names are optional and are often omitted, so
+	// we handle it uniformly by saving an index to the first original name,
+	// which may or may not be a part of the first mapping.
+	generatedColumn, i := DecodeVLQ(buffer.Data, semicolons)
+	sourceIndex, i := DecodeVLQ(buffer.Data, i)
+	originalLine, i := DecodeVLQ(buffer.Data, i)
+	originalColumn, i := DecodeVLQ(buffer.Data, i)
 
 	// Rewrite the first mapping to be relative to the end state of the previous
 	// chunk. We now know what the end state is because we're in the second pass
@@ -423,35 +439,46 @@ func AppendSourceMapChunk(j *helpers.Joiner, prevEndState SourceMapState, startS
 	startState.GeneratedColumn += generatedColumn
 	startState.OriginalLine += originalLine
 	startState.OriginalColumn += originalColumn
-	j.AddBytes(appendMappingToBuffer(nil, j.LastByte(), prevEndState, startState))
+	prevEndState.HasOriginalName = false // This is handled separately below
+	rewritten, _ := appendMappingToBuffer(nil, j.LastByte(), prevEndState, startState)
+	j.AddBytes(rewritten)
 
-	// Then append everything after that without modification.
-	j.AddBytes(sourceMap)
+	// Next, if there's an original name, we need to rewrite that as well to be
+	// relative to that of the previous chunk.
+	if buffer.FirstNameOffset.IsValid() {
+		before := int(buffer.FirstNameOffset.GetIndex())
+		originalName, after := DecodeVLQ(buffer.Data, before)
+		originalName += startState.OriginalName - prevEndState.OriginalName
+		j.AddBytes(buffer.Data[i:before])
+		j.AddBytes(encodeVLQ(nil, originalName))
+		j.AddBytes(buffer.Data[after:])
+		return
+	}
+
+	// Otherwise, just append everything after that without modification
+	j.AddBytes(buffer.Data[i:])
 }
 
-func appendMappingToBuffer(buffer []byte, lastByte byte, prevState SourceMapState, currentState SourceMapState) []byte {
+func appendMappingToBuffer(buffer []byte, lastByte byte, prevState SourceMapState, currentState SourceMapState) ([]byte, ast.Index32) {
 	// Put commas in between mappings
 	if lastByte != 0 && lastByte != ';' && lastByte != '"' {
 		buffer = append(buffer, ',')
 	}
 
-	// Record the generated column (the line is recorded using ';' elsewhere)
-	buffer = append(buffer, EncodeVLQ(currentState.GeneratedColumn-prevState.GeneratedColumn)...)
-	prevState.GeneratedColumn = currentState.GeneratedColumn
+	// Record the mapping (note that the generated line is recorded using ';' elsewhere)
+	buffer = encodeVLQ(buffer, currentState.GeneratedColumn-prevState.GeneratedColumn)
+	buffer = encodeVLQ(buffer, currentState.SourceIndex-prevState.SourceIndex)
+	buffer = encodeVLQ(buffer, currentState.OriginalLine-prevState.OriginalLine)
+	buffer = encodeVLQ(buffer, currentState.OriginalColumn-prevState.OriginalColumn)
 
-	// Record the generated source
-	buffer = append(buffer, EncodeVLQ(currentState.SourceIndex-prevState.SourceIndex)...)
-	prevState.SourceIndex = currentState.SourceIndex
+	// Record the optional original name
+	var nameOffset ast.Index32
+	if currentState.HasOriginalName {
+		nameOffset = ast.MakeIndex32(uint32(len(buffer)))
+		buffer = encodeVLQ(buffer, currentState.OriginalName-prevState.OriginalName)
+	}
 
-	// Record the original line
-	buffer = append(buffer, EncodeVLQ(currentState.OriginalLine-prevState.OriginalLine)...)
-	prevState.OriginalLine = currentState.OriginalLine
-
-	// Record the original column
-	buffer = append(buffer, EncodeVLQ(currentState.OriginalColumn-prevState.OriginalColumn)...)
-	prevState.OriginalColumn = currentState.OriginalColumn
-
-	return buffer
+	return buffer, nameOffset
 }
 
 type LineOffsetTable struct {
@@ -549,8 +576,14 @@ func GenerateLineOffsetTables(contents string, approximateLineCount int32) []Lin
 	return lineOffsetTables
 }
 
+type MappingsBuffer struct {
+	Data            []byte
+	FirstNameOffset ast.Index32
+}
+
 type Chunk struct {
-	Buffer []byte
+	Buffer      MappingsBuffer
+	QuotedNames [][]byte
 
 	// This end state will be used to rewrite the start of the following source
 	// map chunk so that the delta-encoded VLQ numbers are preserved.
@@ -567,12 +600,18 @@ type Chunk struct {
 type ChunkBuilder struct {
 	inputSourceMap      *SourceMap
 	sourceMap           []byte
+	quotedNames         [][]byte
+	namesMap            map[string]uint32
 	lineOffsetTables    []LineOffsetTable
+	prevOriginalName    string
 	prevState           SourceMapState
 	lastGeneratedUpdate int
 	generatedColumn     int
-	prevLoc             logger.Loc
+	prevGeneratedLen    int
+	prevOriginalLoc     logger.Loc
+	firstNameOffset     ast.Index32
 	hasPrevState        bool
+	asciiOnly           bool
 
 	// This is a workaround for a bug in the popular "source-map" library:
 	// https://github.com/mozilla/source-map/issues/261. The library will
@@ -586,11 +625,13 @@ type ChunkBuilder struct {
 	coverLinesWithoutMappings bool
 }
 
-func MakeChunkBuilder(inputSourceMap *SourceMap, lineOffsetTables []LineOffsetTable) ChunkBuilder {
+func MakeChunkBuilder(inputSourceMap *SourceMap, lineOffsetTables []LineOffsetTable, asciiOnly bool) ChunkBuilder {
 	return ChunkBuilder{
 		inputSourceMap:   inputSourceMap,
-		prevLoc:          logger.Loc{Start: -1},
+		prevOriginalLoc:  logger.Loc{Start: -1},
 		lineOffsetTables: lineOffsetTables,
+		asciiOnly:        asciiOnly,
+		namesMap:         make(map[string]uint32),
 
 		// We automatically repeat the previous source mapping if we ever generate
 		// a line that doesn't start with a mapping. This helps give files more
@@ -607,11 +648,15 @@ func MakeChunkBuilder(inputSourceMap *SourceMap, lineOffsetTables []LineOffsetTa
 	}
 }
 
-func (b *ChunkBuilder) AddSourceMapping(loc logger.Loc, output []byte) {
-	if loc == b.prevLoc {
+func (b *ChunkBuilder) AddSourceMapping(originalLoc logger.Loc, originalName string, output []byte) {
+	// Avoid generating duplicate mappings
+	if originalLoc == b.prevOriginalLoc && (b.prevGeneratedLen == len(output) || b.prevOriginalName == originalName) {
 		return
 	}
-	b.prevLoc = loc
+
+	b.prevOriginalLoc = originalLoc
+	b.prevGeneratedLen = len(output)
+	b.prevOriginalName = originalName
 
 	// Binary search to find the line
 	lineOffsetTables := b.lineOffsetTables
@@ -620,7 +665,7 @@ func (b *ChunkBuilder) AddSourceMapping(loc logger.Loc, output []byte) {
 	for count > 0 {
 		step := count / 2
 		i := originalLine + step
-		if lineOffsetTables[i].byteOffsetToStartOfLine <= loc.Start {
+		if lineOffsetTables[i].byteOffsetToStartOfLine <= originalLoc.Start {
 			originalLine = i + 1
 			count = count - step - 1
 		} else {
@@ -631,7 +676,7 @@ func (b *ChunkBuilder) AddSourceMapping(loc logger.Loc, output []byte) {
 
 	// Use the line to compute the column
 	line := &lineOffsetTables[originalLine]
-	originalColumn := int(loc.Start - line.byteOffsetToStartOfLine)
+	originalColumn := int(originalLoc.Start - line.byteOffsetToStartOfLine)
 	if line.columnsForNonASCII != nil && originalColumn >= int(line.byteOffsetToFirstNonASCII) {
 		originalColumn = int(line.columnsForNonASCII[originalColumn-int(line.byteOffsetToFirstNonASCII)])
 	}
@@ -650,7 +695,7 @@ func (b *ChunkBuilder) AddSourceMapping(loc logger.Loc, output []byte) {
 		})
 	}
 
-	b.appendMapping(SourceMapState{
+	b.appendMapping(originalName, SourceMapState{
 		GeneratedLine:   b.prevState.GeneratedLine,
 		GeneratedColumn: b.generatedColumn,
 		OriginalLine:    originalLine,
@@ -671,7 +716,11 @@ func (b *ChunkBuilder) GenerateChunk(output []byte) Chunk {
 		}
 	}
 	return Chunk{
-		Buffer:               b.sourceMap,
+		Buffer: MappingsBuffer{
+			Data:            b.sourceMap,
+			FirstNameOffset: b.firstNameOffset,
+		},
+		QuotedNames:          b.quotedNames,
 		EndState:             b.prevState,
 		FinalGeneratedColumn: b.generatedColumn,
 		ShouldIgnore:         shouldIgnore,
@@ -725,7 +774,7 @@ func (b *ChunkBuilder) updateGeneratedLineAndColumn(output []byte) {
 	b.lastGeneratedUpdate = len(output)
 }
 
-func (b *ChunkBuilder) appendMapping(currentState SourceMapState) {
+func (b *ChunkBuilder) appendMapping(originalName string, currentState SourceMapState) {
 	// If the input file had a source map, map all the way back to the original
 	if b.inputSourceMap != nil {
 		mapping := b.inputSourceMap.Find(
@@ -740,6 +789,26 @@ func (b *ChunkBuilder) appendMapping(currentState SourceMapState) {
 		currentState.SourceIndex = int(mapping.SourceIndex)
 		currentState.OriginalLine = int(mapping.OriginalLine)
 		currentState.OriginalColumn = int(mapping.OriginalColumn)
+
+		// Map all the way back to the original name if present. Otherwise, keep
+		// the original name from esbuild, which corresponds to the name in the
+		// intermediate source code. This is important for tools that only emit
+		// a name mapping when the name is different than the original name.
+		if mapping.OriginalName.IsValid() {
+			originalName = b.inputSourceMap.Names[mapping.OriginalName.GetIndex()]
+		}
+	}
+
+	// Optionally reference the original name
+	if originalName != "" {
+		i, ok := b.namesMap[originalName]
+		if !ok {
+			i = uint32(len(b.quotedNames))
+			b.quotedNames = append(b.quotedNames, helpers.QuoteForJSON(originalName, b.asciiOnly))
+			b.namesMap[originalName] = i
+		}
+		currentState.OriginalName = int(i)
+		currentState.HasOriginalName = true
 	}
 
 	b.appendMappingWithoutRemapping(currentState)
@@ -751,7 +820,16 @@ func (b *ChunkBuilder) appendMappingWithoutRemapping(currentState SourceMapState
 		lastByte = b.sourceMap[len(b.sourceMap)-1]
 	}
 
-	b.sourceMap = appendMappingToBuffer(b.sourceMap, lastByte, b.prevState, currentState)
+	var nameOffset ast.Index32
+	b.sourceMap, nameOffset = appendMappingToBuffer(b.sourceMap, lastByte, b.prevState, currentState)
+	prevOriginalName := b.prevState.OriginalName
 	b.prevState = currentState
+	if !currentState.HasOriginalName {
+		// Revert the original name change if it's invalid
+		b.prevState.OriginalName = prevOriginalName
+	} else if !b.firstNameOffset.IsValid() {
+		// Keep track of the first name offset so we can jump right to it later
+		b.firstNameOffset = nameOffset
+	}
 	b.hasPrevState = true
 }

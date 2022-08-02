@@ -13,10 +13,39 @@ import (
 )
 
 type JSXOptions struct {
-	Factory  DefineExpr
-	Fragment DefineExpr
-	Parse    bool
-	Preserve bool
+	Factory          DefineExpr
+	Fragment         DefineExpr
+	Parse            bool
+	Preserve         bool
+	AutomaticRuntime bool
+	ImportSource     string
+	Development      bool
+}
+
+type TSJSX uint8
+
+const (
+	TSJSXNone TSJSX = iota
+	TSJSXPreserve
+	TSJSXReact
+	TSJSXReactJSX
+	TSJSXReactJSXDev
+)
+
+func (jsxOptions *JSXOptions) SetOptionsFromTSJSX(tsx TSJSX) {
+	switch tsx {
+	case TSJSXPreserve:
+		jsxOptions.Preserve = true
+	case TSJSXReact:
+		jsxOptions.AutomaticRuntime = false
+		jsxOptions.Development = false
+	case TSJSXReactJSX:
+		jsxOptions.AutomaticRuntime = true
+		// Don't set Development = false implicitly
+	case TSJSXReactJSXDev:
+		jsxOptions.AutomaticRuntime = true
+		jsxOptions.Development = true
+	}
 }
 
 type TSOptions struct {
@@ -276,6 +305,7 @@ type Options struct {
 	WriteToStdout bool
 
 	OmitRuntimeForTests     bool
+	OmitJSXRuntimeForTests  bool
 	UnusedImportFlagsTS     UnusedImportFlagsTS
 	UseDefineForClassFields MaybeBool
 	ASCIIOnly               bool

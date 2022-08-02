@@ -1,5 +1,263 @@
 # Changelog
 
+## Unreleased
+
+* Allow binary data as input to the JS `transform` and `build` APIs ([#2424](https://github.com/evanw/esbuild/issues/2424))
+
+    Previously esbuild's `transform` and `build` APIs could only take a string. However, some people want to use esbuild to convert binary data to base64 text. This is problematic because JavaScript strings represent UTF-16 text and esbuild internally operates on arrays of bytes, so all strings coming from JavaScript undergo UTF-16 to UTF-8 conversion before use. This meant that using esbuild in this way was doing base64 encoding of the UTF-8 encoding of the text, which was undesired.
+
+    With this release, esbuild now accepts `Uint8Array` in addition to string as an input format for the `transform` and `build` APIs. Now you can use esbuild to convert binary data to base64 text:
+
+    ```js
+    // Original code
+    import esbuild from 'esbuild'
+    console.log([
+      (await esbuild.transform('\xFF', { loader: 'base64' })).code,
+      (await esbuild.build({ stdin: { contents: '\xFF', loader: 'base64' }, write: false })).outputFiles[0].text,
+    ])
+    console.log([
+      (await esbuild.transform(new Uint8Array([0xFF]), { loader: 'base64' })).code,
+      (await esbuild.build({ stdin: { contents: new Uint8Array([0xFF]), loader: 'base64' }, write: false })).outputFiles[0].text,
+    ])
+
+    // Old output
+    [ 'module.exports = "w78=";\n', 'module.exports = "w78=";\n' ]
+    /* ERROR: The input to "transform" must be a string */
+
+    // New output
+    [ 'module.exports = "w78=";\n', 'module.exports = "w78=";\n' ]
+    [ 'module.exports = "/w==";\n', 'module.exports = "/w==";\n' ]
+    ```
+
+* Update the getter for `text` in build results ([#2423](https://github.com/evanw/esbuild/issues/2423))
+
+    Output files in build results returned from esbuild's JavaScript API have both a `contents` and a `text` property to return the contents of the output file. The `contents` property is a binary UTF-8 Uint8Array and the `text` property is a JavaScript UTF-16 string. The `text` property is a getter that does the UTF-8 to UTF-16 conversion only if it's needed for better performance.
+
+    Previously if you mutate the build results object, you had to overwrite both `contents` and `text` since the value returned from the `text` getter is the original text returned by esbuild. Some people find this confusing so with this release, the getter for `text` has been updated to do the UTF-8 to UTF-16 conversion on the current value of the `contents` property instead of the original value.
+
+## 0.14.51
+
+* Add support for React 17's `automatic` JSX transform ([#334](https://github.com/evanw/esbuild/issues/334), [#718](https://github.com/evanw/esbuild/issues/718), [#1172](https://github.com/evanw/esbuild/issues/1172), [#2318](https://github.com/evanw/esbuild/issues/2318), [#2349](https://github.com/evanw/esbuild/pull/2349))
+
+    This adds support for the [new "automatic" JSX runtime from React 17+](https://reactjs.org/blog/2020/09/22/introducing-the-new-jsx-transform.html) to esbuild for both the build and transform APIs.
+
+    **New CLI flags and API options:**
+    - `--jsx`, `jsx` &mdash; Set this to `"automatic"` to opt in to this new transform
+    - `--jsx-dev`, `jsxDev` &mdash; Toggles development mode for the automatic runtime
+    - `--jsx-import-source`, `jsxImportSource` &mdash; Overrides the root import for runtime functions (default `"react"`)
+
+    **New JSX pragma comments:**
+    - `@jsxRuntime` &mdash; Sets the runtime (`automatic` or `classic`)
+    - `@jsxImportSource` &mdash; Sets the import source (only valid with automatic runtime)
+
+    The existing `@jsxFragment` and `@jsxFactory` pragma comments are only valid with "classic" runtime.
+
+    **TSConfig resolving:**
+    Along with accepting the new options directly via CLI or API, option inference from `tsconfig.json` compiler options was also implemented:
+
+    - `"jsx": "preserve"` or `"jsx": "react-native"` &rarr; Same as `--jsx=preserve` in esbuild
+    - `"jsx": "react"` &rarr; Same as `--jsx=transform` in esbuild (which is the default behavior)
+    - `"jsx": "react-jsx"` &rarr; Same as `--jsx=automatic` in esbuild
+    - `"jsx": "react-jsxdev"` &rarr; Same as `--jsx=automatic --jsx-dev` in esbuild
+
+    It also reads the value of `"jsxImportSource"` from `tsconfig.json` if specified.
+
+    For `react-jsx` it's important to note that it doesn't implicitly disable `--jsx-dev`. This is to support the case where a user sets `"react-jsx"` in their `tsconfig.json` but then toggles development mode directly in esbuild.
+
+    **esbuild vs Babel vs TS vs...**
+
+    There are a few differences between the various technologies that implement automatic JSX runtimes. The JSX transform in esbuild follows a mix of Babel's and TypeScript's behavior:
+
+    - When an element has `__source` or `__self` props:
+        - Babel: Print an error about a deprecated transform plugin
+        - TypeScript: Allow the props
+        - swc: Hard crash
+        - **esbuild**: Print an error &mdash; Following Babel was chosen for this one because this might help people catch configuration issues where JSX files are being parsed by multiple tools
+
+    - Element has an "implicit true" key prop, e.g. `<a key />`:
+        - Babel: Print an error indicating that "key" props require an explicit value
+        - TypeScript: Silently omit the "key" prop
+        - swc: Hard crash
+        - **esbuild**: Print an error like Babel &mdash; This might help catch legitimate programming mistakes
+
+    - Element has spread children, e.g. `<a>{...children}</a>`
+        - Babel: Print an error stating that React doesn't support spread children
+        - TypeScript: Use static jsx function and pass children as-is, including spread operator
+        - swc: same as Babel
+        - **esbuild**: Same as TypeScript
+
+    Also note that TypeScript has some bugs regarding JSX development mode and the generation of `lineNumber` and `columnNumber` values. Babel's values are accurate though, so esbuild's line and column numbers match Babel. Both numbers are 1-based and columns are counted in terms of UTF-16 code units.
+
+    This feature was contributed by [@jgoz](https://github.com/jgoz).
+
+## 0.14.50
+
+* Emit `names` in source maps ([#1296](https://github.com/evanw/esbuild/issues/1296))
+
+    The [source map specification](https://sourcemaps.info/spec.html) includes an optional `names` field that can associate an identifier with a mapping entry. This can be used to record the original name for an identifier, which is useful if the identifier was renamed to something else in the generated code. When esbuild was originally written, this field wasn't widely used, but now there are some debuggers that make use of it to provide better debugging of minified code. With this release, esbuild now includes a `names` field in the source maps that it generates. To save space, the original name is only recorded when it's different from the final name.
+
+* Update parser for arrow functions with initial default type parameters in `.tsx` files ([#2410](https://github.com/evanw/esbuild/issues/2410))
+
+    TypeScript 4.6 introduced a [change to the parsing of JSX syntax in `.tsx` files](https://github.com/microsoft/TypeScript/issues/47062). Now a `<` token followed by an identifier and then a `=` token is parsed as an arrow function with a default type parameter instead of as a JSX element. This release updates esbuild's parser to match TypeScript's parser.
+
+* Fix an accidental infinite loop with `--define` substitution ([#2407](https://github.com/evanw/esbuild/issues/2407))
+
+    This is a fix for a regression that was introduced in esbuild version 0.14.44 where certain `--define` substitutions could result in esbuild crashing with a stack overflow. The problem was an incorrect fix for #2292. The fix merged the code paths for `--define` and `--jsx-factory` rewriting since the value substitution is now the same for both. However, doing this accidentally made `--define` substitution recursive since the JSX factory needs to be able to match against `--define` substitutions to integrate with the `--inject` feature. The fix is to only do one additional level of matching against define substitutions, and to only do this for JSX factories. Now these cases are able to build successfully without a stack overflow.
+
+* Include the "public path" value in hashes ([#2403](https://github.com/evanw/esbuild/issues/2403))
+
+    The `--public-path=` configuration value affects the paths that esbuild uses to reference files from other files and is used in various situations such as cross-chunk imports in JS and references to asset files from CSS files. However, it wasn't included in the hash calculations used for file names due to an oversight. This meant that changing the public path setting incorrectly didn't result in the hashes in file names changing even though the contents of the files changed. This release fixes the issue by including a hash of the public path in all non-asset output files.
+
+* Fix a cross-platform consistency bug ([#2383](https://github.com/evanw/esbuild/issues/2383))
+
+    Previously esbuild would minify `0xFFFF_FFFF_FFFF_FFFF` as `0xffffffffffffffff` (18 bytes) on arm64 chips and as `18446744073709552e3` (19 bytes) on x86_64 chips. The reason was that the number was converted to a 64-bit unsigned integer internally for printing as hexadecimal, the 64-bit floating-point number `0xFFFF_FFFF_FFFF_FFFF` is actually `0x1_0000_0000_0000_0180` (i.e. it's rounded up, not down), and converting `float64` to `uint64` is implementation-dependent in Go when the input is out of bounds. This was fixed by changing the upper limit for which esbuild uses hexadecimal numbers during minification to `0xFFFF_FFFF_FFFF_F800`, which is the next representable 64-bit floating-point number below `0x1_0000_0000_0000_0180`, and which fits in a `uint64`. As a result, esbuild will now consistently never minify `0xFFFF_FFFF_FFFF_FFFF` as `0xffffffffffffffff` anymore, which means the output should now be consistent across platforms.
+
+* Fix a hang with the synchronous API when the package is corrupted ([#2396](https://github.com/evanw/esbuild/issues/2396))
+
+    An error message is already thrown when the esbuild package is corrupted and esbuild can't be run. However, if you are using a synchronous call in the JavaScript API in worker mode, esbuild will use a child worker to initialize esbuild once so that the overhead of initializing esbuild can be amortized across multiple synchronous API calls. However, errors thrown during initialization weren't being propagated correctly which resulted in a hang while the main thread waited forever for the child worker to finish initializing. With this release, initialization errors are now propagated correctly so calling a synchronous API call when the package is corrupted should now result in an error instead of a hang.
+
+* Fix `tsconfig.json` files that collide with directory names ([#2411](https://github.com/evanw/esbuild/issues/2411))
+
+    TypeScript lets you write `tsconfig.json` files with `extends` clauses that refer to another config file using an implicit `.json` file extension. However, if the config file without the `.json` extension existed as a directory name, esbuild and TypeScript had different behavior. TypeScript ignores the directory and continues looking for the config file by adding the `.json` extension while esbuild previously terminated the search and then failed to load the config file (because it's a directory). With this release, esbuild will now ignore exact matches when resolving `extends` fields in `tsconfig.json` files if the exact match results in a directory.
+
+* Add `platform` to the transform API ([#2362](https://github.com/evanw/esbuild/issues/2362))
+
+    The `platform` option is mainly relevant for bundling because it mostly affects path resolution (e.g. activating the `"browser"` field in `package.json` files), so it was previously only available for the build API. With this release, it has additionally be made available for the transform API for a single reason: you can now set `--platform=node` when transforming a string so that esbuild will add export annotations for node, which is only relevant when `--format=cjs` is also present.
+
+    This has to do with an implementation detail of node that parses the AST of CommonJS files to discover named exports when importing CommonJS from ESM. However, this new addition to esbuild's API is of questionable usefulness. Node's loader API (the main use case for using esbuild's transform API like this) actually bypasses the content returned from the loader and parses the AST that's present on the file system, so you won't actually be able to use esbuild's API for this. See the linked issue for more information.
+
+## 0.14.49
+
+* Keep inlined constants when direct `eval` is present ([#2361](https://github.com/evanw/esbuild/issues/2361))
+
+    Version 0.14.19 of esbuild added inlining of certain `const` variables during minification, which replaces all references to the variable with the initializer and then removes the variable declaration. However, this could generate incorrect code when direct `eval` is present because the direct `eval` could reference the constant by name. This release fixes the problem by preserving the `const` variable declaration in this case:
+
+    ```js
+    // Original code
+    console.log((() => { const x = 123; return x + eval('x') }))
+
+    // Old output (with --minify)
+    console.log(()=>123+eval("x"));
+
+    // New output (with --minify)
+    console.log(()=>{const x=123;return 123+eval("x")});
+    ```
+
+* Fix an incorrect error in TypeScript when targeting ES5 ([#2375](https://github.com/evanw/esbuild/issues/2375))
+
+    Previously when compiling TypeScript code to ES5, esbuild could incorrectly consider the following syntax forms as a transformation error:
+
+    ```ts
+    0 ? ([]) : 1 ? ({}) : 2;
+    ```
+
+    The error messages looked like this:
+
+    ```
+    ✘ [ERROR] Transforming destructuring to the configured target environment ("es5") is not supported yet
+
+        example.ts:1:5:
+          1 │ 0 ? ([]) : 1 ? ({}) : 2;
+            ╵      ^
+
+    ✘ [ERROR] Transforming destructuring to the configured target environment ("es5") is not supported yet
+
+        example.ts:1:16:
+          1 │ 0 ? ([]) : 1 ? ({}) : 2;
+            ╵                 ^
+    ```
+
+    These parenthesized literals followed by a colon look like the start of an arrow function expression followed by a TypeScript return type (e.g. `([]) : 1` could be the start of the TypeScript arrow function `([]): 1 => 1`). Unlike in JavaScript, parsing arrow functions in TypeScript requires backtracking. In this case esbuild correctly determined that this expression wasn't an arrow function after all but the check for destructuring was incorrectly not covered under the backtracking process. With this release, the error message is now only reported if the parser successfully parses an arrow function without backtracking.
+
+* Fix generated TypeScript `enum` comments containing `*/` ([#2369](https://github.com/evanw/esbuild/issues/2369), [#2371](https://github.com/evanw/esbuild/pull/2371))
+
+    TypeScript `enum` values that are equal to a number or string literal are inlined (references to the enum are replaced with the literal value) and have a `/* ... */` comment after them with the original enum name to improve readability. However, this comment is omitted if the enum name contains the character sequence `*/` because that would end the comment early and cause a syntax error:
+
+    ```ts
+    // Original TypeScript
+    enum Foo { '/*' = 1, '*/' = 2 }
+    console.log(Foo['/*'], Foo['*/'])
+
+    // Generated JavaScript
+    console.log(1 /* /* */, 2);
+    ```
+
+    This was originally handled correctly when TypeScript `enum` inlining was initially implemented since it was only supported within a single file. However, when esbuild was later extended to support TypeScript `enum` inlining across files, this special case where the enum name contains `*/` was not handled in that new code. Starting with this release, esbuild will now handle enums with names containing `*/` correctly when they are inlined across files:
+
+    ```ts
+    // foo.ts
+    export enum Foo { '/*' = 1, '*/' = 2 }
+
+    // bar.ts
+    import { Foo } from './foo'
+    console.log(Foo['/*'], Foo['*/'])
+
+    // Old output (with --bundle --format=esm)
+    console.log(1 /* /* */, 2 /* */ */);
+
+    // New output (with --bundle --format=esm)
+    console.log(1 /* /* */, 2);
+    ```
+
+    This fix was contributed by [@magic-akari](https://github.com/magic-akari).
+
+* Allow `declare` class fields to be initialized ([#2380](https://github.com/evanw/esbuild/issues/2380))
+
+    This release fixes an oversight in the TypeScript parser that disallowed initializers for `declare` class fields. TypeScript actually allows the following limited initializer expressions for `readonly` fields:
+
+    ```ts
+    declare const enum a { b = 0 }
+
+    class Foo {
+      // These are allowed by TypeScript
+      declare readonly a = 0
+      declare readonly b = -0
+      declare readonly c = 0n
+      declare readonly d = -0n
+      declare readonly e = 'x'
+      declare readonly f = `x`
+      declare readonly g = a.b
+      declare readonly h = a['b']
+
+      // These are not allowed by TypeScript
+      declare readonly x = (0)
+      declare readonly y = null
+      declare readonly z = -a.b
+    }
+    ```
+
+    So with this release, esbuild now allows initializers for `declare` class fields too. To future-proof this in case TypeScript allows more expressions as initializers in the future (such as `null`), esbuild will allow any expression as an initializer and will leave the specifics of TypeScript's special-casing here to the TypeScript type checker.
+
+* Fix a bug in esbuild's feature compatibility table generator ([#2365](https://github.com/evanw/esbuild/issues/2365))
+
+    Passing specific JavaScript engines to esbuild's `--target` flag restricts esbuild to only using JavaScript features that are supported on those engines in the output files that esbuild generates. The data for this feature is automatically derived from this compatibility table with a script: https://kangax.github.io/compat-table/.
+
+    However, the script had a bug that could incorrectly consider a JavaScript syntax feature to be supported in a given engine even when it doesn't actually work in that engine. Specifically this bug happened when a certain aspect of JavaScript syntax has always worked incorrectly in that engine and the bug in that engine has never been fixed. This situation hasn't really come up before because previously esbuild pretty much only targeted JavaScript engines that always fix their bugs, but the two new JavaScript engines that were added in the previous release ([Hermes](https://hermesengine.dev/) and [Rhino](https://github.com/mozilla/rhino)) have many aspects of the JavaScript specification that have never been implemented, and may never be implemented. For example, the `let` and `const` keywords are not implemented correctly in those engines.
+
+    With this release, esbuild's compatibility table generator script has been fixed and as a result, esbuild will now correctly consider a JavaScript syntax feature to be unsupported in a given engine if there is some aspect of that syntax that is broken in all known versions of that engine. This means that the following JavaScript syntax features are no longer considered to be supported by these engines (represented using esbuild's internal names for these syntax features):
+
+    Hermes:
+    - `arrow`
+    - `const-and-let`
+    - `default-argument`
+    - `generator`
+    - `optional-catch-binding`
+    - `optional-chain`
+    - `rest-argument`
+    - `template-literal`
+
+    Rhino:
+    - `arrow`
+    - `const-and-let`
+    - `destructuring`
+    - `for-of`
+    - `generator`
+    - `object-extensions`
+    - `template-literal`
+
+    IE:
+    - `const-and-let`
+
 ## 0.14.48
 
 * Enable using esbuild in Deno via WebAssembly ([#2323](https://github.com/evanw/esbuild/issues/2323))

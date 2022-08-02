@@ -450,9 +450,9 @@ export {
 TestSplittingPublicPathEntryName
 ---------- /out/a.js ----------
 // a.js
-import("/www/b-KO67GT6S.js");
+import("/www/b-AQIID5BE.js");
 
----------- /out/b-KO67GT6S.js ----------
+---------- /out/b-AQIID5BE.js ----------
 // b.js
 console.log("b");
 

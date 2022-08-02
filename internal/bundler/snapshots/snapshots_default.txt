@@ -399,7 +399,13 @@ for (const e of x)
 TestDefineImportMeta
 ---------- /out.js ----------
 // entry.js
-console.log(1, 2, 3, 2 .baz, 1 .bar);
+console.log(
+  1,
+  2,
+  3,
+  2 .baz,
+  1 .bar
+);
 
 ================================================================================
 TestDefineImportMetaES5
@@ -413,6 +419,13 @@ var import_meta = {};
 console.log(import_meta.y);
 
 ---------- /out/dead-code.js ----------
+
+================================================================================
+TestDefineInfiniteLoopIssue2407
+---------- /out.js ----------
+// entry.js
+b.c();
+y();
 
 ================================================================================
 TestDefineOptionalChain
@@ -455,12 +468,30 @@ console.log([
 TestDefineThis
 ---------- /out.js ----------
 // entry.js
-ok(1, 2, 3, 2 .baz, 1 .bar);
+ok(
+  1,
+  2,
+  3,
+  2 .baz,
+  1 .bar
+);
 (() => {
-  ok(1, 2, 3, 2 .baz, 1 .bar);
+  ok(
+    1,
+    2,
+    3,
+    2 .baz,
+    1 .bar
+  );
 })();
 (function() {
-  doNotSubstitute(this, this.foo, this.foo.bar, this.foo.baz, this.bar);
+  doNotSubstitute(
+    this,
+    this.foo,
+    this.foo.bar,
+    this.foo.baz,
+    this.bar
+  );
 })();
 
 ================================================================================
@@ -521,11 +552,17 @@ console.log(123);
 ================================================================================
 TestDuplicatePropertyWarning
 ---------- /out/entry.js ----------
-// outside-node-modules/index.js
-console.log({ a: 1, a: 2 });
+// outside-node-modules/index.jsx
+console.log({ a: 1, a: 2 }, /* @__PURE__ */ React.createElement("div", {
+  a2: true,
+  a2: 3
+}));
 
-// node_modules/inside-node-modules/index.js
-console.log({ c: 1, c: 2 });
+// node_modules/inside-node-modules/index.jsx
+console.log({ c: 1, c: 2 }, /* @__PURE__ */ React.createElement("div", {
+  c2: true,
+  c2: 3
+}));
 
 ================================================================================
 TestDynamicImportWithExpressionCJS
@@ -1352,9 +1389,11 @@ TestInjectJSX
 // inject.js
 function el() {
 }
+function frag() {
+}
 
 // entry.jsx
-console.log(/* @__PURE__ */ el("div", null));
+console.log(/* @__PURE__ */ el(frag, null, /* @__PURE__ */ el("div", null)));
 
 ================================================================================
 TestInjectNoBundle
@@ -1375,6 +1414,42 @@ console.log("should be used");
 console.log(replace.test);
 console.log(collide);
 console.log(re_export);
+
+================================================================================
+TestJSXAutomaticImportsCommonJS
+---------- /out.js ----------
+// custom-react.js
+var require_custom_react = __commonJS({
+  "custom-react.js"(exports, module) {
+    module.exports = {};
+  }
+});
+
+// entry.jsx
+var import_custom_react = __toESM(require_custom_react());
+import { Fragment as Fragment2, jsx as jsx2 } from "react/jsx-runtime";
+console.log(/* @__PURE__ */ jsx2("div", {
+  jsx: import_custom_react.jsx
+}), /* @__PURE__ */ jsx2(Fragment2, {
+  children: /* @__PURE__ */ jsx2(import_custom_react.Fragment, {})
+}));
+
+================================================================================
+TestJSXAutomaticImportsES6
+---------- /out.js ----------
+// custom-react.js
+function jsx() {
+}
+function Fragment() {
+}
+
+// entry.jsx
+import { Fragment as Fragment2, jsx as jsx2 } from "react/jsx-runtime";
+console.log(/* @__PURE__ */ jsx2("div", {
+  jsx
+}), /* @__PURE__ */ jsx2(Fragment2, {
+  children: /* @__PURE__ */ jsx2(Fragment, {})
+}));
 
 ================================================================================
 TestJSXConstantFragments

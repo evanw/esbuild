@@ -539,6 +539,88 @@ func TestJSXConstantFragments(t *testing.T) {
 	})
 }
 
+func TestJSXAutomaticImportsCommonJS(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.jsx": `
+				import {jsx, Fragment} from './custom-react'
+				console.log(<div jsx={jsx}/>, <><Fragment/></>)
+			`,
+			"/custom-react.js": `
+				module.exports = {}
+			`,
+		},
+		entryPaths: []string{"/entry.jsx"},
+		options: config.Options{
+			Mode: config.ModeBundle,
+			JSX: config.JSXOptions{
+				AutomaticRuntime: true,
+			},
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{Exact: map[string]bool{
+					"react/jsx-runtime": true,
+				}},
+			},
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestJSXAutomaticImportsES6(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.jsx": `
+				import {jsx, Fragment} from './custom-react'
+				console.log(<div jsx={jsx}/>, <><Fragment/></>)
+			`,
+			"/custom-react.js": `
+				export function jsx() {}
+				export function Fragment() {}
+			`,
+		},
+		entryPaths: []string{"/entry.jsx"},
+		options: config.Options{
+			Mode: config.ModeBundle,
+			JSX: config.JSXOptions{
+				AutomaticRuntime: true,
+			},
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{Exact: map[string]bool{
+					"react/jsx-runtime": true,
+				}},
+			},
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestJSXAutomaticSyntaxInJS(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log(<div/>)
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode: config.ModeBundle,
+			JSX: config.JSXOptions{
+				AutomaticRuntime: true,
+			},
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{Exact: map[string]bool{
+					"react/jsx-runtime": true,
+				}},
+			},
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `entry.js: ERROR: The JSX syntax extension is not currently enabled
+NOTE: The esbuild loader for this file is currently set to "js" but it must be set to "jsx" to be able to parse JSX syntax. ` +
+			`You can use 'Loader: map[string]api.Loader{".js": api.LoaderJSX}' to do that.
+`,
+	})
+}
+
 func TestNodeModules(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
@@ -4172,14 +4254,20 @@ func TestInjectJSX(t *testing.T) {
 				Parts: []string{"el"},
 			},
 		},
+		"React.Fragment": {
+			DefineExpr: &config.DefineExpr{
+				Parts: []string{"frag"},
+			},
+		},
 	})
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.jsx": `
-				console.log(<div/>)
+				console.log(<><div/></>)
 			`,
 			"/inject.js": `
 				export function el() {}
+				export function frag() {}
 			`,
 		},
 		entryPaths: []string{"/entry.jsx"},
@@ -4555,6 +4643,46 @@ func TestDefineOptionalChainLowered(t *testing.T) {
 			AbsOutputFile:         "/out.js",
 			Defines:               &defines,
 			UnsupportedJSFeatures: compat.OptionalChain,
+		},
+	})
+}
+
+// See: https://github.com/evanw/esbuild/issues/2407
+func TestDefineInfiniteLoopIssue2407(t *testing.T) {
+	defines := config.ProcessDefines(map[string]config.DefineData{
+		"a.b": {
+			DefineExpr: &config.DefineExpr{
+				Parts: []string{"b", "c"},
+			},
+		},
+		"b.c": {
+			DefineExpr: &config.DefineExpr{
+				Parts: []string{"c", "a"},
+			},
+		},
+		"c.a": {
+			DefineExpr: &config.DefineExpr{
+				Parts: []string{"a", "b"},
+			},
+		},
+		"x.y": {
+			DefineExpr: &config.DefineExpr{
+				Parts: []string{"y"},
+			},
+		},
+	})
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				a.b()
+				x.y()
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			Defines:       &defines,
 		},
 	})
 }
@@ -5366,14 +5494,14 @@ func TestDuplicatePropertyWarning(t *testing.T) {
 				import './outside-node-modules'
 				import 'inside-node-modules'
 			`,
-			"/outside-node-modules/index.js": `
-				console.log({ a: 1, a: 2 })
+			"/outside-node-modules/index.jsx": `
+				console.log({ a: 1, a: 2 }, <div a2 a2={3}/>)
 			`,
 			"/outside-node-modules/package.json": `
 				{ "b": 1, "b": 2 }
 			`,
-			"/node_modules/inside-node-modules/index.js": `
-				console.log({ c: 1, c: 2 })
+			"/node_modules/inside-node-modules/index.jsx": `
+				console.log({ c: 1, c: 2 }, <div c2 c2={3}/>)
 			`,
 			"/node_modules/inside-node-modules/package.json": `
 				{ "d": 1, "d": 2 }
@@ -5384,8 +5512,10 @@ func TestDuplicatePropertyWarning(t *testing.T) {
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/out",
 		},
-		expectedScanLog: `outside-node-modules/index.js: WARNING: Duplicate key "a" in object literal
-outside-node-modules/index.js: NOTE: The original key "a" is here:
+		expectedScanLog: `outside-node-modules/index.jsx: WARNING: Duplicate key "a" in object literal
+outside-node-modules/index.jsx: NOTE: The original key "a" is here:
+outside-node-modules/index.jsx: WARNING: Duplicate "a2" attribute in JSX element
+outside-node-modules/index.jsx: NOTE: The original "a2" attribute is here:
 outside-node-modules/package.json: WARNING: Duplicate key "b" in object literal
 outside-node-modules/package.json: NOTE: The original key "b" is here:
 `,

@@ -5799,7 +5799,7 @@
         'src/tsconfig.json': `{"extends": "foo"}`,
         'node_modules/foo/tsconfig.json/x': ``,
       }, {
-        expectedStderr: `${errorIcon} [ERROR] Cannot read file "node_modules/foo/tsconfig.json": ${errorText}
+        expectedStderr: `▲ [WARNING] Cannot find base config file "foo" [tsconfig.json]
 
     src/tsconfig.json:1:12:
       1 │ {"extends": "foo"}
@@ -5815,6 +5815,20 @@
           "main": "dist/cjs/index.js",
           "module": "dist/esm/index.js"
         }`,
+      }),
+      test(['src/entry.js', '--bundle', '--outfile=node.js'], {
+        'src/entry.js': ``,
+        'src/tsconfig.json': `{"extends": "./lib"}`,
+        'src/lib.json': `{"compilerOptions": {"target": "1"}}`, // We should get a warning about this file
+        'src/lib/index.json': `{"compilerOptions": {"target": "2"}}`, // Not about this file
+      }, {
+        expectedStderr: `▲ [WARNING] Unrecognized target environment "1" [tsconfig.json]
+
+    src/lib.json:1:31:
+      1 │ {"compilerOptions": {"target": "1"}}
+        ╵                                ~~~
+
+`,
       }),
     )
   }

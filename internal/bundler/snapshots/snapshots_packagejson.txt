@@ -662,7 +662,10 @@ var require_foo_require = __commonJS({
 var require_src = __commonJS({
   "Users/user/project/src/index.js"(exports, module) {
     module.exports = "index";
-    console.log(require_src(), require_foo_require());
+    console.log(
+      require_src(),
+      require_foo_require()
+    );
   }
 });
 export default require_src();
@@ -681,7 +684,10 @@ var require_foo_require = __commonJS({
 var require_src = __commonJS({
   "Users/user/project/src/index.js"(exports, module) {
     module.exports = "index";
-    console.log(require_src(), require_foo_require());
+    console.log(
+      require_src(),
+      require_foo_require()
+    );
   }
 });
 export default require_src();

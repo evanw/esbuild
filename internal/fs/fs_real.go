@@ -485,13 +485,13 @@ func (fs *realFS) WatchData() WatchData {
 					}
 				} else {
 					// Check individual entries
-					isPresent := make(map[string]bool, len(names))
+					lookup := make(map[string]string, len(names))
 					for _, name := range names {
-						isPresent[strings.ToLower(name)] = true
+						lookup[strings.ToLower(name)] = name
 					}
 					for name, wasPresent := range data.accessedEntries.wasPresent {
-						if wasPresent != isPresent[name] {
-							return fs.Join(path, name)
+						if originalName, isPresent := lookup[name]; wasPresent != isPresent {
+							return fs.Join(path, originalName)
 						}
 					}
 				}

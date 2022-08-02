@@ -32,6 +32,21 @@ var foo4 = 123;
 console.log(a_exports, b_exports, c_exports, d_exports);
 
 ================================================================================
+TestTSConstEnumComments
+---------- /out.js ----------
+// foo.ts
+console.log({
+  "should have comments": [
+    1 /* %/* */,
+    1 /* %/* */
+  ],
+  "should not have comments": [
+    2,
+    2
+  ]
+});
+
+================================================================================
 TestTSDeclareClass
 ---------- /out.js ----------
 // entry.ts

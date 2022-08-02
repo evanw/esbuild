@@ -58,7 +58,7 @@ let mustBeStringOrUint8Array = (value: string | Uint8Array | undefined): string 
 
 type OptionKeys = { [key: string]: boolean };
 
-function getFlag<T, K extends keyof T>(object: T, keys: OptionKeys, key: K, mustBeFn: (value: T[K]) => string | null): T[K] | undefined {
+function getFlag<T, K extends (keyof T & string)>(object: T, keys: OptionKeys, key: K, mustBeFn: (value: T[K]) => string | null): T[K] | undefined {
   let value = object[key];
   keys[key + ''] = true;
   if (value === undefined) return undefined;
@@ -140,11 +140,14 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   let jsx = getFlag(options, keys, 'jsx', mustBeString);
   let jsxFactory = getFlag(options, keys, 'jsxFactory', mustBeString);
   let jsxFragment = getFlag(options, keys, 'jsxFragment', mustBeString);
+  let jsxImportSource = getFlag(options, keys, 'jsxImportSource', mustBeString);
+  let jsxDev = getFlag(options, keys, 'jsxDev', mustBeBoolean);
   let define = getFlag(options, keys, 'define', mustBeObject);
   let logOverride = getFlag(options, keys, 'logOverride', mustBeObject);
   let supported = getFlag(options, keys, 'supported', mustBeObject);
   let pure = getFlag(options, keys, 'pure', mustBeArray);
   let keepNames = getFlag(options, keys, 'keepNames', mustBeBoolean);
+  let platform = getFlag(options, keys, 'platform', mustBeString);
 
   if (legalComments) flags.push(`--legal-comments=${legalComments}`);
   if (sourceRoot !== void 0) flags.push(`--source-root=${sourceRoot}`);
@@ -155,6 +158,7 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   }
   if (format) flags.push(`--format=${format}`);
   if (globalName) flags.push(`--global-name=${globalName}`);
+  if (platform) flags.push(`--platform=${platform}`);
 
   if (minify) flags.push('--minify');
   if (minifySyntax) flags.push('--minify-syntax');
@@ -171,6 +175,8 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   if (jsx) flags.push(`--jsx=${jsx}`);
   if (jsxFactory) flags.push(`--jsx-factory=${jsxFactory}`);
   if (jsxFragment) flags.push(`--jsx-fragment=${jsxFragment}`);
+  if (jsxImportSource) flags.push(`--jsx-import-source=${jsxImportSource}`);
+  if (jsxDev) flags.push(`--jsx-dev`);
 
   if (define) {
     for (let key in define) {
@@ -204,7 +210,7 @@ function flagsForBuildOptions(
   entries: [string, string][],
   flags: string[],
   write: boolean,
-  stdinContents: string | null,
+  stdinContents: Uint8Array | null,
   stdinResolveDir: string | null,
   absWorkingDir: string | undefined,
   incremental: boolean,
@@ -215,7 +221,7 @@ function flagsForBuildOptions(
   let flags: string[] = [];
   let entries: [string, string][] = [];
   let keys: OptionKeys = Object.create(null);
-  let stdinContents: string | null = null;
+  let stdinContents: Uint8Array | null = null;
   let stdinResolveDir: string | null = null;
   let watchMode: types.WatchMode | null = null;
   pushLogFlags(flags, options, keys, isTTY, logLevelDefault);
@@ -230,7 +236,6 @@ function flagsForBuildOptions(
   let outfile = getFlag(options, keys, 'outfile', mustBeString);
   let outdir = getFlag(options, keys, 'outdir', mustBeString);
   let outbase = getFlag(options, keys, 'outbase', mustBeString);
-  let platform = getFlag(options, keys, 'platform', mustBeString);
   let tsconfig = getFlag(options, keys, 'tsconfig', mustBeString);
   let resolveExtensions = getFlag(options, keys, 'resolveExtensions', mustBeArray);
   let nodePathsInput = getFlag(options, keys, 'nodePaths', mustBeArray);
@@ -276,7 +281,6 @@ function flagsForBuildOptions(
   if (outfile) flags.push(`--outfile=${outfile}`);
   if (outdir) flags.push(`--outdir=${outdir}`);
   if (outbase) flags.push(`--outbase=${outbase}`);
-  if (platform) flags.push(`--platform=${platform}`);
   if (tsconfig) flags.push(`--tsconfig=${tsconfig}`);
   if (resolveExtensions) {
     let values: string[] = [];
@@ -350,7 +354,7 @@ function flagsForBuildOptions(
 
   if (stdin) {
     let stdinKeys: OptionKeys = Object.create(null);
-    let contents = getFlag(stdin, stdinKeys, 'contents', mustBeString);
+    let contents = getFlag(stdin, stdinKeys, 'contents', mustBeStringOrUint8Array);
     let resolveDir = getFlag(stdin, stdinKeys, 'resolveDir', mustBeString);
     let sourcefile = getFlag(stdin, stdinKeys, 'sourcefile', mustBeString);
     let loader = getFlag(stdin, stdinKeys, 'loader', mustBeString);
@@ -359,7 +363,8 @@ function flagsForBuildOptions(
     if (sourcefile) flags.push(`--sourcefile=${sourcefile}`);
     if (loader) flags.push(`--loader=${loader}`);
     if (resolveDir) stdinResolveDir = resolveDir + '';
-    stdinContents = contents ? contents + '' : '';
+    if (typeof contents === 'string') stdinContents = protocol.encodeUTF8(contents)
+    else if (contents instanceof Uint8Array) stdinContents = contents
   }
 
   let nodePaths: string[] = [];
@@ -435,7 +440,7 @@ export interface StreamOut {
 }
 
 export interface StreamFS {
-  writeFile(contents: string, callback: (path: string | null) => void): void;
+  writeFile(contents: string | Uint8Array, callback: (path: string | null) => void): void;
   readFile(path: string, callback: (err: Error | null, contents: string | null) => void): void;
 }
 
@@ -458,7 +463,7 @@ export interface StreamService {
   transform(args: {
     callName: string,
     refs: Refs | null,
-    input: string,
+    input: string | Uint8Array,
     options: types.TransformOptions,
     isTTY: boolean,
     fs: StreamFS,
@@ -1344,7 +1349,8 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     // that doesn't work.
     let start = (inputPath: string | null) => {
       try {
-        if (typeof input !== 'string') throw new Error('The input to "transform" must be a string');
+        if (typeof input !== 'string' && !(input instanceof Uint8Array))
+          throw new Error('The input to "transform" must be a string or a Uint8Array');
         let {
           flags,
           mangleCache,
@@ -1353,7 +1359,9 @@ export function createChannel(streamIn: StreamIn): StreamOut {
           command: 'transform',
           flags,
           inputFS: inputPath !== null,
-          input: inputPath !== null ? inputPath : input,
+          input: inputPath !== null ? protocol.encodeUTF8(inputPath)
+            : typeof input === 'string' ? protocol.encodeUTF8(input)
+              : input,
         };
         if (mangleCache) request.mangleCache = mangleCache;
         sendRequest<protocol.TransformRequest, protocol.TransformResponse>(refs, request, (error, response) => {
@@ -1408,7 +1416,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
         });
       }
     };
-    if (typeof input === 'string' && input.length > 1024 * 1024) {
+    if ((typeof input === 'string' || input instanceof Uint8Array) && input.length > 1024 * 1024) {
       let next = start;
       start = () => fs.writeFile(input, next);
     }
@@ -1685,12 +1693,28 @@ function sanitizeStringArray(values: any[], property: string): string[] {
 }
 
 function convertOutputFiles({ path, contents }: protocol.BuildOutputFile): types.OutputFile {
+  // The text is lazily-generated for performance reasons. If no one asks for
+  // it, then it never needs to be generated.
   let text: string | null = null;
   return {
     path,
     contents,
     get text() {
-      if (text === null) text = protocol.decodeUTF8(contents);
+      // People want to be able to set "contents" and have esbuild automatically
+      // derive "text" for them, so grab the contents off of this object instead
+      // of using our original value.
+      const binary = this.contents;
+
+      // This deliberately doesn't do bidirectional derivation because that could
+      // result in the inefficiency. For example, if we did do this and then you
+      // set "contents" and "text" and then asked for "contents", the second
+      // setter for "text" will have erased our cached "contents" value so we'd
+      // need to regenerate it again. Instead, "contents" is unambiguously the
+      // primary value and "text" is unambiguously the derived value.
+      if (text === null || binary !== contents) {
+        contents = binary;
+        text = protocol.decodeUTF8(binary);
+      }
       return text;
     },
   }

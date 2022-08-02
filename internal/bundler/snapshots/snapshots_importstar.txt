@@ -323,7 +323,11 @@ var require_empty2 = __commonJS({
 // entry-nope.js
 var js = __toESM(require_empty());
 var cjs = __toESM(require_empty2());
-console.log(void 0, void 0, void 0);
+console.log(
+  void 0,
+  void 0,
+  void 0
+);
 
 ---------- /out/entry-default.js ----------
 // empty.js
@@ -341,7 +345,11 @@ var require_empty2 = __commonJS({
 // entry-default.js
 var js = __toESM(require_empty());
 var cjs = __toESM(require_empty2());
-console.log(js.default, void 0, cjs.default);
+console.log(
+  js.default,
+  void 0,
+  cjs.default
+);
 
 ================================================================================
 TestImportNamespaceUndefinedPropertySideEffectFreeFile
@@ -363,7 +371,11 @@ var require_no_side_effects2 = __commonJS({
 // entry-nope.js
 var js = __toESM(require_no_side_effects());
 var cjs = __toESM(require_no_side_effects2());
-console.log(void 0, void 0, void 0);
+console.log(
+  void 0,
+  void 0,
+  void 0
+);
 
 ---------- /out/entry-default.js ----------
 // foo/no-side-effects.js
@@ -383,7 +395,11 @@ var require_no_side_effects2 = __commonJS({
 // entry-default.js
 var js = __toESM(require_no_side_effects());
 var cjs = __toESM(require_no_side_effects2());
-console.log(js.default, void 0, cjs.default);
+console.log(
+  js.default,
+  void 0,
+  cjs.default
+);
 
 ================================================================================
 TestImportOfExportStar

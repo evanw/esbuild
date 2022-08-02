@@ -38,8 +38,10 @@ type TSConfigJSON struct {
 	TSTarget                       *config.TSTarget
 	TSStrict                       *config.TSAlwaysStrict
 	TSAlwaysStrict                 *config.TSAlwaysStrict
+	JSX                            config.TSJSX
 	JSXFactory                     []string
 	JSXFragmentFactory             []string
+	JSXImportSource                string
 	ModuleSuffixes                 []string
 	UseDefineForClassFields        config.MaybeBool
 	PreserveImportsNotUsedAsValues bool
@@ -105,6 +107,24 @@ func ParseTSConfigJSON(
 			}
 		}
 
+		// Parse "jsx"
+		if valueJSON, _, ok := getProperty(compilerOptionsJSON, "jsx"); ok {
+			if value, ok := getString(valueJSON); ok {
+				switch strings.ToLower(value) {
+				case "none":
+					result.JSX = config.TSJSXNone
+				case "preserve", "react-native":
+					result.JSX = config.TSJSXPreserve
+				case "react":
+					result.JSX = config.TSJSXReact
+				case "react-jsx":
+					result.JSX = config.TSJSXReactJSX
+				case "react-jsxdev":
+					result.JSX = config.TSJSXReactJSXDev
+				}
+			}
+		}
+
 		// Parse "jsxFactory"
 		if valueJSON, _, ok := getProperty(compilerOptionsJSON, "jsxFactory"); ok {
 			if value, ok := getString(valueJSON); ok {
@@ -116,6 +136,13 @@ func ParseTSConfigJSON(
 		if valueJSON, _, ok := getProperty(compilerOptionsJSON, "jsxFragmentFactory"); ok {
 			if value, ok := getString(valueJSON); ok {
 				result.JSXFragmentFactory = parseMemberExpressionForJSX(log, &source, &tracker, valueJSON.Loc, value)
+			}
+		}
+
+		// Parse "jsxImportSource"
+		if valueJSON, _, ok := getProperty(compilerOptionsJSON, "jsxImportSource"); ok {
+			if value, ok := getString(valueJSON); ok {
+				result.JSXImportSource = value
 			}
 		}
 

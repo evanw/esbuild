@@ -2768,6 +2768,44 @@ let syncTests = {
     result.rebuild.dispose()
   },
 
+  async onEndCallbackMutateContents({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    await writeFileAsync(input, `x=y`)
+
+    let onEndTimes = 0
+
+    const result = await esbuild.build({
+      entryPoints: [input],
+      write: false,
+      plugins: [
+        {
+          name: 'some-plugin',
+          setup(build) {
+            build.onEnd(result => {
+              onEndTimes++
+
+              assert.deepStrictEqual(result.outputFiles[0].contents, new Uint8Array([120, 32, 61, 32, 121, 59, 10]))
+              assert.deepStrictEqual(result.outputFiles[0].text, 'x = y;\n')
+
+              result.outputFiles[0].contents = new Uint8Array([120, 61, 121])
+              assert.deepStrictEqual(result.outputFiles[0].contents, new Uint8Array([120, 61, 121]))
+              assert.deepStrictEqual(result.outputFiles[0].text, 'x=y')
+
+              result.outputFiles[0].contents = new Uint8Array([121, 61, 120])
+              assert.deepStrictEqual(result.outputFiles[0].contents, new Uint8Array([121, 61, 120]))
+              assert.deepStrictEqual(result.outputFiles[0].text, 'y=x')
+            })
+          },
+        },
+      ],
+    })
+
+    assert.deepStrictEqual(onEndTimes, 1)
+    assert.deepStrictEqual(result.outputFiles.length, 1)
+    assert.deepStrictEqual(result.outputFiles[0].contents, new Uint8Array([121, 61, 120]))
+    assert.deepStrictEqual(result.outputFiles[0].text, 'y=x')
+  },
+
   async onStartOnEndWatchMode({ esbuild, testDir }) {
     const srcDir = path.join(testDir, 'src')
     const outfile = path.join(testDir, 'out.js')
