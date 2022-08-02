@@ -1179,9 +1179,9 @@ func (r resolverQuery) dirInfoUncached(path string) *dirInfo {
 	return info
 }
 
-// https://devblogs.microsoft.com/typescript/announcing-typescript-4-7-beta/#resolution-customization-with-modulesuffixes
-// "Note that the empty string ” in moduleSuffixes is necessary for TypeScript to
-// also look-up ./foo.ts. In a sense, the default value for moduleSuffixes is [”]."
+// From: https://devblogs.microsoft.com/typescript/announcing-typescript-4-7-beta/#resolution-customization-with-modulesuffixes
+// Note that the empty string "" in moduleSuffixes is necessary for TypeScript to
+// also look-up ./foo.ts. In a sense, the default value for moduleSuffixes is [""].
 var defaultModuleSuffixes = []string{""}
 
 var rewrittenFileExtensions = map[string][]string{
