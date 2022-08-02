@@ -7,6 +7,29 @@ on:
     branches: ['*']
 
 jobs:
+  esbuild-rollup:
+    name: esbuild CI (Rollup Tests)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Set up Go 1.x
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.19
+        id: go
+
+      - name: Setup Node.js environment
+        uses: actions/setup-node@v1.4.4
+        with:
+          node-version: 16
+
+      - name: Check out code into the Go module directory
+        uses: actions/checkout@v2
+
+      - name: Rollup Tests
+        # Split these out into their own runner because they're very slow
+        run: make test-rollup
+
   esbuild:
     name: esbuild CI
     runs-on: ${{ matrix.os }}
@@ -122,10 +145,6 @@ jobs:
       - name: Uglify Tests
         if: matrix.os == 'ubuntu-latest'
         run: CI=1 make uglify
-
-      - name: Rollup Tests
-        if: matrix.os == 'ubuntu-latest'
-        run: make test-rollup
 
       - name: Check the unicode table generator
         if: matrix.os == 'ubuntu-latest'
