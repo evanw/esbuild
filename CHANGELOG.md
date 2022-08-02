@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.52
 
 * Allow binary data as input to the JS `transform` and `build` APIs ([#2424](https://github.com/evanw/esbuild/issues/2424))
 
