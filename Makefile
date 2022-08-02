@@ -506,14 +506,14 @@ validate-build:
 	@test -n "$(TARGET)" || (echo "The environment variable TARGET must be provided" && false)
 	@test -n "$(PACKAGE)" || (echo "The environment variable PACKAGE must be provided" && false)
 	@test -n "$(SUBPATH)" || (echo "The environment variable SUBPATH must be provided" && false)
-	@echo && echo "🔷 Checking $(PACKAGE)"
+	@echo && echo "🔷 Checking $(SCOPE)$(PACKAGE)"
 	@rm -fr validate && mkdir validate
 	@$(MAKE) --no-print-directory "$(TARGET)"
-	@curl -s "https://registry.npmjs.org/$(PACKAGE)/-/$(PACKAGE)-$(ESBUILD_VERSION).tgz" > validate/esbuild.tgz
+	@curl -s "https://registry.npmjs.org/$(SCOPE)$(PACKAGE)/-/$(PACKAGE)-$(ESBUILD_VERSION).tgz" > validate/esbuild.tgz
 	@cd validate && tar xf esbuild.tgz
-	@ls -l "npm/$(PACKAGE)/$(SUBPATH)" "validate/package/$(SUBPATH)" && \
-		shasum "npm/$(PACKAGE)/$(SUBPATH)" "validate/package/$(SUBPATH)" && \
-		cmp "npm/$(PACKAGE)/$(SUBPATH)" "validate/package/$(SUBPATH)"
+	@ls -l "npm/$(SCOPE)$(PACKAGE)/$(SUBPATH)" "validate/package/$(SUBPATH)" && \
+		shasum "npm/$(SCOPE)$(PACKAGE)/$(SUBPATH)" "validate/package/$(SUBPATH)" && \
+		cmp "npm/$(SCOPE)$(PACKAGE)/$(SUBPATH)" "validate/package/$(SUBPATH)"
 	@rm -fr validate
 
 # This checks that the published binaries are bitwise-identical to the locally-build binaries
@@ -529,11 +529,11 @@ validate-builds:
 	@$(MAKE) --no-print-directory TARGET=platform-linux-32 PACKAGE=esbuild-linux-32 SUBPATH=bin/esbuild validate-build
 	@$(MAKE) --no-print-directory TARGET=platform-linux-arm PACKAGE=esbuild-linux-arm SUBPATH=bin/esbuild validate-build
 	@$(MAKE) --no-print-directory TARGET=platform-linux-arm64 PACKAGE=esbuild-linux-arm64 SUBPATH=bin/esbuild validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-linux-loong64 SCOPE=@esbuild/ PACKAGE=linux-loong64 SUBPATH=bin/esbuild validate-build
 	@$(MAKE) --no-print-directory TARGET=platform-linux-mips64le PACKAGE=esbuild-linux-mips64le SUBPATH=bin/esbuild validate-build
 	@$(MAKE) --no-print-directory TARGET=platform-linux-ppc64le PACKAGE=esbuild-linux-ppc64le SUBPATH=bin/esbuild validate-build
 	@$(MAKE) --no-print-directory TARGET=platform-linux-riscv64 PACKAGE=esbuild-linux-riscv64 SUBPATH=bin/esbuild validate-build
 	@$(MAKE) --no-print-directory TARGET=platform-linux-s390x PACKAGE=esbuild-linux-s390x SUBPATH=bin/esbuild validate-build
-	@$(MAKE) --no-print-directory TARGET=platform-linux-loong64 PACKAGE=esbuild-linux-loong64 SUBPATH=bin/esbuild validate-build
 	@$(MAKE) --no-print-directory TARGET=platform-netbsd PACKAGE=esbuild-netbsd-64 SUBPATH=bin/esbuild validate-build
 	@$(MAKE) --no-print-directory TARGET=platform-openbsd PACKAGE=esbuild-openbsd-64 SUBPATH=bin/esbuild validate-build
 	@$(MAKE) --no-print-directory TARGET=platform-sunos PACKAGE=esbuild-sunos-64 SUBPATH=bin/esbuild validate-build
