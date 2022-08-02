@@ -11,26 +11,25 @@ import (
 // able to reuse the results of parsing between builds and make subsequent
 // builds faster by avoiding redundant parsing work. This only works if:
 //
-// * The AST information in the cache must be considered immutable. There is
-//   no way to enforce this in Go, but please be disciplined about this. The
-//   ASTs are shared in between builds. Any information that must be mutated
-//   in the AST during a build must be done on a shallow clone of the data if
-//   the mutation happens after parsing (i.e. a clone that clones everything
-//   that will be mutated and shares only the parts that won't be mutated).
+//   - The AST information in the cache must be considered immutable. There is
+//     no way to enforce this in Go, but please be disciplined about this. The
+//     ASTs are shared in between builds. Any information that must be mutated
+//     in the AST during a build must be done on a shallow clone of the data if
+//     the mutation happens after parsing (i.e. a clone that clones everything
+//     that will be mutated and shares only the parts that won't be mutated).
 //
-// * The information in the cache must not depend at all on the contents of
-//   any file other than the file being cached. Invalidating an entry in the
-//   cache does not also invalidate any entries that depend on that file, so
-//   caching information that depends on other files can result in incorrect
-//   results due to reusing stale data. For example, do not "bake in" some
-//   value imported from another file.
+//   - The information in the cache must not depend at all on the contents of
+//     any file other than the file being cached. Invalidating an entry in the
+//     cache does not also invalidate any entries that depend on that file, so
+//     caching information that depends on other files can result in incorrect
+//     results due to reusing stale data. For example, do not "bake in" some
+//     value imported from another file.
 //
-// * Cached ASTs must only be reused if the parsing options are identical
-//   between builds. For example, it would be bad if the AST parser depended
-//   on options inherited from a nearby "package.json" file but those options
-//   were not part of the cache key. Then the cached AST could incorrectly be
-//   reused even if the contents of that "package.json" file have changed.
-//
+//   - Cached ASTs must only be reused if the parsing options are identical
+//     between builds. For example, it would be bad if the AST parser depended
+//     on options inherited from a nearby "package.json" file but those options
+//     were not part of the cache key. Then the cached AST could incorrectly be
+//     reused even if the contents of that "package.json" file have changed.
 type CacheSet struct {
 	FSCache          FSCache
 	CSSCache         CSSCache

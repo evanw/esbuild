@@ -5772,11 +5772,10 @@ func TestToESMWrapperOmission(t *testing.T) {
 
 // This is coverage for a past bug in esbuild. We used to generate this, which is wrong:
 //
-//   let x = function(foo) {
-//     var foo2;
-//     return foo2;
-//   };
-//
+//	let x = function(foo) {
+//	  var foo2;
+//	  return foo2;
+//	};
 func TestNamedFunctionExpressionArgumentCollision(t *testing.T) {
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{

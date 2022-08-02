@@ -5,7 +5,7 @@
 // creating a child process, there is also an API for the command-line
 // interface itself: https://godoc.org/github.com/evanw/esbuild/pkg/cli.
 //
-// Build API
+// # Build API
 //
 // This function runs an end-to-end build operation. It takes an array of file
 // paths as entry points, parses them and all of their dependencies, and
@@ -14,29 +14,29 @@
 //
 // Example usage:
 //
-//     package main
+//	package main
 //
-//     import (
-//         "os"
+//	import (
+//	    "os"
 //
-//         "github.com/evanw/esbuild/pkg/api"
-//     )
+//	    "github.com/evanw/esbuild/pkg/api"
+//	)
 //
-//     func main() {
-//         result := api.Build(api.BuildOptions{
-//             EntryPoints: []string{"input.js"},
-//             Outfile:     "output.js",
-//             Bundle:      true,
-//             Write:       true,
-//             LogLevel:    api.LogLevelInfo,
-//         })
+//	func main() {
+//	    result := api.Build(api.BuildOptions{
+//	        EntryPoints: []string{"input.js"},
+//	        Outfile:     "output.js",
+//	        Bundle:      true,
+//	        Write:       true,
+//	        LogLevel:    api.LogLevelInfo,
+//	    })
 //
-//         if len(result.Errors) > 0 {
-//             os.Exit(1)
-//         }
-//     }
+//	    if len(result.Errors) > 0 {
+//	        os.Exit(1)
+//	    }
+//	}
 //
-// Transform API
+// # Transform API
 //
 // This function transforms a string of source code into JavaScript. It can be
 // used to minify JavaScript, convert TypeScript/JSX to JavaScript, or convert
@@ -45,36 +45,35 @@
 //
 // Example usage:
 //
-//     package main
+//	package main
 //
-//     import (
-//         "fmt"
-//         "os"
+//	import (
+//	    "fmt"
+//	    "os"
 //
-//         "github.com/evanw/esbuild/pkg/api"
-//     )
+//	    "github.com/evanw/esbuild/pkg/api"
+//	)
 //
-//     func main() {
-//         jsx := `
-//             import * as React from 'react'
-//             import * as ReactDOM from 'react-dom'
+//	func main() {
+//	    jsx := `
+//	        import * as React from 'react'
+//	        import * as ReactDOM from 'react-dom'
 //
-//             ReactDOM.render(
-//                 <h1>Hello, world!</h1>,
-//                 document.getElementById('root')
-//             );
-//         `
+//	        ReactDOM.render(
+//	            <h1>Hello, world!</h1>,
+//	            document.getElementById('root')
+//	        );
+//	    `
 //
-//         result := api.Transform(jsx, api.TransformOptions{
-//             Loader: api.LoaderJSX,
-//         })
+//	    result := api.Transform(jsx, api.TransformOptions{
+//	        Loader: api.LoaderJSX,
+//	    })
 //
-//         fmt.Printf("%d errors and %d warnings\n",
-//             len(result.Errors), len(result.Warnings))
+//	    fmt.Printf("%d errors and %d warnings\n",
+//	        len(result.Errors), len(result.Warnings))
 //
-//         os.Stdout.Write(result.Code)
-//     }
-//
+//	    os.Stdout.Write(result.Code)
+//	}
 package api
 
 type SourceMap uint8

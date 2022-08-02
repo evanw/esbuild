@@ -40,15 +40,14 @@ const (
 // We want to avoid a situation where the browser treats some of the original
 // rules as valid and others as invalid.
 //
-//   Safe:
-//     top: 1px; left: 0; bottom: 1px; right: 0;
-//     top: 1Q; left: 2Q; bottom: 3Q; right: 4Q;
+//	Safe:
+//	  top: 1px; left: 0; bottom: 1px; right: 0;
+//	  top: 1Q; left: 2Q; bottom: 3Q; right: 4Q;
 //
-//   Unsafe:
-//     top: 1vh; left: 2vw; bottom: 3vh; right: 4vw;
-//     top: 1Q; left: 2Q; bottom: 3Q; right: 0;
-//     inset: 1Q 0 0 0; top: 0;
-//
+//	Unsafe:
+//	  top: 1vh; left: 2vw; bottom: 3vh; right: 4vw;
+//	  top: 1Q; left: 2Q; bottom: 3Q; right: 0;
+//	  inset: 1Q 0 0 0; top: 0;
 type unitSafetyTracker struct {
 	unit   string
 	status unitSafetyStatus

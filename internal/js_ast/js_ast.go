@@ -982,11 +982,11 @@ type SSwitch struct {
 
 // This object represents all of these types of import statements:
 //
-//    import 'path'
-//    import {item1, item2} from 'path'
-//    import * as ns from 'path'
-//    import defaultItem, {item1, item2} from 'path'
-//    import defaultItem, * as ns from 'path'
+//	import 'path'
+//	import {item1, item2} from 'path'
+//	import * as ns from 'path'
+//	import defaultItem, {item1, item2} from 'path'
+//	import defaultItem, * as ns from 'path'
 //
 // Many parts are optional and can be combined in different ways. The only
 // restriction is that you cannot have both a clause and a star namespace.
@@ -1542,27 +1542,27 @@ func (s *Scope) RecursiveSetStrictMode(kind StrictModeKind) {
 // block are merged into a single namespace while the non-exported code is
 // still scoped to just within that block:
 //
-//   let x = 1;
-//   namespace Foo {
-//     let x = 2;
-//     export let y = 3;
-//   }
-//   namespace Foo {
-//     console.log(x); // 1
-//     console.log(y); // 3
-//   }
+//	let x = 1;
+//	namespace Foo {
+//	  let x = 2;
+//	  export let y = 3;
+//	}
+//	namespace Foo {
+//	  console.log(x); // 1
+//	  console.log(y); // 3
+//	}
 //
 // Doing this also works inside an enum:
 //
-//   enum Foo {
-//     A = 3,
-//     B = A + 1,
-//   }
-//   enum Foo {
-//     C = A + 2,
-//   }
-//   console.log(Foo.B) // 4
-//   console.log(Foo.C) // 5
+//	enum Foo {
+//	  A = 3,
+//	  B = A + 1,
+//	}
+//	enum Foo {
+//	  C = A + 2,
+//	}
+//	console.log(Foo.B) // 4
+//	console.log(Foo.C) // 5
 //
 // This is a form of identifier lookup that works differently than the
 // hierarchical scope-based identifier lookup in JavaScript. Lookup now needs

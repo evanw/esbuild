@@ -339,32 +339,31 @@ type UnusedImportFlagsTS uint8
 
 // With !UnusedImportKeepStmt && !UnusedImportKeepValues:
 //
-//   "import 'foo'"                      => "import 'foo'"
-//   "import * as unused from 'foo'"     => ""
-//   "import { unused } from 'foo'"      => ""
-//   "import { type unused } from 'foo'" => ""
+//	"import 'foo'"                      => "import 'foo'"
+//	"import * as unused from 'foo'"     => ""
+//	"import { unused } from 'foo'"      => ""
+//	"import { type unused } from 'foo'" => ""
 //
 // With UnusedImportKeepStmt && !UnusedImportKeepValues:
 //
-//   "import 'foo'"                      => "import 'foo'"
-//   "import * as unused from 'foo'"     => "import 'foo'"
-//   "import { unused } from 'foo'"      => "import 'foo'"
-//   "import { type unused } from 'foo'" => "import 'foo'"
+//	"import 'foo'"                      => "import 'foo'"
+//	"import * as unused from 'foo'"     => "import 'foo'"
+//	"import { unused } from 'foo'"      => "import 'foo'"
+//	"import { type unused } from 'foo'" => "import 'foo'"
 //
 // With !UnusedImportKeepStmt && UnusedImportKeepValues:
 //
-//   "import 'foo'"                      => "import 'foo'"
-//   "import * as unused from 'foo'"     => "import * as unused from 'foo'"
-//   "import { unused } from 'foo'"      => "import { unused } from 'foo'"
-//   "import { type unused } from 'foo'" => ""
+//	"import 'foo'"                      => "import 'foo'"
+//	"import * as unused from 'foo'"     => "import * as unused from 'foo'"
+//	"import { unused } from 'foo'"      => "import { unused } from 'foo'"
+//	"import { type unused } from 'foo'" => ""
 //
 // With UnusedImportKeepStmt && UnusedImportKeepValues:
 //
-//   "import 'foo'"                      => "import 'foo'"
-//   "import * as unused from 'foo'"     => "import * as unused from 'foo'"
-//   "import { unused } from 'foo'"      => "import { unused } from 'foo'"
-//   "import { type unused } from 'foo'" => "import {} from 'foo'"
-//
+//	"import 'foo'"                      => "import 'foo'"
+//	"import * as unused from 'foo'"     => "import * as unused from 'foo'"
+//	"import { unused } from 'foo'"      => "import { unused } from 'foo'"
+//	"import { type unused } from 'foo'" => "import {} from 'foo'"
 const (
 	UnusedImportKeepStmt   UnusedImportFlagsTS = 1 << iota // "importsNotUsedAsValues" != "remove"
 	UnusedImportKeepValues                                 // "preserveValueImports" == true
