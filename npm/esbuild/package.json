@@ -25,6 +25,7 @@
     "esbuild-linux-64": "0.14.51",
     "esbuild-linux-arm": "0.14.51",
     "esbuild-linux-arm64": "0.14.51",
+    "esbuild-linux-loong64": "0.14.51",
     "esbuild-linux-mips64le": "0.14.51",
     "esbuild-linux-ppc64le": "0.14.51",
     "esbuild-linux-riscv64": "0.14.51",
