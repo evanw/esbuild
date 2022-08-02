@@ -8,7 +8,8 @@ on:
 
 jobs:
   esbuild-rollup:
-    name: esbuild CI (Rollup Tests)
+    # Split these out into their own runner because they're very slow
+    name: esbuild CI (Slow Tests)
     runs-on: ubuntu-latest
 
     steps:
@@ -27,8 +28,10 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Rollup Tests
-        # Split these out into their own runner because they're very slow
         run: make test-rollup
+
+      - name: Uglify Tests
+        run: CI=1 make uglify
 
   esbuild:
     name: esbuild CI
@@ -141,10 +144,6 @@ jobs:
       - name: Preact Splitting Tests
         if: matrix.os == 'ubuntu-latest'
         run: make test-preact-splitting
-
-      - name: Uglify Tests
-        if: matrix.os == 'ubuntu-latest'
-        run: CI=1 make uglify
 
       - name: Check the unicode table generator
         if: matrix.os == 'ubuntu-latest'
