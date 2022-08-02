@@ -27,7 +27,7 @@ export const knownUnixlikePackages: Record<string, string> = {
   'linux riscv64 LE': 'esbuild-linux-riscv64',
   'linux s390x BE': 'esbuild-linux-s390x',
   'linux x64 LE': 'esbuild-linux-64',
-  'linux loong64 LE': 'esbuild-linux-loong64',
+  'linux loong64 LE': '@esbuild/linux-loong64',
   'netbsd x64 LE': 'esbuild-netbsd-64',
   'openbsd x64 LE': 'esbuild-openbsd-64',
   'sunos x64 LE': 'esbuild-sunos-64',

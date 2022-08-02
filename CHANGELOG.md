@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.14.53
+
+This release fixes a minor issue with the previous release: I had to rename the package `esbuild-linux-loong64` to `@esbuild/linux-loong64` in the contributed PR because someone registered the package name before I could claim it, and I missed a spot. Hopefully everything is working after this release. I plan to change all platform-specific package names to use the `@esbuild/` scope at some point to avoid this problem in the future.
+
 ## 0.14.52
 
 * Allow binary data as input to the JS `transform` and `build` APIs ([#2424](https://github.com/evanw/esbuild/issues/2424))
