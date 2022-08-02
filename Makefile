@@ -259,11 +259,11 @@ platform-all:
 		platform-linux-32 \
 		platform-linux-arm \
 		platform-linux-arm64 \
+		platform-linux-loong64 \
 		platform-linux-mips64le \
 		platform-linux-ppc64le \
 		platform-linux-riscv64 \
 		platform-linux-s390x \
-		platform-linux-loong64 \
 		platform-netbsd \
 		platform-neutral \
 		platform-openbsd \
@@ -328,6 +328,9 @@ platform-linux-arm:
 platform-linux-arm64:
 	@$(MAKE) --no-print-directory GOOS=linux GOARCH=arm64 NPMDIR=npm/esbuild-linux-arm64 platform-unixlike
 
+platform-linux-loong64:
+	@$(MAKE) --no-print-directory GOOS=linux GOARCH=loong64 NPMDIR=npm/@esbuild/linux-loong64 platform-unixlike
+
 platform-linux-mips64le:
 	@$(MAKE) --no-print-directory GOOS=linux GOARCH=mips64le NPMDIR=npm/esbuild-linux-mips64le platform-unixlike
 
@@ -340,9 +343,6 @@ platform-linux-riscv64:
 platform-linux-s390x:
 	@$(MAKE) --no-print-directory GOOS=linux GOARCH=s390x NPMDIR=npm/esbuild-linux-s390x platform-unixlike
 
-platform-linux-loong64:
-	@$(MAKE) --no-print-directory GOOS=linux GOARCH=loong64 NPMDIR=npm/esbuild-linux-loong64 platform-unixlike
-	
 platform-sunos:
 	@$(MAKE) --no-print-directory GOOS=illumos GOARCH=amd64 NPMDIR=npm/esbuild-sunos-64 platform-unixlike
 
@@ -410,10 +410,10 @@ publish-all: check-go-version
 	@echo Enter one-time password:
 	@read OTP && OTP="$$OTP" $(MAKE) --no-print-directory -j4 \
 		publish-linux-arm64 \
+		publish-linux-loong64 \
 		publish-linux-mips64le \
 		publish-linux-ppc64le \
-		publish-linux-s390x \
-		publish-linux-loong64
+		publish-linux-s390x
 
 	# Do these last to avoid race conditions
 	@echo Enter one-time password:
@@ -469,6 +469,9 @@ publish-linux-arm: platform-linux-arm
 publish-linux-arm64: platform-linux-arm64
 	test -n "$(OTP)" && cd npm/esbuild-linux-arm64 && npm publish --otp="$(OTP)"
 
+publish-linux-loong64: platform-linux-loong64
+	test -n "$(OTP)" && cd npm/@esbuild/linux-loong64 && npm publish --otp="$(OTP)"
+
 publish-linux-mips64le: platform-linux-mips64le
 	test -n "$(OTP)" && cd npm/esbuild-linux-mips64le && npm publish --otp="$(OTP)"
 
@@ -480,9 +483,6 @@ publish-linux-riscv64: platform-linux-riscv64
 
 publish-linux-s390x: platform-linux-s390x
 	test -n "$(OTP)" && cd npm/esbuild-linux-s390x && npm publish --otp="$(OTP)"
-
-publish-linux-loong64: platform-linux-loong64
-	test -n "$(OTP)" && cd npm/esbuild-linux-loong64 && npm publish --otp="$(OTP)"
 
 publish-sunos: platform-sunos
 	test -n "$(OTP)" && cd npm/esbuild-sunos-64 && npm publish --otp="$(OTP)"
@@ -544,9 +544,12 @@ validate-builds:
 
 clean:
 	rm -f esbuild
+	rm -f npm/esbuild-wasm/esbuild.wasm npm/esbuild-wasm/wasm_exec.js npm/esbuild-wasm/exit0.js
 	rm -f npm/esbuild-windows-32/esbuild.exe
 	rm -f npm/esbuild-windows-64/esbuild.exe
 	rm -f npm/esbuild-windows-arm64/esbuild.exe
+	rm -f npm/esbuild/install.js
+	rm -rf npm/@esbuild/linux-loong64/bin
 	rm -rf npm/esbuild-android-64/bin
 	rm -rf npm/esbuild-android-64/esbuild.wasm npm/esbuild-android-64/wasm_exec.js npm/esbuild-android-64/exit0.js
 	rm -rf npm/esbuild-android-arm64/bin
@@ -562,16 +565,13 @@ clean:
 	rm -rf npm/esbuild-linux-ppc64le/bin
 	rm -rf npm/esbuild-linux-riscv64/bin
 	rm -rf npm/esbuild-linux-s390x/bin
-	rm -rf npm/esbuild-linux-loong64/bin
 	rm -rf npm/esbuild-netbsd-64/bin
 	rm -rf npm/esbuild-openbsd-64/bin
 	rm -rf npm/esbuild-sunos-64/bin
-	rm -rf npm/esbuild/bin
-	rm -f npm/esbuild-wasm/esbuild.wasm npm/esbuild-wasm/wasm_exec.js npm/esbuild-wasm/exit0.js
-	rm -f npm/esbuild/install.js
-	rm -rf npm/esbuild/lib
 	rm -rf npm/esbuild-wasm/esm
 	rm -rf npm/esbuild-wasm/lib
+	rm -rf npm/esbuild/bin
+	rm -rf npm/esbuild/lib
 	rm -rf require/*/bench/
 	rm -rf require/*/demo/
 	rm -rf require/*/node_modules/
