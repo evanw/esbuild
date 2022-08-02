@@ -35,6 +35,10 @@
 
     Previously if you mutate the build results object, you had to overwrite both `contents` and `text` since the value returned from the `text` getter is the original text returned by esbuild. Some people find this confusing so with this release, the getter for `text` has been updated to do the UTF-8 to UTF-16 conversion on the current value of the `contents` property instead of the original value.
 
+* Publish builds for Linux LoongArch 64-bit ([#1804](https://github.com/evanw/esbuild/issues/1804), [#2373](https://github.com/evanw/esbuild/pull/2373))
+
+    This release upgrades to [Go 1.19](https://go.dev/doc/go1.19), which now includes support for LoongArch 64-bit processors. LoongArch 64-bit builds of esbuild will now be published to npm, which means that in theory they can now be installed with `npm install esbuild`. This was contributed by [@beyond-1234](https://github.com/beyond-1234).
+
 ## 0.14.51
 
 * Add support for React 17's `automatic` JSX transform ([#334](https://github.com/evanw/esbuild/issues/334), [#718](https://github.com/evanw/esbuild/issues/718), [#1172](https://github.com/evanw/esbuild/issues/1172), [#2318](https://github.com/evanw/esbuild/issues/2318), [#2349](https://github.com/evanw/esbuild/pull/2349))
