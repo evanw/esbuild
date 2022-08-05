@@ -195,9 +195,16 @@ function maybeOptimizePackage(binPath: string): void {
 }
 
 async function downloadDirectlyFromNPM(pkg: string, subpath: string, binPath: string): Promise<void> {
+  // Try to use user customized registry, use official registry by default;
+  const registryFromUser = child_process.execSync(`npm config get registry `, {
+    stdio: "pipe",
+    encoding: "utf8",
+  });
+  const registry = registryFromUser.trim() || 'https://registry.npmjs.org';
+
   // If that fails, the user could have npm configured incorrectly or could not
   // have npm installed. Try downloading directly from npm as a last resort.
-  const url = `https://registry.npmjs.org/${pkg}/-/${pkg}-${ESBUILD_VERSION}.tgz`;
+  const url = `${registry}/${pkg}/-/${pkg}-${ESBUILD_VERSION}.tgz`;
   console.error(`[esbuild] Trying to download ${JSON.stringify(url)}`);
   try {
     fs.writeFileSync(binPath, extractFileFromTarGzip(await fetch(url), subpath));
