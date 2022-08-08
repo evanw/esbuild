@@ -2644,6 +2644,75 @@ require("/assets/file.png");
     assert.strictEqual(await tryTargetESM('node14.18'), `// <stdin>\nvar import_node_fs = __toESM(require("node:fs"));\nimport("node:fs");\n(0, import_node_fs.default)();\n`)
     assert.strictEqual(await tryTargetESM('node14.17'), `// <stdin>\nvar import_node_fs = __toESM(require("fs"));\nimport("fs");\n(0, import_node_fs.default)();\n`)
   },
+
+  async zipFile({ esbuild, testDir }) {
+    const entry = path.join(testDir, 'entry.js')
+    const zip = path.join(testDir, 'test.zip')
+
+    await writeFileAsync(entry, `
+      import foo from './test.zip/foo.js'
+      import bar from './test.zip/bar/bar.js'
+
+      import virtual1 from './test.zip/__virtual__/ignored/0/foo.js'
+      import virtual2 from './test.zip/ignored/__virtual__/ignored/1/foo.js'
+      import virtual3 from './test.zip/__virtual__/ignored/1/test.zip/foo.js'
+
+      console.log({
+        foo,
+        bar,
+
+        virtual1,
+        virtual2,
+        virtual3,
+      })
+    `)
+
+    // This uses the real file system instead of the mock file system so that
+    // we can check that everything works as expected on Windows, which is not
+    // a POSIX environment.
+    await writeFileAsync(zip, Buffer.from(
+      `UEsDBAoAAgAAAG1qCFUSAXosFQAAABUAAAAGABwAZm9vLmpzVVQJAAOeRfFioEXxYnV4C` +
+      `wABBPUBAAAEFAAAAGV4cG9ydCBkZWZhdWx0ICdmb28nClBLAwQKAAIAAABzaghVwuDbLR` +
+      `UAAAAVAAAACgAcAGJhci9iYXIuanNVVAkAA6lF8WKrRfFidXgLAAEE9QEAAAQUAAAAZXh` +
+      `wb3J0IGRlZmF1bHQgJ2JhcicKUEsBAh4DCgACAAAAbWoIVRIBeiwVAAAAFQAAAAYAGAAA` +
+      `AAAAAQAAAKSBAAAAAGZvby5qc1VUBQADnkXxYnV4CwABBPUBAAAEFAAAAFBLAQIeAwoAA` +
+      `gAAAHNqCFXC4NstFQAAABUAAAAKABgAAAAAAAEAAACkgVUAAABiYXIvYmFyLmpzVVQFAA` +
+      `OpRfFidXgLAAEE9QEAAAQUAAAAUEsFBgAAAAACAAIAnAAAAK4AAAAAAA==`, 'base64'))
+
+    const value = await esbuild.build({
+      entryPoints: [entry],
+      bundle: true,
+      write: false,
+    })
+
+    assert.strictEqual(value.outputFiles.length, 1)
+    assert.strictEqual(value.outputFiles[0].text, `(() => {
+  // scripts/.js-api-tests/zipFile/test.zip/foo.js
+  var foo_default = "foo";
+
+  // scripts/.js-api-tests/zipFile/test.zip/bar/bar.js
+  var bar_default = "bar";
+
+  // scripts/.js-api-tests/zipFile/test.zip/__virtual__/ignored/0/foo.js
+  var foo_default2 = "foo";
+
+  // scripts/.js-api-tests/zipFile/test.zip/ignored/__virtual__/ignored/1/foo.js
+  var foo_default3 = "foo";
+
+  // scripts/.js-api-tests/zipFile/test.zip/__virtual__/ignored/1/test.zip/foo.js
+  var foo_default4 = "foo";
+
+  // scripts/.js-api-tests/zipFile/entry.js
+  console.log({
+    foo: foo_default,
+    bar: bar_default,
+    virtual1: foo_default2,
+    virtual2: foo_default3,
+    virtual3: foo_default4
+  });
+})();
+`)
+  },
 }
 
 function fetch(host, port, path, headers) {
