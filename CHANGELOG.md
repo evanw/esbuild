@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.54
 
 * Fix optimizations for calls containing spread arguments ([#2445](https://github.com/evanw/esbuild/issues/2445))
 
