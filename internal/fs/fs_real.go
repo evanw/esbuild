@@ -340,11 +340,12 @@ func (fs *realFS) readdir(dirname string) (entries []string, canonicalError erro
 	}
 
 	defer f.Close()
-	entries, err := f.Readdirnames(-1)
+	entries, originalError = f.Readdirnames(-1)
+	canonicalError = originalError
 
 	// Unwrap to get the underlying error
-	if syscallErr, ok := err.(*os.SyscallError); ok {
-		err = syscallErr.Unwrap()
+	if syscallErr, ok := canonicalError.(*os.SyscallError); ok {
+		canonicalError = syscallErr.Unwrap()
 	}
 
 	// Don't convert ENOTDIR to ENOENT here. ENOTDIR is a legitimate error

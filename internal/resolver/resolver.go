@@ -1221,7 +1221,7 @@ func (r resolverQuery) loadAsFile(path string, extensionOrder []string) (string,
 	if err != nil {
 		if err != syscall.ENOENT {
 			r.log.AddError(nil, logger.Range{},
-				fmt.Sprintf("  Cannot read directory %q: %s",
+				fmt.Sprintf("Cannot read directory %q: %s",
 					r.PrettyPath(logger.Path{Text: dirPath, Namespace: "file"}), err.Error()))
 		}
 		return "", false, nil
