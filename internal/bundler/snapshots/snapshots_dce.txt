@@ -1044,6 +1044,44 @@ function x() {
 }
 
 ================================================================================
+TestNestedFunctionInliningWithSpread
+---------- /out/entry.js ----------
+// entry.js
+function identity1(x) {
+  return x;
+}
+function identity3(x) {
+  return x;
+}
+check(
+  void 0,
+  (args, void 0),
+  ([...args], void 0),
+  identity1(),
+  args,
+  identity3(...args)
+);
+
+---------- /out/entry-outer.js ----------
+// inner.js
+function identity1(x) {
+  return x;
+}
+function identity3(x) {
+  return x;
+}
+
+// entry-outer.js
+check(
+  void 0,
+  (args, void 0),
+  ([...args], void 0),
+  identity1(),
+  args,
+  identity3(...args)
+);
+
+================================================================================
 TestPackageJsonSideEffectsArrayGlob
 ---------- /out.js ----------
 // Users/user/project/node_modules/demo-pkg/keep/this/file.js
@@ -1456,6 +1494,13 @@ console.log("hello");
 console.log("unused import");
 
 ================================================================================
+TestPureCallsWithSpread
+---------- /out.js ----------
+// entry.js
+[...args];
+[...args];
+
+================================================================================
 TestRemoveTrailingReturn
 ---------- /out.js ----------
 // entry.js
@@ -1544,6 +1589,38 @@ TestTextLoaderRemoveUnused
 ---------- /out.js ----------
 // entry.js
 console.log("unused import");
+
+================================================================================
+TestTopLevelFunctionInliningWithSpread
+---------- /out/entry.js ----------
+// entry.js
+function identity1(x) {
+  return x;
+}
+function identity3(x) {
+  return x;
+}
+args;
+[...args];
+identity1();
+args;
+identity3(...args);
+
+---------- /out/entry-outer.js ----------
+// inner.js
+function identity1(x) {
+  return x;
+}
+function identity3(x) {
+  return x;
+}
+
+// entry-outer.js
+args;
+[...args];
+identity1();
+args;
+identity3(...args);
 
 ================================================================================
 TestTreeShakingBinaryOperators

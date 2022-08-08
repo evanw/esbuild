@@ -14048,7 +14048,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		case *js_ast.EImportIdentifier:
 			// If this function is inlined, allow it to be tree-shaken
 			if p.options.minifySyntax && !p.isControlFlowDead {
-				p.convertSymbolUseToCall(t.Ref, len(e.Args) == 1)
+				p.convertSymbolUseToCall(t.Ref, len(e.Args) == 1 && !hasSpread)
 			}
 
 		case *js_ast.EIdentifier:
@@ -14095,7 +14095,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 			// If this function is inlined, allow it to be tree-shaken
 			if p.options.minifySyntax && !p.isControlFlowDead {
-				p.convertSymbolUseToCall(t.Ref, len(e.Args) == 1)
+				p.convertSymbolUseToCall(t.Ref, len(e.Args) == 1 && !hasSpread)
 			}
 
 		case *js_ast.EDot:
@@ -14385,7 +14385,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 	return expr, exprOut{}
 }
 
-func (p *parser) convertSymbolUseToCall(ref js_ast.Ref, isSingleArgCall bool) {
+func (p *parser) convertSymbolUseToCall(ref js_ast.Ref, isSingleNonSpreadArgCall bool) {
 	// Remove the normal symbol use
 	use := p.symbolUses[ref]
 	use.CountEstimate--
@@ -14401,8 +14401,8 @@ func (p *parser) convertSymbolUseToCall(ref js_ast.Ref, isSingleArgCall bool) {
 	}
 	callUse := p.symbolCallUses[ref]
 	callUse.CallCountEstimate++
-	if isSingleArgCall {
-		callUse.SingleArgCallCountEstimate++
+	if isSingleNonSpreadArgCall {
+		callUse.SingleArgNonSpreadCallCountEstimate++
 	}
 	p.symbolCallUses[ref] = callUse
 }

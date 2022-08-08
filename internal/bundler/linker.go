@@ -1566,8 +1566,8 @@ func (c *linkerContext) scanImportsAndExports() {
 						// Every call will be inlined
 						continue
 					} else if (flags & (js_ast.IsIdentityFunction | js_ast.CouldPotentiallyBeMutated)) == js_ast.IsIdentityFunction {
-						// Every single-argument call will be inlined
-						callUse.CallCountEstimate -= callUse.SingleArgCallCountEstimate
+						// Every single-argument call will be inlined as long as it's not a spread
+						callUse.CallCountEstimate -= callUse.SingleArgNonSpreadCallCountEstimate
 						if callUse.CallCountEstimate == 0 {
 							continue
 						}

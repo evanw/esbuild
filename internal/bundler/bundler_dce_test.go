@@ -3271,3 +3271,145 @@ func TestMultipleDeclarationTreeShakingMinifySyntax(t *testing.T) {
 		},
 	})
 }
+
+// Pure call removal should still run iterators, which can have side effects
+func TestPureCallsWithSpread(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				/* @__PURE__ */ foo(...args);
+				/* @__PURE__ */ new foo(...args);
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			MinifySyntax:  true,
+		},
+	})
+}
+
+func TestTopLevelFunctionInliningWithSpread(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				function empty1() {}
+				function empty2() {}
+				function empty3() {}
+
+				function identity1(x) { return x }
+				function identity2(x) { return x }
+				function identity3(x) { return x }
+
+				empty1()
+				empty2(args)
+				empty3(...args)
+
+				identity1()
+				identity2(args)
+				identity3(...args)
+			`,
+
+			"/inner.js": `
+				export function empty1() {}
+				export function empty2() {}
+				export function empty3() {}
+
+				export function identity1(x) { return x }
+				export function identity2(x) { return x }
+				export function identity3(x) { return x }
+			`,
+
+			"/entry-outer.js": `
+				import {
+					empty1,
+					empty2,
+					empty3,
+
+					identity1,
+					identity2,
+					identity3,
+				} from './inner.js'
+
+				empty1()
+				empty2(args)
+				empty3(...args)
+
+				identity1()
+				identity2(args)
+				identity3(...args)
+			`,
+		},
+		entryPaths: []string{"/entry.js", "/entry-outer.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			MinifySyntax: true,
+		},
+	})
+}
+
+func TestNestedFunctionInliningWithSpread(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				function empty1() {}
+				function empty2() {}
+				function empty3() {}
+
+				function identity1(x) { return x }
+				function identity2(x) { return x }
+				function identity3(x) { return x }
+
+				check(
+					empty1(),
+					empty2(args),
+					empty3(...args),
+
+					identity1(),
+					identity2(args),
+					identity3(...args),
+				)
+			`,
+
+			"/inner.js": `
+				export function empty1() {}
+				export function empty2() {}
+				export function empty3() {}
+
+				export function identity1(x) { return x }
+				export function identity2(x) { return x }
+				export function identity3(x) { return x }
+			`,
+
+			"/entry-outer.js": `
+				import {
+					empty1,
+					empty2,
+					empty3,
+
+					identity1,
+					identity2,
+					identity3,
+				} from './inner.js'
+
+				check(
+					empty1(),
+					empty2(args),
+					empty3(...args),
+
+					identity1(),
+					identity2(args),
+					identity3(...args),
+				)
+			`,
+		},
+		entryPaths: []string{"/entry.js", "/entry-outer.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			MinifySyntax: true,
+		},
+	})
+}

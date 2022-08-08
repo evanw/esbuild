@@ -1,5 +1,29 @@
 # Changelog
 
+## Unreleased
+
+* Fix optimizations for calls containing spread arguments ([#2445](https://github.com/evanw/esbuild/issues/2445))
+
+    This release fixes the handling of spread arguments in the optimization of `/* @__PURE__ */` comments, empty functions, and identity functions:
+
+    ```js
+    // Original code
+    function empty() {}
+    function identity(x) { return x }
+    /* @__PURE__ */ a(...x)
+    /* @__PURE__ */ new b(...x)
+    empty(...x)
+    identity(...x)
+
+    // Old output (with --minify --tree-shaking=true)
+    ...x;...x;...x;...x;
+
+    // New output (with --minify --tree-shaking=true)
+    function identity(n){return n}[...x];[...x];[...x];identity(...x);
+    ```
+
+    Previously esbuild assumed arguments with side effects could be directly inlined. This is almost always true except for spread arguments, which are not syntactically valid on their own and which have the side effect of causing iteration, which might have further side effects. Now esbuild will wrap these elements in an unused array so that they are syntactically valid and so that the iteration side effects are preserved.
+
 ## 0.14.53
 
 This release fixes a minor issue with the previous release: I had to rename the package `esbuild-linux-loong64` to `@esbuild/linux-loong64` in the contributed PR because someone registered the package name before I could claim it, and I missed a spot. Hopefully everything is working after this release. I plan to change all platform-specific package names to use the `@esbuild/` scope at some point to avoid this problem in the future.

@@ -676,6 +676,9 @@ func SimplifyUnusedExpr(expr Expr, unsupportedFeatures compat.JSFeature, isUnbou
 		if e.CanBeUnwrappedIfUnused {
 			var result Expr
 			for _, arg := range e.Args {
+				if _, ok := arg.Data.(*ESpread); ok {
+					arg.Data = &EArray{Items: []Expr{arg}, IsSingleLine: true}
+				}
 				result = JoinWithComma(result, SimplifyUnusedExpr(arg, unsupportedFeatures, isUnbound))
 			}
 			return result
@@ -732,6 +735,9 @@ func SimplifyUnusedExpr(expr Expr, unsupportedFeatures compat.JSFeature, isUnbou
 		if e.CanBeUnwrappedIfUnused {
 			var result Expr
 			for _, arg := range e.Args {
+				if _, ok := arg.Data.(*ESpread); ok {
+					arg.Data = &EArray{Items: []Expr{arg}, IsSingleLine: true}
+				}
 				result = JoinWithComma(result, SimplifyUnusedExpr(arg, unsupportedFeatures, isUnbound))
 			}
 			return result
