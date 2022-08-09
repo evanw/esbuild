@@ -107,10 +107,14 @@ func tryToReadZipArchive(zipPath string, archive *zipFile) {
 			// Handle a directory
 			lowerDir := strings.ToLower(dirPath)
 			if _, ok := dirs[lowerDir]; !ok {
-				dirs[lowerDir] = &compressedDir{
+				dir := &compressedDir{
 					path:    dirPath,
 					entries: make(map[string]EntryKind),
 				}
+
+				// List the same directory both with and without the slash
+				dirs[lowerDir] = dir
+				dirs[lowerDir+"/"] = dir
 			}
 		} else {
 			// Handle a file
@@ -122,7 +126,10 @@ func tryToReadZipArchive(zipPath string, archive *zipFile) {
 					path:    dirPath,
 					entries: make(map[string]EntryKind),
 				}
+
+				// List the same directory both with and without the slash
 				dirs[lowerDir] = dir
+				dirs[lowerDir+"/"] = dir
 			}
 			dir.entries[baseName] = FileEntry
 		}
@@ -147,7 +154,10 @@ func tryToReadZipArchive(zipPath string, archive *zipFile) {
 					path:    dirPath,
 					entries: make(map[string]EntryKind),
 				}
+
+				// List the same directory both with and without the slash
 				dirs[lowerDir] = dir
+				dirs[lowerDir+"/"] = dir
 			}
 			dir.entries[baseName] = DirEntry
 			baseName = dirPath
