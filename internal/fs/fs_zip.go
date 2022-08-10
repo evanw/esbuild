@@ -324,8 +324,13 @@ func parseYarnPnPVirtualPath(path string) (string, string, bool) {
 		}
 		i += slash + 1
 
-		// Replace the segments "__virtual__/<segment>/<n>" with N times the ".." operation
-		if path[start:i-1] == "__virtual__" {
+		// Replace the segments "__virtual__/<segment>/<n>" with N times the ".."
+		// operation. Note: The "__virtual__" folder name appeared with Yarn 3.0.
+		// Earlier releases used "$$virtual", but it was changed after discovering
+		// that this pattern triggered bugs in software where paths were used as
+		// either regexps or replacement. For example, "$$" found in the second
+		// parameter of "String.prototype.replace" silently turned into "$".
+		if segment := path[start : i-1]; segment == "__virtual__" || segment == "$$virtual" {
 			if slash := strings.IndexAny(path[i:], "/\\"); slash != -1 {
 				var count string
 				var suffix string

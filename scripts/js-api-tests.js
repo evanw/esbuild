@@ -2653,17 +2653,25 @@ require("/assets/file.png");
       import foo from './test.zip/foo.js'
       import bar from './test.zip/bar/bar.js'
 
-      import virtual1 from './test.zip/__virtual__/ignored/0/foo.js'
-      import virtual2 from './test.zip/ignored/__virtual__/ignored/1/foo.js'
-      import virtual3 from './test.zip/__virtual__/ignored/1/test.zip/foo.js'
+      import __virtual__1 from './test.zip/__virtual__/ignored/0/foo.js'
+      import __virtual__2 from './test.zip/ignored/__virtual__/ignored/1/foo.js'
+      import __virtual__3 from './test.zip/__virtual__/ignored/1/test.zip/foo.js'
+
+      import $$virtual1 from './test.zip/$$virtual/ignored/0/foo.js'
+      import $$virtual2 from './test.zip/ignored/$$virtual/ignored/1/foo.js'
+      import $$virtual3 from './test.zip/$$virtual/ignored/1/test.zip/foo.js'
 
       console.log({
         foo,
         bar,
 
-        virtual1,
-        virtual2,
-        virtual3,
+        __virtual__1,
+        __virtual__2,
+        __virtual__3,
+
+        $$virtual1,
+        $$virtual2,
+        $$virtual3,
       })
     `)
 
@@ -2702,13 +2710,25 @@ require("/assets/file.png");
   // scripts/.js-api-tests/zipFile/test.zip/__virtual__/ignored/1/test.zip/foo.js
   var foo_default4 = "foo";
 
+  // scripts/.js-api-tests/zipFile/test.zip/$$virtual/ignored/0/foo.js
+  var foo_default5 = "foo";
+
+  // scripts/.js-api-tests/zipFile/test.zip/ignored/$$virtual/ignored/1/foo.js
+  var foo_default6 = "foo";
+
+  // scripts/.js-api-tests/zipFile/test.zip/$$virtual/ignored/1/test.zip/foo.js
+  var foo_default7 = "foo";
+
   // scripts/.js-api-tests/zipFile/entry.js
   console.log({
     foo: foo_default,
     bar: bar_default,
-    virtual1: foo_default2,
-    virtual2: foo_default3,
-    virtual3: foo_default4
+    __virtual__1: foo_default2,
+    __virtual__2: foo_default3,
+    __virtual__3: foo_default4,
+    $$virtual1: foo_default5,
+    $$virtual2: foo_default6,
+    $$virtual3: foo_default7
   });
 })();
 `)
