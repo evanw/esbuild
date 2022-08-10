@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.15.1
 
 * Update esbuild's Yarn Plug'n'Play implementation to match the latest specification changes ([#2452](https://github.com/evanw/esbuild/issues/2452), [#2453](https://github.com/evanw/esbuild/pull/2453))
 
