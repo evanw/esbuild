@@ -1686,3 +1686,165 @@ func allowOverride(overrides map[MsgID]LogLevel, id MsgID, kind MsgKind) (MsgKin
 	}
 	return kind, true
 }
+
+// For Yarn PnP we sometimes parse JSON embedded in a JS string. This is a shim
+// that remaps log message locations inside the embedded string literal into
+// log messages in the actual JS file, which makes them easier to understand.
+func NewStringInJSLog(log Log, outerTracker *LineColumnTracker, outerStringLiteralLoc Loc, innerContents string) Log {
+	type entry struct {
+		line   int32
+		column int32
+		loc    Loc
+	}
+
+	var table []entry
+	oldAddMsg := log.AddMsg
+
+	generateTable := func() {
+		i := 0
+		n := len(innerContents)
+		line := int32(1)
+		column := int32(0)
+		loc := Loc{Start: outerStringLiteralLoc.Start + 1}
+		outerContents := outerTracker.contents
+
+		for i < n {
+			// Ignore line continuations. A line continuation is not an escaped newline.
+			for {
+				if c, _ := utf8.DecodeRuneInString(outerContents[loc.Start:]); c != '\\' {
+					break
+				}
+				c, width := utf8.DecodeRuneInString(outerContents[loc.Start+1:])
+				switch c {
+				case '\n', '\r', '\u2028', '\u2029':
+					loc.Start += 1 + int32(width)
+					if c == '\r' && outerContents[loc.Start] == '\n' {
+						// Make sure Windows CRLF counts as a single newline
+						loc.Start++
+					}
+					continue
+				}
+				break
+			}
+
+			c, width := utf8.DecodeRuneInString(innerContents[i:])
+
+			// Compress the table using run-length encoding
+			table = append(table, entry{line: line, column: column, loc: loc})
+			if len(table) > 1 {
+				if last := table[len(table)-2]; line == last.line && loc.Start-column == last.loc.Start-last.column {
+					table = table[:len(table)-1]
+				}
+			}
+
+			// Advance the inner line/column
+			switch c {
+			case '\n', '\r', '\u2028', '\u2029':
+				line++
+				column = 0
+
+				// Handle newlines on Windows
+				if c == '\r' && i+1 < n && innerContents[i+1] == '\n' {
+					i++
+				}
+
+			default:
+				column += int32(width)
+			}
+			i += width
+
+			// Advance the outer loc, assuming the string syntax is already valid
+			c, width = utf8.DecodeRuneInString(outerContents[loc.Start:])
+			if c == '\r' && outerContents[loc.Start] == '\n' {
+				// Handle newlines on Windows in template literal strings
+				loc.Start += 2
+			} else if c != '\\' {
+				loc.Start += int32(width)
+			} else {
+				// Handle an escape sequence
+				c, width = utf8.DecodeRuneInString(outerContents[loc.Start+1:])
+				switch c {
+				case 'x':
+					// 2-digit hexadecimal
+					loc.Start += 1 + 2
+
+				case 'u':
+					loc.Start++
+					if outerContents[loc.Start] == '{' {
+						// Variable-length
+						for outerContents[loc.Start] != '}' {
+							loc.Start++
+						}
+						loc.Start++
+					} else {
+						// Fixed-length
+						loc.Start += 4
+					}
+
+				case '\n', '\r', '\u2028', '\u2029':
+					// This will be handled by the next iteration
+					break
+
+				default:
+					loc.Start += int32(width)
+				}
+			}
+		}
+	}
+
+	remapLineAndColumnToLoc := func(line int32, column int32) Loc {
+		count := len(table)
+		index := 0
+
+		// Binary search to find the previous entry
+		for count > 0 {
+			step := count / 2
+			i := index + step
+			if i+1 < len(table) {
+				if entry := table[i+1]; entry.line < line || (entry.line == line && entry.column < column) {
+					index = i + 1
+					count -= step + 1
+					continue
+				}
+			}
+			count = step
+		}
+
+		entry := table[index]
+		entry.loc.Start += column - entry.column // Undo run-length compression
+		return entry.loc
+	}
+
+	remapData := func(data MsgData) MsgData {
+		if data.Location == nil {
+			return data
+		}
+
+		// Generate and cache a lookup table to accelerate remappings
+		if table == nil {
+			generateTable()
+		}
+
+		// Generate a range in the outer source using the line/column/length in the inner source
+		r := Range{Loc: remapLineAndColumnToLoc(int32(data.Location.Line), int32(data.Location.Column))}
+		if data.Location.Length != 0 {
+			r.Len = remapLineAndColumnToLoc(int32(data.Location.Line), int32(data.Location.Column+data.Location.Length)).Start - r.Loc.Start
+		}
+
+		// Use that range to look up the line in the outer source
+		location := outerTracker.MsgData(r, data.Text).Location
+		location.Suggestion = data.Location.Suggestion
+		data.Location = location
+		return data
+	}
+
+	log.AddMsg = func(msg Msg) {
+		msg.Data = remapData(msg.Data)
+		for i, note := range msg.Notes {
+			msg.Notes[i] = remapData(note)
+		}
+		oldAddMsg(msg)
+	}
+
+	return log
+}

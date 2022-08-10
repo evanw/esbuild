@@ -2713,6 +2713,260 @@ require("/assets/file.png");
 })();
 `)
   },
+
+  async yarnPnP_pnp_data_json({ esbuild, testDir }) {
+    const entry = path.join(testDir, 'entry.js')
+    const manifest = path.join(testDir, '.pnp.data.json')
+    const leftPad = path.join(testDir, '.yarn', 'cache', 'left-pad', 'index.js')
+
+    await writeFileAsync(entry, `
+      import leftPad from 'left-pad'
+      console.log(leftPad())
+    `)
+
+    await writeFileAsync(manifest, `{
+      "packageRegistryData": [
+        [null, [
+          [null, {
+            "packageLocation": "./",
+            "packageDependencies": [
+              ["left-pad", "npm:1.3.0"]
+            ],
+            "linkType": "SOFT"
+          }]
+        ]],
+        ["left-pad", [
+          ["npm:1.3.0", {
+            "packageLocation": "./.yarn/cache/left-pad/",
+            "packageDependencies": [
+              ["left-pad", "npm:1.3.0"]
+            ],
+            "linkType": "HARD"
+          }]
+        ]]
+      ]
+    }`)
+
+    await mkdirAsync(path.dirname(leftPad), { recursive: true })
+    await writeFileAsync(leftPad, `export default function() {}`)
+
+    const value = await esbuild.build({
+      entryPoints: [entry],
+      bundle: true,
+      write: false,
+    })
+
+    assert.strictEqual(value.outputFiles.length, 1)
+    assert.strictEqual(value.outputFiles[0].text, `(() => {
+  // scripts/.js-api-tests/yarnPnP_pnp_data_json/.yarn/cache/left-pad/index.js
+  function left_pad_default() {
+  }
+
+  // scripts/.js-api-tests/yarnPnP_pnp_data_json/entry.js
+  console.log(left_pad_default());
+})();
+`)
+  },
+
+  async yarnPnP_pnp_js_object_literal({ esbuild, testDir }) {
+    const entry = path.join(testDir, 'entry.js')
+    const manifest = path.join(testDir, '.pnp.js')
+    const leftPad = path.join(testDir, '.yarn', 'cache', 'left-pad', 'index.js')
+
+    await writeFileAsync(entry, `
+      import leftPad from 'left-pad'
+      console.log(leftPad())
+    `)
+
+    await writeFileAsync(manifest, `#!/usr/bin/env node
+      /* eslint-disable */
+
+      try {
+        Object.freeze({}).detectStrictMode = true;
+      } catch (error) {
+        throw new Error();
+      }
+
+      function $$SETUP_STATE(hydrateRuntimeState, basePath) {
+        return hydrateRuntimeState({
+          "packageRegistryData": [
+            [null, [
+              [null, {
+                "packageLocation": "./",
+                "packageDependencies": [
+                  ["left-pad", "npm:1.3.0"]
+                ],
+                "linkType": "SOFT"
+              }]
+            ]],
+            ["left-pad", [
+              ["npm:1.3.0", {
+                "packageLocation": "./.yarn/cache/left-pad/",
+                "packageDependencies": [
+                  ["left-pad", "npm:1.3.0"]
+                ],
+                "linkType": "HARD"
+              }]
+            ]]
+          ]
+        })
+      }
+    `)
+
+    await mkdirAsync(path.dirname(leftPad), { recursive: true })
+    await writeFileAsync(leftPad, `export default function() {}`)
+
+    const value = await esbuild.build({
+      entryPoints: [entry],
+      bundle: true,
+      write: false,
+    })
+
+    assert.strictEqual(value.outputFiles.length, 1)
+    assert.strictEqual(value.outputFiles[0].text, `(() => {
+  // scripts/.js-api-tests/yarnPnP_pnp_js_object_literal/.yarn/cache/left-pad/index.js
+  function left_pad_default() {
+  }
+
+  // scripts/.js-api-tests/yarnPnP_pnp_js_object_literal/entry.js
+  console.log(left_pad_default());
+})();
+`)
+  },
+
+  async yarnPnP_pnp_cjs_JSON_parse_string_literal({ esbuild, testDir }) {
+    const entry = path.join(testDir, 'entry.js')
+    const manifest = path.join(testDir, '.pnp.cjs')
+    const leftPad = path.join(testDir, '.yarn', 'cache', 'left-pad', 'index.js')
+
+    await writeFileAsync(entry, `
+      import leftPad from 'left-pad'
+      console.log(leftPad())
+    `)
+
+    await writeFileAsync(manifest, `#!/usr/bin/env node
+      /* eslint-disable */
+
+      try {
+        Object.freeze({}).detectStrictMode = true;
+      } catch (error) {
+        throw new Error();
+      }
+
+      function $$SETUP_STATE(hydrateRuntimeState, basePath) {
+        return hydrateRuntimeState(JSON.parse('{\\
+          "packageRegistryData": [\\
+            [null, [\\
+              [null, {\\
+                "packageLocation": "./",\\
+                "packageDependencies": [\\
+                  ["left-pad", "npm:1.3.0"]\\
+                ],\\
+                "linkType": "SOFT"\\
+              }]\\
+            ]],\\
+            ["left-pad", [\\
+              ["npm:1.3.0", {\\
+                "packageLocation": "./.yarn/cache/left-pad/",\\
+                "packageDependencies": [\\
+                  ["left-pad", "npm:1.3.0"]\\
+                ],\\
+                "linkType": "HARD"\\
+              }]\\
+            ]]\\
+          ]\\
+        }'))
+      }
+    `)
+
+    await mkdirAsync(path.dirname(leftPad), { recursive: true })
+    await writeFileAsync(leftPad, `export default function() {}`)
+
+    const value = await esbuild.build({
+      entryPoints: [entry],
+      bundle: true,
+      write: false,
+    })
+
+    assert.strictEqual(value.outputFiles.length, 1)
+    assert.strictEqual(value.outputFiles[0].text, `(() => {
+  // scripts/.js-api-tests/yarnPnP_pnp_cjs_JSON_parse_string_literal/.yarn/cache/left-pad/index.js
+  function left_pad_default() {
+  }
+
+  // scripts/.js-api-tests/yarnPnP_pnp_cjs_JSON_parse_string_literal/entry.js
+  console.log(left_pad_default());
+})();
+`)
+  },
+
+  async yarnPnP_pnp_cjs_JSON_parse_identifier({ esbuild, testDir }) {
+    const entry = path.join(testDir, 'entry.js')
+    const manifest = path.join(testDir, '.pnp.cjs')
+    const leftPad = path.join(testDir, '.yarn', 'cache', 'left-pad', 'index.js')
+
+    await writeFileAsync(entry, `
+      import leftPad from 'left-pad'
+      console.log(leftPad())
+    `)
+
+    await writeFileAsync(manifest, `#!/usr/bin/env node
+      /* eslint-disable */
+
+      try {
+        Object.freeze({}).detectStrictMode = true;
+      } catch (error) {
+        throw new Error();
+      }
+
+      const RAW_RUNTIME_STATE = '{\\
+        "packageRegistryData": [\\
+          [null, [\\
+            [null, {\\
+              "packageLocation": "./",\\
+              "packageDependencies": [\\
+                ["left-pad", "npm:1.3.0"]\\
+              ],\\
+              "linkType": "SOFT"\\
+            }]\\
+          ]],\\
+          ["left-pad", [\\
+            ["npm:1.3.0", {\\
+              "packageLocation": "./.yarn/cache/left-pad/",\\
+              "packageDependencies": [\\
+                ["left-pad", "npm:1.3.0"]\\
+              ],\\
+              "linkType": "HARD"\\
+            }]\\
+          ]]\\
+        ]\\
+      }'
+
+      function $$SETUP_STATE(hydrateRuntimeState, basePath) {
+        return hydrateRuntimeState(JSON.parse(RAW_RUNTIME_STATE))
+      }
+    `)
+
+    await mkdirAsync(path.dirname(leftPad), { recursive: true })
+    await writeFileAsync(leftPad, `export default function() {}`)
+
+    const value = await esbuild.build({
+      entryPoints: [entry],
+      bundle: true,
+      write: false,
+    })
+
+    assert.strictEqual(value.outputFiles.length, 1)
+    assert.strictEqual(value.outputFiles[0].text, `(() => {
+  // scripts/.js-api-tests/yarnPnP_pnp_cjs_JSON_parse_identifier/.yarn/cache/left-pad/index.js
+  function left_pad_default() {
+  }
+
+  // scripts/.js-api-tests/yarnPnP_pnp_cjs_JSON_parse_identifier/entry.js
+  console.log(left_pad_default());
+})();
+`)
+  },
 }
 
 function fetch(host, port, path, headers) {
