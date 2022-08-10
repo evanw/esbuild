@@ -91,8 +91,8 @@ func (r resolverQuery) pnpResolve(specifier string, parentURL string, parentMani
 		return specifier, true
 	}
 
-	// Otherwise, if specifier starts with "/", "./", or "../", then
-	if strings.HasPrefix(specifier, "/") || strings.HasPrefix(specifier, "./") || strings.HasPrefix(specifier, "../") {
+	// Otherwise, if `specifier` is either an absolute path or a path prefixed with "./" or "../", then
+	if r.fs.IsAbs(specifier) || strings.HasPrefix(specifier, "./") || strings.HasPrefix(specifier, "../") {
 		// Set resolved to NM_RESOLVE(specifier, parentURL) and return it
 		return specifier, true
 	}
@@ -264,10 +264,10 @@ func (r resolverQuery) resolveToUnqualified(specifier string, parentURL string, 
 		r.debugLogs.addNote(fmt.Sprintf("  Found package %q at %q", ident, dependencyPkg.packageLocation))
 	}
 
-	// Return dependencyPkg.packageLocation concatenated with modulePath
-	resolved := dependencyPkg.packageLocation + modulePath
-	result := r.fs.Join(manifest.absDirPath, resolved)
-	if strings.HasSuffix(resolved, "/") && !strings.HasSuffix(result, "/") {
+	// Return path.resolve(manifest.dirPath, dependencyPkg.packageLocation, modulePath)
+	result := r.fs.Join(manifest.absDirPath, dependencyPkg.packageLocation, modulePath)
+	if !strings.HasSuffix(result, "/") && ((modulePath != "" && strings.HasSuffix(modulePath, "/")) ||
+		(modulePath == "" && strings.HasSuffix(dependencyPkg.packageLocation, "/"))) {
 		result += "/" // This is important for matching Yarn PnP's expectations in tests
 	}
 	if r.debugLogs != nil {

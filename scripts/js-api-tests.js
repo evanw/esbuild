@@ -2653,17 +2653,25 @@ require("/assets/file.png");
       import foo from './test.zip/foo.js'
       import bar from './test.zip/bar/bar.js'
 
-      import virtual1 from './test.zip/__virtual__/ignored/0/foo.js'
-      import virtual2 from './test.zip/ignored/__virtual__/ignored/1/foo.js'
-      import virtual3 from './test.zip/__virtual__/ignored/1/test.zip/foo.js'
+      import __virtual__1 from './test.zip/__virtual__/ignored/0/foo.js'
+      import __virtual__2 from './test.zip/ignored/__virtual__/ignored/1/foo.js'
+      import __virtual__3 from './test.zip/__virtual__/ignored/1/test.zip/foo.js'
+
+      import $$virtual1 from './test.zip/$$virtual/ignored/0/foo.js'
+      import $$virtual2 from './test.zip/ignored/$$virtual/ignored/1/foo.js'
+      import $$virtual3 from './test.zip/$$virtual/ignored/1/test.zip/foo.js'
 
       console.log({
         foo,
         bar,
 
-        virtual1,
-        virtual2,
-        virtual3,
+        __virtual__1,
+        __virtual__2,
+        __virtual__3,
+
+        $$virtual1,
+        $$virtual2,
+        $$virtual3,
       })
     `)
 
@@ -2702,13 +2710,25 @@ require("/assets/file.png");
   // scripts/.js-api-tests/zipFile/test.zip/__virtual__/ignored/1/test.zip/foo.js
   var foo_default4 = "foo";
 
+  // scripts/.js-api-tests/zipFile/test.zip/$$virtual/ignored/0/foo.js
+  var foo_default5 = "foo";
+
+  // scripts/.js-api-tests/zipFile/test.zip/ignored/$$virtual/ignored/1/foo.js
+  var foo_default6 = "foo";
+
+  // scripts/.js-api-tests/zipFile/test.zip/$$virtual/ignored/1/test.zip/foo.js
+  var foo_default7 = "foo";
+
   // scripts/.js-api-tests/zipFile/entry.js
   console.log({
     foo: foo_default,
     bar: bar_default,
-    virtual1: foo_default2,
-    virtual2: foo_default3,
-    virtual3: foo_default4
+    __virtual__1: foo_default2,
+    __virtual__2: foo_default3,
+    __virtual__3: foo_default4,
+    $$virtual1: foo_default5,
+    $$virtual2: foo_default6,
+    $$virtual3: foo_default7
   });
 })();
 `)
@@ -2964,6 +2984,79 @@ require("/assets/file.png");
 
   // scripts/.js-api-tests/yarnPnP_pnp_cjs_JSON_parse_identifier/entry.js
   console.log(left_pad_default());
+})();
+`)
+  },
+
+  async yarnPnP_ignoreNestedManifests({ esbuild, testDir }) {
+    const entry = path.join(testDir, 'entry.js')
+    const foo = path.join(testDir, 'foo', 'index.js')
+    const bar = path.join(testDir, 'bar', 'index.js')
+    const manifest = path.join(testDir, '.pnp.data.json')
+
+    await writeFileAsync(entry, `
+      import foo from 'foo'
+      console.log(foo)
+    `)
+
+    await mkdirAsync(path.dirname(foo), { recursive: true })
+    await writeFileAsync(foo, `
+      import bar from 'bar'
+      export default 'foo' + bar
+    `)
+
+    await mkdirAsync(path.dirname(bar), { recursive: true })
+    await writeFileAsync(bar, `
+      export default 'bar'
+    `)
+
+    await writeFileAsync(manifest, `{
+      "packageRegistryData": [
+        [null, [
+          [null, {
+            "packageLocation": "./",
+            "packageDependencies": [
+              ["foo", "npm:1.0.0"],
+              ["bar", "npm:1.0.0"]
+            ],
+            "linkType": "SOFT"
+          }]
+        ]],
+        ["foo", [
+          ["npm:1.0.0", {
+            "packageLocation": "./__virtual__/whatever/0/foo/",
+            "packageDependencies": [
+              ["bar", "npm:1.0.0"]
+            ],
+            "linkType": "HARD"
+          }]
+        ]],
+        ["bar", [
+          ["npm:1.0.0", {
+            "packageLocation": "./__virtual__/whatever/0/bar/",
+            "packageDependencies": [],
+            "linkType": "HARD"
+          }]
+        ]]
+      ]
+    }`)
+
+    const value = await esbuild.build({
+      entryPoints: [entry],
+      bundle: true,
+      write: false,
+    })
+
+    assert.strictEqual(value.outputFiles.length, 1)
+    assert.strictEqual(value.outputFiles[0].text, `(() => {
+  // scripts/.js-api-tests/yarnPnP_ignoreNestedManifests/__virtual__/whatever/0/bar/index.js
+  var bar_default = "bar";
+
+  // scripts/.js-api-tests/yarnPnP_ignoreNestedManifests/__virtual__/whatever/0/foo/index.js
+  var foo_default = "foo" + bar_default;
+
+  // scripts/.js-api-tests/yarnPnP_ignoreNestedManifests/entry.js
+  console.log(foo_default);
 })();
 `)
   },

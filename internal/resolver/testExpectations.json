@@ -13,7 +13,7 @@
       [null, [
         [null, {
           "packageLocation": "./",
-          "packageDependencies": [],
+          "packageDependencies": [["test", "npm:1.0.0"]],
           "linkType": "SOFT"
         }]
       ]],
