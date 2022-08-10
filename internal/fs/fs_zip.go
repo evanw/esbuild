@@ -279,7 +279,7 @@ func (fs *zipFS) Abs(path string) (string, bool) {
 }
 
 func (fs *zipFS) Dir(path string) string {
-	if prefix, suffix, ok := parseYarnPnPVirtualPath(path); ok && suffix == "" {
+	if prefix, suffix, ok := ParseYarnPnPVirtualPath(path); ok && suffix == "" {
 		return prefix
 	}
 	return fs.inner.Dir(path)
@@ -313,7 +313,7 @@ func (fs *zipFS) WatchData() WatchData {
 	return fs.inner.WatchData()
 }
 
-func parseYarnPnPVirtualPath(path string) (string, string, bool) {
+func ParseYarnPnPVirtualPath(path string) (string, string, bool) {
 	i := 0
 
 	for {
@@ -377,7 +377,7 @@ func parseYarnPnPVirtualPath(path string) (string, string, bool) {
 }
 
 func mangleYarnPnPVirtualPath(path string) string {
-	if prefix, suffix, ok := parseYarnPnPVirtualPath(path); ok {
+	if prefix, suffix, ok := ParseYarnPnPVirtualPath(path); ok {
 		return prefix + suffix
 	}
 	return path

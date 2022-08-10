@@ -2987,6 +2987,79 @@ require("/assets/file.png");
 })();
 `)
   },
+
+  async yarnPnP_ignoreNestedManifests({ esbuild, testDir }) {
+    const entry = path.join(testDir, 'entry.js')
+    const foo = path.join(testDir, 'foo', 'index.js')
+    const bar = path.join(testDir, 'bar', 'index.js')
+    const manifest = path.join(testDir, '.pnp.data.json')
+
+    await writeFileAsync(entry, `
+      import foo from 'foo'
+      console.log(foo)
+    `)
+
+    await mkdirAsync(path.dirname(foo), { recursive: true })
+    await writeFileAsync(foo, `
+      import bar from 'bar'
+      export default 'foo' + bar
+    `)
+
+    await mkdirAsync(path.dirname(bar), { recursive: true })
+    await writeFileAsync(bar, `
+      export default 'bar'
+    `)
+
+    await writeFileAsync(manifest, `{
+      "packageRegistryData": [
+        [null, [
+          [null, {
+            "packageLocation": "./",
+            "packageDependencies": [
+              ["foo", "npm:1.0.0"],
+              ["bar", "npm:1.0.0"]
+            ],
+            "linkType": "SOFT"
+          }]
+        ]],
+        ["foo", [
+          ["npm:1.0.0", {
+            "packageLocation": "./__virtual__/whatever/0/foo/",
+            "packageDependencies": [
+              ["bar", "npm:1.0.0"]
+            ],
+            "linkType": "HARD"
+          }]
+        ]],
+        ["bar", [
+          ["npm:1.0.0", {
+            "packageLocation": "./__virtual__/whatever/0/bar/",
+            "packageDependencies": [],
+            "linkType": "HARD"
+          }]
+        ]]
+      ]
+    }`)
+
+    const value = await esbuild.build({
+      entryPoints: [entry],
+      bundle: true,
+      write: false,
+    })
+
+    assert.strictEqual(value.outputFiles.length, 1)
+    assert.strictEqual(value.outputFiles[0].text, `(() => {
+  // scripts/.js-api-tests/yarnPnP_ignoreNestedManifests/__virtual__/whatever/0/bar/index.js
+  var bar_default = "bar";
+
+  // scripts/.js-api-tests/yarnPnP_ignoreNestedManifests/__virtual__/whatever/0/foo/index.js
+  var foo_default = "foo" + bar_default;
+
+  // scripts/.js-api-tests/yarnPnP_ignoreNestedManifests/entry.js
+  console.log(foo_default);
+})();
+`)
+  },
 }
 
 function fetch(host, port, path, headers) {
