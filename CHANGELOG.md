@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased
+
+* Update esbuild's Yarn Plug'n'Play implementation to match the latest specification changes ([#2452](https://github.com/evanw/esbuild/issues/2452), [#2453](https://github.com/evanw/esbuild/pull/2453))
+
+    This release updates esbuild's implementation of Yarn Plug'n'Play to match some changes to Yarn's specification that just landed. The changes are as follows:
+
+    * Check for platform-specific absolute paths instead of always for the `/` prefix
+
+        The specification previously said that Yarn Plug'n'Play path resolution rules should not apply for paths that start with `/`. The intent was to avoid accidentally processing absolute paths. However, absolute paths on Windows such as `C:\project` start with drive letters instead of with `/`. So the specification was changed to instead explicitly avoid processing absolute paths.
+
+    * Make `$$virtual` an alias for `__virtual__`
+
+        Supporting Yarn-style path resolution requires implementing a custom Yarn-specific path traversal scheme where certain path segments are considered no-ops. Specifically any path containing segments of the form `__virtual__/<whatever>/<n>` where `<n>` is an integer must be treated as if they were `n` times the `..` operator instead (the `<whatever>` path segment is ignored). So `/path/to/project/__virtual__/xyz/2/foo.js` maps to the underlying file `/path/to/project/../../foo.js`. This scheme makes it possible for Yarn to get node (and esbuild) to load the same file multiple times (which is sometimes required for correctness) without actually duplicating the file on the file system.
+
+        However, old versions of Yarn used to use `$$virtual` instead of `__virtual__`. This was changed because `$$virtual` was error-prone due to the use of the `$` character, which can cause bugs when it's not correctly escaped within regular expressions. Now that esbuild makes `$$virtual` an alias for `__virtual__`, esbuild should now work with manifests from these old Yarn versions.
+
+    * Ignore PnP manifests in virtual directories
+
+        The specification describes the algorithm for how to find the Plug'n'Play manifest when starting from a certain point in the file system: search through all parent directories in reverse order until the manifest is found. However, this interacts poorly with virtual paths since it can end up finding a virtual copy of the manifest instead of the original. To avoid this, esbuild now ignores manifests in virtual directories so that the search for the manifest will continue and find the original manifest in another parent directory later on.
+
+    These fixes mean that esbuild's implementation of Plug'n'Play now matches Yarn's implementation more closely, and esbuild can now correctly build more projects that use Plug'n'Play.
+
 ## 0.15.0
 
 **This release contains backwards-incompatible changes.** Since esbuild is before version 1.0.0, these changes have been released as a new minor version to reflect this (as [recommended by npm](https://docs.npmjs.com/cli/v6/using-npm/semver/)). You should either be pinning the exact version of `esbuild` in your `package.json` file or be using a version range syntax that only accepts patch upgrades such as `~0.14.0`. See the documentation about [semver](https://docs.npmjs.com/cli/v6/using-npm/semver/) for more information.
