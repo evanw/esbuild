@@ -179,16 +179,16 @@ by esbuild to install the correct binary executable for your current platform.`)
   // it's inside a virtual file system and the OS needs it in the real file
   // system. So we need to copy the file out of the virtual file system into
   // the real file system.
-  let isYarnPnP = false;
+  let pnpapi = false;
   try {
-    require('pnpapi');
-    isYarnPnP = true;
+    pnpapi = require('pnpapi');
   } catch (e) {
   }
-  if (isYarnPnP) {
-    const esbuildLibDir = path.dirname(require.resolve('esbuild'));
-    const binTargetPath = path.join(esbuildLibDir, `pnpapi-${pkg}-${path.basename(subpath)}`);
+  if (pnpapi) {
+    const root = pnpapi.getPackageInformation(pnpapi.topLevel).packageLocation;
+    const binTargetPath = path.join(root, 'node_modules/.esbuild', version, `pnpapi-${pkg}-${path.basename(subpath)}`);
     if (!fs.existsSync(binTargetPath)) {
+      fs.mkdirSync(path.dirname(binTargetPath), { recursive: true });
       fs.copyFileSync(binPath, binTargetPath);
       fs.chmodSync(binTargetPath, 0o755);
     }
