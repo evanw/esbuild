@@ -173,7 +173,11 @@ func (fs *zipFS) ReadDirectory(path string) (entries DirEntries, canonicalError 
 	path = mangleYarnPnPVirtualPath(path)
 
 	entries, canonicalError, originalError = fs.inner.ReadDirectory(path)
-	if canonicalError != syscall.ENOENT && canonicalError != syscall.ENOTDIR {
+
+	// Only continue if reading this path as a directory caused an error that's
+	// consistent with trying to read a zip file as a directory. Note that EINVAL
+	// is produced by the file system in Go's WebAssembly implementation.
+	if canonicalError != syscall.ENOENT && canonicalError != syscall.ENOTDIR && canonicalError != syscall.EINVAL {
 		return
 	}
 

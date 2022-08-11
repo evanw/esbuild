@@ -236,6 +236,94 @@ const tests = {
     const exports = require(outfile);
     assert.deepStrictEqual(exports.default, require(packageJSON));
   },
+  zipFile({ testDir, esbuildPathWASM }) {
+    const entry = path.join(testDir, 'entry.js')
+    fs.writeFileSync(entry, `
+      import foo from './test.zip/foo.js'
+      import bar from './test.zip/bar/bar.js'
+
+      import __virtual__1 from './test.zip/__virtual__/ignored/0/foo.js'
+      import __virtual__2 from './test.zip/ignored/__virtual__/ignored/1/foo.js'
+      import __virtual__3 from './test.zip/__virtual__/ignored/1/test.zip/foo.js'
+
+      import $$virtual1 from './test.zip/$$virtual/ignored/0/foo.js'
+      import $$virtual2 from './test.zip/ignored/$$virtual/ignored/1/foo.js'
+      import $$virtual3 from './test.zip/$$virtual/ignored/1/test.zip/foo.js'
+
+      console.log({
+        foo,
+        bar,
+
+        __virtual__1,
+        __virtual__2,
+        __virtual__3,
+
+        $$virtual1,
+        $$virtual2,
+        $$virtual3,
+      })
+    `)
+
+    // This uses the real file system instead of the mock file system so that
+    // we can check that everything works as expected on Windows, which is not
+    // a POSIX environment.
+    fs.writeFileSync(path.join(testDir, 'test.zip'), Buffer.from(
+      `UEsDBAoAAgAAAG1qCFUSAXosFQAAABUAAAAGABwAZm9vLmpzVVQJAAOeRfFioEXxYnV4C` +
+      `wABBPUBAAAEFAAAAGV4cG9ydCBkZWZhdWx0ICdmb28nClBLAwQKAAIAAABzaghVwuDbLR` +
+      `UAAAAVAAAACgAcAGJhci9iYXIuanNVVAkAA6lF8WKrRfFidXgLAAEE9QEAAAQUAAAAZXh` +
+      `wb3J0IGRlZmF1bHQgJ2JhcicKUEsBAh4DCgACAAAAbWoIVRIBeiwVAAAAFQAAAAYAGAAA` +
+      `AAAAAQAAAKSBAAAAAGZvby5qc1VUBQADnkXxYnV4CwABBPUBAAAEFAAAAFBLAQIeAwoAA` +
+      `gAAAHNqCFXC4NstFQAAABUAAAAKABgAAAAAAAEAAACkgVUAAABiYXIvYmFyLmpzVVQFAA` +
+      `OpRfFidXgLAAEE9QEAAAQUAAAAUEsFBgAAAAACAAIAnAAAAK4AAAAAAA==`, 'base64'))
+
+    const stdout = child_process.execFileSync('node', [
+      esbuildPathWASM,
+      '--bundle',
+      entry,
+    ], {
+      stdio: 'pipe',
+      cwd: testDir,
+    }).toString();
+
+    assert.strictEqual(stdout, `(() => {
+  // test.zip/foo.js
+  var foo_default = "foo";
+
+  // test.zip/bar/bar.js
+  var bar_default = "bar";
+
+  // test.zip/__virtual__/ignored/0/foo.js
+  var foo_default2 = "foo";
+
+  // test.zip/ignored/__virtual__/ignored/1/foo.js
+  var foo_default3 = "foo";
+
+  // test.zip/__virtual__/ignored/1/test.zip/foo.js
+  var foo_default4 = "foo";
+
+  // test.zip/$$virtual/ignored/0/foo.js
+  var foo_default5 = "foo";
+
+  // test.zip/ignored/$$virtual/ignored/1/foo.js
+  var foo_default6 = "foo";
+
+  // test.zip/$$virtual/ignored/1/test.zip/foo.js
+  var foo_default7 = "foo";
+
+  // entry.js
+  console.log({
+    foo: foo_default,
+    bar: bar_default,
+    __virtual__1: foo_default2,
+    __virtual__2: foo_default3,
+    __virtual__3: foo_default4,
+    $$virtual1: foo_default5,
+    $$virtual2: foo_default6,
+    $$virtual3: foo_default7
+  });
+})();
+`)
+  },
 };
 
 function runTest({ testDir, esbuildPathNative, esbuildPathWASM, test }) {
