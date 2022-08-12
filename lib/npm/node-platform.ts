@@ -2,6 +2,8 @@ import fs = require('fs');
 import os = require('os');
 import path = require('path');
 
+declare const ESBUILD_VERSION: string;
+
 // This feature was added to give external code a way to modify the binary
 // path without modifying the code itself. Do not remove this because
 // external code relies on this.
@@ -186,7 +188,12 @@ by esbuild to install the correct binary executable for your current platform.`)
   }
   if (pnpapi) {
     const root = pnpapi.getPackageInformation(pnpapi.topLevel).packageLocation;
-    const binTargetPath = path.join(root, 'node_modules/.esbuild', version, `pnpapi-${pkg}-${path.basename(subpath)}`);
+    const binTargetPath = path.join(
+      root,
+      'node_modules/.esbuild',
+      ESBUILD_VERSION,
+      `pnpapi-${pkg}-${path.basename(subpath)}`
+    );
     if (!fs.existsSync(binTargetPath)) {
       fs.mkdirSync(path.dirname(binTargetPath), { recursive: true });
       fs.copyFileSync(binPath, binTargetPath);
