@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.15.2
 
 * Fix Yarn PnP issue with packages containing `index.js` ([#2455](https://github.com/evanw/esbuild/issues/2455), [#2461](https://github.com/evanw/esbuild/issues/2461))
 
