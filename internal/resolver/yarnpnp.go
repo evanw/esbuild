@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"syscall"
 
-	"github.com/evanw/esbuild/internal/cache"
 	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_parser"
@@ -577,15 +577,24 @@ func getDependencyTarget(json js_ast.Expr) (pnpIdentAndReference, bool) {
 	return pnpIdentAndReference{}, false
 }
 
-func (r resolverQuery) extractYarnPnPDataFromJSON(pnpDataPath string, jsonCache *cache.JSONCache) (result js_ast.Expr) {
+type pnpDataMode uint8
+
+const (
+	pnpIgnoreErrorsAboutMissingFiles pnpDataMode = iota
+	pnpReportErrorsAboutMissingFiles
+)
+
+func (r resolverQuery) extractYarnPnPDataFromJSON(pnpDataPath string, mode pnpDataMode) (result js_ast.Expr) {
 	contents, err, originalError := r.caches.FSCache.ReadFile(r.fs, pnpDataPath)
 	if r.debugLogs != nil && originalError != nil {
 		r.debugLogs.addNote(fmt.Sprintf("Failed to read file %q: %s", pnpDataPath, originalError.Error()))
 	}
 	if err != nil {
-		r.log.AddError(nil, logger.Range{},
-			fmt.Sprintf("Cannot read file %q: %s",
-				r.PrettyPath(logger.Path{Text: pnpDataPath, Namespace: "file"}), err.Error()))
+		if mode == pnpReportErrorsAboutMissingFiles || err != syscall.ENOENT {
+			r.log.AddError(nil, logger.Range{},
+				fmt.Sprintf("Cannot read file %q: %s",
+					r.PrettyPath(logger.Path{Text: pnpDataPath, Namespace: "file"}), err.Error()))
+		}
 		return
 	}
 	if r.debugLogs != nil {
@@ -597,19 +606,21 @@ func (r resolverQuery) extractYarnPnPDataFromJSON(pnpDataPath string, jsonCache 
 		PrettyPath: r.PrettyPath(keyPath),
 		Contents:   contents,
 	}
-	result, _ = jsonCache.Parse(r.log, source, js_parser.JSONOptions{})
+	result, _ = r.caches.JSONCache.Parse(r.log, source, js_parser.JSONOptions{})
 	return
 }
 
-func (r resolverQuery) tryToExtractYarnPnPDataFromJS(pnpDataPath string, jsonCache *cache.JSONCache) (result js_ast.Expr) {
+func (r resolverQuery) tryToExtractYarnPnPDataFromJS(pnpDataPath string, mode pnpDataMode) (result js_ast.Expr) {
 	contents, err, originalError := r.caches.FSCache.ReadFile(r.fs, pnpDataPath)
 	if r.debugLogs != nil && originalError != nil {
 		r.debugLogs.addNote(fmt.Sprintf("Failed to read file %q: %s", pnpDataPath, originalError.Error()))
 	}
 	if err != nil {
-		r.log.AddError(nil, logger.Range{},
-			fmt.Sprintf("Cannot read file %q: %s",
-				r.PrettyPath(logger.Path{Text: pnpDataPath, Namespace: "file"}), err.Error()))
+		if mode == pnpReportErrorsAboutMissingFiles || err != syscall.ENOENT {
+			r.log.AddError(nil, logger.Range{},
+				fmt.Sprintf("Cannot read file %q: %s",
+					r.PrettyPath(logger.Path{Text: pnpDataPath, Namespace: "file"}), err.Error()))
+		}
 		return
 	}
 	if r.debugLogs != nil {
@@ -622,7 +633,7 @@ func (r resolverQuery) tryToExtractYarnPnPDataFromJS(pnpDataPath string, jsonCac
 		PrettyPath: r.PrettyPath(keyPath),
 		Contents:   contents,
 	}
-	ast, _ := js_parser.Parse(r.log, source, js_parser.OptionsForYarnPnP())
+	ast, _ := r.caches.JSCache.Parse(r.log, source, js_parser.OptionsForYarnPnP())
 
 	if r.debugLogs != nil && ast.ManifestForYarnPnP.Data != nil {
 		r.debugLogs.addNote(fmt.Sprintf("  Extracted JSON data from %q", pnpDataPath))

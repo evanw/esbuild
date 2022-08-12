@@ -3060,6 +3060,64 @@ require("/assets/file.png");
 })();
 `)
   },
+
+  async yarnPnP_tsconfig({ esbuild, testDir }) {
+    const entry = path.join(testDir, 'entry.js')
+    const tsconfigExtends = path.join(testDir, 'tsconfig.json')
+    const tsconfigBase = path.join(testDir, 'foo', 'tsconfig.json')
+    const manifest = path.join(testDir, '.pnp.data.json')
+
+    await writeFileAsync(entry, `
+      x **= 2
+    `)
+
+    await writeFileAsync(tsconfigExtends, `{
+      "extends": "@scope/base/tsconfig.json",
+    }`)
+
+    await mkdirAsync(path.dirname(tsconfigBase), { recursive: true })
+    await writeFileAsync(tsconfigBase, `{
+      "compilerOptions": {
+        "target": "ES5"
+      }
+    }`)
+
+    await writeFileAsync(manifest, `{
+      "packageRegistryData": [
+        [null, [
+          [null, {
+            "packageLocation": "./",
+            "packageDependencies": [
+              ["@scope/base", "npm:1.0.0"]
+            ],
+            "linkType": "SOFT"
+          }]
+        ]],
+        ["@scope/base", [
+          ["npm:1.0.0", {
+            "packageLocation": "./foo/",
+            "packageDependencies": [],
+            "linkType": "HARD"
+          }]
+        ]]
+      ]
+    }`)
+
+    const value = await esbuild.build({
+      entryPoints: [entry],
+      bundle: true,
+      write: false,
+    })
+
+    assert.strictEqual(value.outputFiles.length, 1)
+    assert.strictEqual(value.outputFiles[0].text, `(() => {
+  var __pow = Math.pow;
+
+  // scripts/.js-api-tests/yarnPnP_tsconfig/entry.js
+  x = __pow(x, 2);
+})();
+`)
+  },
 }
 
 function fetch(host, port, path, headers) {

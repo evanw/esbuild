@@ -936,12 +936,57 @@ func (r resolverQuery) parseTSConfig(file string, visited map[string]bool) (*TSC
 	fileDir := r.fs.Dir(file)
 
 	result := ParseTSConfigJSON(r.log, source, &r.caches.JSONCache, func(extends string, extendsRange logger.Range) *TSConfigJSON {
+		// Note: This doesn't use the normal node module resolution algorithm
+		// both because it's different (e.g. we don't want to match a directory)
+		// and because it would deadlock since we're currently in the middle of
+		// populating the directory info cache.
+
+		// Check for a Yarn PnP manifest and use that to rewrite the path
+		isAbsolutePathFromYarnPnP := false
 		if IsPackagePath(extends) {
-			// If this is a package path, try to resolve it to a "node_modules"
-			// folder. This doesn't use the normal node module resolution algorithm
-			// both because it's different (e.g. we don't want to match a directory)
-			// and because it would deadlock since we're currently in the middle of
-			// populating the directory info cache.
+			current := fileDir
+			for {
+				if _, _, ok := fs.ParseYarnPnPVirtualPath(current); !ok {
+					var pnpData *pnpData
+					absPath := r.fs.Join(current, ".pnp.data.json")
+					if json := r.extractYarnPnPDataFromJSON(absPath, pnpIgnoreErrorsAboutMissingFiles); json.Data != nil {
+						pnpData = compileYarnPnPData(absPath, current, json)
+					} else {
+						absPath := r.fs.Join(current, ".pnp.cjs")
+						if json := r.extractYarnPnPDataFromJSON(absPath, pnpIgnoreErrorsAboutMissingFiles); json.Data != nil {
+							pnpData = compileYarnPnPData(absPath, current, json)
+						} else {
+							absPath := r.fs.Join(current, ".pnp.js")
+							if json := r.extractYarnPnPDataFromJSON(absPath, pnpIgnoreErrorsAboutMissingFiles); json.Data != nil {
+								pnpData = compileYarnPnPData(absPath, current, json)
+							}
+						}
+					}
+					if pnpData != nil {
+						if result, ok := r.pnpResolve(extends, current, pnpData); ok {
+							extends = result // Continue with the module resolution algorithm from node.js
+							if r.fs.IsAbs(result) {
+								// Windows-style absolute paths are considered package paths
+								// because they do not start with a "/", but they should
+								// not go through package path resolution
+								isAbsolutePathFromYarnPnP = true
+							}
+						}
+						break
+					}
+				}
+
+				// Go to the parent directory, stopping at the file system root
+				next := r.fs.Dir(current)
+				if current == next {
+					break
+				}
+				current = next
+			}
+		}
+
+		if IsPackagePath(extends) && !isAbsolutePathFromYarnPnP {
+			// If this is still a package path, try to resolve it to a "node_modules" directory
 			current := fileDir
 			for {
 				// Skip "node_modules" folders
@@ -1215,17 +1260,17 @@ func (r resolverQuery) dirInfoUncached(path string) *dirInfo {
 	if _, _, ok := fs.ParseYarnPnPVirtualPath(path); !ok {
 		if pnp, _ := entries.Get(".pnp.data.json"); pnp != nil && pnp.Kind(r.fs) == fs.FileEntry {
 			absPath := r.fs.Join(path, ".pnp.data.json")
-			if json := r.extractYarnPnPDataFromJSON(absPath, &r.caches.JSONCache); json.Data != nil {
+			if json := r.extractYarnPnPDataFromJSON(absPath, pnpReportErrorsAboutMissingFiles); json.Data != nil {
 				info.pnpData = compileYarnPnPData(absPath, path, json)
 			}
 		} else if pnp, _ := entries.Get(".pnp.cjs"); pnp != nil && pnp.Kind(r.fs) == fs.FileEntry {
 			absPath := r.fs.Join(path, ".pnp.cjs")
-			if json := r.tryToExtractYarnPnPDataFromJS(absPath, &r.caches.JSONCache); json.Data != nil {
+			if json := r.tryToExtractYarnPnPDataFromJS(absPath, pnpReportErrorsAboutMissingFiles); json.Data != nil {
 				info.pnpData = compileYarnPnPData(absPath, path, json)
 			}
 		} else if pnp, _ := entries.Get(".pnp.js"); pnp != nil && pnp.Kind(r.fs) == fs.FileEntry {
 			absPath := r.fs.Join(path, ".pnp.js")
-			if json := r.tryToExtractYarnPnPDataFromJS(absPath, &r.caches.JSONCache); json.Data != nil {
+			if json := r.tryToExtractYarnPnPDataFromJS(absPath, pnpReportErrorsAboutMissingFiles); json.Data != nil {
 				info.pnpData = compileYarnPnPData(absPath, path, json)
 			}
 		}

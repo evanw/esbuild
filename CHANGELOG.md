@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+* Fix Yarn PnP support for `extends` in `tsconfig.json` ([#2456](https://github.com/evanw/esbuild/issues/2456))
+
+    Previously using `extends` in `tsconfig.json` with a path in a Yarn PnP package didn't work. This is because the process of setting up package path resolution rules requires parsing `tsconfig.json` files (due to the `baseUrl` and `paths` features) and resolving `extends` to a package path requires package path resolution rules to already be set up, which is a circular dependency. This cycle is broken by using special rules for `extends` in `tsconfig.json` that bypasses esbuild's normal package path resolution process. This is why using `extends` with a Yarn PnP package didn't automatically work. With this release, these special rules have been modified to check for a Yarn PnP manifest so this case should work now.
+
 * Fix Yarn PnP support in `esbuild-wasm` ([#2458](https://github.com/evanw/esbuild/issues/2458))
 
     When running esbuild via WebAssembly, Yarn PnP support previously failed because Go's file system internals return `EINVAL` when trying to read a `.zip` file as a directory when run with WebAssembly. This was unexpected because Go's file system internals return `ENOTDIR` for this case on native. This release updates esbuild to treat `EINVAL` like `ENOTDIR` in this case, which fixes using `esbuild-wasm` to bundle a Yarn PnP project.
