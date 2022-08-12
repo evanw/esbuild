@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+* Fix Yarn PnP support in `esbuild-wasm` ([#2458](https://github.com/evanw/esbuild/issues/2458))
+
+    When running esbuild via WebAssembly, Yarn PnP support previously failed because Go's file system internals return `EINVAL` when trying to read a `.zip` file as a directory when run with WebAssembly. This was unexpected because Go's file system internals return `ENOTDIR` for this case on native. This release updates esbuild to treat `EINVAL` like `ENOTDIR` in this case, which fixes using `esbuild-wasm` to bundle a Yarn PnP project.
+
+    Note that to be able to use `esbuild-wasm` for Yarn PnP successfully, you currently have to run it using `node` instead of `yarn node`. This is because the file system shim that Yarn overwrites node's native file system API with currently generates invalid file descriptors with negative values when inside a `.zip` file. This prevents esbuild from working correctly because Go's file system internals don't expect syscalls that succeed without an error to return an invalid file descriptor. Yarn is working on fixing their use of invalid file descriptors.
+
 ## 0.15.1
 
 * Update esbuild's Yarn Plug'n'Play implementation to match the latest specification changes ([#2452](https://github.com/evanw/esbuild/issues/2452), [#2453](https://github.com/evanw/esbuild/pull/2453))
