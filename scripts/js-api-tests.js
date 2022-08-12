@@ -3118,6 +3118,61 @@ require("/assets/file.png");
 })();
 `)
   },
+
+  async yarnPnP_indexJs({ esbuild, testDir }) {
+    const entry = path.join(testDir, 'entry.js')
+    const fooIndex = path.join(testDir, 'foo', 'index.js')
+    const fooFoo = path.join(testDir, 'foo', 'foo.js')
+    const manifest = path.join(testDir, '.pnp.data.json')
+
+    await writeFileAsync(entry, `
+      import x from '@some/pkg'
+      x()
+    `)
+
+    await mkdirAsync(path.dirname(fooIndex), { recursive: true })
+    await writeFileAsync(fooIndex, `export default success`)
+
+    await mkdirAsync(path.dirname(fooFoo), { recursive: true })
+    await writeFileAsync(fooFoo, `failure!`)
+
+    await writeFileAsync(manifest, `{
+      "packageRegistryData": [
+        [null, [
+          [null, {
+            "packageLocation": "./",
+            "packageDependencies": [
+              ["@some/pkg", "npm:1.0.0"]
+            ],
+            "linkType": "SOFT"
+          }]
+        ]],
+        ["@some/pkg", [
+          ["npm:1.0.0", {
+            "packageLocation": "./foo/",
+            "packageDependencies": [],
+            "linkType": "HARD"
+          }]
+        ]]
+      ]
+    }`)
+
+    const value = await esbuild.build({
+      entryPoints: [entry],
+      bundle: true,
+      write: false,
+    })
+
+    assert.strictEqual(value.outputFiles.length, 1)
+    assert.strictEqual(value.outputFiles[0].text, `(() => {
+  // scripts/.js-api-tests/yarnPnP_indexJs/foo/index.js
+  var foo_default = success;
+
+  // scripts/.js-api-tests/yarnPnP_indexJs/entry.js
+  foo_default();
+})();
+`)
+  },
 }
 
 function fetch(host, port, path, headers) {

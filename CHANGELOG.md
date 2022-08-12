@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+* Fix Yarn PnP issue with packages containing `index.js` ([#2455](https://github.com/evanw/esbuild/issues/2455), [#2461](https://github.com/evanw/esbuild/issues/2461))
+
+    Yarn PnP's tests require the resolved paths to end in `/`. That's not how the rest of esbuild's internals work, however, and doing this messed up esbuild's node module path resolution regarding automatically-detected `index.js` files. Previously packages that relied on implicit `index.js` resolution rules didn't work with esbuild under Yarn PnP. Removing this slash has fixed esbuild's path resolution behavior regarding `index.js`, which should now the same both with and without Yarn PnP.
+
 * Fix Yarn PnP support for `extends` in `tsconfig.json` ([#2456](https://github.com/evanw/esbuild/issues/2456))
 
     Previously using `extends` in `tsconfig.json` with a path in a Yarn PnP package didn't work. This is because the process of setting up package path resolution rules requires parsing `tsconfig.json` files (due to the `baseUrl` and `paths` features) and resolving `extends` to a package path requires package path resolution rules to already be set up, which is a circular dependency. This cycle is broken by using special rules for `extends` in `tsconfig.json` that bypasses esbuild's normal package path resolution process. This is why using `extends` with a Yarn PnP package didn't automatically work. With this release, these special rules have been modified to check for a Yarn PnP manifest so this case should work now.

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"strings"
 	"testing"
 
 	"github.com/evanw/esbuild/internal/config"
@@ -80,6 +81,13 @@ func TestYarnPnP(t *testing.T) {
 					// incorrect. So we change the expected value of the test instead.
 					if current.It == `shouldn't go through PnP when trying to resolve dependencies from packages covered by ignorePatternData` {
 						expected = current.Imported
+					} else if result != "error!" && !strings.HasSuffix(result, "/") {
+						// This is important for matching Yarn PnP's expectations in tests,
+						// but it's important for esbuild that the slash isn't present.
+						// Otherwise esbuild's implementation of node module resolution
+						// (which runs after Yarn PnP resolution) will fail. Specifically
+						// "foo/" will look for "foo/foo.js" instead of "foo/index.js".
+						result += "/"
 					}
 
 					test.AssertEqualWithDiff(t, result, expected)

@@ -266,10 +266,6 @@ func (r resolverQuery) resolveToUnqualified(specifier string, parentURL string, 
 
 	// Return path.resolve(manifest.dirPath, dependencyPkg.packageLocation, modulePath)
 	result := r.fs.Join(manifest.absDirPath, dependencyPkg.packageLocation, modulePath)
-	if !strings.HasSuffix(result, "/") && ((modulePath != "" && strings.HasSuffix(modulePath, "/")) ||
-		(modulePath == "" && strings.HasSuffix(dependencyPkg.packageLocation, "/"))) {
-		result += "/" // This is important for matching Yarn PnP's expectations in tests
-	}
 	if r.debugLogs != nil {
 		r.debugLogs.addNote(fmt.Sprintf("  Resolved %q via Yarn PnP to %q", specifier, result))
 	}
