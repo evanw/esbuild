@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix Yarn PnP resolution failures due to backslashes in paths on Windows ([#2462](https://github.com/evanw/esbuild/issues/2462))
+
+    Previously dependencies of a Yarn PnP virtual dependency failed to resolve on Windows. This was because Windows uses `\` instead of `/` as a path separator, and the path manipulation algorithms used for Yarn PnP expected `/`. This release converts `\` into `/` in Windows paths, which fixes this issue.
+
 ## 0.15.2
 
 * Fix Yarn PnP issue with packages containing `index.js` ([#2455](https://github.com/evanw/esbuild/issues/2455), [#2461](https://github.com/evanw/esbuild/issues/2461))

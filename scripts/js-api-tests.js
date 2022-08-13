@@ -3173,6 +3173,84 @@ require("/assets/file.png");
 })();
 `)
   },
+
+  async yarnPnP_depOfVirtual({ esbuild, testDir }) {
+    const entry = path.join(testDir, 'entry.js')
+    const pkg = path.join(testDir, '.yarn', 'cache', 'pkg', 'index.js')
+    const dep = path.join(testDir, '.yarn', 'cache', 'dep', 'index.js')
+    const manifest = path.join(testDir, '.pnp.data.json')
+
+    await writeFileAsync(entry, `import 'pkg'`)
+
+    await mkdirAsync(path.dirname(pkg), { recursive: true })
+    await writeFileAsync(pkg, `import 'dep'`)
+
+    await mkdirAsync(path.dirname(dep), { recursive: true })
+    await writeFileAsync(dep, `success()`)
+
+    await writeFileAsync(manifest, `{
+      "packageRegistryData": [
+        [null, [
+          [null, {
+            "packageLocation": "./",
+            "packageDependencies": [
+              ["pkg", "virtual:some-path"]
+            ],
+            "linkType": "SOFT"
+          }]
+        ]],
+        ["demo", [
+          ["workspace:.", {
+            "packageLocation": "./",
+            "packageDependencies": [
+              ["demo", "workspace:."],
+              ["pkg", "virtual:some-path"]
+            ],
+            "linkType": "SOFT"
+          }]
+        ]],
+        ["pkg", [
+          ["npm:1.0.0", {
+            "packageLocation": "./.yarn/cache/pkg/",
+            "packageDependencies": [
+              ["pkg", "npm:1.0.0"]
+            ],
+            "linkType": "SOFT"
+          }],
+          ["virtual:some-path", {
+            "packageLocation": "./.yarn/__virtual__/pkg-virtual/0/cache/pkg/",
+            "packageDependencies": [
+              ["pkg", "virtual:some-path"],
+              ["dep", "npm:1.0.0"]
+            ],
+            "linkType": "HARD"
+          }]
+        ]],
+        ["dep", [
+          ["npm:1.0.0", {
+            "packageLocation": "./.yarn/cache/dep/",
+            "packageDependencies": [
+              ["dep", "npm:1.0.0"]
+            ],
+            "linkType": "HARD"
+          }]
+        ]]
+      ]
+    }`)
+
+    const value = await esbuild.build({
+      entryPoints: [entry],
+      bundle: true,
+      write: false,
+    })
+
+    assert.strictEqual(value.outputFiles.length, 1)
+    assert.strictEqual(value.outputFiles[0].text, `(() => {
+  // scripts/.js-api-tests/yarnPnP_depOfVirtual/.yarn/cache/dep/index.js
+  success();
+})();
+`)
+  },
 }
 
 function fetch(host, port, path, headers) {

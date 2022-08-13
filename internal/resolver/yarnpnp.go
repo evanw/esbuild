@@ -277,6 +277,10 @@ func (r resolverQuery) findLocator(manifest *pnpData, moduleUrl string) (pnpIden
 	relativeUrl, ok := r.fs.Rel(manifest.absDirPath, moduleUrl)
 	if !ok {
 		return pnpIdentAndReference{}, false
+	} else {
+		// Relative URLs on Windows will use \ instead of /, which will break
+		// everything we do below. Use normal slashes to keep things working.
+		relativeUrl = strings.ReplaceAll(relativeUrl, "\\", "/")
 	}
 
 	// The relative path must not start with ./; trim it if needed
