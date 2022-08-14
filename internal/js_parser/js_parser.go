@@ -14359,46 +14359,51 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 	case *js_ast.ENew:
 		hasSpread := false
+		relativeJS := false
 
 		e.Target = p.visitExpr(e.Target)
 		// new url?
 		if id, ok := e.Target.Data.(*js_ast.EIdentifier); ok {
 			symbol := p.symbols[id.Ref.InnerIndex]
-			if symbol.OriginalName == "URL" {
-				if s, ok := e.Args[0].Data.(*js_ast.EString); ok {
+			if symbol.OriginalName == "URL" && len(e.Args) == 2 {
+				if _, ok := e.Args[0].Data.(*js_ast.EString); ok {
 					// TODO check if url is relative and a js file
 					if eDot, ok := e.Args[1].Data.(*js_ast.EDot); ok {
 						if _, ok := eDot.Target.Data.(*js_ast.EImportMeta); ok {
 							if eDot.Name == "url" {
-								// replace the 2 args ("../path/to.js", import.meta.url)
-								// with 1 ERelativeURL
-								importRecordIndex := p.addImportRecord(ast.ImportDynamic, e.Args[0].Loc, helpers.UTF16ToString(s.Value), nil)
-								p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
-								e.Args = []js_ast.Expr{js_ast.Expr{Loc: e.Args[0].Loc, Data: &js_ast.ERelativeURL{
-									ImportRecordIndex:       importRecordIndex,
-								}}}
+								relativeJS = true
 							}
 						}
 					}
 				}
-			} else {
-				p.warnAboutImportNamespaceCall(e.Target, exprKindNew)
-	
-				for i, arg := range e.Args {
-					arg = p.visitExpr(arg)
-					if _, ok := arg.Data.(*js_ast.ESpread); ok {
-						hasSpread = true
-					}
-					e.Args[i] = arg
-				}
-	
-				// "new foo(1, ...[2, 3], 4)" => "new foo(1, 2, 3, 4)"
-				if p.options.minifySyntax && hasSpread && in.assignTarget == js_ast.AssignTargetNone {
-					e.Args = inlineSpreadsOfArrayLiterals(e.Args)
-				}
-	
-				p.maybeMarkKnownGlobalConstructorAsPure(e)
 			}
+		}
+		if relativeJS {
+			// replace the 2 args ("../path/to.js", import.meta.url)
+			// with 1 ERelativeURL
+			s, _ := e.Args[0].Data.(*js_ast.EString);
+			importRecordIndex := p.addImportRecord(ast.ImportDynamic, e.Args[0].Loc, helpers.UTF16ToString(s.Value), nil)
+			p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
+			e.Args = []js_ast.Expr{js_ast.Expr{Loc: e.Args[0].Loc, Data: &js_ast.ERelativeURL{
+				ImportRecordIndex:       importRecordIndex,
+			}}}
+	  } else {
+			p.warnAboutImportNamespaceCall(e.Target, exprKindNew)
+
+			for i, arg := range e.Args {
+				arg = p.visitExpr(arg)
+				if _, ok := arg.Data.(*js_ast.ESpread); ok {
+					hasSpread = true
+				}
+				e.Args[i] = arg
+			}
+
+			// "new foo(1, ...[2, 3], 4)" => "new foo(1, 2, 3, 4)"
+			if p.options.minifySyntax && hasSpread && in.assignTarget == js_ast.AssignTargetNone {
+				e.Args = inlineSpreadsOfArrayLiterals(e.Args)
+			}
+
+			p.maybeMarkKnownGlobalConstructorAsPure(e)
 		}
 
 	case *js_ast.EArrow:
