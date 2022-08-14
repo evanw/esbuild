@@ -2774,15 +2774,16 @@ require("/assets/file.png");
       entryPoints: [entry],
       bundle: true,
       write: false,
+      absWorkingDir: testDir,
     })
 
     assert.strictEqual(value.outputFiles.length, 1)
     assert.strictEqual(value.outputFiles[0].text, `(() => {
-  // scripts/.js-api-tests/yarnPnP_pnp_data_json/.yarn/cache/left-pad/index.js
+  // .yarn/cache/left-pad/index.js
   function left_pad_default() {
   }
 
-  // scripts/.js-api-tests/yarnPnP_pnp_data_json/entry.js
+  // entry.js
   console.log(left_pad_default());
 })();
 `)
@@ -2840,15 +2841,16 @@ require("/assets/file.png");
       entryPoints: [entry],
       bundle: true,
       write: false,
+      absWorkingDir: testDir,
     })
 
     assert.strictEqual(value.outputFiles.length, 1)
     assert.strictEqual(value.outputFiles[0].text, `(() => {
-  // scripts/.js-api-tests/yarnPnP_pnp_js_object_literal/.yarn/cache/left-pad/index.js
+  // .yarn/cache/left-pad/index.js
   function left_pad_default() {
   }
 
-  // scripts/.js-api-tests/yarnPnP_pnp_js_object_literal/entry.js
+  // entry.js
   console.log(left_pad_default());
 })();
 `)
@@ -2906,15 +2908,16 @@ require("/assets/file.png");
       entryPoints: [entry],
       bundle: true,
       write: false,
+      absWorkingDir: testDir,
     })
 
     assert.strictEqual(value.outputFiles.length, 1)
     assert.strictEqual(value.outputFiles[0].text, `(() => {
-  // scripts/.js-api-tests/yarnPnP_pnp_cjs_JSON_parse_string_literal/.yarn/cache/left-pad/index.js
+  // .yarn/cache/left-pad/index.js
   function left_pad_default() {
   }
 
-  // scripts/.js-api-tests/yarnPnP_pnp_cjs_JSON_parse_string_literal/entry.js
+  // entry.js
   console.log(left_pad_default());
 })();
 `)
@@ -2974,15 +2977,16 @@ require("/assets/file.png");
       entryPoints: [entry],
       bundle: true,
       write: false,
+      absWorkingDir: testDir,
     })
 
     assert.strictEqual(value.outputFiles.length, 1)
     assert.strictEqual(value.outputFiles[0].text, `(() => {
-  // scripts/.js-api-tests/yarnPnP_pnp_cjs_JSON_parse_identifier/.yarn/cache/left-pad/index.js
+  // .yarn/cache/left-pad/index.js
   function left_pad_default() {
   }
 
-  // scripts/.js-api-tests/yarnPnP_pnp_cjs_JSON_parse_identifier/entry.js
+  // entry.js
   console.log(left_pad_default());
 })();
 `)
@@ -3045,17 +3049,18 @@ require("/assets/file.png");
       entryPoints: [entry],
       bundle: true,
       write: false,
+      absWorkingDir: testDir,
     })
 
     assert.strictEqual(value.outputFiles.length, 1)
     assert.strictEqual(value.outputFiles[0].text, `(() => {
-  // scripts/.js-api-tests/yarnPnP_ignoreNestedManifests/__virtual__/whatever/0/bar/index.js
+  // __virtual__/whatever/0/bar/index.js
   var bar_default = "bar";
 
-  // scripts/.js-api-tests/yarnPnP_ignoreNestedManifests/__virtual__/whatever/0/foo/index.js
+  // __virtual__/whatever/0/foo/index.js
   var foo_default = "foo" + bar_default;
 
-  // scripts/.js-api-tests/yarnPnP_ignoreNestedManifests/entry.js
+  // entry.js
   console.log(foo_default);
 })();
 `)
@@ -3107,13 +3112,14 @@ require("/assets/file.png");
       entryPoints: [entry],
       bundle: true,
       write: false,
+      absWorkingDir: testDir,
     })
 
     assert.strictEqual(value.outputFiles.length, 1)
     assert.strictEqual(value.outputFiles[0].text, `(() => {
   var __pow = Math.pow;
 
-  // scripts/.js-api-tests/yarnPnP_tsconfig/entry.js
+  // entry.js
   x = __pow(x, 2);
 })();
 `)
@@ -3161,14 +3167,15 @@ require("/assets/file.png");
       entryPoints: [entry],
       bundle: true,
       write: false,
+      absWorkingDir: testDir,
     })
 
     assert.strictEqual(value.outputFiles.length, 1)
     assert.strictEqual(value.outputFiles[0].text, `(() => {
-  // scripts/.js-api-tests/yarnPnP_indexJs/foo/index.js
+  // foo/index.js
   var foo_default = success;
 
-  // scripts/.js-api-tests/yarnPnP_indexJs/entry.js
+  // entry.js
   foo_default();
 })();
 `)
@@ -3242,11 +3249,12 @@ require("/assets/file.png");
       entryPoints: [entry],
       bundle: true,
       write: false,
+      absWorkingDir: testDir,
     })
 
     assert.strictEqual(value.outputFiles.length, 1)
     assert.strictEqual(value.outputFiles[0].text, `(() => {
-  // scripts/.js-api-tests/yarnPnP_depOfVirtual/.yarn/cache/dep/index.js
+  // .yarn/cache/dep/index.js
   success();
 })();
 `)

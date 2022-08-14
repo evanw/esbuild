@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+* Change the Yarn PnP manifest to a singleton ([#2463](https://github.com/evanw/esbuild/issues/2463))
+
+    Previously esbuild searched for the Yarn PnP manifest in the parent directories of each file. But with Yarn's `enableGlobalCache` setting it's possible to configure Yarn PnP's implementation to reach outside of the directory subtree containing the Yarn PnP manifest. This was causing esbuild to fail to bundle projects with the `enableGlobalCache` setting enabled.
+
+    To handle this case, *esbuild will now only search for the Yarn PnP manifest in the current working directory of the esbuild process*. If you're using esbuild's CLI, this means you will now have to `cd` into the appropriate directory first. If you're using esbuild's API, you can override esbuild's value for the current working directory with the `absWorkingDir` API option.
+
 * Fix Yarn PnP resolution failures due to backslashes in paths on Windows ([#2462](https://github.com/evanw/esbuild/issues/2462))
 
     Previously dependencies of a Yarn PnP virtual dependency failed to resolve on Windows. This was because Windows uses `\` instead of `/` as a path separator, and the path manipulation algorithms used for Yarn PnP expected `/`. This release converts `\` into `/` in Windows paths, which fixes this issue.
