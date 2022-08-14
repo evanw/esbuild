@@ -15,11 +15,6 @@ import (
 // This file implements the Yarn PnP specification: https://yarnpkg.com/advanced/pnp-spec/
 
 type pnpData struct {
-	// A list of package locators that are roots of the dependency tree. There
-	// will typically be one entry for each workspace in the project (always at
-	// least one, as the top-level package is a workspace by itself).
-	dependencyTreeRoots map[string]string
-
 	// Keys are the package idents, values are sets of references. Combining the
 	// ident with each individual reference yields the set of affected locators.
 	fallbackExclusionList map[string]map[string]bool
@@ -392,24 +387,6 @@ func compileYarnPnPData(absPath string, absDirPath string, json js_ast.Expr) *pn
 	data := pnpData{
 		absPath:    absPath,
 		absDirPath: absDirPath,
-	}
-
-	if value, _, ok := getProperty(json, "dependencyTreeRoots"); ok {
-		if array, ok := value.Data.(*js_ast.EArray); ok {
-			data.dependencyTreeRoots = make(map[string]string, len(array.Items))
-
-			for _, item := range array.Items {
-				if name, _, ok := getProperty(item, "name"); ok {
-					if reference, _, ok := getProperty(item, "reference"); ok {
-						if name, ok := getString(name); ok {
-							if reference, ok := getString(reference); ok {
-								data.dependencyTreeRoots[name] = reference
-							}
-						}
-					}
-				}
-			}
-		}
 	}
 
 	if value, _, ok := getProperty(json, "enableTopLevelFallback"); ok {
