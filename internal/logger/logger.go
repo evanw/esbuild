@@ -276,6 +276,17 @@ func hasNoColorEnvironmentVariable() bool {
 // because it should work the same on Unix and Windows. These names end up in
 // the generated output and the generated output should not depend on the OS.
 func PlatformIndependentPathDirBaseExt(path string) (dir string, base string, ext string) {
+	absRootSlash := -1
+
+	// Make sure we don't strip off the slash for the root of the file system
+	if len(path) > 0 && (path[0] == '/' || path[0] == '\\') {
+		absRootSlash = 0 // Unix
+	} else if len(path) > 2 && path[1] == ':' && (path[2] == '/' || path[2] == '\\') {
+		if c := path[0]; (c >= 'a' && c < 'z') || (c >= 'A' && c <= 'Z') {
+			absRootSlash = 2 // Windows
+		}
+	}
+
 	for {
 		i := strings.LastIndexAny(path, "/\\")
 
@@ -286,6 +297,10 @@ func PlatformIndependentPathDirBaseExt(path string) (dir string, base string, ex
 		}
 
 		// Stop if we found a non-trailing slash
+		if i == absRootSlash {
+			dir, base = path[:i+1], path[i+1:]
+			break
+		}
 		if i+1 != len(path) {
 			dir, base = path[:i], path[i+1:]
 			break
@@ -299,7 +314,6 @@ func PlatformIndependentPathDirBaseExt(path string) (dir string, base string, ex
 	if dot := strings.LastIndexByte(base, '.'); dot >= 0 {
 		base, ext = base[:dot], base[dot:]
 	}
-
 	return
 }
 

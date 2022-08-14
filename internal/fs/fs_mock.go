@@ -11,26 +11,42 @@ import (
 	"syscall"
 )
 
+type MockKind uint8
+
+const (
+	MockUnix MockKind = iota
+	MockWindows
+)
+
 type mockFS struct {
 	dirs  map[string]DirEntries
 	files map[string]string
+	Kind  MockKind
 }
 
-func MockFS(input map[string]string) FS {
+func MockFS(input map[string]string, kind MockKind) FS {
 	dirs := make(map[string]DirEntries)
 	files := make(map[string]string)
 
 	for k, v := range input {
-		files[k] = v
+		key := k
+		if kind == MockWindows {
+			key = "C:" + strings.ReplaceAll(key, "/", "\\")
+		}
+		files[key] = v
 		original := k
 
 		// Build the directory map
 		for {
 			kDir := path.Dir(k)
-			dir, ok := dirs[kDir]
+			key := kDir
+			if kind == MockWindows {
+				key = "C:" + strings.ReplaceAll(key, "/", "\\")
+			}
+			dir, ok := dirs[key]
 			if !ok {
-				dir = DirEntries{dir: kDir, data: make(map[string]*Entry)}
-				dirs[kDir] = dir
+				dir = DirEntries{dir: key, data: make(map[string]*Entry)}
+				dirs[key] = dir
 			}
 			if kDir == k {
 				break
@@ -45,7 +61,7 @@ func MockFS(input map[string]string) FS {
 		}
 	}
 
-	return &mockFS{dirs, files}
+	return &mockFS{dirs, files, kind}
 }
 
 func (fs *mockFS) ReadDirectory(path string) (DirEntries, error, error) {
@@ -73,31 +89,101 @@ func (fs *mockFS) ModKey(path string) (ModKey, error) {
 	return ModKey{}, errors.New("This is not available during tests")
 }
 
-func (*mockFS) IsAbs(p string) bool {
+func win2unix(p string) string {
+	if strings.HasPrefix(p, "C:\\") {
+		p = p[2:]
+	}
+	p = strings.ReplaceAll(p, "\\", "/")
+	return p
+}
+
+func unix2win(p string) string {
+	p = strings.ReplaceAll(p, "/", "\\")
+	if strings.HasPrefix(p, "\\") {
+		p = "C:" + p
+	}
+	return p
+}
+
+func (fs *mockFS) IsAbs(p string) bool {
+	if fs.Kind == MockWindows {
+		p = win2unix(p)
+	}
 	return path.IsAbs(p)
 }
 
-func (*mockFS) Abs(p string) (string, bool) {
-	return path.Clean(path.Join("/", p)), true
+func (fs *mockFS) Abs(p string) (string, bool) {
+	if fs.Kind == MockWindows {
+		p = win2unix(p)
+	}
+
+	p = path.Clean(path.Join("/", p))
+
+	if fs.Kind == MockWindows {
+		p = unix2win(p)
+	}
+
+	return p, true
 }
 
-func (*mockFS) Dir(p string) string {
-	return path.Dir(p)
+func (fs *mockFS) Dir(p string) string {
+	if fs.Kind == MockWindows {
+		p = win2unix(p)
+	}
+
+	p = path.Dir(p)
+
+	if fs.Kind == MockWindows {
+		p = unix2win(p)
+	}
+
+	return p
 }
 
-func (*mockFS) Base(p string) string {
-	return path.Base(p)
+func (fs *mockFS) Base(p string) string {
+	if fs.Kind == MockWindows {
+		p = win2unix(p)
+	}
+
+	p = path.Base(p)
+
+	if fs.Kind == MockWindows && p == "/" {
+		p = "\\"
+	}
+
+	return p
 }
 
-func (*mockFS) Ext(p string) string {
+func (fs *mockFS) Ext(p string) string {
+	if fs.Kind == MockWindows {
+		p = win2unix(p)
+	}
+
 	return path.Ext(p)
 }
 
-func (*mockFS) Join(parts ...string) string {
-	return path.Clean(path.Join(parts...))
+func (fs *mockFS) Join(parts ...string) string {
+	if fs.Kind == MockWindows {
+		converted := make([]string, len(parts))
+		for i, part := range parts {
+			converted[i] = win2unix(part)
+		}
+		parts = converted
+	}
+
+	p := path.Clean(path.Join(parts...))
+
+	if fs.Kind == MockWindows {
+		p = unix2win(p)
+	}
+
+	return p
 }
 
-func (*mockFS) Cwd() string {
+func (fs *mockFS) Cwd() string {
+	if fs.Kind == MockWindows {
+		return "C:\\"
+	}
 	return "/"
 }
 
@@ -108,12 +194,20 @@ func splitOnSlash(path string) (string, string) {
 	return path, ""
 }
 
-func (*mockFS) Rel(base string, target string) (string, bool) {
+func (fs *mockFS) Rel(base string, target string) (string, bool) {
+	if fs.Kind == MockWindows {
+		base = win2unix(base)
+		target = win2unix(target)
+	}
+
 	base = path.Clean(base)
 	target = path.Clean(target)
 
 	// Base cases
 	if base == "" || base == "." {
+		if fs.Kind == MockWindows {
+			target = unix2win(target)
+		}
 		return target, true
 	}
 	if base == target {
@@ -133,6 +227,9 @@ func (*mockFS) Rel(base string, target string) (string, bool) {
 
 	// Stop now if base is a subpath of target
 	if base == "" {
+		if fs.Kind == MockWindows {
+			target = unix2win(target)
+		}
 		return target, true
 	}
 
@@ -141,11 +238,19 @@ func (*mockFS) Rel(base string, target string) (string, bool) {
 
 	// Stop now if target is a subpath of base
 	if target == "" {
-		return commonParent[:len(commonParent)-1], true
+		target = commonParent[:len(commonParent)-1]
+		if fs.Kind == MockWindows {
+			target = unix2win(target)
+		}
+		return target, true
 	}
 
 	// Otherwise, down to the parent
-	return commonParent + target, true
+	target = commonParent + target
+	if fs.Kind == MockWindows {
+		target = unix2win(target)
+	}
+	return target, true
 }
 
 func (fs *mockFS) kind(dir string, base string) (symlink string, kind EntryKind) {

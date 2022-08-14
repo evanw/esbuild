@@ -859,7 +859,7 @@ func TestTsconfigJsonExtends(t *testing.T) {
 }
 
 func TestTsconfigJsonExtendsAbsolute(t *testing.T) {
-	tsconfig_suite.expectBundled(t, bundled{
+	tsconfig_suite.expectBundledUnix(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/entry.jsx": `
 				console.log(<div/>, <></>)
@@ -867,6 +867,35 @@ func TestTsconfigJsonExtendsAbsolute(t *testing.T) {
 			"/Users/user/project/tsconfig.json": `
 				{
 					"extends": "/Users/user/project/base.json",
+					"compilerOptions": {
+						"jsxFragmentFactory": "derivedFragment"
+					}
+				}
+			`,
+			"/Users/user/project/base.json": `
+				{
+					"compilerOptions": {
+						"jsxFactory": "baseFactory",
+						"jsxFragmentFactory": "baseFragment"
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/entry.jsx"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+
+	tsconfig_suite.expectBundledWindows(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/entry.jsx": `
+				console.log(<div/>, <></>)
+			`,
+			"/Users/user/project/tsconfig.json": `
+				{
+					"extends": "C:\\Users\\user\\project\\base.json",
 					"compilerOptions": {
 						"jsxFragmentFactory": "derivedFragment"
 					}

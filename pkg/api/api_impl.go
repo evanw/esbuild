@@ -1491,7 +1491,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		}
 
 		// Scan over the bundle
-		mockFS := fs.MockFS(make(map[string]string))
+		mockFS := fs.MockFS(make(map[string]string), fs.MockUnix)
 		resolver := resolver.NewResolver(mockFS, log, caches, options)
 		bundle := bundler.ScanBundle(log, mockFS, resolver, caches, nil, options, timer)
 

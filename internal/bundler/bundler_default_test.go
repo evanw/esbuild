@@ -2416,10 +2416,27 @@ func TestImportAbsPathAsFile(t *testing.T) {
 }
 
 func TestImportAbsPathAsDir(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
+	default_suite.expectBundledUnix(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/entry.js": `
 				import pkg from '/Users/user/project/node_modules/pkg'
+				console.log(pkg)
+			`,
+			"/Users/user/project/node_modules/pkg/index.js": `
+				export default 123
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+	})
+
+	default_suite.expectBundledWindows(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/entry.js": `
+				import pkg from 'C:\\Users\\user\\project\\node_modules\\pkg'
 				console.log(pkg)
 			`,
 			"/Users/user/project/node_modules/pkg/index.js": `
@@ -3898,7 +3915,7 @@ func TestMinifyArguments(t *testing.T) {
 }
 
 func TestWarningsInsideNodeModules(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
+	default_suite.expectBundledUnix(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				import "./dup-case.js";        import "./node_modules/dup-case.js";        import "@plugin/dup-case.js"
@@ -4055,7 +4072,7 @@ entry.js: WARNING: "@scope/missing-pkg" should be marked as external for use wit
 }
 
 func TestInjectMissing(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
+	default_suite.expectBundledUnix(t, bundled{
 		files: map[string]string{
 			"/entry.js": ``,
 		},
@@ -4067,8 +4084,22 @@ func TestInjectMissing(t *testing.T) {
 				"/inject.js",
 			},
 		},
-		expectedScanLog: `ERROR: Could not read from file: /inject.js
-`,
+		expectedScanLog: "ERROR: Could not read from file: /inject.js\n",
+	})
+
+	default_suite.expectBundledWindows(t, bundled{
+		files: map[string]string{
+			"/entry.js": ``,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			InjectAbsPaths: []string{
+				"/inject.js",
+			},
+		},
+		expectedScanLog: "ERROR: Could not read from file: C:\\inject.js\n",
 	})
 }
 

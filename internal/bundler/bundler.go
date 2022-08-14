@@ -1632,6 +1632,11 @@ func lowestCommonAncestorDirectory(fs fs.FS, entryPoints []graph.EntryPoint) str
 					lastSlash = a
 				}
 			} else if boundaryA != boundaryB || unicode.ToLower(runeA) != unicode.ToLower(runeB) {
+				// If we're at the top-level directory, then keep the slash
+				if lastSlash < len(absDir) && !strings.ContainsAny(absDir[:lastSlash], "\\/") {
+					lastSlash++
+				}
+
 				// If both paths are different at this point, stop and set the lowest so
 				// far to the common parent directory. Compare using a case-insensitive
 				// comparison to handle paths on Windows.

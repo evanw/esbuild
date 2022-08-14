@@ -67,7 +67,7 @@ func TestYarnPnP(t *testing.T) {
 		for _, current := range expectation.Tests {
 			func(current pnpTest) {
 				t.Run(current.It, func(t *testing.T) {
-					rr := NewResolver(fs.MockFS(nil), logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug, nil), nil, config.Options{})
+					rr := NewResolver(fs.MockFS(nil, fs.MockUnix), logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug, nil), nil, config.Options{})
 					r := resolverQuery{resolver: rr.(*resolver)}
 					result, ok := r.pnpResolve(current.Imported, current.Importer, manifest)
 					if !ok {

@@ -942,7 +942,6 @@ func (r resolverQuery) parseTSConfig(file string, visited map[string]bool) (*TSC
 		// populating the directory info cache.
 
 		// Check for a Yarn PnP manifest and use that to rewrite the path
-		isAbsolutePathFromYarnPnP := false
 		if IsPackagePath(extends) {
 			current := fileDir
 			for {
@@ -965,12 +964,6 @@ func (r resolverQuery) parseTSConfig(file string, visited map[string]bool) (*TSC
 					if pnpData != nil {
 						if result, ok := r.pnpResolve(extends, current, pnpData); ok {
 							extends = result // Continue with the module resolution algorithm from node.js
-							if r.fs.IsAbs(result) {
-								// Windows-style absolute paths are considered package paths
-								// because they do not start with a "/", but they should
-								// not go through package path resolution
-								isAbsolutePathFromYarnPnP = true
-							}
 						}
 						break
 					}
@@ -985,7 +978,7 @@ func (r resolverQuery) parseTSConfig(file string, visited map[string]bool) (*TSC
 			}
 		}
 
-		if IsPackagePath(extends) && !isAbsolutePathFromYarnPnP {
+		if IsPackagePath(extends) && !r.fs.IsAbs(extends) {
 			// If this is still a package path, try to resolve it to a "node_modules" directory
 			current := fileDir
 			for {
