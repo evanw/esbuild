@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.15.3
 
 * Change the Yarn PnP manifest to a singleton ([#2463](https://github.com/evanw/esbuild/issues/2463))
 

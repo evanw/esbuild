@@ -1,6 +1,6 @@
 {
   "name": "esbuild-freebsd-arm64",
-  "version": "0.15.2",
+  "version": "0.15.3",
   "description": "The FreeBSD ARM 64-bit binary for esbuild, a JavaScript bundler.",
   "repository": "https://github.com/evanw/esbuild",
   "license": "MIT",
