@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+* Change the order of the banner and the `"use strict"` directive ([#2467](https://github.com/evanw/esbuild/issues/2467))
+
+    Previously the top of the file contained the following things in order:
+
+    1. The hashbang comment (see below) from the source code, if present
+    2. The `"use strict"` directive from the source code, if present
+    3. The content of esbuild's `banner` API option, if specified
+
+    This was problematic for people that used the `banner` API option to insert the hashbang comment instead of using esbuild's hashbang comment preservation feature. So with this release, the order has now been changed to:
+
+    1. The hashbang comment (see below) from the source code, if present
+    2. The content of esbuild's `banner` API option, if specified
+    3. The `"use strict"` directive from the source code, if present
+
+    I'm considering this change to be a bug fix instead of a breaking change because esbuild's documentation states that the `banner` API option can be used to "insert an arbitrary string at the beginning of generated JavaScript files". While this isn't technically true because esbuild may still insert the original hashbang comment before the banner, it's at least more correct now because the banner will now come before the `"use strict"` directive.
+
+    For context: JavaScript files recently allowed using a [hashbang comment](https://github.com/tc39/proposal-hashbang), which starts with `#!` and which must start at the very first character of the file. It allows Unix systems to execute the file directly as a script without needing to prefix it by the `node` command. This comment typically has the value `#!/usr/bin/env node`. Hashbang comments will be a part of ES2023 when it's released next year.
+
 ## 0.15.3
 
 * Change the Yarn PnP manifest to a singleton ([#2463](https://github.com/evanw/esbuild/issues/2463))

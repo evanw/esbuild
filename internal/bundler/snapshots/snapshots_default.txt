@@ -1053,6 +1053,17 @@ TestFalseRequire
 ((require2) => require2("/test.txt"))();
 
 ================================================================================
+TestHashbangBannerUseStrictOrder
+---------- /out.js ----------
+#! in file
+#! from banner
+"use strict";
+(() => {
+  // entry.js
+  foo();
+})();
+
+================================================================================
 TestHashbangBundle
 ---------- /out.js ----------
 #!/usr/bin/env a

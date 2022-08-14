@@ -4867,33 +4867,39 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 	newlineBeforeComment := false
 	isExecutable := false
 
+	// Start with the hashbang if there is one. This must be done before the
+	// banner because it only works if it's literally the first character.
 	if chunk.isEntryPoint {
-		repr := c.graph.Files[chunk.sourceIndex].InputFile.Repr.(*graph.JSRepr)
-
-		// Start with the hashbang if there is one
-		if repr.AST.Hashbang != "" {
+		if repr := c.graph.Files[chunk.sourceIndex].InputFile.Repr.(*graph.JSRepr); repr.AST.Hashbang != "" {
 			hashbang := repr.AST.Hashbang + "\n"
 			prevOffset.AdvanceString(hashbang)
 			j.AddString(hashbang)
 			newlineBeforeComment = true
 			isExecutable = true
 		}
-
-		// Add the top-level directive if present (but omit "use strict" in ES
-		// modules because all ES modules are automatically in strict mode)
-		if repr.AST.Directive != "" && (repr.AST.Directive != "use strict" || c.options.OutputFormat != config.FormatESModule) {
-			quoted := string(helpers.QuoteForJSON(repr.AST.Directive, c.options.ASCIIOnly)) + ";" + newline
-			prevOffset.AdvanceString(quoted)
-			j.AddString(quoted)
-			newlineBeforeComment = true
-		}
 	}
 
+	// Then emit the banner after the hashbang. This must come before the
+	// "use strict" directive below because some people use the banner to
+	// emit a hashbang, which must be the first thing in the file.
 	if len(c.options.JSBanner) > 0 {
 		prevOffset.AdvanceString(c.options.JSBanner)
 		prevOffset.AdvanceString("\n")
 		j.AddString(c.options.JSBanner)
 		j.AddString("\n")
+		newlineBeforeComment = true
+	}
+
+	// Add the top-level directive if present (but omit "use strict" in ES
+	// modules because all ES modules are automatically in strict mode)
+	if chunk.isEntryPoint {
+		if repr := c.graph.Files[chunk.sourceIndex].InputFile.Repr.(*graph.JSRepr); repr.AST.Directive != "" &&
+			(repr.AST.Directive != "use strict" || c.options.OutputFormat != config.FormatESModule) {
+			quoted := string(helpers.QuoteForJSON(repr.AST.Directive, c.options.ASCIIOnly)) + ";" + newline
+			prevOffset.AdvanceString(quoted)
+			j.AddString(quoted)
+			newlineBeforeComment = true
+		}
 	}
 
 	// Optionally wrap with an IIFE
