@@ -578,13 +578,14 @@ func (r resolverQuery) finalizeResolve(result *ResolveResult) {
 				if pkgJSON := dirInfo.enclosingPackageJSON; pkgJSON != nil && *path == result.PathPair.Primary {
 					if pkgJSON.sideEffectsMap != nil {
 						hasSideEffects := false
-						if pkgJSON.sideEffectsMap[path.Text] {
+						pathLookup := strings.ReplaceAll(path.Text, "\\", "/") // Avoid problems with Windows-style slashes
+						if pkgJSON.sideEffectsMap[pathLookup] {
 							// Fast path: map lookup
 							hasSideEffects = true
 						} else {
 							// Slow path: glob tests
 							for _, re := range pkgJSON.sideEffectsRegexps {
-								if re.MatchString(path.Text) {
+								if re.MatchString(pathLookup) {
 									hasSideEffects = true
 									break
 								}

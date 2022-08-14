@@ -3413,3 +3413,33 @@ func TestNestedFunctionInliningWithSpread(t *testing.T) {
 		},
 	})
 }
+
+func TestPackageJsonSideEffectsFalseCrossPlatformSlash(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import "demo-pkg/foo"
+				import "demo-pkg/bar"
+			`,
+			"/Users/user/project/node_modules/demo-pkg/foo.js": `
+				console.log('foo')
+			`,
+			"/Users/user/project/node_modules/demo-pkg/bar/index.js": `
+				console.log('bar')
+			`,
+			"/Users/user/project/node_modules/demo-pkg/package.json": `
+				{
+					"sideEffects": [
+						"**/foo.js",
+						"bar/index.js"
+					]
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}

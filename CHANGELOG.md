@@ -6,6 +6,19 @@
 
     Previously dependencies of a Yarn PnP virtual dependency failed to resolve on Windows. This was because Windows uses `\` instead of `/` as a path separator, and the path manipulation algorithms used for Yarn PnP expected `/`. This release converts `\` into `/` in Windows paths, which fixes this issue.
 
+* Fix `sideEffects` patterns containing slashes on Windows ([#2465](https://github.com/evanw/esbuild/issues/2465))
+
+    The `sideEffects` field in `package.json` lets you specify an array of patterns to mark which files have side effects (which causes all other files to be considered to not have side effects by exclusion). That looks like this:
+
+    ```json
+    "sideEffects": [
+      "**/index.js",
+      "**/index.prod.js"
+    ]
+    ```
+
+    However, the presence of the `/` character in the pattern meant that the pattern failed to match Windows-style paths, which broke `sideEffects` on Windows in this case. This release fixes this problem by adding additional code to handle Windows-style paths.
+
 ## 0.15.2
 
 * Fix Yarn PnP issue with packages containing `index.js` ([#2455](https://github.com/evanw/esbuild/issues/2455), [#2461](https://github.com/evanw/esbuild/issues/2461))

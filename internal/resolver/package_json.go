@@ -422,6 +422,7 @@ func (r resolverQuery) parsePackageJSON(inputPath string) *packageJSON {
 					pattern = "**/" + pattern
 				}
 				absPattern := r.fs.Join(inputPath, pattern)
+				absPattern = strings.ReplaceAll(absPattern, "\\", "/") // Avoid problems with Windows-style slashes
 				re, hadWildcard := globstarToEscapedRegexp(absPattern)
 
 				// Wildcard patterns require more expensive matching

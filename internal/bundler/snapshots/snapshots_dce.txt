@@ -1227,6 +1227,15 @@ var init_a = __esm({
 Promise.resolve().then(() => (init_a(), a_exports)).then((x) => assert(x.foo === "foo"));
 
 ================================================================================
+TestPackageJsonSideEffectsFalseCrossPlatformSlash
+---------- /out.js ----------
+// Users/user/project/node_modules/demo-pkg/foo.js
+console.log("foo");
+
+// Users/user/project/node_modules/demo-pkg/bar/index.js
+console.log("bar");
+
+================================================================================
 TestPackageJsonSideEffectsFalseIntermediateFilesChainAll
 ---------- /out.js ----------
 // Users/user/project/node_modules/d/index.js
