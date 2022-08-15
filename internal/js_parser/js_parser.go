@@ -14359,35 +14359,40 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 	case *js_ast.ENew:
 		hasSpread := false
-		relativeJS := false
+		isImportGraphURL := false
 
 		e.Target = p.visitExpr(e.Target)
-		// new url?
+		// Test for `new URL("./relative/path.js", import.meta.url)` (https://github.com/evanw/esbuild/issues/795)
 		if id, ok := e.Target.Data.(*js_ast.EIdentifier); ok {
 			symbol := p.symbols[id.Ref.InnerIndex]
 			if symbol.OriginalName == "URL" && len(e.Args) == 2 {
-				if _, ok := e.Args[0].Data.(*js_ast.EString); ok {
-					// TODO check if url is relative and a js file
+				if s, ok := e.Args[0].Data.(*js_ast.EString); ok {
 					if eDot, ok := e.Args[1].Data.(*js_ast.EDot); ok {
 						if _, ok := eDot.Target.Data.(*js_ast.EImportMeta); ok {
 							if eDot.Name == "url" {
-								relativeJS = true
+								// TODO: This should:
+								// - Include more file types.
+								// - Understand the relative JS and TS files even if the file extension is not provided (like in TypeScript).
+								// - Check if the actual file exists in the import graph?
+								isInImportGraph := strings.HasSuffix(helpers.UTF16ToString(s.Value), ".js") || strings.HasSuffix(helpers.UTF16ToString(s.Value), ".ts")
+
+								if isInImportGraph {
+									isImportGraphURL = true
+								}
 							}
 						}
 					}
 				}
 			}
 		}
-		if relativeJS {
-			// replace the 2 args ("../path/to.js", import.meta.url)
-			// with 1 ERelativeURL
-			s, _ := e.Args[0].Data.(*js_ast.EString);
+		if isImportGraphURL {
+			s, _ := e.Args[0].Data.(*js_ast.EString)
 			importRecordIndex := p.addImportRecord(ast.ImportDynamic, e.Args[0].Loc, helpers.UTF16ToString(s.Value), nil)
 			p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
-			e.Args = []js_ast.Expr{js_ast.Expr{Loc: e.Args[0].Loc, Data: &js_ast.ERelativeURL{
-				ImportRecordIndex:       importRecordIndex,
-			}}}
-	  } else {
+			e.Args[0] = js_ast.Expr{Loc: e.Args[0].Loc, Data: &js_ast.ERelativeURL{
+				ImportRecordIndex: importRecordIndex,
+			}}
+		} else {
 			p.warnAboutImportNamespaceCall(e.Target, exprKindNew)
 
 			for i, arg := range e.Args {
