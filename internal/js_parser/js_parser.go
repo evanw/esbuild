@@ -11135,7 +11135,7 @@ func (p *parser) warnAboutEqualityCheck(op string, value js_ast.Expr, afterOpLoc
 			}
 			p.log.AddIDWithNotes(logger.MsgID_JS_EqualsNaN, kind, &p.tracker, r, text,
 				[]logger.MsgData{{Text: "Floating-point equality is defined such that NaN is never equal to anything, so \"x === NaN\" always returns false. " +
-					"You need to use \"isNaN(x)\" instead to test for NaN."}})
+					"You need to use \"Number.isNaN(x)\" instead to test for NaN."}})
 			return true
 		}
 
