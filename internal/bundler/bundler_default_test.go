@@ -4019,7 +4019,7 @@ delete-super.js: WARNING: Attempting to delete a property of "super" will throw 
 dup-case.js: WARNING: This case clause will never be evaluated because it duplicates an earlier case clause
 dup-case.js: NOTE: The earlier case clause is here:
 equals-nan.js: WARNING: Comparison with NaN using the "===" operator here is always false
-NOTE: Floating-point equality is defined such that NaN is never equal to anything, so "x === NaN" always returns false. You need to use "isNaN(x)" instead to test for NaN.
+NOTE: Floating-point equality is defined such that NaN is never equal to anything, so "x === NaN" always returns false. You need to use "Number.isNaN(x)" instead to test for NaN.
 equals-neg-zero.js: WARNING: Comparison with -0 using the "===" operator will also match 0
 NOTE: Floating-point equality is defined such that 0 and -0 are equal, so "x === -0" returns true for both 0 and -0. You need to use "Object.is(x, -0)" instead to test for -0.
 equals-object.js: WARNING: Comparison using the "===" operator here is always false

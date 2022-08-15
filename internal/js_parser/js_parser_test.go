@@ -2769,7 +2769,7 @@ func TestWarningEqualsNewObject(t *testing.T) {
 
 func TestWarningEqualsNaN(t *testing.T) {
 	note := "NOTE: Floating-point equality is defined such that NaN is never equal to anything, so \"x === NaN\" always returns false. " +
-		"You need to use \"isNaN(x)\" instead to test for NaN.\n"
+		"You need to use \"Number.isNaN(x)\" instead to test for NaN.\n"
 
 	expectParseError(t, "x === NaN", "<stdin>: WARNING: Comparison with NaN using the \"===\" operator here is always false\n"+note)
 	expectParseError(t, "x !== NaN", "<stdin>: WARNING: Comparison with NaN using the \"!==\" operator here is always true\n"+note)
