@@ -684,6 +684,69 @@ func TestTSImportEqualsEliminationTest(t *testing.T) {
 	})
 }
 
+func TestTSImportEqualsTreeShakingFalse(t *testing.T) {
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				import { foo } from 'pkg'
+				import used = foo.used
+				import unused = foo.unused
+				export { used }
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModePassThrough,
+			AbsOutputFile: "/out.js",
+			TreeShaking:   false,
+		},
+	})
+}
+
+func TestTSImportEqualsTreeShakingTrue(t *testing.T) {
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				import { foo } from 'pkg'
+				import used = foo.used
+				import unused = foo.unused
+				export { used }
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModePassThrough,
+			AbsOutputFile: "/out.js",
+			TreeShaking:   true,
+		},
+	})
+}
+
+func TestTSImportEqualsBundle(t *testing.T) {
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				import { foo } from 'pkg'
+				import used = foo.used
+				import unused = foo.unused
+				export { used }
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{
+					Exact: map[string]bool{
+						"pkg": true,
+					},
+				},
+			},
+		},
+	})
+}
+
 func TestTSMinifiedBundleES6(t *testing.T) {
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{

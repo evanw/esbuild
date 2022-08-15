@@ -542,6 +542,16 @@ function foo() {
 foo();
 
 ================================================================================
+TestTSImportEqualsBundle
+---------- /out.js ----------
+// entry.ts
+import { foo } from "pkg";
+var used = foo.used;
+export {
+  used
+};
+
+================================================================================
 TestTSImportEqualsEliminationTest
 ---------- /out.js ----------
 // entry.ts
@@ -552,6 +562,21 @@ var bar = c;
 export {
   bar
 };
+
+================================================================================
+TestTSImportEqualsTreeShakingFalse
+---------- /out.js ----------
+import { foo } from "pkg";
+const used = foo.used;
+const unused = foo.unused;
+export { used };
+
+================================================================================
+TestTSImportEqualsTreeShakingTrue
+---------- /out.js ----------
+import { foo } from "pkg";
+const used = foo.used;
+export { used };
 
 ================================================================================
 TestTSImportMissingUnusedES6

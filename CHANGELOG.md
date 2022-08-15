@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+* Consider TypeScript import assignments to be side-effect free ([#2468](https://github.com/evanw/esbuild/issues/2468))
+
+    TypeScript has a [legacy import syntax](https://www.typescriptlang.org/docs/handbook/namespaces.html#aliases) for working with TypeScript namespaces that looks like this:
+
+    ```ts
+    import { someNamespace } from './some-file'
+    import bar = someNamespace.foo;
+
+    // some-file.ts
+    export namespace someNamespace {
+      export let foo = 123
+    }
+    ```
+
+    Since esbuild converts TypeScript into JavaScript one file at a time, it doesn't know if `bar` is supposed to be a value or a type (or both, which TypeScript actually allows in this case). This is problematic because values are supposed to be kept during the conversion but types are supposed to be removed during the conversion. Currently esbuild keeps `bar` in the output, which is done because `someNamespace.foo` is a property access and property accesses run code that could potentially have a side effect (although there is no side effect in this case).
+
+    With this release, esbuild will now consider `someNamespace.foo` to have no side effects. This means `bar` will now be removed when bundling and when tree shaking is enabled. Note that it will still not be removed when tree shaking is disabled. This is because in this mode, esbuild supports adding additional code to the end of the generated output that's in the same scope as the module. That code could potentially make use of `bar`, so it would be incorrect to remove it. If you want `bar` to be removed, you'll have to enable tree shaking (which tells esbuild that nothing else depends on the unexported top-level symbols in the generated output).
+
 * Change the order of the banner and the `"use strict"` directive ([#2467](https://github.com/evanw/esbuild/issues/2467))
 
     Previously the top of the file contained the following things in order:

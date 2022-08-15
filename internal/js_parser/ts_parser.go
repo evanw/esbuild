@@ -1315,9 +1315,10 @@ func (p *parser) parseTypeScriptImportEqualsStmt(loc logger.Loc, opts parseStmtO
 		for p.lexer.Token == js_lexer.TDot {
 			p.lexer.Next()
 			value.Data = &js_ast.EDot{
-				Target:  value,
-				Name:    p.lexer.Identifier.String,
-				NameLoc: p.lexer.Loc(),
+				Target:               value,
+				Name:                 p.lexer.Identifier.String,
+				NameLoc:              p.lexer.Loc(),
+				CanBeRemovedIfUnused: true,
 			}
 			p.lexer.Expect(js_lexer.TIdentifier)
 		}
