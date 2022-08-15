@@ -440,7 +440,7 @@ func (*EIf) isExpr()                   {}
 func (*ERequireString) isExpr()        {}
 func (*ERequireResolveString) isExpr() {}
 func (*EImportString) isExpr()         {}
-func (*ERelativeURL) isExpr()         {}
+func (*ERelativeURL) isExpr()          {}
 func (*EImportCall) isExpr()           {}
 
 type EArray struct {
