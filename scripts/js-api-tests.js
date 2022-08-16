@@ -2737,7 +2737,7 @@ require("/assets/file.png");
   async yarnPnP_pnp_data_json({ esbuild, testDir }) {
     const entry = path.join(testDir, 'entry.js')
     const manifest = path.join(testDir, '.pnp.data.json')
-    const leftPad = path.join(testDir, '.yarn', 'cache', 'left-pad', 'index.js')
+    const leftPad = path.join(testDir, '.yarn', 'cache', 'left-pad-zip', 'node_modules', 'left-pad', 'index.js')
 
     await writeFileAsync(entry, `
       import leftPad from 'left-pad'
@@ -2757,7 +2757,7 @@ require("/assets/file.png");
         ]],
         ["left-pad", [
           ["npm:1.3.0", {
-            "packageLocation": "./.yarn/cache/left-pad/",
+            "packageLocation": "./.yarn/cache/left-pad-zip/node_modules/left-pad/",
             "packageDependencies": [
               ["left-pad", "npm:1.3.0"]
             ],
@@ -2779,7 +2779,7 @@ require("/assets/file.png");
 
     assert.strictEqual(value.outputFiles.length, 1)
     assert.strictEqual(value.outputFiles[0].text, `(() => {
-  // .yarn/cache/left-pad/index.js
+  // .yarn/cache/left-pad-zip/node_modules/left-pad/index.js
   function left_pad_default() {
   }
 
@@ -2792,7 +2792,7 @@ require("/assets/file.png");
   async yarnPnP_pnp_js_object_literal({ esbuild, testDir }) {
     const entry = path.join(testDir, 'entry.js')
     const manifest = path.join(testDir, '.pnp.js')
-    const leftPad = path.join(testDir, '.yarn', 'cache', 'left-pad', 'index.js')
+    const leftPad = path.join(testDir, '.yarn', 'cache', 'left-pad-zip', 'node_modules', 'left-pad', 'index.js')
 
     await writeFileAsync(entry, `
       import leftPad from 'left-pad'
@@ -2822,7 +2822,7 @@ require("/assets/file.png");
             ]],
             ["left-pad", [
               ["npm:1.3.0", {
-                "packageLocation": "./.yarn/cache/left-pad/",
+                "packageLocation": "./.yarn/cache/left-pad-zip/node_modules/left-pad/",
                 "packageDependencies": [
                   ["left-pad", "npm:1.3.0"]
                 ],
@@ -2846,7 +2846,7 @@ require("/assets/file.png");
 
     assert.strictEqual(value.outputFiles.length, 1)
     assert.strictEqual(value.outputFiles[0].text, `(() => {
-  // .yarn/cache/left-pad/index.js
+  // .yarn/cache/left-pad-zip/node_modules/left-pad/index.js
   function left_pad_default() {
   }
 
@@ -2859,7 +2859,7 @@ require("/assets/file.png");
   async yarnPnP_pnp_cjs_JSON_parse_string_literal({ esbuild, testDir }) {
     const entry = path.join(testDir, 'entry.js')
     const manifest = path.join(testDir, '.pnp.cjs')
-    const leftPad = path.join(testDir, '.yarn', 'cache', 'left-pad', 'index.js')
+    const leftPad = path.join(testDir, '.yarn', 'cache', 'left-pad-zip', 'node_modules', 'left-pad', 'index.js')
 
     await writeFileAsync(entry, `
       import leftPad from 'left-pad'
@@ -2889,7 +2889,7 @@ require("/assets/file.png");
             ]],\\
             ["left-pad", [\\
               ["npm:1.3.0", {\\
-                "packageLocation": "./.yarn/cache/left-pad/",\\
+                "packageLocation": "./.yarn/cache/left-pad-zip/node_modules/left-pad/",\\
                 "packageDependencies": [\\
                   ["left-pad", "npm:1.3.0"]\\
                 ],\\
@@ -2913,7 +2913,7 @@ require("/assets/file.png");
 
     assert.strictEqual(value.outputFiles.length, 1)
     assert.strictEqual(value.outputFiles[0].text, `(() => {
-  // .yarn/cache/left-pad/index.js
+  // .yarn/cache/left-pad-zip/node_modules/left-pad/index.js
   function left_pad_default() {
   }
 
@@ -2926,7 +2926,7 @@ require("/assets/file.png");
   async yarnPnP_pnp_cjs_JSON_parse_identifier({ esbuild, testDir }) {
     const entry = path.join(testDir, 'entry.js')
     const manifest = path.join(testDir, '.pnp.cjs')
-    const leftPad = path.join(testDir, '.yarn', 'cache', 'left-pad', 'index.js')
+    const leftPad = path.join(testDir, '.yarn', 'cache', 'left-pad-zip', 'node_modules', 'left-pad', 'index.js')
 
     await writeFileAsync(entry, `
       import leftPad from 'left-pad'
@@ -2955,7 +2955,7 @@ require("/assets/file.png");
           ]],\\
           ["left-pad", [\\
             ["npm:1.3.0", {\\
-              "packageLocation": "./.yarn/cache/left-pad/",\\
+              "packageLocation": "./.yarn/cache/left-pad-zip/node_modules/left-pad/",\\
               "packageDependencies": [\\
                 ["left-pad", "npm:1.3.0"]\\
               ],\\
@@ -2982,7 +2982,7 @@ require("/assets/file.png");
 
     assert.strictEqual(value.outputFiles.length, 1)
     assert.strictEqual(value.outputFiles[0].text, `(() => {
-  // .yarn/cache/left-pad/index.js
+  // .yarn/cache/left-pad-zip/node_modules/left-pad/index.js
   function left_pad_default() {
   }
 
@@ -2994,8 +2994,8 @@ require("/assets/file.png");
 
   async yarnPnP_ignoreNestedManifests({ esbuild, testDir }) {
     const entry = path.join(testDir, 'entry.js')
-    const foo = path.join(testDir, 'foo', 'index.js')
-    const bar = path.join(testDir, 'bar', 'index.js')
+    const foo = path.join(testDir, 'node_modules', 'foo', 'index.js')
+    const bar = path.join(testDir, 'node_modules', 'bar', 'index.js')
     const manifest = path.join(testDir, '.pnp.data.json')
 
     await writeFileAsync(entry, `
@@ -3028,7 +3028,7 @@ require("/assets/file.png");
         ]],
         ["foo", [
           ["npm:1.0.0", {
-            "packageLocation": "./__virtual__/whatever/0/foo/",
+            "packageLocation": "./__virtual__/whatever/0/node_modules/foo/",
             "packageDependencies": [
               ["bar", "npm:1.0.0"]
             ],
@@ -3037,7 +3037,7 @@ require("/assets/file.png");
         ]],
         ["bar", [
           ["npm:1.0.0", {
-            "packageLocation": "./__virtual__/whatever/0/bar/",
+            "packageLocation": "./__virtual__/whatever/0/node_modules/bar/",
             "packageDependencies": [],
             "linkType": "HARD"
           }]
@@ -3054,10 +3054,10 @@ require("/assets/file.png");
 
     assert.strictEqual(value.outputFiles.length, 1)
     assert.strictEqual(value.outputFiles[0].text, `(() => {
-  // __virtual__/whatever/0/bar/index.js
+  // __virtual__/whatever/0/node_modules/bar/index.js
   var bar_default = "bar";
 
-  // __virtual__/whatever/0/foo/index.js
+  // __virtual__/whatever/0/node_modules/foo/index.js
   var foo_default = "foo" + bar_default;
 
   // entry.js
@@ -3127,8 +3127,8 @@ require("/assets/file.png");
 
   async yarnPnP_indexJs({ esbuild, testDir }) {
     const entry = path.join(testDir, 'entry.js')
-    const fooIndex = path.join(testDir, 'foo', 'index.js')
-    const fooFoo = path.join(testDir, 'foo', 'foo.js')
+    const fooIndex = path.join(testDir, 'node_modules', '@some', 'pkg', 'index.js')
+    const fooFoo = path.join(testDir, 'node_modules', '@some', 'pkg', 'foo.js')
     const manifest = path.join(testDir, '.pnp.data.json')
 
     await writeFileAsync(entry, `
@@ -3155,7 +3155,7 @@ require("/assets/file.png");
         ]],
         ["@some/pkg", [
           ["npm:1.0.0", {
-            "packageLocation": "./foo/",
+            "packageLocation": "./node_modules/@some/pkg/",
             "packageDependencies": [],
             "linkType": "HARD"
           }]
@@ -3172,19 +3172,19 @@ require("/assets/file.png");
 
     assert.strictEqual(value.outputFiles.length, 1)
     assert.strictEqual(value.outputFiles[0].text, `(() => {
-  // foo/index.js
-  var foo_default = success;
+  // node_modules/@some/pkg/index.js
+  var pkg_default = success;
 
   // entry.js
-  foo_default();
+  pkg_default();
 })();
 `)
   },
 
   async yarnPnP_depOfVirtual({ esbuild, testDir }) {
     const entry = path.join(testDir, 'entry.js')
-    const pkg = path.join(testDir, '.yarn', 'cache', 'pkg', 'index.js')
-    const dep = path.join(testDir, '.yarn', 'cache', 'dep', 'index.js')
+    const pkg = path.join(testDir, '.yarn', 'cache', 'pkg-zip', 'node_modules', 'pkg', 'index.js')
+    const dep = path.join(testDir, '.yarn', 'cache', 'dep-zip', 'node_modules', 'dep', 'index.js')
     const manifest = path.join(testDir, '.pnp.data.json')
 
     await writeFileAsync(entry, `import 'pkg'`)
@@ -3218,14 +3218,14 @@ require("/assets/file.png");
         ]],
         ["pkg", [
           ["npm:1.0.0", {
-            "packageLocation": "./.yarn/cache/pkg/",
+            "packageLocation": "./.yarn/cache/pkg-zip/node_modules/pkg/",
             "packageDependencies": [
               ["pkg", "npm:1.0.0"]
             ],
             "linkType": "SOFT"
           }],
           ["virtual:some-path", {
-            "packageLocation": "./.yarn/__virtual__/pkg-virtual/0/cache/pkg/",
+            "packageLocation": "./.yarn/__virtual__/pkg-virtual/0/cache/pkg-zip/node_modules/pkg/",
             "packageDependencies": [
               ["pkg", "virtual:some-path"],
               ["dep", "npm:1.0.0"]
@@ -3235,7 +3235,7 @@ require("/assets/file.png");
         ]],
         ["dep", [
           ["npm:1.0.0", {
-            "packageLocation": "./.yarn/cache/dep/",
+            "packageLocation": "./.yarn/cache/dep-zip/node_modules/dep/",
             "packageDependencies": [
               ["dep", "npm:1.0.0"]
             ],
@@ -3254,7 +3254,7 @@ require("/assets/file.png");
 
     assert.strictEqual(value.outputFiles.length, 1)
     assert.strictEqual(value.outputFiles[0].text, `(() => {
-  // .yarn/cache/dep/index.js
+  // .yarn/cache/dep-zip/node_modules/dep/index.js
   success();
 })();
 `)

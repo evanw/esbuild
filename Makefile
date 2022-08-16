@@ -201,6 +201,32 @@ test-e2e-yarn-berry:
 	# Clean up
 	rm -fr e2e-yb
 
+require/yarnpnp/.yarn/releases/yarn-3.2.2.cjs: require/yarnpnp/package.json require/yarnpnp/yarn.lock
+	rm -fr require/yarnpnp/.pnp* require/yarnpnp/.yarn*
+	which yarn || npm i -g yarn
+	cd require/yarnpnp && yarn set version 3.2.2
+
+require/yarnpnp/.yarn/cache: require/yarnpnp/.yarn/releases/yarn-3.2.2.cjs
+	cd require/yarnpnp && yarn install
+
+require/yarnpnp/in.js: Makefile
+	@echo 'console.log("Running Yarn PnP tests...")' > require/yarnpnp/in.js
+	@echo 'import * as rd from "react-dom"; if (rd.version !== "18.2.0") throw "❌ react-dom"' >> require/yarnpnp/in.js
+	@echo 'import * as s3 from "strtok3"; if (!s3.fromFile) throw "❌ strtok3"' >> require/yarnpnp/in.js
+	@echo 'import * as d3 from "d3-time"; if (!d3.utcDay) throw "❌ d3-time"' >> require/yarnpnp/in.js
+	@echo 'import * as mm from "mime"; if (mm.getType("txt") !== "text/plain") throw "❌ mime"' >> require/yarnpnp/in.js
+	@echo 'console.log("✅ Yarn PnP tests passed")' >> require/yarnpnp/in.js
+
+test-yarnpnp: esbuild require/yarnpnp/in.js | require/yarnpnp/.yarn/cache
+	cd require/yarnpnp && ../../esbuild --bundle in.js --log-level=debug --platform=node --outfile=out.js && node out.js
+
+# Note: This is currently failing due to a bug in Yarn that generates invalid
+# file handles. I should update the Yarn version and then enable this test
+# when a new version of Yarn is released that fixes this bug. This test is
+# disabled for now.
+test-yarnpnp-wasm: platform-wasm require/yarnpnp/in.js | require/yarnpnp/.yarn/cache
+	cd require/yarnpnp && yarn node ../../npm/esbuild-wasm/bin/esbuild --bundle in.js --log-level=debug --platform=node --outfile=out.js && node out.js
+
 # Note: This used to only be rebuilt when "version.txt" was newer than
 # "cmd/esbuild/version.go", but that caused the publishing script to publish
 # invalid builds in the case when the publishing script failed once, the change
@@ -575,6 +601,7 @@ clean:
 	rm -rf require/*/bench/
 	rm -rf require/*/demo/
 	rm -rf require/*/node_modules/
+	rm -rf require/yarnpnp/.pnp* require/yarnpnp/.yarn*
 	go clean -testcache ./internal/...
 
 # This also cleans directories containing cached code from other projects

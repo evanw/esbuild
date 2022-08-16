@@ -510,7 +510,11 @@ func ResolveFailureErrorTextSuggestionNotes(
 	}
 
 	if platform != config.PlatformNode {
-		if _, ok := resolver.BuiltInNodeModules[path]; ok {
+		pkg := path
+		if strings.HasPrefix(pkg, "node:") {
+			pkg = pkg[5:]
+		}
+		if resolver.BuiltInNodeModules[pkg] {
 			var how string
 			switch logger.API {
 			case logger.CLIAPI:

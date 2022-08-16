@@ -77,28 +77,6 @@ type pnpPackageLocatorByLocation struct {
 	discardFromLookup bool
 }
 
-// Note: If this returns successfully then the node module resolution algorithm
-// (i.e. NM_RESOLVE in the Yarn PnP specification) is always run afterward
-func (r resolverQuery) pnpResolve(specifier string, parentURL string, parentManifest *pnpData) (string, bool) {
-	// If specifier is a Node.js builtin, then
-	if BuiltInNodeModules[specifier] {
-		// Set resolved to specifier itself and return it
-		return specifier, true
-	}
-
-	// Otherwise, if `specifier` is either an absolute path or a path prefixed with "./" or "../", then
-	if r.fs.IsAbs(specifier) || strings.HasPrefix(specifier, "./") || strings.HasPrefix(specifier, "../") {
-		// Set resolved to NM_RESOLVE(specifier, parentURL) and return it
-		return specifier, true
-	}
-
-	// Otherwise,
-	// Note: specifier is now a bare identifier
-	// Let unqualified be RESOLVE_TO_UNQUALIFIED(specifier, parentURL)
-	// Set resolved to NM_RESOLVE(unqualified, parentURL)
-	return r.resolveToUnqualified(specifier, parentURL, parentManifest)
-}
-
 func parseBareIdentifier(specifier string) (ident string, modulePath string, ok bool) {
 	slash := strings.IndexByte(specifier, '/')
 
@@ -135,6 +113,8 @@ func parseBareIdentifier(specifier string) (ident string, modulePath string, ok 
 	return
 }
 
+// Note: If this returns successfully then the node module resolution algorithm
+// (i.e. NM_RESOLVE in the Yarn PnP specification) is always run afterward
 func (r resolverQuery) resolveToUnqualified(specifier string, parentURL string, manifest *pnpData) (string, bool) {
 	// Let resolved be undefined
 

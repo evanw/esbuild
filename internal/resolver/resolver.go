@@ -721,15 +721,6 @@ func (r resolverQuery) finalizeResolve(result *ResolveResult) {
 }
 
 func (r resolverQuery) resolveWithoutSymlinks(sourceDir string, sourceDirInfo *dirInfo, importPath string) *ResolveResult {
-	// If Yarn PnP is active, use it to rewrite the path
-	if r.pnpManifest != nil {
-		if result, ok := r.pnpResolve(importPath, sourceDirInfo.absPath, r.pnpManifest); ok {
-			importPath = result // Continue with the module resolution algorithm from node.js
-		} else {
-			return nil // This is a module resolution error
-		}
-	}
-
 	// This implements the module resolution algorithm from node.js, which is
 	// described here: https://nodejs.org/api/modules.html#modules_all_together
 	var result ResolveResult
@@ -984,13 +975,13 @@ func (r resolverQuery) parseTSConfig(file string, visited map[string]bool) (*TSC
 						}
 
 						absPath = r.fs.Join(current, ".pnp.cjs")
-						if json := r.extractYarnPnPDataFromJSON(absPath, pnpIgnoreErrorsAboutMissingFiles); json.Data != nil {
+						if json := r.tryToExtractYarnPnPDataFromJS(absPath, pnpIgnoreErrorsAboutMissingFiles); json.Data != nil {
 							pnpData = compileYarnPnPData(absPath, current, json)
 							break
 						}
 
 						absPath = r.fs.Join(current, ".pnp.js")
-						if json := r.extractYarnPnPDataFromJSON(absPath, pnpIgnoreErrorsAboutMissingFiles); json.Data != nil {
+						if json := r.tryToExtractYarnPnPDataFromJS(absPath, pnpIgnoreErrorsAboutMissingFiles); json.Data != nil {
 							pnpData = compileYarnPnPData(absPath, current, json)
 							break
 						}
@@ -1006,7 +997,7 @@ func (r resolverQuery) parseTSConfig(file string, visited map[string]bool) (*TSC
 			}
 
 			if pnpData != nil {
-				if result, ok := r.pnpResolve(extends, fileDir, pnpData); ok {
+				if result, ok := r.resolveToUnqualified(extends, fileDir, pnpData); ok {
 					extends = result // Continue with the module resolution algorithm from node.js
 				}
 			}
@@ -1988,6 +1979,21 @@ func (r resolverQuery) loadNodeModules(importPath string, dirInfo *dirInfo, forb
 			if absolute, ok, diffCase := r.loadAsFileOrDirectory(basePath); ok {
 				return absolute, true, diffCase
 			}
+		}
+	}
+
+	// If Yarn PnP is active, use it to rewrite the path
+	if r.pnpManifest != nil {
+		if result, ok := r.resolveToUnqualified(importPath, dirInfo.absPath, r.pnpManifest); ok {
+			if resultDirInfo := r.dirInfoCached(result); resultDirInfo != nil {
+				// Continue with the module resolution algorithm from node.js but
+				// pretend that the request started from wherever Yarn resolved us to.
+				// This isn't in the Yarn PnP specification but it's what Yarn does:
+				// https://github.com/evanw/esbuild/issues/2473#issuecomment-1216774461
+				dirInfo = resultDirInfo
+			}
+		} else {
+			return PathPair{}, false, nil // This is a module resolution error
 		}
 	}
 

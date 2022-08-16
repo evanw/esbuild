@@ -38,6 +38,10 @@
 
     For context: JavaScript files recently allowed using a [hashbang comment](https://github.com/tc39/proposal-hashbang), which starts with `#!` and which must start at the very first character of the file. It allows Unix systems to execute the file directly as a script without needing to prefix it by the `node` command. This comment typically has the value `#!/usr/bin/env node`. Hashbang comments will be a part of ES2023 when it's released next year.
 
+* Fix `exports` maps with Yarn PnP path resolution ([#2473](https://github.com/evanw/esbuild/issues/2473))
+
+    The Yarn PnP specification says that to resolve a package path, you first resolve it to the absolute path of a directory, and then you run node's module resolution algorithm on it. Previously esbuild followed this part of the specification. However, doing this means that `exports` in `package.json` is not respected because node's module resolution algorithm doesn't interpret `exports` for absolute paths. So with this release, esbuild will now use a modified algorithm that deviates from both specifications but that should hopefully behave more similar to what Yarn actually does: node's module resolution algorithm is run with the original import path but starting from the directory returned by Yarn PnP.
+
 ## 0.15.3
 
 * Change the Yarn PnP manifest to a singleton ([#2463](https://github.com/evanw/esbuild/issues/2463))
