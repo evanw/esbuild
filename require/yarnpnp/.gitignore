@@ -1,4 +1,3 @@
 /.pnp*
 /.yarn*
-/in.js
-/out.js
+/out*.js

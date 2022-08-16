@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix issues with Yarn PnP and Yarn's workspaces feature ([#2476](https://github.com/evanw/esbuild/issues/2476))
+
+    This release makes sure esbuild works with a Yarn feature called [workspaces](https://yarnpkg.com/features/workspaces/). Previously esbuild wasn't tested in this scenario, but this scenario now has test coverage. Getting this to work involved further tweaks to esbuild's custom code for what happens after Yarn PnP's path resolution algorithm runs, which is not currently covered by Yarn's PnP specification. These tweaks also fix `exports` map resolution with Yarn PnP for non-empty subpaths, which wasn't previously working.
+
 ## 0.15.4
 
 * Consider TypeScript import assignments to be side-effect free ([#2468](https://github.com/evanw/esbuild/issues/2468))

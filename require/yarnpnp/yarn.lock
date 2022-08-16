@@ -42,6 +42,12 @@ __metadata:
   languageName: node
   linkType: hard
 
+"foo@workspace:*, foo@workspace:foo":
+  version: 0.0.0-use.local
+  resolution: "foo@workspace:foo"
+  languageName: unknown
+  linkType: soft
+
 "internmap@npm:1 - 2":
   version: 2.0.3
   resolution: "internmap@npm:2.0.3"
@@ -110,6 +116,7 @@ __metadata:
   dependencies:
     "@vue/tsconfig": 0.1.3
     d3-time: 3.0.0
+    foo: "workspace:*"
     mime: 3.0.0
     react: 18.2.0
     react-dom: 18.2.0

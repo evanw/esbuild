@@ -113,27 +113,43 @@ func parseBareIdentifier(specifier string) (ident string, modulePath string, ok 
 	return
 }
 
+type pnpStatus uint8
+
+const (
+	pnpError pnpStatus = iota
+	pnpSuccess
+	pnpSkipped
+)
+
+type pnpResult struct {
+	status     pnpStatus
+	pkgDirPath string
+	pkgIdent   string
+	pkgSubpath string
+}
+
 // Note: If this returns successfully then the node module resolution algorithm
 // (i.e. NM_RESOLVE in the Yarn PnP specification) is always run afterward
-func (r resolverQuery) resolveToUnqualified(specifier string, parentURL string, manifest *pnpData) (string, bool) {
+func (r resolverQuery) resolveToUnqualified(specifier string, parentURL string, manifest *pnpData) pnpResult {
 	// Let resolved be undefined
+
+	// Let manifest be FIND_PNP_MANIFEST(parentURL)
+	// (this is already done by the time we get here)
+	if r.debugLogs != nil {
+		r.debugLogs.addNote(fmt.Sprintf("Using Yarn PnP manifest from %q", manifest.absPath))
+		r.debugLogs.addNote(fmt.Sprintf("  Resolving %q in %q", specifier, parentURL))
+	}
 
 	// Let ident and modulePath be the result of PARSE_BARE_IDENTIFIER(specifier)
 	ident, modulePath, ok := parseBareIdentifier(specifier)
 	if !ok {
-		return "", false
-	}
-
-	// Let manifest be FIND_PNP_MANIFEST(parentURL)
-	// (this is already done by the time we get here)
-
-	// If manifest is null, then
-	// Set resolved to NM_RESOLVE(specifier, parentURL) and return it
-	if manifest == nil {
-		return specifier, true
+		if r.debugLogs != nil {
+			r.debugLogs.addNote(fmt.Sprintf("  Failed to parse specifier %q into a bare identifier", specifier))
+		}
+		return pnpResult{status: pnpError}
 	}
 	if r.debugLogs != nil {
-		r.debugLogs.addNote(fmt.Sprintf("Using Yarn PnP manifest from %q to resolve %q", manifest.absPath, ident))
+		r.debugLogs.addNote(fmt.Sprintf("  Parsed bare identifier %q and module path %q", ident, modulePath))
 	}
 
 	// Let parentLocator be FIND_LOCATOR(manifest, parentURL)
@@ -142,7 +158,7 @@ func (r resolverQuery) resolveToUnqualified(specifier string, parentURL string, 
 	// If parentLocator is null, then
 	// Set resolved to NM_RESOLVE(specifier, parentURL) and return it
 	if !ok {
-		return specifier, true
+		return pnpResult{status: pnpSkipped}
 	}
 	if r.debugLogs != nil {
 		r.debugLogs.addNote(fmt.Sprintf("  Found parent locator: [%s, %s]", quoteOrNullIfEmpty(parentLocator.ident), quoteOrNullIfEmpty(parentLocator.reference)))
@@ -152,7 +168,7 @@ func (r resolverQuery) resolveToUnqualified(specifier string, parentURL string, 
 	parentPkg, ok := r.getPackage(manifest, parentLocator.ident, parentLocator.reference)
 	if !ok {
 		// We aren't supposed to get here according to the Yarn PnP specification
-		return "", false
+		return pnpResult{status: pnpError}
 	}
 	if r.debugLogs != nil {
 		r.debugLogs.addNote(fmt.Sprintf("  Found parent package at %q", parentPkg.packageLocation))
@@ -194,14 +210,14 @@ func (r resolverQuery) resolveToUnqualified(specifier string, parentURL string, 
 	// If referenceOrAlias is still undefined, then
 	if !ok {
 		// Throw a resolution error
-		return "", false
+		return pnpResult{status: pnpError}
 	}
 
 	// If referenceOrAlias is still null, then
 	if referenceOrAlias.reference == "" {
 		// Note: It means that parentPkg has an unfulfilled peer dependency on ident
 		// Throw a resolution error
-		return "", false
+		return pnpResult{status: pnpError}
 	}
 
 	if r.debugLogs != nil {
@@ -224,7 +240,7 @@ func (r resolverQuery) resolveToUnqualified(specifier string, parentURL string, 
 		dependencyPkg, ok = r.getPackage(manifest, alias.ident, alias.reference)
 		if !ok {
 			// We aren't supposed to get here according to the Yarn PnP specification
-			return "", false
+			return pnpResult{status: pnpError}
 		}
 	} else {
 		// Otherwise,
@@ -232,7 +248,7 @@ func (r resolverQuery) resolveToUnqualified(specifier string, parentURL string, 
 		dependencyPkg, ok = r.getPackage(manifest, ident, referenceOrAlias.reference)
 		if !ok {
 			// We aren't supposed to get here according to the Yarn PnP specification
-			return "", false
+			return pnpResult{status: pnpError}
 		}
 	}
 	if r.debugLogs != nil {
@@ -240,11 +256,16 @@ func (r resolverQuery) resolveToUnqualified(specifier string, parentURL string, 
 	}
 
 	// Return path.resolve(manifest.dirPath, dependencyPkg.packageLocation, modulePath)
-	result := r.fs.Join(manifest.absDirPath, dependencyPkg.packageLocation, modulePath)
+	pkgDirPath := r.fs.Join(manifest.absDirPath, dependencyPkg.packageLocation)
 	if r.debugLogs != nil {
-		r.debugLogs.addNote(fmt.Sprintf("  Resolved %q via Yarn PnP to %q", specifier, result))
+		r.debugLogs.addNote(fmt.Sprintf("  Resolved %q via Yarn PnP to %q with subpath %q", specifier, pkgDirPath, modulePath))
 	}
-	return result, true
+	return pnpResult{
+		status:     pnpSuccess,
+		pkgDirPath: pkgDirPath,
+		pkgIdent:   ident,
+		pkgSubpath: modulePath,
+	}
 }
 
 func (r resolverQuery) findLocator(manifest *pnpData, moduleUrl string) (pnpIdentAndReference, bool) {
