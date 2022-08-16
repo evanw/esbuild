@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.15.4
 
 * Consider TypeScript import assignments to be side-effect free ([#2468](https://github.com/evanw/esbuild/issues/2468))
 
