@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.15.5
 
 * Fix issues with Yarn PnP and Yarn's workspaces feature ([#2476](https://github.com/evanw/esbuild/issues/2476))
 
