@@ -30,8 +30,9 @@ var builtinTypesLower = map[string]string{
 	".woff2": "font/woff2",
 
 	// Other
-	".pdf":  "application/pdf",
-	".wasm": "application/wasm",
+	".pdf":         "application/pdf",
+	".wasm":        "application/wasm",
+	".webmanifest": "application/manifest+json",
 }
 
 // This is used instead of Go's built-in "mime.TypeByExtension" function because
