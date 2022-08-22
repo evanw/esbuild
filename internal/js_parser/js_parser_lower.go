@@ -232,7 +232,7 @@ func (p *parser) markStrictModeFeature(feature strictModeFeature, r logger.Range
 				"Strict mode is triggered by the \"use strict\" directive here:")}
 
 		case js_ast.ImplicitStrictModeESM:
-			notes = p.whyESModule()
+			_, notes = p.whyESModule()
 			where = "in an ECMAScript module"
 		}
 

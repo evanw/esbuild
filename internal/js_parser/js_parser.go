@@ -9585,8 +9585,9 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		// Forbid top-level return inside modules with ECMAScript syntax
 		if p.fnOrArrowDataVisit.isOutsideFnOrArrow {
 			if p.isFileConsideredESM {
+				_, notes := p.whyESModule()
 				p.log.AddErrorWithNotes(&p.tracker, js_lexer.RangeOfIdentifier(p.source, stmt.Loc),
-					"Top-level return cannot be used inside an ECMAScript module", p.whyESModule())
+					"Top-level return cannot be used inside an ECMAScript module", notes)
 			} else {
 				p.hasTopLevelReturn = true
 			}
@@ -11612,7 +11613,8 @@ func (p *parser) valueForThis(
 				data := p.tracker.MsgData(js_lexer.RangeOfIdentifier(p.source, loc),
 					"Top-level \"this\" will be replaced with undefined since this file is an ECMAScript module")
 				data.Location.Suggestion = "undefined"
-				p.log.AddMsgID(logger.MsgID_JS_ThisIsUndefinedInESM, logger.Msg{Kind: kind, Data: data, Notes: p.whyESModule()})
+				_, notes := p.whyESModule()
+				p.log.AddMsgID(logger.MsgID_JS_ThisIsUndefinedInESM, logger.Msg{Kind: kind, Data: data, Notes: notes})
 			}
 
 			// In an ES6 module, "this" is supposed to be undefined. Instead of
@@ -12966,9 +12968,17 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 							if p.suppressWarningsAboutWeirdCode {
 								kind = logger.Debug
 							}
+							why, notes := p.whyESModule()
+							if why == whyESMTypeModulePackageJSON {
+								text := "Node's package format requires that CommonJS files in a \"type\": \"module\" package use the \".cjs\" file extension."
+								if p.options.ts.Parse {
+									text += " If you are using TypeScript, you can use the \".cts\" file extension with esbuild instead."
+								}
+								notes = append(notes, logger.MsgData{Text: text})
+							}
 							p.log.AddIDWithNotes(logger.MsgID_JS_CommonJSVariableInESM, kind, &p.tracker, js_lexer.RangeOfIdentifier(p.source, loc),
 								fmt.Sprintf("The CommonJS %q variable is treated as a global variable in an ECMAScript module and may not work as expected", name),
-								p.whyESModule())
+								notes)
 						}
 					}
 				}
@@ -16026,41 +16036,54 @@ func ParseDefineExprOrJSON(text string) (config.DefineExpr, js_ast.E) {
 	return config.DefineExpr{}, expr.Data
 }
 
+type whyESM uint8
+
+const (
+	whyESMUnknown whyESM = iota
+	whyESMExportKeyword
+	whyESMImportMeta
+	whyESMTopLevelAwait
+	whyESMFileMJS
+	whyESMFileMTS
+	whyESMTypeModulePackageJSON
+	whyESMImportStatement
+)
+
 // Say why this the current file is being considered an ES module
-func (p *parser) whyESModule() (notes []logger.MsgData) {
+func (p *parser) whyESModule() (whyESM, []logger.MsgData) {
 	because := "This file is considered to be an ECMAScript module because"
 	switch {
 	case p.esmExportKeyword.Len > 0:
-		notes = append(notes, p.tracker.MsgData(p.esmExportKeyword,
-			because+" of the \"export\" keyword here:"))
+		return whyESMExportKeyword, []logger.MsgData{p.tracker.MsgData(p.esmExportKeyword,
+			because+" of the \"export\" keyword here:")}
 
 	case p.esmImportMeta.Len > 0:
-		notes = append(notes, p.tracker.MsgData(p.esmImportMeta,
-			because+" of the use of \"import.meta\" here:"))
+		return whyESMImportMeta, []logger.MsgData{p.tracker.MsgData(p.esmImportMeta,
+			because+" of the use of \"import.meta\" here:")}
 
 	case p.topLevelAwaitKeyword.Len > 0:
-		notes = append(notes, p.tracker.MsgData(p.topLevelAwaitKeyword,
-			because+" of the top-level \"await\" keyword here:"))
+		return whyESMTopLevelAwait, []logger.MsgData{p.tracker.MsgData(p.topLevelAwaitKeyword,
+			because+" of the top-level \"await\" keyword here:")}
 
 	case p.options.moduleTypeData.Type == js_ast.ModuleESM_MJS:
-		notes = append(notes, logger.MsgData{Text: because + " the file name ends in \".mjs\"."})
+		return whyESMFileMJS, []logger.MsgData{{Text: because + " the file name ends in \".mjs\"."}}
 
 	case p.options.moduleTypeData.Type == js_ast.ModuleESM_MTS:
-		notes = append(notes, logger.MsgData{Text: because + " the file name ends in \".mts\"."})
+		return whyESMFileMTS, []logger.MsgData{{Text: because + " the file name ends in \".mts\"."}}
 
 	case p.options.moduleTypeData.Type == js_ast.ModuleESM_PackageJSON:
 		tracker := logger.MakeLineColumnTracker(p.options.moduleTypeData.Source)
-		notes = append(notes, tracker.MsgData(p.options.moduleTypeData.Range,
-			because+" the enclosing \"package.json\" file sets the type of this file to \"module\":"))
+		return whyESMTypeModulePackageJSON, []logger.MsgData{tracker.MsgData(p.options.moduleTypeData.Range,
+			because+" the enclosing \"package.json\" file sets the type of this file to \"module\":")}
 
 	// This case must come last because some code cares about the "import"
 	// statement keyword and some doesn't, and we don't want to give code
 	// that doesn't care about the "import" statement the wrong error message.
 	case p.esmImportStatementKeyword.Len > 0:
-		notes = append(notes, p.tracker.MsgData(p.esmImportStatementKeyword,
-			because+" of the \"import\" keyword here:"))
+		return whyESMImportStatement, []logger.MsgData{p.tracker.MsgData(p.esmImportStatementKeyword,
+			because+" of the \"import\" keyword here:")}
 	}
-	return
+	return whyESMUnknown, nil
 }
 
 func (p *parser) prepareForVisitPass() {
@@ -16085,8 +16108,9 @@ func (p *parser) prepareForVisitPass() {
 
 	// Legacy HTML comments are not allowed in ESM files
 	if p.isFileConsideredESM && p.lexer.LegacyHTMLCommentRange.Len > 0 {
+		_, notes := p.whyESModule()
 		p.log.AddErrorWithNotes(&p.tracker, p.lexer.LegacyHTMLCommentRange,
-			"Legacy HTML single-line comments are not allowed in ECMAScript modules", p.whyESModule())
+			"Legacy HTML single-line comments are not allowed in ECMAScript modules", notes)
 	}
 
 	// ECMAScript modules are always interpreted as strict mode. This has to be

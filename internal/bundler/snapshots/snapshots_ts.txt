@@ -1,3 +1,9 @@
+TestCommonJSVariableInESMTypeModule
+---------- /out.js ----------
+// entry.js
+module.exports = null;
+
+================================================================================
 TestExportTypeIssue379
 ---------- /out.js ----------
 // a.ts
@@ -30,6 +36,12 @@ var foo4 = 123;
 
 // entry.ts
 console.log(a_exports, b_exports, c_exports, d_exports);
+
+================================================================================
+TestTSCommonJSVariableInESMTypeModule
+---------- /out.js ----------
+// entry.ts
+module.exports = null;
 
 ================================================================================
 TestTSConstEnumComments

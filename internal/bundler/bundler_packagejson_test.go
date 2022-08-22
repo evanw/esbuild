@@ -2613,3 +2613,21 @@ NOTE: You can mark the path "xyz/src/foo.js" as external to exclude it from the 
 `,
 	})
 }
+
+func TestCommonJSVariableInESMTypeModule(t *testing.T) {
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js":     `module.exports = null`,
+			"/package.json": `{ "type": "module" }`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `entry.js: WARNING: The CommonJS "module" variable is treated as a global variable in an ECMAScript module and may not work as expected
+package.json: NOTE: This file is considered to be an ECMAScript module because the enclosing "package.json" file sets the type of this file to "module":
+NOTE: Node's package format requires that CommonJS files in a "type": "module" package use the ".cjs" file extension.
+`,
+	})
+}
