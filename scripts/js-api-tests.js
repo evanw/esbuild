@@ -1450,6 +1450,50 @@ body {
     assert.deepStrictEqual(json.outputs[fileKey].inputs, { [makePath(file)]: { bytesInOutput: 14 } })
   },
 
+  async metafileSplittingRelativeNewURL({ esbuild, testDir }) {
+    const entry = path.join(testDir, 'entry.js')
+    const worker = path.join(testDir, 'worker.js')
+    const outdir = path.join(testDir, 'out')
+    await writeFileAsync(entry, `
+      const workerURL = new URL("./worker.js", import.meta.url);
+      const blob = new Blob([\`import \${JSON.stringify(workerURL)};\`], { type: "text/javascript" });
+      new Worker(URL.createObjectURL(blob), { type: "module" }).addEventListener("message", console.log)
+    `)
+    await writeFileAsync(worker, `
+      postMessage("hello!")
+    `)
+    const result = await esbuild.build({
+      entryPoints: [entry],
+      bundle: true,
+      outdir,
+      metafile: true,
+      splitting: true,
+      format: 'esm',
+    })
+
+    const json = result.metafile
+    assert.strictEqual(Object.keys(json.inputs).length, 2)
+    assert.strictEqual(Object.keys(json.outputs).length, 2)
+    const cwd = process.cwd()
+    const makeOutPath = basename => path.relative(cwd, path.join(outdir, basename)).split(path.sep).join('/')
+    const makeInPath = pathname => path.relative(cwd, pathname).split(path.sep).join('/')
+
+    // Check metafile
+    const inEntry = makeInPath(entry);
+    const inWorker = makeInPath(worker);
+    const outEntry = makeOutPath(path.basename(entry));
+    const outWorkerChunk = makeOutPath('worker-UGPIWIMF.js');
+
+    assert.deepStrictEqual(json.inputs[inEntry], { bytes: 275, imports: [{ path: inWorker, kind: 'dynamic-import' }] })
+    assert.deepStrictEqual(json.inputs[inWorker], { bytes: 33, imports: [] })
+
+    assert.deepStrictEqual(json.outputs[outEntry].imports, [{ path: outWorkerChunk, kind: 'dynamic-import' }])
+    assert.deepStrictEqual(json.outputs[outWorkerChunk].imports, [])
+
+    assert.deepStrictEqual(json.outputs[outEntry].inputs, { [inEntry]: { bytesInOutput: 263 } })
+    assert.deepStrictEqual(json.outputs[outWorkerChunk].inputs, { [inWorker]: { bytesInOutput: 23 } })
+  },
+
   // Test in-memory output files
   async writeFalse({ esbuild, testDir }) {
     const input = path.join(testDir, 'in.js')
