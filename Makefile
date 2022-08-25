@@ -372,8 +372,8 @@ publish-all: check-go-version
 	@echo "Checking for uncommitted/untracked changes..." && test -z "`git status --porcelain | grep -vE 'M (CHANGELOG\.md|version\.txt)'`" || \
 		(echo "Refusing to publish with these uncommitted/untracked changes:" && \
 		git status --porcelain | grep -vE 'M (CHANGELOG\.md|version\.txt)' && false)
-	@echo "Checking for master branch..." && test master = "`git rev-parse --abbrev-ref HEAD`" || \
-		(echo "Refusing to publish from non-master branch `git rev-parse --abbrev-ref HEAD`" && false)
+	@echo "Checking for main branch..." && test main = "`git rev-parse --abbrev-ref HEAD`" || \
+		(echo "Refusing to publish from non-main branch `git rev-parse --abbrev-ref HEAD`" && false)
 	@echo "Checking for unpushed commits..." && git fetch
 	@test "" = "`git cherry`" || (echo "Refusing to publish with unpushed commits" && false)
 
@@ -436,7 +436,7 @@ publish-all: check-go-version
 		publish-deno \
 		publish-wasm
 
-	git push origin master "v$(ESBUILD_VERSION)"
+	git push origin main "v$(ESBUILD_VERSION)"
 
 publish-win32-x64: platform-win32-x64
 	test -n "$(OTP)" && cd npm/esbuild-windows-64 && npm publish --otp="$(OTP)"

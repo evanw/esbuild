@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+**This release deliberately contains backwards-incompatible changes.** To avoid automatically picking up releases like this, you should either be pinning the exact version of `esbuild` in your `package.json` file (recommended) or be using a version range syntax that only accepts patch upgrades such as `~0.15.0`. See npm's documentation about [semver](https://docs.npmjs.com/cli/v6/using-npm/semver/) for more information.
+
+* Rename the `master` branch to `main`
+
+    The primary branch for this repository was previously called `master` but is now called `main`. This change mirrors a similar change in many other projects.
+
 ## 0.15.18
 
 * Performance improvements for both JS and CSS
