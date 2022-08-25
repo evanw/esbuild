@@ -193,8 +193,8 @@ export interface OutputFile {
   path: string;
   /** "text" as bytes */
   contents: Uint8Array;
-  /** "contents" as text */
-  text: string;
+  /** "contents" as text (changes automatically with "contents") */
+  get text(): string;
 }
 
 export interface BuildInvalidate {
