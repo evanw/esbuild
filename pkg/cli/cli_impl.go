@@ -547,10 +547,10 @@ func parseOptionsImpl(
 						"to specify the file type that the output extension applies to .",
 				)
 			}
-			if buildOpts.OutExtensions == nil {
-				buildOpts.OutExtensions = make(map[string]string)
+			if buildOpts.OutExtension == nil {
+				buildOpts.OutExtension = make(map[string]string)
 			}
-			buildOpts.OutExtensions[value[:equals]] = value[equals+1:]
+			buildOpts.OutExtension[value[:equals]] = value[equals+1:]
 
 		case strings.HasPrefix(arg, "--platform="):
 			value := arg[len("--platform="):]
@@ -619,14 +619,14 @@ func parseOptionsImpl(
 
 		case strings.HasPrefix(arg, "--jsx="):
 			value := arg[len("--jsx="):]
-			var mode api.JSXMode
+			var mode api.JSX
 			switch value {
 			case "transform":
-				mode = api.JSXModeTransform
+				mode = api.JSXTransform
 			case "preserve":
-				mode = api.JSXModePreserve
+				mode = api.JSXPreserve
 			case "automatic":
-				mode = api.JSXModeAutomatic
+				mode = api.JSXAutomatic
 			default:
 				return parseOptionsExtras{}, cli_helpers.MakeErrorWithNote(
 					fmt.Sprintf("Invalid value %q in %q", value, arg),
@@ -634,7 +634,7 @@ func parseOptionsImpl(
 				)
 			}
 			if buildOpts != nil {
-				buildOpts.JSXMode = mode
+				buildOpts.JSX = mode
 			} else {
 				transformOpts.JSXMode = mode
 			}

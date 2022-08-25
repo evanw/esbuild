@@ -104,12 +104,12 @@ const (
 	LegalCommentsExternal
 )
 
-type JSXMode uint8
+type JSX uint8
 
 const (
-	JSXModeTransform JSXMode = iota
-	JSXModePreserve
-	JSXModeAutomatic
+	JSXTransform JSX = iota
+	JSXPreserve
+	JSXAutomatic
 )
 
 type Target uint8
@@ -276,12 +276,12 @@ type BuildOptions struct {
 	IgnoreAnnotations bool                   // Documentation: https://esbuild.github.io/api/#ignore-annotations
 	LegalComments     LegalComments          // Documentation: https://esbuild.github.io/api/#legal-comments
 
-	JSXMode         JSXMode // Documentation: https://esbuild.github.io/api/#jsx-mode
-	JSXFactory      string  // Documentation: https://esbuild.github.io/api/#jsx-factory
-	JSXFragment     string  // Documentation: https://esbuild.github.io/api/#jsx-fragment
-	JSXImportSource string  // Documentation: https://esbuild.github.io/api/#jsx-import-source
-	JSXDev          bool    // Documentation: https://esbuild.github.io/api/#jsx-dev
-	JSXSideEffects  bool    // Documentation: https://esbuild.github.io/api/#jsx-side-effects
+	JSX             JSX    // Documentation: https://esbuild.github.io/api/#jsx-mode
+	JSXFactory      string // Documentation: https://esbuild.github.io/api/#jsx-factory
+	JSXFragment     string // Documentation: https://esbuild.github.io/api/#jsx-fragment
+	JSXImportSource string // Documentation: https://esbuild.github.io/api/#jsx-import-source
+	JSXDev          bool   // Documentation: https://esbuild.github.io/api/#jsx-dev
+	JSXSideEffects  bool   // Documentation: https://esbuild.github.io/api/#jsx-side-effects
 
 	Define    map[string]string // Documentation: https://esbuild.github.io/api/#define
 	Pure      []string          // Documentation: https://esbuild.github.io/api/#pure
@@ -305,7 +305,7 @@ type BuildOptions struct {
 	Loader            map[string]Loader // Documentation: https://esbuild.github.io/api/#loader
 	ResolveExtensions []string          // Documentation: https://esbuild.github.io/api/#resolve-extensions
 	Tsconfig          string            // Documentation: https://esbuild.github.io/api/#tsconfig
-	OutExtensions     map[string]string // Documentation: https://esbuild.github.io/api/#out-extension
+	OutExtension      map[string]string // Documentation: https://esbuild.github.io/api/#out-extension
 	PublicPath        string            // Documentation: https://esbuild.github.io/api/#public-path
 	Inject            []string          // Documentation: https://esbuild.github.io/api/#inject
 	Banner            map[string]string // Documentation: https://esbuild.github.io/api/#banner
@@ -400,12 +400,12 @@ type TransformOptions struct {
 	IgnoreAnnotations bool                   // Documentation: https://esbuild.github.io/api/#ignore-annotations
 	LegalComments     LegalComments          // Documentation: https://esbuild.github.io/api/#legal-comments
 
-	JSXMode         JSXMode // Documentation: https://esbuild.github.io/api/#jsx
-	JSXFactory      string  // Documentation: https://esbuild.github.io/api/#jsx-factory
-	JSXFragment     string  // Documentation: https://esbuild.github.io/api/#jsx-fragment
-	JSXImportSource string  // Documentation: https://esbuild.github.io/api/#jsx-import-source
-	JSXDev          bool    // Documentation: https://esbuild.github.io/api/#jsx-dev
-	JSXSideEffects  bool    // Documentation: https://esbuild.github.io/api/#jsx-side-effects
+	JSXMode         JSX    // Documentation: https://esbuild.github.io/api/#jsx
+	JSXFactory      string // Documentation: https://esbuild.github.io/api/#jsx-factory
+	JSXFragment     string // Documentation: https://esbuild.github.io/api/#jsx-fragment
+	JSXImportSource string // Documentation: https://esbuild.github.io/api/#jsx-import-source
+	JSXDev          bool   // Documentation: https://esbuild.github.io/api/#jsx-dev
+	JSXSideEffects  bool   // Documentation: https://esbuild.github.io/api/#jsx-side-effects
 
 	TsconfigRaw string // Documentation: https://esbuild.github.io/api/#tsconfig-raw
 	Banner      string // Documentation: https://esbuild.github.io/api/#banner
