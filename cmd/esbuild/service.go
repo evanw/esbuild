@@ -690,7 +690,7 @@ func stringToResolveKind(kind string) (api.ResolveKind, bool) {
 		return api.ResolveCSSURLToken, true
 	}
 
-	return api.ResolveEntryPoint, false
+	return api.ResolveNone, false
 }
 
 func (service *serviceType) convertPlugins(key int, jsPlugins interface{}, activeBuild *activeBuild) ([]api.Plugin, error) {

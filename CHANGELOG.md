@@ -17,6 +17,12 @@
 
     The `define` parameter appears at first glance to take a JSON object if you aren't paying close attention, but this actually isn't true. Values for `define` are instead strings of JavaScript code. This means you have to use `define: { foo: '"bar"' }` to replace `foo` with the string `"bar"`. Using `define: { foo: 'bar' }` actually replaces `foo` with the identifier `bar`. Previously esbuild allowed you to pass `define: { foo: false }` and `false` was automatically converted into a string, which made it more confusing to understand what `define` actually represents. Starting with this release, passing non-string values such as with `define: { foo: false }` will no longer be allowed. You will now have to write `define: { foo: 'false' }` instead.
 
+* Avoid marking entry points as external ([#2382](https://github.com/evanw/esbuild/issues/2382))
+
+    Previously you couldn't specify `--external:*` to mark all import paths as external because that also ended up making the entry point itself external, which caused the build to fail. With this release, esbuild's `external` API parameter no longer applies to entry points so using `--external:*` is now possible.
+
+    One additional consequence of this change is that the `kind` parameter is now required when calling the `resolve()` function in esbuild's plugin API. Previously the `kind` parameter defaulted to `entry-point`, but that no longer interacts with `external` so it didn't seem wise for this to continue to be the default. You now have to specify `kind` so that the path resolution mode is explicit.
+
 * Rename the `master` branch to `main`
 
     The primary branch for this repository was previously called `master` but is now called `main`. This change mirrors a similar change in many other projects.

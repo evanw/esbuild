@@ -2548,6 +2548,27 @@ entry.js: ERROR: Could not resolve "./file.ping"
 	})
 }
 
+func TestExternalWildcardDoesNotMatchEntryPoint(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			// The "*" pattern should not apply to this entry point
+			"/entry.js": `
+				import "foo"
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{Patterns: []config.WildcardPattern{
+					{},
+				}},
+			},
+		},
+	})
+}
+
 // This test case makes sure many entry points don't cause a crash
 func TestManyEntryPoints(t *testing.T) {
 	default_suite.expectBundled(t, bundled{

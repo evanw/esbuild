@@ -330,7 +330,7 @@ func (rr *resolver) Resolve(sourceDir string, importPath string, kind ast.Import
 	}
 
 	// Certain types of URLs default to being external for convenience
-	if isExplicitlyExternal := r.isExternal(r.options.ExternalSettings.PreResolve, importPath); isExplicitlyExternal ||
+	if isExplicitlyExternal := r.isExternal(r.options.ExternalSettings.PreResolve, importPath, kind); isExplicitlyExternal ||
 
 		// "fill: url(#filter);"
 		(kind == ast.ImportURL && strings.HasPrefix(importPath, "#")) ||
@@ -536,7 +536,11 @@ func (r *resolverQuery) loadModuleSuffixesForSourceDir(sourceDir string) *dirInf
 	return sourceDirInfo
 }
 
-func (r resolverQuery) isExternal(matchers config.ExternalMatchers, path string) bool {
+func (r resolverQuery) isExternal(matchers config.ExternalMatchers, path string, kind ast.ImportKind) bool {
+	if kind == ast.ImportEntryPoint {
+		// Never mark an entry point as external. This is not useful.
+		return false
+	}
 	if _, ok := matchers.Exact[path]; ok {
 		return true
 	}
@@ -629,7 +633,7 @@ func (r resolverQuery) flushDebugLogs(mode flushMode) {
 }
 
 func (r resolverQuery) finalizeResolve(result *ResolveResult) {
-	if !result.IsExternal && r.isExternal(r.options.ExternalSettings.PostResolve, result.PathPair.Primary.Text) {
+	if !result.IsExternal && r.isExternal(r.options.ExternalSettings.PostResolve, result.PathPair.Primary.Text, r.kind) {
 		if r.debugLogs != nil {
 			r.debugLogs.addNote(fmt.Sprintf("The path %q was marked as external by the user", result.PathPair.Primary.Text))
 		}
@@ -806,7 +810,7 @@ func (r resolverQuery) resolveWithoutSymlinks(sourceDir string, sourceDirInfo *d
 		absPath := r.fs.Join(sourceDir, importPath)
 
 		// Check for external packages first
-		if r.isExternal(r.options.ExternalSettings.PostResolve, absPath) {
+		if r.isExternal(r.options.ExternalSettings.PostResolve, absPath, r.kind) {
 			if r.debugLogs != nil {
 				r.debugLogs.addNote(fmt.Sprintf("The path %q was marked as external by the user", absPath))
 			}

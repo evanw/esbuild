@@ -1041,6 +1041,12 @@ import config from "/api/config?a=1&b=2";
 console.log(foo, out, sha256, config);
 
 ================================================================================
+TestExternalWildcardDoesNotMatchEntryPoint
+---------- /out.js ----------
+// entry.js
+import "foo";
+
+================================================================================
 TestFalseRequire
 ---------- /out.js ----------
 // entry.js

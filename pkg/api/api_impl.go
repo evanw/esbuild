@@ -1852,6 +1852,10 @@ func loadPlugins(initialOptions *BuildOptions, fs fs.FS, log logger.Log, caches 
 				return ResolveResult{Errors: []Message{{Text: "Cannot call \"resolve\" before plugin setup has completed"}}}
 			}
 
+			if options.Kind == ResolveNone {
+				return ResolveResult{Errors: []Message{{Text: "Must specify \"kind\" when calling \"resolve\""}}}
+			}
+
 			// Make a new resolver so it has its own log
 			log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug, validateLogOverrides(initialOptions.LogOverride))
 			resolver := resolver.NewResolver(fs, log, caches, *buildOptions)
