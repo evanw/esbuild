@@ -425,6 +425,7 @@ type optionsThatSupportStructuralEquality struct {
 	treeShaking             bool
 	dropDebugger            bool
 	mangleQuoted            bool
+	codeSplitting           bool
 	unusedImportFlagsTS     config.UnusedImportFlagsTS
 	useDefineForClassFields config.MaybeBool
 
@@ -471,6 +472,7 @@ func OptionsFromConfig(options *config.Options) Options {
 			treeShaking:                       options.TreeShaking,
 			dropDebugger:                      options.DropDebugger,
 			mangleQuoted:                      options.MangleQuoted,
+			codeSplitting:                     options.CodeSplitting,
 			unusedImportFlagsTS:               options.UnusedImportFlagsTS,
 			useDefineForClassFields:           options.UseDefineForClassFields,
 		},
@@ -7239,11 +7241,11 @@ func extractDeclsForBinding(binding js_ast.Binding, decls []js_ast.Decl) []js_as
 	return decls
 }
 
-func (p *parser) addImportRecord(kind ast.ImportKind, loc logger.Loc, text string, assertions *[]ast.AssertEntry, flags ast.ImportRecordFlags) uint32 {
+func (p *parser) addImportRecord(kind ast.ImportKind, pathLoc logger.Loc, text string, assertions *[]ast.AssertEntry, flags ast.ImportRecordFlags) uint32 {
 	index := uint32(len(p.importRecords))
 	p.importRecords = append(p.importRecords, ast.ImportRecord{
 		Kind:       kind,
-		Range:      p.source.RangeOfString(loc),
+		Range:      p.source.RangeOfString(pathLoc),
 		Path:       logger.Path{Text: text},
 		Assertions: assertions,
 		Flags:      flags,
@@ -14095,6 +14097,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				}
 
 				importRecordIndex := p.addImportRecord(ast.ImportDynamic, arg.Loc, helpers.UTF16ToString(str.Value), assertions, flags)
+				p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
 				if isAwaitTarget && p.fnOrArrowDataVisit.tryBodyCount != 0 {
 					record := &p.importRecords[importRecordIndex]
 					record.Flags |= ast.HandlesImportErrors
@@ -14104,7 +14107,6 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					record.Flags |= ast.HandlesImportErrors
 					record.ErrorHandlerLoc = p.thenCatchChain.catchLoc
 				}
-				p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
 				return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EImportString{
 					ImportRecordIndex: importRecordIndex,
 					WebpackComments:   e.WebpackComments,
@@ -14360,12 +14362,12 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 							}
 
 							importRecordIndex := p.addImportRecord(ast.ImportRequireResolve, e.Args[0].Loc, helpers.UTF16ToString(str.Value), nil, 0)
+							p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
 							if p.fnOrArrowDataVisit.tryBodyCount != 0 {
 								record := &p.importRecords[importRecordIndex]
 								record.Flags |= ast.HandlesImportErrors
 								record.ErrorHandlerLoc = p.fnOrArrowDataVisit.tryCatchLoc
 							}
-							p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
 
 							// Create a new expression to represent the operation
 							return js_ast.Expr{Loc: arg.Loc, Data: &js_ast.ERequireResolveString{
@@ -14472,12 +14474,12 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 								}
 
 								importRecordIndex := p.addImportRecord(ast.ImportRequire, arg.Loc, helpers.UTF16ToString(str.Value), nil, 0)
+								p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
 								if p.fnOrArrowDataVisit.tryBodyCount != 0 {
 									record := &p.importRecords[importRecordIndex]
 									record.Flags |= ast.HandlesImportErrors
 									record.ErrorHandlerLoc = p.fnOrArrowDataVisit.tryCatchLoc
 								}
-								p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
 
 								// Create a new expression to represent the operation
 								return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ERequireString{
@@ -14546,6 +14548,51 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 		p.maybeMarkKnownGlobalConstructorAsPure(e)
+
+		// Recognize "new URL('./path', import.meta.url)"
+		if p.options.mode == config.ModeBundle && p.options.outputFormat == config.FormatESModule && len(e.Args) == 2 && !p.isControlFlowDead {
+			if id, ok := e.Target.Data.(*js_ast.EIdentifier); ok {
+				if symbol := &p.symbols[id.Ref.InnerIndex]; symbol.Kind == js_ast.SymbolUnbound && symbol.OriginalName == "URL" {
+					if dot, ok := e.Args[1].Data.(*js_ast.EDot); ok && dot.Name == "url" {
+						if _, ok := dot.Target.Data.(*js_ast.EImportMeta); ok {
+							// Support "new URL(a ? './b' : './c', import.meta.url)"
+							return p.maybeTransposeIfExprChain(e.Args[0], func(arg js_ast.Expr) js_ast.Expr {
+								if str, ok := arg.Data.(*js_ast.EString); ok {
+									if path := helpers.UTF16ToString(str.Value); strings.HasPrefix(path, "./") || strings.HasPrefix(path, "../") {
+										if !p.options.codeSplitting {
+											p.log.AddID(logger.MsgID_Bundler_NewURLImportMeta, logger.Warning, &p.tracker,
+												logger.Range{Loc: expr.Loc, Len: e.CloseParenLoc.Start + 1 - expr.Loc.Start},
+												"The \"new URL(..., import.meta.url)\" syntax won't be bundled without code splitting enabled")
+										} else {
+											importRecordIndex := p.addImportRecord(ast.ImportNewURL, arg.Loc, path, nil, 0)
+											p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
+											if p.fnOrArrowDataVisit.tryBodyCount != 0 {
+												record := &p.importRecords[importRecordIndex]
+												record.Flags |= ast.HandlesImportErrors
+												record.ErrorHandlerLoc = p.fnOrArrowDataVisit.tryCatchLoc
+											}
+											return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENewURLImportMeta{ImportRecordIndex: importRecordIndex}}
+										}
+									} else {
+										p.log.AddID(logger.MsgID_Bundler_NewURLImportMeta, logger.Debug, &p.tracker, p.source.RangeOfString(arg.Loc),
+											fmt.Sprintf("Ignoring new URL of %q because it does not begin with \"./\" or \"../\"", path))
+									}
+								}
+
+								importMetaURL := *dot
+								return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENew{
+									Target: js_ast.Expr{Loc: e.Target.Loc, Data: &js_ast.EIdentifier{Ref: id.Ref}},
+									Args: []js_ast.Expr{
+										arg,
+										{Loc: e.Args[0].Loc, Data: &importMetaURL},
+									},
+								}}
+							}), exprOut{}
+						}
+					}
+				}
+			}
+		}
 
 	case *js_ast.EArrow:
 		asyncArrowNeedsToBeLowered := e.IsAsync && p.options.unsupportedJSFeatures.Has(compat.AsyncAwait)

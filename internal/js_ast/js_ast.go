@@ -441,6 +441,7 @@ func (*ERequireString) isExpr()        {}
 func (*ERequireResolveString) isExpr() {}
 func (*EImportString) isExpr()         {}
 func (*EImportCall) isExpr()           {}
+func (*ENewURLImportMeta) isExpr()     {}
 
 type EArray struct {
 	Items            []Expr
@@ -758,6 +759,10 @@ type EImportCall struct {
 
 	// See the comment for this same field on "EImportString" for more information
 	WebpackComments []Comment
+}
+
+type ENewURLImportMeta struct {
+	ImportRecordIndex uint32
 }
 
 type Stmt struct {

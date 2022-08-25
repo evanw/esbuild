@@ -578,13 +578,14 @@ type ResolveKind uint8
 
 const (
 	ResolveNone ResolveKind = iota
-	ResolveEntryPoint
-	ResolveJSImportStatement
-	ResolveJSRequireCall
-	ResolveJSDynamicImport
-	ResolveJSRequireResolve
 	ResolveCSSImportRule
 	ResolveCSSURLToken
+	ResolveEntryPoint
+	ResolveJSDynamicImport
+	ResolveJSImportStatement
+	ResolveJSNewURL
+	ResolveJSRequireCall
+	ResolveJSRequireResolve
 )
 
 ////////////////////////////////////////////////////////////////////////////////

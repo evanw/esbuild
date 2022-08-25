@@ -1647,18 +1647,20 @@ func (impl *pluginImpl) onStart(callback func() (OnStartResult, error)) {
 
 func importKindToResolveKind(kind ast.ImportKind) ResolveKind {
 	switch kind {
-	case ast.ImportEntryPoint:
-		return ResolveEntryPoint
-	case ast.ImportStmt:
-		return ResolveJSImportStatement
-	case ast.ImportRequire:
-		return ResolveJSRequireCall
-	case ast.ImportDynamic:
-		return ResolveJSDynamicImport
-	case ast.ImportRequireResolve:
-		return ResolveJSRequireResolve
 	case ast.ImportAt, ast.ImportAtConditional:
 		return ResolveCSSImportRule
+	case ast.ImportDynamic:
+		return ResolveJSDynamicImport
+	case ast.ImportEntryPoint:
+		return ResolveEntryPoint
+	case ast.ImportNewURL:
+		return ResolveJSNewURL
+	case ast.ImportRequire:
+		return ResolveJSRequireCall
+	case ast.ImportRequireResolve:
+		return ResolveJSRequireResolve
+	case ast.ImportStmt:
+		return ResolveJSImportStatement
 	case ast.ImportURL:
 		return ResolveCSSURLToken
 	default:
@@ -1668,20 +1670,22 @@ func importKindToResolveKind(kind ast.ImportKind) ResolveKind {
 
 func resolveKindToImportKind(kind ResolveKind) ast.ImportKind {
 	switch kind {
-	case ResolveEntryPoint:
-		return ast.ImportEntryPoint
-	case ResolveJSImportStatement:
-		return ast.ImportStmt
-	case ResolveJSRequireCall:
-		return ast.ImportRequire
-	case ResolveJSDynamicImport:
-		return ast.ImportDynamic
-	case ResolveJSRequireResolve:
-		return ast.ImportRequireResolve
 	case ResolveCSSImportRule:
 		return ast.ImportAt
 	case ResolveCSSURLToken:
 		return ast.ImportURL
+	case ResolveEntryPoint:
+		return ast.ImportEntryPoint
+	case ResolveJSDynamicImport:
+		return ast.ImportDynamic
+	case ResolveJSImportStatement:
+		return ast.ImportStmt
+	case ResolveJSNewURL:
+		return ast.ImportNewURL
+	case ResolveJSRequireCall:
+		return ast.ImportRequire
+	case ResolveJSRequireResolve:
+		return ast.ImportRequireResolve
 	default:
 		panic("Internal error")
 	}

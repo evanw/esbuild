@@ -56,6 +56,7 @@ const (
 	MsgID_Bundler_IgnoredDynamicImport
 	MsgID_Bundler_ImportIsUndefined
 	MsgID_Bundler_RequireResolveNotExternal
+	MsgID_Bundler_NewURLImportMeta
 
 	// Source maps
 	MsgID_SourceMap_InvalidSourceMappings
@@ -172,6 +173,8 @@ func StringToMsgIDs(str string, logLevel LogLevel, overrides map[MsgID]LogLevel)
 		overrides[MsgID_Bundler_ImportIsUndefined] = logLevel
 	case "require-resolve-not-external":
 		overrides[MsgID_Bundler_RequireResolveNotExternal] = logLevel
+	case "new-url-import-meta":
+		overrides[MsgID_Bundler_NewURLImportMeta] = logLevel
 
 	// Source maps
 	case "invalid-source-mappings":
@@ -286,6 +289,8 @@ func MsgIDToString(id MsgID) string {
 		return "import-is-undefined"
 	case MsgID_Bundler_RequireResolveNotExternal:
 		return "require-resolve-not-external"
+	case MsgID_Bundler_NewURLImportMeta:
+		return "new-url-import-meta"
 
 	// Source maps
 	case MsgID_SourceMap_InvalidSourceMappings:
