@@ -12,6 +12,7 @@ const (
 	MsgID_None MsgID = iota
 
 	// JavaScript
+	MsgID_JS_AssertTypeJSON
 	MsgID_JS_AssignToConstant
 	MsgID_JS_AssignToImport
 	MsgID_JS_CallImportNamespace
@@ -87,6 +88,8 @@ const (
 func StringToMsgIDs(str string, logLevel LogLevel, overrides map[MsgID]LogLevel) {
 	switch str {
 	// JS
+	case "assert-type-json":
+		overrides[MsgID_JS_AssertTypeJSON] = logLevel
 	case "assign-to-constant":
 		overrides[MsgID_JS_AssignToConstant] = logLevel
 	case "assign-to-import":
@@ -199,6 +202,8 @@ func StringToMsgIDs(str string, logLevel LogLevel, overrides map[MsgID]LogLevel)
 func MsgIDToString(id MsgID) string {
 	switch id {
 	// JS
+	case MsgID_JS_AssertTypeJSON:
+		return "assert-type-json"
 	case MsgID_JS_AssignToConstant:
 		return "assign-to-constant"
 	case MsgID_JS_AssignToImport:

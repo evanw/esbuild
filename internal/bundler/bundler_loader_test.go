@@ -1181,3 +1181,26 @@ func TestJSXAutomaticNoNameCollision(t *testing.T) {
 		},
 	})
 }
+
+func TestAssertTypeJSONWrongLoader(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import foo from './foo.json' assert { type: 'json' }
+			`,
+			"/foo.json": `{}`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode: config.ModeBundle,
+			ExtensionToLoader: map[string]config.Loader{
+				".js":   config.LoaderJS,
+				".json": config.LoaderJS,
+			},
+		},
+		expectedScanLog: `entry.js: ERROR: The file "foo.json" was loaded with the "js" loader
+entry.js: NOTE: This import assertion requires the loader to be "json" instead:
+NOTE: You need to either reconfigure esbuild to ensure that the loader for this file is "json" or you need to remove this import assertion.
+`,
+	})
+}

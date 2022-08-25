@@ -1839,7 +1839,8 @@ func (s *scanner) processScannedFiles(entryPointMeta []graph.EntryPoint) []scann
 				}
 
 				// Generate metadata about each import
-				otherFile := &s.results[record.SourceIndex.GetIndex()].file
+				otherResult := &s.results[record.SourceIndex.GetIndex()]
+				otherFile := &otherResult.file
 				if s.options.NeedsMetafile {
 					if isFirstImport {
 						isFirstImport = false
@@ -1850,6 +1851,15 @@ func (s *scanner) processScannedFiles(entryPointMeta []graph.EntryPoint) []scann
 					sb.WriteString(fmt.Sprintf("{\n          \"path\": %s,\n          \"kind\": %s\n        }",
 						helpers.QuoteForJSON(otherFile.inputFile.Source.PrettyPath, s.options.ASCIIOnly),
 						helpers.QuoteForJSON(record.Kind.StringForMetafile(), s.options.ASCIIOnly)))
+				}
+
+				if record.Flags.Has(ast.AssertTypeJSON) && otherResult.ok && otherFile.inputFile.Loader != config.LoaderJSON {
+					s.log.AddErrorWithNotes(&tracker, record.Range,
+						fmt.Sprintf("The file %q was loaded with the %q loader", otherFile.inputFile.Source.PrettyPath, config.LoaderToString[otherFile.inputFile.Loader]),
+						[]logger.MsgData{
+							tracker.MsgData(js_lexer.RangeOfImportAssertion(result.file.inputFile.Source, *ast.FindAssertion(*record.Assertions, "type")),
+								"This import assertion requires the loader to be \"json\" instead:"),
+							{Text: "You need to either reconfigure esbuild to ensure that the loader for this file is \"json\" or you need to remove this import assertion."}})
 				}
 
 				switch record.Kind {

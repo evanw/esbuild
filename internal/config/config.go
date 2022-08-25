@@ -106,6 +106,24 @@ const (
 	LoaderTSX
 )
 
+var LoaderToString = []string{
+	"none",
+	"base64",
+	"binary",
+	"copy",
+	"css",
+	"dataurl",
+	"default",
+	"file",
+	"js",
+	"json",
+	"jsx",
+	"text",
+	"ts",
+	"ts",
+	"tsx",
+}
+
 func (loader Loader) IsTypeScript() bool {
 	switch loader {
 	case LoaderTS, LoaderTSNoAmbiguousLessThan, LoaderTSX:

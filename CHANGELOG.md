@@ -23,6 +23,24 @@
 
     One additional consequence of this change is that the `kind` parameter is now required when calling the `resolve()` function in esbuild's plugin API. Previously the `kind` parameter defaulted to `entry-point`, but that no longer interacts with `external` so it didn't seem wise for this to continue to be the default. You now have to specify `kind` so that the path resolution mode is explicit.
 
+* Disallow non-`default` imports when `assert { type: 'json' }` is present
+
+    There is now standard behavior for importing a JSON file into an ES module using an `import` statement. However, it requires you to place the `assert { type: 'json' }` import assertion after the import path. This import assertion tells the JavaScript runtime to throw an error if the import does not end up resolving to a JSON file. On the web, the type of a file is determined by the `Content-Type` HTTP header instead of by the file extension. The import assertion prevents security problems on the web where a `.json` file may actually resolve to a JavaScript file containing malicious code, which is likely not expected for an import that is supposed to only contain pure side-effect free data.
+
+    By default, esbuild uses the file extension to determine the type of a file, so this import assertion is unnecessary with esbuild. However, esbuild's JSON import feature has a non-standard extension that allows you to import top-level properties of the JSON object as named imports. For example, esbuild lets you do this:
+
+    ```js
+    import { version } from './package.json'
+    ```
+
+    This is useful for tree-shaking when bundling because it means esbuild will only include the the `version` field of `package.json` in your bundle. This is non-standard behavior though and doesn't match the behavior of what happens when you import JSON in a real JavaScript runtime (after adding `assert { type: 'json' }`). In a real JavaScript runtime the only thing you can import is the `default` import. So with this release, esbuild will now prevent you from importing non-`default` import names if `assert { type: 'json' }` is present. This ensures that code containing `assert { type: 'json' }` isn't relying on non-standard behavior that won't work everywhere. So the following code is now an error with esbuild when bundling:
+
+    ```js
+    import { version } from './package.json' assert { type: 'json' }
+    ```
+
+    In addition, adding `assert { type: 'json' }` to an import statement now means esbuild will generate an error if the loader for the file is anything other than `json`, which is required by the import assertion specification.
+
 * Rename the `master` branch to `main`
 
     The primary branch for this repository was previously called `master` but is now called `main`. This change mirrors a similar change in many other projects.

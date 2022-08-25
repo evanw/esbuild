@@ -1,6 +1,9 @@
 package ast
 
-import "github.com/evanw/esbuild/internal/logger"
+import (
+	"github.com/evanw/esbuild/internal/helpers"
+	"github.com/evanw/esbuild/internal/logger"
+)
 
 // This file contains data structures that are used with the AST packages for
 // both JavaScript and CSS. This helps the bundler treat both AST formats in
@@ -110,6 +113,9 @@ const (
 
 	// If true, this import can be removed if it's unused
 	IsExternalWithoutSideEffects
+
+	// If true, "assert { type: 'json' }" was present
+	AssertTypeJSON
 )
 
 func (flags ImportRecordFlags) Has(flag ImportRecordFlags) bool {
@@ -143,6 +149,15 @@ type AssertEntry struct {
 	KeyLoc          logger.Loc
 	ValueLoc        logger.Loc
 	PreferQuotedKey bool
+}
+
+func FindAssertion(assertions []AssertEntry, name string) *AssertEntry {
+	for _, assertion := range assertions {
+		if helpers.UTF16EqualsString(assertion.Key, name) {
+			return &assertion
+		}
+	}
+	return nil
 }
 
 // This stores a 32-bit index where the zero value is an invalid index. This is

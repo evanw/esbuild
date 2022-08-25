@@ -6879,3 +6879,97 @@ func TestPackageAlias(t *testing.T) {
 		},
 	})
 }
+
+func TestErrorsForAssertTypeJSON(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/js-entry.js": `
+				import all from './foo.json' assert { type: 'json' }
+				import { default as def } from './foo.json' assert { type: 'json' }
+				import { unused } from './foo.json' assert { type: 'json' }
+				import { used } from './foo.json' assert { type: 'json' }
+				import * as ns from './foo.json' assert { type: 'json' }
+				use(used, ns.prop)
+				export { exported } from './foo.json' assert { type: 'json' }
+			`,
+			"/ts-entry.ts": `
+				import all from './foo.json' assert { type: 'json' }
+				import { default as def } from './foo.json' assert { type: 'json' }
+				import { unused } from './foo.json' assert { type: 'json' }
+				import { used } from './foo.json' assert { type: 'json' }
+				import * as ns from './foo.json' assert { type: 'json' }
+				use(used, ns.prop)
+				export { exported } from './foo.json' assert { type: 'json' }
+			`,
+			"/foo.json": `{}`,
+		},
+		entryPaths: []string{
+			"/js-entry.js",
+			"/ts-entry.ts",
+		},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+		expectedScanLog: `js-entry.js: ERROR: Cannot use non-default import "unused" with a standard JSON module
+js-entry.js: NOTE: This is considered an import of a standard JSON module because of the import assertion here:
+NOTE: You can either keep the import assertion and only use the "default" import, or you can remove the import assertion and use the "unused" import (which is non-standard behavior).
+js-entry.js: ERROR: Cannot use non-default import "used" with a standard JSON module
+js-entry.js: NOTE: This is considered an import of a standard JSON module because of the import assertion here:
+NOTE: You can either keep the import assertion and only use the "default" import, or you can remove the import assertion and use the "used" import (which is non-standard behavior).
+js-entry.js: WARNING: Non-default import "prop" is undefined with a standard JSON module
+js-entry.js: NOTE: This is considered an import of a standard JSON module because of the import assertion here:
+NOTE: You can either keep the import assertion and only use the "default" import, or you can remove the import assertion and use the "prop" import (which is non-standard behavior).
+js-entry.js: ERROR: Cannot use non-default import "exported" with a standard JSON module
+js-entry.js: NOTE: This is considered an import of a standard JSON module because of the import assertion here:
+NOTE: You can either keep the import assertion and only use the "default" import, or you can remove the import assertion and use the "exported" import (which is non-standard behavior).
+ts-entry.ts: ERROR: Cannot use non-default import "used" with a standard JSON module
+ts-entry.ts: NOTE: This is considered an import of a standard JSON module because of the import assertion here:
+NOTE: You can either keep the import assertion and only use the "default" import, or you can remove the import assertion and use the "used" import (which is non-standard behavior).
+ts-entry.ts: WARNING: Non-default import "prop" is undefined with a standard JSON module
+ts-entry.ts: NOTE: This is considered an import of a standard JSON module because of the import assertion here:
+NOTE: You can either keep the import assertion and only use the "default" import, or you can remove the import assertion and use the "prop" import (which is non-standard behavior).
+ts-entry.ts: ERROR: Cannot use non-default import "exported" with a standard JSON module
+ts-entry.ts: NOTE: This is considered an import of a standard JSON module because of the import assertion here:
+NOTE: You can either keep the import assertion and only use the "default" import, or you can remove the import assertion and use the "exported" import (which is non-standard behavior).
+`,
+	})
+}
+
+func TestOutputForAssertTypeJSON(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/js-entry.js": `
+				import all from './foo.json' assert { type: 'json' }
+				import { default as def } from './foo.json' assert { type: 'json' }
+				import * as ns from './foo.json' assert { type: 'json' }
+				use(all, def, ns.prop)
+				export { default } from './foo.json' assert { type: 'json' }
+			`,
+			"/ts-entry.ts": `
+				import all from './foo.json' assert { type: 'json' }
+				import { default as def } from './foo.json' assert { type: 'json' }
+				import { unused } from './foo.json' assert { type: 'json' }
+				import * as ns from './foo.json' assert { type: 'json' }
+				use(all, def, ns.prop)
+				export { default } from './foo.json' assert { type: 'json' }
+			`,
+			"/foo.json": `{}`,
+		},
+		entryPaths: []string{
+			"/js-entry.js",
+			"/ts-entry.ts",
+		},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+		expectedScanLog: `js-entry.js: WARNING: Non-default import "prop" is undefined with a standard JSON module
+js-entry.js: NOTE: This is considered an import of a standard JSON module because of the import assertion here:
+NOTE: You can either keep the import assertion and only use the "default" import, or you can remove the import assertion and use the "prop" import (which is non-standard behavior).
+ts-entry.ts: WARNING: Non-default import "prop" is undefined with a standard JSON module
+ts-entry.ts: NOTE: This is considered an import of a standard JSON module because of the import assertion here:
+NOTE: You can either keep the import assertion and only use the "default" import, or you can remove the import assertion and use the "prop" import (which is non-standard behavior).
+`,
+	})
+}

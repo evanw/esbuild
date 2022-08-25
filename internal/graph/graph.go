@@ -189,6 +189,13 @@ func CloneLinkerGraph(
 							dynamicImportEntryPointsMutex.Lock()
 							dynamicImportEntryPoints = append(dynamicImportEntryPoints, record.SourceIndex.GetIndex())
 							dynamicImportEntryPointsMutex.Unlock()
+
+							// Remove import assertions for dynamic imports of additional
+							// entry points so that they don't mess with the run-time behavior.
+							// For example, "import('./foo.json', { assert: { type: 'json' } })"
+							// will likely be converted into an import of a JavaScript file and
+							// leaving the import assertion there will prevent it from working.
+							record.Assertions = nil
 						}
 					}
 				}

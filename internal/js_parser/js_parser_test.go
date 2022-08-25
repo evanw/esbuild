@@ -5215,6 +5215,10 @@ func TestImportAssertions(t *testing.T) {
 	expectPrintedTarget(t, 2015, "import(x ? 'y' : 'z', {assert: {x: 1}})", "import(x ? \"y\" : \"z\");\n")
 	expectParseErrorTarget(t, 2015, "import(x ? 'y' : 'z', {assert: {x: foo()}})",
 		"<stdin>: ERROR: Using an arbitrary value as the second argument to \"import()\" is not possible in the configured target environment\n")
+
+	// Make sure there are no errors when bundling is disabled
+	expectParseError(t, "import { foo } from 'x' assert {type: 'json'}", "")
+	expectParseError(t, "export { foo } from 'x' assert {type: 'json'}", "")
 }
 
 func TestES5(t *testing.T) {

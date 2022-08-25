@@ -998,6 +998,28 @@ export {
 };
 
 ================================================================================
+TestOutputForAssertTypeJSON
+---------- /out/js-entry.js ----------
+// foo.json
+var foo_default = {};
+
+// js-entry.js
+use(foo_default, foo_default, void 0);
+export {
+  foo_default as default
+};
+
+---------- /out/ts-entry.js ----------
+// foo.json
+var foo_default = {};
+
+// ts-entry.ts
+use(foo_default, foo_default, void 0);
+export {
+  foo_default as default
+};
+
+================================================================================
 TestPackageAlias
 ---------- /out.js ----------
 // node_modules/alias1/index.js
