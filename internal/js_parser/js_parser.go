@@ -12233,6 +12233,11 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		if p.options.unsupportedJSFeatures.Has(compat.ImportMeta) {
 			r := logger.Range{Loc: expr.Loc, Len: e.RangeLen}
 			p.markSyntaxFeature(compat.ImportMeta, r)
+		} else if p.options.mode != config.ModePassThrough && !p.options.outputFormat.KeepES6ImportExportSyntax() {
+			r := logger.Range{Loc: expr.Loc, Len: e.RangeLen}
+			p.log.AddIDWithNotes(logger.MsgID_JS_EmptyImportMeta, logger.Warning, &p.tracker, r, fmt.Sprintf(
+				"\"import.meta\" is not available with the %q output format and will be empty", p.options.outputFormat.String()),
+				[]logger.MsgData{{Text: "You need to set the output format to \"esm\" for \"import.meta\" to work correctly."}})
 		}
 
 		// Convert "import.meta" to a variable if it's not supported in the output format
