@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"path"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -171,6 +172,7 @@ func (dm DebugMeta) LogErrorMsg(log logger.Log, source *logger.Source, r logger.
 
 type Resolver interface {
 	Resolve(sourceDir string, importPath string, kind ast.ImportKind) (result *ResolveResult, debug DebugMeta)
+	ResolveGlob(sourceDir string, importPath []helpers.GlobPart, kind ast.ImportKind, prettyPattern string) (results map[string]ResolveResult, warning *logger.Msg)
 	ResolveAbs(absPath string) *ResolveResult
 	PrettyPath(path logger.Path) string
 
@@ -454,6 +456,15 @@ func (rr *resolver) Resolve(sourceDir string, importPath string, kind ast.Import
 		return nil, debugMeta
 	}
 
+	// Glob imports only work in a multi-path context
+	if strings.ContainsRune(importPath, '*') {
+		if r.debugLogs != nil {
+			r.debugLogs.addNote("Cannot resolve a path containing a wildcard character in a single-path context")
+		}
+		r.flushDebugLogs(flushDueToFailure)
+		return nil, debugMeta
+	}
+
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	sourceDirInfo := r.loadModuleSuffixesForSourceDir(sourceDir)
@@ -512,6 +523,168 @@ func (rr *resolver) Resolve(sourceDir string, importPath string, kind ast.Import
 	r.finalizeResolve(result)
 	r.flushDebugLogs(flushDueToSuccess)
 	return result, debugMeta
+}
+
+// This returns nil on failure and non-nil on success. Note that this may
+// return an empty array to indicate a successful search that returned zero
+// results.
+func (rr *resolver) ResolveGlob(sourceDir string, importPathPattern []helpers.GlobPart, kind ast.ImportKind, prettyPattern string) (map[string]ResolveResult, *logger.Msg) {
+	var debugMeta DebugMeta
+	r := resolverQuery{
+		resolver:  rr,
+		debugMeta: &debugMeta,
+		kind:      kind,
+	}
+
+	if r.log.Level <= logger.LevelDebug {
+		r.debugLogs = &debugLogs{what: fmt.Sprintf(
+			"Resolving glob import %s in directory %q of type %q",
+			prettyPattern, sourceDir, kind.StringForMetafile())}
+	}
+
+	if len(importPathPattern) == 0 {
+		if r.debugLogs != nil {
+			r.debugLogs.addNote("Ignoring empty glob pattern")
+		}
+		r.flushDebugLogs(flushDueToFailure)
+		return nil, nil
+	}
+	firstPrefix := importPathPattern[0].Prefix
+
+	// Glob patterns only work for relative URLs
+	if !strings.HasPrefix(firstPrefix, "./") && !strings.HasPrefix(firstPrefix, "../") &&
+		!strings.HasPrefix(firstPrefix, ".\\") && !strings.HasPrefix(firstPrefix, "..\\") {
+		if kind == ast.ImportEntryPoint {
+			// Be permissive about forgetting "./" for entry points since it's common
+			// to omit "./" on the command line. But don't accidentally treat absolute
+			// paths as relative (even on Windows).
+			if !r.fs.IsAbs(firstPrefix) {
+				firstPrefix = "./" + firstPrefix
+			}
+		} else {
+			// Don't allow omitting "./" for other imports since node doesn't let you do this either
+			if r.debugLogs != nil {
+				r.debugLogs.addNote("Ignoring glob import that doesn't start with \"./\" or \"../\"")
+			}
+			r.flushDebugLogs(flushDueToFailure)
+			return nil, nil
+		}
+	}
+
+	// Handle leading directories in the pattern (including "../")
+	dirPrefix := 0
+	for {
+		slash := strings.IndexAny(firstPrefix[dirPrefix:], "/\\")
+		if slash == -1 {
+			break
+		}
+		if star := strings.IndexByte(firstPrefix[dirPrefix:], '*'); star != -1 && slash > star {
+			break
+		}
+		dirPrefix += slash + 1
+	}
+
+	// If the pattern is an absolute path, then just replace source directory.
+	// Otherwise join the source directory with the prefix from the pattern.
+	if suffix := firstPrefix[:dirPrefix]; kind != ast.ImportNewURL && r.fs.IsAbs(suffix) {
+		sourceDir = suffix
+	} else {
+		sourceDir = r.fs.Join(sourceDir, suffix)
+	}
+
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	// Look up the directory to start from
+	sourceDirInfo := r.dirInfoCached(sourceDir)
+	if sourceDirInfo == nil {
+		if r.debugLogs != nil {
+			r.debugLogs.addNote(fmt.Sprintf("Failed to find the directory %q", sourceDir))
+		}
+		r.flushDebugLogs(flushDueToFailure)
+		return nil, nil
+	}
+
+	// Turn the glob pattern into a regular expression
+	canMatchOnSlash := false
+	wasGlobStar := false
+	sb := strings.Builder{}
+	sb.WriteByte('^')
+	for i, part := range importPathPattern {
+		prefix := part.Prefix
+		if i == 0 {
+			prefix = firstPrefix
+		}
+		if wasGlobStar && len(prefix) > 0 && (prefix[0] == '/' || prefix[0] == '\\') {
+			prefix = prefix[1:] // Move over the "/" after a globstar
+		}
+		sb.WriteString(regexp.QuoteMeta(prefix))
+		if part.Wildcard == helpers.GlobAllIncludingSlash {
+			// It's a globstar, so match zero or more path segments
+			sb.WriteString("(?:[^/]*(?:/|$))*")
+			canMatchOnSlash = true
+			wasGlobStar = true
+		} else {
+			// It's not a globstar, so only match one path segment
+			sb.WriteString("[^/]*")
+			wasGlobStar = false
+		}
+	}
+	sb.WriteByte('$')
+	re := regexp.MustCompile(sb.String())
+
+	// Initialize "results" to a non-nil value to indicate that the glob is valid
+	results := make(map[string]ResolveResult)
+
+	var visit func(dirInfo *dirInfo, dir string)
+	visit = func(dirInfo *dirInfo, dir string) {
+		for _, key := range dirInfo.entries.SortedKeys() {
+			entry, _ := dirInfo.entries.Get(key)
+			switch entry.Kind(r.fs) {
+			case fs.DirEntry:
+				// To avoid infinite loops, don't follow any symlinks
+				if canMatchOnSlash && entry.Symlink(r.fs) == "" {
+					if childDirInfo := r.dirInfoCached(r.fs.Join(dirInfo.absPath, key)); childDirInfo != nil {
+						visit(childDirInfo, fmt.Sprintf("%s%s/", dir, key))
+					}
+				}
+
+			case fs.FileEntry:
+				if relPath := dir + key; re.MatchString(relPath) {
+					var result ResolveResult
+
+					if r.isExternal(r.options.ExternalSettings.PreResolve, relPath, kind) {
+						result.PathPair = PathPair{Primary: logger.Path{Text: relPath}}
+						result.IsExternal = true
+
+						if r.debugLogs != nil {
+							r.debugLogs.addNote(fmt.Sprintf("The path %q was marked as external by the user", result.PathPair.Primary.Text))
+						}
+					} else {
+						absPath := r.fs.Join(dirInfo.absPath, key)
+						result.PathPair = PathPair{Primary: logger.Path{Text: absPath, Namespace: "file"}}
+					}
+
+					r.finalizeResolve(&result)
+					results[relPath] = result
+				}
+			}
+		}
+	}
+
+	visit(sourceDirInfo, firstPrefix[:dirPrefix])
+
+	var warning *logger.Msg
+	if len(results) == 0 {
+		warning = &logger.Msg{
+			ID:   logger.MsgID_Bundler_EmptyGlob,
+			Kind: logger.Warning,
+			Data: logger.MsgData{Text: fmt.Sprintf("The glob pattern %s did not match any files", prettyPattern)},
+		}
+	}
+
+	r.flushDebugLogs(flushDueToSuccess)
+	return results, warning
 }
 
 func (r *resolverQuery) loadModuleSuffixesForSourceDir(sourceDir string) *dirInfo {
@@ -638,119 +811,123 @@ func (r resolverQuery) finalizeResolve(result *ResolveResult) {
 			r.debugLogs.addNote(fmt.Sprintf("The path %q was marked as external by the user", result.PathPair.Primary.Text))
 		}
 		result.IsExternal = true
-		return
-	}
+	} else {
+		for _, path := range result.PathPair.iter() {
+			if path.Namespace == "file" {
+				if dirInfo := r.dirInfoCached(r.fs.Dir(path.Text)); dirInfo != nil {
+					base := r.fs.Base(path.Text)
 
-	for _, path := range result.PathPair.iter() {
-		if path.Namespace == "file" {
-			if dirInfo := r.dirInfoCached(r.fs.Dir(path.Text)); dirInfo != nil {
-				base := r.fs.Base(path.Text)
+					// Look up this file in the "sideEffects" map in the nearest enclosing
+					// directory with a "package.json" file.
+					//
+					// Only do this for the primary path. Some packages have the primary
+					// path marked as having side effects and the secondary path marked
+					// as not having side effects. This is likely a bug in the package
+					// definition but we don't want to consider the primary path as not
+					// having side effects just because the secondary path is marked as
+					// not having side effects.
+					if pkgJSON := dirInfo.enclosingPackageJSON; pkgJSON != nil && *path == result.PathPair.Primary {
+						if pkgJSON.sideEffectsMap != nil {
+							hasSideEffects := false
+							pathLookup := strings.ReplaceAll(path.Text, "\\", "/") // Avoid problems with Windows-style slashes
+							if pkgJSON.sideEffectsMap[pathLookup] {
+								// Fast path: map lookup
+								hasSideEffects = true
+							} else {
+								// Slow path: glob tests
+								for _, re := range pkgJSON.sideEffectsRegexps {
+									if re.MatchString(pathLookup) {
+										hasSideEffects = true
+										break
+									}
+								}
+							}
+							if !hasSideEffects {
+								if r.debugLogs != nil {
+									r.debugLogs.addNote(fmt.Sprintf("Marking this file as having no side effects due to %q",
+										pkgJSON.source.KeyPath.Text))
+								}
+								result.PrimarySideEffectsData = pkgJSON.sideEffectsData
+							}
+						}
 
-				// Look up this file in the "sideEffects" map in the nearest enclosing
-				// directory with a "package.json" file.
-				//
-				// Only do this for the primary path. Some packages have the primary
-				// path marked as having side effects and the secondary path marked
-				// as not having side effects. This is likely a bug in the package
-				// definition but we don't want to consider the primary path as not
-				// having side effects just because the secondary path is marked as
-				// not having side effects.
-				if pkgJSON := dirInfo.enclosingPackageJSON; pkgJSON != nil && *path == result.PathPair.Primary {
-					if pkgJSON.sideEffectsMap != nil {
-						hasSideEffects := false
-						pathLookup := strings.ReplaceAll(path.Text, "\\", "/") // Avoid problems with Windows-style slashes
-						if pkgJSON.sideEffectsMap[pathLookup] {
-							// Fast path: map lookup
-							hasSideEffects = true
+						// Also copy over the "type" field
+						result.ModuleTypeData = pkgJSON.moduleTypeData
+					}
+
+					// Copy various fields from the nearest enclosing "tsconfig.json" file if present
+					if path == &result.PathPair.Primary && dirInfo.enclosingTSConfigJSON != nil {
+						// Except don't do this if we're inside a "node_modules" directory. Package
+						// authors often publish their "tsconfig.json" files to npm because of
+						// npm's default-include publishing model and because these authors
+						// probably don't know about ".npmignore" files.
+						//
+						// People trying to use these packages with esbuild have historically
+						// complained that esbuild is respecting "tsconfig.json" in these cases.
+						// The assumption is that the package author published these files by
+						// accident.
+						//
+						// Ignoring "tsconfig.json" files inside "node_modules" directories breaks
+						// the use case of publishing TypeScript code and having it be transpiled
+						// for you, but that's the uncommon case and likely doesn't work with
+						// many other tools anyway. So now these files are ignored.
+						if helpers.IsInsideNodeModules(result.PathPair.Primary.Text) {
+							if r.debugLogs != nil {
+								r.debugLogs.addNote(fmt.Sprintf("Ignoring %q because %q is inside \"node_modules\"",
+									dirInfo.enclosingTSConfigJSON.AbsPath,
+									result.PathPair.Primary.Text))
+							}
 						} else {
-							// Slow path: glob tests
-							for _, re := range pkgJSON.sideEffectsRegexps {
-								if re.MatchString(pathLookup) {
-									hasSideEffects = true
-									break
+							result.JSXFactory = dirInfo.enclosingTSConfigJSON.JSXFactory
+							result.JSXFragment = dirInfo.enclosingTSConfigJSON.JSXFragmentFactory
+							result.JSX = dirInfo.enclosingTSConfigJSON.JSX
+							result.JSXImportSource = dirInfo.enclosingTSConfigJSON.JSXImportSource
+							result.UseDefineForClassFieldsTS = dirInfo.enclosingTSConfigJSON.UseDefineForClassFields
+							result.UnusedImportFlagsTS = config.UnusedImportFlagsFromTsconfigValues(
+								dirInfo.enclosingTSConfigJSON.PreserveImportsNotUsedAsValues,
+								dirInfo.enclosingTSConfigJSON.PreserveValueImports,
+							)
+							result.TSTarget = dirInfo.enclosingTSConfigJSON.TSTarget
+							if tsAlwaysStrict := dirInfo.enclosingTSConfigJSON.TSAlwaysStrict; tsAlwaysStrict != nil {
+								result.TSAlwaysStrict = tsAlwaysStrict
+							} else {
+								// If "alwaysStrict" is absent, it defaults to "strict" instead
+								result.TSAlwaysStrict = dirInfo.enclosingTSConfigJSON.TSStrict
+							}
+
+							if r.debugLogs != nil {
+								r.debugLogs.addNote(fmt.Sprintf("This import is under the effect of %q",
+									dirInfo.enclosingTSConfigJSON.AbsPath))
+								if result.JSXFactory != nil {
+									r.debugLogs.addNote(fmt.Sprintf("\"jsxFactory\" is %q due to %q",
+										strings.Join(result.JSXFactory, "."),
+										dirInfo.enclosingTSConfigJSON.AbsPath))
+								}
+								if result.JSXFragment != nil {
+									r.debugLogs.addNote(fmt.Sprintf("\"jsxFragment\" is %q due to %q",
+										strings.Join(result.JSXFragment, "."),
+										dirInfo.enclosingTSConfigJSON.AbsPath))
 								}
 							}
 						}
-						if !hasSideEffects {
-							if r.debugLogs != nil {
-								r.debugLogs.addNote(fmt.Sprintf("Marking this file as having no side effects due to %q",
-									pkgJSON.source.KeyPath.Text))
-							}
-							result.PrimarySideEffectsData = pkgJSON.sideEffectsData
-						}
 					}
 
-					// Also copy over the "type" field
-					result.ModuleTypeData = pkgJSON.moduleTypeData
-				}
-
-				// Copy various fields from the nearest enclosing "tsconfig.json" file if present
-				if path == &result.PathPair.Primary && dirInfo.enclosingTSConfigJSON != nil {
-					// Except don't do this if we're inside a "node_modules" directory. Package
-					// authors often publish their "tsconfig.json" files to npm because of
-					// npm's default-include publishing model and because these authors
-					// probably don't know about ".npmignore" files.
-					//
-					// People trying to use these packages with esbuild have historically
-					// complained that esbuild is respecting "tsconfig.json" in these cases.
-					// The assumption is that the package author published these files by
-					// accident.
-					//
-					// Ignoring "tsconfig.json" files inside "node_modules" directories breaks
-					// the use case of publishing TypeScript code and having it be transpiled
-					// for you, but that's the uncommon case and likely doesn't work with
-					// many other tools anyway. So now these files are ignored.
-					if helpers.IsInsideNodeModules(result.PathPair.Primary.Text) {
-						if r.debugLogs != nil {
-							r.debugLogs.addNote(fmt.Sprintf("Ignoring %q because %q is inside \"node_modules\"",
-								dirInfo.enclosingTSConfigJSON.AbsPath,
-								result.PathPair.Primary.Text))
-						}
-					} else {
-						result.JSXFactory = dirInfo.enclosingTSConfigJSON.JSXFactory
-						result.JSXFragment = dirInfo.enclosingTSConfigJSON.JSXFragmentFactory
-						result.JSX = dirInfo.enclosingTSConfigJSON.JSX
-						result.JSXImportSource = dirInfo.enclosingTSConfigJSON.JSXImportSource
-						result.UseDefineForClassFieldsTS = dirInfo.enclosingTSConfigJSON.UseDefineForClassFields
-						result.UnusedImportFlagsTS = config.UnusedImportFlagsFromTsconfigValues(
-							dirInfo.enclosingTSConfigJSON.PreserveImportsNotUsedAsValues,
-							dirInfo.enclosingTSConfigJSON.PreserveValueImports,
-						)
-						result.TSTarget = dirInfo.enclosingTSConfigJSON.TSTarget
-						result.TSAlwaysStrict = dirInfo.enclosingTSConfigJSON.TSAlwaysStrictOrStrict()
-
-						if r.debugLogs != nil {
-							r.debugLogs.addNote(fmt.Sprintf("This import is under the effect of %q",
-								dirInfo.enclosingTSConfigJSON.AbsPath))
-							if result.JSXFactory != nil {
-								r.debugLogs.addNote(fmt.Sprintf("\"jsxFactory\" is %q due to %q",
-									strings.Join(result.JSXFactory, "."),
-									dirInfo.enclosingTSConfigJSON.AbsPath))
+					if !r.options.PreserveSymlinks {
+						if entry, _ := dirInfo.entries.Get(base); entry != nil {
+							if symlink := entry.Symlink(r.fs); symlink != "" {
+								// Is this entry itself a symlink?
+								if r.debugLogs != nil {
+									r.debugLogs.addNote(fmt.Sprintf("Resolved symlink %q to %q", path.Text, symlink))
+								}
+								path.Text = symlink
+							} else if dirInfo.absRealPath != "" {
+								// Is there at least one parent directory with a symlink?
+								symlink := r.fs.Join(dirInfo.absRealPath, base)
+								if r.debugLogs != nil {
+									r.debugLogs.addNote(fmt.Sprintf("Resolved symlink %q to %q", path.Text, symlink))
+								}
+								path.Text = symlink
 							}
-							if result.JSXFragment != nil {
-								r.debugLogs.addNote(fmt.Sprintf("\"jsxFragment\" is %q due to %q",
-									strings.Join(result.JSXFragment, "."),
-									dirInfo.enclosingTSConfigJSON.AbsPath))
-							}
-						}
-					}
-				}
-
-				if !r.options.PreserveSymlinks {
-					if entry, _ := dirInfo.entries.Get(base); entry != nil {
-						if symlink := entry.Symlink(r.fs); symlink != "" {
-							// Is this entry itself a symlink?
-							if r.debugLogs != nil {
-								r.debugLogs.addNote(fmt.Sprintf("Resolved symlink %q to %q", path.Text, symlink))
-							}
-							path.Text = symlink
-						} else if dirInfo.absRealPath != "" {
-							// Is there at least one parent directory with a symlink?
-							symlink := r.fs.Join(dirInfo.absRealPath, base)
-							if r.debugLogs != nil {
-								r.debugLogs.addNote(fmt.Sprintf("Resolved symlink %q to %q", path.Text, symlink))
-							}
-							path.Text = symlink
 						}
 					}
 				}

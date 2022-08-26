@@ -30,6 +30,8 @@ type InputFile struct {
 	SideEffects SideEffects
 	Source      logger.Source
 	Loader      config.Loader
+
+	OmitFromSourceMapsAndMetafile bool
 }
 
 type OutputFile struct {

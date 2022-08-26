@@ -44,24 +44,6 @@ let buildTests = {
     }
   },
 
-  async errorIfGlob({ esbuild }) {
-    try {
-      await esbuild.build({
-        entryPoints: ['./src/*.js'],
-        logLevel: 'silent',
-        write: false,
-      })
-      throw new Error('Expected build failure');
-    } catch (e) {
-      if (!e.errors || !e.errors[0] || e.errors[0].text !== 'Could not resolve "./src/*.js"' ||
-        e.errors[0].notes[0].text !== 'It looks like you are trying to use glob syntax (i.e. "*") with esbuild. ' +
-        'This syntax is typically handled by your shell, and isn\'t handled by esbuild itself. ' +
-        'You must expand glob syntax first before passing your paths to esbuild.') {
-        throw e;
-      }
-    }
-  },
-
   async mangleCacheBuild({ esbuild }) {
     var result = await esbuild.build({
       stdin: {
@@ -831,8 +813,8 @@ export {
     const names2 = result2.outputFiles.map(x => path.basename(x.path)).sort()
 
     // Check that the public path is included in chunk hashes but not asset hashes
-    assert.deepStrictEqual(names1, ['data-BYATPJRB.bin', 'in-OGEHLZ72.js'])
-    assert.deepStrictEqual(names2, ['data-BYATPJRB.bin', 'in-IF4VVJK4.js'])
+    assert.deepStrictEqual(names1, ['data-BYATPJRB.bin', 'in-IN5VRZMW.js'])
+    assert.deepStrictEqual(names2, ['data-BYATPJRB.bin', 'in-7HV645WS.js'])
   },
 
   async fileLoaderPublicPath({ esbuild, testDir }) {

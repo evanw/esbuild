@@ -19,6 +19,32 @@
     }
     ```
 
+* Handle import paths containing wildcards ([#56](https://github.com/evanw/esbuild/issues/56), [#700](https://github.com/evanw/esbuild/issues/700), [#875](https://github.com/evanw/esbuild/issues/875), [#976](https://github.com/evanw/esbuild/issues/976), [#2221](https://github.com/evanw/esbuild/issues/2221), [#2515](https://github.com/evanw/esbuild/issues/2515))
+
+    This release introduces wildcards in import paths in two places:
+
+    * **Entry points**
+
+        You can now pass a string containing glob-style wildcards such as `./src/*.ts` as an entry point and esbuild will search the file system for files that match the pattern. This can be used to easily pass esbuild all files with a certain extension on the command line in a cross-platform way. Previously you had to rely on the shell to perform glob expansion, but that is obviously shell-dependent and didn't work at all on Windows. Note that to use this feature on the command line you will have to quote the pattern so it's passed verbatim to esbuild without any expansion by the shell. Here's an example:
+
+        ```sh
+        esbuild --minify "./src/*.ts" --outdir=out
+        ```
+
+        Specifically the `*` character will match any character except for the `/` character, and the `/**/` character sequence will match a path separator followed by zero or more path elements. Other wildcard operators found in glob patterns such as `?` and `[...]` are not supported.
+
+    * **Run-time import paths**
+
+        Import paths that are evaluated at run-time can now be bundled in certain limited situations. The import path expression must be a form of string concatenation and must start with either `./` or `../`. Each non-string expression in the string concatenation chain becomes a wildcard. The `*` wildcard is chosen unless the previous character is a `/`, in which case the `/**/*` character sequence is used.
+
+        ```js
+        // These two forms are equivalent
+        const json1 = await import('./data/' + kind + '.json')
+        const json2 = await import(`./data/${kind}.json`)
+        ```
+
+        This feature works with `require(...)`, `import(...)`, and `new URL(..., import.meta.url)` because these can all accept run-time expressions. It does not work with `import` and `export` statements because these cannot accept run-time expressions.
+
 ## 0.16.1
 
 This is a hotfix for the previous release.

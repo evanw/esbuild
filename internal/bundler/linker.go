@@ -5023,7 +5023,6 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 		metaByteCount = make(map[string]int, len(compileResults))
 	}
 	for _, compileResult := range compileResults {
-		isRuntime := compileResult.sourceIndex == runtime.SourceIndex
 		for text := range compileResult.ExtractedLegalComments {
 			if !legalCommentSet[text] {
 				legalCommentSet[text] = true
@@ -5056,7 +5055,7 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 		}
 
 		// Don't include the runtime in source maps
-		if isRuntime {
+		if c.graph.Files[compileResult.sourceIndex].InputFile.OmitFromSourceMapsAndMetafile {
 			prevOffset.AdvanceString(string(compileResult.JS))
 			j.AddBytes(compileResult.JS)
 		} else {

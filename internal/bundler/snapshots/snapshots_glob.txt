@@ -1,0 +1,207 @@
+TestGlobBasicNoSplitting
+---------- /out.js ----------
+// src/a.js
+var require_a = __commonJS({
+  "src/a.js"(exports, module) {
+    module.exports = "a";
+  }
+});
+
+// src/b.js
+var require_b = __commonJS({
+  "src/b.js"(exports, module) {
+    module.exports = "b";
+  }
+});
+
+// require("./src/**/*") in entry.js
+var _exports = {};
+__export(_exports, {
+  globRequire_src: () => globRequire_src
+});
+var globRequire_src = __glob({
+  "./src/a.js": () => require_a(),
+  "./src/b.js": () => require_b()
+});
+
+// import("./src/**/*") in entry.js
+var _exports2 = {};
+__export(_exports2, {
+  globImport_src: () => globImport_src
+});
+var globImport_src = __glob({
+  "./src/a.js": () => Promise.resolve().then(() => __toESM(require_a())),
+  "./src/b.js": () => Promise.resolve().then(() => __toESM(require_b()))
+});
+
+// entry.js
+var ab = Math.random() < 0.5 ? "a.js" : "b.js";
+console.log({
+  concat: {
+    require: globRequire_src("./src/" + ab),
+    import: globImport_src("./src/" + ab),
+    newURL: new URL("./src/" + ab, import.meta.url)
+  },
+  template: {
+    require: globRequire_src(`./src/${ab}`),
+    import: globImport_src(`./src/${ab}`),
+    newURL: new URL(`./src/${ab}`, import.meta.url)
+  }
+});
+
+================================================================================
+TestGlobBasicSplitting
+---------- /out/entry.js ----------
+import {
+  require_a
+} from "./chunk-HEKATOEQ.js";
+import {
+  require_b
+} from "./chunk-SMNQOI55.js";
+import {
+  __export,
+  __glob
+} from "./chunk-7R4CFAA2.js";
+
+// require("./src/**/*") in entry.js
+var _exports = {};
+__export(_exports, {
+  globRequire_src: () => globRequire_src
+});
+var globRequire_src = __glob({
+  "./src/a.js": () => require_a(),
+  "./src/b.js": () => require_b()
+});
+
+// import("./src/**/*") in entry.js
+var _exports2 = {};
+__export(_exports2, {
+  globImport_src: () => globImport_src
+});
+var globImport_src = __glob({
+  "./src/a.js": () => import("./a-NN32PJTF.js"),
+  "./src/b.js": () => import("./b-62CWNBIU.js")
+});
+
+// new URL("./src/**/*", import.meta.url) in entry.js
+var _exports3 = {};
+__export(_exports3, {
+  globNewURL_src: () => globNewURL_src
+});
+var globNewURL_src = __glob({
+  "./src/a.js": () => new URL("./a-NN32PJTF.js", import.meta.url),
+  "./src/b.js": () => new URL("./b-62CWNBIU.js", import.meta.url)
+});
+
+// entry.js
+var ab = Math.random() < 0.5 ? "a.js" : "b.js";
+console.log({
+  concat: {
+    require: globRequire_src("./src/" + ab),
+    import: globImport_src("./src/" + ab),
+    newURL: globNewURL_src("./src/" + ab)
+  },
+  template: {
+    require: globRequire_src(`./src/${ab}`),
+    import: globImport_src(`./src/${ab}`),
+    newURL: globNewURL_src(`./src/${ab}`)
+  }
+});
+
+---------- /out/a-NN32PJTF.js ----------
+import {
+  require_a
+} from "./chunk-HEKATOEQ.js";
+import "./chunk-7R4CFAA2.js";
+export default require_a();
+
+---------- /out/chunk-HEKATOEQ.js ----------
+import {
+  __commonJS
+} from "./chunk-7R4CFAA2.js";
+
+// src/a.js
+var require_a = __commonJS({
+  "src/a.js"(exports, module) {
+    module.exports = "a";
+  }
+});
+
+export {
+  require_a
+};
+
+---------- /out/b-62CWNBIU.js ----------
+import {
+  require_b
+} from "./chunk-SMNQOI55.js";
+import "./chunk-7R4CFAA2.js";
+export default require_b();
+
+---------- /out/chunk-SMNQOI55.js ----------
+import {
+  __commonJS
+} from "./chunk-7R4CFAA2.js";
+
+// src/b.js
+var require_b = __commonJS({
+  "src/b.js"(exports, module) {
+    module.exports = "b";
+  }
+});
+
+export {
+  require_b
+};
+
+---------- /out/chunk-7R4CFAA2.js ----------
+export {
+  __glob,
+  __commonJS,
+  __export
+};
+
+================================================================================
+TestGlobEntryPointAbsPath
+---------- /out/entry.js ----------
+// Users/user/project/src/entry.js
+works = true;
+
+================================================================================
+TestGlobNoMatches
+---------- /out/entry.js ----------
+// require("./src/**/*.json") in entry.js
+var _exports = {};
+__export(_exports, {
+  globRequire_src_json: () => globRequire_src_json
+});
+var globRequire_src_json = __glob({});
+
+// import("./src/**/*.json") in entry.js
+var _exports2 = {};
+__export(_exports2, {
+  globImport_src_json: () => globImport_src_json
+});
+var globImport_src_json = __glob({});
+
+// new URL("./src/**/*.json", import.meta.url) in entry.js
+var _exports3 = {};
+__export(_exports3, {
+  globNewURL_src_json: () => globNewURL_src_json
+});
+var globNewURL_src_json = __glob({});
+
+// entry.js
+var ab = Math.random() < 0.5 ? "a.js" : "b.js";
+console.log({
+  concat: {
+    require: globRequire_src_json("./src/" + ab + ".json"),
+    import: globImport_src_json("./src/" + ab + ".json"),
+    newURL: globNewURL_src_json("./src/" + ab + ".json")
+  },
+  template: {
+    require: globRequire_src_json(`./src/${ab}.json`),
+    import: globImport_src_json(`./src/${ab}.json`),
+    newURL: globNewURL_src_json(`./src/${ab}.json`)
+  }
+});

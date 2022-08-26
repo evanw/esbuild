@@ -128,6 +128,13 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 				throw new Error('Dynamic require of "' + x + '" is not supported')
 			})
 
+		// This is used for glob imports
+		export var __glob = map => path => {
+			var fn = map[path]
+			if (fn) return fn()
+			throw new Error('Module not found in bundle: ' + path)
+		}
+
 		// For object rest patterns
 		export var __restKey = key => typeof key === 'symbol' ? key : key + ''
 		export var __objRest = (source, exclude) => {
