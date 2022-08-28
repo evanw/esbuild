@@ -1880,6 +1880,7 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 		if kind != js_ast.PropertyNormal || opts.isGenerator {
 			p.lexer.Unexpected()
 		}
+		p.markSyntaxFeature(compat.Generator, p.lexer.Range())
 		p.lexer.Next()
 		opts.isGenerator = true
 		return p.parseProperty(startLoc, js_ast.PropertyNormal, opts, errors)

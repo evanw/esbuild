@@ -5217,6 +5217,9 @@ func TestES5(t *testing.T) {
 		"<stdin>: ERROR: Transforming generator functions to the configured target environment is not supported yet\n")
 	expectParseErrorTarget(t, 5, "(function* () {});",
 		"<stdin>: ERROR: Transforming generator functions to the configured target environment is not supported yet\n")
+	expectParseErrorTarget(t, 5, "({ *foo() {} });",
+		"<stdin>: ERROR: Transforming generator functions to the configured target environment is not supported yet\n"+
+			"<stdin>: ERROR: Transforming object literal extensions to the configured target environment is not supported yet\n")
 }
 
 func TestASCIIOnly(t *testing.T) {
