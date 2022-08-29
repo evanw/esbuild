@@ -181,6 +181,24 @@ by esbuild to install the correct binary executable for your current platform.`)
   // it's inside a virtual file system and the OS needs it in the real file
   // system. So we need to copy the file out of the virtual file system into
   // the real file system.
+  //
+  // You might think that we could use "preferUnplugged: true" in each of the
+  // platform-specific packages for this instead, since that tells Yarn to not
+  // use the virtual file system for those packages. This is not done because:
+  //
+  // * Really early versions of Yarn don't support "preferUnplugged", so package
+  //   installation would break on those Yarn versions if we did this.
+  //
+  // * Earlier Yarn versions always installed all optional dependencies for all
+  //   platforms even though most of them are incompatible. To minimize file
+  //   system space, we want these useless packages to take up as little space
+  //   as possible so they should remain unzipped inside their ".zip" files.
+  //
+  //   We have to explicitly pass "preferUnplugged: false" instead of leaving
+  //   it up to Yarn's default behavior because Yarn's heuristics otherwise
+  //   automatically unzip packages containing ".exe" files, and we don't want
+  //   our Windows-specific packages to be unzipped either.
+  //
   let pnpapi: any;
   try {
     pnpapi = require('pnpapi');

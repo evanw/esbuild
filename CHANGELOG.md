@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-* Lower `for await` loops
+* Lower `for await` loops ([#1930](https://github.com/evanw/esbuild/issues/1930))
 
     This release lowers `for await` loops to the equivalent `for` loop containing `await` when esbuild is configured such that `for await` loops are unsupported. This transform still requires at least generator functions to be supported since esbuild's lowering of `await` currently relies on generators. This new transformation is modeled after what the TypeScript compiler does. Here's an example:
 
@@ -74,6 +74,12 @@
 * Implement a small minification improvement ([#2496](https://github.com/evanw/esbuild/issues/2496))
 
     Some people write code that contains a label with an immediate break such as `x: break x`. Previously this code was not removed during minification but it will now be removed during minification starting with this release.
+
+* Fix installing esbuild via Yarn with `enableScripts: false` configured ([#2457](https://github.com/evanw/esbuild/pull/2457))
+
+    If esbuild is installed with Yarn with the `enableScripts: false` setting configured, then Yarn will not "unplug" the `esbuild` package (i.e. it will keep the entire package inside a `.zip` file). This messes with esbuild's library code that extracts the platform-specific binary executable because that code copies the binary executable into the esbuild package directory, and Yarn's `.zip` file system shim doesn't let you write to a directory inside of a `.zip` file. This release fixes this problem by writing to the `node_modules/.cache/esbuild` directory instead in this case. So you should now be able to use esbuild with Yarn when `enableScripts: false` is configured.
+
+    This fix was contributed by [@jonaskuske](https://github.com/jonaskuske).
 
 ## 0.15.5
 

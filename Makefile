@@ -179,7 +179,7 @@ test-e2e-yarn-berry:
 	cd e2e-yb && echo "1+2" | yarn esbuild && yarn node -p "require('esbuild').transformSync('1+2').code"
 
 	# Test install without scripts
-	rm -fr e2e-yb && mkdir e2e-yb && cd e2e-yb && echo {} > package.json && echo 'enableScripts: false' > yarn.lock && yarn set version berry && yarn add esbuild
+	rm -fr e2e-yb && mkdir e2e-yb && cd e2e-yb && echo {} > package.json && touch yarn.lock && echo 'enableScripts: false' > .yarnrc.yml && yarn set version berry && yarn add esbuild
 	cd e2e-yb && echo "1+2" | yarn esbuild && yarn node -p "require('esbuild').transformSync('1+2').code"
 	# Test CI reinstall
 	cd e2e-yb && yarn install --immutable
