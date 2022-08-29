@@ -35,6 +35,10 @@
         * `class-static-blocks=false`
         * `class-static-field=false`
 
+* Implement a small minification improvement ([#2496](https://github.com/evanw/esbuild/issues/2496))
+
+    Some people write code that contains a label with an immediate break such as `x: break x`. Previously this code was not removed during minification but it will now be removed during minification starting with this release.
+
 ## 0.15.5
 
 * Fix issues with Yarn PnP and Yarn's workspaces feature ([#2476](https://github.com/evanw/esbuild/issues/2476))

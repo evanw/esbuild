@@ -2031,6 +2031,13 @@ func TestLabels(t *testing.T) {
 	expectPrinted(t, "x: ({ f() { x: 1; } }).f()", "x:\n  ({ f() {\n    x:\n      1;\n  } }).f();\n")
 	expectPrinted(t, "x: (function() { x: 1; })()", "x:\n  (function() {\n    x:\n      1;\n  })();\n")
 	expectParseError(t, "x: y: x: 1", "<stdin>: ERROR: Duplicate label \"x\"\n<stdin>: NOTE: The original label \"x\" is here:\n")
+
+	expectPrinted(t, "x: break x", "x:\n  break x;\n")
+	expectPrinted(t, "x: { break x; foo() }", "x: {\n  break x;\n  foo();\n}\n")
+	expectPrintedMangle(t, "x: break x", "")
+	expectPrintedMangle(t, "x: { break x; foo() }", "")
+	expectPrintedMangle(t, "y: while (foo()) x: { break x; foo() }", "y:\n  for (; foo(); )\n    ;\n")
+	expectPrintedMangle(t, "y: while (foo()) x: { break y; foo() }", "y:\n  for (; foo(); )\n    x:\n      break y;\n")
 }
 
 func TestArrow(t *testing.T) {

@@ -9454,6 +9454,13 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		s.Stmt = p.visitSingleStmt(s.Stmt, stmtsNormal)
 		p.popScope()
 
+		// Optimize "x: break x" which some people apparently write by hand
+		if p.options.minifySyntax {
+			if child, ok := s.Stmt.Data.(*js_ast.SBreak); ok && child.Label != nil && child.Label.Ref == s.Name.Ref {
+				return stmts
+			}
+		}
+
 	case *js_ast.SLocal:
 		// Local statements do not end the const local prefix
 		p.currentScope.IsAfterConstLocalPrefix = wasAfterAfterConstLocalPrefix
