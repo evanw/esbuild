@@ -2131,6 +2131,25 @@ func applyOptionDefaults(options *config.Options) {
 	}
 
 	options.ProfilerNames = !options.MinifyIdentifiers
+
+	// Automatically fix invalid configurations of unsupported features
+	fixInvalidUnsupportedJSFeatureOverrides(options, compat.AsyncAwait, compat.AsyncGenerator|compat.ForAwait|compat.TopLevelAwait)
+	fixInvalidUnsupportedJSFeatureOverrides(options, compat.Generator, compat.AsyncGenerator|compat.ForAwait)
+	fixInvalidUnsupportedJSFeatureOverrides(options, compat.ClassField, compat.ClassPrivateField)
+	fixInvalidUnsupportedJSFeatureOverrides(options, compat.ClassStaticField, compat.ClassPrivateStaticField)
+	fixInvalidUnsupportedJSFeatureOverrides(options, compat.Class,
+		compat.ClassField|compat.ClassPrivateAccessor|compat.ClassPrivateBrandCheck|compat.ClassPrivateField|
+			compat.ClassPrivateMethod|compat.ClassPrivateStaticAccessor|compat.ClassPrivateStaticField|
+			compat.ClassPrivateStaticMethod|compat.ClassStaticBlocks|compat.ClassStaticField)
+}
+
+func fixInvalidUnsupportedJSFeatureOverrides(options *config.Options, implies compat.JSFeature, implied compat.JSFeature) {
+	// If this feature is unsupported, that implies that the other features must also be unsupported
+	if options.UnsupportedJSFeatureOverrides.Has(implies) {
+		options.UnsupportedJSFeatures |= implied
+		options.UnsupportedJSFeatureOverrides |= implied
+		options.UnsupportedJSFeatureOverridesMask |= implied
+	}
 }
 
 func (b *Bundle) Compile(log logger.Log, options config.Options, timer *helpers.Timer, mangleCache map[string]interface{}) ([]graph.OutputFile, string) {

@@ -1,5 +1,40 @@
 # Changelog
 
+## Unreleased
+
+* Automatically fix invalid `supported` configurations ([#2497](https://github.com/evanw/esbuild/issues/2497))
+
+    The `--target=` setting lets you tell esbuild to target a specific version of one or more JavaScript runtimes such as `chrome80,node14` and esbuild will restrict its output to only those features supported by all targeted JavaScript runtimes. More recently, esbuild introduced the `--supported:` setting that lets you override which features are supported on a per-feature basis. However, this now lets you configure nonsensical things such as `--supported:async-await=false --supported:async-generator=true`. Previously doing this could result in esbuild building successfully but producing invalid output.
+
+    Starting with this release, esbuild will now attempt to automatically fix nonsensical feature override configurations by introducing more overrides until the configuration makes sense. So now the configuration from previous example will be changed such that `async-await=false` implies `async-generator=false`. The full list of implications that were introduced is below:
+
+    * `async-await=false` implies:
+        * `async-generator=false`
+        * `for-await=false`
+        * `top-level-await=false`
+
+    * `generator=false` implies:
+        * `async-generator=false`
+        * `for-await=false`
+
+    * `class-field=false` implies:
+        * `class-private-field=false`
+
+    * `class-static-field=false` implies:
+        * `class-private-static-field=false`
+
+    * `class=false` implies:
+        * `class-field=false`
+        * `class-private-accessor=false`
+        * `class-private-brand-check=false`
+        * `class-private-field=false`
+        * `class-private-method=false`
+        * `class-private-static-accessor=false`
+        * `class-private-static-field=false`
+        * `class-private-static-method=false`
+        * `class-static-blocks=false`
+        * `class-static-field=false`
+
 ## 0.15.5
 
 * Fix issues with Yarn PnP and Yarn's workspaces feature ([#2476](https://github.com/evanw/esbuild/issues/2476))
