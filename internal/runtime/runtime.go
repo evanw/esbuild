@@ -324,6 +324,26 @@ func code(isES6 bool) string {
 			})
 		}
 
+		// This helps for lowering for-await loops
+		export var __forAwait = (obj, it, method) => {
+			it = obj[Symbol.asyncIterator]
+			method = (key, fn) =>
+				(fn = obj[key]) && (it[key] = arg =>
+					new Promise((resolve, reject, done) => {
+						arg = fn.call(obj, arg)
+						done = arg.done
+						return Promise.resolve(arg.value)
+							.then((value) => resolve({ value, done }), reject)
+					}))
+			return it
+				? it.call(obj)
+				: (obj = obj[Symbol.iterator](),
+					it = {},
+					method("next"),
+					method("return"),
+					it)
+		}
+
 		// This is for the "binary" loader (custom code is ~2x faster than "atob")
 		export var __toBinaryNode = base64 => new Uint8Array(Buffer.from(base64, 'base64'))
 		export var __toBinary = /* @__PURE__ */ (() => {

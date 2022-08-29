@@ -1197,6 +1197,190 @@ func (p *parser) extractSuperProperty(target js_ast.Expr) js_ast.Expr {
 	return js_ast.Expr{}
 }
 
+func (p *parser) lowerForAwaitLoop(loc logger.Loc, loop *js_ast.SForOf, stmts []js_ast.Stmt) []js_ast.Stmt {
+	// This code:
+	//
+	//   for await (let x of y) z()
+	//
+	// is transformed into the following code:
+	//
+	//   try {
+	//     for (var iter = __forAwait(y), more, temp, error; more = !(temp = await iter.next()).done; more = false) {
+	//       let x = temp.value;
+	//       z();
+	//     }
+	//   } catch (temp) {
+	//     error = [temp]
+	//   } finally {
+	//     try {
+	//       more && (temp = iter.return) && (await temp.call(iter))
+	//     } finally {
+	//       if (error) throw error[0]
+	//     }
+	//   }
+	//
+	// except that "yield" is used instead of "await" if await is unsupported.
+	// This mostly follows TypeScript's implementation of the syntax transform.
+
+	iterRef := p.generateTempRef(tempRefNoDeclare, "iter")
+	moreRef := p.generateTempRef(tempRefNoDeclare, "more")
+	tempRef := p.generateTempRef(tempRefNoDeclare, "temp")
+	errorRef := p.generateTempRef(tempRefNoDeclare, "error")
+
+	switch init := loop.Init.Data.(type) {
+	case *js_ast.SLocal:
+		if len(init.Decls) == 1 {
+			init.Decls[0].ValueOrNil = js_ast.Expr{Loc: loc, Data: &js_ast.EDot{
+				Target:  js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: tempRef}},
+				NameLoc: loc,
+				Name:    "value",
+			}}
+		}
+	case *js_ast.SExpr:
+		init.Value.Data = &js_ast.EBinary{
+			Op:   js_ast.BinOpAssign,
+			Left: init.Value,
+			Right: js_ast.Expr{Loc: loc, Data: &js_ast.EDot{
+				Target:  js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: tempRef}},
+				NameLoc: loc,
+				Name:    "value",
+			}},
+		}
+	}
+
+	var body []js_ast.Stmt
+	var closeBraceLoc logger.Loc
+	body = append(body, loop.Init)
+
+	if block, ok := loop.Body.Data.(*js_ast.SBlock); ok {
+		body = append(body, block.Stmts...)
+		closeBraceLoc = block.CloseBraceLoc
+	} else {
+		body = append(body, loop.Body)
+	}
+
+	awaitIterNext := js_ast.Expr{Loc: loc, Data: &js_ast.ECall{
+		Target: js_ast.Expr{Loc: loc, Data: &js_ast.EDot{
+			Target:  js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: iterRef}},
+			NameLoc: loc,
+			Name:    "next",
+		}},
+	}}
+	awaitTempCallIter := js_ast.Expr{Loc: loc, Data: &js_ast.ECall{
+		Target: js_ast.Expr{Loc: loc, Data: &js_ast.EDot{
+			Target:  js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: tempRef}},
+			NameLoc: loc,
+			Name:    "call",
+		}},
+		Args: []js_ast.Expr{{Loc: loc, Data: &js_ast.EIdentifier{Ref: iterRef}}},
+	}}
+
+	// "await" expressions turn into "yield" expressions when lowering
+	if p.options.unsupportedJSFeatures.Has(compat.AsyncAwait) {
+		awaitIterNext.Data = &js_ast.EYield{ValueOrNil: awaitIterNext}
+		awaitTempCallIter.Data = &js_ast.EYield{ValueOrNil: awaitTempCallIter}
+	} else {
+		awaitIterNext.Data = &js_ast.EAwait{Value: awaitIterNext}
+		awaitTempCallIter.Data = &js_ast.EAwait{Value: awaitTempCallIter}
+	}
+
+	return append(stmts, js_ast.Stmt{Loc: loc, Data: &js_ast.STry{
+		BlockLoc: loc,
+		Block: js_ast.SBlock{
+			Stmts: []js_ast.Stmt{{Loc: loc, Data: &js_ast.SFor{
+				InitOrNil: js_ast.Stmt{Loc: loc, Data: &js_ast.SLocal{Kind: js_ast.LocalVar, Decls: []js_ast.Decl{
+					{Binding: js_ast.Binding{Loc: loc, Data: &js_ast.BIdentifier{Ref: iterRef}},
+						ValueOrNil: p.callRuntime(loc, "__forAwait", []js_ast.Expr{loop.Value})},
+					{Binding: js_ast.Binding{Loc: loc, Data: &js_ast.BIdentifier{Ref: moreRef}}},
+					{Binding: js_ast.Binding{Loc: loc, Data: &js_ast.BIdentifier{Ref: tempRef}}},
+					{Binding: js_ast.Binding{Loc: loc, Data: &js_ast.BIdentifier{Ref: errorRef}}},
+				}}},
+				TestOrNil: js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
+					Op:   js_ast.BinOpAssign,
+					Left: js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: moreRef}},
+					Right: js_ast.Expr{Loc: loc, Data: &js_ast.EUnary{
+						Op: js_ast.UnOpNot,
+						Value: js_ast.Expr{Loc: loc, Data: &js_ast.EDot{
+							Target: js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
+								Op:    js_ast.BinOpAssign,
+								Left:  js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: tempRef}},
+								Right: awaitIterNext,
+							}},
+							NameLoc: loc,
+							Name:    "done",
+						}},
+					}},
+				}},
+				UpdateOrNil: js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
+					Op:    js_ast.BinOpAssign,
+					Left:  js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: moreRef}},
+					Right: js_ast.Expr{Loc: loc, Data: &js_ast.EBoolean{Value: false}},
+				}},
+				Body: js_ast.Stmt{Loc: loop.Body.Loc, Data: &js_ast.SBlock{
+					Stmts:         body,
+					CloseBraceLoc: closeBraceLoc,
+				}},
+			}}},
+		},
+
+		Catch: &js_ast.Catch{
+			Loc: loc,
+			BindingOrNil: js_ast.Binding{
+				Loc:  loc,
+				Data: &js_ast.BIdentifier{Ref: tempRef},
+			},
+			Block: js_ast.SBlock{
+				Stmts: []js_ast.Stmt{{Loc: loc, Data: &js_ast.SExpr{Value: js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
+					Op:   js_ast.BinOpAssign,
+					Left: js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: errorRef}},
+					Right: js_ast.Expr{Loc: loc, Data: &js_ast.EArray{
+						Items:        []js_ast.Expr{{Loc: loc, Data: &js_ast.EIdentifier{Ref: tempRef}}},
+						IsSingleLine: true,
+					}},
+				}}}}},
+			},
+		},
+
+		Finally: &js_ast.Finally{
+			Loc: loc,
+			Block: js_ast.SBlock{
+				Stmts: []js_ast.Stmt{{Loc: loc, Data: &js_ast.STry{
+					BlockLoc: loc,
+					Block: js_ast.SBlock{Stmts: []js_ast.Stmt{{Loc: loc, Data: &js_ast.SExpr{
+						Value: js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
+							Op: js_ast.BinOpLogicalAnd,
+							Left: js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
+								Op:   js_ast.BinOpLogicalAnd,
+								Left: js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: moreRef}},
+								Right: js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
+									Op:   js_ast.BinOpAssign,
+									Left: js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: tempRef}},
+									Right: js_ast.Expr{Loc: loc, Data: &js_ast.EDot{
+										Target:  js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: iterRef}},
+										NameLoc: loc,
+										Name:    "return",
+									}},
+								}},
+							}},
+							Right: awaitTempCallIter,
+						}},
+					}}}},
+					Finally: &js_ast.Finally{
+						Loc: loc,
+						Block: js_ast.SBlock{Stmts: []js_ast.Stmt{{Loc: loc, Data: &js_ast.SIf{
+							Test: js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: errorRef}},
+							Yes: js_ast.Stmt{Loc: loc, Data: &js_ast.SThrow{Value: js_ast.Expr{Loc: loc, Data: &js_ast.EIndex{
+								Target: js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: errorRef}},
+								Index:  js_ast.Expr{Loc: loc, Data: &js_ast.ENumber{Value: 0}},
+							}}}},
+						}}}},
+					},
+				}}},
+			},
+		},
+	}})
+}
+
 func bindingHasObjectRest(binding js_ast.Binding) bool {
 	switch b := binding.Data.(type) {
 	case *js_ast.BArray:

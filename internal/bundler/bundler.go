@@ -2134,7 +2134,7 @@ func applyOptionDefaults(options *config.Options) {
 
 	// Automatically fix invalid configurations of unsupported features
 	fixInvalidUnsupportedJSFeatureOverrides(options, compat.AsyncAwait, compat.AsyncGenerator|compat.ForAwait|compat.TopLevelAwait)
-	fixInvalidUnsupportedJSFeatureOverrides(options, compat.Generator, compat.AsyncGenerator|compat.ForAwait)
+	fixInvalidUnsupportedJSFeatureOverrides(options, compat.Generator, compat.AsyncGenerator)
 	fixInvalidUnsupportedJSFeatureOverrides(options, compat.ClassField, compat.ClassPrivateField)
 	fixInvalidUnsupportedJSFeatureOverrides(options, compat.ClassStaticField, compat.ClassPrivateStaticField)
 	fixInvalidUnsupportedJSFeatureOverrides(options, compat.Class,

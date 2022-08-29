@@ -6595,10 +6595,16 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 				p.log.AddError(&p.tracker, awaitRange, "Cannot use \"await\" outside an async function")
 				isForAwait = false
 			} else {
-				didGenerateError := p.markSyntaxFeature(compat.ForAwait, awaitRange)
-				if p.fnOrArrowDataParse.isTopLevel && !didGenerateError {
+				didGenerateError := false
+				if p.fnOrArrowDataParse.isTopLevel {
 					p.topLevelAwaitKeyword = awaitRange
-					p.markSyntaxFeature(compat.TopLevelAwait, awaitRange)
+					didGenerateError = p.markSyntaxFeature(compat.TopLevelAwait, awaitRange)
+				}
+				if !didGenerateError && p.options.unsupportedJSFeatures.Has(compat.AsyncAwait) && p.options.unsupportedJSFeatures.Has(compat.Generator) {
+					// If for-await loops aren't supported, then we only support lowering
+					// if either async/await or generators is supported. Otherwise we
+					// cannot lower for-await loops.
+					p.markSyntaxFeature(compat.ForAwait, awaitRange)
 				}
 			}
 			p.lexer.Next()
@@ -9826,6 +9832,10 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		p.popScope()
 
 		p.lowerObjectRestInForLoopInit(s.Init, &s.Body)
+
+		if s.IsAwait && p.options.unsupportedJSFeatures.Has(compat.ForAwait) {
+			return p.lowerForAwaitLoop(stmt.Loc, s, stmts)
+		}
 
 	case *js_ast.STry:
 		p.pushScopeForVisitPass(js_ast.ScopeBlock, stmt.Loc)

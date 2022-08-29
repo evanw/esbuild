@@ -483,6 +483,67 @@
     }),
   )
 
+  // Check for await lowering
+  tests.push(
+    // return() must not be called in this case (TypeScript has this bug: https://github.com/microsoft/TypeScript/issues/50525)
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        let pass = true
+        async function f() {
+          const y = {
+            [Symbol.asyncIterator]() {
+              let count = 0
+              return {
+                async next() {
+                  count++
+                  if (count === 2) throw 'error'
+                  return { value: count }
+                },
+                async return() {
+                  pass = false
+                },
+              }
+            },
+          }
+          for await (let x of y) {
+          }
+        }
+        f().catch(() => {
+          if (!pass) throw 'fail'
+        })
+      `,
+    }),
+
+    // return() must be called in this case
+    test(['in.js', '--outfile=node.js', '--target=es6'], {
+      'in.js': `
+        let pass = false
+        async function f() {
+          const y = {
+            [Symbol.asyncIterator]() {
+              let count = 0
+              return {
+                async next() {
+                  count++
+                  return { value: count }
+                },
+                async return() {
+                  pass = true
+                },
+              }
+            },
+          }
+          for await (let x of y) {
+            throw 'error'
+          }
+        }
+        f().catch(() => {
+          if (!pass) throw 'fail'
+        })
+      `,
+    }),
+  )
+
   // Check object rest lowering
   // https://github.com/evanw/esbuild/issues/956
   tests.push(

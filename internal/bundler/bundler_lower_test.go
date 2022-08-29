@@ -2297,3 +2297,45 @@ func TestLowerRegExpNameCollision(t *testing.T) {
 		},
 	})
 }
+
+func TestLowerForAwait2017(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export default [
+					async () => { for await (x of y) z(x) },
+					async () => { for await (x.y of y) z(x) },
+					async () => { for await (let x of y) z(x) },
+					async () => { for await (const x of y) z(x) },
+				]
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                  config.ModePassThrough,
+			AbsOutputFile:         "/out.js",
+			UnsupportedJSFeatures: es(2017),
+		},
+	})
+}
+
+func TestLowerForAwait2015(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export default [
+					async () => { for await (x of y) z(x) },
+					async () => { for await (x.y of y) z(x) },
+					async () => { for await (let x of y) z(x) },
+					async () => { for await (const x of y) z(x) },
+				]
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                  config.ModePassThrough,
+			AbsOutputFile:         "/out.js",
+			UnsupportedJSFeatures: es(2015),
+		},
+	})
+}

@@ -2,6 +2,39 @@
 
 ## Unreleased
 
+* Lower `for await` loops
+
+    This release lowers `for await` loops to the equivalent `for` loop containing `await` when esbuild is configured such that `for await` loops are unsupported. This transform still requires at least generator functions to be supported since esbuild's lowering of `await` currently relies on generators. This new transformation is modeled after what the TypeScript compiler does. Here's an example:
+
+    ```js
+    async function f() {
+      for await (let x of y)
+        x()
+    }
+    ```
+
+    The code above will now become the following code with `--target=es2017` (omitting the code for the `__forAwait` helper function):
+
+    ```js
+    async function f() {
+      try {
+        for (var iter = __forAwait(y), more, temp, error; more = !(temp = await iter.next()).done; more = false) {
+          let x = temp.value;
+          x();
+        }
+      } catch (temp) {
+        error = [temp];
+      } finally {
+        try {
+          more && (temp = iter.return) && await temp.call(iter);
+        } finally {
+          if (error)
+            throw error[0];
+        }
+      }
+    }
+    ```
+
 * Automatically fix invalid `supported` configurations ([#2497](https://github.com/evanw/esbuild/issues/2497))
 
     The `--target=` setting lets you tell esbuild to target a specific version of one or more JavaScript runtimes such as `chrome80,node14` and esbuild will restrict its output to only those features supported by all targeted JavaScript runtimes. More recently, esbuild introduced the `--supported:` setting that lets you override which features are supported on a per-feature basis. However, this now lets you configure nonsensical things such as `--supported:async-await=false --supported:async-generator=true`. Previously doing this could result in esbuild building successfully but producing invalid output.
@@ -15,7 +48,6 @@
 
     * `generator=false` implies:
         * `async-generator=false`
-        * `for-await=false`
 
     * `class-field=false` implies:
         * `class-private-field=false`
