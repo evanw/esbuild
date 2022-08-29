@@ -915,7 +915,6 @@ export-def-2.js: ERROR: Transforming async functions to the configured target en
 fn-expr.js: ERROR: Transforming async functions to the configured target environment is not supported yet
 fn-stmt.js: ERROR: Transforming async functions to the configured target environment is not supported yet
 obj-method.js: ERROR: Transforming async functions to the configured target environment is not supported yet
-obj-method.js: ERROR: Transforming object literal extensions to the configured target environment is not supported yet
 `,
 	})
 }

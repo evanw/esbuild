@@ -44,6 +44,13 @@ func expectParseErrorTarget(t *testing.T, esVersion int, contents string, expect
 	})
 }
 
+func expectParseErrorWithUnsupportedFeatures(t *testing.T, unsupportedJSFeatures compat.JSFeature, contents string, expected string) {
+	t.Helper()
+	expectParseErrorCommon(t, contents, expected, config.Options{
+		UnsupportedJSFeatures: unsupportedJSFeatures,
+	})
+}
+
 func expectPrintedCommon(t *testing.T, contents string, expected string, options config.Options) {
 	t.Helper()
 	t.Run(contents, func(t *testing.T) {
@@ -5218,8 +5225,29 @@ func TestES5(t *testing.T) {
 	expectParseErrorTarget(t, 5, "(function* () {});",
 		"<stdin>: ERROR: Transforming generator functions to the configured target environment is not supported yet\n")
 	expectParseErrorTarget(t, 5, "({ *foo() {} });",
-		"<stdin>: ERROR: Transforming generator functions to the configured target environment is not supported yet\n"+
-			"<stdin>: ERROR: Transforming object literal extensions to the configured target environment is not supported yet\n")
+		"<stdin>: ERROR: Transforming generator functions to the configured target environment is not supported yet\n")
+}
+
+func TestAsyncGeneratorFns(t *testing.T) {
+	err := ""
+	expectParseErrorWithUnsupportedFeatures(t, compat.AsyncAwait, "async function gen() {}", err)
+	expectParseErrorWithUnsupportedFeatures(t, compat.AsyncAwait, "(async function () {});", err)
+	expectParseErrorWithUnsupportedFeatures(t, compat.AsyncAwait, "({ async foo() {} });", err)
+
+	err = "<stdin>: ERROR: Transforming generator functions to the configured target environment is not supported yet\n"
+	expectParseErrorWithUnsupportedFeatures(t, compat.Generator, "function* gen() {}", err)
+	expectParseErrorWithUnsupportedFeatures(t, compat.Generator, "(function* () {});", err)
+	expectParseErrorWithUnsupportedFeatures(t, compat.Generator, "({ *foo() {} });", err)
+
+	err = "<stdin>: ERROR: Transforming async functions to the configured target environment is not supported yet\n"
+	expectParseErrorWithUnsupportedFeatures(t, compat.AsyncAwait|compat.Generator, "async function gen() {}", err)
+	expectParseErrorWithUnsupportedFeatures(t, compat.AsyncAwait|compat.Generator, "(async function () {});", err)
+	expectParseErrorWithUnsupportedFeatures(t, compat.AsyncAwait|compat.Generator, "({ async foo() {} });", err)
+
+	err = "<stdin>: ERROR: Transforming async generator functions to the configured target environment is not supported yet\n"
+	expectParseErrorWithUnsupportedFeatures(t, compat.AsyncGenerator, "async function* gen() {}", err)
+	expectParseErrorWithUnsupportedFeatures(t, compat.AsyncGenerator, "(async function* () {});", err)
+	expectParseErrorWithUnsupportedFeatures(t, compat.AsyncGenerator, "({ async *foo() {} });", err)
 }
 
 func TestASCIIOnly(t *testing.T) {

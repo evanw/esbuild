@@ -1802,6 +1802,7 @@ type propertyOpts struct {
 	tsDecoratorScope *js_ast.Scope
 
 	asyncRange     logger.Range
+	generatorRange logger.Range
 	tsDeclareRange logger.Range
 	classKeyword   logger.Range
 	isAsync        bool
@@ -1880,9 +1881,9 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 		if kind != js_ast.PropertyNormal || opts.isGenerator {
 			p.lexer.Unexpected()
 		}
-		p.markSyntaxFeature(compat.Generator, p.lexer.Range())
-		p.lexer.Next()
 		opts.isGenerator = true
+		opts.generatorRange = p.lexer.Range()
+		p.lexer.Next()
 		return p.parseProperty(startLoc, js_ast.PropertyNormal, opts, errors)
 
 	default:
@@ -1925,7 +1926,6 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 					if !opts.isAsync && raw == name.String && !p.lexer.HasNewlineBefore {
 						opts.isAsync = true
 						opts.asyncRange = nameRange
-						p.markLoweredSyntaxFeature(compat.AsyncAwait, nameRange, compat.Generator)
 						return p.parseProperty(startLoc, kind, opts, nil)
 					}
 
@@ -2118,7 +2118,9 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 	// Parse a method expression
 	if p.lexer.Token == js_lexer.TOpenParen || kind != js_ast.PropertyNormal ||
 		opts.isClass || opts.isAsync || opts.isGenerator {
-		if opts.tsDeclareRange.Len != 0 {
+		hasError := false
+
+		if !hasError && opts.tsDeclareRange.Len != 0 {
 			what := "method"
 			if kind == js_ast.PropertyGet {
 				what = "getter"
@@ -2126,11 +2128,21 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 				what = "setter"
 			}
 			p.log.AddError(&p.tracker, opts.tsDeclareRange, "\"declare\" cannot be used with a "+what)
+			hasError = true
 		}
 
-		if p.lexer.Token == js_lexer.TOpenParen && kind != js_ast.PropertyGet && kind != js_ast.PropertySet {
-			p.markSyntaxFeature(compat.ObjectExtensions, p.lexer.Range())
+		if opts.isAsync && p.markAsyncFn(opts.asyncRange, opts.isGenerator) {
+			hasError = true
 		}
+
+		if !hasError && opts.isGenerator && p.markSyntaxFeature(compat.Generator, opts.generatorRange) {
+			hasError = true
+		}
+
+		if !hasError && p.lexer.Token == js_lexer.TOpenParen && kind != js_ast.PropertyGet && kind != js_ast.PropertySet && p.markSyntaxFeature(compat.ObjectExtensions, p.lexer.Range()) {
+			hasError = true
+		}
+
 		loc := p.lexer.Loc()
 		scopeIndex := p.pushScopeForParsePass(js_ast.ScopeFunctionArgs, loc)
 		isConstructor := false
@@ -2556,7 +2568,7 @@ func (p *parser) parseAsyncPrefixExpr(asyncRange logger.Range, level js_ast.L, f
 				}
 
 				if isArrowFn {
-					p.markLoweredSyntaxFeature(compat.AsyncAwait, asyncRange, compat.Generator)
+					p.markAsyncFn(asyncRange, false)
 					ref := p.storeNameInRef(p.lexer.Identifier)
 					arg := js_ast.Arg{Binding: js_ast.Binding{Loc: p.lexer.Loc(), Data: &js_ast.BIdentifier{Ref: ref}}}
 					p.lexer.Next()
@@ -2598,11 +2610,15 @@ func (p *parser) parseAsyncPrefixExpr(asyncRange logger.Range, level js_ast.L, f
 func (p *parser) parseFnExpr(loc logger.Loc, isAsync bool, asyncRange logger.Range) js_ast.Expr {
 	p.lexer.Next()
 	isGenerator := p.lexer.Token == js_lexer.TAsterisk
+	hasError := false
+	if isAsync {
+		hasError = p.markAsyncFn(asyncRange, isGenerator)
+	}
 	if isGenerator {
-		p.markSyntaxFeature(compat.Generator, p.lexer.Range())
+		if !hasError {
+			p.markSyntaxFeature(compat.Generator, p.lexer.Range())
+		}
 		p.lexer.Next()
-	} else if isAsync {
-		p.markLoweredSyntaxFeature(compat.AsyncAwait, asyncRange, compat.Generator)
 	}
 	var name *js_ast.LocRef
 
@@ -2746,7 +2762,7 @@ func (p *parser) parseParenExpr(loc logger.Loc, level js_ast.L, opts parenExprOp
 		args := []js_ast.Arg{}
 
 		if isAsync {
-			p.markLoweredSyntaxFeature(compat.AsyncAwait, opts.asyncRange, compat.Generator)
+			p.markAsyncFn(opts.asyncRange, false)
 		}
 
 		// First, try converting the expressions to bindings
@@ -5342,10 +5358,6 @@ func (p *parser) parseBinding() js_ast.Binding {
 }
 
 func (p *parser) parseFn(name *js_ast.LocRef, classKeyword logger.Range, data fnOrArrowDataParse) (fn js_ast.Fn, hadBody bool) {
-	if data.await == allowExpr && data.yield == allowExpr {
-		p.markSyntaxFeature(compat.AsyncGenerator, data.asyncRange)
-	}
-
 	fn.Name = name
 	fn.HasRestArg = false
 	fn.IsAsync = data.await == allowExpr
@@ -5836,11 +5848,15 @@ func (p *parser) parsePath() (logger.Loc, string, *[]ast.AssertEntry) {
 // This assumes the "function" token has already been parsed
 func (p *parser) parseFnStmt(loc logger.Loc, opts parseStmtOpts, isAsync bool, asyncRange logger.Range) js_ast.Stmt {
 	isGenerator := p.lexer.Token == js_lexer.TAsterisk
+	hasError := false
+	if isAsync {
+		hasError = p.markAsyncFn(asyncRange, isGenerator)
+	}
 	if isGenerator {
-		p.markSyntaxFeature(compat.Generator, p.lexer.Range())
+		if !hasError {
+			p.markSyntaxFeature(compat.Generator, p.lexer.Range())
+		}
 		p.lexer.Next()
-	} else if isAsync {
-		p.markLoweredSyntaxFeature(compat.AsyncAwait, asyncRange, compat.Generator)
 	}
 
 	switch opts.lexicalDecl {

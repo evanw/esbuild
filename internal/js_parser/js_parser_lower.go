@@ -244,12 +244,22 @@ func (p *parser) markStrictModeFeature(feature strictModeFeature, r logger.Range
 	}
 }
 
-// Mark the feature if "loweredFeature" is unsupported. This is used when one
-// feature is implemented in terms of another feature.
-func (p *parser) markLoweredSyntaxFeature(feature compat.JSFeature, r logger.Range, loweredFeature compat.JSFeature) {
-	if p.options.unsupportedJSFeatures.Has(loweredFeature) {
-		p.markSyntaxFeature(feature, r)
+func (p *parser) markAsyncFn(asyncRange logger.Range, isGenerator bool) (didGenerateError bool) {
+	if isGenerator {
+		// Async generator functions cannot currently be lowered, so using them
+		// when they aren't supported is always an error
+		return p.markSyntaxFeature(compat.AsyncGenerator, asyncRange)
 	}
+
+	// Lowered async functions are implemented in terms of generators. So if
+	// generators aren't supported, async functions aren't supported either.
+	// But if generators are supported, then async functions are unconditionally
+	// supported because we can use generators to implement them.
+	if !p.options.unsupportedJSFeatures.Has(compat.Generator) {
+		return false
+	}
+
+	return p.markSyntaxFeature(compat.AsyncAwait, asyncRange)
 }
 
 func (p *parser) privateSymbolNeedsToBeLowered(private *js_ast.EPrivateIdentifier) bool {
