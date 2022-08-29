@@ -2135,6 +2135,7 @@ func applyOptionDefaults(options *config.Options) {
 	// Automatically fix invalid configurations of unsupported features
 	fixInvalidUnsupportedJSFeatureOverrides(options, compat.AsyncAwait, compat.AsyncGenerator|compat.ForAwait|compat.TopLevelAwait)
 	fixInvalidUnsupportedJSFeatureOverrides(options, compat.Generator, compat.AsyncGenerator)
+	fixInvalidUnsupportedJSFeatureOverrides(options, compat.ObjectAccessors, compat.ClassPrivateAccessor|compat.ClassPrivateStaticAccessor)
 	fixInvalidUnsupportedJSFeatureOverrides(options, compat.ClassField, compat.ClassPrivateField)
 	fixInvalidUnsupportedJSFeatureOverrides(options, compat.ClassStaticField, compat.ClassPrivateStaticField)
 	fixInvalidUnsupportedJSFeatureOverrides(options, compat.Class,
@@ -2466,9 +2467,9 @@ func (b *Bundle) generateMetadataJSON(results []graph.OutputFile, allReachableFi
 }
 
 type runtimeCacheKey struct {
-	MinifySyntax      bool
-	MinifyIdentifiers bool
-	ES6               bool
+	unsupportedJSFeatures compat.JSFeature
+	minifySyntax          bool
+	minifyIdentifiers     bool
 }
 
 type runtimeCache struct {
@@ -2481,17 +2482,13 @@ var globalRuntimeCache runtimeCache
 func (cache *runtimeCache) parseRuntime(options *config.Options) (source logger.Source, runtimeAST js_ast.AST, ok bool) {
 	key := runtimeCacheKey{
 		// All configuration options that the runtime code depends on must go here
-		MinifySyntax:      options.MinifySyntax,
-		MinifyIdentifiers: options.MinifyIdentifiers,
-		ES6:               runtime.CanUseES6(options.UnsupportedJSFeatures),
+		unsupportedJSFeatures: options.UnsupportedJSFeatures,
+		minifySyntax:          options.MinifySyntax,
+		minifyIdentifiers:     options.MinifyIdentifiers,
 	}
 
 	// Determine which source to use
-	if key.ES6 {
-		source = runtime.ES6Source
-	} else {
-		source = runtime.ES5Source
-	}
+	source = runtime.Source(key.unsupportedJSFeatures)
 
 	// Cache hit?
 	(func() {
@@ -2506,19 +2503,12 @@ func (cache *runtimeCache) parseRuntime(options *config.Options) (source logger.
 	}
 
 	// Cache miss
-	var constraint int
-	if key.ES6 {
-		constraint = 2015
-	} else {
-		constraint = 5
-	}
 	log := logger.NewDeferLog(logger.DeferLogAll, nil)
 	runtimeAST, ok = js_parser.Parse(log, source, js_parser.OptionsFromConfig(&config.Options{
 		// These configuration options must only depend on the key
-		MinifySyntax:      key.MinifySyntax,
-		MinifyIdentifiers: key.MinifyIdentifiers,
-		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(
-			map[compat.Engine][]int{compat.ES: {constraint}}),
+		UnsupportedJSFeatures: key.unsupportedJSFeatures,
+		MinifySyntax:          key.minifySyntax,
+		MinifyIdentifiers:     key.minifyIdentifiers,
 
 		// Always do tree shaking for the runtime because we never want to
 		// include unnecessary runtime code
@@ -2527,7 +2517,7 @@ func (cache *runtimeCache) parseRuntime(options *config.Options) (source logger.
 	if log.HasErrors() {
 		msgs := "Internal error: failed to parse runtime:\n"
 		for _, msg := range log.Done() {
-			msgs += msg.String(logger.OutputOptions{}, logger.TerminalInfo{})
+			msgs += msg.String(logger.OutputOptions{IncludeSource: true}, logger.TerminalInfo{})
 		}
 		panic(msgs[:len(msgs)-1])
 	}

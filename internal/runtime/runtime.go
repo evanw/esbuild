@@ -15,11 +15,7 @@ import (
 // all code that references this index can be discovered easily.
 const SourceIndex = uint32(0)
 
-func CanUseES6(unsupportedFeatures compat.JSFeature) bool {
-	return !unsupportedFeatures.Has(compat.ConstAndLet) && !unsupportedFeatures.Has(compat.ForOf)
-}
-
-func code(isES6 bool) string {
+func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 	// Note: These helper functions used to be named similar things to the helper
 	// functions from the TypeScript compiler. However, people sometimes use these
 	// two projects in combination and TypeScript's implementation of these helpers
@@ -93,7 +89,7 @@ func code(isES6 bool) string {
 		`
 
 	// Avoid "of" when not using ES6
-	if isES6 {
+	if !unsupportedJSFeatures.Has(compat.ForOf) {
 		text += `
 				for (var prop of __getOwnPropSymbols(b)) {
 		`
@@ -143,7 +139,7 @@ func code(isES6 bool) string {
 	`
 
 	// Avoid "of" when not using ES6
-	if isES6 {
+	if !unsupportedJSFeatures.Has(compat.ForOf) {
 		text += `
 				for (var prop of __getOwnPropSymbols(source)) {
 		`
@@ -188,7 +184,7 @@ func code(isES6 bool) string {
 	`
 
 	// Avoid "let" when not using ES6
-	if isES6 {
+	if !unsupportedJSFeatures.Has(compat.ForOf) && !unsupportedJSFeatures.Has(compat.ConstAndLet) {
 		text += `
 				for (let key of __getOwnPropNames(from))
 					if (!__hasOwnProp.call(to, key) && key !== except)
@@ -280,12 +276,25 @@ func code(isES6 bool) string {
 			setter ? setter.call(obj, value) : member.set(obj, value)
 			return value
 		}
-		export var __privateWrapper = (obj, member, setter, getter) => {
-			return {
+	`
+
+	if !unsupportedJSFeatures.Has(compat.ObjectAccessors) {
+		text += `
+			export var __privateWrapper = (obj, member, setter, getter) => ({
 				set _(value) { __privateSet(obj, member, value, setter) },
 				get _() { return __privateGet(obj, member, getter) },
-			}
-		}
+			})
+		`
+	} else {
+		text += `
+		export var __privateWrapper = (obj, member, setter, getter) => __defProp({}, '_', {
+			set: value => __privateSet(obj, member, value, setter),
+			get: () => __privateGet(obj, member, getter),
+		})
+		`
+	}
+
+	text += `
 		export var __privateMethod = (obj, member, method) => {
 			__accessCheck(obj, member, 'access private method')
 			return method
@@ -294,11 +303,25 @@ func code(isES6 bool) string {
 		// For "super" property accesses
 		export var __superGet = (cls, obj, key) => __reflectGet(__getProtoOf(cls), key, obj)
 		export var __superSet = (cls, obj, key, val) => (__reflectSet(__getProtoOf(cls), key, val, obj), val)
-		export var __superWrapper = (cls, obj, key) => ({
-			get _() { return __superGet(cls, obj, key) },
-			set _(val) { __superSet(cls, obj, key, val) },
-		})
+	`
 
+	if !unsupportedJSFeatures.Has(compat.ObjectAccessors) {
+		text += `
+			export var __superWrapper = (cls, obj, key) => ({
+				get _() { return __superGet(cls, obj, key) },
+				set _(val) { __superSet(cls, obj, key, val) },
+			})
+		`
+	} else {
+		text += `
+			export var __superWrapper = (cls, obj, key) => __defProp({}, '_', {
+				get: () => __superGet(cls, obj, key),
+				set: val => __superSet(cls, obj, key, val),
+			})
+		`
+	}
+
+	text += `
 		// For lowering tagged template literals
 		export var __template = (cooked, raw) => __freeze(__defProp(cooked, 'raw', { value: __freeze(raw || cooked.slice()) }))
 
@@ -363,23 +386,13 @@ func code(isES6 bool) string {
 		})()
 	`
 
-	return text
-}
-
-var ES6Source = logger.Source{
-	Index:          SourceIndex,
-	KeyPath:        logger.Path{Text: "<runtime>"},
-	PrettyPath:     "<runtime>",
-	IdentifierName: "runtime",
-	Contents:       code(true /* isES6 */),
-}
-
-var ES5Source = logger.Source{
-	Index:          SourceIndex,
-	KeyPath:        logger.Path{Text: "<runtime>"},
-	PrettyPath:     "<runtime>",
-	IdentifierName: "runtime",
-	Contents:       code(false /* isES6 */),
+	return logger.Source{
+		Index:          SourceIndex,
+		KeyPath:        logger.Path{Text: "<runtime>"},
+		PrettyPath:     "<runtime>",
+		IdentifierName: "runtime",
+		Contents:       text,
+	}
 }
 
 // The TypeScript decorator transform behaves similar to the official

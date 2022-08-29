@@ -49,6 +49,10 @@
     * `generator=false` implies:
         * `async-generator=false`
 
+    * `object-accessors=false` implies:
+        * `class-private-accessor=false`
+        * `class-private-static-accessor=false`
+
     * `class-field=false` implies:
         * `class-private-field=false`
 
