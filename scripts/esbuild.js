@@ -49,6 +49,7 @@ const buildNeutralLib = (esbuildPath) => {
     '--outfile=' + path.join(binDir, 'esbuild'),
     '--bundle',
     '--target=' + nodeTarget,
+    '--define:ESBUILD_VERSION=' + JSON.stringify(version),
     '--external:esbuild',
     '--platform=node',
     '--log-level=warning',

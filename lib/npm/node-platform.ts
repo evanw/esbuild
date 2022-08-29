@@ -2,6 +2,8 @@ import fs = require('fs');
 import os = require('os');
 import path = require('path');
 
+declare const ESBUILD_VERSION: string;
+
 // This feature was added to give external code a way to modify the binary
 // path without modifying the code itself. Do not remove this because
 // external code relies on this.
@@ -179,16 +181,22 @@ by esbuild to install the correct binary executable for your current platform.`)
   // it's inside a virtual file system and the OS needs it in the real file
   // system. So we need to copy the file out of the virtual file system into
   // the real file system.
-  let isYarnPnP = false;
+  let pnpapi: any;
   try {
-    require('pnpapi');
-    isYarnPnP = true;
+    pnpapi = require('pnpapi');
   } catch (e) {
   }
-  if (isYarnPnP) {
-    const esbuildLibDir = path.dirname(require.resolve('esbuild'));
-    const binTargetPath = path.join(esbuildLibDir, `pnpapi-${pkg}-${path.basename(subpath)}`);
+  if (pnpapi) {
+    const root = pnpapi.getPackageInformation(pnpapi.topLevel).packageLocation;
+    const binTargetPath = path.join(
+      root,
+      'node_modules',
+      '.cache',
+      'esbuild',
+      `pnpapi-${pkg}-${ESBUILD_VERSION}-${path.basename(subpath)}`,
+    );
     if (!fs.existsSync(binTargetPath)) {
+      fs.mkdirSync(path.dirname(binTargetPath), { recursive: true });
       fs.copyFileSync(binPath, binTargetPath);
       fs.chmodSync(binTargetPath, 0o755);
     }
