@@ -1,10 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.15.6
 
 * Lower `for await` loops ([#1930](https://github.com/evanw/esbuild/issues/1930))
 
-    This release lowers `for await` loops to the equivalent `for` loop containing `await` when esbuild is configured such that `for await` loops are unsupported. This transform still requires at least generator functions to be supported since esbuild's lowering of `await` currently relies on generators. This new transformation is modeled after what the TypeScript compiler does. Here's an example:
+    This release lowers `for await` loops to the equivalent `for` loop containing `await` when esbuild is configured such that `for await` loops are unsupported. This transform still requires at least generator functions to be supported since esbuild's lowering of `await` currently relies on generators. This new transformation is mostly modeled after what the TypeScript compiler does. Here's an example:
 
     ```js
     async function f() {
