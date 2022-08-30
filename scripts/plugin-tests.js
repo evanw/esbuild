@@ -1912,7 +1912,7 @@ let pluginTests = {
     assert.strictEqual(resolveKind, 'import-rule')
   },
 
-  async resolveKindImportStmt({ esbuild }) {
+  async resolveKindURLToken({ esbuild }) {
     let resolveKind = '<missing>'
     try {
       await esbuild.build({
