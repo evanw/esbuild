@@ -1782,6 +1782,7 @@ func TestTsConfigWithStatementAlwaysStrictFalse(t *testing.T) {
 		options: config.Options{
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/Users/user/project/out.js",
+			OutputFormat:  config.FormatIIFE,
 		},
 	})
 }
@@ -1825,6 +1826,7 @@ func TestTsConfigWithStatementStrictFalse(t *testing.T) {
 		options: config.Options{
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/Users/user/project/out.js",
+			OutputFormat:  config.FormatIIFE,
 		},
 	})
 }
@@ -1893,6 +1895,7 @@ func TestTsConfigWithStatementStrictTrueAlwaysStrictFalse(t *testing.T) {
 		options: config.Options{
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/Users/user/project/out.js",
+			OutputFormat:  config.FormatIIFE,
 		},
 	})
 }

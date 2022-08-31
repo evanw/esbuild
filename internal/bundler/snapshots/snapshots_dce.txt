@@ -1885,13 +1885,15 @@ console.log(f);
 ================================================================================
 TestTreeShakingUnaryOperators
 ---------- /out.js ----------
-// entry.js
-var keep;
-+keep;
--keep;
-~keep;
-delete keep;
-++keep;
---keep;
-keep++;
-keep--;
+(() => {
+  // entry.js
+  var keep;
+  +keep;
+  -keep;
+  ~keep;
+  delete keep;
+  ++keep;
+  --keep;
+  keep++;
+  keep--;
+})();

@@ -1631,6 +1631,7 @@ func TestTreeShakingUnaryOperators(t *testing.T) {
 		options: config.Options{
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
+			OutputFormat:  config.FormatIIFE,
 		},
 	})
 }

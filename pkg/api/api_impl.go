@@ -1069,7 +1069,7 @@ func rebuildImpl(
 		// Stop now if there were errors
 		if !log.HasErrors() {
 			// Compile the bundle
-			results, metafile := bundle.Compile(log, options, timer, mangleCache)
+			results, metafile := bundle.Compile(log, timer, mangleCache)
 
 			// Stop now if there were errors
 			if !log.HasErrors() {
@@ -1498,7 +1498,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		// Stop now if there were errors
 		if !log.HasErrors() {
 			// Compile the bundle
-			results, _ = bundle.Compile(log, options, timer, mangleCache)
+			results, _ = bundle.Compile(log, timer, mangleCache)
 		}
 
 		timer.Log(log)

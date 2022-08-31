@@ -377,23 +377,29 @@ console.log(/* @__PURE__ */ jsxDEV(Fragment, {
 ================================================================================
 TestTsConfigWithStatementAlwaysStrictFalse
 ---------- /Users/user/project/out.js ----------
-// Users/user/project/src/entry.ts
-with (x)
-  y;
+(() => {
+  // Users/user/project/src/entry.ts
+  with (x)
+    y;
+})();
 
 ================================================================================
 TestTsConfigWithStatementStrictFalse
 ---------- /Users/user/project/out.js ----------
-// Users/user/project/src/entry.ts
-with (x)
-  y;
+(() => {
+  // Users/user/project/src/entry.ts
+  with (x)
+    y;
+})();
 
 ================================================================================
 TestTsConfigWithStatementStrictTrueAlwaysStrictFalse
 ---------- /Users/user/project/out.js ----------
-// Users/user/project/src/entry.ts
-with (x)
-  y;
+(() => {
+  // Users/user/project/src/entry.ts
+  with (x)
+    y;
+})();
 
 ================================================================================
 TestTsconfigImportsNotUsedAsValuesPreserve

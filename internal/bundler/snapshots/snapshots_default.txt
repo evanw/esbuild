@@ -2544,19 +2544,21 @@ console.log(exports, module.exports, o, r);
 ================================================================================
 TestMinifyArguments
 ---------- /out.js ----------
-// entry.js
-function e(n = arguments) {
-  let t;
-}
-function u(n = arguments) {
-  let t;
-}
-function a(n = arguments) {
-  let t;
-}
-e();
-u();
-a();
+(() => {
+  // entry.js
+  function e(n = arguments) {
+    let t;
+  }
+  function u(n = arguments) {
+    let t;
+  }
+  function a(n = arguments) {
+    let t;
+  }
+  e();
+  u();
+  a();
+})();
 
 ================================================================================
 TestMinifyNestedLabelsNoBundle

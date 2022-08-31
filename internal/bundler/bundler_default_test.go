@@ -3928,6 +3928,7 @@ func TestMinifyArguments(t *testing.T) {
 			Mode:              config.ModeBundle,
 			MinifyIdentifiers: true,
 			AbsOutputFile:     "/out.js",
+			OutputFormat:      config.FormatIIFE,
 		},
 	})
 }

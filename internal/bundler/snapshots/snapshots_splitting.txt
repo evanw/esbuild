@@ -36,6 +36,16 @@ export {
 };
 
 ================================================================================
+TestSplittingChunkPathDirPlaceholderImplicitOutbase
+---------- /out/entry.js ----------
+// project/entry.js
+console.log(import("./output-path/should-contain/this-text/file-G2XPANW2.js"));
+
+---------- /out/output-path/should-contain/this-text/file-G2XPANW2.js ----------
+// project/output-path/should-contain/this-text/file.js
+console.log("file.js");
+
+================================================================================
 TestSplittingCircularReferenceIssue251
 ---------- /out/a.js ----------
 import {

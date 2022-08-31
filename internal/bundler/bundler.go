@@ -69,6 +69,7 @@ type Bundle struct {
 	res         resolver.Resolver
 	files       []scannerFile
 	entryPoints []graph.EntryPoint
+	options     config.Options
 }
 
 type parseArgs struct {
@@ -1164,6 +1165,7 @@ func ScanBundle(
 		files:           files,
 		entryPoints:     entryPointMeta,
 		uniqueKeyPrefix: uniqueKeyPrefix,
+		options:         s.options,
 	}
 }
 
@@ -2169,16 +2171,11 @@ func fixInvalidUnsupportedJSFeatureOverrides(options *config.Options, implies co
 	}
 }
 
-func (b *Bundle) Compile(log logger.Log, options config.Options, timer *helpers.Timer, mangleCache map[string]interface{}) ([]graph.OutputFile, string) {
+func (b *Bundle) Compile(log logger.Log, timer *helpers.Timer, mangleCache map[string]interface{}) ([]graph.OutputFile, string) {
 	timer.Begin("Compile phase")
 	defer timer.End("Compile phase")
 
-	applyOptionDefaults(&options)
-
-	// The format can't be "preserve" while bundling
-	if options.Mode == config.ModeBundle && options.OutputFormat == config.FormatPreserve {
-		options.OutputFormat = config.FormatESModule
-	}
+	options := b.options
 
 	// In most cases we don't need synchronized access to the mangle cache
 	options.ExclusiveMangleCacheUpdate = func(cb func(mangleCache map[string]interface{})) {
