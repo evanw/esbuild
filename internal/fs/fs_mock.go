@@ -203,15 +203,20 @@ func (fs *mockFS) Rel(base string, target string) (string, bool) {
 	base = path.Clean(base)
 	target = path.Clean(target)
 
-	// Base cases
-	if base == "" || base == "." {
-		if fs.Kind == MockWindows {
-			target = unix2win(target)
-		}
-		return target, true
-	}
+	// Go's implementation does these checks
 	if base == target {
 		return ".", true
+	}
+	if base == "." {
+		base = ""
+	}
+
+	// Go's implementation fails when this condition is false. I believe this is
+	// because of this part of the contract, from Go's documentation: "An error
+	// is returned if targpath can't be made relative to basepath or if knowing
+	// the current working directory would be necessary to compute it."
+	if (len(base) > 0 && base[0] == '/') != (len(target) > 0 && target[0] == '/') {
+		return "", false
 	}
 
 	// Find the common parent directory
