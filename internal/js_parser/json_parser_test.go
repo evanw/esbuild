@@ -71,13 +71,13 @@ func TestJSONAtom(t *testing.T) {
 	expectPrintedJSON(t, "false", "false")
 	expectPrintedJSON(t, "true", "true")
 	expectPrintedJSON(t, "null", "null")
-	expectParseErrorJSON(t, "undefined", "<stdin>: ERROR: Unexpected \"undefined\"\n")
+	expectParseErrorJSON(t, "undefined", "<stdin>: ERROR: Unexpected \"undefined\" in JSON\n")
 }
 
 func TestJSONString(t *testing.T) {
 	expectPrintedJSON(t, "\"x\"", "\"x\"")
 	expectParseErrorJSON(t, "'x'", "<stdin>: ERROR: JSON strings must use double quotes\n")
-	expectParseErrorJSON(t, "`x`", "<stdin>: ERROR: Unexpected \"`x`\"\n")
+	expectParseErrorJSON(t, "`x`", "<stdin>: ERROR: Unexpected \"`x`\" in JSON\n")
 
 	// Newlines
 	expectPrintedJSON(t, "\"\u2028\"", "\"\\u2028\"")
@@ -137,9 +137,9 @@ func TestJSONNumber(t *testing.T) {
 	expectPrintedJSON(t, "-.123", "-.123")
 	expectPrintedJSON(t, "123e20", "123e20")
 	expectPrintedJSON(t, "123e-20", "123e-20")
-	expectParseErrorJSON(t, "NaN", "<stdin>: ERROR: Unexpected \"NaN\"\n")
-	expectParseErrorJSON(t, "Infinity", "<stdin>: ERROR: Unexpected \"Infinity\"\n")
-	expectParseErrorJSON(t, "-Infinity", "<stdin>: ERROR: Expected number but found \"Infinity\"\n")
+	expectParseErrorJSON(t, "NaN", "<stdin>: ERROR: Unexpected \"NaN\" in JSON\n")
+	expectParseErrorJSON(t, "Infinity", "<stdin>: ERROR: Unexpected \"Infinity\" in JSON\n")
+	expectParseErrorJSON(t, "-Infinity", "<stdin>: ERROR: Expected number in JSON but found \"Infinity\"\n")
 }
 
 func TestJSONObject(t *testing.T) {
@@ -150,26 +150,26 @@ func TestJSONObject(t *testing.T) {
 		"<stdin>: WARNING: Duplicate key \"x\" in object literal\n<stdin>: NOTE: The original key \"x\" is here:\n",
 		"({x:0,x:1})")
 	expectParseErrorJSON(t, "{\"x\":0,}", "<stdin>: ERROR: JSON does not support trailing commas\n")
-	expectParseErrorJSON(t, "{x:0}", "<stdin>: ERROR: Expected string but found \"x\"\n")
-	expectParseErrorJSON(t, "{1:0}", "<stdin>: ERROR: Expected string but found \"1\"\n")
-	expectParseErrorJSON(t, "{[\"x\"]:0}", "<stdin>: ERROR: Expected string but found \"[\"\n")
+	expectParseErrorJSON(t, "{x:0}", "<stdin>: ERROR: Expected string in JSON but found \"x\"\n")
+	expectParseErrorJSON(t, "{1:0}", "<stdin>: ERROR: Expected string in JSON but found \"1\"\n")
+	expectParseErrorJSON(t, "{[\"x\"]:0}", "<stdin>: ERROR: Expected string in JSON but found \"[\"\n")
 }
 
 func TestJSONArray(t *testing.T) {
 	expectPrintedJSON(t, "[]", "[]")
 	expectPrintedJSON(t, "[1]", "[1]")
 	expectPrintedJSON(t, "[1,2]", "[1,2]")
-	expectParseErrorJSON(t, "[,]", "<stdin>: ERROR: Unexpected \",\"\n")
-	expectParseErrorJSON(t, "[,1]", "<stdin>: ERROR: Unexpected \",\"\n")
+	expectParseErrorJSON(t, "[,]", "<stdin>: ERROR: Unexpected \",\" in JSON\n")
+	expectParseErrorJSON(t, "[,1]", "<stdin>: ERROR: Unexpected \",\" in JSON\n")
 	expectParseErrorJSON(t, "[1,]", "<stdin>: ERROR: JSON does not support trailing commas\n")
-	expectParseErrorJSON(t, "[1,,2]", "<stdin>: ERROR: Unexpected \",\"\n")
+	expectParseErrorJSON(t, "[1,,2]", "<stdin>: ERROR: Unexpected \",\" in JSON\n")
 }
 
 func TestJSONInvalid(t *testing.T) {
-	expectParseErrorJSON(t, "({\"x\":0})", "<stdin>: ERROR: Unexpected \"(\"\n")
-	expectParseErrorJSON(t, "{\"x\":(0)}", "<stdin>: ERROR: Unexpected \"(\"\n")
-	expectParseErrorJSON(t, "#!/usr/bin/env node\n{}", "<stdin>: ERROR: Unexpected \"#!/usr/bin/env node\"\n")
-	expectParseErrorJSON(t, "{\"x\":0}{\"y\":1}", "<stdin>: ERROR: Expected end of file but found \"{\"\n")
+	expectParseErrorJSON(t, "({\"x\":0})", "<stdin>: ERROR: Unexpected \"(\" in JSON\n")
+	expectParseErrorJSON(t, "{\"x\":(0)}", "<stdin>: ERROR: Unexpected \"(\" in JSON\n")
+	expectParseErrorJSON(t, "#!/usr/bin/env node\n{}", "<stdin>: ERROR: Unexpected \"#!/usr/bin/env node\" in JSON\n")
+	expectParseErrorJSON(t, "{\"x\":0}{\"y\":1}", "<stdin>: ERROR: Expected end of file in JSON but found \"{\"\n")
 }
 
 func TestJSONComments(t *testing.T) {

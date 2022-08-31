@@ -161,6 +161,7 @@ func (p *jsonParser) parseExpr() js_ast.Expr {
 type JSONOptions struct {
 	AllowComments       bool
 	AllowTrailingCommas bool
+	ErrorSuffix         string
 }
 
 func ParseJSON(log logger.Log, source logger.Source, options JSONOptions) (result js_ast.Expr, ok bool) {
@@ -174,12 +175,16 @@ func ParseJSON(log logger.Log, source logger.Source, options JSONOptions) (resul
 		}
 	}()
 
+	if options.ErrorSuffix == "" {
+		options.ErrorSuffix = " in JSON"
+	}
+
 	p := &jsonParser{
 		log:                            log,
 		source:                         source,
 		tracker:                        logger.MakeLineColumnTracker(&source),
 		options:                        options,
-		lexer:                          js_lexer.NewLexerJSON(log, source, options.AllowComments),
+		lexer:                          js_lexer.NewLexerJSON(log, source, options.AllowComments, options.ErrorSuffix),
 		suppressWarningsAboutWeirdCode: helpers.IsInsideNodeModules(source.KeyPath.Text),
 	}
 

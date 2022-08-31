@@ -13,7 +13,7 @@ import (
 
 // Specification: https://sourcemaps.info/spec.html
 func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
-	expr, ok := ParseJSON(log, source, JSONOptions{})
+	expr, ok := ParseJSON(log, source, JSONOptions{ErrorSuffix: " in source map"})
 	if !ok {
 		return nil
 	}

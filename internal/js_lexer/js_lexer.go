@@ -264,7 +264,8 @@ type Lexer struct {
 	decodedStringLiteralOrNil []uint16
 	encodedStringLiteralText  string
 
-	tracker logger.LineColumnTracker
+	errorSuffix string
+	tracker     logger.LineColumnTracker
 
 	encodedStringLiteralStart int
 
@@ -327,13 +328,14 @@ func NewLexerGlobalName(log logger.Log, source logger.Source) Lexer {
 	return lexer
 }
 
-func NewLexerJSON(log logger.Log, source logger.Source, allowComments bool) Lexer {
+func NewLexerJSON(log logger.Log, source logger.Source, allowComments bool, errorSuffix string) Lexer {
 	lexer := Lexer{
 		log:               log,
 		source:            source,
 		tracker:           logger.MakeLineColumnTracker(&source),
 		prevErrorLoc:      logger.Loc{Start: -1},
 		FnOrArrowStartLoc: logger.Loc{Start: -1},
+		errorSuffix:       errorSuffix,
 		json: json{
 			parse:         true,
 			allowComments: allowComments,
@@ -486,7 +488,7 @@ func (lexer *Lexer) ExpectedString(text string) {
 		suggestion = text[1 : len(text)-1]
 	}
 
-	lexer.addRangeErrorWithSuggestion(lexer.Range(), fmt.Sprintf("Expected %s but found %s", text, found), suggestion)
+	lexer.addRangeErrorWithSuggestion(lexer.Range(), fmt.Sprintf("Expected %s%s but found %s", text, lexer.errorSuffix, found), suggestion)
 	panic(LexerPanic{})
 }
 
@@ -503,7 +505,7 @@ func (lexer *Lexer) Unexpected() {
 	if lexer.start == len(lexer.source.Contents) {
 		found = "end of file"
 	}
-	lexer.addRangeError(lexer.Range(), fmt.Sprintf("Unexpected %s", found))
+	lexer.addRangeError(lexer.Range(), fmt.Sprintf("Unexpected %s%s", found, lexer.errorSuffix))
 	panic(LexerPanic{})
 }
 
