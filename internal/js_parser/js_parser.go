@@ -16493,7 +16493,7 @@ func (p *parser) toAST(before, parts, after []js_ast.Part, hashbang string, dire
 	//   export let bar = c
 	//
 	// This is a smaller version of the general import/export scanning loop above.
-	// We only want to repeat the the code that eliminates TypeScript import-equals
+	// We only want to repeat the code that eliminates TypeScript import-equals
 	// statements, not the other code in the loop above.
 	for keptImportEquals && removedImportEquals {
 		keptImportEquals = false

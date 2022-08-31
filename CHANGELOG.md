@@ -1233,7 +1233,7 @@ This release fixes a minor issue with the previous release: I had to rename the 
 
 * Add support for TypeScript's `moduleSuffixes` field from TypeScript 4.7
 
-    The upcoming version of TypeScript adds the `moduleSuffixes` field to `tsconfig.json` that introduces more rules to import path resolution. Setting `moduleSuffixes` to `[".ios", ".native", ""]` will try to look at the the relative files `./foo.ios.ts`, `./foo.native.ts`, and finally `./foo.ts` for an import path of `./foo`. Note that the empty string `""` in `moduleSuffixes` is necessary for TypeScript to also look-up `./foo.ts`. This was announced in the [TypeScript 4.7 beta blog post](https://devblogs.microsoft.com/typescript/announcing-typescript-4-7-beta/#resolution-customization-with-modulesuffixes).
+    The upcoming version of TypeScript adds the `moduleSuffixes` field to `tsconfig.json` that introduces more rules to import path resolution. Setting `moduleSuffixes` to `[".ios", ".native", ""]` will try to look at the relative files `./foo.ios.ts`, `./foo.native.ts`, and finally `./foo.ts` for an import path of `./foo`. Note that the empty string `""` in `moduleSuffixes` is necessary for TypeScript to also look-up `./foo.ts`. This was announced in the [TypeScript 4.7 beta blog post](https://devblogs.microsoft.com/typescript/announcing-typescript-4-7-beta/#resolution-customization-with-modulesuffixes).
 
 * Match the new ASI behavior from TypeScript nightly builds ([#2188](https://github.com/evanw/esbuild/pull/2188))
 
@@ -11874,7 +11874,7 @@ Note that you can also just use `--strict` to enable strictness for all transfor
 
     * Error messages now use `sourcefile` ([#131](https://github.com/evanw/esbuild/issues/131))
 
-        Errors from transform API calls now use `sourcefile` as the the original file name if present. Previously the file name in error messages was always `/input.js`.
+        Errors from transform API calls now use `sourcefile` as the original file name if present. Previously the file name in error messages was always `/input.js`.
 
 ## 0.4.14
 
