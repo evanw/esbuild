@@ -153,6 +153,7 @@ func main() {
 	cpuprofileFile := ""
 	isRunningService := false
 	sendPings := false
+	isWatchForever := false
 
 	// Do an initial scan over the argument list
 	argsEnd := 0
@@ -202,6 +203,21 @@ func main() {
 			sendPings = true
 
 		default:
+			// Some people want to be able to run esbuild's watch mode such that it
+			// never exits. However, esbuild ends watch mode when stdin is closed
+			// because stdin is always closed when the parent process terminates, so
+			// ending watch mode when stdin is closed is a good way to avoid
+			// accidentally creating esbuild processes that live forever.
+			//
+			// Explicitly allow processes that live forever with "--watch=forever".
+			// This may be a reasonable thing to do in a short-lived VM where all
+			// processes in the VM are only started once and then the VM is killed
+			// when the processes are no longer needed.
+			if arg == "--watch=forever" {
+				arg = "--watch"
+				isWatchForever = true
+			}
+
 			// Strip any arguments that were handled above
 			osArgs[argsEnd] = arg
 			argsEnd++
@@ -283,7 +299,7 @@ func main() {
 				// only do this here once we know that we're not going to be a long-lived
 				// process though.
 				debug.SetGCPercent(-1)
-			} else if !isStdinTTY {
+			} else if !isStdinTTY && !isWatchForever {
 				// If stdin isn't a TTY, watch stdin and abort in case it is closed.
 				// This is necessary when the esbuild binary executable is invoked via
 				// the Erlang VM, which doesn't provide a way to exit a child process.
@@ -307,6 +323,12 @@ func main() {
 								os.Exit(1)
 							}
 						}
+
+						// Some people attempt to keep esbuild's watch mode open by piping
+						// an infinite stream of data to stdin such as with "< /dev/zero".
+						// This will make esbuild spin at 100% CPU. To avoid this, put a
+						// small delay after we read some data from stdin.
+						time.Sleep(4 * time.Millisecond)
 					}
 				}()
 			}

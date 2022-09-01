@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+* Add `--watch=forever` to allow esbuild to never terminate ([#1511](https://github.com/evanw/esbuild/issues/1511), [#1885](https://github.com/evanw/esbuild/issues/1885))
+
+    Currently using esbuild's watch mode via `--watch` from the CLI will stop watching if stdin is closed. The rationale is that stdin is automatically closed by the OS when the parent process exits, so stopping watch mode when stdin is closed ensures that esbuild's watch mode doesn't keep running forever after the parent process has been closed. For example, it would be bad if you wrote a shell script that did `esbuild --watch &` to run esbuild's watch mode in the background, and every time you run the script it creates a new `esbuild` process that runs forever.
+
+    However, there are cases when it makes sense for esbuild's watch mode to never exit. One such case is within a short-lived VM where the lifetime of all processes inside the VM is expected to be the lifetime of the VM. Previously you could easily do this by piping the output of a long-lived command into esbuild's stdin such as `sleep 999999999 | esbuild --watch &`. However, this possibility often doesn't occur to people, and it also doesn't work on Windows. People also sometimes attempt to keep esbuild open by piping an infinite stream of data to esbuild such as with `esbuild --watch </dev/zero &` which causes esbuild to spin at 100% CPU. So with this release, esbuild now has a `--watch=forever` flag that will not stop watch mode when stdin is closed.
+
 ## 0.15.6
 
 * Lower `for await` loops ([#1930](https://github.com/evanw/esbuild/issues/1930))
