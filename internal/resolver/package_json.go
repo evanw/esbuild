@@ -693,6 +693,7 @@ const (
 	pjStatusUndefinedNoConditionsMatch          // A more friendly error message for when no conditions are matched
 	pjStatusNull
 	pjStatusExact
+	pjStatusExactEndsWithStar
 	pjStatusInexact        // This means we may need to try CommonJS-style extension suffixes
 	pjStatusPackageResolve // Need to re-run package resolution on the result
 
@@ -713,6 +714,7 @@ const (
 
 	// The package or module requested does not exist.
 	pjStatusModuleNotFound
+	pjStatusModuleNotFoundMissingExtension // The user just needs to add the missing extension
 
 	// The resolved path corresponds to a directory, which is not a supported target for module imports.
 	pjStatusUnsupportedDirectoryImport
@@ -737,7 +739,7 @@ func (r resolverQuery) esmHandlePostConditions(
 	status pjStatus,
 	debug pjDebug,
 ) (string, pjStatus, pjDebug) {
-	if status != pjStatusExact && status != pjStatusInexact {
+	if status != pjStatusExact && status != pjStatusExactEndsWithStar && status != pjStatusInexact {
 		return resolved, status, debug
 	}
 
@@ -886,7 +888,7 @@ func (r resolverQuery) esmPackageImportsExportsResolve(
 				r.debugLogs.addNote(fmt.Sprintf("The key %q matched with %q left over", expansion.key, subpath))
 			}
 			result, status, debug := r.esmPackageTargetResolve(packageURL, target, subpath, false, isImports, conditions)
-			if status == pjStatusExact {
+			if status == pjStatusExact || status == pjStatusExactEndsWithStar {
 				// Return the object { resolved, exact: false }.
 				status = pjStatusInexact
 			}
@@ -1002,7 +1004,11 @@ func (r resolverQuery) esmPackageTargetResolve(
 			if r.debugLogs != nil {
 				r.debugLogs.addNote(fmt.Sprintf("Substituted %q for \"*\" in %q to get %q", subpath, "."+resolvedTarget, "."+result))
 			}
-			return result, pjStatusExact, pjDebug{token: target.firstToken}
+			status := pjStatusExact
+			if strings.HasSuffix(resolvedTarget, "*") && strings.IndexByte(resolvedTarget, '*') == len(resolvedTarget)-1 {
+				status = pjStatusExactEndsWithStar
+			}
+			return result, status, pjDebug{token: target.firstToken}
 		} else {
 			// Return the URL resolution of the concatenation of subpath and resolvedTarget.
 			result := path.Join(resolvedTarget, subpath)

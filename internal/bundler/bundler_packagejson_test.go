@@ -1936,6 +1936,7 @@ func TestPackageJsonExportsNotExactMissingExtensionPattern(t *testing.T) {
 		},
 		expectedScanLog: `Users/user/project/src/entry.js: ERROR: Could not resolve "pkg1/foo/bar"
 Users/user/project/node_modules/pkg1/package.json: NOTE: The module "./dir/bar" was not found on the file system:
+Users/user/project/src/entry.js: NOTE: Import from "pkg1/foo/bar.js" to get the file "Users/user/project/node_modules/pkg1/dir/bar.js":
 NOTE: You can mark the path "pkg1/foo/bar" as external to exclude it from the bundle, which will remove this error.
 `,
 	})

@@ -128,17 +128,29 @@ type ResolveResult struct {
 	UnusedImportFlagsTS config.UnusedImportFlagsTS
 }
 
+type suggestionRange uint8
+
+const (
+	suggestionRangeFull suggestionRange = iota
+	suggestionRangeEnd
+)
+
 type DebugMeta struct {
+	notes             []logger.MsgData
 	suggestionText    string
 	suggestionMessage string
-	notes             []logger.MsgData
+	suggestionRange   suggestionRange
 }
 
 func (dm DebugMeta) LogErrorMsg(log logger.Log, source *logger.Source, r logger.Range, text string, suggestion string, notes []logger.MsgData) {
 	tracker := logger.MakeLineColumnTracker(source)
 
 	if source != nil && dm.suggestionMessage != "" {
-		data := tracker.MsgData(r, dm.suggestionMessage)
+		suggestionRange := r
+		if dm.suggestionRange == suggestionRangeEnd {
+			suggestionRange = logger.Range{Loc: logger.Loc{Start: r.End() - 1}}
+		}
+		data := tracker.MsgData(suggestionRange, dm.suggestionMessage)
 		data.Location.Suggestion = dm.suggestionText
 		dm.notes = append(dm.notes, data)
 	}
@@ -2133,19 +2145,41 @@ func (r resolverQuery) finalizeImportsExportsResult(
 	esmPackageSubpath string,
 	absImportPath string,
 ) (PathPair, bool, *fs.DifferentCase) {
-	if (status == pjStatusExact || status == pjStatusInexact) && strings.HasPrefix(resolvedPath, "/") {
-		absResolvedPath := r.fs.Join(absDirPath, resolvedPath[1:])
+	missingExtension := ""
+
+	if (status == pjStatusExact || status == pjStatusExactEndsWithStar || status == pjStatusInexact) && strings.HasPrefix(resolvedPath, "/") {
+		absResolvedPath := r.fs.Join(absDirPath, resolvedPath)
 
 		switch status {
-		case pjStatusExact:
+		case pjStatusExact, pjStatusExactEndsWithStar:
 			if r.debugLogs != nil {
 				r.debugLogs.addNote(fmt.Sprintf("The resolved path %q is exact", absResolvedPath))
 			}
 			resolvedDirInfo := r.dirInfoCached(r.fs.Dir(absResolvedPath))
+			base := r.fs.Base(absResolvedPath)
 			if resolvedDirInfo == nil {
 				status = pjStatusModuleNotFound
-			} else if entry, diffCase := resolvedDirInfo.entries.Get(r.fs.Base(absResolvedPath)); entry == nil {
+			} else if entry, diffCase := resolvedDirInfo.entries.Get(base); entry == nil {
+				endsWithStar := status == pjStatusExactEndsWithStar
 				status = pjStatusModuleNotFound
+
+				// Try to have a friendly error message if people forget the extension
+				if endsWithStar {
+					extensionOrder := r.options.ExtensionOrder
+					if r.kind == ast.ImportAt || r.kind == ast.ImportAtConditional {
+						extensionOrder = r.atImportExtensionOrder
+					}
+					for _, ext := range extensionOrder {
+						if entry, _ := resolvedDirInfo.entries.Get(base + ext); entry != nil {
+							if r.debugLogs != nil {
+								r.debugLogs.addNote(fmt.Sprintf("The import %q is missing the extension %q", path.Join(esmPackageName, esmPackageSubpath), ext))
+							}
+							status = pjStatusModuleNotFoundMissingExtension
+							missingExtension = ext
+							break
+						}
+					}
+				}
 			} else if kind := entry.Kind(r.fs); kind == fs.DirEntry {
 				if r.debugLogs != nil {
 					r.debugLogs.addNote(fmt.Sprintf("The path %q is a directory, which is not allowed", absResolvedPath))
@@ -2228,9 +2262,18 @@ func (r resolverQuery) finalizeImportsExportsResult(
 		r.debugMeta.notes = []logger.MsgData{tracker.MsgData(debug.token,
 			fmt.Sprintf("The package import %q is not defined in this \"imports\" map:", resolvedPath))}
 
-	case pjStatusModuleNotFound:
+	case pjStatusModuleNotFound, pjStatusModuleNotFoundMissingExtension:
 		r.debugMeta.notes = []logger.MsgData{tracker.MsgData(debug.token,
 			fmt.Sprintf("The module %q was not found on the file system:", resolvedPath))}
+
+		// Provide an inline suggestion message with the correct import path
+		if status == pjStatusModuleNotFoundMissingExtension {
+			actualImportPath := path.Join(esmPackageName, esmPackageSubpath+missingExtension)
+			r.debugMeta.suggestionRange = suggestionRangeEnd
+			r.debugMeta.suggestionText = missingExtension
+			r.debugMeta.suggestionMessage = fmt.Sprintf("Import from %q to get the file %q:",
+				actualImportPath, r.PrettyPath(logger.Path{Text: r.fs.Join(absDirPath, resolvedPath+missingExtension), Namespace: "file"}))
+		}
 
 	case pjStatusUnsupportedDirectoryImport:
 		r.debugMeta.notes = []logger.MsgData{tracker.MsgData(debug.token,
