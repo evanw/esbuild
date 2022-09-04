@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.15.7
 
 * Add `--watch=forever` to allow esbuild to never terminate ([#1511](https://github.com/evanw/esbuild/issues/1511), [#1885](https://github.com/evanw/esbuild/issues/1885))
 
