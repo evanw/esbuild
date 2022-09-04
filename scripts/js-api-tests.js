@@ -1,5 +1,4 @@
 const { installForTests, removeRecursiveSync, writeFileAtomic } = require('./esbuild')
-const { SourceMapConsumer } = require('source-map')
 const assert = require('assert')
 const path = require('path')
 const http = require('http')
@@ -5629,11 +5628,11 @@ ${path.relative(process.cwd(), input).replace(/\\/g, '/')}:1:2: ERROR: Unexpecte
 }
 
 async function assertSourceMap(jsSourceMap, source) {
-  const map = await new SourceMapConsumer(jsSourceMap)
-  const original = map.originalPositionFor({ line: 1, column: 4 })
-  assert.strictEqual(original.source, source)
-  assert.strictEqual(original.line, 1)
-  assert.strictEqual(original.column, 10)
+  jsSourceMap = JSON.parse(jsSourceMap)
+  assert.deepStrictEqual(jsSourceMap.version, 3)
+  assert.deepStrictEqual(jsSourceMap.sources, [source])
+  assert.deepStrictEqual(jsSourceMap.sourcesContent, ['let       x'])
+  assert.deepStrictEqual(jsSourceMap.mappings, 'AAAA,IAAU;')
 }
 
 async function main() {
