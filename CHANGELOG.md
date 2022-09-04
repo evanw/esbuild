@@ -8,6 +8,10 @@
 
     However, there are cases when it makes sense for esbuild's watch mode to never exit. One such case is within a short-lived VM where the lifetime of all processes inside the VM is expected to be the lifetime of the VM. Previously you could easily do this by piping the output of a long-lived command into esbuild's stdin such as `sleep 999999999 | esbuild --watch &`. However, this possibility often doesn't occur to people, and it also doesn't work on Windows. People also sometimes attempt to keep esbuild open by piping an infinite stream of data to esbuild such as with `esbuild --watch </dev/zero &` which causes esbuild to spin at 100% CPU. So with this release, esbuild now has a `--watch=forever` flag that will not stop watch mode when stdin is closed.
 
+* Work around `PATH` without `node` in install script ([#2519](https://github.com/evanw/esbuild/issues/2519))
+
+    Some people install esbuild's npm package in an environment without the `node` command in their `PATH`. This fails on Windows because esbuild's install script runs the `esbuild` command before exiting as a sanity check, and on Windows the `esbuild` command has to be a JavaScript file because of some internal details about how npm handles the `bin` folder (specifically the `esbuild` command lacks the `.exe` extension, which is required on Windows). This release attempts to work around this problem by using `process.execPath` instead of `"node"` as the command for running node. In theory this means the installer can now still function on Windows if something is wrong with `PATH`.
+
 ## 0.15.6
 
 * Lower `for await` loops ([#1930](https://github.com/evanw/esbuild/issues/1930))
