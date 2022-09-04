@@ -142,6 +142,8 @@ async function main() {
 
     if (yaml.features) {
       if (yaml.features.includes('hashbang')) return
+      if (yaml.features.includes('decorators')) return
+      if (yaml.features.includes('regexp-v-flag')) return
       if (yaml.features.includes('regexp-match-indices')) return
       if (yaml.features.includes('regexp-named-groups')) return
       if (yaml.features.includes('regexp-unicode-property-escapes')) return
