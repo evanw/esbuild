@@ -69,10 +69,12 @@ jobs:
         run: go vet ./cmd/... ./internal/... ./pkg/...
 
       - name: Deno Tests (non-Windows)
-        # Deno tests currently don't run on Windows because of "esbuild" vs.
-        # "esbuild.exe" in the test harness. This should be fixed...
         if: matrix.os != 'windows-latest'
         run: make test-deno
+
+      - name: Deno Tests (Windows)
+        if: matrix.os == 'windows-latest'
+        run: make test-deno-windows
 
       - name: Test for path/filepath
         if: matrix.os == 'ubuntu-latest'
