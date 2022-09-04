@@ -2014,9 +2014,13 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 		if !opts.isClass && kind == js_ast.PropertyNormal && p.lexer.Token != js_lexer.TColon &&
 			p.lexer.Token != js_lexer.TOpenParen && p.lexer.Token != js_lexer.TLessThan &&
 			!opts.isGenerator && !opts.isAsync && js_lexer.Keywords[name.String] == js_lexer.T(0) {
-			if (p.fnOrArrowDataParse.await != allowIdent && name.String == "await") || (p.fnOrArrowDataParse.yield != allowIdent && name.String == "yield") {
+
+			// Forbid invalid identifiers
+			if (p.fnOrArrowDataParse.await != allowIdent && name.String == "await") ||
+				(p.fnOrArrowDataParse.yield != allowIdent && name.String == "yield") {
 				p.log.AddError(&p.tracker, nameRange, fmt.Sprintf("Cannot use %q as an identifier here:", name.String))
 			}
+
 			ref := p.storeNameInRef(name)
 			value := js_ast.Expr{Loc: key.Loc, Data: &js_ast.EIdentifier{Ref: ref}}
 
@@ -2323,20 +2327,26 @@ func (p *parser) parsePropertyBinding() js_ast.PropertyBinding {
 
 	default:
 		name := p.lexer.Identifier
-		loc := p.lexer.Loc()
+		nameRange := p.lexer.Range()
 		if !p.lexer.IsIdentifierOrKeyword() {
 			p.lexer.Expect(js_lexer.TIdentifier)
 		}
 		p.lexer.Next()
 		if p.isMangledProp(name.String) {
-			key = js_ast.Expr{Loc: loc, Data: &js_ast.EMangledProp{Ref: p.storeNameInRef(name)}}
+			key = js_ast.Expr{Loc: nameRange.Loc, Data: &js_ast.EMangledProp{Ref: p.storeNameInRef(name)}}
 		} else {
-			key = js_ast.Expr{Loc: loc, Data: &js_ast.EString{Value: helpers.StringToUTF16(name.String)}}
+			key = js_ast.Expr{Loc: nameRange.Loc, Data: &js_ast.EString{Value: helpers.StringToUTF16(name.String)}}
 		}
 
 		if p.lexer.Token != js_lexer.TColon && p.lexer.Token != js_lexer.TOpenParen {
+			// Forbid invalid identifiers
+			if (p.fnOrArrowDataParse.await != allowIdent && name.String == "await") ||
+				(p.fnOrArrowDataParse.yield != allowIdent && name.String == "yield") {
+				p.log.AddError(&p.tracker, nameRange, fmt.Sprintf("Cannot use %q as an identifier here:", name.String))
+			}
+
 			ref := p.storeNameInRef(name)
-			value := js_ast.Binding{Loc: loc, Data: &js_ast.BIdentifier{Ref: ref}}
+			value := js_ast.Binding{Loc: nameRange.Loc, Data: &js_ast.BIdentifier{Ref: ref}}
 
 			var defaultValueOrNil js_ast.Expr
 			if p.lexer.Token == js_lexer.TEquals {
@@ -5230,10 +5240,13 @@ func (p *parser) parseBinding() js_ast.Binding {
 	switch p.lexer.Token {
 	case js_lexer.TIdentifier:
 		name := p.lexer.Identifier
+
+		// Forbid invalid identifiers
 		if (p.fnOrArrowDataParse.await != allowIdent && name.String == "await") ||
 			(p.fnOrArrowDataParse.yield != allowIdent && name.String == "yield") {
 			p.log.AddError(&p.tracker, p.lexer.Range(), fmt.Sprintf("Cannot use %q as an identifier here:", name.String))
 		}
+
 		ref := p.storeNameInRef(name)
 		p.lexer.Next()
 		return js_ast.Binding{Loc: loc, Data: &js_ast.BIdentifier{Ref: ref}}

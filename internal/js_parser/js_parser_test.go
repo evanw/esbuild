@@ -584,6 +584,20 @@ func TestAwait(t *testing.T) {
 	expectPrinted(t, "await (x * y)", "await (x * y);\n")
 	expectPrinted(t, "await (x ** y)", "await (x ** y);\n")
 
+	expectParseError(t, "var { await } = {}", "<stdin>: ERROR: Cannot use \"await\" as an identifier here:\n")
+	expectParseError(t, "async function f() { var { await } = {} }", "<stdin>: ERROR: Cannot use \"await\" as an identifier here:\n")
+	expectParseError(t, "async function* f() { var { await } = {} }", "<stdin>: ERROR: Cannot use \"await\" as an identifier here:\n")
+	expectParseError(t, "class C { async f() { var { await } = {} } }", "<stdin>: ERROR: Cannot use \"await\" as an identifier here:\n")
+	expectParseError(t, "class C { async* f() { var { await } = {} } }", "<stdin>: ERROR: Cannot use \"await\" as an identifier here:\n")
+	expectParseError(t, "class C { static { var { await } = {} } }", "<stdin>: ERROR: Cannot use \"await\" as an identifier here:\n")
+
+	expectParseError(t, "var {} = { await }", "<stdin>: ERROR: Cannot use \"await\" as an identifier here:\n")
+	expectParseError(t, "async function f() { var {} = { await } }", "<stdin>: ERROR: Cannot use \"await\" as an identifier here:\n")
+	expectParseError(t, "async function* f() { var {} = { await } }", "<stdin>: ERROR: Cannot use \"await\" as an identifier here:\n")
+	expectParseError(t, "class C { async f() { var {} = { await } } }", "<stdin>: ERROR: Cannot use \"await\" as an identifier here:\n")
+	expectParseError(t, "class C { async* f() { var {} = { await } } }", "<stdin>: ERROR: Cannot use \"await\" as an identifier here:\n")
+	expectParseError(t, "class C { static { var {} = { await } } }", "<stdin>: ERROR: Cannot use \"await\" as an identifier here:\n")
+
 	expectParseError(t, "await delete x",
 		`<stdin>: ERROR: Delete of a bare identifier cannot be used in an ECMAScript module
 <stdin>: NOTE: This file is considered to be an ECMAScript module because of the top-level "await" keyword here:
