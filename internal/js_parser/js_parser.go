@@ -16364,17 +16364,18 @@ func (p *parser) generateImportStmt(
 
 	namespaceRef := p.newSymbol(js_ast.SymbolOther, "import_"+js_ast.GenerateNonUniqueNameFromPath(path))
 	p.moduleScope.Generated = append(p.moduleScope.Generated, namespaceRef)
-	declaredSymbols := make([]js_ast.DeclaredSymbol, len(imports))
+	declaredSymbols := make([]js_ast.DeclaredSymbol, 1+len(imports))
 	clauseItems := make([]js_ast.ClauseItem, len(imports))
 	importRecordIndex := p.addImportRecord(ast.ImportStmt, loc, path, nil)
 	if sourceIndex != nil {
 		p.importRecords[importRecordIndex].SourceIndex = ast.MakeIndex32(*sourceIndex)
 	}
+	declaredSymbols[0] = js_ast.DeclaredSymbol{Ref: namespaceRef, IsTopLevel: true}
 
 	// Create per-import information
 	for i, alias := range imports {
 		it := symbols[alias]
-		declaredSymbols[i] = js_ast.DeclaredSymbol{Ref: it.Ref, IsTopLevel: true}
+		declaredSymbols[i+1] = js_ast.DeclaredSymbol{Ref: it.Ref, IsTopLevel: true}
 		clauseItems[i] = js_ast.ClauseItem{
 			Alias:    alias,
 			AliasLoc: it.Loc,

@@ -1161,3 +1161,23 @@ func TestLoaderCopyWithFormat(t *testing.T) {
 		},
 	})
 }
+
+func TestJSXAutomaticNoNameCollision(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.jsx": `
+				import { Link } from "@remix-run/react"
+				const x = <Link {...y} key={z} />
+			`,
+		},
+		entryPaths: []string{"/entry.jsx"},
+		options: config.Options{
+			Mode:          config.ModeConvertFormat,
+			OutputFormat:  config.FormatCommonJS,
+			AbsOutputFile: "/out.js",
+			JSX: config.JSXOptions{
+				AutomaticRuntime: true,
+			},
+		},
+	})
+}
