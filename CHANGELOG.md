@@ -41,6 +41,10 @@
 
     In addition, adding `assert { type: 'json' }` to an import statement now means esbuild will generate an error if the loader for the file is anything other than `json`, which is required by the import assertion specification.
 
+* Throw an early error if decoded UTF-8 text isn't a `Uint8Array` ([#2532](https://github.com/evanw/esbuild/issues/2532))
+
+    If you run esbuild's JavaScript API in a broken JavaScript environment where `new TextEncoder().encode("") instanceof Uint8Array` is false, then esbuild's API will fail with a confusing serialization error message that makes it seem like esbuild has a bug even though the real problem is that the JavaScript environment itself is broken. This can happen when using the test framework called [Jest](https://jestjs.io/). With this release, esbuild's API will now throw earlier when it detects that the environment is unable to encode UTF-8 text correctly with an error message that makes it more clear that this is not a problem with esbuild.
+
 * Rename the `master` branch to `main`
 
     The primary branch for this repository was previously called `master` but is now called `main`. This change mirrors a similar change in many other projects.
