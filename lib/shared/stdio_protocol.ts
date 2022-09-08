@@ -94,7 +94,7 @@ export interface OnWaitRequest {
 export interface OnWatchRebuildRequest {
   command: 'watch-rebuild';
   key: number;
-  args: types.BuildResult;
+  args: BuildResponse;
 }
 
 export interface TransformRequest {
