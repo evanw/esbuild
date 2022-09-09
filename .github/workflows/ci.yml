@@ -7,7 +7,7 @@ on:
     branches: ['*']
 
 jobs:
-  esbuild-rollup:
+  esbuild-slow:
     # Split these out into their own runner because they're very slow
     name: esbuild CI (Slow Tests)
     runs-on: ubuntu-latest
@@ -16,7 +16,7 @@ jobs:
       - name: Set up Go 1.x
         uses: actions/setup-go@v2
         with:
-          go-version: 1.19
+          go-version: 1.19.1
         id: go
 
       - name: Setup Node.js environment
@@ -44,7 +44,7 @@ jobs:
       - name: Set up Go 1.x
         uses: actions/setup-go@v2
         with:
-          go-version: 1.19
+          go-version: 1.19.1
         id: go
 
       - name: Setup Node.js environment
