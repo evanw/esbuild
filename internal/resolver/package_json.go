@@ -442,8 +442,8 @@ func (r resolverQuery) parsePackageJSON(inputPath string) *packageJSON {
 	}
 
 	// Read the "imports" map
-	if importsJSON, _, ok := getProperty(json, "imports"); ok {
-		if importsMap := parseImportsExportsMap(jsonSource, r.log, importsJSON); importsMap != nil {
+	if importsJSON, importsLoc, ok := getProperty(json, "imports"); ok {
+		if importsMap := parseImportsExportsMap(jsonSource, r.log, importsJSON, importsLoc); importsMap != nil {
 			if importsMap.root.kind != pjObject {
 				r.log.AddID(logger.MsgID_PackageJSON_InvalidImportsOrExports, logger.Warning, &tracker, importsMap.root.firstToken,
 					"The value for \"imports\" must be an object")
@@ -453,8 +453,8 @@ func (r resolverQuery) parsePackageJSON(inputPath string) *packageJSON {
 	}
 
 	// Read the "exports" map
-	if exportsJSON, _, ok := getProperty(json, "exports"); ok {
-		if exportsMap := parseImportsExportsMap(jsonSource, r.log, exportsJSON); exportsMap != nil {
+	if exportsJSON, exportsLoc, ok := getProperty(json, "exports"); ok {
+		if exportsMap := parseImportsExportsMap(jsonSource, r.log, exportsJSON, exportsLoc); exportsMap != nil {
 			packageJSON.exportsMap = exportsMap
 		}
 	}
@@ -524,7 +524,8 @@ func globstarToEscapedRegexp(glob string) (string, bool) {
 
 // Reference: https://nodejs.org/api/esm.html#esm_resolver_algorithm_specification
 type pjMap struct {
-	root pjEntry
+	root           pjEntry
+	propertyKeyLoc logger.Loc
 }
 
 type pjKind uint8
@@ -571,7 +572,7 @@ func (entry pjEntry) valueForKey(key string) (pjEntry, bool) {
 	return pjEntry{}, false
 }
 
-func parseImportsExportsMap(source logger.Source, log logger.Log, json js_ast.Expr) *pjMap {
+func parseImportsExportsMap(source logger.Source, log logger.Log, json js_ast.Expr, propertyKeyLoc logger.Loc) *pjMap {
 	var visit func(expr js_ast.Expr) pjEntry
 	tracker := logger.MakeLineColumnTracker(&source)
 
@@ -679,7 +680,7 @@ func parseImportsExportsMap(source logger.Source, log logger.Log, json js_ast.Ex
 		return nil
 	}
 
-	return &pjMap{root: root}
+	return &pjMap{root: root, propertyKeyLoc: propertyKeyLoc}
 }
 
 func (entry pjEntry) keysStartWithDot() bool {
@@ -718,6 +719,7 @@ const (
 
 	// The resolved path corresponds to a directory, which is not a supported target for module imports.
 	pjStatusUnsupportedDirectoryImport
+	pjStatusUnsupportedDirectoryImportMissingIndex // The user just needs to add the missing "/index.js" suffix
 )
 
 func (status pjStatus) isUndefined() bool {

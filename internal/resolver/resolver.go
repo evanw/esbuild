@@ -2145,7 +2145,7 @@ func (r resolverQuery) finalizeImportsExportsResult(
 	esmPackageSubpath string,
 	absImportPath string,
 ) (PathPair, bool, *fs.DifferentCase) {
-	missingExtension := ""
+	missingSuffix := ""
 
 	if (status == pjStatusExact || status == pjStatusExactEndsWithStar || status == pjStatusInexact) && strings.HasPrefix(resolvedPath, "/") {
 		absResolvedPath := r.fs.Join(absDirPath, resolvedPath)
@@ -2155,8 +2155,14 @@ func (r resolverQuery) finalizeImportsExportsResult(
 			if r.debugLogs != nil {
 				r.debugLogs.addNote(fmt.Sprintf("The resolved path %q is exact", absResolvedPath))
 			}
+
 			resolvedDirInfo := r.dirInfoCached(r.fs.Dir(absResolvedPath))
 			base := r.fs.Base(absResolvedPath)
+			extensionOrder := r.options.ExtensionOrder
+			if r.kind == ast.ImportAt || r.kind == ast.ImportAtConditional {
+				extensionOrder = r.atImportExtensionOrder
+			}
+
 			if resolvedDirInfo == nil {
 				status = pjStatusModuleNotFound
 			} else if entry, diffCase := resolvedDirInfo.entries.Get(base); entry == nil {
@@ -2165,17 +2171,13 @@ func (r resolverQuery) finalizeImportsExportsResult(
 
 				// Try to have a friendly error message if people forget the extension
 				if endsWithStar {
-					extensionOrder := r.options.ExtensionOrder
-					if r.kind == ast.ImportAt || r.kind == ast.ImportAtConditional {
-						extensionOrder = r.atImportExtensionOrder
-					}
 					for _, ext := range extensionOrder {
 						if entry, _ := resolvedDirInfo.entries.Get(base + ext); entry != nil {
 							if r.debugLogs != nil {
 								r.debugLogs.addNote(fmt.Sprintf("The import %q is missing the extension %q", path.Join(esmPackageName, esmPackageSubpath), ext))
 							}
 							status = pjStatusModuleNotFoundMissingExtension
-							missingExtension = ext
+							missingSuffix = ext
 							break
 						}
 					}
@@ -2184,7 +2186,25 @@ func (r resolverQuery) finalizeImportsExportsResult(
 				if r.debugLogs != nil {
 					r.debugLogs.addNote(fmt.Sprintf("The path %q is a directory, which is not allowed", absResolvedPath))
 				}
+				endsWithStar := status == pjStatusExactEndsWithStar
 				status = pjStatusUnsupportedDirectoryImport
+
+				// Try to have a friendly error message if people forget the "/index.js" suffix
+				if endsWithStar {
+					if resolvedDirInfo := r.dirInfoCached(absResolvedPath); resolvedDirInfo != nil {
+						for _, ext := range extensionOrder {
+							base := "index" + ext
+							if entry, _ := resolvedDirInfo.entries.Get(base); entry != nil && entry.Kind(r.fs) == fs.FileEntry {
+								status = pjStatusUnsupportedDirectoryImportMissingIndex
+								missingSuffix = "/" + base
+								if r.debugLogs != nil {
+									r.debugLogs.addNote(fmt.Sprintf("The import %q is missing the suffix %q", path.Join(esmPackageName, esmPackageSubpath), missingSuffix))
+								}
+								break
+							}
+						}
+					}
+				}
 			} else if kind != fs.FileEntry {
 				status = pjStatusModuleNotFound
 			} else {
@@ -2268,16 +2288,28 @@ func (r resolverQuery) finalizeImportsExportsResult(
 
 		// Provide an inline suggestion message with the correct import path
 		if status == pjStatusModuleNotFoundMissingExtension {
-			actualImportPath := path.Join(esmPackageName, esmPackageSubpath+missingExtension)
+			actualImportPath := path.Join(esmPackageName, esmPackageSubpath+missingSuffix)
 			r.debugMeta.suggestionRange = suggestionRangeEnd
-			r.debugMeta.suggestionText = missingExtension
+			r.debugMeta.suggestionText = missingSuffix
 			r.debugMeta.suggestionMessage = fmt.Sprintf("Import from %q to get the file %q:",
-				actualImportPath, r.PrettyPath(logger.Path{Text: r.fs.Join(absDirPath, resolvedPath+missingExtension), Namespace: "file"}))
+				actualImportPath, r.PrettyPath(logger.Path{Text: r.fs.Join(absDirPath, resolvedPath+missingSuffix), Namespace: "file"}))
 		}
 
-	case pjStatusUnsupportedDirectoryImport:
-		r.debugMeta.notes = []logger.MsgData{tracker.MsgData(debug.token,
-			fmt.Sprintf("Importing the directory %q is not supported:", resolvedPath))}
+	case pjStatusUnsupportedDirectoryImport, pjStatusUnsupportedDirectoryImportMissingIndex:
+		r.debugMeta.notes = []logger.MsgData{
+			tracker.MsgData(debug.token, fmt.Sprintf("Importing the directory %q is forbidden by this package:", resolvedPath)),
+			tracker.MsgData(packageJSON.source.RangeOfString(packageJSON.exportsMap.propertyKeyLoc),
+				"The presence of \"exports\" here makes importing a directory forbidden:"),
+		}
+
+		// Provide an inline suggestion message with the correct import path
+		if status == pjStatusUnsupportedDirectoryImportMissingIndex {
+			actualImportPath := path.Join(esmPackageName, esmPackageSubpath+missingSuffix)
+			r.debugMeta.suggestionRange = suggestionRangeEnd
+			r.debugMeta.suggestionText = missingSuffix
+			r.debugMeta.suggestionMessage = fmt.Sprintf("Import from %q to get the file %q:",
+				actualImportPath, r.PrettyPath(logger.Path{Text: r.fs.Join(absDirPath, resolvedPath+missingSuffix), Namespace: "file"}))
+		}
 
 	case pjStatusUndefinedNoConditionsMatch:
 		keys := make([]string, 0, len(conditions))
