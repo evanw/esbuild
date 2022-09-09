@@ -255,6 +255,7 @@ wasm-napi-exit0-windows:
 platform-all:
 	@$(MAKE) --no-print-directory -j4 \
 		platform-android \
+		platform-android-arm \
 		platform-android-arm64 \
 		platform-darwin \
 		platform-darwin-arm64 \
@@ -300,6 +301,9 @@ platform-unixlike: version-go
 
 platform-android: platform-wasm
 	node scripts/esbuild.js npm/esbuild-android-64/package.json --version
+
+platform-android-arm:
+	node scripts/esbuild.js npm/@esbuild/android-arm/package.json --version
 
 platform-android-arm64:
 	@$(MAKE) --no-print-directory GOOS=android GOARCH=arm64 NPMDIR=npm/esbuild-android-arm64 platform-unixlike
@@ -402,6 +406,7 @@ publish-all: check-go-version
 	@echo Enter one-time password:
 	@read OTP && OTP="$$OTP" $(MAKE) --no-print-directory -j4 \
 		publish-android \
+		publish-android-arm \
 		publish-android-arm64 \
 		publish-darwin \
 		publish-darwin-arm64
@@ -441,6 +446,9 @@ publish-windows-arm64: platform-windows-arm64
 
 publish-android: platform-android
 	test -n "$(OTP)" && cd npm/esbuild-android-64 && npm publish --otp="$(OTP)"
+
+publish-android-arm: platform-android-arm
+	test -n "$(OTP)" && cd npm/@esbuild/android-arm && npm publish --otp="$(OTP)"
 
 publish-android-arm64: platform-android-arm64
 	test -n "$(OTP)" && cd npm/esbuild-android-arm64 && npm publish --otp="$(OTP)"

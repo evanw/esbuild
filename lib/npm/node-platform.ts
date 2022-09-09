@@ -36,6 +36,7 @@ export const knownUnixlikePackages: Record<string, string> = {
 };
 
 export const knownWebAssemblyFallbackPackages: Record<string, string> = {
+  'android arm LE': '@esbuild/android-arm',
   'android x64 LE': 'esbuild-android-64',
 };
 

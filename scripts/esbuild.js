@@ -305,8 +305,19 @@ exports.removeRecursiveSync = path => {
 const updateVersionPackageJSON = pathToPackageJSON => {
   const version = fs.readFileSync(path.join(path.dirname(__dirname), 'version.txt'), 'utf8').trim()
   const json = JSON.parse(fs.readFileSync(pathToPackageJSON, 'utf8'))
+  let changed = false
+
   if (json.version !== version) {
     json.version = version
+    changed = true
+  }
+
+  if ('dependencies' in json && 'esbuild-wasm' in json.dependencies && json.dependencies['esbuild-wasm'] !== version) {
+    json.dependencies['esbuild-wasm'] = version
+    changed = true
+  }
+
+  if (changed) {
     fs.writeFileSync(pathToPackageJSON, JSON.stringify(json, null, 2) + '\n')
   }
 }
