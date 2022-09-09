@@ -15,6 +15,7 @@
     "esbuild": "bin/esbuild"
   },
   "optionalDependencies": {
+    "@esbuild/android-arm": "0.15.7",
     "@esbuild/linux-loong64": "0.15.7",
     "esbuild-android-64": "0.15.7",
     "esbuild-android-arm64": "0.15.7",
