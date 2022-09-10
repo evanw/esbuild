@@ -37,6 +37,9 @@ function reinstallYarnIfNeeded() {
     run('yarn set version 3.2.3')
   }
 
+  const rc = fs.readFileSync(path.join(rootDir, '.yarnrc.yml'), 'utf8')
+  fs.writeFileSync(path.join(rootDir, '.yarnrc.yml'), `pnpIgnorePatterns: ["./bar/**"]\n` + rc)
+
   run('yarn install')
 }
 

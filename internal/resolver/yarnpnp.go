@@ -28,7 +28,8 @@ type pnpData struct {
 	// the classic Node.js resolution algorithm rather than the Plug'n'Play one.
 	// Note that unlike other paths in the manifest, the one checked against this
 	// regexp won't begin by `./`.
-	ignorePatternData *regexp.Regexp
+	ignorePatternData        *regexp.Regexp
+	invalidIgnorePatternData string
 
 	// This is the main part of the PnP data file. This table contains the list
 	// of all packages, first keyed by package ident then by package reference.
@@ -438,7 +439,26 @@ func compileYarnPnPData(absPath string, absDirPath string, json js_ast.Expr) *pn
 
 	if value, _, ok := getProperty(json, "ignorePatternData"); ok {
 		if ignorePatternData, ok := getString(value); ok {
-			data.ignorePatternData, _ = regexp.Compile(ignorePatternData)
+			// The Go regular expression engine doesn't support some of the features
+			// that JavaScript regular expressions support, including "(?!" negative
+			// lookaheads which Yarn uses. This is deliberate on Go's part. See this:
+			// https://github.com/golang/go/issues/18868.
+			//
+			// Yarn uses this feature to exclude the "." and ".." path segments in
+			// the middle of a relative path. However, we shouldn't ever generate
+			// such path segments in the first place. So as a hack, we just remove
+			// the specific character sequences used by Yarn for this so that the
+			// regular expression is more likely to be able to be compiled.
+			ignorePatternData = strings.ReplaceAll(ignorePatternData, `(?!\.)`, "")
+			ignorePatternData = strings.ReplaceAll(ignorePatternData, `(?!(?:^|\/)\.)`, "")
+			ignorePatternData = strings.ReplaceAll(ignorePatternData, `(?!\.{1,2}(?:\/|$))`, "")
+			ignorePatternData = strings.ReplaceAll(ignorePatternData, `(?!(?:^|\/)\.{1,2}(?:\/|$))`, "")
+
+			if reg, err := regexp.Compile(ignorePatternData); err == nil {
+				data.ignorePatternData = reg
+			} else {
+				data.invalidIgnorePatternData = ignorePatternData
+			}
 		}
 	}
 

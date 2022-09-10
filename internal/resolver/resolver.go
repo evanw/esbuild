@@ -445,6 +445,9 @@ func (rr *resolver) Resolve(sourceDir string, importPath string, kind ast.Import
 						r.pnpManifest = compileYarnPnPData(absPath, r.fs.Dir(absPath), json)
 					}
 				}
+				if r.debugLogs != nil && r.pnpManifest != nil && r.pnpManifest.invalidIgnorePatternData != "" {
+					r.debugLogs.addNote("  Invalid Go regular expression for \"ignorePatternData\": " + r.pnpManifest.invalidIgnorePatternData)
+				}
 				break
 			}
 		}
