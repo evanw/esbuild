@@ -3532,6 +3532,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 		p.printExpr(s.Test, js_ast.LLowest, 0)
 		p.print(")")
 		p.printSpace()
+		p.addSourceMapping(s.BodyLoc)
 		p.print("{")
 		p.printNewline()
 		p.options.Indent++
@@ -3539,6 +3540,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 		for _, c := range s.Cases {
 			p.printSemicolonIfNeeded()
 			p.printIndent()
+			p.addSourceMapping(c.Loc)
 
 			if c.ValueOrNil.Data != nil {
 				p.print("case")
@@ -3569,6 +3571,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 
 		p.options.Indent--
 		p.printIndent()
+		p.addSourceMapping(s.CloseBraceLoc)
 		p.print("}")
 		p.printNewline()
 		p.needsSemicolon = false

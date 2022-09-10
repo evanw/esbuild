@@ -6479,6 +6479,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		for p.lexer.Token != js_lexer.TCloseBrace {
 			var value js_ast.Expr
 			body := []js_ast.Stmt{}
+			caseLoc := p.lexer.Loc()
 
 			if p.lexer.Token == js_lexer.TDefault {
 				if foundDefault {
@@ -6505,14 +6506,16 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 				}
 			}
 
-			cases = append(cases, js_ast.Case{ValueOrNil: value, Body: body})
+			cases = append(cases, js_ast.Case{ValueOrNil: value, Body: body, Loc: caseLoc})
 		}
 
+		closeBraceLoc := p.lexer.Loc()
 		p.lexer.Expect(js_lexer.TCloseBrace)
 		return js_ast.Stmt{Loc: loc, Data: &js_ast.SSwitch{
-			Test:    test,
-			BodyLoc: bodyLoc,
-			Cases:   cases,
+			Test:          test,
+			Cases:         cases,
+			BodyLoc:       bodyLoc,
+			CloseBraceLoc: closeBraceLoc,
 		}}
 
 	case js_lexer.TTry:
