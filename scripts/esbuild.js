@@ -208,18 +208,6 @@ module.exports = ${JSON.stringify(exit0Map, null, 2)};
 
   // Join with the asynchronous WebAssembly build
   await goBuildPromise;
-
-  // Also copy this into the WebAssembly shim directories
-  for (const dir of [
-    path.join(repoDir, 'npm', 'esbuild-android-64'),
-  ]) {
-    fs.mkdirSync(path.join(dir, 'bin'), { recursive: true })
-    fs.writeFileSync(path.join(dir, 'wasm_exec.js'), wasm_exec_js);
-    fs.writeFileSync(path.join(dir, 'wasm_exec_node.js'), wasm_exec_node_js);
-    fs.writeFileSync(path.join(dir, 'exit0.js'), exit0Code);
-    fs.copyFileSync(path.join(npmWasmDir, 'bin', 'esbuild'), path.join(dir, 'bin', 'esbuild'));
-    fs.copyFileSync(path.join(npmWasmDir, 'esbuild.wasm'), path.join(dir, 'esbuild.wasm'));
-  }
 }
 
 const buildDenoLib = (esbuildPath) => {

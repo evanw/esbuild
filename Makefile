@@ -299,7 +299,7 @@ platform-unixlike: version-go
 	node scripts/esbuild.js "$(NPMDIR)/package.json" --version
 	CGO_ENABLED=0 GOOS="$(GOOS)" GOARCH="$(GOARCH)" go build $(GO_FLAGS) -o "$(NPMDIR)/bin/esbuild" ./cmd/esbuild
 
-platform-android: platform-wasm
+platform-android:
 	node scripts/esbuild.js npm/esbuild-android-64/package.json --version
 
 platform-android-arm:
@@ -533,7 +533,6 @@ validate-build:
 # This checks that the published binaries are bitwise-identical to the locally-build binaries
 validate-builds:
 	git fetch --all --tags && git checkout "v$(ESBUILD_VERSION)"
-	@$(MAKE) --no-print-directory TARGET=platform-android PACKAGE=esbuild-android-64 SUBPATH=esbuild.wasm validate-build
 	@$(MAKE) --no-print-directory TARGET=platform-android-arm64 PACKAGE=esbuild-android-arm64 SUBPATH=bin/esbuild validate-build
 	@$(MAKE) --no-print-directory TARGET=platform-darwin PACKAGE=esbuild-darwin-64 SUBPATH=bin/esbuild validate-build
 	@$(MAKE) --no-print-directory TARGET=platform-darwin-arm64 PACKAGE=esbuild-darwin-arm64 SUBPATH=bin/esbuild validate-build
@@ -564,8 +563,6 @@ clean:
 	rm -f npm/esbuild-windows-arm64/esbuild.exe
 	rm -f npm/esbuild/install.js
 	rm -rf npm/@esbuild/linux-loong64/bin
-	rm -rf npm/esbuild-android-64/bin
-	rm -rf npm/esbuild-android-64/esbuild.wasm npm/esbuild-android-64/wasm_exec.js npm/esbuild-android-64/wasm_exec_node.js npm/esbuild-android-64/exit0.js
 	rm -rf npm/esbuild-android-arm64/bin
 	rm -rf npm/esbuild-darwin-64/bin
 	rm -rf npm/esbuild-darwin-arm64/bin
