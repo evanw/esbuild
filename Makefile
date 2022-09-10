@@ -558,14 +558,14 @@ validate-builds:
 
 clean:
 	rm -f esbuild
-	rm -f npm/esbuild-wasm/esbuild.wasm npm/esbuild-wasm/wasm_exec.js npm/esbuild-wasm/exit0.js
+	rm -f npm/esbuild-wasm/esbuild.wasm npm/esbuild-wasm/wasm_exec.js npm/esbuild-wasm/wasm_exec_node.js npm/esbuild-wasm/exit0.js
 	rm -f npm/esbuild-windows-32/esbuild.exe
 	rm -f npm/esbuild-windows-64/esbuild.exe
 	rm -f npm/esbuild-windows-arm64/esbuild.exe
 	rm -f npm/esbuild/install.js
 	rm -rf npm/@esbuild/linux-loong64/bin
 	rm -rf npm/esbuild-android-64/bin
-	rm -rf npm/esbuild-android-64/esbuild.wasm npm/esbuild-android-64/wasm_exec.js npm/esbuild-android-64/exit0.js
+	rm -rf npm/esbuild-android-64/esbuild.wasm npm/esbuild-android-64/wasm_exec.js npm/esbuild-android-64/wasm_exec_node.js npm/esbuild-android-64/exit0.js
 	rm -rf npm/esbuild-android-arm64/bin
 	rm -rf npm/esbuild-darwin-64/bin
 	rm -rf npm/esbuild-darwin-arm64/bin
