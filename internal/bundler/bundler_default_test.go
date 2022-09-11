@@ -6796,3 +6796,39 @@ yes4.js: NOTE: This file is considered to be an ECMAScript module because of the
 `,
 	})
 }
+
+// See: https://github.com/evanw/esbuild/issues/2537
+func TestNonDeterminismIssue2537(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				export function aap(noot: boolean, wim: number) {
+					let mies = "teun"
+					if (noot) {
+						function vuur(v: number) {
+							return v * 2
+						}
+						function schaap(s: number) {
+							return s / 2
+						}
+						mies = vuur(wim) + schaap(wim)
+					}
+					return mies
+				}
+			`,
+			"/tsconfig.json": `
+				{
+					"compilerOptions": {
+						"alwaysStrict": true
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:              config.ModeBundle,
+			AbsOutputFile:     "/out.js",
+			MinifyIdentifiers: true,
+		},
+	})
+}

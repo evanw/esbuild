@@ -4127,6 +4127,18 @@ let transformTests = {
     assert.strictEqual(code2, `class Foo {\n  foo;\n}\n`)
   },
 
+  async tsconfigRawAlwaysStrict({ esbuild }) {
+    const input = `console.log(123)`
+
+    assert.strictEqual((await esbuild.transform(input, { loader: 'ts', tsconfigRaw: { compilerOptions: { strict: false } } })).code, `console.log(123);\n`)
+    assert.strictEqual((await esbuild.transform(input, { loader: 'ts', tsconfigRaw: { compilerOptions: { alwaysStrict: false } } })).code, `console.log(123);\n`)
+    assert.strictEqual((await esbuild.transform(input, { loader: 'ts', tsconfigRaw: { compilerOptions: { alwaysStrict: false, strict: true } } })).code, `console.log(123);\n`)
+
+    assert.strictEqual((await esbuild.transform(input, { loader: 'ts', tsconfigRaw: { compilerOptions: { strict: true } } })).code, `"use strict";\nconsole.log(123);\n`)
+    assert.strictEqual((await esbuild.transform(input, { loader: 'ts', tsconfigRaw: { compilerOptions: { alwaysStrict: true } } })).code, `"use strict";\nconsole.log(123);\n`)
+    assert.strictEqual((await esbuild.transform(input, { loader: 'ts', tsconfigRaw: { compilerOptions: { alwaysStrict: true, strict: false } } })).code, `"use strict";\nconsole.log(123);\n`)
+  },
+
   async tsImplicitUseDefineForClassFields({ esbuild }) {
     var { code } = await esbuild.transform(`class Foo { foo }`, {
       loader: 'ts',

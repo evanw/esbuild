@@ -1305,10 +1305,30 @@ func (p *parser) declareSymbol(kind js_ast.SymbolKind, loc logger.Loc, name stri
 
 }
 
+// This type is just so we can use Go's native sort function
+type scopeMemberArray []js_ast.ScopeMember
+
+func (a scopeMemberArray) Len() int          { return len(a) }
+func (a scopeMemberArray) Swap(i int, j int) { a[i], a[j] = a[j], a[i] }
+
+func (a scopeMemberArray) Less(i int, j int) bool {
+	ai := a[i].Ref
+	bj := a[j].Ref
+	return ai.InnerIndex < bj.InnerIndex || (ai.InnerIndex == bj.InnerIndex && ai.SourceIndex < bj.SourceIndex)
+}
+
 func (p *parser) hoistSymbols(scope *js_ast.Scope) {
 	if !scope.Kind.StopsHoisting() {
-	nextMember:
+		// We create new symbols in the loop below, so the iteration order of the
+		// loop must be deterministic to avoid generating different minified names
+		sortedMembers := make(scopeMemberArray, 0, len(scope.Members))
 		for _, member := range scope.Members {
+			sortedMembers = append(sortedMembers, member)
+		}
+		sort.Sort(sortedMembers)
+
+	nextMember:
+		for _, member := range sortedMembers {
 			symbol := &p.symbols[member.Ref.InnerIndex]
 
 			// Handle non-hoisted collisions between catch bindings and the catch body.

@@ -1398,7 +1398,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 				result.PreserveValueImports,
 			)
 			tsTarget = result.TSTarget
-			tsAlwaysStrict = result.TSAlwaysStrict
+			tsAlwaysStrict = result.TSAlwaysStrictOrStrict()
 		}
 	}
 
@@ -1879,6 +1879,7 @@ type metafileEntry struct {
 	size       int
 }
 
+// This type is just so we can use Go's native sort function
 type metafileArray []metafileEntry
 
 func (a metafileArray) Len() int          { return len(a) }

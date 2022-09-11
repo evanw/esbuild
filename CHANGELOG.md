@@ -41,6 +41,58 @@
 
     These seem to be used by Yarn to avoid the `.` and `..` path segments in the middle of relative paths. The removal of these character sequences seems relatively harmless in this case since esbuild shouldn't ever generate such path segments. This change should add support to esbuild for Yarn's [`pnpIgnorePatterns`](https://yarnpkg.com/configuration/yarnrc/#pnpIgnorePatterns) feature.
 
+* Fix non-determinism issue with legacy block-level function declarations and strict mode ([#2537](https://github.com/evanw/esbuild/issues/2537))
+
+    When function declaration statements are nested inside a block in strict mode, they are supposed to only be available within that block's scope. But in "sloppy mode" (which is what non-strict mode is commonly called), they are supposed to be available within the whole function's scope:
+
+    ```js
+    // This returns 1 due to strict mode
+    function test1() {
+      'use strict'
+      function fn() { return 1 }
+      if (true) { function fn() { return 2 } }
+      return fn()
+    }
+
+    // This returns 2 due to sloppy mode
+    function test2() {
+      function fn() { return 1 }
+      if (true) { function fn() { return 2 } }
+      return fn()
+    }
+    ```
+
+    To implement this, esbuild compiles these two functions differently to reflect their different semantics:
+
+    ```js
+    function test1() {
+      "use strict";
+      function fn() {
+        return 1;
+      }
+      if (true) {
+        let fn2 = function() {
+          return 2;
+        };
+      }
+      return fn();
+    }
+    function test2() {
+      function fn() {
+        return 1;
+      }
+      if (true) {
+        let fn2 = function() {
+          return 2;
+        };
+        var fn = fn2;
+      }
+      return fn();
+    }
+    ```
+
+    However, the compilation had a subtle bug where the automatically-generated function-level symbols for multible hoisted block-level function declarations in the same block a sloppy-mode context were generated in a random order if the output was in strict mode, which could be the case if TypeScript's `alwaysStrict` setting was set to true. This lead to non-determinism in the output as the minifier would randomly exchange the generated names for these symbols on different runs. This bug has been fixed by sorting the keys of the unordered map before iterating over them.
+
 ## 0.15.7
 
 * Add `--watch=forever` to allow esbuild to never terminate ([#1511](https://github.com/evanw/esbuild/issues/1511), [#1885](https://github.com/evanw/esbuild/issues/1885))

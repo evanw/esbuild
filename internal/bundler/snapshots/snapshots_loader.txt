@@ -958,6 +958,27 @@ module.exports = foo;
 console.log(module, exports);
 
 ================================================================================
+TestNonDeterminismIssue2537
+---------- /out.js ----------
+// entry.ts
+function b(o, e) {
+  let r = "teun";
+  if (o) {
+    let u = function(n) {
+      return n * 2;
+    }, t = function(n) {
+      return n / 2;
+    };
+    var i = u, a = t;
+    r = u(e) + t(e);
+  }
+  return r;
+}
+export {
+  b as aap
+};
+
+================================================================================
 TestRequireCustomExtensionBase64
 ---------- /out.js ----------
 // test.custom
