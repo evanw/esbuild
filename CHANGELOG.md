@@ -93,6 +93,10 @@
 
     However, the compilation had a subtle bug where the automatically-generated function-level symbols for multible hoisted block-level function declarations in the same block a sloppy-mode context were generated in a random order if the output was in strict mode, which could be the case if TypeScript's `alwaysStrict` setting was set to true. This lead to non-determinism in the output as the minifier would randomly exchange the generated names for these symbols on different runs. This bug has been fixed by sorting the keys of the unordered map before iterating over them.
 
+* Fix subpath imports with Yarn PnP ([#2545](https://github.com/evanw/esbuild/issues/2545))
+
+    Node has a little-used feature called [subpath imports](https://nodejs.org/api/packages.html#subpath-imports) which are package-internal imports that start with `#` and that go through the `imports` map in `package.json`. Previously esbuild had a bug that caused esbuild to not handle these correctly in packages installed via Yarn's "Plug'n'Play" installation strategy. The problem was that subpath imports were being checked after Yarn PnP instead of before. This release reorders these checks, which should allow subpath imports to work in this case.
+
 ## 0.15.7
 
 * Add `--watch=forever` to allow esbuild to never terminate ([#1511](https://github.com/evanw/esbuild/issues/1511), [#1885](https://github.com/evanw/esbuild/issues/1885))

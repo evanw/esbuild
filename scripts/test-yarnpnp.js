@@ -38,7 +38,7 @@ function reinstallYarnIfNeeded() {
   }
 
   const rc = fs.readFileSync(path.join(rootDir, '.yarnrc.yml'), 'utf8')
-  fs.writeFileSync(path.join(rootDir, '.yarnrc.yml'), `pnpIgnorePatterns: ["./bar/**"]\n` + rc)
+  fs.writeFileSync(path.join(rootDir, '.yarnrc.yml'), `pnpEnableEsmLoader: true\npnpIgnorePatterns: ["./bar/**"]\n` + rc)
 
   run('yarn install')
 }

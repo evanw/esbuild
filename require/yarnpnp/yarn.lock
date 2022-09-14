@@ -24,6 +24,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"aws-jwt-verify@npm:3.1.0":
+  version: 3.1.0
+  resolution: "aws-jwt-verify@npm:3.1.0"
+  checksum: b978817018a234b91a711f3615ce93eb0a128ca1bffc37801e82faf63e264d458b4afdb32a2f9a7ac353ae170de13c8471a035764996d685c34da6443c7beafd
+  languageName: node
+  linkType: hard
+
 "d3-array@npm:2 - 3":
   version: 3.2.0
   resolution: "d3-array@npm:3.2.0"
@@ -115,6 +122,7 @@ __metadata:
   resolution: "root-workspace-0b6124@workspace:."
   dependencies:
     "@vue/tsconfig": 0.1.3
+    aws-jwt-verify: 3.1.0
     d3-time: 3.0.0
     foo: "workspace:*"
     mime: 3.0.0

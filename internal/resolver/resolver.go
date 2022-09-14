@@ -1999,6 +1999,17 @@ func (r resolverQuery) loadNodeModules(importPath string, dirInfo *dirInfo, forb
 		}
 	}
 
+	// Find the parent directory with the "package.json" file
+	dirInfoPackageJSON := dirInfo
+	for dirInfoPackageJSON != nil && dirInfoPackageJSON.packageJSON == nil {
+		dirInfoPackageJSON = dirInfoPackageJSON.parent
+	}
+
+	// Check for subpath imports: https://nodejs.org/api/packages.html#subpath-imports
+	if dirInfoPackageJSON != nil && strings.HasPrefix(importPath, "#") && !forbidImports && dirInfoPackageJSON.packageJSON.importsMap != nil {
+		return r.loadPackageImports(importPath, dirInfoPackageJSON)
+	}
+
 	// If Yarn PnP is active, use it to find the package
 	if r.pnpManifest != nil {
 		if result := r.resolveToUnqualified(importPath, dirInfo.absPath, r.pnpManifest); result.status == pnpError {
@@ -2040,17 +2051,6 @@ func (r resolverQuery) loadNodeModules(importPath string, dirInfo *dirInfo, forb
 			}
 			return PathPair{}, false, nil
 		}
-	}
-
-	// Find the parent directory with the "package.json" file
-	dirInfoPackageJSON := dirInfo
-	for dirInfoPackageJSON != nil && dirInfoPackageJSON.packageJSON == nil {
-		dirInfoPackageJSON = dirInfoPackageJSON.parent
-	}
-
-	// Check for subpath imports: https://nodejs.org/api/packages.html#subpath-imports
-	if dirInfoPackageJSON != nil && strings.HasPrefix(importPath, "#") && !forbidImports && dirInfoPackageJSON.packageJSON.importsMap != nil {
-		return r.loadPackageImports(importPath, dirInfoPackageJSON)
 	}
 
 	// Try to parse the package name using node's ESM-specific rules
