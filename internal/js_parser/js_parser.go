@@ -12366,7 +12366,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					CloseParenLoc: e.CloseLoc,
 
 					// Enable tree shaking
-					CanBeUnwrappedIfUnused: !p.options.ignoreDCEAnnotations,
+					CanBeUnwrappedIfUnused: !p.options.ignoreDCEAnnotations && !p.options.jsx.SideEffects,
 				}}, exprOut{}
 			} else {
 				// Arguments to jsx()
@@ -12494,7 +12494,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					CloseParenLoc: e.CloseLoc,
 
 					// Enable tree shaking
-					CanBeUnwrappedIfUnused: !p.options.ignoreDCEAnnotations,
+					CanBeUnwrappedIfUnused: !p.options.ignoreDCEAnnotations && !p.options.jsx.SideEffects,
 				}}, exprOut{}
 			}
 		}

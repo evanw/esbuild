@@ -903,6 +903,7 @@ func rebuildImpl(
 			Fragment:         validateJSXExpr(log, buildOpts.JSXFragment, "fragment"),
 			Development:      buildOpts.JSXDev,
 			ImportSource:     buildOpts.JSXImportSource,
+			SideEffects:      buildOpts.JSXSideEffects,
 		},
 		Defines:               defines,
 		InjectedDefines:       injectedDefines,
