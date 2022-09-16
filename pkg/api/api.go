@@ -257,6 +257,7 @@ type BuildOptions struct {
 
 	Sourcemap      SourceMap      // Documentation: https://esbuild.github.io/api/#sourcemap
 	SourceRoot     string         // Documentation: https://esbuild.github.io/api/#source-root
+	SourceBase     string         // Documentation: https://esbuild.github.io/api/#source-base
 	SourcesContent SourcesContent // Documentation: https://esbuild.github.io/api/#sources-content
 
 	Target    Target          // Documentation: https://esbuild.github.io/api/#target
@@ -375,6 +376,7 @@ type TransformOptions struct {
 
 	Sourcemap      SourceMap      // Documentation: https://esbuild.github.io/api/#sourcemap
 	SourceRoot     string         // Documentation: https://esbuild.github.io/api/#source-root
+	SourceBase     string         // Documentation: https://esbuild.github.io/api/#source-base
 	SourcesContent SourcesContent // Documentation: https://esbuild.github.io/api/#sources-content
 
 	Target    Target          // Documentation: https://esbuild.github.io/api/#target

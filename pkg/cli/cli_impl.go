@@ -345,6 +345,14 @@ func parseOptionsImpl(
 				transformOpts.SourceRoot = sourceRoot
 			}
 
+		case strings.HasPrefix(arg, "--source-base="):
+			sourceBase := arg[len("--source-base="):]
+			if buildOpts != nil {
+				buildOpts.SourceBase = sourceBase
+			} else {
+				transformOpts.SourceBase = sourceBase
+			}
+
 		case isBoolFlag(arg, "--sources-content"):
 			if value, err := parseBoolFlag(arg, true); err != nil {
 				return parseOptionsExtras{}, err
@@ -806,6 +814,7 @@ func parseOptionsImpl(
 				"reserve-props":      true,
 				"resolve-extensions": true,
 				"source-root":        true,
+				"source-base":        true,
 				"sourcefile":         true,
 				"sourcemap":          true,
 				"sources-content":    true,

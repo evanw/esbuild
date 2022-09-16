@@ -12,6 +12,8 @@ interface CommonOptions {
   legalComments?: 'none' | 'inline' | 'eof' | 'linked' | 'external';
   /** Documentation: https://esbuild.github.io/api/#source-root */
   sourceRoot?: string;
+  /** Documentation: https://esbuild.github.io/api/#source-base */
+  sourceBase?: string;
   /** Documentation: https://esbuild.github.io/api/#sources-content */
   sourcesContent?: boolean;
 

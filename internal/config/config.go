@@ -278,6 +278,7 @@ type Options struct {
 
 	Plugins    []Plugin
 	SourceRoot string
+	SourceBase string
 	Stdin      *StdinInfo
 	JSX        JSXOptions
 

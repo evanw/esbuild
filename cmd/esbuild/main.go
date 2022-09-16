@@ -113,6 +113,7 @@ var helpText = func(colors logger.Colors) string {
                             (default ".tsx,.ts,.jsx,.js,.css,.json")
   --servedir=...            What to serve in addition to generated output files
   --source-root=...         Sets the "sourceRoot" field in generated source maps
+  --source-base=...         The base path of the output to calculate sources from
   --sourcefile=...          Set the source file for the source map (for stdin)
   --sourcemap=external      Do not link to the source map with a comment
   --sourcemap=inline        Emit the source map with an inline data URL

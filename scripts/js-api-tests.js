@@ -450,6 +450,51 @@ let buildTests = {
     assert.strictEqual(json.sourceRoot, 'https://example.com/')
   },
 
+  async sourceMapNoSourceBase({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    const output = path.join(testDir, 'tmp/folder/out.js')
+    const content = 'exports.foo = 123'
+    await writeFileAsync(input, content)
+    await esbuild.build({
+      entryPoints: [input],
+      outfile: output,
+      sourcemap: true,
+    })
+    const result = require(output)
+    assert.strictEqual(result.foo, 123)
+    const outputFile = await readFileAsync(output, 'utf8')
+    const match = /\/\/# sourceMappingURL=(.*)/.exec(outputFile)
+    assert.strictEqual(match[1], 'out.js.map')
+    const resultMap = await readFileAsync(output + '.map', 'utf8')
+    const json = JSON.parse(resultMap)
+    assert.strictEqual(json.version, 3)
+    assert.strictEqual(json.sources[0], "../../" + path.basename(input))
+    assert.strictEqual(json.sourcesContent[0], content)
+  },
+
+  async sourceMapWithSourceBase({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    const output = path.join(testDir, 'tmp/folder/out.js')
+    const content = 'exports.foo = 123'
+    await writeFileAsync(input, content)
+    await esbuild.build({
+      entryPoints: [input],
+      outfile: output,
+      sourcemap: true,
+      sourceBase: path.join(testDir),
+    })
+    const result = require(output)
+    assert.strictEqual(result.foo, 123)
+    const outputFile = await readFileAsync(output, 'utf8')
+    const match = /\/\/# sourceMappingURL=(.*)/.exec(outputFile)
+    assert.strictEqual(match[1], 'out.js.map')
+    const resultMap = await readFileAsync(output + '.map', 'utf8')
+    const json = JSON.parse(resultMap)
+    assert.strictEqual(json.version, 3)
+    assert.strictEqual(json.sources[0], path.basename(input))
+    assert.strictEqual(json.sourcesContent[0], content)
+  },
+
   async sourceMapWithDisabledFile({ esbuild, testDir }) {
     const input = path.join(testDir, 'in.js')
     const disabled = path.join(testDir, 'disabled.js')

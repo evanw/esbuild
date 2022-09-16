@@ -5850,6 +5850,16 @@ func (c *linkerContext) generateSourceMapForChunk(
 	dataForSourceMaps []dataForSourceMap,
 	canHaveShifts bool,
 ) (pieces sourcemap.SourceMapPieces) {
+    var sourceAbsDir string
+    if c.options.SourceBase != "" {
+        var succes bool
+        sourceAbsDir, succes = c.fs.Abs(c.options.SourceBase)
+        if !succes {
+            panic("Could not determine source base")
+        }
+    } else {
+        sourceAbsDir = chunkAbsDir
+    }
 	j := helpers.Joiner{}
 	j.AddString("{\n  \"version\": 3")
 
@@ -5923,7 +5933,7 @@ func (c *linkerContext) generateSourceMapForChunk(
 		// Modify the absolute path to the original file to be relative to the
 		// directory that will contain the output file for this chunk
 		if item.path.Namespace == "file" {
-			if relPath, ok := c.fs.Rel(chunkAbsDir, item.path.Text); ok {
+			if relPath, ok := c.fs.Rel(sourceAbsDir, item.path.Text); ok {
 				// Make sure to always use forward slashes, even on Windows
 				item.prettyPath = strings.ReplaceAll(relPath, "\\", "/")
 			}
