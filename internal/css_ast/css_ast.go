@@ -319,9 +319,10 @@ func (r *RAtImport) Hash() (uint32, bool) {
 }
 
 type RAtKeyframes struct {
-	AtToken string
-	Name    string
-	Blocks  []KeyframeBlock
+	AtToken      string
+	Name         string
+	IsStringName bool
+	Blocks       []KeyframeBlock
 }
 
 type KeyframeBlock struct {

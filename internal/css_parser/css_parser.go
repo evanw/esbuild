@@ -828,11 +828,17 @@ abortRuleParser:
 	case "keyframes", "-webkit-keyframes", "-moz-keyframes", "-ms-keyframes", "-o-keyframes":
 		p.eat(css_lexer.TWhitespace)
 		var name string
+		var isStringName bool
 
 		if p.peek(css_lexer.TIdent) {
 			name = p.decoded()
 			p.advance()
-		} else if !p.expect(css_lexer.TIdent) && !p.eat(css_lexer.TString) && !p.peek(css_lexer.TOpenBrace) {
+			isStringName = false
+		} else if p.peek(css_lexer.TString) {
+			name = p.decoded()
+			isStringName = !p.options.MinifySyntax || cssWideAndReservedKeywords[name]
+			p.advance()
+		} else if !(p.expect(css_lexer.TIdent) && p.expect(css_lexer.TString)) && !p.peek(css_lexer.TOpenBrace) {
 			// Consider string names a syntax error even though they are allowed by
 			// the specification and they work in Firefox because they do not work in
 			// Chrome or Safari.
@@ -856,9 +862,10 @@ abortRuleParser:
 				case css_lexer.TCloseBrace:
 					p.advance()
 					return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RAtKeyframes{
-						AtToken: atToken,
-						Name:    name,
-						Blocks:  blocks,
+						AtToken:      atToken,
+						Name:         name,
+						IsStringName: isStringName,
+						Blocks:       blocks,
 					}}
 
 				case css_lexer.TEndOfFile:

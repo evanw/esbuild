@@ -111,7 +111,13 @@ func (p *printer) printRule(rule css_ast.Rule, indent int32, omitTrailingSemicol
 		if r.Name == "" {
 			p.print("\"\"")
 		} else {
-			p.printIdent(r.Name, identNormal, canDiscardWhitespaceAfter)
+			if r.IsStringName {
+				p.print("\"")
+				p.print(r.Name)
+				p.print("\"")
+			} else {
+				p.printIdent(r.Name, identNormal, canDiscardWhitespaceAfter)
+			}
 		}
 		if !p.options.MinifyWhitespace {
 			p.print(" ")

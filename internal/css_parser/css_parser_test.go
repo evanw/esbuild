@@ -1013,6 +1013,18 @@ func TestLegalComment(t *testing.T) {
 func TestAtKeyframes(t *testing.T) {
 	expectPrinted(t, "@keyframes {}", "@keyframes \"\" {\n}\n")
 	expectPrinted(t, "@keyframes name{}", "@keyframes name {\n}\n")
+	// string name valid
+	expectPrinted(t, `@keyframes "name"{}`, "@keyframes \"name\" {\n}\n")
+	expectPrintedMinify(t, `@keyframes "name"{}`, "@keyframes \"name\"{}")
+	expectPrintedMangleMinify(t, `@keyframes "name"{}`, "@keyframes name{}")
+
+	// string name that doesn't allow to convert to ident
+	for cssWideKeywords := range cssWideAndReservedKeywords {
+		expectPrinted(t, `@keyframes "`+cssWideKeywords+`"{}`, "@keyframes \""+cssWideKeywords+"\" {\n}\n")
+		expectPrintedMinify(t, `@keyframes "`+cssWideKeywords+`"{}`, "@keyframes \""+cssWideKeywords+"\"{}")
+		expectPrintedMangleMinify(t, `@keyframes "`+cssWideKeywords+`"{}`, "@keyframes \""+cssWideKeywords+"\"{}")
+	}
+
 	expectPrinted(t, "@keyframes name {}", "@keyframes name {\n}\n")
 	expectPrinted(t, "@keyframes name{0%,50%{color:red}25%,75%{color:blue}}",
 		"@keyframes name {\n  0%, 50% {\n    color: red;\n  }\n  25%, 75% {\n    color: blue;\n  }\n}\n")
@@ -1034,7 +1046,6 @@ func TestAtKeyframes(t *testing.T) {
 	expectPrinted(t, "@-o-keyframes name {}", "@-o-keyframes name {\n}\n")
 
 	expectParseError(t, "@keyframes {}", "<stdin>: WARNING: Expected identifier but found \"{\"\n")
-	expectParseError(t, "@keyframes 'name' {}", "<stdin>: WARNING: Expected identifier but found \"'name'\"\n")
 	expectParseError(t, "@keyframes name { 0% 100% {} }", "<stdin>: WARNING: Expected \",\" but found \"100%\"\n")
 	expectParseError(t, "@keyframes name { {} 0% {} }", "<stdin>: WARNING: Expected percentage but found \"{\"\n")
 	expectParseError(t, "@keyframes name { 100 {} }", "<stdin>: WARNING: Expected percentage but found \"100\"\n")
