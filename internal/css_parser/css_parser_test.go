@@ -1013,10 +1013,15 @@ func TestLegalComment(t *testing.T) {
 func TestAtKeyframes(t *testing.T) {
 	expectPrinted(t, "@keyframes {}", "@keyframes \"\" {\n}\n")
 	expectPrinted(t, "@keyframes name{}", "@keyframes name {\n}\n")
-	// string name valid
+	// string name valid to convert into ident
 	expectPrinted(t, `@keyframes "name"{}`, "@keyframes \"name\" {\n}\n")
 	expectPrintedMinify(t, `@keyframes "name"{}`, "@keyframes \"name\"{}")
 	expectPrintedMangleMinify(t, `@keyframes "name"{}`, "@keyframes name{}")
+
+	// string name valid to convert into ident but need escape
+	expectPrinted(t, `@keyframes "foo bar"{}`, "@keyframes \"foo bar\" {\n}\n")
+	expectPrintedMinify(t, `@keyframes "foo bar"{}`, "@keyframes \"foo bar\"{}")
+	expectPrintedMangleMinify(t, `@keyframes "foo bar"{}`, "@keyframes foo\\ bar{}")
 
 	// string name that doesn't allow to convert to ident
 	for cssWideKeywords := range cssWideAndReservedKeywords {
