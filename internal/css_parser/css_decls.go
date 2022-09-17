@@ -237,6 +237,15 @@ func (p *parser) processDeclarations(rules []css_ast.Rule) []css_ast.Rule {
 			if p.options.MinifySyntax {
 				borderRadius.mangleCorner(rules, decl, i, p.options.MinifyWhitespace, borderRadiusBottomLeft)
 			}
+
+		case css_ast.DAnimation,
+			css_ast.DAnimationName:
+			mustBeString := cssWideAndReservedKeywords[decl.Value[0].Text] || decl.Value[0].Text == "none"
+			if p.options.MinifySyntax {
+				if decl.Value[0].Kind == css_lexer.TString && !mustBeString {
+					decl.Value[0].Kind = css_lexer.TIdent
+				}
+			}
 		}
 	}
 

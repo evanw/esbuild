@@ -1898,3 +1898,20 @@ func TestPropertyTypoWarning(t *testing.T) {
 	// Short names should not be corrected ("alt" is actually valid in WebKit, and should not become "all")
 	expectParseError(t, "a { alt: \"\" }", "")
 }
+
+func TestAnimationName(t *testing.T) {
+	tests := []string{"animation", "animation-name"}
+
+	for _, key := range tests {
+		expectPrinted(t, "a { "+key+": name }", "a {\n  "+key+": name;\n}\n")
+		expectPrinted(t, "a { "+key+": \"name\" }", "a {\n  "+key+": \"name\";\n}\n")
+		expectPrinted(t, "a { "+key+": \"foo bar\" }", "a {\n  "+key+": \"foo bar\";\n}\n")
+
+		expectPrintedMangleMinify(t, "a { "+key+": \"name\" }", "a{"+key+":name}")
+		expectPrintedMangleMinify(t, "a { "+key+": \"foo bar\" }", "a{"+key+":foo\\ bar}")
+		for cssWideKeyword := range cssWideAndReservedKeywords {
+			expectPrintedMangleMinify(t, "a { "+key+": \""+cssWideKeyword+"\" }", "a{"+key+":\""+cssWideKeyword+"\"}")
+		}
+		expectPrintedMangleMinify(t, "a { "+key+": \"none\" }", "a{"+key+":\"none\"}")
+	}
+}
