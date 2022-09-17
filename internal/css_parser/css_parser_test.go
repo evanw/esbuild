@@ -1029,6 +1029,9 @@ func TestAtKeyframes(t *testing.T) {
 		expectPrintedMinify(t, `@keyframes "`+cssWideKeywords+`"{}`, "@keyframes \""+cssWideKeywords+"\"{}")
 		expectPrintedMangleMinify(t, `@keyframes "`+cssWideKeywords+`"{}`, "@keyframes \""+cssWideKeywords+"\"{}")
 	}
+	expectPrinted(t, `@keyframes "none"{}`, "@keyframes \"none\" {\n}\n")
+	expectPrintedMinify(t, `@keyframes "none"{}`, "@keyframes \"none\"{}")
+	expectPrintedMangleMinify(t, `@keyframes "none"{}`, "@keyframes \"none\"{}")
 
 	expectPrinted(t, "@keyframes name {}", "@keyframes name {\n}\n")
 	expectPrinted(t, "@keyframes name{0%,50%{color:red}25%,75%{color:blue}}",
@@ -1050,6 +1053,7 @@ func TestAtKeyframes(t *testing.T) {
 	expectPrinted(t, "@-ms-keyframes name {}", "@-ms-keyframes name {\n}\n")
 	expectPrinted(t, "@-o-keyframes name {}", "@-o-keyframes name {\n}\n")
 
+	expectParseError(t, "@keyframes none{}", "<stdin>: WARNING: Expected identifier but found `none` which is invalid in this context\n")
 	expectParseError(t, "@keyframes {}", "<stdin>: WARNING: Expected identifier but found \"{\"\n")
 	expectParseError(t, "@keyframes name { 0% 100% {} }", "<stdin>: WARNING: Expected \",\" but found \"100%\"\n")
 	expectParseError(t, "@keyframes name { {} 0% {} }", "<stdin>: WARNING: Expected percentage but found \"{\"\n")

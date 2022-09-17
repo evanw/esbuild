@@ -832,11 +832,15 @@ abortRuleParser:
 
 		if p.peek(css_lexer.TIdent) {
 			name = p.decoded()
+			if name == "none" {
+				p.log.AddID(logger.MsgID_CSS_CSSSyntaxError, logger.Warning, &p.tracker, atRange, "Expected identifier but found `none` which is invalid in this context")
+				p.prevError = p.current().Range.Loc
+			}
 			p.advance()
 			isStringName = false
 		} else if p.peek(css_lexer.TString) {
 			name = p.decoded()
-			isStringName = !p.options.MinifySyntax || cssWideAndReservedKeywords[name]
+			isStringName = !p.options.MinifySyntax || cssWideAndReservedKeywords[name] || name == "none"
 			p.advance()
 		} else if !(p.expect(css_lexer.TIdent) && p.expect(css_lexer.TString)) && !p.peek(css_lexer.TOpenBrace) {
 			// Consider string names a syntax error even though they are allowed by
