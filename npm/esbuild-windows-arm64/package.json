@@ -1,6 +1,6 @@
 {
   "name": "esbuild-windows-arm64",
-  "version": "0.15.7",
+  "version": "0.15.8",
   "description": "The Windows ARM 64-bit binary for esbuild, a JavaScript bundler.",
   "repository": "https://github.com/evanw/esbuild",
   "license": "MIT",

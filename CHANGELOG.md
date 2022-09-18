@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.15.8
 
 * Fix JSX name collision edge case ([#2534](https://github.com/evanw/esbuild/issues/2534))
 
