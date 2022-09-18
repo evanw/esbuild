@@ -156,6 +156,16 @@ func expectPrintedJSX(t *testing.T, contents string, expected string) {
 	})
 }
 
+func expectPrintedJSXSideEffects(t *testing.T, contents string, expected string) {
+	t.Helper()
+	expectPrintedCommon(t, contents, expected, config.Options{
+		JSX: config.JSXOptions{
+			Parse:       true,
+			SideEffects: true,
+		},
+	})
+}
+
 func expectPrintedMangleJSX(t *testing.T, contents string, expected string) {
 	t.Helper()
 	expectPrintedCommon(t, contents, expected, config.Options{
@@ -170,6 +180,7 @@ type JSXAutomaticTestOptions struct {
 	Development            bool
 	ImportSource           string
 	OmitJSXRuntimeForTests bool
+	SideEffects            bool
 }
 
 func expectParseErrorJSXAutomatic(t *testing.T, options JSXAutomaticTestOptions, contents string, expected string) {
@@ -181,6 +192,7 @@ func expectParseErrorJSXAutomatic(t *testing.T, options JSXAutomaticTestOptions,
 			Parse:            true,
 			Development:      options.Development,
 			ImportSource:     options.ImportSource,
+			SideEffects:      options.SideEffects,
 		},
 	})
 }
@@ -194,6 +206,7 @@ func expectPrintedJSXAutomatic(t *testing.T, options JSXAutomaticTestOptions, co
 			Parse:            true,
 			Development:      options.Development,
 			ImportSource:     options.ImportSource,
+			SideEffects:      options.SideEffects,
 		},
 	})
 }
@@ -4813,6 +4826,11 @@ NOTE: Both "__source" and "__self" are set automatically by esbuild when using R
 	expectPrintedJSXAutomatic(t, pri, "<div/>", "import { jsx } from \"my-jsx-lib/jsx-runtime\";\n/* @__PURE__ */ jsx(\"div\", {});\n")
 	expectPrintedJSXAutomatic(t, pri, "<div {...props} key=\"key\" />", "import { createElement } from \"my-jsx-lib\";\n/* @__PURE__ */ createElement(\"div\", {\n  ...props,\n  key: \"key\"\n});\n")
 
+	// Impure JSX call expressions
+	pi := JSXAutomaticTestOptions{SideEffects: true, ImportSource: "my-jsx-lib"}
+	expectPrintedJSXAutomatic(t, pi, "<a/>", "import { jsx } from \"my-jsx-lib/jsx-runtime\";\njsx(\"a\", {});\n")
+	expectPrintedJSXAutomatic(t, pi, "<></>", "import { Fragment, jsx } from \"my-jsx-lib/jsx-runtime\";\njsx(Fragment, {});\n")
+
 	// Dev, without runtime imports
 	d := JSXAutomaticTestOptions{Development: true, OmitJSXRuntimeForTests: true}
 	expectPrintedJSXAutomatic(t, d, "<div>></div>", "/* @__PURE__ */ jsxDEV(\"div\", {\n  children: \">\"\n}, void 0, false, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 1\n}, this);\n")
@@ -4928,6 +4946,14 @@ NOTE: You can enable React's "automatic" JSX transform for this file by using a 
 
 	expectPrintedJSX(t, "// @jsxRuntime automatic @jsxFrag f\n<></>", "import { Fragment, jsx } from \"react/jsx-runtime\";\n/* @__PURE__ */ jsx(Fragment, {});\n")
 	expectParseErrorJSX(t, "// @jsxRuntime automatic @jsxFrag f\n<></>", "<stdin>: WARNING: The JSX fragment cannot be set when using React's \"automatic\" JSX transform\n")
+}
+
+func TestJSXSideEffects(t *testing.T) {
+	expectPrintedJSX(t, "<a/>", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
+	expectPrintedJSX(t, "<></>", "/* @__PURE__ */ React.createElement(React.Fragment, null);\n")
+
+	expectPrintedJSXSideEffects(t, "<a/>", "React.createElement(\"a\", null);\n")
+	expectPrintedJSXSideEffects(t, "<></>", "React.createElement(React.Fragment, null);\n")
 }
 
 func TestPreserveOptionalChainParentheses(t *testing.T) {

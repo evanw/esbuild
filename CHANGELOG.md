@@ -99,6 +99,12 @@
 
     This release changes esbuild's parsing of `@keyframes` to now consider this case to be an unrecognized CSS rule. That means it will be passed through unmodified (so you can now use esbuild to bundle this Firefox-specific CSS) but the CSS will not be pretty-printed or minified. I don't think it makes sense for esbuild to have special code to handle this Firefox-specific syntax at this time. This decision can be revisited in the future if other browsers add support for this feature.
 
+* Add the `--jsx-side-effects` API option ([#2539](https://github.com/evanw/esbuild/issues/2539), [#2546](https://github.com/evanw/esbuild/pull/2546))
+
+    By default esbuild assumes that JSX expressions are side-effect free, which means they are annoated with `/* @__PURE__ */` comments and are removed during bundling when they are unused. This follows the common use of JSX for virtual DOM and applies to the vast majority of JSX libraries. However, some people have written JSX libraries that don't have this property. JSX expressions can have arbitrary side effects and can't be removed. If you are using such a library, you can now pass `--jsx-side-effects` to tell esbuild that JSX expressions have side effects so it won't remove them when they are unused.
+
+    This feature was contributed by [@rtsao](https://github.com/rtsao).
+
 ## 0.15.7
 
 * Add `--watch=forever` to allow esbuild to never terminate ([#1511](https://github.com/evanw/esbuild/issues/1511), [#1885](https://github.com/evanw/esbuild/issues/1885))

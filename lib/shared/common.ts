@@ -145,6 +145,7 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   let jsxFragment = getFlag(options, keys, 'jsxFragment', mustBeString);
   let jsxImportSource = getFlag(options, keys, 'jsxImportSource', mustBeString);
   let jsxDev = getFlag(options, keys, 'jsxDev', mustBeBoolean);
+  let jsxSideEffects = getFlag(options, keys, 'jsxSideEffects', mustBeBoolean);
   let define = getFlag(options, keys, 'define', mustBeObject);
   let logOverride = getFlag(options, keys, 'logOverride', mustBeObject);
   let supported = getFlag(options, keys, 'supported', mustBeObject);
@@ -180,6 +181,7 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   if (jsxFragment) flags.push(`--jsx-fragment=${jsxFragment}`);
   if (jsxImportSource) flags.push(`--jsx-import-source=${jsxImportSource}`);
   if (jsxDev) flags.push(`--jsx-dev`);
+  if (jsxSideEffects) flags.push(`--jsx-side-effects`);
 
   if (define) {
     for (let key in define) {
