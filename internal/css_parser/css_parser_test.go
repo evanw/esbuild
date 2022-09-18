@@ -1913,5 +1913,6 @@ func TestAnimationName(t *testing.T) {
 			expectPrintedMangleMinify(t, "a { "+key+": \""+cssWideKeyword+"\" }", "a{"+key+":\""+cssWideKeyword+"\"}")
 		}
 		expectPrintedMangleMinify(t, "a { "+key+": \"none\" }", "a{"+key+":\"none\"}")
+		expectPrintedMangleMinify(t, "a { "+key+": \"None\" }", "a{"+key+":\"None\"}")
 	}
 }

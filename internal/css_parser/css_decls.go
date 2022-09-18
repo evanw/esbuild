@@ -4,6 +4,7 @@ import (
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/css_ast"
 	"github.com/evanw/esbuild/internal/css_lexer"
+	"strings"
 )
 
 func (p *parser) commaToken() css_ast.Token {
@@ -240,7 +241,8 @@ func (p *parser) processDeclarations(rules []css_ast.Rule) []css_ast.Rule {
 
 		case css_ast.DAnimation,
 			css_ast.DAnimationName:
-			mustBeString := cssWideAndReservedKeywords[decl.Value[0].Text] || decl.Value[0].Text == "none"
+			text := strings.ToLower(decl.Value[0].Text)
+			mustBeString := cssWideAndReservedKeywords[text] || text == "none"
 			if p.options.MinifySyntax {
 				if decl.Value[0].Kind == css_lexer.TString && !mustBeString {
 					decl.Value[0].Kind = css_lexer.TIdent
