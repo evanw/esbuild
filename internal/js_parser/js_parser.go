@@ -211,7 +211,6 @@ type parser struct {
 	regExpRef                js_ast.Ref
 	runtimePublicFieldImport js_ast.Ref
 	superCtorRef             js_ast.Ref
-	jsxDevRef                js_ast.Ref
 
 	// Imports from "react/jsx-runtime" and "react", respectively.
 	// (Or whatever was specified in the "importSource" option)
@@ -337,12 +336,12 @@ type parser struct {
 	// since TypeScript requires numeric constant folding in enum definitions.
 	shouldFoldNumericConstants bool
 
-	allowIn                  bool
-	allowPrivateIdentifiers  bool
-	hasTopLevelReturn        bool
-	latestReturnHadSemicolon bool
-	warnedThisIsUndefined    bool
-	isControlFlowDead        bool
+	allowIn                     bool
+	allowPrivateIdentifiers     bool
+	hasTopLevelReturn           bool
+	latestReturnHadSemicolon    bool
+	messageAboutThisIsUndefined bool
+	isControlFlowDead           bool
 }
 
 type stringLocalForYarnPnP struct {
@@ -681,7 +680,7 @@ type fnOnlyDataVisit struct {
 	//     ...
 	//   };
 	//
-	silenceWarningAboutThisBeingUndefined bool
+	silenceMessageAboutThisBeingUndefined bool
 }
 
 const bloomFilterSize = 251
@@ -9269,16 +9268,6 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			for _, item := range *s.Items {
 				p.recordDeclaredSymbol(item.Name.Ref)
 			}
-
-			// Recognize code like this: "import { jsxDEV as _jsxDEV } from 'react/jsx-dev-runtime'"
-			if p.importRecords[s.ImportRecordIndex].Path.Text == "react/jsx-dev-runtime" {
-				for _, item := range *s.Items {
-					if item.Alias == "jsxDEV" {
-						p.jsxDevRef = item.Name.Ref
-						break
-					}
-				}
-			}
 		}
 
 	case *js_ast.SExportClause:
@@ -11007,7 +10996,7 @@ func (p *parser) instantiateDefineExpr(loc logger.Loc, expr config.DefineExpr, o
 		value = js_ast.Expr{Loc: loc, Data: js_ast.EUndefinedShared}
 
 	case "this":
-		if thisValue, ok := p.valueForThis(loc, false, js_ast.AssignTargetNone, false, false); ok {
+		if thisValue, ok := p.valueForThis(loc, false /* shouldLog */, js_ast.AssignTargetNone, false, false); ok {
 			value = thisValue
 		} else {
 			value = js_ast.Expr{Loc: loc, Data: js_ast.EThisShared}
@@ -11645,7 +11634,7 @@ func (p *parser) visitExpr(expr js_ast.Expr) js_ast.Expr {
 
 func (p *parser) valueForThis(
 	loc logger.Loc,
-	shouldWarn bool,
+	shouldLog bool,
 	assignTarget js_ast.AssignTarget,
 	isCallTarget bool,
 	isDeleteTarget bool,
@@ -11672,14 +11661,9 @@ func (p *parser) valueForThis(
 		// Otherwise, replace top-level "this" with either "undefined" or "exports"
 		if p.isFileConsideredToHaveESMExports {
 			// Warn about "this" becoming undefined, but only once per file
-			if shouldWarn && !p.warnedThisIsUndefined && !p.fnOnlyDataVisit.silenceWarningAboutThisBeingUndefined {
-				p.warnedThisIsUndefined = true
-
-				// Show the warning as a debug message if we're in "node_modules"
-				kind := logger.Warning
-				if p.suppressWarningsAboutWeirdCode {
-					kind = logger.Debug
-				}
+			if shouldLog && !p.messageAboutThisIsUndefined && !p.fnOnlyDataVisit.silenceMessageAboutThisBeingUndefined {
+				p.messageAboutThisIsUndefined = true
+				kind := logger.Debug
 				data := p.tracker.MsgData(js_lexer.RangeOfIdentifier(p.source, loc),
 					"Top-level \"this\" will be replaced with undefined since this file is an ECMAScript module")
 				data.Location.Suggestion = "undefined"
@@ -12103,7 +12087,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		isDeleteTarget := e == p.deleteTarget
 		isCallTarget := e == p.callTarget
 
-		if value, ok := p.valueForThis(expr.Loc, true /* shouldWarn */, in.assignTarget, isDeleteTarget, isCallTarget); ok {
+		if value, ok := p.valueForThis(expr.Loc, true /* shouldLog */, in.assignTarget, isDeleteTarget, isCallTarget); ok {
 			return value, exprOut{}
 		}
 
@@ -12587,9 +12571,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		isTemplateTag := e == p.templateTag
 		isStmtExpr := e == p.stmtExprValue
 		wasAnonymousNamedExpr := p.isAnonymousNamedExpr(e.Right)
-		oldSilenceWarningAboutThisBeingUndefined := p.fnOnlyDataVisit.silenceWarningAboutThisBeingUndefined
+		oldSilenceWarningAboutThisBeingUndefined := p.fnOnlyDataVisit.silenceMessageAboutThisBeingUndefined
 		if _, ok := e.Left.Data.(*js_ast.EThis); ok && e.Op == js_ast.BinOpLogicalAnd {
-			p.fnOnlyDataVisit.silenceWarningAboutThisBeingUndefined = true
+			p.fnOnlyDataVisit.silenceMessageAboutThisBeingUndefined = true
 		}
 		e.Left, _ = p.visitExprInOut(e.Left, exprIn{
 			assignTarget:               e.Op.BinaryAssignTarget(),
@@ -12639,7 +12623,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		default:
 			e.Right = p.visitExpr(e.Right)
 		}
-		p.fnOnlyDataVisit.silenceWarningAboutThisBeingUndefined = oldSilenceWarningAboutThisBeingUndefined
+		p.fnOnlyDataVisit.silenceMessageAboutThisBeingUndefined = oldSilenceWarningAboutThisBeingUndefined
 
 		// Always put constants consistently on the same side for equality
 		// comparisons to help improve compression. In theory, dictionary-based
@@ -14126,25 +14110,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 		// Visit the arguments
 		for i, arg := range e.Args {
-			if i == 5 && len(e.Args) == 6 {
-				// Hack: Silence the "this is undefined" warning when running esbuild on
-				// JSX that has been specifically compiled in the style of React 17+:
-				//
-				//   import { jsxDEV as _jsxDEV } from "react/jsx-dev-runtime";
-				//   export var Foo = () => _jsxDEV("div", {}, void 0, false, { fileName: "Foo.tsx", lineNumber: 1, columnNumber: 23 }, this);
-				//
-				oldSilenceWarningAboutThisBeingUndefined := p.fnOnlyDataVisit.silenceWarningAboutThisBeingUndefined
-				if _, ok := arg.Data.(*js_ast.EThis); ok {
-					if id, ok := e.Target.Data.(*js_ast.EImportIdentifier); ok && id.Ref == p.jsxDevRef {
-						p.fnOnlyDataVisit.silenceWarningAboutThisBeingUndefined = true
-					}
-				}
-				arg = p.visitExpr(arg)
-				p.fnOnlyDataVisit.silenceWarningAboutThisBeingUndefined = oldSilenceWarningAboutThisBeingUndefined
-			} else {
-				arg = p.visitExpr(arg)
-			}
-
+			arg = p.visitExpr(arg)
 			if _, ok := arg.Data.(*js_ast.ESpread); ok {
 				hasSpread = true
 			}
@@ -15775,7 +15741,6 @@ func newParser(log logger.Log, source logger.Source, lexer js_lexer.Lexer, optio
 		importMetaRef:            js_ast.InvalidRef,
 		runtimePublicFieldImport: js_ast.InvalidRef,
 		superCtorRef:             js_ast.InvalidRef,
-		jsxDevRef:                js_ast.InvalidRef,
 
 		// For lowering private methods
 		weakMapRef:     js_ast.InvalidRef,
