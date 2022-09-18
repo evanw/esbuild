@@ -211,7 +211,6 @@ type parser struct {
 	regExpRef                js_ast.Ref
 	runtimePublicFieldImport js_ast.Ref
 	superCtorRef             js_ast.Ref
-	jsxDevRef                js_ast.Ref
 
 	// Imports from "react/jsx-runtime" and "react", respectively.
 	// (Or whatever was specified in the "importSource" option)
@@ -337,12 +336,12 @@ type parser struct {
 	// since TypeScript requires numeric constant folding in enum definitions.
 	shouldFoldNumericConstants bool
 
-	allowIn                  bool
-	allowPrivateIdentifiers  bool
-	hasTopLevelReturn        bool
-	latestReturnHadSemicolon bool
-	warnedThisIsUndefined    bool
-	isControlFlowDead        bool
+	allowIn                     bool
+	allowPrivateIdentifiers     bool
+	hasTopLevelReturn           bool
+	latestReturnHadSemicolon    bool
+	messageAboutThisIsUndefined bool
+	isControlFlowDead           bool
 }
 
 type stringLocalForYarnPnP struct {
@@ -681,7 +680,7 @@ type fnOnlyDataVisit struct {
 	//     ...
 	//   };
 	//
-	silenceWarningAboutThisBeingUndefined bool
+	silenceMessageAboutThisBeingUndefined bool
 }
 
 const bloomFilterSize = 251
@@ -9269,16 +9268,6 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			for _, item := range *s.Items {
 				p.recordDeclaredSymbol(item.Name.Ref)
 			}
-
-			// Recognize code like this: "import { jsxDEV as _jsxDEV } from 'react/jsx-dev-runtime'"
-			if p.importRecords[s.ImportRecordIndex].Path.Text == "react/jsx-dev-runtime" {
-				for _, item := range *s.Items {
-					if item.Alias == "jsxDEV" {
-						p.jsxDevRef = item.Name.Ref
-						break
-					}
-				}
-			}
 		}
 
 	case *js_ast.SExportClause:
@@ -11007,7 +10996,7 @@ func (p *parser) instantiateDefineExpr(loc logger.Loc, expr config.DefineExpr, o
 		value = js_ast.Expr{Loc: loc, Data: js_ast.EUndefinedShared}
 
 	case "this":
-		if thisValue, ok := p.valueForThis(loc, false, js_ast.AssignTargetNone, false, false); ok {
+		if thisValue, ok := p.valueForThis(loc, false /* shouldLog */, js_ast.AssignTargetNone, false, false); ok {
 			value = thisValue
 		} else {
 			value = js_ast.Expr{Loc: loc, Data: js_ast.EThisShared}
@@ -11645,7 +11634,7 @@ func (p *parser) visitExpr(expr js_ast.Expr) js_ast.Expr {
 
 func (p *parser) valueForThis(
 	loc logger.Loc,
-	shouldWarn bool,
+	shouldLog bool,
 	assignTarget js_ast.AssignTarget,
 	isCallTarget bool,
 	isDeleteTarget bool,
@@ -11672,14 +11661,9 @@ func (p *parser) valueForThis(
 		// Otherwise, replace top-level "this" with either "undefined" or "exports"
 		if p.isFileConsideredToHaveESMExports {
 			// Warn about "this" becoming undefined, but only once per file
-			if shouldWarn && !p.warnedThisIsUndefined && !p.fnOnlyDataVisit.silenceWarningAboutThisBeingUndefined {
-				p.warnedThisIsUndefined = true
-
-				// Show the warning as a debug message if we're in "node_modules"
-				kind := logger.Warning
-				if p.suppressWarningsAboutWeirdCode {
-					kind = logger.Debug
-				}
+			if shouldLog && !p.messageAboutThisIsUndefined && !p.fnOnlyDataVisit.silenceMessageAboutThisBeingUndefined {
+				p.messageAboutThisIsUndefined = true
+				kind := logger.Debug
 				data := p.tracker.MsgData(js_lexer.RangeOfIdentifier(p.source, loc),
 					"Top-level \"this\" will be replaced with undefined since this file is an ECMAScript module")
 				data.Location.Suggestion = "undefined"
@@ -11884,6 +11868,49 @@ func (p *parser) mangleTemplate(loc logger.Loc, e *js_ast.ETemplate) js_ast.Expr
 	}
 
 	return js_ast.Expr{Loc: loc, Data: e}
+}
+
+func (p *parser) mangleObjectSpread(properties []js_ast.Property) []js_ast.Property {
+	var result []js_ast.Property
+	for _, property := range properties {
+		if property.Kind == js_ast.PropertySpread {
+			switch v := property.ValueOrNil.Data.(type) {
+			case *js_ast.EBoolean, *js_ast.ENull, *js_ast.EUndefined, *js_ast.ENumber,
+				*js_ast.EBigInt, *js_ast.ERegExp, *js_ast.EFunction, *js_ast.EArrow:
+				// This value is ignored because it doesn't have any of its own properties
+				continue
+
+			case *js_ast.EObject:
+				for i, p := range v.Properties {
+					// Getters are evaluated at iteration time. The property
+					// descriptor is not inlined into the caller. Since we are not
+					// evaluating code at compile time, just bail if we hit one
+					// and preserve the spread with the remaining properties.
+					if p.Kind == js_ast.PropertyGet || p.Kind == js_ast.PropertySet {
+						v.Properties = v.Properties[i:]
+						result = append(result, property)
+						break
+					}
+
+					// Also bail if we hit a verbatim "__proto__" key. This will
+					// actually set the prototype of the object being spread so
+					// inlining it is not correct.
+					if p.Kind == js_ast.PropertyNormal && !p.Flags.Has(js_ast.PropertyIsComputed) && !p.Flags.Has(js_ast.PropertyIsMethod) {
+						if str, ok := p.Key.Data.(*js_ast.EString); ok && helpers.UTF16EqualsString(str.Value, "__proto__") {
+							v.Properties = v.Properties[i:]
+							result = append(result, property)
+							break
+						}
+					}
+
+					result = append(result, p)
+				}
+				continue
+			}
+		}
+		result = append(result, property)
+	}
+	return result
 }
 
 func containsClosingScriptTag(text string) bool {
@@ -12103,7 +12130,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		isDeleteTarget := e == p.deleteTarget
 		isCallTarget := e == p.callTarget
 
-		if value, ok := p.valueForThis(expr.Loc, true /* shouldWarn */, in.assignTarget, isDeleteTarget, isCallTarget); ok {
+		if value, ok := p.valueForThis(expr.Loc, true /* shouldLog */, in.assignTarget, isDeleteTarget, isCallTarget); ok {
 			return value, exprOut{}
 		}
 
@@ -12272,8 +12299,11 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 		// Visit properties
+		hasSpread := false
 		for i, property := range e.Properties {
-			if property.Kind != js_ast.PropertySpread {
+			if property.Kind == js_ast.PropertySpread {
+				hasSpread = true
+			} else {
 				if mangled, ok := property.Key.Data.(*js_ast.EMangledProp); ok {
 					mangled.Ref = p.symbolForMangledProp(p.loadNameFromRef(mangled.Ref))
 				} else {
@@ -12287,6 +12317,11 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				property.InitializerOrNil = p.visitExpr(property.InitializerOrNil)
 			}
 			e.Properties[i] = property
+		}
+
+		// "{a, ...{b, c}, d}" => "{a, b, c, d}"
+		if p.options.minifySyntax && hasSpread {
+			e.Properties = p.mangleObjectSpread(e.Properties)
 		}
 
 		// Visit children
@@ -12587,9 +12622,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		isTemplateTag := e == p.templateTag
 		isStmtExpr := e == p.stmtExprValue
 		wasAnonymousNamedExpr := p.isAnonymousNamedExpr(e.Right)
-		oldSilenceWarningAboutThisBeingUndefined := p.fnOnlyDataVisit.silenceWarningAboutThisBeingUndefined
+		oldSilenceWarningAboutThisBeingUndefined := p.fnOnlyDataVisit.silenceMessageAboutThisBeingUndefined
 		if _, ok := e.Left.Data.(*js_ast.EThis); ok && e.Op == js_ast.BinOpLogicalAnd {
-			p.fnOnlyDataVisit.silenceWarningAboutThisBeingUndefined = true
+			p.fnOnlyDataVisit.silenceMessageAboutThisBeingUndefined = true
 		}
 		e.Left, _ = p.visitExprInOut(e.Left, exprIn{
 			assignTarget:               e.Op.BinaryAssignTarget(),
@@ -12639,7 +12674,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		default:
 			e.Right = p.visitExpr(e.Right)
 		}
-		p.fnOnlyDataVisit.silenceWarningAboutThisBeingUndefined = oldSilenceWarningAboutThisBeingUndefined
+		p.fnOnlyDataVisit.silenceMessageAboutThisBeingUndefined = oldSilenceWarningAboutThisBeingUndefined
 
 		// Always put constants consistently on the same side for equality
 		// comparisons to help improve compression. In theory, dictionary-based
@@ -13818,46 +13853,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		if in.assignTarget == js_ast.AssignTargetNone {
 			// "{a, ...{b, c}, d}" => "{a, b, c, d}"
 			if p.options.minifySyntax && hasSpread {
-				var properties []js_ast.Property
-				for _, property := range e.Properties {
-					if property.Kind == js_ast.PropertySpread {
-						switch v := property.ValueOrNil.Data.(type) {
-						case *js_ast.EBoolean, *js_ast.ENull, *js_ast.EUndefined, *js_ast.ENumber,
-							*js_ast.EBigInt, *js_ast.ERegExp, *js_ast.EFunction, *js_ast.EArrow:
-							// This value is ignored because it doesn't have any of its own properties
-							continue
-
-						case *js_ast.EObject:
-							for i, p := range v.Properties {
-								// Getters are evaluated at iteration time. The property
-								// descriptor is not inlined into the caller. Since we are not
-								// evaluating code at compile time, just bail if we hit one
-								// and preserve the spread with the remaining properties.
-								if p.Kind == js_ast.PropertyGet || p.Kind == js_ast.PropertySet {
-									v.Properties = v.Properties[i:]
-									properties = append(properties, property)
-									break
-								}
-
-								// Also bail if we hit a verbatim "__proto__" key. This will
-								// actually set the prototype of the object being spread so
-								// inlining it is not correct.
-								if p.Kind == js_ast.PropertyNormal && !p.Flags.Has(js_ast.PropertyIsComputed) && !p.Flags.Has(js_ast.PropertyIsMethod) {
-									if str, ok := p.Key.Data.(*js_ast.EString); ok && helpers.UTF16EqualsString(str.Value, "__proto__") {
-										v.Properties = v.Properties[i:]
-										properties = append(properties, property)
-										break
-									}
-								}
-
-								properties = append(properties, p)
-							}
-							continue
-						}
-					}
-					properties = append(properties, property)
-				}
-				e.Properties = properties
+				e.Properties = p.mangleObjectSpread(e.Properties)
 			}
 
 			// Object expressions represent both object literals and binding patterns.
@@ -14126,25 +14122,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 		// Visit the arguments
 		for i, arg := range e.Args {
-			if i == 5 && len(e.Args) == 6 {
-				// Hack: Silence the "this is undefined" warning when running esbuild on
-				// JSX that has been specifically compiled in the style of React 17+:
-				//
-				//   import { jsxDEV as _jsxDEV } from "react/jsx-dev-runtime";
-				//   export var Foo = () => _jsxDEV("div", {}, void 0, false, { fileName: "Foo.tsx", lineNumber: 1, columnNumber: 23 }, this);
-				//
-				oldSilenceWarningAboutThisBeingUndefined := p.fnOnlyDataVisit.silenceWarningAboutThisBeingUndefined
-				if _, ok := arg.Data.(*js_ast.EThis); ok {
-					if id, ok := e.Target.Data.(*js_ast.EImportIdentifier); ok && id.Ref == p.jsxDevRef {
-						p.fnOnlyDataVisit.silenceWarningAboutThisBeingUndefined = true
-					}
-				}
-				arg = p.visitExpr(arg)
-				p.fnOnlyDataVisit.silenceWarningAboutThisBeingUndefined = oldSilenceWarningAboutThisBeingUndefined
-			} else {
-				arg = p.visitExpr(arg)
-			}
-
+			arg = p.visitExpr(arg)
 			if _, ok := arg.Data.(*js_ast.ESpread); ok {
 				hasSpread = true
 			}
@@ -15775,7 +15753,6 @@ func newParser(log logger.Log, source logger.Source, lexer js_lexer.Lexer, optio
 		importMetaRef:            js_ast.InvalidRef,
 		runtimePublicFieldImport: js_ast.InvalidRef,
 		superCtorRef:             js_ast.InvalidRef,
-		jsxDevRef:                js_ast.InvalidRef,
 
 		// For lowering private methods
 		weakMapRef:     js_ast.InvalidRef,

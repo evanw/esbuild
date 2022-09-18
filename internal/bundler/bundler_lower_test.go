@@ -876,7 +876,8 @@ func TestLowerAsyncThis2016ES6(t *testing.T) {
 			UnsupportedJSFeatures: es(2016),
 			AbsOutputFile:         "/out.js",
 		},
-		expectedScanLog: `entry.js: WARNING: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+		debugLogs: true,
+		expectedScanLog: `entry.js: DEBUG: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
 entry.js: NOTE: This file is considered to be an ECMAScript module because of the "export" keyword here:
 `,
 	})

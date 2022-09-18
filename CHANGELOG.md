@@ -93,6 +93,12 @@
 
     However, the compilation had a subtle bug where the automatically-generated function-level symbols for multible hoisted block-level function declarations in the same block a sloppy-mode context were generated in a random order if the output was in strict mode, which could be the case if TypeScript's `alwaysStrict` setting was set to true. This lead to non-determinism in the output as the minifier would randomly exchange the generated names for these symbols on different runs. This bug has been fixed by sorting the keys of the unordered map before iterating over them.
 
+* Fix parsing of `@keyframes` with string identifiers ([#2555](https://github.com/evanw/esbuild/issues/2555))
+
+    Firefox supports `@keyframes` with string identifier names. Previously this was treated as a syntax error by esbuild as it doesn't work in any other browser. The specification allows for this however, so it's technically not a syntax error (even though it would be unwise to use this feature at the moment). There was also a bug where esbuild would remove the identifier name in this case as the syntax wasn't recognized.
+
+    This release changes esbuild's parsing of `@keyframes` to now consider this case to be an unrecognized CSS rule. That means it will be passed through unmodified (so you can now use esbuild to bundle this Firefox-specific CSS) but the CSS will not be pretty-printed or minified. I don't think it makes sense for esbuild to have special code to handle this Firefox-specific syntax at this time. This decision can be revisited in the future if other browsers add support for this feature.
+
 ## 0.15.7
 
 * Add `--watch=forever` to allow esbuild to never terminate ([#1511](https://github.com/evanw/esbuild/issues/1511), [#1885](https://github.com/evanw/esbuild/issues/1885))

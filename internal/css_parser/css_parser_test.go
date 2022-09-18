@@ -1011,7 +1011,8 @@ func TestLegalComment(t *testing.T) {
 }
 
 func TestAtKeyframes(t *testing.T) {
-	expectPrinted(t, "@keyframes {}", "@keyframes \"\" {\n}\n")
+	expectPrinted(t, "@keyframes {}", "@keyframes {}\n")
+	expectPrinted(t, "@keyframes 'name' {}", "@keyframes \"name\" {}\n")
 	expectPrinted(t, "@keyframes name{}", "@keyframes name {\n}\n")
 	expectPrinted(t, "@keyframes name {}", "@keyframes name {\n}\n")
 	expectPrinted(t, "@keyframes name{0%,50%{color:red}25%,75%{color:blue}}",
@@ -1034,7 +1035,7 @@ func TestAtKeyframes(t *testing.T) {
 	expectPrinted(t, "@-o-keyframes name {}", "@-o-keyframes name {\n}\n")
 
 	expectParseError(t, "@keyframes {}", "<stdin>: WARNING: Expected identifier but found \"{\"\n")
-	expectParseError(t, "@keyframes 'name' {}", "<stdin>: WARNING: Expected identifier but found \"'name'\"\n")
+	expectParseError(t, "@keyframes 'name' {}", "") // This is allowed as it's technically possible to use in Firefox (but in no other browser)
 	expectParseError(t, "@keyframes name { 0% 100% {} }", "<stdin>: WARNING: Expected \",\" but found \"100%\"\n")
 	expectParseError(t, "@keyframes name { {} 0% {} }", "<stdin>: WARNING: Expected percentage but found \"{\"\n")
 	expectParseError(t, "@keyframes name { 100 {} }", "<stdin>: WARNING: Expected percentage but found \"100\"\n")
