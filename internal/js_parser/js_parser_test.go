@@ -156,6 +156,16 @@ func expectPrintedJSX(t *testing.T, contents string, expected string) {
 	})
 }
 
+func expectPrintedMangleJSX(t *testing.T, contents string, expected string) {
+	t.Helper()
+	expectPrintedCommon(t, contents, expected, config.Options{
+		MinifySyntax: true,
+		JSX: config.JSXOptions{
+			Parse: true,
+		},
+	})
+}
+
 type JSXAutomaticTestOptions struct {
 	Development            bool
 	ImportSource           string
@@ -3691,6 +3701,18 @@ func TestMangleObject(t *testing.T) {
 	expectPrintedMangle(t, "x = {y: {z: 1}}?.y.z", "x = 1;\n")
 	expectPrintedMangle(t, "x = {y: {z: 1}}?.y?.z", "x = { z: 1 }?.z;\n")
 	expectPrintedMangle(t, "x = {y() {}}?.y()", "x = { y() {\n} }.y();\n")
+}
+
+func TestMangleObjectJSX(t *testing.T) {
+	expectPrintedJSX(t, "x = <foo bar {...{}} />", "x = /* @__PURE__ */ React.createElement(\"foo\", {\n  bar: true,\n  ...{}\n});\n")
+	expectPrintedJSX(t, "x = <foo bar {...null} />", "x = /* @__PURE__ */ React.createElement(\"foo\", {\n  bar: true,\n  ...null\n});\n")
+	expectPrintedJSX(t, "x = <foo bar {...{bar}} />", "x = /* @__PURE__ */ React.createElement(\"foo\", {\n  bar: true,\n  ...{ bar }\n});\n")
+	expectPrintedJSX(t, "x = <foo bar {...bar} />", "x = /* @__PURE__ */ React.createElement(\"foo\", {\n  bar: true,\n  ...bar\n});\n")
+
+	expectPrintedMangleJSX(t, "x = <foo bar {...{}} />", "x = /* @__PURE__ */ React.createElement(\"foo\", {\n  bar: true\n});\n")
+	expectPrintedMangleJSX(t, "x = <foo bar {...null} />", "x = /* @__PURE__ */ React.createElement(\"foo\", {\n  bar: true\n});\n")
+	expectPrintedMangleJSX(t, "x = <foo bar {...{bar}} />", "x = /* @__PURE__ */ React.createElement(\"foo\", {\n  bar: true,\n  bar\n});\n")
+	expectPrintedMangleJSX(t, "x = <foo bar {...bar} />", "x = /* @__PURE__ */ React.createElement(\"foo\", {\n  bar: true,\n  ...bar\n});\n")
 }
 
 func TestMangleArrow(t *testing.T) {

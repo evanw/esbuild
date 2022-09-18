@@ -11870,6 +11870,49 @@ func (p *parser) mangleTemplate(loc logger.Loc, e *js_ast.ETemplate) js_ast.Expr
 	return js_ast.Expr{Loc: loc, Data: e}
 }
 
+func (p *parser) mangleObjectSpread(properties []js_ast.Property) []js_ast.Property {
+	var result []js_ast.Property
+	for _, property := range properties {
+		if property.Kind == js_ast.PropertySpread {
+			switch v := property.ValueOrNil.Data.(type) {
+			case *js_ast.EBoolean, *js_ast.ENull, *js_ast.EUndefined, *js_ast.ENumber,
+				*js_ast.EBigInt, *js_ast.ERegExp, *js_ast.EFunction, *js_ast.EArrow:
+				// This value is ignored because it doesn't have any of its own properties
+				continue
+
+			case *js_ast.EObject:
+				for i, p := range v.Properties {
+					// Getters are evaluated at iteration time. The property
+					// descriptor is not inlined into the caller. Since we are not
+					// evaluating code at compile time, just bail if we hit one
+					// and preserve the spread with the remaining properties.
+					if p.Kind == js_ast.PropertyGet || p.Kind == js_ast.PropertySet {
+						v.Properties = v.Properties[i:]
+						result = append(result, property)
+						break
+					}
+
+					// Also bail if we hit a verbatim "__proto__" key. This will
+					// actually set the prototype of the object being spread so
+					// inlining it is not correct.
+					if p.Kind == js_ast.PropertyNormal && !p.Flags.Has(js_ast.PropertyIsComputed) && !p.Flags.Has(js_ast.PropertyIsMethod) {
+						if str, ok := p.Key.Data.(*js_ast.EString); ok && helpers.UTF16EqualsString(str.Value, "__proto__") {
+							v.Properties = v.Properties[i:]
+							result = append(result, property)
+							break
+						}
+					}
+
+					result = append(result, p)
+				}
+				continue
+			}
+		}
+		result = append(result, property)
+	}
+	return result
+}
+
 func containsClosingScriptTag(text string) bool {
 	for {
 		i := strings.Index(text, "</")
@@ -12256,8 +12299,11 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 		// Visit properties
+		hasSpread := false
 		for i, property := range e.Properties {
-			if property.Kind != js_ast.PropertySpread {
+			if property.Kind == js_ast.PropertySpread {
+				hasSpread = true
+			} else {
 				if mangled, ok := property.Key.Data.(*js_ast.EMangledProp); ok {
 					mangled.Ref = p.symbolForMangledProp(p.loadNameFromRef(mangled.Ref))
 				} else {
@@ -12271,6 +12317,11 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				property.InitializerOrNil = p.visitExpr(property.InitializerOrNil)
 			}
 			e.Properties[i] = property
+		}
+
+		// "{a, ...{b, c}, d}" => "{a, b, c, d}"
+		if p.options.minifySyntax && hasSpread {
+			e.Properties = p.mangleObjectSpread(e.Properties)
 		}
 
 		// Visit children
@@ -13802,46 +13853,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		if in.assignTarget == js_ast.AssignTargetNone {
 			// "{a, ...{b, c}, d}" => "{a, b, c, d}"
 			if p.options.minifySyntax && hasSpread {
-				var properties []js_ast.Property
-				for _, property := range e.Properties {
-					if property.Kind == js_ast.PropertySpread {
-						switch v := property.ValueOrNil.Data.(type) {
-						case *js_ast.EBoolean, *js_ast.ENull, *js_ast.EUndefined, *js_ast.ENumber,
-							*js_ast.EBigInt, *js_ast.ERegExp, *js_ast.EFunction, *js_ast.EArrow:
-							// This value is ignored because it doesn't have any of its own properties
-							continue
-
-						case *js_ast.EObject:
-							for i, p := range v.Properties {
-								// Getters are evaluated at iteration time. The property
-								// descriptor is not inlined into the caller. Since we are not
-								// evaluating code at compile time, just bail if we hit one
-								// and preserve the spread with the remaining properties.
-								if p.Kind == js_ast.PropertyGet || p.Kind == js_ast.PropertySet {
-									v.Properties = v.Properties[i:]
-									properties = append(properties, property)
-									break
-								}
-
-								// Also bail if we hit a verbatim "__proto__" key. This will
-								// actually set the prototype of the object being spread so
-								// inlining it is not correct.
-								if p.Kind == js_ast.PropertyNormal && !p.Flags.Has(js_ast.PropertyIsComputed) && !p.Flags.Has(js_ast.PropertyIsMethod) {
-									if str, ok := p.Key.Data.(*js_ast.EString); ok && helpers.UTF16EqualsString(str.Value, "__proto__") {
-										v.Properties = v.Properties[i:]
-										properties = append(properties, property)
-										break
-									}
-								}
-
-								properties = append(properties, p)
-							}
-							continue
-						}
-					}
-					properties = append(properties, property)
-				}
-				e.Properties = properties
+				e.Properties = p.mangleObjectSpread(e.Properties)
 			}
 
 			// Object expressions represent both object literals and binding patterns.
