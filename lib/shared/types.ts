@@ -61,6 +61,8 @@ interface CommonOptions {
   jsxImportSource?: string;
   /** Documentation: https://esbuild.github.io/api/#jsx-development */
   jsxDev?: boolean;
+  /** Documentation: https://esbuild.github.io/api/#jsx-side-effects */
+  jsxSideEffects?: boolean;
 
   /** Documentation: https://esbuild.github.io/api/#define */
   define?: { [key: string]: string };

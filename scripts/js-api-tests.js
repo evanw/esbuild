@@ -4587,6 +4587,11 @@ let transformTests = {
     assert.strictEqual(code, `import { jsx } from "notreact/jsx-runtime";\nconsole.log(/* @__PURE__ */ jsx("div", {}));\n`)
   },
 
+  async jsxSideEffects({ esbuild }) {
+    const { code } = await esbuild.transform(`<b/>`, { loader: 'jsx', jsxSideEffects: true })
+    assert.strictEqual(code, `React.createElement("b", null);\n`)
+  },
+
   async ts({ esbuild }) {
     const { code } = await esbuild.transform(`enum Foo { FOO }`, { loader: 'ts' })
     assert.strictEqual(code, `var Foo = /* @__PURE__ */ ((Foo2) => {\n  Foo2[Foo2["FOO"] = 0] = "FOO";\n  return Foo2;\n})(Foo || {});\n`)

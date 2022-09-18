@@ -1366,6 +1366,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		Fragment:         validateJSXExpr(log, transformOpts.JSXFragment, "fragment"),
 		Development:      transformOpts.JSXDev,
 		ImportSource:     transformOpts.JSXImportSource,
+		SideEffects:      transformOpts.JSXSideEffects,
 	}
 
 	// Settings from "tsconfig.json" override those

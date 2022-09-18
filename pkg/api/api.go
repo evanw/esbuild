@@ -281,7 +281,7 @@ type BuildOptions struct {
 	JSXFragment     string  // Documentation: https://esbuild.github.io/api/#jsx-fragment
 	JSXImportSource string  // Documentation: https://esbuild.github.io/api/#jsx-import-source
 	JSXDev          bool    // Documentation: https://esbuild.github.io/api/#jsx-dev
-	JSXSideEffects  bool    // Documentation: https://esbuild.github.io/api/#jsx-sideeffects
+	JSXSideEffects  bool    // Documentation: https://esbuild.github.io/api/#jsx-side-effects
 
 	Define    map[string]string // Documentation: https://esbuild.github.io/api/#define
 	Pure      []string          // Documentation: https://esbuild.github.io/api/#pure
@@ -404,7 +404,7 @@ type TransformOptions struct {
 	JSXFragment     string  // Documentation: https://esbuild.github.io/api/#jsx-fragment
 	JSXImportSource string  // Documentation: https://esbuild.github.io/api/#jsx-import-source
 	JSXDev          bool    // Documentation: https://esbuild.github.io/api/#jsx-dev
-	JSXSideEffects  bool    // Documentation: https://esbuild.github.io/api/#jsx-sideeffects
+	JSXSideEffects  bool    // Documentation: https://esbuild.github.io/api/#jsx-side-effects
 
 	TsconfigRaw string // Documentation: https://esbuild.github.io/api/#tsconfig-raw
 	Banner      string // Documentation: https://esbuild.github.io/api/#banner

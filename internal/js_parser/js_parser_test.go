@@ -4829,6 +4829,7 @@ NOTE: Both "__source" and "__self" are set automatically by esbuild when using R
 	// Impure JSX call expressions
 	pi := JSXAutomaticTestOptions{SideEffects: true, ImportSource: "my-jsx-lib"}
 	expectPrintedJSXAutomatic(t, pi, "<a/>", "import { jsx } from \"my-jsx-lib/jsx-runtime\";\njsx(\"a\", {});\n")
+	expectPrintedJSXAutomatic(t, pi, "<></>", "import { Fragment, jsx } from \"my-jsx-lib/jsx-runtime\";\njsx(Fragment, {});\n")
 
 	// Dev, without runtime imports
 	d := JSXAutomaticTestOptions{Development: true, OmitJSXRuntimeForTests: true}
@@ -4948,7 +4949,11 @@ NOTE: You can enable React's "automatic" JSX transform for this file by using a 
 }
 
 func TestJSXSideEffects(t *testing.T) {
+	expectPrintedJSX(t, "<a/>", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
+	expectPrintedJSX(t, "<></>", "/* @__PURE__ */ React.createElement(React.Fragment, null);\n")
+
 	expectPrintedJSXSideEffects(t, "<a/>", "React.createElement(\"a\", null);\n")
+	expectPrintedJSXSideEffects(t, "<></>", "React.createElement(React.Fragment, null);\n")
 }
 
 func TestPreserveOptionalChainParentheses(t *testing.T) {
