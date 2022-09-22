@@ -408,21 +408,24 @@ publish-all: check-go-version
 		publish-android-x64 \
 		publish-android-arm \
 		publish-android-arm64 \
-		publish-darwin-x64 \
-		publish-darwin-arm64
+		publish-darwin-x64
 
 	@echo Enter one-time password:
 	@read OTP && OTP="$$OTP" $(MAKE) --no-print-directory -j4 \
+		publish-darwin-arm64 \
 		publish-linux-x64 \
 		publish-linux-ia32 \
-		publish-linux-arm \
-		publish-linux-riscv64
+		publish-linux-arm
 
 	@echo Enter one-time password:
 	@read OTP && OTP="$$OTP" $(MAKE) --no-print-directory -j4 \
 		publish-linux-arm64 \
+		publish-linux-riscv64 \
 		publish-linux-loong64 \
-		publish-linux-mips64el \
+		publish-linux-mips64el
+
+	@echo Enter one-time password:
+	@read OTP && OTP="$$OTP" $(MAKE) --no-print-directory -j4 \
 		publish-linux-ppc64 \
 		publish-linux-s390x
 
