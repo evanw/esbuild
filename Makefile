@@ -564,9 +564,9 @@ clean:
 	rm -f npm/esbuild-windows-64/esbuild.exe
 	rm -f npm/esbuild-windows-arm64/esbuild.exe
 	rm -f npm/esbuild/install.js
+	rm -rf npm/@esbuild/android-arm/bin npm/@esbuild/android-arm/esbuild.wasm npm/@esbuild/android-arm/wasm_exec*.js npm/@esbuild/android-arm/exit0.js
 	rm -rf npm/@esbuild/linux-loong64/bin
 	rm -rf npm/esbuild-android-64/bin npm/esbuild-android-64/esbuild.wasm npm/esbuild-android-64/wasm_exec*.js npm/esbuild-android-64/exit0.js
-	rm -rf npm/esbuild-android-arm/bin npm/esbuild-android-arm/esbuild.wasm npm/esbuild-android-arm/wasm_exec*.js npm/esbuild-android-arm/exit0.js
 	rm -rf npm/esbuild-android-arm64/bin
 	rm -rf npm/esbuild-darwin-64/bin
 	rm -rf npm/esbuild-darwin-arm64/bin
