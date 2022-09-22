@@ -221,29 +221,29 @@ test-yarnpnp:
 version-go:
 	node scripts/esbuild.js --update-version-go
 
-wasm-napi-exit0-darwin:
+wasm-napi-exit0-darwin-x64:
 	node -e 'console.log(`#include <unistd.h>\nvoid* napi_register_module_v1(void* a, void* b) { _exit(0); }`)' \
 		| clang -x c -dynamiclib -mmacosx-version-min=10.5 -o lib/npm/exit0/darwin-x64-LE.node -
 	ls -l lib/npm/exit0/darwin-x64-LE.node
 
-wasm-napi-exit0-darwin-arm:
+wasm-napi-exit0-darwin-arm64:
 	node -e 'console.log(`#include <unistd.h>\nvoid* napi_register_module_v1(void* a, void* b) { _exit(0); }`)' \
 		| clang -x c -dynamiclib -mmacosx-version-min=10.5 -o lib/npm/exit0/darwin-arm64-LE.node -
 	ls -l lib/npm/exit0/darwin-arm64-LE.node
 
-wasm-napi-exit0-linux:
+wasm-napi-exit0-linux-x64:
 	node -e 'console.log(`#include <unistd.h>\nvoid* napi_register_module_v1(void* a, void* b) { _exit(0); }`)' \
 		| gcc -x c -shared -o lib/npm/exit0/linux-x64-LE.node -
 	strip lib/npm/exit0/linux-x64-LE.node
 	ls -l lib/npm/exit0/linux-x64-LE.node
 
-wasm-napi-exit0-linux-arm:
+wasm-napi-exit0-linux-arm64:
 	node -e 'console.log(`#include <unistd.h>\nvoid* napi_register_module_v1(void* a, void* b) { _exit(0); }`)' \
 		| gcc -x c -shared -o lib/npm/exit0/linux-arm64-LE.node -
 	strip lib/npm/exit0/linux-arm64-LE.node
 	ls -l lib/npm/exit0/linux-arm64-LE.node
 
-wasm-napi-exit0-windows:
+wasm-napi-exit0-windows-x64:
 	# This isn't meant to be run directly but is a rough overview of the instructions
 	echo '__declspec(dllexport) void* napi_register_module_v1(void* a, void* b) { ExitProcess(0); }' > main.c
 	echo 'setlocal' > main.bat
