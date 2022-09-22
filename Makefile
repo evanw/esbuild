@@ -243,7 +243,7 @@ wasm-napi-exit0-linux-arm64:
 	strip lib/npm/exit0/linux-arm64-LE.node
 	ls -l lib/npm/exit0/linux-arm64-LE.node
 
-wasm-napi-exit0-windows-x64:
+wasm-napi-exit0-win32-x64:
 	# This isn't meant to be run directly but is a rough overview of the instructions
 	echo '__declspec(dllexport) void* napi_register_module_v1(void* a, void* b) { ExitProcess(0); }' > main.c
 	echo 'setlocal' > main.bat
@@ -459,7 +459,7 @@ publish-darwin-x64: platform-darwin-x64
 publish-darwin-arm64: platform-darwin-arm64
 	test -n "$(OTP)" && cd npm/esbuild-darwin-arm64 && npm publish --otp="$(OTP)"
 
-publish-freebsd-x64: platform-freebsd
+publish-freebsd-x64: platform-freebsd-x64
 	test -n "$(OTP)" && cd npm/esbuild-freebsd-64 && npm publish --otp="$(OTP)"
 
 publish-freebsd-arm64: platform-freebsd-arm64
