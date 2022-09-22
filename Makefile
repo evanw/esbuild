@@ -558,12 +558,12 @@ validate-builds:
 	@$(MAKE) --no-print-directory TARGET=platform-win32-x64 PACKAGE=esbuild-windows-64 SUBPATH=esbuild.exe validate-build
 
 clean:
+	go clean -testcache ./internal/...
 	rm -f esbuild
 	rm -f npm/esbuild-wasm/esbuild.wasm npm/esbuild-wasm/wasm_exec*.js npm/esbuild-wasm/exit0.js
 	rm -f npm/esbuild-windows-32/esbuild.exe
 	rm -f npm/esbuild-windows-64/esbuild.exe
 	rm -f npm/esbuild-windows-arm64/esbuild.exe
-	rm -f npm/esbuild/install.js
 	rm -rf npm/@esbuild/android-arm/bin npm/@esbuild/android-arm/esbuild.wasm npm/@esbuild/android-arm/wasm_exec*.js npm/@esbuild/android-arm/exit0.js
 	rm -rf npm/@esbuild/linux-loong64/bin
 	rm -rf npm/esbuild-android-64/bin npm/esbuild-android-64/esbuild.wasm npm/esbuild-android-64/wasm_exec*.js npm/esbuild-android-64/exit0.js
@@ -585,13 +585,12 @@ clean:
 	rm -rf npm/esbuild-sunos-64/bin
 	rm -rf npm/esbuild-wasm/esm
 	rm -rf npm/esbuild-wasm/lib
-	rm -rf npm/esbuild/bin
-	rm -rf npm/esbuild/lib
+	rm -rf npm/esbuild/bin npm/esbuild/lib npm/esbuild/install.js
 	rm -rf require/*/bench/
 	rm -rf require/*/demo/
 	rm -rf require/*/node_modules/
 	rm -rf require/yarnpnp/.pnp* require/yarnpnp/.yarn* require/yarnpnp/out*.js
-	go clean -testcache ./internal/...
+	rm -rf validate
 
 # This also cleans directories containing cached code from other projects
 clean-all: clean
