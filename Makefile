@@ -556,7 +556,7 @@ validate-builds:
 	@$(MAKE) --no-print-directory TARGET=platform-openbsd-x64 PACKAGE=esbuild-openbsd-64 SUBPATH=bin/esbuild validate-build
 	@$(MAKE) --no-print-directory TARGET=platform-sunos-x64 PACKAGE=esbuild-sunos-64 SUBPATH=bin/esbuild validate-build
 	@$(MAKE) --no-print-directory TARGET=platform-wasm PACKAGE=esbuild-wasm SUBPATH=esbuild.wasm validate-build
-	@$(MAKE) --no-print-directory TARGET=platform-win32-arm64 PACKAGE=esbuild-windows-64 SUBPATH=esbuild.exe validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-win32-arm64 PACKAGE=esbuild-windows-arm64 SUBPATH=esbuild.exe validate-build
 	@$(MAKE) --no-print-directory TARGET=platform-win32-ia32 PACKAGE=esbuild-windows-32 SUBPATH=esbuild.exe validate-build
 	@$(MAKE) --no-print-directory TARGET=platform-win32-x64 PACKAGE=esbuild-windows-64 SUBPATH=esbuild.exe validate-build
 
