@@ -1,12 +1,12 @@
 # Changelog
 
-## Unreleased
+## 0.15.9
 
 * Fix an obscure npm package installation issue with `--omit=optional` ([#2558](https://github.com/evanw/esbuild/issues/2558))
 
     The previous release introduced a regression with `npm install esbuild --omit=optional` where the file `node_modules/.bin/esbuild` would no longer be present after installation. That could cause any package scripts which used the `esbuild` command to no longer work. This release fixes the regression so `node_modules/.bin/esbuild` should now be present again after installation. This regression only affected people installing esbuild using `npm` with either the `--omit=optional` or `--no-optional` flag, which is a somewhat unusual situation.
 
-    More details:
+    **More details:**
 
     The reason for this regression is due to some obscure npm implementation details. Since the Go compiler doesn't support trivial cross-compiling on certain Android platforms, esbuild's installer installs a WebAssembly shim on those platforms instead. In the previous release I attempted to simplify esbuild's WebAssembly shims to depend on the `esbuild-wasm` package instead of including another whole copy of the WebAssembly binary (to make publishing faster and to save on file system space after installation). However, both the `esbuild` package and the `esbuild-wasm` package provide a binary called `esbuild` and it turns out that adding `esbuild-wasm` as a nested dependency of the `esbuild` package (specifically `esbuild` optionally depends on `@esbuild/android-arm` which depends on `esbuild-wasm`) caused npm to be confused about what `node_modules/.bin/esbuild` is supposed to be.
 
