@@ -8,9 +8,6 @@
   "engines": {
     "node": ">=12"
   },
-  "dependencies": {
-    "esbuild-wasm": "0.15.8"
-  },
   "os": [
     "android"
   ],

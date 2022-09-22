@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+* Fix an obscure npm package installation issue with `--omit=optional` ([#2558](https://github.com/evanw/esbuild/issues/2558))
+
+    The previous release introduced a regression with `npm install esbuild --omit=optional` where the file `node_modules/.bin/esbuild` would no longer be present after installation. That could cause any package scripts which used the `esbuild` command to no longer work. This release fixes the regression so `node_modules/.bin/esbuild` should now be present again after installation. This regression only affected people installing esbuild using `npm` with either the `--omit=optional` or `--no-optional` flag, which is a somewhat unusual situation.
+
+    More details:
+
+    The reason for this regression is due to some obscure npm implementation details. Since the Go compiler doesn't support trivial cross-compiling on certain Android platforms, esbuild's installer installs a WebAssembly shim on those platforms instead. In the previous release I attempted to simplify esbuild's WebAssembly shims to depend on the `esbuild-wasm` package instead of including another whole copy of the WebAssembly binary (to make publishing faster and to save on file system space after installation). However, both the `esbuild` package and the `esbuild-wasm` package provide a binary called `esbuild` and it turns out that adding `esbuild-wasm` as a nested dependency of the `esbuild` package (specifically `esbuild` optionally depends on `@esbuild/android-arm` which depends on `esbuild-wasm`) caused npm to be confused about what `node_modules/.bin/esbuild` is supposed to be.
+
+    It's pretty strange and unexpected that disabling the installation of optional dependencies altogether would suddenly cause an optional dependency's dependency to conflict with the top-level package. What happens under the hood is that if `--omit=optional` is present, npm attempts to uninstall the `esbuild-wasm` nested dependency at the end of `npm install` (even though the `esbuild-wasm` package was never installed due to `--omit=optional`). This uninstallation causes `node_modules/.bin/esbuild` to be deleted.
+
+    After doing a full investigation, I discovered that npm's handling of the `.bin` directory is deliberately very brittle. When multiple packages in the dependency tree put something in `.bin` with the same name, the end result is non-deterministic/random. What you get in `.bin` might be from one package, from the other package, or might be missing entirely. The workaround suggested by npm is to just avoid having two packages that put something in `.bin` with the same name. So this was fixed by making the `@esbuild/android-arm` and `esbuild-android-64` packages each include another whole copy of the WebAssembly binary, which works because these packages don't put anything in `.bin`.
+
 ## 0.15.8
 
 * Fix JSX name collision edge case ([#2534](https://github.com/evanw/esbuild/issues/2534))
