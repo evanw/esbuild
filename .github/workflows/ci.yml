@@ -33,6 +33,9 @@ jobs:
       - name: Uglify Tests
         run: CI=1 make uglify
 
+      - name: Ensure all platforms can be built
+        run: make clean && make platform-all
+
   esbuild:
     name: esbuild CI
     runs-on: ${{ matrix.os }}
