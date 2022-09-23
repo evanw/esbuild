@@ -1822,6 +1822,9 @@ func TestPackageJsonExportsWildcard(t *testing.T) {
 					}
 				}
 			`,
+			"/Users/user/project/node_modules/pkg1/file.js": `
+				console.log('SUCCESS')
+			`,
 			"/Users/user/project/node_modules/pkg1/file2.js": `
 				console.log('SUCCESS')
 			`,
@@ -1831,10 +1834,6 @@ func TestPackageJsonExportsWildcard(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
-		expectedScanLog: `Users/user/project/src/entry.js: ERROR: Could not resolve "pkg1/foo"
-Users/user/project/node_modules/pkg1/package.json: NOTE: The path "./foo" is not exported by package "pkg1":
-NOTE: You can mark the path "pkg1/foo" as external to exclude it from the bundle, which will remove this error.
-`,
 	})
 }
 
@@ -2136,6 +2135,47 @@ Users/user/project/node_modules/pkg/package.json: NOTE: The file "./path/to/othe
 Users/user/project/src/entry.js: NOTE: Import from "pkg/extra/other/file.js" to get the file "Users/user/project/node_modules/pkg/path/to/other/file.js":
 NOTE: You can mark the path "pkg/path/to/other/file" as external to exclude it from the bundle, which will remove this error. You can also surround this "require" call with a try/catch block to handle this failure at run-time instead of bundle-time.
 `,
+	})
+}
+
+func TestPackageJsonExportsPatternTrailers(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import 'pkg/path/foo.js/bar.js'
+				import 'pkg2/features/abc'
+				import 'pkg2/features/xyz.js'
+			`,
+			"/Users/user/project/node_modules/pkg/package.json": `
+				{
+					"exports": {
+						"./path/*/bar.js": "./dir/baz-*"
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/pkg/dir/baz-foo.js": `
+				console.log('works')
+			`,
+			"/Users/user/project/node_modules/pkg2/package.json": `
+				{
+					"exports": {
+						"./features/*": "./public/*.js",
+						"./features/*.js": "./public/*.js"
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/pkg2/public/abc.js": `
+				console.log('abc')
+			`,
+			"/Users/user/project/node_modules/pkg2/public/xyz.js": `
+				console.log('xyz')
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
 	})
 }
 

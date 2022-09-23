@@ -610,6 +610,18 @@ console.log("SUCCESS");
 console.log("SUCCESS");
 
 ================================================================================
+TestPackageJsonExportsPatternTrailers
+---------- /Users/user/project/out.js ----------
+// Users/user/project/node_modules/pkg/dir/baz-foo.js
+console.log("works");
+
+// Users/user/project/node_modules/pkg2/public/abc.js
+console.log("abc");
+
+// Users/user/project/node_modules/pkg2/public/xyz.js
+console.log("xyz");
+
+================================================================================
 TestPackageJsonExportsRequireOverImport
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/node_modules/pkg/require.js
@@ -621,6 +633,15 @@ var require_require = __commonJS({
 
 // Users/user/project/src/entry.js
 require_require();
+
+================================================================================
+TestPackageJsonExportsWildcard
+---------- /Users/user/project/out.js ----------
+// Users/user/project/node_modules/pkg1/file.js
+console.log("SUCCESS");
+
+// Users/user/project/node_modules/pkg1/file2.js
+console.log("SUCCESS");
 
 ================================================================================
 TestPackageJsonImportSelfUsingImport

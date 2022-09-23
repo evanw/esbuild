@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+* Add support for node's "pattern trailers" syntax ([#2569](https://github.com/evanw/esbuild/issues/2569))
+
+    After esbuild implemented node's `exports` feature in `package.json`, node changed the feature to also allow text after `*` wildcards in patterns. Previously the `*` was required to be at the end of the pattern. It lets you do something like this:
+
+    ```json
+    {
+      "exports": {
+        "./features/*": "./features/*.js",
+        "./features/*.js": "./features/*.js"
+      }
+    }
+    ```
+
+    With this release, esbuild now supports these types of patterns too.
+
 ## 0.15.9
 
 * Fix an obscure npm package installation issue with `--omit=optional` ([#2558](https://github.com/evanw/esbuild/issues/2558))
