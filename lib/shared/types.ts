@@ -253,7 +253,7 @@ export interface TransformOptions extends CommonOptions {
   tsconfigRaw?: string | {
     compilerOptions?: {
       alwaysStrict?: boolean,
-      importsNotUsedAsValues?: 'remove' | 'prexserve' | 'error',
+      importsNotUsedAsValues?: 'remove' | 'preserve' | 'error',
       jsx?: 'react' | 'react-jsx' | 'react-jsxdev' | 'preserve',
       jsxFactory?: string,
       jsxFragmentFactory?: string,
