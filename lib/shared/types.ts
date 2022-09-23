@@ -252,11 +252,15 @@ export interface ServeResult {
 export interface TransformOptions extends CommonOptions {
   tsconfigRaw?: string | {
     compilerOptions?: {
+      alwaysStrict?: boolean,
+      importsNotUsedAsValues?: 'remove' | 'preserve' | 'error',
+      jsx?: 'react' | 'react-jsx' | 'react-jsxdev' | 'preserve',
       jsxFactory?: string,
       jsxFragmentFactory?: string,
-      useDefineForClassFields?: boolean,
-      importsNotUsedAsValues?: 'remove' | 'preserve' | 'error',
+      jsxImportSource?: string,
       preserveValueImports?: boolean,
+      target?: string,
+      useDefineForClassFields?: boolean,
     },
   };
 
