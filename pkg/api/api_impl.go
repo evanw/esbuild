@@ -903,6 +903,7 @@ func rebuildImpl(
 			Fragment:         validateJSXExpr(log, buildOpts.JSXFragment, "fragment"),
 			Development:      buildOpts.JSXDev,
 			ImportSource:     buildOpts.JSXImportSource,
+			SideEffects:      buildOpts.JSXSideEffects,
 		},
 		Defines:               defines,
 		InjectedDefines:       injectedDefines,
@@ -1365,6 +1366,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		Fragment:         validateJSXExpr(log, transformOpts.JSXFragment, "fragment"),
 		Development:      transformOpts.JSXDev,
 		ImportSource:     transformOpts.JSXImportSource,
+		SideEffects:      transformOpts.JSXSideEffects,
 	}
 
 	// Settings from "tsconfig.json" override those

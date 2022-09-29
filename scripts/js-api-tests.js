@@ -4139,6 +4139,19 @@ let transformTests = {
     assert.strictEqual((await esbuild.transform(input, { loader: 'ts', tsconfigRaw: { compilerOptions: { alwaysStrict: true, strict: false } } })).code, `"use strict";\nconsole.log(123);\n`)
   },
 
+  async tsconfigRawTarget({ esbuild }) {
+    // The "target" from "tsconfig.json" should apply, but esbuild's "target" should override
+
+    assert.strictEqual((await esbuild.transform('x => x', { loader: 'ts', tsconfigRaw: { compilerOptions: { target: 'ES6' } } })).code, `(x) => x;\n`)
+    assert.strictEqual((await esbuild.transform('x => x', { loader: 'ts', tsconfigRaw: { compilerOptions: { target: 'ES5' } } })).code, `(function(x) {\n  return x;\n});\n`)
+
+    assert.strictEqual((await esbuild.transform('x => x', { loader: 'ts', target: 'es6' })).code, `(x) => x;\n`)
+    assert.strictEqual((await esbuild.transform('x => x', { loader: 'ts', target: 'es5' })).code, `(function(x) {\n  return x;\n});\n`)
+
+    assert.strictEqual((await esbuild.transform('x => x', { loader: 'ts', target: 'es5', tsconfigRaw: { compilerOptions: { target: 'ES6' } } })).code, `(function(x) {\n  return x;\n});\n`)
+    assert.strictEqual((await esbuild.transform('x => x', { loader: 'ts', target: 'es6', tsconfigRaw: { compilerOptions: { target: 'ES5' } } })).code, `(x) => x;\n`)
+  },
+
   async tsImplicitUseDefineForClassFields({ esbuild }) {
     var { code } = await esbuild.transform(`class Foo { foo }`, {
       loader: 'ts',
@@ -4585,6 +4598,11 @@ let transformTests = {
   async jsxImportSource({ esbuild }) {
     const { code } = await esbuild.transform(`console.log(<div/>)`, { loader: 'jsx', jsx: 'automatic', jsxImportSource: 'notreact' })
     assert.strictEqual(code, `import { jsx } from "notreact/jsx-runtime";\nconsole.log(/* @__PURE__ */ jsx("div", {}));\n`)
+  },
+
+  async jsxSideEffects({ esbuild }) {
+    const { code } = await esbuild.transform(`<b/>`, { loader: 'jsx', jsxSideEffects: true })
+    assert.strictEqual(code, `React.createElement("b", null);\n`)
   },
 
   async ts({ esbuild }) {

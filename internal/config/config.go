@@ -20,6 +20,7 @@ type JSXOptions struct {
 	AutomaticRuntime bool
 	ImportSource     string
 	Development      bool
+	SideEffects      bool
 }
 
 type TSJSX uint8

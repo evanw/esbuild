@@ -208,6 +208,19 @@ module.exports = ${JSON.stringify(exit0Map, null, 2)};
 
   // Join with the asynchronous WebAssembly build
   await goBuildPromise;
+
+  // Also copy this into the WebAssembly shim directories
+  for (const dir of [
+    path.join(repoDir, 'npm', '@esbuild', 'android-arm'),
+    path.join(repoDir, 'npm', 'esbuild-android-64'),
+  ]) {
+    fs.mkdirSync(path.join(dir, 'bin'), { recursive: true })
+    fs.writeFileSync(path.join(dir, 'wasm_exec.js'), wasm_exec_js);
+    fs.writeFileSync(path.join(dir, 'wasm_exec_node.js'), wasm_exec_node_js);
+    fs.writeFileSync(path.join(dir, 'exit0.js'), exit0Code);
+    fs.copyFileSync(path.join(npmWasmDir, 'bin', 'esbuild'), path.join(dir, 'bin', 'esbuild'));
+    fs.copyFileSync(path.join(npmWasmDir, 'esbuild.wasm'), path.join(dir, 'esbuild.wasm'));
+  }
 }
 
 const buildDenoLib = (esbuildPath) => {
@@ -293,19 +306,9 @@ exports.removeRecursiveSync = path => {
 const updateVersionPackageJSON = pathToPackageJSON => {
   const version = fs.readFileSync(path.join(path.dirname(__dirname), 'version.txt'), 'utf8').trim()
   const json = JSON.parse(fs.readFileSync(pathToPackageJSON, 'utf8'))
-  let changed = false
 
   if (json.version !== version) {
     json.version = version
-    changed = true
-  }
-
-  if ('dependencies' in json && 'esbuild-wasm' in json.dependencies && json.dependencies['esbuild-wasm'] !== version) {
-    json.dependencies['esbuild-wasm'] = version
-    changed = true
-  }
-
-  if (changed) {
     fs.writeFileSync(pathToPackageJSON, JSON.stringify(json, null, 2) + '\n')
   }
 }

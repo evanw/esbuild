@@ -1,15 +1,12 @@
 {
   "name": "esbuild-android-64",
-  "version": "0.15.7",
+  "version": "0.15.9",
   "description": "A WebAssembly shim for esbuild on Android x64.",
   "repository": "https://github.com/evanw/esbuild",
   "license": "MIT",
   "preferUnplugged": false,
   "engines": {
     "node": ">=12"
-  },
-  "dependencies": {
-    "esbuild-wasm": "0.15.7"
   },
   "os": [
     "android"

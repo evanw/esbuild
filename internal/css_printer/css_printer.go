@@ -108,11 +108,7 @@ func (p *printer) printRule(rule css_ast.Rule, indent int32, omitTrailingSemicol
 		p.print("@")
 		p.printIdent(r.AtToken, identNormal, mayNeedWhitespaceAfter)
 		p.print(" ")
-		if r.Name == "" {
-			p.print("\"\"")
-		} else {
-			p.printIdent(r.Name, identNormal, canDiscardWhitespaceAfter)
-		}
+		p.printIdent(r.Name, identNormal, canDiscardWhitespaceAfter)
 		if !p.options.MinifyWhitespace {
 			p.print(" ")
 		}

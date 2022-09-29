@@ -82,6 +82,7 @@ var helpText = func(colors logger.Colors) string {
   --jsx-fragment=...        What to use for JSX instead of React.Fragment
   --jsx-import-source=...   Override the package name for the automatic runtime
                             (default "react")
+  --jsx-side-effects        Do not remove unused JSX expressions
   --jsx=...                 Set to "automatic" to use React's automatic runtime
                             or to "preserve" to disable transforming JSX to JS
   --keep-names              Preserve "name" on functions and classes
