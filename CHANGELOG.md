@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.15.10
 
 * Add support for node's "pattern trailers" syntax ([#2569](https://github.com/evanw/esbuild/issues/2569))
 
