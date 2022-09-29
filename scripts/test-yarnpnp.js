@@ -16,7 +16,7 @@ function modTime(file) {
 }
 
 function reinstallYarnIfNeeded() {
-  const yarnPath = path.join(rootDir, '.yarn', 'releases', 'yarn-4.0.0-rc.22.cjs')
+  const yarnPath = path.join(rootDir, '.yarn', 'releases', 'yarn-3.2.3.cjs')
 
   if (fs.existsSync(yarnPath) && modTime(yarnPath) > Math.max(
     modTime(path.join(rootDir, 'package.json')),
@@ -31,10 +31,10 @@ function reinstallYarnIfNeeded() {
   fs.rmSync(path.join(rootDir, '.yarnrc.yml'), { recursive: true, force: true })
 
   try {
-    run('yarn set version 4.0.0-rc.22')
+    run('yarn set version 3.2.3')
   } catch {
     run('npm i -g yarn') // Install Yarn globally if it's not already installed
-    run('yarn set version 4.0.0-rc.22')
+    run('yarn set version 3.2.3')
   }
 
   const rc = fs.readFileSync(path.join(rootDir, '.yarnrc.yml'), 'utf8')

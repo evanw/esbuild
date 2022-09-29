@@ -2,7 +2,7 @@
   "workspaces": [
     "./foo"
   ],
-  "packageManager": "yarn@4.0.0-rc.22",
+  "packageManager": "yarn@3.2.3",
   "dependencies": {
     "@vue/tsconfig": "0.1.3",
     "aws-jwt-verify": "3.1.0",
