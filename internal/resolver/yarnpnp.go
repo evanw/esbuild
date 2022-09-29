@@ -2,7 +2,6 @@ package resolver
 
 import (
 	"fmt"
-	"os"
 	"regexp"
 	"strings"
 	"syscall"
@@ -632,7 +631,6 @@ func (r resolverQuery) tryToExtractYarnPnPDataFromJS(pnpDataPath string, mode pn
 		PrettyPath: r.PrettyPath(keyPath),
 		Contents:   contents,
 	}
-	fmt.Fprintf(os.Stderr, "vvv Yarn PnP JS vvv\n%s\n^^^ Yarn PnP JS ^^^\n", contents)
 	ast, _ := r.caches.JSCache.Parse(r.log, source, js_parser.OptionsForYarnPnP())
 
 	if r.debugLogs != nil && ast.ManifestForYarnPnP.Data != nil {

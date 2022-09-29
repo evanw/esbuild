@@ -40,8 +40,13 @@ function reinstallYarnIfNeeded() {
   const rc = fs.readFileSync(path.join(rootDir, '.yarnrc.yml'), 'utf8')
   fs.writeFileSync(path.join(rootDir, '.yarnrc.yml'), `
 pnpEnableEsmLoader: true
-enableGlobalCache: false
 pnpIgnorePatterns: ["./bar/**"]
+
+# Note: Yarn 4 defaults to "enableGlobalCache: true" which doesn't
+# work on Windows due to cross-drive issues with relative paths.
+# Explicitly set "enableGlobalCache: false" to avoid this issue.
+enableGlobalCache: false
+
 ` + rc)
 
   run('yarn install')

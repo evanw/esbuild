@@ -65,10 +65,6 @@ jobs:
       - name: Check out code into the Go module directory
         uses: actions/checkout@v2
 
-      - name: Yarn PnP tests
-        if: matrix.os == 'windows-latest'
-        run: make test-yarnpnp
-
       - name: go test
         run: go test -race ./internal/...
 
@@ -143,6 +139,9 @@ jobs:
       - name: WebAssembly API Tests (node, non-Linux)
         if: matrix.os != 'ubuntu-latest'
         run: node scripts/wasm-tests.js
+
+      - name: Yarn PnP tests
+        run: make test-yarnpnp
 
       - name: Sucrase Tests
         if: matrix.os == 'ubuntu-latest'
