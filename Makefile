@@ -204,7 +204,7 @@ test-e2e-yarn-berry:
 	# Clean up
 	rm -fr e2e-yb
 
-test-yarnpnp:
+test-yarnpnp: platform-wasm
 	node scripts/test-yarnpnp.js
 
 # Note: This used to only be rebuilt when "version.txt" was newer than

@@ -17,6 +17,10 @@
 
     With this release, esbuild now supports these types of patterns too.
 
+* Fix subpath imports with Yarn PnP ([#2545](https://github.com/evanw/esbuild/issues/2545))
+
+    Node has a little-used feature called [subpath imports](https://nodejs.org/api/packages.html#subpath-imports) which are package-internal imports that start with `#` and that go through the `imports` map in `package.json`. Previously esbuild had a bug that caused esbuild to not handle these correctly in packages installed via Yarn's "Plug'n'Play" installation strategy. The problem was that subpath imports were being checked after Yarn PnP instead of before. This release reorders these checks, which should allow subpath imports to work in this case.
+
 ## 0.15.9
 
 * Fix an obscure npm package installation issue with `--omit=optional` ([#2558](https://github.com/evanw/esbuild/issues/2558))
