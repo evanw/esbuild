@@ -38,14 +38,18 @@ function reinstallYarnIfNeeded() {
   }
 
   const rc = fs.readFileSync(path.join(rootDir, '.yarnrc.yml'), 'utf8')
-  fs.writeFileSync(path.join(rootDir, '.yarnrc.yml'), `pnpEnableEsmLoader: true\npnpIgnorePatterns: ["./bar/**"]\n` + rc)
+  fs.writeFileSync(path.join(rootDir, '.yarnrc.yml'), `
+pnpEnableEsmLoader: true
+enableGlobalCache: false
+pnpIgnorePatterns: ["./bar/**"]
+` + rc)
 
   run('yarn install')
 }
 
 function runTests() {
-  // // Make sure the tests are valid
-  // run('yarn node in.mjs')
+  // Make sure the tests are valid
+  run('yarn node in.mjs')
 
   // Test the native build
   child_process.execFileSync(ESBUILD_BINARY_PATH, [
