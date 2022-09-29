@@ -21,6 +21,16 @@
 
     Node has a little-used feature called [subpath imports](https://nodejs.org/api/packages.html#subpath-imports) which are package-internal imports that start with `#` and that go through the `imports` map in `package.json`. Previously esbuild had a bug that caused esbuild to not handle these correctly in packages installed via Yarn's "Plug'n'Play" installation strategy. The problem was that subpath imports were being checked after Yarn PnP instead of before. This release reorders these checks, which should allow subpath imports to work in this case.
 
+* Link from JS to CSS in the metafile ([#1861](https://github.com/evanw/esbuild/issues/1861), [#2565](https://github.com/evanw/esbuild/issues/2565))
+
+    When you import CSS into a bundled JS file, esbuild creates a parallel CSS bundle next to your JS bundle. So if `app.ts` imports some CSS files and you bundle it, esbuild will give you `app.js` and `app.css`. You would then add both `<script src="app.js"></script>` and `<link href="app.css" rel="stylesheet">` to your HTML to include everything in the page. This approach is more efficient than having esbuild insert additional JavaScript into `app.js` that downloads and includes `app.css` because it means the browser can download and parse both the CSS and the JS in parallel (and potentially apply the CSS before the JS has even finished downloading).
+
+    However, sometimes it's difficult to generate the `<link>` tag. One case is when you've added `[hash]` to the [entry names](https://esbuild.github.io/api/#entry-names) setting to include a content hash in the file name. Then the file name will look something like `app-GX7G2SBE.css` and may change across subsequent builds. You can tell esbuild to generate build metadata using the `metafile` API option but the metadata only tells you which generated JS bundle corresponds to a JS entry point (via the `entryPoint` property), not which file corresponds to the associated CSS bundle. Working around this was hacky and involved string manipulation.
+
+    This release adds the `cssBundle` property to the metafile to make this easier. It's present on the metadata for the generated JS bundle and points to the associated CSS bundle. So to generate the HTML tags for a given JS entry point, you first find the output file with the `entryPoint` you are looking for (and put that in a `<script>` tag), then check for the `cssBundle` property to find the associated CSS bundle (and put that in a `<link>` tag).
+
+    One thing to note is that there is deliberately no `jsBundle` property mapping the other way because it's not a 1:1 relationship. Two JS bundles can share the same CSS bundle in the case where the associated CSS bundles have the same name and content. In that case there would be no one value for a hypothetical `jsBundle` property to have.
+
 ## 0.15.9
 
 * Fix an obscure npm package installation issue with `--omit=optional` ([#2558](https://github.com/evanw/esbuild/issues/2558))

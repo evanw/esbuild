@@ -170,6 +170,9 @@ type chunkReprJS struct {
 	importsFromOtherChunks map[uint32]crossChunkImportItemArray
 	crossChunkPrefixStmts  []js_ast.Stmt
 	crossChunkSuffixStmts  []js_ast.Stmt
+
+	cssChunkIndex uint32
+	hasCSSChunk   bool
 }
 
 type chunkReprCSS struct {
@@ -3160,7 +3163,8 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 
 		switch file.InputFile.Repr.(type) {
 		case *graph.JSRepr:
-			chunk.chunkRepr = &chunkReprJS{}
+			chunkRepr := &chunkReprJS{}
+			chunk.chunkRepr = chunkRepr
 			jsChunks[key] = chunk
 
 			// If this JS entry point has an associated CSS entry point, generate it
@@ -3169,6 +3173,7 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 			// discovered in JS source order, where JS source order is arbitrary but
 			// consistent for dynamic imports. Then we run the CSS import order
 			// algorithm to determine the final CSS file order for the chunk.
+
 			if cssSourceIndices := c.findImportedCSSFilesInJSOrder(entryPoint.SourceIndex); len(cssSourceIndices) > 0 {
 				externalOrder, internalOrder := c.findImportedFilesInCSSOrder(cssSourceIndices)
 				cssFilesWithPartsInChunk := make(map[uint32]bool)
@@ -3186,6 +3191,7 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 						filesInChunkInOrder:    internalOrder,
 					},
 				}
+				chunkRepr.hasCSSChunk = true
 			}
 
 		case *graph.CSSRepr:
@@ -3226,8 +3232,13 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 		sortedKeys = append(sortedKeys, key)
 	}
 	sort.Strings(sortedKeys)
+	jsChunkIndicesForCSS := make(map[string]uint32)
 	for _, key := range sortedKeys {
-		sortedChunks = append(sortedChunks, jsChunks[key])
+		chunk := jsChunks[key]
+		if chunk.chunkRepr.(*chunkReprJS).hasCSSChunk {
+			jsChunkIndicesForCSS[key] = uint32(len(sortedChunks))
+		}
+		sortedChunks = append(sortedChunks, chunk)
 	}
 	sortedKeys = sortedKeys[:0]
 	for key := range cssChunks {
@@ -3235,7 +3246,11 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 	}
 	sort.Strings(sortedKeys)
 	for _, key := range sortedKeys {
-		sortedChunks = append(sortedChunks, cssChunks[key])
+		chunk := cssChunks[key]
+		if jsChunkIndex, ok := jsChunkIndicesForCSS[key]; ok {
+			sortedChunks[jsChunkIndex].chunkRepr.(*chunkReprJS).cssChunkIndex = uint32(len(sortedChunks))
+		}
+		sortedChunks = append(sortedChunks, chunk)
 	}
 
 	// Map from the entry point file to this chunk. We will need this later if
@@ -4981,12 +4996,15 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 		if !isFirstMeta {
 			jMeta.AddString("\n      ")
 		}
+		jMeta.AddString("],\n")
 		if chunk.isEntryPoint {
 			entryPoint := c.graph.Files[chunk.sourceIndex].InputFile.Source.PrettyPath
-			jMeta.AddString(fmt.Sprintf("],\n      \"entryPoint\": %s,\n      \"inputs\": {", helpers.QuoteForJSON(entryPoint, c.options.ASCIIOnly)))
-		} else {
-			jMeta.AddString("],\n      \"inputs\": {")
+			jMeta.AddString(fmt.Sprintf("      \"entryPoint\": %s,\n", helpers.QuoteForJSON(entryPoint, c.options.ASCIIOnly)))
 		}
+		if chunkRepr.hasCSSChunk {
+			jMeta.AddString(fmt.Sprintf("      \"cssBundle\": %s,\n", helpers.QuoteForJSON(chunks[chunkRepr.cssChunkIndex].uniqueKey, c.options.ASCIIOnly)))
+		}
+		jMeta.AddString("      \"inputs\": {")
 	}
 
 	// Concatenate the generated JavaScript chunks together

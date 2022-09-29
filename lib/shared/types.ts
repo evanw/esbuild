@@ -452,6 +452,7 @@ export interface Metafile {
       }[]
       exports: string[]
       entryPoint?: string
+      cssBundle?: string
     }
   }
 }
