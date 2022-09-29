@@ -2,13 +2,13 @@
 # Manual changes might be lost - proceed with caution!
 
 __metadata:
-  version: 6
-  cacheKey: 8
+  version: 7
+  cacheKey: 9
 
 "@tokenizer/token@npm:^0.3.0":
   version: 0.3.0
   resolution: "@tokenizer/token@npm:0.3.0"
-  checksum: 1d575d02d2a9f0c5a4ca5180635ebd2ad59e0f18b42a65f3d04844148b49b3db35cf00b6012a1af2d59c2ab3caca59451c5689f747ba8667ee586ad717ee58e1
+  checksum: 0154f4fecd335fc121f78d1a697d90833943c855be7f39f22012f1ac75f6241b37f07025ad4ce6ec2576730e2253d4ef2698364a20d93b749bcdb393dafed93e
   languageName: node
   linkType: hard
 
@@ -20,14 +20,14 @@ __metadata:
   peerDependenciesMeta:
     "@types/node":
       optional: true
-  checksum: 8150a24497a5348bc342c27afb38ad989de2ce8e94c349020628065d2a8df6837cb8bb3012f9161eea716487832612ac71b5f910d95bac41539ac6021d6bd88d
+  checksum: d086593aea25e7872f28227dec3102d232d47099d16933d483b69ec746ac4dc254b6bd610deeab059d0b8b2d72a0738ee77e4c60f6e8244aedb2e99d633c38d4
   languageName: node
   linkType: hard
 
 "aws-jwt-verify@npm:3.1.0":
   version: 3.1.0
   resolution: "aws-jwt-verify@npm:3.1.0"
-  checksum: b978817018a234b91a711f3615ce93eb0a128ca1bffc37801e82faf63e264d458b4afdb32a2f9a7ac353ae170de13c8471a035764996d685c34da6443c7beafd
+  checksum: 7910e4fb3da606bfdb627908d6da02941a5adfc28324b8065e782ba9116eb4ed23bb83fe4d5edc3853897e93ebe1f26719812051459520b2c8187ebf31a2b552
   languageName: node
   linkType: hard
 
@@ -35,8 +35,8 @@ __metadata:
   version: 3.2.0
   resolution: "d3-array@npm:3.2.0"
   dependencies:
-    internmap: 1 - 2
-  checksum: e236f6670b60b64abb6c435da25b5cbbdc2c7c0decdbf9355bc4cf6803d6da4fa820b7b78b9cbd127edb493555934a9788d45084c2f39d7c2e1a2b7aa48264a4
+    internmap: "npm:1 - 2"
+  checksum: d5856c973d5ab72a57b68f3fa843d527683a9ac26af2684766e07df7f9e663ce3623bc8aed68057c54f7009393e6f15680718526cd05f65f811697e38d3da1a8
   languageName: node
   linkType: hard
 
@@ -44,8 +44,8 @@ __metadata:
   version: 3.0.0
   resolution: "d3-time@npm:3.0.0"
   dependencies:
-    d3-array: 2 - 3
-  checksum: 01646568ef01682550b7ee9f32394e4eb116a29515564861958871ed8de8fff02a25cd50dd8c4413921e6d9ecb8c8ce39be3266f655c8c18599fe58bcb253d60
+    d3-array: "npm:2 - 3"
+  checksum: 2e9a13ad045ab5691edbfff633c602673670aabb160c06aa220932cc2512d66cfbce746cbb035ebc5968fccf6072ae89f27026504d972538698870d026987d36
   languageName: node
   linkType: hard
 
@@ -58,14 +58,14 @@ __metadata:
 "internmap@npm:1 - 2":
   version: 2.0.3
   resolution: "internmap@npm:2.0.3"
-  checksum: 7ca41ec6aba8f0072fc32fa8a023450a9f44503e2d8e403583c55714b25efd6390c38a87161ec456bf42d7bc83aab62eb28f5aef34876b1ac4e60693d5e1d241
+  checksum: 27c28dc08e432d4bb9fc70d74a59536e893d60fcb6b7078a70e8b0fbe1ed7fe8a01c4b4931ff50bbdab3d1411cb6050f5119d4c513dc663b7af2d2076efa56a6
   languageName: node
   linkType: hard
 
 "js-tokens@npm:^3.0.0 || ^4.0.0":
   version: 4.0.0
   resolution: "js-tokens@npm:4.0.0"
-  checksum: 8a95213a5a77deb6cbe94d86340e8d9ace2b93bc367790b260101d2f36a2eaf4e4e22d9fa9cf459b38af3a32fb4190e638024cf82ec95ef708680e405ea7cc78
+  checksum: 47d1c18dc6b9eed4baf1db3d81b36feb95b463201c82ffce0d7a4d65ede596ba97d6ac2468974199705db9ef8a3433606af41fc7bbe7cb25c1dd601785413d9b
   languageName: node
   linkType: hard
 
@@ -73,10 +73,10 @@ __metadata:
   version: 1.4.0
   resolution: "loose-envify@npm:1.4.0"
   dependencies:
-    js-tokens: ^3.0.0 || ^4.0.0
+    js-tokens: "npm:^3.0.0 || ^4.0.0"
   bin:
     loose-envify: cli.js
-  checksum: 6517e24e0cad87ec9888f500c5b5947032cdfe6ef65e1c1936a0c48a524b81e65542c9c3edc91c97d5bddc806ee2a985dbc79be89215d613b1de5db6d1cfe6f4
+  checksum: 39c5fc44c6a8f7f8a92cccf174554fbb307477ef493760407920fdd4ed5f6cc1aec5b6a5ab3c3767ef79547b3e1aea09d8ca08d773232c662d910cfe473a0590
   languageName: node
   linkType: hard
 
@@ -85,14 +85,14 @@ __metadata:
   resolution: "mime@npm:3.0.0"
   bin:
     mime: cli.js
-  checksum: f43f9b7bfa64534e6b05bd6062961681aeb406a5b53673b53b683f27fcc4e739989941836a355eef831f4478923651ecc739f4a5f6e20a76487b432bfd4db928
+  checksum: b00613ec79e1f14586c970b6651afca77947f972eca6086ccb614c2b7a1a899d0ec38c6f4418370ecb9d0cebeb4ad300999b6b7f2dcbeaf40f9e0d55874b6c81
   languageName: node
   linkType: hard
 
 "peek-readable@npm:^5.0.0":
   version: 5.0.0
   resolution: "peek-readable@npm:5.0.0"
-  checksum: bef5ceb50586eb42e14efba274ac57ffe97f0ed272df9239ce029f688f495d9bf74b2886fa27847c706a9db33acda4b7d23bbd09a2d21eb4c2a54da915117414
+  checksum: 9350acc783b1b01c956e07f1e010d25b7e3f995719fe08d7deb5d2ac782550875ef57006304a566a0cac14e9c5d5ba95c1c09888a79ddf2d8e2682a51e833516
   languageName: node
   linkType: hard
 
@@ -100,11 +100,11 @@ __metadata:
   version: 18.2.0
   resolution: "react-dom@npm:18.2.0"
   dependencies:
-    loose-envify: ^1.1.0
-    scheduler: ^0.23.0
+    loose-envify: "npm:^1.1.0"
+    scheduler: "npm:^0.23.0"
   peerDependencies:
     react: ^18.2.0
-  checksum: 7d323310bea3a91be2965f9468d552f201b1c27891e45ddc2d6b8f717680c95a75ae0bc1e3f5cf41472446a2589a75aed4483aee8169287909fcd59ad149e8cc
+  checksum: 7c5b915fb793d63563cec1f721e059e6ff0e2855ac116ab5cb7450b6c59398f5e25f95c960ce5cb93504cc58ab724a75a78e99282354e702a0e667d0d787d028
   languageName: node
   linkType: hard
 
@@ -112,8 +112,8 @@ __metadata:
   version: 18.2.0
   resolution: "react@npm:18.2.0"
   dependencies:
-    loose-envify: ^1.1.0
-  checksum: 88e38092da8839b830cda6feef2e8505dec8ace60579e46aa5490fc3dc9bba0bd50336507dc166f43e3afc1c42939c09fe33b25fae889d6f402721dcd78fca1b
+    loose-envify: "npm:^1.1.0"
+  checksum: 8434e5782c52b3bf18a80b666348977924ee3827895fa03ec3ffb9faca90c460049f14130428dd1546bab6cf3b2c277f2c243d3c2a856501331d2e69c24b2bb9
   languageName: node
   linkType: hard
 
@@ -121,14 +121,14 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "root-workspace-0b6124@workspace:."
   dependencies:
-    "@vue/tsconfig": 0.1.3
-    aws-jwt-verify: 3.1.0
-    d3-time: 3.0.0
+    "@vue/tsconfig": "npm:0.1.3"
+    aws-jwt-verify: "npm:3.1.0"
+    d3-time: "npm:3.0.0"
     foo: "workspace:*"
-    mime: 3.0.0
-    react: 18.2.0
-    react-dom: 18.2.0
-    strtok3: 7.0.0
+    mime: "npm:3.0.0"
+    react: "npm:18.2.0"
+    react-dom: "npm:18.2.0"
+    strtok3: "npm:7.0.0"
   languageName: unknown
   linkType: soft
 
@@ -136,8 +136,8 @@ __metadata:
   version: 0.23.0
   resolution: "scheduler@npm:0.23.0"
   dependencies:
-    loose-envify: ^1.1.0
-  checksum: d79192eeaa12abef860c195ea45d37cbf2bbf5f66e3c4dcd16f54a7da53b17788a70d109ee3d3dde1a0fd50e6a8fc171f4300356c5aee4fc0171de526bf35f8a
+    loose-envify: "npm:^1.1.0"
+  checksum: f4022b95cdc282668643da4850f55fe70c899aa956d11819f196e2ca892271bdb253613e53997852094f9351f7c72d057eea8b28d9b4bcb93bcb1c6d09985c82
   languageName: node
   linkType: hard
 
@@ -145,8 +145,8 @@ __metadata:
   version: 7.0.0
   resolution: "strtok3@npm:7.0.0"
   dependencies:
-    "@tokenizer/token": ^0.3.0
-    peek-readable: ^5.0.0
-  checksum: 2ebe7ad8f2aea611dec6742cf6a42e82764892a362907f7ce493faf334501bf981ce21c828dcc300457e6d460dc9c34d644ededb3b01dcb9e37559203cf1748c
+    "@tokenizer/token": "npm:^0.3.0"
+    peek-readable: "npm:^5.0.0"
+  checksum: 0d3b800599678de1dae6eb103a850080564c31d48222c155aafa51dff05431fdb9f1863b48c094ec39c5b63245f03427a4ab1ad783c8903df44eae4c9c7badf0
   languageName: node
   linkType: hard
