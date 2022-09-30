@@ -1769,7 +1769,7 @@ func NewStringInJSLog(log Log, outerTracker *LineColumnTracker, outerStringLiter
 
 			// Advance the outer loc, assuming the string syntax is already valid
 			c, width = utf8.DecodeRuneInString(outerContents[loc.Start:])
-			if c == '\r' && outerContents[loc.Start] == '\n' {
+			if c == '\r' && outerContents[loc.Start+1] == '\n' {
 				// Handle newlines on Windows in template literal strings
 				loc.Start += 2
 			} else if c != '\\' {
@@ -1800,7 +1800,7 @@ func NewStringInJSLog(log Log, outerTracker *LineColumnTracker, outerStringLiter
 					break
 
 				default:
-					loc.Start += int32(width)
+					loc.Start += 1 + int32(width)
 				}
 			}
 		}
