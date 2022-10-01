@@ -89,10 +89,12 @@ func (p *jsonParser) parseExpr() js_ast.Expr {
 		if p.lexer.HasNewlineBefore {
 			isSingleLine = false
 		}
+		closeBracketLoc := p.lexer.Loc()
 		p.lexer.Expect(js_lexer.TCloseBracket)
 		return js_ast.Expr{Loc: loc, Data: &js_ast.EArray{
-			Items:        items,
-			IsSingleLine: isSingleLine,
+			Items:           items,
+			IsSingleLine:    isSingleLine,
+			CloseBracketLoc: closeBracketLoc,
 		}}
 
 	case js_lexer.TOpenBrace:
@@ -146,10 +148,12 @@ func (p *jsonParser) parseExpr() js_ast.Expr {
 		if p.lexer.HasNewlineBefore {
 			isSingleLine = false
 		}
+		closeBraceLoc := p.lexer.Loc()
 		p.lexer.Expect(js_lexer.TCloseBrace)
 		return js_ast.Expr{Loc: loc, Data: &js_ast.EObject{
-			Properties:   properties,
-			IsSingleLine: isSingleLine,
+			Properties:    properties,
+			IsSingleLine:  isSingleLine,
+			CloseBraceLoc: closeBraceLoc,
 		}}
 
 	default:

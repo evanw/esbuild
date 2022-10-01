@@ -437,12 +437,12 @@ func (rr *resolver) Resolve(sourceDir string, importPath string, kind ast.Import
 		for dirInfo := r.dirInfoCached(r.fs.Cwd()); dirInfo != nil; dirInfo = dirInfo.parent {
 			if absPath := dirInfo.pnpManifestAbsPath; absPath != "" {
 				if strings.HasSuffix(absPath, ".json") {
-					if json := r.extractYarnPnPDataFromJSON(absPath, pnpReportErrorsAboutMissingFiles); json.Data != nil {
-						r.pnpManifest = compileYarnPnPData(absPath, r.fs.Dir(absPath), json)
+					if json, source := r.extractYarnPnPDataFromJSON(absPath, pnpReportErrorsAboutMissingFiles); json.Data != nil {
+						r.pnpManifest = compileYarnPnPData(absPath, r.fs.Dir(absPath), json, source)
 					}
 				} else {
-					if json := r.tryToExtractYarnPnPDataFromJS(absPath, pnpReportErrorsAboutMissingFiles); json.Data != nil {
-						r.pnpManifest = compileYarnPnPData(absPath, r.fs.Dir(absPath), json)
+					if json, source := r.tryToExtractYarnPnPDataFromJS(absPath, pnpReportErrorsAboutMissingFiles); json.Data != nil {
+						r.pnpManifest = compileYarnPnPData(absPath, r.fs.Dir(absPath), json, source)
 					}
 				}
 				if r.debugLogs != nil && r.pnpManifest != nil && r.pnpManifest.invalidIgnorePatternData != "" {
@@ -979,20 +979,20 @@ func (r resolverQuery) parseTSConfig(file string, visited map[string]bool) (*TSC
 				for {
 					if _, _, ok := fs.ParseYarnPnPVirtualPath(current); !ok {
 						absPath := r.fs.Join(current, ".pnp.data.json")
-						if json := r.extractYarnPnPDataFromJSON(absPath, pnpIgnoreErrorsAboutMissingFiles); json.Data != nil {
-							pnpData = compileYarnPnPData(absPath, current, json)
+						if json, source := r.extractYarnPnPDataFromJSON(absPath, pnpIgnoreErrorsAboutMissingFiles); json.Data != nil {
+							pnpData = compileYarnPnPData(absPath, current, json, source)
 							break
 						}
 
 						absPath = r.fs.Join(current, ".pnp.cjs")
-						if json := r.tryToExtractYarnPnPDataFromJS(absPath, pnpIgnoreErrorsAboutMissingFiles); json.Data != nil {
-							pnpData = compileYarnPnPData(absPath, current, json)
+						if json, source := r.tryToExtractYarnPnPDataFromJS(absPath, pnpIgnoreErrorsAboutMissingFiles); json.Data != nil {
+							pnpData = compileYarnPnPData(absPath, current, json, source)
 							break
 						}
 
 						absPath = r.fs.Join(current, ".pnp.js")
-						if json := r.tryToExtractYarnPnPDataFromJS(absPath, pnpIgnoreErrorsAboutMissingFiles); json.Data != nil {
-							pnpData = compileYarnPnPData(absPath, current, json)
+						if json, source := r.tryToExtractYarnPnPDataFromJS(absPath, pnpIgnoreErrorsAboutMissingFiles); json.Data != nil {
+							pnpData = compileYarnPnPData(absPath, current, json, source)
 							break
 						}
 					}
@@ -1007,7 +1007,7 @@ func (r resolverQuery) parseTSConfig(file string, visited map[string]bool) (*TSC
 			}
 
 			if pnpData != nil {
-				if result := r.resolveToUnqualified(extends, fileDir, pnpData); result.status == pnpError {
+				if result := r.resolveToUnqualified(extends, fileDir, pnpData); result.status == pnpErrorGeneric {
 					if r.debugLogs != nil {
 						r.debugLogs.addNote("The Yarn PnP path resolution algorithm returned an error")
 					}
@@ -2012,10 +2012,22 @@ func (r resolverQuery) loadNodeModules(importPath string, dirInfo *dirInfo, forb
 
 	// If Yarn PnP is active, use it to find the package
 	if r.pnpManifest != nil {
-		if result := r.resolveToUnqualified(importPath, dirInfo.absPath, r.pnpManifest); result.status == pnpError {
+		if result := r.resolveToUnqualified(importPath, dirInfo.absPath, r.pnpManifest); result.status.isError() {
 			if r.debugLogs != nil {
 				r.debugLogs.addNote("The Yarn PnP path resolution algorithm returned an error")
 			}
+
+			// Try to provide more information about this error if it's available
+			switch result.status {
+			case pnpErrorDependencyNotFound:
+				r.debugMeta.notes = []logger.MsgData{r.pnpManifest.tracker.MsgData(result.errorRange,
+					fmt.Sprintf("The Yarn Plug'n'Play manifest forbids importing %q here because it's not listed as a dependency of this package:", result.errorIdent))}
+
+			case pnpErrorUnfulfilledPeerDependency:
+				r.debugMeta.notes = []logger.MsgData{r.pnpManifest.tracker.MsgData(result.errorRange,
+					fmt.Sprintf("The Yarn Plug'n'Play manifest says this package has a peer dependency on %q, but the package %q has not been installed:", result.errorIdent, result.errorIdent))}
+			}
+
 			return PathPair{}, false, nil
 		} else if result.status == pnpSuccess {
 			absPath := r.fs.Join(result.pkgDirPath, result.pkgSubpath)

@@ -1701,110 +1701,134 @@ func allowOverride(overrides map[MsgID]LogLevel, id MsgID, kind MsgKind) (MsgKin
 	return kind, true
 }
 
-// For Yarn PnP we sometimes parse JSON embedded in a JS string. This is a shim
-// that remaps log message locations inside the embedded string literal into
-// log messages in the actual JS file, which makes them easier to understand.
-func NewStringInJSLog(log Log, outerTracker *LineColumnTracker, outerStringLiteralLoc Loc, innerContents string) Log {
-	type entry struct {
-		line   int32
-		column int32
-		loc    Loc
-	}
+type StringInJSTableEntry struct {
+	innerLine   int32
+	innerColumn int32
+	innerLoc    Loc
+	outerLoc    Loc
+}
 
-	var table []entry
-	oldAddMsg := log.AddMsg
+// For Yarn PnP we sometimes parse JSON embedded in a JS string. This generates
+// a table that remaps locations inside the embedded JSON string literal into
+// locations in the actual JS file, which makes them easier to understand.
+func GenerateStringInJSTable(outerContents string, outerStringLiteralLoc Loc, innerContents string) (table []StringInJSTableEntry) {
+	i := int32(0)
+	n := int32(len(innerContents))
+	line := int32(1)
+	column := int32(0)
+	loc := Loc{Start: outerStringLiteralLoc.Start + 1}
 
-	generateTable := func() {
-		i := 0
-		n := len(innerContents)
-		line := int32(1)
-		column := int32(0)
-		loc := Loc{Start: outerStringLiteralLoc.Start + 1}
-		outerContents := outerTracker.contents
-
-		for i < n {
-			// Ignore line continuations. A line continuation is not an escaped newline.
-			for {
-				if c, _ := utf8.DecodeRuneInString(outerContents[loc.Start:]); c != '\\' {
-					break
-				}
-				c, width := utf8.DecodeRuneInString(outerContents[loc.Start+1:])
-				switch c {
-				case '\n', '\r', '\u2028', '\u2029':
-					loc.Start += 1 + int32(width)
-					if c == '\r' && outerContents[loc.Start] == '\n' {
-						// Make sure Windows CRLF counts as a single newline
-						loc.Start++
-					}
-					continue
-				}
+	for i < n {
+		// Ignore line continuations. A line continuation is not an escaped newline.
+		for {
+			if c, _ := utf8.DecodeRuneInString(outerContents[loc.Start:]); c != '\\' {
 				break
 			}
-
-			c, width := utf8.DecodeRuneInString(innerContents[i:])
-
-			// Compress the table using run-length encoding
-			table = append(table, entry{line: line, column: column, loc: loc})
-			if len(table) > 1 {
-				if last := table[len(table)-2]; line == last.line && loc.Start-column == last.loc.Start-last.column {
-					table = table[:len(table)-1]
-				}
-			}
-
-			// Advance the inner line/column
+			c, width := utf8.DecodeRuneInString(outerContents[loc.Start+1:])
 			switch c {
 			case '\n', '\r', '\u2028', '\u2029':
-				line++
-				column = 0
-
-				// Handle newlines on Windows
-				if c == '\r' && i+1 < n && innerContents[i+1] == '\n' {
-					i++
+				loc.Start += 1 + int32(width)
+				if c == '\r' && outerContents[loc.Start] == '\n' {
+					// Make sure Windows CRLF counts as a single newline
+					loc.Start++
 				}
+				continue
+			}
+			break
+		}
+
+		c, width := utf8.DecodeRuneInString(innerContents[i:])
+
+		// Compress the table using run-length encoding
+		table = append(table, StringInJSTableEntry{innerLine: line, innerColumn: column, innerLoc: Loc{Start: i}, outerLoc: loc})
+		if len(table) > 1 {
+			if last := table[len(table)-2]; line == last.innerLine && loc.Start-column == last.outerLoc.Start-last.innerColumn {
+				table = table[:len(table)-1]
+			}
+		}
+
+		// Advance the inner line/column
+		switch c {
+		case '\n', '\r', '\u2028', '\u2029':
+			line++
+			column = 0
+
+			// Handle newlines on Windows
+			if c == '\r' && i+1 < n && innerContents[i+1] == '\n' {
+				i++
+			}
+
+		default:
+			column += int32(width)
+		}
+		i += int32(width)
+
+		// Advance the outer loc, assuming the string syntax is already valid
+		c, width = utf8.DecodeRuneInString(outerContents[loc.Start:])
+		if c == '\r' && outerContents[loc.Start+1] == '\n' {
+			// Handle newlines on Windows in template literal strings
+			loc.Start += 2
+		} else if c != '\\' {
+			loc.Start += int32(width)
+		} else {
+			// Handle an escape sequence
+			c, width = utf8.DecodeRuneInString(outerContents[loc.Start+1:])
+			switch c {
+			case 'x':
+				// 2-digit hexadecimal
+				loc.Start += 1 + 2
+
+			case 'u':
+				loc.Start++
+				if outerContents[loc.Start] == '{' {
+					// Variable-length
+					for outerContents[loc.Start] != '}' {
+						loc.Start++
+					}
+					loc.Start++
+				} else {
+					// Fixed-length
+					loc.Start += 4
+				}
+
+			case '\n', '\r', '\u2028', '\u2029':
+				// This will be handled by the next iteration
+				break
 
 			default:
-				column += int32(width)
-			}
-			i += width
-
-			// Advance the outer loc, assuming the string syntax is already valid
-			c, width = utf8.DecodeRuneInString(outerContents[loc.Start:])
-			if c == '\r' && outerContents[loc.Start+1] == '\n' {
-				// Handle newlines on Windows in template literal strings
-				loc.Start += 2
-			} else if c != '\\' {
-				loc.Start += int32(width)
-			} else {
-				// Handle an escape sequence
-				c, width = utf8.DecodeRuneInString(outerContents[loc.Start+1:])
-				switch c {
-				case 'x':
-					// 2-digit hexadecimal
-					loc.Start += 1 + 2
-
-				case 'u':
-					loc.Start++
-					if outerContents[loc.Start] == '{' {
-						// Variable-length
-						for outerContents[loc.Start] != '}' {
-							loc.Start++
-						}
-						loc.Start++
-					} else {
-						// Fixed-length
-						loc.Start += 4
-					}
-
-				case '\n', '\r', '\u2028', '\u2029':
-					// This will be handled by the next iteration
-					break
-
-				default:
-					loc.Start += 1 + int32(width)
-				}
+				loc.Start += 1 + int32(width)
 			}
 		}
 	}
+
+	return
+}
+
+func RemapStringInJSLoc(table []StringInJSTableEntry, innerLoc Loc) Loc {
+	count := len(table)
+	index := 0
+
+	// Binary search to find the previous entry
+	for count > 0 {
+		step := count / 2
+		i := index + step
+		if i+1 < len(table) {
+			if entry := table[i+1]; entry.innerLoc.Start < innerLoc.Start {
+				index = i + 1
+				count -= step + 1
+				continue
+			}
+		}
+		count = step
+	}
+
+	entry := table[index]
+	entry.outerLoc.Start += innerLoc.Start - entry.innerLoc.Start // Undo run-length compression
+	return entry.outerLoc
+}
+
+func NewStringInJSLog(log Log, outerTracker *LineColumnTracker, table []StringInJSTableEntry) Log {
+	oldAddMsg := log.AddMsg
 
 	remapLineAndColumnToLoc := func(line int32, column int32) Loc {
 		count := len(table)
@@ -1815,7 +1839,7 @@ func NewStringInJSLog(log Log, outerTracker *LineColumnTracker, outerStringLiter
 			step := count / 2
 			i := index + step
 			if i+1 < len(table) {
-				if entry := table[i+1]; entry.line < line || (entry.line == line && entry.column < column) {
+				if entry := table[i+1]; entry.innerLine < line || (entry.innerLine == line && entry.innerColumn < column) {
 					index = i + 1
 					count -= step + 1
 					continue
@@ -1825,18 +1849,13 @@ func NewStringInJSLog(log Log, outerTracker *LineColumnTracker, outerStringLiter
 		}
 
 		entry := table[index]
-		entry.loc.Start += column - entry.column // Undo run-length compression
-		return entry.loc
+		entry.outerLoc.Start += column - entry.innerColumn // Undo run-length compression
+		return entry.outerLoc
 	}
 
 	remapData := func(data MsgData) MsgData {
 		if data.Location == nil {
 			return data
-		}
-
-		// Generate and cache a lookup table to accelerate remappings
-		if table == nil {
-			generateTable()
 		}
 
 		// Generate a range in the outer source using the line/column/length in the inner source

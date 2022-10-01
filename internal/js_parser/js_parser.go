@@ -14150,15 +14150,19 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 									case *js_ast.EString:
 										// "hydrateRuntimeState(JSON.parse(<string literal>))"
 										source := logger.Source{KeyPath: p.source.KeyPath, Contents: helpers.UTF16ToString(a.Value)}
-										log := logger.NewStringInJSLog(p.log, &p.tracker, arg.Loc, source.Contents)
+										stringInJSTable := logger.GenerateStringInJSTable(p.source.Contents, arg.Loc, source.Contents)
+										log := logger.NewStringInJSLog(p.log, &p.tracker, stringInJSTable)
 										p.manifestForYarnPnP, _ = ParseJSON(log, source, JSONOptions{})
+										remapExprLocsInJSON(&p.manifestForYarnPnP, stringInJSTable)
 
 									case *js_ast.EIdentifier:
 										// "hydrateRuntimeState(JSON.parse(<identifier>))"
 										if data, ok := p.stringLocalsForYarnPnP[a.Ref]; ok {
 											source := logger.Source{KeyPath: p.source.KeyPath, Contents: helpers.UTF16ToString(data.value)}
-											log := logger.NewStringInJSLog(p.log, &p.tracker, data.loc, source.Contents)
+											stringInJSTable := logger.GenerateStringInJSTable(p.source.Contents, data.loc, source.Contents)
+											log := logger.NewStringInJSLog(p.log, &p.tracker, stringInJSTable)
 											p.manifestForYarnPnP, _ = ParseJSON(log, source, JSONOptions{})
+											remapExprLocsInJSON(&p.manifestForYarnPnP, stringInJSTable)
 										}
 									}
 								}
@@ -14519,6 +14523,25 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 	}
 
 	return expr, exprOut{}
+}
+
+func remapExprLocsInJSON(expr *js_ast.Expr, table []logger.StringInJSTableEntry) {
+	expr.Loc = logger.RemapStringInJSLoc(table, expr.Loc)
+
+	switch e := expr.Data.(type) {
+	case *js_ast.EArray:
+		e.CloseBracketLoc = logger.RemapStringInJSLoc(table, e.CloseBracketLoc)
+		for i := range e.Items {
+			remapExprLocsInJSON(&e.Items[i], table)
+		}
+
+	case *js_ast.EObject:
+		e.CloseBraceLoc = logger.RemapStringInJSLoc(table, e.CloseBraceLoc)
+		for i := range e.Properties {
+			remapExprLocsInJSON(&e.Properties[i].Key, table)
+			remapExprLocsInJSON(&e.Properties[i].ValueOrNil, table)
+		}
+	}
 }
 
 func (p *parser) convertSymbolUseToCall(ref js_ast.Ref, isSingleNonSpreadArgCall bool) {
