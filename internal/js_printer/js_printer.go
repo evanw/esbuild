@@ -1760,7 +1760,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			}
 
 			// Replace non-mutated empty functions with their arguments at print time
-			if (symbolFlags & (js_ast.IsEmptyFunction | js_ast.CouldPotentiallyBeMutated)) == js_ast.IsEmptyFunction {
+			if (symbolFlags&(js_ast.IsEmptyFunction|js_ast.CouldPotentiallyBeMutated)) == js_ast.IsEmptyFunction || (symbolFlags&(js_ast.IsReturnNull|js_ast.CouldPotentiallyBeMutated)) == js_ast.IsReturnNull {
 				var replacement js_ast.Expr
 				for _, arg := range e.Args {
 					if _, ok := arg.Data.(*js_ast.ESpread); ok {
@@ -1769,7 +1769,11 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 					replacement = js_ast.JoinWithComma(replacement, js_ast.SimplifyUnusedExpr(arg, p.options.UnsupportedFeatures, p.isUnbound))
 				}
 				if replacement.Data == nil || (flags&exprResultIsUnused) == 0 {
-					replacement = js_ast.JoinWithComma(replacement, js_ast.Expr{Loc: expr.Loc, Data: js_ast.EUndefinedShared})
+					if symbolFlags == js_ast.IsReturnNull {
+						replacement = js_ast.JoinWithComma(replacement, js_ast.Expr{Loc: expr.Loc, Data: js_ast.ENullShared})
+					} else {
+						replacement = js_ast.JoinWithComma(replacement, js_ast.Expr{Loc: expr.Loc, Data: js_ast.EUndefinedShared})
+					}
 				}
 				p.printExpr(p.guardAgainstBehaviorChangeDueToSubstitution(replacement, flags), level, flags)
 				break

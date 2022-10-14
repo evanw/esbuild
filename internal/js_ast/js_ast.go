@@ -1325,6 +1325,9 @@ const (
 	// This means the symbol is a normal function that takes a single argument
 	// and returns that argument.
 	IsIdentityFunction
+
+	// This means the symbol is a normal function that returns null.
+	IsReturnNull
 )
 
 func (flags SymbolFlags) Has(flag SymbolFlags) bool {

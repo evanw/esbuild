@@ -531,6 +531,7 @@ func TestFunction(t *testing.T) {
 	expectPrinted(t,
 		"function foo([,,] = [,,]) {}",
 		"function foo([, ,] = [, ,]) {\n}\n")
+	expectPrintedMangleMinify(t, "function a() {return null}  const b = a();", "function a(){return null}const b=null;")
 }
 
 func TestPureComment(t *testing.T) {
