@@ -1,6 +1,6 @@
 {
   "name": "@esbuild/linux-loong64",
-  "version": "0.15.10",
+  "version": "0.15.11",
   "description": "The Linux LoongArch 64-bit binary for esbuild, a JavaScript bundler.",
   "repository": "https://github.com/evanw/esbuild",
   "license": "MIT",

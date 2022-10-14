@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.15.11
 
 * Fix various edge cases regarding template tags and `this` ([#2610](https://github.com/evanw/esbuild/issues/2610))
 
