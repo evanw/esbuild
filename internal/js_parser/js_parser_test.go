@@ -3774,8 +3774,18 @@ func TestMangleTemplate(t *testing.T) {
 	expectPrintedMangle(t, "tag`a${'x'}b${y}c`", "tag`a${\"x\"}b${y}c`;\n")
 	expectPrintedMangle(t, "tag`a${'x'}b${'y'}c`", "tag`a${\"x\"}b${\"y\"}c`;\n")
 
+	expectPrintedMangle(t, "(1, x)``", "x``;\n")
 	expectPrintedMangle(t, "(1, x.y)``", "(0, x.y)``;\n")
 	expectPrintedMangle(t, "(1, x[y])``", "(0, x[y])``;\n")
+	expectPrintedMangle(t, "(true && x)``", "x``;\n")
+	expectPrintedMangle(t, "(true && x.y)``", "(0, x.y)``;\n")
+	expectPrintedMangle(t, "(true && x[y])``", "(0, x[y])``;\n")
+	expectPrintedMangle(t, "(false || x)``", "x``;\n")
+	expectPrintedMangle(t, "(false || x.y)``", "(0, x.y)``;\n")
+	expectPrintedMangle(t, "(false || x[y])``", "(0, x[y])``;\n")
+	expectPrintedMangle(t, "(null ?? x)``", "x``;\n")
+	expectPrintedMangle(t, "(null ?? x.y)``", "(0, x.y)``;\n")
+	expectPrintedMangle(t, "(null ?? x[y])``", "(0, x[y])``;\n")
 
 	expectPrintedMangleTarget(t, 2015, "class Foo { #foo() { return this.#foo`` } }", `var _foo, foo_fn;
 class Foo {

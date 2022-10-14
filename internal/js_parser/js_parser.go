@@ -11025,7 +11025,7 @@ func (p *parser) instantiateDefineExpr(loc logger.Loc, expr config.DefineExpr, o
 
 	// Build up a chain of property access expressions for subsequent parts
 	for _, part := range parts {
-		if expr, ok := p.maybeRewritePropertyAccess(loc, js_ast.AssignTargetNone, false, value, part, loc, false, false); ok {
+		if expr, ok := p.maybeRewritePropertyAccess(loc, js_ast.AssignTargetNone, false, value, part, loc, false, false, false); ok {
 			value = expr
 		} else if p.isMangledProp(part) {
 			value = js_ast.Expr{Loc: loc, Data: &js_ast.EIndex{
@@ -11237,6 +11237,7 @@ func (p *parser) maybeRewritePropertyAccess(
 	name string,
 	nameLoc logger.Loc,
 	isCallTarget bool,
+	isTemplateTag bool,
 	preferQuotedKey bool,
 ) (js_ast.Expr, bool) {
 	if id, ok := target.Data.(*js_ast.EIdentifier); ok {
@@ -11311,7 +11312,7 @@ func (p *parser) maybeRewritePropertyAccess(
 	}
 
 	// Attempt to simplify statically-determined object literal property accesses
-	if !isCallTarget && p.options.minifySyntax && assignTarget == js_ast.AssignTargetNone {
+	if !isCallTarget && !isTemplateTag && p.options.minifySyntax && assignTarget == js_ast.AssignTargetNone {
 		if object, ok := target.Data.(*js_ast.EObject); ok {
 			var replace js_ast.Expr
 			hasProtoNull := false
@@ -12618,8 +12619,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			break
 		}
 
-		isCallTarget := e == p.callTarget
-		isTemplateTag := e == p.templateTag
+		isCallTargetOrTemplateTag := e == p.callTarget || e == p.templateTag
 		isStmtExpr := e == p.stmtExprValue
 		wasAnonymousNamedExpr := p.isAnonymousNamedExpr(e.Right)
 		oldSilenceWarningAboutThisBeingUndefined := p.fnOnlyDataVisit.silenceMessageAboutThisBeingUndefined
@@ -12707,7 +12707,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					// "(1, fn)()" => "fn()"
 					// "(1, this.fn)" => "this.fn"
 					// "(1, this.fn)()" => "(0, this.fn)()"
-					if (isCallTarget || isTemplateTag) && hasValueForThisInCall(e.Right) {
+					if isCallTargetOrTemplateTag && hasValueForThisInCall(e.Right) {
 						return js_ast.JoinWithComma(js_ast.Expr{Loc: e.Left.Loc, Data: &js_ast.ENumber{}}, e.Right), exprOut{}
 					}
 					return e.Right, exprOut{}
@@ -12810,7 +12810,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					// "(null ?? fn)()" => "fn()"
 					// "(null ?? this.fn)" => "this.fn"
 					// "(null ?? this.fn)()" => "(0, this.fn)()"
-					if isCallTarget && hasValueForThisInCall(e.Right) {
+					if isCallTargetOrTemplateTag && hasValueForThisInCall(e.Right) {
 						return js_ast.JoinWithComma(js_ast.Expr{Loc: e.Left.Loc, Data: &js_ast.ENumber{}}, e.Right), exprOut{}
 					}
 
@@ -12838,7 +12838,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					// "(0 || fn)()" => "fn()"
 					// "(0 || this.fn)" => "this.fn"
 					// "(0 || this.fn)()" => "(0, this.fn)()"
-					if isCallTarget && hasValueForThisInCall(e.Right) {
+					if isCallTargetOrTemplateTag && hasValueForThisInCall(e.Right) {
 						return js_ast.JoinWithComma(js_ast.Expr{Loc: e.Left.Loc, Data: &js_ast.ENumber{}}, e.Right), exprOut{}
 					}
 					return e.Right, exprOut{}
@@ -12868,7 +12868,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					// "(1 && fn)()" => "fn()"
 					// "(1 && this.fn)" => "this.fn"
 					// "(1 && this.fn)()" => "(0, this.fn)()"
-					if isCallTarget && hasValueForThisInCall(e.Right) {
+					if isCallTargetOrTemplateTag && hasValueForThisInCall(e.Right) {
 						return js_ast.JoinWithComma(js_ast.Expr{Loc: e.Left.Loc, Data: &js_ast.ENumber{}}, e.Right), exprOut{}
 					}
 					return e.Right, exprOut{}
@@ -13187,6 +13187,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 	case *js_ast.EDot:
 		isDeleteTarget := e == p.deleteTarget
 		isCallTarget := e == p.callTarget
+		isTemplateTag := e == p.templateTag
 
 		// Check both user-specified defines and known globals
 		if defines, ok := p.options.defines.DotDefines[e.Name]; ok {
@@ -13241,7 +13242,18 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			!isCallTarget && p.shouldLowerSuperPropertyAccess(e.Target) {
 			// "super.foo" => "__superGet('foo')"
 			key := js_ast.Expr{Loc: e.NameLoc, Data: &js_ast.EString{Value: helpers.StringToUTF16(e.Name)}}
-			return p.lowerSuperPropertyGet(expr.Loc, key), exprOut{}
+			value := p.lowerSuperPropertyGet(expr.Loc, key)
+			if isTemplateTag {
+				value.Data = &js_ast.ECall{
+					Target: js_ast.Expr{Loc: value.Loc, Data: &js_ast.EDot{
+						Target:  value,
+						Name:    "bind",
+						NameLoc: value.Loc,
+					}},
+					Args: []js_ast.Expr{{Loc: value.Loc, Data: js_ast.EThisShared}},
+				}
+			}
+			return value, exprOut{}
 		}
 
 		// Lower optional chaining if we're the top of the chain
@@ -13263,7 +13275,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 		if e.OptionalChain == js_ast.OptionalChainNone {
 			if value, ok := p.maybeRewritePropertyAccess(expr.Loc, in.assignTarget,
-				isDeleteTarget, e.Target, e.Name, e.NameLoc, isCallTarget, false); ok {
+				isDeleteTarget, e.Target, e.Name, e.NameLoc, isCallTarget, isTemplateTag, false); ok {
 				return value, out
 			}
 		}
@@ -13307,6 +13319,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				dot := p.dotOrMangledPropParse(e.Target, js_lexer.MaybeSubstring{String: helpers.UTF16ToString(str.Value)}, e.Index.Loc, e.OptionalChain, wasOriginallyIndex)
 				if isCallTarget {
 					p.callTarget = dot
+				}
+				if isTemplateTag {
+					p.templateTag = dot
 				}
 				if isDeleteTarget {
 					p.deleteTarget = dot
@@ -13377,7 +13392,18 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		if e.OptionalChain == js_ast.OptionalChainNone && in.assignTarget == js_ast.AssignTargetNone &&
 			!isCallTarget && p.shouldLowerSuperPropertyAccess(e.Target) {
 			// "super[foo]" => "__superGet(foo)"
-			return p.lowerSuperPropertyGet(expr.Loc, e.Index), exprOut{}
+			value := p.lowerSuperPropertyGet(expr.Loc, e.Index)
+			if isTemplateTag {
+				value.Data = &js_ast.ECall{
+					Target: js_ast.Expr{Loc: value.Loc, Data: &js_ast.EDot{
+						Target:  value,
+						Name:    "bind",
+						NameLoc: value.Loc,
+					}},
+					Args: []js_ast.Expr{{Loc: value.Loc, Data: js_ast.EThisShared}},
+				}
+			}
+			return value, exprOut{}
 		}
 
 		// Lower optional chaining if we're the top of the chain
@@ -13400,7 +13426,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		if str, ok := e.Index.Data.(*js_ast.EString); ok && e.OptionalChain == js_ast.OptionalChainNone {
 			preferQuotedKey := !p.options.minifySyntax
 			if value, ok := p.maybeRewritePropertyAccess(expr.Loc, in.assignTarget, isDeleteTarget,
-				e.Target, helpers.UTF16ToString(str.Value), e.Index.Loc, isCallTarget, preferQuotedKey); ok {
+				e.Target, helpers.UTF16ToString(str.Value), e.Index.Loc, isCallTarget, isTemplateTag, preferQuotedKey); ok {
 				return value, out
 			}
 		}

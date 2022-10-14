@@ -1,5 +1,37 @@
 # Changelog
 
+## Unreleased
+
+* Fix various edge cases regarding template tags and `this` ([#2610](https://github.com/evanw/esbuild/issues/2610))
+
+    This release fixes some bugs where the value of `this` wasn't correctly preserved when evaluating template tags in a few edge cases. These edge cases are listed below:
+
+    ```js
+    async function test() {
+      class Foo { foo() { return this } }
+      class Bar extends Foo {
+        a = async () => super.foo``
+        b = async () => super['foo']``
+        c = async (foo) => super[foo]``
+      }
+      function foo() { return this }
+      const obj = { foo }
+      const bar = new Bar
+      console.log(
+        (await bar.a()) === bar,
+        (await bar.b()) === bar,
+        (await bar.c('foo')) === bar,
+        { foo }.foo``.foo === foo,
+        (true && obj.foo)`` !== obj,
+        (false || obj.foo)`` !== obj,
+        (null ?? obj.foo)`` !== obj,
+      )
+    }
+    test()
+    ```
+
+    Each edge case in the code above previously incorrectly printed `false` when run through esbuild with `--minify --target=es6` but now correctly prints `true`. These edge cases are unlikely to have affected real-world code.
+
 ## 0.15.10
 
 * Add support for node's "pattern trailers" syntax ([#2569](https://github.com/evanw/esbuild/issues/2569))

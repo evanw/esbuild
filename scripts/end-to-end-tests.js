@@ -2570,6 +2570,9 @@ for (const minify of [[], ['--minify-syntax']]) {
         'in.js': `if ({ a: function() { return this.b }, b: 1 }${access}() !== 1) throw 'fail'`,
       }),
       test(['in.js', '--outfile=node.js'].concat(minify), {
+        'in.js': `if ({ a: function() { return this.b }, b: 1 }${access}\`\` !== 1) throw 'fail'`,
+      }),
+      test(['in.js', '--outfile=node.js'].concat(minify), {
         'in.js': `if (({a: 2}${access} = 1) !== 1) throw 'fail'`,
       }),
       test(['in.js', '--outfile=node.js'].concat(minify), {
@@ -5191,6 +5194,35 @@ for (let flags of [[], ['--target=es2017'], ['--target=es6']]) {
           derived.set = Derived.set
           await derived.set(123)
           if (base.foo !== void 0 || Derived.foo !== 'Base') throw 'fail'
+        }
+      `,
+    }, { async: true }),
+    test(['in.js', '--outfile=node.js'].concat(flags), {
+      'in.js': `
+        class Foo extends (class {
+          foo() {
+            return this
+          }
+        }) {
+          x = async (foo) => [
+            super.foo(),
+            super.foo\`\`,
+            super[foo](),
+            super[foo]\`\`,
+            super['foo'](),
+            super['foo']\`\`,
+            this.#bar(),
+            this.#bar\`\`,
+          ]
+          #bar() {
+            return this
+          }
+        }
+        exports.async = async () => {
+          const foo = new Foo
+          for (const bar of await foo.x('foo'))
+            if (foo !== bar)
+              throw 'fail'
         }
       `,
     }, { async: true }),
