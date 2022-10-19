@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.15.12
 
 * Fix minifier correctness bug with single-use substitutions ([#2619](https://github.com/evanw/esbuild/issues/2619))
 
