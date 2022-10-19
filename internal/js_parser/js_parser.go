@@ -8467,17 +8467,30 @@ func (p *parser) substituteSingleUseSymbolInExpr(
 				return expr, status
 			}
 		} else if !p.exprCanBeRemovedIfUnused(e.Left) {
-			// Do not reorder past a side effect
+			// Do not reorder past a side effect in an assignment target, as that may
+			// change the replacement value. For example, "fn()" may change "a" here:
+			//
+			//   let a = 1;
+			//   foo[fn()] = a;
+			//
+			return expr, substituteFailure
+		} else if e.Op.BinaryAssignTarget() == js_ast.AssignTargetUpdate && !replacementCanBeRemoved {
+			// If this is a read-modify-write assignment and the replacement has side
+			// effects, don't reorder it past the assignment target. The assignment
+			// target is being read so it may be changed by the side effect. For
+			// example, "fn()" may change "foo" here:
+			//
+			//   let a = fn();
+			//   foo += a;
+			//
 			return expr, substituteFailure
 		}
 
-		// Do not substitute our unconditionally-executed value into a branching
-		// short-circuit operator unless the value itself has no side effects
-		if replacementCanBeRemoved || !e.Op.IsShortCircuit() {
-			if value, status := p.substituteSingleUseSymbolInExpr(e.Right, ref, replacement, replacementCanBeRemoved); status != substituteContinue {
-				e.Right = value
-				return expr, status
-			}
+		// If we get here then it should be safe to attempt to substitute the
+		// replacement past the left operand into the right operand.
+		if value, status := p.substituteSingleUseSymbolInExpr(e.Right, ref, replacement, replacementCanBeRemoved); status != substituteContinue {
+			e.Right = value
+			return expr, status
 		}
 
 	case *js_ast.EIf:
@@ -8609,6 +8622,11 @@ func (p *parser) substituteSingleUseSymbolInExpr(
 	// If both the replacement and this expression have no observable side
 	// effects, then we can reorder the replacement past this expression
 	if replacementCanBeRemoved && p.exprCanBeRemovedIfUnused(expr) {
+		return expr, substituteContinue
+	}
+
+	// We can always reorder past primitive values
+	if isPrimitiveLiteral(expr.Data) {
 		return expr, substituteContinue
 	}
 

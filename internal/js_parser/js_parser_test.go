@@ -4219,6 +4219,26 @@ func TestMangleInlineLocals(t *testing.T) {
 	check("let x = 1; return void x", "let x = 1;")
 	check("let x = 1; return typeof x", "return typeof 1;")
 
+	// Check substituting a side-effect free value into normal binary operators
+	check("let x = 1; return x + 2", "return 1 + 2;")
+	check("let x = 1; return 2 + x", "return 2 + 1;")
+	check("let x = 1; return x + arg0", "return 1 + arg0;")
+	check("let x = 1; return arg0 + x", "return arg0 + 1;")
+	check("let x = 1; return x + fn()", "return 1 + fn();")
+	check("let x = 1; return fn() + x", "let x = 1;\nreturn fn() + x;")
+	check("let x = 1; return x + undef", "return 1 + undef;")
+	check("let x = 1; return undef + x", "let x = 1;\nreturn undef + x;")
+
+	// Check substituting a value with side-effects into normal binary operators
+	check("let x = fn(); return x + 2", "return fn() + 2;")
+	check("let x = fn(); return 2 + x", "return 2 + fn();")
+	check("let x = fn(); return x + arg0", "return fn() + arg0;")
+	check("let x = fn(); return arg0 + x", "let x = fn();\nreturn arg0 + x;")
+	check("let x = fn(); return x + fn2()", "return fn() + fn2();")
+	check("let x = fn(); return fn2() + x", "let x = fn();\nreturn fn2() + x;")
+	check("let x = fn(); return x + undef", "return fn() + undef;")
+	check("let x = fn(); return undef + x", "let x = fn();\nreturn undef + x;")
+
 	// Cannot substitute into mutating unary operators
 	check("let x = 1; ++x", "let x = 1;\n++x;")
 	check("let x = 1; --x", "let x = 1;\n--x;")
@@ -4236,7 +4256,7 @@ func TestMangleInlineLocals(t *testing.T) {
 	check("let x = 1; arg0 += x", "arg0 += 1;")
 	check("let x = 1; arg0 ||= x", "arg0 ||= 1;")
 	check("let x = fn(); arg0 = x", "arg0 = fn();")
-	check("let x = fn(); arg0 += x", "arg0 += fn();")
+	check("let x = fn(); arg0 += x", "let x = fn();\narg0 += x;")
 	check("let x = fn(); arg0 ||= x", "let x = fn();\narg0 ||= x;")
 
 	// Cannot substitute past mutating binary operators when the left operand has side effects
@@ -4246,12 +4266,6 @@ func TestMangleInlineLocals(t *testing.T) {
 	check("let x = fn(); y.z = x", "let x = fn();\ny.z = x;")
 	check("let x = fn(); y.z += x", "let x = fn();\ny.z += x;")
 	check("let x = fn(); y.z ||= x", "let x = fn();\ny.z ||= x;")
-
-	// Cannot substitute code without side effects past non-mutating binary operators when the left operand has side effects
-	check("let x = 1; fn() + x", "let x = 1;\nfn() + x;")
-
-	// Cannot substitute code with side effects past non-mutating binary operators
-	check("let x = y(); arg0 + x", "let x = y();\narg0 + x;")
 
 	// Can substitute code without side effects into branches
 	check("let x = arg0; return x ? y : z;", "return arg0 ? y : z;")
@@ -4410,6 +4424,15 @@ func TestMangleInlineLocals(t *testing.T) {
 	check("let x = arg0[foo]; (0, x)()", "let x = arg0[foo];\nx();")
 	check("let x = arg0?.foo; (0, x)()", "let x = arg0?.foo;\nx();")
 	check("let x = arg0?.[foo]; (0, x)()", "let x = arg0?.[foo];\nx();")
+
+	// Explicitly allow reordering calls that are both marked as "/* @__PURE__ */".
+	// This happens because only two expressions that are free from side-effects
+	// can be freely reordered, and marking something as "/* @__PURE__ */" tells
+	// us that it has no side effects.
+	check("let x = arg0(); arg1() + x", "let x = arg0();\narg1() + x;")
+	check("let x = arg0(); /* @__PURE__ */ arg1() + x", "let x = arg0();\n/* @__PURE__ */ arg1() + x;")
+	check("let x = /* @__PURE__ */ arg0(); arg1() + x", "let x = /* @__PURE__ */ arg0();\narg1() + x;")
+	check("let x = /* @__PURE__ */ arg0(); /* @__PURE__ */ arg1() + x", "/* @__PURE__ */ arg1() + /* @__PURE__ */ arg0();")
 }
 
 func TestTrimCodeInDeadControlFlow(t *testing.T) {

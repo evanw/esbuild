@@ -1,5 +1,49 @@
 # Changelog
 
+## Unreleased
+
+* Fix minifier correctness bug with single-use substitutions ([#2619](https://github.com/evanw/esbuild/issues/2619))
+
+    When minification is enabled, esbuild will attempt to eliminate variables that are only used once in certain cases. For example, esbuild minifies this code:
+
+    ```js
+    function getEmailForUser(name) {
+      let users = db.table('users');
+      let user = users.find({ name });
+      let email = user?.get('email');
+      return email;
+    }
+    ```
+
+    into this code:
+
+    ```js
+    function getEmailForUser(e){return db.table("users").find({name:e})?.get("email")}
+    ```
+
+    However, this transformation had a bug where esbuild did not correctly consider the "read" part of binary read-modify-write assignment operators. For example, it's incorrect to minify the following code into `bar += fn()` because the call to `fn()` might modify `bar`:
+
+    ```js
+    const foo = fn();
+    bar += foo;
+    ```
+
+    In addition to fixing this correctness bug, this release also improves esbuild's output in the case where all values being skipped over are primitives:
+
+    ```js
+    function toneMapLuminance(r, g, b) {
+      let hdr = luminance(r, g, b)
+      let decay = 1 / (1 + hdr)
+      return 1 - decay
+    }
+    ```
+
+    Previous releases of esbuild didn't substitute these single-use variables here, but esbuild will now minify this to the following code starting with this release:
+
+    ```js
+    function toneMapLuminance(e,n,a){return 1-1/(1+luminance(e,n,a))}
+    ```
+
 ## 0.15.11
 
 * Fix various edge cases regarding template tags and `this` ([#2610](https://github.com/evanw/esbuild/issues/2610))

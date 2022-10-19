@@ -5044,6 +5044,51 @@ let transformTests = {
     assert.strictEqual(result, 3)
   },
 
+  async singleUseExpressionSubstitution({ esbuild }) {
+    function run(code) {
+      try {
+        return JSON.stringify(new Function(code)())
+      } catch (error) {
+        return error + ''
+      }
+    }
+    let bugs = ''
+    for (let input of [
+      `let fn = () => { throw new Error }; let x = undef; return fn() + x`,
+      `let fn = () => { throw new Error }; let x = fn(); return undef + x`,
+
+      `let fn = () => arg0 = 0; let x = fn(); return arg0 + x`,
+      `let fn = () => arg0 = 0; let x = fn(); return arg0 = x`,
+      `let fn = () => arg0 = 0; let x = fn(); return arg0 += x`,
+      `let fn = () => arg0 = 0; let x = fn(); return arg0 ||= x`,
+      `let fn = () => arg0 = 0; let x = fn(); return arg0 &&= x`,
+
+      `let fn = () => arg0 = 0; let obj = [1]; let x = arg0; return obj[fn()] + x`,
+      `let fn = () => arg0 = 0; let obj = [1]; let x = arg0; return obj[fn()] = x`,
+      `let fn = () => arg0 = 0; let obj = [1]; let x = arg0; return obj[fn()] += x`,
+      `let fn = () => arg0 = 0; let obj = [1]; let x = arg0; return obj[fn()] ||= x`,
+      `let fn = () => arg0 = 0; let obj = [1]; let x = arg0; return obj[fn()] &&= x`,
+
+      `let obj = { get y() { arg0 = 0; return 1 } }; let x = obj.y; return arg0 + x`,
+      `let obj = { get y() { arg0 = 0; return 1 } }; let x = arg0; return obj.y + x`,
+
+      `let x = undef; return arg0 || x`,
+      `let x = undef; return arg0 && x`,
+      `let x = undef; return arg0 ? x : 1`,
+      `let x = undef; return arg0 ? 1 : x`,
+
+      `let fn = () => { throw new Error }; let x = fn(); return arg0 || x`,
+      `let fn = () => { throw new Error }; let x = fn(); return arg0 && x`,
+      `let fn = () => { throw new Error }; let x = fn(); return arg0 ? x : 1`,
+      `let fn = () => { throw new Error }; let x = fn(); return arg0 ? 1 : x`,
+    ]) {
+      input = `function f(arg0) { ${input} } return f(123)`
+      const { code: minified } = await esbuild.transform(input, { minify: true })
+      if (run(input) !== run(minified)) bugs += '\n  ' + input
+    }
+    if (bugs !== '') throw new Error('Single-use expression substitution bugs:' + bugs)
+  },
+
   async platformNode({ esbuild }) {
     const { code } = await esbuild.transform(`export let foo = 123`, { format: 'cjs', platform: 'node' })
     assert(code.slice(code.indexOf('let foo')), `let foo = 123;
