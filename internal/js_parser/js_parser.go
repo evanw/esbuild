@@ -15441,13 +15441,7 @@ func (p *parser) appendPart(parts []js_ast.Part, stmts []js_ast.Stmt) []js_ast.P
 		alreadyDeclared := make(map[js_ast.Ref]bool)
 		for _, local := range p.relocatedTopLevelVars {
 			// Follow links because "var" declarations may be merged due to hoisting
-			for {
-				link := p.symbols[local.Ref.InnerIndex].Link
-				if link == js_ast.InvalidRef {
-					break
-				}
-				local.Ref = link
-			}
+			local.Ref = p.followSymbol(local.Ref)
 
 			// Only declare a given relocated variable once
 			if !alreadyDeclared[local.Ref] {
@@ -16653,10 +16647,8 @@ func (p *parser) toAST(before, parts, after []js_ast.Part, hashbang string, dire
 					// If this symbol was merged, use the symbol at the end of the
 					// linked list in the map. This is the case for multiple "var"
 					// declarations with the same name, for example.
-					ref := declared.Ref
-					for p.symbols[ref.InnerIndex].Link != js_ast.InvalidRef {
-						ref = p.symbols[ref.InnerIndex].Link
-					}
+					ref := p.followSymbol(declared.Ref)
+
 					p.topLevelSymbolToParts[ref] = append(
 						p.topLevelSymbolToParts[ref], uint32(partIndex))
 				}
