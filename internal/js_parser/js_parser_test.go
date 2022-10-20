@@ -4203,7 +4203,7 @@ func TestMangleInlineLocals(t *testing.T) {
 			"function wrapper(arg0, arg1) {"+strings.ReplaceAll("\n"+b, "\n", "\n  ")+"\n}\n")
 	}
 
-	check("var x = 1; return x", "var x = 1;\nreturn x;")
+	check("var x = 1; return x", "return 1;")
 	check("let x = 1; return x", "return 1;")
 	check("const x = 1; return x", "return 1;")
 
@@ -4433,6 +4433,12 @@ func TestMangleInlineLocals(t *testing.T) {
 	check("let x = arg0(); /* @__PURE__ */ arg1() + x", "let x = arg0();\n/* @__PURE__ */ arg1() + x;")
 	check("let x = /* @__PURE__ */ arg0(); arg1() + x", "let x = /* @__PURE__ */ arg0();\narg1() + x;")
 	check("let x = /* @__PURE__ */ arg0(); /* @__PURE__ */ arg1() + x", "/* @__PURE__ */ arg1() + /* @__PURE__ */ arg0();")
+
+	// Substitute "var" declarations only in ScopeFunctionBody.
+	check("if (console) { var x = 1; return x }", "if (console) {\n  var x = 1;\n  return x;\n}")
+	check("try {} catch (e) { var x = e; return x }", "try {\n} catch (e) {\n  var x = e;\n  return x;\n}")
+	// Avoid substituting a symbol merged with function arguments to protect "arguments".
+	expectPrintedMangle(t, "function fn(a){ var a = 1; return a }", "function fn(a) {\n  var a = 1;\n  return a;\n}\n")
 }
 
 func TestTrimCodeInDeadControlFlow(t *testing.T) {
