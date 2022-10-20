@@ -7940,9 +7940,12 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 								//
 								if prevS.Kind == js_ast.LocalVar {
 									// Only "var" declarations in ScopeFunctionBody are handled,
-									// so p.currentScope.Parent should be ScopeFunctionArgs.
-									if arg, ok := p.currentScope.Parent.Members[symbol.OriginalName]; ok && p.followSymbol(arg.Ref) == id.Ref {
-										break
+									// so p.currentScope should be ScopeFunctionBody,
+									// and p.currentScope.Parent should be ScopeFunctionArgs.
+									if arguments, ok := p.currentScope.Parent.Members["arguments"]; ok && p.symbols[arguments.Ref.InnerIndex].Kind == js_ast.SymbolArguments {
+										if arg, ok := p.currentScope.Parent.Members[symbol.OriginalName]; ok && p.followSymbol(arg.Ref) == id.Ref {
+											break
+										}
 									}
 								}
 
