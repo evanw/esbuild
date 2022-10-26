@@ -3209,6 +3209,25 @@ func TestImportMetaNoBundle(t *testing.T) {
 	})
 }
 
+func TestPreserveComments(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				/* [PositionForAppBegin] */
+				App({})
+				/* [PositionForAppEnd] */
+				/* should be removed */
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:             config.ModePassThrough,
+			AbsOutputFile:    "/out.js",
+			PreserveComments: regexp.MustCompile(`\[PositionFor`),
+		},
+	})
+}
+
 func TestLegalCommentsNone(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
@@ -3446,6 +3465,25 @@ func TestLegalCommentsAvoidSlashTagExternal(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputDir:  "/out",
 			LegalComments: config.LegalCommentsExternalWithoutComment,
+		},
+	})
+}
+
+func TestLegalCommentsHaveLowerPriorityThanPreserveComments(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				//! Copyright
+				//! [PositionForAppStart]
+				export let x
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:             config.ModePassThrough,
+			AbsOutputDir:     "/out",
+			LegalComments:    config.LegalCommentsExternalWithoutComment,
+			PreserveComments: regexp.MustCompile(`\[PositionFor`),
 		},
 	})
 }

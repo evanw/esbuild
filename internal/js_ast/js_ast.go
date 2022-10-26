@@ -249,8 +249,9 @@ type LocRef struct {
 }
 
 type Comment struct {
-	Text string
-	Loc  logger.Loc
+	Text           string
+	Loc            logger.Loc
+	IsLegalComment bool
 }
 
 type PropertyKind uint8

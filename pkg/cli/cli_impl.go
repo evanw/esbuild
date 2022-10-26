@@ -197,6 +197,14 @@ func parseOptionsImpl(
 				transformOpts.ReserveProps = value
 			}
 
+		case strings.HasPrefix(arg, "--preserve-comments="):
+			value := arg[len("--preserve-comments="):]
+			if buildOpts != nil {
+				buildOpts.PreserveComments = value
+			} else {
+				transformOpts.PreserveComments = value
+			}
+
 		case strings.HasPrefix(arg, "--mangle-cache=") && buildOpts != nil && kind == kindInternal:
 			value := arg[len("--mangle-cache="):]
 			extras.mangleCache = &value

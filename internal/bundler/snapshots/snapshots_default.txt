@@ -1861,6 +1861,15 @@ c {
 /* entry.css */
 
 ================================================================================
+TestLegalCommentsHaveLowerPriorityThanPreserveComments
+---------- /out/entry.js.LEGAL.txt ----------
+//! Copyright
+
+---------- /out/entry.js ----------
+//! [PositionForAppStart]
+export let x;
+
+================================================================================
 TestLegalCommentsInline
 ---------- /out/entry.js ----------
 // a.js
@@ -2781,6 +2790,13 @@ TestOutputExtensionRemappingFile
 ---------- /out.js ----------
 // entry.js
 console.log("test");
+
+================================================================================
+TestPreserveComments
+---------- /out.js ----------
+/* [PositionForAppBegin] */
+App({});
+/* [PositionForAppEnd] */
 
 ================================================================================
 TestQuotedProperty

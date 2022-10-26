@@ -386,6 +386,8 @@ type Options struct {
 	mangleProps    *regexp.Regexp
 	reserveProps   *regexp.Regexp
 
+	preserveComments *regexp.Regexp
+
 	// This pointer will always be different for each build but the contents
 	// shouldn't ever behave different semantically. We ignore this field for the
 	// equality comparison.
@@ -445,6 +447,8 @@ func OptionsFromConfig(options *config.Options) Options {
 		mangleProps:    options.MangleProps,
 		reserveProps:   options.ReserveProps,
 
+		preserveComments: options.PreserveComments,
+
 		optionsThatSupportStructuralEquality: optionsThatSupportStructuralEquality{
 			unsupportedJSFeatures:             options.UnsupportedJSFeatures,
 			unsupportedJSFeatureOverrides:     options.UnsupportedJSFeatureOverrides,
@@ -490,8 +494,8 @@ func (a *Options) Equal(b *Options) bool {
 		return false
 	}
 
-	// Compare "MangleProps" and "ReserveProps"
-	if !isSameRegexp(a.mangleProps, b.mangleProps) || !isSameRegexp(a.reserveProps, b.reserveProps) {
+	// Compare "MangleProps", "ReserveProps" and "PreserveComments"
+	if !isSameRegexp(a.mangleProps, b.mangleProps) || !isSameRegexp(a.reserveProps, b.reserveProps) || !isSameRegexp(a.preserveComments, b.preserveComments) {
 		return false
 	}
 
@@ -3673,10 +3677,8 @@ func (p *parser) parseImportExpr(loc logger.Loc, level js_ast.L) js_ast.Expr {
 	oldAllowIn := p.allowIn
 	p.allowIn = true
 
-	p.lexer.PreserveAllCommentsBefore = true
 	p.lexer.Expect(js_lexer.TOpenParen)
-	comments := p.lexer.CommentsToPreserveBefore
-	p.lexer.PreserveAllCommentsBefore = false
+	comments := p.lexer.LeadingComments
 
 	value := p.parseExpr(js_ast.LComma)
 	var optionsOrNil js_ast.Expr
@@ -7249,16 +7251,28 @@ func (p *parser) parseStmtsUpTo(end js_lexer.T, opts parseStmtOpts) []js_ast.Stm
 
 	for {
 		// Preserve some statement-level comments
-		comments := p.lexer.CommentsToPreserveBefore
+		comments := p.lexer.LeadingComments
 		if len(comments) > 0 {
 			for _, comment := range comments {
-				stmts = append(stmts, js_ast.Stmt{
-					Loc: comment.Loc,
-					Data: &js_ast.SComment{
-						Text:           comment.Text,
-						IsLegalComment: true,
-					},
-				})
+				// User-defined rules have higher priority than legal comment rules,
+				// then those comments can avoid being processed as legal comments.
+				if p.options.preserveComments != nil && p.options.preserveComments.MatchString(comment.Text) {
+					stmts = append(stmts, js_ast.Stmt{
+						Loc: comment.Loc,
+						Data: &js_ast.SComment{
+							Text:           comment.Text,
+							IsLegalComment: false,
+						},
+					})
+				} else if comment.IsLegalComment {
+					stmts = append(stmts, js_ast.Stmt{
+						Loc: comment.Loc,
+						Data: &js_ast.SComment{
+							Text:           comment.Text,
+							IsLegalComment: true,
+						},
+					})
+				}
 			}
 		}
 
@@ -16372,8 +16386,8 @@ func (p *parser) computeCharacterFrequency() *js_ast.CharFreq {
 	charFreq.Scan(p.source.Contents, 1)
 
 	// Subtract out all comments
-	for _, comment := range p.lexer.AllOriginalComments {
-		charFreq.Scan(comment.Text, -1)
+	for _, text := range p.lexer.AllOriginalCommentTexts {
+		charFreq.Scan(text, -1)
 	}
 
 	// Subtract out all import paths

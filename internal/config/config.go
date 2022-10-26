@@ -321,6 +321,8 @@ type Options struct {
 	NeedsMetafile           bool
 	SourceMap               SourceMap
 	ExcludeSourcesContent   bool
+
+	PreserveComments *regexp.Regexp
 }
 
 type TargetFromAPI uint8

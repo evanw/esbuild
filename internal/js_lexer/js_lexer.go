@@ -245,8 +245,8 @@ type MaybeSubstring struct {
 }
 
 type Lexer struct {
-	CommentsToPreserveBefore     []js_ast.Comment
-	AllOriginalComments          []js_ast.Comment
+	LeadingComments              []js_ast.Comment
+	AllOriginalCommentTexts      []string
 	Identifier                   MaybeSubstring
 	log                          logger.Log
 	source                       logger.Source
@@ -288,7 +288,6 @@ type Lexer struct {
 	ts                              config.TSOptions
 	HasNewlineBefore                bool
 	HasPureCommentBefore            bool
-	PreserveAllCommentsBefore       bool
 	IsLegacyOctalLiteral            bool
 	PrevTokenWasAwaitKeyword        bool
 	rescanCloseBraceAsTemplateToken bool
@@ -1212,7 +1211,7 @@ func (lexer *Lexer) Next() {
 	lexer.HasNewlineBefore = lexer.end == 0
 	lexer.HasPureCommentBefore = false
 	lexer.PrevTokenWasAwaitKeyword = false
-	lexer.CommentsToPreserveBefore = nil
+	lexer.LeadingComments = nil
 
 	for {
 		lexer.start = lexer.end
@@ -2753,10 +2752,7 @@ func (lexer *Lexer) scanCommentText() {
 
 	// Save the original comment text so we can subtract comments from the
 	// character frequency analysis used by symbol minification
-	lexer.AllOriginalComments = append(lexer.AllOriginalComments, js_ast.Comment{
-		Loc:  logger.Loc{Start: int32(lexer.start)},
-		Text: text,
-	})
+	lexer.AllOriginalCommentTexts = append(lexer.AllOriginalCommentTexts, text)
 
 	// Omit the trailing "*/" from the checks below
 	endOfCommentText := len(text)
@@ -2806,14 +2802,13 @@ func (lexer *Lexer) scanCommentText() {
 		}
 	}
 
-	if hasLegalAnnotation || lexer.PreserveAllCommentsBefore {
-		if isMultiLineComment {
-			text = helpers.RemoveMultiLineCommentIndent(lexer.source.Contents[:lexer.start], text)
-		}
-
-		lexer.CommentsToPreserveBefore = append(lexer.CommentsToPreserveBefore, js_ast.Comment{
-			Loc:  logger.Loc{Start: int32(lexer.start)},
-			Text: text,
-		})
+	if isMultiLineComment {
+		text = helpers.RemoveMultiLineCommentIndent(lexer.source.Contents[:lexer.start], text)
 	}
+
+	lexer.LeadingComments = append(lexer.LeadingComments, js_ast.Comment{
+		Loc:            logger.Loc{Start: int32(lexer.start)},
+		Text:           text,
+		IsLegalComment: hasLegalAnnotation,
+	})
 }

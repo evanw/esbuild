@@ -152,6 +152,7 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   let pure = getFlag(options, keys, 'pure', mustBeArray);
   let keepNames = getFlag(options, keys, 'keepNames', mustBeBoolean);
   let platform = getFlag(options, keys, 'platform', mustBeString);
+  let preserveComments = getFlag(options, keys, 'preserveComments', mustBeRegExp);
 
   if (legalComments) flags.push(`--legal-comments=${legalComments}`);
   if (sourceRoot !== void 0) flags.push(`--source-root=${sourceRoot}`);
@@ -203,6 +204,8 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   }
   if (pure) for (let fn of pure) flags.push(`--pure:${fn}`);
   if (keepNames) flags.push(`--keep-names`);
+
+  if (preserveComments) flags.push(`--preserve-comments=${preserveComments.source}`)
 }
 
 function flagsForBuildOptions(

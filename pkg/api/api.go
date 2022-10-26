@@ -325,6 +325,8 @@ type BuildOptions struct {
 	Plugins        []Plugin      // Documentation: https://esbuild.github.io/plugins/
 
 	Watch *WatchMode // Documentation: https://esbuild.github.io/api/#watch
+
+	PreserveComments string // Experimental: preserve comments matching a regular expression
 }
 
 type EntryPoint struct {
@@ -416,6 +418,8 @@ type TransformOptions struct {
 
 	Sourcefile string // Documentation: https://esbuild.github.io/api/#sourcefile
 	Loader     Loader // Documentation: https://esbuild.github.io/api/#loader
+
+	PreserveComments string // Experimental: preserve comments matching a regular expression
 }
 
 type TransformResult struct {
