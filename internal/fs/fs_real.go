@@ -42,7 +42,7 @@ type watchState uint8
 const (
 	stateNone                  watchState = iota
 	stateDirHasAccessedEntries            // Compare "accessedEntries"
-	stateDirMissing                       // Compare directory presence
+	stateDirUnreadable                    // Compare directory readability
 	stateFileHasModKey                    // Compare "modKey"
 	stateFileNeedModKey                   // Need to transition to "stateFileHasModKey" or "stateFileUnusableModKey" before "WatchData()" returns
 	stateFileMissing                      // Compare file presence
@@ -170,7 +170,7 @@ func (fs *realFS) ReadDirectory(dir string) (entries DirEntries, canonicalError 
 		fs.watchMutex.Lock()
 		state := stateDirHasAccessedEntries
 		if canonicalError != nil {
-			state = stateDirMissing
+			state = stateDirUnreadable
 		}
 		entries.accessedEntries = &accessedEntries{wasPresent: make(map[string]bool)}
 		fs.watchData[dir] = privateWatchData{
@@ -465,10 +465,10 @@ func (fs *realFS) WatchData() WatchData {
 		}
 
 		switch data.state {
-		case stateDirMissing:
+		case stateDirUnreadable:
 			paths[path] = func() string {
-				info, err := os.Stat(path)
-				if err == nil && info.IsDir() {
+				_, err, _ := fs.readdir(path)
+				if err == nil {
 					return path
 				}
 				return ""

@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+* Fix watch mode constantly rebuilding if the parent directory is inaccessible ([#2640](https://github.com/evanw/esbuild/issues/2640))
+
+    Android is unusual in that it has an inaccessible directory in the path to the root, which esbuild was not originally built to handle. To handle cases like this, the path resolution layer in esbuild has a hack where it treats inaccessible directories as empty. However, esbuild's watch implementation currently triggers a rebuild if a directory previously encountered an error but the directory now exists. The assumption is that the previous error was caused by the directory not existing. Although that's usually the case, it's not the case for this particular parent directory on Android. Instead the error is that the directory previously existed but was inaccessible.
+
+    This discrepancy between esbuild's path resolution layer and its watch mode was causing watch mode to rebuild continuously on Android. With this release, esbuild's watch mode instead checks for an error status change in the `readdir` file system call, so watch mode should no longer rebuild continuously on Android.
+
 ## 0.15.12
 
 * Fix minifier correctness bug with single-use substitutions ([#2619](https://github.com/evanw/esbuild/issues/2619))
