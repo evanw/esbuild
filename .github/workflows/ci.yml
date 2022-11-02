@@ -16,7 +16,7 @@ jobs:
       - name: Set up Go 1.x
         uses: actions/setup-go@v3
         with:
-          go-version: 1.19.2
+          go-version: 1.19.3
         id: go
 
       - name: Setup Node.js environment
@@ -47,7 +47,7 @@ jobs:
       - name: Set up Go 1.x
         uses: actions/setup-go@v3
         with:
-          go-version: 1.19.2
+          go-version: 1.19.3
         id: go
 
       - name: Setup Node.js environment
