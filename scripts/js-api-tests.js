@@ -1,5 +1,4 @@
 const { installForTests, removeRecursiveSync, writeFileAtomic } = require('./esbuild')
-const { SourceMapConsumer } = require('source-map')
 const assert = require('assert')
 const path = require('path')
 const http = require('http')
@@ -4128,6 +4127,31 @@ let transformTests = {
     assert.strictEqual(code2, `class Foo {\n  foo;\n}\n`)
   },
 
+  async tsconfigRawAlwaysStrict({ esbuild }) {
+    const input = `console.log(123)`
+
+    assert.strictEqual((await esbuild.transform(input, { loader: 'ts', tsconfigRaw: { compilerOptions: { strict: false } } })).code, `console.log(123);\n`)
+    assert.strictEqual((await esbuild.transform(input, { loader: 'ts', tsconfigRaw: { compilerOptions: { alwaysStrict: false } } })).code, `console.log(123);\n`)
+    assert.strictEqual((await esbuild.transform(input, { loader: 'ts', tsconfigRaw: { compilerOptions: { alwaysStrict: false, strict: true } } })).code, `console.log(123);\n`)
+
+    assert.strictEqual((await esbuild.transform(input, { loader: 'ts', tsconfigRaw: { compilerOptions: { strict: true } } })).code, `"use strict";\nconsole.log(123);\n`)
+    assert.strictEqual((await esbuild.transform(input, { loader: 'ts', tsconfigRaw: { compilerOptions: { alwaysStrict: true } } })).code, `"use strict";\nconsole.log(123);\n`)
+    assert.strictEqual((await esbuild.transform(input, { loader: 'ts', tsconfigRaw: { compilerOptions: { alwaysStrict: true, strict: false } } })).code, `"use strict";\nconsole.log(123);\n`)
+  },
+
+  async tsconfigRawTarget({ esbuild }) {
+    // The "target" from "tsconfig.json" should apply, but esbuild's "target" should override
+
+    assert.strictEqual((await esbuild.transform('x => x', { loader: 'ts', tsconfigRaw: { compilerOptions: { target: 'ES6' } } })).code, `(x) => x;\n`)
+    assert.strictEqual((await esbuild.transform('x => x', { loader: 'ts', tsconfigRaw: { compilerOptions: { target: 'ES5' } } })).code, `(function(x) {\n  return x;\n});\n`)
+
+    assert.strictEqual((await esbuild.transform('x => x', { loader: 'ts', target: 'es6' })).code, `(x) => x;\n`)
+    assert.strictEqual((await esbuild.transform('x => x', { loader: 'ts', target: 'es5' })).code, `(function(x) {\n  return x;\n});\n`)
+
+    assert.strictEqual((await esbuild.transform('x => x', { loader: 'ts', target: 'es5', tsconfigRaw: { compilerOptions: { target: 'ES6' } } })).code, `(function(x) {\n  return x;\n});\n`)
+    assert.strictEqual((await esbuild.transform('x => x', { loader: 'ts', target: 'es6', tsconfigRaw: { compilerOptions: { target: 'ES5' } } })).code, `(x) => x;\n`)
+  },
+
   async tsImplicitUseDefineForClassFields({ esbuild }) {
     var { code } = await esbuild.transform(`class Foo { foo }`, {
       loader: 'ts',
@@ -4576,6 +4600,11 @@ let transformTests = {
     assert.strictEqual(code, `import { jsx } from "notreact/jsx-runtime";\nconsole.log(/* @__PURE__ */ jsx("div", {}));\n`)
   },
 
+  async jsxSideEffects({ esbuild }) {
+    const { code } = await esbuild.transform(`<b/>`, { loader: 'jsx', jsxSideEffects: true })
+    assert.strictEqual(code, `React.createElement("b", null);\n`)
+  },
+
   async ts({ esbuild }) {
     const { code } = await esbuild.transform(`enum Foo { FOO }`, { loader: 'ts' })
     assert.strictEqual(code, `var Foo = /* @__PURE__ */ ((Foo2) => {\n  Foo2[Foo2["FOO"] = 0] = "FOO";\n  return Foo2;\n})(Foo || {});\n`)
@@ -5013,6 +5042,51 @@ let transformTests = {
     `, { minifyIdentifiers: true })
     const result = new Function('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$', code)(1)
     assert.strictEqual(result, 3)
+  },
+
+  async singleUseExpressionSubstitution({ esbuild }) {
+    function run(code) {
+      try {
+        return JSON.stringify(new Function(code)())
+      } catch (error) {
+        return error + ''
+      }
+    }
+    let bugs = ''
+    for (let input of [
+      `let fn = () => { throw new Error }; let x = undef; return fn() + x`,
+      `let fn = () => { throw new Error }; let x = fn(); return undef + x`,
+
+      `let fn = () => arg0 = 0; let x = fn(); return arg0 + x`,
+      `let fn = () => arg0 = 0; let x = fn(); return arg0 = x`,
+      `let fn = () => arg0 = 0; let x = fn(); return arg0 += x`,
+      `let fn = () => arg0 = 0; let x = fn(); return arg0 ||= x`,
+      `let fn = () => arg0 = 0; let x = fn(); return arg0 &&= x`,
+
+      `let fn = () => arg0 = 0; let obj = [1]; let x = arg0; return obj[fn()] + x`,
+      `let fn = () => arg0 = 0; let obj = [1]; let x = arg0; return obj[fn()] = x`,
+      `let fn = () => arg0 = 0; let obj = [1]; let x = arg0; return obj[fn()] += x`,
+      `let fn = () => arg0 = 0; let obj = [1]; let x = arg0; return obj[fn()] ||= x`,
+      `let fn = () => arg0 = 0; let obj = [1]; let x = arg0; return obj[fn()] &&= x`,
+
+      `let obj = { get y() { arg0 = 0; return 1 } }; let x = obj.y; return arg0 + x`,
+      `let obj = { get y() { arg0 = 0; return 1 } }; let x = arg0; return obj.y + x`,
+
+      `let x = undef; return arg0 || x`,
+      `let x = undef; return arg0 && x`,
+      `let x = undef; return arg0 ? x : 1`,
+      `let x = undef; return arg0 ? 1 : x`,
+
+      `let fn = () => { throw new Error }; let x = fn(); return arg0 || x`,
+      `let fn = () => { throw new Error }; let x = fn(); return arg0 && x`,
+      `let fn = () => { throw new Error }; let x = fn(); return arg0 ? x : 1`,
+      `let fn = () => { throw new Error }; let x = fn(); return arg0 ? 1 : x`,
+    ]) {
+      input = `function f(arg0) { ${input} } return f(123)`
+      const { code: minified } = await esbuild.transform(input, { minify: true })
+      if (run(input) !== run(minified)) bugs += '\n  ' + input
+    }
+    if (bugs !== '') throw new Error('Single-use expression substitution bugs:' + bugs)
   },
 
   async platformNode({ esbuild }) {
@@ -5629,11 +5703,11 @@ ${path.relative(process.cwd(), input).replace(/\\/g, '/')}:1:2: ERROR: Unexpecte
 }
 
 async function assertSourceMap(jsSourceMap, source) {
-  const map = await new SourceMapConsumer(jsSourceMap)
-  const original = map.originalPositionFor({ line: 1, column: 4 })
-  assert.strictEqual(original.source, source)
-  assert.strictEqual(original.line, 1)
-  assert.strictEqual(original.column, 10)
+  jsSourceMap = JSON.parse(jsSourceMap)
+  assert.deepStrictEqual(jsSourceMap.version, 3)
+  assert.deepStrictEqual(jsSourceMap.sources, [source])
+  assert.deepStrictEqual(jsSourceMap.sourcesContent, ['let       x'])
+  assert.deepStrictEqual(jsSourceMap.mappings, 'AAAA,IAAU;')
 }
 
 async function main() {

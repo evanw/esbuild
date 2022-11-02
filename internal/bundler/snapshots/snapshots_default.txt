@@ -1463,6 +1463,16 @@ console.log(/* @__PURE__ */ jsx2("div", {
 }));
 
 ================================================================================
+TestJSXAutomaticNoNameCollision
+---------- /out.js ----------
+var import_react = require("react");
+var import_react2 = require("@remix-run/react");
+const x = /* @__PURE__ */ (0, import_react.createElement)(import_react2.Link, {
+  ...y,
+  key: z
+});
+
+================================================================================
 TestJSXConstantFragments
 ---------- /out.js ----------
 // default.jsx
@@ -2544,19 +2554,21 @@ console.log(exports, module.exports, o, r);
 ================================================================================
 TestMinifyArguments
 ---------- /out.js ----------
-// entry.js
-function e(n = arguments) {
-  let t;
-}
-function u(n = arguments) {
-  let t;
-}
-function a(n = arguments) {
-  let t;
-}
-e();
-u();
-a();
+(() => {
+  // entry.js
+  function e(n = arguments) {
+    let t;
+  }
+  function u(n = arguments) {
+    let t;
+  }
+  function a(n = arguments) {
+    let t;
+  }
+  e();
+  u();
+  a();
+})();
 
 ================================================================================
 TestMinifyNestedLabelsNoBundle

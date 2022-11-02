@@ -9,6 +9,9 @@ declare const ESBUILD_VERSION: string;
 // external code relies on this.
 export var ESBUILD_BINARY_PATH: string | undefined = process.env.ESBUILD_BINARY_PATH || ESBUILD_BINARY_PATH;
 
+const packageDarwin_arm64 = 'esbuild-darwin-arm64'
+const packageDarwin_x64 = 'esbuild-darwin-64'
+
 export const knownWindowsPackages: Record<string, string> = {
   'win32 arm64 LE': 'esbuild-windows-arm64',
   'win32 ia32 LE': 'esbuild-windows-32',
@@ -36,6 +39,7 @@ export const knownUnixlikePackages: Record<string, string> = {
 };
 
 export const knownWebAssemblyFallbackPackages: Record<string, string> = {
+  'android arm LE': '@esbuild/android-arm',
   'android x64 LE': 'esbuild-android-64',
 };
 
@@ -131,11 +135,7 @@ export function generateBinPath(): { binPath: string, isWASM: boolean } {
         // helpful in that case.
         const otherPkg = pkgForSomeOtherPlatform();
         if (otherPkg) {
-          throw new Error(`
-You installed esbuild on another platform than the one you're currently using.
-This won't work because esbuild is written with native code and needs to
-install a platform-specific binary executable.
-
+          let suggestions = `
 Specifically the "${otherPkg}" package is present but this platform
 needs the "${pkg}" package instead. People often get into this
 situation by installing esbuild on Windows or macOS and copying "node_modules"
@@ -145,14 +145,46 @@ Windows and WSL environments.
 If you are installing with npm, you can try not copying the "node_modules"
 directory when you copy the files over, and running "npm ci" or "npm install"
 on the destination platform after the copy. Or you could consider using yarn
-instead which has built-in support for installing a package on multiple
+instead of npm which has built-in support for installing a package on multiple
 platforms simultaneously.
 
 If you are installing with yarn, you can try listing both this platform and the
 other platform in your ".yarnrc.yml" file using the "supportedArchitectures"
 feature: https://yarnpkg.com/configuration/yarnrc/#supportedArchitectures
 Keep in mind that this means multiple copies of esbuild will be present.
+`
 
+          // Use a custom message for macOS-specific architecture issues
+          if (
+            (pkg === packageDarwin_x64 && otherPkg === packageDarwin_arm64) ||
+            (pkg === packageDarwin_arm64 && otherPkg === packageDarwin_x64)
+          ) {
+            suggestions = `
+Specifically the "${otherPkg}" package is present but this platform
+needs the "${pkg}" package instead. People often get into this
+situation by installing esbuild with npm running inside of Rosetta 2 and then
+trying to use it with node running outside of Rosetta 2, or vice versa (Rosetta
+2 is Apple's on-the-fly x86_64-to-arm64 translation service).
+
+If you are installing with npm, you can try ensuring that both npm and node are
+not running under Rosetta 2 and then reinstalling esbuild. This likely involves
+changing how you installed npm and/or node. For example, installing node with
+the universal installer here should work: https://nodejs.org/en/download/. Or
+you could consider using yarn instead of npm which has built-in support for
+installing a package on multiple platforms simultaneously.
+
+If you are installing with yarn, you can try listing both "arm64" and "x64"
+in your ".yarnrc.yml" file using the "supportedArchitectures" feature:
+https://yarnpkg.com/configuration/yarnrc/#supportedArchitectures
+Keep in mind that this means multiple copies of esbuild will be present.
+`
+          }
+
+          throw new Error(`
+You installed esbuild for another platform than the one you're currently using.
+This won't work because esbuild is written with native code and needs to
+install a platform-specific binary executable.
+${suggestions}
 Another alternative is to use the "esbuild-wasm" package instead, which works
 the same way on all platforms. But it comes with a heavy performance cost and
 can sometimes be 10x slower than the "esbuild" package, so you may also not
@@ -170,8 +202,9 @@ want to do that.
         throw new Error(`The package "${pkg}" could not be found, and is needed by esbuild.
 
 If you are installing esbuild with npm, make sure that you don't specify the
-"--no-optional" flag. The "optionalDependencies" package.json feature is used
-by esbuild to install the correct binary executable for your current platform.`);
+"--no-optional" or "--omit=optional" flags. The "optionalDependencies" feature
+of "package.json" is used by esbuild to install the correct binary executable
+for your current platform.`);
       }
       throw e;
     }

@@ -958,6 +958,27 @@ module.exports = foo;
 console.log(module, exports);
 
 ================================================================================
+TestNonDeterminismIssue2537
+---------- /out.js ----------
+// entry.ts
+function b(o, e) {
+  let r = "teun";
+  if (o) {
+    let u = function(n) {
+      return n * 2;
+    }, t = function(n) {
+      return n / 2;
+    };
+    var i = u, a = t;
+    r = u(e) + t(e);
+  }
+  return r;
+}
+export {
+  b as aap
+};
+
+================================================================================
 TestRequireCustomExtensionBase64
 ---------- /out.js ----------
 // test.custom
@@ -1022,68 +1043,6 @@ TestReserveProps
 export default {
   a: 0,
   _bar_: 1
-};
-
-================================================================================
-TestThisIsUndefinedWarningBabelCompiledJSX
----------- /out/no1.js ----------
-// node_modules/react/jsx-dev-runtime.js
-var jsxDEV;
-
-// no1.js
-var Foo = () => jsxDEV("div", {}, void 0, false, { fileName: "Foo.tsx", lineNumber: 1, columnNumber: 23 }, void 0);
-export {
-  Foo
-};
-
----------- /out/no2.js ----------
-// node_modules/react/jsx-dev-runtime.js
-var jsxDEV;
-
-// no2.js
-var Foo = () => jsxDEV("div", {}, void 0, false, { fileName: "Foo.tsx", lineNumber: 1, columnNumber: 23 }, void 0);
-export {
-  Foo
-};
-
----------- /out/yes1.js ----------
-// node_modules/react/jsx-runtime.js
-var jsxDEV;
-
-// yes1.js
-var Foo = () => jsxDEV("div", {}, void 0, false, { fileName: "Foo.tsx", lineNumber: 1, columnNumber: 23 }, void 0);
-export {
-  Foo
-};
-
----------- /out/yes2.js ----------
-// node_modules/react/jsx-dev-runtime.js
-var jsxDEV;
-
-// yes2.js
-var Foo = () => jsxDEV("div", {}, void 0, false, void 0, { fileName: "Foo.tsx", lineNumber: 1, columnNumber: 23 });
-export {
-  Foo
-};
-
----------- /out/yes3.js ----------
-// node_modules/react/jsx-dev-runtime.js
-var jsxDEV;
-
-// yes3.js
-var Foo = () => jsxDEV("div", {}, void 0, false, { fileName: "Foo.tsx", lineNumber: 1, columnNumber: 23 }, void 0, null);
-export {
-  Foo
-};
-
----------- /out/yes4.js ----------
-// node_modules/react/jsx-dev-runtime.js
-var _jsxDEV;
-
-// yes4.js
-var Foo = () => _jsxDEV("div", {}, void 0, false, { fileName: "Foo.tsx", lineNumber: 1, columnNumber: 23 }, void 0);
-export {
-  Foo
 };
 
 ================================================================================

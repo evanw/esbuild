@@ -78,6 +78,7 @@ async function tests() {
   await testServe()
   await testBuild()
   await testWatch()
+  await testWatchAndIncremental()
 }
 
 // Called when this is the child process to run the tests.

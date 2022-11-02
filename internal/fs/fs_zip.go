@@ -91,6 +91,7 @@ func tryToReadZipArchive(zipPath string, archive *zipFile) {
 
 	dirs := make(map[string]*compressedDir)
 	files := make(map[string]*compressedFile)
+	seeds := []string{}
 
 	// Build an index of all files in the archive
 	for _, file := range reader.File {
@@ -115,6 +116,7 @@ func tryToReadZipArchive(zipPath string, archive *zipFile) {
 				// List the same directory both with and without the slash
 				dirs[lowerDir] = dir
 				dirs[lowerDir+"/"] = dir
+				seeds = append(seeds, lowerDir)
 			}
 		} else {
 			// Handle a file
@@ -130,16 +132,13 @@ func tryToReadZipArchive(zipPath string, archive *zipFile) {
 				// List the same directory both with and without the slash
 				dirs[lowerDir] = dir
 				dirs[lowerDir+"/"] = dir
+				seeds = append(seeds, lowerDir)
 			}
 			dir.entries[baseName] = FileEntry
 		}
 	}
 
 	// Populate child directories
-	seeds := make([]string, 0, len(dirs))
-	for dir := range dirs {
-		seeds = append(seeds, dir)
-	}
 	for _, baseName := range seeds {
 		for baseName != "" {
 			dirPath := ""

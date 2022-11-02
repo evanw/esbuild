@@ -2057,11 +2057,12 @@ func TestTSThisIsUndefinedWarning(t *testing.T) {
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/out",
 		},
-		expectedScanLog: `warning1.ts: WARNING: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+		debugLogs: true,
+		expectedScanLog: `warning1.ts: DEBUG: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
 warning1.ts: NOTE: This file is considered to be an ECMAScript module because of the "export" keyword here:
-warning2.ts: WARNING: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+warning2.ts: DEBUG: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
 warning2.ts: NOTE: This file is considered to be an ECMAScript module because of the "export" keyword here:
-warning3.ts: WARNING: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
+warning3.ts: DEBUG: Top-level "this" will be replaced with undefined since this file is an ECMAScript module
 warning3.ts: NOTE: This file is considered to be an ECMAScript module because of the "export" keyword here:
 `,
 	})

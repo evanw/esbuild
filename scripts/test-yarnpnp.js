@@ -16,7 +16,7 @@ function modTime(file) {
 }
 
 function reinstallYarnIfNeeded() {
-  const yarnPath = path.join(rootDir, '.yarn', 'releases', 'yarn-3.2.2.cjs')
+  const yarnPath = path.join(rootDir, '.yarn', 'releases', 'yarn-4.0.0-rc.22.cjs')
 
   if (fs.existsSync(yarnPath) && modTime(yarnPath) > Math.max(
     modTime(path.join(rootDir, 'package.json')),
@@ -31,11 +31,23 @@ function reinstallYarnIfNeeded() {
   fs.rmSync(path.join(rootDir, '.yarnrc.yml'), { recursive: true, force: true })
 
   try {
-    run('yarn set version 3.2.2')
+    run('yarn set version 4.0.0-rc.22')
   } catch {
     run('npm i -g yarn') // Install Yarn globally if it's not already installed
-    run('yarn set version 3.2.2')
+    run('yarn set version 4.0.0-rc.22')
   }
+
+  const rc = fs.readFileSync(path.join(rootDir, '.yarnrc.yml'), 'utf8')
+  fs.writeFileSync(path.join(rootDir, '.yarnrc.yml'), `
+pnpEnableEsmLoader: true
+pnpIgnorePatterns: ["./bar/**"]
+
+# Note: Yarn 4 defaults to "enableGlobalCache: true" which doesn't
+# work on Windows due to cross-drive issues with relative paths.
+# Explicitly set "enableGlobalCache: false" to avoid this issue.
+enableGlobalCache: false
+
+` + rc)
 
   run('yarn install')
 }
@@ -59,16 +71,10 @@ function runTests() {
   run('node ../../npm/esbuild-wasm/bin/esbuild in.mjs --bundle --log-level=debug --platform=node --outfile=out-wasm.js')
   run('node out-wasm.js')
 
-  // Note: This is currently failing due to a bug in Yarn that generates invalid
-  // file handles. I should update the Yarn version and then enable this test
-  // when a new version of Yarn is released that fixes this bug. This test is
-  // disabled for now.
-  /*
-    // Test the WebAssembly build when run through Yarn's file system shim
-    esbuild.buildWasmLib(ESBUILD_BINARY_PATH)
-    run('yarn node ../../npm/esbuild-wasm/bin/esbuild in.mjs --bundle --log-level=debug --platform=node --outfile=out-wasm-yarn.js')
-    run('node out-wasm-yarn.js')
-  */
+  // Test the WebAssembly build when run through Yarn's file system shim
+  esbuild.buildWasmLib(ESBUILD_BINARY_PATH)
+  run('yarn node ../../npm/esbuild-wasm/bin/esbuild in.mjs --bundle --log-level=debug --platform=node --outfile=out-wasm-yarn.js')
+  run('node out-wasm-yarn.js')
 }
 
 reinstallYarnIfNeeded()

@@ -266,7 +266,7 @@ this. If that fails, you need to remove the "--no-optional" flag to use esbuild.
 checkAndPreparePackage().then(() => {
   if (isToPathJS) {
     // We need "node" before this command since it's a JavaScript file
-    validateBinaryVersion('node', toPath);
+    validateBinaryVersion(process.execPath, toPath);
   } else {
     // This is no longer a JavaScript file so don't run it using "node"
     validateBinaryVersion(toPath);

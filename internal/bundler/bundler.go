@@ -69,6 +69,7 @@ type Bundle struct {
 	res         resolver.Resolver
 	files       []scannerFile
 	entryPoints []graph.EntryPoint
+	options     config.Options
 }
 
 type parseArgs struct {
@@ -465,13 +466,30 @@ func parseFile(args parseArgs) {
 			sourceMapComment = repr.AST.SourceMapComment
 		}
 		if sourceMapComment.Text != "" {
+			tracker := logger.MakeLineColumnTracker(&source)
 			if path, contents := extractSourceMapFromComment(args.log, args.fs, &args.caches.FSCache,
-				args.res, &source, sourceMapComment, absResolveDir); contents != nil {
-				result.file.inputFile.InputSourceMap = js_parser.ParseSourceMap(args.log, logger.Source{
+				args.res, &source, &tracker, sourceMapComment, absResolveDir); contents != nil {
+				prettyPath := args.res.PrettyPath(path)
+				log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug, args.log.Overrides)
+				result.file.inputFile.InputSourceMap = js_parser.ParseSourceMap(log, logger.Source{
 					KeyPath:    path,
-					PrettyPath: args.res.PrettyPath(path),
+					PrettyPath: prettyPath,
 					Contents:   *contents,
 				})
+				msgs := log.Done()
+				if len(msgs) > 0 {
+					var text string
+					if path.Namespace == "file" {
+						text = fmt.Sprintf("The source map %q was referenced by the file %q here:", prettyPath, args.prettyPath)
+					} else {
+						text = fmt.Sprintf("This source map came from the file %q here:", args.prettyPath)
+					}
+					note := tracker.MsgData(sourceMapComment.Range, text)
+					for _, msg := range msgs {
+						msg.Notes = append(msg.Notes, note)
+						args.log.AddMsg(msg)
+					}
+				}
 			}
 		}
 	}
@@ -598,17 +616,16 @@ func extractSourceMapFromComment(
 	fsCache *cache.FSCache,
 	res resolver.Resolver,
 	source *logger.Source,
+	tracker *logger.LineColumnTracker,
 	comment logger.Span,
 	absResolveDir string,
 ) (logger.Path, *string) {
-	tracker := logger.MakeLineColumnTracker(source)
-
 	// Support data URLs
 	if parsed, ok := resolver.ParseDataURL(comment.Text); ok {
 		if contents, err := parsed.DecodeData(); err == nil {
 			return logger.Path{Text: source.PrettyPath, IgnoredSuffix: "#sourceMappingURL"}, &contents
 		} else {
-			log.AddID(logger.MsgID_SourceMap_UnsupportedSourceMapComment, logger.Warning, &tracker, comment.Range,
+			log.AddID(logger.MsgID_SourceMap_UnsupportedSourceMapComment, logger.Warning, tracker, comment.Range,
 				fmt.Sprintf("Unsupported source map comment: %s", err.Error()))
 			return logger.Path{}, nil
 		}
@@ -620,7 +637,7 @@ func extractSourceMapFromComment(
 		path := logger.Path{Text: absPath, Namespace: "file"}
 		contents, err, originalError := fsCache.ReadFile(fs, absPath)
 		if log.Level <= logger.LevelDebug && originalError != nil {
-			log.AddID(logger.MsgID_None, logger.Debug, &tracker, comment.Range, fmt.Sprintf("Failed to read file %q: %s", res.PrettyPath(path), originalError.Error()))
+			log.AddID(logger.MsgID_None, logger.Debug, tracker, comment.Range, fmt.Sprintf("Failed to read file %q: %s", res.PrettyPath(path), originalError.Error()))
 		}
 		if err != nil {
 			kind := logger.Warning
@@ -628,7 +645,7 @@ func extractSourceMapFromComment(
 				// Don't report a warning because this is likely unactionable
 				kind = logger.Debug
 			}
-			log.AddID(logger.MsgID_SourceMap_MissingSourceMap, kind, &tracker, comment.Range,
+			log.AddID(logger.MsgID_SourceMap_MissingSourceMap, kind, tracker, comment.Range,
 				fmt.Sprintf("Cannot read file %q: %s", res.PrettyPath(path), err.Error()))
 			return logger.Path{}, nil
 		}
@@ -1148,6 +1165,7 @@ func ScanBundle(
 		files:           files,
 		entryPoints:     entryPointMeta,
 		uniqueKeyPrefix: uniqueKeyPrefix,
+		options:         s.options,
 	}
 }
 
@@ -1210,8 +1228,12 @@ func (s *scanner) maybeParseFile(
 	if resolveResult.UnusedImportFlagsTS != 0 {
 		optionsClone.UnusedImportFlagsTS = resolveResult.UnusedImportFlagsTS
 	}
-	optionsClone.TSTarget = resolveResult.TSTarget
-	optionsClone.TSAlwaysStrict = resolveResult.TSAlwaysStrict
+	if resolveResult.TSTarget != nil {
+		optionsClone.TSTarget = resolveResult.TSTarget
+	}
+	if resolveResult.TSAlwaysStrict != nil {
+		optionsClone.TSAlwaysStrict = resolveResult.TSAlwaysStrict
+	}
 
 	// Set the module type preference using node's module type rules
 	if strings.HasSuffix(path.Text, ".mjs") {
@@ -2153,16 +2175,11 @@ func fixInvalidUnsupportedJSFeatureOverrides(options *config.Options, implies co
 	}
 }
 
-func (b *Bundle) Compile(log logger.Log, options config.Options, timer *helpers.Timer, mangleCache map[string]interface{}) ([]graph.OutputFile, string) {
+func (b *Bundle) Compile(log logger.Log, timer *helpers.Timer, mangleCache map[string]interface{}) ([]graph.OutputFile, string) {
 	timer.Begin("Compile phase")
 	defer timer.End("Compile phase")
 
-	applyOptionDefaults(&options)
-
-	// The format can't be "preserve" while bundling
-	if options.Mode == config.ModeBundle && options.OutputFormat == config.FormatPreserve {
-		options.OutputFormat = config.FormatESModule
-	}
+	options := b.options
 
 	// In most cases we don't need synchronized access to the mangle cache
 	options.ExclusiveMangleCacheUpdate = func(cb func(mangleCache map[string]interface{})) {

@@ -442,8 +442,8 @@ func (r resolverQuery) parsePackageJSON(inputPath string) *packageJSON {
 	}
 
 	// Read the "imports" map
-	if importsJSON, _, ok := getProperty(json, "imports"); ok {
-		if importsMap := parseImportsExportsMap(jsonSource, r.log, importsJSON); importsMap != nil {
+	if importsJSON, importsLoc, ok := getProperty(json, "imports"); ok {
+		if importsMap := parseImportsExportsMap(jsonSource, r.log, importsJSON, importsLoc); importsMap != nil {
 			if importsMap.root.kind != pjObject {
 				r.log.AddID(logger.MsgID_PackageJSON_InvalidImportsOrExports, logger.Warning, &tracker, importsMap.root.firstToken,
 					"The value for \"imports\" must be an object")
@@ -453,8 +453,8 @@ func (r resolverQuery) parsePackageJSON(inputPath string) *packageJSON {
 	}
 
 	// Read the "exports" map
-	if exportsJSON, _, ok := getProperty(json, "exports"); ok {
-		if exportsMap := parseImportsExportsMap(jsonSource, r.log, exportsJSON); exportsMap != nil {
+	if exportsJSON, exportsLoc, ok := getProperty(json, "exports"); ok {
+		if exportsMap := parseImportsExportsMap(jsonSource, r.log, exportsJSON, exportsLoc); exportsMap != nil {
 			packageJSON.exportsMap = exportsMap
 		}
 	}
@@ -524,7 +524,8 @@ func globstarToEscapedRegexp(glob string) (string, bool) {
 
 // Reference: https://nodejs.org/api/esm.html#esm_resolver_algorithm_specification
 type pjMap struct {
-	root pjEntry
+	root           pjEntry
+	propertyKeyLoc logger.Loc
 }
 
 type pjKind uint8
@@ -559,7 +560,56 @@ func (a expansionKeysArray) Len() int          { return len(a) }
 func (a expansionKeysArray) Swap(i int, j int) { a[i], a[j] = a[j], a[i] }
 
 func (a expansionKeysArray) Less(i int, j int) bool {
-	return len(a[i].key) > len(a[j].key)
+	// Assert: keyA ends with "/" or contains only a single "*".
+	// Assert: keyB ends with "/" or contains only a single "*".
+	keyA := a[i].key
+	keyB := a[j].key
+
+	// Let baseLengthA be the index of "*" in keyA plus one, if keyA contains "*", or the length of keyA otherwise.
+	// Let baseLengthB be the index of "*" in keyB plus one, if keyB contains "*", or the length of keyB otherwise.
+	starA := strings.IndexByte(keyA, '*')
+	starB := strings.IndexByte(keyB, '*')
+	var baseLengthA int
+	var baseLengthB int
+	if starA >= 0 {
+		baseLengthA = starA
+	} else {
+		baseLengthA = len(keyA)
+	}
+	if starB >= 0 {
+		baseLengthB = starB
+	} else {
+		baseLengthB = len(keyB)
+	}
+
+	// If baseLengthA is greater than baseLengthB, return -1.
+	// If baseLengthB is greater than baseLengthA, return 1.
+	if baseLengthA > baseLengthB {
+		return true
+	}
+	if baseLengthB > baseLengthA {
+		return false
+	}
+
+	// If keyA does not contain "*", return 1.
+	// If keyB does not contain "*", return -1.
+	if starA < 0 {
+		return false
+	}
+	if starB < 0 {
+		return true
+	}
+
+	// If the length of keyA is greater than the length of keyB, return -1.
+	// If the length of keyB is greater than the length of keyA, return 1.
+	if len(keyA) > len(keyB) {
+		return true
+	}
+	if len(keyB) > len(keyA) {
+		return false
+	}
+
+	return false
 }
 
 func (entry pjEntry) valueForKey(key string) (pjEntry, bool) {
@@ -571,7 +621,7 @@ func (entry pjEntry) valueForKey(key string) (pjEntry, bool) {
 	return pjEntry{}, false
 }
 
-func parseImportsExportsMap(source logger.Source, log logger.Log, json js_ast.Expr) *pjMap {
+func parseImportsExportsMap(source logger.Source, log logger.Log, json js_ast.Expr, propertyKeyLoc logger.Loc) *pjMap {
 	var visit func(expr js_ast.Expr) pjEntry
 	tracker := logger.MakeLineColumnTracker(&source)
 
@@ -637,15 +687,16 @@ func parseImportsExportsMap(source logger.Source, log logger.Log, json js_ast.Ex
 					value:    visit(property.ValueOrNil),
 				}
 
-				if strings.HasSuffix(key, "/") || strings.HasSuffix(key, "*") {
+				if strings.HasSuffix(key, "/") || strings.IndexByte(key, '*') >= 0 {
 					expansionKeys = append(expansionKeys, entry)
 				}
 
 				mapData[i] = entry
 			}
 
-			// Let expansionKeys be the list of keys of matchObj ending in "/" or "*",
-			// sorted by length descending.
+			// Let expansionKeys be the list of keys of matchObj either ending in "/"
+			// or containing only a single "*", sorted by the sorting function
+			// PATTERN_KEY_COMPARE which orders in descending order of specificity.
 			sort.Stable(expansionKeys)
 
 			return pjEntry{
@@ -679,7 +730,7 @@ func parseImportsExportsMap(source logger.Source, log logger.Log, json js_ast.Ex
 		return nil
 	}
 
-	return &pjMap{root: root}
+	return &pjMap{root: root, propertyKeyLoc: propertyKeyLoc}
 }
 
 func (entry pjEntry) keysStartWithDot() bool {
@@ -693,6 +744,7 @@ const (
 	pjStatusUndefinedNoConditionsMatch          // A more friendly error message for when no conditions are matched
 	pjStatusNull
 	pjStatusExact
+	pjStatusExactEndsWithStar
 	pjStatusInexact        // This means we may need to try CommonJS-style extension suffixes
 	pjStatusPackageResolve // Need to re-run package resolution on the result
 
@@ -713,9 +765,11 @@ const (
 
 	// The package or module requested does not exist.
 	pjStatusModuleNotFound
+	pjStatusModuleNotFoundMissingExtension // The user just needs to add the missing extension
 
 	// The resolved path corresponds to a directory, which is not a supported target for module imports.
 	pjStatusUnsupportedDirectoryImport
+	pjStatusUnsupportedDirectoryImportMissingIndex // The user just needs to add the missing "/index.js" suffix
 )
 
 func (status pjStatus) isUndefined() bool {
@@ -737,7 +791,7 @@ func (r resolverQuery) esmHandlePostConditions(
 	status pjStatus,
 	debug pjDebug,
 ) (string, pjStatus, pjDebug) {
-	if status != pjStatusExact && status != pjStatusInexact {
+	if status != pjStatusExact && status != pjStatusExactEndsWithStar && status != pjStatusInexact {
 		return resolved, status, debug
 	}
 
@@ -856,7 +910,8 @@ func (r resolverQuery) esmPackageImportsExportsResolve(
 		r.debugLogs.addNote(fmt.Sprintf("Checking object path map for %q", matchKey))
 	}
 
-	if !strings.HasSuffix(matchKey, "*") {
+	// If matchKey is a key of matchObj and does not end in "/" or contain "*", then
+	if !strings.HasSuffix(matchKey, "/") && strings.IndexByte(matchKey, '*') < 0 {
 		if target, ok := matchObj.valueForKey(matchKey); ok {
 			if r.debugLogs != nil {
 				r.debugLogs.addNote(fmt.Sprintf("Found exact match for %q", matchKey))
@@ -866,31 +921,46 @@ func (r resolverQuery) esmPackageImportsExportsResolve(
 	}
 
 	for _, expansion := range matchObj.expansionKeys {
-		// If expansionKey ends in "*" and matchKey starts with but is not equal to
-		// the substring of expansionKey excluding the last "*" character
-		if strings.HasSuffix(expansion.key, "*") {
-			if substr := expansion.key[:len(expansion.key)-1]; strings.HasPrefix(matchKey, substr) && matchKey != substr {
+		// If expansionKey contains "*", set patternBase to the substring of
+		// expansionKey up to but excluding the first "*" character
+		if star := strings.IndexByte(expansion.key, '*'); star >= 0 {
+			patternBase := expansion.key[:star]
+
+			// If patternBase is not null and matchKey starts with but is not equal
+			// to patternBase, then
+			if strings.HasPrefix(matchKey, patternBase) {
+				// Let patternTrailer be the substring of expansionKey from the index
+				// after the first "*" character.
+				patternTrailer := expansion.key[star+1:]
+
+				// If patternTrailer has zero length, or if matchKey ends with
+				// patternTrailer and the length of matchKey is greater than or
+				// equal to the length of expansionKey, then
+				if patternTrailer == "" || (strings.HasSuffix(matchKey, patternTrailer) && len(matchKey) >= len(expansion.key)) {
+					target := expansion.value
+					subpath := matchKey[len(patternBase) : len(matchKey)-len(patternTrailer)]
+					if r.debugLogs != nil {
+						r.debugLogs.addNote(fmt.Sprintf("The key %q matched with %q left over", expansion.key, subpath))
+					}
+					return r.esmPackageTargetResolve(packageURL, target, subpath, true, isImports, conditions)
+				}
+			}
+		} else {
+			// Otherwise if patternBase is null and matchKey starts with
+			// expansionKey, then
+			if strings.HasPrefix(matchKey, expansion.key) {
 				target := expansion.value
-				subpath := matchKey[len(expansion.key)-1:]
+				subpath := matchKey[len(expansion.key):]
 				if r.debugLogs != nil {
 					r.debugLogs.addNote(fmt.Sprintf("The key %q matched with %q left over", expansion.key, subpath))
 				}
-				return r.esmPackageTargetResolve(packageURL, target, subpath, true, isImports, conditions)
+				result, status, debug := r.esmPackageTargetResolve(packageURL, target, subpath, false, isImports, conditions)
+				if status == pjStatusExact || status == pjStatusExactEndsWithStar {
+					// Return the object { resolved, exact: false }.
+					status = pjStatusInexact
+				}
+				return result, status, debug
 			}
-		}
-
-		if strings.HasPrefix(matchKey, expansion.key) {
-			target := expansion.value
-			subpath := matchKey[len(expansion.key):]
-			if r.debugLogs != nil {
-				r.debugLogs.addNote(fmt.Sprintf("The key %q matched with %q left over", expansion.key, subpath))
-			}
-			result, status, debug := r.esmPackageTargetResolve(packageURL, target, subpath, false, isImports, conditions)
-			if status == pjStatusExact {
-				// Return the object { resolved, exact: false }.
-				status = pjStatusInexact
-			}
-			return result, status, debug
 		}
 
 		if r.debugLogs != nil {
@@ -1002,7 +1072,11 @@ func (r resolverQuery) esmPackageTargetResolve(
 			if r.debugLogs != nil {
 				r.debugLogs.addNote(fmt.Sprintf("Substituted %q for \"*\" in %q to get %q", subpath, "."+resolvedTarget, "."+result))
 			}
-			return result, pjStatusExact, pjDebug{token: target.firstToken}
+			status := pjStatusExact
+			if strings.HasSuffix(resolvedTarget, "*") && strings.IndexByte(resolvedTarget, '*') == len(resolvedTarget)-1 {
+				status = pjStatusExactEndsWithStar
+			}
+			return result, status, pjDebug{token: target.firstToken}
 		} else {
 			// Return the URL resolution of the concatenation of subpath and resolvedTarget.
 			result := path.Join(resolvedTarget, subpath)

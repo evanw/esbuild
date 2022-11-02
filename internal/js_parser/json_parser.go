@@ -89,10 +89,12 @@ func (p *jsonParser) parseExpr() js_ast.Expr {
 		if p.lexer.HasNewlineBefore {
 			isSingleLine = false
 		}
+		closeBracketLoc := p.lexer.Loc()
 		p.lexer.Expect(js_lexer.TCloseBracket)
 		return js_ast.Expr{Loc: loc, Data: &js_ast.EArray{
-			Items:        items,
-			IsSingleLine: isSingleLine,
+			Items:           items,
+			IsSingleLine:    isSingleLine,
+			CloseBracketLoc: closeBracketLoc,
 		}}
 
 	case js_lexer.TOpenBrace:
@@ -146,10 +148,12 @@ func (p *jsonParser) parseExpr() js_ast.Expr {
 		if p.lexer.HasNewlineBefore {
 			isSingleLine = false
 		}
+		closeBraceLoc := p.lexer.Loc()
 		p.lexer.Expect(js_lexer.TCloseBrace)
 		return js_ast.Expr{Loc: loc, Data: &js_ast.EObject{
-			Properties:   properties,
-			IsSingleLine: isSingleLine,
+			Properties:    properties,
+			IsSingleLine:  isSingleLine,
+			CloseBraceLoc: closeBraceLoc,
 		}}
 
 	default:
@@ -161,6 +165,7 @@ func (p *jsonParser) parseExpr() js_ast.Expr {
 type JSONOptions struct {
 	AllowComments       bool
 	AllowTrailingCommas bool
+	ErrorSuffix         string
 }
 
 func ParseJSON(log logger.Log, source logger.Source, options JSONOptions) (result js_ast.Expr, ok bool) {
@@ -174,12 +179,16 @@ func ParseJSON(log logger.Log, source logger.Source, options JSONOptions) (resul
 		}
 	}()
 
+	if options.ErrorSuffix == "" {
+		options.ErrorSuffix = " in JSON"
+	}
+
 	p := &jsonParser{
 		log:                            log,
 		source:                         source,
 		tracker:                        logger.MakeLineColumnTracker(&source),
 		options:                        options,
-		lexer:                          js_lexer.NewLexerJSON(log, source, options.AllowComments),
+		lexer:                          js_lexer.NewLexerJSON(log, source, options.AllowComments, options.ErrorSuffix),
 		suppressWarningsAboutWeirdCode: helpers.IsInsideNodeModules(source.KeyPath.Text),
 	}
 

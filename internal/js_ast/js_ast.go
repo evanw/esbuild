@@ -972,12 +972,14 @@ type STry struct {
 type Case struct {
 	ValueOrNil Expr // If this is nil, this is "default" instead of "case"
 	Body       []Stmt
+	Loc        logger.Loc
 }
 
 type SSwitch struct {
-	Test    Expr
-	Cases   []Case
-	BodyLoc logger.Loc
+	Test          Expr
+	Cases         []Case
+	BodyLoc       logger.Loc
+	CloseBraceLoc logger.Loc
 }
 
 // This object represents all of these types of import statements:

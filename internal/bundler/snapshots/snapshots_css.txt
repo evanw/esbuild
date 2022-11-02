@@ -268,6 +268,90 @@ console.log("b");
 }
 
 ================================================================================
+TestMetafileCSSBundleTwoToOne
+---------- /out/js/UOATE6K4.js ----------
+// foo/entry.js
+console.log("foo");
+
+---------- /out/css/DIO3TRUB.css ----------
+/* common.css */
+body {
+  color: red;
+}
+
+---------- /out/js/6ZCNL5VY.js ----------
+// bar/entry.js
+console.log("bar");
+---------- metafile.json ----------
+{
+  "inputs": {
+    "common.css": {
+      "bytes": 28,
+      "imports": []
+    },
+    "foo/entry.js": {
+      "bytes": 54,
+      "imports": [
+        {
+          "path": "common.css",
+          "kind": "import-statement"
+        }
+      ]
+    },
+    "bar/entry.js": {
+      "bytes": 54,
+      "imports": [
+        {
+          "path": "common.css",
+          "kind": "import-statement"
+        }
+      ]
+    }
+  },
+  "outputs": {
+    "out/js/UOATE6K4.js": {
+      "imports": [],
+      "exports": [],
+      "entryPoint": "foo/entry.js",
+      "cssBundle": "out/css/DIO3TRUB.css",
+      "inputs": {
+        "common.css": {
+          "bytesInOutput": 0
+        },
+        "foo/entry.js": {
+          "bytesInOutput": 20
+        }
+      },
+      "bytes": 36
+    },
+    "out/css/DIO3TRUB.css": {
+      "imports": [],
+      "inputs": {
+        "common.css": {
+          "bytesInOutput": 23
+        }
+      },
+      "bytes": 40
+    },
+    "out/js/6ZCNL5VY.js": {
+      "imports": [],
+      "exports": [],
+      "entryPoint": "bar/entry.js",
+      "cssBundle": "out/css/DIO3TRUB.css",
+      "inputs": {
+        "common.css": {
+          "bytesInOutput": 0
+        },
+        "bar/entry.js": {
+          "bytesInOutput": 20
+        }
+      },
+      "bytes": 36
+    }
+  }
+}
+
+================================================================================
 TestPackageURLsInCSS
 ---------- /out/entry.css ----------
 /* test.css */

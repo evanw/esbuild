@@ -14,7 +14,13 @@ if (!d3.utcDay) throw '❌ d3-time'
 import * as mm from 'mime'
 if (mm.default.getType('txt') !== 'text/plain') throw '❌ mime'
 
+import * as ajv from 'aws-jwt-verify'
+if (!ajv.CognitoJwtVerifier) throw '❌ aws-jwt-verify'
+
 import * as foo from 'foo'
 if (foo.default !== 'foo') throw '❌ foo'
+
+import * as bar from './bar/index.js'
+if (bar.bar !== 'bar') throw '❌ bar'
 
 console.log('✅ Yarn PnP tests passed')

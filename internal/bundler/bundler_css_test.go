@@ -707,3 +707,41 @@ func TestCSSNestingOldBrowser(t *testing.T) {
 `,
 	})
 }
+
+// The mapping of JS entry point to associated CSS bundle isn't necessarily 1:1.
+// Here is a case where it isn't. Two JS entry points share the same associated
+// CSS bundle. This must be reflected in the metafile by only having the JS
+// entry points point to the associated CSS bundle but not the other way around
+// (since there isn't one JS entry point to point to). This test mainly exists
+// to document this edge case.
+func TestMetafileCSSBundleTwoToOne(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/foo/entry.js": `
+				import '../common.css'
+				console.log('foo')
+			`,
+			"/bar/entry.js": `
+				import '../common.css'
+				console.log('bar')
+			`,
+			"/common.css": `
+				body { color: red }
+			`,
+		},
+		entryPaths: []string{
+			"/foo/entry.js",
+			"/bar/entry.js",
+		},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			EntryPathTemplate: []config.PathTemplate{
+				// "[ext]/[hash]"
+				{Data: "./", Placeholder: config.ExtPlaceholder},
+				{Data: "/", Placeholder: config.HashPlaceholder},
+			},
+			NeedsMetafile: true,
+		},
+	})
+}

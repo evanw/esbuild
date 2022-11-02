@@ -107,6 +107,10 @@ func (s *suite) __expectBundledImpl(t *testing.T, args bundled, fsKind fs.MockKi
 			// Apply this default to all tests since it was not configurable when the tests were written
 			args.options.TreeShaking = true
 		}
+		if args.options.Mode == config.ModeBundle && args.options.OutputFormat == config.FormatPreserve {
+			// The format can't be "preserve" while bundling
+			args.options.OutputFormat = config.FormatESModule
+		}
 		logKind := logger.DeferLogNoVerboseOrDebug
 		if args.debugLogs {
 			logKind = logger.DeferLogAll
@@ -135,6 +139,7 @@ func (s *suite) __expectBundledImpl(t *testing.T, args bundled, fsKind fs.MockKi
 			args.options.ExternalSettings.PostResolve.Exact = replace
 
 			args.options.AbsOutputFile = unix2win(args.options.AbsOutputFile)
+			args.options.AbsOutputBase = unix2win(args.options.AbsOutputBase)
 			args.options.AbsOutputDir = unix2win(args.options.AbsOutputDir)
 			args.options.TsConfigOverride = unix2win(args.options.TsConfigOverride)
 		}
@@ -143,6 +148,7 @@ func (s *suite) __expectBundledImpl(t *testing.T, args bundled, fsKind fs.MockKi
 		log := logger.NewDeferLog(logKind, nil)
 		caches := cache.MakeCacheSet()
 		mockFS := fs.MockFS(args.files, fsKind)
+		args.options.OmitRuntimeForTests = true
 		resolver := resolver.NewResolver(mockFS, log, caches, args.options)
 		bundle := ScanBundle(log, mockFS, resolver, caches, entryPoints, args.options, nil)
 		msgs := log.Done()
@@ -154,8 +160,7 @@ func (s *suite) __expectBundledImpl(t *testing.T, args bundled, fsKind fs.MockKi
 		}
 
 		log = logger.NewDeferLog(logKind, nil)
-		args.options.OmitRuntimeForTests = true
-		results, _ := bundle.Compile(log, args.options, nil, nil)
+		results, metafileJSON := bundle.Compile(log, nil, nil)
 		msgs = log.Done()
 		assertLog(t, msgs, args.expectedCompileLog)
 
@@ -178,6 +183,9 @@ func (s *suite) __expectBundledImpl(t *testing.T, args bundled, fsKind fs.MockKi
 				}
 				generated += fmt.Sprintf("---------- %s ----------\n%s", result.AbsPath, string(result.Contents))
 			}
+		}
+		if metafileJSON != "" {
+			generated += fmt.Sprintf("---------- metafile.json ----------\n%s", metafileJSON)
 		}
 		s.compareSnapshot(t, testName, generated)
 	})

@@ -28,7 +28,8 @@ type pnpData struct {
 	// the classic Node.js resolution algorithm rather than the Plug'n'Play one.
 	// Note that unlike other paths in the manifest, the one checked against this
 	// regexp won't begin by `./`.
-	ignorePatternData *regexp.Regexp
+	ignorePatternData        *regexp.Regexp
+	invalidIgnorePatternData string
 
 	// This is the main part of the PnP data file. This table contains the list
 	// of all packages, first keyed by package ident then by package reference.
@@ -46,6 +47,7 @@ type pnpData struct {
 	// the fallback pool, even if not listed here.
 	enableTopLevelFallback bool
 
+	tracker    logger.LineColumnTracker
 	absPath    string
 	absDirPath string
 }
@@ -64,12 +66,14 @@ type pnpData struct {
 type pnpIdentAndReference struct {
 	ident     string // Empty if null
 	reference string // Empty if null
+	span      logger.Range
 }
 
 type pnpPackage struct {
-	packageDependencies map[string]pnpIdentAndReference
-	packageLocation     string
-	discardFromLookup   bool
+	packageDependencies      map[string]pnpIdentAndReference
+	packageLocation          string
+	packageDependenciesRange logger.Range
+	discardFromLookup        bool
 }
 
 type pnpPackageLocatorByLocation struct {
@@ -116,16 +120,26 @@ func parseBareIdentifier(specifier string) (ident string, modulePath string, ok 
 type pnpStatus uint8
 
 const (
-	pnpError pnpStatus = iota
+	pnpErrorGeneric pnpStatus = iota
+	pnpErrorDependencyNotFound
+	pnpErrorUnfulfilledPeerDependency
 	pnpSuccess
 	pnpSkipped
 )
+
+func (status pnpStatus) isError() bool {
+	return status < pnpSuccess
+}
 
 type pnpResult struct {
 	status     pnpStatus
 	pkgDirPath string
 	pkgIdent   string
 	pkgSubpath string
+
+	// This is for error messages
+	errorIdent string
+	errorRange logger.Range
 }
 
 // Note: If this returns successfully then the node module resolution algorithm
@@ -146,7 +160,7 @@ func (r resolverQuery) resolveToUnqualified(specifier string, parentURL string, 
 		if r.debugLogs != nil {
 			r.debugLogs.addNote(fmt.Sprintf("  Failed to parse specifier %q into a bare identifier", specifier))
 		}
-		return pnpResult{status: pnpError}
+		return pnpResult{status: pnpErrorGeneric}
 	}
 	if r.debugLogs != nil {
 		r.debugLogs.addNote(fmt.Sprintf("  Parsed bare identifier %q and module path %q", ident, modulePath))
@@ -168,7 +182,7 @@ func (r resolverQuery) resolveToUnqualified(specifier string, parentURL string, 
 	parentPkg, ok := r.getPackage(manifest, parentLocator.ident, parentLocator.reference)
 	if !ok {
 		// We aren't supposed to get here according to the Yarn PnP specification
-		return pnpResult{status: pnpError}
+		return pnpResult{status: pnpErrorGeneric}
 	}
 	if r.debugLogs != nil {
 		r.debugLogs.addNote(fmt.Sprintf("  Found parent package at %q", parentPkg.packageLocation))
@@ -210,14 +224,22 @@ func (r resolverQuery) resolveToUnqualified(specifier string, parentURL string, 
 	// If referenceOrAlias is still undefined, then
 	if !ok {
 		// Throw a resolution error
-		return pnpResult{status: pnpError}
+		return pnpResult{
+			status:     pnpErrorDependencyNotFound,
+			errorIdent: ident,
+			errorRange: parentPkg.packageDependenciesRange,
+		}
 	}
 
 	// If referenceOrAlias is still null, then
 	if referenceOrAlias.reference == "" {
 		// Note: It means that parentPkg has an unfulfilled peer dependency on ident
 		// Throw a resolution error
-		return pnpResult{status: pnpError}
+		return pnpResult{
+			status:     pnpErrorUnfulfilledPeerDependency,
+			errorIdent: ident,
+			errorRange: referenceOrAlias.span,
+		}
 	}
 
 	if r.debugLogs != nil {
@@ -240,7 +262,7 @@ func (r resolverQuery) resolveToUnqualified(specifier string, parentURL string, 
 		dependencyPkg, ok = r.getPackage(manifest, alias.ident, alias.reference)
 		if !ok {
 			// We aren't supposed to get here according to the Yarn PnP specification
-			return pnpResult{status: pnpError}
+			return pnpResult{status: pnpErrorGeneric}
 		}
 	} else {
 		// Otherwise,
@@ -248,7 +270,7 @@ func (r resolverQuery) resolveToUnqualified(specifier string, parentURL string, 
 		dependencyPkg, ok = r.getPackage(manifest, ident, referenceOrAlias.reference)
 		if !ok {
 			// We aren't supposed to get here according to the Yarn PnP specification
-			return pnpResult{status: pnpError}
+			return pnpResult{status: pnpErrorGeneric}
 		}
 	}
 	if r.debugLogs != nil {
@@ -384,10 +406,11 @@ func quoteOrNullIfEmpty(str string) string {
 	return "null"
 }
 
-func compileYarnPnPData(absPath string, absDirPath string, json js_ast.Expr) *pnpData {
+func compileYarnPnPData(absPath string, absDirPath string, json js_ast.Expr, source logger.Source) *pnpData {
 	data := pnpData{
 		absPath:    absPath,
 		absDirPath: absDirPath,
+		tracker:    logger.MakeLineColumnTracker(&source),
 	}
 
 	if value, _, ok := getProperty(json, "enableTopLevelFallback"); ok {
@@ -438,7 +461,26 @@ func compileYarnPnPData(absPath string, absDirPath string, json js_ast.Expr) *pn
 
 	if value, _, ok := getProperty(json, "ignorePatternData"); ok {
 		if ignorePatternData, ok := getString(value); ok {
-			data.ignorePatternData, _ = regexp.Compile(ignorePatternData)
+			// The Go regular expression engine doesn't support some of the features
+			// that JavaScript regular expressions support, including "(?!" negative
+			// lookaheads which Yarn uses. This is deliberate on Go's part. See this:
+			// https://github.com/golang/go/issues/18868.
+			//
+			// Yarn uses this feature to exclude the "." and ".." path segments in
+			// the middle of a relative path. However, we shouldn't ever generate
+			// such path segments in the first place. So as a hack, we just remove
+			// the specific character sequences used by Yarn for this so that the
+			// regular expression is more likely to be able to be compiled.
+			ignorePatternData = strings.ReplaceAll(ignorePatternData, `(?!\.)`, "")
+			ignorePatternData = strings.ReplaceAll(ignorePatternData, `(?!(?:^|\/)\.)`, "")
+			ignorePatternData = strings.ReplaceAll(ignorePatternData, `(?!\.{1,2}(?:\/|$))`, "")
+			ignorePatternData = strings.ReplaceAll(ignorePatternData, `(?!(?:^|\/)\.{1,2}(?:\/|$))`, "")
+
+			if reg, err := regexp.Compile(ignorePatternData); err == nil {
+				data.ignorePatternData = reg
+			} else {
+				data.invalidIgnorePatternData = ignorePatternData
+			}
 		}
 	}
 
@@ -485,7 +527,11 @@ func compileYarnPnPData(absPath string, absDirPath string, json js_ast.Expr) *pn
 														references[packageReference] = pnpPackage{
 															packageLocation:     packageLocation,
 															packageDependencies: deps,
-															discardFromLookup:   discardFromLookup,
+															packageDependenciesRange: logger.Range{
+																Loc: packageDependencies.Loc,
+																Len: array3.CloseBracketLoc.Start + 1 - packageDependencies.Loc.Start,
+															},
+															discardFromLookup: discardFromLookup,
 														}
 
 														// This is what Yarn's PnP implementation does (specifically in
@@ -534,10 +580,10 @@ func getStringOrNull(json js_ast.Expr) (string, bool) {
 func getDependencyTarget(json js_ast.Expr) (pnpIdentAndReference, bool) {
 	switch d := json.Data.(type) {
 	case *js_ast.ENull:
-		return pnpIdentAndReference{}, true
+		return pnpIdentAndReference{span: logger.Range{Loc: json.Loc, Len: 4}}, true
 
 	case *js_ast.EString:
-		return pnpIdentAndReference{reference: helpers.UTF16ToString(d.Value)}, true
+		return pnpIdentAndReference{reference: helpers.UTF16ToString(d.Value), span: logger.Range{Loc: json.Loc}}, true
 
 	case *js_ast.EArray:
 		if len(d.Items) == 2 {
@@ -546,6 +592,7 @@ func getDependencyTarget(json js_ast.Expr) (pnpIdentAndReference, bool) {
 					return pnpIdentAndReference{
 						ident:     name,
 						reference: reference,
+						span:      logger.Range{Loc: json.Loc, Len: d.CloseBracketLoc.Start + 1 - json.Loc.Start},
 					}, true
 				}
 			}
@@ -562,7 +609,7 @@ const (
 	pnpReportErrorsAboutMissingFiles
 )
 
-func (r resolverQuery) extractYarnPnPDataFromJSON(pnpDataPath string, mode pnpDataMode) (result js_ast.Expr) {
+func (r resolverQuery) extractYarnPnPDataFromJSON(pnpDataPath string, mode pnpDataMode) (result js_ast.Expr, source logger.Source) {
 	contents, err, originalError := r.caches.FSCache.ReadFile(r.fs, pnpDataPath)
 	if r.debugLogs != nil && originalError != nil {
 		r.debugLogs.addNote(fmt.Sprintf("Failed to read file %q: %s", pnpDataPath, originalError.Error()))
@@ -579,7 +626,7 @@ func (r resolverQuery) extractYarnPnPDataFromJSON(pnpDataPath string, mode pnpDa
 		r.debugLogs.addNote(fmt.Sprintf("The file %q exists", pnpDataPath))
 	}
 	keyPath := logger.Path{Text: pnpDataPath, Namespace: "file"}
-	source := logger.Source{
+	source = logger.Source{
 		KeyPath:    keyPath,
 		PrettyPath: r.PrettyPath(keyPath),
 		Contents:   contents,
@@ -588,7 +635,7 @@ func (r resolverQuery) extractYarnPnPDataFromJSON(pnpDataPath string, mode pnpDa
 	return
 }
 
-func (r resolverQuery) tryToExtractYarnPnPDataFromJS(pnpDataPath string, mode pnpDataMode) (result js_ast.Expr) {
+func (r resolverQuery) tryToExtractYarnPnPDataFromJS(pnpDataPath string, mode pnpDataMode) (result js_ast.Expr, source logger.Source) {
 	contents, err, originalError := r.caches.FSCache.ReadFile(r.fs, pnpDataPath)
 	if r.debugLogs != nil && originalError != nil {
 		r.debugLogs.addNote(fmt.Sprintf("Failed to read file %q: %s", pnpDataPath, originalError.Error()))
@@ -606,7 +653,7 @@ func (r resolverQuery) tryToExtractYarnPnPDataFromJS(pnpDataPath string, mode pn
 	}
 
 	keyPath := logger.Path{Text: pnpDataPath, Namespace: "file"}
-	source := logger.Source{
+	source = logger.Source{
 		KeyPath:    keyPath,
 		PrettyPath: r.PrettyPath(keyPath),
 		Contents:   contents,
@@ -616,5 +663,5 @@ func (r resolverQuery) tryToExtractYarnPnPDataFromJS(pnpDataPath string, mode pn
 	if r.debugLogs != nil && ast.ManifestForYarnPnP.Data != nil {
 		r.debugLogs.addNote(fmt.Sprintf("  Extracted JSON data from %q", pnpDataPath))
 	}
-	return ast.ManifestForYarnPnP
+	return ast.ManifestForYarnPnP, source
 }

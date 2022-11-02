@@ -657,6 +657,15 @@ func parseOptionsImpl(
 				transformOpts.JSXDev = value
 			}
 
+		case isBoolFlag(arg, "--jsx-side-effects"):
+			if value, err := parseBoolFlag(arg, true); err != nil {
+				return parseOptionsExtras{}, err
+			} else if buildOpts != nil {
+				buildOpts.JSXSideEffects = value
+			} else {
+				transformOpts.JSXSideEffects = value
+			}
+
 		case strings.HasPrefix(arg, "--banner=") && transformOpts != nil:
 			transformOpts.Banner = arg[len("--banner="):]
 
@@ -754,6 +763,7 @@ func parseOptionsImpl(
 				"bundle":             true,
 				"ignore-annotations": true,
 				"jsx-dev":            true,
+				"jsx-side-effects":   true,
 				"keep-names":         true,
 				"minify-identifiers": true,
 				"minify-syntax":      true,

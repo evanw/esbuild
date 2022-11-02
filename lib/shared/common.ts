@@ -3,6 +3,9 @@ import * as protocol from "./stdio_protocol";
 
 declare const ESBUILD_VERSION: string;
 
+const buildLogLevelDefault = 'warning';
+const transformLogLevelDefault = 'silent';
+
 function validateTarget(target: string): string {
   target += ''
   if (target.indexOf(',') >= 0) throw new Error(`Invalid target: ${target}`)
@@ -142,6 +145,7 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   let jsxFragment = getFlag(options, keys, 'jsxFragment', mustBeString);
   let jsxImportSource = getFlag(options, keys, 'jsxImportSource', mustBeString);
   let jsxDev = getFlag(options, keys, 'jsxDev', mustBeBoolean);
+  let jsxSideEffects = getFlag(options, keys, 'jsxSideEffects', mustBeBoolean);
   let define = getFlag(options, keys, 'define', mustBeObject);
   let logOverride = getFlag(options, keys, 'logOverride', mustBeObject);
   let supported = getFlag(options, keys, 'supported', mustBeObject);
@@ -177,6 +181,7 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   if (jsxFragment) flags.push(`--jsx-fragment=${jsxFragment}`);
   if (jsxImportSource) flags.push(`--jsx-import-source=${jsxImportSource}`);
   if (jsxDev) flags.push(`--jsx-dev`);
+  if (jsxSideEffects) flags.push(`--jsx-side-effects`);
 
   if (define) {
     for (let key in define) {
@@ -487,25 +492,16 @@ export interface StreamService {
   }): void;
 }
 
+type CloseData = { didClose: boolean, reason: string }
+type RequestCallback = (id: number, request: any) => Promise<void> | void
+
 // This can't use any promises in the main execution flow because it must work
 // for both sync and async code. There is an exception for plugin code because
 // that can't work in sync code anyway.
 export function createChannel(streamIn: StreamIn): StreamOut {
-  type PluginCallback = (request: protocol.OnStartRequest | protocol.OnResolveRequest | protocol.OnLoadRequest) =>
-    Promise<protocol.OnStartResponse | protocol.OnResolveResponse | protocol.OnLoadResponse>;
-
-  type WatchCallback = (error: Error | null, response: any) => void;
-
-  interface ServeCallbacks {
-    onRequest: types.ServeOptions['onRequest'];
-    onWait: (error: string | null) => void;
-  }
-
-  let responseCallbacks = new Map<number, (error: string | null, response: protocol.Value) => void>();
-  let pluginCallbacks = new Map<number, PluginCallback>();
-  let watchCallbacks = new Map<number, WatchCallback>();
-  let serveCallbacks = new Map<number, ServeCallbacks>();
-  let closeData: { reason: string } | null = null;
+  const requestCallbacksByKey: { [key: number]: { [command: string]: RequestCallback } } = {};
+  const closeData: CloseData = { didClose: false, reason: '' }
+  let responseCallbacks: { [id: number]: (error: string | null, response: protocol.Value) => void } = {};
   let nextRequestID = 0;
   let nextBuildKey = 0;
 
@@ -542,112 +538,54 @@ export function createChannel(streamIn: StreamIn): StreamOut {
 
   let afterClose = (error: Error | null) => {
     // When the process is closed, fail all pending requests
-    closeData = { reason: error ? ': ' + (error.message || error) : '' };
+    closeData.didClose = true
+    if (error) closeData.reason = ': ' + (error.message || error)
     const text = 'The service was stopped' + closeData.reason;
-    for (let callback of responseCallbacks.values()) {
-      callback(text, null);
+    for (let id in responseCallbacks) {
+      responseCallbacks[id](text, null);
     }
-    responseCallbacks.clear();
-    for (let callbacks of serveCallbacks.values()) {
-      callbacks.onWait(text);
-    }
-    serveCallbacks.clear();
-    for (let callback of watchCallbacks.values()) {
-      try {
-        callback(new Error(text), null);
-      } catch (e) {
-        console.error(e)
-      }
-    }
-    watchCallbacks.clear();
+    responseCallbacks = {};
   };
 
   let sendRequest = <Req, Res>(refs: Refs | null, value: Req, callback: (error: string | null, response: Res | null) => void): void => {
-    if (closeData) return callback('The service is no longer running' + closeData.reason, null);
+    if (closeData.didClose) return callback('The service is no longer running' + closeData.reason, null);
     let id = nextRequestID++;
-    responseCallbacks.set(id, (error, response) => {
+    responseCallbacks[id] = (error, response) => {
       try {
         callback(error, response as any);
       } finally {
         if (refs) refs.unref() // Do this after the callback so the callback can extend the lifetime if needed
       }
-    });
+    };
     if (refs) refs.ref()
     streamIn.writeToStdin(protocol.encodePacket({ id, isRequest: true, value: value as any }));
   };
 
   let sendResponse = (id: number, value: protocol.Value): void => {
-    if (closeData) throw new Error('The service is no longer running' + closeData.reason);
+    if (closeData.didClose) throw new Error('The service is no longer running' + closeData.reason);
     streamIn.writeToStdin(protocol.encodePacket({ id, isRequest: false, value }));
   };
 
-  type RequestType =
-    | protocol.PingRequest
-    | protocol.OnStartRequest
-    | protocol.OnResolveRequest
-    | protocol.OnLoadRequest
-    | protocol.OnRequestRequest
-    | protocol.OnWaitRequest
-    | protocol.OnWatchRebuildRequest
-
-  let handleRequest = async (id: number, request: RequestType) => {
+  let handleRequest = async (id: number, request: any) => {
     // Catch exceptions in the code below so they get passed to the caller
     try {
-      switch (request.command) {
-        case 'ping': {
-          sendResponse(id, {});
-          break;
-        }
-
-        case 'on-start': {
-          let callback = pluginCallbacks.get(request.key);
-          if (!callback) sendResponse(id, {});
-          else sendResponse(id, await callback!(request) as any);
-          break;
-        }
-
-        case 'on-resolve': {
-          let callback = pluginCallbacks.get(request.key);
-          if (!callback) sendResponse(id, {});
-          else sendResponse(id, await callback!(request) as any);
-          break;
-        }
-
-        case 'on-load': {
-          let callback = pluginCallbacks.get(request.key);
-          if (!callback) sendResponse(id, {});
-          else sendResponse(id, await callback!(request) as any);
-          break;
-        }
-
-        case 'serve-request': {
-          let callbacks = serveCallbacks.get(request.key);
-          if (callbacks && callbacks.onRequest) callbacks.onRequest(request.args);
-          sendResponse(id, {});
-          break;
-        }
-
-        case 'serve-wait': {
-          let callbacks = serveCallbacks.get(request.key);
-          if (callbacks) callbacks.onWait(request.error);
-          sendResponse(id, {});
-          break;
-        }
-
-        case 'watch-rebuild': {
-          let callback = watchCallbacks.get(request.key);
-          try {
-            if (callback) callback(null, request.args);
-          } catch (err) {
-            console.error(err);
-          }
-          sendResponse(id, {});
-          break;
-        }
-
-        default:
-          throw new Error(`Invalid command: ` + (request as any)!.command);
+      if (request.command === 'ping') {
+        sendResponse(id, {});
+        return
       }
+
+      if (typeof request.key === 'number') {
+        const requestCallbacks = requestCallbacksByKey[request.key]
+        if (requestCallbacks) {
+          const callback = requestCallbacks[request.command]
+          if (callback) {
+            await callback(id, request)
+            return
+          }
+        }
+      }
+
+      throw new Error(`Invalid command: ` + request.command);
     } catch (e) {
       sendResponse(id, { errors: [extractErrorMessageV8(e, streamIn, null, void 0, '')] } as any);
     }
@@ -677,656 +615,60 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     }
 
     else {
-      let callback = responseCallbacks.get(packet.id)!;
-      responseCallbacks.delete(packet.id);
+      let callback = responseCallbacks[packet.id]!;
+      delete responseCallbacks[packet.id];
       if (packet.value.error) callback(packet.value.error, {});
       else callback(null, packet.value);
     }
   };
 
-  type RunOnEndCallbacks = (result: types.BuildResult, logPluginError: LogPluginErrorCallback, done: () => void) => void;
-  type LogPluginErrorCallback = (e: any, pluginName: string, note: types.Note | undefined, done: (message: types.Message) => void) => void;
-
-  let handlePlugins = async (
-    initialOptions: types.BuildOptions,
-    plugins: types.Plugin[],
-    buildKey: number,
-    stash: ObjectStash,
-    refs: Refs | null,
-  ): Promise<
-    | { ok: true, requestPlugins: protocol.BuildPlugin[], runOnEndCallbacks: RunOnEndCallbacks, pluginRefs: Refs }
-    | { ok: false, error: any, pluginName: string }
-  > => {
-    let onStartCallbacks: {
-      name: string,
-      note: () => types.Note | undefined,
-      callback: () => (types.OnStartResult | null | void | Promise<types.OnStartResult | null | void>),
-    }[] = [];
-
-    let onEndCallbacks: {
-      name: string,
-      note: () => types.Note | undefined,
-      callback: (result: types.BuildResult) => (void | Promise<void>),
-    }[] = [];
-
-    let onResolveCallbacks: {
-      [id: number]: {
-        name: string,
-        note: () => types.Note | undefined,
-        callback: (args: types.OnResolveArgs) =>
-          (types.OnResolveResult | null | undefined | Promise<types.OnResolveResult | null | undefined>),
-      },
-    } = {};
-
-    let onLoadCallbacks: {
-      [id: number]: {
-        name: string,
-        note: () => types.Note | undefined,
-        callback: (args: types.OnLoadArgs) =>
-          (types.OnLoadResult | null | undefined | Promise<types.OnLoadResult | null | undefined>),
-      },
-    } = {};
-
-    let nextCallbackID = 0;
-    let i = 0;
-    let requestPlugins: protocol.BuildPlugin[] = [];
-    let isSetupDone = false;
-
-    // Clone the plugin array to guard against mutation during iteration
-    plugins = [...plugins];
-
-    for (let item of plugins) {
-      let keys: OptionKeys = {};
-      if (typeof item !== 'object') throw new Error(`Plugin at index ${i} must be an object`);
-      const name = getFlag(item, keys, 'name', mustBeString);
-      if (typeof name !== 'string' || name === '') throw new Error(`Plugin at index ${i} is missing a name`);
-      try {
-        let setup = getFlag(item, keys, 'setup', mustBeFunction);
-        if (typeof setup !== 'function') throw new Error(`Plugin is missing a setup function`);
-        checkForInvalidFlags(item, keys, `on plugin ${JSON.stringify(name)}`);
-
-        let plugin: protocol.BuildPlugin = {
-          name,
-          onResolve: [],
-          onLoad: [],
-        };
-        i++;
-
-        let resolve = (path: string, options: types.ResolveOptions = {}): Promise<types.ResolveResult> => {
-          if (!isSetupDone) throw new Error('Cannot call "resolve" before plugin setup has completed');
-          if (typeof path !== 'string') throw new Error(`The path to resolve must be a string`);
-          let keys: OptionKeys = Object.create(null);
-          let pluginName = getFlag(options, keys, 'pluginName', mustBeString);
-          let importer = getFlag(options, keys, 'importer', mustBeString);
-          let namespace = getFlag(options, keys, 'namespace', mustBeString);
-          let resolveDir = getFlag(options, keys, 'resolveDir', mustBeString);
-          let kind = getFlag(options, keys, 'kind', mustBeString);
-          let pluginData = getFlag(options, keys, 'pluginData', canBeAnything);
-          checkForInvalidFlags(options, keys, 'in resolve() call');
-
-          return new Promise((resolve, reject) => {
-            const request: protocol.ResolveRequest = {
-              command: 'resolve',
-              path,
-              key: buildKey,
-              pluginName: name,
-            }
-            if (pluginName != null) request.pluginName = pluginName
-            if (importer != null) request.importer = importer
-            if (namespace != null) request.namespace = namespace
-            if (resolveDir != null) request.resolveDir = resolveDir
-            if (kind != null) request.kind = kind
-            if (pluginData != null) request.pluginData = stash.store(pluginData)
-
-            sendRequest<protocol.ResolveRequest, protocol.ResolveResponse>(refs, request, (error, response) => {
-              if (error !== null) reject(new Error(error))
-              else resolve({
-                errors: replaceDetailsInMessages(response!.errors, stash),
-                warnings: replaceDetailsInMessages(response!.warnings, stash),
-                path: response!.path,
-                external: response!.external,
-                sideEffects: response!.sideEffects,
-                namespace: response!.namespace,
-                suffix: response!.suffix,
-                pluginData: stash.load(response!.pluginData),
-              })
-            })
-          })
-        }
-
-        let promise = setup({
-          initialOptions,
-
-          resolve,
-
-          onStart(callback) {
-            let registeredText = `This error came from the "onStart" callback registered here:`
-            let registeredNote = extractCallerV8(new Error(registeredText), streamIn, 'onStart');
-            onStartCallbacks.push({ name: name!, callback, note: registeredNote });
-          },
-
-          onEnd(callback) {
-            let registeredText = `This error came from the "onEnd" callback registered here:`
-            let registeredNote = extractCallerV8(new Error(registeredText), streamIn, 'onEnd');
-            onEndCallbacks.push({ name: name!, callback, note: registeredNote });
-          },
-
-          onResolve(options, callback) {
-            let registeredText = `This error came from the "onResolve" callback registered here:`
-            let registeredNote = extractCallerV8(new Error(registeredText), streamIn, 'onResolve');
-            let keys: OptionKeys = {};
-            let filter = getFlag(options, keys, 'filter', mustBeRegExp);
-            let namespace = getFlag(options, keys, 'namespace', mustBeString);
-            checkForInvalidFlags(options, keys, `in onResolve() call for plugin ${JSON.stringify(name)}`);
-            if (filter == null) throw new Error(`onResolve() call is missing a filter`);
-            let id = nextCallbackID++;
-            onResolveCallbacks[id] = { name: name!, callback, note: registeredNote };
-            plugin.onResolve.push({ id, filter: filter.source, namespace: namespace || '' });
-          },
-
-          onLoad(options, callback) {
-            let registeredText = `This error came from the "onLoad" callback registered here:`
-            let registeredNote = extractCallerV8(new Error(registeredText), streamIn, 'onLoad');
-            let keys: OptionKeys = {};
-            let filter = getFlag(options, keys, 'filter', mustBeRegExp);
-            let namespace = getFlag(options, keys, 'namespace', mustBeString);
-            checkForInvalidFlags(options, keys, `in onLoad() call for plugin ${JSON.stringify(name)}`);
-            if (filter == null) throw new Error(`onLoad() call is missing a filter`);
-            let id = nextCallbackID++;
-            onLoadCallbacks[id] = { name: name!, callback, note: registeredNote };
-            plugin.onLoad.push({ id, filter: filter.source, namespace: namespace || '' });
-          },
-
-          esbuild: streamIn.esbuild,
-        });
-
-        // Await a returned promise if there was one. This allows plugins to do
-        // some asynchronous setup while still retaining the ability to modify
-        // the build options. This deliberately serializes asynchronous plugin
-        // setup instead of running them concurrently so that build option
-        // modifications are easier to reason about.
-        if (promise) await promise;
-
-        requestPlugins.push(plugin);
-      } catch (e) {
-        return { ok: false, error: e, pluginName: name }
-      }
-    }
-
-    const callback: PluginCallback = async (request) => {
-      switch (request.command) {
-        case 'on-start': {
-          let response: protocol.OnStartResponse = { errors: [], warnings: [] };
-          await Promise.all(onStartCallbacks.map(async ({ name, callback, note }) => {
-            try {
-              let result = await callback();
-
-              if (result != null) {
-                if (typeof result !== 'object') throw new Error(`Expected onStart() callback in plugin ${JSON.stringify(name)} to return an object`);
-                let keys: OptionKeys = {};
-                let errors = getFlag(result, keys, 'errors', mustBeArray);
-                let warnings = getFlag(result, keys, 'warnings', mustBeArray);
-                checkForInvalidFlags(result, keys, `from onStart() callback in plugin ${JSON.stringify(name)}`);
-
-                if (errors != null) response.errors!.push(...sanitizeMessages(errors, 'errors', stash, name));
-                if (warnings != null) response.warnings!.push(...sanitizeMessages(warnings, 'warnings', stash, name));
-              }
-            } catch (e) {
-              response.errors!.push(extractErrorMessageV8(e, streamIn, stash, note && note(), name));
-            }
-          }))
-          return response;
-        }
-
-        case 'on-resolve': {
-          let response: protocol.OnResolveResponse = {}, name = '', callback, note;
-          for (let id of request.ids) {
-            try {
-              ({ name, callback, note } = onResolveCallbacks[id]);
-              let result = await callback({
-                path: request.path,
-                importer: request.importer,
-                namespace: request.namespace,
-                resolveDir: request.resolveDir,
-                kind: request.kind,
-                pluginData: stash.load(request.pluginData),
-              });
-
-              if (result != null) {
-                if (typeof result !== 'object') throw new Error(`Expected onResolve() callback in plugin ${JSON.stringify(name)} to return an object`);
-                let keys: OptionKeys = {};
-                let pluginName = getFlag(result, keys, 'pluginName', mustBeString);
-                let path = getFlag(result, keys, 'path', mustBeString);
-                let namespace = getFlag(result, keys, 'namespace', mustBeString);
-                let suffix = getFlag(result, keys, 'suffix', mustBeString);
-                let external = getFlag(result, keys, 'external', mustBeBoolean);
-                let sideEffects = getFlag(result, keys, 'sideEffects', mustBeBoolean);
-                let pluginData = getFlag(result, keys, 'pluginData', canBeAnything);
-                let errors = getFlag(result, keys, 'errors', mustBeArray);
-                let warnings = getFlag(result, keys, 'warnings', mustBeArray);
-                let watchFiles = getFlag(result, keys, 'watchFiles', mustBeArray);
-                let watchDirs = getFlag(result, keys, 'watchDirs', mustBeArray);
-                checkForInvalidFlags(result, keys, `from onResolve() callback in plugin ${JSON.stringify(name)}`);
-
-                response.id = id;
-                if (pluginName != null) response.pluginName = pluginName;
-                if (path != null) response.path = path;
-                if (namespace != null) response.namespace = namespace;
-                if (suffix != null) response.suffix = suffix;
-                if (external != null) response.external = external;
-                if (sideEffects != null) response.sideEffects = sideEffects;
-                if (pluginData != null) response.pluginData = stash.store(pluginData);
-                if (errors != null) response.errors = sanitizeMessages(errors, 'errors', stash, name);
-                if (warnings != null) response.warnings = sanitizeMessages(warnings, 'warnings', stash, name);
-                if (watchFiles != null) response.watchFiles = sanitizeStringArray(watchFiles, 'watchFiles');
-                if (watchDirs != null) response.watchDirs = sanitizeStringArray(watchDirs, 'watchDirs');
-                break;
-              }
-            } catch (e) {
-              return { id, errors: [extractErrorMessageV8(e, streamIn, stash, note && note(), name)] };
-            }
-          }
-          return response;
-        }
-
-        case 'on-load': {
-          let response: protocol.OnLoadResponse = {}, name = '', callback, note;
-          for (let id of request.ids) {
-            try {
-              ({ name, callback, note } = onLoadCallbacks[id]);
-              let result = await callback({
-                path: request.path,
-                namespace: request.namespace,
-                suffix: request.suffix,
-                pluginData: stash.load(request.pluginData),
-              });
-
-              if (result != null) {
-                if (typeof result !== 'object') throw new Error(`Expected onLoad() callback in plugin ${JSON.stringify(name)} to return an object`);
-                let keys: OptionKeys = {};
-                let pluginName = getFlag(result, keys, 'pluginName', mustBeString);
-                let contents = getFlag(result, keys, 'contents', mustBeStringOrUint8Array);
-                let resolveDir = getFlag(result, keys, 'resolveDir', mustBeString);
-                let pluginData = getFlag(result, keys, 'pluginData', canBeAnything);
-                let loader = getFlag(result, keys, 'loader', mustBeString);
-                let errors = getFlag(result, keys, 'errors', mustBeArray);
-                let warnings = getFlag(result, keys, 'warnings', mustBeArray);
-                let watchFiles = getFlag(result, keys, 'watchFiles', mustBeArray);
-                let watchDirs = getFlag(result, keys, 'watchDirs', mustBeArray);
-                checkForInvalidFlags(result, keys, `from onLoad() callback in plugin ${JSON.stringify(name)}`);
-
-                response.id = id;
-                if (pluginName != null) response.pluginName = pluginName;
-                if (contents instanceof Uint8Array) response.contents = contents;
-                else if (contents != null) response.contents = protocol.encodeUTF8(contents);
-                if (resolveDir != null) response.resolveDir = resolveDir;
-                if (pluginData != null) response.pluginData = stash.store(pluginData);
-                if (loader != null) response.loader = loader;
-                if (errors != null) response.errors = sanitizeMessages(errors, 'errors', stash, name);
-                if (warnings != null) response.warnings = sanitizeMessages(warnings, 'warnings', stash, name);
-                if (watchFiles != null) response.watchFiles = sanitizeStringArray(watchFiles, 'watchFiles');
-                if (watchDirs != null) response.watchDirs = sanitizeStringArray(watchDirs, 'watchDirs');
-                break;
-              }
-            } catch (e) {
-              return { id, errors: [extractErrorMessageV8(e, streamIn, stash, note && note(), name)] };
-            }
-          }
-          return response;
-        }
-
-        default:
-          throw new Error(`Invalid command: ` + (request as any).command);
-      }
-    }
-
-    let runOnEndCallbacks: RunOnEndCallbacks = (result, logPluginError, done) => done();
-
-    if (onEndCallbacks.length > 0) {
-      runOnEndCallbacks = (result, logPluginError, done) => {
-        (async () => {
-          for (const { name, callback, note } of onEndCallbacks) {
-            try {
-              await callback(result)
-            } catch (e) {
-              result.errors.push(await new Promise<types.Message>(resolve => logPluginError(e, name, note && note(), resolve)))
-            }
-          }
-        })().then(done)
-      }
-    }
-
-    isSetupDone = true;
+  let buildOrServe: StreamService['buildOrServe'] = ({ callName, refs, serveOptions, options, isTTY, defaultWD, callback }) => {
     let refCount = 0;
-    return {
-      ok: true,
-      requestPlugins,
-      runOnEndCallbacks,
-      pluginRefs: {
-        ref() { if (++refCount === 1) pluginCallbacks.set(buildKey, callback); },
-        unref() { if (--refCount === 0) pluginCallbacks.delete(buildKey) },
-      },
-    }
-  };
-
-  interface ServeData {
-    wait: Promise<void>
-    stop: () => void
-  }
-
-  let buildServeData = (refs: Refs | null, options: types.ServeOptions, request: protocol.BuildRequest, key: number): ServeData => {
-    let keys: OptionKeys = {};
-    let port = getFlag(options, keys, 'port', mustBeInteger);
-    let host = getFlag(options, keys, 'host', mustBeString);
-    let servedir = getFlag(options, keys, 'servedir', mustBeString);
-    let onRequest = getFlag(options, keys, 'onRequest', mustBeFunction);
-    let onWait: ServeCallbacks['onWait'];
-    let wait = new Promise<void>((resolve, reject) => {
-      onWait = error => {
-        serveCallbacks.delete(key);
-        if (error !== null) reject(new Error(error));
-        else resolve();
-      };
-    });
-    request.serve = {};
-    checkForInvalidFlags(options, keys, `in serve() call`);
-    if (port !== void 0) request.serve.port = port;
-    if (host !== void 0) request.serve.host = host;
-    if (servedir !== void 0) request.serve.servedir = servedir;
-    serveCallbacks.set(key, {
-      onRequest,
-      onWait: onWait!,
-    });
-    return {
-      wait,
-      stop() {
-        sendRequest<protocol.ServeStopRequest, null>(refs, { command: 'serve-stop', key }, () => {
-          // We don't care about the result
-        });
-      },
-    };
-  };
-
-  const buildLogLevelDefault = 'warning';
-  const transformLogLevelDefault = 'silent';
-
-  let buildOrServe: StreamService['buildOrServe'] = args => {
-    let key = nextBuildKey++;
-    const details = createObjectStash();
-    let plugins: types.Plugin[] | undefined;
-    let { refs, options, isTTY, callback } = args;
-    if (typeof options === 'object') {
-      let value = options.plugins;
-      if (value !== void 0) {
-        if (!Array.isArray(value)) throw new Error(`"plugins" must be an array`);
-        plugins = value;
-      }
-    }
-    let logPluginError: LogPluginErrorCallback = (e, pluginName, note, done) => {
-      let flags: string[] = [];
-      try { pushLogFlags(flags, options, {}, isTTY, buildLogLevelDefault) } catch { }
-      const message = extractErrorMessageV8(e, streamIn, details, note, pluginName)
-      sendRequest(refs, { command: 'error', flags, error: message }, () => {
-        message.detail = details.load(message.detail);
-        done(message)
-      });
-    };
-    let handleError = (e: any, pluginName: string) => {
-      logPluginError(e, pluginName, void 0, error => {
-        callback(failureErrorWithLog('Build failed', [error], []), null);
-      })
-    };
-    if (plugins && plugins.length > 0) {
-      if (streamIn.isSync) return handleError(new Error('Cannot use plugins in synchronous API calls'), '');
-
-      // Plugins can use async/await because they can't be run with "buildSync"
-      handlePlugins(options, plugins, key, details, refs).then(
-        result => {
-          if (!result.ok) {
-            handleError(result.error, result.pluginName);
-          } else {
-            try {
-              buildOrServeContinue({
-                ...args,
-                key,
-                details,
-                logPluginError,
-                requestPlugins: result.requestPlugins,
-                runOnEndCallbacks: result.runOnEndCallbacks,
-                pluginRefs: result.pluginRefs,
-              })
-            } catch (e) {
-              handleError(e, '');
-            }
-          }
-        },
-        e => handleError(e, ''),
-      )
-    } else {
-      try {
-        buildOrServeContinue({
-          ...args,
-          key,
-          details,
-          logPluginError,
-          requestPlugins: null,
-          runOnEndCallbacks: (result, logPluginError, done) => done(),
-          pluginRefs: null,
-        });
-      } catch (e) {
-        handleError(e, '');
-      }
-    }
-  }
-
-  // "buildOrServe" cannot be written using async/await due to "buildSync" and
-  // must be written in continuation-passing style instead. Sorry about all of
-  // the arguments, but these are passed explicitly instead of using another
-  // nested closure because this function is already huge and I didn't want to
-  // make it any bigger.
-  let buildOrServeContinue = ({
-    callName,
-    refs: callerRefs,
-    serveOptions,
-    options,
-    isTTY,
-    defaultWD,
-    callback,
-    key,
-    details,
-    logPluginError,
-    requestPlugins,
-    runOnEndCallbacks,
-    pluginRefs,
-  }: {
-    callName: string,
-    refs: Refs | null,
-    serveOptions: types.ServeOptions | null,
-    options: types.BuildOptions,
-    isTTY: boolean,
-    defaultWD: string,
-    callback: (err: Error | null, res: types.BuildResult | types.ServeResult | null) => void,
-    key: number,
-    details: ObjectStash,
-    logPluginError: LogPluginErrorCallback,
-    requestPlugins: protocol.BuildPlugin[] | null,
-    runOnEndCallbacks: RunOnEndCallbacks,
-    pluginRefs: Refs | null,
-  }) => {
-    const refs = {
+    const buildKey = nextBuildKey++;
+    const requestCallbacks: { [command: string]: RequestCallback } = {};
+    const buildRefs: Refs = {
       ref() {
-        if (pluginRefs) pluginRefs.ref()
-        if (callerRefs) callerRefs.ref()
+        if (++refCount === 1) {
+          if (refs) refs.ref()
+        }
       },
       unref() {
-        if (pluginRefs) pluginRefs.unref()
-        if (callerRefs) callerRefs.unref()
+        if (--refCount === 0) {
+          delete requestCallbacksByKey[buildKey]
+          if (refs) refs.unref()
+        }
       },
     }
-    let writeDefault = !streamIn.isWriteUnavailable;
-    let {
-      entries,
-      flags,
-      write,
-      stdinContents,
-      stdinResolveDir,
-      absWorkingDir,
-      incremental,
-      nodePaths,
-      watch,
-      mangleCache,
-    } = flagsForBuildOptions(callName, options, isTTY, buildLogLevelDefault, writeDefault);
-    let request: protocol.BuildRequest = {
-      command: 'build',
-      key,
-      entries,
-      flags,
-      write,
-      stdinContents,
-      stdinResolveDir,
-      absWorkingDir: absWorkingDir || defaultWD,
-      incremental,
-      nodePaths,
-    };
-    if (requestPlugins) request.plugins = requestPlugins;
-    if (mangleCache) request.mangleCache = mangleCache;
-    let serve = serveOptions && buildServeData(refs, serveOptions, request, key);
+    requestCallbacksByKey[buildKey] = requestCallbacks;
 
-    // Factor out response handling so it can be reused for rebuilds
-    let rebuild: types.BuildResult['rebuild'] | undefined;
-    let stop: types.BuildResult['stop'] | undefined;
-    let copyResponseToResult = (response: protocol.BuildResponse, result: types.BuildResult) => {
-      if (response.outputFiles) result.outputFiles = response!.outputFiles.map(convertOutputFiles);
-      if (response.metafile) result.metafile = JSON.parse(response!.metafile);
-      if (response.mangleCache) result.mangleCache = response!.mangleCache;
-      if (response.writeToStdout !== void 0) console.log(protocol.decodeUTF8(response!.writeToStdout).replace(/\n$/, ''));
-    };
-    let buildResponseToResult = (
-      response: protocol.BuildResponse | null,
-      callback: (error: types.BuildFailure | null, result: types.BuildResult | null) => void,
-    ): void => {
-      let result: types.BuildResult = {
-        errors: replaceDetailsInMessages(response!.errors, details),
-        warnings: replaceDetailsInMessages(response!.warnings, details),
-      };
-      copyResponseToResult(response!, result);
-      runOnEndCallbacks(result, logPluginError, () => {
-        if (result.errors.length > 0) {
-          return callback(failureErrorWithLog('Build failed', result.errors, result.warnings), null);
+    // Guard the whole "build" request with a temporary ref count bump. We
+    // don't want the ref count to be bumped above zero and then back down
+    // to zero before the callback is called.
+    buildRefs.ref()
+    buildOrServeImpl(
+      callName,
+      buildKey,
+      sendRequest,
+      sendResponse,
+      buildRefs,
+      streamIn,
+      requestCallbacks,
+      options,
+      serveOptions,
+      isTTY,
+      defaultWD,
+      closeData,
+      (err, res) => {
+        // Now that the initial "build" request is done, we can release our
+        // temporary ref count bump. Any code that wants to extend the life
+        // of the build will have to do so by explicitly retaining a count.
+        try {
+          callback(err, res)
+        } finally {
+          buildRefs.unref()
         }
-
-        // Handle incremental rebuilds
-        if (response!.rebuild) {
-          if (!rebuild) {
-            let isDisposed = false;
-            (rebuild as any) = () => new Promise<types.BuildResult>((resolve, reject) => {
-              if (isDisposed || closeData) throw new Error('Cannot rebuild');
-              sendRequest<protocol.RebuildRequest, protocol.BuildResponse>(refs, { command: 'rebuild', key },
-                (error2, response2) => {
-                  if (error2) {
-                    const message: types.Message = { id: '', pluginName: '', text: error2, location: null, notes: [], detail: void 0 };
-                    return callback(failureErrorWithLog('Build failed', [message], []), null);
-                  }
-                  buildResponseToResult(response2, (error3, result3) => {
-                    if (error3) reject(error3);
-                    else resolve(result3!);
-                  });
-                });
-            });
-            refs.ref()
-            rebuild!.dispose = () => {
-              if (isDisposed) return;
-              isDisposed = true;
-              sendRequest<protocol.RebuildDisposeRequest, null>(refs, { command: 'rebuild-dispose', key }, () => {
-                // We don't care about the result
-              });
-              refs.unref() // Do this after the callback so "sendRequest" can extend the lifetime
-            };
-          }
-          result.rebuild = rebuild;
-        }
-
-        // Handle watch mode
-        if (response!.watch) {
-          if (!stop) {
-            let isStopped = false;
-            refs.ref()
-            stop = () => {
-              if (isStopped) return;
-              isStopped = true;
-              watchCallbacks.delete(key);
-              sendRequest<protocol.WatchStopRequest, null>(refs, { command: 'watch-stop', key }, () => {
-                // We don't care about the result
-              });
-              refs.unref() // Do this after the callback so "sendRequest" can extend the lifetime
-            }
-            if (watch) {
-              watchCallbacks.set(key, (serviceStopError, watchResponse) => {
-                if (serviceStopError) {
-                  if (watch!.onRebuild) watch!.onRebuild(serviceStopError as any, null);
-                  return;
-                }
-                let result2: types.BuildResult = {
-                  errors: replaceDetailsInMessages(watchResponse.errors, details),
-                  warnings: replaceDetailsInMessages(watchResponse.warnings, details),
-                };
-
-                // Note: "onEnd" callbacks should run even when there is no "onRebuild" callback
-                copyResponseToResult(watchResponse, result2);
-                runOnEndCallbacks(result2, logPluginError, () => {
-                  if (result2.errors.length > 0) {
-                    if (watch!.onRebuild) watch!.onRebuild(failureErrorWithLog('Build failed', result2.errors, result2.warnings), null);
-                    return;
-                  }
-                  if (watchResponse.rebuildID !== void 0) result2.rebuild = rebuild;
-                  result2.stop = stop;
-                  if (watch!.onRebuild) watch!.onRebuild(null, result2);
-                });
-              });
-            }
-          }
-          result.stop = stop;
-        }
-
-        callback(null, result);
-      });
-    };
-
-    if (write && streamIn.isWriteUnavailable) throw new Error(`The "write" option is unavailable in this environment`);
-    if (incremental && streamIn.isSync) throw new Error(`Cannot use "incremental" with a synchronous build`);
-    if (watch && streamIn.isSync) throw new Error(`Cannot use "watch" with a synchronous build`);
-    sendRequest<protocol.BuildRequest, protocol.BuildResponse>(refs, request, (error, response) => {
-      if (error) return callback(new Error(error), null);
-      if (serve) {
-        let serveResponse = response as any as protocol.ServeResponse;
-        let isStopped = false
-
-        // Add a ref/unref for "stop()"
-        refs.ref()
-        let result: types.ServeResult = {
-          port: serveResponse.port,
-          host: serveResponse.host,
-          wait: serve.wait,
-          stop() {
-            if (isStopped) return
-            isStopped = true
-            serve!.stop();
-            refs.unref() // Do this after the callback so "stop" can extend the lifetime
-          },
-        };
-
-        // Add a ref/unref for "wait". This must be done independently of
-        // "stop()" in case the response to "stop()" comes in first before
-        // the request for "wait". Without this ref/unref, node may close
-        // the child's stdin pipe after the "stop()" but before the "wait"
-        // which will cause things to break. This caused a test failure.
-        refs.ref()
-        serve.wait.then(refs.unref, refs.unref)
-
-        return callback(null, result);
-      }
-      return buildResponseToResult(response!, callback);
-    });
+      },
+    )
   };
 
   let transform: StreamService['transform'] = ({ callName, refs, input, options, isTTY, fs, callback }) => {
@@ -1475,6 +817,623 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     },
   };
 }
+
+function buildOrServeImpl(
+  callName: string,
+  buildKey: number,
+  sendRequest: <Req, Res>(refs: Refs | null, value: Req, callback: (error: string | null, response: Res | null) => void) => void,
+  sendResponse: (id: number, value: protocol.Value) => void,
+  refs: Refs,
+  streamIn: StreamIn,
+  requestCallbacks: { [command: string]: RequestCallback },
+  options: types.BuildOptions,
+  serveOptions: types.ServeOptions | null,
+  isTTY: boolean,
+  defaultWD: string,
+  closeData: CloseData,
+  callback: (err: Error | null, res: types.BuildResult | types.ServeResult | null) => void,
+): void {
+  const details = createObjectStash();
+
+  const logPluginError: LogPluginErrorCallback = (e, pluginName, note, done) => {
+    const flags: string[] = [];
+    try { pushLogFlags(flags, options, {}, isTTY, buildLogLevelDefault) } catch { }
+    const message = extractErrorMessageV8(e, streamIn, details, note, pluginName)
+    sendRequest(refs, { command: 'error', flags, error: message }, () => {
+      message.detail = details.load(message.detail);
+      done(message)
+    });
+  };
+
+  const handleError = (e: any, pluginName: string): void => {
+    logPluginError(e, pluginName, void 0, error => {
+      callback(failureErrorWithLog('Build failed', [error], []), null);
+    })
+  };
+
+  let plugins: types.Plugin[] | undefined;
+  if (typeof options === 'object') {
+    const value = options.plugins;
+    if (value !== void 0) {
+      if (!Array.isArray(value)) throw new Error(`"plugins" must be an array`);
+      plugins = value;
+    }
+  }
+
+  if (plugins && plugins.length > 0) {
+    if (streamIn.isSync) {
+      handleError(new Error('Cannot use plugins in synchronous API calls'), '');
+      return
+    }
+
+    // Plugins can use async/await because they can't be run with "buildSync"
+    handlePlugins(
+      buildKey,
+      sendRequest,
+      sendResponse,
+      refs,
+      streamIn,
+      requestCallbacks,
+      options,
+      plugins,
+      details,
+    ).then(
+      result => {
+        if (!result.ok) {
+          handleError(result.error, result.pluginName);
+          return
+        }
+        try {
+          buildOrServeContinue(result.requestPlugins, result.runOnEndCallbacks)
+        } catch (e) {
+          handleError(e, '');
+        }
+      },
+      e => handleError(e, ''),
+    )
+    return
+  }
+
+  try {
+    buildOrServeContinue(null, (result, logPluginError, done) => done());
+  } catch (e) {
+    handleError(e, '');
+  }
+
+  // "buildOrServe" cannot be written using async/await due to "buildSync"
+  // and must be written in continuation-passing style instead
+  function buildOrServeContinue(requestPlugins: protocol.BuildPlugin[] | null, runOnEndCallbacks: RunOnEndCallbacks) {
+    let writeDefault = !streamIn.isWriteUnavailable;
+    let {
+      entries,
+      flags,
+      write,
+      stdinContents,
+      stdinResolveDir,
+      absWorkingDir,
+      incremental,
+      nodePaths,
+      watch,
+      mangleCache,
+    } = flagsForBuildOptions(callName, options, isTTY, buildLogLevelDefault, writeDefault);
+    let request: protocol.BuildRequest = {
+      command: 'build',
+      key: buildKey,
+      entries,
+      flags,
+      write,
+      stdinContents,
+      stdinResolveDir,
+      absWorkingDir: absWorkingDir || defaultWD,
+      incremental,
+      nodePaths,
+    };
+    if (requestPlugins) request.plugins = requestPlugins;
+    if (mangleCache) request.mangleCache = mangleCache;
+    let serve = serveOptions && buildServeData(buildKey, sendRequest, sendResponse, refs, requestCallbacks, serveOptions, request);
+
+    // Factor out response handling so it can be reused for rebuilds
+    let rebuild: types.BuildResult['rebuild'] | undefined;
+    let stop: types.BuildResult['stop'] | undefined;
+    let copyResponseToResult = (response: protocol.BuildResponse, result: types.BuildResult) => {
+      if (response.outputFiles) result.outputFiles = response!.outputFiles.map(convertOutputFiles);
+      if (response.metafile) result.metafile = JSON.parse(response!.metafile);
+      if (response.mangleCache) result.mangleCache = response!.mangleCache;
+      if (response.writeToStdout !== void 0) console.log(protocol.decodeUTF8(response!.writeToStdout).replace(/\n$/, ''));
+    };
+    let buildResponseToResult = (
+      response: protocol.BuildResponse | null,
+      callback: (error: types.BuildFailure | null, result: types.BuildResult | null) => void,
+    ): void => {
+      let result: types.BuildResult = {
+        errors: replaceDetailsInMessages(response!.errors, details),
+        warnings: replaceDetailsInMessages(response!.warnings, details),
+      };
+      copyResponseToResult(response!, result);
+      runOnEndCallbacks(result, logPluginError, () => {
+        if (result.errors.length > 0) {
+          return callback(failureErrorWithLog('Build failed', result.errors, result.warnings), null);
+        }
+
+        // Handle incremental rebuilds
+        if (response!.rebuild) {
+          if (!rebuild) {
+            let isDisposed = false;
+            (rebuild as any) = () => new Promise<types.BuildResult>((resolve, reject) => {
+              if (isDisposed || closeData.didClose) throw new Error('Cannot rebuild');
+              sendRequest<protocol.RebuildRequest, protocol.BuildResponse>(refs, { command: 'rebuild', key: buildKey },
+                (error2, response2) => {
+                  if (error2) {
+                    const message: types.Message = { id: '', pluginName: '', text: error2, location: null, notes: [], detail: void 0 };
+                    return callback(failureErrorWithLog('Build failed', [message], []), null);
+                  }
+                  buildResponseToResult(response2, (error3, result3) => {
+                    if (error3) reject(error3);
+                    else resolve(result3!);
+                  });
+                });
+            });
+            refs.ref()
+            rebuild!.dispose = () => {
+              if (isDisposed) return;
+              isDisposed = true;
+              sendRequest<protocol.RebuildDisposeRequest, null>(refs, { command: 'rebuild-dispose', key: buildKey }, () => {
+                // We don't care about the result
+              });
+              refs.unref() // Do this after the callback so "sendRequest" can extend the lifetime
+            };
+          }
+          result.rebuild = rebuild;
+        }
+
+        // Handle watch mode
+        if (response!.watch) {
+          if (!stop) {
+            let isStopped = false;
+            refs.ref()
+            stop = () => {
+              if (isStopped) return;
+              isStopped = true;
+              delete requestCallbacks['watch-rebuild']
+              sendRequest<protocol.WatchStopRequest, null>(refs, { command: 'watch-stop', key: buildKey }, () => {
+                // We don't care about the result
+              });
+              refs.unref() // Do this after the callback so "sendRequest" can extend the lifetime
+            }
+            if (watch) {
+              requestCallbacks['watch-rebuild'] = (id, request: protocol.OnWatchRebuildRequest) => {
+                try {
+                  let watchResponse = request.args
+                  let result2: types.BuildResult = {
+                    errors: replaceDetailsInMessages(watchResponse.errors, details),
+                    warnings: replaceDetailsInMessages(watchResponse.warnings, details),
+                  };
+
+                  // Note: "onEnd" callbacks should run even when there is no "onRebuild" callback
+                  copyResponseToResult(watchResponse, result2);
+                  runOnEndCallbacks(result2, logPluginError, () => {
+                    if (result2.errors.length > 0) {
+                      if (watch!.onRebuild) watch!.onRebuild(failureErrorWithLog('Build failed', result2.errors, result2.warnings), null);
+                      return;
+                    }
+                    result2.stop = stop;
+                    if (watch!.onRebuild) watch!.onRebuild(null, result2);
+                  });
+                } catch (err) {
+                  console.error(err);
+                }
+                sendResponse(id, {});
+              }
+            }
+          }
+          result.stop = stop;
+        }
+
+        callback(null, result);
+      });
+    };
+
+    if (write && streamIn.isWriteUnavailable) throw new Error(`The "write" option is unavailable in this environment`);
+    if (incremental && streamIn.isSync) throw new Error(`Cannot use "incremental" with a synchronous build`);
+    if (watch && streamIn.isSync) throw new Error(`Cannot use "watch" with a synchronous build`);
+    sendRequest<protocol.BuildRequest, protocol.BuildResponse>(refs, request, (error, response) => {
+      if (error) return callback(new Error(error), null);
+      if (serve) {
+        let serveResponse = response as any as protocol.ServeResponse;
+        let isStopped = false
+
+        // Add a ref/unref for "stop()"
+        refs.ref()
+        let result: types.ServeResult = {
+          port: serveResponse.port,
+          host: serveResponse.host,
+          wait: serve.wait,
+          stop() {
+            if (isStopped) return
+            isStopped = true
+            serve!.stop();
+            refs.unref() // Do this after the callback so "stop" can extend the lifetime
+          },
+        };
+
+        // Add a ref/unref for "wait". This must be done independently of
+        // "stop()" in case the response to "stop()" comes in first before
+        // the request for "wait". Without this ref/unref, node may close
+        // the child's stdin pipe after the "stop()" but before the "wait"
+        // which will cause things to break. This caused a test failure.
+        refs.ref()
+        serve.wait.then(refs.unref, refs.unref)
+
+        return callback(null, result);
+      }
+      return buildResponseToResult(response!, callback);
+    });
+  }
+}
+
+interface ServeData {
+  wait: Promise<void>
+  stop: () => void
+}
+
+let buildServeData = (
+  buildKey: number,
+  sendRequest: <Req, Res>(refs: Refs | null, value: Req, callback: (error: string | null, response: Res | null) => void) => void,
+  sendResponse: (id: number, value: protocol.Value) => void,
+  refs: Refs,
+  requestCallbacks: { [command: string]: RequestCallback },
+  options: types.ServeOptions,
+  request: protocol.BuildRequest,
+): ServeData => {
+  let keys: OptionKeys = {};
+  let port = getFlag(options, keys, 'port', mustBeInteger);
+  let host = getFlag(options, keys, 'host', mustBeString);
+  let servedir = getFlag(options, keys, 'servedir', mustBeString);
+  let onRequest = getFlag(options, keys, 'onRequest', mustBeFunction);
+  let wait = new Promise<void>((resolve, reject) => {
+    requestCallbacks['serve-wait'] = (id, request: protocol.OnWaitRequest) => {
+      if (request.error !== null) reject(new Error(request.error));
+      else resolve();
+      sendResponse(id, {})
+    }
+  });
+  request.serve = {};
+  checkForInvalidFlags(options, keys, `in serve() call`);
+  if (port !== void 0) request.serve.port = port;
+  if (host !== void 0) request.serve.host = host;
+  if (servedir !== void 0) request.serve.servedir = servedir;
+  requestCallbacks['serve-request'] = (id, request: protocol.OnRequestRequest) => {
+    if (onRequest) onRequest(request.args)
+    sendResponse(id, {})
+  }
+  return {
+    wait,
+    stop() {
+      sendRequest<protocol.ServeStopRequest, null>(refs, { command: 'serve-stop', key: buildKey }, () => {
+        // We don't care about the result
+      });
+    },
+  };
+};
+
+type LogPluginErrorCallback = (e: any, pluginName: string, note: types.Note | undefined, done: (message: types.Message) => void) => void;
+type RunOnEndCallbacks = (result: types.BuildResult, logPluginError: LogPluginErrorCallback, done: () => void) => void;
+
+let handlePlugins = async (
+  buildKey: number,
+  sendRequest: <Req, Res>(refs: Refs | null, value: Req, callback: (error: string | null, response: Res | null) => void) => void,
+  sendResponse: (id: number, value: protocol.Value) => void,
+  refs: Refs,
+  streamIn: StreamIn,
+  requestCallbacks: { [command: string]: RequestCallback },
+  initialOptions: types.BuildOptions,
+  plugins: types.Plugin[],
+  details: ObjectStash,
+): Promise<
+  | { ok: true, requestPlugins: protocol.BuildPlugin[], runOnEndCallbacks: RunOnEndCallbacks }
+  | { ok: false, error: any, pluginName: string }
+> => {
+  let onStartCallbacks: {
+    name: string,
+    note: () => types.Note | undefined,
+    callback: () => (types.OnStartResult | null | void | Promise<types.OnStartResult | null | void>),
+  }[] = [];
+
+  let onEndCallbacks: {
+    name: string,
+    note: () => types.Note | undefined,
+    callback: (result: types.BuildResult) => (void | Promise<void>),
+  }[] = [];
+
+  let onResolveCallbacks: {
+    [id: number]: {
+      name: string,
+      note: () => types.Note | undefined,
+      callback: (args: types.OnResolveArgs) =>
+        (types.OnResolveResult | null | undefined | Promise<types.OnResolveResult | null | undefined>),
+    },
+  } = {};
+
+  let onLoadCallbacks: {
+    [id: number]: {
+      name: string,
+      note: () => types.Note | undefined,
+      callback: (args: types.OnLoadArgs) =>
+        (types.OnLoadResult | null | undefined | Promise<types.OnLoadResult | null | undefined>),
+    },
+  } = {};
+
+  let nextCallbackID = 0;
+  let i = 0;
+  let requestPlugins: protocol.BuildPlugin[] = [];
+  let isSetupDone = false;
+
+  // Clone the plugin array to guard against mutation during iteration
+  plugins = [...plugins];
+
+  for (let item of plugins) {
+    let keys: OptionKeys = {};
+    if (typeof item !== 'object') throw new Error(`Plugin at index ${i} must be an object`);
+    const name = getFlag(item, keys, 'name', mustBeString);
+    if (typeof name !== 'string' || name === '') throw new Error(`Plugin at index ${i} is missing a name`);
+    try {
+      let setup = getFlag(item, keys, 'setup', mustBeFunction);
+      if (typeof setup !== 'function') throw new Error(`Plugin is missing a setup function`);
+      checkForInvalidFlags(item, keys, `on plugin ${JSON.stringify(name)}`);
+
+      let plugin: protocol.BuildPlugin = {
+        name,
+        onResolve: [],
+        onLoad: [],
+      };
+      i++;
+
+      let resolve = (path: string, options: types.ResolveOptions = {}): Promise<types.ResolveResult> => {
+        if (!isSetupDone) throw new Error('Cannot call "resolve" before plugin setup has completed');
+        if (typeof path !== 'string') throw new Error(`The path to resolve must be a string`);
+        let keys: OptionKeys = Object.create(null);
+        let pluginName = getFlag(options, keys, 'pluginName', mustBeString);
+        let importer = getFlag(options, keys, 'importer', mustBeString);
+        let namespace = getFlag(options, keys, 'namespace', mustBeString);
+        let resolveDir = getFlag(options, keys, 'resolveDir', mustBeString);
+        let kind = getFlag(options, keys, 'kind', mustBeString);
+        let pluginData = getFlag(options, keys, 'pluginData', canBeAnything);
+        checkForInvalidFlags(options, keys, 'in resolve() call');
+
+        return new Promise((resolve, reject) => {
+          const request: protocol.ResolveRequest = {
+            command: 'resolve',
+            path,
+            key: buildKey,
+            pluginName: name,
+          }
+          if (pluginName != null) request.pluginName = pluginName
+          if (importer != null) request.importer = importer
+          if (namespace != null) request.namespace = namespace
+          if (resolveDir != null) request.resolveDir = resolveDir
+          if (kind != null) request.kind = kind
+          if (pluginData != null) request.pluginData = details.store(pluginData)
+
+          sendRequest<protocol.ResolveRequest, protocol.ResolveResponse>(refs, request, (error, response) => {
+            if (error !== null) reject(new Error(error))
+            else resolve({
+              errors: replaceDetailsInMessages(response!.errors, details),
+              warnings: replaceDetailsInMessages(response!.warnings, details),
+              path: response!.path,
+              external: response!.external,
+              sideEffects: response!.sideEffects,
+              namespace: response!.namespace,
+              suffix: response!.suffix,
+              pluginData: details.load(response!.pluginData),
+            })
+          })
+        })
+      }
+
+      let promise = setup({
+        initialOptions,
+
+        resolve,
+
+        onStart(callback) {
+          let registeredText = `This error came from the "onStart" callback registered here:`
+          let registeredNote = extractCallerV8(new Error(registeredText), streamIn, 'onStart');
+          onStartCallbacks.push({ name: name!, callback, note: registeredNote });
+        },
+
+        onEnd(callback) {
+          let registeredText = `This error came from the "onEnd" callback registered here:`
+          let registeredNote = extractCallerV8(new Error(registeredText), streamIn, 'onEnd');
+          onEndCallbacks.push({ name: name!, callback, note: registeredNote });
+        },
+
+        onResolve(options, callback) {
+          let registeredText = `This error came from the "onResolve" callback registered here:`
+          let registeredNote = extractCallerV8(new Error(registeredText), streamIn, 'onResolve');
+          let keys: OptionKeys = {};
+          let filter = getFlag(options, keys, 'filter', mustBeRegExp);
+          let namespace = getFlag(options, keys, 'namespace', mustBeString);
+          checkForInvalidFlags(options, keys, `in onResolve() call for plugin ${JSON.stringify(name)}`);
+          if (filter == null) throw new Error(`onResolve() call is missing a filter`);
+          let id = nextCallbackID++;
+          onResolveCallbacks[id] = { name: name!, callback, note: registeredNote };
+          plugin.onResolve.push({ id, filter: filter.source, namespace: namespace || '' });
+        },
+
+        onLoad(options, callback) {
+          let registeredText = `This error came from the "onLoad" callback registered here:`
+          let registeredNote = extractCallerV8(new Error(registeredText), streamIn, 'onLoad');
+          let keys: OptionKeys = {};
+          let filter = getFlag(options, keys, 'filter', mustBeRegExp);
+          let namespace = getFlag(options, keys, 'namespace', mustBeString);
+          checkForInvalidFlags(options, keys, `in onLoad() call for plugin ${JSON.stringify(name)}`);
+          if (filter == null) throw new Error(`onLoad() call is missing a filter`);
+          let id = nextCallbackID++;
+          onLoadCallbacks[id] = { name: name!, callback, note: registeredNote };
+          plugin.onLoad.push({ id, filter: filter.source, namespace: namespace || '' });
+        },
+
+        esbuild: streamIn.esbuild,
+      });
+
+      // Await a returned promise if there was one. This allows plugins to do
+      // some asynchronous setup while still retaining the ability to modify
+      // the build options. This deliberately serializes asynchronous plugin
+      // setup instead of running them concurrently so that build option
+      // modifications are easier to reason about.
+      if (promise) await promise;
+
+      requestPlugins.push(plugin);
+    } catch (e) {
+      return { ok: false, error: e, pluginName: name }
+    }
+  }
+
+  requestCallbacks['on-start'] = async (id, request) => {
+    let response: protocol.OnStartResponse = { errors: [], warnings: [] };
+    await Promise.all(onStartCallbacks.map(async ({ name, callback, note }) => {
+      try {
+        let result = await callback();
+
+        if (result != null) {
+          if (typeof result !== 'object') throw new Error(`Expected onStart() callback in plugin ${JSON.stringify(name)} to return an object`);
+          let keys: OptionKeys = {};
+          let errors = getFlag(result, keys, 'errors', mustBeArray);
+          let warnings = getFlag(result, keys, 'warnings', mustBeArray);
+          checkForInvalidFlags(result, keys, `from onStart() callback in plugin ${JSON.stringify(name)}`);
+
+          if (errors != null) response.errors!.push(...sanitizeMessages(errors, 'errors', details, name));
+          if (warnings != null) response.warnings!.push(...sanitizeMessages(warnings, 'warnings', details, name));
+        }
+      } catch (e) {
+        response.errors!.push(extractErrorMessageV8(e, streamIn, details, note && note(), name));
+      }
+    }))
+    sendResponse(id, response as any)
+  }
+
+  requestCallbacks['on-resolve'] = async (id, request) => {
+    let response: protocol.OnResolveResponse = {}, name = '', callback, note;
+    for (let id of request.ids) {
+      try {
+        ({ name, callback, note } = onResolveCallbacks[id]);
+        let result = await callback({
+          path: request.path,
+          importer: request.importer,
+          namespace: request.namespace,
+          resolveDir: request.resolveDir,
+          kind: request.kind,
+          pluginData: details.load(request.pluginData),
+        });
+
+        if (result != null) {
+          if (typeof result !== 'object') throw new Error(`Expected onResolve() callback in plugin ${JSON.stringify(name)} to return an object`);
+          let keys: OptionKeys = {};
+          let pluginName = getFlag(result, keys, 'pluginName', mustBeString);
+          let path = getFlag(result, keys, 'path', mustBeString);
+          let namespace = getFlag(result, keys, 'namespace', mustBeString);
+          let suffix = getFlag(result, keys, 'suffix', mustBeString);
+          let external = getFlag(result, keys, 'external', mustBeBoolean);
+          let sideEffects = getFlag(result, keys, 'sideEffects', mustBeBoolean);
+          let pluginData = getFlag(result, keys, 'pluginData', canBeAnything);
+          let errors = getFlag(result, keys, 'errors', mustBeArray);
+          let warnings = getFlag(result, keys, 'warnings', mustBeArray);
+          let watchFiles = getFlag(result, keys, 'watchFiles', mustBeArray);
+          let watchDirs = getFlag(result, keys, 'watchDirs', mustBeArray);
+          checkForInvalidFlags(result, keys, `from onResolve() callback in plugin ${JSON.stringify(name)}`);
+
+          response.id = id;
+          if (pluginName != null) response.pluginName = pluginName;
+          if (path != null) response.path = path;
+          if (namespace != null) response.namespace = namespace;
+          if (suffix != null) response.suffix = suffix;
+          if (external != null) response.external = external;
+          if (sideEffects != null) response.sideEffects = sideEffects;
+          if (pluginData != null) response.pluginData = details.store(pluginData);
+          if (errors != null) response.errors = sanitizeMessages(errors, 'errors', details, name);
+          if (warnings != null) response.warnings = sanitizeMessages(warnings, 'warnings', details, name);
+          if (watchFiles != null) response.watchFiles = sanitizeStringArray(watchFiles, 'watchFiles');
+          if (watchDirs != null) response.watchDirs = sanitizeStringArray(watchDirs, 'watchDirs');
+          break;
+        }
+      } catch (e) {
+        response = { id, errors: [extractErrorMessageV8(e, streamIn, details, note && note(), name)] };
+        break
+      }
+    }
+    sendResponse(id, response as any)
+  }
+
+  requestCallbacks['on-load'] = async (id, request) => {
+    let response: protocol.OnLoadResponse = {}, name = '', callback, note;
+    for (let id of request.ids) {
+      try {
+        ({ name, callback, note } = onLoadCallbacks[id]);
+        let result = await callback({
+          path: request.path,
+          namespace: request.namespace,
+          suffix: request.suffix,
+          pluginData: details.load(request.pluginData),
+        });
+
+        if (result != null) {
+          if (typeof result !== 'object') throw new Error(`Expected onLoad() callback in plugin ${JSON.stringify(name)} to return an object`);
+          let keys: OptionKeys = {};
+          let pluginName = getFlag(result, keys, 'pluginName', mustBeString);
+          let contents = getFlag(result, keys, 'contents', mustBeStringOrUint8Array);
+          let resolveDir = getFlag(result, keys, 'resolveDir', mustBeString);
+          let pluginData = getFlag(result, keys, 'pluginData', canBeAnything);
+          let loader = getFlag(result, keys, 'loader', mustBeString);
+          let errors = getFlag(result, keys, 'errors', mustBeArray);
+          let warnings = getFlag(result, keys, 'warnings', mustBeArray);
+          let watchFiles = getFlag(result, keys, 'watchFiles', mustBeArray);
+          let watchDirs = getFlag(result, keys, 'watchDirs', mustBeArray);
+          checkForInvalidFlags(result, keys, `from onLoad() callback in plugin ${JSON.stringify(name)}`);
+
+          response.id = id;
+          if (pluginName != null) response.pluginName = pluginName;
+          if (contents instanceof Uint8Array) response.contents = contents;
+          else if (contents != null) response.contents = protocol.encodeUTF8(contents);
+          if (resolveDir != null) response.resolveDir = resolveDir;
+          if (pluginData != null) response.pluginData = details.store(pluginData);
+          if (loader != null) response.loader = loader;
+          if (errors != null) response.errors = sanitizeMessages(errors, 'errors', details, name);
+          if (warnings != null) response.warnings = sanitizeMessages(warnings, 'warnings', details, name);
+          if (watchFiles != null) response.watchFiles = sanitizeStringArray(watchFiles, 'watchFiles');
+          if (watchDirs != null) response.watchDirs = sanitizeStringArray(watchDirs, 'watchDirs');
+          break;
+        }
+      } catch (e) {
+        response = { id, errors: [extractErrorMessageV8(e, streamIn, details, note && note(), name)] };
+        break
+      }
+    }
+    sendResponse(id, response as any)
+  }
+
+  let runOnEndCallbacks: RunOnEndCallbacks = (result, logPluginError, done) => done();
+
+  if (onEndCallbacks.length > 0) {
+    runOnEndCallbacks = (result, logPluginError, done) => {
+      (async () => {
+        for (const { name, callback, note } of onEndCallbacks) {
+          try {
+            await callback(result)
+          } catch (e) {
+            result.errors.push(await new Promise<types.Message>(resolve => logPluginError(e, name, note && note(), resolve)))
+          }
+        }
+      })().then(done)
+    }
+  }
+
+  isSetupDone = true;
+  return {
+    ok: true,
+    requestPlugins,
+    runOnEndCallbacks,
+  }
+};
 
 // This stores JavaScript objects on the JavaScript side and temporarily
 // substitutes them with an integer that can be passed through the Go side

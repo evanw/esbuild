@@ -156,10 +156,31 @@ func expectPrintedJSX(t *testing.T, contents string, expected string) {
 	})
 }
 
+func expectPrintedJSXSideEffects(t *testing.T, contents string, expected string) {
+	t.Helper()
+	expectPrintedCommon(t, contents, expected, config.Options{
+		JSX: config.JSXOptions{
+			Parse:       true,
+			SideEffects: true,
+		},
+	})
+}
+
+func expectPrintedMangleJSX(t *testing.T, contents string, expected string) {
+	t.Helper()
+	expectPrintedCommon(t, contents, expected, config.Options{
+		MinifySyntax: true,
+		JSX: config.JSXOptions{
+			Parse: true,
+		},
+	})
+}
+
 type JSXAutomaticTestOptions struct {
 	Development            bool
 	ImportSource           string
 	OmitJSXRuntimeForTests bool
+	SideEffects            bool
 }
 
 func expectParseErrorJSXAutomatic(t *testing.T, options JSXAutomaticTestOptions, contents string, expected string) {
@@ -171,6 +192,7 @@ func expectParseErrorJSXAutomatic(t *testing.T, options JSXAutomaticTestOptions,
 			Parse:            true,
 			Development:      options.Development,
 			ImportSource:     options.ImportSource,
+			SideEffects:      options.SideEffects,
 		},
 	})
 }
@@ -184,6 +206,7 @@ func expectPrintedJSXAutomatic(t *testing.T, options JSXAutomaticTestOptions, co
 			Parse:            true,
 			Development:      options.Development,
 			ImportSource:     options.ImportSource,
+			SideEffects:      options.SideEffects,
 		},
 	})
 }
@@ -583,6 +606,20 @@ func TestAwait(t *testing.T) {
 	expectPrinted(t, "await typeof x", "await typeof x;\n")
 	expectPrinted(t, "await (x * y)", "await (x * y);\n")
 	expectPrinted(t, "await (x ** y)", "await (x ** y);\n")
+
+	expectParseError(t, "var { await } = {}", "<stdin>: ERROR: Cannot use \"await\" as an identifier here:\n")
+	expectParseError(t, "async function f() { var { await } = {} }", "<stdin>: ERROR: Cannot use \"await\" as an identifier here:\n")
+	expectParseError(t, "async function* f() { var { await } = {} }", "<stdin>: ERROR: Cannot use \"await\" as an identifier here:\n")
+	expectParseError(t, "class C { async f() { var { await } = {} } }", "<stdin>: ERROR: Cannot use \"await\" as an identifier here:\n")
+	expectParseError(t, "class C { async* f() { var { await } = {} } }", "<stdin>: ERROR: Cannot use \"await\" as an identifier here:\n")
+	expectParseError(t, "class C { static { var { await } = {} } }", "<stdin>: ERROR: Cannot use \"await\" as an identifier here:\n")
+
+	expectParseError(t, "var {} = { await }", "<stdin>: ERROR: Cannot use \"await\" as an identifier here:\n")
+	expectParseError(t, "async function f() { var {} = { await } }", "<stdin>: ERROR: Cannot use \"await\" as an identifier here:\n")
+	expectParseError(t, "async function* f() { var {} = { await } }", "<stdin>: ERROR: Cannot use \"await\" as an identifier here:\n")
+	expectParseError(t, "class C { async f() { var {} = { await } } }", "<stdin>: ERROR: Cannot use \"await\" as an identifier here:\n")
+	expectParseError(t, "class C { async* f() { var {} = { await } } }", "<stdin>: ERROR: Cannot use \"await\" as an identifier here:\n")
+	expectParseError(t, "class C { static { var {} = { await } } }", "<stdin>: ERROR: Cannot use \"await\" as an identifier here:\n")
 
 	expectParseError(t, "await delete x",
 		`<stdin>: ERROR: Delete of a bare identifier cannot be used in an ECMAScript module
@@ -3679,6 +3716,18 @@ func TestMangleObject(t *testing.T) {
 	expectPrintedMangle(t, "x = {y() {}}?.y()", "x = { y() {\n} }.y();\n")
 }
 
+func TestMangleObjectJSX(t *testing.T) {
+	expectPrintedJSX(t, "x = <foo bar {...{}} />", "x = /* @__PURE__ */ React.createElement(\"foo\", {\n  bar: true,\n  ...{}\n});\n")
+	expectPrintedJSX(t, "x = <foo bar {...null} />", "x = /* @__PURE__ */ React.createElement(\"foo\", {\n  bar: true,\n  ...null\n});\n")
+	expectPrintedJSX(t, "x = <foo bar {...{bar}} />", "x = /* @__PURE__ */ React.createElement(\"foo\", {\n  bar: true,\n  ...{ bar }\n});\n")
+	expectPrintedJSX(t, "x = <foo bar {...bar} />", "x = /* @__PURE__ */ React.createElement(\"foo\", {\n  bar: true,\n  ...bar\n});\n")
+
+	expectPrintedMangleJSX(t, "x = <foo bar {...{}} />", "x = /* @__PURE__ */ React.createElement(\"foo\", {\n  bar: true\n});\n")
+	expectPrintedMangleJSX(t, "x = <foo bar {...null} />", "x = /* @__PURE__ */ React.createElement(\"foo\", {\n  bar: true\n});\n")
+	expectPrintedMangleJSX(t, "x = <foo bar {...{bar}} />", "x = /* @__PURE__ */ React.createElement(\"foo\", {\n  bar: true,\n  bar\n});\n")
+	expectPrintedMangleJSX(t, "x = <foo bar {...bar} />", "x = /* @__PURE__ */ React.createElement(\"foo\", {\n  bar: true,\n  ...bar\n});\n")
+}
+
 func TestMangleArrow(t *testing.T) {
 	expectPrintedMangle(t, "var a = () => {}", "var a = () => {\n};\n")
 	expectPrintedMangle(t, "var a = () => 123", "var a = () => 123;\n")
@@ -3725,8 +3774,18 @@ func TestMangleTemplate(t *testing.T) {
 	expectPrintedMangle(t, "tag`a${'x'}b${y}c`", "tag`a${\"x\"}b${y}c`;\n")
 	expectPrintedMangle(t, "tag`a${'x'}b${'y'}c`", "tag`a${\"x\"}b${\"y\"}c`;\n")
 
+	expectPrintedMangle(t, "(1, x)``", "x``;\n")
 	expectPrintedMangle(t, "(1, x.y)``", "(0, x.y)``;\n")
 	expectPrintedMangle(t, "(1, x[y])``", "(0, x[y])``;\n")
+	expectPrintedMangle(t, "(true && x)``", "x``;\n")
+	expectPrintedMangle(t, "(true && x.y)``", "(0, x.y)``;\n")
+	expectPrintedMangle(t, "(true && x[y])``", "(0, x[y])``;\n")
+	expectPrintedMangle(t, "(false || x)``", "x``;\n")
+	expectPrintedMangle(t, "(false || x.y)``", "(0, x.y)``;\n")
+	expectPrintedMangle(t, "(false || x[y])``", "(0, x[y])``;\n")
+	expectPrintedMangle(t, "(null ?? x)``", "x``;\n")
+	expectPrintedMangle(t, "(null ?? x.y)``", "(0, x.y)``;\n")
+	expectPrintedMangle(t, "(null ?? x[y])``", "(0, x[y])``;\n")
 
 	expectPrintedMangleTarget(t, 2015, "class Foo { #foo() { return this.#foo`` } }", `var _foo, foo_fn;
 class Foo {
@@ -4160,6 +4219,26 @@ func TestMangleInlineLocals(t *testing.T) {
 	check("let x = 1; return void x", "let x = 1;")
 	check("let x = 1; return typeof x", "return typeof 1;")
 
+	// Check substituting a side-effect free value into normal binary operators
+	check("let x = 1; return x + 2", "return 1 + 2;")
+	check("let x = 1; return 2 + x", "return 2 + 1;")
+	check("let x = 1; return x + arg0", "return 1 + arg0;")
+	check("let x = 1; return arg0 + x", "return arg0 + 1;")
+	check("let x = 1; return x + fn()", "return 1 + fn();")
+	check("let x = 1; return fn() + x", "let x = 1;\nreturn fn() + x;")
+	check("let x = 1; return x + undef", "return 1 + undef;")
+	check("let x = 1; return undef + x", "let x = 1;\nreturn undef + x;")
+
+	// Check substituting a value with side-effects into normal binary operators
+	check("let x = fn(); return x + 2", "return fn() + 2;")
+	check("let x = fn(); return 2 + x", "return 2 + fn();")
+	check("let x = fn(); return x + arg0", "return fn() + arg0;")
+	check("let x = fn(); return arg0 + x", "let x = fn();\nreturn arg0 + x;")
+	check("let x = fn(); return x + fn2()", "return fn() + fn2();")
+	check("let x = fn(); return fn2() + x", "let x = fn();\nreturn fn2() + x;")
+	check("let x = fn(); return x + undef", "return fn() + undef;")
+	check("let x = fn(); return undef + x", "let x = fn();\nreturn undef + x;")
+
 	// Cannot substitute into mutating unary operators
 	check("let x = 1; ++x", "let x = 1;\n++x;")
 	check("let x = 1; --x", "let x = 1;\n--x;")
@@ -4177,7 +4256,7 @@ func TestMangleInlineLocals(t *testing.T) {
 	check("let x = 1; arg0 += x", "arg0 += 1;")
 	check("let x = 1; arg0 ||= x", "arg0 ||= 1;")
 	check("let x = fn(); arg0 = x", "arg0 = fn();")
-	check("let x = fn(); arg0 += x", "arg0 += fn();")
+	check("let x = fn(); arg0 += x", "let x = fn();\narg0 += x;")
 	check("let x = fn(); arg0 ||= x", "let x = fn();\narg0 ||= x;")
 
 	// Cannot substitute past mutating binary operators when the left operand has side effects
@@ -4187,12 +4266,6 @@ func TestMangleInlineLocals(t *testing.T) {
 	check("let x = fn(); y.z = x", "let x = fn();\ny.z = x;")
 	check("let x = fn(); y.z += x", "let x = fn();\ny.z += x;")
 	check("let x = fn(); y.z ||= x", "let x = fn();\ny.z ||= x;")
-
-	// Cannot substitute code without side effects past non-mutating binary operators when the left operand has side effects
-	check("let x = 1; fn() + x", "let x = 1;\nfn() + x;")
-
-	// Cannot substitute code with side effects past non-mutating binary operators
-	check("let x = y(); arg0 + x", "let x = y();\narg0 + x;")
 
 	// Can substitute code without side effects into branches
 	check("let x = arg0; return x ? y : z;", "return arg0 ? y : z;")
@@ -4351,6 +4424,15 @@ func TestMangleInlineLocals(t *testing.T) {
 	check("let x = arg0[foo]; (0, x)()", "let x = arg0[foo];\nx();")
 	check("let x = arg0?.foo; (0, x)()", "let x = arg0?.foo;\nx();")
 	check("let x = arg0?.[foo]; (0, x)()", "let x = arg0?.[foo];\nx();")
+
+	// Explicitly allow reordering calls that are both marked as "/* @__PURE__ */".
+	// This happens because only two expressions that are free from side-effects
+	// can be freely reordered, and marking something as "/* @__PURE__ */" tells
+	// us that it has no side effects.
+	check("let x = arg0(); arg1() + x", "let x = arg0();\narg1() + x;")
+	check("let x = arg0(); /* @__PURE__ */ arg1() + x", "let x = arg0();\n/* @__PURE__ */ arg1() + x;")
+	check("let x = /* @__PURE__ */ arg0(); arg1() + x", "let x = /* @__PURE__ */ arg0();\narg1() + x;")
+	check("let x = /* @__PURE__ */ arg0(); /* @__PURE__ */ arg1() + x", "/* @__PURE__ */ arg1() + /* @__PURE__ */ arg0();")
 }
 
 func TestTrimCodeInDeadControlFlow(t *testing.T) {
@@ -4777,6 +4859,11 @@ NOTE: Both "__source" and "__self" are set automatically by esbuild when using R
 	expectPrintedJSXAutomatic(t, pri, "<div/>", "import { jsx } from \"my-jsx-lib/jsx-runtime\";\n/* @__PURE__ */ jsx(\"div\", {});\n")
 	expectPrintedJSXAutomatic(t, pri, "<div {...props} key=\"key\" />", "import { createElement } from \"my-jsx-lib\";\n/* @__PURE__ */ createElement(\"div\", {\n  ...props,\n  key: \"key\"\n});\n")
 
+	// Impure JSX call expressions
+	pi := JSXAutomaticTestOptions{SideEffects: true, ImportSource: "my-jsx-lib"}
+	expectPrintedJSXAutomatic(t, pi, "<a/>", "import { jsx } from \"my-jsx-lib/jsx-runtime\";\njsx(\"a\", {});\n")
+	expectPrintedJSXAutomatic(t, pi, "<></>", "import { Fragment, jsx } from \"my-jsx-lib/jsx-runtime\";\njsx(Fragment, {});\n")
+
 	// Dev, without runtime imports
 	d := JSXAutomaticTestOptions{Development: true, OmitJSXRuntimeForTests: true}
 	expectPrintedJSXAutomatic(t, d, "<div>></div>", "/* @__PURE__ */ jsxDEV(\"div\", {\n  children: \">\"\n}, void 0, false, {\n  fileName: \"<stdin>\",\n  lineNumber: 1,\n  columnNumber: 1\n}, this);\n")
@@ -4892,6 +4979,14 @@ NOTE: You can enable React's "automatic" JSX transform for this file by using a 
 
 	expectPrintedJSX(t, "// @jsxRuntime automatic @jsxFrag f\n<></>", "import { Fragment, jsx } from \"react/jsx-runtime\";\n/* @__PURE__ */ jsx(Fragment, {});\n")
 	expectParseErrorJSX(t, "// @jsxRuntime automatic @jsxFrag f\n<></>", "<stdin>: WARNING: The JSX fragment cannot be set when using React's \"automatic\" JSX transform\n")
+}
+
+func TestJSXSideEffects(t *testing.T) {
+	expectPrintedJSX(t, "<a/>", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
+	expectPrintedJSX(t, "<></>", "/* @__PURE__ */ React.createElement(React.Fragment, null);\n")
+
+	expectPrintedJSXSideEffects(t, "<a/>", "React.createElement(\"a\", null);\n")
+	expectPrintedJSXSideEffects(t, "<></>", "React.createElement(React.Fragment, null);\n")
 }
 
 func TestPreserveOptionalChainParentheses(t *testing.T) {

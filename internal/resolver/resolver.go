@@ -128,17 +128,29 @@ type ResolveResult struct {
 	UnusedImportFlagsTS config.UnusedImportFlagsTS
 }
 
+type suggestionRange uint8
+
+const (
+	suggestionRangeFull suggestionRange = iota
+	suggestionRangeEnd
+)
+
 type DebugMeta struct {
+	notes             []logger.MsgData
 	suggestionText    string
 	suggestionMessage string
-	notes             []logger.MsgData
+	suggestionRange   suggestionRange
 }
 
 func (dm DebugMeta) LogErrorMsg(log logger.Log, source *logger.Source, r logger.Range, text string, suggestion string, notes []logger.MsgData) {
 	tracker := logger.MakeLineColumnTracker(source)
 
 	if source != nil && dm.suggestionMessage != "" {
-		data := tracker.MsgData(r, dm.suggestionMessage)
+		suggestionRange := r
+		if dm.suggestionRange == suggestionRangeEnd {
+			suggestionRange = logger.Range{Loc: logger.Loc{Start: r.End() - 1}}
+		}
+		data := tracker.MsgData(suggestionRange, dm.suggestionMessage)
 		data.Location.Suggestion = dm.suggestionText
 		dm.notes = append(dm.notes, data)
 	}
@@ -425,13 +437,16 @@ func (rr *resolver) Resolve(sourceDir string, importPath string, kind ast.Import
 		for dirInfo := r.dirInfoCached(r.fs.Cwd()); dirInfo != nil; dirInfo = dirInfo.parent {
 			if absPath := dirInfo.pnpManifestAbsPath; absPath != "" {
 				if strings.HasSuffix(absPath, ".json") {
-					if json := r.extractYarnPnPDataFromJSON(absPath, pnpReportErrorsAboutMissingFiles); json.Data != nil {
-						r.pnpManifest = compileYarnPnPData(absPath, r.fs.Dir(absPath), json)
+					if json, source := r.extractYarnPnPDataFromJSON(absPath, pnpReportErrorsAboutMissingFiles); json.Data != nil {
+						r.pnpManifest = compileYarnPnPData(absPath, r.fs.Dir(absPath), json, source)
 					}
 				} else {
-					if json := r.tryToExtractYarnPnPDataFromJS(absPath, pnpReportErrorsAboutMissingFiles); json.Data != nil {
-						r.pnpManifest = compileYarnPnPData(absPath, r.fs.Dir(absPath), json)
+					if json, source := r.tryToExtractYarnPnPDataFromJS(absPath, pnpReportErrorsAboutMissingFiles); json.Data != nil {
+						r.pnpManifest = compileYarnPnPData(absPath, r.fs.Dir(absPath), json, source)
 					}
+				}
+				if r.debugLogs != nil && r.pnpManifest != nil && r.pnpManifest.invalidIgnorePatternData != "" {
+					r.debugLogs.addNote("  Invalid Go regular expression for \"ignorePatternData\": " + r.pnpManifest.invalidIgnorePatternData)
 				}
 				break
 			}
@@ -666,12 +681,7 @@ func (r resolverQuery) finalizeResolve(result *ResolveResult) {
 							dirInfo.enclosingTSConfigJSON.PreserveValueImports,
 						)
 						result.TSTarget = dirInfo.enclosingTSConfigJSON.TSTarget
-						if tsAlwaysStrict := dirInfo.enclosingTSConfigJSON.TSAlwaysStrict; tsAlwaysStrict != nil {
-							result.TSAlwaysStrict = tsAlwaysStrict
-						} else {
-							// If "alwaysStrict" is absent, it defaults to "strict" instead
-							result.TSAlwaysStrict = dirInfo.enclosingTSConfigJSON.TSStrict
-						}
+						result.TSAlwaysStrict = dirInfo.enclosingTSConfigJSON.TSAlwaysStrictOrStrict()
 
 						if r.debugLogs != nil {
 							r.debugLogs.addNote(fmt.Sprintf("This import is under the effect of %q",
@@ -969,20 +979,20 @@ func (r resolverQuery) parseTSConfig(file string, visited map[string]bool) (*TSC
 				for {
 					if _, _, ok := fs.ParseYarnPnPVirtualPath(current); !ok {
 						absPath := r.fs.Join(current, ".pnp.data.json")
-						if json := r.extractYarnPnPDataFromJSON(absPath, pnpIgnoreErrorsAboutMissingFiles); json.Data != nil {
-							pnpData = compileYarnPnPData(absPath, current, json)
+						if json, source := r.extractYarnPnPDataFromJSON(absPath, pnpIgnoreErrorsAboutMissingFiles); json.Data != nil {
+							pnpData = compileYarnPnPData(absPath, current, json, source)
 							break
 						}
 
 						absPath = r.fs.Join(current, ".pnp.cjs")
-						if json := r.tryToExtractYarnPnPDataFromJS(absPath, pnpIgnoreErrorsAboutMissingFiles); json.Data != nil {
-							pnpData = compileYarnPnPData(absPath, current, json)
+						if json, source := r.tryToExtractYarnPnPDataFromJS(absPath, pnpIgnoreErrorsAboutMissingFiles); json.Data != nil {
+							pnpData = compileYarnPnPData(absPath, current, json, source)
 							break
 						}
 
 						absPath = r.fs.Join(current, ".pnp.js")
-						if json := r.tryToExtractYarnPnPDataFromJS(absPath, pnpIgnoreErrorsAboutMissingFiles); json.Data != nil {
-							pnpData = compileYarnPnPData(absPath, current, json)
+						if json, source := r.tryToExtractYarnPnPDataFromJS(absPath, pnpIgnoreErrorsAboutMissingFiles); json.Data != nil {
+							pnpData = compileYarnPnPData(absPath, current, json, source)
 							break
 						}
 					}
@@ -997,7 +1007,7 @@ func (r resolverQuery) parseTSConfig(file string, visited map[string]bool) (*TSC
 			}
 
 			if pnpData != nil {
-				if result := r.resolveToUnqualified(extends, fileDir, pnpData); result.status == pnpError {
+				if result := r.resolveToUnqualified(extends, fileDir, pnpData); result.status == pnpErrorGeneric {
 					if r.debugLogs != nil {
 						r.debugLogs.addNote("The Yarn PnP path resolution algorithm returned an error")
 					}
@@ -1483,18 +1493,18 @@ func (r resolverQuery) loadAsFile(path string, extensionOrder []string) (string,
 	return "", false, nil
 }
 
-func (r resolverQuery) loadAsIndex(dirInfo *dirInfo, path string, extensionOrder []string) (PathPair, bool, *fs.DifferentCase) {
+func (r resolverQuery) loadAsIndex(dirInfo *dirInfo, extensionOrder []string) (PathPair, bool, *fs.DifferentCase) {
 	// Try the "index" file with extensions
 	for _, ext := range extensionOrder {
 		base := "index" + ext
 		if entry, diffCase := dirInfo.entries.Get(base); entry != nil && entry.Kind(r.fs) == fs.FileEntry {
 			if r.debugLogs != nil {
-				r.debugLogs.addNote(fmt.Sprintf("Found file %q", r.fs.Join(path, base)))
+				r.debugLogs.addNote(fmt.Sprintf("Found file %q", r.fs.Join(dirInfo.absPath, base)))
 			}
-			return PathPair{Primary: logger.Path{Text: r.fs.Join(path, base), Namespace: "file"}}, true, diffCase
+			return PathPair{Primary: logger.Path{Text: r.fs.Join(dirInfo.absPath, base), Namespace: "file"}}, true, diffCase
 		}
 		if r.debugLogs != nil {
-			r.debugLogs.addNote(fmt.Sprintf("Failed to find file %q", r.fs.Join(path, base)))
+			r.debugLogs.addNote(fmt.Sprintf("Failed to find file %q", r.fs.Join(dirInfo.absPath, base)))
 		}
 	}
 
@@ -1518,7 +1528,7 @@ func (r resolverQuery) loadAsIndexWithBrowserRemapping(dirInfo *dirInfo, path st
 
 		// Is it a directory with an index?
 		if fieldDirInfo := r.dirInfoCached(remappedAbs); fieldDirInfo != nil {
-			if absolute, ok, _ := r.loadAsIndex(fieldDirInfo, remappedAbs, extensionOrder); ok {
+			if absolute, ok, _ := r.loadAsIndex(fieldDirInfo, extensionOrder); ok {
 				return absolute, true, nil
 			}
 		}
@@ -1526,7 +1536,7 @@ func (r resolverQuery) loadAsIndexWithBrowserRemapping(dirInfo *dirInfo, path st
 		return PathPair{}, false, nil
 	}
 
-	return r.loadAsIndex(dirInfo, path, extensionOrder)
+	return r.loadAsIndex(dirInfo, extensionOrder)
 }
 
 func getProperty(json js_ast.Expr, name string) (js_ast.Expr, logger.Loc, bool) {
@@ -1989,12 +1999,35 @@ func (r resolverQuery) loadNodeModules(importPath string, dirInfo *dirInfo, forb
 		}
 	}
 
+	// Find the parent directory with the "package.json" file
+	dirInfoPackageJSON := dirInfo
+	for dirInfoPackageJSON != nil && dirInfoPackageJSON.packageJSON == nil {
+		dirInfoPackageJSON = dirInfoPackageJSON.parent
+	}
+
+	// Check for subpath imports: https://nodejs.org/api/packages.html#subpath-imports
+	if dirInfoPackageJSON != nil && strings.HasPrefix(importPath, "#") && !forbidImports && dirInfoPackageJSON.packageJSON.importsMap != nil {
+		return r.loadPackageImports(importPath, dirInfoPackageJSON)
+	}
+
 	// If Yarn PnP is active, use it to find the package
 	if r.pnpManifest != nil {
-		if result := r.resolveToUnqualified(importPath, dirInfo.absPath, r.pnpManifest); result.status == pnpError {
+		if result := r.resolveToUnqualified(importPath, dirInfo.absPath, r.pnpManifest); result.status.isError() {
 			if r.debugLogs != nil {
 				r.debugLogs.addNote("The Yarn PnP path resolution algorithm returned an error")
 			}
+
+			// Try to provide more information about this error if it's available
+			switch result.status {
+			case pnpErrorDependencyNotFound:
+				r.debugMeta.notes = []logger.MsgData{r.pnpManifest.tracker.MsgData(result.errorRange,
+					fmt.Sprintf("The Yarn Plug'n'Play manifest forbids importing %q here because it's not listed as a dependency of this package:", result.errorIdent))}
+
+			case pnpErrorUnfulfilledPeerDependency:
+				r.debugMeta.notes = []logger.MsgData{r.pnpManifest.tracker.MsgData(result.errorRange,
+					fmt.Sprintf("The Yarn Plug'n'Play manifest says this package has a peer dependency on %q, but the package %q has not been installed:", result.errorIdent, result.errorIdent))}
+			}
+
 			return PathPair{}, false, nil
 		} else if result.status == pnpSuccess {
 			absPath := r.fs.Join(result.pkgDirPath, result.pkgSubpath)
@@ -2030,17 +2063,6 @@ func (r resolverQuery) loadNodeModules(importPath string, dirInfo *dirInfo, forb
 			}
 			return PathPair{}, false, nil
 		}
-	}
-
-	// Find the parent directory with the "package.json" file
-	dirInfoPackageJSON := dirInfo
-	for dirInfoPackageJSON != nil && dirInfoPackageJSON.packageJSON == nil {
-		dirInfoPackageJSON = dirInfoPackageJSON.parent
-	}
-
-	// Check for subpath imports: https://nodejs.org/api/packages.html#subpath-imports
-	if dirInfoPackageJSON != nil && strings.HasPrefix(importPath, "#") && !forbidImports && dirInfoPackageJSON.packageJSON.importsMap != nil {
-		return r.loadPackageImports(importPath, dirInfoPackageJSON)
 	}
 
 	// Try to parse the package name using node's ESM-specific rules
@@ -2133,24 +2155,66 @@ func (r resolverQuery) finalizeImportsExportsResult(
 	esmPackageSubpath string,
 	absImportPath string,
 ) (PathPair, bool, *fs.DifferentCase) {
-	if (status == pjStatusExact || status == pjStatusInexact) && strings.HasPrefix(resolvedPath, "/") {
-		absResolvedPath := r.fs.Join(absDirPath, resolvedPath[1:])
+	missingSuffix := ""
+
+	if (status == pjStatusExact || status == pjStatusExactEndsWithStar || status == pjStatusInexact) && strings.HasPrefix(resolvedPath, "/") {
+		absResolvedPath := r.fs.Join(absDirPath, resolvedPath)
 
 		switch status {
-		case pjStatusExact:
+		case pjStatusExact, pjStatusExactEndsWithStar:
 			if r.debugLogs != nil {
 				r.debugLogs.addNote(fmt.Sprintf("The resolved path %q is exact", absResolvedPath))
 			}
+
 			resolvedDirInfo := r.dirInfoCached(r.fs.Dir(absResolvedPath))
+			base := r.fs.Base(absResolvedPath)
+			extensionOrder := r.options.ExtensionOrder
+			if r.kind == ast.ImportAt || r.kind == ast.ImportAtConditional {
+				extensionOrder = r.atImportExtensionOrder
+			}
+
 			if resolvedDirInfo == nil {
 				status = pjStatusModuleNotFound
-			} else if entry, diffCase := resolvedDirInfo.entries.Get(r.fs.Base(absResolvedPath)); entry == nil {
+			} else if entry, diffCase := resolvedDirInfo.entries.Get(base); entry == nil {
+				endsWithStar := status == pjStatusExactEndsWithStar
 				status = pjStatusModuleNotFound
+
+				// Try to have a friendly error message if people forget the extension
+				if endsWithStar {
+					for _, ext := range extensionOrder {
+						if entry, _ := resolvedDirInfo.entries.Get(base + ext); entry != nil {
+							if r.debugLogs != nil {
+								r.debugLogs.addNote(fmt.Sprintf("The import %q is missing the extension %q", path.Join(esmPackageName, esmPackageSubpath), ext))
+							}
+							status = pjStatusModuleNotFoundMissingExtension
+							missingSuffix = ext
+							break
+						}
+					}
+				}
 			} else if kind := entry.Kind(r.fs); kind == fs.DirEntry {
 				if r.debugLogs != nil {
 					r.debugLogs.addNote(fmt.Sprintf("The path %q is a directory, which is not allowed", absResolvedPath))
 				}
+				endsWithStar := status == pjStatusExactEndsWithStar
 				status = pjStatusUnsupportedDirectoryImport
+
+				// Try to have a friendly error message if people forget the "/index.js" suffix
+				if endsWithStar {
+					if resolvedDirInfo := r.dirInfoCached(absResolvedPath); resolvedDirInfo != nil {
+						for _, ext := range extensionOrder {
+							base := "index" + ext
+							if entry, _ := resolvedDirInfo.entries.Get(base); entry != nil && entry.Kind(r.fs) == fs.FileEntry {
+								status = pjStatusUnsupportedDirectoryImportMissingIndex
+								missingSuffix = "/" + base
+								if r.debugLogs != nil {
+									r.debugLogs.addNote(fmt.Sprintf("The import %q is missing the suffix %q", path.Join(esmPackageName, esmPackageSubpath), missingSuffix))
+								}
+								break
+							}
+						}
+					}
+				}
 			} else if kind != fs.FileEntry {
 				status = pjStatusModuleNotFound
 			} else {
@@ -2228,13 +2292,34 @@ func (r resolverQuery) finalizeImportsExportsResult(
 		r.debugMeta.notes = []logger.MsgData{tracker.MsgData(debug.token,
 			fmt.Sprintf("The package import %q is not defined in this \"imports\" map:", resolvedPath))}
 
-	case pjStatusModuleNotFound:
+	case pjStatusModuleNotFound, pjStatusModuleNotFoundMissingExtension:
 		r.debugMeta.notes = []logger.MsgData{tracker.MsgData(debug.token,
 			fmt.Sprintf("The module %q was not found on the file system:", resolvedPath))}
 
-	case pjStatusUnsupportedDirectoryImport:
-		r.debugMeta.notes = []logger.MsgData{tracker.MsgData(debug.token,
-			fmt.Sprintf("Importing the directory %q is not supported:", resolvedPath))}
+		// Provide an inline suggestion message with the correct import path
+		if status == pjStatusModuleNotFoundMissingExtension {
+			actualImportPath := path.Join(esmPackageName, esmPackageSubpath+missingSuffix)
+			r.debugMeta.suggestionRange = suggestionRangeEnd
+			r.debugMeta.suggestionText = missingSuffix
+			r.debugMeta.suggestionMessage = fmt.Sprintf("Import from %q to get the file %q:",
+				actualImportPath, r.PrettyPath(logger.Path{Text: r.fs.Join(absDirPath, resolvedPath+missingSuffix), Namespace: "file"}))
+		}
+
+	case pjStatusUnsupportedDirectoryImport, pjStatusUnsupportedDirectoryImportMissingIndex:
+		r.debugMeta.notes = []logger.MsgData{
+			tracker.MsgData(debug.token, fmt.Sprintf("Importing the directory %q is forbidden by this package:", resolvedPath)),
+			tracker.MsgData(packageJSON.source.RangeOfString(packageJSON.exportsMap.propertyKeyLoc),
+				"The presence of \"exports\" here makes importing a directory forbidden:"),
+		}
+
+		// Provide an inline suggestion message with the correct import path
+		if status == pjStatusUnsupportedDirectoryImportMissingIndex {
+			actualImportPath := path.Join(esmPackageName, esmPackageSubpath+missingSuffix)
+			r.debugMeta.suggestionRange = suggestionRangeEnd
+			r.debugMeta.suggestionText = missingSuffix
+			r.debugMeta.suggestionMessage = fmt.Sprintf("Import from %q to get the file %q:",
+				actualImportPath, r.PrettyPath(logger.Path{Text: r.fs.Join(absDirPath, resolvedPath+missingSuffix), Namespace: "file"}))
+		}
 
 	case pjStatusUndefinedNoConditionsMatch:
 		keys := make([]string, 0, len(conditions))

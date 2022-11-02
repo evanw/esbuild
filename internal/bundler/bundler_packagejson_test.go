@@ -1456,7 +1456,8 @@ func TestPackageJsonExportsErrorUnsupportedDirectoryImport(t *testing.T) {
 Users/user/project/node_modules/pkg1/package.json: NOTE: The module "./foo" was not found on the file system:
 NOTE: You can mark the path "pkg1" as external to exclude it from the bundle, which will remove this error.
 Users/user/project/src/entry.js: ERROR: Could not resolve "pkg2"
-Users/user/project/node_modules/pkg2/package.json: NOTE: Importing the directory "./foo" is not supported:
+Users/user/project/node_modules/pkg2/package.json: NOTE: Importing the directory "./foo" is forbidden by this package:
+Users/user/project/node_modules/pkg2/package.json: NOTE: The presence of "exports" here makes importing a directory forbidden:
 NOTE: You can mark the path "pkg2" as external to exclude it from the bundle, which will remove this error.
 `,
 	})
@@ -1821,6 +1822,9 @@ func TestPackageJsonExportsWildcard(t *testing.T) {
 					}
 				}
 			`,
+			"/Users/user/project/node_modules/pkg1/file.js": `
+				console.log('SUCCESS')
+			`,
 			"/Users/user/project/node_modules/pkg1/file2.js": `
 				console.log('SUCCESS')
 			`,
@@ -1830,10 +1834,6 @@ func TestPackageJsonExportsWildcard(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
-		expectedScanLog: `Users/user/project/src/entry.js: ERROR: Could not resolve "pkg1/foo"
-Users/user/project/node_modules/pkg1/package.json: NOTE: The path "./foo" is not exported by package "pkg1":
-NOTE: You can mark the path "pkg1/foo" as external to exclude it from the bundle, which will remove this error.
-`,
 	})
 }
 
@@ -1936,6 +1936,7 @@ func TestPackageJsonExportsNotExactMissingExtensionPattern(t *testing.T) {
 		},
 		expectedScanLog: `Users/user/project/src/entry.js: ERROR: Could not resolve "pkg1/foo/bar"
 Users/user/project/node_modules/pkg1/package.json: NOTE: The module "./dir/bar" was not found on the file system:
+Users/user/project/src/entry.js: NOTE: Import from "pkg1/foo/bar.js" to get the file "Users/user/project/node_modules/pkg1/dir/bar.js":
 NOTE: You can mark the path "pkg1/foo/bar" as external to exclude it from the bundle, which will remove this error.
 `,
 	})
@@ -2134,6 +2135,47 @@ Users/user/project/node_modules/pkg/package.json: NOTE: The file "./path/to/othe
 Users/user/project/src/entry.js: NOTE: Import from "pkg/extra/other/file.js" to get the file "Users/user/project/node_modules/pkg/path/to/other/file.js":
 NOTE: You can mark the path "pkg/path/to/other/file" as external to exclude it from the bundle, which will remove this error. You can also surround this "require" call with a try/catch block to handle this failure at run-time instead of bundle-time.
 `,
+	})
+}
+
+func TestPackageJsonExportsPatternTrailers(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import 'pkg/path/foo.js/bar.js'
+				import 'pkg2/features/abc'
+				import 'pkg2/features/xyz.js'
+			`,
+			"/Users/user/project/node_modules/pkg/package.json": `
+				{
+					"exports": {
+						"./path/*/bar.js": "./dir/baz-*"
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/pkg/dir/baz-foo.js": `
+				console.log('works')
+			`,
+			"/Users/user/project/node_modules/pkg2/package.json": `
+				{
+					"exports": {
+						"./features/*": "./public/*.js",
+						"./features/*.js": "./public/*.js"
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/pkg2/public/abc.js": `
+				console.log('abc')
+			`,
+			"/Users/user/project/node_modules/pkg2/public/xyz.js": `
+				console.log('xyz')
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
 	})
 }
 

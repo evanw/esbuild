@@ -62,7 +62,7 @@ func TestYarnPnP(t *testing.T) {
 			t.Fatalf("Log not empty after re-parsing JSON: %s", path)
 		}
 
-		manifest := compileYarnPnPData(path, "/path/to/project/", expr)
+		manifest := compileYarnPnPData(path, "/path/to/project/", expr, source)
 
 		for _, current := range expectation.Tests {
 			func(current pnpTest) {
@@ -74,12 +74,12 @@ func TestYarnPnP(t *testing.T) {
 
 					var observed string
 					switch result.status {
-					case pnpError:
-						observed = "error!"
 					case pnpSuccess:
 						observed = fs.Join(result.pkgDirPath, result.pkgSubpath)
 					case pnpSkipped:
 						observed = current.Imported
+					default:
+						observed = "error!"
 					}
 
 					// If a we aren't going through PnP, then we should just run the

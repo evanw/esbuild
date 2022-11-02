@@ -903,6 +903,7 @@ func rebuildImpl(
 			Fragment:         validateJSXExpr(log, buildOpts.JSXFragment, "fragment"),
 			Development:      buildOpts.JSXDev,
 			ImportSource:     buildOpts.JSXImportSource,
+			SideEffects:      buildOpts.JSXSideEffects,
 		},
 		Defines:               defines,
 		InjectedDefines:       injectedDefines,
@@ -1069,7 +1070,7 @@ func rebuildImpl(
 		// Stop now if there were errors
 		if !log.HasErrors() {
 			// Compile the bundle
-			results, metafile := bundle.Compile(log, options, timer, mangleCache)
+			results, metafile := bundle.Compile(log, timer, mangleCache)
 
 			// Stop now if there were errors
 			if !log.HasErrors() {
@@ -1365,6 +1366,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		Fragment:         validateJSXExpr(log, transformOpts.JSXFragment, "fragment"),
 		Development:      transformOpts.JSXDev,
 		ImportSource:     transformOpts.JSXImportSource,
+		SideEffects:      transformOpts.JSXSideEffects,
 	}
 
 	// Settings from "tsconfig.json" override those
@@ -1398,7 +1400,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 				result.PreserveValueImports,
 			)
 			tsTarget = result.TSTarget
-			tsAlwaysStrict = result.TSAlwaysStrict
+			tsAlwaysStrict = result.TSAlwaysStrictOrStrict()
 		}
 	}
 
@@ -1498,7 +1500,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		// Stop now if there were errors
 		if !log.HasErrors() {
 			// Compile the bundle
-			results, _ = bundle.Compile(log, options, timer, mangleCache)
+			results, _ = bundle.Compile(log, timer, mangleCache)
 		}
 
 		timer.Log(log)
@@ -1879,6 +1881,7 @@ type metafileEntry struct {
 	size       int
 }
 
+// This type is just so we can use Go's native sort function
 type metafileArray []metafileEntry
 
 func (a metafileArray) Len() int          { return len(a) }

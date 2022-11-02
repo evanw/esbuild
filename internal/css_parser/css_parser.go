@@ -832,10 +832,13 @@ abortRuleParser:
 		if p.peek(css_lexer.TIdent) {
 			name = p.decoded()
 			p.advance()
-		} else if !p.expect(css_lexer.TIdent) && !p.eat(css_lexer.TString) && !p.peek(css_lexer.TOpenBrace) {
-			// Consider string names a syntax error even though they are allowed by
-			// the specification and they work in Firefox because they do not work in
-			// Chrome or Safari.
+		} else if p.eat(css_lexer.TString) {
+			// Consider string names to be an unknown rule even though they are allowed
+			// by the specification and they work in Firefox because they do not work in
+			// Chrome or Safari. We don't take the effort to support this Firefox-only
+			// feature natively. Instead, we just pass the syntax through unmodified.
+			break
+		} else if !p.expect(css_lexer.TIdent) {
 			break
 		}
 

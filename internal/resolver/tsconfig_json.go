@@ -48,6 +48,15 @@ type TSConfigJSON struct {
 	PreserveValueImports           bool
 }
 
+func (config *TSConfigJSON) TSAlwaysStrictOrStrict() *config.TSAlwaysStrict {
+	if config.TSAlwaysStrict != nil {
+		return config.TSAlwaysStrict
+	}
+
+	// If "alwaysStrict" is absent, it defaults to "strict" instead
+	return config.TSStrict
+}
+
 type TSConfigPath struct {
 	Text string
 	Loc  logger.Loc
@@ -242,7 +251,7 @@ func ParseTSConfigJSON(
 		if valueJSON, keyLoc, ok := getProperty(compilerOptionsJSON, "alwaysStrict"); ok {
 			if value, ok := getBool(valueJSON); ok {
 				valueRange := js_lexer.RangeOfIdentifier(source, valueJSON.Loc)
-				result.TSStrict = &config.TSAlwaysStrict{
+				result.TSAlwaysStrict = &config.TSAlwaysStrict{
 					Name:   "alwaysStrict",
 					Value:  value,
 					Source: source,

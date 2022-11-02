@@ -211,6 +211,7 @@ module.exports = ${JSON.stringify(exit0Map, null, 2)};
 
   // Also copy this into the WebAssembly shim directories
   for (const dir of [
+    path.join(repoDir, 'npm', '@esbuild', 'android-arm'),
     path.join(repoDir, 'npm', 'esbuild-android-64'),
   ]) {
     fs.mkdirSync(path.join(dir, 'bin'), { recursive: true })
@@ -305,6 +306,7 @@ exports.removeRecursiveSync = path => {
 const updateVersionPackageJSON = pathToPackageJSON => {
   const version = fs.readFileSync(path.join(path.dirname(__dirname), 'version.txt'), 'utf8').trim()
   const json = JSON.parse(fs.readFileSync(pathToPackageJSON, 'utf8'))
+
   if (json.version !== version) {
     json.version = version
     fs.writeFileSync(pathToPackageJSON, JSON.stringify(json, null, 2) + '\n')
@@ -329,7 +331,7 @@ exports.installForTests = () => {
   fs.mkdirSync(installDir)
   fs.writeFileSync(path.join(installDir, 'package.json'), '{}')
   childProcess.execSync(`npm pack --silent "${npmDir}"`, { cwd: installDir, stdio: 'inherit' })
-  childProcess.execSync(`npm install --silent --no-audit --progress=false esbuild-${version}.tgz`, { cwd: installDir, env, stdio: 'inherit' })
+  childProcess.execSync(`npm install --silent --no-audit --no-optional --progress=false esbuild-${version}.tgz`, { cwd: installDir, env, stdio: 'inherit' })
 
   // Evaluate the code
   const ESBUILD_PACKAGE_PATH = path.join(installDir, 'node_modules', 'esbuild')
