@@ -403,6 +403,55 @@ func TestTSAsCast(t *testing.T) {
 	expectParseErrorTS(t, "(x = y as any(z));", "<stdin>: ERROR: Expected \")\" but found \"(\"\n")
 }
 
+func TestTSSatisfies(t *testing.T) {
+	expectPrintedTS(t, "const t1 = { a: 1 } satisfies I1;", "const t1 = { a: 1 };\n")
+	expectPrintedTS(t, "const t2 = { a: 1, b: 1 } satisfies I1;", "const t2 = { a: 1, b: 1 };\n")
+	expectPrintedTS(t, "const t3 = { } satisfies I1;", "const t3 = {};\n")
+	expectPrintedTS(t, "const t4: T1 = { a: 'a' } satisfies T1;", "const t4 = { a: \"a\" };\n")
+	expectPrintedTS(t, "const t5 = (m => m.substring(0)) satisfies T2;", "const t5 = (m) => m.substring(0);\n")
+	expectPrintedTS(t, "const t6 = [1, 2] satisfies [number, number];", "const t6 = [1, 2];\n")
+	expectPrintedTS(t, "let t7 = { a: 'test' } satisfies A;", "let t7 = { a: \"test\" };\n")
+	expectPrintedTS(t, "let t8 = { a: 'test', b: 'test' } satisfies A;", "let t8 = { a: \"test\", b: \"test\" };\n")
+	expectPrintedTS(t, "export default {} satisfies Foo;", "export default {};\n")
+	expectPrintedTS(t, "export default { a: 1 } satisfies Foo;", "export default { a: 1 };\n")
+	expectPrintedTS(t,
+		"const p = { isEven: n => n % 2 === 0, isOdd: n => n % 2 === 1 } satisfies Predicates;",
+		"const p = { isEven: (n) => n % 2 === 0, isOdd: (n) => n % 2 === 1 };\n")
+	expectPrintedTS(t,
+		"let obj: { f(s: string): void } & Record<string, unknown> = { f(s) { }, g(s) { } } satisfies { g(s: string): void } & Record<string, unknown>;",
+		"let obj = { f(s) {\n}, g(s) {\n} };\n")
+	expectPrintedTS(t,
+		"const car = { start() { }, move(d) { }, stop() { } } satisfies Movable & Record<string, unknown>;",
+		"const car = { start() {\n}, move(d) {\n}, stop() {\n} };\n",
+	)
+	expectPrintedTS(t, "var v = undefined satisfies 1;", "var v = void 0;\n")
+	expectPrintedTS(t, "const a = { x: 10 } satisfies Partial<Point2d>;", "const a = { x: 10 };\n")
+	expectPrintedTS(t,
+		"const p = { a: 0, b: \"hello\", x: 8 } satisfies Partial<Record<Keys, unknown>>;",
+		"const p = { a: 0, b: \"hello\", x: 8 };\n",
+	)
+	expectPrintedTS(t,
+		"const p = { a: 0, b: \"hello\", x: 8 } satisfies Record<Keys, unknown>;",
+		"const p = { a: 0, b: \"hello\", x: 8 };\n",
+	)
+	expectPrintedTS(t,
+		"const x2 = { m: true, s: \"false\" } satisfies Facts;",
+		"const x2 = { m: true, s: \"false\" };\n",
+	)
+	expectPrintedTS(t,
+		"export const Palette = { white: { r: 255, g: 255, b: 255 }, black: { r: 0, g: 0, d: 0 }, blue: { r: 0, g: 0, b: 255 }, } satisfies Record<string, Color>;",
+		"export const Palette = { white: { r: 255, g: 255, b: 255 }, black: { r: 0, g: 0, d: 0 }, blue: { r: 0, g: 0, b: 255 } };\n",
+	)
+	expectPrintedTS(t,
+		"const a: \"baz\" = \"foo\" satisfies \"foo\" | \"bar\";",
+		"const a = \"foo\";\n",
+	)
+	expectPrintedTS(t,
+		"const b: { xyz: \"baz\" } = { xyz: \"foo\" } satisfies { xyz: \"foo\" | \"bar\" };",
+		"const b = { xyz: \"foo\" };\n",
+	)
+}
+
 func TestTSClass(t *testing.T) {
 	expectPrintedTS(t, "export default class Foo {}", "export default class Foo {\n}\n")
 	expectPrintedTS(t, "export default class Foo extends Bar<T> {}", "export default class Foo extends Bar {\n}\n")

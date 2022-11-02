@@ -4405,8 +4405,8 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 			left = js_ast.Expr{Loc: left.Loc, Data: &js_ast.EBinary{Op: js_ast.BinOpInstanceof, Left: left, Right: p.parseExpr(js_ast.LCompare)}}
 
 		default:
-			// Handle the TypeScript "as" operator
-			if p.options.ts.Parse && level < js_ast.LCompare && !p.lexer.HasNewlineBefore && p.lexer.IsContextualKeyword("as") {
+			// Handle the TypeScript "as"/"satisfies" operator
+			if p.options.ts.Parse && level < js_ast.LCompare && !p.lexer.HasNewlineBefore && (p.lexer.IsContextualKeyword("as") || p.lexer.IsContextualKeyword("satisfies")) {
 				p.lexer.Next()
 				p.skipTypeScriptType(js_ast.LLowest)
 
