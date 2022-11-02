@@ -403,7 +403,7 @@ func TestTSAsCast(t *testing.T) {
 	expectParseErrorTS(t, "(x = y as any(z));", "<stdin>: ERROR: Expected \")\" but found \"(\"\n")
 }
 
-func TestTsSatisfies(t *testing.T) {
+func TestTSSatisfies(t *testing.T) {
 	expectPrintedTS(t, "const t1 = { a: 1 } satisfies I1;", "const t1 = { a: 1 };\n")
 	expectPrintedTS(t, "const t2 = { a: 1, b: 1 } satisfies I1;", "const t2 = { a: 1, b: 1 };\n")
 	expectPrintedTS(t, "const t3 = { } satisfies I1;", "const t3 = {};\n")
@@ -450,7 +450,6 @@ func TestTsSatisfies(t *testing.T) {
 		"const b: { xyz: \"baz\" } = { xyz: \"foo\" } satisfies { xyz: \"foo\" | \"bar\" };",
 		"const b = { xyz: \"foo\" };\n",
 	)
-
 }
 
 func TestTSClass(t *testing.T) {
