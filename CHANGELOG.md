@@ -28,6 +28,12 @@
 
     This discrepancy between esbuild's path resolution layer and its watch mode was causing watch mode to rebuild continuously on Android. With this release, esbuild's watch mode instead checks for an error status change in the `readdir` file system call, so watch mode should no longer rebuild continuously on Android.
 
+* Apply a fix for a rare deadlock with the JavaScript API ([#1842](https://github.com/evanw/esbuild/issues/1842), [#2485](https://github.com/evanw/esbuild/issues/2485))
+
+    There have been reports of esbuild sometimes exiting with an "all goroutines are asleep" deadlock message from the Go language runtime. This issue hasn't made much progress until recently, where a possible cause was discovered (thanks to [@jfirebaugh](https://github.com/jfirebaugh) for the investigation). This release contains a possible fix for that possible cause, so this deadlock may have been fixed. The fix cannot be easily verified because the deadlock is non-deterministic and rare. If this was indeed the cause, then this issue only affected the JavaScript API in situations where esbuild was already in the process of exiting.
+
+    In detail: The underlying cause is that Go's [`sync.WaitGroup`](https://pkg.go.dev/sync#WaitGroup) API for waiting for a set of goroutines to finish is not fully thread-safe. Specifically it's not safe to call `Add()` concurrently with `Wait()` when the wait group counter is zero due to a data race. This situation could come up with esbuild's JavaScript API when the host JavaScript process closes the child process's stdin and the child process (with no active tasks) calls `Wait()` to check that there are no active tasks, at the same time as esbuild's watchdog timer calls `Add()` to add an active task (that pings the host to see if it's still there). The fix in this release is to avoid calling `Add()` once we learn that stdin has been closed but before we call `Wait()`.
+
 ## 0.15.12
 
 * Fix minifier correctness bug with single-use substitutions ([#2619](https://github.com/evanw/esbuild/issues/2619))
