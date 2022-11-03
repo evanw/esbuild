@@ -5,6 +5,9 @@ on:
     tags: ['v*']
   workflow_dispatch:
 
+permissions:
+  contents: read  #  to fetch code (actions/checkout)
+
 jobs:
   release:
     runs-on: ubuntu-latest
