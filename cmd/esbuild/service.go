@@ -56,18 +56,18 @@ func (service *serviceType) getActiveBuild(key int) *activeBuild {
 	return activeBuild
 }
 
-func (service *serviceType) trackActiveBuild(key int, activeBuild *activeBuild) {
-	if activeBuild.refCount > 0 {
-		service.mutex.Lock()
-		defer service.mutex.Unlock()
-		if service.activeBuilds[key] != nil {
-			panic("Internal error")
-		}
-		service.activeBuilds[key] = activeBuild
-
-		// This pairs with "Done()" in "decRefCount"
-		service.keepAliveWaitGroup.Add(1)
+func (service *serviceType) trackActiveBuild(key int) *activeBuild {
+	service.mutex.Lock()
+	defer service.mutex.Unlock()
+	if service.activeBuilds[key] != nil {
+		panic("Internal error")
 	}
+	activeBuild := &activeBuild{refCount: 1}
+	service.activeBuilds[key] = activeBuild
+
+	// This pairs with "Done()" in "decRefCount"
+	service.keepAliveWaitGroup.Add(1)
+	return activeBuild
 }
 
 func (service *serviceType) decRefCount(key int, activeBuild *activeBuild) {
@@ -494,8 +494,7 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 		}
 	}
 
-	activeBuild := &activeBuild{refCount: 1}
-	service.trackActiveBuild(key, activeBuild)
+	activeBuild := service.trackActiveBuild(key)
 	defer service.decRefCount(key, activeBuild)
 
 	if plugins, ok := request["plugins"]; ok {
