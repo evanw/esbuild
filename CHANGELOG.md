@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.15.13
 
 * Add support for the TypeScript 4.9 `satisfies` operator ([#2509](https://github.com/evanw/esbuild/pull/2509))
 
