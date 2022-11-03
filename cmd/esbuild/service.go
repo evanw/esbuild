@@ -569,7 +569,7 @@ func (service *serviceType) handleServeRequest(id uint32, options api.BuildOptio
 	activeBuild.refCount++ // Make sure the serve doesn't finish until "Wait" finishes
 	activeBuild.serveStop = result.Stop
 
-	// Asynchronously wait for the server to stop, then fulfil the "wait" promise
+	// Asynchronously wait for the server to stop, then fulfill the "wait" promise
 	go func() {
 		request := map[string]interface{}{
 			"command": "serve-wait",
