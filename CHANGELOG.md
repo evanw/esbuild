@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+* Fix parsing of TypeScript `infer` inside a conditional `extends` ([#2675](https://github.com/evanw/esbuild/issues/2675))
+
+    Unlike JavaScript, parsing TypeScript sometimes requires backtracking. The `infer A` type operator can take an optional constraint of the form `infer A extends B`. However, this syntax conflicts with the similar conditional type operator `A extends B ? C : D` in cases where the syntax is combined, such as `infer A extends B ? C : D`. This is supposed to be parsed as `(infer A) extends B ? C : D`. Previously esbuild incorrectly parsed this as `(infer A extends B) ? C : D` instead, which is a parse error since the `?:` conditional operator requires the `extends` keyword as part of the conditional type. TypeScript disambiguates by speculatively parsing the `extends` after the `infer`, but backtracking if a `?` token is encountered afterward. With this release, esbuild should now do the same thing, so esbuild should now correctly parse these types. Here's a real-world example of such a type:
+
+    ```ts
+    type Normalized<T> = T extends Array<infer A extends object ? infer A : never>
+      ? Dictionary<Normalized<A>>
+      : {
+          [P in keyof T]: T[P] extends Array<infer A extends object ? infer A : never>
+            ? Dictionary<Normalized<A>>
+            : Normalized<T[P]>
+        }
+    ```
+
 * Avoid unnecessary watch mode rebuilds when debug logging is enabled ([#2661](https://github.com/evanw/esbuild/issues/2661))
 
     When debug-level logs are enabled (such as with `--log-level=debug`), esbuild's path resolution subsystem generates debug log messages that say something like "Read 20 entries for directory /home/user" to help you debug what esbuild's path resolution is doing. This caused esbuild's watch mode subsystem to add a dependency on the full list of entries in that directory since if that changes, the generated log message would also have to be updated. However, meant that on systems where a parent directory undergoes constant directory entry churn, esbuild's watch mode would continue to rebuild if `--log-level=debug` was passed.

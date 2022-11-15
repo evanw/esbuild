@@ -316,11 +316,11 @@ loop:
 
 				// "type Foo = Bar extends [infer T] ? T : null"
 				// "type Foo = Bar extends [infer T extends string] ? T : null"
+				// "type Foo = Bar extends [infer T extends string ? infer T : never] ? T : null"
 				if p.lexer.Token != js_lexer.TColon || (!opts.isIndexSignature && !opts.allowTupleLabels) {
 					p.lexer.Expect(js_lexer.TIdentifier)
 					if p.lexer.Token == js_lexer.TExtends {
-						p.lexer.Next()
-						p.skipTypeScriptType(js_ast.LPrefix)
+						p.trySkipTypeScriptConstraintOfInferTypeWithBacktracking()
 					}
 				}
 				break loop
@@ -846,6 +846,32 @@ func (p *parser) trySkipTypeScriptArrowArgsWithBacktracking() bool {
 
 	p.skipTypeScriptFnArgs()
 	p.lexer.Expect(js_lexer.TEqualsGreaterThan)
+
+	// Restore the log disabled flag. Note that we can't just set it back to false
+	// because it may have been true to start with.
+	p.lexer.IsLogDisabled = oldLexer.IsLogDisabled
+	return true
+}
+
+func (p *parser) trySkipTypeScriptConstraintOfInferTypeWithBacktracking() bool {
+	oldLexer := p.lexer
+	p.lexer.IsLogDisabled = true
+
+	// Implement backtracking by restoring the lexer's memory to its original state
+	defer func() {
+		r := recover()
+		if _, isLexerPanic := r.(js_lexer.LexerPanic); isLexerPanic {
+			p.lexer = oldLexer
+		} else if r != nil {
+			panic(r)
+		}
+	}()
+
+	p.lexer.Expect(js_lexer.TExtends)
+	p.skipTypeScriptType(js_ast.LPrefix)
+	if p.lexer.Token == js_lexer.TQuestion {
+		p.lexer.Unexpected()
+	}
 
 	// Restore the log disabled flag. Note that we can't just set it back to false
 	// because it may have been true to start with.

@@ -180,6 +180,7 @@ func TestTSTypes(t *testing.T) {
 	expectPrintedTS(t, "type Foo = Bar extends [infer T] ? T : null", "")
 	expectPrintedTS(t, "type Foo = Bar extends [infer T extends string] ? T : null", "")
 	expectPrintedTS(t, "let x: A extends B<infer C extends D> ? D : never", "let x;\n")
+	expectPrintedTS(t, "let x: A extends B<infer C extends D ? infer C : never> ? D : never", "let x;\n")
 
 	expectPrintedTS(t, "let x: A.B<X.Y>", "let x;\n")
 	expectPrintedTS(t, "let x: A.B<X.Y>=2", "let x = 2;\n")
