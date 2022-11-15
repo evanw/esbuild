@@ -4,6 +4,9 @@ on:
   schedule:
     - cron: '0 */6 * * *'
 
+permissions:
+  contents: read  #  to fetch code (actions/checkout)
+
 jobs:
   validate:
     runs-on: ubuntu-latest

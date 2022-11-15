@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: ['*']
 
+permissions:
+  contents: read  #  to fetch code (actions/checkout)
+
 jobs:
   esbuild-slow:
     # Split these out into their own runner because they're very slow

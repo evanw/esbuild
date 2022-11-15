@@ -4,8 +4,12 @@ on:
   push:
     tags: ['v*']
 
+permissions: {}
 jobs:
   release:
+    permissions:
+      contents: write  #  to create a release (actions/create-release)
+
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
