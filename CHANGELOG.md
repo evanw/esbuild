@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.15.14
 
 * Fix parsing of TypeScript `infer` inside a conditional `extends` ([#2675](https://github.com/evanw/esbuild/issues/2675))
 
