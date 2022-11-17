@@ -591,6 +591,7 @@ const (
 	identNormal identMode = iota
 	identHash
 	identDimensionUnit
+	identDimensionUnitAfterExponent
 )
 
 type trailingWhitespace uint8
@@ -623,19 +624,19 @@ func (p *printer) printIdent(text string, mode identMode, whitespace trailingWhi
 						escape = escapeBackslash
 					}
 
-				case identDimensionUnit:
+				case identDimensionUnit, identDimensionUnitAfterExponent:
 					if !css_lexer.WouldStartIdentifierWithoutEscapes(text) {
 						escape = escapeBackslash
 					} else if c >= '0' && c <= '9' {
 						// Unit: "2x"
 						escape = escapeHex
-					} else if c == 'e' || c == 'E' {
+					} else if (c == 'e' || c == 'E') && mode != identDimensionUnitAfterExponent {
 						if len(text) >= 2 && text[1] >= '0' && text[1] <= '9' {
 							// Unit: "e2x"
-							escape = escapeBackslash
+							escape = escapeHex
 						} else if len(text) >= 3 && text[1] == '-' && text[2] >= '0' && text[2] <= '9' {
 							// Unit: "e-2x"
-							escape = escapeBackslash
+							escape = escapeHex
 						}
 					}
 				}
@@ -706,8 +707,13 @@ func (p *printer) printTokens(tokens []css_ast.Token, opts printTokensOpts) bool
 			p.print("(")
 
 		case css_lexer.TDimension:
-			p.print(t.DimensionValue())
-			p.printIdent(t.DimensionUnit(), identDimensionUnit, whitespace)
+			value := t.DimensionValue()
+			p.print(value)
+			mode := identDimensionUnit
+			if strings.ContainsAny(value, "eE") {
+				mode = identDimensionUnitAfterExponent
+			}
+			p.printIdent(t.DimensionUnit(), mode, whitespace)
 
 		case css_lexer.TAtKeyword:
 			p.print("@")

@@ -1,5 +1,40 @@
 # Changelog
 
+## Unreleased
+
+* Fix CSS dimension printing exponent confusion edge case ([#2677](https://github.com/evanw/esbuild/issues/2677))
+
+    In CSS, a dimension token has a numeric "value" part and an identifier "unit" part. For example, the dimension token `32px` has a value of `32` and a unit of `px`. The unit can be any valid CSS identifier. The value can be any number in floating-point format including an optional exponent (e.g. `-3.14e-0` has an exponent of `e-0`). The full details of this syntax are here: https://www.w3.org/TR/css-syntax-3/.
+
+    To maintain the integrity of the dimension token through the printing process, esbuild must handle the edge case where the unit looks like an exponent. One such case is the dimension `1e\32` which has the value `1` and the unit `e2`. It would be bad if this dimension token was printed such that a CSS parser would parse it as a number token with the value `1e2` instead of a dimension token. The way esbuild currently does this is to escape the leading `e` in the dimension unit, so esbuild would parse `1e\32` but print `1\65 2` (both `1e\32` and `1\65 2` represent a dimension token with a value of `1` and a unit of `e2`).
+
+    However, there is an even narrower edge case regarding this edge case. If the value part of the dimension token itself has an `e`, then it's not necessary to escape the `e` in the dimension unit because a CSS parser won't confuse the unit with the exponent even though it looks like one (since a number can only have at most one exponent). This came up because the grammar for the CSS `unicode-range` property uses a hack that lets you specify a hexadecimal range without quotes even though CSS has no token for a hexadecimal range. The hack is to allow the hexadecimal range to be parsed as a dimension token and optionally also a number token. Here is the grammar for `unicode-range`:
+
+    ```
+    unicode-range =
+      <urange>#
+
+    <urange> =
+      u '+' <ident-token> '?'*            |
+      u <dimension-token> '?'*            |
+      u <number-token> '?'*               |
+      u <number-token> <dimension-token>  |
+      u <number-token> <number-token>     |
+      u '+' '?'+
+    ```
+
+    and here is an example `unicode-range` declaration that was problematic for esbuild:
+
+    ```css
+    @font-face {
+      unicode-range: U+0e2e-0e2f;
+    }
+    ```
+
+    This is parsed as a dimension with a value of `+0e2` and a unit of `e-0e2f`. This was problematic for esbuild because the unit starts with `e-0` which could be confused with an exponent when appended after a number, so esbuild was escaping the `e` character in the unit. However, this escaping is unnecessary because in this case the dimension value already has an exponent in it. With this release, esbuild will no longer unnecessarily escape the `e` in the dimension unit in these cases, which should fix the printing of `unicode-range` declarations.
+
+    An aside: You may be wondering why esbuild is trying to escape the `e` at all and why it doesn't just pass through the original source code unmodified. The reason why esbuild does this is that, for robustness, esbuild's AST generally tries to omit semantically-unrelated information and esbuild's code printers always try to preserve the semantics of the underlying AST. That way the rest of esbuild's internals can just deal with semantics instead of presentation. They don't have to think about how the AST will be printed when changing the AST. This is the same reason that esbuild's JavaScript AST doesn't have a "parentheses" node (e.g. `a * (b + c)` is represented by the AST `multiply(a, add(b, c))` instead of `multiply(a, parentheses(add(b, c)))`). Instead, the printer automatically inserts parentheses as necessary to maintain the semantics of the AST, which means all of the optimizations that run over the AST don't have to worry about keeping the parentheses up to date. Similarly, the CSS AST for the dimension token stores the actual unit and the printer makes sure the unit is properly escaped depending on what value it's placed after. All of the other code operating on CSS ASTs doesn't have to worry about parsing escapes to compare units or about keeping escapes up to date when the AST is modified. Hopefully that makes sense.
+
 ## 0.15.14
 
 * Fix parsing of TypeScript `infer` inside a conditional `extends` ([#2675](https://github.com/evanw/esbuild/issues/2675))

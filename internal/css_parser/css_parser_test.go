@@ -172,11 +172,25 @@ func TestEscapes(t *testing.T) {
 	expectPrinted(t, "a { value: 10\\65m }", "a {\n  value: 10em;\n}\n")
 	expectPrinted(t, "a { value: 10p\\32x }", "a {\n  value: 10p2x;\n}\n")
 	expectPrinted(t, "a { value: 10e\\32x }", "a {\n  value: 10\\65 2x;\n}\n")
+	expectPrinted(t, "a { value: 10e-\\32x }", "a {\n  value: 10\\65-2x;\n}\n")
+	expectPrinted(t, "a { value: 10E\\32x }", "a {\n  value: 10\\45 2x;\n}\n")
+	expectPrinted(t, "a { value: 10E-\\32x }", "a {\n  value: 10\\45-2x;\n}\n")
+	expectPrinted(t, "a { value: 10e1e\\32x }", "a {\n  value: 10e1e2x;\n}\n")
+	expectPrinted(t, "a { value: 10e1e-\\32x }", "a {\n  value: 10e1e-2x;\n}\n")
+	expectPrinted(t, "a { value: 10e1E\\32x }", "a {\n  value: 10e1E2x;\n}\n")
+	expectPrinted(t, "a { value: 10e1E-\\32x }", "a {\n  value: 10e1E-2x;\n}\n")
+	expectPrinted(t, "a { value: 10E1e\\32x }", "a {\n  value: 10E1e2x;\n}\n")
+	expectPrinted(t, "a { value: 10E1e-\\32x }", "a {\n  value: 10E1e-2x;\n}\n")
+	expectPrinted(t, "a { value: 10E1E\\32x }", "a {\n  value: 10E1E2x;\n}\n")
+	expectPrinted(t, "a { value: 10E1E-\\32x }", "a {\n  value: 10E1E-2x;\n}\n")
 	expectPrinted(t, "a { value: 10\\32x }", "a {\n  value: 10\\32x;\n}\n")
 	expectPrinted(t, "a { value: 10\\2cx }", "a {\n  value: 10\\,x;\n}\n")
 	expectPrinted(t, "a { value: 10\\,x }", "a {\n  value: 10\\,x;\n}\n")
 	expectPrinted(t, "a { value: 10x\\2c }", "a {\n  value: 10x\\,;\n}\n")
 	expectPrinted(t, "a { value: 10x\\, }", "a {\n  value: 10x\\,;\n}\n")
+
+	// This must remain unescaped. See https://github.com/evanw/esbuild/issues/2677
+	expectPrinted(t, "@font-face { unicode-range: U+0e2e-0e2f }", "@font-face {\n  unicode-range: U+0e2e-0e2f;\n}\n")
 
 	// RDeclaration
 	expectPrintedMangle(t, "a { c\\6flor: #f00 }", "a {\n  color: red;\n}\n")
