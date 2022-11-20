@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+* Fix the `esbuild-wasm` package in Node v19 ([#2683](https://github.com/evanw/esbuild/issues/2683))
+
+    A recent change to Node v19 added a non-writable `crypto` property to the global object: https://github.com/nodejs/node/pull/44897. This conflicts with Go's WebAssembly shim code, which overwrites the global `crypto` property. As a result, all Go-based WebAssembly code that uses the built-in shim (including esbuild) is now broken on Node v19. This release of esbuild fixes the issue by reconfiguring the global `crypto` property to be writable before invoking Go's WebAssembly shim code.
+
 * Fix CSS dimension printing exponent confusion edge case ([#2677](https://github.com/evanw/esbuild/issues/2677))
 
     In CSS, a dimension token has a numeric "value" part and an identifier "unit" part. For example, the dimension token `32px` has a value of `32` and a unit of `px`. The unit can be any valid CSS identifier. The value can be any number in floating-point format including an optional exponent (e.g. `-3.14e-0` has an exponent of `e-0`). The full details of this syntax are here: https://www.w3.org/TR/css-syntax-3/.
