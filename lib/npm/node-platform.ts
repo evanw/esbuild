@@ -210,48 +210,66 @@ for your current platform.`);
     }
   }
 
-  // The esbuild binary executable can't be used in Yarn 2 in PnP mode because
-  // it's inside a virtual file system and the OS needs it in the real file
-  // system. So we need to copy the file out of the virtual file system into
-  // the real file system.
+  // This code below guards against the unlikely case that the user is using
+  // Yarn 2+ in PnP mode and that version is old enough that it doesn't support
+  // the "preferUnplugged" setting. If that's the case, then the path to the
+  // binary executable that we got above isn't actually a real path. Instead
+  // it's a path to a zip file with some extra stuff appended to it.
   //
-  // You might think that we could use "preferUnplugged: true" in each of the
-  // platform-specific packages for this instead, since that tells Yarn to not
-  // use the virtual file system for those packages. This is not done because:
+  // Yarn's PnP mode tries hard to patch Node's file system APIs to pretend
+  // that these fake paths are real. So we can't check whether it's a real file
+  // or not by using Node's file system APIs (e.g. "fs.existsSync") because
+  // they have been patched to lie. But we can't return this fake path because
+  // Yarn hasn't patched "child_process.execFileSync" to work with fake paths,
+  // so attempting to execute the binary will fail.
   //
-  // * Really early versions of Yarn don't support "preferUnplugged", so package
-  //   installation would break on those Yarn versions if we did this.
+  // As a hack, we use Node's file system APIs to copy the file from the fake
+  // path to a real path. This will cause Yarn's hacked file system to extract
+  // the binary executable from the zip file and turn it into a real file that
+  // we can execute.
   //
-  // * Earlier Yarn versions always installed all optional dependencies for all
-  //   platforms even though most of them are incompatible. To minimize file
-  //   system space, we want these useless packages to take up as little space
-  //   as possible so they should remain unzipped inside their ".zip" files.
+  // This is only done when both ".zip/" is present in the path and the
+  // "pnpapi" package is present, which is a strong indication that Yarn PnP is
+  // being used. There is no API at all for telling whether something is a real
+  // file or not as far as I can tell. Even Yarn's own code just checks for
+  // whether ".zip/" is present in the path or not.
   //
-  //   We have to explicitly pass "preferUnplugged: false" instead of leaving
-  //   it up to Yarn's default behavior because Yarn's heuristics otherwise
-  //   automatically unzip packages containing ".exe" files, and we don't want
-  //   our Windows-specific packages to be unzipped either.
-  //
-  let pnpapi: any;
-  try {
-    pnpapi = require('pnpapi');
-  } catch (e) {
-  }
-  if (pnpapi) {
-    const root = pnpapi.getPackageInformation(pnpapi.topLevel).packageLocation;
-    const binTargetPath = path.join(
-      root,
-      'node_modules',
-      '.cache',
-      'esbuild',
-      `pnpapi-${pkg}-${ESBUILD_VERSION}-${path.basename(subpath)}`,
-    );
-    if (!fs.existsSync(binTargetPath)) {
-      fs.mkdirSync(path.dirname(binTargetPath), { recursive: true });
-      fs.copyFileSync(binPath, binTargetPath);
-      fs.chmodSync(binTargetPath, 0o755);
+  // Note to self: One very hacky way to tell if a path is under the influence
+  // of Yarn's file system hacks is to stat the file and check for the "crc"
+  // property in the result. If that's present, then the file is inside a zip
+  // file. However, I haven't done that here because it's not intended to be
+  // used that way. Who knows what Yarn versions it does or does not work on
+  // (including future versions).
+  if (/\.zip\//.test(binPath)) {
+    let pnpapi: any;
+    try {
+      pnpapi = require('pnpapi');
+    } catch (e) {
     }
-    return { binPath: binTargetPath, isWASM };
+    if (pnpapi) {
+      // Copy the executable to ".cache/esbuild". The official recommendation
+      // of the Yarn team is to use the directory "node_modules/.cache/esbuild":
+      // https://yarnpkg.com/advanced/rulebook/#packages-should-never-write-inside-their-own-folder-outside-of-postinstall
+      // People that use Yarn in PnP mode find this really annoying because they
+      // don't like seeing the "node_modules" directory. These people should
+      // either work with Yarn to change their recommendation, or upgrade their
+      // version of Yarn, since newer versions of Yarn shouldn't stick esbuild's
+      // binary executables in a zip file due to the "preferUnplugged" setting.
+      const root = pnpapi.getPackageInformation(pnpapi.topLevel).packageLocation;
+      const binTargetPath = path.join(
+        root,
+        'node_modules',
+        '.cache',
+        'esbuild',
+        `pnpapi-${pkg}-${ESBUILD_VERSION}-${path.basename(subpath)}`,
+      );
+      if (!fs.existsSync(binTargetPath)) {
+        fs.mkdirSync(path.dirname(binTargetPath), { recursive: true });
+        fs.copyFileSync(binPath, binTargetPath);
+        fs.chmodSync(binTargetPath, 0o755);
+      }
+      return { binPath: binTargetPath, isWASM };
+    }
   }
 
   return { binPath, isWASM };

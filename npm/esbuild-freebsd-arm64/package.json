@@ -4,7 +4,7 @@
   "description": "The FreeBSD ARM 64-bit binary for esbuild, a JavaScript bundler.",
   "repository": "https://github.com/evanw/esbuild",
   "license": "MIT",
-  "preferUnplugged": false,
+  "preferUnplugged": true,
   "engines": {
     "node": ">=12"
   },
