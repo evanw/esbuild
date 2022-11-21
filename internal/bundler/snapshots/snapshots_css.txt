@@ -315,10 +315,6 @@ a {
 
 ---------- /out/across-files.css ----------
 /* across-files-0.css */
-a {
-  color: red;
-}
-
 /* across-files-1.css */
 a {
   color: green;

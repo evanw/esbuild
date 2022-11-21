@@ -15,6 +15,7 @@ import (
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/css_ast"
+	"github.com/evanw/esbuild/internal/css_parser"
 	"github.com/evanw/esbuild/internal/css_printer"
 	"github.com/evanw/esbuild/internal/fs"
 	"github.com/evanw/esbuild/internal/graph"
@@ -5262,32 +5263,52 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 	// never change the "../" count.
 	chunkAbsDir := c.fs.Dir(c.fs.Join(c.options.AbsOutputDir, config.TemplateToString(chunk.finalTemplate)))
 
+	// Remove duplicate rules across files. This must be done in serial, not
+	// in parallel, and must be done from the last rule to the first rule.
+	timer.Begin("Prepare CSS ASTs")
+	asts := make([]css_ast.AST, len(chunkRepr.filesInChunkInOrder))
+	var remover css_parser.DuplicateRuleRemover
+	if c.options.MinifySyntax {
+		remover = css_parser.MakeDuplicateRuleMangler()
+	}
+	for i := len(chunkRepr.filesInChunkInOrder) - 1; i >= 0; i-- {
+		sourceIndex := chunkRepr.filesInChunkInOrder[i]
+		file := &c.graph.Files[sourceIndex]
+		ast := file.InputFile.Repr.(*graph.CSSRepr).AST
+
+		// Filter out "@charset" and "@import" rules
+		rules := make([]css_ast.Rule, 0, len(ast.Rules))
+		for _, rule := range ast.Rules {
+			switch rule.Data.(type) {
+			case *css_ast.RAtCharset:
+				compileResults[i].hasCharset = true
+				continue
+			case *css_ast.RAtImport:
+				continue
+			}
+			rules = append(rules, rule)
+		}
+
+		// Remove top-level duplicate rules across files
+		if c.options.MinifySyntax {
+			rules = remover.RemoveDuplicateRulesInPlace(rules)
+		}
+
+		ast.Rules = rules
+		asts[i] = ast
+	}
+	timer.End("Prepare CSS ASTs")
+
 	// Generate CSS for each file in parallel
 	timer.Begin("Print CSS files")
 	waitGroup := sync.WaitGroup{}
 	for i, sourceIndex := range chunkRepr.filesInChunkInOrder {
 		// Create a goroutine for this file
 		waitGroup.Add(1)
-		go func(sourceIndex uint32, compileResult *compileResultCSS) {
+		go func(i int, sourceIndex uint32, compileResult *compileResultCSS) {
 			defer c.recoverInternalError(&waitGroup, sourceIndex)
 
 			file := &c.graph.Files[sourceIndex]
-			ast := file.InputFile.Repr.(*graph.CSSRepr).AST
-
-			// Filter out "@charset" and "@import" rules
-			rules := make([]css_ast.Rule, 0, len(ast.Rules))
-			hasCharset := false
-			for _, rule := range ast.Rules {
-				switch rule.Data.(type) {
-				case *css_ast.RAtCharset:
-					hasCharset = true
-					continue
-				case *css_ast.RAtImport:
-					continue
-				}
-				rules = append(rules, rule)
-			}
-			ast.Rules = rules
 
 			// Only generate a source map if needed
 			var addSourceMappings bool
@@ -5307,13 +5328,10 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 				InputSourceMap:    inputSourceMap,
 				LineOffsetTables:  lineOffsetTables,
 			}
-			*compileResult = compileResultCSS{
-				PrintResult: css_printer.Print(ast, cssOptions),
-				sourceIndex: sourceIndex,
-				hasCharset:  hasCharset,
-			}
+			compileResult.PrintResult = css_printer.Print(asts[i], cssOptions)
+			compileResult.sourceIndex = sourceIndex
 			waitGroup.Done()
-		}(sourceIndex, &compileResults[i])
+		}(i, sourceIndex, &compileResults[i])
 	}
 
 	waitGroup.Wait()

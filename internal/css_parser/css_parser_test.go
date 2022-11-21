@@ -1750,7 +1750,7 @@ func TestMangleDuplicateSelectorRules(t *testing.T) {
 	expectPrintedMangle(t, "a { color: red } div { color: red } b { color: red }", "a,\ndiv,\nb {\n  color: red;\n}\n")
 	expectPrintedMangle(t, "a { color: red } div { color: red } a { color: red }", "a,\ndiv {\n  color: red;\n}\n")
 	expectPrintedMangle(t, "a { color: red } div { color: blue } b { color: red }", "a {\n  color: red;\n}\ndiv {\n  color: #00f;\n}\nb {\n  color: red;\n}\n")
-	expectPrintedMangle(t, "a { color: red } div { color: blue } a { color: red }", "div {\n  color: #00f;\n}\na {\n  color: red;\n}\n")
+	expectPrintedMangle(t, "a { color: red } div { color: blue } a { color: red }", "a {\n  color: red;\n}\ndiv {\n  color: #00f;\n}\na {\n  color: red;\n}\n")
 	expectPrintedMangle(t, "a { color: red; color: red } b { color: red }", "a,\nb {\n  color: red;\n}\n")
 	expectPrintedMangle(t, "a { color: red } b { color: red; color: red }", "a,\nb {\n  color: red;\n}\n")
 	expectPrintedMangle(t, "a { color: red } b { color: blue }", "a {\n  color: red;\n}\nb {\n  color: #00f;\n}\n")

@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+* Remove duplicate CSS rules across files ([#2688](https://github.com/evanw/esbuild/issues/2688))
+
+    When two or more CSS rules are exactly the same (even if they are not adjacent), all but the last one can safely be removed:
+
+    ```css
+    /* Before */
+    a { color: red; }
+    span { font-weight: bold; }
+    a { color: red; }
+
+    /* After */
+    span { font-weight: bold; }
+    a { color: red; }
+    ```
+
+    Previously esbuild only did this transformation within a single source file. But with this release, esbuild will now do this transformation across source files, which may lead to smaller CSS output if the same rules are repeated across multiple CSS source files in the same bundle. This transformation is only enabled when minifying (specifically when syntax minification is enabled).
+
 * Add `deno` as a valid value for `target` ([#2686](https://github.com/evanw/esbuild/issues/2686))
 
     The `target` setting in esbuild allows you to enable or disable JavaScript syntax features for a given version of a set of target JavaScript VMs. Previously [Deno](https://deno.land/) was not one of the JavaScript VMs that esbuild supported with `target`, but it will now be supported starting from this release. For example, versions of Deno older than v1.2 don't support the new `||=` operator, so adding e.g. `--target=deno1.0` to esbuild now lets you tell esbuild to transpile `||=` to older JavaScript.

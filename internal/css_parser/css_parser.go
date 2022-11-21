@@ -289,7 +289,7 @@ loop:
 	}
 
 	if p.options.MinifySyntax {
-		rules = mangleRules(rules)
+		rules = mangleRules(rules, context.isTopLevel)
 	}
 	return rules
 }
@@ -304,7 +304,7 @@ func (p *parser) parseListOfDeclarations() (list []css_ast.Rule) {
 		case css_lexer.TEndOfFile, css_lexer.TCloseBrace:
 			list = p.processDeclarations(list)
 			if p.options.MinifySyntax {
-				list = mangleRules(list)
+				list = mangleRules(list, false /* isTopLevel */)
 			}
 			return
 
@@ -324,7 +324,7 @@ func (p *parser) parseListOfDeclarations() (list []css_ast.Rule) {
 	}
 }
 
-func mangleRules(rules []css_ast.Rule) []css_ast.Rule {
+func mangleRules(rules []css_ast.Rule, isTopLevel bool) []css_ast.Rule {
 	type hashEntry struct {
 		indices []uint32
 	}
@@ -407,23 +407,50 @@ func mangleRules(rules []css_ast.Rule) []css_ast.Rule {
 	}
 	rules = rules[:n]
 
-	// Remove duplicate rules, scanning from the back so we keep the last duplicate
+	// Mangle non-top-level rules using a back-to-front pass. Top-level rules
+	// will be mangled by the linker instead for cross-file rule mangling.
+	if !isTopLevel {
+		rules = MakeDuplicateRuleMangler().RemoveDuplicateRulesInPlace(rules)
+	}
+
+	return rules
+}
+
+type hashEntry struct {
+	rules []css_ast.R
+}
+
+type DuplicateRuleRemover struct {
+	entries map[uint32]hashEntry
+}
+
+func MakeDuplicateRuleMangler() DuplicateRuleRemover {
+	return DuplicateRuleRemover{entries: make(map[uint32]hashEntry)}
+}
+
+func (remover DuplicateRuleRemover) RemoveDuplicateRulesInPlace(rules []css_ast.Rule) []css_ast.Rule {
+	// Remove duplicate rules, scanning from the back so we keep the last
+	// duplicate. Note that the linker calls this, so we do not want to do
+	// anything that modifies the rules themselves. One reason is that ASTs
+	// are immutable at the linking stage. Another reason is that merging
+	// CSS ASTs from separate files will mess up source maps because a single
+	// AST cannot simultaneously represent offsets from multiple files.
+	n := len(rules)
 	start := n
-	entries := make(map[uint32]hashEntry)
 skipRule:
 	for i := n - 1; i >= 0; i-- {
 		rule := rules[i]
 
 		// For duplicate rules, omit all but the last copy
 		if hash, ok := rule.Data.Hash(); ok {
-			entry := entries[hash]
-			for _, index := range entry.indices {
-				if rule.Data.Equal(rules[index].Data) {
+			entry := remover.entries[hash]
+			for _, data := range entry.rules {
+				if rule.Data.Equal(data) {
 					continue skipRule
 				}
 			}
-			entry.indices = append(entry.indices, uint32(i))
-			entries[hash] = entry
+			entry.rules = append(entry.rules, rule.Data)
+			remover.entries[hash] = entry
 		}
 
 		start--
