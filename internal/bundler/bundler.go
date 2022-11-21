@@ -2487,6 +2487,9 @@ type runtimeCacheKey struct {
 	unsupportedJSFeatures compat.JSFeature
 	minifySyntax          bool
 	minifyIdentifiers     bool
+	// TODO: Safe to use a pointer here? Is the target itself easier/safer?
+	// tsTargetValue	  *config.TSTarget.value?
+	tsTarget			  *config.TSTarget
 }
 
 type runtimeCache struct {
@@ -2502,6 +2505,7 @@ func (cache *runtimeCache) parseRuntime(options *config.Options) (source logger.
 		unsupportedJSFeatures: options.UnsupportedJSFeatures,
 		minifySyntax:          options.MinifySyntax,
 		minifyIdentifiers:     options.MinifyIdentifiers,
+		tsTarget:              options.TSTarget,
 	}
 
 	// Determine which source to use
@@ -2526,6 +2530,9 @@ func (cache *runtimeCache) parseRuntime(options *config.Options) (source logger.
 		UnsupportedJSFeatures: key.unsupportedJSFeatures,
 		MinifySyntax:          key.minifySyntax,
 		MinifyIdentifiers:     key.minifyIdentifiers,
+		// If there is no top-level esbuild "target" setting, the parser will
+		// use TypeScript's "target" for lowering the runtime source. 
+		TSTarget:              key.tsTarget,
 
 		// Always do tree shaking for the runtime because we never want to
 		// include unnecessary runtime code

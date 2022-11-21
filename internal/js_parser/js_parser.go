@@ -15905,8 +15905,8 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 	}
 
 	// If there is no top-level esbuild "target" setting, include unsupported
-	// JavaScript features from the TypeScript "target" setting. Otherwise the
-	// TypeScript "target" setting is ignored.
+	// JavaScript features based on TypeScript's "target" setting. If there is
+	// an esbuild "target" setting, the TypeScript "target" setting is ignored.
 	if options.targetFromAPI == config.TargetWasUnconfigured && options.tsTarget != nil {
 		options.unsupportedJSFeatures |= options.tsTarget.UnsupportedJSFeatures
 
