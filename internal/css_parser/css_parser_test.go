@@ -1391,35 +1391,6 @@ func TestBoxShadow(t *testing.T) {
 	expectPrintedMangleMinify(t, "a { box-shadow: rgb(255, 0, 17) 0 0 1 inset }", "a{box-shadow:#f01 0 0 1 inset}")
 }
 
-func TestDeduplicateRules(t *testing.T) {
-	expectPrinted(t, "a { color: red; color: green; color: red }",
-		"a {\n  color: red;\n  color: green;\n  color: red;\n}\n")
-	expectPrintedMangle(t, "a { color: red; color: green; color: red }",
-		"a {\n  color: green;\n  color: red;\n}\n")
-
-	expectPrinted(t, "a { color: red } a { color: green } a { color: red }",
-		"a {\n  color: red;\n}\na {\n  color: green;\n}\na {\n  color: red;\n}\n")
-	expectPrintedMangle(t, "a { color: red } a { color: green } a { color: red }",
-		"a {\n  color: green;\n}\na {\n  color: red;\n}\n")
-
-	expectPrintedMangle(t, "@media screen { a { color: red } } @media screen { a { color: red } }",
-		"@media screen {\n  a {\n    color: red;\n  }\n}\n")
-	expectPrintedMangle(t, "@media screen { a { color: red } } @media screen { & a { color: red } }",
-		"@media screen {\n  a {\n    color: red;\n  }\n}\n@media screen {\n  & a {\n    color: red;\n  }\n}\n")
-	expectPrintedMangle(t, "@media screen { a { color: red } } @media screen { a[x] { color: red } }",
-		"@media screen {\n  a {\n    color: red;\n  }\n}\n@media screen {\n  a[x] {\n    color: red;\n  }\n}\n")
-	expectPrintedMangle(t, "@media screen { a { color: red } } @media screen { a.x { color: red } }",
-		"@media screen {\n  a {\n    color: red;\n  }\n}\n@media screen {\n  a.x {\n    color: red;\n  }\n}\n")
-	expectPrintedMangle(t, "@media screen { a { color: red } } @media screen { a#x { color: red } }",
-		"@media screen {\n  a {\n    color: red;\n  }\n}\n@media screen {\n  a#x {\n    color: red;\n  }\n}\n")
-	expectPrintedMangle(t, "@media screen { a { color: red } } @media screen { a:x { color: red } }",
-		"@media screen {\n  a {\n    color: red;\n  }\n}\n@media screen {\n  a:x {\n    color: red;\n  }\n}\n")
-	expectPrintedMangle(t, "@media screen { a:x { color: red } } @media screen { a:x(y) { color: red } }",
-		"@media screen {\n  a:x {\n    color: red;\n  }\n}\n@media screen {\n  a:x(y) {\n    color: red;\n  }\n}\n")
-	expectPrintedMangle(t, "@media screen { a b { color: red } } @media screen { a + b { color: red } }",
-		"@media screen {\n  a b {\n    color: red;\n  }\n}\n@media screen {\n  a + b {\n    color: red;\n  }\n}\n")
-}
-
 func TestMangleTime(t *testing.T) {
 	expectPrintedMangle(t, "a { animation: b 1s }", "a {\n  animation: b 1s;\n}\n")
 	expectPrintedMangle(t, "a { animation: b 1.s }", "a {\n  animation: b 1s;\n}\n")

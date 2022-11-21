@@ -745,3 +745,49 @@ func TestMetafileCSSBundleTwoToOne(t *testing.T) {
 		},
 	})
 }
+
+func TestDeduplicateRules(t *testing.T) {
+	// These are done as bundler tests instead of parser tests because rule
+	// deduplication now happens during linking (so that it has effects across files)
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/yes0.css": "a { color: red; color: green; color: red }",
+			"/yes1.css": "a { color: red } a { color: green } a { color: red }",
+			"/yes2.css": "@media screen { a { color: red } } @media screen { a { color: red } }",
+
+			"/no0.css": "@media screen { a { color: red } } @media screen { & a { color: red } }",
+			"/no1.css": "@media screen { a { color: red } } @media screen { a[x] { color: red } }",
+			"/no2.css": "@media screen { a { color: red } } @media screen { a.x { color: red } }",
+			"/no3.css": "@media screen { a { color: red } } @media screen { a#x { color: red } }",
+			"/no4.css": "@media screen { a { color: red } } @media screen { a:x { color: red } }",
+			"/no5.css": "@media screen { a:x { color: red } } @media screen { a:x(y) { color: red } }",
+			"/no6.css": "@media screen { a b { color: red } } @media screen { a + b { color: red } }",
+
+			"/across-files.css":   "@import 'across-files-0.css'; @import 'across-files-1.css'; @import 'across-files-2.css';",
+			"/across-files-0.css": "a { color: red; color: red }",
+			"/across-files-1.css": "a { color: green }",
+			"/across-files-2.css": "a { color: red }",
+		},
+		entryPaths: []string{
+			"/yes0.css",
+			"/yes1.css",
+			"/yes2.css",
+
+			"/no0.css",
+			"/no1.css",
+			"/no2.css",
+			"/no3.css",
+			"/no4.css",
+			"/no5.css",
+			"/no6.css",
+
+			"/across-files.css",
+		},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			MinifySyntax: true,
+		},
+		expectedScanLog: "no0.css: WARNING: CSS nesting syntax cannot be used outside of a style rule\n",
+	})
+}
