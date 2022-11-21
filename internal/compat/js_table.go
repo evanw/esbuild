@@ -6,6 +6,7 @@ type Engine uint8
 
 const (
 	Chrome Engine = iota
+	Deno
 	Edge
 	ES
 	Firefox
@@ -22,6 +23,8 @@ func (e Engine) String() string {
 	switch e {
 	case Chrome:
 		return "chrome"
+	case Deno:
+		return "deno"
 	case Edge:
 		return "edge"
 	case ES:
@@ -227,6 +230,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	ArraySpread: {
 		Chrome:  {{start: v{46, 0, 0}}},
+		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{13, 0, 0}}},
 		ES:      {{start: v{2015, 0, 0}}},
 		Firefox: {{start: v{36, 0, 0}}},
@@ -238,6 +242,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	Arrow: {
 		Chrome:  {{start: v{49, 0, 0}}},
+		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{13, 0, 0}}},
 		ES:      {{start: v{2015, 0, 0}}},
 		Firefox: {{start: v{45, 0, 0}}},
@@ -248,6 +253,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	AsyncAwait: {
 		Chrome:  {{start: v{55, 0, 0}}},
+		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{15, 0, 0}}},
 		ES:      {{start: v{2017, 0, 0}}},
 		Firefox: {{start: v{52, 0, 0}}},
@@ -258,6 +264,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	AsyncGenerator: {
 		Chrome:  {{start: v{63, 0, 0}}},
+		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{79, 0, 0}}},
 		ES:      {{start: v{2018, 0, 0}}},
 		Firefox: {{start: v{57, 0, 0}}},
@@ -268,9 +275,11 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	Bigint: {
 		Chrome:  {{start: v{67, 0, 0}}},
+		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{79, 0, 0}}},
 		ES:      {{start: v{2020, 0, 0}}},
 		Firefox: {{start: v{68, 0, 0}}},
+		Hermes:  {{start: v{0, 12, 0}}},
 		IOS:     {{start: v{14, 0, 0}}},
 		Node:    {{start: v{10, 4, 0}}},
 		Opera:   {{start: v{54, 0, 0}}},
@@ -279,6 +288,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	Class: {
 		Chrome:  {{start: v{49, 0, 0}}},
+		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{13, 0, 0}}},
 		ES:      {{start: v{2015, 0, 0}}},
 		Firefox: {{start: v{45, 0, 0}}},
@@ -289,6 +299,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	ClassField: {
 		Chrome:  {{start: v{73, 0, 0}}},
+		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{79, 0, 0}}},
 		ES:      {{start: v{2022, 0, 0}}},
 		Firefox: {{start: v{69, 0, 0}}},
@@ -299,6 +310,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	ClassPrivateAccessor: {
 		Chrome:  {{start: v{84, 0, 0}}},
+		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{84, 0, 0}}},
 		ES:      {{start: v{2022, 0, 0}}},
 		Firefox: {{start: v{90, 0, 0}}},
@@ -309,6 +321,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	ClassPrivateBrandCheck: {
 		Chrome:  {{start: v{91, 0, 0}}},
+		Deno:    {{start: v{1, 9, 0}}},
 		Edge:    {{start: v{91, 0, 0}}},
 		ES:      {{start: v{2022, 0, 0}}},
 		Firefox: {{start: v{90, 0, 0}}},
@@ -319,6 +332,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	ClassPrivateField: {
 		Chrome:  {{start: v{84, 0, 0}}},
+		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{84, 0, 0}}},
 		ES:      {{start: v{2022, 0, 0}}},
 		Firefox: {{start: v{90, 0, 0}}},
@@ -329,6 +343,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	ClassPrivateMethod: {
 		Chrome:  {{start: v{84, 0, 0}}},
+		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{84, 0, 0}}},
 		ES:      {{start: v{2022, 0, 0}}},
 		Firefox: {{start: v{90, 0, 0}}},
@@ -339,6 +354,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	ClassPrivateStaticAccessor: {
 		Chrome:  {{start: v{84, 0, 0}}},
+		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{84, 0, 0}}},
 		ES:      {{start: v{2022, 0, 0}}},
 		Firefox: {{start: v{90, 0, 0}}},
@@ -349,6 +365,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	ClassPrivateStaticField: {
 		Chrome:  {{start: v{74, 0, 0}}},
+		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{79, 0, 0}}},
 		ES:      {{start: v{2022, 0, 0}}},
 		Firefox: {{start: v{90, 0, 0}}},
@@ -359,6 +376,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	ClassPrivateStaticMethod: {
 		Chrome:  {{start: v{84, 0, 0}}},
+		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{84, 0, 0}}},
 		ES:      {{start: v{2022, 0, 0}}},
 		Firefox: {{start: v{90, 0, 0}}},
@@ -377,6 +395,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	ClassStaticField: {
 		Chrome:  {{start: v{73, 0, 0}}},
+		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{79, 0, 0}}},
 		ES:      {{start: v{2022, 0, 0}}},
 		Firefox: {{start: v{75, 0, 0}}},
@@ -387,6 +406,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	ConstAndLet: {
 		Chrome:  {{start: v{49, 0, 0}}},
+		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{14, 0, 0}}},
 		ES:      {{start: v{2015, 0, 0}}},
 		Firefox: {{start: v{51, 0, 0}}},
@@ -397,6 +417,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	DefaultArgument: {
 		Chrome:  {{start: v{49, 0, 0}}},
+		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{14, 0, 0}}},
 		ES:      {{start: v{2015, 0, 0}}},
 		Firefox: {{start: v{53, 0, 0}}},
@@ -407,6 +428,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	Destructuring: {
 		Chrome:  {{start: v{51, 0, 0}}},
+		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{18, 0, 0}}},
 		ES:      {{start: v{2015, 0, 0}}},
 		Firefox: {{start: v{53, 0, 0}}},
@@ -428,6 +450,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	ExponentOperator: {
 		Chrome:  {{start: v{52, 0, 0}}},
+		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{14, 0, 0}}},
 		ES:      {{start: v{2016, 0, 0}}},
 		Firefox: {{start: v{52, 0, 0}}},
@@ -448,6 +471,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	ForAwait: {
 		Chrome:  {{start: v{63, 0, 0}}},
+		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{79, 0, 0}}},
 		ES:      {{start: v{2018, 0, 0}}},
 		Firefox: {{start: v{57, 0, 0}}},
@@ -458,6 +482,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	ForOf: {
 		Chrome:  {{start: v{51, 0, 0}}},
+		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{15, 0, 0}}},
 		ES:      {{start: v{2015, 0, 0}}},
 		Firefox: {{start: v{53, 0, 0}}},
@@ -469,6 +494,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	Generator: {
 		Chrome:  {{start: v{50, 0, 0}}},
+		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{13, 0, 0}}},
 		ES:      {{start: v{2015, 0, 0}}},
 		Firefox: {{start: v{53, 0, 0}}},
@@ -479,6 +505,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	Hashbang: {
 		Chrome:  {{start: v{74, 0, 0}}},
+		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{79, 0, 0}}},
 		Firefox: {{start: v{67, 0, 0}}},
 		IOS:     {{start: v{13, 4, 0}}},
@@ -502,6 +529,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	LogicalAssignment: {
 		Chrome:  {{start: v{85, 0, 0}}},
+		Deno:    {{start: v{1, 2, 0}}},
 		Edge:    {{start: v{85, 0, 0}}},
 		ES:      {{start: v{2021, 0, 0}}},
 		Firefox: {{start: v{79, 0, 0}}},
@@ -513,6 +541,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	NestedRestBinding: {
 		Chrome:  {{start: v{49, 0, 0}}},
+		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{14, 0, 0}}},
 		ES:      {{start: v{2016, 0, 0}}},
 		Firefox: {{start: v{47, 0, 0}}},
@@ -524,6 +553,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	NewTarget: {
 		Chrome:  {{start: v{46, 0, 0}}},
+		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{14, 0, 0}}},
 		ES:      {{start: v{2015, 0, 0}}},
 		Firefox: {{start: v{41, 0, 0}}},
@@ -541,6 +571,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	NullishCoalescing: {
 		Chrome:  {{start: v{80, 0, 0}}},
+		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{80, 0, 0}}},
 		ES:      {{start: v{2020, 0, 0}}},
 		Firefox: {{start: v{72, 0, 0}}},
@@ -552,6 +583,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	ObjectAccessors: {
 		Chrome:  {{start: v{5, 0, 0}}},
+		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{12, 0, 0}}},
 		ES:      {{start: v{5, 0, 0}}},
 		Firefox: {{start: v{2, 0, 0}}},
@@ -565,6 +597,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	ObjectExtensions: {
 		Chrome:  {{start: v{44, 0, 0}}},
+		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{12, 0, 0}}},
 		ES:      {{start: v{2015, 0, 0}}},
 		Firefox: {{start: v{34, 0, 0}}},
@@ -576,6 +609,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	ObjectRestSpread: {
 		Chrome:  {{start: v{60, 0, 0}}},
+		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{79, 0, 0}}},
 		ES:      {{start: v{2018, 0, 0}}},
 		Firefox: {{start: v{55, 0, 0}}},
@@ -587,9 +621,11 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	OptionalCatchBinding: {
 		Chrome:  {{start: v{66, 0, 0}}},
+		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{79, 0, 0}}},
 		ES:      {{start: v{2019, 0, 0}}},
 		Firefox: {{start: v{58, 0, 0}}},
+		Hermes:  {{start: v{0, 12, 0}}},
 		IOS:     {{start: v{11, 3, 0}}},
 		Node:    {{start: v{10, 0, 0}}},
 		Opera:   {{start: v{53, 0, 0}}},
@@ -597,6 +633,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	OptionalChain: {
 		Chrome:  {{start: v{91, 0, 0}}},
+		Deno:    {{start: v{1, 9, 0}}},
 		Edge:    {{start: v{91, 0, 0}}},
 		ES:      {{start: v{2020, 0, 0}}},
 		Firefox: {{start: v{74, 0, 0}}},
@@ -607,6 +644,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	RegexpDotAllFlag: {
 		Chrome:  {{start: v{62, 0, 0}}},
+		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{79, 0, 0}}},
 		ES:      {{start: v{2018, 0, 0}}},
 		Firefox: {{start: v{78, 0, 0}}},
@@ -618,6 +656,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	RegexpLookbehindAssertions: {
 		Chrome:  {{start: v{62, 0, 0}}},
+		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{79, 0, 0}}},
 		ES:      {{start: v{2018, 0, 0}}},
 		Firefox: {{start: v{78, 0, 0}}},
@@ -636,6 +675,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	RegexpNamedCaptureGroups: {
 		Chrome:  {{start: v{64, 0, 0}}},
+		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{79, 0, 0}}},
 		ES:      {{start: v{2018, 0, 0}}},
 		Firefox: {{start: v{78, 0, 0}}},
@@ -646,6 +686,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	RegexpStickyAndUnicodeFlags: {
 		Chrome:  {{start: v{50, 0, 0}}},
+		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{13, 0, 0}}},
 		ES:      {{start: v{2015, 0, 0}}},
 		Firefox: {{start: v{46, 0, 0}}},
@@ -657,6 +698,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	RegexpUnicodePropertyEscapes: {
 		Chrome:  {{start: v{64, 0, 0}}},
+		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{79, 0, 0}}},
 		ES:      {{start: v{2018, 0, 0}}},
 		Firefox: {{start: v{78, 0, 0}}},
@@ -667,6 +709,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	RestArgument: {
 		Chrome:  {{start: v{47, 0, 0}}},
+		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{12, 0, 0}}},
 		ES:      {{start: v{2015, 0, 0}}},
 		Firefox: {{start: v{43, 0, 0}}},
@@ -677,6 +720,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	TemplateLiteral: {
 		Chrome:  {{start: v{41, 0, 0}}},
+		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{13, 0, 0}}},
 		ES:      {{start: v{2015, 0, 0}}},
 		Firefox: {{start: v{34, 0, 0}}},
@@ -707,6 +751,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	UnicodeEscapes: {
 		Chrome:  {{start: v{44, 0, 0}}},
+		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{12, 0, 0}}},
 		ES:      {{start: v{2015, 0, 0}}},
 		Firefox: {{start: v{53, 0, 0}}},

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+* Add `deno` as a valid value for `target` ([#2686](https://github.com/evanw/esbuild/issues/2686))
+
+    The `target` setting in esbuild allows you to enable or disable JavaScript syntax features for a given version of a set of target JavaScript VMs. Previously [Deno](https://deno.land/) was not one of the JavaScript VMs that esbuild supported with `target`, but it will now be supported starting from this release. For example, versions of Deno older than v1.2 don't support the new `||=` operator, so adding e.g. `--target=deno1.0` to esbuild now lets you tell esbuild to transpile `||=` to older JavaScript.
+
 * Fix the `esbuild-wasm` package in Node v19 ([#2683](https://github.com/evanw/esbuild/issues/2683))
 
     A recent change to Node v19 added a non-writable `crypto` property to the global object: https://github.com/nodejs/node/pull/44897. This conflicts with Go's WebAssembly shim code, which overwrites the global `crypto` property. As a result, all Go-based WebAssembly code that uses the built-in shim (including esbuild) is now broken on Node v19. This release of esbuild fixes the issue by reconfiguring the global `crypto` property to be writable before invoking Go's WebAssembly shim code.

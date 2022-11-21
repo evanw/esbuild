@@ -6,6 +6,7 @@ import "github.com/evanw/esbuild/pkg/api"
 
 var validEngines = map[string]api.EngineName{
 	"chrome":  api.EngineChrome,
+	"deno":    api.EngineDeno,
 	"edge":    api.EngineEdge,
 	"firefox": api.EngineFirefox,
 	"hermes":  api.EngineHermes,

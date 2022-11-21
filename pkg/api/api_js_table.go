@@ -15,6 +15,7 @@ const (
 	EngineNode
 	EngineOpera
 	EngineSafari
+	EngineDeno
 	EngineHermes
 	EngineRhino
 )
@@ -37,6 +38,8 @@ func convertEngineName(engine EngineName) compat.Engine {
 		return compat.Opera
 	case EngineSafari:
 		return compat.Safari
+	case EngineDeno:
+		return compat.Deno
 	case EngineHermes:
 		return compat.Hermes
 	case EngineRhino:

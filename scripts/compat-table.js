@@ -97,6 +97,7 @@ const engines = [
   'safari',
 
   // Uncommon JavaScript runtimes
+  'deno',
   'hermes',
   'rhino',
 ]
