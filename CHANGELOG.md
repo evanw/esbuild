@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.15.15
 
 * Remove duplicate CSS rules across files ([#2688](https://github.com/evanw/esbuild/issues/2688))
 
