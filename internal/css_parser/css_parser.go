@@ -330,8 +330,11 @@ func mangleRules(rules []css_ast.Rule) []css_ast.Rule {
 	}
 
 	// Remove empty rules
+	var prevNonComment css_ast.R
 	n := 0
 	for _, rule := range rules {
+		nextNonComment := rule.Data
+
 		switch r := rule.Data.(type) {
 		case *css_ast.RAtKeyframes:
 			// Do not remove empty "@keyframe foo {}" rules. Even empty rules still
@@ -369,6 +372,34 @@ func mangleRules(rules []css_ast.Rule) []css_ast.Rule {
 			if len(r.Rules) == 0 {
 				continue
 			}
+
+			// Merge adjacent selectors with the same content
+			// "a { color: red; } b { color: red; }" => "a, b { color: red; }"
+			if prevNonComment != nil {
+				if r, ok := rule.Data.(*css_ast.RSelector); ok {
+					if prev, ok := prevNonComment.(*css_ast.RSelector); ok && css_ast.RulesEqual(r.Rules, prev.Rules) &&
+						isSafeSelectors(r.Selectors) && isSafeSelectors(prev.Selectors) {
+					nextSelector:
+						for _, sel := range r.Selectors {
+							for _, prevSel := range prev.Selectors {
+								if sel.Equal(prevSel) {
+									// Don't add duplicate selectors more than once
+									continue nextSelector
+								}
+							}
+							prev.Selectors = append(prev.Selectors, sel)
+						}
+						continue
+					}
+				}
+			}
+
+		case *css_ast.RComment:
+			nextNonComment = nil
+		}
+
+		if nextNonComment != nil {
+			prevNonComment = nextNonComment
 		}
 
 		rules[n] = rule
@@ -382,36 +413,6 @@ func mangleRules(rules []css_ast.Rule) []css_ast.Rule {
 skipRule:
 	for i := n - 1; i >= 0; i-- {
 		rule := rules[i]
-
-		// Skip over preserved comments
-		next := i - 1
-		for next >= 0 {
-			if _, ok := rules[next].Data.(*css_ast.RComment); !ok {
-				break
-			}
-			next--
-		}
-
-		// Merge adjacent selectors with the same content
-		// "a { color: red; } b { color: red; }" => "a, b { color: red; }"
-		if next >= 0 {
-			if r, ok := rule.Data.(*css_ast.RSelector); ok {
-				if prev, ok := rules[next].Data.(*css_ast.RSelector); ok && css_ast.RulesEqual(r.Rules, prev.Rules) &&
-					isSafeSelectors(r.Selectors) && isSafeSelectors(prev.Selectors) {
-				nextSelector:
-					for _, sel := range r.Selectors {
-						for _, prevSel := range prev.Selectors {
-							if sel.Equal(prevSel) {
-								// Don't add duplicate selectors more than once
-								continue nextSelector
-							}
-						}
-						prev.Selectors = append(prev.Selectors, sel)
-					}
-					continue skipRule
-				}
-			}
-		}
 
 		// For duplicate rules, omit all but the last copy
 		if hash, ok := rule.Data.Hash(); ok {
