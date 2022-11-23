@@ -4206,7 +4206,7 @@ let transformTests = {
       },
       loader: 'jsx',
     })
-    assert.strictEqual(code3, `import { Fragment, jsx } from "react/jsx-runtime";\n/* @__PURE__ */ jsx(Fragment, {\n  children: /* @__PURE__ */ jsx("div", {})\n});\n`)
+    assert.strictEqual(code3, `import { Fragment, jsx } from "react/jsx-runtime";\n/* @__PURE__ */ jsx(Fragment, { children: /* @__PURE__ */ jsx("div", {}) });\n`)
 
     const { code: code4 } = await esbuild.transform(`<><div/></>`, {
       tsconfigRaw: {
@@ -4217,7 +4217,7 @@ let transformTests = {
       },
       loader: 'jsx',
     })
-    assert.strictEqual(code4, `import { Fragment, jsx } from "notreact/jsx-runtime";\n/* @__PURE__ */ jsx(Fragment, {\n  children: /* @__PURE__ */ jsx("div", {})\n});\n`)
+    assert.strictEqual(code4, `import { Fragment, jsx } from "notreact/jsx-runtime";\n/* @__PURE__ */ jsx(Fragment, { children: /* @__PURE__ */ jsx("div", {}) });\n`)
 
     const { code: code5 } = await esbuild.transform(`<><div/></>`, {
       tsconfigRaw: {
@@ -4227,7 +4227,7 @@ let transformTests = {
       },
       loader: 'jsx',
     })
-    assert.strictEqual(code5, `import { Fragment, jsxDEV } from "react/jsx-dev-runtime";\n/* @__PURE__ */ jsxDEV(Fragment, {\n  children: /* @__PURE__ */ jsxDEV("div", {}, void 0, false, {\n    fileName: "<stdin>",\n    lineNumber: 1,\n    columnNumber: 3\n  }, this)\n}, void 0, false, {\n  fileName: "<stdin>",\n  lineNumber: 1,\n  columnNumber: 1\n}, this);\n`)
+    assert.strictEqual(code5, `import { Fragment, jsxDEV } from "react/jsx-dev-runtime";\n/* @__PURE__ */ jsxDEV(Fragment, { children: /* @__PURE__ */ jsxDEV("div", {}, void 0, false, {\n  fileName: "<stdin>",\n  lineNumber: 1,\n  columnNumber: 3\n}, this) }, void 0, false, {\n  fileName: "<stdin>",\n  lineNumber: 1,\n  columnNumber: 1\n}, this);\n`)
   },
 
   // Note: tree shaking is disabled when the output format isn't IIFE
