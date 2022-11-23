@@ -553,16 +553,10 @@ console.log(123);
 TestDuplicatePropertyWarning
 ---------- /out/entry.js ----------
 // outside-node-modules/index.jsx
-console.log({ a: 1, a: 2 }, /* @__PURE__ */ React.createElement("div", {
-  a2: true,
-  a2: 3
-}));
+console.log({ a: 1, a: 2 }, /* @__PURE__ */ React.createElement("div", { a2: true, a2: 3 }));
 
 // node_modules/inside-node-modules/index.jsx
-console.log({ c: 1, c: 2 }, /* @__PURE__ */ React.createElement("div", {
-  c2: true,
-  c2: 3
-}));
+console.log({ c: 1, c: 2 }, /* @__PURE__ */ React.createElement("div", { c2: true, c2: 3 }));
 
 ================================================================================
 TestDynamicImportWithExpressionCJS
@@ -1439,11 +1433,7 @@ var require_custom_react = __commonJS({
 // entry.jsx
 var import_custom_react = __toESM(require_custom_react());
 import { Fragment as Fragment2, jsx as jsx2 } from "react/jsx-runtime";
-console.log(/* @__PURE__ */ jsx2("div", {
-  jsx: import_custom_react.jsx
-}), /* @__PURE__ */ jsx2(Fragment2, {
-  children: /* @__PURE__ */ jsx2(import_custom_react.Fragment, {})
-}));
+console.log(/* @__PURE__ */ jsx2("div", { jsx: import_custom_react.jsx }), /* @__PURE__ */ jsx2(Fragment2, { children: /* @__PURE__ */ jsx2(import_custom_react.Fragment, {}) }));
 
 ================================================================================
 TestJSXAutomaticImportsES6
@@ -1456,21 +1446,14 @@ function Fragment() {
 
 // entry.jsx
 import { Fragment as Fragment2, jsx as jsx2 } from "react/jsx-runtime";
-console.log(/* @__PURE__ */ jsx2("div", {
-  jsx
-}), /* @__PURE__ */ jsx2(Fragment2, {
-  children: /* @__PURE__ */ jsx2(Fragment, {})
-}));
+console.log(/* @__PURE__ */ jsx2("div", { jsx }), /* @__PURE__ */ jsx2(Fragment2, { children: /* @__PURE__ */ jsx2(Fragment, {}) }));
 
 ================================================================================
 TestJSXAutomaticNoNameCollision
 ---------- /out.js ----------
 var import_react = require("react");
 var import_react2 = require("@remix-run/react");
-const x = /* @__PURE__ */ (0, import_react.createElement)(import_react2.Link, {
-  ...y,
-  key: z
-});
+const x = /* @__PURE__ */ (0, import_react.createElement)(import_react2.Link, { ...y, key: z });
 
 ================================================================================
 TestJSXConstantFragments

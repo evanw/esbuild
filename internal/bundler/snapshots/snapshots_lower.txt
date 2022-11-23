@@ -800,29 +800,10 @@ let tests = [
 ];
 let jsx = [
   /* @__PURE__ */ React.createElement("div", __spreadValues(__spreadValues({}, a), b)),
-  /* @__PURE__ */ React.createElement("div", __spreadValues({
-    a: true,
-    b: true
-  }, c)),
-  /* @__PURE__ */ React.createElement("div", __spreadProps(__spreadValues({}, a), {
-    b: true,
-    c: true
-  })),
-  /* @__PURE__ */ React.createElement("div", __spreadProps(__spreadValues({
-    a: true
-  }, b), {
-    c: true
-  })),
-  /* @__PURE__ */ React.createElement("div", __spreadProps(__spreadValues(__spreadValues(__spreadProps(__spreadValues(__spreadValues({
-    a: true,
-    b: true
-  }, c), d), {
-    e: true,
-    f: true
-  }), g), h), {
-    i: true,
-    j: true
-  }))
+  /* @__PURE__ */ React.createElement("div", __spreadValues({ a: true, b: true }, c)),
+  /* @__PURE__ */ React.createElement("div", __spreadProps(__spreadValues({}, a), { b: true, c: true })),
+  /* @__PURE__ */ React.createElement("div", __spreadProps(__spreadValues({ a: true }, b), { c: true })),
+  /* @__PURE__ */ React.createElement("div", __spreadProps(__spreadValues(__spreadValues(__spreadProps(__spreadValues(__spreadValues({ a: true, b: true }, c), d), { e: true, f: true }), g), h), { i: true, j: true }))
 ];
 
 ================================================================================

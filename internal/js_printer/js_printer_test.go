@@ -934,6 +934,22 @@ func TestJSX(t *testing.T) {
 	expectPrintedJSXMinify(t, "<a>{' x '}{'<b/>'}{' y '}</a>", "<a> x {\"<b/>\"} y </a>;")
 }
 
+func TestJSXSingleLine(t *testing.T) {
+	expectPrintedJSX(t, "<x/>", "<x />;\n")
+	expectPrintedJSX(t, "<x y/>", "<x y />;\n")
+	expectPrintedJSX(t, "<x\n/>", "<x />;\n")
+	expectPrintedJSX(t, "<x\ny/>", "<x\n  y\n/>;\n")
+	expectPrintedJSX(t, "<x y\n/>", "<x\n  y\n/>;\n")
+	expectPrintedJSX(t, "<x\n{...y}/>", "<x\n  {...y}\n/>;\n")
+
+	expectPrintedJSXMinify(t, "<x/>", "<x/>;")
+	expectPrintedJSXMinify(t, "<x y/>", "<x y/>;")
+	expectPrintedJSXMinify(t, "<x\n/>", "<x/>;")
+	expectPrintedJSXMinify(t, "<x\ny/>", "<x y/>;")
+	expectPrintedJSXMinify(t, "<x y\n/>", "<x y/>;")
+	expectPrintedJSXMinify(t, "<x\n{...y}/>", "<x{...y}/>;")
+}
+
 func TestAvoidSlashScript(t *testing.T) {
 	// Positive cases
 	expectPrinted(t, "x = '</script'", "x = \"<\\/script\";\n")

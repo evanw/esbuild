@@ -660,10 +660,11 @@ type EMangledProp struct {
 }
 
 type EJSXElement struct {
-	TagOrNil   Expr
-	Properties []Property
-	Children   []Expr
-	CloseLoc   logger.Loc
+	TagOrNil        Expr
+	Properties      []Property
+	Children        []Expr
+	CloseLoc        logger.Loc
+	IsTagSingleLine bool
 }
 
 type ENumber struct{ Value float64 }

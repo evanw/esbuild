@@ -319,32 +319,28 @@ TestTsConfigReactJSX
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/entry.tsx
 import { Fragment, jsx, jsxs } from "notreact/jsx-runtime";
-console.log(/* @__PURE__ */ jsxs(Fragment, {
-  children: [
-    /* @__PURE__ */ jsx("div", {}),
-    /* @__PURE__ */ jsx("div", {})
-  ]
-}));
+console.log(/* @__PURE__ */ jsxs(Fragment, { children: [
+  /* @__PURE__ */ jsx("div", {}),
+  /* @__PURE__ */ jsx("div", {})
+] }));
 
 ================================================================================
 TestTsConfigReactJSXDev
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/entry.tsx
 import { Fragment, jsxDEV } from "react/jsx-dev-runtime";
-console.log(/* @__PURE__ */ jsxDEV(Fragment, {
-  children: [
-    /* @__PURE__ */ jsxDEV("div", {}, void 0, false, {
-      fileName: "Users/user/project/entry.tsx",
-      lineNumber: 2,
-      columnNumber: 19
-    }, this),
-    /* @__PURE__ */ jsxDEV("div", {}, void 0, false, {
-      fileName: "Users/user/project/entry.tsx",
-      lineNumber: 2,
-      columnNumber: 25
-    }, this)
-  ]
-}, void 0, true, {
+console.log(/* @__PURE__ */ jsxDEV(Fragment, { children: [
+  /* @__PURE__ */ jsxDEV("div", {}, void 0, false, {
+    fileName: "Users/user/project/entry.tsx",
+    lineNumber: 2,
+    columnNumber: 19
+  }, this),
+  /* @__PURE__ */ jsxDEV("div", {}, void 0, false, {
+    fileName: "Users/user/project/entry.tsx",
+    lineNumber: 2,
+    columnNumber: 25
+  }, this)
+] }, void 0, true, {
   fileName: "Users/user/project/entry.tsx",
   lineNumber: 2,
   columnNumber: 17
@@ -355,20 +351,18 @@ TestTsConfigReactJSXWithDevInMainConfig
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/entry.tsx
 import { Fragment, jsxDEV } from "react/jsx-dev-runtime";
-console.log(/* @__PURE__ */ jsxDEV(Fragment, {
-  children: [
-    /* @__PURE__ */ jsxDEV("div", {}, void 0, false, {
-      fileName: "Users/user/project/entry.tsx",
-      lineNumber: 2,
-      columnNumber: 19
-    }, this),
-    /* @__PURE__ */ jsxDEV("div", {}, void 0, false, {
-      fileName: "Users/user/project/entry.tsx",
-      lineNumber: 2,
-      columnNumber: 25
-    }, this)
-  ]
-}, void 0, true, {
+console.log(/* @__PURE__ */ jsxDEV(Fragment, { children: [
+  /* @__PURE__ */ jsxDEV("div", {}, void 0, false, {
+    fileName: "Users/user/project/entry.tsx",
+    lineNumber: 2,
+    columnNumber: 19
+  }, this),
+  /* @__PURE__ */ jsxDEV("div", {}, void 0, false, {
+    fileName: "Users/user/project/entry.tsx",
+    lineNumber: 2,
+    columnNumber: 25
+  }, this)
+] }, void 0, true, {
   fileName: "Users/user/project/entry.tsx",
   lineNumber: 2,
   columnNumber: 17

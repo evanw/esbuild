@@ -1594,10 +1594,18 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		p.addSourceMapping(expr.Loc)
 		p.print("<")
 		p.printJSXTag(e.TagOrNil)
+		if !e.IsTagSingleLine {
+			p.options.Indent++
+		}
 
 		// Print the attributes
 		for _, property := range e.Properties {
-			p.printSpace()
+			if e.IsTagSingleLine {
+				p.printSpace()
+			} else {
+				p.printNewline()
+				p.printIndent()
+			}
 
 			if property.Kind == js_ast.PropertySpread {
 				p.print("{...")
@@ -1640,8 +1648,17 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		}
 
 		// End the opening tag
+		if !e.IsTagSingleLine {
+			p.options.Indent--
+			if len(e.Properties) > 0 {
+				p.printNewline()
+				p.printIndent()
+			}
+		}
 		if e.TagOrNil.Data != nil && len(e.Children) == 0 {
-			p.printSpace()
+			if e.IsTagSingleLine || len(e.Properties) == 0 {
+				p.printSpace()
+			}
 			p.addSourceMapping(e.CloseLoc)
 			p.print("/>")
 			break

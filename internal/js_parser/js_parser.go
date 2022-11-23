@@ -4608,9 +4608,14 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 	// Parse attributes
 	var previousStringWithBackslashLoc logger.Loc
 	properties := []js_ast.Property{}
+	isSingleLine := true
 	if startTagOrNil.Data != nil {
 	parseAttributes:
 		for {
+			if p.lexer.HasNewlineBefore {
+				isSingleLine = false
+			}
+
 			switch p.lexer.Token {
 			case js_lexer.TIdentifier:
 				// Parse the key
@@ -4749,9 +4754,10 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 			p.lexer.Expected(js_lexer.TGreaterThan)
 		}
 		return js_ast.Expr{Loc: loc, Data: &js_ast.EJSXElement{
-			TagOrNil:   startTagOrNil,
-			Properties: properties,
-			CloseLoc:   closeLoc,
+			TagOrNil:        startTagOrNil,
+			Properties:      properties,
+			CloseLoc:        closeLoc,
+			IsTagSingleLine: isSingleLine,
 		}}
 	}
 
@@ -4841,10 +4847,11 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 			}
 
 			return js_ast.Expr{Loc: loc, Data: &js_ast.EJSXElement{
-				TagOrNil:   startTagOrNil,
-				Properties: properties,
-				Children:   children,
-				CloseLoc:   lessThanLoc,
+				TagOrNil:        startTagOrNil,
+				Properties:      properties,
+				Children:        children,
+				CloseLoc:        lessThanLoc,
+				IsTagSingleLine: isSingleLine,
 			}}
 
 		default:
@@ -12394,7 +12401,8 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				args := []js_ast.Expr{e.TagOrNil}
 				if len(e.Properties) > 0 {
 					args = append(args, p.lowerObjectSpread(propsLoc, &js_ast.EObject{
-						Properties: e.Properties,
+						Properties:   e.Properties,
+						IsSingleLine: e.IsTagSingleLine,
 					}))
 				} else {
 					args = append(args, js_ast.Expr{Loc: propsLoc, Data: js_ast.ENullShared})
@@ -12418,6 +12426,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					Target:        target,
 					Args:          args,
 					CloseParenLoc: e.CloseLoc,
+					IsMultiLine:   !e.IsTagSingleLine,
 
 					// Enable tree shaking
 					CanBeUnwrappedIfUnused: !p.options.ignoreDCEAnnotations && !p.options.jsx.SideEffects,
@@ -12496,7 +12505,8 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				}
 
 				args = append(args, p.lowerObjectSpread(propsLoc, &js_ast.EObject{
-					Properties: properties,
+					Properties:   properties,
+					IsSingleLine: e.IsTagSingleLine,
 				}))
 
 				// "key"
@@ -12546,6 +12556,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					Target:        p.importJSXSymbol(expr.Loc, jsx),
 					Args:          args,
 					CloseParenLoc: e.CloseLoc,
+					IsMultiLine:   !e.IsTagSingleLine,
 
 					// Enable tree shaking
 					CanBeUnwrappedIfUnused: !p.options.ignoreDCEAnnotations && !p.options.jsx.SideEffects,

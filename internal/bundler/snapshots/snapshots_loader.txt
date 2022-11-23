@@ -643,9 +643,7 @@ let Foo = {
     console.log("Fragment", ...args);
   }
 };
-export default /* @__PURE__ */ Foo.a(Foo.b, {
-  c: Foo.e
-});
+export default /* @__PURE__ */ Foo.a(Foo.b, { c: Foo.e });
 
 ================================================================================
 TestManglePropsJSXTransformNamespace
@@ -653,9 +651,7 @@ TestManglePropsJSXTransformNamespace
 export default [
   /* @__PURE__ */ React.createElement(KEEP_THIS_, null),
   /* @__PURE__ */ React.createElement("KEEP:THIS_", null),
-  /* @__PURE__ */ React.createElement("foo", {
-    "KEEP:THIS_": true
-  })
+  /* @__PURE__ */ React.createElement("foo", { "KEEP:THIS_": true })
 ];
 
 ================================================================================
