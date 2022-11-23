@@ -1619,9 +1619,20 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 				name := p.mangledPropName(mangled.Ref)
 				p.addSourceMappingForName(property.Key.Loc, name, mangled.Ref)
 				p.printIdentifier(name)
-			} else {
+			} else if str, ok := property.Key.Data.(*js_ast.EString); ok {
 				p.addSourceMapping(property.Key.Loc)
-				p.print(helpers.UTF16ToString(property.Key.Data.(*js_ast.EString).Value))
+				p.print(helpers.UTF16ToString(str.Value))
+			} else {
+				p.print("{...{")
+				p.printSpace()
+				p.print("[")
+				p.printExpr(property.Key, js_ast.LComma, 0)
+				p.print("]:")
+				p.printSpace()
+				p.printExpr(property.ValueOrNil, js_ast.LComma, 0)
+				p.printSpace()
+				p.print("}}")
+				continue
 			}
 
 			// Special-case string values

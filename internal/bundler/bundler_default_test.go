@@ -6777,3 +6777,42 @@ func TestNonDeterminismIssue2537(t *testing.T) {
 		},
 	})
 }
+
+// See: https://github.com/evanw/esbuild/issues/2697
+func TestMinifiedJSXPreserveWithObjectSpread(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.jsx": `
+				const obj = {
+					before,
+					...{ [key]: value },
+					...{ key: value },
+					after,
+				};
+				<Foo
+					before
+					{...{ [key]: value }}
+					{...{ key: value }}
+					after
+				/>;
+				<Bar
+					{...{
+						a,
+						[b]: c,
+						...d,
+						e,
+					}}
+				/>;
+			`,
+		},
+		entryPaths: []string{"/entry.jsx"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			MinifySyntax:  true,
+			JSX: config.JSXOptions{
+				Preserve: true,
+			},
+		},
+	})
+}

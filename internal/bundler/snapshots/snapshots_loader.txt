@@ -923,6 +923,29 @@ var { a: x } = y, { ["a"]: x } = y, { [(z, "a")]: x } = y;
 "a" in x, (y ? "a" : z) in x, (y ? z : "a") in x, y, "a" in x;
 
 ================================================================================
+TestMinifiedJSXPreserveWithObjectSpread
+---------- /out.js ----------
+// entry.jsx
+var obj = {
+  before,
+  [key]: value,
+  key: value,
+  after
+};
+<Foo
+  before
+  {...{ [key]: value }}
+  key={value}
+  after
+/>;
+<Bar
+  a={a}
+  {...{ [b]: c }}
+  {...d}
+  e={e}
+/>;
+
+================================================================================
 TestMinifyIdentifiersImportPathFrequencyAnalysis
 ---------- /out/import.js ----------
 var o=123;console.log(o,"no identifier in this file should be named W, X, Y, or Z");

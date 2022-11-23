@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix crash when pretty-printing minified JSX with object spread of object literal with computed property ([#2697](https://github.com/evanw/esbuild/issues/2697))
+
+    JSX elements are translated to JavaScript function calls and JSX element attributes are translated to properties on a JavaScript object literal. These properties are always either strings (e.g. in `<x y />`, `y` is a string) or an object spread (e.g. in `<x {...y} />`, `y` is an object spread) because JSX doesn't provide syntax for directly passing a computed property as a JSX attribute. However, esbuild's minifier has a rule that tries to inline object spread with an inline object literal in JavaScript. For example, `x = { ...{ y } }` is minified to `x={y}` when minification is enabled. This means that there is a way to generate a non-string non-spread JSX attribute in esbuild's internal representation. One example is with `<x {...{ [y]: z }} />`. When minification is enabled, esbuild's internal representation of this is something like `<x [y]={z} />` due to object spread inlining, which is not valid JSX syntax. If this internal representation is then pretty-printed as JSX using `--minify --jsx=preserve`, esbuild previously crashed when trying to print this invalid syntax. With this release, esbuild will now print `<x {...{[y]:z}}/>` in this scenario instead of crashing.
+
 ## 0.15.15
 
 * Remove duplicate CSS rules across files ([#2688](https://github.com/evanw/esbuild/issues/2688))
