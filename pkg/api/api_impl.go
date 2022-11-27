@@ -481,9 +481,7 @@ func validateAlias(log logger.Log, fs fs.FS, alias map[string]string) map[string
 	valid := make(map[string]string, len(alias))
 
 	for old, new := range alias {
-		if new == "" || new == "." || new == ".." ||
-			strings.HasPrefix(new, "./") || strings.HasPrefix(new, "../") ||
-			strings.HasPrefix(new, ".\\") || strings.HasPrefix(new, "..\\") {
+		if new == "" {
 			log.AddError(nil, logger.Range{}, fmt.Sprintf("Invalid alias substitution: %q", new))
 			continue
 		}

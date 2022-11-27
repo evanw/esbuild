@@ -6284,6 +6284,25 @@ tests.push(
   }),
 )
 
+// Test the alias feature
+tests.push(
+  test(['in.js', '--outfile=node.js', '--bundle', '--alias:foo=./bar/baz'], {
+    'in.js': `import "foo"`,
+    'node_modules/foo/index.js': `test failure`,
+    'bar/baz.js': ``,
+  }),
+  test(['in.js', '--outfile=node.js', '--bundle', '--alias:foo=./bar/../baz'], {
+    'in.js': `import "foo"`,
+    'node_modules/foo/index.js': `test failure`,
+    'baz.js': ``,
+  }),
+  test(['in.js', '--outfile=node.js', '--bundle', '--alias:@scope=./bar'], {
+    'in.js': `import "@scope/foo"`,
+    'node_modules/@scope/foo/index.js': `test failure`,
+    'bar/foo.js': ``,
+  }),
+)
+
 // Test writing to stdout
 tests.push(
   // These should succeed

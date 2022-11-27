@@ -6,7 +6,7 @@
 
     With this release, you can now easily substitute one package for another at build time with the new `alias` feature. For example, `--alias:oldpkg=newpkg` replaces all imports of `oldpkg` with `newpkg`. One use case for this is easily replacing a node-only package with a browser-friendly package in 3rd-party code that you don't control. These new substitutions happen first before all of esbuild's existing path resolution logic.
 
-    Note that when an import path is substituted using an alias, the resulting import path is resolved in the working directory instead of in the directory containing the source file with the import path. The working directory can be set with the `cd` command when using the CLI or with the `absWorkingDir` setting when using the JS or Go APIs.
+    Note that when an import path is substituted using an alias, the resulting import path is resolved in the working directory instead of in the directory containing the source file with the import path. If needed, the working directory can be set with the `cd` command when using the CLI or with the `absWorkingDir` setting when using the JS or Go APIs.
 
 * Fix crash when pretty-printing minified JSX with object spread of object literal with computed property ([#2697](https://github.com/evanw/esbuild/issues/2697))
 

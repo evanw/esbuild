@@ -128,7 +128,7 @@ let buildTests = {
     assert.strictEqual(require(bOut).y, true)
   },
 
-  async alias({ esbuild }) {
+  async aliasValidity({ esbuild }) {
     const valid = async alias => {
       const result = await esbuild.build({
         stdin: { contents: 'import ' + JSON.stringify(alias) },
