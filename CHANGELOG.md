@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.15.16
 
 * Add a package alias feature ([#2191](https://github.com/evanw/esbuild/issues/2191))
 
