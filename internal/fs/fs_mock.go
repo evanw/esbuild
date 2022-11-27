@@ -65,6 +65,9 @@ func MockFS(input map[string]string, kind MockKind) FS {
 }
 
 func (fs *mockFS) ReadDirectory(path string) (DirEntries, error, error) {
+	if fs.Kind == MockWindows {
+		path = strings.ReplaceAll(path, "/", "\\")
+	}
 	if dir, ok := fs.dirs[path]; ok {
 		return dir, nil, nil
 	}
@@ -72,6 +75,9 @@ func (fs *mockFS) ReadDirectory(path string) (DirEntries, error, error) {
 }
 
 func (fs *mockFS) ReadFile(path string) (string, error, error) {
+	if fs.Kind == MockWindows {
+		path = strings.ReplaceAll(path, "/", "\\")
+	}
 	if contents, ok := fs.files[path]; ok {
 		return contents, nil, nil
 	}
@@ -79,6 +85,9 @@ func (fs *mockFS) ReadFile(path string) (string, error, error) {
 }
 
 func (fs *mockFS) OpenFile(path string) (OpenedFile, error, error) {
+	if fs.Kind == MockWindows {
+		path = strings.ReplaceAll(path, "/", "\\")
+	}
 	if contents, ok := fs.files[path]; ok {
 		return &InMemoryOpenedFile{Contents: []byte(contents)}, nil, nil
 	}

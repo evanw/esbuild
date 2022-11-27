@@ -602,6 +602,21 @@ func parseOptionsImpl(
 		case strings.HasPrefix(arg, "--inject:") && buildOpts != nil:
 			buildOpts.Inject = append(buildOpts.Inject, arg[len("--inject:"):])
 
+		case strings.HasPrefix(arg, "--alias:") && buildOpts != nil:
+			value := arg[len("--alias:"):]
+			equals := strings.IndexByte(value, '=')
+			if equals == -1 {
+				return parseOptionsExtras{}, cli_helpers.MakeErrorWithNote(
+					fmt.Sprintf("Missing \"=\" in %q", arg),
+					"You need to use \"=\" to specify both the original package name and the replacement package name. "+
+						"For example, \"--alias:old=new\" replaces package \"old\" with package \"new\".",
+				)
+			}
+			if buildOpts.Alias == nil {
+				buildOpts.Alias = make(map[string]string)
+			}
+			buildOpts.Alias[value[:equals]] = value[equals+1:]
+
 		case strings.HasPrefix(arg, "--jsx="):
 			value := arg[len("--jsx="):]
 			var mode api.JSXMode
@@ -828,6 +843,7 @@ func parseOptionsImpl(
 			}
 
 			colon := map[string]bool{
+				"alias":         true,
 				"banner":        true,
 				"define":        true,
 				"drop":          true,

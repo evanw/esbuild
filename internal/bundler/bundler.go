@@ -440,7 +440,7 @@ func parseFile(args parseArgs) {
 					// fallback.
 					if !didLogError && !record.Flags.Has(ast.HandlesImportErrors) {
 						text, suggestion, notes := ResolveFailureErrorTextSuggestionNotes(args.res, record.Path.Text, record.Kind,
-							pluginName, args.fs, absResolveDir, args.options.Platform, source.PrettyPath)
+							pluginName, args.fs, absResolveDir, args.options.Platform, source.PrettyPath, debug.ModifiedImportPath)
 						debug.LogErrorMsg(args.log, &source, record.Range, text, suggestion, notes)
 					} else if !didLogError && record.Flags.Has(ast.HandlesImportErrors) {
 						args.log.AddIDWithNotes(logger.MsgID_Bundler_IgnoredDynamicImport, logger.Debug, &tracker, record.Range,
@@ -506,8 +506,18 @@ func ResolveFailureErrorTextSuggestionNotes(
 	absResolveDir string,
 	platform config.Platform,
 	originatingFilePath string,
+	modifiedImportPath string,
 ) (text string, suggestion string, notes []logger.MsgData) {
-	text = fmt.Sprintf("Could not resolve %q", path)
+	if modifiedImportPath != "" {
+		text = fmt.Sprintf("Could not resolve %q (originally %q)", modifiedImportPath, path)
+		notes = append(notes, logger.MsgData{Text: fmt.Sprintf(
+			"The path %q was remapped to %q using the alias feature, which then couldn't be resolved. "+
+				"Keep in mind that import path aliases are resolved in the current working directory.",
+			path, modifiedImportPath)})
+		path = modifiedImportPath
+	} else {
+		text = fmt.Sprintf("Could not resolve %q", path)
+	}
 	hint := ""
 
 	if resolver.IsPackagePath(path) {
@@ -557,6 +567,13 @@ func ResolveFailureErrorTextSuggestionNotes(
 	}
 
 	if hint != "" {
+		if modifiedImportPath != "" {
+			// Add a newline if there's already a paragraph of text
+			notes = append(notes, logger.MsgData{})
+
+			// Don't add a suggestion if the path was rewritten using an alias
+			suggestion = ""
+		}
 		notes = append(notes, logger.MsgData{Text: hint})
 	}
 	return

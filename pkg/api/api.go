@@ -299,6 +299,7 @@ type BuildOptions struct {
 	Platform          Platform          // Documentation: https://esbuild.github.io/api/#platform
 	Format            Format            // Documentation: https://esbuild.github.io/api/#format
 	External          []string          // Documentation: https://esbuild.github.io/api/#external
+	Alias             map[string]string // Documentation: https://esbuild.github.io/api/#alias
 	MainFields        []string          // Documentation: https://esbuild.github.io/api/#main-fields
 	Conditions        []string          // Documentation: https://esbuild.github.io/api/#conditions
 	Loader            map[string]Loader // Documentation: https://esbuild.github.io/api/#loader

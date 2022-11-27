@@ -132,6 +132,12 @@ func (s *suite) __expectBundledImpl(t *testing.T, args bundled, fsKind fs.MockKi
 				args.options.InjectAbsPaths[i] = unix2win(absPath)
 			}
 
+			for key, value := range args.options.PackageAliases {
+				if strings.HasPrefix(value, "/") {
+					args.options.PackageAliases[key] = unix2win(value)
+				}
+			}
+
 			replace := make(map[string]bool)
 			for k, v := range args.options.ExternalSettings.PostResolve.Exact {
 				replace[unix2win(k)] = v

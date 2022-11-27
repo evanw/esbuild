@@ -253,6 +253,7 @@ type Options struct {
 	Conditions       []string
 	AbsNodePaths     []string // The "NODE_PATH" variable from Node.js
 	ExternalSettings ExternalSettings
+	PackageAliases   map[string]string
 
 	AbsOutputFile      string
 	AbsOutputDir       string

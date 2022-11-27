@@ -247,6 +247,7 @@ function flagsForBuildOptions(
   let mainFields = getFlag(options, keys, 'mainFields', mustBeArray);
   let conditions = getFlag(options, keys, 'conditions', mustBeArray);
   let external = getFlag(options, keys, 'external', mustBeArray);
+  let alias = getFlag(options, keys, 'alias', mustBeObject);
   let loader = getFlag(options, keys, 'loader', mustBeObject);
   let outExtension = getFlag(options, keys, 'outExtension', mustBeObject);
   let publicPath = getFlag(options, keys, 'publicPath', mustBeString);
@@ -319,6 +320,12 @@ function flagsForBuildOptions(
     flags.push(`--conditions=${values.join(',')}`);
   }
   if (external) for (let name of external) flags.push(`--external:${name}`);
+  if (alias) {
+    for (let old in alias) {
+      if (old.indexOf('=') >= 0) throw new Error(`Invalid package name in alias: ${old}`);
+      flags.push(`--alias:${old}=${alias[old]}`);
+    }
+  }
   if (banner) {
     for (let type in banner) {
       if (type.indexOf('=') >= 0) throw new Error(`Invalid banner file type: ${type}`);

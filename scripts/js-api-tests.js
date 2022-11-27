@@ -128,6 +128,45 @@ let buildTests = {
     assert.strictEqual(require(bOut).y, true)
   },
 
+  async alias({ esbuild }) {
+    const valid = async alias => {
+      const result = await esbuild.build({
+        stdin: { contents: 'import ' + JSON.stringify(alias) },
+        bundle: true,
+        alias: { [alias]: 'foo' },
+        external: ['foo'],
+        format: 'esm',
+        write: false,
+      })
+      assert.strictEqual(result.outputFiles[0].text, '// <stdin>\nimport "foo";\n')
+    }
+
+    const invalid = async alias => {
+      try {
+        await esbuild.build({
+          bundle: true,
+          alias: { [alias]: 'foo' },
+          logLevel: 'silent',
+        })
+      } catch {
+        return
+      }
+      throw new Error('Expected an error for alias: ' + alias)
+    }
+
+    await Promise.all([
+      valid('foo'),
+      valid('@scope'),
+      valid('@scope/foo'),
+
+      invalid('foo/bar'),
+      invalid('/foo'),
+      invalid('./foo'),
+      invalid('@scope/'),
+      invalid('@scope/foo/bar'),
+    ])
+  },
+
   async pathResolverEACCS({ esbuild, testDir }) {
     let outerDir = path.join(testDir, 'outer');
     let innerDir = path.join(outerDir, 'inner');

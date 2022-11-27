@@ -136,10 +136,11 @@ const (
 )
 
 type DebugMeta struct {
-	notes             []logger.MsgData
-	suggestionText    string
-	suggestionMessage string
-	suggestionRange   suggestionRange
+	notes              []logger.MsgData
+	suggestionText     string
+	suggestionMessage  string
+	suggestionRange    suggestionRange
+	ModifiedImportPath string
 }
 
 func (dm DebugMeta) LogErrorMsg(log logger.Log, source *logger.Source, r logger.Range, text string, suggestion string, notes []logger.MsgData) {
@@ -295,6 +296,37 @@ func (rr *resolver) Resolve(sourceDir string, importPath string, kind ast.Import
 		r.debugLogs = &debugLogs{what: fmt.Sprintf(
 			"Resolving import %q in directory %q of type %q",
 			importPath, sourceDir, kind.StringForMetafile())}
+	}
+
+	// Apply package alias substitutions first
+	if r.options.PackageAliases != nil && IsPackagePath(importPath) {
+		if r.debugLogs != nil {
+			r.debugLogs.addNote("Checking for package alias matches")
+		}
+		foundMatch := false
+		for key, value := range r.options.PackageAliases {
+			if strings.HasPrefix(importPath, key) && (len(importPath) == len(key) || importPath[len(key)] == '/') {
+				// Resolve the package using the current path instead of the original
+				// path. This is trying to resolve the substitute in the top-level
+				// package instead of the nested package, which lets the top-level
+				// package control the version of the substitution. It's also critical
+				// when using Yarn PnP because Yarn PnP doesn't allow nested packages
+				// to "reach outside" of their normal dependency lists.
+				sourceDir = r.fs.Cwd()
+				debugMeta.ModifiedImportPath = value + importPath[len(key):]
+				if r.debugLogs != nil {
+					r.debugLogs.addNote(fmt.Sprintf("  Matched with alias from %q to %q", key, value))
+					r.debugLogs.addNote(fmt.Sprintf("  Modified import path from %q to %q", importPath, debugMeta.ModifiedImportPath))
+					r.debugLogs.addNote(fmt.Sprintf("  Changed resolve directory to %q", sourceDir))
+				}
+				importPath = debugMeta.ModifiedImportPath
+				foundMatch = true
+				break
+			}
+		}
+		if r.debugLogs != nil && !foundMatch {
+			r.debugLogs.addNote("  Failed to find any package alias matches")
+		}
 	}
 
 	// Certain types of URLs default to being external for convenience

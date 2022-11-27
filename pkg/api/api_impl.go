@@ -446,6 +446,80 @@ func validateExternals(log logger.Log, fs fs.FS, paths []string) config.External
 	return result
 }
 
+func esmParsePackageName(packageSpecifier string) (packageName string, packageSubpath string, ok bool) {
+	if packageSpecifier == "" {
+		return
+	}
+
+	slash := strings.IndexByte(packageSpecifier, '/')
+	if !strings.HasPrefix(packageSpecifier, "@") {
+		if slash == -1 {
+			slash = len(packageSpecifier)
+		}
+		packageName = packageSpecifier[:slash]
+	} else {
+		if slash == -1 {
+			return
+		}
+		slash2 := strings.IndexByte(packageSpecifier[slash+1:], '/')
+		if slash2 == -1 {
+			slash2 = len(packageSpecifier[slash+1:])
+		}
+		packageName = packageSpecifier[:slash+1+slash2]
+	}
+
+	if strings.HasPrefix(packageName, ".") || strings.ContainsAny(packageName, "\\%") {
+		return
+	}
+
+	packageSubpath = "." + packageSpecifier[len(packageName):]
+	ok = true
+	return
+}
+
+func validateAlias(log logger.Log, fs fs.FS, alias map[string]string) map[string]string {
+	valid := make(map[string]string, len(alias))
+
+	for old, new := range alias {
+		if new == "" || new == "." || new == ".." ||
+			strings.HasPrefix(new, "./") || strings.HasPrefix(new, "../") ||
+			strings.HasPrefix(new, ".\\") || strings.HasPrefix(new, "..\\") {
+			log.AddError(nil, logger.Range{}, fmt.Sprintf("Invalid alias substitution: %q", new))
+			continue
+		}
+
+		// Valid alias names:
+		//   "foo"
+		//   "@foo"
+		//   "@foo/bar"
+		//
+		// Invalid alias names:
+		//   "./foo"
+		//   "foo/bar"
+		//   "@foo/"
+		//   "@foo/bar/baz"
+		//
+		if !strings.HasPrefix(old, ".") && !strings.HasPrefix(old, "/") && !fs.IsAbs(old) {
+			slash := strings.IndexByte(old, '/')
+			isScope := strings.HasPrefix(old, "@")
+			if slash != -1 && isScope {
+				pkgAfterScope := old[slash+1:]
+				if slash2 := strings.IndexByte(pkgAfterScope, '/'); slash2 == -1 && pkgAfterScope != "" {
+					valid[old] = new
+					continue
+				}
+			} else if slash == -1 {
+				valid[old] = new
+				continue
+			}
+		}
+
+		log.AddError(nil, logger.Range{}, fmt.Sprintf("Invalid alias name: %q", old))
+	}
+
+	return valid
+}
+
 func isValidExtension(ext string) bool {
 	return len(ext) >= 2 && ext[0] == '.' && ext[len(ext)-1] != '.'
 }
@@ -938,6 +1012,7 @@ func rebuildImpl(
 		ExtensionToLoader:     validateLoaders(log, buildOpts.Loader),
 		ExtensionOrder:        validateResolveExtensions(log, buildOpts.ResolveExtensions),
 		ExternalSettings:      validateExternals(log, realFS, buildOpts.External),
+		PackageAliases:        validateAlias(log, realFS, buildOpts.Alias),
 		TsConfigOverride:      validatePath(log, realFS, buildOpts.Tsconfig, "tsconfig path"),
 		MainFields:            buildOpts.MainFields,
 		Conditions:            append([]string{}, buildOpts.Conditions...),
@@ -1021,6 +1096,9 @@ func rebuildImpl(
 		// Disallow bundle-only options when not bundling
 		if options.ExternalSettings.PreResolve.HasMatchers() || options.ExternalSettings.PostResolve.HasMatchers() {
 			log.AddError(nil, logger.Range{}, "Cannot use \"external\" without \"bundle\"")
+		}
+		if len(options.PackageAliases) > 0 {
+			log.AddError(nil, logger.Range{}, "Cannot use \"alias\" without \"bundle\"")
 		}
 	} else if options.OutputFormat == config.FormatPreserve {
 		// If the format isn't specified, set the default format using the platform
@@ -1823,7 +1901,7 @@ func loadPlugins(initialOptions *BuildOptions, fs fs.FS, log logger.Log, caches 
 				if options.PluginName != "" {
 					pluginName = options.PluginName
 				}
-				text, _, notes := bundler.ResolveFailureErrorTextSuggestionNotes(resolver, path, kind, pluginName, fs, absResolveDir, buildOptions.Platform, "")
+				text, _, notes := bundler.ResolveFailureErrorTextSuggestionNotes(resolver, path, kind, pluginName, fs, absResolveDir, buildOptions.Platform, "", "")
 				result.Errors = append(result.Errors, convertMessagesToPublic(logger.Error, []logger.Msg{{
 					Data:  logger.MsgData{Text: text},
 					Notes: notes,

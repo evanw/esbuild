@@ -6816,3 +6816,45 @@ func TestMinifiedJSXPreserveWithObjectSpread(t *testing.T) {
 		},
 	})
 }
+
+func TestPackageAlias(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import "pkg1"
+				import "pkg2/foo"
+				import "./nested3"
+				import "@scope/pkg4"
+				import "@scope/pkg5/foo"
+				import "@abs-path/pkg6"
+				import "@abs-path/pkg7/foo"
+				import "@scope-only/pkg8"
+			`,
+			"/nested3/index.js":                     `import "pkg3"`,
+			"/nested3/node_modules/alias3/index.js": `test failure`,
+			"/node_modules/alias1/index.js":         `console.log(1)`,
+			"/node_modules/alias2/foo.js":           `console.log(2)`,
+			"/node_modules/alias3/index.js":         `console.log(3)`,
+			"/node_modules/alias4/index.js":         `console.log(4)`,
+			"/node_modules/alias5/foo.js":           `console.log(5)`,
+			"/alias6/dir/index.js":                  `console.log(6)`,
+			"/alias7/dir/foo/index.js":              `console.log(7)`,
+			"/alias8/dir/pkg8/index.js":             `console.log(8)`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			PackageAliases: map[string]string{
+				"pkg1":           "alias1",
+				"pkg2":           "alias2",
+				"pkg3":           "alias3",
+				"@scope/pkg4":    "alias4",
+				"@scope/pkg5":    "alias5",
+				"@abs-path/pkg6": `/alias6/dir`,
+				"@abs-path/pkg7": `/alias7/dir`,
+				"@scope-only":    "/alias8/dir",
+			},
+		},
+	})
+}
