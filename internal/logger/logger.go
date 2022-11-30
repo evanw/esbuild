@@ -133,11 +133,8 @@ func isProbablyWindowsCommandPrompt() bool {
 		// because that means we're running in the new Windows Terminal instead.
 		if runtime.GOOS == "windows" {
 			windowsCommandPrompt.isProbablyCMD = true
-			for _, env := range os.Environ() {
-				if strings.HasPrefix(env, "WT_SESSION=") {
-					windowsCommandPrompt.isProbablyCMD = false
-					break
-				}
+			if _, ok := os.LookupEnv("WT_SESSION"); ok {
+				windowsCommandPrompt.isProbablyCMD = false
 			}
 		}
 	}
@@ -261,12 +258,10 @@ var noColorOnce sync.Once
 
 func hasNoColorEnvironmentVariable() bool {
 	noColorOnce.Do(func() {
-		for _, key := range os.Environ() {
-			// Read "NO_COLOR" from the environment. This is a convention that some
-			// software follows. See https://no-color.org/ for more information.
-			if strings.HasPrefix(key, "NO_COLOR=") {
-				noColorResult = true
-			}
+		// Read "NO_COLOR" from the environment. This is a convention that some
+		// software follows. See https://no-color.org/ for more information.
+		if _, ok := os.LookupEnv("NO_COLOR"); ok {
+			noColorResult = true
 		}
 	})
 	return noColorResult

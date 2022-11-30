@@ -1064,20 +1064,16 @@ func runImpl(osArgs []string) int {
 
 	switch {
 	case buildOptions != nil:
-		for _, key := range os.Environ() {
-			// Read the "NODE_PATH" from the environment. This is part of node's
-			// module resolution algorithm. Documentation for this can be found here:
-			// https://nodejs.org/api/modules.html#modules_loading_from_the_global_folders
-			if strings.HasPrefix(key, "NODE_PATH=") {
-				value := key[len("NODE_PATH="):]
-				separator := ":"
-				if fs.CheckIfWindows() {
-					// On Windows, NODE_PATH is delimited by semicolons instead of colons
-					separator = ";"
-				}
-				buildOptions.NodePaths = splitWithEmptyCheck(value, separator)
-				break
+		// Read the "NODE_PATH" from the environment. This is part of node's
+		// module resolution algorithm. Documentation for this can be found here:
+		// https://nodejs.org/api/modules.html#modules_loading_from_the_global_folders
+		if value, ok := os.LookupEnv("NODE_PATH"); ok {
+			separator := ":"
+			if fs.CheckIfWindows() {
+				// On Windows, NODE_PATH is delimited by semicolons instead of colons
+				separator = ";"
 			}
+			buildOptions.NodePaths = splitWithEmptyCheck(value, separator)
 		}
 
 		// Read from stdin when there are no entry points
