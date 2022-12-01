@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "parcel": "2.0.0",
-    "typescript": "4.4.4"
+    "parcel": "2.8.0",
+    "typescript": "4.9.3"
   }
 }
