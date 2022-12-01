@@ -805,7 +805,7 @@ demo-three-eswasm: platform-wasm | demo/three
 	du -h demo/three/eswasm/Three.eswasm.js*
 	shasum demo/three/eswasm/Three.eswasm.js*
 
-THREE_ROLLUP_CONFIG += import { terser } from 'rollup-plugin-terser';
+THREE_ROLLUP_CONFIG += import terser from '@rollup/plugin-terser';
 THREE_ROLLUP_CONFIG += export default {
 THREE_ROLLUP_CONFIG +=   output: { format: 'iife', name: 'THREE', sourcemap: true },
 THREE_ROLLUP_CONFIG +=   plugins: [terser()],
@@ -814,10 +814,10 @@ THREE_ROLLUP_CONFIG += }
 demo-three-rollup: | require/rollup/node_modules demo/three
 	rm -fr require/rollup/demo/three demo/three/rollup
 	mkdir -p require/rollup/demo/three demo/three/rollup
-	echo "$(THREE_ROLLUP_CONFIG)" > require/rollup/demo/three/config.js
+	echo "$(THREE_ROLLUP_CONFIG)" > require/rollup/demo/three/config.mjs
 	ln -s ../../../../demo/three/src require/rollup/demo/three/src
 	ln -s ../../../../demo/three/rollup require/rollup/demo/three/out
-	cd require/rollup/demo/three && time -p ../../node_modules/.bin/rollup src/Three.js -o out/Three.rollup.js -c config.js
+	cd require/rollup/demo/three && time -p ../../node_modules/.bin/rollup src/Three.js -o out/Three.rollup.js -c config.mjs
 	du -h demo/three/rollup/Three.rollup.js*
 
 THREE_WEBPACK5_FLAGS += --devtool=source-map
@@ -872,10 +872,10 @@ bench-three-eswasm: platform-wasm | bench/three
 bench-three-rollup: | require/rollup/node_modules bench/three
 	rm -fr require/rollup/bench/three bench/three/rollup
 	mkdir -p require/rollup/bench/three bench/three/rollup
-	echo "$(THREE_ROLLUP_CONFIG)" > require/rollup/bench/three/config.js
+	echo "$(THREE_ROLLUP_CONFIG)" > require/rollup/bench/three/config.mjs
 	ln -s ../../../../bench/three/src require/rollup/bench/three/src
 	ln -s ../../../../bench/three/rollup require/rollup/bench/three/out
-	cd require/rollup/bench/three && time -p ../../node_modules/.bin/rollup src/entry.js -o out/entry.rollup.js -c config.js
+	cd require/rollup/bench/three && time -p ../../node_modules/.bin/rollup src/entry.js -o out/entry.rollup.js -c config.mjs
 	du -h bench/three/rollup/entry.rollup.js*
 
 bench-three-webpack5: | require/webpack5/node_modules bench/three
