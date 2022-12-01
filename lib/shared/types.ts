@@ -79,6 +79,9 @@ interface CommonOptions {
   logLimit?: number;
   /** Documentation: https://esbuild.github.io/api/#log-override */
   logOverride?: Record<string, LogLevel>;
+
+  /** Experimental: preserve comments matching a regular expression */
+  preserveComments?: RegExp
 }
 
 export interface BuildOptions extends CommonOptions {
