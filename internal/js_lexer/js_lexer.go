@@ -2813,19 +2813,20 @@ func (lexer *Lexer) scanCommentText() {
 		case 'w':
 			// Webpack magic comments use this regular expression: /(^|\W)webpack[A-Z]{1,}[A-Za-z]{1,}:/
 			if lexer.WebpackComments != nil && !isWebpackComment && strings.HasPrefix(text[i:], "webpack") && !isLetterASCII(text[i-1]) {
+				n := len(text)
 				j := i + 7
 				upperCount := 0
-				for isUpperASCII(text[j]) {
+				for j < n && isUpperASCII(text[j]) {
 					upperCount++
 					j++
 				}
 				if upperCount > 0 {
 					letterCount := 0
-					for isLetterASCII(text[j]) {
+					for j < n && isLetterASCII(text[j]) {
 						letterCount++
 						j++
 					}
-					if letterCount > 0 && text[j] == ':' {
+					if letterCount > 0 && j < n && text[j] == ':' {
 						isWebpackComment = true
 					}
 				}
