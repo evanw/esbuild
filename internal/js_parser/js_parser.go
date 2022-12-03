@@ -16383,8 +16383,8 @@ func (p *parser) computeCharacterFrequency() *js_ast.CharFreq {
 	charFreq.Scan(p.source.Contents, 1)
 
 	// Subtract out all comments
-	for _, comment := range p.lexer.AllOriginalComments {
-		charFreq.Scan(comment.Text, -1)
+	for _, commentRange := range p.lexer.AllOriginalComments {
+		charFreq.Scan(p.source.TextForRange(commentRange), -1)
 	}
 
 	// Subtract out all import paths

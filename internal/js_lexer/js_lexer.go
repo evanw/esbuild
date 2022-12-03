@@ -246,7 +246,7 @@ type MaybeSubstring struct {
 
 type Lexer struct {
 	CommentsToPreserveBefore     []js_ast.Comment
-	AllOriginalComments          []js_ast.Comment
+	AllOriginalComments          []logger.Range
 	Identifier                   MaybeSubstring
 	log                          logger.Log
 	source                       logger.Source
@@ -2753,10 +2753,7 @@ func (lexer *Lexer) scanCommentText() {
 
 	// Save the original comment text so we can subtract comments from the
 	// character frequency analysis used by symbol minification
-	lexer.AllOriginalComments = append(lexer.AllOriginalComments, js_ast.Comment{
-		Loc:  logger.Loc{Start: int32(lexer.start)},
-		Text: text,
-	})
+	lexer.AllOriginalComments = append(lexer.AllOriginalComments, lexer.Range())
 
 	// Omit the trailing "*/" from the checks below
 	endOfCommentText := len(text)
