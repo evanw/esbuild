@@ -1947,7 +1947,12 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		// Just omit import assertions if they aren't supported
 		if e.OptionsOrNil.Data != nil && !p.options.UnsupportedFeatures.Has(compat.ImportAssertions) {
 			p.print(",")
-			p.printSpace()
+			if len(leadingInteriorComments) > 0 {
+				p.printNewline()
+				p.printIndent()
+			} else {
+				p.printSpace()
+			}
 			p.printExpr(e.OptionsOrNil, js_ast.LComma, 0)
 		}
 

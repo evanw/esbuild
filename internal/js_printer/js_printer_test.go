@@ -669,7 +669,9 @@ func TestImport(t *testing.T) {
 
 	// Test preservation of leading interior comments
 	expectPrinted(t, "import(// comment 1\n // comment 2\n 'path');", "import(\n  // comment 1\n  // comment 2\n  \"path\"\n);\n")
+	expectPrinted(t, "import(// comment 1\n // comment 2\n 'path', {type: 'module'});", "import(\n  // comment 1\n  // comment 2\n  \"path\",\n  { type: \"module\" }\n);\n")
 	expectPrinted(t, "import(/* comment 1 */ /* comment 2 */ 'path');", "import(\n  /* comment 1 */\n  /* comment 2 */\n  \"path\"\n);\n")
+	expectPrinted(t, "import(/* comment 1 */ /* comment 2 */ 'path', {type: 'module'});", "import(\n  /* comment 1 */\n  /* comment 2 */\n  \"path\",\n  { type: \"module\" }\n);\n")
 	expectPrinted(t, "import(\n    /* multi\n     * line\n     * comment */ 'path');", "import(\n  /* multi\n   * line\n   * comment */\n  \"path\"\n);\n")
 	expectPrinted(t, "import(/* comment 1 */ 'path' /* comment 2 */);", "import(\n  /* comment 1 */\n  \"path\"\n);\n")
 }
