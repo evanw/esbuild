@@ -1743,27 +1743,40 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 
 		// Omit the "()" when minifying, but only when safe to do so
 		if !p.options.MinifyWhitespace || len(e.Args) > 0 || level >= js_ast.LPostfix {
-			isMultiLine := e.IsMultiLine && len(e.Args) > 0 && !p.options.MinifyWhitespace
+			isMultiLine := !p.options.MinifyWhitespace && ((e.IsMultiLine && len(e.Args) > 0 && !p.options.MinifyWhitespace) || len(e.WebpackComments) > 0)
+			needsNewline := true
 			p.print("(")
 			if isMultiLine {
 				p.options.Indent++
+				if len(e.WebpackComments) > 0 {
+					p.printNewline()
+					needsNewline = false
+					for _, comment := range e.WebpackComments {
+						p.printIndentedComment(comment.Text)
+					}
+				}
 			}
 			for i, arg := range e.Args {
 				if isMultiLine {
 					if i != 0 {
 						p.print(",")
 					}
-					p.printNewline()
+					if needsNewline {
+						p.printNewline()
+					}
 					p.printIndent()
 				} else if i != 0 {
 					p.print(",")
 					p.printSpace()
 				}
 				p.printExpr(arg, js_ast.LComma, 0)
+				needsNewline = true
 			}
 			if isMultiLine {
 				p.options.Indent--
-				p.printNewline()
+				if needsNewline {
+					p.printNewline()
+				}
 				p.printIndent()
 			}
 			if e.CloseParenLoc.Start > expr.Loc.Start {

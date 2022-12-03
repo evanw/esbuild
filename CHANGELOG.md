@@ -19,6 +19,10 @@
 
     TypeScript code that does this should now be parsed correctly.
 
+* Preserve Webpack comments inside constructor calls ([#2439](https://github.com/evanw/esbuild/issues/2439))
+
+    This improves the use of esbuild as a faster TypeScript-to-JavaScript frontend for Webpack, which has special [magic comments](https://webpack.js.org/api/module-methods/#magic-comments) inside `new Worker()` expressions that affect Webpack's behavior.
+
 ## 0.15.16
 
 * Add a package alias feature ([#2191](https://github.com/evanw/esbuild/issues/2191))

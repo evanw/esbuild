@@ -492,8 +492,12 @@ var SEmptyShared = &SEmpty{}
 var SDebuggerShared = &SDebugger{}
 
 type ENew struct {
-	Target        Expr
-	Args          []Expr
+	Target Expr
+	Args   []Expr
+
+	// See this for more context: https://github.com/evanw/esbuild/issues/2439
+	WebpackComments []Comment
+
 	CloseParenLoc logger.Loc
 	IsMultiLine   bool
 
