@@ -165,6 +165,7 @@ const (
 	isReturnTypeFlag skipTypeFlags = 1 << iota
 	isIndexSignatureFlag
 	allowTupleLabelsFlag
+	disallowConditionalTypesFlag
 )
 
 func (flags skipTypeFlags) has(flag skipTypeFlags) bool {
@@ -326,7 +327,7 @@ loop:
 				if p.lexer.Token != js_lexer.TColon || (!flags.has(isIndexSignatureFlag) && !flags.has(allowTupleLabelsFlag)) {
 					p.lexer.Expect(js_lexer.TIdentifier)
 					if p.lexer.Token == js_lexer.TExtends {
-						p.trySkipTypeScriptConstraintOfInferTypeWithBacktracking()
+						p.trySkipTypeScriptConstraintOfInferTypeWithBacktracking(flags)
 					}
 				}
 				break loop
@@ -518,13 +519,13 @@ loop:
 
 		case js_lexer.TExtends:
 			// "{ x: number \n extends: boolean }" must not become a single type
-			if p.lexer.HasNewlineBefore || level >= js_ast.LConditional {
+			if p.lexer.HasNewlineBefore || flags.has(disallowConditionalTypesFlag) {
 				return
 			}
 			p.lexer.Next()
 
 			// The type following "extends" is not permitted to be another conditional type
-			p.skipTypeScriptType(js_ast.LConditional)
+			p.skipTypeScriptTypeWithFlags(js_ast.LLowest, disallowConditionalTypesFlag)
 			p.lexer.Expect(js_lexer.TQuestion)
 			p.skipTypeScriptType(js_ast.LLowest)
 			p.lexer.Expect(js_lexer.TColon)
@@ -859,7 +860,7 @@ func (p *parser) trySkipTypeScriptArrowArgsWithBacktracking() bool {
 	return true
 }
 
-func (p *parser) trySkipTypeScriptConstraintOfInferTypeWithBacktracking() bool {
+func (p *parser) trySkipTypeScriptConstraintOfInferTypeWithBacktracking(flags skipTypeFlags) bool {
 	oldLexer := p.lexer
 	p.lexer.IsLogDisabled = true
 
@@ -874,8 +875,8 @@ func (p *parser) trySkipTypeScriptConstraintOfInferTypeWithBacktracking() bool {
 	}()
 
 	p.lexer.Expect(js_lexer.TExtends)
-	p.skipTypeScriptType(js_ast.LPrefix)
-	if p.lexer.Token == js_lexer.TQuestion {
+	p.skipTypeScriptTypeWithFlags(js_ast.LPrefix, disallowConditionalTypesFlag)
+	if !flags.has(disallowConditionalTypesFlag) && p.lexer.Token == js_lexer.TQuestion {
 		p.lexer.Unexpected()
 	}
 

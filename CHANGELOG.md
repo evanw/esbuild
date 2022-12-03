@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+* Fix parsing bug with TypeScript `infer` and `extends` ([#2712](https://github.com/evanw/esbuild/issues/2712))
+
+    This release fixes a bug where esbuild incorrectly failed to parse valid TypeScript code that nests `extends` inside `infer` inside `extends`, such as in the example below:
+
+    ```ts
+    type A<T> = {};
+    type B = {} extends infer T extends {} ? A<T> : never;
+    ```
+
+    TypeScript code that does this should now be parsed correctly.
+
 ## 0.15.16
 
 * Add a package alias feature ([#2191](https://github.com/evanw/esbuild/issues/2191))
