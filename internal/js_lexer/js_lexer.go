@@ -245,7 +245,8 @@ type MaybeSubstring struct {
 }
 
 type Lexer struct {
-	CommentsToPreserveBefore     []js_ast.Comment
+	LegalCommentsBeforeToken     []js_ast.Comment
+	WebpackComments              *[]js_ast.Comment
 	AllOriginalComments          []logger.Range
 	Identifier                   MaybeSubstring
 	log                          logger.Log
@@ -288,7 +289,6 @@ type Lexer struct {
 	ts                              config.TSOptions
 	HasNewlineBefore                bool
 	HasPureCommentBefore            bool
-	PreserveAllCommentsBefore       bool
 	IsLegacyOctalLiteral            bool
 	PrevTokenWasAwaitKeyword        bool
 	rescanCloseBraceAsTemplateToken bool
@@ -1212,7 +1212,7 @@ func (lexer *Lexer) Next() {
 	lexer.HasNewlineBefore = lexer.end == 0
 	lexer.HasPureCommentBefore = false
 	lexer.PrevTokenWasAwaitKeyword = false
-	lexer.CommentsToPreserveBefore = nil
+	lexer.LegalCommentsBeforeToken = nil
 
 	for {
 		lexer.start = lexer.end
@@ -2746,10 +2746,19 @@ func scanForPragmaArg(kind pragmaArg, start int, pragma string, text string) (lo
 	}, true
 }
 
+func isUpperASCII(c byte) bool {
+	return c >= 'A' && c <= 'Z'
+}
+
+func isLetterASCII(c byte) bool {
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+}
+
 func (lexer *Lexer) scanCommentText() {
 	text := lexer.source.Contents[lexer.start:lexer.end]
 	hasLegalAnnotation := len(text) > 2 && text[2] == '!'
 	isMultiLineComment := text[1] == '*'
+	isWebpackComment := false
 
 	// Save the original comment text so we can subtract comments from the
 	// character frequency analysis used by symbol minification
@@ -2800,15 +2809,43 @@ func (lexer *Lexer) scanCommentText() {
 					lexer.SourceMappingURL = arg
 				}
 			}
+
+		case 'w':
+			// Webpack magic comments use this regular expression: /(^|\W)webpack[A-Z]{1,}[A-Za-z]{1,}:/
+			if lexer.WebpackComments != nil && !isWebpackComment && strings.HasPrefix(text[i:], "webpack") && !isLetterASCII(text[i-1]) {
+				j := i + 7
+				upperCount := 0
+				for isUpperASCII(text[j]) {
+					upperCount++
+					j++
+				}
+				if upperCount > 0 {
+					letterCount := 0
+					for isLetterASCII(text[j]) {
+						letterCount++
+						j++
+					}
+					if letterCount > 0 && text[j] == ':' {
+						isWebpackComment = true
+					}
+				}
+			}
 		}
 	}
 
-	if hasLegalAnnotation || lexer.PreserveAllCommentsBefore {
-		if isMultiLineComment {
-			text = helpers.RemoveMultiLineCommentIndent(lexer.source.Contents[:lexer.start], text)
-		}
+	if isMultiLineComment && (hasLegalAnnotation || isWebpackComment) {
+		text = helpers.RemoveMultiLineCommentIndent(lexer.source.Contents[:lexer.start], text)
+	}
 
-		lexer.CommentsToPreserveBefore = append(lexer.CommentsToPreserveBefore, js_ast.Comment{
+	if hasLegalAnnotation {
+		lexer.LegalCommentsBeforeToken = append(lexer.LegalCommentsBeforeToken, js_ast.Comment{
+			Loc:  logger.Loc{Start: int32(lexer.start)},
+			Text: text,
+		})
+	}
+
+	if isWebpackComment {
+		*lexer.WebpackComments = append(*lexer.WebpackComments, js_ast.Comment{
 			Loc:  logger.Loc{Start: int32(lexer.start)},
 			Text: text,
 		})

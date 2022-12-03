@@ -3673,10 +3673,10 @@ func (p *parser) parseImportExpr(loc logger.Loc, level js_ast.L) js_ast.Expr {
 	oldAllowIn := p.allowIn
 	p.allowIn = true
 
-	p.lexer.PreserveAllCommentsBefore = true
+	var webpackComments []js_ast.Comment
+	oldWebpackComments := p.lexer.WebpackComments
+	p.lexer.WebpackComments = &webpackComments
 	p.lexer.Expect(js_lexer.TOpenParen)
-	comments := p.lexer.CommentsToPreserveBefore
-	p.lexer.PreserveAllCommentsBefore = false
 
 	value := p.parseExpr(js_ast.LComma)
 	var optionsOrNil js_ast.Expr
@@ -3696,13 +3696,14 @@ func (p *parser) parseImportExpr(loc logger.Loc, level js_ast.L) js_ast.Expr {
 		}
 	}
 
+	p.lexer.WebpackComments = oldWebpackComments
 	p.lexer.Expect(js_lexer.TCloseParen)
 
 	p.allowIn = oldAllowIn
 	return js_ast.Expr{Loc: loc, Data: &js_ast.EImportCall{
-		Expr:                    value,
-		OptionsOrNil:            optionsOrNil,
-		LeadingInteriorComments: comments,
+		Expr:            value,
+		OptionsOrNil:    optionsOrNil,
+		WebpackComments: webpackComments,
 	}}
 }
 
@@ -7256,7 +7257,7 @@ func (p *parser) parseStmtsUpTo(end js_lexer.T, opts parseStmtOpts) []js_ast.Stm
 
 	for {
 		// Preserve some statement-level comments
-		comments := p.lexer.CommentsToPreserveBefore
+		comments := p.lexer.LegalCommentsBeforeToken
 		if len(comments) > 0 {
 			for _, comment := range comments {
 				stmts = append(stmts, js_ast.Stmt{
@@ -14054,8 +14055,8 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				}
 				p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
 				return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EImportString{
-					ImportRecordIndex:       importRecordIndex,
-					LeadingInteriorComments: e.LeadingInteriorComments,
+					ImportRecordIndex: importRecordIndex,
+					WebpackComments:   e.WebpackComments,
 				}}
 			}
 
@@ -14108,9 +14109,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 
 			return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EImportCall{
-				Expr:                    arg,
-				OptionsOrNil:            e.OptionsOrNil,
-				LeadingInteriorComments: e.LeadingInteriorComments,
+				Expr:            arg,
+				OptionsOrNil:    e.OptionsOrNil,
+				WebpackComments: e.WebpackComments,
 			}}
 		}), exprOut{}
 

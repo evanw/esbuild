@@ -1090,7 +1090,7 @@ func (p *printer) printQuotedUTF16(data []uint16, allowBacktick bool) {
 
 func (p *printer) printRequireOrImportExpr(
 	importRecordIndex uint32,
-	leadingInteriorComments []js_ast.Comment,
+	webpackComments []js_ast.Comment,
 	level js_ast.L,
 	flags printExprFlags,
 ) {
@@ -1175,10 +1175,10 @@ func (p *printer) printRequireOrImportExpr(
 			p.print("(")
 			defer p.print(")")
 		}
-		if len(leadingInteriorComments) > 0 {
+		if len(webpackComments) > 0 {
 			p.printNewline()
 			p.options.Indent++
-			for _, comment := range leadingInteriorComments {
+			for _, comment := range webpackComments {
 				p.printIndentedComment(comment.Text)
 			}
 			p.printIndent()
@@ -1188,7 +1188,7 @@ func (p *printer) printRequireOrImportExpr(
 		if !p.options.UnsupportedFeatures.Has(compat.DynamicImport) {
 			p.printImportCallAssertions(record.Assertions)
 		}
-		if len(leadingInteriorComments) > 0 {
+		if len(webpackComments) > 0 {
 			p.printNewline()
 			p.options.Indent--
 			p.printIndent()
@@ -1915,17 +1915,17 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		}
 
 	case *js_ast.EImportString:
-		var leadingInteriorComments []js_ast.Comment
+		var webpackComments []js_ast.Comment
 		if !p.options.MinifyWhitespace {
-			leadingInteriorComments = e.LeadingInteriorComments
+			webpackComments = e.WebpackComments
 		}
 		p.addSourceMapping(expr.Loc)
-		p.printRequireOrImportExpr(e.ImportRecordIndex, leadingInteriorComments, level, flags)
+		p.printRequireOrImportExpr(e.ImportRecordIndex, webpackComments, level, flags)
 
 	case *js_ast.EImportCall:
-		var leadingInteriorComments []js_ast.Comment
+		var webpackComments []js_ast.Comment
 		if !p.options.MinifyWhitespace {
-			leadingInteriorComments = e.LeadingInteriorComments
+			webpackComments = e.WebpackComments
 		}
 		wrap := level >= js_ast.LNew || (flags&forbidCall) != 0
 		if wrap {
@@ -1934,10 +1934,10 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		p.printSpaceBeforeIdentifier()
 		p.addSourceMapping(expr.Loc)
 		p.print("import(")
-		if len(leadingInteriorComments) > 0 {
+		if len(webpackComments) > 0 {
 			p.printNewline()
 			p.options.Indent++
-			for _, comment := range leadingInteriorComments {
+			for _, comment := range webpackComments {
 				p.printIndentedComment(comment.Text)
 			}
 			p.printIndent()
@@ -1947,7 +1947,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		// Just omit import assertions if they aren't supported
 		if e.OptionsOrNil.Data != nil && !p.options.UnsupportedFeatures.Has(compat.ImportAssertions) {
 			p.print(",")
-			if len(leadingInteriorComments) > 0 {
+			if len(webpackComments) > 0 {
 				p.printNewline()
 				p.printIndent()
 			} else {
@@ -1956,7 +1956,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			p.printExpr(e.OptionsOrNil, js_ast.LComma, 0)
 		}
 
-		if len(leadingInteriorComments) > 0 {
+		if len(webpackComments) > 0 {
 			p.printNewline()
 			p.options.Indent--
 			p.printIndent()
