@@ -377,6 +377,31 @@ const testCaseNames = {
   `
 }
 
+const testCaseMissingSourcesContent = {
+  'foo.js': `// foo.ts
+var foo = { bar: "bar" };
+console.log({ foo });
+//# sourceMappingURL=maps/foo.js.map
+`,
+  'maps/foo.js.map': `{
+  "version": 3,
+  "sources": ["src/foo.ts"],
+  "mappings": ";AAGA,IAAM,MAAW,EAAE,KAAK,MAAM;AAC9B,QAAQ,IAAI,EAAE,IAAI,CAAC;",
+  "names": []
+}
+`,
+  'maps/src/foo.ts': `interface Foo {
+  bar: string
+}
+const foo: Foo = { bar: 'bar' }
+console.log({ foo })
+`,
+}
+
+const toSearchMissingSourcesContent = {
+  bar: 'src/foo.ts',
+}
+
 async function check(kind, testCase, toSearch, { ext, flags, entryPoints, crlf, followUpFlags = [] }) {
   let failed = 0
 
@@ -445,6 +470,7 @@ async function check(kind, testCase, toSearch, { ext, flags, entryPoints, crlf, 
         recordCheck(source === inSource, `expected source: ${inSource}, observed source: ${source}`)
 
         const inCode = map.sourceContentFor(source)
+        if (inCode === null) throw new Error(`Got null for source content for "${source}"`)
         let inIndex = inCode.indexOf(`"${id}"`)
         if (inIndex < 0) inIndex = inCode.indexOf(`'${id}'`)
         if (inIndex < 0) throw new Error(`Failed to find "${id}" in input`)
@@ -816,6 +842,14 @@ async function main() {
           ext: 'js',
           flags: flags.concat('--outfile=out.js', '--bundle', '--mangle-props=^mangle_$', '--mangle-quoted'),
           entryPoints: ['entry.js'],
+          crlf,
+        }),
+
+        // Checks for loading missing sources content in nested source maps
+        check('missing-sources-content' + suffix, testCaseMissingSourcesContent, toSearchMissingSourcesContent, {
+          ext: 'js',
+          flags: flags.concat('--outfile=out.js', '--bundle'),
+          entryPoints: ['foo.js'],
           crlf,
         }),
       )

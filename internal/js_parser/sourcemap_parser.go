@@ -53,7 +53,7 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 
 		case "sources":
 			if value, ok := prop.ValueOrNil.Data.(*js_ast.EArray); ok {
-				sources = nil
+				sources = []string{}
 				for _, item := range value.Items {
 					if element, ok := item.Data.(*js_ast.EString); ok {
 						sources = append(sources, helpers.UTF16ToString(element.Value))
@@ -65,7 +65,7 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 
 		case "sourcesContent":
 			if value, ok := prop.ValueOrNil.Data.(*js_ast.EArray); ok {
-				sourcesContent = nil
+				sourcesContent = []sourcemap.SourceContent{}
 				for _, item := range value.Items {
 					if element, ok := item.Data.(*js_ast.EString); ok {
 						sourcesContent = append(sourcesContent, sourcemap.SourceContent{
@@ -80,7 +80,7 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 
 		case "names":
 			if value, ok := prop.ValueOrNil.Data.(*js_ast.EArray); ok {
-				names = nil
+				names = []string{}
 				for _, item := range value.Items {
 					if element, ok := item.Data.(*js_ast.EString); ok {
 						names = append(names, helpers.UTF16ToString(element.Value))

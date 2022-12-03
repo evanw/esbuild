@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+* Search for missing source map code on the file system ([#2711](https://github.com/evanw/esbuild/issues/2711))
+
+    [Source maps](https://sourcemaps.info/spec.html) are JSON files that map from compiled code back to the original code. They provide the original source code using two arrays: `sources` (required) and `sourcesContent` (optional). When bundling is enabled, esbuild is able to bundle code with source maps that was compiled by other tools (e.g. with Webpack) and emit source maps that map all the way back to the original code (e.g. before Webpack compiled it).
+
+    Previously if the input source maps omitted the optional `sourcesContent` array, esbuild would use `null` for the source content in the source map that it generates (since the source content isn't available). However, sometimes the original source code is actually still present on the file system. With this release, esbuild will now try to find the original source code using the path in the `sources` array and will use that instead of `null` if it was found.
+
 * Fix parsing bug with TypeScript `infer` and `extends` ([#2712](https://github.com/evanw/esbuild/issues/2712))
 
     This release fixes a bug where esbuild incorrectly failed to parse valid TypeScript code that nests `extends` inside `infer` inside `extends`, such as in the example below:

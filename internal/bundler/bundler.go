@@ -465,19 +465,22 @@ func parseFile(args parseArgs) {
 		case *graph.CSSRepr:
 			sourceMapComment = repr.AST.SourceMapComment
 		}
+
 		if sourceMapComment.Text != "" {
 			tracker := logger.MakeLineColumnTracker(&source)
+
 			if path, contents := extractSourceMapFromComment(args.log, args.fs, &args.caches.FSCache,
 				args.res, &source, &tracker, sourceMapComment, absResolveDir); contents != nil {
 				prettyPath := args.res.PrettyPath(path)
 				log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug, args.log.Overrides)
-				result.file.inputFile.InputSourceMap = js_parser.ParseSourceMap(log, logger.Source{
+
+				sourceMap := js_parser.ParseSourceMap(log, logger.Source{
 					KeyPath:    path,
 					PrettyPath: prettyPath,
 					Contents:   *contents,
 				})
-				msgs := log.Done()
-				if len(msgs) > 0 {
+
+				if msgs := log.Done(); len(msgs) > 0 {
 					var text string
 					if path.Namespace == "file" {
 						text = fmt.Sprintf("The source map %q was referenced by the file %q here:", prettyPath, args.prettyPath)
@@ -490,6 +493,28 @@ func parseFile(args parseArgs) {
 						args.log.AddMsg(msg)
 					}
 				}
+
+				// If "sourcesContent" isn't present, try filling it in using the file system
+				if sourceMap != nil && sourceMap.SourcesContent == nil && !args.options.ExcludeSourcesContent {
+					for _, source := range sourceMap.Sources {
+						var absPath string
+						if args.fs.IsAbs(source) {
+							absPath = source
+						} else if path.Namespace == "file" {
+							absPath = args.fs.Join(args.fs.Dir(path.Text), source)
+						} else {
+							sourceMap.SourcesContent = append(sourceMap.SourcesContent, sourcemap.SourceContent{})
+							continue
+						}
+						var sourceContent sourcemap.SourceContent
+						if contents, err, _ := args.caches.FSCache.ReadFile(args.fs, absPath); err == nil {
+							sourceContent.Value = helpers.StringToUTF16(contents)
+						}
+						sourceMap.SourcesContent = append(sourceMap.SourcesContent, sourceContent)
+					}
+				}
+
+				result.file.inputFile.InputSourceMap = sourceMap
 			}
 		}
 	}
@@ -2426,14 +2451,16 @@ func (b *Bundle) computeDataForSourceMapsInParallel(options *config.Options, rea
 							// Missing contents become a "null" literal
 							quotedContents := nullContents
 							if i < len(sm.SourcesContent) {
-								if value := sm.SourcesContent[i]; value.Quoted != "" {
-									if options.ASCIIOnly && !isASCIIOnly(value.Quoted) {
-										// Re-quote non-ASCII values if output is ASCII-only
-										quotedContents = helpers.QuoteForJSON(helpers.UTF16ToString(value.Value), options.ASCIIOnly)
-									} else {
-										// Otherwise just use the value directly from the input file
-										quotedContents = []byte(value.Quoted)
-									}
+								if value := sm.SourcesContent[i]; value.Quoted != "" && (!options.ASCIIOnly || !isASCIIOnly(value.Quoted)) {
+									// Just use the value directly from the input file
+									quotedContents = []byte(value.Quoted)
+								} else if value.Value != nil {
+									// Re-quote non-ASCII values if output is ASCII-only.
+									// Also quote values that haven't been quoted yet
+									// (happens when the entire "sourcesContent" array is
+									// absent and the source has been found on the file
+									// system using the "sources" array).
+									quotedContents = helpers.QuoteForJSON(helpers.UTF16ToString(value.Value), options.ASCIIOnly)
 								}
 							}
 							result.quotedContents[i] = quotedContents
