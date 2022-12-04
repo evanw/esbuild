@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.15.17
 
 * Search for missing source map code on the file system ([#2711](https://github.com/evanw/esbuild/issues/2711))
 
