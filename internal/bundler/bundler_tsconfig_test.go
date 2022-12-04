@@ -2037,3 +2037,111 @@ func TestTsConfigAlwaysStrictTrueEmitDirectiveBundleESM(t *testing.T) {
 		},
 	})
 }
+
+func TestTsConfigExtendsDotWithoutSlash(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/main.ts": `
+				console.log(123n)
+			`,
+			"/Users/user/project/src/foo.json": `{
+				"extends": "."
+			}`,
+			"/Users/user/project/src/tsconfig.json": `{
+				"compilerOptions": {
+					"target": "ES6"
+				}
+			}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/main.ts"},
+		options: config.Options{
+			Mode:             config.ModeBundle,
+			AbsOutputDir:     "/Users/user/project/out",
+			OutputFormat:     config.FormatESModule,
+			TsConfigOverride: "/Users/user/project/src/foo.json",
+		},
+		expectedScanLog: `Users/user/project/src/main.ts: ERROR: Big integer literals are not available in the configured target environment ("ES6")
+Users/user/project/src/tsconfig.json: NOTE: The target environment was set to "ES6" here:
+`,
+	})
+}
+
+func TestTsConfigExtendsDotDotWithoutSlash(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/main.ts": `
+				console.log(123n)
+			`,
+			"/Users/user/project/src/tsconfig.json": `{
+				"extends": ".."
+			}`,
+			"/Users/user/project/tsconfig.json": `{
+				"compilerOptions": {
+					"target": "ES6"
+				}
+			}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/main.ts"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/Users/user/project/out",
+			OutputFormat: config.FormatESModule,
+		},
+		expectedScanLog: `Users/user/project/src/main.ts: ERROR: Big integer literals are not available in the configured target environment ("ES6")
+Users/user/project/tsconfig.json: NOTE: The target environment was set to "ES6" here:
+`,
+	})
+}
+
+func TestTsConfigExtendsDotWithSlash(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/main.ts": `
+				console.log(123n)
+			`,
+			"/Users/user/project/src/foo.json": `{
+				"extends": "./"
+			}`,
+			"/Users/user/project/src/tsconfig.json": `{
+				"compilerOptions": {
+					"target": "ES6"
+				}
+			}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/main.ts"},
+		options: config.Options{
+			Mode:             config.ModeBundle,
+			AbsOutputDir:     "/Users/user/project/out",
+			OutputFormat:     config.FormatESModule,
+			TsConfigOverride: "/Users/user/project/src/foo.json",
+		},
+		expectedScanLog: `Users/user/project/src/foo.json: WARNING: Cannot find base config file "./"
+`,
+	})
+}
+
+func TestTsConfigExtendsDotDotWithSlash(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/main.ts": `
+				console.log(123n)
+			`,
+			"/Users/user/project/src/tsconfig.json": `{
+				"extends": "../"
+			}`,
+			"/Users/user/project/tsconfig.json": `{
+				"compilerOptions": {
+					"target": "ES6"
+				}
+			}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/main.ts"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/Users/user/project/out",
+			OutputFormat: config.FormatESModule,
+		},
+		expectedScanLog: `Users/user/project/src/tsconfig.json: WARNING: Cannot find base config file "../"
+`,
+	})
+}

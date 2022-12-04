@@ -83,6 +83,18 @@ var foo = 123;
 console.log(foo);
 
 ================================================================================
+TestTsConfigExtendsDotDotWithSlash
+---------- /Users/user/project/out/main.js ----------
+// Users/user/project/src/main.ts
+console.log(123n);
+
+================================================================================
+TestTsConfigExtendsDotWithSlash
+---------- /Users/user/project/out/main.js ----------
+// Users/user/project/src/main.ts
+console.log(123n);
+
+================================================================================
 TestTsConfigJSX
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/entry.tsx

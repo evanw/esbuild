@@ -1095,10 +1095,28 @@ func (r resolverQuery) parseTSConfig(file string, visited map[string]bool) (*TSC
 				current = next
 			}
 		} else {
-			// If this is a regular path, search relative to the enclosing directory
 			extendsFile := extends
-			if !r.fs.IsAbs(extends) {
-				extendsFile = r.fs.Join(fileDir, extends)
+
+			// The TypeScript compiler has a strange behavior that seems like a bug
+			// where "." and ".." behave differently than other forms such as "./."
+			// or "../." and are interpreted as having an implicit "tsconfig.json"
+			// suffix.
+			//
+			// I believe their bug is caused by some parts of their code checking for
+			// relative paths using the literal "./" and "../" prefixes (requiring
+			// the slash) and other parts checking using the regular expression
+			// /^\.\.?($|[\\/])/ (with the slash optional).
+			//
+			// In any case, people are now relying on this behavior. One example is
+			// this: https://github.com/esbuild-kit/tsx/pull/158. So we replicate this
+			// bug in esbuild as well.
+			if extendsFile == "." || extendsFile == ".." {
+				extendsFile += "/tsconfig.json"
+			}
+
+			// If this is a regular path, search relative to the enclosing directory
+			if !r.fs.IsAbs(extendsFile) {
+				extendsFile = r.fs.Join(fileDir, extendsFile)
 			}
 			base, err := r.parseTSConfig(extendsFile, visited)
 
