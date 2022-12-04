@@ -52,6 +52,12 @@ const server = http.createServer((req, res) => {
         res.end(html)
         return
       }
+
+      if (parsed.pathname === '/scripts/browser/esbuild.wasm.bagel') {
+        res.writeHead(200, { 'Content-Type': 'application/octet-stream' })
+        res.end(wasm)
+        return
+      }
     }
 
     res.writeHead(404)
@@ -81,8 +87,8 @@ async function main() {
     })
 
     page.exposeFunction('testBegin', args => {
-      const { esm, min, worker, url } = JSON.parse(args)
-      console.log(`💬 config: esm=${esm}, min=${min}, worker=${worker}, url=${url}`)
+      const { esm, min, worker, mime, approach } = JSON.parse(args)
+      console.log(`💬 config: esm=${esm}, min=${min}, worker=${worker}, mime=${mime}, approach=${approach}`)
     })
 
     page.exposeFunction('testEnd', args => {

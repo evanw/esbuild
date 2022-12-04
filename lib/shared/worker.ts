@@ -9,7 +9,7 @@ interface Go {
 declare const ESBUILD_VERSION: string;
 declare function postMessage(message: any): void;
 
-onmessage = ({ data: wasm }: { data: ArrayBuffer | WebAssembly.Module }) => {
+onmessage = ({ data: wasm }: { data: WebAssembly.Module | string }) => {
   let decoder = new TextDecoder()
   let fs = (globalThis as any).fs
 
@@ -66,11 +66,34 @@ onmessage = ({ data: wasm }: { data: ArrayBuffer | WebAssembly.Module }) => {
   let go: Go = new (globalThis as any).Go()
   go.argv = ['', `--service=${ESBUILD_VERSION}`]
 
+  // Try to instantiate the module in the worker, then report back to the main thread
+  tryToInstantiateModule(wasm, go).then(
+    instance => {
+      postMessage(null)
+      go.run(instance)
+    },
+    error => {
+      postMessage(error)
+    },
+  )
+}
+
+async function tryToInstantiateModule(wasm: WebAssembly.Module | string, go: Go): Promise<WebAssembly.Instance> {
   if (wasm instanceof WebAssembly.Module) {
-    WebAssembly.instantiate(wasm, go.importObject)
-      .then(instance => go.run(instance))
-  } else {
-    WebAssembly.instantiate(wasm, go.importObject)
-      .then(({ instance }) => go.run(instance))
+    return WebAssembly.instantiate(wasm, go.importObject)
   }
+
+  const res = await fetch(wasm)
+  if (!res.ok) throw new Error(`Failed to download ${JSON.stringify(wasm)}`);
+
+  // Attempt to use the superior "instantiateStreaming" API first
+  if ('instantiateStreaming' in WebAssembly && /^application\/wasm($|;)/i.test(res.headers.get('Content-Type') || '')) {
+    const result = await WebAssembly.instantiateStreaming(res, go.importObject)
+    return result.instance
+  }
+
+  // Otherwise, fall back to the inferior "instantiate" API
+  const bytes = await res.arrayBuffer()
+  const result = await WebAssembly.instantiate(bytes, go.importObject)
+  return result.instance
 }

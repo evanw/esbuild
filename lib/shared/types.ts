@@ -588,7 +588,7 @@ export interface InitializeOptions {
    * The URL of the "esbuild.wasm" file. This must be provided when running
    * esbuild in the browser.
    */
-  wasmURL?: string
+  wasmURL?: string | URL
 
   /**
    * The result of calling "new WebAssembly.Module(buffer)" where "buffer"

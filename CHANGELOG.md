@@ -19,6 +19,12 @@
 
     TypeScript code that does this should now be parsed correctly.
 
+* Use `WebAssembly.instantiateStreaming` if available ([#1036](https://github.com/evanw/esbuild/pull/1036), [#1900](https://github.com/evanw/esbuild/pull/1900))
+
+    Currently the WebAssembly version of esbuild uses `fetch` to download `esbuild.wasm` and then `WebAssembly.instantiate` to compile it. There is a newer API called `WebAssembly.instantiateStreaming` that both downloads and compiles at the same time, which can be a performance improvement if both downloading and compiling are slow. With this release, esbuild now attempts to use `WebAssembly.instantiateStreaming` and falls back to the original approach if that fails.
+
+    The implementation for this builds on a PR by [@lbwa](https://github.com/lbwa).
+
 * Preserve Webpack comments inside constructor calls ([#2439](https://github.com/evanw/esbuild/issues/2439))
 
     This improves the use of esbuild as a faster TypeScript-to-JavaScript frontend for Webpack, which has special [magic comments](https://webpack.js.org/api/module-methods/#magic-comments) inside `new Worker()` expressions that affect Webpack's behavior.

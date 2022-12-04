@@ -71,16 +71,7 @@ export const initialize: typeof types.initialize = options => {
   return initializePromise;
 }
 
-const startRunningService = async (wasmURL: string, wasmModule: WebAssembly.Module | undefined, useWorker: boolean): Promise<void> => {
-  let wasm: ArrayBuffer | WebAssembly.Module;
-  if (wasmModule) {
-    wasm = wasmModule;
-  } else {
-    let res = await fetch(wasmURL);
-    if (!res.ok) throw new Error(`Failed to download ${JSON.stringify(wasmURL)}`);
-    wasm = await res.arrayBuffer();
-  }
-
+const startRunningService = async (wasmURL: string | URL, wasmModule: WebAssembly.Module | undefined, useWorker: boolean): Promise<void> => {
   let worker: {
     onmessage: ((event: any) => void) | null
     postMessage: (data: Uint8Array | ArrayBuffer | WebAssembly.Module) => void
@@ -102,8 +93,21 @@ const startRunningService = async (wasmURL: string, wasmModule: WebAssembly.Modu
     }
   }
 
-  worker.postMessage(wasm)
-  worker.onmessage = ({ data }) => readFromStdout(data)
+  let firstMessageResolve: (value: void) => void
+  let firstMessageReject: (error: any) => void
+
+  const firstMessagePromise = new Promise((resolve, reject) => {
+    firstMessageResolve = resolve
+    firstMessageReject = reject
+  })
+
+  worker.onmessage = ({ data: error }) => {
+    worker.onmessage = ({ data }) => readFromStdout(data)
+    if (error) firstMessageReject(error)
+    else firstMessageResolve()
+  }
+
+  worker.postMessage(wasmModule || new URL(wasmURL, location.href).toString())
 
   let { readFromStdout, service } = common.createChannel({
     writeToStdin(bytes) {
@@ -113,6 +117,9 @@ const startRunningService = async (wasmURL: string, wasmModule: WebAssembly.Modu
     isWriteUnavailable: true,
     esbuild: ourselves,
   })
+
+  // This will throw if WebAssembly module instantiation fails
+  await firstMessagePromise
 
   longLivedService = {
     build: (options: types.BuildOptions): Promise<any> =>

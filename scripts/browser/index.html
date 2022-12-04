@@ -187,8 +187,8 @@
 
   async function testStart() {
     if (!window.testBegin) window.testBegin = args => {
-      const { esm, min, worker, url } = JSON.parse(args)
-      console.log(`💬 config: esm=${esm}, min=${min}, worker=${worker}, url=${url}`)
+      const { esm, min, worker, mime, approach } = JSON.parse(args)
+      console.log(`💬 config: esm=${esm}, min=${min}, worker=${worker}, mime=${mime}, approach=${approach}`)
     }
 
     if (!window.testEnd) window.testEnd = args => {
@@ -206,25 +206,32 @@
     for (const esm of [false, true]) {
       for (const min of [false, true]) {
         for (const worker of [false, true]) {
-          for (const url of [false, true]) {
-            try {
-              testBegin(JSON.stringify({ esm, min, worker, url }))
-              const esbuild = esm
-                ? await import('/npm/esbuild-wasm/esm/browser' + (min ? '.min' : '') + '.js?' + Math.random())
-                : await loadScript('/npm/esbuild-wasm/lib/browser' + (min ? '.min' : '') + '.js?' + Math.random())
-              const initializePromise = url
-                ? esbuild.initialize({ wasmURL: '/npm/esbuild-wasm/esbuild.wasm', worker })
-                : WebAssembly.compileStreaming(fetch('/npm/esbuild-wasm/esbuild.wasm')).then(module =>
-                  esbuild.initialize({ wasmModule: module, worker }))
-              await initializePromise
-              await runAllTests({ esbuild })
-              testEnd(null)
-            } catch (e) {
-              testEnd(JSON.stringify({
-                test: e.test || null,
-                stack: e.stack || null,
-                error: (e && e.message || e) + '',
-              }))
+          for (const mime of ['correct', 'incorrect']) {
+            for (const approach of ['string', 'url', 'module']) {
+              try {
+                testBegin(JSON.stringify({ esm, min, worker, mime, approach }))
+                const esbuild = esm
+                  ? await import('/npm/esbuild-wasm/esm/browser' + (min ? '.min' : '') + '.js?' + Math.random())
+                  : await loadScript('/npm/esbuild-wasm/lib/browser' + (min ? '.min' : '') + '.js?' + Math.random())
+                const url = mime === 'correct' ? '/npm/esbuild-wasm/esbuild.wasm' : '/scripts/browser/esbuild.wasm.bagel'
+                const initializePromise = {
+                  string: () => esbuild.initialize({ wasmURL: url, worker }),
+                  url: () => esbuild.initialize({ wasmURL: new URL(url, location.href), worker }),
+                  module: () => fetch(url)
+                    .then(r => r.arrayBuffer())
+                    .then(bytes => WebAssembly.compile(bytes))
+                    .then(module => esbuild.initialize({ wasmModule: module, worker })),
+                }[approach]()
+                await initializePromise
+                await runAllTests({ esbuild })
+                testEnd(null)
+              } catch (e) {
+                testEnd(JSON.stringify({
+                  test: e.test || null,
+                  stack: e.stack || null,
+                  error: (e && e.message || e) + '',
+                }))
+              }
             }
           }
         }
