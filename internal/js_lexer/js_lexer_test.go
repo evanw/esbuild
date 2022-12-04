@@ -133,6 +133,8 @@ func TestIdentifier(t *testing.T) {
 
 	expectIdentifier(t, "a\u200C", "a\u200C")
 	expectIdentifier(t, "a\u200D", "a\u200D")
+	expectIdentifier(t, "a\u200Cb", "a\u200Cb")
+	expectIdentifier(t, "a\u200Db", "a\u200Db")
 }
 
 func expectNumber(t *testing.T, contents string, expected float64) {

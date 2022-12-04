@@ -1757,23 +1757,49 @@ func (lexer *Lexer) Next() {
 				lexer.addRangeError(lexer.Range(), "JSON strings must use double quotes")
 			}
 
+		// Note: This case is hot in profiles
 		case '_', '$',
 			'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
 			'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
 			'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
 			'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z':
-			lexer.step()
-			for IsIdentifierContinue(lexer.codePoint) {
-				lexer.step()
+			// This is a fast path for long ASCII identifiers. Doing this in a loop
+			// first instead of doing "step()" and "IsIdentifierContinue()" like we
+			// do after this is noticeably faster in the common case of ASCII-only
+			// text. For example, doing this sped up end-to-end consuming of a large
+			// TypeScript type declaration file from 97ms to 79ms (around 20% faster).
+			contents := lexer.source.Contents
+			n := len(contents)
+			i := lexer.current
+			for i < n {
+				c := contents[i]
+				if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') && c != '_' && c != '$' {
+					break
+				}
+				i++
 			}
+			lexer.current = i
+
+			// Now do the slow path for any remaining non-ASCII identifier characters
+			lexer.step()
+			if lexer.codePoint >= 0x80 {
+				for IsIdentifierContinue(lexer.codePoint) {
+					lexer.step()
+				}
+			}
+
+			// If there's a slash, then we're in the extra-slow (and extra-rare) case
+			// where the identifier has embedded escapes
 			if lexer.codePoint == '\\' {
 				lexer.Identifier, lexer.Token = lexer.scanIdentifierWithEscapes(normalIdentifier)
-			} else {
-				lexer.Identifier = lexer.rawIdentifier()
-				lexer.Token = Keywords[lexer.Raw()]
-				if lexer.Token == 0 {
-					lexer.Token = TIdentifier
-				}
+				break
+			}
+
+			// Otherwise (if there was no escape) we can slice the code verbatim
+			lexer.Identifier = lexer.rawIdentifier()
+			lexer.Token = Keywords[lexer.Raw()]
+			if lexer.Token == 0 {
+				lexer.Token = TIdentifier
 			}
 
 		case '\\':
