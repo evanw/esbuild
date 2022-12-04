@@ -292,14 +292,16 @@ func main() {
 				}
 			}
 
-			if !isServeOrWatch && nonFlagCount <= 1 {
+			if !isServeOrWatch {
 				// If this is not a long-running process and there is at most a single
 				// entry point, then disable the GC since we're just going to allocate
 				// a bunch of memory and then exit anyway. This speedup is not
 				// insignificant. We don't do this when there are multiple entry points
 				// since otherwise esbuild could unnecessarily use much more memory
 				// than it might otherwise need to process many entry points.
-				debug.SetGCPercent(-1)
+				if nonFlagCount <= 1 {
+					debug.SetGCPercent(-1)
+				}
 			} else if !isStdinTTY && !isWatchForever {
 				// If stdin isn't a TTY, watch stdin and abort in case it is closed.
 				// This is necessary when the esbuild binary executable is invoked via
