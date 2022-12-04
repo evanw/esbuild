@@ -610,12 +610,24 @@ func (lexer *lexer) wouldStartNumber() bool {
 	return false
 }
 
+// Note: This function is hot in profiles
 func (lexer *lexer) consumeName() string {
-	// Common case: no escapes, identifier is a substring of the input
-	for IsNameContinue(lexer.codePoint) {
+	// Common case: no escapes, identifier is a substring of the input. Doing this
+	// in a tight loop that avoids UTF-8 decoding and that increments a single
+	// number instead of doing "step()" is noticeably faster. For example, doing
+	// this sped up end-to-end parsing and printing of a large CSS file from 97ms
+	// to 84ms (around 15% faster).
+	contents := lexer.source.Contents
+	if IsNameContinue(lexer.codePoint) {
+		n := len(contents)
+		i := lexer.current
+		for i < n && IsNameContinue(rune(contents[i])) {
+			i++
+		}
+		lexer.current = i
 		lexer.step()
 	}
-	raw := lexer.source.Contents[lexer.Token.Range.Loc.Start:lexer.Token.Range.End()]
+	raw := contents[lexer.Token.Range.Loc.Start:lexer.Token.Range.End()]
 	if !lexer.isValidEscape() {
 		return raw
 	}
