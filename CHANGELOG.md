@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased
+
+* Performance improvements for both JS and CSS
+
+    This release brings noticeable performance improvements for JS parsing and for CSS parsing and printing. Here's an example benchmark for using esbuild to pretty-print a single large minified CSS file and JS file:
+
+    | Test case      | Previous release | This release       |
+    |----------------|------------------|--------------------|
+    | 4.8mb CSS file | 19ms             | 11ms (1.7x faster) |
+    | 5.8mb JS file  | 36ms             | 32ms (1.1x faster) |
+
+    The performance improvements were very straightforward:
+
+    * Identifiers were being scanned using a generic character advancement function instead of using custom inline code. Advancing past each character involved UTF-8 decoding as well as updating multiple member variables. This was sped up using loop that skips UTF-8 decoding entirely and that only updates member variables once at the end. This is faster because identifiers are plain ASCII in the vast majority of cases, so Unicode decoding is almost always unnecessary.
+
+    * CSS identifiers and CSS strings were still being printed one character at a time. Apparently I forgot to move this part of esbuild's CSS infrastructure beyond the proof-of-concept stage. These were both very obvious in the profiler, so I think maybe I have just never profiled esbuild's CSS printing before?
+
+    * There was unnecessary work being done that was related to source maps when source map output was disabled. I likely haven't observed this before because esbuild's benchmarks always have source maps enabled. This work is now disabled when it's not going to be used.
+
+    I definitely should have caught these performance issues earlier. Better late than never I suppose.
+
 ## 0.15.17
 
 * Search for missing source map code on the file system ([#2711](https://github.com/evanw/esbuild/issues/2711))
