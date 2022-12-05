@@ -543,12 +543,18 @@ func (p *printer) printWithEscape(c rune, escape escapeKind, remainingText strin
 	}
 }
 
+// Note: This function is hot in profiles
 func (p *printer) printQuotedWithQuote(text string, quote byte) {
 	if quote != quoteForURL {
 		p.css = append(p.css, quote)
 	}
 
-	for i, c := range text {
+	n := len(text)
+	i := 0
+	runStart := 0
+
+	for i < n {
+		c, width := utf8.DecodeRuneInString(text[i:])
 		escape := escapeNone
 
 		switch c {
@@ -577,7 +583,18 @@ func (p *printer) printQuotedWithQuote(text string, quote byte) {
 			}
 		}
 
-		p.printWithEscape(c, escape, text[i:], false)
+		if escape != escapeNone {
+			if runStart < i {
+				p.css = append(p.css, text[runStart:i]...)
+			}
+			p.printWithEscape(c, escape, text[i:], false)
+			runStart = i + width
+		}
+		i += width
+	}
+
+	if runStart < n {
+		p.css = append(p.css, text[runStart:]...)
 	}
 
 	if quote != quoteForURL {
