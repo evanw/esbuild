@@ -3846,6 +3846,7 @@ type Options struct {
 	MinifySyntax        bool
 	ASCIIOnly           bool
 	LegalComments       config.LegalComments
+	SourceMap           config.SourceMap
 	AddSourceMappings   bool
 }
 
@@ -3905,9 +3906,13 @@ func Print(tree js_ast.AST, symbols js_ast.SymbolMap, r renamer.Renamer, options
 		}
 	}
 
-	return PrintResult{
+	result := PrintResult{
 		JS:                     p.js,
 		ExtractedLegalComments: p.extractedLegalComments,
-		SourceMapChunk:         p.builder.GenerateChunk(p.js),
 	}
+	if options.SourceMap != config.SourceMapNone {
+		// This is expensive. Only do this if it's necessary.
+		result.SourceMapChunk = p.builder.GenerateChunk(p.js)
+	}
+	return result
 }

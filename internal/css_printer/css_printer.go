@@ -34,6 +34,7 @@ type Options struct {
 
 	MinifyWhitespace  bool
 	ASCIIOnly         bool
+	SourceMap         config.SourceMap
 	AddSourceMappings bool
 	LegalComments     config.LegalComments
 }
@@ -53,11 +54,17 @@ func Print(tree css_ast.AST, options Options) PrintResult {
 	for _, rule := range tree.Rules {
 		p.printRule(rule, 0, false)
 	}
-	return PrintResult{
+	result := PrintResult{
 		CSS:                    p.css,
 		ExtractedLegalComments: p.extractedLegalComments,
-		SourceMapChunk:         p.builder.GenerateChunk(p.css),
 	}
+	if options.SourceMap != config.SourceMapNone {
+		// This is expensive. Only do this if it's necessary. For example, skipping
+		// this if it's not needed sped up end-to-end parsing and printing of a
+		// large CSS file from 66ms to 52ms (around 25% faster).
+		result.SourceMapChunk = p.builder.GenerateChunk(p.css)
+	}
+	return result
 }
 
 func (p *printer) printRule(rule css_ast.Rule, indent int32, omitTrailingSemicolon bool) {
