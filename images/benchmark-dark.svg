@@ -1,24 +1,24 @@
 <svg width="800" height="130" fill="black" font-family="sans-serif" font-size="13px" xmlns="http://www.w3.org/2000/svg">
   <rect x="120" y="20" width="1" height="80" fill="#7F7F7F" fill-opacity="0.25"/>
-  <rect x="259.6580784974717" y="20" width="1" height="80" fill="#7F7F7F" fill-opacity="0.25"/>
-  <rect x="399.3161569949434" y="20" width="1" height="80" fill="#7F7F7F" fill-opacity="0.25"/>
-  <rect x="538.9742354924151" y="20" width="1" height="80" fill="#7F7F7F" fill-opacity="0.25"/>
-  <rect x="678.6323139898868" y="20" width="1" height="80" fill="#7F7F7F" fill-opacity="0.25"/>
-  <rect x="120" y="23" width="4.608716590416567" height="14" fill="#FFCF00"/>
+  <rect x="266.095717884131" y="20" width="1" height="80" fill="#7F7F7F" fill-opacity="0.25"/>
+  <rect x="412.19143576826195" y="20" width="1" height="80" fill="#7F7F7F" fill-opacity="0.25"/>
+  <rect x="558.2871536523929" y="20" width="1" height="80" fill="#7F7F7F" fill-opacity="0.25"/>
+  <rect x="704.3828715365239" y="20" width="1" height="80" fill="#7F7F7F" fill-opacity="0.25"/>
+  <rect x="120" y="23" width="5.405541561712846" height="14" fill="#FFCF00"/>
   <text x="112" y="30" text-anchor="end" dominant-baseline="middle" font-weight="bold" fill="#C9D1D9">esbuild</text>
-  <text x="132.60871659041658" y="30" dominant-baseline="middle" font-weight="bold" fill="#C9D1D9">0.33s</text>
-  <rect x="120" y="43" width="453.60943895978806" height="14" fill="#FFCF00"/>
+  <text x="133.40554156171285" y="30" dominant-baseline="middle" font-weight="bold" fill="#C9D1D9">0.37s</text>
+  <rect x="120" y="43" width="445.59193954659946" height="14" fill="#FFCF00"/>
   <text x="112" y="50" text-anchor="end" dominant-baseline="middle" fill="#C9D1D9">parcel 2</text>
-  <text x="581.6094389597881" y="50" dominant-baseline="middle" fill="#C9D1D9">32.48s</text>
-  <rect x="120" y="63" width="488.10498434866366" height="14" fill="#FFCF00"/>
+  <text x="573.5919395465994" y="50" dominant-baseline="middle" fill="#C9D1D9">30.50s</text>
+  <rect x="120" y="63" width="468.52896725440803" height="14" fill="#FFCF00"/>
   <text x="112" y="70" text-anchor="end" dominant-baseline="middle" fill="#C9D1D9">rollup + terser</text>
-  <text x="616.1049843486637" y="70" dominant-baseline="middle" fill="#C9D1D9">34.95s</text>
+  <text x="596.528967254408" y="70" dominant-baseline="middle" fill="#C9D1D9">32.07s</text>
   <rect x="120" y="83" width="580" height="14" fill="#FFCF00"/>
   <text x="112" y="90" text-anchor="end" dominant-baseline="middle" fill="#C9D1D9">webpack 5</text>
-  <text x="708" y="90" dominant-baseline="middle" fill="#C9D1D9">41.53s</text>
+  <text x="708" y="90" dominant-baseline="middle" fill="#C9D1D9">39.70s</text>
   <text x="120" y="104" text-anchor="middle" dominant-baseline="hanging" fill="#C9D1D9">0s</text>
-  <text x="259.6580784974717" y="104" text-anchor="middle" dominant-baseline="hanging" fill="#C9D1D9">10s</text>
-  <text x="399.3161569949434" y="104" text-anchor="middle" dominant-baseline="hanging" fill="#C9D1D9">20s</text>
-  <text x="538.9742354924151" y="104" text-anchor="middle" dominant-baseline="hanging" fill="#C9D1D9">30s</text>
-  <text x="678.6323139898868" y="104" text-anchor="middle" dominant-baseline="hanging" fill="#C9D1D9">40s</text>
+  <text x="266.095717884131" y="104" text-anchor="middle" dominant-baseline="hanging" fill="#C9D1D9">10s</text>
+  <text x="412.19143576826195" y="104" text-anchor="middle" dominant-baseline="hanging" fill="#C9D1D9">20s</text>
+  <text x="558.2871536523929" y="104" text-anchor="middle" dominant-baseline="hanging" fill="#C9D1D9">30s</text>
+  <text x="704.3828715365239" y="104" text-anchor="middle" dominant-baseline="hanging" fill="#C9D1D9">40s</text>
 </svg>
