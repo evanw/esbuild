@@ -601,7 +601,52 @@ const (
 	canDiscardWhitespaceAfter
 )
 
+// Note: This function is hot in profiles
 func (p *printer) printIdent(text string, mode identMode, whitespace trailingWhitespace) {
+	n := len(text)
+
+	// Special escape behavior for the first character
+	initialEscape := escapeNone
+	switch mode {
+	case identNormal:
+		if !css_lexer.WouldStartIdentifierWithoutEscapes(text) {
+			initialEscape = escapeBackslash
+		}
+	case identDimensionUnit, identDimensionUnitAfterExponent:
+		if !css_lexer.WouldStartIdentifierWithoutEscapes(text) {
+			initialEscape = escapeBackslash
+		} else if n > 0 {
+			if c := text[0]; c >= '0' && c <= '9' {
+				// Unit: "2x"
+				initialEscape = escapeHex
+			} else if (c == 'e' || c == 'E') && mode != identDimensionUnitAfterExponent {
+				if n >= 2 && text[1] >= '0' && text[1] <= '9' {
+					// Unit: "e2x"
+					initialEscape = escapeHex
+				} else if n >= 3 && text[1] == '-' && text[2] >= '0' && text[2] <= '9' {
+					// Unit: "e-2x"
+					initialEscape = escapeHex
+				}
+			}
+		}
+	}
+
+	// Fast path: the identifier does not need to be escaped. This fast path is
+	// important for performance. For example, doing this sped up end-to-end
+	// parsing and printing of a large CSS file from 84ms to 66ms (around 25%
+	// faster).
+	if initialEscape == escapeNone {
+		for i := 0; i < n; i++ {
+			if c := text[i]; c >= 0x80 || !css_lexer.IsNameContinue(rune(c)) {
+				goto slowPath
+			}
+		}
+		p.css = append(p.css, text...)
+		return
+	slowPath:
+	}
+
+	// Slow path: the identifier needs to be escaped
 	for i, c := range text {
 		escape := escapeNone
 
@@ -617,36 +662,15 @@ func (p *printer) printIdent(text string, mode identMode, whitespace trailingWhi
 			}
 
 			// Special escape behavior for the first character
-			if i == 0 {
-				switch mode {
-				case identNormal:
-					if !css_lexer.WouldStartIdentifierWithoutEscapes(text) {
-						escape = escapeBackslash
-					}
-
-				case identDimensionUnit, identDimensionUnitAfterExponent:
-					if !css_lexer.WouldStartIdentifierWithoutEscapes(text) {
-						escape = escapeBackslash
-					} else if c >= '0' && c <= '9' {
-						// Unit: "2x"
-						escape = escapeHex
-					} else if (c == 'e' || c == 'E') && mode != identDimensionUnitAfterExponent {
-						if len(text) >= 2 && text[1] >= '0' && text[1] <= '9' {
-							// Unit: "e2x"
-							escape = escapeHex
-						} else if len(text) >= 3 && text[1] == '-' && text[2] >= '0' && text[2] <= '9' {
-							// Unit: "e-2x"
-							escape = escapeHex
-						}
-					}
-				}
+			if i == 0 && initialEscape != escapeNone {
+				escape = initialEscape
 			}
 		}
 
 		// If the last character is a hexadecimal escape, print a space afterwards
 		// for the escape sequence to consume. That way we're sure it won't
 		// accidentally consume a semantically significant space afterward.
-		mayNeedWhitespaceAfter := whitespace == mayNeedWhitespaceAfter && escape != escapeNone && i+utf8.RuneLen(c) == len(text)
+		mayNeedWhitespaceAfter := whitespace == mayNeedWhitespaceAfter && escape != escapeNone && i+utf8.RuneLen(c) == n
 		p.printWithEscape(c, escape, text[i:], mayNeedWhitespaceAfter)
 	}
 }
