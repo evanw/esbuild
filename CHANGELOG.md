@@ -4,6 +4,40 @@
 
 **This release deliberately contains backwards-incompatible changes.** To avoid automatically picking up releases like this, you should either be pinning the exact version of `esbuild` in your `package.json` file (recommended) or be using a version range syntax that only accepts patch upgrades such as `~0.15.0`. See npm's documentation about [semver](https://docs.npmjs.com/cli/v6/using-npm/semver/) for more information.
 
+* Move all binary executable packages to the `@esbuild/` scope
+
+    Binary package executables for esbuild are published as individual packages separate from the main `esbuild` package so you only have to download the relevant one for the current platform when you install esbuild. This release moves all of these packages under the `@esbuild/` scope to avoid collisions with 3rd-party packages. It also changes them to a consistent naming scheme that uses the `os` and `cpu` names from node.
+
+    The package name changes are as follows:
+
+    * `@esbuild/linux-loong64` => `@esbuild/linux-loong64` (no change)
+    * `esbuild-android-64` => `@esbuild/android-x64`
+    * `esbuild-android-arm64` => `@esbuild/android-arm64`
+    * `esbuild-darwin-64` => `@esbuild/darwin-x64`
+    * `esbuild-darwin-arm64` => `@esbuild/darwin-arm64`
+    * `esbuild-freebsd-64` => `@esbuild/freebsd-x64`
+    * `esbuild-freebsd-arm64` => `@esbuild/freebsd-arm64`
+    * `esbuild-linux-32` => `@esbuild/linux-ia32`
+    * `esbuild-linux-64` => `@esbuild/linux-x64`
+    * `esbuild-linux-arm` => `@esbuild/linux-arm`
+    * `esbuild-linux-arm64` => `@esbuild/linux-arm64`
+    * `esbuild-linux-mips64le` => `@esbuild/linux-mips64el`
+    * `esbuild-linux-ppc64le` => `@esbuild/linux-ppc64`
+    * `esbuild-linux-riscv64` => `@esbuild/linux-riscv64`
+    * `esbuild-linux-s390x` => `@esbuild/linux-s390x`
+    * `esbuild-netbsd-64` => `@esbuild/netbsd-x64`
+    * `esbuild-openbsd-64` => `@esbuild/openbsd-x64`
+    * `esbuild-sunos-64` => `@esbuild/sunos-x64`
+    * `esbuild-wasm` => `esbuild-wasm` (no change)
+    * `esbuild-windows-32` => `@esbuild/win32-ia32`
+    * `esbuild-windows-64` => `@esbuild/win32-x64`
+    * `esbuild-windows-arm64` => `@esbuild/win32-arm64`
+    * `esbuild` => `esbuild` (no change)
+
+    Normal usage of the `esbuild` and `esbuild-wasm` packages should not be affected. These name changes should only affect tools that hard-coded the individual binary executable package names into custom esbuild downloader scripts.
+
+    This change was not made with performance in mind. But as a bonus, installing esbuild with npm may potentially happen faster now. This is because npm's package installation protocol is inefficient: it always downloads metadata for all past versions of each package even when it only needs metadata about a single version. This makes npm package downloads O(n) in the number of published versions, which penalizes packages like esbuild that are updated regularly. Since most of esbuild's package names have now changed, npm will now need to download much less data when installing esbuild (8.72mb of package manifests before this change → 0.06mb of package manifests after this change). However, this is only a temporary improvement. Installing esbuild will gradually get slower again as further versions of esbuild are published.
+
 * Fix some parameter names for the Go API
 
     This release changes some parameter names for the Go API to be consistent with the JavaScript and CLI APIs:

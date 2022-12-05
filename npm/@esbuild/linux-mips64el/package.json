@@ -1,0 +1,17 @@
+{
+  "name": "@esbuild/linux-mips64el",
+  "version": "0.15.18",
+  "description": "The Linux MIPS 64-bit Little Endian binary for esbuild, a JavaScript bundler.",
+  "repository": "https://github.com/evanw/esbuild",
+  "license": "MIT",
+  "preferUnplugged": true,
+  "engines": {
+    "node": ">=12"
+  },
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "mips64el"
+  ]
+}

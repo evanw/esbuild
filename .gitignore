@@ -10,10 +10,10 @@
 /npm/@esbuild/android-arm/exit0.js
 /npm/@esbuild/android-arm/wasm_exec_node.js
 /npm/@esbuild/android-arm/wasm_exec.js
-/npm/esbuild-android-64/esbuild.wasm
-/npm/esbuild-android-64/exit0.js
-/npm/esbuild-android-64/wasm_exec_node.js
-/npm/esbuild-android-64/wasm_exec.js
+/npm/@esbuild/android-x64/esbuild.wasm
+/npm/@esbuild/android-x64/exit0.js
+/npm/@esbuild/android-x64/wasm_exec_node.js
+/npm/@esbuild/android-x64/wasm_exec.js
 /npm/esbuild-wasm/browser.js
 /npm/esbuild-wasm/esbuild.wasm
 /npm/esbuild-wasm/esm/

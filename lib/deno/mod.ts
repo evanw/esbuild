@@ -143,17 +143,17 @@ async function install(): Promise<string> {
 
   const platformKey = Deno.build.target
   const knownWindowsPackages: Record<string, string> = {
-    'x86_64-pc-windows-msvc': 'esbuild-windows-64',
+    'x86_64-pc-windows-msvc': '@esbuild/win32-x64',
   }
   const knownUnixlikePackages: Record<string, string> = {
     // These are the only platforms that Deno supports
-    'aarch64-apple-darwin': 'esbuild-darwin-arm64',
-    'aarch64-unknown-linux-gnu': 'esbuild-linux-arm64',
-    'x86_64-apple-darwin': 'esbuild-darwin-64',
-    'x86_64-unknown-linux-gnu': 'esbuild-linux-64',
+    'aarch64-apple-darwin': '@esbuild/darwin-arm64',
+    'aarch64-unknown-linux-gnu': '@esbuild/linux-arm64',
+    'x86_64-apple-darwin': '@esbuild/darwin-x64',
+    'x86_64-unknown-linux-gnu': '@esbuild/linux-x64',
 
     // These platforms are not supported by Deno
-    'x86_64-unknown-freebsd': 'esbuild-freebsd-64',
+    'x86_64-unknown-freebsd': '@esbuild/freebsd-x64',
   }
 
   // Pick a package to install

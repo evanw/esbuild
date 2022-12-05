@@ -212,7 +212,7 @@ module.exports = ${JSON.stringify(exit0Map, null, 2)};
   // Also copy this into the WebAssembly shim directories
   for (const dir of [
     path.join(repoDir, 'npm', '@esbuild', 'android-arm'),
-    path.join(repoDir, 'npm', 'esbuild-android-64'),
+    path.join(repoDir, 'npm', '@esbuild', 'android-x64'),
   ]) {
     fs.mkdirSync(path.join(dir, 'bin'), { recursive: true })
     fs.writeFileSync(path.join(dir, 'wasm_exec.js'), wasm_exec_js);

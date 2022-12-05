@@ -9,38 +9,38 @@ declare const ESBUILD_VERSION: string;
 // external code relies on this.
 export var ESBUILD_BINARY_PATH: string | undefined = process.env.ESBUILD_BINARY_PATH || ESBUILD_BINARY_PATH;
 
-const packageDarwin_arm64 = 'esbuild-darwin-arm64'
-const packageDarwin_x64 = 'esbuild-darwin-64'
+const packageDarwin_arm64 = '@esbuild/darwin-arm64'
+const packageDarwin_x64 = '@esbuild/darwin-x64'
 
 export const knownWindowsPackages: Record<string, string> = {
-  'win32 arm64 LE': 'esbuild-windows-arm64',
-  'win32 ia32 LE': 'esbuild-windows-32',
-  'win32 x64 LE': 'esbuild-windows-64',
+  'win32 arm64 LE': '@esbuild/win32-arm64',
+  'win32 ia32 LE': '@esbuild/win32-ia32',
+  'win32 x64 LE': '@esbuild/win32-x64',
 };
 
 export const knownUnixlikePackages: Record<string, string> = {
-  'android arm64 LE': 'esbuild-android-arm64',
-  'darwin arm64 LE': 'esbuild-darwin-arm64',
-  'darwin x64 LE': 'esbuild-darwin-64',
-  'freebsd arm64 LE': 'esbuild-freebsd-arm64',
-  'freebsd x64 LE': 'esbuild-freebsd-64',
-  'linux arm LE': 'esbuild-linux-arm',
-  'linux arm64 LE': 'esbuild-linux-arm64',
-  'linux ia32 LE': 'esbuild-linux-32',
-  'linux mips64el LE': 'esbuild-linux-mips64le',
-  'linux ppc64 LE': 'esbuild-linux-ppc64le',
-  'linux riscv64 LE': 'esbuild-linux-riscv64',
-  'linux s390x BE': 'esbuild-linux-s390x',
-  'linux x64 LE': 'esbuild-linux-64',
+  'android arm64 LE': '@esbuild/android-arm64',
+  'darwin arm64 LE': '@esbuild/darwin-arm64',
+  'darwin x64 LE': '@esbuild/darwin-x64',
+  'freebsd arm64 LE': '@esbuild/freebsd-arm64',
+  'freebsd x64 LE': '@esbuild/freebsd-x64',
+  'linux arm LE': '@esbuild/linux-arm',
+  'linux arm64 LE': '@esbuild/linux-arm64',
+  'linux ia32 LE': '@esbuild/linux-ia32',
+  'linux mips64el LE': '@esbuild/linux-mips64el',
+  'linux ppc64 LE': '@esbuild/linux-ppc64',
+  'linux riscv64 LE': '@esbuild/linux-riscv64',
+  'linux s390x BE': '@esbuild/linux-s390x',
+  'linux x64 LE': '@esbuild/linux-x64',
   'linux loong64 LE': '@esbuild/linux-loong64',
-  'netbsd x64 LE': 'esbuild-netbsd-64',
-  'openbsd x64 LE': 'esbuild-openbsd-64',
-  'sunos x64 LE': 'esbuild-sunos-64',
+  'netbsd x64 LE': '@esbuild/netbsd-x64',
+  'openbsd x64 LE': '@esbuild/openbsd-x64',
+  'sunos x64 LE': '@esbuild/sunos-x64',
 };
 
 export const knownWebAssemblyFallbackPackages: Record<string, string> = {
   'android arm LE': '@esbuild/android-arm',
-  'android x64 LE': 'esbuild-android-64',
+  'android x64 LE': '@esbuild/android-x64',
 };
 
 export function pkgAndSubpathForCurrentPlatform(): { pkg: string, subpath: string, isWASM: boolean } {
