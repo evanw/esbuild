@@ -8,13 +8,6 @@ import (
 	"github.com/evanw/esbuild/internal/test"
 )
 
-func assertEqual(t *testing.T, a interface{}, b interface{}) {
-	t.Helper()
-	if a != b {
-		t.Fatalf("%s != %s", a, b)
-	}
-}
-
 func expectPrintedCommon(t *testing.T, name string, contents string, expected string, options Options) {
 	t.Helper()
 	t.Run(name, func(t *testing.T) {
@@ -30,9 +23,9 @@ func expectPrintedCommon(t *testing.T, name string, contents string, expected st
 				text += msg.String(logger.OutputOptions{}, logger.TerminalInfo{})
 			}
 		}
-		assertEqual(t, text, "")
+		test.AssertEqualWithDiff(t, text, "")
 		result := Print(tree, options)
-		assertEqual(t, string(result.CSS), expected)
+		test.AssertEqualWithDiff(t, string(result.CSS), expected)
 	})
 }
 
@@ -61,7 +54,7 @@ func expectPrintedString(t *testing.T, stringValue string, expected string) {
 		t.Helper()
 		p := printer{}
 		p.printQuoted(stringValue)
-		assertEqual(t, string(p.css), expected)
+		test.AssertEqualWithDiff(t, string(p.css), expected)
 	})
 }
 
