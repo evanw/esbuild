@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.15.18
 
 * Performance improvements for both JS and CSS
 
