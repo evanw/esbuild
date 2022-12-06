@@ -146,13 +146,7 @@ func validateSourceMap(value SourceMap) config.SourceMap {
 
 func validateLegalComments(value LegalComments, bundle bool) config.LegalComments {
 	switch value {
-	case LegalCommentsDefault:
-		if bundle {
-			return config.LegalCommentsEndOfFile
-		} else {
-			return config.LegalCommentsInline
-		}
-	case LegalCommentsNone:
+	case LegalCommentsDefault, LegalCommentsNone:
 		return config.LegalCommentsNone
 	case LegalCommentsInline:
 		return config.LegalCommentsInline
