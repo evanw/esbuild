@@ -525,6 +525,32 @@ export {
 };
 
 ================================================================================
+TestSplittingSharedES6IntoCommonjs
+---------- /out/a.js ----------
+var {
+  foo
+} = require("./chunk-YKDLWRHV.js");
+
+// a.js
+console.log(foo);
+
+---------- /out/b.js ----------
+var {
+  foo
+} = require("./chunk-YKDLWRHV.js");
+
+// b.js
+console.log(foo);
+
+---------- /out/chunk-YKDLWRHV.js ----------
+// shared.js
+var foo = 123;
+
+module.exports = {
+  foo
+};
+
+================================================================================
 TestSplittingSharedES6IntoES6
 ---------- /out/a.js ----------
 import {

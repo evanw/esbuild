@@ -1068,6 +1068,32 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 					Items: items,
 				}}}
 			}
+		case config.FormatCommonJS:
+			r := renamer.ExportRenamer{}
+			var items []js_ast.Property
+			for _, export := range c.sortedCrossChunkExportItems(chunkMetas[chunkIndex].exports) {
+				var alias string
+				if c.options.MinifyIdentifiers {
+					alias = r.NextMinifiedName()
+				} else {
+					alias = r.NextRenamedName(c.graph.Symbols.Get(export.Ref).OriginalName)
+				}
+				items = append(items, js_ast.Property{Key: js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16(alias)}}, ValueOrNil: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: export.Ref}}})
+				chunkRepr.exportsToOtherChunks[export.Ref] = alias
+			}
+			if len(items) > 0 {
+				st := js_ast.AssignStmt(
+					js_ast.Expr{Data: &js_ast.EDot{
+						Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: c.unboundModuleRef}},
+						Name:   "exports",
+					}},
+					js_ast.Expr{Data: &js_ast.EObject{
+						Properties: items,
+					}},
+				)
+
+				chunkRepr.crossChunkSuffixStmts = []js_ast.Stmt{st}
+			}
 
 		default:
 			panic("Internal error")
@@ -1109,6 +1135,33 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 					crossChunkPrefixStmts = append(crossChunkPrefixStmts, js_ast.Stmt{Data: &js_ast.SImport{
 						ImportRecordIndex: importRecordIndex,
 					}})
+				}
+			case config.FormatCommonJS:
+				var items []js_ast.PropertyBinding
+				for _, item := range crossChunkImport.sortedImportItems {
+					items = append(items, js_ast.PropertyBinding{Key: js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16(item.exportAlias)}},
+						Value: js_ast.Binding{Data: &js_ast.BIdentifier{Ref: item.ref}}})
+				}
+				importRecordIndex := uint32(len(chunk.crossChunkImports))
+				chunk.crossChunkImports = append(chunk.crossChunkImports, chunkImport{
+					importKind: ast.ImportStmt,
+					chunkIndex: crossChunkImport.chunkIndex,
+				})
+				if len(items) > 0 {
+					crossChunkPrefixStmts = append(crossChunkPrefixStmts, js_ast.Stmt{
+						Data: &js_ast.SLocal{Decls: []js_ast.Decl{{
+							Binding: js_ast.Binding{Data: &js_ast.BObject{
+								Properties: items,
+							}},
+							ValueOrNil: js_ast.Expr{Data: &js_ast.ERequireString{
+								ImportRecordIndex: importRecordIndex,
+							}},
+						}}},
+					})
+				} else {
+					crossChunkPrefixStmts = append(crossChunkPrefixStmts, js_ast.Stmt{Data: &js_ast.SExpr{Value: js_ast.Expr{Data: &js_ast.ERequireString{
+						ImportRecordIndex: importRecordIndex,
+					}}}})
 				}
 
 			default:
