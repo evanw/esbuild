@@ -2216,6 +2216,17 @@ func applyOptionDefaults(options *config.Options) {
 		compat.ClassField|compat.ClassPrivateAccessor|compat.ClassPrivateBrandCheck|compat.ClassPrivateField|
 			compat.ClassPrivateMethod|compat.ClassPrivateStaticAccessor|compat.ClassPrivateStaticField|
 			compat.ClassPrivateStaticMethod|compat.ClassStaticBlocks|compat.ClassStaticField)
+
+	// If we're not building for the browser, automatically disable support for
+	// inline </script> and </style> tags if there aren't currently any overrides
+	if options.Platform != config.PlatformBrowser {
+		if !options.UnsupportedJSFeatureOverridesMask.Has(compat.InlineScript) {
+			options.UnsupportedJSFeatures |= compat.InlineScript
+		}
+		if !options.UnsupportedCSSFeatureOverridesMask.Has(compat.InlineStyle) {
+			options.UnsupportedCSSFeatures |= compat.InlineStyle
+		}
+	}
 }
 
 func fixInvalidUnsupportedJSFeatureOverrides(options *config.Options, implies compat.JSFeature, implied compat.JSFeature) {

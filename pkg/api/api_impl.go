@@ -97,11 +97,9 @@ func validatePathTemplate(template string) []config.PathTemplate {
 	return parts
 }
 
-func validatePlatform(value Platform, defaultPlatform config.Platform) config.Platform {
+func validatePlatform(value Platform) config.Platform {
 	switch value {
-	case PlatformDefault:
-		return defaultPlatform
-	case PlatformBrowser:
+	case PlatformDefault, PlatformBrowser:
 		return config.PlatformBrowser
 	case PlatformNode:
 		return config.PlatformNode
@@ -950,7 +948,7 @@ func rebuildImpl(
 	bannerJS, bannerCSS := validateBannerOrFooter(log, "banner", buildOpts.Banner)
 	footerJS, footerCSS := validateBannerOrFooter(log, "footer", buildOpts.Footer)
 	minify := buildOpts.MinifyWhitespace && buildOpts.MinifyIdentifiers && buildOpts.MinifySyntax
-	platform := validatePlatform(buildOpts.Platform, config.PlatformBrowser)
+	platform := validatePlatform(buildOpts.Platform)
 	defines, injectedDefines := validateDefines(log, buildOpts.Define, buildOpts.Pure, platform, minify, buildOpts.Drop)
 	mangleCache := cloneMangleCache(log, buildOpts.MangleCache)
 	options := config.Options{
@@ -1485,7 +1483,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 	// Convert and validate the transformOpts
 	targetFromAPI, jsFeatures, cssFeatures, targetEnv := validateFeatures(log, transformOpts.Target, transformOpts.Engines)
 	jsOverrides, jsMask, cssOverrides, cssMask := validateSupported(log, transformOpts.Supported)
-	platform := validatePlatform(transformOpts.Platform, config.PlatformNeutral)
+	platform := validatePlatform(transformOpts.Platform)
 	defines, injectedDefines := validateDefines(log, transformOpts.Define, transformOpts.Pure, platform, false /* minify */, transformOpts.Drop)
 	mangleCache := cloneMangleCache(log, transformOpts.MangleCache)
 	options := config.Options{

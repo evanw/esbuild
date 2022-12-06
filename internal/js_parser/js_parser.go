@@ -12654,7 +12654,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 		// Lower tagged template literals that include "</script"
 		// since we won't be able to escape it without lowering it
-		if !shouldLowerTemplateLiteral && e.TagOrNil.Data != nil {
+		if !p.options.unsupportedJSFeatures.Has(compat.InlineScript) && !shouldLowerTemplateLiteral && e.TagOrNil.Data != nil {
 			if containsClosingScriptTag(e.HeadRaw) {
 				shouldLowerTemplateLiteral = true
 			} else {

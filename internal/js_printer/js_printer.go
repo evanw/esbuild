@@ -117,7 +117,7 @@ func (p *printer) printUnquotedUTF16(text []uint16, quote rune) {
 
 		case '/':
 			// Avoid generating the sequence "</script" in JS code
-			if i >= 2 && text[i-2] == '<' && i+6 <= len(text) {
+			if !p.options.UnsupportedFeatures.Has(compat.InlineScript) && i >= 2 && text[i-2] == '<' && i+6 <= len(text) {
 				script := "script"
 				matches := true
 				for j := 0; j < 6; j++ {
@@ -2378,7 +2378,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		n := len(buffer)
 
 		// Avoid forming a single-line comment or "</script" sequence
-		if n > 0 {
+		if !p.options.UnsupportedFeatures.Has(compat.InlineScript) && n > 0 {
 			if last := buffer[n-1]; last == '/' || (last == '<' && len(e.Value) >= 7 && strings.EqualFold(e.Value[:7], "/script")) {
 				p.print(" ")
 			}
@@ -3053,7 +3053,9 @@ func (p *printer) printIf(s *js_ast.SIf) {
 
 func (p *printer) printIndentedComment(text string) {
 	// Avoid generating a comment containing the character sequence "</script"
-	text = helpers.EscapeClosingTag(text, "/script")
+	if !p.options.UnsupportedFeatures.Has(compat.InlineScript) {
+		text = helpers.EscapeClosingTag(text, "/script")
+	}
 
 	if strings.HasPrefix(text, "/*") {
 		// Re-indent multi-line comments

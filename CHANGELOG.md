@@ -91,6 +91,20 @@
 
     In addition, adding `assert { type: 'json' }` to an import statement now means esbuild will generate an error if the loader for the file is anything other than `json`, which is required by the import assertion specification.
 
+* Provide a way to disable automatic escaping of `</script>` ([#2649](https://github.com/evanw/esbuild/issues/2649))
+
+    If you inject esbuild's output into a script tag in an HTML file, code containing the literal characters `</script>` will cause the tag to be ended early which will break the code:
+
+    ```html
+    <script>
+      console.log("</script>");
+    </script>
+    ```
+
+    To avoid this, esbuild automatically escapes these strings in generated JavaScript files (e.g. `"</script>"` becomes `"<\/script>"` instead). This also applies to `</style>` in generated CSS files. Previously this always happened and there wasn't a way to turn this off.
+
+    With this release, esbuild will now only do this if the `platform` setting is set to `browser` (the default value). Setting `platform` to `node` or `neutral` will disable this behavior. This behavior can also now be disabled with `--supported:inline-script=false` (for JS) and `--supported:inline-style=false` (for CSS).
+
 * Throw an early error if decoded UTF-8 text isn't a `Uint8Array` ([#2532](https://github.com/evanw/esbuild/issues/2532))
 
     If you run esbuild's JavaScript API in a broken JavaScript environment where `new TextEncoder().encode("") instanceof Uint8Array` is false, then esbuild's API will fail with a confusing serialization error message that makes it seem like esbuild has a bug even though the real problem is that the JavaScript environment itself is broken. This can happen when using the test framework called [Jest](https://jestjs.io/). With this release, esbuild's API will now throw earlier when it detects that the environment is unable to encode UTF-8 text correctly with an error message that makes it more clear that this is not a problem with esbuild.

@@ -4,7 +4,7 @@ type CSSFeature uint8
 
 const (
 	HexRGBA CSSFeature = 1 << iota
-
+	InlineStyle
 	RebeccaPurple
 
 	// This feature includes all of the following:
@@ -20,18 +20,11 @@ const (
 
 var StringToCSSFeature = map[string]CSSFeature{
 	"hex-rgba":       HexRGBA,
+	"inline-style":   InlineStyle,
 	"rebecca-purple": RebeccaPurple,
 	"modern-rgb-hsl": Modern_RGB_HSL,
 	"inset-property": InsetProperty,
 	"nesting":        Nesting,
-}
-
-var CSSFeatureToString = map[CSSFeature]string{
-	HexRGBA:        "hex-rgba",
-	RebeccaPurple:  "rebecca-purple",
-	Modern_RGB_HSL: "modern-rgb-hsl",
-	InsetProperty:  "inset-property",
-	Nesting:        "nesting",
 }
 
 func (features CSSFeature) Has(feature CSSFeature) bool {

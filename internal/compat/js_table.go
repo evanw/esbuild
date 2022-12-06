@@ -81,6 +81,7 @@ const (
 	Hashbang
 	ImportAssertions
 	ImportMeta
+	InlineScript
 	LogicalAssignment
 	NestedRestBinding
 	NewTarget
@@ -135,6 +136,7 @@ var StringToJSFeature = map[string]JSFeature{
 	"hashbang":                         Hashbang,
 	"import-assertions":                ImportAssertions,
 	"import-meta":                      ImportMeta,
+	"inline-script":                    InlineScript,
 	"logical-assignment":               LogicalAssignment,
 	"nested-rest-binding":              NestedRestBinding,
 	"new-target":                       NewTarget,
@@ -157,60 +159,6 @@ var StringToJSFeature = map[string]JSFeature{
 	"top-level-await":                  TopLevelAwait,
 	"typeof-exotic-object-is-object":   TypeofExoticObjectIsObject,
 	"unicode-escapes":                  UnicodeEscapes,
-}
-
-var JSFeatureToString = map[JSFeature]string{
-	ArbitraryModuleNamespaceNames: "arbitrary-module-namespace-names",
-	ArraySpread:                   "array-spread",
-	Arrow:                         "arrow",
-	AsyncAwait:                    "async-await",
-	AsyncGenerator:                "async-generator",
-	Bigint:                        "bigint",
-	Class:                         "class",
-	ClassField:                    "class-field",
-	ClassPrivateAccessor:          "class-private-accessor",
-	ClassPrivateBrandCheck:        "class-private-brand-check",
-	ClassPrivateField:             "class-private-field",
-	ClassPrivateMethod:            "class-private-method",
-	ClassPrivateStaticAccessor:    "class-private-static-accessor",
-	ClassPrivateStaticField:       "class-private-static-field",
-	ClassPrivateStaticMethod:      "class-private-static-method",
-	ClassStaticBlocks:             "class-static-blocks",
-	ClassStaticField:              "class-static-field",
-	ConstAndLet:                   "const-and-let",
-	DefaultArgument:               "default-argument",
-	Destructuring:                 "destructuring",
-	DynamicImport:                 "dynamic-import",
-	ExponentOperator:              "exponent-operator",
-	ExportStarAs:                  "export-star-as",
-	ForAwait:                      "for-await",
-	ForOf:                         "for-of",
-	Generator:                     "generator",
-	Hashbang:                      "hashbang",
-	ImportAssertions:              "import-assertions",
-	ImportMeta:                    "import-meta",
-	LogicalAssignment:             "logical-assignment",
-	NestedRestBinding:             "nested-rest-binding",
-	NewTarget:                     "new-target",
-	NodeColonPrefixImport:         "node-colon-prefix-import",
-	NodeColonPrefixRequire:        "node-colon-prefix-require",
-	NullishCoalescing:             "nullish-coalescing",
-	ObjectAccessors:               "object-accessors",
-	ObjectExtensions:              "object-extensions",
-	ObjectRestSpread:              "object-rest-spread",
-	OptionalCatchBinding:          "optional-catch-binding",
-	OptionalChain:                 "optional-chain",
-	RegexpDotAllFlag:              "regexp-dot-all-flag",
-	RegexpLookbehindAssertions:    "regexp-lookbehind-assertions",
-	RegexpMatchIndices:            "regexp-match-indices",
-	RegexpNamedCaptureGroups:      "regexp-named-capture-groups",
-	RegexpStickyAndUnicodeFlags:   "regexp-sticky-and-unicode-flags",
-	RegexpUnicodePropertyEscapes:  "regexp-unicode-property-escapes",
-	RestArgument:                  "rest-argument",
-	TemplateLiteral:               "template-literal",
-	TopLevelAwait:                 "top-level-await",
-	TypeofExoticObjectIsObject:    "typeof-exotic-object-is-object",
-	UnicodeEscapes:                "unicode-escapes",
 }
 
 func (features JSFeature) Has(feature JSFeature) bool {
@@ -527,6 +475,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Opera:   {{start: v{51, 0, 0}}},
 		Safari:  {{start: v{11, 1, 0}}},
 	},
+	InlineScript: {},
 	LogicalAssignment: {
 		Chrome:  {{start: v{85, 0, 0}}},
 		Deno:    {{start: v{1, 2, 0}}},

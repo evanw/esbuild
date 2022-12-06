@@ -6,6 +6,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/evanw/esbuild/internal/ast"
+	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/css_ast"
 	"github.com/evanw/esbuild/internal/css_lexer"
@@ -32,11 +33,12 @@ type Options struct {
 	// us do binary search on to figure out what line a given AST node came from
 	LineOffsetTables []sourcemap.LineOffsetTable
 
-	MinifyWhitespace  bool
-	ASCIIOnly         bool
-	SourceMap         config.SourceMap
-	AddSourceMappings bool
-	LegalComments     config.LegalComments
+	UnsupportedFeatures compat.CSSFeature
+	MinifyWhitespace    bool
+	ASCIIOnly           bool
+	SourceMap           config.SourceMap
+	AddSourceMappings   bool
+	LegalComments       config.LegalComments
 }
 
 type PrintResult struct {
@@ -268,7 +270,9 @@ func (p *printer) printRule(rule css_ast.Rule, indent int32, omitTrailingSemicol
 
 func (p *printer) printIndentedComment(indent int32, text string) {
 	// Avoid generating a comment containing the character sequence "</style"
-	text = helpers.EscapeClosingTag(text, "/style")
+	if !p.options.UnsupportedFeatures.Has(compat.InlineStyle) {
+		text = helpers.EscapeClosingTag(text, "/style")
+	}
 
 	// Re-indent multi-line comments
 	for {
@@ -580,7 +584,7 @@ func (p *printer) printQuotedWithQuote(text string, quote byte) {
 
 		case '/':
 			// Avoid generating the sequence "</style" in CSS code
-			if i >= 1 && text[i-1] == '<' && i+6 <= len(text) && strings.EqualFold(text[i+1:i+6], "style") {
+			if !p.options.UnsupportedFeatures.Has(compat.InlineStyle) && i >= 1 && text[i-1] == '<' && i+6 <= len(text) && strings.EqualFold(text[i+1:i+6], "style") {
 				escape = escapeBackslash
 			}
 

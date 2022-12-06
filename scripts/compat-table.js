@@ -263,6 +263,11 @@ mergeVersions('TypeofExoticObjectIsObject', {
   safari0: true,
 })
 
+// If you want to embed the output directly in HTML, then closing HTML tags must
+// be marked as unsupported. Doing this escapes "</script>" in JS and "</style>"
+// in CSS. Otherwise the containing HTML tag will be ended early.
+mergeVersions('InlineScript', {})
+
 // This is a special case. Node added support for it to both v12.20+ and v13.2+
 // so the range is inconveniently discontiguous. Sources:
 //
@@ -431,10 +436,6 @@ ${Object.keys(versions).sort().map((x, i) => `\t${x}${i ? '' : ' JSFeature = 1 <
 
 var StringToJSFeature = map[string]JSFeature{
 ${simpleMap(Object.keys(versions).sort().map(x => [`"${jsFeatureString(x)}"`, x]))}
-}
-
-var JSFeatureToString = map[JSFeature]string{
-${simpleMap(Object.keys(versions).sort().map(x => [x, `"${jsFeatureString(x)}"`]))}
 }
 
 func (features JSFeature) Has(feature JSFeature) bool {

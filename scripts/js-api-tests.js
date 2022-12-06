@@ -5212,6 +5212,50 @@ let transformTests = {
     assert.strictEqual(fromPromiseResolve(code4), `Promise.resolve().then(function(){return __toESM(require(foo))});\n`)
   },
 
+  async inlineScript({ esbuild }) {
+    let p
+    assert.strictEqual((await esbuild.transform(`x = '</script>'`, {})).code, `x = "<\\/script>";\n`)
+    assert.strictEqual((await esbuild.transform(`x = '</script> inline'`, { supported: { 'inline-script': true } })).code, `x = "<\\/script> inline";\n`)
+    assert.strictEqual((await esbuild.transform(`x = '</script> noinline'`, { supported: { 'inline-script': false } })).code, `x = "</script> noinline";\n`)
+
+    p = { platform: 'browser' }
+    assert.strictEqual((await esbuild.transform(`x = '</script> browser'`, { ...p })).code, `x = "<\\/script> browser";\n`)
+    assert.strictEqual((await esbuild.transform(`x = '</script> browser inline'`, { ...p, supported: { 'inline-script': true } })).code, `x = "<\\/script> browser inline";\n`)
+    assert.strictEqual((await esbuild.transform(`x = '</script> browser noinline'`, { ...p, supported: { 'inline-script': false } })).code, `x = "</script> browser noinline";\n`)
+
+    p = { platform: 'node' }
+    assert.strictEqual((await esbuild.transform(`x = '</script> node'`, { ...p })).code, `x = "</script> node";\n`)
+    assert.strictEqual((await esbuild.transform(`x = '</script> node inline'`, { ...p, supported: { 'inline-script': true } })).code, `x = "<\\/script> node inline";\n`)
+    assert.strictEqual((await esbuild.transform(`x = '</script> node noinline'`, { ...p, supported: { 'inline-script': false } })).code, `x = "</script> node noinline";\n`)
+
+    p = { platform: 'neutral' }
+    assert.strictEqual((await esbuild.transform(`x = '</script> neutral'`, { ...p })).code, `x = "</script> neutral";\n`)
+    assert.strictEqual((await esbuild.transform(`x = '</script> neutral inline'`, { ...p, supported: { 'inline-script': true } })).code, `x = "<\\/script> neutral inline";\n`)
+    assert.strictEqual((await esbuild.transform(`x = '</script> neutral noinline'`, { ...p, supported: { 'inline-script': false } })).code, `x = "</script> neutral noinline";\n`)
+  },
+
+  async inlineStyle({ esbuild }) {
+    let p = { loader: 'css' }
+    assert.strictEqual((await esbuild.transform(`x { y: '</style>' }`, { ...p })).code, `x {\n  y: "<\\/style>";\n}\n`)
+    assert.strictEqual((await esbuild.transform(`x { y: '</style> inline' }`, { ...p, supported: { 'inline-style': true } })).code, `x {\n  y: "<\\/style> inline";\n}\n`)
+    assert.strictEqual((await esbuild.transform(`x { y: '</style> noinline' }`, { ...p, supported: { 'inline-style': false } })).code, `x {\n  y: "</style> noinline";\n}\n`)
+
+    p = { loader: 'css', platform: 'browser' }
+    assert.strictEqual((await esbuild.transform(`x { y: '</style> browser' }`, { ...p })).code, `x {\n  y: "<\\/style> browser";\n}\n`)
+    assert.strictEqual((await esbuild.transform(`x { y: '</style> browser inline' }`, { ...p, supported: { 'inline-style': true } })).code, `x {\n  y: "<\\/style> browser inline";\n}\n`)
+    assert.strictEqual((await esbuild.transform(`x { y: '</style> browser noinline' }`, { ...p, supported: { 'inline-style': false } })).code, `x {\n  y: "</style> browser noinline";\n}\n`)
+
+    p = { loader: 'css', platform: 'node' }
+    assert.strictEqual((await esbuild.transform(`x { y: '</style> node' }`, { ...p })).code, `x {\n  y: "</style> node";\n}\n`)
+    assert.strictEqual((await esbuild.transform(`x { y: '</style> node inline' }`, { ...p, supported: { 'inline-style': true } })).code, `x {\n  y: "<\\/style> node inline";\n}\n`)
+    assert.strictEqual((await esbuild.transform(`x { y: '</style> node noinline' }`, { ...p, supported: { 'inline-style': false } })).code, `x {\n  y: "</style> node noinline";\n}\n`)
+
+    p = { loader: 'css', platform: 'neutral' }
+    assert.strictEqual((await esbuild.transform(`x { y: '</style> neutral' }`, { ...p })).code, `x {\n  y: "</style> neutral";\n}\n`)
+    assert.strictEqual((await esbuild.transform(`x { y: '</style> neutral inline' }`, { ...p, supported: { 'inline-style': true } })).code, `x {\n  y: "<\\/style> neutral inline";\n}\n`)
+    assert.strictEqual((await esbuild.transform(`x { y: '</style> neutral noinline' }`, { ...p, supported: { 'inline-style': false } })).code, `x {\n  y: "</style> neutral noinline";\n}\n`)
+  },
+
   async typeofEqualsUndefinedTarget({ esbuild }) {
     assert.strictEqual((await esbuild.transform(`a = typeof b !== 'undefined'`, { minify: true })).code, `a=typeof b<"u";\n`)
     assert.strictEqual((await esbuild.transform(`a = typeof b !== 'undefined'`, { minify: true, target: 'es2020' })).code, `a=typeof b<"u";\n`)
