@@ -38,6 +38,22 @@
 
     This change was not made with performance in mind. But as a bonus, installing esbuild with npm may potentially happen faster now. This is because npm's package installation protocol is inefficient: it always downloads metadata for all past versions of each package even when it only needs metadata about a single version. This makes npm package downloads O(n) in the number of published versions, which penalizes packages like esbuild that are updated regularly. Since most of esbuild's package names have now changed, npm will now need to download much less data when installing esbuild (8.72mb of package manifests before this change → 0.06mb of package manifests after this change). However, this is only a temporary improvement. Installing esbuild will gradually get slower again as further versions of esbuild are published.
 
+* Publish a shell script that downloads esbuild directly
+
+    In addition to all of the existing ways to install esbuild, you can now also download esbuild directly like this:
+
+    ```sh
+    curl -fsSL https://esbuild.github.io/dl/latest | sh
+    ```
+
+    This runs a small shell script that downloads the latest `esbuild` binary executable to the current directory. This can be convenient on systems that don't have `npm` installed or when you just want to get a copy of esbuild quickly without any extra steps. If you want a specific version of esbuild (starting with this version onward), you can provide that version in the URL instead of `latest`:
+
+    ```sh
+    curl -fsSL https://esbuild.github.io/dl/v0.16.0 | sh
+    ```
+
+    Note that the download script needs to be able to access registry.npmjs.org to be able to complete the download. This download script doesn't yet support all of the platforms that esbuild supports because I lack the necessary testing environments. If the download script doesn't work for you because you're on an unsupported platform, please file an issue on the esbuild repo so we can add support for it.
+
 * Fix some parameter names for the Go API
 
     This release changes some parameter names for the Go API to be consistent with the JavaScript and CLI APIs:

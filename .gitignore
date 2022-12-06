@@ -27,6 +27,7 @@
 /require/*/demo/
 /scripts/.*/
 /validate/
+/www
 bin
 esbuild.exe
 node_modules/

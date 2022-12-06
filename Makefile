@@ -434,7 +434,8 @@ publish-all: check-go-version
 	@read OTP && OTP="$$OTP" $(MAKE) --no-print-directory -j4 \
 		publish-neutral \
 		publish-deno \
-		publish-wasm
+		publish-wasm \
+		publish-dl
 
 	git push origin main "v$(ESBUILD_VERSION)"
 
@@ -518,6 +519,15 @@ publish-deno:
 	cd deno && git commit -m "publish $(ESBUILD_VERSION) to deno"
 	cd deno && git tag "v$(ESBUILD_VERSION)"
 	cd deno && git push origin main "v$(ESBUILD_VERSION)"
+
+publish-dl:
+	test -d www/.git || (rm -fr www && git clone git@github.com:esbuild/esbuild.github.io.git www)
+	cd www && git fetch && git checkout gh-pages && git reset --hard origin/gh-pages
+	cd www && cat ../dl.sh | sed 's/$$ESBUILD_VERSION/$(ESBUILD_VERSION)/' > dl/latest
+	cd www && cat ../dl.sh | sed 's/$$ESBUILD_VERSION/$(ESBUILD_VERSION)/' > "dl/v$(ESBUILD_VERSION)"
+	cd www && git add dl/latest "dl/v$(ESBUILD_VERSION)"
+	cd www && git commit -m "publish download script for $(ESBUILD_VERSION)"
+	cd www && git push origin gh-pages
 
 validate-build:
 	@test -n "$(TARGET)" || (echo "The environment variable TARGET must be provided" && false)
