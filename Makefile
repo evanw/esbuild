@@ -221,37 +221,6 @@ test-yarnpnp: platform-wasm
 version-go:
 	node scripts/esbuild.js --update-version-go
 
-wasm-napi-exit0-darwin-x64:
-	node -e 'console.log(`#include <unistd.h>\nvoid* napi_register_module_v1(void* a, void* b) { _exit(0); }`)' \
-		| clang -x c -dynamiclib -mmacosx-version-min=10.5 -o lib/npm/exit0/darwin-x64-LE.node -
-	ls -l lib/npm/exit0/darwin-x64-LE.node
-
-wasm-napi-exit0-darwin-arm64:
-	node -e 'console.log(`#include <unistd.h>\nvoid* napi_register_module_v1(void* a, void* b) { _exit(0); }`)' \
-		| clang -x c -dynamiclib -mmacosx-version-min=10.5 -o lib/npm/exit0/darwin-arm64-LE.node -
-	ls -l lib/npm/exit0/darwin-arm64-LE.node
-
-wasm-napi-exit0-linux-x64:
-	node -e 'console.log(`#include <unistd.h>\nvoid* napi_register_module_v1(void* a, void* b) { _exit(0); }`)' \
-		| gcc -x c -shared -o lib/npm/exit0/linux-x64-LE.node -
-	strip lib/npm/exit0/linux-x64-LE.node
-	ls -l lib/npm/exit0/linux-x64-LE.node
-
-wasm-napi-exit0-linux-arm64:
-	node -e 'console.log(`#include <unistd.h>\nvoid* napi_register_module_v1(void* a, void* b) { _exit(0); }`)' \
-		| gcc -x c -shared -o lib/npm/exit0/linux-arm64-LE.node -
-	strip lib/npm/exit0/linux-arm64-LE.node
-	ls -l lib/npm/exit0/linux-arm64-LE.node
-
-wasm-napi-exit0-win32-x64:
-	# This isn't meant to be run directly but is a rough overview of the instructions
-	echo '__declspec(dllexport) void* napi_register_module_v1(void* a, void* b) { ExitProcess(0); }' > main.c
-	echo 'setlocal' > main.bat
-	echo 'call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvarsall.bat" x64' >> main.bat
-	echo 'cl.exe /LD main.c /link /DLL /NODEFAULTLIB /NOENTRY kernel32.lib /OUT:lib/npm/exit0/win32-x64-LE.node' >> main.bat
-	main.bat
-	rm -f main.*
-
 platform-all:
 	@$(MAKE) --no-print-directory -j4 \
 		platform-android-arm \
@@ -576,10 +545,10 @@ clean:
 	rm -f npm/@esbuild/win32-arm64/esbuild.exe
 	rm -f npm/@esbuild/win32-ia32/esbuild.exe
 	rm -f npm/@esbuild/win32-x64/esbuild.exe
-	rm -f npm/esbuild-wasm/esbuild.wasm npm/esbuild-wasm/wasm_exec*.js npm/esbuild-wasm/exit0.js
-	rm -rf npm/@esbuild/android-arm/bin npm/@esbuild/android-arm/esbuild.wasm npm/@esbuild/android-arm/wasm_exec*.js npm/@esbuild/android-arm/exit0.js
+	rm -f npm/esbuild-wasm/esbuild.wasm npm/esbuild-wasm/wasm_exec*.js
+	rm -rf npm/@esbuild/android-arm/bin npm/@esbuild/android-arm/esbuild.wasm npm/@esbuild/android-arm/wasm_exec*.js
 	rm -rf npm/@esbuild/android-arm64/bin
-	rm -rf npm/@esbuild/android-x64/bin npm/@esbuild/android-x64/esbuild.wasm npm/@esbuild/android-x64/wasm_exec*.js npm/@esbuild/android-x64/exit0.js
+	rm -rf npm/@esbuild/android-x64/bin npm/@esbuild/android-x64/esbuild.wasm npm/@esbuild/android-x64/wasm_exec*.js
 	rm -rf npm/@esbuild/darwin-arm64/bin
 	rm -rf npm/@esbuild/darwin-x64/bin
 	rm -rf npm/@esbuild/freebsd-arm64/bin

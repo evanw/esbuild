@@ -3,11 +3,8 @@
 // Forward to the automatically-generated WebAssembly loader from the Go compiler
 
 const module_ = require('module');
-const crypto = require('crypto');
 const path = require('path');
-const zlib = require('zlib');
 const fs = require('fs');
-const os = require('os');
 
 const wasm_exec_node = path.join(__dirname, '..', 'wasm_exec_node.js');
 const esbuild_wasm = path.join(__dirname, '..', 'esbuild.wasm');
@@ -22,45 +19,6 @@ function instantiate(bytes, importObject) {
   const instance = new WebAssembly.Instance(module, importObject);
   return Promise.resolve({ instance, module });
 }
-
-// Node has an unfortunate bug where the node process is unnecessarily kept open while a
-// WebAssembly module is being optimized: https://github.com/nodejs/node/issues/36616.
-// This means cases where running "esbuild" should take a few milliseconds can end up
-// taking many seconds instead. To work around this bug, it is possible to force node to
-// exit by calling the operating system's exit function. That's what this code does.
-process.on('exit', code => {
-  // If it's a non-zero exit code, we can just kill our own process to stop. This will
-  // preserve the fact that there is a non-zero exit code although the exit code will
-  // be different. We cannot use this if the exit code is supposed to be zero.
-  if (code !== 0) {
-    try {
-      process.kill(process.pid, 'SIGINT');
-    } catch (e) {
-    }
-    return;
-  }
-
-  // Otherwise if the exit code is zero, try to fall back to a binary N-API module that
-  // calls the operating system's "exit(0)" function.
-  const nativeModule = `${process.platform}-${os.arch()}-${os.endianness()}.node`;
-  const base64 = require('../exit0')[nativeModule];
-  if (base64) {
-    try {
-      const data = zlib.inflateRawSync(Buffer.from(base64, 'base64'));
-      const hash = crypto.createHash('sha256').update(base64).digest().toString('hex').slice(0, 16);
-      const tempFile = path.join(os.tmpdir(), `${hash}-${nativeModule}`);
-      try {
-        if (fs.readFileSync(tempFile).equals(data)) {
-          require(tempFile);
-        }
-      } finally {
-        fs.writeFileSync(tempFile, data);
-        require(tempFile);
-      }
-    } catch (e) {
-    }
-  }
-});
 
 // Node has another bug where using "fs.read" to read from stdin reads
 // everything successfully and then throws an error, but only on Windows. Go's

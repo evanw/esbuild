@@ -99,6 +99,16 @@
 
     The primary branch for this repository was previously called `master` but is now called `main`. This change mirrors a similar change in many other projects.
 
+* Remove esbuild's `_exit(0)` hack for WebAssembly ([#714](https://github.com/evanw/esbuild/issues/714))
+
+    Node had an unfortunate bug where the node process is unnecessarily kept open while a WebAssembly module is being optimized: https://github.com/nodejs/node/issues/36616. This means cases where running `esbuild` should take a few milliseconds can end up taking many seconds instead.
+
+    The workaround was to force node to exit by ending the process early. This was done by esbuild in one of two ways depending on the exit code. For non-zero exit codes (i.e. when there is a build error), the `esbuild` command could just call `process.kill(process.pid)` to avoid the hang. But for zero exit codes, esbuild had to load a N-API native node extension that calls the operating system's `exit(0)` function.
+
+    However, this problem has essentially been fixed in node starting with version 18.3.0. So I have removed this hack from esbuild. If you are using an earlier version of node with `esbuild-wasm` and you don't want the `esbuild` command to hang for a while when exiting, you can upgrade to node 18.3.0 or higher to remove the hang.
+
+    The fix came from a V8 upgrade: [this commit](https://github.com/v8/v8/commit/bfe12807c14c91714c7db1485e6b265439375e16) enabled [dynamic tiering for WebAssembly](https://v8.dev/blog/wasm-dynamic-tiering) by default for all projects that use V8's WebAssembly implementation. Previously all functions in the WebAssembly module were optimized in a single batch job but with dynamic tiering, V8 now optimizes individual WebAssembly functions as needed. This avoids unnecessary WebAssembly compilation which allows node to exit on time.
+
 ## 0.15.18
 
 * Performance improvements for both JS and CSS

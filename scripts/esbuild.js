@@ -186,26 +186,6 @@ exports.buildWasmLib = async (esbuildPath) => {
     fs.writeFileSync(path.join(esmDir, minify ? 'browser.min.js' : 'browser.js'), browserESM)
   }
 
-  // Generate the "exit0" stubs
-  const exit0Map = {};
-  const exit0Dir = path.join(repoDir, 'lib', 'npm', 'exit0');
-  for (const entry of fs.readdirSync(exit0Dir)) {
-    if (entry.endsWith('.node')) {
-      const absPath = path.join(exit0Dir, entry);
-      const compressed = zlib.deflateRawSync(fs.readFileSync(absPath), { level: 9 });
-      exit0Map[entry] = compressed.toString('base64');
-    }
-  }
-  const exit0Code = `
-// Each of these is a native module that calls "exit(0)". This is a workaround
-// for https://github.com/nodejs/node/issues/36616. These native modules are
-// stored in a string both to make them smaller and to hide them from Yarn 2,
-// since they make Yarn 2 unzip this package.
-
-module.exports = ${JSON.stringify(exit0Map, null, 2)};
-`;
-  fs.writeFileSync(path.join(npmWasmDir, 'exit0.js'), exit0Code);
-
   // Join with the asynchronous WebAssembly build
   await goBuildPromise;
 
@@ -217,7 +197,6 @@ module.exports = ${JSON.stringify(exit0Map, null, 2)};
     fs.mkdirSync(path.join(dir, 'bin'), { recursive: true })
     fs.writeFileSync(path.join(dir, 'wasm_exec.js'), wasm_exec_js);
     fs.writeFileSync(path.join(dir, 'wasm_exec_node.js'), wasm_exec_node_js);
-    fs.writeFileSync(path.join(dir, 'exit0.js'), exit0Code);
     fs.copyFileSync(path.join(npmWasmDir, 'bin', 'esbuild'), path.join(dir, 'bin', 'esbuild'));
     fs.copyFileSync(path.join(npmWasmDir, 'esbuild.wasm'), path.join(dir, 'esbuild.wasm'));
   }
