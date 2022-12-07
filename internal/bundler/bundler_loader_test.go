@@ -1040,6 +1040,86 @@ func TestLoaderDataURLExtensionBasedMIME(t *testing.T) {
 	})
 }
 
+// Percent-encoded data URLs should switch over to base64
+// data URLs if it would result in a smaller size
+func TestLoaderDataURLBase64VsPercentEncoding(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import a from './shouldUsePercent_1.txt'
+				import b from './shouldUsePercent_2.txt'
+				import c from './shouldUseBase64_1.txt'
+				import d from './shouldUseBase64_2.txt'
+				console.log(
+					a,
+					b,
+					c,
+					d,
+				)
+			`,
+			"/shouldUsePercent_1.txt": "\n\n\n",
+			"/shouldUsePercent_2.txt": "\n\n\n\n",
+			"/shouldUseBase64_1.txt":  "\n\n\n\n\n",
+			"/shouldUseBase64_2.txt":  "\n\n\n\n\n\n",
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			ExtensionToLoader: map[string]config.Loader{
+				".js":  config.LoaderJS,
+				".txt": config.LoaderDataURL,
+			},
+		},
+	})
+}
+
+func TestLoaderDataURLBase64InvalidUTF8(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import a from './binary.txt'
+				console.log(a)
+			`,
+			"/binary.txt": "\xFF",
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			ExtensionToLoader: map[string]config.Loader{
+				".js":  config.LoaderJS,
+				".txt": config.LoaderDataURL,
+			},
+		},
+	})
+}
+
+func TestLoaderDataURLEscapePercents(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import a from './percents.txt'
+				console.log(a)
+			`,
+			"/percents.txt": `
+%, %3, %33, %333
+%, %e, %ee, %eee
+%, %E, %EE, %EEE
+`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			ExtensionToLoader: map[string]config.Loader{
+				".js":  config.LoaderJS,
+				".txt": config.LoaderDataURL,
+			},
+		},
+	})
+}
+
 func TestLoaderCopyWithBundleFromJS(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{

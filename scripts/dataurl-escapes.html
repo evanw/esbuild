@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<p>
+  This script checks to see what characters need to be escaped in a data URL
+  (in addition to % for percent-encoded hexadecimal escapes) for a browser to
+  parse it correctly. This information is used to implement esbuild's
+  <code>dataurl</code> loader. Here is what your current browser requires:
+</p>
+<pre id="result"></pre>
+<p>
+  The answer that works across Chrome, Firefox, and Safari appears to be:
+  <br>
+  <br>Always percent-encode these values: <code>0x09, 0x0A, 0x0D, 0x23</code>
+  <br>Only percent-encode these values in the trailing position: <code>0x00 to 0x08, 0x0B, 0x0C, 0x0E to 0x20</code>
+</p>
+<script>
+
+  function percentEncode(i) {
+    if (i >= 0x80) return encodeURIComponent(String.fromCharCode(i))
+    return '%' + (0x100 | i).toString(16).slice(-2)
+  }
+
+  async function urlDoesDecodeTo(url, to) {
+    return to === await fetch(url).then(r => r.text())
+  }
+
+  async function check() {
+    const shouldEncode = []
+
+    for (let i = 0; i <= 0xFF; i++) {
+      const ch = String.fromCharCode(i)
+      const chPercent = percentEncode(i)
+
+      if (!await urlDoesDecodeTo('data:text/plain,' + chPercent, ch)) {
+        throw new Error('Assertion failed: Cannot decode ' + chPercent)
+      }
+
+      const leading = await urlDoesDecodeTo('data:text/plain,' + ch + 'foo', ch + 'foo')
+      const trailing = await urlDoesDecodeTo('data:text/plain,foo' + ch, 'foo' + ch)
+      const embedded = await urlDoesDecodeTo('data:text/plain,foo' + ch + 'foo', 'foo' + ch + 'foo')
+
+      if (!leading && !trailing && !embedded) {
+        shouldEncode.push('U+' + i.toString(16) + ' (' + ch + ')')
+      } else {
+        if (!leading) shouldEncode.push('U+' + i.toString(16) + ' (' + ch + ') leading')
+        if (!trailing) shouldEncode.push('U+' + i.toString(16) + ' (' + ch + ') trailing')
+        if (!embedded) shouldEncode.push('U+' + i.toString(16) + ' (' + ch + ') embedded')
+      }
+    }
+
+    document.getElementById('result').textContent = 'shouldEncode = ' + JSON.stringify(shouldEncode, null, 2)
+  }
+
+  check()
+
+</script>

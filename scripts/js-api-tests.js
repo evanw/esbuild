@@ -1439,12 +1439,12 @@ body {
       },
       outputs: {
         [makePath(output)]: {
-          bytes: 263,
+          bytes: 253,
           entryPoint: makePath(entry),
           imports: [],
           inputs: {
             [makePath(entry)]: { bytesInOutput: 62 },
-            [makePath(imported)]: { bytesInOutput: 61 },
+            [makePath(imported)]: { bytesInOutput: 51 },
           },
         },
         [makePath(output + '.map')]: {
@@ -4770,8 +4770,14 @@ let transformTests = {
   },
 
   async dataurl({ esbuild }) {
-    const { code } = await esbuild.transform(`\x00\x01\x02`, { loader: 'dataurl' })
-    assert.strictEqual(code, `module.exports = "data:application/octet-stream;base64,AAEC";\n`)
+    const { code: code1 } = await esbuild.transform(`\x00\x01\x02`, { loader: 'dataurl' })
+    assert.strictEqual(code1, `module.exports = "data:application/octet-stream,%00%01%02";\n`)
+
+    const { code: code2 } = await esbuild.transform(`\xFD\xFE\xFF`, { loader: 'dataurl' })
+    assert.strictEqual(code2, `module.exports = "data:text/plain;charset=utf-8,\\xFD\\xFE\\xFF";\n`)
+
+    const { code: code3 } = await esbuild.transform(new Uint8Array([0xFD, 0xFE, 0xFF]), { loader: 'dataurl' })
+    assert.strictEqual(code3, `module.exports = "data:text/plain;charset=utf-8;base64,/f7/";\n`)
   },
 
   async sourceMapTrueWithName({ esbuild }) {

@@ -129,21 +129,62 @@ var x_b64 = require_x();
 console.log(x_b64, y_default);
 
 ================================================================================
+TestLoaderDataURLBase64InvalidUTF8
+---------- /out.js ----------
+// binary.txt
+var binary_default = "data:text/plain;charset=utf-8;base64,/w==";
+
+// entry.js
+console.log(binary_default);
+
+================================================================================
+TestLoaderDataURLBase64VsPercentEncoding
+---------- /out.js ----------
+// shouldUsePercent_1.txt
+var shouldUsePercent_1_default = "data:text/plain;charset=utf-8,%0A%0A%0A";
+
+// shouldUsePercent_2.txt
+var shouldUsePercent_2_default = "data:text/plain;charset=utf-8,%0A%0A%0A%0A";
+
+// shouldUseBase64_1.txt
+var shouldUseBase64_1_default = "data:text/plain;charset=utf-8;base64,CgoKCgo=";
+
+// shouldUseBase64_2.txt
+var shouldUseBase64_2_default = "data:text/plain;charset=utf-8;base64,CgoKCgoK";
+
+// entry.js
+console.log(
+  shouldUsePercent_1_default,
+  shouldUsePercent_2_default,
+  shouldUseBase64_1_default,
+  shouldUseBase64_2_default
+);
+
+================================================================================
 TestLoaderDataURLCommonJSAndES6
 ---------- /out.js ----------
 // x.txt
 var require_x = __commonJS({
   "x.txt"(exports, module) {
-    module.exports = "data:text/plain;charset=utf-8;base64,eA==";
+    module.exports = "data:text/plain;charset=utf-8,x";
   }
 });
 
 // y.txt
-var y_default = "data:text/plain;charset=utf-8;base64,eQ==";
+var y_default = "data:text/plain;charset=utf-8,y";
 
 // entry.js
 var x_url = require_x();
 console.log(x_url, y_default);
+
+================================================================================
+TestLoaderDataURLEscapePercents
+---------- /out.js ----------
+// percents.txt
+var percents_default = "data:text/plain;charset=utf-8,%0A%, %3, %2533, %25333%0A%, %e, %25ee, %25eee%0A%, %E, %25EE, %25EEE%0A";
+
+// entry.js
+console.log(percents_default);
 
 ================================================================================
 TestLoaderFile

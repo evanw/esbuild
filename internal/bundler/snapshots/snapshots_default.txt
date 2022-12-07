@@ -2056,67 +2056,67 @@ console.log([
 TestLoaderDataURLExtensionBasedMIME
 ---------- /out/entry.js ----------
 // example.css
-var example_default = "data:text/css;charset=utf-8;base64,Y3Nz";
+var example_default = "data:text/css;charset=utf-8,css";
 
 // example.eot
-var example_default2 = "data:application/vnd.ms-fontobject;base64,ZW90";
+var example_default2 = "data:application/vnd.ms-fontobject,eot";
 
 // example.gif
-var example_default3 = "data:image/gif;base64,Z2lm";
+var example_default3 = "data:image/gif,gif";
 
 // example.htm
-var example_default4 = "data:text/html;charset=utf-8;base64,aHRt";
+var example_default4 = "data:text/html;charset=utf-8,htm";
 
 // example.html
-var example_default5 = "data:text/html;charset=utf-8;base64,aHRtbA==";
+var example_default5 = "data:text/html;charset=utf-8,html";
 
 // example.jpeg
-var example_default6 = "data:image/jpeg;base64,anBlZw==";
+var example_default6 = "data:image/jpeg,jpeg";
 
 // example.jpg
-var example_default7 = "data:image/jpeg;base64,anBn";
+var example_default7 = "data:image/jpeg,jpg";
 
 // example.js
-var example_default8 = "data:text/javascript;charset=utf-8;base64,anM=";
+var example_default8 = "data:text/javascript;charset=utf-8,js";
 
 // example.json
-var example_default9 = "data:application/json;base64,anNvbg==";
+var example_default9 = "data:application/json,json";
 
 // example.mjs
-var example_default10 = "data:text/javascript;charset=utf-8;base64,bWpz";
+var example_default10 = "data:text/javascript;charset=utf-8,mjs";
 
 // example.otf
-var example_default11 = "data:font/otf;base64,b3Rm";
+var example_default11 = "data:font/otf,otf";
 
 // example.pdf
-var example_default12 = "data:application/pdf;base64,cGRm";
+var example_default12 = "data:application/pdf,pdf";
 
 // example.png
-var example_default13 = "data:image/png;base64,cG5n";
+var example_default13 = "data:image/png,png";
 
 // example.sfnt
-var example_default14 = "data:font/sfnt;base64,c2ZudA==";
+var example_default14 = "data:font/sfnt,sfnt";
 
 // example.svg
-var example_default15 = "data:image/svg+xml;base64,c3Zn";
+var example_default15 = "data:image/svg+xml,svg";
 
 // example.ttf
-var example_default16 = "data:font/ttf;base64,dHRm";
+var example_default16 = "data:font/ttf,ttf";
 
 // example.wasm
-var example_default17 = "data:application/wasm;base64,d2FzbQ==";
+var example_default17 = "data:application/wasm,wasm";
 
 // example.webp
-var example_default18 = "data:image/webp;base64,d2VicA==";
+var example_default18 = "data:image/webp,webp";
 
 // example.woff
-var example_default19 = "data:font/woff;base64,d29mZg==";
+var example_default19 = "data:font/woff,woff";
 
 // example.woff2
-var example_default20 = "data:font/woff2;base64,d29mZjI=";
+var example_default20 = "data:font/woff2,woff2";
 
 // example.xml
-var example_default21 = "data:text/xml;charset=utf-8;base64,eG1s";
+var example_default21 = "data:text/xml;charset=utf-8,xml";
 export {
   example_default as css,
   example_default2 as eot,
