@@ -113,6 +113,16 @@
 
     The legal comments feature automatically gathers comments containing `@license` or `@preserve` and puts the comments somewhere (either in the generated code or in a separate file). People sometimes want this to happen so that the their dependencies' software licenses are retained in the generated output code. By default esbuild puts these comments at the end of the file when bundling. However, people sometimes find this confusing because these comments can be very generic and may not mention which library they come from. So with this release, esbuild will now discard legal comments by default. You now have to opt-in to preserving them if you want this behavior.
 
+* Enable the `module` condition by default ([#2417](https://github.com/evanw/esbuild/issues/2417))
+
+    Package authors want to be able to use the new [`exports`](https://nodejs.org/api/packages.html#conditional-exports) field in `package.json` to provide tree-shakable ESM code for ESM-aware bundlers while simultaneously providing fallback CommonJS code for other cases.
+
+    Node's proposed way to do this involves using the `import` and `require` export conditions so that you get the ESM code if you use an import statement and the CommonJS code if you use a require call. However, this has a major drawback: if some code in the bundle uses an import statement and other code in the bundle uses a require call, then you'll get two copies of the same package in the bundle. This is known as the [dual package hazard](https://nodejs.org/api/packages.html#dual-package-hazard) and can lead to bloated bundles or even worse to subtle logic bugs.
+
+    Webpack supports an alternate solution: an export condition called `module` that takes effect regardless of whether the package was imported using an import statement or a require call. This works because bundlers such as Webpack support importing a ESM using a require call (something node doesn't support). You could already do this with esbuild using `--conditions=module` but you previously had to explicitly enable this. Package authors are concerned that esbuild users won't know to do this and will get suboptimal output with their package, so they have requested for esbuild to do this automatically.
+
+    So with this release, esbuild will now automatically add the `module` condition when there aren't any custom `conditions` already configured. You can disable this with `--conditions=` or `conditions: []` (i.e. explicitly clearing all custom conditions).
+
 * Rename the `master` branch to `main`
 
     The primary branch for this repository was previously called `master` but is now called `main`. This change mirrors a similar change in many other projects.

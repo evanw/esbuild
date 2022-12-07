@@ -6116,6 +6116,58 @@ for (const flags of [[], ['--bundle']]) {
         }
       }`,
     }),
+    test(['in.js', '--outfile=node.js', '--bundle', '--platform=browser'].concat(flags), {
+      'in.js': `import abc from 'pkg'; if (abc !== 'module') throw 'fail'`,
+      'node_modules/pkg/default.js': `module.exports = 'default'`,
+      'node_modules/pkg/module.js': `export default 'module'`,
+      'node_modules/pkg/package.json': `{
+        "exports": {
+          ".": {
+            "module": "./module.js",
+            "default": "./default.js"
+          }
+        }
+      }`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle', '--platform=node'].concat(flags), {
+      'in.js': `import abc from 'pkg'; if (abc !== 'module') throw 'fail'`,
+      'node_modules/pkg/default.js': `module.exports = 'default'`,
+      'node_modules/pkg/module.js': `export default 'module'`,
+      'node_modules/pkg/package.json': `{
+        "exports": {
+          ".": {
+            "module": "./module.js",
+            "default": "./default.js"
+          }
+        }
+      }`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle', '--platform=neutral'].concat(flags), {
+      'in.js': `import abc from 'pkg'; if (abc !== 'default') throw 'fail'`,
+      'node_modules/pkg/default.js': `module.exports = 'default'`,
+      'node_modules/pkg/module.js': `export default 'module'`,
+      'node_modules/pkg/package.json': `{
+        "exports": {
+          ".": {
+            "module": "./module.js",
+            "default": "./default.js"
+          }
+        }
+      }`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle', '--conditions='].concat(flags), {
+      'in.js': `import abc from 'pkg'; if (abc !== 'default') throw 'fail'`,
+      'node_modules/pkg/default.js': `module.exports = 'default'`,
+      'node_modules/pkg/module.js': `export default 'module'`,
+      'node_modules/pkg/package.json': `{
+        "exports": {
+          ".": {
+            "module": "./module.js",
+            "default": "./default.js"
+          }
+        }
+      }`,
+    }),
   )
 
   // Node 17+ deliberately broke backward compatibility with packages using mappings

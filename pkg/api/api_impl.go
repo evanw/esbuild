@@ -1005,7 +1005,6 @@ func rebuildImpl(
 		PackageAliases:        validateAlias(log, realFS, buildOpts.Alias),
 		TsConfigOverride:      validatePath(log, realFS, buildOpts.Tsconfig, "tsconfig path"),
 		MainFields:            buildOpts.MainFields,
-		Conditions:            append([]string{}, buildOpts.Conditions...),
 		PublicPath:            buildOpts.PublicPath,
 		KeepNames:             buildOpts.KeepNames,
 		InjectAbsPaths:        make([]string, len(buildOpts.Inject)),
@@ -1017,6 +1016,9 @@ func rebuildImpl(
 		PreserveSymlinks:      buildOpts.PreserveSymlinks,
 		WatchMode:             buildOpts.Watch != nil,
 		Plugins:               plugins,
+	}
+	if buildOpts.Conditions != nil {
+		options.Conditions = append([]string{}, buildOpts.Conditions...)
 	}
 	if options.MainFields != nil {
 		options.MainFields = append([]string{}, options.MainFields...)
@@ -1107,6 +1109,11 @@ func rebuildImpl(
 		options.Mode = config.ModeBundle
 	} else if options.OutputFormat != config.FormatPreserve {
 		options.Mode = config.ModeConvertFormat
+	}
+
+	// Automatically enable the "module" condition for better tree shaking
+	if options.Conditions == nil && options.Platform != config.PlatformNeutral {
+		options.Conditions = []string{"module"}
 	}
 
 	// Code splitting is experimental and currently only enabled for ES6 modules
