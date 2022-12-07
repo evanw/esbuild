@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.16.1
 
 This is a hotfix for the previous release.
 
