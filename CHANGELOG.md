@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+* Fix a regression with `npm install --no-optional` ([#2720](https://github.com/evanw/esbuild/issues/2720))
+
+    Normally when you install esbuild with `npm install`, npm itself is the tool that downloads the correct binary executable for the current platform. This happens because of how esbuild's primary package uses npm's `optionalDependencies` feature. However, if you deliberately disable this with `npm install --no-optional` then esbuild's install script will attempt to repair the installation by manually downloading and extracting the binary executable from the package that was supposed to be installed.
+
+    The change in version 0.16.0 to move esbuild's nested packages into the `@esbuild/` scope unintentionally broke this logic because of how npm's URL structure is different for scoped packages vs. normal packages. It was actually already broken for a few platforms earlier because esbuild already had packages for some platforms in the `@esbuild/` scope, but I didn't discover this then because esbuild's integration tests aren't run on all platforms. Anyway, this release contains some changes to the install script that should hopefully get this scenario working again.
+
 ## 0.16.1
 
 This is a hotfix for the previous release.

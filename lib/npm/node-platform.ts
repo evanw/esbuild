@@ -99,7 +99,7 @@ function pkgForSomeOtherPlatform(): string | null {
 
 export function downloadedBinPath(pkg: string, subpath: string): string {
   const esbuildLibDir = path.dirname(require.resolve('esbuild'));
-  return path.join(esbuildLibDir, `downloaded-${pkg}-${path.basename(subpath)}`);
+  return path.join(esbuildLibDir, `downloaded-${pkg.replace('/', '-')}-${path.basename(subpath)}`);
 }
 
 export function generateBinPath(): { binPath: string, isWASM: boolean } {
@@ -261,7 +261,7 @@ for your current platform.`);
         'node_modules',
         '.cache',
         'esbuild',
-        `pnpapi-${pkg}-${ESBUILD_VERSION}-${path.basename(subpath)}`,
+        `pnpapi-${pkg.replace('/', '-')}-${ESBUILD_VERSION}-${path.basename(subpath)}`,
       );
       if (!fs.existsSync(binTargetPath)) {
         fs.mkdirSync(path.dirname(binTargetPath), { recursive: true });
