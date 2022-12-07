@@ -400,7 +400,7 @@ type TransformOptions struct {
 	IgnoreAnnotations bool                   // Documentation: https://esbuild.github.io/api/#ignore-annotations
 	LegalComments     LegalComments          // Documentation: https://esbuild.github.io/api/#legal-comments
 
-	JSXMode         JSX    // Documentation: https://esbuild.github.io/api/#jsx
+	JSX             JSX    // Documentation: https://esbuild.github.io/api/#jsx
 	JSXFactory      string // Documentation: https://esbuild.github.io/api/#jsx-factory
 	JSXFragment     string // Documentation: https://esbuild.github.io/api/#jsx-fragment
 	JSXImportSource string // Documentation: https://esbuild.github.io/api/#jsx-import-source

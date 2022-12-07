@@ -1435,8 +1435,8 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 	var unusedImportFlagsTS config.UnusedImportFlagsTS
 	useDefineForClassFieldsTS := config.Unspecified
 	jsx := config.JSXOptions{
-		Preserve:         transformOpts.JSXMode == JSXPreserve,
-		AutomaticRuntime: transformOpts.JSXMode == JSXAutomatic,
+		Preserve:         transformOpts.JSX == JSXPreserve,
+		AutomaticRuntime: transformOpts.JSX == JSXAutomatic,
 		Factory:          validateJSXExpr(log, transformOpts.JSXFactory, "factory"),
 		Fragment:         validateJSXExpr(log, transformOpts.JSXFragment, "fragment"),
 		Development:      transformOpts.JSXDev,

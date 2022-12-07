@@ -636,7 +636,7 @@ func parseOptionsImpl(
 			if buildOpts != nil {
 				buildOpts.JSX = mode
 			} else {
-				transformOpts.JSXMode = mode
+				transformOpts.JSX = mode
 			}
 
 		case strings.HasPrefix(arg, "--jsx-factory="):
