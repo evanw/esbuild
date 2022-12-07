@@ -1856,7 +1856,13 @@ func (s *scanner) processScannedFiles(entryPointMeta []graph.EntryPoint) []scann
 						helpers.QuoteForJSON(record.Kind.StringForMetafile(), s.options.ASCIIOnly)))
 				}
 
-				if record.Flags.Has(ast.AssertTypeJSON) && otherResult.ok && otherFile.inputFile.Loader != config.LoaderJSON {
+				// Validate that imports with "assert { type: 'json' }" were imported
+				// with the JSON loader. This is done to match the behavior of these
+				// import assertions in a real JavaScript runtime. In addition, we also
+				// allow the copy loader since this is sort of like marking the path
+				// as external (the import assertions are kept and the real JavaScript
+				// runtime evaluates them, not us).
+				if record.Flags.Has(ast.AssertTypeJSON) && otherResult.ok && otherFile.inputFile.Loader != config.LoaderJSON && otherFile.inputFile.Loader != config.LoaderCopy {
 					s.log.AddErrorWithNotes(&tracker, record.Range,
 						fmt.Sprintf("The file %q was loaded with the %q loader", otherFile.inputFile.Source.PrettyPath, config.LoaderToString[otherFile.inputFile.Loader]),
 						[]logger.MsgData{

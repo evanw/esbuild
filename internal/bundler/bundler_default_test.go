@@ -6896,6 +6896,9 @@ func TestErrorsForAssertTypeJSON(t *testing.T) {
 				import * as ns from './foo.json' assert { type: 'json' }
 				use(used, ns.prop)
 				export { exported } from './foo.json' assert { type: 'json' }
+				import text from './foo.text' assert { type: 'json' }
+				import file from './foo.file' assert { type: 'json' }
+				import copy from './foo.copy' assert { type: 'json' }
 			`,
 			"/ts-entry.ts": `
 				import all from './foo.json' assert { type: 'json' }
@@ -6905,8 +6908,14 @@ func TestErrorsForAssertTypeJSON(t *testing.T) {
 				import * as ns from './foo.json' assert { type: 'json' }
 				use(used, ns.prop)
 				export { exported } from './foo.json' assert { type: 'json' }
+				import text from './foo.text' assert { type: 'json' }
+				import file from './foo.file' assert { type: 'json' }
+				import copy from './foo.copy' assert { type: 'json' }
 			`,
 			"/foo.json": `{}`,
+			"/foo.text": `{}`,
+			"/foo.file": `{}`,
+			"/foo.copy": `{}`,
 		},
 		entryPaths: []string{
 			"/js-entry.js",
@@ -6915,6 +6924,14 @@ func TestErrorsForAssertTypeJSON(t *testing.T) {
 		options: config.Options{
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/out",
+			ExtensionToLoader: map[string]config.Loader{
+				".js":   config.LoaderJS,
+				".ts":   config.LoaderTS,
+				".json": config.LoaderJSON,
+				".text": config.LoaderText,
+				".file": config.LoaderFile,
+				".copy": config.LoaderCopy,
+			},
 		},
 		expectedScanLog: `js-entry.js: ERROR: Cannot use non-default import "unused" with a standard JSON module
 js-entry.js: NOTE: This is considered an import of a standard JSON module because of the import assertion here:
@@ -6928,6 +6945,12 @@ NOTE: You can either keep the import assertion and only use the "default" import
 js-entry.js: ERROR: Cannot use non-default import "exported" with a standard JSON module
 js-entry.js: NOTE: This is considered an import of a standard JSON module because of the import assertion here:
 NOTE: You can either keep the import assertion and only use the "default" import, or you can remove the import assertion and use the "exported" import (which is non-standard behavior).
+js-entry.js: ERROR: The file "foo.text" was loaded with the "text" loader
+js-entry.js: NOTE: This import assertion requires the loader to be "json" instead:
+NOTE: You need to either reconfigure esbuild to ensure that the loader for this file is "json" or you need to remove this import assertion.
+js-entry.js: ERROR: The file "foo.file" was loaded with the "file" loader
+js-entry.js: NOTE: This import assertion requires the loader to be "json" instead:
+NOTE: You need to either reconfigure esbuild to ensure that the loader for this file is "json" or you need to remove this import assertion.
 ts-entry.ts: ERROR: Cannot use non-default import "used" with a standard JSON module
 ts-entry.ts: NOTE: This is considered an import of a standard JSON module because of the import assertion here:
 NOTE: You can either keep the import assertion and only use the "default" import, or you can remove the import assertion and use the "used" import (which is non-standard behavior).
@@ -6946,20 +6969,23 @@ func TestOutputForAssertTypeJSON(t *testing.T) {
 		files: map[string]string{
 			"/js-entry.js": `
 				import all from './foo.json' assert { type: 'json' }
+				import copy from './foo.copy' assert { type: 'json' }
 				import { default as def } from './foo.json' assert { type: 'json' }
 				import * as ns from './foo.json' assert { type: 'json' }
-				use(all, def, ns.prop)
+				use(all, copy, def, ns.prop)
 				export { default } from './foo.json' assert { type: 'json' }
 			`,
 			"/ts-entry.ts": `
 				import all from './foo.json' assert { type: 'json' }
+				import copy from './foo.copy' assert { type: 'json' }
 				import { default as def } from './foo.json' assert { type: 'json' }
 				import { unused } from './foo.json' assert { type: 'json' }
 				import * as ns from './foo.json' assert { type: 'json' }
-				use(all, def, ns.prop)
+				use(all, copy, def, ns.prop)
 				export { default } from './foo.json' assert { type: 'json' }
 			`,
 			"/foo.json": `{}`,
+			"/foo.copy": `{}`,
 		},
 		entryPaths: []string{
 			"/js-entry.js",
@@ -6968,6 +6994,12 @@ func TestOutputForAssertTypeJSON(t *testing.T) {
 		options: config.Options{
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/out",
+			ExtensionToLoader: map[string]config.Loader{
+				".js":   config.LoaderJS,
+				".ts":   config.LoaderTS,
+				".json": config.LoaderJSON,
+				".copy": config.LoaderCopy,
+			},
 		},
 		expectedScanLog: `js-entry.js: WARNING: Non-default import "prop" is undefined with a standard JSON module
 js-entry.js: NOTE: This is considered an import of a standard JSON module because of the import assertion here:

@@ -1040,12 +1040,15 @@ export {
 
 ================================================================================
 TestOutputForAssertTypeJSON
+---------- /out/foo-FYKHFNL2.copy ----------
+{}
 ---------- /out/js-entry.js ----------
 // foo.json
 var foo_default = {};
 
 // js-entry.js
-use(foo_default, foo_default, void 0);
+import copy from "./foo-FYKHFNL2.copy" assert { type: "json" };
+use(foo_default, copy, foo_default, void 0);
 export {
   foo_default as default
 };
@@ -1055,7 +1058,8 @@ export {
 var foo_default = {};
 
 // ts-entry.ts
-use(foo_default, foo_default, void 0);
+import copy from "./foo-FYKHFNL2.copy" assert { type: "json" };
+use(foo_default, copy, foo_default, void 0);
 export {
   foo_default as default
 };

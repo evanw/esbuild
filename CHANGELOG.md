@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+This is a hotfix for the previous release.
+
+* Re-allow importing JSON with the `copy` loader using an import assertion
+
+    The previous release made it so when `assert { type: 'json' }` is present on an import statement, esbuild validated that the `json` loader was used. This is what an import assertion is supposed to do. However, I forgot about the relatively new `copy` loader, which sort of behaves as if the import path was marked as external (and thus not loaded at all) except that the file is copied to the output directory and the import path is rewritten to point to the copy. In this case whatever JavaScript runtime ends up running the code is the one to evaluate the import assertion. So esbuild should really allow this case as well. With this release, esbuild now allows both the `json` and `copy` loaders when an `assert { type: 'json' }` import assertion is present.
+
 ## 0.16.0
 
 **This release deliberately contains backwards-incompatible changes.** To avoid automatically picking up releases like this, you should either be pinning the exact version of `esbuild` in your `package.json` file (recommended) or be using a version range syntax that only accepts patch upgrades such as `~0.15.0`. See npm's documentation about [semver](https://docs.npmjs.com/cli/v6/using-npm/semver/) for more information.
