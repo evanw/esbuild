@@ -635,7 +635,7 @@ TestEntryNamesNonPortableCharacter
 ---------- /out/entry1-_.js ----------
 console.log(1);
 
----------- /out/entry2-*.js ----------
+---------- /out/entry2-:.js ----------
 console.log(2);
 
 ================================================================================
@@ -2938,27 +2938,62 @@ class Bar {
 ================================================================================
 TestRequireAndDynamicImportInvalidTemplate
 ---------- /out.js ----------
-// entry.js
-__require(tag`./b`);
-__require(`./${b}`);
-try {
-  __require(tag`./b`);
-  __require(`./${b}`);
-} catch {
-}
-(async () => {
-  import(tag`./b`);
-  import(`./${b}`);
-  await import(tag`./b`);
-  await import(`./${b}`);
-  try {
-    import(tag`./b`);
-    import(`./${b}`);
-    await import(tag`./b`);
-    await import(`./${b}`);
-  } catch {
+// require("./**/*") in entry.js
+var _exports = {};
+__export(_exports, {
+  globRequire: () => globRequire
+});
+var globRequire;
+var init_ = __esm({
+  'require("./**/*") in entry.js'() {
+    globRequire = __glob({
+      "./entry.js": () => require_entry()
+    });
   }
-})();
+});
+
+// import("./**/*") in entry.js
+var _exports2 = {};
+__export(_exports2, {
+  globImport: () => globImport
+});
+var globImport;
+var init_2 = __esm({
+  'import("./**/*") in entry.js'() {
+    globImport = __glob({
+      "./entry.js": () => Promise.resolve().then(() => require_entry())
+    });
+  }
+});
+
+// entry.js
+var require_entry = __commonJS({
+  "entry.js"() {
+    init_();
+    init_2();
+    __require(tag`./b`);
+    globRequire(`./${b}`);
+    try {
+      __require(tag`./b`);
+      globRequire(`./${b}`);
+    } catch {
+    }
+    (async () => {
+      import(tag`./b`);
+      globImport(`./${b}`);
+      await import(tag`./b`);
+      await globImport(`./${b}`);
+      try {
+        import(tag`./b`);
+        globImport(`./${b}`);
+        await import(tag`./b`);
+        await globImport(`./${b}`);
+      } catch {
+      }
+    })();
+  }
+});
+export default require_entry();
 
 ================================================================================
 TestRequireBadArgumentCount

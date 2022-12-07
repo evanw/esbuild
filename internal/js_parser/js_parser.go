@@ -54,6 +54,7 @@ type parser struct {
 	importSymbolPropertyUses   map[js_ast.Ref]map[string]js_ast.SymbolUse
 	symbolCallUses             map[js_ast.Ref]js_ast.SymbolCallUse
 	declaredSymbols            []js_ast.DeclaredSymbol
+	globPatternImports         []globPatternImport
 	runtimeImports             map[string]js_ast.LocRef
 	duplicateCaseChecker       duplicateCaseChecker
 	unrepresentableIdentifiers map[string]bool
@@ -344,6 +345,15 @@ type parser struct {
 	isControlFlowDead           bool
 }
 
+type globPatternImport struct {
+	assertions       *[]ast.AssertEntry
+	parts            []helpers.GlobPart
+	name             string
+	approximateRange logger.Range
+	ref              js_ast.Ref
+	kind             ast.ImportKind
+}
+
 type namespaceImportItems struct {
 	entries           map[string]js_ast.LocRef
 	importRecordIndex uint32
@@ -425,6 +435,7 @@ type optionsThatSupportStructuralEquality struct {
 	treeShaking             bool
 	dropDebugger            bool
 	mangleQuoted            bool
+	codeSplitting           bool
 	unusedImportFlagsTS     config.UnusedImportFlagsTS
 	useDefineForClassFields config.MaybeBool
 
@@ -471,6 +482,7 @@ func OptionsFromConfig(options *config.Options) Options {
 			treeShaking:                       options.TreeShaking,
 			dropDebugger:                      options.DropDebugger,
 			mangleQuoted:                      options.MangleQuoted,
+			codeSplitting:                     options.CodeSplitting,
 			unusedImportFlagsTS:               options.UnusedImportFlagsTS,
 			useDefineForClassFields:           options.UseDefineForClassFields,
 		},
@@ -5835,9 +5847,9 @@ func (p *parser) parseLabelName() *js_ast.LocRef {
 	return &name
 }
 
-func (p *parser) parsePath() (logger.Loc, string, *[]ast.AssertEntry, ast.ImportRecordFlags) {
+func (p *parser) parsePath() (logger.Range, string, *[]ast.AssertEntry, ast.ImportRecordFlags) {
 	var flags ast.ImportRecordFlags
-	pathLoc := p.lexer.Loc()
+	pathRange := p.lexer.Range()
 	pathText := helpers.UTF16ToString(p.lexer.StringLiteral())
 	if p.lexer.Token == js_lexer.TNoSubstitutionTemplateLiteral {
 		p.lexer.Next()
@@ -5906,7 +5918,7 @@ func (p *parser) parsePath() (logger.Loc, string, *[]ast.AssertEntry, ast.Import
 		assertions = &entries
 	}
 
-	return pathLoc, pathText, assertions, flags
+	return pathRange, pathText, assertions, flags
 }
 
 // This assumes the "function" token has already been parsed
@@ -6292,7 +6304,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			p.lexer.Next()
 			var namespaceRef js_ast.Ref
 			var alias *js_ast.ExportStarAlias
-			var pathLoc logger.Loc
+			var pathRange logger.Range
 			var pathText string
 			var assertions *[]ast.AssertEntry
 			var flags ast.ImportRecordFlags
@@ -6305,15 +6317,15 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 				alias = &js_ast.ExportStarAlias{Loc: p.lexer.Loc(), OriginalName: name.String}
 				p.lexer.Next()
 				p.lexer.ExpectContextualKeyword("from")
-				pathLoc, pathText, assertions, flags = p.parsePath()
+				pathRange, pathText, assertions, flags = p.parsePath()
 			} else {
 				// "export * from 'path'"
 				p.lexer.ExpectContextualKeyword("from")
-				pathLoc, pathText, assertions, flags = p.parsePath()
+				pathRange, pathText, assertions, flags = p.parsePath()
 				name := js_ast.GenerateNonUniqueNameFromPath(pathText) + "_star"
 				namespaceRef = p.storeNameInRef(js_lexer.MaybeSubstring{String: name})
 			}
-			importRecordIndex := p.addImportRecord(ast.ImportStmt, pathLoc, pathText, assertions, flags)
+			importRecordIndex := p.addImportRecord(ast.ImportStmt, pathRange, pathText, assertions, flags)
 
 			// Export-star statements anywhere in the file disable top-level const
 			// local prefix because import cycles can be used to trigger TDZ
@@ -7239,11 +7251,11 @@ func extractDeclsForBinding(binding js_ast.Binding, decls []js_ast.Decl) []js_as
 	return decls
 }
 
-func (p *parser) addImportRecord(kind ast.ImportKind, loc logger.Loc, text string, assertions *[]ast.AssertEntry, flags ast.ImportRecordFlags) uint32 {
+func (p *parser) addImportRecord(kind ast.ImportKind, pathRange logger.Range, text string, assertions *[]ast.AssertEntry, flags ast.ImportRecordFlags) uint32 {
 	index := uint32(len(p.importRecords))
 	p.importRecords = append(p.importRecords, ast.ImportRecord{
 		Kind:       kind,
-		Range:      p.source.RangeOfString(loc),
+		Range:      pathRange,
 		Path:       logger.Path{Text: text},
 		Assertions: assertions,
 		Flags:      flags,
@@ -14094,7 +14106,8 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					return js_ast.Expr{Loc: arg.Loc, Data: js_ast.ENullShared}
 				}
 
-				importRecordIndex := p.addImportRecord(ast.ImportDynamic, arg.Loc, helpers.UTF16ToString(str.Value), assertions, flags)
+				importRecordIndex := p.addImportRecord(ast.ImportDynamic, p.source.RangeOfString(arg.Loc), helpers.UTF16ToString(str.Value), assertions, flags)
+				p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
 				if isAwaitTarget && p.fnOrArrowDataVisit.tryBodyCount != 0 {
 					record := &p.importRecords[importRecordIndex]
 					record.Flags |= ast.HandlesImportErrors
@@ -14104,11 +14117,17 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					record.Flags |= ast.HandlesImportErrors
 					record.ErrorHandlerLoc = p.thenCatchChain.catchLoc
 				}
-				p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
 				return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EImportString{
 					ImportRecordIndex: importRecordIndex,
 					WebpackComments:   e.WebpackComments,
 				}}
+			}
+
+			// Handle glob patterns
+			if p.options.mode == config.ModeBundle {
+				if value := p.handleGlobPattern(arg, ast.ImportDynamic, "globImport", assertions); value.Data != nil {
+					return value
+				}
 			}
 
 			// Use a debug log so people can see this if they want to
@@ -14359,13 +14378,13 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 								return js_ast.Expr{Loc: arg.Loc, Data: js_ast.ENullShared}
 							}
 
-							importRecordIndex := p.addImportRecord(ast.ImportRequireResolve, e.Args[0].Loc, helpers.UTF16ToString(str.Value), nil, 0)
+							importRecordIndex := p.addImportRecord(ast.ImportRequireResolve, p.source.RangeOfString(e.Args[0].Loc), helpers.UTF16ToString(str.Value), nil, 0)
+							p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
 							if p.fnOrArrowDataVisit.tryBodyCount != 0 {
 								record := &p.importRecords[importRecordIndex]
 								record.Flags |= ast.HandlesImportErrors
 								record.ErrorHandlerLoc = p.fnOrArrowDataVisit.tryCatchLoc
 							}
-							p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
 
 							// Create a new expression to represent the operation
 							return js_ast.Expr{Loc: arg.Loc, Data: &js_ast.ERequireResolveString{
@@ -14471,18 +14490,23 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 									return js_ast.Expr{Loc: expr.Loc, Data: js_ast.ENullShared}
 								}
 
-								importRecordIndex := p.addImportRecord(ast.ImportRequire, arg.Loc, helpers.UTF16ToString(str.Value), nil, 0)
+								importRecordIndex := p.addImportRecord(ast.ImportRequire, p.source.RangeOfString(arg.Loc), helpers.UTF16ToString(str.Value), nil, 0)
+								p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
 								if p.fnOrArrowDataVisit.tryBodyCount != 0 {
 									record := &p.importRecords[importRecordIndex]
 									record.Flags |= ast.HandlesImportErrors
 									record.ErrorHandlerLoc = p.fnOrArrowDataVisit.tryCatchLoc
 								}
-								p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
 
 								// Create a new expression to represent the operation
 								return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ERequireString{
 									ImportRecordIndex: importRecordIndex,
 								}}
+							}
+
+							// Handle glob patterns
+							if value := p.handleGlobPattern(arg, ast.ImportRequire, "globRequire", nil); value.Data != nil {
+								return value
 							}
 
 							// Use a debug log so people can see this if they want to
@@ -14546,6 +14570,72 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 		p.maybeMarkKnownGlobalConstructorAsPure(e)
+
+		// Recognize "new URL('./path', import.meta.url)"
+		if p.options.mode == config.ModeBundle && p.options.outputFormat == config.FormatESModule && len(e.Args) == 2 && !p.isControlFlowDead {
+			if id, ok := e.Target.Data.(*js_ast.EIdentifier); ok {
+				if symbol := &p.symbols[id.Ref.InnerIndex]; symbol.Kind == js_ast.SymbolUnbound && symbol.OriginalName == "URL" {
+					if dot, ok := e.Args[1].Data.(*js_ast.EDot); ok && dot.Name == "url" {
+						if _, ok := dot.Target.Data.(*js_ast.EImportMeta); ok {
+							// Support "new URL(a ? './b' : './c', import.meta.url)"
+							return p.maybeTransposeIfExprChain(e.Args[0], func(arg js_ast.Expr) js_ast.Expr {
+								// The argument must be a string
+								if str, ok := arg.Data.(*js_ast.EString); ok {
+									if path := helpers.UTF16ToString(str.Value); strings.HasPrefix(path, "./") || strings.HasPrefix(path, "../") {
+										if !p.options.codeSplitting {
+											p.log.AddID(logger.MsgID_Bundler_NewURLImportMeta, logger.Warning, &p.tracker,
+												logger.Range{Loc: expr.Loc, Len: e.CloseParenLoc.Start + 1 - expr.Loc.Start},
+												"The \"new URL(..., import.meta.url)\" syntax won't be bundled without code splitting enabled")
+										} else {
+											importRecordIndex := p.addImportRecord(ast.ImportNewURL, p.source.RangeOfString(arg.Loc), path, nil, 0)
+											p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
+											if p.fnOrArrowDataVisit.tryBodyCount != 0 {
+												record := &p.importRecords[importRecordIndex]
+												record.Flags |= ast.HandlesImportErrors
+												record.ErrorHandlerLoc = p.fnOrArrowDataVisit.tryCatchLoc
+											}
+											return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENewURLImportMeta{ImportRecordIndex: importRecordIndex}}
+										}
+									} else {
+										p.log.AddID(logger.MsgID_Bundler_NewURLImportMeta, logger.Debug, &p.tracker, p.source.RangeOfString(arg.Loc),
+											fmt.Sprintf("Ignoring new URL of %q because it does not begin with \"./\" or \"../\"", path))
+									}
+								}
+
+								// Handle glob patterns
+								prefix := "globNewURL"
+								if !p.options.codeSplitting {
+									// Don't actually generate an import if code splitting is
+									// disabled. In that case we are just using this call to
+									// see if the pattern would even be handled at all if code
+									// splitting were to be enabled. Only in that case do we
+									// generate a warning.
+									prefix = ""
+								}
+								if value := p.handleGlobPattern(arg, ast.ImportNewURL, prefix, nil); value.Data != nil {
+									if !p.options.codeSplitting {
+										p.log.AddID(logger.MsgID_Bundler_NewURLImportMeta, logger.Warning, &p.tracker,
+											logger.Range{Loc: expr.Loc, Len: e.CloseParenLoc.Start + 1 - expr.Loc.Start},
+											"The \"new URL(..., import.meta.url)\" syntax won't be bundled without code splitting enabled")
+									} else {
+										return value
+									}
+								}
+
+								importMetaURL := *dot
+								return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENew{
+									Target: js_ast.Expr{Loc: e.Target.Loc, Data: &js_ast.EIdentifier{Ref: id.Ref}},
+									Args: []js_ast.Expr{
+										arg,
+										{Loc: e.Args[0].Loc, Data: &importMetaURL},
+									},
+								}}
+							}), exprOut{}
+						}
+					}
+				}
+			}
+		}
 
 	case *js_ast.EArrow:
 		asyncArrowNeedsToBeLowered := e.IsAsync && p.options.unsupportedJSFeatures.Has(compat.AsyncAwait)
@@ -14649,6 +14739,218 @@ func remapExprLocsInJSON(expr *js_ast.Expr, table []logger.StringInJSTableEntry)
 			remapExprLocsInJSON(&e.Properties[i].ValueOrNil, table)
 		}
 	}
+}
+
+func (p *parser) handleGlobPattern(expr js_ast.Expr, kind ast.ImportKind, prefix string, assertions *[]ast.AssertEntry) js_ast.Expr {
+	pattern, approximateRange := p.globPatternFromExpr(expr)
+	if pattern == nil {
+		return js_ast.Expr{}
+	}
+
+	var last helpers.GlobPart
+	var parts []helpers.GlobPart
+
+	for _, part := range pattern {
+		if part.isWildcard {
+			if last.Wildcard == helpers.GlobNone {
+				if !strings.HasSuffix(last.Prefix, "/") {
+					// "`a${b}c`" => "a*c"
+					last.Wildcard = helpers.GlobAllExceptSlash
+				} else {
+					// "`a/${b}c`" => "a/**/*c"
+					last.Wildcard = helpers.GlobAllIncludingSlash
+					parts = append(parts, last)
+					last = helpers.GlobPart{Prefix: "/", Wildcard: helpers.GlobAllExceptSlash}
+				}
+			}
+		} else if part.text != "" {
+			if last.Wildcard != helpers.GlobNone {
+				parts = append(parts, last)
+				last = helpers.GlobPart{}
+			}
+			last.Prefix += part.text
+		}
+	}
+
+	parts = append(parts, last)
+
+	// Don't handle this if it's a string constant
+	if len(parts) == 1 && parts[0].Wildcard == helpers.GlobNone {
+		return js_ast.Expr{}
+	}
+
+	// We currently only support relative globs
+	if prefix := parts[0].Prefix; !strings.HasPrefix(prefix, "./") && !strings.HasPrefix(prefix, "../") {
+		return js_ast.Expr{}
+	}
+
+	ref := js_ast.InvalidRef
+
+	// Don't generate duplicate glob imports
+outer:
+	for _, globPattern := range p.globPatternImports {
+		// Check the kind
+		if globPattern.kind != kind {
+			continue
+		}
+
+		// Check the parts
+		if len(globPattern.parts) != len(parts) {
+			continue
+		}
+		for i := range parts {
+			if globPattern.parts[i] != parts[i] {
+				continue outer
+			}
+		}
+
+		// Check the import assertions
+		if assertions == nil {
+			if globPattern.assertions != nil {
+				continue
+			}
+		} else {
+			if globPattern.assertions == nil {
+				continue
+			}
+			a := *assertions
+			b := *globPattern.assertions
+			if len(a) != len(b) {
+				continue
+			}
+			for i := range a {
+				ai := a[i]
+				bi := b[i]
+				if !helpers.UTF16EqualsUTF16(ai.Key, bi.Key) || !helpers.UTF16EqualsUTF16(ai.Value, bi.Value) {
+					continue outer
+				}
+			}
+		}
+
+		// If we get here, then these are the same glob pattern
+		ref = globPattern.ref
+		break
+	}
+
+	// If there's no duplicate glob import, then generate a new glob import
+	if ref == js_ast.InvalidRef && prefix != "" {
+		sb := strings.Builder{}
+		sb.WriteString(prefix)
+
+		for _, part := range parts {
+			gap := true
+			for _, c := range part.Prefix {
+				if !js_lexer.IsIdentifierContinue(c) {
+					gap = true
+				} else {
+					if gap {
+						sb.WriteByte('_')
+						gap = false
+					}
+					sb.WriteRune(c)
+				}
+			}
+		}
+
+		name := sb.String()
+		ref = p.newSymbol(js_ast.SymbolOther, name)
+		p.moduleScope.Generated = append(p.moduleScope.Generated, ref)
+
+		p.globPatternImports = append(p.globPatternImports, globPatternImport{
+			assertions:       assertions,
+			parts:            parts,
+			name:             name,
+			approximateRange: approximateRange,
+			ref:              ref,
+			kind:             kind,
+		})
+	}
+
+	return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ECall{
+		Target: js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EIdentifier{Ref: ref}},
+		Args:   []js_ast.Expr{expr},
+	}}
+}
+
+type globPart struct {
+	text       string
+	isWildcard bool
+}
+
+func (p *parser) globPatternFromExpr(expr js_ast.Expr) ([]globPart, logger.Range) {
+	switch e := expr.Data.(type) {
+	case *js_ast.EString:
+		return []globPart{{text: helpers.UTF16ToString(e.Value)}}, p.source.RangeOfString(expr.Loc)
+
+	case *js_ast.ETemplate:
+		if e.TagOrNil.Data != nil {
+			break
+		}
+
+		pattern := make([]globPart, 0, 1+2*len(e.Parts))
+		pattern = append(pattern, globPart{text: helpers.UTF16ToString(e.HeadCooked)})
+
+		for _, part := range e.Parts {
+			if partPattern, _ := p.globPatternFromExpr(part.Value); partPattern != nil {
+				pattern = append(pattern, partPattern...)
+			} else {
+				pattern = append(pattern, globPart{isWildcard: true})
+			}
+			pattern = append(pattern, globPart{text: helpers.UTF16ToString(part.TailCooked)})
+		}
+
+		if len(e.Parts) == 0 {
+			return pattern, p.source.RangeOfString(expr.Loc)
+		}
+
+		text := p.source.Contents
+		templateRange := logger.Range{Loc: e.HeadLoc}
+
+		for i := e.Parts[len(e.Parts)-1].TailLoc.Start; i < int32(len(text)); i++ {
+			c := text[i]
+			if c == '`' {
+				templateRange.Len = i + 1 - templateRange.Loc.Start
+				break
+			} else if c == '\\' {
+				i += 1
+			}
+		}
+
+		return pattern, templateRange
+
+	case *js_ast.EBinary:
+		if e.Op != js_ast.BinOpAdd {
+			break
+		}
+
+		pattern, leftRange := p.globPatternFromExpr(e.Left)
+		if pattern == nil {
+			break
+		}
+
+		if rightPattern, rightRange := p.globPatternFromExpr(e.Right); rightPattern != nil {
+			pattern = append(pattern, rightPattern...)
+			leftRange.Len = rightRange.End() - leftRange.Loc.Start
+			return pattern, leftRange
+		}
+
+		pattern = append(pattern, globPart{isWildcard: true})
+
+		// Try to extend the left range by the right operand in some common cases
+		switch right := e.Right.Data.(type) {
+		case *js_ast.EIdentifier:
+			leftRange.Len = js_lexer.RangeOfIdentifier(p.source, e.Right.Loc).End() - leftRange.Loc.Start
+
+		case *js_ast.ECall:
+			if right.CloseParenLoc.Start > 0 {
+				leftRange.Len = right.CloseParenLoc.Start + 1 - leftRange.Loc.Start
+			}
+		}
+
+		return pattern, leftRange
+	}
+
+	return nil, logger.Range{}
 }
 
 func (p *parser) convertSymbolUseToCall(ref js_ast.Ref, isSingleNonSpreadArgCall bool) {
@@ -16085,7 +16387,7 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 				}
 			}
 		}
-		before = p.generateImportStmt(file.Source.KeyPath.Text, exportsNoConflict, &file.Source.Index, before, symbols)
+		before, _ = p.generateImportStmt(file.Source.KeyPath.Text, logger.Range{}, exportsNoConflict, &file.Source.Index, before, symbols)
 	}
 
 	// Bind symbols in a second pass over the AST. I started off doing this in a
@@ -16194,6 +16496,50 @@ func LazyExportAST(log logger.Log, source logger.Source, options Options, expr j
 	ast := p.toAST(nil, []js_ast.Part{nsExportPart, part}, nil, "", "")
 	ast.HasLazyExport = true
 	return ast
+}
+
+func GlobResolveAST(log logger.Log, source logger.Source, importRecords []ast.ImportRecord, object *js_ast.EObject, name string) js_ast.AST {
+	// Don't create a new lexer using js_lexer.NewLexer() here since that will
+	// actually attempt to parse the first token, which might cause a syntax
+	// error.
+	p := newParser(log, source, js_lexer.Lexer{}, &Options{})
+	p.prepareForVisitPass()
+
+	// Add an empty part for the namespace export that we can fill in later
+	nsExportPart := js_ast.Part{
+		SymbolUses:           make(map[js_ast.Ref]js_ast.SymbolUse),
+		CanBeRemovedIfUnused: true,
+	}
+
+	if len(p.importRecords) != 0 {
+		panic("Internal error")
+	}
+	p.importRecords = importRecords
+
+	importRecordIndices := make([]uint32, 0, len(importRecords))
+	for importRecordIndex := range importRecords {
+		importRecordIndices = append(importRecordIndices, uint32(importRecordIndex))
+	}
+
+	p.symbolUses = make(map[js_ast.Ref]js_ast.SymbolUse)
+	ref := p.newSymbol(js_ast.SymbolOther, name)
+	p.moduleScope.Generated = append(p.moduleScope.Generated, ref)
+
+	part := js_ast.Part{
+		Stmts: []js_ast.Stmt{{Data: &js_ast.SLocal{
+			IsExport: true,
+			Decls: []js_ast.Decl{{
+				Binding:    js_ast.Binding{Data: &js_ast.BIdentifier{Ref: ref}},
+				ValueOrNil: p.callRuntime(logger.Loc{}, "__glob", []js_ast.Expr{{Data: object}}),
+			}},
+		}}},
+		ImportRecordIndices: importRecordIndices,
+		SymbolUses:          p.symbolUses,
+	}
+	p.symbolUses = nil
+
+	p.esmExportKeyword.Len = 1
+	return p.toAST(nil, []js_ast.Part{nsExportPart, part}, nil, "", "")
 }
 
 func ParseDefineExprOrJSON(text string) (config.DefineExpr, js_ast.E) {
@@ -16504,25 +16850,27 @@ func (p *parser) computeCharacterFrequency() *js_ast.CharFreq {
 
 func (p *parser) generateImportStmt(
 	path string,
+	pathRange logger.Range,
 	imports []string,
 	sourceIndex *uint32,
 	parts []js_ast.Part,
 	symbols map[string]js_ast.LocRef,
-) []js_ast.Part {
-	var loc logger.Loc
-	isFirst := true
-	for _, it := range symbols {
-		if isFirst || it.Loc.Start < loc.Start {
-			loc = it.Loc
+) ([]js_ast.Part, uint32) {
+	if pathRange.Len == 0 {
+		isFirst := true
+		for _, it := range symbols {
+			if isFirst || it.Loc.Start < pathRange.Loc.Start {
+				pathRange.Loc = it.Loc
+			}
+			isFirst = false
 		}
-		isFirst = false
 	}
 
 	namespaceRef := p.newSymbol(js_ast.SymbolOther, "import_"+js_ast.GenerateNonUniqueNameFromPath(path))
 	p.moduleScope.Generated = append(p.moduleScope.Generated, namespaceRef)
 	declaredSymbols := make([]js_ast.DeclaredSymbol, 1+len(imports))
 	clauseItems := make([]js_ast.ClauseItem, len(imports))
-	importRecordIndex := p.addImportRecord(ast.ImportStmt, loc, path, nil, 0)
+	importRecordIndex := p.addImportRecord(ast.ImportStmt, pathRange, path, nil, 0)
 	if sourceIndex != nil {
 		p.importRecords[importRecordIndex].SourceIndex = ast.MakeIndex32(*sourceIndex)
 	}
@@ -16551,13 +16899,13 @@ func (p *parser) generateImportStmt(
 	return append(parts, js_ast.Part{
 		DeclaredSymbols:     declaredSymbols,
 		ImportRecordIndices: []uint32{importRecordIndex},
-		Stmts: []js_ast.Stmt{{Loc: loc, Data: &js_ast.SImport{
+		Stmts: []js_ast.Stmt{{Loc: pathRange.Loc, Data: &js_ast.SImport{
 			NamespaceRef:      namespaceRef,
 			Items:             &clauseItems,
 			ImportRecordIndex: importRecordIndex,
 			IsSingleLine:      true,
 		}}},
-	})
+	}), importRecordIndex
 }
 
 // Sort the keys for determinism
@@ -16575,7 +16923,7 @@ func (p *parser) toAST(before, parts, after []js_ast.Part, hashbang string, dire
 	if len(p.runtimeImports) > 0 && !p.options.omitRuntimeForTests {
 		keys := sortedKeysOfMapStringLocRef(p.runtimeImports)
 		sourceIndex := runtime.SourceIndex
-		before = p.generateImportStmt("<runtime>", keys, &sourceIndex, before, p.runtimeImports)
+		before, _ = p.generateImportStmt("<runtime>", logger.Range{}, keys, &sourceIndex, before, p.runtimeImports)
 	}
 
 	// Insert an import statement for any jsx runtime imports we generated
@@ -16590,14 +16938,28 @@ func (p *parser) toAST(before, parts, after []js_ast.Part, hashbang string, dire
 			path = path + "/jsx-runtime"
 		}
 
-		before = p.generateImportStmt(path, keys, nil, before, p.jsxRuntimeImports)
+		before, _ = p.generateImportStmt(path, logger.Range{}, keys, nil, before, p.jsxRuntimeImports)
 	}
 
 	// Insert an import statement for any legacy jsx imports we generated (i.e., createElement)
 	if len(p.jsxLegacyImports) > 0 && !p.options.omitJSXRuntimeForTests {
 		keys := sortedKeysOfMapStringLocRef(p.jsxLegacyImports)
 		path := p.options.jsx.ImportSource
-		before = p.generateImportStmt(path, keys, nil, before, p.jsxLegacyImports)
+		before, _ = p.generateImportStmt(path, logger.Range{}, keys, nil, before, p.jsxLegacyImports)
+	}
+
+	// Insert imports for each glob pattern
+	for _, glob := range p.globPatternImports {
+		symbols := map[string]js_ast.LocRef{glob.name: {Loc: glob.approximateRange.Loc, Ref: glob.ref}}
+		var importRecordIndex uint32
+		before, importRecordIndex = p.generateImportStmt(helpers.GlobPatternToString(glob.parts), glob.approximateRange, []string{glob.name}, nil, before, symbols)
+		record := &p.importRecords[importRecordIndex]
+		record.Assertions = glob.assertions
+		record.GlobPattern = &ast.GlobPattern{
+			Parts:       glob.parts,
+			ExportAlias: glob.name,
+			Kind:        glob.kind,
+		}
 	}
 
 	// Generated imports are inserted before other code instead of appending them

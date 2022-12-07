@@ -647,21 +647,23 @@ func resolveKindToString(kind api.ResolveKind) string {
 	case api.ResolveEntryPoint:
 		return "entry-point"
 
-	// JS
-	case api.ResolveJSImportStatement:
-		return "import-statement"
-	case api.ResolveJSRequireCall:
-		return "require-call"
-	case api.ResolveJSDynamicImport:
-		return "dynamic-import"
-	case api.ResolveJSRequireResolve:
-		return "require-resolve"
-
 	// CSS
 	case api.ResolveCSSImportRule:
 		return "import-rule"
 	case api.ResolveCSSURLToken:
 		return "url-token"
+
+	// JS
+	case api.ResolveJSDynamicImport:
+		return "dynamic-import"
+	case api.ResolveJSImportStatement:
+		return "import-statement"
+	case api.ResolveJSNewURL:
+		return "new-url"
+	case api.ResolveJSRequireCall:
+		return "require-call"
+	case api.ResolveJSRequireResolve:
+		return "require-resolve"
 
 	default:
 		panic("Internal error")
@@ -673,21 +675,23 @@ func stringToResolveKind(kind string) (api.ResolveKind, bool) {
 	case "entry-point":
 		return api.ResolveEntryPoint, true
 
-	// JS
-	case "import-statement":
-		return api.ResolveJSImportStatement, true
-	case "require-call":
-		return api.ResolveJSRequireCall, true
-	case "dynamic-import":
-		return api.ResolveJSDynamicImport, true
-	case "require-resolve":
-		return api.ResolveJSRequireResolve, true
-
 	// CSS
 	case "import-rule":
 		return api.ResolveCSSImportRule, true
 	case "url-token":
 		return api.ResolveCSSURLToken, true
+
+	// JS
+	case "dynamic-import":
+		return api.ResolveJSDynamicImport, true
+	case "import-statement":
+		return api.ResolveJSImportStatement, true
+	case "new-url":
+		return api.ResolveJSNewURL, true
+	case "require-call":
+		return api.ResolveJSRequireCall, true
+	case "require-resolve":
+		return api.ResolveJSRequireResolve, true
 	}
 
 	return api.ResolveNone, false

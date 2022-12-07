@@ -92,10 +92,18 @@ type parseArgs struct {
 }
 
 type parseResult struct {
-	resolveResults []*resolver.ResolveResult
-	file           scannerFile
-	tlaCheck       tlaCheck
-	ok             bool
+	resolveResults     []*resolver.ResolveResult
+	globResolveResults map[uint32]globResolveResult
+	file               scannerFile
+	tlaCheck           tlaCheck
+	ok                 bool
+}
+
+type globResolveResult struct {
+	resolveResults map[string]resolver.ResolveResult
+	absPath        string
+	prettyPath     string
+	exportAlias    string
 }
 
 type tlaCheck struct {
@@ -386,6 +394,36 @@ func parseFile(args parseArgs) {
 				// Don't try to resolve imports that are already resolved
 				record := &records[importRecordIndex]
 				if record.SourceIndex.IsValid() {
+					continue
+				}
+
+				// Special-case glob pattern imports
+				if record.GlobPattern != nil {
+					prettyPath := helpers.GlobPatternToString(record.GlobPattern.Parts)
+					switch record.GlobPattern.Kind {
+					case ast.ImportRequire:
+						prettyPath = fmt.Sprintf("require(%q)", prettyPath)
+					case ast.ImportDynamic:
+						prettyPath = fmt.Sprintf("import(%q)", prettyPath)
+					case ast.ImportNewURL:
+						prettyPath = fmt.Sprintf("new URL(%q, import.meta.url)", prettyPath)
+					}
+					if results, msg := args.res.ResolveGlob(absResolveDir, record.GlobPattern.Parts, record.GlobPattern.Kind, prettyPath); results != nil {
+						if msg != nil {
+							args.log.AddID(msg.ID, msg.Kind, &tracker, record.Range, msg.Data.Text)
+						}
+						if result.globResolveResults == nil {
+							result.globResolveResults = make(map[uint32]globResolveResult)
+						}
+						result.globResolveResults[uint32(importRecordIndex)] = globResolveResult{
+							resolveResults: results,
+							absPath:        args.fs.Join(absResolveDir, "(glob)"),
+							prettyPath:     fmt.Sprintf("%s in %s", prettyPath, result.file.inputFile.Source.PrettyPath),
+							exportAlias:    record.GlobPattern.ExportAlias,
+						}
+					} else {
+						args.log.AddError(&tracker, record.Range, fmt.Sprintf("Could not resolve %s", prettyPath))
+					}
 					continue
 				}
 
@@ -1155,7 +1193,10 @@ func ScanBundle(
 			file: scannerFile{
 				inputFile: graph.InputFile{
 					Source: source,
-					Repr:   &graph.JSRepr{AST: ast},
+					Repr: &graph.JSRepr{
+						AST: ast,
+					},
+					OmitFromSourceMapsAndMetafile: true,
 				},
 			},
 			ok: ok,
@@ -1228,7 +1269,6 @@ func (s *scanner) maybeParseFile(
 	prettyPath string,
 	importSource *logger.Source,
 	importPathRange logger.Range,
-	pluginData interface{},
 	kind inputKind,
 	inject chan config.InjectedFile,
 ) uint32 {
@@ -1336,7 +1376,7 @@ func (s *scanner) maybeParseFile(
 		importSource:    importSource,
 		sideEffects:     sideEffects,
 		importPathRange: importPathRange,
-		pluginData:      pluginData,
+		pluginData:      resolveResult.PluginData,
 		options:         optionsClone,
 		results:         s.resultChannel,
 		inject:          inject,
@@ -1352,6 +1392,26 @@ func (s *scanner) allocateSourceIndex(path logger.Path, kind cache.SourceIndexKi
 	// subsequent builds reuse the same source index and therefore use the
 	// cached parse results for increased speed.
 	sourceIndex := s.caches.SourceIndexCache.Get(path, kind)
+
+	// Grow the results array to fit this source index
+	if newLen := int(sourceIndex) + 1; len(s.results) < newLen {
+		// Reallocate to a bigger array
+		if cap(s.results) < newLen {
+			s.results = append(make([]parseResult, 0, 2*newLen), s.results...)
+		}
+
+		// Grow in place
+		s.results = s.results[:newLen]
+	}
+
+	return sourceIndex
+}
+
+func (s *scanner) allocateGlobSourceIndex(parentSourceIndex uint32, globIndex uint32) uint32 {
+	// Allocate a source index using the shared source index cache so that
+	// subsequent builds reuse the same source index and therefore use the
+	// cached parse results for increased speed.
+	sourceIndex := s.caches.SourceIndexCache.GetGlob(parentSourceIndex, globIndex)
 
 	// Grow the results array to fit this source index
 	if newLen := int(sourceIndex) + 1; len(s.results) < newLen {
@@ -1439,7 +1499,7 @@ func (s *scanner) preprocessInjectedFiles() {
 		}
 
 		channel := make(chan config.InjectedFile)
-		s.maybeParseFile(*resolveResult, prettyPath, nil, logger.Range{}, nil, inputKindNormal, channel)
+		s.maybeParseFile(*resolveResult, prettyPath, nil, logger.Range{}, inputKindNormal, channel)
 
 		// Wait for the results in parallel. The results slice is large enough so
 		// it is not reallocated during the computations.
@@ -1477,7 +1537,7 @@ func (s *scanner) addEntryPoints(entryPoints []EntryPoint) []graph.EntryPoint {
 			}
 		}
 		resolveResult := resolver.ResolveResult{PathPair: resolver.PathPair{Primary: stdinPath}}
-		sourceIndex := s.maybeParseFile(resolveResult, s.res.PrettyPath(stdinPath), nil, logger.Range{}, nil, inputKindStdin, nil)
+		sourceIndex := s.maybeParseFile(resolveResult, s.res.PrettyPath(stdinPath), nil, logger.Range{}, inputKindStdin, nil)
 		entryMetas = append(entryMetas, graph.EntryPoint{
 			OutputPath:  "stdin",
 			SourceIndex: sourceIndex,
@@ -1489,6 +1549,9 @@ func (s *scanner) addEntryPoints(entryPoints []EntryPoint) []graph.EntryPoint {
 	for i := range entryPoints {
 		entryPoint := &entryPoints[i]
 		absPath := entryPoint.InputPath
+		if strings.ContainsRune(absPath, '*') {
+			continue // Ignore glob patterns
+		}
 		if !s.fs.IsAbs(absPath) {
 			absPath = s.fs.Join(entryPointAbsResolveDir, absPath)
 		}
@@ -1522,7 +1585,11 @@ func (s *scanner) addEntryPoints(entryPoints []EntryPoint) []graph.EntryPoint {
 	// Add any remaining entry points. Run resolver plugins on these entry points
 	// so plugins can alter where they resolve to. These are run in parallel in
 	// case any of these plugins block.
-	entryPointResolveResults := make([]*resolver.ResolveResult, len(entryPoints))
+	type entryPointInfo struct {
+		results []resolver.ResolveResult
+		isGlob  bool
+	}
+	entryPointInfos := make([]entryPointInfo, len(entryPoints))
 	entryPointWaitGroup := sync.WaitGroup{}
 	entryPointWaitGroup.Add(len(entryPoints))
 	for i, entryPoint := range entryPoints {
@@ -1530,6 +1597,32 @@ func (s *scanner) addEntryPoints(entryPoints []EntryPoint) []graph.EntryPoint {
 			var importer logger.Path
 			if entryPoint.IsFile {
 				importer.Namespace = "file"
+			}
+
+			// Special-case glob patterns here
+			if strings.ContainsRune(entryPoint.InputPath, '*') {
+				if pattern := helpers.ParseGlobPattern(entryPoint.InputPath); len(pattern) > 1 {
+					prettyPattern := fmt.Sprintf("%q", entryPoint.InputPath)
+					if results, msg := s.res.ResolveGlob(entryPointAbsResolveDir, pattern, ast.ImportEntryPoint, prettyPattern); results != nil {
+						keys := make([]string, 0, len(results))
+						for key := range results {
+							keys = append(keys, key)
+						}
+						sort.Strings(keys)
+						info := entryPointInfo{isGlob: true}
+						for _, key := range keys {
+							info.results = append(info.results, results[key])
+						}
+						entryPointInfos[i] = info
+						if msg != nil {
+							s.log.AddID(msg.ID, msg.Kind, nil, logger.Range{}, msg.Data.Text)
+						}
+					} else {
+						s.log.AddError(nil, logger.Range{}, fmt.Sprintf("Could not resolve %q", entryPoint.InputPath))
+					}
+					entryPointWaitGroup.Done()
+					return
+				}
 			}
 
 			// Run the resolver and log an error if the path couldn't be resolved
@@ -1551,18 +1644,12 @@ func (s *scanner) addEntryPoints(entryPoints []EntryPoint) []graph.EntryPoint {
 				if resolveResult.IsExternal {
 					s.log.AddError(nil, logger.Range{}, fmt.Sprintf("The entry point %q cannot be marked as external", entryPoint.InputPath))
 				} else {
-					entryPointResolveResults[i] = resolveResult
+					entryPointInfos[i] = entryPointInfo{results: []resolver.ResolveResult{*resolveResult}}
 				}
 			} else if !didLogError {
 				var notes []logger.MsgData
 				if !s.fs.IsAbs(entryPoint.InputPath) {
-					if strings.ContainsRune(entryPoint.InputPath, '*') {
-						notes = append(notes, logger.MsgData{
-							Text: "It looks like you are trying to use glob syntax (i.e. \"*\") with esbuild. " +
-								"This syntax is typically handled by your shell, and isn't handled by esbuild itself. " +
-								"You must expand glob syntax first before passing your paths to esbuild.",
-						})
-					} else if query := s.res.ProbeResolvePackageAsRelative(entryPointAbsResolveDir, entryPoint.InputPath, ast.ImportEntryPoint); query != nil {
+					if query := s.res.ProbeResolvePackageAsRelative(entryPointAbsResolveDir, entryPoint.InputPath, ast.ImportEntryPoint); query != nil {
 						notes = append(notes, logger.MsgData{
 							Text: fmt.Sprintf("Use the relative path %q to reference the file %q. "+
 								"Without the leading \"./\", the path %q is being interpreted as a package path instead.",
@@ -1578,16 +1665,24 @@ func (s *scanner) addEntryPoints(entryPoints []EntryPoint) []graph.EntryPoint {
 	entryPointWaitGroup.Wait()
 
 	// Parse all entry points that were resolved successfully
-	for i, resolveResult := range entryPointResolveResults {
-		if resolveResult != nil {
+	for i, info := range entryPointInfos {
+		if info.results == nil {
+			continue
+		}
+
+		for _, resolveResult := range info.results {
 			prettyPath := s.res.PrettyPath(resolveResult.PathPair.Primary)
-			sourceIndex := s.maybeParseFile(*resolveResult, prettyPath, nil, logger.Range{}, resolveResult.PluginData, inputKindEntryPoint, nil)
+			sourceIndex := s.maybeParseFile(resolveResult, prettyPath, nil, logger.Range{}, inputKindEntryPoint, nil)
 			outputPath := entryPoints[i].OutputPath
 			outputPathWasAutoGenerated := false
 
 			// If the output path is missing, automatically generate one from the input path
 			if outputPath == "" {
-				outputPath = entryPoints[i].InputPath
+				if info.isGlob {
+					outputPath = prettyPath
+				} else {
+					outputPath = entryPoints[i].InputPath
+				}
 				windowsVolumeLabel := ""
 
 				// The ":" character is invalid in file paths on Windows except when
@@ -1744,6 +1839,12 @@ func (s *scanner) scanAllDependencies() {
 				// Skip this import record if the previous resolver call failed
 				resolveResult := result.resolveResults[importRecordIndex]
 				if resolveResult == nil {
+					if globResults := result.globResolveResults[uint32(importRecordIndex)]; globResults.resolveResults != nil {
+						sourceIndex := s.allocateGlobSourceIndex(result.file.inputFile.Source.Index, uint32(importRecordIndex))
+						record.SourceIndex = ast.MakeIndex32(sourceIndex)
+						s.results[sourceIndex] = s.generateResultForGlobResolve(sourceIndex, globResults.absPath,
+							&result.file.inputFile.Source, record.Range, record.GlobPattern.Kind, globResults, record.Assertions)
+					}
 					continue
 				}
 
@@ -1751,7 +1852,7 @@ func (s *scanner) scanAllDependencies() {
 				if !resolveResult.IsExternal {
 					// Handle a path within the bundle
 					sourceIndex := s.maybeParseFile(*resolveResult, s.res.PrettyPath(path),
-						&result.file.inputFile.Source, record.Range, resolveResult.PluginData, inputKindNormal, nil)
+						&result.file.inputFile.Source, record.Range, inputKindNormal, nil)
 					record.SourceIndex = ast.MakeIndex32(sourceIndex)
 				} else {
 					// Allow this import statement to be removed if something marked it as "sideEffects: false"
@@ -1780,6 +1881,113 @@ func (s *scanner) scanAllDependencies() {
 		}
 
 		s.results[result.file.inputFile.Source.Index] = result
+	}
+}
+
+func (s *scanner) generateResultForGlobResolve(
+	sourceIndex uint32,
+	fakeSourcePath string,
+	importSource *logger.Source,
+	importRange logger.Range,
+	kind ast.ImportKind,
+	result globResolveResult,
+	assertions *[]ast.AssertEntry,
+) parseResult {
+	keys := make([]string, 0, len(result.resolveResults))
+	for key := range result.resolveResults {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	object := js_ast.EObject{Properties: make([]js_ast.Property, 0, len(result.resolveResults))}
+	importRecords := make([]ast.ImportRecord, 0, len(result.resolveResults))
+	resolveResults := make([]*resolver.ResolveResult, 0, len(result.resolveResults))
+
+	for _, key := range keys {
+		resolveResult := result.resolveResults[key]
+		var value js_ast.Expr
+
+		importRecordIndex := uint32(len(importRecords))
+		var sourceIndex ast.Index32
+
+		if !resolveResult.IsExternal {
+			sourceIndex = ast.MakeIndex32(s.maybeParseFile(
+				resolveResult,
+				s.res.PrettyPath(resolveResult.PathPair.Primary),
+				importSource,
+				importRange,
+				inputKindNormal,
+				nil,
+			))
+		}
+
+		path := resolveResult.PathPair.Primary
+
+		// If the path to the external module is relative to the source
+		// file, rewrite the path to be relative to the working directory
+		if path.Namespace == "file" {
+			if relPath, ok := s.fs.Rel(s.options.AbsOutputDir, path.Text); ok {
+				// Prevent issues with path separators being different on Windows
+				relPath = strings.ReplaceAll(relPath, "\\", "/")
+				if resolver.IsPackagePath(relPath) {
+					relPath = "./" + relPath
+				}
+				path.Text = relPath
+			}
+		}
+
+		resolveResults = append(resolveResults, &resolveResult)
+		importRecords = append(importRecords, ast.ImportRecord{
+			Path:        path,
+			SourceIndex: sourceIndex,
+			Assertions:  assertions,
+			Kind:        kind,
+		})
+
+		switch kind {
+		case ast.ImportDynamic:
+			value.Data = &js_ast.EImportString{ImportRecordIndex: importRecordIndex}
+		case ast.ImportRequire:
+			value.Data = &js_ast.ERequireString{ImportRecordIndex: importRecordIndex}
+		case ast.ImportNewURL:
+			value.Data = &js_ast.ENewURLImportMeta{ImportRecordIndex: importRecordIndex}
+		default:
+			panic("Internal error")
+		}
+
+		object.Properties = append(object.Properties, js_ast.Property{
+			Key: js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16(key)}},
+			ValueOrNil: js_ast.Expr{Data: &js_ast.EArrow{
+				Body:       js_ast.FnBody{Block: js_ast.SBlock{Stmts: []js_ast.Stmt{{Data: &js_ast.SReturn{ValueOrNil: value}}}}},
+				PreferExpr: true,
+			}},
+		})
+	}
+
+	source := logger.Source{
+		KeyPath:    logger.Path{Text: fakeSourcePath, Namespace: "file"},
+		PrettyPath: result.prettyPath,
+		Index:      sourceIndex,
+	}
+	ast := js_parser.GlobResolveAST(s.log, source, importRecords, &object, result.exportAlias)
+
+	// Fill out "nil" for any additional imports (i.e. from the runtime)
+	for len(resolveResults) < len(ast.ImportRecords) {
+		resolveResults = append(resolveResults, nil)
+	}
+
+	return parseResult{
+		resolveResults: resolveResults,
+		file: scannerFile{
+			inputFile: graph.InputFile{
+				Source: source,
+				Repr: &graph.JSRepr{
+					AST: ast,
+				},
+				OmitFromSourceMapsAndMetafile: true,
+			},
+		},
+		ok: true,
 	}
 }
 
@@ -2515,7 +2723,7 @@ func (b *Bundle) generateMetadataJSON(results []graph.OutputFile, allReachableFi
 	// Write inputs
 	isFirst := true
 	for _, sourceIndex := range allReachableFiles {
-		if sourceIndex == runtime.SourceIndex {
+		if b.files[sourceIndex].inputFile.OmitFromSourceMapsAndMetafile {
 			continue
 		}
 		if file := &b.files[sourceIndex]; len(file.jsonMetadataChunk) > 0 {

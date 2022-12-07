@@ -41,6 +41,7 @@ type CacheSet struct {
 func MakeCacheSet() *CacheSet {
 	return &CacheSet{
 		SourceIndexCache: SourceIndexCache{
+			globEntries:     make(map[uint64]uint32),
 			entries:         make(map[sourceIndexKey]uint32),
 			nextSourceIndex: runtime.SourceIndex + 1,
 		},
@@ -60,6 +61,7 @@ func MakeCacheSet() *CacheSet {
 }
 
 type SourceIndexCache struct {
+	globEntries     map[uint64]uint32
 	entries         map[sourceIndexKey]uint32
 	mutex           sync.Mutex
 	nextSourceIndex uint32
@@ -96,5 +98,18 @@ func (c *SourceIndexCache) Get(path logger.Path, kind SourceIndexKind) uint32 {
 	sourceIndex := c.nextSourceIndex
 	c.nextSourceIndex++
 	c.entries[key] = sourceIndex
+	return sourceIndex
+}
+
+func (c *SourceIndexCache) GetGlob(parentSourceIndex uint32, globIndex uint32) uint32 {
+	key := (uint64(parentSourceIndex) << 32) | uint64(globIndex)
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	if sourceIndex, ok := c.globEntries[key]; ok {
+		return sourceIndex
+	}
+	sourceIndex := c.nextSourceIndex
+	c.nextSourceIndex++
+	c.globEntries[key] = sourceIndex
 	return sourceIndex
 }

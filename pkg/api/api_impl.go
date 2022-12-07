@@ -1030,11 +1030,18 @@ func rebuildImpl(
 		options.AbsNodePaths[i] = validatePath(log, realFS, path, "node path")
 	}
 	entryPoints := make([]bundler.EntryPoint, 0, len(buildOpts.EntryPoints)+len(buildOpts.EntryPointsAdvanced))
+	hasEntryPointWithWildcard := false
 	for _, ep := range buildOpts.EntryPoints {
 		entryPoints = append(entryPoints, bundler.EntryPoint{InputPath: ep})
+		if strings.ContainsRune(ep, '*') {
+			hasEntryPointWithWildcard = true
+		}
 	}
 	for _, ep := range buildOpts.EntryPointsAdvanced {
 		entryPoints = append(entryPoints, bundler.EntryPoint{InputPath: ep.InputPath, OutputPath: ep.OutputPath})
+		if strings.ContainsRune(ep.InputPath, '*') {
+			hasEntryPointWithWildcard = true
+		}
 	}
 	entryPointCount := len(entryPoints)
 	if buildOpts.Stdin != nil {
@@ -1047,7 +1054,7 @@ func rebuildImpl(
 		}
 	}
 
-	if options.AbsOutputDir == "" && entryPointCount > 1 {
+	if options.AbsOutputDir == "" && (entryPointCount > 1 || hasEntryPointWithWildcard) {
 		log.AddError(nil, logger.Range{},
 			"Must use \"outdir\" when there are multiple input files")
 	} else if options.AbsOutputDir == "" && options.CodeSplitting {
@@ -1647,18 +1654,20 @@ func (impl *pluginImpl) onStart(callback func() (OnStartResult, error)) {
 
 func importKindToResolveKind(kind ast.ImportKind) ResolveKind {
 	switch kind {
-	case ast.ImportEntryPoint:
-		return ResolveEntryPoint
-	case ast.ImportStmt:
-		return ResolveJSImportStatement
-	case ast.ImportRequire:
-		return ResolveJSRequireCall
-	case ast.ImportDynamic:
-		return ResolveJSDynamicImport
-	case ast.ImportRequireResolve:
-		return ResolveJSRequireResolve
 	case ast.ImportAt, ast.ImportAtConditional:
 		return ResolveCSSImportRule
+	case ast.ImportDynamic:
+		return ResolveJSDynamicImport
+	case ast.ImportEntryPoint:
+		return ResolveEntryPoint
+	case ast.ImportNewURL:
+		return ResolveJSNewURL
+	case ast.ImportRequire:
+		return ResolveJSRequireCall
+	case ast.ImportRequireResolve:
+		return ResolveJSRequireResolve
+	case ast.ImportStmt:
+		return ResolveJSImportStatement
 	case ast.ImportURL:
 		return ResolveCSSURLToken
 	default:
@@ -1668,20 +1677,22 @@ func importKindToResolveKind(kind ast.ImportKind) ResolveKind {
 
 func resolveKindToImportKind(kind ResolveKind) ast.ImportKind {
 	switch kind {
-	case ResolveEntryPoint:
-		return ast.ImportEntryPoint
-	case ResolveJSImportStatement:
-		return ast.ImportStmt
-	case ResolveJSRequireCall:
-		return ast.ImportRequire
-	case ResolveJSDynamicImport:
-		return ast.ImportDynamic
-	case ResolveJSRequireResolve:
-		return ast.ImportRequireResolve
 	case ResolveCSSImportRule:
 		return ast.ImportAt
 	case ResolveCSSURLToken:
 		return ast.ImportURL
+	case ResolveEntryPoint:
+		return ast.ImportEntryPoint
+	case ResolveJSDynamicImport:
+		return ast.ImportDynamic
+	case ResolveJSImportStatement:
+		return ast.ImportStmt
+	case ResolveJSNewURL:
+		return ast.ImportNewURL
+	case ResolveJSRequireCall:
+		return ast.ImportRequire
+	case ResolveJSRequireResolve:
+		return ast.ImportRequireResolve
 	default:
 		panic("Internal error")
 	}

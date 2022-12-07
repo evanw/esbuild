@@ -870,7 +870,7 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 						// Rewrite external dynamic imports to point to the chunk for that entry point
 						for _, importRecordIndex := range part.ImportRecordIndices {
 							record := &repr.AST.ImportRecords[importRecordIndex]
-							if record.SourceIndex.IsValid() && c.isExternalDynamicImport(record, sourceIndex) {
+							if record.SourceIndex.IsValid() && c.isImportOfAdditionalEntryPoint(record, sourceIndex) {
 								otherChunkIndex := c.graph.Files[record.SourceIndex.GetIndex()].EntryPointChunkIndex
 								record.Path.Text = chunks[otherChunkIndex].uniqueKey
 								record.SourceIndex = ast.Index32{}
@@ -1756,8 +1756,8 @@ func (c *linkerContext) scanImportsAndExports() {
 			for _, importRecordIndex := range part.ImportRecordIndices {
 				record := &repr.AST.ImportRecords[importRecordIndex]
 
-				// Don't follow external imports (this includes import() expressions)
-				if !record.SourceIndex.IsValid() || c.isExternalDynamicImport(record, sourceIndex) {
+				// Don't follow external imports (this includes "import()" and "new URL()" expressions)
+				if !record.SourceIndex.IsValid() || c.isImportOfAdditionalEntryPoint(record, sourceIndex) {
 					// This is an external import. Check if it will be a "require()" call.
 					if record.Kind == ast.ImportRequire || !c.options.OutputFormat.KeepES6ImportExportSyntax() ||
 						(record.Kind == ast.ImportDynamic && c.options.UnsupportedJSFeatures.Has(compat.DynamicImport)) {
@@ -2818,7 +2818,7 @@ func (c *linkerContext) markFileReachableForCodeSplitting(sourceIndex uint32, en
 
 		// Traverse into all imported files
 		for _, record := range repr.AST.ImportRecords {
-			if record.SourceIndex.IsValid() && !c.isExternalDynamicImport(&record, sourceIndex) {
+			if record.SourceIndex.IsValid() && !c.isImportOfAdditionalEntryPoint(&record, sourceIndex) {
 				c.markFileReachableForCodeSplitting(record.SourceIndex.GetIndex(), entryPointBit, distanceFromEntryPoint)
 			}
 		}
@@ -2907,8 +2907,10 @@ func (c *linkerContext) markFileLiveForTreeShaking(sourceIndex uint32) {
 	}
 }
 
-func (c *linkerContext) isExternalDynamicImport(record *ast.ImportRecord, sourceIndex uint32) bool {
-	return record.Kind == ast.ImportDynamic && c.graph.Files[record.SourceIndex.GetIndex()].IsEntryPoint() && record.SourceIndex.GetIndex() != sourceIndex
+func (c *linkerContext) isImportOfAdditionalEntryPoint(record *ast.ImportRecord, sourceIndex uint32) bool {
+	return (record.Kind == ast.ImportDynamic || record.Kind == ast.ImportNewURL) &&
+		c.graph.Files[record.SourceIndex.GetIndex()].IsEntryPoint() &&
+		record.SourceIndex.GetIndex() != sourceIndex
 }
 
 func (c *linkerContext) markPartLiveForTreeShaking(sourceIndex uint32, partIndex uint32) {
@@ -3456,8 +3458,8 @@ func (c *linkerContext) findImportedPartsInJSOrder(chunk *chunkInfo) (js []uint3
 				for _, importRecordIndex := range part.ImportRecordIndices {
 					record := &repr.AST.ImportRecords[importRecordIndex]
 					if record.SourceIndex.IsValid() && (record.Kind == ast.ImportStmt || isPartInThisChunk) {
-						if c.isExternalDynamicImport(record, sourceIndex) {
-							// Don't follow import() dependencies
+						if c.isImportOfAdditionalEntryPoint(record, sourceIndex) {
+							// Don't follow "import()" or "new URL()" dependencies
 							continue
 						}
 						visit(record.SourceIndex.GetIndex())
@@ -5021,7 +5023,6 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 		metaByteCount = make(map[string]int, len(compileResults))
 	}
 	for _, compileResult := range compileResults {
-		isRuntime := compileResult.sourceIndex == runtime.SourceIndex
 		for text := range compileResult.ExtractedLegalComments {
 			if !legalCommentSet[text] {
 				legalCommentSet[text] = true
@@ -5054,7 +5055,7 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 		}
 
 		// Don't include the runtime in source maps
-		if isRuntime {
+		if c.graph.Files[compileResult.sourceIndex].InputFile.OmitFromSourceMapsAndMetafile {
 			prevOffset.AdvanceString(string(compileResult.JS))
 			j.AddBytes(compileResult.JS)
 		} else {

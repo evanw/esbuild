@@ -1979,6 +1979,17 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			p.print(")")
 		}
 
+	case *js_ast.ENewURLImportMeta:
+		record := &p.importRecords[e.ImportRecordIndex]
+		p.printSpaceBeforeIdentifier()
+		p.addSourceMapping(expr.Loc)
+		p.print("new URL(")
+		p.addSourceMapping(record.Range.Loc)
+		p.printQuotedUTF8(record.Path.Text, true /* allowBacktick */)
+		p.print(",")
+		p.printSpace()
+		p.print("import.meta.url)")
+
 	case *js_ast.EDot:
 		wrap := false
 		if e.OptionalChain == js_ast.OptionalChainNone {

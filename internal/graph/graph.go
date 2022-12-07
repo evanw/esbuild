@@ -29,7 +29,7 @@ type entryPointKind uint8
 const (
 	entryPointNone entryPointKind = iota
 	entryPointUserSpecified
-	entryPointDynamicImport
+	entryPointAdditional
 )
 
 type LinkerFile struct {
@@ -54,7 +54,7 @@ type LinkerFile struct {
 	// This file is an entry point if and only if this is not "entryPointNone".
 	// Note that dynamically-imported files are allowed to also be specified by
 	// the user as top-level entry points, so some dynamically-imported files
-	// may be "entryPointUserSpecified" instead of "entryPointDynamicImport".
+	// may be "entryPointUserSpecified" instead of "entryPointAdditional".
 	entryPointKind entryPointKind
 
 	// This is true if this file has been marked as live by the tree shaking
@@ -141,8 +141,8 @@ func CloneLinkerGraph(
 	// Clone various things since we may mutate them later. Do this in parallel
 	// for a speedup (around ~2x faster for this function in the three.js
 	// benchmark on a 6-core laptop).
-	var dynamicImportEntryPoints []uint32
-	var dynamicImportEntryPointsMutex sync.Mutex
+	var additionalEntryPoints []uint32
+	var additionalEntryPointsMutex sync.Mutex
 	waitGroup := sync.WaitGroup{}
 	waitGroup.Add(len(reachableFiles))
 	stableSourceIndices := make([]uint32, len(inputFiles))
@@ -185,10 +185,11 @@ func CloneLinkerGraph(
 				// Add dynamic imports as additional entry points if code splitting is active
 				if codeSplitting {
 					for importRecordIndex := range repr.AST.ImportRecords {
-						if record := &repr.AST.ImportRecords[importRecordIndex]; record.SourceIndex.IsValid() && record.Kind == ast.ImportDynamic {
-							dynamicImportEntryPointsMutex.Lock()
-							dynamicImportEntryPoints = append(dynamicImportEntryPoints, record.SourceIndex.GetIndex())
-							dynamicImportEntryPointsMutex.Unlock()
+						if record := &repr.AST.ImportRecords[importRecordIndex]; record.SourceIndex.IsValid() &&
+							(record.Kind == ast.ImportDynamic || record.Kind == ast.ImportNewURL) {
+							additionalEntryPointsMutex.Lock()
+							additionalEntryPoints = append(additionalEntryPoints, record.SourceIndex.GetIndex())
+							additionalEntryPointsMutex.Unlock()
 
 							// Remove import assertions for dynamic imports of additional
 							// entry points so that they don't mess with the run-time behavior.
@@ -250,11 +251,11 @@ func CloneLinkerGraph(
 	waitGroup.Wait()
 
 	// Process dynamic entry points after merging control flow again
-	stableEntryPoints := make([]int, 0, len(dynamicImportEntryPoints))
-	for _, sourceIndex := range dynamicImportEntryPoints {
+	stableEntryPoints := make([]int, 0, len(additionalEntryPoints))
+	for _, sourceIndex := range additionalEntryPoints {
 		if otherFile := &files[sourceIndex]; otherFile.entryPointKind == entryPointNone {
 			stableEntryPoints = append(stableEntryPoints, int(stableSourceIndices[sourceIndex]))
-			otherFile.entryPointKind = entryPointDynamicImport
+			otherFile.entryPointKind = entryPointAdditional
 		}
 	}
 

@@ -27,6 +27,9 @@ const (
 	// A call to "require.resolve()"
 	ImportRequireResolve
 
+	// "new URL('path', import.meta.url)" with a string argument
+	ImportNewURL
+
 	// A CSS "@import" rule
 	ImportAt
 
@@ -47,6 +50,8 @@ func (kind ImportKind) StringForMetafile() string {
 		return "dynamic-import"
 	case ImportRequireResolve:
 		return "require-resolve"
+	case ImportNewURL:
+		return "new-url"
 	case ImportAt, ImportAtConditional:
 		return "import-rule"
 	case ImportURL:
@@ -123,9 +128,10 @@ func (flags ImportRecordFlags) Has(flag ImportRecordFlags) bool {
 }
 
 type ImportRecord struct {
-	Assertions *[]AssertEntry
-	Path       logger.Path
-	Range      logger.Range
+	Assertions  *[]AssertEntry
+	GlobPattern *GlobPattern
+	Path        logger.Path
+	Range       logger.Range
 
 	// If the "HandlesImportErrors" flag is present, then this is the location
 	// of the error handler. This is used for error reporting.
@@ -158,6 +164,12 @@ func FindAssertion(assertions []AssertEntry, name string) *AssertEntry {
 		}
 	}
 	return nil
+}
+
+type GlobPattern struct {
+	Parts       []helpers.GlobPart
+	ExportAlias string
+	Kind        ImportKind
 }
 
 // This stores a 32-bit index where the zero value is an invalid index. This is
