@@ -77,5 +77,11 @@ function runTests() {
   run('node out-wasm-yarn.js')
 }
 
+const minutes = 10
+setTimeout(() => {
+  console.error(`❌ Yarn PnP tests timed out after ${minutes} minutes`)
+  process.exit(1)
+}, minutes * 60 * 1000)
+
 reinstallYarnIfNeeded()
 runTests()
