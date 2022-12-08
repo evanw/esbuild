@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix a hang with the JS API in certain cases ([#2727](https://github.com/evanw/esbuild/issues/2727))
+
+    A change that was made in version 0.15.13 accidentally introduced a case when using esbuild's JS API could cause the node process to fail to exit. The change broke esbuild's watchdog timer, which detects if the parent process no longer exists and then automatically exits esbuild. This hang happened when you ran node as a child process with the `stderr` stream set to `pipe` instead of `inherit`, in the child process you call esbuild's JS API and pass `incremental: true` but do not call `dispose()` on the returned `rebuild` object, and then call `process.exit()`. In that case the parent node process was still waiting for the esbuild process that was created by the child node process to exit. The change made in version 0.15.13 was trying to avoid using Go's `sync.WaitGroup` API incorrectly because the API is not thread-safe. Instead of doing this, I have now reverted that change and implemented a thread-safe version of the `sync.WaitGroup` API for esbuild to use instead.
+
 ## 0.16.2
 
 * Fix `process.env.NODE_ENV` substitution when transforming ([#2718](https://github.com/evanw/esbuild/issues/2718))

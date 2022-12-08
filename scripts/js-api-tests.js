@@ -1,4 +1,5 @@
 const { installForTests, removeRecursiveSync, writeFileAtomic } = require('./esbuild')
+const child_process = require('child_process')
 const assert = require('assert')
 const path = require('path')
 const http = require('http')
@@ -5797,6 +5798,52 @@ ${path.relative(process.cwd(), input).replace(/\\/g, '/')}:1:2: ERROR: Unexpecte
   },
 }
 
+let childProcessTests = {
+  // More info about this test case: https://github.com/evanw/esbuild/issues/2727
+  async testIncrementalChildProcessExit({ testDir, esbuild }) {
+    const file = path.join(testDir, 'build.js')
+
+    await writeFileAsync(file, `
+      const esbuild = require(${JSON.stringify(esbuild.ESBUILD_PACKAGE_PATH)})
+      esbuild.build({
+        entryPoints: [],
+        incremental: true,
+      }).then(() => {
+        console.log('success')
+        process.exit(0)
+      })
+    `)
+
+    let timeout
+    const detectHangPromise = new Promise((_, reject) => {
+      timeout = setTimeout(() => {
+        reject(new Error('Timed out waiting for keep-alive check to terminate'))
+      }, 5 * 60 * 1000)
+    })
+
+    const testKeepAlivePingPromise = new Promise((resolve, reject) => {
+      child_process.execFile('node', [file], {
+        stdio: [
+          'inherit',
+          'inherit',
+          'pipe', // This is important for the test to check for the hang
+        ],
+      }, (error, stdout, stderr) => {
+        clearTimeout(timeout)
+        if (error) reject(error)
+        else if (stdout !== 'success\n') reject(new Error('Unexpected stdout: ' + JSON.stringify(stdout)))
+        else if (stderr !== '') reject(new Error('Unexpected stderr: ' + JSON.stringify(stderr)))
+        else resolve()
+      })
+    })
+
+    await Promise.race([
+      detectHangPromise,
+      testKeepAlivePingPromise,
+    ])
+  },
+}
+
 async function assertSourceMap(jsSourceMap, source) {
   jsSourceMap = JSON.parse(jsSourceMap)
   assert.deepStrictEqual(jsSourceMap.version, 3)
@@ -5840,6 +5887,7 @@ async function main() {
     ...Object.entries(formatTests),
     ...Object.entries(analyzeTests),
     ...Object.entries(syncTests),
+    ...Object.entries(childProcessTests),
   ]
   let allTestsPassed = (await Promise.all(tests.map(runTest))).every(success => success)
 

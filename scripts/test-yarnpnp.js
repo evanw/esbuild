@@ -78,10 +78,11 @@ function runTests() {
 }
 
 const minutes = 10
-setTimeout(() => {
+const timeout = setTimeout(() => {
   console.error(`❌ Yarn PnP tests timed out after ${minutes} minutes`)
   process.exit(1)
 }, minutes * 60 * 1000)
 
 reinstallYarnIfNeeded()
 runTests()
+clearTimeout(timeout)
