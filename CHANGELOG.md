@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+* Fix `process.env.NODE_ENV` substitution when transforming ([#2718](https://github.com/evanw/esbuild/issues/2718))
+
+    Version 0.16.0 introduced an unintentional regression that caused `process.env.NODE_ENV` to be automatically substituted with either `"development"` or `"production"` when using esbuild's `transform` API. This substitution is a necessary feature of esbuild's `build` API because the React framework crashes when you bundle it without doing this. But the `transform` API is typically used as part of a larger build pipeline so the benefit of esbuild doing this automatically is not as clear, and esbuild previously didn't do this.
+
+    However, version 0.16.0 switched the default value of the `platform` setting for the `transform` API from `neutral` to `browser`, both to align it with esbuild's documentation (which says `browser` is the default value) and because escaping the `</script>` character sequence is now tied to the `browser` platform (see the release notes for version 0.16.0 for details). That accidentally enabled automatic substitution of `process.env.NODE_ENV` because esbuild always did that for code meant for the browser. To fix this regression, esbuild will now only automatically substitute `process.env.NODE_ENV` when using the `build` API.
+
 * Prevent `define` from substituting constants into assignment position ([#2719](https://github.com/evanw/esbuild/issues/2719))
 
     The `define` feature lets you replace certain expressions with constants. For example, you could use it to replace references to the global property reference `window.DEBUG` with `false` at compile time, which can then potentially help esbuild remove unused code from your bundle. It's similar to [DefinePlugin](https://webpack.js.org/plugins/define-plugin/) in Webpack.

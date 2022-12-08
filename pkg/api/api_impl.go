@@ -554,6 +554,7 @@ func validateDefines(
 	defines map[string]string,
 	pureFns []string,
 	platform config.Platform,
+	isBuildAPI bool,
 	minify bool,
 	drop Drop,
 ) (*config.ProcessedDefines, []config.InjectedDefine) {
@@ -619,7 +620,7 @@ func validateDefines(
 	// that must be handled to avoid all React code crashing instantly. This
 	// is only done if it's not already defined so that you can override it if
 	// necessary.
-	if platform == config.PlatformBrowser {
+	if isBuildAPI && platform == config.PlatformBrowser {
 		if _, process := rawDefines["process"]; !process {
 			if _, processEnv := rawDefines["process.env"]; !processEnv {
 				if _, processEnvNodeEnv := rawDefines["process.env.NODE_ENV"]; !processEnvNodeEnv {
@@ -949,7 +950,7 @@ func rebuildImpl(
 	footerJS, footerCSS := validateBannerOrFooter(log, "footer", buildOpts.Footer)
 	minify := buildOpts.MinifyWhitespace && buildOpts.MinifyIdentifiers && buildOpts.MinifySyntax
 	platform := validatePlatform(buildOpts.Platform)
-	defines, injectedDefines := validateDefines(log, buildOpts.Define, buildOpts.Pure, platform, minify, buildOpts.Drop)
+	defines, injectedDefines := validateDefines(log, buildOpts.Define, buildOpts.Pure, platform, true /* isBuildAPI */, minify, buildOpts.Drop)
 	mangleCache := cloneMangleCache(log, buildOpts.MangleCache)
 	options := config.Options{
 		TargetFromAPI:                      targetFromAPI,
@@ -1491,7 +1492,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 	targetFromAPI, jsFeatures, cssFeatures, targetEnv := validateFeatures(log, transformOpts.Target, transformOpts.Engines)
 	jsOverrides, jsMask, cssOverrides, cssMask := validateSupported(log, transformOpts.Supported)
 	platform := validatePlatform(transformOpts.Platform)
-	defines, injectedDefines := validateDefines(log, transformOpts.Define, transformOpts.Pure, platform, false /* minify */, transformOpts.Drop)
+	defines, injectedDefines := validateDefines(log, transformOpts.Define, transformOpts.Pure, platform, false /* isBuildAPI */, false /* minify */, transformOpts.Drop)
 	mangleCache := cloneMangleCache(log, transformOpts.MangleCache)
 	options := config.Options{
 		TargetFromAPI:                      targetFromAPI,

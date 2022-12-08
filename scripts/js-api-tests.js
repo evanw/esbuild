@@ -4689,19 +4689,25 @@ let transformTests = {
   },
 
   async define({ esbuild }) {
-    const define = { 'process.env.NODE_ENV': '"production"' }
+    const define = { 'process.env.NODE_ENV': '"something"' }
 
     const { code: code1 } = await esbuild.transform(`console.log(process.env.NODE_ENV)`, { define })
-    assert.strictEqual(code1, `console.log("production");\n`)
+    assert.strictEqual(code1, `console.log("something");\n`)
 
     const { code: code2 } = await esbuild.transform(`console.log(process.env['NODE_ENV'])`, { define })
-    assert.strictEqual(code2, `console.log("production");\n`)
+    assert.strictEqual(code2, `console.log("something");\n`)
 
     const { code: code3 } = await esbuild.transform(`console.log(process['env'].NODE_ENV)`, { define })
-    assert.strictEqual(code3, `console.log("production");\n`)
+    assert.strictEqual(code3, `console.log("something");\n`)
 
     const { code: code4 } = await esbuild.transform(`console.log(process['env']['NODE_ENV'])`, { define })
-    assert.strictEqual(code4, `console.log("production");\n`)
+    assert.strictEqual(code4, `console.log("something");\n`)
+
+    const { code: code5 } = await esbuild.transform(`console.log(process.env.NODE_ENV)`, {})
+    assert.strictEqual(code5, `console.log(process.env.NODE_ENV);\n`)
+
+    const { code: code6 } = await esbuild.transform(`console.log(process.env.NODE_ENV)`, { platform: 'browser' })
+    assert.strictEqual(code6, `console.log(process.env.NODE_ENV);\n`)
   },
 
   async defineBuiltInConstants({ esbuild }) {
