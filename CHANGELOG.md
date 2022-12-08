@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.16.2
 
 * Fix `process.env.NODE_ENV` substitution when transforming ([#2718](https://github.com/evanw/esbuild/issues/2718))
 
