@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.16.3
 
 * Fix a hang with the JS API in certain cases ([#2727](https://github.com/evanw/esbuild/issues/2727))
 
