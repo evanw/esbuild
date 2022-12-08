@@ -4764,6 +4764,75 @@ func TestDefineInfiniteLoopIssue2407(t *testing.T) {
 	})
 }
 
+func TestDefineAssignWarning(t *testing.T) {
+	defines := config.ProcessDefines(map[string]config.DefineData{
+		"a": {
+			DefineExpr: &config.DefineExpr{
+				Constant: js_ast.ENullShared,
+			},
+		},
+		"b.c": {
+			DefineExpr: &config.DefineExpr{
+				Constant: js_ast.ENullShared,
+			},
+		},
+		"d": {
+			DefineExpr: &config.DefineExpr{
+				Parts: []string{"ident"},
+			},
+		},
+		"e.f": {
+			DefineExpr: &config.DefineExpr{
+				Parts: []string{"ident"},
+			},
+		},
+		"g": {
+			DefineExpr: &config.DefineExpr{
+				Parts: []string{"dot", "chain"},
+			},
+		},
+		"h.i": {
+			DefineExpr: &config.DefineExpr{
+				Parts: []string{"dot", "chain"},
+			},
+		},
+	})
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/read.js": `
+				console.log(
+					[a, b.c, b['c']],
+					[d, e.f, e['f']],
+					[g, h.i, h['i']],
+				)
+			`,
+			"/write.js": `
+				console.log(
+					[a = 0, b.c = 0, b['c'] = 0],
+					[d = 0, e.f = 0, e['f'] = 0],
+					[g = 0, h.i = 0, h['i'] = 0],
+				)
+			`,
+		},
+		entryPaths: []string{
+			"/read.js",
+			"/write.js",
+		},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			Defines:      &defines,
+		},
+		expectedScanLog: `write.js: WARNING: Suspicious assignment to defined constant "a"
+NOTE: The expression "a" has been configured to be replaced with a constant using the "define" feature. If this expression is supposed to be a compile-time constant, then it doesn't make sense to assign to it here. Or if this expression is supposed to change at run-time, this "define" substitution should be removed.
+write.js: WARNING: Suspicious assignment to defined constant "b.c"
+NOTE: The expression "b.c" has been configured to be replaced with a constant using the "define" feature. If this expression is supposed to be a compile-time constant, then it doesn't make sense to assign to it here. Or if this expression is supposed to change at run-time, this "define" substitution should be removed.
+write.js: WARNING: Suspicious assignment to defined constant "b['c']"
+NOTE: The expression "b['c']" has been configured to be replaced with a constant using the "define" feature. If this expression is supposed to be a compile-time constant, then it doesn't make sense to assign to it here. Or if this expression is supposed to change at run-time, this "define" substitution should be removed.
+`,
+	})
+}
+
 func TestKeepNamesTreeShaking(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{

@@ -17,7 +17,15 @@ func canPrintWithoutEscape(c rune, asciiOnly bool) bool {
 	}
 }
 
+func QuoteSingle(text string, asciiOnly bool) []byte {
+	return internalQuote(text, asciiOnly, '\'')
+}
+
 func QuoteForJSON(text string, asciiOnly bool) []byte {
+	return internalQuote(text, asciiOnly, '"')
+}
+
+func internalQuote(text string, asciiOnly bool, quoteChar byte) []byte {
 	// Estimate the required length
 	lenEstimate := 2
 	for _, c := range text {
@@ -25,8 +33,16 @@ func QuoteForJSON(text string, asciiOnly bool) []byte {
 			lenEstimate += utf8.RuneLen(c)
 		} else {
 			switch c {
-			case '\b', '\f', '\n', '\r', '\t', '\\', '"':
+			case '\b', '\f', '\n', '\r', '\t', '\\':
 				lenEstimate += 2
+			case '"':
+				if quoteChar == '"' {
+					lenEstimate += 2
+				}
+			case '\'':
+				if quoteChar == '\'' {
+					lenEstimate += 2
+				}
 			default:
 				if c <= 0xFFFF {
 					lenEstimate += 6
@@ -41,7 +57,7 @@ func QuoteForJSON(text string, asciiOnly bool) []byte {
 	bytes := make([]byte, 0, lenEstimate)
 	i := 0
 	n := len(text)
-	bytes = append(bytes, '"')
+	bytes = append(bytes, quoteChar)
 
 	for i < n {
 		c, width := DecodeWTF8Rune(text[i:])
@@ -87,7 +103,19 @@ func QuoteForJSON(text string, asciiOnly bool) []byte {
 			i++
 
 		case '"':
-			bytes = append(bytes, "\\\""...)
+			if quoteChar == '"' {
+				bytes = append(bytes, "\\\""...)
+			} else {
+				bytes = append(bytes, '"')
+			}
+			i++
+
+		case '\'':
+			if quoteChar == '\'' {
+				bytes = append(bytes, "\\'"...)
+			} else {
+				bytes = append(bytes, '\'')
+			}
 			i++
 
 		default:
@@ -110,5 +138,5 @@ func QuoteForJSON(text string, asciiOnly bool) []byte {
 		}
 	}
 
-	return append(bytes, '"')
+	return append(bytes, quoteChar)
 }

@@ -396,6 +396,24 @@ for (const e of x)
   console.log(e);
 
 ================================================================================
+TestDefineAssignWarning
+---------- /out/read.js ----------
+// read.js
+console.log(
+  [null, null, null],
+  [ident, ident, ident],
+  [dot.chain, dot.chain, dot.chain]
+);
+
+---------- /out/write.js ----------
+// write.js
+console.log(
+  [a = 0, b.c = 0, b["c"] = 0],
+  [ident = 0, ident = 0, ident = 0],
+  [dot.chain = 0, dot.chain = 0, dot.chain = 0]
+);
+
+================================================================================
 TestDefineImportMeta
 ---------- /out.js ----------
 // entry.js

@@ -14,6 +14,7 @@ const (
 	// JavaScript
 	MsgID_JS_AssertTypeJSON
 	MsgID_JS_AssignToConstant
+	MsgID_JS_AssignToDefine
 	MsgID_JS_AssignToImport
 	MsgID_JS_CallImportNamespace
 	MsgID_JS_CommonJSVariableInESM
@@ -92,6 +93,8 @@ func StringToMsgIDs(str string, logLevel LogLevel, overrides map[MsgID]LogLevel)
 		overrides[MsgID_JS_AssertTypeJSON] = logLevel
 	case "assign-to-constant":
 		overrides[MsgID_JS_AssignToConstant] = logLevel
+	case "assign-to-define":
+		overrides[MsgID_JS_AssignToDefine] = logLevel
 	case "assign-to-import":
 		overrides[MsgID_JS_AssignToImport] = logLevel
 	case "call-import-namespace":
@@ -206,6 +209,8 @@ func MsgIDToString(id MsgID) string {
 		return "assert-type-json"
 	case MsgID_JS_AssignToConstant:
 		return "assign-to-constant"
+	case MsgID_JS_AssignToDefine:
+		return "assign-to-define"
 	case MsgID_JS_AssignToImport:
 		return "assign-to-import"
 	case MsgID_JS_CallImportNamespace:

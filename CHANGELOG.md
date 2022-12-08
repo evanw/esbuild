@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+* Prevent `define` from substituting constants into assignment position ([#2719](https://github.com/evanw/esbuild/issues/2719))
+
+    The `define` feature lets you replace certain expressions with constants. For example, you could use it to replace references to the global property reference `window.DEBUG` with `false` at compile time, which can then potentially help esbuild remove unused code from your bundle. It's similar to [DefinePlugin](https://webpack.js.org/plugins/define-plugin/) in Webpack.
+
+    However, if you write code such as `window.DEBUG = true` and then defined `window.DEBUG` to `false`, esbuild previously generated the output `false = true` which is a syntax error in JavaScript. This behavior is not typically a problem because it doesn't make sense to substitute `window.DEBUG` with a constant if its value changes at run-time (Webpack's `DefinePlugin` also generates `false = true` in this case). But it can be alarming to have esbuild generate code with a syntax error.
+
+    So with this release, esbuild will no longer substitute `define` constants into assignment position to avoid generating code with a syntax error. Instead esbuild will generate a warning, which currently looks like this:
+
+    ```
+    ▲ [WARNING] Suspicious assignment to defined constant "window.DEBUG" [assign-to-define]
+
+        example.js:1:0:
+          1 │ window.DEBUG = true
+            ╵ ~~~~~~~~~~~~
+
+      The expression "window.DEBUG" has been configured to be replaced with a constant using the
+      "define" feature. If this expression is supposed to be a compile-time constant, then it doesn't
+      make sense to assign to it here. Or if this expression is supposed to change at run-time, this
+      "define" substitution should be removed.
+    ```
+
 * Fix a regression with `npm install --no-optional` ([#2720](https://github.com/evanw/esbuild/issues/2720))
 
     Normally when you install esbuild with `npm install`, npm itself is the tool that downloads the correct binary executable for the current platform. This happens because of how esbuild's primary package uses npm's `optionalDependencies` feature. However, if you deliberately disable this with `npm install --no-optional` then esbuild's install script will attempt to repair the installation by manually downloading and extracting the binary executable from the package that was supposed to be installed.
