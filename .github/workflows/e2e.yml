@@ -3,6 +3,7 @@ name: End-to-end install tests
 on:
   schedule:
     - cron: '0 */6 * * *'
+  workflow_dispatch:
 
 permissions:
   contents: read  #  to fetch code (actions/checkout)
