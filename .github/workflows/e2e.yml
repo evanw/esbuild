@@ -19,6 +19,13 @@ jobs:
         with:
           node-version: 16
 
+      # The version of Deno is pinned because version 1.25.1 was causing test
+      # flakes due to random segfaults.
+      - name: Setup Deno 1.24.0
+        uses: denoland/setup-deno@main
+        with:
+          deno-version: v1.24.0
+
       - name: Test npm
         run: |
           npm i -g npm@next-7
@@ -33,3 +40,7 @@ jobs:
         run: |
           npm i -g yarn@latest
           time make test-e2e-yarn-berry
+
+      - name: Test deno
+        run: |
+          time make test-e2e-deno

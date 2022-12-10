@@ -100,7 +100,7 @@ lib-typecheck: | lib/node_modules
 	cd lib && node_modules/.bin/tsc -noEmit -p tsconfig-deno.json
 
 # End-to-end tests
-test-e2e: test-e2e-npm test-e2e-pnpm test-e2e-yarn-berry
+test-e2e: test-e2e-npm test-e2e-pnpm test-e2e-yarn-berry test-e2e-deno
 
 test-e2e-npm:
 	# Test normal install
@@ -203,6 +203,9 @@ test-e2e-yarn-berry:
 
 	# Clean up
 	rm -fr e2e-yb
+
+test-e2e-deno:
+	deno eval 'import { transform, stop } from "https://deno.land/x/esbuild@v$(ESBUILD_VERSION)/mod.js"; console.log((await transform("1+2")).code); stop()' | grep "1 + 2;"
 
 test-yarnpnp: platform-wasm
 	node scripts/test-yarnpnp.js
