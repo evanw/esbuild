@@ -67,7 +67,7 @@ async function installFromNPM(name: string, subpath: string): Promise<string> {
   } catch (e) {
   }
 
-  const url = `https://registry.npmjs.org/${name}/-/${name}-${version}.tgz`
+  const url = `https://registry.npmjs.org/${name}/-/${name.replace('@esbuild/', '')}-${version}.tgz`
   const buffer = await fetch(url).then(r => r.arrayBuffer())
   const executable = extractFileFromTarGzip(new Uint8Array(buffer), subpath)
 
@@ -112,7 +112,7 @@ function getCachePath(name: string): { finalPath: string, finalDir: string } {
 
   if (!baseDir) throw new Error('Failed to find cache directory')
   const finalDir = baseDir + `/esbuild/bin`
-  const finalPath = finalDir + `/${name}@${version}`
+  const finalPath = finalDir + `/${name.replace('/', '-')}@${version}`
   return { finalPath, finalDir }
 }
 

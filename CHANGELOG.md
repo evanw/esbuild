@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix binary downloads from the `@esbuild/` scope for Deno ([#2729](https://github.com/evanw/esbuild/issues/2729))
+
+    Version 0.16.0 of esbuild moved esbuild's binary executables into npm packages under the `@esbuild/` scope, which accidentally broke the binary downloader script for Deno. This release fixes this script so it should now be possible to use esbuild version 0.16.4+ with Deno.
+
 ## 0.16.3
 
 * Fix a hang with the JS API in certain cases ([#2727](https://github.com/evanw/esbuild/issues/2727))
