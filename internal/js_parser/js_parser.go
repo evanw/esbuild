@@ -3307,7 +3307,12 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 		if p.lexer.Token == js_lexer.TAsteriskAsterisk {
 			p.lexer.Unexpected()
 		}
-		return js_ast.Expr{Loc: loc, Data: &js_ast.EUnary{Op: js_ast.UnOpTypeof, Value: value}}
+		_, valueWasOriginallyIdentifier := value.Data.(*js_ast.EIdentifier)
+		return js_ast.Expr{Loc: loc, Data: &js_ast.EUnary{
+			Op:                           js_ast.UnOpTypeof,
+			Value:                        value,
+			ValueWasOriginallyIdentifier: valueWasOriginallyIdentifier,
+		}}
 
 	case js_lexer.TDelete:
 		p.lexer.Next()
@@ -3322,7 +3327,12 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 				p.log.AddError(&p.tracker, r, fmt.Sprintf("Deleting the private name %q is forbidden", name))
 			}
 		}
-		return js_ast.Expr{Loc: loc, Data: &js_ast.EUnary{Op: js_ast.UnOpDelete, Value: value}}
+		_, valueWasOriginallyIdentifier := value.Data.(*js_ast.EIdentifier)
+		return js_ast.Expr{Loc: loc, Data: &js_ast.EUnary{
+			Op:                           js_ast.UnOpDelete,
+			Value:                        value,
+			ValueWasOriginallyIdentifier: valueWasOriginallyIdentifier,
+		}}
 
 	case js_lexer.TPlus:
 		p.lexer.Next()
@@ -13619,16 +13629,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 	case *js_ast.EUnary:
 		switch e.Op {
 		case js_ast.UnOpTypeof:
-			_, idBefore := e.Value.Data.(*js_ast.EIdentifier)
 			e.Value, _ = p.visitExprInOut(e.Value, exprIn{assignTarget: e.Op.UnaryAssignTarget()})
-			id, idAfter := e.Value.Data.(*js_ast.EIdentifier)
 
-			// The expression "typeof (0, x)" must not become "typeof x" if "x"
-			// is unbound because that could suppress a ReferenceError from "x"
-			if !idBefore && idAfter && p.symbols[id.Ref.InnerIndex].Kind == js_ast.SymbolUnbound {
-				e.Value = js_ast.JoinWithComma(js_ast.Expr{Loc: e.Value.Loc, Data: &js_ast.ENumber{}}, e.Value)
-			}
-
+			// Compile-time "typeof" evaluation
 			if typeof, ok := typeofWithoutSideEffects(e.Value.Data); ok {
 				return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EString{Value: helpers.StringToUTF16(typeof)}}, exprOut{}
 			}
@@ -15857,13 +15860,9 @@ func (p *parser) exprCanBeRemovedIfUnused(expr js_ast.Expr) bool {
 		// has a special case where if the operand is an identifier expression such
 		// as "typeof x" and "x" doesn't exist, no reference error is thrown so the
 		// operation has no side effects.
-		//
-		// Note that there *is* actually a case where "typeof x" can throw an error:
-		// when "x" is being referenced inside of its TDZ (temporal dead zone). TDZ
-		// checks are not yet handled correctly by esbuild, so this possibility is
-		// currently ignored.
 		case js_ast.UnOpTypeof:
-			if _, ok := e.Value.Data.(*js_ast.EIdentifier); ok {
+			if _, ok := e.Value.Data.(*js_ast.EIdentifier); ok && e.ValueWasOriginallyIdentifier {
+				// Expressions such as "typeof x" never have any side effects
 				return true
 			}
 			return p.exprCanBeRemovedIfUnused(e.Value)
@@ -15932,7 +15931,7 @@ func (p *parser) isSideEffectFreeUnboundIdentifierRef(value js_ast.Expr, guardCo
 				if _, ok := typeof.Data.(*js_ast.EString); ok {
 					typeof, string = string, typeof
 				}
-				if typeof, ok := typeof.Data.(*js_ast.EUnary); ok && typeof.Op == js_ast.UnOpTypeof {
+				if typeof, ok := typeof.Data.(*js_ast.EUnary); ok && typeof.Op == js_ast.UnOpTypeof && typeof.ValueWasOriginallyIdentifier {
 					if text, ok := string.Data.(*js_ast.EString); ok {
 						// In "typeof x !== 'undefined' ? x : null", the reference to "x" is side-effect free
 						// In "typeof x === 'object' ? x : null", the reference to "x" is side-effect free
@@ -15952,7 +15951,7 @@ func (p *parser) isSideEffectFreeUnboundIdentifierRef(value js_ast.Expr, guardCo
 					typeof, string = string, typeof
 					isYesBranch = !isYesBranch
 				}
-				if typeof, ok := typeof.Data.(*js_ast.EUnary); ok && typeof.Op == js_ast.UnOpTypeof {
+				if typeof, ok := typeof.Data.(*js_ast.EUnary); ok && typeof.Op == js_ast.UnOpTypeof && typeof.ValueWasOriginallyIdentifier {
 					if text, ok := string.Data.(*js_ast.EString); ok && helpers.UTF16EqualsString(text.Value, "u") {
 						// In "typeof x < 'u' ? x : null", the reference to "x" is side-effect free
 						// In "typeof x > 'u' ? x : null", the reference to "x" is side-effect free

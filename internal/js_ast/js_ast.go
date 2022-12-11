@@ -453,6 +453,22 @@ type EArray struct {
 type EUnary struct {
 	Value Expr
 	Op    OpCode
+
+	// The expression "typeof (0, x)" must not become "typeof x" if "x"
+	// is unbound because that could suppress a ReferenceError from "x".
+	//
+	// Similarly the expression "delete (0, x)" must not become "delete x"
+	// because that syntax is invalid in strict mode.
+	//
+	// Also if we know a typeof operator was originally an identifier, then
+	// we know that this typeof operator always has no side effects (even if
+	// we consider the identifier by itself to have a side effect).
+	//
+	// Note that there *is* actually a case where "typeof x" can throw an error:
+	// when "x" is being referenced inside of its TDZ (temporal dead zone). TDZ
+	// checks are not yet handled correctly by esbuild, so this possibility is
+	// currently ignored.
+	ValueWasOriginallyIdentifier bool
 }
 
 type EBinary struct {

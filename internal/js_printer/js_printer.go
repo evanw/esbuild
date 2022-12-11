@@ -2543,7 +2543,19 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			if e.Op == js_ast.UnOpDelete {
 				valueFlags |= isDeleteTarget
 			}
-			p.printExpr(e.Value, js_ast.LPrefix-1, valueFlags)
+
+			// Never turn "typeof (0, x)" into "typeof x" or "delete (0, x)" into "delete x"
+			if id, ok := e.Value.Data.(*js_ast.EIdentifier); ok &&
+				(e.Op == js_ast.UnOpDelete || e.Op == js_ast.UnOpTypeof) &&
+				!e.ValueWasOriginallyIdentifier &&
+				p.symbols.Get(js_ast.FollowSymbols(p.symbols, id.Ref)).Kind == js_ast.SymbolUnbound {
+				p.print("(0,")
+				p.printSpace()
+				p.printExpr(e.Value, js_ast.LPrefix-1, valueFlags)
+				p.print(")")
+			} else {
+				p.printExpr(e.Value, js_ast.LPrefix-1, valueFlags)
+			}
 		}
 
 		if wrap {

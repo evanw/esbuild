@@ -581,7 +581,7 @@ func SimplifyUnusedExpr(expr Expr, unsupportedFeatures compat.JSFeature, isUnbou
 			return SimplifyUnusedExpr(e.Value, unsupportedFeatures, isUnbound)
 
 		case UnOpTypeof:
-			if _, ok := e.Value.Data.(*EIdentifier); ok {
+			if _, ok := e.Value.Data.(*EIdentifier); ok && e.ValueWasOriginallyIdentifier {
 				// "typeof x" must not be transformed into if "x" since doing so could
 				// cause an exception to be thrown. Instead we can just remove it since
 				// "typeof x" is special-cased in the standard to never throw.
@@ -1045,7 +1045,15 @@ func ToNullOrUndefinedWithSideEffects(data E) (isNullOrUndefined bool, sideEffec
 			UnOpPos, UnOpNeg, UnOpCpl,
 			UnOpPreDec, UnOpPreInc, UnOpPostDec, UnOpPostInc,
 			// Always boolean
-			UnOpNot, UnOpTypeof, UnOpDelete:
+			UnOpNot, UnOpDelete:
+			return false, CouldHaveSideEffects, true
+
+		// Always boolean
+		case UnOpTypeof:
+			if e.ValueWasOriginallyIdentifier {
+				// Expressions such as "typeof x" never have any side effects
+				return false, NoSideEffects, true
+			}
 			return false, CouldHaveSideEffects, true
 
 		// Always undefined
@@ -1113,6 +1121,10 @@ func ToBooleanWithSideEffects(data E) (boolean bool, SideEffects SideEffects, ok
 
 		case UnOpTypeof:
 			// Never an empty string
+			if e.ValueWasOriginallyIdentifier {
+				// Expressions such as "typeof x" never have any side effects
+				return true, NoSideEffects, true
+			}
 			return true, CouldHaveSideEffects, true
 
 		case UnOpNot:
