@@ -797,6 +797,26 @@ func ToUint32(f float64) uint32 {
 	return uint32(ToInt32(f))
 }
 
+func isInt32OrUint32(data E) bool {
+	switch e := data.(type) {
+	case *EUnary:
+		return e.Op == UnOpCpl
+
+	case *EBinary:
+		switch e.Op {
+		case BinOpBitwiseAnd, BinOpBitwiseOr, BinOpBitwiseXor, BinOpShl, BinOpShr, BinOpUShr:
+			return true
+
+		case BinOpLogicalOr, BinOpLogicalAnd:
+			return isInt32OrUint32(e.Left.Data) && isInt32OrUint32(e.Right.Data)
+		}
+
+	case *EIf:
+		return isInt32OrUint32(e.Yes.Data) && isInt32OrUint32(e.No.Data)
+	}
+	return false
+}
+
 func ToNumberWithoutSideEffects(data E) (float64, bool) {
 	switch e := data.(type) {
 	case *EInlinedEnum:
@@ -1136,18 +1156,42 @@ func SimplifyBooleanExpr(expr Expr) Expr {
 				return SimplifyBooleanExpr(e2.Value)
 			}
 
+			// "!!!a" => "!a"
 			e.Value = SimplifyBooleanExpr(e.Value)
 		}
 
 	case *EBinary:
 		switch e.Op {
+		case BinOpStrictEq, BinOpStrictNe, BinOpLooseEq, BinOpLooseNe:
+			if right, ok := extractNumericValue(e.Right.Data); ok && right == 0 && isInt32OrUint32(e.Left.Data) {
+				// If the left is guaranteed to be an integer (e.g. not NaN,
+				// Infinity, or a non-numeric value) then a test against zero
+				// in a boolean context is unnecessary because the value is
+				// only truthy if it's not zero.
+				if e.Op == BinOpStrictNe || e.Op == BinOpLooseNe {
+					// "if ((a | b) !== 0)" => "if (a | b)"
+					return e.Left
+				} else {
+					// "if ((a | b) === 0)" => "if (!(a | b))"
+					return Not(e.Left)
+				}
+			}
+
 		case BinOpLogicalAnd:
+			// "if (!!a && !!b)" => "if (a && b)"
+			e.Left = SimplifyBooleanExpr(e.Left)
+			e.Right = SimplifyBooleanExpr(e.Right)
+
 			if boolean, SideEffects, ok := ToBooleanWithSideEffects(e.Right.Data); ok && boolean && SideEffects == NoSideEffects {
 				// "if (anything && truthyNoSideEffects)" => "if (anything)"
 				return e.Left
 			}
 
 		case BinOpLogicalOr:
+			// "if (!!a || !!b)" => "if (a || b)"
+			e.Left = SimplifyBooleanExpr(e.Left)
+			e.Right = SimplifyBooleanExpr(e.Right)
+
 			if boolean, SideEffects, ok := ToBooleanWithSideEffects(e.Right.Data); ok && !boolean && SideEffects == NoSideEffects {
 				// "if (anything || falsyNoSideEffects)" => "if (anything)"
 				return e.Left
@@ -1155,6 +1199,10 @@ func SimplifyBooleanExpr(expr Expr) Expr {
 		}
 
 	case *EIf:
+		// "if (a ? !!b : !!c)" => "if (a ? b : c)"
+		e.Yes = SimplifyBooleanExpr(e.Yes)
+		e.No = SimplifyBooleanExpr(e.No)
+
 		if boolean, SideEffects, ok := ToBooleanWithSideEffects(e.Yes.Data); ok && SideEffects == NoSideEffects {
 			if boolean {
 				// "if (anything1 ? truthyNoSideEffects : anything2)" => "if (anything1 || anything2)"

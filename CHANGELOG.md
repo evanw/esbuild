@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+* Some slight minification improvements
+
+    The following minification improvements were implemented:
+
+    * `if (~a !== 0) throw x;` => `if (~a) throw x;`
+    * `if ((a | b) !== 0) throw x;` => `if (a | b) throw x;`
+    * `if ((a & b) !== 0) throw x;` => `if (a & b) throw x;`
+    * `if ((a ^ b) !== 0) throw x;` => `if (a ^ b) throw x;`
+    * `if ((a << b) !== 0) throw x;` => `if (a << b) throw x;`
+    * `if ((a >> b) !== 0) throw x;` => `if (a >> b) throw x;`
+    * `if ((a >>> b) !== 0) throw x;` => `if (a >>> b) throw x;`
+    * `if (!!a || !!b) throw x;` => `if (a || b) throw x;`
+    * `if (!!a && !!b) throw x;` => `if (a && b) throw x;`
+    * `if (a ? !!b : !!c) throw x;` => `if (a ? b : c) throw x;`
+
 ## 0.16.4
 
 * Fix binary downloads from the `@esbuild/` scope for Deno ([#2729](https://github.com/evanw/esbuild/issues/2729))
