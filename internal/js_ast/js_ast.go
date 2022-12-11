@@ -723,6 +723,14 @@ type ETemplate struct {
 	Parts          []TemplatePart
 	HeadLoc        logger.Loc
 	LegacyOctalLoc logger.Loc
+
+	// If the tag is present, it is expected to be a function and is called. If
+	// the tag is a syntactic property access, then the value for "this" in the
+	// function call is the object whose property was accessed (e.g. in "a.b``"
+	// the value for "this" in "a.b" is "a"). We need to ensure that if "a``"
+	// ever becomes "b.c``" later on due to optimizations, it is written as
+	// "(0, b.c)``" to avoid a behavior change.
+	TagWasOriginallyPropertyAccess bool
 }
 
 type ERegExp struct{ Value string }

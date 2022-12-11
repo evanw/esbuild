@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+* Fix a subtle bug with tagged template literals
+
+    This release fixes a bug where minification could incorrectly change the value of `this` within tagged template literal function calls:
+
+    ```js
+    // Original code
+    function f(x) {
+      let z = y.z
+      return z``
+    }
+
+    // Old output (with --minify)
+    function f(n){return y.z``}
+
+    // New output (with --minify)
+    function f(n){return(0,y.z)``}
+    ```
+
 * Some slight minification improvements
 
     The following minification improvements were implemented:

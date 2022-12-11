@@ -2344,8 +2344,19 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		}
 
 		if e.TagOrNil.Data != nil {
-			// Optional chains are forbidden in template tags
-			if js_ast.IsOptionalChain(e.TagOrNil) {
+			tagIsPropertyAccess := false
+			switch e.TagOrNil.Data.(type) {
+			case *js_ast.EDot, *js_ast.EIndex:
+				tagIsPropertyAccess = true
+			}
+			if !e.TagWasOriginallyPropertyAccess && tagIsPropertyAccess {
+				// Prevent "x``" from becoming "y.z``"
+				p.print("(0,")
+				p.printSpace()
+				p.printExpr(e.TagOrNil, js_ast.LLowest, isCallTargetOrTemplateTag)
+				p.print(")")
+			} else if js_ast.IsOptionalChain(e.TagOrNil) {
+				// Optional chains are forbidden in template tags
 				p.print("(")
 				p.printExpr(e.TagOrNil, js_ast.LLowest, isCallTargetOrTemplateTag)
 				p.print(")")

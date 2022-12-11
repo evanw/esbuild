@@ -3758,6 +3758,12 @@ func TestMangleObject(t *testing.T) {
 	expectPrintedMangle(t, "x = {y: {z: 1}}?.y.z", "x = 1;\n")
 	expectPrintedMangle(t, "x = {y: {z: 1}}?.y?.z", "x = { z: 1 }?.z;\n")
 	expectPrintedMangle(t, "x = {y() {}}?.y()", "x = { y() {\n} }.y();\n")
+
+	// Don't change the value of "this" for tagged template literals if the original syntax had a value for "this"
+	expectPrinted(t, "function f(x) { return {x}.x`` }", "function f(x) {\n  return { x }.x``;\n}\n")
+	expectPrinted(t, "function f(x) { return (0, {x}.x)`` }", "function f(x) {\n  return (0, { x }.x)``;\n}\n")
+	expectPrintedMangle(t, "function f(x) { return {x}.x`` }", "function f(x) {\n  return { x }.x``;\n}\n")
+	expectPrintedMangle(t, "function f(x) { return (0, {x}.x)`` }", "function f(x) {\n  return x``;\n}\n")
 }
 
 func TestMangleObjectJSX(t *testing.T) {
@@ -3852,6 +3858,9 @@ _foo = new WeakSet(), foo_fn = function() {
   return __privateMethod(this, _foo, foo_fn)`+"``"+`;
 };
 `)
+
+	expectPrintedMangle(t, "function f(a) { let c = a.b; return c`` }", "function f(a) {\n  return (0, a.b)``;\n}\n")
+	expectPrintedMangle(t, "function f(a) { let c = a.b; return c`${x}` }", "function f(a) {\n  return (0, a.b)`${x}`;\n}\n")
 }
 
 func TestMangleTypeofIdentifier(t *testing.T) {

@@ -3989,11 +3989,17 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 			headLoc := p.lexer.Loc()
 			headCooked, headRaw := p.lexer.CookedAndRawTemplateContents()
 			p.lexer.Next()
+			tagWasOriginallyPropertyAccess := false
+			switch left.Data.(type) {
+			case *js_ast.EDot, *js_ast.EIndex:
+				tagWasOriginallyPropertyAccess = true
+			}
 			left = js_ast.Expr{Loc: left.Loc, Data: &js_ast.ETemplate{
-				TagOrNil:   left,
-				HeadLoc:    headLoc,
-				HeadCooked: headCooked,
-				HeadRaw:    headRaw,
+				TagOrNil:                       left,
+				HeadLoc:                        headLoc,
+				HeadCooked:                     headCooked,
+				HeadRaw:                        headRaw,
+				TagWasOriginallyPropertyAccess: tagWasOriginallyPropertyAccess,
 			}}
 
 		case js_lexer.TTemplateHead:
@@ -4003,12 +4009,18 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 			headLoc := p.lexer.Loc()
 			headCooked, headRaw := p.lexer.CookedAndRawTemplateContents()
 			parts, _ := p.parseTemplateParts(true /* includeRaw */)
+			tagWasOriginallyPropertyAccess := false
+			switch left.Data.(type) {
+			case *js_ast.EDot, *js_ast.EIndex:
+				tagWasOriginallyPropertyAccess = true
+			}
 			left = js_ast.Expr{Loc: left.Loc, Data: &js_ast.ETemplate{
-				TagOrNil:   left,
-				HeadLoc:    headLoc,
-				HeadCooked: headCooked,
-				HeadRaw:    headRaw,
-				Parts:      parts,
+				TagOrNil:                       left,
+				HeadLoc:                        headLoc,
+				HeadCooked:                     headCooked,
+				HeadRaw:                        headRaw,
+				Parts:                          parts,
+				TagWasOriginallyPropertyAccess: tagWasOriginallyPropertyAccess,
 			}}
 
 		case js_lexer.TOpenBracket:
@@ -12767,7 +12779,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			break
 		}
 
-		isCallTargetOrTemplateTag := e == p.callTarget || e == p.templateTag
+		isCallTarget := e == p.callTarget
 		isStmtExpr := e == p.stmtExprValue
 		wasAnonymousNamedExpr := p.isAnonymousNamedExpr(e.Right)
 		oldSilenceWarningAboutThisBeingUndefined := p.fnOnlyDataVisit.silenceMessageAboutThisBeingUndefined
@@ -12855,7 +12867,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					// "(1, fn)()" => "fn()"
 					// "(1, this.fn)" => "this.fn"
 					// "(1, this.fn)()" => "(0, this.fn)()"
-					if isCallTargetOrTemplateTag && hasValueForThisInCall(e.Right) {
+					if isCallTarget && hasValueForThisInCall(e.Right) {
 						return js_ast.JoinWithComma(js_ast.Expr{Loc: e.Left.Loc, Data: &js_ast.ENumber{}}, e.Right), exprOut{}
 					}
 					return e.Right, exprOut{}
@@ -12958,7 +12970,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					// "(null ?? fn)()" => "fn()"
 					// "(null ?? this.fn)" => "this.fn"
 					// "(null ?? this.fn)()" => "(0, this.fn)()"
-					if isCallTargetOrTemplateTag && hasValueForThisInCall(e.Right) {
+					if isCallTarget && hasValueForThisInCall(e.Right) {
 						return js_ast.JoinWithComma(js_ast.Expr{Loc: e.Left.Loc, Data: &js_ast.ENumber{}}, e.Right), exprOut{}
 					}
 
@@ -12986,7 +12998,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					// "(0 || fn)()" => "fn()"
 					// "(0 || this.fn)" => "this.fn"
 					// "(0 || this.fn)()" => "(0, this.fn)()"
-					if isCallTargetOrTemplateTag && hasValueForThisInCall(e.Right) {
+					if isCallTarget && hasValueForThisInCall(e.Right) {
 						return js_ast.JoinWithComma(js_ast.Expr{Loc: e.Left.Loc, Data: &js_ast.ENumber{}}, e.Right), exprOut{}
 					}
 					return e.Right, exprOut{}
@@ -13016,7 +13028,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					// "(1 && fn)()" => "fn()"
 					// "(1 && this.fn)" => "this.fn"
 					// "(1 && this.fn)()" => "(0, this.fn)()"
-					if isCallTargetOrTemplateTag && hasValueForThisInCall(e.Right) {
+					if isCallTarget && hasValueForThisInCall(e.Right) {
 						return js_ast.JoinWithComma(js_ast.Expr{Loc: e.Left.Loc, Data: &js_ast.ENumber{}}, e.Right), exprOut{}
 					}
 					return e.Right, exprOut{}
