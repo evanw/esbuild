@@ -1486,27 +1486,19 @@ func (p *printer) lateConstantFoldUnaryOrBinaryExpr(expr js_ast.Expr) js_ast.Exp
 		left := p.lateConstantFoldUnaryOrBinaryExpr(e.Left)
 		right := p.lateConstantFoldUnaryOrBinaryExpr(e.Right)
 
-		// Only fold again if something chained
+		// Only fold again if something changed
 		if left.Data != e.Left.Data || right.Data != e.Right.Data {
+			binary := &js_ast.EBinary{Op: e.Op, Left: left, Right: right}
+
 			// Only fold certain operations (just like the parser)
-			if l, r, ok := js_ast.ExtractNumericValues(left, right); ok {
-				switch e.Op {
-				case js_ast.BinOpShr:
-					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(js_ast.ToInt32(l) >> js_ast.ToInt32(r))}}
-
-				case js_ast.BinOpBitwiseAnd:
-					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(js_ast.ToInt32(l) & js_ast.ToInt32(r))}}
-
-				case js_ast.BinOpBitwiseOr:
-					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(js_ast.ToInt32(l) | js_ast.ToInt32(r))}}
-
-				case js_ast.BinOpBitwiseXor:
-					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(js_ast.ToInt32(l) ^ js_ast.ToInt32(r))}}
+			if js_ast.ShouldFoldBinaryArithmeticWhenMinifying(e.Op) {
+				if result := js_ast.FoldBinaryArithmetic(expr.Loc, binary); result.Data != nil {
+					return result
 				}
 			}
 
 			// Don't mutate the original AST
-			expr.Data = &js_ast.EBinary{Op: e.Op, Left: left, Right: right}
+			expr.Data = binary
 		}
 	}
 

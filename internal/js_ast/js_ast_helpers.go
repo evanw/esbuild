@@ -963,13 +963,103 @@ func extractNumericValue(data E) (float64, bool) {
 	return 0, false
 }
 
-func ExtractNumericValues(left Expr, right Expr) (float64, float64, bool) {
+func extractNumericValues(left Expr, right Expr) (float64, float64, bool) {
 	if a, ok := extractNumericValue(left.Data); ok {
 		if b, ok := extractNumericValue(right.Data); ok {
 			return a, b, true
 		}
 	}
 	return 0, 0, false
+}
+
+func ShouldFoldBinaryArithmeticWhenMinifying(op OpCode) bool {
+	switch op {
+	case
+		// Minification folds right signed shift operations since they are
+		// unlikely to result in larger output. Note: ">>>" could result in
+		// bigger output such as "-1 >>> 0" becoming "4294967295".
+		BinOpShr,
+
+		// Minification folds bitwise operations since they are unlikely to
+		// result in larger output.
+		BinOpBitwiseAnd,
+
+		// Minification folds bitwise operations since they are unlikely to
+		// result in larger output.
+		BinOpBitwiseOr,
+
+		// Minification folds bitwise operations since they are unlikely to
+		// result in larger output.
+		BinOpBitwiseXor:
+		return true
+	}
+	return false
+}
+
+func FoldBinaryArithmetic(loc logger.Loc, e *EBinary) Expr {
+	switch e.Op {
+	case BinOpAdd:
+		if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
+			return Expr{Loc: loc, Data: &ENumber{Value: left + right}}
+		}
+
+	case BinOpSub:
+		if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
+			return Expr{Loc: loc, Data: &ENumber{Value: left - right}}
+		}
+
+	case BinOpMul:
+		if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
+			return Expr{Loc: loc, Data: &ENumber{Value: left * right}}
+		}
+
+	case BinOpDiv:
+		if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
+			return Expr{Loc: loc, Data: &ENumber{Value: left / right}}
+		}
+
+	case BinOpRem:
+		if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
+			return Expr{Loc: loc, Data: &ENumber{Value: math.Mod(left, right)}}
+		}
+
+	case BinOpPow:
+		if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
+			return Expr{Loc: loc, Data: &ENumber{Value: math.Pow(left, right)}}
+		}
+
+	case BinOpShl:
+		if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
+			return Expr{Loc: loc, Data: &ENumber{Value: float64(ToInt32(left) << (ToUint32(right) & 31))}}
+		}
+
+	case BinOpShr:
+		if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
+			return Expr{Loc: loc, Data: &ENumber{Value: float64(ToInt32(left) >> (ToUint32(right) & 31))}}
+		}
+
+	case BinOpUShr:
+		if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
+			return Expr{Loc: loc, Data: &ENumber{Value: float64(ToUint32(left) >> (ToUint32(right) & 31))}}
+		}
+
+	case BinOpBitwiseAnd:
+		if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
+			return Expr{Loc: loc, Data: &ENumber{Value: float64(ToInt32(left) & ToInt32(right))}}
+		}
+
+	case BinOpBitwiseOr:
+		if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
+			return Expr{Loc: loc, Data: &ENumber{Value: float64(ToInt32(left) | ToInt32(right))}}
+		}
+
+	case BinOpBitwiseXor:
+		if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
+			return Expr{Loc: loc, Data: &ENumber{Value: float64(ToInt32(left) ^ ToInt32(right))}}
+		}
+	}
+
+	return Expr{}
 }
 
 func IsBinaryNullAndUndefined(left Expr, right Expr, op OpCode) (Expr, Expr, bool) {

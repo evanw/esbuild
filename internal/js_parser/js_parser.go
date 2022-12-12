@@ -12346,6 +12346,12 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 		}
 
+		if p.shouldFoldNumericConstants || (p.options.minifySyntax && js_ast.ShouldFoldBinaryArithmeticWhenMinifying(e.Op)) {
+			if result := js_ast.FoldBinaryArithmetic(expr.Loc, e); result.Data != nil {
+				return result, exprOut{}
+			}
+		}
+
 		// Post-process the binary expression
 		switch e.Op {
 		case js_ast.BinOpComma:
@@ -12516,12 +12522,6 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 
 		case js_ast.BinOpAdd:
-			if p.shouldFoldNumericConstants {
-				if left, right, ok := js_ast.ExtractNumericValues(e.Left, e.Right); ok {
-					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: left + right}}, exprOut{}
-				}
-			}
-
 			// "'abc' + 'xyz'" => "'abcxyz'"
 			if result := js_ast.FoldStringAddition(e.Left, e.Right); result.Data != nil {
 				return result, exprOut{}
@@ -12534,91 +12534,10 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				}
 			}
 
-		case js_ast.BinOpSub:
-			if p.shouldFoldNumericConstants {
-				if left, right, ok := js_ast.ExtractNumericValues(e.Left, e.Right); ok {
-					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: left - right}}, exprOut{}
-				}
-			}
-
-		case js_ast.BinOpMul:
-			if p.shouldFoldNumericConstants {
-				if left, right, ok := js_ast.ExtractNumericValues(e.Left, e.Right); ok {
-					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: left * right}}, exprOut{}
-				}
-			}
-
-		case js_ast.BinOpDiv:
-			if p.shouldFoldNumericConstants {
-				if left, right, ok := js_ast.ExtractNumericValues(e.Left, e.Right); ok {
-					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: left / right}}, exprOut{}
-				}
-			}
-
-		case js_ast.BinOpRem:
-			if p.shouldFoldNumericConstants {
-				if left, right, ok := js_ast.ExtractNumericValues(e.Left, e.Right); ok {
-					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: math.Mod(left, right)}}, exprOut{}
-				}
-			}
-
 		case js_ast.BinOpPow:
-			if p.shouldFoldNumericConstants {
-				if left, right, ok := js_ast.ExtractNumericValues(e.Left, e.Right); ok {
-					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: math.Pow(left, right)}}, exprOut{}
-				}
-			}
-
 			// Lower the exponentiation operator for browsers that don't support it
 			if p.options.unsupportedJSFeatures.Has(compat.ExponentOperator) {
 				return p.callRuntime(expr.Loc, "__pow", []js_ast.Expr{e.Left, e.Right}), exprOut{}
-			}
-
-		case js_ast.BinOpShl:
-			if p.shouldFoldNumericConstants {
-				if left, right, ok := js_ast.ExtractNumericValues(e.Left, e.Right); ok {
-					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(js_ast.ToInt32(left) << (js_ast.ToUint32(right) & 31))}}, exprOut{}
-				}
-			}
-
-		case js_ast.BinOpShr:
-			if p.shouldFoldNumericConstants || p.options.minifySyntax {
-				// Minification folds right signed shift operations since they are unlikely to result in larger output
-				if left, right, ok := js_ast.ExtractNumericValues(e.Left, e.Right); ok {
-					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(js_ast.ToInt32(left) >> (js_ast.ToUint32(right) & 31))}}, exprOut{}
-				}
-			}
-
-		case js_ast.BinOpUShr:
-			if p.shouldFoldNumericConstants {
-				// Note: ">>>" could result in bigger output such as "-1 >>> 0" becoming "4294967295"
-				if left, right, ok := js_ast.ExtractNumericValues(e.Left, e.Right); ok {
-					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(js_ast.ToUint32(left) >> (js_ast.ToUint32(right) & 31))}}, exprOut{}
-				}
-			}
-
-		case js_ast.BinOpBitwiseAnd:
-			// Minification folds bitwise operations since they are unlikely to result in larger output
-			if p.shouldFoldNumericConstants || p.options.minifySyntax {
-				if left, right, ok := js_ast.ExtractNumericValues(e.Left, e.Right); ok {
-					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(js_ast.ToInt32(left) & js_ast.ToInt32(right))}}, exprOut{}
-				}
-			}
-
-		case js_ast.BinOpBitwiseOr:
-			// Minification folds bitwise operations since they are unlikely to result in larger output
-			if p.shouldFoldNumericConstants || p.options.minifySyntax {
-				if left, right, ok := js_ast.ExtractNumericValues(e.Left, e.Right); ok {
-					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(js_ast.ToInt32(left) | js_ast.ToInt32(right))}}, exprOut{}
-				}
-			}
-
-		case js_ast.BinOpBitwiseXor:
-			// Minification folds bitwise operations since they are unlikely to result in larger output
-			if p.shouldFoldNumericConstants || p.options.minifySyntax {
-				if left, right, ok := js_ast.ExtractNumericValues(e.Left, e.Right); ok {
-					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(js_ast.ToInt32(left) ^ js_ast.ToInt32(right))}}, exprOut{}
-				}
 			}
 
 			////////////////////////////////////////////////////////////////////////////////
