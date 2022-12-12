@@ -10231,7 +10231,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 				value.ValueOrNil = js_ast.Expr{Loc: value.Loc, Data: js_ast.EUndefinedShared}
 			}
 
-			if p.options.minifySyntax && js_lexer.IsIdentifier(name) {
+			if p.options.minifySyntax && js_ast.IsIdentifier(name) {
 				// "Enum.Name = value"
 				assignTarget = js_ast.Assign(
 					js_ast.Expr{Loc: value.Loc, Data: &js_ast.EDot{
@@ -11531,7 +11531,7 @@ func (p *parser) maybeRewritePropertyAccess(
 					// If this isn't a constant, return a clone of this property access
 					// but with the namespace member data associated with it so that
 					// more property accesses off of this property access are recognized.
-					if preferQuotedKey || !js_lexer.IsIdentifier(name) {
+					if preferQuotedKey || !js_ast.IsIdentifier(name) {
 						p.tsNamespaceTarget = &js_ast.EIndex{
 							Target: target,
 							Index:  js_ast.Expr{Loc: nameLoc, Data: &js_ast.EString{Value: helpers.StringToUTF16(name)}},
@@ -13495,7 +13495,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 		// "a['b']" => "a.b"
 		if p.options.minifySyntax {
-			if str, ok := e.Index.Data.(*js_ast.EString); ok && js_lexer.IsIdentifierUTF16(str.Value) {
+			if str, ok := e.Index.Data.(*js_ast.EString); ok && js_ast.IsIdentifierUTF16(str.Value) {
 				dot := p.dotOrMangledPropParse(e.Target, js_lexer.MaybeSubstring{String: helpers.UTF16ToString(str.Value)}, e.Index.Loc, e.OptionalChain, wasOriginallyIndex)
 				if isCallTarget {
 					p.callTarget = dot
@@ -13928,7 +13928,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 				// "{['x']: y}" => "{x: y}"
 				if p.options.minifySyntax && property.Flags.Has(js_ast.PropertyIsComputed) {
-					if str, ok := key.Data.(*js_ast.EString); ok && js_lexer.IsIdentifierUTF16(str.Value) && !helpers.UTF16EqualsString(str.Value, "__proto__") {
+					if str, ok := key.Data.(*js_ast.EString); ok && js_ast.IsIdentifierUTF16(str.Value) && !helpers.UTF16EqualsString(str.Value, "__proto__") {
 						property.Flags &= ^js_ast.PropertyIsComputed
 					}
 				}
@@ -14966,7 +14966,7 @@ func (p *parser) handleIdentifier(loc logger.Loc, e *js_ast.EIdentifier, opts id
 		// Try to come up with a setter name to try to make this message more understandable
 		var setterHint string
 		originalName := p.symbols[ref.InnerIndex].OriginalName
-		if js_lexer.IsIdentifier(originalName) && originalName != "_" {
+		if js_ast.IsIdentifier(originalName) && originalName != "_" {
 			if len(originalName) == 1 || (len(originalName) > 1 && originalName[0] < utf8.RuneSelf) {
 				setterHint = fmt.Sprintf(" (e.g. \"set%s%s\")", strings.ToUpper(originalName[:1]), originalName[1:])
 			} else {
@@ -16290,7 +16290,7 @@ func ParseDefineExprOrJSON(text string) (config.DefineExpr, js_ast.E) {
 	// Try a property chain
 	parts := strings.Split(text, ".")
 	for i, part := range parts {
-		if !js_lexer.IsIdentifier(part) {
+		if !js_ast.IsIdentifier(part) {
 			parts = nil
 			break
 		}

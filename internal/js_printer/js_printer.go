@@ -13,7 +13,6 @@ import (
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/js_ast"
-	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/renamer"
 	"github.com/evanw/esbuild/internal/sourcemap"
@@ -399,7 +398,7 @@ func (p *printer) mangledPropName(ref js_ast.Ref) string {
 }
 
 func (p *printer) printClauseAlias(alias string) {
-	if js_lexer.IsIdentifier(alias) {
+	if js_ast.IsIdentifier(alias) {
 		p.printSpaceBeforeIdentifier()
 		p.printIdentifier(alias)
 	} else {
@@ -419,19 +418,19 @@ func (p *printer) printClauseAlias(alias string) {
 // JavaScript language target that we support.
 
 func CanEscapeIdentifier(name string, UnsupportedFeatures compat.JSFeature, asciiOnly bool) bool {
-	return js_lexer.IsIdentifierES5AndESNext(name) && (!asciiOnly ||
+	return js_ast.IsIdentifierES5AndESNext(name) && (!asciiOnly ||
 		!UnsupportedFeatures.Has(compat.UnicodeEscapes) ||
 		!helpers.ContainsNonBMPCodePoint(name))
 }
 
 func (p *printer) canPrintIdentifier(name string) bool {
-	return js_lexer.IsIdentifierES5AndESNext(name) && (!p.options.ASCIIOnly ||
+	return js_ast.IsIdentifierES5AndESNext(name) && (!p.options.ASCIIOnly ||
 		!p.options.UnsupportedFeatures.Has(compat.UnicodeEscapes) ||
 		!helpers.ContainsNonBMPCodePoint(name))
 }
 
 func (p *printer) canPrintIdentifierUTF16(name []uint16) bool {
-	return js_lexer.IsIdentifierES5AndESNextUTF16(name) && (!p.options.ASCIIOnly ||
+	return js_ast.IsIdentifierES5AndESNextUTF16(name) && (!p.options.ASCIIOnly ||
 		!p.options.UnsupportedFeatures.Has(compat.UnicodeEscapes) ||
 		!helpers.ContainsNonBMPCodePointUTF16(name))
 }
@@ -746,7 +745,7 @@ func (p *printer) printSemicolonIfNeeded() {
 func (p *printer) printSpaceBeforeIdentifier() {
 	buffer := p.js
 	n := len(buffer)
-	if n > 0 && (js_lexer.IsIdentifierContinue(rune(buffer[n-1])) || n == p.prevRegExpEnd) {
+	if n > 0 && (js_ast.IsIdentifierContinue(rune(buffer[n-1])) || n == p.prevRegExpEnd) {
 		p.print(" ")
 	}
 }

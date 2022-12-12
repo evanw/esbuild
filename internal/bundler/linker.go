@@ -1940,7 +1940,7 @@ func (c *linkerContext) generateCodeForLazyExport(sourceIndex uint32) {
 	if object, ok := jsonValue.Data.(*js_ast.EObject); ok {
 		for _, property := range object.Properties {
 			if str, ok := property.Key.Data.(*js_ast.EString); ok &&
-				(!file.IsEntryPoint() || js_lexer.IsIdentifierUTF16(str.Value) ||
+				(!file.IsEntryPoint() || js_ast.IsIdentifierUTF16(str.Value) ||
 					!c.options.UnsupportedJSFeatures.Has(compat.ArbitraryModuleNamespaceNames)) {
 				if name := helpers.UTF16ToString(str.Value); name != "default" {
 					ref, partIndex := generateExport(name, name)

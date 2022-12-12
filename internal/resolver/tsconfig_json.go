@@ -347,7 +347,7 @@ func parseMemberExpressionForJSX(log logger.Log, source *logger.Source, tracker 
 	}
 	parts := strings.Split(text, ".")
 	for _, part := range parts {
-		if !js_lexer.IsIdentifier(part) {
+		if !js_ast.IsIdentifier(part) {
 			warnRange := source.RangeOfString(loc)
 			log.AddID(logger.MsgID_TsconfigJSON_InvalidJSX, logger.Warning, tracker, warnRange, fmt.Sprintf("Invalid JSX member expression: %q", text))
 			return nil

@@ -550,7 +550,7 @@ func (s *numberScope) findNameUse(name string) nameUse {
 }
 
 func (s *numberScope) findUnusedName(name string) string {
-	name = js_lexer.ForceValidIdentifier(name)
+	name = js_ast.ForceValidIdentifier(name)
 
 	if use := s.findNameUse(name); use != nameUnused {
 		// If the name is already in use, generate a new name by appending a number

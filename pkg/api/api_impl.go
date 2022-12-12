@@ -25,7 +25,6 @@ import (
 	"github.com/evanw/esbuild/internal/graph"
 	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/js_ast"
-	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/js_parser"
 	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/resolver"
@@ -565,7 +564,7 @@ func validateDefines(
 	for key, value := range defines {
 		// The key must be a dot-separated identifier list
 		for _, part := range strings.Split(key, ".") {
-			if !js_lexer.IsIdentifier(part) {
+			if !js_ast.IsIdentifier(part) {
 				if part == key {
 					log.AddError(nil, logger.Range{}, fmt.Sprintf("The define key %q must be a valid identifier", key))
 				} else {
@@ -646,7 +645,7 @@ func validateDefines(
 	for _, key := range pureFns {
 		// The key must be a dot-separated identifier list
 		for _, part := range strings.Split(key, ".") {
-			if !js_lexer.IsIdentifier(part) {
+			if !js_ast.IsIdentifier(part) {
 				log.AddError(nil, logger.Range{}, fmt.Sprintf("Invalid pure function: %q", key))
 				continue
 			}
