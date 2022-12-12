@@ -2,6 +2,7 @@ package js_ast
 
 import (
 	"math"
+	"strconv"
 
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/helpers"
@@ -116,6 +117,52 @@ func MaybeSimplifyNot(expr Expr) (Expr, bool) {
 			// "!(a, b)" => "a, !b"
 			e.Right = Not(e.Right)
 			return expr, true
+		}
+	}
+
+	return Expr{}, false
+}
+
+func MaybeSimplifyEqualityComparison(loc logger.Loc, e *EBinary, unsupportedFeatures compat.JSFeature) (Expr, bool) {
+	value, primitive := e.Left, e.Right
+
+	// Detect when the primitive comes first and flip the order of our checks
+	if IsPrimitiveLiteral(value.Data) {
+		value, primitive = primitive, value
+	}
+
+	// "!x === true" => "!x"
+	// "!x === false" => "!!x"
+	// "!x !== true" => "!!x"
+	// "!x !== false" => "!x"
+	if boolean, ok := primitive.Data.(*EBoolean); ok && KnownPrimitiveType(value) == PrimitiveBoolean {
+		if boolean.Value == (e.Op == BinOpLooseNe || e.Op == BinOpStrictNe) {
+			return Not(value), true
+		} else {
+			return value, true
+		}
+	}
+
+	// "typeof x != 'undefined'" => "typeof x < 'u'"
+	// "typeof x == 'undefined'" => "typeof x > 'u'"
+	if !unsupportedFeatures.Has(compat.TypeofExoticObjectIsObject) {
+		// Only do this optimization if we know that the "typeof" operator won't
+		// return something random. The only case of this happening was Internet
+		// Explorer returning "unknown" for some objects, which messes with this
+		// optimization. So we don't do this when targeting Internet Explorer.
+		if typeof, ok := value.Data.(*EUnary); ok && typeof.Op == UnOpTypeof {
+			if str, ok := primitive.Data.(*EString); ok && helpers.UTF16EqualsString(str.Value, "undefined") {
+				flip := value == e.Right
+				op := BinOpLt
+				if (e.Op == BinOpLooseEq || e.Op == BinOpStrictEq) != flip {
+					op = BinOpGt
+				}
+				primitive.Data = &EString{Value: []uint16{'u'}}
+				if flip {
+					value, primitive = primitive, value
+				}
+				return Expr{Loc: loc, Data: &EBinary{Op: op, Left: value, Right: primitive}}, true
+			}
 		}
 	}
 
@@ -291,6 +338,39 @@ func CanChangeStrictToLoose(a Expr, b Expr) bool {
 	x := KnownPrimitiveType(a)
 	y := KnownPrimitiveType(b)
 	return x == y && x != PrimitiveUnknown && x != PrimitiveMixed
+}
+
+// Returns true if the result of the "typeof" operator on this expression is
+// statically determined and this expression has no side effects (i.e. can be
+// removed without consequence).
+func TypeofWithoutSideEffects(data E) (string, bool) {
+	switch e := data.(type) {
+	case *EInlinedEnum:
+		return TypeofWithoutSideEffects(e.Value.Data)
+
+	case *ENull:
+		return "object", true
+
+	case *EUndefined:
+		return "undefined", true
+
+	case *EBoolean:
+		return "boolean", true
+
+	case *ENumber:
+		return "number", true
+
+	case *EBigInt:
+		return "bigint", true
+
+	case *EString:
+		return "string", true
+
+	case *EFunction, *EArrow:
+		return "function", true
+	}
+
+	return "", false
 }
 
 // The goal of this function is to "rotate" the AST if it's possible to use the
@@ -892,6 +972,43 @@ func ExtractNumericValues(left Expr, right Expr) (float64, float64, bool) {
 	return 0, 0, false
 }
 
+func IsBinaryNullAndUndefined(left Expr, right Expr, op OpCode) (Expr, Expr, bool) {
+	if a, ok := left.Data.(*EBinary); ok && a.Op == op {
+		if b, ok := right.Data.(*EBinary); ok && b.Op == op {
+			idA, eqA := a.Left, a.Right
+			idB, eqB := b.Left, b.Right
+
+			// Detect when the identifier comes second and flip the order of our checks
+			if _, ok := eqA.Data.(*EIdentifier); ok {
+				idA, eqA = eqA, idA
+			}
+			if _, ok := eqB.Data.(*EIdentifier); ok {
+				idB, eqB = eqB, idB
+			}
+
+			if idA, ok := idA.Data.(*EIdentifier); ok {
+				if idB, ok := idB.Data.(*EIdentifier); ok && idA.Ref == idB.Ref {
+					// "a === null || a === void 0"
+					if _, ok := eqA.Data.(*ENull); ok {
+						if _, ok := eqB.Data.(*EUndefined); ok {
+							return a.Left, a.Right, true
+						}
+					}
+
+					// "a === void 0 || a === null"
+					if _, ok := eqA.Data.(*EUndefined); ok {
+						if _, ok := eqB.Data.(*ENull); ok {
+							return b.Left, b.Right, true
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return Expr{}, Expr{}, false
+}
+
 // Returns "equal, ok". If "ok" is false, then nothing is known about the two
 // values. If "ok" is true, the equality or inequality of the two values is
 // stored in "equal".
@@ -1040,6 +1157,119 @@ func TryToInsertOptionalChain(test Expr, expr Expr) bool {
 	}
 
 	return false
+}
+
+func joinStrings(a []uint16, b []uint16) []uint16 {
+	data := make([]uint16, len(a)+len(b))
+	copy(data[:len(a)], a)
+	copy(data[len(a):], b)
+	return data
+}
+
+func FoldStringAddition(left Expr, right Expr) Expr {
+	switch l := left.Data.(type) {
+	case *EString:
+		switch r := right.Data.(type) {
+		case *EString:
+			return Expr{Loc: left.Loc, Data: &EString{
+				Value:          joinStrings(l.Value, r.Value),
+				PreferTemplate: l.PreferTemplate || r.PreferTemplate,
+			}}
+
+		case *ETemplate:
+			if r.TagOrNil.Data == nil {
+				return Expr{Loc: left.Loc, Data: &ETemplate{
+					HeadLoc:    left.Loc,
+					HeadCooked: joinStrings(l.Value, r.HeadCooked),
+					Parts:      r.Parts,
+				}}
+			}
+		}
+
+		// "'' + typeof x" => "typeof x"
+		if len(l.Value) == 0 && KnownPrimitiveType(right) == PrimitiveString {
+			return right
+		}
+
+	case *ETemplate:
+		if l.TagOrNil.Data == nil {
+			switch r := right.Data.(type) {
+			case *EString:
+				n := len(l.Parts)
+				head := l.HeadCooked
+				parts := make([]TemplatePart, n)
+				if n == 0 {
+					head = joinStrings(head, r.Value)
+				} else {
+					copy(parts, l.Parts)
+					parts[n-1].TailCooked = joinStrings(parts[n-1].TailCooked, r.Value)
+				}
+				return Expr{Loc: left.Loc, Data: &ETemplate{
+					HeadLoc:    l.HeadLoc,
+					HeadCooked: head,
+					Parts:      parts,
+				}}
+
+			case *ETemplate:
+				if r.TagOrNil.Data == nil {
+					n := len(l.Parts)
+					head := l.HeadCooked
+					parts := make([]TemplatePart, n+len(r.Parts))
+					copy(parts[n:], r.Parts)
+					if n == 0 {
+						head = joinStrings(head, r.HeadCooked)
+					} else {
+						copy(parts[:n], l.Parts)
+						parts[n-1].TailCooked = joinStrings(parts[n-1].TailCooked, r.HeadCooked)
+					}
+					return Expr{Loc: left.Loc, Data: &ETemplate{
+						HeadLoc:    l.HeadLoc,
+						HeadCooked: head,
+						Parts:      parts,
+					}}
+				}
+			}
+		}
+	}
+
+	// "typeof x + ''" => "typeof x"
+	if r, ok := right.Data.(*EString); ok && len(r.Value) == 0 && KnownPrimitiveType(left) == PrimitiveString {
+		return left
+	}
+
+	return Expr{}
+}
+
+// "`a${'b'}c`" => "`abc`"
+func InlineStringsIntoTemplate(loc logger.Loc, e *ETemplate) Expr {
+	// Can't inline strings if there's a custom template tag
+	if e.TagOrNil.Data == nil {
+		end := 0
+		for _, part := range e.Parts {
+			if str, ok := part.Value.Data.(*EString); ok {
+				if end == 0 {
+					e.HeadCooked = append(append(e.HeadCooked, str.Value...), part.TailCooked...)
+				} else {
+					prevPart := &e.Parts[end-1]
+					prevPart.TailCooked = append(append(prevPart.TailCooked, str.Value...), part.TailCooked...)
+				}
+			} else {
+				e.Parts[end] = part
+				end++
+			}
+		}
+		e.Parts = e.Parts[:end]
+
+		// Become a plain string if there are no substitutions
+		if len(e.Parts) == 0 {
+			return Expr{Loc: loc, Data: &EString{
+				Value:          e.HeadCooked,
+				PreferTemplate: true,
+			}}
+		}
+	}
+
+	return Expr{Loc: loc, Data: e}
 }
 
 type SideEffects uint8
@@ -1623,4 +1853,289 @@ func isSideEffectFreeUnboundIdentifierRef(value Expr, guardCondition Expr, isYes
 		}
 	}
 	return false
+}
+
+func StringToEquivalentNumberValue(value []uint16) (float64, bool) {
+	if len(value) > 0 {
+		var intValue int32
+		isNegative := false
+		start := 0
+
+		if value[0] == '-' && len(value) > 1 {
+			isNegative = true
+			start++
+		}
+
+		for _, c := range value[start:] {
+			if c < '0' || c > '9' {
+				return 0, false
+			}
+			intValue = intValue*10 + int32(c) - '0'
+		}
+
+		if isNegative {
+			intValue = -intValue
+		}
+
+		if helpers.UTF16EqualsString(value, strconv.FormatInt(int64(intValue), 10)) {
+			return float64(intValue), true
+		}
+	}
+
+	return 0, false
+}
+
+func InlineSpreadsOfArrayLiterals(values []Expr) (results []Expr) {
+	for _, value := range values {
+		if spread, ok := value.Data.(*ESpread); ok {
+			if array, ok := spread.Value.Data.(*EArray); ok {
+				for _, item := range array.Items {
+					if _, ok := item.Data.(*EMissing); ok {
+						results = append(results, Expr{Loc: item.Loc, Data: EUndefinedShared})
+					} else {
+						results = append(results, item)
+					}
+				}
+				continue
+			}
+		}
+		results = append(results, value)
+	}
+	return
+}
+
+func MangleObjectSpread(properties []Property) []Property {
+	var result []Property
+	for _, property := range properties {
+		if property.Kind == PropertySpread {
+			switch v := property.ValueOrNil.Data.(type) {
+			case *EBoolean, *ENull, *EUndefined, *ENumber,
+				*EBigInt, *ERegExp, *EFunction, *EArrow:
+				// This value is ignored because it doesn't have any of its own properties
+				continue
+
+			case *EObject:
+				for i, p := range v.Properties {
+					// Getters are evaluated at iteration time. The property
+					// descriptor is not inlined into the caller. Since we are not
+					// evaluating code at compile time, just bail if we hit one
+					// and preserve the spread with the remaining properties.
+					if p.Kind == PropertyGet || p.Kind == PropertySet {
+						v.Properties = v.Properties[i:]
+						result = append(result, property)
+						break
+					}
+
+					// Also bail if we hit a verbatim "__proto__" key. This will
+					// actually set the prototype of the object being spread so
+					// inlining it is not correct.
+					if p.Kind == PropertyNormal && !p.Flags.Has(PropertyIsComputed) && !p.Flags.Has(PropertyIsMethod) {
+						if str, ok := p.Key.Data.(*EString); ok && helpers.UTF16EqualsString(str.Value, "__proto__") {
+							v.Properties = v.Properties[i:]
+							result = append(result, property)
+							break
+						}
+					}
+
+					result = append(result, p)
+				}
+				continue
+			}
+		}
+		result = append(result, property)
+	}
+	return result
+}
+
+func MangleIfExpr(loc logger.Loc, e *EIf, unsupportedFeatures compat.JSFeature, isUnbound func(Ref) bool) Expr {
+	// "(a, b) ? c : d" => "a, b ? c : d"
+	if comma, ok := e.Test.Data.(*EBinary); ok && comma.Op == BinOpComma {
+		return JoinWithComma(comma.Left, MangleIfExpr(comma.Right.Loc, &EIf{
+			Test: comma.Right,
+			Yes:  e.Yes,
+			No:   e.No,
+		}, unsupportedFeatures, isUnbound))
+	}
+
+	// "!a ? b : c" => "a ? c : b"
+	if not, ok := e.Test.Data.(*EUnary); ok && not.Op == UnOpNot {
+		e.Test = not.Value
+		e.Yes, e.No = e.No, e.Yes
+	}
+
+	if ValuesLookTheSame(e.Yes.Data, e.No.Data) {
+		// "/* @__PURE__ */ a() ? b : b" => "b"
+		if ExprCanBeRemovedIfUnused(e.Test, isUnbound) {
+			return e.Yes
+		}
+
+		// "a ? b : b" => "a, b"
+		return JoinWithComma(e.Test, e.Yes)
+	}
+
+	// "a ? true : false" => "!!a"
+	// "a ? false : true" => "!a"
+	if yes, ok := e.Yes.Data.(*EBoolean); ok {
+		if no, ok := e.No.Data.(*EBoolean); ok {
+			if yes.Value && !no.Value {
+				return Not(Not(e.Test))
+			}
+			if !yes.Value && no.Value {
+				return Not(e.Test)
+			}
+		}
+	}
+
+	if id, ok := e.Test.Data.(*EIdentifier); ok {
+		// "a ? a : b" => "a || b"
+		if id2, ok := e.Yes.Data.(*EIdentifier); ok && id.Ref == id2.Ref {
+			return JoinWithLeftAssociativeOp(BinOpLogicalOr, e.Test, e.No)
+		}
+
+		// "a ? b : a" => "a && b"
+		if id2, ok := e.No.Data.(*EIdentifier); ok && id.Ref == id2.Ref {
+			return JoinWithLeftAssociativeOp(BinOpLogicalAnd, e.Test, e.Yes)
+		}
+	}
+
+	// "a ? b ? c : d : d" => "a && b ? c : d"
+	if yesIf, ok := e.Yes.Data.(*EIf); ok && ValuesLookTheSame(yesIf.No.Data, e.No.Data) {
+		e.Test = JoinWithLeftAssociativeOp(BinOpLogicalAnd, e.Test, yesIf.Test)
+		e.Yes = yesIf.Yes
+		return Expr{Loc: loc, Data: e}
+	}
+
+	// "a ? b : c ? b : d" => "a || c ? b : d"
+	if noIf, ok := e.No.Data.(*EIf); ok && ValuesLookTheSame(e.Yes.Data, noIf.Yes.Data) {
+		e.Test = JoinWithLeftAssociativeOp(BinOpLogicalOr, e.Test, noIf.Test)
+		e.No = noIf.No
+		return Expr{Loc: loc, Data: e}
+	}
+
+	// "a ? c : (b, c)" => "(a || b), c"
+	if comma, ok := e.No.Data.(*EBinary); ok && comma.Op == BinOpComma && ValuesLookTheSame(e.Yes.Data, comma.Right.Data) {
+		return JoinWithComma(
+			JoinWithLeftAssociativeOp(BinOpLogicalOr, e.Test, comma.Left),
+			comma.Right,
+		)
+	}
+
+	// "a ? (b, c) : c" => "(a && b), c"
+	if comma, ok := e.Yes.Data.(*EBinary); ok && comma.Op == BinOpComma && ValuesLookTheSame(comma.Right.Data, e.No.Data) {
+		return JoinWithComma(
+			JoinWithLeftAssociativeOp(BinOpLogicalAnd, e.Test, comma.Left),
+			comma.Right,
+		)
+	}
+
+	// "a ? b || c : c" => "(a && b) || c"
+	if binary, ok := e.Yes.Data.(*EBinary); ok && binary.Op == BinOpLogicalOr &&
+		ValuesLookTheSame(binary.Right.Data, e.No.Data) {
+		return Expr{Loc: loc, Data: &EBinary{
+			Op:    BinOpLogicalOr,
+			Left:  JoinWithLeftAssociativeOp(BinOpLogicalAnd, e.Test, binary.Left),
+			Right: binary.Right,
+		}}
+	}
+
+	// "a ? c : b && c" => "(a || b) && c"
+	if binary, ok := e.No.Data.(*EBinary); ok && binary.Op == BinOpLogicalAnd &&
+		ValuesLookTheSame(e.Yes.Data, binary.Right.Data) {
+		return Expr{Loc: loc, Data: &EBinary{
+			Op:    BinOpLogicalAnd,
+			Left:  JoinWithLeftAssociativeOp(BinOpLogicalOr, e.Test, binary.Left),
+			Right: binary.Right,
+		}}
+	}
+
+	// "a ? b(c, d) : b(e, d)" => "b(a ? c : e, d)"
+	if y, ok := e.Yes.Data.(*ECall); ok && len(y.Args) > 0 {
+		if n, ok := e.No.Data.(*ECall); ok && len(n.Args) == len(y.Args) &&
+			y.HasSameFlagsAs(n) && ValuesLookTheSame(y.Target.Data, n.Target.Data) {
+			// Only do this if the condition can be reordered past the call target
+			// without side effects. For example, if the test or the call target is
+			// an unbound identifier, reordering could potentially mean evaluating
+			// the code could throw a different ReferenceError.
+			if ExprCanBeRemovedIfUnused(e.Test, isUnbound) && ExprCanBeRemovedIfUnused(y.Target, isUnbound) {
+				sameTailArgs := true
+				for i, count := 1, len(y.Args); i < count; i++ {
+					if !ValuesLookTheSame(y.Args[i].Data, n.Args[i].Data) {
+						sameTailArgs = false
+						break
+					}
+				}
+				if sameTailArgs {
+					yesSpread, yesIsSpread := y.Args[0].Data.(*ESpread)
+					noSpread, noIsSpread := n.Args[0].Data.(*ESpread)
+
+					// "a ? b(...c) : b(...e)" => "b(...a ? c : e)"
+					if yesIsSpread && noIsSpread {
+						e.Yes = yesSpread.Value
+						e.No = noSpread.Value
+						y.Args[0] = Expr{Loc: loc, Data: &ESpread{Value: MangleIfExpr(loc, e, unsupportedFeatures, isUnbound)}}
+						return Expr{Loc: loc, Data: y}
+					}
+
+					// "a ? b(c) : b(e)" => "b(a ? c : e)"
+					if !yesIsSpread && !noIsSpread {
+						e.Yes = y.Args[0]
+						e.No = n.Args[0]
+						y.Args[0] = MangleIfExpr(loc, e, unsupportedFeatures, isUnbound)
+						return Expr{Loc: loc, Data: y}
+					}
+				}
+			}
+		}
+	}
+
+	// Try using the "??" or "?." operators
+	if binary, ok := e.Test.Data.(*EBinary); ok {
+		var test Expr
+		var whenNull Expr
+		var whenNonNull Expr
+
+		switch binary.Op {
+		case BinOpLooseEq:
+			if _, ok := binary.Right.Data.(*ENull); ok {
+				// "a == null ? _ : _"
+				test = binary.Left
+				whenNull = e.Yes
+				whenNonNull = e.No
+			} else if _, ok := binary.Left.Data.(*ENull); ok {
+				// "null == a ? _ : _"
+				test = binary.Right
+				whenNull = e.Yes
+				whenNonNull = e.No
+			}
+
+		case BinOpLooseNe:
+			if _, ok := binary.Right.Data.(*ENull); ok {
+				// "a != null ? _ : _"
+				test = binary.Left
+				whenNonNull = e.Yes
+				whenNull = e.No
+			} else if _, ok := binary.Left.Data.(*ENull); ok {
+				// "null != a ? _ : _"
+				test = binary.Right
+				whenNonNull = e.Yes
+				whenNull = e.No
+			}
+		}
+
+		if ExprCanBeRemovedIfUnused(test, isUnbound) {
+			// "a != null ? a : b" => "a ?? b"
+			if !unsupportedFeatures.Has(compat.NullishCoalescing) && ValuesLookTheSame(test.Data, whenNonNull.Data) {
+				return JoinWithLeftAssociativeOp(BinOpNullishCoalescing, test, whenNull)
+			}
+
+			// "a != null ? a.b.c[d](e) : undefined" => "a?.b.c[d](e)"
+			if !unsupportedFeatures.Has(compat.OptionalChain) {
+				if _, ok := whenNull.Data.(*EUndefined); ok && TryToInsertOptionalChain(test, whenNonNull) {
+					return whenNonNull
+				}
+			}
+		}
+	}
+
+	return Expr{Loc: loc, Data: e}
 }
