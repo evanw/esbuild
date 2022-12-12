@@ -55,6 +55,9 @@ func Not(expr Expr) Expr {
 // whole operator (i.e. the "!x") if it can be simplified, or false if not.
 // It's separate from "Not()" above to avoid allocation on failure in case
 // that is undesired.
+//
+// This function intentionally avoids mutating the input AST so it can be
+// called after the AST has been frozen (i.e. after parsing ends).
 func MaybeSimplifyNot(expr Expr) (Expr, bool) {
 	switch e := expr.Data.(type) {
 	case *EInlinedEnum:
@@ -93,34 +96,31 @@ func MaybeSimplifyNot(expr Expr) (Expr, bool) {
 		switch e.Op {
 		case BinOpLooseEq:
 			// "!(a == b)" => "a != b"
-			e.Op = BinOpLooseNe
-			return expr, true
+			return Expr{Loc: expr.Loc, Data: &EBinary{Op: BinOpLooseNe, Left: e.Left, Right: e.Right}}, true
 
 		case BinOpLooseNe:
 			// "!(a != b)" => "a == b"
-			e.Op = BinOpLooseEq
-			return expr, true
+			return Expr{Loc: expr.Loc, Data: &EBinary{Op: BinOpLooseEq, Left: e.Left, Right: e.Right}}, true
 
 		case BinOpStrictEq:
 			// "!(a === b)" => "a !== b"
-			e.Op = BinOpStrictNe
-			return expr, true
+			return Expr{Loc: expr.Loc, Data: &EBinary{Op: BinOpStrictNe, Left: e.Left, Right: e.Right}}, true
 
 		case BinOpStrictNe:
 			// "!(a !== b)" => "a === b"
-			e.Op = BinOpStrictEq
-			return expr, true
+			return Expr{Loc: expr.Loc, Data: &EBinary{Op: BinOpStrictEq, Left: e.Left, Right: e.Right}}, true
 
 		case BinOpComma:
 			// "!(a, b)" => "a, !b"
-			e.Right = Not(e.Right)
-			return expr, true
+			return Expr{Loc: expr.Loc, Data: &EBinary{Op: BinOpComma, Left: e.Left, Right: Not(e.Right)}}, true
 		}
 	}
 
 	return Expr{}, false
 }
 
+// This function intentionally avoids mutating the input AST so it can be
+// called after the AST has been frozen (i.e. after parsing ends).
 func MaybeSimplifyEqualityComparison(loc logger.Loc, e *EBinary, unsupportedFeatures compat.JSFeature) (Expr, bool) {
 	value, primitive := e.Left, e.Right
 
@@ -377,11 +377,16 @@ func TypeofWithoutSideEffects(data E) (string, bool) {
 // When using this, make absolutely sure that the operator is actually
 // associative. For example, the "-" operator is not associative for
 // floating-point numbers.
+//
+// This function intentionally avoids mutating the input AST so it can be
+// called after the AST has been frozen (i.e. after parsing ends).
 func JoinWithLeftAssociativeOp(op OpCode, a Expr, b Expr) Expr {
 	// "(a, b) op c" => "a, b op c"
 	if comma, ok := a.Data.(*EBinary); ok && comma.Op == BinOpComma {
-		comma.Right = JoinWithLeftAssociativeOp(op, comma.Right, b)
-		return a
+		// Don't mutate the original AST
+		clone := *comma
+		clone.Right = JoinWithLeftAssociativeOp(op, clone.Right, b)
+		return Expr{Loc: a.Loc, Data: &clone}
 	}
 
 	// "a op (b op c)" => "(a op b) op c"
@@ -534,7 +539,10 @@ func IsPrimitiveWithSideEffects(data E) bool {
 	return false
 }
 
-// This will return a nil expression if the expression can be totally removed
+// This will return a nil expression if the expression can be totally removed.
+//
+// This function intentionally avoids mutating the input AST so it can be
+// called after the AST has been frozen (i.e. after parsing ends).
 func SimplifyUnusedExpr(expr Expr, unsupportedFeatures compat.JSFeature, isUnbound func(Ref) bool) Expr {
 	switch e := expr.Data.(type) {
 	case *EInlinedEnum:
@@ -594,16 +602,18 @@ func SimplifyUnusedExpr(expr Expr, unsupportedFeatures compat.JSFeature, isUnbou
 		// the other items instead and leave the array expression there.
 		for _, spread := range e.Items {
 			if _, ok := spread.Data.(*ESpread); ok {
-				end := 0
+				items := make([]Expr, 0, len(e.Items))
 				for _, item := range e.Items {
 					item = SimplifyUnusedExpr(item, unsupportedFeatures, isUnbound)
 					if item.Data != nil {
-						e.Items[end] = item
-						end++
+						items = append(items, item)
 					}
 				}
-				e.Items = e.Items[:end]
-				return expr
+
+				// Don't mutate the original AST
+				clone := *e
+				clone.Items = items
+				return Expr{Loc: expr.Loc, Data: &clone}
 			}
 		}
 
@@ -621,7 +631,7 @@ func SimplifyUnusedExpr(expr Expr, unsupportedFeatures compat.JSFeature, isUnbou
 		// the other items instead and leave the object expression there.
 		for _, spread := range e.Properties {
 			if spread.Kind == PropertySpread {
-				end := 0
+				properties := make([]Property, 0, len(e.Properties))
 				for _, property := range e.Properties {
 					// Spread properties must always be evaluated
 					if property.Kind != PropertySpread {
@@ -637,11 +647,13 @@ func SimplifyUnusedExpr(expr Expr, unsupportedFeatures compat.JSFeature, isUnbou
 							property.ValueOrNil.Data = &ENumber{}
 						}
 					}
-					e.Properties[end] = property
-					end++
+					properties = append(properties, property)
 				}
-				e.Properties = e.Properties[:end]
-				return expr
+
+				// Don't mutate the original AST
+				clone := *e
+				clone.Properties = properties
+				return Expr{Loc: expr.Loc, Data: &clone}
 			}
 		}
 
@@ -662,22 +674,26 @@ func SimplifyUnusedExpr(expr Expr, unsupportedFeatures compat.JSFeature, isUnbou
 		return result
 
 	case *EIf:
-		e.Yes = SimplifyUnusedExpr(e.Yes, unsupportedFeatures, isUnbound)
-		e.No = SimplifyUnusedExpr(e.No, unsupportedFeatures, isUnbound)
+		yes := SimplifyUnusedExpr(e.Yes, unsupportedFeatures, isUnbound)
+		no := SimplifyUnusedExpr(e.No, unsupportedFeatures, isUnbound)
 
 		// "foo() ? 1 : 2" => "foo()"
-		if e.Yes.Data == nil && e.No.Data == nil {
+		if yes.Data == nil && no.Data == nil {
 			return SimplifyUnusedExpr(e.Test, unsupportedFeatures, isUnbound)
 		}
 
 		// "foo() ? 1 : bar()" => "foo() || bar()"
-		if e.Yes.Data == nil {
-			return JoinWithLeftAssociativeOp(BinOpLogicalOr, e.Test, e.No)
+		if yes.Data == nil {
+			return JoinWithLeftAssociativeOp(BinOpLogicalOr, e.Test, no)
 		}
 
 		// "foo() ? bar() : 2" => "foo() && bar()"
-		if e.No.Data == nil {
-			return JoinWithLeftAssociativeOp(BinOpLogicalAnd, e.Test, e.Yes)
+		if no.Data == nil {
+			return JoinWithLeftAssociativeOp(BinOpLogicalAnd, e.Test, yes)
+		}
+
+		if yes != e.Yes || no != e.No {
+			return Expr{Loc: expr.Loc, Data: &EIf{Test: e.Test, Yes: yes, No: no}}
 		}
 
 	case *EUnary:
@@ -698,19 +714,22 @@ func SimplifyUnusedExpr(expr Expr, unsupportedFeatures compat.JSFeature, isUnbou
 		}
 
 	case *EBinary:
+		left := e.Left
+		right := e.Right
+
 		switch e.Op {
 		// These operators must not have any type conversions that can execute code
 		// such as "toString" or "valueOf". They must also never throw any exceptions.
 		case BinOpStrictEq, BinOpStrictNe, BinOpComma:
-			return JoinWithComma(SimplifyUnusedExpr(e.Left, unsupportedFeatures, isUnbound), SimplifyUnusedExpr(e.Right, unsupportedFeatures, isUnbound))
+			return JoinWithComma(SimplifyUnusedExpr(left, unsupportedFeatures, isUnbound), SimplifyUnusedExpr(right, unsupportedFeatures, isUnbound))
 
 		// We can simplify "==" and "!=" even though they can call "toString" and/or
 		// "valueOf" if we can statically determine that the types of both sides are
 		// primitives. In that case there won't be any chance for user-defined
 		// "toString" and/or "valueOf" to be called.
 		case BinOpLooseEq, BinOpLooseNe:
-			if IsPrimitiveWithSideEffects(e.Left.Data) && IsPrimitiveWithSideEffects(e.Right.Data) {
-				return JoinWithComma(SimplifyUnusedExpr(e.Left, unsupportedFeatures, isUnbound), SimplifyUnusedExpr(e.Right, unsupportedFeatures, isUnbound))
+			if IsPrimitiveWithSideEffects(left.Data) && IsPrimitiveWithSideEffects(right.Data) {
+				return JoinWithComma(SimplifyUnusedExpr(left, unsupportedFeatures, isUnbound), SimplifyUnusedExpr(right, unsupportedFeatures, isUnbound))
 			}
 
 		case BinOpLogicalAnd, BinOpLogicalOr, BinOpNullishCoalescing:
@@ -718,20 +737,20 @@ func SimplifyUnusedExpr(expr Expr, unsupportedFeatures compat.JSFeature, isUnbou
 			// we know the left operand will only be used for its boolean value and
 			// can be simplified under that assumption
 			if e.Op != BinOpNullishCoalescing {
-				e.Left = SimplifyBooleanExpr(e.Left)
+				left = SimplifyBooleanExpr(left)
 			}
 
 			// Preserve short-circuit behavior: the left expression is only unused if
 			// the right expression can be completely removed. Otherwise, the left
 			// expression is important for the branch.
-			e.Right = SimplifyUnusedExpr(e.Right, unsupportedFeatures, isUnbound)
-			if e.Right.Data == nil {
-				return SimplifyUnusedExpr(e.Left, unsupportedFeatures, isUnbound)
+			right = SimplifyUnusedExpr(right, unsupportedFeatures, isUnbound)
+			if right.Data == nil {
+				return SimplifyUnusedExpr(left, unsupportedFeatures, isUnbound)
 			}
 
 			// Try to take advantage of the optional chain operator to shorten code
 			if !unsupportedFeatures.Has(compat.OptionalChain) {
-				if binary, ok := e.Left.Data.(*EBinary); ok {
+				if binary, ok := left.Data.(*EBinary); ok {
 					// "a != null && a.b()" => "a?.b()"
 					// "a == null || a.b()" => "a?.b()"
 					if (binary.Op == BinOpLooseNe && e.Op == BinOpLogicalAnd) || (binary.Op == BinOpLooseEq && e.Op == BinOpLogicalOr) {
@@ -764,8 +783,8 @@ func SimplifyUnusedExpr(expr Expr, unsupportedFeatures compat.JSFeature, isUnbou
 						// Since TypeScript doesn't handle this extreme edge case and
 						// TypeScript is very widely used, I think it's fine for us to not
 						// handle this edge case either.
-						if id, ok := test.Data.(*EIdentifier); ok && !id.MustKeepDueToWithStmt && TryToInsertOptionalChain(test, e.Right) {
-							return e.Right
+						if id, ok := test.Data.(*EIdentifier); ok && !id.MustKeepDueToWithStmt && TryToInsertOptionalChain(test, right) {
+							return right
 						}
 					}
 				}
@@ -775,6 +794,10 @@ func SimplifyUnusedExpr(expr Expr, unsupportedFeatures compat.JSFeature, isUnbou
 			if result, isStringAddition := simplifyUnusedStringAdditionChain(expr); isStringAddition {
 				return result
 			}
+		}
+
+		if left != e.Left || right != e.Right {
+			return Expr{Loc: expr.Loc, Data: &EBinary{Op: e.Op, Left: left, Right: right}}
 		}
 
 	case *ECall:
@@ -822,8 +845,10 @@ func SimplifyUnusedExpr(expr Expr, unsupportedFeatures compat.JSFeature, isUnbou
 							return s.Value
 						} else {
 							// Replace "(async () => { foo() })()" with "(async () => foo())()"
-							target.Body.Block.Stmts[0].Data = &SReturn{ValueOrNil: s.Value}
-							target.PreferExpr = true
+							clone := *target
+							clone.Body.Block.Stmts[0].Data = &SReturn{ValueOrNil: s.Value}
+							clone.PreferExpr = true
+							return Expr{Loc: expr.Loc, Data: &ECall{Target: Expr{Loc: e.Target.Loc, Data: &clone}}}
 						}
 
 					case *SReturn:
@@ -854,6 +879,8 @@ func SimplifyUnusedExpr(expr Expr, unsupportedFeatures compat.JSFeature, isUnbou
 	return expr
 }
 
+// This function intentionally avoids mutating the input AST so it can be
+// called after the AST has been frozen (i.e. after parsing ends).
 func simplifyUnusedStringAdditionChain(expr Expr) (Expr, bool) {
 	switch e := expr.Data.(type) {
 	case *EString:
@@ -863,19 +890,26 @@ func simplifyUnusedStringAdditionChain(expr Expr) (Expr, bool) {
 	case *EBinary:
 		if e.Op == BinOpAdd {
 			left, leftIsStringAddition := simplifyUnusedStringAdditionChain(e.Left)
-			e.Left = left
 
-			if _, rightIsString := e.Right.Data.(*EString); rightIsString {
+			if right, rightIsString := e.Right.Data.(*EString); rightIsString {
 				// "('' + x) + 'y'" => "'' + x"
 				if leftIsStringAddition {
 					return left, true
 				}
 
 				// "x + 'y'" => "x + ''"
-				if !leftIsStringAddition {
-					e.Right.Data = &EString{}
-					return expr, true
+				if !leftIsStringAddition && len(right.Value) > 0 {
+					return Expr{Loc: expr.Loc, Data: &EBinary{
+						Op:    BinOpAdd,
+						Left:  left,
+						Right: Expr{Loc: e.Right.Loc, Data: &EString{}},
+					}}, true
 				}
+			}
+
+			// Don't mutate the original AST
+			if left != e.Left {
+				expr.Data = &EBinary{Op: BinOpAdd, Left: left, Right: e.Right}
 			}
 
 			return expr, leftIsStringAddition
@@ -994,6 +1028,8 @@ func ShouldFoldBinaryArithmeticWhenMinifying(op OpCode) bool {
 	return false
 }
 
+// This function intentionally avoids mutating the input AST so it can be
+// called after the AST has been frozen (i.e. after parsing ends).
 func FoldBinaryArithmetic(loc logger.Loc, e *EBinary) Expr {
 	switch e.Op {
 	case BinOpAdd:
@@ -1254,6 +1290,8 @@ func joinStrings(a []uint16, b []uint16) []uint16 {
 	return data
 }
 
+// This function intentionally avoids mutating the input AST so it can be
+// called after the AST has been frozen (i.e. after parsing ends).
 func FoldStringAddition(left Expr, right Expr) Expr {
 	switch l := left.Data.(type) {
 	case *EString:
@@ -1329,35 +1367,44 @@ func FoldStringAddition(left Expr, right Expr) Expr {
 }
 
 // "`a${'b'}c`" => "`abc`"
+//
+// This function intentionally avoids mutating the input AST so it can be
+// called after the AST has been frozen (i.e. after parsing ends).
 func InlineStringsIntoTemplate(loc logger.Loc, e *ETemplate) Expr {
 	// Can't inline strings if there's a custom template tag
-	if e.TagOrNil.Data == nil {
-		end := 0
-		for _, part := range e.Parts {
-			if str, ok := part.Value.Data.(*EString); ok {
-				if end == 0 {
-					e.HeadCooked = append(append(e.HeadCooked, str.Value...), part.TailCooked...)
-				} else {
-					prevPart := &e.Parts[end-1]
-					prevPart.TailCooked = append(append(prevPart.TailCooked, str.Value...), part.TailCooked...)
-				}
-			} else {
-				e.Parts[end] = part
-				end++
-			}
-		}
-		e.Parts = e.Parts[:end]
+	if e.TagOrNil.Data != nil {
+		return Expr{Loc: loc, Data: e}
+	}
 
-		// Become a plain string if there are no substitutions
-		if len(e.Parts) == 0 {
-			return Expr{Loc: loc, Data: &EString{
-				Value:          e.HeadCooked,
-				PreferTemplate: true,
-			}}
+	headCooked := e.HeadCooked
+	parts := make([]TemplatePart, 0, len(e.Parts))
+
+	for _, part := range e.Parts {
+		if str, ok := part.Value.Data.(*EString); ok {
+			if len(parts) == 0 {
+				headCooked = append(append(headCooked, str.Value...), part.TailCooked...)
+			} else {
+				prevPart := &parts[len(parts)-1]
+				prevPart.TailCooked = append(append(prevPart.TailCooked, str.Value...), part.TailCooked...)
+			}
+		} else {
+			parts = append(parts, part)
 		}
 	}
 
-	return Expr{Loc: loc, Data: e}
+	// Become a plain string if there are no substitutions
+	if len(parts) == 0 {
+		return Expr{Loc: loc, Data: &EString{
+			Value:          headCooked,
+			PreferTemplate: true,
+		}}
+	}
+
+	return Expr{Loc: loc, Data: &ETemplate{
+		HeadLoc:    e.HeadLoc,
+		HeadCooked: headCooked,
+		Parts:      parts,
+	}}
 }
 
 type SideEffects uint8
@@ -1506,6 +1553,9 @@ func ToBooleanWithSideEffects(data E) (boolean bool, SideEffects SideEffects, ok
 }
 
 // Simplify syntax when we know it's used inside a boolean context
+//
+// This function intentionally avoids mutating the input AST so it can be
+// called after the AST has been frozen (i.e. after parsing ends).
 func SimplifyBooleanExpr(expr Expr) Expr {
 	switch e := expr.Data.(type) {
 	case *EUnary:
@@ -1516,70 +1566,81 @@ func SimplifyBooleanExpr(expr Expr) Expr {
 			}
 
 			// "!!!a" => "!a"
-			e.Value = SimplifyBooleanExpr(e.Value)
+			return Expr{Loc: expr.Loc, Data: &EUnary{Op: UnOpNot, Value: SimplifyBooleanExpr(e.Value)}}
 		}
 
 	case *EBinary:
+		left := e.Left
+		right := e.Right
+
 		switch e.Op {
 		case BinOpStrictEq, BinOpStrictNe, BinOpLooseEq, BinOpLooseNe:
-			if right, ok := extractNumericValue(e.Right.Data); ok && right == 0 && isInt32OrUint32(e.Left.Data) {
+			if r, ok := extractNumericValue(right.Data); ok && r == 0 && isInt32OrUint32(left.Data) {
 				// If the left is guaranteed to be an integer (e.g. not NaN,
 				// Infinity, or a non-numeric value) then a test against zero
 				// in a boolean context is unnecessary because the value is
 				// only truthy if it's not zero.
 				if e.Op == BinOpStrictNe || e.Op == BinOpLooseNe {
 					// "if ((a | b) !== 0)" => "if (a | b)"
-					return e.Left
+					return left
 				} else {
 					// "if ((a | b) === 0)" => "if (!(a | b))"
-					return Not(e.Left)
+					return Not(left)
 				}
 			}
 
 		case BinOpLogicalAnd:
 			// "if (!!a && !!b)" => "if (a && b)"
-			e.Left = SimplifyBooleanExpr(e.Left)
-			e.Right = SimplifyBooleanExpr(e.Right)
+			left = SimplifyBooleanExpr(left)
+			right = SimplifyBooleanExpr(right)
 
-			if boolean, SideEffects, ok := ToBooleanWithSideEffects(e.Right.Data); ok && boolean && SideEffects == NoSideEffects {
+			if boolean, SideEffects, ok := ToBooleanWithSideEffects(right.Data); ok && boolean && SideEffects == NoSideEffects {
 				// "if (anything && truthyNoSideEffects)" => "if (anything)"
-				return e.Left
+				return left
 			}
 
 		case BinOpLogicalOr:
 			// "if (!!a || !!b)" => "if (a || b)"
-			e.Left = SimplifyBooleanExpr(e.Left)
-			e.Right = SimplifyBooleanExpr(e.Right)
+			left = SimplifyBooleanExpr(left)
+			right = SimplifyBooleanExpr(right)
 
-			if boolean, SideEffects, ok := ToBooleanWithSideEffects(e.Right.Data); ok && !boolean && SideEffects == NoSideEffects {
+			if boolean, SideEffects, ok := ToBooleanWithSideEffects(right.Data); ok && !boolean && SideEffects == NoSideEffects {
 				// "if (anything || falsyNoSideEffects)" => "if (anything)"
-				return e.Left
+				return left
 			}
+		}
+
+		if left != e.Left || right != e.Right {
+			return Expr{Loc: expr.Loc, Data: &EBinary{Op: e.Op, Left: left, Right: right}}
 		}
 
 	case *EIf:
 		// "if (a ? !!b : !!c)" => "if (a ? b : c)"
-		e.Yes = SimplifyBooleanExpr(e.Yes)
-		e.No = SimplifyBooleanExpr(e.No)
+		yes := SimplifyBooleanExpr(e.Yes)
+		no := SimplifyBooleanExpr(e.No)
 
-		if boolean, SideEffects, ok := ToBooleanWithSideEffects(e.Yes.Data); ok && SideEffects == NoSideEffects {
+		if boolean, SideEffects, ok := ToBooleanWithSideEffects(yes.Data); ok && SideEffects == NoSideEffects {
 			if boolean {
 				// "if (anything1 ? truthyNoSideEffects : anything2)" => "if (anything1 || anything2)"
-				return JoinWithLeftAssociativeOp(BinOpLogicalOr, e.Test, e.No)
+				return JoinWithLeftAssociativeOp(BinOpLogicalOr, e.Test, no)
 			} else {
 				// "if (anything1 ? falsyNoSideEffects : anything2)" => "if (!anything1 || anything2)"
-				return JoinWithLeftAssociativeOp(BinOpLogicalAnd, Not(e.Test), e.No)
+				return JoinWithLeftAssociativeOp(BinOpLogicalAnd, Not(e.Test), no)
 			}
 		}
 
-		if boolean, SideEffects, ok := ToBooleanWithSideEffects(e.No.Data); ok && SideEffects == NoSideEffects {
+		if boolean, SideEffects, ok := ToBooleanWithSideEffects(no.Data); ok && SideEffects == NoSideEffects {
 			if boolean {
 				// "if (anything1 ? anything2 : truthyNoSideEffects)" => "if (!anything1 || anything2)"
-				return JoinWithLeftAssociativeOp(BinOpLogicalOr, Not(e.Test), e.Yes)
+				return JoinWithLeftAssociativeOp(BinOpLogicalOr, Not(e.Test), yes)
 			} else {
 				// "if (anything1 ? anything2 : falsyNoSideEffects)" => "if (anything1 && anything2)"
-				return JoinWithLeftAssociativeOp(BinOpLogicalAnd, e.Test, e.Yes)
+				return JoinWithLeftAssociativeOp(BinOpLogicalAnd, e.Test, yes)
 			}
+		}
+
+		if yes != e.Yes || no != e.No {
+			return Expr{Loc: expr.Loc, Data: &EIf{Test: e.Test, Yes: yes, No: no}}
 		}
 	}
 
@@ -1973,6 +2034,8 @@ func StringToEquivalentNumberValue(value []uint16) (float64, bool) {
 	return 0, false
 }
 
+// This function intentionally avoids mutating the input AST so it can be
+// called after the AST has been frozen (i.e. after parsing ends).
 func InlineSpreadsOfArrayLiterals(values []Expr) (results []Expr) {
 	for _, value := range values {
 		if spread, ok := value.Data.(*ESpread); ok {
@@ -1992,6 +2055,8 @@ func InlineSpreadsOfArrayLiterals(values []Expr) (results []Expr) {
 	return
 }
 
+// This function intentionally avoids mutating the input AST so it can be
+// called after the AST has been frozen (i.e. after parsing ends).
 func MangleObjectSpread(properties []Property) []Property {
 	var result []Property
 	for _, property := range properties {
@@ -2009,7 +2074,10 @@ func MangleObjectSpread(properties []Property) []Property {
 					// evaluating code at compile time, just bail if we hit one
 					// and preserve the spread with the remaining properties.
 					if p.Kind == PropertyGet || p.Kind == PropertySet {
-						v.Properties = v.Properties[i:]
+						// Don't mutate the original AST
+						clone := *v
+						clone.Properties = v.Properties[i:]
+						property.ValueOrNil.Data = &clone
 						result = append(result, property)
 						break
 					}
@@ -2019,7 +2087,10 @@ func MangleObjectSpread(properties []Property) []Property {
 					// inlining it is not correct.
 					if p.Kind == PropertyNormal && !p.Flags.Has(PropertyIsComputed) && !p.Flags.Has(PropertyIsMethod) {
 						if str, ok := p.Key.Data.(*EString); ok && helpers.UTF16EqualsString(str.Value, "__proto__") {
-							v.Properties = v.Properties[i:]
+							// Don't mutate the original AST
+							clone := *v
+							clone.Properties = v.Properties[i:]
+							property.ValueOrNil.Data = &clone
 							result = append(result, property)
 							break
 						}
@@ -2035,116 +2106,118 @@ func MangleObjectSpread(properties []Property) []Property {
 	return result
 }
 
+// This function intentionally avoids mutating the input AST so it can be
+// called after the AST has been frozen (i.e. after parsing ends).
 func MangleIfExpr(loc logger.Loc, e *EIf, unsupportedFeatures compat.JSFeature, isUnbound func(Ref) bool) Expr {
+	test := e.Test
+	yes := e.Yes
+	no := e.No
+
 	// "(a, b) ? c : d" => "a, b ? c : d"
-	if comma, ok := e.Test.Data.(*EBinary); ok && comma.Op == BinOpComma {
+	if comma, ok := test.Data.(*EBinary); ok && comma.Op == BinOpComma {
 		return JoinWithComma(comma.Left, MangleIfExpr(comma.Right.Loc, &EIf{
 			Test: comma.Right,
-			Yes:  e.Yes,
-			No:   e.No,
+			Yes:  yes,
+			No:   no,
 		}, unsupportedFeatures, isUnbound))
 	}
 
 	// "!a ? b : c" => "a ? c : b"
-	if not, ok := e.Test.Data.(*EUnary); ok && not.Op == UnOpNot {
-		e.Test = not.Value
-		e.Yes, e.No = e.No, e.Yes
+	if not, ok := test.Data.(*EUnary); ok && not.Op == UnOpNot {
+		test = not.Value
+		yes, no = no, yes
 	}
 
-	if ValuesLookTheSame(e.Yes.Data, e.No.Data) {
+	if ValuesLookTheSame(yes.Data, no.Data) {
 		// "/* @__PURE__ */ a() ? b : b" => "b"
-		if ExprCanBeRemovedIfUnused(e.Test, isUnbound) {
-			return e.Yes
+		if ExprCanBeRemovedIfUnused(test, isUnbound) {
+			return yes
 		}
 
 		// "a ? b : b" => "a, b"
-		return JoinWithComma(e.Test, e.Yes)
+		return JoinWithComma(test, yes)
 	}
 
 	// "a ? true : false" => "!!a"
 	// "a ? false : true" => "!a"
-	if yes, ok := e.Yes.Data.(*EBoolean); ok {
-		if no, ok := e.No.Data.(*EBoolean); ok {
-			if yes.Value && !no.Value {
-				return Not(Not(e.Test))
+	if y, ok := yes.Data.(*EBoolean); ok {
+		if n, ok := no.Data.(*EBoolean); ok {
+			if y.Value && !n.Value {
+				return Not(Not(test))
 			}
-			if !yes.Value && no.Value {
-				return Not(e.Test)
+			if !y.Value && n.Value {
+				return Not(test)
 			}
 		}
 	}
 
-	if id, ok := e.Test.Data.(*EIdentifier); ok {
+	if id, ok := test.Data.(*EIdentifier); ok {
 		// "a ? a : b" => "a || b"
-		if id2, ok := e.Yes.Data.(*EIdentifier); ok && id.Ref == id2.Ref {
-			return JoinWithLeftAssociativeOp(BinOpLogicalOr, e.Test, e.No)
+		if id2, ok := yes.Data.(*EIdentifier); ok && id.Ref == id2.Ref {
+			return JoinWithLeftAssociativeOp(BinOpLogicalOr, test, no)
 		}
 
 		// "a ? b : a" => "a && b"
-		if id2, ok := e.No.Data.(*EIdentifier); ok && id.Ref == id2.Ref {
-			return JoinWithLeftAssociativeOp(BinOpLogicalAnd, e.Test, e.Yes)
+		if id2, ok := no.Data.(*EIdentifier); ok && id.Ref == id2.Ref {
+			return JoinWithLeftAssociativeOp(BinOpLogicalAnd, test, yes)
 		}
 	}
 
 	// "a ? b ? c : d : d" => "a && b ? c : d"
-	if yesIf, ok := e.Yes.Data.(*EIf); ok && ValuesLookTheSame(yesIf.No.Data, e.No.Data) {
-		e.Test = JoinWithLeftAssociativeOp(BinOpLogicalAnd, e.Test, yesIf.Test)
-		e.Yes = yesIf.Yes
-		return Expr{Loc: loc, Data: e}
+	if yesIf, ok := yes.Data.(*EIf); ok && ValuesLookTheSame(yesIf.No.Data, no.Data) {
+		return Expr{Loc: loc, Data: &EIf{Test: JoinWithLeftAssociativeOp(BinOpLogicalAnd, test, yesIf.Test), Yes: yesIf.Yes, No: no}}
 	}
 
 	// "a ? b : c ? b : d" => "a || c ? b : d"
-	if noIf, ok := e.No.Data.(*EIf); ok && ValuesLookTheSame(e.Yes.Data, noIf.Yes.Data) {
-		e.Test = JoinWithLeftAssociativeOp(BinOpLogicalOr, e.Test, noIf.Test)
-		e.No = noIf.No
-		return Expr{Loc: loc, Data: e}
+	if noIf, ok := no.Data.(*EIf); ok && ValuesLookTheSame(yes.Data, noIf.Yes.Data) {
+		return Expr{Loc: loc, Data: &EIf{Test: JoinWithLeftAssociativeOp(BinOpLogicalOr, test, noIf.Test), Yes: yes, No: noIf.No}}
 	}
 
 	// "a ? c : (b, c)" => "(a || b), c"
-	if comma, ok := e.No.Data.(*EBinary); ok && comma.Op == BinOpComma && ValuesLookTheSame(e.Yes.Data, comma.Right.Data) {
+	if comma, ok := no.Data.(*EBinary); ok && comma.Op == BinOpComma && ValuesLookTheSame(yes.Data, comma.Right.Data) {
 		return JoinWithComma(
-			JoinWithLeftAssociativeOp(BinOpLogicalOr, e.Test, comma.Left),
+			JoinWithLeftAssociativeOp(BinOpLogicalOr, test, comma.Left),
 			comma.Right,
 		)
 	}
 
 	// "a ? (b, c) : c" => "(a && b), c"
-	if comma, ok := e.Yes.Data.(*EBinary); ok && comma.Op == BinOpComma && ValuesLookTheSame(comma.Right.Data, e.No.Data) {
+	if comma, ok := yes.Data.(*EBinary); ok && comma.Op == BinOpComma && ValuesLookTheSame(comma.Right.Data, no.Data) {
 		return JoinWithComma(
-			JoinWithLeftAssociativeOp(BinOpLogicalAnd, e.Test, comma.Left),
+			JoinWithLeftAssociativeOp(BinOpLogicalAnd, test, comma.Left),
 			comma.Right,
 		)
 	}
 
 	// "a ? b || c : c" => "(a && b) || c"
-	if binary, ok := e.Yes.Data.(*EBinary); ok && binary.Op == BinOpLogicalOr &&
-		ValuesLookTheSame(binary.Right.Data, e.No.Data) {
+	if binary, ok := yes.Data.(*EBinary); ok && binary.Op == BinOpLogicalOr &&
+		ValuesLookTheSame(binary.Right.Data, no.Data) {
 		return Expr{Loc: loc, Data: &EBinary{
 			Op:    BinOpLogicalOr,
-			Left:  JoinWithLeftAssociativeOp(BinOpLogicalAnd, e.Test, binary.Left),
+			Left:  JoinWithLeftAssociativeOp(BinOpLogicalAnd, test, binary.Left),
 			Right: binary.Right,
 		}}
 	}
 
 	// "a ? c : b && c" => "(a || b) && c"
-	if binary, ok := e.No.Data.(*EBinary); ok && binary.Op == BinOpLogicalAnd &&
-		ValuesLookTheSame(e.Yes.Data, binary.Right.Data) {
+	if binary, ok := no.Data.(*EBinary); ok && binary.Op == BinOpLogicalAnd &&
+		ValuesLookTheSame(yes.Data, binary.Right.Data) {
 		return Expr{Loc: loc, Data: &EBinary{
 			Op:    BinOpLogicalAnd,
-			Left:  JoinWithLeftAssociativeOp(BinOpLogicalOr, e.Test, binary.Left),
+			Left:  JoinWithLeftAssociativeOp(BinOpLogicalOr, test, binary.Left),
 			Right: binary.Right,
 		}}
 	}
 
 	// "a ? b(c, d) : b(e, d)" => "b(a ? c : e, d)"
-	if y, ok := e.Yes.Data.(*ECall); ok && len(y.Args) > 0 {
-		if n, ok := e.No.Data.(*ECall); ok && len(n.Args) == len(y.Args) &&
+	if y, ok := yes.Data.(*ECall); ok && len(y.Args) > 0 {
+		if n, ok := no.Data.(*ECall); ok && len(n.Args) == len(y.Args) &&
 			y.HasSameFlagsAs(n) && ValuesLookTheSame(y.Target.Data, n.Target.Data) {
 			// Only do this if the condition can be reordered past the call target
 			// without side effects. For example, if the test or the call target is
 			// an unbound identifier, reordering could potentially mean evaluating
 			// the code could throw a different ReferenceError.
-			if ExprCanBeRemovedIfUnused(e.Test, isUnbound) && ExprCanBeRemovedIfUnused(y.Target, isUnbound) {
+			if ExprCanBeRemovedIfUnused(test, isUnbound) && ExprCanBeRemovedIfUnused(y.Target, isUnbound) {
 				sameTailArgs := true
 				for i, count := 1, len(y.Args); i < count; i++ {
 					if !ValuesLookTheSame(y.Args[i].Data, n.Args[i].Data) {
@@ -2158,18 +2231,22 @@ func MangleIfExpr(loc logger.Loc, e *EIf, unsupportedFeatures compat.JSFeature, 
 
 					// "a ? b(...c) : b(...e)" => "b(...a ? c : e)"
 					if yesIsSpread && noIsSpread {
-						e.Yes = yesSpread.Value
-						e.No = noSpread.Value
-						y.Args[0] = Expr{Loc: loc, Data: &ESpread{Value: MangleIfExpr(loc, e, unsupportedFeatures, isUnbound)}}
-						return Expr{Loc: loc, Data: y}
+						// Don't mutate the original AST
+						temp := EIf{Test: test, Yes: yesSpread.Value, No: noSpread.Value}
+						clone := *y
+						clone.Args = append([]Expr{}, clone.Args...)
+						clone.Args[0] = Expr{Loc: loc, Data: &ESpread{Value: MangleIfExpr(loc, &temp, unsupportedFeatures, isUnbound)}}
+						return Expr{Loc: loc, Data: &clone}
 					}
 
 					// "a ? b(c) : b(e)" => "b(a ? c : e)"
 					if !yesIsSpread && !noIsSpread {
-						e.Yes = y.Args[0]
-						e.No = n.Args[0]
-						y.Args[0] = MangleIfExpr(loc, e, unsupportedFeatures, isUnbound)
-						return Expr{Loc: loc, Data: y}
+						// Don't mutate the original AST
+						temp := EIf{Test: test, Yes: y.Args[0], No: n.Args[0]}
+						clone := *y
+						clone.Args = append([]Expr{}, clone.Args...)
+						clone.Args[0] = MangleIfExpr(loc, &temp, unsupportedFeatures, isUnbound)
+						return Expr{Loc: loc, Data: &clone}
 					}
 				}
 			}
@@ -2177,8 +2254,8 @@ func MangleIfExpr(loc logger.Loc, e *EIf, unsupportedFeatures compat.JSFeature, 
 	}
 
 	// Try using the "??" or "?." operators
-	if binary, ok := e.Test.Data.(*EBinary); ok {
-		var test Expr
+	if binary, ok := test.Data.(*EBinary); ok {
+		var check Expr
 		var whenNull Expr
 		var whenNonNull Expr
 
@@ -2186,43 +2263,48 @@ func MangleIfExpr(loc logger.Loc, e *EIf, unsupportedFeatures compat.JSFeature, 
 		case BinOpLooseEq:
 			if _, ok := binary.Right.Data.(*ENull); ok {
 				// "a == null ? _ : _"
-				test = binary.Left
-				whenNull = e.Yes
-				whenNonNull = e.No
+				check = binary.Left
+				whenNull = yes
+				whenNonNull = no
 			} else if _, ok := binary.Left.Data.(*ENull); ok {
 				// "null == a ? _ : _"
-				test = binary.Right
-				whenNull = e.Yes
-				whenNonNull = e.No
+				check = binary.Right
+				whenNull = yes
+				whenNonNull = no
 			}
 
 		case BinOpLooseNe:
 			if _, ok := binary.Right.Data.(*ENull); ok {
 				// "a != null ? _ : _"
-				test = binary.Left
-				whenNonNull = e.Yes
-				whenNull = e.No
+				check = binary.Left
+				whenNonNull = yes
+				whenNull = no
 			} else if _, ok := binary.Left.Data.(*ENull); ok {
 				// "null != a ? _ : _"
-				test = binary.Right
-				whenNonNull = e.Yes
-				whenNull = e.No
+				check = binary.Right
+				whenNonNull = yes
+				whenNull = no
 			}
 		}
 
-		if ExprCanBeRemovedIfUnused(test, isUnbound) {
+		if ExprCanBeRemovedIfUnused(check, isUnbound) {
 			// "a != null ? a : b" => "a ?? b"
-			if !unsupportedFeatures.Has(compat.NullishCoalescing) && ValuesLookTheSame(test.Data, whenNonNull.Data) {
-				return JoinWithLeftAssociativeOp(BinOpNullishCoalescing, test, whenNull)
+			if !unsupportedFeatures.Has(compat.NullishCoalescing) && ValuesLookTheSame(check.Data, whenNonNull.Data) {
+				return JoinWithLeftAssociativeOp(BinOpNullishCoalescing, check, whenNull)
 			}
 
 			// "a != null ? a.b.c[d](e) : undefined" => "a?.b.c[d](e)"
 			if !unsupportedFeatures.Has(compat.OptionalChain) {
-				if _, ok := whenNull.Data.(*EUndefined); ok && TryToInsertOptionalChain(test, whenNonNull) {
+				if _, ok := whenNull.Data.(*EUndefined); ok && TryToInsertOptionalChain(check, whenNonNull) {
 					return whenNonNull
 				}
 			}
 		}
+	}
+
+	// Don't mutate the original AST
+	if test != e.Test || yes != e.Yes || no != e.No {
+		return Expr{Loc: loc, Data: &EIf{Test: test, Yes: yes, No: no}}
 	}
 
 	return Expr{Loc: loc, Data: e}
