@@ -931,16 +931,6 @@ func jumpStmtsLookTheSame(left js_ast.S, right js_ast.S) bool {
 	return false
 }
 
-func hasValueForThisInCall(expr js_ast.Expr) bool {
-	switch expr.Data.(type) {
-	case *js_ast.EDot, *js_ast.EIndex:
-		return true
-
-	default:
-		return false
-	}
-}
-
 func (p *parser) selectLocalKind(kind js_ast.LocalKind) js_ast.LocalKind {
 	// Safari workaround: Automatically avoid TDZ issues when bundling
 	if p.options.mode == config.ModeBundle && p.currentScope.Parent == nil {
@@ -3922,6 +3912,10 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 				if level >= js_ast.LCall {
 					return left
 				}
+				kind := js_ast.NormalCall
+				if js_ast.IsPropertyAccess(left) {
+					kind = js_ast.TargetWasOriginallyPropertyAccess
+				}
 				_, args, closeParenLoc, isMultiLine := p.parseCallArgs()
 				left = js_ast.Expr{Loc: left.Loc, Data: &js_ast.ECall{
 					Target:        left,
@@ -3929,6 +3923,7 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 					CloseParenLoc: closeParenLoc,
 					OptionalChain: optionalStart,
 					IsMultiLine:   isMultiLine,
+					Kind:          kind,
 				}}
 
 			case js_lexer.TLessThan, js_lexer.TLessThanLessThan:
@@ -3944,6 +3939,10 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 				if level >= js_ast.LCall {
 					return left
 				}
+				kind := js_ast.NormalCall
+				if js_ast.IsPropertyAccess(left) {
+					kind = js_ast.TargetWasOriginallyPropertyAccess
+				}
 				_, args, closeParenLoc, isMultiLine := p.parseCallArgs()
 				left = js_ast.Expr{Loc: left.Loc, Data: &js_ast.ECall{
 					Target:        left,
@@ -3951,6 +3950,7 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 					CloseParenLoc: closeParenLoc,
 					OptionalChain: optionalStart,
 					IsMultiLine:   isMultiLine,
+					Kind:          kind,
 				}}
 
 			default:
@@ -3989,17 +3989,12 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 			headLoc := p.lexer.Loc()
 			headCooked, headRaw := p.lexer.CookedAndRawTemplateContents()
 			p.lexer.Next()
-			tagWasOriginallyPropertyAccess := false
-			switch left.Data.(type) {
-			case *js_ast.EDot, *js_ast.EIndex:
-				tagWasOriginallyPropertyAccess = true
-			}
 			left = js_ast.Expr{Loc: left.Loc, Data: &js_ast.ETemplate{
 				TagOrNil:                       left,
 				HeadLoc:                        headLoc,
 				HeadCooked:                     headCooked,
 				HeadRaw:                        headRaw,
-				TagWasOriginallyPropertyAccess: tagWasOriginallyPropertyAccess,
+				TagWasOriginallyPropertyAccess: js_ast.IsPropertyAccess(left),
 			}}
 
 		case js_lexer.TTemplateHead:
@@ -4009,18 +4004,13 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 			headLoc := p.lexer.Loc()
 			headCooked, headRaw := p.lexer.CookedAndRawTemplateContents()
 			parts, _ := p.parseTemplateParts(true /* includeRaw */)
-			tagWasOriginallyPropertyAccess := false
-			switch left.Data.(type) {
-			case *js_ast.EDot, *js_ast.EIndex:
-				tagWasOriginallyPropertyAccess = true
-			}
 			left = js_ast.Expr{Loc: left.Loc, Data: &js_ast.ETemplate{
 				TagOrNil:                       left,
 				HeadLoc:                        headLoc,
 				HeadCooked:                     headCooked,
 				HeadRaw:                        headRaw,
 				Parts:                          parts,
-				TagWasOriginallyPropertyAccess: tagWasOriginallyPropertyAccess,
+				TagWasOriginallyPropertyAccess: js_ast.IsPropertyAccess(left),
 			}}
 
 		case js_lexer.TOpenBracket:
@@ -4058,6 +4048,10 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 			if level >= js_ast.LCall {
 				return left
 			}
+			kind := js_ast.NormalCall
+			if js_ast.IsPropertyAccess(left) {
+				kind = js_ast.TargetWasOriginallyPropertyAccess
+			}
 			_, args, closeParenLoc, isMultiLine := p.parseCallArgs()
 			left = js_ast.Expr{Loc: left.Loc, Data: &js_ast.ECall{
 				Target:        left,
@@ -4065,6 +4059,7 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 				CloseParenLoc: closeParenLoc,
 				OptionalChain: oldOptionalChain,
 				IsMultiLine:   isMultiLine,
+				Kind:          kind,
 			}}
 			optionalChain = oldOptionalChain
 
@@ -10599,7 +10594,6 @@ func (p *parser) captureValueWithPossibleSideEffects(
 						PreferExpr: true,
 						Body:       js_ast.FnBody{Loc: loc, Block: js_ast.SBlock{Stmts: []js_ast.Stmt{{Loc: loc, Data: &js_ast.SReturn{ValueOrNil: expr}}}}},
 					}},
-					Args: []js_ast.Expr{},
 				}}
 			}
 	}
@@ -12544,6 +12538,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 				// Call createElement()
 				var target js_ast.Expr
+				kind := js_ast.NormalCall
 				if p.options.jsx.AutomaticRuntime {
 					target = p.importJSXSymbol(expr.Loc, JSXImportCreateElement)
 				} else {
@@ -12551,6 +12546,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 						wasOriginallyIdentifier: true,
 						matchAgainstDefines:     true, // Allow defines to rewrite the JSX factory
 					})
+					if js_ast.IsPropertyAccess(target) {
+						kind = js_ast.TargetWasOriginallyPropertyAccess
+					}
 					p.warnAboutImportNamespaceCall(target, exprKindCall)
 				}
 				return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ECall{
@@ -12558,6 +12556,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					Args:          args,
 					CloseParenLoc: e.CloseLoc,
 					IsMultiLine:   !e.IsTagSingleLine,
+					Kind:          kind,
 
 					// Enable tree shaking
 					CanBeUnwrappedIfUnused: !p.options.ignoreDCEAnnotations && !p.options.jsx.SideEffects,
@@ -12736,6 +12735,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 						NameLoc: target.Loc,
 					}},
 					Args: []js_ast.Expr{targetFunc()},
+					Kind: js_ast.TargetWasOriginallyPropertyAccess,
 				}})
 			}
 		}
@@ -12804,7 +12804,6 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			break
 		}
 
-		isCallTarget := e == p.callTarget
 		isStmtExpr := e == p.stmtExprValue
 		wasAnonymousNamedExpr := p.isAnonymousNamedExpr(e.Right)
 		oldSilenceWarningAboutThisBeingUndefined := p.fnOnlyDataVisit.silenceMessageAboutThisBeingUndefined
@@ -12889,12 +12888,6 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			if p.options.minifySyntax {
 				e.Left = js_ast.SimplifyUnusedExpr(e.Left, p.options.unsupportedJSFeatures, p.isUnbound)
 				if e.Left.Data == nil {
-					// "(1, fn)()" => "fn()"
-					// "(1, this.fn)" => "this.fn"
-					// "(1, this.fn)()" => "(0, this.fn)()"
-					if isCallTarget && hasValueForThisInCall(e.Right) {
-						return js_ast.JoinWithComma(js_ast.Expr{Loc: e.Left.Loc, Data: &js_ast.ENumber{}}, e.Right), exprOut{}
-					}
 					return e.Right, exprOut{}
 				}
 			}
@@ -12992,13 +12985,6 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				if !isNullOrUndefined {
 					return e.Left, exprOut{}
 				} else if sideEffects == js_ast.NoSideEffects {
-					// "(null ?? fn)()" => "fn()"
-					// "(null ?? this.fn)" => "this.fn"
-					// "(null ?? this.fn)()" => "(0, this.fn)()"
-					if isCallTarget && hasValueForThisInCall(e.Right) {
-						return js_ast.JoinWithComma(js_ast.Expr{Loc: e.Left.Loc, Data: &js_ast.ENumber{}}, e.Right), exprOut{}
-					}
-
 					return e.Right, exprOut{}
 				}
 			}
@@ -13020,12 +13006,6 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				if boolean {
 					return e.Left, exprOut{}
 				} else if sideEffects == js_ast.NoSideEffects {
-					// "(0 || fn)()" => "fn()"
-					// "(0 || this.fn)" => "this.fn"
-					// "(0 || this.fn)()" => "(0, this.fn)()"
-					if isCallTarget && hasValueForThisInCall(e.Right) {
-						return js_ast.JoinWithComma(js_ast.Expr{Loc: e.Left.Loc, Data: &js_ast.ENumber{}}, e.Right), exprOut{}
-					}
 					return e.Right, exprOut{}
 				}
 			}
@@ -13050,12 +13030,6 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				if !boolean {
 					return e.Left, exprOut{}
 				} else if sideEffects == js_ast.NoSideEffects {
-					// "(1 && fn)()" => "fn()"
-					// "(1 && this.fn)" => "this.fn"
-					// "(1 && this.fn)()" => "(0, this.fn)()"
-					if isCallTarget && hasValueForThisInCall(e.Right) {
-						return js_ast.JoinWithComma(js_ast.Expr{Loc: e.Left.Loc, Data: &js_ast.ENumber{}}, e.Right), exprOut{}
-					}
 					return e.Right, exprOut{}
 				}
 			}
@@ -13444,6 +13418,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 						NameLoc: value.Loc,
 					}},
 					Args: []js_ast.Expr{{Loc: value.Loc, Data: js_ast.EThisShared}},
+					Kind: js_ast.TargetWasOriginallyPropertyAccess,
 				}
 			}
 			return value, exprOut{}
@@ -13606,6 +13581,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 						NameLoc: value.Loc,
 					}},
 					Args: []js_ast.Expr{{Loc: value.Loc, Data: js_ast.EThisShared}},
+					Kind: js_ast.TargetWasOriginallyPropertyAccess,
 				}
 			}
 			return value, exprOut{}
@@ -13800,7 +13776,6 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 	case *js_ast.EIf:
-		isCallTarget := e == p.callTarget
 		e.Test = p.visitExpr(e.Test)
 
 		if p.options.minifySyntax {
@@ -13832,13 +13807,6 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 						return js_ast.JoinWithComma(js_ast.SimplifyUnusedExpr(e.Test, p.options.unsupportedJSFeatures, p.isUnbound), e.Yes), exprOut{}
 					}
 
-					// "(1 ? fn : 2)()" => "fn()"
-					// "(1 ? this.fn : 2)" => "this.fn"
-					// "(1 ? this.fn : 2)()" => "(0, this.fn)()"
-					if isCallTarget && hasValueForThisInCall(e.Yes) {
-						return js_ast.JoinWithComma(js_ast.Expr{Loc: e.Test.Loc, Data: &js_ast.ENumber{}}, e.Yes), exprOut{}
-					}
-
 					return e.Yes, exprOut{}
 				}
 			} else {
@@ -13853,13 +13821,6 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					// "(a, false) ? b : c" => "a, c"
 					if sideEffects == js_ast.CouldHaveSideEffects {
 						return js_ast.JoinWithComma(js_ast.SimplifyUnusedExpr(e.Test, p.options.unsupportedJSFeatures, p.isUnbound), e.No), exprOut{}
-					}
-
-					// "(0 ? 1 : fn)()" => "fn()"
-					// "(0 ? 1 : this.fn)" => "this.fn"
-					// "(0 ? 1 : this.fn)()" => "(0, this.fn)()"
-					if isCallTarget && hasValueForThisInCall(e.No) {
-						return js_ast.JoinWithComma(js_ast.Expr{Loc: e.Test.Loc, Data: &js_ast.ENumber{}}, e.No), exprOut{}
 					}
 
 					return e.No, exprOut{}
@@ -14272,11 +14233,13 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 								Name:    "resolve",
 								NameLoc: expr.Loc,
 							}},
+							Kind: js_ast.TargetWasOriginallyPropertyAccess,
 						}},
 						Name:    "then",
 						NameLoc: expr.Loc,
 					}},
 					Args: []js_ast.Expr{then},
+					Kind: js_ast.TargetWasOriginallyPropertyAccess,
 				}}
 			}
 
@@ -14340,10 +14303,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 		// If we're removing this call, don't count any arguments as symbol uses
 		if out.methodCallMustBeReplacedWithUndefined {
-			switch e.Target.Data.(type) {
-			case *js_ast.EDot, *js_ast.EIndex:
+			if js_ast.IsPropertyAccess(e.Target) {
 				p.isControlFlowDead = true
-			default:
+			} else {
 				out.methodCallMustBeReplacedWithUndefined = false
 			}
 		}
@@ -14423,9 +14385,14 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			// Detect if this is a direct eval. Note that "(1 ? eval : 0)(x)" will
 			// become "eval(x)" after we visit the target due to dead code elimination,
 			// but that doesn't mean it should become a direct eval.
-			if wasIdentifierBeforeVisit {
+			//
+			// Note that "eval?.(x)" is considered an indirect eval. There was debate
+			// about this after everyone implemented it as a direct eval, but the
+			// language committee said it was indirect and everyone had to change it:
+			// https://github.com/tc39/ecma262/issues/2062.
+			if wasIdentifierBeforeVisit && e.OptionalChain == js_ast.OptionalChainNone {
 				if symbol := p.symbols[t.Ref.InnerIndex]; symbol.OriginalName == "eval" {
-					e.IsDirectEval = true
+					e.Kind = js_ast.DirectEval
 
 					// Pessimistically assume that if this looks like a CommonJS module
 					// (e.g. no "export" keywords), a direct call to "eval" means that
@@ -14502,6 +14469,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 								NameLoc: t.NameLoc,
 							}},
 							Args: []js_ast.Expr{arg},
+							Kind: e.Kind,
 						}}
 					}), exprOut{}
 				}
@@ -14565,6 +14533,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					}},
 					Args:                   append([]js_ast.Expr{targetFunc()}, e.Args...),
 					CanBeUnwrappedIfUnused: e.CanBeUnwrappedIfUnused,
+					Kind:                   js_ast.TargetWasOriginallyPropertyAccess,
 				}}), exprOut{}
 			}
 			p.maybeLowerSuperPropertyGetInsideCall(e)

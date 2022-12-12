@@ -351,7 +351,7 @@ func TestCall(t *testing.T) {
 	expectPrinted(t, "(1, eval)(x)", "(1, eval)(x);\n")
 	expectPrinted(t, "(1, eval)?.(x)", "(1, eval)?.(x);\n")
 	expectPrintedMangle(t, "(1 ? eval : 2)(x)", "(0, eval)(x);\n")
-	expectPrintedMangle(t, "(1 ? eval : 2)?.(x)", "(0, eval)?.(x);\n")
+	expectPrintedMangle(t, "(1 ? eval : 2)?.(x)", "eval?.(x);\n")
 
 	expectPrintedMinify(t, "eval?.(x)", "eval?.(x);")
 	expectPrintedMinify(t, "eval(x,y)", "eval(x,y);")
@@ -359,7 +359,7 @@ func TestCall(t *testing.T) {
 	expectPrintedMinify(t, "(1, eval)(x)", "(1,eval)(x);")
 	expectPrintedMinify(t, "(1, eval)?.(x)", "(1,eval)?.(x);")
 	expectPrintedMangleMinify(t, "(1 ? eval : 2)(x)", "(0,eval)(x);")
-	expectPrintedMangleMinify(t, "(1 ? eval : 2)?.(x)", "(0,eval)?.(x);")
+	expectPrintedMangleMinify(t, "(1 ? eval : 2)?.(x)", "eval?.(x);")
 }
 
 func TestMember(t *testing.T) {

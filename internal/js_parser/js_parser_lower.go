@@ -731,6 +731,7 @@ flatten:
 					Args:                   append([]js_ast.Expr{thisArg}, e.Args...),
 					CanBeUnwrappedIfUnused: e.CanBeUnwrappedIfUnused,
 					IsMultiLine:            e.IsMultiLine,
+					Kind:                   js_ast.TargetWasOriginallyPropertyAccess,
 				}}
 				break
 			}
@@ -749,6 +750,7 @@ flatten:
 					Args:                   append([]js_ast.Expr{privateThisFunc()}, e.Args...),
 					CanBeUnwrappedIfUnused: e.CanBeUnwrappedIfUnused,
 					IsMultiLine:            e.IsMultiLine,
+					Kind:                   js_ast.TargetWasOriginallyPropertyAccess,
 				}})
 				privateThisFunc = nil
 				break
@@ -759,6 +761,7 @@ flatten:
 				Args:                   e.Args,
 				CanBeUnwrappedIfUnused: e.CanBeUnwrappedIfUnused,
 				IsMultiLine:            e.IsMultiLine,
+				Kind:                   e.Kind,
 			}}
 
 		case *js_ast.EUnary:
@@ -810,6 +813,7 @@ func (p *parser) lowerParenthesizedOptionalChain(loc logger.Loc, e *js_ast.ECall
 		}},
 		Args:        append(append(make([]js_ast.Expr, 0, len(e.Args)+1), childOut.thisArgFunc()), e.Args...),
 		IsMultiLine: e.IsMultiLine,
+		Kind:        js_ast.TargetWasOriginallyPropertyAccess,
 	}})
 }
 
@@ -1269,6 +1273,7 @@ func (p *parser) lowerForAwaitLoop(loc logger.Loc, loop *js_ast.SForOf, stmts []
 			NameLoc: loc,
 			Name:    "next",
 		}},
+		Kind: js_ast.TargetWasOriginallyPropertyAccess,
 	}}
 	awaitTempCallIter := js_ast.Expr{Loc: loc, Data: &js_ast.ECall{
 		Target: js_ast.Expr{Loc: loc, Data: &js_ast.EDot{
@@ -1277,6 +1282,7 @@ func (p *parser) lowerForAwaitLoop(loc logger.Loc, loop *js_ast.SForOf, stmts []
 			Name:    "call",
 		}},
 		Args: []js_ast.Expr{{Loc: loc, Data: &js_ast.EIdentifier{Ref: iterRef}}},
+		Kind: js_ast.TargetWasOriginallyPropertyAccess,
 	}}
 
 	// "await" expressions turn into "yield" expressions when lowering
@@ -3100,6 +3106,7 @@ func (p *parser) lowerTemplateLiteral(loc logger.Loc, e *js_ast.ETemplate, tagTh
 					NameLoc: part.Value.Loc,
 				}},
 				Args: args,
+				Kind: js_ast.TargetWasOriginallyPropertyAccess,
 			}}
 		}
 
@@ -3173,13 +3180,19 @@ func (p *parser) lowerTemplateLiteral(loc logger.Loc, e *js_ast.ETemplate, tagTh
 				NameLoc: e.HeadLoc,
 			}},
 			Args: append([]js_ast.Expr{tagThisFunc()}, args...),
+			Kind: js_ast.TargetWasOriginallyPropertyAccess,
 		}})
 	}
 
 	// Call the tag function
+	kind := js_ast.NormalCall
+	if e.TagWasOriginallyPropertyAccess {
+		kind = js_ast.TargetWasOriginallyPropertyAccess
+	}
 	return js_ast.Expr{Loc: loc, Data: &js_ast.ECall{
 		Target: e.TagOrNil,
 		Args:   args,
+		Kind:   kind,
 	}}
 }
 

@@ -522,6 +522,14 @@ type ENew struct {
 	CanBeUnwrappedIfUnused bool
 }
 
+type CallKind uint8
+
+const (
+	NormalCall CallKind = iota
+	DirectEval
+	TargetWasOriginallyPropertyAccess
+)
+
 type OptionalChain uint8
 
 const (
@@ -541,7 +549,7 @@ type ECall struct {
 	Args          []Expr
 	CloseParenLoc logger.Loc
 	OptionalChain OptionalChain
-	IsDirectEval  bool
+	Kind          CallKind
 	IsMultiLine   bool
 
 	// True if there is a comment containing "@__PURE__" or "#__PURE__" preceding
@@ -557,7 +565,7 @@ type ECall struct {
 
 func (a *ECall) HasSameFlagsAs(b *ECall) bool {
 	return a.OptionalChain == b.OptionalChain &&
-		a.IsDirectEval == b.IsDirectEval &&
+		a.Kind == b.Kind &&
 		a.CanBeUnwrappedIfUnused == b.CanBeUnwrappedIfUnused
 }
 

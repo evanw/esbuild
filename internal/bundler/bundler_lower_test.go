@@ -956,6 +956,9 @@ func TestLowerAsyncSuperES2017NoBundle(t *testing.T) {
 							await (() => super[key])(),
 							await (() => super.foo())(),
 							await (() => super[key]())(),
+
+							await super.foo` + "``" + `,
+							await super[key]` + "``" + `,
 						]
 					}
 				}
@@ -1029,6 +1032,9 @@ func TestLowerAsyncSuperES2016NoBundle(t *testing.T) {
 							await (() => super[key])(),
 							await (() => super.foo())(),
 							await (() => super[key]())(),
+
+							await super.foo` + "``" + `,
+							await super[key]` + "``" + `,
 						]
 					}
 				}
@@ -1102,6 +1108,9 @@ func TestLowerStaticAsyncSuperES2021NoBundle(t *testing.T) {
 							await (() => super[key])(),
 							await (() => super.foo())(),
 							await (() => super[key]())(),
+
+							await super.foo` + "``" + `,
+							await super[key]` + "``" + `,
 						]
 					}
 				}
@@ -1165,6 +1174,9 @@ func TestLowerStaticAsyncSuperES2016NoBundle(t *testing.T) {
 							await (() => super[key])(),
 							await (() => super.foo())(),
 							await (() => super[key]())(),
+
+							await super.foo` + "``" + `,
+							await super[key]` + "``" + `,
 						]
 					}
 				}
@@ -1228,6 +1240,9 @@ func TestLowerStaticSuperES2021NoBundle(t *testing.T) {
 							(() => super[key])(),
 							(() => super.foo())(),
 							(() => super[key]())(),
+
+							super.foo` + "``" + `,
+							super[key]` + "``" + `,
 						]
 					}
 				}
@@ -1277,6 +1292,9 @@ func TestLowerStaticSuperES2016NoBundle(t *testing.T) {
 							(() => super[key])(),
 							(() => super.foo())(),
 							(() => super[key]())(),
+
+							super.foo` + "``" + `,
+							super[key]` + "``" + `,
 						]
 					}
 				}

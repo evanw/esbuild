@@ -8,6 +8,18 @@ import (
 	"github.com/evanw/esbuild/internal/logger"
 )
 
+// If this returns true, then calling this expression captures the target of
+// the property access as "this" when calling the function in the property.
+func IsPropertyAccess(expr Expr) bool {
+	switch expr.Data.(type) {
+	case *EDot, *EIndex:
+		return true
+
+	default:
+		return false
+	}
+}
+
 func IsOptionalChain(value Expr) bool {
 	switch e := value.Data.(type) {
 	case *EDot:

@@ -1861,12 +1861,10 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 
 		// We don't ever want to accidentally generate a direct eval expression here
 		p.callTarget = e.Target.Data
-		if !e.IsDirectEval && p.isUnboundEvalIdentifier(e.Target) {
-			if p.options.MinifyWhitespace {
-				p.print("(0,")
-			} else {
-				p.print("(0, ")
-			}
+		if (e.Kind != js_ast.DirectEval && p.isUnboundEvalIdentifier(e.Target) && e.OptionalChain == js_ast.OptionalChainNone) ||
+			(e.Kind != js_ast.TargetWasOriginallyPropertyAccess && js_ast.IsPropertyAccess(e.Target)) {
+			p.print("(0,")
+			p.printSpace()
 			p.printExpr(e.Target, js_ast.LPostfix, isCallTargetOrTemplateTag)
 			p.print(")")
 		} else {

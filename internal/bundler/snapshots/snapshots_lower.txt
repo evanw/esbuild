@@ -378,7 +378,9 @@ class Derived extends Base {
         yield (() => __superGet(Derived.prototype, this, "foo"))(),
         yield (() => __superGet(Derived.prototype, this, key))(),
         yield (() => __superGet(Derived.prototype, this, "foo").call(this))(),
-        yield (() => __superGet(Derived.prototype, this, key).call(this))()
+        yield (() => __superGet(Derived.prototype, this, key).call(this))(),
+        yield __superGet(Derived.prototype, this, "foo").bind(this)``,
+        yield __superGet(Derived.prototype, this, key).bind(this)``
       ];
     });
   }
@@ -467,7 +469,9 @@ class Derived extends Base {
       await (() => super.foo)(),
       await (() => super[key])(),
       await (() => super.foo())(),
-      await (() => super[key]())()
+      await (() => super[key]())(),
+      await super.foo``,
+      await super[key]``
     ];
   }
 }
@@ -2058,7 +2062,9 @@ __publicField(Derived, "test", (key) => __async(_Derived, null, function* () {
     yield (() => __superGet(_Derived, _Derived, "foo"))(),
     yield (() => __superGet(_Derived, _Derived, key))(),
     yield (() => __superGet(_Derived, _Derived, "foo").call(this))(),
-    yield (() => __superGet(_Derived, _Derived, key).call(this))()
+    yield (() => __superGet(_Derived, _Derived, key).call(this))(),
+    yield __superGet(_Derived, _Derived, "foo").bind(this)``,
+    yield __superGet(_Derived, _Derived, key).bind(this)``
   ];
 }));
 let fn = () => __async(this, null, function* () {
@@ -2125,7 +2131,9 @@ __publicField(Derived, "test", async (key) => {
     await (() => __superGet(_Derived, _Derived, "foo"))(),
     await (() => __superGet(_Derived, _Derived, key))(),
     await (() => __superGet(_Derived, _Derived, "foo").call(this))(),
-    await (() => __superGet(_Derived, _Derived, key).call(this))()
+    await (() => __superGet(_Derived, _Derived, key).call(this))(),
+    await __superGet(_Derived, _Derived, "foo").bind(this)``,
+    await __superGet(_Derived, _Derived, key).bind(this)``
   ];
 });
 let fn = async () => {
@@ -2191,7 +2199,9 @@ __publicField(Derived, "test", (key) => {
     (() => __superGet(_Derived, _Derived, "foo"))(),
     (() => __superGet(_Derived, _Derived, key))(),
     (() => __superGet(_Derived, _Derived, "foo").call(this))(),
-    (() => __superGet(_Derived, _Derived, key).call(this))()
+    (() => __superGet(_Derived, _Derived, key).call(this))(),
+    __superGet(_Derived, _Derived, "foo").bind(this)``,
+    __superGet(_Derived, _Derived, key).bind(this)``
   ];
 });
 
@@ -2226,7 +2236,9 @@ __publicField(Derived, "test", (key) => {
     (() => __superGet(_Derived, _Derived, "foo"))(),
     (() => __superGet(_Derived, _Derived, key))(),
     (() => __superGet(_Derived, _Derived, "foo").call(this))(),
-    (() => __superGet(_Derived, _Derived, key).call(this))()
+    (() => __superGet(_Derived, _Derived, key).call(this))(),
+    __superGet(_Derived, _Derived, "foo").bind(this)``,
+    __superGet(_Derived, _Derived, key).bind(this)``
   ];
 });
 
