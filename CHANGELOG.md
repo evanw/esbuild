@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-* Fix a subtle bug with tagged template literals
+* Fix some subtle bugs with tagged template literals
 
     This release fixes a bug where minification could incorrectly change the value of `this` within tagged template literal function calls:
 
@@ -18,6 +18,38 @@
 
     // New output (with --minify)
     function f(n){return(0,y.z)``}
+    ```
+
+    This release also fixes a bug where using optional chaining with `--target=es2019` or earlier could incorrectly change the value of `this` within tagged template literal function calls:
+
+    ```js
+    // Original code
+    var obj = {
+      foo: function() {
+        console.log(this === obj);
+      }
+    };
+    (obj?.foo)``;
+
+    // Old output (with --target=es6)
+    var obj = {
+      foo: function() {
+        console.log(this === obj);
+      }
+    };
+    (obj == null ? void 0 : obj.foo)``;
+
+    // New output (with --target=es6)
+    var __freeze = Object.freeze;
+    var __defProp = Object.defineProperty;
+    var __template = (cooked, raw) => __freeze(__defProp(cooked, "raw", { value: __freeze(raw || cooked.slice()) }));
+    var _a;
+    var obj = {
+      foo: function() {
+        console.log(this === obj);
+      }
+    };
+    (obj == null ? void 0 : obj.foo).call(obj, _a || (_a = __template([""])));
     ```
 
 * Some slight minification improvements

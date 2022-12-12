@@ -12701,9 +12701,27 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				"Legacy octal escape sequences cannot be used in template literals")
 		}
 
+		var tagThisFunc func() js_ast.Expr
+		var tagWrapFunc func(js_ast.Expr) js_ast.Expr
+
 		if e.TagOrNil.Data != nil {
+			// Capture the value for "this" if the tag is a lowered optional chain.
+			// We'll need to manually apply this value later to preserve semantics.
+			tagIsLoweredOptionalChain := false
+			if p.options.unsupportedJSFeatures.Has(compat.OptionalChain) {
+				switch target := e.TagOrNil.Data.(type) {
+				case *js_ast.EDot:
+					tagIsLoweredOptionalChain = target.OptionalChain != js_ast.OptionalChainNone
+				case *js_ast.EIndex:
+					tagIsLoweredOptionalChain = target.OptionalChain != js_ast.OptionalChainNone
+				}
+			}
+
 			p.templateTag = e.TagOrNil.Data
-			e.TagOrNil = p.visitExpr(e.TagOrNil)
+			tag, tagOut := p.visitExprInOut(e.TagOrNil, exprIn{storeThisArgForParentOptionalChain: tagIsLoweredOptionalChain})
+			e.TagOrNil = tag
+			tagThisFunc = tagOut.thisArgFunc
+			tagWrapFunc = tagOut.thisArgWrapFunc
 
 			// The value of "this" must be manually preserved for private member
 			// accesses inside template tag expressions such as "this.#foo``".
@@ -12735,9 +12753,16 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 		shouldLowerTemplateLiteral := p.options.unsupportedJSFeatures.Has(compat.TemplateLiteral)
 
+		// If the tag was originally an optional chaining property access, then
+		// we'll need to lower this template literal as well to preserve the value
+		// for "this".
+		if tagThisFunc != nil {
+			shouldLowerTemplateLiteral = true
+		}
+
 		// Lower tagged template literals that include "</script"
 		// since we won't be able to escape it without lowering it
-		if !p.options.unsupportedJSFeatures.Has(compat.InlineScript) && !shouldLowerTemplateLiteral && e.TagOrNil.Data != nil {
+		if !shouldLowerTemplateLiteral && !p.options.unsupportedJSFeatures.Has(compat.InlineScript) && e.TagOrNil.Data != nil {
 			if containsClosingScriptTag(e.HeadRaw) {
 				shouldLowerTemplateLiteral = true
 			} else {
@@ -12753,7 +12778,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		// Convert template literals to older syntax if this is still a template literal
 		if shouldLowerTemplateLiteral {
 			if e, ok := expr.Data.(*js_ast.ETemplate); ok {
-				return p.lowerTemplateLiteral(expr.Loc, e), exprOut{}
+				return p.lowerTemplateLiteral(expr.Loc, e, tagThisFunc, tagWrapFunc), exprOut{}
 			}
 		}
 

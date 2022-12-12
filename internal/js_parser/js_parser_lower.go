@@ -3068,7 +3068,7 @@ func findFirstTopLevelSuperCall(expr js_ast.Expr, superCtorRef js_ast.Ref) (js_a
 	return js_ast.Expr{}, logger.Loc{}, nil, js_ast.Expr{}
 }
 
-func (p *parser) lowerTemplateLiteral(loc logger.Loc, e *js_ast.ETemplate) js_ast.Expr {
+func (p *parser) lowerTemplateLiteral(loc logger.Loc, e *js_ast.ETemplate, tagThisFunc func() js_ast.Expr, tagWrapFunc func(js_ast.Expr) js_ast.Expr) js_ast.Expr {
 	// If there is no tag, turn this into normal string concatenation
 	if e.TagOrNil.Data == nil {
 		var value js_ast.Expr
@@ -3163,6 +3163,18 @@ func (p *parser) lowerTemplateLiteral(loc logger.Loc, e *js_ast.ETemplate) js_as
 			Right: templateObj,
 		}},
 	}}
+
+	// If this optional chain was used as a template tag, then also forward the value for "this"
+	if tagThisFunc != nil {
+		return tagWrapFunc(js_ast.Expr{Loc: loc, Data: &js_ast.ECall{
+			Target: js_ast.Expr{Loc: loc, Data: &js_ast.EDot{
+				Target:  e.TagOrNil,
+				Name:    "call",
+				NameLoc: e.HeadLoc,
+			}},
+			Args: append([]js_ast.Expr{tagThisFunc()}, args...),
+		}})
+	}
 
 	// Call the tag function
 	return js_ast.Expr{Loc: loc, Data: &js_ast.ECall{

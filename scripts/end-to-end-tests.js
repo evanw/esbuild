@@ -632,7 +632,7 @@ tests.push(
 )
 
 // Check template literal lowering
-for (const target of ['--target=es5', '--target=es6']) {
+for (const target of ['--target=es5', '--target=es6', '--target=es2020']) {
   tests.push(
     // Untagged template literals
     test(['in.js', '--outfile=node.js', target], {
@@ -738,6 +738,23 @@ for (const target of ['--target=es5', '--target=es6']) {
         var foo = () => (x => x)\`y\`;
         var bar = () => (x => x)\`y\`;
         if (foo() === bar()) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', target], {
+      'in.js': `
+        var count = 0;
+        var obj = {
+          foo: function() {
+            if (this === obj) count++;
+          }
+        };
+        var bar = 'foo';
+        (obj?.foo)\`\`;
+        (obj?.[bar])\`\`;
+        var other = { obj };
+        (other?.obj.foo)\`\`;
+        (other?.obj[bar])\`\`;
+        if (count !== 4) throw 'fail';
       `,
     }),
 

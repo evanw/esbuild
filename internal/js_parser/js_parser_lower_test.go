@@ -651,6 +651,10 @@ func TestLowerOptionalChain(t *testing.T) {
   }
 }
 `)
+
+	expectPrintedTarget(t, 2020, "(x?.y)``", "(x?.y)``;\n")
+	expectPrintedTarget(t, 2019, "(x?.y)``", "var _a;\n(x == null ? void 0 : x.y).call(x, _a || (_a = __template([\"\"])));\n")
+	expectPrintedTarget(t, 5, "(x?.y)``", "var _a;\n(x == null ? void 0 : x.y).call(x, _a || (_a = __template([\"\"])));\n")
 }
 
 func TestLowerOptionalCatchBinding(t *testing.T) {
