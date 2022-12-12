@@ -122,6 +122,17 @@ func MaybeSimplifyNot(expr Expr) (Expr, bool) {
 	return Expr{}, false
 }
 
+func IsPrimitiveLiteral(data E) bool {
+	switch e := data.(type) {
+	case *EInlinedEnum:
+		return IsPrimitiveLiteral(e.Value.Data)
+
+	case *ENull, *EUndefined, *EString, *EBoolean, *ENumber, *EBigInt:
+		return true
+	}
+	return false
+}
+
 type PrimitiveType uint8
 
 const (
@@ -274,6 +285,12 @@ func KnownPrimitiveType(a Expr) PrimitiveType {
 	}
 
 	return PrimitiveUnknown
+}
+
+func CanChangeStrictToLoose(a Expr, b Expr) bool {
+	x := KnownPrimitiveType(a)
+	y := KnownPrimitiveType(b)
+	return x == y && x != PrimitiveUnknown && x != PrimitiveMixed
 }
 
 // The goal of this function is to "rotate" the AST if it's possible to use the
@@ -1249,4 +1266,361 @@ func SimplifyBooleanExpr(expr Expr) Expr {
 	}
 
 	return expr
+}
+
+type StmtsCanBeRemovedIfUnusedFlags uint8
+
+const (
+	KeepExportClauses StmtsCanBeRemovedIfUnusedFlags = 1 << iota
+)
+
+func StmtsCanBeRemovedIfUnused(stmts []Stmt, flags StmtsCanBeRemovedIfUnusedFlags, isUnbound func(Ref) bool) bool {
+	for _, stmt := range stmts {
+		switch s := stmt.Data.(type) {
+		case *SFunction, *SEmpty:
+			// These never have side effects
+
+		case *SImport:
+			// Let these be removed if they are unused. Note that we also need to
+			// check if the imported file is marked as "sideEffects: false" before we
+			// can remove a SImport statement. Otherwise the import must be kept for
+			// its side effects.
+
+		case *SClass:
+			if !classCanBeRemovedIfUnused(s.Class, isUnbound) {
+				return false
+			}
+
+		case *SExpr:
+			if s.DoesNotAffectTreeShaking {
+				// Expressions marked with this are automatically generated and have
+				// no side effects by construction.
+				break
+			}
+
+			if !ExprCanBeRemovedIfUnused(s.Value, isUnbound) {
+				return false
+			}
+
+		case *SLocal:
+			for _, decl := range s.Decls {
+				if _, ok := decl.Binding.Data.(*BIdentifier); !ok {
+					return false
+				}
+				if decl.ValueOrNil.Data != nil && !ExprCanBeRemovedIfUnused(decl.ValueOrNil, isUnbound) {
+					return false
+				}
+			}
+
+		case *STry:
+			if !StmtsCanBeRemovedIfUnused(s.Block.Stmts, 0, isUnbound) || (s.Finally != nil && !StmtsCanBeRemovedIfUnused(s.Finally.Block.Stmts, 0, isUnbound)) {
+				return false
+			}
+
+		case *SExportFrom:
+			// Exports are tracked separately, so this isn't necessary
+
+		case *SExportClause:
+			if (flags & KeepExportClauses) != 0 {
+				return false
+			}
+
+		case *SExportDefault:
+			switch s2 := s.Value.Data.(type) {
+			case *SExpr:
+				if !ExprCanBeRemovedIfUnused(s2.Value, isUnbound) {
+					return false
+				}
+
+			case *SFunction:
+				// These never have side effects
+
+			case *SClass:
+				if !classCanBeRemovedIfUnused(s2.Class, isUnbound) {
+					return false
+				}
+
+			default:
+				panic("Internal error")
+			}
+
+		default:
+			// Assume that all statements not explicitly special-cased here have side
+			// effects, and cannot be removed even if unused
+			return false
+		}
+	}
+
+	return true
+}
+
+func classCanBeRemovedIfUnused(class Class, isUnbound func(Ref) bool) bool {
+	if class.ExtendsOrNil.Data != nil && !ExprCanBeRemovedIfUnused(class.ExtendsOrNil, isUnbound) {
+		return false
+	}
+
+	for _, property := range class.Properties {
+		if property.Kind == PropertyClassStaticBlock {
+			if !StmtsCanBeRemovedIfUnused(property.ClassStaticBlock.Block.Stmts, 0, isUnbound) {
+				return false
+			}
+			continue
+		}
+
+		if property.Flags.Has(PropertyIsComputed) && !IsPrimitiveLiteral(property.Key.Data) {
+			return false
+		}
+
+		if property.Flags.Has(PropertyIsStatic) {
+			if property.ValueOrNil.Data != nil && !ExprCanBeRemovedIfUnused(property.ValueOrNil, isUnbound) {
+				return false
+			}
+
+			if property.InitializerOrNil.Data != nil && !ExprCanBeRemovedIfUnused(property.InitializerOrNil, isUnbound) {
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
+func ExprCanBeRemovedIfUnused(expr Expr, isUnbound func(Ref) bool) bool {
+	switch e := expr.Data.(type) {
+	case *EInlinedEnum:
+		return ExprCanBeRemovedIfUnused(e.Value, isUnbound)
+
+	case *ENull, *EUndefined, *EMissing, *EBoolean, *ENumber, *EBigInt,
+		*EString, *EThis, *ERegExp, *EFunction, *EArrow, *EImportMeta:
+		return true
+
+	case *EDot:
+		return e.CanBeRemovedIfUnused
+
+	case *EClass:
+		return classCanBeRemovedIfUnused(e.Class, isUnbound)
+
+	case *EIdentifier:
+		if e.MustKeepDueToWithStmt {
+			return false
+		}
+
+		// Unbound identifiers cannot be removed because they can have side effects.
+		// One possible side effect is throwing a ReferenceError if they don't exist.
+		// Another one is a getter with side effects on the global object:
+		//
+		//   Object.defineProperty(globalThis, 'x', {
+		//     get() {
+		//       sideEffect();
+		//     },
+		//   });
+		//
+		// Be very careful about this possibility. It's tempting to treat all
+		// identifier expressions as not having side effects but that's wrong. We
+		// must make sure they have been declared by the code we are currently
+		// compiling before we can tell that they have no side effects.
+		//
+		// Note that we currently ignore ReferenceErrors due to TDZ access. This is
+		// incorrect but proper TDZ analysis is very complicated and would have to
+		// be very conservative, which would inhibit a lot of optimizations of code
+		// inside closures. This may need to be revisited if it proves problematic.
+		if e.CanBeRemovedIfUnused || !isUnbound(e.Ref) {
+			return true
+		}
+
+	case *EImportIdentifier:
+		// References to an ES6 import item are always side-effect free in an
+		// ECMAScript environment.
+		//
+		// They could technically have side effects if the imported module is a
+		// CommonJS module and the import item was translated to a property access
+		// (which esbuild's bundler does) and the property has a getter with side
+		// effects.
+		//
+		// But this is very unlikely and respecting this edge case would mean
+		// disabling tree shaking of all code that references an export from a
+		// CommonJS module. It would also likely violate the expectations of some
+		// developers because the code *looks* like it should be able to be tree
+		// shaken.
+		//
+		// So we deliberately ignore this edge case and always treat import item
+		// references as being side-effect free.
+		return true
+
+	case *EIf:
+		return ExprCanBeRemovedIfUnused(e.Test, isUnbound) &&
+			((isSideEffectFreeUnboundIdentifierRef(e.Yes, e.Test, true, isUnbound) || ExprCanBeRemovedIfUnused(e.Yes, isUnbound)) &&
+				(isSideEffectFreeUnboundIdentifierRef(e.No, e.Test, false, isUnbound) || ExprCanBeRemovedIfUnused(e.No, isUnbound)))
+
+	case *EArray:
+		for _, item := range e.Items {
+			if !ExprCanBeRemovedIfUnused(item, isUnbound) {
+				return false
+			}
+		}
+		return true
+
+	case *EObject:
+		for _, property := range e.Properties {
+			// The key must still be evaluated if it's computed or a spread
+			if property.Kind == PropertySpread || (property.Flags.Has(PropertyIsComputed) && !IsPrimitiveLiteral(property.Key.Data)) {
+				return false
+			}
+			if property.ValueOrNil.Data != nil && !ExprCanBeRemovedIfUnused(property.ValueOrNil, isUnbound) {
+				return false
+			}
+		}
+		return true
+
+	case *ECall:
+		canCallBeRemoved := e.CanBeUnwrappedIfUnused
+
+		// Consider calls to our runtime "__publicField" function to be free of
+		// side effects for the purpose of expression removal. This allows class
+		// declarations with lowered static fields to be eligible for tree shaking.
+		if e.Kind == InternalPublicFieldCall {
+			canCallBeRemoved = true
+		}
+
+		// A call that has been marked "__PURE__" can be removed if all arguments
+		// can be removed. The annotation causes us to ignore the target.
+		if canCallBeRemoved {
+			for _, arg := range e.Args {
+				if !ExprCanBeRemovedIfUnused(arg, isUnbound) {
+					return false
+				}
+			}
+			return true
+		}
+
+	case *ENew:
+		// A constructor call that has been marked "__PURE__" can be removed if all
+		// arguments can be removed. The annotation causes us to ignore the target.
+		if e.CanBeUnwrappedIfUnused {
+			for _, arg := range e.Args {
+				if !ExprCanBeRemovedIfUnused(arg, isUnbound) {
+					return false
+				}
+			}
+			return true
+		}
+
+	case *EUnary:
+		switch e.Op {
+		// These operators must not have any type conversions that can execute code
+		// such as "toString" or "valueOf". They must also never throw any exceptions.
+		case UnOpVoid, UnOpNot:
+			return ExprCanBeRemovedIfUnused(e.Value, isUnbound)
+
+		// The "typeof" operator doesn't do any type conversions so it can be removed
+		// if the result is unused and the operand has no side effects. However, it
+		// has a special case where if the operand is an identifier expression such
+		// as "typeof x" and "x" doesn't exist, no reference error is thrown so the
+		// operation has no side effects.
+		case UnOpTypeof:
+			if _, ok := e.Value.Data.(*EIdentifier); ok && e.ValueWasOriginallyIdentifier {
+				// Expressions such as "typeof x" never have any side effects
+				return true
+			}
+			return ExprCanBeRemovedIfUnused(e.Value, isUnbound)
+		}
+
+	case *EBinary:
+		switch e.Op {
+		// These operators must not have any type conversions that can execute code
+		// such as "toString" or "valueOf". They must also never throw any exceptions.
+		case BinOpStrictEq, BinOpStrictNe, BinOpComma, BinOpNullishCoalescing:
+			return ExprCanBeRemovedIfUnused(e.Left, isUnbound) && ExprCanBeRemovedIfUnused(e.Right, isUnbound)
+
+		// Special-case "||" to make sure "typeof x === 'undefined' || x" can be removed
+		case BinOpLogicalOr:
+			return ExprCanBeRemovedIfUnused(e.Left, isUnbound) &&
+				(isSideEffectFreeUnboundIdentifierRef(e.Right, e.Left, false, isUnbound) || ExprCanBeRemovedIfUnused(e.Right, isUnbound))
+
+		// Special-case "&&" to make sure "typeof x !== 'undefined' && x" can be removed
+		case BinOpLogicalAnd:
+			return ExprCanBeRemovedIfUnused(e.Left, isUnbound) &&
+				(isSideEffectFreeUnboundIdentifierRef(e.Right, e.Left, true, isUnbound) || ExprCanBeRemovedIfUnused(e.Right, isUnbound))
+
+		// For "==" and "!=", pretend the operator was actually "===" or "!==". If
+		// we know that we can convert it to "==" or "!=", then we can consider the
+		// operator itself to have no side effects. This matters because our mangle
+		// logic will convert "typeof x === 'object'" into "typeof x == 'object'"
+		// and since "typeof x === 'object'" is considered to be side-effect free,
+		// we must also consider "typeof x == 'object'" to be side-effect free.
+		case BinOpLooseEq, BinOpLooseNe:
+			return CanChangeStrictToLoose(e.Left, e.Right) && ExprCanBeRemovedIfUnused(e.Left, isUnbound) && ExprCanBeRemovedIfUnused(e.Right, isUnbound)
+
+		// Special-case "<" and ">" with string, number, or bigint arguments
+		case BinOpLt, BinOpGt, BinOpLe, BinOpGe:
+			left := KnownPrimitiveType(e.Left)
+			switch left {
+			case PrimitiveString, PrimitiveNumber, PrimitiveBigInt:
+				return KnownPrimitiveType(e.Right) == left && ExprCanBeRemovedIfUnused(e.Left, isUnbound) && ExprCanBeRemovedIfUnused(e.Right, isUnbound)
+			}
+		}
+
+	case *ETemplate:
+		// A template can be removed if it has no tag and every value has no side
+		// effects and results in some kind of primitive, since all primitives
+		// have a "ToString" operation with no side effects.
+		if e.TagOrNil.Data == nil {
+			for _, part := range e.Parts {
+				if !ExprCanBeRemovedIfUnused(part.Value, isUnbound) || KnownPrimitiveType(part.Value) == PrimitiveUnknown {
+					return false
+				}
+			}
+			return true
+		}
+	}
+
+	// Assume all other expression types have side effects and cannot be removed
+	return false
+}
+
+func isSideEffectFreeUnboundIdentifierRef(value Expr, guardCondition Expr, isYesBranch bool, isUnbound func(Ref) bool) bool {
+	if id, ok := value.Data.(*EIdentifier); ok && isUnbound(id.Ref) {
+		if binary, ok := guardCondition.Data.(*EBinary); ok {
+			switch binary.Op {
+			case BinOpStrictEq, BinOpStrictNe, BinOpLooseEq, BinOpLooseNe:
+				// Pattern match for "typeof x !== <string>"
+				typeof, string := binary.Left, binary.Right
+				if _, ok := typeof.Data.(*EString); ok {
+					typeof, string = string, typeof
+				}
+				if typeof, ok := typeof.Data.(*EUnary); ok && typeof.Op == UnOpTypeof && typeof.ValueWasOriginallyIdentifier {
+					if text, ok := string.Data.(*EString); ok {
+						// In "typeof x !== 'undefined' ? x : null", the reference to "x" is side-effect free
+						// In "typeof x === 'object' ? x : null", the reference to "x" is side-effect free
+						if (helpers.UTF16EqualsString(text.Value, "undefined") == isYesBranch) ==
+							(binary.Op == BinOpStrictNe || binary.Op == BinOpLooseNe) {
+							if id2, ok := typeof.Value.Data.(*EIdentifier); ok && id2.Ref == id.Ref {
+								return true
+							}
+						}
+					}
+				}
+
+			case BinOpLt, BinOpGt, BinOpLe, BinOpGe:
+				// Pattern match for "typeof x < <string>"
+				typeof, string := binary.Left, binary.Right
+				if _, ok := typeof.Data.(*EString); ok {
+					typeof, string = string, typeof
+					isYesBranch = !isYesBranch
+				}
+				if typeof, ok := typeof.Data.(*EUnary); ok && typeof.Op == UnOpTypeof && typeof.ValueWasOriginallyIdentifier {
+					if text, ok := string.Data.(*EString); ok && helpers.UTF16EqualsString(text.Value, "u") {
+						// In "typeof x < 'u' ? x : null", the reference to "x" is side-effect free
+						// In "typeof x > 'u' ? x : null", the reference to "x" is side-effect free
+						if isYesBranch == (binary.Op == BinOpLt || binary.Op == BinOpLe) {
+							if id2, ok := typeof.Value.Data.(*EIdentifier); ok && id2.Ref == id.Ref {
+								return true
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	return false
 }

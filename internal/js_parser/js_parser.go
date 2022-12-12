@@ -863,17 +863,6 @@ func isJumpStatement(data js_ast.S) bool {
 	return false
 }
 
-func isPrimitiveLiteral(data js_ast.E) bool {
-	switch e := data.(type) {
-	case *js_ast.EInlinedEnum:
-		return isPrimitiveLiteral(e.Value.Data)
-
-	case *js_ast.ENull, *js_ast.EUndefined, *js_ast.EString, *js_ast.EBoolean, *js_ast.ENumber, *js_ast.EBigInt:
-		return true
-	}
-	return false
-}
-
 // Returns true if the result of the "typeof" operator on this expression is
 // statically determined and this expression has no side effects (i.e. can be
 // removed without consequence).
@@ -8483,7 +8472,7 @@ func (p *parser) substituteSingleUseSymbolInStmt(stmt js_ast.Stmt, ref js_ast.Re
 		//   let replacement = [x];
 		//   return (x == x) + replacement;
 		//
-		replacementCanBeRemoved := p.exprCanBeRemovedIfUnused(replacement)
+		replacementCanBeRemoved := js_ast.ExprCanBeRemovedIfUnused(replacement, p.isUnbound)
 
 		if new, status := p.substituteSingleUseSymbolInExpr(*expr, ref, replacement, replacementCanBeRemoved); status == substituteSuccess {
 			*expr = new
@@ -8545,7 +8534,7 @@ func (p *parser) substituteSingleUseSymbolInExpr(
 		// always asynchronous so there is no way for the side effects to modify
 		// the replacement value. So it's ok to reorder the replacement value
 		// past the "import()" expression assuming everything else checks out.
-		if replacementCanBeRemoved && p.exprCanBeRemovedIfUnused(e.Expr) {
+		if replacementCanBeRemoved && js_ast.ExprCanBeRemovedIfUnused(e.Expr, p.isUnbound) {
 			return expr, substituteContinue
 		}
 
@@ -8574,7 +8563,7 @@ func (p *parser) substituteSingleUseSymbolInExpr(
 				e.Left = value
 				return expr, status
 			}
-		} else if !p.exprCanBeRemovedIfUnused(e.Left) {
+		} else if !js_ast.ExprCanBeRemovedIfUnused(e.Left, p.isUnbound) {
 			// Do not reorder past a side effect in an assignment target, as that may
 			// change the replacement value. For example, "fn()" may change "a" here:
 			//
@@ -8729,12 +8718,12 @@ func (p *parser) substituteSingleUseSymbolInExpr(
 
 	// If both the replacement and this expression have no observable side
 	// effects, then we can reorder the replacement past this expression
-	if replacementCanBeRemoved && p.exprCanBeRemovedIfUnused(expr) {
+	if replacementCanBeRemoved && js_ast.ExprCanBeRemovedIfUnused(expr, p.isUnbound) {
 		return expr, substituteContinue
 	}
 
 	// We can always reorder past primitive values
-	if isPrimitiveLiteral(expr.Data) {
+	if js_ast.IsPrimitiveLiteral(expr.Data) {
 		return expr, substituteContinue
 	}
 
@@ -9057,7 +9046,7 @@ func (p *parser) mangleIf(stmts []js_ast.Stmt, loc logger.Loc, s *js_ast.SIf) []
 		// "yes" is missing
 		if s.NoOrNil.Data == nil {
 			// "yes" and "no" are both missing
-			if p.exprCanBeRemovedIfUnused(s.Test) {
+			if js_ast.ExprCanBeRemovedIfUnused(s.Test, p.isUnbound) {
 				// "if (1) {}" => ""
 				return stmts
 			} else {
@@ -9132,7 +9121,7 @@ func (p *parser) mangleIfExpr(loc logger.Loc, e *js_ast.EIf) js_ast.Expr {
 
 	if js_ast.ValuesLookTheSame(e.Yes.Data, e.No.Data) {
 		// "/* @__PURE__ */ a() ? b : b" => "b"
-		if p.exprCanBeRemovedIfUnused(e.Test) {
+		if js_ast.ExprCanBeRemovedIfUnused(e.Test, p.isUnbound) {
 			return e.Yes
 		}
 
@@ -9223,7 +9212,7 @@ func (p *parser) mangleIfExpr(loc logger.Loc, e *js_ast.EIf) js_ast.Expr {
 			// without side effects. For example, if the test or the call target is
 			// an unbound identifier, reordering could potentially mean evaluating
 			// the code could throw a different ReferenceError.
-			if p.exprCanBeRemovedIfUnused(e.Test) && p.exprCanBeRemovedIfUnused(y.Target) {
+			if js_ast.ExprCanBeRemovedIfUnused(e.Test, p.isUnbound) && js_ast.ExprCanBeRemovedIfUnused(y.Target, p.isUnbound) {
 				sameTailArgs := true
 				for i, count := 1, len(y.Args); i < count; i++ {
 					if !js_ast.ValuesLookTheSame(y.Args[i].Data, n.Args[i].Data) {
@@ -9289,7 +9278,7 @@ func (p *parser) mangleIfExpr(loc logger.Loc, e *js_ast.EIf) js_ast.Expr {
 			}
 		}
 
-		if p.exprCanBeRemovedIfUnused(test) {
+		if js_ast.ExprCanBeRemovedIfUnused(test, p.isUnbound) {
 			// "a != null ? a : b" => "a ?? b"
 			if !p.options.unsupportedJSFeatures.Has(compat.NullishCoalescing) && js_ast.ValuesLookTheSame(test.Data, whenNonNull.Data) {
 				return js_ast.JoinWithLeftAssociativeOp(js_ast.BinOpNullishCoalescing, test, whenNull)
@@ -10209,7 +10198,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 					hasStringValue = true
 
 				default:
-					if !p.exprCanBeRemovedIfUnused(underlyingValue) {
+					if !js_ast.ExprCanBeRemovedIfUnused(underlyingValue, p.isUnbound) {
 						allValuesArePure = false
 					}
 				}
@@ -11230,17 +11219,11 @@ func (p *parser) warnAboutTypeofAndString(a js_ast.Expr, b js_ast.Expr, order ty
 	}
 }
 
-func canChangeStrictToLoose(a js_ast.Expr, b js_ast.Expr) bool {
-	x := js_ast.KnownPrimitiveType(a)
-	y := js_ast.KnownPrimitiveType(b)
-	return x == y && x != js_ast.PrimitiveUnknown && x != js_ast.PrimitiveMixed
-}
-
 func (p *parser) maybeSimplifyEqualityComparison(loc logger.Loc, e *js_ast.EBinary) (js_ast.Expr, bool) {
 	value, primitive := e.Left, e.Right
 
 	// Detect when the primitive comes first and flip the order of our checks
-	if isPrimitiveLiteral(value.Data) {
+	if js_ast.IsPrimitiveLiteral(value.Data) {
 		value, primitive = primitive, value
 	}
 
@@ -11484,7 +11467,7 @@ func (p *parser) maybeRewritePropertyAccess(
 				}
 
 				// This entire object literal must have no side effects
-				if !p.exprCanBeRemovedIfUnused(prop.ValueOrNil) {
+				if !js_ast.ExprCanBeRemovedIfUnused(prop.ValueOrNil, p.isUnbound) {
 					isUnsafe = true
 					break
 				}
@@ -12870,7 +12853,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			switch e.Op {
 			case js_ast.BinOpLooseEq, js_ast.BinOpLooseNe, js_ast.BinOpStrictEq, js_ast.BinOpStrictNe:
 				// "1 === x" => "x === 1"
-				if isPrimitiveLiteral(e.Left.Data) && !isPrimitiveLiteral(e.Right.Data) {
+				if js_ast.IsPrimitiveLiteral(e.Left.Data) && !js_ast.IsPrimitiveLiteral(e.Right.Data) {
 					e.Left, e.Right = e.Right, e.Left
 				}
 			}
@@ -12923,7 +12906,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 			if p.options.minifySyntax {
 				// "typeof x === 'undefined'" => "typeof x == 'undefined'"
-				if canChangeStrictToLoose(e.Left, e.Right) {
+				if js_ast.CanChangeStrictToLoose(e.Left, e.Right) {
 					e.Op = js_ast.BinOpLooseEq
 				}
 
@@ -12967,7 +12950,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 			if p.options.minifySyntax {
 				// "typeof x !== 'undefined'" => "typeof x != 'undefined'"
-				if canChangeStrictToLoose(e.Left, e.Right) {
+				if js_ast.CanChangeStrictToLoose(e.Left, e.Right) {
 					e.Op = js_ast.BinOpLooseNe
 				}
 
@@ -13723,7 +13706,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				}
 
 			case js_ast.UnOpVoid:
-				if p.exprCanBeRemovedIfUnused(e.Value) {
+				if js_ast.ExprCanBeRemovedIfUnused(e.Value, p.isUnbound) {
 					return js_ast.Expr{Loc: expr.Loc, Data: js_ast.EUndefinedShared}, exprOut{}
 				}
 
@@ -14149,7 +14132,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				// Attempt to discard them without changing side effects and generate an
 				// error if that isn't possible.
 				if p.options.unsupportedJSFeatures.Has(compat.ImportAssertions) {
-					if p.exprCanBeRemovedIfUnused(e.OptionsOrNil) {
+					if js_ast.ExprCanBeRemovedIfUnused(e.OptionsOrNil, p.isUnbound) {
 						e.OptionsOrNil = js_ast.Expr{}
 					} else {
 						p.markSyntaxFeature(compat.ImportAssertions, logger.Range{Loc: e.OptionsOrNil.Loc})
@@ -15603,14 +15586,14 @@ func (p *parser) appendPart(parts []js_ast.Part, stmts []js_ast.Stmt) []js_ast.P
 	}
 
 	if len(part.Stmts) > 0 {
-		var flags stmtsCanBeRemovedIfUnusedFlags
+		var flags js_ast.StmtsCanBeRemovedIfUnusedFlags
 		if p.options.mode == config.ModePassThrough {
 			// Exports are tracked separately, so export clauses can normally always
 			// be removed. Except we should keep them if we're not doing any format
 			// conversion because exports are not re-emitted in that case.
-			flags |= keepExportClauses
+			flags |= js_ast.KeepExportClauses
 		}
-		part.CanBeRemovedIfUnused = p.stmtsCanBeRemovedIfUnused(part.Stmts, flags)
+		part.CanBeRemovedIfUnused = js_ast.StmtsCanBeRemovedIfUnused(part.Stmts, flags, p.isUnbound)
 		part.DeclaredSymbols = p.declaredSymbols
 		part.ImportRecordIndices = p.importRecordsForCurrentPart
 		part.ImportSymbolPropertyUses = p.importSymbolPropertyUses
@@ -15619,363 +15602,6 @@ func (p *parser) appendPart(parts []js_ast.Part, stmts []js_ast.Stmt) []js_ast.P
 		parts = append(parts, part)
 	}
 	return parts
-}
-
-type stmtsCanBeRemovedIfUnusedFlags uint8
-
-const (
-	keepExportClauses stmtsCanBeRemovedIfUnusedFlags = 1 << iota
-)
-
-func (p *parser) stmtsCanBeRemovedIfUnused(stmts []js_ast.Stmt, flags stmtsCanBeRemovedIfUnusedFlags) bool {
-	for _, stmt := range stmts {
-		switch s := stmt.Data.(type) {
-		case *js_ast.SFunction, *js_ast.SEmpty:
-			// These never have side effects
-
-		case *js_ast.SImport:
-			// Let these be removed if they are unused. Note that we also need to
-			// check if the imported file is marked as "sideEffects: false" before we
-			// can remove a SImport statement. Otherwise the import must be kept for
-			// its side effects.
-
-		case *js_ast.SClass:
-			if !p.classCanBeRemovedIfUnused(s.Class) {
-				return false
-			}
-
-		case *js_ast.SExpr:
-			if s.DoesNotAffectTreeShaking {
-				// Expressions marked with this are automatically generated and have
-				// no side effects by construction.
-				break
-			}
-
-			if !p.exprCanBeRemovedIfUnused(s.Value) {
-				return false
-			}
-
-		case *js_ast.SLocal:
-			for _, decl := range s.Decls {
-				if _, ok := decl.Binding.Data.(*js_ast.BIdentifier); !ok {
-					return false
-				}
-				if decl.ValueOrNil.Data != nil && !p.exprCanBeRemovedIfUnused(decl.ValueOrNil) {
-					return false
-				}
-			}
-
-		case *js_ast.STry:
-			if !p.stmtsCanBeRemovedIfUnused(s.Block.Stmts, 0) || (s.Finally != nil && !p.stmtsCanBeRemovedIfUnused(s.Finally.Block.Stmts, 0)) {
-				return false
-			}
-
-		case *js_ast.SExportFrom:
-			// Exports are tracked separately, so this isn't necessary
-
-		case *js_ast.SExportClause:
-			if (flags & keepExportClauses) != 0 {
-				return false
-			}
-
-		case *js_ast.SExportDefault:
-			switch s2 := s.Value.Data.(type) {
-			case *js_ast.SExpr:
-				if !p.exprCanBeRemovedIfUnused(s2.Value) {
-					return false
-				}
-
-			case *js_ast.SFunction:
-				// These never have side effects
-
-			case *js_ast.SClass:
-				if !p.classCanBeRemovedIfUnused(s2.Class) {
-					return false
-				}
-
-			default:
-				panic("Internal error")
-			}
-
-		default:
-			// Assume that all statements not explicitly special-cased here have side
-			// effects, and cannot be removed even if unused
-			return false
-		}
-	}
-
-	return true
-}
-
-func (p *parser) classCanBeRemovedIfUnused(class js_ast.Class) bool {
-	if class.ExtendsOrNil.Data != nil && !p.exprCanBeRemovedIfUnused(class.ExtendsOrNil) {
-		return false
-	}
-
-	for _, property := range class.Properties {
-		if property.Kind == js_ast.PropertyClassStaticBlock {
-			if !p.stmtsCanBeRemovedIfUnused(property.ClassStaticBlock.Block.Stmts, 0) {
-				return false
-			}
-			continue
-		}
-
-		if property.Flags.Has(js_ast.PropertyIsComputed) && !isPrimitiveLiteral(property.Key.Data) {
-			return false
-		}
-
-		if property.Flags.Has(js_ast.PropertyIsStatic) {
-			if property.ValueOrNil.Data != nil && !p.exprCanBeRemovedIfUnused(property.ValueOrNil) {
-				return false
-			}
-
-			if property.InitializerOrNil.Data != nil && !p.exprCanBeRemovedIfUnused(property.InitializerOrNil) {
-				return false
-			}
-		}
-	}
-
-	return true
-}
-
-func (p *parser) exprCanBeRemovedIfUnused(expr js_ast.Expr) bool {
-	switch e := expr.Data.(type) {
-	case *js_ast.EInlinedEnum:
-		return p.exprCanBeRemovedIfUnused(e.Value)
-
-	case *js_ast.ENull, *js_ast.EUndefined, *js_ast.EMissing, *js_ast.EBoolean, *js_ast.ENumber, *js_ast.EBigInt,
-		*js_ast.EString, *js_ast.EThis, *js_ast.ERegExp, *js_ast.EFunction, *js_ast.EArrow, *js_ast.EImportMeta:
-		return true
-
-	case *js_ast.EDot:
-		return e.CanBeRemovedIfUnused
-
-	case *js_ast.EClass:
-		return p.classCanBeRemovedIfUnused(e.Class)
-
-	case *js_ast.EIdentifier:
-		if e.MustKeepDueToWithStmt {
-			return false
-		}
-
-		// Unbound identifiers cannot be removed because they can have side effects.
-		// One possible side effect is throwing a ReferenceError if they don't exist.
-		// Another one is a getter with side effects on the global object:
-		//
-		//   Object.defineProperty(globalThis, 'x', {
-		//     get() {
-		//       sideEffect();
-		//     },
-		//   });
-		//
-		// Be very careful about this possibility. It's tempting to treat all
-		// identifier expressions as not having side effects but that's wrong. We
-		// must make sure they have been declared by the code we are currently
-		// compiling before we can tell that they have no side effects.
-		//
-		// Note that we currently ignore ReferenceErrors due to TDZ access. This is
-		// incorrect but proper TDZ analysis is very complicated and would have to
-		// be very conservative, which would inhibit a lot of optimizations of code
-		// inside closures. This may need to be revisited if it proves problematic.
-		if e.CanBeRemovedIfUnused || p.symbols[e.Ref.InnerIndex].Kind != js_ast.SymbolUnbound {
-			return true
-		}
-
-	case *js_ast.EImportIdentifier:
-		// References to an ES6 import item are always side-effect free in an
-		// ECMAScript environment.
-		//
-		// They could technically have side effects if the imported module is a
-		// CommonJS module and the import item was translated to a property access
-		// (which esbuild's bundler does) and the property has a getter with side
-		// effects.
-		//
-		// But this is very unlikely and respecting this edge case would mean
-		// disabling tree shaking of all code that references an export from a
-		// CommonJS module. It would also likely violate the expectations of some
-		// developers because the code *looks* like it should be able to be tree
-		// shaken.
-		//
-		// So we deliberately ignore this edge case and always treat import item
-		// references as being side-effect free.
-		return true
-
-	case *js_ast.EIf:
-		return p.exprCanBeRemovedIfUnused(e.Test) &&
-			((p.isSideEffectFreeUnboundIdentifierRef(e.Yes, e.Test, true) || p.exprCanBeRemovedIfUnused(e.Yes)) &&
-				(p.isSideEffectFreeUnboundIdentifierRef(e.No, e.Test, false) || p.exprCanBeRemovedIfUnused(e.No)))
-
-	case *js_ast.EArray:
-		for _, item := range e.Items {
-			if !p.exprCanBeRemovedIfUnused(item) {
-				return false
-			}
-		}
-		return true
-
-	case *js_ast.EObject:
-		for _, property := range e.Properties {
-			// The key must still be evaluated if it's computed or a spread
-			if property.Kind == js_ast.PropertySpread || (property.Flags.Has(js_ast.PropertyIsComputed) && !isPrimitiveLiteral(property.Key.Data)) {
-				return false
-			}
-			if property.ValueOrNil.Data != nil && !p.exprCanBeRemovedIfUnused(property.ValueOrNil) {
-				return false
-			}
-		}
-		return true
-
-	case *js_ast.ECall:
-		canCallBeRemoved := e.CanBeUnwrappedIfUnused
-
-		// Consider calls to our runtime "__publicField" function to be free of
-		// side effects for the purpose of expression removal. This allows class
-		// declarations with lowered static fields to be eligible for tree shaking.
-		if e.Kind == js_ast.InternalPublicFieldCall {
-			canCallBeRemoved = true
-		}
-
-		// A call that has been marked "__PURE__" can be removed if all arguments
-		// can be removed. The annotation causes us to ignore the target.
-		if canCallBeRemoved {
-			for _, arg := range e.Args {
-				if !p.exprCanBeRemovedIfUnused(arg) {
-					return false
-				}
-			}
-			return true
-		}
-
-	case *js_ast.ENew:
-		// A constructor call that has been marked "__PURE__" can be removed if all
-		// arguments can be removed. The annotation causes us to ignore the target.
-		if e.CanBeUnwrappedIfUnused {
-			for _, arg := range e.Args {
-				if !p.exprCanBeRemovedIfUnused(arg) {
-					return false
-				}
-			}
-			return true
-		}
-
-	case *js_ast.EUnary:
-		switch e.Op {
-		// These operators must not have any type conversions that can execute code
-		// such as "toString" or "valueOf". They must also never throw any exceptions.
-		case js_ast.UnOpVoid, js_ast.UnOpNot:
-			return p.exprCanBeRemovedIfUnused(e.Value)
-
-		// The "typeof" operator doesn't do any type conversions so it can be removed
-		// if the result is unused and the operand has no side effects. However, it
-		// has a special case where if the operand is an identifier expression such
-		// as "typeof x" and "x" doesn't exist, no reference error is thrown so the
-		// operation has no side effects.
-		case js_ast.UnOpTypeof:
-			if _, ok := e.Value.Data.(*js_ast.EIdentifier); ok && e.ValueWasOriginallyIdentifier {
-				// Expressions such as "typeof x" never have any side effects
-				return true
-			}
-			return p.exprCanBeRemovedIfUnused(e.Value)
-		}
-
-	case *js_ast.EBinary:
-		switch e.Op {
-		// These operators must not have any type conversions that can execute code
-		// such as "toString" or "valueOf". They must also never throw any exceptions.
-		case js_ast.BinOpStrictEq, js_ast.BinOpStrictNe, js_ast.BinOpComma, js_ast.BinOpNullishCoalescing:
-			return p.exprCanBeRemovedIfUnused(e.Left) && p.exprCanBeRemovedIfUnused(e.Right)
-
-		// Special-case "||" to make sure "typeof x === 'undefined' || x" can be removed
-		case js_ast.BinOpLogicalOr:
-			return p.exprCanBeRemovedIfUnused(e.Left) &&
-				(p.isSideEffectFreeUnboundIdentifierRef(e.Right, e.Left, false) || p.exprCanBeRemovedIfUnused(e.Right))
-
-		// Special-case "&&" to make sure "typeof x !== 'undefined' && x" can be removed
-		case js_ast.BinOpLogicalAnd:
-			return p.exprCanBeRemovedIfUnused(e.Left) &&
-				(p.isSideEffectFreeUnboundIdentifierRef(e.Right, e.Left, true) || p.exprCanBeRemovedIfUnused(e.Right))
-
-		// For "==" and "!=", pretend the operator was actually "===" or "!==". If
-		// we know that we can convert it to "==" or "!=", then we can consider the
-		// operator itself to have no side effects. This matters because our mangle
-		// logic will convert "typeof x === 'object'" into "typeof x == 'object'"
-		// and since "typeof x === 'object'" is considered to be side-effect free,
-		// we must also consider "typeof x == 'object'" to be side-effect free.
-		case js_ast.BinOpLooseEq, js_ast.BinOpLooseNe:
-			return canChangeStrictToLoose(e.Left, e.Right) && p.exprCanBeRemovedIfUnused(e.Left) && p.exprCanBeRemovedIfUnused(e.Right)
-
-		// Special-case "<" and ">" with string, number, or bigint arguments
-		case js_ast.BinOpLt, js_ast.BinOpGt, js_ast.BinOpLe, js_ast.BinOpGe:
-			left := js_ast.KnownPrimitiveType(e.Left)
-			switch left {
-			case js_ast.PrimitiveString, js_ast.PrimitiveNumber, js_ast.PrimitiveBigInt:
-				return js_ast.KnownPrimitiveType(e.Right) == left && p.exprCanBeRemovedIfUnused(e.Left) && p.exprCanBeRemovedIfUnused(e.Right)
-			}
-		}
-
-	case *js_ast.ETemplate:
-		// A template can be removed if it has no tag and every value has no side
-		// effects and results in some kind of primitive, since all primitives
-		// have a "ToString" operation with no side effects.
-		if e.TagOrNil.Data == nil {
-			for _, part := range e.Parts {
-				if !p.exprCanBeRemovedIfUnused(part.Value) || js_ast.KnownPrimitiveType(part.Value) == js_ast.PrimitiveUnknown {
-					return false
-				}
-			}
-			return true
-		}
-	}
-
-	// Assume all other expression types have side effects and cannot be removed
-	return false
-}
-
-func (p *parser) isSideEffectFreeUnboundIdentifierRef(value js_ast.Expr, guardCondition js_ast.Expr, isYesBranch bool) bool {
-	if id, ok := value.Data.(*js_ast.EIdentifier); ok && p.symbols[id.Ref.InnerIndex].Kind == js_ast.SymbolUnbound {
-		if binary, ok := guardCondition.Data.(*js_ast.EBinary); ok {
-			switch binary.Op {
-			case js_ast.BinOpStrictEq, js_ast.BinOpStrictNe, js_ast.BinOpLooseEq, js_ast.BinOpLooseNe:
-				// Pattern match for "typeof x !== <string>"
-				typeof, string := binary.Left, binary.Right
-				if _, ok := typeof.Data.(*js_ast.EString); ok {
-					typeof, string = string, typeof
-				}
-				if typeof, ok := typeof.Data.(*js_ast.EUnary); ok && typeof.Op == js_ast.UnOpTypeof && typeof.ValueWasOriginallyIdentifier {
-					if text, ok := string.Data.(*js_ast.EString); ok {
-						// In "typeof x !== 'undefined' ? x : null", the reference to "x" is side-effect free
-						// In "typeof x === 'object' ? x : null", the reference to "x" is side-effect free
-						if (helpers.UTF16EqualsString(text.Value, "undefined") == isYesBranch) ==
-							(binary.Op == js_ast.BinOpStrictNe || binary.Op == js_ast.BinOpLooseNe) {
-							if id2, ok := typeof.Value.Data.(*js_ast.EIdentifier); ok && id2.Ref == id.Ref {
-								return true
-							}
-						}
-					}
-				}
-
-			case js_ast.BinOpLt, js_ast.BinOpGt, js_ast.BinOpLe, js_ast.BinOpGe:
-				// Pattern match for "typeof x < <string>"
-				typeof, string := binary.Left, binary.Right
-				if _, ok := typeof.Data.(*js_ast.EString); ok {
-					typeof, string = string, typeof
-					isYesBranch = !isYesBranch
-				}
-				if typeof, ok := typeof.Data.(*js_ast.EUnary); ok && typeof.Op == js_ast.UnOpTypeof && typeof.ValueWasOriginallyIdentifier {
-					if text, ok := string.Data.(*js_ast.EString); ok && helpers.UTF16EqualsString(text.Value, "u") {
-						// In "typeof x < 'u' ? x : null", the reference to "x" is side-effect free
-						// In "typeof x > 'u' ? x : null", the reference to "x" is side-effect free
-						if isYesBranch == (binary.Op == js_ast.BinOpLt || binary.Op == js_ast.BinOpLe) {
-							if id2, ok := typeof.Value.Data.(*js_ast.EIdentifier); ok && id2.Ref == id.Ref {
-								return true
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-	return false
 }
 
 func newParser(log logger.Log, source logger.Source, lexer js_lexer.Lexer, options *Options) *parser {
