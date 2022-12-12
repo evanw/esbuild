@@ -13723,7 +13723,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 		// "foo(1, ...[2, 3], 4)" => "foo(1, 2, 3, 4)"
-		if p.options.minifySyntax && hasSpread && in.assignTarget == js_ast.AssignTargetNone {
+		if p.options.minifySyntax && hasSpread {
 			e.Args = js_ast.InlineSpreadsOfArrayLiterals(e.Args)
 		}
 
@@ -13984,7 +13984,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 		// "new foo(1, ...[2, 3], 4)" => "new foo(1, 2, 3, 4)"
-		if p.options.minifySyntax && hasSpread && in.assignTarget == js_ast.AssignTargetNone {
+		if p.options.minifySyntax && hasSpread {
 			e.Args = js_ast.InlineSpreadsOfArrayLiterals(e.Args)
 		}
 
