@@ -3248,11 +3248,11 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 		if p.lexer.Token == js_lexer.TAsteriskAsterisk {
 			p.lexer.Unexpected()
 		}
-		_, valueWasOriginallyIdentifier := value.Data.(*js_ast.EIdentifier)
+		_, valueIsIdentifier := value.Data.(*js_ast.EIdentifier)
 		return js_ast.Expr{Loc: loc, Data: &js_ast.EUnary{
-			Op:                           js_ast.UnOpTypeof,
-			Value:                        value,
-			ValueWasOriginallyIdentifier: valueWasOriginallyIdentifier,
+			Op:                            js_ast.UnOpTypeof,
+			Value:                         value,
+			WasOriginallyTypeofIdentifier: valueIsIdentifier,
 		}}
 
 	case js_lexer.TDelete:
@@ -3268,11 +3268,11 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 				p.log.AddError(&p.tracker, r, fmt.Sprintf("Deleting the private name %q is forbidden", name))
 			}
 		}
-		_, valueWasOriginallyIdentifier := value.Data.(*js_ast.EIdentifier)
+		_, valueIsIdentifier := value.Data.(*js_ast.EIdentifier)
 		return js_ast.Expr{Loc: loc, Data: &js_ast.EUnary{
-			Op:                           js_ast.UnOpDelete,
-			Value:                        value,
-			ValueWasOriginallyIdentifier: valueWasOriginallyIdentifier,
+			Op:    js_ast.UnOpDelete,
+			Value: value,
+			WasOriginallyDeleteOfIdentifierOrPropertyAccess: valueIsIdentifier || js_ast.IsPropertyAccess(value),
 		}}
 
 	case js_lexer.TPlus:
@@ -11483,16 +11483,6 @@ func locAfterOp(e *js_ast.EBinary) logger.Loc {
 	}
 }
 
-func canBeDeleted(expr js_ast.Expr) bool {
-	switch e := expr.Data.(type) {
-	case *js_ast.EIdentifier, *js_ast.EDot, *js_ast.EIndex:
-		return true
-	case *js_ast.ENumber:
-		return math.IsInf(e.Value, 1) || math.IsNaN(e.Value)
-	}
-	return false
-}
-
 // This function exists to tie all of these checks together in one place
 func isEvalOrArguments(name string) bool {
 	return name == "eval" || name == "arguments"
@@ -13060,35 +13050,13 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 
 			p.deleteTarget = e.Value.Data
-			canBeDeletedBefore := canBeDeleted(e.Value)
 			value, out := p.visitExprInOut(e.Value, exprIn{hasChainParent: true})
 			e.Value = value
-			canBeDeletedAfter := canBeDeleted(e.Value)
 
 			// Lower optional chaining if present since we're guaranteed to be the
 			// end of the chain
 			if out.childContainsOptionalChain {
 				return p.lowerOptionalChain(expr, in, out)
-			}
-
-			// Make sure we don't accidentally change the return value
-			//
-			//   Returns false:
-			//     "var a; delete (a)"
-			//     "var a = Object.freeze({b: 1}); delete (a.b)"
-			//     "var a = Object.freeze({b: 1}); delete (a?.b)"
-			//     "var a = Object.freeze({b: 1}); delete (a['b'])"
-			//     "var a = Object.freeze({b: 1}); delete (a?.['b'])"
-			//
-			//   Returns true:
-			//     "var a; delete (0, a)"
-			//     "var a = Object.freeze({b: 1}); delete (true && a.b)"
-			//     "var a = Object.freeze({b: 1}); delete (false || a?.b)"
-			//     "var a = Object.freeze({b: 1}); delete (null ?? a?.['b'])"
-			//     "var a = Object.freeze({b: 1}); delete (true ? a['b'] : a['b'])"
-			//
-			if canBeDeletedAfter && !canBeDeletedBefore {
-				e.Value = js_ast.JoinWithComma(js_ast.Expr{Loc: e.Value.Loc, Data: &js_ast.ENumber{}}, e.Value)
 			}
 
 		default:

@@ -15,10 +15,8 @@ func IsPropertyAccess(expr Expr) bool {
 	switch expr.Data.(type) {
 	case *EDot, *EIndex:
 		return true
-
-	default:
-		return false
 	}
+	return false
 }
 
 func IsOptionalChain(value Expr) bool {
@@ -690,7 +688,7 @@ func SimplifyUnusedExpr(expr Expr, unsupportedFeatures compat.JSFeature, isUnbou
 			return SimplifyUnusedExpr(e.Value, unsupportedFeatures, isUnbound)
 
 		case UnOpTypeof:
-			if _, ok := e.Value.Data.(*EIdentifier); ok && e.ValueWasOriginallyIdentifier {
+			if _, ok := e.Value.Data.(*EIdentifier); ok && e.WasOriginallyTypeofIdentifier {
 				// "typeof x" must not be transformed into if "x" since doing so could
 				// cause an exception to be thrown. Instead we can just remove it since
 				// "typeof x" is special-cased in the standard to never throw.
@@ -1399,7 +1397,7 @@ func ToNullOrUndefinedWithSideEffects(data E) (isNullOrUndefined bool, sideEffec
 
 		// Always boolean
 		case UnOpTypeof:
-			if e.ValueWasOriginallyIdentifier {
+			if e.WasOriginallyTypeofIdentifier {
 				// Expressions such as "typeof x" never have any side effects
 				return false, NoSideEffects, true
 			}
@@ -1470,7 +1468,7 @@ func ToBooleanWithSideEffects(data E) (boolean bool, SideEffects SideEffects, ok
 
 		case UnOpTypeof:
 			// Never an empty string
-			if e.ValueWasOriginallyIdentifier {
+			if e.WasOriginallyTypeofIdentifier {
 				// Expressions such as "typeof x" never have any side effects
 				return true, NoSideEffects, true
 			}
@@ -1838,7 +1836,7 @@ func ExprCanBeRemovedIfUnused(expr Expr, isUnbound func(Ref) bool) bool {
 		// as "typeof x" and "x" doesn't exist, no reference error is thrown so the
 		// operation has no side effects.
 		case UnOpTypeof:
-			if _, ok := e.Value.Data.(*EIdentifier); ok && e.ValueWasOriginallyIdentifier {
+			if _, ok := e.Value.Data.(*EIdentifier); ok && e.WasOriginallyTypeofIdentifier {
 				// Expressions such as "typeof x" never have any side effects
 				return true
 			}
@@ -1908,7 +1906,7 @@ func isSideEffectFreeUnboundIdentifierRef(value Expr, guardCondition Expr, isYes
 				if _, ok := typeof.Data.(*EString); ok {
 					typeof, string = string, typeof
 				}
-				if typeof, ok := typeof.Data.(*EUnary); ok && typeof.Op == UnOpTypeof && typeof.ValueWasOriginallyIdentifier {
+				if typeof, ok := typeof.Data.(*EUnary); ok && typeof.Op == UnOpTypeof && typeof.WasOriginallyTypeofIdentifier {
 					if text, ok := string.Data.(*EString); ok {
 						// In "typeof x !== 'undefined' ? x : null", the reference to "x" is side-effect free
 						// In "typeof x === 'object' ? x : null", the reference to "x" is side-effect free
@@ -1928,7 +1926,7 @@ func isSideEffectFreeUnboundIdentifierRef(value Expr, guardCondition Expr, isYes
 					typeof, string = string, typeof
 					isYesBranch = !isYesBranch
 				}
-				if typeof, ok := typeof.Data.(*EUnary); ok && typeof.Op == UnOpTypeof && typeof.ValueWasOriginallyIdentifier {
+				if typeof, ok := typeof.Data.(*EUnary); ok && typeof.Op == UnOpTypeof && typeof.WasOriginallyTypeofIdentifier {
 					if text, ok := string.Data.(*EString); ok && helpers.UTF16EqualsString(text.Value, "u") {
 						// In "typeof x < 'u' ? x : null", the reference to "x" is side-effect free
 						// In "typeof x > 'u' ? x : null", the reference to "x" is side-effect free

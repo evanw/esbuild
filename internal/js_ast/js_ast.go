@@ -457,9 +457,6 @@ type EUnary struct {
 	// The expression "typeof (0, x)" must not become "typeof x" if "x"
 	// is unbound because that could suppress a ReferenceError from "x".
 	//
-	// Similarly the expression "delete (0, x)" must not become "delete x"
-	// because that syntax is invalid in strict mode.
-	//
 	// Also if we know a typeof operator was originally an identifier, then
 	// we know that this typeof operator always has no side effects (even if
 	// we consider the identifier by itself to have a side effect).
@@ -468,7 +465,27 @@ type EUnary struct {
 	// when "x" is being referenced inside of its TDZ (temporal dead zone). TDZ
 	// checks are not yet handled correctly by esbuild, so this possibility is
 	// currently ignored.
-	ValueWasOriginallyIdentifier bool
+	WasOriginallyTypeofIdentifier bool
+
+	// Similarly the expression "delete (0, x)" must not become "delete x"
+	// because that syntax is invalid in strict mode. We also need to make sure
+	// we don't accidentally change the return value:
+	//
+	//   Returns false:
+	//     "var a; delete (a)"
+	//     "var a = Object.freeze({b: 1}); delete (a.b)"
+	//     "var a = Object.freeze({b: 1}); delete (a?.b)"
+	//     "var a = Object.freeze({b: 1}); delete (a['b'])"
+	//     "var a = Object.freeze({b: 1}); delete (a?.['b'])"
+	//
+	//   Returns true:
+	//     "var a; delete (0, a)"
+	//     "var a = Object.freeze({b: 1}); delete (true && a.b)"
+	//     "var a = Object.freeze({b: 1}); delete (false || a?.b)"
+	//     "var a = Object.freeze({b: 1}); delete (null ?? a?.['b'])"
+	//     "var a = Object.freeze({b: 1}); delete (true ? a['b'] : a['b'])"
+	//
+	WasOriginallyDeleteOfIdentifierOrPropertyAccess bool
 }
 
 type EBinary struct {

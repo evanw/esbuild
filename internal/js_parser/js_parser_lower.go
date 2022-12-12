@@ -768,6 +768,10 @@ flatten:
 			result = js_ast.Expr{Loc: loc, Data: &js_ast.EUnary{
 				Op:    js_ast.UnOpDelete,
 				Value: result,
+
+				// If a delete of an optional chain takes place, it behaves as if the
+				// optional chain isn't there with regard to the "delete" semantics.
+				WasOriginallyDeleteOfIdentifierOrPropertyAccess: e.WasOriginallyDeleteOfIdentifierOrPropertyAccess,
 			}}
 
 		default:

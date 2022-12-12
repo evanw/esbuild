@@ -1505,6 +1505,21 @@ func (p *printer) lateConstantFoldUnaryOrBinaryExpr(expr js_ast.Expr) js_ast.Exp
 	return expr
 }
 
+func (p *printer) isUnboundIdentifier(expr js_ast.Expr) bool {
+	id, ok := expr.Data.(*js_ast.EIdentifier)
+	return ok && p.symbols.Get(js_ast.FollowSymbols(p.symbols, id.Ref)).Kind == js_ast.SymbolUnbound
+}
+
+func (p *printer) isIdentifierOrNumericConstantOrPropertyAccess(expr js_ast.Expr) bool {
+	switch e := expr.Data.(type) {
+	case *js_ast.EIdentifier, *js_ast.EDot, *js_ast.EIndex:
+		return true
+	case *js_ast.ENumber:
+		return math.IsInf(e.Value, 1) || math.IsNaN(e.Value)
+	}
+	return false
+}
+
 type printExprFlags uint16
 
 const (
@@ -2545,10 +2560,8 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			}
 
 			// Never turn "typeof (0, x)" into "typeof x" or "delete (0, x)" into "delete x"
-			if id, ok := e.Value.Data.(*js_ast.EIdentifier); ok &&
-				(e.Op == js_ast.UnOpDelete || e.Op == js_ast.UnOpTypeof) &&
-				!e.ValueWasOriginallyIdentifier &&
-				p.symbols.Get(js_ast.FollowSymbols(p.symbols, id.Ref)).Kind == js_ast.SymbolUnbound {
+			if (e.Op == js_ast.UnOpTypeof && !e.WasOriginallyTypeofIdentifier && p.isUnboundIdentifier(e.Value)) ||
+				(e.Op == js_ast.UnOpDelete && !e.WasOriginallyDeleteOfIdentifierOrPropertyAccess && p.isIdentifierOrNumericConstantOrPropertyAccess(e.Value)) {
 				p.print("(0,")
 				p.printSpace()
 				p.printExpr(e.Value, js_ast.LPrefix-1, valueFlags)
