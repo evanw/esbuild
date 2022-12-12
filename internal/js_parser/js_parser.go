@@ -15603,7 +15603,14 @@ func (p *parser) appendPart(parts []js_ast.Part, stmts []js_ast.Stmt) []js_ast.P
 	}
 
 	if len(part.Stmts) > 0 {
-		part.CanBeRemovedIfUnused = p.stmtsCanBeRemovedIfUnused(part.Stmts)
+		var flags stmtsCanBeRemovedIfUnusedFlags
+		if p.options.mode == config.ModePassThrough {
+			// Exports are tracked separately, so export clauses can normally always
+			// be removed. Except we should keep them if we're not doing any format
+			// conversion because exports are not re-emitted in that case.
+			flags |= keepExportClauses
+		}
+		part.CanBeRemovedIfUnused = p.stmtsCanBeRemovedIfUnused(part.Stmts, flags)
 		part.DeclaredSymbols = p.declaredSymbols
 		part.ImportRecordIndices = p.importRecordsForCurrentPart
 		part.ImportSymbolPropertyUses = p.importSymbolPropertyUses
@@ -15614,7 +15621,13 @@ func (p *parser) appendPart(parts []js_ast.Part, stmts []js_ast.Stmt) []js_ast.P
 	return parts
 }
 
-func (p *parser) stmtsCanBeRemovedIfUnused(stmts []js_ast.Stmt) bool {
+type stmtsCanBeRemovedIfUnusedFlags uint8
+
+const (
+	keepExportClauses stmtsCanBeRemovedIfUnusedFlags = 1 << iota
+)
+
+func (p *parser) stmtsCanBeRemovedIfUnused(stmts []js_ast.Stmt, flags stmtsCanBeRemovedIfUnusedFlags) bool {
 	for _, stmt := range stmts {
 		switch s := stmt.Data.(type) {
 		case *js_ast.SFunction, *js_ast.SEmpty:
@@ -15653,7 +15666,7 @@ func (p *parser) stmtsCanBeRemovedIfUnused(stmts []js_ast.Stmt) bool {
 			}
 
 		case *js_ast.STry:
-			if !p.stmtsCanBeRemovedIfUnused(s.Block.Stmts) || (s.Finally != nil && !p.stmtsCanBeRemovedIfUnused(s.Finally.Block.Stmts)) {
+			if !p.stmtsCanBeRemovedIfUnused(s.Block.Stmts, 0) || (s.Finally != nil && !p.stmtsCanBeRemovedIfUnused(s.Finally.Block.Stmts, 0)) {
 				return false
 			}
 
@@ -15661,10 +15674,7 @@ func (p *parser) stmtsCanBeRemovedIfUnused(stmts []js_ast.Stmt) bool {
 			// Exports are tracked separately, so this isn't necessary
 
 		case *js_ast.SExportClause:
-			// Exports are tracked separately, so this isn't necessary. Except we
-			// should keep all of these statements if we're not doing any format
-			// conversion, because exports are not re-emitted in that case.
-			if p.options.mode == config.ModePassThrough {
+			if (flags & keepExportClauses) != 0 {
 				return false
 			}
 
@@ -15704,7 +15714,7 @@ func (p *parser) classCanBeRemovedIfUnused(class js_ast.Class) bool {
 
 	for _, property := range class.Properties {
 		if property.Kind == js_ast.PropertyClassStaticBlock {
-			if !p.stmtsCanBeRemovedIfUnused(property.ClassStaticBlock.Block.Stmts) {
+			if !p.stmtsCanBeRemovedIfUnused(property.ClassStaticBlock.Block.Stmts, 0) {
 				return false
 			}
 			continue
