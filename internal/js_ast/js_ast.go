@@ -528,6 +528,7 @@ const (
 	NormalCall CallKind = iota
 	DirectEval
 	TargetWasOriginallyPropertyAccess
+	InternalPublicFieldCall
 )
 
 type OptionalChain uint8

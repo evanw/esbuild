@@ -2528,11 +2528,17 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 					})
 					p.recordUsage(ref)
 				} else if private == nil && classLoweringInfo.useDefineForClassFields {
+					var args []js_ast.Expr
 					if _, ok := init.Data.(*js_ast.EUndefined); ok {
-						memberExpr = p.callRuntime(loc, "__publicField", []js_ast.Expr{target, prop.Key})
+						args = []js_ast.Expr{target, prop.Key}
 					} else {
-						memberExpr = p.callRuntime(loc, "__publicField", []js_ast.Expr{target, prop.Key, init})
+						args = []js_ast.Expr{target, prop.Key, init}
 					}
+					memberExpr = js_ast.Expr{Loc: loc, Data: &js_ast.ECall{
+						Target: p.importFromRuntime(loc, "__publicField"),
+						Args:   args,
+						Kind:   js_ast.InternalPublicFieldCall,
+					}}
 				} else {
 					if key, ok := prop.Key.Data.(*js_ast.EString); ok && !prop.Flags.Has(js_ast.PropertyIsComputed) && !prop.Flags.Has(js_ast.PropertyPreferQuotedKey) {
 						target = js_ast.Expr{Loc: loc, Data: &js_ast.EDot{
