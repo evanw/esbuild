@@ -2179,6 +2179,64 @@ func TestPackageJsonExportsPatternTrailers(t *testing.T) {
 	})
 }
 
+// Node's package.json format for "exports" allows for arrays to be used as map
+// values, like in the example below. Webpack's implementation interprets this
+// as a way to specify several alternative directories to search for packages.
+// See: https://webpack.js.org/guides/package-exports/#alternatives. However,
+// this doesn't follow Node's specification for how "exports" should work:
+// https://nodejs.org/api/esm.html#resolver-algorithm. Also no one else
+// implements it this way (e.g. both Node and Rollup don't do this).
+//
+// This test case can only be built by Webpack. Implementations that follow the
+// specification (including esbuild) will fail to build this test case. This
+// test case only exists to document that esbuild doesn't follow Webpack's
+// behavior here.
+func TestPackageJsonExportsAlternatives(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import redApple from 'pkg/apples/red.js'
+				import greenApple from 'pkg/apples/green.js'
+				import redBook from 'pkg/books/red'
+				import greenBook from 'pkg/books/green'
+				console.log({redApple, greenApple, redBook, greenBook})
+			`,
+			"/Users/user/project/node_modules/pkg/package.json": `
+				{
+					"exports": {
+						"./apples/": ["./good-apples/", "./bad-apples/"],
+						"./books/*": ["./good-books/*-book.js", "./bad-books/*-book.js"]
+					}
+				}
+			`,
+			"/Users/user/project/node_modules/pkg/good-apples/green.js": `
+				export default '🍏'
+			`,
+			"/Users/user/project/node_modules/pkg/bad-apples/red.js": `
+				export default '🍎'
+			`,
+			"/Users/user/project/node_modules/pkg/good-books/green-book.js": `
+				export default '📗'
+			`,
+			"/Users/user/project/node_modules/pkg/bad-books/red-book.js": `
+				export default '📕'
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expectedScanLog: `Users/user/project/src/entry.js: ERROR: Could not resolve "pkg/apples/red.js"
+Users/user/project/node_modules/pkg/package.json: NOTE: The module "./good-apples/red.js" was not found on the file system:
+NOTE: You can mark the path "pkg/apples/red.js" as external to exclude it from the bundle, which will remove this error.
+Users/user/project/src/entry.js: ERROR: Could not resolve "pkg/books/red"
+Users/user/project/node_modules/pkg/package.json: NOTE: The module "./good-books/red-book.js" was not found on the file system:
+NOTE: You can mark the path "pkg/books/red" as external to exclude it from the bundle, which will remove this error.
+`,
+	})
+}
+
 func TestPackageJsonImports(t *testing.T) {
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
