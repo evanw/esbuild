@@ -360,7 +360,7 @@ func (rr *resolver) Resolve(sourceDir string, importPath string, kind ast.Import
 	}
 
 	// "import 'pkg'" when all packages are external (vs. "import './pkg'")
-	if r.options.ExternalPackages && IsPackagePath(importPath) && !r.fs.IsAbs(importPath) {
+	if r.options.ExternalPackages && IsPackagePath(importPath) && !r.fs.IsAbs(importPath) && !strings.HasPrefix(importPath, "#") {
 		if r.debugLogs != nil {
 			r.debugLogs.addNote("Marking this path as external because it's a package path")
 		}

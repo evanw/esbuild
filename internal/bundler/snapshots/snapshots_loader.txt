@@ -60,14 +60,17 @@ a:after {
 ================================================================================
 TestExternalPackages
 ---------- /out.js ----------
-// entry.js
+// project/entry.js
 import "pkg1";
 
-// file.js
+// project/file.js
 console.log("file");
 
-// node_modules/pkg2/index.js
+// project/node_modules/pkg2/index.js
 console.log("pkg2");
+
+// project/libs/pkg3.js
+console.log("pkg3");
 
 ================================================================================
 TestIndirectRequireMessage
