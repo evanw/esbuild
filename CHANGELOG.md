@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.16.5
 
 * Make it easy to exclude all packages from a bundle ([#1958](https://github.com/evanw/esbuild/issues/1958), [#1975](https://github.com/evanw/esbuild/issues/1975), [#2164](https://github.com/evanw/esbuild/issues/2164), [#2246](https://github.com/evanw/esbuild/issues/2246), [#2542](https://github.com/evanw/esbuild/issues/2542))
 
