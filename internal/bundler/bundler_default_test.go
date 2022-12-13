@@ -7079,3 +7079,27 @@ NOTE: You can either keep the import assertion and only use the "default" import
 `,
 	})
 }
+
+func TestExternalPackages(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import 'pkg1'
+				import './file'
+				import './node_modules/pkg2/index.js'
+			`,
+			"/file.js": `
+				console.log('file')
+			`,
+			"/node_modules/pkg2/index.js": `
+				console.log('pkg2')
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:             config.ModeBundle,
+			AbsOutputFile:    "/out.js",
+			ExternalPackages: true,
+		},
+	})
+}

@@ -1002,6 +1002,7 @@ func rebuildImpl(
 		ExtensionToLoader:     validateLoaders(log, buildOpts.Loader),
 		ExtensionOrder:        validateResolveExtensions(log, buildOpts.ResolveExtensions),
 		ExternalSettings:      validateExternals(log, realFS, buildOpts.External),
+		ExternalPackages:      buildOpts.Packages == PackagesExternal,
 		PackageAliases:        validateAlias(log, realFS, buildOpts.Alias),
 		TsConfigOverride:      validatePath(log, realFS, buildOpts.Tsconfig, "tsconfig path"),
 		MainFields:            buildOpts.MainFields,

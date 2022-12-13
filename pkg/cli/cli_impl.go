@@ -596,6 +596,19 @@ func parseOptionsImpl(
 				transformOpts.Format = format
 			}
 
+		case strings.HasPrefix(arg, "--packages=") && buildOpts != nil:
+			value := arg[len("--packages="):]
+			var packages api.Packages
+			if value == "external" {
+				packages = api.PackagesExternal
+			} else {
+				return parseOptionsExtras{}, cli_helpers.MakeErrorWithNote(
+					fmt.Sprintf("Invalid value %q in %q", value, arg),
+					"The only valid value is \"external\".",
+				)
+			}
+			buildOpts.Packages = packages
+
 		case strings.HasPrefix(arg, "--external:") && buildOpts != nil:
 			buildOpts.External = append(buildOpts.External, arg[len("--external:"):])
 
@@ -825,6 +838,7 @@ func parseOptionsImpl(
 				"outbase":            true,
 				"outdir":             true,
 				"outfile":            true,
+				"packages":           true,
 				"platform":           true,
 				"preserve-symlinks":  true,
 				"public-path":        true,

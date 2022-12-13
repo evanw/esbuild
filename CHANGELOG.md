@@ -2,6 +2,42 @@
 
 ## Unreleased
 
+* Make it easy to exclude all packages from a bundle ([#1958](https://github.com/evanw/esbuild/issues/1958), [#1975](https://github.com/evanw/esbuild/issues/1975), [#2164](https://github.com/evanw/esbuild/issues/2164), [#2246](https://github.com/evanw/esbuild/issues/2246), [#2542](https://github.com/evanw/esbuild/issues/2542))
+
+    When bundling for node, it's often necessary to exclude npm packages from the bundle since they weren't designed with esbuild bundling in mind and don't work correctly after being bundled. For example, they may use `__dirname` and run-time file system calls to load files, which doesn't work after bundling with esbuild. Or they may compile a native `.node` extension that has similar expectations about the layout of the file system that are no longer true after bundling (even if the `.node` extension is copied next to the bundle).
+
+    The way to get this to work with esbuild is to use the `--external:` flag. For example, the [`fsevents`](https://www.npmjs.com/package/fsevents) package contains a native `.node` extension and shouldn't be bundled. To bundle code that uses it, you can pass `--external:fsevents` to esbuild to exclude it from your bundle. You will then need to ensure that the `fsevents` package is still present when you run your bundle (e.g. by publishing your bundle to npm as a package with a dependency on `fsevents`).
+
+    It was possible to automatically do this for all of your dependencies, but it was inconvenient. You had to write some code that read your `package.json` file and passed the keys of the `dependencies`, `devDependencies`, `peerDependencies`, and/or `optionalDependencies` maps to esbuild as external packages (either that or write a plugin to mark all package paths as external). Previously esbuild's recommendation for making this easier was to do `--external:./node_modules/*` (added in version 0.14.13). However, this was a bad idea because it caused compatibility problems with many node packages as it caused esbuild to mark the post-resolve path as external instead of the pre-resolve path. Doing that could break packages that are published as both CommonJS and ESM if esbuild's bundler is also used to do a module format conversion.
+
+    With this release, you can now do the following to automatically exclude all packages from your bundle:
+
+    * CLI:
+
+        ```
+        esbuild --bundle --packages=external
+        ```
+
+    * JS:
+
+        ```js
+        esbuild.build({
+          bundle: true,
+          packages: 'external',
+        })
+        ```
+
+    * Go:
+
+        ```go
+        api.Build(api.BuildOptions{
+          Bundle:   true,
+          Packages: api.PackagesExternal,
+        })
+        ```
+
+    Doing `--external:./node_modules/*` is still possible and still has the same behavior, but is no longer recommended. I recommend that you use the new `packages` feature instead.
+
 * Fix some subtle bugs with tagged template literals
 
     This release fixes a bug where minification could incorrectly change the value of `this` within tagged template literal function calls:

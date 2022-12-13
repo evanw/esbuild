@@ -58,6 +58,18 @@ a:after {
 }
 
 ================================================================================
+TestExternalPackages
+---------- /out.js ----------
+// entry.js
+import "pkg1";
+
+// file.js
+console.log("file");
+
+// node_modules/pkg2/index.js
+console.log("pkg2");
+
+================================================================================
 TestIndirectRequireMessage
 ---------- /out/array.js ----------
 

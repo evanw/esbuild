@@ -2216,6 +2216,38 @@ require("/assets/file.png");
 `)
   },
 
+  async externalPackages({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    const pkgPath = path.join(testDir, 'node_modules', 'pkg', 'path.js')
+    const dirPath = path.join(testDir, 'dir', 'path.js')
+    await mkdirAsync(path.dirname(pkgPath), { recursive: true })
+    await mkdirAsync(path.dirname(dirPath), { recursive: true })
+    await writeFileAsync(input, `
+      import 'pkg/path.js'
+      import './dir/path.js'
+      import 'before/alias'
+    `)
+    await writeFileAsync(pkgPath, `console.log('pkg')`)
+    await writeFileAsync(dirPath, `console.log('dir')`)
+    const { outputFiles } = await esbuild.build({
+      entryPoints: [input],
+      write: false,
+      bundle: true,
+      packages: 'external',
+      format: 'esm',
+      alias: { 'before': 'after' },
+    })
+    assert.strictEqual(outputFiles[0].text, `// scripts/.js-api-tests/externalPackages/in.js
+import "pkg/path.js";
+
+// scripts/.js-api-tests/externalPackages/dir/path.js
+console.log("dir");
+
+// scripts/.js-api-tests/externalPackages/in.js
+import "after/alias";
+`)
+  },
+
   async errorInvalidExternalWithTwoWildcards({ esbuild }) {
     try {
       await esbuild.build({

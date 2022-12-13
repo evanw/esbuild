@@ -359,6 +359,19 @@ func (rr *resolver) Resolve(sourceDir string, importPath string, kind ast.Import
 		}, debugMeta
 	}
 
+	// "import 'pkg'" when all packages are external (vs. "import './pkg'")
+	if r.options.ExternalPackages && IsPackagePath(importPath) && !r.fs.IsAbs(importPath) {
+		if r.debugLogs != nil {
+			r.debugLogs.addNote("Marking this path as external because it's a package path")
+		}
+
+		r.flushDebugLogs(flushDueToSuccess)
+		return &ResolveResult{
+			PathPair:   PathPair{Primary: logger.Path{Text: importPath}},
+			IsExternal: true,
+		}, debugMeta
+	}
+
 	// "import fs from 'fs'"
 	if r.options.Platform == config.PlatformNode && BuiltInNodeModules[importPath] {
 		if r.debugLogs != nil {

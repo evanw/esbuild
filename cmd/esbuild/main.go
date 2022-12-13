@@ -43,6 +43,7 @@ var helpText = func(colors logger.Colors) string {
   --minify              Minify the output (sets all --minify-* flags)
   --outdir=...          The output directory (for multiple entry points)
   --outfile=...         The output file (for one entry point)
+  --packages=...        Set to "external" to avoid bundling any package
   --platform=...        Platform target (browser | node | neutral,
                         default browser)
   --serve=...           Start a local HTTP server on this host:port for outputs

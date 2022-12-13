@@ -165,6 +165,13 @@ const (
 	FormatESModule
 )
 
+type Packages uint8
+
+const (
+	PackagesDefault Packages = iota
+	PackagesExternal
+)
+
 type Engine struct {
 	Name    EngineName
 	Version string
@@ -299,6 +306,7 @@ type BuildOptions struct {
 	Platform          Platform          // Documentation: https://esbuild.github.io/api/#platform
 	Format            Format            // Documentation: https://esbuild.github.io/api/#format
 	External          []string          // Documentation: https://esbuild.github.io/api/#external
+	Packages          Packages          // Documentation: https://esbuild.github.io/api/#packages
 	Alias             map[string]string // Documentation: https://esbuild.github.io/api/#alias
 	MainFields        []string          // Documentation: https://esbuild.github.io/api/#main-fields
 	Conditions        []string          // Documentation: https://esbuild.github.io/api/#conditions

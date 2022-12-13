@@ -261,6 +261,7 @@ function flagsForBuildOptions(
   let mainFields = getFlag(options, keys, 'mainFields', mustBeArray);
   let conditions = getFlag(options, keys, 'conditions', mustBeArray);
   let external = getFlag(options, keys, 'external', mustBeArray);
+  let packages = getFlag(options, keys, 'packages', mustBeString);
   let alias = getFlag(options, keys, 'alias', mustBeObject);
   let loader = getFlag(options, keys, 'loader', mustBeObject);
   let outExtension = getFlag(options, keys, 'outExtension', mustBeObject);
@@ -302,6 +303,7 @@ function flagsForBuildOptions(
   if (outdir) flags.push(`--outdir=${outdir}`);
   if (outbase) flags.push(`--outbase=${outbase}`);
   if (tsconfig) flags.push(`--tsconfig=${tsconfig}`);
+  if (packages) flags.push(`--packages=${packages}`);
   if (resolveExtensions) {
     let values: string[] = [];
     for (let value of resolveExtensions) {
