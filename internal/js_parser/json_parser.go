@@ -23,7 +23,7 @@ func (p *jsonParser) parseMaybeTrailingComma(closeToken js_lexer.T) bool {
 	p.lexer.Expect(js_lexer.TComma)
 
 	if p.lexer.Token == closeToken {
-		if !p.options.AllowTrailingCommas {
+		if p.options.Flavor == js_lexer.JSON {
 			p.log.AddError(&p.tracker, commaRange, "JSON does not support trailing commas")
 		}
 		return false
@@ -163,9 +163,8 @@ func (p *jsonParser) parseExpr() js_ast.Expr {
 }
 
 type JSONOptions struct {
-	AllowComments       bool
-	AllowTrailingCommas bool
-	ErrorSuffix         string
+	Flavor      js_lexer.JSONFlavor
+	ErrorSuffix string
 }
 
 func ParseJSON(log logger.Log, source logger.Source, options JSONOptions) (result js_ast.Expr, ok bool) {
@@ -188,7 +187,7 @@ func ParseJSON(log logger.Log, source logger.Source, options JSONOptions) (resul
 		source:                         source,
 		tracker:                        logger.MakeLineColumnTracker(&source),
 		options:                        options,
-		lexer:                          js_lexer.NewLexerJSON(log, source, options.AllowComments, options.ErrorSuffix),
+		lexer:                          js_lexer.NewLexerJSON(log, source, options.Flavor, options.ErrorSuffix),
 		suppressWarningsAboutWeirdCode: helpers.IsInsideNodeModules(source.KeyPath.Text),
 	}
 

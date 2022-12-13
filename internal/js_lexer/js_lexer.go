@@ -211,11 +211,6 @@ var StrictModeReservedWords = map[string]bool{
 	"yield":      true,
 }
 
-type json struct {
-	parse         bool
-	allowComments bool
-}
-
 // This represents a string that is maybe a substring of the current file's
 // "source.Contents" string. The point of doing this is that if it is a
 // substring (the common case), then we can represent it more efficiently.
@@ -283,7 +278,7 @@ type Lexer struct {
 	LegacyHTMLCommentRange          logger.Range
 	codePoint                       rune
 	prevErrorLoc                    logger.Loc
-	json                            json
+	json                            JSONFlavor
 	Token                           T
 	ts                              config.TSOptions
 	HasNewlineBefore                bool
@@ -307,6 +302,7 @@ func NewLexer(log logger.Log, source logger.Source, ts config.TSOptions) Lexer {
 		prevErrorLoc:      logger.Loc{Start: -1},
 		FnOrArrowStartLoc: logger.Loc{Start: -1},
 		ts:                ts,
+		json:              NotJSON,
 	}
 	lexer.step()
 	lexer.Next()
@@ -321,13 +317,30 @@ func NewLexerGlobalName(log logger.Log, source logger.Source) Lexer {
 		prevErrorLoc:      logger.Loc{Start: -1},
 		FnOrArrowStartLoc: logger.Loc{Start: -1},
 		forGlobalName:     true,
+		json:              NotJSON,
 	}
 	lexer.step()
 	lexer.Next()
 	return lexer
 }
 
-func NewLexerJSON(log logger.Log, source logger.Source, allowComments bool, errorSuffix string) Lexer {
+type JSONFlavor uint8
+
+const (
+	// Specification: https://json.org/
+	JSON JSONFlavor = iota
+
+	// TypeScript's JSON superset is not documented but appears to allow:
+	// - Comments: https://github.com/microsoft/TypeScript/issues/4987
+	// - Trailing commas
+	// - Full JS number syntax
+	TSConfigJSON
+
+	// This is used by the JavaScript lexer
+	NotJSON
+)
+
+func NewLexerJSON(log logger.Log, source logger.Source, json JSONFlavor, errorSuffix string) Lexer {
 	lexer := Lexer{
 		log:               log,
 		source:            source,
@@ -335,10 +348,7 @@ func NewLexerJSON(log logger.Log, source logger.Source, allowComments bool, erro
 		prevErrorLoc:      logger.Loc{Start: -1},
 		FnOrArrowStartLoc: logger.Loc{Start: -1},
 		errorSuffix:       errorSuffix,
-		json: json{
-			parse:         true,
-			allowComments: allowComments,
-		},
+		json:              json,
 	}
 	lexer.step()
 	lexer.Next()
@@ -1218,7 +1228,7 @@ func (lexer *Lexer) Next() {
 				lexer.Token = TMinusMinus
 			default:
 				lexer.Token = TMinus
-				if lexer.json.parse && lexer.codePoint != '.' && (lexer.codePoint < '0' || lexer.codePoint > '9') {
+				if lexer.json == JSON && lexer.codePoint != '.' && (lexer.codePoint < '0' || lexer.codePoint > '9') {
 					lexer.Unexpected()
 				}
 			}
@@ -1270,7 +1280,7 @@ func (lexer *Lexer) Next() {
 						break singleLineComment
 					}
 				}
-				if lexer.json.parse && !lexer.json.allowComments {
+				if lexer.json == JSON {
 					lexer.addRangeError(lexer.Range(), "JSON does not support comments")
 				}
 				lexer.scanCommentText()
@@ -1303,7 +1313,7 @@ func (lexer *Lexer) Next() {
 						lexer.step()
 					}
 				}
-				if lexer.json.parse && !lexer.json.allowComments {
+				if lexer.json == JSON {
 					lexer.addRangeError(lexer.Range(), "JSON does not support comments")
 				}
 				lexer.scanCommentText()
@@ -1447,7 +1457,7 @@ func (lexer *Lexer) Next() {
 					lexer.step()
 
 					// Handle Windows CRLF
-					if lexer.codePoint == '\r' && !lexer.json.parse {
+					if lexer.codePoint == '\r' && lexer.json != JSON {
 						lexer.step()
 						if lexer.codePoint == '\n' {
 							lexer.step()
@@ -1498,7 +1508,7 @@ func (lexer *Lexer) Next() {
 					// Non-ASCII strings need the slow path
 					if lexer.codePoint >= 0x80 {
 						needsSlowPath = true
-					} else if lexer.json.parse && lexer.codePoint < 0x20 {
+					} else if lexer.json == JSON && lexer.codePoint < 0x20 {
 						lexer.SyntaxError()
 					}
 				}
@@ -1522,7 +1532,7 @@ func (lexer *Lexer) Next() {
 				lexer.decodedStringLiteralOrNil = copy
 			}
 
-			if quote == '\'' && lexer.json.parse {
+			if quote == '\'' && (lexer.json == JSON || lexer.json == TSConfigJSON) {
 				lexer.addRangeError(lexer.Range(), "JSON strings must use double quotes")
 			}
 
@@ -2003,7 +2013,7 @@ func (lexer *Lexer) parseNumericLiteralOrDot() {
 	}
 
 	// None of these are allowed in JSON
-	if lexer.json.parse && (first == '.' || base != 0 || underscoreCount > 0 || isMissingDigitAfterDot) {
+	if lexer.json == JSON && (first == '.' || base != 0 || underscoreCount > 0 || isMissingDigitAfterDot) {
 		lexer.Unexpected()
 	}
 }
@@ -2220,7 +2230,7 @@ func (lexer *Lexer) tryToDecodeEscapeSequences(start int, text string, reportErr
 				continue
 
 			case 'v':
-				if lexer.json.parse {
+				if lexer.json == JSON {
 					return nil, false, start + i - width2
 				}
 
@@ -2229,7 +2239,7 @@ func (lexer *Lexer) tryToDecodeEscapeSequences(start int, text string, reportErr
 
 			case '0', '1', '2', '3', '4', '5', '6', '7':
 				octalStart := i - 2
-				if lexer.json.parse {
+				if lexer.json == JSON {
 					return nil, false, start + i - width2
 				}
 
@@ -2269,7 +2279,7 @@ func (lexer *Lexer) tryToDecodeEscapeSequences(start int, text string, reportErr
 				lexer.LegacyOctalLoc = logger.Loc{Start: int32(start + i - 2)}
 
 			case 'x':
-				if lexer.json.parse {
+				if lexer.json == JSON {
 					return nil, false, start + i - width2
 				}
 
@@ -2300,7 +2310,7 @@ func (lexer *Lexer) tryToDecodeEscapeSequences(start int, text string, reportErr
 				i += width3
 
 				if c3 == '{' {
-					if lexer.json.parse {
+					if lexer.json == JSON {
 						return nil, false, start + i - width2
 					}
 
@@ -2364,7 +2374,7 @@ func (lexer *Lexer) tryToDecodeEscapeSequences(start int, text string, reportErr
 				c = value
 
 			case '\r':
-				if lexer.json.parse {
+				if lexer.json == JSON {
 					return nil, false, start + i - width2
 				}
 
@@ -2376,7 +2386,7 @@ func (lexer *Lexer) tryToDecodeEscapeSequences(start int, text string, reportErr
 				continue
 
 			case '\n', '\u2028', '\u2029':
-				if lexer.json.parse {
+				if lexer.json == JSON {
 					return nil, false, start + i - width2
 				}
 
@@ -2384,7 +2394,7 @@ func (lexer *Lexer) tryToDecodeEscapeSequences(start int, text string, reportErr
 				continue
 
 			default:
-				if lexer.json.parse {
+				if lexer.json == JSON {
 					switch c2 {
 					case '"', '\\', '/':
 

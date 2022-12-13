@@ -84,10 +84,7 @@ func ParseTSConfigJSON(
 	// these particular files. This is likely not a completely accurate
 	// emulation of what the TypeScript compiler does (e.g. string escape
 	// behavior may also be different).
-	json, ok := jsonCache.Parse(log, source, js_parser.JSONOptions{
-		AllowComments:       true, // https://github.com/microsoft/TypeScript/issues/4987
-		AllowTrailingCommas: true,
-	})
+	json, ok := jsonCache.Parse(log, source, js_parser.JSONOptions{Flavor: js_lexer.TSConfigJSON})
 	if !ok {
 		return nil
 	}
