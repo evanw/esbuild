@@ -1218,6 +1218,9 @@ func (lexer *Lexer) Next() {
 				lexer.Token = TMinusMinus
 			default:
 				lexer.Token = TMinus
+				if lexer.json.parse && lexer.codePoint != '.' && (lexer.codePoint < '0' || lexer.codePoint > '9') {
+					lexer.Unexpected()
+				}
 			}
 
 		case '*':
@@ -1722,6 +1725,7 @@ func (lexer *Lexer) parseNumericLiteralOrDot() {
 	underscoreCount := 0
 	lastUnderscoreEnd := 0
 	hasDotOrExponent := first == '.'
+	isMissingDigitAfterDot := false
 	base := 0.0
 	lexer.IsLegacyOctalLiteral = false
 
@@ -1889,8 +1893,11 @@ func (lexer *Lexer) parseNumericLiteralOrDot() {
 			if lexer.codePoint == '_' {
 				lexer.SyntaxError()
 			}
+			isMissingDigitAfterDot = true
 			for {
-				if lexer.codePoint < '0' || lexer.codePoint > '9' {
+				if lexer.codePoint >= '0' && lexer.codePoint <= '9' {
+					isMissingDigitAfterDot = false
+				} else {
 					if lexer.codePoint != '_' {
 						break
 					}
@@ -1993,6 +2000,11 @@ func (lexer *Lexer) parseNumericLiteralOrDot() {
 	// Identifiers can't occur immediately after numbers
 	if js_ast.IsIdentifierStart(lexer.codePoint) {
 		lexer.SyntaxError()
+	}
+
+	// None of these are allowed in JSON
+	if lexer.json.parse && (first == '.' || base != 0 || underscoreCount > 0 || isMissingDigitAfterDot) {
+		lexer.Unexpected()
 	}
 }
 

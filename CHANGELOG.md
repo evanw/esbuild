@@ -6,6 +6,16 @@
 
     Node has a feature called [subpath imports](https://nodejs.org/api/packages.html#subpath-imports) where special import paths that start with `#` are resolved using the `imports` field in the `package.json` file of the enclosing package. The intent of the newly-added `--packages=external` setting is to exclude a package's dependencies from the bundle. Since a package's subpath imports are only accessible within that package, it's wrong for them to be affected by `--packages=external`. This release changes esbuild so that `--packages=external` no longer affects subpath imports.
 
+* Forbid invalid numbers in JSON files
+
+    Previously esbuild parsed numbers in JSON files using the same syntax as JavaScript. But starting from this release, esbuild will now parse them with JSON syntax instead. This means the following numbers are no longer allowed by esbuild in JSON files:
+
+    * Legacy octal literals (non-zero integers starting with `0`)
+    * The `0b`, `0o`, and `0x` numeric prefixes
+    * Numbers containing `_` such as `1_000`
+    * Leading and trailing `.` such as `0.` and `.0`
+    * Numbers with a space after the `-` such as `- 1`
+
 ## 0.16.5
 
 * Make it easy to exclude all packages from a bundle ([#1958](https://github.com/evanw/esbuild/issues/1958), [#1975](https://github.com/evanw/esbuild/issues/1975), [#2164](https://github.com/evanw/esbuild/issues/2164), [#2246](https://github.com/evanw/esbuild/issues/2246), [#2542](https://github.com/evanw/esbuild/issues/2542))
