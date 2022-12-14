@@ -1819,6 +1819,17 @@ func (s *scanner) processScannedFiles(entryPointMeta []graph.EntryPoint) []scann
 				// Skip this import record if the previous resolver call failed
 				resolveResult := result.resolveResults[importRecordIndex]
 				if resolveResult == nil || !record.SourceIndex.IsValid() {
+					if s.options.NeedsMetafile {
+						if isFirstImport {
+							isFirstImport = false
+							sb.WriteString("\n        ")
+						} else {
+							sb.WriteString(",\n        ")
+						}
+						sb.WriteString(fmt.Sprintf("{\n          \"path\": %s,\n          \"kind\": %s,\n          \"external\": true\n        }",
+							helpers.QuoteForJSON(record.Path.Text, s.options.ASCIIOnly),
+							helpers.QuoteForJSON(record.Kind.StringForMetafile(), s.options.ASCIIOnly)))
+					}
 					continue
 				}
 

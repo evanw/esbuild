@@ -1228,9 +1228,9 @@ body {
     ])
 
     assert.deepStrictEqual(json.outputs[outEntry].imports, [
+      { path: outChunk, kind: 'import-statement' },
       { path: outImport1, kind: 'dynamic-import' },
       { path: outImport2, kind: 'dynamic-import' },
-      { path: outChunk, kind: 'import-statement' },
     ])
     assert.deepStrictEqual(json.outputs[outImport1].imports, [{ path: outChunk, kind: 'import-statement' }])
     assert.deepStrictEqual(json.outputs[outImport2].imports, [{ path: outChunk, kind: 'import-statement' }])
@@ -1434,7 +1434,13 @@ body {
     // Check inputs
     assert.deepStrictEqual(json, {
       inputs: {
-        [makePath(entry)]: { bytes: 98, imports: [{ path: makePath(imported), kind: 'import-rule' }] },
+        [makePath(entry)]: {
+          bytes: 98,
+          imports: [
+            { path: makePath(imported), kind: 'import-rule' },
+            { external: true, kind: 'url-token', path: 'https://example.com/external.png' },
+          ]
+        },
         [makePath(image)]: { bytes: 8, imports: [] },
         [makePath(imported)]: { bytes: 48, imports: [{ path: makePath(image), kind: 'url-token' }] },
       },
@@ -1442,7 +1448,10 @@ body {
         [makePath(output)]: {
           bytes: 253,
           entryPoint: makePath(entry),
-          imports: [],
+          imports: [
+            { kind: 'url-token', path: 'data:image/png,an image' },
+            { external: true, kind: 'url-token', path: 'https://example.com/external.png' },
+          ],
           inputs: {
             [makePath(entry)]: { bytesInOutput: 62 },
             [makePath(imported)]: { bytesInOutput: 51 },

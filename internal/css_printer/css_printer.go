@@ -21,6 +21,7 @@ type printer struct {
 	importRecords          []ast.ImportRecord
 	css                    []byte
 	extractedLegalComments map[string]bool
+	jsonMetadataImports    []string
 	builder                sourcemap.ChunkBuilder
 }
 
@@ -39,12 +40,18 @@ type Options struct {
 	SourceMap           config.SourceMap
 	AddSourceMappings   bool
 	LegalComments       config.LegalComments
+	NeedsMetafile       bool
 }
 
 type PrintResult struct {
 	CSS                    []byte
 	ExtractedLegalComments map[string]bool
-	SourceMapChunk         sourcemap.Chunk
+	JSONMetadataImports    []string
+
+	// This source map chunk just contains the VLQ-encoded offsets for the "CSS"
+	// field above. It's not a full source map. The bundler will be joining many
+	// source map chunks together to form the final source map.
+	SourceMapChunk sourcemap.Chunk
 }
 
 func Print(tree css_ast.AST, options Options) PrintResult {
@@ -59,6 +66,7 @@ func Print(tree css_ast.AST, options Options) PrintResult {
 	result := PrintResult{
 		CSS:                    p.css,
 		ExtractedLegalComments: p.extractedLegalComments,
+		JSONMetadataImports:    p.jsonMetadataImports,
 	}
 	if options.SourceMap != config.SourceMapNone {
 		// This is expensive. Only do this if it's necessary. For example, skipping
@@ -67,6 +75,20 @@ func Print(tree css_ast.AST, options Options) PrintResult {
 		result.SourceMapChunk = p.builder.GenerateChunk(p.css)
 	}
 	return result
+}
+
+func (p *printer) recordImportPathForMetafile(importRecordIndex uint32) {
+	if p.options.NeedsMetafile {
+		record := p.importRecords[importRecordIndex]
+		external := ""
+		if (record.Flags & ast.ShouldNotBeExternalInMetafile) == 0 {
+			external = ",\n          \"external\": true"
+		}
+		p.jsonMetadataImports = append(p.jsonMetadataImports, fmt.Sprintf("\n        {\n          \"path\": %s,\n          \"kind\": %s%s\n        }",
+			helpers.QuoteForJSON(record.Path.Text, p.options.ASCIIOnly),
+			helpers.QuoteForJSON(record.Kind.StringForMetafile(), p.options.ASCIIOnly),
+			external))
+	}
 }
 
 func (p *printer) printRule(rule css_ast.Rule, indent int32, omitTrailingSemicolon bool) {
@@ -110,6 +132,7 @@ func (p *printer) printRule(rule css_ast.Rule, indent int32, omitTrailingSemicol
 			p.print("@import ")
 		}
 		p.printQuoted(p.importRecords[r.ImportRecordIndex].Path.Text)
+		p.recordImportPathForMetafile(r.ImportRecordIndex)
 		p.printTokens(r.ImportConditions, printTokensOpts{})
 		p.print(";")
 
@@ -783,6 +806,7 @@ func (p *printer) printTokens(tokens []css_ast.Token, opts printTokensOpts) bool
 			p.print("url(")
 			p.printQuotedWithQuote(text, bestQuoteCharForString(text, true))
 			p.print(")")
+			p.recordImportPathForMetafile(t.ImportRecordIndex)
 
 		default:
 			p.print(t.Text)

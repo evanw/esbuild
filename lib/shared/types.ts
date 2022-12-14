@@ -439,6 +439,7 @@ export interface Metafile {
       imports: {
         path: string
         kind: ImportKind
+        external?: boolean
       }[]
     }
   }
@@ -453,6 +454,7 @@ export interface Metafile {
       imports: {
         path: string
         kind: ImportKind
+        external?: boolean
       }[]
       exports: string[]
       entryPoint?: string

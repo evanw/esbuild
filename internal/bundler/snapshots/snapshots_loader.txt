@@ -1088,6 +1088,11 @@ d {
       "bytes": 333,
       "imports": [
         {
+          "path": "extern-esm",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
           "path": "project/esm.js",
           "kind": "import-statement"
         },
@@ -1102,6 +1107,11 @@ d {
         {
           "path": "project/copy.copy",
           "kind": "import-statement"
+        },
+        {
+          "path": "extern-cjs",
+          "kind": "require-call",
+          "external": true
         },
         {
           "path": "project/cjs.js",
@@ -1121,6 +1131,11 @@ d {
       "bytes": 180,
       "imports": [
         {
+          "path": "extern.css",
+          "kind": "import-rule",
+          "external": true
+        },
+        {
           "path": "project/inline.svg",
           "kind": "url-token"
         },
@@ -1131,6 +1146,11 @@ d {
         {
           "path": "project/copy.copy",
           "kind": "url-token"
+        },
+        {
+          "path": "extern.png",
+          "kind": "url-token",
+          "external": true
         }
       ]
     }
@@ -1159,12 +1179,26 @@ d {
     "out/entry.js": {
       "imports": [
         {
-          "path": "out/dynamic-4QVDQQPM.js",
-          "kind": "dynamic-import"
-        },
-        {
           "path": "out/chunk-3MN5TIYV.js",
           "kind": "import-statement"
+        },
+        {
+          "path": "extern-esm",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "out/copy-O3Y5SCJE.copy",
+          "kind": "import-statement"
+        },
+        {
+          "path": "extern-cjs",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "out/dynamic-4QVDQQPM.js",
+          "kind": "dynamic-import"
         }
       ],
       "exports": [
@@ -1218,7 +1252,30 @@ d {
       "bytes": 38
     },
     "out/entry.css": {
-      "imports": [],
+      "imports": [
+        {
+          "path": "extern.css",
+          "kind": "import-rule",
+          "external": true
+        },
+        {
+          "path": "data:image/svg+xml,<svg/>",
+          "kind": "url-token"
+        },
+        {
+          "path": "out/file-NVISQQTV.file",
+          "kind": "url-token"
+        },
+        {
+          "path": "out/copy-O3Y5SCJE.copy",
+          "kind": "url-token"
+        },
+        {
+          "path": "extern.png",
+          "kind": "url-token",
+          "external": true
+        }
+      ],
       "entryPoint": "project/entry.css",
       "inputs": {
         "project/entry.css": {

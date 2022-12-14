@@ -116,6 +116,9 @@ const (
 
 	// If true, "assert { type: 'json' }" was present
 	AssertTypeJSON
+
+	// If true, do not generate "external": true in the metafile
+	ShouldNotBeExternalInMetafile
 )
 
 func (flags ImportRecordFlags) Has(flag ImportRecordFlags) bool {

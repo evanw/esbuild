@@ -336,6 +336,7 @@ type printer struct {
 	callTarget             js_ast.E
 	extractedLegalComments map[string]bool
 	js                     []byte
+	jsonMetadataImports    []string
 	options                Options
 	builder                sourcemap.ChunkBuilder
 	stmtStart              int
@@ -1121,8 +1122,7 @@ func (p *printer) printRequireOrImportExpr(
 			}
 
 			p.print("(")
-			p.addSourceMapping(record.Range.Loc)
-			p.printQuotedUTF8(record.Path.Text, true /* allowBacktick */)
+			p.printPath(importRecordIndex, ast.ImportRequire)
 			p.print(")")
 
 			// Finish the call to "__toESM()"
@@ -1138,11 +1138,13 @@ func (p *printer) printRequireOrImportExpr(
 		}
 
 		// External "import()"
+		kind := ast.ImportDynamic
 		if !p.options.UnsupportedFeatures.Has(compat.DynamicImport) {
 			p.printSpaceBeforeIdentifier()
 			p.print("import(")
 			defer p.print(")")
 		} else {
+			kind = ast.ImportRequire
 			p.printSpaceBeforeIdentifier()
 			p.print("Promise.resolve()")
 			p.printDotThenPrefix()
@@ -1183,7 +1185,7 @@ func (p *printer) printRequireOrImportExpr(
 			p.printIndent()
 		}
 		p.addSourceMapping(record.Range.Loc)
-		p.printQuotedUTF8(record.Path.Text, true /* allowBacktick */)
+		p.printPath(importRecordIndex, kind)
 		if !p.options.UnsupportedFeatures.Has(compat.DynamicImport) {
 			p.printImportCallAssertions(record.Assertions)
 		}
@@ -1925,7 +1927,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		p.printSpaceBeforeIdentifier()
 		p.addSourceMapping(expr.Loc)
 		p.print("require.resolve(")
-		p.printQuotedUTF8(p.importRecords[e.ImportRecordIndex].Path.Text, true /* allowBacktick */)
+		p.printPath(e.ImportRecordIndex, ast.ImportRequireResolve)
 		p.print(")")
 		if wrap {
 			p.print(")")
@@ -3104,17 +3106,28 @@ func (p *printer) printIndentedComment(text string) {
 	}
 }
 
-func (p *printer) printPath(importRecordIndex uint32) {
+func (p *printer) printPath(importRecordIndex uint32, importKind ast.ImportKind) {
 	record := p.importRecords[importRecordIndex]
 	p.addSourceMapping(record.Range.Loc)
 	p.printQuotedUTF8(record.Path.Text, false /* allowBacktick */)
+
+	if p.options.NeedsMetafile {
+		external := ""
+		if (record.Flags & ast.ShouldNotBeExternalInMetafile) == 0 {
+			external = ",\n          \"external\": true"
+		}
+		p.jsonMetadataImports = append(p.jsonMetadataImports, fmt.Sprintf("\n        {\n          \"path\": %s,\n          \"kind\": %s%s\n        }",
+			helpers.QuoteForJSON(record.Path.Text, p.options.ASCIIOnly),
+			helpers.QuoteForJSON(importKind.StringForMetafile(), p.options.ASCIIOnly),
+			external))
+	}
 
 	// Just omit import assertions if they aren't supported
 	if p.options.UnsupportedFeatures.Has(compat.ImportAssertions) {
 		return
 	}
 
-	if record.Assertions != nil {
+	if record.Assertions != nil && importKind == ast.ImportStmt {
 		p.printSpace()
 		p.print("assert")
 		p.printSpace()
@@ -3311,7 +3324,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 		}
 		p.print("from")
 		p.printSpace()
-		p.printPath(s.ImportRecordIndex)
+		p.printPath(s.ImportRecordIndex, ast.ImportStmt)
 		p.printSemicolonAfterStatement()
 
 	case *js_ast.SExportClause:
@@ -3406,7 +3419,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 		p.printSpace()
 		p.print("from")
 		p.printSpace()
-		p.printPath(s.ImportRecordIndex)
+		p.printPath(s.ImportRecordIndex, ast.ImportStmt)
 		p.printSemicolonAfterStatement()
 
 	case *js_ast.SLocal:
@@ -3736,7 +3749,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 			p.printSpace()
 		}
 
-		p.printPath(s.ImportRecordIndex)
+		p.printPath(s.ImportRecordIndex, ast.ImportStmt)
 		p.printSemicolonAfterStatement()
 
 	case *js_ast.SBlock:
@@ -3875,6 +3888,7 @@ type Options struct {
 	LegalComments       config.LegalComments
 	SourceMap           config.SourceMap
 	AddSourceMappings   bool
+	NeedsMetafile       bool
 }
 
 type RequireOrImportMeta struct {
@@ -3889,6 +3903,7 @@ type RequireOrImportMeta struct {
 type PrintResult struct {
 	JS                     []byte
 	ExtractedLegalComments map[string]bool
+	JSONMetadataImports    []string
 
 	// This source map chunk just contains the VLQ-encoded offsets for the "JS"
 	// field above. It's not a full source map. The bundler will be joining many
@@ -3935,6 +3950,7 @@ func Print(tree js_ast.AST, symbols js_ast.SymbolMap, r renamer.Renamer, options
 
 	result := PrintResult{
 		JS:                     p.js,
+		JSONMetadataImports:    p.jsonMetadataImports,
 		ExtractedLegalComments: p.extractedLegalComments,
 	}
 	if options.SourceMap != config.SourceMapNone {

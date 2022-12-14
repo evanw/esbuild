@@ -16,6 +16,79 @@
     * Leading and trailing `.` such as `0.` and `.0`
     * Numbers with a space after the `-` such as `- 1`
 
+* Add external imports to metafile ([#905](https://github.com/evanw/esbuild/issues/905), [#1933](https://github.com/evanw/esbuild/issues/1933), [#1939](https://github.com/evanw/esbuild/issues/1939))
+
+    External imports now appear in `imports` arrays in the metafile (which is present when bundling with `metafile: true`) next to normal imports, but additionally have `external: true` to set them apart. This applies both to files in the `inputs` section and the `outputs` section. Here's an example:
+
+    ```diff
+     {
+       "inputs": {
+         "style.css": {
+           "bytes": 83,
+           "imports": [
+    +        {
+    +          "path": "https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css",
+    +          "kind": "import-rule",
+    +          "external": true
+    +        }
+           ]
+         },
+         "app.js": {
+           "bytes": 100,
+           "imports": [
+    +        {
+    +          "path": "https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.min.js",
+    +          "kind": "import-statement",
+    +          "external": true
+    +        },
+             {
+               "path": "style.css",
+               "kind": "import-statement"
+             }
+           ]
+         }
+       },
+       "outputs": {
+         "out/app.js": {
+           "imports": [
+    +        {
+    +          "path": "https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.min.js",
+    +          "kind": "require-call",
+    +          "external": true
+    +        }
+           ],
+           "exports": [],
+           "entryPoint": "app.js",
+           "cssBundle": "out/app.css",
+           "inputs": {
+             "app.js": {
+               "bytesInOutput": 113
+             },
+             "style.css": {
+               "bytesInOutput": 0
+             }
+           },
+           "bytes": 528
+         },
+         "out/app.css": {
+           "imports": [
+    +        {
+    +          "path": "https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css",
+    +          "kind": "import-rule",
+    +          "external": true
+    +        }
+           ],
+           "inputs": {
+             "style.css": {
+               "bytesInOutput": 0
+             }
+           },
+           "bytes": 100
+         }
+       }
+     }
+    ```
+
 ## 0.16.5
 
 * Make it easy to exclude all packages from a bundle ([#1958](https://github.com/evanw/esbuild/issues/1958), [#1975](https://github.com/evanw/esbuild/issues/1975), [#2164](https://github.com/evanw/esbuild/issues/2164), [#2246](https://github.com/evanw/esbuild/issues/2246), [#2542](https://github.com/evanw/esbuild/issues/2542))

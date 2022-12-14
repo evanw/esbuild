@@ -874,6 +874,7 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 								otherChunkIndex := c.graph.Files[record.SourceIndex.GetIndex()].EntryPointChunkIndex
 								record.Path.Text = chunks[otherChunkIndex].uniqueKey
 								record.SourceIndex = ast.Index32{}
+								record.Flags |= ast.ShouldNotBeExternalInMetafile
 
 								// Track this cross-chunk dynamic import so we make sure to
 								// include its hash when we're calculating the hashes of all
@@ -1228,6 +1229,7 @@ func (c *linkerContext) scanImportsAndExports() {
 						record.Path.Text = otherRepr.AST.URLForCSS
 						record.Path.Namespace = ""
 						record.SourceIndex = ast.Index32{}
+						record.Flags |= ast.ShouldNotBeExternalInMetafile
 
 						// Copy the additional files to the output directory
 						additionalFiles = append(additionalFiles, otherFile.InputFile.AdditionalFiles...)
@@ -1238,6 +1240,7 @@ func (c *linkerContext) scanImportsAndExports() {
 						record.Path.Text = otherRepr.URLForCode
 						record.Path.Namespace = ""
 						record.CopySourceIndex = ast.Index32{}
+						record.Flags |= ast.ShouldNotBeExternalInMetafile
 
 						// Copy the additional files to the output directory
 						additionalFiles = append(additionalFiles, otherFile.InputFile.AdditionalFiles...)
@@ -1255,6 +1258,7 @@ func (c *linkerContext) scanImportsAndExports() {
 							record.Path.Text = otherRepr.URLForCode
 							record.Path.Namespace = ""
 							record.CopySourceIndex = ast.Index32{}
+							record.Flags |= ast.ShouldNotBeExternalInMetafile
 
 							// Copy the additional files to the output directory
 							additionalFiles = append(additionalFiles, otherFile.InputFile.AdditionalFiles...)
@@ -4209,6 +4213,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 		LineOffsetTables:             lineOffsetTables,
 		RequireOrImportMetaForSource: c.requireOrImportMetaForSource,
 		MangledProps:                 c.mangledProps,
+		NeedsMetafile:                c.options.NeedsMetafile,
 	}
 	tree := repr.AST
 	tree.Directive = "" // This is handled elsewhere
@@ -4826,6 +4831,7 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 	// Also generate the cross-chunk binding code
 	var crossChunkPrefix []byte
 	var crossChunkSuffix []byte
+	var jsonMetadataImports []string
 	{
 		// Indent the file if everything is wrapped in an IIFE
 		indent := 0
@@ -4838,18 +4844,22 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 			MinifyIdentifiers: c.options.MinifyIdentifiers,
 			MinifyWhitespace:  c.options.MinifyWhitespace,
 			MinifySyntax:      c.options.MinifySyntax,
+			NeedsMetafile:     c.options.NeedsMetafile,
 		}
 		crossChunkImportRecords := make([]ast.ImportRecord, len(chunk.crossChunkImports))
 		for i, chunkImport := range chunk.crossChunkImports {
 			crossChunkImportRecords[i] = ast.ImportRecord{
-				Kind: chunkImport.importKind,
-				Path: logger.Path{Text: chunks[chunkImport.chunkIndex].uniqueKey},
+				Kind:  chunkImport.importKind,
+				Path:  logger.Path{Text: chunks[chunkImport.chunkIndex].uniqueKey},
+				Flags: ast.ShouldNotBeExternalInMetafile,
 			}
 		}
-		crossChunkPrefix = js_printer.Print(js_ast.AST{
+		crossChunkResult := js_printer.Print(js_ast.AST{
 			ImportRecords: crossChunkImportRecords,
 			Parts:         []js_ast.Part{{Stmts: chunkRepr.crossChunkPrefixStmts}},
-		}, c.graph.Symbols, r, printOptions).JS
+		}, c.graph.Symbols, r, printOptions)
+		crossChunkPrefix = crossChunkResult.JS
+		jsonMetadataImports = crossChunkResult.JSONMetadataImports
 		crossChunkSuffix = js_printer.Print(js_ast.AST{
 			Parts: []js_ast.Part{{Stmts: chunkRepr.crossChunkSuffixStmts}},
 		}, c.graph.Symbols, r, printOptions).JS
@@ -4949,15 +4959,23 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 		// Print imports
 		isFirstMeta := true
 		jMeta.AddString("{\n      \"imports\": [")
-		for _, chunkImport := range chunk.crossChunkImports {
+		for _, json := range jsonMetadataImports {
 			if isFirstMeta {
 				isFirstMeta = false
 			} else {
 				jMeta.AddString(",")
 			}
-			jMeta.AddString(fmt.Sprintf("\n        {\n          \"path\": %s,\n          \"kind\": %s\n        }",
-				helpers.QuoteForJSON(c.res.PrettyPath(logger.Path{Text: chunks[chunkImport.chunkIndex].uniqueKey, Namespace: "file"}), c.options.ASCIIOnly),
-				helpers.QuoteForJSON(chunkImport.importKind.StringForMetafile(), c.options.ASCIIOnly)))
+			jMeta.AddString(json)
+		}
+		for _, compileResult := range compileResults {
+			for _, json := range compileResult.JSONMetadataImports {
+				if isFirstMeta {
+					isFirstMeta = false
+				} else {
+					jMeta.AddString(",")
+				}
+				jMeta.AddString(json)
+			}
 		}
 		if !isFirstMeta {
 			jMeta.AddString("\n      ")
@@ -5330,6 +5348,7 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 				AddSourceMappings:   addSourceMappings,
 				InputSourceMap:      inputSourceMap,
 				LineOffsetTables:    lineOffsetTables,
+				NeedsMetafile:       c.options.NeedsMetafile,
 			}
 			compileResult.PrintResult = css_printer.Print(asts[i], cssOptions)
 			compileResult.sourceIndex = sourceIndex
@@ -5352,6 +5371,7 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 	}
 
 	// Generate any prefix rules now
+	var jsonMetadataImports []string
 	{
 		tree := css_ast.AST{}
 
@@ -5383,7 +5403,9 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 			result := css_printer.Print(tree, css_printer.Options{
 				MinifyWhitespace: c.options.MinifyWhitespace,
 				ASCIIOnly:        c.options.ASCIIOnly,
+				NeedsMetafile:    c.options.NeedsMetafile,
 			})
+			jsonMetadataImports = result.JSONMetadataImports
 			if len(result.CSS) > 0 {
 				prevOffset.AdvanceBytes(result.CSS)
 				j.AddBytes(result.CSS)
@@ -5397,15 +5419,23 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 	if c.options.NeedsMetafile {
 		isFirstMeta := true
 		jMeta.AddString("{\n      \"imports\": [")
-		for _, chunkImport := range chunk.crossChunkImports {
+		for _, json := range jsonMetadataImports {
 			if isFirstMeta {
 				isFirstMeta = false
 			} else {
 				jMeta.AddString(",")
 			}
-			jMeta.AddString(fmt.Sprintf("\n        {\n          \"path\": %s,\n          \"kind\": %s\n        }",
-				helpers.QuoteForJSON(c.res.PrettyPath(logger.Path{Text: chunks[chunkImport.chunkIndex].uniqueKey, Namespace: "file"}), c.options.ASCIIOnly),
-				helpers.QuoteForJSON(chunkImport.importKind.StringForMetafile(), c.options.ASCIIOnly)))
+			jMeta.AddString(json)
+		}
+		for _, compileResult := range compileResults {
+			for _, json := range compileResult.JSONMetadataImports {
+				if isFirstMeta {
+					isFirstMeta = false
+				} else {
+					jMeta.AddString(",")
+				}
+				jMeta.AddString(json)
+			}
 		}
 		if !isFirstMeta {
 			jMeta.AddString("\n      ")
