@@ -473,7 +473,12 @@ func (c *linkerContext) generateChunksInParallel(additionalFiles []graph.OutputF
 	c.timer.Begin("Generate chunks")
 	defer c.timer.End("Generate chunks")
 
-	// Generate each chunk on a separate goroutine
+	// Generate each chunk on a separate goroutine. When a chunk needs to
+	// reference the path of another chunk, it will use a temporary path called
+	// the "uniqueKey" since the final path hasn't been computed yet (and is
+	// in general uncomputable at this point because paths have hashes that
+	// include information about chunk dependencies, and chunk dependencies
+	// can be cyclic due to dynamic imports).
 	generateWaitGroup := sync.WaitGroup{}
 	generateWaitGroup.Add(len(c.chunks))
 	for chunkIndex := range c.chunks {
@@ -487,9 +492,9 @@ func (c *linkerContext) generateChunksInParallel(additionalFiles []graph.OutputF
 	c.enforceNoCyclicChunkImports()
 	generateWaitGroup.Wait()
 
-	// Compute the final hashes of each chunk. This can technically be done in
-	// parallel but it probably doesn't matter so much because we're not hashing
-	// that much data.
+	// Compute the final hashes of each chunk, then use those to create the final
+	// paths of each chunk. This can technically be done in parallel but it
+	// probably doesn't matter so much because we're not hashing that much data.
 	visited := make([]uint32, len(c.chunks))
 	var finalBytes []byte
 	for chunkIndex := range c.chunks {
@@ -512,7 +517,9 @@ func (c *linkerContext) generateChunksInParallel(additionalFiles []graph.OutputF
 		}))
 	}
 
-	// Generate the final output files by joining file pieces together
+	// Generate the final output files by joining file pieces together and
+	// substituting the temporary paths for the final paths. This substitution
+	// can be done in parallel for each chunk.
 	c.timer.Begin("Generate final output files")
 	var resultsWaitGroup sync.WaitGroup
 	results := make([][]graph.OutputFile, len(c.chunks))
@@ -522,7 +529,7 @@ func (c *linkerContext) generateChunksInParallel(additionalFiles []graph.OutputF
 			var outputFiles []graph.OutputFile
 
 			// Each file may optionally contain additional files to be copied to the
-			// output directory. This is used by the "file" loader.
+			// output directory. This is used by the "file" and "copy" loaders.
 			var commentPrefix string
 			var commentSuffix string
 			switch chunkRepr := chunk.chunkRepr.(type) {
@@ -1330,7 +1337,8 @@ func (c *linkerContext) scanImportsAndExports() {
 					}
 
 				case ast.ImportRequire:
-					// Files that are imported with require() must be CommonJS modules
+					// Files that are imported with require() must be wrapped so that
+					// they can be lazily-evaluated
 					if otherRepr.AST.ExportsKind == js_ast.ExportsESM {
 						otherRepr.Meta.Wrap = graph.WrapESM
 					} else {
@@ -1341,7 +1349,7 @@ func (c *linkerContext) scanImportsAndExports() {
 				case ast.ImportDynamic:
 					if !c.options.CodeSplitting {
 						// If we're not splitting, then import() is just a require() that
-						// returns a promise, so the imported file must be a CommonJS module
+						// returns a promise, so the imported file must also be wrapped
 						if otherRepr.AST.ExportsKind == js_ast.ExportsESM {
 							otherRepr.Meta.Wrap = graph.WrapESM
 						} else {
@@ -3289,7 +3297,7 @@ func (c *linkerContext) computeChunks() {
 		sortedChunks = append(sortedChunks, chunk)
 	}
 
-	// Map from the entry point file to this chunk. We will need this later if
+	// Map from the entry point file to its chunk. We will need this later if
 	// a file contains a dynamic import to this entry point, since we'll need
 	// to look up the path for this chunk to use with the import.
 	for chunkIndex, chunk := range sortedChunks {
