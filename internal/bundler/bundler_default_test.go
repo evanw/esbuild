@@ -7177,3 +7177,37 @@ func TestMetafileVariousCases(t *testing.T) {
 		},
 	})
 }
+
+func TestMetafileNoBundle(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/project/entry.js": `
+				import a from 'pkg'
+				import b from './file'
+				console.log(
+					a,
+					b,
+					require('pkg2'),
+					require('./file2'),
+					import('./dynamic'),
+				)
+				export let exported
+			`,
+			"/project/entry.css": `
+				@import "pkg";
+				@import "./file";
+				a { background: url(pkg2) }
+				a { background: url(./file2) }
+			`,
+		},
+		entryPaths: []string{
+			"/project/entry.js",
+			"/project/entry.css",
+		},
+		options: config.Options{
+			Mode:          config.ModeConvertFormat,
+			AbsOutputDir:  "/out",
+			NeedsMetafile: true,
+		},
+	})
+}

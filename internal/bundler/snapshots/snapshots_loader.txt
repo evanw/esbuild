@@ -979,6 +979,115 @@ var { a: x } = y, { ["a"]: x } = y, { [(z, "a")]: x } = y;
 "a" in x, (y ? "a" : z) in x, (y ? z : "a") in x, y, "a" in x;
 
 ================================================================================
+TestMetafileNoBundle
+---------- /out/entry.js ----------
+import a from "pkg";
+import b from "./file";
+console.log(
+  a,
+  b,
+  require("pkg2"),
+  require("./file2"),
+  import("./dynamic")
+);
+let exported;
+
+---------- /out/entry.css ----------
+@import "pkg";
+@import "./file";
+a {
+  background: url(pkg2);
+}
+a {
+  background: url(./file2);
+}
+---------- metafile.json ----------
+{
+  "inputs": {
+    "project/entry.js": {
+      "bytes": 191,
+      "imports": []
+    },
+    "project/entry.css": {
+      "bytes": 112,
+      "imports": []
+    }
+  },
+  "outputs": {
+    "out/entry.js": {
+      "imports": [
+        {
+          "path": "pkg",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "./file",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "pkg2",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "./file2",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "./dynamic",
+          "kind": "dynamic-import",
+          "external": true
+        }
+      ],
+      "exports": [
+        "exported"
+      ],
+      "entryPoint": "project/entry.js",
+      "inputs": {
+        "project/entry.js": {
+          "bytesInOutput": 148
+        }
+      },
+      "bytes": 148
+    },
+    "out/entry.css": {
+      "imports": [
+        {
+          "path": "pkg",
+          "kind": "import-rule",
+          "external": true
+        },
+        {
+          "path": "./file",
+          "kind": "import-rule",
+          "external": true
+        },
+        {
+          "path": "pkg2",
+          "kind": "url-token",
+          "external": true
+        },
+        {
+          "path": "./file2",
+          "kind": "url-token",
+          "external": true
+        }
+      ],
+      "entryPoint": "project/entry.css",
+      "inputs": {
+        "project/entry.css": {
+          "bytesInOutput": 65
+        }
+      },
+      "bytes": 98
+    }
+  }
+}
+
+================================================================================
 TestMetafileVariousCases
 ---------- /out/file-NVISQQTV.file ----------
 file

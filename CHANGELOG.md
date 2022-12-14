@@ -16,7 +16,7 @@
     * Leading and trailing `.` such as `0.` and `.0`
     * Numbers with a space after the `-` such as `- 1`
 
-* Add external imports to metafile ([#905](https://github.com/evanw/esbuild/issues/905), [#1933](https://github.com/evanw/esbuild/issues/1933), [#1939](https://github.com/evanw/esbuild/issues/1939))
+* Add external imports to metafile ([#905](https://github.com/evanw/esbuild/issues/905), [#1768](https://github.com/evanw/esbuild/issues/1768), [#1933](https://github.com/evanw/esbuild/issues/1933), [#1939](https://github.com/evanw/esbuild/issues/1939))
 
     External imports now appear in `imports` arrays in the metafile (which is present when bundling with `metafile: true`) next to normal imports, but additionally have `external: true` to set them apart. This applies both to files in the `inputs` section and the `outputs` section. Here's an example:
 
@@ -88,6 +88,8 @@
        }
      }
     ```
+
+    One additional useful consequence of this is that the `imports` array is now populated when bundling is disabled. So you can now use esbuild with bundling disabled to inspect a file's imports.
 
 ## 0.16.5
 
