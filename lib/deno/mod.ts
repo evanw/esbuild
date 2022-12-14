@@ -67,7 +67,8 @@ async function installFromNPM(name: string, subpath: string): Promise<string> {
   } catch (e) {
   }
 
-  const url = `https://registry.npmjs.org/${name}/-/${name.replace('@esbuild/', '')}-${version}.tgz`
+  const npmRegistry = Deno.env.get("NPM_CONFIG_REGISTRY") || "https://registry.npmjs.org";
+  const url = `${npmRegistry}/${name}/-/${name.replace("@esbuild/", "")}-${version}.tgz`;
   const buffer = await fetch(url).then(r => r.arrayBuffer())
   const executable = extractFileFromTarGzip(new Uint8Array(buffer), subpath)
 
