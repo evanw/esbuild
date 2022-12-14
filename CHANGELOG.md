@@ -26,6 +26,10 @@
      }
     ```
 
+* The alias feature now strips a trailing slash ([#2730](https://github.com/evanw/esbuild/issues/2730))
+
+    People sometimes add a trailing slash to the name of one of node's built-in modules to force node to import from the file system instead of importing the built-in module. For example, importing `util` imports node's built-in module called `util` but importing `util/` tries to find a package called `util` on the file system. Previously attempting to use esbuild's package alias feature to replace imports to `util` with a specific file would fail because the file path would also gain a trailing slash (e.g. mapping `util` to `./file.js` turned `util/` into `./file.js/`). With this release, esbuild will now omit the path suffix if it's a single trailing slash, which should now allow you to successfully apply aliases to these import paths.
+
 ## 0.16.6
 
 * Do not mark subpath imports as external with `--packages=external` ([#2741](https://github.com/evanw/esbuild/issues/2741))

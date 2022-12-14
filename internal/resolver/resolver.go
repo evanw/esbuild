@@ -313,7 +313,21 @@ func (rr *resolver) Resolve(sourceDir string, importPath string, kind ast.Import
 				// when using Yarn PnP because Yarn PnP doesn't allow nested packages
 				// to "reach outside" of their normal dependency lists.
 				sourceDir = r.fs.Cwd()
-				debugMeta.ModifiedImportPath = value + importPath[len(key):]
+				if tail := importPath[len(key):]; tail != "/" {
+					// Don't include the trailing characters if they are equal to a
+					// single slash. This comes up because you can abuse this quirk of
+					// node's path resolution to force node to load the package from the
+					// file system instead of as a built-in module. For example, "util"
+					// is node's built-in module while "util/" is one on the file system.
+					// Leaving the trailing slash in place causes problems for people:
+					// https://github.com/evanw/esbuild/issues/2730. It should be ok to
+					// always strip the trailing slash even when using the alias feature
+					// to swap one package for another (except when you swap a reference
+					// to one built-in node module with another but really why would you
+					// do that).
+					value += tail
+				}
+				debugMeta.ModifiedImportPath = value
 				if r.debugLogs != nil {
 					r.debugLogs.addNote(fmt.Sprintf("  Matched with alias from %q to %q", key, value))
 					r.debugLogs.addNote(fmt.Sprintf("  Modified import path from %q to %q", importPath, debugMeta.ModifiedImportPath))

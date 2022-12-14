@@ -6924,6 +6924,7 @@ func TestPackageAlias(t *testing.T) {
 				import "@abs-path/pkg6"
 				import "@abs-path/pkg7/foo"
 				import "@scope-only/pkg8"
+				import "slash/"
 			`,
 			"/nested3/index.js":                     `import "pkg3"`,
 			"/nested3/node_modules/alias3/index.js": `test failure`,
@@ -6935,6 +6936,7 @@ func TestPackageAlias(t *testing.T) {
 			"/alias6/dir/index.js":                  `console.log(6)`,
 			"/alias7/dir/foo/index.js":              `console.log(7)`,
 			"/alias8/dir/pkg8/index.js":             `console.log(8)`,
+			"/alias9/some/file.js":                  `console.log(9)`,
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
@@ -6949,6 +6951,7 @@ func TestPackageAlias(t *testing.T) {
 				"@abs-path/pkg6": `/alias6/dir`,
 				"@abs-path/pkg7": `/alias7/dir`,
 				"@scope-only":    "/alias8/dir",
+				"slash":          "/alias9/some/file.js",
 			},
 		},
 	})

@@ -1528,6 +1528,9 @@ console.log(7);
 // alias8/dir/pkg8/index.js
 console.log(8);
 
+// alias9/some/file.js
+console.log(9);
+
 ================================================================================
 TestRequireCustomExtensionBase64
 ---------- /out.js ----------
