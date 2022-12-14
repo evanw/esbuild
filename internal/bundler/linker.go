@@ -614,7 +614,7 @@ func (c *linkerContext) generateChunksInParallel(additionalFiles []graph.OutputF
 			// Path substitution for the JSON metadata
 			var jsonMetadataChunk string
 			if c.options.NeedsMetafile {
-				jsonMetadataChunkPieces := c.breakOutputIntoPieces(chunk.jsonMetadataChunkCallback(len(outputContents)))
+				jsonMetadataChunkPieces := c.breakJoinerIntoPieces(chunk.jsonMetadataChunkCallback(len(outputContents)))
 				jsonMetadataChunkBytes, _ := c.substituteFinalPaths(jsonMetadataChunkPieces, func(finalRelPathForImport string) string {
 					return c.res.PrettyPath(logger.Path{Text: c.fs.Join(c.options.AbsOutputDir, finalRelPathForImport), Namespace: "file"})
 				})
@@ -702,6 +702,37 @@ func (c *linkerContext) substituteFinalPaths(
 	}
 
 	return
+}
+
+func (c *linkerContext) accurateFinalByteCount(output intermediateOutput, chunkFinalRelDir string) int {
+	count := 0
+
+	// Note: The paths generated here must match "substituteFinalPaths" above
+	for _, piece := range output.pieces {
+		count += len(piece.data)
+
+		switch piece.kind {
+		case outputPieceAssetIndex:
+			file := c.graph.Files[piece.index]
+			if len(file.InputFile.AdditionalFiles) != 1 {
+				panic("Internal error")
+			}
+			relPath, _ := c.fs.Rel(c.options.AbsOutputDir, file.InputFile.AdditionalFiles[0].AbsPath)
+
+			// Make sure to always use forward slashes, even on Windows
+			relPath = strings.ReplaceAll(relPath, "\\", "/")
+
+			importPath := c.pathBetweenChunks(chunkFinalRelDir, relPath)
+			count += len(importPath)
+
+		case outputPieceChunkIndex:
+			chunk := c.chunks[piece.index]
+			importPath := c.pathBetweenChunks(chunkFinalRelDir, chunk.finalRelPath)
+			count += len(importPath)
+		}
+	}
+
+	return count
 }
 
 func (c *linkerContext) pathBetweenChunks(fromRelDir string, toRelPath string) string {
@@ -5036,12 +5067,12 @@ func (c *linkerContext) generateChunkJS(chunkIndex int, chunkWaitGroup *sync.Wai
 	var compileResultsForSourceMap []compileResultForSourceMap
 	var legalCommentList []string
 	var metaOrder []uint32
-	var metaByteCount map[string]int
+	var metaBytes map[uint32][][]byte
 	legalCommentSet := make(map[string]bool)
 	prevFileNameComment := uint32(0)
 	if c.options.NeedsMetafile {
 		metaOrder = make([]uint32, 0, len(compileResults))
-		metaByteCount = make(map[string]int, len(compileResults))
+		metaBytes = make(map[uint32][][]byte, len(compileResults))
 	}
 	for _, compileResult := range compileResults {
 		isRuntime := compileResult.sourceIndex == runtime.SourceIndex
@@ -5104,13 +5135,11 @@ func (c *linkerContext) generateChunkJS(chunkIndex int, chunkWaitGroup *sync.Wai
 			// Include this file in the metadata
 			if c.options.NeedsMetafile {
 				// Accumulate file sizes since a given file may be split into multiple parts
-				path := c.graph.Files[compileResult.sourceIndex].InputFile.Source.PrettyPath
-				if count, ok := metaByteCount[path]; ok {
-					metaByteCount[path] = count + len(compileResult.JS)
-				} else {
+				bytes, ok := metaBytes[compileResult.sourceIndex]
+				if !ok {
 					metaOrder = append(metaOrder, compileResult.sourceIndex)
-					metaByteCount[path] = len(compileResult.JS)
 				}
+				metaBytes[compileResult.sourceIndex] = append(bytes, compileResult.JS)
 			}
 		}
 
@@ -5148,7 +5177,7 @@ func (c *linkerContext) generateChunkJS(chunkIndex int, chunkWaitGroup *sync.Wai
 	}
 
 	// The JavaScript contents are done now that the source map comment is in
-	chunk.intermediateOutput = c.breakOutputIntoPieces(j)
+	chunk.intermediateOutput = c.breakJoinerIntoPieces(j)
 	timer.End("Join JavaScript files")
 
 	if c.options.SourceMap != config.SourceMapNone {
@@ -5161,20 +5190,30 @@ func (c *linkerContext) generateChunkJS(chunkIndex int, chunkWaitGroup *sync.Wai
 	// End the metadata lazily. The final output size is not known until the
 	// final import paths are substituted into the output pieces generated below.
 	if c.options.NeedsMetafile {
+		pieces := make([][]intermediateOutput, len(metaOrder))
+		for i, sourceIndex := range metaOrder {
+			slices := metaBytes[sourceIndex]
+			outputs := make([]intermediateOutput, len(slices))
+			for j, slice := range slices {
+				outputs[j] = c.breakOutputIntoPieces(slice)
+			}
+			pieces[i] = outputs
+		}
 		chunk.jsonMetadataChunkCallback = func(finalOutputSize int) helpers.Joiner {
-			isFirstMeta := true
-			for _, sourceIndex := range metaOrder {
-				if isFirstMeta {
-					isFirstMeta = false
-				} else {
+			finalRelDir := c.fs.Dir(chunk.finalRelPath)
+			for i, sourceIndex := range metaOrder {
+				if i > 0 {
 					jMeta.AddString(",")
 				}
-				path := c.graph.Files[sourceIndex].InputFile.Source.PrettyPath
-				extra := c.generateExtraDataForFileJS(sourceIndex)
-				jMeta.AddString(fmt.Sprintf("\n        %s: {\n          \"bytesInOutput\": %d\n        %s}",
-					helpers.QuoteForJSON(path, c.options.ASCIIOnly), metaByteCount[path], extra))
+				count := 0
+				for _, output := range pieces[i] {
+					count += c.accurateFinalByteCount(output, finalRelDir)
+				}
+				jMeta.AddString(fmt.Sprintf("\n        %s: {\n          \"bytesInOutput\": %d\n        }",
+					helpers.QuoteForJSON(c.graph.Files[sourceIndex].InputFile.Source.PrettyPath, c.options.ASCIIOnly),
+					count))
 			}
-			if !isFirstMeta {
+			if len(metaOrder) > 0 {
 				jMeta.AddString("\n      ")
 			}
 			jMeta.AddString(fmt.Sprintf("},\n      \"bytes\": %d\n    }", finalOutputSize))
@@ -5461,7 +5500,6 @@ func (c *linkerContext) generateChunkCSS(chunkIndex int, chunkWaitGroup *sync.Wa
 			jMeta.AddString("],\n      \"inputs\": {")
 		}
 	}
-	isFirstMeta := true
 
 	// Concatenate the generated CSS chunks together
 	var compileResultsForSourceMap []compileResultForSourceMap
@@ -5507,18 +5545,6 @@ func (c *linkerContext) generateChunkCSS(chunkIndex int, chunkWaitGroup *sync.Wa
 				})
 			}
 		}
-
-		// Include this file in the metadata
-		if c.options.NeedsMetafile {
-			if isFirstMeta {
-				isFirstMeta = false
-			} else {
-				jMeta.AddString(",")
-			}
-			jMeta.AddString(fmt.Sprintf("\n        %s: {\n          \"bytesInOutput\": %d\n        }",
-				helpers.QuoteForJSON(c.graph.Files[compileResult.sourceIndex].InputFile.Source.PrettyPath, c.options.ASCIIOnly),
-				len(compileResult.CSS)))
-		}
 	}
 
 	// Make sure the file ends with a newline
@@ -5531,7 +5557,7 @@ func (c *linkerContext) generateChunkCSS(chunkIndex int, chunkWaitGroup *sync.Wa
 	}
 
 	// The CSS contents are done now that the source map comment is in
-	chunk.intermediateOutput = c.breakOutputIntoPieces(j)
+	chunk.intermediateOutput = c.breakJoinerIntoPieces(j)
 	timer.End("Join CSS files")
 
 	if c.options.SourceMap != config.SourceMapNone {
@@ -5544,8 +5570,21 @@ func (c *linkerContext) generateChunkCSS(chunkIndex int, chunkWaitGroup *sync.Wa
 	// End the metadata lazily. The final output size is not known until the
 	// final import paths are substituted into the output pieces generated below.
 	if c.options.NeedsMetafile {
+		pieces := make([]intermediateOutput, len(compileResults))
+		for i, compileResult := range compileResults {
+			pieces[i] = c.breakOutputIntoPieces(compileResult.CSS)
+		}
 		chunk.jsonMetadataChunkCallback = func(finalOutputSize int) helpers.Joiner {
-			if !isFirstMeta {
+			finalRelDir := c.fs.Dir(chunk.finalRelPath)
+			for i, compileResult := range compileResults {
+				if i > 0 {
+					jMeta.AddString(",")
+				}
+				jMeta.AddString(fmt.Sprintf("\n        %s: {\n          \"bytesInOutput\": %d\n        }",
+					helpers.QuoteForJSON(c.graph.Files[compileResult.sourceIndex].InputFile.Source.PrettyPath, c.options.ASCIIOnly),
+					c.accurateFinalByteCount(pieces[i], finalRelDir)))
+			}
+			if len(compileResults) > 0 {
 				jMeta.AddString("\n      ")
 			}
 			jMeta.AddString(fmt.Sprintf("},\n      \"bytes\": %d\n    }", finalOutputSize))
@@ -5632,16 +5671,18 @@ func (c *linkerContext) appendIsolatedHashesForImportedChunks(
 	hash.Write(chunk.waitForIsolatedHash())
 }
 
-func (c *linkerContext) breakOutputIntoPieces(j helpers.Joiner) intermediateOutput {
+func (c *linkerContext) breakJoinerIntoPieces(j helpers.Joiner) intermediateOutput {
 	// Optimization: If there can be no substitutions, just reuse the initial
 	// joiner that was used when generating the intermediate chunk output
 	// instead of creating another one and copying the whole file into it.
 	if !j.Contains(c.uniqueKeyPrefix, c.uniqueKeyPrefixBytes) {
 		return intermediateOutput{joiner: j}
 	}
+	return c.breakOutputIntoPieces(j.Done())
+}
 
+func (c *linkerContext) breakOutputIntoPieces(output []byte) intermediateOutput {
 	var pieces []outputPiece
-	output := j.Done()
 	prefix := c.uniqueKeyPrefixBytes
 	for {
 		// Scan for the next piece boundary

@@ -26,6 +26,10 @@
      }
     ```
 
+* Fix byte counts in metafile regarding references to other output files ([#2071](https://github.com/evanw/esbuild/issues/2071))
+
+    Previously files that contained references to other output files had slightly incorrect metadata for the byte counts of input files which contributed to that output file. So for example if `app.js` imports `image.png` using the file loader and esbuild generates `out.js` and `image-LSAMBFUD.png`, the metadata for how many bytes of `out.js` are from `app.js` was slightly off (the metadata for the byte count of `out.js` was still correct). The reason is because esbuild substitutes the final paths for references between output files toward the end of the build to handle cyclic references, and the byte counts needed to be adjusted as well during the path substitution. This release fixes these byte counts (specifically the `bytesInOutput` values).
+
 * The alias feature now strips a trailing slash ([#2730](https://github.com/evanw/esbuild/issues/2730))
 
     People sometimes add a trailing slash to the name of one of node's built-in modules to force node to import from the file system instead of importing the built-in module. For example, importing `util` imports node's built-in module called `util` but importing `util/` tries to find a package called `util` on the file system. Previously attempting to use esbuild's package alias feature to replace imports to `util` with a specific file would fail because the file path would also gain a trailing slash (e.g. mapping `util` to `./file.js` turned `util/` into `./file.js/`). With this release, esbuild will now omit the path suffix if it's a single trailing slash, which should now allow you to successfully apply aliases to these import paths.

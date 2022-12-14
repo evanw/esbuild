@@ -3165,7 +3165,7 @@ d {
           "bytesInOutput": 101
         },
         "project/entry.js": {
-          "bytesInOutput": 242
+          "bytesInOutput": 233
         },
         "project/esm.js": {
           "bytesInOutput": 21
@@ -3174,7 +3174,7 @@ d {
           "bytesInOutput": 24
         },
         "project/file.file": {
-          "bytesInOutput": 48
+          "bytesInOutput": 43
         }
       },
       "bytes": 642
@@ -3234,7 +3234,7 @@ d {
       "entryPoint": "project/entry.css",
       "inputs": {
         "project/entry.css": {
-          "bytesInOutput": 193
+          "bytesInOutput": 183
         }
       },
       "bytes": 230
@@ -3351,7 +3351,7 @@ a {
       "entryPoint": "project/bytesInOutput should be at least 99 (1).js",
       "inputs": {
         "project/111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111.file": {
-          "bytesInOutput": 45
+          "bytesInOutput": 135
         },
         "project/bytesInOutput should be at least 99 (1).js": {
           "bytesInOutput": 24
@@ -3380,7 +3380,7 @@ a {
       "entryPoint": "project/bytesInOutput should be at least 99 (2).js",
       "inputs": {
         "project/bytesInOutput should be at least 99 (2).js": {
-          "bytesInOutput": 59
+          "bytesInOutput": 149
         }
       },
       "bytes": 203
@@ -3396,7 +3396,7 @@ a {
       "entryPoint": "project/bytesInOutput should be at least 99 (3).js",
       "inputs": {
         "project/bytesInOutput should be at least 99 (3).js": {
-          "bytesInOutput": 55
+          "bytesInOutput": 143
         }
       },
       "bytes": 197
@@ -3432,7 +3432,7 @@ a {
       "entryPoint": "project/bytesInOutput should be at least 99.css",
       "inputs": {
         "project/bytesInOutput should be at least 99.css": {
-          "bytesInOutput": 52
+          "bytesInOutput": 142
         }
       },
       "bytes": 196
