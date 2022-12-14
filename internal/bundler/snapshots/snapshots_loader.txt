@@ -1297,6 +1297,10 @@ d {
           "external": true
         },
         {
+          "path": "out/file-NVISQQTV.file",
+          "kind": "file-loader"
+        },
+        {
           "path": "out/copy-O3Y5SCJE.copy",
           "kind": "import-statement"
         },

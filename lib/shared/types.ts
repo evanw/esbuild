@@ -453,7 +453,7 @@ export interface Metafile {
       }
       imports: {
         path: string
-        kind: ImportKind
+        kind: ImportKind | 'file-loader'
         external?: boolean
       }[]
       exports: string[]

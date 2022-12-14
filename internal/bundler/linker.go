@@ -4223,6 +4223,11 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 		sourceIndex: partRange.sourceIndex,
 	}
 
+	if file.InputFile.Loader == config.LoaderFile {
+		result.JSONMetadataImports = append(result.JSONMetadataImports, fmt.Sprintf("\n        {\n          \"path\": %s,\n          \"kind\": \"file-loader\"\n        }",
+			helpers.QuoteForJSON(file.InputFile.UniqueKeyForAdditionalFile, c.options.ASCIIOnly)))
+	}
+
 	waitGroup.Done()
 }
 

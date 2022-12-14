@@ -1,5 +1,31 @@
 # Changelog
 
+## Unreleased
+
+* Include `file` loader strings in metafile imports ([#2731](https://github.com/evanw/esbuild/issues/2731))
+
+    Bundling a file with the `file` loader copies that file to the output directory and imports a module with the path to the copied file in the `default` export. Previously when bundling with the `file` loader, there was no reference in the metafile from the JavaScript file containing the path string to the copied file. With this release, there will now be a reference in the metafile in the `imports` array with the kind `file-loader`:
+
+    ```diff
+     {
+       ...
+       "outputs": {
+         "out/image-55CCFTCE.svg": {
+           ...
+         },
+         "out/entry.js": {
+           "imports": [
+    +        {
+    +          "path": "out/image-55CCFTCE.svg",
+    +          "kind": "file-loader"
+    +        }
+           ],
+           ...
+         }
+       }
+     }
+    ```
+
 ## 0.16.6
 
 * Do not mark subpath imports as external with `--packages=external` ([#2741](https://github.com/evanw/esbuild/issues/2741))
