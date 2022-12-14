@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.16.6
 
 * Do not mark subpath imports as external with `--packages=external` ([#2741](https://github.com/evanw/esbuild/issues/2741))
 
