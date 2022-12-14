@@ -1238,7 +1238,7 @@ func TestExportTypeIssue379(t *testing.T) {
 }
 
 func TestThisInsideFunctionTS(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
+	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
 				function foo(x = this) { console.log(this) }
@@ -1277,7 +1277,7 @@ func TestThisInsideFunctionTS(t *testing.T) {
 }
 
 func TestThisInsideFunctionTSUseDefineForClassFields(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
+	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
 				function foo(x = this) { console.log(this) }
@@ -1316,7 +1316,7 @@ func TestThisInsideFunctionTSUseDefineForClassFields(t *testing.T) {
 }
 
 func TestThisInsideFunctionTSNoBundle(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
+	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
 				function foo(x = this) { console.log(this) }
@@ -1354,7 +1354,7 @@ func TestThisInsideFunctionTSNoBundle(t *testing.T) {
 }
 
 func TestThisInsideFunctionTSNoBundleUseDefineForClassFields(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
+	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
 				function foo(x = this) { console.log(this) }
@@ -1393,7 +1393,7 @@ func TestThisInsideFunctionTSNoBundleUseDefineForClassFields(t *testing.T) {
 }
 
 func TestTSComputedClassFieldUseDefineFalse(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
+	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
 				class Foo {
@@ -1417,7 +1417,7 @@ func TestTSComputedClassFieldUseDefineFalse(t *testing.T) {
 }
 
 func TestTSComputedClassFieldUseDefineTrue(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
+	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
 				class Foo {
@@ -1441,7 +1441,7 @@ func TestTSComputedClassFieldUseDefineTrue(t *testing.T) {
 }
 
 func TestTSComputedClassFieldUseDefineTrueLower(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
+	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
 				class Foo {
@@ -1466,7 +1466,7 @@ func TestTSComputedClassFieldUseDefineTrueLower(t *testing.T) {
 }
 
 func TestTSAbstractClassFieldUseAssign(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
+	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
 				const keepThis = Symbol('keepThis')
@@ -1491,7 +1491,7 @@ func TestTSAbstractClassFieldUseAssign(t *testing.T) {
 }
 
 func TestTSAbstractClassFieldUseDefine(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
+	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
 				const keepThisToo = Symbol('keepThisToo')
@@ -1516,7 +1516,7 @@ func TestTSAbstractClassFieldUseDefine(t *testing.T) {
 }
 
 func TestTSImportMTS(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
+	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
 				import './imported.mjs'
@@ -1535,7 +1535,7 @@ func TestTSImportMTS(t *testing.T) {
 }
 
 func TestTSImportCTS(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
+	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
 				require('./required.cjs')
@@ -1554,7 +1554,7 @@ func TestTSImportCTS(t *testing.T) {
 }
 
 func TestTSSideEffectsFalseWarningTypeDeclarations(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
+	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
 				import "some-js"

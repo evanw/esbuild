@@ -1,9 +1,3 @@
-TestCommonJSVariableInESMTypeModule
----------- /out.js ----------
-// entry.js
-module.exports = null;
-
-================================================================================
 TestExportTypeIssue379
 ---------- /out.js ----------
 // a.ts
@@ -38,10 +32,87 @@ var foo4 = 123;
 console.log(a_exports, b_exports, c_exports, d_exports);
 
 ================================================================================
+TestTSAbstractClassFieldUseAssign
+---------- /out.js ----------
+const keepThis = Symbol("keepThis");
+class Foo {
+}
+keepThis;
+(() => new Foo())();
+
+================================================================================
+TestTSAbstractClassFieldUseDefine
+---------- /out.js ----------
+const keepThisToo = Symbol("keepThisToo");
+class Foo {
+  keepThis;
+  [keepThisToo];
+}
+(() => new Foo())();
+
+================================================================================
 TestTSCommonJSVariableInESMTypeModule
 ---------- /out.js ----------
 // entry.ts
 module.exports = null;
+
+================================================================================
+TestTSComputedClassFieldUseDefineFalse
+---------- /out.js ----------
+var _a, _b, _c;
+class Foo {
+  constructor() {
+    this[_a] = s;
+    this[_c] = z;
+  }
+}
+q, _a = r, _b = x, _c = y;
+__decorateClass([
+  dec
+], Foo.prototype, _b, 2);
+__decorateClass([
+  dec
+], Foo.prototype, _c, 2);
+new Foo();
+
+================================================================================
+TestTSComputedClassFieldUseDefineTrue
+---------- /out.js ----------
+var _a, _b;
+class Foo {
+  [q];
+  [r] = s;
+  [_a = x];
+  [_b = y] = z;
+}
+__decorateClass([
+  dec
+], Foo.prototype, _a, 2);
+__decorateClass([
+  dec
+], Foo.prototype, _b, 2);
+new Foo();
+
+================================================================================
+TestTSComputedClassFieldUseDefineTrueLower
+---------- /out.js ----------
+var _a, _b, _c, _d;
+class Foo {
+  constructor() {
+    __publicField(this, _a);
+    __publicField(this, _b, s);
+    __publicField(this, _c);
+    __publicField(this, _d, z);
+  }
+}
+_a = q, _b = r, _c = x, _d = y;
+__decorateClass([
+  dec
+], Foo.prototype, _c, 2);
+__decorateClass([
+  dec
+], Foo.prototype, _d, 2);
+new Foo();
 
 ================================================================================
 TestTSConstEnumComments
@@ -546,6 +617,19 @@ console.log("correct");
 console.log("correct");
 
 ================================================================================
+TestTSImportCTS
+---------- /out.js ----------
+// required.cjs
+var require_required = __commonJS({
+  "required.cjs"() {
+    console.log("works");
+  }
+});
+
+// entry.ts
+require_required();
+
+================================================================================
 TestTSImportEmptyNamespace
 ---------- /out.js ----------
 // entry.ts
@@ -589,6 +673,12 @@ TestTSImportEqualsTreeShakingTrue
 import { foo } from "pkg";
 const used = foo.used;
 export { used };
+
+================================================================================
+TestTSImportMTS
+---------- /out.js ----------
+// imported.mts
+console.log("works");
 
 ================================================================================
 TestTSImportMissingUnusedES6
@@ -885,6 +975,10 @@ export var x;
 })(x || (x = {}));
 
 ================================================================================
+TestTSSideEffectsFalseWarningTypeDeclarations
+---------- /out.js ----------
+
+================================================================================
 TestTSThisIsUndefinedWarning
 ---------- /out/warning1.js ----------
 // warning1.ts
@@ -920,6 +1014,203 @@ var foo = void 0;
 export {
   foo
 };
+
+================================================================================
+TestThisInsideFunctionTS
+---------- /out.js ----------
+// entry.ts
+function foo(x = this) {
+  console.log(this);
+}
+var objFoo = {
+  foo(x = this) {
+    console.log(this);
+  }
+};
+var _Foo = class {
+  constructor() {
+    this.x = this;
+  }
+  foo(x = this) {
+    console.log(this);
+  }
+  static bar(x = this) {
+    console.log(this);
+  }
+};
+var Foo = _Foo;
+Foo.y = _Foo.z;
+new Foo(foo(objFoo));
+if (nested) {
+  let bar = function(x = this) {
+    console.log(this);
+  };
+  bar2 = bar;
+  const objBar = {
+    foo(x = this) {
+      console.log(this);
+    }
+  };
+  const _Bar = class {
+    constructor() {
+      this.x = this;
+    }
+    foo(x = this) {
+      console.log(this);
+    }
+    static bar(x = this) {
+      console.log(this);
+    }
+  };
+  let Bar = _Bar;
+  Bar.y = _Bar.z;
+  new Bar(bar(objBar));
+}
+var bar2;
+
+================================================================================
+TestThisInsideFunctionTSNoBundle
+---------- /out.js ----------
+function foo(x = this) {
+  console.log(this);
+}
+const objFoo = {
+  foo(x = this) {
+    console.log(this);
+  }
+};
+const _Foo = class {
+  constructor() {
+    this.x = this;
+  }
+  foo(x = this) {
+    console.log(this);
+  }
+  static bar(x = this) {
+    console.log(this);
+  }
+};
+let Foo = _Foo;
+Foo.y = _Foo.z;
+new Foo(foo(objFoo));
+if (nested) {
+  let bar2 = function(x = this) {
+    console.log(this);
+  };
+  var bar = bar2;
+  const objBar = {
+    foo(x = this) {
+      console.log(this);
+    }
+  };
+  const _Bar = class {
+    constructor() {
+      this.x = this;
+    }
+    foo(x = this) {
+      console.log(this);
+    }
+    static bar(x = this) {
+      console.log(this);
+    }
+  };
+  let Bar = _Bar;
+  Bar.y = _Bar.z;
+  new Bar(bar2(objBar));
+}
+
+================================================================================
+TestThisInsideFunctionTSNoBundleUseDefineForClassFields
+---------- /out.js ----------
+function foo(x = this) {
+  console.log(this);
+}
+const objFoo = {
+  foo(x = this) {
+    console.log(this);
+  }
+};
+class Foo {
+  x = this;
+  static y = this.z;
+  foo(x = this) {
+    console.log(this);
+  }
+  static bar(x = this) {
+    console.log(this);
+  }
+}
+new Foo(foo(objFoo));
+if (nested) {
+  let bar2 = function(x = this) {
+    console.log(this);
+  };
+  var bar = bar2;
+  const objBar = {
+    foo(x = this) {
+      console.log(this);
+    }
+  };
+  class Bar {
+    x = this;
+    static y = this.z;
+    foo(x = this) {
+      console.log(this);
+    }
+    static bar(x = this) {
+      console.log(this);
+    }
+  }
+  new Bar(bar2(objBar));
+}
+
+================================================================================
+TestThisInsideFunctionTSUseDefineForClassFields
+---------- /out.js ----------
+// entry.ts
+function foo(x = this) {
+  console.log(this);
+}
+var objFoo = {
+  foo(x = this) {
+    console.log(this);
+  }
+};
+var _Foo = class {
+  x = this;
+  foo(x = this) {
+    console.log(this);
+  }
+  static bar(x = this) {
+    console.log(this);
+  }
+};
+var Foo = _Foo;
+__publicField(Foo, "y", _Foo.z);
+new Foo(foo(objFoo));
+if (nested) {
+  let bar = function(x = this) {
+    console.log(this);
+  };
+  bar2 = bar;
+  const objBar = {
+    foo(x = this) {
+      console.log(this);
+    }
+  };
+  class Bar {
+    x = this;
+    static y = this.z;
+    foo(x = this) {
+      console.log(this);
+    }
+    static bar(x = this) {
+      console.log(this);
+    }
+  }
+  new Bar(bar(objBar));
+}
+var bar2;
 
 ================================================================================
 TestTypeScriptDecoratorScopeIssue2147

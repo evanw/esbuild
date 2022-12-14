@@ -1,3 +1,9 @@
+TestCommonJSVariableInESMTypeModule
+---------- /out.js ----------
+// entry.js
+module.exports = null;
+
+================================================================================
 TestPackageJsonBadMain
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/node_modules/demo-pkg/index.js

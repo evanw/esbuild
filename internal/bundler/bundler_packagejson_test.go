@@ -2715,7 +2715,7 @@ NOTE: You can mark the path "xyz/src/foo.js" as external to exclude it from the 
 }
 
 func TestCommonJSVariableInESMTypeModule(t *testing.T) {
-	ts_suite.expectBundled(t, bundled{
+	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js":     `module.exports = null`,
 			"/package.json": `{ "type": "module" }`,

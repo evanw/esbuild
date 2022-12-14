@@ -1,3 +1,20 @@
+TestAmbiguousReexportMsg
+---------- /out/entry.js ----------
+// a.js
+var a = 1;
+
+// b.js
+var b = 3;
+
+// c.js
+var c = 4;
+export {
+  a,
+  b,
+  c
+};
+
+================================================================================
 TestArgumentDefaultValueScopeNoBundle
 ---------- /out.js ----------
 export function a(o = foo) {
@@ -208,6 +225,12 @@ console.log([
   require_abc(),
   require_fs()
 ]);
+
+================================================================================
+TestBundlingFilesOutsideOfOutbase
+---------- /out/_.._/_.._/_.._/src/entry.js ----------
+// src/entry.js
+console.log("test");
 
 ================================================================================
 TestCallImportNamespaceWarning
@@ -638,6 +661,36 @@ var init_types = __esm({
 console.log((init_types(), __toCommonJS(types_exports)));
 
 ================================================================================
+TestEntryNamesChunkNamesExtPlaceholder
+---------- /out/main/js/entry1-L7KI5G7A.js ----------
+import "../../common/js/chunk-XHGYOYUR.js";
+
+// src/entries/entry1.js
+console.log("entry1");
+
+---------- /out/main/js/entry2-KTHKWVT2.js ----------
+import "../../common/js/chunk-XHGYOYUR.js";
+
+// src/entries/entry2.js
+console.log("entry2");
+
+---------- /out/common/js/chunk-XHGYOYUR.js ----------
+// src/lib/shared.js
+console.log("shared");
+
+---------- /out/main/css/entry1-3JZGIUSL.css ----------
+/* src/entries/entry1.css */
+a:after {
+  content: "entry1";
+}
+
+---------- /out/main/css/entry2-NXZBPPIA.css ----------
+/* src/entries/entry2.css */
+a:after {
+  content: "entry2";
+}
+
+================================================================================
 TestEntryNamesNoSlashAfterDir
 ---------- /out/app1-main.js ----------
 console.log(1);
@@ -1059,6 +1112,21 @@ import config from "/api/config?a=1&b=2";
 console.log(foo, out, sha256, config);
 
 ================================================================================
+TestExternalPackages
+---------- /out.js ----------
+// project/entry.js
+import "pkg1";
+
+// project/file.js
+console.log("file");
+
+// project/node_modules/pkg2/index.js
+console.log("pkg2");
+
+// project/libs/pkg3.js
+console.log("pkg3");
+
+================================================================================
 TestExternalWildcardDoesNotMatchEntryPoint
 ---------- /out.js ----------
 // entry.js
@@ -1363,6 +1431,24 @@ var file_default2 = "This is some text";
 console.log(file_default, file_default2);
 
 ================================================================================
+TestIndirectRequireMessage
+---------- /out/array.js ----------
+
+---------- /out/assign.js ----------
+// assign.js
+__require = x;
+
+---------- /out/dot.js ----------
+// dot.js
+var x = __require.cache;
+
+---------- /out/ident.js ----------
+
+---------- /out/index.js ----------
+// index.js
+var x = __require[cache];
+
+================================================================================
 TestInject
 ---------- /out.js ----------
 // inject.js
@@ -1471,13 +1557,6 @@ function Fragment() {
 // entry.jsx
 import { Fragment as Fragment2, jsx as jsx2 } from "react/jsx-runtime";
 console.log(/* @__PURE__ */ jsx2("div", { jsx }), /* @__PURE__ */ jsx2(Fragment2, { children: /* @__PURE__ */ jsx2(Fragment, {}) }));
-
-================================================================================
-TestJSXAutomaticNoNameCollision
----------- /out.js ----------
-var import_react = require("react");
-var import_react2 = require("@remix-run/react");
-const x = /* @__PURE__ */ (0, import_react.createElement)(import_react2.Link, { ...y, key: z });
 
 ================================================================================
 TestJSXConstantFragments
@@ -1998,243 +2077,466 @@ c {
 /* entry.css */
 
 ================================================================================
-TestLoaderCopyWithBundleEntryPoint
----------- /out/assets/some.file ----------
-stuff
----------- /out/src/entry.js ----------
-// Users/user/project/src/entry.js
-import x from "../assets/some.file";
-console.log(x);
+TestMangleNoQuotedProps
+---------- /out/entry.js ----------
+x["_doNotMangleThis"];
+x?.["_doNotMangleThis"];
+x[y ? "_doNotMangleThis" : z];
+x?.[y ? "_doNotMangleThis" : z];
+x[y ? z : "_doNotMangleThis"];
+x?.[y ? z : "_doNotMangleThis"];
+({ "_doNotMangleThis": x });
+(class {
+  "_doNotMangleThis" = x;
+});
+var { "_doNotMangleThis": x } = y;
+"_doNotMangleThis" in x;
+(y ? "_doNotMangleThis" : z) in x;
+(y ? z : "_doNotMangleThis") in x;
 
----------- /out/src/entry.css ----------
-/* Users/user/project/src/entry.css */
-body {
-  background: url(../assets/some.file);
+================================================================================
+TestMangleNoQuotedPropsMinifySyntax
+---------- /out/entry.js ----------
+x._doNotMangleThis, x?._doNotMangleThis, x[y ? "_doNotMangleThis" : z], x?.[y ? "_doNotMangleThis" : z], x[y ? z : "_doNotMangleThis"], x?.[y ? z : "_doNotMangleThis"], class {
+  _doNotMangleThis = x;
+};
+var { _doNotMangleThis: x } = y;
+"_doNotMangleThis" in x, (y ? "_doNotMangleThis" : z) in x, (y ? z : "_doNotMangleThis") in x;
+
+================================================================================
+TestMangleProps
+---------- /out/entry1.js ----------
+export function shouldMangle() {
+  let foo = {
+    a: 0,
+    b() {
+    }
+  };
+  let { a: bar_ } = foo;
+  ({ a: bar_ } = foo);
+  class foo_ {
+    a = 0;
+    b() {
+    }
+    static a = 0;
+    static b() {
+    }
+  }
+  return { a: bar_, c: foo_ };
+}
+export function shouldNotMangle() {
+  let foo = {
+    "bar_": 0,
+    "baz_"() {
+    }
+  };
+  let { "bar_": bar_ } = foo;
+  ({ "bar_": bar_ } = foo);
+  class foo_ {
+    "bar_" = 0;
+    "baz_"() {
+    }
+    static "bar_" = 0;
+    static "baz_"() {
+    }
+  }
+  return { "bar_": bar_, "foo_": foo_ };
 }
 
-================================================================================
-TestLoaderCopyWithBundleFromCSS
----------- /out/some-BYATPJRB.file ----------
-stuff
----------- /out/src/entry.css ----------
-/* Users/user/project/src/entry.css */
-body {
-  background: url(../some-BYATPJRB.file);
-}
-
-================================================================================
-TestLoaderCopyWithBundleFromJS
----------- /out/some-BYATPJRB.file ----------
-stuff
----------- /out/src/entry.js ----------
-// Users/user/project/src/entry.js
-import x from "../some-BYATPJRB.file";
-console.log(x);
-
-================================================================================
-TestLoaderCopyWithFormat
----------- /out/src/entry.js ----------
-(() => {
-  console.log("entry");
-})();
-
----------- /out/assets/some.file ----------
-stuff
-================================================================================
-TestLoaderCopyWithTransform
----------- /out/src/entry.js ----------
-console.log("entry");
-
----------- /out/assets/some.file ----------
-stuff
-================================================================================
-TestLoaderDataURLApplicationJSON
----------- /out/entry.js ----------
-// <data:application/json,"%31%32%33">
-var json_31_32_33_default = "123";
-
-// <data:application/json;base64,eyJ3b3JrcyI6dHJ1ZX0=>
-var json_base64_eyJ3b3JrcyI6dHJ1ZX0_default = { works: true };
-
-// <data:application/json;charset=UTF-8,%31%32%33>
-var json_charset_UTF_8_31_32_33_default = 123;
-
-// <data:application/json;charset=UTF-8;base64,eyJ3b3JrcyI6dHJ1ZX0=>
-var json_charset_UTF_8_base64_eyJ3b3JrcyI6dHJ1ZX0_default = { works: true };
-
-// entry.js
-console.log([
-  json_31_32_33_default,
-  json_base64_eyJ3b3JrcyI6dHJ1ZX0_default,
-  json_charset_UTF_8_31_32_33_default,
-  json_charset_UTF_8_base64_eyJ3b3JrcyI6dHJ1ZX0_default
-]);
-
-================================================================================
-TestLoaderDataURLExtensionBasedMIME
----------- /out/entry.js ----------
-// example.css
-var example_default = "data:text/css;charset=utf-8,css";
-
-// example.eot
-var example_default2 = "data:application/vnd.ms-fontobject,eot";
-
-// example.gif
-var example_default3 = "data:image/gif,gif";
-
-// example.htm
-var example_default4 = "data:text/html;charset=utf-8,htm";
-
-// example.html
-var example_default5 = "data:text/html;charset=utf-8,html";
-
-// example.jpeg
-var example_default6 = "data:image/jpeg,jpeg";
-
-// example.jpg
-var example_default7 = "data:image/jpeg,jpg";
-
-// example.js
-var example_default8 = "data:text/javascript;charset=utf-8,js";
-
-// example.json
-var example_default9 = "data:application/json,json";
-
-// example.mjs
-var example_default10 = "data:text/javascript;charset=utf-8,mjs";
-
-// example.otf
-var example_default11 = "data:font/otf,otf";
-
-// example.pdf
-var example_default12 = "data:application/pdf,pdf";
-
-// example.png
-var example_default13 = "data:image/png,png";
-
-// example.sfnt
-var example_default14 = "data:font/sfnt,sfnt";
-
-// example.svg
-var example_default15 = "data:image/svg+xml,svg";
-
-// example.ttf
-var example_default16 = "data:font/ttf,ttf";
-
-// example.wasm
-var example_default17 = "data:application/wasm,wasm";
-
-// example.webp
-var example_default18 = "data:image/webp,webp";
-
-// example.woff
-var example_default19 = "data:font/woff,woff";
-
-// example.woff2
-var example_default20 = "data:font/woff2,woff2";
-
-// example.xml
-var example_default21 = "data:text/xml;charset=utf-8,xml";
-export {
-  example_default as css,
-  example_default2 as eot,
-  example_default3 as gif,
-  example_default4 as htm,
-  example_default5 as html,
-  example_default6 as jpeg,
-  example_default7 as jpg,
-  example_default8 as js,
-  example_default9 as json,
-  example_default10 as mjs,
-  example_default11 as otf,
-  example_default12 as pdf,
-  example_default13 as png,
-  example_default14 as sfnt,
-  example_default15 as svg,
-  example_default16 as ttf,
-  example_default17 as wasm,
-  example_default18 as webp,
-  example_default19 as woff,
-  example_default20 as woff2,
-  example_default21 as xml
+---------- /out/entry2.js ----------
+export default {
+  a: 0,
+  "baz_": 1
 };
 
 ================================================================================
-TestLoaderDataURLTextCSS
----------- /out/entry.css ----------
-/* <data:text/css,body{color:%72%65%64}> */
-body {
-  color: red;
+TestManglePropsAvoidCollisions
+---------- /out.js ----------
+export default {
+  c: 0,
+  d: 1,
+  a: 2,
+  b: 3,
+  __proto__: {}
+};
+
+================================================================================
+TestManglePropsImportExport
+---------- /out/esm.js ----------
+export let foo_ = 123;
+import { bar_ } from "xyz";
+
+---------- /out/cjs.js ----------
+exports.a = 123;
+let bar_ = require("xyz").b;
+
+================================================================================
+TestManglePropsImportExportBundled
+---------- /out/entry-esm.js ----------
+// cjs.js
+var require_cjs = __commonJS({
+  "cjs.js"(exports) {
+    exports.a = "foo";
+  }
+});
+
+// esm.js
+var esm_exports = {};
+__export(esm_exports, {
+  esm_foo_: () => esm_foo_
+});
+var esm_foo_ = "foo";
+
+// entry-esm.js
+var import_cjs = __toESM(require_cjs());
+var cjs = __toESM(require_cjs());
+var bar_ = [
+  esm_foo_,
+  import_cjs.cjs_foo_,
+  esm_exports.b,
+  cjs.a
+];
+export {
+  bar_
+};
+
+---------- /out/entry-cjs.js ----------
+// esm.js
+var esm_exports = {};
+__export(esm_exports, {
+  esm_foo_: () => esm_foo_
+});
+var esm_foo_;
+var init_esm = __esm({
+  "esm.js"() {
+    esm_foo_ = "foo";
+  }
+});
+
+// cjs.js
+var require_cjs = __commonJS({
+  "cjs.js"(exports) {
+    exports.a = "foo";
+  }
+});
+
+// entry-cjs.js
+var require_entry_cjs = __commonJS({
+  "entry-cjs.js"(exports) {
+    var { b: esm_foo_2 } = (init_esm(), __toCommonJS(esm_exports));
+    var { a: cjs_foo_ } = require_cjs();
+    exports.c = [
+      esm_foo_2,
+      cjs_foo_
+    ];
+  }
+});
+export default require_entry_cjs();
+
+================================================================================
+TestManglePropsJSXPreserve
+---------- /out.jsx ----------
+let Foo = {
+  a(props) {
+    return <>{props.b}</>;
+  },
+  c: "hello, world"
+};
+export default <Foo.a b={Foo.c} />;
+
+================================================================================
+TestManglePropsJSXTransform
+---------- /out.js ----------
+let Foo = {
+  b(props) {
+    return /* @__PURE__ */ Foo.a(Foo.d, null, props.c);
+  },
+  e: "hello, world",
+  a(...args) {
+    console.log("createElement", ...args);
+  },
+  d(...args) {
+    console.log("Fragment", ...args);
+  }
+};
+export default /* @__PURE__ */ Foo.a(Foo.b, { c: Foo.e });
+
+================================================================================
+TestManglePropsJSXTransformNamespace
+---------- /out.js ----------
+export default [
+  /* @__PURE__ */ React.createElement(KEEP_THIS_, null),
+  /* @__PURE__ */ React.createElement("KEEP:THIS_", null),
+  /* @__PURE__ */ React.createElement("foo", { "KEEP:THIS_": true })
+];
+
+================================================================================
+TestManglePropsKeywordPropertyMinify
+---------- /out/entry.js ----------
+class Foo{static t={get s(){return 123}}}
+
+================================================================================
+TestManglePropsLoweredClassFields
+---------- /out.js ----------
+class Foo {
+  constructor() {
+    __publicField(this, "a", 123);
+  }
+}
+__publicField(Foo, "b", 234);
+Foo.b = new Foo().a;
+
+================================================================================
+TestManglePropsLoweredOptionalChain
+---------- /out.js ----------
+export default function(x) {
+  var _a;
+  x.a;
+  (_a = x.a) == null ? void 0 : _a.call(x);
+  x == null ? void 0 : x.a;
+  x == null ? void 0 : x.a();
+  x == null ? void 0 : x.a.b;
+  x == null ? void 0 : x.a.b();
+  x == null ? void 0 : x["foo_"].b;
+  x == null ? void 0 : x.a["bar_"];
 }
 
-/* <data:text/css;base64,Ym9keXtiYWNrZ3JvdW5kOmJsdWV9> */
-body {
-  background: blue;
+================================================================================
+TestManglePropsMinify
+---------- /out/entry1.js ----------
+export function shouldMangle_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX() {
+  let X = {
+    X: 0,
+    Y() {
+    }
+  }, { X: Y } = X;
+  ({ X: Y } = X);
+  class t {
+    X = 0;
+    Y() {
+    }
+    static X = 0;
+    static Y() {
+    }
+  }
+  return { X: Y, t };
+}
+export function shouldNotMangle_YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY() {
+  let X = {
+    bar_: 0,
+    baz_() {
+    }
+  }, { bar_: Y } = X;
+  ({ bar_: Y } = X);
+  class t {
+    bar_ = 0;
+    baz_() {
+    }
+    static bar_ = 0;
+    static baz_() {
+    }
+  }
+  return { bar_: Y, foo_: t };
 }
 
-/* <data:text/css;charset=UTF-8,body{color:%72%65%64}> */
-body {
-  color: red;
+---------- /out/entry2.js ----------
+export default {
+  a: 0,
+  baz_: 1
+};
+
+================================================================================
+TestManglePropsNoShorthand
+---------- /out.js ----------
+export let yyyyy = ({ y }) => ({ y: y });
+
+================================================================================
+TestManglePropsOptionalChain
+---------- /out.js ----------
+export default function(x) {
+  x.a;
+  x.a?.();
+  x?.a;
+  x?.a();
+  x?.a.b;
+  x?.a.b();
+  x?.["foo_"].b;
+  x?.a["bar_"];
 }
 
-/* <data:text/css;charset=UTF-8;base64,Ym9keXtiYWNrZ3JvdW5kOmJsdWV9> */
-body {
-  background: blue;
+================================================================================
+TestManglePropsShorthand
+---------- /out.js ----------
+export let yyyyy = ({ y }) => ({ y });
+
+================================================================================
+TestManglePropsSuperCall
+---------- /out.js ----------
+class Foo {
+}
+class Bar extends Foo {
+  constructor() {
+    super();
+  }
 }
 
-/* entry.css */
+================================================================================
+TestManglePropsTypeScriptFeatures
+---------- /out/parameter-properties.js ----------
+class Foo {
+  constructor(KEEP_FIELD, MANGLE_FIELD_) {
+    this.KEEP_FIELD = KEEP_FIELD;
+    this.a = MANGLE_FIELD_;
+  }
+}
+let foo = new Foo();
+console.log(foo.KEEP_FIELD, foo.a);
+
+---------- /out/namespace-exports.js ----------
+var ns;
+((ns2) => {
+  ns2.b = 1;
+  ns2.c = 2;
+  ns2.d = 3;
+  ({ i: { a: ns2.a } } = 4);
+  function MANGLE_FUNCTION_() {
+  }
+  ns2.g = MANGLE_FUNCTION_;
+  class MANGLE_CLASS_ {
+  }
+  ns2.h = MANGLE_CLASS_;
+  let MANGLE_NAMESPACE_;
+  ((MANGLE_NAMESPACE_2) => {
+    ;
+  })(MANGLE_NAMESPACE_ = ns2.e || (ns2.e = {}));
+  let MANGLE_ENUM_;
+  ((MANGLE_ENUM_2) => {
+  })(MANGLE_ENUM_ = ns2.f || (ns2.f = {}));
+  console.log({
+    VAR: ns2.b,
+    LET: ns2.c,
+    CONST: ns2.d,
+    DESTRUCTURING: ns2.a,
+    FUNCTION: MANGLE_FUNCTION_,
+    CLASS: MANGLE_CLASS_,
+    NAMESPACE: MANGLE_NAMESPACE_,
+    ENUM: MANGLE_ENUM_
+  });
+})(ns || (ns = {}));
+console.log({
+  VAR: ns.b,
+  LET: ns.c,
+  CONST: ns.d,
+  DESTRUCTURING: ns.a,
+  FUNCTION: ns.g,
+  CLASS: ns.h,
+  NAMESPACE: ns.e,
+  ENUM: ns.f
+});
+((ns2) => {
+  console.log({
+    VAR: ns2.b,
+    LET: ns2.c,
+    CONST: ns2.d,
+    DESTRUCTURING: ns2.a,
+    FUNCTION: ns2.g,
+    CLASS: ns2.h,
+    NAMESPACE: ns2.e,
+    ENUM: ns2.f
+  });
+})(ns || (ns = {}));
+
+---------- /out/enum-values.js ----------
+var TopLevelNumber = /* @__PURE__ */ ((TopLevelNumber2) => {
+  TopLevelNumber2[TopLevelNumber2["foo_"] = 0] = "foo_";
+  return TopLevelNumber2;
+})(TopLevelNumber || {});
+var TopLevelString = /* @__PURE__ */ ((TopLevelString2) => {
+  TopLevelString2["bar_"] = "";
+  return TopLevelString2;
+})(TopLevelString || {});
+console.log({
+  foo: TopLevelNumber.a,
+  bar: TopLevelString.b
+});
+function fn() {
+  let NestedNumber;
+  ((NestedNumber2) => {
+    NestedNumber2[NestedNumber2["foo_"] = 0] = "foo_";
+  })(NestedNumber || (NestedNumber = {}));
+  let NestedString;
+  ((NestedString2) => {
+    NestedString2["bar_"] = "";
+  })(NestedString || (NestedString = {}));
+  console.log({
+    foo: TopLevelNumber.a,
+    bar: TopLevelString.b
+  });
+}
 
 ================================================================================
-TestLoaderDataURLTextJavaScript
----------- /out/entry.js ----------
-// <data:text/javascript,console.log('%31%32%33')>
-console.log("123");
+TestMangleQuotedProps
+---------- /out/keep.js ----------
+foo("_keepThisProperty");
+foo((x, "_keepThisProperty"));
+foo(x ? "_keepThisProperty" : "_keepThisPropertyToo");
+x[foo("_keepThisProperty")];
+x?.[foo("_keepThisProperty")];
+({ [foo("_keepThisProperty")]: x });
+(class {
+  [foo("_keepThisProperty")] = x;
+});
+var { [foo("_keepThisProperty")]: x } = y;
+foo("_keepThisProperty") in x;
 
-// <data:text/javascript;base64,Y29uc29sZS5sb2coMjM0KQ==>
-console.log(234);
-
-// <data:text/javascript;charset=UTF-8,console.log(%31%32%33)>
-console.log(123);
-
-// <data:text/javascript;charset=UTF-8;base64,Y29uc29sZS5sb2coMjM0KQ...>
-console.log(234);
+---------- /out/mangle.js ----------
+x.a;
+x?.a;
+x[y ? "a" : z];
+x?.[y ? "a" : z];
+x[y ? z : "a"];
+x?.[y ? z : "a"];
+x[y, "a"];
+x?.[y, "a"];
+({ a: x });
+({ ["a"]: x });
+({ [(y, "a")]: x });
+(class {
+  a = x;
+});
+(class {
+  ["a"] = x;
+});
+(class {
+  [(y, "a")] = x;
+});
+var { a: x } = y;
+var { ["a"]: x } = y;
+var { [(z, "a")]: x } = y;
+"a" in x;
+(y ? "a" : z) in x;
+(y ? z : "a") in x;
+(y, "a") in x;
 
 ================================================================================
-TestLoaderDataURLTextJavaScriptPlusCharacter
----------- /out/entry.js ----------
-// <data:text/javascript,console.log(1+2)>
-console.log(1 + 2);
+TestMangleQuotedPropsMinifySyntax
+---------- /out/keep.js ----------
+foo("_keepThisProperty"), foo("_keepThisProperty"), foo(x ? "_keepThisProperty" : "_keepThisPropertyToo"), x[foo("_keepThisProperty")], x?.[foo("_keepThisProperty")], foo("_keepThisProperty") + "", class {
+  [foo("_keepThisProperty")] = x;
+};
+var { [foo("_keepThisProperty")]: x } = y;
+foo("_keepThisProperty") in x;
 
-================================================================================
-TestLoaderDataURLUnknownMIME
----------- /out/entry.js ----------
-// entry.js
-import a from "data:some/thing;what,someData%31%32%33";
-import b from "data:other/thing;stuff;base64,c29tZURhdGEyMzQ=";
-console.log(a, b);
-
-================================================================================
-TestLoaderFileWithQueryParameter
----------- /out/file-UEHVHXRQ.txt ----------
-This is some text
----------- /out/entry.js ----------
-// file.txt?foo
-var file_default = "./file-UEHVHXRQ.txt?foo";
-
-// file.txt?bar
-var file_default2 = "./file-UEHVHXRQ.txt?bar";
-
-// entry.js
-console.log(file_default, file_default2);
-
-================================================================================
-TestLoaderFromExtensionWithQueryParameter
----------- /out/entry.js ----------
-// file.abc?query.xyz
-var file_default = "This should not be base64 encoded";
-
-// entry.js
-console.log(file_default);
+---------- /out/mangle.js ----------
+x.a, x?.a, x[y ? "a" : z], x?.[y ? "a" : z], x[y ? z : "a"], x?.[y ? z : "a"], x[y, "a"], x?.[y, "a"], "a" + "", (y, "a") + "", class {
+  a = x;
+}, class {
+  ["a"] = x;
+}, class {
+  [(y, "a")] = x;
+};
+var { a: x } = y, { ["a"]: x } = y, { [(z, "a")]: x } = y;
+"a" in x, (y ? "a" : z) in x, (y ? z : "a") in x, y, "a" in x;
 
 ================================================================================
 TestManyEntryPoints
@@ -2519,6 +2821,626 @@ var shared_default = 123;
 console.log(shared_default);
 
 ================================================================================
+TestMetafileNoBundle
+---------- /out/entry.js ----------
+import a from "pkg";
+import b from "./file";
+console.log(
+  a,
+  b,
+  require("pkg2"),
+  require("./file2"),
+  import("./dynamic")
+);
+let exported;
+
+---------- /out/entry.css ----------
+@import "pkg";
+@import "./file";
+a {
+  background: url(pkg2);
+}
+a {
+  background: url(./file2);
+}
+---------- metafile.json ----------
+{
+  "inputs": {
+    "project/entry.js": {
+      "bytes": 191,
+      "imports": []
+    },
+    "project/entry.css": {
+      "bytes": 112,
+      "imports": []
+    }
+  },
+  "outputs": {
+    "out/entry.js": {
+      "imports": [
+        {
+          "path": "pkg",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "./file",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "pkg2",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "./file2",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "./dynamic",
+          "kind": "dynamic-import",
+          "external": true
+        }
+      ],
+      "exports": [
+        "exported"
+      ],
+      "entryPoint": "project/entry.js",
+      "inputs": {
+        "project/entry.js": {
+          "bytesInOutput": 148
+        }
+      },
+      "bytes": 148
+    },
+    "out/entry.css": {
+      "imports": [
+        {
+          "path": "pkg",
+          "kind": "import-rule",
+          "external": true
+        },
+        {
+          "path": "./file",
+          "kind": "import-rule",
+          "external": true
+        },
+        {
+          "path": "pkg2",
+          "kind": "url-token",
+          "external": true
+        },
+        {
+          "path": "./file2",
+          "kind": "url-token",
+          "external": true
+        }
+      ],
+      "entryPoint": "project/entry.css",
+      "inputs": {
+        "project/entry.css": {
+          "bytesInOutput": 65
+        }
+      },
+      "bytes": 98
+    }
+  }
+}
+
+================================================================================
+TestMetafileVariousCases
+---------- /out/file-NVISQQTV.file ----------
+file
+---------- /out/copy-O3Y5SCJE.copy ----------
+copy
+---------- /out/entry.js ----------
+import {
+  __commonJS,
+  __require
+} from "./chunk-3MN5TIYV.js";
+
+// project/cjs.js
+var require_cjs = __commonJS({
+  "project/cjs.js"(exports, module) {
+    module.exports = 4;
+  }
+});
+
+// project/entry.js
+import a from "extern-esm";
+
+// project/esm.js
+var esm_default = 1;
+
+// <data:application/json,2>
+var json_2_default = 2;
+
+// project/file.file
+var file_default = "./file-NVISQQTV.file";
+
+// project/entry.js
+import e from "./copy-O3Y5SCJE.copy";
+console.log(
+  a,
+  esm_default,
+  json_2_default,
+  file_default,
+  e,
+  __require("extern-cjs"),
+  require_cjs(),
+  import("./dynamic-4QVDQQPM.js")
+);
+var exported;
+export {
+  exported
+};
+
+---------- /out/dynamic-4QVDQQPM.js ----------
+import "./chunk-3MN5TIYV.js";
+
+// project/dynamic.js
+var dynamic_default = 5;
+export {
+  dynamic_default as default
+};
+
+---------- /out/chunk-3MN5TIYV.js ----------
+export {
+  __require,
+  __commonJS
+};
+
+---------- /out/entry.css ----------
+@import "extern.css";
+
+/* project/entry.css */
+a {
+  background: url(data:image/svg+xml,<svg/>);
+}
+b {
+  background: url(./file-NVISQQTV.file);
+}
+c {
+  background: url(./copy-O3Y5SCJE.copy);
+}
+d {
+  background: url(extern.png);
+}
+---------- metafile.json ----------
+{
+  "inputs": {
+    "project/esm.js": {
+      "bytes": 16,
+      "imports": []
+    },
+    "<data:application/json,2>": {
+      "bytes": 1,
+      "imports": []
+    },
+    "project/file.file": {
+      "bytes": 4,
+      "imports": []
+    },
+    "project/copy.copy": {
+      "bytes": 4,
+      "imports": []
+    },
+    "project/cjs.js": {
+      "bytes": 18,
+      "imports": []
+    },
+    "project/dynamic.js": {
+      "bytes": 16,
+      "imports": []
+    },
+    "project/entry.js": {
+      "bytes": 333,
+      "imports": [
+        {
+          "path": "extern-esm",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "project/esm.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "<data:application/json,2>",
+          "kind": "import-statement"
+        },
+        {
+          "path": "project/file.file",
+          "kind": "import-statement"
+        },
+        {
+          "path": "project/copy.copy",
+          "kind": "import-statement"
+        },
+        {
+          "path": "extern-cjs",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "project/cjs.js",
+          "kind": "require-call"
+        },
+        {
+          "path": "project/dynamic.js",
+          "kind": "dynamic-import"
+        }
+      ]
+    },
+    "project/inline.svg": {
+      "bytes": 6,
+      "imports": []
+    },
+    "project/entry.css": {
+      "bytes": 180,
+      "imports": [
+        {
+          "path": "extern.css",
+          "kind": "import-rule",
+          "external": true
+        },
+        {
+          "path": "project/inline.svg",
+          "kind": "url-token"
+        },
+        {
+          "path": "project/file.file",
+          "kind": "url-token"
+        },
+        {
+          "path": "project/copy.copy",
+          "kind": "url-token"
+        },
+        {
+          "path": "extern.png",
+          "kind": "url-token",
+          "external": true
+        }
+      ]
+    }
+  },
+  "outputs": {
+    "out/file-NVISQQTV.file": {
+      "imports": [],
+      "exports": [],
+      "inputs": {
+        "project/file.file": {
+          "bytesInOutput": 4
+        }
+      },
+      "bytes": 4
+    },
+    "out/copy-O3Y5SCJE.copy": {
+      "imports": [],
+      "exports": [],
+      "inputs": {
+        "project/copy.copy": {
+          "bytesInOutput": 4
+        }
+      },
+      "bytes": 4
+    },
+    "out/entry.js": {
+      "imports": [
+        {
+          "path": "out/chunk-3MN5TIYV.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "extern-esm",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "out/file-NVISQQTV.file",
+          "kind": "file-loader"
+        },
+        {
+          "path": "out/copy-O3Y5SCJE.copy",
+          "kind": "import-statement"
+        },
+        {
+          "path": "extern-cjs",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "out/dynamic-4QVDQQPM.js",
+          "kind": "dynamic-import"
+        }
+      ],
+      "exports": [
+        "exported"
+      ],
+      "entryPoint": "project/entry.js",
+      "inputs": {
+        "project/cjs.js": {
+          "bytesInOutput": 101
+        },
+        "project/entry.js": {
+          "bytesInOutput": 242
+        },
+        "project/esm.js": {
+          "bytesInOutput": 21
+        },
+        "<data:application/json,2>": {
+          "bytesInOutput": 24
+        },
+        "project/file.file": {
+          "bytesInOutput": 48
+        }
+      },
+      "bytes": 642
+    },
+    "out/dynamic-4QVDQQPM.js": {
+      "imports": [
+        {
+          "path": "out/chunk-3MN5TIYV.js",
+          "kind": "import-statement"
+        }
+      ],
+      "exports": [
+        "default"
+      ],
+      "entryPoint": "project/dynamic.js",
+      "inputs": {
+        "project/dynamic.js": {
+          "bytesInOutput": 25
+        }
+      },
+      "bytes": 119
+    },
+    "out/chunk-3MN5TIYV.js": {
+      "imports": [],
+      "exports": [
+        "__commonJS",
+        "__require"
+      ],
+      "inputs": {},
+      "bytes": 38
+    },
+    "out/entry.css": {
+      "imports": [
+        {
+          "path": "extern.css",
+          "kind": "import-rule",
+          "external": true
+        },
+        {
+          "path": "data:image/svg+xml,<svg/>",
+          "kind": "url-token"
+        },
+        {
+          "path": "out/file-NVISQQTV.file",
+          "kind": "url-token"
+        },
+        {
+          "path": "out/copy-O3Y5SCJE.copy",
+          "kind": "url-token"
+        },
+        {
+          "path": "extern.png",
+          "kind": "url-token",
+          "external": true
+        }
+      ],
+      "entryPoint": "project/entry.css",
+      "inputs": {
+        "project/entry.css": {
+          "bytesInOutput": 193
+        }
+      },
+      "bytes": 230
+    }
+  }
+}
+
+================================================================================
+TestMetafileVeryLongExternalPaths
+---------- /out/111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111-55DNWN2R.file ----------
+
+---------- /out/bytesInOutput should be at least 99 (1).js ----------
+// project/111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111.file
+var __default = "./111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111-55DNWN2R.file";
+
+// project/bytesInOutput should be at least 99 (1).js
+console.log(__default);
+
+---------- /out/222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222-55DNWN2R.copy ----------
+
+---------- /out/bytesInOutput should be at least 99 (2).js ----------
+// project/bytesInOutput should be at least 99 (2).js
+import a from "./222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222-55DNWN2R.copy";
+console.log(a);
+
+---------- /out/bytesInOutput should be at least 99 (3).js ----------
+// project/bytesInOutput should be at least 99 (3).js
+import("./333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333-DH3FVEAA.js").then(console.log);
+
+---------- /out/333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333-DH3FVEAA.js ----------
+
+---------- /out/444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444-55DNWN2R.file ----------
+
+---------- /out/bytesInOutput should be at least 99.css ----------
+/* project/bytesInOutput should be at least 99.css */
+a {
+  background: url(./444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444-55DNWN2R.file);
+}
+---------- metafile.json ----------
+{
+  "inputs": {
+    "project/111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111.file": {
+      "bytes": 0,
+      "imports": []
+    },
+    "project/bytesInOutput should be at least 99 (1).js": {
+      "bytes": 150,
+      "imports": [
+        {
+          "path": "project/111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111.file",
+          "kind": "import-statement"
+        }
+      ]
+    },
+    "project/222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222.copy": {
+      "bytes": 0,
+      "imports": []
+    },
+    "project/bytesInOutput should be at least 99 (2).js": {
+      "bytes": 150,
+      "imports": [
+        {
+          "path": "project/222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222.copy",
+          "kind": "import-statement"
+        }
+      ]
+    },
+    "project/333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333.js": {
+      "bytes": 0,
+      "imports": []
+    },
+    "project/bytesInOutput should be at least 99 (3).js": {
+      "bytes": 141,
+      "imports": [
+        {
+          "path": "project/333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333.js",
+          "kind": "dynamic-import"
+        }
+      ]
+    },
+    "project/444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444.file": {
+      "bytes": 0,
+      "imports": []
+    },
+    "project/bytesInOutput should be at least 99.css": {
+      "bytes": 136,
+      "imports": [
+        {
+          "path": "project/444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444.file",
+          "kind": "url-token"
+        }
+      ]
+    }
+  },
+  "outputs": {
+    "out/111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111-55DNWN2R.file": {
+      "imports": [],
+      "exports": [],
+      "inputs": {
+        "project/111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111.file": {
+          "bytesInOutput": 0
+        }
+      },
+      "bytes": 0
+    },
+    "out/bytesInOutput should be at least 99 (1).js": {
+      "imports": [
+        {
+          "path": "out/111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111-55DNWN2R.file",
+          "kind": "file-loader"
+        }
+      ],
+      "exports": [],
+      "entryPoint": "project/bytesInOutput should be at least 99 (1).js",
+      "inputs": {
+        "project/111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111.file": {
+          "bytesInOutput": 45
+        },
+        "project/bytesInOutput should be at least 99 (1).js": {
+          "bytesInOutput": 24
+        }
+      },
+      "bytes": 330
+    },
+    "out/222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222-55DNWN2R.copy": {
+      "imports": [],
+      "exports": [],
+      "inputs": {
+        "project/222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222.copy": {
+          "bytesInOutput": 0
+        }
+      },
+      "bytes": 0
+    },
+    "out/bytesInOutput should be at least 99 (2).js": {
+      "imports": [
+        {
+          "path": "out/222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222-55DNWN2R.copy",
+          "kind": "import-statement"
+        }
+      ],
+      "exports": [],
+      "entryPoint": "project/bytesInOutput should be at least 99 (2).js",
+      "inputs": {
+        "project/bytesInOutput should be at least 99 (2).js": {
+          "bytesInOutput": 59
+        }
+      },
+      "bytes": 203
+    },
+    "out/bytesInOutput should be at least 99 (3).js": {
+      "imports": [
+        {
+          "path": "out/333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333-DH3FVEAA.js",
+          "kind": "dynamic-import"
+        }
+      ],
+      "exports": [],
+      "entryPoint": "project/bytesInOutput should be at least 99 (3).js",
+      "inputs": {
+        "project/bytesInOutput should be at least 99 (3).js": {
+          "bytesInOutput": 55
+        }
+      },
+      "bytes": 197
+    },
+    "out/333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333-DH3FVEAA.js": {
+      "imports": [],
+      "exports": [],
+      "entryPoint": "project/333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333.js",
+      "inputs": {
+        "project/333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333.js": {
+          "bytesInOutput": 0
+        }
+      },
+      "bytes": 0
+    },
+    "out/444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444-55DNWN2R.file": {
+      "imports": [],
+      "exports": [],
+      "inputs": {
+        "project/444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444.file": {
+          "bytesInOutput": 0
+        }
+      },
+      "bytes": 0
+    },
+    "out/bytesInOutput should be at least 99.css": {
+      "imports": [
+        {
+          "path": "out/444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444-55DNWN2R.file",
+          "kind": "url-token"
+        }
+      ],
+      "entryPoint": "project/bytesInOutput should be at least 99.css",
+      "inputs": {
+        "project/bytesInOutput should be at least 99.css": {
+          "bytesInOutput": 52
+        }
+      },
+      "bytes": 196
+    }
+  }
+}
+
+================================================================================
 TestMinifiedBundleCommonJS
 ---------- /out.js ----------
 var t=e(r=>{r.foo=function(){return 123}});var n=e((l,c)=>{c.exports={test:!0}});var{foo:f}=t();console.log(f(),n());
@@ -2559,6 +3481,29 @@ var m = 123;
 console.log(exports, module.exports, o, r);
 
 ================================================================================
+TestMinifiedJSXPreserveWithObjectSpread
+---------- /out.js ----------
+// entry.jsx
+var obj = {
+  before,
+  [key]: value,
+  key: value,
+  after
+};
+<Foo
+  before
+  {...{ [key]: value }}
+  key={value}
+  after
+/>;
+<Bar
+  a={a}
+  {...{ [b]: c }}
+  {...d}
+  e={e}
+/>;
+
+================================================================================
 TestMinifyArguments
 ---------- /out.js ----------
 (() => {
@@ -2576,6 +3521,14 @@ TestMinifyArguments
   u();
   a();
 })();
+
+================================================================================
+TestMinifyIdentifiersImportPathFrequencyAnalysis
+---------- /out/import.js ----------
+var o=123;console.log(o,"no identifier in this file should be named W, X, Y, or Z");
+
+---------- /out/require.js ----------
+var i=r((t,e)=>{e.exports=123});var s=i();console.log(s,"no identifier in this file should be named A, B, C, or D");
 
 ================================================================================
 TestMinifyNestedLabelsNoBundle
@@ -2676,6 +3629,14 @@ var foo = 123;
 console.log(foo);
 
 ================================================================================
+TestNamedFunctionExpressionArgumentCollision
+---------- /out/entry.js ----------
+let x = function(foo) {
+  var foo;
+  return foo;
+};
+
+================================================================================
 TestNestedCommonJS
 ---------- /out.js ----------
 // foo.js
@@ -2752,6 +3713,21 @@ var require_foo = __commonJS({
 new (require_foo()).Foo();
 
 ================================================================================
+TestNoWarnCommonJSExportsInESMPassThrough
+---------- /out/cjs-in-esm.js ----------
+export let foo = 1;
+exports.foo = 2;
+module.exports = 3;
+
+---------- /out/import-in-cjs.js ----------
+import { foo } from "bar";
+exports.foo = foo;
+module.exports = foo;
+
+---------- /out/no-warnings-here.js ----------
+console.log(module, exports);
+
+================================================================================
 TestNodeModules
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/node_modules/demo-pkg/index.js
@@ -2766,6 +3742,27 @@ var require_demo_pkg = __commonJS({
 // Users/user/project/src/entry.js
 var import_demo_pkg = __toESM(require_demo_pkg());
 console.log((0, import_demo_pkg.default)());
+
+================================================================================
+TestNonDeterminismIssue2537
+---------- /out.js ----------
+// entry.ts
+function b(o, e) {
+  let r = "teun";
+  if (o) {
+    let u = function(n) {
+      return n * 2;
+    }, t = function(n) {
+      return n / 2;
+    };
+    var i = u, a = t;
+    r = u(e) + t(e);
+  }
+  return r;
+}
+export {
+  b as aap
+};
 
 ================================================================================
 TestOutbase
@@ -2788,6 +3785,62 @@ TestOutputExtensionRemappingFile
 ---------- /out.js ----------
 // entry.js
 console.log("test");
+
+================================================================================
+TestOutputForAssertTypeJSON
+---------- /out/foo-FYKHFNL2.copy ----------
+{}
+---------- /out/js-entry.js ----------
+// foo.json
+var foo_default = {};
+
+// js-entry.js
+import copy from "./foo-FYKHFNL2.copy" assert { type: "json" };
+use(foo_default, copy, foo_default, void 0);
+export {
+  foo_default as default
+};
+
+---------- /out/ts-entry.js ----------
+// foo.json
+var foo_default = {};
+
+// ts-entry.ts
+import copy from "./foo-FYKHFNL2.copy" assert { type: "json" };
+use(foo_default, copy, foo_default, void 0);
+export {
+  foo_default as default
+};
+
+================================================================================
+TestPackageAlias
+---------- /out.js ----------
+// node_modules/alias1/index.js
+console.log(1);
+
+// node_modules/alias2/foo.js
+console.log(2);
+
+// node_modules/alias3/index.js
+console.log(3);
+
+// node_modules/alias4/index.js
+console.log(4);
+
+// node_modules/alias5/foo.js
+console.log(5);
+
+// alias6/dir/index.js
+console.log(6);
+
+// alias7/dir/foo/index.js
+console.log(7);
+
+// alias8/dir/pkg8/index.js
+console.log(8);
+
+// alias9/some/file.js
+console.log(9);
 
 ================================================================================
 TestQuotedProperty
@@ -3205,6 +4258,14 @@ try {
 var aliasedRequire;
 
 ================================================================================
+TestReserveProps
+---------- /out.js ----------
+export default {
+  a: 0,
+  _bar_: 1
+};
+
+================================================================================
 TestRuntimeNameCollisionNoBundle
 ---------- /out.js ----------
 function __require() {
@@ -3295,306 +4356,9 @@ switch (bar) {
 }
 
 ================================================================================
-TestTSAbstractClassFieldUseAssign
----------- /out.js ----------
-const keepThis = Symbol("keepThis");
-class Foo {
-}
-keepThis;
-(() => new Foo())();
-
-================================================================================
-TestTSAbstractClassFieldUseDefine
----------- /out.js ----------
-const keepThisToo = Symbol("keepThisToo");
-class Foo {
-  keepThis;
-  [keepThisToo];
-}
-(() => new Foo())();
-
-================================================================================
-TestTSComputedClassFieldUseDefineFalse
----------- /out.js ----------
-var _a, _b, _c;
-class Foo {
-  constructor() {
-    this[_a] = s;
-    this[_c] = z;
-  }
-}
-q, _a = r, _b = x, _c = y;
-__decorateClass([
-  dec
-], Foo.prototype, _b, 2);
-__decorateClass([
-  dec
-], Foo.prototype, _c, 2);
-new Foo();
-
-================================================================================
-TestTSComputedClassFieldUseDefineTrue
----------- /out.js ----------
-var _a, _b;
-class Foo {
-  [q];
-  [r] = s;
-  [_a = x];
-  [_b = y] = z;
-}
-__decorateClass([
-  dec
-], Foo.prototype, _a, 2);
-__decorateClass([
-  dec
-], Foo.prototype, _b, 2);
-new Foo();
-
-================================================================================
-TestTSComputedClassFieldUseDefineTrueLower
----------- /out.js ----------
-var _a, _b, _c, _d;
-class Foo {
-  constructor() {
-    __publicField(this, _a);
-    __publicField(this, _b, s);
-    __publicField(this, _c);
-    __publicField(this, _d, z);
-  }
-}
-_a = q, _b = r, _c = x, _d = y;
-__decorateClass([
-  dec
-], Foo.prototype, _c, 2);
-__decorateClass([
-  dec
-], Foo.prototype, _d, 2);
-new Foo();
-
-================================================================================
-TestTSImportCTS
----------- /out.js ----------
-// required.cjs
-var require_required = __commonJS({
-  "required.cjs"() {
-    console.log("works");
-  }
-});
-
-// entry.ts
-require_required();
-
-================================================================================
-TestTSImportMTS
----------- /out.js ----------
-// imported.mts
-console.log("works");
-
-================================================================================
-TestTSSideEffectsFalseWarningTypeDeclarations
----------- /out.js ----------
-
-================================================================================
 TestThisInsideFunction
 ---------- /out.js ----------
 // entry.js
-function foo(x = this) {
-  console.log(this);
-}
-var objFoo = {
-  foo(x = this) {
-    console.log(this);
-  }
-};
-var _Foo = class {
-  x = this;
-  foo(x = this) {
-    console.log(this);
-  }
-  static bar(x = this) {
-    console.log(this);
-  }
-};
-var Foo = _Foo;
-__publicField(Foo, "y", _Foo.z);
-new Foo(foo(objFoo));
-if (nested) {
-  let bar = function(x = this) {
-    console.log(this);
-  };
-  bar2 = bar;
-  const objBar = {
-    foo(x = this) {
-      console.log(this);
-    }
-  };
-  class Bar {
-    x = this;
-    static y = this.z;
-    foo(x = this) {
-      console.log(this);
-    }
-    static bar(x = this) {
-      console.log(this);
-    }
-  }
-  new Bar(bar(objBar));
-}
-var bar2;
-
-================================================================================
-TestThisInsideFunctionTS
----------- /out.js ----------
-// entry.ts
-function foo(x = this) {
-  console.log(this);
-}
-var objFoo = {
-  foo(x = this) {
-    console.log(this);
-  }
-};
-var _Foo = class {
-  constructor() {
-    this.x = this;
-  }
-  foo(x = this) {
-    console.log(this);
-  }
-  static bar(x = this) {
-    console.log(this);
-  }
-};
-var Foo = _Foo;
-Foo.y = _Foo.z;
-new Foo(foo(objFoo));
-if (nested) {
-  let bar = function(x = this) {
-    console.log(this);
-  };
-  bar2 = bar;
-  const objBar = {
-    foo(x = this) {
-      console.log(this);
-    }
-  };
-  const _Bar = class {
-    constructor() {
-      this.x = this;
-    }
-    foo(x = this) {
-      console.log(this);
-    }
-    static bar(x = this) {
-      console.log(this);
-    }
-  };
-  let Bar = _Bar;
-  Bar.y = _Bar.z;
-  new Bar(bar(objBar));
-}
-var bar2;
-
-================================================================================
-TestThisInsideFunctionTSNoBundle
----------- /out.js ----------
-function foo(x = this) {
-  console.log(this);
-}
-const objFoo = {
-  foo(x = this) {
-    console.log(this);
-  }
-};
-const _Foo = class {
-  constructor() {
-    this.x = this;
-  }
-  foo(x = this) {
-    console.log(this);
-  }
-  static bar(x = this) {
-    console.log(this);
-  }
-};
-let Foo = _Foo;
-Foo.y = _Foo.z;
-new Foo(foo(objFoo));
-if (nested) {
-  let bar2 = function(x = this) {
-    console.log(this);
-  };
-  var bar = bar2;
-  const objBar = {
-    foo(x = this) {
-      console.log(this);
-    }
-  };
-  const _Bar = class {
-    constructor() {
-      this.x = this;
-    }
-    foo(x = this) {
-      console.log(this);
-    }
-    static bar(x = this) {
-      console.log(this);
-    }
-  };
-  let Bar = _Bar;
-  Bar.y = _Bar.z;
-  new Bar(bar2(objBar));
-}
-
-================================================================================
-TestThisInsideFunctionTSNoBundleUseDefineForClassFields
----------- /out.js ----------
-function foo(x = this) {
-  console.log(this);
-}
-const objFoo = {
-  foo(x = this) {
-    console.log(this);
-  }
-};
-class Foo {
-  x = this;
-  static y = this.z;
-  foo(x = this) {
-    console.log(this);
-  }
-  static bar(x = this) {
-    console.log(this);
-  }
-}
-new Foo(foo(objFoo));
-if (nested) {
-  let bar2 = function(x = this) {
-    console.log(this);
-  };
-  var bar = bar2;
-  const objBar = {
-    foo(x = this) {
-      console.log(this);
-    }
-  };
-  class Bar {
-    x = this;
-    static y = this.z;
-    foo(x = this) {
-      console.log(this);
-    }
-    static bar(x = this) {
-      console.log(this);
-    }
-  }
-  new Bar(bar2(objBar));
-}
-
-================================================================================
-TestThisInsideFunctionTSUseDefineForClassFields
----------- /out.js ----------
-// entry.ts
 function foo(x = this) {
   console.log(this);
 }
@@ -3944,6 +4708,31 @@ var import_es6_ns_export_class = __toESM(require_es6_ns_export_class());
 var import_es6_ns_export_abstract_class = __toESM(require_es6_ns_export_abstract_class());
 
 ================================================================================
+TestToESMWrapperOmission
+---------- /out/entry.js ----------
+var entry_exports = {};
+module.exports = __toCommonJS(entry_exports);
+var import_a_nowrap = require("a_nowrap");
+var import_b_nowrap = require("b_nowrap");
+__reExport(entry_exports, require("c_nowrap"), module.exports);
+var d = __toESM(require("d_WRAP"));
+var import_e_WRAP = __toESM(require("e_WRAP"));
+var import_f_WRAP = __toESM(require("f_WRAP"));
+var import_g_WRAP = __toESM(require("g_WRAP"));
+var h = __toESM(require("h_WRAP"));
+var i = __toESM(require("i_WRAP"));
+var j = __toESM(require("j_WRAP"));
+(0, import_b_nowrap.b)();
+x = d.x;
+(0, import_e_WRAP.default)();
+(0, import_f_WRAP.default)();
+(0, import_g_WRAP.__esModule)();
+x = h;
+i.x();
+j.x``;
+x = Promise.resolve().then(() => __toESM(require("k_WRAP")));
+
+================================================================================
 TestTopLevelAwaitAllowedImportWithSplitting
 ---------- /out/entry.js ----------
 // entry.js
@@ -4093,6 +4882,304 @@ TestUseStrictDirectiveBundleIssue1837
 TestUseStrictDirectiveMinifyNoBundle
 ---------- /out.js ----------
 "use strict";a,b;
+
+================================================================================
+TestVarRelocatingBundle
+---------- /out/top-level.js ----------
+// top-level.js
+for (; 0; )
+  ;
+var b;
+for ({ c, x: [d] } = {}; 0; )
+  ;
+var c;
+var d;
+for (e of [])
+  ;
+var e;
+for ({ f, x: [g] } of [])
+  ;
+var f;
+var g;
+for (h in {})
+  ;
+var h;
+i = 1;
+for (i in {})
+  ;
+var i;
+for ({ j, x: [k] } in {})
+  ;
+var j;
+var k;
+
+---------- /out/nested.js ----------
+// nested.js
+if (true) {
+  let l = function() {
+  };
+  l2 = l;
+  for (; 0; )
+    ;
+  for ({ c, x: [d] } = {}; 0; )
+    ;
+  for (e of [])
+    ;
+  for ({ f, x: [g] } of [])
+    ;
+  for (h in {})
+    ;
+  i = 1;
+  for (i in {})
+    ;
+  for ({ j, x: [k] } in {})
+    ;
+}
+var a;
+var b;
+var c;
+var d;
+var e;
+var f;
+var g;
+var h;
+var i;
+var j;
+var k;
+var l2;
+
+---------- /out/let.js ----------
+// let.js
+if (true) {
+  let a;
+  for (let b; 0; )
+    ;
+  for (let { c, x: [d] } = {}; 0; )
+    ;
+  for (let e of [])
+    ;
+  for (let { f, x: [g] } of [])
+    ;
+  for (let h in {})
+    ;
+  for (let { j, x: [k] } in {})
+    ;
+}
+
+---------- /out/function.js ----------
+// function.js
+function x() {
+  var a;
+  for (var b; 0; )
+    ;
+  for (var { c, x: [d] } = {}; 0; )
+    ;
+  for (var e of [])
+    ;
+  for (var { f, x: [g] } of [])
+    ;
+  for (var h in {})
+    ;
+  i = 1;
+  for (var i in {})
+    ;
+  for (var { j, x: [k] } in {})
+    ;
+  function l() {
+  }
+}
+x();
+
+---------- /out/function-nested.js ----------
+// function-nested.js
+function x() {
+  if (true) {
+    let l2 = function() {
+    };
+    var l = l2;
+    var a;
+    for (var b; 0; )
+      ;
+    for (var { c, x: [d] } = {}; 0; )
+      ;
+    for (var e of [])
+      ;
+    for (var { f, x: [g] } of [])
+      ;
+    for (var h in {})
+      ;
+    i = 1;
+    for (var i in {})
+      ;
+    for (var { j, x: [k] } in {})
+      ;
+  }
+}
+x();
+
+================================================================================
+TestVarRelocatingNoBundle
+---------- /out/top-level.js ----------
+var a;
+for (var b; 0; )
+  ;
+for (var { c, x: [d] } = {}; 0; )
+  ;
+for (var e of [])
+  ;
+for (var { f, x: [g] } of [])
+  ;
+for (var h in {})
+  ;
+i = 1;
+for (var i in {})
+  ;
+for (var { j, x: [k] } in {})
+  ;
+function l() {
+}
+
+---------- /out/nested.js ----------
+if (true) {
+  let l = function() {
+  };
+  var l2 = l;
+  var a;
+  for (var b; 0; )
+    ;
+  for (var { c, x: [d] } = {}; 0; )
+    ;
+  for (var e of [])
+    ;
+  for (var { f, x: [g] } of [])
+    ;
+  for (var h in {})
+    ;
+  i = 1;
+  for (var i in {})
+    ;
+  for (var { j, x: [k] } in {})
+    ;
+}
+
+---------- /out/let.js ----------
+if (true) {
+  let a;
+  for (let b; 0; )
+    ;
+  for (let { c, x: [d] } = {}; 0; )
+    ;
+  for (let e of [])
+    ;
+  for (let { f, x: [g] } of [])
+    ;
+  for (let h in {})
+    ;
+  for (let { j, x: [k] } in {})
+    ;
+}
+
+---------- /out/function.js ----------
+function x() {
+  var a;
+  for (var b; 0; )
+    ;
+  for (var { c, x: [d] } = {}; 0; )
+    ;
+  for (var e of [])
+    ;
+  for (var { f, x: [g] } of [])
+    ;
+  for (var h in {})
+    ;
+  i = 1;
+  for (var i in {})
+    ;
+  for (var { j, x: [k] } in {})
+    ;
+  function l() {
+  }
+}
+x();
+
+---------- /out/function-nested.js ----------
+function x() {
+  if (true) {
+    let l2 = function() {
+    };
+    var l = l2;
+    var a;
+    for (var b; 0; )
+      ;
+    for (var { c, x: [d] } = {}; 0; )
+      ;
+    for (var e of [])
+      ;
+    for (var { f, x: [g] } of [])
+      ;
+    for (var h in {})
+      ;
+    i = 1;
+    for (var i in {})
+      ;
+    for (var { j, x: [k] } in {})
+      ;
+  }
+}
+x();
+
+================================================================================
+TestWarnCommonJSExportsInESMBundle
+---------- /out/cjs-in-esm.js ----------
+// cjs-in-esm.js
+var cjs_in_esm_exports = {};
+__export(cjs_in_esm_exports, {
+  foo: () => foo
+});
+module.exports = __toCommonJS(cjs_in_esm_exports);
+var foo = 1;
+exports.foo = 2;
+module.exports = 3;
+
+---------- /out/import-in-cjs.js ----------
+// import-in-cjs.js
+var import_bar = require("bar");
+exports.foo = import_bar.foo;
+module.exports = import_bar.foo;
+
+---------- /out/no-warnings-here.js ----------
+// no-warnings-here.js
+console.log(module, exports);
+
+================================================================================
+TestWarnCommonJSExportsInESMConvert
+---------- /out/cjs-in-esm.js ----------
+var cjs_in_esm_exports = {};
+__export(cjs_in_esm_exports, {
+  foo: () => foo
+});
+module.exports = __toCommonJS(cjs_in_esm_exports);
+let foo = 1;
+exports.foo = 2;
+module.exports = 3;
+
+---------- /out/cjs-in-esm2.js ----------
+var cjs_in_esm2_exports = {};
+__export(cjs_in_esm2_exports, {
+  foo: () => foo
+});
+module.exports = __toCommonJS(cjs_in_esm2_exports);
+let foo = 1;
+module.exports.bar = 3;
+
+---------- /out/import-in-cjs.js ----------
+var import_bar = require("bar");
+exports.foo = import_bar.foo;
+module.exports = import_bar.foo;
+module.exports.bar = import_bar.foo;
+
+---------- /out/no-warnings-here.js ----------
+console.log(module, exports);
 
 ================================================================================
 TestWarningsInsideNodeModules

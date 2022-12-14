@@ -786,7 +786,7 @@ func TestLoaderJSONSharedWithMultipleEntriesIssue413(t *testing.T) {
 }
 
 func TestLoaderFileWithQueryParameter(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
+	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				// Each of these should have a separate identity (i.e. end up in the output file twice)
@@ -809,7 +809,7 @@ func TestLoaderFileWithQueryParameter(t *testing.T) {
 }
 
 func TestLoaderFromExtensionWithQueryParameter(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
+	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				import foo from './file.abc?query.xyz'
@@ -831,7 +831,7 @@ func TestLoaderFromExtensionWithQueryParameter(t *testing.T) {
 }
 
 func TestLoaderDataURLTextCSS(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
+	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.css": `
 				@import "data:text/css,body{color:%72%65%64}";
@@ -849,7 +849,7 @@ func TestLoaderDataURLTextCSS(t *testing.T) {
 }
 
 func TestLoaderDataURLTextCSSCannotImport(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
+	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.css": `
 				@import "data:text/css,@import './other.css';";
@@ -869,7 +869,7 @@ func TestLoaderDataURLTextCSSCannotImport(t *testing.T) {
 }
 
 func TestLoaderDataURLTextJavaScript(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
+	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				import "data:text/javascript,console.log('%31%32%33')";
@@ -887,7 +887,7 @@ func TestLoaderDataURLTextJavaScript(t *testing.T) {
 }
 
 func TestLoaderDataURLTextJavaScriptCannotImport(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
+	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				import "data:text/javascript,import './other.js'"
@@ -908,7 +908,7 @@ func TestLoaderDataURLTextJavaScriptCannotImport(t *testing.T) {
 
 // The "+" character must not be interpreted as a " " character
 func TestLoaderDataURLTextJavaScriptPlusCharacter(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
+	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				import "data:text/javascript,console.log(1+2)";
@@ -923,7 +923,7 @@ func TestLoaderDataURLTextJavaScriptPlusCharacter(t *testing.T) {
 }
 
 func TestLoaderDataURLApplicationJSON(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
+	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				import a from 'data:application/json,"%31%32%33"';
@@ -944,7 +944,7 @@ func TestLoaderDataURLApplicationJSON(t *testing.T) {
 }
 
 func TestLoaderDataURLUnknownMIME(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
+	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				import a from 'data:some/thing;what,someData%31%32%33';
@@ -961,7 +961,7 @@ func TestLoaderDataURLUnknownMIME(t *testing.T) {
 }
 
 func TestLoaderDataURLExtensionBasedMIME(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
+	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.foo": `
 				export { default as css }   from "./example.css"
@@ -1121,7 +1121,7 @@ func TestLoaderDataURLEscapePercents(t *testing.T) {
 }
 
 func TestLoaderCopyWithBundleFromJS(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
+	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
 				import x from "../assets/some.file"
@@ -1143,7 +1143,7 @@ func TestLoaderCopyWithBundleFromJS(t *testing.T) {
 }
 
 func TestLoaderCopyWithBundleFromCSS(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
+	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.css": `
 				body {
@@ -1166,7 +1166,7 @@ func TestLoaderCopyWithBundleFromCSS(t *testing.T) {
 }
 
 func TestLoaderCopyWithBundleEntryPoint(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
+	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
 				import x from "../assets/some.file"
@@ -1198,7 +1198,7 @@ func TestLoaderCopyWithBundleEntryPoint(t *testing.T) {
 }
 
 func TestLoaderCopyWithTransform(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
+	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js":     `console.log('entry')`,
 			"/Users/user/project/assets/some.file": `stuff`,
@@ -1220,7 +1220,7 @@ func TestLoaderCopyWithTransform(t *testing.T) {
 }
 
 func TestLoaderCopyWithFormat(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
+	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js":     `console.log('entry')`,
 			"/Users/user/project/assets/some.file": `stuff`,
@@ -1243,7 +1243,7 @@ func TestLoaderCopyWithFormat(t *testing.T) {
 }
 
 func TestJSXAutomaticNoNameCollision(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
+	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.jsx": `
 				import { Link } from "@remix-run/react"
@@ -1263,7 +1263,7 @@ func TestJSXAutomaticNoNameCollision(t *testing.T) {
 }
 
 func TestAssertTypeJSONWrongLoader(t *testing.T) {
-	default_suite.expectBundled(t, bundled{
+	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				import foo from './foo.json' assert { type: 'json' }

@@ -5415,7 +5415,7 @@ fragment.jsx: WARNING: "import.meta" is not available in the configured target e
 }
 
 func TestBundlingFilesOutsideOfOutbase(t *testing.T) {
-	splitting_suite.expectBundled(t, bundled{
+	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/src/entry.js": `
 				console.log('test')
@@ -5510,7 +5510,7 @@ var relocateEntries = []string{
 }
 
 func TestVarRelocatingBundle(t *testing.T) {
-	splitting_suite.expectBundled(t, bundled{
+	default_suite.expectBundled(t, bundled{
 		files:      relocateFiles,
 		entryPaths: relocateEntries,
 		options: config.Options{
@@ -5522,7 +5522,7 @@ func TestVarRelocatingBundle(t *testing.T) {
 }
 
 func TestVarRelocatingNoBundle(t *testing.T) {
-	splitting_suite.expectBundled(t, bundled{
+	default_suite.expectBundled(t, bundled{
 		files:      relocateFiles,
 		entryPaths: relocateEntries,
 		options: config.Options{
@@ -5817,7 +5817,7 @@ func TestEntryNamesNonPortableCharacter(t *testing.T) {
 }
 
 func TestEntryNamesChunkNamesExtPlaceholder(t *testing.T) {
-	loader_suite.expectBundled(t, bundled{
+	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/src/entries/entry1.js":  `import "../lib/shared.js"; import "./entry1.css"; console.log('entry1')`,
 			"/src/entries/entry2.js":  `import "../lib/shared.js"; import "./entry2.css"; console.log('entry2')`,
@@ -5849,7 +5849,7 @@ func TestEntryNamesChunkNamesExtPlaceholder(t *testing.T) {
 }
 
 func TestMinifyIdentifiersImportPathFrequencyAnalysis(t *testing.T) {
-	loader_suite.expectBundled(t, bundled{
+	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/import.js": `
 				import foo from "./WWWWWWWWWWXXXXXXXXXXYYYYYYYYYYZZZZZZZZZZ"
@@ -5877,7 +5877,7 @@ func TestMinifyIdentifiersImportPathFrequencyAnalysis(t *testing.T) {
 }
 
 func TestToESMWrapperOmission(t *testing.T) {
-	loader_suite.expectBundled(t, bundled{
+	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				import 'a_nowrap'
@@ -5928,7 +5928,7 @@ func TestToESMWrapperOmission(t *testing.T) {
 //	  return foo2;
 //	};
 func TestNamedFunctionExpressionArgumentCollision(t *testing.T) {
-	loader_suite.expectBundled(t, bundled{
+	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				let x = function foo(foo) {
@@ -5947,7 +5947,7 @@ func TestNamedFunctionExpressionArgumentCollision(t *testing.T) {
 }
 
 func TestNoWarnCommonJSExportsInESMPassThrough(t *testing.T) {
-	loader_suite.expectBundled(t, bundled{
+	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/cjs-in-esm.js": `
 				export let foo = 1
@@ -5976,7 +5976,7 @@ func TestNoWarnCommonJSExportsInESMPassThrough(t *testing.T) {
 }
 
 func TestWarnCommonJSExportsInESMConvert(t *testing.T) {
-	loader_suite.expectBundled(t, bundled{
+	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/cjs-in-esm.js": `
 				export let foo = 1
@@ -6019,7 +6019,7 @@ cjs-in-esm2.js: NOTE: This file is considered to be an ECMAScript module because
 }
 
 func TestWarnCommonJSExportsInESMBundle(t *testing.T) {
-	loader_suite.expectBundled(t, bundled{
+	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/cjs-in-esm.js": `
 				export let foo = 1
@@ -6059,7 +6059,7 @@ cjs-in-esm.js: NOTE: This file is considered to be an ECMAScript module because 
 }
 
 func TestMangleProps(t *testing.T) {
-	loader_suite.expectBundled(t, bundled{
+	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry1.js": `
 				export function shouldMangle() {
@@ -6115,7 +6115,7 @@ func TestMangleProps(t *testing.T) {
 }
 
 func TestManglePropsMinify(t *testing.T) {
-	loader_suite.expectBundled(t, bundled{
+	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			// These repeating characters test for frequency analysis
 
@@ -6175,7 +6175,7 @@ func TestManglePropsMinify(t *testing.T) {
 }
 
 func TestManglePropsKeywordPropertyMinify(t *testing.T) {
-	loader_suite.expectBundled(t, bundled{
+	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				class Foo {
@@ -6196,7 +6196,7 @@ func TestManglePropsKeywordPropertyMinify(t *testing.T) {
 }
 
 func TestManglePropsOptionalChain(t *testing.T) {
-	loader_suite.expectBundled(t, bundled{
+	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				export default function(x) {
@@ -6221,7 +6221,7 @@ func TestManglePropsOptionalChain(t *testing.T) {
 }
 
 func TestManglePropsLoweredOptionalChain(t *testing.T) {
-	loader_suite.expectBundled(t, bundled{
+	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				export default function(x) {
@@ -6247,7 +6247,7 @@ func TestManglePropsLoweredOptionalChain(t *testing.T) {
 }
 
 func TestReserveProps(t *testing.T) {
-	loader_suite.expectBundled(t, bundled{
+	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				export default {
@@ -6267,7 +6267,7 @@ func TestReserveProps(t *testing.T) {
 }
 
 func TestManglePropsImportExport(t *testing.T) {
-	loader_suite.expectBundled(t, bundled{
+	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			// These don't count as property names, and aren't mangled
 			"/esm.js": `
@@ -6294,7 +6294,7 @@ func TestManglePropsImportExport(t *testing.T) {
 }
 
 func TestManglePropsImportExportBundled(t *testing.T) {
-	loader_suite.expectBundled(t, bundled{
+	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			// Note: import and export syntax does not count as a property name. That
 			// means the following code is broken. This test just serves to document
@@ -6339,7 +6339,7 @@ func TestManglePropsImportExportBundled(t *testing.T) {
 }
 
 func TestManglePropsJSXTransform(t *testing.T) {
-	loader_suite.expectBundled(t, bundled{
+	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.jsx": `
 				let Foo = {
@@ -6371,7 +6371,7 @@ func TestManglePropsJSXTransform(t *testing.T) {
 }
 
 func TestManglePropsJSXPreserve(t *testing.T) {
-	loader_suite.expectBundled(t, bundled{
+	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.jsx": `
 				let Foo = {
@@ -6396,7 +6396,7 @@ func TestManglePropsJSXPreserve(t *testing.T) {
 }
 
 func TestManglePropsJSXTransformNamespace(t *testing.T) {
-	loader_suite.expectBundled(t, bundled{
+	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.jsx": `
 				export default [
@@ -6416,7 +6416,7 @@ func TestManglePropsJSXTransformNamespace(t *testing.T) {
 }
 
 func TestManglePropsAvoidCollisions(t *testing.T) {
-	loader_suite.expectBundled(t, bundled{
+	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				export default {
@@ -6438,7 +6438,7 @@ func TestManglePropsAvoidCollisions(t *testing.T) {
 }
 
 func TestManglePropsTypeScriptFeatures(t *testing.T) {
-	loader_suite.expectBundled(t, bundled{
+	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/parameter-properties.ts": `
 				class Foo {
@@ -6546,7 +6546,7 @@ func TestManglePropsTypeScriptFeatures(t *testing.T) {
 }
 
 func TestManglePropsShorthand(t *testing.T) {
-	loader_suite.expectBundled(t, bundled{
+	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				// This should print as "({ y }) => ({ y })" not "({ y: y }) => ({ y: y })"
@@ -6564,7 +6564,7 @@ func TestManglePropsShorthand(t *testing.T) {
 }
 
 func TestManglePropsNoShorthand(t *testing.T) {
-	loader_suite.expectBundled(t, bundled{
+	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				// This should print as "({ y }) => ({ y: y })" not "({ y: y }) => ({ y: y })"
@@ -6583,7 +6583,7 @@ func TestManglePropsNoShorthand(t *testing.T) {
 }
 
 func TestManglePropsLoweredClassFields(t *testing.T) {
-	loader_suite.expectBundled(t, bundled{
+	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				class Foo {
@@ -6608,7 +6608,7 @@ func TestManglePropsLoweredClassFields(t *testing.T) {
 // The fix was to prevent the property "constructor" from being mangled.
 // See: https://github.com/evanw/esbuild/issues/1976
 func TestManglePropsSuperCall(t *testing.T) {
-	loader_suite.expectBundled(t, bundled{
+	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				class Foo {}
@@ -6629,7 +6629,7 @@ func TestManglePropsSuperCall(t *testing.T) {
 }
 
 func TestMangleNoQuotedProps(t *testing.T) {
-	loader_suite.expectBundled(t, bundled{
+	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				x['_doNotMangleThis'];
@@ -6657,7 +6657,7 @@ func TestMangleNoQuotedProps(t *testing.T) {
 }
 
 func TestMangleNoQuotedPropsMinifySyntax(t *testing.T) {
-	loader_suite.expectBundled(t, bundled{
+	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				x['_doNotMangleThis'];
@@ -6686,7 +6686,7 @@ func TestMangleNoQuotedPropsMinifySyntax(t *testing.T) {
 }
 
 func TestMangleQuotedProps(t *testing.T) {
-	loader_suite.expectBundled(t, bundled{
+	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/keep.js": `
 				foo("_keepThisProperty");
@@ -6734,7 +6734,7 @@ func TestMangleQuotedProps(t *testing.T) {
 }
 
 func TestMangleQuotedPropsMinifySyntax(t *testing.T) {
-	loader_suite.expectBundled(t, bundled{
+	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/keep.js": `
 				foo("_keepThisProperty");
@@ -6783,7 +6783,7 @@ func TestMangleQuotedPropsMinifySyntax(t *testing.T) {
 }
 
 func TestIndirectRequireMessage(t *testing.T) {
-	loader_suite.expectBundled(t, bundled{
+	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/array.js":  `let x = [require]`,
 			"/assign.js": `require = x`,
@@ -6813,7 +6813,7 @@ ident.js: DEBUG: Indirect calls to "require" will not be bundled
 }
 
 func TestAmbiguousReexportMsg(t *testing.T) {
-	loader_suite.expectBundled(t, bundled{
+	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				export * from './a'
@@ -6839,7 +6839,7 @@ b.js: NOTE: Another definition of "x" comes from "b.js" here:
 
 // See: https://github.com/evanw/esbuild/issues/2537
 func TestNonDeterminismIssue2537(t *testing.T) {
-	loader_suite.expectBundled(t, bundled{
+	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
 				export function aap(noot: boolean, wim: number) {
@@ -6875,7 +6875,7 @@ func TestNonDeterminismIssue2537(t *testing.T) {
 
 // See: https://github.com/evanw/esbuild/issues/2697
 func TestMinifiedJSXPreserveWithObjectSpread(t *testing.T) {
-	loader_suite.expectBundled(t, bundled{
+	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.jsx": `
 				const obj = {
@@ -6913,7 +6913,7 @@ func TestMinifiedJSXPreserveWithObjectSpread(t *testing.T) {
 }
 
 func TestPackageAlias(t *testing.T) {
-	loader_suite.expectBundled(t, bundled{
+	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				import "pkg1"
@@ -6958,7 +6958,7 @@ func TestPackageAlias(t *testing.T) {
 }
 
 func TestErrorsForAssertTypeJSON(t *testing.T) {
-	loader_suite.expectBundled(t, bundled{
+	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/js-entry.js": `
 				import all from './foo.json' assert { type: 'json' }
@@ -7037,7 +7037,7 @@ NOTE: You can either keep the import assertion and only use the "default" import
 }
 
 func TestOutputForAssertTypeJSON(t *testing.T) {
-	loader_suite.expectBundled(t, bundled{
+	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/js-entry.js": `
 				import all from './foo.json' assert { type: 'json' }
@@ -7084,7 +7084,7 @@ NOTE: You can either keep the import assertion and only use the "default" import
 }
 
 func TestExternalPackages(t *testing.T) {
-	loader_suite.expectBundled(t, bundled{
+	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/project/entry.js": `
 				import 'pkg1'
@@ -7117,7 +7117,7 @@ func TestExternalPackages(t *testing.T) {
 }
 
 func TestMetafileVariousCases(t *testing.T) {
-	loader_suite.expectBundled(t, bundled{
+	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/project/entry.js": `
 				import a from 'extern-esm'
@@ -7182,7 +7182,7 @@ func TestMetafileVariousCases(t *testing.T) {
 }
 
 func TestMetafileNoBundle(t *testing.T) {
-	loader_suite.expectBundled(t, bundled{
+	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/project/entry.js": `
 				import a from 'pkg'
@@ -7216,7 +7216,7 @@ func TestMetafileNoBundle(t *testing.T) {
 }
 
 func TestMetafileVeryLongExternalPaths(t *testing.T) {
-	loader_suite.expectBundled(t, bundled{
+	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/project/bytesInOutput should be at least 99 (1).js": `
 				import a from './` + strings.Repeat("1", 99) + `.file'
