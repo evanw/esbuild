@@ -7214,3 +7214,46 @@ func TestMetafileNoBundle(t *testing.T) {
 		},
 	})
 }
+
+func TestMetafileVeryLongExternalPaths(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/project/bytesInOutput should be at least 99 (1).js": `
+				import a from './` + strings.Repeat("1", 99) + `.file'
+				console.log(a)
+			`,
+			"/project/bytesInOutput should be at least 99 (2).js": `
+				import a from './` + strings.Repeat("2", 99) + `.copy'
+				console.log(a)
+			`,
+			"/project/bytesInOutput should be at least 99 (3).js": `
+				import('./` + strings.Repeat("3", 99) + `.js').then(console.log)
+			`,
+			"/project/bytesInOutput should be at least 99.css": `
+				a { background: url(` + strings.Repeat("4", 99) + `.file) }
+			`,
+			"/project/" + strings.Repeat("1", 99) + ".file": ``,
+			"/project/" + strings.Repeat("2", 99) + ".copy": ``,
+			"/project/" + strings.Repeat("3", 99) + ".js":   ``,
+			"/project/" + strings.Repeat("4", 99) + ".file": ``,
+		},
+		entryPaths: []string{
+			"/project/bytesInOutput should be at least 99 (1).js",
+			"/project/bytesInOutput should be at least 99 (2).js",
+			"/project/bytesInOutput should be at least 99 (3).js",
+			"/project/bytesInOutput should be at least 99.css",
+		},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputDir:  "/out",
+			NeedsMetafile: true,
+			ExtensionToLoader: map[string]config.Loader{
+				".js":   config.LoaderJS,
+				".css":  config.LoaderCSS,
+				".file": config.LoaderFile,
+				".copy": config.LoaderCopy,
+			},
+			CodeSplitting: true,
+		},
+	})
+}

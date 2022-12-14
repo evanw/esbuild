@@ -1401,6 +1401,204 @@ d {
 }
 
 ================================================================================
+TestMetafileVeryLongExternalPaths
+---------- /out/111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111-55DNWN2R.file ----------
+
+---------- /out/bytesInOutput should be at least 99 (1).js ----------
+// project/111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111.file
+var __default = "./111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111-55DNWN2R.file";
+
+// project/bytesInOutput should be at least 99 (1).js
+console.log(__default);
+
+---------- /out/222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222-55DNWN2R.copy ----------
+
+---------- /out/bytesInOutput should be at least 99 (2).js ----------
+// project/bytesInOutput should be at least 99 (2).js
+import a from "./222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222-55DNWN2R.copy";
+console.log(a);
+
+---------- /out/bytesInOutput should be at least 99 (3).js ----------
+// project/bytesInOutput should be at least 99 (3).js
+import("./333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333-DH3FVEAA.js").then(console.log);
+
+---------- /out/333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333-DH3FVEAA.js ----------
+
+---------- /out/444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444-55DNWN2R.file ----------
+
+---------- /out/bytesInOutput should be at least 99.css ----------
+/* project/bytesInOutput should be at least 99.css */
+a {
+  background: url(./444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444-55DNWN2R.file);
+}
+---------- metafile.json ----------
+{
+  "inputs": {
+    "project/111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111.file": {
+      "bytes": 0,
+      "imports": []
+    },
+    "project/bytesInOutput should be at least 99 (1).js": {
+      "bytes": 150,
+      "imports": [
+        {
+          "path": "project/111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111.file",
+          "kind": "import-statement"
+        }
+      ]
+    },
+    "project/222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222.copy": {
+      "bytes": 0,
+      "imports": []
+    },
+    "project/bytesInOutput should be at least 99 (2).js": {
+      "bytes": 150,
+      "imports": [
+        {
+          "path": "project/222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222.copy",
+          "kind": "import-statement"
+        }
+      ]
+    },
+    "project/333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333.js": {
+      "bytes": 0,
+      "imports": []
+    },
+    "project/bytesInOutput should be at least 99 (3).js": {
+      "bytes": 141,
+      "imports": [
+        {
+          "path": "project/333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333.js",
+          "kind": "dynamic-import"
+        }
+      ]
+    },
+    "project/444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444.file": {
+      "bytes": 0,
+      "imports": []
+    },
+    "project/bytesInOutput should be at least 99.css": {
+      "bytes": 136,
+      "imports": [
+        {
+          "path": "project/444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444.file",
+          "kind": "url-token"
+        }
+      ]
+    }
+  },
+  "outputs": {
+    "out/111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111-55DNWN2R.file": {
+      "imports": [],
+      "exports": [],
+      "inputs": {
+        "project/111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111.file": {
+          "bytesInOutput": 0
+        }
+      },
+      "bytes": 0
+    },
+    "out/bytesInOutput should be at least 99 (1).js": {
+      "imports": [
+        {
+          "path": "out/111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111-55DNWN2R.file",
+          "kind": "file-loader"
+        }
+      ],
+      "exports": [],
+      "entryPoint": "project/bytesInOutput should be at least 99 (1).js",
+      "inputs": {
+        "project/111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111.file": {
+          "bytesInOutput": 45
+        },
+        "project/bytesInOutput should be at least 99 (1).js": {
+          "bytesInOutput": 24
+        }
+      },
+      "bytes": 330
+    },
+    "out/222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222-55DNWN2R.copy": {
+      "imports": [],
+      "exports": [],
+      "inputs": {
+        "project/222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222.copy": {
+          "bytesInOutput": 0
+        }
+      },
+      "bytes": 0
+    },
+    "out/bytesInOutput should be at least 99 (2).js": {
+      "imports": [
+        {
+          "path": "out/222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222-55DNWN2R.copy",
+          "kind": "import-statement"
+        }
+      ],
+      "exports": [],
+      "entryPoint": "project/bytesInOutput should be at least 99 (2).js",
+      "inputs": {
+        "project/bytesInOutput should be at least 99 (2).js": {
+          "bytesInOutput": 59
+        }
+      },
+      "bytes": 203
+    },
+    "out/bytesInOutput should be at least 99 (3).js": {
+      "imports": [
+        {
+          "path": "out/333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333-DH3FVEAA.js",
+          "kind": "dynamic-import"
+        }
+      ],
+      "exports": [],
+      "entryPoint": "project/bytesInOutput should be at least 99 (3).js",
+      "inputs": {
+        "project/bytesInOutput should be at least 99 (3).js": {
+          "bytesInOutput": 55
+        }
+      },
+      "bytes": 197
+    },
+    "out/333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333-DH3FVEAA.js": {
+      "imports": [],
+      "exports": [],
+      "entryPoint": "project/333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333.js",
+      "inputs": {
+        "project/333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333.js": {
+          "bytesInOutput": 0
+        }
+      },
+      "bytes": 0
+    },
+    "out/444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444-55DNWN2R.file": {
+      "imports": [],
+      "exports": [],
+      "inputs": {
+        "project/444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444.file": {
+          "bytesInOutput": 0
+        }
+      },
+      "bytes": 0
+    },
+    "out/bytesInOutput should be at least 99.css": {
+      "imports": [
+        {
+          "path": "out/444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444-55DNWN2R.file",
+          "kind": "url-token"
+        }
+      ],
+      "entryPoint": "project/bytesInOutput should be at least 99.css",
+      "inputs": {
+        "project/bytesInOutput should be at least 99.css": {
+          "bytesInOutput": 52
+        }
+      },
+      "bytes": 196
+    }
+  }
+}
+
+================================================================================
 TestMinifiedJSXPreserveWithObjectSpread
 ---------- /out.js ----------
 // entry.jsx
