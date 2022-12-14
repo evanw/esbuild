@@ -38,6 +38,7 @@ type linkerContext struct {
 	fs      fs.FS
 	res     resolver.Resolver
 	graph   graph.LinkerGraph
+	chunks  []chunkInfo
 
 	// This helps avoid an infinite loop when matching imports to exports
 	cycleDetector []importTracker
@@ -313,8 +314,8 @@ func link(
 		}
 	}
 
-	chunks := c.computeChunks()
-	c.computeCrossChunkDependencies(chunks)
+	c.computeChunks()
+	c.computeCrossChunkDependencies()
 
 	// Merge mangled properties before chunks are generated since the names must
 	// be consistent across all chunks, or the generated code will break
@@ -330,7 +331,7 @@ func link(
 	// won't hit concurrent map mutation hazards
 	js_ast.FollowAllSymbols(c.graph.Symbols)
 
-	return c.generateChunksInParallel(chunks, additionalFiles)
+	return c.generateChunksInParallel(additionalFiles)
 }
 
 func (c *linkerContext) mangleProps(mangleCache map[string]interface{}) {
@@ -442,7 +443,7 @@ func (c *linkerContext) mangleProps(mangleCache map[string]interface{}) {
 // Since that work hasn't been finished yet, cycles in the chunk import graph
 // can cause initialization bugs. So let's forbid these cycles for now to guard
 // against code splitting bugs that could cause us to generate buggy chunks.
-func (c *linkerContext) enforceNoCyclicChunkImports(chunks []chunkInfo) {
+func (c *linkerContext) enforceNoCyclicChunkImports() {
 	var validate func(int, []int)
 	validate = func(chunkIndex int, path []int) {
 		for _, otherChunkIndex := range path {
@@ -452,7 +453,7 @@ func (c *linkerContext) enforceNoCyclicChunkImports(chunks []chunkInfo) {
 			}
 		}
 		path = append(path, chunkIndex)
-		for _, chunkImport := range chunks[chunkIndex].crossChunkImports {
+		for _, chunkImport := range c.chunks[chunkIndex].crossChunkImports {
 			// Ignore cycles caused by dynamic "import()" expressions. These are fine
 			// because they don't necessarily cause initialization order issues and
 			// they don't indicate a bug in our chunk generation algorithm. They arise
@@ -462,44 +463,44 @@ func (c *linkerContext) enforceNoCyclicChunkImports(chunks []chunkInfo) {
 			}
 		}
 	}
-	path := make([]int, 0, len(chunks))
-	for i := range chunks {
+	path := make([]int, 0, len(c.chunks))
+	for i := range c.chunks {
 		validate(i, path)
 	}
 }
 
-func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo, additionalFiles []graph.OutputFile) []graph.OutputFile {
+func (c *linkerContext) generateChunksInParallel(additionalFiles []graph.OutputFile) []graph.OutputFile {
 	c.timer.Begin("Generate chunks")
 	defer c.timer.End("Generate chunks")
 
 	// Generate each chunk on a separate goroutine
 	generateWaitGroup := sync.WaitGroup{}
-	generateWaitGroup.Add(len(chunks))
-	for chunkIndex := range chunks {
-		switch chunks[chunkIndex].chunkRepr.(type) {
+	generateWaitGroup.Add(len(c.chunks))
+	for chunkIndex := range c.chunks {
+		switch c.chunks[chunkIndex].chunkRepr.(type) {
 		case *chunkReprJS:
-			go c.generateChunkJS(chunks, chunkIndex, &generateWaitGroup)
+			go c.generateChunkJS(chunkIndex, &generateWaitGroup)
 		case *chunkReprCSS:
-			go c.generateChunkCSS(chunks, chunkIndex, &generateWaitGroup)
+			go c.generateChunkCSS(chunkIndex, &generateWaitGroup)
 		}
 	}
-	c.enforceNoCyclicChunkImports(chunks)
+	c.enforceNoCyclicChunkImports()
 	generateWaitGroup.Wait()
 
 	// Compute the final hashes of each chunk. This can technically be done in
 	// parallel but it probably doesn't matter so much because we're not hashing
 	// that much data.
-	visited := make([]uint32, len(chunks))
+	visited := make([]uint32, len(c.chunks))
 	var finalBytes []byte
-	for chunkIndex := range chunks {
-		chunk := &chunks[chunkIndex]
+	for chunkIndex := range c.chunks {
+		chunk := &c.chunks[chunkIndex]
 		var hashSubstitution *string
 
 		// Only wait for the hash if necessary
 		if config.HasPlaceholder(chunk.finalTemplate, config.HashPlaceholder) {
 			// Compute the final hash using the isolated hashes of the dependencies
 			hash := xxhash.New()
-			c.appendIsolatedHashesForImportedChunks(hash, chunks, uint32(chunkIndex), visited, ^uint32(chunkIndex))
+			c.appendIsolatedHashesForImportedChunks(hash, uint32(chunkIndex), visited, ^uint32(chunkIndex))
 			finalBytes = hash.Sum(finalBytes[:0])
 			finalString := hashForFileName(finalBytes)
 			hashSubstitution = &finalString
@@ -514,9 +515,9 @@ func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo, additionalF
 	// Generate the final output files by joining file pieces together
 	c.timer.Begin("Generate final output files")
 	var resultsWaitGroup sync.WaitGroup
-	results := make([][]graph.OutputFile, len(chunks))
-	resultsWaitGroup.Add(len(chunks))
-	for chunkIndex, chunk := range chunks {
+	results := make([][]graph.OutputFile, len(c.chunks))
+	resultsWaitGroup.Add(len(c.chunks))
+	for chunkIndex, chunk := range c.chunks {
 		go func(chunkIndex int, chunk chunkInfo) {
 			var outputFiles []graph.OutputFile
 
@@ -541,7 +542,7 @@ func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo, additionalF
 
 			// Path substitution for the chunk itself
 			finalRelDir := c.fs.Dir(chunk.finalRelPath)
-			outputContentsJoiner, outputSourceMapShifts := c.substituteFinalPaths(chunks, chunk.intermediateOutput,
+			outputContentsJoiner, outputSourceMapShifts := c.substituteFinalPaths(chunk.intermediateOutput,
 				func(finalRelPathForImport string) string {
 					return c.pathBetweenChunks(finalRelDir, finalRelPathForImport)
 				})
@@ -613,8 +614,8 @@ func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo, additionalF
 			// Path substitution for the JSON metadata
 			var jsonMetadataChunk string
 			if c.options.NeedsMetafile {
-				jsonMetadataChunkPieces := c.breakOutputIntoPieces(chunk.jsonMetadataChunkCallback(len(outputContents)), uint32(len(chunks)))
-				jsonMetadataChunkBytes, _ := c.substituteFinalPaths(chunks, jsonMetadataChunkPieces, func(finalRelPathForImport string) string {
+				jsonMetadataChunkPieces := c.breakOutputIntoPieces(chunk.jsonMetadataChunkCallback(len(outputContents)))
+				jsonMetadataChunkBytes, _ := c.substituteFinalPaths(jsonMetadataChunkPieces, func(finalRelPathForImport string) string {
 					return c.res.PrettyPath(logger.Path{Text: c.fs.Join(c.options.AbsOutputDir, finalRelPathForImport), Namespace: "file"})
 				})
 				jsonMetadataChunk = string(jsonMetadataChunkBytes.Done())
@@ -652,7 +653,6 @@ func (c *linkerContext) generateChunksInParallel(chunks []chunkInfo, additionalF
 // between import paths), substitute the final import paths in and then join
 // everything into a single byte buffer.
 func (c *linkerContext) substituteFinalPaths(
-	chunks []chunkInfo,
 	intermediateOutput intermediateOutput,
 	modifyPath func(string) string,
 ) (j helpers.Joiner, shifts []sourcemap.SourceMapShift) {
@@ -692,7 +692,7 @@ func (c *linkerContext) substituteFinalPaths(
 			shifts = append(shifts, shift)
 
 		case outputPieceChunkIndex:
-			chunk := chunks[piece.index]
+			chunk := c.chunks[piece.index]
 			importPath := modifyPath(chunk.finalRelPath)
 			j.AddString(importPath)
 			shift.Before.AdvanceString(chunk.uniqueKey)
@@ -822,12 +822,12 @@ func pathRelativeToOutbase(
 	return
 }
 
-func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
+func (c *linkerContext) computeCrossChunkDependencies() {
 	c.timer.Begin("Compute cross-chunk dependencies")
 	defer c.timer.End("Compute cross-chunk dependencies")
 
 	jsChunks := 0
-	for _, chunk := range chunks {
+	for _, chunk := range c.chunks {
 		if _, ok := chunk.chunkRepr.(*chunkReprJS); ok {
 			jsChunks++
 		}
@@ -843,13 +843,13 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 		dynamicImports map[int]bool
 	}
 
-	chunkMetas := make([]chunkMeta, len(chunks))
+	chunkMetas := make([]chunkMeta, len(c.chunks))
 
 	// For each chunk, see what symbols it uses from other chunks. Do this in
 	// parallel because it's the most expensive part of this function.
 	waitGroup := sync.WaitGroup{}
-	waitGroup.Add(len(chunks))
-	for chunkIndex, chunk := range chunks {
+	waitGroup.Add(len(c.chunks))
+	for chunkIndex, chunk := range c.chunks {
 		go func(chunkIndex int, chunk chunkInfo) {
 			chunkMeta := &chunkMetas[chunkIndex]
 			imports := make(map[js_ast.Ref]bool)
@@ -872,7 +872,7 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 							record := &repr.AST.ImportRecords[importRecordIndex]
 							if record.SourceIndex.IsValid() && c.isExternalDynamicImport(record, sourceIndex) {
 								otherChunkIndex := c.graph.Files[record.SourceIndex.GetIndex()].EntryPointChunkIndex
-								record.Path.Text = chunks[otherChunkIndex].uniqueKey
+								record.Path.Text = c.chunks[otherChunkIndex].uniqueKey
 								record.SourceIndex = ast.Index32{}
 								record.Flags |= ast.ShouldNotBeExternalInMetafile
 
@@ -988,8 +988,8 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 	waitGroup.Wait()
 
 	// Mark imported symbols as exported in the chunk from which they are declared
-	for chunkIndex := range chunks {
-		chunk := &chunks[chunkIndex]
+	for chunkIndex := range c.chunks {
+		chunk := &c.chunks[chunkIndex]
 		chunkRepr, ok := chunk.chunkRepr.(*chunkReprJS)
 		if !ok {
 			continue
@@ -1013,7 +1013,7 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 		// this entry point, even if there are no imports. We need to make sure
 		// these chunks are evaluated for their side effects too.
 		if chunk.isEntryPoint {
-			for otherChunkIndex, otherChunk := range chunks {
+			for otherChunkIndex, otherChunk := range c.chunks {
 				if _, ok := otherChunk.chunkRepr.(*chunkReprJS); ok && chunkIndex != otherChunkIndex && otherChunk.entryBits.HasBit(chunk.entryPointBit) {
 					imports := chunkRepr.importsFromOtherChunks[uint32(otherChunkIndex)]
 					chunkRepr.importsFromOtherChunks[uint32(otherChunkIndex)] = imports
@@ -1042,8 +1042,8 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 	// Generate cross-chunk exports. These must be computed before cross-chunk
 	// imports because of export alias renaming, which must consider all export
 	// aliases simultaneously to avoid collisions.
-	for chunkIndex := range chunks {
-		chunk := &chunks[chunkIndex]
+	for chunkIndex := range c.chunks {
+		chunk := &c.chunks[chunkIndex]
 		chunkRepr, ok := chunk.chunkRepr.(*chunkReprJS)
 		if !ok {
 			continue
@@ -1078,8 +1078,8 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 	// Generate cross-chunk imports. These must be computed after cross-chunk
 	// exports because the export aliases must already be finalized so they can
 	// be embedded in the generated import statements.
-	for chunkIndex := range chunks {
-		chunk := &chunks[chunkIndex]
+	for chunkIndex := range c.chunks {
+		chunk := &c.chunks[chunkIndex]
 		chunkRepr, ok := chunk.chunkRepr.(*chunkReprJS)
 		if !ok {
 			continue
@@ -1087,7 +1087,7 @@ func (c *linkerContext) computeCrossChunkDependencies(chunks []chunkInfo) {
 
 		var crossChunkPrefixStmts []js_ast.Stmt
 
-		for _, crossChunkImport := range c.sortedCrossChunkImports(chunks, chunkRepr.importsFromOtherChunks) {
+		for _, crossChunkImport := range c.sortedCrossChunkImports(chunkRepr.importsFromOtherChunks) {
 			switch c.options.OutputFormat {
 			case config.FormatESModule:
 				var items []js_ast.ClauseItem
@@ -1137,12 +1137,12 @@ func (a crossChunkImportArray) Less(i int, j int) bool {
 }
 
 // Sort cross-chunk imports by chunk name for determinism
-func (c *linkerContext) sortedCrossChunkImports(chunks []chunkInfo, importsFromOtherChunks map[uint32]crossChunkImportItemArray) crossChunkImportArray {
+func (c *linkerContext) sortedCrossChunkImports(importsFromOtherChunks map[uint32]crossChunkImportItemArray) crossChunkImportArray {
 	result := make(crossChunkImportArray, 0, len(importsFromOtherChunks))
 
 	for otherChunkIndex, importItems := range importsFromOtherChunks {
 		// Sort imports from a single chunk by alias for determinism
-		otherChunk := &chunks[otherChunkIndex]
+		otherChunk := &c.chunks[otherChunkIndex]
 		exportsToOtherChunks := otherChunk.chunkRepr.(*chunkReprJS).exportsToOtherChunks
 		for i, item := range importItems {
 			importItems[i].exportAlias = exportsToOtherChunks[item.ref]
@@ -3142,7 +3142,7 @@ func (c *linkerContext) findImportedFilesInCSSOrder(entryPoints []uint32) (exter
 	return
 }
 
-func (c *linkerContext) computeChunks() []chunkInfo {
+func (c *linkerContext) computeChunks() {
 	c.timer.Begin("Compute chunks")
 	defer c.timer.End("Compute chunks")
 
@@ -3358,7 +3358,7 @@ func (c *linkerContext) computeChunks() []chunkInfo {
 		})
 	}
 
-	return sortedChunks
+	c.chunks = sortedChunks
 }
 
 type chunkOrder struct {
@@ -4775,10 +4775,10 @@ func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []ui
 	return r
 }
 
-func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chunkWaitGroup *sync.WaitGroup) {
+func (c *linkerContext) generateChunkJS(chunkIndex int, chunkWaitGroup *sync.WaitGroup) {
 	defer c.recoverInternalError(chunkWaitGroup, runtime.SourceIndex)
 
-	chunk := &chunks[chunkIndex]
+	chunk := &c.chunks[chunkIndex]
 
 	timer := c.timer.Fork()
 	if timer != nil {
@@ -4855,7 +4855,7 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 		for i, chunkImport := range chunk.crossChunkImports {
 			crossChunkImportRecords[i] = ast.ImportRecord{
 				Kind:  chunkImport.importKind,
-				Path:  logger.Path{Text: chunks[chunkImport.chunkIndex].uniqueKey},
+				Path:  logger.Path{Text: c.chunks[chunkImport.chunkIndex].uniqueKey},
 				Flags: ast.ShouldNotBeExternalInMetafile,
 			}
 		}
@@ -5027,7 +5027,7 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 			jMeta.AddString(fmt.Sprintf("      \"entryPoint\": %s,\n", helpers.QuoteForJSON(entryPoint, c.options.ASCIIOnly)))
 		}
 		if chunkRepr.hasCSSChunk {
-			jMeta.AddString(fmt.Sprintf("      \"cssBundle\": %s,\n", helpers.QuoteForJSON(chunks[chunkRepr.cssChunkIndex].uniqueKey, c.options.ASCIIOnly)))
+			jMeta.AddString(fmt.Sprintf("      \"cssBundle\": %s,\n", helpers.QuoteForJSON(c.chunks[chunkRepr.cssChunkIndex].uniqueKey, c.options.ASCIIOnly)))
 		}
 		jMeta.AddString("      \"inputs\": {")
 	}
@@ -5148,7 +5148,7 @@ func (c *linkerContext) generateChunkJS(chunks []chunkInfo, chunkIndex int, chun
 	}
 
 	// The JavaScript contents are done now that the source map comment is in
-	chunk.intermediateOutput = c.breakOutputIntoPieces(j, uint32(len(chunks)))
+	chunk.intermediateOutput = c.breakOutputIntoPieces(j)
 	timer.End("Join JavaScript files")
 
 	if c.options.SourceMap != config.SourceMapNone {
@@ -5261,10 +5261,10 @@ type compileResultCSS struct {
 	hasCharset  bool
 }
 
-func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chunkWaitGroup *sync.WaitGroup) {
+func (c *linkerContext) generateChunkCSS(chunkIndex int, chunkWaitGroup *sync.WaitGroup) {
 	defer c.recoverInternalError(chunkWaitGroup, runtime.SourceIndex)
 
-	chunk := &chunks[chunkIndex]
+	chunk := &c.chunks[chunkIndex]
 
 	timer := c.timer.Fork()
 	if timer != nil {
@@ -5531,7 +5531,7 @@ func (c *linkerContext) generateChunkCSS(chunks []chunkInfo, chunkIndex int, chu
 	}
 
 	// The CSS contents are done now that the source map comment is in
-	chunk.intermediateOutput = c.breakOutputIntoPieces(j, uint32(len(chunks)))
+	chunk.intermediateOutput = c.breakOutputIntoPieces(j)
 	timer.End("Join CSS files")
 
 	if c.options.SourceMap != config.SourceMapNone {
@@ -5592,7 +5592,6 @@ func maybeAppendLegalComments(
 
 func (c *linkerContext) appendIsolatedHashesForImportedChunks(
 	hash hash.Hash,
-	chunks []chunkInfo,
 	chunkIndex uint32,
 	visited []uint32,
 	visitedKey uint32,
@@ -5605,11 +5604,11 @@ func (c *linkerContext) appendIsolatedHashesForImportedChunks(
 		return
 	}
 	visited[chunkIndex] = visitedKey
-	chunk := &chunks[chunkIndex]
+	chunk := &c.chunks[chunkIndex]
 
 	// Visit the other chunks that this chunk imports before visiting this chunk
 	for _, chunkImport := range chunk.crossChunkImports {
-		c.appendIsolatedHashesForImportedChunks(hash, chunks, chunkImport.chunkIndex, visited, visitedKey)
+		c.appendIsolatedHashesForImportedChunks(hash, chunkImport.chunkIndex, visited, visitedKey)
 	}
 
 	// Mix in hashes for referenced asset paths (i.e. the "file" loader)
@@ -5633,7 +5632,7 @@ func (c *linkerContext) appendIsolatedHashesForImportedChunks(
 	hash.Write(chunk.waitForIsolatedHash())
 }
 
-func (c *linkerContext) breakOutputIntoPieces(j helpers.Joiner, chunkCount uint32) intermediateOutput {
+func (c *linkerContext) breakOutputIntoPieces(j helpers.Joiner) intermediateOutput {
 	// Optimization: If there can be no substitutions, just reuse the initial
 	// joiner that was used when generating the intermediate chunk output
 	// instead of creating another one and copying the whole file into it.
@@ -5680,7 +5679,7 @@ func (c *linkerContext) breakOutputIntoPieces(j helpers.Joiner, chunkCount uint3
 			}
 
 		case outputPieceChunkIndex:
-			if index >= chunkCount {
+			if index >= uint32(len(c.chunks)) {
 				boundary = -1
 			}
 
