@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.16.7
 
 * Include `file` loader strings in metafile imports ([#2731](https://github.com/evanw/esbuild/issues/2731))
 
