@@ -2987,7 +2987,7 @@ func TestMangleUndefined(t *testing.T) {
 	expectPrintedNormalAndMangle(t, "const x = undefined", "const x = void 0;\n", "const x = void 0;\n")
 	expectPrintedNormalAndMangle(t, "let x = undefined", "let x = void 0;\n", "let x;\n")
 	expectPrintedNormalAndMangle(t, "var x = undefined", "var x = void 0;\n", "var x = void 0;\n")
-	expectPrintedNormalAndMangle(t, "function foo(a) { if (!a) return undefined; a() }", "function foo(a) {\n  if (!a)\n    return void 0;\n  a();\n}\n", "function foo(a) {\n  !a || a();\n}\n")
+	expectPrintedNormalAndMangle(t, "function foo(a) { if (!a) return undefined; a() }", "function foo(a) {\n  if (!a)\n    return void 0;\n  a();\n}\n", "function foo(a) {\n  a && a();\n}\n")
 
 	// These should not be transformed
 	expectPrintedNormalAndMangle(t, "delete undefined", "delete undefined;\n", "delete undefined;\n")
@@ -3620,6 +3620,8 @@ func TestMangleReturn(t *testing.T) {
 		"function x() {\n  y && z;\n}\n")
 	expectPrintedMangle(t, "function x() { if (y) { if (z) return; w(); } }",
 		"function x() {\n  if (y) {\n    if (z)\n      return;\n    w();\n  }\n}\n")
+	expectPrintedMangle(t, "function foo(x) { if (!x.y) {} else return x }", "function foo(x) {\n  if (x.y)\n    return x;\n}\n")
+	expectPrintedMangle(t, "function foo(x) { if (!x.y) return undefined; return x }", "function foo(x) {\n  if (x.y)\n    return x;\n}\n")
 
 	// Do not optimize implicit return for statements that care about scope
 	expectPrintedMangle(t, "function x() { if (y) return; function y() {} }", "function x() {\n  if (y)\n    return;\n  function y() {\n  }\n}\n")

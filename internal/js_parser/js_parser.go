@@ -8117,7 +8117,7 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 							bodyLoc = body[0].Loc
 						}
 						return p.mangleIf(result, stmt.Loc, &js_ast.SIf{
-							Test: js_ast.Not(s.Test),
+							Test: js_ast.SimplifyBooleanExpr(js_ast.Not(s.Test)),
 							Yes:  stmtsToSingleStmt(bodyLoc, body),
 						})
 					}
