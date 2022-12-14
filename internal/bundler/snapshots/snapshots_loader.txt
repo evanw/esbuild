@@ -979,6 +979,258 @@ var { a: x } = y, { ["a"]: x } = y, { [(z, "a")]: x } = y;
 "a" in x, (y ? "a" : z) in x, (y ? z : "a") in x, y, "a" in x;
 
 ================================================================================
+TestMetafileVariousCases
+---------- /out/file-NVISQQTV.file ----------
+file
+---------- /out/copy-O3Y5SCJE.copy ----------
+copy
+---------- /out/entry.js ----------
+import {
+  __commonJS,
+  __require
+} from "./chunk-3MN5TIYV.js";
+
+// project/cjs.js
+var require_cjs = __commonJS({
+  "project/cjs.js"(exports, module) {
+    module.exports = 4;
+  }
+});
+
+// project/entry.js
+import a from "extern-esm";
+
+// project/esm.js
+var esm_default = 1;
+
+// <data:application/json,2>
+var json_2_default = 2;
+
+// project/file.file
+var file_default = "./file-NVISQQTV.file";
+
+// project/entry.js
+import e from "./copy-O3Y5SCJE.copy";
+console.log(
+  a,
+  esm_default,
+  json_2_default,
+  file_default,
+  e,
+  __require("extern-cjs"),
+  require_cjs(),
+  import("./dynamic-4QVDQQPM.js")
+);
+var exported;
+export {
+  exported
+};
+
+---------- /out/dynamic-4QVDQQPM.js ----------
+import "./chunk-3MN5TIYV.js";
+
+// project/dynamic.js
+var dynamic_default = 5;
+export {
+  dynamic_default as default
+};
+
+---------- /out/chunk-3MN5TIYV.js ----------
+export {
+  __require,
+  __commonJS
+};
+
+---------- /out/entry.css ----------
+@import "extern.css";
+
+/* project/entry.css */
+a {
+  background: url(data:image/svg+xml,<svg/>);
+}
+b {
+  background: url(./file-NVISQQTV.file);
+}
+c {
+  background: url(./copy-O3Y5SCJE.copy);
+}
+d {
+  background: url(extern.png);
+}
+---------- metafile.json ----------
+{
+  "inputs": {
+    "project/esm.js": {
+      "bytes": 16,
+      "imports": []
+    },
+    "<data:application/json,2>": {
+      "bytes": 1,
+      "imports": []
+    },
+    "project/file.file": {
+      "bytes": 4,
+      "imports": []
+    },
+    "project/copy.copy": {
+      "bytes": 4,
+      "imports": []
+    },
+    "project/cjs.js": {
+      "bytes": 18,
+      "imports": []
+    },
+    "project/dynamic.js": {
+      "bytes": 16,
+      "imports": []
+    },
+    "project/entry.js": {
+      "bytes": 333,
+      "imports": [
+        {
+          "path": "project/esm.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "<data:application/json,2>",
+          "kind": "import-statement"
+        },
+        {
+          "path": "project/file.file",
+          "kind": "import-statement"
+        },
+        {
+          "path": "project/copy.copy",
+          "kind": "import-statement"
+        },
+        {
+          "path": "project/cjs.js",
+          "kind": "require-call"
+        },
+        {
+          "path": "project/dynamic.js",
+          "kind": "dynamic-import"
+        }
+      ]
+    },
+    "project/inline.svg": {
+      "bytes": 6,
+      "imports": []
+    },
+    "project/entry.css": {
+      "bytes": 180,
+      "imports": [
+        {
+          "path": "project/inline.svg",
+          "kind": "url-token"
+        },
+        {
+          "path": "project/file.file",
+          "kind": "url-token"
+        },
+        {
+          "path": "project/copy.copy",
+          "kind": "url-token"
+        }
+      ]
+    }
+  },
+  "outputs": {
+    "out/file-NVISQQTV.file": {
+      "imports": [],
+      "exports": [],
+      "inputs": {
+        "project/file.file": {
+          "bytesInOutput": 4
+        }
+      },
+      "bytes": 4
+    },
+    "out/copy-O3Y5SCJE.copy": {
+      "imports": [],
+      "exports": [],
+      "inputs": {
+        "project/copy.copy": {
+          "bytesInOutput": 4
+        }
+      },
+      "bytes": 4
+    },
+    "out/entry.js": {
+      "imports": [
+        {
+          "path": "out/dynamic-4QVDQQPM.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "out/chunk-3MN5TIYV.js",
+          "kind": "import-statement"
+        }
+      ],
+      "exports": [
+        "exported"
+      ],
+      "entryPoint": "project/entry.js",
+      "inputs": {
+        "project/cjs.js": {
+          "bytesInOutput": 101
+        },
+        "project/entry.js": {
+          "bytesInOutput": 242
+        },
+        "project/esm.js": {
+          "bytesInOutput": 21
+        },
+        "<data:application/json,2>": {
+          "bytesInOutput": 24
+        },
+        "project/file.file": {
+          "bytesInOutput": 48
+        }
+      },
+      "bytes": 642
+    },
+    "out/dynamic-4QVDQQPM.js": {
+      "imports": [
+        {
+          "path": "out/chunk-3MN5TIYV.js",
+          "kind": "import-statement"
+        }
+      ],
+      "exports": [
+        "default"
+      ],
+      "entryPoint": "project/dynamic.js",
+      "inputs": {
+        "project/dynamic.js": {
+          "bytesInOutput": 25
+        }
+      },
+      "bytes": 119
+    },
+    "out/chunk-3MN5TIYV.js": {
+      "imports": [],
+      "exports": [
+        "__commonJS",
+        "__require"
+      ],
+      "inputs": {},
+      "bytes": 38
+    },
+    "out/entry.css": {
+      "imports": [],
+      "entryPoint": "project/entry.css",
+      "inputs": {
+        "project/entry.css": {
+          "bytesInOutput": 193
+        }
+      },
+      "bytes": 230
+    }
+  }
+}
+
+================================================================================
 TestMinifiedJSXPreserveWithObjectSpread
 ---------- /out.js ----------
 // entry.jsx

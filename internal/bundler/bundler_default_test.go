@@ -7112,3 +7112,68 @@ func TestExternalPackages(t *testing.T) {
 		},
 	})
 }
+
+func TestMetafileVariousCases(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/project/entry.js": `
+				import a from 'extern-esm'
+				import b from './esm'
+				import c from 'data:application/json,2'
+				import d from './file.file'
+				import e from './copy.copy'
+				console.log(
+					a,
+					b,
+					c,
+					d,
+					e,
+					require('extern-cjs'),
+					require('./cjs'),
+					import('./dynamic'),
+				)
+				export let exported
+			`,
+			"/project/entry.css": `
+				@import "extern.css";
+				a { background: url(inline.svg) }
+				b { background: url(file.file) }
+				c { background: url(copy.copy) }
+				d { background: url(extern.png) }
+			`,
+			"/project/esm.js":     `export default 1`,
+			"/project/cjs.js":     `module.exports = 4`,
+			"/project/dynamic.js": `export default 5`,
+			"/project/file.file":  `file`,
+			"/project/copy.copy":  `copy`,
+			"/project/inline.svg": `<svg/>`,
+		},
+		entryPaths: []string{
+			"/project/entry.js",
+			"/project/entry.css",
+		},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			ExtensionToLoader: map[string]config.Loader{
+				".js":   config.LoaderJS,
+				".css":  config.LoaderCSS,
+				".file": config.LoaderFile,
+				".copy": config.LoaderCopy,
+				".svg":  config.LoaderDataURL,
+			},
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{
+					Exact: map[string]bool{
+						"extern-esm": true,
+						"extern-cjs": true,
+						"extern.css": true,
+						"extern.png": true,
+					},
+				},
+			},
+			NeedsMetafile: true,
+			CodeSplitting: true,
+		},
+	})
+}
