@@ -543,6 +543,35 @@ let buildTests = {
     assert.strictEqual(json.sourcesContent[1], content)
   },
 
+  async sourceMapWithDifferentDirectories({ esbuild, testDir }) {
+    const inputDir = path.join(testDir, "input");
+    const inputDirURI = `file://${inputDir}`
+    const outputDir = path.join(testDir, "output");
+    await mkdirAsync(inputDir, { recursive: true });
+    await mkdirAsync(outputDir, { recursive: true });
+    const input = path.join(inputDir, "in.js");
+    const output = path.join(outputDir, "out.js");
+    const content = "exports.foo = 123";
+    await writeFileAsync(input, content);
+    await esbuild.build({
+      entryPoints: [input],
+      outfile: output,
+      sourcemap: true,
+      sourceRoot: inputDirURI,
+    });
+    const result = require(output);
+    assert.strictEqual(result.foo, 123);
+    const outputFile = await readFileAsync(output, "utf8");
+    const match = /\/\/# sourceMappingURL=(.*)/.exec(outputFile);
+    assert.strictEqual(match[1], "out.js.map");
+    const resultMap = await readFileAsync(output + ".map", "utf8");
+    const json = JSON.parse(resultMap);
+    assert.strictEqual(json.version, 3);
+    assert.strictEqual(json.sources[0], path.relative(inputDir, input));
+    assert.strictEqual(json.sourcesContent[0], content);
+    assert.strictEqual(json.sourceRoot, inputDirURI);
+  },
+
   async resolveExtensionOrder({ esbuild, testDir }) {
     const input = path.join(testDir, 'in.js');
     const inputBare = path.join(testDir, 'module.js')
