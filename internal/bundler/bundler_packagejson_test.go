@@ -2731,3 +2731,35 @@ NOTE: Node's package format requires that CommonJS files in a "type": "module" p
 `,
 	})
 }
+
+func TestPackageJsonNodePathsIssue2752(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/src/entry.js": `
+				import "pkg1"
+				import "pkg2"
+				import "@scope/pkg3/baz"
+				import "@scope/pkg4"
+			`,
+			"/usr/lib/pkg/pkg1/package.json":          `{ "main": "./foo.js" }`,
+			"/usr/lib/pkg/pkg1/foo.js":                `console.log('pkg1')`,
+			"/lib/pkg/pkg2/package.json":              `{ "exports": { ".": "./bar.js" } }`,
+			"/lib/pkg/pkg2/bar.js":                    `console.log('pkg2')`,
+			"/var/lib/pkg/@scope/pkg3/package.json":   `{ "browser": { "./baz.js": "./baz-browser.js" } }`,
+			"/var/lib/pkg/@scope/pkg3/baz-browser.js": `console.log('pkg3')`,
+			"/tmp/pkg/@scope/pkg4/package.json":       `{ "exports": { ".": { "import": "./bat.js" } } }`,
+			"/tmp/pkg/@scope/pkg4/bat.js":             `console.log('pkg4')`,
+		},
+		entryPaths: []string{"/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			AbsNodePaths: []string{
+				"/usr/lib/pkg",
+				"/lib/pkg",
+				"/var/lib/pkg",
+				"/tmp/pkg",
+			},
+		},
+	})
+}

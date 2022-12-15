@@ -6,6 +6,10 @@
 
     The change in version 0.16.0 to give control over `</script>` escaping via `--supported:inline-script=false` or `--supported:inline-script=true` accidentally broke automatic escaping of `</script>` when an explicit `target` setting is specified. This release restores the correct automatic escaping of `</script>` (which should not depend on what `target` is set to).
 
+* Enable the `exports` field with `NODE_PATHS` ([#2752](https://github.com/evanw/esbuild/issues/2752))
+
+    Node has a rarely-used feature where you can extend the set of directories that node searches for packages using the `NODE_PATHS` environment variable. While esbuild supports this too, previously it only supported the old `main` field path resolution but did not support the new `exports` field package resolution. This release makes the path resolution rules the same again for both `node_modules` directories and `NODE_PATHS` directories.
+
 ## 0.16.7
 
 * Include `file` loader strings in metafile imports ([#2731](https://github.com/evanw/esbuild/issues/2731))

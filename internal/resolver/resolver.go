@@ -2160,39 +2160,50 @@ func (r resolverQuery) loadNodeModules(importPath string, dirInfo *dirInfo, forb
 		}
 	}
 
+	// Common package resolution logic shared between "node_modules" and "NODE_PATHS"
+	tryToResolvePackage := func(absDir string) (PathPair, bool, *fs.DifferentCase, bool) {
+		absPath := r.fs.Join(absDir, importPath)
+		if r.debugLogs != nil {
+			r.debugLogs.addNote(fmt.Sprintf("Checking for a package in the directory %q", absPath))
+		}
+
+		// Try node's new package resolution rules
+		if esmOK {
+			absPkgPath := r.fs.Join(absDir, esmPackageName)
+			if pkgDirInfo := r.dirInfoCached(absPkgPath); pkgDirInfo != nil {
+				// Check the "exports" map
+				if packageJSON := pkgDirInfo.packageJSON; packageJSON != nil && packageJSON.exportsMap != nil {
+					absolute, ok, diffCase := r.esmResolveAlgorithm(esmPackageName, esmPackageSubpath, packageJSON, absPkgPath, absPath)
+					return absolute, ok, diffCase, true
+				}
+
+				// Check the "browser" map
+				if remapped, ok := r.checkBrowserMap(pkgDirInfo, absPath, absolutePathKind); ok {
+					if remapped == nil {
+						return PathPair{Primary: logger.Path{Text: absPath, Namespace: "file", Flags: logger.PathDisabled}}, true, nil, true
+					}
+					if remappedResult, ok, diffCase := r.resolveWithoutRemapping(pkgDirInfo.enclosingBrowserScope, *remapped); ok {
+						return remappedResult, true, diffCase, true
+					}
+				}
+			}
+		}
+
+		// Try node's old package resolution rules
+		if absolute, ok, diffCase := r.loadAsFileOrDirectory(absPath); ok {
+			return absolute, true, diffCase, true
+		}
+
+		return PathPair{}, false, nil, false
+	}
+
 	// Then check for the package in any enclosing "node_modules" directories
 	for {
 		// Skip directories that are themselves called "node_modules", since we
 		// don't ever want to search for "node_modules/node_modules"
 		if dirInfo.hasNodeModules {
-			absPath := r.fs.Join(dirInfo.absPath, "node_modules", importPath)
-			if r.debugLogs != nil {
-				r.debugLogs.addNote(fmt.Sprintf("Checking for a package in the directory %q", absPath))
-			}
-
-			// Check the package's package.json file
-			if esmOK {
-				absPkgPath := r.fs.Join(dirInfo.absPath, "node_modules", esmPackageName)
-				if pkgDirInfo := r.dirInfoCached(absPkgPath); pkgDirInfo != nil {
-					// Check the "exports" map
-					if packageJSON := pkgDirInfo.packageJSON; packageJSON != nil && packageJSON.exportsMap != nil {
-						return r.esmResolveAlgorithm(esmPackageName, esmPackageSubpath, packageJSON, absPkgPath, absPath)
-					}
-
-					// Check the "browser" map
-					if remapped, ok := r.checkBrowserMap(pkgDirInfo, absPath, absolutePathKind); ok {
-						if remapped == nil {
-							return PathPair{Primary: logger.Path{Text: absPath, Namespace: "file", Flags: logger.PathDisabled}}, true, nil
-						}
-						if remappedResult, ok, diffCase := r.resolveWithoutRemapping(pkgDirInfo.enclosingBrowserScope, *remapped); ok {
-							return remappedResult, true, diffCase
-						}
-					}
-				}
-			}
-
-			if absolute, ok, diffCase := r.loadAsFileOrDirectory(absPath); ok {
-				return absolute, true, diffCase
+			if absolute, ok, diffCase, shouldStop := tryToResolvePackage(r.fs.Join(dirInfo.absPath, "node_modules")); shouldStop {
+				return absolute, ok, diffCase
 			}
 		}
 
@@ -2203,17 +2214,12 @@ func (r resolverQuery) loadNodeModules(importPath string, dirInfo *dirInfo, forb
 		}
 	}
 
-	// Then check the global "NODE_PATH" environment variable.
-	//
-	// Note: This is a deviation from node's published module resolution
-	// algorithm. The published algorithm says "NODE_PATH" must take precedence
-	// over "node_modules" paths, but it appears that the published algorithm is
-	// incorrect. We follow node's actual behavior instead of following the
-	// published algorithm. See also: https://github.com/nodejs/node/issues/38128.
+	// Then check the global "NODE_PATH" environment variable. It has been
+	// clarified that this step comes last after searching for "node_modules"
+	// directories: https://github.com/nodejs/node/issues/38128.
 	for _, absDir := range r.options.AbsNodePaths {
-		absPath := r.fs.Join(absDir, importPath)
-		if absolute, ok, diffCase := r.loadAsFileOrDirectory(absPath); ok {
-			return absolute, true, diffCase
+		if absolute, ok, diffCase, shouldStop := tryToResolvePackage(absDir); shouldStop {
+			return absolute, ok, diffCase
 		}
 	}
 
