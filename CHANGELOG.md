@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix `</script>` and `</style>` escaping for non-default targets ([#2748](https://github.com/evanw/esbuild/issues/2748))
+
+    The change in version 0.16.0 to give control over `</script>` escaping via `--supported:inline-script=false` or `--supported:inline-script=true` accidentally broke automatic escaping of `</script>` when an explicit `target` setting is specified. This release restores the correct automatic escaping of `</script>` (which should not depend on what `target` is set to).
+
 ## 0.16.7
 
 * Include `file` loader strings in metafile imports ([#2731](https://github.com/evanw/esbuild/issues/2731))

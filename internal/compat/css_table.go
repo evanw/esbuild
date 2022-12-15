@@ -80,6 +80,9 @@ var cssTable = map[CSSFeature]map[Engine][]versionRange{
 // Return all features that are not available in at least one environment
 func UnsupportedCSSFeatures(constraints map[Engine][]int) (unsupported CSSFeature) {
 	for feature, engines := range cssTable {
+		if feature == InlineStyle {
+			continue // This is purely user-specified
+		}
 		for engine, version := range constraints {
 			if engine == ES || engine == Node {
 				// Specifying "--target=es2020" shouldn't affect CSS

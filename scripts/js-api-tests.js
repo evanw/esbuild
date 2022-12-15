@@ -5286,6 +5286,12 @@ let transformTests = {
     assert.strictEqual((await esbuild.transform(`x = '</script> neutral'`, { ...p })).code, `x = "</script> neutral";\n`)
     assert.strictEqual((await esbuild.transform(`x = '</script> neutral inline'`, { ...p, supported: { 'inline-script': true } })).code, `x = "<\\/script> neutral inline";\n`)
     assert.strictEqual((await esbuild.transform(`x = '</script> neutral noinline'`, { ...p, supported: { 'inline-script': false } })).code, `x = "</script> neutral noinline";\n`)
+
+    assert.strictEqual((await esbuild.transform(`x = '</script>'`, { target: 'esnext' })).code, `x = "<\\/script>";\n`)
+    assert.strictEqual((await esbuild.transform(`x = '</script>'`, { target: 'es2020' })).code, `x = "<\\/script>";\n`)
+    assert.strictEqual((await esbuild.transform(`x = '</script>'`, { target: 'es6' })).code, `x = "<\\/script>";\n`)
+    assert.strictEqual((await esbuild.transform(`x = '</script>'`, { target: 'chrome999' })).code, `x = "<\\/script>";\n`)
+    assert.strictEqual((await esbuild.transform(`x = '</script>'`, { target: 'chrome0' })).code, `x = "<\\/script>";\n`)
   },
 
   async inlineStyle({ esbuild }) {
@@ -5308,6 +5314,13 @@ let transformTests = {
     assert.strictEqual((await esbuild.transform(`x { y: '</style> neutral' }`, { ...p })).code, `x {\n  y: "</style> neutral";\n}\n`)
     assert.strictEqual((await esbuild.transform(`x { y: '</style> neutral inline' }`, { ...p, supported: { 'inline-style': true } })).code, `x {\n  y: "<\\/style> neutral inline";\n}\n`)
     assert.strictEqual((await esbuild.transform(`x { y: '</style> neutral noinline' }`, { ...p, supported: { 'inline-style': false } })).code, `x {\n  y: "</style> neutral noinline";\n}\n`)
+
+    p = { loader: 'css' }
+    assert.strictEqual((await esbuild.transform(`x { y: '</style>' }`, { ...p, target: 'esnext' })).code, `x {\n  y: "<\\/style>";\n}\n`)
+    assert.strictEqual((await esbuild.transform(`x { y: '</style>' }`, { ...p, target: 'es2020' })).code, `x {\n  y: "<\\/style>";\n}\n`)
+    assert.strictEqual((await esbuild.transform(`x { y: '</style>' }`, { ...p, target: 'es6' })).code, `x {\n  y: "<\\/style>";\n}\n`)
+    assert.strictEqual((await esbuild.transform(`x { y: '</style>' }`, { ...p, target: 'chrome999' })).code, `x {\n  y: "<\\/style>";\n}\n`)
+    assert.strictEqual((await esbuild.transform(`x { y: '</style>' }`, { ...p, target: 'chrome0' })).code, `x {\n  y: "<\\/style>";\n}\n`)
   },
 
   async typeofEqualsUndefinedTarget({ esbuild }) {

@@ -453,6 +453,9 @@ ${Object.keys(versions).sort().map(x => `\t${x}: ${jsTableMap(versions[x])},`).j
 // Return all features that are not available in at least one environment
 func UnsupportedJSFeatures(constraints map[Engine][]int) (unsupported JSFeature) {
 \tfor feature, engines := range jsTable {
+\t\tif feature == InlineScript {
+\t\t\tcontinue // This is purely user-specified
+\t\t}
 \t\tfor engine, version := range constraints {
 \t\t\tif versionRanges, ok := engines[engine]; !ok || !isVersionSupported(versionRanges, version) {
 \t\t\t\tunsupported |= feature
