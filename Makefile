@@ -987,37 +987,54 @@ bench-rome-parcel2: | require/parcel2/node_modules bench/rome bench/rome-verify
 ################################################################################
 # React admin benchmark (measures performance of an application-like setup)
 
-READMIN_HTML = <meta charset=utf8><div id=root></div><script src=main.js></script>
+READMIN_HTML = <meta charset=utf8><div id=root></div><script src=index.js type=module></script>
 
 github/react-admin:
 	mkdir -p github
-	git clone --depth 1 --branch v3.8.1 https://github.com/marmelab/react-admin.git github/react-admin
+	git clone --depth 1 --branch v4.6.1 https://github.com/marmelab/react-admin.git github/react-admin
 
 bench/readmin: | github/react-admin
 	mkdir -p bench/readmin
-	cp -r github/react-admin/examples/simple bench/readmin/repo
-	cp scripts/readmin-package-lock.json bench/readmin/repo/package-lock.json # Pin package versions for determinism
-	cd bench/readmin/repo && npm ci
+	cp -r github/react-admin bench/readmin/repo
+	cd bench/readmin/repo && yarn # This takes approximately forever
 
 bench-readmin: bench-readmin-esbuild
 
+READMIN_ESBUILD_FLAGS += --alias:data-generator-retail=./bench/readmin/repo/examples/data-generator/src
+READMIN_ESBUILD_FLAGS += --alias:ra-core=./bench/readmin/repo/packages/ra-core/src
+READMIN_ESBUILD_FLAGS += --alias:ra-data-fakerest=./bench/readmin/repo/packages/ra-data-fakerest/src
+READMIN_ESBUILD_FLAGS += --alias:ra-data-graphql-simple=./bench/readmin/repo/packages/ra-data-graphql-simple/src
+READMIN_ESBUILD_FLAGS += --alias:ra-data-graphql=./bench/readmin/repo/packages/ra-data-graphql/src
+READMIN_ESBUILD_FLAGS += --alias:ra-data-simple-rest=./bench/readmin/repo/packages/ra-data-simple-rest/src
+READMIN_ESBUILD_FLAGS += --alias:ra-i18n-polyglot=./bench/readmin/repo/packages/ra-i18n-polyglot/src
+READMIN_ESBUILD_FLAGS += --alias:ra-input-rich-text=./bench/readmin/repo/packages/ra-input-rich-text/src
+READMIN_ESBUILD_FLAGS += --alias:ra-language-english=./bench/readmin/repo/packages/ra-language-english/src
+READMIN_ESBUILD_FLAGS += --alias:ra-language-french=./bench/readmin/repo/packages/ra-language-french/src
+READMIN_ESBUILD_FLAGS += --alias:ra-ui-materialui=./bench/readmin/repo/packages/ra-ui-materialui/src
+READMIN_ESBUILD_FLAGS += --alias:react-admin=./bench/readmin/repo/packages/react-admin/src
 READMIN_ESBUILD_FLAGS += --bundle
-READMIN_ESBUILD_FLAGS += --define:global=window
-READMIN_ESBUILD_FLAGS += --loader:.js=jsx
+READMIN_ESBUILD_FLAGS += --define:process.env.REACT_APP_DATA_PROVIDER=null
+READMIN_ESBUILD_FLAGS += --format=esm
+READMIN_ESBUILD_FLAGS += --loader:.png=file
+READMIN_ESBUILD_FLAGS += --loader:.svg=file
 READMIN_ESBUILD_FLAGS += --minify
+READMIN_ESBUILD_FLAGS += --outdir=derp
 READMIN_ESBUILD_FLAGS += --sourcemap
+READMIN_ESBUILD_FLAGS += --splitting
+READMIN_ESBUILD_FLAGS += --target=esnext
 READMIN_ESBUILD_FLAGS += --timing
+READMIN_ESBUILD_FLAGS += bench/readmin/repo/examples/demo/src/index.tsx
 
 bench-readmin-esbuild: esbuild | bench/readmin
 	rm -fr bench/readmin/esbuild
-	time -p ./esbuild $(READMIN_ESBUILD_FLAGS) --outfile=bench/readmin/esbuild/main.js bench/readmin/repo/src/index.js
+	time -p ./esbuild $(READMIN_ESBUILD_FLAGS) --outdir=bench/readmin/esbuild
 	echo "$(READMIN_HTML)" > bench/readmin/esbuild/index.html
-	du -h bench/readmin/esbuild/main.js*
-	shasum bench/readmin/esbuild/main.js*
+	du -h bench/readmin/esbuild/index.js*
+	shasum bench/readmin/esbuild/index.js*
 
 bench-readmin-eswasm: platform-wasm | bench/readmin
 	rm -fr bench/readmin/eswasm
-	time -p ./npm/esbuild-wasm/bin/esbuild $(READMIN_ESBUILD_FLAGS) --outfile=bench/readmin/eswasm/main.js bench/readmin/repo/src/index.js
+	time -p ./npm/esbuild-wasm/bin/esbuild $(READMIN_ESBUILD_FLAGS) --outdir=bench/readmin/eswasm
 	echo "$(READMIN_HTML)" > bench/readmin/eswasm/index.html
-	du -h bench/readmin/eswasm/main.js*
-	shasum bench/readmin/eswasm/main.js*
+	du -h bench/readmin/eswasm/index.js*
+	shasum bench/readmin/eswasm/index.js*
