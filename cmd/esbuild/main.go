@@ -38,8 +38,8 @@ var helpText = func(colors logger.Colors) string {
                         bundling, otherwise default is iife when platform
                         is browser and cjs when platform is node)
   --loader:X=L          Use loader L to load file extension X, where L is
-                        one of: base64 | binary | copy | css | dataurl | file |
-                        js | json | jsx | text | ts | tsx
+                        one of: base64 | binary | copy | css | dataurl |
+                        empty | file | js | json | jsx | text | ts | tsx
   --minify              Minify the output (sets all --minify-* flags)
   --outdir=...          The output directory (for multiple entry points)
   --outfile=...         The output file (for one entry point)

@@ -119,6 +119,9 @@ const (
 
 	// If true, do not generate "external": true in the metafile
 	ShouldNotBeExternalInMetafile
+
+	// CSS "@import" of an empty file should be removed
+	WasLoadedWithEmptyLoader
 )
 
 func (flags ImportRecordFlags) Has(flag ImportRecordFlags) bool {

@@ -1267,7 +1267,11 @@ func (c *linkerContext) scanImportsAndExports() {
 						record.Path.Text = otherRepr.AST.URLForCSS
 						record.Path.Namespace = ""
 						record.SourceIndex = ast.Index32{}
-						record.Flags |= ast.ShouldNotBeExternalInMetafile
+						if otherFile.InputFile.Loader == config.LoaderEmpty {
+							record.Flags |= ast.WasLoadedWithEmptyLoader
+						} else {
+							record.Flags |= ast.ShouldNotBeExternalInMetafile
+						}
 
 						// Copy the additional files to the output directory
 						additionalFiles = append(additionalFiles, otherFile.InputFile.AdditionalFiles...)
@@ -2758,13 +2762,8 @@ func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTrack
 		return importTracker{}, importExternal, nil
 	}
 
-	// Is this a disabled file?
-	otherSourceIndex := record.SourceIndex.GetIndex()
-	if c.graph.Files[otherSourceIndex].InputFile.Source.KeyPath.IsDisabled() {
-		return importTracker{sourceIndex: otherSourceIndex, importRef: js_ast.InvalidRef}, importDisabled, nil
-	}
-
 	// Is this a named import of a file without any exports?
+	otherSourceIndex := record.SourceIndex.GetIndex()
 	otherRepr := c.graph.Files[otherSourceIndex].InputFile.Repr.(*graph.JSRepr)
 	if !namedImport.AliasIsStar && !otherRepr.AST.HasLazyExport &&
 		// CommonJS exports
@@ -3124,7 +3123,7 @@ func (c *linkerContext) findImportedFilesInCSSOrder(entryPoints []uint32) (exter
 					if record := &repr.AST.ImportRecords[atImport.ImportRecordIndex]; record.SourceIndex.IsValid() {
 						// Follow internal dependencies
 						visit(record.SourceIndex.GetIndex())
-					} else {
+					} else if (record.Flags & ast.WasLoadedWithEmptyLoader) == 0 {
 						// Record external dependencies
 						external := externals[record.Path]
 

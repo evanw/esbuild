@@ -11,6 +11,169 @@ var require_test = __commonJS({
 console.log(require_test());
 
 ================================================================================
+TestEmptyLoaderCSS
+---------- entry.css.map ----------
+{
+  "version": 3,
+  "sources": ["entry.css"],
+  "sourcesContent": ["\n\t\t\t\t@import 'a.empty';\n\t\t\t\ta { background: url(b.empty) }\n\t\t\t"],
+  "mappings": ";AAEI;AAAI;AAAA;",
+  "names": []
+}
+
+---------- entry.css ----------
+/* entry.css */
+a {
+  background: url();
+}
+---------- metafile.json ----------
+{
+  "inputs": {
+    "a.empty": {
+      "bytes": 0,
+      "imports": []
+    },
+    "b.empty": {
+      "bytes": 0,
+      "imports": []
+    },
+    "entry.css": {
+      "bytes": 62,
+      "imports": [
+        {
+          "path": "a.empty",
+          "kind": "import-rule"
+        },
+        {
+          "path": "b.empty",
+          "kind": "url-token"
+        }
+      ]
+    }
+  },
+  "outputs": {
+    "entry.css.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 198
+    },
+    "entry.css": {
+      "imports": [
+        {
+          "path": "",
+          "kind": "url-token",
+          "external": true
+        }
+      ],
+      "entryPoint": "entry.css",
+      "inputs": {
+        "entry.css": {
+          "bytesInOutput": 27
+        }
+      },
+      "bytes": 43
+    }
+  }
+}
+
+================================================================================
+TestEmptyLoaderJS
+---------- entry.js.map ----------
+{
+  "version": 3,
+  "sources": ["entry.js"],
+  "sourcesContent": ["\n\t\t\t\timport './a.empty'\n\t\t\t\timport * as ns from './b.empty'\n\t\t\t\timport def from './c.empty'\n\t\t\t\timport { named } from './d.empty'\n\t\t\t\tconsole.log(ns, def, named)\n\t\t\t"],
+  "mappings": ";;;;;;;;;;;;;AAEI,SAAoB;AACpB,eAAgB;AAEhB,QAAQ,IAAI,IAAI,SAAAA,SAAK,MAAK;",
+  "names": ["def"]
+}
+
+---------- entry.js ----------
+// b.empty
+var require_b = __commonJS({
+  "b.empty"() {
+  }
+});
+
+// c.empty
+var require_c = __commonJS({
+  "c.empty"() {
+  }
+});
+
+// entry.js
+var ns = __toESM(require_b());
+var import_c = __toESM(require_c());
+console.log(ns, import_c.default, void 0);
+---------- metafile.json ----------
+{
+  "inputs": {
+    "a.empty": {
+      "bytes": 0,
+      "imports": []
+    },
+    "b.empty": {
+      "bytes": 0,
+      "imports": []
+    },
+    "c.empty": {
+      "bytes": 0,
+      "imports": []
+    },
+    "d.empty": {
+      "bytes": 0,
+      "imports": []
+    },
+    "entry.js": {
+      "bytes": 165,
+      "imports": [
+        {
+          "path": "a.empty",
+          "kind": "import-statement"
+        },
+        {
+          "path": "b.empty",
+          "kind": "import-statement"
+        },
+        {
+          "path": "c.empty",
+          "kind": "import-statement"
+        },
+        {
+          "path": "d.empty",
+          "kind": "import-statement"
+        }
+      ]
+    }
+  },
+  "outputs": {
+    "entry.js.map": {
+      "imports": [],
+      "exports": [],
+      "inputs": {},
+      "bytes": 377
+    },
+    "entry.js": {
+      "imports": [],
+      "exports": [],
+      "entryPoint": "entry.js",
+      "inputs": {
+        "b.empty": {
+          "bytesInOutput": 53
+        },
+        "c.empty": {
+          "bytesInOutput": 53
+        },
+        "entry.js": {
+          "bytesInOutput": 111
+        }
+      },
+      "bytes": 253
+    }
+  }
+}
+
+================================================================================
 TestJSXAutomaticNoNameCollision
 ---------- /out.js ----------
 var import_react = require("react");

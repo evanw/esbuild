@@ -1284,3 +1284,56 @@ NOTE: You need to either reconfigure esbuild to ensure that the loader for this 
 `,
 	})
 }
+
+func TestEmptyLoaderJS(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import './a.empty'
+				import * as ns from './b.empty'
+				import def from './c.empty'
+				import { named } from './d.empty'
+				console.log(ns, def, named)
+			`,
+			"/a.empty": `throw 'FAIL'`,
+			"/b.empty": `throw 'FAIL'`,
+			"/c.empty": `throw 'FAIL'`,
+			"/d.empty": `throw 'FAIL'`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			SourceMap:     config.SourceMapExternalWithoutComment,
+			NeedsMetafile: true,
+			ExtensionToLoader: map[string]config.Loader{
+				".js":    config.LoaderJS,
+				".empty": config.LoaderEmpty,
+			},
+		},
+		expectedCompileLog: `entry.js: WARNING: Import "named" will always be undefined because the file "d.empty" has no exports
+`,
+	})
+}
+
+func TestEmptyLoaderCSS(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.css": `
+				@import 'a.empty';
+				a { background: url(b.empty) }
+			`,
+			"/a.empty": `body { color: fail }`,
+			"/b.empty": `fail`,
+		},
+		entryPaths: []string{"/entry.css"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			SourceMap:     config.SourceMapExternalWithoutComment,
+			NeedsMetafile: true,
+			ExtensionToLoader: map[string]config.Loader{
+				".css":   config.LoaderCSS,
+				".empty": config.LoaderEmpty,
+			},
+		},
+	})
+}

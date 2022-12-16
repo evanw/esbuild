@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+* Add the `empty` loader ([#1541](https://github.com/evanw/esbuild/issues/1541), [#2753](https://github.com/evanw/esbuild/issues/2753))
+
+    The new `empty` loader tells esbuild to pretend that a file is empty. So for example `--loader:.css=empty` effectively skips all imports of `.css` files in JavaScript so that they aren't included in the bundle, since `import "./some-empty-file"` in JavaScript doesn't bundle anything. You can also use the `empty` loader to remove asset references in CSS files. For example `--loader:.png=empty` causes esbuild to replace asset references such as `url(image.png)` with `url()` so that they are no longer included in the resulting style sheet.
+
 * Fix `</script>` and `</style>` escaping for non-default targets ([#2748](https://github.com/evanw/esbuild/issues/2748))
 
     The change in version 0.16.0 to give control over `</script>` escaping via `--supported:inline-script=false` or `--supported:inline-script=true` accidentally broke automatic escaping of `</script>` when an explicit `target` setting is specified. This release restores the correct automatic escaping of `</script>` (which should not depend on what `target` is set to).

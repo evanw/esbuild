@@ -138,6 +138,7 @@ const (
 	LoaderCSS
 	LoaderDataURL
 	LoaderDefault
+	LoaderEmpty
 	LoaderFile
 	LoaderJS
 	LoaderJSON

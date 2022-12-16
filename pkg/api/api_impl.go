@@ -234,6 +234,8 @@ func validateLoader(value Loader) config.Loader {
 		return config.LoaderDataURL
 	case LoaderDefault:
 		return config.LoaderDefault
+	case LoaderEmpty:
+		return config.LoaderEmpty
 	case LoaderFile:
 		return config.LoaderFile
 	case LoaderJS:

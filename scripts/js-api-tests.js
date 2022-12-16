@@ -510,10 +510,33 @@ let buildTests = {
     const resultMap = await readFileAsync(output + '.map', 'utf8')
     const json = JSON.parse(resultMap)
     assert.strictEqual(json.version, 3)
-    assert.strictEqual(json.sources[0], 'disabled')
-    assert.strictEqual(json.sources[1], path.basename(input))
-    assert.strictEqual(json.sourcesContent[0], '')
-    assert.strictEqual(json.sourcesContent[1], content)
+    assert.strictEqual(json.sources.length, 1)
+    assert.strictEqual(json.sources[0], path.basename(input))
+    assert.strictEqual(json.sourcesContent[0], content)
+  },
+
+  async sourceMapWithEmptyFile({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    const empty = path.join(testDir, 'file.empty')
+    const output = path.join(testDir, 'out.js')
+    const content = 'exports.foo = require("./file.empty")'
+    await writeFileAsync(input, content)
+    await writeFileAsync(empty, 'module.exports = 123')
+    await esbuild.build({
+      entryPoints: [input],
+      outfile: output,
+      sourcemap: true,
+      bundle: true,
+      loader: { '.empty': 'empty' },
+    })
+    const result = require(output)
+    assert.strictEqual(result.foo, void 0)
+    const resultMap = await readFileAsync(output + '.map', 'utf8')
+    const json = JSON.parse(resultMap)
+    assert.strictEqual(json.version, 3)
+    assert.strictEqual(json.sources.length, 1)
+    assert.strictEqual(json.sources[0], path.basename(input))
+    assert.strictEqual(json.sourcesContent[0], content)
   },
 
   async sourceMapWithDisabledModule({ esbuild, testDir }) {
@@ -537,10 +560,9 @@ let buildTests = {
     const resultMap = await readFileAsync(output + '.map', 'utf8')
     const json = JSON.parse(resultMap)
     assert.strictEqual(json.version, 3)
-    assert.strictEqual(json.sources[0], path.relative(testDir, disabled).split(path.sep).join('/'))
-    assert.strictEqual(json.sources[1], path.basename(input))
-    assert.strictEqual(json.sourcesContent[0], '')
-    assert.strictEqual(json.sourcesContent[1], content)
+    assert.strictEqual(json.sources.length, 1)
+    assert.strictEqual(json.sources[0], path.basename(input))
+    assert.strictEqual(json.sourcesContent[0], content)
   },
 
   async resolveExtensionOrder({ esbuild, testDir }) {

@@ -160,6 +160,10 @@ func parseFile(args parseArgs) {
 		loader = loaderFromFileExtension(args.options.ExtensionToLoader, base+ext)
 	}
 
+	if loader == config.LoaderEmpty {
+		source.Contents = ""
+	}
+
 	result := parseResult{
 		file: scannerFile{
 			inputFile: graph.InputFile{
@@ -182,7 +186,7 @@ func parseFile(args parseArgs) {
 	}()
 
 	switch loader {
-	case config.LoaderJS:
+	case config.LoaderJS, config.LoaderEmpty:
 		ast, ok := args.caches.JSCache.Parse(args.log, source, js_parser.OptionsFromConfig(&args.options))
 		if len(ast.Parts) <= 1 { // Ignore the implicitly-generated namespace export part
 			result.file.inputFile.SideEffects.Kind = graph.NoSideEffects_EmptyAST
@@ -974,7 +978,7 @@ func runOnLoadPlugins(
 
 	// Force disabled modules to be empty
 	if source.KeyPath.IsDisabled() {
-		return loaderPluginResult{loader: config.LoaderJS}, true
+		return loaderPluginResult{loader: config.LoaderEmpty}, true
 	}
 
 	// Read normal modules from disk
@@ -1885,7 +1889,7 @@ func (s *scanner) processScannedFiles(entryPointMeta []graph.EntryPoint) []scann
 				switch record.Kind {
 				case ast.ImportAt, ast.ImportAtConditional:
 					// Using a JavaScript file with CSS "@import" is not allowed
-					if _, ok := otherFile.inputFile.Repr.(*graph.JSRepr); ok {
+					if _, ok := otherFile.inputFile.Repr.(*graph.JSRepr); ok && otherFile.inputFile.Loader != config.LoaderEmpty {
 						s.log.AddError(&tracker, record.Range,
 							fmt.Sprintf("Cannot import %q into a CSS file", otherFile.inputFile.Source.PrettyPath))
 					} else if record.Kind == ast.ImportAtConditional {
@@ -1901,7 +1905,7 @@ func (s *scanner) processScannedFiles(entryPointMeta []graph.EntryPoint) []scann
 							fmt.Sprintf("Cannot use %q as a URL", otherFile.inputFile.Source.PrettyPath))
 
 					case *graph.JSRepr:
-						if otherRepr.AST.URLForCSS == "" {
+						if otherRepr.AST.URLForCSS == "" && otherFile.inputFile.Loader != config.LoaderEmpty {
 							s.log.AddError(&tracker, record.Range,
 								fmt.Sprintf("Cannot use %q as a URL", otherFile.inputFile.Source.PrettyPath))
 						}
