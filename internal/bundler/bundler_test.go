@@ -180,15 +180,13 @@ func (s *suite) __expectBundledImpl(t *testing.T, args bundled, fsKind fs.MockKi
 		// map parsing library.
 		generated := ""
 		for _, result := range results {
-			if !strings.HasSuffix(result.AbsPath, ".map") {
-				if generated != "" {
-					generated += "\n"
-				}
-				if fsKind == fs.MockWindows {
-					result.AbsPath = win2unix(result.AbsPath)
-				}
-				generated += fmt.Sprintf("---------- %s ----------\n%s", result.AbsPath, string(result.Contents))
+			if generated != "" {
+				generated += "\n"
 			}
+			if fsKind == fs.MockWindows {
+				result.AbsPath = win2unix(result.AbsPath)
+			}
+			generated += fmt.Sprintf("---------- %s ----------\n%s", result.AbsPath, string(result.Contents))
 		}
 		if metafileJSON != "" {
 			generated += fmt.Sprintf("---------- metafile.json ----------\n%s", metafileJSON)

@@ -4315,6 +4315,15 @@ console.log(fn());
 
 ================================================================================
 TestSourceMap
+---------- /Users/user/project/out.js.map ----------
+{
+  "version": 3,
+  "sources": ["src/bar.js", "src/entry.js"],
+  "sourcesContent": ["\n\t\t\t\texport function bar() { throw new Error('test') }\n\t\t\t", "\n\t\t\t\timport {bar} from './bar'\n\t\t\t\tfunction foo() { bar() }\n\t\t\t\tfoo()\n\t\t\t"],
+  "mappings": ";AACW,SAAS,MAAM;AAAE,QAAM,IAAI,MAAM,MAAM;AAAE;;;ACChD,SAAS,MAAM;AAAE,MAAI;AAAE;AACvB,IAAI;",
+  "names": []
+}
+
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/src/bar.js
 function bar() {
