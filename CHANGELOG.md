@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.16.8
 
 * Allow plugins to resolve injected files ([#2754](https://github.com/evanw/esbuild/issues/2754))
 
