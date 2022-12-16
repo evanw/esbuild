@@ -1011,7 +1011,7 @@ func rebuildImpl(
 		MainFields:            buildOpts.MainFields,
 		PublicPath:            buildOpts.PublicPath,
 		KeepNames:             buildOpts.KeepNames,
-		InjectAbsPaths:        make([]string, len(buildOpts.Inject)),
+		InjectPaths:           append([]string{}, buildOpts.Inject...),
 		AbsNodePaths:          make([]string, len(buildOpts.NodePaths)),
 		JSBanner:              bannerJS,
 		JSFooter:              footerJS,
@@ -1026,9 +1026,6 @@ func rebuildImpl(
 	}
 	if options.MainFields != nil {
 		options.MainFields = append([]string{}, options.MainFields...)
-	}
-	for i, path := range buildOpts.Inject {
-		options.InjectAbsPaths[i] = validatePath(log, realFS, path, "inject path")
 	}
 	for i, path := range buildOpts.NodePaths {
 		options.AbsNodePaths[i] = validatePath(log, realFS, path, "node path")

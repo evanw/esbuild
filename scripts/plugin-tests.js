@@ -2367,6 +2367,28 @@ error: Invalid path suffix "%what" returned from plugin (must start with "?" or 
     })
     assert.strictEqual(result.outputFiles[0].text, `console.log(123);\n`)
   },
+
+  async injectWithVirtualFile({ esbuild, testDir }) {
+    const input = path.join(testDir, 'input.js')
+    await writeFileAsync(input, `console.log(test)`)
+    const result = await esbuild.build({
+      entryPoints: [input],
+      write: false,
+      inject: ['plugin-file'],
+      plugins: [{
+        name: 'plugin',
+        setup(build) {
+          build.onResolve({ filter: /^plugin-file$/ }, () => {
+            return { namespace: 'plugin', path: 'path' }
+          })
+          build.onLoad({ filter: /^path$/, namespace: 'plugin' }, () => {
+            return { contents: `export let test = 'injected'` }
+          })
+        },
+      }],
+    })
+    assert.strictEqual(result.outputFiles[0].text, `var test = "injected";\nconsole.log(test);\n`)
+  },
 }
 
 // These tests have to run synchronously

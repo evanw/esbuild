@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+* Allow plugins to resolve injected files ([#2754](https://github.com/evanw/esbuild/issues/2754))
+
+    Previously paths passed to the `inject` feature were always interpreted as file system paths. This meant that `onResolve` plugins would not be run for them and esbuild's default path resolver would always be used. This meant that the `inject` feature couldn't be used in the browser since the browser doesn't have access to a file system. This release runs paths passed to `inject` through esbuild's full path resolution pipeline so plugins now have a chance to handle them using `onResolve` callbacks. This makes it possible to write a plugin that makes esbuild's `inject` work in the browser.
+
 * Add the `empty` loader ([#1541](https://github.com/evanw/esbuild/issues/1541), [#2753](https://github.com/evanw/esbuild/issues/2753))
 
     The new `empty` loader tells esbuild to pretend that a file is empty. So for example `--loader:.css=empty` effectively skips all imports of `.css` files in JavaScript so that they aren't included in the bundle, since `import "./some-empty-file"` in JavaScript doesn't bundle anything. You can also use the `empty` loader to remove asset references in CSS files. For example `--loader:.png=empty` causes esbuild to replace asset references such as `url(image.png)` with `url()` so that they are no longer included in the resulting style sheet.

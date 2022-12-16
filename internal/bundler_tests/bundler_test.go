@@ -130,8 +130,8 @@ func (s *suite) __expectBundledImpl(t *testing.T, args bundled, fsKind fs.MockKi
 				entryPoints[i] = entry
 			}
 
-			for i, absPath := range args.options.InjectAbsPaths {
-				args.options.InjectAbsPaths[i] = unix2win(absPath)
+			for i, absPath := range args.options.InjectPaths {
+				args.options.InjectPaths[i] = unix2win(absPath)
 			}
 
 			for key, value := range args.options.PackageAliases {

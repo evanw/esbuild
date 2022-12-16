@@ -286,7 +286,7 @@ type Options struct {
 	ExtensionToLoader  map[string]Loader
 
 	PublicPath      string
-	InjectAbsPaths  []string
+	InjectPaths     []string
 	InjectedDefines []InjectedDefine
 	InjectedFiles   []InjectedFile
 

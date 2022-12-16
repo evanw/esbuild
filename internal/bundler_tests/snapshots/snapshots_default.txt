@@ -1478,6 +1478,12 @@ console.log(collide);
 console.log(import_external_pkg.re_export);
 
 ================================================================================
+TestInjectDuplicate
+---------- /out.js ----------
+// inject.js
+console.log("injected");
+
+================================================================================
 TestInjectImportOrder
 ---------- /out.js ----------
 // inject-1.js

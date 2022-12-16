@@ -2919,11 +2919,11 @@ func TestUseStrictDirectiveBundleIssue1837(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			Mode:           config.ModeBundle,
-			AbsOutputFile:  "/out.js",
-			InjectAbsPaths: []string{"/shims.js"},
-			Platform:       config.PlatformNode,
-			OutputFormat:   config.FormatIIFE,
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			InjectPaths:   []string{"/shims.js"},
+			Platform:      config.PlatformNode,
+			OutputFormat:  config.FormatIIFE,
 		},
 	})
 }
@@ -4127,11 +4127,11 @@ func TestInjectMissing(t *testing.T) {
 		options: config.Options{
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
-			InjectAbsPaths: []string{
+			InjectPaths: []string{
 				"/inject.js",
 			},
 		},
-		expectedScanLog: "ERROR: Could not read from file: /inject.js\n",
+		expectedScanLog: "ERROR: Could not resolve \"/inject.js\"\n",
 	})
 
 	default_suite.expectBundledWindows(t, bundled{
@@ -4142,31 +4142,30 @@ func TestInjectMissing(t *testing.T) {
 		options: config.Options{
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
-			InjectAbsPaths: []string{
+			InjectPaths: []string{
 				"/inject.js",
 			},
 		},
-		expectedScanLog: "ERROR: Could not read from file: C:\\inject.js\n",
+		expectedScanLog: "ERROR: Could not resolve \"C:\\\\inject.js\"\n",
 	})
 }
 
+// Duplicates are allowed, and should only be injected once
 func TestInjectDuplicate(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js":  ``,
-			"/inject.js": ``,
+			"/inject.js": `console.log('injected')`,
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
-			InjectAbsPaths: []string{
+			InjectPaths: []string{
 				"/inject.js",
 				"/inject.js",
 			},
 		},
-		expectedScanLog: `ERROR: Duplicate injected file "inject.js"
-`,
 	})
 }
 
@@ -4233,7 +4232,7 @@ func TestInject(t *testing.T) {
 			AbsOutputFile: "/out.js",
 			Defines:       &defines,
 			OutputFormat:  config.FormatCommonJS,
-			InjectAbsPaths: []string{
+			InjectPaths: []string{
 				"/inject.js",
 				"/node_modules/unused/index.js",
 				"/node_modules/sideEffects-false/index.js",
@@ -4313,7 +4312,7 @@ func TestInjectNoBundle(t *testing.T) {
 			TreeShaking:   true,
 			AbsOutputFile: "/out.js",
 			Defines:       &defines,
-			InjectAbsPaths: []string{
+			InjectPaths: []string{
 				"/inject.js",
 				"/node_modules/unused/index.js",
 				"/node_modules/sideEffects-false/index.js",
@@ -4353,7 +4352,7 @@ func TestInjectJSX(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 			Defines:       &defines,
-			InjectAbsPaths: []string{
+			InjectPaths: []string{
 				"/inject.js",
 			},
 		},
@@ -4380,7 +4379,7 @@ func TestInjectImportTS(t *testing.T) {
 			Mode:          config.ModeConvertFormat,
 			OutputFormat:  config.FormatESModule,
 			AbsOutputFile: "/out.js",
-			InjectAbsPaths: []string{
+			InjectPaths: []string{
 				"/inject.js",
 			},
 		},
@@ -4407,7 +4406,7 @@ func TestInjectImportOrder(t *testing.T) {
 		options: config.Options{
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
-			InjectAbsPaths: []string{
+			InjectPaths: []string{
 				"/inject-1.js",
 				"/inject-2.js",
 			},
@@ -4436,7 +4435,7 @@ func TestInjectAssign(t *testing.T) {
 		options: config.Options{
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
-			InjectAbsPaths: []string{
+			InjectPaths: []string{
 				"/inject.js",
 			},
 		},
