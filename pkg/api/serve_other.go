@@ -382,15 +382,41 @@ func respondWithDirList(queryPath string, dirEntries map[string]bool, fileEntrie
 		queryDir += "/"
 	}
 	html := strings.Builder{}
-	html.WriteString(`<!doctype html>`)
-	html.WriteString(`<meta charset="utf8">`)
-	html.WriteString(`<title>Directory: `)
+	html.WriteString("<!doctype html>\n")
+	html.WriteString("<meta charset=\"utf8\">\n")
+	html.WriteString("<style>\n")
+	html.WriteString("body { margin: 30px; color: #222; background: #fff; font: 16px/22px sans-serif; }\n")
+	html.WriteString("a { color: inherit; text-decoration: none; }\n")
+	html.WriteString("a:hover { text-decoration: underline; }\n")
+	html.WriteString("a:visited { color: #777; }\n")
+	html.WriteString("@media (prefers-color-scheme: dark) {\n")
+	html.WriteString("  body { color: #fff; background: #222; }\n")
+	html.WriteString("  a:visited { color: #aaa; }\n")
+	html.WriteString("}\n")
+	html.WriteString("</style>\n")
+	html.WriteString("<title>Directory: ")
 	html.WriteString(escapeForHTML(queryDir))
-	html.WriteString(`</title>`)
-	html.WriteString(`<h1>Directory: `)
-	html.WriteString(escapeForHTML(queryDir))
-	html.WriteString(`</h1>`)
-	html.WriteString(`<ul>`)
+	html.WriteString("</title>\n")
+	html.WriteString("<h1>Directory: ")
+	var parts []string
+	if queryPath == "/" {
+		parts = []string{""}
+	} else {
+		parts = strings.Split(queryPath, "/")
+	}
+	for i, part := range parts {
+		if i+1 < len(parts) {
+			html.WriteString("<a href=\"")
+			html.WriteString(escapeForHTML(strings.Join(parts[:i+1], "/")))
+			html.WriteString("/\">")
+		}
+		html.WriteString(escapeForHTML(part))
+		html.WriteString("/")
+		if i+1 < len(parts) {
+			html.WriteString("</a>")
+		}
+	}
+	html.WriteString("</h1>\n")
 
 	// Link to the parent directory
 	if queryPath != "/" {
@@ -398,7 +424,7 @@ func respondWithDirList(queryPath string, dirEntries map[string]bool, fileEntrie
 		if parentDir != "/" {
 			parentDir += "/"
 		}
-		html.WriteString(fmt.Sprintf(`<li><a href="%s">../</a></li>`, escapeForAttribute(parentDir)))
+		html.WriteString(fmt.Sprintf("<div>📁 <a href=\"%s\">../</a></div>\n", escapeForAttribute(parentDir)))
 	}
 
 	// Link to child directories
@@ -408,7 +434,7 @@ func respondWithDirList(queryPath string, dirEntries map[string]bool, fileEntrie
 	}
 	sort.Strings(strings)
 	for _, entry := range strings {
-		html.WriteString(fmt.Sprintf(`<li><a href="%s/">%s/</a></li>`, escapeForAttribute(path.Join(queryPath, entry)), escapeForHTML(entry)))
+		html.WriteString(fmt.Sprintf("<div>📁 <a href=\"%s/\">%s/</a></div>\n", escapeForAttribute(path.Join(queryPath, entry)), escapeForHTML(entry)))
 	}
 
 	// Link to files in the directory
@@ -418,10 +444,9 @@ func respondWithDirList(queryPath string, dirEntries map[string]bool, fileEntrie
 	}
 	sort.Strings(strings)
 	for _, entry := range strings {
-		html.WriteString(fmt.Sprintf(`<li><a href="%s">%s</a></li>`, escapeForAttribute(path.Join(queryPath, entry)), escapeForHTML(entry)))
+		html.WriteString(fmt.Sprintf("<div>📄 <a href=\"%s\">%s</a></div>\n", escapeForAttribute(path.Join(queryPath, entry)), escapeForHTML(entry)))
 	}
 
-	html.WriteString(`</ul>`)
 	return []byte(html.String())
 }
 
