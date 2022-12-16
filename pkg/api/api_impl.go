@@ -232,6 +232,8 @@ func validateLoader(value Loader) config.Loader {
 		return config.LoaderCSS
 	case LoaderDataURL:
 		return config.LoaderDataURL
+	case LoaderDefault:
+		return config.LoaderDefault
 	case LoaderFile:
 		return config.LoaderFile
 	case LoaderJS:
@@ -248,8 +250,6 @@ func validateLoader(value Loader) config.Loader {
 		return config.LoaderTS
 	case LoaderTSX:
 		return config.LoaderTSX
-	case LoaderDefault:
-		return config.LoaderDefault
 	default:
 		panic("Invalid loader")
 	}
