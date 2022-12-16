@@ -1,10 +1,11 @@
-package bundler
+package bundler_tests
 
 import (
 	"regexp"
 	"strings"
 	"testing"
 
+	"github.com/evanw/esbuild/internal/bundler"
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/helpers"
@@ -5779,7 +5780,7 @@ func TestEntryNamesNoSlashAfterDir(t *testing.T) {
 			"/src/app2/main.ts": `console.log(2)`,
 			"/src/app3/main.ts": `console.log(3)`,
 		},
-		entryPathsAdvanced: []EntryPoint{
+		entryPathsAdvanced: []bundler.EntryPoint{
 			{InputPath: "/src/app1/main.ts"},
 			{InputPath: "/src/app2/main.ts"},
 			{InputPath: "/src/app3/main.ts", OutputPath: "customPath"},
@@ -5802,7 +5803,7 @@ func TestEntryNamesNonPortableCharacter(t *testing.T) {
 			"/entry1-*.ts": `console.log(1)`,
 			"/entry2-*.ts": `console.log(2)`,
 		},
-		entryPathsAdvanced: []EntryPoint{
+		entryPathsAdvanced: []bundler.EntryPoint{
 			// The "*" should turn into "_" for cross-platform Windows portability
 			{InputPath: "/entry1-*.ts"},
 

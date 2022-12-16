@@ -1,8 +1,8 @@
+package bundler_tests
+
 // This file contains tests for "lowering" syntax, which means converting it to
 // older JavaScript. For example, "a ** b" becomes a call to "Math.pow(a, b)"
 // when lowered. Which syntax is lowered is determined by the language target.
-
-package bundler
 
 import (
 	"testing"

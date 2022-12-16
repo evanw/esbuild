@@ -1,4 +1,4 @@
-package bundler
+package bundler_tests
 
 // Bundling test results are stored in snapshot files, located in the
 // "snapshots" directory. This allows test results to be updated easily without
@@ -16,6 +16,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/evanw/esbuild/internal/bundler"
 	"github.com/evanw/esbuild/internal/cache"
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
@@ -52,7 +53,7 @@ func hasErrors(msgs []logger.Msg) bool {
 type bundled struct {
 	files              map[string]string
 	entryPaths         []string
-	entryPathsAdvanced []EntryPoint
+	entryPathsAdvanced []bundler.EntryPoint
 	expectedScanLog    string
 	expectedCompileLog string
 	options            config.Options
@@ -115,9 +116,9 @@ func (s *suite) __expectBundledImpl(t *testing.T, args bundled, fsKind fs.MockKi
 		if args.debugLogs {
 			logKind = logger.DeferLogAll
 		}
-		entryPoints := make([]EntryPoint, 0, len(args.entryPaths)+len(args.entryPathsAdvanced))
+		entryPoints := make([]bundler.EntryPoint, 0, len(args.entryPaths)+len(args.entryPathsAdvanced))
 		for _, path := range args.entryPaths {
-			entryPoints = append(entryPoints, EntryPoint{InputPath: path})
+			entryPoints = append(entryPoints, bundler.EntryPoint{InputPath: path})
 		}
 		entryPoints = append(entryPoints, args.entryPathsAdvanced...)
 
@@ -156,7 +157,7 @@ func (s *suite) __expectBundledImpl(t *testing.T, args bundled, fsKind fs.MockKi
 		mockFS := fs.MockFS(args.files, fsKind)
 		args.options.OmitRuntimeForTests = true
 		resolver := resolver.NewResolver(mockFS, log, caches, args.options)
-		bundle := ScanBundle(log, mockFS, resolver, caches, entryPoints, args.options, nil)
+		bundle := bundler.ScanBundle(log, mockFS, resolver, caches, entryPoints, args.options, nil)
 		msgs := log.Done()
 		assertLog(t, msgs, args.expectedScanLog)
 

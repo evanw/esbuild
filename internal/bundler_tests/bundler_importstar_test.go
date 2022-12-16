@@ -1,4 +1,4 @@
-package bundler
+package bundler_tests
 
 import (
 	"testing"
