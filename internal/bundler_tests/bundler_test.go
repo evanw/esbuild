@@ -21,6 +21,7 @@ import (
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/fs"
+	"github.com/evanw/esbuild/internal/linker"
 	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/resolver"
 	"github.com/evanw/esbuild/internal/test"
@@ -167,7 +168,7 @@ func (s *suite) __expectBundledImpl(t *testing.T, args bundled, fsKind fs.MockKi
 		}
 
 		log = logger.NewDeferLog(logKind, nil)
-		results, metafileJSON := bundle.Compile(log, nil, nil)
+		results, metafileJSON := bundle.Compile(log, nil, nil, linker.Link)
 		msgs = log.Done()
 		assertLog(t, msgs, args.expectedCompileLog)
 

@@ -1,4 +1,4 @@
-package bundler
+package linker
 
 import (
 	"bytes"
@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/evanw/esbuild/internal/ast"
+	"github.com/evanw/esbuild/internal/bundler"
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/css_ast"
@@ -46,7 +47,7 @@ type linkerContext struct {
 	// This represents the parallel computation of source map related data.
 	// Calling this will block until the computation is done. The resulting value
 	// is shared between threads and must be treated as immutable.
-	dataForSourceMaps func() []dataForSourceMap
+	dataForSourceMaps func() []bundler.DataForSourceMap
 
 	// This is passed to us from the bundling phase
 	uniqueKeyPrefix      string
@@ -214,7 +215,7 @@ func wrappedLog(log logger.Log) logger.Log {
 	return log
 }
 
-func link(
+func Link(
 	options *config.Options,
 	timer *helpers.Timer,
 	log logger.Log,
@@ -224,7 +225,7 @@ func link(
 	entryPoints []graph.EntryPoint,
 	uniqueKeyPrefix string,
 	reachableFiles []uint32,
-	dataForSourceMaps func() []dataForSourceMap,
+	dataForSourceMaps func() []bundler.DataForSourceMap,
 ) []graph.OutputFile {
 	timer.Begin("Link")
 	defer timer.End("Link")
@@ -507,7 +508,7 @@ func (c *linkerContext) generateChunksInParallel(additionalFiles []graph.OutputF
 			hash := xxhash.New()
 			c.appendIsolatedHashesForImportedChunks(hash, uint32(chunkIndex), visited, ^uint32(chunkIndex))
 			finalBytes = hash.Sum(finalBytes[:0])
-			finalString := hashForFileName(finalBytes)
+			finalString := bundler.HashForFileName(finalBytes)
 			hashSubstitution = &finalString
 		}
 
@@ -766,98 +767,6 @@ func (c *linkerContext) pathBetweenChunks(fromRelDir string, toRelPath string) s
 	}
 
 	return relPath
-}
-
-// Returns the path of this file relative to "outbase", which is then ready to
-// be joined with the absolute output directory path. The directory and name
-// components are returned separately for convenience.
-func pathRelativeToOutbase(
-	inputFile *graph.InputFile,
-	options *config.Options,
-	fs fs.FS,
-	avoidIndex bool,
-	customFilePath string,
-) (relDir string, baseName string) {
-	relDir = "/"
-	absPath := inputFile.Source.KeyPath.Text
-
-	if customFilePath != "" {
-		// Use the configured output path if present
-		absPath = customFilePath
-		if !fs.IsAbs(absPath) {
-			absPath = fs.Join(options.AbsOutputBase, absPath)
-		}
-	} else if inputFile.Source.KeyPath.Namespace != "file" {
-		// Come up with a path for virtual paths (i.e. non-file-system paths)
-		dir, base, _ := logger.PlatformIndependentPathDirBaseExt(absPath)
-		if avoidIndex && base == "index" {
-			_, base, _ = logger.PlatformIndependentPathDirBaseExt(dir)
-		}
-		baseName = sanitizeFilePathForVirtualModulePath(base)
-		return
-	} else {
-		// Heuristic: If the file is named something like "index.js", then use
-		// the name of the parent directory instead. This helps avoid the
-		// situation where many chunks are named "index" because of people
-		// dynamically-importing npm packages that make use of node's implicit
-		// "index" file name feature.
-		if avoidIndex {
-			base := fs.Base(absPath)
-			base = base[:len(base)-len(fs.Ext(base))]
-			if base == "index" {
-				absPath = fs.Dir(absPath)
-			}
-		}
-	}
-
-	// Try to get a relative path to the base directory
-	relPath, ok := fs.Rel(options.AbsOutputBase, absPath)
-	if !ok {
-		// This can fail in some situations such as on different drives on
-		// Windows. In that case we just use the file name.
-		baseName = fs.Base(absPath)
-	} else {
-		// Now we finally have a relative path
-		relDir = fs.Dir(relPath) + "/"
-		baseName = fs.Base(relPath)
-
-		// Use platform-independent slashes
-		relDir = strings.ReplaceAll(relDir, "\\", "/")
-
-		// Replace leading "../" so we don't try to write outside of the output
-		// directory. This normally can't happen because "AbsOutputBase" is
-		// automatically computed to contain all entry point files, but it can
-		// happen if someone sets it manually via the "outbase" API option.
-		//
-		// Note that we can't just strip any leading "../" because that could
-		// cause two separate entry point paths to collide. For example, there
-		// could be both "src/index.js" and "../src/index.js" as entry points.
-		dotDotCount := 0
-		for strings.HasPrefix(relDir[dotDotCount*3:], "../") {
-			dotDotCount++
-		}
-		if dotDotCount > 0 {
-			// The use of "_.._" here is somewhat arbitrary but it is unlikely to
-			// collide with a folder named by a human and it works on Windows
-			// (Windows doesn't like names that end with a "."). And not starting
-			// with a "." means that it will not be hidden on Unix.
-			relDir = strings.Repeat("_.._/", dotDotCount) + relDir[dotDotCount*3:]
-		}
-		for strings.HasSuffix(relDir, "/") {
-			relDir = relDir[:len(relDir)-1]
-		}
-		relDir = "/" + relDir
-		if strings.HasSuffix(relDir, "/.") {
-			relDir = relDir[:len(relDir)-1]
-		}
-	}
-
-	// Strip the file extension if the output path is an input file
-	if customFilePath == "" {
-		ext := fs.Ext(baseName)
-		baseName = baseName[:len(baseName)-len(ext)]
-	}
-	return
 }
 
 func (c *linkerContext) computeCrossChunkDependencies() {
@@ -2973,49 +2882,6 @@ func (c *linkerContext) markPartLiveForTreeShaking(sourceIndex uint32, partIndex
 	}
 }
 
-func sanitizeFilePathForVirtualModulePath(path string) string {
-	// Convert it to a safe file path. See: https://stackoverflow.com/a/31976060
-	sb := strings.Builder{}
-	needsGap := false
-	for _, c := range path {
-		switch c {
-		case 0:
-			// These characters are forbidden on Unix and Windows
-
-		case '<', '>', ':', '"', '|', '?', '*':
-			// These characters are forbidden on Windows
-
-		default:
-			if c < 0x20 {
-				// These characters are forbidden on Windows
-				break
-			}
-
-			// Turn runs of invalid characters into a '_'
-			if needsGap {
-				sb.WriteByte('_')
-				needsGap = false
-			}
-
-			sb.WriteRune(c)
-			continue
-		}
-
-		if sb.Len() > 0 {
-			needsGap = true
-		}
-	}
-
-	// Make sure the name isn't empty
-	if sb.Len() == 0 {
-		return "_"
-	}
-
-	// Note: An extension will be added to this base name, so there is no need to
-	// avoid forbidden file names such as ".." since ".js" is a valid file name.
-	return sb.String()
-}
-
 // JavaScript modules are traversed in depth-first postorder. This is the
 // order that JavaScript modules were evaluated in before the top-level await
 // feature was introduced.
@@ -3370,7 +3236,7 @@ func (c *linkerContext) computeChunks() {
 				}
 			} else {
 				// Otherwise, derive the output path from the input path
-				dir, base = pathRelativeToOutbase(
+				dir, base = bundler.PathRelativeToOutbase(
 					&c.graph.Files[chunk.sourceIndex].InputFile,
 					c.options,
 					c.fs,
@@ -3947,7 +3813,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 	toESMRef js_ast.Ref,
 	runtimeRequireRef js_ast.Ref,
 	result *compileResultJS,
-	dataForSourceMaps []dataForSourceMap,
+	dataForSourceMaps []bundler.DataForSourceMap,
 ) {
 	defer c.recoverInternalError(waitGroup, partRange.sourceIndex)
 
@@ -4221,7 +4087,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 	if file.InputFile.Loader.CanHaveSourceMap() && c.options.SourceMap != config.SourceMapNone {
 		addSourceMappings = true
 		inputSourceMap = file.InputFile.InputSourceMap
-		lineOffsetTables = dataForSourceMaps[partRange.sourceIndex].lineOffsetTables
+		lineOffsetTables = dataForSourceMaps[partRange.sourceIndex].LineOffsetTables
 	}
 
 	// Indent the file if everything is wrapped in an IIFE
@@ -5387,7 +5253,7 @@ func (c *linkerContext) generateChunkCSS(chunkIndex int, chunkWaitGroup *sync.Wa
 			if file.InputFile.Loader.CanHaveSourceMap() && c.options.SourceMap != config.SourceMapNone {
 				addSourceMappings = true
 				inputSourceMap = file.InputFile.InputSourceMap
-				lineOffsetTables = dataForSourceMaps[sourceIndex].lineOffsetTables
+				lineOffsetTables = dataForSourceMaps[sourceIndex].LineOffsetTables
 			}
 
 			cssOptions := css_printer.Options{
@@ -5968,7 +5834,7 @@ type compileResultForSourceMap struct {
 func (c *linkerContext) generateSourceMapForChunk(
 	results []compileResultForSourceMap,
 	chunkAbsDir string,
-	dataForSourceMaps []dataForSourceMap,
+	dataForSourceMaps []bundler.DataForSourceMap,
 	canHaveShifts bool,
 ) (pieces sourcemap.SourceMapPieces) {
 	j := helpers.Joiner{}
@@ -5996,7 +5862,7 @@ func (c *linkerContext) generateSourceMapForChunk(
 		if file.InputFile.InputSourceMap == nil {
 			var quotedContents []byte
 			if !c.options.ExcludeSourcesContent {
-				quotedContents = dataForSourceMaps[result.sourceIndex].quotedContents[0]
+				quotedContents = dataForSourceMaps[result.sourceIndex].QuotedContents[0]
 			}
 			items = append(items, item{
 				path:           file.InputFile.Source.KeyPath,
@@ -6023,7 +5889,7 @@ func (c *linkerContext) generateSourceMapForChunk(
 
 			var quotedContents []byte
 			if !c.options.ExcludeSourcesContent {
-				quotedContents = dataForSourceMaps[result.sourceIndex].quotedContents[i]
+				quotedContents = dataForSourceMaps[result.sourceIndex].QuotedContents[i]
 			}
 			items = append(items, item{
 				path:           path,
@@ -6183,4 +6049,33 @@ func (c *linkerContext) recoverInternalError(waitGroup *sync.WaitGroup, sourceIn
 			[]logger.MsgData{{Text: helpers.PrettyPrintedStack()}})
 		waitGroup.Done()
 	}
+}
+
+func joinWithPublicPath(publicPath string, relPath string) string {
+	if strings.HasPrefix(relPath, "./") {
+		relPath = relPath[2:]
+
+		// Strip any amount of further no-op slashes (i.e. ".///././/x/y" => "x/y")
+		for {
+			if strings.HasPrefix(relPath, "/") {
+				relPath = relPath[1:]
+			} else if strings.HasPrefix(relPath, "./") {
+				relPath = relPath[2:]
+			} else {
+				break
+			}
+		}
+	}
+
+	// Use a relative path if there is no public path
+	if publicPath == "" {
+		publicPath = "."
+	}
+
+	// Join with a slash
+	slash := "/"
+	if strings.HasSuffix(publicPath, "/") {
+		slash = ""
+	}
+	return fmt.Sprintf("%s%s%s", publicPath, slash, relPath)
 }

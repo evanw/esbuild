@@ -46,16 +46,16 @@ type scannerFile struct {
 // This is data related to source maps. It's computed in parallel with linking
 // and must be ready by the time printing happens. This is beneficial because
 // it is somewhat expensive to produce.
-type dataForSourceMap struct {
+type DataForSourceMap struct {
 	// This data is for the printer. It maps from byte offsets in the file (which
 	// are stored at every AST node) to UTF-16 column offsets (required by source
 	// maps).
-	lineOffsetTables []sourcemap.LineOffsetTable
+	LineOffsetTables []sourcemap.LineOffsetTable
 
 	// This contains the quoted contents of the original source file. It's what
 	// needs to be embedded in the "sourcesContent" array in the final source
 	// map. Quoting is precomputed because it's somewhat expensive.
-	quotedContents [][]byte
+	QuotedContents [][]byte
 }
 
 type Bundle struct {
@@ -611,35 +611,6 @@ func ResolveFailureErrorTextSuggestionNotes(
 	return
 }
 
-func joinWithPublicPath(publicPath string, relPath string) string {
-	if strings.HasPrefix(relPath, "./") {
-		relPath = relPath[2:]
-
-		// Strip any amount of further no-op slashes (i.e. ".///././/x/y" => "x/y")
-		for {
-			if strings.HasPrefix(relPath, "/") {
-				relPath = relPath[1:]
-			} else if strings.HasPrefix(relPath, "./") {
-				relPath = relPath[2:]
-			} else {
-				break
-			}
-		}
-	}
-
-	// Use a relative path if there is no public path
-	if publicPath == "" {
-		publicPath = "."
-	}
-
-	// Join with a slash
-	slash := "/"
-	if strings.HasSuffix(publicPath, "/") {
-		slash = ""
-	}
-	return fmt.Sprintf("%s%s%s", publicPath, slash, relPath)
-}
-
 func isASCIIOnly(text string) bool {
 	for _, c := range text {
 		if c < 0x20 || c > 0x7E {
@@ -1058,7 +1029,7 @@ func canonicalFileSystemPathForWindows(absPath string) string {
 	return strings.ReplaceAll(strings.ToLower(absPath), "\\", "/")
 }
 
-func hashForFileName(hashBytes []byte) string {
+func HashForFileName(hashBytes []byte) string {
 	return base32.StdEncoding.EncodeToString(hashBytes)[:8]
 }
 
@@ -2034,12 +2005,12 @@ func (s *scanner) processScannedFiles(entryPointMeta []graph.EntryPoint) []scann
 			if config.HasPlaceholder(template, config.HashPlaceholder) {
 				h := xxhash.New()
 				h.Write(bytes)
-				hash = hashForFileName(h.Sum(nil))
+				hash = HashForFileName(h.Sum(nil))
 			}
 
 			// Generate the input for the template
 			_, _, originalExt := logger.PlatformIndependentPathDirBaseExt(result.file.inputFile.Source.KeyPath.Text)
-			dir, base := pathRelativeToOutbase(
+			dir, base := PathRelativeToOutbase(
 				&result.file.inputFile,
 				&s.options,
 				s.fs,
@@ -2262,7 +2233,20 @@ func fixInvalidUnsupportedJSFeatureOverrides(options *config.Options, implies co
 	}
 }
 
-func (b *Bundle) Compile(log logger.Log, timer *helpers.Timer, mangleCache map[string]interface{}) ([]graph.OutputFile, string) {
+type Linker func(
+	options *config.Options,
+	timer *helpers.Timer,
+	log logger.Log,
+	fs fs.FS,
+	res *resolver.Resolver,
+	inputFiles []graph.InputFile,
+	entryPoints []graph.EntryPoint,
+	uniqueKeyPrefix string,
+	reachableFiles []uint32,
+	dataForSourceMaps func() []DataForSourceMap,
+) []graph.OutputFile
+
+func (b *Bundle) Compile(log logger.Log, timer *helpers.Timer, mangleCache map[string]interface{}, link Linker) ([]graph.OutputFile, string) {
 	timer.Begin("Compile phase")
 	defer timer.End("Compile phase")
 
@@ -2460,15 +2444,15 @@ func findReachableFiles(files []graph.InputFile, entryPoints []graph.EntryPoint)
 // it could be good to optionally have this be computed during the parsing
 // phase when incremental builds are active but otherwise still have it be
 // computed during linking for optimal speed during non-incremental builds.
-func (b *Bundle) computeDataForSourceMapsInParallel(options *config.Options, reachableFiles []uint32) func() []dataForSourceMap {
+func (b *Bundle) computeDataForSourceMapsInParallel(options *config.Options, reachableFiles []uint32) func() []DataForSourceMap {
 	if options.SourceMap == config.SourceMapNone {
-		return func() []dataForSourceMap {
+		return func() []DataForSourceMap {
 			return nil
 		}
 	}
 
 	var waitGroup sync.WaitGroup
-	results := make([]dataForSourceMap, len(b.files))
+	results := make([]DataForSourceMap, len(b.files))
 
 	for _, sourceIndex := range reachableFiles {
 		if f := &b.files[sourceIndex]; f.inputFile.Loader.CanHaveSourceMap() {
@@ -2482,15 +2466,15 @@ func (b *Bundle) computeDataForSourceMapsInParallel(options *config.Options, rea
 			waitGroup.Add(1)
 			go func(sourceIndex uint32, f *scannerFile, approximateLineCount int32) {
 				result := &results[sourceIndex]
-				result.lineOffsetTables = sourcemap.GenerateLineOffsetTables(f.inputFile.Source.Contents, approximateLineCount)
+				result.LineOffsetTables = sourcemap.GenerateLineOffsetTables(f.inputFile.Source.Contents, approximateLineCount)
 				sm := f.inputFile.InputSourceMap
 				if !options.ExcludeSourcesContent {
 					if sm == nil {
 						// Simple case: no nested source map
-						result.quotedContents = [][]byte{helpers.QuoteForJSON(f.inputFile.Source.Contents, options.ASCIIOnly)}
+						result.QuotedContents = [][]byte{helpers.QuoteForJSON(f.inputFile.Source.Contents, options.ASCIIOnly)}
 					} else {
 						// Complex case: nested source map
-						result.quotedContents = make([][]byte, len(sm.Sources))
+						result.QuotedContents = make([][]byte, len(sm.Sources))
 						nullContents := []byte("null")
 						for i := range sm.Sources {
 							// Missing contents become a "null" literal
@@ -2508,7 +2492,7 @@ func (b *Bundle) computeDataForSourceMapsInParallel(options *config.Options, rea
 									quotedContents = helpers.QuoteForJSON(helpers.UTF16ToString(value.Value), options.ASCIIOnly)
 								}
 							}
-							result.quotedContents[i] = quotedContents
+							result.QuotedContents[i] = quotedContents
 						}
 					}
 				}
@@ -2517,7 +2501,7 @@ func (b *Bundle) computeDataForSourceMapsInParallel(options *config.Options, rea
 		}
 	}
 
-	return func() []dataForSourceMap {
+	return func() []DataForSourceMap {
 		waitGroup.Wait()
 		return results
 	}
@@ -2638,4 +2622,139 @@ func (cache *runtimeCache) parseRuntime(options *config.Options) (source logger.
 		cache.astMap[key] = runtimeAST
 	}
 	return
+}
+
+// Returns the path of this file relative to "outbase", which is then ready to
+// be joined with the absolute output directory path. The directory and name
+// components are returned separately for convenience.
+func PathRelativeToOutbase(
+	inputFile *graph.InputFile,
+	options *config.Options,
+	fs fs.FS,
+	avoidIndex bool,
+	customFilePath string,
+) (relDir string, baseName string) {
+	relDir = "/"
+	absPath := inputFile.Source.KeyPath.Text
+
+	if customFilePath != "" {
+		// Use the configured output path if present
+		absPath = customFilePath
+		if !fs.IsAbs(absPath) {
+			absPath = fs.Join(options.AbsOutputBase, absPath)
+		}
+	} else if inputFile.Source.KeyPath.Namespace != "file" {
+		// Come up with a path for virtual paths (i.e. non-file-system paths)
+		dir, base, _ := logger.PlatformIndependentPathDirBaseExt(absPath)
+		if avoidIndex && base == "index" {
+			_, base, _ = logger.PlatformIndependentPathDirBaseExt(dir)
+		}
+		baseName = sanitizeFilePathForVirtualModulePath(base)
+		return
+	} else {
+		// Heuristic: If the file is named something like "index.js", then use
+		// the name of the parent directory instead. This helps avoid the
+		// situation where many chunks are named "index" because of people
+		// dynamically-importing npm packages that make use of node's implicit
+		// "index" file name feature.
+		if avoidIndex {
+			base := fs.Base(absPath)
+			base = base[:len(base)-len(fs.Ext(base))]
+			if base == "index" {
+				absPath = fs.Dir(absPath)
+			}
+		}
+	}
+
+	// Try to get a relative path to the base directory
+	relPath, ok := fs.Rel(options.AbsOutputBase, absPath)
+	if !ok {
+		// This can fail in some situations such as on different drives on
+		// Windows. In that case we just use the file name.
+		baseName = fs.Base(absPath)
+	} else {
+		// Now we finally have a relative path
+		relDir = fs.Dir(relPath) + "/"
+		baseName = fs.Base(relPath)
+
+		// Use platform-independent slashes
+		relDir = strings.ReplaceAll(relDir, "\\", "/")
+
+		// Replace leading "../" so we don't try to write outside of the output
+		// directory. This normally can't happen because "AbsOutputBase" is
+		// automatically computed to contain all entry point files, but it can
+		// happen if someone sets it manually via the "outbase" API option.
+		//
+		// Note that we can't just strip any leading "../" because that could
+		// cause two separate entry point paths to collide. For example, there
+		// could be both "src/index.js" and "../src/index.js" as entry points.
+		dotDotCount := 0
+		for strings.HasPrefix(relDir[dotDotCount*3:], "../") {
+			dotDotCount++
+		}
+		if dotDotCount > 0 {
+			// The use of "_.._" here is somewhat arbitrary but it is unlikely to
+			// collide with a folder named by a human and it works on Windows
+			// (Windows doesn't like names that end with a "."). And not starting
+			// with a "." means that it will not be hidden on Unix.
+			relDir = strings.Repeat("_.._/", dotDotCount) + relDir[dotDotCount*3:]
+		}
+		for strings.HasSuffix(relDir, "/") {
+			relDir = relDir[:len(relDir)-1]
+		}
+		relDir = "/" + relDir
+		if strings.HasSuffix(relDir, "/.") {
+			relDir = relDir[:len(relDir)-1]
+		}
+	}
+
+	// Strip the file extension if the output path is an input file
+	if customFilePath == "" {
+		ext := fs.Ext(baseName)
+		baseName = baseName[:len(baseName)-len(ext)]
+	}
+	return
+}
+
+func sanitizeFilePathForVirtualModulePath(path string) string {
+	// Convert it to a safe file path. See: https://stackoverflow.com/a/31976060
+	sb := strings.Builder{}
+	needsGap := false
+	for _, c := range path {
+		switch c {
+		case 0:
+			// These characters are forbidden on Unix and Windows
+
+		case '<', '>', ':', '"', '|', '?', '*':
+			// These characters are forbidden on Windows
+
+		default:
+			if c < 0x20 {
+				// These characters are forbidden on Windows
+				break
+			}
+
+			// Turn runs of invalid characters into a '_'
+			if needsGap {
+				sb.WriteByte('_')
+				needsGap = false
+			}
+
+			sb.WriteRune(c)
+			continue
+		}
+
+		if sb.Len() > 0 {
+			needsGap = true
+		}
+	}
+
+	// Make sure the name isn't empty
+	if sb.Len() == 0 {
+		return "_"
+	}
+
+	// Note: An extension will be added to this base name, so there is no need to
+	// avoid forbidden file names such as ".." since ".js" is a valid file name.
+	return sb.String()
 }

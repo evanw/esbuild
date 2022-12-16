@@ -26,6 +26,7 @@ import (
 	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_parser"
+	"github.com/evanw/esbuild/internal/linker"
 	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/resolver"
 )
@@ -1148,7 +1149,7 @@ func rebuildImpl(
 		// Stop now if there were errors
 		if !log.HasErrors() {
 			// Compile the bundle
-			results, metafile := bundle.Compile(log, timer, mangleCache)
+			results, metafile := bundle.Compile(log, timer, mangleCache, linker.Link)
 
 			// Stop now if there were errors
 			if !log.HasErrors() {
@@ -1578,7 +1579,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		// Stop now if there were errors
 		if !log.HasErrors() {
 			// Compile the bundle
-			results, _ = bundle.Compile(log, timer, mangleCache)
+			results, _ = bundle.Compile(log, timer, mangleCache, linker.Link)
 		}
 
 		timer.Log(log)
