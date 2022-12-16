@@ -1277,7 +1277,7 @@ func rebuildImpl(
 
 type watcher struct {
 	data              fs.WatchData
-	resolver          resolver.Resolver
+	resolver          *resolver.Resolver
 	rebuild           func() fs.WatchData
 	recentItems       []string
 	itemsToScan       []string

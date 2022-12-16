@@ -36,7 +36,7 @@ type linkerContext struct {
 	timer   *helpers.Timer
 	log     logger.Log
 	fs      fs.FS
-	res     resolver.Resolver
+	res     *resolver.Resolver
 	graph   graph.LinkerGraph
 	chunks  []chunkInfo
 
@@ -219,7 +219,7 @@ func link(
 	timer *helpers.Timer,
 	log logger.Log,
 	fs fs.FS,
-	res resolver.Resolver,
+	res *resolver.Resolver,
 	inputFiles []graph.InputFile,
 	entryPoints []graph.EntryPoint,
 	uniqueKeyPrefix string,

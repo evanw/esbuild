@@ -66,7 +66,7 @@ type Bundle struct {
 	uniqueKeyPrefix string
 
 	fs          fs.FS
-	res         resolver.Resolver
+	res         *resolver.Resolver
 	files       []scannerFile
 	entryPoints []graph.EntryPoint
 	options     config.Options
@@ -75,7 +75,7 @@ type Bundle struct {
 type parseArgs struct {
 	fs              fs.FS
 	log             logger.Log
-	res             resolver.Resolver
+	res             *resolver.Resolver
 	caches          *cache.CacheSet
 	prettyPath      string
 	importSource    *logger.Source
@@ -526,7 +526,7 @@ func parseFile(args parseArgs) {
 }
 
 func ResolveFailureErrorTextSuggestionNotes(
-	res resolver.Resolver,
+	res *resolver.Resolver,
 	path string,
 	kind ast.ImportKind,
 	pluginName string,
@@ -659,7 +659,7 @@ func extractSourceMapFromComment(
 	log logger.Log,
 	fs fs.FS,
 	fsCache *cache.FSCache,
-	res resolver.Resolver,
+	res *resolver.Resolver,
 	source *logger.Source,
 	tracker *logger.LineColumnTracker,
 	comment logger.Span,
@@ -701,7 +701,7 @@ func extractSourceMapFromComment(
 	return logger.Path{}, nil
 }
 
-func sanitizeLocation(res resolver.Resolver, loc *logger.MsgLocation) {
+func sanitizeLocation(res *resolver.Resolver, loc *logger.MsgLocation) {
 	if loc != nil {
 		if loc.Namespace == "" {
 			loc.Namespace = "file"
@@ -713,7 +713,7 @@ func sanitizeLocation(res resolver.Resolver, loc *logger.MsgLocation) {
 }
 
 func logPluginMessages(
-	res resolver.Resolver,
+	res *resolver.Resolver,
 	log logger.Log,
 	name string,
 	msgs []logger.Msg,
@@ -773,7 +773,7 @@ func logPluginMessages(
 
 func RunOnResolvePlugins(
 	plugins []config.Plugin,
-	res resolver.Resolver,
+	res *resolver.Resolver,
 	log logger.Log,
 	fs fs.FS,
 	fsCache *cache.FSCache,
@@ -899,7 +899,7 @@ type loaderPluginResult struct {
 
 func runOnLoadPlugins(
 	plugins []config.Plugin,
-	res resolver.Resolver,
+	res *resolver.Resolver,
 	fs fs.FS,
 	fsCache *cache.FSCache,
 	log logger.Log,
@@ -1061,7 +1061,7 @@ func hashForFileName(hashBytes []byte) string {
 type scanner struct {
 	log             logger.Log
 	fs              fs.FS
-	res             resolver.Resolver
+	res             *resolver.Resolver
 	caches          *cache.CacheSet
 	timer           *helpers.Timer
 	uniqueKeyPrefix string
@@ -1103,7 +1103,7 @@ func generateUniqueKeyPrefix() (string, error) {
 func ScanBundle(
 	log logger.Log,
 	fs fs.FS,
-	res resolver.Resolver,
+	res *resolver.Resolver,
 	caches *cache.CacheSet,
 	entryPoints []EntryPoint,
 	options config.Options,

@@ -169,17 +169,7 @@ func (dm DebugMeta) LogErrorMsg(log logger.Log, source *logger.Source, r logger.
 	log.AddMsg(msg)
 }
 
-type Resolver interface {
-	Resolve(sourceDir string, importPath string, kind ast.ImportKind) (result *ResolveResult, debug DebugMeta)
-	ResolveAbs(absPath string) *ResolveResult
-	PrettyPath(path logger.Path) string
-
-	// This tries to run "Resolve" on a package path as a relative path. If
-	// successful, the user just forgot a leading "./" in front of the path.
-	ProbeResolvePackageAsRelative(sourceDir string, importPath string, kind ast.ImportKind) *ResolveResult
-}
-
-type resolver struct {
+type Resolver struct {
 	fs     fs.FS
 	log    logger.Log
 	caches *cache.CacheSet
@@ -235,14 +225,14 @@ type resolver struct {
 }
 
 type resolverQuery struct {
-	*resolver
+	*Resolver
 	moduleSuffixes []string
 	debugMeta      *DebugMeta
 	debugLogs      *debugLogs
 	kind           ast.ImportKind
 }
 
-func NewResolver(fs fs.FS, log logger.Log, caches *cache.CacheSet, options config.Options) Resolver {
+func NewResolver(fs fs.FS, log logger.Log, caches *cache.CacheSet, options config.Options) *Resolver {
 	// Filter out non-CSS extensions for CSS "@import" imports
 	atImportExtensionOrder := make([]string, 0, len(options.ExtensionOrder))
 	for _, ext := range options.ExtensionOrder {
@@ -272,7 +262,7 @@ func NewResolver(fs fs.FS, log logger.Log, caches *cache.CacheSet, options confi
 
 	fs.Cwd()
 
-	return &resolver{
+	return &Resolver{
 		fs:                     fs,
 		log:                    log,
 		options:                options,
@@ -285,10 +275,10 @@ func NewResolver(fs fs.FS, log logger.Log, caches *cache.CacheSet, options confi
 	}
 }
 
-func (rr *resolver) Resolve(sourceDir string, importPath string, kind ast.ImportKind) (*ResolveResult, DebugMeta) {
+func (res *Resolver) Resolve(sourceDir string, importPath string, kind ast.ImportKind) (*ResolveResult, DebugMeta) {
 	var debugMeta DebugMeta
 	r := resolverQuery{
-		resolver:  rr,
+		Resolver:  res,
 		debugMeta: &debugMeta,
 		kind:      kind,
 	}
@@ -584,8 +574,8 @@ func (r resolverQuery) isExternal(matchers config.ExternalMatchers, path string,
 	return false
 }
 
-func (rr *resolver) ResolveAbs(absPath string) *ResolveResult {
-	r := resolverQuery{resolver: rr}
+func (res *Resolver) ResolveAbs(absPath string) *ResolveResult {
+	r := resolverQuery{Resolver: res}
 	if r.log.Level <= logger.LevelDebug {
 		r.debugLogs = &debugLogs{what: fmt.Sprintf("Getting metadata for absolute path %s", absPath)}
 	}
@@ -600,9 +590,11 @@ func (rr *resolver) ResolveAbs(absPath string) *ResolveResult {
 	return result
 }
 
-func (rr *resolver) ProbeResolvePackageAsRelative(sourceDir string, importPath string, kind ast.ImportKind) *ResolveResult {
+// This tries to run "Resolve" on a package path as a relative path. If
+// successful, the user just forgot a leading "./" in front of the path.
+func (res *Resolver) ProbeResolvePackageAsRelative(sourceDir string, importPath string, kind ast.ImportKind) *ResolveResult {
 	r := resolverQuery{
-		resolver: rr,
+		Resolver: res,
 		kind:     kind,
 	}
 	absPath := r.fs.Join(sourceDir, importPath)
@@ -914,9 +906,9 @@ func (r resolverQuery) resolveWithoutRemapping(sourceDirInfo *dirInfo, importPat
 	}
 }
 
-func (r *resolver) PrettyPath(path logger.Path) string {
+func (res *Resolver) PrettyPath(path logger.Path) string {
 	if path.Namespace == "file" {
-		if rel, ok := r.fs.Rel(r.fs.Cwd(), path.Text); ok {
+		if rel, ok := res.fs.Rel(res.fs.Cwd(), path.Text); ok {
 			path.Text = rel
 		}
 
