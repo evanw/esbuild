@@ -11643,6 +11643,12 @@ pattern:
 				}
 				feature = compat.RegexpMatchIndices
 
+			case 'v':
+				if !p.options.unsupportedJSFeatures.Has(compat.RegexpSetNotation) {
+					continue // This is from a proposal: https://github.com/tc39/proposal-regexp-v-flag
+				}
+				feature = compat.RegexpSetNotation
+
 			default:
 				// Unknown flags are never supported
 			}

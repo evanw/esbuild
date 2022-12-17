@@ -34,6 +34,10 @@
 
     This fix was contributed by [@fz6m](https://github.com/fz6m).
 
+* Add support for the `v` flag in regular expression literals
+
+    People are currently working on adding a `v` flag to JavaScript regular expresions. You can read more about this flag here: https://v8.dev/features/regexp-v-flag. This release adds support for parsing this flag, so esbuild will now no longer consider regular expression literals with this flag to be a syntax error. If the target is set to something other than `esnext`, esbuild will transform regular expression literals containing this flag into a `new RegExp()` constructor call so the resulting code doesn't have a syntax error. This enables you to provide a polyfill for `RegExp` that implements the `v` flag to get your code to work at run-time. While esbuild doesn't typically adopt proposals until they're already shipping in a real JavaScript run-time, I'm adding it now because a) esbuild's implementation doesn't need to change as the proposal evolves, b) this isn't really new syntax since regular expression literals already have flags, and c) esbuild's implementation is a trivial pass-through anyway.
+
 ## 0.16.8
 
 * Allow plugins to resolve injected files ([#2754](https://github.com/evanw/esbuild/issues/2754))

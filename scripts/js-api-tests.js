@@ -5453,6 +5453,10 @@ let transformTests = {
       // RegExpMatchIndices
       check('es2022', `x1 = /y/d`, `x1 = /y/d;\n`),
       check('es2021', `x2 = /y/d`, `x2 = new RegExp("y", "d");\n`),
+
+      // RegExpSetNotation
+      check('esnext', `x1 = /[\\p{White_Space}&&\\p{ASCII}]/v`, `x1 = /[\\p{White_Space}&&\\p{ASCII}]/v;\n`),
+      check('es2022', `x2 = /[\\p{White_Space}&&\\p{ASCII}]/v`, `x2 = new RegExp("[\\\\p{White_Space}&&\\\\p{ASCII}]", "v");\n`),
     ])
   },
 

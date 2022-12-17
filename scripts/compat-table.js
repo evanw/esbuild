@@ -204,6 +204,7 @@ mergeVersions('ClassStaticField', { es2022: true })
 mergeVersions('TopLevelAwait', { es2022: true })
 mergeVersions('ArbitraryModuleNamespaceNames', { es2022: true })
 mergeVersions('RegexpMatchIndices', { es2022: true })
+mergeVersions('RegexpSetNotation', {})
 mergeVersions('ImportAssertions', {})
 
 // Manually copied from https://caniuse.com/?search=export%20*%20as
