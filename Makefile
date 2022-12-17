@@ -622,10 +622,11 @@ github/test262:
 
 demo/test262: | github/test262
 	mkdir -p demo/test262
+	cp -r github/test262/harness demo/test262/harness
 	cp -r github/test262/test demo/test262/test
 
 test262: esbuild | demo/test262
-	node scripts/test262.js
+	node --experimental-vm-modules scripts/test262.js
 
 ################################################################################
 # This runs UglifyJS's test suite through esbuild

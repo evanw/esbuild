@@ -1,12 +1,25 @@
-const fs = require('fs');
-const path = require('path');
-const jsYaml = require('js-yaml');
-const isatty = require('tty').isatty(process.stdout.fd);
-const { installForTests } = require('./esbuild');
-const test262Dir = path.join(__dirname, '..', 'demo', 'test262', 'test');
+const vm = require('vm')
+const fs = require('fs')
+const path = require('path')
+const jsYaml = require('js-yaml')
+const isatty = require('tty').isatty(process.stdout.fd)
+const { installForTests } = require('./esbuild')
+
+const testDir = path.join(__dirname, '..', 'demo', 'test262', 'test')
+const harnessDir = path.join(__dirname, '..', 'demo', 'test262', 'harness')
 
 const progressBarLength = 64
-const eraseProgressBar = `\r${' '.repeat(progressBarLength)}\r`
+const eraseProgressBar = () => {
+  previousProgressBar = null
+  let text = `\r${' '.repeat(progressBarLength)}\r`
+  if (printNewlineWhenErasing) {
+    printNewlineWhenErasing = false
+    text += '\n'
+  }
+  return text
+}
+let previousProgressBar = null
+let printNewlineWhenErasing = false
 
 const resetColor = isatty ? `\x1b[0m` : ''
 const boldColor = isatty ? `\x1b[1m` : ''
@@ -35,8 +48,10 @@ const magentaBgBlackColor = isatty ? `\x1b[45;30m` : ''
 const yellowBgYellowColor = isatty ? `\x1b[43;33m` : ''
 const yellowBgBlackColor = isatty ? `\x1b[43;30m` : ''
 
+const whiteBgWhiteColor = isatty ? `\x1b[107;97m` : ''
+const whiteBgBlackColor = isatty ? `\x1b[107;30m` : ''
+
 const skipTheseFeatures = new Set([
-  'hashbang',
   'decorators',
   'regexp-v-flag',
   'regexp-match-indices',
@@ -127,24 +142,74 @@ const skipTheseTests = new Set([
   'language/literals/regexp/unicode-escape-nls-err.js',
 ])
 
+const skipEvaluatingTheseIncludes = new Set([
+  'nativeFunctionMatcher.js', // We don't preserve "toString()" on functions
+])
+
+const skipEvaluatingTheseFeatures = new Set([
+  // Node's version of V8 doesn't implement these
+  'hashbang',
+  'legacy-regexp',
+  'regexp-duplicate-named-groups',
+  'symbols-as-weakmap-keys',
+  'tail-call-optimization',
+
+  // We don't care about API-related things
+  'ArrayBuffer',
+  'change-array-by-copy',
+  'DataView',
+  'resizable-arraybuffer',
+  'ShadowRealm',
+  'SharedArrayBuffer',
+  'String.prototype.toWellFormed',
+  'Symbol.match',
+  'Symbol.replace',
+  'Symbol.unscopables',
+  'Temporal',
+  'TypedArray',
+])
+
+const skipEvaluatingTheseTests = new Set([
+  // This test is skipped because it crashes V8:
+  //
+  //   #
+  //   # Fatal error in , line 0
+  //   # Check failed: i < self->length().
+  //   #
+  //   #
+  //   #
+  //   #FailureMessage Object: 0x7fffac9a1c30
+  //    1: 0xc2abf1  [node]
+  //    2: 0x1f231d4 V8_Fatal(char const*, ...) [node]
+  //    3: 0xdac209 v8::FixedArray::Get(v8::Local<v8::Context>, int) const [node]
+  //    4: 0xb74ab7  [node]
+  //    5: 0xb76a2d  [node]
+  //    6: 0xf2436f v8::internal::Isolate::RunHostImportModuleDynamicallyCallback(v8::internal::MaybeHandle<v8::internal::Script>,
+  //                v8::internal::Handle<v8::internal::Object>, v8::internal::MaybeHandle<v8::internal::Object>) [node]
+  //    7: 0x137e3db v8::internal::Runtime_DynamicImportCall(int, unsigned long*, v8::internal::Isolate*) [node]
+  //    8: 0x17fd4f4  [node]
+  //
+  'language/expressions/dynamic-import/2nd-param-assert-enumeration.js',
+])
+
 function findFiles() {
   function visit(dir) {
     for (const entry of fs.readdirSync(dir)) {
-      const fullEntry = path.join(dir, entry);
-      const stats = fs.statSync(fullEntry);
+      const fullEntry = path.join(dir, entry)
+      const stats = fs.statSync(fullEntry)
       if (stats.isDirectory()) {
-        visit(fullEntry);
-      } else if (stats.isFile() && entry.endsWith('.js') && !entry.endsWith('_FIXTURE.js')) {
-        files.push(fullEntry);
+        visit(fullEntry)
+      } else if (stats.isFile() && entry.endsWith('.js') && !entry.includes('_FIXTURE')) {
+        files.push(fullEntry)
       }
     }
   }
 
-  const files = [];
-  visit(test262Dir);
+  const files = []
+  visit(testDir)
 
   // Reverse for faster iteration times because many of the more interesting tests come last
-  return files.reverse();
+  return files.reverse()
 }
 
 async function checkTransformAPI({ esbuild, file, content, yaml }) {
@@ -154,7 +219,7 @@ async function checkTransformAPI({ esbuild, file, content, yaml }) {
   }
 
   // Step 1: Try transforming the file normally
-  const shouldParse = !yaml.negative || yaml.negative.phase !== 'parse';
+  const shouldParse = !yaml.negative || yaml.negative.phase !== 'parse'
   let result
   try {
     result = await esbuild.transform(content, { sourcefile: file })
@@ -166,7 +231,7 @@ async function checkTransformAPI({ esbuild, file, content, yaml }) {
     return // Stop now if this test is supposed to fail
   }
   if (!shouldParse) {
-    const error = new Error('Unexpected success')
+    const error = new Error('Unexpected successful transform')
     error.kind = 'Transform'
     throw error
   }
@@ -213,17 +278,17 @@ async function checkTransformAPI({ esbuild, file, content, yaml }) {
 async function checkBuildAPI({ esbuild, file, content, yaml }) {
   const plugins = []
   if (yaml.flags) {
-    const onlyStrict = yaml.flags.includes('onlyStrict')
-    const module = yaml.flags.includes('module')
-    if (onlyStrict || module) {
+    const isOnlyStrict = yaml.flags.includes('onlyStrict')
+    const isModule = yaml.flags.includes('module')
+    if (isOnlyStrict || isModule) {
       plugins.push({
         name: 'modify',
         setup(build) {
           build.onLoad({ filter: /./ }, args => {
             if (args.path === file) {
               let loaded = content
-              if (onlyStrict) loaded = '"use strict";' + loaded
-              if (module) loaded += '\nexport {}'
+              if (isOnlyStrict) loaded = '"use strict";' + loaded
+              if (isModule) loaded += '\nexport {}'
               return { contents: loaded }
             }
           })
@@ -232,20 +297,30 @@ async function checkBuildAPI({ esbuild, file, content, yaml }) {
     }
   }
 
-  const shouldParse = !yaml.negative || yaml.negative.phase === 'runtime';
+  // Step 1: Try building the file normally
+  const isModule = yaml.flags && yaml.flags.includes('module')
+  const isDynamicImport = yaml.flags && yaml.flags.includes('dynamic-import')
+  const isAsync = yaml.flags && yaml.flags.includes('async')
+  const shouldParse = !yaml.negative || yaml.negative.phase === 'runtime'
   let result
   try {
-    result = await esbuild.build({
+    const options = {
       entryPoints: [file],
-      bundle: true,
       write: false,
+      keepNames: true,
       logLevel: 'silent',
-      external: [
-        '', // Some tests use this as a dummy argument to an "import('')" that is never evaluated
-      ],
-      format: yaml.flags && yaml.flags.includes('module') ? 'esm' : 'iife',
       plugins,
-    })
+      target: 'node' + process.version.slice(1),
+      logOverride: { 'direct-eval': 'warning' },
+    }
+    if (isModule || isDynamicImport || isAsync) {
+      options.bundle = true
+      options.format = isModule ? 'esm' : 'iife'
+      options.external = [
+        '', // Some tests use this as a dummy argument to an "import('')" that is never evaluated
+      ]
+    }
+    result = await esbuild.build(options)
   } catch (error) {
     if (shouldParse) {
       error.kind = 'Build'
@@ -254,37 +329,120 @@ async function checkBuildAPI({ esbuild, file, content, yaml }) {
     return // Stop now if this test is supposed to fail
   }
   if (!shouldParse) {
-    const error = new Error('Unexpected success')
+    const error = new Error('Unexpected successful build')
     error.kind = 'Build'
     throw error
+  }
+
+  // Don't evaluate files in the "staging" or "intl402" areas
+  const relPath = path.relative(testDir, file)
+  if (relPath.startsWith('staging') || relPath.startsWith('intl402')) {
+    return
+  }
+
+  // Don't evaluate problematic files
+  const hasDirectEval = result.warnings.some(msg => msg.id === 'direct-eval')
+  if (
+    hasDirectEval ||
+    skipEvaluatingTheseTests.has(relPath) ||
+    (yaml.includes && yaml.includes.some(include => skipEvaluatingTheseIncludes.has(include))) ||
+    (yaml.features && yaml.features.some(feature => skipEvaluatingTheseFeatures.has(feature)))
+  ) {
+    return
+  }
+
+  // Step 3: Try evaluating the file using node
+  const importDir = path.dirname(file)
+  const shouldEvaluate = !yaml.negative
+  try {
+    await runCodeInHarness(yaml, content, importDir)
+  } catch (error) {
+    // Ignore tests that fail when run in node
+    if (shouldEvaluate) console.log(eraseProgressBar() + dimColor + `IGNORING ${path.relative(testDir, file)}: ${error}` + resetColor)
+    return
+  }
+  if (!shouldEvaluate) {
+    // Ignore tests that incorrectly pass when run in node
+    return
+  }
+
+  // Step 3: Try evaluating the file we generated
+  const code = result.outputFiles[0].text
+  try {
+    await runCodeInHarness(yaml, code, importDir)
+  } catch (error) {
+    if (shouldEvaluate) {
+      if (typeof error === 'string') error = new Error(error)
+      error.kind = 'Evaluate'
+      throw error
+    }
+    return // Stop now if this test is supposed to fail
+  }
+  if (!shouldEvaluate) {
+    const error = new Error('Unexpected successful evaluation')
+    error.kind = 'Evaluate'
+    throw error
+  }
+
+  // Step 4: If evaluation worked and was supposed to work, check to see
+  // if it still works after running esbuild's syntax lowering pass on it
+  for (let version = 2015; version <= 2022; version++) {
+    let result
+    try {
+      result = await esbuild.transform(code, { sourcefile: file, target: `es${version}` })
+    } catch (error) {
+      continue // This means esbuild doesn't support lowering this code to this old a version
+    }
+    try {
+      await runCodeInHarness(yaml, code, importDir)
+    } catch (error) {
+      if (typeof error === 'string') error = new Error(error)
+      error.kind = 'Lower'
+      throw error
+    }
+    break
   }
 }
 
 async function main() {
-  console.log(`\n${dimColor}Finding tests...${resetColor}`);
-  const files = findFiles();
-  console.log(`Found ${files.length} test files`);
+  const startTime = Date.now()
 
-  console.log(`\n${dimColor}Installing esbuild...${resetColor}`);
-  const esbuild = installForTests();
+  // Get this warning out of the way so it's not in the middle of our output.
+  // Note: If this constructor is missing, you need to run node with the
+  // "--experimental-vm-modules" flag (and use a version of node that has it).
+  {
+    const temp = new vm.SourceTextModule('')
+    await temp.link(() => { throw new Error })
+    await temp.evaluate()
+  }
 
-  console.log(`\n${dimColor}Running tests...${resetColor}\n`);
+  console.log(`\n${dimColor}Finding tests...${resetColor}`)
+  const files = findFiles()
+  console.log(`Found ${files.length} test files`)
+
+  console.log(`\n${dimColor}Installing esbuild...${resetColor}`)
+  // const esbuild = installForTests()
+  const esbuild = require('/tmp/esbuild-xfrtyp2495b/node_modules/esbuild')
+
+  console.log(`\n${dimColor}Running tests...${resetColor}\n`)
   const errorCounts = {}
   let skippedCount = 0
 
   await forEachInParallel(files, 32, async (file) => {
-    if (skipTheseTests.has(path.relative(test262Dir, file))) {
+    // Don't parse files that esbuild deliberately handles differently
+    if (skipTheseTests.has(path.relative(testDir, file))) {
       skippedCount++
       return
     }
 
     try {
-      const content = fs.readFileSync(file, 'utf8');
-      const start = content.indexOf('/*---');
-      const end = content.indexOf('---*/');
-      if (start < 0 || end < 0) throw new Error(`Missing YAML metadata`);
-      const yaml = jsYaml.safeLoad(content.slice(start + 5, end));
+      const content = fs.readFileSync(file, 'utf8')
+      const start = content.indexOf('/*---')
+      const end = content.indexOf('---*/')
+      if (start < 0 || end < 0) throw new Error(`Missing YAML metadata`)
+      const yaml = jsYaml.safeLoad(content.slice(start + 5, end))
 
+      // Don't parse files that test things we don't care about
       if (yaml.features && yaml.features.some(feature => skipTheseFeatures.has(feature))) {
         skippedCount++
         return
@@ -308,40 +466,140 @@ async function main() {
     table.push([kind + ' errors', `${errorCounts[kind]}`])
   }
   const maxLength = Math.max(...table.map(x => x[0].length))
-  process.stdout.write(eraseProgressBar)
+  process.stdout.write(eraseProgressBar())
   for (const [key, value] of table) {
     console.log(`${boldColor}${(key + ':').padEnd(maxLength + 1)}${resetColor} ${value}`)
   }
+
+  const seconds = (Date.now() - startTime) / 1000
+  const minutes = Math.floor(seconds / 60)
+  table.push(['Time taken', `${minutes ? `${minutes} min ${+(seconds - minutes * 60).toFixed(1)} sec` : `${+seconds.toFixed(1)} sec`}`])
 }
 
 function forEachInParallel(items, batchSize, callback) {
   return new Promise((resolve, reject) => {
-    let inFlight = 0;
-    let i = 0;
+    let inFlight = 0
+    let i = 0
 
     function next() {
       if (i === items.length && inFlight === 0) {
-        process.stdout.write(eraseProgressBar)
-        return resolve();
+        process.stdout.write(eraseProgressBar())
+        return resolve()
       }
 
       const completed = Math.floor(progressBarLength * i / items.length)
-      const progressHead = '\u2501'.repeat(Math.max(0, completed - 1))
-      const progressBoundary = completed ? '\u252B' : ''
-      const progressTail = '\u2500'.repeat(progressBarLength - completed)
-      process.stdout.write(`\r` + greenColor + progressHead + progressBoundary + dimColor + progressTail + resetColor)
+      if (previousProgressBar !== completed) {
+        previousProgressBar = completed
+        const progressHead = '\u2501'.repeat(Math.max(0, completed - 1))
+        const progressBoundary = completed ? '\u252B' : ''
+        const progressTail = '\u2500'.repeat(progressBarLength - completed)
+        process.stdout.write(`\r` + greenColor + progressHead + progressBoundary + dimColor + progressTail + resetColor)
+      }
 
       while (i < items.length && inFlight < batchSize) {
-        inFlight++;
+        inFlight++
         callback(items[i++]).then(() => {
-          inFlight--;
-          next();
-        }, reject);
+          inFlight--
+          next()
+        }, reject)
       }
     }
 
-    next();
-  });
+    next()
+  })
+}
+
+const harnessFiles = new Map
+let defaultHarness = ''
+
+for (const entry of fs.readdirSync(harnessDir)) {
+  if (entry.startsWith('.') || !entry.endsWith('.js')) {
+    continue
+  }
+  const file = path.join(harnessDir, entry)
+  const content = fs.readFileSync(file, 'utf8')
+  if (entry === 'assert.js' || entry === 'sta.js') {
+    defaultHarness += content
+    continue
+  }
+  harnessFiles.set(entry, content)
+}
+
+function createHarnessForTest(yaml) {
+  let harness = defaultHarness
+
+  if (yaml.includes) {
+    for (const include of yaml.includes) {
+      const content = harnessFiles.get(include)
+      if (!content) throw new Error(`Included file is missing: ${include}`)
+      harness += content
+    }
+  }
+
+  return harness
+}
+
+async function runCodeInHarness(yaml, code, importDir) {
+  const context = {}
+  const isAsync = yaml.flags && yaml.flags.includes('async')
+  const isModule = yaml.flags && yaml.flags.includes('module')
+  const isRaw = yaml.flags && yaml.flags.includes('raw')
+
+  // See: https://github.com/nodejs/node/issues/36351
+  const unique = () => '//' + Math.random()
+
+  const runCode = async () => {
+    const moduleCache = new Map
+    const dynamicImportCache = new Map
+
+    const findModule = (modulePath) => {
+      let module = moduleCache.get(modulePath)
+      if (!module) {
+        const code = fs.readFileSync(modulePath, 'utf8')
+        module = new vm.SourceTextModule(code + unique(), { context, importModuleDynamically })
+        moduleCache.set(modulePath, module)
+      }
+      return module
+    }
+
+    const linker = (specifier, referencingModule) => {
+      return findModule(path.join(importDir, specifier))
+    }
+
+    const importModuleDynamically = (specifier, script) => {
+      const where = path.join(importDir, specifier)
+      let promise = dynamicImportCache.get(where)
+      if (!promise) {
+        const module = findModule(where, context)
+        promise = module.link(linker)
+          .then(() => module.evaluate())
+          .then(() => module)
+        dynamicImportCache.set(where, promise)
+      }
+      return promise
+    }
+
+    vm.createContext(context)
+    if (!isRaw) vm.runInContext(createHarnessForTest(yaml), context)
+
+    if (isModule) {
+      const module = new vm.SourceTextModule(code + unique(), { context, importModuleDynamically })
+      await module.link(linker)
+      await module.evaluate()
+    } else {
+      const script = new vm.Script(code, { importModuleDynamically })
+      script.runInContext(context)
+    }
+  }
+
+  if (isAsync) {
+    await new Promise((resolve, reject) => {
+      context.$DONE = err => err ? reject(err) : resolve()
+      runCode(code, context).catch(reject)
+    })
+  } else {
+    await runCode(code, context)
+  }
 }
 
 function printError(file, error) {
@@ -361,8 +619,10 @@ function printError(file, error) {
     detail = dimColor + ('\n' + error).split('\n').join('\n  ').slice(1) + resetColor
   }
 
-  const prettyPath = path.relative(test262Dir, file)
-  console.log(eraseProgressBar + tagMap[error.kind] + ' ' + prettyPath + '\n' + detail + '\n')
+  const prettyPath = path.relative(testDir, file)
+  printNewlineWhenErasing = true
+  console.log(eraseProgressBar() + tagMap[error.kind] + ' ' + prettyPath + '\n' + detail)
+  printNewlineWhenErasing = true
 }
 
 const tagMap = {
@@ -371,8 +631,14 @@ const tagMap = {
   Reparse: yellowBgYellowColor + `[` + yellowBgBlackColor + `REPARSE ERROR` + yellowBgYellowColor + `]` + resetColor,
   Reprint: cyanBgCyanColor + `[` + cyanBgBlackColor + `REPRINT ERROR` + cyanBgCyanColor + `]` + resetColor,
   Minify: blueBgBlueColor + `[` + blueBgWhiteColor + `MINIFY ERROR` + blueBgBlueColor + `]` + resetColor,
+  Evaluate: greenBgGreenColor + `[` + greenBgWhiteColor + `EVALUATE ERROR` + greenBgGreenColor + `]` + resetColor,
+  Lower: whiteBgWhiteColor + `[` + whiteBgBlackColor + `LOWER ERROR` + whiteBgWhiteColor + `]` + resetColor,
 }
+
+process.on('unhandledRejection', () => {
+  // Don't exit when a test does this
+})
 
 main().catch(e => setTimeout(() => {
   throw e
-}));
+}))
