@@ -206,7 +206,10 @@ function findFiles() {
   }
 
   const files = []
-  visit(testDir)
+  for (const entry of fs.readdirSync(testDir)) {
+    if (entry === 'staging' || entry === 'intl402' || entry === 'built-ins') continue // We're not interested in these
+    visit(path.join(testDir, entry))
+  }
 
   // Reverse for faster iteration times because many of the more interesting tests come last
   return files.reverse()
@@ -334,17 +337,11 @@ async function checkBuildAPI({ esbuild, file, content, yaml }) {
     throw error
   }
 
-  // Don't evaluate files in the "staging" or "intl402" areas
-  const relPath = path.relative(testDir, file)
-  if (relPath.startsWith('staging') || relPath.startsWith('intl402')) {
-    return
-  }
-
   // Don't evaluate problematic files
   const hasDirectEval = result.warnings.some(msg => msg.id === 'direct-eval')
   if (
     hasDirectEval ||
-    skipEvaluatingTheseTests.has(relPath) ||
+    skipEvaluatingTheseTests.has(path.relative(testDir, file)) ||
     (yaml.includes && yaml.includes.some(include => skipEvaluatingTheseIncludes.has(include))) ||
     (yaml.features && yaml.features.some(feature => skipEvaluatingTheseFeatures.has(feature)))
   ) {
@@ -421,8 +418,7 @@ async function main() {
   console.log(`Found ${files.length} test files`)
 
   console.log(`\n${dimColor}Installing esbuild...${resetColor}`)
-  // const esbuild = installForTests()
-  const esbuild = require('/tmp/esbuild-xfrtyp2495b/node_modules/esbuild')
+  const esbuild = installForTests()
 
   console.log(`\n${dimColor}Running tests...${resetColor}\n`)
   const errorCounts = {}
@@ -465,15 +461,15 @@ async function main() {
   for (const kind of Object.keys(errorCounts).sort()) {
     table.push([kind + ' errors', `${errorCounts[kind]}`])
   }
+  const seconds = (Date.now() - startTime) / 1000
+  const minutes = Math.floor(seconds / 60)
+  table.push(['Time taken', `${minutes ? `${minutes} min ${+(seconds - minutes * 60).toFixed(1)} sec` : `${+seconds.toFixed(1)} sec`}`])
   const maxLength = Math.max(...table.map(x => x[0].length))
+  printNewlineWhenErasing = true
   process.stdout.write(eraseProgressBar())
   for (const [key, value] of table) {
     console.log(`${boldColor}${(key + ':').padEnd(maxLength + 1)}${resetColor} ${value}`)
   }
-
-  const seconds = (Date.now() - startTime) / 1000
-  const minutes = Math.floor(seconds / 60)
-  table.push(['Time taken', `${minutes ? `${minutes} min ${+(seconds - minutes * 60).toFixed(1)} sec` : `${+seconds.toFixed(1)} sec`}`])
 }
 
 function forEachInParallel(items, batchSize, callback) {
