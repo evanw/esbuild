@@ -1,8 +1,131 @@
 const fs = require('fs');
 const path = require('path');
 const jsYaml = require('js-yaml');
+const isatty = require('tty').isatty(process.stdout.fd);
 const { installForTests } = require('./esbuild');
 const test262Dir = path.join(__dirname, '..', 'demo', 'test262', 'test');
+
+const progressBarLength = 64
+const eraseProgressBar = `\r${' '.repeat(progressBarLength)}\r`
+
+const resetColor = isatty ? `\x1b[0m` : ''
+const boldColor = isatty ? `\x1b[1m` : ''
+const dimColor = isatty ? `\x1b[37m` : ''
+const underlineColor = isatty ? `\x1b[4m` : ''
+
+const redColor = isatty ? `\x1b[31m` : ''
+const greenColor = isatty ? `\x1b[32m` : ''
+const blueColor = isatty ? `\x1b[34m` : ''
+
+const cyanColor = isatty ? `\x1b[36m` : ''
+const magentaColor = isatty ? `\x1b[35m` : ''
+const yellowColor = isatty ? `\x1b[33m` : ''
+
+const redBgRedColor = isatty ? `\x1b[41;31m` : ''
+const redBgWhiteColor = isatty ? `\x1b[41;97m` : ''
+const greenBgGreenColor = isatty ? `\x1b[42;32m` : ''
+const greenBgWhiteColor = isatty ? `\x1b[42;97m` : ''
+const blueBgBlueColor = isatty ? `\x1b[44;34m` : ''
+const blueBgWhiteColor = isatty ? `\x1b[44;97m` : ''
+
+const cyanBgCyanColor = isatty ? `\x1b[46;36m` : ''
+const cyanBgBlackColor = isatty ? `\x1b[46;30m` : ''
+const magentaBgMagentaColor = isatty ? `\x1b[45;35m` : ''
+const magentaBgBlackColor = isatty ? `\x1b[45;30m` : ''
+const yellowBgYellowColor = isatty ? `\x1b[43;33m` : ''
+const yellowBgBlackColor = isatty ? `\x1b[43;30m` : ''
+
+const skipTheseFeatures = new Set([
+  'hashbang',
+  'decorators',
+  'regexp-v-flag',
+  'regexp-match-indices',
+  'regexp-named-groups',
+  'regexp-unicode-property-escapes',
+])
+
+const skipTheseTests = new Set([
+  // Skip these tests because esbuild deliberately always supports ESM syntax
+  // in all files. Also esbuild doesn't support the script goal at all.
+  'language/expressions/import.meta/syntax/goal-script.js',
+  'language/global-code/export.js',
+  'language/global-code/import.js',
+
+  // Skip these tests because we deliberately support top-level return (input
+  // files are treated as CommonJS and/or ESM but never as global code, and
+  // top-level return is allowed in CommonJS)
+  'language/statements/return/S12.9_A1_T1.js',
+  'language/statements/return/S12.9_A1_T10.js',
+  'language/statements/return/S12.9_A1_T2.js',
+  'language/statements/return/S12.9_A1_T3.js',
+  'language/statements/return/S12.9_A1_T4.js',
+  'language/statements/return/S12.9_A1_T5.js',
+  'language/statements/return/S12.9_A1_T6.js',
+  'language/statements/return/S12.9_A1_T7.js',
+  'language/statements/return/S12.9_A1_T8.js',
+  'language/statements/return/S12.9_A1_T9.js',
+  'language/global-code/return.js',
+
+  // Skip these tests because we deliberately support parsing top-level await
+  // in all files. Files containing top-level await are always interpreted as
+  // ESM, never as CommonJS.
+  'language/expressions/assignmenttargettype/simple-basic-identifierreference-await.js',
+  'language/expressions/await/await-BindingIdentifier-in-global.js',
+  'language/expressions/await/await-in-global.js',
+  'language/expressions/await/await-in-nested-function.js',
+  'language/expressions/await/await-in-nested-generator.js',
+  'language/expressions/class/class-name-ident-await-escaped.js',
+  'language/expressions/class/class-name-ident-await.js',
+  'language/expressions/class/static-init-await-reference.js',
+  'language/expressions/dynamic-import/2nd-param-await-ident.js',
+  'language/expressions/dynamic-import/assignment-expression/await-identifier.js',
+  'language/expressions/function/static-init-await-reference.js',
+  'language/expressions/generators/static-init-await-reference.js',
+  'language/expressions/in/private-field-rhs-await-absent.js',
+  'language/expressions/object/identifier-shorthand-await-strict-mode.js',
+  'language/expressions/object/method-definition/static-init-await-reference-accessor.js',
+  'language/expressions/object/method-definition/static-init-await-reference-generator.js',
+  'language/expressions/object/method-definition/static-init-await-reference-normal.js',
+  'language/module-code/top-level-await/new-await-script-code.js',
+  'language/reserved-words/await-script.js',
+  'language/statements/class/class-name-ident-await-escaped.js',
+  'language/statements/class/class-name-ident-await.js',
+  'language/statements/labeled/value-await-non-module-escaped.js',
+  'language/statements/labeled/value-await-non-module.js',
+
+  // Skip these tests because we don't currently validate the contents of
+  // regular expressions. We could do this but it's not necessary to parse
+  // JavaScript successfully since we parse enough of it to be able to
+  // determine where the regular expression ends (just "\" and "[]" pairs).
+  'language/literals/regexp/early-err-pattern.js',
+  'language/literals/regexp/invalid-braced-quantifier-exact.js',
+  'language/literals/regexp/invalid-braced-quantifier-lower.js',
+  'language/literals/regexp/invalid-braced-quantifier-range.js',
+  'language/literals/regexp/invalid-optional-lookbehind.js',
+  'language/literals/regexp/invalid-optional-negative-lookbehind.js',
+  'language/literals/regexp/invalid-range-lookbehind.js',
+  'language/literals/regexp/invalid-range-negative-lookbehind.js',
+  'language/literals/regexp/u-invalid-class-escape.js',
+  'language/literals/regexp/u-invalid-extended-pattern-char.js',
+  'language/literals/regexp/u-invalid-identity-escape.js',
+  'language/literals/regexp/u-invalid-legacy-octal-escape.js',
+  'language/literals/regexp/u-invalid-non-empty-class-ranges-no-dash-a.js',
+  'language/literals/regexp/u-invalid-non-empty-class-ranges-no-dash-ab.js',
+  'language/literals/regexp/u-invalid-non-empty-class-ranges-no-dash-b.js',
+  'language/literals/regexp/u-invalid-non-empty-class-ranges.js',
+  'language/literals/regexp/u-invalid-oob-decimal-escape.js',
+  'language/literals/regexp/u-invalid-optional-lookahead.js',
+  'language/literals/regexp/u-invalid-optional-lookbehind.js',
+  'language/literals/regexp/u-invalid-optional-negative-lookahead.js',
+  'language/literals/regexp/u-invalid-optional-negative-lookbehind.js',
+  'language/literals/regexp/u-invalid-range-lookahead.js',
+  'language/literals/regexp/u-invalid-range-lookbehind.js',
+  'language/literals/regexp/u-invalid-range-negative-lookahead.js',
+  'language/literals/regexp/u-invalid-range-negative-lookbehind.js',
+  'language/literals/regexp/u-unicode-esc-bounds.js',
+  'language/literals/regexp/u-unicode-esc-non-hex.js',
+  'language/literals/regexp/unicode-escape-nls-err.js',
+])
 
 function findFiles() {
   function visit(dir) {
@@ -19,216 +142,198 @@ function findFiles() {
 
   const files = [];
   visit(test262Dir);
-  return files;
+
+  // Reverse for faster iteration times because many of the more interesting tests come last
+  return files.reverse();
 }
 
-function formatErrors(content, error) {
-  if (error.errors) {
-    return error.errors.map(({ text, location }) => {
-      if (location) {
-        const { line, column } = location;
-        const contentLine = content.split(/(?:\r\n|\n|\r|\u2028|\u2029)/g)[line - 1];
-        return `<stdin>:${line}:${column}: ERROR: ${text}\n${contentLine}\n${' '.repeat(column)}^`;
-      }
-      return `ERROR: ${text}`;
-    }).join('\n');
+async function checkTransformAPI({ esbuild, file, content, yaml }) {
+  if (yaml.flags) {
+    if (yaml.flags.includes('onlyStrict')) content = '"use strict";' + content
+    if (yaml.flags.includes('module')) content += '\nexport {}'
   }
-  return error + '';
+
+  // Step 1: Try transforming the file normally
+  const shouldParse = !yaml.negative || yaml.negative.phase !== 'parse';
+  let result
+  try {
+    result = await esbuild.transform(content, { sourcefile: file })
+  } catch (error) {
+    if (shouldParse) {
+      error.kind = 'Transform'
+      throw error
+    }
+    return // Stop now if this test is supposed to fail
+  }
+  if (!shouldParse) {
+    const error = new Error('Unexpected success')
+    error.kind = 'Transform'
+    throw error
+  }
+
+  // Step 2: Try transforming the output again (this should always succeed)
+  let result2
+  try {
+    result2 = await esbuild.transform(result.code, { sourcefile: file })
+  } catch (error) {
+    error.kind = 'Reparse'
+    throw error
+  }
+
+  // Step 3: The output should be the same the second time
+  if (result2.code !== result.code) {
+    const lines = result.code.split('\n')
+    const lines2 = result2.code.split('\n')
+    let i = 0
+    while (i < lines.length && i < lines2.length && lines[i] === lines2[i]) i++
+    const error = { toString: () => `${redColor}-${lines[i]}\n${greenColor}+${lines2[i]}${resetColor}` }
+    error.kind = 'Reprint'
+    throw error
+  }
+
+  // Step 4: Try minifying the output once
+  let result4
+  try {
+    result4 = await esbuild.transform(result2.code, { sourcefile: file, minify: true })
+  } catch (error) {
+    error.kind = 'Minify'
+    throw error
+  }
+
+  // Step 5: Try minifying the output again
+  let result5
+  try {
+    result5 = await esbuild.transform(result4.code, { sourcefile: file, minify: true })
+  } catch (error) {
+    error.kind = 'Minify'
+    throw error
+  }
+}
+
+async function checkBuildAPI({ esbuild, file, content, yaml }) {
+  const plugins = []
+  if (yaml.flags) {
+    const onlyStrict = yaml.flags.includes('onlyStrict')
+    const module = yaml.flags.includes('module')
+    if (onlyStrict || module) {
+      plugins.push({
+        name: 'modify',
+        setup(build) {
+          build.onLoad({ filter: /./ }, args => {
+            if (args.path === file) {
+              let loaded = content
+              if (onlyStrict) loaded = '"use strict";' + loaded
+              if (module) loaded += '\nexport {}'
+              return { contents: loaded }
+            }
+          })
+        },
+      })
+    }
+  }
+
+  const shouldParse = !yaml.negative || yaml.negative.phase === 'runtime';
+  let result
+  try {
+    result = await esbuild.build({
+      entryPoints: [file],
+      bundle: true,
+      write: false,
+      logLevel: 'silent',
+      external: [
+        '', // Some tests use this as a dummy argument to an "import('')" that is never evaluated
+      ],
+      format: yaml.flags && yaml.flags.includes('module') ? 'esm' : 'iife',
+      plugins,
+    })
+  } catch (error) {
+    if (shouldParse) {
+      error.kind = 'Build'
+      throw error
+    }
+    return // Stop now if this test is supposed to fail
+  }
+  if (!shouldParse) {
+    const error = new Error('Unexpected success')
+    error.kind = 'Build'
+    throw error
+  }
 }
 
 async function main() {
-  const esbuild = installForTests();
+  console.log(`\n${dimColor}Finding tests...${resetColor}`);
   const files = findFiles();
-  let runCount = 0;
-  let shouldHavePassed = 0;
-  let shouldHaveFailed = 0;
-  let reparseCount = 0;
-  let reprintCount = 0;
-  let minifyCount = 0;
-  let panicCount = 0;
+  console.log(`Found ${files.length} test files`);
 
-  async function esbuildFile(input, options) {
-    try {
-      const { code } = await esbuild.transform(input, options);
-      return { success: true, output: code };
-    } catch (error) {
-      return { success: false, error };
-    }
-  }
+  console.log(`\n${dimColor}Installing esbuild...${resetColor}`);
+  const esbuild = installForTests();
 
-  const skipList = [
-    // Skip these tests because esbuild deliberately always supports ESM syntax
-    // in all files. Also esbuild doesn't support the script goal at all.
-    'language/expressions/import.meta/syntax/goal-script.js',
-    'language/global-code/export.js',
-    'language/global-code/import.js',
+  console.log(`\n${dimColor}Running tests...${resetColor}\n`);
+  const errorCounts = {}
+  let skippedCount = 0
 
-    // Skip these tests because we deliberately support top-level return (input
-    // files are treated as CommonJS and/or ESM but never as global code, and
-    // top-level return is allowed in CommonJS)
-    'language/statements/return/S12.9_A1_T1.js',
-    'language/statements/return/S12.9_A1_T10.js',
-    'language/statements/return/S12.9_A1_T2.js',
-    'language/statements/return/S12.9_A1_T3.js',
-    'language/statements/return/S12.9_A1_T4.js',
-    'language/statements/return/S12.9_A1_T5.js',
-    'language/statements/return/S12.9_A1_T6.js',
-    'language/statements/return/S12.9_A1_T7.js',
-    'language/statements/return/S12.9_A1_T8.js',
-    'language/statements/return/S12.9_A1_T9.js',
-    'language/global-code/return.js',
-
-    // Skip these tests because we deliberately support parsing top-level await
-    // in all files. Files containing top-level await are always interpreted as
-    // ESM, never as CommonJS.
-    'language/expressions/assignmenttargettype/simple-basic-identifierreference-await.js',
-    'language/expressions/await/await-BindingIdentifier-in-global.js',
-    'language/expressions/await/await-in-global.js',
-    'language/expressions/await/await-in-nested-function.js',
-    'language/expressions/await/await-in-nested-generator.js',
-    'language/expressions/class/class-name-ident-await-escaped.js',
-    'language/expressions/class/class-name-ident-await.js',
-    'language/expressions/class/static-init-await-reference.js',
-    'language/expressions/dynamic-import/2nd-param-await-ident.js',
-    'language/expressions/dynamic-import/assignment-expression/await-identifier.js',
-    'language/expressions/function/static-init-await-reference.js',
-    'language/expressions/generators/static-init-await-reference.js',
-    'language/expressions/in/private-field-rhs-await-absent.js',
-    'language/expressions/object/identifier-shorthand-await-strict-mode.js',
-    'language/expressions/object/method-definition/static-init-await-reference-accessor.js',
-    'language/expressions/object/method-definition/static-init-await-reference-generator.js',
-    'language/expressions/object/method-definition/static-init-await-reference-normal.js',
-    'language/module-code/top-level-await/new-await-script-code.js',
-    'language/reserved-words/await-script.js',
-    'language/statements/class/class-name-ident-await-escaped.js',
-    'language/statements/class/class-name-ident-await.js',
-    'language/statements/labeled/value-await-non-module-escaped.js',
-    'language/statements/labeled/value-await-non-module.js',
-
-    // Skip these tests because we don't currently validate the contents of
-    // regular expressions. We could do this but it's not necessary to parse
-    // JavaScript successfully since we parse enough of it to be able to
-    // determine where the regular expression ends (just "\" and "[]" pairs).
-    'language/literals/regexp/early-err-pattern.js',
-    'language/literals/regexp/invalid-braced-quantifier-exact.js',
-    'language/literals/regexp/invalid-braced-quantifier-lower.js',
-    'language/literals/regexp/invalid-braced-quantifier-range.js',
-    'language/literals/regexp/invalid-optional-lookbehind.js',
-    'language/literals/regexp/invalid-optional-negative-lookbehind.js',
-    'language/literals/regexp/invalid-range-lookbehind.js',
-    'language/literals/regexp/invalid-range-negative-lookbehind.js',
-    'language/literals/regexp/u-invalid-class-escape.js',
-    'language/literals/regexp/u-invalid-extended-pattern-char.js',
-    'language/literals/regexp/u-invalid-identity-escape.js',
-    'language/literals/regexp/u-invalid-legacy-octal-escape.js',
-    'language/literals/regexp/u-invalid-non-empty-class-ranges-no-dash-a.js',
-    'language/literals/regexp/u-invalid-non-empty-class-ranges-no-dash-ab.js',
-    'language/literals/regexp/u-invalid-non-empty-class-ranges-no-dash-b.js',
-    'language/literals/regexp/u-invalid-non-empty-class-ranges.js',
-    'language/literals/regexp/u-invalid-oob-decimal-escape.js',
-    'language/literals/regexp/u-invalid-optional-lookahead.js',
-    'language/literals/regexp/u-invalid-optional-lookbehind.js',
-    'language/literals/regexp/u-invalid-optional-negative-lookahead.js',
-    'language/literals/regexp/u-invalid-optional-negative-lookbehind.js',
-    'language/literals/regexp/u-invalid-range-lookahead.js',
-    'language/literals/regexp/u-invalid-range-lookbehind.js',
-    'language/literals/regexp/u-invalid-range-negative-lookahead.js',
-    'language/literals/regexp/u-invalid-range-negative-lookbehind.js',
-    'language/literals/regexp/u-unicode-esc-bounds.js',
-    'language/literals/regexp/u-unicode-esc-non-hex.js',
-    'language/literals/regexp/unicode-escape-nls-err.js',
-  ]
-
-  async function processFile(file) {
-    let content = fs.readFileSync(file, 'utf8');
-    const start = content.indexOf('/*---');
-    const end = content.indexOf('---*/');
-
-    if (start < 0 || end < 0) {
-      console.warn(`Missing YAML metadata: ${file}`);
-      return;
-    }
-
-    const yaml = jsYaml.safeLoad(content.slice(start + 5, end));
-    const shouldParse = !yaml.negative || yaml.negative.phase === 'runtime';
-
-    if (yaml.features) {
-      if (yaml.features.includes('hashbang')) return
-      if (yaml.features.includes('decorators')) return
-      if (yaml.features.includes('regexp-v-flag')) return
-      if (yaml.features.includes('regexp-match-indices')) return
-      if (yaml.features.includes('regexp-named-groups')) return
-      if (yaml.features.includes('regexp-unicode-property-escapes')) return
-    }
-
-    if (yaml.flags) {
-      if (yaml.flags.includes('onlyStrict')) content = '"use strict";\n' + content
-      if (yaml.flags.includes('module')) content = 'export {};\n' + content
-    }
-
-    if (skipList.includes(path.relative(test262Dir, file).replace(/\\/g, '/'))) {
+  await forEachInParallel(files, 32, async (file) => {
+    if (skipTheseTests.has(path.relative(test262Dir, file))) {
+      skippedCount++
       return
     }
 
-    const result = await esbuildFile(content, { minify: false, sourcefile: file });
+    try {
+      const content = fs.readFileSync(file, 'utf8');
+      const start = content.indexOf('/*---');
+      const end = content.indexOf('---*/');
+      if (start < 0 || end < 0) throw new Error(`Missing YAML metadata`);
+      const yaml = jsYaml.safeLoad(content.slice(start + 5, end));
 
-    if (result.success !== shouldParse) {
-      if (!result.success) shouldHavePassed++;
-      else shouldHaveFailed++;
-      const text = result.success
-        ? (yaml.description || '').trim()
-        : formatErrors(content, result.error);
-      console.log('\n' + `${file}\n${text}`.replace(/\n/g, '\n  '));
-    }
-
-    else if (result.success) {
-      const result2 = await esbuildFile(result.output, { minify: false });
-      if (!result2.success) {
-        console.log(`\n!!! REPARSE ERROR: ${file} !!!`);
-        console.log(`${result2.error}`);
-        reparseCount++;
-      } else if (result2.output !== result.output) {
-        console.log(`\n!!! REPRINT ERROR: ${file} !!!`);
-        reprintCount++;
-      } else {
-        const result3 = await esbuildFile(result2.output, { minify: true });
-        if (!result3.success) {
-          console.log(`\n!!! MINIFY 1x ERROR: ${file} !!!`);
-          console.log(`${result3.error}`);
-          minifyCount++;
-        } else {
-          const result4 = await esbuildFile(result3.output, { minify: true });
-          if (!result4.success) {
-            console.log(`\n!!! MINIFY 2x ERROR: ${file} !!!`);
-            console.log(`${result4.error}`);
-            minifyCount++;
-          }
-        }
+      if (yaml.features && yaml.features.some(feature => skipTheseFeatures.has(feature))) {
+        skippedCount++
+        return
       }
+
+      await checkTransformAPI({ esbuild, file, content, yaml })
+      await checkBuildAPI({ esbuild, file, content, yaml })
     }
 
-    else if (result.error.toString().includes('panic')) {
-      console.log(`\n!!! PANIC: ${file} !!!`);
-      console.log(`${result.error}\n${result.error.errors[0].location.lineText}`);
-      panicCount++;
+    catch (error) {
+      errorCounts[error.kind] = (errorCounts[error.kind] || 0) + 1
+      printError(file, error)
     }
+  })
 
-    runCount++;
+  const table = []
+  table.push(['Total tests', `${files.length}`])
+  table.push(['Tests ran', `${files.length - skippedCount}`])
+  table.push(['Tests skipped', `${skippedCount}`])
+  for (const kind of Object.keys(errorCounts).sort()) {
+    table.push([kind + ' errors', `${errorCounts[kind]}`])
   }
+  const maxLength = Math.max(...table.map(x => x[0].length))
+  process.stdout.write(eraseProgressBar)
+  for (const [key, value] of table) {
+    console.log(`${boldColor}${(key + ':').padEnd(maxLength + 1)}${resetColor} ${value}`)
+  }
+}
 
-  // Process tests in parallel for speed
-  await new Promise((resolve, reject) => {
+function forEachInParallel(items, batchSize, callback) {
+  return new Promise((resolve, reject) => {
     let inFlight = 0;
     let i = 0;
 
     function next() {
-      if (i === files.length && inFlight === 0) {
+      if (i === items.length && inFlight === 0) {
+        process.stdout.write(eraseProgressBar)
         return resolve();
       }
 
-      while (i < files.length && inFlight < 5) {
+      const completed = Math.floor(progressBarLength * i / items.length)
+      const progressHead = '\u2501'.repeat(Math.max(0, completed - 1))
+      const progressBoundary = completed ? '\u252B' : ''
+      const progressTail = '\u2500'.repeat(progressBarLength - completed)
+      process.stdout.write(`\r` + greenColor + progressHead + progressBoundary + dimColor + progressTail + resetColor)
+
+      while (i < items.length && inFlight < batchSize) {
         inFlight++;
-        processFile(files[i++]).then(() => {
+        callback(items[i++]).then(() => {
           inFlight--;
           next();
         }, reject);
@@ -237,15 +342,35 @@ async function main() {
 
     next();
   });
+}
 
-  console.log(`tests ran: ${runCount}`);
-  console.log(`  tests incorrectly failed: ${shouldHavePassed}`);
-  console.log(`  tests incorrectly passed: ${shouldHaveFailed}`);
-  console.log(`tests skipped: ${files.length - runCount}`);
-  console.log(`reparse failures: ${reparseCount}`);
-  console.log(`reprint failures: ${reprintCount}`);
-  console.log(`minify failures: ${minifyCount}`);
-  console.log(`panics: ${panicCount}`);
+function printError(file, error) {
+  let detail
+
+  if (error.errors) {
+    const { text, location } = error.errors[0]
+    if (location) {
+      const { file, line, column, lineText, length } = location
+      detail = '  ' + dimColor + path.basename(file) + ':' + line + ':' + column + ': ' + resetColor + text + '\n' +
+        '  ' + dimColor + lineText.slice(0, column) + greenColor + lineText.slice(column, column + length) + dimColor + lineText.slice(column + length) + resetColor + '\n' +
+        '  ' + greenColor + ' '.repeat(column) + (length > 1 ? '~'.repeat(length) : '^') + resetColor
+    } else {
+      detail = dimColor + ('\n' + text).split('\n').join('\n  ').slice(1) + resetColor
+    }
+  } else {
+    detail = dimColor + ('\n' + error).split('\n').join('\n  ').slice(1) + resetColor
+  }
+
+  const prettyPath = path.relative(test262Dir, file)
+  console.log(eraseProgressBar + tagMap[error.kind] + ' ' + prettyPath + '\n' + detail + '\n')
+}
+
+const tagMap = {
+  Transform: redBgRedColor + `[` + redBgWhiteColor + `TRANSFORM ERROR` + redBgRedColor + `]` + resetColor,
+  Build: magentaBgMagentaColor + `[` + magentaBgBlackColor + `BUILD ERROR` + magentaBgMagentaColor + `]` + resetColor,
+  Reparse: yellowBgYellowColor + `[` + yellowBgBlackColor + `REPARSE ERROR` + yellowBgYellowColor + `]` + resetColor,
+  Reprint: cyanBgCyanColor + `[` + cyanBgBlackColor + `REPRINT ERROR` + cyanBgCyanColor + `]` + resetColor,
+  Minify: blueBgBlueColor + `[` + blueBgWhiteColor + `MINIFY ERROR` + blueBgBlueColor + `]` + resetColor,
 }
 
 main().catch(e => setTimeout(() => {
