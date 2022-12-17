@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Update to Unicode 15.0.0
+
+    The character tables that determine which characters form valid JavaScript identifiers have been updated from Unicode version 14.0.0 to the newly-released Unicode version 15.0.0. I'm not putting an example in the release notes because all of the new characters will likely just show up as little squares since fonts haven't been updated yet. But you can read https://www.unicode.org/versions/Unicode15.0.0/#Summary for more information about the changes.
+
 ## 0.16.8
 
 * Allow plugins to resolve injected files ([#2754](https://github.com/evanw/esbuild/issues/2754))
