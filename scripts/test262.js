@@ -57,6 +57,12 @@ async function main() {
   }
 
   const skipList = [
+    // Skip these tests because esbuild deliberately always supports ESM syntax
+    // in all files. Also esbuild doesn't support the script goal at all.
+    'language/expressions/import.meta/syntax/goal-script.js',
+    'language/global-code/export.js',
+    'language/global-code/import.js',
+
     // Skip these tests because we deliberately support top-level return (input
     // files are treated as CommonJS and/or ESM but never as global code, and
     // top-level return is allowed in CommonJS)
