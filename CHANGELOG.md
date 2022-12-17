@@ -6,6 +6,34 @@
 
     The character tables that determine which characters form valid JavaScript identifiers have been updated from Unicode version 14.0.0 to the newly-released Unicode version 15.0.0. I'm not putting an example in the release notes because all of the new characters will likely just show up as little squares since fonts haven't been updated yet. But you can read https://www.unicode.org/versions/Unicode15.0.0/#Summary for more information about the changes.
 
+* Disallow duplicate lexically-declared names in nested blocks
+
+    It's supposed to be a syntax error for a nested block to declare two symbols with the same name unless all duplicate entries are either `function` declarations or all `var` declarations. However, esbuild was overly permissive and allowed this when duplicate entries were either `function` declarations or `var` declarations (even if they were mixed). This check has now been made more restrictive to match the JavaScript specification:
+
+    ```js
+    // JavaScript allows this
+    var a
+    function a() {}
+    {
+      var b
+      var b
+      function c() {}
+      function c() {}
+    }
+
+    // JavaScript doesn't allow this
+    {
+      var d
+      function d() {}
+    }
+    ```
+
+* Add a type declaration for the new `empty` loader ([#2755](https://github.com/evanw/esbuild/pull/2755))
+
+    I forgot to add this in the previous release. It has now been added.
+
+    This fix was contributed by [@fz6m](https://github.com/fz6m).
+
 ## 0.16.8
 
 * Allow plugins to resolve injected files ([#2754](https://github.com/evanw/esbuild/issues/2754))

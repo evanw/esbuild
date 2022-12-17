@@ -1163,8 +1163,10 @@ func (p *parser) canMergeSymbols(scope *js_ast.Scope, existing js_ast.SymbolKind
 	// "function foo() {} var foo;"
 	// "function *foo() {} function *foo() {}" but not "{ function *foo() {} function *foo() {} }"
 	if new.IsHoistedOrFunction() && existing.IsHoistedOrFunction() &&
-		(scope.Kind == js_ast.ScopeEntry || scope.Kind == js_ast.ScopeFunctionBody ||
-			(new.IsHoisted() && existing.IsHoisted())) {
+		(scope.Kind == js_ast.ScopeEntry ||
+			scope.Kind == js_ast.ScopeFunctionBody ||
+			scope.Kind == js_ast.ScopeFunctionArgs ||
+			(new == existing && new.IsHoisted())) {
 		return mergeReplaceWithNew
 	}
 

@@ -1446,6 +1446,33 @@ func TestFunction(t *testing.T) {
 	expectPrintedMangle(t, "function f() { x() } function f() { y() } var f", "function f() {\n  y();\n}\nvar f;\n")
 	expectPrintedMangle(t, "function f() { x() } var f; function f() { y() }", "function f() {\n  x();\n}\nvar f;\nfunction f() {\n  y();\n}\n")
 	expectPrintedMangle(t, "export function f() { x() } function f() { y() }", "export function f() {\n  x();\n}\nfunction f() {\n  y();\n}\n")
+
+	redeclaredError := "<stdin>: ERROR: The symbol \"f\" has already been declared\n" +
+		"<stdin>: NOTE: The symbol \"f\" was originally declared here:\n"
+
+	expectParseError(t, "function *f() {} function *f() {}", "")
+	expectParseError(t, "function f() {} let f", redeclaredError)
+	expectParseError(t, "function f() {} var f", "")
+	expectParseError(t, "function *f() {} var f", "")
+	expectParseError(t, "let f; function f() {}", redeclaredError)
+	expectParseError(t, "var f; function f() {}", "")
+	expectParseError(t, "var f; function *f() {}", "")
+
+	expectParseError(t, "{ function *f() {} function *f() {} }", redeclaredError)
+	expectParseError(t, "{ function f() {} let f }", redeclaredError)
+	expectParseError(t, "{ function f() {} var f }", redeclaredError)
+	expectParseError(t, "{ function *f() {} var f }", redeclaredError)
+	expectParseError(t, "{ let f; function f() {} }", redeclaredError)
+	expectParseError(t, "{ var f; function f() {} }", redeclaredError)
+	expectParseError(t, "{ var f; function *f() {} }", redeclaredError)
+
+	expectParseError(t, "switch (0) { case 1: function *f() {} default: function *f() {} }", redeclaredError)
+	expectParseError(t, "switch (0) { case 1: function f() {} default: let f }", redeclaredError)
+	expectParseError(t, "switch (0) { case 1: function f() {} default: var f }", redeclaredError)
+	expectParseError(t, "switch (0) { case 1: function *f() {} default: var f }", redeclaredError)
+	expectParseError(t, "switch (0) { case 1: let f; default: function f() {} }", redeclaredError)
+	expectParseError(t, "switch (0) { case 1: var f; default: function f() {} }", redeclaredError)
+	expectParseError(t, "switch (0) { case 1: var f; default: function *f() {} }", redeclaredError)
 }
 
 func TestClass(t *testing.T) {
