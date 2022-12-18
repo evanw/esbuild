@@ -3855,14 +3855,14 @@ let serveTests = {
         // Subtract 1 because range headers are inclusive on both ends
         Range: `bytes=${start}-${start + length - 1}`,
       })
-      delete fetched.headers.date
+      delete fetched.headers.date // This changes every time
+      delete fetched.headers.connection // Node v19+ no longer sends this
       const expected = buffer.slice(start, start + length)
       expected.headers = {
         'access-control-allow-origin': '*',
         'content-length': `${length}`,
         'content-range': `bytes ${start}-${start + length - 1}/${byteCount}`,
         'content-type': 'application/octet-stream',
-        'connection': 'close',
       }
       assert.deepStrictEqual(fetched, expected)
     }
