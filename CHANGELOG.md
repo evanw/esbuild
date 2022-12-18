@@ -6,9 +6,9 @@
 
     The character tables that determine which characters form valid JavaScript identifiers have been updated from Unicode version 14.0.0 to the newly-released Unicode version 15.0.0. I'm not putting an example in the release notes because all of the new characters will likely just show up as little squares since fonts haven't been updated yet. But you can read https://www.unicode.org/versions/Unicode15.0.0/#Summary for more information about the changes.
 
-* Disallow duplicate lexically-declared names in nested blocks
+* Disallow duplicate lexically-declared names in nested blocks and in strict mode
 
-    It's supposed to be a syntax error for a nested block to declare two symbols with the same name unless all duplicate entries are either `function` declarations or all `var` declarations. However, esbuild was overly permissive and allowed this when duplicate entries were either `function` declarations or `var` declarations (even if they were mixed). This check has now been made more restrictive to match the JavaScript specification:
+    In strict mode or in a nested block, it's supposed to be a syntax error to declare two symbols with the same name unless all duplicate entries are either `function` declarations or all `var` declarations. However, esbuild was overly permissive and allowed this when duplicate entries were either `function` declarations or `var` declarations (even if they were mixed). This check has now been made more restrictive to match the JavaScript specification:
 
     ```js
     // JavaScript allows this

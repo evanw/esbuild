@@ -1548,6 +1548,7 @@ type Scope struct {
 	Parent    *Scope
 	Children  []*Scope
 	Members   map[string]ScopeMember
+	Replaced  []ScopeMember
 	Generated []Ref
 
 	// The location of the "use strict" directive for ExplicitStrictMode

@@ -1231,6 +1231,7 @@ func (p *parser) declareSymbol(kind js_ast.SymbolKind, loc logger.Loc, name stri
 
 		case mergeReplaceWithNew:
 			symbol.Link = ref
+			p.currentScope.Replaced = append(p.currentScope.Replaced, existing)
 
 			// If these are both functions, remove the overwritten declaration
 			if p.options.minifySyntax && kind.IsFunction() && symbol.Kind.IsFunction() {
@@ -1268,6 +1269,28 @@ func (a scopeMemberArray) Less(i int, j int) bool {
 }
 
 func (p *parser) hoistSymbols(scope *js_ast.Scope) {
+	if scope.StrictMode != js_ast.SloppyMode {
+		for _, replaced := range scope.Replaced {
+			symbol := &p.symbols[replaced.Ref.InnerIndex]
+			if symbol.Kind.IsFunction() {
+				if member, ok := scope.Members[symbol.OriginalName]; ok && p.symbols[member.Ref.InnerIndex].Kind.IsFunction() {
+					where, notes := p.whyStrictMode(scope)
+					notes[0].Text = fmt.Sprintf("Duplicate lexically-declared names are not allowed %s. %s", where, notes[0].Text)
+
+					p.log.AddErrorWithNotes(&p.tracker,
+						js_lexer.RangeOfIdentifier(p.source, member.Loc),
+						fmt.Sprintf("The symbol %q has already been declared", symbol.OriginalName),
+
+						append([]logger.MsgData{p.tracker.MsgData(
+							js_lexer.RangeOfIdentifier(p.source, replaced.Loc),
+							fmt.Sprintf("The symbol %q was originally declared here:", symbol.OriginalName),
+						)}, notes...),
+					)
+				}
+			}
+		}
+	}
+
 	if !scope.Kind.StopsHoisting() {
 		// We create new symbols in the loop below, so the iteration order of the
 		// loop must be deterministic to avoid generating different minified names

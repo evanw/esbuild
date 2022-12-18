@@ -533,6 +533,40 @@ func TestStrictMode(t *testing.T) {
 	expectParseError(t, "with (y) z; await 0", tlaKeyword)
 	expectParseError(t, "for await (x of y); with (y) z", tlaKeyword)
 	expectParseError(t, "with (y) z; for await (x of y);", tlaKeyword)
+
+	cases := []string{
+		"function f() {} function f() {}",
+		"function f() {} function *f() {}",
+		"function *f() {} function f() {}",
+		"function f() {} async function f() {}",
+		"async function f() {} function f() {}",
+		"function f() {} async function *f() {}",
+		"async function *f() {} function f() {}",
+		"{ function f() {} function f() {} }",
+		"switch (0) { case 1: function f() {} default: function f() {} }",
+	}
+
+	fAlreadyDeclaredError :=
+		"<stdin>: ERROR: The symbol \"f\" has already been declared\n" +
+			"<stdin>: NOTE: The symbol \"f\" was originally declared here:\n" +
+			"<stdin>: NOTE: Duplicate lexically-declared names are not allowed"
+
+	for _, c := range cases {
+		expectParseError(t, c, "")
+
+		expectParseError(t, "'use strict'; "+c, fAlreadyDeclaredError+" in strict mode. "+
+			"Strict mode is triggered by the \"use strict\" directive here:\n")
+
+		expectParseError(t, "function foo() { 'use strict'; "+c+" }", fAlreadyDeclaredError+" in strict mode. "+
+			"Strict mode is triggered by the \"use strict\" directive here:\n")
+
+		expectParseError(t, c+" export {}", fAlreadyDeclaredError+" in an ECMAScript module. "+
+			"This file is considered to be an ECMAScript module because of the \"export\" keyword here:\n")
+	}
+
+	expectParseError(t, "var x; var x", "")
+	expectParseError(t, "'use strict'; var x; var x", "")
+	expectParseError(t, "var x; var x; export {}", "")
 }
 
 func TestExponentiation(t *testing.T) {
@@ -1445,7 +1479,6 @@ func TestFunction(t *testing.T) {
 	expectPrintedMangle(t, "var f; function f() { x() } function f() { y() }", "var f;\nfunction f() {\n  y();\n}\n")
 	expectPrintedMangle(t, "function f() { x() } function f() { y() } var f", "function f() {\n  y();\n}\nvar f;\n")
 	expectPrintedMangle(t, "function f() { x() } var f; function f() { y() }", "function f() {\n  x();\n}\nvar f;\nfunction f() {\n  y();\n}\n")
-	expectPrintedMangle(t, "export function f() { x() } function f() { y() }", "export function f() {\n  x();\n}\nfunction f() {\n  y();\n}\n")
 
 	redeclaredError := "<stdin>: ERROR: The symbol \"f\" has already been declared\n" +
 		"<stdin>: NOTE: The symbol \"f\" was originally declared here:\n"

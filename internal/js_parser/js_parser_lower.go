@@ -170,6 +170,7 @@ const (
 	legacyOctalEscape
 	ifElseFunctionStmt
 	labelFunctionStmt
+	duplicateLexicallyDeclaredNames
 )
 
 func (p *parser) markStrictModeFeature(feature strictModeFeature, r logger.Range, detail string) {
@@ -205,47 +206,54 @@ func (p *parser) markStrictModeFeature(feature strictModeFeature, r logger.Range
 	case labelFunctionStmt:
 		text = "Function declarations inside labels"
 
+	case duplicateLexicallyDeclaredNames:
+		text = "Duplicate lexically-declared names"
+
 	default:
 		text = "This feature"
 	}
 
 	if p.isStrictMode() {
-		var notes []logger.MsgData
-		where := "in strict mode"
-
-		switch p.currentScope.StrictMode {
-		case js_ast.ImplicitStrictModeClass:
-			notes = []logger.MsgData{p.tracker.MsgData(p.enclosingClassKeyword,
-				"All code inside a class is implicitly in strict mode")}
-
-		case js_ast.ImplicitStrictModeTSAlwaysStrict:
-			tsAlwaysStrict := p.options.tsAlwaysStrict
-			t := logger.MakeLineColumnTracker(&tsAlwaysStrict.Source)
-			notes = []logger.MsgData{t.MsgData(tsAlwaysStrict.Range, fmt.Sprintf(
-				"TypeScript's %q setting was enabled here:", tsAlwaysStrict.Name))}
-
-		case js_ast.ImplicitStrictModeJSXAutomaticRuntime:
-			notes = []logger.MsgData{p.tracker.MsgData(logger.Range{Loc: p.firstJSXElementLoc, Len: 1},
-				"This file is implicitly in strict mode due to the JSX element here:"),
-				{Text: "When React's \"automatic\" JSX transform is enabled, using a JSX element automatically inserts " +
-					"an \"import\" statement at the top of the file for the corresponding the JSX helper function. " +
-					"This means the file is considered an ECMAScript module, and all ECMAScript modules use strict mode."}}
-
-		case js_ast.ExplicitStrictMode:
-			notes = []logger.MsgData{p.tracker.MsgData(p.source.RangeOfString(p.currentScope.UseStrictLoc),
-				"Strict mode is triggered by the \"use strict\" directive here:")}
-
-		case js_ast.ImplicitStrictModeESM:
-			_, notes = p.whyESModule()
-			where = "in an ECMAScript module"
-		}
-
+		where, notes := p.whyStrictMode(p.currentScope)
 		p.log.AddErrorWithNotes(&p.tracker, r,
 			fmt.Sprintf("%s cannot be used %s", text, where), notes)
 	} else if !canBeTransformed && p.isStrictModeOutputFormat() {
 		p.log.AddError(&p.tracker, r,
 			fmt.Sprintf("%s cannot be used with the \"esm\" output format due to strict mode", text))
 	}
+}
+
+func (p *parser) whyStrictMode(scope *js_ast.Scope) (where string, notes []logger.MsgData) {
+	where = "in strict mode"
+
+	switch scope.StrictMode {
+	case js_ast.ImplicitStrictModeClass:
+		notes = []logger.MsgData{p.tracker.MsgData(p.enclosingClassKeyword,
+			"All code inside a class is implicitly in strict mode")}
+
+	case js_ast.ImplicitStrictModeTSAlwaysStrict:
+		tsAlwaysStrict := p.options.tsAlwaysStrict
+		t := logger.MakeLineColumnTracker(&tsAlwaysStrict.Source)
+		notes = []logger.MsgData{t.MsgData(tsAlwaysStrict.Range, fmt.Sprintf(
+			"TypeScript's %q setting was enabled here:", tsAlwaysStrict.Name))}
+
+	case js_ast.ImplicitStrictModeJSXAutomaticRuntime:
+		notes = []logger.MsgData{p.tracker.MsgData(logger.Range{Loc: p.firstJSXElementLoc, Len: 1},
+			"This file is implicitly in strict mode due to the JSX element here:"),
+			{Text: "When React's \"automatic\" JSX transform is enabled, using a JSX element automatically inserts " +
+				"an \"import\" statement at the top of the file for the corresponding the JSX helper function. " +
+				"This means the file is considered an ECMAScript module, and all ECMAScript modules use strict mode."}}
+
+	case js_ast.ExplicitStrictMode:
+		notes = []logger.MsgData{p.tracker.MsgData(p.source.RangeOfString(scope.UseStrictLoc),
+			"Strict mode is triggered by the \"use strict\" directive here:")}
+
+	case js_ast.ImplicitStrictModeESM:
+		_, notes = p.whyESModule()
+		where = "in an ECMAScript module"
+	}
+
+	return
 }
 
 func (p *parser) markAsyncFn(asyncRange logger.Range, isGenerator bool) (didGenerateError bool) {
