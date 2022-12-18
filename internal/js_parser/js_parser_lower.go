@@ -2187,6 +2187,16 @@ func (p *parser) computeClassLoweringInfo(class *js_ast.Class) (result classLowe
 	return
 }
 
+func propertyPreventsKeepNames(prop *js_ast.Property) bool {
+	// A static property called "name" shadows the automatically-generated name
+	if prop.Flags.Has(js_ast.PropertyIsStatic) {
+		if str, ok := prop.Key.Data.(*js_ast.EString); ok && helpers.UTF16EqualsString(str.Value, "name") {
+			return true
+		}
+	}
+	return false
+}
+
 // Lower class fields for environments that don't support them. This either
 // takes a statement or an expression.
 func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClassResult) ([]js_ast.Stmt, js_ast.Expr) {
@@ -2344,6 +2354,10 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 			class.Properties[end] = prop
 			end++
 			continue
+		}
+
+		if p.options.keepNames && propertyPreventsKeepNames(&prop) {
+			nameToKeep = ""
 		}
 
 		// Merge parameter decorators with method decorators

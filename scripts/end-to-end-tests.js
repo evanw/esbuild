@@ -2828,6 +2828,51 @@ for (let flags of [[], ['--minify', '--keep-names']]) {
     test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
       'in.js': `(() => { let obj = {}; obj['cls'] = class {}; if (obj.cls.name !== '') throw 'fail: ' + obj.cls.name })()`,
     }),
+    test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+      'in.js': `(() => { class Foo { static foo } if (Foo.name !== 'Foo') throw 'fail: ' + Foo.name })()`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+      'in.js': `(() => { class Foo { static name = 123 } if (Foo.name !== 123) throw 'fail: ' + Foo.name })()`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+      'in.js': `(() => { class Foo { static name() { return 123 } } if (Foo.name() !== 123) throw 'fail: ' + Foo.name })()`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+      'in.js': `(() => { class Foo { static get name() { return 123 } } if (Foo.name !== 123) throw 'fail: ' + Foo.name })()`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+      'in.js': `(() => { class Foo { static ['name'] = 123 } if (Foo.name !== 123) throw 'fail: ' + Foo.name })()`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+      'in.js': `(() => { let Foo = class Bar { static foo }; if (Foo.name !== 'Bar') throw 'fail: ' + Foo.name })()`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+      'in.js': `(() => { let Foo = class Bar { static name = 123 }; if (Foo.name !== 123) throw 'fail: ' + Foo.name })()`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+      'in.js': `(() => { let Foo = class Bar { static name() { return 123 } }; if (Foo.name() !== 123) throw 'fail: ' + Foo.name })()`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+      'in.js': `(() => { let Foo = class Bar { static get name() { return 123 } }; if (Foo.name !== 123) throw 'fail: ' + Foo.name })()`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+      'in.js': `(() => { let Foo = class Bar { static ['name'] = 123 }; if (Foo.name !== 123) throw 'fail: ' + Foo.name })()`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+      'in.js': `(() => { let Foo = class { static foo }; if (Foo.name !== 'Foo') throw 'fail: ' + Foo.name })()`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+      'in.js': `(() => { let Foo = class { static name = 123 }; if (Foo.name !== 123) throw 'fail: ' + Foo.name })()`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+      'in.js': `(() => { let Foo = class { static name() { return 123 } }; if (Foo.name() !== 123) throw 'fail: ' + Foo.name })()`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+      'in.js': `(() => { let Foo = class { static get name() { return 123 } }; if (Foo.name !== 123) throw 'fail: ' + Foo.name })()`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+      'in.js': `(() => { let Foo = class { static ['name'] = 123 }; if (Foo.name !== 123) throw 'fail: ' + Foo.name })()`,
+    }),
 
     // Methods
     test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {

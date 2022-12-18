@@ -9080,7 +9080,14 @@ func (p *parser) isAnonymousNamedExpr(expr js_ast.Expr) bool {
 	case *js_ast.EFunction:
 		return e.Fn.Name == nil
 	case *js_ast.EClass:
-		return e.Class.Name == nil
+		if e.Class.Name == nil {
+			for _, prop := range e.Class.Properties {
+				if propertyPreventsKeepNames(&prop) {
+					return false
+				}
+			}
+			return true
+		}
 	}
 	return false
 }

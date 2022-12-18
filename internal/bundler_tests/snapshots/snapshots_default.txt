@@ -1807,6 +1807,74 @@ console.log([
 };
 
 ================================================================================
+TestKeepNamesClassStaticName
+---------- /out.js ----------
+class A {
+  static foo;
+}
+__name(A, "A");
+class B {
+  static name;
+}
+class C {
+  static name() {
+  }
+}
+class D {
+  static get name() {
+  }
+}
+class E {
+  static set name(x) {
+  }
+}
+class F {
+  static ["name"] = 0;
+}
+let a = /* @__PURE__ */ __name(class a3 {
+  static foo;
+}, "a");
+let b = class b3 {
+  static name;
+};
+let c = class c3 {
+  static name() {
+  }
+};
+let d = class d3 {
+  static get name() {
+  }
+};
+let e = class e3 {
+  static set name(x) {
+  }
+};
+let f = class f3 {
+  static ["name"] = 0;
+};
+let a2 = /* @__PURE__ */ __name(class {
+  static foo;
+}, "a2");
+let b2 = class {
+  static name;
+};
+let c2 = class {
+  static name() {
+  }
+};
+let d2 = class {
+  static get name() {
+  }
+};
+let e2 = class {
+  static set name(x) {
+  }
+};
+let f2 = class {
+  static ["name"] = 0;
+};
+
+================================================================================
 TestKeepNamesTreeShaking
 ---------- /out.js ----------
 // entry.js

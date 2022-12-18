@@ -38,6 +38,10 @@
 
     People are currently working on adding a `v` flag to JavaScript regular expresions. You can read more about this flag here: https://v8.dev/features/regexp-v-flag. This release adds support for parsing this flag, so esbuild will now no longer consider regular expression literals with this flag to be a syntax error. If the target is set to something other than `esnext`, esbuild will transform regular expression literals containing this flag into a `new RegExp()` constructor call so the resulting code doesn't have a syntax error. This enables you to provide a polyfill for `RegExp` that implements the `v` flag to get your code to work at run-time. While esbuild doesn't typically adopt proposals until they're already shipping in a real JavaScript run-time, I'm adding it now because a) esbuild's implementation doesn't need to change as the proposal evolves, b) this isn't really new syntax since regular expression literals already have flags, and c) esbuild's implementation is a trivial pass-through anyway.
 
+* Avoid keeping the name of classes with static `name` properties
+
+    The `--keep-names` property attempts to preserve the original value of the `name` property for functions and classes even when identifiers are renamed by the minifier or to avoid a name collision. This is currently done by generating code to assign a string to the `name` property on the function or class object. However, this should not be done for classes with a static `name` property since in that case the explicitly-defined `name` property overwrites the automatically-generated class name. With this release, esbuild will now no longer attempt to preserve the `name` property for classes with a static `name` property.
+
 ## 0.16.8
 
 * Allow plugins to resolve injected files ([#2754](https://github.com/evanw/esbuild/issues/2754))
