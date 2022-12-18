@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.16.9
 
 * Update to Unicode 15.0.0
 
