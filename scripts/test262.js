@@ -552,7 +552,14 @@ async function runCodeInHarness(yaml, code, importDir) {
       let module = moduleCache.get(modulePath)
       if (!module) {
         const code = fs.readFileSync(modulePath, 'utf8')
-        module = new vm.SourceTextModule(code + unique(), { context, importModuleDynamically })
+        if (modulePath.endsWith('json')) {
+          const evaluate = function () {
+            this.setExport('default', vm.runInContext('JSON.parse', context)(code))
+          }
+          module = new vm.SyntheticModule(['default'], evaluate, { context })
+        } else {
+          module = new vm.SourceTextModule(code + unique(), { context, importModuleDynamically })
+        }
         moduleCache.set(modulePath, module)
       }
       return module
@@ -567,9 +574,13 @@ async function runCodeInHarness(yaml, code, importDir) {
       let promise = dynamicImportCache.get(where)
       if (!promise) {
         const module = findModule(where, context)
-        promise = module.link(linker)
-          .then(() => module.evaluate())
-          .then(() => module)
+        if (module.status === 'unlinked') {
+          promise = module.link(linker)
+            .then(() => module.evaluate())
+            .then(() => module)
+        } else {
+          promise = Promise.resolve(module)
+        }
         dynamicImportCache.set(where, promise)
       }
       return promise
