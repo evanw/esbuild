@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.16.10
 
 * Change the default "legal comment" behavior again ([#2745](https://github.com/evanw/esbuild/issues/2745))
 
