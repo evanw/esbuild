@@ -1269,13 +1269,27 @@ func (a scopeMemberArray) Less(i int, j int) bool {
 }
 
 func (p *parser) hoistSymbols(scope *js_ast.Scope) {
-	if scope.StrictMode != js_ast.SloppyMode {
+	// Duplicate function declarations are forbidden in nested blocks in strict
+	// mode. Separately, they are also forbidden at the top-level of modules.
+	// This check needs to be delayed until now instead of being done when the
+	// functions are declared because we potentially need to scan the whole file
+	// to know if the file is considered to be in strict mode (or is considered
+	// to be a module). We might only encounter an "export {}" clause at the end
+	// of the file.
+	if (scope.StrictMode != js_ast.SloppyMode && scope.Kind == js_ast.ScopeBlock) || (scope.Parent == nil && p.isFileConsideredESM) {
 		for _, replaced := range scope.Replaced {
 			symbol := &p.symbols[replaced.Ref.InnerIndex]
 			if symbol.Kind.IsFunction() {
 				if member, ok := scope.Members[symbol.OriginalName]; ok && p.symbols[member.Ref.InnerIndex].Kind.IsFunction() {
-					where, notes := p.whyStrictMode(scope)
-					notes[0].Text = fmt.Sprintf("Duplicate lexically-declared names are not allowed %s. %s", where, notes[0].Text)
+					var notes []logger.MsgData
+					if scope.Parent == nil && p.isFileConsideredESM {
+						_, notes = p.whyESModule()
+						notes[0].Text = fmt.Sprintf("Duplicate top-level function declarations are not allowed in an ECMAScript module. %s", notes[0].Text)
+					} else {
+						var where string
+						where, notes = p.whyStrictMode(scope)
+						notes[0].Text = fmt.Sprintf("Duplicate function declarations are not allowed in nested blocks %s. %s", where, notes[0].Text)
+					}
 
 					p.log.AddErrorWithNotes(&p.tracker,
 						js_lexer.RangeOfIdentifier(p.source, member.Loc),

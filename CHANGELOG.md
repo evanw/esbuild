@@ -48,6 +48,10 @@
 
     Note that you can still customize this behavior with the `--legal-comments=` flag. For example, you can use `--legal-comments=none` to turn this off, or you can use `--legal-comments=linked` to put these comments in a separate `.LEGAL.txt` file instead.
 
+* Fix duplicate function declaration edge cases ([#2757](https://github.com/evanw/esbuild/issues/2757))
+
+    The change in the previous release to forbid duplicate function declarations in certain cases accidentally forbid some edge cases that should have been allowed. Specifically duplicate function declarations are forbidden in nested blocks in strict mode and at the top level of modules, but are allowed when they are declared at the top level of function bodies. This release fixes the regression by re-allowing the last case.
+
 ## 0.16.9
 
 * Update to Unicode 15.0.0
