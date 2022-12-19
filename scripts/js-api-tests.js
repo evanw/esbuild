@@ -157,14 +157,19 @@ let buildTests = {
 
     await Promise.all([
       valid('foo'),
-      valid('@scope'),
-      valid('@scope/foo'),
+      valid('foo/bar'),
+      valid('@foo'),
+      valid('@foo/bar'),
+      valid('@foo/bar/baz'),
 
-      invalid('foo/bar'),
-      invalid('/foo'),
       invalid('./foo'),
-      invalid('@scope/'),
-      invalid('@scope/foo/bar'),
+      invalid('../foo'),
+      invalid('/foo'),
+      invalid('C:\\foo'),
+      invalid('.foo'),
+      invalid('foo/'),
+      invalid('@foo/'),
+      invalid('foo/../bar'),
     ])
   },
 

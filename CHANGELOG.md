@@ -74,6 +74,10 @@
 
     The change in the previous release to forbid duplicate function declarations in certain cases accidentally forbid some edge cases that should have been allowed. Specifically duplicate function declarations are forbidden in nested blocks in strict mode and at the top level of modules, but are allowed when they are declared at the top level of function bodies. This release fixes the regression by re-allowing the last case.
 
+* Allow package subpaths with `alias` ([#2715](https://github.com/evanw/esbuild/issues/2715))
+
+    Previously the names passed to the `alias` feature had to be the name of a package (with or without a package scope). With this release, you can now also use the `alias` feature with package subpaths. So for example you can now create an alias that substitutes `@org/pkg/lib` with something else.
+
 ## 0.16.9
 
 * Update to Unicode 15.0.0

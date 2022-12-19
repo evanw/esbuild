@@ -7182,18 +7182,22 @@ func TestPackageAlias(t *testing.T) {
 				import "@abs-path/pkg7/foo"
 				import "@scope-only/pkg8"
 				import "slash/"
+				import "prefix-foo"
+				import "@scope/prefix-foo"
 			`,
-			"/nested3/index.js":                     `import "pkg3"`,
-			"/nested3/node_modules/alias3/index.js": `test failure`,
-			"/node_modules/alias1/index.js":         `console.log(1)`,
-			"/node_modules/alias2/foo.js":           `console.log(2)`,
-			"/node_modules/alias3/index.js":         `console.log(3)`,
-			"/node_modules/alias4/index.js":         `console.log(4)`,
-			"/node_modules/alias5/foo.js":           `console.log(5)`,
-			"/alias6/dir/index.js":                  `console.log(6)`,
-			"/alias7/dir/foo/index.js":              `console.log(7)`,
-			"/alias8/dir/pkg8/index.js":             `console.log(8)`,
-			"/alias9/some/file.js":                  `console.log(9)`,
+			"/nested3/index.js":                        `import "pkg3"`,
+			"/nested3/node_modules/alias3/index.js":    `test failure`,
+			"/node_modules/alias1/index.js":            `console.log(1)`,
+			"/node_modules/alias2/foo.js":              `console.log(2)`,
+			"/node_modules/alias3/index.js":            `console.log(3)`,
+			"/node_modules/alias4/index.js":            `console.log(4)`,
+			"/node_modules/alias5/foo.js":              `console.log(5)`,
+			"/alias6/dir/index.js":                     `console.log(6)`,
+			"/alias7/dir/foo/index.js":                 `console.log(7)`,
+			"/alias8/dir/pkg8/index.js":                `console.log(8)`,
+			"/alias9/some/file.js":                     `console.log(9)`,
+			"/node_modules/prefix-foo/index.js":        `console.log(10)`,
+			"/node_modules/@scope/prefix-foo/index.js": `console.log(11)`,
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
@@ -7209,6 +7213,8 @@ func TestPackageAlias(t *testing.T) {
 				"@abs-path/pkg7": `/alias7/dir`,
 				"@scope-only":    "/alias8/dir",
 				"slash":          "/alias9/some/file.js",
+				"prefix":         "alias10",
+				"@scope/prefix":  "alias11",
 			},
 		},
 	})

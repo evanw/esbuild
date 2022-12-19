@@ -4088,6 +4088,12 @@ console.log(8);
 // alias9/some/file.js
 console.log(9);
 
+// node_modules/prefix-foo/index.js
+console.log(10);
+
+// node_modules/@scope/prefix-foo/index.js
+console.log(11);
+
 ================================================================================
 TestQuotedProperty
 ---------- /out/entry.js ----------

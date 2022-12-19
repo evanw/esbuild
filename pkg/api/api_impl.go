@@ -6,6 +6,7 @@ import (
 	"math"
 	"math/rand"
 	"os"
+	"path"
 	"regexp"
 	"sort"
 	"strconv"
@@ -488,28 +489,24 @@ func validateAlias(log logger.Log, fs fs.FS, alias map[string]string) map[string
 
 		// Valid alias names:
 		//   "foo"
+		//   "foo/bar"
 		//   "@foo"
 		//   "@foo/bar"
+		//   "@foo/bar/baz"
 		//
 		// Invalid alias names:
 		//   "./foo"
-		//   "foo/bar"
+		//   "../foo"
+		//   "/foo"
+		//   "C:\\foo"
+		//   ".foo"
+		//   "foo/"
 		//   "@foo/"
-		//   "@foo/bar/baz"
+		//   "foo/../bar"
 		//
-		if !strings.HasPrefix(old, ".") && !strings.HasPrefix(old, "/") && !fs.IsAbs(old) {
-			slash := strings.IndexByte(old, '/')
-			isScope := strings.HasPrefix(old, "@")
-			if slash != -1 && isScope {
-				pkgAfterScope := old[slash+1:]
-				if slash2 := strings.IndexByte(pkgAfterScope, '/'); slash2 == -1 && pkgAfterScope != "" {
-					valid[old] = new
-					continue
-				}
-			} else if slash == -1 {
-				valid[old] = new
-				continue
-			}
+		if !strings.HasPrefix(old, ".") && !strings.HasPrefix(old, "/") && !fs.IsAbs(old) && path.Clean(strings.ReplaceAll(old, "\\", "/")) == old {
+			valid[old] = new
+			continue
 		}
 
 		log.AddError(nil, logger.Range{}, fmt.Sprintf("Invalid alias name: %q", old))
