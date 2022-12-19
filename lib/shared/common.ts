@@ -737,6 +737,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
           let next = () => {
             if (--outstanding === 0) {
               let result: types.TransformResult = { warnings, code: response!.code, map: response!.map }
+              if ('legalComments' in response!) result.legalComments = response?.legalComments
               if (response!.mangleCache) result.mangleCache = response?.mangleCache
               callback(null, result)
             }

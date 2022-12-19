@@ -115,6 +115,7 @@ export interface TransformResponse {
   map: string;
   mapFS: boolean;
 
+  legalComments?: string;
   mangleCache?: Record<string, string | false>;
 }
 

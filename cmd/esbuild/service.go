@@ -993,6 +993,10 @@ func (service *serviceType) handleTransformRequest(id uint32, request map[string
 		"map":   string(result.Map),
 	}
 
+	if result.LegalComments != nil {
+		response["legalComments"] = string(result.LegalComments)
+	}
+
 	if result.MangleCache != nil {
 		response["mangleCache"] = result.MangleCache
 	}

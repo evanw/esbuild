@@ -5040,19 +5040,20 @@ let transformTests = {
   async transformLegalCommentsJS({ esbuild }) {
     assert.strictEqual((await esbuild.transform(`//!x\ny()`, { legalComments: 'none' })).code, `y();\n`)
     assert.strictEqual((await esbuild.transform(`//!x\ny()`, { legalComments: 'inline' })).code, `//!x\ny();\n`)
-    assert.strictEqual((await esbuild.transform(`//!x\ny()`, { legalComments: 'eof' })).code, `y();\n//!x\n`)
+
+    const eofResult = await esbuild.transform(`//!x\ny()`, { legalComments: 'eof' })
+    assert.strictEqual(eofResult.code, `y();\n//!x\n`)
+    assert.strictEqual(eofResult.legalComments, undefined)
+
+    const externalResult = await esbuild.transform(`//!x\ny()`, { legalComments: 'external' })
+    assert.strictEqual(externalResult.code, `y();\n`)
+    assert.strictEqual(externalResult.legalComments, `//!x\n`)
+
     try {
       await esbuild.transform(``, { legalComments: 'linked' })
       throw new Error('Expected a transform failure')
     } catch (e) {
-      if (!e || !e.errors || !e.errors[0] || e.errors[0].text !== 'Cannot transform with linked or external legal comments')
-        throw e
-    }
-    try {
-      await esbuild.transform(``, { legalComments: 'external' })
-      throw new Error('Expected a transform failure')
-    } catch (e) {
-      if (!e || !e.errors || !e.errors[0] || e.errors[0].text !== 'Cannot transform with linked or external legal comments')
+      if (!e || !e.errors || !e.errors[0] || e.errors[0].text !== 'Cannot transform with linked legal comments')
         throw e
     }
   },
@@ -5060,19 +5061,20 @@ let transformTests = {
   async transformLegalCommentsCSS({ esbuild }) {
     assert.strictEqual((await esbuild.transform(`/*!x*/\ny{}`, { loader: 'css', legalComments: 'none' })).code, `y {\n}\n`)
     assert.strictEqual((await esbuild.transform(`/*!x*/\ny{}`, { loader: 'css', legalComments: 'inline' })).code, `/*!x*/\ny {\n}\n`)
-    assert.strictEqual((await esbuild.transform(`/*!x*/\ny{}`, { loader: 'css', legalComments: 'eof' })).code, `y {\n}\n/*!x*/\n`)
+
+    const eofResult = await esbuild.transform(`/*!x*/\ny{}`, { loader: 'css', legalComments: 'eof' })
+    assert.strictEqual(eofResult.code, `y {\n}\n/*!x*/\n`)
+    assert.strictEqual(eofResult.legalComments, undefined)
+
+    const externalResult = await esbuild.transform(`/*!x*/\ny{}`, { loader: 'css', legalComments: 'external' })
+    assert.strictEqual(externalResult.code, `y {\n}\n`)
+    assert.strictEqual(externalResult.legalComments, `/*!x*/\n`)
+
     try {
       await esbuild.transform(``, { legalComments: 'linked' })
       throw new Error('Expected a transform failure')
     } catch (e) {
-      if (!e || !e.errors || !e.errors[0] || e.errors[0].text !== 'Cannot transform with linked or external legal comments')
-        throw e
-    }
-    try {
-      await esbuild.transform(``, { legalComments: 'external' })
-      throw new Error('Expected a transform failure')
-    } catch (e) {
-      if (!e || !e.errors || !e.errors[0] || e.errors[0].text !== 'Cannot transform with linked or external legal comments')
+      if (!e || !e.errors || !e.errors[0] || e.errors[0].text !== 'Cannot transform with linked legal comments')
         throw e
     }
   },

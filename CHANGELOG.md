@@ -48,6 +48,28 @@
 
     Note that you can still customize this behavior with the `--legal-comments=` flag. For example, you can use `--legal-comments=none` to turn this off, or you can use `--legal-comments=linked` to put these comments in a separate `.LEGAL.txt` file instead.
 
+* Enable `external` legal comments with the transform API ([#2390](https://github.com/evanw/esbuild/issues/2390))
+
+    Previously esbuild's transform API only supported `none`, `inline`, or `eof` legal comments. With this release, `external` legal comments are now also supported with the transform API. This only applies to the JS and Go APIs, not to the CLI, and looks like this:
+
+    * JS:
+
+        ```js
+        const { code, legalComments } = await esbuild.transform(input, {
+          legalComments: 'external',
+        })
+        ```
+
+    * Go:
+
+        ```go
+        result := api.Transform(input, api.TransformOptions{
+          LegalComments: api.LegalCommentsEndOfFile,
+        })
+        code := result.Code
+        legalComments := result.LegalComments
+        ```
+
 * Fix duplicate function declaration edge cases ([#2757](https://github.com/evanw/esbuild/issues/2757))
 
     The change in the previous release to forbid duplicate function declarations in certain cases accidentally forbid some edge cases that should have been allowed. Specifically duplicate function declarations are forbidden in nested blocks in strict mode and at the top level of modules, but are allowed when they are declared at the top level of function bodies. This release fixes the regression by re-allowing the last case.

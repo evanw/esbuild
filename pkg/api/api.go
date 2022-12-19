@@ -432,8 +432,9 @@ type TransformResult struct {
 	Errors   []Message
 	Warnings []Message
 
-	Code []byte
-	Map  []byte
+	Code          []byte
+	Map           []byte
+	LegalComments []byte
 
 	MangleCache map[string]interface{}
 }

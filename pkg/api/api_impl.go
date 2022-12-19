@@ -1556,8 +1556,12 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		log.AddError(nil, logger.Range{},
 			"Must use \"sourcefile\" with \"sourcemap\" to set the original file name")
 	}
-	if options.LegalComments.HasExternalFile() {
-		log.AddError(nil, logger.Range{}, "Cannot transform with linked or external legal comments")
+	if logger.API == logger.CLIAPI {
+		if options.LegalComments.HasExternalFile() {
+			log.AddError(nil, logger.Range{}, "Cannot transform with linked or external legal comments")
+		}
+	} else if options.LegalComments == config.LegalCommentsLinkedWithComment {
+		log.AddError(nil, logger.Range{}, "Cannot transform with linked legal comments")
 	}
 
 	// Set the output mode using other settings
@@ -1591,16 +1595,24 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 	// Return the results
 	var code []byte
 	var sourceMap []byte
+	var legalComments []byte
 
-	// Unpack the JavaScript file and the source map file
-	if len(results) == 1 {
-		code = results[0].Contents
-	} else if len(results) == 2 {
-		a, b := results[0], results[1]
-		if a.AbsPath == b.AbsPath+".map" {
-			sourceMap, code = a.Contents, b.Contents
-		} else if a.AbsPath+".map" == b.AbsPath {
-			code, sourceMap = a.Contents, b.Contents
+	var shortestAbsPath string
+	for _, result := range results {
+		if shortestAbsPath == "" || len(result.AbsPath) < len(shortestAbsPath) {
+			shortestAbsPath = result.AbsPath
+		}
+	}
+
+	// Unpack the JavaScript file, the source map file, and the legal comments file
+	for _, result := range results {
+		switch result.AbsPath {
+		case shortestAbsPath:
+			code = result.Contents
+		case shortestAbsPath + ".map":
+			sourceMap = result.Contents
+		case shortestAbsPath + ".LEGAL.txt":
+			legalComments = result.Contents
 		}
 	}
 
@@ -1611,11 +1623,12 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 
 	msgs := log.Done()
 	return TransformResult{
-		Errors:      convertMessagesToPublic(logger.Error, msgs),
-		Warnings:    convertMessagesToPublic(logger.Warning, msgs),
-		Code:        code,
-		Map:         sourceMap,
-		MangleCache: mangleCache,
+		Errors:        convertMessagesToPublic(logger.Error, msgs),
+		Warnings:      convertMessagesToPublic(logger.Warning, msgs),
+		Code:          code,
+		Map:           sourceMap,
+		LegalComments: legalComments,
+		MangleCache:   mangleCache,
 	}
 }
 
