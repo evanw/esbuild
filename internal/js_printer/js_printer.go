@@ -334,7 +334,7 @@ type printer struct {
 	renamer                renamer.Renamer
 	importRecords          []ast.ImportRecord
 	callTarget             js_ast.E
-	extractedLegalComments map[string]bool
+	extractedLegalComments []string
 	js                     []byte
 	jsonMetadataImports    []string
 	options                Options
@@ -3203,10 +3203,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 			case config.LegalCommentsEndOfFile,
 				config.LegalCommentsLinkedWithComment,
 				config.LegalCommentsExternalWithoutComment:
-				if p.extractedLegalComments == nil {
-					p.extractedLegalComments = make(map[string]bool)
-				}
-				p.extractedLegalComments[text] = true
+				p.extractedLegalComments = append(p.extractedLegalComments, text)
 				return
 			}
 		}
@@ -3902,7 +3899,7 @@ type RequireOrImportMeta struct {
 
 type PrintResult struct {
 	JS                     []byte
-	ExtractedLegalComments map[string]bool
+	ExtractedLegalComments []string
 	JSONMetadataImports    []string
 
 	// This source map chunk just contains the VLQ-encoded offsets for the "JS"

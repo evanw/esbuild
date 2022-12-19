@@ -4625,6 +4625,8 @@ func TestPreservedComments(t *testing.T) {
 	expectPrinted(t, "//!", "//!\n")
 	expectPrinted(t, "//@license", "//@license\n")
 	expectPrinted(t, "//@preserve", "//@preserve\n")
+	expectPrinted(t, "// @license", "// @license\n")
+	expectPrinted(t, "// @preserve", "// @preserve\n")
 
 	expectPrinted(t, "/**/", "")
 	expectPrinted(t, "/*preserve*/", "")
@@ -4632,6 +4634,8 @@ func TestPreservedComments(t *testing.T) {
 	expectPrinted(t, "/*!*/", "/*!*/\n")
 	expectPrinted(t, "/*@license*/", "/*@license*/\n")
 	expectPrinted(t, "/*@preserve*/", "/*@preserve*/\n")
+	expectPrinted(t, "/*\n * @license\n */", "/*\n * @license\n */\n")
+	expectPrinted(t, "/*\n * @preserve\n */", "/*\n * @preserve\n */\n")
 
 	expectPrinted(t, "foo() //! test", "foo();\n//! test\n")
 	expectPrinted(t, "//! test\nfoo()", "//! test\nfoo();\n")

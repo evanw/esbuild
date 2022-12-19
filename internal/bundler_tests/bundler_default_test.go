@@ -3477,6 +3477,150 @@ func TestLegalCommentsAvoidSlashTagExternal(t *testing.T) {
 	})
 }
 
+func TestLegalCommentsManyEndOfFile(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/project/entry.js": `
+				import './a'
+				import './b'
+				import './c'
+				import 'some-pkg/js'
+			`,
+			"/project/a.js": `console.log('in a') //! Copyright notice 1`,
+			"/project/b.js": `console.log('in b') //! Copyright notice 1`,
+			"/project/c.js": `
+				function foo() {
+					/*
+					 * @license
+					 * Copyright notice 2
+					 */
+					console.log('in c')
+					// @preserve This is another comment
+				}
+				foo()
+			`,
+			"/project/node_modules/some-pkg/js/index.js": `import "some-other-pkg/js" //! (c) Good Software Corp`,
+			"/project/node_modules/some-other-pkg/js/index.js": `
+				function bar() {
+					/*
+					 * @preserve
+					 * (c) Evil Software Corp
+					 */
+					console.log('some-other-pkg')
+				}
+				bar()
+			`,
+
+			"/project/entry.css": `
+				@import "./a.css";
+				@import "./b.css";
+				@import "./c.css";
+				@import 'some-pkg/css';
+			`,
+			"/project/a.css": `a { zoom: 2 } /*! Copyright notice 1 */`,
+			"/project/b.css": `b { zoom: 2 } /*! Copyright notice 1 */`,
+			"/project/c.css": `
+				/*
+				 * @license
+				 * Copyright notice 2
+				 */
+				c {
+					zoom: 2
+				}
+				/* @preserve This is another comment */
+			`,
+			"/project/node_modules/some-pkg/css/index.css": `@import "some-other-pkg/css"; /*! (c) Good Software Corp */`,
+			"/project/node_modules/some-other-pkg/css/index.css": `
+				.some-other-pkg {
+					zoom: 2
+				}
+				/** @preserve
+				 * (c) Evil Software Corp
+				 */
+			`,
+		},
+		entryPaths: []string{"/project/entry.js", "/project/entry.css"},
+		options: config.Options{
+			Mode:             config.ModeBundle,
+			AbsOutputDir:     "/out",
+			MinifyWhitespace: true,
+			LegalComments:    config.LegalCommentsEndOfFile,
+		},
+	})
+}
+
+func TestLegalCommentsManyLinked(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/project/entry.js": `
+				import './a'
+				import './b'
+				import './c'
+				import 'some-pkg/js'
+			`,
+			"/project/a.js": `console.log('in a') //! Copyright notice 1`,
+			"/project/b.js": `console.log('in b') //! Copyright notice 1`,
+			"/project/c.js": `
+				function foo() {
+					/*
+					 * @license
+					 * Copyright notice 2
+					 */
+					console.log('in c')
+					// @preserve This is another comment
+				}
+				foo()
+			`,
+			"/project/node_modules/some-pkg/js/index.js": `import "some-other-pkg/js" //! (c) Good Software Corp`,
+			"/project/node_modules/some-other-pkg/js/index.js": `
+				function bar() {
+					/*
+					 * @preserve
+					 * (c) Evil Software Corp
+					 */
+					console.log('some-other-pkg')
+				}
+				bar()
+			`,
+
+			"/project/entry.css": `
+				@import "./a.css";
+				@import "./b.css";
+				@import "./c.css";
+				@import 'some-pkg/css';
+			`,
+			"/project/a.css": `a { zoom: 2 } /*! Copyright notice 1 */`,
+			"/project/b.css": `b { zoom: 2 } /*! Copyright notice 1 */`,
+			"/project/c.css": `
+				/*
+				 * @license
+				 * Copyright notice 2
+				 */
+				c {
+					zoom: 2
+				}
+				/* @preserve This is another comment */
+			`,
+			"/project/node_modules/some-pkg/css/index.css": `@import "some-other-pkg/css"; /*! (c) Good Software Corp */`,
+			"/project/node_modules/some-other-pkg/css/index.css": `
+				.some-other-pkg {
+					zoom: 2
+				}
+				/** @preserve
+				 * (c) Evil Software Corp
+				 */
+			`,
+		},
+		entryPaths: []string{"/project/entry.js", "/project/entry.css"},
+		options: config.Options{
+			Mode:             config.ModeBundle,
+			AbsOutputDir:     "/out",
+			MinifyWhitespace: true,
+			LegalComments:    config.LegalCommentsLinkedWithComment,
+		},
+	})
+}
+
 // The IIFE should not be an arrow function when targeting ES5
 func TestIIFE_ES5(t *testing.T) {
 	default_suite.expectBundled(t, bundled{

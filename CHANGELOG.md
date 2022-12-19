@@ -1,5 +1,53 @@
 # Changelog
 
+## Unreleased
+
+* Change the default "legal comment" behavior again ([#2745](https://github.com/evanw/esbuild/issues/2745))
+
+    The legal comments feature automatically gathers comments containing `@license` or `@preserve` and puts the comments somewhere (either in the generated code or in a separate file). This behavior used to be on by default but was disabled by default in version 0.16.0 because automatically inserting comments is potentially confusing and misleading. These comments can appear to be assigning the copyright of your code to another entity. And this behavior can be especially problematic if it happens automatically by default since you may not even be aware of it happening. For example, if you bundle the TypeScript compiler the preserving legal comments means your source code would contain this comment, which appears to be assigning the copyright of all of your code to Microsoft:
+
+    ```js
+    /*! *****************************************************************************
+    Copyright (c) Microsoft Corporation. All rights reserved.
+    Licensed under the Apache License, Version 2.0 (the "License"); you may not use
+    this file except in compliance with the License. You may obtain a copy of the
+    License at http://www.apache.org/licenses/LICENSE-2.0
+
+    THIS CODE IS PROVIDED ON AN *AS IS* BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+    KIND, EITHER EXPRESS OR IMPLIED, INCLUDING WITHOUT LIMITATION ANY IMPLIED
+    WARRANTIES OR CONDITIONS OF TITLE, FITNESS FOR A PARTICULAR PURPOSE,
+    MERCHANTABLITY OR NON-INFRINGEMENT.
+
+    See the Apache Version 2.0 License for specific language governing permissions
+    and limitations under the License.
+    ***************************************************************************** */
+    ```
+
+    However, people have asked for this feature to be re-enabled by default. To resolve the confusion about what these comments are applying to, esbuild's default behavior will now be to attempt to describe which package the comments are coming from. So while this feature has been re-enabled by default, the output will now look something like this instead:
+
+    ```js
+    /*! Bundled license information:
+
+    typescript/lib/typescript.js:
+      (*! *****************************************************************************
+      Copyright (c) Microsoft Corporation. All rights reserved.
+      Licensed under the Apache License, Version 2.0 (the "License"); you may not use
+      this file except in compliance with the License. You may obtain a copy of the
+      License at http://www.apache.org/licenses/LICENSE-2.0
+
+      THIS CODE IS PROVIDED ON AN *AS IS* BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+      KIND, EITHER EXPRESS OR IMPLIED, INCLUDING WITHOUT LIMITATION ANY IMPLIED
+      WARRANTIES OR CONDITIONS OF TITLE, FITNESS FOR A PARTICULAR PURPOSE,
+      MERCHANTABLITY OR NON-INFRINGEMENT.
+
+      See the Apache Version 2.0 License for specific language governing permissions
+      and limitations under the License.
+      ***************************************************************************** *)
+    */
+    ```
+
+    Note that you can still customize this behavior with the `--legal-comments=` flag. For example, you can use `--legal-comments=none` to turn this off, or you can use `--legal-comments=linked` to put these comments in a separate `.LEGAL.txt` file instead.
+
 ## 0.16.9
 
 * Update to Unicode 15.0.0

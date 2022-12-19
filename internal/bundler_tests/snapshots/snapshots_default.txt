@@ -2097,6 +2097,94 @@ c {
 /*! For license information please see entry.css.LEGAL.txt */
 
 ================================================================================
+TestLegalCommentsManyEndOfFile
+---------- /out/entry.js ----------
+console.log("in a");console.log("in b");function foo(){console.log("in c");}foo();function bar(){console.log("some-other-pkg")}bar();
+//! Copyright notice 1
+/*
+ * @license
+ * Copyright notice 2
+ */
+// @preserve This is another comment
+/*! Bundled license information:
+
+some-other-pkg/js/index.js:
+  (*
+   * @preserve
+   * (c) Evil Software Corp
+   *)
+
+some-pkg/js/index.js:
+  (*! (c) Good Software Corp *)
+*/
+
+---------- /out/entry.css ----------
+a{zoom:2}b{zoom:2}c{zoom:2}.some-other-pkg{zoom:2}
+/*! Copyright notice 1 */
+/*
+ * @license
+ * Copyright notice 2
+ */
+/* @preserve This is another comment */
+/*! Bundled license information:
+
+some-other-pkg/css/index.css:
+  (** @preserve
+   * (c) Evil Software Corp
+   *)
+
+some-pkg/css/index.css:
+  (*! (c) Good Software Corp *)
+*/
+
+================================================================================
+TestLegalCommentsManyLinked
+---------- /out/entry.js.LEGAL.txt ----------
+//! Copyright notice 1
+/*
+ * @license
+ * Copyright notice 2
+ */
+// @preserve This is another comment
+
+Bundled license information:
+
+some-other-pkg/js/index.js:
+  /*
+   * @preserve
+   * (c) Evil Software Corp
+   */
+
+some-pkg/js/index.js:
+  //! (c) Good Software Corp
+
+---------- /out/entry.js ----------
+console.log("in a");console.log("in b");function foo(){console.log("in c");}foo();function bar(){console.log("some-other-pkg")}bar();
+/*! For license information please see entry.js.LEGAL.txt */
+
+---------- /out/entry.css.LEGAL.txt ----------
+/*! Copyright notice 1 */
+/*
+ * @license
+ * Copyright notice 2
+ */
+/* @preserve This is another comment */
+
+Bundled license information:
+
+some-other-pkg/css/index.css:
+  /** @preserve
+   * (c) Evil Software Corp
+   */
+
+some-pkg/css/index.css:
+  /*! (c) Good Software Corp */
+
+---------- /out/entry.css ----------
+a{zoom:2}b{zoom:2}c{zoom:2}.some-other-pkg{zoom:2}
+/*! For license information please see entry.css.LEGAL.txt */
+
+================================================================================
 TestLegalCommentsModifyIndent
 ---------- /out/entry.js ----------
 // entry.js

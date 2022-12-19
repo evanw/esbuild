@@ -4938,10 +4938,9 @@ func (c *linkerContext) generateChunkJS(chunkIndex int, chunkWaitGroup *sync.Wai
 
 	// Concatenate the generated JavaScript chunks together
 	var compileResultsForSourceMap []compileResultForSourceMap
-	var legalCommentList []string
+	var legalCommentList []legalCommentEntry
 	var metaOrder []uint32
 	var metaBytes map[uint32][][]byte
-	legalCommentSet := make(map[string]bool)
 	prevFileNameComment := uint32(0)
 	if c.options.NeedsMetafile {
 		metaOrder = make([]uint32, 0, len(compileResults))
@@ -4949,11 +4948,11 @@ func (c *linkerContext) generateChunkJS(chunkIndex int, chunkWaitGroup *sync.Wai
 	}
 	for _, compileResult := range compileResults {
 		isRuntime := compileResult.sourceIndex == runtime.SourceIndex
-		for text := range compileResult.ExtractedLegalComments {
-			if !legalCommentSet[text] {
-				legalCommentSet[text] = true
-				legalCommentList = append(legalCommentList, text)
-			}
+		if len(compileResult.ExtractedLegalComments) > 0 {
+			legalCommentList = append(legalCommentList, legalCommentEntry{
+				sourceIndex: compileResult.sourceIndex,
+				comments:    compileResult.ExtractedLegalComments,
+			})
 		}
 
 		// Add a comment with the file path before the file contents
@@ -5042,7 +5041,7 @@ func (c *linkerContext) generateChunkJS(chunkIndex int, chunkWaitGroup *sync.Wai
 
 	// Make sure the file ends with a newline
 	j.EnsureNewlineAtEnd()
-	maybeAppendLegalComments(c.options.LegalComments, legalCommentList, chunk, &j, "/script")
+	c.maybeAppendLegalComments(c.options.LegalComments, legalCommentList, chunk, &j, "/script")
 
 	if len(c.options.JSFooter) > 0 {
 		j.AddString(c.options.JSFooter)
@@ -5376,14 +5375,13 @@ func (c *linkerContext) generateChunkCSS(chunkIndex int, chunkWaitGroup *sync.Wa
 
 	// Concatenate the generated CSS chunks together
 	var compileResultsForSourceMap []compileResultForSourceMap
-	var legalCommentList []string
-	legalCommentSet := make(map[string]bool)
+	var legalCommentList []legalCommentEntry
 	for _, compileResult := range compileResults {
-		for text := range compileResult.ExtractedLegalComments {
-			if !legalCommentSet[text] {
-				legalCommentSet[text] = true
-				legalCommentList = append(legalCommentList, text)
-			}
+		if len(compileResult.ExtractedLegalComments) > 0 {
+			legalCommentList = append(legalCommentList, legalCommentEntry{
+				sourceIndex: compileResult.sourceIndex,
+				comments:    compileResult.ExtractedLegalComments,
+			})
 		}
 
 		if c.options.Mode == config.ModeBundle && !c.options.MinifyWhitespace {
@@ -5422,7 +5420,7 @@ func (c *linkerContext) generateChunkCSS(chunkIndex int, chunkWaitGroup *sync.Wa
 
 	// Make sure the file ends with a newline
 	j.EnsureNewlineAtEnd()
-	maybeAppendLegalComments(c.options.LegalComments, legalCommentList, chunk, &j, "/style")
+	c.maybeAppendLegalComments(c.options.LegalComments, legalCommentList, chunk, &j, "/style")
 
 	if len(c.options.CSSFooter) > 0 {
 		j.AddString(c.options.CSSFooter)
@@ -5469,36 +5467,133 @@ func (c *linkerContext) generateChunkCSS(chunkIndex int, chunkWaitGroup *sync.Wa
 	chunkWaitGroup.Done()
 }
 
+type legalCommentEntry struct {
+	sourceIndex uint32
+	comments    []string
+}
+
 // Add all unique legal comments to the end of the file. These are
 // deduplicated because some projects have thousands of files with the same
 // comment. The comment must be preserved in the output for legal reasons but
 // at the same time we want to generate a small bundle when minifying.
-func maybeAppendLegalComments(
+func (c *linkerContext) maybeAppendLegalComments(
 	legalComments config.LegalComments,
-	legalCommentList []string,
+	legalCommentList []legalCommentEntry,
 	chunk *chunkInfo,
 	j *helpers.Joiner,
 	slashTag string,
 ) {
-	if len(legalCommentList) > 0 {
-		sort.Strings(legalCommentList)
+	switch legalComments {
+	case config.LegalCommentsNone, config.LegalCommentsInline:
+		return
+	}
 
-		switch legalComments {
-		case config.LegalCommentsEndOfFile:
-			for _, text := range legalCommentList {
-				j.AddString(helpers.EscapeClosingTag(text, slashTag))
-				j.AddString("\n")
+	type thirdPartyEntry struct {
+		packagePath string
+		comments    []string
+	}
+
+	var uniqueFirstPartyComments []string
+	var thirdPartyComments []thirdPartyEntry
+	hasFirstPartyComment := make(map[string]struct{})
+
+	for _, entry := range legalCommentList {
+		source := c.graph.Files[entry.sourceIndex].InputFile.Source
+		packagePath := ""
+
+		// Try to extract a package name from the source path. If we can find a
+		// "node_modules" path component in the path, then assume this is a legal
+		// comment in third-party code and that everything after "node_modules" is
+		// the package name and subpath. If we can't, then assume this is a legal
+		// comment in first-party code.
+		//
+		// The rationale for this behavior: If we just include third-party comments
+		// as-is and the third-party comments don't say what package they're from
+		// (which isn't uncommon), then it'll look like that comment applies to
+		// all code in the file which is very wrong. So we need to somehow say
+		// where the comment comes from. But we don't want to say where every
+		// comment comes from because people probably won't appreciate this for
+		// first-party comments. And we don't want to include the whole path to
+		// each third-part module because a) that could contain information about
+		// the local machine that people don't want in their bundle and b) that
+		// could differ depending on unimportant details like the package manager
+		// used to install the packages (npm vs. pnpm vs. yarn).
+		if source.KeyPath.Namespace != "dataurl" {
+			path := source.KeyPath.Text
+			previous := len(path)
+			for previous > 0 {
+				slash := strings.LastIndexAny(path[:previous], "\\/")
+				component := path[slash+1 : previous]
+				if component == "node_modules" {
+					if previous < len(path) {
+						packagePath = strings.ReplaceAll(path[previous+1:], "\\", "/")
+					}
+					break
+				}
+				previous = slash
 			}
+		}
 
-		case config.LegalCommentsLinkedWithComment,
-			config.LegalCommentsExternalWithoutComment:
-			jComments := helpers.Joiner{}
-			for _, text := range legalCommentList {
-				jComments.AddString(text)
+		if packagePath != "" {
+			thirdPartyComments = append(thirdPartyComments, thirdPartyEntry{
+				packagePath: packagePath,
+				comments:    entry.comments,
+			})
+		} else {
+			for _, comment := range entry.comments {
+				if _, ok := hasFirstPartyComment[comment]; !ok {
+					hasFirstPartyComment[comment] = struct{}{}
+					uniqueFirstPartyComments = append(uniqueFirstPartyComments, comment)
+				}
+			}
+		}
+	}
+
+	switch legalComments {
+	case config.LegalCommentsEndOfFile:
+		for _, comment := range uniqueFirstPartyComments {
+			j.AddString(helpers.EscapeClosingTag(comment, slashTag))
+			j.AddString("\n")
+		}
+
+		if len(thirdPartyComments) > 0 {
+			j.AddString("/*! Bundled license information:\n")
+			for _, entry := range thirdPartyComments {
+				j.AddString(fmt.Sprintf("\n%s:\n", helpers.EscapeClosingTag(entry.packagePath, slashTag)))
+				for _, comment := range entry.comments {
+					comment = helpers.EscapeClosingTag(comment, slashTag)
+					if strings.HasPrefix(comment, "//") {
+						j.AddString(fmt.Sprintf("  (*%s *)\n", comment[2:]))
+					} else if strings.HasPrefix(comment, "/*") && strings.HasSuffix(comment, "*/") {
+						j.AddString(fmt.Sprintf("  (%s)\n", strings.ReplaceAll(comment[1:len(comment)-1], "\n", "\n  ")))
+					}
+				}
+			}
+			j.AddString("*/\n")
+		}
+
+	case config.LegalCommentsLinkedWithComment, config.LegalCommentsExternalWithoutComment:
+		var jComments helpers.Joiner
+
+		for _, comment := range uniqueFirstPartyComments {
+			jComments.AddString(comment)
+			jComments.AddString("\n")
+		}
+
+		if len(thirdPartyComments) > 0 {
+			if len(uniqueFirstPartyComments) > 0 {
 				jComments.AddString("\n")
 			}
-			chunk.externalLegalComments = jComments.Done()
+			jComments.AddString("Bundled license information:\n")
+			for _, entry := range thirdPartyComments {
+				jComments.AddString(fmt.Sprintf("\n%s:\n", entry.packagePath))
+				for _, comment := range entry.comments {
+					jComments.AddString(fmt.Sprintf("  %s\n", strings.ReplaceAll(comment, "\n", "\n  ")))
+				}
+			}
 		}
+
+		chunk.externalLegalComments = jComments.Done()
 	}
 }
 

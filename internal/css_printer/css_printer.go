@@ -20,7 +20,7 @@ type printer struct {
 	options                Options
 	importRecords          []ast.ImportRecord
 	css                    []byte
-	extractedLegalComments map[string]bool
+	extractedLegalComments []string
 	jsonMetadataImports    []string
 	builder                sourcemap.ChunkBuilder
 }
@@ -45,7 +45,7 @@ type Options struct {
 
 type PrintResult struct {
 	CSS                    []byte
-	ExtractedLegalComments map[string]bool
+	ExtractedLegalComments []string
 	JSONMetadataImports    []string
 
 	// This source map chunk just contains the VLQ-encoded offsets for the "CSS"
@@ -100,10 +100,7 @@ func (p *printer) printRule(rule css_ast.Rule, indent int32, omitTrailingSemicol
 		case config.LegalCommentsEndOfFile,
 			config.LegalCommentsLinkedWithComment,
 			config.LegalCommentsExternalWithoutComment:
-			if p.extractedLegalComments == nil {
-				p.extractedLegalComments = make(map[string]bool)
-			}
-			p.extractedLegalComments[r.Text] = true
+			p.extractedLegalComments = append(p.extractedLegalComments, r.Text)
 			return
 		}
 	}
