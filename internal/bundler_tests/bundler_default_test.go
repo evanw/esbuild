@@ -3549,6 +3549,84 @@ func TestLegalCommentsManyEndOfFile(t *testing.T) {
 	})
 }
 
+func TestLegalCommentsEscapeSlashScriptAndStyleEndOfFile(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/project/entry.js":                     `import "js-pkg"; a /*! </script> */`,
+			"/project/node_modules/js-pkg/index.js": `x /*! </script> */`,
+
+			"/project/entry.css":                      `@import "css-pkg"; a { b: c } /*! </style> */`,
+			"/project/node_modules/css-pkg/index.css": `x { y: z } /*! </style> */`,
+		},
+		entryPaths: []string{"/project/entry.js", "/project/entry.css"},
+		options: config.Options{
+			Mode:             config.ModeBundle,
+			AbsOutputDir:     "/out",
+			MinifyWhitespace: true,
+			LegalComments:    config.LegalCommentsEndOfFile,
+		},
+	})
+}
+
+func TestLegalCommentsEscapeSlashScriptAndStyleExternal(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/project/entry.js":                     `import "js-pkg"; a /*! </script> */`,
+			"/project/node_modules/js-pkg/index.js": `x /*! </script> */`,
+
+			"/project/entry.css":                      `@import "css-pkg"; a { b: c } /*! </style> */`,
+			"/project/node_modules/css-pkg/index.css": `x { y: z } /*! </style> */`,
+		},
+		entryPaths: []string{"/project/entry.js", "/project/entry.css"},
+		options: config.Options{
+			Mode:             config.ModeBundle,
+			AbsOutputDir:     "/out",
+			MinifyWhitespace: true,
+			LegalComments:    config.LegalCommentsExternalWithoutComment,
+		},
+	})
+}
+
+func TestLegalCommentsNoEscapeSlashScriptEndOfFile(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/project/entry.js":                     `import "js-pkg"; a /*! </script> */`,
+			"/project/node_modules/js-pkg/index.js": `x /*! </script> */`,
+
+			"/project/entry.css":                      `@import "css-pkg"; a { b: c } /*! </style> */`,
+			"/project/node_modules/css-pkg/index.css": `x { y: z } /*! </style> */`,
+		},
+		entryPaths: []string{"/project/entry.js", "/project/entry.css"},
+		options: config.Options{
+			Mode:                  config.ModeBundle,
+			AbsOutputDir:          "/out",
+			MinifyWhitespace:      true,
+			LegalComments:         config.LegalCommentsEndOfFile,
+			UnsupportedJSFeatures: compat.InlineScript,
+		},
+	})
+}
+
+func TestLegalCommentsNoEscapeSlashStyleEndOfFile(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/project/entry.js":                     `import "js-pkg"; a /*! </script> */`,
+			"/project/node_modules/js-pkg/index.js": `x /*! </script> */`,
+
+			"/project/entry.css":                      `@import "css-pkg"; a { b: c } /*! </style> */`,
+			"/project/node_modules/css-pkg/index.css": `x { y: z } /*! </style> */`,
+		},
+		entryPaths: []string{"/project/entry.js", "/project/entry.css"},
+		options: config.Options{
+			Mode:                   config.ModeBundle,
+			AbsOutputDir:           "/out",
+			MinifyWhitespace:       true,
+			LegalComments:          config.LegalCommentsEndOfFile,
+			UnsupportedCSSFeatures: compat.InlineStyle,
+		},
+	})
+}
+
 func TestLegalCommentsManyLinked(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{

@@ -1983,6 +1983,50 @@ c {
 /*! Copyright notice 2 */
 
 ================================================================================
+TestLegalCommentsEscapeSlashScriptAndStyleEndOfFile
+---------- /out/entry.js ----------
+x;a;
+/*! <\/script> */
+/*! Bundled license information:
+
+js-pkg/index.js:
+  (*! <\/script> *)
+*/
+
+---------- /out/entry.css ----------
+x{y:z}a{b:c}
+/*! <\/style> */
+/*! Bundled license information:
+
+css-pkg/index.css:
+  (*! <\/style> *)
+*/
+
+================================================================================
+TestLegalCommentsEscapeSlashScriptAndStyleExternal
+---------- /out/entry.js.LEGAL.txt ----------
+/*! </script> */
+
+Bundled license information:
+
+js-pkg/index.js:
+  /*! </script> */
+
+---------- /out/entry.js ----------
+x;a;
+
+---------- /out/entry.css.LEGAL.txt ----------
+/*! </style> */
+
+Bundled license information:
+
+css-pkg/index.css:
+  /*! </style> */
+
+---------- /out/entry.css ----------
+x{y:z}a{b:c}
+
+================================================================================
 TestLegalCommentsExternal
 ---------- /out/entry.js.LEGAL.txt ----------
 //! Copyright notice 1
@@ -2207,6 +2251,46 @@ export {
     zoom: 2;
   }
 }
+
+================================================================================
+TestLegalCommentsNoEscapeSlashScriptEndOfFile
+---------- /out/entry.js ----------
+x;a;
+/*! </script> */
+/*! Bundled license information:
+
+js-pkg/index.js:
+  (*! </script> *)
+*/
+
+---------- /out/entry.css ----------
+x{y:z}a{b:c}
+/*! <\/style> */
+/*! Bundled license information:
+
+css-pkg/index.css:
+  (*! <\/style> *)
+*/
+
+================================================================================
+TestLegalCommentsNoEscapeSlashStyleEndOfFile
+---------- /out/entry.js ----------
+x;a;
+/*! <\/script> */
+/*! Bundled license information:
+
+js-pkg/index.js:
+  (*! <\/script> *)
+*/
+
+---------- /out/entry.css ----------
+x{y:z}a{b:c}
+/*! </style> */
+/*! Bundled license information:
+
+css-pkg/index.css:
+  (*! </style> *)
+*/
 
 ================================================================================
 TestLegalCommentsNone

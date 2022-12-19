@@ -5041,7 +5041,11 @@ func (c *linkerContext) generateChunkJS(chunkIndex int, chunkWaitGroup *sync.Wai
 
 	// Make sure the file ends with a newline
 	j.EnsureNewlineAtEnd()
-	c.maybeAppendLegalComments(c.options.LegalComments, legalCommentList, chunk, &j, "/script")
+	slashTag := "/script"
+	if c.options.UnsupportedJSFeatures.Has(compat.InlineScript) {
+		slashTag = ""
+	}
+	c.maybeAppendLegalComments(c.options.LegalComments, legalCommentList, chunk, &j, slashTag)
 
 	if len(c.options.JSFooter) > 0 {
 		j.AddString(c.options.JSFooter)
@@ -5420,7 +5424,11 @@ func (c *linkerContext) generateChunkCSS(chunkIndex int, chunkWaitGroup *sync.Wa
 
 	// Make sure the file ends with a newline
 	j.EnsureNewlineAtEnd()
-	c.maybeAppendLegalComments(c.options.LegalComments, legalCommentList, chunk, &j, "/style")
+	slashTag := "/style"
+	if c.options.UnsupportedCSSFeatures.Has(compat.InlineStyle) {
+		slashTag = ""
+	}
+	c.maybeAppendLegalComments(c.options.LegalComments, legalCommentList, chunk, &j, slashTag)
 
 	if len(c.options.CSSFooter) > 0 {
 		j.AddString(c.options.CSSFooter)

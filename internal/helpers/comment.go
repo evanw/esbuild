@@ -68,6 +68,9 @@ seekBackwardToNewline:
 }
 
 func EscapeClosingTag(text string, slashTag string) string {
+	if slashTag == "" {
+		return text
+	}
 	i := strings.Index(text, "</")
 	if i < 0 {
 		return text
