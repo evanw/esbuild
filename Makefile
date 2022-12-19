@@ -66,6 +66,8 @@ test-wasm-browser: platform-wasm | scripts/browser/node_modules
 
 test-deno: esbuild platform-deno
 	ESBUILD_BINARY_PATH="$(shell pwd)/esbuild" deno test --allow-run --allow-env --allow-net --allow-read --allow-write --no-check scripts/deno-tests.js
+	deno eval 'import { transform, stop } from "file://$(shell pwd)/deno/mod.js"; console.log((await transform("1+2")).code); stop()' | grep "1 + 2;"
+	deno eval 'import { transform, stop } from "file://$(shell pwd)/deno/wasm.js"; console.log((await transform("1+2")).code); stop()' | grep "1 + 2;"
 
 test-deno-windows: esbuild platform-deno
 	ESBUILD_BINARY_PATH=./esbuild.exe deno test --allow-run --allow-env --allow-net --allow-read --allow-write --no-check scripts/deno-tests.js
@@ -206,6 +208,7 @@ test-e2e-yarn-berry:
 
 test-e2e-deno:
 	deno eval 'import { transform, stop } from "https://deno.land/x/esbuild@v$(ESBUILD_VERSION)/mod.js"; console.log((await transform("1+2")).code); stop()' | grep "1 + 2;"
+	deno eval 'import { transform, stop } from "https://deno.land/x/esbuild@v$(ESBUILD_VERSION)/wasm.js"; console.log((await transform("1+2")).code); stop()' | grep "1 + 2;"
 
 test-yarnpnp: platform-wasm
 	node scripts/test-yarnpnp.js
