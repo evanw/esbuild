@@ -285,6 +285,7 @@ func validateEngine(value EngineName) compat.Engine {
 }
 
 var versionRegex = regexp.MustCompile(`^([0-9]+)(?:\.([0-9]+))?(?:\.([0-9]+))?$`)
+var preReleaseVersionRegex = regexp.MustCompile(`^([0-9]+)(?:\.([0-9]+))?(?:\.([0-9]+))?-`)
 
 func validateFeatures(log logger.Log, target Target, engines []Engine) (config.TargetFromAPI, compat.JSFeature, compat.CSSFeature, string) {
 	if target == DefaultTarget && len(engines) == 0 {
@@ -337,7 +338,16 @@ func validateFeatures(log logger.Log, target Target, engines []Engine) (config.T
 			}
 		}
 
-		log.AddError(nil, logger.Range{}, fmt.Sprintf("Invalid version: %q", engine.Version))
+		text := "All version numbers passed to esbuild must be in the format \"X\", \"X.Y\", or \"X.Y.Z\" where X, Y, and Z are non-negative integers."
+
+		// Our internal version-to-feature database only includes version triples.
+		// We don't have any data on pre-release versions, so we don't accept them.
+		if preReleaseVersionRegex.MatchString(engine.Version) {
+			text += " Pre-release versions are not supported and cannot be used."
+		}
+
+		log.AddErrorWithNotes(nil, logger.Range{}, fmt.Sprintf("Invalid version: %q", engine.Version),
+			[]logger.MsgData{{Text: text}})
 	}
 
 	for engine, version := range constraints {
