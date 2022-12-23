@@ -1,5 +1,37 @@
 # Changelog
 
+## Unreleased
+
+* Avoid a syntax error in the presence of direct `eval` ([#2761](https://github.com/evanw/esbuild/issues/2761))
+
+    The behavior of nested `function` declarations in JavaScript depends on whether the code is run in strict mode or not. It would be problematic if esbuild preserved nested `function` declarations in its output because then the behavior would depend on whether the output was run in strict mode or not instead of respecting the strict mode behavior of the original source code. To avoid this, esbuild transforms nested `function` declarations to preserve the intended behavior of the original source code regardless of whether the output is run in strict mode or not:
+
+    ```js
+    // Original code
+    if (true) {
+      function foo() {}
+      console.log(!!foo)
+      foo = null
+      console.log(!!foo)
+    }
+    console.log(!!foo)
+
+    // Transformed code
+    if (true) {
+      let foo2 = function() {
+      };
+      var foo = foo2;
+      console.log(!!foo2);
+      foo2 = null;
+      console.log(!!foo2);
+    }
+    console.log(!!foo);
+    ```
+
+    In the above example, the original code should print `true false true` because it's not run in strict mode (it doesn't contain `"use strict"` and is not an ES module). The code that esbuild generates has been transformed such that it prints `true false true` regardless of whether it's run in strict mode or not.
+
+    However, this transformation is impossible if the code contains direct `eval` because direct `eval` "poisons" all containing scopes by preventing anything in those scopes from being renamed. That prevents esbuild from splitting up accesses to `foo` into two separate variables with different names. Previously esbuild still did this transformation but with two variables both named `foo`, which is a syntax error. With this release esbuild will now skip doing this transformation when direct `eval` is present to avoid generating code with a syntax error. This means that the generated code may no longer behave as intended since the behavior depends on the run-time strict mode setting instead of the strict mode setting present in the original source code. To fix this problem, you will need to remove the use of direct `eval`.
+
 ## 0.16.10
 
 * Change the default "legal comment" behavior again ([#2745](https://github.com/evanw/esbuild/issues/2745))

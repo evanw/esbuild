@@ -1457,6 +1457,16 @@ func TestLexicalDecl(t *testing.T) {
 	expectParseError(t, "with (1) label: label2: function f() {}", "<stdin>: ERROR: Cannot use a declaration in a single-statement context\n")
 	expectParseError(t, "while (1) label: label2: function f() {}", "<stdin>: ERROR: Cannot use a declaration in a single-statement context\n")
 	expectParseError(t, "do label: label2: function f() {} while (0)", "<stdin>: ERROR: Cannot use a declaration in a single-statement context\n")
+
+	// Test direct "eval"
+	expectPrinted(t, "if (foo) { function x() {} }", "if (foo) {\n  let x = function() {\n  };\n  var x = x;\n}\n")
+	expectPrinted(t, "if (foo) { function x() {} eval('') }", "if (foo) {\n  function x() {\n  }\n  eval(\"\");\n}\n")
+	expectPrinted(t, "if (foo) { function x() {} if (bar) { eval('') } }", "if (foo) {\n  function x() {\n  }\n  if (bar) {\n    eval(\"\");\n  }\n}\n")
+	expectPrinted(t, "if (foo) { eval(''); function x() {} }", "if (foo) {\n  function x() {\n  }\n  eval(\"\");\n}\n")
+	expectPrinted(t, "'use strict'; if (foo) { function x() {} }", "\"use strict\";\nif (foo) {\n  let x = function() {\n  };\n}\n")
+	expectPrinted(t, "'use strict'; if (foo) { function x() {} eval('') }", "\"use strict\";\nif (foo) {\n  function x() {\n  }\n  eval(\"\");\n}\n")
+	expectPrinted(t, "'use strict'; if (foo) { function x() {} if (bar) { eval('') } }", "\"use strict\";\nif (foo) {\n  function x() {\n  }\n  if (bar) {\n    eval(\"\");\n  }\n}\n")
+	expectPrinted(t, "'use strict'; if (foo) { eval(''); function x() {} }", "\"use strict\";\nif (foo) {\n  function x() {\n  }\n  eval(\"\");\n}\n")
 }
 
 func TestFunction(t *testing.T) {

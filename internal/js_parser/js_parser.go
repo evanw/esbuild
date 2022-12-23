@@ -7827,6 +7827,25 @@ func (p *parser) visitStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt {
 				nonFnStmts = append(nonFnStmts, stmt)
 				continue
 			}
+
+			// This transformation of function declarations in nested scopes is
+			// intended to preserve the hoisting semantics of the original code. In
+			// JavaScript, function hoisting works differently in strict mode vs.
+			// sloppy mode code. We want the code we generate to use the semantics of
+			// the original environment, not the generated environment. However, if
+			// direct "eval" is present then it's not possible to preserve the
+			// semantics because we need two identifiers to do that and direct "eval"
+			// means neither identifier can be renamed to something else. So in that
+			// case we give up and do not preserve the semantics of the original code.
+			if p.currentScope.ContainsDirectEval {
+				if hoistedRef, ok := p.hoistedRefForSloppyModeBlockFn[s.Fn.Name.Ref]; ok {
+					// Merge the two identifiers back into a single one
+					p.symbols[hoistedRef.InnerIndex].Link = s.Fn.Name.Ref
+				}
+				nonFnStmts = append(nonFnStmts, stmt)
+				continue
+			}
+
 			index, ok := fnStmts[s.Fn.Name.Ref]
 			if !ok {
 				index = len(letDecls)
