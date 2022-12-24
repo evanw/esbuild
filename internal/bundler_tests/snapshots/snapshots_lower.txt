@@ -779,6 +779,71 @@ export default [
 ];
 
 ================================================================================
+TestLowerNestedFunctionDirectEval
+---------- /out/1.js ----------
+if (foo) {
+  let x2 = function() {
+  };
+  var x = x2;
+}
+
+---------- /out/2.js ----------
+if (foo) {
+  function x() {
+  }
+  eval("");
+}
+
+---------- /out/3.js ----------
+if (foo) {
+  function x() {
+  }
+  if (bar) {
+    eval("");
+  }
+}
+
+---------- /out/4.js ----------
+if (foo) {
+  function x() {
+  }
+  eval("");
+}
+
+---------- /out/5.js ----------
+"use strict";
+if (foo) {
+  let x = function() {
+  };
+}
+
+---------- /out/6.js ----------
+"use strict";
+if (foo) {
+  function x() {
+  }
+  eval("");
+}
+
+---------- /out/7.js ----------
+"use strict";
+if (foo) {
+  function x() {
+  }
+  if (bar) {
+    eval("");
+  }
+}
+
+---------- /out/8.js ----------
+"use strict";
+if (foo) {
+  function x() {
+  }
+  eval("");
+}
+
+================================================================================
 TestLowerNullishCoalescingAssignmentIssue1493
 ---------- /out.js ----------
 // entry.js

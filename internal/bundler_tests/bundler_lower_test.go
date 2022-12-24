@@ -2358,3 +2358,32 @@ func TestLowerForAwait2015(t *testing.T) {
 		},
 	})
 }
+
+func TestLowerNestedFunctionDirectEval(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/1.js": "if (foo) { function x() {} }",
+			"/2.js": "if (foo) { function x() {} eval('') }",
+			"/3.js": "if (foo) { function x() {} if (bar) { eval('') } }",
+			"/4.js": "if (foo) { eval(''); function x() {} }",
+			"/5.js": "'use strict'; if (foo) { function x() {} }",
+			"/6.js": "'use strict'; if (foo) { function x() {} eval('') }",
+			"/7.js": "'use strict'; if (foo) { function x() {} if (bar) { eval('') } }",
+			"/8.js": "'use strict'; if (foo) { eval(''); function x() {} }",
+		},
+		entryPaths: []string{
+			"/1.js",
+			"/2.js",
+			"/3.js",
+			"/4.js",
+			"/5.js",
+			"/6.js",
+			"/7.js",
+			"/8.js",
+		},
+		options: config.Options{
+			Mode:         config.ModePassThrough,
+			AbsOutputDir: "/out",
+		},
+	})
+}
