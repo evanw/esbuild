@@ -467,7 +467,7 @@ func (p *parser) lowerFunction(
 				//
 				// Note that if the arrow function references "arguments" in its body
 				// (even if it's inside another nested arrow function), that reference
-				// to "arguments" will have to be subsituted with a captured variable.
+				// to "arguments" will have to be substituted with a captured variable.
 				// This is because we're changing the arrow function into a generator
 				// function, which introduces a variable named "arguments". This is
 				// handled separately during symbol resolution instead of being handled
