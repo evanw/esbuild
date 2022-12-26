@@ -412,7 +412,7 @@ func (fs *realFS) kind(dir string, base string) (symlink string, kind EntryKind)
 			if linksWalked > 255 {
 				return // Error: too many links
 			}
-			link, err := os.Readlink(symlink)
+			link, err := fs.fp.evalSymlinks(symlink)
 			if err != nil {
 				return // Skip over this entry
 			}
