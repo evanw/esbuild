@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.16.11
 
 * Avoid a syntax error in the presence of direct `eval` ([#2761](https://github.com/evanw/esbuild/issues/2761))
 
