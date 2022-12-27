@@ -32,6 +32,10 @@
 
     However, this transformation is impossible if the code contains direct `eval` because direct `eval` "poisons" all containing scopes by preventing anything in those scopes from being renamed. That prevents esbuild from splitting up accesses to `foo` into two separate variables with different names. Previously esbuild still did this transformation but with two variables both named `foo`, which is a syntax error. With this release esbuild will now skip doing this transformation when direct `eval` is present to avoid generating code with a syntax error. This means that the generated code may no longer behave as intended since the behavior depends on the run-time strict mode setting instead of the strict mode setting present in the original source code. To fix this problem, you will need to remove the use of direct `eval`.
 
+* Fix a bundling scenario involving multiple symlinks ([#2773](https://github.com/evanw/esbuild/issues/2773), [#2774](https://github.com/evanw/esbuild/issues/2774))
+
+    This release contains a fix for a bundling scenario involving an import path where multiple path segments are symlinks. Previously esbuild was unable to resolve certain import paths in this scenario, but these import paths should now work starting with this release. This fix was contributed by [@onebytegone](https://github.com/onebytegone).
+
 ## 0.16.10
 
 * Change the default "legal comment" behavior again ([#2745](https://github.com/evanw/esbuild/issues/2745))

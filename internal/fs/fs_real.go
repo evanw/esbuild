@@ -405,33 +405,21 @@ func (fs *realFS) kind(dir string, base string) (symlink string, kind EntryKind)
 
 	// Follow symlinks now so the cache contains the translation
 	if (mode & os.ModeSymlink) != 0 {
-		symlink = entryPath
-		linksWalked := 0
-		for {
-			linksWalked++
-			if linksWalked > 255 {
-				return // Error: too many links
-			}
-			link, err := os.Readlink(symlink)
-			if err != nil {
-				return // Skip over this entry
-			}
-			if !fs.fp.isAbs(link) {
-				link = fs.fp.join([]string{dir, link})
-			}
-			symlink = fs.fp.clean(link)
-
-			// Re-run "lstat" on the symlink target
-			stat2, err2 := os.Lstat(symlink)
-			if err2 != nil {
-				return // Skip over this entry
-			}
-			mode = stat2.Mode()
-			if (mode & os.ModeSymlink) == 0 {
-				break
-			}
-			dir = fs.fp.dir(symlink)
+		link, err := fs.fp.evalSymlinks(entryPath)
+		if err != nil {
+			return // Skip over this entry
 		}
+
+		// Re-run "lstat" on the symlink target to see if it's a file or not
+		stat2, err2 := os.Lstat(link)
+		if err2 != nil {
+			return // Skip over this entry
+		}
+		mode = stat2.Mode()
+		if (mode & os.ModeSymlink) != 0 {
+			return // This should no longer be a symlink, so this is unexpected
+		}
+		symlink = link
 	}
 
 	// We consider the entry either a directory or a file

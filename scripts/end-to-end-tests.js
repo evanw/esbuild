@@ -441,6 +441,22 @@ if (process.platform !== 'win32') {
         export function fn() { return foo(); }
       `,
     }),
+
+    // These tests are for https://github.com/evanw/esbuild/issues/2773
+    test(['--bundle', 'in.js', '--outfile=node.js'], {
+      'in.js': `import {foo} from './baz/bar/foo'; if (foo !== 444) throw 'fail'`,
+      'foo/index.js': `import {qux} from '../qux'; export const foo = 123 + qux`,
+      'qux/index.js': `export const qux = 321`,
+      'bar/foo': { symlink: `../foo` },
+      'baz/bar': { symlink: `../bar` },
+    }),
+    test(['--bundle', 'in.js', '--outfile=node.js'], {
+      'in.js': `import {foo} from './baz/bar/foo'; if (foo !== 444) throw 'fail'`,
+      'foo/index.js': `import {qux} from '../qux'; export const foo = 123 + qux`,
+      'qux/index.js': `export const qux = 321`,
+      'bar/foo': { symlink: `TEST_DIR_ABS_PATH/foo` },
+      'baz/bar': { symlink: `TEST_DIR_ABS_PATH/bar` },
+    }),
   )
 }
 
