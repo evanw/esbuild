@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.16.12
 
 * Loader defaults to `js` for extensionless files ([#2776](https://github.com/evanw/esbuild/issues/2776))
 
