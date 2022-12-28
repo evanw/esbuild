@@ -6246,6 +6246,46 @@ for (const flags of [[], ['--bundle']]) {
         }
       }`,
     }),
+
+    // This is an edge case for extensionless files. The file should be treated
+    // as CommonJS even though package.json says "type": "module" because that
+    // only applies to ".js" files in node, not to all JavaScript files.
+    test(['in.js', '--outfile=node.js', '--bundle'], {
+      'in.js': `
+        const fn = require('yargs/yargs')
+        if (fn() !== 123) throw 'fail'
+      `,
+      'node_modules/yargs/package.json': `{
+        "main": "./index.cjs",
+        "exports": {
+          "./package.json": "./package.json",
+          ".": [
+            {
+              "import": "./index.mjs",
+              "require": "./index.cjs"
+            },
+            "./index.cjs"
+          ],
+          "./yargs": [
+            {
+              "import": "./yargs.mjs",
+              "require": "./yargs"
+            },
+            "./yargs"
+          ]
+        },
+        "type": "module",
+        "module": "./index.mjs"
+      }`,
+      'node_modules/yargs/index.cjs': ``,
+      'node_modules/yargs/index.mjs': ``,
+      'node_modules/yargs/yargs.mjs': ``,
+      'node_modules/yargs/yargs': `
+        module.exports = function() {
+          return 123
+        }
+      `,
+    }),
   )
 
   // Node 17+ deliberately broke backward compatibility with packages using mappings

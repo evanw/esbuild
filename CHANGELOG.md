@@ -30,6 +30,8 @@
         })
         ```
 
+    In addition, the `"type"` field in `package.json` files now only applies to files with an explicit `.js`, `.jsx`, `.ts`, or `.tsx` extension. Previously it was incorrectly applied by esbuild to all files that had an extension other than `.mjs`, `.mts`, `.cjs`, or `.cts` including extensionless files. So for example an extensionless file in a `"type": "module"` package is now treated as CommonJS instead of ESM.
+
 ## 0.16.11
 
 * Avoid a syntax error in the presence of direct `eval` ([#2761](https://github.com/evanw/esbuild/issues/2761))

@@ -1278,8 +1278,12 @@ func (s *scanner) maybeParseFile(
 		optionsClone.ModuleTypeData.Type = js_ast.ModuleCommonJS_CJS
 	} else if strings.HasSuffix(path.Text, ".cts") {
 		optionsClone.ModuleTypeData.Type = js_ast.ModuleCommonJS_CTS
-	} else {
+	} else if strings.HasSuffix(path.Text, ".js") || strings.HasSuffix(path.Text, ".jsx") ||
+		strings.HasSuffix(path.Text, ".ts") || strings.HasSuffix(path.Text, ".tsx") {
 		optionsClone.ModuleTypeData = resolveResult.ModuleTypeData
+	} else {
+		// The "type" setting in "package.json" only applies to ".js" files
+		optionsClone.ModuleTypeData.Type = js_ast.ModuleUnknown
 	}
 
 	// Enable bundling for injected files so we always do tree shaking. We

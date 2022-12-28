@@ -15910,11 +15910,11 @@ func (p *parser) toAST(before, parts, after []js_ast.Part, hashbang string, dire
 		// the file extension is ".mjs"/".mts" or ".cjs"/".cts".
 		switch {
 		case p.options.moduleTypeData.Type.IsCommonJS():
-			// "type: commonjs" or ".cjs" or ".cts"
+			// ".cjs" or ".cts" or ("type: commonjs" and (".js" or ".jsx" or ".ts" or ".tsx"))
 			exportsKind = js_ast.ExportsCommonJS
 
 		case p.options.moduleTypeData.Type.IsESM():
-			// "type: module" or ".mjs" or ".mts"
+			// ".mjs" or ".mts" or ("type: module" and (".js" or ".jsx" or ".ts" or ".tsx"))
 			exportsKind = js_ast.ExportsESM
 
 		default:
