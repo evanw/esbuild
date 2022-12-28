@@ -1337,3 +1337,41 @@ func TestEmptyLoaderCSS(t *testing.T) {
 		},
 	})
 }
+
+func TestExtensionlessLoaderJS(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import './what'
+			`,
+			"/what": `foo()`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode: config.ModeBundle,
+			ExtensionToLoader: map[string]config.Loader{
+				".js": config.LoaderJS,
+				"":    config.LoaderJS,
+			},
+		},
+	})
+}
+
+func TestExtensionlessLoaderCSS(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.css": `
+				@import './what';
+			`,
+			"/what": `.foo { color: red }`,
+		},
+		entryPaths: []string{"/entry.css"},
+		options: config.Options{
+			Mode: config.ModeBundle,
+			ExtensionToLoader: map[string]config.Loader{
+				".css": config.LoaderCSS,
+				"":     config.LoaderCSS,
+			},
+		},
+	})
+}

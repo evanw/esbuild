@@ -1012,15 +1012,22 @@ func loaderFromFileExtension(extensionToLoader map[string]config.Loader, base st
 	// Pick the loader with the longest matching extension. So if there's an
 	// extension for ".css" and for ".module.css", we want to match the one for
 	// ".module.css" before the one for ".css".
-	for {
-		i := strings.IndexByte(base, '.')
-		if i == -1 {
-			break
+	if i := strings.IndexByte(base, '.'); i != -1 {
+		for {
+			if loader, ok := extensionToLoader[base[i:]]; ok {
+				return loader
+			}
+			base = base[i+1:]
+			i = strings.IndexByte(base, '.')
+			if i == -1 {
+				break
+			}
 		}
-		if loader, ok := extensionToLoader[base[i:]]; ok {
+	} else {
+		// If there's no extension, explicitly check for an extensionless loader
+		if loader, ok := extensionToLoader[""]; ok {
 			return loader
 		}
-		base = base[i+1:]
 	}
 	return config.LoaderNone
 }

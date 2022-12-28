@@ -545,7 +545,7 @@ func validateLoaders(log logger.Log, loaders map[string]Loader) map[string]confi
 	result := bundler.DefaultExtensionToLoaderMap()
 	if loaders != nil {
 		for ext, loader := range loaders {
-			if !isValidExtension(ext) {
+			if ext != "" && !isValidExtension(ext) {
 				log.AddError(nil, logger.Range{}, fmt.Sprintf("Invalid file extension: %q", ext))
 			}
 			result[ext] = validateLoader(loader)
