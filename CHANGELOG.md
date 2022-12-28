@@ -1,5 +1,35 @@
 # Changelog
 
+## Unreleased
+
+* Loader defaults to `js` for extensionless files ([#2776](https://github.com/evanw/esbuild/issues/2776))
+
+    Certain packages contain files without an extension. For example, the `yargs` package contains the file `yargs/yargs` which has no extension. Node, Webpack, and Parcel can all understand code that imports `yargs/yargs` because they assume that the file is JavaScript. However, esbuild was previously unable to understand this code because it relies on the file extension to tell it how to interpret the file. With this release, esbuild will now assume files without an extension are JavaScript files. This can be customized by setting the loader for `""` (the empty string, representing files without an extension) to another loader. For example, if you want files without an extension to be treated as CSS instead, you can do that like this:
+
+    * CLI:
+
+        ```
+        esbuild --bundle --loader:=css
+        ```
+
+    * JS:
+
+        ```js
+        esbuild.build({
+          bundle: true,
+          loader: { '': 'css' },
+        })
+        ```
+
+    * Go:
+
+        ```go
+        api.Build(api.BuildOptions{
+          Bundle: true,
+          Loader: map[string]api.Loader{"": api.LoaderCSS},
+        })
+        ```
+
 ## 0.16.11
 
 * Avoid a syntax error in the presence of direct `eval` ([#2761](https://github.com/evanw/esbuild/issues/2761))

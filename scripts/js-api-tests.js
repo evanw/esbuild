@@ -63,6 +63,36 @@ let buildTests = {
     }
   },
 
+  // Verify that it's possible to disable a loader by setting it to "default".
+  // In particular, verify that it's possible to disable the special loader ""
+  // for extensionless files.
+  async errorIfExtensionlessLoaderIsDisabled({ esbuild, testDir }) {
+    let entry = path.join(testDir, 'entry.js');
+    let what = path.join(testDir, 'what');
+    await writeFileAsync(entry, 'import "./what"')
+    await writeFileAsync(what, 'foo()')
+    await esbuild.build({
+      entryPoints: [entry],
+      bundle: true,
+      write: false,
+    })
+    try {
+      await esbuild.build({
+        entryPoints: [entry],
+        bundle: true,
+        write: false,
+        logLevel: 'silent',
+        loader: { '': 'default' },
+      })
+      throw new Error('Expected build failure');
+    } catch (e) {
+      const relPath = path.relative(process.cwd(), what).split(path.sep).join('/')
+      if (!e.errors || !e.errors[0] || e.errors[0].text !== 'Do not know how to load path: ' + relPath) {
+        throw e;
+      }
+    }
+  },
+
   async mangleCacheBuild({ esbuild }) {
     var result = await esbuild.build({
       stdin: {

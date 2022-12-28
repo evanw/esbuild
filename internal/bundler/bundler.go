@@ -2216,6 +2216,7 @@ func (s *scanner) validateTLA(sourceIndex uint32) tlaCheck {
 
 func DefaultExtensionToLoaderMap() map[string]config.Loader {
 	return map[string]config.Loader{
+		"":      config.LoaderJS, // This represents files without an extension
 		".js":   config.LoaderJS,
 		".mjs":  config.LoaderJS,
 		".cjs":  config.LoaderJS,

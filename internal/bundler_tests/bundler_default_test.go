@@ -1122,16 +1122,16 @@ func TestRequireBadExtension(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
-				console.log(require('./test'))
+				console.log(require('./test.bad'))
 			`,
-			"/test": `This is a test.`,
+			"/test.bad": `This is a test.`,
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `entry.js: ERROR: Do not know how to load path: test
+		expectedScanLog: `entry.js: ERROR: No loader is configured for ".bad" files: test.bad
 `,
 	})
 }
