@@ -1,5 +1,11 @@
 package bundler
 
+// The bundler is the core of the "build" and "transform" API calls. Each
+// operation has two phases. The first phase scans the module graph, and is
+// represented by the "ScanBundle" function. The second phase generates the
+// output files from the module graph, and is implemented by the "Compile"
+// function.
+
 import (
 	"bytes"
 	"encoding/base32"
@@ -1086,6 +1092,11 @@ func generateUniqueKeyPrefix() (string, error) {
 	return base64.URLEncoding.EncodeToString(data[:]), nil
 }
 
+// This creates a bundle by scanning over the whole module graph starting from
+// the entry points until all modules are reached. Each module has some number
+// of import paths which are resolved to module identifiers (i.e. "onResolve"
+// in the plugin API). Each unique module identifier is loaded once (i.e.
+// "onLoad" in the plugin API).
 func ScanBundle(
 	log logger.Log,
 	fs fs.FS,

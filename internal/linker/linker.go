@@ -1,5 +1,12 @@
 package linker
 
+// This package implements the second phase of the bundling operation that
+// generates the output files when given a module graph. It has been split off
+// into separate package to allow two linkers to cleanly exist in the same code
+// base. This will be useful when rewriting the linker because the new one can
+// be off by default to minimize disruption, but can still be enabled by anyone
+// to assist in giving feedback on the rewrite.
+
 import (
 	"bytes"
 	"encoding/base64"

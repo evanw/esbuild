@@ -1,9 +1,9 @@
+package runtime
+
 // This is esbuild's runtime code. It contains helper functions that are
 // automatically injected into output files to implement certain features. For
 // example, the "**" operator is replaced with a call to "__pow" when targeting
 // ES2015. Tree shaking automatically removes unused code from the runtime.
-
-package runtime
 
 import (
 	"github.com/evanw/esbuild/internal/compat"

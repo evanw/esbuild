@@ -1,5 +1,9 @@
 package fs
 
+// Most of esbuild's internals use this file system abstraction instead of
+// using native file system APIs. This lets us easily mock the file system
+// for tests and also implement Yarn's virtual ".zip" file system overlay.
+
 import (
 	"errors"
 	"os"

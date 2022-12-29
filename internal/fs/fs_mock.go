@@ -1,8 +1,8 @@
+package fs
+
 // This is a mock implementation of the "fs" module for use with tests. It does
 // not actually read from the file system. Instead, it reads from a pre-specified
 // map of file paths to files.
-
-package fs
 
 import (
 	"errors"

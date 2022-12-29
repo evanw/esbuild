@@ -1,6 +1,11 @@
 package logger
 
-// Logging is currently designed to look and feel like clang's error format.
+// Logging is either done to stderr (via "NewStderrLog") or to an in-memory
+// array (via "NewDeferLog"). In-memory arrays are used to capture messages
+// from parsing individual files because during incremental builds, log
+// messages for a given file can be replayed from memory if the file ends up
+// not being reparsed.
+//
 // Errors are streamed asynchronously as they happen, each error contains the
 // contents of the line with the error, and the error count is limited by
 // default.

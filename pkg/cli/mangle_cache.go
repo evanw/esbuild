@@ -1,5 +1,10 @@
 package cli
 
+// The mangle cache is a JSON file that remembers esbuild's property renaming
+// decisions. It's a flat map where the keys are strings and the values are
+// either strings or the boolean value "false". This is the case both in JSON
+// and in Go (so the "interface{}" values are also either strings or "false").
+
 import (
 	"fmt"
 	"sort"

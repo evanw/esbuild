@@ -1,5 +1,10 @@
 package cli
 
+// This file implements the public CLI. It's deliberately implemented using
+// esbuild's public "Build", "Transform", and "AnalyzeMetafile" APIs instead of
+// using internal APIs so that any tests that cover the CLI also implicitly
+// cover the public API as well.
+
 import (
 	"errors"
 	"fmt"

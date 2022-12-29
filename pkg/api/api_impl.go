@@ -1,5 +1,8 @@
 package api
 
+// This file implements most of the API. This includes the "Build", "Transform",
+// "FormatMessages", and "AnalyzeMetafile" functions.
+
 import (
 	"fmt"
 	"io/ioutil"

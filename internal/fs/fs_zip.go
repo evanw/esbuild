@@ -1,5 +1,22 @@
 package fs
 
+// The Yarn package manager (https://yarnpkg.com/) has a custom installation
+// strategy called "Plug'n'Play" where they install packages as zip files
+// instead of directory trees, and then modify node to treat zip files like
+// directories. This reduces package installation time because Yarn now only
+// has to copy a single file per package instead of a whole directory tree.
+// However, it introduces overhead at run-time because the virtual file system
+// is written in JavaScript.
+//
+// This file contains esbuild's implementation of the behavior that treats zip
+// files like directories. It implements the "FS" interface and wraps an inner
+// "FS" interface that treats zip files like files. That way it can run both on
+// a real file system and a mock file system.
+//
+// This file also implements another Yarn-specific behavior where certain paths
+// containing the special path segments "__virtual__" or "$$virtual" have some
+// unusual behavior. See the code below for details.
+
 import (
 	"archive/zip"
 	"io/ioutil"

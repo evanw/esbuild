@@ -1,5 +1,7 @@
 package resolver
 
+// This file implements the Yarn PnP specification: https://yarnpkg.com/advanced/pnp-spec/
+
 import (
 	"fmt"
 	"regexp"
@@ -11,8 +13,6 @@ import (
 	"github.com/evanw/esbuild/internal/js_parser"
 	"github.com/evanw/esbuild/internal/logger"
 )
-
-// This file implements the Yarn PnP specification: https://yarnpkg.com/advanced/pnp-spec/
 
 type pnpData struct {
 	// Keys are the package idents, values are sets of references. Combining the

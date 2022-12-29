@@ -3,6 +3,16 @@
 
 package api
 
+// This file implements the "Serve()" function in esbuild's public API. It
+// provides a basic web server that can serve a directory tree over HTTP. When
+// a directory is visited the "index.html" will be served if present, otherwise
+// esbuild will automatically generate a directory listing page with links for
+// each file in the directory. If there is a build configured that generates
+// output files, those output files are not written to disk but are instead
+// "overlayed" virtually on top of the real file system. The server responds to
+// HTTP requests for output files from the build with the latest in-memory
+// build results.
+
 import (
 	"fmt"
 	"net"
