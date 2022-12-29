@@ -1211,13 +1211,6 @@ func runImpl(osArgs []string) int {
 					}
 				}
 			}
-
-			// Write out the metafile whenever we rebuild
-			if buildOptions.Watch != nil {
-				buildOptions.Watch.OnRebuild = func(result api.BuildResult) {
-					writeMetafile(result.Metafile)
-				}
-			}
 		}
 
 		// Always generate a metafile if we're analyzing, even if it won't be written out
@@ -1225,8 +1218,28 @@ func runImpl(osArgs []string) int {
 			buildOptions.Metafile = true
 		}
 
+		writeExtraFiles := func(result *api.BuildResult) {
+			// Write the metafile to the file system
+			if writeMetafile != nil {
+				writeMetafile(result.Metafile)
+			}
+
+			// Write the mangle cache to the file system
+			if writeMangleCache != nil {
+				writeMangleCache(result.MangleCache)
+			}
+		}
+
+		// Write out extra files whenever we rebuild
+		if buildOptions.Watch != nil {
+			buildOptions.Watch.OnRebuild = func(result api.BuildResult) {
+				writeExtraFiles(&result)
+			}
+		}
+
 		// Run the build
 		result := api.Build(*buildOptions)
+		writeExtraFiles(&result)
 
 		// Print the analysis after the build
 		if analyze {
@@ -1239,19 +1252,9 @@ func runImpl(osArgs []string) int {
 			os.Stderr.WriteString("\n")
 		}
 
-		// Write the metafile to the file system
-		if writeMetafile != nil {
-			writeMetafile(result.Metafile)
-		}
-
-		// Write the mangle cache to the file system
-		if writeMangleCache != nil {
-			writeMangleCache(result.MangleCache)
-		}
-
 		// Do not exit if we're in watch mode
 		if buildOptions.Watch != nil {
-			<-make(chan bool)
+			<-make(chan struct{})
 		}
 
 		// Stop if there were errors

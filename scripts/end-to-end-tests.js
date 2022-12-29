@@ -6618,6 +6618,80 @@ if (process.platform === 'darwin' || process.platform === 'win32') {
   )
 }
 
+// End-to-end watch mode tests
+tests.push(
+  // Validate that the CLI watch mode correctly updates the metafile
+  testWatch({ metafile: true }, async ({ infile, outfile, metafile }) => {
+    await waitForCondition(
+      'initial build',
+      20,
+      () => fs.writeFile(infile, 'foo()'),
+      async () => {
+        assert.strictEqual(await fs.readFile(outfile, 'utf8'), 'foo();\n')
+        assert.strictEqual(JSON.parse(await fs.readFile(metafile, 'utf8')).inputs[path.basename(infile)].bytes, 5)
+      },
+    )
+
+    await waitForCondition(
+      'subsequent build',
+      20,
+      () => fs.writeFile(infile, 'foo(123)'),
+      async () => {
+        assert.strictEqual(await fs.readFile(outfile, 'utf8'), 'foo(123);\n')
+        assert.strictEqual(JSON.parse(await fs.readFile(metafile, 'utf8')).inputs[path.basename(infile)].bytes, 8)
+      },
+    )
+  }),
+
+  // Validate that the CLI watch mode correctly updates the mangle cache
+  testWatch({ args: ['--mangle-props=.'], mangleCache: true }, async ({ infile, outfile, mangleCache }) => {
+    await waitForCondition(
+      'initial build',
+      20,
+      () => fs.writeFile(infile, 'foo()'),
+      async () => {
+        assert.strictEqual(await fs.readFile(outfile, 'utf8'), 'foo();\n')
+        assert.strictEqual(await fs.readFile(mangleCache, 'utf8'), '{}\n')
+      },
+    )
+
+    await waitForCondition(
+      'subsequent build',
+      20,
+      () => fs.writeFile(infile, 'foo(bar.baz)'),
+      async () => {
+        assert.strictEqual(await fs.readFile(outfile, 'utf8'), 'foo(bar.a);\n')
+        assert.strictEqual(await fs.readFile(mangleCache, 'utf8'), '{\n  "baz": "a"\n}\n')
+      },
+    )
+  }),
+)
+
+function waitForCondition(what, seconds, mutator, condition) {
+  return new Promise(async (resolve, reject) => {
+    const start = Date.now()
+    let e
+    try {
+      await mutator()
+      while (true) {
+        if (Date.now() - start > seconds * 1000) {
+          throw new Error(`Timeout of ${seconds} seconds waiting for ${what}` + (e ? `: ${e && e.message || e}` : ''))
+        }
+        await new Promise(r => setTimeout(r, 50))
+        try {
+          await condition()
+          break
+        } catch (err) {
+          e = err
+        }
+      }
+      resolve()
+    } catch (e) {
+      reject(e)
+    }
+  })
+}
+
 function test(args, files, options) {
   return async () => {
     const hasBundle = args.includes('--bundle')
@@ -6754,6 +6828,83 @@ function testStdout(input, args, callback) {
     } catch (e) {
       console.error(`❌ test failed: ${e && e.message || e}
   dir: ${path.relative(dirname, thisTestDir)}`)
+      return false
+    }
+
+    return true
+  }
+}
+
+function testWatch(options, callback) {
+  return async () => {
+    const thisTestDir = path.join(testDir, '' + testCount++)
+    const infile = path.join(thisTestDir, 'in.js')
+    const outdir = path.join(thisTestDir, 'out')
+    const outfile = path.join(outdir, path.basename(infile))
+    const args = ['--watch=forever', infile, '--outdir=' + outdir, '--color'].concat(options.args || [])
+    let metafile
+    let mangleCache
+
+    if (options.metafile) {
+      metafile = path.join(thisTestDir, 'meta.json')
+      args.push('--metafile=' + metafile)
+    }
+
+    if (options.mangleCache) {
+      mangleCache = path.join(thisTestDir, 'mangle.json')
+      args.push('--mangle-cache=' + mangleCache)
+    }
+
+    let stderrPromise
+    try {
+      await fs.mkdir(thisTestDir, { recursive: true })
+      const maxSeconds = 60
+
+      // Start the child
+      const child = childProcess.spawn(esbuildPath, args, {
+        cwd: thisTestDir,
+        stdio: ['inherit', 'inherit', 'pipe'],
+        timeout: maxSeconds * 1000,
+      })
+
+      // Make sure the child is always killed
+      try {
+        // Buffer stderr in case we need it
+        const stderr = []
+        child.stderr.on('data', data => stderr.push(data))
+        const exitPromise = new Promise((_, reject) => {
+          child.on('close', code => reject(new Error(`Child "esbuild" process exited with code ${code}`)))
+        })
+        stderrPromise = new Promise(resolve => {
+          child.stderr.on('end', () => resolve(Buffer.concat(stderr).toString()))
+        })
+
+        // Run whatever check the caller is doing
+        let timeout
+        await Promise.race([
+          new Promise((_, reject) => {
+            timeout = setTimeout(() => reject(new Error(`Timeout of ${maxSeconds} seconds exceeded`)), maxSeconds * 1000)
+          }),
+          exitPromise,
+          callback({
+            infile,
+            outfile,
+            metafile,
+            mangleCache,
+          }),
+        ])
+        clearTimeout(timeout)
+
+        // Clean up test output
+        removeRecursiveSync(thisTestDir)
+      } finally {
+        child.kill()
+      }
+    } catch (e) {
+      let stderr = stderrPromise ? '\n  stderr:' + ('\n' + await stderrPromise).split('\n').join('\n    ') : ''
+      console.error(`❌ test failed: ${e && e.message || e}
+  dir: ${path.relative(dirname, thisTestDir)}
+  args: ${args.join(' ')}` + stderr)
       return false
     }
 
