@@ -6,7 +6,6 @@ package cli
 // cover the public API as well.
 
 import (
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -1056,7 +1055,7 @@ func runImpl(osArgs []string) int {
 		// Special-case running a server
 		if arg == "--serve" || strings.HasPrefix(arg, "--serve=") || strings.HasPrefix(arg, "--servedir=") {
 			if err := serveImpl(osArgs); err != nil {
-				logger.PrintErrorToStderr(osArgs, err.Error())
+				logger.PrintErrorWithNoteToStderr(osArgs, err.Text, err.Note)
 				return 1
 			}
 			return 0
@@ -1279,14 +1278,7 @@ func runImpl(osArgs []string) int {
 		os.Stdout.Write(result.Code)
 
 	case err != nil:
-		msg := logger.Msg{
-			Kind: logger.Error,
-			Data: logger.MsgData{Text: err.Text},
-		}
-		if err.Note != "" {
-			msg.Notes = []logger.MsgData{{Text: err.Note}}
-		}
-		logger.PrintMessageToStderr(osArgs, msg)
+		logger.PrintErrorWithNoteToStderr(osArgs, err.Text, err.Note)
 		return 1
 	}
 
@@ -1337,10 +1329,10 @@ func parseServeOptionsImpl(osArgs []string) (api.ServeOptions, []string, error) 
 	}, filteredArgs, nil
 }
 
-func serveImpl(osArgs []string) error {
+func serveImpl(osArgs []string) *cli_helpers.ErrorWithNote {
 	serveOptions, filteredArgs, err := parseServeOptionsImpl(osArgs)
 	if err != nil {
-		return err
+		return cli_helpers.MakeErrorWithNote(err.Error(), "")
 	}
 
 	options := newBuildOptions()
@@ -1350,8 +1342,7 @@ func serveImpl(osArgs []string) error {
 	options.LogLevel = api.LogLevelInfo
 
 	if _, err := parseOptionsImpl(filteredArgs, &options, nil, kindInternal); err != nil {
-		logger.PrintErrorToStderr(filteredArgs, err.Text)
-		return errors.New(err.Text)
+		return err
 	}
 
 	serveOptions.OnRequest = func(args api.ServeOnRequestArgs) {
@@ -1370,7 +1361,7 @@ func serveImpl(osArgs []string) error {
 
 	result, err := api.Serve(serveOptions, options)
 	if err != nil {
-		return err
+		return cli_helpers.MakeErrorWithNote(err.Error(), "")
 	}
 
 	// Show what actually got bound if the port was 0
@@ -1419,7 +1410,12 @@ func serveImpl(osArgs []string) error {
 		sb.WriteString("\n\n")
 		return sb.String()
 	})
-	return result.Wait()
+
+	if err := result.Wait(); err != nil {
+		return cli_helpers.MakeErrorWithNote(err.Error(), "")
+	}
+
+	return nil
 }
 
 func parseLogLevel(value string, arg string) (api.LogLevel, *cli_helpers.ErrorWithNote) {

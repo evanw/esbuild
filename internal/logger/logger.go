@@ -644,6 +644,17 @@ func PrintErrorToStderr(osArgs []string, text string) {
 	PrintMessageToStderr(osArgs, Msg{Kind: Error, Data: MsgData{Text: text}})
 }
 
+func PrintErrorWithNoteToStderr(osArgs []string, text string, note string) {
+	msg := Msg{
+		Kind: Error,
+		Data: MsgData{Text: text},
+	}
+	if note != "" {
+		msg.Notes = []MsgData{{Text: note}}
+	}
+	PrintMessageToStderr(osArgs, msg)
+}
+
 func OutputOptionsForArgs(osArgs []string) OutputOptions {
 	options := OutputOptions{IncludeSource: true}
 
