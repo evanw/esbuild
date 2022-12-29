@@ -3589,6 +3589,103 @@ let watchTests = {
       result.stop()
     }
   },
+
+  async watchMetafile({ esbuild, testDir }) {
+    const srcDir = path.join(testDir, 'src')
+    const outdir = path.join(testDir, 'out')
+    const input = path.join(srcDir, 'in.js')
+    const output = path.join(outdir, 'in.js')
+    await mkdirAsync(srcDir, { recursive: true })
+    await writeFileAsync(input, `foo()`)
+
+    let onRebuild = () => { }
+    const result = await esbuild.build({
+      entryPoints: [input],
+      outdir,
+      format: 'esm',
+      logLevel: 'silent',
+      metafile: true,
+      watch: {
+        onRebuild: (...args) => onRebuild(args),
+      },
+    })
+    const rebuildUntil = (mutator, condition) => {
+      let timeout
+      return new Promise((resolve, reject) => {
+        timeout = setTimeout(() => reject(new Error('Timeout after 30 seconds')), 30 * 1000)
+        onRebuild = args => {
+          try { if (condition(...args)) clearTimeout(timeout), resolve(args) }
+          catch (e) { clearTimeout(timeout), reject(e) }
+        }
+        mutator()
+      })
+    }
+
+    try {
+      const relInput = path.relative(process.cwd(), input).split(path.sep).join('/')
+      assert.strictEqual(result.metafile.inputs[relInput].bytes, 5)
+      assert.strictEqual(await readFileAsync(output, 'utf8'), 'foo();\n')
+
+      // Rebuild and check that the metafile has been updated
+      {
+        const [error2, result2] = await rebuildUntil(
+          () => writeFileAtomic(input, `foo(123)`),
+          (err, res) => readFileAsync(output, 'utf8').then(x => x === 'foo(123);\n'),
+        )
+        assert.strictEqual(result2.metafile.inputs[relInput].bytes, 8)
+      }
+    } finally {
+      result.stop()
+    }
+  },
+
+  async watchMangleCache({ esbuild, testDir }) {
+    const srcDir = path.join(testDir, 'src')
+    const outdir = path.join(testDir, 'out')
+    const input = path.join(srcDir, 'in.js')
+    const output = path.join(outdir, 'in.js')
+    await mkdirAsync(srcDir, { recursive: true })
+    await writeFileAsync(input, `foo()`)
+
+    let onRebuild = () => { }
+    const result = await esbuild.build({
+      entryPoints: [input],
+      outdir,
+      format: 'esm',
+      logLevel: 'silent',
+      mangleProps: /./,
+      mangleCache: {},
+      watch: {
+        onRebuild: (...args) => onRebuild(args),
+      },
+    })
+    const rebuildUntil = (mutator, condition) => {
+      let timeout
+      return new Promise((resolve, reject) => {
+        timeout = setTimeout(() => reject(new Error('Timeout after 30 seconds')), 30 * 1000)
+        onRebuild = args => {
+          try { if (condition(...args)) clearTimeout(timeout), resolve(args) }
+          catch (e) { clearTimeout(timeout), reject(e) }
+        }
+        mutator()
+      })
+    }
+
+    try {
+      assert.strictEqual(JSON.stringify(result.mangleCache), '{}')
+
+      // Rebuild and check that the mangle cache has been updated
+      {
+        const [error2, result2] = await rebuildUntil(
+          () => writeFileAtomic(input, `foo(bar.baz)`),
+          (err, res) => readFileAsync(output, 'utf8').then(x => x === 'foo(bar.a);\n'),
+        )
+        assert.strictEqual(JSON.stringify(result2.mangleCache), '{"baz":"a"}')
+      }
+    } finally {
+      result.stop()
+    }
+  },
 }
 
 let serveTests = {
@@ -5732,7 +5829,7 @@ let syncTests = {
     const input = path.join(testDir, 'in.js')
     const output = path.join(testDir, 'out.js')
     await writeFileAsync(input, 'module.exports = 123')
-    let prettyPath = path.relative(process.cwd(), input).replace(/\\/g, '/')
+    let prettyPath = path.relative(process.cwd(), input).split(path.sep).join('/')
     let text = `// ${prettyPath}\nmodule.exports = 123;\n`
     let result = esbuild.buildSync({ entryPoints: [input], bundle: true, outfile: output, format: 'cjs', write: false })
     assert.strictEqual(result.outputFiles.length, 1)
@@ -5801,7 +5898,7 @@ let syncTests = {
     } catch (error) {
       assert(error instanceof Error, 'Must be an Error object');
       assert.strictEqual(error.message, `Build failed with 1 error:
-${path.relative(process.cwd(), input).replace(/\\/g, '/')}:1:2: ERROR: Unexpected end of file`);
+${path.relative(process.cwd(), input).split(path.sep).join('/')}:1:2: ERROR: Unexpected end of file`);
       assert.strictEqual(error.errors.length, 1);
       assert.strictEqual(error.warnings.length, 0);
     }
