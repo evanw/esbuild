@@ -334,6 +334,7 @@ type printer struct {
 	renamer                renamer.Renamer
 	importRecords          []ast.ImportRecord
 	callTarget             js_ast.E
+	hasLegalComment        map[string]struct{}
 	extractedLegalComments []string
 	js                     []byte
 	jsonMetadataImports    []string
@@ -3203,6 +3204,14 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 			case config.LegalCommentsEndOfFile,
 				config.LegalCommentsLinkedWithComment,
 				config.LegalCommentsExternalWithoutComment:
+
+				// Don't record the same legal comment more than once per file
+				if p.hasLegalComment == nil {
+					p.hasLegalComment = make(map[string]struct{})
+				} else if _, ok := p.hasLegalComment[text]; ok {
+					return
+				}
+				p.hasLegalComment[text] = struct{}{}
 				p.extractedLegalComments = append(p.extractedLegalComments, text)
 				return
 			}

@@ -20,6 +20,7 @@ type printer struct {
 	options                Options
 	importRecords          []ast.ImportRecord
 	css                    []byte
+	hasLegalComment        map[string]struct{}
 	extractedLegalComments []string
 	jsonMetadataImports    []string
 	builder                sourcemap.ChunkBuilder
@@ -100,6 +101,14 @@ func (p *printer) printRule(rule css_ast.Rule, indent int32, omitTrailingSemicol
 		case config.LegalCommentsEndOfFile,
 			config.LegalCommentsLinkedWithComment,
 			config.LegalCommentsExternalWithoutComment:
+
+			// Don't record the same legal comment more than once per file
+			if p.hasLegalComment == nil {
+				p.hasLegalComment = make(map[string]struct{})
+			} else if _, ok := p.hasLegalComment[r.Text]; ok {
+				return
+			}
+			p.hasLegalComment[r.Text] = struct{}{}
 			p.extractedLegalComments = append(p.extractedLegalComments, r.Text)
 			return
 		}

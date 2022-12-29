@@ -2145,6 +2145,7 @@ TestLegalCommentsManyEndOfFile
 ---------- /out/entry.js ----------
 console.log("in a");console.log("in b");function foo(){console.log("in c");}foo();function bar(){console.log("some-other-pkg")}bar();
 //! Copyright notice 1
+//! Duplicate comment
 /*
  * @license
  * Copyright notice 2
@@ -2157,14 +2158,17 @@ some-other-pkg/js/index.js:
    * @preserve
    * (c) Evil Software Corp
    *)
+  (*! Duplicate third-party comment *)
 
 some-pkg/js/index.js:
   (*! (c) Good Software Corp *)
+  (*! Duplicate third-party comment *)
 */
 
 ---------- /out/entry.css ----------
 a{zoom:2}b{zoom:2}c{zoom:2}.some-other-pkg{zoom:2}
 /*! Copyright notice 1 */
+/*! Duplicate comment */
 /*
  * @license
  * Copyright notice 2
@@ -2173,12 +2177,14 @@ a{zoom:2}b{zoom:2}c{zoom:2}.some-other-pkg{zoom:2}
 /*! Bundled license information:
 
 some-other-pkg/css/index.css:
+  (*! Duplicate third-party comment *)
   (** @preserve
    * (c) Evil Software Corp
    *)
 
 some-pkg/css/index.css:
   (*! (c) Good Software Corp *)
+  (*! Duplicate third-party comment *)
 */
 
 ================================================================================

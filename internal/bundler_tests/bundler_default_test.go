@@ -3486,8 +3486,16 @@ func TestLegalCommentsManyEndOfFile(t *testing.T) {
 				import './c'
 				import 'some-pkg/js'
 			`,
-			"/project/a.js": `console.log('in a') //! Copyright notice 1`,
-			"/project/b.js": `console.log('in b') //! Copyright notice 1`,
+			"/project/a.js": `
+				console.log('in a') //! Copyright notice 1
+				//! Duplicate comment
+				//! Duplicate comment
+			`,
+			"/project/b.js": `
+				console.log('in b') //! Copyright notice 1
+				//! Duplicate comment
+				//! Duplicate comment
+			`,
 			"/project/c.js": `
 				function foo() {
 					/*
@@ -3499,7 +3507,11 @@ func TestLegalCommentsManyEndOfFile(t *testing.T) {
 				}
 				foo()
 			`,
-			"/project/node_modules/some-pkg/js/index.js": `import "some-other-pkg/js" //! (c) Good Software Corp`,
+			"/project/node_modules/some-pkg/js/index.js": `
+				import "some-other-pkg/js" //! (c) Good Software Corp
+				//! Duplicate third-party comment
+				//! Duplicate third-party comment
+			`,
 			"/project/node_modules/some-other-pkg/js/index.js": `
 				function bar() {
 					/*
@@ -3508,6 +3520,8 @@ func TestLegalCommentsManyEndOfFile(t *testing.T) {
 					 */
 					console.log('some-other-pkg')
 				}
+				//! Duplicate third-party comment
+				//! Duplicate third-party comment
 				bar()
 			`,
 
@@ -3517,8 +3531,16 @@ func TestLegalCommentsManyEndOfFile(t *testing.T) {
 				@import "./c.css";
 				@import 'some-pkg/css';
 			`,
-			"/project/a.css": `a { zoom: 2 } /*! Copyright notice 1 */`,
-			"/project/b.css": `b { zoom: 2 } /*! Copyright notice 1 */`,
+			"/project/a.css": `
+				a { zoom: 2 } /*! Copyright notice 1 */
+				/*! Duplicate comment */
+				/*! Duplicate comment */
+			`,
+			"/project/b.css": `
+				b { zoom: 2 } /*! Copyright notice 1 */
+				/*! Duplicate comment */
+				/*! Duplicate comment */
+			`,
 			"/project/c.css": `
 				/*
 				 * @license
@@ -3529,8 +3551,14 @@ func TestLegalCommentsManyEndOfFile(t *testing.T) {
 				}
 				/* @preserve This is another comment */
 			`,
-			"/project/node_modules/some-pkg/css/index.css": `@import "some-other-pkg/css"; /*! (c) Good Software Corp */`,
+			"/project/node_modules/some-pkg/css/index.css": `
+				@import "some-other-pkg/css"; /*! (c) Good Software Corp */
+				/*! Duplicate third-party comment */
+				/*! Duplicate third-party comment */
+			`,
 			"/project/node_modules/some-other-pkg/css/index.css": `
+				/*! Duplicate third-party comment */
+				/*! Duplicate third-party comment */
 				.some-other-pkg {
 					zoom: 2
 				}
