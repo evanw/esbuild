@@ -836,13 +836,7 @@ func cloneMangleCache(log logger.Log, mangleCache map[string]interface{}) map[st
 ////////////////////////////////////////////////////////////////////////////////
 // Build API
 
-type internalBuildResult struct {
-	result    BuildResult
-	watchData fs.WatchData
-	options   config.Options
-}
-
-func buildImpl(buildOpts BuildOptions) internalBuildResult {
+func buildImpl(buildOpts BuildOptions) rebuildResult {
 	start := time.Now()
 	logOptions := logger.OutputOptions{
 		IncludeSource: true,
@@ -864,7 +858,7 @@ func buildImpl(buildOpts BuildOptions) internalBuildResult {
 	})
 	if err != nil {
 		log.AddError(nil, logger.Range{}, err.Error())
-		return internalBuildResult{result: BuildResult{Errors: convertMessagesToPublic(logger.Error, log.Done())}}
+		return rebuildResult{result: BuildResult{Errors: convertMessagesToPublic(logger.Error, log.Done())}}
 	}
 
 	// Do not re-evaluate plugins when rebuilding. Also make sure the working
@@ -877,7 +871,12 @@ func buildImpl(buildOpts BuildOptions) internalBuildResult {
 		panic("Mutating \"AbsWorkingDir\" is not allowed")
 	}
 
-	internalResult := rebuildImpl(buildOpts, caches, plugins, finalizeBuildOptions, onEndCallbacks, logOptions, log, false /* isRebuild */)
+	args := rebuildArgs{
+		caches:         caches,
+		onEndCallbacks: onEndCallbacks,
+		logOptions:     logOptions,
+	}
+	internalResult := rebuildImpl(buildOpts, args, plugins, finalizeBuildOptions, log, false /* isRebuild */)
 
 	// Print a summary of the generated files to stderr. Except don't do
 	// this if the terminal is already being used for something else.
@@ -940,16 +939,26 @@ func printSummary(logOptions logger.OutputOptions, outputFiles []OutputFile, sta
 	logger.PrintSummary(logOptions.Color, table, &start)
 }
 
+type rebuildArgs struct {
+	caches         *cache.CacheSet
+	onEndCallbacks []func(*BuildResult)
+	logOptions     logger.OutputOptions
+}
+
+type rebuildResult struct {
+	result    BuildResult
+	watchData fs.WatchData
+	options   config.Options
+}
+
 func rebuildImpl(
 	buildOpts BuildOptions,
-	caches *cache.CacheSet,
+	args rebuildArgs,
 	plugins []config.Plugin,
 	finalizeBuildOptions func(*config.Options),
-	onEndCallbacks []func(*BuildResult),
-	logOptions logger.OutputOptions,
 	log logger.Log,
 	isRebuild bool,
-) internalBuildResult {
+) rebuildResult {
 	// Convert and validate the buildOpts
 	realFS, err := fs.RealFS(fs.RealFSOptions{
 		AbsWorkingDir: buildOpts.AbsWorkingDir,
@@ -1153,7 +1162,7 @@ func rebuildImpl(
 		}
 
 		// Scan over the bundle
-		bundle := bundler.ScanBundle(log, realFS, caches, entryPoints, options, timer)
+		bundle := bundler.ScanBundle(log, realFS, args.caches, entryPoints, options, timer)
 		watchData = realFS.WatchData()
 
 		// Stop now if there were errors
@@ -1237,7 +1246,7 @@ func rebuildImpl(
 			data: watchData,
 			fs:   realFS,
 			rebuild: func() fs.WatchData {
-				value := rebuildImpl(buildOpts, caches, plugins, nil, onEndCallbacks, logOptions, logger.NewStderrLog(logOptions), true /* isRebuild */)
+				value := rebuildImpl(buildOpts, args, plugins, nil, logger.NewStderrLog(args.logOptions), true /* isRebuild */)
 				if onRebuild != nil {
 					go onRebuild(value.result)
 				}
@@ -1253,7 +1262,7 @@ func rebuildImpl(
 	var rebuild func() BuildResult
 	if buildOpts.Incremental {
 		rebuild = func() BuildResult {
-			value := rebuildImpl(buildOpts, caches, plugins, nil, onEndCallbacks, logOptions, logger.NewStderrLog(logOptions), true /* isRebuild */)
+			value := rebuildImpl(buildOpts, args, plugins, nil, logger.NewStderrLog(args.logOptions), true /* isRebuild */)
 			if watch != nil {
 				watch.setWatchData(value.watchData)
 			}
@@ -1276,11 +1285,11 @@ func rebuildImpl(
 		MangleCache: mangleCache,
 	}
 
-	for _, onEnd := range onEndCallbacks {
+	for _, onEnd := range args.onEndCallbacks {
 		onEnd(&result)
 	}
 
-	return internalBuildResult{
+	return rebuildResult{
 		result:    result,
 		options:   options,
 		watchData: watchData,
