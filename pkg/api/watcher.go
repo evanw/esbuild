@@ -49,7 +49,7 @@ const maxIntervalsBeforeUpdate = 20
 
 type watcher struct {
 	data              fs.WatchData
-	resolver          *resolver.Resolver
+	fs                fs.FS
 	rebuild           func() fs.WatchData
 	recentItems       []string
 	itemsToScan       []string
@@ -99,7 +99,7 @@ func (w *watcher) start(logLevel LogLevel, color StderrColor) {
 			if absPath := w.tryToFindDirtyPath(); absPath != "" {
 				if shouldLog {
 					logger.PrintTextWithColor(os.Stderr, useColor, func(colors logger.Colors) string {
-						prettyPath := w.resolver.PrettyPath(logger.Path{Text: absPath, Namespace: "file"})
+						prettyPath := resolver.PrettyPath(w.fs, logger.Path{Text: absPath, Namespace: "file"})
 						return fmt.Sprintf("%s[watch] build started (change: %q)%s\n", colors.Dim, prettyPath, colors.Reset)
 					})
 				}

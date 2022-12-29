@@ -906,9 +906,9 @@ func (r resolverQuery) resolveWithoutRemapping(sourceDirInfo *dirInfo, importPat
 	}
 }
 
-func (res *Resolver) PrettyPath(path logger.Path) string {
+func PrettyPath(fs fs.FS, path logger.Path) string {
 	if path.Namespace == "file" {
-		if rel, ok := res.fs.Rel(res.fs.Cwd(), path.Text); ok {
+		if rel, ok := fs.Rel(fs.Cwd(), path.Text); ok {
 			path.Text = rel
 		}
 
@@ -1012,7 +1012,7 @@ func (r resolverQuery) parseTSConfig(file string, visited map[string]bool) (*TSC
 	keyPath := logger.Path{Text: file, Namespace: "file"}
 	source := logger.Source{
 		KeyPath:    keyPath,
-		PrettyPath: r.PrettyPath(keyPath),
+		PrettyPath: PrettyPath(r.fs, keyPath),
 		Contents:   contents,
 	}
 	tracker := logger.MakeLineColumnTracker(&source)
@@ -1104,7 +1104,7 @@ func (r resolverQuery) parseTSConfig(file string, visited map[string]bool) (*TSC
 						} else if err != errParseErrorAlreadyLogged {
 							r.log.AddError(&tracker, extendsRange,
 								fmt.Sprintf("Cannot read file %q: %s",
-									r.PrettyPath(logger.Path{Text: fileToCheck, Namespace: "file"}), err.Error()))
+									PrettyPath(r.fs, logger.Path{Text: fileToCheck, Namespace: "file"}), err.Error()))
 						}
 						return nil
 					}
@@ -1168,7 +1168,7 @@ func (r resolverQuery) parseTSConfig(file string, visited map[string]bool) (*TSC
 				} else if err != errParseErrorAlreadyLogged {
 					r.log.AddError(&tracker, extendsRange,
 						fmt.Sprintf("Cannot read file %q: %s",
-							r.PrettyPath(logger.Path{Text: extendsFile, Namespace: "file"}), err.Error()))
+							PrettyPath(r.fs, logger.Path{Text: extendsFile, Namespace: "file"}), err.Error()))
 				}
 				return nil
 			}
@@ -1257,7 +1257,7 @@ func (r resolverQuery) dirInfoUncached(path string) *dirInfo {
 		if err != syscall.ENOENT && err != syscall.ENOTDIR {
 			r.log.AddError(nil, logger.Range{},
 				fmt.Sprintf("Cannot read directory %q: %s",
-					r.PrettyPath(logger.Path{Text: path, Namespace: "file"}), err.Error()))
+					PrettyPath(r.fs, logger.Path{Text: path, Namespace: "file"}), err.Error()))
 		}
 		return nil
 	}
@@ -1332,11 +1332,11 @@ func (r resolverQuery) dirInfoUncached(path string) *dirInfo {
 			if err != nil {
 				if err == syscall.ENOENT {
 					r.log.AddError(nil, logger.Range{}, fmt.Sprintf("Cannot find tsconfig file %q",
-						r.PrettyPath(logger.Path{Text: tsConfigPath, Namespace: "file"})))
+						PrettyPath(r.fs, logger.Path{Text: tsConfigPath, Namespace: "file"})))
 				} else if err != errParseErrorAlreadyLogged {
 					r.log.AddID(logger.MsgID_TsconfigJSON_Missing, logger.Debug, nil, logger.Range{},
 						fmt.Sprintf("Cannot read file %q: %s",
-							r.PrettyPath(logger.Path{Text: tsConfigPath, Namespace: "file"}), err.Error()))
+							PrettyPath(r.fs, logger.Path{Text: tsConfigPath, Namespace: "file"}), err.Error()))
 				}
 			}
 		}
@@ -1423,7 +1423,7 @@ func (r resolverQuery) loadAsFile(path string, extensionOrder []string) (string,
 		if err != syscall.ENOENT {
 			r.log.AddError(nil, logger.Range{},
 				fmt.Sprintf("Cannot read directory %q: %s",
-					r.PrettyPath(logger.Path{Text: dirPath, Namespace: "file"}), err.Error()))
+					PrettyPath(r.fs, logger.Path{Text: dirPath, Namespace: "file"}), err.Error()))
 		}
 		return "", false, nil
 	}
@@ -2362,7 +2362,7 @@ func (r resolverQuery) finalizeImportsExportsResult(
 					actualImportPath := path.Join(esmPackageName, subpath)
 					r.debugMeta.suggestionText = string(helpers.QuoteForJSON(actualImportPath, false))
 					r.debugMeta.suggestionMessage = fmt.Sprintf("Import from %q to get the file %q:",
-						actualImportPath, r.PrettyPath(absolute.Primary))
+						actualImportPath, PrettyPath(r.fs, absolute.Primary))
 				}
 			}
 		}
@@ -2381,7 +2381,7 @@ func (r resolverQuery) finalizeImportsExportsResult(
 			r.debugMeta.suggestionRange = suggestionRangeEnd
 			r.debugMeta.suggestionText = missingSuffix
 			r.debugMeta.suggestionMessage = fmt.Sprintf("Import from %q to get the file %q:",
-				actualImportPath, r.PrettyPath(logger.Path{Text: r.fs.Join(absDirPath, resolvedPath+missingSuffix), Namespace: "file"}))
+				actualImportPath, PrettyPath(r.fs, logger.Path{Text: r.fs.Join(absDirPath, resolvedPath+missingSuffix), Namespace: "file"}))
 		}
 
 	case pjStatusUnsupportedDirectoryImport, pjStatusUnsupportedDirectoryImportMissingIndex:
@@ -2397,7 +2397,7 @@ func (r resolverQuery) finalizeImportsExportsResult(
 			r.debugMeta.suggestionRange = suggestionRangeEnd
 			r.debugMeta.suggestionText = missingSuffix
 			r.debugMeta.suggestionMessage = fmt.Sprintf("Import from %q to get the file %q:",
-				actualImportPath, r.PrettyPath(logger.Path{Text: r.fs.Join(absDirPath, resolvedPath+missingSuffix), Namespace: "file"}))
+				actualImportPath, PrettyPath(r.fs, logger.Path{Text: r.fs.Join(absDirPath, resolvedPath+missingSuffix), Namespace: "file"}))
 		}
 
 	case pjStatusUndefinedNoConditionsMatch:

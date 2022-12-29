@@ -1141,7 +1141,6 @@ func rebuildImpl(
 	var watchData fs.WatchData
 
 	// Stop now if there were errors
-	resolver := resolver.NewResolver(realFS, log, caches, options)
 	if !log.HasErrors() {
 		var timer *helpers.Timer
 		if api_helpers.UseTimer {
@@ -1154,7 +1153,7 @@ func rebuildImpl(
 		}
 
 		// Scan over the bundle
-		bundle := bundler.ScanBundle(log, realFS, resolver, caches, entryPoints, options, timer)
+		bundle := bundler.ScanBundle(log, realFS, caches, entryPoints, options, timer)
 		watchData = realFS.WatchData()
 
 		// Stop now if there were errors
@@ -1235,8 +1234,8 @@ func rebuildImpl(
 	if buildOpts.Watch != nil && !isRebuild {
 		onRebuild := buildOpts.Watch.OnRebuild
 		watch = &watcher{
-			data:     watchData,
-			resolver: resolver,
+			data: watchData,
+			fs:   realFS,
 			rebuild: func() fs.WatchData {
 				value := rebuildImpl(buildOpts, caches, plugins, nil, onEndCallbacks, logOptions, logger.NewStderrLog(logOptions), true /* isRebuild */)
 				if onRebuild != nil {
@@ -1442,8 +1441,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 
 		// Scan over the bundle
 		mockFS := fs.MockFS(make(map[string]string), fs.MockUnix)
-		resolver := resolver.NewResolver(mockFS, log, caches, options)
-		bundle := bundler.ScanBundle(log, mockFS, resolver, caches, nil, options, timer)
+		bundle := bundler.ScanBundle(log, mockFS, caches, nil, options, timer)
 
 		// Stop now if there were errors
 		if !log.HasErrors() {

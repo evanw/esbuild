@@ -23,7 +23,6 @@ import (
 	"github.com/evanw/esbuild/internal/fs"
 	"github.com/evanw/esbuild/internal/linker"
 	"github.com/evanw/esbuild/internal/logger"
-	"github.com/evanw/esbuild/internal/resolver"
 	"github.com/evanw/esbuild/internal/test"
 )
 
@@ -157,8 +156,7 @@ func (s *suite) __expectBundledImpl(t *testing.T, args bundled, fsKind fs.MockKi
 		caches := cache.MakeCacheSet()
 		mockFS := fs.MockFS(args.files, fsKind)
 		args.options.OmitRuntimeForTests = true
-		resolver := resolver.NewResolver(mockFS, log, caches, args.options)
-		bundle := bundler.ScanBundle(log, mockFS, resolver, caches, entryPoints, args.options, nil)
+		bundle := bundler.ScanBundle(log, mockFS, caches, entryPoints, args.options, nil)
 		msgs := log.Done()
 		assertLog(t, msgs, args.expectedScanLog)
 

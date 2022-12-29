@@ -618,7 +618,7 @@ func (r resolverQuery) extractYarnPnPDataFromJSON(pnpDataPath string, mode pnpDa
 		if mode == pnpReportErrorsAboutMissingFiles || err != syscall.ENOENT {
 			r.log.AddError(nil, logger.Range{},
 				fmt.Sprintf("Cannot read file %q: %s",
-					r.PrettyPath(logger.Path{Text: pnpDataPath, Namespace: "file"}), err.Error()))
+					PrettyPath(r.fs, logger.Path{Text: pnpDataPath, Namespace: "file"}), err.Error()))
 		}
 		return
 	}
@@ -628,7 +628,7 @@ func (r resolverQuery) extractYarnPnPDataFromJSON(pnpDataPath string, mode pnpDa
 	keyPath := logger.Path{Text: pnpDataPath, Namespace: "file"}
 	source = logger.Source{
 		KeyPath:    keyPath,
-		PrettyPath: r.PrettyPath(keyPath),
+		PrettyPath: PrettyPath(r.fs, keyPath),
 		Contents:   contents,
 	}
 	result, _ = r.caches.JSONCache.Parse(r.log, source, js_parser.JSONOptions{})
@@ -644,7 +644,7 @@ func (r resolverQuery) tryToExtractYarnPnPDataFromJS(pnpDataPath string, mode pn
 		if mode == pnpReportErrorsAboutMissingFiles || err != syscall.ENOENT {
 			r.log.AddError(nil, logger.Range{},
 				fmt.Sprintf("Cannot read file %q: %s",
-					r.PrettyPath(logger.Path{Text: pnpDataPath, Namespace: "file"}), err.Error()))
+					PrettyPath(r.fs, logger.Path{Text: pnpDataPath, Namespace: "file"}), err.Error()))
 		}
 		return
 	}
@@ -655,7 +655,7 @@ func (r resolverQuery) tryToExtractYarnPnPDataFromJS(pnpDataPath string, mode pn
 	keyPath := logger.Path{Text: pnpDataPath, Namespace: "file"}
 	source = logger.Source{
 		KeyPath:    keyPath,
-		PrettyPath: r.PrettyPath(keyPath),
+		PrettyPath: PrettyPath(r.fs, keyPath),
 		Contents:   contents,
 	}
 	ast, _ := r.caches.JSCache.Parse(r.log, source, js_parser.OptionsForYarnPnP())

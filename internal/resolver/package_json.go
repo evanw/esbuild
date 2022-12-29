@@ -249,7 +249,7 @@ func (r resolverQuery) parsePackageJSON(inputPath string) *packageJSON {
 	if err != nil {
 		r.log.AddError(nil, logger.Range{},
 			fmt.Sprintf("Cannot read file %q: %s",
-				r.PrettyPath(logger.Path{Text: packageJSONPath, Namespace: "file"}), err.Error()))
+				PrettyPath(r.fs, logger.Path{Text: packageJSONPath, Namespace: "file"}), err.Error()))
 		return nil
 	}
 	if r.debugLogs != nil {
@@ -259,7 +259,7 @@ func (r resolverQuery) parsePackageJSON(inputPath string) *packageJSON {
 	keyPath := logger.Path{Text: packageJSONPath, Namespace: "file"}
 	jsonSource := logger.Source{
 		KeyPath:    keyPath,
-		PrettyPath: r.PrettyPath(keyPath),
+		PrettyPath: PrettyPath(r.fs, keyPath),
 		Contents:   contents,
 	}
 	tracker := logger.MakeLineColumnTracker(&jsonSource)
