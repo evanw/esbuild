@@ -848,8 +848,9 @@ func buildImpl(buildOpts BuildOptions) rebuildResult {
 	log := logger.NewStderrLog(logOptions)
 
 	// Validate that the current working directory is an absolute path
+	absWorkingDir := buildOpts.AbsWorkingDir
 	realFS, err := fs.RealFS(fs.RealFSOptions{
-		AbsWorkingDir: buildOpts.AbsWorkingDir,
+		AbsWorkingDir: absWorkingDir,
 
 		// This is a long-lived file system object so do not cache calls to
 		// ReadDirectory() (they are normally cached for the duration of a build
@@ -865,9 +866,10 @@ func buildImpl(buildOpts BuildOptions) rebuildResult {
 	// directory doesn't change, since breaking that invariant would break the
 	// validation that we just did above.
 	caches := cache.MakeCacheSet()
-	oldAbsWorkingDir := buildOpts.AbsWorkingDir
-	plugins, onEndCallbacks, finalizeBuildOptions := loadPlugins(&buildOpts, realFS, log, caches)
-	if buildOpts.AbsWorkingDir != oldAbsWorkingDir {
+	onEndCallbacks, finalizeBuildOptions := loadPlugins(&buildOpts, realFS, log, caches)
+	options, entryPoints := validateBuildOptions(buildOpts, log, realFS)
+	finalizeBuildOptions(&options)
+	if buildOpts.AbsWorkingDir != absWorkingDir {
 		panic("Mutating \"AbsWorkingDir\" is not allowed")
 	}
 
@@ -875,13 +877,20 @@ func buildImpl(buildOpts BuildOptions) rebuildResult {
 		caches:         caches,
 		onEndCallbacks: onEndCallbacks,
 		logOptions:     logOptions,
+		entryPoints:    entryPoints,
+		options:        options,
+		mangleCache:    buildOpts.MangleCache,
+		watch:          buildOpts.Watch,
+		absWorkingDir:  absWorkingDir,
+		incremental:    buildOpts.Incremental,
+		write:          buildOpts.Write,
 	}
-	internalResult := rebuildImpl(buildOpts, args, plugins, finalizeBuildOptions, log, false /* isRebuild */)
+	internalResult := rebuildImpl(args, log, false /* isRebuild */)
 
 	// Print a summary of the generated files to stderr. Except don't do
 	// this if the terminal is already being used for something else.
 	if logOptions.LogLevel <= logger.LevelInfo && len(internalResult.result.OutputFiles) > 0 &&
-		buildOpts.Watch == nil && !buildOpts.Incremental && !internalResult.options.WriteToStdout {
+		buildOpts.Watch == nil && !buildOpts.Incremental && !options.WriteToStdout {
 		printSummary(logOptions, internalResult.result.OutputFiles, start)
 	}
 
@@ -939,35 +948,14 @@ func printSummary(logOptions logger.OutputOptions, outputFiles []OutputFile, sta
 	logger.PrintSummary(logOptions.Color, table, &start)
 }
 
-type rebuildArgs struct {
-	caches         *cache.CacheSet
-	onEndCallbacks []func(*BuildResult)
-	logOptions     logger.OutputOptions
-}
-
-type rebuildResult struct {
-	result    BuildResult
-	watchData fs.WatchData
-	options   config.Options
-}
-
-func rebuildImpl(
+func validateBuildOptions(
 	buildOpts BuildOptions,
-	args rebuildArgs,
-	plugins []config.Plugin,
-	finalizeBuildOptions func(*config.Options),
 	log logger.Log,
-	isRebuild bool,
-) rebuildResult {
-	// Convert and validate the buildOpts
-	realFS, err := fs.RealFS(fs.RealFSOptions{
-		AbsWorkingDir: buildOpts.AbsWorkingDir,
-		WantWatchData: buildOpts.Watch != nil,
-	})
-	if err != nil {
-		// This should already have been checked above
-		panic(err.Error())
-	}
+	realFS fs.FS,
+) (
+	options config.Options,
+	entryPoints []bundler.EntryPoint,
+) {
 	targetFromAPI, jsFeatures, cssFeatures, targetEnv := validateFeatures(log, buildOpts.Target, buildOpts.Engines)
 	jsOverrides, jsMask, cssOverrides, cssMask := validateSupported(log, buildOpts.Supported)
 	outJS, outCSS := validateOutputExtensions(log, buildOpts.OutExtension)
@@ -976,8 +964,7 @@ func rebuildImpl(
 	minify := buildOpts.MinifyWhitespace && buildOpts.MinifyIdentifiers && buildOpts.MinifySyntax
 	platform := validatePlatform(buildOpts.Platform)
 	defines, injectedDefines := validateDefines(log, buildOpts.Define, buildOpts.Pure, platform, true /* isBuildAPI */, minify, buildOpts.Drop)
-	mangleCache := cloneMangleCache(log, buildOpts.MangleCache)
-	options := config.Options{
+	options = config.Options{
 		TargetFromAPI:                      targetFromAPI,
 		UnsupportedJSFeatures:              jsFeatures.ApplyOverrides(jsOverrides, jsMask),
 		UnsupportedCSSFeatures:             cssFeatures.ApplyOverrides(cssOverrides, cssMask),
@@ -1042,7 +1029,6 @@ func rebuildImpl(
 		CSSFooter:             footerCSS,
 		PreserveSymlinks:      buildOpts.PreserveSymlinks,
 		WatchMode:             buildOpts.Watch != nil,
-		Plugins:               plugins,
 	}
 	if buildOpts.Conditions != nil {
 		options.Conditions = append([]string{}, buildOpts.Conditions...)
@@ -1053,7 +1039,7 @@ func rebuildImpl(
 	for i, path := range buildOpts.NodePaths {
 		options.AbsNodePaths[i] = validatePath(log, realFS, path, "node path")
 	}
-	entryPoints := make([]bundler.EntryPoint, 0, len(buildOpts.EntryPoints)+len(buildOpts.EntryPointsAdvanced))
+	entryPoints = make([]bundler.EntryPoint, 0, len(buildOpts.EntryPoints)+len(buildOpts.EntryPointsAdvanced))
 	for _, ep := range buildOpts.EntryPoints {
 		entryPoints = append(entryPoints, bundler.EntryPoint{InputPath: ep})
 	}
@@ -1145,9 +1131,47 @@ func rebuildImpl(
 		log.AddError(nil, logger.Range{}, "Splitting currently only works with the \"esm\" format")
 	}
 
+	return
+}
+
+type rebuildArgs struct {
+	caches         *cache.CacheSet
+	onEndCallbacks []func(*BuildResult)
+	logOptions     logger.OutputOptions
+	entryPoints    []bundler.EntryPoint
+	options        config.Options
+	mangleCache    map[string]interface{}
+	watch          *WatchMode
+	absWorkingDir  string
+	incremental    bool
+	write          bool
+}
+
+type rebuildResult struct {
+	result    BuildResult
+	watchData fs.WatchData
+	options   config.Options
+}
+
+func rebuildImpl(
+	args rebuildArgs,
+	log logger.Log,
+	isRebuild bool,
+) rebuildResult {
+	// Convert and validate the buildOpts
+	realFS, err := fs.RealFS(fs.RealFSOptions{
+		AbsWorkingDir: args.absWorkingDir,
+		WantWatchData: args.options.WatchMode,
+	})
+	if err != nil {
+		// This should already have been checked by the caller
+		panic(err.Error())
+	}
+
 	var outputFiles []OutputFile
 	var metafileJSON string
 	var watchData fs.WatchData
+	var mangleCache map[string]interface{}
 
 	// Stop now if there were errors
 	if !log.HasErrors() {
@@ -1156,18 +1180,14 @@ func rebuildImpl(
 			timer = &helpers.Timer{}
 		}
 
-		// Finalize the build options, which will enable API methods that need them such as the "resolve" API
-		if finalizeBuildOptions != nil {
-			finalizeBuildOptions(&options)
-		}
-
 		// Scan over the bundle
-		bundle := bundler.ScanBundle(log, realFS, args.caches, entryPoints, options, timer)
+		bundle := bundler.ScanBundle(log, realFS, args.caches, args.entryPoints, args.options, timer)
 		watchData = realFS.WatchData()
 
 		// Stop now if there were errors
 		if !log.HasErrors() {
 			// Compile the bundle
+			mangleCache = cloneMangleCache(log, args.mangleCache)
 			results, metafile := bundle.Compile(log, timer, mangleCache, linker.Link)
 
 			// Stop now if there were errors
@@ -1177,9 +1197,9 @@ func rebuildImpl(
 				// Flush any deferred warnings now
 				log.AlmostDone()
 
-				if buildOpts.Write {
+				if args.write {
 					timer.Begin("Write output files")
-					if options.WriteToStdout {
+					if args.options.WriteToStdout {
 						// Special-case writing to stdout
 						if len(results) != 1 {
 							log.AddError(nil, logger.Range{}, fmt.Sprintf(
@@ -1220,7 +1240,7 @@ func rebuildImpl(
 				// Return the results
 				outputFiles = make([]OutputFile, len(results))
 				for i, result := range results {
-					if options.WriteToStdout {
+					if args.options.WriteToStdout {
 						result.AbsPath = "<stdout>"
 					}
 					outputFiles[i] = OutputFile{
@@ -1240,29 +1260,29 @@ func rebuildImpl(
 	// Start watching, but only for the top-level build
 	var watch *watcher
 	var stop func()
-	if buildOpts.Watch != nil && !isRebuild {
-		onRebuild := buildOpts.Watch.OnRebuild
+	if args.watch != nil && !isRebuild {
+		onRebuild := args.watch.OnRebuild
 		watch = &watcher{
 			data: watchData,
 			fs:   realFS,
 			rebuild: func() fs.WatchData {
-				value := rebuildImpl(buildOpts, args, plugins, nil, logger.NewStderrLog(args.logOptions), true /* isRebuild */)
+				value := rebuildImpl(args, logger.NewStderrLog(args.logOptions), true /* isRebuild */)
 				if onRebuild != nil {
 					go onRebuild(value.result)
 				}
 				return value.watchData
 			},
 		}
-		watch.start(buildOpts.LogLevel, buildOpts.Color)
+		watch.start(args.logOptions.LogLevel, args.logOptions.Color)
 		stop = func() {
 			watch.stop()
 		}
 	}
 
 	var rebuild func() BuildResult
-	if buildOpts.Incremental {
+	if args.incremental {
 		rebuild = func() BuildResult {
-			value := rebuildImpl(buildOpts, args, plugins, nil, logger.NewStderrLog(args.logOptions), true /* isRebuild */)
+			value := rebuildImpl(args, logger.NewStderrLog(args.logOptions), true /* isRebuild */)
 			if watch != nil {
 				watch.setWatchData(value.watchData)
 			}
@@ -1291,7 +1311,7 @@ func rebuildImpl(
 
 	return rebuildResult{
 		result:    result,
-		options:   options,
+		options:   args.options,
 		watchData: watchData,
 	}
 }
@@ -1692,7 +1712,6 @@ func (impl *pluginImpl) validatePathsArray(pathsIn []string, name string) (paths
 }
 
 func loadPlugins(initialOptions *BuildOptions, fs fs.FS, log logger.Log, caches *cache.CacheSet) (
-	plugins []config.Plugin,
 	onEndCallbacks []func(*BuildResult),
 	finalizeBuildOptions func(*config.Options),
 ) {
@@ -1703,16 +1722,13 @@ func loadPlugins(initialOptions *BuildOptions, fs fs.FS, log logger.Log, caches 
 	// Clone the plugin array to guard against mutation during iteration
 	clone := append(make([]Plugin, 0, len(initialOptions.Plugins)), initialOptions.Plugins...)
 
-	var resolveMutex sync.Mutex
 	var optionsForResolve *config.Options
+	var plugins []config.Plugin
 
-	// This is called when the build options are finalized
+	// This is called after the build options have been validated
 	finalizeBuildOptions = func(options *config.Options) {
-		resolveMutex.Lock()
-		if optionsForResolve == nil {
-			optionsForResolve = options
-		}
-		resolveMutex.Unlock()
+		options.Plugins = plugins
+		optionsForResolve = options
 	}
 
 	for i, item := range clone {
@@ -1728,15 +1744,10 @@ func loadPlugins(initialOptions *BuildOptions, fs fs.FS, log logger.Log, caches 
 		}
 
 		resolve := func(path string, options ResolveOptions) (result ResolveResult) {
-			// Try to grab the resolver options
-			resolveMutex.Lock()
-			buildOptions := optionsForResolve
-			resolveMutex.Unlock()
-
-			// If we couldn't grab them, then this is being called before plugin setup
+			// If options are missing, then this is being called before plugin setup
 			// has finished. That isn't allowed because plugin setup is allowed to
 			// change the initial options object, which can affect path resolution.
-			if buildOptions == nil {
+			if optionsForResolve == nil {
 				return ResolveResult{Errors: []Message{{Text: "Cannot call \"resolve\" before plugin setup has completed"}}}
 			}
 
@@ -1746,7 +1757,7 @@ func loadPlugins(initialOptions *BuildOptions, fs fs.FS, log logger.Log, caches 
 
 			// Make a new resolver so it has its own log
 			log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug, validateLogOverrides(initialOptions.LogOverride))
-			resolver := resolver.NewResolver(fs, log, caches, *buildOptions)
+			resolver := resolver.NewResolver(fs, log, caches, *optionsForResolve)
 
 			// Make sure the resolve directory is an absolute path, which can fail
 			absResolveDir := validatePath(log, fs, options.ResolveDir, "resolve directory")
@@ -1791,7 +1802,7 @@ func loadPlugins(initialOptions *BuildOptions, fs fs.FS, log logger.Log, caches 
 				if options.PluginName != "" {
 					pluginName = options.PluginName
 				}
-				text, _, notes := bundler.ResolveFailureErrorTextSuggestionNotes(resolver, path, kind, pluginName, fs, absResolveDir, buildOptions.Platform, "", "")
+				text, _, notes := bundler.ResolveFailureErrorTextSuggestionNotes(resolver, path, kind, pluginName, fs, absResolveDir, optionsForResolve.Platform, "", "")
 				result.Errors = append(result.Errors, convertMessagesToPublic(logger.Error, []logger.Msg{{
 					Data:  logger.MsgData{Text: text},
 					Notes: notes,

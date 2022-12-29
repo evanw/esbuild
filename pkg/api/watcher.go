@@ -75,11 +75,9 @@ func (w *watcher) setWatchData(data fs.WatchData) {
 	w.recentItems = w.recentItems[:end]
 }
 
-func (w *watcher) start(logLevel LogLevel, color StderrColor) {
-	useColor := validateColor(color)
-
+func (w *watcher) start(logLevel logger.LogLevel, useColor logger.UseColor) {
 	go func() {
-		shouldLog := logLevel == LogLevelInfo || logLevel == LogLevelDebug || logLevel == LogLevelVerbose
+		shouldLog := logLevel == logger.LevelInfo || logLevel == logger.LevelDebug || logLevel == logger.LevelVerbose
 
 		// Note: Do not change these log messages without a breaking version change.
 		// People want to run regexes over esbuild's stderr stream to look for these
