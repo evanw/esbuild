@@ -1213,12 +1213,32 @@ func runImpl(osArgs []string) int {
 			}
 		}
 
-		// Always generate a metafile if we're analyzing, even if it won't be written out
+		// Print metafile analysis after the build if it's enabled
+		var printAnalysis func(metafile string)
 		if analyze {
+			printAnalysis = func(metafile string) {
+				if metafile == "" {
+					return
+				}
+				logger.PrintTextWithColor(os.Stderr, logger.OutputOptionsForArgs(osArgs).Color, func(colors logger.Colors) string {
+					return api.AnalyzeMetafile(metafile, api.AnalyzeMetafileOptions{
+						Color:   colors != logger.Colors{},
+						Verbose: analyzeVerbose,
+					})
+				})
+				os.Stderr.WriteString("\n")
+			}
+
+			// Always generate a metafile if we're analyzing, even if it won't be written out
 			buildOptions.Metafile = true
 		}
 
-		writeExtraFiles := func(result *api.BuildResult) {
+		postBuildActions := func(result *api.BuildResult) {
+			// Print our analysis of the metafile
+			if printAnalysis != nil {
+				printAnalysis(result.Metafile)
+			}
+
 			// Write the metafile to the file system
 			if writeMetafile != nil {
 				writeMetafile(result.Metafile)
@@ -1232,25 +1252,18 @@ func runImpl(osArgs []string) int {
 
 		// Write out extra files whenever we rebuild
 		if buildOptions.Watch != nil {
-			buildOptions.Watch.OnRebuild = func(result api.BuildResult) {
-				writeExtraFiles(&result)
-			}
+			buildOptions.Plugins = append(buildOptions.Plugins, api.Plugin{
+				Name: "PostBuildActions",
+				Setup: func(build api.PluginBuild) {
+					build.OnEnd(func(result *api.BuildResult) {
+						postBuildActions(result)
+					})
+				},
+			})
 		}
 
 		// Run the build
 		result := api.Build(*buildOptions)
-		writeExtraFiles(&result)
-
-		// Print the analysis after the build
-		if analyze {
-			logger.PrintTextWithColor(os.Stderr, logger.OutputOptionsForArgs(osArgs).Color, func(colors logger.Colors) string {
-				return api.AnalyzeMetafile(result.Metafile, api.AnalyzeMetafileOptions{
-					Color:   colors != logger.Colors{},
-					Verbose: analyzeVerbose,
-				})
-			})
-			os.Stderr.WriteString("\n")
-		}
 
 		// Do not exit if we're in watch mode
 		if buildOptions.Watch != nil {
@@ -1261,6 +1274,8 @@ func runImpl(osArgs []string) int {
 		if len(result.Errors) > 0 {
 			return 1
 		}
+
+		postBuildActions(&result)
 
 	case transformOptions != nil:
 		// Read the input from stdin
