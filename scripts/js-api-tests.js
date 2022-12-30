@@ -3630,7 +3630,7 @@ let watchTests = {
       {
         const [error2, result2] = await rebuildUntil(
           () => writeFileAtomic(input, `foo(123)`),
-          (err, res) => readFileAsync(output, 'utf8').then(x => x === 'foo(123);\n'),
+          () => fs.readFileSync(output, 'utf8') === 'foo(123);\n',
         )
         assert.strictEqual(result2.metafile.inputs[relInput].bytes, 8)
       }
@@ -3678,7 +3678,7 @@ let watchTests = {
       {
         const [error2, result2] = await rebuildUntil(
           () => writeFileAtomic(input, `foo(bar.baz)`),
-          (err, res) => readFileAsync(output, 'utf8').then(x => x === 'foo(bar.a);\n'),
+          () => fs.readFileSync(output, 'utf8') === 'foo(bar.a);\n',
         )
         assert.strictEqual(JSON.stringify(result2.mangleCache), '{"baz":"a"}')
       }
