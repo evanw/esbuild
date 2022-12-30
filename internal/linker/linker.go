@@ -1919,10 +1919,10 @@ func (c *linkerContext) generateCodeForLazyExport(sourceIndex uint32) {
 					// that actually end up being used, and we don't know which ones will
 					// end up actually being used at this point (since import binding hasn't
 					// happened yet). So we need to wait until after tree shaking happens.
-					repr.AST.Parts[partIndex].Stmts = []js_ast.Stmt{{Loc: property.ValueOrNil.Loc, Data: &js_ast.SLocal{
+					repr.AST.Parts[partIndex].Stmts = []js_ast.Stmt{{Loc: property.Key.Loc, Data: &js_ast.SLocal{
 						IsExport: true,
 						Decls: []js_ast.Decl{{
-							Binding:    js_ast.Binding{Loc: property.ValueOrNil.Loc, Data: &js_ast.BIdentifier{Ref: ref}},
+							Binding:    js_ast.Binding{Loc: property.Key.Loc, Data: &js_ast.BIdentifier{Ref: ref}},
 							ValueOrNil: property.ValueOrNil,
 						}},
 					}}}
