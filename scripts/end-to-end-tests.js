@@ -43,6 +43,15 @@ tests.push(
   }),
 )
 
+// Test enabling watch mode and serve mode, which is disallowed
+tests.push(
+  test(['--watch=forever', '--servedir=.'], {}, {
+    expectedStderr: `${errorIcon} [ERROR] Cannot use "watch" with "serve"
+
+`,
+  }),
+)
+
 // Test bogus paths with a file as a parent directory (this happens when you use "pnpx esbuild")
 tests.push(
   test(['entry.js', '--bundle'], {
@@ -6707,6 +6716,7 @@ function test(args, files, options) {
       const logLevelArgs = args.some(arg => arg.startsWith('--log-level=')) ? [] : ['--log-level=warning']
       const modifiedArgs = (!hasBundle || args.includes(formatArg) ? args : args.concat(formatArg)).concat(logLevelArgs)
       const thisTestDir = path.join(testDir, '' + testCount++)
+      await fs.mkdir(thisTestDir, { recursive: true })
 
       try {
         // Test setup

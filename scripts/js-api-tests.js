@@ -3689,6 +3689,19 @@ let watchTests = {
 }
 
 let serveTests = {
+  async serveWatch({ esbuild }) {
+    try {
+      const result = await esbuild.serve({}, {
+        watch: true,
+      })
+      result.stop()
+      await result.wait
+      throw new Error('Expected an error to be thrown')
+    } catch (err) {
+      assert.strictEqual(err.message, 'Cannot use "watch" with "serve"')
+    }
+  },
+
   async serveBasic({ esbuild, testDir }) {
     const input = path.join(testDir, 'in.js')
     await writeFileAsync(input, `console.log(123)`)
