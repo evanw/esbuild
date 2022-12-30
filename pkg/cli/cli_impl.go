@@ -1233,34 +1233,28 @@ func runImpl(osArgs []string) int {
 			buildOptions.Metafile = true
 		}
 
-		postBuildActions := func(result *api.BuildResult) {
-			// Print our analysis of the metafile
-			if printAnalysis != nil {
-				printAnalysis(result.Metafile)
-			}
+		// Handle post-build actions with a plugin so they also work in watch mode
+		buildOptions.Plugins = append(buildOptions.Plugins, api.Plugin{
+			Name: "PostBuildActions",
+			Setup: func(build api.PluginBuild) {
+				build.OnEnd(func(result *api.BuildResult) {
+					// Print our analysis of the metafile
+					if printAnalysis != nil {
+						printAnalysis(result.Metafile)
+					}
 
-			// Write the metafile to the file system
-			if writeMetafile != nil {
-				writeMetafile(result.Metafile)
-			}
+					// Write the metafile to the file system
+					if writeMetafile != nil {
+						writeMetafile(result.Metafile)
+					}
 
-			// Write the mangle cache to the file system
-			if writeMangleCache != nil {
-				writeMangleCache(result.MangleCache)
-			}
-		}
-
-		// Write out extra files whenever we rebuild
-		if buildOptions.Watch != nil {
-			buildOptions.Plugins = append(buildOptions.Plugins, api.Plugin{
-				Name: "PostBuildActions",
-				Setup: func(build api.PluginBuild) {
-					build.OnEnd(func(result *api.BuildResult) {
-						postBuildActions(result)
-					})
-				},
-			})
-		}
+					// Write the mangle cache to the file system
+					if writeMangleCache != nil {
+						writeMangleCache(result.MangleCache)
+					}
+				})
+			},
+		})
 
 		// Run the build
 		result := api.Build(*buildOptions)
@@ -1270,12 +1264,10 @@ func runImpl(osArgs []string) int {
 			<-make(chan struct{})
 		}
 
-		// Stop if there were errors
+		// Return a non-zero exit code if there were errors
 		if len(result.Errors) > 0 {
 			return 1
 		}
-
-		postBuildActions(&result)
 
 	case transformOptions != nil:
 		// Read the input from stdin
