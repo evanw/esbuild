@@ -80,15 +80,15 @@ verify-source-map: version-go | scripts/node_modules
 	node scripts/esbuild.js npm/esbuild/package.json --version
 	node scripts/verify-source-map.js
 
-end-to-end-tests: version-go | scripts/node_modules
+end-to-end-tests: version-go
 	node scripts/esbuild.js npm/esbuild/package.json --version
 	node scripts/end-to-end-tests.js
 
-js-api-tests: version-go | scripts/node_modules
+js-api-tests: version-go
 	node scripts/esbuild.js npm/esbuild/package.json --version
 	node scripts/js-api-tests.js
 
-plugin-tests: version-go | scripts/node_modules
+plugin-tests: version-go
 	node scripts/plugin-tests.js
 
 ts-type-tests: | scripts/node_modules
