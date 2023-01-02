@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.16.13
 
 * Publish a new bundle visualization tool
 
