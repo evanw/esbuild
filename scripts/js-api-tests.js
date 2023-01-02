@@ -1044,9 +1044,9 @@ body {
     // Check inputs
     assert.deepStrictEqual(json.inputs[makePath(entry)].bytes, 144)
     assert.deepStrictEqual(json.inputs[makePath(entry)].imports, [
-      { path: makePath(imported), kind: 'import-statement' },
-      { path: makePath(css), kind: 'import-statement' },
-      { path: makePath(text), kind: 'require-call' },
+      { path: makePath(imported), kind: 'import-statement', original: './imported' },
+      { path: makePath(css), kind: 'import-statement', original: './example.css' },
+      { path: makePath(text), kind: 'require-call', original: './text.txt' },
     ])
     assert.deepStrictEqual(json.inputs[makePath(imported)].bytes, 18)
     assert.deepStrictEqual(json.inputs[makePath(imported)].imports, [])
@@ -1124,8 +1124,14 @@ body {
     const outEntry2 = makeOutPath(path.basename(entry2));
     const outChunk = makeOutPath(chunk);
 
-    assert.deepStrictEqual(json.inputs[inEntry1], { bytes: 94, imports: [{ path: inImported, kind: 'import-statement' }] })
-    assert.deepStrictEqual(json.inputs[inEntry2], { bytes: 107, imports: [{ path: inImported, kind: 'import-statement' }] })
+    assert.deepStrictEqual(json.inputs[inEntry1], {
+      bytes: 94,
+      imports: [{ path: inImported, kind: 'import-statement', original: './' + path.basename(imported) }],
+    })
+    assert.deepStrictEqual(json.inputs[inEntry2], {
+      bytes: 107,
+      imports: [{ path: inImported, kind: 'import-statement', original: './' + path.basename(imported) }],
+    })
     assert.deepStrictEqual(json.inputs[inImported], { bytes: 118, imports: [] })
 
     assert.deepStrictEqual(json.outputs[outEntry1].imports, [{ path: makeOutPath(chunk), kind: 'import-statement' }])
@@ -1188,8 +1194,14 @@ body {
     const outEntry2 = makeOutPath(path.basename(entry2));
     const outChunk = makeOutPath(chunk);
 
-    assert.deepStrictEqual(json.inputs[inEntry1], { bytes: 94, imports: [{ path: inImported, kind: 'import-statement' }] })
-    assert.deepStrictEqual(json.inputs[inEntry2], { bytes: 107, imports: [{ path: inImported, kind: 'import-statement' }] })
+    assert.deepStrictEqual(json.inputs[inEntry1], {
+      bytes: 94,
+      imports: [{ path: inImported, kind: 'import-statement', original: './' + path.basename(imported) }],
+    })
+    assert.deepStrictEqual(json.inputs[inEntry2], {
+      bytes: 107,
+      imports: [{ path: inImported, kind: 'import-statement', original: './' + path.basename(imported) }],
+    })
     assert.deepStrictEqual(json.inputs[inImported], { bytes: 118, imports: [] })
 
     assert.deepStrictEqual(json.outputs[outEntry1].imports, [{ path: makeOutPath(chunk), kind: 'import-statement' }])
@@ -1212,18 +1224,18 @@ body {
     const import2 = path.join(importDir, 'import2.js')
     const shared = path.join(testDir, 'shared.js')
     const outdir = path.join(testDir, 'out')
-    const makeImportPath = (importing, imported) => JSON.stringify('./' + path.relative(path.dirname(importing), imported).split(path.sep).join('/'))
+    const makeImportPath = (importing, imported) => './' + path.relative(path.dirname(importing), imported).split(path.sep).join('/')
     await mkdirAsync(importDir)
     await writeFileAsync(entry, `
-      import ${makeImportPath(entry, shared)}
-      import(${makeImportPath(entry, import1)})
-      import(${makeImportPath(entry, import2)})
+      import ${JSON.stringify(makeImportPath(entry, shared))}
+      import(${JSON.stringify(makeImportPath(entry, import1))})
+      import(${JSON.stringify(makeImportPath(entry, import2))})
     `)
     await writeFileAsync(import1, `
-      import ${makeImportPath(import1, shared)}
+      import ${JSON.stringify(makeImportPath(import1, shared))}
     `)
     await writeFileAsync(import2, `
-      import ${makeImportPath(import2, shared)}
+      import ${JSON.stringify(makeImportPath(import2, shared))}
     `)
     await writeFileAsync(shared, `
       console.log('side effect')
@@ -1258,21 +1270,21 @@ body {
     assert.deepStrictEqual(json.inputs[inEntry], {
       bytes: 112,
       imports: [
-        { path: inShared, kind: 'import-statement' },
-        { path: inImport1, kind: 'dynamic-import' },
-        { path: inImport2, kind: 'dynamic-import' },
+        { path: inShared, kind: 'import-statement', original: makeImportPath(entry, shared) },
+        { path: inImport1, kind: 'dynamic-import', original: makeImportPath(entry, import1) },
+        { path: inImport2, kind: 'dynamic-import', original: makeImportPath(entry, import2) },
       ]
     })
     assert.deepStrictEqual(json.inputs[inImport1], {
       bytes: 35,
       imports: [
-        { path: inShared, kind: 'import-statement' },
+        { path: inShared, kind: 'import-statement', original: makeImportPath(import1, shared) },
       ]
     })
     assert.deepStrictEqual(json.inputs[inImport2], {
       bytes: 35,
       imports: [
-        { path: inShared, kind: 'import-statement' },
+        { path: inShared, kind: 'import-statement', original: makeImportPath(import2, shared) },
       ]
     })
     assert.deepStrictEqual(json.inputs[inShared], { bytes: 38, imports: [] })
@@ -1447,11 +1459,11 @@ body {
     const makePath = pathname => path.relative(cwd, pathname).split(path.sep).join('/')
     const json = result.metafile
     assert.deepStrictEqual(json.inputs[makePath(entry)].imports, [
-      { path: makePath(nested1), kind: 'import-statement' },
-      { path: makePath(nested2), kind: 'import-statement' },
+      { path: makePath(nested1), kind: 'import-statement', original: nested1 },
+      { path: makePath(nested2), kind: 'import-statement', original: nested2 },
     ])
     assert.deepStrictEqual(json.inputs[makePath(nested1)].imports, [
-      { path: makePath(nested3), kind: 'import-statement' },
+      { path: makePath(nested3), kind: 'import-statement', original: nested3 },
     ])
     assert.deepStrictEqual(json.inputs[makePath(nested2)].imports, [])
     assert.deepStrictEqual(json.inputs[makePath(nested3)].imports, [])
@@ -1494,12 +1506,12 @@ body {
         [makePath(entry)]: {
           bytes: 98,
           imports: [
-            { path: makePath(imported), kind: 'import-rule' },
+            { path: makePath(imported), kind: 'import-rule', original: './imported' },
             { external: true, kind: 'url-token', path: 'https://example.com/external.png' },
           ]
         },
         [makePath(image)]: { bytes: 8, imports: [] },
-        [makePath(imported)]: { bytes: 48, imports: [{ path: makePath(image), kind: 'url-token' }] },
+        [makePath(imported)]: { bytes: 48, imports: [{ path: makePath(image), kind: 'url-token', original: './example.png' }] },
       },
       outputs: {
         [makePath(output)]: {

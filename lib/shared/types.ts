@@ -442,6 +442,7 @@ export interface Metafile {
         path: string
         kind: ImportKind
         external?: boolean
+        original?: string
       }[]
     }
   }

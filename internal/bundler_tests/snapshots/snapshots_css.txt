@@ -425,7 +425,8 @@ console.log("bar");
       "imports": [
         {
           "path": "common.css",
-          "kind": "import-statement"
+          "kind": "import-statement",
+          "original": "../common.css"
         }
       ]
     },
@@ -434,7 +435,8 @@ console.log("bar");
       "imports": [
         {
           "path": "common.css",
-          "kind": "import-statement"
+          "kind": "import-statement",
+          "original": "../common.css"
         }
       ]
     }

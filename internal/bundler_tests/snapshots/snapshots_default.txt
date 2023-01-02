@@ -3297,19 +3297,23 @@ d {
         },
         {
           "path": "project/esm.js",
-          "kind": "import-statement"
+          "kind": "import-statement",
+          "original": "./esm"
         },
         {
           "path": "<data:application/json,2>",
-          "kind": "import-statement"
+          "kind": "import-statement",
+          "original": "data:application/json,2"
         },
         {
           "path": "project/file.file",
-          "kind": "import-statement"
+          "kind": "import-statement",
+          "original": "./file.file"
         },
         {
           "path": "project/copy.copy",
-          "kind": "import-statement"
+          "kind": "import-statement",
+          "original": "./copy.copy"
         },
         {
           "path": "extern-cjs",
@@ -3318,11 +3322,13 @@ d {
         },
         {
           "path": "project/cjs.js",
-          "kind": "require-call"
+          "kind": "require-call",
+          "original": "./cjs"
         },
         {
           "path": "project/dynamic.js",
-          "kind": "dynamic-import"
+          "kind": "dynamic-import",
+          "original": "./dynamic"
         }
       ]
     },
@@ -3340,15 +3346,18 @@ d {
         },
         {
           "path": "project/inline.svg",
-          "kind": "url-token"
+          "kind": "url-token",
+          "original": "inline.svg"
         },
         {
           "path": "project/file.file",
-          "kind": "url-token"
+          "kind": "url-token",
+          "original": "file.file"
         },
         {
           "path": "project/copy.copy",
-          "kind": "url-token"
+          "kind": "url-token",
+          "original": "copy.copy"
         },
         {
           "path": "extern.png",
@@ -3537,7 +3546,8 @@ a {
       "imports": [
         {
           "path": "project/111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111.file",
-          "kind": "import-statement"
+          "kind": "import-statement",
+          "original": "./111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111.file"
         }
       ]
     },
@@ -3550,7 +3560,8 @@ a {
       "imports": [
         {
           "path": "project/222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222.copy",
-          "kind": "import-statement"
+          "kind": "import-statement",
+          "original": "./222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222.copy"
         }
       ]
     },
@@ -3563,7 +3574,8 @@ a {
       "imports": [
         {
           "path": "project/333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333.js",
-          "kind": "dynamic-import"
+          "kind": "dynamic-import",
+          "original": "./333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333.js"
         }
       ]
     },
@@ -3576,7 +3588,8 @@ a {
       "imports": [
         {
           "path": "project/444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444.file",
-          "kind": "url-token"
+          "kind": "url-token",
+          "original": "444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444.file"
         }
       ]
     }

@@ -1022,7 +1022,6 @@ READMIN_ESBUILD_FLAGS += --format=esm
 READMIN_ESBUILD_FLAGS += --loader:.png=file
 READMIN_ESBUILD_FLAGS += --loader:.svg=file
 READMIN_ESBUILD_FLAGS += --minify
-READMIN_ESBUILD_FLAGS += --outdir=derp
 READMIN_ESBUILD_FLAGS += --sourcemap
 READMIN_ESBUILD_FLAGS += --splitting
 READMIN_ESBUILD_FLAGS += --target=esnext

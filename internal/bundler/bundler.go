@@ -1913,9 +1913,10 @@ func (s *scanner) processScannedFiles(entryPointMeta []graph.EntryPoint) []scann
 					} else {
 						sb.WriteString(",\n        ")
 					}
-					sb.WriteString(fmt.Sprintf("{\n          \"path\": %s,\n          \"kind\": %s\n        }",
+					sb.WriteString(fmt.Sprintf("{\n          \"path\": %s,\n          \"kind\": %s,\n          \"original\": %s\n        }",
 						helpers.QuoteForJSON(otherFile.inputFile.Source.PrettyPath, s.options.ASCIIOnly),
-						helpers.QuoteForJSON(record.Kind.StringForMetafile(), s.options.ASCIIOnly)))
+						helpers.QuoteForJSON(record.Kind.StringForMetafile(), s.options.ASCIIOnly),
+						helpers.QuoteForJSON(record.Path.Text, s.options.ASCIIOnly)))
 				}
 
 				// Validate that imports with "assert { type: 'json' }" were imported
