@@ -98,6 +98,7 @@ var helpText = func(colors logger.Colors) string {
   --mangle-props=...        Rename all properties matching a regular expression
   --mangle-quoted=...       Enable renaming of quoted properties (true | false)
   --metafile=...            Write metadata about the build to a JSON file
+                            (see also: ` + colors.Underline + `https://esbuild.github.io/analyze/` + colors.Reset + `)
   --minify-whitespace       Remove whitespace in output files
   --minify-identifiers      Shorten identifiers in output files
   --minify-syntax           Use equivalent but shorter syntax in output files
