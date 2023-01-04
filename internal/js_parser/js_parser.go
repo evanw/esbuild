@@ -47,6 +47,7 @@ type parser struct {
 	tsUseCounts                []uint32
 	injectedDefineSymbols      []js_ast.Ref
 	injectedSymbolSources      map[js_ast.Ref]injectedSymbolSource
+	exprComments               map[logger.Loc][]string
 	mangledProps               map[string]js_ast.Ref
 	reservedProps              map[string]bool
 	symbolUses                 map[js_ast.Ref]js_ast.SymbolUse
@@ -417,6 +418,7 @@ type optionsThatSupportStructuralEquality struct {
 	keepNames               bool
 	minifySyntax            bool
 	minifyIdentifiers       bool
+	minifyWhitespace        bool
 	omitRuntimeForTests     bool
 	omitJSXRuntimeForTests  bool
 	ignoreDCEAnnotations    bool
@@ -463,6 +465,7 @@ func OptionsFromConfig(options *config.Options) Options {
 			keepNames:                         options.KeepNames,
 			minifySyntax:                      options.MinifySyntax,
 			minifyIdentifiers:                 options.MinifyIdentifiers,
+			minifyWhitespace:                  options.MinifyWhitespace,
 			omitRuntimeForTests:               options.OmitRuntimeForTests,
 			omitJSXRuntimeForTests:            options.OmitJSXRuntimeForTests,
 			ignoreDCEAnnotations:              options.IgnoreDCEAnnotations,
@@ -1899,6 +1902,7 @@ type propertyOpts struct {
 func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, opts propertyOpts, errors *deferredErrors) (js_ast.Property, bool) {
 	var flags js_ast.PropertyFlags
 	var key js_ast.Expr
+	var closeBracketLoc logger.Loc
 	keyRange := p.lexer.Range()
 
 	switch p.lexer.Token {
@@ -1955,6 +1959,7 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 			}
 		}
 
+		closeBracketLoc = p.saveExprCommentsHere()
 		p.lexer.Expect(js_lexer.TCloseBracket)
 		key = expr
 
@@ -2197,6 +2202,7 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 			Flags:            flags,
 			Key:              key,
 			InitializerOrNil: initializerOrNil,
+			CloseBracketLoc:  closeBracketLoc,
 		}, true
 	}
 
@@ -2350,12 +2356,13 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 			flags |= js_ast.PropertyIsStatic
 		}
 		return js_ast.Property{
-			TSDecorators: opts.tsDecorators,
-			Loc:          startLoc,
-			Kind:         kind,
-			Flags:        flags | js_ast.PropertyIsMethod,
-			Key:          key,
-			ValueOrNil:   value,
+			TSDecorators:    opts.tsDecorators,
+			Loc:             startLoc,
+			Kind:            kind,
+			Flags:           flags | js_ast.PropertyIsMethod,
+			Key:             key,
+			ValueOrNil:      value,
+			CloseBracketLoc: closeBracketLoc,
 		}, true
 	}
 
@@ -2363,25 +2370,29 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 	p.lexer.Expect(js_lexer.TColon)
 	value := p.parseExprOrBindings(js_ast.LComma, errors)
 	return js_ast.Property{
-		Loc:        startLoc,
-		Kind:       kind,
-		Flags:      flags,
-		Key:        key,
-		ValueOrNil: value,
+		Loc:             startLoc,
+		Kind:            kind,
+		Flags:           flags,
+		Key:             key,
+		ValueOrNil:      value,
+		CloseBracketLoc: closeBracketLoc,
 	}, true
 }
 
 func (p *parser) parsePropertyBinding() js_ast.PropertyBinding {
 	var key js_ast.Expr
+	var closeBracketLoc logger.Loc
 	isComputed := false
 	preferQuotedKey := false
+	loc := p.lexer.Loc()
 
 	switch p.lexer.Token {
 	case js_lexer.TDotDotDot:
 		p.lexer.Next()
-		value := js_ast.Binding{Loc: p.lexer.Loc(), Data: &js_ast.BIdentifier{Ref: p.storeNameInRef(p.lexer.Identifier)}}
+		value := js_ast.Binding{Loc: p.saveExprCommentsHere(), Data: &js_ast.BIdentifier{Ref: p.storeNameInRef(p.lexer.Identifier)}}
 		p.lexer.Expect(js_lexer.TIdentifier)
 		return js_ast.PropertyBinding{
+			Loc:      loc,
 			IsSpread: true,
 			Value:    value,
 		}
@@ -2404,6 +2415,7 @@ func (p *parser) parsePropertyBinding() js_ast.PropertyBinding {
 		isComputed = true
 		p.lexer.Next()
 		key = p.parseExpr(js_ast.LComma)
+		closeBracketLoc = p.saveExprCommentsHere()
 		p.lexer.Expect(js_lexer.TCloseBracket)
 
 	default:
@@ -2436,6 +2448,7 @@ func (p *parser) parsePropertyBinding() js_ast.PropertyBinding {
 			}
 
 			return js_ast.PropertyBinding{
+				Loc:               loc,
 				Key:               key,
 				Value:             value,
 				DefaultValueOrNil: defaultValueOrNil,
@@ -2453,11 +2466,13 @@ func (p *parser) parsePropertyBinding() js_ast.PropertyBinding {
 	}
 
 	return js_ast.PropertyBinding{
+		Loc:               loc,
 		IsComputed:        isComputed,
 		PreferQuotedKey:   preferQuotedKey,
 		Key:               key,
 		Value:             value,
 		DefaultValueOrNil: defaultValueOrNil,
+		CloseBracketLoc:   closeBracketLoc,
 	}
 }
 
@@ -3013,7 +3028,11 @@ func (p *parser) convertExprToBinding(expr js_ast.Expr, invalidLog invalidLog) (
 			}
 			binding, initializerOrNil, log := p.convertExprToBindingAndInitializer(item, invalidLog, isSpread)
 			invalidLog = log
-			items = append(items, js_ast.ArrayBinding{Binding: binding, DefaultValueOrNil: initializerOrNil})
+			items = append(items, js_ast.ArrayBinding{
+				Binding:           binding,
+				DefaultValueOrNil: initializerOrNil,
+				Loc:               item.Loc,
+			})
 		}
 		return js_ast.Binding{Loc: expr.Loc, Data: &js_ast.BArray{
 			Items:           items,
@@ -3029,20 +3048,21 @@ func (p *parser) convertExprToBinding(expr js_ast.Expr, invalidLog invalidLog) (
 		invalidLog.syntaxFeatures = append(invalidLog.syntaxFeatures,
 			syntaxFeature{feature: compat.Destructuring, token: p.source.RangeOfOperatorAfter(expr.Loc, "{")})
 		properties := []js_ast.PropertyBinding{}
-		for _, item := range e.Properties {
-			if item.Flags.Has(js_ast.PropertyIsMethod) || item.Kind == js_ast.PropertyGet || item.Kind == js_ast.PropertySet {
-				invalidLog.invalidTokens = append(invalidLog.invalidTokens, js_lexer.RangeOfIdentifier(p.source, item.Key.Loc))
+		for _, property := range e.Properties {
+			if property.Flags.Has(js_ast.PropertyIsMethod) || property.Kind == js_ast.PropertyGet || property.Kind == js_ast.PropertySet {
+				invalidLog.invalidTokens = append(invalidLog.invalidTokens, js_lexer.RangeOfIdentifier(p.source, property.Key.Loc))
 				continue
 			}
-			binding, initializerOrNil, log := p.convertExprToBindingAndInitializer(item.ValueOrNil, invalidLog, false)
+			binding, initializerOrNil, log := p.convertExprToBindingAndInitializer(property.ValueOrNil, invalidLog, false)
 			invalidLog = log
 			if initializerOrNil.Data == nil {
-				initializerOrNil = item.InitializerOrNil
+				initializerOrNil = property.InitializerOrNil
 			}
 			properties = append(properties, js_ast.PropertyBinding{
-				IsSpread:          item.Kind == js_ast.PropertySpread,
-				IsComputed:        item.Flags.Has(js_ast.PropertyIsComputed),
-				Key:               item.Key,
+				Loc:               property.Loc,
+				IsSpread:          property.Kind == js_ast.PropertySpread,
+				IsComputed:        property.Flags.Has(js_ast.PropertyIsComputed),
+				Key:               property.Key,
 				Value:             binding,
 				DefaultValueOrNil: initializerOrNil,
 			})
@@ -3059,6 +3079,19 @@ func (p *parser) convertExprToBinding(expr js_ast.Expr, invalidLog invalidLog) (
 	}
 }
 
+func (p *parser) saveExprCommentsHere() logger.Loc {
+	loc := p.lexer.Loc()
+	if p.exprComments != nil && len(p.lexer.CommentsBeforeToken) > 0 {
+		comments := make([]string, len(p.lexer.CommentsBeforeToken))
+		for i, comment := range p.lexer.CommentsBeforeToken {
+			comments[i] = p.source.CommentTextWithoutIndent(comment)
+		}
+		p.exprComments[loc] = comments
+		p.lexer.CommentsBeforeToken = p.lexer.CommentsBeforeToken[0:]
+	}
+	return loc
+}
+
 type exprFlag uint8
 
 const (
@@ -3068,7 +3101,7 @@ const (
 )
 
 func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprFlag) js_ast.Expr {
-	loc := p.lexer.Loc()
+	loc := p.saveExprCommentsHere()
 
 	switch p.lexer.Token {
 	case js_lexer.TSuper:
@@ -3413,21 +3446,19 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 		}
 
 		target := p.parseExprWithFlags(js_ast.LMember, flags)
-		var webpackComments []js_ast.Comment
 		args := []js_ast.Expr{}
 		var closeParenLoc logger.Loc
 		var isMultiLine bool
 
 		if p.lexer.Token == js_lexer.TOpenParen {
-			webpackComments, args, closeParenLoc, isMultiLine = p.parseCallArgs()
+			args, closeParenLoc, isMultiLine = p.parseCallArgs()
 		}
 
 		return js_ast.Expr{Loc: loc, Data: &js_ast.ENew{
-			Target:          target,
-			Args:            args,
-			WebpackComments: webpackComments,
-			CloseParenLoc:   closeParenLoc,
-			IsMultiLine:     isMultiLine,
+			Target:        target,
+			Args:          args,
+			CloseParenLoc: closeParenLoc,
+			IsMultiLine:   isMultiLine,
 		}}
 
 	case js_lexer.TOpenBracket:
@@ -3452,7 +3483,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 				} else {
 					p.markSyntaxFeature(compat.ArraySpread, p.lexer.Range())
 				}
-				dotsLoc := p.lexer.Loc()
+				dotsLoc := p.saveExprCommentsHere()
 				p.lexer.Next()
 				item := p.parseExprOrBindings(js_ast.LComma, &selfErrors)
 				items = append(items, js_ast.Expr{Loc: dotsLoc, Data: &js_ast.ESpread{Value: item}})
@@ -3482,7 +3513,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 		if p.lexer.HasNewlineBefore {
 			isSingleLine = false
 		}
-		closeBracketLoc := p.lexer.Loc()
+		closeBracketLoc := p.saveExprCommentsHere()
 		p.lexer.Expect(js_lexer.TCloseBracket)
 		p.allowIn = oldAllowIn
 
@@ -3516,7 +3547,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 
 		for p.lexer.Token != js_lexer.TCloseBrace {
 			if p.lexer.Token == js_lexer.TDotDotDot {
-				dotLoc := p.lexer.Loc()
+				dotLoc := p.saveExprCommentsHere()
 				p.lexer.Next()
 				value := p.parseExprOrBindings(js_ast.LComma, &selfErrors)
 				properties = append(properties, js_ast.Property{
@@ -3531,7 +3562,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 				}
 			} else {
 				// This property may turn out to be a type in TypeScript, which should be ignored
-				if property, ok := p.parseProperty(p.lexer.Loc(), js_ast.PropertyNormal, propertyOpts{}, &selfErrors); ok {
+				if property, ok := p.parseProperty(p.saveExprCommentsHere(), js_ast.PropertyNormal, propertyOpts{}, &selfErrors); ok {
 					properties = append(properties, property)
 				}
 			}
@@ -3551,7 +3582,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 		if p.lexer.HasNewlineBefore {
 			isSingleLine = false
 		}
-		closeBraceLoc := p.lexer.Loc()
+		closeBraceLoc := p.saveExprCommentsHere()
 		p.lexer.Expect(js_lexer.TCloseBrace)
 		p.allowIn = oldAllowIn
 
@@ -3747,9 +3778,6 @@ func (p *parser) parseImportExpr(loc logger.Loc, level js_ast.L) js_ast.Expr {
 	oldAllowIn := p.allowIn
 	p.allowIn = true
 
-	var webpackComments []js_ast.Comment
-	oldWebpackComments := p.lexer.WebpackComments
-	p.lexer.WebpackComments = &webpackComments
 	p.lexer.Expect(js_lexer.TOpenParen)
 
 	value := p.parseExpr(js_ast.LComma)
@@ -3770,14 +3798,14 @@ func (p *parser) parseImportExpr(loc logger.Loc, level js_ast.L) js_ast.Expr {
 		}
 	}
 
-	p.lexer.WebpackComments = oldWebpackComments
+	closeParenLoc := p.saveExprCommentsHere()
 	p.lexer.Expect(js_lexer.TCloseParen)
 
 	p.allowIn = oldAllowIn
 	return js_ast.Expr{Loc: loc, Data: &js_ast.EImportCall{
-		Expr:            value,
-		OptionsOrNil:    optionsOrNil,
-		WebpackComments: webpackComments,
+		Expr:          value,
+		OptionsOrNil:  optionsOrNil,
+		CloseParenLoc: closeParenLoc,
 	}}
 }
 
@@ -3901,11 +3929,13 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 
 				p.allowIn = oldAllowIn
 
+				closeBracketLoc := p.saveExprCommentsHere()
 				p.lexer.Expect(js_lexer.TCloseBracket)
 				left = js_ast.Expr{Loc: left.Loc, Data: &js_ast.EIndex{
-					Target:        left,
-					Index:         index,
-					OptionalChain: optionalStart,
+					Target:          left,
+					Index:           index,
+					OptionalChain:   optionalStart,
+					CloseBracketLoc: closeBracketLoc,
 				}}
 
 			case js_lexer.TOpenParen:
@@ -3917,7 +3947,7 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 				if js_ast.IsPropertyAccess(left) {
 					kind = js_ast.TargetWasOriginallyPropertyAccess
 				}
-				_, args, closeParenLoc, isMultiLine := p.parseCallArgs()
+				args, closeParenLoc, isMultiLine := p.parseCallArgs()
 				left = js_ast.Expr{Loc: left.Loc, Data: &js_ast.ECall{
 					Target:        left,
 					Args:          args,
@@ -3944,7 +3974,7 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 				if js_ast.IsPropertyAccess(left) {
 					kind = js_ast.TargetWasOriginallyPropertyAccess
 				}
-				_, args, closeParenLoc, isMultiLine := p.parseCallArgs()
+				args, closeParenLoc, isMultiLine := p.parseCallArgs()
 				left = js_ast.Expr{Loc: left.Loc, Data: &js_ast.ECall{
 					Target:        left,
 					Args:          args,
@@ -4037,11 +4067,13 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 
 			p.allowIn = oldAllowIn
 
+			closeBracketLoc := p.saveExprCommentsHere()
 			p.lexer.Expect(js_lexer.TCloseBracket)
 			left = js_ast.Expr{Loc: left.Loc, Data: &js_ast.EIndex{
-				Target:        left,
-				Index:         index,
-				OptionalChain: oldOptionalChain,
+				Target:          left,
+				Index:           index,
+				OptionalChain:   oldOptionalChain,
+				CloseBracketLoc: closeBracketLoc,
 			}}
 			optionalChain = oldOptionalChain
 
@@ -4053,7 +4085,7 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 			if js_ast.IsPropertyAccess(left) {
 				kind = js_ast.TargetWasOriginallyPropertyAccess
 			}
-			_, args, closeParenLoc, isMultiLine := p.parseCallArgs()
+			args, closeParenLoc, isMultiLine := p.parseCallArgs()
 			left = js_ast.Expr{Loc: left.Loc, Data: &js_ast.ECall{
 				Target:        left,
 				Args:          args,
@@ -4565,13 +4597,11 @@ func (p *parser) parseExprOrLetStmt(opts parseStmtOpts) (js_ast.Expr, js_ast.Stm
 	return p.parseSuffix(expr, js_ast.LLowest, nil, 0), js_ast.Stmt{}, nil
 }
 
-func (p *parser) parseCallArgs() (webpackComments []js_ast.Comment, args []js_ast.Expr, closeParenLoc logger.Loc, isMultiLine bool) {
+func (p *parser) parseCallArgs() (args []js_ast.Expr, closeParenLoc logger.Loc, isMultiLine bool) {
 	// Allow "in" inside call arguments
 	oldAllowIn := p.allowIn
 	p.allowIn = true
 
-	oldWebpackComments := p.lexer.WebpackComments
-	p.lexer.WebpackComments = &webpackComments
 	p.lexer.Expect(js_lexer.TOpenParen)
 
 	for p.lexer.Token != js_lexer.TCloseParen {
@@ -4601,8 +4631,7 @@ func (p *parser) parseCallArgs() (webpackComments []js_ast.Comment, args []js_as
 	if p.lexer.HasNewlineBefore {
 		isMultiLine = true
 	}
-	closeParenLoc = p.lexer.Loc()
-	p.lexer.WebpackComments = oldWebpackComments
+	closeParenLoc = p.saveExprCommentsHere()
 	p.lexer.Expect(js_lexer.TCloseParen)
 	p.allowIn = oldAllowIn
 	return
@@ -4758,7 +4787,7 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 			case js_lexer.TOpenBrace:
 				// Use Next() not ExpectInsideJSXElement() so we can parse "..."
 				p.lexer.Next()
-				dotLoc := p.lexer.Loc()
+				dotLoc := p.saveExprCommentsHere()
 				p.lexer.Expect(js_lexer.TDotDotDot)
 				value := p.parseExpr(js_ast.LComma)
 				properties = append(properties, js_ast.Property{
@@ -5384,9 +5413,14 @@ func (p *parser) parseBinding() js_ast.Binding {
 		p.allowIn = true
 
 		for p.lexer.Token != js_lexer.TCloseBracket {
+			itemLoc := p.saveExprCommentsHere()
+
 			if p.lexer.Token == js_lexer.TComma {
-				binding := js_ast.Binding{Loc: p.lexer.Loc(), Data: js_ast.BMissingShared}
-				items = append(items, js_ast.ArrayBinding{Binding: binding})
+				binding := js_ast.Binding{Loc: itemLoc, Data: js_ast.BMissingShared}
+				items = append(items, js_ast.ArrayBinding{
+					Binding: binding,
+					Loc:     itemLoc,
+				})
 			} else {
 				if p.lexer.Token == js_lexer.TDotDotDot {
 					p.lexer.Next()
@@ -5398,6 +5432,7 @@ func (p *parser) parseBinding() js_ast.Binding {
 					}
 				}
 
+				p.saveExprCommentsHere()
 				binding := p.parseBinding()
 
 				var defaultValueOrNil js_ast.Expr
@@ -5406,7 +5441,11 @@ func (p *parser) parseBinding() js_ast.Binding {
 					defaultValueOrNil = p.parseExpr(js_ast.LComma)
 				}
 
-				items = append(items, js_ast.ArrayBinding{Binding: binding, DefaultValueOrNil: defaultValueOrNil})
+				items = append(items, js_ast.ArrayBinding{
+					Binding:           binding,
+					DefaultValueOrNil: defaultValueOrNil,
+					Loc:               itemLoc,
+				})
 
 				// Commas after spread elements are not allowed
 				if hasSpread && p.lexer.Token == js_lexer.TComma {
@@ -5432,7 +5471,7 @@ func (p *parser) parseBinding() js_ast.Binding {
 		if p.lexer.HasNewlineBefore {
 			isSingleLine = false
 		}
-		closeBracketLoc := p.lexer.Loc()
+		closeBracketLoc := p.saveExprCommentsHere()
 		p.lexer.Expect(js_lexer.TCloseBracket)
 		return js_ast.Binding{Loc: loc, Data: &js_ast.BArray{
 			Items:           items,
@@ -5452,6 +5491,7 @@ func (p *parser) parseBinding() js_ast.Binding {
 		p.allowIn = true
 
 		for p.lexer.Token != js_lexer.TCloseBrace {
+			p.saveExprCommentsHere()
 			property := p.parsePropertyBinding()
 			properties = append(properties, property)
 
@@ -5478,7 +5518,7 @@ func (p *parser) parseBinding() js_ast.Binding {
 		if p.lexer.HasNewlineBefore {
 			isSingleLine = false
 		}
-		closeBraceLoc := p.lexer.Loc()
+		closeBraceLoc := p.saveExprCommentsHere()
 		p.lexer.Expect(js_lexer.TCloseBrace)
 		return js_ast.Binding{Loc: loc, Data: &js_ast.BObject{
 			Properties:    properties,
@@ -5858,7 +5898,7 @@ func (p *parser) parseClass(classKeyword logger.Range, name *js_ast.LocRef, clas
 		}
 
 		// This property may turn out to be a type in TypeScript, which should be ignored
-		if property, ok := p.parseProperty(p.lexer.Loc(), js_ast.PropertyNormal, opts, nil); ok {
+		if property, ok := p.parseProperty(p.saveExprCommentsHere(), js_ast.PropertyNormal, opts, nil); ok {
 			properties = append(properties, property)
 
 			// Forbid decorators on class constructors
@@ -5888,7 +5928,7 @@ func (p *parser) parseClass(classKeyword logger.Range, name *js_ast.LocRef, clas
 	p.allowIn = oldAllowIn
 	p.allowPrivateIdentifiers = oldAllowPrivateIdentifiers
 
-	closeBraceLoc := p.lexer.Loc()
+	closeBraceLoc := p.saveExprCommentsHere()
 	p.lexer.Expect(js_lexer.TCloseBrace)
 	return js_ast.Class{
 		ClassKeyword:  classKeyword,
@@ -6132,6 +6172,9 @@ type parseStmtOpts struct {
 
 func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 	loc := p.lexer.Loc()
+
+	// Do not attach any leading comments to the next expression
+	p.lexer.CommentsBeforeToken = p.lexer.CommentsBeforeToken[:0]
 
 	switch p.lexer.Token {
 	case js_lexer.TSemicolon:
@@ -7118,9 +7161,10 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 	case js_lexer.TThrow:
 		p.lexer.Next()
 		if p.lexer.HasNewlineBefore {
-			p.log.AddError(&p.tracker, logger.Range{Loc: logger.Loc{Start: loc.Start + 5}},
+			endLoc := logger.Loc{Start: loc.Start + 5}
+			p.log.AddError(&p.tracker, logger.Range{Loc: endLoc},
 				"Unexpected newline after \"throw\"")
-			panic(js_lexer.LexerPanic{})
+			return js_ast.Stmt{Loc: loc, Data: &js_ast.SThrow{Value: js_ast.Expr{Loc: endLoc, Data: js_ast.ENullShared}}}
 		}
 		expr := p.parseExpr(js_ast.LLowest)
 		p.lexer.ExpectOrInsertSemicolon()
@@ -13624,7 +13668,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
 				return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EImportString{
 					ImportRecordIndex: importRecordIndex,
-					WebpackComments:   e.WebpackComments,
+					CloseParenLoc:     e.CloseParenLoc,
 				}}
 			}
 
@@ -13651,8 +13695,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			if p.options.unsupportedJSFeatures.Has(compat.DynamicImport) {
 				var then js_ast.Expr
 				value := p.callRuntime(arg.Loc, "__toESM", []js_ast.Expr{{Loc: expr.Loc, Data: &js_ast.ECall{
-					Target: p.valueToSubstituteForRequire(expr.Loc),
-					Args:   []js_ast.Expr{arg},
+					Target:        p.valueToSubstituteForRequire(expr.Loc),
+					Args:          []js_ast.Expr{arg},
+					CloseParenLoc: e.CloseParenLoc,
 				}}})
 				body := js_ast.FnBody{Loc: expr.Loc, Block: js_ast.SBlock{Stmts: []js_ast.Stmt{{Loc: expr.Loc, Data: &js_ast.SReturn{ValueOrNil: value}}}}}
 				if p.options.unsupportedJSFeatures.Has(compat.Arrow) {
@@ -13679,9 +13724,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 
 			return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EImportCall{
-				Expr:            arg,
-				OptionsOrNil:    e.OptionsOrNil,
-				WebpackComments: e.WebpackComments,
+				Expr:          arg,
+				OptionsOrNil:  e.OptionsOrNil,
+				CloseParenLoc: e.CloseParenLoc,
 			}}
 		}), exprOut{}
 
@@ -13879,7 +13924,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 							// dead here. We don't want to spend time scanning the required files
 							// if they will never be used.
 							if p.isControlFlowDead {
-								return js_ast.Expr{Loc: arg.Loc, Data: js_ast.ENullShared}
+								return js_ast.Expr{Loc: expr.Loc, Data: js_ast.ENullShared}
 							}
 
 							importRecordIndex := p.addImportRecord(ast.ImportRequireResolve, e.Args[0].Loc, helpers.UTF16ToString(str.Value), nil, 0)
@@ -13891,20 +13936,22 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 							p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
 
 							// Create a new expression to represent the operation
-							return js_ast.Expr{Loc: arg.Loc, Data: &js_ast.ERequireResolveString{
+							return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ERequireResolveString{
 								ImportRecordIndex: importRecordIndex,
+								CloseParenLoc:     e.CloseParenLoc,
 							}}
 						}
 
 						// Otherwise just return a clone of the "require.resolve()" call
-						return js_ast.Expr{Loc: arg.Loc, Data: &js_ast.ECall{
+						return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ECall{
 							Target: js_ast.Expr{Loc: e.Target.Loc, Data: &js_ast.EDot{
 								Target:  p.valueToSubstituteForRequire(t.Target.Loc),
 								Name:    t.Name,
 								NameLoc: t.NameLoc,
 							}},
-							Args: []js_ast.Expr{arg},
-							Kind: e.Kind,
+							Args:          []js_ast.Expr{arg},
+							Kind:          e.Kind,
+							CloseParenLoc: e.CloseParenLoc,
 						}}
 					}), exprOut{}
 				}
@@ -14013,6 +14060,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 								// Create a new expression to represent the operation
 								return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ERequireString{
 									ImportRecordIndex: importRecordIndex,
+									CloseParenLoc:     e.CloseParenLoc,
 								}}
 							}
 
@@ -14023,8 +14071,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 							// Otherwise just return a clone of the "require()" call
 							return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ECall{
-								Target: p.valueToSubstituteForRequire(e.Target.Loc),
-								Args:   []js_ast.Expr{arg},
+								Target:        p.valueToSubstituteForRequire(e.Target.Loc),
+								Args:          []js_ast.Expr{arg},
+								CloseParenLoc: e.CloseParenLoc,
 							}}
 						}), exprOut{}
 					} else {
@@ -14036,8 +14085,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					}
 
 					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ECall{
-						Target: p.valueToSubstituteForRequire(e.Target.Loc),
-						Args:   e.Args,
+						Target:        p.valueToSubstituteForRequire(e.Target.Loc),
+						Args:          e.Args,
+						CloseParenLoc: e.CloseParenLoc,
 					}}, exprOut{}
 				}
 			}
@@ -15109,6 +15159,10 @@ func newParser(log logger.Log, source logger.Source, lexer js_lexer.Lexer, optio
 		suppressWarningsAboutWeirdCode: helpers.IsInsideNodeModules(source.KeyPath.Text),
 	}
 
+	if !options.minifyWhitespace {
+		p.exprComments = make(map[logger.Loc][]string)
+	}
+
 	p.isUnbound = func(ref js_ast.Ref) bool {
 		return p.symbols[ref.InnerIndex].Kind == js_ast.SymbolUnbound
 	}
@@ -15635,7 +15689,7 @@ func (p *parser) computeCharacterFrequency() *js_ast.CharFreq {
 	charFreq.Scan(p.source.Contents, 1)
 
 	// Subtract out all comments
-	for _, commentRange := range p.lexer.AllOriginalComments {
+	for _, commentRange := range p.lexer.AllComments {
 		charFreq.Scan(p.source.TextForRange(commentRange), -1)
 	}
 
@@ -15953,6 +16007,7 @@ func (p *parser) toAST(before, parts, after []js_ast.Part, hashbang string, dire
 		NamedExports:                    p.namedExports,
 		TSEnums:                         p.tsEnums,
 		ConstValues:                     p.constValues,
+		ExprComments:                    p.exprComments,
 		NestedScopeSlotCounts:           nestedScopeSlotCounts,
 		TopLevelSymbolToPartsFromParser: p.topLevelSymbolToParts,
 		ExportStarImportRecords:         p.exportStarImportRecords,

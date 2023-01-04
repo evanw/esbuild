@@ -131,6 +131,7 @@ TestConstValueInliningNoBundle
 ---------- /out/top-level.js ----------
 const n_keep = null, u_keep = void 0, i_keep = 1234567, f_keep = 123.456, s_keep = "";
 console.log(
+  // These are doubled to avoid the "inline const/let into next statement if used once" optimization
   null,
   null,
   void 0,
@@ -147,6 +148,7 @@ console.log(
 {
   const s_keep = "";
   console.log(
+    // These are doubled to avoid the "inline const/let into next statement if used once" optimization
     null,
     null,
     void 0,
@@ -164,6 +166,7 @@ console.log(
 function nested() {
   const s_keep = "";
   console.log(
+    // These are doubled to avoid the "inline const/let into next statement if used once" optimization
     null,
     null,
     void 0,
@@ -1586,8 +1589,14 @@ var single_at_no = /* @__PURE__ */ foo(bar());
 var new_single_at_no = /* @__PURE__ */ new foo(bar());
 var single_num_no = /* @__PURE__ */ foo(bar());
 var new_single_num_no = /* @__PURE__ */ new foo(bar());
-var bad_no = foo(bar);
-var new_bad_no = new foo(bar);
+var bad_no = (
+  /* __PURE__ */
+  foo(bar)
+);
+var new_bad_no = (
+  /* __PURE__ */
+  new foo(bar)
+);
 var parens_no = foo(bar);
 var new_parens_no = new foo(bar);
 var exp_no = /* @__PURE__ */ foo() ** foo();

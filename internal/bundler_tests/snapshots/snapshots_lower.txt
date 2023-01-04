@@ -893,6 +893,7 @@ class Foo {
     __privateAdd(this, _foo);
     __publicField(this, "bar", __privateGet(this, _foo, foo_get));
   }
+  // This must be set before "bar" is initialized
 }
 _foo = new WeakSet();
 foo_get = function() {
@@ -960,6 +961,7 @@ var _foo;
 class Foo {
   constructor() {
     __privateAdd(this, _foo, 123);
+    // This must be set before "bar" is initialized
     __publicField(this, "bar", __privateGet(this, _foo));
   }
 }
@@ -1000,6 +1002,7 @@ class Foo {
     __privateAdd(this, _foo);
     __publicField(this, "bar", __privateMethod(this, _foo, foo_fn).call(this));
   }
+  // This must be set before "bar" is initialized
 }
 _foo = new WeakSet();
 foo_fn = function() {
@@ -1012,6 +1015,7 @@ TestLowerPrivateClassStaticAccessorOrder
 ---------- /out.js ----------
 var _foo, foo_get, _foo2, foo_get2;
 const _Foo = class {
+  // This must be set before "bar" is initialized
 };
 let Foo = _Foo;
 _foo = new WeakSet();
@@ -1022,6 +1026,7 @@ __privateAdd(Foo, _foo);
 __publicField(Foo, "bar", __privateGet(_Foo, _foo, foo_get));
 console.log(Foo.bar === 123);
 const _FooThis = class {
+  // This must be set before "bar" is initialized
 };
 let FooThis = _FooThis;
 _foo2 = new WeakSet();
@@ -1041,6 +1046,7 @@ const _Foo = class {
 let Foo = _Foo;
 _foo = new WeakMap();
 __privateAdd(Foo, _foo, 123);
+// This must be set before "bar" is initialized
 __publicField(Foo, "bar", __privateGet(_Foo, _foo));
 console.log(Foo.bar === 123);
 const _FooThis = class {
@@ -1048,6 +1054,7 @@ const _FooThis = class {
 let FooThis = _FooThis;
 _foo2 = new WeakMap();
 __privateAdd(FooThis, _foo2, 123);
+// This must be set before "bar" is initialized
 __publicField(FooThis, "bar", __privateGet(_FooThis, _foo2));
 console.log(FooThis.bar === 123);
 
@@ -1056,6 +1063,7 @@ TestLowerPrivateClassStaticMethodOrder
 ---------- /out.js ----------
 var _a, _foo, foo_fn, _b, _foo2, foo_fn2;
 const _Foo = class {
+  // This must be set before "bar" is initialized
 };
 let Foo = _Foo;
 _foo = new WeakSet();
@@ -1066,6 +1074,7 @@ __privateAdd(Foo, _foo);
 __publicField(Foo, "bar", __privateMethod(_a = _Foo, _foo, foo_fn).call(_a));
 console.log(Foo.bar === 123);
 const _FooThis = class {
+  // This must be set before "bar" is initialized
 };
 let FooThis = _FooThis;
 _foo2 = new WeakSet();

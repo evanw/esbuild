@@ -240,8 +240,8 @@ type MaybeSubstring struct {
 
 type Lexer struct {
 	LegalCommentsBeforeToken     []logger.Range
-	WebpackComments              *[]js_ast.Comment
-	AllOriginalComments          []logger.Range
+	CommentsBeforeToken          []logger.Range
+	AllComments                  []logger.Range
 	Identifier                   MaybeSubstring
 	log                          logger.Log
 	source                       logger.Source
@@ -988,7 +988,8 @@ func (lexer *Lexer) Next() {
 	lexer.HasNewlineBefore = lexer.end == 0
 	lexer.HasPureCommentBefore = false
 	lexer.PrevTokenWasAwaitKeyword = false
-	lexer.LegalCommentsBeforeToken = nil
+	lexer.LegalCommentsBeforeToken = lexer.LegalCommentsBeforeToken[:0]
+	lexer.CommentsBeforeToken = lexer.CommentsBeforeToken[:0]
 
 	for {
 		lexer.start = lexer.end
@@ -2572,11 +2573,11 @@ func (lexer *Lexer) scanCommentText() {
 	text := lexer.source.Contents[lexer.start:lexer.end]
 	hasLegalAnnotation := len(text) > 2 && text[2] == '!'
 	isMultiLineComment := text[1] == '*'
-	isWebpackComment := false
+	omitFromGeneralCommentPreservation := false
 
 	// Save the original comment text so we can subtract comments from the
 	// character frequency analysis used by symbol minification
-	lexer.AllOriginalComments = append(lexer.AllOriginalComments, lexer.Range())
+	lexer.AllComments = append(lexer.AllComments, lexer.Range())
 
 	// Omit the trailing "*/" from the checks below
 	endOfCommentText := len(text)
@@ -2589,9 +2590,11 @@ func (lexer *Lexer) scanCommentText() {
 		case '#':
 			rest := text[i+1 : endOfCommentText]
 			if hasPrefixWithWordBoundary(rest, "__PURE__") {
+				omitFromGeneralCommentPreservation = true
 				lexer.HasPureCommentBefore = true
 			} else if i == 2 && strings.HasPrefix(rest, " sourceMappingURL=") {
 				if arg, ok := scanForPragmaArg(pragmaNoSpaceFirst, lexer.start+i+1, " sourceMappingURL=", rest); ok {
+					omitFromGeneralCommentPreservation = true
 					lexer.SourceMappingURL = arg
 				}
 			}
@@ -2599,6 +2602,7 @@ func (lexer *Lexer) scanCommentText() {
 		case '@':
 			rest := text[i+1 : endOfCommentText]
 			if hasPrefixWithWordBoundary(rest, "__PURE__") {
+				omitFromGeneralCommentPreservation = true
 				lexer.HasPureCommentBefore = true
 			} else if hasPrefixWithWordBoundary(rest, "preserve") || hasPrefixWithWordBoundary(rest, "license") {
 				hasLegalAnnotation = true
@@ -2620,29 +2624,8 @@ func (lexer *Lexer) scanCommentText() {
 				}
 			} else if i == 2 && strings.HasPrefix(rest, " sourceMappingURL=") {
 				if arg, ok := scanForPragmaArg(pragmaNoSpaceFirst, lexer.start+i+1, " sourceMappingURL=", rest); ok {
+					omitFromGeneralCommentPreservation = true
 					lexer.SourceMappingURL = arg
-				}
-			}
-
-		case 'w':
-			// Webpack magic comments use this regular expression: /(^|\W)webpack[A-Z]{1,}[A-Za-z]{1,}:/
-			if lexer.WebpackComments != nil && !isWebpackComment && strings.HasPrefix(text[i:], "webpack") && !isLetterASCII(text[i-1]) {
-				n := len(text)
-				j := i + 7
-				upperCount := 0
-				for j < n && isUpperASCII(text[j]) {
-					upperCount++
-					j++
-				}
-				if upperCount > 0 {
-					letterCount := 0
-					for j < n && isLetterASCII(text[j]) {
-						letterCount++
-						j++
-					}
-					if letterCount > 0 && j < n && text[j] == ':' {
-						isWebpackComment = true
-					}
 				}
 			}
 		}
@@ -2652,10 +2635,7 @@ func (lexer *Lexer) scanCommentText() {
 		lexer.LegalCommentsBeforeToken = append(lexer.LegalCommentsBeforeToken, lexer.Range())
 	}
 
-	if isWebpackComment {
-		*lexer.WebpackComments = append(*lexer.WebpackComments, js_ast.Comment{
-			Loc:  logger.Loc{Start: int32(lexer.start)},
-			Text: lexer.source.CommentTextWithoutIndent(lexer.Range()),
-		})
+	if !omitFromGeneralCommentPreservation {
+		lexer.CommentsBeforeToken = append(lexer.CommentsBeforeToken, lexer.Range())
 	}
 }

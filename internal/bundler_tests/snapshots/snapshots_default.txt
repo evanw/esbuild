@@ -219,9 +219,11 @@ var require_fs = __commonJS({
 
 // entry.js
 console.log([
+  // These are node core modules
   require("fs"),
   require("fs/promises"),
   require("node:foo"),
+  // These are not node core modules
   require_abc(),
   require_fs()
 ]);
@@ -295,6 +297,333 @@ function u(e, t, n, r) {
 export {
   u as default
 };
+
+================================================================================
+TestCommentPreservation
+---------- /out/entry.js ----------
+// entry.js
+console.log(
+  import(
+    /* before */
+    foo
+  ),
+  import(
+    /* before */
+    "foo"
+  ),
+  import(
+    foo
+    /* after */
+  ),
+  import(
+    "foo"
+    /* after */
+  )
+);
+console.log(
+  require(
+    /* before */
+    foo
+  ),
+  require(
+    /* before */
+    "foo"
+  ),
+  require(
+    foo
+    /* after */
+  ),
+  require(
+    "foo"
+    /* after */
+  )
+);
+console.log(
+  require.resolve(
+    /* before */
+    foo
+  ),
+  require.resolve(
+    /* before */
+    "foo"
+  ),
+  require.resolve(
+    foo
+    /* after */
+  ),
+  require.resolve(
+    "foo"
+    /* after */
+  )
+);
+var [
+  /* foo */
+] = [
+  /* bar */
+];
+var [
+  // foo
+] = [
+  // bar
+];
+var [
+  /*before*/
+  ...s
+] = [
+  /*before*/
+  ...s
+];
+var [.../*before*/
+s2] = [.../*before*/
+s2];
+var {
+  /* foo */
+} = {
+  /* bar */
+};
+var {
+  // foo
+} = {
+  // bar
+};
+var {
+  /*before*/
+  ...s3
+} = {
+  /*before*/
+  ...s3
+};
+var { .../*before*/
+s4 } = { .../*before*/
+s4 };
+var [
+  /* before */
+  x
+] = [
+  /* before */
+  x
+];
+var [
+  /* before */
+  x2
+  /* after */
+] = [
+  /* before */
+  x2
+  /* after */
+];
+var [
+  // before
+  x3
+  // after
+] = [
+  // before
+  x3
+  // after
+];
+var {
+  /* before */
+  y
+} = {
+  /* before */
+  y
+};
+var {
+  /* before */
+  y2
+  /* after */
+} = {
+  /* before */
+  y2
+  /* after */
+};
+var {
+  // before
+  y3
+  // after
+} = {
+  // before
+  y3
+  // after
+};
+var {
+  /* before */
+  [y4]: y4
+} = {
+  /* before */
+  [y4]: y4
+};
+var { [
+  /* before */
+  y5
+]: y5 } = { [
+  /* before */
+  y5
+]: y5 };
+var { [
+  y6
+  /* after */
+]: y6 } = { [
+  y6
+  /* after */
+]: y6 };
+foo[
+  /* before */
+  x
+] = foo[
+  /* before */
+  x
+];
+foo[
+  x
+  /* after */
+] = foo[
+  x
+  /* after */
+];
+console.log(
+  // before
+  foo,
+  /* comment before */
+  bar
+  // comment after
+);
+console.log([
+  // before
+  foo,
+  /* comment before */
+  bar
+  // comment after
+]);
+console.log({
+  // before
+  foo,
+  /* comment before */
+  bar
+  // comment after
+});
+console.log(class {
+  // before
+  foo;
+  /* comment before */
+  bar;
+  // comment after
+});
+console.log(
+  () => {
+    return (
+      /* foo */
+      null
+    );
+  },
+  () => {
+    throw (
+      /* foo */
+      null
+    );
+  },
+  () => {
+    return (
+      /* foo */
+      null + 1
+    );
+  },
+  () => {
+    throw (
+      /* foo */
+      null + 1
+    );
+  },
+  () => {
+    return (
+      // foo
+      null + 1
+    );
+  },
+  () => {
+    throw (
+      // foo
+      null + 1
+    );
+  }
+);
+console.log(
+  /*a*/
+  a ? (
+    /*b*/
+    b
+  ) : (
+    /*c*/
+    c
+  ),
+  a ? b : c
+);
+
+================================================================================
+TestCommentPreservationPreserveJSX
+---------- /out/entry.js ----------
+// entry.jsx
+console.log(
+  <div x={
+    /*before*/
+    x
+  } />,
+  <div x={
+    /*before*/
+    "y"
+  } />,
+  <div x={
+    /*before*/
+    true
+  } />,
+  <div {
+    /*before*/
+    ...x
+  } />,
+  <div>{
+    /*before*/
+    x
+  }</div>,
+  <>{
+    /*before*/
+    x
+  }</>
+);
+
+================================================================================
+TestCommentPreservationTransformJSX
+---------- /out/entry.js ----------
+// entry.jsx
+console.log(
+  /* @__PURE__ */ React.createElement("div", { x: (
+    /*before*/
+    x
+  ) }),
+  /* @__PURE__ */ React.createElement("div", { x: (
+    /*before*/
+    "y"
+  ) }),
+  /* @__PURE__ */ React.createElement("div", { x: (
+    /*before*/
+    true
+  ) }),
+  /* @__PURE__ */ React.createElement("div", {
+    /*before*/
+    ...x
+  }),
+  /* @__PURE__ */ React.createElement(
+    "div",
+    null,
+    /*before*/
+    x
+  ),
+  /* @__PURE__ */ React.createElement(
+    React.Fragment,
+    null,
+    /*before*/
+    x
+  )
+);
 
 ================================================================================
 TestCommonJSFromES6
@@ -441,10 +770,13 @@ TestDefineImportMeta
 ---------- /out.js ----------
 // entry.js
 console.log(
+  // These should be fully substituted
   1,
   2,
   3,
+  // Should just substitute "import.meta.foo"
   2 .baz,
+  // This should not be substituted
   1 .bar
 );
 
@@ -510,10 +842,13 @@ TestDefineThis
 ---------- /out.js ----------
 // entry.js
 ok(
+  // These should be fully substituted
   1,
   2,
   3,
+  // Should just substitute "this.foo"
   2 .baz,
+  // This should not be substituted
   1 .bar
 );
 (() => {
@@ -2406,10 +2741,13 @@ TestManglePropsAvoidCollisions
 ---------- /out.js ----------
 export default {
   c: 0,
+  // Must not be named "a"
   d: 1,
+  // Must not be named "b"
   a: 2,
   b: 3,
   __proto__: {}
+  // Always avoid mangling this
 };
 
 ================================================================================

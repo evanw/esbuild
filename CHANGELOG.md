@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+* Preserve some comments in expressions ([#2721](https://github.com/evanw/esbuild/issues/2721))
+
+    Various tools give semantic meaning to comments embedded inside of expressions. For example, Webpack and Vite have special "magic comments" that can be used to affect code splitting behavior:
+
+    ```js
+    import(/* webpackChunkName: "foo" */ '../foo');
+    import(/* @vite-ignore */ dynamicVar);
+    new Worker(/* webpackChunkName: "bar" */ new URL("../bar.ts", import.meta.url));
+    new Worker(new URL('./path', import.meta.url), /* @vite-ignore */ dynamicOptions);
+    ```
+
+    Since esbuild can be used as a preprocessor for these tools (e.g. to strip TypeScript types), it can be problematic if esbuild doesn't do additional work to try to retain these comments. Previously esbuild special-cased Webpack comments in these specific locations in the AST. But Vite would now like to use similar comments, and likely other tools as well.
+
+    So with this release, esbuild now will attempt to preserve some comments inside of expressions in more situations than before. This behavior is mainly intended to preserve these special "magic comments" that are meant for other tools to consume, although esbuild will no longer only preserve Webpack-specific comments so it should now be tool-agnostic. There is no guarantee that all such comments will be preserved (especially when `--minify-syntax` is enabled). So this change does *not* mean that esbuild is now usable as a code formatter. In particular comment preservation is more likely to happen with leading comments than with trailing comments. You should put comments that you want to be preserved *before* the relevant expression instead of after it. Also note that this change does not retain any more statement-level comments than before (i.e. comments not embedded inside of expressions). Comment preservation is not enabled when `--minify-whitespace` is enabled (which is automatically enabled when you use `--minify`).
+
 ## 0.16.13
 
 * Publish a new bundle visualization tool

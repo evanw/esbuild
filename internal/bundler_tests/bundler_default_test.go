@@ -7548,3 +7548,190 @@ func TestMetafileVeryLongExternalPaths(t *testing.T) {
 		},
 	})
 }
+
+func TestCommentPreservation(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log(
+					import(/* before */ foo),
+					import(/* before */ 'foo'),
+					import(foo /* after */),
+					import('foo' /* after */),
+				)
+
+				console.log(
+					require(/* before */ foo),
+					require(/* before */ 'foo'),
+					require(foo /* after */),
+					require('foo' /* after */),
+				)
+
+				console.log(
+					require.resolve(/* before */ foo),
+					require.resolve(/* before */ 'foo'),
+					require.resolve(foo /* after */),
+					require.resolve('foo' /* after */),
+				)
+
+				let [/* foo */] = [/* bar */];
+				let [
+					// foo
+				] = [
+					// bar
+				];
+				let [/*before*/ ...s] = [/*before*/ ...s]
+				let [... /*before*/ s2] = [... /*before*/ s2]
+
+				let { /* foo */ } = { /* bar */ };
+				let {
+					// foo
+				} = {
+					// bar
+				};
+				let { /*before*/ ...s3 } = { /*before*/ ...s3 }
+				let { ... /*before*/ s4 } = { ... /*before*/ s4 }
+
+				let [/* before */ x] = [/* before */ x];
+				let [/* before */ x2 /* after */] = [/* before */ x2 /* after */];
+				let [
+					// before
+					x3
+					// after
+				] = [
+					// before
+					x3
+					// after
+				];
+
+				let { /* before */ y } = { /* before */ y };
+				let { /* before */ y2 /* after */ } = { /* before */ y2 /* after */ };
+				let {
+					// before
+					y3
+					// after
+				} = {
+					// before
+					y3
+					// after
+				};
+				let { /* before */ [y4]: y4 } = { /* before */ [y4]: y4 };
+				let { [/* before */ y5]: y5 } = { [/* before */ y5]: y5 };
+				let { [y6 /* after */]: y6 } = { [y6 /* after */]: y6 };
+
+				foo[/* before */ x] = foo[/* before */ x]
+				foo[x /* after */] = foo[x /* after */]
+
+				console.log(
+					// before
+					foo,
+					/* comment before */
+					bar,
+					// comment after
+				)
+
+				console.log([
+					// before
+					foo,
+					/* comment before */
+					bar,
+					// comment after
+				])
+
+				console.log({
+					// before
+					foo,
+					/* comment before */
+					bar,
+					// comment after
+				})
+
+				console.log(class {
+					// before
+					foo
+					/* comment before */
+					bar
+					// comment after
+				})
+
+				console.log(
+					() => { return /* foo */ null },
+					() => { throw /* foo */ null },
+					() => { return (/* foo */ null) + 1 },
+					() => { throw (/* foo */ null) + 1 },
+					() => {
+						return (// foo
+							null) + 1
+					},
+					() => {
+						throw (// foo
+							null) + 1
+					},
+				)
+
+				console.log(
+					/*a*/ a ? /*b*/ b : /*c*/ c,
+					a /*a*/ ? b /*b*/ : c /*c*/,
+				)
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			OutputFormat: config.FormatCommonJS,
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{
+					Exact: map[string]bool{"foo": true},
+				},
+			},
+		},
+	})
+}
+
+func TestCommentPreservationTransformJSX(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.jsx": `
+				console.log(
+					<div x={/*before*/x} />,
+					<div x={/*before*/'y'} />,
+					<div x={/*before*/true} />,
+					<div {/*before*/...x} />,
+					<div>{/*before*/x}</div>,
+					<>{/*before*/x}</>,
+				)
+			`,
+		},
+		entryPaths: []string{"/entry.jsx"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+	})
+}
+
+func TestCommentPreservationPreserveJSX(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.jsx": `
+				console.log(
+					<div x={/*before*/x} />,
+					<div x={/*before*/'y'} />,
+					<div x={/*before*/true} />,
+					<div {/*before*/...x} />,
+					<div>{/*before*/x}</div>,
+					<>{/*before*/x}</>,
+				)
+			`,
+		},
+		entryPaths: []string{"/entry.jsx"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			JSX: config.JSXOptions{
+				Preserve: true,
+			},
+		},
+	})
+}

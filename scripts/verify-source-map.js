@@ -632,32 +632,43 @@ async function checkNames(kind, testCase, { ext, flags, entryPoints, crlf }) {
           const column = prefixLines[prefixLines.length - 1].length
           index += parts[j].length
 
-          const generated = map.generatedPositionFor({ source, line, column })
-          const original = map.originalPositionFor(generated)
-          const generatedContentAfter = generatedLines[generated.line - 1].slice(generated.column)
-          recordCheck(original.source === source && original.line === line && original.column === column,
-            `\n` +
-            `\n  original position:               ${JSON.stringify({ source, line, column })}` +
-            `\n  maps to generated position:      ${JSON.stringify(generated)}` +
-            `\n  which maps to original position: ${JSON.stringify(original)}` +
-            `\n`)
+          // There may be multiple mappings if the expression is spread across
+          // multiple lines. Check each one to see if any pass the checks.
+          const allGenerated = map.allGeneratedPositionsFor({ source, line, column })
+          for (let i = 0; i < allGenerated.length; i++) {
+            const canSkip = i + 1 < allGenerated.length // Don't skip the last one
+            const generated = allGenerated[i]
+            const original = map.originalPositionFor(generated)
+            if (canSkip && (original.source !== source || original.line !== line || original.column !== column)) continue
+            recordCheck(original.source === source && original.line === line && original.column === column,
+              `\n` +
+              `\n  original position:               ${JSON.stringify({ source, line, column })}` +
+              `\n  maps to generated position:      ${JSON.stringify(generated)}` +
+              `\n  which maps to original position: ${JSON.stringify(original)}` +
+              `\n`)
 
-          if (original.source === source && original.line === line && original.column === column) {
-            const matchAfter = /^(?:\w+|'\w+'|"\w+"|\(\w+\))/.exec(generatedContentAfter)
-            recordCheck(matchAfter !== null, `expected identifier starting here: ${generatedContentAfter.slice(0, 100)}`)
+            if (original.source === source && original.line === line && original.column === column) {
+              const generatedContentAfter = generatedLines[generated.line - 1].slice(generated.column)
+              const matchAfter = /^(?:\w+|'\w+'|"\w+"|\(\w+\))/.exec(generatedContentAfter)
+              if (canSkip && matchAfter === null) continue
+              recordCheck(matchAfter !== null, `expected the identifier ${JSON.stringify(expectedName)} starting on line ${generated.line} here: ${generatedContentAfter.slice(0, 100)}`)
 
-            if (matchAfter !== null) {
-              const observedName = undoQuotes(matchAfter[0])
-              recordCheck(expectedName === (original.name || observedName),
-                `\n` +
-                `\n  generated position: ${JSON.stringify(generated)}` +
-                `\n  original position:  ${JSON.stringify(original)}` +
-                `\n` +
-                `\n  original name:  ${JSON.stringify(expectedName)}` +
-                `\n  generated name: ${JSON.stringify(observedName)}` +
-                `\n  mapping name:   ${JSON.stringify(original.name)}` +
-                `\n`)
+              if (matchAfter !== null) {
+                const observedName = undoQuotes(matchAfter[0])
+                if (canSkip && expectedName !== (original.name || observedName)) continue
+                recordCheck(expectedName === (original.name || observedName),
+                  `\n` +
+                  `\n  generated position: ${JSON.stringify(generated)}` +
+                  `\n  original position:  ${JSON.stringify(original)}` +
+                  `\n` +
+                  `\n  original name:  ${JSON.stringify(expectedName)}` +
+                  `\n  generated name: ${JSON.stringify(observedName)}` +
+                  `\n  mapping name:   ${JSON.stringify(original.name)}` +
+                  `\n`)
+              }
             }
+
+            break
           }
         }
       }

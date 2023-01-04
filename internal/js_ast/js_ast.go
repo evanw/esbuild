@@ -248,11 +248,6 @@ type LocRef struct {
 	Ref Ref
 }
 
-type Comment struct {
-	Text string
-	Loc  logger.Loc
-}
-
 type PropertyKind uint8
 
 const (
@@ -304,15 +299,18 @@ type Property struct {
 
 	TSDecorators []Expr
 
-	Loc   logger.Loc
-	Kind  PropertyKind
-	Flags PropertyFlags
+	Loc             logger.Loc
+	CloseBracketLoc logger.Loc
+	Kind            PropertyKind
+	Flags           PropertyFlags
 }
 
 type PropertyBinding struct {
 	Key               Expr
 	Value             Binding
 	DefaultValueOrNil Expr
+	Loc               logger.Loc
+	CloseBracketLoc   logger.Loc
 	IsComputed        bool
 	IsSpread          bool
 	PreferQuotedKey   bool
@@ -361,6 +359,7 @@ type Class struct {
 type ArrayBinding struct {
 	Binding           Binding
 	DefaultValueOrNil Expr
+	Loc               logger.Loc
 }
 
 type Binding struct {
@@ -528,9 +527,6 @@ type ENew struct {
 	Target Expr
 	Args   []Expr
 
-	// See this for more context: https://github.com/evanw/esbuild/issues/2439
-	WebpackComments []Comment
-
 	CloseParenLoc logger.Loc
 	IsMultiLine   bool
 
@@ -610,9 +606,10 @@ func (a *EDot) HasSameFlagsAs(b *EDot) bool {
 }
 
 type EIndex struct {
-	Target        Expr
-	Index         Expr
-	OptionalChain OptionalChain
+	Target          Expr
+	Index           Expr
+	CloseBracketLoc logger.Loc
+	OptionalChain   OptionalChain
 
 	// If true, this property access is known to be free of side-effects. That
 	// means it can be removed if the resulting value isn't used.
@@ -783,31 +780,23 @@ type EIf struct {
 
 type ERequireString struct {
 	ImportRecordIndex uint32
+	CloseParenLoc     logger.Loc
 }
 
 type ERequireResolveString struct {
 	ImportRecordIndex uint32
+	CloseParenLoc     logger.Loc
 }
 
 type EImportString struct {
-	// Comments inside "import()" expressions have special meaning for Webpack.
-	// Preserving comments inside these expressions makes it possible to use
-	// esbuild as a TypeScript-to-JavaScript frontend for Webpack to improve
-	// performance. We intentionally do not interpret these comments in esbuild
-	// because esbuild is not Webpack. But we do preserve them since doing so is
-	// harmless, easy to maintain, and useful to people. See the Webpack docs for
-	// more info: https://webpack.js.org/api/module-methods/#magic-comments.
-	WebpackComments []Comment
-
 	ImportRecordIndex uint32
+	CloseParenLoc     logger.Loc
 }
 
 type EImportCall struct {
-	Expr         Expr
-	OptionsOrNil Expr
-
-	// See the comment for this same field on "EImportString" for more information
-	WebpackComments []Comment
+	Expr          Expr
+	OptionsOrNil  Expr
+	CloseParenLoc logger.Loc
 }
 
 type Stmt struct {
@@ -1826,6 +1815,7 @@ type AST struct {
 	ModuleTypeData ModuleTypeData
 	Parts          []Part
 	Symbols        []Symbol
+	ExprComments   map[logger.Loc][]string
 	ModuleScope    *Scope
 	CharFreq       *CharFreq
 
