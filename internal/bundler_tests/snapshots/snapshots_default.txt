@@ -321,6 +321,44 @@ console.log(
   )
 );
 console.log(
+  import(
+    "foo",
+    /* before */
+    { assert: { type: "json" } }
+  ),
+  import("foo", {
+    /* before */
+    assert: { type: "json" }
+  }),
+  import("foo", {
+    assert:
+      /* before */
+      { type: "json" }
+  }),
+  import("foo", { assert: {
+    /* before */
+    type: "json"
+  } }),
+  import("foo", { assert: {
+    type:
+      /* before */
+      "json"
+  } }),
+  import("foo", { assert: {
+    type: "json"
+    /* before */
+  } }),
+  import("foo", {
+    assert: { type: "json" }
+    /* before */
+  }),
+  import(
+    "foo",
+    { assert: { type: "json" } }
+    /* before */
+  )
+);
+console.log(
   require(
     /* before */
     foo
@@ -558,6 +596,26 @@ console.log(
   ),
   a ? b : c
 );
+
+================================================================================
+TestCommentPreservationImportAssertions
+---------- /out/entry.js ----------
+// entry.jsx
+import "foo" assert { type: "json" };
+import "foo" assert { type: "json" };
+import "foo" assert {
+  /* before */
+  type: "json"
+};
+import "foo" assert {
+  type:
+    /* before */
+    "json"
+};
+import "foo" assert {
+  type: "json"
+  /* before */
+};
 
 ================================================================================
 TestCommentPreservationPreserveJSX

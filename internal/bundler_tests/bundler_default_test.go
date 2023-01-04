@@ -7561,6 +7561,17 @@ func TestCommentPreservation(t *testing.T) {
 				)
 
 				console.log(
+					import('foo', /* before */ { assert: { type: 'json' } }),
+					import('foo', { /* before */ assert: { type: 'json' } }),
+					import('foo', { assert: /* before */ { type: 'json' } }),
+					import('foo', { assert: { /* before */ type: 'json' } }),
+					import('foo', { assert: { type: /* before */ 'json' } }),
+					import('foo', { assert: { type: 'json' /* before */ } }),
+					import('foo', { assert: { type: 'json' } /* before */ }),
+					import('foo', { assert: { type: 'json' } } /* before */),
+				)
+
+				console.log(
 					require(/* before */ foo),
 					require(/* before */ 'foo'),
 					require(foo /* after */),
@@ -7680,6 +7691,30 @@ func TestCommentPreservation(t *testing.T) {
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/out",
 			OutputFormat: config.FormatCommonJS,
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{
+					Exact: map[string]bool{"foo": true},
+				},
+			},
+		},
+	})
+}
+
+func TestCommentPreservationImportAssertions(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.jsx": `
+				import 'foo' /* before */ assert { type: 'json' }
+				import 'foo' assert /* before */ { type: 'json' }
+				import 'foo' assert { /* before */ type: 'json' }
+				import 'foo' assert { type: /* before */ 'json' }
+				import 'foo' assert { type: 'json' /* before */ }
+			`,
+		},
+		entryPaths: []string{"/entry.jsx"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
 			ExternalSettings: config.ExternalSettings{
 				PreResolve: config.ExternalMatchers{
 					Exact: map[string]bool{"foo": true},

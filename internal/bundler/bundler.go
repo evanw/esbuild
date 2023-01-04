@@ -1929,7 +1929,7 @@ func (s *scanner) processScannedFiles(entryPointMeta []graph.EntryPoint) []scann
 					s.log.AddErrorWithNotes(&tracker, record.Range,
 						fmt.Sprintf("The file %q was loaded with the %q loader", otherFile.inputFile.Source.PrettyPath, config.LoaderToString[otherFile.inputFile.Loader]),
 						[]logger.MsgData{
-							tracker.MsgData(js_lexer.RangeOfImportAssertion(result.file.inputFile.Source, *ast.FindAssertion(*record.Assertions, "type")),
+							tracker.MsgData(js_lexer.RangeOfImportAssertion(result.file.inputFile.Source, *ast.FindAssertion(record.Assertions.Entries, "type")),
 								"This import assertion requires the loader to be \"json\" instead:"),
 							{Text: "You need to either reconfigure esbuild to ensure that the loader for this file is \"json\" or you need to remove this import assertion."}})
 				}

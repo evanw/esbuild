@@ -1858,7 +1858,7 @@ func (p *parser) checkForLegacyOctalLiteral(e js_ast.E) {
 
 func (p *parser) notesForAssertTypeJSON(record *ast.ImportRecord, alias string) []logger.MsgData {
 	return []logger.MsgData{p.tracker.MsgData(
-		js_lexer.RangeOfImportAssertion(p.source, *ast.FindAssertion(*record.Assertions, "type")),
+		js_lexer.RangeOfImportAssertion(p.source, *ast.FindAssertion(record.Assertions.Entries, "type")),
 		"This is considered an import of a standard JSON module because of the import assertion here:"),
 		{Text: fmt.Sprintf("You can either keep the import assertion and only use the \"default\" import, "+
 			"or you can remove the import assertion and use the %q import (which is non-standard behavior).", alias)}}
@@ -5951,7 +5951,7 @@ func (p *parser) parseLabelName() *js_ast.LocRef {
 	return &name
 }
 
-func (p *parser) parsePath() (logger.Loc, string, *[]ast.AssertEntry, ast.ImportRecordFlags) {
+func (p *parser) parsePath() (logger.Loc, string, *ast.ImportAssertions, ast.ImportRecordFlags) {
 	var flags ast.ImportRecordFlags
 	pathLoc := p.lexer.Loc()
 	pathText := helpers.UTF16ToString(p.lexer.StringLiteral())
@@ -5962,17 +5962,19 @@ func (p *parser) parsePath() (logger.Loc, string, *[]ast.AssertEntry, ast.Import
 	}
 
 	// See https://github.com/tc39/proposal-import-assertions for more info
-	var assertions *[]ast.AssertEntry
+	var assertions *ast.ImportAssertions
 	if !p.lexer.HasNewlineBefore && p.lexer.IsContextualKeyword("assert") {
 		// "import './foo.json' assert { type: 'json' }"
 		var entries []ast.AssertEntry
 		duplicates := make(map[string]logger.Range)
+		assertLoc := p.saveExprCommentsHere()
 		p.lexer.Next()
+		openBraceLoc := p.saveExprCommentsHere()
 		p.lexer.Expect(js_lexer.TOpenBrace)
 
 		for p.lexer.Token != js_lexer.TCloseBrace {
 			// Parse the key
-			keyLoc := p.lexer.Loc()
+			keyLoc := p.saveExprCommentsHere()
 			preferQuotedKey := false
 			var key []uint16
 			var keyText string
@@ -5995,7 +5997,7 @@ func (p *parser) parsePath() (logger.Loc, string, *[]ast.AssertEntry, ast.Import
 			p.lexer.Expect(js_lexer.TColon)
 
 			// Parse the value
-			valueLoc := p.lexer.Loc()
+			valueLoc := p.saveExprCommentsHere()
 			value := p.lexer.StringLiteral()
 			p.lexer.Expect(js_lexer.TStringLiteral)
 
@@ -6018,8 +6020,14 @@ func (p *parser) parsePath() (logger.Loc, string, *[]ast.AssertEntry, ast.Import
 			p.lexer.Next()
 		}
 
+		closeBraceLoc := p.saveExprCommentsHere()
 		p.lexer.Expect(js_lexer.TCloseBrace)
-		assertions = &entries
+		assertions = &ast.ImportAssertions{
+			Entries:            entries,
+			AssertLoc:          assertLoc,
+			InnerOpenBraceLoc:  openBraceLoc,
+			InnerCloseBraceLoc: closeBraceLoc,
+		}
 	}
 
 	return pathLoc, pathText, assertions, flags
@@ -6413,7 +6421,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			var alias *js_ast.ExportStarAlias
 			var pathLoc logger.Loc
 			var pathText string
-			var assertions *[]ast.AssertEntry
+			var assertions *ast.ImportAssertions
 			var flags ast.ImportRecordFlags
 
 			if p.lexer.IsContextualKeyword("as") {
@@ -7359,7 +7367,7 @@ func extractDeclsForBinding(binding js_ast.Binding, decls []js_ast.Decl) []js_as
 	return decls
 }
 
-func (p *parser) addImportRecord(kind ast.ImportKind, loc logger.Loc, text string, assertions *[]ast.AssertEntry, flags ast.ImportRecordFlags) uint32 {
+func (p *parser) addImportRecord(kind ast.ImportKind, loc logger.Loc, text string, assertions *ast.ImportAssertions, flags ast.ImportRecordFlags) uint32 {
 	index := uint32(len(p.importRecords))
 	p.importRecords = append(p.importRecords, ast.ImportRecord{
 		Kind:       kind,
@@ -13540,7 +13548,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		isThenCatchTarget := e == p.thenCatchChain.nextTarget && p.thenCatchChain.hasCatch
 		e.Expr = p.visitExpr(e.Expr)
 
-		var assertions *[]ast.AssertEntry
+		var assertions *ast.ImportAssertions
 		var flags ast.ImportRecordFlags
 		if e.OptionsOrNil.Data != nil {
 			e.OptionsOrNil = p.visitExpr(e.OptionsOrNil)
@@ -13593,7 +13601,14 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 									break
 								}
 								if entries != nil {
-									assertions = &entries
+									assertions = &ast.ImportAssertions{
+										Entries:            entries,
+										AssertLoc:          prop.Key.Loc,
+										InnerOpenBraceLoc:  prop.ValueOrNil.Loc,
+										InnerCloseBraceLoc: value.CloseBraceLoc,
+										OuterOpenBraceLoc:  e.OptionsOrNil.Loc,
+										OuterCloseBraceLoc: object.CloseBraceLoc,
+									}
 									why = ""
 								}
 							} else {

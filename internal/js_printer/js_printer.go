@@ -1267,7 +1267,12 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, level js_as
 
 			p.print("(")
 		}
-		isMultiLine := p.willPrintExprCommentsAtLoc(record.Range.Loc) || p.willPrintExprCommentsAtLoc(closeParenLoc)
+		isMultiLine := p.willPrintExprCommentsAtLoc(record.Range.Loc) ||
+			p.willPrintExprCommentsAtLoc(closeParenLoc) ||
+			(record.Assertions != nil &&
+				!p.options.UnsupportedFeatures.Has(compat.DynamicImport) &&
+				!p.options.UnsupportedFeatures.Has(compat.ImportAssertions) &&
+				p.willPrintExprCommentsAtLoc(record.Assertions.OuterOpenBraceLoc))
 		if isMultiLine {
 			p.printNewline()
 			p.options.Indent++
@@ -1276,7 +1281,7 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, level js_as
 		p.printExprCommentsAtLoc(record.Range.Loc)
 		p.printPath(importRecordIndex, kind)
 		if !p.options.UnsupportedFeatures.Has(compat.DynamicImport) {
-			p.printImportCallAssertions(record.Assertions)
+			p.printImportCallAssertions(record.Assertions, isMultiLine)
 		}
 		if isMultiLine {
 			p.printNewline()
@@ -3382,40 +3387,104 @@ func (p *printer) printPath(importRecordIndex uint32, importKind ast.ImportKind)
 
 	if record.Assertions != nil && importKind == ast.ImportStmt {
 		p.printSpace()
+		p.addSourceMapping(record.Assertions.AssertLoc)
 		p.print("assert")
 		p.printSpace()
 		p.printImportAssertionsClause(*record.Assertions)
 	}
 }
 
-func (p *printer) printImportCallAssertions(assertions *[]ast.AssertEntry) {
+func (p *printer) printImportCallAssertions(assertions *ast.ImportAssertions, outerIsMultiLine bool) {
 	// Just omit import assertions if they aren't supported
 	if p.options.UnsupportedFeatures.Has(compat.ImportAssertions) {
 		return
 	}
 
-	if assertions != nil {
-		p.print(",")
-		p.printSpace()
-		p.print("{")
-		p.printSpace()
-		p.print("assert:")
-		p.printSpace()
-		p.printImportAssertionsClause(*assertions)
-		p.printSpace()
-		p.print("}")
+	if assertions == nil {
+		return
 	}
-}
 
-func (p *printer) printImportAssertionsClause(assertions []ast.AssertEntry) {
+	isMultiLine := p.willPrintExprCommentsAtLoc(assertions.AssertLoc) ||
+		p.willPrintExprCommentsAtLoc(assertions.InnerOpenBraceLoc) ||
+		p.willPrintExprCommentsAtLoc(assertions.OuterCloseBraceLoc)
+
+	p.print(",")
+	if outerIsMultiLine {
+		p.printNewline()
+		p.printIndent()
+	} else {
+		p.printSpace()
+	}
+	p.printExprCommentsAtLoc(assertions.OuterOpenBraceLoc)
+	p.addSourceMapping(assertions.OuterOpenBraceLoc)
 	p.print("{")
 
-	for i, entry := range assertions {
+	if isMultiLine {
+		p.printNewline()
+		p.options.Indent++
+		p.printIndent()
+	} else {
+		p.printSpace()
+	}
+
+	p.printExprCommentsAtLoc(assertions.AssertLoc)
+	p.addSourceMapping(assertions.AssertLoc)
+	p.print("assert:")
+
+	if p.willPrintExprCommentsAtLoc(assertions.InnerOpenBraceLoc) {
+		p.printNewline()
+		p.options.Indent++
+		p.printIndent()
+		p.printExprCommentsAtLoc(assertions.InnerOpenBraceLoc)
+		p.printImportAssertionsClause(*assertions)
+		p.options.Indent--
+	} else {
+		p.printSpace()
+		p.printImportAssertionsClause(*assertions)
+	}
+
+	if isMultiLine {
+		p.printNewline()
+		p.printExprCommentsAfterCloseTokenAtLoc(assertions.OuterCloseBraceLoc)
+		p.options.Indent--
+		p.printIndent()
+	} else {
+		p.printSpace()
+	}
+
+	p.addSourceMapping(assertions.OuterCloseBraceLoc)
+	p.print("}")
+}
+
+func (p *printer) printImportAssertionsClause(assertions ast.ImportAssertions) {
+	isMultiLine := p.willPrintExprCommentsAtLoc(assertions.InnerCloseBraceLoc)
+	if !isMultiLine {
+		for _, entry := range assertions.Entries {
+			if p.willPrintExprCommentsAtLoc(entry.KeyLoc) || p.willPrintExprCommentsAtLoc(entry.ValueLoc) {
+				isMultiLine = true
+				break
+			}
+		}
+	}
+
+	p.addSourceMapping(assertions.InnerOpenBraceLoc)
+	p.print("{")
+	if isMultiLine {
+		p.options.Indent++
+	}
+
+	for i, entry := range assertions.Entries {
 		if i > 0 {
 			p.print(",")
 		}
+		if isMultiLine {
+			p.printNewline()
+			p.printIndent()
+		} else {
+			p.printSpace()
+		}
 
-		p.printSpace()
+		p.printExprCommentsAtLoc(entry.KeyLoc)
 		p.addSourceMapping(entry.KeyLoc)
 		if !entry.PreferQuotedKey && p.canPrintIdentifierUTF16(entry.Key) {
 			p.printSpaceBeforeIdentifier()
@@ -3425,15 +3494,32 @@ func (p *printer) printImportAssertionsClause(assertions []ast.AssertEntry) {
 		}
 
 		p.print(":")
-		p.printSpace()
 
-		p.addSourceMapping(entry.ValueLoc)
-		p.printQuotedUTF16(entry.Value, false /* allowBacktick */)
+		if p.willPrintExprCommentsAtLoc(entry.ValueLoc) {
+			p.printNewline()
+			p.options.Indent++
+			p.printIndent()
+			p.printExprCommentsAtLoc(entry.ValueLoc)
+			p.addSourceMapping(entry.ValueLoc)
+			p.printQuotedUTF16(entry.Value, false /* allowBacktick */)
+			p.options.Indent--
+		} else {
+			p.printSpace()
+			p.addSourceMapping(entry.ValueLoc)
+			p.printQuotedUTF16(entry.Value, false /* allowBacktick */)
+		}
 	}
 
-	if len(assertions) > 0 {
+	if isMultiLine {
+		p.printNewline()
+		p.printExprCommentsAfterCloseTokenAtLoc(assertions.InnerCloseBraceLoc)
+		p.options.Indent--
+		p.printIndent()
+	} else if len(assertions.Entries) > 0 {
 		p.printSpace()
 	}
+
+	p.addSourceMapping(assertions.InnerCloseBraceLoc)
 	p.print("}")
 }
 
