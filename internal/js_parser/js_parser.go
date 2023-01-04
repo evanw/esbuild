@@ -1729,6 +1729,17 @@ func (p *parser) logDeferredArrowArgErrors(errors *deferredErrors) {
 	}
 }
 
+func (p *parser) logNullishCoalescingErrorPrecedenceError(op string) {
+	prevOp := "??"
+	if p.lexer.Token == js_lexer.TQuestionQuestion {
+		op, prevOp = prevOp, op
+	}
+	// p.log.AddError(&p.tracker, p.lexer.Range(), fmt.Sprintf("The %q operator requires parentheses"))
+	p.log.AddErrorWithNotes(&p.tracker, p.lexer.Range(), fmt.Sprintf("Cannot use %q with %q without parentheses", op, prevOp),
+		[]logger.MsgData{{Text: fmt.Sprintf("Expressions of the form \"x %s y %s z\" are not allowed in JavaScript. "+
+			"You must disambiguate between \"(x %s y) %s z\" and \"x %s (y %s z)\" by adding parentheses.", prevOp, op, prevOp, op, prevOp, op)}})
+}
+
 func defineValueCanBeUsedInAssignTarget(data js_ast.E) bool {
 	switch data.(type) {
 	case *js_ast.EIdentifier, *js_ast.EDot:
@@ -4335,7 +4346,7 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 
 			// Prevent "||" inside "??" from the right
 			if level == js_ast.LNullishCoalescing {
-				p.lexer.Unexpected()
+				p.logNullishCoalescingErrorPrecedenceError("||")
 			}
 
 			p.lexer.Next()
@@ -4346,7 +4357,7 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 			if level < js_ast.LNullishCoalescing {
 				left = p.parseSuffix(left, js_ast.LNullishCoalescing+1, nil, flags)
 				if p.lexer.Token == js_lexer.TQuestionQuestion {
-					p.lexer.Unexpected()
+					p.logNullishCoalescingErrorPrecedenceError("||")
 				}
 			}
 
@@ -4364,7 +4375,7 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 
 			// Prevent "&&" inside "??" from the right
 			if level == js_ast.LNullishCoalescing {
-				p.lexer.Unexpected()
+				p.logNullishCoalescingErrorPrecedenceError("&&")
 			}
 
 			p.lexer.Next()
@@ -4374,7 +4385,7 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 			if level < js_ast.LNullishCoalescing {
 				left = p.parseSuffix(left, js_ast.LNullishCoalescing+1, nil, flags)
 				if p.lexer.Token == js_lexer.TQuestionQuestion {
-					p.lexer.Unexpected()
+					p.logNullishCoalescingErrorPrecedenceError("&&")
 				}
 			}
 

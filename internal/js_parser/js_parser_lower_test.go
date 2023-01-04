@@ -52,14 +52,41 @@ func TestLowerArrowFunction(t *testing.T) {
 }
 
 func TestLowerNullishCoalescing(t *testing.T) {
-	expectParseError(t, "a ?? b && c", "<stdin>: ERROR: Unexpected \"&&\"\n")
-	expectParseError(t, "a ?? b || c", "<stdin>: ERROR: Unexpected \"||\"\n")
-	expectParseError(t, "a ?? b && c || d", "<stdin>: ERROR: Unexpected \"&&\"\n")
-	expectParseError(t, "a ?? b || c && d", "<stdin>: ERROR: Unexpected \"||\"\n")
-	expectParseError(t, "a && b ?? c", "<stdin>: ERROR: Unexpected \"??\"\n")
-	expectParseError(t, "a || b ?? c", "<stdin>: ERROR: Unexpected \"??\"\n")
-	expectParseError(t, "a && b || c ?? c", "<stdin>: ERROR: Unexpected \"??\"\n")
-	expectParseError(t, "a || b && c ?? d", "<stdin>: ERROR: Unexpected \"??\"\n")
+	expectParseError(t, "a ?? b && c",
+		"<stdin>: ERROR: Cannot use \"&&\" with \"??\" without parentheses\n"+
+			"NOTE: Expressions of the form \"x ?? y && z\" are not allowed in JavaScript. "+
+			"You must disambiguate between \"(x ?? y) && z\" and \"x ?? (y && z)\" by adding parentheses.\n")
+	expectParseError(t, "a ?? b || c",
+		"<stdin>: ERROR: Cannot use \"||\" with \"??\" without parentheses\n"+
+			"NOTE: Expressions of the form \"x ?? y || z\" are not allowed in JavaScript. "+
+			"You must disambiguate between \"(x ?? y) || z\" and \"x ?? (y || z)\" by adding parentheses.\n")
+	expectParseError(t, "a ?? b && c || d",
+		"<stdin>: ERROR: Cannot use \"&&\" with \"??\" without parentheses\n"+
+			"NOTE: Expressions of the form \"x ?? y && z\" are not allowed in JavaScript. "+
+			"You must disambiguate between \"(x ?? y) && z\" and \"x ?? (y && z)\" by adding parentheses.\n"+
+			"<stdin>: ERROR: Cannot use \"||\" with \"??\" without parentheses\n"+
+			"NOTE: Expressions of the form \"x ?? y || z\" are not allowed in JavaScript. "+
+			"You must disambiguate between \"(x ?? y) || z\" and \"x ?? (y || z)\" by adding parentheses.\n")
+	expectParseError(t, "a ?? b || c && d",
+		"<stdin>: ERROR: Cannot use \"||\" with \"??\" without parentheses\n"+
+			"NOTE: Expressions of the form \"x ?? y || z\" are not allowed in JavaScript. "+
+			"You must disambiguate between \"(x ?? y) || z\" and \"x ?? (y || z)\" by adding parentheses.\n")
+	expectParseError(t, "a && b ?? c",
+		"<stdin>: ERROR: Cannot use \"??\" with \"&&\" without parentheses\n"+
+			"NOTE: Expressions of the form \"x && y ?? z\" are not allowed in JavaScript. "+
+			"You must disambiguate between \"(x && y) ?? z\" and \"x && (y ?? z)\" by adding parentheses.\n")
+	expectParseError(t, "a || b ?? c",
+		"<stdin>: ERROR: Cannot use \"??\" with \"||\" without parentheses\n"+
+			"NOTE: Expressions of the form \"x || y ?? z\" are not allowed in JavaScript. "+
+			"You must disambiguate between \"(x || y) ?? z\" and \"x || (y ?? z)\" by adding parentheses.\n")
+	expectParseError(t, "a && b || c ?? c",
+		"<stdin>: ERROR: Cannot use \"??\" with \"||\" without parentheses\n"+
+			"NOTE: Expressions of the form \"x || y ?? z\" are not allowed in JavaScript. "+
+			"You must disambiguate between \"(x || y) ?? z\" and \"x || (y ?? z)\" by adding parentheses.\n")
+	expectParseError(t, "a || b && c ?? d",
+		"<stdin>: ERROR: Cannot use \"??\" with \"||\" without parentheses\n"+
+			"NOTE: Expressions of the form \"x || y ?? z\" are not allowed in JavaScript. "+
+			"You must disambiguate between \"(x || y) ?? z\" and \"x || (y ?? z)\" by adding parentheses.\n")
 	expectPrinted(t, "a ?? b, b && c", "a ?? b, b && c;\n")
 	expectPrinted(t, "a ?? b, b || c", "a ?? b, b || c;\n")
 	expectPrinted(t, "a && b, b ?? c", "a && b, b ?? c;\n")
