@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.16.14
 
 * Preserve some comments in expressions ([#2721](https://github.com/evanw/esbuild/issues/2721))
 
