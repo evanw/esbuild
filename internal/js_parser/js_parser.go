@@ -7368,7 +7368,7 @@ func (p *parser) parseStmtsUpTo(end js_lexer.T, opts parseStmtOpts) []js_ast.Stm
 				stmts = append(stmts, js_ast.Stmt{
 					Loc: comment.Loc,
 					Data: &js_ast.SComment{
-						Text:           comment.Text,
+						Text:           p.source.CommentTextWithoutIndent(comment),
 						IsLegalComment: true,
 					},
 				})

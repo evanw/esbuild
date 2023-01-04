@@ -239,7 +239,7 @@ type MaybeSubstring struct {
 }
 
 type Lexer struct {
-	LegalCommentsBeforeToken     []js_ast.Comment
+	LegalCommentsBeforeToken     []logger.Range
 	WebpackComments              *[]js_ast.Comment
 	AllOriginalComments          []logger.Range
 	Identifier                   MaybeSubstring
@@ -2648,21 +2648,14 @@ func (lexer *Lexer) scanCommentText() {
 		}
 	}
 
-	if isMultiLineComment && (hasLegalAnnotation || isWebpackComment) {
-		text = helpers.RemoveMultiLineCommentIndent(lexer.source.Contents[:lexer.start], text)
-	}
-
 	if hasLegalAnnotation {
-		lexer.LegalCommentsBeforeToken = append(lexer.LegalCommentsBeforeToken, js_ast.Comment{
-			Loc:  logger.Loc{Start: int32(lexer.start)},
-			Text: text,
-		})
+		lexer.LegalCommentsBeforeToken = append(lexer.LegalCommentsBeforeToken, lexer.Range())
 	}
 
 	if isWebpackComment {
 		*lexer.WebpackComments = append(*lexer.WebpackComments, js_ast.Comment{
 			Loc:  logger.Loc{Start: int32(lexer.start)},
-			Text: text,
+			Text: lexer.source.CommentTextWithoutIndent(lexer.Range()),
 		})
 	}
 }

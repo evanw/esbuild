@@ -4,7 +4,6 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/logger"
 )
 
@@ -505,7 +504,7 @@ func (lexer *lexer) consumeToEndOfMultiLineComment(startRange logger.Range) {
 
 				// Record legal comments
 				if text := lexer.source.Contents[startRange.Loc.Start:commentEnd]; isLegalComment || containsAtPreserveOrAtLicense(text) {
-					text = helpers.RemoveMultiLineCommentIndent(lexer.source.Contents[:startRange.Loc.Start], text)
+					text = lexer.source.CommentTextWithoutIndent(logger.Range{Loc: startRange.Loc, Len: int32(commentEnd) - startRange.Loc.Start})
 					lexer.legalCommentsBefore = append(lexer.legalCommentsBefore, Comment{Loc: startRange.Loc, Text: text})
 				}
 				return
