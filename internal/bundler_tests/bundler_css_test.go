@@ -233,6 +233,7 @@ func TestImportJSFromCSS(t *testing.T) {
 			AbsOutputDir: "/out",
 		},
 		expectedScanLog: `entry.css: ERROR: Cannot import "entry.js" into a CSS file
+NOTE: An "@import" rule can only be used to import another CSS file, and "entry.js" is not a CSS file (it was loaded with the "js" loader).
 `,
 	})
 }
@@ -253,6 +254,7 @@ func TestImportJSONFromCSS(t *testing.T) {
 			AbsOutputDir: "/out",
 		},
 		expectedScanLog: `entry.css: ERROR: Cannot import "entry.json" into a CSS file
+NOTE: An "@import" rule can only be used to import another CSS file, and "entry.json" is not a CSS file (it was loaded with the "json" loader).
 `,
 	})
 }
@@ -332,11 +334,17 @@ func TestInvalidImportURLInCSS(t *testing.T) {
 			AbsOutputDir: "/out",
 		},
 		expectedScanLog: `entry.css: ERROR: Cannot use "js.js" as a URL
+NOTE: You can't use a "url()" token to reference the file "js.js" because it was loaded with the "js" loader, which doesn't provide a URL to embed in the resulting CSS.
 entry.css: ERROR: Cannot use "jsx.jsx" as a URL
+NOTE: You can't use a "url()" token to reference the file "jsx.jsx" because it was loaded with the "jsx" loader, which doesn't provide a URL to embed in the resulting CSS.
 entry.css: ERROR: Cannot use "ts.ts" as a URL
+NOTE: You can't use a "url()" token to reference the file "ts.ts" because it was loaded with the "ts" loader, which doesn't provide a URL to embed in the resulting CSS.
 entry.css: ERROR: Cannot use "tsx.tsx" as a URL
+NOTE: You can't use a "url()" token to reference the file "tsx.tsx" because it was loaded with the "tsx" loader, which doesn't provide a URL to embed in the resulting CSS.
 entry.css: ERROR: Cannot use "json.json" as a URL
+NOTE: You can't use a "url()" token to reference the file "json.json" because it was loaded with the "json" loader, which doesn't provide a URL to embed in the resulting CSS.
 entry.css: ERROR: Cannot use "css.css" as a URL
+NOTE: You can't use a "url()" token to reference a CSS file, and "css.css" is a CSS file (it was loaded with the "css" loader).
 `,
 	})
 }

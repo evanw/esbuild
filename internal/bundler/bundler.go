@@ -1938,8 +1938,11 @@ func (s *scanner) processScannedFiles(entryPointMeta []graph.EntryPoint) []scann
 				case ast.ImportAt, ast.ImportAtConditional:
 					// Using a JavaScript file with CSS "@import" is not allowed
 					if _, ok := otherFile.inputFile.Repr.(*graph.JSRepr); ok && otherFile.inputFile.Loader != config.LoaderEmpty {
-						s.log.AddError(&tracker, record.Range,
-							fmt.Sprintf("Cannot import %q into a CSS file", otherFile.inputFile.Source.PrettyPath))
+						s.log.AddErrorWithNotes(&tracker, record.Range,
+							fmt.Sprintf("Cannot import %q into a CSS file", otherFile.inputFile.Source.PrettyPath),
+							[]logger.MsgData{{Text: fmt.Sprintf(
+								"An \"@import\" rule can only be used to import another CSS file, and %q is not a CSS file (it was loaded with the %q loader).",
+								otherFile.inputFile.Source.PrettyPath, config.LoaderToString[otherFile.inputFile.Loader])}})
 					} else if record.Kind == ast.ImportAtConditional {
 						s.log.AddError(&tracker, record.Range,
 							"Bundling with conditional \"@import\" rules is not currently supported")
@@ -1949,13 +1952,19 @@ func (s *scanner) processScannedFiles(entryPointMeta []graph.EntryPoint) []scann
 					// Using a JavaScript or CSS file with CSS "url()" is not allowed
 					switch otherRepr := otherFile.inputFile.Repr.(type) {
 					case *graph.CSSRepr:
-						s.log.AddError(&tracker, record.Range,
-							fmt.Sprintf("Cannot use %q as a URL", otherFile.inputFile.Source.PrettyPath))
+						s.log.AddErrorWithNotes(&tracker, record.Range,
+							fmt.Sprintf("Cannot use %q as a URL", otherFile.inputFile.Source.PrettyPath),
+							[]logger.MsgData{{Text: fmt.Sprintf(
+								"You can't use a \"url()\" token to reference a CSS file, and %q is a CSS file (it was loaded with the %q loader).",
+								otherFile.inputFile.Source.PrettyPath, config.LoaderToString[otherFile.inputFile.Loader])}})
 
 					case *graph.JSRepr:
 						if otherRepr.AST.URLForCSS == "" && otherFile.inputFile.Loader != config.LoaderEmpty {
-							s.log.AddError(&tracker, record.Range,
-								fmt.Sprintf("Cannot use %q as a URL", otherFile.inputFile.Source.PrettyPath))
+							s.log.AddErrorWithNotes(&tracker, record.Range,
+								fmt.Sprintf("Cannot use %q as a URL", otherFile.inputFile.Source.PrettyPath),
+								[]logger.MsgData{{Text: fmt.Sprintf(
+									"You can't use a \"url()\" token to reference the file %q because it was loaded with the %q loader, which doesn't provide a URL to embed in the resulting CSS.",
+									otherFile.inputFile.Source.PrettyPath, config.LoaderToString[otherFile.inputFile.Loader])}})
 						}
 					}
 				}
