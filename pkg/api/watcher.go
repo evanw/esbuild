@@ -56,6 +56,7 @@ type watcher struct {
 	mutex             sync.Mutex
 	itemsPerIteration int
 	shouldStop        int32
+	stopWaitGroup     sync.WaitGroup
 }
 
 func (w *watcher) setWatchData(data fs.WatchData) {
@@ -76,6 +77,8 @@ func (w *watcher) setWatchData(data fs.WatchData) {
 }
 
 func (w *watcher) start(logLevel logger.LogLevel, useColor logger.UseColor) {
+	w.stopWaitGroup.Add(1)
+
 	go func() {
 		shouldLog := logLevel == logger.LevelInfo || logLevel == logger.LevelDebug || logLevel == logger.LevelVerbose
 
@@ -112,11 +115,14 @@ func (w *watcher) start(logLevel logger.LogLevel, useColor logger.UseColor) {
 				}
 			}
 		}
+
+		w.stopWaitGroup.Done()
 	}()
 }
 
 func (w *watcher) stop() {
 	atomic.StoreInt32(&w.shouldStop, 1)
+	w.stopWaitGroup.Wait()
 }
 
 func (w *watcher) tryToFindDirtyPath() string {

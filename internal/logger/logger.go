@@ -26,11 +26,7 @@ const defaultTerminalWidth = 80
 type Log struct {
 	AddMsg    func(Msg)
 	HasErrors func() bool
-
-	// This is called after the build has finished but before writing to stdout.
-	// It exists to ensure that deferred warning messages end up in the terminal
-	// before the data written to stdout.
-	AlmostDone func()
+	Peek      func() []Msg
 
 	Done func() []Msg
 
@@ -584,14 +580,8 @@ func NewStderrLog(options OutputOptions) Log {
 		remainingMessagesBeforeLimit = 0x7FFFFFFF
 	}
 	var deferredWarnings []Msg
-	didFinalizeLog := false
 
 	finalizeLog := func() {
-		if didFinalizeLog {
-			return
-		}
-		didFinalizeLog = true
-
 		// Print the deferred warning now if there was no error after all
 		for remainingMessagesBeforeLimit > 0 && len(deferredWarnings) > 0 {
 			shownWarnings++
@@ -690,17 +680,16 @@ func NewStderrLog(options OutputOptions) Log {
 			return hasErrors
 		},
 
-		AlmostDone: func() {
+		Peek: func() []Msg {
 			mutex.Lock()
 			defer mutex.Unlock()
-
-			finalizeLog()
+			sort.Stable(msgs)
+			return append([]Msg{}, msgs...)
 		},
 
 		Done: func() []Msg {
 			mutex.Lock()
 			defer mutex.Unlock()
-
 			finalizeLog()
 			sort.Stable(msgs)
 			return msgs
@@ -1069,7 +1058,10 @@ func NewDeferLog(kind DeferLogKind, overrides map[MsgID]LogLevel) Log {
 			return hasErrors
 		},
 
-		AlmostDone: func() {
+		Peek: func() []Msg {
+			mutex.Lock()
+			defer mutex.Unlock()
+			return append([]Msg{}, msgs...)
 		},
 
 		Done: func() []Msg {
@@ -1229,7 +1221,7 @@ func msgString(includeSource bool, terminalInfo TerminalInfo, id MsgID, kind Msg
 	}
 
 	if pluginName != "" {
-		pluginName = fmt.Sprintf("%s%s[plugin %s]%s ", colors.Bold, colors.Magenta, pluginName, colors.Reset)
+		pluginName = fmt.Sprintf(" %s%s[plugin %s]%s", colors.Bold, colors.Magenta, pluginName, colors.Reset)
 	}
 
 	msgID := MsgIDToString(id)
@@ -1240,8 +1232,7 @@ func msgString(includeSource bool, terminalInfo TerminalInfo, id MsgID, kind Msg
 	return fmt.Sprintf("%s%s %s[%s%s%s]%s %s%s%s%s%s\n%s",
 		iconColor, kind.Icon(),
 		kindColorBrackets, kindColorText, kind.String(), kindColorBrackets, colors.Reset,
-		pluginName,
-		colors.Bold, data.Text, colors.Reset, msgID,
+		colors.Bold, data.Text, colors.Reset, pluginName, msgID,
 		location,
 	)
 }

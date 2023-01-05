@@ -1,5 +1,255 @@
 # Changelog
 
+## Unreleased
+
+**This release deliberately contains backwards-incompatible changes.** To avoid automatically picking up releases like this, you should either be pinning the exact version of `esbuild` in your `package.json` file (recommended) or be using a version range syntax that only accepts patch upgrades such as `^0.16.0` or `~0.16.0`. See npm's documentation about [semver](https://docs.npmjs.com/cli/v6/using-npm/semver/) for more information.
+
+At a high level, the breaking changes in this release fix some long-standing issues with the design of esbuild's incremental, watch, and serve APIs. This release also introduces some exciting new features such as live reloading. In detail:
+
+* Move everything related to incremental builds to a new `context` API ([#1037](https://github.com/evanw/esbuild/issues/1037), [#1606](https://github.com/evanw/esbuild/issues/1606), [#2280](https://github.com/evanw/esbuild/issues/2280), [#2418](https://github.com/evanw/esbuild/issues/2418))
+
+    This change removes the `incremental` and `watch` options as well as the `serve()` method, and introduces a new `context()` method. The context method takes the same arguments as the `build()` method but only validates its arguments and does not do an initial build. Instead, builds can be triggered using the `rebuild()`, `watch()`, and `serve()` methods on the returned context object. The new context API looks like this:
+
+    ```js
+    // Create a context for incremental builds
+    const context = await esbuild.context({
+      entryPoints: ['app.ts'],
+      bundle: true,
+    })
+
+    // Manually do an incremental build
+    const result = await context.rebuild()
+
+    // Enable watch mode
+    await context.watch()
+
+    // Enable serve mode
+    await context.serve()
+
+    // Dispose of the context
+    context.dispose()
+    ```
+
+    The switch to the context API solves a major issue with the previous API which is that if the initial build fails, a promise is thrown in JavaScript which prevents you from accessing the returned result object. That prevented you from setting up long-running operations such as watch mode when the initial build contained errors. It also makes tearing down incremental builds simpler as there is now a single way to do it instead of three separate ways.
+
+    In addition, this release also makes some subtle changes to how incremental builds work. Previously every call to `rebuild()` started a new build. If you weren't careful, then builds could actually overlap. This doesn't cause any problems with esbuild itself, but could potentially cause problems with plugins (esbuild doesn't even give you a way to identify which overlapping build a given plugin callback is running on). Overlapping builds also arguably aren't useful, or at least aren't useful enough to justify the confusion and complexity that they bring. With this release, there is now only ever a single active build per context. Calling `rebuild()` before the previous rebuild has finished now "merges" with the existing rebuild instead of starting a new build.
+
+* Allow using `watch` and `serve` together ([#805](https://github.com/evanw/esbuild/issues/805), [#1650](https://github.com/evanw/esbuild/issues/1650), [#2576](https://github.com/evanw/esbuild/issues/2576))
+
+    Previously it was not possible to use watch mode and serve mode together. The rationale was that watch mode is one way of automatically rebuilding your project and serve mode is another (since serve mode automatically rebuilds on every request). However, people want to combine these two features to make "live reloading" where the browser automatically reloads the page when files are changed on the file system.
+
+    This release now allows you to use these two features together. You can only call the `watch()` and `serve()` APIs once each per context, but if you call them together on the same context then esbuild will automatically rebuild both when files on the file system are changed *and* when the server serves a request.
+
+* Support "live reloading" through server-sent events ([#802](https://github.com/evanw/esbuild/issues/802))
+
+    [Server-sent events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events) are a simple way to pass one-directional messages asynchronously from the server to the client. Serve mode now provides a `/esbuild` endpoint with an `change` event that triggers every time esbuild's output changes. So you can now implement simple "live reloading" (i.e. reloading the page when a file is edited and saved) like this:
+
+    ```js
+    new EventSource('/esbuild').addEventListener('change', () => location.reload())
+    ```
+
+    The event payload is a JSON object with the following shape:
+
+    ```ts
+    interface ChangeEvent {
+      added: string[]
+      removed: string[]
+      updated: string[]
+    }
+    ```
+
+    This JSON should also enable more complex live reloading scenarios. For example, the following code hot-swaps changed CSS `<link>` tags in place without reloading the page (but still reloads when there are other types of changes):
+
+    ```js
+    new EventSource('/esbuild').addEventListener('change', e => {
+      const { added, removed, updated } = JSON.parse(e.data)
+      if (!added.length && !removed.length && updated.length === 1) {
+        for (const link of document.getElementsByTagName("link")) {
+          const url = new URL(link.href)
+          if (url.host === location.host && url.pathname === updated[0]) {
+            const next = link.cloneNode()
+            next.href = updated[0] + '?' + Math.random().toString(36).slice(2)
+            next.onload = () => link.remove()
+            link.parentNode.insertBefore(next, link.nextSibling)
+            return
+          }
+        }
+      }
+      location.reload()
+    })
+    ```
+
+    Implementing live reloading like this has a few known caveats:
+
+    * These events only trigger when esbuild's output changes. They do not trigger when files unrelated to the build being watched are changed. If your HTML file references other files that esbuild doesn't know about and those files are changed, you can either manually reload the page or you can implement your own live reloading infrastructure instead of using esbuild's built-in behavior.
+
+    * The `EventSource` API is supposed to automatically reconnect for you. However, there's a bug in Firefox that breaks this if the server is ever temporarily unreachable: https://bugzilla.mozilla.org/show_bug.cgi?id=1809332. Workarounds are to use any other browser, to manually reload the page if this happens, or to write more complicated code that manually closes and re-creates the `EventSource` object if there is a connection error. I'm hopeful that this bug will be fixed.
+
+    * Browser vendors have decided to not implement HTTP/2 without TLS. This means that each `/esbuild` event source will take up one of your precious 6 simultaneous per-domain HTTP/1.1 connections. So if you open more than six HTTP tabs that use this live-reloading technique, you will be unable to use live reloading in some of those tabs (and other things will likely also break). The workaround is to enable HTTPS, which is now possible to do in esbuild itself (see below).
+
+* Add built-in support for HTTPS ([#2169](https://github.com/evanw/esbuild/issues/2169))
+
+    You can now tell esbuild's built-in development server to use HTTPS instead of HTTP. This is sometimes necessary because browser vendors have started making modern web features unavailable to HTTP websites. Previously you had to put a proxy in front of esbuild to enable HTTPS since esbuild's development server only supported HTTP. But with this release, you can now enable HTTPS with esbuild without an additional proxy.
+
+    To enable HTTPS with esbuild:
+
+    1. Generate a self-signed certificate. There are many ways to do this. Here's one way, assuming you have `openssl` installed:
+
+        ```
+        openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 9999 -nodes -subj /CN=127.0.0.1
+        ```
+
+    2. Add `--keyfile=key.pem` and `--certfile=cert.pem` to your esbuild development server command
+    3. Click past the scary warning in your browser when you load your page
+
+    If you have more complex needs than this, you can still put a proxy in front of esbuild and use that for HTTPS instead. Note that if you see the message "Client sent an HTTP request to an HTTPS server" when you load your page, then you are using the incorrect protocol. Replace `http://` with `https://` in your browser's URL bar.
+
+    Keep in mind that esbuild's HTTPS support has nothing to do with security. The only reason esbuild now supports HTTPS is because browsers have made it impossible to do local development with certain modern web features without jumping through these extra hoops. *Please do not use esbuild's development server for anything that needs to be secure.* It's only intended for local development and no considerations have been made for production environments whatsoever.
+
+* Better support copying `index.html` into the output directory ([#621](https://github.com/evanw/esbuild/issues/621), [#1771](https://github.com/evanw/esbuild/issues/1771))
+
+    Right now esbuild only supports JavaScript and CSS as first-class content types. Previously this meant that if you were building a website with a HTML file, a JavaScript file, and a CSS file, you could use esbuild to build the JavaScript file and the CSS file into the output directory but not to copy the HTML file into the output directory. You needed a separate `cp` command for that.
+
+    Or so I thought. It turns out that the `copy` loader added in version 0.14.44 of esbuild is sufficient to have esbuild copy the HTML file into the output directory as well. You can add something like `index.html --loader:.html=copy` and esbuild will copy `index.html` into the output directory for you. The benefits of this are a) you don't need a separate `cp` command and b) the `index.html` file will automatically be re-copied when esbuild is in watch mode and the contents of `index.html` are edited. This also goes for other non-HTML file types that you might want to copy.
+
+    This pretty much already worked. The one thing that didn't work was that esbuild's built-in development server previously only supported implicitly loading `index.html` (e.g. loading `/about/index.html` when you visit `/about/`) when `index.html` existed on the file system. Previously esbuild didn't support implicitly loading `index.html` if it was a build result. That bug has been fixed with this release so it should now be practical to use the `copy` loader to do this.
+
+* Fix `onEnd` not being called in serve mode ([#1384](https://github.com/evanw/esbuild/issues/1384))
+
+    Previous releases had a bug where plugin `onEnd` callbacks weren't called when using the top-level `serve()` API. This API no longer exists and the internals have been reimplemented such that `onEnd` callbacks should now always be called at the end of every build.
+
+* Incremental builds now write out build results differently ([#2104](https://github.com/evanw/esbuild/issues/2104))
+
+    Previously build results were always written out after every build. However, this could cause the output directory to fill up with files from old builds if code splitting was enabled, since the file names for code splitting chunks contain content hashes and old files were not deleted.
+
+    With this release, incremental builds in esbuild will now delete old output files from previous builds that are no longer relevant. Subsequent incremental builds will also no longer overwrite output files whose contents haven't changed since the previous incremental build.
+
+* The `onRebuild` watch mode callback was removed ([#980](https://github.com/evanw/esbuild/issues/980), [#2499](https://github.com/evanw/esbuild/issues/2499))
+
+    Previously watch mode accepted an `onRebuild` callback which was called whenever watch mode rebuilt something. This was not great in practice because if you are running code after a build, you likely want that code to run after every build, not just after the second and subsequent builds. This release removes option to provide an `onRebuild` callback. You can create a plugin with an `onEnd` callback instead. The `onEnd` plugin API already exists, and is a way to run some code after every build.
+
+* You can now return errors from `onEnd` ([#2625](https://github.com/evanw/esbuild/issues/2625))
+
+    It's now possible to add additional build errors and/or warnings to the current build from within your `onEnd` callback by returning them in an array. This is identical to how the `onStart` callback already works. The evaluation of `onEnd` callbacks have been moved around a bit internally to make this possible.
+
+    Note that the build will only fail (i.e. reject the promise) if the additional errors are returned from `onEnd`. Adding additional errors to the result object that's passed to `onEnd` won't affect esbuild's behavior at all.
+
+* Print URLs and ports from the Go and JS APIs ([#2393](https://github.com/evanw/esbuild/issues/2393))
+
+    Previously esbuild's CLI printed out something like this when serve mode is active:
+
+    ```
+     > Local:   http://127.0.0.1:8000/
+     > Network: http://192.168.0.1:8000/
+    ```
+
+    The CLI still does this, but now the JS and Go serve mode APIs will do this too. This only happens when the log level is set to `verbose`, `debug`, or `info` but not when it's set to `warning`, `error`, or `silent`.
+
+### Upgrade guide for existing code:
+
+* Rebuild (a.k.a. incremental build):
+
+    Before:
+
+    ```js
+    const result = await esbuild.build({ ...buildOptions, incremental: true });
+    builds.push(result);
+    for (let i = 0; i < 4; i++) builds.push(await result.rebuild());
+    await result.rebuild.dispose(); // To free resources
+    ```
+
+    After:
+
+    ```js
+    const ctx = await esbuild.context(buildOptions);
+    for (let i = 0; i < 5; i++) builds.push(await ctx.rebuild());
+    await ctx.dispose(); // To free resources
+    ```
+
+    Previously the first build was done differently than subsequent builds. Now both the first build and subsequent builds are done using the same API.
+
+* Serve:
+
+    Before:
+
+    ```js
+    const serveResult = await esbuild.serve(serveOptions, buildOptions);
+    ...
+    serveResult.stop(); await serveResult.wait; // To free resources
+    ```
+
+    After:
+
+    ```js
+    const ctx = await esbuild.context(buildOptions);
+    const serveResult = await ctx.serve(serveOptions);
+    ...
+    await ctx.dispose(); // To free resources
+    ```
+
+* Watch:
+
+    Before:
+
+    ```js
+    const result = await esbuild.build({ ...buildOptions, watch: true });
+    ...
+    result.stop(); // To free resources
+    ```
+
+    After:
+
+    ```js
+    const ctx = await esbuild.context(buildOptions);
+    await ctx.watch();
+    ...
+    await ctx.dispose(); // To free resources
+    ```
+
+* Watch with `onRebuild`:
+
+    Before:
+
+    ```js
+    const onRebuild = (error, result) => {
+      if (error) console.log('subsequent build:', error);
+      else console.log('subsequent build:', result);
+    };
+    try {
+      const result = await esbuild.build({ ...buildOptions, watch: { onRebuild } });
+      console.log('first build:', result);
+      ...
+      result.stop(); // To free resources
+    } catch (error) {
+      console.log('first build:', error);
+    }
+    ```
+
+    After:
+
+    ```js
+    const plugins = [{
+      name: 'my-plugin',
+      setup(build) {
+        let count = 0;
+        build.onEnd(result => {
+          if (count++ === 0) console.log('first build:', result);
+          else console.log('subsequent build:', result);
+        });
+      },
+    }];
+    const ctx = await esbuild.context({ ...buildOptions, plugins });
+    await ctx.watch();
+    ...
+    await ctx.dispose(); // To free resources
+    ```
+
+    The `onRebuild` function has now been removed. The replacement is to make a plugin with an `onEnd` callback.
+
+    Previously `onRebuild` did not fire for the first build (only for subsequent builds). This was usually problematic, so using `onEnd` instead of `onRebuild` is likely less error-prone. But if you need to emulate the old behavior of `onRebuild` that ignores the first build, then you'll need to manually count and ignore the first build in your plugin (as demonstrated above).
+
+Notice how all of these API calls are now done off the new context object. You should now be able to use all three kinds of incremental builds (`rebuild`, `serve`, and `watch`) together on the same context object. Also notice how calling `dispose` on the context is now the common way to discard the context and free resources in all of these situations.
+
 ## 0.16.17
 
 * Fix additional comment-related regressions ([#2814](https://github.com/evanw/esbuild/issues/2814))

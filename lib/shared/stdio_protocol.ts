@@ -4,7 +4,7 @@
 // additional byte array primitive. You must send a response after receiving a
 // request because the other end is blocking on the response coming back.
 
-import * as types from "./types";
+import type * as types from "./types";
 
 export interface BuildRequest {
   command: 'build';
@@ -15,27 +15,26 @@ export interface BuildRequest {
   stdinContents: Uint8Array | null;
   stdinResolveDir: string | null;
   absWorkingDir: string;
-  incremental: boolean;
   nodePaths: string[];
+  context: boolean;
   plugins?: BuildPlugin[];
-  serve?: ServeRequest;
   mangleCache?: Record<string, string | false>;
 }
 
 export interface ServeRequest {
+  command: 'serve';
+  key: number;
+  onRequest: boolean;
   port?: number;
   host?: string;
   servedir?: string;
+  keyfile?: string;
+  certfile?: string;
 }
 
 export interface ServeResponse {
   port: number;
   host: string;
-}
-
-export interface ServeStopRequest {
-  command: 'serve-stop';
-  key: number;
 }
 
 export interface BuildPlugin {
@@ -49,12 +48,19 @@ export interface BuildPlugin {
 export interface BuildResponse {
   errors: types.Message[];
   warnings: types.Message[];
-  rebuild: boolean;
-  watch: boolean;
   outputFiles?: BuildOutputFile[];
   metafile?: string;
   mangleCache?: Record<string, string | false>;
   writeToStdout?: Uint8Array;
+}
+
+export interface OnEndRequest extends BuildResponse {
+  command: 'on-end';
+}
+
+export interface OnEndResponse {
+  errors: types.Message[];
+  warnings: types.Message[];
 }
 
 export interface BuildOutputFile {
@@ -71,32 +77,25 @@ export interface RebuildRequest {
   key: number;
 }
 
-export interface RebuildDisposeRequest {
-  command: 'rebuild-dispose';
+export interface RebuildResponse {
+  errors: types.Message[];
+  warnings: types.Message[];
+}
+
+export interface DisposeRequest {
+  command: 'dispose';
   key: number;
 }
 
-export interface WatchStopRequest {
-  command: 'watch-stop';
+export interface WatchRequest {
+  command: 'watch';
   key: number;
 }
 
-export interface OnRequestRequest {
+export interface OnServeRequest {
   command: 'serve-request';
   key: number;
   args: types.ServeOnRequestArgs;
-}
-
-export interface OnWaitRequest {
-  command: 'serve-wait';
-  key: number;
-  error: string | null;
-}
-
-export interface OnWatchRebuildRequest {
-  command: 'watch-rebuild';
-  key: number;
-  args: BuildResponse;
 }
 
 export interface TransformRequest {

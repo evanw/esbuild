@@ -1111,6 +1111,7 @@ func ScanBundle(
 	applyOptionDefaults(&options)
 
 	// Run "onStart" plugins in parallel
+	timer.Begin("On-start callbacks")
 	onStartWaitGroup := sync.WaitGroup{}
 	for _, plugin := range options.Plugins {
 		for _, onStart := range plugin.OnStart {
@@ -1194,6 +1195,7 @@ func ScanBundle(
 	//   }
 	//
 	onStartWaitGroup.Wait()
+	timer.End("On-start callbacks")
 
 	s.preprocessInjectedFiles()
 	entryPointMeta := s.addEntryPoints(entryPoints)

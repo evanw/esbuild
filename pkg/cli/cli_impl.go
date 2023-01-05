@@ -50,6 +50,7 @@ const (
 )
 
 type parseOptionsExtras struct {
+	watch       bool
 	metafile    *string
 	mangleCache *string
 }
@@ -122,10 +123,8 @@ func parseOptionsImpl(
 		case isBoolFlag(arg, "--watch") && buildOpts != nil:
 			if value, err := parseBoolFlag(arg, true); err != nil {
 				return parseOptionsExtras{}, err
-			} else if value {
-				buildOpts.Watch = &api.WatchMode{}
 			} else {
-				buildOpts.Watch = nil
+				extras.watch = value
 			}
 
 		case isBoolFlag(arg, "--minify"):
@@ -812,6 +811,7 @@ func parseOptionsImpl(
 				"asset-names":        true,
 				"banner":             true,
 				"bundle":             true,
+				"certfile":           true,
 				"charset":            true,
 				"chunk-names":        true,
 				"color":              true,
@@ -826,6 +826,7 @@ func parseOptionsImpl(
 				"jsx-import-source":  true,
 				"jsx":                true,
 				"keep-names":         true,
+				"keyfile":            true,
 				"legal-comments":     true,
 				"loader":             true,
 				"log-level":          true,
@@ -848,6 +849,8 @@ func parseOptionsImpl(
 				"public-path":        true,
 				"reserve-props":      true,
 				"resolve-extensions": true,
+				"serve":              true,
+				"servedir":           true,
 				"source-root":        true,
 				"sourcefile":         true,
 				"sourcemap":          true,
@@ -1054,11 +1057,8 @@ func runImpl(osArgs []string) int {
 	for _, arg := range osArgs {
 		// Special-case running a server
 		if arg == "--serve" || strings.HasPrefix(arg, "--serve=") || strings.HasPrefix(arg, "--servedir=") {
-			if err := serveImpl(osArgs); err != nil {
-				logger.PrintErrorWithNoteToStderr(osArgs, err.Text, err.Note)
-				return 1
-			}
-			return 0
+			serveImpl(osArgs)
+			return 1 // There was an error starting the server if we get here
 		}
 
 		// Special-case analyze just for our CLI
@@ -1237,7 +1237,7 @@ func runImpl(osArgs []string) int {
 		buildOptions.Plugins = append(buildOptions.Plugins, api.Plugin{
 			Name: "PostBuildActions",
 			Setup: func(build api.PluginBuild) {
-				build.OnEnd(func(result *api.BuildResult) {
+				build.OnEnd(func(result *api.BuildResult) (api.OnEndResult, error) {
 					// Print our analysis of the metafile
 					if printAnalysis != nil {
 						printAnalysis(result.Metafile)
@@ -1252,17 +1252,29 @@ func runImpl(osArgs []string) int {
 					if writeMangleCache != nil {
 						writeMangleCache(result.MangleCache)
 					}
+
+					return api.OnEndResult{}, nil
 				})
 			},
 		})
 
-		// Run the build
-		result := api.Build(*buildOptions)
+		// Handle watch mode
+		if extras.watch {
+			ctx, err := api.Context(*buildOptions)
 
-		// Do not exit if we're in watch mode
-		if buildOptions.Watch != nil {
+			// Only start watching if the build options passed validation
+			if err != nil {
+				return 1
+			}
+
+			ctx.Watch(api.WatchOptions{})
+
+			// Do not exit if we're in watch mode
 			<-make(chan struct{})
 		}
+
+		// This prints the summary which the context API doesn't do
+		result := api.Build(*buildOptions)
 
 		// Return a non-zero exit code if there were errors
 		if len(result.Errors) > 0 {
@@ -1299,6 +1311,8 @@ func parseServeOptionsImpl(osArgs []string) (api.ServeOptions, []string, error) 
 	host := ""
 	portText := "0"
 	servedir := ""
+	keyfile := ""
+	certfile := ""
 
 	// Filter out server-specific flags
 	filteredArgs := make([]string, 0, len(osArgs))
@@ -1309,6 +1323,10 @@ func parseServeOptionsImpl(osArgs []string) (api.ServeOptions, []string, error) 
 			portText = arg[len("--serve="):]
 		} else if strings.HasPrefix(arg, "--servedir=") {
 			servedir = arg[len("--servedir="):]
+		} else if strings.HasPrefix(arg, "--keyfile=") {
+			keyfile = arg[len("--keyfile="):]
+		} else if strings.HasPrefix(arg, "--certfile=") {
+			certfile = arg[len("--certfile="):]
 		} else {
 			filteredArgs = append(filteredArgs, arg)
 		}
@@ -1336,13 +1354,16 @@ func parseServeOptionsImpl(osArgs []string) (api.ServeOptions, []string, error) 
 		Port:     uint16(port),
 		Host:     host,
 		Servedir: servedir,
+		Keyfile:  keyfile,
+		Certfile: certfile,
 	}, filteredArgs, nil
 }
 
-func serveImpl(osArgs []string) *cli_helpers.ErrorWithNote {
+func serveImpl(osArgs []string) {
 	serveOptions, filteredArgs, err := parseServeOptionsImpl(osArgs)
 	if err != nil {
-		return cli_helpers.MakeErrorWithNote(err.Error(), "")
+		logger.PrintErrorWithNoteToStderr(osArgs, err.Error(), "")
+		return
 	}
 
 	options := newBuildOptions()
@@ -1351,8 +1372,10 @@ func serveImpl(osArgs []string) *cli_helpers.ErrorWithNote {
 	options.LogLimit = 5
 	options.LogLevel = api.LogLevelInfo
 
-	if _, err := parseOptionsImpl(filteredArgs, &options, nil, kindInternal); err != nil {
-		return err
+	extras, errWithNote := parseOptionsImpl(filteredArgs, &options, nil, kindInternal)
+	if errWithNote != nil {
+		logger.PrintErrorWithNoteToStderr(osArgs, errWithNote.Text, errWithNote.Note)
+		return
 	}
 
 	serveOptions.OnRequest = func(args api.ServeOnRequestArgs) {
@@ -1369,63 +1392,28 @@ func serveImpl(osArgs []string) *cli_helpers.ErrorWithNote {
 		})
 	}
 
-	result, err := api.Serve(serveOptions, options)
-	if err != nil {
-		return cli_helpers.MakeErrorWithNote(err.Error(), "")
+	// Validate build options
+	ctx, ctxErr := api.Context(options)
+	if ctxErr != nil {
+		return
 	}
 
-	// Show what actually got bound if the port was 0
-	logger.PrintText(os.Stderr, logger.LevelInfo, filteredArgs, func(colors logger.Colors) string {
-		var hosts []string
-		sb := strings.Builder{}
-		sb.WriteString(colors.Reset)
-
-		// If this is "0.0.0.0" or "::", list all relevant IP addresses
-		if ip := net.ParseIP(result.Host); ip != nil && ip.IsUnspecified() {
-			if addrs, err := net.InterfaceAddrs(); err == nil {
-				for _, addr := range addrs {
-					if addr, ok := addr.(*net.IPNet); ok && (addr.IP.To4() != nil) == (ip.To4() != nil) && !addr.IP.IsLinkLocalUnicast() {
-						hosts = append(hosts, addr.IP.String())
-					}
-				}
-			}
-		}
-
-		// Otherwise, just list the one IP address
-		if len(hosts) == 0 {
-			hosts = append(hosts, result.Host)
-		}
-
-		// Determine the host kinds
-		kinds := make([]string, len(hosts))
-		maxLen := 0
-		for i, host := range hosts {
-			kind := "Network"
-			if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
-				kind = "Local"
-			}
-			kinds[i] = kind
-			if len(kind) > maxLen {
-				maxLen = len(kind)
-			}
-		}
-
-		// Pretty-print the host list
-		for i, kind := range kinds {
-			sb.WriteString(fmt.Sprintf("\n > %s:%s %shttp://%s/%s",
-				kind, strings.Repeat(" ", maxLen-len(kind)), colors.Underline,
-				net.JoinHostPort(hosts[i], fmt.Sprintf("%d", result.Port)), colors.Reset))
-		}
-
-		sb.WriteString("\n\n")
-		return sb.String()
-	})
-
-	if err := result.Wait(); err != nil {
-		return cli_helpers.MakeErrorWithNote(err.Error(), "")
+	// Try to enable serve mode
+	if _, err = ctx.Serve(serveOptions); err != nil {
+		logger.PrintErrorWithNoteToStderr(osArgs, err.Error(), "")
+		return
 	}
 
-	return nil
+	// Also enable watch mode if it was requested
+	if extras.watch {
+		if err := ctx.Watch(api.WatchOptions{}); err != nil {
+			logger.PrintErrorWithNoteToStderr(osArgs, err.Error(), "")
+			return
+		}
+	}
+
+	// Do not exit if we're in serve mode
+	<-make(chan struct{})
 }
 
 func parseLogLevel(value string, arg string) (api.LogLevel, *cli_helpers.ErrorWithNote) {

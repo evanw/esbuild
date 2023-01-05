@@ -23,7 +23,6 @@ func parseMangleCache(osArgs []string, fs fs.FS, absPath string) (map[string]int
 	// Log problems with the mangle cache to stderr
 	log := logger.NewStderrLog(logger.OutputOptionsForArgs(osArgs))
 	defer log.Done()
-	// log.AddMsg(msg)
 
 	// Try to read the existing file
 	prettyPath := absPath
