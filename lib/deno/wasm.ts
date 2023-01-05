@@ -8,7 +8,7 @@ declare let WEB_WORKER_FUNCTION: (postMessage: (data: Uint8Array) => void) => (e
 
 export let version = ESBUILD_VERSION
 
-export let build: typeof types.build = (options: types.BuildOptions): Promise<any> =>
+export let build: typeof types.build = (options: types.BuildOptions) =>
   ensureServiceIsRunning().then(service =>
     service.build(options))
 
@@ -16,7 +16,7 @@ export const serve: typeof types.serve = () => {
   throw new Error(`The "serve" API does not work in Deno via WebAssembly`)
 }
 
-export const transform: typeof types.transform = (input, options) =>
+export const transform: typeof types.transform = (input: string | Uint8Array, options?: types.TransformOptions) =>
   ensureServiceIsRunning().then(service =>
     service.transform(input, options))
 
@@ -144,8 +144,8 @@ const startRunningService = async (wasmURL: string | URL, wasmModule: WebAssembl
           defaultWD: '/',
           callback: (err, res) => err ? reject(err) : resolve(res as types.BuildResult),
         })),
-    transform: (input, options) =>
-      new Promise((resolve, reject) =>
+    transform: (input: string | Uint8Array, options?: types.TransformOptions) =>
+      new Promise<types.TransformResult>((resolve, reject) =>
         service.transform({
           callName: 'transform',
           refs: null,

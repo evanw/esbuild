@@ -208,19 +208,19 @@ export interface BuildIncremental extends BuildResult {
   rebuild: BuildInvalidate;
 }
 
-export interface BuildResult {
+export interface BuildResult<SpecificOptions extends BuildOptions = BuildOptions> {
   errors: Message[];
   warnings: Message[];
   /** Only when "write: false" */
-  outputFiles?: OutputFile[];
+  outputFiles: OutputFile[] | (SpecificOptions['write'] extends false ? never : undefined);
   /** Only when "incremental: true" */
-  rebuild?: BuildInvalidate;
+  rebuild: BuildInvalidate | (SpecificOptions['incremental'] extends true ? never : undefined);
   /** Only when "watch: true" */
-  stop?: () => void;
+  stop: (() => void) | (SpecificOptions['watch'] extends true ? never : undefined);
   /** Only when "metafile: true" */
-  metafile?: Metafile;
+  metafile: Metafile | (SpecificOptions['metafile'] extends true ? never : undefined);
   /** Only when "mangleCache" is present */
-  mangleCache?: Record<string, string | false>;
+  mangleCache: Record<string, string | false> | (SpecificOptions['mangleCache'] extends Object ? never : undefined);
 }
 
 export interface BuildFailure extends Error {
@@ -274,14 +274,14 @@ export interface TransformOptions extends CommonOptions {
   footer?: string;
 }
 
-export interface TransformResult {
+export interface TransformResult<SpecificOptions extends TransformOptions = TransformOptions> {
   code: string;
   map: string;
   warnings: Message[];
   /** Only when "mangleCache" is present */
-  mangleCache?: Record<string, string | false>;
+  mangleCache: Record<string, string | false> | (SpecificOptions['mangleCache'] extends Object ? never : undefined);
   /** Only when "legalComments" is "external" */
-  legalComments?: string;
+  legalComments: string | (SpecificOptions['legalComments'] extends 'external' ? never : undefined);
 }
 
 export interface TransformFailure extends Error {
@@ -488,10 +488,7 @@ export interface AnalyzeMetafileOptions {
  *
  * Documentation: https://esbuild.github.io/api/#build-api
  */
-export declare function build(options: BuildOptions & { write: false }): Promise<BuildResult & { outputFiles: OutputFile[] }>;
-export declare function build(options: BuildOptions & { incremental: true, metafile: true }): Promise<BuildIncremental & { metafile: Metafile }>;
-export declare function build(options: BuildOptions & { incremental: true }): Promise<BuildIncremental>;
-export declare function build(options: BuildOptions & { metafile: true }): Promise<BuildResult & { metafile: Metafile }>;
+export declare function build<SpecificOptions extends BuildOptions>(options: SpecificOptions): Promise<BuildResult<SpecificOptions>>;
 export declare function build(options: BuildOptions): Promise<BuildResult>;
 
 /**
@@ -516,6 +513,7 @@ export declare function serve(serveOptions: ServeOptions, buildOptions: BuildOpt
  *
  * Documentation: https://esbuild.github.io/api/#transform-api
  */
+export declare function transform<SpecificOptions extends TransformOptions>(input: string | Uint8Array, options?: SpecificOptions): Promise<TransformResult<SpecificOptions>>;
 export declare function transform(input: string | Uint8Array, options?: TransformOptions): Promise<TransformResult>;
 
 /**
@@ -548,7 +546,7 @@ export declare function analyzeMetafile(metafile: Metafile | string, options?: A
  *
  * Documentation: https://esbuild.github.io/api/#build-api
  */
-export declare function buildSync(options: BuildOptions & { write: false }): BuildResult & { outputFiles: OutputFile[] };
+export declare function buildSync<SpecificOptions extends BuildOptions>(options: SpecificOptions): BuildResult<SpecificOptions>;
 export declare function buildSync(options: BuildOptions): BuildResult;
 
 /**
@@ -559,7 +557,8 @@ export declare function buildSync(options: BuildOptions): BuildResult;
  *
  * Documentation: https://esbuild.github.io/api/#transform-api
  */
-export declare function transformSync(input: string, options?: TransformOptions): TransformResult;
+export declare function transformSync<SpecificOptions extends TransformOptions>(input: string, options?: SpecificOptions): TransformResult<SpecificOptions>;
+export declare function transformSync(input: string | Uint8Array, options?: TransformOptions): TransformResult;
 
 /**
  * A synchronous version of "formatMessages".

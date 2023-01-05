@@ -736,7 +736,13 @@ export function createChannel(streamIn: StreamIn): StreamOut {
           let outstanding = 1;
           let next = () => {
             if (--outstanding === 0) {
-              let result: types.TransformResult = { warnings, code: response!.code, map: response!.map }
+              let result: types.TransformResult = {
+                warnings,
+                code: response!.code,
+                map: response!.map,
+                mangleCache: undefined,
+                legalComments: undefined,
+              }
               if ('legalComments' in response!) result.legalComments = response?.legalComments
               if (response!.mangleCache) result.mangleCache = response?.mangleCache
               callback(null, result)
@@ -972,6 +978,11 @@ function buildOrServeImpl(
       let result: types.BuildResult = {
         errors: replaceDetailsInMessages(response!.errors, details),
         warnings: replaceDetailsInMessages(response!.warnings, details),
+        outputFiles: undefined,
+        rebuild: undefined,
+        stop: undefined,
+        metafile: undefined,
+        mangleCache: undefined,
       };
       copyResponseToResult(response!, result);
       runOnEndCallbacks(result, logPluginError, () => {
@@ -1031,6 +1042,11 @@ function buildOrServeImpl(
                   let result2: types.BuildResult = {
                     errors: replaceDetailsInMessages(watchResponse.errors, details),
                     warnings: replaceDetailsInMessages(watchResponse.warnings, details),
+                    outputFiles: undefined,
+                    rebuild: undefined,
+                    stop: undefined,
+                    metafile: undefined,
+                    mangleCache: undefined,
                   };
 
                   // Note: "onEnd" callbacks should run even when there is no "onRebuild" callback

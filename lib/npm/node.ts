@@ -130,13 +130,13 @@ let fsAsync: common.StreamFS = {
 
 export let version = ESBUILD_VERSION;
 
-export let build: typeof types.build = (options: types.BuildOptions): Promise<any> =>
+export let build: typeof types.build = (options: types.BuildOptions) =>
   ensureServiceIsRunning().build(options);
 
 export let serve: typeof types.serve = (serveOptions, buildOptions) =>
   ensureServiceIsRunning().serve(serveOptions, buildOptions);
 
-export let transform: typeof types.transform = (input, options) =>
+export let transform: typeof types.transform = (input: string | Uint8Array, options?: types.TransformOptions) =>
   ensureServiceIsRunning().transform(input, options);
 
 export let formatMessages: typeof types.formatMessages = (messages, options) =>
@@ -145,7 +145,7 @@ export let formatMessages: typeof types.formatMessages = (messages, options) =>
 export let analyzeMetafile: typeof types.analyzeMetafile = (messages, options) =>
   ensureServiceIsRunning().analyzeMetafile(messages, options);
 
-export let buildSync: typeof types.buildSync = (options: types.BuildOptions): any => {
+export let buildSync: typeof types.buildSync = (options: types.BuildOptions) => {
   // Try using a long-lived worker thread to avoid repeated start-up overhead
   if (worker_threads && !isInternalWorkerThread) {
     if (!workerThreadService) workerThreadService = startWorkerThreadService(worker_threads);
@@ -165,7 +165,7 @@ export let buildSync: typeof types.buildSync = (options: types.BuildOptions): an
   return result!;
 };
 
-export let transformSync: typeof types.transformSync = (input, options) => {
+export let transformSync: typeof types.transformSync = (input: string | Uint8Array, options?: types.TransformOptions) => {
   // Try using a long-lived worker thread to avoid repeated start-up overhead
   if (worker_threads && !isInternalWorkerThread) {
     if (!workerThreadService) workerThreadService = startWorkerThreadService(worker_threads);
@@ -320,8 +320,8 @@ let ensureServiceIsRunning = (): Service => {
           defaultWD, callback: (err, res) => err ? reject(err) : resolve(res as types.ServeResult),
         }))
     },
-    transform: (input, options) => {
-      return new Promise((resolve, reject) =>
+    transform: (input: string | Uint8Array, options?: types.TransformOptions) => {
+      return new Promise<types.TransformResult>((resolve, reject) =>
         service.transform({
           callName: 'transform',
           refs,
@@ -397,7 +397,7 @@ interface MainToWorkerMessage {
 
 interface WorkerThreadService {
   buildSync(options: types.BuildOptions): types.BuildResult;
-  transformSync: typeof types.transformSync;
+  transformSync(input: string | Uint8Array, options?: types.TransformOptions): types.TransformResult;
   formatMessagesSync: typeof types.formatMessagesSync;
   analyzeMetafileSync: typeof types.analyzeMetafileSync;
 }

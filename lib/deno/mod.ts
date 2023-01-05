@@ -7,7 +7,7 @@ declare const ESBUILD_VERSION: string
 
 export let version = ESBUILD_VERSION
 
-export let build: typeof types.build = (options: types.BuildOptions): Promise<any> =>
+export let build: typeof types.build = (options: types.BuildOptions) =>
   ensureServiceIsRunning().then(service =>
     service.build(options))
 
@@ -15,7 +15,7 @@ export const serve: typeof types.serve = (serveOptions, buildOptions) =>
   ensureServiceIsRunning().then(service =>
     service.serve(serveOptions, buildOptions))
 
-export const transform: typeof types.transform = (input, options) =>
+export const transform: typeof types.transform = (input: string | Uint8Array, options?: types.TransformOptions) =>
   ensureServiceIsRunning().then(service =>
     service.transform(input, options))
 
@@ -275,8 +275,8 @@ let ensureServiceIsRunning = (): Promise<Service> => {
             }))
         },
 
-        transform: (input, options) => {
-          return new Promise((resolve, reject) =>
+        transform: (input: string | Uint8Array, options?: types.TransformOptions) => {
+          return new Promise<types.TransformResult>((resolve, reject) =>
             service.transform({
               callName: 'transform',
               refs: null,
