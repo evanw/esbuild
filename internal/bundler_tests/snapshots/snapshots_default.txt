@@ -3496,7 +3496,8 @@ a {
   "inputs": {
     "project/entry.js": {
       "bytes": 191,
-      "imports": []
+      "imports": [],
+      "format": "esm"
     },
     "project/entry.css": {
       "bytes": 112,
@@ -3661,7 +3662,8 @@ d {
   "inputs": {
     "project/esm.js": {
       "bytes": 16,
-      "imports": []
+      "imports": [],
+      "format": "esm"
     },
     "<data:application/json,2>": {
       "bytes": 1,
@@ -3677,11 +3679,13 @@ d {
     },
     "project/cjs.js": {
       "bytes": 18,
-      "imports": []
+      "imports": [],
+      "format": "cjs"
     },
     "project/dynamic.js": {
       "bytes": 16,
-      "imports": []
+      "imports": [],
+      "format": "esm"
     },
     "project/entry.js": {
       "bytes": 333,
@@ -3726,7 +3730,8 @@ d {
           "kind": "dynamic-import",
           "original": "./dynamic"
         }
-      ]
+      ],
+      "format": "esm"
     },
     "project/inline.svg": {
       "bytes": 6,
@@ -3945,7 +3950,8 @@ a {
           "kind": "import-statement",
           "original": "./111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111.file"
         }
-      ]
+      ],
+      "format": "esm"
     },
     "project/222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222.copy": {
       "bytes": 0,
@@ -3959,7 +3965,8 @@ a {
           "kind": "import-statement",
           "original": "./222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222.copy"
         }
-      ]
+      ],
+      "format": "esm"
     },
     "project/333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333.js": {
       "bytes": 0,

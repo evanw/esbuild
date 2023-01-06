@@ -1127,12 +1127,18 @@ body {
     assert.deepStrictEqual(json.inputs[inEntry1], {
       bytes: 94,
       imports: [{ path: inImported, kind: 'import-statement', original: './' + path.basename(imported) }],
+      format: 'esm',
     })
     assert.deepStrictEqual(json.inputs[inEntry2], {
       bytes: 107,
       imports: [{ path: inImported, kind: 'import-statement', original: './' + path.basename(imported) }],
+      format: 'esm',
     })
-    assert.deepStrictEqual(json.inputs[inImported], { bytes: 118, imports: [] })
+    assert.deepStrictEqual(json.inputs[inImported], {
+      bytes: 118,
+      imports: [],
+      format: 'esm',
+    })
 
     assert.deepStrictEqual(json.outputs[outEntry1].imports, [{ path: makeOutPath(chunk), kind: 'import-statement' }])
     assert.deepStrictEqual(json.outputs[outEntry2].imports, [{ path: makeOutPath(chunk), kind: 'import-statement' }])
@@ -1197,12 +1203,18 @@ body {
     assert.deepStrictEqual(json.inputs[inEntry1], {
       bytes: 94,
       imports: [{ path: inImported, kind: 'import-statement', original: './' + path.basename(imported) }],
+      format: 'esm',
     })
     assert.deepStrictEqual(json.inputs[inEntry2], {
       bytes: 107,
       imports: [{ path: inImported, kind: 'import-statement', original: './' + path.basename(imported) }],
+      format: 'esm',
     })
-    assert.deepStrictEqual(json.inputs[inImported], { bytes: 118, imports: [] })
+    assert.deepStrictEqual(json.inputs[inImported], {
+      bytes: 118,
+      imports: [],
+      format: 'esm',
+    })
 
     assert.deepStrictEqual(json.outputs[outEntry1].imports, [{ path: makeOutPath(chunk), kind: 'import-statement' }])
     assert.deepStrictEqual(json.outputs[outEntry2].imports, [{ path: makeOutPath(chunk), kind: 'import-statement' }])
@@ -1273,19 +1285,22 @@ body {
         { path: inShared, kind: 'import-statement', original: makeImportPath(entry, shared) },
         { path: inImport1, kind: 'dynamic-import', original: makeImportPath(entry, import1) },
         { path: inImport2, kind: 'dynamic-import', original: makeImportPath(entry, import2) },
-      ]
+      ],
+      format: 'esm',
     })
     assert.deepStrictEqual(json.inputs[inImport1], {
       bytes: 35,
       imports: [
         { path: inShared, kind: 'import-statement', original: makeImportPath(import1, shared) },
-      ]
+      ],
+      format: 'esm',
     })
     assert.deepStrictEqual(json.inputs[inImport2], {
       bytes: 35,
       imports: [
         { path: inShared, kind: 'import-statement', original: makeImportPath(import2, shared) },
-      ]
+      ],
+      format: 'esm',
     })
     assert.deepStrictEqual(json.inputs[inShared], { bytes: 38, imports: [] })
 

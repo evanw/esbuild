@@ -2067,7 +2067,16 @@ func (s *scanner) processScannedFiles(entryPointMeta []graph.EntryPoint) []scann
 			if !isFirstImport {
 				sb.WriteString("\n      ")
 			}
-			sb.WriteString("]\n    }")
+			if repr, ok := result.file.inputFile.Repr.(*graph.JSRepr); ok &&
+				(repr.AST.ExportsKind == js_ast.ExportsCommonJS || repr.AST.ExportsKind == js_ast.ExportsESM) {
+				format := "cjs"
+				if repr.AST.ExportsKind == js_ast.ExportsESM {
+					format = "esm"
+				}
+				sb.WriteString(fmt.Sprintf("],\n      \"format\": %q\n    }", format))
+			} else {
+				sb.WriteString("]\n    }")
+			}
 		}
 
 		result.file.jsonMetadataChunk = sb.String()

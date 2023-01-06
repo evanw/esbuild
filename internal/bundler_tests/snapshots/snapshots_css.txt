@@ -428,7 +428,8 @@ console.log("bar");
           "kind": "import-statement",
           "original": "../common.css"
         }
-      ]
+      ],
+      "format": "esm"
     },
     "bar/entry.js": {
       "bytes": 54,
@@ -438,7 +439,8 @@ console.log("bar");
           "kind": "import-statement",
           "original": "../common.css"
         }
-      ]
+      ],
+      "format": "esm"
     }
   },
   "outputs": {

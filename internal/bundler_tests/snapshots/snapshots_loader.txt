@@ -149,7 +149,8 @@ console.log(ns, import_c.default, void 0);
           "kind": "import-statement",
           "original": "./d.empty"
         }
-      ]
+      ],
+      "format": "esm"
     }
   },
   "outputs": {

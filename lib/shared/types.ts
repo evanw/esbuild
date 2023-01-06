@@ -444,6 +444,7 @@ export interface Metafile {
         external?: boolean
         original?: string
       }[]
+      format?: 'cjs' | 'esm'
     }
   }
   outputs: {
