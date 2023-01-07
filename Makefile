@@ -94,6 +94,15 @@ plugin-tests: version-go
 ts-type-tests: | scripts/node_modules
 	node scripts/ts-type-tests.js
 
+require/old-ts/node_modules:
+	cd require/old-ts && npm ci
+
+test-old-ts: platform-neutral | require/old-ts/node_modules
+	rm -fr scripts/.test-old-ts && mkdir scripts/.test-old-ts
+	cp `find npm/esbuild -name '*.d.ts'` scripts/.test-old-ts
+	cd scripts/.test-old-ts && ../../require/old-ts/node_modules/.bin/tsc *.d.ts
+	rm -fr scripts/.test-old-ts
+
 node-unref-tests: | scripts/node_modules
 	node scripts/node-unref-tests.js
 

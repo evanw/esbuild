@@ -163,7 +163,7 @@ jobs:
         run: cd scripts && node gen-unicode-table.js
 
   esbuild-old-golang:
-    name: esbuild CI (old Go version)
+    name: esbuild CI (old versions)
     runs-on: ubuntu-latest
 
     steps:
@@ -181,3 +181,6 @@ jobs:
 
       - name: go test
         run: go test ./internal/...
+
+      - name: make test-old-ts
+        run: make test-old-ts

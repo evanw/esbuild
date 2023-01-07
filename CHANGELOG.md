@@ -26,6 +26,20 @@
     export * from "./b"
     ```
 
+* Remove new type syntax from type declarations in the `esbuild` package ([#2798](https://github.com/evanw/esbuild/issues/2798))
+
+    Previously you needed to use TypeScript 4.3 or newer when using the `esbuild` package from TypeScript code due to the use of a getter in an interface in `node_modules/esbuild/lib/main.d.ts`. This release removes this newer syntax to allow people with versions of TypeScript as far back as TypeScript 3.5 to use this latest version of the `esbuild` package. Here is change that was made to esbuild's type declarations:
+
+    ```diff
+     export interface OutputFile {
+       /** "text" as bytes */
+       contents: Uint8Array;
+       /** "contents" as text (changes automatically with "contents") */
+    -  get text(): string;
+    +  readonly text: string;
+     }
+    ```
+
 ## 0.16.14
 
 * Preserve some comments in expressions ([#2721](https://github.com/evanw/esbuild/issues/2721))

@@ -196,7 +196,7 @@ export interface OutputFile {
   /** "text" as bytes */
   contents: Uint8Array;
   /** "contents" as text (changes automatically with "contents") */
-  get text(): string;
+  readonly text: string;
 }
 
 export interface BuildInvalidate {
