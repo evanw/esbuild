@@ -1342,6 +1342,36 @@ for (const minify of [[], ['--minify']]) {
       'node2.ts': `throw [foo.bar, require('./node2.ts')] // Force this file to be lazily initialized so foo.js is lazily initialized`,
       'foo.js': `export let foo = {bar: 123}`,
     }),
+
+    // https://github.com/evanw/esbuild/issues/2793
+    test(['--bundle', 'src/index.js', '--outfile=node.js', '--format=esm'].concat(minify), {
+      'src/a.js': `
+        export const A = 42;
+      `,
+      'src/b.js': `
+        export const B = async () => (await import(".")).A
+      `,
+      'src/index.js': `
+        export * from "./a"
+        export * from "./b"
+        import { B } from '.'
+        export let async = async () => { if (42 !== await B()) throw 'fail' }
+      `,
+    }, { async: true }),
+    test(['--bundle', 'src/node.js', '--outdir=.', '--format=esm', '--splitting'].concat(minify), {
+      'src/a.js': `
+        export const A = 42;
+      `,
+      'src/b.js': `
+        export const B = async () => (await import("./node")).A
+      `,
+      'src/node.js': `
+        export * from "./a"
+        export * from "./b"
+        import { B } from './node'
+        export let async = async () => { if (42 !== await B()) throw 'fail' }
+      `,
+    }, { async: true }),
   )
 }
 

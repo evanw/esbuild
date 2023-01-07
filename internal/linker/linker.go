@@ -780,13 +780,7 @@ func (c *linkerContext) computeCrossChunkDependencies() {
 	c.timer.Begin("Compute cross-chunk dependencies")
 	defer c.timer.End("Compute cross-chunk dependencies")
 
-	jsChunks := 0
-	for _, chunk := range c.chunks {
-		if _, ok := chunk.chunkRepr.(*chunkReprJS); ok {
-			jsChunks++
-		}
-	}
-	if jsChunks < 2 {
+	if !c.options.CodeSplitting {
 		// No need to compute cross-chunk dependencies if there can't be any
 		return
 	}
@@ -2866,7 +2860,10 @@ func (c *linkerContext) markFileLiveForTreeShaking(sourceIndex uint32) {
 }
 
 func (c *linkerContext) isExternalDynamicImport(record *ast.ImportRecord, sourceIndex uint32) bool {
-	return record.Kind == ast.ImportDynamic && c.graph.Files[record.SourceIndex.GetIndex()].IsEntryPoint() && record.SourceIndex.GetIndex() != sourceIndex
+	return c.options.CodeSplitting &&
+		record.Kind == ast.ImportDynamic &&
+		c.graph.Files[record.SourceIndex.GetIndex()].IsEntryPoint() &&
+		record.SourceIndex.GetIndex() != sourceIndex
 }
 
 func (c *linkerContext) markPartLiveForTreeShaking(sourceIndex uint32, partIndex uint32) {

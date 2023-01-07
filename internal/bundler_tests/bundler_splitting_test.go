@@ -550,3 +550,50 @@ func TestSplittingChunkPathDirPlaceholderImplicitOutbase(t *testing.T) {
 		},
 	})
 }
+
+func TestEdgeCaseIssue2793WithSplitting(t *testing.T) {
+	splitting_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/src/a.js": `
+				export const A = 42;
+			`,
+			"/src/b.js": `
+				export const B = async () => (await import(".")).A
+			`,
+			"/src/index.js": `
+				export * from "./a"
+				export * from "./b"
+			`,
+		},
+		entryPaths: []string{"/src/index.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			OutputFormat:  config.FormatESModule,
+			CodeSplitting: true,
+			AbsOutputDir:  "/out",
+		},
+	})
+}
+
+func TestEdgeCaseIssue2793WithoutSplitting(t *testing.T) {
+	splitting_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/src/a.js": `
+				export const A = 42;
+			`,
+			"/src/b.js": `
+				export const B = async () => (await import(".")).A
+			`,
+			"/src/index.js": `
+				export * from "./a"
+				export * from "./b"
+			`,
+		},
+		entryPaths: []string{"/src/index.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			OutputFormat: config.FormatESModule,
+			AbsOutputDir: "/out",
+		},
+	})
+}

@@ -10,6 +10,22 @@
 
     This information is helpful when trying to reduce the size of your bundle. Using the ESM variant of a dependency instead of the CommonJS variant always results in a faster and smaller bundle because it omits CommonJS wrappers, and also may result in better tree-shaking as it allows esbuild to perform tree-shaking at the statement level instead of the module level.
 
+* Fix a bundling edge case with dynamic import ([#2793](https://github.com/evanw/esbuild/issues/2793))
+
+    This release fixes a bug where esbuild's bundler could produce incorrect output. The problematic edge case involves the entry point importing itself using a dynamic `import()` expression in an imported file, like this:
+
+    ```js
+    // src/a.js
+    export const A = 42;
+
+    // src/b.js
+    export const B = async () => (await import(".")).A
+
+    // src/index.js
+    export * from "./a"
+    export * from "./b"
+    ```
+
 ## 0.16.14
 
 * Preserve some comments in expressions ([#2721](https://github.com/evanw/esbuild/issues/2721))
