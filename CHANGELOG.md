@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.16.15
 
 * Add `format` to input files in the JSON metafile data
 
