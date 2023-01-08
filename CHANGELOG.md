@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.16.16
 
 * Fix a regression caused by comment preservation ([#2805](https://github.com/evanw/esbuild/issues/2805))
 
