@@ -40,6 +40,8 @@ export interface ServeStopRequest {
 
 export interface BuildPlugin {
   name: string;
+  onStart: boolean;
+  onEnd: boolean;
   onResolve: { id: number, filter: string, namespace: string }[];
   onLoad: { id: number, filter: string, namespace: string }[];
 }

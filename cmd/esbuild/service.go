@@ -661,6 +661,7 @@ func (service *serviceType) convertPlugins(key int, jsPlugins interface{}, activ
 
 	var onResolveCallbacks []filteredCallback
 	var onLoadCallbacks []filteredCallback
+	hasOnStart := false
 
 	filteredCallbacks := func(pluginName string, kind string, items []interface{}) (result []filteredCallback, err error) {
 		for _, item := range items {
@@ -682,6 +683,10 @@ func (service *serviceType) convertPlugins(key int, jsPlugins interface{}, activ
 	for _, p := range jsPlugins.([]interface{}) {
 		p := p.(map[string]interface{})
 		pluginName := p["name"].(string)
+
+		if p["onStart"].(bool) {
+			hasOnStart = true
+		}
 
 		if callbacks, err := filteredCallbacks(pluginName, "onResolve", p["onResolve"].([]interface{})); err != nil {
 			return nil, err
@@ -752,183 +757,192 @@ func (service *serviceType) convertPlugins(key int, jsPlugins interface{}, activ
 			}
 			activeBuild.mutex.Unlock()
 
-			build.OnStart(func() (api.OnStartResult, error) {
-				result := api.OnStartResult{}
+			// Only register "OnStart" if needed
+			if hasOnStart {
+				build.OnStart(func() (api.OnStartResult, error) {
+					result := api.OnStartResult{}
 
-				response, ok := service.sendRequest(map[string]interface{}{
-					"command": "on-start",
-					"key":     key,
-				}).(map[string]interface{})
-				if !ok {
-					return result, errors.New("The service was stopped")
-				}
-
-				if value, ok := response["errors"]; ok {
-					result.Errors = decodeMessages(value.([]interface{}))
-				}
-				if value, ok := response["warnings"]; ok {
-					result.Warnings = decodeMessages(value.([]interface{}))
-				}
-
-				return result, nil
-			})
-
-			build.OnResolve(api.OnResolveOptions{Filter: ".*"}, func(args api.OnResolveArgs) (api.OnResolveResult, error) {
-				var ids []interface{}
-				applyPath := logger.Path{Text: args.Path, Namespace: args.Namespace}
-				for _, item := range onResolveCallbacks {
-					if config.PluginAppliesToPath(applyPath, item.filter, item.namespace) {
-						ids = append(ids, item.id)
+					response, ok := service.sendRequest(map[string]interface{}{
+						"command": "on-start",
+						"key":     key,
+					}).(map[string]interface{})
+					if !ok {
+						return result, errors.New("The service was stopped")
 					}
-				}
 
-				result := api.OnResolveResult{}
-				if len(ids) == 0 {
+					if value, ok := response["errors"]; ok {
+						result.Errors = decodeMessages(value.([]interface{}))
+					}
+					if value, ok := response["warnings"]; ok {
+						result.Warnings = decodeMessages(value.([]interface{}))
+					}
+
 					return result, nil
-				}
+				})
+			}
 
-				response, ok := service.sendRequest(map[string]interface{}{
-					"command":    "on-resolve",
-					"key":        key,
-					"ids":        ids,
-					"path":       args.Path,
-					"importer":   args.Importer,
-					"namespace":  args.Namespace,
-					"resolveDir": args.ResolveDir,
-					"kind":       resolveKindToString(args.Kind),
-					"pluginData": args.PluginData,
-				}).(map[string]interface{})
-				if !ok {
-					return result, errors.New("The service was stopped")
-				}
-
-				if value, ok := response["id"]; ok {
-					id := value.(int)
+			// Only register "OnResolve" if needed
+			if len(onResolveCallbacks) > 0 {
+				build.OnResolve(api.OnResolveOptions{Filter: ".*"}, func(args api.OnResolveArgs) (api.OnResolveResult, error) {
+					var ids []interface{}
+					applyPath := logger.Path{Text: args.Path, Namespace: args.Namespace}
 					for _, item := range onResolveCallbacks {
-						if item.id == id {
-							result.PluginName = item.pluginName
-							break
+						if config.PluginAppliesToPath(applyPath, item.filter, item.namespace) {
+							ids = append(ids, item.id)
 						}
 					}
-				}
-				if value, ok := response["error"]; ok {
-					return result, errors.New(value.(string))
-				}
-				if value, ok := response["pluginName"]; ok {
-					result.PluginName = value.(string)
-				}
-				if value, ok := response["path"]; ok {
-					result.Path = value.(string)
-				}
-				if value, ok := response["namespace"]; ok {
-					result.Namespace = value.(string)
-				}
-				if value, ok := response["suffix"]; ok {
-					result.Suffix = value.(string)
-				}
-				if value, ok := response["external"]; ok {
-					result.External = value.(bool)
-				}
-				if value, ok := response["sideEffects"]; ok {
-					if value.(bool) {
-						result.SideEffects = api.SideEffectsTrue
-					} else {
-						result.SideEffects = api.SideEffectsFalse
+
+					result := api.OnResolveResult{}
+					if len(ids) == 0 {
+						return result, nil
 					}
-				}
-				if value, ok := response["pluginData"]; ok {
-					result.PluginData = value.(int)
-				}
-				if value, ok := response["errors"]; ok {
-					result.Errors = decodeMessages(value.([]interface{}))
-				}
-				if value, ok := response["warnings"]; ok {
-					result.Warnings = decodeMessages(value.([]interface{}))
-				}
-				if value, ok := response["watchFiles"]; ok {
-					result.WatchFiles = decodeStringArray(value.([]interface{}))
-				}
-				if value, ok := response["watchDirs"]; ok {
-					result.WatchDirs = decodeStringArray(value.([]interface{}))
-				}
 
-				return result, nil
-			})
-
-			build.OnLoad(api.OnLoadOptions{Filter: ".*"}, func(args api.OnLoadArgs) (api.OnLoadResult, error) {
-				var ids []interface{}
-				applyPath := logger.Path{Text: args.Path, Namespace: args.Namespace}
-				for _, item := range onLoadCallbacks {
-					if config.PluginAppliesToPath(applyPath, item.filter, item.namespace) {
-						ids = append(ids, item.id)
+					response, ok := service.sendRequest(map[string]interface{}{
+						"command":    "on-resolve",
+						"key":        key,
+						"ids":        ids,
+						"path":       args.Path,
+						"importer":   args.Importer,
+						"namespace":  args.Namespace,
+						"resolveDir": args.ResolveDir,
+						"kind":       resolveKindToString(args.Kind),
+						"pluginData": args.PluginData,
+					}).(map[string]interface{})
+					if !ok {
+						return result, errors.New("The service was stopped")
 					}
-				}
 
-				result := api.OnLoadResult{}
-				if len(ids) == 0 {
+					if value, ok := response["id"]; ok {
+						id := value.(int)
+						for _, item := range onResolveCallbacks {
+							if item.id == id {
+								result.PluginName = item.pluginName
+								break
+							}
+						}
+					}
+					if value, ok := response["error"]; ok {
+						return result, errors.New(value.(string))
+					}
+					if value, ok := response["pluginName"]; ok {
+						result.PluginName = value.(string)
+					}
+					if value, ok := response["path"]; ok {
+						result.Path = value.(string)
+					}
+					if value, ok := response["namespace"]; ok {
+						result.Namespace = value.(string)
+					}
+					if value, ok := response["suffix"]; ok {
+						result.Suffix = value.(string)
+					}
+					if value, ok := response["external"]; ok {
+						result.External = value.(bool)
+					}
+					if value, ok := response["sideEffects"]; ok {
+						if value.(bool) {
+							result.SideEffects = api.SideEffectsTrue
+						} else {
+							result.SideEffects = api.SideEffectsFalse
+						}
+					}
+					if value, ok := response["pluginData"]; ok {
+						result.PluginData = value.(int)
+					}
+					if value, ok := response["errors"]; ok {
+						result.Errors = decodeMessages(value.([]interface{}))
+					}
+					if value, ok := response["warnings"]; ok {
+						result.Warnings = decodeMessages(value.([]interface{}))
+					}
+					if value, ok := response["watchFiles"]; ok {
+						result.WatchFiles = decodeStringArray(value.([]interface{}))
+					}
+					if value, ok := response["watchDirs"]; ok {
+						result.WatchDirs = decodeStringArray(value.([]interface{}))
+					}
+
 					return result, nil
-				}
+				})
+			}
 
-				response, ok := service.sendRequest(map[string]interface{}{
-					"command":    "on-load",
-					"key":        key,
-					"ids":        ids,
-					"path":       args.Path,
-					"namespace":  args.Namespace,
-					"suffix":     args.Suffix,
-					"pluginData": args.PluginData,
-				}).(map[string]interface{})
-				if !ok {
-					return result, errors.New("The service was stopped")
-				}
-
-				if value, ok := response["id"]; ok {
-					id := value.(int)
+			// Only register "OnLoad" if needed
+			if len(onLoadCallbacks) > 0 {
+				build.OnLoad(api.OnLoadOptions{Filter: ".*"}, func(args api.OnLoadArgs) (api.OnLoadResult, error) {
+					var ids []interface{}
+					applyPath := logger.Path{Text: args.Path, Namespace: args.Namespace}
 					for _, item := range onLoadCallbacks {
-						if item.id == id {
-							result.PluginName = item.pluginName
-							break
+						if config.PluginAppliesToPath(applyPath, item.filter, item.namespace) {
+							ids = append(ids, item.id)
 						}
 					}
-				}
-				if value, ok := response["error"]; ok {
-					return result, errors.New(value.(string))
-				}
-				if value, ok := response["pluginName"]; ok {
-					result.PluginName = value.(string)
-				}
-				if value, ok := response["loader"]; ok {
-					loader, err := cli_helpers.ParseLoader(value.(string))
-					if err != nil {
-						return result, errors.New(err.Text)
-					}
-					result.Loader = loader
-				}
-				if value, ok := response["contents"]; ok {
-					contents := string(value.([]byte))
-					result.Contents = &contents
-				}
-				if value, ok := response["resolveDir"]; ok {
-					result.ResolveDir = value.(string)
-				}
-				if value, ok := response["pluginData"]; ok {
-					result.PluginData = value.(int)
-				}
-				if value, ok := response["errors"]; ok {
-					result.Errors = decodeMessages(value.([]interface{}))
-				}
-				if value, ok := response["warnings"]; ok {
-					result.Warnings = decodeMessages(value.([]interface{}))
-				}
-				if value, ok := response["watchFiles"]; ok {
-					result.WatchFiles = decodeStringArray(value.([]interface{}))
-				}
-				if value, ok := response["watchDirs"]; ok {
-					result.WatchDirs = decodeStringArray(value.([]interface{}))
-				}
 
-				return result, nil
-			})
+					result := api.OnLoadResult{}
+					if len(ids) == 0 {
+						return result, nil
+					}
+
+					response, ok := service.sendRequest(map[string]interface{}{
+						"command":    "on-load",
+						"key":        key,
+						"ids":        ids,
+						"path":       args.Path,
+						"namespace":  args.Namespace,
+						"suffix":     args.Suffix,
+						"pluginData": args.PluginData,
+					}).(map[string]interface{})
+					if !ok {
+						return result, errors.New("The service was stopped")
+					}
+
+					if value, ok := response["id"]; ok {
+						id := value.(int)
+						for _, item := range onLoadCallbacks {
+							if item.id == id {
+								result.PluginName = item.pluginName
+								break
+							}
+						}
+					}
+					if value, ok := response["error"]; ok {
+						return result, errors.New(value.(string))
+					}
+					if value, ok := response["pluginName"]; ok {
+						result.PluginName = value.(string)
+					}
+					if value, ok := response["loader"]; ok {
+						loader, err := cli_helpers.ParseLoader(value.(string))
+						if err != nil {
+							return result, errors.New(err.Text)
+						}
+						result.Loader = loader
+					}
+					if value, ok := response["contents"]; ok {
+						contents := string(value.([]byte))
+						result.Contents = &contents
+					}
+					if value, ok := response["resolveDir"]; ok {
+						result.ResolveDir = value.(string)
+					}
+					if value, ok := response["pluginData"]; ok {
+						result.PluginData = value.(int)
+					}
+					if value, ok := response["errors"]; ok {
+						result.Errors = decodeMessages(value.([]interface{}))
+					}
+					if value, ok := response["warnings"]; ok {
+						result.Warnings = decodeMessages(value.([]interface{}))
+					}
+					if value, ok := response["watchFiles"]; ok {
+						result.WatchFiles = decodeStringArray(value.([]interface{}))
+					}
+					if value, ok := response["watchDirs"]; ok {
+						result.WatchDirs = decodeStringArray(value.([]interface{}))
+					}
+
+					return result, nil
+				})
+			}
 		},
 	}}, nil
 }

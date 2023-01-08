@@ -1207,6 +1207,8 @@ let handlePlugins = async (
 
       let plugin: protocol.BuildPlugin = {
         name,
+        onStart: false,
+        onEnd: false,
         onResolve: [],
         onLoad: [],
       };
@@ -1264,12 +1266,14 @@ let handlePlugins = async (
           let registeredText = `This error came from the "onStart" callback registered here:`
           let registeredNote = extractCallerV8(new Error(registeredText), streamIn, 'onStart');
           onStartCallbacks.push({ name: name!, callback, note: registeredNote });
+          plugin.onStart = true;
         },
 
         onEnd(callback) {
           let registeredText = `This error came from the "onEnd" callback registered here:`
           let registeredNote = extractCallerV8(new Error(registeredText), streamIn, 'onEnd');
           onEndCallbacks.push({ name: name!, callback, note: registeredNote });
+          plugin.onEnd = true;
         },
 
         onResolve(options, callback) {
