@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+* Fix a regression caused by comment preservation ([#2805](https://github.com/evanw/esbuild/issues/2805))
+
+    The new comment preservation behavior that was added in 0.16.14 introduced a regression where comments in certain locations could cause esbuild to omit certain necessary parentheses in the output. The outermost parentheses were incorrectly removed for the following syntax forms, which then introduced syntax errors:
+
+    ```js
+    (/* comment */ { x: 0 }).x;
+    (/* comment */ function () { })();
+    (/* comment */ class { }).prototype;
+    ```
+
+    This regression has been fixed.
+
 ## 0.16.15
 
 * Add `format` to input files in the JSON metafile data

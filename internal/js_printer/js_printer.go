@@ -1627,6 +1627,9 @@ func (p *printer) printExprCommentsAtLoc(loc logger.Loc) {
 		return
 	}
 	if comments := p.exprComments[loc]; comments != nil && !p.printedExprComments[loc] {
+		wasStmtStart := p.stmtStart == len(p.js)
+		wasExportDefaultStart := p.exportDefaultStart == len(p.js)
+
 		// We must never generate a newline before certain expressions. For example,
 		// generating a newline before the expression in a "return" statement will
 		// cause a semicolon to be inserted, which would change the code's behavior.
@@ -1653,11 +1656,21 @@ func (p *printer) printExprCommentsAtLoc(loc logger.Loc) {
 
 		// Mark these comments as printed so we don't print them again
 		p.printedExprComments[loc] = true
+
+		if wasStmtStart {
+			p.stmtStart = len(p.js)
+		}
+		if wasExportDefaultStart {
+			p.exportDefaultStart = len(p.js)
+		}
 	}
 }
 
 func (p *printer) printExprCommentsAfterCloseTokenAtLoc(loc logger.Loc) {
 	if comments := p.exprComments[loc]; comments != nil && !p.printedExprComments[loc] {
+		wasStmtStart := p.stmtStart == len(p.js)
+		wasExportDefaultStart := p.exportDefaultStart == len(p.js)
+
 		for _, comment := range comments {
 			p.printIndent()
 			p.printIndentedComment(comment)
@@ -1665,6 +1678,13 @@ func (p *printer) printExprCommentsAfterCloseTokenAtLoc(loc logger.Loc) {
 
 		// Mark these comments as printed so we don't print them again
 		p.printedExprComments[loc] = true
+
+		if wasStmtStart {
+			p.stmtStart = len(p.js)
+		}
+		if wasExportDefaultStart {
+			p.exportDefaultStart = len(p.js)
+		}
 	}
 }
 
@@ -3613,7 +3633,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 			// Functions and classes must be wrapped to avoid confusion with their statement forms
 			p.exportDefaultStart = len(p.js)
 
-			p.printExpr(s2.Value, js_ast.LComma, 0)
+			p.printExprWithoutLeadingNewline(s2.Value, js_ast.LComma, 0)
 			p.printSemicolonAfterStatement()
 			return
 
@@ -4258,20 +4278,21 @@ type PrintResult struct {
 
 func Print(tree js_ast.AST, symbols js_ast.SymbolMap, r renamer.Renamer, options Options) PrintResult {
 	p := &printer{
-		symbols:            symbols,
-		renamer:            r,
-		importRecords:      tree.ImportRecords,
-		options:            options,
-		moduleType:         tree.ModuleTypeData.Type,
-		exprComments:       tree.ExprComments,
-		stmtStart:          -1,
-		exportDefaultStart: -1,
-		arrowExprStart:     -1,
-		forOfInitStart:     -1,
-		prevOpEnd:          -1,
-		prevNumEnd:         -1,
-		prevRegExpEnd:      -1,
-		builder:            sourcemap.MakeChunkBuilder(options.InputSourceMap, options.LineOffsetTables, options.ASCIIOnly),
+		symbols:              symbols,
+		renamer:              r,
+		importRecords:        tree.ImportRecords,
+		options:              options,
+		moduleType:           tree.ModuleTypeData.Type,
+		exprComments:         tree.ExprComments,
+		stmtStart:            -1,
+		exportDefaultStart:   -1,
+		arrowExprStart:       -1,
+		forOfInitStart:       -1,
+		prevOpEnd:            -1,
+		prevNumEnd:           -1,
+		prevRegExpEnd:        -1,
+		noLeadingNewlineHere: -1,
+		builder:              sourcemap.MakeChunkBuilder(options.InputSourceMap, options.LineOffsetTables, options.ASCIIOnly),
 	}
 
 	if p.exprComments != nil {

@@ -2582,6 +2582,60 @@ tests.push(
   }),
 )
 
+// Test comments inside expressions
+tests.push(
+  test(['entry.js', '--outfile=node.js', '--target=es6'], {
+    'entry.js': `
+      let foo;
+      (
+        /* x */
+        {
+          y() {
+            foo = this.y.name
+          }
+        }
+      ).y();
+      if (foo !== 'y') throw 'fail'
+    `,
+  }),
+
+  test(['entry.js', '--outfile=node.js', '--target=es6'], {
+    'entry.js': `
+      let foo;
+      (
+        /* x */
+        function y() {
+          foo = y.name
+        }
+      )();
+      if (foo !== 'y') throw 'fail'
+    `,
+  }),
+
+  test(['entry.js', '--outfile=node.js', '--target=es6'], {
+    'entry.js': `
+      let foo;
+      (
+        /* x */
+        class y {
+          static z() {
+            foo = y.name
+          }
+        }
+      ).z();
+      if (foo !== 'y') throw 'fail'
+    `,
+  }),
+
+  test(['entry.js', '--outfile=node.js', '--target=es6'], {
+    'entry.js': `
+      let foo;
+      (/* @__PURE__ */ (() => foo = 'y')());
+      if (foo !== 'y') throw 'fail'
+    `,
+  }),
+)
+
 // Test certain minification transformations
 for (const minify of [[], ['--minify-syntax']]) {
   tests.push(
