@@ -563,7 +563,7 @@ func ResolveFailureErrorTextSuggestionNotes(
 	hint := ""
 
 	if resolver.IsPackagePath(path) && !fs.IsAbs(path) {
-		hint = fmt.Sprintf("You can mark the path %q as external to exclude it from the bundle, which will remove this error.", path)
+		hint = fmt.Sprintf("If you expect this dependency to be provided by your environment, ie. your browser or Node.JS, you can mark the path %q as external to exclude it from the bundle.", path)
 		if kind == ast.ImportRequire {
 			hint += " You can also surround this \"require\" call with a try/catch block to handle this failure at run-time instead of bundle-time."
 		} else if kind == ast.ImportDynamic {
