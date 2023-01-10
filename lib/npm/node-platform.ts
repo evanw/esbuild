@@ -107,7 +107,11 @@ export function generateBinPath(): { binPath: string, isWASM: boolean } {
   // path without modifying the code itself. Do not remove this because
   // external code relies on this (in addition to esbuild's own test suite).
   if (ESBUILD_BINARY_PATH) {
-    return { binPath: ESBUILD_BINARY_PATH, isWASM: false };
+    if (!fs.existsSync(ESBUILD_BINARY_PATH)) {
+      console.warn(`[esbuild] Ignoring bad configuration: ESBUILD_BINARY_PATH=${ESBUILD_BINARY_PATH}`)
+    } else {
+      return { binPath: ESBUILD_BINARY_PATH, isWASM: false };
+    }
   }
 
   const { pkg, subpath, isWASM } = pkgAndSubpathForCurrentPlatform();

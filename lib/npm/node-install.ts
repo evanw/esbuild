@@ -234,8 +234,12 @@ async function checkAndPreparePackage(): Promise<void> {
   // path without modifying the code itself. Do not remove this because
   // external code relies on this (in addition to esbuild's own test suite).
   if (ESBUILD_BINARY_PATH) {
-    applyManualBinaryPathOverride(ESBUILD_BINARY_PATH);
-    return;
+    if (!fs.existsSync(ESBUILD_BINARY_PATH)) {
+      console.warn(`[esbuild] Ignoring bad configuration: ESBUILD_BINARY_PATH=${ESBUILD_BINARY_PATH}`)
+    } else {
+      applyManualBinaryPathOverride(ESBUILD_BINARY_PATH);
+      return;
+    }
   }
 
   const { pkg, subpath } = pkgAndSubpathForCurrentPlatform();
