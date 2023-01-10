@@ -486,7 +486,7 @@ func TestTsConfigPathsMissingBaseURL(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expectedScanLog: `Users/user/project/src/entry.ts: ERROR: Could not resolve "#/test"
-NOTE: You can mark the path "#/test" as external to exclude it from the bundle, which will remove this error.
+NOTE: If you expect this dependency to be provided by your environment, ie. your browser or Node.JS, you can mark the path "#/test" as external to exclude it from the bundle.
 `,
 	})
 }
@@ -1602,7 +1602,7 @@ func TestTsConfigNoBaseURLExtendsPaths(t *testing.T) {
 		},
 		expectedScanLog: `Users/user/project/base/defaults.json: WARNING: Non-relative path "lib/*" is not allowed when "baseUrl" is not set (did you forget a leading "./"?)
 Users/user/project/src/entry.ts: ERROR: Could not resolve "foo"
-NOTE: You can mark the path "foo" as external to exclude it from the bundle, which will remove this error.
+NOTE: If you expect this dependency to be provided by your environment, ie. your browser or Node.JS, you can mark the path "foo" as external to exclude it from the bundle.
 `,
 	})
 }

@@ -1290,7 +1290,7 @@ func TestImportInsideTry(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expectedScanLog: `entry.js: ERROR: Could not resolve "nope1"
-NOTE: You can mark the path "nope1" as external to exclude it from the bundle, which will remove this error. You can also add ".catch()" here to handle this failure at run-time instead of bundle-time.
+NOTE: If you expect this dependency to be provided by your environment, ie. your browser or Node.JS, you can mark the path "nope1" as external to exclude it from the bundle. You can also add ".catch()" here to handle this failure at run-time instead of bundle-time.
 `,
 	})
 }
@@ -2266,17 +2266,17 @@ func TestExternalModuleExclusionScopedPackage(t *testing.T) {
 			},
 		},
 		expectedScanLog: `index.js: ERROR: Could not resolve "@a1-a2"
-NOTE: You can mark the path "@a1-a2" as external to exclude it from the bundle, which will remove this error.
+NOTE: If you expect this dependency to be provided by your environment, ie. your browser or Node.JS, you can mark the path "@a1-a2" as external to exclude it from the bundle.
 index.js: ERROR: Could not resolve "@b1"
-NOTE: You can mark the path "@b1" as external to exclude it from the bundle, which will remove this error.
+NOTE: If you expect this dependency to be provided by your environment, ie. your browser or Node.JS, you can mark the path "@b1" as external to exclude it from the bundle.
 index.js: ERROR: Could not resolve "@b1/b2-b3"
-NOTE: You can mark the path "@b1/b2-b3" as external to exclude it from the bundle, which will remove this error.
+NOTE: If you expect this dependency to be provided by your environment, ie. your browser or Node.JS, you can mark the path "@b1/b2-b3" as external to exclude it from the bundle.
 index.js: ERROR: Could not resolve "@c1"
-NOTE: You can mark the path "@c1" as external to exclude it from the bundle, which will remove this error.
+NOTE: If you expect this dependency to be provided by your environment, ie. your browser or Node.JS, you can mark the path "@c1" as external to exclude it from the bundle.
 index.js: ERROR: Could not resolve "@c1/c2"
-NOTE: You can mark the path "@c1/c2" as external to exclude it from the bundle, which will remove this error.
+NOTE: If you expect this dependency to be provided by your environment, ie. your browser or Node.JS, you can mark the path "@c1/c2" as external to exclude it from the bundle.
 index.js: ERROR: Could not resolve "@c1/c2/c3-c4"
-NOTE: You can mark the path "@c1/c2/c3-c4" as external to exclude it from the bundle, which will remove this error.
+NOTE: If you expect this dependency to be provided by your environment, ie. your browser or Node.JS, you can mark the path "@c1/c2/c3-c4" as external to exclude it from the bundle.
 `,
 	})
 }
