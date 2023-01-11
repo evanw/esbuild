@@ -777,6 +777,10 @@ func (status pjStatus) isUndefined() bool {
 }
 
 type pjDebug struct {
+	// If the status is "pjStatusInvalidPackageTarget" or "pjStatusInvalidModuleSpecifier",
+	// then this is the reason. It always starts with " because".
+	invalidBecause string
+
 	// If the status is "pjStatusUndefinedNoConditionsMatch", this is the set of
 	// conditions that didn't match, in the order that they were found in the file.
 	// This information is used for error messages.
@@ -1018,9 +1022,12 @@ func (r resolverQuery) esmPackageTargetResolve(
 		// does not end with "/", throw an Invalid Module Specifier error.
 		if !pattern && subpath != "" && !strings.HasSuffix(target.strData, "/") {
 			if r.debugLogs != nil {
-				r.debugLogs.addNote(fmt.Sprintf("The target %q is invalid because it doesn't end \"/\"", target.strData))
+				r.debugLogs.addNote(fmt.Sprintf("The target %q is invalid because it doesn't end in \"/\"", target.strData))
 			}
-			return target.strData, pjStatusInvalidModuleSpecifier, pjDebug{token: target.firstToken}
+			return target.strData, pjStatusInvalidModuleSpecifier, pjDebug{
+				token:          target.firstToken,
+				invalidBecause: " because it doesn't end in \"/\"",
+			}
 		}
 
 		// If target does not start with "./", then...
@@ -1042,7 +1049,10 @@ func (r resolverQuery) esmPackageTargetResolve(
 			if r.debugLogs != nil {
 				r.debugLogs.addNote(fmt.Sprintf("The target %q is invalid because it doesn't start with \"./\"", target.strData))
 			}
-			return target.strData, pjStatusInvalidPackageTarget, pjDebug{token: target.firstToken}
+			return target.strData, pjStatusInvalidPackageTarget, pjDebug{
+				token:          target.firstToken,
+				invalidBecause: " because it doesn't start with \"./\"",
+			}
 		}
 
 		// If target split on "/" or "\" contains any ".", ".." or "node_modules"
@@ -1051,7 +1061,10 @@ func (r resolverQuery) esmPackageTargetResolve(
 			if r.debugLogs != nil {
 				r.debugLogs.addNote(fmt.Sprintf("The target %q is invalid because it contains invalid segment %q", target.strData, invalidSegment))
 			}
-			return target.strData, pjStatusInvalidPackageTarget, pjDebug{token: target.firstToken}
+			return target.strData, pjStatusInvalidPackageTarget, pjDebug{
+				token:          target.firstToken,
+				invalidBecause: fmt.Sprintf(" because it contains invalid segment %q", invalidSegment),
+			}
 		}
 
 		// Let resolvedTarget be the URL resolution of the concatenation of packageURL and target.
@@ -1063,7 +1076,10 @@ func (r resolverQuery) esmPackageTargetResolve(
 			if r.debugLogs != nil {
 				r.debugLogs.addNote(fmt.Sprintf("The path %q is invalid because it contains invalid segment %q", subpath, invalidSegment))
 			}
-			return subpath, pjStatusInvalidModuleSpecifier, pjDebug{token: target.firstToken}
+			return subpath, pjStatusInvalidModuleSpecifier, pjDebug{
+				token:          target.firstToken,
+				invalidBecause: fmt.Sprintf(" because it contains invalid segment %q", invalidSegment),
+			}
 		}
 
 		if pattern {

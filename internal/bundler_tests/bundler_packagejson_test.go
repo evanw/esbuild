@@ -1362,7 +1362,7 @@ func TestPackageJsonExportsErrorInvalidPackageTarget(t *testing.T) {
 				{ "exports": { ".": "invalid" } }
 			`,
 			"/Users/user/project/node_modules/pkg2/package.json": `
-				{ "exports": { ".": "../pkg3" } }
+				{ "exports": { ".": "./../pkg3" } }
 			`,
 			"/Users/user/project/node_modules/pkg3/package.json": `
 				{ "exports": { ".": "./node_modules/pkg" } }
@@ -1374,13 +1374,13 @@ func TestPackageJsonExportsErrorInvalidPackageTarget(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expectedScanLog: `Users/user/project/src/entry.js: ERROR: Could not resolve "pkg1"
-Users/user/project/node_modules/pkg1/package.json: NOTE: The package target "invalid" is invalid:
+Users/user/project/node_modules/pkg1/package.json: NOTE: The package target "invalid" is invalid because it doesn't start with "./":
 NOTE: You can mark the path "pkg1" as external to exclude it from the bundle, which will remove this error.
 Users/user/project/src/entry.js: ERROR: Could not resolve "pkg2"
-Users/user/project/node_modules/pkg2/package.json: NOTE: The package target "../pkg3" is invalid:
+Users/user/project/node_modules/pkg2/package.json: NOTE: The package target "./../pkg3" is invalid because it contains invalid segment "..":
 NOTE: You can mark the path "pkg2" as external to exclude it from the bundle, which will remove this error.
 Users/user/project/src/entry.js: ERROR: Could not resolve "pkg3"
-Users/user/project/node_modules/pkg3/package.json: NOTE: The package target "./node_modules/pkg" is invalid:
+Users/user/project/node_modules/pkg3/package.json: NOTE: The package target "./node_modules/pkg" is invalid because it contains invalid segment "node_modules":
 NOTE: You can mark the path "pkg3" as external to exclude it from the bundle, which will remove this error.
 `,
 	})
@@ -1853,7 +1853,7 @@ func TestPackageJsonExportsErrorMissingTrailingSlash(t *testing.T) {
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
 		expectedScanLog: `Users/user/project/src/entry.js: ERROR: Could not resolve "pkg1/foo/bar"
-Users/user/project/node_modules/pkg1/package.json: NOTE: The module specifier "./test" is invalid:
+Users/user/project/node_modules/pkg1/package.json: NOTE: The module specifier "./test" is invalid because it doesn't end in "/":
 NOTE: You can mark the path "pkg1/foo/bar" as external to exclude it from the bundle, which will remove this error.
 `,
 	})
