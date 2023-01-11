@@ -2956,7 +2956,7 @@ func (p *parser) parseParenExpr(loc logger.Loc, level js_ast.L, opts parenExprOp
 			panic(js_lexer.LexerPanic{})
 		}
 		value := js_ast.JoinAllWithComma(items)
-		p.markExprAsParenthesized(value)
+		p.markExprAsParenthesized(value, loc, isAsync)
 		return value
 	}
 
@@ -3137,7 +3137,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 			p.allowIn = true
 
 			value := p.parseExpr(js_ast.LLowest)
-			p.markExprAsParenthesized(value)
+			p.markExprAsParenthesized(value, loc, false)
 			p.lexer.Expect(js_lexer.TCloseParen)
 
 			p.allowIn = oldAllowIn
@@ -6848,7 +6848,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 				badLetRange = logger.Range{}
 				initOrNil = stmt
 			} else {
-				initOrNil = js_ast.Stmt{Loc: initLoc, Data: &js_ast.SExpr{Value: expr}}
+				initOrNil = js_ast.Stmt{Loc: expr.Loc, Data: &js_ast.SExpr{Value: expr}}
 			}
 		}
 
@@ -10309,7 +10309,19 @@ func (p *parser) maybeRelocateVarsToTopLevel(decls []js_ast.Decl, mode relocateV
 	return js_ast.Stmt{Loc: value.Loc, Data: &js_ast.SExpr{Value: value}}, true
 }
 
-func (p *parser) markExprAsParenthesized(value js_ast.Expr) {
+func (p *parser) markExprAsParenthesized(value js_ast.Expr, openParenLoc logger.Loc, isAsync bool) {
+	// Don't lose comments due to parentheses. For example, we don't want to lose
+	// the comment here:
+	//
+	//   ( /* comment */ (foo) );
+	//
+	if !isAsync {
+		if comments, ok := p.exprComments[openParenLoc]; ok {
+			delete(p.exprComments, openParenLoc)
+			p.exprComments[value.Loc] = append(comments, p.exprComments[value.Loc]...)
+		}
+	}
+
 	switch e := value.Data.(type) {
 	case *js_ast.EArray:
 		e.IsParenthesized = true

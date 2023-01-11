@@ -7684,6 +7684,22 @@ func TestCommentPreservation(t *testing.T) {
 					/*a*/ a ? /*b*/ b : /*c*/ c,
 					a /*a*/ ? b /*b*/ : c /*c*/,
 				)
+
+				for (/*foo*/a;;);
+				for (;/*foo*/a;);
+				for (;;/*foo*/a);
+
+				for (/*foo*/a in b);
+				for (a in /*foo*/b);
+
+				for (/*foo*/a of b);
+				for (a of /*foo*/b);
+
+				if (/*foo*/a);
+				with (/*foo*/a);
+				while (/*foo*/a);
+				do {} while (/*foo*/a);
+				switch (/*foo*/a) {}
 			`,
 		},
 		entryPaths: []string{"/entry.js"},

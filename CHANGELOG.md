@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+* Fix additional comment-related regressions ([#2814](https://github.com/evanw/esbuild/issues/2814))
+
+    This release fixes more edge cases where the new comment preservation behavior that was added in 0.16.14 could introduce syntax errors. Specifically:
+
+    ```js
+    x = () => (/* comment */ {})
+    for ((/* comment */ let).x of y) ;
+    function *f() { yield (/* comment */class {}) }
+    ```
+
+    These cases caused esbuild to generate code with a syntax error in version 0.16.14 or above. These bugs have now been fixed.
+
 ## 0.16.16
 
 * Fix a regression caused by comment preservation ([#2805](https://github.com/evanw/esbuild/issues/2805))
