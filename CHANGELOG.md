@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.16.17
 
 * Fix additional comment-related regressions ([#2814](https://github.com/evanw/esbuild/issues/2814))
 
