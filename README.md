@@ -28,13 +28,11 @@ The main goal of the esbuild bundler project is to bring about a new era of buil
 
 Major features:
 
-* Extreme speed without needing a cache
-* ES6 and CommonJS modules
-* Tree shaking of ES6 modules
-* An [API](https://esbuild.github.io/api/) for JavaScript and Go
-* [TypeScript](https://esbuild.github.io/content-types/#typescript) and [JSX](https://esbuild.github.io/content-types/#jsx) syntax
-* [Source maps](https://esbuild.github.io/api/#sourcemap)
-* [Minification](https://esbuild.github.io/api/#minify)
-* [Plugins](https://esbuild.github.io/plugins/)
+- Extreme speed without needing a cache
+- [JavaScript](https://esbuild.github.io/content-types/#javascript), [CSS](https://esbuild.github.io/content-types/#css), [TypeScript](https://esbuild.github.io/content-types/#typescript), and [JSX](https://esbuild.github.io/content-types/#jsx) built-in
+- A straightforward [API](https://esbuild.github.io/api/) for CLI, JS, and Go
+- Bundles ESM and CommonJS modules
+- Tree shaking, [minification](https://esbuild.github.io/api/#minify), and [source maps](https://esbuild.github.io/api/#sourcemap)
+- [Local server](https://esbuild.github.io/api/#serve), [watch mode](https://esbuild.github.io/api/#watch), and [plugins](https://esbuild.github.io/plugins/)
 
 Check out the [getting started](https://esbuild.github.io/getting-started/) instructions if you want to give esbuild a try.
