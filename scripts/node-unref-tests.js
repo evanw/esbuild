@@ -17,67 +17,55 @@ async function tests() {
   }
 
   async function testServe() {
-    const server = await esbuild.serve({}, {})
-    assert.strictEqual(server.host, '0.0.0.0')
-    assert.strictEqual(typeof server.port, 'number')
-    server.stop()
-    await server.wait
+    const context = await esbuild.context({})
+    try {
+      const server = await context.serve({})
+      assert.strictEqual(server.host, '0.0.0.0')
+      assert.strictEqual(typeof server.port, 'number')
+    } finally {
+      await context.dispose()
+    }
   }
 
   async function testBuild() {
-    const result = await esbuild.build({
+    const context = await esbuild.context({
       stdin: { contents: '1+2' },
       write: false,
-      incremental: true,
     })
-    assert.deepStrictEqual(result.outputFiles.length, 1);
-    assert.deepStrictEqual(result.outputFiles[0].text, '1 + 2;\n');
-    assert.deepStrictEqual(result.stop, void 0);
+    try {
 
-    const result2 = await result.rebuild()
-    assert.deepStrictEqual(result2.outputFiles.length, 1);
-    assert.deepStrictEqual(result2.outputFiles[0].text, '1 + 2;\n');
+      const result = await context.rebuild()
+      assert.deepStrictEqual(result.outputFiles.length, 1);
+      assert.deepStrictEqual(result.outputFiles[0].text, '1 + 2;\n');
 
-    const result3 = await result2.rebuild()
-    assert.deepStrictEqual(result3.outputFiles.length, 1);
-    assert.deepStrictEqual(result3.outputFiles[0].text, '1 + 2;\n');
-
-    result2.rebuild.dispose()
-  }
-
-  async function testWatch() {
-    const result = await esbuild.build({
-      stdin: { contents: '1+2' },
-      write: false,
-      watch: true,
-    })
-
-    assert.deepStrictEqual(result.rebuild, void 0);
-    assert.deepStrictEqual(result.outputFiles.length, 1);
-    assert.deepStrictEqual(result.outputFiles[0].text, '1 + 2;\n');
-
-    result.stop()
+      const result2 = await context.rebuild()
+      assert.deepStrictEqual(result2.outputFiles.length, 1);
+      assert.deepStrictEqual(result2.outputFiles[0].text, '1 + 2;\n');
+    } finally {
+      await context.dispose()
+    }
   }
 
   async function testWatchAndIncremental() {
-    const result = await esbuild.build({
+    const context = await esbuild.context({
       stdin: { contents: '1+2' },
       write: false,
-      incremental: true,
-      watch: true,
     })
+    try {
+      await context.watch()
 
-    assert.deepStrictEqual(result.outputFiles.length, 1);
-    assert.deepStrictEqual(result.outputFiles[0].text, '1 + 2;\n');
+      const result = await context.rebuild()
+      assert.deepStrictEqual(result.outputFiles.length, 1);
+      assert.deepStrictEqual(result.outputFiles[0].text, '1 + 2;\n');
 
-    result.stop()
-    result.rebuild.dispose()
+    } finally {
+      await context.dispose()
+    }
   }
 
   await testTransform()
   await testServe()
   await testBuild()
-  await testWatch()
   await testWatchAndIncremental()
 }
 

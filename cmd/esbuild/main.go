@@ -61,6 +61,7 @@ var helpText = func(colors logger.Colors) string {
                             (default "[name]-[hash]")
   --banner:T=...            Text to be prepended to each output file of type T
                             where T is one of: css | js
+  --certfile=...            Certificate for serving HTTPS (see also "--keyfile")
   --charset=utf8            Do not escape UTF-8 code points
   --chunk-names=...         Path template to use for code splitting chunks
                             (default "[name]-[hash]")
@@ -84,6 +85,7 @@ var helpText = func(colors logger.Colors) string {
   --jsx=...                 Set to "automatic" to use React's automatic runtime
                             or to "preserve" to disable transforming JSX to JS
   --keep-names              Preserve "name" on functions and classes
+  --keyfile=...             Key for serving HTTPS (see also "--certfile")
   --legal-comments=...      Where to place legal comments (none | inline |
                             eof | linked | external, default eof when bundling
                             and inline otherwise)

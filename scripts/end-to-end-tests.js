@@ -43,15 +43,6 @@ tests.push(
   }),
 )
 
-// Test enabling watch mode and serve mode, which is disallowed
-tests.push(
-  test(['--watch=forever', '--servedir=.'], {}, {
-    expectedStderr: `${errorIcon} [ERROR] Cannot use "watch" with "serve"
-
-`,
-  }),
-)
-
 // Test bogus paths with a file as a parent directory (this happens when you use "pnpx esbuild")
 tests.push(
   test(['entry.js', '--bundle'], {

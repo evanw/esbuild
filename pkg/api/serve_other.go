@@ -14,14 +14,17 @@ package api
 // build results.
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"path"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -36,50 +39,23 @@ import (
 type apiHandler struct {
 	onRequest        func(ServeOnRequestArgs)
 	rebuild          func() BuildResult
-	currentBuild     *runningBuild
+	stop             func()
 	fs               fs.FS
-	serveError       error
 	absOutputDir     string
 	outdirPathPrefix string
+	publicPath       string
 	servedir         string
+	keyfileToLower   string
+	certfileToLower  string
 	serveWaitGroup   sync.WaitGroup
+	activeStreams    []chan serverSentEvent
+	buildSummary     buildSummary
 	mutex            sync.Mutex
 }
 
-type runningBuild struct {
-	result    BuildResult
-	waitGroup sync.WaitGroup
-}
-
-func (h *apiHandler) build() BuildResult {
-	build := func() *runningBuild {
-		h.mutex.Lock()
-		defer h.mutex.Unlock()
-		if h.currentBuild == nil {
-			build := &runningBuild{}
-			build.waitGroup.Add(1)
-			h.currentBuild = build
-
-			// Build on another thread
-			go func() {
-				result := h.rebuild()
-				h.rebuild = result.Rebuild
-				build.result = result
-				build.waitGroup.Done()
-
-				// Build results stay valid for a little bit afterward since a page
-				// load may involve multiple requests and don't want to rebuild
-				// separately for each of those requests.
-				time.Sleep(250 * time.Millisecond)
-				h.mutex.Lock()
-				defer h.mutex.Unlock()
-				h.currentBuild = nil
-			}()
-		}
-		return h.currentBuild
-	}()
-	build.waitGroup.Wait()
-	return build.result
+type serverSentEvent struct {
+	event string
+	data  string
 }
 
 func escapeForHTML(text string) string {
@@ -126,16 +102,22 @@ func errorsToString(errors []Message) string {
 func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	start := time.Now()
 
+	// Special-case the esbuild event stream
+	if req.Method == "GET" && req.URL.Path == "/esbuild" && req.Header.Get("Accept") == "text/event-stream" {
+		h.serveEventStream(start, req, res)
+		return
+	}
+
 	// Handle get requests
 	if req.Method == "GET" && strings.HasPrefix(req.URL.Path, "/") {
 		res.Header().Set("Access-Control-Allow-Origin", "*")
 		queryPath := path.Clean(req.URL.Path)[1:]
-		result := h.build()
+		result := h.rebuild()
 
 		// Requests fail if the build had errors
 		if len(result.Errors) > 0 {
-			go h.notifyRequest(time.Since(start), req, http.StatusServiceUnavailable)
 			res.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			go h.notifyRequest(time.Since(start), req, http.StatusServiceUnavailable)
 			res.WriteHeader(http.StatusServiceUnavailable)
 			res.Write([]byte(errorsToString(result.Errors)))
 			return
@@ -152,9 +134,12 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 			if strings.HasPrefix(outdirQueryPath, "/") {
 				outdirQueryPath = outdirQueryPath[1:]
 			}
-			resultKind, inMemoryBytes := h.matchQueryPathToResult(outdirQueryPath, &result, dirEntries, fileEntries)
+			resultKind, inMemoryBytes, isImplicitIndexHTML := h.matchQueryPathToResult(outdirQueryPath, &result, dirEntries, fileEntries)
 			kind = resultKind
 			fileContents = &fs.InMemoryOpenedFile{Contents: inMemoryBytes}
+			if isImplicitIndexHTML {
+				queryPath = path.Join(queryPath, "index.html")
+			}
 		} else {
 			// Create a fake directory entry for the output path so that it appears to be a real directory
 			p := h.outdirPathPrefix
@@ -182,6 +167,16 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 			if absDir := h.fs.Dir(absPath); absDir != absPath {
 				if entries, err, _ := h.fs.ReadDirectory(absDir); err == nil {
 					if entry, _ := entries.Get(h.fs.Base(absPath)); entry != nil && entry.Kind(h.fs) == fs.FileEntry {
+						if h.keyfileToLower != "" || h.certfileToLower != "" {
+							if toLower := strings.ToLower(absPath); toLower == h.keyfileToLower || toLower == h.certfileToLower {
+								// Don't serve the HTTPS key or certificate. This uses a case-
+								// insensitive check because some file systems are case-sensitive.
+								go h.notifyRequest(time.Since(start), req, http.StatusForbidden)
+								res.WriteHeader(http.StatusForbidden)
+								res.Write([]byte("403 - Forbidden"))
+								return
+							}
+						}
 						if contents, err, _ := h.fs.OpenFile(absPath); err == nil {
 							defer contents.Close()
 							fileContents = contents
@@ -231,7 +226,7 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 			return
 		}
 
-		// Serve a "index.html" file if present
+		// Serve an "index.html" file if present
 		if kind == fs.DirEntry && fallbackIndexName != "" {
 			queryPath += "/" + fallbackIndexName
 			if contents, err, _ := h.fs.OpenFile(h.fs.Join(h.servedir, queryPath)); err == nil {
@@ -307,6 +302,166 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	res.Write([]byte("404 - Not Found"))
 }
 
+// This exposes an event stream to clients using server-sent events:
+// https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events
+func (h *apiHandler) serveEventStream(start time.Time, req *http.Request, res http.ResponseWriter) {
+	if flusher, ok := res.(http.Flusher); ok {
+		if closer, ok := res.(http.CloseNotifier); ok {
+			// Add a new stream to the array of active streams
+			stream := make(chan serverSentEvent)
+			h.mutex.Lock()
+			h.activeStreams = append(h.activeStreams, stream)
+			h.mutex.Unlock()
+
+			// Start the event stream
+			res.Header().Set("Content-Type", "text/event-stream")
+			res.Header().Set("Connection", "keep-alive")
+			res.Header().Set("Cache-Control", "no-cache")
+			res.Header().Set("Access-Control-Allow-Origin", "*")
+			go h.notifyRequest(time.Since(start), req, http.StatusOK)
+			res.WriteHeader(http.StatusOK)
+			res.Write([]byte("retry: 500\n"))
+			flusher.Flush()
+
+			// Send incoming messages over the stream
+			streamWasClosed := make(chan struct{}, 1)
+			go func() {
+				for {
+					var msg []byte
+					select {
+					case next, ok := <-stream:
+						if !ok {
+							streamWasClosed <- struct{}{}
+							return
+						}
+						msg = []byte(fmt.Sprintf("event: %s\ndata: %s\n\n", next.event, next.data))
+					case <-time.After(30 * time.Second):
+						// Send an occasional keep-alive
+						msg = []byte(":\n\n")
+					}
+					if _, err := res.Write(msg); err != nil {
+						return
+					}
+					flusher.Flush()
+				}
+			}()
+
+			// When the stream is closed (either by them or by us), remove it
+			// from the array and end the response body to clean up resources
+			select {
+			case <-closer.CloseNotify():
+			case <-streamWasClosed:
+			}
+			h.mutex.Lock()
+			for i := range h.activeStreams {
+				if h.activeStreams[i] == stream {
+					end := len(h.activeStreams) - 1
+					h.activeStreams[i] = h.activeStreams[end]
+					h.activeStreams = h.activeStreams[:end]
+					break
+				}
+			}
+			h.mutex.Unlock()
+			close(stream)
+			return
+		}
+	}
+
+	// If we get here, then event streaming isn't possible
+	go h.notifyRequest(time.Since(start), req, http.StatusInternalServerError)
+	res.WriteHeader(http.StatusInternalServerError)
+	res.Write([]byte("500 - Event stream error"))
+}
+
+func (h *apiHandler) broadcastBuildResult(result BuildResult, newSummary buildSummary) {
+	h.mutex.Lock()
+
+	var added []string
+	var removed []string
+	var updated []string
+
+	urlForPath := func(absPath string) (string, bool) {
+		if relPath, ok := h.fs.Rel(h.servedir, absPath); ok {
+			publicPath := h.publicPath
+			slash := "/"
+			if publicPath != "" && strings.HasSuffix(h.publicPath, "/") {
+				slash = ""
+			}
+			return fmt.Sprintf("%s%s%s", publicPath, slash, strings.ReplaceAll(relPath, "\\", "/")), true
+		}
+		return "", false
+	}
+
+	// Diff the old and new states, but only if the build succeeded. We shouldn't
+	// make it appear as if all files were removed when there is a build error.
+	if len(result.Errors) == 0 {
+		oldSummary := h.buildSummary
+		h.buildSummary = newSummary
+
+		for absPath, newHash := range newSummary {
+			if oldHash, ok := oldSummary[absPath]; !ok {
+				if url, ok := urlForPath(absPath); ok {
+					added = append(added, url)
+				}
+			} else if newHash != oldHash {
+				if url, ok := urlForPath(absPath); ok {
+					updated = append(updated, url)
+				}
+			}
+		}
+
+		for absPath := range oldSummary {
+			if _, ok := newSummary[absPath]; !ok {
+				if url, ok := urlForPath(absPath); ok {
+					removed = append(removed, url)
+				}
+			}
+		}
+	}
+
+	// Only notify listeners if there's a change that's worth sending. That way
+	// you can implement a simple "reload on any change" script without having
+	// to do this check in the script.
+	if len(added) > 0 || len(removed) > 0 || len(updated) > 0 {
+		sort.Strings(added)
+		sort.Strings(removed)
+		sort.Strings(updated)
+
+		// Assemble the diff
+		var sb strings.Builder
+		sb.WriteString("{\"added\":[")
+		for i, path := range added {
+			if i > 0 {
+				sb.WriteRune(',')
+			}
+			sb.Write(helpers.QuoteForJSON(path, false))
+		}
+		sb.WriteString("],\"removed\":[")
+		for i, path := range removed {
+			if i > 0 {
+				sb.WriteRune(',')
+			}
+			sb.Write(helpers.QuoteForJSON(path, false))
+		}
+		sb.WriteString("],\"updated\":[")
+		for i, path := range updated {
+			if i > 0 {
+				sb.WriteRune(',')
+			}
+			sb.Write(helpers.QuoteForJSON(path, false))
+		}
+		sb.WriteString("]}")
+		json := sb.String()
+
+		// Broadcast the diff to all streams
+		for _, stream := range h.activeStreams {
+			stream <- serverSentEvent{event: "change", data: json}
+		}
+	}
+
+	h.mutex.Unlock()
+}
+
 // Handle enough of the range specification so that video playback works in Safari
 func parseRangeHeader(r string, contentLength int) (int, int, bool) {
 	if strings.HasPrefix(r, "bytes=") {
@@ -346,25 +501,26 @@ func (h *apiHandler) matchQueryPathToResult(
 	result *BuildResult,
 	dirEntries map[string]bool,
 	fileEntries map[string]bool,
-) (fs.EntryKind, []byte) {
+) (fs.EntryKind, []byte, bool) {
 	queryIsDir := false
 	queryDir := queryPath
 	if queryDir != "" {
 		queryDir += "/"
 	}
 
-	h.mutex.Lock()
-	absOutputDir := h.absOutputDir
-	h.mutex.Unlock()
-
 	// Check the output files for a match
 	for _, file := range result.OutputFiles {
-		if relPath, ok := h.fs.Rel(absOutputDir, file.Path); ok {
+		if relPath, ok := h.fs.Rel(h.absOutputDir, file.Path); ok {
 			relPath = strings.ReplaceAll(relPath, "\\", "/")
 
 			// An exact match
 			if relPath == queryPath {
-				return fs.FileEntry, file.Contents
+				return fs.FileEntry, file.Contents, false
+			}
+
+			// Serve an "index.html" file if present
+			if dir, base := path.Split(relPath); base == "index.html" && queryDir == dir {
+				return fs.FileEntry, file.Contents, true
 			}
 
 			// A match inside this directory
@@ -382,10 +538,10 @@ func (h *apiHandler) matchQueryPathToResult(
 
 	// Treat this as a directory if it's non-empty
 	if queryIsDir {
-		return fs.DirEntry, nil
+		return fs.DirEntry, nil, false
 	}
 
-	return 0, nil
+	return 0, nil, false
 }
 
 func respondWithDirList(queryPath string, dirEntries map[string]bool, fileEntries map[string]bool) []byte {
@@ -471,75 +627,65 @@ func prettyPrintPath(fs fs.FS, path string) string {
 	return path
 }
 
-func serveImpl(serveOptions ServeOptions, buildOptions BuildOptions) (ServeResult, error) {
-	realFS, err := fs.RealFS(fs.RealFSOptions{
-		AbsWorkingDir: buildOptions.AbsWorkingDir,
+func (ctx *internalContext) Serve(serveOptions ServeOptions) (ServeResult, error) {
+	ctx.mutex.Lock()
+	defer ctx.mutex.Unlock()
 
-		// This is a long-lived file system object so do not cache calls to
-		// ReadDirectory() (they are normally cached for the duration of a build
-		// for performance).
-		DoNotCache: true,
-	})
-	if err != nil {
-		return ServeResult{}, err
+	// Ignore disposed contexts
+	if ctx.didDispose {
+		return ServeResult{}, errors.New("Cannot serve a disposed context")
 	}
-	buildOptions.Incremental = true
-	buildOptions.Write = false
 
-	// Watch and serve are both different ways of rebuilding, and cannot be combined
-	if buildOptions.Watch != nil {
-		return ServeResult{}, fmt.Errorf("Cannot use \"watch\" with \"serve\"")
+	// Don't allow starting serve mode multiple times
+	if ctx.handler != nil {
+		return ServeResult{}, errors.New("Serve mode has already been enabled")
+	}
+
+	// Don't allow starting serve mode multiple times
+	if (serveOptions.Keyfile != "") != (serveOptions.Certfile != "") {
+		return ServeResult{}, errors.New("Must specify both key and certificate for HTTPS")
 	}
 
 	// Validate the fallback path
 	if serveOptions.Servedir != "" {
-		if absPath, ok := realFS.Abs(serveOptions.Servedir); ok {
+		if absPath, ok := ctx.realFS.Abs(serveOptions.Servedir); ok {
 			serveOptions.Servedir = absPath
 		} else {
 			return ServeResult{}, fmt.Errorf("Invalid serve path: %s", serveOptions.Servedir)
 		}
 	}
 
-	// If there is no output directory, set the output directory to something so
-	// the build doesn't try to write to stdout. Make sure not to set this to a
-	// path that may contain the user's files in it since we don't want to get
-	// errors about overwriting input files.
+	// Stuff related to the output directory only matters if there are entry points
 	outdirPathPrefix := ""
-	if buildOptions.Outdir == "" && buildOptions.Outfile == "" {
-		buildOptions.Outdir = realFS.Join(realFS.Cwd(), "...")
-	} else if serveOptions.Servedir != "" {
-		// Compute the output directory
-		var outdir string
-		if buildOptions.Outdir != "" {
-			if absPath, ok := realFS.Abs(buildOptions.Outdir); ok {
-				outdir = absPath
-			} else {
-				return ServeResult{}, fmt.Errorf("Invalid outdir path: %s", buildOptions.Outdir)
+	if len(ctx.args.entryPoints) > 0 {
+		// Don't allow serving when builds are written to stdout
+		if ctx.args.options.WriteToStdout {
+			what := "entry points"
+			if len(ctx.args.entryPoints) == 1 {
+				what = "an entry point"
 			}
-		} else {
-			if absPath, ok := realFS.Abs(buildOptions.Outfile); ok {
-				outdir = realFS.Dir(absPath)
-			} else {
-				return ServeResult{}, fmt.Errorf("Invalid outdir path: %s", buildOptions.Outfile)
-			}
+			return ServeResult{}, fmt.Errorf("Cannot serve %s without an output path", what)
 		}
 
-		// Make sure the output directory is contained in the fallback directory
-		relPath, ok := realFS.Rel(serveOptions.Servedir, outdir)
-		if !ok {
-			return ServeResult{}, fmt.Errorf(
-				"Cannot compute relative path from %q to %q\n", serveOptions.Servedir, outdir)
-		}
-		relPath = strings.ReplaceAll(relPath, "\\", "/") // Fix paths on Windows
-		if relPath == ".." || strings.HasPrefix(relPath, "../") {
-			return ServeResult{}, fmt.Errorf(
-				"Output directory %q must be contained in serve directory %q",
-				prettyPrintPath(realFS, outdir),
-				prettyPrintPath(realFS, serveOptions.Servedir),
-			)
-		}
-		if relPath != "." {
-			outdirPathPrefix = relPath
+		// Compute the output path prefix
+		if serveOptions.Servedir != "" && ctx.args.options.AbsOutputDir != "" {
+			// Make sure the output directory is contained in the fallback directory
+			relPath, ok := ctx.realFS.Rel(serveOptions.Servedir, ctx.args.options.AbsOutputDir)
+			if !ok {
+				return ServeResult{}, fmt.Errorf(
+					"Cannot compute relative path from %q to %q\n", serveOptions.Servedir, ctx.args.options.AbsOutputDir)
+			}
+			relPath = strings.ReplaceAll(relPath, "\\", "/") // Fix paths on Windows
+			if relPath == ".." || strings.HasPrefix(relPath, "../") {
+				return ServeResult{}, fmt.Errorf(
+					"Output directory %q must be contained in serve directory %q",
+					prettyPrintPath(ctx.realFS, ctx.args.options.AbsOutputDir),
+					prettyPrintPath(ctx.realFS, serveOptions.Servedir),
+				)
+			}
+			if relPath != "." {
+				outdirPathPrefix = relPath
+			}
 		}
 	}
 
@@ -587,72 +733,198 @@ func serveImpl(serveOptions ServeOptions, buildOptions BuildOptions) (ServeResul
 		}
 	}
 
-	var stoppingMutex sync.Mutex
-	isStopping := false
-
-	// The first build will just build normally
-	var handler *apiHandler
-	handler = &apiHandler{
-		onRequest:        serveOptions.OnRequest,
-		outdirPathPrefix: outdirPathPrefix,
-		servedir:         serveOptions.Servedir,
-		rebuild: func() BuildResult {
-			stoppingMutex.Lock()
-			defer stoppingMutex.Unlock()
-
-			// Don't start more rebuilds if we were told to stop
-			if isStopping {
-				return BuildResult{}
-			}
-
-			build := buildImpl(buildOptions)
-			handler.mutex.Lock()
-			handler.absOutputDir = build.options.AbsOutputDir
-			handler.mutex.Unlock()
-			return build.result
-		},
-		fs: realFS,
+	// HTTPS-related files should be absolute paths
+	isHTTPS := serveOptions.Keyfile != "" && serveOptions.Certfile != ""
+	if isHTTPS {
+		serveOptions.Keyfile, _ = ctx.realFS.Abs(serveOptions.Keyfile)
+		serveOptions.Certfile, _ = ctx.realFS.Abs(serveOptions.Certfile)
 	}
 
-	// When wait is called, block until the server's call to "Serve()" returns
-	result.Wait = func() error {
-		handler.serveWaitGroup.Wait()
-		return handler.serveError
+	var shouldStop int32
+
+	// The first build will just build normally
+	handler := &apiHandler{
+		onRequest:        serveOptions.OnRequest,
+		outdirPathPrefix: outdirPathPrefix,
+		absOutputDir:     ctx.args.options.AbsOutputDir,
+		publicPath:       ctx.args.options.PublicPath,
+		servedir:         serveOptions.Servedir,
+		keyfileToLower:   strings.ToLower(serveOptions.Keyfile),
+		certfileToLower:  strings.ToLower(serveOptions.Certfile),
+		rebuild: func() BuildResult {
+			if atomic.LoadInt32(&shouldStop) != 0 {
+				// Don't start more rebuilds if we were told to stop
+				return BuildResult{}
+			} else {
+				return ctx.activeBuildOrRecentBuildOrRebuild()
+			}
+		},
+		fs: ctx.realFS,
 	}
 
 	// Create the server
 	server := &http.Server{Addr: addr, Handler: handler}
 
 	// When stop is called, block further rebuilds and then close the server
-	result.Stop = func() {
-		stoppingMutex.Lock()
-		defer stoppingMutex.Unlock()
-
-		// Only try to close the server once
-		if isStopping {
-			return
-		}
-		isStopping = true
+	handler.stop = func() {
+		atomic.StoreInt32(&shouldStop, 1)
 
 		// Close the server and wait for it to close
 		server.Close()
+
+		// Close all open event streams
+		handler.mutex.Lock()
+		for _, stream := range handler.activeStreams {
+			close(stream)
+		}
+		handler.activeStreams = nil
+		handler.mutex.Unlock()
+
 		handler.serveWaitGroup.Wait()
 	}
+
+	// HACK: Go's HTTP API doesn't appear to provide a way to separate argument
+	// validation errors from eventual network errors. Specifically "ServeTLS"
+	// blocks for an arbitrarily long time before returning an error. So we
+	// intercept the first call to "Accept" on the listener and say that the
+	// serve call succeeded without an error if we get to that point.
+	hack := &hackListener{Listener: listener}
+	hack.waitGroup.Add(1)
 
 	// Start the server and signal on "serveWaitGroup" when it stops
 	handler.serveWaitGroup.Add(1)
 	go func() {
-		if err := server.Serve(listener); err != http.ErrServerClosed {
-			handler.serveError = err
+		var err error
+		if isHTTPS {
+			err = server.ServeTLS(hack, serveOptions.Certfile, serveOptions.Keyfile)
+		} else {
+			err = server.Serve(hack)
+		}
+		if err != http.ErrServerClosed {
+			hack.mutex.Lock()
+			if !hack.done {
+				hack.done = true
+				hack.err = err
+				hack.waitGroup.Done()
+			}
+			hack.mutex.Unlock()
 		}
 		handler.serveWaitGroup.Done()
 	}()
 
+	// Return an error if the server failed to start accepting connections
+	hack.waitGroup.Wait()
+	if hack.err != nil {
+		return ServeResult{}, hack.err
+	}
+
+	// There appears to be some issue with Linux (but not with macOS) where
+	// destroying and recreating a server with the same port as the previous
+	// server had sometimes causes subsequent connections to fail with
+	// ECONNRESET (shows up in node as "Error: socket hang up").
+	//
+	// I think the problem is sort of that Go sets SO_REUSEADDR to 1 for listener
+	// sockets (specifically in "setDefaultListenerSockopts"). In some ways this
+	// is good, because it's more convenient for the user if the port is the
+	// same. However, I believe this sends a TCP RST packet to kill any previous
+	// connections. That can then be received by clients attempting to connect
+	// to the new server.
+	//
+	// As a hack to work around this problem, we wait for an additional short
+	// amount of time before returning. I observed this problem even with a 5ms
+	// timeout but I did not observe this problem with a 10ms timeout. So I'm
+	// setting this timeout to 50ms to be extra safe.
+	time.Sleep(50 * time.Millisecond)
+
+	// Only set the context handler if the server started successfully
+	ctx.handler = handler
+
+	// Print the URL(s) that the server can be reached at
+	if ctx.args.logOptions.LogLevel <= logger.LevelInfo {
+		printURLs(result.Host, result.Port, isHTTPS, ctx.args.logOptions.Color)
+	}
+
 	// Start the first build shortly after this function returns (but not
-	// immediately so that stuff we print right after this will come first)
+	// immediately so that stuff we print right after this will come first).
+	//
+	// This also helps the CLI not do two builds when serve and watch mode
+	// are enabled together. Watch mode is enabled after serve mode because
+	// we want the stderr output for watch to come after the stderr output for
+	// serve, but watch mode will do another build if the current build is
+	// not a watch mode build.
 	go func() {
 		time.Sleep(10 * time.Millisecond)
-		handler.build()
+		handler.rebuild()
 	}()
 	return result, nil
+}
+
+type hackListener struct {
+	net.Listener
+	mutex     sync.Mutex
+	waitGroup sync.WaitGroup
+	err       error
+	done      bool
+}
+
+func (hack *hackListener) Accept() (net.Conn, error) {
+	hack.mutex.Lock()
+	if !hack.done {
+		hack.done = true
+		hack.waitGroup.Done()
+	}
+	hack.mutex.Unlock()
+	return hack.Listener.Accept()
+}
+
+func printURLs(host string, port uint16, https bool, useColor logger.UseColor) {
+	logger.PrintTextWithColor(os.Stderr, useColor, func(colors logger.Colors) string {
+		var hosts []string
+		sb := strings.Builder{}
+		sb.WriteString(colors.Reset)
+
+		// If this is "0.0.0.0" or "::", list all relevant IP addresses
+		if ip := net.ParseIP(host); ip != nil && ip.IsUnspecified() {
+			if addrs, err := net.InterfaceAddrs(); err == nil {
+				for _, addr := range addrs {
+					if addr, ok := addr.(*net.IPNet); ok && (addr.IP.To4() != nil) == (ip.To4() != nil) && !addr.IP.IsLinkLocalUnicast() {
+						hosts = append(hosts, addr.IP.String())
+					}
+				}
+			}
+		}
+
+		// Otherwise, just list the one IP address
+		if len(hosts) == 0 {
+			hosts = append(hosts, host)
+		}
+
+		// Determine the host kinds
+		kinds := make([]string, len(hosts))
+		maxLen := 0
+		for i, host := range hosts {
+			kind := "Network"
+			if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
+				kind = "Local"
+			}
+			kinds[i] = kind
+			if len(kind) > maxLen {
+				maxLen = len(kind)
+			}
+		}
+
+		// Pretty-print the host list
+		protocol := "http"
+		if https {
+			protocol = "https"
+		}
+		for i, kind := range kinds {
+			sb.WriteString(fmt.Sprintf("\n > %s:%s %s%s://%s/%s",
+				kind, strings.Repeat(" ", maxLen-len(kind)), colors.Underline, protocol,
+				net.JoinHostPort(hosts[i], fmt.Sprintf("%d", port)), colors.Reset))
+		}
+
+		sb.WriteString("\n\n")
+		return sb.String()
+	})
 }

@@ -4,6 +4,8 @@ package api
 // "FormatMessages", and "AnalyzeMetafile" functions.
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"math"
@@ -31,6 +33,7 @@ import (
 	"github.com/evanw/esbuild/internal/linker"
 	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/resolver"
+	"github.com/evanw/esbuild/internal/xxhash"
 )
 
 func validatePathTemplate(template string) []config.PathTemplate {
@@ -812,6 +815,17 @@ func convertMessagesToInternal(msgs []logger.Msg, kind logger.MsgKind, messages 
 	return msgs
 }
 
+func convertErrorsAndWarningsToInternal(errors []Message, warnings []Message) []logger.Msg {
+	if len(errors)+len(warnings) > 0 {
+		msgs := make(logger.SortableMsgs, 0, len(errors)+len(warnings))
+		msgs = convertMessagesToInternal(msgs, logger.Error, errors)
+		msgs = convertMessagesToInternal(msgs, logger.Warning, warnings)
+		sort.Stable(msgs)
+		return msgs
+	}
+	return nil
+}
+
 func cloneMangleCache(log logger.Log, mangleCache map[string]interface{}) map[string]interface{} {
 	if mangleCache == nil {
 		return nil
@@ -836,8 +850,7 @@ func cloneMangleCache(log logger.Log, mangleCache map[string]interface{}) map[st
 ////////////////////////////////////////////////////////////////////////////////
 // Build API
 
-func buildImpl(buildOpts BuildOptions) rebuildResult {
-	start := time.Now()
+func contextImpl(buildOpts BuildOptions) (*internalContext, []Message) {
 	logOptions := logger.OutputOptions{
 		IncludeSource: true,
 		MessageLimit:  buildOpts.LogLimit,
@@ -859,7 +872,7 @@ func buildImpl(buildOpts BuildOptions) rebuildResult {
 	})
 	if err != nil {
 		log.AddError(nil, logger.Range{}, err.Error())
-		return rebuildResult{result: BuildResult{Errors: convertMessagesToPublic(logger.Error, log.Done())}}
+		return nil, convertMessagesToPublic(logger.Error, log.Done())
 	}
 
 	// Do not re-evaluate plugins when rebuilding. Also make sure the working
@@ -873,6 +886,12 @@ func buildImpl(buildOpts BuildOptions) rebuildResult {
 		panic("Mutating \"AbsWorkingDir\" is not allowed")
 	}
 
+	// If we have errors already, then refuse to build any further. This only
+	// happens when the build options themselves contain validation errors.
+	if msgs := log.Done(); log.HasErrors() {
+		return nil, convertMessagesToPublic(logger.Error, msgs)
+	}
+
 	args := rebuildArgs{
 		caches:         caches,
 		onEndCallbacks: onEndCallbacks,
@@ -880,21 +899,200 @@ func buildImpl(buildOpts BuildOptions) rebuildResult {
 		entryPoints:    entryPoints,
 		options:        options,
 		mangleCache:    buildOpts.MangleCache,
-		watch:          buildOpts.Watch,
 		absWorkingDir:  absWorkingDir,
-		incremental:    buildOpts.Incremental,
 		write:          buildOpts.Write,
 	}
-	internalResult := rebuildImpl(args, log, false /* isRebuild */)
 
-	// Print a summary of the generated files to stderr. Except don't do
-	// this if the terminal is already being used for something else.
-	if logOptions.LogLevel <= logger.LevelInfo && len(internalResult.result.OutputFiles) > 0 &&
-		buildOpts.Watch == nil && !buildOpts.Incremental && !options.WriteToStdout {
-		printSummary(logOptions, internalResult.result.OutputFiles, start)
+	return &internalContext{
+		args:          args,
+		realFS:        realFS,
+		absWorkingDir: absWorkingDir,
+	}, nil
+}
+
+type buildInProgress struct {
+	state     rebuildState
+	waitGroup sync.WaitGroup
+}
+
+type internalContext struct {
+	mutex         sync.Mutex
+	args          rebuildArgs
+	activeBuild   *buildInProgress
+	recentBuild   *BuildResult
+	latestSummary buildSummary
+	realFS        fs.FS
+	absWorkingDir string
+	watcher       *watcher
+	handler       *apiHandler
+	didDispose    bool
+}
+
+func (ctx *internalContext) rebuild() rebuildState {
+	ctx.mutex.Lock()
+
+	// Ignore disposed contexts
+	if ctx.didDispose {
+		ctx.mutex.Unlock()
+		return rebuildState{}
 	}
 
-	return internalResult
+	// If there's already an active build, just return that build's result
+	if build := ctx.activeBuild; build != nil {
+		ctx.mutex.Unlock()
+		build.waitGroup.Wait()
+		return build.state
+	}
+
+	// Otherwise, start a new build
+	build := &buildInProgress{}
+	build.waitGroup.Add(1)
+	ctx.activeBuild = build
+	args := ctx.args
+	watcher := ctx.watcher
+	handler := ctx.handler
+	oldSummary := ctx.latestSummary
+	ctx.mutex.Unlock()
+
+	// Do the build without holding the mutex
+	build.state = rebuildImpl(args, oldSummary)
+	if handler != nil {
+		handler.broadcastBuildResult(build.state.result, build.state.summary)
+	}
+	if watcher != nil {
+		watcher.setWatchData(build.state.watchData)
+	}
+
+	// Store the recent build for the dev server
+	recentBuild := &build.state.result
+	ctx.mutex.Lock()
+	ctx.activeBuild = nil
+	ctx.recentBuild = recentBuild
+	ctx.latestSummary = build.state.summary
+	ctx.mutex.Unlock()
+
+	// Clear the recent build after it goes stale
+	go func() {
+		time.Sleep(250 * time.Millisecond)
+		ctx.mutex.Lock()
+		if ctx.recentBuild == recentBuild {
+			ctx.recentBuild = nil
+		}
+		ctx.mutex.Unlock()
+	}()
+
+	build.waitGroup.Done()
+	return build.state
+}
+
+// This is used by the dev server. The dev server does a rebuild on each
+// incoming request since a) we want incoming requests to always be up to
+// date and b) we don't necessarily know what output paths to even serve
+// without running another build (e.g. the hashes may have changed).
+//
+// However, there is a small period of time where we reuse old build results
+// instead of generating new ones. This is because page loads likely involve
+// multiple requests, and don't want to rebuild separately for each of those
+// requests.
+func (ctx *internalContext) activeBuildOrRecentBuildOrRebuild() BuildResult {
+	ctx.mutex.Lock()
+
+	// If there's already an active build, wait for it and return that
+	if build := ctx.activeBuild; build != nil {
+		ctx.mutex.Unlock()
+		build.waitGroup.Wait()
+		return build.state.result
+	}
+
+	// Then try to return a recentl already-completed build
+	if build := ctx.recentBuild; build != nil {
+		ctx.mutex.Unlock()
+		return *build
+	}
+
+	// Otherwise, fall back to rebuilding
+	ctx.mutex.Unlock()
+	return ctx.Rebuild()
+}
+
+func (ctx *internalContext) Rebuild() BuildResult {
+	return ctx.rebuild().result
+}
+
+func (ctx *internalContext) Watch(options WatchOptions) error {
+	ctx.mutex.Lock()
+	defer ctx.mutex.Unlock()
+
+	// Ignore disposed contexts
+	if ctx.didDispose {
+		return errors.New("Cannot watch a disposed context")
+	}
+
+	// Don't allow starting watch mode multiple times
+	if ctx.watcher != nil {
+		return errors.New("Watch mode has already been enabled")
+	}
+
+	ctx.watcher = &watcher{
+		fs: ctx.realFS,
+		rebuild: func() fs.WatchData {
+			return ctx.rebuild().watchData
+		},
+	}
+
+	// All subsequent builds will be watch mode builds
+	ctx.args.options.WatchMode = true
+
+	// Start the file watcher goroutine
+	ctx.watcher.start(ctx.args.logOptions.LogLevel, ctx.args.logOptions.Color)
+
+	// Do the first watch mode build on another goroutine
+	go func() {
+		ctx.mutex.Lock()
+		build := ctx.activeBuild
+		ctx.mutex.Unlock()
+
+		// If there's an active build, then it's not a watch build. Wait for it to
+		// finish first so we don't just get this build when we call "Rebuild()".
+		if build != nil {
+			build.waitGroup.Wait()
+		}
+
+		// Trigger a rebuild now that we know all future builds will pick up on
+		// our watcher. This build will populate the initial watch data, which is
+		// necessary to be able to know what file system changes are relevant.
+		ctx.Rebuild()
+	}()
+	return nil
+}
+
+func (ctx *internalContext) Dispose() {
+	// Only dispose once
+	ctx.mutex.Lock()
+	if ctx.didDispose {
+		ctx.mutex.Unlock()
+		return
+	}
+	ctx.didDispose = true
+	ctx.recentBuild = nil
+	build := ctx.activeBuild
+	ctx.mutex.Unlock()
+
+	if ctx.watcher != nil {
+		ctx.watcher.stop()
+	}
+	if ctx.handler != nil {
+		ctx.handler.stop()
+	}
+
+	// It's important to wait for the build to finish before returning. The JS
+	// API will unregister its callbacks when it returns. If that happens while
+	// the build is still in progress, that might cause the JS API to generate
+	// errors when we send it events (e.g. when it runs "onEnd" callbacks) that
+	// we then print to the terminal, which would be confusing.
+	if build != nil {
+		build.waitGroup.Wait()
+	}
 }
 
 func prettyPrintByteCount(n int) string {
@@ -911,26 +1109,28 @@ func prettyPrintByteCount(n int) string {
 	return size
 }
 
-func printSummary(logOptions logger.OutputOptions, outputFiles []OutputFile, start time.Time) {
+func printSummary(color logger.UseColor, outputFiles []OutputFile, start time.Time) {
+	if len(outputFiles) == 0 {
+		return
+	}
+
 	var table logger.SummaryTable = make([]logger.SummaryTableEntry, len(outputFiles))
 
-	if len(outputFiles) > 0 {
-		if cwd, err := os.Getwd(); err == nil {
-			if realFS, err := fs.RealFS(fs.RealFSOptions{AbsWorkingDir: cwd}); err == nil {
-				for i, file := range outputFiles {
-					path, ok := realFS.Rel(realFS.Cwd(), file.Path)
-					if !ok {
-						path = file.Path
-					}
-					base := realFS.Base(path)
-					n := len(file.Contents)
-					table[i] = logger.SummaryTableEntry{
-						Dir:         path[:len(path)-len(base)],
-						Base:        base,
-						Size:        prettyPrintByteCount(n),
-						Bytes:       n,
-						IsSourceMap: strings.HasSuffix(base, ".map"),
-					}
+	if cwd, err := os.Getwd(); err == nil {
+		if realFS, err := fs.RealFS(fs.RealFSOptions{AbsWorkingDir: cwd}); err == nil {
+			for i, file := range outputFiles {
+				path, ok := realFS.Rel(realFS.Cwd(), file.Path)
+				if !ok {
+					path = file.Path
+				}
+				base := realFS.Base(path)
+				n := len(file.Contents)
+				table[i] = logger.SummaryTableEntry{
+					Dir:         path[:len(path)-len(base)],
+					Base:        base,
+					Size:        prettyPrintByteCount(n),
+					Bytes:       n,
+					IsSourceMap: strings.HasSuffix(base, ".map"),
 				}
 			}
 		}
@@ -940,12 +1140,12 @@ func printSummary(logOptions logger.OutputOptions, outputFiles []OutputFile, sta
 	// since Yarn 1 always prints its own copy of the time taken by each command
 	if userAgent, ok := os.LookupEnv("npm_config_user_agent"); ok {
 		if strings.Contains(userAgent, "yarn/1.") {
-			logger.PrintSummary(logOptions.Color, table, nil)
+			logger.PrintSummary(color, table, nil)
 			return
 		}
 	}
 
-	logger.PrintSummary(logOptions.Color, table, &start)
+	logger.PrintSummary(color, table, &start)
 }
 
 func validateBuildOptions(
@@ -1028,7 +1228,6 @@ func validateBuildOptions(
 		CSSBanner:             bannerCSS,
 		CSSFooter:             footerCSS,
 		PreserveSymlinks:      buildOpts.PreserveSymlinks,
-		WatchMode:             buildOpts.Watch != nil,
 	}
 	if buildOpts.Conditions != nil {
 		options.Conditions = append([]string{}, buildOpts.Conditions...)
@@ -1131,33 +1330,41 @@ func validateBuildOptions(
 		log.AddError(nil, logger.Range{}, "Splitting currently only works with the \"esm\" format")
 	}
 
+	// If we aren't writing the output to the file system, then we can allow the
+	// output paths to be the same as the input paths. This helps when serving.
+	if !buildOpts.Write {
+		options.AllowOverwrite = true
+	}
+
 	return
+}
+
+type onEndCallback struct {
+	pluginName string
+	fn         func(*BuildResult) (OnEndResult, error)
 }
 
 type rebuildArgs struct {
 	caches         *cache.CacheSet
-	onEndCallbacks []func(*BuildResult)
+	onEndCallbacks []onEndCallback
 	logOptions     logger.OutputOptions
 	entryPoints    []bundler.EntryPoint
 	options        config.Options
 	mangleCache    map[string]interface{}
-	watch          *WatchMode
 	absWorkingDir  string
-	incremental    bool
 	write          bool
 }
 
-type rebuildResult struct {
+type rebuildState struct {
 	result    BuildResult
+	summary   buildSummary
 	watchData fs.WatchData
 	options   config.Options
 }
 
-func rebuildImpl(
-	args rebuildArgs,
-	log logger.Log,
-	isRebuild bool,
-) rebuildResult {
+func rebuildImpl(args rebuildArgs, oldSummary buildSummary) rebuildState {
+	log := logger.NewStderrLog(args.logOptions)
+
 	// Convert and validate the buildOpts
 	realFS, err := fs.RealFS(fs.RealFSOptions{
 		AbsWorkingDir: args.absWorkingDir,
@@ -1168,149 +1375,182 @@ func rebuildImpl(
 		panic(err.Error())
 	}
 
-	var outputFiles []OutputFile
-	var metafileJSON string
+	var result BuildResult
 	var watchData fs.WatchData
-	var mangleCache map[string]interface{}
+	var toWriteToStdout []byte
+
+	var timer *helpers.Timer
+	if api_helpers.UseTimer {
+		timer = &helpers.Timer{}
+	}
+
+	// Scan over the bundle
+	bundle := bundler.ScanBundle(log, realFS, args.caches, args.entryPoints, args.options, timer)
+	watchData = realFS.WatchData()
+
+	// The new build summary remains the same as the old one when there are
+	// errors. A failed build shouldn't erase the previous successful build.
+	newSummary := oldSummary
 
 	// Stop now if there were errors
 	if !log.HasErrors() {
-		var timer *helpers.Timer
-		if api_helpers.UseTimer {
-			timer = &helpers.Timer{}
-		}
-
-		// Scan over the bundle
-		bundle := bundler.ScanBundle(log, realFS, args.caches, args.entryPoints, args.options, timer)
-		watchData = realFS.WatchData()
+		// Compile the bundle
+		result.MangleCache = cloneMangleCache(log, args.mangleCache)
+		results, metafile := bundle.Compile(log, timer, result.MangleCache, linker.Link)
 
 		// Stop now if there were errors
 		if !log.HasErrors() {
-			// Compile the bundle
-			mangleCache = cloneMangleCache(log, args.mangleCache)
-			results, metafile := bundle.Compile(log, timer, mangleCache, linker.Link)
+			result.Metafile = metafile
 
-			// Stop now if there were errors
-			if !log.HasErrors() {
-				metafileJSON = metafile
+			// Populate the results to return
+			result.OutputFiles = make([]OutputFile, len(results))
+			for i, item := range results {
+				if args.options.WriteToStdout {
+					item.AbsPath = "<stdout>"
+				}
+				result.OutputFiles[i] = OutputFile{
+					Path:     item.AbsPath,
+					Contents: item.Contents,
+				}
+			}
+			newSummary = summarizeOutputFiles(result.OutputFiles)
 
-				// Flush any deferred warnings now
-				log.AlmostDone()
-
-				if args.write {
-					timer.Begin("Write output files")
-					if args.options.WriteToStdout {
-						// Special-case writing to stdout
-						if len(results) != 1 {
-							log.AddError(nil, logger.Range{}, fmt.Sprintf(
-								"Internal error: did not expect to generate %d files when writing to stdout", len(results)))
-						} else if _, err := os.Stdout.Write(results[0].Contents); err != nil {
-							log.AddError(nil, logger.Range{}, fmt.Sprintf(
-								"Failed to write to stdout: %s", err.Error()))
-						}
+			// Write output files before "OnEnd" callbacks run so they can expect
+			// output files to exist on the file system. "OnEnd" callbacks can be
+			// used to move output files to a different location after the build.
+			if args.write {
+				timer.Begin("Write output files")
+				if args.options.WriteToStdout {
+					// Special-case writing to stdout
+					if len(results) != 1 {
+						log.AddError(nil, logger.Range{}, fmt.Sprintf(
+							"Internal error: did not expect to generate %d files when writing to stdout", len(results)))
 					} else {
-						// Write out files in parallel
-						waitGroup := sync.WaitGroup{}
-						waitGroup.Add(len(results))
-						for _, result := range results {
-							go func(result graph.OutputFile) {
-								fs.BeforeFileOpen()
-								defer fs.AfterFileClose()
-								if err := fs.MkdirAll(realFS, realFS.Dir(result.AbsPath), 0755); err != nil {
-									log.AddError(nil, logger.Range{}, fmt.Sprintf(
-										"Failed to create output directory: %s", err.Error()))
-								} else {
-									var mode os.FileMode = 0644
-									if result.IsExecutable {
-										mode = 0755
-									}
-									if err := ioutil.WriteFile(result.AbsPath, result.Contents, mode); err != nil {
-										log.AddError(nil, logger.Range{}, fmt.Sprintf(
-											"Failed to write to output file: %s", err.Error()))
-									}
-								}
-								waitGroup.Done()
-							}(result)
+						// Print this later on, at the end of the current function
+						toWriteToStdout = results[0].Contents
+					}
+				} else {
+					// Delete old files that are no longer relevant
+					var toDelete []string
+					for absPath := range oldSummary {
+						if _, ok := newSummary[absPath]; !ok {
+							toDelete = append(toDelete, absPath)
 						}
-						waitGroup.Wait()
 					}
-					timer.End("Write output files")
-				}
 
-				// Return the results
-				outputFiles = make([]OutputFile, len(results))
-				for i, result := range results {
-					if args.options.WriteToStdout {
-						result.AbsPath = "<stdout>"
+					// Process all file operations in parallel
+					waitGroup := sync.WaitGroup{}
+					waitGroup.Add(len(results) + len(toDelete))
+					for _, result := range results {
+						go func(result graph.OutputFile) {
+							defer waitGroup.Done()
+							fs.BeforeFileOpen()
+							defer fs.AfterFileClose()
+							if oldHash, ok := oldSummary[result.AbsPath]; ok && oldHash == newSummary[result.AbsPath] {
+								if contents, err := ioutil.ReadFile(result.AbsPath); err == nil && bytes.Equal(contents, result.Contents) {
+									// Skip writing out files that haven't changed since last time
+									return
+								}
+							}
+							if err := fs.MkdirAll(realFS, realFS.Dir(result.AbsPath), 0755); err != nil {
+								log.AddError(nil, logger.Range{}, fmt.Sprintf(
+									"Failed to create output directory: %s", err.Error()))
+							} else {
+								var mode os.FileMode = 0644
+								if result.IsExecutable {
+									mode = 0755
+								}
+								if err := ioutil.WriteFile(result.AbsPath, result.Contents, mode); err != nil {
+									log.AddError(nil, logger.Range{}, fmt.Sprintf(
+										"Failed to write to output file: %s", err.Error()))
+								}
+							}
+						}(result)
 					}
-					outputFiles[i] = OutputFile{
-						Path:     result.AbsPath,
-						Contents: result.Contents,
+					for _, absPath := range toDelete {
+						go func(absPath string) {
+							defer waitGroup.Done()
+							fs.BeforeFileOpen()
+							defer fs.AfterFileClose()
+							os.Remove(absPath)
+						}(absPath)
 					}
+					waitGroup.Wait()
 				}
+				timer.End("Write output files")
 			}
-		}
-
-		timer.Log(log)
-	}
-
-	// End the log now, which may print a message
-	msgs := log.Done()
-
-	// Start watching, but only for the top-level build
-	var watch *watcher
-	var stop func()
-	if args.watch != nil && !isRebuild {
-		onRebuild := args.watch.OnRebuild
-		watch = &watcher{
-			data: watchData,
-			fs:   realFS,
-			rebuild: func() fs.WatchData {
-				value := rebuildImpl(args, logger.NewStderrLog(args.logOptions), true /* isRebuild */)
-				if onRebuild != nil {
-					go onRebuild(value.result)
-				}
-				return value.watchData
-			},
-		}
-		watch.start(args.logOptions.LogLevel, args.logOptions.Color)
-		stop = func() {
-			watch.stop()
-		}
-	}
-
-	var rebuild func() BuildResult
-	if args.incremental {
-		rebuild = func() BuildResult {
-			value := rebuildImpl(args, logger.NewStderrLog(args.logOptions), true /* isRebuild */)
-			if watch != nil {
-				watch.setWatchData(value.watchData)
-			}
-			return value.result
 		}
 	}
 
 	// Only return the mangle cache for a successful build
 	if log.HasErrors() {
-		mangleCache = nil
+		result.MangleCache = nil
 	}
 
-	result := BuildResult{
-		Errors:      convertMessagesToPublic(logger.Error, msgs),
-		Warnings:    convertMessagesToPublic(logger.Warning, msgs),
-		OutputFiles: outputFiles,
-		Metafile:    metafileJSON,
-		Rebuild:     rebuild,
-		Stop:        stop,
-		MangleCache: mangleCache,
-	}
+	// Populate the result object with the messages so far
+	msgs := log.Peek()
+	result.Errors = convertMessagesToPublic(logger.Error, msgs)
+	result.Warnings = convertMessagesToPublic(logger.Warning, msgs)
 
+	// Run any registered "OnEnd" callbacks now
+	timer.Begin("On-end callbacks")
 	for _, onEnd := range args.onEndCallbacks {
-		onEnd(&result)
+		fromPlugin, thrown := onEnd.fn(&result)
+
+		// Report errors and warnings generated by the plugin
+		for i := range fromPlugin.Errors {
+			if fromPlugin.Errors[i].PluginName == "" {
+				fromPlugin.Errors[i].PluginName = onEnd.pluginName
+			}
+		}
+		for i := range fromPlugin.Warnings {
+			if fromPlugin.Warnings[i].PluginName == "" {
+				fromPlugin.Warnings[i].PluginName = onEnd.pluginName
+			}
+		}
+
+		// Report errors thrown by the plugin itself
+		if thrown != nil {
+			fromPlugin.Errors = append(fromPlugin.Errors, Message{
+				PluginName: onEnd.pluginName,
+				Text:       thrown.Error(),
+			})
+		}
+
+		// Log any errors and warnings generated above
+		for _, msg := range convertErrorsAndWarningsToInternal(fromPlugin.Errors, fromPlugin.Warnings) {
+			log.AddMsg(msg)
+		}
+
+		// Add the errors and warnings to the result object
+		result.Errors = append(result.Errors, fromPlugin.Errors...)
+		result.Warnings = append(result.Warnings, fromPlugin.Warnings...)
+
+		// Stop if an "onEnd" callback failed. This counts as a build failure.
+		if len(fromPlugin.Errors) > 0 {
+			break
+		}
+	}
+	timer.End("On-end callbacks")
+
+	// Log timing information now that we're all done
+	timer.Log(log)
+
+	// End the log after "OnEnd" callbacks have added any additional errors and/or
+	// warnings. This may may print any warnings that were deferred up until this
+	// point, as well as a message with the number of errors and/or warnings
+	// omitted due to the configured log limit.
+	log.Done()
+
+	// Only write to stdout after the log has been finalized. We want this output
+	// to show up in the terminal after the message that was printed above.
+	if toWriteToStdout != nil {
+		os.Stdout.Write(toWriteToStdout)
 	}
 
-	return rebuildResult{
+	return rebuildState{
 		result:    result,
+		summary:   newSummary,
 		options:   args.options,
 		watchData: watchData,
 	}
@@ -1542,13 +1782,7 @@ func (impl *pluginImpl) onStart(callback func() (OnStartResult, error)) {
 			}
 
 			// Convert log messages
-			if len(response.Errors)+len(response.Warnings) > 0 {
-				msgs := make(logger.SortableMsgs, 0, len(response.Errors)+len(response.Warnings))
-				msgs = convertMessagesToInternal(msgs, logger.Error, response.Errors)
-				msgs = convertMessagesToInternal(msgs, logger.Warning, response.Warnings)
-				sort.Stable(msgs)
-				result.Msgs = msgs
-			}
+			result.Msgs = convertErrorsAndWarningsToInternal(response.Errors, response.Warnings)
 			return
 		},
 	})
@@ -1640,13 +1874,7 @@ func (impl *pluginImpl) onResolve(options OnResolveOptions, callback func(OnReso
 			result.PluginData = response.PluginData
 
 			// Convert log messages
-			if len(response.Errors)+len(response.Warnings) > 0 {
-				msgs := make(logger.SortableMsgs, 0, len(response.Errors)+len(response.Warnings))
-				msgs = convertMessagesToInternal(msgs, logger.Error, response.Errors)
-				msgs = convertMessagesToInternal(msgs, logger.Warning, response.Warnings)
-				sort.Stable(msgs)
-				result.Msgs = msgs
-			}
+			result.Msgs = convertErrorsAndWarningsToInternal(response.Errors, response.Warnings)
 			return
 		},
 	})
@@ -1687,13 +1915,7 @@ func (impl *pluginImpl) onLoad(options OnLoadOptions, callback func(OnLoadArgs) 
 			}
 
 			// Convert log messages
-			if len(response.Errors)+len(response.Warnings) > 0 {
-				msgs := make(logger.SortableMsgs, 0, len(response.Errors)+len(response.Warnings))
-				msgs = convertMessagesToInternal(msgs, logger.Error, response.Errors)
-				msgs = convertMessagesToInternal(msgs, logger.Warning, response.Warnings)
-				sort.Stable(msgs)
-				result.Msgs = msgs
-			}
+			result.Msgs = convertErrorsAndWarningsToInternal(response.Errors, response.Warnings)
 			return
 		},
 	})
@@ -1712,13 +1934,9 @@ func (impl *pluginImpl) validatePathsArray(pathsIn []string, name string) (paths
 }
 
 func loadPlugins(initialOptions *BuildOptions, fs fs.FS, log logger.Log, caches *cache.CacheSet) (
-	onEndCallbacks []func(*BuildResult),
+	onEndCallbacks []onEndCallback,
 	finalizeBuildOptions func(*config.Options),
 ) {
-	onEnd := func(callback func(*BuildResult)) {
-		onEndCallbacks = append(onEndCallbacks, callback)
-	}
-
 	// Clone the plugin array to guard against mutation during iteration
 	clone := append(make([]Plugin, 0, len(initialOptions.Plugins)), initialOptions.Plugins...)
 
@@ -1809,6 +2027,13 @@ func loadPlugins(initialOptions *BuildOptions, fs fs.FS, log logger.Log, caches 
 				}})...)
 			}
 			return
+		}
+
+		onEnd := func(fn func(*BuildResult) (OnEndResult, error)) {
+			onEndCallbacks = append(onEndCallbacks, onEndCallback{
+				pluginName: item.Name,
+				fn:         fn,
+			})
 		}
 
 		item.Setup(PluginBuild{
@@ -2160,4 +2385,19 @@ func analyzeMetafileImpl(metafile string, opts AnalyzeMetafileOptions) string {
 	}
 
 	return ""
+}
+
+type buildSummary map[string]uint64
+
+// This saves just enough information to be able to compute a useful diff
+// between two sets of output files. That way we don't need to hold both
+// sets of output files in memory at once to compute a diff.
+func summarizeOutputFiles(outputFiles []OutputFile) buildSummary {
+	summary := make(map[string]uint64)
+	for _, outputFile := range outputFiles {
+		hash := xxhash.New()
+		hash.Write(outputFile.Contents)
+		summary[outputFile.Path] = hash.Sum64()
+	}
+	return summary
 }

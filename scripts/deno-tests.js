@@ -7,7 +7,6 @@ import * as asserts from 'https://deno.land/std@0.95.0/testing/asserts.ts'
 const __dirname = path.dirname(path.fromFileUrl(import.meta.url))
 const rootTestDir = path.join(__dirname, '.deno-tests')
 const wasmModule = await WebAssembly.compile(await Deno.readFile(path.join(__dirname, '..', 'deno', 'esbuild.wasm')))
-let testDidFail = false
 
 try {
   Deno.removeSync(rootTestDir, { recursive: true })
@@ -16,18 +15,31 @@ try {
 Deno.mkdirSync(rootTestDir, { recursive: true })
 
 function test(name, backends, fn) {
+  const singleTest = (name, fn) => Deno.test({
+    name,
+    fn: () => new Promise((resolve, reject) => {
+      const minutes = 5
+      const timeout = setTimeout(() => reject(new Error(`Timeout for "${name}" after ${minutes} minutes`)), minutes * 60 * 1000)
+      const cancel = () => clearTimeout(timeout)
+      const promise = fn()
+      promise.then(cancel, cancel)
+      promise.then(resolve, reject)
+    }),
+
+    // It's ok that the Go WebAssembly runtime uses "setTimeout"
+    sanitizeResources: false,
+    sanitizeOps: false,
+  })
+
   for (const backend of backends) {
     switch (backend) {
       case 'native':
-        Deno.test(name + '-native', async () => {
+        singleTest(name + '-native', async () => {
           let testDir = path.join(rootTestDir, name + '-native')
           await Deno.mkdir(testDir, { recursive: true })
           try {
             await fn({ esbuild: esbuildNative, testDir })
             await Deno.remove(testDir, { recursive: true }).catch(() => null)
-          } catch (e) {
-            testDidFail = true
-            throw e
           } finally {
             esbuildNative.stop()
           }
@@ -35,16 +47,13 @@ function test(name, backends, fn) {
         break
 
       case 'wasm-main':
-        Deno.test(name + '-wasm-main', async () => {
+        singleTest(name + '-wasm-main', async () => {
           let testDir = path.join(rootTestDir, name + '-wasm-main')
           await esbuildWASM.initialize({ wasmModule, worker: false })
           await Deno.mkdir(testDir, { recursive: true })
           try {
             await fn({ esbuild: esbuildWASM, testDir })
             await Deno.remove(testDir, { recursive: true }).catch(() => null)
-          } catch (e) {
-            testDidFail = true
-            throw e
           } finally {
             esbuildWASM.stop()
           }
@@ -52,16 +61,13 @@ function test(name, backends, fn) {
         break
 
       case 'wasm-worker':
-        Deno.test(name + '-wasm-worker', async () => {
+        singleTest(name + '-wasm-worker', async () => {
           let testDir = path.join(rootTestDir, name + '-wasm-worker')
           await esbuildWASM.initialize({ wasmModule, worker: true })
           await Deno.mkdir(testDir, { recursive: true })
           try {
             await fn({ esbuild: esbuildWASM, testDir })
             await Deno.remove(testDir, { recursive: true }).catch(() => null)
-          } catch (e) {
-            testDidFail = true
-            throw e
           } finally {
             esbuildWASM.stop()
           }
@@ -72,23 +78,11 @@ function test(name, backends, fn) {
 }
 
 window.addEventListener("unload", (e) => {
-  if (testDidFail) {
-    console.error(`❌ deno tests failed`)
-  } else {
-    console.log(`✅ deno tests passed`)
-    try {
-      Deno.removeSync(rootTestDir, { recursive: true })
-    } catch {
-      // root test dir possibly already removed, so ignore
-    }
+  try {
+    Deno.removeSync(rootTestDir, { recursive: true })
+  } catch {
+    // root test dir possibly already removed, so ignore
   }
-
-  // Loading a WebAssembly module in V8 adds a background job for JIT
-  // compilation. If we don't explicitly exit here, then Deno will burn
-  // CPU for around 10 seconds after exit while the compiler uselessly
-  // generates the fully-optimized WebAssembly code after we're already
-  // done running. This is a bug in Deno.
-  Deno.exit(testDidFail ? 1 : 0);
 })
 
 // This test doesn't run in WebAssembly because it requires file system access
@@ -104,6 +98,27 @@ test("basicBuild", ['native'], async ({ esbuild, testDir }) => {
     outfile: output,
     format: 'esm',
   })
+  const result = await import(path.toFileUrl(output))
+  asserts.assertStrictEquals(result.default, true)
+})
+
+test("basicContext", ['native'], async ({ esbuild, testDir }) => {
+  const input = path.join(testDir, 'in.ts')
+  const dep = path.join(testDir, 'dep.ts')
+  const output = path.join(testDir, 'out.ts')
+  await Deno.writeTextFile(input, 'import dep from "./dep.ts"; export default dep === 123')
+  await Deno.writeTextFile(dep, 'export default 123')
+  const ctx = await esbuild.context({
+    entryPoints: ['in.ts'],
+    bundle: true,
+    outfile: output,
+    format: 'esm',
+    absWorkingDir: testDir,
+  })
+  const { errors, warnings } = await ctx.rebuild()
+  asserts.assertStrictEquals(errors.length, 0)
+  asserts.assertStrictEquals(warnings.length, 0)
+  await ctx.dispose()
   const result = await import(path.toFileUrl(output))
   asserts.assertStrictEquals(result.default, true)
 })

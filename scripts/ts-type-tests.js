@@ -37,71 +37,45 @@ const tests = {
     esbuild.transform('')
     esbuild.transform('', {})
   `,
+
+  mangleCache: `
+    import * as esbuild from 'esbuild'
+    esbuild.buildSync({ mangleCache: {} }).mangleCache['x']
+    esbuild.build({ mangleCache: {} })
+      .then(result => result.mangleCache['x'])
+  `,
   writeFalseOutputFiles: `
     import * as esbuild from 'esbuild'
     esbuild.buildSync({ write: false }).outputFiles[0]
-    esbuild.build({ write: false }).then(result => result.outputFiles[0])
-  `,
-  incrementalTrueRebuild: `
-    import * as esbuild from 'esbuild'
-    esbuild.build({ incremental: true }).then(result => {
-      result.rebuild().then(result => {
-        result.rebuild().then(() => {
-          result.rebuild.dispose()
-        })
-      })
-      result.rebuild.dispose()
-    })
-    async function a() {
-      let result = await esbuild.build({ incremental: true })
-      let result2 = await result.rebuild()
-      await result2.rebuild()
-      result2.rebuild.dispose()
-      result.rebuild.dispose()
-    }
+    esbuild.build({ write: false })
+      .then(result => result.outputFiles[0])
   `,
   metafileTrue: `
-    import {build, analyzeMetafile} from 'esbuild';
-    build({ metafile: true }).then(result => {
-      analyzeMetafile(result.metafile)
-    })
+    import {build, buildSync, analyzeMetafile} from 'esbuild';
+    analyzeMetafile(buildSync({ metafile: true }).metafile)
+    build({ metafile: true })
+      .then(result => analyzeMetafile(result.metafile))
   `,
-  incrementalAndMetafileTrue: `
-    import {build, analyzeMetafile} from 'esbuild';
-    build({
-      incremental: true,
-      metafile: true,
-    }).then(result => {
-      analyzeMetafile(result.metafile)
-    })
-  `,
-  ifRebuild: `
+
+  contextMangleCache: `
     import * as esbuild from 'esbuild'
-    let options: any
-    esbuild.build(options).then(result => {
-      if (result.rebuild) {
-        result.rebuild().then(result => {
-          if (result.rebuild) {
-            result.rebuild().then(result => {
-              result.rebuild.dispose()
-            })
-          }
-          result.rebuild.dispose()
-        })
-      }
-    })
-    async function a() {
-      let result = await esbuild.build(options)
-      if (result.rebuild) {
-        let result2 = await result.rebuild()
-        if (result2.rebuild) {
-          await result2.rebuild()
-          result2.rebuild.dispose()
-        }
-        result.rebuild.dispose()
-      }
-    }
+    esbuild.context({ mangleCache: {} })
+      .then(context => context.rebuild())
+      .then(result => result.mangleCache['x'])
   `,
+  contextWriteFalseOutputFiles: `
+    import * as esbuild from 'esbuild'
+    esbuild.context({ write: false })
+      .then(context => context.rebuild())
+      .then(result => result.outputFiles[0])
+  `,
+  contextMetafileTrue: `
+    import {context, analyzeMetafile} from 'esbuild';
+    context({ metafile: true })
+      .then(context => context.rebuild())
+      .then(result => analyzeMetafile(result.metafile))
+  `,
+
   allOptionsTransform: `
     export {}
     import {transform} from 'esbuild'

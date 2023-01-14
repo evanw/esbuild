@@ -36,9 +36,9 @@
     }]
   }
 
-  function expectThrownError(fn, err) {
+  async function expectThrownError(fn, err) {
     try {
-      fn()
+      await fn()
       throw new Error('Expected an error to be thrown')
     } catch (e) {
       assertStrictEqual(e.message, err)
@@ -143,16 +143,30 @@
         assertStrictEqual(result.outputFiles[0].text, 'const x = 1;\n')
       },
 
+      async watch() {
+        const context = await esbuild.context({})
+        try {
+          await expectThrownError(context.watch, 'Cannot use the "watch" API in this environment')
+        } finally {
+          context.dispose()
+        }
+      },
+
       async serve() {
-        expectThrownError(esbuild.serve, 'The "serve" API only works in node')
+        const context = await esbuild.context({})
+        try {
+          await expectThrownError(context.serve, 'Cannot use the "serve" API in this environment')
+        } finally {
+          context.dispose()
+        }
       },
 
       async esbuildBuildSync() {
-        expectThrownError(esbuild.buildSync, 'The "buildSync" API only works in node')
+        await expectThrownError(esbuild.buildSync, 'The "buildSync" API only works in node')
       },
 
       async esbuildTransformSync() {
-        expectThrownError(esbuild.transformSync, 'The "transformSync" API only works in node')
+        await expectThrownError(esbuild.transformSync, 'The "transformSync" API only works in node')
       },
     }
 
