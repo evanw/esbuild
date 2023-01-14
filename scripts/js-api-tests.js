@@ -2466,6 +2466,70 @@ import "after/alias";
     }
   },
 
+  async rebuildMerging({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    const output = path.join(testDir, 'out.js')
+    await writeFileAsync(input, `console.log(123)`)
+
+    let resolveWait
+    let waitPromise = new Promise(resolve => {
+      resolveWait = resolve
+    })
+    const waitPlugin = {
+      name: 'wait-plugin',
+      setup(build) {
+        build.onStart(() => waitPromise)
+      },
+    }
+
+    const context = await esbuild.context({
+      entryPoints: [input],
+      outfile: output,
+      format: 'esm',
+      plugins: [waitPlugin],
+      write: false,
+    });
+
+    try {
+      // Do two rebuilds
+      const rebuild1 = context.rebuild()
+      const rebuild2 = context.rebuild()
+
+      // Let the build end
+      resolveWait()
+
+      // Get both rebuild results
+      const result1 = await rebuild1;
+      const result2 = await rebuild2;
+      assert.strictEqual(result1, result2)
+      assert.strictEqual(result1.outputFiles.length, 1)
+      assert.strictEqual(result1.outputFiles[0].text, 'console.log(123);\n')
+
+      // Make an edit
+      await writeFileAsync(input, `console.log(234)`)
+
+      // Do two more rebuilds
+      waitPromise = new Promise(resolve => {
+        resolveWait = resolve
+      })
+      const rebuild3 = context.rebuild()
+      const rebuild4 = context.rebuild()
+
+      // Let the build end
+      resolveWait()
+
+      // Get both rebuild results
+      const result3 = await rebuild3;
+      const result4 = await rebuild4;
+      assert.strictEqual(result3, result4)
+      assert.notStrictEqual(result3, result1)
+      assert.strictEqual(result3.outputFiles.length, 1)
+      assert.strictEqual(result3.outputFiles[0].text, 'console.log(234);\n')
+    } finally {
+      await context.dispose()
+    }
+  },
+
   async rebuildIndependent({ esbuild, testDir }) {
     const inputA = path.join(testDir, 'in-a.js')
     const inputB = path.join(testDir, 'in-b.js')
