@@ -375,7 +375,7 @@ func TypeofWithoutSideEffects(data E) (string, bool) {
 // left-associative property of the operator to avoid unnecessary parentheses.
 //
 // When using this, make absolutely sure that the operator is actually
-// associative. For example, the "-" operator is not associative for
+// associative. For example, the "+" operator is not associative for
 // floating-point numbers.
 //
 // This function intentionally avoids mutating the input AST so it can be
@@ -391,12 +391,13 @@ func JoinWithLeftAssociativeOp(op OpCode, a Expr, b Expr) Expr {
 
 	// "a op (b op c)" => "(a op b) op c"
 	// "a op (b op (c op d))" => "((a op b) op c) op d"
-	if binary, ok := b.Data.(*EBinary); ok && binary.Op == op {
-		return JoinWithLeftAssociativeOp(
-			op,
-			JoinWithLeftAssociativeOp(op, a, binary.Left),
-			binary.Right,
-		)
+	for {
+		if binary, ok := b.Data.(*EBinary); ok && binary.Op == op {
+			a = JoinWithLeftAssociativeOp(op, a, binary.Left)
+			b = binary.Right
+		} else {
+			break
+		}
 	}
 
 	// "a op b" => "a op b"

@@ -471,27 +471,54 @@ func (r *NumberRenamer) assignName(scope *numberScope, ref js_ast.Ref) {
 	inner[ref.InnerIndex] = name
 }
 
-func (r *NumberRenamer) assignNamesRecursive(scope *js_ast.Scope, sourceIndex uint32, parent *numberScope, sorted *[]int) {
+func (r *NumberRenamer) assignNamesInScope(scope *js_ast.Scope, sourceIndex uint32, parent *numberScope, sorted *[]int) *numberScope {
 	s := &numberScope{parent: parent, nameCounts: make(map[string]uint32)}
 
-	// Sort member map keys for determinism, reusing a shared memory buffer
-	*sorted = (*sorted)[:0]
-	for _, member := range scope.Members {
-		*sorted = append(*sorted, int(member.Ref.InnerIndex))
-	}
-	sort.Ints(*sorted)
+	if len(scope.Members) > 0 {
+		// Sort member map keys for determinism, reusing a shared memory buffer
+		*sorted = (*sorted)[:0]
+		for _, member := range scope.Members {
+			*sorted = append(*sorted, int(member.Ref.InnerIndex))
+		}
+		sort.Ints(*sorted)
 
-	// Rename all symbols in this scope
-	for _, innerIndex := range *sorted {
-		r.assignName(s, js_ast.Ref{SourceIndex: sourceIndex, InnerIndex: uint32(innerIndex)})
+		// Rename all user-defined symbols in this scope
+		for _, innerIndex := range *sorted {
+			r.assignName(s, js_ast.Ref{SourceIndex: sourceIndex, InnerIndex: uint32(innerIndex)})
+		}
 	}
+
+	// Also rename all generated symbols in this scope
 	for _, ref := range scope.Generated {
 		r.assignName(s, ref)
 	}
 
+	return s
+}
+
+func (r *NumberRenamer) assignNamesRecursive(scope *js_ast.Scope, sourceIndex uint32, parent *numberScope, sorted *[]int) {
+	// For performance in extreme cases (e.g. 10,000 nested scopes), traversing
+	// through singly-nested scopes uses iteration instead of recursion
+	for {
+		if len(scope.Members) > 0 || len(scope.Generated) > 0 {
+			// For performance in extreme cases (e.g. 10,000 nested scopes), only
+			// allocate a scope when it's necessary. I'm not quite sure why allocating
+			// one scope per level is so much overhead. It's not that many objects.
+			// Or at least there are already that many objects for the AST that we're
+			// traversing, so I don't know why 80% of the time in these extreme cases
+			// is taken by this function (if we don't avoid this allocation).
+			parent = r.assignNamesInScope(scope, sourceIndex, parent, sorted)
+		}
+		if children := scope.Children; len(children) == 1 {
+			scope = children[0]
+		} else {
+			break
+		}
+	}
+
 	// Symbols in child scopes may also have to be renamed to avoid conflicts
 	for _, child := range scope.Children {
-		r.assignNamesRecursive(child, sourceIndex, s, sorted)
+		r.assignNamesRecursive(child, sourceIndex, parent, sorted)
 	}
 }
 
