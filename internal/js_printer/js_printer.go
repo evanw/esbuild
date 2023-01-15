@@ -485,10 +485,7 @@ func (p *printer) printIdentifierUTF16(name []uint16) {
 func (p *printer) printNumber(value float64, level js_ast.L) {
 	absValue := math.Abs(value)
 
-	if value != value {
-		p.printSpaceBeforeIdentifier()
-		p.print("NaN")
-	} else if value == positiveInfinity || value == negativeInfinity {
+	if value == positiveInfinity || value == negativeInfinity {
 		wrap := (p.options.MinifySyntax && level >= js_ast.LMultiply) ||
 			(value == negativeInfinity && level >= js_ast.LPrefix)
 		if wrap {
