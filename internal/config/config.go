@@ -243,12 +243,16 @@ const (
 )
 
 type CancelFlag struct {
-	atomic.Bool
+	uint32
+}
+
+func (flag *CancelFlag) Cancel() {
+	atomic.StoreUint32(&flag.uint32, 1)
 }
 
 // This checks for nil in one place so we don't have to do that everywhere
 func (flag *CancelFlag) DidCancel() bool {
-	return flag != nil && flag.Load()
+	return flag != nil && atomic.LoadUint32(&flag.uint32) != 0
 }
 
 type Options struct {

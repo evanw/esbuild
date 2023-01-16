@@ -1082,7 +1082,7 @@ func (ctx *internalContext) Cancel() {
 
 	if build != nil {
 		// Tell observers to cut this build short
-		build.cancel.Store(true)
+		build.cancel.Cancel()
 
 		// Wait for the build to finish before returning
 		build.waitGroup.Wait()
