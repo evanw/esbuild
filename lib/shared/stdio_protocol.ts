@@ -87,6 +87,11 @@ export interface DisposeRequest {
   key: number
 }
 
+export interface CancelRequest {
+  command: 'cancel'
+  key: number
+}
+
 export interface WatchRequest {
   command: 'watch'
   key: number

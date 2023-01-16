@@ -2,6 +2,53 @@
 
 ## Unreleased
 
+* Make it possible to cancel a build ([#2725](https://github.com/evanw/esbuild/issues/2725))
+
+    The context object introduced in version 0.17.0 has a new `cancel()` method. You can use it to cancel a long-running build so that you can start a new one without needing to wait for the previous one to finish. When this happens, the previous build should always have at least one error and have no output files (i.e. it will be a failed build).
+
+    Using it might look something like this:
+
+    * JS:
+
+        ```js
+        let ctx = await esbuild.context({
+          // ...
+        })
+
+        let rebuildWithTimeLimit = timeLimit => {
+          let timeout = setTimeout(() => ctx.cancel(), timeLimit)
+          return ctx.rebuild().finally(() => clearTimeout(timeout))
+        }
+
+        let build = await rebuildWithTimeLimit(500)
+        ```
+
+    * Go:
+
+        ```go
+        ctx, err := api.Context(api.BuildOptions{
+          // ...
+        })
+        if err != nil {
+          return
+        }
+
+        rebuildWithTimeLimit := func(timeLimit time.Duration) api.BuildResult {
+          t := time.NewTimer(timeLimit)
+          go func() {
+            <-t.C
+            ctx.Cancel()
+          }()
+          result := ctx.Rebuild()
+          t.Stop()
+          return result
+        }
+
+        build := rebuildWithTimeLimit(500 * time.Millisecond)
+        ```
+
+    This API is a quick implementation and isn't maximally efficient, so the build may continue to do some work for a little bit before stopping. For example, I have added stop points between each top-level phase of the bundler and in the main module graph traversal loop, but I haven't added fine-grained stop points within the internals of the linker. How quickly esbuild stops can be improved in future releases. This means you'll want to wait for `cancel()` and/or the previous `rebuild()` to finish (i.e. await the returned promise in JavaScript) before starting a new build, otherwise `rebuild()` will give you the just-canceled build that still hasn't ended yet. Note that `onEnd` callbacks will still be run regardless of whether or not the build was canceled.
+
 * Fix server-sent events without `servedir` ([#2827](https://github.com/evanw/esbuild/issues/2827))
 
     The server-sent events for live reload were incorrectly using `servedir` to calculate the path to modified output files. This means events couldn't be sent when `servedir` wasn't specified. This release uses the internal output directory (which is always present) instead of `servedir` (which might be omitted), so live reload should now work when `servedir` is not specified.

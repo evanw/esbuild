@@ -415,6 +415,32 @@ func (service *serviceType) handleIncomingPacket(bytes []byte) {
 			},
 		}))
 
+	case "cancel":
+		key := request["key"].(int)
+		if build := service.getActiveBuild(key); build != nil {
+			build.mutex.Lock()
+			ctx := build.ctx
+			build.mutex.Unlock()
+			if ctx != nil {
+				service.keepAliveWaitGroup.Add(1)
+				go func() {
+					defer service.keepAliveWaitGroup.Done()
+					ctx.Cancel()
+
+					// Only return control to JavaScript once the cancel operation has succeeded
+					service.sendPacket(encodePacket(packet{
+						id:    p.id,
+						value: make(map[string]interface{}),
+					}))
+				}()
+				return
+			}
+		}
+		service.sendPacket(encodePacket(packet{
+			id:    p.id,
+			value: make(map[string]interface{}),
+		}))
+
 	case "dispose":
 		key := request["key"].(int)
 		if build := service.getActiveBuild(key); build != nil {

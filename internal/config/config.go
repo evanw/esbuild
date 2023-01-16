@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/compat"
@@ -241,6 +242,15 @@ const (
 	False
 )
 
+type CancelFlag struct {
+	atomic.Bool
+}
+
+// This checks for nil in one place so we don't have to do that everywhere
+func (flag *CancelFlag) DidCancel() bool {
+	return flag != nil && flag.Load()
+}
+
 type Options struct {
 	ModuleTypeData js_ast.ModuleTypeData
 	Defines        *ProcessedDefines
@@ -248,6 +258,7 @@ type Options struct {
 	TSAlwaysStrict *TSAlwaysStrict
 	MangleProps    *regexp.Regexp
 	ReserveProps   *regexp.Regexp
+	CancelFlag     *CancelFlag
 
 	// When mangling property names, call this function with a callback and do
 	// the property name mangling inside the callback. The callback takes an

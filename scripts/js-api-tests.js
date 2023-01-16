@@ -2642,6 +2642,110 @@ import "after/alias";
     }
   },
 
+  async rebuildCancel({ esbuild }) {
+    let loopForever = true
+    let onEndResult
+
+    const context = await esbuild.context({
+      entryPoints: ['entry'],
+      bundle: true,
+      write: false,
+      logLevel: 'silent',
+      format: 'esm',
+      plugins: [{
+        name: '∞',
+        setup(build) {
+          build.onResolve({ filter: /.*/ }, args => {
+            return { path: args.path, namespace: '∞' }
+          })
+          build.onLoad({ filter: /.*/ }, async (args) => {
+            if (!loopForever) return { contents: 'foo()' }
+            await new Promise(r => setTimeout(r, 10))
+            return { contents: 'import ' + JSON.stringify(args.path + '.') }
+          })
+          build.onEnd(result => {
+            onEndResult = result
+          })
+        },
+      }],
+    })
+
+    try {
+      // Build 1
+      {
+        // Start a build
+        const buildPromise = context.rebuild()
+
+        // Add a dummy catch handler to avoid terminating due to an unhandled exception
+        buildPromise.catch(() => { })
+
+        // Wait a bit
+        await new Promise(r => setTimeout(r, 200))
+
+        // Cancel the build
+        await context.cancel()
+
+        // Check the result
+        try {
+          await buildPromise
+          throw new Error('Expected an error to be thrown')
+        } catch (error) {
+          assert.strictEqual(error.message, `Build failed with 1 error:\nerror: The build was canceled`)
+          assert.strictEqual(error.errors.length, 1)
+          assert.strictEqual(error.warnings.length, 0)
+          assert.notStrictEqual(onEndResult, undefined)
+          assert.strictEqual(onEndResult.errors.length, 1)
+          assert.strictEqual(onEndResult.errors[0].text, 'The build was canceled')
+          assert.strictEqual(onEndResult.warnings.length, 0)
+          assert.strictEqual(onEndResult.outputFiles.length, 0)
+        }
+      }
+
+      // Build 2
+      {
+        // Start a build
+        const buildPromise = context.rebuild()
+
+        // Add a dummy catch handler to avoid terminating due to an unhandled exception
+        buildPromise.catch(() => { })
+
+        // Wait a bit
+        await new Promise(r => setTimeout(r, 200))
+
+        // Cancel the build
+        await context.cancel()
+
+        // Check the result
+        try {
+          await buildPromise
+          throw new Error('Expected an error to be thrown')
+        } catch (error) {
+          assert.strictEqual(error.message, `Build failed with 1 error:\nerror: The build was canceled`)
+          assert.strictEqual(error.errors.length, 1)
+          assert.strictEqual(error.warnings.length, 0)
+          assert.notStrictEqual(onEndResult, undefined)
+          assert.strictEqual(onEndResult.errors.length, 1)
+          assert.strictEqual(onEndResult.errors[0].text, 'The build was canceled')
+          assert.strictEqual(onEndResult.warnings.length, 0)
+          assert.strictEqual(onEndResult.outputFiles.length, 0)
+        }
+      }
+
+      // Build 3
+      loopForever = false
+      {
+        const result = await context.rebuild()
+        assert.strictEqual(result.errors.length, 0)
+        assert.strictEqual(result.warnings.length, 0)
+        assert.strictEqual(result.outputFiles.length, 1)
+        assert.strictEqual(result.outputFiles[0].text, `// ∞:entry\nfoo();\n`)
+        assert.strictEqual(onEndResult, result)
+      }
+    } finally {
+      context.dispose()
+    }
+  },
+
   async bundleAvoidTDZ({ esbuild }) {
     var { outputFiles } = await esbuild.build({
       stdin: {

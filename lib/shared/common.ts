@@ -1103,6 +1103,17 @@ function buildOrContextImpl(
           })
         }),
 
+        cancel: () => new Promise(resolve => {
+          if (didDispose) return resolve()
+          const request: protocol.CancelRequest = {
+            command: 'cancel',
+            key: buildKey,
+          }
+          sendRequest<protocol.CancelRequest, null>(refs, request, () => {
+            resolve(); // We don't care about errors here
+          })
+        }),
+
         dispose: () => new Promise(resolve => {
           if (didDispose) return resolve()
           const request: protocol.DisposeRequest = {

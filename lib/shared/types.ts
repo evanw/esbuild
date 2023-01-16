@@ -494,6 +494,7 @@ export interface BuildContext<SpecificOptions extends BuildOptions = BuildOption
   /** Documentation: https://esbuild.github.io/api/#serve */
   serve(options?: ServeOptions): Promise<ServeResult>
 
+  cancel(): Promise<void>
   dispose(): Promise<void>
 }
 

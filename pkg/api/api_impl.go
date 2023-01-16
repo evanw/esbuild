@@ -913,6 +913,7 @@ func contextImpl(buildOpts BuildOptions) (*internalContext, []Message) {
 type buildInProgress struct {
 	state     rebuildState
 	waitGroup sync.WaitGroup
+	cancel    config.CancelFlag
 }
 
 type internalContext struct {
@@ -952,6 +953,7 @@ func (ctx *internalContext) rebuild() rebuildState {
 	watcher := ctx.watcher
 	handler := ctx.handler
 	oldSummary := ctx.latestSummary
+	args.options.CancelFlag = &build.cancel
 	ctx.mutex.Unlock()
 
 	// Do the build without holding the mutex
@@ -1064,6 +1066,27 @@ func (ctx *internalContext) Watch(options WatchOptions) error {
 		ctx.Rebuild()
 	}()
 	return nil
+}
+
+func (ctx *internalContext) Cancel() {
+	ctx.mutex.Lock()
+
+	// Ignore disposed contexts
+	if ctx.didDispose {
+		ctx.mutex.Unlock()
+		return
+	}
+
+	build := ctx.activeBuild
+	ctx.mutex.Unlock()
+
+	if build != nil {
+		// Tell observers to cut this build short
+		build.cancel.Store(true)
+
+		// Wait for the build to finish before returning
+		build.waitGroup.Wait()
+	}
 }
 
 func (ctx *internalContext) Dispose() {
@@ -1398,6 +1421,11 @@ func rebuildImpl(args rebuildArgs, oldSummary buildSummary) rebuildState {
 		result.MangleCache = cloneMangleCache(log, args.mangleCache)
 		results, metafile := bundle.Compile(log, timer, result.MangleCache, linker.Link)
 
+		// Canceling a build generates a single error at the end of the build
+		if args.options.CancelFlag.DidCancel() {
+			log.AddError(nil, logger.Range{}, "The build was canceled")
+		}
+
 		// Stop now if there were errors
 		if !log.HasErrors() {
 			result.Metafile = metafile
@@ -1492,7 +1520,10 @@ func rebuildImpl(args rebuildArgs, oldSummary buildSummary) rebuildState {
 	result.Errors = convertMessagesToPublic(logger.Error, msgs)
 	result.Warnings = convertMessagesToPublic(logger.Warning, msgs)
 
-	// Run any registered "OnEnd" callbacks now
+	// Run any registered "OnEnd" callbacks now. These always run regardless of
+	// whether the current build has bee canceled or not. They can check for
+	// errors by checking the error array in the build result, and canceled
+	// builds should always have at least one error.
 	timer.Begin("On-end callbacks")
 	for _, onEnd := range args.onEndCallbacks {
 		fromPlugin, thrown := onEnd.fn(&result)

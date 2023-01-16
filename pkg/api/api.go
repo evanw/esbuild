@@ -496,6 +496,7 @@ type BuildContext interface {
 	// Documentation: https://esbuild.github.io/api/#serve
 	Serve(options ServeOptions) (ServeResult, error)
 
+	Cancel()
 	Dispose()
 }
 

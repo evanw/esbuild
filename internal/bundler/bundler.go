@@ -1110,6 +1110,10 @@ func ScanBundle(
 
 	applyOptionDefaults(&options)
 
+	if options.CancelFlag.DidCancel() {
+		return Bundle{options: options}
+	}
+
 	// Run "onStart" plugins in parallel
 	timer.Begin("On-start callbacks")
 	onStartWaitGroup := sync.WaitGroup{}
@@ -1197,10 +1201,33 @@ func ScanBundle(
 	onStartWaitGroup.Wait()
 	timer.End("On-start callbacks")
 
+	if options.CancelFlag.DidCancel() {
+		return Bundle{options: options}
+	}
+
 	s.preprocessInjectedFiles()
+
+	if options.CancelFlag.DidCancel() {
+		return Bundle{options: options}
+	}
+
 	entryPointMeta := s.addEntryPoints(entryPoints)
+
+	if options.CancelFlag.DidCancel() {
+		return Bundle{options: options}
+	}
+
 	s.scanAllDependencies()
+
+	if options.CancelFlag.DidCancel() {
+		return Bundle{options: options}
+	}
+
 	files := s.processScannedFiles(entryPointMeta)
+
+	if options.CancelFlag.DidCancel() {
+		return Bundle{options: options}
+	}
 
 	return Bundle{
 		fs:              fs,
@@ -1480,6 +1507,10 @@ func (s *scanner) preprocessInjectedFiles() {
 	}
 	injectResolveWaitGroup.Wait()
 
+	if s.options.CancelFlag.DidCancel() {
+		return
+	}
+
 	// Parse all entry points that were resolved successfully
 	results := make([]config.InjectedFile, len(s.options.InjectPaths))
 	j := 0
@@ -1537,6 +1568,10 @@ func (s *scanner) addEntryPoints(entryPoints []EntryPoint) []graph.EntryPoint {
 		})
 	}
 
+	if s.options.CancelFlag.DidCancel() {
+		return nil
+	}
+
 	// Check each entry point ahead of time to see if it's a real file
 	entryPointAbsResolveDir := s.fs.Cwd()
 	for i := range entryPoints {
@@ -1570,6 +1605,10 @@ func (s *scanner) addEntryPoints(entryPoints []EntryPoint) []graph.EntryPoint {
 		} else if s.log.Level <= logger.LevelDebug && originalError != nil {
 			s.log.AddID(logger.MsgID_None, logger.Debug, nil, logger.Range{}, fmt.Sprintf("Failed to read directory %q: %s", absPath, originalError.Error()))
 		}
+	}
+
+	if s.options.CancelFlag.DidCancel() {
+		return nil
 	}
 
 	// Add any remaining entry points. Run resolver plugins on these entry points
@@ -1629,6 +1668,10 @@ func (s *scanner) addEntryPoints(entryPoints []EntryPoint) []graph.EntryPoint {
 		}(i, entryPoint)
 	}
 	entryPointWaitGroup.Wait()
+
+	if s.options.CancelFlag.DidCancel() {
+		return nil
+	}
 
 	// Parse all entry points that were resolved successfully
 	for i, resolveResult := range entryPointResolveResults {
@@ -1782,6 +1825,10 @@ func (s *scanner) scanAllDependencies() {
 
 	// Continue scanning until all dependencies have been discovered
 	for s.remaining > 0 {
+		if s.options.CancelFlag.DidCancel() {
+			return
+		}
+
 		result := <-s.resultChannel
 		s.remaining--
 		if !result.ok {
@@ -2365,6 +2412,10 @@ type Linker func(
 func (b *Bundle) Compile(log logger.Log, timer *helpers.Timer, mangleCache map[string]interface{}, link Linker) ([]graph.OutputFile, string) {
 	timer.Begin("Compile phase")
 	defer timer.End("Compile phase")
+
+	if b.options.CancelFlag.DidCancel() {
+		return nil, ""
+	}
 
 	options := b.options
 
