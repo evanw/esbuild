@@ -1076,9 +1076,9 @@ type visitedFile struct {
 }
 
 type EntryPoint struct {
-	InputPath  string
-	OutputPath string
-	IsFile     bool
+	InputPath                string
+	OutputPath               string
+	InputPathInFileNamespace bool
 }
 
 func generateUniqueKeyPrefix() (string, error) {
@@ -1549,7 +1549,7 @@ func (s *scanner) addEntryPoints(entryPoints []EntryPoint) []graph.EntryPoint {
 		base := s.fs.Base(absPath)
 		if entries, err, originalError := s.fs.ReadDirectory(dir); err == nil {
 			if entry, _ := entries.Get(base); entry != nil && entry.Kind(s.fs) == fs.FileEntry {
-				entryPoint.IsFile = true
+				entryPoint.InputPathInFileNamespace = true
 
 				// Entry point paths without a leading "./" are interpreted as package
 				// paths. This happens because they go through general path resolution
@@ -1581,7 +1581,7 @@ func (s *scanner) addEntryPoints(entryPoints []EntryPoint) []graph.EntryPoint {
 	for i, entryPoint := range entryPoints {
 		go func(i int, entryPoint EntryPoint) {
 			var importer logger.Path
-			if entryPoint.IsFile {
+			if entryPoint.InputPathInFileNamespace {
 				importer.Namespace = "file"
 			}
 
@@ -1841,9 +1841,9 @@ func (s *scanner) processScannedFiles(entryPointMeta []graph.EntryPoint) []scann
 	defer s.timer.End("Process scanned files")
 
 	// Build a set of entry point source indices for quick lookup
-	entryPointSourceIndices := make(map[uint32]bool, len(entryPointMeta))
-	for _, meta := range entryPointMeta {
-		entryPointSourceIndices[meta.SourceIndex] = true
+	entryPointSourceIndexToMetaIndex := make(map[uint32]uint32, len(entryPointMeta))
+	for i, meta := range entryPointMeta {
+		entryPointSourceIndexToMetaIndex[meta.SourceIndex] = uint32(i)
 	}
 
 	// Now that all files have been scanned, process the final file import records
@@ -2092,8 +2092,14 @@ func (s *scanner) processScannedFiles(entryPointMeta []graph.EntryPoint) []scann
 			// file is an entry point and uses the "copy" loader. With the "file" loader
 			// the JS stub is the entry point, but with the "copy" loader the file is
 			// the entry point itself.
-			if result.file.inputFile.Loader == config.LoaderCopy && entryPointSourceIndices[uint32(sourceIndex)] {
-				template = s.options.EntryPathTemplate
+			customFilePath := ""
+			useOutputFile := false
+			if result.file.inputFile.Loader == config.LoaderCopy {
+				if metaIndex, ok := entryPointSourceIndexToMetaIndex[uint32(sourceIndex)]; ok {
+					template = s.options.EntryPathTemplate
+					customFilePath = entryPointMeta[metaIndex].OutputPath
+					useOutputFile = s.options.AbsOutputFile != ""
+				}
 			}
 
 			// Add a hash to the file name to prevent multiple files with the same name
@@ -2105,24 +2111,36 @@ func (s *scanner) processScannedFiles(entryPointMeta []graph.EntryPoint) []scann
 				hash = HashForFileName(h.Sum(nil))
 			}
 
-			// Generate the input for the template
-			_, _, originalExt := logger.PlatformIndependentPathDirBaseExt(result.file.inputFile.Source.KeyPath.Text)
-			dir, base := PathRelativeToOutbase(
-				&result.file.inputFile,
-				&s.options,
-				s.fs,
-				/* avoidIndex */ false,
-				/* customFilePath */ "",
-			)
+			// This should use similar logic to how the linker computes output paths
+			var dir, base, ext string
+			if useOutputFile {
+				// If the output path was configured explicitly, use it verbatim
+				dir = "/"
+				base = s.fs.Base(s.options.AbsOutputFile)
+				ext = s.fs.Ext(base)
+				base = base[:len(base)-len(ext)]
+			} else {
+				// Otherwise, derive the output path from the input path
+				// Generate the input for the template
+				_, _, originalExt := logger.PlatformIndependentPathDirBaseExt(result.file.inputFile.Source.KeyPath.Text)
+				dir, base = PathRelativeToOutbase(
+					&result.file.inputFile,
+					&s.options,
+					s.fs,
+					/* avoidIndex */ false,
+					customFilePath,
+				)
+				ext = originalExt
+			}
 
 			// Apply the path template
-			templateExt := strings.TrimPrefix(originalExt, ".")
+			templateExt := strings.TrimPrefix(ext, ".")
 			relPath := config.TemplateToString(config.SubstituteTemplate(template, config.PathPlaceholders{
 				Dir:  &dir,
 				Name: &base,
 				Hash: &hash,
 				Ext:  &templateExt,
-			})) + originalExt
+			})) + ext
 
 			// Optionally add metadata about the file
 			var jsonMetadataChunk string

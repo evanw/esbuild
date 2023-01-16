@@ -257,6 +257,25 @@ var x_b64 = require_x();
 console.log(x_b64, y_default);
 
 ================================================================================
+TestLoaderCopyEntryPointAdvanced
+---------- /out/xyz-DYPYXS7B.copy ----------
+more stuff
+---------- /out/js/input/path.js ----------
+// project/entry.js
+import xyz from "../../xyz-DYPYXS7B.copy";
+console.log(xyz);
+
+---------- /out/copy/input/path.copy ----------
+some stuff
+================================================================================
+TestLoaderCopyExplicitOutputFile
+---------- /out/this.worked ----------
+some stuff
+================================================================================
+TestLoaderCopyUseIndex
+---------- /out/index.copy ----------
+some stuff
+================================================================================
 TestLoaderCopyWithBundleEntryPoint
 ---------- /out/assets/some.file ----------
 stuff

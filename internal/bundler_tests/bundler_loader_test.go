@@ -3,6 +3,7 @@ package bundler_tests
 import (
 	"testing"
 
+	"github.com/evanw/esbuild/internal/bundler"
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 )
@@ -1371,6 +1372,79 @@ func TestExtensionlessLoaderCSS(t *testing.T) {
 			ExtensionToLoader: map[string]config.Loader{
 				".css": config.LoaderCSS,
 				"":     config.LoaderCSS,
+			},
+		},
+	})
+}
+
+// Make sure custom entry point output names are respected for the copy loader
+func TestLoaderCopyEntryPointAdvanced(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/project/entry.js": `
+				import xyz from './xyz.copy'
+				console.log(xyz)
+			`,
+			"/project/TEST FAILED.copy": `some stuff`,
+			"/project/xyz.copy":         `more stuff`,
+		},
+		entryPathsAdvanced: []bundler.EntryPoint{
+			{
+				InputPath:                "/project/entry.js",
+				OutputPath:               "js/input/path",
+				InputPathInFileNamespace: true,
+			},
+			{
+				InputPath:                "/project/TEST FAILED.copy",
+				OutputPath:               "copy/input/path",
+				InputPathInFileNamespace: true,
+			},
+		},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			ExtensionToLoader: map[string]config.Loader{
+				".js":   config.LoaderJS,
+				".copy": config.LoaderCopy,
+			},
+		},
+	})
+}
+
+// Make sure we don't turn "src/index.copy" into "src.copy" for files copied
+// via the file loader. This is sometimes done for JS files to try to generate
+// more useful names because lots of developers name their code "index.js" due
+// to node's implicit "index.js" path resolution logic.
+func TestLoaderCopyUseIndex(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/index.copy": `some stuff`,
+		},
+		entryPaths: []string{"/Users/user/project/src/index.copy"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			ExtensionToLoader: map[string]config.Loader{
+				".copy": config.LoaderCopy,
+			},
+		},
+	})
+}
+
+// Make sure that if "outfile" is used, a file copied with the copy loader is
+// written out to that path. We don't want the file name to come from the
+// original source name instead of the "outfile" name, for example.
+func TestLoaderCopyExplicitOutputFile(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/project/TEST FAILED.copy": `some stuff`,
+		},
+		entryPaths: []string{"/project/TEST FAILED.copy"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out/this.worked",
+			ExtensionToLoader: map[string]config.Loader{
+				".copy": config.LoaderCopy,
 			},
 		},
 	})
