@@ -371,11 +371,16 @@ func (h *apiHandler) serveEventStream(start time.Time, req *http.Request, res ht
 					end := len(h.activeStreams) - 1
 					h.activeStreams[i] = h.activeStreams[end]
 					h.activeStreams = h.activeStreams[:end]
+
+					// Only close the stream if it's present in the list of active
+					// streams. Stopping the server can also call close on this
+					// stream and Go only lets you close a channel once before
+					// panicking, so we don't want to close it twice.
+					close(stream)
 					break
 				}
 			}
 			h.mutex.Unlock()
-			close(stream)
 			return
 		}
 	}
