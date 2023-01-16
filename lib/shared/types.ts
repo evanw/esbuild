@@ -274,15 +274,25 @@ export interface Plugin {
 }
 
 export interface PluginBuild {
+  /** Documentation: https://esbuild.github.io/plugins/#build-options */
   initialOptions: BuildOptions;
+
+  /** Documentation: https://esbuild.github.io/plugins/#resolve */
   resolve(path: string, options?: ResolveOptions): Promise<ResolveResult>;
 
+  /** Documentation: https://esbuild.github.io/plugins/#on-start */
   onStart(callback: () =>
     (OnStartResult | null | void | Promise<OnStartResult | null | void>)): void;
+
+  /** Documentation: https://esbuild.github.io/plugins/#on-end */
   onEnd(callback: (result: BuildResult) =>
     (OnEndResult | null | void | Promise<OnEndResult | null | void>)): void;
+
+  /** Documentation: https://esbuild.github.io/plugins/#on-resolve */
   onResolve(options: OnResolveOptions, callback: (args: OnResolveArgs) =>
     (OnResolveResult | null | undefined | Promise<OnResolveResult | null | undefined>)): void;
+
+  /** Documentation: https://esbuild.github.io/plugins/#on-load */
   onLoad(options: OnLoadOptions, callback: (args: OnLoadArgs) =>
     (OnLoadResult | null | undefined | Promise<OnLoadResult | null | undefined>)): void;
 
@@ -302,6 +312,7 @@ export interface PluginBuild {
   };
 }
 
+/** Documentation: https://esbuild.github.io/plugins/#resolve-options */
 export interface ResolveOptions {
   pluginName?: string;
   importer?: string;
@@ -311,6 +322,7 @@ export interface ResolveOptions {
   pluginData?: any;
 }
 
+/** Documentation: https://esbuild.github.io/plugins/#resolve-results */
 export interface ResolveResult {
   errors: Message[];
   warnings: Message[];
@@ -333,11 +345,13 @@ export interface OnEndResult {
   warnings?: PartialMessage[];
 }
 
+/** Documentation: https://esbuild.github.io/plugins/#on-resolve-options */
 export interface OnResolveOptions {
   filter: RegExp;
   namespace?: string;
 }
 
+/** Documentation: https://esbuild.github.io/plugins/#on-resolve-arguments */
 export interface OnResolveArgs {
   path: string;
   importer: string;
@@ -360,6 +374,7 @@ export type ImportKind =
   | 'import-rule'
   | 'url-token'
 
+/** Documentation: https://esbuild.github.io/plugins/#on-resolve-results */
 export interface OnResolveResult {
   pluginName?: string;
 
@@ -377,11 +392,13 @@ export interface OnResolveResult {
   watchDirs?: string[];
 }
 
+/** Documentation: https://esbuild.github.io/plugins/#on-load-options */
 export interface OnLoadOptions {
   filter: RegExp;
   namespace?: string;
 }
 
+/** Documentation: https://esbuild.github.io/plugins/#on-load-arguments */
 export interface OnLoadArgs {
   path: string;
   namespace: string;
@@ -389,6 +406,7 @@ export interface OnLoadArgs {
   pluginData: any;
 }
 
+/** Documentation: https://esbuild.github.io/plugins/#on-load-results */
 export interface OnLoadResult {
   pluginName?: string;
 
@@ -418,6 +436,7 @@ export interface PartialNote {
   location?: Partial<Location> | null;
 }
 
+/** Documentation: https://esbuild.github.io/api/#metafile */
 export interface Metafile {
   inputs: {
     [path: string]: {
@@ -466,9 +485,15 @@ export interface WatchOptions {
 }
 
 export interface BuildContext<SpecificOptions extends BuildOptions = BuildOptions> {
+  /** Documentation: https://esbuild.github.io/api/#rebuild */
   rebuild(): Promise<BuildResult<SpecificOptions>>
+
+  /** Documentation: https://esbuild.github.io/api/#watch */
   watch(options?: WatchOptions): void
+
+  /** Documentation: https://esbuild.github.io/api/#serve */
   serve(options?: ServeOptions): Promise<ServeResult>
+
   dispose(): Promise<void>
 }
 
@@ -480,7 +505,7 @@ export interface BuildContext<SpecificOptions extends BuildOptions = BuildOption
  * - Works in node: yes
  * - Works in browser: yes
  *
- * Documentation: https://esbuild.github.io/api/#build-api
+ * Documentation: https://esbuild.github.io/api/#build
  */
 export declare function build<SpecificOptions extends BuildOptions>(options: SpecificOptions): Promise<BuildResult<SpecificOptions>>;
 export declare function build(options: BuildOptions): Promise<BuildResult>;
@@ -492,7 +517,7 @@ export declare function build(options: BuildOptions): Promise<BuildResult>;
  * - Works in node: yes
  * - Works in browser: no
  *
- * Documentation: https://esbuild.github.io/api/#context-api
+ * Documentation: https://esbuild.github.io/api/#build
  */
 export declare function context<T extends BuildOptions>(options: T): Promise<BuildContext<T>>;
 export declare function context(options: BuildOptions): Promise<BuildContext>;
@@ -506,7 +531,7 @@ export declare function context(options: BuildOptions): Promise<BuildContext>;
  * - Works in node: yes
  * - Works in browser: yes
  *
- * Documentation: https://esbuild.github.io/api/#transform-api
+ * Documentation: https://esbuild.github.io/api/#transform
  */
 export declare function transform<SpecificOptions extends TransformOptions>(input: string | Uint8Array, options?: SpecificOptions): Promise<TransformResult<SpecificOptions>>;
 export declare function transform(input: string | Uint8Array, options?: TransformOptions): Promise<TransformResult>;
@@ -539,7 +564,7 @@ export declare function analyzeMetafile(metafile: Metafile | string, options?: A
  * - Works in node: yes
  * - Works in browser: no
  *
- * Documentation: https://esbuild.github.io/api/#build-api
+ * Documentation: https://esbuild.github.io/api/#build
  */
 export declare function buildSync<SpecificOptions extends BuildOptions>(options: SpecificOptions): BuildResult<SpecificOptions>;
 export declare function buildSync(options: BuildOptions): BuildResult;
@@ -550,7 +575,7 @@ export declare function buildSync(options: BuildOptions): BuildResult;
  * - Works in node: yes
  * - Works in browser: no
  *
- * Documentation: https://esbuild.github.io/api/#transform-api
+ * Documentation: https://esbuild.github.io/api/#transform
  */
 export declare function transformSync<SpecificOptions extends TransformOptions>(input: string, options?: SpecificOptions): TransformResult<SpecificOptions>;
 export declare function transformSync(input: string | Uint8Array, options?: TransformOptions): TransformResult;
@@ -581,7 +606,7 @@ export declare function analyzeMetafileSync(metafile: Metafile | string, options
  * - Works in node: yes
  * - Works in browser: yes ("options" is required)
  *
- * Documentation: https://esbuild.github.io/api/#running-in-the-browser
+ * Documentation: https://esbuild.github.io/api/#browser
  */
 export declare function initialize(options: InitializeOptions): Promise<void>;
 

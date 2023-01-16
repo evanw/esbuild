@@ -366,7 +366,7 @@ type OutputFile struct {
 	Contents []byte
 }
 
-// Documentation: https://esbuild.github.io/api/#build-api
+// Documentation: https://esbuild.github.io/api/#build
 func Build(options BuildOptions) BuildResult {
 	start := time.Now()
 
@@ -451,7 +451,7 @@ type TransformResult struct {
 	MangleCache map[string]interface{}
 }
 
-// Documentation: https://esbuild.github.io/api/#transform-api
+// Documentation: https://esbuild.github.io/api/#transform
 func Transform(input string, options TransformOptions) TransformResult {
 	return transformImpl(input, options)
 }
@@ -483,16 +483,19 @@ type ServeResult struct {
 	Host string
 }
 
-type OnChangeArgs struct {
-}
-
 type WatchOptions struct {
 }
 
 type BuildContext interface {
+	// Documentation: https://esbuild.github.io/api/#rebuild
 	Rebuild() BuildResult
+
+	// Documentation: https://esbuild.github.io/api/#watch
 	Watch(options WatchOptions) error
+
+	// Documentation: https://esbuild.github.io/api/#serve
 	Serve(options ServeOptions) (ServeResult, error)
+
 	Dispose()
 }
 
@@ -507,7 +510,7 @@ func (err *ContextError) Error() string {
 	return "Context creation failed"
 }
 
-// Documentation: https://esbuild.github.io/api/#context-api
+// Documentation: https://esbuild.github.io/api/#build
 func Context(buildOptions BuildOptions) (BuildContext, *ContextError) {
 	ctx, errors := contextImpl(buildOptions)
 	if ctx == nil {
@@ -532,14 +535,26 @@ type Plugin struct {
 }
 
 type PluginBuild struct {
+	// Documentation: https://esbuild.github.io/plugins/#build-options
 	InitialOptions *BuildOptions
-	Resolve        func(path string, options ResolveOptions) ResolveResult
-	OnStart        func(callback func() (OnStartResult, error))
-	OnEnd          func(callback func(result *BuildResult) (OnEndResult, error))
-	OnResolve      func(options OnResolveOptions, callback func(OnResolveArgs) (OnResolveResult, error))
-	OnLoad         func(options OnLoadOptions, callback func(OnLoadArgs) (OnLoadResult, error))
+
+	// Documentation: https://esbuild.github.io/plugins/#resolve
+	Resolve func(path string, options ResolveOptions) ResolveResult
+
+	// Documentation: https://esbuild.github.io/plugins/#on-start
+	OnStart func(callback func() (OnStartResult, error))
+
+	// Documentation: https://esbuild.github.io/plugins/#on-end
+	OnEnd func(callback func(result *BuildResult) (OnEndResult, error))
+
+	// Documentation: https://esbuild.github.io/plugins/#on-resolve
+	OnResolve func(options OnResolveOptions, callback func(OnResolveArgs) (OnResolveResult, error))
+
+	// Documentation: https://esbuild.github.io/plugins/#on-load
+	OnLoad func(options OnLoadOptions, callback func(OnLoadArgs) (OnLoadResult, error))
 }
 
+// Documentation: https://esbuild.github.io/plugins/#resolve-options
 type ResolveOptions struct {
 	PluginName string
 	Importer   string
@@ -549,6 +564,7 @@ type ResolveOptions struct {
 	PluginData interface{}
 }
 
+// Documentation: https://esbuild.github.io/plugins/#resolve-results
 type ResolveResult struct {
 	Errors   []Message
 	Warnings []Message
@@ -571,11 +587,13 @@ type OnEndResult struct {
 	Warnings []Message
 }
 
+// Documentation: https://esbuild.github.io/plugins/#on-resolve-options
 type OnResolveOptions struct {
 	Filter    string
 	Namespace string
 }
 
+// Documentation: https://esbuild.github.io/plugins/#on-resolve-arguments
 type OnResolveArgs struct {
 	Path       string
 	Importer   string
@@ -585,6 +603,7 @@ type OnResolveArgs struct {
 	PluginData interface{}
 }
 
+// Documentation: https://esbuild.github.io/plugins/#on-resolve-results
 type OnResolveResult struct {
 	PluginName string
 
@@ -602,11 +621,13 @@ type OnResolveResult struct {
 	WatchDirs  []string
 }
 
+// Documentation: https://esbuild.github.io/plugins/#on-load-options
 type OnLoadOptions struct {
 	Filter    string
 	Namespace string
 }
 
+// Documentation: https://esbuild.github.io/plugins/#on-load-arguments
 type OnLoadArgs struct {
 	Path       string
 	Namespace  string
@@ -614,6 +635,7 @@ type OnLoadArgs struct {
 	PluginData interface{}
 }
 
+// Documentation: https://esbuild.github.io/plugins/#on-load-results
 type OnLoadResult struct {
 	PluginName string
 
