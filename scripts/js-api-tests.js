@@ -4204,6 +4204,21 @@ let serveTests = {
       assert.strictEqual(req.status, 200);
       assert.strictEqual(typeof req.remoteAddress, 'string');
       assert.strictEqual(typeof req.timeInMS, 'number');
+
+      // Make sure the output directory prefix requires a slash separator
+      promise = nextRequestPromise;
+      try {
+        await fetch(result.host, result.port, '/outin.js')
+        throw new Error('Expected an error to be thrown')
+      } catch (err) {
+        if (err.statusCode !== 404) throw err
+      }
+      req = await promise;
+      assert.strictEqual(req.method, 'GET');
+      assert.strictEqual(req.path, '/outin.js');
+      assert.strictEqual(req.status, 404);
+      assert.strictEqual(typeof req.remoteAddress, 'string');
+      assert.strictEqual(typeof req.timeInMS, 'number');
     } finally {
       await context.dispose();
     }
@@ -4348,7 +4363,78 @@ let serveTests = {
     }
   },
 
-  async serveWatchLiveReload({ esbuild, testDir }) {
+  async serveWithoutServedirWatchLiveReload({ esbuild, testDir }) {
+    const js = path.join(testDir, 'app.js')
+    const css = path.join(testDir, 'app.css')
+    const outdir = path.join(testDir, 'out')
+    await writeFileAsync(css, ``)
+
+    let endPromise
+    const context = await esbuild.context({
+      entryPoints: [js],
+      outdir,
+      bundle: true,
+      logLevel: 'silent',
+    });
+
+    try {
+      const server = await context.serve({
+        host: '127.0.0.1',
+      })
+      const stream = await makeEventStream(server.host, server.port, '/esbuild')
+      await context.rebuild().then(
+        () => Promise.reject(new Error('Expected an error to be thrown')),
+        () => { /* Ignore the build error due to the missing JS file */ },
+      )
+
+      // Event 1: a new JavaScript file
+      var eventPromise = stream.waitFor('change')
+      await writeFileAsync(js, ``)
+      await context.rebuild()
+      var data = JSON.parse((await eventPromise).data)
+      assert.deepStrictEqual(data, { added: ['/app.js'], removed: [], updated: [] })
+
+      // Event 2: edit the JavaScript file
+      var eventPromise = stream.waitFor('change')
+      await writeFileAsync(js, `foo()`)
+      await context.rebuild()
+      var data = JSON.parse((await eventPromise).data)
+      assert.deepStrictEqual(data, { added: [], removed: [], updated: ['/app.js'] })
+
+      // Event 3: a new CSS file
+      var eventPromise = stream.waitFor('change')
+      await writeFileAsync(js, `import "./app.css"; foo()`)
+      await context.rebuild()
+      var data = JSON.parse((await eventPromise).data)
+      assert.deepStrictEqual(data, { added: ['/app.css'], removed: [], updated: [] })
+
+      // Event 4: edit the CSS file
+      var eventPromise = stream.waitFor('change')
+      await writeFileAsync(css, `a { color: red }`)
+      await context.rebuild()
+      var data = JSON.parse((await eventPromise).data)
+      assert.deepStrictEqual(data, { added: [], removed: [], updated: ['/app.css'] })
+
+      // Event 5: remove the CSS file
+      var eventPromise = stream.waitFor('change')
+      await writeFileAsync(js, `bar()`)
+      await context.rebuild()
+      var data = JSON.parse((await eventPromise).data)
+      assert.deepStrictEqual(data, { added: [], removed: ['/app.css'], updated: ['/app.js'] })
+
+      // Wait for the stream to end once we call "dispose()" below
+      endPromise = stream.waitFor('close')
+    }
+
+    finally {
+      await context.dispose();
+    }
+
+    // This stream should end once "dispose()" is called above
+    await endPromise
+  },
+
+  async serveWithServedirWatchLiveReload({ esbuild, testDir }) {
     const js = path.join(testDir, 'app.js')
     const css = path.join(testDir, 'app.css')
     const outdir = path.join(testDir, 'out')
@@ -4420,7 +4506,79 @@ let serveTests = {
     await endPromise
   },
 
-  async serveWatchLiveReloadPublicPath({ esbuild, testDir }) {
+  async serveWithoutServedirWatchLiveReloadPublicPath({ esbuild, testDir }) {
+    const js = path.join(testDir, 'app.js')
+    const css = path.join(testDir, 'app.css')
+    const outdir = path.join(testDir, 'out')
+    await writeFileAsync(css, ``)
+
+    let endPromise
+    const context = await esbuild.context({
+      entryPoints: [js],
+      outdir,
+      bundle: true,
+      logLevel: 'silent',
+      publicPath: 'http://example.com/about',
+    });
+
+    try {
+      const server = await context.serve({
+        host: '127.0.0.1',
+      })
+      const stream = await makeEventStream(server.host, server.port, '/esbuild')
+      await context.rebuild().then(
+        () => Promise.reject(new Error('Expected an error to be thrown')),
+        () => { /* Ignore the build error due to the missing JS file */ },
+      )
+
+      // Event 1: a new JavaScript file
+      var eventPromise = stream.waitFor('change')
+      await writeFileAsync(js, ``)
+      await context.rebuild()
+      var data = JSON.parse((await eventPromise).data)
+      assert.deepStrictEqual(data, { added: ['http://example.com/about/app.js'], removed: [], updated: [] })
+
+      // Event 2: edit the JavaScript file
+      var eventPromise = stream.waitFor('change')
+      await writeFileAsync(js, `foo()`)
+      await context.rebuild()
+      var data = JSON.parse((await eventPromise).data)
+      assert.deepStrictEqual(data, { added: [], removed: [], updated: ['http://example.com/about/app.js'] })
+
+      // Event 3: a new CSS file
+      var eventPromise = stream.waitFor('change')
+      await writeFileAsync(js, `import "./app.css"; foo()`)
+      await context.rebuild()
+      var data = JSON.parse((await eventPromise).data)
+      assert.deepStrictEqual(data, { added: ['http://example.com/about/app.css'], removed: [], updated: [] })
+
+      // Event 4: edit the CSS file
+      var eventPromise = stream.waitFor('change')
+      await writeFileAsync(css, `a { color: red }`)
+      await context.rebuild()
+      var data = JSON.parse((await eventPromise).data)
+      assert.deepStrictEqual(data, { added: [], removed: [], updated: ['http://example.com/about/app.css'] })
+
+      // Event 5: remove the CSS file
+      var eventPromise = stream.waitFor('change')
+      await writeFileAsync(js, `bar()`)
+      await context.rebuild()
+      var data = JSON.parse((await eventPromise).data)
+      assert.deepStrictEqual(data, { added: [], removed: ['http://example.com/about/app.css'], updated: ['http://example.com/about/app.js'] })
+
+      // Wait for the stream to end once we call "dispose()" below
+      endPromise = stream.waitFor('close')
+    }
+
+    finally {
+      await context.dispose();
+    }
+
+    // This stream should end once "dispose()" is called above
+    await endPromise
+  },
+
+  async serveWithServedirWatchLiveReloadPublicPath({ esbuild, testDir }) {
     const js = path.join(testDir, 'app.js')
     const css = path.join(testDir, 'app.css')
     const outdir = path.join(testDir, 'out')

@@ -99,6 +99,23 @@ func errorsToString(errors []Message) string {
 	return sb.String()
 }
 
+func stripDirPrefix(path string, prefix string, allowedSlashes string) (string, bool) {
+	if strings.HasPrefix(path, prefix) {
+		pathLen := len(path)
+		prefixLen := len(prefix)
+		if prefixLen == 0 {
+			return path, true
+		}
+		if pathLen > prefixLen && strings.IndexByte(allowedSlashes, path[prefixLen]) >= 0 {
+			return path[prefixLen+1:], true
+		}
+		if pathLen == prefixLen {
+			return "", true
+		}
+	}
+	return "", false
+}
+
 func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	start := time.Now()
 
@@ -129,11 +146,7 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		fileEntries := make(map[string]bool)
 
 		// Check for a match with the results if we're within the output directory
-		if strings.HasPrefix(queryPath, h.outdirPathPrefix) {
-			outdirQueryPath := queryPath[len(h.outdirPathPrefix):]
-			if strings.HasPrefix(outdirQueryPath, "/") {
-				outdirQueryPath = outdirQueryPath[1:]
-			}
+		if outdirQueryPath, ok := stripDirPrefix(queryPath, h.outdirPathPrefix, "/"); ok {
 			resultKind, inMemoryBytes, isImplicitIndexHTML := h.matchQueryPathToResult(outdirQueryPath, &result, dirEntries, fileEntries)
 			kind = resultKind
 			fileContents = &fs.InMemoryOpenedFile{Contents: inMemoryBytes}
@@ -381,13 +394,15 @@ func (h *apiHandler) broadcastBuildResult(result BuildResult, newSummary buildSu
 	var updated []string
 
 	urlForPath := func(absPath string) (string, bool) {
-		if relPath, ok := h.fs.Rel(h.servedir, absPath); ok {
+		if relPath, ok := stripDirPrefix(absPath, h.absOutputDir, "\\/"); ok {
+			relPath = strings.ReplaceAll(relPath, "\\", "/")
+			relPath = path.Join(h.outdirPathPrefix, relPath)
 			publicPath := h.publicPath
 			slash := "/"
 			if publicPath != "" && strings.HasSuffix(h.publicPath, "/") {
 				slash = ""
 			}
-			return fmt.Sprintf("%s%s%s", publicPath, slash, strings.ReplaceAll(relPath, "\\", "/")), true
+			return fmt.Sprintf("%s%s%s", publicPath, slash, relPath), true
 		}
 		return "", false
 	}
