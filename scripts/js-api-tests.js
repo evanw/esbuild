@@ -2788,6 +2788,24 @@ import "after/alias";
     assert.strictEqual(outputFiles[1].path, path.join(testDir, 'entry', 'out', '3KY7NOSR-2.js'))
   },
 
+  async customEntryPointOutputPathsDuplicates({ esbuild, testDir }) {
+    const input1 = path.join(testDir, 'foo.js')
+    const input2 = path.join(testDir, 'bar.css')
+    await writeFileAsync(input1, `foo()`)
+    await writeFileAsync(input2, `.bar {}`)
+    var { outputFiles } = await esbuild.build({
+      entryPoints: [
+        { in: input1, out: 'abc' },
+        { in: input2, out: 'abc' },
+      ],
+      outdir: testDir,
+      write: false,
+    })
+    assert.strictEqual(outputFiles.length, 2)
+    assert.strictEqual(outputFiles[0].path, path.join(testDir, 'abc.js'))
+    assert.strictEqual(outputFiles[1].path, path.join(testDir, 'abc.css'))
+  },
+
   async nodeColonPrefixImport({ esbuild }) {
     const tryTargetESM = async target => {
       const result = await esbuild.build({

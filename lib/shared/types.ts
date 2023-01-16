@@ -133,7 +133,7 @@ export interface BuildOptions extends CommonOptions {
   /** Documentation: https://esbuild.github.io/api/#footer */
   footer?: { [type: string]: string }
   /** Documentation: https://esbuild.github.io/api/#entry-points */
-  entryPoints?: string[] | Record<string, string>
+  entryPoints?: string[] | Record<string, string> | { in: string, out: string }[]
   /** Documentation: https://esbuild.github.io/api/#stdin */
   stdin?: StdinOptions
   /** Documentation: https://esbuild.github.io/plugins/ */

@@ -10,6 +10,29 @@
 
     Entry points can optionally provide custom output paths to change the path of the generated output file. For example, `esbuild foo=abc.js bar=xyz.js --outdir=out` generates the files `out/foo.js` and `out/bar.js`. However, this previously didn't work when using the `copy` loader due to an oversight. This bug has been fixed. For example, you can now do `esbuild foo=abc.html bar=xyz.html --outdir=out --loader:.html=copy` to generate the files `out/foo.html` and `out/bar.html`.
 
+* The JS API can now take an array of objects ([#2828](https://github.com/evanw/esbuild/issues/2828))
+
+    Previously it was not possible to specify two entry points with the same custom output path using the JS API, although it was possible to do this with the Go API and the CLI. This will not cause a collision if both entry points use different extensions (e.g. if one uses `.js` and the other uses `.css`). You can now pass the JS API an array of objects to work around this API limitation:
+
+    ```js
+    // The previous API didn't let you specify duplicate output paths
+    let result = await esbuild.build({
+      entryPoints: {
+        // This object literal contains a duplicate key, so one is ignored
+        'dist': 'foo.js',
+        'dist': 'bar.css',
+      },
+    })
+
+    // You can now specify duplicate output paths as an array of objects
+    let result = await esbuild.build({
+      entryPoints: [
+        { in: 'foo.js', out: 'dist' },
+        { in: 'bar.css', out: 'dist' },
+      ],
+    })
+    ```
+
 ## 0.17.0
 
 **This release deliberately contains backwards-incompatible changes.** To avoid automatically picking up releases like this, you should either be pinning the exact version of `esbuild` in your `package.json` file (recommended) or be using a version range syntax that only accepts patch upgrades such as `^0.16.0` or `~0.16.0`. See npm's documentation about [semver](https://docs.npmjs.com/cli/v6/using-npm/semver/) for more information.

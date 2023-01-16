@@ -1,4 +1,4 @@
-import * as types from "./types"
+import type * as types from "./types"
 import * as protocol from "./stdio_protocol"
 
 declare const ESBUILD_VERSION: string
@@ -37,11 +37,11 @@ let mustBeArray = <T>(value: T[] | undefined): string | null =>
 let mustBeObject = (value: Object | undefined): string | null =>
   typeof value === 'object' && value !== null && !Array.isArray(value) ? null : 'an object'
 
+let mustBeEntryPoints = (value: types.BuildOptions['entryPoints']): string | null =>
+  typeof value === 'object' && value !== null ? null : 'an array or an object'
+
 let mustBeWebAssemblyModule = (value: WebAssembly.Module | undefined): string | null =>
   value instanceof WebAssembly.Module ? null : 'a WebAssembly.Module'
-
-let mustBeArrayOrRecord = <T extends string>(value: T[] | Record<T, T> | undefined): string | null =>
-  typeof value === 'object' && value !== null ? null : 'an array or an object'
 
 let mustBeObjectOrNull = (value: Object | null | undefined): string | null =>
   typeof value === 'object' && !Array.isArray(value) ? null : 'an object or null'
@@ -265,7 +265,7 @@ function flagsForBuildOptions(
   let inject = getFlag(options, keys, 'inject', mustBeArray)
   let banner = getFlag(options, keys, 'banner', mustBeObject)
   let footer = getFlag(options, keys, 'footer', mustBeObject)
-  let entryPoints = getFlag(options, keys, 'entryPoints', mustBeArrayOrRecord)
+  let entryPoints = getFlag(options, keys, 'entryPoints', mustBeEntryPoints)
   let absWorkingDir = getFlag(options, keys, 'absWorkingDir', mustBeString)
   let stdin = getFlag(options, keys, 'stdin', mustBeObject)
   let write = getFlag(options, keys, 'write', mustBeBoolean) ?? writeDefault; // Default to true if not specified
@@ -351,8 +351,19 @@ function flagsForBuildOptions(
 
   if (entryPoints) {
     if (Array.isArray(entryPoints)) {
-      for (let entryPoint of entryPoints) {
-        entries.push(['', validateStringValue(entryPoint, 'entry point')])
+      for (let i = 0, n = entryPoints.length; i < n; i++) {
+        let entryPoint = entryPoints[i]
+        if (typeof entryPoint === 'object' && entryPoint !== null) {
+          let entryPointKeys: OptionKeys = Object.create(null)
+          let input = getFlag(entryPoint, entryPointKeys, 'in', mustBeString)
+          let output = getFlag(entryPoint, entryPointKeys, 'out', mustBeString)
+          checkForInvalidFlags(entryPoint, entryPointKeys, 'in entry point at index ' + i)
+          if (input === undefined) throw new Error('Missing property "in" for entry point at index ' + i)
+          if (output === undefined) throw new Error('Missing property "out" for entry point at index ' + i)
+          entries.push([output, input])
+        } else {
+          entries.push(['', validateStringValue(entryPoint, 'entry point at index ' + i)])
+        }
       }
     } else {
       for (let key in entryPoints) {
