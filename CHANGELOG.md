@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.17.1
 
 * Make it possible to cancel a build ([#2725](https://github.com/evanw/esbuild/issues/2725))
 

@@ -1,6 +1,6 @@
 {
   "name": "@esbuild/linux-arm",
-  "version": "0.17.0",
+  "version": "0.17.1",
   "description": "The Linux ARM binary for esbuild, a JavaScript bundler.",
   "repository": "https://github.com/evanw/esbuild",
   "license": "MIT",
