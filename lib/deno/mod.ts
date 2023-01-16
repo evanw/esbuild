@@ -67,8 +67,8 @@ async function installFromNPM(name: string, subpath: string): Promise<string> {
   } catch (e) {
   }
 
-  const npmRegistry = Deno.env.get("NPM_CONFIG_REGISTRY") || "https://registry.npmjs.org";
-  const url = `${npmRegistry}/${name}/-/${name.replace("@esbuild/", "")}-${version}.tgz`;
+  const npmRegistry = Deno.env.get("NPM_CONFIG_REGISTRY") || "https://registry.npmjs.org"
+  const url = `${npmRegistry}/${name}/-/${name.replace("@esbuild/", "")}-${version}.tgz`
   const buffer = await fetch(url).then(r => r.arrayBuffer())
   const executable = extractFileFromTarGzip(new Uint8Array(buffer), subpath)
 
@@ -198,8 +198,8 @@ let ensureServiceIsRunning = (): Promise<Service> => {
         child.stdin.close()
         child.stdout.close()
         child.close()
-        initializeWasCalled = false;
-        longLivedService = undefined;
+        initializeWasCalled = false
+        longLivedService = undefined
         stopService = undefined
       }
 
@@ -241,7 +241,7 @@ let ensureServiceIsRunning = (): Promise<Service> => {
           // ignore the error if read was interrupted (stdout was closed)
           afterClose(e)
         } else {
-          throw e;
+          throw e
         }
       })
       readMoreStdout()

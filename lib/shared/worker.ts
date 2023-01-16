@@ -6,8 +6,8 @@ interface Go {
   run(instance: WebAssembly.Instance): void
 }
 
-declare const ESBUILD_VERSION: string;
-declare function postMessage(message: any): void;
+declare const ESBUILD_VERSION: string
+declare function postMessage(message: any): void
 
 onmessage = ({ data: wasm }: { data: WebAssembly.Module | string }) => {
   let decoder = new TextDecoder()
@@ -84,7 +84,7 @@ async function tryToInstantiateModule(wasm: WebAssembly.Module | string, go: Go)
   }
 
   const res = await fetch(wasm)
-  if (!res.ok) throw new Error(`Failed to download ${JSON.stringify(wasm)}`);
+  if (!res.ok) throw new Error(`Failed to download ${JSON.stringify(wasm)}`)
 
   // Attempt to use the superior "instantiateStreaming" API first
   if ('instantiateStreaming' in WebAssembly && /^application\/wasm($|;)/i.test(res.headers.get('Content-Type') || '')) {

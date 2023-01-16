@@ -1,13 +1,13 @@
-import fs = require('fs');
-import os = require('os');
-import path = require('path');
+import fs = require('fs')
+import os = require('os')
+import path = require('path')
 
-declare const ESBUILD_VERSION: string;
+declare const ESBUILD_VERSION: string
 
 // This feature was added to give external code a way to modify the binary
 // path without modifying the code itself. Do not remove this because
 // external code relies on this.
-export var ESBUILD_BINARY_PATH: string | undefined = process.env.ESBUILD_BINARY_PATH || ESBUILD_BINARY_PATH;
+export var ESBUILD_BINARY_PATH: string | undefined = process.env.ESBUILD_BINARY_PATH || ESBUILD_BINARY_PATH
 
 const packageDarwin_arm64 = '@esbuild/darwin-arm64'
 const packageDarwin_x64 = '@esbuild/darwin-x64'
@@ -16,7 +16,7 @@ export const knownWindowsPackages: Record<string, string> = {
   'win32 arm64 LE': '@esbuild/win32-arm64',
   'win32 ia32 LE': '@esbuild/win32-ia32',
   'win32 x64 LE': '@esbuild/win32-x64',
-};
+}
 
 export const knownUnixlikePackages: Record<string, string> = {
   'android arm64 LE': '@esbuild/android-arm64',
@@ -36,70 +36,70 @@ export const knownUnixlikePackages: Record<string, string> = {
   'netbsd x64 LE': '@esbuild/netbsd-x64',
   'openbsd x64 LE': '@esbuild/openbsd-x64',
   'sunos x64 LE': '@esbuild/sunos-x64',
-};
+}
 
 export const knownWebAssemblyFallbackPackages: Record<string, string> = {
   'android arm LE': '@esbuild/android-arm',
   'android x64 LE': '@esbuild/android-x64',
-};
+}
 
 export function pkgAndSubpathForCurrentPlatform(): { pkg: string, subpath: string, isWASM: boolean } {
-  let pkg: string;
-  let subpath: string;
-  let isWASM = false;
-  let platformKey = `${process.platform} ${os.arch()} ${os.endianness()}`;
+  let pkg: string
+  let subpath: string
+  let isWASM = false
+  let platformKey = `${process.platform} ${os.arch()} ${os.endianness()}`
 
   if (platformKey in knownWindowsPackages) {
-    pkg = knownWindowsPackages[platformKey];
-    subpath = 'esbuild.exe';
+    pkg = knownWindowsPackages[platformKey]
+    subpath = 'esbuild.exe'
   }
 
   else if (platformKey in knownUnixlikePackages) {
-    pkg = knownUnixlikePackages[platformKey];
-    subpath = 'bin/esbuild';
+    pkg = knownUnixlikePackages[platformKey]
+    subpath = 'bin/esbuild'
   }
 
   else if (platformKey in knownWebAssemblyFallbackPackages) {
-    pkg = knownWebAssemblyFallbackPackages[platformKey];
-    subpath = 'bin/esbuild';
-    isWASM = true;
+    pkg = knownWebAssemblyFallbackPackages[platformKey]
+    subpath = 'bin/esbuild'
+    isWASM = true
   }
 
   else {
-    throw new Error(`Unsupported platform: ${platformKey}`);
+    throw new Error(`Unsupported platform: ${platformKey}`)
   }
 
-  return { pkg, subpath, isWASM };
+  return { pkg, subpath, isWASM }
 }
 
 function pkgForSomeOtherPlatform(): string | null {
-  const libMainJS = require.resolve('esbuild');
-  const nodeModulesDirectory = path.dirname(path.dirname(path.dirname(libMainJS)));
+  const libMainJS = require.resolve('esbuild')
+  const nodeModulesDirectory = path.dirname(path.dirname(path.dirname(libMainJS)))
 
   if (path.basename(nodeModulesDirectory) === 'node_modules') {
     for (const unixKey in knownUnixlikePackages) {
       try {
-        const pkg = knownUnixlikePackages[unixKey];
-        if (fs.existsSync(path.join(nodeModulesDirectory, pkg))) return pkg;
+        const pkg = knownUnixlikePackages[unixKey]
+        if (fs.existsSync(path.join(nodeModulesDirectory, pkg))) return pkg
       } catch {
       }
     }
 
     for (const windowsKey in knownWindowsPackages) {
       try {
-        const pkg = knownWindowsPackages[windowsKey];
-        if (fs.existsSync(path.join(nodeModulesDirectory, pkg))) return pkg;
+        const pkg = knownWindowsPackages[windowsKey]
+        if (fs.existsSync(path.join(nodeModulesDirectory, pkg))) return pkg
       } catch {
       }
     }
   }
 
-  return null;
+  return null
 }
 
 export function downloadedBinPath(pkg: string, subpath: string): string {
-  const esbuildLibDir = path.dirname(require.resolve('esbuild'));
-  return path.join(esbuildLibDir, `downloaded-${pkg.replace('/', '-')}-${path.basename(subpath)}`);
+  const esbuildLibDir = path.dirname(require.resolve('esbuild'))
+  return path.join(esbuildLibDir, `downloaded-${pkg.replace('/', '-')}-${path.basename(subpath)}`)
 }
 
 export function generateBinPath(): { binPath: string, isWASM: boolean } {
@@ -110,34 +110,34 @@ export function generateBinPath(): { binPath: string, isWASM: boolean } {
     if (!fs.existsSync(ESBUILD_BINARY_PATH)) {
       console.warn(`[esbuild] Ignoring bad configuration: ESBUILD_BINARY_PATH=${ESBUILD_BINARY_PATH}`)
     } else {
-      return { binPath: ESBUILD_BINARY_PATH, isWASM: false };
+      return { binPath: ESBUILD_BINARY_PATH, isWASM: false }
     }
   }
 
-  const { pkg, subpath, isWASM } = pkgAndSubpathForCurrentPlatform();
-  let binPath: string;
+  const { pkg, subpath, isWASM } = pkgAndSubpathForCurrentPlatform()
+  let binPath: string
 
   try {
     // First check for the binary package from our "optionalDependencies". This
     // package should have been installed alongside this package at install time.
-    binPath = require.resolve(`${pkg}/${subpath}`);
+    binPath = require.resolve(`${pkg}/${subpath}`)
   } catch (e) {
     // If that didn't work, then someone probably installed esbuild with the
     // "--no-optional" flag. Our install script attempts to compensate for this
     // by manually downloading the package instead. Check for that next.
-    binPath = downloadedBinPath(pkg, subpath);
+    binPath = downloadedBinPath(pkg, subpath)
     if (!fs.existsSync(binPath)) {
       // If that didn't work too, check to see whether the package is even there
       // at all. It may not be (for a few different reasons).
       try {
-        require.resolve(pkg);
+        require.resolve(pkg)
       } catch {
         // If we can't find the package for this platform, then it's possible
         // that someone installed this for some other platform and is trying
         // to use it without reinstalling. That won't work of course, but
         // people do this all the time with systems like Docker. Try to be
         // helpful in that case.
-        const otherPkg = pkgForSomeOtherPlatform();
+        const otherPkg = pkgForSomeOtherPlatform()
         if (otherPkg) {
           let suggestions = `
 Specifically the "${otherPkg}" package is present but this platform
@@ -193,7 +193,7 @@ Another alternative is to use the "esbuild-wasm" package instead, which works
 the same way on all platforms. But it comes with a heavy performance cost and
 can sometimes be 10x slower than the "esbuild" package, so you may also not
 want to do that.
-`);
+`)
         }
 
         // If that didn't work too, then maybe someone installed esbuild with
@@ -208,9 +208,9 @@ want to do that.
 If you are installing esbuild with npm, make sure that you don't specify the
 "--no-optional" or "--omit=optional" flags. The "optionalDependencies" feature
 of "package.json" is used by esbuild to install the correct binary executable
-for your current platform.`);
+for your current platform.`)
       }
-      throw e;
+      throw e
     }
   }
 
@@ -245,9 +245,9 @@ for your current platform.`);
   // used that way. Who knows what Yarn versions it does or does not work on
   // (including future versions).
   if (/\.zip\//.test(binPath)) {
-    let pnpapi: any;
+    let pnpapi: any
     try {
-      pnpapi = require('pnpapi');
+      pnpapi = require('pnpapi')
     } catch (e) {
     }
     if (pnpapi) {
@@ -259,22 +259,22 @@ for your current platform.`);
       // either work with Yarn to change their recommendation, or upgrade their
       // version of Yarn, since newer versions of Yarn shouldn't stick esbuild's
       // binary executables in a zip file due to the "preferUnplugged" setting.
-      const root = pnpapi.getPackageInformation(pnpapi.topLevel).packageLocation;
+      const root = pnpapi.getPackageInformation(pnpapi.topLevel).packageLocation
       const binTargetPath = path.join(
         root,
         'node_modules',
         '.cache',
         'esbuild',
         `pnpapi-${pkg.replace('/', '-')}-${ESBUILD_VERSION}-${path.basename(subpath)}`,
-      );
+      )
       if (!fs.existsSync(binTargetPath)) {
-        fs.mkdirSync(path.dirname(binTargetPath), { recursive: true });
-        fs.copyFileSync(binPath, binTargetPath);
-        fs.chmodSync(binTargetPath, 0o755);
+        fs.mkdirSync(path.dirname(binTargetPath), { recursive: true })
+        fs.copyFileSync(binPath, binTargetPath)
+        fs.chmodSync(binTargetPath, 0o755)
       }
-      return { binPath: binTargetPath, isWASM };
+      return { binPath: binTargetPath, isWASM }
     }
   }
 
-  return { binPath, isWASM };
+  return { binPath, isWASM }
 }

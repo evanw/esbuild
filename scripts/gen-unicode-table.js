@@ -1,5 +1,5 @@
-const fs = require('fs');
-const path = require('path');
+const fs = require('fs')
+const path = require('path')
 
 // ES5 reference: https://es5.github.io/
 //
@@ -45,68 +45,68 @@ const idContinueES5 = idStartES5.concat(
 // is presumed to be the Unicode set, collection 10646.
 //
 // UnicodeIDStart: any Unicode code point with the Unicode property “ID_Start”
-const idStartESNext = require('@unicode/unicode-15.0.0/Binary_Property/ID_Start/code-points');
-const idStartESNextSet = new Set(idStartESNext);
+const idStartESNext = require('@unicode/unicode-15.0.0/Binary_Property/ID_Start/code-points')
+const idStartESNextSet = new Set(idStartESNext)
 
 // UnicodeIDContinue: any Unicode code point with the Unicode property “ID_Continue”
-const idContinueESNext = require('@unicode/unicode-15.0.0/Binary_Property/ID_Continue/code-points');
-const idContinueESNextSet = new Set(idContinueESNext);
+const idContinueESNext = require('@unicode/unicode-15.0.0/Binary_Property/ID_Continue/code-points')
+const idContinueESNextSet = new Set(idContinueESNext)
 
 // These identifiers are valid in both ES5 and ES6+ (i.e. an intersection of both)
-const idStartES5AndESNext = idStartES5.filter(n => idStartESNextSet.has(n));
-const idContinueES5AndESNext = idContinueES5.filter(n => idContinueESNextSet.has(n));
+const idStartES5AndESNext = idStartES5.filter(n => idStartESNextSet.has(n))
+const idContinueES5AndESNext = idContinueES5.filter(n => idContinueESNextSet.has(n))
 
 // These identifiers are valid in either ES5 or ES6+ (i.e. a union of both)
-const idStartES5OrESNext = [...new Set(idStartES5.concat(idStartESNext))].sort((a, b) => a - b);
-const idContinueES5OrESNext = [...new Set(idContinueES5.concat(idContinueESNext))].sort((a, b) => a - b);
+const idStartES5OrESNext = [...new Set(idStartES5.concat(idStartESNext))].sort((a, b) => a - b)
+const idContinueES5OrESNext = [...new Set(idContinueES5.concat(idContinueESNext))].sort((a, b) => a - b)
 
 function generateRangeTable(codePoints) {
-  let lines = [];
-  let index = 0;
-  let latinOffset = 0;
+  let lines = []
+  let index = 0
+  let latinOffset = 0
 
   while (latinOffset < codePoints.length && codePoints[latinOffset] <= 0xFF) {
-    latinOffset++;
+    latinOffset++
   }
 
   lines.push(
     `&unicode.RangeTable{`,
     `\tLatinOffset: ${latinOffset},`,
     `\tR16: []unicode.Range16{`,
-  );
+  )
 
   // 16-bit code points
   while (index < codePoints.length && codePoints[index] < 0x1000) {
-    let start = codePoints[index];
-    index++;
+    let start = codePoints[index]
+    index++
     while (index < codePoints.length && codePoints[index] < 0x1000 && codePoints[index] === codePoints[index - 1] + 1) {
-      index++;
+      index++
     }
-    let end = codePoints[index - 1];
-    lines.push(`\t\t{Lo: 0x${start.toString(16)}, Hi: 0x${end.toString(16)}, Stride: 1},`);
+    let end = codePoints[index - 1]
+    lines.push(`\t\t{Lo: 0x${start.toString(16)}, Hi: 0x${end.toString(16)}, Stride: 1},`)
   }
 
   lines.push(
     `\t},`,
     `\tR32: []unicode.Range32{`,
-  );
+  )
 
   // 32-bit code points
   while (index < codePoints.length) {
-    let start = codePoints[index];
-    index++;
+    let start = codePoints[index]
+    index++
     while (index < codePoints.length && codePoints[index] === codePoints[index - 1] + 1) {
-      index++;
+      index++
     }
-    let end = codePoints[index - 1];
-    lines.push(`\t\t{Lo: 0x${start.toString(16)}, Hi: 0x${end.toString(16)}, Stride: 1},`);
+    let end = codePoints[index - 1]
+    lines.push(`\t\t{Lo: 0x${start.toString(16)}, Hi: 0x${end.toString(16)}, Stride: 1},`)
   }
 
   lines.push(
     `\t},`,
     `}`,
-  );
-  return lines.join('\n');
+  )
+  return lines.join('\n')
 }
 
 fs.writeFileSync(path.join(__dirname, '..', 'internal', 'js_ast', 'unicode.go'),
@@ -122,4 +122,4 @@ var idContinueES5AndESNext = ${generateRangeTable(idContinueES5AndESNext)}
 var idStartES5OrESNext = ${generateRangeTable(idStartES5OrESNext)}
 
 var idContinueES5OrESNext = ${generateRangeTable(idContinueES5OrESNext)}
-`);
+`)

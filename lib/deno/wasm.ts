@@ -2,7 +2,7 @@ import type * as types from "../shared/types"
 import * as common from "../shared/common"
 import * as ourselves from "./wasm"
 
-declare const ESBUILD_VERSION: string;
+declare const ESBUILD_VERSION: string
 declare let WEB_WORKER_SOURCE_CODE: string
 declare let WEB_WORKER_FUNCTION: (postMessage: (data: Uint8Array) => void) => (event: { data: Uint8Array | ArrayBuffer | WebAssembly.Module }) => void
 
@@ -56,7 +56,7 @@ interface Service {
   analyzeMetafile: typeof types.analyzeMetafile
 }
 
-let initializePromise: Promise<Service> | undefined;
+let initializePromise: Promise<Service> | undefined
 let stopService: (() => void) | undefined
 
 let ensureServiceIsRunning = (): Promise<Service> => {
@@ -65,16 +65,16 @@ let ensureServiceIsRunning = (): Promise<Service> => {
 
 export const initialize: typeof types.initialize = async (options) => {
   options = common.validateInitializeOptions(options || {})
-  let wasmURL = options.wasmURL;
-  let wasmModule = options.wasmModule;
-  let useWorker = options.worker !== false;
-  if (initializePromise) throw new Error('Cannot call "initialize" more than once');
-  initializePromise = startRunningService(wasmURL || 'esbuild.wasm', wasmModule, useWorker);
+  let wasmURL = options.wasmURL
+  let wasmModule = options.wasmModule
+  let useWorker = options.worker !== false
+  if (initializePromise) throw new Error('Cannot call "initialize" more than once')
+  initializePromise = startRunningService(wasmURL || 'esbuild.wasm', wasmModule, useWorker)
   initializePromise.catch(() => {
     // Let the caller try again if this fails
-    initializePromise = void 0;
-  });
-  await initializePromise;
+    initializePromise = void 0
+  })
+  await initializePromise
 }
 
 const startRunningService = async (wasmURL: string | URL, wasmModule: WebAssembly.Module | undefined, useWorker: boolean): Promise<Service> => {
