@@ -4009,6 +4009,7 @@ let serveTests = {
 
   async serveOutfile({ esbuild, testDir }) {
     const input = path.join(testDir, 'in.js')
+    const outfile = path.join(testDir, 'out.js')
     await writeFileAsync(input, `console.log(123)`)
 
     let onRequest;
@@ -4019,7 +4020,7 @@ let serveTests = {
     const context = await esbuild.context({
       entryPoints: [input],
       format: 'esm',
-      outfile: 'out.js',
+      outfile,
     });
     try {
       const result = await context.serve({
