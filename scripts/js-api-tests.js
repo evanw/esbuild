@@ -2645,6 +2645,7 @@ import "after/alias";
   async rebuildCancel({ esbuild }) {
     let loopForever = true
     let onEndResult
+    let onLoadCallback
 
     const context = await esbuild.context({
       entryPoints: ['entry'],
@@ -2659,6 +2660,7 @@ import "after/alias";
             return { path: args.path, namespace: '∞' }
           })
           build.onLoad({ filter: /.*/ }, async (args) => {
+            onLoadCallback()
             if (!loopForever) return { contents: 'foo()' }
             await new Promise(r => setTimeout(r, 10))
             return { contents: 'import ' + JSON.stringify(args.path + '.') }
@@ -2673,16 +2675,22 @@ import "after/alias";
     try {
       // Build 1
       {
+        // Stop the build when "onLoad" has been called at least 5 times
+        const shouldCancelPromise = new Promise(resolve => {
+          let count = 0
+          onLoadCallback = () => {
+            if (++count > 5) resolve()
+          }
+        })
+
         // Start a build
         const buildPromise = context.rebuild()
 
         // Add a dummy catch handler to avoid terminating due to an unhandled exception
         buildPromise.catch(() => { })
 
-        // Wait a bit
-        await new Promise(r => setTimeout(r, 200))
-
         // Cancel the build
+        await shouldCancelPromise
         await context.cancel()
 
         // Check the result
@@ -2703,16 +2711,22 @@ import "after/alias";
 
       // Build 2
       {
+        // Stop the build when "onLoad" has been called at least 5 times
+        const shouldCancelPromise = new Promise(resolve => {
+          let count = 0
+          onLoadCallback = () => {
+            if (++count > 5) resolve()
+          }
+        })
+
         // Start a build
         const buildPromise = context.rebuild()
 
         // Add a dummy catch handler to avoid terminating due to an unhandled exception
         buildPromise.catch(() => { })
 
-        // Wait a bit
-        await new Promise(r => setTimeout(r, 200))
-
         // Cancel the build
+        await shouldCancelPromise
         await context.cancel()
 
         // Check the result
