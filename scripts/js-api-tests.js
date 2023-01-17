@@ -6817,7 +6817,7 @@ async function main() {
   }, minutes * 60 * 1000)
 
   // Run all tests concurrently
-  const runTest = async ([name, fn]) => {
+  const runTest = async (name, fn) => {
     let testDir = path.join(rootTestDir, name)
     try {
       await mkdirAsync(testDir)
@@ -6829,6 +6829,7 @@ async function main() {
       return false
     }
   }
+
   const tests = [
     ...Object.entries(buildTests),
     ...Object.entries(watchTests),
@@ -6839,7 +6840,18 @@ async function main() {
     ...Object.entries(syncTests),
     ...Object.entries(childProcessTests),
   ]
-  let allTestsPassed = (await Promise.all(tests.map(runTest))).every(success => success)
+
+  const allTestsPassed = (await Promise.all(tests.map(([name, fn]) => {
+    const promise = runTest(name, fn)
+
+    // Time out each individual test after 3 minutes. This exists to help debug test hangs in CI.
+    const minutes = 3
+    const timeout = setTimeout(() => {
+      console.error(`❌ the test "${name}" timed out after ${minutes} minutes, exiting...`)
+      process.exit(1)
+    }, minutes * 60 * 1000)
+    return promise.finally(() => clearTimeout(timeout))
+  }))).every(success => success)
 
   if (!allTestsPassed) {
     console.error(`❌ js api tests failed`)
