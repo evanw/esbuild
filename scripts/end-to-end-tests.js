@@ -1,5 +1,5 @@
 const childProcess = require('child_process')
-const { buildBinary, dirname, removeRecursiveSync } = require('./esbuild.js')
+const { buildBinary, dirname, removeRecursiveSync, writeFileAtomic } = require('./esbuild.js')
 const assert = require('assert')
 const path = require('path')
 const util = require('util')
@@ -6749,6 +6749,25 @@ tests.push(
       },
     )
   }),
+
+  // This tests that watch mode writes to stdout correctly
+  testWatchStdout([
+    {
+      input: 'console.log(1+2)',
+      stdout: ['console.log(1 + 2);'],
+      stderr: ['[watch] build finished, watching for changes...'],
+    },
+    {
+      input: 'console.log(2+3)',
+      stdout: ['console.log(2 + 3);'],
+      stderr: ['[watch] build started (change: "in.js")', '[watch] build finished'],
+    },
+    {
+      input: 'console.log(3+4)',
+      stdout: ['console.log(3 + 4);'],
+      stderr: ['[watch] build started (change: "in.js")', '[watch] build finished'],
+    },
+  ]),
 )
 
 function waitForCondition(what, seconds, mutator, condition) {
@@ -6990,6 +7009,96 @@ function testWatch(options, callback) {
       console.error(`❌ test failed: ${e && e.message || e}
   dir: ${path.relative(dirname, thisTestDir)}
   args: ${args.join(' ')}` + stderr)
+      return false
+    }
+
+    return true
+  }
+}
+
+function testWatchStdout(sequence) {
+  return async () => {
+    const thisTestDir = path.join(testDir, '' + testCount++)
+    const infile = path.join(thisTestDir, 'in.js')
+    const args = ['--watch=forever', infile]
+
+    try {
+      await fs.mkdir(thisTestDir, { recursive: true })
+      await fs.writeFile(infile, sequence[0].input)
+      const maxSeconds = 60
+
+      // Start the child
+      const child = childProcess.spawn(esbuildPath, args, {
+        cwd: thisTestDir,
+        stdio: ['inherit', 'pipe', 'pipe'],
+        timeout: maxSeconds * 1000,
+      })
+
+      // Make sure the child is always killed
+      try {
+        for (const { input, stdout: expectedStdout, stderr: expectedStderr } of sequence) {
+          let totalStdout = ''
+          let totalStderr = ''
+          let stdoutBuffer = ''
+          let stderrBuffer = ''
+          const onstdout = data => {
+            totalStdout += data
+            stdoutBuffer += data
+            check()
+          }
+          const onstderr = data => {
+            totalStderr += data
+            stderrBuffer += data
+            check()
+          }
+          let check = () => { }
+
+          child.stdout.on('data', onstdout)
+          child.stderr.on('data', onstderr)
+
+          await new Promise((resolve, reject) => {
+            const seconds = 30
+            const timeout = setTimeout(() => reject(new Error(
+              `Watch mode + stdout test failed to match expected output after ${seconds} seconds
+  input: ${JSON.stringify(input)}
+  stdout: ${JSON.stringify(totalStdout)}
+  stderr: ${JSON.stringify(totalStderr)}
+`)), seconds * 1000)
+
+            check = () => {
+              let index
+
+              while ((index = stdoutBuffer.indexOf('\n')) >= 0) {
+                const line = stdoutBuffer.slice(0, index)
+                stdoutBuffer = stdoutBuffer.slice(index + 1)
+                if (line === expectedStdout[0]) expectedStdout.shift()
+              }
+
+              while ((index = stderrBuffer.indexOf('\n')) >= 0) {
+                const line = stderrBuffer.slice(0, index)
+                stderrBuffer = stderrBuffer.slice(index + 1)
+                if (line === expectedStderr[0]) expectedStderr.shift()
+              }
+
+              if (!expectedStdout.length && !expectedStderr.length) {
+                clearTimeout(timeout)
+                resolve()
+              }
+            }
+
+            writeFileAtomic(infile, input)
+          })
+
+          child.stdout.off('data', onstdout)
+          child.stderr.off('data', onstderr)
+        }
+      } finally {
+        child.kill()
+      }
+    } catch (e) {
+      console.error(`❌ test failed: ${e && e.message || e}
+  dir: ${path.relative(dirname, thisTestDir)}
+  args: ${args.join(' ')}`)
       return false
     }
 
