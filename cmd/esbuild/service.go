@@ -28,11 +28,13 @@ type responseCallback func(interface{})
 type pluginResolveCallback func(uint32, map[string]interface{}) []byte
 
 type activeBuild struct {
-	ctx           api.BuildContext
-	pluginResolve pluginResolveCallback
-	mutex         sync.Mutex
+	ctx              api.BuildContext
+	pluginResolve    pluginResolveCallback
+	mutex            sync.Mutex
+	disposeWaitGroup sync.WaitGroup // Allows "dispose" to wait for all active tasks
+
+	// This is guarded by the mutex
 	didGetRebuild bool
-	waitGroup     sync.WaitGroup
 }
 
 type serviceType struct {
@@ -245,7 +247,7 @@ func (service *serviceType) handleIncomingPacket(bytes []byte) {
 			ctx := build.ctx
 			pluginResolve := build.pluginResolve
 			if ctx != nil && pluginResolve != nil {
-				build.waitGroup.Add(1)
+				build.disposeWaitGroup.Add(1)
 			}
 			build.mutex.Unlock()
 			if pluginResolve != nil {
@@ -253,7 +255,7 @@ func (service *serviceType) handleIncomingPacket(bytes []byte) {
 				go func() {
 					defer service.keepAliveWaitGroup.Done()
 					if ctx != nil {
-						defer build.waitGroup.Done()
+						defer build.disposeWaitGroup.Done()
 					}
 					service.sendPacket(pluginResolve(p.id, request))
 				}()
@@ -274,14 +276,14 @@ func (service *serviceType) handleIncomingPacket(bytes []byte) {
 			ctx := build.ctx
 			if ctx != nil {
 				build.didGetRebuild = true
-				build.waitGroup.Add(1)
+				build.disposeWaitGroup.Add(1)
 			}
 			build.mutex.Unlock()
 			if ctx != nil {
 				service.keepAliveWaitGroup.Add(1)
 				go func() {
 					defer service.keepAliveWaitGroup.Done()
-					defer build.waitGroup.Done()
+					defer build.disposeWaitGroup.Done()
 					result := ctx.Rebuild()
 					service.sendPacket(encodePacket(packet{
 						id: p.id,
@@ -307,14 +309,14 @@ func (service *serviceType) handleIncomingPacket(bytes []byte) {
 			build.mutex.Lock()
 			ctx := build.ctx
 			if ctx != nil {
-				build.waitGroup.Add(1)
+				build.disposeWaitGroup.Add(1)
 			}
 			build.mutex.Unlock()
 			if ctx != nil {
 				service.keepAliveWaitGroup.Add(1)
 				go func() {
 					defer service.keepAliveWaitGroup.Done()
-					defer build.waitGroup.Done()
+					defer build.disposeWaitGroup.Done()
 					if err := ctx.Watch(api.WatchOptions{}); err != nil {
 						service.sendPacket(encodeErrorPacket(p.id, err))
 					} else {
@@ -340,14 +342,14 @@ func (service *serviceType) handleIncomingPacket(bytes []byte) {
 			build.mutex.Lock()
 			ctx := build.ctx
 			if ctx != nil {
-				build.waitGroup.Add(1)
+				build.disposeWaitGroup.Add(1)
 			}
 			build.mutex.Unlock()
 			if ctx != nil {
 				service.keepAliveWaitGroup.Add(1)
 				go func() {
 					defer service.keepAliveWaitGroup.Done()
-					defer build.waitGroup.Done()
+					defer build.disposeWaitGroup.Done()
 					var options api.ServeOptions
 					if value, ok := request["host"]; ok {
 						options.Host = value.(string)
@@ -374,7 +376,7 @@ func (service *serviceType) handleIncomingPacket(bytes []byte) {
 							build.mutex.Lock()
 							ctx := build.ctx
 							if ctx != nil {
-								build.waitGroup.Add(1)
+								build.disposeWaitGroup.Add(1)
 							}
 							build.mutex.Unlock()
 							if ctx != nil {
@@ -389,7 +391,7 @@ func (service *serviceType) handleIncomingPacket(bytes []byte) {
 										"timeInMS":      args.TimeInMS,
 									},
 								})
-								build.waitGroup.Done()
+								build.disposeWaitGroup.Done()
 							}
 						}
 					}
@@ -463,8 +465,8 @@ func (service *serviceType) handleIncomingPacket(bytes []byte) {
 					// wait for it here before disposing. Once the wait is over, no more
 					// operations can happen on the context because we have already
 					// zeroed out the shared context pointer above.
-					build.waitGroup.Done()
-					build.waitGroup.Wait()
+					build.disposeWaitGroup.Done()
+					build.disposeWaitGroup.Wait()
 
 					ctx.Dispose()
 					service.destroyActiveBuild(key)
@@ -677,7 +679,7 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 		}
 
 		// Keep the build alive until "dispose" has been called
-		activeBuild.waitGroup.Add(1)
+		activeBuild.disposeWaitGroup.Add(1)
 		activeBuild.ctx = ctx
 
 		return encodePacket(packet{
