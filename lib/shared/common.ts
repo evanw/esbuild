@@ -888,7 +888,7 @@ function buildOrContextImpl(
       result => {
         if (!result.ok) return handleError(result.error, result.pluginName)
         try {
-          buildOrContextContinue(result.requestPlugins, result.runOnEndCallbacks)
+          buildOrContextContinue(result.requestPlugins, result.runOnEndCallbacks, result.scheduleOnDisposeCallbacks)
         } catch (e) {
           handleError(e, '')
         }
@@ -899,14 +899,14 @@ function buildOrContextImpl(
   }
 
   try {
-    buildOrContextContinue(null, (result, done) => done([], []))
+    buildOrContextContinue(null, (result, done) => done([], []), () => { })
   } catch (e) {
     handleError(e, '')
   }
 
   // "buildOrContext" cannot be written using async/await due to "buildSync"
   // and must be written in continuation-passing style instead
-  function buildOrContextContinue(requestPlugins: protocol.BuildPlugin[] | null, runOnEndCallbacks: RunOnEndCallbacks) {
+  function buildOrContextContinue(requestPlugins: protocol.BuildPlugin[] | null, runOnEndCallbacks: RunOnEndCallbacks, scheduleOnDisposeCallbacks: () => void) {
     const writeDefault = streamIn.hasFS
     const {
       entries,
@@ -985,7 +985,10 @@ function buildOrContextImpl(
     sendRequest<protocol.BuildRequest, protocol.BuildResponse>(refs, request, (error, response) => {
       if (error) return callback(new Error(error), null)
       if (!isContext) {
-        return buildResponseToResult(response!, callback)
+        return buildResponseToResult(response!, (err, res) => {
+          scheduleOnDisposeCallbacks()
+          return callback(err, res)
+        })
       }
 
       // Construct a context object
@@ -1123,6 +1126,7 @@ function buildOrContextImpl(
           }
           sendRequest<protocol.DisposeRequest, null>(refs, request, () => {
             resolve(); // We don't care about errors here
+            scheduleOnDisposeCallbacks()
 
             // Only remove the reference here when we know the Go code has seen
             // this "dispose" call. We don't want to remove any registered
@@ -1154,7 +1158,7 @@ let handlePlugins = async (
   plugins: types.Plugin[],
   details: ObjectStash,
 ): Promise<
-  | { ok: true, requestPlugins: protocol.BuildPlugin[], runOnEndCallbacks: RunOnEndCallbacks }
+  | { ok: true, requestPlugins: protocol.BuildPlugin[], runOnEndCallbacks: RunOnEndCallbacks, scheduleOnDisposeCallbacks: () => void }
   | { ok: false, error: any, pluginName: string }
 > => {
   let onStartCallbacks: {
@@ -1189,6 +1193,7 @@ let handlePlugins = async (
     },
   } = {}
 
+  let onDisposeCallbacks: (() => void)[] = []
   let nextCallbackID = 0
   let i = 0
   let requestPlugins: protocol.BuildPlugin[] = []
@@ -1302,6 +1307,10 @@ let handlePlugins = async (
           let id = nextCallbackID++
           onLoadCallbacks[id] = { name: name!, callback, note: registeredNote }
           plugin.onLoad.push({ id, filter: filter.source, namespace: namespace || '' })
+        },
+
+        onDispose(callback) {
+          onDisposeCallbacks.push(callback)
         },
 
         esbuild: streamIn.esbuild,
@@ -1495,11 +1504,19 @@ let handlePlugins = async (
     }
   }
 
+  let scheduleOnDisposeCallbacks = (): void => {
+    // Run each "onDispose" callback with its own call stack
+    for (const cb of onDisposeCallbacks) {
+      setTimeout(() => cb(), 0)
+    }
+  }
+
   isSetupDone = true
   return {
     ok: true,
     requestPlugins,
     runOnEndCallbacks,
+    scheduleOnDisposeCallbacks,
   }
 }
 

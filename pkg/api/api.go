@@ -553,6 +553,9 @@ type PluginBuild struct {
 
 	// Documentation: https://esbuild.github.io/plugins/#on-load
 	OnLoad func(options OnLoadOptions, callback func(OnLoadArgs) (OnLoadResult, error))
+
+	// Documentation: https://esbuild.github.io/plugins/#on-dispose
+	OnDispose func(callback func())
 }
 
 // Documentation: https://esbuild.github.io/plugins/#resolve-options

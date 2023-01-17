@@ -3053,6 +3053,98 @@ let syncTests = {
       await ctx.dispose()
     }
   },
+
+  async pluginOnDisposeAfterSuccessfulBuild({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    await writeFileAsync(input, `1+2`)
+
+    let onDisposeCalled
+    let onDisposePromise = new Promise(resolve => onDisposeCalled = resolve)
+    await esbuild.build({
+      entryPoints: [input],
+      write: false,
+      plugins: [{
+        name: 'x', setup(build) {
+          build.onDispose(onDisposeCalled)
+        }
+      }]
+    })
+    await onDisposePromise
+  },
+
+  async pluginOnDisposeAfterFailedBuild({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+
+    let onDisposeCalled
+    let onDisposePromise = new Promise(resolve => onDisposeCalled = resolve)
+    try {
+      await esbuild.build({
+        entryPoints: [input],
+        write: false,
+        logLevel: 'silent',
+        plugins: [{
+          name: 'x', setup(build) {
+            build.onDispose(onDisposeCalled)
+          }
+        }]
+      })
+      throw new Error('Expected an error to be thrown')
+    } catch (err) {
+      if (!err.errors || err.errors.length !== 1)
+        throw err
+    }
+    await onDisposePromise
+  },
+
+  async pluginOnDisposeWithUnusedContext({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    await writeFileAsync(input, `1+2`)
+
+    let onDisposeCalled
+    let onDisposePromise = new Promise(resolve => onDisposeCalled = resolve)
+    let ctx = await esbuild.context({
+      entryPoints: [input],
+      write: false,
+      plugins: [{
+        name: 'x', setup(build) {
+          build.onDispose(onDisposeCalled)
+        }
+      }]
+    })
+    await ctx.dispose()
+    await onDisposePromise
+  },
+
+  async pluginOnDisposeWithRebuild({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    await writeFileAsync(input, `1+2`)
+
+    let onDisposeCalled
+    let onDisposeWasCalled = false
+    let onDisposePromise = new Promise(resolve => {
+      onDisposeCalled = () => {
+        onDisposeWasCalled = true
+        resolve()
+      }
+    })
+    let ctx = await esbuild.context({
+      entryPoints: [input],
+      write: false,
+      plugins: [{
+        name: 'x', setup(build) {
+          build.onDispose(onDisposeCalled)
+        }
+      }]
+    })
+
+    let result = await ctx.rebuild()
+    assert.strictEqual(result.outputFiles.length, 1)
+    assert.strictEqual(onDisposeWasCalled, false)
+
+    await ctx.dispose()
+    await onDisposePromise
+    assert.strictEqual(onDisposeWasCalled, true)
+  },
 }
 
 async function main() {

@@ -879,7 +879,7 @@ func contextImpl(buildOpts BuildOptions) (*internalContext, []Message) {
 	// directory doesn't change, since breaking that invariant would break the
 	// validation that we just did above.
 	caches := cache.MakeCacheSet()
-	onEndCallbacks, finalizeBuildOptions := loadPlugins(&buildOpts, realFS, log, caches)
+	onEndCallbacks, onDisposeCallbacks, finalizeBuildOptions := loadPlugins(&buildOpts, realFS, log, caches)
 	options, entryPoints := validateBuildOptions(buildOpts, log, realFS)
 	finalizeBuildOptions(&options)
 	if buildOpts.AbsWorkingDir != absWorkingDir {
@@ -893,14 +893,15 @@ func contextImpl(buildOpts BuildOptions) (*internalContext, []Message) {
 	}
 
 	args := rebuildArgs{
-		caches:         caches,
-		onEndCallbacks: onEndCallbacks,
-		logOptions:     logOptions,
-		entryPoints:    entryPoints,
-		options:        options,
-		mangleCache:    buildOpts.MangleCache,
-		absWorkingDir:  absWorkingDir,
-		write:          buildOpts.Write,
+		caches:             caches,
+		onEndCallbacks:     onEndCallbacks,
+		onDisposeCallbacks: onDisposeCallbacks,
+		logOptions:         logOptions,
+		entryPoints:        entryPoints,
+		options:            options,
+		mangleCache:        buildOpts.MangleCache,
+		absWorkingDir:      absWorkingDir,
+		write:              buildOpts.Write,
 	}
 
 	return &internalContext{
@@ -1115,6 +1116,11 @@ func (ctx *internalContext) Dispose() {
 	// we then print to the terminal, which would be confusing.
 	if build != nil {
 		build.waitGroup.Wait()
+	}
+
+	// Run each "OnDispose" callback on its own goroutine
+	for _, fn := range ctx.args.onDisposeCallbacks {
+		go fn()
 	}
 }
 
@@ -1368,14 +1374,15 @@ type onEndCallback struct {
 }
 
 type rebuildArgs struct {
-	caches         *cache.CacheSet
-	onEndCallbacks []onEndCallback
-	logOptions     logger.OutputOptions
-	entryPoints    []bundler.EntryPoint
-	options        config.Options
-	mangleCache    map[string]interface{}
-	absWorkingDir  string
-	write          bool
+	caches             *cache.CacheSet
+	onEndCallbacks     []onEndCallback
+	onDisposeCallbacks []func()
+	logOptions         logger.OutputOptions
+	entryPoints        []bundler.EntryPoint
+	options            config.Options
+	mangleCache        map[string]interface{}
+	absWorkingDir      string
+	write              bool
 }
 
 type rebuildState struct {
@@ -1966,6 +1973,7 @@ func (impl *pluginImpl) validatePathsArray(pathsIn []string, name string) (paths
 
 func loadPlugins(initialOptions *BuildOptions, fs fs.FS, log logger.Log, caches *cache.CacheSet) (
 	onEndCallbacks []onEndCallback,
+	onDisposeCallbacks []func(),
 	finalizeBuildOptions func(*config.Options),
 ) {
 	// Clone the plugin array to guard against mutation during iteration
@@ -2067,11 +2075,16 @@ func loadPlugins(initialOptions *BuildOptions, fs fs.FS, log logger.Log, caches 
 			})
 		}
 
+		onDispose := func(fn func()) {
+			onDisposeCallbacks = append(onDisposeCallbacks, fn)
+		}
+
 		item.Setup(PluginBuild{
 			InitialOptions: initialOptions,
 			Resolve:        resolve,
 			OnStart:        impl.onStart,
 			OnEnd:          onEnd,
+			OnDispose:      onDispose,
 			OnResolve:      impl.onResolve,
 			OnLoad:         impl.onLoad,
 		})
