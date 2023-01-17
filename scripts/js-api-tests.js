@@ -2769,16 +2769,17 @@ import "after/alias";
   // threading.
   async rapidRebuildCancel({ esbuild }) {
     const context = await esbuild.context({
-      entryPoints: ['foo'],
+      entryPoints: ['entry'],
       logLevel: 'silent',
       plugins: [{
-        name: 'x',
+        name: '∞',
         setup(build) {
-          build.onStart(() => {
-            // This should ensure that the build can't end instantly without
-            // calling back out to JavaScript. Since JavaScript is single-
-            // threaded, that means we get to call "cancel()" before "rebuild()"
-            // ends.
+          build.onResolve({ filter: /.*/ }, args => {
+            return { path: args.path, namespace: '∞' }
+          })
+          build.onLoad({ filter: /.*/ }, async (args) => {
+            await new Promise(r => setTimeout(r, 10))
+            return { contents: 'import ' + JSON.stringify(args.path + '.') }
           })
         },
       }],
