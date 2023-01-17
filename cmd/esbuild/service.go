@@ -621,32 +621,26 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 		options.Plugins = append(options.Plugins, api.Plugin{
 			Name: "onEnd",
 			Setup: func(build api.PluginBuild) {
-				build.OnStart(func() (api.OnStartResult, error) {
-					activeBuild.mutex.Lock()
-					activeBuild.didGetRebuild = true
-					activeBuild.mutex.Unlock()
-					return api.OnStartResult{}, nil
-				})
-
 				build.OnEnd(func(result *api.BuildResult) (api.OnEndResult, error) {
 					// For performance, we only send JavaScript an "onEnd" message if
-					// it's needed. It's only needed if there are any "onEnd" callbacks
-					// registered or if JavaScript has called our "rebuild()" function
-					// (since the result for "rebuild" is passed via the same mechanism).
+					// it's needed. It's only needed if one of the following is true:
+					//
+					// - There are any "onEnd" callbacks registered
+					// - JavaScript has called our "rebuild()" function
+					// - We are writing build output to JavaScript's stdout
+					//
 					// This is especially important if "write" is false since otherwise
 					// we'd unnecessarily send the entire contents of all output files!
 					//
 					//          "If a tree falls in a forest and no one is
 					//           around to hear it, does it make a sound?"
 					//
-					if !hasOnEndCallbacks {
-						activeBuild.mutex.Lock()
-						didGetRebuild := activeBuild.didGetRebuild
-						activeBuild.didGetRebuild = false
-						activeBuild.mutex.Unlock()
-						if !didGetRebuild {
-							return api.OnEndResult{}, nil
-						}
+					activeBuild.mutex.Lock()
+					didGetRebuild := activeBuild.didGetRebuild
+					activeBuild.didGetRebuild = false
+					activeBuild.mutex.Unlock()
+					if !hasOnEndCallbacks && !didGetRebuild && !writeToStdout {
+						return api.OnEndResult{}, nil
 					}
 					request := resultToResponse(*result)
 					request["command"] = "on-end"
