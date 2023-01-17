@@ -1110,11 +1110,10 @@ func ScanBundle(
 
 	applyOptionDefaults(&options)
 
-	if options.CancelFlag.DidCancel() {
-		return Bundle{options: options}
-	}
-
-	// Run "onStart" plugins in parallel
+	// Run "onStart" plugins in parallel. IMPORTANT: We always need to run all
+	// "onStart" callbacks even when the build is cancelled, because plugins may
+	// rely on invariants that are started in "onStart" and ended in "onEnd".
+	// This works because "onEnd" callbacks are always run as well.
 	timer.Begin("On-start callbacks")
 	onStartWaitGroup := sync.WaitGroup{}
 	for _, plugin := range options.Plugins {
@@ -1201,6 +1200,7 @@ func ScanBundle(
 	onStartWaitGroup.Wait()
 	timer.End("On-start callbacks")
 
+	// We can check the cancel flag now that all "onStart" callbacks are done
 	if options.CancelFlag.DidCancel() {
 		return Bundle{options: options}
 	}
