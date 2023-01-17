@@ -1116,6 +1116,7 @@ function buildOrContextImpl(
 
         dispose: () => new Promise(resolve => {
           if (didDispose) return resolve()
+          didDispose = true // Don't dispose more than once
           const request: protocol.DisposeRequest = {
             command: 'dispose',
             key: buildKey,
