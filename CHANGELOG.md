@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.17.2
 
 * Add `onDispose` to the plugin API ([#2140](https://github.com/evanw/esbuild/issues/2140), [#2205](https://github.com/evanw/esbuild/issues/2205))
 
