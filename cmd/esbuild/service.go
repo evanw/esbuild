@@ -33,8 +33,10 @@ type activeBuild struct {
 	mutex            sync.Mutex
 	disposeWaitGroup sync.WaitGroup // Allows "dispose" to wait for all active tasks
 
-	// This is guarded by the mutex
-	didGetRebuild bool
+	// These are guarded by the mutex
+	rebuildWaitGroup   *sync.WaitGroup // Allows "cancel" to wait for all active rebuilds (within mutex because "sync.WaitGroup" isn't thread-safe)
+	withinRebuildCount int
+	didGetCancel       bool
 }
 
 type serviceType struct {
@@ -275,7 +277,11 @@ func (service *serviceType) handleIncomingPacket(bytes []byte) {
 			build.mutex.Lock()
 			ctx := build.ctx
 			if ctx != nil {
-				build.didGetRebuild = true
+				build.withinRebuildCount++
+				if build.rebuildWaitGroup == nil {
+					build.rebuildWaitGroup = &sync.WaitGroup{}
+				}
+				build.rebuildWaitGroup.Add(1)
 				build.disposeWaitGroup.Add(1)
 			}
 			build.mutex.Unlock()
@@ -285,6 +291,17 @@ func (service *serviceType) handleIncomingPacket(bytes []byte) {
 					defer service.keepAliveWaitGroup.Done()
 					defer build.disposeWaitGroup.Done()
 					result := ctx.Rebuild()
+					build.mutex.Lock()
+					build.withinRebuildCount--
+					build.rebuildWaitGroup.Done()
+					if build.withinRebuildCount == 0 {
+						// Clear the cancel flag now that the last rebuild has finished
+						build.didGetCancel = false
+
+						// Clear this to avoid confusion with the next group of rebuilds
+						build.rebuildWaitGroup = nil
+					}
+					build.mutex.Unlock()
 					service.sendPacket(encodePacket(packet{
 						id: p.id,
 						value: map[string]interface{}{
@@ -422,12 +439,29 @@ func (service *serviceType) handleIncomingPacket(bytes []byte) {
 		if build := service.getActiveBuild(key); build != nil {
 			build.mutex.Lock()
 			ctx := build.ctx
+			rebuildWaitGroup := build.rebuildWaitGroup
+			if build.withinRebuildCount > 0 {
+				// If Go got a "rebuild" message from JS before this, there's a chance
+				// that Go hasn't run "ctx.Rebuild()" by the time our "ctx.Cancel()"
+				// runs below because both of them are on separate goroutines. To
+				// handle this, we set this flag to tell our "OnStart" plugin to cancel
+				// the build in case things happen in that order.
+				build.didGetCancel = true
+			}
 			build.mutex.Unlock()
 			if ctx != nil {
 				service.keepAliveWaitGroup.Add(1)
 				go func() {
 					defer service.keepAliveWaitGroup.Done()
 					ctx.Cancel()
+
+					// Block until all manual rebuilds that were active at the time the
+					// "cancel" packet was originally processed have finished. That way
+					// JS can wait for "cancel" to end and be assured that it can call
+					// "rebuild" and have it not merge with any other ongoing rebuilds.
+					if rebuildWaitGroup != nil {
+						rebuildWaitGroup.Wait()
+					}
 
 					// Only return control to JavaScript once the cancel operation has succeeded
 					service.sendPacket(encodePacket(packet{
@@ -623,6 +657,39 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 		options.Plugins = append(options.Plugins, api.Plugin{
 			Name: "onEnd",
 			Setup: func(build api.PluginBuild) {
+				build.OnStart(func() (api.OnStartResult, error) {
+					activeBuild.mutex.Lock()
+					if currentWaitGroup := activeBuild.rebuildWaitGroup; currentWaitGroup != nil && activeBuild.didGetCancel {
+						// Cancel the current build now that the current build is active.
+						// This catches the case where JS does "rebuild()" then "cancel()"
+						// but Go's scheduler runs the original "ctx.Cancel()" goroutine
+						// before it runs the "ctx.Rebuild()" goroutine.
+						//
+						// This adds to the rebuild wait group that other cancel operations
+						// are waiting on because we also want those other cancel operations
+						// to wait on this cancel operation. Go might schedule this new
+						// goroutine after all currently-active rebuilds end. We don't want
+						// the user's cancel operation to return to the user and for them
+						// to start another rebuild before our "ctx.Cancel" below runs
+						// because our cancel is supposed to cancel the current build, not
+						// some independent future build.
+						activeBuild.rebuildWaitGroup.Add(1)
+						go func() {
+							activeBuild.ctx.Cancel()
+
+							// Lock the mutex because "sync.WaitGroup" isn't thread-safe.
+							// But use the wait group that was active at the time the
+							// "OnStart" callback ran instead of the latest one on the
+							// active build in case this goroutine is delayed.
+							activeBuild.mutex.Lock()
+							currentWaitGroup.Done()
+							activeBuild.mutex.Unlock()
+						}()
+					}
+					activeBuild.mutex.Unlock()
+					return api.OnStartResult{}, nil
+				})
+
 				build.OnEnd(func(result *api.BuildResult) (api.OnEndResult, error) {
 					// For performance, we only send JavaScript an "onEnd" message if
 					// it's needed. It's only needed if one of the following is true:
@@ -638,10 +705,9 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 					//           around to hear it, does it make a sound?"
 					//
 					activeBuild.mutex.Lock()
-					didGetRebuild := activeBuild.didGetRebuild
-					activeBuild.didGetRebuild = false
+					isWithinRebuild := activeBuild.withinRebuildCount > 0
 					activeBuild.mutex.Unlock()
-					if !hasOnEndCallbacks && !didGetRebuild && !writeToStdout {
+					if !hasOnEndCallbacks && !isWithinRebuild && !writeToStdout {
 						return api.OnEndResult{}, nil
 					}
 					request := resultToResponse(*result)

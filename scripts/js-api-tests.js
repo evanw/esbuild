@@ -2760,6 +2760,53 @@ import "after/alias";
     }
   },
 
+  // This test checks for races between manual "rebuild()" and "cancel()".
+  // Ideally calling "cancel()" after "rebuild()" will always cancel it even
+  // if the Go side hasn't started running the rebuild yet. Since Go is multi-
+  // threaded, Go can actually start running the "cancel()" before the
+  // "rebuild()" (i.e. in the other order). The Go code does some complex stuff
+  // with mutexes to try to make this ideal behavior happen despite multi-
+  // threading.
+  async rapidRebuildCancel({ esbuild }) {
+    const context = await esbuild.context({
+      entryPoints: ['foo'],
+      logLevel: 'silent',
+      plugins: [{
+        name: 'x',
+        setup(build) {
+          build.onStart(() => {
+            // This should ensure that the build can't end instantly without
+            // calling back out to JavaScript. Since JavaScript is single-
+            // threaded, that means we get to call "cancel()" before "rebuild()"
+            // ends.
+          })
+        },
+      }],
+    })
+
+    try {
+      const promises = []
+      for (let i = 0; i < 100; i++) {
+        const promise = context.rebuild()
+        promise.catch(() => { /* avoid termination due to an uncaught exception */ })
+        promises.push(promise)
+        await context.cancel()
+      }
+
+      for (let i = 0; i < promises.length; i++) {
+        try {
+          await promises[i]
+          throw new Error('Expected an error to be thrown for rebuild ' + i)
+        } catch (err) {
+          if (!err.errors || err.errors.length !== 1 || err.errors[0].text !== 'The build was canceled')
+            throw err
+        }
+      }
+    } finally {
+      context.dispose()
+    }
+  },
+
   async bundleAvoidTDZ({ esbuild }) {
     var { outputFiles } = await esbuild.build({
       stdin: {
