@@ -476,8 +476,22 @@ func (a *RDeclaration) Equal(rule R) bool {
 }
 
 func (r *RDeclaration) Hash() (uint32, bool) {
-	hash := uint32(7)
-	hash = helpers.HashCombine(hash, uint32(r.Key))
+	var hash uint32
+	if r.Key == DUnknown {
+		if r.Important {
+			hash = uint32(7)
+		} else {
+			hash = uint32(8)
+		}
+		hash = helpers.HashCombineString(hash, r.KeyText)
+	} else {
+		if r.Important {
+			hash = uint32(9)
+		} else {
+			hash = uint32(10)
+		}
+		hash = helpers.HashCombine(hash, uint32(r.Key))
+	}
 	hash = HashTokens(hash, r.Value)
 	return hash, true
 }
@@ -492,7 +506,7 @@ func (a *RBadDeclaration) Equal(rule R) bool {
 }
 
 func (r *RBadDeclaration) Hash() (uint32, bool) {
-	hash := uint32(8)
+	hash := uint32(11)
 	hash = HashTokens(hash, r.Tokens)
 	return hash, true
 }
@@ -507,7 +521,7 @@ func (a *RComment) Equal(rule R) bool {
 }
 
 func (r *RComment) Hash() (uint32, bool) {
-	hash := uint32(9)
+	hash := uint32(12)
 	hash = helpers.HashCombineString(hash, r.Text)
 	return hash, true
 }
@@ -538,7 +552,7 @@ func (a *RAtLayer) Equal(rule R) bool {
 }
 
 func (r *RAtLayer) Hash() (uint32, bool) {
-	hash := uint32(10)
+	hash := uint32(13)
 	hash = helpers.HashCombine(hash, uint32(len(r.Names)))
 	for _, parts := range r.Names {
 		hash = helpers.HashCombine(hash, uint32(len(parts)))
