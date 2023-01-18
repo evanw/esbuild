@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+* Fix incorrect CSS minification for certain rules ([#2838](https://github.com/evanw/esbuild/issues/2838))
+
+    Certain rules such as `@media` could previously be minified incorrectly. Due to a typo in the duplicate rule checker, two known `@`-rules that share the same hash code were incorrectly considered to be equal. This problem was made worse by the rule hashing code considering two unknown declarations (such as CSS variables) to have the same hash code, which also isn't optimal from a performance perspective. Both of these issues have been fixed:
+
+    ```css
+    /* Original input */
+    @media (prefers-color-scheme: dark) { body { --VAR-1: #000; } }
+    @media (prefers-color-scheme: dark) { body { --VAR-2: #000; } }
+
+    /* Old output (with --minify) */
+    @media (prefers-color-scheme: dark){body{--VAR-2: #000}}
+
+    /* New output (with --minify) */
+    @media (prefers-color-scheme: dark){body{--VAR-1: #000}}@media (prefers-color-scheme: dark){body{--VAR-2: #000}}
+    ```
+
 ## 0.17.2
 
 * Add `onDispose` to the plugin API ([#2140](https://github.com/evanw/esbuild/issues/2140), [#2205](https://github.com/evanw/esbuild/issues/2205))

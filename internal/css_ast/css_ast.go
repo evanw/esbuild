@@ -373,7 +373,7 @@ type RKnownAt struct {
 
 func (a *RKnownAt) Equal(rule R) bool {
 	b, ok := rule.(*RKnownAt)
-	return ok && a.AtToken == b.AtToken && TokensEqual(a.Prelude, b.Prelude) && RulesEqual(a.Rules, a.Rules)
+	return ok && a.AtToken == b.AtToken && TokensEqual(a.Prelude, b.Prelude) && RulesEqual(a.Rules, b.Rules)
 }
 
 func (r *RKnownAt) Hash() (uint32, bool) {
@@ -392,7 +392,7 @@ type RUnknownAt struct {
 
 func (a *RUnknownAt) Equal(rule R) bool {
 	b, ok := rule.(*RUnknownAt)
-	return ok && a.AtToken == b.AtToken && TokensEqual(a.Prelude, b.Prelude) && TokensEqual(a.Block, a.Block)
+	return ok && a.AtToken == b.AtToken && TokensEqual(a.Prelude, b.Prelude) && TokensEqual(a.Block, b.Block)
 }
 
 func (r *RUnknownAt) Hash() (uint32, bool) {
