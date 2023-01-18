@@ -5756,3 +5756,19 @@ func TestAutoPureForWeakMap(t *testing.T) {
 	expectPrinted(t, "new WeakMap([x, []])", "new WeakMap([x, []]);\n")
 	expectPrinted(t, "new WeakMap([[], x])", "new WeakMap([[], x]);\n")
 }
+
+func TestAutoPureForDate(t *testing.T) {
+	expectPrinted(t, "new Date", "/* @__PURE__ */ new Date();\n")
+	expectPrinted(t, "new Date(0)", "/* @__PURE__ */ new Date(0);\n")
+	expectPrinted(t, "new Date('')", "/* @__PURE__ */ new Date(\"\");\n")
+	expectPrinted(t, "new Date(null)", "/* @__PURE__ */ new Date(null);\n")
+	expectPrinted(t, "new Date(true)", "/* @__PURE__ */ new Date(true);\n")
+	expectPrinted(t, "new Date(false)", "/* @__PURE__ */ new Date(false);\n")
+	expectPrinted(t, "new Date(undefined)", "/* @__PURE__ */ new Date(void 0);\n")
+	expectPrinted(t, "new Date(`${foo}`)", "/* @__PURE__ */ new Date(`${foo}`);\n")
+	expectPrinted(t, "new Date(foo ? 'x' : 'y')", "/* @__PURE__ */ new Date(foo ? \"x\" : \"y\");\n")
+
+	expectPrinted(t, "new Date(foo)", "new Date(foo);\n")
+	expectPrinted(t, "new Date(foo``)", "new Date(foo``);\n")
+	expectPrinted(t, "new Date(foo ? x : y)", "new Date(foo ? x : y);\n")
+}

@@ -14381,6 +14381,31 @@ func (p *parser) maybeMarkKnownGlobalConstructorAsPure(e *js_ast.ENew) {
 					}
 				}
 
+			case "Date":
+				n := len(e.Args)
+
+				if n == 0 {
+					// "new Date()" is pure
+					e.CanBeUnwrappedIfUnused = true
+					break
+				}
+
+				if n == 1 {
+					switch js_ast.KnownPrimitiveType(e.Args[0]) {
+					case js_ast.PrimitiveNull, js_ast.PrimitiveUndefined, js_ast.PrimitiveBoolean, js_ast.PrimitiveNumber, js_ast.PrimitiveString:
+						// "new Date('')" is pure
+						// "new Date(0)" is pure
+						// "new Date(null)" is pure
+						// "new Date(true)" is pure
+						// "new Date(false)" is pure
+						// "new Date(undefined)" is pure
+						e.CanBeUnwrappedIfUnused = true
+
+					default:
+						// "new Date(x)" is impure because converting "x" to a string could have side effects
+					}
+				}
+
 			case "Set":
 				n := len(e.Args)
 
