@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.17.3
 
 * Fix incorrect CSS minification for certain rules ([#2838](https://github.com/evanw/esbuild/issues/2838))
 
