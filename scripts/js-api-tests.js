@@ -3654,7 +3654,7 @@ import "after/alias";
   },
 }
 
-function fetch(host, port, path, headers) {
+function fetch(host, port, path, { headers } = {}) {
   return new Promise((resolve, reject) => {
     http.get({ host, port, path, headers }, res => {
       const chunks = []
@@ -4484,10 +4484,11 @@ let serveTests = {
       for (let i = 0, n = 16; i < n; i++) {
         const length = Math.round(minLength + (maxLength - minLength) * i / (n - 1))
         const start = Math.floor(Math.random() * (buffer.length - length))
-        const fetched = await fetch(result.host, result.port, '/big.txt', {
+        const headers = {
           // Subtract 1 because range headers are inclusive on both ends
           Range: `bytes=${start}-${start + length - 1}`,
-        })
+        }
+        const fetched = await fetch(result.host, result.port, '/big.txt', { headers })
         delete fetched.headers.date // This changes every time
         delete fetched.headers.connection // Node v19+ no longer sends this
         const expected = buffer.slice(start, start + length)
