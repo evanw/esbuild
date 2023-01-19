@@ -3654,9 +3654,9 @@ import "after/alias";
   },
 }
 
-function fetch(host, port, path, { headers } = {}) {
+function fetch(host, port, path, { headers, method = 'GET' } = {}) {
   return new Promise((resolve, reject) => {
-    http.get({ host, port, path, headers }, res => {
+    http.request({ method, host, port, path, headers }, res => {
       const chunks = []
       res.on('data', chunk => chunks.push(chunk))
       res.on('end', () => {
@@ -3670,7 +3670,7 @@ function fetch(host, port, path, { headers } = {}) {
           resolve(content)
         }
       })
-    }).on('error', reject)
+    }).on('error', reject).end()
   })
 }
 
@@ -4100,9 +4100,6 @@ let serveTests = {
     await writeFileAsync(input, `console.log(123)`)
 
     let onRequest;
-    let singleRequestPromise = new Promise(resolve => {
-      onRequest = resolve;
-    });
 
     const context = await esbuild.context({
       entryPoints: [input],
@@ -4113,21 +4110,40 @@ let serveTests = {
     try {
       const result = await context.serve({
         host: '127.0.0.1',
-        onRequest,
+        onRequest: args => onRequest(args),
       })
       assert.strictEqual(result.host, '127.0.0.1');
       assert.strictEqual(typeof result.port, 'number');
 
-      const buffer = await fetch(result.host, result.port, '/in.js')
-      assert.strictEqual(buffer.toString(), `console.log(123);\n`);
-      assert.strictEqual(fs.readFileSync(input, 'utf8'), `console.log(123)`)
+      // GET /in.js
+      {
+        const singleRequestPromise = new Promise(resolve => { onRequest = resolve });
+        const buffer = await fetch(result.host, result.port, '/in.js')
+        assert.strictEqual(buffer.toString(), `console.log(123);\n`);
+        assert.strictEqual(fs.readFileSync(input, 'utf8'), `console.log(123)`)
 
-      let singleRequest = await singleRequestPromise;
-      assert.strictEqual(singleRequest.method, 'GET');
-      assert.strictEqual(singleRequest.path, '/in.js');
-      assert.strictEqual(singleRequest.status, 200);
-      assert.strictEqual(typeof singleRequest.remoteAddress, 'string');
-      assert.strictEqual(typeof singleRequest.timeInMS, 'number');
+        let singleRequest = await singleRequestPromise;
+        assert.strictEqual(singleRequest.method, 'GET');
+        assert.strictEqual(singleRequest.path, '/in.js');
+        assert.strictEqual(singleRequest.status, 200);
+        assert.strictEqual(typeof singleRequest.remoteAddress, 'string');
+        assert.strictEqual(typeof singleRequest.timeInMS, 'number');
+      }
+
+      // HEAD /in.js
+      {
+        const singleRequestPromise = new Promise(resolve => { onRequest = resolve });
+        const buffer = await fetch(result.host, result.port, '/in.js', { method: 'HEAD' })
+        assert.strictEqual(buffer.toString(), ``); // HEAD omits the content
+        assert.strictEqual(fs.readFileSync(input, 'utf8'), `console.log(123)`)
+
+        let singleRequest = await singleRequestPromise;
+        assert.strictEqual(singleRequest.method, 'HEAD');
+        assert.strictEqual(singleRequest.path, '/in.js');
+        assert.strictEqual(singleRequest.status, 200);
+        assert.strictEqual(typeof singleRequest.remoteAddress, 'string');
+        assert.strictEqual(typeof singleRequest.timeInMS, 'number');
+      }
     } finally {
       await context.dispose();
     }

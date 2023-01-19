@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Implement HTTP `HEAD` requests in serve mode ([#2851](https://github.com/evanw/esbuild/issues/2851))
+
+    Previously esbuild's serve mode only responded to HTTP `GET` requests. With this release, esbuild's serve mode will also respond to HTTP `HEAD` requests, which are just like HTTP `GET` requests except that the body of the response is omitted.
+
 ## 0.17.3
 
 * Fix incorrect CSS minification for certain rules ([#2838](https://github.com/evanw/esbuild/issues/2838))
