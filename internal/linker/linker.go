@@ -277,7 +277,7 @@ func Link(
 			// format is not ESM-compatible since that avoids generating the ESM-to-CJS
 			// machinery.
 			if repr.AST.HasLazyExport && (c.options.Mode == config.ModePassThrough ||
-				(c.options.Mode == config.ModeConvertFormat && !c.options.OutputFormat.KeepES6ImportExportSyntax())) {
+				(c.options.Mode == config.ModeConvertFormat && !c.options.OutputFormat.KeepESMImportExportSyntax())) {
 				repr.AST.ExportsKind = js_ast.ExportsCommonJS
 			}
 
@@ -1716,7 +1716,7 @@ func (c *linkerContext) scanImportsAndExports() {
 				// Don't follow external imports (this includes import() expressions)
 				if !record.SourceIndex.IsValid() || c.isExternalDynamicImport(record, sourceIndex) {
 					// This is an external import. Check if it will be a "require()" call.
-					if record.Kind == ast.ImportRequire || !c.options.OutputFormat.KeepES6ImportExportSyntax() ||
+					if record.Kind == ast.ImportRequire || !c.options.OutputFormat.KeepESMImportExportSyntax() ||
 						(record.Kind == ast.ImportDynamic && c.options.UnsupportedJSFeatures.Has(compat.DynamicImport)) {
 						// We should use "__require" instead of "require" if we're not
 						// generating a CommonJS output file, since it won't exist otherwise
@@ -1815,7 +1815,7 @@ func (c *linkerContext) scanImportsAndExports() {
 				record := &repr.AST.ImportRecords[importRecordIndex]
 
 				// Is this export star evaluated at run time?
-				happensAtRunTime := !record.SourceIndex.IsValid() && (!file.IsEntryPoint() || !c.options.OutputFormat.KeepES6ImportExportSyntax())
+				happensAtRunTime := !record.SourceIndex.IsValid() && (!file.IsEntryPoint() || !c.options.OutputFormat.KeepESMImportExportSyntax())
 				if record.SourceIndex.IsValid() {
 					otherSourceIndex := record.SourceIndex.GetIndex()
 					otherRepr := c.graph.Files[otherSourceIndex].InputFile.Repr.(*graph.JSRepr)
@@ -2322,7 +2322,7 @@ loop:
 		nextTracker, status, potentiallyAmbiguousExportStarRefs := c.advanceImportTracker(tracker)
 		switch status {
 		case importCommonJS, importCommonJSWithoutExports, importExternal, importDisabled:
-			if status == importExternal && c.options.OutputFormat.KeepES6ImportExportSyntax() {
+			if status == importExternal && c.options.OutputFormat.KeepESMImportExportSyntax() {
 				// Imports from external modules should not be converted to CommonJS
 				// if the output format preserves the original ES6 import statements
 				break
@@ -2534,7 +2534,7 @@ func (c *linkerContext) hasDynamicExportsDueToExportStar(sourceIndex uint32, vis
 		// This file has dynamic exports if the exported imports are from a file
 		// that either has dynamic exports directly or transitively by itself
 		// having an export star from a file with dynamic exports.
-		if (!record.SourceIndex.IsValid() && (!c.graph.Files[sourceIndex].IsEntryPoint() || !c.options.OutputFormat.KeepES6ImportExportSyntax())) ||
+		if (!record.SourceIndex.IsValid() && (!c.graph.Files[sourceIndex].IsEntryPoint() || !c.options.OutputFormat.KeepESMImportExportSyntax())) ||
 			(record.SourceIndex.IsValid() && record.SourceIndex.GetIndex() != sourceIndex && c.hasDynamicExportsDueToExportStar(record.SourceIndex.GetIndex(), visited)) {
 			repr.AST.ExportsKind = js_ast.ExportsESMWithDynamicFallback
 			return true
@@ -3426,7 +3426,7 @@ func (c *linkerContext) shouldRemoveImportExportStmt(
 	// Is this an external import?
 	if !record.SourceIndex.IsValid() {
 		// Keep the "import" statement if "import" statements are supported
-		if c.options.OutputFormat.KeepES6ImportExportSyntax() {
+		if c.options.OutputFormat.KeepESMImportExportSyntax() {
 			return false
 		}
 
@@ -3556,7 +3556,7 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 			record := &repr.AST.ImportRecords[s.ImportRecordIndex]
 
 			// Is this export star evaluated at run time?
-			if !record.SourceIndex.IsValid() && c.options.OutputFormat.KeepES6ImportExportSyntax() {
+			if !record.SourceIndex.IsValid() && c.options.OutputFormat.KeepESMImportExportSyntax() {
 				if record.Flags.Has(ast.CallsRunTimeReExportFn) {
 					// Turn this statement into "import * as ns from 'path'"
 					stmt.Data = &js_ast.SImport{
@@ -4602,7 +4602,7 @@ func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []ui
 			// wrapper if the output format supports import statements. We need to
 			// add those symbols to the top-level scope to avoid causing name
 			// collisions. This code special-cases only those symbols.
-			if c.options.OutputFormat.KeepES6ImportExportSyntax() {
+			if c.options.OutputFormat.KeepESMImportExportSyntax() {
 				for _, part := range repr.AST.Parts {
 					for _, stmt := range part.Stmts {
 						switch s := stmt.Data.(type) {
@@ -4897,7 +4897,7 @@ func (c *linkerContext) generateChunkJS(chunkIndex int, chunkWaitGroup *sync.Wai
 		// Print exports
 		jMeta.AddString("],\n      \"exports\": [")
 		var aliases []string
-		if c.options.OutputFormat.KeepES6ImportExportSyntax() {
+		if c.options.OutputFormat.KeepESMImportExportSyntax() {
 			if chunk.isEntryPoint {
 				if fileRepr := c.graph.Files[chunk.sourceIndex].InputFile.Repr.(*graph.JSRepr); fileRepr.Meta.Wrap == graph.WrapCJS {
 					aliases = []string{"default"}

@@ -404,7 +404,7 @@ func (res *Resolver) Resolve(sourceDir string, importPath string, kind ast.Impor
 		}
 
 		// Check whether the path will end up as "import" or "require"
-		convertImportToRequire := !r.options.OutputFormat.KeepES6ImportExportSyntax()
+		convertImportToRequire := !r.options.OutputFormat.KeepESMImportExportSyntax()
 		isImport := !convertImportToRequire && (kind == ast.ImportStmt || kind == ast.ImportDynamic)
 		isRequire := kind == ast.ImportRequire || kind == ast.ImportRequireResolve ||
 			(convertImportToRequire && (kind == ast.ImportStmt || kind == ast.ImportDynamic))

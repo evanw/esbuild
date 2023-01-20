@@ -3913,7 +3913,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
 		p.print("for")
-		if s.IsAwait {
+		if s.Await.Len > 0 {
 			p.print(" await")
 		}
 		p.printSpace()
@@ -3921,7 +3921,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 		hasInitComment := p.willPrintExprCommentsAtLoc(s.Init.Loc)
 		hasValueComment := p.willPrintExprCommentsAtLoc(s.Value.Loc)
 		flags := forbidIn | isFollowedByOf
-		if s.IsAwait {
+		if s.Await.Len > 0 {
 			flags |= isInsideForAwait
 		}
 		if hasInitComment || hasValueComment {

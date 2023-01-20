@@ -972,10 +972,10 @@ type SForIn struct {
 }
 
 type SForOf struct {
-	Init    Stmt // May be a SConst, SLet, SVar, or SExpr
-	Value   Expr
-	Body    Stmt
-	IsAwait bool
+	Init  Stmt // May be a SConst, SLet, SVar, or SExpr
+	Value Expr
+	Body  Stmt
+	Await logger.Range
 }
 
 type SDoWhile struct {
@@ -1864,8 +1864,9 @@ type AST struct {
 
 	// This is a list of ES6 features. They are ranges instead of booleans so
 	// that they can be used in log messages. Check to see if "Len > 0".
-	ExportKeyword        logger.Range // Does not include TypeScript-specific syntax
-	TopLevelAwaitKeyword logger.Range
+	ExportKeyword            logger.Range // Does not include TypeScript-specific syntax
+	TopLevelAwaitKeyword     logger.Range
+	LiveTopLevelAwaitKeyword logger.Range // Excludes top-level await in dead branches
 
 	ExportsRef Ref
 	ModuleRef  Ref

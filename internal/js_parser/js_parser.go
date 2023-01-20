@@ -225,6 +225,7 @@ type parser struct {
 	esmExportKeyword          logger.Range
 	enclosingClassKeyword     logger.Range
 	topLevelAwaitKeyword      logger.Range
+	liveTopLevelAwaitKeyword  logger.Range
 
 	latestArrowArgLoc      logger.Loc
 	forbidSuffixAfterAsLoc logger.Loc
@@ -3213,7 +3214,6 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 				} else {
 					if p.fnOrArrowDataParse.isTopLevel {
 						p.topLevelAwaitKeyword = nameRange
-						p.markSyntaxFeature(compat.TopLevelAwait, nameRange)
 					}
 					if p.fnOrArrowDataParse.arrowArgErrors != nil {
 						p.fnOrArrowDataParse.arrowArgErrors.invalidExprAwait = nameRange
@@ -6783,17 +6783,16 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		p.lexer.Next()
 
 		// "for await (let x of y) {}"
-		isForAwait := p.lexer.IsContextualKeyword("await")
-		if isForAwait {
-			awaitRange := p.lexer.Range()
+		var awaitRange logger.Range
+		if p.lexer.IsContextualKeyword("await") {
+			awaitRange = p.lexer.Range()
 			if p.fnOrArrowDataParse.await != allowExpr {
 				p.log.AddError(&p.tracker, awaitRange, "Cannot use \"await\" outside an async function")
-				isForAwait = false
+				awaitRange = logger.Range{}
 			} else {
 				didGenerateError := false
 				if p.fnOrArrowDataParse.isTopLevel {
 					p.topLevelAwaitKeyword = awaitRange
-					didGenerateError = p.markSyntaxFeature(compat.TopLevelAwait, awaitRange)
 				}
 				if !didGenerateError && p.options.unsupportedJSFeatures.Has(compat.AsyncAwait) && p.options.unsupportedJSFeatures.Has(compat.Generator) {
 					// If for-await loops aren't supported, then we only support lowering
@@ -6842,7 +6841,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			expr, stmt, decls = p.parseExprOrLetStmt(parseStmtOpts{
 				lexicalDecl:        lexicalDeclAllowAll,
 				isForLoopInit:      true,
-				isForAwaitLoopInit: isForAwait,
+				isForAwaitLoopInit: awaitRange.Len > 0,
 			})
 			if stmt.Data != nil {
 				badLetRange = logger.Range{}
@@ -6856,11 +6855,11 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		p.allowIn = true
 
 		// Detect for-of loops
-		if p.lexer.IsContextualKeyword("of") || isForAwait {
+		if p.lexer.IsContextualKeyword("of") || awaitRange.Len > 0 {
 			if badLetRange.Len > 0 {
 				p.log.AddError(&p.tracker, badLetRange, "\"let\" must be wrapped in parentheses to be used as an expression here:")
 			}
-			if isForAwait && !p.lexer.IsContextualKeyword("of") {
+			if awaitRange.Len > 0 && !p.lexer.IsContextualKeyword("of") {
 				if initOrNil.Data != nil {
 					p.lexer.ExpectedString("\"of\"")
 				} else {
@@ -6873,7 +6872,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			value := p.parseExpr(js_ast.LComma)
 			p.lexer.Expect(js_lexer.TCloseParen)
 			body := p.parseStmt(parseStmtOpts{})
-			return js_ast.Stmt{Loc: loc, Data: &js_ast.SForOf{IsAwait: isForAwait, Init: initOrNil, Value: value, Body: body}}
+			return js_ast.Stmt{Loc: loc, Data: &js_ast.SForOf{Await: awaitRange, Init: initOrNil, Value: value, Body: body}}
 		}
 
 		// Detect for-in loops
@@ -9859,6 +9858,16 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		p.lowerObjectRestInForLoopInit(s.Init, &s.Body)
 
 	case *js_ast.SForOf:
+		// Silently remove unsupported top-level "await" in dead code branches
+		if s.Await.Len > 0 && p.fnOrArrowDataVisit.isOutsideFnOrArrow {
+			if p.isControlFlowDead && (p.options.unsupportedJSFeatures.Has(compat.TopLevelAwait) || !p.options.outputFormat.KeepESMImportExportSyntax()) {
+				s.Await = logger.Range{}
+			} else {
+				p.liveTopLevelAwaitKeyword = s.Await
+				p.markSyntaxFeature(compat.TopLevelAwait, s.Await)
+			}
+		}
+
 		p.pushScopeForVisitPass(js_ast.ScopeBlock, stmt.Loc)
 		p.visitForLoopInit(s.Init, true)
 		s.Value = p.visitExpr(s.Value)
@@ -9876,7 +9885,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 
 		p.lowerObjectRestInForLoopInit(s.Init, &s.Body)
 
-		if s.IsAwait && p.options.unsupportedJSFeatures.Has(compat.ForAwait) {
+		if s.Await.Len > 0 && p.options.unsupportedJSFeatures.Has(compat.ForAwait) {
 			return p.lowerForAwaitLoop(stmt.Loc, s, stmts)
 		}
 
@@ -11599,7 +11608,7 @@ func (p *parser) valueForThis(
 
 func (p *parser) valueForImportMeta(loc logger.Loc) (js_ast.Expr, bool) {
 	if p.options.unsupportedJSFeatures.Has(compat.ImportMeta) ||
-		(p.options.mode != config.ModePassThrough && !p.options.outputFormat.KeepES6ImportExportSyntax()) {
+		(p.options.mode != config.ModePassThrough && !p.options.outputFormat.KeepESMImportExportSyntax()) {
 		// Generate the variable if it doesn't exist yet
 		if p.importMetaRef == js_ast.InvalidRef {
 			p.importMetaRef = p.newSymbol(js_ast.SymbolOther, "import_meta")
@@ -11909,7 +11918,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		if p.options.unsupportedJSFeatures.Has(compat.ImportMeta) {
 			r := logger.Range{Loc: expr.Loc, Len: e.RangeLen}
 			p.markSyntaxFeature(compat.ImportMeta, r)
-		} else if p.options.mode != config.ModePassThrough && !p.options.outputFormat.KeepES6ImportExportSyntax() {
+		} else if p.options.mode != config.ModePassThrough && !p.options.outputFormat.KeepESMImportExportSyntax() {
 			r := logger.Range{Loc: expr.Loc, Len: e.RangeLen}
 			kind := logger.Warning
 			if p.suppressWarningsAboutWeirdCode || p.fnOrArrowDataVisit.tryBodyCount > 0 {
@@ -13332,6 +13341,16 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 	case *js_ast.EAwait:
+		// Silently remove unsupported top-level "await" in dead code branches
+		if p.fnOrArrowDataVisit.isOutsideFnOrArrow {
+			if p.isControlFlowDead && (p.options.unsupportedJSFeatures.Has(compat.TopLevelAwait) || !p.options.outputFormat.KeepESMImportExportSyntax()) {
+				return p.visitExprInOut(e.Value, in)
+			} else {
+				p.liveTopLevelAwaitKeyword = logger.Range{Loc: expr.Loc, Len: 5}
+				p.markSyntaxFeature(compat.TopLevelAwait, logger.Range{Loc: expr.Loc, Len: 5})
+			}
+		}
+
 		p.awaitTarget = e.Value.Data
 		e.Value = p.visitExpr(e.Value)
 
@@ -16075,7 +16094,8 @@ func (p *parser) toAST(before, parts, after []js_ast.Part, hashbang string, dire
 		ExportsKind:    exportsKind,
 
 		// ES6 features
-		ExportKeyword:        p.esmExportKeyword,
-		TopLevelAwaitKeyword: p.topLevelAwaitKeyword,
+		ExportKeyword:            p.esmExportKeyword,
+		TopLevelAwaitKeyword:     p.topLevelAwaitKeyword,
+		LiveTopLevelAwaitKeyword: p.liveTopLevelAwaitKeyword,
 	}
 }

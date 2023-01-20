@@ -5549,12 +5549,90 @@ var init_entry = __esm({
 await init_entry();
 
 ================================================================================
+TestTopLevelAwaitCJSDeadBranch
+---------- /out.js ----------
+// entry.js
+if (false)
+  foo;
+if (false)
+  for (foo of bar)
+    ;
+
+================================================================================
 TestTopLevelAwaitESM
 ---------- /out.js ----------
 // entry.js
 await foo;
 for await (foo of bar)
   ;
+
+================================================================================
+TestTopLevelAwaitESMDeadBranch
+---------- /out.js ----------
+// entry.js
+if (false)
+  await foo;
+if (false)
+  for await (foo of bar)
+    ;
+
+================================================================================
+TestTopLevelAwaitForbiddenRequireDeadBranch
+---------- /out.js ----------
+(() => {
+  // c.js
+  var c_exports = {};
+  var init_c = __esm({
+    "c.js"() {
+      if (false)
+        for (let x of y)
+          ;
+    }
+  });
+
+  // b.js
+  var b_exports = {};
+  var init_b = __esm({
+    "b.js"() {
+      init_c();
+    }
+  });
+
+  // a.js
+  var a_exports = {};
+  var init_a = __esm({
+    "a.js"() {
+      init_b();
+    }
+  });
+
+  // entry.js
+  var entry_exports = {};
+  var init_entry = __esm({
+    "entry.js"() {
+      init_a();
+      init_b();
+      init_c();
+      init_entry();
+      if (false)
+        for (let x of y)
+          ;
+    }
+  });
+  init_entry();
+})();
+
+================================================================================
+TestTopLevelAwaitIIFEDeadBranch
+---------- /out.js ----------
+(() => {
+  // entry.js
+  if (false)
+    foo;
+  if (false)
+    for (foo of bar)
+      ;
+})();
 
 ================================================================================
 TestTopLevelAwaitNoBundle
@@ -5564,11 +5642,49 @@ for await (foo of bar)
   ;
 
 ================================================================================
-TestTopLevelAwaitNoBundleES6
+TestTopLevelAwaitNoBundleCommonJSDeadBranch
+---------- /out.js ----------
+if (false)
+  foo;
+if (false)
+  for (foo of bar)
+    ;
+
+================================================================================
+TestTopLevelAwaitNoBundleDeadBranch
+---------- /out.js ----------
+if (false)
+  await foo;
+if (false)
+  for await (foo of bar)
+    ;
+
+================================================================================
+TestTopLevelAwaitNoBundleESM
 ---------- /out.js ----------
 await foo;
 for await (foo of bar)
   ;
+
+================================================================================
+TestTopLevelAwaitNoBundleESMDeadBranch
+---------- /out.js ----------
+if (false)
+  await foo;
+if (false)
+  for await (foo of bar)
+    ;
+
+================================================================================
+TestTopLevelAwaitNoBundleIIFEDeadBranch
+---------- /out.js ----------
+(() => {
+  if (false)
+    foo;
+  if (false)
+    for (foo of bar)
+      ;
+})();
 
 ================================================================================
 TestUseStrictDirectiveBundleCJSIssue2264

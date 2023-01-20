@@ -2233,7 +2233,7 @@ func (s *scanner) validateTLA(sourceIndex uint32) tlaCheck {
 	if result.ok && result.tlaCheck.depth == 0 {
 		if repr, ok := result.file.inputFile.Repr.(*graph.JSRepr); ok {
 			result.tlaCheck.depth = 1
-			if repr.AST.TopLevelAwaitKeyword.Len > 0 {
+			if repr.AST.LiveTopLevelAwaitKeyword.Len > 0 {
 				result.tlaCheck.parent = ast.MakeIndex32(sourceIndex)
 			}
 
@@ -2263,10 +2263,10 @@ func (s *scanner) validateTLA(sourceIndex uint32) tlaCheck {
 							parentResult := &s.results[otherSourceIndex]
 							parentRepr := parentResult.file.inputFile.Repr.(*graph.JSRepr)
 
-							if parentRepr.AST.TopLevelAwaitKeyword.Len > 0 {
+							if parentRepr.AST.LiveTopLevelAwaitKeyword.Len > 0 {
 								tlaPrettyPath = parentResult.file.inputFile.Source.PrettyPath
 								tracker := logger.MakeLineColumnTracker(&parentResult.file.inputFile.Source)
-								notes = append(notes, tracker.MsgData(parentRepr.AST.TopLevelAwaitKeyword,
+								notes = append(notes, tracker.MsgData(parentRepr.AST.LiveTopLevelAwaitKeyword,
 									fmt.Sprintf("The top-level await in %q is here:", tlaPrettyPath)))
 								break
 							}

@@ -3797,6 +3797,23 @@ entry.js: ERROR: Top-level await is currently not supported with the "iife" outp
 	})
 }
 
+func TestTopLevelAwaitIIFEDeadBranch(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				if (false) await foo;
+				if (false) for await (foo of bar) ;
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			OutputFormat:  config.FormatIIFE,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
 func TestTopLevelAwaitCJS(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
@@ -3817,12 +3834,46 @@ entry.js: ERROR: Top-level await is currently not supported with the "cjs" outpu
 	})
 }
 
+func TestTopLevelAwaitCJSDeadBranch(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				if (false) await foo;
+				if (false) for await (foo of bar) ;
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			OutputFormat:  config.FormatCommonJS,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
 func TestTopLevelAwaitESM(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				await foo;
 				for await (foo of bar) ;
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			OutputFormat:  config.FormatESModule,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestTopLevelAwaitESMDeadBranch(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				if (false) await foo;
+				if (false) for await (foo of bar) ;
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
@@ -3849,12 +3900,44 @@ func TestTopLevelAwaitNoBundle(t *testing.T) {
 	})
 }
 
-func TestTopLevelAwaitNoBundleES6(t *testing.T) {
+func TestTopLevelAwaitNoBundleDeadBranch(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				if (false) await foo;
+				if (false) for await (foo of bar) ;
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestTopLevelAwaitNoBundleESM(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				await foo;
 				for await (foo of bar) ;
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			OutputFormat:  config.FormatESModule,
+			Mode:          config.ModeConvertFormat,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestTopLevelAwaitNoBundleESMDeadBranch(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				if (false) await foo;
+				if (false) for await (foo of bar) ;
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
@@ -3886,6 +3969,23 @@ entry.js: ERROR: Top-level await is currently not supported with the "cjs" outpu
 	})
 }
 
+func TestTopLevelAwaitNoBundleCommonJSDeadBranch(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				if (false) await foo;
+				if (false) for await (foo of bar) ;
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			OutputFormat:  config.FormatCommonJS,
+			Mode:          config.ModeConvertFormat,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
 func TestTopLevelAwaitNoBundleIIFE(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
@@ -3903,6 +4003,23 @@ func TestTopLevelAwaitNoBundleIIFE(t *testing.T) {
 		expectedScanLog: `entry.js: ERROR: Top-level await is currently not supported with the "iife" output format
 entry.js: ERROR: Top-level await is currently not supported with the "iife" output format
 `,
+	})
+}
+
+func TestTopLevelAwaitNoBundleIIFEDeadBranch(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				if (false) await foo;
+				if (false) for await (foo of bar) ;
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			OutputFormat:  config.FormatIIFE,
+			Mode:          config.ModeConvertFormat,
+			AbsOutputFile: "/out.js",
+		},
 	})
 }
 
@@ -3944,6 +4061,35 @@ c.js: NOTE: The top-level await in "c.js" is here:
 entry.js: ERROR: This require call is not allowed because the imported file "entry.js" contains a top-level await
 entry.js: NOTE: The top-level await in "entry.js" is here:
 `,
+	})
+}
+
+func TestTopLevelAwaitForbiddenRequireDeadBranch(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				require('./a')
+				require('./b')
+				require('./c')
+				require('./entry')
+				if (false) for await (let x of y) await 0
+			`,
+			"/a.js": `
+				import './b'
+			`,
+			"/b.js": `
+				import './c'
+			`,
+			"/c.js": `
+				if (false) for await (let x of y) await 0
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			OutputFormat:  config.FormatIIFE,
+			AbsOutputFile: "/out.js",
+		},
 	})
 }
 

@@ -184,7 +184,7 @@ const (
 	FormatESModule
 )
 
-func (f Format) KeepES6ImportExportSyntax() bool {
+func (f Format) KeepESMImportExportSyntax() bool {
 	return f == FormatPreserve || f == FormatESModule
 }
 

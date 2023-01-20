@@ -6,6 +6,16 @@
 
     Previously esbuild's serve mode only responded to HTTP `GET` requests. With this release, esbuild's serve mode will also respond to HTTP `HEAD` requests, which are just like HTTP `GET` requests except that the body of the response is omitted.
 
+* Permit top-level await in dead code branches ([#2853](https://github.com/evanw/esbuild/issues/2853))
+
+    Adding top-level await to a file has a few consequences with esbuild:
+
+    1. It causes esbuild to assume that the input module format is ESM, since top-level await is only syntactically valid in ESM. That prevents you from using `module` and `exports` for exports and also enables strict mode, which disables certain syntax and changes how function hoisting works (among other things).
+    2. This will cause esbuild to fail the build if either top-level await isn't supported by your language target (e.g. it's not supported in ES2021) or if top-level await isn't supported by the chosen output format (e.g. it's not supported with CommonJS).
+    3. Doing this will prevent you from using `require()` on this file or on any file that imports this file (even indirectly), since the `require()` function doesn't return a promise and so can't represent top-level await.
+
+    This release relaxes these rules slightly: rules 2 and 3 will now no longer apply when esbuild has identified the code branch as dead code, such as when it's behind an `if (false)` check. This should make it possible to use esbuild to convert code into different output formats that only uses top-level await conditionally. This release does not relax rule 1. Top-level await will still cause esbuild to unconditionally consider the input module format to be ESM, even when the top-level `await` is in a dead code branch. This is necessary because whether the input format is ESM or not affects the whole file, not just the dead code branch.
+
 ## 0.17.3
 
 * Fix incorrect CSS minification for certain rules ([#2838](https://github.com/evanw/esbuild/issues/2838))

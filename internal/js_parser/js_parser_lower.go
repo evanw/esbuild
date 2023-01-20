@@ -49,7 +49,7 @@ func (p *parser) markSyntaxFeature(feature compat.JSFeature, r logger.Range) (di
 	didGenerateError = true
 
 	if !p.options.unsupportedJSFeatures.Has(feature) {
-		if feature == compat.TopLevelAwait && !p.options.outputFormat.KeepES6ImportExportSyntax() {
+		if feature == compat.TopLevelAwait && !p.options.outputFormat.KeepESMImportExportSyntax() {
 			p.log.AddError(&p.tracker, r, fmt.Sprintf(
 				"Top-level await is currently not supported with the %q output format", p.options.outputFormat.String()))
 			return
