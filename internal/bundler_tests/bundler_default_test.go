@@ -4841,6 +4841,40 @@ inject.js: NOTE: The symbol "test" was exported from "inject.js" here:
 	})
 }
 
+func TestInjectWithDefine(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log(
+					// define wins over inject
+					both === 'define',
+					// define forwards to inject
+					first === 'second',
+				)
+			`,
+			"/inject.js": `
+				export let both = 'inject'
+				export let first = 'TEST FAILED!'
+				export let second = 'second'
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			InjectPaths: []string{
+				"/inject.js",
+			},
+			Defines: &config.ProcessedDefines{
+				IdentifierDefines: map[string]config.DefineData{
+					"both":  {DefineExpr: &config.DefineExpr{Constant: &js_ast.EString{Value: helpers.StringToUTF16("define")}}},
+					"first": {DefineExpr: &config.DefineExpr{Parts: []string{"second"}}},
+				},
+			},
+		},
+	})
+}
+
 func TestOutbase(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{

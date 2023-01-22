@@ -1996,6 +1996,20 @@ console.log(collide);
 console.log(re_export);
 
 ================================================================================
+TestInjectWithDefine
+---------- /out.js ----------
+// inject.js
+var second = "second";
+
+// entry.js
+console.log(
+  // define wins over inject
+  true,
+  // define forwards to inject
+  second === "second"
+);
+
+================================================================================
 TestJSXAutomaticImportsCommonJS
 ---------- /out.js ----------
 // custom-react.js
