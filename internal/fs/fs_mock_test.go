@@ -11,7 +11,7 @@ func TestMockFSBasicUnix(t *testing.T) {
 		"/package.json": "// package.json",
 		"/src/index.js": "// src/index.js",
 		"/src/util.js":  "// src/util.js",
-	}, MockUnix)
+	}, MockUnix, "/")
 
 	// Test a missing file
 	_, err, _ := fs.ReadFile("/missing.txt")
@@ -78,7 +78,7 @@ func TestMockFSBasicWindows(t *testing.T) {
 		"/package.json": "// package.json",
 		"/src/index.js": "// src/index.js",
 		"/src/util.js":  "// src/util.js",
-	}, MockWindows)
+	}, MockWindows, "C:\\")
 
 	// Test a missing file
 	_, err, _ := fs.ReadFile("C:\\missing.txt")
@@ -140,7 +140,7 @@ func TestMockFSBasicWindows(t *testing.T) {
 }
 
 func TestMockFSRelUnix(t *testing.T) {
-	fs := MockFS(map[string]string{}, MockUnix)
+	fs := MockFS(map[string]string{}, MockUnix, "/")
 
 	expect := func(a string, b string, c string) {
 		t.Helper()
@@ -175,7 +175,7 @@ func TestMockFSRelUnix(t *testing.T) {
 }
 
 func TestMockFSRelWindows(t *testing.T) {
-	fs := MockFS(map[string]string{}, MockWindows)
+	fs := MockFS(map[string]string{}, MockWindows, "C:\\")
 
 	expect := func(a string, b string, c string) {
 		t.Helper()

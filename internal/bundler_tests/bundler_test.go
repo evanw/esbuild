@@ -58,6 +58,7 @@ type bundled struct {
 	expectedCompileLog string
 	options            config.Options
 	debugLogs          bool
+	absWorkingDir      string
 }
 
 type suite struct {
@@ -121,6 +122,9 @@ func (s *suite) __expectBundledImpl(t *testing.T, args bundled, fsKind fs.MockKi
 			entryPoints = append(entryPoints, bundler.EntryPoint{InputPath: path})
 		}
 		entryPoints = append(entryPoints, args.entryPathsAdvanced...)
+		if args.absWorkingDir == "" {
+			args.absWorkingDir = "/"
+		}
 
 		// Handle conversion to Windows-style paths
 		if fsKind == fs.MockWindows {
@@ -128,6 +132,7 @@ func (s *suite) __expectBundledImpl(t *testing.T, args bundled, fsKind fs.MockKi
 				entry.InputPath = unix2win(entry.InputPath)
 				entryPoints[i] = entry
 			}
+			args.absWorkingDir = unix2win(args.absWorkingDir)
 
 			for i, absPath := range args.options.InjectPaths {
 				args.options.InjectPaths[i] = unix2win(absPath)
@@ -154,7 +159,7 @@ func (s *suite) __expectBundledImpl(t *testing.T, args bundled, fsKind fs.MockKi
 		// Run the bundler
 		log := logger.NewDeferLog(logKind, nil)
 		caches := cache.MakeCacheSet()
-		mockFS := fs.MockFS(args.files, fsKind)
+		mockFS := fs.MockFS(args.files, fsKind, args.absWorkingDir)
 		args.options.OmitRuntimeForTests = true
 		bundle := bundler.ScanBundle(log, mockFS, caches, entryPoints, args.options, nil)
 		msgs := log.Done()

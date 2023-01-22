@@ -1449,3 +1449,52 @@ func TestLoaderCopyExplicitOutputFile(t *testing.T) {
 		},
 	})
 }
+
+func TestLoaderCopyStartsWithDotAbsPath(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/project/src/.htaccess": `some stuff`,
+			"/project/src/entry.js":  `some.stuff()`,
+			"/project/src/.ts":       `foo as number`,
+		},
+		entryPaths: []string{
+			"/project/src/.htaccess",
+			"/project/src/entry.js",
+			"/project/src/.ts",
+		},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			ExtensionToLoader: map[string]config.Loader{
+				".js":       config.LoaderJS,
+				".ts":       config.LoaderTS,
+				".htaccess": config.LoaderCopy,
+			},
+		},
+	})
+}
+
+func TestLoaderCopyStartsWithDotRelPath(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/project/src/.htaccess": `some stuff`,
+			"/project/src/entry.js":  `some.stuff()`,
+			"/project/src/.ts":       `foo as number`,
+		},
+		entryPaths: []string{
+			"./.htaccess",
+			"./entry.js",
+			"./.ts",
+		},
+		absWorkingDir: "/project/src",
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			ExtensionToLoader: map[string]config.Loader{
+				".js":       config.LoaderJS,
+				".ts":       config.LoaderTS,
+				".htaccess": config.LoaderCopy,
+			},
+		},
+	})
+}

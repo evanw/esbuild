@@ -16,6 +16,10 @@
 
     This release relaxes these rules slightly: rules 2 and 3 will now no longer apply when esbuild has identified the code branch as dead code, such as when it's behind an `if (false)` check. This should make it possible to use esbuild to convert code into different output formats that only uses top-level await conditionally. This release does not relax rule 1. Top-level await will still cause esbuild to unconditionally consider the input module format to be ESM, even when the top-level `await` is in a dead code branch. This is necessary because whether the input format is ESM or not affects the whole file, not just the dead code branch.
 
+* Fix entry points where the entire file name is the extension ([#2861](https://github.com/evanw/esbuild/issues/2861))
+
+    Previously if you passed esbuild an entry point where the file extension is the entire file name, esbuild would use the parent directory name to derive the name of the output file. For example, if you passed esbuild a file `./src/.ts` then the output name would be `src.js`. This bug happened because esbuild first strips the file extension to get `./src/` and then joins the path with the working directory to get the absolute path (e.g. `join("/working/dir", "./src/")` gives `/working/dir/src`). However, the join operation also canonicalizes the path which strips the trailing `/`. Later esbuild uses the "base name" operation to extract the name of the output file. Since there is no trailing `/`, esbuild returns `"src"` as the base name instead of `""`, which causes esbuild to incorrectly include the directory name in the output file name. This release fixes this bug by deferring the stripping of the file extension until after all path manipulations have been completed. So now the file `./src/.ts` will generate an output file named `.js`.
+
 ## 0.17.3
 
 * Fix incorrect CSS minification for certain rules ([#2838](https://github.com/evanw/esbuild/issues/2838))

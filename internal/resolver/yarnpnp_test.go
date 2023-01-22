@@ -67,7 +67,7 @@ func TestYarnPnP(t *testing.T) {
 		for _, current := range expectation.Tests {
 			func(current pnpTest) {
 				t.Run(current.It, func(t *testing.T) {
-					fs := fs.MockFS(nil, fs.MockUnix)
+					fs := fs.MockFS(nil, fs.MockUnix, "/")
 					r := resolverQuery{Resolver: NewResolver(fs, logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug, nil), nil, config.Options{})}
 					result := r.resolveToUnqualified(current.Imported, current.Importer, manifest)
 

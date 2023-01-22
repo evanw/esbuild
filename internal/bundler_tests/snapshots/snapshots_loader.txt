@@ -272,6 +272,30 @@ TestLoaderCopyExplicitOutputFile
 ---------- /out/this.worked ----------
 some stuff
 ================================================================================
+TestLoaderCopyStartsWithDotAbsPath
+---------- /out/.htaccess ----------
+some stuff
+---------- /out/entry.js ----------
+// project/src/entry.js
+some.stuff();
+
+---------- /out/.js ----------
+// project/src/.ts
+foo;
+
+================================================================================
+TestLoaderCopyStartsWithDotRelPath
+---------- /out/.htaccess ----------
+some stuff
+---------- /out/entry.js ----------
+// entry.js
+some.stuff();
+
+---------- /out/.js ----------
+// .ts
+foo;
+
+================================================================================
 TestLoaderCopyUseIndex
 ---------- /out/index.copy ----------
 some stuff
