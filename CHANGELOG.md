@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.17.4
 
 * Implement HTTP `HEAD` requests in serve mode ([#2851](https://github.com/evanw/esbuild/issues/2851))
 
