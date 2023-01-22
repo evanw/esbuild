@@ -4582,6 +4582,11 @@ func TestInject(t *testing.T) {
 				Constant: &js_ast.EString{Value: helpers.StringToUTF16("should be used")},
 			},
 		},
+		"injected.and.defined": {
+			DefineExpr: &config.DefineExpr{
+				Constant: &js_ast.EString{Value: helpers.StringToUTF16("should be used")},
+			},
+		},
 	})
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
@@ -4591,15 +4596,20 @@ func TestInject(t *testing.T) {
 				console.log(obj.prop)
 				console.log(obj.defined)
 				console.log(injectedAndDefined)
+				console.log(injected.and.defined)
 				console.log(chain.prop.test)
+				console.log(chain2.prop2.test)
 				console.log(collide)
 				console.log(re_export)
+				console.log(re.export)
 			`,
 			"/inject.js": `
 				export let obj = {}
 				export let sideEffects = console.log('side effects')
 				export let noSideEffects = /* @__PURE__ */ console.log('side effects')
 				export let injectedAndDefined = 'should not be used'
+				let injected_and_defined = 'should not be used'
+				export { injected_and_defined as 'injected.and.defined' }
 			`,
 			"/node_modules/unused/index.js": `
 				console.log('This is unused but still has side effects')
@@ -4614,12 +4624,17 @@ func TestInject(t *testing.T) {
 				export let replace = {
 					test() {}
 				}
+				let replace2 = {
+					test() {}
+				}
+				export { replace2 as 'chain2.prop2' }
 			`,
 			"/collision.js": `
 				export let collide = 123
 			`,
 			"/re-export.js": `
 				export {re_export} from 'external-pkg'
+				export {'re.export'} from 'external-pkg2'
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
@@ -4638,7 +4653,8 @@ func TestInject(t *testing.T) {
 			},
 			ExternalSettings: config.ExternalSettings{
 				PreResolve: config.ExternalMatchers{Exact: map[string]bool{
-					"external-pkg": true,
+					"external-pkg":  true,
+					"external-pkg2": true,
 				}},
 			},
 		},
@@ -4662,24 +4678,34 @@ func TestInjectNoBundle(t *testing.T) {
 				Constant: &js_ast.EString{Value: helpers.StringToUTF16("should be used")},
 			},
 		},
+		"injected.and.defined": {
+			DefineExpr: &config.DefineExpr{
+				Constant: &js_ast.EString{Value: helpers.StringToUTF16("should be used")},
+			},
+		},
 	})
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
-				let sideEffects = console.log('this should be renamed')
+				let sideEffects = console.log('side effects')
 				let collide = 123
 				console.log(obj.prop)
 				console.log(obj.defined)
 				console.log(injectedAndDefined)
+				console.log(injected.and.defined)
 				console.log(chain.prop.test)
+				console.log(chain2.prop2.test)
 				console.log(collide)
 				console.log(re_export)
+				console.log(reexpo.rt)
 			`,
 			"/inject.js": `
 				export let obj = {}
-				export let sideEffects = console.log('side effects')
+				export let sideEffects = console.log('this should be renamed')
 				export let noSideEffects = /* @__PURE__ */ console.log('side effects')
 				export let injectedAndDefined = 'should not be used'
+				let injected_and_defined = 'should not be used'
+				export { injected_and_defined as 'injected.and.defined' }
 			`,
 			"/node_modules/unused/index.js": `
 				console.log('This is unused but still has side effects')
@@ -4694,12 +4720,17 @@ func TestInjectNoBundle(t *testing.T) {
 				export let replace = {
 					test() {}
 				}
+				let replaceDot = {
+					test() {}
+				}
+				export { replaceDot as 'chain2.prop2' }
 			`,
 			"/collision.js": `
 				export let collide = 123
 			`,
 			"/re-export.js": `
 				export {re_export} from 'external-pkg'
+				export {'reexpo.rt'} from 'external-pkg2'
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
@@ -4748,6 +4779,32 @@ func TestInjectJSX(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 			Defines:       &defines,
+			InjectPaths: []string{
+				"/inject.js",
+			},
+		},
+	})
+}
+
+func TestInjectJSXDotNames(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.jsx": `
+				console.log(<><div/></>)
+			`,
+			"/inject.js": `
+				function el() {}
+				function frag() {}
+				export {
+					el as 'React.createElement',
+					frag as 'React.Fragment',
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.jsx"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
 			InjectPaths: []string{
 				"/inject.js",
 			},
@@ -4818,13 +4875,22 @@ func TestInjectImportOrder(t *testing.T) {
 }
 
 func TestInjectAssign(t *testing.T) {
+	defines := config.ProcessDefines(map[string]config.DefineData{
+		"defined": {DefineExpr: &config.DefineExpr{Parts: []string{"some", "define"}}},
+	})
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				test = true
+				foo.bar = true
+				defined = true
 			`,
 			"/inject.js": `
-				export let test = false
+				export let test = 0
+				let fooBar = 1
+				let someDefine = 2
+				export { fooBar as 'foo.bar' }
+				export { someDefine as 'some.define' }
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
@@ -4834,9 +4900,14 @@ func TestInjectAssign(t *testing.T) {
 			InjectPaths: []string{
 				"/inject.js",
 			},
+			Defines: &defines,
 		},
 		expectedScanLog: `entry.js: ERROR: Cannot assign to "test" because it's an import from an injected file
 inject.js: NOTE: The symbol "test" was exported from "inject.js" here:
+entry.js: ERROR: Cannot assign to "foo.bar" because it's an import from an injected file
+inject.js: NOTE: The symbol "foo.bar" was exported from "inject.js" here:
+entry.js: ERROR: Cannot assign to "some.define" because it's an import from an injected file
+inject.js: NOTE: The symbol "some.define" was exported from "inject.js" here:
 `,
 	})
 }
@@ -4848,14 +4919,25 @@ func TestInjectWithDefine(t *testing.T) {
 				console.log(
 					// define wins over inject
 					both === 'define',
+					bo.th === 'defi.ne',
 					// define forwards to inject
-					first === 'second',
+					first === 'success (identifier)',
+					fir.st === 'success (dot name)',
 				)
 			`,
 			"/inject.js": `
 				export let both = 'inject'
 				export let first = 'TEST FAILED!'
-				export let second = 'second'
+				export let second = 'success (identifier)'
+
+				let both2 = 'inject'
+				let first2 = 'TEST FAILED!'
+				let second2 = 'success (dot name)'
+				export {
+					both2 as 'bo.th',
+					first2 as 'fir.st',
+					second2 as 'seco.nd',
+				}
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
@@ -4869,6 +4951,10 @@ func TestInjectWithDefine(t *testing.T) {
 				IdentifierDefines: map[string]config.DefineData{
 					"both":  {DefineExpr: &config.DefineExpr{Constant: &js_ast.EString{Value: helpers.StringToUTF16("define")}}},
 					"first": {DefineExpr: &config.DefineExpr{Parts: []string{"second"}}},
+				},
+				DotDefines: map[string][]config.DotDefine{
+					"th": {{Parts: []string{"bo", "th"}, Data: config.DefineData{DefineExpr: &config.DefineExpr{Constant: &js_ast.EString{Value: helpers.StringToUTF16("defi.ne")}}}}},
+					"st": {{Parts: []string{"fir", "st"}, Data: config.DefineData{DefineExpr: &config.DefineExpr{Parts: []string{"seco", "nd"}}}}},
 				},
 			},
 		},
@@ -5014,6 +5100,43 @@ func TestDefineImportMetaES5(t *testing.T) {
 		expectedScanLog: `dead-code.js: WARNING: "import.meta" is not available in the configured target environment and will be empty
 kept.js: WARNING: "import.meta" is not available in the configured target environment and will be empty
 `,
+	})
+}
+
+func TestInjectImportMeta(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log(
+					// These should be fully substituted
+					import.meta,
+					import.meta.foo,
+					import.meta.foo.bar,
+
+					// Should just substitute "import.meta.foo"
+					import.meta.foo.baz,
+
+					// This should not be substituted
+					import.meta.bar,
+				)
+			`,
+			"/inject.js": `
+				let foo = 1
+				let bar = 2
+				let baz = 3
+				export {
+					foo as 'import.meta',
+					bar as 'import.meta.foo',
+					baz as 'import.meta.foo.bar',
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			InjectPaths:   []string{"/inject.js"},
+		},
 	})
 }
 

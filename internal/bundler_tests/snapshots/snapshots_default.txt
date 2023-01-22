@@ -1922,9 +1922,14 @@ var replace = {
   test() {
   }
 };
+var replace2 = {
+  test() {
+  }
+};
 
 // re-export.js
 var import_external_pkg = require("external-pkg");
+var import_external_pkg2 = require("external-pkg2");
 
 // entry.js
 var sideEffects2 = console.log("this should be renamed");
@@ -1932,15 +1937,38 @@ var collide = 123;
 console.log(obj.prop);
 console.log("defined");
 console.log("should be used");
+console.log("should be used");
 console.log(replace.test);
+console.log(replace2.test);
 console.log(collide);
 console.log(import_external_pkg.re_export);
+console.log(re_export2);
 
 ================================================================================
 TestInjectDuplicate
 ---------- /out.js ----------
 // inject.js
 console.log("injected");
+
+================================================================================
+TestInjectImportMeta
+---------- /out.js ----------
+// inject.js
+var foo = 1;
+var bar = 2;
+var baz = 3;
+
+// entry.js
+console.log(
+  // These should be fully substituted
+  foo,
+  bar,
+  baz,
+  // Should just substitute "import.meta.foo"
+  bar.baz,
+  // This should not be substituted
+  foo.bar
+);
 
 ================================================================================
 TestInjectImportOrder
@@ -1976,37 +2004,60 @@ function frag() {
 console.log(/* @__PURE__ */ el(frag, null, /* @__PURE__ */ el("div", null)));
 
 ================================================================================
+TestInjectJSXDotNames
+---------- /out.js ----------
+// inject.js
+function el() {
+}
+function frag() {
+}
+
+// entry.jsx
+console.log(/* @__PURE__ */ el(frag, null, /* @__PURE__ */ el("div", null)));
+
+================================================================================
 TestInjectNoBundle
 ---------- /out.js ----------
-var obj = {};
-var sideEffects = console.log("side effects");
+var obj2 = {};
+var sideEffects2 = console.log("this should be renamed");
 console.log("This is unused but still has side effects");
-var replace = {
+var replace2 = {
   test() {
   }
 };
-import { re_export } from "external-pkg";
-let sideEffects2 = console.log("this should be renamed");
+var replaceDot = {
+  test() {
+  }
+};
+import { re_export as re_export2 } from "external-pkg";
+import { "reexpo.rt" as reexpo_rt } from "external-pkg2";
+let sideEffects = console.log("side effects");
 let collide = 123;
-console.log(obj.prop);
+console.log(obj2.prop);
 console.log("defined");
 console.log("should be used");
-console.log(replace.test);
+console.log("should be used");
+console.log(replace2.test);
+console.log(replaceDot.test);
 console.log(collide);
-console.log(re_export);
+console.log(re_export2);
+console.log(reexpo_rt);
 
 ================================================================================
 TestInjectWithDefine
 ---------- /out.js ----------
 // inject.js
-var second = "second";
+var second = "success (identifier)";
+var second2 = "success (dot name)";
 
 // entry.js
 console.log(
   // define wins over inject
   true,
+  true,
   // define forwards to inject
-  second === "second"
+  second === "success (identifier)",
+  second2 === "success (dot name)"
 );
 
 ================================================================================

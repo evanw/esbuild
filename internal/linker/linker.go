@@ -5877,12 +5877,13 @@ func (c *linkerContext) preventExportsFromBeingRenamed(sourceIndex uint32) {
 		for _, stmt := range part.Stmts {
 			switch s := stmt.Data.(type) {
 			case *js_ast.SImport:
-				// Ignore imports from the internal runtime code. These are generated
-				// automatically and aren't part of the original source code. We
-				// shouldn't consider the file a module if the only ES6 import or
-				// export is the automatically generated one.
-				record := &repr.AST.ImportRecords[s.ImportRecordIndex]
-				if record.SourceIndex.IsValid() && record.SourceIndex.GetIndex() == runtime.SourceIndex {
+				// Ignore imports from internal (i.e. non-external) code. Since this
+				// function is only called when we're not bundling, these imports are
+				// all for files that were generated automatically and aren't part of
+				// the original source code (e.g. the runtime or an injected file).
+				// We shouldn't consider the file a module if the only ESM imports or
+				// exports are automatically generated ones.
+				if repr.AST.ImportRecords[s.ImportRecordIndex].SourceIndex.IsValid() {
 					continue
 				}
 

@@ -2433,7 +2433,7 @@ error: Invalid path suffix "%what" returned from plugin (must start with "?" or 
         },
       }],
     })
-    assert.strictEqual(result.outputFiles[0].text, `var test = "injected";\nconsole.log(test);\n`)
+    assert.strictEqual(result.outputFiles[0].text, `var test2 = "injected";\nconsole.log(test2);\n`)
   },
 }
 

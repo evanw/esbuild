@@ -20,6 +20,80 @@
 
     Previously if you passed esbuild an entry point where the file extension is the entire file name, esbuild would use the parent directory name to derive the name of the output file. For example, if you passed esbuild a file `./src/.ts` then the output name would be `src.js`. This bug happened because esbuild first strips the file extension to get `./src/` and then joins the path with the working directory to get the absolute path (e.g. `join("/working/dir", "./src/")` gives `/working/dir/src`). However, the join operation also canonicalizes the path which strips the trailing `/`. Later esbuild uses the "base name" operation to extract the name of the output file. Since there is no trailing `/`, esbuild returns `"src"` as the base name instead of `""`, which causes esbuild to incorrectly include the directory name in the output file name. This release fixes this bug by deferring the stripping of the file extension until after all path manipulations have been completed. So now the file `./src/.ts` will generate an output file named `.js`.
 
+* Support replacing property access expressions with inject
+
+    At a high level, this change means the `inject` feature can now replace all of the same kinds of names as the `define` feature. So `inject` is basically now a more powerful version of `define`, instead of previously only being able to do some of the things that `define` could do.
+
+    Soem background is necessary to understand this change if you aren't already familiar with the `inject` feature. The `inject` feature lets you replace references to global variable with a shim. It works like this:
+
+    1. Put the shim in its own file
+    2. Export the shim as the name of the global variable you intend to replace
+    3. Pass the file to esbuild using the `inject` feature
+
+    For example, if you inject the following file using `--inject:./injected.js`:
+
+    ```js
+    // injected.js
+    let processShim = { cwd: () => '/' }
+    export { processShim as process }
+    ```
+
+    Then esbuild will replace all references to `process` with the `processShim` variable, which will cause `process.cwd()` to return `'/'`. This feature is sort of abusing the ESM export alias syntax to specify the mapping of global variables to shims. But esbuild works this way because using this syntax for that purpose is convenient and terse.
+
+    However, if you wanted to replace a property access expression, the process was more complicated and not as nice. You would have to:
+
+    1. Put the shim in its own file
+    2. Export the shim as some random name
+    3. Pass the file to esbuild using the `inject` feature
+    4. Use esbuild's `define` feature to map the property access expression to the random name you made in step 2
+
+    For example, if you inject the following file using `--inject:./injected2.js --define:process.cwd=someRandomName`:
+
+    ```js
+    // injected2.js
+    let cwdShim = () => '/'
+    export { cwdShim as someRandomName }
+    ```
+
+    Then esbuild will replace all references to `process.cwd` with the `cwdShim` variable, which will also cause `process.cwd()` to return `'/'` (but which this time will not mess with other references to `process`, which might be desirable).
+
+    With this release, using the inject feature to replace a property access expression is now as simple as using it to replace an identifier. You can now use JavaScript's ["arbitrary module namespace identifier names"](https://github.com/tc39/ecma262/pull/2154) feature to specify the property access expression directly using a string literal. For example, if you inject the following file using `--inject:./injected3.js`:
+
+    ```js
+    // injected3.js
+    let cwdShim = () => '/'
+    export { cwdShim as 'process.cwd' }
+    ```
+
+    Then esbuild will now replace all references to `process.cwd` with the `cwdShim` variable, which will also cause `process.cwd()` to return `'/'` (but which will also not mess with other references to `process`).
+
+    In addition to inserting a shim for a global variable that doesn't exist, another use case is replacing references to static methods on global objects with cached versions to both minify them better and to make access to them potentially faster. For example:
+
+    ```js
+    // Injected file
+    let cachedMin = Math.min
+    let cachedMax = Math.max
+    export {
+      cachedMin as 'Math.min',
+      cachedMax as 'Math.max',
+    }
+
+    // Original input
+    function clampRGB(r, g, b) {
+      return {
+        r: Math.max(0, Math.min(1, r)),
+        g: Math.max(0, Math.min(1, g)),
+        b: Math.max(0, Math.min(1, b)),
+      }
+    }
+
+    // Old output (with --minify)
+    function clampRGB(a,t,m){return{r:Math.max(0,Math.min(1,a)),g:Math.max(0,Math.min(1,t)),b:Math.max(0,Math.min(1,m))}}
+
+    // New output (with --minify)
+    var a=Math.min,t=Math.max;function clampRGB(h,M,m){return{r:t(0,a(1,h)),g:t(0,a(1,M)),b:t(0,a(1,m))}}
+    ```
+
 ## 0.17.3
 
 * Fix incorrect CSS minification for certain rules ([#2838](https://github.com/evanw/esbuild/issues/2838))

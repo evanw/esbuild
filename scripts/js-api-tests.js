@@ -656,6 +656,38 @@ let buildTests = {
     assert.strictEqual(require(output).default, 1234)
   },
 
+  async minifyWithoutInject({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js');
+    const output = path.join(testDir, 'out.js')
+    await writeFileAsync(input, 'function exampleFn() { return Math.min(4, 3) }')
+
+    const result = await esbuild.build({
+      entryPoints: [input],
+      outfile: output,
+      write: false,
+      minify: true,
+    })
+    assert.strictEqual(3, new Function(result.outputFiles[0].text + '\nreturn exampleFn()')())
+  },
+
+  // This should be the same as "minifyWithoutInject" above
+  async minifyWithInject({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js');
+    const inject = path.join(testDir, 'inject.js')
+    const output = path.join(testDir, 'out.js')
+    await writeFileAsync(input, 'function exampleFn() { return Math.min(4, 3) }')
+    await writeFileAsync(inject, 'let min = Math.min; export { min as "Math.min" }')
+
+    const result = await esbuild.build({
+      entryPoints: [input],
+      outfile: output,
+      inject: [inject],
+      write: false,
+      minify: true,
+    })
+    assert.strictEqual(3, new Function(result.outputFiles[0].text + '\nreturn exampleFn()')())
+  },
+
   async mainFields({ esbuild, testDir }) {
     const input = path.join(testDir, 'in.js')
     const output = path.join(testDir, 'out.js')
