@@ -1944,6 +1944,12 @@ func TestTSInstantiationExpression(t *testing.T) {
 	// Instantiation expression
 	expectPrintedTS(t, "const x1 = f<true>;\n(true);", "const x1 = f;\ntrue;\n")
 
+	// Trailing commas are not allowed
+	expectPrintedTS(t, "const x = Array<number>\n(0);", "const x = Array(0);\n")
+	expectPrintedTS(t, "const x = Array<number>;\n(0);", "const x = Array;\n0;\n")
+	expectParseErrorTS(t, "const x = Array<number,>\n(0);", "<stdin>: ERROR: Expected identifier but found \">\"\n")
+	expectParseErrorTS(t, "const x = Array<number,>;\n(0);", "<stdin>: ERROR: Expected identifier but found \">\"\n")
+
 	expectPrintedTS(t, "f<number>?.();", "f?.();\n")
 	expectPrintedTS(t, "f?.<number>();", "f?.();\n")
 	expectPrintedTS(t, "f<<T>() => T>?.();", "f?.();\n")
@@ -2344,6 +2350,9 @@ func TestTSJSX(t *testing.T) {
 	expectPrintedTS(t, "const x = async <T extends X>(y, z) => {}", "const x = async (y, z) => {\n};\n")
 	expectPrintedTS(t, "const x = async <T extends X = Y>(y: T) => {}", "const x = async (y) => {\n};\n")
 	expectPrintedTS(t, "const x = async <T extends X = Y>(y, z) => {}", "const x = async (y, z) => {\n};\n")
+	expectPrintedTS(t, "const x = (async <T, X> y)", "const x = (async < T, X > y);\n")
+	expectPrintedTS(t, "const x = (async <T, X>(y))", "const x = async(y);\n")
+	expectPrintedTS(t, "const x = async <T,>(y)", "const x = async(y);\n")
 	expectParseErrorTS(t, "const x = async <T>(y: T)", "<stdin>: ERROR: Unexpected \":\"\n")
 	expectParseErrorTS(t, "const x = async\n<T>() => {}", "<stdin>: ERROR: Expected \";\" but found \"=>\"\n")
 	expectParseErrorTS(t, "const x = async\n<T>(x) => {}", "<stdin>: ERROR: Expected \";\" but found \"=>\"\n")
