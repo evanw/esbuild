@@ -2136,22 +2136,31 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 		}
 	}
 
+	hasTypeParameters := false
+	hasDefiniteAssignmentAssertionOperator := false
+
 	if p.options.ts.Parse {
-		// "class X { foo?: number }"
-		// "class X { foo!: number }"
-		if opts.isClass && (p.lexer.Token == js_lexer.TQuestion ||
-			(p.lexer.Token == js_lexer.TExclamation && !p.lexer.HasNewlineBefore)) {
-			p.lexer.Next()
+		if opts.isClass {
+			if p.lexer.Token == js_lexer.TQuestion {
+				// "class X { foo?: number }"
+				// "class X { foo?(): number }"
+				p.lexer.Next()
+			} else if p.lexer.Token == js_lexer.TExclamation && !p.lexer.HasNewlineBefore &&
+				kind == js_ast.PropertyNormal && !opts.isAsync && !opts.isGenerator {
+				// "class X { foo!: number }"
+				p.lexer.Next()
+				hasDefiniteAssignmentAssertionOperator = true
+			}
 		}
 
 		// "class X { foo?<T>(): T }"
 		// "const x = { foo<T>(): T {} }"
-		p.skipTypeScriptTypeParameters(typeParametersNormal)
+		hasTypeParameters = !hasDefiniteAssignmentAssertionOperator && p.skipTypeScriptTypeParameters(typeParametersNormal)
 	}
 
 	// Parse a class field with an optional initial value
-	if opts.isClass && kind == js_ast.PropertyNormal && !opts.isAsync &&
-		!opts.isGenerator && p.lexer.Token != js_lexer.TOpenParen {
+	if opts.isClass && kind == js_ast.PropertyNormal && !opts.isAsync && !opts.isGenerator &&
+		!hasTypeParameters && (p.lexer.Token != js_lexer.TOpenParen || hasDefiniteAssignmentAssertionOperator) {
 		var initializerOrNil js_ast.Expr
 
 		// Forbid the names "constructor" and "prototype" in some cases

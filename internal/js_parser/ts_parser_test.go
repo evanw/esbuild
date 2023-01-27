@@ -541,9 +541,11 @@ func TestTSClass(t *testing.T) {
 
 	expectPrintedTS(t, "class Foo { foo!: number }", "class Foo {\n}\n")
 	expectPrintedTS(t, "class Foo { foo!: number = 0 }", "class Foo {\n  constructor() {\n    this.foo = 0;\n  }\n}\n")
-	expectPrintedTS(t, "class Foo { foo!(): void {} }", "class Foo {\n  foo() {\n  }\n}\n")
-	expectPrintedTS(t, "class Foo { foo!(): void; foo(): void {} }", "class Foo {\n  foo() {\n  }\n}\n")
-	expectParseErrorTS(t, "class Foo { foo!(): void foo(): void {} }", "<stdin>: ERROR: Expected \";\" but found \"foo\"\n")
+	expectParseErrorTS(t, "class Foo { foo!() {} }", "<stdin>: ERROR: Expected \";\" but found \"(\"\n")
+	expectParseErrorTS(t, "class Foo { *foo!() {} }", "<stdin>: ERROR: Expected \"(\" but found \"!\"\n")
+	expectParseErrorTS(t, "class Foo { get foo!() {} }", "<stdin>: ERROR: Expected \"(\" but found \"!\"\n")
+	expectParseErrorTS(t, "class Foo { set foo!(x) {} }", "<stdin>: ERROR: Expected \"(\" but found \"!\"\n")
+	expectParseErrorTS(t, "class Foo { async foo!() {} }", "<stdin>: ERROR: Expected \"(\" but found \"!\"\n")
 
 	expectPrintedTS(t, "class Foo { 'foo' = 0 }", "class Foo {\n  constructor() {\n    this[\"foo\"] = 0;\n  }\n}\n")
 	expectPrintedTS(t, "class Foo { ['foo'] = 0 }", "class Foo {\n  constructor() {\n    this[\"foo\"] = 0;\n  }\n}\n")
@@ -605,6 +607,17 @@ func TestTSClass(t *testing.T) {
 	expectParseErrorTS(t, "class Foo<> {}", "<stdin>: ERROR: Expected identifier but found \">\"\n")
 	expectParseErrorTS(t, "class Foo<,> {}", "<stdin>: ERROR: Expected identifier but found \",\"\n")
 	expectParseErrorTS(t, "class Foo<T><T> {}", "<stdin>: ERROR: Expected \"{\" but found \"<\"\n")
+
+	expectPrintedTS(t, "class Foo { foo<T>() {} }", "class Foo {\n  foo() {\n  }\n}\n")
+	expectPrintedTS(t, "class Foo { foo?<T>() {} }", "class Foo {\n  foo() {\n  }\n}\n")
+	expectPrintedTS(t, "class Foo { [foo]<T>() {} }", "class Foo {\n  [foo]() {\n  }\n}\n")
+	expectPrintedTS(t, "class Foo { [foo]?<T>() {} }", "class Foo {\n  [foo]() {\n  }\n}\n")
+	expectParseErrorTS(t, "class Foo { foo<T> }", "<stdin>: ERROR: Expected \"(\" but found \"}\"\n")
+	expectParseErrorTS(t, "class Foo { foo?<T> }", "<stdin>: ERROR: Expected \"(\" but found \"}\"\n")
+	expectParseErrorTS(t, "class Foo { foo!<T>() {} }", "<stdin>: ERROR: Expected \";\" but found \"<\"\n")
+	expectParseErrorTS(t, "class Foo { [foo]<T> }", "<stdin>: ERROR: Expected \"(\" but found \"}\"\n")
+	expectParseErrorTS(t, "class Foo { [foo]?<T> }", "<stdin>: ERROR: Expected \"(\" but found \"}\"\n")
+	expectParseErrorTS(t, "class Foo { [foo]!<T>() {} }", "<stdin>: ERROR: Expected \";\" but found \"<\"\n")
 }
 
 func TestTSPrivateIdentifiers(t *testing.T) {

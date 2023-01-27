@@ -12,6 +12,24 @@
     Foo = class <out T> { };
     ```
 
+* Forbid definite assignment assertion operators on class methods
+
+    In TypeScript, class methods can use the `?` optional property operator but not the `!` definite assignment assertion operator (while class fields can use both):
+
+    ```ts
+    class Foo {
+      // These are valid TypeScript
+      a?
+      b!
+      x?() {}
+
+      // This is invalid TypeScript
+      y!() {}
+    }
+    ```
+
+    Previously esbuild incorrectly allowed the definite assignment assertion operator with class methods. This will no longer be allowed starting with this release.
+
 ## 0.17.4
 
 * Implement HTTP `HEAD` requests in serve mode ([#2851](https://github.com/evanw/esbuild/issues/2851))

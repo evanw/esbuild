@@ -644,94 +644,97 @@ const (
 
 // This is the type parameter declarations that go with other symbol
 // declarations (class, function, type, etc.)
-func (p *parser) skipTypeScriptTypeParameters(mode typeParameters) {
-	if p.lexer.Token == js_lexer.TLessThan {
-		p.lexer.Next()
+func (p *parser) skipTypeScriptTypeParameters(mode typeParameters) bool {
+	if p.lexer.Token != js_lexer.TLessThan {
+		return false
+	}
 
+	p.lexer.Next()
+
+	for {
+		hasIn := false
+		hasOut := false
+		expectIdentifier := true
+		invalidModifierRange := logger.Range{}
+
+		// Scan over a sequence of "in" and "out" modifiers (a.k.a. optional variance annotations)
 		for {
-			hasIn := false
-			hasOut := false
-			expectIdentifier := true
-			invalidModifierRange := logger.Range{}
-
-			// Scan over a sequence of "in" and "out" modifiers (a.k.a. optional variance annotations)
-			for {
-				if p.lexer.Token == js_lexer.TIn {
-					if invalidModifierRange.Len == 0 && (mode != typeParametersWithInOutVarianceAnnotations || hasIn || hasOut) {
-						// Valid:
-						//   "type Foo<in T> = T"
-						// Invalid:
-						//   "type Foo<in in T> = T"
-						//   "type Foo<out in T> = T"
-						invalidModifierRange = p.lexer.Range()
-					}
-					p.lexer.Next()
-					hasIn = true
-					expectIdentifier = true
-					continue
+			if p.lexer.Token == js_lexer.TIn {
+				if invalidModifierRange.Len == 0 && (mode != typeParametersWithInOutVarianceAnnotations || hasIn || hasOut) {
+					// Valid:
+					//   "type Foo<in T> = T"
+					// Invalid:
+					//   "type Foo<in in T> = T"
+					//   "type Foo<out in T> = T"
+					invalidModifierRange = p.lexer.Range()
 				}
+				p.lexer.Next()
+				hasIn = true
+				expectIdentifier = true
+				continue
+			}
 
-				if p.lexer.IsContextualKeyword("out") {
-					r := p.lexer.Range()
-					if invalidModifierRange.Len == 0 && mode != typeParametersWithInOutVarianceAnnotations {
-						invalidModifierRange = r
-					}
-					p.lexer.Next()
-					if invalidModifierRange.Len == 0 && hasOut && (p.lexer.Token == js_lexer.TIn || p.lexer.Token == js_lexer.TIdentifier) {
-						// Valid:
-						//   "type Foo<out T> = T"
-						//   "type Foo<out out> = T"
-						//   "type Foo<out out, T> = T"
-						//   "type Foo<out out = T> = T"
-						//   "type Foo<out out extends T> = T"
-						// Invalid:
-						//   "type Foo<out out in T> = T"
-						//   "type Foo<out out T> = T"
-						invalidModifierRange = r
-					}
-					hasOut = true
-					expectIdentifier = false
-					continue
+			if p.lexer.IsContextualKeyword("out") {
+				r := p.lexer.Range()
+				if invalidModifierRange.Len == 0 && mode != typeParametersWithInOutVarianceAnnotations {
+					invalidModifierRange = r
 				}
-
-				break
-			}
-
-			// Only report an error for the first invalid modifier
-			if invalidModifierRange.Len > 0 {
-				p.log.AddError(&p.tracker, invalidModifierRange, fmt.Sprintf(
-					"The modifier %q is not valid here:", p.source.TextForRange(invalidModifierRange)))
-			}
-
-			// expectIdentifier => Mandatory identifier (e.g. after "type Foo <in ___")
-			// !expectIdentifier => Optional identifier (e.g. after "type Foo <out ___" since "out" may be the identifier)
-			if expectIdentifier || p.lexer.Token == js_lexer.TIdentifier {
-				p.lexer.Expect(js_lexer.TIdentifier)
-			}
-
-			// "class Foo<T extends number> {}"
-			if p.lexer.Token == js_lexer.TExtends {
 				p.lexer.Next()
-				p.skipTypeScriptType(js_ast.LLowest)
+				if invalidModifierRange.Len == 0 && hasOut && (p.lexer.Token == js_lexer.TIn || p.lexer.Token == js_lexer.TIdentifier) {
+					// Valid:
+					//   "type Foo<out T> = T"
+					//   "type Foo<out out> = T"
+					//   "type Foo<out out, T> = T"
+					//   "type Foo<out out = T> = T"
+					//   "type Foo<out out extends T> = T"
+					// Invalid:
+					//   "type Foo<out out in T> = T"
+					//   "type Foo<out out T> = T"
+					invalidModifierRange = r
+				}
+				hasOut = true
+				expectIdentifier = false
+				continue
 			}
 
-			// "class Foo<T = void> {}"
-			if p.lexer.Token == js_lexer.TEquals {
-				p.lexer.Next()
-				p.skipTypeScriptType(js_ast.LLowest)
-			}
-
-			if p.lexer.Token != js_lexer.TComma {
-				break
-			}
-			p.lexer.Next()
-			if p.lexer.Token == js_lexer.TGreaterThan {
-				break
-			}
+			break
 		}
 
-		p.lexer.ExpectGreaterThan(false /* isInsideJSXElement */)
+		// Only report an error for the first invalid modifier
+		if invalidModifierRange.Len > 0 {
+			p.log.AddError(&p.tracker, invalidModifierRange, fmt.Sprintf(
+				"The modifier %q is not valid here:", p.source.TextForRange(invalidModifierRange)))
+		}
+
+		// expectIdentifier => Mandatory identifier (e.g. after "type Foo <in ___")
+		// !expectIdentifier => Optional identifier (e.g. after "type Foo <out ___" since "out" may be the identifier)
+		if expectIdentifier || p.lexer.Token == js_lexer.TIdentifier {
+			p.lexer.Expect(js_lexer.TIdentifier)
+		}
+
+		// "class Foo<T extends number> {}"
+		if p.lexer.Token == js_lexer.TExtends {
+			p.lexer.Next()
+			p.skipTypeScriptType(js_ast.LLowest)
+		}
+
+		// "class Foo<T = void> {}"
+		if p.lexer.Token == js_lexer.TEquals {
+			p.lexer.Next()
+			p.skipTypeScriptType(js_ast.LLowest)
+		}
+
+		if p.lexer.Token != js_lexer.TComma {
+			break
+		}
+		p.lexer.Next()
+		if p.lexer.Token == js_lexer.TGreaterThan {
+			break
+		}
 	}
+
+	p.lexer.ExpectGreaterThan(false /* isInsideJSXElement */)
+	return true
 }
 
 func (p *parser) skipTypeScriptTypeArguments(isInsideJSXElement bool) bool {
