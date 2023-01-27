@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.17.5
 
 * Parse `const` type parameters from TypeScript 5.0
 
