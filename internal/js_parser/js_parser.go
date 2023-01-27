@@ -333,9 +333,34 @@ type parser struct {
 	// Relevant issue: https://github.com/evanw/esbuild/issues/1158
 	hasNonLocalExportDeclareInsideNamespace bool
 
-	// The "shouldFoldNumericConstants" flag is enabled inside each enum body block
-	// since TypeScript requires numeric constant folding in enum definitions.
-	shouldFoldNumericConstants bool
+	// When this flag is enabled, we attempt to fold all expressions that
+	// TypeScript would consider to be "constant expressions". This flag is
+	// enabled inside each enum body block since TypeScript requires numeric
+	// constant folding in enum definitions.
+	//
+	// We also enable this flag in certain cases in JavaScript files such as when
+	// parsing "const" declarations at the top of a non-ESM file, but we still
+	// reuse TypeScript's notion of "constant expressions" for our own convenience.
+	//
+	// As of TypeScript 5.0, a "constant expression" is defined as follows:
+	//
+	//   An expression is considered a constant expression if it is
+	//
+	//   * a number or string literal,
+	//   * a unary +, -, or ~ applied to a numeric constant expression,
+	//   * a binary +, -, *, /, %, **, <<, >>, >>>, |, &, ^ applied to two numeric constant expressions,
+	//   * a binary + applied to two constant expressions whereof at least one is a string,
+	//   * a template expression where each substitution expression is a constant expression,
+	//   * a parenthesized constant expression,
+	//   * a dotted name (e.g. x.y.z) that references a const variable with a constant expression initializer and no type annotation,
+	//   * a dotted name that references an enum member with an enum literal type, or
+	//   * a dotted name indexed by a string literal (e.g. x.y["z"]) that references an enum member with an enum literal type.
+	//
+	// More detail: https://github.com/microsoft/TypeScript/pull/50528. Note that
+	// we don't implement certain items in this list. For example, we don't do all
+	// number-to-string conversions since ours might differ from how JavaScript
+	// would do it, which would be a correctness issue.
+	shouldFoldTypeScriptConstantExpressions bool
 
 	allowIn                     bool
 	allowPrivateIdentifiers     bool
@@ -8825,9 +8850,10 @@ func (p *parser) substituteSingleUseSymbolInExpr(
 			if value, status := p.substituteSingleUseSymbolInExpr(part.Value, ref, replacement, replacementCanBeRemoved); status != substituteContinue {
 				e.Parts[i].Value = value
 
-				// If we substituted a string, merge the string into the template
-				if _, ok := value.Data.(*js_ast.EString); ok {
-					expr = js_ast.InlineStringsIntoTemplate(expr.Loc, e)
+				// If we substituted a string or number, merge it into the template
+				switch value.Data.(type) {
+				case *js_ast.EString, *js_ast.ENumber:
+					expr = js_ast.InlineStringsAndNumbersIntoTemplate(expr.Loc, e)
 				}
 				return expr, status
 			}
@@ -9552,12 +9578,12 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 				wasAnonymousNamedExpr := p.isAnonymousNamedExpr(d.ValueOrNil)
 
 				// Fold numeric constants in the initializer
-				oldShouldFoldNumericConstants := p.shouldFoldNumericConstants
-				p.shouldFoldNumericConstants = p.options.minifySyntax && !p.currentScope.IsAfterConstLocalPrefix
+				oldShouldFoldTypeScriptConstantExpressions := p.shouldFoldTypeScriptConstantExpressions
+				p.shouldFoldTypeScriptConstantExpressions = p.options.minifySyntax && !p.currentScope.IsAfterConstLocalPrefix
 
 				d.ValueOrNil = p.visitExpr(d.ValueOrNil)
 
-				p.shouldFoldNumericConstants = oldShouldFoldNumericConstants
+				p.shouldFoldTypeScriptConstantExpressions = oldShouldFoldTypeScriptConstantExpressions
 
 				// Optionally preserve the name
 				if id, ok := d.Binding.Data.(*js_ast.BIdentifier); ok {
@@ -10098,8 +10124,8 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		// We normally don't fold numeric constants because they might increase code
 		// size, but it's important to fold numeric constants inside enums since
 		// that's what the TypeScript compiler does.
-		oldShouldFoldNumericConstants := p.shouldFoldNumericConstants
-		p.shouldFoldNumericConstants = true
+		oldShouldFoldTypeScriptConstantExpressions := p.shouldFoldTypeScriptConstantExpressions
+		p.shouldFoldTypeScriptConstantExpressions = true
 
 		// Create an assignment for each enum value
 		for _, value := range s.Values {
@@ -10197,7 +10223,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		}
 
 		p.popScope()
-		p.shouldFoldNumericConstants = oldShouldFoldNumericConstants
+		p.shouldFoldTypeScriptConstantExpressions = oldShouldFoldTypeScriptConstantExpressions
 
 		// Track all exported top-level enums for cross-module inlining
 		if tsTopLevelEnumValues != nil {
@@ -12420,8 +12446,8 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		// When mangling, inline string values into the template literal. Note that
 		// it may no longer be a template literal after this point (it may turn into
 		// a plain string literal instead).
-		if p.options.minifySyntax {
-			expr = js_ast.InlineStringsIntoTemplate(expr.Loc, e)
+		if p.shouldFoldTypeScriptConstantExpressions || p.options.minifySyntax {
+			expr = js_ast.InlineStringsAndNumbersIntoTemplate(expr.Loc, e)
 		}
 
 		shouldLowerTemplateLiteral := p.options.unsupportedJSFeatures.Has(compat.TemplateLiteral)
@@ -12553,7 +12579,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 		}
 
-		if p.shouldFoldNumericConstants || (p.options.minifySyntax && js_ast.ShouldFoldBinaryArithmeticWhenMinifying(e.Op)) {
+		if p.shouldFoldTypeScriptConstantExpressions || (p.options.minifySyntax && js_ast.ShouldFoldBinaryArithmeticWhenMinifying(e.Op)) {
 			if result := js_ast.FoldBinaryArithmetic(expr.Loc, e); result.Data != nil {
 				return result, exprOut{}
 			}
@@ -13323,7 +13349,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				}
 
 			case js_ast.UnOpCpl:
-				if p.shouldFoldNumericConstants || p.options.minifySyntax {
+				if p.shouldFoldTypeScriptConstantExpressions || p.options.minifySyntax {
 					// Minification folds complement operations since they are unlikely to result in larger output
 					if number, ok := js_ast.ToNumberWithoutSideEffects(e.Value.Data); ok {
 						return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(^js_ast.ToInt32(number))}}, exprOut{}

@@ -46,6 +46,64 @@
     Foo = class <out T> { };
     ```
 
+* Update `enum` constant folding for TypeScript 5.0
+
+    TypeScript 5.0 contains an [updated definition of what it considers a constant expression](https://github.com/microsoft/TypeScript/pull/50528):
+
+    > An expression is considered a *constant expression* if it is
+    >
+    > * a number or string literal,
+    > * a unary `+`, `-`, or `~` applied to a numeric constant expression,
+    > * a binary `+`, `-`, `*`, `/`, `%`, `**`, `<<`, `>>`, `>>>`, `|`, `&`, `^` applied to two numeric constant expressions,
+    > * a binary `+` applied to two constant expressions whereof at least one is a string,
+    > * a template expression where each substitution expression is a constant expression,
+    > * a parenthesized constant expression,
+    > * a dotted name (e.g. `x.y.z`) that references a `const` variable with a constant expression initializer and no type annotation,
+    > * a dotted name that references an enum member with an enum literal type, or
+    > * a dotted name indexed by a string literal (e.g. `x.y["z"]`) that references an enum member with an enum literal type.
+
+    This impacts esbuild's implementation of TypeScript's `const enum` feature. With this release, esbuild will now attempt to follow these new rules. For example, you can now initialize an `enum` member with a template literal expression that contains a numeric constant:
+
+    ```ts
+    // Original input
+    const enum Example {
+      COUNT = 100,
+      ERROR = `Expected ${COUNT} items`,
+    }
+    console.log(
+      Example.COUNT,
+      Example.ERROR,
+    )
+
+    // Old output (with --tree-shaking=true)
+    var Example = /* @__PURE__ */ ((Example2) => {
+      Example2[Example2["COUNT"] = 100] = "COUNT";
+      Example2[Example2["ERROR"] = `Expected ${100 /* COUNT */} items`] = "ERROR";
+      return Example2;
+    })(Example || {});
+    console.log(
+      100 /* COUNT */,
+      Example.ERROR
+    );
+
+    // New output (with --tree-shaking=true)
+    console.log(
+      100 /* COUNT */,
+      "Expected 100 items" /* ERROR */
+    );
+    ```
+
+    These rules are not followed exactly due to esbuild's limitations. The rule about dotted references to `const` variables is not followed both because esbuild's enum processing is done in an isolated module setting and because doing so would potentially require esbuild to use a type system, which it doesn't have. For example:
+
+    ```ts
+    // The TypeScript compiler inlines this but esbuild doesn't:
+    declare const x = 'foo'
+    const enum Foo { X = x }
+    console.log(Foo.X)
+    ```
+
+    Also, the rule that requires converting numbers to a string currently only followed for 32-bit signed integers and non-finite numbers. This is done to avoid accidentally introducing a bug if esbuild's number-to-string operation doesn't exactly match the behavior of a real JavaScript VM. Currently esbuild's number-to-string constant folding is conservative for safety.
+
 * Forbid definite assignment assertion operators on class methods
 
     In TypeScript, class methods can use the `?` optional property operator but not the `!` definite assignment assertion operator (while class fields can use both):

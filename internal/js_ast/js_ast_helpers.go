@@ -1291,13 +1291,61 @@ func joinStrings(a []uint16, b []uint16) []uint16 {
 	return data
 }
 
+// String concatenation with numbers is required by the TypeScript compiler for
+// "constant expression" handling in enums. However, we don't want to introduce
+// correctness bugs by accidentally stringifying a number differently than how
+// a real JavaScript VM would do it. So we are conservative and we only do this
+// when we know it'll be the same result.
+func tryToStringOnNumberSafely(n float64) (string, bool) {
+	if i := int32(n); float64(i) == n {
+		return strconv.Itoa(int(i)), true
+	}
+	if math.IsNaN(n) {
+		return "NaN", true
+	}
+	if math.IsInf(n, 1) {
+		return "Infinity", true
+	}
+	if math.IsInf(n, -1) {
+		return "-Infinity", true
+	}
+	return "", false
+}
+
 // This function intentionally avoids mutating the input AST so it can be
 // called after the AST has been frozen (i.e. after parsing ends).
 func FoldStringAddition(left Expr, right Expr) Expr {
+	// "See through" inline enum constants
+	if l, ok := left.Data.(*EInlinedEnum); ok {
+		left = l.Value
+	}
+	if r, ok := right.Data.(*EInlinedEnum); ok {
+		right = r.Value
+	}
+
+	if l, ok := left.Data.(*ENumber); ok {
+		switch right.Data.(type) {
+		case *EString, *ETemplate:
+			// "0 + 'x'" => "0 + 'x'"
+			// "0 + `${x}`" => "0 + `${x}`"
+			if str, ok := tryToStringOnNumberSafely(l.Value); ok {
+				left.Data = &EString{Value: helpers.StringToUTF16(str)}
+			}
+		}
+	}
+
 	switch l := left.Data.(type) {
 	case *EString:
+		// "'x' + 0" => "'x' + '0'"
+		if r, ok := right.Data.(*ENumber); ok {
+			if str, ok := tryToStringOnNumberSafely(r.Value); ok {
+				right.Data = &EString{Value: helpers.StringToUTF16(str)}
+			}
+		}
+
 		switch r := right.Data.(type) {
 		case *EString:
+			// "'x' + 'y'" => "'xy'"
 			return Expr{Loc: left.Loc, Data: &EString{
 				Value:          joinStrings(l.Value, r.Value),
 				PreferTemplate: l.PreferTemplate || r.PreferTemplate,
@@ -1305,6 +1353,7 @@ func FoldStringAddition(left Expr, right Expr) Expr {
 
 		case *ETemplate:
 			if r.TagOrNil.Data == nil {
+				// "'x' + `y${z}`" => "`xy${z}`"
 				return Expr{Loc: left.Loc, Data: &ETemplate{
 					HeadLoc:    left.Loc,
 					HeadCooked: joinStrings(l.Value, r.HeadCooked),
@@ -1320,8 +1369,16 @@ func FoldStringAddition(left Expr, right Expr) Expr {
 
 	case *ETemplate:
 		if l.TagOrNil.Data == nil {
+			// "`${x}` + 0" => "`${x}` + '0'"
+			if r, ok := right.Data.(*ENumber); ok {
+				if str, ok := tryToStringOnNumberSafely(r.Value); ok {
+					right.Data = &EString{Value: helpers.StringToUTF16(str)}
+				}
+			}
+
 			switch r := right.Data.(type) {
 			case *EString:
+				// "`${x}y` + 'z'" => "`${x}yz`"
 				n := len(l.Parts)
 				head := l.HeadCooked
 				parts := make([]TemplatePart, n)
@@ -1339,6 +1396,7 @@ func FoldStringAddition(left Expr, right Expr) Expr {
 
 			case *ETemplate:
 				if r.TagOrNil.Data == nil {
+					// "`${a}b` + `x${y}`" => "`${a}bx${y}`"
 					n := len(l.Parts)
 					head := l.HeadCooked
 					parts := make([]TemplatePart, n+len(r.Parts))
@@ -1371,7 +1429,7 @@ func FoldStringAddition(left Expr, right Expr) Expr {
 //
 // This function intentionally avoids mutating the input AST so it can be
 // called after the AST has been frozen (i.e. after parsing ends).
-func InlineStringsIntoTemplate(loc logger.Loc, e *ETemplate) Expr {
+func InlineStringsAndNumbersIntoTemplate(loc logger.Loc, e *ETemplate) Expr {
 	// Can't inline strings if there's a custom template tag
 	if e.TagOrNil.Data != nil {
 		return Expr{Loc: loc, Data: e}
@@ -1381,6 +1439,14 @@ func InlineStringsIntoTemplate(loc logger.Loc, e *ETemplate) Expr {
 	parts := make([]TemplatePart, 0, len(e.Parts))
 
 	for _, part := range e.Parts {
+		if value, ok := part.Value.Data.(*EInlinedEnum); ok {
+			part.Value = value.Value
+		}
+		if value, ok := part.Value.Data.(*ENumber); ok {
+			if str, ok := tryToStringOnNumberSafely(value.Value); ok {
+				part.Value.Data = &EString{Value: helpers.StringToUTF16(str)}
+			}
+		}
 		if str, ok := part.Value.Data.(*EString); ok {
 			if len(parts) == 0 {
 				headCooked = append(append(headCooked, str.Value...), part.TailCooked...)

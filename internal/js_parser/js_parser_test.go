@@ -2419,7 +2419,8 @@ func TestTemplate(t *testing.T) {
 	expectParseError(t, "a?.(b).c\n`${d}`", "<stdin>: ERROR: Template literals cannot have an optional chain as a tag\n")
 	expectParseError(t, "a?.[b].c\n`${d}`", "<stdin>: ERROR: Template literals cannot have an optional chain as a tag\n")
 
-	expectPrinted(t, "`a${1 + `b${2}c` + 3}d`", "`a${1 + `b${2}c` + 3}d`;\n")
+	expectPrinted(t, "`a${1 + `b${2}c` + 3}d`", "`a${`1b${2}c3`}d`;\n")
+	expectPrintedMangle(t, "x = `a${1 + `b${2}c` + 3}d`", "x = `a1b2c3d`;\n")
 
 	expectPrinted(t, "`a\nb`", "`a\nb`;\n")
 	expectPrinted(t, "`a\rb`", "`a\nb`;\n")
@@ -2584,7 +2585,7 @@ func TestConstantFolding(t *testing.T) {
 	expectPrinted(t, "x = x + 'a' + 'b'", "x = x + \"ab\";\n")
 	expectPrinted(t, "x = x + 'a' + 'bc'", "x = x + \"abc\";\n")
 	expectPrinted(t, "x = x + 'ab' + 'c'", "x = x + \"abc\";\n")
-	expectPrinted(t, "x = 'a' + 1", "x = \"a\" + 1;\n")
+	expectPrinted(t, "x = 'a' + 1", "x = \"a1\";\n")
 	expectPrinted(t, "x = x * 'a' + 'b'", "x = x * \"a\" + \"b\";\n")
 
 	expectPrinted(t, "x = 'string' + `template`", "x = `stringtemplate`;\n")
@@ -3142,8 +3143,8 @@ func TestMangleSwitch(t *testing.T) {
 }
 
 func TestMangleAddEmptyString(t *testing.T) {
-	expectPrintedNormalAndMangle(t, "a = '' + 0", "a = \"\" + 0;\n", "a = \"\" + 0;\n")
-	expectPrintedNormalAndMangle(t, "a = 0 + ''", "a = 0 + \"\";\n", "a = 0 + \"\";\n")
+	expectPrintedNormalAndMangle(t, "a = '' + 0", "a = \"0\";\n", "a = \"0\";\n")
+	expectPrintedNormalAndMangle(t, "a = 0 + ''", "a = \"0\";\n", "a = \"0\";\n")
 	expectPrintedNormalAndMangle(t, "a = '' + b", "a = \"\" + b;\n", "a = \"\" + b;\n")
 	expectPrintedNormalAndMangle(t, "a = b + ''", "a = b + \"\";\n", "a = b + \"\";\n")
 
