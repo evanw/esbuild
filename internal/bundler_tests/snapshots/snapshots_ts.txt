@@ -534,7 +534,6 @@ console.log(x);
 
 ---------- /out/namespace-before.js ----------
 // namespace-before.ts
-var x;
 ((x2) => {
   console.log(x2, y);
 })(x || (x = {}));
@@ -552,6 +551,21 @@ var x = /* @__PURE__ */ ((x2) => {
 ((x2) => {
   console.log(x2, y);
 })(x || (x = {}));
+
+================================================================================
+TestTSEnumUseBeforeDeclare
+---------- /out/entry.js ----------
+// entry.ts
+function before() {
+  console.log(0 /* FOO */);
+}
+function after() {
+  console.log(0 /* FOO */);
+}
+export {
+  after,
+  before
+};
 
 ================================================================================
 TestTSExportDefaultTypeIssue316

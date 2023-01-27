@@ -59,6 +59,7 @@ type parser struct {
 	duplicateCaseChecker       duplicateCaseChecker
 	unrepresentableIdentifiers map[string]bool
 	legacyOctalLiterals        map[js_ast.E]logger.Range
+	scopesInOrderForEnum       map[logger.Loc][]scopeOrder
 
 	// For strict mode handling
 	hoistedRefForSloppyModeBlockFn map[js_ast.Ref]js_ast.Ref
@@ -7897,7 +7898,29 @@ func (p *parser) visitStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt {
 	visited := make([]js_ast.Stmt, 0, len(stmts))
 	var before []js_ast.Stmt
 	var after []js_ast.Stmt
-	for _, stmt := range stmts {
+	var preprocessedEnums map[int][]js_ast.Stmt
+	if p.scopesInOrderForEnum != nil {
+		// Preprocess TypeScript enums to improve code generation. Otherwise
+		// uses of an enum before that enum has been declared won't be inlined:
+		//
+		//   console.log(Foo.FOO) // We want "FOO" to be inlined here
+		//   const enum Foo { FOO = 0 }
+		//
+		// The TypeScript compiler itself contains code with this pattern, so
+		// it's important to implement this optimization.
+		for i, stmt := range stmts {
+			if _, ok := stmt.Data.(*js_ast.SEnum); ok {
+				if preprocessedEnums == nil {
+					preprocessedEnums = make(map[int][]js_ast.Stmt)
+				}
+				oldScopesInOrder := p.scopesInOrder
+				p.scopesInOrder = p.scopesInOrderForEnum[stmt.Loc]
+				preprocessedEnums[i] = p.visitAndAppendStmt(nil, stmt)
+				p.scopesInOrder = oldScopesInOrder
+			}
+		}
+	}
+	for i, stmt := range stmts {
 		switch s := stmt.Data.(type) {
 		case *js_ast.SExportEquals:
 			// TypeScript "export = value;" becomes "module.exports = value;". This
@@ -7915,6 +7938,11 @@ func (p *parser) visitStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt {
 				before = p.visitAndAppendStmt(before, stmt)
 				continue
 			}
+
+		case *js_ast.SEnum:
+			visited = append(visited, preprocessedEnums[i]...)
+			p.scopesInOrder = p.scopesInOrder[len(p.scopesInOrderForEnum[stmt.Loc]):]
+			continue
 		}
 		visited = p.visitAndAppendStmt(visited, stmt)
 	}
@@ -10090,6 +10118,11 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		return stmts
 
 	case *js_ast.SEnum:
+		// Do not end the const local prefix after TypeScript enums. We process
+		// them first within their scope so that they are inlined into all code in
+		// that scope. We don't want that to cause the const local prefix to end.
+		p.currentScope.IsAfterConstLocalPrefix = wasAfterAfterConstLocalPrefix
+
 		// Track cross-module enum constants during bundling
 		var tsTopLevelEnumValues map[string]js_ast.TSEnumValue
 		if p.currentScope == p.moduleScope && p.options.mode == config.ModeBundle {
@@ -15528,8 +15561,31 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 		// When tree shaking is disabled, everything comes in a single part
 		parts = p.appendPart(parts, stmts)
 	} else {
+		var preprocessedEnums map[int][]js_ast.Part
+		if p.scopesInOrderForEnum != nil {
+			// Preprocess TypeScript enums to improve code generation. Otherwise
+			// uses of an enum before that enum has been declared won't be inlined:
+			//
+			//   console.log(Foo.FOO) // We want "FOO" to be inlined here
+			//   const enum Foo { FOO = 0 }
+			//
+			// The TypeScript compiler itself contains code with this pattern, so
+			// it's important to implement this optimization.
+			for i, stmt := range stmts {
+				if _, ok := stmt.Data.(*js_ast.SEnum); ok {
+					if preprocessedEnums == nil {
+						preprocessedEnums = make(map[int][]js_ast.Part)
+					}
+					oldScopesInOrder := p.scopesInOrder
+					p.scopesInOrder = p.scopesInOrderForEnum[stmt.Loc]
+					preprocessedEnums[i] = p.appendPart(nil, []js_ast.Stmt{stmt})
+					p.scopesInOrder = oldScopesInOrder
+				}
+			}
+		}
+
 		// When tree shaking is enabled, each top-level statement is potentially a separate part
-		for _, stmt := range stmts {
+		for i, stmt := range stmts {
 			switch s := stmt.Data.(type) {
 			case *js_ast.SLocal:
 				// Split up top-level multi-declaration variable statements
@@ -15562,6 +15618,10 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 				// must happen at the end after everything is parsed because TypeScript
 				// moves this statement to the end when it generates code.
 				after = p.appendPart(after, []js_ast.Stmt{stmt})
+
+			case *js_ast.SEnum:
+				parts = append(parts, preprocessedEnums[i]...)
+				p.scopesInOrder = p.scopesInOrder[len(p.scopesInOrderForEnum[stmt.Loc]):]
 
 			default:
 				parts = p.appendPart(parts, []js_ast.Stmt{stmt})

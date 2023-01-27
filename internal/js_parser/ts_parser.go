@@ -1209,6 +1209,7 @@ func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) js_
 	}
 
 	// Declare the enum and create the scope
+	scopeIndex := len(p.scopesInOrder)
 	if !opts.isTypeScriptDeclare {
 		name.Ref = p.declareSymbol(js_ast.SymbolTSEnum, nameLoc, nameText)
 		p.pushScopeForParsePass(js_ast.ScopeEntry, loc)
@@ -1350,6 +1351,12 @@ func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) js_
 
 		return js_ast.Stmt{Loc: loc, Data: &js_ast.STypeScript{}}
 	}
+
+	// Save these for when we do out-of-order enum visiting
+	if p.scopesInOrderForEnum == nil {
+		p.scopesInOrderForEnum = make(map[logger.Loc][]scopeOrder)
+	}
+	p.scopesInOrderForEnum[loc] = p.scopesInOrder[scopeIndex:]
 
 	return js_ast.Stmt{Loc: loc, Data: &js_ast.SEnum{
 		Name:     name,

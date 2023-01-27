@@ -2259,3 +2259,24 @@ func TestEnumRulesFrom_TypeScript_5_0(t *testing.T) {
 		},
 	})
 }
+
+func TestTSEnumUseBeforeDeclare(t *testing.T) {
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				export function before() {
+					console.log(Foo.FOO)
+				}
+				enum Foo { FOO }
+				export function after() {
+					console.log(Foo.FOO)
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+	})
+}

@@ -876,8 +876,7 @@ export let x;
 	expectParseErrorTS(t, "namespace foo { 0 } function* foo() {}", errorText)
 	expectParseErrorTS(t, "namespace foo { 0 } async function foo() {}", errorText)
 	expectParseErrorTS(t, "namespace foo { 0 } class foo {}", errorText)
-	expectPrintedTS(t, "namespace foo { 0 } enum foo { a }", `var foo;
-((foo) => {
+	expectPrintedTS(t, "namespace foo { 0 } enum foo { a }", `((foo) => {
   0;
 })(foo || (foo = {}));
 var foo = /* @__PURE__ */ ((foo) => {
@@ -1434,6 +1433,15 @@ y = [0 /* A */, Foo?.["A"], Foo?.["A"]()];
 	expectParseErrorTS(t, "export enum x { yield = 1, y = yield }",
 		"<stdin>: ERROR: \"yield\" is a reserved word and cannot be used in an ECMAScript module\n"+
 			"<stdin>: NOTE: This file is considered to be an ECMAScript module because of the \"export\" keyword here:\n")
+
+	// Check enum use before declaration
+	expectPrintedTS(t, "foo = Foo.FOO; enum Foo { FOO } bar = Foo.FOO", `foo = 0 /* FOO */;
+var Foo = /* @__PURE__ */ ((Foo) => {
+  Foo[Foo["FOO"] = 0] = "FOO";
+  return Foo;
+})(Foo || {});
+bar = 0 /* FOO */;
+`)
 }
 
 func TestTSEnumConstantFolding(t *testing.T) {

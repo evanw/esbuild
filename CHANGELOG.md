@@ -1,5 +1,29 @@
 # Changelog
 
+## Unreleased
+
+* Inline TypeScript enums that are referenced before their declaration
+
+    Previously esbuild inlined enums within a TypeScript file from top to bottom, which meant that references to TypeScript enum members were only inlined within the same file if they came after the enum declaration. With this release, esbuild will now inline enums even when they are referenced before they are declared:
+
+    ```ts
+    // Original input
+    export const foo = () => Foo.FOO
+    const enum Foo { FOO = 0 }
+
+    // Old output (with --tree-shaking=true)
+    export const foo = () => Foo.FOO;
+    var Foo = /* @__PURE__ */ ((Foo2) => {
+      Foo2[Foo2["FOO"] = 0] = "FOO";
+      return Foo2;
+    })(Foo || {});
+
+    // New output (with --tree-shaking=true)
+    export const foo = () => 0 /* FOO */;
+    ```
+
+    This makes esbuild's TypeScript output smaller and faster when processing code that does this. I noticed this issue when I ran the TypeScript compiler's source code through esbuild's bundler. Now that the TypeScript compiler is going to be bundled with esbuild in the upcoming TypeScript 5.0 release, improvements like this will also improve the TypeScript compiler itself!
+
 ## 0.17.5
 
 * Parse `const` type parameters from TypeScript 5.0
