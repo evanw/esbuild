@@ -2155,7 +2155,9 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 
 		// "class X { foo?<T>(): T }"
 		// "const x = { foo<T>(): T {} }"
-		hasTypeParameters = !hasDefiniteAssignmentAssertionOperator && p.skipTypeScriptTypeParameters(typeParametersNormal)
+		if !hasDefiniteAssignmentAssertionOperator {
+			hasTypeParameters = p.skipTypeScriptTypeParameters(allowConstModifier) != didNotSkipAnything
+		}
 	}
 
 	// Parse a class field with an optional initial value
@@ -2716,9 +2718,14 @@ func (p *parser) parseAsyncPrefixExpr(asyncRange logger.Range, level js_ast.L, f
 		// "async<T>()"
 		// "async <T>() => {}"
 		case js_lexer.TLessThan:
-			if p.options.ts.Parse && (!p.options.jsx.Parse || p.isTSArrowFnJSX()) && p.trySkipTypeScriptTypeParametersThenOpenParenWithBacktracking() {
-				p.lexer.Next()
-				return p.parseParenExpr(asyncRange.Loc, level, parenExprOpts{asyncRange: asyncRange})
+			if p.options.ts.Parse && (!p.options.jsx.Parse || p.isTSArrowFnJSX()) {
+				if result := p.trySkipTypeScriptTypeParametersThenOpenParenWithBacktracking(); result != didNotSkipAnything {
+					p.lexer.Next()
+					return p.parseParenExpr(asyncRange.Loc, level, parenExprOpts{
+						asyncRange:   asyncRange,
+						forceArrowFn: result == definitelyTypeParameters,
+					})
+				}
 			}
 		}
 	}
@@ -2761,7 +2768,7 @@ func (p *parser) parseFnExpr(loc logger.Loc, isAsync bool, asyncRange logger.Ran
 
 	// Even anonymous functions can have TypeScript type parameters
 	if p.options.ts.Parse {
-		p.skipTypeScriptTypeParameters(typeParametersNormal)
+		p.skipTypeScriptTypeParameters(allowConstModifier)
 	}
 
 	await := allowIdent
@@ -3437,7 +3444,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 
 		// Even anonymous classes can have TypeScript type parameters
 		if p.options.ts.Parse {
-			p.skipTypeScriptTypeParameters(typeParametersWithInOutVarianceAnnotations)
+			p.skipTypeScriptTypeParameters(allowInOutVarianceAnnotations | allowConstModifier)
 		}
 
 		class := p.parseClass(classKeyword, name, parseClassOpts{})
@@ -3628,12 +3635,15 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 		//     <A>(x)
 		//     <[]>(x)
 		//     <A[]>(x)
+		//     <const>(x)
 		//
 		//   An arrow function with type parameters:
 		//     <A>(x) => {}
 		//     <A, B>(x) => {}
 		//     <A = B>(x) => {}
 		//     <A extends B>(x) => {}
+		//     <const A>(x) => {}
+		//     <const A extends B>(x) => {}
 		//
 		// TSX:
 		//
@@ -3641,10 +3651,13 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 		//     <A>(x) => {}</A>
 		//     <A extends>(x) => {}</A>
 		//     <A extends={false}>(x) => {}</A>
+		//     <const A extends>(x) => {}</const>
 		//
 		//   An arrow function with type parameters:
 		//     <A, B>(x) => {}
 		//     <A extends B>(x) => {}
+		//     <const>(x)</const>
+		//     <const A extends B>(x) => {}
 		//
 		//   A syntax error:
 		//     <[]>(x)
@@ -3653,7 +3666,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 		//     <A = B>(x) => {}
 
 		if p.options.ts.Parse && p.options.jsx.Parse && p.isTSArrowFnJSX() {
-			p.skipTypeScriptTypeParameters(typeParametersNormal)
+			p.skipTypeScriptTypeParameters(allowConstModifier)
 			p.lexer.Expect(js_lexer.TOpenParen)
 			return p.parseParenExpr(loc, level, parenExprOpts{forceArrowFn: true})
 		}
@@ -3700,9 +3713,11 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 
 			// "<T>(x)"
 			// "<T>(x) => {}"
-			if p.trySkipTypeScriptTypeParametersThenOpenParenWithBacktracking() {
+			if result := p.trySkipTypeScriptTypeParametersThenOpenParenWithBacktracking(); result != didNotSkipAnything {
 				p.lexer.Expect(js_lexer.TOpenParen)
-				return p.parseParenExpr(loc, level, parenExprOpts{})
+				return p.parseParenExpr(loc, level, parenExprOpts{
+					forceArrowFn: result == definitelyTypeParameters,
+				})
 			}
 
 			// "<T>x"
@@ -5811,7 +5826,7 @@ func (p *parser) parseClassStmt(loc logger.Loc, opts parseStmtOpts) js_ast.Stmt 
 
 	// Even anonymous classes can have TypeScript type parameters
 	if p.options.ts.Parse {
-		p.skipTypeScriptTypeParameters(typeParametersWithInOutVarianceAnnotations)
+		p.skipTypeScriptTypeParameters(allowInOutVarianceAnnotations | allowConstModifier)
 	}
 
 	classOpts := parseClassOpts{
@@ -6089,7 +6104,7 @@ func (p *parser) parseFnStmt(loc logger.Loc, opts parseStmtOpts, isAsync bool, a
 
 	// Even anonymous functions can have TypeScript type parameters
 	if p.options.ts.Parse {
-		p.skipTypeScriptTypeParameters(typeParametersNormal)
+		p.skipTypeScriptTypeParameters(allowConstModifier)
 	}
 
 	// Introduce a fake block scope for function declarations inside if statements

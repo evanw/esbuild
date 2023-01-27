@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+* Parse `const` type parameters from TypeScript 5.0
+
+    The TypeScript 5.0 beta announcement adds [`const` type parameters](https://devblogs.microsoft.com/typescript/announcing-typescript-5-0-beta/#const-type-parameters) to the language. You can now add the `const` modifier on a type parameter of a function, method, or class like this:
+
+    ```ts
+    type HasNames = { names: readonly string[] };
+    const getNamesExactly = <const T extends HasNames>(arg: T): T["names"] => arg.names;
+    const names = getNamesExactly({ names: ["Alice", "Bob", "Eve"] });
+    ```
+
+    The type of `names` in the above example is `readonly ["Alice", "Bob", "Eve"]`. Marking the type parameter as `const` behaves as if you had written `as const` at every use instead. The above code is equivalent to the following TypeScript, which was the only option before TypeScript 5.0:
+
+    ```ts
+    type HasNames = { names: readonly string[] };
+    const getNamesExactly = <T extends HasNames>(arg: T): T["names"] => arg.names;
+    const names = getNamesExactly({ names: ["Alice", "Bob", "Eve"] } as const);
+    ```
+
+    You can read [the announcement](https://devblogs.microsoft.com/typescript/announcing-typescript-5-0-beta/#const-type-parameters) for more information.
+
 * Make parsing generic `async` arrow functions more strict in `.tsx` files
 
     Previously esbuild's TypeScript parser incorrectly accepted the following code as valid:
