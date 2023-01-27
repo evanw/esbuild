@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+* Allow the `in` and `out` type parameter modifiers on class expressions
+
+    TypeScript 4.7 added the `in` and `out` modifiers on the type parameters of classes, interfaces, and type aliases. However, while TypeScript supported them on both class expressions and class statements, previously esbuild only supported them on class statements due to an oversight. This release now allows these modifiers on class expressions too:
+
+    ```ts
+    declare let Foo: any;
+    Foo = class <in T> { };
+    Foo = class <out T> { };
+    ```
+
 ## 0.17.4
 
 * Implement HTTP `HEAD` requests in serve mode ([#2851](https://github.com/evanw/esbuild/issues/2851))

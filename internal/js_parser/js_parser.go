@@ -3428,7 +3428,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 
 		// Even anonymous classes can have TypeScript type parameters
 		if p.options.ts.Parse {
-			p.skipTypeScriptTypeParameters(typeParametersNormal)
+			p.skipTypeScriptTypeParameters(typeParametersWithInOutVarianceAnnotations)
 		}
 
 		class := p.parseClass(classKeyword, name, parseClassOpts{})
