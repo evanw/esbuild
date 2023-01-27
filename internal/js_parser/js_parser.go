@@ -2716,7 +2716,7 @@ func (p *parser) parseAsyncPrefixExpr(asyncRange logger.Range, level js_ast.L, f
 		// "async<T>()"
 		// "async <T>() => {}"
 		case js_lexer.TLessThan:
-			if p.options.ts.Parse && p.trySkipTypeScriptTypeParametersThenOpenParenWithBacktracking() {
+			if p.options.ts.Parse && (!p.options.jsx.Parse || p.isTSArrowFnJSX()) && p.trySkipTypeScriptTypeParametersThenOpenParenWithBacktracking() {
 				p.lexer.Next()
 				return p.parseParenExpr(asyncRange.Loc, level, parenExprOpts{asyncRange: asyncRange})
 			}

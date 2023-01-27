@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+* Make parsing generic `async` arrow functions more strict in `.tsx` files
+
+    Previously esbuild's TypeScript parser incorrectly accepted the following code as valid:
+
+    ```tsx
+    let fn = async <T> () => {};
+    ```
+
+    The official TypeScript parser rejects this code because it thinks it's the identifier `async` followed by a JSX element starting with `<T>`. So with this release, esbuild will now reject this syntax in `.tsx` files too. You'll now have to add a comma after the type parameter to get generic arrow functions like this to parse in `.tsx` files:
+
+    ```tsx
+    let fn = async <T,> () => {};
+    ```
+
 * Allow the `in` and `out` type parameter modifiers on class expressions
 
     TypeScript 4.7 added the `in` and `out` modifiers on the type parameters of classes, interfaces, and type aliases. However, while TypeScript supported them on both class expressions and class statements, previously esbuild only supported them on class statements due to an oversight. This release now allows these modifiers on class expressions too:

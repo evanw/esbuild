@@ -2380,6 +2380,13 @@ func TestTSJSX(t *testing.T) {
 	expectParseErrorTSX(t, "(<T = X>(y))", "<stdin>: ERROR: Expected \"=>\" but found \")\"\n")
 	expectParseErrorTSX(t, "(<T, X>(y))", "<stdin>: ERROR: Expected \"=>\" but found \")\"\n")
 	expectParseErrorTSX(t, "(<T, X>y => {})", "<stdin>: ERROR: Expected \"(\" but found \"y\"\n")
+
+	// TypeScript doesn't currently parse these even though it seems unambiguous
+	expectPrintedTSX(t, "async <T,>() => {}", "async () => {\n};\n")
+	expectPrintedTSX(t, "async <T extends X>() => {}", "async () => {\n};\n")
+	expectPrintedTSX(t, "async <T>()", "async();\n")
+	expectParseErrorTSX(t, "async <T>() => {}", "<stdin>: ERROR: Expected \";\" but found \"=>\"\n")
+	expectParseErrorTSX(t, "async <T extends>() => {}", "<stdin>: ERROR: Expected \";\" but found \"extends\"\n")
 }
 
 func TestTSNoAmbiguousLessThan(t *testing.T) {
