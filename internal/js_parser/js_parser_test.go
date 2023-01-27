@@ -2621,6 +2621,17 @@ func TestConstantFolding(t *testing.T) {
 	expectPrinted(t, "x = Infinity === -Infinity", "x = false;\n")
 
 	expectPrinted(t, "x = 123n === 1_2_3n", "x = true;\n")
+
+	// We support folding strings from sibling AST nodes since that ends up being
+	// equivalent with string addition. For example, "(x + 'a') + 'b'" is the
+	// same as "x + 'ab'". However, this is not true for numbers. We can't turn
+	// "(x + 1) + '2'" into "x + '12'". These tests check for this edge case.
+	expectPrinted(t, "x = 'a' + 'b' + y", "x = \"ab\" + y;\n")
+	expectPrinted(t, "x = y + 'a' + 'b'", "x = y + \"ab\";\n")
+	expectPrinted(t, "x = '3' + 4 + y", "x = \"34\" + y;\n")
+	expectPrinted(t, "x = y + 4 + '5'", "x = y + 4 + \"5\";\n")
+	expectPrinted(t, "x = '3' + 4 + 5", "x = \"345\";\n")
+	expectPrinted(t, "x = 3 + 4 + '5'", "x = 3 + 4 + \"5\";\n")
 }
 
 func TestConstantFoldingScopes(t *testing.T) {

@@ -1312,9 +1312,16 @@ func tryToStringOnNumberSafely(n float64) (string, bool) {
 	return "", false
 }
 
+type StringAdditionKind uint8
+
+const (
+	StringAdditionNormal StringAdditionKind = iota
+	StringAdditionWithNestedLeft
+)
+
 // This function intentionally avoids mutating the input AST so it can be
 // called after the AST has been frozen (i.e. after parsing ends).
-func FoldStringAddition(left Expr, right Expr) Expr {
+func FoldStringAddition(left Expr, right Expr, kind StringAdditionKind) Expr {
 	// "See through" inline enum constants
 	if l, ok := left.Data.(*EInlinedEnum); ok {
 		left = l.Value
@@ -1323,13 +1330,21 @@ func FoldStringAddition(left Expr, right Expr) Expr {
 		right = r.Value
 	}
 
-	if l, ok := left.Data.(*ENumber); ok {
-		switch right.Data.(type) {
-		case *EString, *ETemplate:
-			// "0 + 'x'" => "0 + 'x'"
-			// "0 + `${x}`" => "0 + `${x}`"
-			if str, ok := tryToStringOnNumberSafely(l.Value); ok {
-				left.Data = &EString{Value: helpers.StringToUTF16(str)}
+	// Transforming the left operand into a string is not safe if it comes from
+	// a nested AST node. The following transforms are invalid:
+	//
+	//   "0 + 1 + 'x'" => "0 + '1x'"
+	//   "0 + 1 + `${x}`" => "0 + `1${x}`"
+	//
+	if kind != StringAdditionWithNestedLeft {
+		if l, ok := left.Data.(*ENumber); ok {
+			switch right.Data.(type) {
+			case *EString, *ETemplate:
+				// "0 + 'x'" => "0 + 'x'"
+				// "0 + `${x}`" => "0 + `${x}`"
+				if str, ok := tryToStringOnNumberSafely(l.Value); ok {
+					left.Data = &EString{Value: helpers.StringToUTF16(str)}
+				}
 			}
 		}
 	}
