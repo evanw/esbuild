@@ -24,6 +24,13 @@
 
     This makes esbuild's TypeScript output smaller and faster when processing code that does this. I noticed this issue when I ran the TypeScript compiler's source code through esbuild's bundler. Now that the TypeScript compiler is going to be bundled with esbuild in the upcoming TypeScript 5.0 release, improvements like this will also improve the TypeScript compiler itself!
 
+* The recommended event source for live reload has changed to a custon [well-known URI](https://en.wikipedia.org/wiki/Well-known_URI) at `/.well-known/esbuild`. The old `/esbuild` path will continue to work, but consider updating the URL:
+
+    ```js
+    new EventSource('/.well-known/esbuild').addEventListener('change', () => location.reload())
+    ```
+
+
 ## 0.17.5
 
 * Parse `const` type parameters from TypeScript 5.0

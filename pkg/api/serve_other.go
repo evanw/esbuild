@@ -120,7 +120,7 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	start := time.Now()
 
 	// Special-case the esbuild event stream
-	if req.Method == "GET" && req.URL.Path == "/esbuild" && req.Header.Get("Accept") == "text/event-stream" {
+	if req.Method == "GET" && (req.URL.Path == "/.well-known/esbuild" || req.URL.Path == "/esbuild") && req.Header.Get("Accept") == "text/event-stream" {
 		h.serveEventStream(start, req, res)
 		return
 	}
