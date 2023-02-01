@@ -3675,12 +3675,16 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 		//
 		//   A JSX element:
 		//     <A>(x) => {}</A>
+		//     <A extends/>
 		//     <A extends>(x) => {}</A>
 		//     <A extends={false}>(x) => {}</A>
+		//     <const A extends/>
 		//     <const A extends>(x) => {}</const>
 		//
 		//   An arrow function with type parameters:
+		//     <A,>(x) => {}
 		//     <A, B>(x) => {}
+		//     <A = B>(x) => {}
 		//     <A extends B>(x) => {}
 		//     <const>(x)</const>
 		//     <const A extends B>(x) => {}
@@ -3689,7 +3693,6 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 		//     <[]>(x)
 		//     <A[]>(x)
 		//     <A>(x) => {}
-		//     <A = B>(x) => {}
 
 		if p.options.ts.Parse && p.options.jsx.Parse && p.isTSArrowFnJSX() {
 			p.skipTypeScriptTypeParameters(allowConstModifier)

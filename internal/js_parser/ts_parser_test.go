@@ -421,7 +421,10 @@ func TestTSTypes(t *testing.T) {
 	expectPrintedTSX(t, "<const const></const>", "/* @__PURE__ */ React.createElement(\"const\", { const: true });\n")
 	expectPrintedTSX(t, "<const T/>", "/* @__PURE__ */ React.createElement(\"const\", { T: true });\n")
 	expectPrintedTSX(t, "<const T></const>", "/* @__PURE__ */ React.createElement(\"const\", { T: true });\n")
+	expectPrintedTSX(t, "<const T>(y) = {}</const>", "/* @__PURE__ */ React.createElement(\"const\", { T: true }, \"(y) = \");\n")
+	expectPrintedTSX(t, "<const T extends/>", "/* @__PURE__ */ React.createElement(\"const\", { T: true, extends: true });\n")
 	expectPrintedTSX(t, "<const T extends></const>", "/* @__PURE__ */ React.createElement(\"const\", { T: true, extends: true });\n")
+	expectPrintedTSX(t, "<const T extends>(y) = {}</const>", "/* @__PURE__ */ React.createElement(\"const\", { T: true, extends: true }, \"(y) = \");\n")
 	expectPrintedTSX(t, "<const T,>() => {}", "() => {\n};\n")
 	expectPrintedTSX(t, "<const T, X>() => {}", "() => {\n};\n")
 	expectPrintedTSX(t, "<const T, const X>() => {}", "() => {\n};\n")
@@ -440,12 +443,6 @@ func TestTSTypes(t *testing.T) {
 	expectParseErrorTSX(t, "async <const const>() => {}", "<stdin>: ERROR: Unexpected \"const\"\n")
 	expectParseErrorTSX(t, "async <const const T,>() => {}", "<stdin>: ERROR: Unexpected \"const\"\n")
 	expectParseErrorTSX(t, "async <const const T extends X>() => {}", "<stdin>: ERROR: Unexpected \"const\"\n")
-
-	// The TypeScript compiler currently crashes internally while parsing these,
-	// so it's unclear what the correct output should be. Tracking GitHub issue:
-	// https://github.com/microsoft/TypeScript/issues/52449
-	expectParseErrorTSX(t, "<T extends/>", "<stdin>: ERROR: Unexpected \"/\"\n")
-	expectParseErrorTSX(t, "<const T extends/>", "<stdin>: ERROR: Unexpected \"/\"\n")
 }
 
 func TestTSAsCast(t *testing.T) {
@@ -2449,6 +2446,10 @@ func TestTSJSX(t *testing.T) {
 	invalidWithHint := "<stdin>: ERROR: The character \">\" is not valid inside a JSX element\n<stdin>: NOTE: TypeScript's TSX syntax interprets " +
 		"arrow functions with a single generic type parameter as an opening JSX element. If you want it to be interpreted as an arrow function instead, " +
 		"you need to add a trailing comma after the type parameter to disambiguate:\n"
+	expectPrintedTSX(t, "<T extends/>", "/* @__PURE__ */ React.createElement(T, { extends: true });\n")
+	expectPrintedTSX(t, "<T extends>(y) = {}</T>", "/* @__PURE__ */ React.createElement(T, { extends: true }, \"(y) = \");\n")
+	expectParseErrorTSX(t, "<T extends X/>", "<stdin>: ERROR: Expected \">\" but found \"/\"\n")
+	expectParseErrorTSX(t, "<T extends X>(y) = {}</T>", "<stdin>: ERROR: Expected \"=>\" but found \"=\"\n")
 	expectParseErrorTSX(t, "(<T>(y) => {}</T>)", invalidWithHint)
 	expectParseErrorTSX(t, "(<T>(x: X<Y>) => {}</Y></T>)", invalidWithHint)
 	expectParseErrorTSX(t, "(<T extends>(y) => {}</T>)", invalid)

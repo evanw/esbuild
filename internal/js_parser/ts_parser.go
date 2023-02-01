@@ -935,7 +935,7 @@ func (p *parser) isTSArrowFnJSX() (isTSArrowFn bool) {
 			isTSArrowFn = true
 		} else if p.lexer.Token == js_lexer.TExtends {
 			p.lexer.Next()
-			isTSArrowFn = p.lexer.Token != js_lexer.TEquals && p.lexer.Token != js_lexer.TGreaterThan
+			isTSArrowFn = p.lexer.Token != js_lexer.TEquals && p.lexer.Token != js_lexer.TGreaterThan && p.lexer.Token != js_lexer.TSlash
 		}
 	}
 
