@@ -703,18 +703,14 @@ func (lexer *Lexer) NextJSXElementChild() {
 		stringLiteral:
 			for {
 				switch lexer.codePoint {
-				case -1:
-					// Reaching the end of the file without a closing element is an error
-					lexer.SyntaxError()
+				case -1, '{', '<':
+					// Stop when the string ends
+					break stringLiteral
 
 				case '&', '\r', '\n', '\u2028', '\u2029':
 					// This needs fixing if it has an entity or if it's a multi-line string
 					needsFixing = true
 					lexer.step()
-
-				case '{', '<':
-					// Stop when the string ends
-					break stringLiteral
 
 				case '}', '>':
 					// These technically aren't valid JSX: https://facebook.github.io/jsx/

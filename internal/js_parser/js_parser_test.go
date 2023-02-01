@@ -4948,11 +4948,11 @@ func TestJSX(t *testing.T) {
 
 	expectParseErrorJSX(t, "<a b=true/>", "<stdin>: ERROR: Expected \"{\" but found \"true\"\n")
 	expectParseErrorJSX(t, "</a>", "<stdin>: ERROR: Expected identifier but found \"/\"\n")
-	expectParseErrorJSX(t, "<></b>", "<stdin>: ERROR: Expected closing tag \"b\" to match opening tag \"\"\n<stdin>: NOTE: The opening tag \"\" is here:\n")
-	expectParseErrorJSX(t, "<a></>", "<stdin>: ERROR: Expected closing tag \"\" to match opening tag \"a\"\n<stdin>: NOTE: The opening tag \"a\" is here:\n")
-	expectParseErrorJSX(t, "<a></b>", "<stdin>: ERROR: Expected closing tag \"b\" to match opening tag \"a\"\n<stdin>: NOTE: The opening tag \"a\" is here:\n")
+	expectParseErrorJSX(t, "<></b>", "<stdin>: ERROR: Expected closing \"b\" tag to match opening \"\" tag\n<stdin>: NOTE: The opening \"\" tag is here:\n")
+	expectParseErrorJSX(t, "<a></>", "<stdin>: ERROR: Expected closing \"\" tag to match opening \"a\" tag\n<stdin>: NOTE: The opening \"a\" tag is here:\n")
+	expectParseErrorJSX(t, "<a></b>", "<stdin>: ERROR: Expected closing \"b\" tag to match opening \"a\" tag\n<stdin>: NOTE: The opening \"a\" tag is here:\n")
 	expectParseErrorJSX(t, "<\na\n.\nb\n>\n<\n/\nc\n.\nd\n>",
-		"<stdin>: ERROR: Expected closing tag \"c.d\" to match opening tag \"a.b\"\n<stdin>: NOTE: The opening tag \"a.b\" is here:\n")
+		"<stdin>: ERROR: Expected closing \"c.d\" tag to match opening \"a.b\" tag\n<stdin>: NOTE: The opening \"a.b\" tag is here:\n")
 	expectParseErrorJSX(t, "<a-b.c>", "<stdin>: ERROR: Expected \">\" but found \".\"\n")
 	expectParseErrorJSX(t, "<a.b-c>", "<stdin>: ERROR: Unexpected \"-\"\n")
 
@@ -4982,13 +4982,13 @@ func TestJSX(t *testing.T) {
 	expectParseErrorJSX(t, "<a /* />", "<stdin>: ERROR: Expected \"*/\" to terminate multi-line comment\n<stdin>: NOTE: The multi-line comment starts here:\n")
 	expectParseErrorJSX(t, "<a /*/ />", "<stdin>: ERROR: Expected \"*/\" to terminate multi-line comment\n<stdin>: NOTE: The multi-line comment starts here:\n")
 	expectParseErrorJSX(t, "<a // />", "<stdin>: ERROR: Expected \">\" but found end of file\n")
-	expectParseErrorJSX(t, "<a /**/>", "<stdin>: ERROR: Unexpected end of file\n")
+	expectParseErrorJSX(t, "<a /**/>", "<stdin>: ERROR: Unexpected end of file before a closing \"a\" tag\n<stdin>: NOTE: The opening \"a\" tag is here:\n")
 	expectParseErrorJSX(t, "<a /**/ />", "")
 	expectParseErrorJSX(t, "<a // \n />", "")
 	expectParseErrorJSX(t, "<a b/* />", "<stdin>: ERROR: Expected \"*/\" to terminate multi-line comment\n<stdin>: NOTE: The multi-line comment starts here:\n")
 	expectParseErrorJSX(t, "<a b/*/ />", "<stdin>: ERROR: Expected \"*/\" to terminate multi-line comment\n<stdin>: NOTE: The multi-line comment starts here:\n")
 	expectParseErrorJSX(t, "<a b// />", "<stdin>: ERROR: Expected \">\" but found end of file\n")
-	expectParseErrorJSX(t, "<a b/**/>", "<stdin>: ERROR: Unexpected end of file\n")
+	expectParseErrorJSX(t, "<a b/**/>", "<stdin>: ERROR: Unexpected end of file before a closing \"a\" tag\n<stdin>: NOTE: The opening \"a\" tag is here:\n")
 	expectParseErrorJSX(t, "<a b/**/ />", "")
 	expectParseErrorJSX(t, "<a b// \n />", "")
 

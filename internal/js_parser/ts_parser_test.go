@@ -296,8 +296,7 @@ func TestTSTypes(t *testing.T) {
 
 	// TypeScript 4.7
 	jsxErrorArrow := "<stdin>: ERROR: The character \">\" is not valid inside a JSX element\n" +
-		"NOTE: Did you mean to escape it as \"{'>'}\" instead?\n" +
-		"<stdin>: ERROR: Unexpected end of file\n"
+		"NOTE: Did you mean to escape it as \"{'>'}\" instead?\n"
 	expectPrintedTS(t, "type Foo<in T> = T", "")
 	expectPrintedTS(t, "type Foo<out T> = T", "")
 	expectPrintedTS(t, "type Foo<in out> = T", "")
@@ -370,9 +369,9 @@ func TestTSTypes(t *testing.T) {
 	expectParseErrorTSX(t, "<in T,>() => {}", "<stdin>: ERROR: Expected \">\" but found \",\"\n")
 	expectParseErrorTSX(t, "<out T,>() => {}", "<stdin>: ERROR: Expected \">\" but found \",\"\n")
 	expectParseErrorTSX(t, "<in out T,>() => {}", "<stdin>: ERROR: Expected \">\" but found \",\"\n")
-	expectParseErrorTSX(t, "<in T extends any>() => {}", jsxErrorArrow)
-	expectParseErrorTSX(t, "<out T extends any>() => {}", jsxErrorArrow)
-	expectParseErrorTSX(t, "<in out T extends any>() => {}", jsxErrorArrow)
+	expectParseErrorTSX(t, "<in T extends any>() => {}", jsxErrorArrow+"<stdin>: ERROR: Unexpected end of file before a closing \"in\" tag\n<stdin>: NOTE: The opening \"in\" tag is here:\n")
+	expectParseErrorTSX(t, "<out T extends any>() => {}", jsxErrorArrow+"<stdin>: ERROR: Unexpected end of file before a closing \"out\" tag\n<stdin>: NOTE: The opening \"out\" tag is here:\n")
+	expectParseErrorTSX(t, "<in out T extends any>() => {}", jsxErrorArrow+"<stdin>: ERROR: Unexpected end of file before a closing \"in\" tag\n<stdin>: NOTE: The opening \"in\" tag is here:\n")
 	expectPrintedTS(t, "class Container { get data(): typeof this.#data {} }", "class Container {\n  get data() {\n  }\n}\n")
 	expectPrintedTS(t, "const a: typeof this.#a = 1;", "const a = 1;\n")
 	expectParseErrorTS(t, "const a: typeof #a = 1;", "<stdin>: ERROR: Expected identifier but found \"#a\"\n")
@@ -435,10 +434,10 @@ func TestTSTypes(t *testing.T) {
 	expectPrintedTSX(t, "async <const T, const X>() => {}", "async () => {\n};\n")
 	expectPrintedTSX(t, "async <const T, const const X>() => {}", "async () => {\n};\n")
 	expectPrintedTSX(t, "async <const T extends X>() => {}", "async () => {\n};\n")
-	expectParseErrorTSX(t, "<const T>() => {}", jsxErrorArrow)
-	expectParseErrorTSX(t, "<const const>() => {}", jsxErrorArrow)
+	expectParseErrorTSX(t, "<const T>() => {}", jsxErrorArrow+"<stdin>: ERROR: Unexpected end of file before a closing \"const\" tag\n<stdin>: NOTE: The opening \"const\" tag is here:\n")
+	expectParseErrorTSX(t, "<const const>() => {}", jsxErrorArrow+"<stdin>: ERROR: Unexpected end of file before a closing \"const\" tag\n<stdin>: NOTE: The opening \"const\" tag is here:\n")
 	expectParseErrorTSX(t, "<const const T,>() => {}", "<stdin>: ERROR: Expected \">\" but found \",\"\n")
-	expectParseErrorTSX(t, "<const const T extends X>() => {}", jsxErrorArrow)
+	expectParseErrorTSX(t, "<const const T extends X>() => {}", jsxErrorArrow+"<stdin>: ERROR: Unexpected end of file before a closing \"const\" tag\n<stdin>: NOTE: The opening \"const\" tag is here:\n")
 	expectParseErrorTSX(t, "async <const T>() => {}", "<stdin>: ERROR: Unexpected \"const\"\n")
 	expectParseErrorTSX(t, "async <const const>() => {}", "<stdin>: ERROR: Unexpected \"const\"\n")
 	expectParseErrorTSX(t, "async <const const T,>() => {}", "<stdin>: ERROR: Unexpected \"const\"\n")
@@ -2078,9 +2077,9 @@ func TestTSInstantiationExpression(t *testing.T) {
 	expectPrintedTS(t, "interface Foo { \n (a: number): typeof a \n <T>(): void \n }", "")
 	expectPrintedTSX(t, "interface Foo { \n (a: number): typeof a \n <T>(): void \n }", "")
 	expectParseErrorTS(t, "type x = y\n<number>\nz\n</number>", "<stdin>: ERROR: Unterminated regular expression\n")
-	expectParseErrorTSX(t, "type x = y\n<number>\nz", "<stdin>: ERROR: Unexpected end of file\n")
+	expectParseErrorTSX(t, "type x = y\n<number>\nz", "<stdin>: ERROR: Unexpected end of file before a closing \"number\" tag\n<stdin>: NOTE: The opening \"number\" tag is here:\n")
 	expectParseErrorTS(t, "type x = typeof y\n<number>\nz\n</number>", "<stdin>: ERROR: Unterminated regular expression\n")
-	expectParseErrorTSX(t, "type x = typeof y\n<number>\nz", "<stdin>: ERROR: Unexpected end of file\n")
+	expectParseErrorTSX(t, "type x = typeof y\n<number>\nz", "<stdin>: ERROR: Unexpected end of file before a closing \"number\" tag\n<stdin>: NOTE: The opening \"number\" tag is here:\n")
 
 	// See: https://github.com/microsoft/TypeScript/issues/48654
 	expectPrintedTS(t, "x<true>\ny", "x < true > y;\n")
@@ -2391,7 +2390,7 @@ func TestTSJSX(t *testing.T) {
 
 	expectPrintedTS(t, "const x = <number>1", "const x = 1;\n")
 	expectPrintedTSX(t, "const x = <number>1</number>", "const x = /* @__PURE__ */ React.createElement(\"number\", null, \"1\");\n")
-	expectParseErrorTSX(t, "const x = <number>1", "<stdin>: ERROR: Unexpected end of file\n")
+	expectParseErrorTSX(t, "const x = <number>1", "<stdin>: ERROR: Unexpected end of file before a closing \"number\" tag\n<stdin>: NOTE: The opening \"number\" tag is here:\n")
 
 	expectPrintedTSX(t, "<x>a{}c</x>", "/* @__PURE__ */ React.createElement(\"x\", null, \"a\", \"c\");\n")
 	expectPrintedTSX(t, "<x>a{b}c</x>", "/* @__PURE__ */ React.createElement(\"x\", null, \"a\", b, \"c\");\n")
@@ -2460,9 +2459,9 @@ func TestTSJSX(t *testing.T) {
 	expectPrintedTSX(t, "(<T,>() => {})", "() => {\n};\n")
 	expectPrintedTSX(t, "(<T, X>(y) => {})", "(y) => {\n};\n")
 	expectPrintedTSX(t, "(<T, X>(y): (() => {}) => {})", "(y) => {\n};\n")
-	expectParseErrorTSX(t, "(<T>() => {})", invalidWithHint+"<stdin>: ERROR: Unexpected end of file\n")
-	expectParseErrorTSX(t, "(<T>(x: X<Y>) => {})", invalidWithHint+"<stdin>: ERROR: Unexpected end of file\n")
-	expectParseErrorTSX(t, "(<T>(x: X<Y>) => {})</Y>", invalidWithHint+"<stdin>: ERROR: Unexpected end of file\n")
+	expectParseErrorTSX(t, "(<T>() => {})", invalidWithHint+"<stdin>: ERROR: Unexpected end of file before a closing \"T\" tag\n<stdin>: NOTE: The opening \"T\" tag is here:\n")
+	expectParseErrorTSX(t, "(<T>(x: X<Y>) => {})", invalidWithHint+"<stdin>: ERROR: Unexpected end of file before a closing \"Y\" tag\n<stdin>: NOTE: The opening \"Y\" tag is here:\n")
+	expectParseErrorTSX(t, "(<T>(x: X<Y>) => {})</Y>", invalidWithHint+"<stdin>: ERROR: Unexpected end of file before a closing \"T\" tag\n<stdin>: NOTE: The opening \"T\" tag is here:\n")
 	expectParseErrorTSX(t, "(<[]>(y))", "<stdin>: ERROR: Expected identifier but found \"[\"\n")
 	expectParseErrorTSX(t, "(<T[]>(y))", "<stdin>: ERROR: Expected \">\" but found \"[\"\n")
 	expectParseErrorTSX(t, "(<T = X>(y))", "<stdin>: ERROR: Expected \"=>\" but found \")\"\n")
