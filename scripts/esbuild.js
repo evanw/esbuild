@@ -82,7 +82,7 @@ const buildNeutralLib = (esbuildPath) => {
   fs.writeFileSync(pjPath, JSON.stringify(package_json, null, 2) + '\n')
 }
 
-function generateWorkerCode({ esbuildPath, wasm_exec_js, minify, target }) {
+async function generateWorkerCode({ esbuildPath, wasm_exec_js, minify, target }) {
   const input = `
     let onmessage
     let globalThis = {}
@@ -94,11 +94,27 @@ function generateWorkerCode({ esbuildPath, wasm_exec_js, minify, target }) {
     ${fs.readFileSync(path.join(repoDir, 'lib', 'shared', 'worker.ts'), 'utf8')}
     return m => onmessage(m)
   `
-  const wasmExecAndWorker = childProcess.execFileSync(esbuildPath, [
+  const args = [
     '--loader=ts',
     '--target=' + target,
     '--define:ESBUILD_VERSION=' + JSON.stringify(version),
-  ].concat(minify ? ['--minify'] : []), { cwd: repoDir, input }).toString().trim()
+  ].concat(minify ? ['--minify'] : [])
+
+  // Note: This uses "execFile" because "execFileSync" in node appears to have
+  // a bug. Specifically when using the "input" option of "execFileSync" to
+  // provide stdin, sometimes (~2% of the time?) node writes all of the input
+  // but then doesn't close the stream. The Go side is stuck reading from stdin
+  // within "ioutil.ReadAll(os.Stdin)" so I suspect it's a bug in node, not in
+  // Go. Explicitly calling "stdin.end()" on the node side appears to fix it.
+  const wasmExecAndWorker = (await new Promise((resolve, reject) => {
+    const proc = childProcess.execFile(esbuildPath, args, { cwd: repoDir }, (err, stdout) => {
+      if (err) reject(err)
+      else resolve(stdout)
+    })
+    proc.stdin.write(input)
+    proc.stdin.end()
+  })).toString().trim()
+
   const commentLines = wasm_exec_js.split('\n')
   const firstNonComment = commentLines.findIndex(line => !line.startsWith('//'))
   const commentPrefix = '\n' + commentLines.slice(0, firstNonComment).join('\n') + '\n'
@@ -154,8 +170,8 @@ exports.buildWasmLib = async (esbuildPath) => {
 
   for (const minify of [false, true]) {
     const minifyFlags = minify ? ['--minify'] : []
-    const wasmWorkerCodeUMD = generateWorkerCode({ esbuildPath, wasm_exec_js, minify, target: umdBrowserTarget })
-    const wasmWorkerCodeESM = generateWorkerCode({ esbuildPath, wasm_exec_js, minify, target: esmBrowserTarget })
+    const wasmWorkerCodeUMD = await generateWorkerCode({ esbuildPath, wasm_exec_js, minify, target: umdBrowserTarget })
+    const wasmWorkerCodeESM = await generateWorkerCode({ esbuildPath, wasm_exec_js, minify, target: esmBrowserTarget })
 
     // Generate "npm/esbuild-wasm/lib/browser.*"
     const umdPrefix = `(module=>{`
@@ -202,7 +218,7 @@ exports.buildWasmLib = async (esbuildPath) => {
   }
 }
 
-const buildDenoLib = (esbuildPath) => {
+const buildDenoLib = async (esbuildPath) => {
   // Generate "deno/esbuild/mod.js"
   childProcess.execFileSync(esbuildPath, [
     path.join(repoDir, 'lib', 'deno', 'mod.ts'),
@@ -218,7 +234,7 @@ const buildDenoLib = (esbuildPath) => {
   // Generate "deno/esbuild/wasm.js"
   const GOROOT = childProcess.execFileSync('go', ['env', 'GOROOT']).toString().trim()
   let wasm_exec_js = fs.readFileSync(path.join(GOROOT, 'misc', 'wasm', 'wasm_exec.js'), 'utf8')
-  const wasmWorkerCode = generateWorkerCode({ esbuildPath, wasm_exec_js, minify: true, target: 'esnext' })
+  const wasmWorkerCode = await generateWorkerCode({ esbuildPath, wasm_exec_js, minify: true, target: 'esnext' })
   const modWASM = childProcess.execFileSync(esbuildPath, [
     path.join(repoDir, 'lib', 'deno', 'wasm.ts'),
     '--bundle',
