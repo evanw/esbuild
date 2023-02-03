@@ -2175,10 +2175,14 @@ func TestLabels(t *testing.T) {
 
 	expectPrinted(t, "x: break x", "x:\n  break x;\n")
 	expectPrinted(t, "x: { break x; foo() }", "x: {\n  break x;\n  foo();\n}\n")
+	expectPrinted(t, "x: { y: { z: { foo(); break x; } } }", "x: {\n  y: {\n    z: {\n      foo();\n      break x;\n    }\n  }\n}\n")
+	expectPrinted(t, "x: { class X { static { new X } } }", "x: {\n  class X {\n    static {\n      new X();\n    }\n  }\n}\n")
 	expectPrintedMangle(t, "x: break x", "")
 	expectPrintedMangle(t, "x: { break x; foo() }", "")
 	expectPrintedMangle(t, "y: while (foo()) x: { break x; foo() }", "y:\n  for (; foo(); )\n    ;\n")
 	expectPrintedMangle(t, "y: while (foo()) x: { break y; foo() }", "y:\n  for (; foo(); )\n    x:\n      break y;\n")
+	expectPrintedMangle(t, "x: { y: { z: { foo(); break x; } } }", "x:\n  y:\n    z: {\n      foo();\n      break x;\n    }\n")
+	expectPrintedMangle(t, "x: { class X { static { new X } } }", "x: {\n  class X {\n    static {\n      new X();\n    }\n  }\n}\n")
 }
 
 func TestArrow(t *testing.T) {

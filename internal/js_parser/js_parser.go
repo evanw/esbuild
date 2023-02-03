@@ -8951,11 +8951,8 @@ func stmtsToSingleStmt(loc logger.Loc, stmts []js_ast.Stmt) js_ast.Stmt {
 	if len(stmts) == 0 {
 		return js_ast.Stmt{Loc: loc, Data: js_ast.SEmptyShared}
 	}
-	if len(stmts) == 1 {
-		// "let" and "const" must be put in a block when in a single-statement context
-		if s, ok := stmts[0].Data.(*js_ast.SLocal); !ok || s.Kind == js_ast.LocalVar {
-			return stmts[0]
-		}
+	if len(stmts) == 1 && !statementCaresAboutScope(stmts[0]) {
+		return stmts[0]
 	}
 	return js_ast.Stmt{Loc: loc, Data: &js_ast.SBlock{Stmts: stmts}}
 }
@@ -9069,7 +9066,7 @@ func statementCaresAboutScope(stmt js_ast.Stmt) bool {
 	case *js_ast.SBlock, *js_ast.SEmpty, *js_ast.SDebugger, *js_ast.SExpr, *js_ast.SIf,
 		*js_ast.SFor, *js_ast.SForIn, *js_ast.SForOf, *js_ast.SDoWhile, *js_ast.SWhile,
 		*js_ast.SWith, *js_ast.STry, *js_ast.SSwitch, *js_ast.SReturn, *js_ast.SThrow,
-		*js_ast.SBreak, *js_ast.SContinue, *js_ast.SDirective:
+		*js_ast.SBreak, *js_ast.SContinue, *js_ast.SDirective, *js_ast.SLabel:
 		return false
 
 	case *js_ast.SLocal:
