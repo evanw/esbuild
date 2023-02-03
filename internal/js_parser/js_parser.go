@@ -8926,6 +8926,17 @@ func (p *parser) visitLoopBody(stmt js_ast.Stmt) js_ast.Stmt {
 }
 
 func (p *parser) visitSingleStmt(stmt js_ast.Stmt, kind stmtsKind) js_ast.Stmt {
+	// To reduce stack depth, special-case blocks and process their children directly
+	if block, ok := stmt.Data.(*js_ast.SBlock); ok {
+		p.pushScopeForVisitPass(js_ast.ScopeBlock, stmt.Loc)
+		block.Stmts = p.visitStmts(block.Stmts, kind)
+		p.popScope()
+		if p.options.minifySyntax {
+			stmt = stmtsToSingleStmt(stmt.Loc, block.Stmts)
+		}
+		return stmt
+	}
+
 	// Introduce a fake block scope for function declarations inside if statements
 	fn, ok := stmt.Data.(*js_ast.SFunction)
 	hasIfScope := ok && fn.Fn.HasIfScope
