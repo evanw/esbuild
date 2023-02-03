@@ -556,7 +556,8 @@ validate-builds:
 	@$(MAKE) --no-print-directory TARGET=platform-win32-x64      SCOPE=@esbuild/ PACKAGE=win32-x64       SUBPATH=esbuild.exe  validate-build
 
 clean:
-	go clean -testcache ./internal/...
+	go clean -cache
+	go clean -testcache
 	rm -f esbuild
 	rm -f npm/@esbuild/win32-arm64/esbuild.exe
 	rm -f npm/@esbuild/win32-ia32/esbuild.exe
