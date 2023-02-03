@@ -6006,7 +6006,7 @@ for (const length of [0, 1, 2, 3, 4, 5, 6, 7, 8, 256]) {
 
 // Test file handle errors other than ENOENT
 {
-  const errorText = process.platform === 'win32' ? 'The handle is invalid.' : 'is a directory';
+  const errorText = process.platform === 'win32' ? 'Incorrect function.' : 'is a directory';
   tests.push(
     test(['src/entry.js', '--bundle', '--outfile=node.js', '--sourcemap'], {
       'src/entry.js': `
