@@ -8529,20 +8529,14 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 						left, right = right, left
 					}
 
-					// Handle the returned values being the same
-					if boolean, ok := js_ast.CheckEqualityIfNoSideEffects(left.Data, right.Data); ok && boolean {
-						// "if (a) return b; return b;" => "return a, b;"
-						lastReturn = &js_ast.SReturn{ValueOrNil: js_ast.JoinWithComma(prevS.Test, left)}
+					if comma, ok := prevS.Test.Data.(*js_ast.EBinary); ok && comma.Op == js_ast.BinOpComma {
+						// "if (a, b) return c; return d;" => "return a, b ? c : d;"
+						lastReturn = &js_ast.SReturn{ValueOrNil: js_ast.JoinWithComma(comma.Left,
+							js_ast.MangleIfExpr(comma.Right.Loc, &js_ast.EIf{Test: comma.Right, Yes: left, No: right}, p.options.unsupportedJSFeatures, p.isUnbound))}
 					} else {
-						if comma, ok := prevS.Test.Data.(*js_ast.EBinary); ok && comma.Op == js_ast.BinOpComma {
-							// "if (a, b) return c; return d;" => "return a, b ? c : d;"
-							lastReturn = &js_ast.SReturn{ValueOrNil: js_ast.JoinWithComma(comma.Left,
-								js_ast.MangleIfExpr(comma.Right.Loc, &js_ast.EIf{Test: comma.Right, Yes: left, No: right}, p.options.unsupportedJSFeatures, p.isUnbound))}
-						} else {
-							// "if (a) return b; return c;" => "return a ? b : c;"
-							lastReturn = &js_ast.SReturn{ValueOrNil: js_ast.MangleIfExpr(
-								prevS.Test.Loc, &js_ast.EIf{Test: prevS.Test, Yes: left, No: right}, p.options.unsupportedJSFeatures, p.isUnbound)}
-						}
+						// "if (a) return b; return c;" => "return a ? b : c;"
+						lastReturn = &js_ast.SReturn{ValueOrNil: js_ast.MangleIfExpr(
+							prevS.Test.Loc, &js_ast.EIf{Test: prevS.Test, Yes: left, No: right}, p.options.unsupportedJSFeatures, p.isUnbound)}
 					}
 
 					// Merge the last two statements
