@@ -7,7 +7,7 @@ package cli
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"os"
 	"sort"
@@ -1099,7 +1099,7 @@ func runImpl(osArgs []string) int {
 			if buildOptions.Stdin == nil {
 				buildOptions.Stdin = &api.StdinOptions{}
 			}
-			bytes, err := ioutil.ReadAll(os.Stdin)
+			bytes, err := io.ReadAll(os.Stdin)
 			if err != nil {
 				logger.PrintErrorToStderr(osArgs, fmt.Sprintf(
 					"Could not read from stdin: %s", err.Error()))
@@ -1158,7 +1158,7 @@ func runImpl(osArgs []string) int {
 					logger.PrintErrorToStderr(osArgs, fmt.Sprintf(
 						"Failed to create output directory: %s", err.Error()))
 				} else {
-					if err := ioutil.WriteFile(metafileAbsPath, []byte(json), 0644); err != nil {
+					if err := os.WriteFile(metafileAbsPath, []byte(json), 0644); err != nil {
 						logger.PrintErrorToStderr(osArgs, fmt.Sprintf(
 							"Failed to write to output file: %s", err.Error()))
 					}
@@ -1205,7 +1205,7 @@ func runImpl(osArgs []string) int {
 						"Failed to create output directory: %s", err.Error()))
 				} else {
 					bytes := printMangleCache(mangleCache, mangleCacheOrder, buildOptions.Charset == api.CharsetASCII)
-					if err := ioutil.WriteFile(mangleCacheAbsPath, bytes, 0644); err != nil {
+					if err := os.WriteFile(mangleCacheAbsPath, bytes, 0644); err != nil {
 						logger.PrintErrorToStderr(osArgs, fmt.Sprintf(
 							"Failed to write to output file: %s", err.Error()))
 					}
@@ -1283,7 +1283,7 @@ func runImpl(osArgs []string) int {
 
 	case transformOptions != nil:
 		// Read the input from stdin
-		bytes, err := ioutil.ReadAll(os.Stdin)
+		bytes, err := io.ReadAll(os.Stdin)
 		if err != nil {
 			logger.PrintErrorToStderr(osArgs, fmt.Sprintf(
 				"Could not read from stdin: %s", err.Error()))

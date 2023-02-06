@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"regexp"
 	"sync"
@@ -1127,7 +1126,7 @@ func (service *serviceType) handleTransformRequest(id uint32, request map[string
 	transformInput := input
 	if inputFS {
 		fs.BeforeFileOpen()
-		bytes, err := ioutil.ReadFile(input)
+		bytes, err := os.ReadFile(input)
 		fs.AfterFileClose()
 		if err == nil {
 			err = os.Remove(input)
@@ -1145,7 +1144,7 @@ func (service *serviceType) handleTransformRequest(id uint32, request map[string
 	if inputFS && len(result.Code) > 0 {
 		file := input + ".code"
 		fs.BeforeFileOpen()
-		if err := ioutil.WriteFile(file, result.Code, 0644); err == nil {
+		if err := os.WriteFile(file, result.Code, 0644); err == nil {
 			result.Code = []byte(file)
 			codeFS = true
 		}
@@ -1155,7 +1154,7 @@ func (service *serviceType) handleTransformRequest(id uint32, request map[string
 	if inputFS && len(result.Map) > 0 {
 		file := input + ".map"
 		fs.BeforeFileOpen()
-		if err := ioutil.WriteFile(file, result.Map, 0644); err == nil {
+		if err := os.WriteFile(file, result.Map, 0644); err == nil {
 			result.Map = []byte(file)
 			mapFS = true
 		}

@@ -3,7 +3,7 @@ package resolver
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strings"
 	"testing"
 
@@ -28,7 +28,7 @@ type pnpTest struct {
 
 func TestYarnPnP(t *testing.T) {
 	t.Helper()
-	contents, err := ioutil.ReadFile("testExpectations.json")
+	contents, err := os.ReadFile("testExpectations.json")
 	if err != nil {
 		t.Fatalf("Failed to read testExpectations.json: %s", err.Error())
 	}

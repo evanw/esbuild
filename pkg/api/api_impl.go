@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"math"
 	"os"
 	"path"
@@ -1482,7 +1481,7 @@ func rebuildImpl(args rebuildArgs, oldSummary buildSummary) rebuildState {
 							fs.BeforeFileOpen()
 							defer fs.AfterFileClose()
 							if oldHash, ok := oldSummary[result.AbsPath]; ok && oldHash == newSummary[result.AbsPath] {
-								if contents, err := ioutil.ReadFile(result.AbsPath); err == nil && bytes.Equal(contents, result.Contents) {
+								if contents, err := os.ReadFile(result.AbsPath); err == nil && bytes.Equal(contents, result.Contents) {
 									// Skip writing out files that haven't changed since last time
 									return
 								}
@@ -1495,7 +1494,7 @@ func rebuildImpl(args rebuildArgs, oldSummary buildSummary) rebuildState {
 								if result.IsExecutable {
 									mode = 0755
 								}
-								if err := ioutil.WriteFile(result.AbsPath, result.Contents, mode); err != nil {
+								if err := os.WriteFile(result.AbsPath, result.Contents, mode); err != nil {
 									log.AddError(nil, logger.Range{}, fmt.Sprintf(
 										"Failed to write to output file: %s", err.Error()))
 								}

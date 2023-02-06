@@ -19,7 +19,7 @@ package fs
 
 import (
 	"archive/zip"
-	"io/ioutil"
+	"io"
 	"strconv"
 	"strings"
 	"sync"
@@ -266,7 +266,7 @@ func (fs *zipFS) ReadFile(path string) (contents string, canonicalError error, o
 	defer reader.Close()
 
 	// Then try to read it
-	bytes, err := ioutil.ReadAll(reader)
+	bytes, err := io.ReadAll(reader)
 	if err != nil {
 		file.err = err
 		return "", err, err

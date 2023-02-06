@@ -104,7 +104,7 @@ async function generateWorkerCode({ esbuildPath, wasm_exec_js, minify, target })
   // a bug. Specifically when using the "input" option of "execFileSync" to
   // provide stdin, sometimes (~2% of the time?) node writes all of the input
   // but then doesn't close the stream. The Go side is stuck reading from stdin
-  // within "ioutil.ReadAll(os.Stdin)" so I suspect it's a bug in node, not in
+  // within "io.ReadAll(os.Stdin)" so I suspect it's a bug in node, not in
   // Go. Explicitly calling "stdin.end()" on the node side appears to fix it.
   const wasmExecAndWorker = (await new Promise((resolve, reject) => {
     const proc = childProcess.execFile(esbuildPath, args, { cwd: repoDir }, (err, stdout) => {

@@ -3,7 +3,6 @@ package fs
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"sort"
 	"strings"
@@ -199,7 +198,7 @@ func (fs *realFS) ReadDirectory(dir string) (entries DirEntries, canonicalError 
 func (fs *realFS) ReadFile(path string) (contents string, canonicalError error, originalError error) {
 	BeforeFileOpen()
 	defer AfterFileClose()
-	buffer, originalError := ioutil.ReadFile(path)
+	buffer, originalError := os.ReadFile(path)
 	canonicalError = fs.canonicalizeError(originalError)
 
 	// Allocate the string once
@@ -514,7 +513,7 @@ func (fs *realFS) WatchData() WatchData {
 
 		case stateFileUnusableModKey:
 			paths[path] = func() string {
-				if buffer, err := ioutil.ReadFile(path); err != nil || string(buffer) != data.fileContents {
+				if buffer, err := os.ReadFile(path); err != nil || string(buffer) != data.fileContents {
 					return path
 				}
 				return ""

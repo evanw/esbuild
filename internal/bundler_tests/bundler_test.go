@@ -8,7 +8,6 @@ package bundler_tests
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"sort"
@@ -216,7 +215,7 @@ func (s *suite) compareSnapshot(t *testing.T, testName string, generated string)
 		s.path = snapshotsDir + "/snapshots_" + s.name + ".txt"
 		s.generatedSnapshots = make(map[string]string)
 		s.expectedSnapshots = make(map[string]string)
-		if contents, err := ioutil.ReadFile(s.path); err == nil {
+		if contents, err := os.ReadFile(s.path); err == nil {
 			// Replacing CRLF with LF is necessary to fix tests in GitHub actions,
 			// which for some reason check out the source code in CLRF mode
 			for _, part := range strings.Split(strings.ReplaceAll(string(contents), "\r\n", "\n"), snapshotSplitter) {
@@ -268,7 +267,7 @@ func (s *suite) updateSnapshots() {
 		}
 		contents += fmt.Sprintf("%s\n%s", key, s.generatedSnapshots[key])
 	}
-	if err := ioutil.WriteFile(s.path, []byte(contents), 0644); err != nil {
+	if err := os.WriteFile(s.path, []byte(contents), 0644); err != nil {
 		panic(err)
 	}
 }
