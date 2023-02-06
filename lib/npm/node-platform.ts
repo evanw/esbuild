@@ -9,6 +9,13 @@ declare const ESBUILD_VERSION: string
 // external code relies on this.
 export var ESBUILD_BINARY_PATH: string | undefined = process.env.ESBUILD_BINARY_PATH || ESBUILD_BINARY_PATH
 
+// Someone made an unofficial "esbuild" package for Linux that sets the
+// environment variable "ESBUILD_BINARY_PATH" to "/usr/bin/esbuild". This
+// breaks all npm installations of esbuild. The unofficial package was fixed
+// after I reached out to them but the old broken packages will still be there
+// forever. Attempt to fix this by ignoring the "/usr/bin/esbuild" value.
+export const isValidBinaryPath = (x: string | undefined): x is string => !!x && x !== '/usr/bin/esbuild'
+
 const packageDarwin_arm64 = '@esbuild/darwin-arm64'
 const packageDarwin_x64 = '@esbuild/darwin-x64'
 
@@ -106,7 +113,7 @@ export function generateBinPath(): { binPath: string, isWASM: boolean } {
   // This feature was added to give external code a way to modify the binary
   // path without modifying the code itself. Do not remove this because
   // external code relies on this (in addition to esbuild's own test suite).
-  if (ESBUILD_BINARY_PATH) {
+  if (isValidBinaryPath(ESBUILD_BINARY_PATH)) {
     if (!fs.existsSync(ESBUILD_BINARY_PATH)) {
       console.warn(`[esbuild] Ignoring bad configuration: ESBUILD_BINARY_PATH=${ESBUILD_BINARY_PATH}`)
     } else {

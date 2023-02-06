@@ -34,6 +34,12 @@
 
     This makes esbuild's TypeScript output smaller and faster when processing code that does this. I noticed this issue when I ran the TypeScript compiler's source code through esbuild's bundler. Now that the TypeScript compiler is going to be bundled with esbuild in the upcoming TypeScript 5.0 release, improvements like this will also improve the TypeScript compiler itself!
 
+* Fix esbuild installation on Arch Linux ([#2785](https://github.com/evanw/esbuild/issues/2785), [#2812](https://github.com/evanw/esbuild/issues/2812), [#2865](https://github.com/evanw/esbuild/issues/2865))
+
+    Someone made an unofficial `esbuild` package for Linux that adds the `ESBUILD_BINARY_PATH=/usr/bin/esbuild` environment variable to the user's default environment. This breaks all npm installations of esbuild for users with this unofficial Linux package installed, which has affected many people. Most (all?) people who encounter this problem haven't even installed this unofficial package themselves; instead it was installed for them as a dependency of another Linux package. The problematic change to add the `ESBUILD_BINARY_PATH` environment variable was reverted in the latest version of this unofficial package. However, old versions of this unofficial package are still there and will be around forever. With this release, `ESBUILD_BINARY_PATH` is now ignored by esbuild's install script when it's set to the value `/usr/bin/esbuild`. This should unbreak using npm to install `esbuild` in these problematic Linux environments.
+
+    Note: The `ESBUILD_BINARY_PATH` variable is an undocumented way to override the location of esbuild's binary when esbuild's npm package is installed, which is necessary to substitute your own locally-built esbuild binary when debugging esbuild's npm package. It's only meant for very custom situations and should absolutely not be forced on others by default, especially without their knowledge. I may remove the code in esbuild's installer that reads `ESBUILD_BINARY_PATH` in the future to prevent these kinds of issues. It will unfortunately make debugging esbuild harder. If `ESBUILD_BINARY_PATH` is ever removed, it will be done in a "breaking change" release.
+
 ## 0.17.5
 
 * Parse `const` type parameters from TypeScript 5.0
