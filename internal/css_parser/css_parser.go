@@ -138,7 +138,8 @@ func (p *parser) expectWithMatchingLoc(kind css_lexer.T, matchingLoc logger.Loc)
 		// Have a nice error message for forgetting a trailing semicolon or colon
 		text = fmt.Sprintf("Expected %s", expected)
 		t = p.at(p.index - 1)
-	} else if (kind == css_lexer.TCloseBrace || kind == css_lexer.TCloseBracket || kind == css_lexer.TCloseParen) && matchingLoc.Start != -1 {
+	} else if (kind == css_lexer.TCloseBrace || kind == css_lexer.TCloseBracket || kind == css_lexer.TCloseParen) &&
+		matchingLoc.Start != -1 && int(matchingLoc.Start)+1 <= len(p.source.Contents) {
 		// Have a nice error message for forgetting a closing brace/bracket/parenthesis
 		c := p.source.Contents[matchingLoc.Start : matchingLoc.Start+1]
 		text = fmt.Sprintf("Expected %s to go with %q", expected, c)

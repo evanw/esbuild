@@ -799,6 +799,12 @@ func TestAtRule(t *testing.T) {
 		"@-moz-document url-prefix() {\n  h1 {\n    color: green;\n  }\n}\n")
 
 	expectPrinted(t, "@media foo { bar }", "@media foo {\n  bar {\n  }\n}\n")
+	expectParseError(t, "@media foo { bar }", "<stdin>: WARNING: Unexpected \"}\"\n")
+
+	expectParseError(t, "@media foo { bar {}", "<stdin>: WARNING: Expected \"}\" to go with \"{\"\n<stdin>: NOTE: The unbalanced \"{\" is here:\n")
+	expectParseError(t, "@media foo {", "<stdin>: WARNING: Expected \"}\" to go with \"{\"\n<stdin>: NOTE: The unbalanced \"{\" is here:\n")
+	expectParseError(t, "@media foo", "<stdin>: WARNING: Expected \"{\" but found end of file\n")
+	expectParseError(t, "@media", "<stdin>: WARNING: Expected \"{\" but found end of file\n")
 
 	// https://www.w3.org/TR/css-page-3/#syntax-page-selector
 	expectPrinted(t, `

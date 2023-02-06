@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+* Fix a CSS parser crash on invalid CSS ([#2892](https://github.com/evanw/esbuild/issues/2892))
+
+    Previously the following invalid CSS caused esbuild's parser to crash:
+
+    ```css
+    @media screen
+    ```
+
+    The crash was caused by trying to construct a helpful error message assuming that there was an opening `{` token, which is not the case here. This release fixes the crash.
+
 * Inline TypeScript enums that are referenced before their declaration
 
     Previously esbuild inlined enums within a TypeScript file from top to bottom, which meant that references to TypeScript enum members were only inlined within the same file if they came after the enum declaration. With this release, esbuild will now inline enums even when they are referenced before they are declared:
