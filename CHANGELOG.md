@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.17.6
 
 * Fix a CSS parser crash on invalid CSS ([#2892](https://github.com/evanw/esbuild/issues/2892))
 
