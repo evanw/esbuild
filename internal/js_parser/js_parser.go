@@ -14563,7 +14563,7 @@ func (p *parser) maybeMarkKnownGlobalConstructorAsPure(e *js_ast.ENew) {
 				}
 
 				if n == 1 {
-					switch js_ast.KnownPrimitiveType(e.Args[0]) {
+					switch js_ast.KnownPrimitiveType(e.Args[0].Data) {
 					case js_ast.PrimitiveNull, js_ast.PrimitiveUndefined, js_ast.PrimitiveBoolean, js_ast.PrimitiveNumber, js_ast.PrimitiveString:
 						// "new Date('')" is pure
 						// "new Date(0)" is pure

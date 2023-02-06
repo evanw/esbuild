@@ -85,7 +85,7 @@ func MaybeSimplifyNot(expr Expr) (Expr, bool) {
 
 	case *EUnary:
 		// "!!!a" => "!a"
-		if e.Op == UnOpNot && KnownPrimitiveType(e.Value) == PrimitiveBoolean {
+		if e.Op == UnOpNot && KnownPrimitiveType(e.Value.Data) == PrimitiveBoolean {
 			return e.Value, true
 		}
 
@@ -133,7 +133,7 @@ func MaybeSimplifyEqualityComparison(loc logger.Loc, e *EBinary, unsupportedFeat
 	// "!x === false" => "!!x"
 	// "!x !== true" => "!!x"
 	// "!x !== false" => "!x"
-	if boolean, ok := primitive.Data.(*EBoolean); ok && KnownPrimitiveType(value) == PrimitiveBoolean {
+	if boolean, ok := primitive.Data.(*EBoolean); ok && KnownPrimitiveType(value.Data) == PrimitiveBoolean {
 		if boolean.Value == (e.Op == BinOpLooseNe || e.Op == BinOpStrictNe) {
 			return Not(value), true
 		} else {
@@ -193,8 +193,8 @@ const (
 
 // This can be used when the returned type is either one or the other
 func MergedKnownPrimitiveTypes(a Expr, b Expr) PrimitiveType {
-	x := KnownPrimitiveType(a)
-	y := KnownPrimitiveType(b)
+	x := KnownPrimitiveType(a.Data)
+	y := KnownPrimitiveType(b.Data)
 	if x == PrimitiveUnknown || y == PrimitiveUnknown {
 		return PrimitiveUnknown
 	}
@@ -204,10 +204,10 @@ func MergedKnownPrimitiveTypes(a Expr, b Expr) PrimitiveType {
 	return PrimitiveMixed // Definitely some kind of primitive
 }
 
-func KnownPrimitiveType(a Expr) PrimitiveType {
-	switch e := a.Data.(type) {
+func KnownPrimitiveType(expr E) PrimitiveType {
+	switch e := expr.(type) {
 	case *EInlinedEnum:
-		return KnownPrimitiveType(e.Value)
+		return KnownPrimitiveType(e.Value.Data)
 
 	case *ENull:
 		return PrimitiveNull
@@ -250,7 +250,7 @@ func KnownPrimitiveType(a Expr) PrimitiveType {
 			return PrimitiveNumber // Cannot be bigint because that throws an exception
 
 		case UnOpNeg, UnOpCpl:
-			value := KnownPrimitiveType(e.Value)
+			value := KnownPrimitiveType(e.Value.Data)
 			if value == PrimitiveBigInt {
 				return PrimitiveBigInt
 			}
@@ -274,8 +274,8 @@ func KnownPrimitiveType(a Expr) PrimitiveType {
 			return MergedKnownPrimitiveTypes(e.Left, e.Right)
 
 		case BinOpNullishCoalescing:
-			left := KnownPrimitiveType(e.Left)
-			right := KnownPrimitiveType(e.Right)
+			left := KnownPrimitiveType(e.Left.Data)
+			right := KnownPrimitiveType(e.Right.Data)
 			if left == PrimitiveNull || left == PrimitiveUndefined {
 				return right
 			}
@@ -289,8 +289,8 @@ func KnownPrimitiveType(a Expr) PrimitiveType {
 			}
 
 		case BinOpAdd:
-			left := KnownPrimitiveType(e.Left)
-			right := KnownPrimitiveType(e.Right)
+			left := KnownPrimitiveType(e.Left.Data)
+			right := KnownPrimitiveType(e.Right.Data)
 			if left == PrimitiveString || right == PrimitiveString {
 				return PrimitiveString
 			}
@@ -304,7 +304,7 @@ func KnownPrimitiveType(a Expr) PrimitiveType {
 			return PrimitiveMixed // Can be number or bigint or string (or an exception)
 
 		case BinOpAddAssign:
-			right := KnownPrimitiveType(e.Right)
+			right := KnownPrimitiveType(e.Right.Data)
 			if right == PrimitiveString {
 				return PrimitiveString
 			}
@@ -325,7 +325,7 @@ func KnownPrimitiveType(a Expr) PrimitiveType {
 			return PrimitiveMixed // Can be number or bigint (or an exception)
 
 		case BinOpAssign, BinOpComma:
-			return KnownPrimitiveType(e.Right)
+			return KnownPrimitiveType(e.Right.Data)
 		}
 	}
 
@@ -333,8 +333,8 @@ func KnownPrimitiveType(a Expr) PrimitiveType {
 }
 
 func CanChangeStrictToLoose(a Expr, b Expr) bool {
-	x := KnownPrimitiveType(a)
-	y := KnownPrimitiveType(b)
+	x := KnownPrimitiveType(a.Data)
+	y := KnownPrimitiveType(b.Data)
 	return x == y && x != PrimitiveUnknown && x != PrimitiveMixed
 }
 
@@ -574,7 +574,7 @@ func SimplifyUnusedExpr(expr Expr, unsupportedFeatures compat.JSFeature, isUnbou
 			for _, part := range e.Parts {
 				// If we know this value is some kind of primitive, then we know that
 				// "ToString" has no side effects and can be avoided.
-				if KnownPrimitiveType(part.Value) != PrimitiveUnknown {
+				if KnownPrimitiveType(part.Value.Data) != PrimitiveUnknown {
 					if template != nil {
 						comma = JoinWithComma(comma, Expr{Loc: templateLoc, Data: template})
 						template = nil
@@ -1378,7 +1378,7 @@ func FoldStringAddition(left Expr, right Expr, kind StringAdditionKind) Expr {
 		}
 
 		// "'' + typeof x" => "typeof x"
-		if len(l.Value) == 0 && KnownPrimitiveType(right) == PrimitiveString {
+		if len(l.Value) == 0 && KnownPrimitiveType(right.Data) == PrimitiveString {
 			return right
 		}
 
@@ -1433,7 +1433,7 @@ func FoldStringAddition(left Expr, right Expr, kind StringAdditionKind) Expr {
 	}
 
 	// "typeof x + ''" => "typeof x"
-	if r, ok := right.Data.(*EString); ok && len(r.Value) == 0 && KnownPrimitiveType(left) == PrimitiveString {
+	if r, ok := right.Data.(*EString); ok && len(r.Value) == 0 && KnownPrimitiveType(left.Data) == PrimitiveString {
 		return left
 	}
 
@@ -2014,10 +2014,10 @@ func ExprCanBeRemovedIfUnused(expr Expr, isUnbound func(Ref) bool) bool {
 
 		// Special-case "<" and ">" with string, number, or bigint arguments
 		case BinOpLt, BinOpGt, BinOpLe, BinOpGe:
-			left := KnownPrimitiveType(e.Left)
+			left := KnownPrimitiveType(e.Left.Data)
 			switch left {
 			case PrimitiveString, PrimitiveNumber, PrimitiveBigInt:
-				return KnownPrimitiveType(e.Right) == left && ExprCanBeRemovedIfUnused(e.Left, isUnbound) && ExprCanBeRemovedIfUnused(e.Right, isUnbound)
+				return KnownPrimitiveType(e.Right.Data) == left && ExprCanBeRemovedIfUnused(e.Left, isUnbound) && ExprCanBeRemovedIfUnused(e.Right, isUnbound)
 			}
 		}
 
@@ -2027,7 +2027,7 @@ func ExprCanBeRemovedIfUnused(expr Expr, isUnbound func(Ref) bool) bool {
 		// have a "ToString" operation with no side effects.
 		if e.TagOrNil.Data == nil {
 			for _, part := range e.Parts {
-				if !ExprCanBeRemovedIfUnused(part.Value, isUnbound) || KnownPrimitiveType(part.Value) == PrimitiveUnknown {
+				if !ExprCanBeRemovedIfUnused(part.Value, isUnbound) || KnownPrimitiveType(part.Value.Data) == PrimitiveUnknown {
 					return false
 				}
 			}
