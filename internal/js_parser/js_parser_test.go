@@ -2542,10 +2542,15 @@ func TestConstantFolding(t *testing.T) {
 	expectPrinted(t, "x = null == null", "x = true;\n")
 	expectPrinted(t, "x = null != null", "x = false;\n")
 
-	expectPrinted(t, "x = undefined === null", "x = void 0 === null;\n")
-	expectPrinted(t, "x = undefined !== null", "x = void 0 !== null;\n")
-	expectPrinted(t, "x = undefined == null", "x = void 0 == null;\n")
-	expectPrinted(t, "x = undefined != null", "x = void 0 != null;\n")
+	expectPrinted(t, "x = null === undefined", "x = false;\n")
+	expectPrinted(t, "x = null !== undefined", "x = true;\n")
+	expectPrinted(t, "x = null == undefined", "x = true;\n")
+	expectPrinted(t, "x = null != undefined", "x = false;\n")
+
+	expectPrinted(t, "x = undefined === null", "x = false;\n")
+	expectPrinted(t, "x = undefined !== null", "x = true;\n")
+	expectPrinted(t, "x = undefined == null", "x = true;\n")
+	expectPrinted(t, "x = undefined != null", "x = false;\n")
 
 	expectPrinted(t, "x = true === true", "x = true;\n")
 	expectPrinted(t, "x = true === false", "x = false;\n")
@@ -2636,6 +2641,40 @@ func TestConstantFolding(t *testing.T) {
 	expectPrinted(t, "x = y + 4 + '5'", "x = y + 4 + \"5\";\n")
 	expectPrinted(t, "x = '3' + 4 + 5", "x = \"345\";\n")
 	expectPrinted(t, "x = 3 + 4 + '5'", "x = 3 + 4 + \"5\";\n")
+
+	expectPrinted(t, "x = null == 0", "x = false;\n")
+	expectPrinted(t, "x = 0 == null", "x = false;\n")
+	expectPrinted(t, "x = undefined == 0", "x = false;\n")
+	expectPrinted(t, "x = 0 == undefined", "x = false;\n")
+
+	expectPrinted(t, "x = null == NaN", "x = false;\n")
+	expectPrinted(t, "x = NaN == null", "x = false;\n")
+	expectPrinted(t, "x = undefined == NaN", "x = false;\n")
+	expectPrinted(t, "x = NaN == undefined", "x = false;\n")
+
+	expectPrinted(t, "x = null == ''", "x = false;\n")
+	expectPrinted(t, "x = '' == null", "x = false;\n")
+	expectPrinted(t, "x = undefined == ''", "x = false;\n")
+	expectPrinted(t, "x = '' == undefined", "x = false;\n")
+
+	expectPrinted(t, "x = null == 'null'", "x = false;\n")
+	expectPrinted(t, "x = 'null' == null", "x = false;\n")
+	expectPrinted(t, "x = undefined == 'undefined'", "x = false;\n")
+	expectPrinted(t, "x = 'undefined' == undefined", "x = false;\n")
+
+	expectPrinted(t, "x = false === 0", "x = false;\n")
+	expectPrinted(t, "x = true === 1", "x = false;\n")
+	expectPrinted(t, "x = false == 0", "x = true;\n")
+	expectPrinted(t, "x = false == -0", "x = true;\n")
+	expectPrinted(t, "x = true == 1", "x = true;\n")
+	expectPrinted(t, "x = true == 2", "x = false;\n")
+
+	expectPrinted(t, "x = 0 === false", "x = false;\n")
+	expectPrinted(t, "x = 1 === true", "x = false;\n")
+	expectPrinted(t, "x = 0 == false", "x = true;\n")
+	expectPrinted(t, "x = -0 == false", "x = true;\n")
+	expectPrinted(t, "x = 1 == true", "x = true;\n")
+	expectPrinted(t, "x = 2 == true", "x = false;\n")
 }
 
 func TestConstantFoldingScopes(t *testing.T) {

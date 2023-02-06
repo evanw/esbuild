@@ -1,5 +1,46 @@
 # Changelog
 
+## Unreleased
+
+* Add constant folding for certain additional equality cases ([#2394](https://github.com/evanw/esbuild/issues/2394), [#2895](https://github.com/evanw/esbuild/issues/2895))
+
+    This release adds constant folding for expressions similar to the following:
+
+    ```js
+    // Original input
+    console.log(
+      null === 'foo',
+      null === undefined,
+      null == undefined,
+      false === 0,
+      false == 0,
+      1 === true,
+      1 == true,
+    )
+
+    // Old output
+    console.log(
+      null === "foo",
+      null === void 0,
+      null == void 0,
+      false === 0,
+      false == 0,
+      1 === true,
+      1 == true
+    );
+
+    // New output
+    console.log(
+      false,
+      false,
+      true,
+      false,
+      true,
+      false,
+      true
+    );
+    ```
+
 ## 0.17.6
 
 * Fix a CSS parser crash on invalid CSS ([#2892](https://github.com/evanw/esbuild/issues/2892))

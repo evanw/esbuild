@@ -12646,7 +12646,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 
 		case js_ast.BinOpLooseEq:
-			if result, ok := js_ast.CheckEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
+			if result, ok := js_ast.CheckEqualityIfNoSideEffects(e.Left.Data, e.Right.Data, js_ast.LooseEquality); ok {
 				return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EBoolean{Value: result}}, exprOut{}
 			}
 			afterOpLoc := locAfterOp(e)
@@ -12669,7 +12669,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 
 		case js_ast.BinOpStrictEq:
-			if result, ok := js_ast.CheckEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
+			if result, ok := js_ast.CheckEqualityIfNoSideEffects(e.Left.Data, e.Right.Data, js_ast.StrictEquality); ok {
 				return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EBoolean{Value: result}}, exprOut{}
 			}
 			afterOpLoc := locAfterOp(e)
@@ -12690,7 +12690,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 
 		case js_ast.BinOpLooseNe:
-			if result, ok := js_ast.CheckEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
+			if result, ok := js_ast.CheckEqualityIfNoSideEffects(e.Left.Data, e.Right.Data, js_ast.LooseEquality); ok {
 				return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EBoolean{Value: !result}}, exprOut{}
 			}
 			afterOpLoc := locAfterOp(e)
@@ -12713,7 +12713,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 
 		case js_ast.BinOpStrictNe:
-			if result, ok := js_ast.CheckEqualityIfNoSideEffects(e.Left.Data, e.Right.Data); ok {
+			if result, ok := js_ast.CheckEqualityIfNoSideEffects(e.Left.Data, e.Right.Data, js_ast.StrictEquality); ok {
 				return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EBoolean{Value: !result}}, exprOut{}
 			}
 			afterOpLoc := locAfterOp(e)

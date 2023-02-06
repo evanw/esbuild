@@ -1082,41 +1082,138 @@ func IsBinaryNullAndUndefined(left Expr, right Expr, op OpCode) (Expr, Expr, boo
 	return Expr{}, Expr{}, false
 }
 
+type EqualityKind uint8
+
+const (
+	LooseEquality EqualityKind = iota
+	StrictEquality
+)
+
 // Returns "equal, ok". If "ok" is false, then nothing is known about the two
 // values. If "ok" is true, the equality or inequality of the two values is
 // stored in "equal".
-func CheckEqualityIfNoSideEffects(left E, right E) (bool, bool) {
+func CheckEqualityIfNoSideEffects(left E, right E, kind EqualityKind) (equal bool, ok bool) {
 	if r, ok := right.(*EInlinedEnum); ok {
-		return CheckEqualityIfNoSideEffects(left, r.Value.Data)
+		return CheckEqualityIfNoSideEffects(left, r.Value.Data, kind)
 	}
 
 	switch l := left.(type) {
 	case *EInlinedEnum:
-		return CheckEqualityIfNoSideEffects(l.Value.Data, right)
+		return CheckEqualityIfNoSideEffects(l.Value.Data, right, kind)
 
 	case *ENull:
-		_, ok := right.(*ENull)
-		return ok, ok
+		switch right.(type) {
+		case *ENull:
+			// "null === null" is true
+			return true, true
+
+		case *EUndefined:
+			// "null == undefined" is true
+			// "null === undefined" is false
+			return kind == LooseEquality, true
+
+		default:
+			if IsPrimitiveLiteral(right) {
+				// "null == (not null or undefined)" is false
+				return false, true
+			}
+		}
 
 	case *EUndefined:
-		_, ok := right.(*EUndefined)
-		return ok, ok
+		switch right.(type) {
+		case *EUndefined:
+			// "undefined === undefined" is true
+			return true, true
+
+		case *ENull:
+			// "undefined == null" is true
+			// "undefined === null" is false
+			return kind == LooseEquality, true
+
+		default:
+			if IsPrimitiveLiteral(right) {
+				// "undefined == (not null or undefined)" is false
+				return false, true
+			}
+		}
 
 	case *EBoolean:
-		r, ok := right.(*EBoolean)
-		return ok && l.Value == r.Value, ok
+		switch r := right.(type) {
+		case *EBoolean:
+			// "false === false" is true
+			// "false === true" is false
+			return l.Value == r.Value, true
+
+		case *ENumber:
+			if kind == LooseEquality {
+				if l.Value {
+					// "true == 1" is true
+					return r.Value == 1, true
+				} else {
+					// "false == 0" is true
+					return r.Value == 0, true
+				}
+			} else {
+				// "true === 1" is false
+				// "false === 0" is false
+				return false, true
+			}
+
+		case *ENull, *EUndefined:
+			// "(not null or undefined) == undefined" is false
+			return false, true
+		}
 
 	case *ENumber:
-		r, ok := right.(*ENumber)
-		return ok && l.Value == r.Value, ok
+		switch r := right.(type) {
+		case *ENumber:
+			// "0 === 0" is true
+			// "0 === 1" is false
+			return l.Value == r.Value, true
+
+		case *EBoolean:
+			if kind == LooseEquality {
+				if r.Value {
+					// "1 == true" is true
+					return l.Value == 1, true
+				} else {
+					// "0 == false" is true
+					return l.Value == 0, true
+				}
+			} else {
+				// "1 === true" is false
+				// "0 === false" is false
+				return false, true
+			}
+
+		case *ENull, *EUndefined:
+			// "(not null or undefined) == undefined" is false
+			return false, true
+		}
 
 	case *EBigInt:
-		r, ok := right.(*EBigInt)
-		return ok && l.Value == r.Value, ok
+		switch r := right.(type) {
+		case *EBigInt:
+			// "0n === 0n" is true
+			// "0n === 1n" is false
+			return l.Value == r.Value, true
+
+		case *ENull, *EUndefined:
+			// "(not null or undefined) == undefined" is false
+			return false, true
+		}
 
 	case *EString:
-		r, ok := right.(*EString)
-		return ok && helpers.UTF16EqualsUTF16(l.Value, r.Value), ok
+		switch r := right.(type) {
+		case *EString:
+			// "'a' === 'a'" is true
+			// "'a' === 'b'" is false
+			return helpers.UTF16EqualsUTF16(l.Value, r.Value), true
+
+		case *ENull, *EUndefined:
+			// "(not null or undefined) == undefined" is false
+			return false, true
+		}
 	}
 
 	return false, false
@@ -1186,7 +1283,7 @@ func ValuesLookTheSame(left E, right E) bool {
 		}
 	}
 
-	equal, ok := CheckEqualityIfNoSideEffects(left, right)
+	equal, ok := CheckEqualityIfNoSideEffects(left, right, StrictEquality)
 	return ok && equal
 }
 
