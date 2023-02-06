@@ -4279,6 +4279,8 @@ func TestMangleUnused(t *testing.T) {
 	expectPrintedNormalAndMangle(t, "a + '' != b", "a + \"\" != b;\n", "a + \"\" != b;\n")
 	expectPrintedNormalAndMangle(t, "a + '' == b + ''", "a + \"\" == b + \"\";\n", "a + \"\", b + \"\";\n")
 	expectPrintedNormalAndMangle(t, "a + '' != b + ''", "a + \"\" != b + \"\";\n", "a + \"\", b + \"\";\n")
+	expectPrintedNormalAndMangle(t, "a + '' == (b | c)", "a + \"\" == (b | c);\n", "a + \"\", b | c;\n")
+	expectPrintedNormalAndMangle(t, "a + '' != (b | c)", "a + \"\" != (b | c);\n", "a + \"\", b | c;\n")
 	expectPrintedNormalAndMangle(t, "typeof a == b + ''", "typeof a == b + \"\";\n", "b + \"\";\n")
 	expectPrintedNormalAndMangle(t, "typeof a != b + ''", "typeof a != b + \"\";\n", "b + \"\";\n")
 	expectPrintedNormalAndMangle(t, "typeof a == 'b'", "typeof a == \"b\";\n", "")

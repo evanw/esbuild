@@ -194,16 +194,23 @@ const (
 // This can be used when the returned type is either one or the other
 func MergedKnownPrimitiveTypes(a Expr, b Expr) PrimitiveType {
 	x := KnownPrimitiveType(a.Data)
-	y := KnownPrimitiveType(b.Data)
-	if x == PrimitiveUnknown || y == PrimitiveUnknown {
+	if x == PrimitiveUnknown {
 		return PrimitiveUnknown
 	}
+
+	y := KnownPrimitiveType(b.Data)
+	if y == PrimitiveUnknown {
+		return PrimitiveUnknown
+	}
+
 	if x == y {
 		return x
 	}
 	return PrimitiveMixed // Definitely some kind of primitive
 }
 
+// Note: This function does not say whether the expression is side-effect free
+// or not. For example, the expression "++x" always returns a primitive.
 func KnownPrimitiveType(expr E) PrimitiveType {
 	switch e := expr.(type) {
 	case *EInlinedEnum:
@@ -481,65 +488,6 @@ func ConvertBindingToExpr(binding Binding, wrapIdentifier func(logger.Loc, Ref) 
 	}
 }
 
-// Returns true if this expression is known to result in a primitive value (i.e.
-// null, undefined, boolean, number, bigint, or string), even if the expression
-// cannot be removed due to side effects.
-func IsPrimitiveWithSideEffects(data E) bool {
-	switch e := data.(type) {
-	case *EInlinedEnum:
-		return IsPrimitiveWithSideEffects(e.Value.Data)
-
-	case *ENull, *EUndefined, *EBoolean, *ENumber, *EBigInt, *EString:
-		return true
-
-	case *EUnary:
-		switch e.Op {
-		case
-			// Number or bigint
-			UnOpPos, UnOpNeg, UnOpCpl,
-			UnOpPreDec, UnOpPreInc, UnOpPostDec, UnOpPostInc,
-			// Boolean
-			UnOpNot, UnOpDelete,
-			// Undefined
-			UnOpVoid,
-			// String
-			UnOpTypeof:
-			return true
-		}
-
-	case *EBinary:
-		switch e.Op {
-		case
-			// Boolean
-			BinOpLt, BinOpLe, BinOpGt, BinOpGe, BinOpIn,
-			BinOpInstanceof, BinOpLooseEq, BinOpLooseNe, BinOpStrictEq, BinOpStrictNe,
-			// String, number, or bigint
-			BinOpAdd, BinOpAddAssign,
-			// Number or bigint
-			BinOpSub, BinOpMul, BinOpDiv, BinOpRem, BinOpPow,
-			BinOpSubAssign, BinOpMulAssign, BinOpDivAssign, BinOpRemAssign, BinOpPowAssign,
-			BinOpShl, BinOpShr, BinOpUShr,
-			BinOpShlAssign, BinOpShrAssign, BinOpUShrAssign,
-			BinOpBitwiseOr, BinOpBitwiseAnd, BinOpBitwiseXor,
-			BinOpBitwiseOrAssign, BinOpBitwiseAndAssign, BinOpBitwiseXorAssign:
-			return true
-
-		// These always return one of the arguments unmodified
-		case BinOpLogicalAnd, BinOpLogicalOr, BinOpNullishCoalescing,
-			BinOpLogicalAndAssign, BinOpLogicalOrAssign, BinOpNullishCoalescingAssign:
-			return IsPrimitiveWithSideEffects(e.Left.Data) && IsPrimitiveWithSideEffects(e.Right.Data)
-
-		case BinOpComma:
-			return IsPrimitiveWithSideEffects(e.Right.Data)
-		}
-
-	case *EIf:
-		return IsPrimitiveWithSideEffects(e.Yes.Data) && IsPrimitiveWithSideEffects(e.No.Data)
-	}
-
-	return false
-}
-
 // This will return a nil expression if the expression can be totally removed.
 //
 // This function intentionally avoids mutating the input AST so it can be
@@ -729,7 +677,7 @@ func SimplifyUnusedExpr(expr Expr, unsupportedFeatures compat.JSFeature, isUnbou
 		// primitives. In that case there won't be any chance for user-defined
 		// "toString" and/or "valueOf" to be called.
 		case BinOpLooseEq, BinOpLooseNe:
-			if IsPrimitiveWithSideEffects(left.Data) && IsPrimitiveWithSideEffects(right.Data) {
+			if MergedKnownPrimitiveTypes(left, right) != PrimitiveUnknown {
 				return JoinWithComma(SimplifyUnusedExpr(left, unsupportedFeatures, isUnbound), SimplifyUnusedExpr(right, unsupportedFeatures, isUnbound))
 			}
 
