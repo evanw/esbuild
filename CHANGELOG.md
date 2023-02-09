@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+* Change esbuild's parsing of TypeScript instantiation expressions to match TypeScript 4.8+ ([#2201](https://github.com/evanw/esbuild/issues/2201))
+
+    This release updates esbuild's implementation of instantiation expression erasure to match [microsoft/TypeScript#49353](https://github.com/microsoft/TypeScript/pull/49353). The new rules are as follows (copied from TypeScript's PR description):
+
+    > When a potential type argument list is followed by
+    >
+    > * a line break,
+    > * an `(` token,
+    > * a template literal string, or
+    > * any token except `<` or `>` that isn't the start of an expression,
+    >
+    > we consider that construct to be a type argument list. Otherwise we consider the construct to be a `<` relational expression followed by a `>` relational expression.
+
 * Ignore `sideEffects: false` for imported CSS files ([#1370](https://github.com/evanw/esbuild/issues/1370), [#1458](https://github.com/evanw/esbuild/pull/1458), [#2905](https://github.com/evanw/esbuild/issues/2905))
 
     This release ignores the `sideEffects` annotation in `package.json` for CSS files that are imported into JS files using esbuild's `css` loader. This means that these CSS files are no longer be tree-shaken.

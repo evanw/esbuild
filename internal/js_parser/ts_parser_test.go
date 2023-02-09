@@ -2014,7 +2014,7 @@ func TestTSInstantiationExpression(t *testing.T) {
 	// Function call
 	expectPrintedTS(t, "const x1 = f<true>\n(true);", "const x1 = f(true);\n")
 	// Relational expression
-	expectPrintedTS(t, "const x1 = f<true>\ntrue;", "const x1 = f < true > true;\n")
+	expectPrintedTS(t, "const x1 = f<true>\ntrue;", "const x1 = f;\ntrue;\n")
 	// Instantiation expression
 	expectPrintedTS(t, "const x1 = f<true>;\n(true);", "const x1 = f;\ntrue;\n")
 
@@ -2034,8 +2034,6 @@ func TestTSInstantiationExpression(t *testing.T) {
 	expectPrintedTS(t, "type T21 = typeof Array<string>; f();", "f();\n")
 	expectPrintedTS(t, "type T22 = typeof Array<string, number>; f();", "f();\n")
 
-	// This behavior matches TypeScript 4.7.0 nightly (specifically "typescript@4.7.0-dev.20220421")
-	// after various fixes from Microsoft that landed after the TypeScript 4.7.0 beta
 	expectPrintedTS(t, "f<x>, g<y>;", "f, g;\n")
 	expectPrintedTS(t, "f<<T>() => T>;", "f;\n")
 	expectPrintedTS(t, "f.x<<T>() => T>;", "f.x;\n")
@@ -2058,11 +2056,14 @@ func TestTSInstantiationExpression(t *testing.T) {
 	expectPrintedTS(t, "{ f<x> }", "{\n  f;\n}\n")
 	expectPrintedTS(t, "f<x> + g<y>;", "f < x > +g;\n")
 	expectPrintedTS(t, "f<x> - g<y>;", "f < x > -g;\n")
-	expectParseErrorTS(t, "f<x> * g<y>;", "<stdin>: ERROR: Unexpected \"*\"\n")
-	expectParseErrorTS(t, "f<x> == g<y>;", "<stdin>: ERROR: Unexpected \"==\"\n")
-	expectParseErrorTS(t, "f<x> ?? g<y>;", "<stdin>: ERROR: Unexpected \"??\"\n")
-	expectParseErrorTS(t, "f<x> in g<y>;", "<stdin>: ERROR: Unexpected \"in\"\n")
-	expectParseErrorTS(t, "f<x> instanceof g<y>;", "<stdin>: ERROR: Unexpected \"instanceof\"\n")
+	expectPrintedTS(t, "f<x> * g<y>;", "f * g;\n")
+	expectPrintedTS(t, "f<x> *= g<y>;", "f *= g;\n")
+	expectPrintedTS(t, "f<x> == g<y>;", "f == g;\n")
+	expectPrintedTS(t, "f<x> ?? g<y>;", "f ?? g;\n")
+	expectPrintedTS(t, "f<x> in g<y>;", "f in g;\n")
+	expectPrintedTS(t, "f<x> instanceof g<y>;", "f instanceof g;\n")
+	expectPrintedTS(t, "f<x> as g<y>;", "f;\n")
+	expectPrintedTS(t, "f<x> satisfies g<y>;", "f;\n")
 
 	expectParseErrorTS(t, "const a8 = f<number><number>;", "<stdin>: ERROR: Unexpected \";\"\n")
 	expectParseErrorTS(t, "const b1 = f?.<number>;", "<stdin>: ERROR: Expected \"(\" but found \";\"\n")
@@ -2082,20 +2083,26 @@ func TestTSInstantiationExpression(t *testing.T) {
 	expectParseErrorTSX(t, "type x = typeof y\n<number>\nz", "<stdin>: ERROR: Unexpected end of file before a closing \"number\" tag\n<stdin>: NOTE: The opening \"number\" tag is here:\n")
 
 	// See: https://github.com/microsoft/TypeScript/issues/48654
-	expectPrintedTS(t, "x<true>\ny", "x < true > y;\n")
+	expectPrintedTS(t, "x<true> y", "x < true > y;\n")
+	expectPrintedTS(t, "x<true>\ny", "x;\ny;\n")
 	expectPrintedTS(t, "x<true>\nif (y) {}", "x;\nif (y) {\n}\n")
 	expectPrintedTS(t, "x<true>\nimport 'y'", "x;\nimport \"y\";\n")
-	expectPrintedTS(t, "x<true>\nimport('y')", "x < true > import(\"y\");\n")
-	expectPrintedTS(t, "x<true>\nimport.meta", "x < true > import.meta;\n")
-	expectPrintedTS(t, "new x<number>\ny", "new x() < number > y;\n")
+	expectPrintedTS(t, "x<true>\nimport('y')", "x;\nimport(\"y\");\n")
+	expectPrintedTS(t, "x<true>\nimport.meta", "x;\nimport.meta;\n")
+	expectPrintedTS(t, "x<true> import('y')", "x < true > import(\"y\");\n")
+	expectPrintedTS(t, "x<true> import.meta", "x < true > import.meta;\n")
+	expectPrintedTS(t, "new x<number> y", "new x() < number > y;\n")
+	expectPrintedTS(t, "new x<number>\ny", "new x();\ny;\n")
 	expectPrintedTS(t, "new x<number>\nif (y) {}", "new x();\nif (y) {\n}\n")
 	expectPrintedTS(t, "new x<true>\nimport 'y'", "new x();\nimport \"y\";\n")
-	expectPrintedTS(t, "new x<true>\nimport('y')", "new x() < true > import(\"y\");\n")
-	expectPrintedTS(t, "new x<true>\nimport.meta", "new x() < true > import.meta;\n")
+	expectPrintedTS(t, "new x<true>\nimport('y')", "new x();\nimport(\"y\");\n")
+	expectPrintedTS(t, "new x<true>\nimport.meta", "new x();\nimport.meta;\n")
+	expectPrintedTS(t, "new x<true> import('y')", "new x() < true > import(\"y\");\n")
+	expectPrintedTS(t, "new x<true> import.meta", "new x() < true > import.meta;\n")
 
 	// See: https://github.com/microsoft/TypeScript/issues/48759
-	expectParseErrorTS(t, "x<true>\nimport<T>('y')", "<stdin>: ERROR: Expected \"(\" but found \"<\"\n")
-	expectParseErrorTS(t, "new x<true>\nimport<T>('y')", "<stdin>: ERROR: Expected \"(\" but found \"<\"\n")
+	expectParseErrorTS(t, "x<true>\nimport<T>('y')", "<stdin>: ERROR: Unexpected \"<\"\n")
+	expectParseErrorTS(t, "new x<true>\nimport<T>('y')", "<stdin>: ERROR: Unexpected \"<\"\n")
 
 	// See: https://github.com/evanw/esbuild/issues/2201
 	expectParseErrorTS(t, "return Array < ;", "<stdin>: ERROR: Unexpected \";\"\n")
@@ -2115,12 +2122,20 @@ func TestTSInstantiationExpression(t *testing.T) {
 	expectPrintedTS(t, "return Array < Array < number >> +1;", "return Array < Array < number >> 1;\n")
 	expectPrintedTS(t, "return Array < Array < number >> (1);", "return Array(1);\n")
 	expectPrintedTS(t, "return Array < Array < number > > (1);", "return Array(1);\n")
-	expectParseErrorTS(t, "return Array < number > in x;", "<stdin>: ERROR: Unexpected \"in\"\n")
-	expectParseErrorTS(t, "return Array < Array < number >> in x;", "<stdin>: ERROR: Unexpected \"in\"\n")
-	expectParseErrorTS(t, "return Array < Array < number > > in x;", "<stdin>: ERROR: Unexpected \">\"\n")
+	expectPrintedTS(t, "return Array < number > in x;", "return Array in x;\n")
+	expectPrintedTS(t, "return Array < Array < number >> in x;", "return Array in x;\n")
+	expectPrintedTS(t, "return Array < Array < number > > in x;", "return Array in x;\n")
 	expectPrintedTS(t, "for (var x = Array < number > in y) ;", "x = Array;\nfor (var x in y)\n  ;\n")
 	expectPrintedTS(t, "for (var x = Array < Array < number >> in y) ;", "x = Array;\nfor (var x in y)\n  ;\n")
 	expectPrintedTS(t, "for (var x = Array < Array < number > > in y) ;", "x = Array;\nfor (var x in y)\n  ;\n")
+
+	// See: https://github.com/microsoft/TypeScript/pull/49353
+	expectPrintedTS(t, "F<{}> 0", "F < {} > 0;\n")
+	expectPrintedTS(t, "F<{}> class F<T> {}", "F < {} > class F {\n};\n")
+	expectPrintedTS(t, "f<{}> function f<T>() {}", "f < {} > function f() {\n};\n")
+	expectPrintedTS(t, "F<{}>\n0", "F;\n0;\n")
+	expectPrintedTS(t, "F<{}>\nclass F<T> {}", "F;\nclass F {\n}\n")
+	expectPrintedTS(t, "f<{}>\nfunction f<T>() {}", "f;\nfunction f() {\n}\n")
 }
 
 func TestTSExponentiation(t *testing.T) {
