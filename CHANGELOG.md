@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.17.7
 
 * Change esbuild's parsing of TypeScript instantiation expressions to match TypeScript 4.8+ ([#2907](https://github.com/evanw/esbuild/issues/2907))
 
