@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-* Change esbuild's parsing of TypeScript instantiation expressions to match TypeScript 4.8+ ([#2201](https://github.com/evanw/esbuild/issues/2201))
+* Change esbuild's parsing of TypeScript instantiation expressions to match TypeScript 4.8+ ([#2907](https://github.com/evanw/esbuild/issues/2907))
 
     This release updates esbuild's implementation of instantiation expression erasure to match [microsoft/TypeScript#49353](https://github.com/microsoft/TypeScript/pull/49353). The new rules are as follows (copied from TypeScript's PR description):
 
