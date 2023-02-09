@@ -2918,15 +2918,6 @@ func (c *linkerContext) findImportedCSSFilesInJSOrder(entryPoint uint32) (order 
 
 		// Iterate over each part in the file in order
 		for _, part := range repr.AST.Parts {
-			// Ignore dead code that has been removed from the bundle. Any code
-			// that's reachable from the entry point, even through lazy dynamic
-			// imports, could end up being activated by the bundle and needs its
-			// CSS to be included. This may change if/when code splitting is
-			// supported for CSS.
-			if !part.IsLive {
-				continue
-			}
-
 			// Traverse any files imported by this part. Note that CommonJS calls
 			// to "require()" count as imports too, sort of as if the part has an
 			// ESM "import" statement in it. This may seem weird because ESM imports

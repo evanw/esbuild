@@ -3444,3 +3444,214 @@ func TestPackageJsonSideEffectsFalseCrossPlatformSlash(t *testing.T) {
 		},
 	})
 }
+
+func TestTreeShakingJSWithAssociatedCSS(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/project/test.jsx": `
+				import { Button } from 'pkg/button'
+				import { Menu } from 'pkg/menu'
+				render(<Button/>)
+			`,
+			"/project/node_modules/pkg/button.js": `
+				import './button.css'
+				export let Button
+			`,
+			"/project/node_modules/pkg/button.css": `
+				button { color: red }
+			`,
+			"/project/node_modules/pkg/menu.js": `
+				import './menu.css'
+				export let Menu
+			`,
+			"/project/node_modules/pkg/menu.css": `
+				menu { color: red }
+			`,
+		},
+		entryPaths: []string{"/project/test.jsx"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+	})
+}
+
+func TestTreeShakingJSWithAssociatedCSSReExportSideEffectsFalse(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/project/test.jsx": `
+				import { Button } from 'pkg'
+				render(<Button/>)
+			`,
+			"/project/node_modules/pkg/entry.js": `
+				export { Button } from './components'
+			`,
+			"/project/node_modules/pkg/package.json": `{
+				"main": "./entry.js",
+				"sideEffects": false
+			}`,
+			"/project/node_modules/pkg/components.jsx": `
+				require('./button.css')
+				export const Button = () => <button/>
+			`,
+			"/project/node_modules/pkg/button.css": `
+				button { color: red }
+			`,
+		},
+		entryPaths: []string{"/project/test.jsx"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+	})
+}
+
+func TestTreeShakingJSWithAssociatedCSSReExportSideEffectsFalseOnlyJS(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/project/test.jsx": `
+				import { Button } from 'pkg'
+				render(<Button/>)
+			`,
+			"/project/node_modules/pkg/entry.js": `
+				export { Button } from './components'
+			`,
+			"/project/node_modules/pkg/package.json": `{
+				"main": "./entry.js",
+				"sideEffects": ["*.css"]
+			}`,
+			"/project/node_modules/pkg/components.jsx": `
+				require('./button.css')
+				export const Button = () => <button/>
+			`,
+			"/project/node_modules/pkg/button.css": `
+				button { color: red }
+			`,
+		},
+		entryPaths: []string{"/project/test.jsx"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+	})
+}
+
+func TestTreeShakingJSWithAssociatedCSSExportStarSideEffectsFalse(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/project/test.jsx": `
+				import { Button } from 'pkg'
+				render(<Button/>)
+			`,
+			"/project/node_modules/pkg/entry.js": `
+				export * from './components'
+			`,
+			"/project/node_modules/pkg/package.json": `{
+				"main": "./entry.js",
+				"sideEffects": false
+			}`,
+			"/project/node_modules/pkg/components.jsx": `
+				require('./button.css')
+				export const Button = () => <button/>
+			`,
+			"/project/node_modules/pkg/button.css": `
+				button { color: red }
+			`,
+		},
+		entryPaths: []string{"/project/test.jsx"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+	})
+}
+
+func TestTreeShakingJSWithAssociatedCSSExportStarSideEffectsFalseOnlyJS(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/project/test.jsx": `
+				import { Button } from 'pkg'
+				render(<Button/>)
+			`,
+			"/project/node_modules/pkg/entry.js": `
+				export * from './components'
+			`,
+			"/project/node_modules/pkg/package.json": `{
+				"main": "./entry.js",
+				"sideEffects": ["*.css"]
+			}`,
+			"/project/node_modules/pkg/components.jsx": `
+				require('./button.css')
+				export const Button = () => <button/>
+			`,
+			"/project/node_modules/pkg/button.css": `
+				button { color: red }
+			`,
+		},
+		entryPaths: []string{"/project/test.jsx"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+	})
+}
+
+func TestTreeShakingJSWithAssociatedCSSUnusedNestedImportSideEffectsFalse(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/project/test.jsx": `
+				import { Button } from 'pkg/button'
+				render(<Button/>)
+			`,
+			"/project/node_modules/pkg/package.json": `{
+				"sideEffects": false
+			}`,
+			"/project/node_modules/pkg/button.jsx": `
+				import styles from './styles'
+				export const Button = () => <button/>
+			`,
+			"/project/node_modules/pkg/styles.js": `
+				import './styles.css'
+				export default {}
+			`,
+			"/project/node_modules/pkg/styles.css": `
+				button { color: red }
+			`,
+		},
+		entryPaths: []string{"/project/test.jsx"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+	})
+}
+
+func TestTreeShakingJSWithAssociatedCSSUnusedNestedImportSideEffectsFalseOnlyJS(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/project/test.jsx": `
+				import { Button } from 'pkg/button'
+				render(<Button/>)
+			`,
+			"/project/node_modules/pkg/package.json": `{
+				"sideEffects": ["*.css"]
+			}`,
+			"/project/node_modules/pkg/button.jsx": `
+				import styles from './styles'
+				export const Button = () => <button/>
+			`,
+			"/project/node_modules/pkg/styles.js": `
+				import './styles.css'
+				export default {}
+			`,
+			"/project/node_modules/pkg/styles.css": `
+				button { color: red }
+			`,
+		},
+		entryPaths: []string{"/project/test.jsx"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+	})
+}

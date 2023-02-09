@@ -1787,6 +1787,148 @@ init_lib();
 console.log(keep1(), (init_cjs(), __toCommonJS(cjs_exports)));
 
 ================================================================================
+TestTreeShakingJSWithAssociatedCSS
+---------- /out/test.js ----------
+// project/node_modules/pkg/button.js
+var Button;
+
+// project/test.jsx
+render(/* @__PURE__ */ React.createElement(Button, null));
+
+---------- /out/test.css ----------
+/* project/node_modules/pkg/button.css */
+button {
+  color: red;
+}
+
+/* project/node_modules/pkg/menu.css */
+menu {
+  color: red;
+}
+
+================================================================================
+TestTreeShakingJSWithAssociatedCSSExportStarSideEffectsFalse
+---------- /out/test.js ----------
+// project/node_modules/pkg/button.css
+var require_ = __commonJS({
+  "project/node_modules/pkg/button.css"(exports, module) {
+    module.exports = {};
+  }
+});
+
+// project/node_modules/pkg/components.jsx
+require_();
+var Button = () => /* @__PURE__ */ React.createElement("button", null);
+
+// project/test.jsx
+render(/* @__PURE__ */ React.createElement(Button, null));
+
+---------- /out/test.css ----------
+/* project/node_modules/pkg/button.css */
+button {
+  color: red;
+}
+
+================================================================================
+TestTreeShakingJSWithAssociatedCSSExportStarSideEffectsFalseOnlyJS
+---------- /out/test.js ----------
+// project/node_modules/pkg/button.css
+var require_ = __commonJS({
+  "project/node_modules/pkg/button.css"(exports, module) {
+    module.exports = {};
+  }
+});
+
+// project/node_modules/pkg/components.jsx
+require_();
+var Button = () => /* @__PURE__ */ React.createElement("button", null);
+
+// project/test.jsx
+render(/* @__PURE__ */ React.createElement(Button, null));
+
+---------- /out/test.css ----------
+/* project/node_modules/pkg/button.css */
+button {
+  color: red;
+}
+
+================================================================================
+TestTreeShakingJSWithAssociatedCSSReExportSideEffectsFalse
+---------- /out/test.js ----------
+// project/node_modules/pkg/button.css
+var require_ = __commonJS({
+  "project/node_modules/pkg/button.css"(exports, module) {
+    module.exports = {};
+  }
+});
+
+// project/node_modules/pkg/components.jsx
+require_();
+var Button = () => /* @__PURE__ */ React.createElement("button", null);
+
+// project/test.jsx
+render(/* @__PURE__ */ React.createElement(Button, null));
+
+---------- /out/test.css ----------
+/* project/node_modules/pkg/button.css */
+button {
+  color: red;
+}
+
+================================================================================
+TestTreeShakingJSWithAssociatedCSSReExportSideEffectsFalseOnlyJS
+---------- /out/test.js ----------
+// project/node_modules/pkg/button.css
+var require_ = __commonJS({
+  "project/node_modules/pkg/button.css"(exports, module) {
+    module.exports = {};
+  }
+});
+
+// project/node_modules/pkg/components.jsx
+require_();
+var Button = () => /* @__PURE__ */ React.createElement("button", null);
+
+// project/test.jsx
+render(/* @__PURE__ */ React.createElement(Button, null));
+
+---------- /out/test.css ----------
+/* project/node_modules/pkg/button.css */
+button {
+  color: red;
+}
+
+================================================================================
+TestTreeShakingJSWithAssociatedCSSUnusedNestedImportSideEffectsFalse
+---------- /out/test.js ----------
+// project/node_modules/pkg/button.jsx
+var Button = () => /* @__PURE__ */ React.createElement("button", null);
+
+// project/test.jsx
+render(/* @__PURE__ */ React.createElement(Button, null));
+
+---------- /out/test.css ----------
+/* project/node_modules/pkg/styles.css */
+button {
+  color: red;
+}
+
+================================================================================
+TestTreeShakingJSWithAssociatedCSSUnusedNestedImportSideEffectsFalseOnlyJS
+---------- /out/test.js ----------
+// project/node_modules/pkg/button.jsx
+var Button = () => /* @__PURE__ */ React.createElement("button", null);
+
+// project/test.jsx
+render(/* @__PURE__ */ React.createElement(Button, null));
+
+---------- /out/test.css ----------
+/* project/node_modules/pkg/styles.css */
+button {
+  color: red;
+}
+
+================================================================================
 TestTreeShakingLoweredClassStaticField
 ---------- /out/entry.js ----------
 // entry.js
