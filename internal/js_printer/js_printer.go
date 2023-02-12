@@ -810,9 +810,7 @@ func (p *printer) printSemicolonIfNeeded() {
 }
 
 func (p *printer) printSpaceBeforeIdentifier() {
-	buffer := p.js
-	n := len(buffer)
-	if n > 0 && (js_ast.IsIdentifierContinue(rune(buffer[n-1])) || n == p.prevRegExpEnd) {
+	if c, _ := utf8.DecodeLastRune(p.js); js_ast.IsIdentifierContinue(c) || p.prevRegExpEnd == len(p.js) {
 		p.print(" ")
 	}
 }

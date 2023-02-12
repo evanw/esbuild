@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+* Fix a minification bug with non-ASCII identifiers ([#2910](https://github.com/evanw/esbuild/issues/2910))
+
+    This release fixes a bug with esbuild where non-ASCII identifiers followed by a keyword were incorrectly not separated by a space. This bug affected both the `in` and `instanceof` keywords. Here's an example of the fix:
+
+    ```js
+    // Original code
+    π in a
+
+    // Old output (with --minify --charset=utf8)
+    πin a;
+
+    // New output (with --minify --charset=utf8)
+    π in a;
+    ```
+
 ## 0.17.7
 
 * Change esbuild's parsing of TypeScript instantiation expressions to match TypeScript 4.8+ ([#2907](https://github.com/evanw/esbuild/issues/2907))
