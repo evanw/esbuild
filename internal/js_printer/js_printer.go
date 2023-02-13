@@ -2884,123 +2884,127 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		}
 
 	case *js_ast.EBinary:
-		// If this is a comma operator then either the result is unused (and we
-		// should have already simplified unused expressions), or the result is used
-		// (and we can still simplify unused expressions inside the left operand)
-		if e.Op == js_ast.BinOpComma {
-			if (flags & didAlreadySimplifyUnusedExprs) == 0 {
-				left := p.simplifyUnusedExpr(e.Left)
-				right := e.Right
-				if (flags & exprResultIsUnused) != 0 {
-					right = p.simplifyUnusedExpr(right)
-				}
-				if left.Data != e.Left.Data || right.Data != e.Right.Data {
-					// Pass a flag so we don't needlessly re-simplify the same expression
-					p.printExpr(p.guardAgainstBehaviorChangeDueToSubstitution(js_ast.JoinWithComma(left, right), flags), level, flags|didAlreadySimplifyUnusedExprs)
-					break
-				}
-			} else {
-				// Pass a flag so we don't needlessly re-simplify the same expression
-				flags |= didAlreadySimplifyUnusedExprs
-			}
-		}
-
-		entry := js_ast.OpTable[e.Op]
-		wrap := level >= entry.Level || (e.Op == js_ast.BinOpIn && (flags&forbidIn) != 0)
-
-		// Destructuring assignments must be parenthesized
-		if n := len(p.js); p.stmtStart == n || p.arrowExprStart == n {
-			if _, ok := e.Left.Data.(*js_ast.EObject); ok {
-				wrap = true
-			}
-		}
-
-		if wrap {
-			p.print("(")
-			flags &= ^forbidIn
-		}
-
-		leftLevel := entry.Level - 1
-		rightLevel := entry.Level - 1
-
-		if e.Op.IsRightAssociative() {
-			leftLevel = entry.Level
-		}
-		if e.Op.IsLeftAssociative() {
-			rightLevel = entry.Level
-		}
-
-		switch e.Op {
-		case js_ast.BinOpNullishCoalescing:
-			// "??" can't directly contain "||" or "&&" without being wrapped in parentheses
-			if left, ok := e.Left.Data.(*js_ast.EBinary); ok && (left.Op == js_ast.BinOpLogicalOr || left.Op == js_ast.BinOpLogicalAnd) {
-				leftLevel = js_ast.LPrefix
-			}
-			if right, ok := e.Right.Data.(*js_ast.EBinary); ok && (right.Op == js_ast.BinOpLogicalOr || right.Op == js_ast.BinOpLogicalAnd) {
-				rightLevel = js_ast.LPrefix
-			}
-
-		case js_ast.BinOpPow:
-			// "**" can't contain certain unary expressions
-			if left, ok := e.Left.Data.(*js_ast.EUnary); ok && left.Op.UnaryAssignTarget() == js_ast.AssignTargetNone {
-				leftLevel = js_ast.LCall
-			} else if _, ok := e.Left.Data.(*js_ast.EAwait); ok {
-				leftLevel = js_ast.LCall
-			} else if _, ok := e.Left.Data.(*js_ast.EUndefined); ok {
-				// Undefined is printed as "void 0"
-				leftLevel = js_ast.LCall
-			} else if _, ok := e.Left.Data.(*js_ast.ENumber); ok {
-				// Negative numbers are printed using a unary operator
-				leftLevel = js_ast.LCall
-			} else if p.options.MinifySyntax {
-				// When minifying, booleans are printed as "!0 and "!1"
-				if _, ok := e.Left.Data.(*js_ast.EBoolean); ok {
-					leftLevel = js_ast.LCall
-				}
-			}
-		}
-
-		// Special-case "#foo in bar"
-		if private, ok := e.Left.Data.(*js_ast.EPrivateIdentifier); ok && e.Op == js_ast.BinOpIn {
-			name := p.renamer.NameForSymbol(private.Ref)
-			p.addSourceMappingForName(e.Left.Loc, name, private.Ref)
-			p.printIdentifier(name)
-		} else if e.Op == js_ast.BinOpComma {
-			// The result of the left operand of the comma operator is unused
-			p.printExpr(e.Left, leftLevel, (flags&forbidIn)|exprResultIsUnused|parentWasUnaryOrBinary)
-		} else {
-			p.printExpr(e.Left, leftLevel, (flags&forbidIn)|parentWasUnaryOrBinary)
-		}
-
-		if e.Op != js_ast.BinOpComma {
-			p.printSpace()
-		}
-
-		if entry.IsKeyword {
-			p.printSpaceBeforeIdentifier()
-			p.print(entry.Text)
-		} else {
-			p.printSpaceBeforeOperator(e.Op)
-			p.print(entry.Text)
-			p.prevOp = e.Op
-			p.prevOpEnd = len(p.js)
-		}
-
-		p.printSpace()
-
-		if e.Op == js_ast.BinOpComma {
-			// The result of the right operand of the comma operator is unused if the caller doesn't use it
-			p.printExpr(e.Right, rightLevel, (flags&(forbidIn|exprResultIsUnused))|parentWasUnaryOrBinary)
-		} else {
-			p.printExpr(e.Right, rightLevel, (flags&forbidIn)|parentWasUnaryOrBinary)
-		}
-
-		if wrap {
-			p.print(")")
-		}
+		p.printBinary(e, level, flags)
 
 	default:
 		panic(fmt.Sprintf("Unexpected expression of type %T", expr.Data))
+	}
+}
+
+func (p *printer) printBinary(e *js_ast.EBinary, level js_ast.L, flags printExprFlags) {
+	// If this is a comma operator then either the result is unused (and we
+	// should have already simplified unused expressions), or the result is used
+	// (and we can still simplify unused expressions inside the left operand)
+	if e.Op == js_ast.BinOpComma {
+		if (flags & didAlreadySimplifyUnusedExprs) == 0 {
+			left := p.simplifyUnusedExpr(e.Left)
+			right := e.Right
+			if (flags & exprResultIsUnused) != 0 {
+				right = p.simplifyUnusedExpr(right)
+			}
+			if left.Data != e.Left.Data || right.Data != e.Right.Data {
+				// Pass a flag so we don't needlessly re-simplify the same expression
+				p.printExpr(p.guardAgainstBehaviorChangeDueToSubstitution(js_ast.JoinWithComma(left, right), flags), level, flags|didAlreadySimplifyUnusedExprs)
+				return
+			}
+		} else {
+			// Pass a flag so we don't needlessly re-simplify the same expression
+			flags |= didAlreadySimplifyUnusedExprs
+		}
+	}
+
+	entry := js_ast.OpTable[e.Op]
+	wrap := level >= entry.Level || (e.Op == js_ast.BinOpIn && (flags&forbidIn) != 0)
+
+	// Destructuring assignments must be parenthesized
+	if n := len(p.js); p.stmtStart == n || p.arrowExprStart == n {
+		if _, ok := e.Left.Data.(*js_ast.EObject); ok {
+			wrap = true
+		}
+	}
+
+	if wrap {
+		p.print("(")
+		flags &= ^forbidIn
+	}
+
+	leftLevel := entry.Level - 1
+	rightLevel := entry.Level - 1
+
+	if e.Op.IsRightAssociative() {
+		leftLevel = entry.Level
+	}
+	if e.Op.IsLeftAssociative() {
+		rightLevel = entry.Level
+	}
+
+	switch e.Op {
+	case js_ast.BinOpNullishCoalescing:
+		// "??" can't directly contain "||" or "&&" without being wrapped in parentheses
+		if left, ok := e.Left.Data.(*js_ast.EBinary); ok && (left.Op == js_ast.BinOpLogicalOr || left.Op == js_ast.BinOpLogicalAnd) {
+			leftLevel = js_ast.LPrefix
+		}
+		if right, ok := e.Right.Data.(*js_ast.EBinary); ok && (right.Op == js_ast.BinOpLogicalOr || right.Op == js_ast.BinOpLogicalAnd) {
+			rightLevel = js_ast.LPrefix
+		}
+
+	case js_ast.BinOpPow:
+		// "**" can't contain certain unary expressions
+		if left, ok := e.Left.Data.(*js_ast.EUnary); ok && left.Op.UnaryAssignTarget() == js_ast.AssignTargetNone {
+			leftLevel = js_ast.LCall
+		} else if _, ok := e.Left.Data.(*js_ast.EAwait); ok {
+			leftLevel = js_ast.LCall
+		} else if _, ok := e.Left.Data.(*js_ast.EUndefined); ok {
+			// Undefined is printed as "void 0"
+			leftLevel = js_ast.LCall
+		} else if _, ok := e.Left.Data.(*js_ast.ENumber); ok {
+			// Negative numbers are printed using a unary operator
+			leftLevel = js_ast.LCall
+		} else if p.options.MinifySyntax {
+			// When minifying, booleans are printed as "!0 and "!1"
+			if _, ok := e.Left.Data.(*js_ast.EBoolean); ok {
+				leftLevel = js_ast.LCall
+			}
+		}
+	}
+
+	// Special-case "#foo in bar"
+	if private, ok := e.Left.Data.(*js_ast.EPrivateIdentifier); ok && e.Op == js_ast.BinOpIn {
+		name := p.renamer.NameForSymbol(private.Ref)
+		p.addSourceMappingForName(e.Left.Loc, name, private.Ref)
+		p.printIdentifier(name)
+	} else if e.Op == js_ast.BinOpComma {
+		// The result of the left operand of the comma operator is unused
+		p.printExpr(e.Left, leftLevel, (flags&forbidIn)|exprResultIsUnused|parentWasUnaryOrBinary)
+	} else {
+		p.printExpr(e.Left, leftLevel, (flags&forbidIn)|parentWasUnaryOrBinary)
+	}
+
+	if e.Op != js_ast.BinOpComma {
+		p.printSpace()
+	}
+
+	if entry.IsKeyword {
+		p.printSpaceBeforeIdentifier()
+		p.print(entry.Text)
+	} else {
+		p.printSpaceBeforeOperator(e.Op)
+		p.print(entry.Text)
+		p.prevOp = e.Op
+		p.prevOpEnd = len(p.js)
+	}
+
+	p.printSpace()
+
+	if e.Op == js_ast.BinOpComma {
+		// The result of the right operand of the comma operator is unused if the caller doesn't use it
+		p.printExpr(e.Right, rightLevel, (flags&(forbidIn|exprResultIsUnused))|parentWasUnaryOrBinary)
+	} else {
+		p.printExpr(e.Right, rightLevel, (flags&forbidIn)|parentWasUnaryOrBinary)
+	}
+
+	if wrap {
+		p.print(")")
 	}
 }
 
