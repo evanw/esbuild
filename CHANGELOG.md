@@ -17,6 +17,28 @@
     π in a;
     ```
 
+* Fix a regression with esbuild's WebAssembly API in version 0.17.6 ([#2911](https://github.com/evanw/esbuild/issues/2911))
+
+    Version 0.17.6 of esbuild updated the Go toolchain to version 1.20.0. This had the unfortunate side effect of increasing the amount of stack space that esbuild uses (presumably due to some changes to Go's WebAssembly implementation) which could cause esbuild's WebAssembly-based API to crash with a stack overflow in cases where it previously didn't crash. One such case is the package `grapheme-splitter` which contains code that looks like this:
+
+    ```js
+    if (
+      (0x0300 <= code && code <= 0x036F) ||
+      (0x0483 <= code && code <= 0x0487) ||
+      (0x0488 <= code && code <= 0x0489) ||
+      (0x0591 <= code && code <= 0x05BD) ||
+      // ... many hundreds of lines later ...
+    ) {
+      return;
+    }
+    ```
+
+    This edge case involves a chain of binary operators that results in an AST over 400 nodes deep. Normally this wouldn't be a problem because Go has growable call stacks, so the call stack would just grow to be as large as needed. However, WebAssembly byte code deliberately doesn't expose the ability to manipulate the stack pointer, so Go's WebAssembly translation is forced to use the fixed-size WebAssembly call stack. So esbuild's WebAssembly implementation is vulnerable to stack overflow in cases like these.
+
+    It's not unreasonable for this to cause a stack overflow, and for esbuild's answer to this problem to be "don't write code like this." That's how many other AST-manipulation tools handle this problem. However, it's possible to implement AST traversal using iteration instead of recursion to work around limited call stack space. This version of esbuild implements this code transformation for esbuild's JavaScript parser, so esbuild's WebAssembly implementation is now able to process the `grapheme-splitter` package when compiled with Go 1.20.0 and run in `node`.
+
+    This deeply-nested AST problem can also happen during AST printing. It seems like the code in the `grapheme-splitter` package isn't currently deep enough to trigger this problem, so esbuild's printer doesn't have this code transformation yet. But if it's a problem in the future, esbuild's printer can also be transformed in the same way.
+
 ## 0.17.7
 
 * Change esbuild's parsing of TypeScript instantiation expressions to match TypeScript 4.8+ ([#2907](https://github.com/evanw/esbuild/issues/2907))

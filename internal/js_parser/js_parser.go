@@ -60,6 +60,7 @@ type parser struct {
 	unrepresentableIdentifiers map[string]bool
 	legacyOctalLiterals        map[js_ast.E]logger.Range
 	scopesInOrderForEnum       map[logger.Loc][]scopeOrder
+	binaryExprStack            []binaryExprVisitor
 
 	// For strict mode handling
 	hoistedRefForSloppyModeBlockFn map[js_ast.Ref]js_ast.Ref
@@ -11950,6 +11951,11 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		p.log.AddError(&p.tracker, logger.Range{Loc: expr.Loc}, "Invalid assignment target")
 	}
 
+	// Note: Anything added before or after this switch statement will be bypassed
+	// when visiting nested "EBinary" nodes due to stack overflow mitigations for
+	// deeply-nested ASTs. If anything like that is added, care must be taken that
+	// it doesn't affect these mitigations by ensuring that the mitigations are not
+	// applied in those cases (e.g. by adding an additional conditional check).
 	switch e := expr.Data.(type) {
 	case *js_ast.ENull, *js_ast.ESuper, *js_ast.EBoolean, *js_ast.EBigInt, *js_ast.EUndefined:
 
@@ -12530,7 +12536,76 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 	case *js_ast.EBinary:
-		return p.visitBinaryExpr(expr.Loc, e, in), exprOut{}
+		// The handling of binary expressions is convoluted because we're using
+		// iteration on the heap instead of recursion on the call stack to avoid
+		// stack overflow for deeply-nested ASTs. See the comment before the
+		// definition of "binaryExprVisitor" for details.
+		v := binaryExprVisitor{
+			e:   e,
+			loc: expr.Loc,
+			in:  in,
+		}
+
+		// Everything uses a single stack to reduce allocation overhead. This stack
+		// should almost always be very small, and almost all visits should reuse
+		// existing memory without allocating anything.
+		stackBottom := len(p.binaryExprStack)
+
+		// Iterate down into the AST along the left node of the binary operation.
+		// Continue iterating until we encounter something that's not a binary node.
+		for {
+			// Check whether this node is a special case. If it is, a result will be
+			// provided which ends our iteration. Otherwise, the visitor object will
+			// be prepared for visiting.
+			if result := v.checkAndPrepare(p); result.Data != nil {
+				expr = result
+				break
+			}
+
+			// Grab the arguments to our nested "visitExprInOut" call for the left
+			// node. We only care about deeply-nested left nodes because most binary
+			// operators in JavaScript are left-associative and the problematic edge
+			// cases we're trying to avoid crashing on have lots of left-associative
+			// binary operators chained together without parentheses (e.g. "1+2+...").
+			left := v.e.Left
+			leftIn := v.leftIn
+			leftBinary, ok := left.Data.(*js_ast.EBinary)
+
+			// Stop iterating if iteration doesn't apply to the left node. This checks
+			// the assignment target because "visitExprInOut" has additional behavior
+			// in that case that we don't want to miss (before the top-level "switch"
+			// statement).
+			if !ok || leftIn.assignTarget != js_ast.AssignTargetNone {
+				v.e.Left, _ = p.visitExprInOut(left, leftIn)
+				expr = v.visitRightAndFinish(p)
+				break
+			}
+
+			// Note that we only append to the stack (and therefore allocate memory
+			// on the heap) when there are nested binary expressions. A single binary
+			// expression doesn't add anything to the stack.
+			p.binaryExprStack = append(p.binaryExprStack, v)
+			v = binaryExprVisitor{
+				e:   leftBinary,
+				loc: left.Loc,
+				in:  leftIn,
+			}
+		}
+
+		// Process all binary operations from the deepest-visited node back toward
+		// our original top-level binary operation.
+		for {
+			n := len(p.binaryExprStack) - 1
+			if n < stackBottom {
+				break
+			}
+			v := p.binaryExprStack[n]
+			p.binaryExprStack = p.binaryExprStack[:n]
+			v.e.Left = expr
+			expr = v.visitRightAndFinish(p)
+		}
+
+		return expr, exprOut{}
 
 	case *js_ast.EDot:
 		isDeleteTarget := e == p.deleteTarget
@@ -13926,7 +14001,63 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 	return expr, exprOut{}
 }
 
-func (p *parser) visitBinaryExpr(exprLoc logger.Loc, e *js_ast.EBinary, in exprIn) js_ast.Expr {
+// This exists to handle very deeply-nested ASTs. For example, the "grapheme-splitter"
+// package contains this monstrosity:
+//
+//	if (
+//	  (0x0300 <= code && code <= 0x036F) ||
+//	  (0x0483 <= code && code <= 0x0487) ||
+//	  (0x0488 <= code && code <= 0x0489) ||
+//	  (0x0591 <= code && code <= 0x05BD) ||
+//	  ... many hundreds of lines later ...
+//	) {
+//	  return;
+//	}
+//
+// If "checkAndPrepare" returns non-nil, then the return value is the final
+// expression. Otherwise, the final expression can be obtained by manually
+// visiting the left child and then calling "visitRightAndFinish":
+//
+//	if result := v.checkAndPrepare(p); result.Data != nil {
+//	  return result
+//	}
+//	v.e.Left, _ = p.visitExprInOut(v.e.Left, v.leftIn)
+//	return v.visitRightAndFinish(p)
+//
+// This code is convoluted this way so that we can use our own stack on the
+// heap instead of the call stack when there are additional levels of nesting.
+// Before this transformation, the code previously looked something like this:
+//
+//	... The code in "checkAndPrepare" ...
+//	e.Left, _ = p.visitExprInOut(e.Left, in)
+//	... The code in "visitRightAndFinish" ...
+//
+// If this code is still confusing, it may be helpful to look back in git
+// history at the commit that introduced this transformation.
+//
+// Go normally has growable call stacks so this code transformation normally
+// doesn't do anything, but WebAssembly doesn't allow stack pointer manipulation
+// so Go's WebAssembly implementation doesn't support growable call stacks and
+// is therefore vulnerable to stack overflow. So this code transformation is
+// only really relevant for esbuild's WebAssembly-based API.
+type binaryExprVisitor struct {
+	// Inputs
+	e   *js_ast.EBinary
+	loc logger.Loc
+	in  exprIn
+
+	// Input for visiting the left child
+	leftIn exprIn
+
+	// "Local variables" passed from "checkAndPrepare" to "visitRightAndFinish"
+	isStmtExpr                               bool
+	wasAnonymousNamedExpr                    bool
+	oldSilenceWarningAboutThisBeingUndefined bool
+}
+
+func (v *binaryExprVisitor) checkAndPrepare(p *parser) js_ast.Expr {
+	e := v.e
+
 	// Special-case EPrivateIdentifier to allow it here
 	if private, ok := e.Left.Data.(*js_ast.EPrivateIdentifier); ok && e.Op == js_ast.BinOpIn {
 		name := p.loadNameFromRef(private.Ref)
@@ -13943,21 +14074,27 @@ func (p *parser) visitBinaryExpr(exprLoc logger.Loc, e *js_ast.EBinary, in exprI
 		e.Right = p.visitExpr(e.Right)
 
 		if p.privateSymbolNeedsToBeLowered(private) {
-			return p.lowerPrivateBrandCheck(e.Right, exprLoc, private)
+			return p.lowerPrivateBrandCheck(e.Right, v.loc, private)
 		}
-		return js_ast.Expr{Loc: exprLoc, Data: e}
+		return js_ast.Expr{Loc: v.loc, Data: e}
 	}
 
-	isStmtExpr := e == p.stmtExprValue
-	wasAnonymousNamedExpr := p.isAnonymousNamedExpr(e.Right)
-	oldSilenceWarningAboutThisBeingUndefined := p.fnOnlyDataVisit.silenceMessageAboutThisBeingUndefined
+	v.isStmtExpr = e == p.stmtExprValue
+	v.wasAnonymousNamedExpr = p.isAnonymousNamedExpr(e.Right)
+	v.oldSilenceWarningAboutThisBeingUndefined = p.fnOnlyDataVisit.silenceMessageAboutThisBeingUndefined
+
 	if _, ok := e.Left.Data.(*js_ast.EThis); ok && e.Op == js_ast.BinOpLogicalAnd {
 		p.fnOnlyDataVisit.silenceMessageAboutThisBeingUndefined = true
 	}
-	e.Left, _ = p.visitExprInOut(e.Left, exprIn{
+	v.leftIn = exprIn{
 		assignTarget:               e.Op.BinaryAssignTarget(),
 		shouldMangleStringsAsProps: e.Op == js_ast.BinOpIn,
-	})
+	}
+	return js_ast.Expr{}
+}
+
+func (v *binaryExprVisitor) visitRightAndFinish(p *parser) js_ast.Expr {
+	e := v.e
 
 	// Mark the control flow as dead if the branch is never taken
 	switch e.Op {
@@ -13996,13 +14133,13 @@ func (p *parser) visitBinaryExpr(exprLoc logger.Loc, e *js_ast.EBinary, in exprI
 
 	case js_ast.BinOpComma:
 		e.Right, _ = p.visitExprInOut(e.Right, exprIn{
-			shouldMangleStringsAsProps: in.shouldMangleStringsAsProps,
+			shouldMangleStringsAsProps: v.in.shouldMangleStringsAsProps,
 		})
 
 	default:
 		e.Right = p.visitExpr(e.Right)
 	}
-	p.fnOnlyDataVisit.silenceMessageAboutThisBeingUndefined = oldSilenceWarningAboutThisBeingUndefined
+	p.fnOnlyDataVisit.silenceMessageAboutThisBeingUndefined = v.oldSilenceWarningAboutThisBeingUndefined
 
 	// Always put constants consistently on the same side for equality
 	// comparisons to help improve compression. In theory, dictionary-based
@@ -14025,7 +14162,7 @@ func (p *parser) visitBinaryExpr(exprLoc logger.Loc, e *js_ast.EBinary, in exprI
 	}
 
 	if p.shouldFoldTypeScriptConstantExpressions || (p.options.minifySyntax && js_ast.ShouldFoldBinaryArithmeticWhenMinifying(e.Op)) {
-		if result := js_ast.FoldBinaryArithmetic(exprLoc, e); result.Data != nil {
+		if result := js_ast.FoldBinaryArithmetic(v.loc, e); result.Data != nil {
 			return result
 		}
 	}
@@ -14044,7 +14181,7 @@ func (p *parser) visitBinaryExpr(exprLoc logger.Loc, e *js_ast.EBinary, in exprI
 
 	case js_ast.BinOpLooseEq:
 		if result, ok := js_ast.CheckEqualityIfNoSideEffects(e.Left.Data, e.Right.Data, js_ast.LooseEquality); ok {
-			return js_ast.Expr{Loc: exprLoc, Data: &js_ast.EBoolean{Value: result}}
+			return js_ast.Expr{Loc: v.loc, Data: &js_ast.EBoolean{Value: result}}
 		}
 		afterOpLoc := locAfterOp(e)
 		if !p.warnAboutEqualityCheck("==", e.Left, afterOpLoc) {
@@ -14060,14 +14197,14 @@ func (p *parser) visitBinaryExpr(exprLoc logger.Loc, e *js_ast.EBinary, in exprI
 				e.Right.Data = js_ast.ENullShared
 			}
 
-			if result, ok := js_ast.MaybeSimplifyEqualityComparison(exprLoc, e, p.options.unsupportedJSFeatures); ok {
+			if result, ok := js_ast.MaybeSimplifyEqualityComparison(v.loc, e, p.options.unsupportedJSFeatures); ok {
 				return result
 			}
 		}
 
 	case js_ast.BinOpStrictEq:
 		if result, ok := js_ast.CheckEqualityIfNoSideEffects(e.Left.Data, e.Right.Data, js_ast.StrictEquality); ok {
-			return js_ast.Expr{Loc: exprLoc, Data: &js_ast.EBoolean{Value: result}}
+			return js_ast.Expr{Loc: v.loc, Data: &js_ast.EBoolean{Value: result}}
 		}
 		afterOpLoc := locAfterOp(e)
 		if !p.warnAboutEqualityCheck("===", e.Left, afterOpLoc) {
@@ -14081,14 +14218,14 @@ func (p *parser) visitBinaryExpr(exprLoc logger.Loc, e *js_ast.EBinary, in exprI
 				e.Op = js_ast.BinOpLooseEq
 			}
 
-			if result, ok := js_ast.MaybeSimplifyEqualityComparison(exprLoc, e, p.options.unsupportedJSFeatures); ok {
+			if result, ok := js_ast.MaybeSimplifyEqualityComparison(v.loc, e, p.options.unsupportedJSFeatures); ok {
 				return result
 			}
 		}
 
 	case js_ast.BinOpLooseNe:
 		if result, ok := js_ast.CheckEqualityIfNoSideEffects(e.Left.Data, e.Right.Data, js_ast.LooseEquality); ok {
-			return js_ast.Expr{Loc: exprLoc, Data: &js_ast.EBoolean{Value: !result}}
+			return js_ast.Expr{Loc: v.loc, Data: &js_ast.EBoolean{Value: !result}}
 		}
 		afterOpLoc := locAfterOp(e)
 		if !p.warnAboutEqualityCheck("!=", e.Left, afterOpLoc) {
@@ -14104,14 +14241,14 @@ func (p *parser) visitBinaryExpr(exprLoc logger.Loc, e *js_ast.EBinary, in exprI
 				e.Right.Data = js_ast.ENullShared
 			}
 
-			if result, ok := js_ast.MaybeSimplifyEqualityComparison(exprLoc, e, p.options.unsupportedJSFeatures); ok {
+			if result, ok := js_ast.MaybeSimplifyEqualityComparison(v.loc, e, p.options.unsupportedJSFeatures); ok {
 				return result
 			}
 		}
 
 	case js_ast.BinOpStrictNe:
 		if result, ok := js_ast.CheckEqualityIfNoSideEffects(e.Left.Data, e.Right.Data, js_ast.StrictEquality); ok {
-			return js_ast.Expr{Loc: exprLoc, Data: &js_ast.EBoolean{Value: !result}}
+			return js_ast.Expr{Loc: v.loc, Data: &js_ast.EBoolean{Value: !result}}
 		}
 		afterOpLoc := locAfterOp(e)
 		if !p.warnAboutEqualityCheck("!==", e.Left, afterOpLoc) {
@@ -14125,7 +14262,7 @@ func (p *parser) visitBinaryExpr(exprLoc logger.Loc, e *js_ast.EBinary, in exprI
 				e.Op = js_ast.BinOpLooseNe
 			}
 
-			if result, ok := js_ast.MaybeSimplifyEqualityComparison(exprLoc, e, p.options.unsupportedJSFeatures); ok {
+			if result, ok := js_ast.MaybeSimplifyEqualityComparison(v.loc, e, p.options.unsupportedJSFeatures); ok {
 				return result
 			}
 		}
@@ -14148,7 +14285,7 @@ func (p *parser) visitBinaryExpr(exprLoc logger.Loc, e *js_ast.EBinary, in exprI
 		}
 
 		if p.options.unsupportedJSFeatures.Has(compat.NullishCoalescing) {
-			return p.lowerNullishCoalescing(exprLoc, e.Left, e.Right)
+			return p.lowerNullishCoalescing(v.loc, e.Left, e.Right)
 		}
 
 	case js_ast.BinOpLogicalOr:
@@ -14208,14 +14345,14 @@ func (p *parser) visitBinaryExpr(exprLoc logger.Loc, e *js_ast.EBinary, in exprI
 		if left, ok := e.Left.Data.(*js_ast.EBinary); ok && left.Op == js_ast.BinOpAdd {
 			// "x + 'abc' + 'xyz'" => "x + 'abcxyz'"
 			if result := js_ast.FoldStringAddition(left.Right, e.Right, js_ast.StringAdditionWithNestedLeft); result.Data != nil {
-				return js_ast.Expr{Loc: exprLoc, Data: &js_ast.EBinary{Op: left.Op, Left: left.Left, Right: result}}
+				return js_ast.Expr{Loc: v.loc, Data: &js_ast.EBinary{Op: left.Op, Left: left.Left, Right: result}}
 			}
 		}
 
 	case js_ast.BinOpPow:
 		// Lower the exponentiation operator for browsers that don't support it
 		if p.options.unsupportedJSFeatures.Has(compat.ExponentOperator) {
-			return p.callRuntime(exprLoc, "__pow", []js_ast.Expr{e.Left, e.Right})
+			return p.callRuntime(v.loc, "__pow", []js_ast.Expr{e.Left, e.Right})
 		}
 
 		////////////////////////////////////////////////////////////////////////////////
@@ -14224,7 +14361,7 @@ func (p *parser) visitBinaryExpr(exprLoc logger.Loc, e *js_ast.EBinary, in exprI
 	case js_ast.BinOpAssign:
 		// Optionally preserve the name
 		if id, ok := e.Left.Data.(*js_ast.EIdentifier); ok {
-			e.Right = p.maybeKeepExprSymbolName(e.Right, p.symbols[id.Ref.InnerIndex].OriginalName, wasAnonymousNamedExpr)
+			e.Right = p.maybeKeepExprSymbolName(e.Right, p.symbols[id.Ref.InnerIndex].OriginalName, v.wasAnonymousNamedExpr)
 		}
 
 		if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
@@ -14239,9 +14376,9 @@ func (p *parser) visitBinaryExpr(exprLoc logger.Loc, e *js_ast.EBinary, in exprI
 		// support them. Note that assignment expressions are used to represent
 		// initializers in binding patterns, so only do this if we're not
 		// ourselves the target of an assignment. Example: "[a = b] = c"
-		if in.assignTarget == js_ast.AssignTargetNone {
+		if v.in.assignTarget == js_ast.AssignTargetNone {
 			mode := objRestMustReturnInitExpr
-			if isStmtExpr {
+			if v.isStmtExpr {
 				mode = objRestReturnValueIsUnused
 			}
 			if result, ok := p.lowerAssign(e.Left, e.Right, mode); ok {
@@ -14339,7 +14476,7 @@ func (p *parser) visitBinaryExpr(exprLoc logger.Loc, e *js_ast.EBinary, in exprI
 	case js_ast.BinOpPowAssign:
 		// Lower the exponentiation operator for browsers that don't support it
 		if p.options.unsupportedJSFeatures.Has(compat.ExponentOperator) {
-			return p.lowerExponentiationAssignmentOperator(exprLoc, e)
+			return p.lowerExponentiationAssignmentOperator(v.loc, e)
 		}
 
 		if result := p.maybeLowerSetBinOp(e.Left, js_ast.BinOpPow, e.Right); result.Data != nil {
@@ -14377,17 +14514,17 @@ func (p *parser) visitBinaryExpr(exprLoc logger.Loc, e *js_ast.EBinary, in exprI
 		}
 
 	case js_ast.BinOpNullishCoalescingAssign:
-		if value, ok := p.lowerNullishCoalescingAssignmentOperator(exprLoc, e); ok {
+		if value, ok := p.lowerNullishCoalescingAssignmentOperator(v.loc, e); ok {
 			return value
 		}
 
 	case js_ast.BinOpLogicalAndAssign:
-		if value, ok := p.lowerLogicalAssignmentOperator(exprLoc, e, js_ast.BinOpLogicalAnd); ok {
+		if value, ok := p.lowerLogicalAssignmentOperator(v.loc, e, js_ast.BinOpLogicalAnd); ok {
 			return value
 		}
 
 	case js_ast.BinOpLogicalOrAssign:
-		if value, ok := p.lowerLogicalAssignmentOperator(exprLoc, e, js_ast.BinOpLogicalOr); ok {
+		if value, ok := p.lowerLogicalAssignmentOperator(v.loc, e, js_ast.BinOpLogicalOr); ok {
 			return value
 		}
 	}
@@ -14406,7 +14543,7 @@ func (p *parser) visitBinaryExpr(exprLoc logger.Loc, e *js_ast.EBinary, in exprI
 		}
 	}
 
-	return js_ast.Expr{Loc: exprLoc, Data: e}
+	return js_ast.Expr{Loc: v.loc, Data: e}
 }
 
 func remapExprLocsInJSON(expr *js_ast.Expr, table []logger.StringInJSTableEntry) {
