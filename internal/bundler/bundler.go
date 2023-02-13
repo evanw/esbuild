@@ -570,7 +570,7 @@ func ResolveFailureErrorTextSuggestionNotes(
 			hint += " You can also add \".catch()\" here to handle this failure at run-time instead of bundle-time."
 		}
 		if pluginName == "" && !fs.IsAbs(path) {
-			if query := res.ProbeResolvePackageAsRelative(absResolveDir, path, kind); query != nil {
+			if query, _ := res.ProbeResolvePackageAsRelative(absResolveDir, path, kind); query != nil {
 				hint = fmt.Sprintf("Use the relative path %q to reference the file %q. "+
 					"Without the leading \"./\", the path %q is being interpreted as a package path instead.",
 					"./"+path, resolver.PrettyPath(fs, query.PathPair.Primary), path)
@@ -1654,7 +1654,7 @@ func (s *scanner) addEntryPoints(entryPoints []EntryPoint) []graph.EntryPoint {
 								"This syntax is typically handled by your shell, and isn't handled by esbuild itself. " +
 								"You must expand glob syntax first before passing your paths to esbuild.",
 						})
-					} else if query := s.res.ProbeResolvePackageAsRelative(entryPointAbsResolveDir, entryPoint.InputPath, ast.ImportEntryPoint); query != nil {
+					} else if query, _ := s.res.ProbeResolvePackageAsRelative(entryPointAbsResolveDir, entryPoint.InputPath, ast.ImportEntryPoint); query != nil {
 						notes = append(notes, logger.MsgData{
 							Text: fmt.Sprintf("Use the relative path %q to reference the file %q. "+
 								"Without the leading \"./\", the path %q is being interpreted as a package path instead.",

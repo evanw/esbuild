@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix a crash with path resolution error generation ([#2913](https://github.com/evanw/esbuild/issues/2913))
+
+    In certain situations, a module containing an invalid import path could previously cause esbuild to crash when it attempts to generate a more helpful error message. This crash has been fixed.
+
 ## 0.17.8
 
 * Fix a minification bug with non-ASCII identifiers ([#2910](https://github.com/evanw/esbuild/issues/2910))

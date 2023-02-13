@@ -574,28 +574,14 @@ func (r resolverQuery) isExternal(matchers config.ExternalMatchers, path string,
 	return false
 }
 
-func (res *Resolver) ResolveAbs(absPath string) *ResolveResult {
-	r := resolverQuery{Resolver: res}
-	if r.log.Level <= logger.LevelDebug {
-		r.debugLogs = &debugLogs{what: fmt.Sprintf("Getting metadata for absolute path %s", absPath)}
-	}
-
-	r.mutex.Lock()
-	defer r.mutex.Unlock()
-
-	// Just decorate the absolute path with information from parent directories
-	result := &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: absPath, Namespace: "file"}}}
-	r.finalizeResolve(result)
-	r.flushDebugLogs(flushDueToSuccess)
-	return result
-}
-
 // This tries to run "Resolve" on a package path as a relative path. If
 // successful, the user just forgot a leading "./" in front of the path.
-func (res *Resolver) ProbeResolvePackageAsRelative(sourceDir string, importPath string, kind ast.ImportKind) *ResolveResult {
+func (res *Resolver) ProbeResolvePackageAsRelative(sourceDir string, importPath string, kind ast.ImportKind) (*ResolveResult, DebugMeta) {
+	var debugMeta DebugMeta
 	r := resolverQuery{
-		Resolver: res,
-		kind:     kind,
+		Resolver:  res,
+		debugMeta: &debugMeta,
+		kind:      kind,
 	}
 	absPath := r.fs.Join(sourceDir, importPath)
 
@@ -607,10 +593,10 @@ func (res *Resolver) ProbeResolvePackageAsRelative(sourceDir string, importPath 
 		result := &ResolveResult{PathPair: pair, DifferentCase: diffCase}
 		r.finalizeResolve(result)
 		r.flushDebugLogs(flushDueToSuccess)
-		return result
+		return result, debugMeta
 	}
 
-	return nil
+	return nil, debugMeta
 }
 
 type debugLogs struct {
