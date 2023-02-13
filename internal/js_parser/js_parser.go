@@ -2061,13 +2061,16 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 						scopeIndex := len(p.scopesInOrder)
 
 						if prop, ok := p.parseProperty(startLoc, kind, opts, nil); ok &&
-							prop.Kind == js_ast.PropertyNormal && prop.ValueOrNil.Data == nil {
+							prop.Kind == js_ast.PropertyNormal && prop.ValueOrNil.Data == nil && len(opts.tsDecorators) > 0 {
 							// If this is a well-formed class field with the "declare" keyword,
-							// keep the declaration to preserve its side-effects, which may
-							// include the computed key and/or the TypeScript decorators:
+							// only keep the declaration to preserve its side-effects when
+							// there are TypeScript decorators present:
 							//
 							//   class Foo {
+							//     // Remove this
 							//     declare [(console.log('side effect 1'), 'foo')]
+							//
+							//     // Keep this
 							//     @decorator(console.log('side effect 2')) declare bar
 							//   }
 							//

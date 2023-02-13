@@ -2,6 +2,39 @@
 
 ## Unreleased
 
+* Fix TypeScript code translation for certain computed `declare` class fields ([#2914](https://github.com/evanw/esbuild/issues/2914))
+
+    In TypeScript, the key of a computed `declare` class field should only be preserved if there are no decorators for that field. Previously esbuild always preserved the key, but esbuild will now remove the key to match the output of the TypeScript compiler:
+
+    ```ts
+    // Original code
+    declare function dec(a: any, b: any): any
+    declare const removeMe: unique symbol
+    declare const keepMe: unique symbol
+    class X {
+        declare [removeMe]: any
+        @dec declare [keepMe]: any
+    }
+
+    // Old output
+    var _a;
+    class X {
+    }
+    removeMe, _a = keepMe;
+    __decorateClass([
+      dec
+    ], X.prototype, _a, 2);
+
+    // New output
+    var _a;
+    class X {
+    }
+    _a = keepMe;
+    __decorateClass([
+      dec
+    ], X.prototype, _a, 2);
+    ```
+
 * Fix a crash with path resolution error generation ([#2913](https://github.com/evanw/esbuild/issues/2913))
 
     In certain situations, a module containing an invalid import path could previously cause esbuild to crash when it attempts to generate a more helpful error message. This crash has been fixed.

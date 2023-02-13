@@ -232,7 +232,7 @@ TestTSDeclareClassFields
 // define-false/index.ts
 var Foo = class {
 };
-() => null, c, () => null, d, () => null, C, () => null, D;
+() => null, c, () => null, C;
 (() => new Foo())();
 
 // define-true/index.ts
@@ -243,7 +243,7 @@ var Bar = class {
     __publicField(this, _a);
   }
 };
-_a = (() => null, c), () => null, d, _b = (() => null, C), () => null, D;
+_a = (() => null, c), _b = (() => null, C);
 __publicField(Bar, "A");
 __publicField(Bar, _b);
 (() => new Bar())();

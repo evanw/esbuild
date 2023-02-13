@@ -2512,7 +2512,7 @@ func TestTSNoAmbiguousLessThan(t *testing.T) {
 			"<stdin>: ERROR: Unexpected \"=\"\n")
 }
 
-func TestClassSideEffectOrder(t *testing.T) {
+func TestTSClassSideEffectOrder(t *testing.T) {
 	// The order of computed property side effects must not change
 	expectPrintedTS(t, `class Foo {
 	[a()]() {}
@@ -2541,7 +2541,7 @@ Foo[_b] = 1;
 `)
 }
 
-func TestMangleTSStringEnumLength(t *testing.T) {
+func TestTSMangleStringEnumLength(t *testing.T) {
 	expectPrintedTS(t, "enum x { y = '' } z = x.y.length",
 		"var x = /* @__PURE__ */ ((x) => {\n  x[\"y\"] = \"\";\n  return x;\n})(x || {});\nz = \"\" /* y */.length;\n")
 
