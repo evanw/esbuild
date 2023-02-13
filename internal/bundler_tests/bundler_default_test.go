@@ -8054,6 +8054,20 @@ func TestCommentPreservationTransformJSX(t *testing.T) {
 					<div {/*before*/...x} />,
 					<div>{/*before*/x}</div>,
 					<>{/*before*/x}</>,
+
+					// Comments on absent AST nodes
+					<div>before{}after</div>,
+					<div>before{/* comment 1 *//* comment 2 */}after</div>,
+					<div>before{
+						// comment 1
+						// comment 2
+					}after</div>,
+					<>before{}after</>,
+					<>before{/* comment 1 *//* comment 2 */}after</>,
+					<>before{
+						// comment 1
+						// comment 2
+					}after</>,
 				)
 			`,
 		},
@@ -8076,6 +8090,20 @@ func TestCommentPreservationPreserveJSX(t *testing.T) {
 					<div {/*before*/...x} />,
 					<div>{/*before*/x}</div>,
 					<>{/*before*/x}</>,
+
+					// Comments on absent AST nodes
+					<div>before{}after</div>,
+					<div>before{/* comment 1 *//* comment 2 */}after</div>,
+					<div>before{
+						// comment 1
+						// comment 2
+					}after</div>,
+					<>before{}after</>,
+					<>before{/* comment 1 *//* comment 2 */}after</>,
+					<>before{
+						// comment 1
+						// comment 2
+					}after</>,
 				)
 			`,
 		},

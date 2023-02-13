@@ -1922,7 +1922,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 				p.printIndent()
 			}
 		}
-		if e.TagOrNil.Data != nil && len(e.Children) == 0 {
+		if e.TagOrNil.Data != nil && len(e.NullableChildren) == 0 {
 			if e.IsTagSingleLine || len(e.Properties) == 0 {
 				p.printSpace()
 			}
@@ -1934,9 +1934,9 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 
 		isSingleLine := true
 		if !p.options.MinifyWhitespace {
-			isSingleLine = len(e.Children) < 2
-			if len(e.Children) == 1 {
-				if _, ok := e.Children[0].Data.(*js_ast.EJSXElement); !ok {
+			isSingleLine = len(e.NullableChildren) < 2
+			if len(e.NullableChildren) == 1 {
+				if _, ok := e.NullableChildren[0].Data.(*js_ast.EJSXElement); !ok {
 					isSingleLine = true
 				}
 			}
@@ -1946,27 +1946,38 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		}
 
 		// Print the children
-		for _, child := range e.Children {
+		for _, childOrNil := range e.NullableChildren {
 			if !isSingleLine {
 				p.printNewline()
 				p.printIndent()
 			}
-			if _, ok := child.Data.(*js_ast.EJSXElement); ok {
-				p.printExpr(child, js_ast.LLowest, 0)
-			} else if str, ok := child.Data.(*js_ast.EString); ok && isSingleLine && p.canPrintTextAsJSXChild(str.Value) {
-				p.addSourceMapping(child.Loc)
+			if _, ok := childOrNil.Data.(*js_ast.EJSXElement); ok {
+				p.printExpr(childOrNil, js_ast.LLowest, 0)
+			} else if str, ok := childOrNil.Data.(*js_ast.EString); ok && isSingleLine && p.canPrintTextAsJSXChild(str.Value) {
+				p.addSourceMapping(childOrNil.Loc)
 				p.print(helpers.UTF16ToString(str.Value))
-			} else {
-				isMultiLine := p.willPrintExprCommentsAtLoc(child.Loc)
+			} else if childOrNil.Data != nil {
+				isMultiLine := p.willPrintExprCommentsAtLoc(childOrNil.Loc)
 				p.print("{")
 				if isMultiLine {
 					p.printNewline()
 					p.options.Indent++
 					p.printIndent()
 				}
-				p.printExpr(child, js_ast.LComma, 0)
+				p.printExpr(childOrNil, js_ast.LComma, 0)
 				if isMultiLine {
 					p.printNewline()
+					p.options.Indent--
+					p.printIndent()
+				}
+				p.print("}")
+			} else {
+				p.print("{")
+				if p.willPrintExprCommentsAtLoc(childOrNil.Loc) {
+					// Note: Some people use these comments for AST transformations
+					p.printNewline()
+					p.options.Indent++
+					p.printExprCommentsAfterCloseTokenAtLoc(childOrNil.Loc)
 					p.options.Indent--
 					p.printIndent()
 				}

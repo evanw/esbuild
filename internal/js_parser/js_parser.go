@@ -4970,11 +4970,11 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 	p.lexer.ExpectJSXElementChild(js_lexer.TGreaterThan)
 
 	// Parse the children of this element
-	children := []js_ast.Expr{}
+	nullableChildren := []js_ast.Expr{}
 	for {
 		switch p.lexer.Token {
 		case js_lexer.TStringLiteral:
-			children = append(children, js_ast.Expr{Loc: p.lexer.Loc(), Data: &js_ast.EString{Value: p.lexer.StringLiteral()}})
+			nullableChildren = append(nullableChildren, js_ast.Expr{Loc: p.lexer.Loc(), Data: &js_ast.EString{Value: p.lexer.StringLiteral()}})
 			p.lexer.NextJSXElementChild()
 
 		case js_lexer.TOpenBrace:
@@ -4982,7 +4982,10 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 			p.lexer.Next()
 
 			// The expression is optional, and may be absent
-			if p.lexer.Token != js_lexer.TCloseBrace {
+			if p.lexer.Token == js_lexer.TCloseBrace {
+				// Save comments even for absent expressions
+				nullableChildren = append(nullableChildren, js_ast.Expr{Loc: p.saveExprCommentsHere()})
+			} else {
 				if p.lexer.Token == js_lexer.TDotDotDot {
 					// TypeScript preserves "..." before JSX child expressions here.
 					// Babel gives the error "Spread children are not supported in React"
@@ -4992,9 +4995,9 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 					itemLoc := p.lexer.Loc()
 					p.markSyntaxFeature(compat.RestArgument, p.lexer.Range())
 					p.lexer.Next()
-					children = append(children, js_ast.Expr{Loc: itemLoc, Data: &js_ast.ESpread{Value: p.parseExpr(js_ast.LLowest)}})
+					nullableChildren = append(nullableChildren, js_ast.Expr{Loc: itemLoc, Data: &js_ast.ESpread{Value: p.parseExpr(js_ast.LLowest)}})
 				} else {
-					children = append(children, p.parseExpr(js_ast.LLowest))
+					nullableChildren = append(nullableChildren, p.parseExpr(js_ast.LLowest))
 				}
 			}
 
@@ -5007,7 +5010,7 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 
 			if p.lexer.Token != js_lexer.TSlash {
 				// This is a child element
-				children = append(children, p.parseJSXElement(lessThanLoc))
+				nullableChildren = append(nullableChildren, p.parseJSXElement(lessThanLoc))
 
 				// The call to parseJSXElement() above doesn't consume the last
 				// TGreaterThan because the caller knows what Next() function to call.
@@ -5034,11 +5037,11 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 			}
 
 			return js_ast.Expr{Loc: loc, Data: &js_ast.EJSXElement{
-				TagOrNil:        startTagOrNil,
-				Properties:      properties,
-				Children:        children,
-				CloseLoc:        lessThanLoc,
-				IsTagSingleLine: isSingleLine,
+				TagOrNil:         startTagOrNil,
+				Properties:       properties,
+				NullableChildren: nullableChildren,
+				CloseLoc:         lessThanLoc,
+				IsTagSingleLine:  isSingleLine,
 			}}
 
 		case js_lexer.TEndOfFile:
@@ -12232,9 +12235,11 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 		// Visit children
-		if len(e.Children) > 0 {
-			for i, child := range e.Children {
-				e.Children[i] = p.visitExpr(child)
+		if len(e.NullableChildren) > 0 {
+			for i, childOrNil := range e.NullableChildren {
+				if childOrNil.Data != nil {
+					e.NullableChildren[i] = p.visitExpr(childOrNil)
+				}
 			}
 		}
 
@@ -12248,6 +12253,19 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				p.symbols[tag.Ref.InnerIndex].Flags |= js_ast.MustStartWithCapitalLetterForJSX
 			}
 		} else {
+			// Remove any nil children in the array (in place) before iterating over it
+			children := e.NullableChildren
+			{
+				end := 0
+				for _, childOrNil := range children {
+					if childOrNil.Data != nil {
+						children[end] = childOrNil
+						end++
+					}
+				}
+				children = children[:end]
+			}
+
 			// A missing tag is a fragment
 			if e.TagOrNil.Data == nil {
 				if p.options.jsx.AutomaticRuntime {
@@ -12288,8 +12306,8 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				} else {
 					args = append(args, js_ast.Expr{Loc: propsLoc, Data: js_ast.ENullShared})
 				}
-				if len(e.Children) > 0 {
-					args = append(args, e.Children...)
+				if len(children) > 0 {
+					args = append(args, children...)
 				}
 
 				// Call createElement()
@@ -12362,14 +12380,14 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					properties = append(properties, property)
 				}
 
-				isStaticChildren := len(e.Children) > 1
+				isStaticChildren := len(children) > 1
 
 				// Children are passed in as an explicit prop
-				if len(e.Children) > 0 {
-					childrenValue := e.Children[0]
+				if len(children) > 0 {
+					childrenValue := children[0]
 
-					if len(e.Children) > 1 {
-						childrenValue.Data = &js_ast.EArray{Items: e.Children}
+					if len(children) > 1 {
+						childrenValue.Data = &js_ast.EArray{Items: children}
 					} else if _, ok := childrenValue.Data.(*js_ast.ESpread); ok {
 						// TypeScript considers spread children to be static, but Babel considers
 						// it to be an error ("Spread children are not supported in React.").

@@ -711,7 +711,50 @@ console.log(
   <>{
     /*before*/
     x
-  }</>
+  }</>,
+  // Comments on absent AST nodes
+  <div>
+    {"before"}
+    {}
+    {"after"}
+  </div>,
+  <div>
+    {"before"}
+    {
+      /* comment 1 */
+      /* comment 2 */
+    }
+    {"after"}
+  </div>,
+  <div>
+    {"before"}
+    {
+      // comment 1
+      // comment 2
+    }
+    {"after"}
+  </div>,
+  <>
+    {"before"}
+    {}
+    {"after"}
+  </>,
+  <>
+    {"before"}
+    {
+      /* comment 1 */
+      /* comment 2 */
+    }
+    {"after"}
+  </>,
+  <>
+    {"before"}
+    {
+      // comment 1
+      // comment 2
+    }
+    {"after"}
+  </>
 );
 
 ================================================================================
@@ -746,7 +789,14 @@ console.log(
     null,
     /*before*/
     x
-  )
+  ),
+  // Comments on absent AST nodes
+  /* @__PURE__ */ React.createElement("div", null, "before", "after"),
+  /* @__PURE__ */ React.createElement("div", null, "before", "after"),
+  /* @__PURE__ */ React.createElement("div", null, "before", "after"),
+  /* @__PURE__ */ React.createElement(React.Fragment, null, "before", "after"),
+  /* @__PURE__ */ React.createElement(React.Fragment, null, "before", "after"),
+  /* @__PURE__ */ React.createElement(React.Fragment, null, "before", "after")
 );
 
 ================================================================================
