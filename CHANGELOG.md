@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.17.8
 
 * Fix a minification bug with non-ASCII identifiers ([#2910](https://github.com/evanw/esbuild/issues/2910))
 
