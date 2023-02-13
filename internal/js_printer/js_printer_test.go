@@ -1,6 +1,7 @@
 package js_printer
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/evanw/esbuild/internal/compat"
@@ -1073,4 +1074,13 @@ func TestInfinity(t *testing.T) {
 	expectPrintedMangleMinify(t, "x = y * Infinity", "x=y*(1/0);")
 	expectPrintedMangleMinify(t, "x = y / Infinity", "x=y/(1/0);")
 	expectPrintedMangleMinify(t, "throw Infinity", "throw 1/0;")
+}
+
+func TestBinaryOperatorVisitor(t *testing.T) {
+	// Make sure the inner "/*b*/" comment doesn't disappear due to weird binary visitor stuff
+	expectPrintedMangle(t, "x = (0, /*a*/ (0, /*b*/ (0, /*c*/ 1 == 2) + 3) * 4)", "x = /*a*/\n/*b*/\n(/*c*/\n!1 + 3) * 4;\n")
+
+	// Make sure deeply-nested ASTs don't cause a stack overflow
+	x := "x = f()" + strings.Repeat(" || f()", 10_000) + ";\n"
+	expectPrinted(t, x, x)
 }

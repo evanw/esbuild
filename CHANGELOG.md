@@ -35,9 +35,7 @@
 
     This edge case involves a chain of binary operators that results in an AST over 400 nodes deep. Normally this wouldn't be a problem because Go has growable call stacks, so the call stack would just grow to be as large as needed. However, WebAssembly byte code deliberately doesn't expose the ability to manipulate the stack pointer, so Go's WebAssembly translation is forced to use the fixed-size WebAssembly call stack. So esbuild's WebAssembly implementation is vulnerable to stack overflow in cases like these.
 
-    It's not unreasonable for this to cause a stack overflow, and for esbuild's answer to this problem to be "don't write code like this." That's how many other AST-manipulation tools handle this problem. However, it's possible to implement AST traversal using iteration instead of recursion to work around limited call stack space. This version of esbuild implements this code transformation for esbuild's JavaScript parser, so esbuild's WebAssembly implementation is now able to process the `grapheme-splitter` package when compiled with Go 1.20.0 and run in `node`.
-
-    This deeply-nested AST problem can also happen during AST printing. It seems like the code in the `grapheme-splitter` package isn't currently deep enough to trigger this problem, so esbuild's printer doesn't have this code transformation yet. But if it's a problem in the future, esbuild's printer can also be transformed in the same way.
+    It's not unreasonable for this to cause a stack overflow, and for esbuild's answer to this problem to be "don't write code like this." That's how many other AST-manipulation tools handle this problem. However, it's possible to implement AST traversal using iteration instead of recursion to work around limited call stack space. This version of esbuild implements this code transformation for esbuild's JavaScript parser and printer, so esbuild's WebAssembly implementation is now able to process the `grapheme-splitter` package (at least when compiled with Go 1.20.0 and run with node's WebAssembly implementation).
 
 ## 0.17.7
 

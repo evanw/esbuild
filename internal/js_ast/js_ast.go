@@ -170,13 +170,13 @@ const (
 	BinOpLogicalAndAssign
 )
 
-type opTableEntry struct {
+type OpTableEntry struct {
 	Text      string
 	Level     L
 	IsKeyword bool
 }
 
-var OpTable = []opTableEntry{
+var OpTable = []OpTableEntry{
 	// Prefix
 	{"+", LPrefix, false},
 	{"-", LPrefix, false},
