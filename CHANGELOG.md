@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.17.9
 
 * Parse rest bindings in TypeScript types ([#2937](https://github.com/evanw/esbuild/issues/2937))
 
