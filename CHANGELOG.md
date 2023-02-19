@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+* Parse rest bindings in TypeScript types ([#2937](https://github.com/evanw/esbuild/issues/2937))
+
+    Previously esbuild was unable to parse the following valid TypeScript code:
+
+    ```ts
+    let tuple: (...[e1, e2, ...es]: any) => any
+    ```
+
+    This release includes support for parsing code like this.
+
 * Fix TypeScript code translation for certain computed `declare` class fields ([#2914](https://github.com/evanw/esbuild/issues/2914))
 
     In TypeScript, the key of a computed `declare` class field should only be preserved if there are no decorators for that field. Previously esbuild always preserved the key, but esbuild will now remove the key to match the output of the TypeScript compiler:

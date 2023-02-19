@@ -30,6 +30,11 @@ func (p *parser) skipTypeScriptBinding() {
 
 		// "[a, b]"
 		for p.lexer.Token != js_lexer.TCloseBracket {
+			// "[...a]"
+			if p.lexer.Token == js_lexer.TDotDotDot {
+				p.lexer.Next()
+			}
+
 			p.skipTypeScriptBinding()
 			if p.lexer.Token != js_lexer.TComma {
 				break

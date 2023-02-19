@@ -183,6 +183,12 @@ func TestTSTypes(t *testing.T) {
 	expectPrintedTS(t, "type Foo = {} extends (infer T extends {}) ? A<T> : never", "")
 	expectPrintedTS(t, "let x: A extends B<infer C extends D> ? D : never", "let x;\n")
 	expectPrintedTS(t, "let x: A extends B<infer C extends D ? infer C : never> ? D : never", "let x;\n")
+	expectPrintedTS(t, "let x: ([e1, e2, ...es]: any) => any", "let x;\n")
+	expectPrintedTS(t, "let x: (...[e1, e2, es]: any) => any", "let x;\n")
+	expectPrintedTS(t, "let x: (...[e1, e2, ...es]: any) => any", "let x;\n")
+	expectPrintedTS(t, "let x: (y, [e1, e2, ...es]: any) => any", "let x;\n")
+	expectPrintedTS(t, "let x: (y, ...[e1, e2, es]: any) => any", "let x;\n")
+	expectPrintedTS(t, "let x: (y, ...[e1, e2, ...es]: any) => any", "let x;\n")
 
 	expectPrintedTS(t, "let x: A.B<X.Y>", "let x;\n")
 	expectPrintedTS(t, "let x: A.B<X.Y>=2", "let x = 2;\n")
