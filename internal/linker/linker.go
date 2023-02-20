@@ -5225,7 +5225,7 @@ func (c *linkerContext) generateChunkCSS(chunkIndex int, chunkWaitGroup *sync.Wa
 
 		// Remove top-level duplicate rules across files
 		if c.options.MinifySyntax {
-			rules = remover.RemoveDuplicateRulesInPlace(rules)
+			rules = remover.RemoveDuplicateRulesInPlace(rules, ast.ImportRecords)
 		}
 
 		ast.Rules = rules

@@ -775,6 +775,11 @@ func TestDeduplicateRules(t *testing.T) {
 			"/across-files-0.css": "a { color: red; color: red }",
 			"/across-files-1.css": "a { color: green }",
 			"/across-files-2.css": "a { color: red }",
+
+			"/across-files-url.css":   "@import 'across-files-url-0.css'; @import 'across-files-url-1.css'; @import 'across-files-url-2.css';",
+			"/across-files-url-0.css": "@import 'http://example.com/some.css'; @font-face { src: url(http://example.com/some.font); }",
+			"/across-files-url-1.css": "@font-face { src: url(http://example.com/some.other.font); }",
+			"/across-files-url-2.css": "@font-face { src: url(http://example.com/some.font); }",
 		},
 		entryPaths: []string{
 			"/yes0.css",
@@ -790,6 +795,7 @@ func TestDeduplicateRules(t *testing.T) {
 			"/no6.css",
 
 			"/across-files.css",
+			"/across-files-url.css",
 		},
 		options: config.Options{
 			Mode:         config.ModeBundle,

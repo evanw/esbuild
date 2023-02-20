@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased
+
+* Fix cross-file CSS rule deduplication involving `url()` tokens ([#2936](https://github.com/evanw/esbuild/issues/2936))
+
+    Previously cross-file CSS rule deduplication didn't handle `url()` tokens correctly. These tokens contain references to import paths which may be internal (i.e. in the bundle) or external (i.e. not in the bundle). When comparing two `url()` tokens for equality, the underlying import paths should be compared instead of their references. This release of esbuild fixes `url()` token comparisons. One side effect is that `@font-face` rules should now be deduplicated correctly across files:
+
+    ```css
+    /* Original code */
+    @import "data:text/css, \
+      @import 'http://example.com/style.css'; \
+      @font-face { src: url(http://example.com/font.ttf) }";
+    @import "data:text/css, \
+      @font-face { src: url(http://example.com/font.ttf) }";
+
+    /* Old output (with --bundle --minify) */
+    @import"http://example.com/style.css";@font-face{src:url(http://example.com/font.ttf)}@font-face{src:url(http://example.com/font.ttf)}
+
+    /* New output (with --bundle --minify) */
+    @import"http://example.com/style.css";@font-face{src:url(http://example.com/font.ttf)}
+    ```
+
 ## 0.17.9
 
 * Parse rest bindings in TypeScript types ([#2937](https://github.com/evanw/esbuild/issues/2937))

@@ -290,7 +290,7 @@ loop:
 	}
 
 	if p.options.MinifySyntax {
-		rules = mangleRules(rules, context.isTopLevel)
+		rules = p.mangleRules(rules, context.isTopLevel)
 	}
 	return rules
 }
@@ -305,7 +305,7 @@ func (p *parser) parseListOfDeclarations() (list []css_ast.Rule) {
 		case css_lexer.TEndOfFile, css_lexer.TCloseBrace:
 			list = p.processDeclarations(list)
 			if p.options.MinifySyntax {
-				list = mangleRules(list, false /* isTopLevel */)
+				list = p.mangleRules(list, false /* isTopLevel */)
 			}
 			return
 
@@ -325,7 +325,7 @@ func (p *parser) parseListOfDeclarations() (list []css_ast.Rule) {
 	}
 }
 
-func mangleRules(rules []css_ast.Rule, isTopLevel bool) []css_ast.Rule {
+func (p *parser) mangleRules(rules []css_ast.Rule, isTopLevel bool) []css_ast.Rule {
 	type hashEntry struct {
 		indices []uint32
 	}
@@ -378,12 +378,12 @@ func mangleRules(rules []css_ast.Rule, isTopLevel bool) []css_ast.Rule {
 			// "a { color: red; } b { color: red; }" => "a, b { color: red; }"
 			if prevNonComment != nil {
 				if r, ok := rule.Data.(*css_ast.RSelector); ok {
-					if prev, ok := prevNonComment.(*css_ast.RSelector); ok && css_ast.RulesEqual(r.Rules, prev.Rules) &&
+					if prev, ok := prevNonComment.(*css_ast.RSelector); ok && css_ast.RulesEqual(r.Rules, prev.Rules, nil) &&
 						isSafeSelectors(r.Selectors) && isSafeSelectors(prev.Selectors) {
 					nextSelector:
 						for _, sel := range r.Selectors {
 							for _, prevSel := range prev.Selectors {
-								if sel.Equal(prevSel) {
+								if sel.Equal(prevSel, nil) {
 									// Don't add duplicate selectors more than once
 									continue nextSelector
 								}
@@ -411,25 +411,39 @@ func mangleRules(rules []css_ast.Rule, isTopLevel bool) []css_ast.Rule {
 	// Mangle non-top-level rules using a back-to-front pass. Top-level rules
 	// will be mangled by the linker instead for cross-file rule mangling.
 	if !isTopLevel {
-		rules = MakeDuplicateRuleMangler().RemoveDuplicateRulesInPlace(rules)
+		remover := MakeDuplicateRuleMangler()
+		rules = remover.RemoveDuplicateRulesInPlace(rules, p.importRecords)
 	}
 
 	return rules
 }
 
+type ruleEntry struct {
+	data        css_ast.R
+	callCounter uint32
+}
+
 type hashEntry struct {
-	rules []css_ast.R
+	rules []ruleEntry
 }
 
 type DuplicateRuleRemover struct {
 	entries map[uint32]hashEntry
+	calls   [][]ast.ImportRecord
+	check   css_ast.CrossFileEqualityCheck
 }
 
 func MakeDuplicateRuleMangler() DuplicateRuleRemover {
 	return DuplicateRuleRemover{entries: make(map[uint32]hashEntry)}
 }
 
-func (remover DuplicateRuleRemover) RemoveDuplicateRulesInPlace(rules []css_ast.Rule) []css_ast.Rule {
+func (remover *DuplicateRuleRemover) RemoveDuplicateRulesInPlace(rules []css_ast.Rule, importRecords []ast.ImportRecord) []css_ast.Rule {
+	// The caller may call this function multiple times, each with a different
+	// set of import records. Remember each set of import records for equality
+	// checks later.
+	callCounter := uint32(len(remover.calls))
+	remover.calls = append(remover.calls, importRecords)
+
 	// Remove duplicate rules, scanning from the back so we keep the last
 	// duplicate. Note that the linker calls this, so we do not want to do
 	// anything that modifies the rules themselves. One reason is that ASTs
@@ -445,12 +459,27 @@ skipRule:
 		// For duplicate rules, omit all but the last copy
 		if hash, ok := rule.Data.Hash(); ok {
 			entry := remover.entries[hash]
-			for _, data := range entry.rules {
-				if rule.Data.Equal(data) {
+			for _, current := range entry.rules {
+				var check *css_ast.CrossFileEqualityCheck
+
+				// If this rule was from another file, then pass along both arrays
+				// of import records so that the equality check for "url()" tokens
+				// can use them to check for equality.
+				if current.callCounter != callCounter {
+					// Reuse the same memory allocation
+					check = &remover.check
+					check.ImportRecordsA = importRecords
+					check.ImportRecordsB = remover.calls[current.callCounter]
+				}
+
+				if rule.Data.Equal(current.data, check) {
 					continue skipRule
 				}
 			}
-			entry.rules = append(entry.rules, rule.Data)
+			entry.rules = append(entry.rules, ruleEntry{
+				data:        rule.Data,
+				callCounter: callCounter,
+			})
 			remover.entries[hash] = entry
 		}
 

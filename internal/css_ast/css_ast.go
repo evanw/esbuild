@@ -79,13 +79,42 @@ const (
 	WhitespaceAfter
 )
 
-func (a Token) Equal(b Token) bool {
-	if a.Kind == b.Kind && a.Text == b.Text && a.ImportRecordIndex == b.ImportRecordIndex && a.Whitespace == b.Whitespace {
+// This is necessary when comparing tokens between two different files
+type CrossFileEqualityCheck struct {
+	ImportRecordsA []ast.ImportRecord
+	ImportRecordsB []ast.ImportRecord
+}
+
+func (a Token) Equal(b Token, check *CrossFileEqualityCheck) bool {
+	if a.Kind == b.Kind && a.Text == b.Text && a.Whitespace == b.Whitespace {
+		// URLs should be compared based on the text of the associated import record
+		// (which is what will actually be printed) instead of the original text
+		if a.Kind == css_lexer.TURL {
+			if check == nil {
+				// If both tokens are in the same file, just compare the index
+				if a.ImportRecordIndex != b.ImportRecordIndex {
+					return false
+				}
+			} else {
+				// If the tokens come from separate files, compare the import records
+				// themselves instead of comparing the indices. This can happen when
+				// the linker runs a "DuplicateRuleRemover" during bundling. This
+				// doesn't compare the source indices because at this point during
+				// linking, paths inside the bundle (e.g. due to the "copy" loader)
+				// should have already been converted into text (e.g. the "unique key"
+				// string).
+				if check.ImportRecordsA[a.ImportRecordIndex].Path.Text !=
+					check.ImportRecordsB[b.ImportRecordIndex].Path.Text {
+					return false
+				}
+			}
+		}
+
 		if a.Children == nil && b.Children == nil {
 			return true
 		}
 
-		if a.Children != nil && b.Children != nil && TokensEqual(*a.Children, *b.Children) {
+		if a.Children != nil && b.Children != nil && TokensEqual(*a.Children, *b.Children, check) {
 			return true
 		}
 	}
@@ -93,12 +122,12 @@ func (a Token) Equal(b Token) bool {
 	return false
 }
 
-func TokensEqual(a []Token, b []Token) bool {
+func TokensEqual(a []Token, b []Token, check *CrossFileEqualityCheck) bool {
 	if len(a) != len(b) {
 		return false
 	}
-	for i, c := range a {
-		if !c.Equal(b[i]) {
+	for i, ai := range a {
+		if !ai.Equal(b[i], check) {
 			return false
 		}
 	}
@@ -110,7 +139,9 @@ func HashTokens(hash uint32, tokens []Token) uint32 {
 
 	for _, t := range tokens {
 		hash = helpers.HashCombine(hash, uint32(t.Kind))
-		hash = helpers.HashCombineString(hash, t.Text)
+		if t.Kind != css_lexer.TURL {
+			hash = helpers.HashCombineString(hash, t.Text)
+		}
 		if t.Children != nil {
 			hash = HashTokens(hash, *t.Children)
 		}
@@ -262,16 +293,16 @@ type Rule struct {
 }
 
 type R interface {
-	Equal(rule R) bool
+	Equal(rule R, check *CrossFileEqualityCheck) bool
 	Hash() (uint32, bool)
 }
 
-func RulesEqual(a []Rule, b []Rule) bool {
+func RulesEqual(a []Rule, b []Rule, check *CrossFileEqualityCheck) bool {
 	if len(a) != len(b) {
 		return false
 	}
-	for i, c := range a {
-		if !c.Data.Equal(b[i].Data) {
+	for i, ai := range a {
+		if !ai.Data.Equal(b[i].Data, check) {
 			return false
 		}
 	}
@@ -294,7 +325,7 @@ type RAtCharset struct {
 	Encoding string
 }
 
-func (a *RAtCharset) Equal(rule R) bool {
+func (a *RAtCharset) Equal(rule R, check *CrossFileEqualityCheck) bool {
 	b, ok := rule.(*RAtCharset)
 	return ok && a.Encoding == b.Encoding
 }
@@ -310,7 +341,7 @@ type RAtImport struct {
 	ImportRecordIndex uint32
 }
 
-func (*RAtImport) Equal(rule R) bool {
+func (*RAtImport) Equal(rule R, check *CrossFileEqualityCheck) bool {
 	return false
 }
 
@@ -329,7 +360,7 @@ type KeyframeBlock struct {
 	Rules     []Rule
 }
 
-func (a *RAtKeyframes) Equal(rule R) bool {
+func (a *RAtKeyframes) Equal(rule R, check *CrossFileEqualityCheck) bool {
 	if b, ok := rule.(*RAtKeyframes); ok && a.AtToken == b.AtToken && a.Name == b.Name && len(a.Blocks) == len(b.Blocks) {
 		for i, ai := range a.Blocks {
 			bi := b.Blocks[i]
@@ -341,7 +372,7 @@ func (a *RAtKeyframes) Equal(rule R) bool {
 					return false
 				}
 			}
-			if !RulesEqual(ai.Rules, bi.Rules) {
+			if !RulesEqual(ai.Rules, bi.Rules, check) {
 				return false
 			}
 		}
@@ -371,9 +402,9 @@ type RKnownAt struct {
 	Rules   []Rule
 }
 
-func (a *RKnownAt) Equal(rule R) bool {
+func (a *RKnownAt) Equal(rule R, check *CrossFileEqualityCheck) bool {
 	b, ok := rule.(*RKnownAt)
-	return ok && a.AtToken == b.AtToken && TokensEqual(a.Prelude, b.Prelude) && RulesEqual(a.Rules, b.Rules)
+	return ok && a.AtToken == b.AtToken && TokensEqual(a.Prelude, b.Prelude, check) && RulesEqual(a.Rules, b.Rules, check)
 }
 
 func (r *RKnownAt) Hash() (uint32, bool) {
@@ -390,9 +421,9 @@ type RUnknownAt struct {
 	Block   []Token
 }
 
-func (a *RUnknownAt) Equal(rule R) bool {
+func (a *RUnknownAt) Equal(rule R, check *CrossFileEqualityCheck) bool {
 	b, ok := rule.(*RUnknownAt)
-	return ok && a.AtToken == b.AtToken && TokensEqual(a.Prelude, b.Prelude) && TokensEqual(a.Block, b.Block)
+	return ok && a.AtToken == b.AtToken && TokensEqual(a.Prelude, b.Prelude, check) && TokensEqual(a.Block, b.Block, check)
 }
 
 func (r *RUnknownAt) Hash() (uint32, bool) {
@@ -409,15 +440,15 @@ type RSelector struct {
 	HasAtNest bool
 }
 
-func (a *RSelector) Equal(rule R) bool {
+func (a *RSelector) Equal(rule R, check *CrossFileEqualityCheck) bool {
 	b, ok := rule.(*RSelector)
 	if ok && len(a.Selectors) == len(b.Selectors) && a.HasAtNest == b.HasAtNest {
-		for i, sel := range a.Selectors {
-			if !sel.Equal(b.Selectors[i]) {
+		for i, ai := range a.Selectors {
+			if !ai.Equal(b.Selectors[i], check) {
 				return false
 			}
 		}
-		return RulesEqual(a.Rules, b.Rules)
+		return RulesEqual(a.Rules, b.Rules, check)
 	}
 
 	return false
@@ -450,9 +481,9 @@ type RQualified struct {
 	Rules   []Rule
 }
 
-func (a *RQualified) Equal(rule R) bool {
+func (a *RQualified) Equal(rule R, check *CrossFileEqualityCheck) bool {
 	b, ok := rule.(*RQualified)
-	return ok && TokensEqual(a.Prelude, b.Prelude) && RulesEqual(a.Rules, b.Rules)
+	return ok && TokensEqual(a.Prelude, b.Prelude, check) && RulesEqual(a.Rules, b.Rules, check)
 }
 
 func (r *RQualified) Hash() (uint32, bool) {
@@ -470,9 +501,9 @@ type RDeclaration struct {
 	Important bool
 }
 
-func (a *RDeclaration) Equal(rule R) bool {
+func (a *RDeclaration) Equal(rule R, check *CrossFileEqualityCheck) bool {
 	b, ok := rule.(*RDeclaration)
-	return ok && a.KeyText == b.KeyText && TokensEqual(a.Value, b.Value) && a.Important == b.Important
+	return ok && a.KeyText == b.KeyText && TokensEqual(a.Value, b.Value, check) && a.Important == b.Important
 }
 
 func (r *RDeclaration) Hash() (uint32, bool) {
@@ -500,9 +531,9 @@ type RBadDeclaration struct {
 	Tokens []Token
 }
 
-func (a *RBadDeclaration) Equal(rule R) bool {
+func (a *RBadDeclaration) Equal(rule R, check *CrossFileEqualityCheck) bool {
 	b, ok := rule.(*RBadDeclaration)
-	return ok && TokensEqual(a.Tokens, b.Tokens)
+	return ok && TokensEqual(a.Tokens, b.Tokens, check)
 }
 
 func (r *RBadDeclaration) Hash() (uint32, bool) {
@@ -515,7 +546,7 @@ type RComment struct {
 	Text string
 }
 
-func (a *RComment) Equal(rule R) bool {
+func (a *RComment) Equal(rule R, check *CrossFileEqualityCheck) bool {
 	b, ok := rule.(*RComment)
 	return ok && a.Text == b.Text
 }
@@ -531,7 +562,7 @@ type RAtLayer struct {
 	Rules []Rule
 }
 
-func (a *RAtLayer) Equal(rule R) bool {
+func (a *RAtLayer) Equal(rule R, check *CrossFileEqualityCheck) bool {
 	if b, ok := rule.(*RAtLayer); ok && len(a.Names) == len(b.Names) && len(a.Rules) == len(b.Rules) {
 		for i, ai := range a.Names {
 			bi := b.Names[i]
@@ -544,7 +575,7 @@ func (a *RAtLayer) Equal(rule R) bool {
 				}
 			}
 		}
-		if !RulesEqual(a.Rules, b.Rules) {
+		if !RulesEqual(a.Rules, b.Rules, check) {
 			return false
 		}
 	}
@@ -568,7 +599,7 @@ type ComplexSelector struct {
 	Selectors []CompoundSelector
 }
 
-func (a ComplexSelector) Equal(b ComplexSelector) bool {
+func (a ComplexSelector) Equal(b ComplexSelector, check *CrossFileEqualityCheck) bool {
 	if len(a.Selectors) != len(b.Selectors) {
 		return false
 	}
@@ -589,7 +620,7 @@ func (a ComplexSelector) Equal(b ComplexSelector) bool {
 			return false
 		}
 		for j, aj := range ai.SubclassSelectors {
-			if !aj.Equal(bi.SubclassSelectors[j]) {
+			if !aj.Equal(bi.SubclassSelectors[j], check) {
 				return false
 			}
 		}
@@ -632,7 +663,7 @@ func (a NamespacedName) Equal(b NamespacedName) bool {
 }
 
 type SS interface {
-	Equal(ss SS) bool
+	Equal(ss SS, check *CrossFileEqualityCheck) bool
 	Hash() uint32
 }
 
@@ -640,7 +671,7 @@ type SSHash struct {
 	Name string
 }
 
-func (a *SSHash) Equal(ss SS) bool {
+func (a *SSHash) Equal(ss SS, check *CrossFileEqualityCheck) bool {
 	b, ok := ss.(*SSHash)
 	return ok && a.Name == b.Name
 }
@@ -655,7 +686,7 @@ type SSClass struct {
 	Name string
 }
 
-func (a *SSClass) Equal(ss SS) bool {
+func (a *SSClass) Equal(ss SS, check *CrossFileEqualityCheck) bool {
 	b, ok := ss.(*SSClass)
 	return ok && a.Name == b.Name
 }
@@ -673,7 +704,7 @@ type SSAttribute struct {
 	MatcherModifier byte // Either 0 or one of: 'i' 'I' 's' 'S'
 }
 
-func (a *SSAttribute) Equal(ss SS) bool {
+func (a *SSAttribute) Equal(ss SS, check *CrossFileEqualityCheck) bool {
 	b, ok := ss.(*SSAttribute)
 	return ok && a.NamespacedName.Equal(b.NamespacedName) && a.MatcherOp == b.MatcherOp &&
 		a.MatcherValue == b.MatcherValue && a.MatcherModifier == b.MatcherModifier
@@ -693,9 +724,9 @@ type SSPseudoClass struct {
 	IsElement bool // If true, this is prefixed by "::" instead of ":"
 }
 
-func (a *SSPseudoClass) Equal(ss SS) bool {
+func (a *SSPseudoClass) Equal(ss SS, check *CrossFileEqualityCheck) bool {
 	b, ok := ss.(*SSPseudoClass)
-	return ok && a.Name == b.Name && TokensEqual(a.Args, b.Args) && a.IsElement == b.IsElement
+	return ok && a.Name == b.Name && TokensEqual(a.Args, b.Args, check) && a.IsElement == b.IsElement
 }
 
 func (ss *SSPseudoClass) Hash() uint32 {
