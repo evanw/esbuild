@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.17.10
 
 * Update esbuild's handling of CSS nesting to match the latest specification changes ([#1945](https://github.com/evanw/esbuild/issues/1945))
 
