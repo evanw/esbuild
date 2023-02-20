@@ -310,14 +310,24 @@ func (p *parser) parseListOfDeclarations() (list []css_ast.Rule) {
 			return
 
 		case css_lexer.TAtKeyword:
+			p.maybeWarnAboutNesting(p.current().Range)
 			list = append(list, p.parseAtRule(atRuleContext{
 				isDeclarationList: true,
-				allowNesting:      true,
 			}))
 
-		case css_lexer.TDelimAmpersand:
-			// Reference: https://drafts.csswg.org/css-nesting-1/
-			list = append(list, p.parseSelectorRuleFrom(p.index, parseSelectorOpts{allowNesting: true}))
+		// Reference: https://drafts.csswg.org/css-nesting-1/
+		case css_lexer.TDelimAmpersand,
+			css_lexer.TDelimDot,
+			css_lexer.THash,
+			css_lexer.TColon,
+			css_lexer.TOpenBracket,
+			css_lexer.TDelimAsterisk,
+			css_lexer.TDelimBar,
+			css_lexer.TDelimPlus,
+			css_lexer.TDelimGreaterThan,
+			css_lexer.TDelimTilde:
+			p.maybeWarnAboutNesting(p.current().Range)
+			list = append(list, p.parseSelectorRuleFrom(p.index, parseSelectorOpts{}))
 
 		default:
 			list = append(list, p.parseDeclaration())
@@ -596,7 +606,7 @@ var nonDeprecatedElementsSupportedByIE7 = map[string]bool{
 func isSafeSelectors(complexSelectors []css_ast.ComplexSelector) bool {
 	for _, complex := range complexSelectors {
 		for _, compound := range complex.Selectors {
-			if compound.NestingSelector != css_ast.NestingSelectorNone {
+			if compound.HasNestingSelector {
 				// Bail because this is an extension: https://drafts.csswg.org/css-nesting-1/
 				return false
 			}
@@ -749,9 +759,6 @@ var specialAtRules = map[string]atRuleKind{
 	"scope":    atRuleInheritContext,
 	"supports": atRuleInheritContext,
 
-	// Reference: https://drafts.csswg.org/css-nesting-1/
-	"nest": atRuleDeclarations,
-
 	// Reference: https://drafts.csswg.org/css-fonts-4/#font-palette-values
 	"font-palette-values": atRuleDeclarations,
 
@@ -788,7 +795,6 @@ type atRuleContext struct {
 	charsetValidity   atRuleValidity
 	importValidity    atRuleValidity
 	isDeclarationList bool
-	allowNesting      bool
 	isTopLevel        bool
 }
 
@@ -1006,18 +1012,6 @@ abortRuleParser:
 			return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RUnknownAt{AtToken: atToken, Prelude: prelude, Block: block}}
 		}
 
-	case "nest":
-		// Reference: https://drafts.csswg.org/css-nesting-1/
-		p.eat(css_lexer.TWhitespace)
-		if kind := p.current().Kind; kind != css_lexer.TSemicolon && kind != css_lexer.TOpenBrace &&
-			kind != css_lexer.TCloseBrace && kind != css_lexer.TEndOfFile {
-			return p.parseSelectorRuleFrom(preludeStart-1, parseSelectorOpts{
-				atNestRange:  atRange,
-				allowNesting: context.allowNesting,
-				isTopLevel:   context.isTopLevel,
-			})
-		}
-
 	case "layer":
 		// Reference: https://developer.mozilla.org/en-US/docs/Web/CSS/@layer
 
@@ -1055,9 +1049,14 @@ abortRuleParser:
 		// Read the optional block
 		matchingLoc := p.current().Range.Loc
 		if len(names) <= 1 && p.eat(css_lexer.TOpenBrace) {
-			rules := p.parseListOfRules(ruleContext{
-				parseSelectors: true,
-			})
+			var rules []css_ast.Rule
+			if context.isDeclarationList {
+				rules = p.parseListOfDeclarations()
+			} else {
+				rules = p.parseListOfRules(ruleContext{
+					parseSelectors: true,
+				})
+			}
 			p.expectWithMatchingLoc(css_lexer.TCloseBrace, matchingLoc)
 			return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RAtLayer{Names: names, Rules: rules}}
 		}
@@ -1194,6 +1193,16 @@ func (p *parser) expectValidLayerNameIdent() (string, bool) {
 		return "", false
 	}
 	return text, true
+}
+
+func (p *parser) maybeWarnAboutNesting(r logger.Range) {
+	if p.options.UnsupportedCSSFeatures.Has(compat.Nesting) {
+		text := "CSS nesting syntax is not supported in the configured target environment"
+		if p.options.OriginalTargetEnv != "" {
+			text = fmt.Sprintf("%s (%s)", text, p.options.OriginalTargetEnv)
+		}
+		p.log.AddID(logger.MsgID_CSS_UnsupportedCSSNesting, logger.Warning, &p.tracker, r, text)
+	}
 }
 
 func (p *parser) convertTokens(tokens []css_lexer.Token) []css_ast.Token {
@@ -1546,29 +1555,11 @@ func mangleNumber(t string) (string, bool) {
 func (p *parser) parseSelectorRuleFrom(preludeStart int, opts parseSelectorOpts) css_ast.Rule {
 	// Try parsing the prelude as a selector list
 	if list, ok := p.parseSelectorList(opts); ok {
-		selector := css_ast.RSelector{
-			Selectors: list,
-			HasAtNest: opts.atNestRange.Len != 0,
-		}
+		selector := css_ast.RSelector{Selectors: list}
 		matchingLoc := p.current().Range.Loc
 		if p.expect(css_lexer.TOpenBrace) {
 			selector.Rules = p.parseListOfDeclarations()
 			p.expectWithMatchingLoc(css_lexer.TCloseBrace, matchingLoc)
-
-			// Minify "@nest" when possible
-			if p.options.MinifySyntax && selector.HasAtNest {
-				allHaveNestPrefix := true
-				for _, complex := range selector.Selectors {
-					if len(complex.Selectors) == 0 || complex.Selectors[0].NestingSelector != css_ast.NestingSelectorPrefix {
-						allHaveNestPrefix = false
-						break
-					}
-				}
-				if allHaveNestPrefix {
-					selector.HasAtNest = false
-				}
-			}
-
 			return css_ast.Rule{Loc: p.tokens[preludeStart].Range.Loc, Data: &selector}
 		}
 	}

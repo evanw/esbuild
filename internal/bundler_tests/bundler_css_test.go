@@ -700,18 +700,71 @@ func TestCSSExternalQueryAndHashMatchIssue1822(t *testing.T) {
 func TestCSSNestingOldBrowser(t *testing.T) {
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
-			"/entry.css": `
-				a { &:hover { color: red; } }
-			`,
+			"/nested-@layer.css":      `a { @layer base { color: red; } }`,
+			"/nested-@media.css":      `a { @media screen { color: red; } }`,
+			"/nested-ampersand.css":   `a { &, & { color: red; } }`,
+			"/nested-attribute.css":   `a { [href] { color: red; } }`,
+			"/nested-colon.css":       `a { :hover { color: red; } }`,
+			"/nested-dot.css":         `a { .cls { color: red; } }`,
+			"/nested-greaterthan.css": `a { > b { color: red; } }`,
+			"/nested-hash.css":        `a { #id { color: red; } }`,
+			"/nested-plus.css":        `a { + b { color: red; } }`,
+			"/nested-tilde.css":       `a { ~ b { color: red; } }`,
+
+			"/toplevel-ampersand.css":   `a { &, & { color: red; } }`,
+			"/toplevel-attribute.css":   `a { [href] { color: red; } }`,
+			"/toplevel-colon.css":       `a { :hover { color: red; } }`,
+			"/toplevel-dot.css":         `a { .cls { color: red; } }`,
+			"/toplevel-greaterthan.css": `a { > b { color: red; } }`,
+			"/toplevel-hash.css":        `a { #id { color: red; } }`,
+			"/toplevel-plus.css":        `a { + b { color: red; } }`,
+			"/toplevel-tilde.css":       `a { ~ b { color: red; } }`,
 		},
-		entryPaths: []string{"/entry.css"},
+		entryPaths: []string{
+			"/nested-@layer.css",
+			"/nested-@media.css",
+			"/nested-ampersand.css",
+			"/nested-attribute.css",
+			"/nested-colon.css",
+			"/nested-dot.css",
+			"/nested-greaterthan.css",
+			"/nested-hash.css",
+			"/nested-plus.css",
+			"/nested-tilde.css",
+
+			"/toplevel-ampersand.css",
+			"/toplevel-attribute.css",
+			"/toplevel-colon.css",
+			"/toplevel-dot.css",
+			"/toplevel-greaterthan.css",
+			"/toplevel-hash.css",
+			"/toplevel-plus.css",
+			"/toplevel-tilde.css",
+		},
 		options: config.Options{
 			Mode:                   config.ModeBundle,
-			AbsOutputFile:          "/out.css",
+			AbsOutputDir:           "/out",
 			UnsupportedCSSFeatures: compat.Nesting,
 			OriginalTargetEnv:      "chrome10",
 		},
-		expectedScanLog: `entry.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
+		expectedScanLog: `nested-@layer.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
+nested-@media.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
+nested-ampersand.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
+nested-attribute.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
+nested-colon.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
+nested-dot.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
+nested-greaterthan.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
+nested-hash.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
+nested-plus.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
+nested-tilde.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
+toplevel-ampersand.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
+toplevel-attribute.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
+toplevel-colon.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
+toplevel-dot.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
+toplevel-greaterthan.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
+toplevel-hash.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
+toplevel-plus.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
+toplevel-tilde.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
 `,
 	})
 }
@@ -802,6 +855,5 @@ func TestDeduplicateRules(t *testing.T) {
 			AbsOutputDir: "/out",
 			MinifySyntax: true,
 		},
-		expectedScanLog: "no0.css: WARNING: CSS nesting syntax cannot be used outside of a style rule\n",
 	})
 }

@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+* Update esbuild's handling of CSS nesting to match the latest specification changes ([#1945](https://github.com/evanw/esbuild/issues/1945))
+
+    The syntax for the upcoming CSS nesting feature has [recently changed](https://webkit.org/blog/13813/try-css-nesting-today-in-safari-technology-preview/). The `@nest` prefix that was previously required in some cases is now gone, and nested rules no longer have to start with `&` (as long as they don't start with an identifier or function token).
+
+    This release updates esbuild's pass-through handling of CSS nesting syntax to match the latest specification changes. So you can now use esbuild to bundle CSS containing nested rules and try them out in a browser that supports CSS nesting (which includes nightly builds of both Chrome and Safari).
+
+    However, I'm not implementing lowering of nested CSS to non-nested CSS for older browsers yet. While the syntax has been decided, the semantics are still in flux. In particular, there is still some debate about changing the fundamental way that CSS nesting works. For example, you might think that the following CSS is equivalent to a `.outer .inner button { ... }` rule:
+
+    ```css
+    .inner button {
+      .outer & {
+        color: red;
+      }
+    }
+    ```
+
+    But instead it's actually equivalent to a `.outer :is(.inner button) { ... }` rule which unintuitively also matches the following DOM structure:
+
+    ```html
+    <div class="inner">
+      <div class="outer">
+        <button></button>
+      </div>
+    </div>
+    ```
+
+    The `:is()` behavior is preferred by browser implementers because it's more memory-efficient, but the straightforward translation into a `.outer .inner button { ... }` rule is preferred by developers used to the existing CSS preprocessing ecosystem (e.g. SASS). It seems premature to commit esbuild to specific semantics for this syntax at this time given the ongoing debate.
+
 * Fix cross-file CSS rule deduplication involving `url()` tokens ([#2936](https://github.com/evanw/esbuild/issues/2936))
 
     Previously cross-file CSS rule deduplication didn't handle `url()` tokens correctly. These tokens contain references to import paths which may be internal (i.e. in the bundle) or external (i.e. not in the bundle). When comparing two `url()` tokens for equality, the underlying import paths should be compared instead of their references. This release of esbuild fixes `url()` token comparisons. One side effect is that `@font-face` rules should now be deduplicated correctly across files:

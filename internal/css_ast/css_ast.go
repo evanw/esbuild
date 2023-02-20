@@ -437,12 +437,11 @@ func (r *RUnknownAt) Hash() (uint32, bool) {
 type RSelector struct {
 	Selectors []ComplexSelector
 	Rules     []Rule
-	HasAtNest bool
 }
 
 func (a *RSelector) Equal(rule R, check *CrossFileEqualityCheck) bool {
 	b, ok := rule.(*RSelector)
-	if ok && len(a.Selectors) == len(b.Selectors) && a.HasAtNest == b.HasAtNest {
+	if ok && len(a.Selectors) == len(b.Selectors) {
 		for i, ai := range a.Selectors {
 			if !ai.Equal(b.Selectors[i], check) {
 				return false
@@ -606,7 +605,7 @@ func (a ComplexSelector) Equal(b ComplexSelector, check *CrossFileEqualityCheck)
 
 	for i, ai := range a.Selectors {
 		bi := b.Selectors[i]
-		if ai.NestingSelector != bi.NestingSelector || ai.Combinator != bi.Combinator {
+		if ai.HasNestingSelector != bi.HasNestingSelector || ai.Combinator != bi.Combinator {
 			return false
 		}
 
@@ -629,19 +628,11 @@ func (a ComplexSelector) Equal(b ComplexSelector, check *CrossFileEqualityCheck)
 	return true
 }
 
-type NestingSelector uint8
-
-const (
-	NestingSelectorNone                NestingSelector = iota
-	NestingSelectorPrefix                              // "&a {}"
-	NestingSelectorPresentButNotPrefix                 // "a& {}"
-)
-
 type CompoundSelector struct {
-	Combinator        string // Optional, may be ""
-	TypeSelector      *NamespacedName
-	SubclassSelectors []SS
-	NestingSelector   NestingSelector // "&"
+	Combinator         string // Optional, may be ""
+	TypeSelector       *NamespacedName
+	SubclassSelectors  []SS
+	HasNestingSelector bool // "&"
 }
 
 type NameToken struct {

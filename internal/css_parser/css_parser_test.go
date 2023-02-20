@@ -589,7 +589,7 @@ func TestDeclaration(t *testing.T) {
 
 	// See http://browserhacks.com/
 	expectPrinted(t, ".selector { (;property: value;); }", ".selector {\n  (;property: value;);\n}\n")
-	expectPrinted(t, ".selector { [;property: value;]; }", ".selector {\n  [;property: value;];\n}\n")
+	expectPrinted(t, ".selector { [;property: value;]; }", ".selector {\n  [;property: value;]; {\n  }\n}\n") // Note: This now overlaps with CSS nesting syntax
 	expectPrinted(t, ".selector, {}", ".selector, {\n}\n")
 	expectPrinted(t, ".selector\\ {}", ".selector\\  {\n}\n")
 	expectPrinted(t, ".selector { property: value\\9; }", ".selector {\n  property: value\\\t;\n}\n")
@@ -730,42 +730,68 @@ func TestNestedSelector(t *testing.T) {
 	expectPrinted(t, "a { &a|b {} }", "a {\n  &a|b {\n  }\n}\n")
 	expectPrinted(t, "a { &[b] {} }", "a {\n  &[b] {\n  }\n}\n")
 
-	expectParseError(t, "a { & b, c {} }",
-		"<stdin>: WARNING: Every selector in a nested style rule must start with \"&\"\n"+
-			"<stdin>: NOTE: This is a nested style rule because of the \"&\" here:\n")
+	expectPrinted(t, "a { && {} }", "a {\n  & {\n  }\n}\n")
+	expectPrinted(t, "a { & + & {} }", "a {\n  & + & {\n  }\n}\n")
+	expectPrinted(t, "a { & > & {} }", "a {\n  & > & {\n  }\n}\n")
+	expectPrinted(t, "a { & ~ & {} }", "a {\n  & ~ & {\n  }\n}\n")
+	expectPrinted(t, "a { & + c& {} }", "a {\n  & + &c {\n  }\n}\n")
+	expectPrinted(t, "a { .b& + & {} }", "a {\n  &.b + & {\n  }\n}\n")
+	expectPrinted(t, "a { .b& + c& {} }", "a {\n  &.b + &c {\n  }\n}\n")
+	expectPrinted(t, "a { & + & > & ~ & {} }", "a {\n  & + & > & ~ & {\n  }\n}\n")
+
+	// CSS nesting works for all tokens except identifiers and functions
+	expectParseError(t, "a { .b {} }", "")
+	expectParseError(t, "a { #b {} }", "")
+	expectParseError(t, "a { :b {} }", "")
+	expectParseError(t, "a { [b] {} }", "")
+	expectParseError(t, "a { * {} }", "")
+	expectParseError(t, "a { |b {} }", "")
+	expectParseError(t, "a { >b {} }", "")
+	expectParseError(t, "a { +b {} }", "")
+	expectParseError(t, "a { ~b {} }", "")
+	expectParseError(t, "a { b {} }", "<stdin>: WARNING: Expected \":\"\n")
+	expectParseError(t, "a { b() {} }", "<stdin>: WARNING: Expected identifier but found \"b(\"\n")
+	expectPrinted(t, "a { .b {} }", "a {\n  .b {\n  }\n}\n")
+	expectPrinted(t, "a { #b {} }", "a {\n  #b {\n  }\n}\n")
+	expectPrinted(t, "a { :b {} }", "a {\n  :b {\n  }\n}\n")
+	expectPrinted(t, "a { [b] {} }", "a {\n  [b] {\n  }\n}\n")
+	expectPrinted(t, "a { * {} }", "a {\n  * {\n  }\n}\n")
+	expectPrinted(t, "a { |b {} }", "a {\n  |b {\n  }\n}\n")
+	expectPrinted(t, "a { >b {} }", "a {\n  > b {\n  }\n}\n")
+	expectPrinted(t, "a { +b {} }", "a {\n  + b {\n  }\n}\n")
+	expectPrinted(t, "a { ~b {} }", "a {\n  ~ b {\n  }\n}\n")
+	expectPrinted(t, "a { b {} }", "a {\n  b {};\n}\n")
+	expectPrinted(t, "a { b() {} }", "a {\n  b() {};\n}\n")
+
+	// Note: CSS nesting no longer requires each complex selector to contain "&"
+	expectParseError(t, "a { & b, c {} }", "")
 	expectParseError(t, "a { & b, & c {} }", "")
 
-	expectParseError(t, "a { b & {} }", "<stdin>: WARNING: Expected \":\"\n")
-	expectParseError(t, "a { @nest b & {} }", "")
-	expectParseError(t, "a { @nest & b, c {} }",
-		"<stdin>: WARNING: Every selector in a nested style rule must contain \"&\"\n"+
-			"<stdin>: NOTE: This is a nested style rule because of the \"@nest\" here:\n")
-	expectParseError(t, "a { @nest b &, c {} }",
-		"<stdin>: WARNING: Every selector in a nested style rule must contain \"&\"\n"+
-			"<stdin>: NOTE: This is a nested style rule because of the \"@nest\" here:\n")
-	expectPrinted(t, "a { @nest b & { color: red } }", "a {\n  @nest b & {\n    color: red;\n  }\n}\n")
-	expectPrinted(t, "a { @nest b& { color: red } }", "a {\n  @nest b& {\n    color: red;\n  }\n}\n")
-	expectPrinted(t, "a { @nest b&[c] { color: red } }", "a {\n  @nest b[c]& {\n    color: red;\n  }\n}\n")
-	expectPrinted(t, "a { @nest &[c] { color: red } }", "a {\n  @nest &[c] {\n    color: red;\n  }\n}\n")
-	expectPrinted(t, "a { @nest [c]& { color: red } }", "a {\n  @nest [c]& {\n    color: red;\n  }\n}\n")
-	expectPrintedMinify(t, "a { @nest b & { color: red } }", "a{@nest b &{color:red}}")
-	expectPrintedMinify(t, "a { @nest b& { color: red } }", "a{@nest b&{color:red}}")
+	// Note: CSS nesting no longer requires the rule to be nested inside a parent
+	// (instead un-nested CSS nesting refers to ":scope" or to ":root")
+	expectParseError(t, "& b, c {}", "")
+	expectParseError(t, "& b, & c {}", "")
+	expectParseError(t, "b & {}", "")
+	expectParseError(t, "b &, c {}", "")
 
-	// Don't drop "@nest" for invalid rules
-	expectParseError(t, "a { @nest @invalid { color: red } }", "<stdin>: WARNING: Unexpected \"@invalid\"\n")
-	expectPrinted(t, "a { @nest @invalid { color: red } }", "a {\n  @nest @invalid {\n    color: red;\n  }\n}\n")
+	expectPrinted(t, "a { .b & { color: red } }", "a {\n  .b & {\n    color: red;\n  }\n}\n")
+	expectPrinted(t, "a { .b& { color: red } }", "a {\n  &.b {\n    color: red;\n  }\n}\n")
+	expectPrinted(t, "a { .b&[c] { color: red } }", "a {\n  &.b[c] {\n    color: red;\n  }\n}\n")
+	expectPrinted(t, "a { &[c] { color: red } }", "a {\n  &[c] {\n    color: red;\n  }\n}\n")
+	expectPrinted(t, "a { [c]& { color: red } }", "a {\n  &[c] {\n    color: red;\n  }\n}\n")
+	expectPrintedMinify(t, "a { .b & { color: red } }", "a{.b &{color:red}}")
+	expectPrintedMinify(t, "a { .b& { color: red } }", "a{&.b{color:red}}")
 
-	// Check removal of "@nest" when minifying
-	expectPrinted(t, "a { @nest & b, & c { color: red } }", "a {\n  @nest & b,\n  & c {\n    color: red;\n  }\n}\n")
-	expectPrintedMangle(t, "a { @nest & b, & c { color: red } }", "a {\n  & b,\n  & c {\n    color: red;\n  }\n}\n")
-	expectPrintedMangle(t, "a { @nest b &, & c { color: red } }", "a {\n  @nest b &,\n  & c {\n    color: red;\n  }\n}\n")
-	expectPrintedMangle(t, "a { @nest & b, c & { color: red } }", "a {\n  @nest & b,\n  c & {\n    color: red;\n  }\n}\n")
-
-	outside := "<stdin>: WARNING: CSS nesting syntax cannot be used outside of a style rule\n"
-	expectParseError(t, "& a {}", outside)
-	expectParseError(t, "@nest a & {}", outside)
-	expectParseError(t, "@media screen { & a {} }", outside)
-	expectParseError(t, "@media screen { @nest a & {} }", outside)
+	// Nested at-rules
+	expectPrinted(t, "a { @media screen { color: red } }", "a {\n  @media screen {\n    color: red;\n  }\n}\n")
+	expectPrinted(t, "a { @media screen { .b { color: green } color: red } }",
+		"a {\n  @media screen {\n    .b {\n      color: green;\n    }\n    color: red;\n  }\n}\n")
+	expectPrinted(t, "a { @media screen { color: red; .b { color: green } } }",
+		"a {\n  @media screen {\n    color: red;\n    .b {\n      color: green;\n    }\n  }\n}\n")
+	expectPrinted(t, "html { @layer base { block-size: 100%; @layer support { & body { min-block-size: 100%; } } } }",
+		"html {\n  @layer base {\n    block-size: 100%;\n    @layer support {\n      & body {\n        min-block-size: 100%;\n      }\n    }\n  }\n}\n")
+	expectPrinted(t, ".card { aspect-ratio: 3/4; @scope (&) { :scope { border: 1px solid white } } }",
+		".card {\n  aspect-ratio: 3/4;\n  @scope (&) {\n    :scope {\n      border: 1px solid white;\n    }\n  }\n}\n")
 }
 
 func TestBadQualifiedRules(t *testing.T) {

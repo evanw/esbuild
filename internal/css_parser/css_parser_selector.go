@@ -1,9 +1,6 @@
 package css_parser
 
 import (
-	"fmt"
-
-	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/css_ast"
 	"github.com/evanw/esbuild/internal/css_lexer"
 	"github.com/evanw/esbuild/internal/logger"
@@ -11,8 +8,7 @@ import (
 
 func (p *parser) parseSelectorList(opts parseSelectorOpts) (list []css_ast.ComplexSelector, ok bool) {
 	// Parse the first selector
-	firstRange := p.current().Range
-	sel, good, firstHasNestPrefix := p.parseComplexSelector(opts)
+	sel, good := p.parseComplexSelector(opts)
 	if !good {
 		return
 	}
@@ -25,23 +21,11 @@ func (p *parser) parseSelectorList(opts parseSelectorOpts) (list []css_ast.Compl
 			break
 		}
 		p.eat(css_lexer.TWhitespace)
-		loc := p.current().Range.Loc
-		sel, good, hasNestPrefix := p.parseComplexSelector(opts)
+		sel, good := p.parseComplexSelector(opts)
 		if !good {
 			return
 		}
 		list = append(list, sel)
-
-		// Validate nest prefix consistency
-		if firstHasNestPrefix && !hasNestPrefix && opts.atNestRange.Len == 0 {
-			data := p.tracker.MsgData(logger.Range{Loc: loc}, "Every selector in a nested style rule must start with \"&\"")
-			data.Location.Suggestion = "&"
-			p.log.AddMsgID(logger.MsgID_CSS_InvalidAtNest, logger.Msg{
-				Kind:  logger.Warning,
-				Data:  data,
-				Notes: []logger.MsgData{p.tracker.MsgData(firstRange, "This is a nested style rule because of the \"&\" here:")},
-			})
-		}
 	}
 
 	ok = true
@@ -49,20 +33,22 @@ func (p *parser) parseSelectorList(opts parseSelectorOpts) (list []css_ast.Compl
 }
 
 type parseSelectorOpts struct {
-	atNestRange  logger.Range
-	allowNesting bool
-	isTopLevel   bool
+	isTopLevel bool
 }
 
-func (p *parser) parseComplexSelector(opts parseSelectorOpts) (result css_ast.ComplexSelector, ok bool, hasNestPrefix bool) {
+func (p *parser) parseComplexSelector(opts parseSelectorOpts) (result css_ast.ComplexSelector, ok bool) {
+	// This is an extension: https://drafts.csswg.org/css-nesting-1/
+	combinator := p.parseCombinator()
+	if combinator != "" {
+		p.eat(css_lexer.TWhitespace)
+	}
+
 	// Parent
-	loc := p.current().Range.Loc
 	sel, good := p.parseCompoundSelector(opts)
 	if !good {
 		return
 	}
-	hasNestPrefix = sel.NestingSelector == css_ast.NestingSelectorPrefix
-	isNestContaining := sel.NestingSelector != css_ast.NestingSelectorNone
+	sel.Combinator = combinator
 	result.Selectors = append(result.Selectors, sel)
 
 	for {
@@ -84,16 +70,6 @@ func (p *parser) parseComplexSelector(opts parseSelectorOpts) (result css_ast.Co
 		}
 		sel.Combinator = combinator
 		result.Selectors = append(result.Selectors, sel)
-		if sel.NestingSelector != css_ast.NestingSelectorNone {
-			isNestContaining = true
-		}
-	}
-
-	// Validate nest selector consistency
-	if opts.atNestRange.Len != 0 && !isNestContaining {
-		p.log.AddIDWithNotes(logger.MsgID_CSS_InvalidAtNest, logger.Warning, &p.tracker, logger.Range{Loc: loc},
-			"Every selector in a nested style rule must contain \"&\"",
-			[]logger.MsgData{p.tracker.MsgData(opts.atNestRange, "This is a nested style rule because of the \"@nest\" here:")})
 	}
 
 	ok = true
@@ -107,24 +83,10 @@ func (p *parser) nameToken() css_ast.NameToken {
 	}
 }
 
-func (p *parser) maybeWarnAboutNesting(r logger.Range, opts parseSelectorOpts) {
-	if !opts.allowNesting {
-		p.log.AddID(logger.MsgID_CSS_InvalidAtNest, logger.Warning, &p.tracker, r, "CSS nesting syntax cannot be used outside of a style rule")
-	} else if p.options.UnsupportedCSSFeatures.Has(compat.Nesting) {
-		text := "CSS nesting syntax is not supported in the configured target environment"
-		if p.options.OriginalTargetEnv != "" {
-			text = fmt.Sprintf("%s (%s)", text, p.options.OriginalTargetEnv)
-		}
-		p.log.AddID(logger.MsgID_CSS_InvalidAtNest, logger.Warning, &p.tracker, r, text)
-	}
-}
-
 func (p *parser) parseCompoundSelector(opts parseSelectorOpts) (sel css_ast.CompoundSelector, ok bool) {
 	// This is an extension: https://drafts.csswg.org/css-nesting-1/
-	r := p.current().Range
 	if p.eat(css_lexer.TDelimAmpersand) {
-		sel.NestingSelector = css_ast.NestingSelectorPrefix
-		p.maybeWarnAboutNesting(r, opts)
+		sel.HasNestingSelector = true
 	}
 
 	// Parse the type selector
@@ -208,12 +170,11 @@ subclassSelectors:
 
 		case css_lexer.TDelimAmpersand:
 			// This is an extension: https://drafts.csswg.org/css-nesting-1/
-			r := p.current().Range
-			p.advance()
-			if sel.NestingSelector == css_ast.NestingSelectorNone {
-				sel.NestingSelector = css_ast.NestingSelectorPresentButNotPrefix
-				p.maybeWarnAboutNesting(r, opts)
+			if !sel.HasNestingSelector {
+				p.maybeWarnAboutNesting(p.current().Range)
+				sel.HasNestingSelector = true
 			}
+			p.advance()
 
 		default:
 			break subclassSelectors
@@ -221,7 +182,7 @@ subclassSelectors:
 	}
 
 	// The compound selector must be non-empty
-	if sel.NestingSelector == css_ast.NestingSelectorNone && sel.TypeSelector == nil && len(sel.SubclassSelectors) == 0 {
+	if !sel.HasNestingSelector && sel.TypeSelector == nil && len(sel.SubclassSelectors) == 0 {
 		p.unexpected()
 		return
 	}

@@ -43,12 +43,12 @@ const (
 	MsgID_CSS_InvalidAtCharset
 	MsgID_CSS_InvalidAtImport
 	MsgID_CSS_InvalidAtLayer
-	MsgID_CSS_InvalidAtNest
 	MsgID_CSS_InvalidCalc
 	MsgID_CSS_JSCommentInCSS
 	MsgID_CSS_UnsupportedAtCharset
 	MsgID_CSS_UnsupportedAtNamespace
 	MsgID_CSS_UnsupportedCSSProperty
+	MsgID_CSS_UnsupportedCSSNesting
 
 	// Bundler
 	MsgID_Bundler_AmbiguousReexport
@@ -147,8 +147,6 @@ func StringToMsgIDs(str string, logLevel LogLevel, overrides map[MsgID]LogLevel)
 		overrides[MsgID_CSS_InvalidAtCharset] = logLevel
 	case "invalid-@import":
 		overrides[MsgID_CSS_InvalidAtImport] = logLevel
-	case "invalid-@nest":
-		overrides[MsgID_CSS_InvalidAtNest] = logLevel
 	case "invalid-@layer":
 		overrides[MsgID_CSS_InvalidAtLayer] = logLevel
 	case "invalid-calc":
@@ -161,6 +159,8 @@ func StringToMsgIDs(str string, logLevel LogLevel, overrides map[MsgID]LogLevel)
 		overrides[MsgID_CSS_UnsupportedAtNamespace] = logLevel
 	case "unsupported-css-property":
 		overrides[MsgID_CSS_UnsupportedCSSProperty] = logLevel
+	case "unsupported-css-nesting":
+		overrides[MsgID_CSS_UnsupportedCSSNesting] = logLevel
 
 	// Bundler
 	case "ambiguous-reexport":
@@ -263,8 +263,6 @@ func MsgIDToString(id MsgID) string {
 		return "invalid-@charset"
 	case MsgID_CSS_InvalidAtImport:
 		return "invalid-@import"
-	case MsgID_CSS_InvalidAtNest:
-		return "invalid-@nest"
 	case MsgID_CSS_InvalidAtLayer:
 		return "invalid-@layer"
 	case MsgID_CSS_InvalidCalc:
@@ -277,6 +275,8 @@ func MsgIDToString(id MsgID) string {
 		return "unsupported-@namespace"
 	case MsgID_CSS_UnsupportedCSSProperty:
 		return "unsupported-css-property"
+	case MsgID_CSS_UnsupportedCSSNesting:
+		return "unsupported-css-nesting"
 
 	// Bundler
 	case MsgID_Bundler_AmbiguousReexport:

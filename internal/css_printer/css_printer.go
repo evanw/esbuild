@@ -225,10 +225,7 @@ func (p *printer) printRule(rule css_ast.Rule, indent int32, omitTrailingSemicol
 		}
 
 	case *css_ast.RSelector:
-		if r.HasAtNest {
-			p.print("@nest")
-		}
-		p.printComplexSelectors(r.Selectors, indent, r.HasAtNest)
+		p.printComplexSelectors(r.Selectors, indent)
 		if !p.options.MinifyWhitespace {
 			p.print(" ")
 		}
@@ -336,7 +333,7 @@ func (p *printer) printRuleBlock(rules []css_ast.Rule, indent int32) {
 	p.print("}")
 }
 
-func (p *printer) printComplexSelectors(selectors []css_ast.ComplexSelector, indent int32, hasAtNest bool) {
+func (p *printer) printComplexSelectors(selectors []css_ast.ComplexSelector, indent int32) {
 	for i, complex := range selectors {
 		if i > 0 {
 			if p.options.MinifyWhitespace {
@@ -348,7 +345,7 @@ func (p *printer) printComplexSelectors(selectors []css_ast.ComplexSelector, ind
 		}
 
 		for j, compound := range complex.Selectors {
-			p.printCompoundSelector(compound, (!hasAtNest || i != 0) && j == 0, j+1 == len(complex.Selectors))
+			p.printCompoundSelector(compound, j == 0, j+1 == len(complex.Selectors))
 		}
 	}
 }
@@ -361,18 +358,18 @@ func (p *printer) printCompoundSelector(sel css_ast.CompoundSelector, isFirst bo
 		p.print(" ")
 	}
 
-	if sel.NestingSelector == css_ast.NestingSelectorPrefix {
-		p.print("&")
-	}
-
 	if sel.Combinator != "" {
-		if !p.options.MinifyWhitespace {
+		if !isFirst && !p.options.MinifyWhitespace {
 			p.print(" ")
 		}
 		p.print(sel.Combinator)
 		if !p.options.MinifyWhitespace {
 			p.print(" ")
 		}
+	}
+
+	if sel.HasNestingSelector {
+		p.print("&")
 	}
 
 	if sel.TypeSelector != nil {
@@ -438,12 +435,6 @@ func (p *printer) printCompoundSelector(sel css_ast.CompoundSelector, isFirst bo
 		case *css_ast.SSPseudoClass:
 			p.printPseudoClassSelector(*s, whitespace)
 		}
-	}
-
-	// It doesn't matter where the "&" goes since all non-prefix cases are
-	// treated the same. This just always puts it as a suffix for simplicity.
-	if sel.NestingSelector == css_ast.NestingSelectorPresentButNotPrefix {
-		p.print("&")
 	}
 }
 
