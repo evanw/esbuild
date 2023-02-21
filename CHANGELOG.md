@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+* Adjust some feature compatibility tables for node ([#2940](https://github.com/evanw/esbuild/issues/2940))
+
+    This release makes the following adjustments to esbuild's internal feature compatibility tables for node, which tell esbuild which versions of node are known to support all aspects of that feature:
+
+    * `class-private-brand-checks`: node v16.9+ => node v16.4+ (a decrease)
+    * `hashbang`: node v12.0+ => node v12.5+ (an increase)
+    * `optional-chain`: node v16.9+ => node v16.1+ (a decrease)
+    * `template-literal`: node v4+ => node v10+ (an increase)
+
+    Each of these adjustments was identified by comparing against data from the `node-compat-table` package and was manually verified using old node executables downloaded from https://nodejs.org/download/release/.
+
 ## 0.17.10
 
 * Update esbuild's handling of CSS nesting to match the latest specification changes ([#1945](https://github.com/evanw/esbuild/issues/1945))

@@ -372,6 +372,21 @@ for (const feature in features) {
   }
 }
 
+// Apply some manual overrides from this thread: https://github.com/evanw/esbuild/issues/2940#issuecomment-1437818002
+// Each one has been manually checked using past node releases: https://nodejs.org/download/release/
+applyManualOverride('ClassPrivateBrandCheck', 'node', [{ start: [16, 9], end: null }], [{ start: [16, 4], end: null }])
+applyManualOverride('Hashbang', 'node', [{ start: [12, 0], end: null }], [{ start: [12, 5], end: null }])
+applyManualOverride('OptionalChain', 'node', [{ start: [16, 9], end: null }], [{ start: [16, 1], end: null }])
+applyManualOverride('TemplateLiteral', 'node', [{ start: [4], end: null }], [{ start: [10], end: null }])
+
+function applyManualOverride(target, engine, expected, changed) {
+  const observed = JSON.stringify(versions[target][engine])
+  expected = JSON.stringify(expected)
+  if (observed !== expected)
+    throw new Error(`Mismatch for versions.${target}.${engine}: Expected ${observed} to be ${expected}`)
+  versions[target][engine] = changed
+}
+
 function upper(text) {
   if (text === 'es' || text === 'ios' || text === 'ie') return text.toUpperCase()
   return text[0].toUpperCase() + text.slice(1)
