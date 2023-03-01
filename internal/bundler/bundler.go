@@ -853,6 +853,11 @@ func RunOnResolvePlugins(
 				IsExternal:             result.External,
 				PluginData:             result.PluginData,
 				PrimarySideEffectsData: sideEffectsData,
+				ModuleTypeData: js_ast.ModuleTypeData{
+					Source: &logger.Source{},
+					Range:  logger.Range{},
+					Type:   result.ModuleType,
+				},
 			}, false, resolver.DebugMeta{}
 		}
 	}

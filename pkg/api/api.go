@@ -77,6 +77,7 @@
 package api
 
 import (
+	"github.com/evanw/esbuild/internal/js_ast"
 	"time"
 
 	"github.com/evanw/esbuild/internal/logger"
@@ -574,6 +575,7 @@ type ResolveResult struct {
 	Warnings []Message
 
 	Path        string
+	ModuleType  int
 	External    bool
 	SideEffects bool
 	Namespace   string
@@ -615,6 +617,7 @@ type OnResolveResult struct {
 	Warnings []Message
 
 	Path        string
+	ModuleType  js_ast.ModuleType
 	External    bool
 	SideEffects SideEffects
 	Namespace   string
