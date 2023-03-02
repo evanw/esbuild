@@ -7,7 +7,11 @@ import zlib = require('zlib')
 import https = require('https')
 import child_process = require('child_process')
 
-declare const ESBUILD_VERSION: string
+const pkgJSONPath = path.join(__dirname, 'package.json')
+const ESBUILD_VERSION = `${
+  JSON.parse(fs.readFileSync(pkgJSONPath, 'utf-8')).version
+}`
+
 const toPath = path.join(__dirname, 'bin', 'esbuild')
 let isToPathJS = true
 
