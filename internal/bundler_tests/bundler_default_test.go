@@ -7551,6 +7551,36 @@ func TestPackageAlias(t *testing.T) {
 	})
 }
 
+func TestPackageAliasMatchLongest(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import "pkg"
+				import "pkg/foo"
+				import "pkg/foo/bar"
+				import "pkg/foo/bar/baz"
+				import "pkg/bar/baz"
+				import "pkg/baz"
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			PackageAliases: map[string]string{
+				"pkg":         "alias/pkg",
+				"pkg/foo":     "alias/pkg_foo",
+				"pkg/foo/bar": "alias/pkg_foo_bar",
+			},
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{
+					Patterns: []config.WildcardPattern{{Prefix: "alias/"}},
+				},
+			},
+		},
+	})
+}
+
 func TestErrorsForAssertTypeJSON(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{

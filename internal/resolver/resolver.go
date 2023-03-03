@@ -293,42 +293,49 @@ func (res *Resolver) Resolve(sourceDir string, importPath string, kind ast.Impor
 		if r.debugLogs != nil {
 			r.debugLogs.addNote("Checking for package alias matches")
 		}
-		foundMatch := false
+		longestKey := ""
+		longestValue := ""
+
 		for key, value := range r.options.PackageAliases {
-			if strings.HasPrefix(importPath, key) && (len(importPath) == len(key) || importPath[len(key)] == '/') {
-				// Resolve the package using the current path instead of the original
-				// path. This is trying to resolve the substitute in the top-level
-				// package instead of the nested package, which lets the top-level
-				// package control the version of the substitution. It's also critical
-				// when using Yarn PnP because Yarn PnP doesn't allow nested packages
-				// to "reach outside" of their normal dependency lists.
-				sourceDir = r.fs.Cwd()
-				if tail := importPath[len(key):]; tail != "/" {
-					// Don't include the trailing characters if they are equal to a
-					// single slash. This comes up because you can abuse this quirk of
-					// node's path resolution to force node to load the package from the
-					// file system instead of as a built-in module. For example, "util"
-					// is node's built-in module while "util/" is one on the file system.
-					// Leaving the trailing slash in place causes problems for people:
-					// https://github.com/evanw/esbuild/issues/2730. It should be ok to
-					// always strip the trailing slash even when using the alias feature
-					// to swap one package for another (except when you swap a reference
-					// to one built-in node module with another but really why would you
-					// do that).
-					value += tail
-				}
-				debugMeta.ModifiedImportPath = value
-				if r.debugLogs != nil {
-					r.debugLogs.addNote(fmt.Sprintf("  Matched with alias from %q to %q", key, value))
-					r.debugLogs.addNote(fmt.Sprintf("  Modified import path from %q to %q", importPath, debugMeta.ModifiedImportPath))
-					r.debugLogs.addNote(fmt.Sprintf("  Changed resolve directory to %q", sourceDir))
-				}
-				importPath = debugMeta.ModifiedImportPath
-				foundMatch = true
-				break
+			if len(key) > len(longestKey) && strings.HasPrefix(importPath, key) && (len(importPath) == len(key) || importPath[len(key)] == '/') {
+				longestKey = key
+				longestValue = value
 			}
 		}
-		if r.debugLogs != nil && !foundMatch {
+
+		if longestKey != "" {
+			debugMeta.ModifiedImportPath = longestValue
+			if tail := importPath[len(longestKey):]; tail != "/" {
+				// Don't include the trailing characters if they are equal to a
+				// single slash. This comes up because you can abuse this quirk of
+				// node's path resolution to force node to load the package from the
+				// file system instead of as a built-in module. For example, "util"
+				// is node's built-in module while "util/" is one on the file system.
+				// Leaving the trailing slash in place causes problems for people:
+				// https://github.com/evanw/esbuild/issues/2730. It should be ok to
+				// always strip the trailing slash even when using the alias feature
+				// to swap one package for another (except when you swap a reference
+				// to one built-in node module with another but really why would you
+				// do that).
+				debugMeta.ModifiedImportPath += tail
+			}
+			if r.debugLogs != nil {
+				r.debugLogs.addNote(fmt.Sprintf("  Matched with alias from %q to %q", longestKey, longestValue))
+				r.debugLogs.addNote(fmt.Sprintf("  Modified import path from %q to %q", importPath, debugMeta.ModifiedImportPath))
+			}
+			importPath = debugMeta.ModifiedImportPath
+
+			// Resolve the package using the current path instead of the original
+			// path. This is trying to resolve the substitute in the top-level
+			// package instead of the nested package, which lets the top-level
+			// package control the version of the substitution. It's also critical
+			// when using Yarn PnP because Yarn PnP doesn't allow nested packages
+			// to "reach outside" of their normal dependency lists.
+			sourceDir = r.fs.Cwd()
+			if r.debugLogs != nil {
+				r.debugLogs.addNote(fmt.Sprintf("  Changed resolve directory to %q", sourceDir))
+			}
+		} else if r.debugLogs != nil {
 			r.debugLogs.addNote("  Failed to find any package alias matches")
 		}
 	}

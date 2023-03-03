@@ -4698,6 +4698,17 @@ console.log(10);
 console.log(11);
 
 ================================================================================
+TestPackageAliasMatchLongest
+---------- /out.js ----------
+// entry.js
+import "alias/pkg";
+import "alias/pkg_foo";
+import "alias/pkg_foo_bar";
+import "alias/pkg_foo_bar/baz";
+import "alias/pkg/bar/baz";
+import "alias/pkg/baz";
+
+================================================================================
 TestQuotedProperty
 ---------- /out/entry.js ----------
 // entry.js
