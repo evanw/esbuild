@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+* Minify calls to some global primitive constructors ([#2962](https://github.com/evanw/esbuild/issues/2962))
+
+    With this release, esbuild's minifier now replaces calls to `Boolean`/`Number`/`String`/`BigInt` with equivalent shorter code when relevant:
+
+    ```js
+    // Original code
+    console.log(
+      Boolean(a ? (b | c) !== 0 : (c & d) !== 0),
+      Number(e ? '1' : '2'),
+      String(e ? '1' : '2'),
+      BigInt(e ? 1n : 2n),
+    )
+
+    // Old output (with --minify)
+    console.log(Boolean(a?(b|c)!==0:(c&d)!==0),Number(e?"1":"2"),String(e?"1":"2"),BigInt(e?1n:2n));
+
+    // New output (with --minify)
+    console.log(!!(a?b|c:c&d),+(e?"1":"2"),e?"1":"2",e?1n:2n);
+    ```
+
 * Adjust some feature compatibility tables for node ([#2940](https://github.com/evanw/esbuild/issues/2940))
 
     This release makes the following adjustments to esbuild's internal feature compatibility tables for node, which tell esbuild which versions of node are known to support all aspects of that feature:

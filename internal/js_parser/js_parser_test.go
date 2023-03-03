@@ -3277,6 +3277,60 @@ func TestMangleDoubleNot(t *testing.T) {
 	expectPrintedNormalAndMangle(t, "a = !!(b, c)", "a = !!(b, c);\n", "a = (b, !!c);\n")
 }
 
+func TestMangleBooleanConstructor(t *testing.T) {
+	expectPrintedNormalAndMangle(t, "a = Boolean(b); var Boolean", "a = Boolean(b);\nvar Boolean;\n", "a = Boolean(b);\nvar Boolean;\n")
+
+	expectPrintedNormalAndMangle(t, "a = Boolean()", "a = Boolean();\n", "a = false;\n")
+	expectPrintedNormalAndMangle(t, "a = Boolean(b)", "a = Boolean(b);\n", "a = !!b;\n")
+	expectPrintedNormalAndMangle(t, "a = Boolean(!b)", "a = Boolean(!b);\n", "a = !b;\n")
+	expectPrintedNormalAndMangle(t, "a = Boolean(!!b)", "a = Boolean(!!b);\n", "a = !!b;\n")
+	expectPrintedNormalAndMangle(t, "a = Boolean(b ? true : false)", "a = Boolean(b ? true : false);\n", "a = !!b;\n")
+	expectPrintedNormalAndMangle(t, "a = Boolean(b ? false : true)", "a = Boolean(b ? false : true);\n", "a = !b;\n")
+	expectPrintedNormalAndMangle(t, "a = Boolean(b ? c > 0 : c < 0)", "a = Boolean(b ? c > 0 : c < 0);\n", "a = b ? c > 0 : c < 0;\n")
+
+	// Check for calling "SimplifyBooleanExpr" on the argument
+	expectPrintedNormalAndMangle(t, "a = Boolean((b | c) !== 0)", "a = Boolean((b | c) !== 0);\n", "a = !!(b | c);\n")
+	expectPrintedNormalAndMangle(t, "a = Boolean(b ? (c | d) !== 0 : (d | e) !== 0)", "a = Boolean(b ? (c | d) !== 0 : (d | e) !== 0);\n", "a = !!(b ? c | d : d | e);\n")
+}
+
+func TestMangleNumberConstructor(t *testing.T) {
+	expectPrintedNormalAndMangle(t, "a = Number(x)", "a = Number(x);\n", "a = Number(x);\n")
+	expectPrintedNormalAndMangle(t, "a = Number(0n)", "a = Number(0n);\n", "a = Number(0n);\n")
+	expectPrintedNormalAndMangle(t, "a = Number(false); var Number", "a = Number(false);\nvar Number;\n", "a = Number(false);\nvar Number;\n")
+	expectPrintedNormalAndMangle(t, "a = Number(0xFFFF_FFFF_FFFF_FFFFn)", "a = Number(0xFFFFFFFFFFFFFFFFn);\n", "a = Number(0xFFFFFFFFFFFFFFFFn);\n")
+
+	expectPrintedNormalAndMangle(t, "a = Number()", "a = Number();\n", "a = 0;\n")
+	expectPrintedNormalAndMangle(t, "a = Number(-123)", "a = Number(-123);\n", "a = -123;\n")
+	expectPrintedNormalAndMangle(t, "a = Number(false)", "a = Number(false);\n", "a = 0;\n")
+	expectPrintedNormalAndMangle(t, "a = Number(true)", "a = Number(true);\n", "a = 1;\n")
+	expectPrintedNormalAndMangle(t, "a = Number(undefined)", "a = Number(void 0);\n", "a = NaN;\n")
+	expectPrintedNormalAndMangle(t, "a = Number(null)", "a = Number(null);\n", "a = 0;\n")
+	expectPrintedNormalAndMangle(t, "a = Number(b ? !c : !d)", "a = Number(b ? !c : !d);\n", "a = +(b ? !c : !d);\n")
+}
+
+func TestMangleStringConstructor(t *testing.T) {
+	expectPrintedNormalAndMangle(t, "a = String(x)", "a = String(x);\n", "a = String(x);\n")
+	expectPrintedNormalAndMangle(t, "a = String('x'); var String", "a = String(\"x\");\nvar String;\n", "a = String(\"x\");\nvar String;\n")
+
+	expectPrintedNormalAndMangle(t, "a = String()", "a = String();\n", "a = \"\";\n")
+	expectPrintedNormalAndMangle(t, "a = String('x')", "a = String(\"x\");\n", "a = \"x\";\n")
+	expectPrintedNormalAndMangle(t, "a = String(b ? 'x' : 'y')", "a = String(b ? \"x\" : \"y\");\n", "a = b ? \"x\" : \"y\";\n")
+}
+
+func TestMangleBigIntConstructor(t *testing.T) {
+	expectPrintedNormalAndMangle(t, "a = BigInt(x)", "a = BigInt(x);\n", "a = BigInt(x);\n")
+	expectPrintedNormalAndMangle(t, "a = BigInt(0n); var BigInt", "a = BigInt(0n);\nvar BigInt;\n", "a = BigInt(0n);\nvar BigInt;\n")
+
+	// Note: This throws instead of returning "0n"
+	expectPrintedNormalAndMangle(t, "a = BigInt()", "a = BigInt();\n", "a = BigInt();\n")
+
+	// Note: Transforming this into "0n" is unsafe because that syntax may not be supported
+	expectPrintedNormalAndMangle(t, "a = BigInt('0')", "a = BigInt(\"0\");\n", "a = BigInt(\"0\");\n")
+
+	expectPrintedNormalAndMangle(t, "a = BigInt(0n)", "a = BigInt(0n);\n", "a = 0n;\n")
+	expectPrintedNormalAndMangle(t, "a = BigInt(b ? 0n : 1n)", "a = BigInt(b ? 0n : 1n);\n", "a = b ? 0n : 1n;\n")
+}
+
 func TestMangleIf(t *testing.T) {
 	expectPrintedNormalAndMangle(t, "1 ? a() : b()", "1 ? a() : b();\n", "a();\n")
 	expectPrintedNormalAndMangle(t, "0 ? a() : b()", "0 ? a() : b();\n", "b();\n")

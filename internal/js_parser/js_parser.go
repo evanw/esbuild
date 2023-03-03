@@ -13715,6 +13715,69 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				}
 			}
 
+			// Optimize references to global constructors
+			if p.options.minifySyntax && t.CanBeRemovedIfUnused && len(e.Args) <= 1 && !hasSpread {
+				if symbol := &p.symbols[t.Ref.InnerIndex]; symbol.Kind == js_ast.SymbolUnbound {
+					// Note: We construct expressions by assigning to "expr.Data" so
+					// that the source map position for the constructor is preserved
+					switch symbol.OriginalName {
+					case "Boolean":
+						if len(e.Args) == 0 {
+							return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EBoolean{Value: false}}, exprOut{}
+						} else {
+							expr.Data = &js_ast.EUnary{Value: js_ast.SimplifyBooleanExpr(e.Args[0]), Op: js_ast.UnOpNot}
+							return js_ast.Not(expr), exprOut{}
+						}
+
+					case "Number":
+						if len(e.Args) == 0 {
+							return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: 0}}, exprOut{}
+						} else {
+							arg := e.Args[0]
+
+							switch js_ast.KnownPrimitiveType(arg.Data) {
+							case js_ast.PrimitiveNumber:
+								return arg, exprOut{}
+
+							case
+								js_ast.PrimitiveUndefined, // NaN
+								js_ast.PrimitiveNull,      // 0
+								js_ast.PrimitiveBoolean,   // 0 or 1
+								js_ast.PrimitiveString:    // StringToNumber
+								if number, ok := js_ast.ToNumberWithoutSideEffects(arg.Data); ok {
+									expr.Data = &js_ast.ENumber{Value: number}
+								} else {
+									expr.Data = &js_ast.EUnary{Value: arg, Op: js_ast.UnOpPos}
+								}
+								return expr, exprOut{}
+							}
+						}
+
+					case "String":
+						if len(e.Args) == 0 {
+							return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EString{Value: nil}}, exprOut{}
+						} else {
+							arg := e.Args[0]
+
+							switch js_ast.KnownPrimitiveType(arg.Data) {
+							case js_ast.PrimitiveString:
+								return arg, exprOut{}
+							}
+						}
+
+					case "BigInt":
+						if len(e.Args) == 1 {
+							arg := e.Args[0]
+
+							switch js_ast.KnownPrimitiveType(arg.Data) {
+							case js_ast.PrimitiveBigInt:
+								return arg, exprOut{}
+							}
+						}
+					}
+				}
+			}
+
 			// Copy the call side effect flag over if this is a known target
 			if t.CallCanBeUnwrappedIfUnused {
 				e.CanBeUnwrappedIfUnused = true

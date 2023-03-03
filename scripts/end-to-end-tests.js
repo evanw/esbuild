@@ -2800,6 +2800,98 @@ for (const minify of [[], ['--minify-syntax']]) {
       `,
     }),
   );
+
+  // Check global constructor behavior
+  tests.push(
+    test(['in.js', '--outfile=node.js'].concat(minify), {
+      'in.js': `
+        const check = (before, after) => {
+          if (Boolean(before) !== after) throw 'fail: Boolean(' + before + ') should not be ' + Boolean(before)
+          if (new Boolean(before) === after) throw 'fail: new Boolean(' + before + ') should not be ' + new Boolean(before)
+          if (new Boolean(before).valueOf() !== after) throw 'fail: new Boolean(' + before + ').valueOf() should not be ' + new Boolean(before).valueOf()
+        }
+        check(false, false); check(0, false); check(0n, false)
+        check(true, true); check(1, true); check(1n, true)
+        check(null, false); check(undefined, false)
+        check('', false); check('x', true)
+
+        const checkSpread = (before, after) => {
+          if (Boolean(...before) !== after) throw 'fail: Boolean(...' + before + ') should not be ' + Boolean(...before)
+          if (new Boolean(...before) === after) throw 'fail: new Boolean(...' + before + ') should not be ' + new Boolean(...before)
+          if (new Boolean(...before).valueOf() !== after) throw 'fail: new Boolean(...' + before + ').valueOf() should not be ' + new Boolean(...before).valueOf()
+        }
+        checkSpread([0], false); check([1], true)
+        checkSpread([], false)
+      `,
+    }),
+    test(['in.js', '--outfile=node.js'].concat(minify), {
+      'in.js': `
+        class ToPrimitive { [Symbol.toPrimitive]() { return '100.001' } }
+        const someObject = { toString: () => 123, valueOf: () => 321 }
+
+        const check = (before, after) => {
+          if (Number(before) !== after) throw 'fail: Number(' + before + ') should not be ' + Number(before)
+          if (new Number(before) === after) throw 'fail: new Number(' + before + ') should not be ' + new Number(before)
+          if (new Number(before).valueOf() !== after) throw 'fail: new Number(' + before + ').valueOf() should not be ' + new Number(before).valueOf()
+        }
+        check(-1.23, -1.23)
+        check('-1.23', -1.23)
+        check(123n, 123)
+        check(null, 0)
+        check(false, 0)
+        check(true, 1)
+        check(someObject, 321)
+        check(new ToPrimitive(), 100.001)
+
+        const checkSpread = (before, after) => {
+          if (Number(...before) !== after) throw 'fail: Number(...' + before + ') should not be ' + Number(...before)
+          if (new Number(...before) === after) throw 'fail: new Number(...' + before + ') should not be ' + new Number(...before)
+          if (new Number(...before).valueOf() !== after) throw 'fail: new Number(...' + before + ').valueOf() should not be ' + new Number(...before).valueOf()
+        }
+        checkSpread(['123'], 123)
+        checkSpread([], 0)
+      `,
+    }),
+    test(['in.js', '--outfile=node.js'].concat(minify), {
+      'in.js': `
+        class ToPrimitive { [Symbol.toPrimitive]() { return 100.001 } }
+        const someObject = { toString: () => 123, valueOf: () => 321 }
+
+        const check = (before, after) => {
+          if (String(before) !== after) throw 'fail: String(' + before + ') should not be ' + String(before)
+          if (new String(before) === after) throw 'fail: new String(' + before + ') should not be ' + new String(before)
+          if (new String(before).valueOf() !== after) throw 'fail: new String(' + before + ').valueOf() should not be ' + new String(before).valueOf()
+        }
+        check('', '')
+        check('x', 'x')
+        check(null, 'null')
+        check(false, 'false')
+        check(1.23, '1.23')
+        check(-123n, '-123')
+        check(someObject, '123')
+        check(new ToPrimitive(), '100.001')
+
+        const checkSpread = (before, after) => {
+          if (String(...before) !== after) throw 'fail: String(...' + before + ') should not be ' + String(...before)
+          if (new String(...before) === after) throw 'fail: new String(...' + before + ') should not be ' + new String(...before)
+          if (new String(...before).valueOf() !== after) throw 'fail: new String(...' + before + ').valueOf() should not be ' + new String(...before).valueOf()
+        }
+        checkSpread([123], '123')
+        checkSpread([], '')
+
+        const checkAndExpectNewToThrow = (before, after) => {
+          if (String(before) !== after) throw 'fail: String(...) should not be ' + String(before)
+          try {
+            new String(before)
+          } catch (e) {
+            return
+          }
+          throw 'fail: new String(...) should not succeed'
+        }
+        checkAndExpectNewToThrow(Symbol('abc'), 'Symbol(abc)')
+      `,
+    }),
+  );
 }
 
 // Test minification of top-level symbols
