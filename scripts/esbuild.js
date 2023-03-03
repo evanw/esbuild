@@ -1,6 +1,5 @@
 const childProcess = require('child_process')
 const path = require('path')
-const zlib = require('zlib')
 const fs = require('fs')
 const os = require('os')
 
@@ -24,7 +23,11 @@ const buildNeutralLib = (esbuildPath) => {
     '--outfile=' + path.join(npmDir, 'install.js'),
     '--bundle',
     '--target=' + nodeTarget,
-    '--define:ESBUILD_VERSION=' + JSON.stringify(version),
+    // Note: https://socket.dev have complained that inlining the version into
+    // the install script messes up some internal scanning that they do by
+    // making it seem like esbuild's install script code changes with every
+    // esbuild release. So now we read it from "package.json" instead.
+    // '--define:ESBUILD_VERSION=' + JSON.stringify(version),
     '--external:esbuild',
     '--platform=node',
     '--log-level=warning',

@@ -7,7 +7,7 @@ import zlib = require('zlib')
 import https = require('https')
 import child_process = require('child_process')
 
-declare const ESBUILD_VERSION: string
+const versionFromPackageJSON: string = require(path.join(__dirname, 'package.json')).version
 const toPath = path.join(__dirname, 'bin', 'esbuild')
 let isToPathJS = true
 
@@ -48,8 +48,8 @@ which means the "esbuild" binary executable can't be run. You can either:
     }
     throw err
   }
-  if (stdout !== ESBUILD_VERSION) {
-    throw new Error(`Expected ${JSON.stringify(ESBUILD_VERSION)} but got ${JSON.stringify(stdout)}`)
+  if (stdout !== versionFromPackageJSON) {
+    throw new Error(`Expected ${JSON.stringify(versionFromPackageJSON)} but got ${JSON.stringify(stdout)}`)
   }
 }
 
@@ -115,7 +115,7 @@ function installUsingNPM(pkg: string, subpath: string, binPath: string): void {
     // command instead of a HTTP request so that it hopefully works in situations
     // where HTTP requests are blocked but the "npm" command still works due to,
     // for example, a custom configured npm registry and special firewall rules.
-    child_process.execSync(`npm install --loglevel=error --prefer-offline --no-audit --progress=false ${pkg}@${ESBUILD_VERSION}`,
+    child_process.execSync(`npm install --loglevel=error --prefer-offline --no-audit --progress=false ${pkg}@${versionFromPackageJSON}`,
       { cwd: installDir, stdio: 'pipe', env })
 
     // Move the downloaded binary executable into place. The destination path
@@ -218,7 +218,7 @@ function maybeOptimizePackage(binPath: string): void {
 async function downloadDirectlyFromNPM(pkg: string, subpath: string, binPath: string): Promise<void> {
   // If that fails, the user could have npm configured incorrectly or could not
   // have npm installed. Try downloading directly from npm as a last resort.
-  const url = `https://registry.npmjs.org/${pkg}/-/${pkg.replace('@esbuild/', '')}-${ESBUILD_VERSION}.tgz`
+  const url = `https://registry.npmjs.org/${pkg}/-/${pkg.replace('@esbuild/', '')}-${versionFromPackageJSON}.tgz`
   console.error(`[esbuild] Trying to download ${JSON.stringify(url)}`)
   try {
     fs.writeFileSync(binPath, extractFileFromTarGzip(await fetch(url), subpath))
