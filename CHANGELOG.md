@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.17.11
 
 * Fix the `alias` feature to always prefer the longest match ([#2963](https://github.com/evanw/esbuild/issues/2963))
 
