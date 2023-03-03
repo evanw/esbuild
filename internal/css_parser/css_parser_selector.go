@@ -38,8 +38,12 @@ type parseSelectorOpts struct {
 
 func (p *parser) parseComplexSelector(opts parseSelectorOpts) (result css_ast.ComplexSelector, ok bool) {
 	// This is an extension: https://drafts.csswg.org/css-nesting-1/
+	r := p.current().Range
 	combinator := p.parseCombinator()
 	if combinator != "" {
+		if opts.isTopLevel {
+			p.maybeWarnAboutNesting(r)
+		}
 		p.eat(css_lexer.TWhitespace)
 	}
 
@@ -85,8 +89,12 @@ func (p *parser) nameToken() css_ast.NameToken {
 
 func (p *parser) parseCompoundSelector(opts parseSelectorOpts) (sel css_ast.CompoundSelector, ok bool) {
 	// This is an extension: https://drafts.csswg.org/css-nesting-1/
-	if p.eat(css_lexer.TDelimAmpersand) {
+	if p.peek(css_lexer.TDelimAmpersand) {
+		if opts.isTopLevel {
+			p.maybeWarnAboutNesting(p.current().Range)
+		}
 		sel.HasNestingSelector = true
+		p.advance()
 	}
 
 	// Parse the type selector

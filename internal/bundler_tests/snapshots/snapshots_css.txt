@@ -196,11 +196,20 @@ a {
   }
 }
 
----------- /out/nested-ampersand.css ----------
-/* nested-ampersand.css */
+---------- /out/nested-ampersand-twice.css ----------
+/* nested-ampersand-twice.css */
 a {
   &,
   & {
+    color: red;
+  }
+}
+
+---------- /out/nested-ampersand-first.css ----------
+/* nested-ampersand-first.css */
+a {
+  &,
+  b {
     color: red;
   }
 }
@@ -261,69 +270,67 @@ a {
   }
 }
 
----------- /out/toplevel-ampersand.css ----------
-/* toplevel-ampersand.css */
+---------- /out/toplevel-ampersand-twice.css ----------
+/* toplevel-ampersand-twice.css */
+&,
+& {
+  color: red;
+}
+
+---------- /out/toplevel-ampersand-first.css ----------
+/* toplevel-ampersand-first.css */
+&,
 a {
-  &,
-  & {
-    color: red;
-  }
+  color: red;
+}
+
+---------- /out/toplevel-ampersand-second.css ----------
+/* toplevel-ampersand-second.css */
+a,
+& {
+  color: red;
 }
 
 ---------- /out/toplevel-attribute.css ----------
 /* toplevel-attribute.css */
-a {
-  [href] {
-    color: red;
-  }
+[href] {
+  color: red;
 }
 
 ---------- /out/toplevel-colon.css ----------
 /* toplevel-colon.css */
-a {
-  :hover {
-    color: red;
-  }
+:hover {
+  color: red;
 }
 
 ---------- /out/toplevel-dot.css ----------
 /* toplevel-dot.css */
-a {
-  .cls {
-    color: red;
-  }
+.cls {
+  color: red;
 }
 
 ---------- /out/toplevel-greaterthan.css ----------
 /* toplevel-greaterthan.css */
-a {
-  > b {
-    color: red;
-  }
+> b {
+  color: red;
 }
 
 ---------- /out/toplevel-hash.css ----------
 /* toplevel-hash.css */
-a {
-  #id {
-    color: red;
-  }
+#id {
+  color: red;
 }
 
 ---------- /out/toplevel-plus.css ----------
 /* toplevel-plus.css */
-a {
-  + b {
-    color: red;
-  }
++ b {
+  color: red;
 }
 
 ---------- /out/toplevel-tilde.css ----------
 /* toplevel-tilde.css */
-a {
-  ~ b {
-    color: red;
-  }
+~ b {
+  color: red;
 }
 
 ================================================================================
