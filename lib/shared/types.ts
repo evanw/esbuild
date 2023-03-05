@@ -632,11 +632,52 @@ export interface InitializeOptions {
   wasmModule?: WebAssembly.Module
 
   /**
+   * Enable system access (fs / process) when using WebAssembly. This requires
+   * that the host environment provide a namespace providing all APIs in
+   * Node.js' "fs" and "process" built-in modules.
+   * 
+   * By default this feature is disabled. To enable it, implementations for the
+   * "fs" and "process" namespaces must be provided by specifying either a
+   * namespace containing for "fs" and "process", or specifiers to an ES module that exports these bindings
+   * as a default export. The former is unsupported when using "worker: true".
+   */
+  wasmSystemAccess?: WasmSystemAccess
+
+  /**
    * By default esbuild runs the WebAssembly-based browser API in a web worker
    * to avoid blocking the UI thread. This can be disabled by setting "worker"
    * to false.
    */
   worker?: boolean
+}
+
+export interface WasmSystemAccess {
+  /**
+   * A module specifier to an ES module exporting an object that has a "node:fs"
+   * compatible signature.
+   *
+   * Mutually exclusive with the "fsNamespace" option. 
+   */
+  fsSpecifier?: string,
+  /**
+   * An object with a "node:fs" compatible signature.
+   * 
+   * Mutually exclusive with the "fsSpecifier" option.
+   */
+  fsNamespace?: any
+  /**
+   * A module specifier to an ES module exporting an object that has a
+   * "node:process" compatible signature.
+   * 
+   * Mutually exclusive with the "processNamespace" option.
+   */
+  processSpecifier?: string
+  /**
+   * An object with a "node:process" compatible signature.
+   * 
+   * Mutually exclusive with the "processSpecifier" option.
+   */
+  processNamespace?: any
 }
 
 export let version: string

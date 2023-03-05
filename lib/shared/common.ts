@@ -61,6 +61,9 @@ let mustBeStringOrUint8Array = (value: string | Uint8Array | undefined): string 
 let mustBeStringOrURL = (value: string | URL | undefined): string | null =>
   typeof value === 'string' || value instanceof URL ? null : 'a string or a URL'
 
+let mustBeObjectOrBoolean = (value: Object | boolean | undefined): string | null =>
+  typeof value === 'boolean' || (typeof value === 'object' && value !== null && !Array.isArray(value)) ? null : 'a boolean or an object'
+
 type OptionKeys = { [key: string]: boolean }
 
 function getFlag<T, K extends (keyof T & string)>(object: T, keys: OptionKeys, key: K, mustBeFn: (value: T[K]) => string | null): T[K] | undefined {
@@ -85,11 +88,43 @@ export function validateInitializeOptions(options: types.InitializeOptions): typ
   let wasmURL = getFlag(options, keys, 'wasmURL', mustBeStringOrURL)
   let wasmModule = getFlag(options, keys, 'wasmModule', mustBeWebAssemblyModule)
   let worker = getFlag(options, keys, 'worker', mustBeBoolean)
+  let wasmSystemAccess = getFlag(options, keys, 'wasmSystemAccess', mustBeObjectOrBoolean)
+  if (typeof wasmSystemAccess === "object") {
+    let fsSpecifier = getFlag(wasmSystemAccess, keys, 'fsSpecifier', mustBeString)
+    let fsNamespace = getFlag(wasmSystemAccess, keys, 'fsNamespace', mustBeObject)
+    if (fsSpecifier && fsNamespace) {
+      throw new Error(`The "wasmSystemAccess.fsSpecifier option is mutually exclusive with the "wasmSystemAccess.fsNamespace option.`)
+    }
+    if (!fsNamespace && !fsSpecifier) {
+      throw new Error(`Must provide either of "fsNamespace" or "fsSpecifier" when the "wasmSystemAccess" option is specified.`)
+    }
+    let processSpecifier = getFlag(wasmSystemAccess, keys, 'processSpecifier', mustBeString)
+    let processNamespace = getFlag(wasmSystemAccess, keys, 'processNamespace', mustBeObject)
+    if (processSpecifier && processNamespace) {
+      throw new Error(`The "wasmSystemAccess.processSpecifier" option is mutually exclusive with the "wasmSystemAccess.processNamespace" option.`)
+    }
+    if (!processNamespace && !processSpecifier) {
+      throw new Error(`Must provide either of "processNamespace" or "processSpecifier" when the "wasmSystemAccess" option is specified.`)
+    }
+    if (fsNamespace && worker === true) {
+      throw new Error(`The "wasmSystemAccess.fsNamespace" option is not compatible with the "worker" option.`)
+    }
+    if (processNamespace && worker === true) {
+      throw new Error(`The "wasmSystemAccess.processNamespace" option is not compatible with the "worker" option.`)
+    }
+    wasmSystemAccess = {
+      fsSpecifier,
+      fsNamespace,
+      processSpecifier,
+      processNamespace
+    }
+  }
   checkForInvalidFlags(options, keys, 'in initialize() call')
   return {
     wasmURL,
     wasmModule,
     worker,
+    wasmSystemAccess,
   }
 }
 

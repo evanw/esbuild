@@ -60,7 +60,7 @@ let initializePromise: Promise<Service> | undefined
 let stopService: (() => void) | undefined
 
 let ensureServiceIsRunning = (): Promise<Service> => {
-  return initializePromise || startRunningService('esbuild.wasm', undefined, true)
+  return initializePromise || startRunningService('esbuild.wasm', undefined, true, undefined)
 }
 
 export const initialize: typeof types.initialize = async (options) => {
@@ -68,8 +68,9 @@ export const initialize: typeof types.initialize = async (options) => {
   let wasmURL = options.wasmURL
   let wasmModule = options.wasmModule
   let useWorker = options.worker !== false
+  let wasmSystemAccess = options.wasmSystemAccess
   if (initializePromise) throw new Error('Cannot call "initialize" more than once')
-  initializePromise = startRunningService(wasmURL || 'esbuild.wasm', wasmModule, useWorker)
+  initializePromise = startRunningService(wasmURL || 'esbuild.wasm', wasmModule, useWorker, wasmSystemAccess)
   initializePromise.catch(() => {
     // Let the caller try again if this fails
     initializePromise = void 0
@@ -77,7 +78,10 @@ export const initialize: typeof types.initialize = async (options) => {
   await initializePromise
 }
 
-const startRunningService = async (wasmURL: string | URL, wasmModule: WebAssembly.Module | undefined, useWorker: boolean): Promise<Service> => {
+const startRunningService = async (
+  wasmURL: string | URL, wasmModule: WebAssembly.Module | undefined,
+  useWorker: boolean, wasmSystemAccess: types.WasmSystemAccess | undefined,
+): Promise<Service> => {
   let worker: {
     onmessage: ((event: any) => void) | null
     postMessage: (data: Uint8Array | ArrayBuffer | WebAssembly.Module) => void
@@ -86,10 +90,27 @@ const startRunningService = async (wasmURL: string | URL, wasmModule: WebAssembl
 
   if (useWorker) {
     // Run esbuild off the main thread
-    let blob = new Blob([`onmessage=${WEB_WORKER_SOURCE_CODE}(postMessage)`], { type: 'text/javascript' })
+    let script = `onmessage=${WEB_WORKER_SOURCE_CODE}(postMessage)`;
+    if (wasmSystemAccess?.fsSpecifier) {
+      script = `import fs from "${wasmSystemAccess.fsSpecifier}";globalThis.fs=fs;${script}`
+    }
+    if (wasmSystemAccess?.processSpecifier) {
+      script = `import process from "${wasmSystemAccess.processSpecifier}";globalThis.process=process;${script}`
+    }
+    let blob = new Blob([script], { type: 'text/javascript' })
     worker = new Worker(URL.createObjectURL(blob), { type: 'module' })
   } else {
     // Run esbuild on the main thread
+    if (wasmSystemAccess?.fsSpecifier) {
+      (globalThis as any).fs = await import(wasmSystemAccess.fsSpecifier)
+    } else if (wasmSystemAccess?.fsNamespace) {
+      (globalThis as any).fs = wasmSystemAccess.fsNamespace
+    }
+    if (wasmSystemAccess?.processSpecifier) {
+      (globalThis as any).process = await import(wasmSystemAccess.processSpecifier)
+    } else if (wasmSystemAccess?.processNamespace) {
+      (globalThis as any).process = wasmSystemAccess?.processNamespace
+    }
     let onmessage = WEB_WORKER_FUNCTION((data: Uint8Array) => worker.onmessage!({ data }))
     worker = {
       onmessage: null,
@@ -99,18 +120,18 @@ const startRunningService = async (wasmURL: string | URL, wasmModule: WebAssembl
     }
   }
 
-  let firstMessageResolve: (value: void) => void
+  let firstMessageResolve: (value: string) => void
   let firstMessageReject: (error: any) => void
 
-  const firstMessagePromise = new Promise((resolve, reject) => {
+  const firstMessagePromise = new Promise<string>((resolve, reject) => {
     firstMessageResolve = resolve
     firstMessageReject = reject
   })
 
-  worker.onmessage = ({ data: error }) => {
+  worker.onmessage = ({ data }) => {
     worker.onmessage = ({ data }) => readFromStdout(data)
-    if (error) firstMessageReject(error)
-    else firstMessageResolve()
+    if (data.error) firstMessageReject(data.error)
+    else firstMessageResolve(data.ok)
   }
 
   worker.postMessage(wasmModule || new URL(wasmURL, import.meta.url).toString())
@@ -120,12 +141,12 @@ const startRunningService = async (wasmURL: string | URL, wasmModule: WebAssembl
       worker.postMessage(bytes)
     },
     isSync: false,
-    hasFS: false,
+    hasFS: wasmSystemAccess !== undefined,
     esbuild: ourselves,
   })
 
   // This will throw if WebAssembly module instantiation fails
-  await firstMessagePromise
+  const defaultWD = await firstMessagePromise
 
   stopService = () => {
     worker.terminate()
@@ -141,7 +162,7 @@ const startRunningService = async (wasmURL: string | URL, wasmModule: WebAssembl
           refs: null,
           options,
           isTTY: false,
-          defaultWD: '/',
+          defaultWD,
           callback: (err, res) => err ? reject(err) : resolve(res as types.BuildResult),
         })),
 
@@ -152,7 +173,7 @@ const startRunningService = async (wasmURL: string | URL, wasmModule: WebAssembl
           refs: null,
           options,
           isTTY: false,
-          defaultWD: '/',
+          defaultWD,
           callback: (err, res) => err ? reject(err) : resolve(res as types.BuildContext),
         })),
 

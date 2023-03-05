@@ -73,6 +73,71 @@ function test(name, backends, fn) {
           }
         })
         break
+
+      case 'wasm-main-sys':
+        singleTest(name + '-wasm-main-sys', async () => {
+          let testDir = path.join(rootTestDir, name + '-wasm-main-sys')
+          await esbuildWASM.initialize({
+            wasmModule,
+            worker: false,
+            wasmSystemAccess: {
+              fsSpecifier: "node:fs",
+              processSpecifier: "node:process",
+            }
+          })
+          await Deno.mkdir(testDir, { recursive: true })
+          try {
+            await fn({ esbuild: esbuildWASM, testDir })
+            await Deno.remove(testDir, { recursive: true }).catch(() => null)
+          } finally {
+            esbuildWASM.stop()
+          }
+        })
+        break
+  
+
+      case 'wasm-main-sys-namespace':
+        singleTest(name + '-wasm-main-sys-namespace', async () => {
+          let testDir = path.join(rootTestDir, name + '-wasm-main-sys-namespace')
+          await esbuildWASM.initialize({
+            wasmModule,
+            worker: false,
+            wasmSystemAccess: {
+              fsNamespace: await import("node:fs"),
+              processNamespace: await import("node:process"),
+            }
+          })
+          await Deno.mkdir(testDir, { recursive: true })
+          try {
+            await fn({ esbuild: esbuildWASM, testDir })
+            await Deno.remove(testDir, { recursive: true }).catch(() => null)
+          } finally {
+            esbuildWASM.stop()
+          }
+        })
+        break
+  
+      case 'wasm-worker-sys':
+          singleTest(name + '-wasm-worker-sys', async () => {
+            let testDir = path.join(rootTestDir, name + '-wasm-worker-sys')
+            await esbuildWASM.initialize({
+              wasmModule,
+              worker: true,
+              wasmSystemAccess: {
+                fsSpecifier: "node:fs",
+                processSpecifier: "node:process",
+              }
+            })
+            await Deno.mkdir(testDir, { recursive: true })
+            try {
+              await fn({ esbuild: esbuildWASM, testDir })
+              await Deno.remove(testDir, { recursive: true }).catch(() => null)
+            } finally {
+              esbuildWASM.stop()
+            }
+          })
+          break
+  
     }
   }
 }
@@ -86,7 +151,7 @@ window.addEventListener("unload", (e) => {
 })
 
 // This test doesn't run in WebAssembly because it requires file system access
-test("basicBuild", ['native'], async ({ esbuild, testDir }) => {
+test("basicBuild", ['native', 'wasm-main-sys', 'wasm-main-sys-namespace', 'wasm-worker-sys'], async ({ esbuild, testDir }) => {
   const input = path.join(testDir, 'in.ts')
   const dep = path.join(testDir, 'dep.ts')
   const output = path.join(testDir, 'out.ts')
@@ -96,13 +161,14 @@ test("basicBuild", ['native'], async ({ esbuild, testDir }) => {
     entryPoints: [input],
     bundle: true,
     outfile: output,
+    write: true,
     format: 'esm',
   })
   const result = await import(path.toFileUrl(output))
   asserts.assertStrictEquals(result.default, true)
 })
 
-test("basicContext", ['native'], async ({ esbuild, testDir }) => {
+test("basicContext", ['native', 'wasm-main-sys', 'wasm-main-sys-namespace', 'wasm-worker-sys'], async ({ esbuild, testDir }) => {
   const input = path.join(testDir, 'in.ts')
   const dep = path.join(testDir, 'dep.ts')
   const output = path.join(testDir, 'out.ts')
