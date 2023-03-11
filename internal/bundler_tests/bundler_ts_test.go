@@ -1585,9 +1585,9 @@ func TestTSSideEffectsFalseWarningTypeDeclarations(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expectedScanLog: `entry.ts: WARNING: Ignoring this import because "node_modules/some-js/foo.js" was marked as having no side effects
-node_modules/some-js/package.json: NOTE: "sideEffects" is false in the enclosing "package.json" file
+node_modules/some-js/package.json: NOTE: "sideEffects" is false in the enclosing "package.json" file:
 entry.ts: WARNING: Ignoring this import because "node_modules/some-ts/foo.ts" was marked as having no side effects
-node_modules/some-ts/package.json: NOTE: "sideEffects" is false in the enclosing "package.json" file
+node_modules/some-ts/package.json: NOTE: "sideEffects" is false in the enclosing "package.json" file:
 `,
 	})
 }

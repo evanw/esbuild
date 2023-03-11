@@ -185,10 +185,8 @@ func TestPackageJsonSideEffectsFalseKeepBareImportAndRequireES6(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `Users/user/project/src/entry.js: WARNING: Ignoring this import because "` +
-			`Users/user/project/node_modules/demo-pkg/index.js" was marked as having no side effects
-Users/user/project/node_modules/demo-pkg/package.json: NOTE: "sideEffects" is false ` +
-			`in the enclosing "package.json" file
+		expectedScanLog: `Users/user/project/src/entry.js: WARNING: Ignoring this import because "Users/user/project/node_modules/demo-pkg/index.js" was marked as having no side effects
+Users/user/project/node_modules/demo-pkg/package.json: NOTE: "sideEffects" is false in the enclosing "package.json" file:
 `,
 	})
 }
@@ -216,10 +214,8 @@ func TestPackageJsonSideEffectsFalseKeepBareImportAndRequireCommonJS(t *testing.
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `Users/user/project/src/entry.js: WARNING: Ignoring this import because "` +
-			`Users/user/project/node_modules/demo-pkg/index.js" was marked as having no side effects
-Users/user/project/node_modules/demo-pkg/package.json: NOTE: "sideEffects" is false ` +
-			`in the enclosing "package.json" file
+		expectedScanLog: `Users/user/project/src/entry.js: WARNING: Ignoring this import because "Users/user/project/node_modules/demo-pkg/index.js" was marked as having no side effects
+Users/user/project/node_modules/demo-pkg/package.json: NOTE: "sideEffects" is false in the enclosing "package.json" file:
 `,
 	})
 }
@@ -246,10 +242,8 @@ func TestPackageJsonSideEffectsFalseRemoveBareImportES6(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `Users/user/project/src/entry.js: WARNING: Ignoring this import because "` +
-			`Users/user/project/node_modules/demo-pkg/index.js" was marked as having no side effects
-Users/user/project/node_modules/demo-pkg/package.json: NOTE: "sideEffects" is false ` +
-			`in the enclosing "package.json" file
+		expectedScanLog: `Users/user/project/src/entry.js: WARNING: Ignoring this import because "Users/user/project/node_modules/demo-pkg/index.js" was marked as having no side effects
+Users/user/project/node_modules/demo-pkg/package.json: NOTE: "sideEffects" is false in the enclosing "package.json" file:
 `,
 	})
 }
@@ -276,10 +270,8 @@ func TestPackageJsonSideEffectsFalseRemoveBareImportCommonJS(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `Users/user/project/src/entry.js: WARNING: Ignoring this import because "` +
-			`Users/user/project/node_modules/demo-pkg/index.js" was marked as having no side effects
-Users/user/project/node_modules/demo-pkg/package.json: NOTE: "sideEffects" is false ` +
-			`in the enclosing "package.json" file
+		expectedScanLog: `Users/user/project/src/entry.js: WARNING: Ignoring this import because "Users/user/project/node_modules/demo-pkg/index.js" was marked as having no side effects
+Users/user/project/node_modules/demo-pkg/package.json: NOTE: "sideEffects" is false in the enclosing "package.json" file:
 `,
 	})
 }
@@ -724,10 +716,8 @@ func TestPackageJsonSideEffectsArrayGlob(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `Users/user/project/src/entry.js: WARNING: Ignoring this import because ` +
-			`"Users/user/project/node_modules/demo-pkg/remove/this/file.js" was marked as having no side effects
-Users/user/project/node_modules/demo-pkg/package.json: NOTE: It was excluded from the "sideEffects" ` +
-			`array in the enclosing "package.json" file
+		expectedScanLog: `Users/user/project/src/entry.js: WARNING: Ignoring this import because "Users/user/project/node_modules/demo-pkg/remove/this/file.js" was marked as having no side effects
+Users/user/project/node_modules/demo-pkg/package.json: NOTE: It was excluded from the "sideEffects" array in the enclosing "package.json" file:
 `,
 	})
 }
