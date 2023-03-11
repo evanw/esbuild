@@ -2095,9 +2095,9 @@ func (s *scanner) processScannedFiles(entryPointMeta []graph.EntryPoint) []scann
 							} else {
 								var text string
 								if data.IsSideEffectsArrayInJSON {
-									text = "It was excluded from the \"sideEffects\" array in the enclosing \"package.json\" file"
+									text = "It was excluded from the \"sideEffects\" array in the enclosing \"package.json\" file:"
 								} else {
-									text = "\"sideEffects\" is false in the enclosing \"package.json\" file"
+									text = "\"sideEffects\" is false in the enclosing \"package.json\" file:"
 								}
 								tracker := logger.MakeLineColumnTracker(data.Source)
 								notes = append(notes, tracker.MsgData(data.Range, text))
