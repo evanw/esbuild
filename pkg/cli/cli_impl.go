@@ -330,7 +330,7 @@ func parseOptionsImpl(
 			default:
 				return parseOptionsExtras{}, cli_helpers.MakeErrorWithNote(
 					fmt.Sprintf("Invalid value %q in %q", value, arg),
-					"Valid values are \"inline\", \"external\", or \"both\".",
+					"Valid values are \"linked\", \"inline\", \"external\", or \"both\".",
 				)
 			}
 			if buildOpts != nil {
