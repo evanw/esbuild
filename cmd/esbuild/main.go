@@ -51,7 +51,8 @@ var helpText = func(colors logger.Colors) string {
   --splitting           Enable code splitting (currently only for esm)
   --target=...          Environment target (e.g. es2017, chrome58, firefox57,
                         safari11, edge16, node10, ie9, opera45, default esnext)
-  --watch               Watch mode: rebuild on file system changes
+  --watch               Watch mode: rebuild on file system changes (stops when
+                        stdin is closed, use "--watch=forever" to ignore stdin)
 
 ` + colors.Bold + `Advanced options:` + colors.Reset + `
   --allow-overwrite         Allow output files to overwrite input files
@@ -155,6 +156,7 @@ func main() {
 	cpuprofileFile := ""
 	isRunningService := false
 	sendPings := false
+	isWatch := false
 	isWatchForever := false
 
 	// Do an initial scan over the argument list
@@ -215,7 +217,9 @@ func main() {
 			// This may be a reasonable thing to do in a short-lived VM where all
 			// processes in the VM are only started once and then the VM is killed
 			// when the processes are no longer needed.
-			if arg == "--watch=forever" {
+			if arg == "--watch" {
+				isWatch = true
+			} else if arg == "--watch=forever" {
 				arg = "--watch"
 				isWatchForever = true
 			}
@@ -323,6 +327,16 @@ func main() {
 					for {
 						_, err := os.Stdin.Read(buffer)
 						if err != nil {
+							// Mention why watch mode was stopped to reduce confusion, and
+							// call out "--watch=forever" to get the alternative behavior
+							if isWatch {
+								if options := logger.OutputOptionsForArgs(osArgs); options.LogLevel <= logger.LevelInfo {
+									logger.PrintTextWithColor(os.Stderr, options.Color, func(colors logger.Colors) string {
+										return fmt.Sprintf("%s[watch] stopped because stdin was closed (use \"--watch=forever\" to keep watching even after stdin is closed)%s\n", colors.Dim, colors.Reset)
+									})
+								}
+							}
+
 							// Only exit cleanly if stdin was closed cleanly
 							if err == io.EOF {
 								os.Exit(0)
