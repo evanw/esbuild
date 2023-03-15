@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+* Fix a crash when parsing inline TypeScript decorators ([#2991](https://github.com/evanw/esbuild/issues/2991))
+
+    Previously esbuild's TypeScript parser crashed when parsing TypeScript decorators if the definition of the decorator was inlined into the decorator itself:
+
+    ```ts
+    @(function sealed(constructor: Function) {
+      Object.seal(constructor);
+      Object.seal(constructor.prototype);
+    })
+    class Foo {}
+    ```
+
+    This crash was not noticed earlier because this edge case did not have test coverage. The crash is fixed in this release.
+
 ## 0.17.11
 
 * Fix the `alias` feature to always prefer the longest match ([#2963](https://github.com/evanw/esbuild/issues/2963))

@@ -1773,6 +1773,12 @@ func TestTSDecorator(t *testing.T) {
 		"<stdin>: ERROR: Cannot use \"yield\" outside a generator function\n")
 	expectParseErrorTS(t, "function foo() { @dec(yield x) class Foo {} }", "<stdin>: ERROR: Cannot use \"yield\" outside a generator function\n")
 	expectParseErrorTS(t, "function foo() { class Foo { @dec(yield x) foo() {} } }", "<stdin>: ERROR: Cannot use \"yield\" outside a generator function\n")
+
+	// Check inline function expressions
+	expectPrintedTS(t, "@((x, y) => x + y) class Foo {}", "let Foo = class {\n};\nFoo = __decorateClass([\n  (x, y) => x + y\n], Foo);\n")
+	expectPrintedTS(t, "@((x, y) => x + y) export class Foo {}", "export let Foo = class {\n};\nFoo = __decorateClass([\n  (x, y) => x + y\n], Foo);\n")
+	expectPrintedTS(t, "@(function(x, y) { return x + y }) class Foo {}", "let Foo = class {\n};\nFoo = __decorateClass([\n  function(x, y) {\n    return x + y;\n  }\n], Foo);\n")
+	expectPrintedTS(t, "@(function(x, y) { return x + y }) export class Foo {}", "export let Foo = class {\n};\nFoo = __decorateClass([\n  function(x, y) {\n    return x + y;\n  }\n], Foo);\n")
 }
 
 func TestTSTry(t *testing.T) {
