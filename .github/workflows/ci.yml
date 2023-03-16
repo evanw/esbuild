@@ -58,10 +58,10 @@ jobs:
         with:
           node-version: 16
 
-      - name: Setup Deno 1.31.1
+      - name: Setup Deno 1.31.3
         uses: denoland/setup-deno@main
         with:
-          deno-version: canary
+          deno-version: v1.31.3
 
       - name: Check out code into the Go module directory
         uses: actions/checkout@v3

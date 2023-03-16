@@ -75,6 +75,11 @@ function test(name, backends, fn) {
         break
 
       case 'wasm-main-sys':
+        // WASM with sys access not supported on Windows because Go assumes that
+        // inside of WASM all FS operations operate on Unix-style paths, but
+        // Windows uses backslashes. This is a limitation of Go's WASM support
+        // and unlikely to be fixable in esbuild right now.
+        if (Deno.build.os === "windows") break;
         singleTest(name + '-wasm-main-sys', async () => {
           let testDir = path.join(rootTestDir, name + '-wasm-main-sys')
           await esbuildWASM.initialize({
@@ -97,6 +102,11 @@ function test(name, backends, fn) {
   
 
       case 'wasm-main-sys-namespace':
+        // WASM with sys access not supported on Windows because Go assumes that
+        // inside of WASM all FS operations operate on Unix-style paths, but
+        // Windows uses backslashes. This is a limitation of Go's WASM support
+        // and unlikely to be fixable in esbuild right now.
+        if (Deno.build.os === "windows") break;
         singleTest(name + '-wasm-main-sys-namespace', async () => {
           let testDir = path.join(rootTestDir, name + '-wasm-main-sys-namespace')
           await esbuildWASM.initialize({
@@ -118,6 +128,11 @@ function test(name, backends, fn) {
         break
   
       case 'wasm-worker-sys':
+          // WASM with sys access not supported on Windows because Go assumes that
+          // inside of WASM all FS operations operate on Unix-style paths, but
+          // Windows uses backslashes. This is a limitation of Go's WASM support
+          // and unlikely to be fixable in esbuild right now.
+          if (Deno.build.os === "windows") break;
           singleTest(name + '-wasm-worker-sys', async () => {
             let testDir = path.join(rootTestDir, name + '-wasm-worker-sys')
             await esbuildWASM.initialize({
