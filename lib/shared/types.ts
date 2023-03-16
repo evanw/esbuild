@@ -640,6 +640,10 @@ export interface InitializeOptions {
    * "fs" and "process" namespaces must be provided by specifying either a
    * namespace containing for "fs" and "process", or specifiers to an ES module that exports these bindings
    * as a default export. The former is unsupported when using "worker: true".
+   * 
+   * The passed "fs" namespace must operate on Unix-style paths. One can thus
+   * not use this feature to access the local file system on Windows when using
+   * Node.js' built-in "fs" module.
    */
   wasmSystemAccess?: WasmSystemAccess
 
