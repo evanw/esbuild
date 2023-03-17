@@ -79,7 +79,7 @@ export const initialize: typeof types.initialize = async (options) => {
 
 const startRunningService = async (wasmURL: string | URL, wasmModule: WebAssembly.Module | undefined, useWorker: boolean): Promise<Service> => {
   let worker: {
-    onmessage: ((event: any) => void) | null
+    onmessage?: ((event: any) => void) | null | undefined
     postMessage: (data: Uint8Array | ArrayBuffer | WebAssembly.Module) => void
     terminate: () => void
   }
