@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.17.12
 
 * Fix a crash when parsing inline TypeScript decorators ([#2991](https://github.com/evanw/esbuild/issues/2991))
 
