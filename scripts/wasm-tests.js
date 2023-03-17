@@ -324,6 +324,26 @@ const tests = {
 })();
 `)
   },
+
+  // https://github.com/evanw/esbuild/issues/3001
+  nodePathsReaddirEINVAL({ testDir, esbuildPathWASM }) {
+    const libDir = path.join(testDir, 'lib');
+    const libFile = path.join(libDir, 'file.js');
+    fs.mkdirSync(libDir, { recursive: true });
+    fs.writeFileSync(libFile, 'foo()');
+    const stdout = child_process.execFileSync('node', [
+      esbuildPathWASM,
+      '--bundle',
+      '--format=esm',
+    ], {
+      stdio: ['pipe', 'pipe', 'inherit'],
+      cwd: testDir,
+      input: `import "file.js"`,
+      env: { ...process.env, NODE_PATH: libDir },
+    }).toString();
+
+    assert.deepStrictEqual(stdout, '// lib/file.js\nfoo();\n');
+  },
 };
 
 function runTest({ testDir, esbuildPathNative, esbuildPathWASM, test }) {

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Work around an issue with `NODE_PATH` and Go's WebAssembly internals ([#3001](https://github.com/evanw/esbuild/issues/3001))
+
+    Go's WebAssembly implementation returns `EINVAL` instead of `ENOTDIR` when using the `readdir` syscall on a file. This messes up esbuild's implementation of node's module resolution algorithm since encountering `ENOTDIR` causes esbuild to continue its search (since it's a normal condition) while other encountering other errors causes esbuild to fail with an I/O error (since it's an unexpected condition). You can encounter this issue in practice if you use node's legacy `NODE_PATH` feature to tell esbuild to resolve node modules in a custom directory that was not installed by npm. This release works around this problem by converting `EINVAL` into `ENOTDIR` for the `readdir` syscall.
+
 ## 0.17.12
 
 * Fix a crash when parsing inline TypeScript decorators ([#2991](https://github.com/evanw/esbuild/issues/2991))

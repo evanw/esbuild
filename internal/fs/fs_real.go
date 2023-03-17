@@ -360,6 +360,14 @@ func (fs *realFS) readdir(dirname string) (entries []string, canonicalError erro
 	// Don't convert ENOTDIR to ENOENT here. ENOTDIR is a legitimate error
 	// condition for Readdirnames() on non-Windows platforms.
 
+	// Go's WebAssembly implementation returns EINVAL instead of ENOTDIR if we
+	// call "readdir" on a file. Canonicalize this to ENOTDIR so esbuild's path
+	// resolution code continues traversing instead of failing with an error.
+	// https://github.com/golang/go/blob/2449bbb5e614954ce9e99c8a481ea2ee73d72d61/src/syscall/fs_js.go#L144
+	if pathErr, ok := canonicalError.(*os.PathError); ok && pathErr.Unwrap() == syscall.EINVAL {
+		canonicalError = syscall.ENOTDIR
+	}
+
 	return entries, canonicalError, originalError
 }
 
