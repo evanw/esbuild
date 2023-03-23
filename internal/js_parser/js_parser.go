@@ -941,10 +941,11 @@ func (p *parser) selectLocalKind(kind js_ast.LocalKind) js_ast.LocalKind {
 func (p *parser) pushScopeForParsePass(kind js_ast.ScopeKind, loc logger.Loc) int {
 	parent := p.currentScope
 	scope := &js_ast.Scope{
-		Kind:    kind,
-		Parent:  parent,
-		Members: make(map[string]js_ast.ScopeMember),
-		Label:   js_ast.LocRef{Ref: js_ast.InvalidRef},
+		Kind:        kind,
+		Parent:      parent,
+		Members:     make(map[string]js_ast.ScopeMember),
+		UsedSymbols: make(map[js_ast.Ref]uint32),
+		Label:       js_ast.LocRef{Ref: js_ast.InvalidRef},
 	}
 	if parent != nil {
 		parent.Children = append(parent.Children, scope)
@@ -1035,6 +1036,44 @@ func (p *parser) popScope() {
 			}
 
 			p.symbols[member.Ref.InnerIndex].Flags |= js_ast.MustNotBeRenamed
+		}
+	}
+
+	// Compute enclosed symbols
+	{
+		scope := p.currentScope
+
+		// enclosed symbols =
+		//		used symbols +
+		//		enclosed symbols from children +
+		//		members	-
+		//		symbols declared in this scope
+		//
+		// Note that scope members may not be declared in the scope because of hoisting
+		enclosed := make(map[js_ast.Ref]struct{})
+
+		for _, child := range scope.Children {
+			for _, ref := range child.Enclosed {
+				enclosed[ref] = struct{}{}
+			}
+		}
+		for ref := range scope.UsedSymbols {
+			if p.symbols[ref.InnerIndex].SlotNamespace() == js_ast.SlotDefault {
+				enclosed[ref] = struct{}{}
+			}
+		}
+		for _, member := range scope.Members {
+			enclosed[member.Ref] = struct{}{}
+		}
+		for ref := range enclosed {
+			if p.symbols[ref.InnerIndex].DeclareScope == scope {
+				delete(enclosed, ref)
+			}
+		}
+
+		scope.Enclosed = make([]js_ast.Ref, 0, len(enclosed))
+		for ref := range enclosed {
+			scope.Enclosed = append(scope.Enclosed, ref)
 		}
 	}
 
@@ -1289,8 +1328,11 @@ func (p *parser) declareSymbol(kind js_ast.SymbolKind, loc logger.Loc, name stri
 
 	// Overwrite this name in the declaring scope
 	p.currentScope.Members[name] = js_ast.ScopeMember{Ref: ref, Loc: loc}
-	return ref
 
+	// This DeclareScope may be changed after hoisting symbols.
+	p.symbols[ref.InnerIndex].DeclareScope = p.currentScope
+
+	return ref
 }
 
 // This type is just so we can use Go's native sort function
@@ -1477,6 +1519,11 @@ func (p *parser) hoistSymbols(scope *js_ast.Scope) {
 				if s.Kind.StopsHoisting() {
 					// Declare the member in the scope that stopped the hoisting
 					s.Members[symbol.OriginalName] = member
+
+					// Record the DeclareScope for both original symbol and hosted symbol
+					symbol.DeclareScope = s
+					p.symbols[originalMemberRef.InnerIndex].DeclareScope = s
+
 					break
 				}
 				s = s.Parent
@@ -1523,6 +1570,10 @@ func (p *parser) recordUsage(ref js_ast.Ref) {
 		use := p.symbolUses[ref]
 		use.CountEstimate++
 		p.symbolUses[ref] = use
+
+		if p.currentScope != nil {
+			p.currentScope.UsedSymbols[ref]++
+		}
 	}
 
 	// The correctness of TypeScript-to-JavaScript conversion relies on accurate
@@ -1543,6 +1594,17 @@ func (p *parser) ignoreUsage(ref js_ast.Ref) {
 			delete(p.symbolUses, ref)
 		} else {
 			p.symbolUses[ref] = use
+		}
+
+		if p.currentScope != nil {
+			if count, ok := p.currentScope.UsedSymbols[ref]; ok {
+				count--
+				if count == 0 {
+					delete(p.currentScope.UsedSymbols, ref)
+				} else {
+					p.currentScope.UsedSymbols[ref] = count
+				}
+			}
 		}
 	}
 

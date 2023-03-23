@@ -8168,3 +8168,32 @@ NOTE: You can mark the path "node_modules/fflate" as external to exclude it from
 `,
 	})
 }
+
+func TestMinifyHoistedVar(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				;(function() {
+					var pl = 1, ac = 2
+					{	var opt = {} }
+					{
+						var opt = { a: 1 }
+						;(function() {
+							var a = opt.a
+							var s = {}
+							fn(a, s)
+							fn(s)
+						})()
+					}
+				})()
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:              config.ModeBundle,
+			MinifyIdentifiers: true,
+			AbsOutputFile:     "/out.js",
+			OutputFormat:      config.FormatIIFE,
+		},
+	})
+}

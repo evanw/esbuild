@@ -1466,6 +1466,9 @@ type Symbol struct {
 	// avoid this. We also need to be able to replace such import items with
 	// undefined, which this status is also used for.
 	ImportItemStatus ImportItemStatus
+
+	// Record the scope where this symbol is declared or hoisted up to.
+	DeclareScope *Scope
 }
 
 // You should call "MergeSymbols" instead of calling this directly
@@ -1558,6 +1561,11 @@ type Scope struct {
 	Members   map[string]ScopeMember
 	Replaced  []ScopeMember
 	Generated []Ref
+
+	// Symbols used in the scope, for computing Enclosed.
+	UsedSymbols map[Ref]uint32
+	// Enclosed symbols in the scope.
+	Enclosed []Ref
 
 	// The location of the "use strict" directive for ExplicitStrictMode
 	UseStrictLoc logger.Loc

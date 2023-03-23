@@ -857,26 +857,26 @@ export var Foo=(e=>(e[e.X=0]="X",e[e.Y=1]="Y",e[e.Z=e]="Z",e))(Foo||{});
 ================================================================================
 TestTSMinifyNamespace
 ---------- /a.js ----------
-var Foo;(e=>{let a;(p=>foo(e,p))(a=e.Bar||={})})(Foo||={});
+var Foo;(a=>{let e;(e=>foo(a,e))(e=a.Bar||={})})(Foo||={});
 
 ---------- /b.js ----------
-export var Foo;(e=>{let a;(p=>foo(e,p))(a=e.Bar||={})})(Foo||={});
+export var Foo;(a=>{let e;(e=>foo(a,e))(e=a.Bar||={})})(Foo||={});
 
 ================================================================================
 TestTSMinifyNamespaceNoArrow
 ---------- /a.js ----------
-var Foo;(function(e){let a;(function(p){foo(e,p)})(a=e.Bar||={})})(Foo||={});
+var Foo;(function(a){let e;(function(e){foo(a,e)})(e=a.Bar||={})})(Foo||={});
 
 ---------- /b.js ----------
-export var Foo;(function(e){let a;(function(p){foo(e,p)})(a=e.Bar||={})})(Foo||={});
+export var Foo;(function(a){let e;(function(e){foo(a,e)})(e=a.Bar||={})})(Foo||={});
 
 ================================================================================
 TestTSMinifyNamespaceNoLogicalAssignment
 ---------- /a.js ----------
-var Foo;(e=>{let a;(p=>foo(e,p))(a=e.Bar||(e.Bar={}))})(Foo||(Foo={}));
+var Foo;(a=>{let e;(e=>foo(a,e))(e=a.Bar||(a.Bar={}))})(Foo||(Foo={}));
 
 ---------- /b.js ----------
-export var Foo;(e=>{let a;(p=>foo(e,p))(a=e.Bar||(e.Bar={}))})(Foo||(Foo={}));
+export var Foo;(a=>{let e;(e=>foo(a,e))(e=a.Bar||(a.Bar={}))})(Foo||(Foo={}));
 
 ================================================================================
 TestTSMinifyNestedEnum
