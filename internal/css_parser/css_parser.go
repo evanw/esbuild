@@ -1725,11 +1725,12 @@ func (p *parser) parseComponentValue() {
 }
 
 func (p *parser) parseBlock(open css_lexer.T, close css_lexer.T) {
-	matchingLoc := p.current().Range.Loc
+	current := p.current()
+	matchingStart := current.Range.End() - 1
 	if p.expect(open) {
 		for !p.eat(close) {
 			if p.peek(css_lexer.TEndOfFile) {
-				p.expectWithMatchingLoc(close, matchingLoc)
+				p.expectWithMatchingLoc(close, logger.Loc{Start: matchingStart})
 				return
 			}
 
