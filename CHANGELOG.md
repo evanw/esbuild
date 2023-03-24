@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.17.13
 
 * Work around an issue with `NODE_PATH` and Go's WebAssembly internals ([#3001](https://github.com/evanw/esbuild/issues/3001))
 
