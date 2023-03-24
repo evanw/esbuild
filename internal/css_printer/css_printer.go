@@ -805,6 +805,15 @@ func (p *printer) printTokens(tokens []css_ast.Token, opts printTokensOpts) bool
 			p.print(")")
 			p.recordImportPathForMetafile(t.ImportRecordIndex)
 
+		case css_lexer.TUnterminatedString:
+			// We must end this with a newline so that this string stays unterminated
+			p.print(t.Text)
+			p.print("\n")
+			if !p.options.MinifyWhitespace {
+				p.printIndent(opts.indent)
+			}
+			hasWhitespaceAfter = false
+
 		default:
 			p.print(t.Text)
 		}

@@ -129,10 +129,10 @@ func TestComment(t *testing.T) {
 }
 
 func TestString(t *testing.T) {
-	test.AssertEqualWithDiff(t, lexerError("'"), "<stdin>: ERROR: Unterminated string token\n")
-	test.AssertEqualWithDiff(t, lexerError("\""), "<stdin>: ERROR: Unterminated string token\n")
-	test.AssertEqualWithDiff(t, lexerError("'\\'"), "<stdin>: ERROR: Unterminated string token\n")
-	test.AssertEqualWithDiff(t, lexerError("\"\\\""), "<stdin>: ERROR: Unterminated string token\n")
+	test.AssertEqualWithDiff(t, lexerError("'"), "<stdin>: WARNING: Unterminated string token\n")
+	test.AssertEqualWithDiff(t, lexerError("\""), "<stdin>: WARNING: Unterminated string token\n")
+	test.AssertEqualWithDiff(t, lexerError("'\\'"), "<stdin>: WARNING: Unterminated string token\n")
+	test.AssertEqualWithDiff(t, lexerError("\"\\\""), "<stdin>: WARNING: Unterminated string token\n")
 	test.AssertEqualWithDiff(t, lexerError("''"), "")
 	test.AssertEqualWithDiff(t, lexerError("\"\""), "")
 }

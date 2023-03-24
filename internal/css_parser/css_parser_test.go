@@ -48,6 +48,13 @@ func expectParseError(t *testing.T, contents string, expected string, expectedLo
 	expectPrintedCommon(t, contents, contents, expected, &expectedLog, config.Options{})
 }
 
+func expectParseErrorMinify(t *testing.T, contents string, expected string, expectedLog string) {
+	t.Helper()
+	expectPrintedCommon(t, contents, contents, expected, &expectedLog, config.Options{
+		MinifyWhitespace: true,
+	})
+}
+
 func expectPrinted(t *testing.T, contents string, expected string) {
 	t.Helper()
 	expectPrintedCommon(t, contents, contents, expected, nil, config.Options{})
@@ -278,29 +285,29 @@ func TestString(t *testing.T) {
 	expectPrinted(t, "a:after { content: 'a\\\r\nb' }", "a:after {\n  content: \"ab\";\n}\n")
 	expectPrinted(t, "a:after { content: 'a\\62 c' }", "a:after {\n  content: \"abc\";\n}\n")
 
-	expectParseError(t, "a:after { content: '\r' }", "a:after {\n  content: ' ' };\n}\n",
-		`<stdin>: ERROR: Unterminated string token
-<stdin>: ERROR: Unterminated string token
+	expectParseError(t, "a:after { content: '\r' }", "a:after {\n  content: '\n  ' }\n  ;\n}\n",
+		`<stdin>: WARNING: Unterminated string token
 <stdin>: WARNING: Expected "}" to go with "{"
 <stdin>: NOTE: The unbalanced "{" is here:
+<stdin>: WARNING: Unterminated string token
 `)
-	expectParseError(t, "a:after { content: '\n' }", "a:after {\n  content: ' ' };\n}\n",
-		`<stdin>: ERROR: Unterminated string token
-<stdin>: ERROR: Unterminated string token
+	expectParseError(t, "a:after { content: '\n' }", "a:after {\n  content: '\n  ' }\n  ;\n}\n",
+		`<stdin>: WARNING: Unterminated string token
 <stdin>: WARNING: Expected "}" to go with "{"
 <stdin>: NOTE: The unbalanced "{" is here:
+<stdin>: WARNING: Unterminated string token
 `)
-	expectParseError(t, "a:after { content: '\f' }", "a:after {\n  content: ' ' };\n}\n",
-		`<stdin>: ERROR: Unterminated string token
-<stdin>: ERROR: Unterminated string token
+	expectParseError(t, "a:after { content: '\f' }", "a:after {\n  content: '\n  ' }\n  ;\n}\n",
+		`<stdin>: WARNING: Unterminated string token
 <stdin>: WARNING: Expected "}" to go with "{"
 <stdin>: NOTE: The unbalanced "{" is here:
+<stdin>: WARNING: Unterminated string token
 `)
-	expectParseError(t, "a:after { content: '\r\n' }", "a:after {\n  content: ' ' };\n}\n",
-		`<stdin>: ERROR: Unterminated string token
-<stdin>: ERROR: Unterminated string token
+	expectParseError(t, "a:after { content: '\r\n' }", "a:after {\n  content: '\n  ' }\n  ;\n}\n",
+		`<stdin>: WARNING: Unterminated string token
 <stdin>: WARNING: Expected "}" to go with "{"
 <stdin>: NOTE: The unbalanced "{" is here:
+<stdin>: WARNING: Unterminated string token
 `)
 
 	expectPrinted(t, "a:after { content: '\\1010101' }", "a:after {\n  content: \"\U001010101\";\n}\n")
@@ -1890,4 +1897,6 @@ func TestParseErrorRecovery(t *testing.T) {
 		"<stdin>: ERROR: Expected \")\" to end URL token\n<stdin>: WARNING: Expected \"}\" to go with \"{\"\n<stdin>: NOTE: The unbalanced \"{\" is here:\n")
 	expectParseError(t, "/* @license */ x {} /* @preserve", "/* @license */\nx {\n}\n",
 		"<stdin>: ERROR: Expected \"*/\" to terminate multi-line comment\n<stdin>: NOTE: The multi-line comment starts here:\n")
+	expectParseError(t, "a { b: c; d: 'e\n f: g; h: i }", "a {\n  b: c;\n  d: 'e\n  f: g;\n  h: i;\n}\n", "<stdin>: WARNING: Unterminated string token\n")
+	expectParseErrorMinify(t, "a { b: c; d: 'e\n f: g; h: i }", "a{b:c;d:'e\nf: g;h:i}", "<stdin>: WARNING: Unterminated string token\n")
 }

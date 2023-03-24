@@ -6,6 +6,45 @@
 
     Go's WebAssembly implementation returns `EINVAL` instead of `ENOTDIR` when using the `readdir` syscall on a file. This messes up esbuild's implementation of node's module resolution algorithm since encountering `ENOTDIR` causes esbuild to continue its search (since it's a normal condition) while other encountering other errors causes esbuild to fail with an I/O error (since it's an unexpected condition). You can encounter this issue in practice if you use node's legacy `NODE_PATH` feature to tell esbuild to resolve node modules in a custom directory that was not installed by npm. This release works around this problem by converting `EINVAL` into `ENOTDIR` for the `readdir` syscall.
 
+* Unterminated strings in CSS are no longer an error
+
+    The CSS specification provides [rules for handling parsing errors](https://www.w3.org/TR/CSS22/syndata.html#parsing-errors). One of those rules is that user agents must close strings upon reaching the end of a line (i.e., before an unescaped line feed, carriage return or form feed character), but then drop the construct (declaration or rule) in which the string was found. For example:
+
+    ```css
+    p {
+      color: green;
+      font-family: 'Courier New Times
+      color: red;
+      color: green;
+    }
+    ```
+
+    ...would be treated the same as:
+
+    ```css
+    p { color: green; color: green; }
+    ```
+
+    ...because the second declaration (from `font-family` to the semicolon after `color: red`) is invalid and is dropped.
+
+    Previously using this CSS with esbuild failed to build due to a syntax error, even though the code can be interpreted by a browser. With this release, the code now produces a warning instead of an error, and esbuild prints the invalid CSS such that it stays invalid in the output:
+
+    ```css
+    /* esbuild's new non-minified output: */
+    p {
+      color: green;
+      font-family: 'Courier New Times
+      color: red;
+      color: green;
+    }
+    ```
+
+    ```css
+    /* esbuild's new minified output: */
+    p{font-family:'Courier New Times
+    color: red;color:green}
+    ```
+
 ## 0.17.12
 
 * Fix a crash when parsing inline TypeScript decorators ([#2991](https://github.com/evanw/esbuild/issues/2991))

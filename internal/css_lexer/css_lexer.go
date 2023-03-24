@@ -19,7 +19,7 @@ const (
 	TEndOfFile T = iota
 
 	TAtKeyword
-	TBadString
+	TUnterminatedString
 	TBadURL
 	TCDC // "-->"
 	TCDO // "<!--"
@@ -785,17 +785,11 @@ func (lexer *lexer) consumeString() T {
 
 			// Otherwise, fall through to ignore the character after the backslash
 
-		case eof:
-			lexer.log.AddError(&lexer.tracker,
+		case eof, '\n', '\r', '\f':
+			lexer.log.AddID(logger.MsgID_CSS_CSSSyntaxError, logger.Warning, &lexer.tracker,
 				logger.Range{Loc: logger.Loc{Start: lexer.Token.Range.End()}},
 				"Unterminated string token")
-			return TBadString
-
-		case '\n', '\r', '\f':
-			lexer.log.AddError(&lexer.tracker,
-				logger.Range{Loc: logger.Loc{Start: lexer.Token.Range.End()}},
-				"Unterminated string token")
-			return TBadString
+			return TUnterminatedString
 
 		case quote:
 			lexer.step()

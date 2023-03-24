@@ -149,7 +149,7 @@ func (p *parser) expectWithMatchingLoc(kind css_lexer.T, matchingLoc logger.Loc)
 		case css_lexer.TEndOfFile, css_lexer.TWhitespace:
 			text = fmt.Sprintf("Expected %s but found %s", expected, t.Kind.String())
 			t.Range.Len = 0
-		case css_lexer.TBadURL, css_lexer.TBadString:
+		case css_lexer.TBadURL, css_lexer.TUnterminatedString:
 			text = fmt.Sprintf("Expected %s but found %s", expected, t.Kind.String())
 		default:
 			text = fmt.Sprintf("Expected %s but found %q", expected, p.raw())
@@ -172,7 +172,7 @@ func (p *parser) unexpected() {
 		case css_lexer.TEndOfFile, css_lexer.TWhitespace:
 			text = fmt.Sprintf("Unexpected %s", t.Kind.String())
 			t.Range.Len = 0
-		case css_lexer.TBadURL, css_lexer.TBadString:
+		case css_lexer.TBadURL, css_lexer.TUnterminatedString:
 			text = fmt.Sprintf("Unexpected %s", t.Kind.String())
 		default:
 			text = fmt.Sprintf("Unexpected %q", p.raw())
