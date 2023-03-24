@@ -375,7 +375,7 @@ func (p *parser) mangleRules(rules []css_ast.Rule, isTopLevel bool) []css_ast.Ru
 			}
 
 		case *css_ast.RKnownAt:
-			if len(r.Rules) == 0 {
+			if len(r.Rules) == 0 && atKnownRuleCanBeRemovedIfEmpty[r.AtToken] {
 				continue
 			}
 
@@ -704,6 +704,9 @@ const (
 )
 
 var specialAtRules = map[string]atRuleKind{
+	"media":    atRuleInheritContext,
+	"supports": atRuleInheritContext,
+
 	"font-face": atRuleDeclarations,
 	"page":      atRuleDeclarations,
 
@@ -755,9 +758,8 @@ var specialAtRules = map[string]atRuleKind{
 	//
 	"layer": atRuleQualifiedOrEmpty,
 
-	"media":    atRuleInheritContext,
-	"scope":    atRuleInheritContext,
-	"supports": atRuleInheritContext,
+	// Reference: https://drafts.csswg.org/css-cascade-6/#scoped-styles
+	"scope": atRuleInheritContext,
 
 	// Reference: https://drafts.csswg.org/css-fonts-4/#font-palette-values
 	"font-palette-values": atRuleDeclarations,
@@ -780,6 +782,40 @@ var specialAtRules = map[string]atRuleKind{
 	// Container Queries
 	// Reference: https://drafts.csswg.org/css-contain-3/#container-rule
 	"container": atRuleInheritContext,
+}
+
+var atKnownRuleCanBeRemovedIfEmpty = map[string]bool{
+	"media":     true,
+	"supports":  true,
+	"font-face": true,
+	"page":      true,
+
+	// https://www.w3.org/TR/css-page-3/#syntax-page-selector
+	"bottom-center":       true,
+	"bottom-left-corner":  true,
+	"bottom-left":         true,
+	"bottom-right-corner": true,
+	"bottom-right":        true,
+	"left-bottom":         true,
+	"left-middle":         true,
+	"left-top":            true,
+	"right-bottom":        true,
+	"right-middle":        true,
+	"right-top":           true,
+	"top-center":          true,
+	"top-left-corner":     true,
+	"top-left":            true,
+	"top-right-corner":    true,
+	"top-right":           true,
+
+	// https://drafts.csswg.org/css-cascade-6/#scoped-styles
+	"scope": true,
+
+	// https://drafts.csswg.org/css-fonts-4/#font-palette-values
+	"font-palette-values": true,
+
+	// https://drafts.csswg.org/css-contain-3/#container-rule
+	"container": true,
 }
 
 type atRuleValidity uint8
@@ -1067,9 +1103,21 @@ abortRuleParser:
 		}
 
 		// Otherwise there's some kind of syntax error
-		if kind := p.current().Kind; kind == css_lexer.TOpenBrace || kind == css_lexer.TCloseBrace || kind == css_lexer.TEndOfFile {
+		switch p.current().Kind {
+		case css_lexer.TEndOfFile:
 			p.expect(css_lexer.TSemicolon)
-		} else {
+			return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RAtLayer{Names: names}}
+
+		case css_lexer.TCloseBrace:
+			p.expect(css_lexer.TSemicolon)
+			if !context.isTopLevel {
+				return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RAtLayer{Names: names}}
+			}
+
+		case css_lexer.TOpenBrace:
+			p.expect(css_lexer.TSemicolon)
+
+		default:
 			p.unexpected()
 		}
 

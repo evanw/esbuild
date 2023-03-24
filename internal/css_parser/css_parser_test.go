@@ -55,6 +55,13 @@ func expectParseErrorMinify(t *testing.T, contents string, expected string, expe
 	})
 }
 
+func expectParseErrorMangle(t *testing.T, contents string, expected string, expectedLog string) {
+	t.Helper()
+	expectPrintedCommon(t, contents, contents, expected, &expectedLog, config.Options{
+		MinifySyntax: true,
+	})
+}
+
 func expectPrinted(t *testing.T, contents string, expected string) {
 	t.Helper()
 	expectPrintedCommon(t, contents, contents, expected, nil, config.Options{})
@@ -1126,10 +1133,14 @@ func TestAtLayer(t *testing.T) {
 	expectPrinted(t, "@layer foo { div { color: red } }", "@layer foo {\n  div {\n    color: red;\n  }\n}\n")
 
 	// Check semicolon error recovery
-	expectPrinted(t, "@layer", "@layer;\n")
-	expectPrinted(t, "@layer a", "@layer a;\n")
-	expectPrinted(t, "@layer a { @layer }", "@layer a {\n  @layer;\n}\n")
-	expectPrinted(t, "@layer a { @layer b }", "@layer a {\n  @layer b;\n}\n")
+	expectParseError(t, "@layer", "@layer;\n", "<stdin>: WARNING: Expected \";\" but found end of file\n")
+	expectParseError(t, "@layer a", "@layer a;\n", "<stdin>: WARNING: Expected \";\" but found end of file\n")
+	expectParseError(t, "@layer a { @layer }", "@layer a {\n  @layer;\n}\n", "<stdin>: WARNING: Expected \";\"\n")
+	expectParseError(t, "@layer a { @layer b }", "@layer a {\n  @layer b;\n}\n", "<stdin>: WARNING: Expected \";\"\n")
+	expectParseErrorMangle(t, "@layer", "@layer;\n", "<stdin>: WARNING: Expected \";\" but found end of file\n")
+	expectParseErrorMangle(t, "@layer a", "@layer a;\n", "<stdin>: WARNING: Expected \";\" but found end of file\n")
+	expectParseErrorMangle(t, "@layer a { @layer }", "@layer a {\n  @layer;\n}\n", "<stdin>: WARNING: Expected \";\"\n")
+	expectParseErrorMangle(t, "@layer a { @layer b }", "@layer a.b;\n", "<stdin>: WARNING: Expected \";\"\n")
 
 	// Check mangling
 	expectPrintedMangle(t, "@layer foo { div {} }", "@layer foo;\n")
