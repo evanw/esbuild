@@ -73,8 +73,10 @@ var cssTable = map[CSSFeature]map[Engine][]versionRange{
 		Safari:  {{start: v{14, 1, 0}}},
 	},
 
-	// This isn't supported anywhere right now: https://caniuse.com/css-nesting
-	Nesting: {},
+	// Data from: https://caniuse.com/css-nesting
+	Nesting: {
+		Chrome: {{start: v{112, 0, 0}}},
+	},
 }
 
 // Return all features that are not available in at least one environment
