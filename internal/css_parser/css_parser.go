@@ -611,7 +611,7 @@ func isSafeSelectors(complexSelectors []css_ast.ComplexSelector) bool {
 				return false
 			}
 
-			if compound.Combinator != "" {
+			if compound.Combinator != 0 {
 				// "Before Internet Explorer 10, the combinator only works in standards mode"
 				// Reference: https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Selectors
 				return false

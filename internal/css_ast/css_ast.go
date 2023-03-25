@@ -468,7 +468,7 @@ func (r *RSelector) Hash() (uint32, bool) {
 			for _, sub := range sel.SubclassSelectors {
 				hash = helpers.HashCombine(hash, sub.Hash())
 			}
-			hash = helpers.HashCombineString(hash, sel.Combinator)
+			hash = helpers.HashCombine(hash, uint32(sel.Combinator))
 		}
 	}
 	hash = HashRules(hash, r.Rules)
@@ -629,10 +629,10 @@ func (a ComplexSelector) Equal(b ComplexSelector, check *CrossFileEqualityCheck)
 }
 
 type CompoundSelector struct {
-	Combinator         string // Optional, may be ""
 	TypeSelector       *NamespacedName
 	SubclassSelectors  []SS
-	HasNestingSelector bool // "&"
+	Combinator         uint8 // Optional, may be 0
+	HasNestingSelector bool  // "&"
 }
 
 type NameToken struct {

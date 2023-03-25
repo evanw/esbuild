@@ -51,7 +51,7 @@ func (p *parser) parseComplexSelector(opts parseSelectorOpts) (result css_ast.Co
 	// This is an extension: https://drafts.csswg.org/css-nesting-1/
 	r := p.current().Range
 	combinator := p.parseCombinator()
-	if combinator != "" {
+	if combinator != 0 {
 		if opts.isTopLevel {
 			p.maybeWarnAboutNesting(r)
 		}
@@ -74,7 +74,7 @@ func (p *parser) parseComplexSelector(opts parseSelectorOpts) (result css_ast.Co
 
 		// Optional combinator
 		combinator := p.parseCombinator()
-		if combinator != "" {
+		if combinator != 0 {
 			p.eat(css_lexer.TWhitespace)
 		}
 
@@ -366,21 +366,21 @@ loop:
 	return tokens
 }
 
-func (p *parser) parseCombinator() string {
+func (p *parser) parseCombinator() uint8 {
 	switch p.current().Kind {
 	case css_lexer.TDelimGreaterThan:
 		p.advance()
-		return ">"
+		return '>'
 
 	case css_lexer.TDelimPlus:
 		p.advance()
-		return "+"
+		return '+'
 
 	case css_lexer.TDelimTilde:
 		p.advance()
-		return "~"
+		return '~'
 
 	default:
-		return ""
+		return 0
 	}
 }
