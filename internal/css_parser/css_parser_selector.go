@@ -39,12 +39,66 @@ skip:
 		list = append(list, sel)
 	}
 
+	if p.options.MinifySyntax {
+		for i := 1; i < len(list); i++ {
+			if analyzeLeadingAmpersand(list[i], opts.isDeclarationContext) != cannotRemoveLeadingAmpersand {
+				list[i].Selectors = list[i].Selectors[1:]
+			}
+		}
+
+		switch analyzeLeadingAmpersand(list[0], opts.isDeclarationContext) {
+		case canAlwaysRemoveLeadingAmpersand:
+			list[0].Selectors = list[0].Selectors[1:]
+
+		case canRemoveLeadingAmpersandIfNotFirst:
+			for i := 1; i < len(list); i++ {
+				if sel := list[i].Selectors[0]; !sel.HasNestingSelector && (sel.Combinator != 0 || sel.TypeSelector == nil) {
+					list[0].Selectors = list[0].Selectors[1:]
+					list[0], list[i] = list[i], list[0]
+					break
+				}
+			}
+		}
+	}
+
 	ok = true
 	return
 }
 
+type leadingAmpersand uint8
+
+const (
+	cannotRemoveLeadingAmpersand leadingAmpersand = iota
+	canAlwaysRemoveLeadingAmpersand
+	canRemoveLeadingAmpersandIfNotFirst
+)
+
+func analyzeLeadingAmpersand(sel css_ast.ComplexSelector, isDeclarationContext bool) leadingAmpersand {
+	if len(sel.Selectors) > 1 {
+		if first := sel.Selectors[0]; first.IsSingleAmpersand() {
+			if second := sel.Selectors[1]; second.Combinator == 0 && second.HasNestingSelector {
+				// ".foo { & &.bar {} }" => ".foo { & &.bar {} }"
+			} else if second.Combinator != 0 || second.TypeSelector == nil || !isDeclarationContext {
+				// "& + div {}" => "+ div {}"
+				// "& div {}" => "div {}"
+				// ".foo { & + div {} }" => ".foo { + div {} }"
+				// ".foo { & + &.bar {} }" => ".foo { + &.bar {} }"
+				// ".foo { & :hover {} }" => ".foo { :hover {} }"
+				return canAlwaysRemoveLeadingAmpersand
+			} else {
+				// ".foo { & div {} }"
+				// ".foo { .bar, & div {} }" => ".foo { .bar, div {} }"
+				return canRemoveLeadingAmpersandIfNotFirst
+			}
+		}
+	} else {
+		// "& {}" => "& {}"
+	}
+	return cannotRemoveLeadingAmpersand
+}
+
 type parseSelectorOpts struct {
-	isTopLevel bool
+	isDeclarationContext bool
 }
 
 func (p *parser) parseComplexSelector(opts parseSelectorOpts) (result css_ast.ComplexSelector, ok bool) {
@@ -52,7 +106,7 @@ func (p *parser) parseComplexSelector(opts parseSelectorOpts) (result css_ast.Co
 	r := p.current().Range
 	combinator := p.parseCombinator()
 	if combinator != 0 {
-		if opts.isTopLevel {
+		if !opts.isDeclarationContext {
 			p.maybeWarnAboutNesting(r)
 		}
 		p.eat(css_lexer.TWhitespace)
@@ -101,7 +155,7 @@ func (p *parser) nameToken() css_ast.NameToken {
 func (p *parser) parseCompoundSelector(opts parseSelectorOpts) (sel css_ast.CompoundSelector, ok bool) {
 	// This is an extension: https://drafts.csswg.org/css-nesting-1/
 	if p.peek(css_lexer.TDelimAmpersand) {
-		if opts.isTopLevel {
+		if !opts.isDeclarationContext {
 			p.maybeWarnAboutNesting(p.current().Range)
 		}
 		sel.HasNestingSelector = true

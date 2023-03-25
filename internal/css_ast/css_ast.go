@@ -635,6 +635,10 @@ type CompoundSelector struct {
 	HasNestingSelector bool  // "&"
 }
 
+func (sel CompoundSelector) IsSingleAmpersand() bool {
+	return sel.HasNestingSelector && sel.Combinator == 0 && sel.TypeSelector == nil && len(sel.SubclassSelectors) == 0
+}
+
 type NameToken struct {
 	Text string
 	Kind css_lexer.T

@@ -722,6 +722,17 @@ func TestCSSNestingOldBrowser(t *testing.T) {
 			"/toplevel-hash.css":             `#id { color: red; }`,
 			"/toplevel-plus.css":             `+ b { color: red; }`,
 			"/toplevel-tilde.css":            `~ b { color: red; }`,
+
+			"/media-ampersand-twice.css":  `@media screen { &, & { color: red; } }`,
+			"/media-ampersand-first.css":  `@media screen { &, a { color: red; } }`,
+			"/media-ampersand-second.css": `@media screen { a, & { color: red; } }`,
+			"/media-attribute.css":        `@media screen { [href] { color: red; } }`,
+			"/media-colon.css":            `@media screen { :hover { color: red; } }`,
+			"/media-dot.css":              `@media screen { .cls { color: red; } }`,
+			"/media-greaterthan.css":      `@media screen { > b { color: red; } }`,
+			"/media-hash.css":             `@media screen { #id { color: red; } }`,
+			"/media-plus.css":             `@media screen { + b { color: red; } }`,
+			"/media-tilde.css":            `@media screen { ~ b { color: red; } }`,
 		},
 		entryPaths: []string{
 			"/nested-@layer.css",
@@ -746,6 +757,17 @@ func TestCSSNestingOldBrowser(t *testing.T) {
 			"/toplevel-hash.css",
 			"/toplevel-plus.css",
 			"/toplevel-tilde.css",
+
+			"/media-ampersand-twice.css",
+			"/media-ampersand-first.css",
+			"/media-ampersand-second.css",
+			"/media-attribute.css",
+			"/media-colon.css",
+			"/media-dot.css",
+			"/media-greaterthan.css",
+			"/media-hash.css",
+			"/media-plus.css",
+			"/media-tilde.css",
 		},
 		options: config.Options{
 			Mode:                   config.ModeBundle,
@@ -753,7 +775,14 @@ func TestCSSNestingOldBrowser(t *testing.T) {
 			UnsupportedCSSFeatures: compat.Nesting,
 			OriginalTargetEnv:      "chrome10",
 		},
-		expectedScanLog: `nested-@layer.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
+		expectedScanLog: `media-ampersand-first.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
+media-ampersand-second.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
+media-ampersand-twice.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
+media-ampersand-twice.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
+media-greaterthan.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
+media-plus.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
+media-tilde.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
+nested-@layer.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
 nested-@media.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
 nested-ampersand-first.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
 nested-ampersand-twice.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
@@ -821,8 +850,9 @@ func TestDeduplicateRules(t *testing.T) {
 			"/yes0.css": "a { color: red; color: green; color: red }",
 			"/yes1.css": "a { color: red } a { color: green } a { color: red }",
 			"/yes2.css": "@media screen { a { color: red } } @media screen { a { color: red } }",
+			"/yes3.css": "@media screen { a { color: red } } @media screen { & a { color: red } }",
 
-			"/no0.css": "@media screen { a { color: red } } @media screen { & a { color: red } }",
+			"/no0.css": "@media screen { a { color: red } } @media screen { &a { color: red } }",
 			"/no1.css": "@media screen { a { color: red } } @media screen { a[x] { color: red } }",
 			"/no2.css": "@media screen { a { color: red } } @media screen { a.x { color: red } }",
 			"/no3.css": "@media screen { a { color: red } } @media screen { a#x { color: red } }",
@@ -844,6 +874,7 @@ func TestDeduplicateRules(t *testing.T) {
 			"/yes0.css",
 			"/yes1.css",
 			"/yes2.css",
+			"/yes3.css",
 
 			"/no0.css",
 			"/no1.css",

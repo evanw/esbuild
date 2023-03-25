@@ -333,6 +333,89 @@ a,
   color: red;
 }
 
+---------- /out/media-ampersand-twice.css ----------
+/* media-ampersand-twice.css */
+@media screen {
+  &,
+  & {
+    color: red;
+  }
+}
+
+---------- /out/media-ampersand-first.css ----------
+/* media-ampersand-first.css */
+@media screen {
+  &,
+  a {
+    color: red;
+  }
+}
+
+---------- /out/media-ampersand-second.css ----------
+/* media-ampersand-second.css */
+@media screen {
+  a,
+  & {
+    color: red;
+  }
+}
+
+---------- /out/media-attribute.css ----------
+/* media-attribute.css */
+@media screen {
+  [href] {
+    color: red;
+  }
+}
+
+---------- /out/media-colon.css ----------
+/* media-colon.css */
+@media screen {
+  :hover {
+    color: red;
+  }
+}
+
+---------- /out/media-dot.css ----------
+/* media-dot.css */
+@media screen {
+  .cls {
+    color: red;
+  }
+}
+
+---------- /out/media-greaterthan.css ----------
+/* media-greaterthan.css */
+@media screen {
+  > b {
+    color: red;
+  }
+}
+
+---------- /out/media-hash.css ----------
+/* media-hash.css */
+@media screen {
+  #id {
+    color: red;
+  }
+}
+
+---------- /out/media-plus.css ----------
+/* media-plus.css */
+@media screen {
+  + b {
+    color: red;
+  }
+}
+
+---------- /out/media-tilde.css ----------
+/* media-tilde.css */
+@media screen {
+  ~ b {
+    color: red;
+  }
+}
+
 ================================================================================
 TestDataURLImportURLInCSS
 ---------- /out/entry.css ----------
@@ -367,6 +450,14 @@ a {
   }
 }
 
+---------- /out/yes3.css ----------
+/* yes3.css */
+@media screen {
+  a {
+    color: red;
+  }
+}
+
 ---------- /out/no0.css ----------
 /* no0.css */
 @media screen {
@@ -375,7 +466,7 @@ a {
   }
 }
 @media screen {
-  & a {
+  &a {
     color: red;
   }
 }

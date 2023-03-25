@@ -789,6 +789,55 @@ func TestNestedSelector(t *testing.T) {
 		"html {\n  @layer base {\n    block-size: 100%;\n    @layer support {\n      & body {\n        min-block-size: 100%;\n      }\n    }\n  }\n}\n")
 	expectPrinted(t, ".card { aspect-ratio: 3/4; @scope (&) { :scope { border: 1px solid white } } }",
 		".card {\n  aspect-ratio: 3/4;\n  @scope (&) {\n    :scope {\n      border: 1px solid white;\n    }\n  }\n}\n")
+
+	// Minify an implicit leading "&"
+	expectPrintedMangle(t, "& { color: red }", "& {\n  color: red;\n}\n")
+	expectPrintedMangle(t, "& a { color: red }", "a {\n  color: red;\n}\n")
+	expectPrintedMangle(t, "& a, & b { color: red }", "a,\nb {\n  color: red;\n}\n")
+	expectPrintedMangle(t, "& a, b { color: red }", "a,\nb {\n  color: red;\n}\n")
+	expectPrintedMangle(t, "a, & b { color: red }", "a,\nb {\n  color: red;\n}\n")
+	expectPrintedMangle(t, "& &a { color: red }", "& &a {\n  color: red;\n}\n")
+	expectPrintedMangle(t, "& .x { color: red }", ".x {\n  color: red;\n}\n")
+	expectPrintedMangle(t, "& &.x { color: red }", "& &.x {\n  color: red;\n}\n")
+	expectPrintedMangle(t, "& + a { color: red }", "+ a {\n  color: red;\n}\n")
+	expectPrintedMangle(t, "& + &a { color: red }", "+ &a {\n  color: red;\n}\n")
+	expectPrintedMangle(t, "&.x { color: red }", "&.x {\n  color: red;\n}\n")
+	expectPrintedMangle(t, "a & { color: red }", "a & {\n  color: red;\n}\n")
+	expectPrintedMangle(t, ".x & { color: red }", ".x & {\n  color: red;\n}\n")
+	expectPrintedMangle(t, "div { & a { color: red } }", "div {\n  & a {\n    color: red;\n  }\n}\n")
+	expectPrintedMangle(t, "div { & .x { color: red } }", "div {\n  .x {\n    color: red;\n  }\n}\n")
+	expectPrintedMangle(t, "div { & .x, & a { color: red } }", "div {\n  .x,\n  a {\n    color: red;\n  }\n}\n")
+	expectPrintedMangle(t, "div { .x, & a { color: red } }", "div {\n  .x,\n  a {\n    color: red;\n  }\n}\n")
+	expectPrintedMangle(t, "div { & &a { color: red } }", "div {\n  & &a {\n    color: red;\n  }\n}\n")
+	expectPrintedMangle(t, "div { & .x { color: red } }", "div {\n  .x {\n    color: red;\n  }\n}\n")
+	expectPrintedMangle(t, "div { & &.x { color: red } }", "div {\n  & &.x {\n    color: red;\n  }\n}\n")
+	expectPrintedMangle(t, "div { & + a { color: red } }", "div {\n  + a {\n    color: red;\n  }\n}\n")
+	expectPrintedMangle(t, "div { & + &a { color: red } }", "div {\n  + &a {\n    color: red;\n  }\n}\n")
+	expectPrintedMangle(t, "div { .x & { color: red } }", "div {\n  .x & {\n    color: red;\n  }\n}\n")
+	expectPrintedMangle(t, "@media screen { & div { color: red } }", "@media screen {\n  div {\n    color: red;\n  }\n}\n")
+	expectPrintedMangle(t, "a { @media screen { & div { color: red } } }", "a {\n  @media screen {\n    & div {\n      color: red;\n    }\n  }\n}\n")
+
+	// Reorder selectors to enable removing "&"
+	expectPrintedMangle(t, "reorder { & first, .second { color: red } }", "reorder {\n  .second,\n  first {\n    color: red;\n  }\n}\n")
+	expectPrintedMangle(t, "reorder { & first, & .second { color: red } }", "reorder {\n  .second,\n  first {\n    color: red;\n  }\n}\n")
+	expectPrintedMangle(t, "reorder { & first, #second { color: red } }", "reorder {\n  #second,\n  first {\n    color: red;\n  }\n}\n")
+	expectPrintedMangle(t, "reorder { & first, [second] { color: red } }", "reorder {\n  [second],\n  first {\n    color: red;\n  }\n}\n")
+	expectPrintedMangle(t, "reorder { & first, :second { color: red } }", "reorder {\n  :second,\n  first {\n    color: red;\n  }\n}\n")
+	expectPrintedMangle(t, "reorder { & first, + second { color: red } }", "reorder {\n  + second,\n  first {\n    color: red;\n  }\n}\n")
+	expectPrintedMangle(t, "reorder { & first, ~ second { color: red } }", "reorder {\n  ~ second,\n  first {\n    color: red;\n  }\n}\n")
+	expectPrintedMangle(t, "reorder { & first, > second { color: red } }", "reorder {\n  > second,\n  first {\n    color: red;\n  }\n}\n")
+	expectPrintedMangle(t, "reorder { & first, second, .third { color: red } }", "reorder {\n  .third,\n  second,\n  first {\n    color: red;\n  }\n}\n")
+
+	// Inline no-op nesting
+	expectPrintedMangle(t, "div { & { color: red } }", "div {\n  color: red;\n}\n")
+	expectPrintedMangle(t, "div { && { color: red } }", "div {\n  color: red;\n}\n")
+	expectPrintedMangle(t, "div { zoom: 2; & { color: red } }", "div {\n  zoom: 2;\n  color: red;\n}\n")
+	expectPrintedMangle(t, "div { zoom: 2; && { color: red } }", "div {\n  zoom: 2;\n  color: red;\n}\n")
+	expectPrintedMangle(t, "div { &, && { color: red } zoom: 2 }", "div {\n  zoom: 2;\n  color: red;\n}\n")
+	expectPrintedMangle(t, "div { &&, & { color: red } zoom: 2 }", "div {\n  zoom: 2;\n  color: red;\n}\n")
+	expectPrintedMangle(t, "div { a: 1; & { b: 4 } b: 2; && { c: 5 } c: 3 }", "div {\n  a: 1;\n  b: 2;\n  c: 3;\n  b: 4;\n  c: 5;\n}\n")
+	expectPrintedMangle(t, "div { .b { x: 1 } & { x: 2 } }", "div {\n  .b {\n    x: 1;\n  }\n  x: 2;\n}\n")
+	expectPrintedMangle(t, "div { & { & { & { color: red } } & { & { zoom: 2 } } } }", "div {\n  color: red;\n  zoom: 2;\n}\n")
 }
 
 func TestBadQualifiedRules(t *testing.T) {

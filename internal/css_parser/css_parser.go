@@ -283,7 +283,7 @@ loop:
 		}
 
 		if context.parseSelectors {
-			rules = append(rules, p.parseSelectorRuleFrom(p.index, parseSelectorOpts{isTopLevel: context.isTopLevel}))
+			rules = append(rules, p.parseSelectorRuleFrom(p.index, context.isTopLevel, parseSelectorOpts{}))
 		} else {
 			rules = append(rules, p.parseQualifiedRuleFrom(p.index, parseQualifiedRuleOpts{isTopLevel: context.isTopLevel}))
 		}
@@ -297,6 +297,8 @@ loop:
 
 func (p *parser) parseListOfDeclarations() (list []css_ast.Rule) {
 	list = []css_ast.Rule{}
+	foundNesting := false
+
 	for {
 		switch p.current().Kind {
 		case css_lexer.TWhitespace, css_lexer.TSemicolon:
@@ -306,6 +308,24 @@ func (p *parser) parseListOfDeclarations() (list []css_ast.Rule) {
 			list = p.processDeclarations(list)
 			if p.options.MinifySyntax {
 				list = p.mangleRules(list, false /* isTopLevel */)
+
+				// Pull out all unnecessarily-nested declarations and stick them at the end
+				// "a { & { b: c } d: e }" => "a { d: e; b: c; }"
+				if foundNesting {
+					var inlineDecls []css_ast.Rule
+					n := 0
+					for _, rule := range list {
+						if rule, ok := rule.Data.(*css_ast.RSelector); ok && len(rule.Selectors) == 1 {
+							if sel := rule.Selectors[0]; len(sel.Selectors) == 1 && sel.Selectors[0].IsSingleAmpersand() {
+								inlineDecls = append(inlineDecls, rule.Rules...)
+								continue
+							}
+						}
+						list[n] = rule
+						n++
+					}
+					list = append(list[:n], inlineDecls...)
+				}
 			}
 			return
 
@@ -327,7 +347,8 @@ func (p *parser) parseListOfDeclarations() (list []css_ast.Rule) {
 			css_lexer.TDelimGreaterThan,
 			css_lexer.TDelimTilde:
 			p.maybeWarnAboutNesting(p.current().Range)
-			list = append(list, p.parseSelectorRuleFrom(p.index, parseSelectorOpts{}))
+			list = append(list, p.parseSelectorRuleFrom(p.index, false, parseSelectorOpts{isDeclarationContext: true}))
+			foundNesting = true
 
 		default:
 			list = append(list, p.parseDeclaration())
@@ -1600,7 +1621,7 @@ func mangleNumber(t string) (string, bool) {
 	return t, t != original
 }
 
-func (p *parser) parseSelectorRuleFrom(preludeStart int, opts parseSelectorOpts) css_ast.Rule {
+func (p *parser) parseSelectorRuleFrom(preludeStart int, isTopLevel bool, opts parseSelectorOpts) css_ast.Rule {
 	// Try parsing the prelude as a selector list
 	if list, ok := p.parseSelectorList(opts); ok {
 		selector := css_ast.RSelector{Selectors: list}
@@ -1615,7 +1636,7 @@ func (p *parser) parseSelectorRuleFrom(preludeStart int, opts parseSelectorOpts)
 	// Otherwise, parse a generic qualified rule
 	return p.parseQualifiedRuleFrom(preludeStart, parseQualifiedRuleOpts{
 		isAlreadyInvalid: true,
-		isTopLevel:       opts.isTopLevel,
+		isTopLevel:       isTopLevel,
 	})
 }
 

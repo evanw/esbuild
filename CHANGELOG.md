@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+* Minification now removes unnecessary `&` CSS nesting selectors
+
+    This release introduces the following CSS minification optimizations:
+
+    ```css
+    /* Original input */
+    a {
+      font-weight: bold;
+      & {
+        color: blue;
+      }
+      & :hover {
+        text-decoration: underline;
+      }
+    }
+
+    /* Old output (with --minify) */
+    a{font-weight:700;&{color:#00f}& :hover{text-decoration:underline}}
+
+    /* New output (with --minify) */
+    a{font-weight:700;:hover{text-decoration:underline}color:#00f}
+    ```
+
 * Minification now removes duplicates from CSS selector lists
 
     This release introduces the following CSS minification optimization:
