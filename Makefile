@@ -631,7 +631,11 @@ github/compat-table:
 	mkdir -p github/compat-table
 	git clone --depth 1 https://github.com/kangax/compat-table.git github/compat-table
 
-compat-table: | github/compat-table
+github/node-compat-table:
+	mkdir -p github/node-compat-table
+	git clone --depth 1 https://github.com/williamkapke/node-compat-table.git github/node-compat-table
+
+compat-table: | github/compat-table github/node-compat-table
 	node scripts/compat-table.js
 
 ################################################################################

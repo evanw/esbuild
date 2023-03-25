@@ -119,7 +119,7 @@ function getValueOfTest(value) {
   return value === true
 }
 
-function mergeVersions(target, res) {
+function mergeVersions(target, res, omit = []) {
   // The original data set will contain something like "chrome44: true" for a
   // given feature. And the interpolation script will expand this to something
   // like "chrome44: true, chrome45: true, chrome46: true, ..." so we want to
@@ -131,7 +131,7 @@ function mergeVersions(target, res) {
       const match = /^([a-z_]+)[0-9_]+$/.exec(key)
       if (match) {
         const engine = match[1]
-        if (engines.indexOf(engine) >= 0) {
+        if (engines.indexOf(engine) >= 0 && omit.indexOf(engine) < 0) {
           const version = parseEnvsVersions({ [key]: true })[engine][0].version
           if (!lowestVersionMap[engine] || compareVersions({ version }, { version: lowestVersionMap[engine] }) < 0) {
             lowestVersionMap[engine] = version
@@ -154,7 +154,10 @@ function mergeVersions(target, res) {
 }
 
 // ES5 features
-mergeVersions('ObjectAccessors', { es5: true })
+mergeVersions('ObjectAccessors', {
+  es5: true,
+  node0_4: true, // "node-compat-table" doesn't appear to cover ES5 features...
+})
 
 // ES6 features
 mergeVersions('ArraySpread', { es2015: true })
@@ -336,6 +339,8 @@ mergeVersions('RegexpMatchIndices', {
   safari15: true,
 })
 
+const omitNode = ['node']
+
 for (const test of [...es5.tests, ...es6.tests, ...stage4.tests, ...stage1to3.tests]) {
   const feature = features[test.name]
   if (feature) {
@@ -351,16 +356,90 @@ for (const test of [...es5.tests, ...es6.tests, ...stage4.tests, ...stage1to3.te
         for (const key in res)
           res[key] &&= getValueOfTest(subtest.res[key] ?? false)
 
-      mergeVersions(feature.target, res)
+      mergeVersions(feature.target, res, omitNode)
     } else {
-      mergeVersions(feature.target, test.res)
+      mergeVersions(feature.target, test.res, omitNode)
     }
   } else if (test.subtests) {
     for (const subtest of test.subtests) {
       const feature = features[`${test.name}: ${subtest.name}`]
       if (feature) {
         feature.found = true
-        mergeVersions(feature.target, subtest.res)
+        mergeVersions(feature.target, subtest.res, omitNode)
+      }
+    }
+  }
+}
+
+// Node compatibility data is handled separately because the data source
+// https://github.com/williamkapke/node-compat-table is (for now at least)
+// more up to date than https://github.com/kangax/compat-table.
+{
+  const nodeCompatTableDir = path.join(__dirname, '../github/node-compat-table/results/v8')
+  const reformattedTestResults = {}
+
+  // Format the data like the kangax table
+  for (const entry of fs.readdirSync(nodeCompatTableDir)) {
+    // Note: this omits data for the "0.x.y" releases because the data isn't clean
+    const match = /^([1-9]\d*\.\d+\.\d+)\.json$/.exec(entry)
+    if (match) {
+      const version = 'node' + match[1].replace(/\./g, '_')
+      const jsonPath = path.join(nodeCompatTableDir, entry)
+      const json = JSON.parse(fs.readFileSync(jsonPath, 'utf8'))
+
+      for (const key in json) {
+        if (key.startsWith('ES')) {
+          const object = json[key]
+
+          for (const key in object) {
+            const testResult = object[key]
+            const split = key.replace('<code>', '').replace('</code>', '').split('›')
+
+            if (split.length === 2) {
+              const test = reformattedTestResults[split[1]] || (reformattedTestResults[split[1]] = { name: split[1] })
+              const res = test.res || (test.res = {})
+              res[version] = testResult
+            }
+
+            else if (split.length === 3) {
+              const test = reformattedTestResults[split[1]] || (reformattedTestResults[split[1]] = { name: split[1] })
+              const subtests = test.subtests || (test.subtests = {})
+              const subtest = subtests[split[2]] || (subtests[split[2]] = { name: split[2] })
+              const res = subtest.res || (subtest.res = {})
+              res[version] = testResult
+            }
+          }
+        }
+      }
+    }
+  }
+
+  for (const test of Object.values(reformattedTestResults)) {
+    const feature = features[test.name]
+    if (feature) {
+      feature.found = true
+      if (test.subtests) {
+        const res = {}
+        for (const subtest of Object.values(test.subtests))
+          for (const key in subtest.res)
+            res[key] = true
+        for (const subtest of Object.values(test.subtests))
+          for (const key in res)
+            res[key] &&= getValueOfTest(subtest.res[key] ?? false)
+        mergeVersions(feature.target, res)
+      } else {
+        mergeVersions(feature.target, test.res)
+      }
+    } else if (test.subtests) {
+      for (const subtest of Object.values(test.subtests)) {
+        const feature = features[`${test.name}: ${subtest.name}`]
+        if (feature) {
+          if (feature.target === 'ObjectAccessors') {
+            console.log(test.name, res)
+          }
+          feature.found = true
+          mergeVersions(feature.target, subtest.res)
+        }
       }
     }
   }
@@ -370,21 +449,6 @@ for (const feature in features) {
   if (!features[feature].found) {
     throw new Error(`Did not find ${feature}`)
   }
-}
-
-// Apply some manual overrides from this thread: https://github.com/evanw/esbuild/issues/2940#issuecomment-1437818002
-// Each one has been manually checked using past node releases: https://nodejs.org/download/release/
-applyManualOverride('ClassPrivateBrandCheck', 'node', [{ start: [16, 9], end: null }], [{ start: [16, 4], end: null }])
-applyManualOverride('Hashbang', 'node', [{ start: [12, 0], end: null }], [{ start: [12, 5], end: null }])
-applyManualOverride('OptionalChain', 'node', [{ start: [16, 9], end: null }], [{ start: [16, 1], end: null }])
-applyManualOverride('TemplateLiteral', 'node', [{ start: [4], end: null }], [{ start: [10], end: null }])
-
-function applyManualOverride(target, engine, expected, changed) {
-  const observed = JSON.stringify(versions[target][engine])
-  expected = JSON.stringify(expected)
-  if (observed !== expected)
-    throw new Error(`Mismatch for versions.${target}.${engine}: Expected ${observed} to be ${expected}`)
-  versions[target][engine] = changed
 }
 
 function upper(text) {
