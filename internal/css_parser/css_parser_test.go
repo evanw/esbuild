@@ -1774,6 +1774,17 @@ func TestMangleAlpha(t *testing.T) {
 	expectPrintedLowerMangle(t, "a { color: #000000FF }", "a {\n  color: #000;\n}\n")
 }
 
+func TestMangleDuplicateSelectors(t *testing.T) {
+	expectPrinted(t, "a, a { color: red }", "a,\na {\n  color: red;\n}\n")
+	expectPrintedMangle(t, "a, a { color: red }", "a {\n  color: red;\n}\n")
+	expectPrintedMangle(t, "a, b { color: red }", "a,\nb {\n  color: red;\n}\n")
+	expectPrintedMangle(t, "a, a.foo, a.foo, a.bar, a { color: red }", "a,\na.foo,\na.bar {\n  color: red;\n}\n")
+
+	expectPrintedMangle(t, "@media screen { a, a { color: red } }", "@media screen {\n  a {\n    color: red;\n  }\n}\n")
+	expectPrintedMangle(t, "@media screen { a, b { color: red } }", "@media screen {\n  a,\n  b {\n    color: red;\n  }\n}\n")
+	expectPrintedMangle(t, "@media screen { a, a.foo, a.foo, a.bar, a { color: red } }", "@media screen {\n  a,\n  a.foo,\n  a.bar {\n    color: red;\n  }\n}\n")
+}
+
 func TestMangleDuplicateSelectorRules(t *testing.T) {
 	expectPrinted(t, "a { color: red } b { color: red }", "a {\n  color: red;\n}\nb {\n  color: red;\n}\n")
 	expectPrintedMangle(t, "a { color: red } b { color: red }", "a,\nb {\n  color: red;\n}\n")

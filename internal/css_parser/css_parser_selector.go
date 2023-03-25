@@ -15,6 +15,7 @@ func (p *parser) parseSelectorList(opts parseSelectorOpts) (list []css_ast.Compl
 	list = append(list, sel)
 
 	// Parse the remaining selectors
+skip:
 	for {
 		p.eat(css_lexer.TWhitespace)
 		if !p.eat(css_lexer.TComma) {
@@ -25,6 +26,16 @@ func (p *parser) parseSelectorList(opts parseSelectorOpts) (list []css_ast.Compl
 		if !good {
 			return
 		}
+
+		// Omit duplicate selectors
+		if p.options.MinifySyntax {
+			for _, existing := range list {
+				if sel.Equal(existing, nil) {
+					continue skip
+				}
+			}
+		}
+
 		list = append(list, sel)
 	}
 

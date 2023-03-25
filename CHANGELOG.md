@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+* Minification now removes duplicates from CSS selector lists
+
+    This release introduces the following CSS minification optimization:
+
+    ```css
+    /* Original input */
+    div, div { color: red }
+
+    /* Old output (with --minify) */
+    div,div{color:red}
+
+    /* New output (with --minify) */
+    div{color:red}
+    ```
+
 ## 0.17.13
 
 * Work around an issue with `NODE_PATH` and Go's WebAssembly internals ([#3001](https://github.com/evanw/esbuild/issues/3001))
