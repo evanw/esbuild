@@ -295,7 +295,11 @@ loop:
 	return rules
 }
 
-func (p *parser) parseListOfDeclarations() (list []css_ast.Rule) {
+type listOfDeclarationsOpts struct {
+	canInlineNoOpNesting bool
+}
+
+func (p *parser) parseListOfDeclarations(opts listOfDeclarationsOpts) (list []css_ast.Rule) {
 	list = []css_ast.Rule{}
 	foundNesting := false
 
@@ -310,21 +314,26 @@ func (p *parser) parseListOfDeclarations() (list []css_ast.Rule) {
 				list = p.mangleRules(list, false /* isTopLevel */)
 
 				// Pull out all unnecessarily-nested declarations and stick them at the end
-				// "a { & { b: c } d: e }" => "a { d: e; b: c; }"
-				if foundNesting {
-					var inlineDecls []css_ast.Rule
-					n := 0
-					for _, rule := range list {
-						if rule, ok := rule.Data.(*css_ast.RSelector); ok && len(rule.Selectors) == 1 {
-							if sel := rule.Selectors[0]; len(sel.Selectors) == 1 && sel.Selectors[0].IsSingleAmpersand() {
-								inlineDecls = append(inlineDecls, rule.Rules...)
-								continue
+				if opts.canInlineNoOpNesting {
+					// "a { & { x: y } }" => "a { x: y }"
+					// "a { & { b: c } d: e }" => "a { d: e; b: c }"
+					if foundNesting {
+						var inlineDecls []css_ast.Rule
+						n := 0
+						for _, rule := range list {
+							if rule, ok := rule.Data.(*css_ast.RSelector); ok && len(rule.Selectors) == 1 {
+								if sel := rule.Selectors[0]; len(sel.Selectors) == 1 && sel.Selectors[0].IsSingleAmpersand() {
+									inlineDecls = append(inlineDecls, rule.Rules...)
+									continue
+								}
 							}
+							list[n] = rule
+							n++
 						}
-						list[n] = rule
-						n++
+						list = append(list[:n], inlineDecls...)
 					}
-					list = append(list[:n], inlineDecls...)
+				} else {
+					// "a, b::before { & { x: y } }" => "a, b::before { & { x: y } }"
 				}
 			}
 			return
@@ -332,7 +341,8 @@ func (p *parser) parseListOfDeclarations() (list []css_ast.Rule) {
 		case css_lexer.TAtKeyword:
 			p.maybeWarnAboutNesting(p.current().Range)
 			list = append(list, p.parseAtRule(atRuleContext{
-				isDeclarationList: true,
+				isDeclarationList:    true,
+				canInlineNoOpNesting: opts.canInlineNoOpNesting,
 			}))
 
 		// Reference: https://drafts.csswg.org/css-nesting-1/
@@ -848,11 +858,12 @@ const (
 )
 
 type atRuleContext struct {
-	afterLoc          logger.Loc
-	charsetValidity   atRuleValidity
-	importValidity    atRuleValidity
-	isDeclarationList bool
-	isTopLevel        bool
+	afterLoc             logger.Loc
+	charsetValidity      atRuleValidity
+	importValidity       atRuleValidity
+	canInlineNoOpNesting bool
+	isDeclarationList    bool
+	isTopLevel           bool
 }
 
 func (p *parser) parseAtRule(context atRuleContext) css_ast.Rule {
@@ -1006,7 +1017,7 @@ abortRuleParser:
 						case css_lexer.TOpenBrace:
 							blockMatchingLoc := p.current().Range.Loc
 							p.advance()
-							rules := p.parseListOfDeclarations()
+							rules := p.parseListOfDeclarations(listOfDeclarationsOpts{})
 							p.expectWithMatchingLoc(css_lexer.TCloseBrace, blockMatchingLoc)
 
 							// "@keyframes { from {} to { color: red } }" => "@keyframes { to { color: red } }"
@@ -1108,7 +1119,9 @@ abortRuleParser:
 		if len(names) <= 1 && p.eat(css_lexer.TOpenBrace) {
 			var rules []css_ast.Rule
 			if context.isDeclarationList {
-				rules = p.parseListOfDeclarations()
+				rules = p.parseListOfDeclarations(listOfDeclarationsOpts{
+					canInlineNoOpNesting: context.canInlineNoOpNesting,
+				})
 			} else {
 				rules = p.parseListOfRules(ruleContext{
 					parseSelectors: true,
@@ -1210,7 +1223,7 @@ prelude:
 		// Parse known rules whose blocks always consist of declarations
 		matchingLoc := p.current().Range.Loc
 		p.expect(css_lexer.TOpenBrace)
-		rules := p.parseListOfDeclarations()
+		rules := p.parseListOfDeclarations(listOfDeclarationsOpts{})
 		p.expectWithMatchingLoc(css_lexer.TCloseBrace, matchingLoc)
 		return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RKnownAt{AtToken: atToken, Prelude: prelude, Rules: rules}}
 
@@ -1220,7 +1233,9 @@ prelude:
 		p.expect(css_lexer.TOpenBrace)
 		var rules []css_ast.Rule
 		if context.isDeclarationList {
-			rules = p.parseListOfDeclarations()
+			rules = p.parseListOfDeclarations(listOfDeclarationsOpts{
+				canInlineNoOpNesting: context.canInlineNoOpNesting,
+			})
 		} else {
 			rules = p.parseListOfRules(ruleContext{
 				parseSelectors: true,
@@ -1624,10 +1639,26 @@ func mangleNumber(t string) (string, bool) {
 func (p *parser) parseSelectorRuleFrom(preludeStart int, isTopLevel bool, opts parseSelectorOpts) css_ast.Rule {
 	// Try parsing the prelude as a selector list
 	if list, ok := p.parseSelectorList(opts); ok {
+		canInlineNoOpNesting := true
+		for _, sel := range list {
+			// We cannot transform the CSS "a, b::before { & { color: red } }" into
+			// "a, b::before { color: red }" because it's basically equivalent to
+			// ":is(a, b::before) { color: red }" which only applies to "a", not to
+			// "b::before" because pseudo-elements are not valid within :is():
+			// https://www.w3.org/TR/selectors-4/#matches-pseudo. This restriction
+			// may be relaxed in the future, but this restriction hash shipped so
+			// we're stuck with it: https://github.com/w3c/csswg-drafts/issues/7433.
+			if sel.UsesPseudoElement() {
+				canInlineNoOpNesting = false
+				break
+			}
+		}
 		selector := css_ast.RSelector{Selectors: list}
 		matchingLoc := p.current().Range.Loc
 		if p.expect(css_lexer.TOpenBrace) {
-			selector.Rules = p.parseListOfDeclarations()
+			selector.Rules = p.parseListOfDeclarations(listOfDeclarationsOpts{
+				canInlineNoOpNesting: canInlineNoOpNesting,
+			})
 			p.expectWithMatchingLoc(css_lexer.TCloseBrace, matchingLoc)
 			return css_ast.Rule{Loc: p.tokens[preludeStart].Range.Loc, Data: &selector}
 		}
@@ -1671,7 +1702,7 @@ loop:
 
 	matchingLoc := p.current().Range.Loc
 	if p.eat(css_lexer.TOpenBrace) {
-		qualified.Rules = p.parseListOfDeclarations()
+		qualified.Rules = p.parseListOfDeclarations(listOfDeclarationsOpts{})
 		p.expectWithMatchingLoc(css_lexer.TCloseBrace, matchingLoc)
 	} else if !opts.isAlreadyInvalid {
 		p.expect(css_lexer.TOpenBrace)

@@ -598,6 +598,29 @@ type ComplexSelector struct {
 	Selectors []CompoundSelector
 }
 
+func (sel ComplexSelector) UsesPseudoElement() bool {
+	for _, sel := range sel.Selectors {
+		for _, sub := range sel.SubclassSelectors {
+			if class, ok := sub.(*SSPseudoClass); ok {
+				if class.IsElement {
+					return true
+				}
+
+				// https://www.w3.org/TR/selectors-4/#single-colon-pseudos
+				// The four Level 2 pseudo-elements (::before, ::after, ::first-line,
+				// and ::first-letter) may, for legacy reasons, be represented using
+				// the <pseudo-class-selector> grammar, with only a single ":"
+				// character at their start.
+				switch class.Name {
+				case "before", "after", "first-line", "first-letter":
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 func (a ComplexSelector) Equal(b ComplexSelector, check *CrossFileEqualityCheck) bool {
 	if len(a.Selectors) != len(b.Selectors) {
 		return false

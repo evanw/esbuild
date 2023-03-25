@@ -838,6 +838,22 @@ func TestNestedSelector(t *testing.T) {
 	expectPrintedMangle(t, "div { a: 1; & { b: 4 } b: 2; && { c: 5 } c: 3 }", "div {\n  a: 1;\n  b: 2;\n  c: 3;\n  b: 4;\n  c: 5;\n}\n")
 	expectPrintedMangle(t, "div { .b { x: 1 } & { x: 2 } }", "div {\n  .b {\n    x: 1;\n  }\n  x: 2;\n}\n")
 	expectPrintedMangle(t, "div { & { & { & { color: red } } & { & { zoom: 2 } } } }", "div {\n  color: red;\n  zoom: 2;\n}\n")
+
+	// Cannot inline no-op nesting with pseudo-elements (https://github.com/w3c/csswg-drafts/issues/7433)
+	expectPrintedMangle(t, "div, span:hover { & { color: red } }", "div,\nspan:hover {\n  color: red;\n}\n")
+	expectPrintedMangle(t, "div, span::before { & { color: red } }", "div,\nspan:before {\n  & {\n    color: red;\n  }\n}\n")
+	expectPrintedMangle(t, "div, span:before { & { color: red } }", "div,\nspan:before {\n  & {\n    color: red;\n  }\n}\n")
+	expectPrintedMangle(t, "div, span::after { & { color: red } }", "div,\nspan:after {\n  & {\n    color: red;\n  }\n}\n")
+	expectPrintedMangle(t, "div, span:after { & { color: red } }", "div,\nspan:after {\n  & {\n    color: red;\n  }\n}\n")
+	expectPrintedMangle(t, "div, span::first-line { & { color: red } }", "div,\nspan:first-line {\n  & {\n    color: red;\n  }\n}\n")
+	expectPrintedMangle(t, "div, span:first-line { & { color: red } }", "div,\nspan:first-line {\n  & {\n    color: red;\n  }\n}\n")
+	expectPrintedMangle(t, "div, span::first-letter { & { color: red } }", "div,\nspan:first-letter {\n  & {\n    color: red;\n  }\n}\n")
+	expectPrintedMangle(t, "div, span:first-letter { & { color: red } }", "div,\nspan:first-letter {\n  & {\n    color: red;\n  }\n}\n")
+	expectPrintedMangle(t, "div, span::pseudo { & { color: red } }", "div,\nspan::pseudo {\n  & {\n    color: red;\n  }\n}\n")
+	expectPrintedMangle(t, "div, span:hover { @layer foo { & { color: red } } }", "div,\nspan:hover {\n  @layer foo {\n    color: red;\n  }\n}\n")
+	expectPrintedMangle(t, "div, span:hover { @media screen { & { color: red } } }", "div,\nspan:hover {\n  @media screen {\n    color: red;\n  }\n}\n")
+	expectPrintedMangle(t, "div, span::pseudo { @layer foo { & { color: red } } }", "div,\nspan::pseudo {\n  @layer foo {\n    & {\n      color: red;\n    }\n  }\n}\n")
+	expectPrintedMangle(t, "div, span::pseudo { @media screen { & { color: red } } }", "div,\nspan::pseudo {\n  @media screen {\n    & {\n      color: red;\n    }\n  }\n}\n")
 }
 
 func TestBadQualifiedRules(t *testing.T) {
