@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.17.14
 
 * Allow the TypeScript 5.0 `const` modifier in object type declarations ([#3021](https://github.com/evanw/esbuild/issues/3021))
 
