@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+* Allow the TypeScript 5.0 `const` modifier in object type declarations ([#3021](https://github.com/evanw/esbuild/issues/3021))
+
+    The new TypeScript 5.0 `const` modifier was added to esbuild in version 0.17.5, and works with classes, functions, and arrow expressions. However, support for it wasn't added to object type declarations (e.g. interfaces) due to an oversight. This release adds support for these cases, so the following TypeScript 5.0 code can now be built with esbuild:
+
+    ```ts
+    interface Foo { <const T>(): T }
+    type Bar = { new <const T>(): T }
+    ```
+
 * Implement preliminary lowering for CSS nesting ([#1945](https://github.com/evanw/esbuild/issues/1945))
 
     Chrome has [implemented the new CSS nesting specification](https://developer.chrome.com/articles/css-nesting/) in version 112, which is currently in beta but will become stable very soon. So CSS nesting is now a part of the web platform!

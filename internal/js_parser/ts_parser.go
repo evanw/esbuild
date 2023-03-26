@@ -599,7 +599,7 @@ func (p *parser) skipTypeScriptObjectType() {
 		}
 
 		// Type parameters come right after the optional mark
-		p.skipTypeScriptTypeParameters(0)
+		p.skipTypeScriptTypeParameters(allowConstModifier)
 
 		switch p.lexer.Token {
 		case js_lexer.TColon:
