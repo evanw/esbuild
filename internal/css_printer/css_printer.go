@@ -211,14 +211,14 @@ func (p *printer) printRule(rule css_ast.Rule, indent int32, omitTrailingSemicol
 			whitespace = canDiscardWhitespaceAfter
 		}
 		p.printIdent(r.AtToken, identNormal, whitespace)
-		if (!p.options.MinifyWhitespace && r.Block != nil) || len(r.Prelude) > 0 {
+		if (!p.options.MinifyWhitespace && len(r.Block) != 0) || len(r.Prelude) > 0 {
 			p.print(" ")
 		}
 		p.printTokens(r.Prelude, printTokensOpts{})
-		if !p.options.MinifyWhitespace && r.Block != nil && len(r.Prelude) > 0 {
+		if !p.options.MinifyWhitespace && len(r.Block) != 0 && len(r.Prelude) > 0 {
 			p.print(" ")
 		}
-		if r.Block == nil {
+		if len(r.Block) == 0 {
 			p.print(";")
 		} else {
 			p.printTokens(r.Block, printTokensOpts{})
@@ -471,7 +471,8 @@ func (p *printer) printPseudoClassSelector(pseudo css_ast.SSPseudoClass, whitesp
 		p.print(":")
 	}
 
-	if len(pseudo.Args) > 0 {
+	// This checks for "nil" so we can distinguish ":is()" from ":is"
+	if pseudo.Args != nil {
 		p.printIdent(pseudo.Name, identNormal, canDiscardWhitespaceAfter)
 		p.print("(")
 		p.printTokens(pseudo.Args, printTokensOpts{})

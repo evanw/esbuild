@@ -2,6 +2,66 @@
 
 ## Unreleased
 
+* Implement preliminary lowering for CSS nesting ([#1945](https://github.com/evanw/esbuild/issues/1945))
+
+    Chrome has [implemented the new CSS nesting specification](https://developer.chrome.com/articles/css-nesting/) in version 112, which is currently in beta but will become stable very soon. So CSS nesting is now a part of the web platform!
+
+    This release of esbuild can now transform nested CSS syntax into non-nested CSS syntax for older browsers. The transformation relies on the `:is()` pseudo-class in many cases, so the transformation is only guaranteed to work when targeting browsers that support `:is()` (e.g. Chrome 88+). You'll need to set esbuild's [`target`](https://esbuild.github.io/api/#target) to the browsers you intend to support to tell esbuild to do this transformation. You will get a warning if you use CSS nesting syntax with a `target` which includes older browsers that don't support `:is()`.
+
+    The lowering transformation looks like this:
+
+    ```css
+    /* Original input */
+    a.btn {
+      color: #333;
+      &:hover { color: #444 }
+      &:active { color: #555 }
+    }
+
+    /* New output (with --target=chrome88) */
+    a.btn {
+      color: #333;
+    }
+    a.btn:hover {
+      color: #444;
+    }
+    a.btn:active {
+      color: #555;
+    }
+    ```
+
+    More complex cases may generate the `:is()` pseudo-class:
+
+    ```css
+    /* Original input */
+    div, p {
+      .warning, .error {
+        padding: 20px;
+      }
+    }
+
+    /* New output (with --target=chrome88) */
+    :is(div, p) :is(.warning, .error) {
+      padding: 20px;
+    }
+    ```
+
+    In addition, esbuild now has a special warning message for nested style rules that start with an identifier. This isn't allowed in CSS because the syntax would be ambiguous with the existing declaration syntax. The new warning message looks like this:
+
+    ```
+    ▲ [WARNING] A nested style rule cannot start with "p" because it looks like the start of a declaration [css-syntax-error]
+
+        <stdin>:1:7:
+          1 │ main { p { margin: auto } }
+            │        ^
+            ╵        :is(p)
+
+      To start a nested style rule with an identifier, you need to wrap the identifier in ":is(...)" to
+      prevent the rule from being parsed as a declaration.
+    ```
+
+    Keep in mind that the transformation in this release is a preliminary implementation. CSS has many features that interact in complex ways, and there may be some edge cases that don't work correctly yet.
+
 * Minification now removes unnecessary `&` CSS nesting selectors
 
     This release introduces the following CSS minification optimizations:

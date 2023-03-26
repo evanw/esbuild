@@ -106,9 +106,7 @@ func (p *parser) parseComplexSelector(opts parseSelectorOpts) (result css_ast.Co
 	r := p.current().Range
 	combinator := p.parseCombinator()
 	if combinator != 0 {
-		if !opts.isDeclarationContext {
-			p.maybeWarnAboutNesting(r)
-		}
+		p.reportUseOfNesting(r, opts.isDeclarationContext)
 		p.eat(css_lexer.TWhitespace)
 	}
 
@@ -155,9 +153,7 @@ func (p *parser) nameToken() css_ast.NameToken {
 func (p *parser) parseCompoundSelector(opts parseSelectorOpts) (sel css_ast.CompoundSelector, ok bool) {
 	// This is an extension: https://drafts.csswg.org/css-nesting-1/
 	if p.peek(css_lexer.TDelimAmpersand) {
-		if !opts.isDeclarationContext {
-			p.maybeWarnAboutNesting(p.current().Range)
-		}
+		p.reportUseOfNesting(p.current().Range, opts.isDeclarationContext)
 		sel.HasNestingSelector = true
 		p.advance()
 	}
@@ -243,10 +239,8 @@ subclassSelectors:
 
 		case css_lexer.TDelimAmpersand:
 			// This is an extension: https://drafts.csswg.org/css-nesting-1/
-			if !sel.HasNestingSelector {
-				p.maybeWarnAboutNesting(p.current().Range)
-				sel.HasNestingSelector = true
-			}
+			p.reportUseOfNesting(p.current().Range, sel.HasNestingSelector)
+			sel.HasNestingSelector = true
 			p.advance()
 
 		default:

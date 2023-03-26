@@ -598,6 +598,44 @@ type ComplexSelector struct {
 	Selectors []CompoundSelector
 }
 
+func (s ComplexSelector) AppendToTokens(tokens []Token) []Token {
+	for i, sel := range s.Selectors {
+		if n := len(tokens); i > 0 && n > 0 {
+			tokens[n-1].Whitespace |= WhitespaceAfter
+		}
+		tokens = sel.AppendToTokens(tokens)
+	}
+	return tokens
+}
+
+func (sel ComplexSelector) IsRelative() bool {
+	if sel.Selectors[0].Combinator == 0 {
+		for _, inner := range sel.Selectors {
+			if inner.HasNestingSelector {
+				return false
+			}
+			for _, ss := range inner.SubclassSelectors {
+				if class, ok := ss.(*SSPseudoClass); ok && tokensContainAmpersandRecursive(class.Args) {
+					return false
+				}
+			}
+		}
+	}
+	return true
+}
+
+func tokensContainAmpersandRecursive(tokens []Token) bool {
+	for _, t := range tokens {
+		if t.Kind == css_lexer.TDelimAmpersand {
+			return true
+		}
+		if children := t.Children; children != nil && tokensContainAmpersandRecursive(*children) {
+			return true
+		}
+	}
+	return false
+}
+
 func (sel ComplexSelector) UsesPseudoElement() bool {
 	for _, sel := range sel.Selectors {
 		for _, sub := range sel.SubclassSelectors {
@@ -662,6 +700,35 @@ func (sel CompoundSelector) IsSingleAmpersand() bool {
 	return sel.HasNestingSelector && sel.Combinator == 0 && sel.TypeSelector == nil && len(sel.SubclassSelectors) == 0
 }
 
+func (sel CompoundSelector) AppendToTokens(tokens []Token) []Token {
+	if sel.Combinator != 0 {
+		switch sel.Combinator {
+		case '>':
+			tokens = append(tokens, Token{Kind: css_lexer.TDelimGreaterThan, Text: ">", Whitespace: WhitespaceAfter})
+		case '+':
+			tokens = append(tokens, Token{Kind: css_lexer.TDelimPlus, Text: "+", Whitespace: WhitespaceAfter})
+		case '~':
+			tokens = append(tokens, Token{Kind: css_lexer.TDelimTilde, Text: "~", Whitespace: WhitespaceAfter})
+		default:
+			panic("Internal error")
+		}
+	}
+
+	if sel.HasNestingSelector {
+		tokens = append(tokens, Token{Kind: css_lexer.TDelimAmpersand, Text: "&"})
+	}
+
+	if sel.TypeSelector != nil {
+		tokens = sel.TypeSelector.AppendToTokens(tokens)
+	}
+
+	for _, ss := range sel.SubclassSelectors {
+		tokens = ss.AppendToTokens(tokens)
+	}
+
+	return tokens
+}
+
 type NameToken struct {
 	Text string
 	Kind css_lexer.T
@@ -675,6 +742,16 @@ type NamespacedName struct {
 	Name NameToken
 }
 
+func (n NamespacedName) AppendToTokens(tokens []Token) []Token {
+	if n.NamespacePrefix != nil {
+		tokens = append(tokens,
+			Token{Kind: n.NamespacePrefix.Kind, Text: n.NamespacePrefix.Text},
+			Token{Kind: css_lexer.TDelimBar, Text: "|"},
+		)
+	}
+	return append(tokens, Token{Kind: n.Name.Kind, Text: n.Name.Text})
+}
+
 func (a NamespacedName) Equal(b NamespacedName) bool {
 	return a.Name == b.Name && (a.NamespacePrefix == nil) == (b.NamespacePrefix == nil) &&
 		(a.NamespacePrefix == nil || b.NamespacePrefix == nil || *a.NamespacePrefix == *b.NamespacePrefix)
@@ -683,6 +760,7 @@ func (a NamespacedName) Equal(b NamespacedName) bool {
 type SS interface {
 	Equal(ss SS, check *CrossFileEqualityCheck) bool
 	Hash() uint32
+	AppendToTokens(tokens []Token) []Token
 }
 
 type SSHash struct {
@@ -700,6 +778,10 @@ func (ss *SSHash) Hash() uint32 {
 	return hash
 }
 
+func (ss *SSHash) AppendToTokens(tokens []Token) []Token {
+	return append(tokens, Token{Kind: css_lexer.THash, Text: ss.Name})
+}
+
 type SSClass struct {
 	Name string
 }
@@ -713,6 +795,13 @@ func (ss *SSClass) Hash() uint32 {
 	hash := uint32(2)
 	hash = helpers.HashCombineString(hash, ss.Name)
 	return hash
+}
+
+func (ss *SSClass) AppendToTokens(tokens []Token) []Token {
+	return append(tokens,
+		Token{Kind: css_lexer.TDelimDot, Text: "."},
+		Token{Kind: css_lexer.TIdent, Text: ss.Name},
+	)
 }
 
 type SSAttribute struct {
@@ -736,6 +825,55 @@ func (ss *SSAttribute) Hash() uint32 {
 	return hash
 }
 
+func (ss *SSAttribute) AppendToTokens(tokens []Token) []Token {
+	var children []Token
+	children = ss.NamespacedName.AppendToTokens(children)
+
+	if ss.MatcherOp != "" {
+		switch ss.MatcherOp {
+		case "=":
+			children = append(children, Token{Kind: css_lexer.TDelimEquals, Text: "="})
+		case "~=":
+			children = append(children, Token{Kind: css_lexer.TDelimTilde, Text: "~"}, Token{Kind: css_lexer.TDelimEquals, Text: "="})
+		case "|=":
+			children = append(children, Token{Kind: css_lexer.TDelimBar, Text: "|"}, Token{Kind: css_lexer.TDelimEquals, Text: "="})
+		case "^=":
+			children = append(children, Token{Kind: css_lexer.TDelimCaret, Text: "^"}, Token{Kind: css_lexer.TDelimEquals, Text: "="})
+		case "$=":
+			children = append(children, Token{Kind: css_lexer.TDelimDollar, Text: "$"}, Token{Kind: css_lexer.TDelimEquals, Text: "="})
+		case "*=":
+			children = append(children, Token{Kind: css_lexer.TDelimAsterisk, Text: "*"}, Token{Kind: css_lexer.TDelimEquals, Text: "="})
+		default:
+			panic("Internal error")
+		}
+		printAsIdent := false
+
+		// Print the value as an identifier if it's possible
+		if css_lexer.WouldStartIdentifierWithoutEscapes(ss.MatcherValue) {
+			printAsIdent = true
+			for _, c := range ss.MatcherValue {
+				if !css_lexer.IsNameContinue(c) {
+					printAsIdent = false
+					break
+				}
+			}
+		}
+
+		if printAsIdent {
+			children = append(children, Token{Kind: css_lexer.TIdent, Text: ss.MatcherValue})
+		} else {
+			children = append(children, Token{Kind: css_lexer.TString, Text: ss.MatcherValue})
+		}
+	}
+
+	if ss.MatcherModifier != 0 {
+		children = append(children, Token{Kind: css_lexer.TIdent, Text: string(rune(ss.MatcherModifier)), Whitespace: WhitespaceBefore})
+	}
+
+	tokens = append(tokens, Token{Kind: css_lexer.TOpenBracket, Text: "[", Children: &children})
+	return tokens
+}
+
 type SSPseudoClass struct {
 	Name      string
 	Args      []Token
@@ -752,4 +890,22 @@ func (ss *SSPseudoClass) Hash() uint32 {
 	hash = helpers.HashCombineString(hash, ss.Name)
 	hash = HashTokens(hash, ss.Args)
 	return hash
+}
+
+func (ss *SSPseudoClass) AppendToTokens(tokens []Token) []Token {
+	if ss.IsElement {
+		tokens = append(tokens, Token{Kind: css_lexer.TColon, Text: ":"})
+	}
+
+	if ss.Args != nil {
+		return append(tokens,
+			Token{Kind: css_lexer.TColon, Text: ":"},
+			Token{Kind: css_lexer.TFunction, Text: ss.Name, Children: &ss.Args},
+		)
+	}
+
+	return append(tokens,
+		Token{Kind: css_lexer.TColon, Text: ":"},
+		Token{Kind: css_lexer.TIdent, Text: ss.Name},
+	)
 }

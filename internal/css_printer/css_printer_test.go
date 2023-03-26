@@ -128,6 +128,16 @@ func TestSelector(t *testing.T) {
 	expectPrintedMinify(t, ":unknown( x ( a + b ), 'c' ) {}", ":unknown(x (a + b),\"c\"){}")
 	expectPrintedMinify(t, ":unknown( x ( a - b ), 'c' ) {}", ":unknown(x (a - b),\"c\"){}")
 	expectPrintedMinify(t, ":unknown( x ( a , b ), 'c' ) {}", ":unknown(x (a,b),\"c\"){}")
+
+	// ":foo()" is a parse error, but should ideally still be preserved so they don't accidentally become valid
+	expectPrinted(t, ":is {}", ":is {\n}\n")
+	expectPrinted(t, ":is() {}", ":is() {\n}\n")
+	expectPrinted(t, ":hover {}", ":hover {\n}\n")
+	expectPrinted(t, ":hover() {}", ":hover() {\n}\n")
+	expectPrintedMinify(t, ":is {}", ":is{}")
+	expectPrintedMinify(t, ":is() {}", ":is(){}")
+	expectPrintedMinify(t, ":hover {}", ":hover{}")
+	expectPrintedMinify(t, ":hover() {}", ":hover(){}")
 }
 
 func TestNestedSelector(t *testing.T) {

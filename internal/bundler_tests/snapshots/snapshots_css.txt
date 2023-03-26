@@ -182,92 +182,74 @@ console.log(void 0);
 TestCSSNestingOldBrowser
 ---------- /out/nested-@layer.css ----------
 /* nested-@layer.css */
-a {
-  @layer base {
+@layer base {
+  a {
     color: red;
   }
 }
 
 ---------- /out/nested-@media.css ----------
 /* nested-@media.css */
-a {
-  @media screen {
+@media screen {
+  a {
     color: red;
   }
 }
 
 ---------- /out/nested-ampersand-twice.css ----------
 /* nested-ampersand-twice.css */
+a,
 a {
-  &,
-  & {
-    color: red;
-  }
+  color: red;
 }
 
 ---------- /out/nested-ampersand-first.css ----------
 /* nested-ampersand-first.css */
-a {
-  &,
-  b {
-    color: red;
-  }
+a,
+a b {
+  color: red;
 }
 
 ---------- /out/nested-attribute.css ----------
 /* nested-attribute.css */
-a {
-  [href] {
-    color: red;
-  }
+a [href] {
+  color: red;
 }
 
 ---------- /out/nested-colon.css ----------
 /* nested-colon.css */
-a {
-  :hover {
-    color: red;
-  }
+a :hover {
+  color: red;
 }
 
 ---------- /out/nested-dot.css ----------
 /* nested-dot.css */
-a {
-  .cls {
-    color: red;
-  }
+a .cls {
+  color: red;
 }
 
 ---------- /out/nested-greaterthan.css ----------
 /* nested-greaterthan.css */
-a {
-  > b {
-    color: red;
-  }
+a > b {
+  color: red;
 }
 
 ---------- /out/nested-hash.css ----------
 /* nested-hash.css */
-a {
-  #id {
-    color: red;
-  }
+a #id {
+  color: red;
 }
 
 ---------- /out/nested-plus.css ----------
 /* nested-plus.css */
-a {
-  + b {
-    color: red;
-  }
+a + b {
+  color: red;
 }
 
 ---------- /out/nested-tilde.css ----------
 /* nested-tilde.css */
-a {
-  ~ b {
-    color: red;
-  }
+a ~ b {
+  color: red;
 }
 
 ---------- /out/toplevel-ampersand-twice.css ----------

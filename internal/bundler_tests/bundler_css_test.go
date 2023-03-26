@@ -772,7 +772,7 @@ func TestCSSNestingOldBrowser(t *testing.T) {
 		options: config.Options{
 			Mode:                   config.ModeBundle,
 			AbsOutputDir:           "/out",
-			UnsupportedCSSFeatures: compat.Nesting,
+			UnsupportedCSSFeatures: compat.Nesting | compat.IsPseudoClass,
 			OriginalTargetEnv:      "chrome10",
 		},
 		expectedScanLog: `media-ampersand-first.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
