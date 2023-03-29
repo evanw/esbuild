@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"math"
+	"regexp"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -348,6 +349,7 @@ type printer struct {
 	exportDefaultStart int
 	arrowExprStart     int
 	forOfInitStart     int
+	prevNumStart       int
 
 	prevOpEnd            int
 	prevNumEnd           int
@@ -514,6 +516,9 @@ func (p *printer) printNumber(value float64, level js_ast.L) {
 	} else {
 		if !math.Signbit(value) {
 			p.printSpaceBeforeIdentifier()
+
+			p.prevNumStart = len(p.js)
+
 			p.printNonNegativeFloat(absValue)
 
 			// Remember the end of the latest number
@@ -528,6 +533,9 @@ func (p *printer) printNumber(value float64, level js_ast.L) {
 			p.print(")")
 		} else {
 			p.printSpaceBeforeOperator(js_ast.UnOpNeg)
+
+			p.prevNumStart = len(p.js)
+
 			p.print("-")
 			p.printNonNegativeFloat(absValue)
 
@@ -1415,6 +1423,7 @@ func (p *printer) printUndefined(loc logger.Loc, level js_ast.L) {
 		p.printSpaceBeforeIdentifier()
 		p.addSourceMapping(loc)
 		p.print("void 0")
+		p.prevNumStart = len(p.js) - 1
 		p.prevNumEnd = len(p.js)
 	}
 }
@@ -2297,7 +2306,11 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		if p.canPrintIdentifier(e.Name) {
 			if e.OptionalChain != js_ast.OptionalChainStart && p.prevNumEnd == len(p.js) {
 				// "1.toString" is a syntax error, so print "1 .toString" instead
-				p.print(" ")
+				num := p.js[p.prevNumStart:p.prevNumEnd]
+				ok, _ := regexp.Match(`(?i)[xa-f.]`, num)
+				if !ok {
+					p.print(" ")
+				}
 			}
 			if e.OptionalChain == js_ast.OptionalChainStart {
 				p.print("?.")

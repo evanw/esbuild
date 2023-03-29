@@ -279,6 +279,11 @@ func TestNumber(t *testing.T) {
 	expectPrintedMinify(t, "x = 0xFFFF_FFFF_FFFF_F000", "x=0xfffffffffffff000;")
 	expectPrintedMinify(t, "x = 0xFFFF_FFFF_FFFF_F800", "x=1844674407370955e4;")
 	expectPrintedMinify(t, "x = 0xFFFF_FFFF_FFFF_FFFF", "x=18446744073709552e3;")
+
+	expectPrintedMinify(t, "(2).toFixed(0)", "2 .toFixed(0);")
+	expectPrintedMinify(t, "(0.2).toFixed(0)", ".2.toFixed(0);")
+	expectPrintedMinify(t, "(0.00000002).toFixed(0)", "2e-8.toFixed(0);")
+	expectPrintedMinify(t, "(1000000000000000128).toFixed(0)", "0xde0b6b3a7640080.toFixed(0);")
 }
 
 func TestArray(t *testing.T) {
