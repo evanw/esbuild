@@ -99,23 +99,6 @@ func errorsToString(errors []Message) string {
 	return sb.String()
 }
 
-func stripDirPrefix(path string, prefix string, allowedSlashes string) (string, bool) {
-	if strings.HasPrefix(path, prefix) {
-		pathLen := len(path)
-		prefixLen := len(prefix)
-		if prefixLen == 0 {
-			return path, true
-		}
-		if pathLen > prefixLen && strings.IndexByte(allowedSlashes, path[prefixLen]) >= 0 {
-			return path[prefixLen+1:], true
-		}
-		if pathLen == prefixLen {
-			return "", true
-		}
-	}
-	return "", false
-}
-
 func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	start := time.Now()
 

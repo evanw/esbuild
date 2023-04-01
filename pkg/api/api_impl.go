@@ -2445,3 +2445,38 @@ func summarizeOutputFiles(outputFiles []OutputFile) buildSummary {
 	}
 	return summary
 }
+
+func stripDirPrefix(path string, prefix string, allowedSlashes string) (string, bool) {
+	if strings.HasPrefix(path, prefix) {
+		pathLen := len(path)
+		prefixLen := len(prefix)
+
+		// Just return the path if there is no prefix
+		if prefixLen == 0 {
+			return path, true
+		}
+
+		// Return the empty string if the path equals the prefix
+		if pathLen == prefixLen {
+			return "", true
+		}
+
+		if strings.IndexByte(allowedSlashes, prefix[prefixLen-1]) >= 0 {
+			// Return the suffix if the prefix ends in a slash. Examples:
+			//
+			//   stripDirPrefix(`/foo`, `/`, `/`) => `foo`
+			//   stripDirPrefix(`C:\foo`, `C:\`, `\/`) => `foo`
+			//
+			return path[prefixLen:], true
+		} else if strings.IndexByte(allowedSlashes, path[prefixLen]) >= 0 {
+			// Return the suffix if there's a slash after the prefix. Examples:
+			//
+			//   stripDirPrefix(`/foo/bar`, `/foo`, `/`) => `bar`
+			//   stripDirPrefix(`C:\foo\bar`, `C:\foo`, `\/`) => `bar`
+			//
+			return path[prefixLen+1:], true
+		}
+	}
+
+	return "", false
+}

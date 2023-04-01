@@ -57,6 +57,10 @@
     foo(1e3.x,0 .x,.1.x,1e-4.x,0xffff0000ffff0000.x);
     ```
 
+* Fix server-sent events with live reload when writing to the file system root ([#3027](https://github.com/evanw/esbuild/issues/3027))
+
+    This release fixes a bug where esbuild previously failed to emit server-sent events for live reload when `outdir` was the file system root, such as `/`. This happened because `/` is the only path on Unix that cannot have a trailing slash trimmed from it, which was fixed by improved path handling.
+
 ## 0.17.14
 
 * Allow the TypeScript 5.0 `const` modifier in object type declarations ([#3021](https://github.com/evanw/esbuild/issues/3021))
