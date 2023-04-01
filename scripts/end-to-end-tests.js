@@ -1987,6 +1987,41 @@ tests.push(
     `,
   }, { async: true }),
 
+  // https://github.com/evanw/esbuild/issues/3029
+  test([
+    'node_modules/util-ex/src/index.js',
+    'node_modules/util-ex/src/fn1.js',
+    'node_modules/util-ex/src/fn2.js',
+    '--outdir=node_modules/util-ex/lib',
+    '--format=cjs',
+    '--platform=node',
+  ], {
+    'node_modules/util-ex/src/index.js': `
+      export * from './fn1'
+      export * from './fn2'
+    `,
+    'node_modules/util-ex/src/fn1.js': `
+      export function fn1() { return 1 }
+      export default fn1
+    `,
+    'node_modules/util-ex/src/fn2.js': `
+      export function fn2() { return 2 }
+      export default fn2
+    `,
+    'node_modules/util-ex/package.json': `{
+      "main": "./lib/index.js",
+      "type": "commonjs"
+    }`,
+    'node.js': `
+      import { fn1, fn2 } from 'util-ex'
+      if (fn1() !== 1) throw 'fail 1'
+      if (fn2() !== 2) throw 'fail 2'
+    `,
+    'package.json': `{
+      "type": "module"
+    }`,
+  }),
+
   // ESM => IIFE
   test(['in.js', '--outfile=node.js', '--format=iife'], {
     'in.js': `

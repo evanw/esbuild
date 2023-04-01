@@ -1615,6 +1615,11 @@ func TestExportWildcardFSNodeES6(t *testing.T) {
 		files: map[string]string{
 			"/entry.js": `
 				export * from 'fs'
+				export * from './internal'
+				export * from './external'
+			`,
+			"/internal.js": `
+				export let foo = 123
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
@@ -1623,6 +1628,13 @@ func TestExportWildcardFSNodeES6(t *testing.T) {
 			OutputFormat:  config.FormatESModule,
 			AbsOutputFile: "/out.js",
 			Platform:      config.PlatformNode,
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{
+					Exact: map[string]bool{
+						"./external": true,
+					},
+				},
+			},
 		},
 	})
 }
@@ -1632,6 +1644,11 @@ func TestExportWildcardFSNodeCommonJS(t *testing.T) {
 		files: map[string]string{
 			"/entry.js": `
 				export * from 'fs'
+				export * from './internal'
+				export * from './external'
+			`,
+			"/internal.js": `
+				export let foo = 123
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
@@ -1640,6 +1657,13 @@ func TestExportWildcardFSNodeCommonJS(t *testing.T) {
 			OutputFormat:  config.FormatCommonJS,
 			AbsOutputFile: "/out.js",
 			Platform:      config.PlatformNode,
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{
+					Exact: map[string]bool{
+						"./external": true,
+					},
+				},
+			},
 		},
 	})
 }
