@@ -350,7 +350,7 @@ type printer struct {
 	forOfInitStart     int
 
 	prevOpEnd            int
-	prevNumEnd           int
+	needSpaceBeforeDot   int
 	prevRegExpEnd        int
 	noLeadingNewlineHere int
 	intToBytesBuffer     [64]byte
@@ -515,9 +515,6 @@ func (p *printer) printNumber(value float64, level js_ast.L) {
 		if !math.Signbit(value) {
 			p.printSpaceBeforeIdentifier()
 			p.printNonNegativeFloat(absValue)
-
-			// Remember the end of the latest number
-			p.prevNumEnd = len(p.js)
 		} else if level >= js_ast.LPrefix {
 			// Expressions such as "(-1).toString" need to wrap negative numbers.
 			// Instead of testing for "value < 0" we test for "signbit(value)" and
@@ -530,9 +527,6 @@ func (p *printer) printNumber(value float64, level js_ast.L) {
 			p.printSpaceBeforeOperator(js_ast.UnOpNeg)
 			p.print("-")
 			p.printNonNegativeFloat(absValue)
-
-			// Remember the end of the latest number
-			p.prevNumEnd = len(p.js)
 		}
 	}
 }
@@ -1415,7 +1409,6 @@ func (p *printer) printUndefined(loc logger.Loc, level js_ast.L) {
 		p.printSpaceBeforeIdentifier()
 		p.addSourceMapping(loc)
 		p.print("void 0")
-		p.prevNumEnd = len(p.js)
 	}
 }
 
@@ -2295,7 +2288,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		}
 		p.printExpr(e.Target, js_ast.LPostfix, flags&(forbidCall|hasNonOptionalChainParent))
 		if p.canPrintIdentifier(e.Name) {
-			if e.OptionalChain != js_ast.OptionalChainStart && p.prevNumEnd == len(p.js) {
+			if e.OptionalChain != js_ast.OptionalChainStart && p.needSpaceBeforeDot == len(p.js) {
 				// "1.toString" is a syntax error, so print "1 .toString" instead
 				p.print(" ")
 			}
@@ -3169,6 +3162,9 @@ func (p *printer) printNonNegativeFloat(absValue float64) {
 	if absValue < 1000 {
 		if asInt := int64(absValue); absValue == float64(asInt) {
 			p.printBytes(p.smallIntToBytes(int(asInt)))
+
+			// Integers always need a space before "." to avoid making a decimal point
+			p.needSpaceBeforeDot = len(p.js)
 			return
 		}
 	}
@@ -3290,6 +3286,11 @@ func (p *printer) printNonNegativeFloat(absValue float64) {
 	}
 
 	p.printBytes(result)
+
+	// We'll need a space before "." if it could be parsed as a decimal point
+	if !bytes.ContainsAny(result, ".ex") {
+		p.needSpaceBeforeDot = len(p.js)
+	}
 }
 
 func (p *printer) printDeclStmt(isExport bool, keyword string, decls []js_ast.Decl) {
@@ -4523,7 +4524,7 @@ func Print(tree js_ast.AST, symbols js_ast.SymbolMap, r renamer.Renamer, options
 		forOfInitStart:     -1,
 
 		prevOpEnd:            -1,
-		prevNumEnd:           -1,
+		needSpaceBeforeDot:   -1,
 		prevRegExpEnd:        -1,
 		noLeadingNewlineHere: -1,
 		builder:              sourcemap.MakeChunkBuilder(options.InputSourceMap, options.LineOffsetTables, options.ASCIIOnly),

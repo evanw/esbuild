@@ -42,6 +42,21 @@
 
     Note that you need to specify both `--format=cjs` and `--platform=node` to get these node-specific annotations.
 
+* Avoid printing an unnecessary space in between a number and a `.` ([#3026](https://github.com/evanw/esbuild/pull/3026))
+
+    JavaScript typically requires a space in between a number token and a `.` token to avoid the `.` being interpreted as a decimal point instead of a member expression. However, this space is not required if the number token itself contains a decimal point, an exponent, or uses a base other than 10. This release of esbuild now avoids printing the unnecessary space in these cases:
+
+    ```js
+    // Original input
+    foo(1000 .x, 0 .x, 0.1 .x, 0.0001 .x, 0xFFFF_0000_FFFF_0000 .x)
+
+    // Old output (with --minify)
+    foo(1e3 .x,0 .x,.1 .x,1e-4 .x,0xffff0000ffff0000 .x);
+
+    // New output (with --minify)
+    foo(1e3.x,0 .x,.1.x,1e-4.x,0xffff0000ffff0000.x);
+    ```
+
 ## 0.17.14
 
 * Allow the TypeScript 5.0 `const` modifier in object type declarations ([#3021](https://github.com/evanw/esbuild/issues/3021))

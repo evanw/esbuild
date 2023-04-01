@@ -279,6 +279,18 @@ func TestNumber(t *testing.T) {
 	expectPrintedMinify(t, "x = 0xFFFF_FFFF_FFFF_F000", "x=0xfffffffffffff000;")
 	expectPrintedMinify(t, "x = 0xFFFF_FFFF_FFFF_F800", "x=1844674407370955e4;")
 	expectPrintedMinify(t, "x = 0xFFFF_FFFF_FFFF_FFFF", "x=18446744073709552e3;")
+
+	// Check printing a space in between a number and a subsequent "."
+	expectPrintedMinify(t, "x = 0.0001 .y", "x=1e-4.y;")
+	expectPrintedMinify(t, "x = 0.001 .y", "x=.001.y;")
+	expectPrintedMinify(t, "x = 0.01 .y", "x=.01.y;")
+	expectPrintedMinify(t, "x = 0.1 .y", "x=.1.y;")
+	expectPrintedMinify(t, "x = 0 .y", "x=0 .y;")
+	expectPrintedMinify(t, "x = 10 .y", "x=10 .y;")
+	expectPrintedMinify(t, "x = 100 .y", "x=100 .y;")
+	expectPrintedMinify(t, "x = 1000 .y", "x=1e3.y;")
+	expectPrintedMinify(t, "x = 12345 .y", "x=12345 .y;")
+	expectPrintedMinify(t, "x = 0xFFFF_0000_FFFF_0000 .y", "x=0xffff0000ffff0000.y;")
 }
 
 func TestArray(t *testing.T) {
