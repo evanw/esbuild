@@ -314,11 +314,12 @@ loop:
 				// Valid:
 				//   "[keyof: string]"
 				//   "{[keyof: string]: number}"
+				//   "{[keyof in string]: number}"
 				//
 				// Invalid:
 				//   "A extends B ? keyof : string"
 				//
-				if p.lexer.Token != js_lexer.TColon || (!flags.has(isIndexSignatureFlag) && !flags.has(allowTupleLabelsFlag)) {
+				if (p.lexer.Token != js_lexer.TColon && p.lexer.Token != js_lexer.TIn) || (!flags.has(isIndexSignatureFlag) && !flags.has(allowTupleLabelsFlag)) {
 					p.skipTypeScriptType(js_ast.LPrefix)
 				}
 				break loop
@@ -329,7 +330,8 @@ loop:
 				// "type Foo = Bar extends [infer T] ? T : null"
 				// "type Foo = Bar extends [infer T extends string] ? T : null"
 				// "type Foo = Bar extends [infer T extends string ? infer T : never] ? T : null"
-				if p.lexer.Token != js_lexer.TColon || (!flags.has(isIndexSignatureFlag) && !flags.has(allowTupleLabelsFlag)) {
+				// "type Foo = { [infer in Bar]: number }"
+				if (p.lexer.Token != js_lexer.TColon && p.lexer.Token != js_lexer.TIn) || (!flags.has(isIndexSignatureFlag) && !flags.has(allowTupleLabelsFlag)) {
 					p.lexer.Expect(js_lexer.TIdentifier)
 					if p.lexer.Token == js_lexer.TExtends {
 						p.trySkipTypeScriptConstraintOfInferTypeWithBacktracking(flags)

@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+* Allow keywords as type parameter names in mapped types ([#3033](https://github.com/evanw/esbuild/issues/3033))
+
+    TypeScript allows type keywords to be used as parameter names in mapped types. Previously esbuild incorrectly treated this as an error. Code that does this is now supported:
+
+    ```ts
+    type Foo = 'a' | 'b' | 'c'
+    type A = { [keyof in Foo]: number }
+    type B = { [infer in Foo]: number }
+    type C = { [readonly in Foo]: number }
+    ```
+
 ## 0.17.14
 
 * Allow the TypeScript 5.0 `const` modifier in object type declarations ([#3021](https://github.com/evanw/esbuild/issues/3021))
