@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.17.15
 
 * Allow keywords as type parameter names in mapped types ([#3033](https://github.com/evanw/esbuild/issues/3033))
 
