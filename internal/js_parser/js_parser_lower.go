@@ -2375,7 +2375,8 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 				if key, ok := prop.Key.Data.(*js_ast.EString); ok {
 					isConstructor = helpers.UTF16EqualsString(key.Value, "constructor")
 				}
-				for i, arg := range fn.Fn.Args {
+				args := fn.Fn.Args
+				for i, arg := range args {
 					for _, decorator := range arg.Decorators {
 						// Generate a call to "__decorateParam()" for this parameter decorator
 						var decorators *[]js_ast.Expr = &prop.Decorators
@@ -2388,6 +2389,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 								decorator,
 							}),
 						)
+						args[i].Decorators = nil
 					}
 				}
 			}
@@ -2492,6 +2494,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 					descriptorKey,
 					{Loc: loc, Data: &js_ast.ENumber{Value: descriptorKind}},
 				})
+				prop.Decorators = nil
 
 				// Static decorators are grouped after instance decorators
 				if prop.Flags.Has(js_ast.PropertyIsStatic) {
@@ -2945,6 +2948,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 		))
 		p.recordUsage(nameForClassDecorators.Ref)
 		p.recordUsage(nameForClassDecorators.Ref)
+		class.Decorators = nil
 	}
 	if generatedLocalStmt {
 		// "export default class x {}" => "class x {} export {x as default}"

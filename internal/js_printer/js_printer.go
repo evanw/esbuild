@@ -839,6 +839,7 @@ func (p *printer) printFnArgs(args []js_ast.Arg, opts fnArgsOpts) {
 			p.print(",")
 			p.printSpace()
 		}
+		p.printDecorators(arg.Decorators, printDecoratorsAllOnOneLine)
 		if opts.hasRestArg && i+1 == len(args) {
 			p.print("...")
 		}
@@ -863,6 +864,67 @@ func (p *printer) printFn(fn js_ast.Fn) {
 	p.printBlock(fn.Body.Loc, fn.Body.Block)
 }
 
+type printDecorators uint8
+
+const (
+	printDecoratorsOnSeparateLines printDecorators = iota
+	printDecoratorsAllOnOneLine
+)
+
+func (p *printer) printDecorators(decorators []js_ast.Expr, how printDecorators) {
+	for _, decorator := range decorators {
+		wrap := false
+		expr := decorator
+
+	outer:
+		for {
+			switch e := expr.Data.(type) {
+			case *js_ast.EIdentifier, *js_ast.ECall:
+				// "@foo"
+				break outer
+
+			case *js_ast.EDot:
+				// "@foo.bar"
+				expr = e.Target
+
+			case *js_ast.EIndex:
+				if _, ok := e.Index.Data.(*js_ast.EPrivateIdentifier); !ok {
+					// "@(foo[bar])"
+					wrap = true
+					break outer
+				}
+
+				// "@foo.#bar"
+				expr = e.Target
+
+			default:
+				// "@(foo + bar)"
+				// "@(() => {})"
+				wrap = true
+				break outer
+			}
+		}
+
+		p.print("@")
+		if wrap {
+			p.print("(")
+		}
+		p.printExpr(decorator, js_ast.LLowest, 0)
+		if wrap {
+			p.print(")")
+		}
+
+		switch how {
+		case printDecoratorsOnSeparateLines:
+			p.printNewline()
+			p.printIndent()
+
+		case printDecoratorsAllOnOneLine:
+			p.printSpace()
+		}
+	}
+}
+
 func (p *printer) printClass(class js_ast.Class) {
 	if class.ExtendsOrNil.Data != nil {
 		p.print(" extends")
@@ -879,6 +941,7 @@ func (p *printer) printClass(class js_ast.Class) {
 	for _, item := range class.Properties {
 		p.printSemicolonIfNeeded()
 		p.printIndent()
+		p.printDecorators(item.Decorators, printDecoratorsOnSeparateLines)
 
 		if item.Kind == js_ast.PropertyClassStaticBlock {
 			p.addSourceMapping(item.Loc)
@@ -2507,6 +2570,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		if wrap {
 			p.print("(")
 		}
+		p.printDecorators(e.Class.Decorators, printDecoratorsAllOnOneLine)
 		p.printSpaceBeforeIdentifier()
 		p.addSourceMapping(expr.Loc)
 		p.print("class")
@@ -3737,6 +3801,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 		p.printNewline()
 
 	case *js_ast.SClass:
+		p.printDecorators(s.Class.Decorators, printDecoratorsOnSeparateLines)
 		p.addSourceMapping(stmt.Loc)
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
@@ -3759,6 +3824,9 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 	case *js_ast.SExportDefault:
 		p.addSourceMapping(stmt.Loc)
 		p.printIndent()
+		if s2, ok := s.Value.Data.(*js_ast.SClass); ok {
+			p.printDecorators(s2.Class.Decorators, printDecoratorsOnSeparateLines)
+		}
 		p.printSpaceBeforeIdentifier()
 		p.print("export default")
 		p.printSpace()
