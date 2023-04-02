@@ -209,6 +209,7 @@ mergeVersions('ArbitraryModuleNamespaceNames', { es2022: true })
 mergeVersions('RegexpMatchIndices', { es2022: true })
 mergeVersions('RegexpSetNotation', {})
 mergeVersions('ImportAssertions', {})
+mergeVersions('Decorators', {})
 
 // Manually copied from https://caniuse.com/?search=export%20*%20as
 mergeVersions('ExportStarAs', {

@@ -70,6 +70,7 @@ const (
 	ClassStaticBlocks
 	ClassStaticField
 	ConstAndLet
+	Decorators
 	DefaultArgument
 	Destructuring
 	DynamicImport
@@ -126,6 +127,7 @@ var StringToJSFeature = map[string]JSFeature{
 	"class-static-blocks":              ClassStaticBlocks,
 	"class-static-field":               ClassStaticField,
 	"const-and-let":                    ConstAndLet,
+	"decorators":                       Decorators,
 	"default-argument":                 DefaultArgument,
 	"destructuring":                    Destructuring,
 	"dynamic-import":                   DynamicImport,
@@ -365,6 +367,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Opera:   {{start: v{36, 0, 0}}},
 		Safari:  {{start: v{11, 0, 0}}},
 	},
+	Decorators: {},
 	DefaultArgument: {
 		Chrome:  {{start: v{49, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
