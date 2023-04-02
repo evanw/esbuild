@@ -297,7 +297,7 @@ type Property struct {
 	//
 	InitializerOrNil Expr
 
-	TSDecorators []Expr
+	Decorators []Expr
 
 	Loc             logger.Loc
 	CloseBracketLoc logger.Loc
@@ -319,7 +319,7 @@ type PropertyBinding struct {
 type Arg struct {
 	Binding      Binding
 	DefaultOrNil Expr
-	TSDecorators []Expr
+	Decorators   []Expr
 
 	// "constructor(public x: boolean) {}"
 	IsTypeScriptCtorField bool
@@ -347,7 +347,7 @@ type FnBody struct {
 }
 
 type Class struct {
-	TSDecorators  []Expr
+	Decorators    []Expr
 	Name          *LocRef
 	ExtendsOrNil  Expr
 	Properties    []Property

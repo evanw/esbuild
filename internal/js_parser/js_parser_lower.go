@@ -2376,11 +2376,11 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 					isConstructor = helpers.UTF16EqualsString(key.Value, "constructor")
 				}
 				for i, arg := range fn.Fn.Args {
-					for _, decorator := range arg.TSDecorators {
+					for _, decorator := range arg.Decorators {
 						// Generate a call to "__decorateParam()" for this parameter decorator
-						var decorators *[]js_ast.Expr = &prop.TSDecorators
+						var decorators *[]js_ast.Expr = &prop.Decorators
 						if isConstructor {
-							decorators = &class.TSDecorators
+							decorators = &class.Decorators
 						}
 						*decorators = append(*decorators,
 							p.callRuntime(decorator.Loc, "__decorateParam", []js_ast.Expr{
@@ -2424,10 +2424,10 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 		// Make sure the order of computed property keys doesn't change. These
 		// expressions have side effects and must be evaluated in order.
 		keyExprNoSideEffects := prop.Key
-		if prop.Flags.Has(js_ast.PropertyIsComputed) && (len(prop.TSDecorators) > 0 ||
+		if prop.Flags.Has(js_ast.PropertyIsComputed) && (len(prop.Decorators) > 0 ||
 			mustLowerField || computedPropertyCache.Data != nil) {
 			needsKey := true
-			if len(prop.TSDecorators) == 0 && (prop.Flags.Has(js_ast.PropertyIsMethod) || shouldOmitFieldInitializer || !mustLowerField) {
+			if len(prop.Decorators) == 0 && (prop.Flags.Has(js_ast.PropertyIsMethod) || shouldOmitFieldInitializer || !mustLowerField) {
 				needsKey = false
 			}
 
@@ -2456,7 +2456,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 		// Handle decorators
 		if p.options.ts.Parse {
 			// Generate a single call to "__decorateClass()" for this property
-			if len(prop.TSDecorators) > 0 {
+			if len(prop.Decorators) > 0 {
 				loc := prop.Key.Loc
 
 				// Clone the key for the property descriptor
@@ -2487,7 +2487,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 				}
 
 				decorator := p.callRuntime(loc, "__decorateClass", []js_ast.Expr{
-					{Loc: loc, Data: &js_ast.EArray{Items: prop.TSDecorators}},
+					{Loc: loc, Data: &js_ast.EArray{Items: prop.Decorators}},
 					target,
 					descriptorKey,
 					{Loc: loc, Data: &js_ast.ENumber{Value: descriptorKind}},
@@ -2802,7 +2802,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 			len(staticMembers) > 0 ||
 			len(instanceDecorators) > 0 ||
 			len(staticDecorators) > 0 ||
-			len(class.TSDecorators) > 0)
+			len(class.Decorators) > 0)
 
 	// Optionally preserve the name
 	var keepNameStmt js_ast.Stmt
@@ -2816,7 +2816,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 	var stmts []js_ast.Stmt
 	var nameForClassDecorators js_ast.LocRef
 	generatedLocalStmt := false
-	if len(class.TSDecorators) > 0 || hasPotentialShadowCaptureEscape || classLoweringInfo.avoidTDZ {
+	if len(class.Decorators) > 0 || hasPotentialShadowCaptureEscape || classLoweringInfo.avoidTDZ {
 		generatedLocalStmt = true
 		name := nameFunc()
 		nameRef := name.Data.(*js_ast.EIdentifier).Ref
@@ -2825,7 +2825,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 		class = &classExpr.Class
 		init := js_ast.Expr{Loc: classLoc, Data: &classExpr}
 
-		if hasPotentialShadowCaptureEscape && len(class.TSDecorators) == 0 {
+		if hasPotentialShadowCaptureEscape && len(class.Decorators) == 0 {
 			// If something captures the shadowing name and escapes the class body,
 			// make a new constant to store the class and forward that value to a
 			// mutable alias. That way if the alias is mutated, everything bound to
@@ -2935,11 +2935,11 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 	for _, expr := range staticDecorators {
 		stmts = append(stmts, js_ast.Stmt{Loc: expr.Loc, Data: &js_ast.SExpr{Value: expr}})
 	}
-	if len(class.TSDecorators) > 0 {
+	if len(class.Decorators) > 0 {
 		stmts = append(stmts, js_ast.AssignStmt(
 			js_ast.Expr{Loc: nameForClassDecorators.Loc, Data: &js_ast.EIdentifier{Ref: nameForClassDecorators.Ref}},
 			p.callRuntime(classLoc, "__decorateClass", []js_ast.Expr{
-				{Loc: classLoc, Data: &js_ast.EArray{Items: class.TSDecorators}},
+				{Loc: classLoc, Data: &js_ast.EArray{Items: class.Decorators}},
 				{Loc: nameForClassDecorators.Loc, Data: &js_ast.EIdentifier{Ref: nameForClassDecorators.Ref}},
 			}),
 		))

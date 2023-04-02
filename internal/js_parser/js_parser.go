@@ -93,7 +93,7 @@ type parser struct {
 	tsEnums                    map[js_ast.Ref]map[string]js_ast.TSEnumValue
 	constValues                map[js_ast.Ref]js_ast.ConstValue
 	propMethodValue            js_ast.E
-	propMethodTSDecoratorScope *js_ast.Scope
+	propMethodDecoratorScope   *js_ast.Scope
 
 	// This is the reference to the generated function argument for the namespace,
 	// which is different than the reference to the namespace itself:
@@ -622,7 +622,7 @@ const (
 // arrow expressions.
 type fnOrArrowDataParse struct {
 	arrowArgErrors      *deferredArrowArgErrors
-	tsDecoratorScope    *js_ast.Scope
+	decoratorScope      *js_ast.Scope
 	asyncRange          logger.Range
 	needsAsyncLoc       logger.Loc
 	await               awaitOrYield
@@ -1916,8 +1916,8 @@ func (p *parser) parseStringLiteral() js_ast.Expr {
 }
 
 type propertyOpts struct {
-	tsDecorators     []js_ast.Expr
-	tsDecoratorScope *js_ast.Scope
+	decorators     []js_ast.Expr
+	decoratorScope *js_ast.Scope
 
 	asyncRange     logger.Range
 	generatorRange logger.Range
@@ -1957,7 +1957,7 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 		p.lexer.Next()
 
 	case js_lexer.TPrivateIdentifier:
-		if !opts.isClass || len(opts.tsDecorators) > 0 {
+		if !opts.isClass || len(opts.decorators) > 0 {
 			p.lexer.Expected(js_lexer.TIdentifier)
 		}
 		if opts.tsDeclareRange.Len != 0 {
@@ -2061,7 +2061,7 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 						scopeIndex := len(p.scopesInOrder)
 
 						if prop, ok := p.parseProperty(startLoc, kind, opts, nil); ok &&
-							prop.Kind == js_ast.PropertyNormal && prop.ValueOrNil.Data == nil && len(opts.tsDecorators) > 0 {
+							prop.Kind == js_ast.PropertyNormal && prop.ValueOrNil.Data == nil && len(opts.decorators) > 0 {
 							// If this is a well-formed class field with the "declare" keyword,
 							// only keep the declaration to preserve its side-effects when
 							// there are TypeScript decorators present:
@@ -2244,7 +2244,7 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 			flags |= js_ast.PropertyIsStatic
 		}
 		return js_ast.Property{
-			TSDecorators:     opts.tsDecorators,
+			Decorators:       opts.decorators,
 			Loc:              startLoc,
 			Kind:             kind,
 			Flags:            flags,
@@ -2324,7 +2324,7 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 			yield:              yield,
 			allowSuperCall:     opts.classHasExtends && isConstructor,
 			allowSuperProperty: true,
-			tsDecoratorScope:   opts.tsDecoratorScope,
+			decoratorScope:     opts.decoratorScope,
 			isConstructor:      isConstructor,
 
 			// Only allow omitting the body if we're parsing TypeScript class
@@ -2404,7 +2404,7 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 			flags |= js_ast.PropertyIsStatic
 		}
 		return js_ast.Property{
-			TSDecorators:    opts.tsDecorators,
+			Decorators:      opts.decorators,
 			Loc:             startLoc,
 			Kind:            kind,
 			Flags:           flags | js_ast.PropertyIsMethod,
@@ -3148,7 +3148,7 @@ func (p *parser) saveExprCommentsHere() logger.Loc {
 type exprFlag uint8
 
 const (
-	exprFlagTSDecorator exprFlag = 1 << iota
+	exprFlagDecorator exprFlag = 1 << iota
 	exprFlagForLoopInit
 	exprFlagForAwaitLoopInit
 )
@@ -4116,7 +4116,7 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 			//   }
 			//
 			// This matches the behavior of the TypeScript compiler.
-			if (flags & exprFlagTSDecorator) != 0 {
+			if (flags & exprFlagDecorator) != 0 {
 				return left
 			}
 
@@ -5651,8 +5651,8 @@ func (p *parser) parseFn(name *js_ast.LocRef, classKeyword logger.Range, data fn
 			continue
 		}
 
-		var tsDecorators []js_ast.Expr
-		if data.tsDecoratorScope != nil {
+		var decorators []js_ast.Expr
+		if data.decoratorScope != nil {
 			oldAwait := p.fnOrArrowDataParse.await
 			oldNeedsAsyncLoc := p.fnOrArrowDataParse.needsAsyncLoc
 
@@ -5703,7 +5703,7 @@ func (p *parser) parseFn(name *js_ast.LocRef, classKeyword logger.Range, data fn
 				p.fnOrArrowDataParse.needsAsyncLoc = oldFnOrArrowData.needsAsyncLoc
 			}
 
-			tsDecorators = p.parseTypeScriptDecorators(data.tsDecoratorScope)
+			decorators = p.parseTypeScriptDecorators(data.decoratorScope)
 
 			p.fnOrArrowDataParse.await = oldAwait
 			p.fnOrArrowDataParse.needsAsyncLoc = oldNeedsAsyncLoc
@@ -5766,7 +5766,7 @@ func (p *parser) parseFn(name *js_ast.LocRef, classKeyword logger.Range, data fn
 		}
 
 		fn.Args = append(fn.Args, js_ast.Arg{
-			TSDecorators: tsDecorators,
+			Decorators:   decorators,
 			Binding:      arg,
 			DefaultOrNil: defaultValueOrNil,
 
@@ -5876,11 +5876,11 @@ func (p *parser) parseClassStmt(loc logger.Loc, opts parseStmtOpts) js_ast.Stmt 
 	}
 
 	classOpts := parseClassOpts{
-		tsDecoratorScope:    p.currentScope,
+		decoratorScope:      p.currentScope,
 		isTypeScriptDeclare: opts.isTypeScriptDeclare,
 	}
-	if opts.tsDecorators != nil {
-		classOpts.tsDecorators = opts.tsDecorators.values
+	if opts.decorators != nil {
+		classOpts.decorators = opts.decorators.values
 	}
 	scopeIndex := p.pushScopeForParsePass(js_ast.ScopeClassName, loc)
 	class := p.parseClass(classKeyword, name, classOpts)
@@ -5900,8 +5900,8 @@ func (p *parser) parseClassStmt(loc logger.Loc, opts parseStmtOpts) js_ast.Stmt 
 }
 
 type parseClassOpts struct {
-	tsDecorators        []js_ast.Expr
-	tsDecoratorScope    *js_ast.Scope
+	decorators          []js_ast.Expr
+	decoratorScope      *js_ast.Scope
 	isTypeScriptDeclare bool
 }
 
@@ -5951,10 +5951,10 @@ func (p *parser) parseClass(classKeyword logger.Range, name *js_ast.LocRef, clas
 	scopeIndex := p.pushScopeForParsePass(js_ast.ScopeClassBody, bodyLoc)
 
 	opts := propertyOpts{
-		isClass:          true,
-		tsDecoratorScope: classOpts.tsDecoratorScope,
-		classHasExtends:  extendsOrNil.Data != nil,
-		classKeyword:     classKeyword,
+		isClass:         true,
+		decoratorScope:  classOpts.decoratorScope,
+		classHasExtends: extendsOrNil.Data != nil,
+		classKeyword:    classKeyword,
 	}
 	hasConstructor := false
 
@@ -5966,10 +5966,10 @@ func (p *parser) parseClass(classKeyword logger.Range, name *js_ast.LocRef, clas
 
 		// Parse decorators for this property
 		firstDecoratorLoc := p.lexer.Loc()
-		if opts.tsDecoratorScope != nil {
-			opts.tsDecorators = p.parseTypeScriptDecorators(opts.tsDecoratorScope)
+		if opts.decoratorScope != nil {
+			opts.decorators = p.parseTypeScriptDecorators(opts.decoratorScope)
 		} else {
-			opts.tsDecorators = nil
+			opts.decorators = nil
 			p.logInvalidDecoratorError(classKeyword)
 		}
 
@@ -5979,7 +5979,7 @@ func (p *parser) parseClass(classKeyword logger.Range, name *js_ast.LocRef, clas
 
 			// Forbid decorators on class constructors
 			if key, ok := property.Key.Data.(*js_ast.EString); ok && helpers.UTF16EqualsString(key.Value, "constructor") {
-				if len(opts.tsDecorators) > 0 {
+				if len(opts.decorators) > 0 {
 					p.log.AddError(&p.tracker, logger.Range{Loc: firstDecoratorLoc},
 						"TypeScript does not allow decorators on class constructors")
 				}
@@ -6008,7 +6008,7 @@ func (p *parser) parseClass(classKeyword logger.Range, name *js_ast.LocRef, clas
 	p.lexer.Expect(js_lexer.TCloseBrace)
 	return js_ast.Class{
 		ClassKeyword:  classKeyword,
-		TSDecorators:  classOpts.tsDecorators,
+		Decorators:    classOpts.decorators,
 		Name:          name,
 		ExtendsOrNil:  extendsOrNil,
 		BodyLoc:       bodyLoc,
@@ -6224,7 +6224,7 @@ func (p *parser) parseFnStmt(loc logger.Loc, opts parseStmtOpts, isAsync bool, a
 	return js_ast.Stmt{Loc: loc, Data: &js_ast.SFunction{Fn: fn, IsExport: opts.isExport}}
 }
 
-type deferredTSDecorators struct {
+type deferredDecorators struct {
 	values []js_ast.Expr
 
 	// If this turns out to be a "declare class" statement, we need to undo the
@@ -6242,7 +6242,7 @@ const (
 )
 
 type parseStmtOpts struct {
-	tsDecorators           *deferredTSDecorators
+	decorators             *deferredDecorators
 	lexicalDecl            lexicalDecl
 	isModuleScope          bool
 	isNamespaceScope       bool
@@ -6281,9 +6281,9 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		// "@decorator export default abstract class Foo {}"
 		// "@decorator export declare class Foo {}"
 		// "@decorator export declare abstract class Foo {}"
-		if opts.tsDecorators != nil && p.lexer.Token != js_lexer.TClass && p.lexer.Token != js_lexer.TDefault &&
+		if opts.decorators != nil && p.lexer.Token != js_lexer.TClass && p.lexer.Token != js_lexer.TDefault &&
 			!p.lexer.IsContextualKeyword("abstract") && !p.lexer.IsContextualKeyword("declare") {
-			p.logMisplacedDecoratorError(opts.tsDecorators)
+			p.logMisplacedDecoratorError(opts.decorators)
 		}
 
 		switch p.lexer.Token {
@@ -6390,8 +6390,8 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			// TypeScript decorators only work on class declarations
 			// "@decorator export default class Foo {}"
 			// "@decorator export default abstract class Foo {}"
-			if opts.tsDecorators != nil && p.lexer.Token != js_lexer.TClass && !p.lexer.IsContextualKeyword("abstract") {
-				p.logMisplacedDecoratorError(opts.tsDecorators)
+			if opts.decorators != nil && p.lexer.Token != js_lexer.TClass && !p.lexer.IsContextualKeyword("abstract") {
+				p.logMisplacedDecoratorError(opts.decorators)
 			}
 
 			if p.lexer.IsContextualKeyword("async") {
@@ -6428,7 +6428,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 
 			if p.lexer.Token == js_lexer.TFunction || p.lexer.Token == js_lexer.TClass || p.lexer.IsContextualKeyword("interface") {
 				stmt := p.parseStmt(parseStmtOpts{
-					tsDecorators:   opts.tsDecorators,
+					decorators:     opts.decorators,
 					isNameOptional: true,
 					lexicalDecl:    lexicalDeclAllowAll,
 				})
@@ -6464,9 +6464,9 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 
 			// Handle the default export of an abstract class in TypeScript
 			if p.options.ts.Parse && isIdentifier && name == "abstract" {
-				if _, ok := expr.Data.(*js_ast.EIdentifier); ok && (p.lexer.Token == js_lexer.TClass || opts.tsDecorators != nil) {
+				if _, ok := expr.Data.(*js_ast.EIdentifier); ok && (p.lexer.Token == js_lexer.TClass || opts.decorators != nil) {
 					stmt := p.parseClassStmt(loc, parseStmtOpts{
-						tsDecorators:   opts.tsDecorators,
+						decorators:     opts.decorators,
 						isNameOptional: true,
 					})
 
@@ -6590,7 +6590,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		// Parse decorators before class statements, which are potentially exported
 		if p.options.ts.Parse {
 			scopeIndex := len(p.scopesInOrder)
-			tsDecorators := p.parseTypeScriptDecorators(p.currentScope)
+			decorators := p.parseTypeScriptDecorators(p.currentScope)
 
 			// If this turns out to be a "declare class" statement, we need to undo the
 			// scopes that were potentially pushed while parsing the decorator arguments.
@@ -6601,8 +6601,8 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			//   "@decorator export declare class Foo {}"
 			//   "@decorator export declare abstract class Foo {}"
 			//
-			opts.tsDecorators = &deferredTSDecorators{
-				values:     tsDecorators,
+			opts.decorators = &deferredDecorators{
+				values:     decorators,
 				scopeIndex: scopeIndex,
 			}
 
@@ -6618,7 +6618,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			// "@decorator export default abstract class Foo {}"
 			if p.lexer.Token != js_lexer.TClass && p.lexer.Token != js_lexer.TExport &&
 				!p.lexer.IsContextualKeyword("abstract") && !p.lexer.IsContextualKeyword("declare") {
-				p.logMisplacedDecoratorError(opts.tsDecorators)
+				p.logMisplacedDecoratorError(opts.decorators)
 			}
 
 			return p.parseStmt(opts)
@@ -7293,7 +7293,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 
 		if isIdentifier {
 			if ident, ok := expr.Data.(*js_ast.EIdentifier); ok {
-				if p.lexer.Token == js_lexer.TColon && opts.tsDecorators == nil {
+				if p.lexer.Token == js_lexer.TColon && opts.decorators == nil {
 					p.pushScopeForParsePass(js_ast.ScopeLabel, loc)
 					defer p.popScope()
 
@@ -7333,7 +7333,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 						return js_ast.Stmt{Loc: loc, Data: &js_ast.STypeScript{}}
 
 					case "abstract":
-						if p.lexer.Token == js_lexer.TClass || opts.tsDecorators != nil {
+						if p.lexer.Token == js_lexer.TClass || opts.decorators != nil {
 							return p.parseClassStmt(loc, opts)
 						}
 
@@ -7352,8 +7352,8 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 
 						// "@decorator declare class Foo {}"
 						// "@decorator declare abstract class Foo {}"
-						if opts.tsDecorators != nil && p.lexer.Token != js_lexer.TClass && !p.lexer.IsContextualKeyword("abstract") {
-							p.logMisplacedDecoratorError(opts.tsDecorators)
+						if opts.decorators != nil && p.lexer.Token != js_lexer.TClass && !p.lexer.IsContextualKeyword("abstract") {
+							p.logMisplacedDecoratorError(opts.decorators)
 						}
 
 						// "declare global { ... }"
@@ -7367,8 +7367,8 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 
 						// "declare const x: any"
 						stmt := p.parseStmt(opts)
-						if opts.tsDecorators != nil {
-							p.discardScopesUpTo(opts.tsDecorators.scopeIndex)
+						if opts.decorators != nil {
+							p.discardScopesUpTo(opts.decorators.scopeIndex)
 						}
 
 						// Unlike almost all uses of "declare", statements that use
@@ -10629,23 +10629,23 @@ func (p *parser) captureValueWithPossibleSideEffects(
 	}, wrapFunc
 }
 
-func (p *parser) visitTSDecorators(tsDecorators []js_ast.Expr, tsDecoratorScope *js_ast.Scope) []js_ast.Expr {
-	if tsDecorators != nil {
-		// TypeScript decorators cause us to temporarily revert to the scope that
-		// encloses the class declaration, since that's where the generated code
-		// for TypeScript decorators will be inserted.
+func (p *parser) visitDecorators(decorators []js_ast.Expr, decoratorScope *js_ast.Scope) []js_ast.Expr {
+	if decorators != nil {
+		// Decorators cause us to temporarily revert to the scope that encloses the
+		// class declaration, since that's where the generated code for decorators
+		// will be inserted.
 		oldScope := p.currentScope
-		p.currentScope = tsDecoratorScope
+		p.currentScope = decoratorScope
 
-		for i, decorator := range tsDecorators {
-			tsDecorators[i] = p.visitExpr(decorator)
+		for i, decorator := range decorators {
+			decorators[i] = p.visitExpr(decorator)
 		}
 
 		// Avoid "popScope" because this decorator scope is not hierarchical
 		p.currentScope = oldScope
 	}
 
-	return tsDecorators
+	return decorators
 }
 
 type visitClassResult struct {
@@ -10654,8 +10654,8 @@ type visitClassResult struct {
 }
 
 func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaultNameRef js_ast.Ref) (result visitClassResult) {
-	tsDecoratorScope := p.currentScope
-	class.TSDecorators = p.visitTSDecorators(class.TSDecorators, tsDecoratorScope)
+	decoratorScope := p.currentScope
+	class.Decorators = p.visitDecorators(class.Decorators, decoratorScope)
 
 	if class.Name != nil {
 		p.recordDeclaredSymbol(class.Name.Ref)
@@ -10812,7 +10812,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 			continue
 		}
 
-		property.TSDecorators = p.visitTSDecorators(property.TSDecorators, tsDecoratorScope)
+		property.Decorators = p.visitDecorators(property.Decorators, decoratorScope)
 
 		// Special-case certain expressions to allow them here
 		switch k := property.Key.Data.(type) {
@@ -10895,7 +10895,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 
 		if property.ValueOrNil.Data != nil {
 			p.propMethodValue = property.ValueOrNil.Data
-			p.propMethodTSDecoratorScope = tsDecoratorScope
+			p.propMethodDecoratorScope = decoratorScope
 			if nameToKeep != "" {
 				wasAnonymousNamedExpr := p.isAnonymousNamedExpr(property.ValueOrNil)
 				property.ValueOrNil = p.maybeKeepExprSymbolName(p.visitExpr(property.ValueOrNil), nameToKeep, wasAnonymousNamedExpr)
@@ -10987,9 +10987,9 @@ func fnBodyContainsUseStrict(body []js_ast.Stmt) (logger.Loc, bool) {
 }
 
 type visitArgsOpts struct {
-	body             []js_ast.Stmt
-	tsDecoratorScope *js_ast.Scope
-	hasRestArg       bool
+	body           []js_ast.Stmt
+	decoratorScope *js_ast.Scope
+	hasRestArg     bool
 
 	// This is true if the function is an arrow function or a method
 	isUniqueFormalParameters bool
@@ -11018,7 +11018,7 @@ func (p *parser) visitArgs(args []js_ast.Arg, opts visitArgsOpts) {
 
 	for i := range args {
 		arg := &args[i]
-		arg.TSDecorators = p.visitTSDecorators(arg.TSDecorators, opts.tsDecoratorScope)
+		arg.Decorators = p.visitDecorators(arg.Decorators, opts.decoratorScope)
 		p.visitBinding(arg.Binding, bindingOpts{
 			duplicateArgCheck: duplicateArgCheck,
 		})
@@ -15016,7 +15016,7 @@ type visitFnOpts struct {
 }
 
 func (p *parser) visitFn(fn *js_ast.Fn, scopeLoc logger.Loc, opts visitFnOpts) {
-	var tsDecoratorScope *js_ast.Scope
+	var decoratorScope *js_ast.Scope
 	oldFnOrArrowData := p.fnOrArrowDataVisit
 	oldFnOnlyData := p.fnOnlyDataVisit
 	p.fnOrArrowDataVisit = fnOrArrowDataVisit{
@@ -15031,7 +15031,7 @@ func (p *parser) visitFn(fn *js_ast.Fn, scopeLoc logger.Loc, opts visitFnOpts) {
 	}
 
 	if opts.isClassMethod {
-		tsDecoratorScope = p.propMethodTSDecoratorScope
+		decoratorScope = p.propMethodDecoratorScope
 		p.fnOnlyDataVisit.classNameRef = oldFnOnlyData.classNameRef
 		p.fnOnlyDataVisit.isInStaticClassContext = oldFnOnlyData.isInStaticClassContext
 		if oldFnOrArrowData.shouldLowerSuperPropertyAccess {
@@ -15048,7 +15048,7 @@ func (p *parser) visitFn(fn *js_ast.Fn, scopeLoc logger.Loc, opts visitFnOpts) {
 		hasRestArg:               fn.HasRestArg,
 		body:                     fn.Body.Block.Stmts,
 		isUniqueFormalParameters: fn.IsUniqueFormalParameters,
-		tsDecoratorScope:         tsDecoratorScope,
+		decoratorScope:           decoratorScope,
 	})
 	p.pushScopeForVisitPass(js_ast.ScopeFunctionBody, fn.Body.Loc)
 	if fn.Name != nil {
