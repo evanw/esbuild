@@ -1662,7 +1662,7 @@ func TestTSDeclare(t *testing.T) {
 	expectParseErrorTS(t, "export as namespace ns.foo", "<stdin>: ERROR: Expected \";\" but found \".\"\n")
 }
 
-func TestTSDecorator(t *testing.T) {
+func TestTSExperimentalDecorator(t *testing.T) {
 	// Tests of "declare class"
 	expectPrintedTS(t, "@dec(() => 0) declare class Foo {} {let foo}", "{\n  let foo;\n}\n")
 	expectPrintedTS(t, "@dec(() => 0) declare abstract class Foo {} {let foo}", "{\n  let foo;\n}\n")
@@ -1694,9 +1694,9 @@ func TestTSDecorator(t *testing.T) {
 
 	// Decorators must be forbidden outside class statements
 	note := "<stdin>: NOTE: This is a class expression, not a class declaration:\n"
-	expectParseErrorTS(t, "(class { @dec foo })", "<stdin>: ERROR: Decorators can only be used with class declarations in TypeScript\n"+note)
-	expectParseErrorTS(t, "(class { @dec foo() {} })", "<stdin>: ERROR: Decorators can only be used with class declarations in TypeScript\n"+note)
-	expectParseErrorTS(t, "(class { foo(@dec x) {} })", "<stdin>: ERROR: Decorators can only be used with class declarations in TypeScript\n"+note)
+	expectParseErrorTS(t, "(class { @dec foo })", "<stdin>: ERROR: Experimental decorators can only be used with class declarations in TypeScript\n"+note)
+	expectParseErrorTS(t, "(class { @dec foo() {} })", "<stdin>: ERROR: Experimental decorators can only be used with class declarations in TypeScript\n"+note)
+	expectParseErrorTS(t, "(class { foo(@dec x) {} })", "<stdin>: ERROR: Experimental decorators can only be used with class declarations in TypeScript\n"+note)
 	expectParseErrorTS(t, "({ @dec foo })", "<stdin>: ERROR: Expected identifier but found \"@\"\n")
 	expectParseErrorTS(t, "({ @dec foo() {} })", "<stdin>: ERROR: Expected identifier but found \"@\"\n")
 	expectParseErrorTS(t, "({ foo(@dec x) {} })", "<stdin>: ERROR: Expected identifier but found \"@\"\n")
@@ -1716,8 +1716,8 @@ func TestTSDecorator(t *testing.T) {
 	expectParseErrorTS(t, "class Foo { @dec static async* #foo() {} }", "<stdin>: ERROR: Expected identifier but found \"#foo\"\n")
 
 	// Decorators aren't allowed on class constructors
-	expectParseErrorTS(t, "class Foo { @dec constructor() {} }", "<stdin>: ERROR: TypeScript does not allow decorators on class constructors\n")
-	expectParseErrorTS(t, "class Foo { @dec public constructor() {} }", "<stdin>: ERROR: TypeScript does not allow decorators on class constructors\n")
+	expectParseErrorTS(t, "class Foo { @dec constructor() {} }", "<stdin>: ERROR: Decorators are not allowed on class constructors\n")
+	expectParseErrorTS(t, "class Foo { @dec public constructor() {} }", "<stdin>: ERROR: Decorators are not allowed on class constructors\n")
 
 	// Check use of "await"
 	friendlyAwaitErrorWithNote := "<stdin>: ERROR: \"await\" can only be used inside an \"async\" function\n" +

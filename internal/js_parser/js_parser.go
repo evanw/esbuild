@@ -1916,8 +1916,9 @@ func (p *parser) parseStringLiteral() js_ast.Expr {
 }
 
 type propertyOpts struct {
-	decorators     []js_ast.Expr
-	decoratorScope *js_ast.Scope
+	decorators       []js_ast.Expr
+	decoratorScope   *js_ast.Scope
+	decoratorContext decoratorContextFlags
 
 	asyncRange     logger.Range
 	generatorRange logger.Range
@@ -2317,7 +2318,7 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 			yield = allowExpr
 		}
 
-		fn, hadBody := p.parseFn(nil, opts.classKeyword, fnOrArrowDataParse{
+		fn, hadBody := p.parseFn(nil, opts.classKeyword, opts.decoratorContext, fnOrArrowDataParse{
 			needsAsyncLoc:      key.Loc,
 			asyncRange:         opts.asyncRange,
 			await:              await,
@@ -2810,7 +2811,7 @@ func (p *parser) parseFnExpr(loc logger.Loc, isAsync bool, asyncRange logger.Ran
 		yield = allowExpr
 	}
 
-	fn, _ := p.parseFn(name, logger.Range{}, fnOrArrowDataParse{
+	fn, _ := p.parseFn(name, logger.Range{}, 0, fnOrArrowDataParse{
 		needsAsyncLoc: loc,
 		asyncRange:    asyncRange,
 		await:         await,
@@ -3454,33 +3455,20 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 		return p.parseFnExpr(loc, false /* isAsync */, logger.Range{})
 
 	case js_lexer.TClass:
-		classKeyword := p.lexer.Range()
-		p.markSyntaxFeature(compat.Class, classKeyword)
-		p.lexer.Next()
-		var name *js_ast.LocRef
+		return p.parseClassExpr(loc, nil)
 
-		p.pushScopeForParsePass(js_ast.ScopeClassName, loc)
+	case js_lexer.TAt:
+		// Parse decorators before class statements, which are potentially exported
+		scopeIndex := len(p.scopesInOrder)
+		decorators := p.parseDecorators(p.currentScope, logger.Range{}, decoratorBeforeClassExpr)
 
-		// Parse an optional class name
-		if p.lexer.Token == js_lexer.TIdentifier {
-			if nameText := p.lexer.Identifier.String; !p.options.ts.Parse || nameText != "implements" {
-				if p.fnOrArrowDataParse.await != allowIdent && nameText == "await" {
-					p.log.AddError(&p.tracker, p.lexer.Range(), "Cannot use \"await\" as an identifier here:")
-				}
-				name = &js_ast.LocRef{Loc: p.lexer.Loc(), Ref: p.newSymbol(js_ast.SymbolOther, nameText)}
-				p.lexer.Next()
-			}
+		// "@decorator class {}"
+		// "@decorator class Foo {}"
+		if p.lexer.Token != js_lexer.TClass && p.lexer.Token != js_lexer.TExport {
+			p.logDecoratorWithoutFollowingClassError(loc, scopeIndex)
 		}
 
-		// Even anonymous classes can have TypeScript type parameters
-		if p.options.ts.Parse {
-			p.skipTypeScriptTypeParameters(allowInOutVarianceAnnotations | allowConstModifier)
-		}
-
-		class := p.parseClass(classKeyword, name, parseClassOpts{})
-
-		p.popScope()
-		return js_ast.Expr{Loc: loc, Data: &js_ast.EClass{Class: class}}
+		return p.parseClassExpr(loc, decorators)
 
 	case js_lexer.TNew:
 		p.lexer.Next()
@@ -5607,7 +5595,12 @@ func (p *parser) parseBinding() js_ast.Binding {
 	return js_ast.Binding{}
 }
 
-func (p *parser) parseFn(name *js_ast.LocRef, classKeyword logger.Range, data fnOrArrowDataParse) (fn js_ast.Fn, hadBody bool) {
+func (p *parser) parseFn(
+	name *js_ast.LocRef,
+	classKeyword logger.Range,
+	decoratorContext decoratorContextFlags,
+	data fnOrArrowDataParse,
+) (fn js_ast.Fn, hadBody bool) {
 	fn.Name = name
 	fn.HasRestArg = false
 	fn.IsAsync = data.await == allowExpr
@@ -5703,12 +5696,10 @@ func (p *parser) parseFn(name *js_ast.LocRef, classKeyword logger.Range, data fn
 				p.fnOrArrowDataParse.needsAsyncLoc = oldFnOrArrowData.needsAsyncLoc
 			}
 
-			decorators = p.parseDecorators(data.decoratorScope)
+			decorators = p.parseDecorators(data.decoratorScope, classKeyword, decoratorContext|decoratorInFnArgs)
 
 			p.fnOrArrowDataParse.await = oldAwait
 			p.fnOrArrowDataParse.needsAsyncLoc = oldNeedsAsyncLoc
-		} else if classKeyword.Len > 0 {
-			p.logInvalidDecoratorError(classKeyword)
 		}
 
 		if !fn.HasRestArg && p.lexer.Token == js_lexer.TDotDotDot {
@@ -5899,9 +5890,45 @@ func (p *parser) parseClassStmt(loc logger.Loc, opts parseStmtOpts) js_ast.Stmt 
 	return js_ast.Stmt{Loc: loc, Data: &js_ast.SClass{Class: class, IsExport: opts.isExport}}
 }
 
+func (p *parser) parseClassExpr(loc logger.Loc, decorators []js_ast.Expr) js_ast.Expr {
+	classKeyword := p.lexer.Range()
+	p.markSyntaxFeature(compat.Class, classKeyword)
+	p.lexer.Next()
+	var name *js_ast.LocRef
+
+	opts := parseClassOpts{
+		decorators:       decorators,
+		decoratorScope:   p.currentScope,
+		decoratorContext: decoratorInClassExpr,
+	}
+	p.pushScopeForParsePass(js_ast.ScopeClassName, loc)
+
+	// Parse an optional class name
+	if p.lexer.Token == js_lexer.TIdentifier {
+		if nameText := p.lexer.Identifier.String; !p.options.ts.Parse || nameText != "implements" {
+			if p.fnOrArrowDataParse.await != allowIdent && nameText == "await" {
+				p.log.AddError(&p.tracker, p.lexer.Range(), "Cannot use \"await\" as an identifier here:")
+			}
+			name = &js_ast.LocRef{Loc: p.lexer.Loc(), Ref: p.newSymbol(js_ast.SymbolOther, nameText)}
+			p.lexer.Next()
+		}
+	}
+
+	// Even anonymous classes can have TypeScript type parameters
+	if p.options.ts.Parse {
+		p.skipTypeScriptTypeParameters(allowInOutVarianceAnnotations | allowConstModifier)
+	}
+
+	class := p.parseClass(classKeyword, name, opts)
+
+	p.popScope()
+	return js_ast.Expr{Loc: loc, Data: &js_ast.EClass{Class: class}}
+}
+
 type parseClassOpts struct {
 	decorators          []js_ast.Expr
 	decoratorScope      *js_ast.Scope
+	decoratorContext    decoratorContextFlags
 	isTypeScriptDeclare bool
 }
 
@@ -5951,10 +5978,11 @@ func (p *parser) parseClass(classKeyword logger.Range, name *js_ast.LocRef, clas
 	scopeIndex := p.pushScopeForParsePass(js_ast.ScopeClassBody, bodyLoc)
 
 	opts := propertyOpts{
-		isClass:         true,
-		decoratorScope:  classOpts.decoratorScope,
-		classHasExtends: extendsOrNil.Data != nil,
-		classKeyword:    classKeyword,
+		isClass:          true,
+		decoratorScope:   classOpts.decoratorScope,
+		decoratorContext: classOpts.decoratorContext,
+		classHasExtends:  extendsOrNil.Data != nil,
+		classKeyword:     classKeyword,
 	}
 	hasConstructor := false
 
@@ -5966,12 +5994,7 @@ func (p *parser) parseClass(classKeyword logger.Range, name *js_ast.LocRef, clas
 
 		// Parse decorators for this property
 		firstDecoratorLoc := p.lexer.Loc()
-		if opts.decoratorScope != nil {
-			opts.decorators = p.parseDecorators(opts.decoratorScope)
-		} else {
-			opts.decorators = nil
-			p.logInvalidDecoratorError(classKeyword)
-		}
+		opts.decorators = p.parseDecorators(opts.decoratorScope, classKeyword, opts.decoratorContext)
 
 		// This property may turn out to be a type in TypeScript, which should be ignored
 		if property, ok := p.parseProperty(p.saveExprCommentsHere(), js_ast.PropertyNormal, opts, nil); ok {
@@ -5981,7 +6004,7 @@ func (p *parser) parseClass(classKeyword logger.Range, name *js_ast.LocRef, clas
 			if key, ok := property.Key.Data.(*js_ast.EString); ok && helpers.UTF16EqualsString(key.Value, "constructor") {
 				if len(opts.decorators) > 0 {
 					p.log.AddError(&p.tracker, logger.Range{Loc: firstDecoratorLoc},
-						"TypeScript does not allow decorators on class constructors")
+						"Decorators are not allowed on class constructors")
 				}
 				if property.Flags.Has(js_ast.PropertyIsMethod) && !property.Flags.Has(js_ast.PropertyIsStatic) && !property.Flags.Has(js_ast.PropertyIsComputed) {
 					if hasConstructor {
@@ -6171,7 +6194,7 @@ func (p *parser) parseFnStmt(loc logger.Loc, opts parseStmtOpts, isAsync bool, a
 		yield = allowExpr
 	}
 
-	fn, hadBody := p.parseFn(name, logger.Range{}, fnOrArrowDataParse{
+	fn, hadBody := p.parseFn(name, logger.Range{}, 0, fnOrArrowDataParse{
 		needsAsyncLoc:       loc,
 		asyncRange:          asyncRange,
 		await:               await,
@@ -6234,35 +6257,55 @@ type deferredDecorators struct {
 	firstAtLoc logger.Loc
 }
 
-func (p *parser) parseDecorators(decoratorScope *js_ast.Scope) []js_ast.Expr {
-	var decorators []js_ast.Expr
+type decoratorContextFlags uint8
 
-	if p.options.ts.Parse {
-		// TypeScript decorators cause us to temporarily revert to the scope that
-		// encloses the class declaration, since that's where the generated code
-		// for TypeScript decorators will be inserted.
-		oldScope := p.currentScope
-		p.currentScope = decoratorScope
+const (
+	decoratorBeforeClassExpr = 1 << iota
+	decoratorInClassExpr
+	decoratorInFnArgs
+)
 
-		for p.lexer.Token == js_lexer.TAt {
-			p.lexer.Next()
-
-			// Parse a new/call expression with "exprFlagDecorator" so we ignore
-			// EIndex expressions, since they may be part of a computed property:
-			//
-			//   class Foo {
-			//     @foo ['computed']() {}
-			//   }
-			//
-			// This matches the behavior of the TypeScript compiler.
-			value := p.parseExprWithFlags(js_ast.LNew, exprFlagDecorator)
-			decorators = append(decorators, value)
+func (p *parser) parseDecorators(decoratorScope *js_ast.Scope, classKeyword logger.Range, context decoratorContextFlags) (decorators []js_ast.Expr) {
+	if p.lexer.Token == js_lexer.TAt {
+		if p.options.ts.Parse {
+			if (context & decoratorInClassExpr) != 0 {
+				p.lexer.AddRangeErrorWithNotes(p.lexer.Range(), "Experimental decorators can only be used with class declarations in TypeScript",
+					[]logger.MsgData{p.tracker.MsgData(classKeyword, "This is a class expression, not a class declaration:")})
+			} else if (context & decoratorBeforeClassExpr) != 0 {
+				p.log.AddError(&p.tracker, p.lexer.Range(), "Experimental decorators cannot be used in expression position in TypeScript")
+			}
+		} else {
+			if (context & decoratorInFnArgs) != 0 {
+				p.log.AddError(&p.tracker, p.lexer.Range(), "Parameter decorators are not allowed in JavaScript")
+			} else {
+				p.log.AddError(&p.tracker, p.lexer.Range(), "JavaScript decorators are not currently supported")
+			}
 		}
-
-		// Avoid "popScope" because this decorator scope is not hierarchical
-		p.currentScope = oldScope
 	}
 
+	// TypeScript decorators cause us to temporarily revert to the scope that
+	// encloses the class declaration, since that's where the generated code
+	// for TypeScript decorators will be inserted.
+	oldScope := p.currentScope
+	p.currentScope = decoratorScope
+
+	for p.lexer.Token == js_lexer.TAt {
+		p.lexer.Next()
+
+		// Parse a new/call expression with "exprFlagDecorator" so we ignore
+		// EIndex expressions, since they may be part of a computed property:
+		//
+		//   class Foo {
+		//     @foo ['computed']() {}
+		//   }
+		//
+		// This matches the behavior of the TypeScript compiler.
+		value := p.parseExprWithFlags(js_ast.LNew, exprFlagDecorator)
+		decorators = append(decorators, value)
+	}
+
+	// Avoid "popScope" because this decorator scope is not hierarchical
+	p.currentScope = oldScope
 	return decorators
 }
 
@@ -6636,45 +6679,40 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 
 	case js_lexer.TAt:
 		// Parse decorators before class statements, which are potentially exported
-		if p.options.ts.Parse {
-			scopeIndex := len(p.scopesInOrder)
-			decorators := p.parseDecorators(p.currentScope)
+		scopeIndex := len(p.scopesInOrder)
+		decorators := p.parseDecorators(p.currentScope, logger.Range{}, 0)
 
-			// If this turns out to be a "declare class" statement, we need to undo the
-			// scopes that were potentially pushed while parsing the decorator arguments.
-			// That can look like any one of the following:
-			//
-			//   "@decorator declare class Foo {}"
-			//   "@decorator declare abstract class Foo {}"
-			//   "@decorator export declare class Foo {}"
-			//   "@decorator export declare abstract class Foo {}"
-			//
-			opts.decorators = &deferredDecorators{
-				firstAtLoc: loc,
-				values:     decorators,
-				scopeIndex: scopeIndex,
-			}
-
-			// "@decorator class Foo {}"
-			// "@decorator abstract class Foo {}"
-			// "@decorator declare class Foo {}"
-			// "@decorator declare abstract class Foo {}"
-			// "@decorator export class Foo {}"
-			// "@decorator export abstract class Foo {}"
-			// "@decorator export declare class Foo {}"
-			// "@decorator export declare abstract class Foo {}"
-			// "@decorator export default class Foo {}"
-			// "@decorator export default abstract class Foo {}"
-			if p.lexer.Token != js_lexer.TClass && p.lexer.Token != js_lexer.TExport &&
-				!p.lexer.IsContextualKeyword("abstract") && !p.lexer.IsContextualKeyword("declare") {
-				p.logDecoratorWithoutFollowingClassError(opts.decorators.firstAtLoc, opts.decorators.scopeIndex)
-			}
-
-			return p.parseStmt(opts)
+		// If this turns out to be a "declare class" statement, we need to undo the
+		// scopes that were potentially pushed while parsing the decorator arguments.
+		// That can look like any one of the following:
+		//
+		//   "@decorator declare class Foo {}"
+		//   "@decorator declare abstract class Foo {}"
+		//   "@decorator export declare class Foo {}"
+		//   "@decorator export declare abstract class Foo {}"
+		//
+		opts.decorators = &deferredDecorators{
+			firstAtLoc: loc,
+			values:     decorators,
+			scopeIndex: scopeIndex,
 		}
 
-		p.lexer.Unexpected()
-		return js_ast.Stmt{}
+		// "@decorator class Foo {}"
+		// "@decorator abstract class Foo {}"
+		// "@decorator declare class Foo {}"
+		// "@decorator declare abstract class Foo {}"
+		// "@decorator export class Foo {}"
+		// "@decorator export abstract class Foo {}"
+		// "@decorator export declare class Foo {}"
+		// "@decorator export declare abstract class Foo {}"
+		// "@decorator export default class Foo {}"
+		// "@decorator export default abstract class Foo {}"
+		if p.lexer.Token != js_lexer.TClass && p.lexer.Token != js_lexer.TExport &&
+			(!p.options.ts.Parse || (!p.lexer.IsContextualKeyword("abstract") && !p.lexer.IsContextualKeyword("declare"))) {
+			p.logDecoratorWithoutFollowingClassError(opts.decorators.firstAtLoc, opts.decorators.scopeIndex)
+		}
+
+		return p.parseStmt(opts)
 
 	case js_lexer.TClass:
 		if opts.lexicalDecl != lexicalDeclAllowAll {

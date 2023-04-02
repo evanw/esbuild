@@ -1236,19 +1236,6 @@ func (p *parser) skipTypeScriptTypeStmt(opts parseStmtOpts) {
 	p.lexer.ExpectOrInsertSemicolon()
 }
 
-func (p *parser) logInvalidDecoratorError(classKeyword logger.Range) {
-	if p.options.ts.Parse && p.lexer.Token == js_lexer.TAt {
-		// Forbid decorators inside class expressions
-		p.lexer.AddRangeErrorWithNotes(p.lexer.Range(), "Decorators can only be used with class declarations in TypeScript",
-			[]logger.MsgData{p.tracker.MsgData(classKeyword, "This is a class expression, not a class declaration:")})
-
-		// Parse and discard decorators for error recovery
-		scopeIndex := len(p.scopesInOrder)
-		p.parseDecorators(p.currentScope)
-		p.discardScopesUpTo(scopeIndex)
-	}
-}
-
 func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) js_ast.Stmt {
 	p.lexer.Expect(js_lexer.TEnum)
 	nameLoc := p.lexer.Loc()
