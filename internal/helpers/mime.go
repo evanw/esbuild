@@ -12,6 +12,7 @@ var builtinTypesLower = map[string]string{
 	".markdown": "text/markdown; charset=utf-8",
 	".md":       "text/markdown; charset=utf-8",
 	".mjs":      "text/javascript; charset=utf-8",
+	".xhtml":    "application/xhtml+xml",
 	".xml":      "text/xml; charset=utf-8",
 
 	// Images
