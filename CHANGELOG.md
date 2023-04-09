@@ -1,5 +1,46 @@
 # Changelog
 
+## Unreleased
+
+* Fix CSS nesting transform for triple-nested rules that start with a combinator ([#3046](https://github.com/evanw/esbuild/issues/3046))
+
+    This release fixes a bug with esbuild where triple-nested CSS rules that start with a combinator were not transformed correctly for older browsers. Here's an example of such a case before and after this bug fix:
+
+    ```css
+    /* Original input */
+    .a {
+      color: red;
+      > .b {
+        color: green;
+        > .c {
+          color: blue;
+        }
+      }
+    }
+
+    /* Old output (with --target=chrome90) */
+    .a {
+      color: red;
+    }
+    .a > .b {
+      color: green;
+    }
+    .a .b > .c {
+      color: blue;
+    }
+
+    /* New output (with --target=chrome90) */
+    .a {
+      color: red;
+    }
+    .a > .b {
+      color: green;
+    }
+    .a > .b > .c {
+      color: blue;
+    }
+    ```
+
 ## 0.17.15
 
 * Allow keywords as type parameter names in mapped types ([#3033](https://github.com/evanw/esbuild/issues/3033))

@@ -212,6 +212,9 @@ func substituteAmpersandsInCompoundSelector(sel css_ast.CompoundSelector, replac
 
 		var subclassSelectorPrefix []css_ast.SS
 
+		// Copy over the combinator, if any
+		sel.Combinator = single.Combinator
+
 		// Insert the type selector
 		if single.TypeSelector != nil {
 			if sel.TypeSelector != nil {

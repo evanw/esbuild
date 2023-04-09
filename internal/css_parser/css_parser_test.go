@@ -883,6 +883,8 @@ func TestNestedSelector(t *testing.T) {
 	expectPrintedLower(t, ".foo { & .bar { color: red } color: blue }", ".foo {\n  color: blue;\n}\n.foo .bar {\n  color: red;\n}\n")
 	expectPrintedLower(t, ".foo { color: blue; & .bar { color: red } zoom: 2 }", ".foo {\n  color: blue;\n  zoom: 2;\n}\n.foo .bar {\n  color: red;\n}\n")
 	expectPrintedLower(t, ".a, .b { .c, .d { color: red } }", ":is(.a, .b) :is(.c, .d) {\n  color: red;\n}\n")
+	expectPrintedLower(t, ".a { color: red; > .b { color: green; > .c { color: blue } } }", ".a {\n  color: red;\n}\n.a > .b {\n  color: green;\n}\n.a > .b > .c {\n  color: blue;\n}\n")
+	expectPrintedLower(t, "> .a { color: red; > .b { color: green; > .c { color: blue } } }", "> .a {\n  color: red;\n}\n> .a > .b {\n  color: green;\n}\n> .a > .b > .c {\n  color: blue;\n}\n")
 	expectPrintedLower(t, ".foo, .bar, .foo:before, .bar:after { &:hover { color: red } }", ":is(.foo, .bar):hover {\n  color: red;\n}\n")
 	expectPrintedLower(t, ".foo, .bar:before { &:hover { color: red } }", ".foo:hover {\n  color: red;\n}\n")
 	expectPrintedLower(t, ".foo, .bar:before { :hover & { color: red } }", ":hover .foo {\n  color: red;\n}\n")
