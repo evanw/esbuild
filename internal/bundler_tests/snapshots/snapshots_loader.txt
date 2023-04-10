@@ -467,7 +467,7 @@ var example_default7 = "data:image/jpeg,jpg";
 var example_default8 = "data:text/javascript;charset=utf-8,js";
 
 // example.json
-var example_default9 = "data:application/json,json";
+var example_default9 = "data:application/json;charset=utf-8,json";
 
 // example.mjs
 var example_default10 = "data:text/javascript;charset=utf-8,mjs";

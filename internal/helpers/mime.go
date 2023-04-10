@@ -8,11 +8,11 @@ var builtinTypesLower = map[string]string{
 	".htm":      "text/html; charset=utf-8",
 	".html":     "text/html; charset=utf-8",
 	".js":       "text/javascript; charset=utf-8",
-	".json":     "application/json",
+	".json":     "application/json; charset=utf-8",
 	".markdown": "text/markdown; charset=utf-8",
 	".md":       "text/markdown; charset=utf-8",
 	".mjs":      "text/javascript; charset=utf-8",
-	".xhtml":    "application/xhtml+xml",
+	".xhtml":    "application/xhtml+xml; charset=utf-8",
 	".xml":      "text/xml; charset=utf-8",
 
 	// Images
