@@ -343,6 +343,15 @@ TestLoaderCopyWithFormat
 ---------- /out/assets/some.file ----------
 stuff
 ================================================================================
+TestLoaderCopyWithInjectedFileBundle
+---------- /out/inject-IFR6YGWW.js ----------
+console.log('in inject.js')
+---------- /out/entry.js ----------
+// src/entry.ts
+import "./inject-IFR6YGWW.js";
+console.log("in entry.ts");
+
+================================================================================
 TestLoaderCopyWithTransform
 ---------- /out/src/entry.js ----------
 console.log("entry");

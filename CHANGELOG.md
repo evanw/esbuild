@@ -41,6 +41,12 @@
     }
     ```
 
+* Support `--inject` with a file loaded using the `copy` loader ([#3041](https://github.com/evanw/esbuild/issues/3041))
+
+    This release now allows you to use `--inject` with a file that is loaded using the `copy` loader. The `copy` loader copies the imported file to the output directory verbatim and rewrites the path in the `import` statement to point to the copied output file. When used with `--inject`, this means the injected file will be copied to the output directory as-is and a bare `import` statement for that file will be inserted in any non-copy output files that esbuild generates.
+
+    Note that since esbuild doesn't parse the contents of copied files, esbuild will not expose any of the export names as usable imports when you do this (in the way that esbuild's `--inject` feature is typically used). However, any side-effects that the injected file has will still occur.
+
 ## 0.17.15
 
 * Allow keywords as type parameter names in mapped types ([#3033](https://github.com/evanw/esbuild/issues/3033))

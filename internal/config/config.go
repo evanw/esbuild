@@ -559,9 +559,10 @@ type InjectedDefine struct {
 }
 
 type InjectedFile struct {
-	Exports    []InjectableExport
-	DefineName string
-	Source     logger.Source
+	Exports      []InjectableExport
+	DefineName   string // For injected files generated when you "--define" a non-literal
+	Source       logger.Source
+	IsCopyLoader bool // If you set the loader to "copy" (see https://github.com/evanw/esbuild/issues/3041)
 }
 
 type InjectableExport struct {

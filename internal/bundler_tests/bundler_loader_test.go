@@ -1498,3 +1498,42 @@ func TestLoaderCopyStartsWithDotRelPath(t *testing.T) {
 		},
 	})
 }
+
+func TestLoaderCopyWithInjectedFileNoBundle(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/src/entry.ts":  `console.log('in entry.ts')`,
+			"/src/inject.js": `console.log('in inject.js')`,
+		},
+		entryPaths: []string{"/src/entry.ts"},
+		options: config.Options{
+			AbsOutputDir: "/out",
+			InjectPaths:  []string{"/src/inject.js"},
+			ExtensionToLoader: map[string]config.Loader{
+				".ts": config.LoaderTS,
+				".js": config.LoaderCopy,
+			},
+		},
+		expectedScanLog: `ERROR: Cannot inject "src/inject.js" with the "copy" loader without bundling enabled
+`,
+	})
+}
+
+func TestLoaderCopyWithInjectedFileBundle(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/src/entry.ts":  `console.log('in entry.ts')`,
+			"/src/inject.js": `console.log('in inject.js')`,
+		},
+		entryPaths: []string{"/src/entry.ts"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			InjectPaths:  []string{"/src/inject.js"},
+			ExtensionToLoader: map[string]config.Loader{
+				".ts": config.LoaderTS,
+				".js": config.LoaderCopy,
+			},
+		},
+	})
+}

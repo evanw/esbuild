@@ -530,9 +530,17 @@ func parseFile(args parseArgs) {
 		// "options" object to populate the "InjectedFiles" field. So we must
 		// only send on the "inject" channel after we're done using the "options"
 		// object so we don't introduce a data race.
+		isCopyLoader := loader == config.LoaderCopy
+		if isCopyLoader && args.skipResolve {
+			// This is not allowed because the import path would have to be rewritten,
+			// but import paths are not rewritten when bundling isn't enabled.
+			args.log.AddError(nil, logger.Range{},
+				fmt.Sprintf("Cannot inject %q with the \"copy\" loader without bundling enabled", source.PrettyPath))
+		}
 		args.inject <- config.InjectedFile{
-			Source:  source,
-			Exports: exports,
+			Source:       source,
+			Exports:      exports,
+			IsCopyLoader: isCopyLoader,
 		}
 	}
 

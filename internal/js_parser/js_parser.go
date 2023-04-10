@@ -15394,7 +15394,7 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result importsEx
 				if p.options.ts.Parse && foundImports && isUnusedInTypeScript && (p.options.unusedImportFlagsTS&config.UnusedImportKeepStmt) == 0 {
 					// Ignore import records with a pre-filled source index. These are
 					// for injected files and we definitely do not want to trim these.
-					if !record.SourceIndex.IsValid() {
+					if !record.SourceIndex.IsValid() && !record.CopySourceIndex.IsValid() {
 						record.Flags |= ast.IsUnused
 						continue
 					}
@@ -15879,7 +15879,11 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 			}
 		}
 
-		before = p.generateImportStmt(file.Source.KeyPath.Text, exportsNoConflict, &file.Source.Index, before, symbols)
+		if file.IsCopyLoader {
+			before = p.generateImportStmt(file.Source.KeyPath.Text, exportsNoConflict, before, symbols, nil, &file.Source.Index)
+		} else {
+			before = p.generateImportStmt(file.Source.KeyPath.Text, exportsNoConflict, before, symbols, &file.Source.Index, nil)
+		}
 	}
 
 	// Bind symbols in a second pass over the AST. I started off doing this in a
@@ -16326,9 +16330,10 @@ func (p *parser) computeCharacterFrequency() *js_ast.CharFreq {
 func (p *parser) generateImportStmt(
 	path string,
 	imports []string,
-	sourceIndex *uint32,
 	parts []js_ast.Part,
 	symbols map[string]js_ast.LocRef,
+	sourceIndex *uint32,
+	copySourceIndex *uint32,
 ) []js_ast.Part {
 	var loc logger.Loc
 	isFirst := true
@@ -16346,6 +16351,9 @@ func (p *parser) generateImportStmt(
 	importRecordIndex := p.addImportRecord(ast.ImportStmt, loc, path, nil, 0)
 	if sourceIndex != nil {
 		p.importRecords[importRecordIndex].SourceIndex = ast.MakeIndex32(*sourceIndex)
+	}
+	if copySourceIndex != nil {
+		p.importRecords[importRecordIndex].CopySourceIndex = ast.MakeIndex32(*copySourceIndex)
 	}
 	declaredSymbols[0] = js_ast.DeclaredSymbol{Ref: namespaceRef, IsTopLevel: true}
 
@@ -16396,7 +16404,7 @@ func (p *parser) toAST(before, parts, after []js_ast.Part, hashbang string, dire
 	if len(p.runtimeImports) > 0 && !p.options.omitRuntimeForTests {
 		keys := sortedKeysOfMapStringLocRef(p.runtimeImports)
 		sourceIndex := runtime.SourceIndex
-		before = p.generateImportStmt("<runtime>", keys, &sourceIndex, before, p.runtimeImports)
+		before = p.generateImportStmt("<runtime>", keys, before, p.runtimeImports, &sourceIndex, nil)
 	}
 
 	// Insert an import statement for any jsx runtime imports we generated
@@ -16411,14 +16419,14 @@ func (p *parser) toAST(before, parts, after []js_ast.Part, hashbang string, dire
 			path = path + "/jsx-runtime"
 		}
 
-		before = p.generateImportStmt(path, keys, nil, before, p.jsxRuntimeImports)
+		before = p.generateImportStmt(path, keys, before, p.jsxRuntimeImports, nil, nil)
 	}
 
 	// Insert an import statement for any legacy jsx imports we generated (i.e., createElement)
 	if len(p.jsxLegacyImports) > 0 && !p.options.omitJSXRuntimeForTests {
 		keys := sortedKeysOfMapStringLocRef(p.jsxLegacyImports)
 		path := p.options.jsx.ImportSource
-		before = p.generateImportStmt(path, keys, nil, before, p.jsxLegacyImports)
+		before = p.generateImportStmt(path, keys, before, p.jsxLegacyImports, nil, nil)
 	}
 
 	// Generated imports are inserted before other code instead of appending them
