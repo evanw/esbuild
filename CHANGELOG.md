@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.17.16
 
 * Fix CSS nesting transform for triple-nested rules that start with a combinator ([#3046](https://github.com/evanw/esbuild/issues/3046))
 
