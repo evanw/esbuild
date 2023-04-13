@@ -185,7 +185,6 @@ exports.buildWasmLib = async (esbuildPath) => {
       '--target=' + umdBrowserTarget,
       '--format=cjs',
       '--define:ESBUILD_VERSION=' + JSON.stringify(version),
-      '--define:WEB_WORKER_SOURCE_CODE=' + JSON.stringify(wasmWorkerCodeUMD),
       '--banner:js=' + umdPrefix,
       '--footer:js=' + umdSuffix,
       '--log-level=warning',
@@ -199,7 +198,6 @@ exports.buildWasmLib = async (esbuildPath) => {
       '--target=' + esmBrowserTarget,
       '--format=esm',
       '--define:ESBUILD_VERSION=' + JSON.stringify(version),
-      '--define:WEB_WORKER_SOURCE_CODE=' + JSON.stringify(wasmWorkerCodeESM),
       '--log-level=warning',
     ].concat(minifyFlags), { cwd: repoDir }).toString().replace('WEB_WORKER_FUNCTION', wasmWorkerCodeESM)
     fs.writeFileSync(path.join(esmDir, minify ? 'browser.min.js' : 'browser.js'), browserESM)

@@ -78,13 +78,15 @@ const startRunningService = async (wasmURL: string | URL, wasmModule: WebAssembl
     terminate: () => void
   }
 
+  const webWorkerFunction = WEB_WORKER_FUNCTION;
+
   if (useWorker) {
     // Run esbuild off the main thread
-    let blob = new Blob([`onmessage=${WEB_WORKER_SOURCE_CODE}(postMessage)`], { type: 'text/javascript' })
+    let blob = new Blob([`onmessage=${webWorkerFunction.toString()}(postMessage)`], { type: 'text/javascript' })
     worker = new Worker(URL.createObjectURL(blob))
   } else {
     // Run esbuild on the main thread
-    let onmessage = WEB_WORKER_FUNCTION((data: Uint8Array) => worker.onmessage!({ data }))
+    let onmessage = webWorkerFunction((data: Uint8Array) => worker.onmessage!({ data }))
     worker = {
       onmessage: null,
       postMessage: data => setTimeout(() => onmessage({ data })),
