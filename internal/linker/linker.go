@@ -445,28 +445,76 @@ func (c *linkerContext) mangleProps(mangleCache map[string]interface{}) {
 // can cause initialization bugs. So let's forbid these cycles for now to guard
 // against code splitting bugs that could cause us to generate buggy chunks.
 func (c *linkerContext) enforceNoCyclicChunkImports() {
-	// var validate func(int, []int)
-	validate := func(chunkIndex int, path []int) {
-		for _, otherChunkIndex := range path {
-			if chunkIndex == otherChunkIndex {
-				c.log.AddError(nil, logger.Range{}, "Internal error: generated chunks contain a circular import")
-				return
+	var validate func(int, map[int]bool, map[int]bool) bool
+	inPath := make(map[int]bool)
+	visited := make(map[int]bool)
+
+	validate = func(chunkIndex int, visited, inPath map[int]bool) bool {
+		if visited[chunkIndex] {
+			return false
+		}
+		if inPath[chunkIndex] {
+			c.log.AddError(nil, logger.Range{}, "Internal error: generated chunks contain a circular import")
+			return true
+		}
+
+		inPath[chunkIndex] = true
+
+		for _, chunkImport := range c.chunks[chunkIndex].crossChunkImports {
+			if chunkImport.importKind != ast.ImportDynamic {
+				if validate(int(chunkImport.chunkIndex), visited, inPath) {
+					return true
+				}
 			}
 		}
-		// path = append(path, chunkIndex)
-		// for _, chunkImport := range c.chunks[chunkIndex].crossChunkImports {
-		// 	// Ignore cycles caused by dynamic "import()" expressions. These are fine
-		// 	// because they don't necessarily cause initialization order issues and
-		// 	// they don't indicate a bug in our chunk generation algorithm. They arise
-		// 	// normally in real code (e.g. two files that import each other).
-		// 	if chunkImport.importKind != ast.ImportDynamic {
-		// 		validate(int(chunkImport.chunkIndex), path)
-		// 	}
-		// }
+
+		visited[chunkIndex] = true
+		return false
 	}
-	path := make([]int, 0, len(c.chunks))
+
+	for chunkIndex := range c.chunks {
+		if validate(chunkIndex, visited, inPath) {
+			break // leave early
+		}
+	}
+}
+
+func (c *linkerContext) enforceNoCyclicChunkImportsColor() {
+	var validate func(int, map[int]int) bool
+
+	// DFS memoization with 3-colors, more space efficient
+	// 0: white (unvisited), 1: gray (visiting), 2: black (visited)
+	colors := make(map[int]int)
+	validate = func(chunkIndex int, colors map[int]int) bool {
+		if colors[chunkIndex] == 1 {
+			c.log.AddError(nil, logger.Range{}, "Internal error: generated chunks contain a circular import")
+			return true
+		}
+
+		if colors[chunkIndex] == 2 {
+			return false
+		}
+
+		colors[chunkIndex] = 1
+
+		for _, chunkImport := range c.chunks[chunkIndex].crossChunkImports {
+			if chunkImport.importKind != ast.ImportDynamic {
+
+				// Recursively validate otherChunkIndex
+				if validate(int(chunkImport.chunkIndex), colors) {
+					return true
+				}
+			}
+		}
+
+		colors[chunkIndex] = 2
+		return false
+	}
+
 	for i := range c.chunks {
-		validate(i, path)
+		if validate(i, colors) {
+			break
+		}
 	}
 }
 
