@@ -1017,6 +1017,27 @@ func (r resolverQuery) parseTSConfig(file string, visited map[string]bool) (*TSC
 		// and because it would deadlock since we're currently in the middle of
 		// populating the directory info cache.
 
+		maybeFinishOurSearch := func(base *TSConfigJSON, err error, extendsFile string) (*TSConfigJSON, bool) {
+			if err == nil {
+				return base, true
+			}
+
+			if err == syscall.ENOENT {
+				// Return false to indicate that we should continue searching
+				return nil, false
+			}
+
+			if err == errParseErrorImportCycle {
+				r.log.AddID(logger.MsgID_TsconfigJSON_Cycle, logger.Warning, &tracker, extendsRange,
+					fmt.Sprintf("Base config file %q forms cycle", extends))
+			} else if err != errParseErrorAlreadyLogged {
+				r.log.AddError(&tracker, extendsRange,
+					fmt.Sprintf("Cannot read file %q: %s",
+						PrettyPath(r.fs, logger.Path{Text: extendsFile, Namespace: "file"}), err.Error()))
+			}
+			return nil, true
+		}
+
 		// Check for a Yarn PnP manifest and use that to rewrite the path
 		if IsPackagePath(extends) {
 			pnpData := r.pnpManifest
@@ -1087,19 +1108,9 @@ func (r resolverQuery) parseTSConfig(file string, visited map[string]bool) (*TSC
 							}
 						}
 
-						if err == nil {
-							return base
-						} else if err == syscall.ENOENT {
-							continue
-						} else if err == errParseErrorImportCycle {
-							r.log.AddID(logger.MsgID_TsconfigJSON_Cycle, logger.Warning, &tracker, extendsRange,
-								fmt.Sprintf("Base config file %q forms cycle", extends))
-						} else if err != errParseErrorAlreadyLogged {
-							r.log.AddError(&tracker, extendsRange,
-								fmt.Sprintf("Cannot read file %q: %s",
-									PrettyPath(r.fs, logger.Path{Text: fileToCheck, Namespace: "file"}), err.Error()))
+						if result, shouldReturn := maybeFinishOurSearch(base, err, fileToCheck); shouldReturn {
+							return result
 						}
-						return nil
 					}
 				}
 
@@ -1152,18 +1163,8 @@ func (r resolverQuery) parseTSConfig(file string, visited map[string]bool) (*TSC
 				}
 			}
 
-			if err == nil {
-				return base
-			} else if err != syscall.ENOENT {
-				if err == errParseErrorImportCycle {
-					r.log.AddID(logger.MsgID_TsconfigJSON_Cycle, logger.Warning, &tracker, extendsRange,
-						fmt.Sprintf("Base config file %q forms cycle", extends))
-				} else if err != errParseErrorAlreadyLogged {
-					r.log.AddError(&tracker, extendsRange,
-						fmt.Sprintf("Cannot read file %q: %s",
-							PrettyPath(r.fs, logger.Path{Text: extendsFile, Namespace: "file"}), err.Error()))
-				}
-				return nil
+			if result, shouldReturn := maybeFinishOurSearch(base, err, extendsFile); shouldReturn {
+				return result
 			}
 		}
 
