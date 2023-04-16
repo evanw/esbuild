@@ -1089,11 +1089,47 @@ func (r resolverQuery) parseTSConfig(file string, visited map[string]bool) (*TSC
 		}
 
 		if IsPackagePath(extends) && !r.fs.IsAbs(extends) {
+			esmPackageName, esmPackageSubpath, esmOK := esmParsePackageName(extends)
+			if r.debugLogs != nil && esmOK {
+				r.debugLogs.addNote(fmt.Sprintf("Parsed tsconfig package name %q and package subpath %q", esmPackageName, esmPackageSubpath))
+			}
+
 			// If this is still a package path, try to resolve it to a "node_modules" directory
 			current := fileDir
 			for {
 				// Skip "node_modules" folders
 				if r.fs.Base(current) != "node_modules" {
+					// if "package.json" exists, try checking the "exports" map. The
+					// ability to use "extends" like this was added in TypeScript 5.0.
+					pkgDir := r.fs.Join(current, "node_modules", esmPackageName)
+					pjFile := r.fs.Join(pkgDir, "package.json")
+					if _, err, originalError := r.fs.ReadFile(pjFile); err == nil {
+						if packageJSON := r.parsePackageJSON(pkgDir); packageJSON != nil && packageJSON.exportsMap != nil {
+							if r.debugLogs != nil {
+								r.debugLogs.addNote(fmt.Sprintf("Looking for %q in \"exports\" map in %q", esmPackageSubpath, packageJSON.source.KeyPath.Text))
+								r.debugLogs.increaseIndent()
+								defer r.debugLogs.decreaseIndent()
+							}
+
+							// Note: TypeScript appears to always treat this as a "require" import
+							conditions := r.esmConditionsRequire
+							resolvedPath, status, debug := r.esmPackageExportsResolve("/", esmPackageSubpath, packageJSON.exportsMap.root, conditions)
+							resolvedPath, status, debug = r.esmHandlePostConditions(resolvedPath, status, debug)
+
+							// This is a very abbreviated version of our ESM resolution
+							if status == pjStatusExact || status == pjStatusExactEndsWithStar {
+								fileToCheck := r.fs.Join(pkgDir, resolvedPath)
+								base, err := r.parseTSConfig(fileToCheck, visited)
+
+								if result, shouldReturn := maybeFinishOurSearch(base, err, fileToCheck); shouldReturn {
+									return result
+								}
+							}
+						}
+					} else if r.debugLogs != nil && originalError != nil {
+						r.debugLogs.addNote(fmt.Sprintf("Failed to read file %q: %s", pjFile, originalError.Error()))
+					}
+
 					join := r.fs.Join(current, "node_modules", extends)
 					filesToCheck := []string{r.fs.Join(join, "tsconfig.json"), join, join + ".json"}
 					for _, fileToCheck := range filesToCheck {

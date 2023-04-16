@@ -2145,3 +2145,137 @@ func TestTsConfigExtendsDotDotWithSlash(t *testing.T) {
 `,
 	})
 }
+
+func TestTsConfigExtendsWithExports(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/main.ts": `
+				console.log(123n)
+			`,
+			"/Users/user/project/tsconfig.json": `{
+				"extends": "@whatever/tsconfig/a/b/c"
+			}`,
+			"/Users/user/project/node_modules/@whatever/tsconfig/package.json": `{
+				"exports": {
+					"./a/b/c": "./foo.json"
+				}
+			}`,
+			"/Users/user/project/node_modules/@whatever/tsconfig/foo.json": `{
+				"compilerOptions": {
+					"target": "ES6"
+				}
+			}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/main.ts"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/Users/user/project/out",
+			OutputFormat: config.FormatESModule,
+		},
+		expectedScanLog: `Users/user/project/src/main.ts: ERROR: Big integer literals are not available in the configured target environment ("ES6")
+Users/user/project/node_modules/@whatever/tsconfig/foo.json: NOTE: The target environment was set to "ES6" here:
+`,
+	})
+}
+
+func TestTsConfigExtendsWithExportsStar(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/main.ts": `
+				console.log(123n)
+			`,
+			"/Users/user/project/tsconfig.json": `{
+				"extends": "@whatever/tsconfig/a/b/c"
+			}`,
+			"/Users/user/project/node_modules/@whatever/tsconfig/package.json": `{
+				"exports": {
+					"./*": "./tsconfig.*.json"
+				}
+			}`,
+			"/Users/user/project/node_modules/@whatever/tsconfig/tsconfig.a/b/c.json": `{
+				"compilerOptions": {
+					"target": "ES6"
+				}
+			}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/main.ts"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/Users/user/project/out",
+			OutputFormat: config.FormatESModule,
+		},
+		expectedScanLog: `Users/user/project/src/main.ts: ERROR: Big integer literals are not available in the configured target environment ("ES6")
+Users/user/project/node_modules/@whatever/tsconfig/tsconfig.a/b/c.json: NOTE: The target environment was set to "ES6" here:
+`,
+	})
+}
+
+func TestTsConfigExtendsWithExportsStarTrailing(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/main.ts": `
+				console.log(123n)
+			`,
+			"/Users/user/project/tsconfig.json": `{
+				"extends": "@whatever/tsconfig/a/b/c.json"
+			}`,
+			"/Users/user/project/node_modules/@whatever/tsconfig/package.json": `{
+				"exports": {
+					"./*": "./tsconfig.*"
+				}
+			}`,
+			"/Users/user/project/node_modules/@whatever/tsconfig/tsconfig.a/b/c.json": `{
+				"compilerOptions": {
+					"target": "ES6"
+				}
+			}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/main.ts"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/Users/user/project/out",
+			OutputFormat: config.FormatESModule,
+		},
+		expectedScanLog: `Users/user/project/src/main.ts: ERROR: Big integer literals are not available in the configured target environment ("ES6")
+Users/user/project/node_modules/@whatever/tsconfig/tsconfig.a/b/c.json: NOTE: The target environment was set to "ES6" here:
+`,
+	})
+}
+
+func TestTsConfigExtendsWithExportsRequire(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/main.ts": `
+				console.log(123n)
+			`,
+			"/Users/user/project/tsconfig.json": `{
+				"extends": "@whatever/tsconfig/a/b/c.json"
+			}`,
+			"/Users/user/project/node_modules/@whatever/tsconfig/package.json": `{
+				"exports": {
+					"./*": {
+						"import": "./import.json",
+						"require": "./require.json",
+						"default": "./default.json"
+					}
+				}
+			}`,
+			"/Users/user/project/node_modules/@whatever/tsconfig/import.json":  `FAILURE`,
+			"/Users/user/project/node_modules/@whatever/tsconfig/default.json": `FAILURE`,
+			"/Users/user/project/node_modules/@whatever/tsconfig/require.json": `{
+				"compilerOptions": {
+					"target": "ES6"
+				}
+			}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/main.ts"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/Users/user/project/out",
+			OutputFormat: config.FormatESModule,
+		},
+		expectedScanLog: `Users/user/project/src/main.ts: ERROR: Big integer literals are not available in the configured target environment ("ES6")
+Users/user/project/node_modules/@whatever/tsconfig/require.json: NOTE: The target environment was set to "ES6" here:
+`,
+	})
+}
