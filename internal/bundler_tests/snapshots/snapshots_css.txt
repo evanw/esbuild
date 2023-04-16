@@ -254,14 +254,14 @@ a ~ b {
 
 ---------- /out/toplevel-ampersand-twice.css ----------
 /* toplevel-ampersand-twice.css */
-&,
-& {
+:scope,
+:scope {
   color: red;
 }
 
 ---------- /out/toplevel-ampersand-first.css ----------
 /* toplevel-ampersand-first.css */
-&,
+:scope,
 a {
   color: red;
 }
@@ -269,7 +269,7 @@ a {
 ---------- /out/toplevel-ampersand-second.css ----------
 /* toplevel-ampersand-second.css */
 a,
-& {
+:scope {
   color: red;
 }
 
@@ -318,8 +318,8 @@ a,
 ---------- /out/media-ampersand-twice.css ----------
 /* media-ampersand-twice.css */
 @media screen {
-  &,
-  & {
+  :scope,
+  :scope {
     color: red;
   }
 }
@@ -327,7 +327,7 @@ a,
 ---------- /out/media-ampersand-first.css ----------
 /* media-ampersand-first.css */
 @media screen {
-  &,
+  :scope,
   a {
     color: red;
   }
@@ -337,7 +337,7 @@ a,
 /* media-ampersand-second.css */
 @media screen {
   a,
-  & {
+  :scope {
     color: red;
   }
 }

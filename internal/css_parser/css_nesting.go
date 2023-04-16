@@ -8,6 +8,12 @@ import (
 func lowerNestingInRule(rule css_ast.Rule, results []css_ast.Rule) []css_ast.Rule {
 	switch r := rule.Data.(type) {
 	case *css_ast.RSelector:
+		scope := css_ast.ComplexSelector{
+			Selectors: []css_ast.CompoundSelector{{
+				SubclassSelectors: []css_ast.SS{&css_ast.SSPseudoClass{Name: "scope"}},
+			}},
+		}
+
 		// Filter out pseudo elements because they are ignored by nested style
 		// rules. This is because pseudo-elements are not valid within :is():
 		// https://www.w3.org/TR/selectors-4/#matches-pseudo. This restriction
@@ -17,7 +23,19 @@ func lowerNestingInRule(rule css_ast.Rule, results []css_ast.Rule) []css_ast.Rul
 		n := 0
 		for _, sel := range selectors {
 			if !sel.UsesPseudoElement() {
-				selectors[n] = sel
+				// Top-level "&" should be replaced with ":scope" to avoid recursion.
+				// From https://www.w3.org/TR/css-nesting-1/#nest-selector:
+				//
+				//   "When used in the selector of a nested style rule, the nesting
+				//   selector represents the elements matched by the parent rule. When
+				//   used in any other context, it represents the same elements as
+				//   :scope in that context (unless otherwise defined)."
+				//
+				substituted := make([]css_ast.CompoundSelector, 0, len(sel.Selectors))
+				for _, x := range sel.Selectors {
+					substituted = substituteAmpersandsInCompoundSelector(x, scope, substituted)
+				}
+				selectors[n] = css_ast.ComplexSelector{Selectors: substituted}
 				n++
 			}
 		}

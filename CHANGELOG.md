@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased
+
+* Fix CSS nesting transform for top-level `&` ([#3052](https://github.com/evanw/esbuild/issues/3052))
+
+    Previously esbuild could crash with a stack overflow when lowering CSS nesting rules with a top-level `&`, such as in the code below. This happened because esbuild's CSS nesting transform didn't handle top-level `&`, causing esbuild to inline the top-level selector into itself. This release handles top-level `&` by replacing it with [the `:scope` pseudo-class](https://drafts.csswg.org/selectors-4/#the-scope-pseudo):
+
+    ```css
+    /* Original code */
+    &,
+    a {
+      .b {
+        color: red;
+      }
+    }
+
+    /* New output (with --target=chrome90) */
+    :is(:scope, a) .b {
+      color: red;
+    }
+    ```
+
 ## 0.17.16
 
 * Fix CSS nesting transform for triple-nested rules that start with a combinator ([#3046](https://github.com/evanw/esbuild/issues/3046))
