@@ -21,6 +21,10 @@
     }
     ```
 
+* Fix watch mode with `NODE_PATH` ([#3062](https://github.com/evanw/esbuild/issues/3062))
+
+    Node has a rarely-used feature where you can extend the set of directories that node searches for packages using the `NODE_PATH` environment variable. While esbuild supports this too, previously a bug prevented esbuild's watch mode from picking up changes to imported files that were contained directly in a `NODE_PATH` directory. You're supposed to use `NODE_PATH` for packages, but some people abuse this feature by putting files in that directory instead (e.g. `node_modules/some-file.js` instead of `node_modules/some-pkg/some-file.js`). The watch mode bug happens when you do this because esbuild first tries to read `some-file.js` as a directory and then as a file. Watch mode was incorrectly waiting for `some-file.js` to become a valid directory. This release fixes this edge case bug by changing watch mode to watch `some-file.js` as a file when this happens.
+
 ## 0.17.16
 
 * Fix CSS nesting transform for triple-nested rules that start with a combinator ([#3046](https://github.com/evanw/esbuild/issues/3046))

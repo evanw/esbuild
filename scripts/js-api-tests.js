@@ -4062,6 +4062,54 @@ let watchTests = {
       await context.dispose()
     }
   },
+
+  // See: https://github.com/evanw/esbuild/issues/3062
+  async watchNodePaths({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    const outfile = path.join(testDir, 'out.js')
+    const libDir = path.join(testDir, 'lib')
+    const libFile = path.join(libDir, 'foo.js')
+    await mkdirAsync(libDir, { recursive: true })
+    await writeFileAsync(input, `
+      import { foo } from ${JSON.stringify(path.basename(libFile))}
+      console.log(foo)
+    `)
+
+    const { rebuildUntil, plugin } = makeRebuildUntilPlugin()
+    const context = await esbuild.context({
+      entryPoints: [input],
+      outfile,
+      write: false,
+      bundle: true,
+      minifyWhitespace: true,
+      format: 'esm',
+      logLevel: 'silent',
+      plugins: [plugin],
+      nodePaths: [libDir],
+    })
+
+    try {
+      const result = await rebuildUntil(
+        () => {
+          context.watch()
+          writeFileAtomic(libFile, `export let foo = 0`)
+        },
+        result => result.outputFiles.length === 1,
+      )
+      assert.strictEqual(result.outputFiles[0].text, `var foo=0;console.log(foo);\n`)
+
+      // Make sure watch mode works for files imported via NODE_PATH
+      for (let i = 1; i <= 3; i++) {
+        const result2 = await rebuildUntil(
+          () => writeFileAtomic(libFile, `export let foo = ${i}`),
+          result => result.outputFiles.length === 1 && result.outputFiles[0].text.includes(i),
+        )
+        assert.strictEqual(result2.outputFiles[0].text, `var foo=${i};console.log(foo);\n`)
+      }
+    } finally {
+      await context.dispose()
+    }
+  },
 }
 
 let serveTests = {

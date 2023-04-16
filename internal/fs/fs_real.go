@@ -212,7 +212,10 @@ func (fs *realFS) ReadFile(path string) (contents string, canonicalError error, 
 		data, ok := fs.watchData[path]
 		if canonicalError != nil {
 			data.state = stateFileMissing
-		} else if !ok {
+		} else if !ok || data.state == stateDirUnreadable {
+			// Note: If "ReadDirectory" is called before "ReadFile" with this same
+			// path, then "data.state" will be "stateDirUnreadable". In that case
+			// we want to transition to "stateFileNeedModKey" because it's a file.
 			data.state = stateFileNeedModKey
 		}
 		data.fileContents = fileContents
