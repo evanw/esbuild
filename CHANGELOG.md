@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.17.17
 
 * Fix CSS nesting transform for top-level `&` ([#3052](https://github.com/evanw/esbuild/issues/3052))
 
