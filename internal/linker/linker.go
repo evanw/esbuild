@@ -445,41 +445,6 @@ func (c *linkerContext) mangleProps(mangleCache map[string]interface{}) {
 // can cause initialization bugs. So let's forbid these cycles for now to guard
 // against code splitting bugs that could cause us to generate buggy chunks.
 func (c *linkerContext) enforceNoCyclicChunkImports() {
-	var validate func(int, map[int]bool, map[int]bool) bool
-	inPath := make(map[int]bool)
-	visited := make(map[int]bool)
-
-	validate = func(chunkIndex int, visited, inPath map[int]bool) bool {
-		if visited[chunkIndex] {
-			return false
-		}
-		if inPath[chunkIndex] {
-			c.log.AddError(nil, logger.Range{}, "Internal error: generated chunks contain a circular import")
-			return true
-		}
-
-		inPath[chunkIndex] = true
-
-		for _, chunkImport := range c.chunks[chunkIndex].crossChunkImports {
-			if chunkImport.importKind != ast.ImportDynamic {
-				if validate(int(chunkImport.chunkIndex), visited, inPath) {
-					return true
-				}
-			}
-		}
-
-		visited[chunkIndex] = true
-		return false
-	}
-
-	for chunkIndex := range c.chunks {
-		if validate(chunkIndex, visited, inPath) {
-			break // leave early
-		}
-	}
-}
-
-func (c *linkerContext) enforceNoCyclicChunkImportsColor() {
 	var validate func(int, map[int]int) bool
 
 	// DFS memoization with 3-colors, more space efficient
