@@ -470,6 +470,10 @@ func (c *linkerContext) enforceNoCyclicChunkImports() {
 		colors[chunkIndex] = 1
 
 		for _, chunkImport := range c.chunks[chunkIndex].crossChunkImports {
+			// Ignore cycles caused by dynamic "import()" expressions. These are fine
+			// because they don't necessarily cause initialization order issues and
+			// they don't indicate a bug in our chunk generation algorithm. They arise
+			// normally in real code (e.g. two files that import each other).
 			if chunkImport.importKind != ast.ImportDynamic {
 
 				// Recursively validate otherChunkIndex
