@@ -5863,6 +5863,20 @@ let transformTests = {
     assert.strictEqual(code, `(() => {\n  const import_meta = {};\n  console.log(import_meta, import_meta.foo);\n})();\n`)
   },
 
+  async defineIdentifierVsStringWarningIssue466({ esbuild }) {
+    const { warnings } = await esbuild.transform(``, { define: { 'process.env.NODE_ENV': 'production' } })
+    const formatted = await esbuild.formatMessages(warnings, { kind: 'warning' })
+    assert.strictEqual(formatted[0],
+      `▲ [WARNING] "process.env.NODE_ENV" is defined as an identifier instead of a string (surround "production" with quotes to get a string) [suspicious-define]
+
+    <js>:1:34:
+      1 │ define: { 'process.env.NODE_ENV': 'production' }
+        │                                   ~~~~~~~~~~~~
+        ╵                                   '"production"'
+
+`)
+  },
+
   async json({ esbuild }) {
     const { code } = await esbuild.transform(`{ "x": "y" }`, { loader: 'json' })
     assert.strictEqual(code, `module.exports = { x: "y" };\n`)

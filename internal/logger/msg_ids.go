@@ -32,6 +32,7 @@ const (
 	MsgID_JS_PrivateNameWillThrow
 	MsgID_JS_SemicolonAfterReturn
 	MsgID_JS_SuspiciousBooleanNot
+	MsgID_JS_SuspiciousDefine
 	MsgID_JS_ThisIsUndefinedInESM
 	MsgID_JS_UnsupportedDynamicImport
 	MsgID_JS_UnsupportedJSXComment
@@ -129,6 +130,8 @@ func StringToMsgIDs(str string, logLevel LogLevel, overrides map[MsgID]LogLevel)
 		overrides[MsgID_JS_SemicolonAfterReturn] = logLevel
 	case "suspicious-boolean-not":
 		overrides[MsgID_JS_SuspiciousBooleanNot] = logLevel
+	case "suspicious-define":
+		overrides[MsgID_JS_SuspiciousDefine] = logLevel
 	case "this-is-undefined-in-esm":
 		overrides[MsgID_JS_ThisIsUndefinedInESM] = logLevel
 	case "unsupported-dynamic-import":
@@ -245,6 +248,8 @@ func MsgIDToString(id MsgID) string {
 		return "semicolon-after-return"
 	case MsgID_JS_SuspiciousBooleanNot:
 		return "suspicious-boolean-not"
+	case MsgID_JS_SuspiciousDefine:
+		return "suspicious-define"
 	case MsgID_JS_ThisIsUndefinedInESM:
 		return "this-is-undefined-in-esm"
 	case MsgID_JS_UnsupportedDynamicImport:

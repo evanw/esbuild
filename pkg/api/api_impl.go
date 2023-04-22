@@ -600,6 +600,51 @@ func validateDefines(
 		// Define simple expressions
 		if defineExpr.Constant != nil || len(defineExpr.Parts) > 0 {
 			rawDefines[key] = config.DefineData{DefineExpr: &defineExpr}
+
+			// Try to be helpful for common mistakes
+			if len(defineExpr.Parts) == 1 && key == "process.env.NODE_ENV" {
+				data := logger.MsgData{
+					Text: fmt.Sprintf("%q is defined as an identifier instead of a string (surround %q with quotes to get a string)", key, value),
+				}
+				part := defineExpr.Parts[0]
+
+				switch logger.API {
+				case logger.CLIAPI:
+					data.Location = &logger.MsgLocation{
+						File:       "<cli>",
+						Line:       1,
+						Column:     30,
+						Length:     len(part),
+						LineText:   fmt.Sprintf("--define:process.env.NODE_ENV=%s", part),
+						Suggestion: fmt.Sprintf("\\\"%s\\\"", part),
+					}
+
+				case logger.JSAPI:
+					data.Location = &logger.MsgLocation{
+						File:       "<js>",
+						Line:       1,
+						Column:     34,
+						Length:     len(part) + 2,
+						LineText:   fmt.Sprintf("define: { 'process.env.NODE_ENV': '%s' }", part),
+						Suggestion: fmt.Sprintf("'\"%s\"'", part),
+					}
+
+				case logger.GoAPI:
+					data.Location = &logger.MsgLocation{
+						File:       "<go>",
+						Line:       1,
+						Column:     50,
+						Length:     len(part) + 2,
+						LineText:   fmt.Sprintf("Define: map[string]string{\"process.env.NODE_ENV\": \"%s\"}", part),
+						Suggestion: fmt.Sprintf("\"\\\"%s\\\"\"", part),
+					}
+				}
+
+				log.AddMsgID(logger.MsgID_JS_SuspiciousDefine, logger.Msg{
+					Kind: logger.Warning,
+					Data: data,
+				})
+			}
 			continue
 		}
 
