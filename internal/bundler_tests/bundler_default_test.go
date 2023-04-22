@@ -7616,6 +7616,8 @@ func TestErrorsForAssertTypeJSON(t *testing.T) {
 				import * as ns from './foo.json' assert { type: 'json' }
 				use(used, ns.prop)
 				export { exported } from './foo.json' assert { type: 'json' }
+				export { default as def2 } from './foo.json' assert { type: 'json' }
+				export { def3 as default } from './foo.json' assert { type: 'json' }
 				import text from './foo.text' assert { type: 'json' }
 				import file from './foo.file' assert { type: 'json' }
 				import copy from './foo.copy' assert { type: 'json' }
@@ -7628,6 +7630,8 @@ func TestErrorsForAssertTypeJSON(t *testing.T) {
 				import * as ns from './foo.json' assert { type: 'json' }
 				use(used, ns.prop)
 				export { exported } from './foo.json' assert { type: 'json' }
+				export { default as def2 } from './foo.json' assert { type: 'json' }
+				export { def3 as default } from './foo.json' assert { type: 'json' }
 				import text from './foo.text' assert { type: 'json' }
 				import file from './foo.file' assert { type: 'json' }
 				import copy from './foo.copy' assert { type: 'json' }
@@ -7665,6 +7669,9 @@ NOTE: You can either keep the import assertion and only use the "default" import
 js-entry.js: ERROR: Cannot use non-default import "exported" with a standard JSON module
 js-entry.js: NOTE: This is considered an import of a standard JSON module because of the import assertion here:
 NOTE: You can either keep the import assertion and only use the "default" import, or you can remove the import assertion and use the "exported" import (which is non-standard behavior).
+js-entry.js: ERROR: Cannot use non-default import "def3" with a standard JSON module
+js-entry.js: NOTE: This is considered an import of a standard JSON module because of the import assertion here:
+NOTE: You can either keep the import assertion and only use the "default" import, or you can remove the import assertion and use the "def3" import (which is non-standard behavior).
 js-entry.js: ERROR: The file "foo.text" was loaded with the "text" loader
 js-entry.js: NOTE: This import assertion requires the loader to be "json" instead:
 NOTE: You need to either reconfigure esbuild to ensure that the loader for this file is "json" or you need to remove this import assertion.
@@ -7680,6 +7687,9 @@ NOTE: You can either keep the import assertion and only use the "default" import
 ts-entry.ts: ERROR: Cannot use non-default import "exported" with a standard JSON module
 ts-entry.ts: NOTE: This is considered an import of a standard JSON module because of the import assertion here:
 NOTE: You can either keep the import assertion and only use the "default" import, or you can remove the import assertion and use the "exported" import (which is non-standard behavior).
+ts-entry.ts: ERROR: Cannot use non-default import "def3" with a standard JSON module
+ts-entry.ts: NOTE: This is considered an import of a standard JSON module because of the import assertion here:
+NOTE: You can either keep the import assertion and only use the "default" import, or you can remove the import assertion and use the "def3" import (which is non-standard behavior).
 `,
 	})
 }

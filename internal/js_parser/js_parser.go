@@ -15569,10 +15569,10 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result importsEx
 			// Forbid non-default imports for standard JSON modules
 			if (record.Flags&ast.AssertTypeJSON) != 0 && p.options.mode == config.ModeBundle {
 				for _, item := range s.Items {
-					if item.Alias != "default" {
-						p.log.AddErrorWithNotes(&p.tracker, js_lexer.RangeOfIdentifier(p.source, item.AliasLoc),
-							fmt.Sprintf("Cannot use non-default import %q with a standard JSON module", item.Alias),
-							p.notesForAssertTypeJSON(record, item.Alias))
+					if item.OriginalName != "default" {
+						p.log.AddErrorWithNotes(&p.tracker, js_lexer.RangeOfIdentifier(p.source, item.Name.Loc),
+							fmt.Sprintf("Cannot use non-default import %q with a standard JSON module", item.OriginalName),
+							p.notesForAssertTypeJSON(record, item.OriginalName))
 					}
 				}
 			}
