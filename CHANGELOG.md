@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.17.18
 
 * Fix non-default JSON import error with `export {} from` ([#3070](https://github.com/evanw/esbuild/issues/3070))
 
