@@ -2417,8 +2417,8 @@ func (r resolverQuery) finalizeImportsExportsResult(
 	case pjStatusUnsupportedDirectoryImport, pjStatusUnsupportedDirectoryImportMissingIndex:
 		r.debugMeta.notes = []logger.MsgData{
 			tracker.MsgData(debug.token, fmt.Sprintf("Importing the directory %q is forbidden by this package:", resolvedPath)),
-			tracker.MsgData(packageJSON.source.RangeOfString(packageJSON.exportsMap.propertyKeyLoc),
-				"The presence of \"exports\" here makes importing a directory forbidden:"),
+			tracker.MsgData(packageJSON.source.RangeOfString(importExportMap.propertyKeyLoc),
+				fmt.Sprintf("The presence of %q here makes importing a directory forbidden:", importExportMap.propertyKey)),
 		}
 
 		// Provide an inline suggestion message with the correct import path

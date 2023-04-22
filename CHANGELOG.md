@@ -6,6 +6,10 @@
 
     This release fixes a bug where esbuild incorrectly identified statements of the form `export { default as x } from "y" assert { type: "json" }` as a non-default import. The bug did not affect code of the form `import { default as x } from ...` (only code that used the `export` keyword).
 
+* Fix a crash with an invalid subpath import ([#3067](https://github.com/evanw/esbuild/issues/3067))
+
+    Previously esbuild could crash when attempting to generate a friendly error message for an invalid [subpath import](https://nodejs.org/api/packages.html#subpath-imports) (i.e. an import starting with `#`). This happened because esbuild originally only supported the `exports` field and the code for that error message was not updated when esbuild later added support for the `imports` field. This crash has been fixed.
+
 ## 0.17.17
 
 * Fix CSS nesting transform for top-level `&` ([#3052](https://github.com/evanw/esbuild/issues/3052))

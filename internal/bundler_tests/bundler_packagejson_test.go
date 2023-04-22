@@ -1463,6 +1463,46 @@ NOTE: You can mark the path "pkg2" as external to exclude it from the bundle, wh
 	})
 }
 
+func TestPackageJsonImportsErrorUnsupportedDirectoryImport(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import '#foo1/bar'
+				import '#foo2/bar'
+			`,
+			"/Users/user/project/package.json": `
+				{
+					"imports": {
+						"#foo1/*": "./foo1/*",
+						"#foo2/bar": "./foo2/bar"
+					}
+				}
+			`,
+			"/Users/user/project/foo1/bar/index.js": `
+				console.log(bar)
+			`,
+			"/Users/user/project/foo2/bar/index.js": `
+				console.log(bar)
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expectedScanLog: `Users/user/project/src/entry.js: ERROR: Could not resolve "#foo1/bar"
+Users/user/project/package.json: NOTE: Importing the directory "./foo1/bar" is forbidden by this package:
+Users/user/project/package.json: NOTE: The presence of "imports" here makes importing a directory forbidden:
+Users/user/project/src/entry.js: NOTE: Import from "/index.js" to get the file "Users/user/project/foo1/bar/index.js":
+NOTE: You can mark the path "#foo1/bar" as external to exclude it from the bundle, which will remove this error.
+Users/user/project/src/entry.js: ERROR: Could not resolve "#foo2/bar"
+Users/user/project/package.json: NOTE: Importing the directory "./foo2/bar" is forbidden by this package:
+Users/user/project/package.json: NOTE: The presence of "imports" here makes importing a directory forbidden:
+NOTE: You can mark the path "#foo2/bar" as external to exclude it from the bundle, which will remove this error.
+`,
+	})
+}
+
 func TestPackageJsonExportsRequireOverImport(t *testing.T) {
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{

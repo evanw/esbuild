@@ -443,7 +443,7 @@ func (r resolverQuery) parsePackageJSON(inputPath string) *packageJSON {
 
 	// Read the "imports" map
 	if importsJSON, importsLoc, ok := getProperty(json, "imports"); ok {
-		if importsMap := parseImportsExportsMap(jsonSource, r.log, importsJSON, importsLoc); importsMap != nil {
+		if importsMap := parseImportsExportsMap(jsonSource, r.log, importsJSON, "imports", importsLoc); importsMap != nil {
 			if importsMap.root.kind != pjObject {
 				r.log.AddID(logger.MsgID_PackageJSON_InvalidImportsOrExports, logger.Warning, &tracker, importsMap.root.firstToken,
 					"The value for \"imports\" must be an object")
@@ -454,7 +454,7 @@ func (r resolverQuery) parsePackageJSON(inputPath string) *packageJSON {
 
 	// Read the "exports" map
 	if exportsJSON, exportsLoc, ok := getProperty(json, "exports"); ok {
-		if exportsMap := parseImportsExportsMap(jsonSource, r.log, exportsJSON, exportsLoc); exportsMap != nil {
+		if exportsMap := parseImportsExportsMap(jsonSource, r.log, exportsJSON, "exports", exportsLoc); exportsMap != nil {
 			packageJSON.exportsMap = exportsMap
 		}
 	}
@@ -525,6 +525,7 @@ func globstarToEscapedRegexp(glob string) (string, bool) {
 // Reference: https://nodejs.org/api/esm.html#esm_resolver_algorithm_specification
 type pjMap struct {
 	root           pjEntry
+	propertyKey    string
 	propertyKeyLoc logger.Loc
 }
 
@@ -621,7 +622,7 @@ func (entry pjEntry) valueForKey(key string) (pjEntry, bool) {
 	return pjEntry{}, false
 }
 
-func parseImportsExportsMap(source logger.Source, log logger.Log, json js_ast.Expr, propertyKeyLoc logger.Loc) *pjMap {
+func parseImportsExportsMap(source logger.Source, log logger.Log, json js_ast.Expr, propertyKey string, propertyKeyLoc logger.Loc) *pjMap {
 	var visit func(expr js_ast.Expr) pjEntry
 	tracker := logger.MakeLineColumnTracker(&source)
 
@@ -730,7 +731,11 @@ func parseImportsExportsMap(source logger.Source, log logger.Log, json js_ast.Ex
 		return nil
 	}
 
-	return &pjMap{root: root, propertyKeyLoc: propertyKeyLoc}
+	return &pjMap{
+		root:           root,
+		propertyKey:    propertyKey,
+		propertyKeyLoc: propertyKeyLoc,
+	}
 }
 
 func (entry pjEntry) keysStartWithDot() bool {
