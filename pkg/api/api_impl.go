@@ -903,7 +903,6 @@ func contextImpl(buildOpts BuildOptions) (*internalContext, []Message) {
 		LogLevel:      validateLogLevel(buildOpts.LogLevel),
 		Overrides:     validateLogOverrides(buildOpts.LogOverride),
 	}
-	log := logger.NewStderrLog(logOptions)
 
 	// Validate that the current working directory is an absolute path
 	absWorkingDir := buildOpts.AbsWorkingDir
@@ -916,6 +915,7 @@ func contextImpl(buildOpts BuildOptions) (*internalContext, []Message) {
 		DoNotCache: true,
 	})
 	if err != nil {
+		log := logger.NewStderrLog(logOptions)
 		log.AddError(nil, logger.Range{}, err.Error())
 		return nil, convertMessagesToPublic(logger.Error, log.Done())
 	}
@@ -924,6 +924,7 @@ func contextImpl(buildOpts BuildOptions) (*internalContext, []Message) {
 	// directory doesn't change, since breaking that invariant would break the
 	// validation that we just did above.
 	caches := cache.MakeCacheSet()
+	log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug, logOptions.Overrides)
 	onEndCallbacks, onDisposeCallbacks, finalizeBuildOptions := loadPlugins(&buildOpts, realFS, log, caches)
 	options, entryPoints := validateBuildOptions(buildOpts, log, realFS)
 	finalizeBuildOptions(&options)
@@ -933,7 +934,19 @@ func contextImpl(buildOpts BuildOptions) (*internalContext, []Message) {
 
 	// If we have errors already, then refuse to build any further. This only
 	// happens when the build options themselves contain validation errors.
-	if msgs := log.Done(); log.HasErrors() {
+	msgs := log.Done()
+	if log.HasErrors() {
+		if logOptions.LogLevel < logger.LevelSilent {
+			// Print all deferred validation log messages to stderr. We defer all log
+			// messages that are generated above because warnings are re-printed for
+			// every rebuild and we don't want to double-print these warnings for the
+			// first build.
+			stderr := logger.NewStderrLog(logOptions)
+			for _, msg := range msgs {
+				stderr.AddMsg(msg)
+			}
+			stderr.Done()
+		}
 		return nil, convertMessagesToPublic(logger.Error, msgs)
 	}
 
@@ -942,6 +955,7 @@ func contextImpl(buildOpts BuildOptions) (*internalContext, []Message) {
 		onEndCallbacks:     onEndCallbacks,
 		onDisposeCallbacks: onDisposeCallbacks,
 		logOptions:         logOptions,
+		logWarnings:        msgs,
 		entryPoints:        entryPoints,
 		options:            options,
 		mangleCache:        buildOpts.MangleCache,
@@ -1423,6 +1437,7 @@ type rebuildArgs struct {
 	onEndCallbacks     []onEndCallback
 	onDisposeCallbacks []func()
 	logOptions         logger.OutputOptions
+	logWarnings        []logger.Msg
 	entryPoints        []bundler.EntryPoint
 	options            config.Options
 	mangleCache        map[string]interface{}
@@ -1439,6 +1454,11 @@ type rebuildState struct {
 
 func rebuildImpl(args rebuildArgs, oldSummary buildSummary) rebuildState {
 	log := logger.NewStderrLog(args.logOptions)
+
+	// All validation warnings are repeated for every rebuild
+	for _, msg := range args.logWarnings {
+		log.AddMsg(msg)
+	}
 
 	// Convert and validate the buildOpts
 	realFS, err := fs.RealFS(fs.RealFSOptions{
