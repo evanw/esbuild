@@ -1099,6 +1099,11 @@ func runImpl(osArgs []string) int {
 			if buildOptions.Stdin == nil {
 				buildOptions.Stdin = &api.StdinOptions{}
 			}
+			// Check is Stdin empty
+			stat, _ := os.Stdin.Stat()
+			if stat.Size() <= 0 {
+				return 0
+			}
 			bytes, err := ioutil.ReadAll(os.Stdin)
 			if err != nil {
 				logger.PrintErrorToStderr(osArgs, fmt.Sprintf(
@@ -1282,6 +1287,11 @@ func runImpl(osArgs []string) int {
 		}
 
 	case transformOptions != nil:
+		// Check is Stdin empty
+		stat, _ := os.Stdin.Stat()
+		if stat.Size() <= 0 {
+			return 0
+		}
 		// Read the input from stdin
 		bytes, err := ioutil.ReadAll(os.Stdin)
 		if err != nil {
