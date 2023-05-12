@@ -382,7 +382,7 @@ loop:
 
 			// "let foo: any \n <number>foo" must not become a single type
 			if checkTypeParameters && !p.lexer.HasNewlineBefore {
-				p.skipTypeScriptTypeArguments(false /* isInsideJSXElement */)
+				p.skipTypeScriptTypeArguments(skipTypeScriptTypeArgumentsOpts{})
 			}
 
 		case js_lexer.TTypeof:
@@ -414,7 +414,7 @@ loop:
 				}
 
 				if !p.lexer.HasNewlineBefore {
-					p.skipTypeScriptTypeArguments(false /* isInsideJSXElement */)
+					p.skipTypeScriptTypeArguments(skipTypeScriptTypeArgumentsOpts{})
 				}
 			}
 
@@ -510,7 +510,7 @@ loop:
 
 			// "{ <A extends B>(): c.d \n <E extends F>(): g.h }" must not become a single type
 			if !p.lexer.HasNewlineBefore {
-				p.skipTypeScriptTypeArguments(false /* isInsideJSXElement */)
+				p.skipTypeScriptTypeArguments(skipTypeScriptTypeArgumentsOpts{})
 			}
 
 		case js_lexer.TOpenBracket:
@@ -774,7 +774,12 @@ func (p *parser) skipTypeScriptTypeParameters(flags typeParameterFlags) skipType
 	return result
 }
 
-func (p *parser) skipTypeScriptTypeArguments(isInsideJSXElement bool) bool {
+type skipTypeScriptTypeArgumentsOpts struct {
+	isInsideJSXElement               bool
+	isParseTypeArgumentsInExpression bool
+}
+
+func (p *parser) skipTypeScriptTypeArguments(opts skipTypeScriptTypeArgumentsOpts) bool {
 	switch p.lexer.Token {
 	case js_lexer.TLessThan, js_lexer.TLessThanEquals,
 		js_lexer.TLessThanLessThan, js_lexer.TLessThanLessThanEquals:
@@ -793,11 +798,31 @@ func (p *parser) skipTypeScriptTypeArguments(isInsideJSXElement bool) bool {
 	}
 
 	// This type argument list must end with a ">"
-	p.lexer.ExpectGreaterThan(isInsideJSXElement)
+	if !opts.isParseTypeArgumentsInExpression {
+		// Normally TypeScript allows any token starting with ">". For example,
+		// "Array<Array<number>>()" is a type argument list even though there's a
+		// ">>" token, because ">>" starts with ">".
+		p.lexer.ExpectGreaterThan(opts.isInsideJSXElement)
+	} else {
+		// However, if we're emulating the TypeScript compiler's function called
+		// "parseTypeArgumentsInExpression" function, then we must only allow the
+		// ">" token itself. For example, "x < y >= z" is not a type argument list.
+		//
+		// This doesn't detect ">>" in "Array<Array<number>>()" because the inner
+		// type argument list isn't a call to "parseTypeArgumentsInExpression"
+		// because it's within a type context, not an expression context. So the
+		// token that we see here is ">" in that case because the first ">" has
+		// already been stripped off of the ">>" by the inner call.
+		if opts.isInsideJSXElement {
+			p.lexer.ExpectInsideJSXElement(js_lexer.TGreaterThan)
+		} else {
+			p.lexer.Expect(js_lexer.TGreaterThan)
+		}
+	}
 	return true
 }
 
-func (p *parser) trySkipTypeScriptTypeArgumentsWithBacktracking() bool {
+func (p *parser) trySkipTypeArgumentsInExpressionWithBacktracking() bool {
 	oldLexer := p.lexer
 	p.lexer.IsLogDisabled = true
 
@@ -811,7 +836,7 @@ func (p *parser) trySkipTypeScriptTypeArgumentsWithBacktracking() bool {
 		}
 	}()
 
-	if p.skipTypeScriptTypeArguments(false /* isInsideJSXElement */) {
+	if p.skipTypeScriptTypeArguments(skipTypeScriptTypeArgumentsOpts{isParseTypeArgumentsInExpression: true}) {
 		// Check the token after the type argument list and backtrack if it's invalid
 		if !p.tsCanFollowTypeArgumentsInExpression() {
 			p.lexer.Unexpected()

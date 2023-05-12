@@ -4014,7 +4014,7 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 				if !p.options.ts.Parse {
 					p.lexer.Expected(js_lexer.TIdentifier)
 				}
-				p.skipTypeScriptTypeArguments(false /* isInsideJSXElement */)
+				p.skipTypeScriptTypeArguments(skipTypeScriptTypeArgumentsOpts{})
 				if p.lexer.Token != js_lexer.TOpenParen {
 					p.lexer.Expected(js_lexer.TOpenParen)
 				}
@@ -4326,7 +4326,7 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 			// TypeScript allows type arguments to be specified with angle brackets
 			// inside an expression. Unlike in other languages, this unfortunately
 			// appears to require backtracking to parse.
-			if p.options.ts.Parse && p.trySkipTypeScriptTypeArgumentsWithBacktracking() {
+			if p.options.ts.Parse && p.trySkipTypeArgumentsInExpressionWithBacktracking() {
 				optionalChain = oldOptionalChain
 				continue
 			}
@@ -4362,7 +4362,7 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 			// TypeScript allows type arguments to be specified with angle brackets
 			// inside an expression. Unlike in other languages, this unfortunately
 			// appears to require backtracking to parse.
-			if p.options.ts.Parse && p.trySkipTypeScriptTypeArgumentsWithBacktracking() {
+			if p.options.ts.Parse && p.trySkipTypeArgumentsInExpressionWithBacktracking() {
 				optionalChain = oldOptionalChain
 				continue
 			}
@@ -4777,7 +4777,7 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 		// js_lexer.NextInsideJSXElement() after we hit the closing ">". The next
 		// token after the ">" might be an attribute name with a dash in it
 		// like this: "<Foo<T> data-disabled/>"
-		p.skipTypeScriptTypeArguments(true /* isInsideJSXElement */)
+		p.skipTypeScriptTypeArguments(skipTypeScriptTypeArgumentsOpts{isInsideJSXElement: true})
 	}
 
 	// Parse attributes
@@ -5949,7 +5949,7 @@ func (p *parser) parseClass(classKeyword logger.Range, name *js_ast.LocRef, clas
 		// does and it probably doesn't have that high of a performance overhead
 		// because "extends" clauses aren't that frequent, so it should be ok.
 		if p.options.ts.Parse {
-			p.skipTypeScriptTypeArguments(false /* isInsideJSXElement */)
+			p.skipTypeScriptTypeArguments(skipTypeScriptTypeArgumentsOpts{})
 		}
 	}
 
