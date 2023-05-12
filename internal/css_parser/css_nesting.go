@@ -108,6 +108,7 @@ func lowerNestingInRuleWithContext(rule css_ast.Rule, context *lowerNestingConte
 		// Pass 1: Canonicalize and analyze our selectors
 		canUseGroupDescendantCombinator := true // Can we do "parent «space» :is(...selectors)"?
 		canUseGroupSubSelector := true          // Can we do "parent«nospace»:is(...selectors)"?
+		var commonLeadingCombinator uint8
 		for i := range r.Selectors {
 			sel := &r.Selectors[i]
 
@@ -119,6 +120,17 @@ func lowerNestingInRuleWithContext(rule css_ast.Rule, context *lowerNestingConte
 			// Are all children of the form "& «something»"?
 			if len(sel.Selectors) < 2 || !sel.Selectors[0].IsSingleAmpersand() {
 				canUseGroupDescendantCombinator = false
+			} else {
+				// If all children are of the form "& «COMBINATOR» «something»", is «COMBINATOR» the same in all cases?
+				var combinator uint8
+				if len(sel.Selectors) >= 2 {
+					combinator = sel.Selectors[1].Combinator
+				}
+				if i == 0 {
+					commonLeadingCombinator = combinator
+				} else if commonLeadingCombinator != combinator {
+					canUseGroupDescendantCombinator = false
+				}
 			}
 
 			// Are all children of the form "&«something»"?
@@ -130,6 +142,7 @@ func lowerNestingInRuleWithContext(rule css_ast.Rule, context *lowerNestingConte
 		// Try to apply simplifications for shorter output
 		if canUseGroupDescendantCombinator {
 			// "& a, & b {}" => "& :is(a, b) {}"
+			// "& > a, & > b {}" => "& > :is(a, b) {}"
 			for i := range r.Selectors {
 				sel := &r.Selectors[i]
 				sel.Selectors = sel.Selectors[1:]
@@ -139,6 +152,7 @@ func lowerNestingInRuleWithContext(rule css_ast.Rule, context *lowerNestingConte
 			r.Selectors = []css_ast.ComplexSelector{merged}
 		} else if canUseGroupSubSelector {
 			// "&a, &b {}" => "&:is(a, b) {}"
+			// "> &a, > &b {}" => "> &:is(a, b) {}"
 			for i := range r.Selectors {
 				sel := &r.Selectors[i]
 				sel.Selectors[0].HasNestingSelector = false
@@ -212,26 +226,28 @@ func substituteAmpersandsInCompoundSelector(sel css_ast.CompoundSelector, replac
 
 		// Convert the replacement to a single compound selector
 		var single css_ast.CompoundSelector
-		if len(replacement.Selectors) == 1 || len(results) == 0 {
+		if sel.Combinator == 0 && (len(replacement.Selectors) == 1 || len(results) == 0) {
 			// ".foo { :hover & {} }" => ":hover .foo {}"
 			// ".foo .bar { &:hover {} }" => ".foo .bar:hover {}"
 			last := len(replacement.Selectors) - 1
 			results = append(results, replacement.Selectors[:last]...)
 			single = replacement.Selectors[last]
+			sel.Combinator = single.Combinator
+		} else if len(replacement.Selectors) == 1 {
+			// ".foo { > &:hover {} }" => ".foo > .foo:hover {}"
+			single = replacement.Selectors[0]
 		} else {
 			// ".foo .bar { :hover & {} }" => ":hover :is(.foo .bar) {}"
+			// ".foo .bar { > &:hover {} }" => ".foo .bar > :is(.foo .bar):hover {}"
 			single = css_ast.CompoundSelector{
 				SubclassSelectors: []css_ast.SS{&css_ast.SSPseudoClass{
 					Name: "is",
-					Args: replacement.AppendToTokens(nil),
+					Args: replacement.AppendToTokensWithoutLeadingCombinator(nil),
 				}},
 			}
 		}
 
 		var subclassSelectorPrefix []css_ast.SS
-
-		// Copy over the combinator, if any
-		sel.Combinator = single.Combinator
 
 		// Insert the type selector
 		if single.TypeSelector != nil {
@@ -281,7 +297,7 @@ func substituteAmpersandsInTokens(tokens []css_ast.Token, replacement css_ast.Co
 	}
 
 	var results []css_ast.Token
-	replacementTokens := replacement.AppendToTokens(nil)
+	replacementTokens := replacement.AppendToTokensWithoutLeadingCombinator(nil)
 	for _, t := range tokens {
 		if t.Kind != css_lexer.TDelimAmpersand {
 			results = append(results, t)
@@ -332,16 +348,21 @@ func multipleComplexSelectorsToSingleComplexSelector(selectors []css_ast.Complex
 
 	// This must be non-nil so we print ":is()" instead of ":is"
 	tokens := []css_ast.Token{}
+	var leadingCombinator uint8
 
 	for i, sel := range selectors {
 		if i > 0 {
 			tokens = append(tokens, css_ast.Token{Kind: css_lexer.TComma, Text: ",", Whitespace: css_ast.WhitespaceAfter})
 		}
-		tokens = sel.AppendToTokens(tokens)
+
+		// "> a, > b" => "> :is(a, b)" (the caller should have already checked that all leading combinators are the same)
+		leadingCombinator = sel.Selectors[0].Combinator
+		tokens = sel.AppendToTokensWithoutLeadingCombinator(tokens)
 	}
 
 	return css_ast.ComplexSelector{
 		Selectors: []css_ast.CompoundSelector{{
+			Combinator: leadingCombinator,
 			SubclassSelectors: []css_ast.SS{&css_ast.SSPseudoClass{
 				Name: "is",
 				Args: tokens,

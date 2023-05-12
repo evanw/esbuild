@@ -2,6 +2,43 @@
 
 ## Unreleased
 
+* Fix CSS transform bugs with nested selectors that start with a combinator ([#3096](https://github.com/evanw/esbuild/issues/3096))
+
+    This release fixes several bugs regarding transforming nested CSS into non-nested CSS for older browsers. The bugs were due to lack of test coverage for nested selectors with more than one compound selector where they all start with the same combinator. Here's what some problematic cases look like before and after these fixes:
+
+    ```css
+    /* Original code */
+    .foo {
+      > &a,
+      > &b {
+        color: red;
+      }
+    }
+    .bar {
+      > &a,
+      + &b {
+        color: green;
+      }
+    }
+
+    /* Old output (with --target=chrome90) */
+    .foo :is(> .fooa, > .foob) {
+      color: red;
+    }
+    .bar :is(> .bara, + .barb) {
+      color: green;
+    }
+
+    /* New output (with --target=chrome90) */
+    .foo > :is(a.foo, b.foo) {
+      color: red;
+    }
+    .bar > a.bar,
+    .bar + b.bar {
+      color: green;
+    }
+    ```
+
 * Avoid removing unrecognized directives from the directive prologue when minifying ([#3115](https://github.com/evanw/esbuild/issues/3115))
 
     The [directive prologue](https://262.ecma-international.org/6.0/#sec-directive-prologues-and-the-use-strict-directive) in JavaScript is a sequence of top-level string expressions that come before your code. The only directives that JavaScript engines currently recognize are `use strict` and sometimes `use asm`. However, the people behind React have made up their own directive for their own custom dialect of JavaScript. Previously esbuild only preserved the `use strict` directive when minifying, although you could still write React JavaScript with esbuild using something like `--banner:js="'your directive here';"`. With this release, you can now put arbitrary directives in the entry point and esbuild will preserve them in its minified output:

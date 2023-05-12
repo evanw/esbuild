@@ -598,10 +598,13 @@ type ComplexSelector struct {
 	Selectors []CompoundSelector
 }
 
-func (s ComplexSelector) AppendToTokens(tokens []Token) []Token {
+func (s ComplexSelector) AppendToTokensWithoutLeadingCombinator(tokens []Token) []Token {
 	for i, sel := range s.Selectors {
 		if n := len(tokens); i > 0 && n > 0 {
 			tokens[n-1].Whitespace |= WhitespaceAfter
+		}
+		if i == 0 {
+			sel.Combinator = 0
 		}
 		tokens = sel.AppendToTokens(tokens)
 	}
@@ -714,12 +717,14 @@ func (sel CompoundSelector) AppendToTokens(tokens []Token) []Token {
 		}
 	}
 
-	if sel.HasNestingSelector {
-		tokens = append(tokens, Token{Kind: css_lexer.TDelimAmpersand, Text: "&"})
-	}
-
 	if sel.TypeSelector != nil {
 		tokens = sel.TypeSelector.AppendToTokens(tokens)
+	}
+
+	// Put this after the type selector in case it's substituted for ":is()"
+	// ".foo { > &a, > &b {} }" => ".foo > :is(b.foo, c.foo) {}" (we don't want to get ".foo > :is(.foob, .fooc) {}" instead)
+	if sel.HasNestingSelector {
+		tokens = append(tokens, Token{Kind: css_lexer.TDelimAmpersand, Text: "&"})
 	}
 
 	for _, ss := range sel.SubclassSelectors {
