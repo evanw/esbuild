@@ -953,26 +953,48 @@ func extractNumericValues(left Expr, right Expr) (float64, float64, bool) {
 	return 0, 0, false
 }
 
-func ShouldFoldBinaryArithmeticWhenMinifying(op OpCode) bool {
-	switch op {
+func approximatePrintedIntCharCount(intValue float64) int {
+	count := 1 + (int)(math.Max(0, math.Floor(math.Log10(math.Abs(intValue)))))
+	if intValue < 0 {
+		count++
+	}
+	return count
+}
+
+func ShouldFoldBinaryArithmeticWhenMinifying(binary *EBinary) bool {
+	switch binary.Op {
 	case
-		// Minification folds right signed shift operations since they are
+		// Minification always folds right signed shift operations since they are
 		// unlikely to result in larger output. Note: ">>>" could result in
 		// bigger output such as "-1 >>> 0" becoming "4294967295".
 		BinOpShr,
 
-		// Minification folds bitwise operations since they are unlikely to
-		// result in larger output.
+		// Minification always folds the following bitwise operations since they
+		// are unlikely to result in larger output.
 		BinOpBitwiseAnd,
-
-		// Minification folds bitwise operations since they are unlikely to
-		// result in larger output.
 		BinOpBitwiseOr,
-
-		// Minification folds bitwise operations since they are unlikely to
-		// result in larger output.
 		BinOpBitwiseXor:
 		return true
+
+	case BinOpShl:
+		// "1 << 3" => "8"
+		// "1 << 24" => "1 << 24" (since "1<<24" is shorter than "16777216")
+		if left, right, ok := extractNumericValues(binary.Left, binary.Right); ok {
+			leftLen := approximatePrintedIntCharCount(left)
+			rightLen := approximatePrintedIntCharCount(right)
+			resultLen := approximatePrintedIntCharCount(float64(ToInt32(left) << (ToUint32(right) & 31)))
+			return resultLen <= leftLen+2+rightLen
+		}
+
+	case BinOpUShr:
+		// "10 >>> 1" => "5"
+		// "-1 >>> 0" => "-1 >>> 0" (since "-1>>>0" is shorter than "4294967295")
+		if left, right, ok := extractNumericValues(binary.Left, binary.Right); ok {
+			leftLen := approximatePrintedIntCharCount(left)
+			rightLen := approximatePrintedIntCharCount(right)
+			resultLen := approximatePrintedIntCharCount(float64(ToUint32(left) >> (ToUint32(right) & 31)))
+			return resultLen <= leftLen+3+rightLen
+		}
 	}
 	return false
 }

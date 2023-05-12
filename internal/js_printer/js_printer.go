@@ -1649,7 +1649,7 @@ func (p *printer) lateConstantFoldUnaryOrBinaryExpr(expr js_ast.Expr) js_ast.Exp
 			binary := &js_ast.EBinary{Op: e.Op, Left: left, Right: right}
 
 			// Only fold certain operations (just like the parser)
-			if js_ast.ShouldFoldBinaryArithmeticWhenMinifying(e.Op) {
+			if js_ast.ShouldFoldBinaryArithmeticWhenMinifying(binary) {
 				if result := js_ast.FoldBinaryArithmetic(expr.Loc, binary); result.Data != nil {
 					return result
 				}

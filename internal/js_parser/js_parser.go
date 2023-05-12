@@ -14332,7 +14332,7 @@ func (v *binaryExprVisitor) visitRightAndFinish(p *parser) js_ast.Expr {
 		}
 	}
 
-	if p.shouldFoldTypeScriptConstantExpressions || (p.options.minifySyntax && js_ast.ShouldFoldBinaryArithmeticWhenMinifying(e.Op)) {
+	if p.shouldFoldTypeScriptConstantExpressions || (p.options.minifySyntax && js_ast.ShouldFoldBinaryArithmeticWhenMinifying(e)) {
 		if result := js_ast.FoldBinaryArithmetic(v.loc, e); result.Data != nil {
 			return result
 		}

@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+* Improved minification of binary shift operators
+
+    With this release, esbuild's minifier will now evaluate the `<<` and `>>>` operators if the resulting code would be shorter:
+
+    ```js
+    // Original code
+    console.log(10 << 10, 10 << 20, -123 >>> 5, -123 >>> 10);
+
+    // Old output (with --minify)
+    console.log(10<<10,10<<20,-123>>>5,-123>>>10);
+
+    // New output (with --minify)
+    console.log(10240,10<<20,-123>>>5,4194303);
+    ```
+
 ## 0.17.18
 
 * Fix non-default JSON import error with `export {} from` ([#3070](https://github.com/evanw/esbuild/issues/3070))
