@@ -4608,9 +4608,9 @@ func Print(tree js_ast.AST, symbols js_ast.SymbolMap, r renamer.Renamer, options
 	}
 
 	// Add the top-level directive if present
-	if tree.Directive != "" {
+	for _, directive := range tree.Directives {
 		p.printIndent()
-		p.printQuotedUTF8(tree.Directive, options.ASCIIOnly)
+		p.printQuotedUTF8(directive, options.ASCIIOnly)
 		p.print(";")
 		p.printNewline()
 	}

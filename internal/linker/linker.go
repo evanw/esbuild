@@ -3837,10 +3837,12 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 
 	// The top-level directive must come first (the non-wrapped case is handled
 	// by the chunk generation code, although only for the entry point)
-	if repr.AST.Directive != "" && repr.Meta.Wrap != graph.WrapNone && !file.IsEntryPoint() {
-		stmtList.insideWrapperPrefix = append(stmtList.insideWrapperPrefix, js_ast.Stmt{
-			Data: &js_ast.SDirective{Value: helpers.StringToUTF16(repr.AST.Directive)},
-		})
+	if repr.Meta.Wrap != graph.WrapNone && !file.IsEntryPoint() {
+		for _, directive := range repr.AST.Directives {
+			stmtList.insideWrapperPrefix = append(stmtList.insideWrapperPrefix, js_ast.Stmt{
+				Data: &js_ast.SDirective{Value: helpers.StringToUTF16(directive)},
+			})
+		}
 	}
 
 	// Make sure the generated call to "__export(exports, ...)" comes first
@@ -4132,7 +4134,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 		NeedsMetafile:                c.options.NeedsMetafile,
 	}
 	tree := repr.AST
-	tree.Directive = "" // This is handled elsewhere
+	tree.Directives = nil // This is handled elsewhere
 	tree.Parts = []js_ast.Part{{Stmts: stmts}}
 	*result = compileResultJS{
 		PrintResult: js_printer.Print(tree, c.graph.Symbols, r, printOptions),
@@ -4441,7 +4443,7 @@ func (c *linkerContext) generateEntryPointTailJS(
 	}
 
 	tree := repr.AST
-	tree.Directive = ""
+	tree.Directives = nil
 	tree.Parts = []js_ast.Part{{Stmts: stmts}}
 
 	// Indent the file if everything is wrapped in an IIFE
@@ -4854,12 +4856,14 @@ func (c *linkerContext) generateChunkJS(chunkIndex int, chunkWaitGroup *sync.Wai
 	// Add the top-level directive if present (but omit "use strict" in ES
 	// modules because all ES modules are automatically in strict mode)
 	if chunk.isEntryPoint {
-		if repr := c.graph.Files[chunk.sourceIndex].InputFile.Repr.(*graph.JSRepr); repr.AST.Directive != "" &&
-			(repr.AST.Directive != "use strict" || c.options.OutputFormat != config.FormatESModule) {
-			quoted := string(helpers.QuoteForJSON(repr.AST.Directive, c.options.ASCIIOnly)) + ";" + newline
-			prevOffset.AdvanceString(quoted)
-			j.AddString(quoted)
-			newlineBeforeComment = true
+		repr := c.graph.Files[chunk.sourceIndex].InputFile.Repr.(*graph.JSRepr)
+		for _, directive := range repr.AST.Directives {
+			if directive != "use strict" || c.options.OutputFormat != config.FormatESModule {
+				quoted := string(helpers.QuoteForJSON(directive, c.options.ASCIIOnly)) + ";" + newline
+				prevOffset.AdvanceString(quoted)
+				j.AddString(quoted)
+				newlineBeforeComment = true
+			}
 		}
 	}
 

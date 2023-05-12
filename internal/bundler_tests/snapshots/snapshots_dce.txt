@@ -197,6 +197,7 @@ var ns;
 
 ---------- /out/directive-before.js ----------
 function nested() {
+  "directive";
   x = [1, 1];
 }
 
@@ -1504,6 +1505,62 @@ console.log("hello");
 
 // Users/user/project/src/entry.js
 console.log("unused import");
+
+================================================================================
+TestPreserveDirectivesMinifyBundle
+---------- /out.js ----------
+"use 1";
+"use 2";
+"use 3";
+(() => {
+  // nested.js
+  //! A
+  //! B
+  //! C
+  nested();
+  //! D
+  //! E
+  //! F
+
+  // entry.js
+  //! 1
+  //! 2
+  //! 3
+  entry();
+  //! 4
+  //! 5
+  //! 6
+})();
+
+================================================================================
+TestPreserveDirectivesMinifyIIFE
+---------- /out.js ----------
+"use 1";
+"use 2";
+"use 3";
+(() => {
+  //! 1
+  //! 2
+  //! 3
+  entry();
+  //! 4
+  //! 5
+  //! 6
+})();
+
+================================================================================
+TestPreserveDirectivesMinifyPassThrough
+---------- /out.js ----------
+"use 1";
+"use 2";
+"use 3";
+//! 1
+//! 2
+//! 3
+entry();
+//! 4
+//! 5
+//! 6
 
 ================================================================================
 TestPureCallsWithSpread

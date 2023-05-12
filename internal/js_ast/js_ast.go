@@ -1841,9 +1841,9 @@ type AST struct {
 	// This is internal-only data used for the implementation of Yarn PnP
 	ManifestForYarnPnP Expr
 
-	Hashbang  string
-	Directive string
-	URLForCSS string
+	Hashbang   string
+	Directives []string
+	URLForCSS  string
 
 	// Note: If you're in the linker, do not use this map directly. This map is
 	// filled in by the parser and is considered immutable. For performance reasons,

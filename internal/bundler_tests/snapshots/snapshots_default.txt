@@ -5896,7 +5896,7 @@ TestUseStrictDirectiveBundleIssue1837
 ================================================================================
 TestUseStrictDirectiveMinifyNoBundle
 ---------- /out.js ----------
-"use strict";a,b;
+"use strict";"use loose";a,b;
 
 ================================================================================
 TestVarRelocatingBundle

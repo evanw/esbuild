@@ -8181,15 +8181,6 @@ func (p *parser) visitStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt {
 	return p.mangleStmts(visited, kind)
 }
 
-func isDirectiveSupported(s *js_ast.SDirective) bool {
-	// When minifying, strip all directives other than "use strict" since
-	// that should be the only one that is ever really used by engines in
-	// practice. We don't support "use asm" even though that's also
-	// technically used in practice because the rest of our minifier would
-	// likely cause asm.js code to fail validation anyway.
-	return helpers.UTF16EqualsString(s.Value, "use strict")
-}
-
 func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt {
 	// Remove inlined constants now that we know whether any of these statements
 	// contained a direct eval() or not. This can't be done earlier when we
@@ -8313,11 +8304,6 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 		case *js_ast.SEmpty:
 			// Strip empty statements
 			continue
-
-		case *js_ast.SDirective:
-			if !isDirectiveSupported(s) {
-				continue
-			}
 
 		case *js_ast.SLocal:
 			// Merge adjacent local statements
@@ -15786,26 +15772,54 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 	p.prepareForVisitPass()
 
 	// Insert a "use strict" directive if "alwaysStrict" is active
-	directive := ""
+	var directives []string
 	if tsAlwaysStrict := p.options.tsAlwaysStrict; tsAlwaysStrict != nil && tsAlwaysStrict.Value {
-		directive = "use strict"
+		directives = append(directives, "use strict")
 	}
 
-	// Strip off a leading "use strict" directive when not bundling
-	for i, stmt := range stmts {
-		switch s := stmt.Data.(type) {
-		case *js_ast.SComment:
-			continue
-		case *js_ast.SDirective:
-			if !isDirectiveSupported(s) {
+	// Strip off all leading directives
+	{
+		totalCount := 0
+		keptCount := 0
+
+		for _, stmt := range stmts {
+			switch s := stmt.Data.(type) {
+			case *js_ast.SComment:
+				stmts[keptCount] = stmt
+				keptCount++
+				totalCount++
+				continue
+
+			case *js_ast.SDirective:
+				if p.isStrictMode() && s.LegacyOctalLoc.Start > 0 {
+					p.markStrictModeFeature(legacyOctalEscape, p.source.RangeOfLegacyOctalEscape(s.LegacyOctalLoc), "")
+				}
+				directive := helpers.UTF16ToString(s.Value)
+
+				// Remove duplicate directives
+				found := false
+				for _, existing := range directives {
+					if existing == directive {
+						found = true
+						break
+					}
+				}
+				if !found {
+					directives = append(directives, directive)
+				}
+
+				// Remove this directive from the statement list
+				totalCount++
 				continue
 			}
-			directive = helpers.UTF16ToString(s.Value)
 
-			// Remove this directive from the statement list
-			stmts = append(stmts[:i], stmts[i+1:]...)
+			// Stop when the directive prologue ends
+			break
 		}
-		break
+
+		if keptCount < totalCount {
+			stmts = append(stmts[:keptCount], stmts[totalCount:]...)
+		}
 	}
 
 	// Add an empty part for the namespace export that we can fill in later
@@ -15985,7 +15999,7 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 	// Pop the module scope to apply the "ContainsDirectEval" rules
 	p.popScope()
 
-	result = p.toAST(before, parts, after, hashbang, directive)
+	result = p.toAST(before, parts, after, hashbang, directives)
 	result.SourceMapComment = p.lexer.SourceMappingURL
 	return
 }
@@ -16016,7 +16030,7 @@ func LazyExportAST(log logger.Log, source logger.Source, options Options, expr j
 	}
 	p.symbolUses = nil
 
-	ast := p.toAST(nil, []js_ast.Part{nsExportPart, part}, nil, "", "")
+	ast := p.toAST(nil, []js_ast.Part{nsExportPart, part}, nil, "", nil)
 	ast.HasLazyExport = true
 	return ast
 }
@@ -16399,7 +16413,7 @@ func sortedKeysOfMapStringLocRef(in map[string]js_ast.LocRef) []string {
 	return keys
 }
 
-func (p *parser) toAST(before, parts, after []js_ast.Part, hashbang string, directive string) js_ast.AST {
+func (p *parser) toAST(before, parts, after []js_ast.Part, hashbang string, directives []string) js_ast.AST {
 	// Insert an import statement for any runtime imports we generated
 	if len(p.runtimeImports) > 0 && !p.options.omitRuntimeForTests {
 		keys := sortedKeysOfMapStringLocRef(p.runtimeImports)
@@ -16603,7 +16617,7 @@ func (p *parser) toAST(before, parts, after []js_ast.Part, hashbang string, dire
 		ModuleRef:                       p.moduleRef,
 		WrapperRef:                      wrapperRef,
 		Hashbang:                        hashbang,
-		Directive:                       directive,
+		Directives:                      directives,
 		NamedImports:                    p.namedImports,
 		NamedExports:                    p.namedExports,
 		TSEnums:                         p.tsEnums,

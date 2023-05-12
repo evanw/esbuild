@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+* Avoid removing unrecognized directives from the directive prologue when minifying ([#3115](https://github.com/evanw/esbuild/issues/3115))
+
+    The [directive prologue](https://262.ecma-international.org/6.0/#sec-directive-prologues-and-the-use-strict-directive) in JavaScript is a sequence of top-level string expressions that come before your code. The only directives that JavaScript engines currently recognize are `use strict` and sometimes `use asm`. However, the people behind React have made up their own directive for their own custom dialect of JavaScript. Previously esbuild only preserved the `use strict` directive when minifying, although you could still write React JavaScript with esbuild using something like `--banner:js="'your directive here';"`. With this release, you can now put arbitrary directives in the entry point and esbuild will preserve them in its minified output:
+
+    ```js
+    // Original code
+    'use wtf'; console.log(123)
+
+    // Old output (with --minify)
+    console.log(123);
+
+    // New output (with --minify)
+    "use wtf";console.log(123);
+    ```
+
+    Note that this means esbuild will no longer remove certain stray top-level strings when minifying. This behavior is an intentional change because these stray top-level strings are actually part of the directive prologue, and could potentially have semantics assigned to them (as was the case with React).
+
 * Improved minification of binary shift operators
 
     With this release, esbuild's minifier will now evaluate the `<<` and `>>>` operators if the resulting code would be shorter:

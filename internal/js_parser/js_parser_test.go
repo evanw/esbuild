@@ -4329,10 +4329,10 @@ func TestMangleUnused(t *testing.T) {
 	expectPrintedNormalAndMangle(t, "true", "true;\n", "")
 	expectPrintedNormalAndMangle(t, "123", "123;\n", "")
 	expectPrintedNormalAndMangle(t, "123n", "123n;\n", "")
-	expectPrintedNormalAndMangle(t, "'abc'", "\"abc\";\n", "")        // Technically a directive, not a string expression
-	expectPrintedNormalAndMangle(t, "0; 'abc'", "0;\n\"abc\";\n", "") // Actually a string expression
-	expectPrintedNormalAndMangle(t, "'abc'; 'use strict'", "\"use strict\";\n\"abc\";\n", "\"use strict\";\n")
-	expectPrintedNormalAndMangle(t, "function f() { 'abc'; 'use strict' }", "function f() {\n  \"abc\";\n  \"use strict\";\n}\n", "function f() {\n  \"use strict\";\n}\n")
+	expectPrintedNormalAndMangle(t, "'abc'", "\"abc\";\n", "\"abc\";\n") // Technically a directive, not a string expression
+	expectPrintedNormalAndMangle(t, "0; 'abc'", "0;\n\"abc\";\n", "")    // Actually a string expression
+	expectPrintedNormalAndMangle(t, "'abc'; 'use strict'", "\"abc\";\n\"use strict\";\n", "\"abc\";\n\"use strict\";\n")
+	expectPrintedNormalAndMangle(t, "function f() { 'abc'; 'use strict' }", "function f() {\n  \"abc\";\n  \"use strict\";\n}\n", "function f() {\n  \"abc\";\n  \"use strict\";\n}\n")
 	expectPrintedNormalAndMangle(t, "this", "this;\n", "")
 	expectPrintedNormalAndMangle(t, "/regex/", "/regex/;\n", "")
 	expectPrintedNormalAndMangle(t, "(function() {})", "(function() {\n});\n", "")
