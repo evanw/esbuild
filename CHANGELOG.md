@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.17.19
 
 * Fix CSS transform bugs with nested selectors that start with a combinator ([#3096](https://github.com/evanw/esbuild/issues/3096))
 
