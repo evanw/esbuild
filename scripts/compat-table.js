@@ -256,16 +256,62 @@ mergeVersions('DynamicImport', {
   safari11_1: true,
 })
 
-// This is a problem specific to Internet explorer. See https://github.com/tc39/ecma262/issues/1440
+// This is a problem specific to Internet Explorer. See https://github.com/tc39/ecma262/issues/1440
 mergeVersions('TypeofExoticObjectIsObject', {
   chrome0: true,
+  deno0: true,
   edge0: true,
   es0: true,
   firefox0: true,
+  hermes0: true,
   ios0: true,
   node0: true,
   opera0: true,
+  rhino0: true,
   safari0: true,
+})
+
+// This is a problem specific to JavaScriptCore. Some examples of when the
+// problematic case happens (checked in Safari 12.1):
+//
+//   ❱ x(function(y=-1){}.z=2)
+//   SyntaxError: Left hand side of operator '=' must be a reference.
+//
+//   ❱ x(class{f(y=-1){}}.z=2)
+//   SyntaxError: Left hand side of operator '=' must be a reference.
+//
+// Some examples of cases that aren't problematic (checked in Safari 12.1):
+//
+//   // Adding parentheses makes it ok
+//   x((function(y=-1){}).z=2)
+//   x((class{f(y=-1){}}).z=2)
+//
+//   // Not using a unary operator in the default argument makes it ok
+//   x(function(y=1){}.z=2)
+//   x(class{f(y=1){}}.z=2)
+//
+//   // Methods in object literals are not affected
+//   x({f(y=-1){}}.z=2)
+//
+// We don't attempt to reverse-engineer the specific conditions that cause JSC
+// to exhibit the bug. Instead we just always wrap function and class literals
+// when they are nested inside of a property access. This workaround is overly
+// conservative but is the same thing that UglifyJS does to handle this case.
+//
+// See https://github.com/mishoo/UglifyJS/pull/2056 and https://github.com/evanw/esbuild/issues/3072
+mergeVersions('FunctionOrClassPropertyAccess', {
+  chrome0: true,
+  deno0: true,
+  edge0: true,
+  es0: true,
+  firefox0: true,
+  hermes0: true,
+  ie0: true,
+  ios0: true,
+  node0: true,
+  opera0: true,
+  rhino0: true,
+  safari16_3: true, // These bugs are known to be fixed in Safari 16.3+
 })
 
 // If you want to embed the output directly in HTML, then closing HTML tags must

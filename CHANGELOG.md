@@ -1,5 +1,34 @@
 # Changelog
 
+## Unreleased
+
+* Add a workaround for bugs in Safari 16.2 and earlier ([#3072](https://github.com/evanw/esbuild/issues/3072))
+
+    Safari's JavaScript parser had a bug (which has now been fixed) where at least something about unary/binary operators nested inside default arguments nested inside either a function or class expression was incorrectly considered a syntax error if that expression was the target of a property assignment. Here are some examples that trigger this Safari bug:
+
+    ```
+    ❱ x(function (y = -1) {}.z = 2)
+    SyntaxError: Left hand side of operator '=' must be a reference.
+
+    ❱ x(class { f(y = -1) {} }.z = 2)
+    SyntaxError: Left hand side of operator '=' must be a reference.
+    ```
+
+    It's not clear what the exact conditions are that trigger this bug. However, a workaround for this bug appears to be to post-process your JavaScript to wrap any in function and class declarations that are the direct target of a property access expression in parentheses. That's the workaround that UglifyJS applies for this issue: [mishoo/UglifyJS#2056](https://github.com/mishoo/UglifyJS/pull/2056). So that's what esbuild now does starting with this release:
+
+    ```js
+    // Original code
+    x(function (y = -1) {}.z = 2, class { f(y = -1) {} }.z = 2)
+
+    // Old output (with --minify --target=safari16.2)
+    x(function(c=-1){}.z=2,class{f(c=-1){}}.z=2);
+
+    // New output (with --minify --target=safari16.2)
+    x((function(c=-1){}).z=2,(class{f(c=-1){}}).z=2);
+    ```
+
+    This fix is not enabled by default. It's only enabled when `--target=` contains Safari 16.2 or earlier, such as with `--target=safari16.2`. You can also explicitly enable or disable this specific transform (called `function-or-class-property-access`) with `--supported:function-or-class-property-access=false`.
+
 ## 0.17.19
 
 * Fix CSS transform bugs with nested selectors that start with a combinator ([#3096](https://github.com/evanw/esbuild/issues/3096))

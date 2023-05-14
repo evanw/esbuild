@@ -6451,6 +6451,33 @@ let transformTests = {
     assert.strictEqual((await esbuild.transform(`a ||= b`, { target: 'eSnExT' })).code, `a ||= b;\n`)
   },
 
+  async propertyAccessBugWorkaroundForWebKit({ esbuild }) {
+    const check = async (target, input, expected) =>
+      assert.strictEqual((await esbuild.transform(input, { target })).code, expected)
+    await Promise.all([
+      check('safari16.2', `x(class{}.y=z)`, `x((class {\n}).y = z);\n`),
+      check('safari16.3', `x(class{}.y=z)`, `x(class {\n}.y = z);\n`),
+
+      check('safari16.2', `x(function(){}.y=z)`, `x((function() {\n}).y = z);\n`),
+      check('safari16.3', `x(function(){}.y=z)`, `x(function() {\n}.y = z);\n`),
+
+      check('safari16.2', `x(function*(){}.y=z)`, `x((function* () {\n}).y = z);\n`),
+      check('safari16.3', `x(function*(){}.y=z)`, `x(function* () {\n}.y = z);\n`),
+
+      check('safari16.2', `x(async function(){}.y=z)`, `x((async function() {\n}).y = z);\n`),
+      check('safari16.3', `x(async function(){}.y=z)`, `x(async function() {\n}.y = z);\n`),
+
+      check('safari16.2', `x(async function*(){}.y=z)`, `x((async function* () {\n}).y = z);\n`),
+      check('safari16.3', `x(async function*(){}.y=z)`, `x(async function* () {\n}.y = z);\n`),
+
+      // This should not be enabled by default
+      check('esnext', `x(class{}.y=z)`, `x(class {\n}.y = z);\n`),
+
+      // This doesn't need to be applied for methods in object literals
+      check('safari16.2', `x({f(a=-1){}}.y=z)`, `x({ f(a = -1) {\n} }.y = z);\n`),
+    ])
+  },
+
   async multipleEngineTargets({ esbuild }) {
     const check = async (target, expected) =>
       assert.strictEqual((await esbuild.transform(`foo(a ?? b)`, { target })).code, expected)
