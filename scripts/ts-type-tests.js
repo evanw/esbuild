@@ -10,7 +10,7 @@ const tsconfigJson = {
   },
 }
 
-const tests = {
+const testsWithoutErrors = {
   emptyBuildRequire: `
     export {}
     import esbuild = require('esbuild')
@@ -43,6 +43,15 @@ const tests = {
     esbuild.buildSync({ mangleCache: {} }).mangleCache['x']
     esbuild.build({ mangleCache: {} })
       .then(result => result.mangleCache['x'])
+    esbuild.transformSync('', { mangleCache: {} }).mangleCache['x']
+    esbuild.transform('', { mangleCache: {} })
+      .then(result => result.mangleCache['x'])
+  `,
+  legalCommentsExternal: `
+    import * as esbuild from 'esbuild'
+    esbuild.transformSync('', { legalComments: 'external' }).legalComments.length
+    esbuild.transform('', { legalComments: 'external' })
+      .then(result => result.legalComments.length)
   `,
   writeFalseOutputFiles: `
     import * as esbuild from 'esbuild'
@@ -258,13 +267,116 @@ const tests = {
   `,
 }
 
+const testsWithErrors = {
+  badBuildRequire_invalidOption: `
+    export {}
+    import esbuild = require('esbuild')
+    esbuild.build({ invalidOption: true })
+  `,
+  badBuildSyncRequire_invalidOption: `
+    export {}
+    import esbuild = require('esbuild')
+    esbuild.buildSync({ invalidOption: true })
+  `,
+  badBuildImport_invalidOption: `
+    import * as esbuild from 'esbuild'
+    esbuild.build({ invalidOption: true })
+  `,
+  badBuildSyncImport_invalidOption: `
+    import * as esbuild from 'esbuild'
+    esbuild.build({ invalidOption: true })
+  `,
+  badTransformRequire_invalidOption: `
+    export {}
+    import esbuild = require('esbuild')
+    esbuild.transform('', { invalidOption: true })
+  `,
+  badTransformSyncRequire_invalidOption: `
+    export {}
+    import esbuild = require('esbuild')
+    esbuild.transformSync('', { invalidOption: true })
+  `,
+  badTransformImport_invalidOption: `
+    import * as esbuild from 'esbuild'
+    esbuild.transform('', { invalidOption: true })
+  `,
+  badTransformSyncImport_invalidOption: `
+    import * as esbuild from 'esbuild'
+    esbuild.transformSync('', { invalidOption: true })
+  `,
+
+  // mangleCache
+  mangleCacheBuild_undefined: `
+    import * as esbuild from 'esbuild'
+    esbuild.build({}).then(result => result.mangleCache['x'])
+  `,
+  mangleCacheBuildSync_undefined: `
+    import * as esbuild from 'esbuild'
+    esbuild.buildSync({}).mangleCache['x']
+  `,
+  mangleCacheTransform_undefined: `
+    import * as esbuild from 'esbuild'
+    esbuild.transform('', {}).then(result => result.mangleCache['x'])
+  `,
+  mangleCacheTransformSync_undefined: `
+    import * as esbuild from 'esbuild'
+    esbuild.transformSync('', {}).mangleCache['x']
+  `,
+
+  // legalComments
+  legalCommentsTransform_undefined: `
+    import * as esbuild from 'esbuild'
+    esbuild.transform('', { legalComments: 'eof' }).then(result => result.legalComments.length)
+  `,
+  legalCommentsTransformSync_undefined: `
+    import * as esbuild from 'esbuild'
+    esbuild.transformSync('', { legalComments: 'eof' }).legalComments.length
+  `,
+
+  // outputFiles
+  outputFilesBuild_undefined: `
+    import * as esbuild from 'esbuild'
+    esbuild.build({}).then(result => result.outputFiles[0])
+  `,
+  outputFilesBuildSync_undefined: `
+    import * as esbuild from 'esbuild'
+    esbuild.buildSync({}).outputFiles[0]
+  `,
+  outputFilesWriteTrueBuild_undefined: `
+    import * as esbuild from 'esbuild'
+    esbuild.build({ write: true }).then(result => result.outputFiles[0])
+  `,
+  outputFilesWriteTrueBuildSync_undefined: `
+    import * as esbuild from 'esbuild'
+    esbuild.buildSync({ write: true }).outputFiles[0]
+  `,
+
+  // metafile
+  metafileBuild_undefined: `
+    import * as esbuild from 'esbuild'
+    esbuild.build({}).then(result => esbuild.analyzeMetafile(result.metafile))
+  `,
+  metafileBuildSync_undefined: `
+    import * as esbuild from 'esbuild'
+    esbuild.analyzeMetafile(esbuild.buildSync({}).metafile)
+  `,
+  metafileFalseBuild_undefined: `
+    import * as esbuild from 'esbuild'
+    esbuild.build({ metafile: false }).then(result => esbuild.analyzeMetafile(result.metafile))
+  `,
+  metafileFalseBuildSync_undefined: `
+    import * as esbuild from 'esbuild'
+    esbuild.analyzeMetafile(esbuild.buildSync({ metafile: false }).metafile)
+  `,
+}
+
 async function main() {
   let testDir = path.join(__dirname, '.ts-types-test')
   removeRecursiveSync(testDir)
   fs.mkdirSync(testDir, { recursive: true })
-  fs.writeFileSync(path.join(testDir, 'tsconfig.json'), JSON.stringify(tsconfigJson))
 
   const types = fs.readFileSync(path.join(__dirname, '..', 'lib', 'shared', 'types.ts'), 'utf8')
+  const tsc = path.join(__dirname, 'node_modules', 'typescript', 'lib', 'tsc.js')
   const esbuild_d_ts = path.join(testDir, 'node_modules', 'esbuild', 'index.d.ts')
   fs.mkdirSync(path.dirname(esbuild_d_ts), { recursive: true })
   fs.writeFileSync(esbuild_d_ts, `
@@ -272,19 +384,59 @@ async function main() {
       ${types.replace(/export declare/g, 'export')}
     }
   `)
+  let allTestsPassed = true
 
-  let files = []
-  for (const name in tests) {
-    const input = path.join(testDir, name + '.ts')
-    fs.writeFileSync(input, tests[name])
-    files.push(input)
+  // Check tests without errors
+  if (allTestsPassed) {
+    const dir = path.join(testDir, 'without-errors')
+    fs.mkdirSync(dir, { recursive: true })
+    fs.writeFileSync(path.join(dir, 'tsconfig.json'), JSON.stringify(tsconfigJson))
+    for (const name in testsWithoutErrors) {
+      const input = path.join(dir, name + '.ts')
+      fs.writeFileSync(input, testsWithoutErrors[name])
+    }
+    allTestsPassed &&= await new Promise(resolve => {
+      const child = child_process.spawn('node', [tsc, '--project', '.'], { cwd: dir, stdio: 'inherit' })
+      child.on('close', exitCode => resolve(exitCode === 0))
+    })
   }
 
-  const tsc = path.join(__dirname, 'node_modules', 'typescript', 'lib', 'tsc.js')
-  const allTestsPassed = await new Promise(resolve => {
-    const child = child_process.spawn('node', [tsc, '--project', '.'], { cwd: testDir, stdio: 'inherit' })
-    child.on('close', exitCode => resolve(exitCode === 0))
-  })
+  // Check tests with errors
+  if (allTestsPassed) {
+    const dir = path.join(testDir, 'with-errors')
+    fs.mkdirSync(dir, { recursive: true })
+    fs.writeFileSync(path.join(dir, 'tsconfig.json'), JSON.stringify(tsconfigJson))
+    for (const name in testsWithErrors) {
+      const input = path.join(dir, name.split('_')[0] + '.ts')
+      fs.writeFileSync(input, testsWithErrors[name])
+    }
+    try {
+      child_process.execFileSync('node', [tsc, '--project', '.'], { cwd: dir })
+      throw new Error('Expected an error to be generated')
+    } catch (err) {
+      const stdout = err.stdout.toString()
+      const lines = stdout.split('\n')
+      next: for (const name in testsWithErrors) {
+        const fileName = name.split('_')[0]
+        const expectedText = name.split('_')[1]
+        for (const line of lines) {
+          if (line.includes(fileName)) {
+            if (line.includes(expectedText)) {
+              console.log(`\x1B[32mSUCCESS:\x1B[0m ${line}`)
+            } else {
+              console.log(`\x1B[31mFAILURE: ${line}\x1B[0m`)
+              allTestsPassed = false
+            }
+            continue next
+          }
+        }
+        console.log(`\x1B[31mFAILURE:\x1B[0m ${name}: Could not find expected error in output from "tsc":`)
+        process.stdout.write(stdout)
+        allTestsPassed = false
+        break next
+      }
+    }
+  }
 
   if (!allTestsPassed) {
     console.error(`❌ typescript type tests failed`)

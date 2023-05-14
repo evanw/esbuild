@@ -29,6 +29,54 @@
 
     This fix is not enabled by default. It's only enabled when `--target=` contains Safari 16.2 or earlier, such as with `--target=safari16.2`. You can also explicitly enable or disable this specific transform (called `function-or-class-property-access`) with `--supported:function-or-class-property-access=false`.
 
+* Fix esbuild's TypeScript type declarations to forbid unknown properties ([#3089](https://github.com/evanw/esbuild/issues/3089))
+
+    Version 0.17.0 of esbuild introduced a specific form of function overloads in the TypeScript type definitions for esbuild's API calls that looks like this:
+
+    ```ts
+    interface TransformOptions {
+      legalComments?: 'none' | 'inline' | 'eof' | 'external'
+    }
+
+    interface TransformResult<ProvidedOptions extends TransformOptions = TransformOptions> {
+      legalComments: string | (ProvidedOptions['legalComments'] extends 'external' ? never : undefined)
+    }
+
+    declare function transformSync<ProvidedOptions extends TransformOptions>(input: string, options?: ProvidedOptions): TransformResult<ProvidedOptions>
+    declare function transformSync(input: string, options?: TransformOptions): TransformResult
+    ```
+
+    This more accurately reflects how esbuild's JavaScript API behaves. The result object returned by `transformSync` only has the `legalComments` property if you pass `legalComments: 'external'`:
+
+    ```ts
+    // These have type "string | undefined"
+    transformSync('').legalComments
+    transformSync('', { legalComments: 'eof' }).legalComments
+
+    // This has type "string"
+    transformSync('', { legalComments: 'external' }).legalComments
+    ```
+
+    However, this form of function overloads unfortunately allows typos (e.g. `egalComments`) to pass the type checker without generating an error as TypeScript allows all objects with unknown properties to extend `TransformOptions`. These typos result in esbuild's API throwing an error at run-time.
+
+    To prevent typos during type checking, esbuild's TypeScript type definitions will now use a different form that looks like this:
+
+    ```ts
+    type SameShape<Out, In extends Out> = In & { [Key in Exclude<keyof In, keyof Out>]: never }
+
+    interface TransformOptions {
+      legalComments?: 'none' | 'inline' | 'eof' | 'external'
+    }
+
+    interface TransformResult<ProvidedOptions extends TransformOptions = TransformOptions> {
+      legalComments: string | (ProvidedOptions['legalComments'] extends 'external' ? never : undefined)
+    }
+
+    declare function transformSync<T extends TransformOptions>(input: string, options?: SameShape<TransformOptions, T>): TransformResult<T>
+    ```
+
+    This change should hopefully not affect correct code. It should hopefully introduce type errors only for incorrect code.
+
 ## 0.17.19
 
 * Fix CSS transform bugs with nested selectors that start with a combinator ([#3096](https://github.com/evanw/esbuild/issues/3096))

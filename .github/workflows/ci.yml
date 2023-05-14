@@ -162,7 +162,7 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: cd scripts && node gen-unicode-table.js
 
-  esbuild-old-golang:
+  esbuild-old-versions:
     name: esbuild CI (old versions)
     runs-on: ubuntu-latest
 
