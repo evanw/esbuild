@@ -1695,18 +1695,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 			Contents:   transformOpts.TsconfigRaw,
 		}
 		if result := resolver.ParseTSConfigJSON(log, source, &caches.JSONCache, nil); result != nil {
-			if result.JSX != config.TSJSXNone {
-				jsx.SetOptionsFromTSJSX(result.JSX)
-			}
-			if len(result.JSXFactory) > 0 {
-				jsx.Factory = config.DefineExpr{Parts: result.JSXFactory}
-			}
-			if len(result.JSXFragmentFactory) > 0 {
-				jsx.Fragment = config.DefineExpr{Parts: result.JSXFragmentFactory}
-			}
-			if len(result.JSXImportSource) > 0 {
-				jsx.ImportSource = result.JSXImportSource
-			}
+			result.JSXSettings.ApplyTo(&jsx)
 			if result.UseDefineForClassFields != config.Unspecified {
 				useDefineForClassFieldsTS = result.UseDefineForClassFields
 			}

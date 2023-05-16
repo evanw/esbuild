@@ -35,8 +35,8 @@ const (
 	TSJSXReactJSXDev
 )
 
-func (jsxOptions *JSXOptions) SetOptionsFromTSJSX(tsx TSJSX) {
-	switch tsx {
+func (tsConfig *TSConfigJSX) ApplyTo(jsxOptions *JSXOptions) {
+	switch tsConfig.JSX {
 	case TSJSXPreserve, TSJSXReactNative:
 		jsxOptions.Preserve = true
 
@@ -52,11 +52,31 @@ func (jsxOptions *JSXOptions) SetOptionsFromTSJSX(tsx TSJSX) {
 		jsxOptions.AutomaticRuntime = true
 		jsxOptions.Development = true
 	}
+
+	if len(tsConfig.JSXFactory) > 0 {
+		jsxOptions.Factory = DefineExpr{Parts: tsConfig.JSXFactory}
+	}
+
+	if len(tsConfig.JSXFragmentFactory) > 0 {
+		jsxOptions.Fragment = DefineExpr{Parts: tsConfig.JSXFragmentFactory}
+	}
+
+	if tsConfig.JSXImportSource != "" {
+		jsxOptions.ImportSource = tsConfig.JSXImportSource
+	}
 }
 
 type TSOptions struct {
 	Parse               bool
 	NoAmbiguousLessThan bool
+}
+
+type TSConfigJSX struct {
+	// If not empty, these should override the default values
+	JSXFactory         []string // Default if empty: "React.createElement"
+	JSXFragmentFactory []string // Default if empty: "React.Fragment"
+	JSXImportSource    string   // Default if empty: "react"
+	JSX                TSJSX
 }
 
 type Platform uint8

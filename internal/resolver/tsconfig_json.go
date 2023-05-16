@@ -38,10 +38,7 @@ type TSConfigJSON struct {
 	TSTarget                *config.TSTarget
 	TSStrict                *config.TSAlwaysStrict
 	TSAlwaysStrict          *config.TSAlwaysStrict
-	JSX                     config.TSJSX
-	JSXFactory              []string
-	JSXFragmentFactory      []string
-	JSXImportSource         string
+	JSXSettings             config.TSConfigJSX
 	UseDefineForClassFields config.MaybeBool
 	ImportsNotUsedAsValues  config.TSImportsNotUsedAsValues
 	PreserveValueImports    config.MaybeBool
@@ -127,17 +124,17 @@ func ParseTSConfigJSON(
 			if value, ok := getString(valueJSON); ok {
 				switch strings.ToLower(value) {
 				case "none":
-					result.JSX = config.TSJSXNone
+					result.JSXSettings.JSX = config.TSJSXNone
 				case "preserve":
-					result.JSX = config.TSJSXPreserve
+					result.JSXSettings.JSX = config.TSJSXPreserve
 				case "react-native":
-					result.JSX = config.TSJSXReactNative
+					result.JSXSettings.JSX = config.TSJSXReactNative
 				case "react":
-					result.JSX = config.TSJSXReact
+					result.JSXSettings.JSX = config.TSJSXReact
 				case "react-jsx":
-					result.JSX = config.TSJSXReactJSX
+					result.JSXSettings.JSX = config.TSJSXReactJSX
 				case "react-jsxdev":
-					result.JSX = config.TSJSXReactJSXDev
+					result.JSXSettings.JSX = config.TSJSXReactJSXDev
 				}
 			}
 		}
@@ -145,21 +142,21 @@ func ParseTSConfigJSON(
 		// Parse "jsxFactory"
 		if valueJSON, _, ok := getProperty(compilerOptionsJSON, "jsxFactory"); ok {
 			if value, ok := getString(valueJSON); ok {
-				result.JSXFactory = parseMemberExpressionForJSX(log, &source, &tracker, valueJSON.Loc, value)
+				result.JSXSettings.JSXFactory = parseMemberExpressionForJSX(log, &source, &tracker, valueJSON.Loc, value)
 			}
 		}
 
 		// Parse "jsxFragmentFactory"
 		if valueJSON, _, ok := getProperty(compilerOptionsJSON, "jsxFragmentFactory"); ok {
 			if value, ok := getString(valueJSON); ok {
-				result.JSXFragmentFactory = parseMemberExpressionForJSX(log, &source, &tracker, valueJSON.Loc, value)
+				result.JSXSettings.JSXFragmentFactory = parseMemberExpressionForJSX(log, &source, &tracker, valueJSON.Loc, value)
 			}
 		}
 
 		// Parse "jsxImportSource"
 		if valueJSON, _, ok := getProperty(compilerOptionsJSON, "jsxImportSource"); ok {
 			if value, ok := getString(valueJSON); ok {
-				result.JSXImportSource = value
+				result.JSXSettings.JSXImportSource = value
 			}
 		}
 

@@ -100,12 +100,6 @@ type ResolveResult struct {
 	// If this was resolved by a plugin, the plugin gets to store its data here
 	PluginData interface{}
 
-	// If not empty, these should override the default values
-	JSXFactory      []string // Default if empty: "React.createElement"
-	JSXFragment     []string // Default if empty: "React.Fragment"
-	JSXImportSource string   // Default if empty: "react"
-	JSX             config.TSJSX
-
 	DifferentCase *fs.DifferentCase
 
 	// If present, any ES6 imports to this file can be considered to have no side
@@ -113,6 +107,7 @@ type ResolveResult struct {
 	PrimarySideEffectsData *SideEffectsData
 
 	// These are from "tsconfig.json"
+	TSConfigJSX    config.TSConfigJSX
 	TSTarget       *config.TSTarget
 	TSAlwaysStrict *config.TSAlwaysStrict
 
@@ -695,10 +690,7 @@ func (r resolverQuery) finalizeResolve(result *ResolveResult) {
 								result.PathPair.Primary.Text))
 						}
 					} else {
-						result.JSXFactory = dirInfo.enclosingTSConfigJSON.JSXFactory
-						result.JSXFragment = dirInfo.enclosingTSConfigJSON.JSXFragmentFactory
-						result.JSX = dirInfo.enclosingTSConfigJSON.JSX
-						result.JSXImportSource = dirInfo.enclosingTSConfigJSON.JSXImportSource
+						result.TSConfigJSX = dirInfo.enclosingTSConfigJSON.JSXSettings
 						result.UseDefineForClassFieldsTS = dirInfo.enclosingTSConfigJSON.UseDefineForClassFields
 						result.UnusedImportFlagsTS = dirInfo.enclosingTSConfigJSON.UnusedImportFlagsTS()
 						result.TSTarget = dirInfo.enclosingTSConfigJSON.TSTarget
@@ -707,14 +699,14 @@ func (r resolverQuery) finalizeResolve(result *ResolveResult) {
 						if r.debugLogs != nil {
 							r.debugLogs.addNote(fmt.Sprintf("This import is under the effect of %q",
 								dirInfo.enclosingTSConfigJSON.AbsPath))
-							if result.JSXFactory != nil {
+							if result.TSConfigJSX.JSXFactory != nil {
 								r.debugLogs.addNote(fmt.Sprintf("\"jsxFactory\" is %q due to %q",
-									strings.Join(result.JSXFactory, "."),
+									strings.Join(result.TSConfigJSX.JSXFactory, "."),
 									dirInfo.enclosingTSConfigJSON.AbsPath))
 							}
-							if result.JSXFragment != nil {
+							if result.TSConfigJSX.JSXFragmentFactory != nil {
 								r.debugLogs.addNote(fmt.Sprintf("\"jsxFragment\" is %q due to %q",
-									strings.Join(result.JSXFragment, "."),
+									strings.Join(result.TSConfigJSX.JSXFragmentFactory, "."),
 									dirInfo.enclosingTSConfigJSON.AbsPath))
 							}
 						}
