@@ -61,6 +61,10 @@
 
         Note that this means different directories in your build can have different values for this setting since esbuild allows different directories to have different `tsconfig.json` files within the same build. This should let you migrate your code one directory at a time without esbuild's `--target=` setting affecting the semantics of your code.
 
+    * Add support for `verbatimModuleSyntax` from TypeScript 5.0
+
+        TypeScript 5.0 added a new option called [`verbatimModuleSyntax`](https://www.typescriptlang.org/tsconfig#verbatimModuleSyntax) that deprecates and replaces two older options, `preserveValueImports` and `importsNotUsedAsValues`. Setting `verbatimModuleSyntax` to true in `tsconfig.json` tells esbuild to not drop unused import statements. Specifically esbuild now treats `"verbatimModuleSyntax": true` as if you had specified both `"preserveValueImports": true` and `"importsNotUsedAsValues": "preserve"`.
+
     * Remove support for `moduleSuffixes` ([#2395](https://github.com/evanw/esbuild/issues/2395))
 
         The community has requested that esbuild remove support for TypeScript's `moduleSuffixes` feature, so it has been removed in this release. Instead you can use esbuild's `--resolve-extensions=` feature to select which module suffix you want to build with.

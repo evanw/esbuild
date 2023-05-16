@@ -7232,7 +7232,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		//   import d, {} from 'x'
 		//   import d, { type y } from 'x'
 		//
-		if p.options.ts.Parse && p.options.ts.Config.UnusedImportFlags() == config.TSUnusedImportKeepValues && stmt.Items != nil && len(*stmt.Items) == 0 {
+		if p.options.ts.Parse && p.options.ts.Config.UnusedImportFlags() == config.TSUnusedImport_KeepValues && stmt.Items != nil && len(*stmt.Items) == 0 {
 			if stmt.DefaultName == nil {
 				return js_ast.Stmt{Loc: loc, Data: &js_ast.STypeScript{}}
 			}
@@ -15262,13 +15262,13 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result importsEx
 			//     user is expecting the output to be as small as possible. So we
 			//     should omit unused imports.
 			//
-			keepUnusedImports := p.options.ts.Parse && (unusedImportFlags&config.TSUnusedImportKeepValues) != 0 &&
+			keepUnusedImports := p.options.ts.Parse && (unusedImportFlags&config.TSUnusedImport_KeepValues) != 0 &&
 				p.options.mode != config.ModeBundle && !p.options.minifyIdentifiers
 
 			// Forbid non-default imports for standard JSON modules
 			if (record.Flags&ast.AssertTypeJSON) != 0 && p.options.mode == config.ModeBundle && s.Items != nil {
 				for _, item := range *s.Items {
-					if p.options.ts.Parse && p.tsUseCounts[item.Name.Ref.InnerIndex] == 0 && (unusedImportFlags&config.TSUnusedImportKeepValues) == 0 {
+					if p.options.ts.Parse && p.tsUseCounts[item.Name.Ref.InnerIndex] == 0 && (unusedImportFlags&config.TSUnusedImport_KeepValues) == 0 {
 						// Do not count imports that TypeScript interprets as type annotations
 						continue
 					}
@@ -15293,7 +15293,7 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result importsEx
 					symbol := p.symbols[s.DefaultName.Ref.InnerIndex]
 
 					// TypeScript has a separate definition of unused
-					if p.options.ts.Parse && (p.tsUseCounts[s.DefaultName.Ref.InnerIndex] != 0 || (p.options.ts.Config.UnusedImportFlags()&config.TSUnusedImportKeepValues) != 0) {
+					if p.options.ts.Parse && (p.tsUseCounts[s.DefaultName.Ref.InnerIndex] != 0 || (p.options.ts.Config.UnusedImportFlags()&config.TSUnusedImport_KeepValues) != 0) {
 						isUnusedInTypeScript = false
 					}
 
@@ -15309,7 +15309,7 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result importsEx
 					symbol := p.symbols[s.NamespaceRef.InnerIndex]
 
 					// TypeScript has a separate definition of unused
-					if p.options.ts.Parse && (p.tsUseCounts[s.NamespaceRef.InnerIndex] != 0 || (p.options.ts.Config.UnusedImportFlags()&config.TSUnusedImportKeepValues) != 0) {
+					if p.options.ts.Parse && (p.tsUseCounts[s.NamespaceRef.InnerIndex] != 0 || (p.options.ts.Config.UnusedImportFlags()&config.TSUnusedImport_KeepValues) != 0) {
 						isUnusedInTypeScript = false
 					}
 
@@ -15332,7 +15332,7 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result importsEx
 						symbol := p.symbols[item.Name.Ref.InnerIndex]
 
 						// TypeScript has a separate definition of unused
-						if p.options.ts.Parse && (p.tsUseCounts[item.Name.Ref.InnerIndex] != 0 || (p.options.ts.Config.UnusedImportFlags()&config.TSUnusedImportKeepValues) != 0) {
+						if p.options.ts.Parse && (p.tsUseCounts[item.Name.Ref.InnerIndex] != 0 || (p.options.ts.Config.UnusedImportFlags()&config.TSUnusedImport_KeepValues) != 0) {
 							isUnusedInTypeScript = false
 						}
 
@@ -15364,7 +15364,7 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result importsEx
 				//
 				// We do not want to do this culling in JavaScript though because the
 				// module may have side effects even if all imports are unused.
-				if p.options.ts.Parse && foundImports && isUnusedInTypeScript && (unusedImportFlags&config.TSUnusedImportKeepStmt) == 0 {
+				if p.options.ts.Parse && foundImports && isUnusedInTypeScript && (unusedImportFlags&config.TSUnusedImport_KeepStmt) == 0 {
 					// Ignore import records with a pre-filled source index. These are
 					// for injected files and we definitely do not want to trim these.
 					if !record.SourceIndex.IsValid() && !record.CopySourceIndex.IsValid() {

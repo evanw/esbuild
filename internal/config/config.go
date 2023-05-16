@@ -87,14 +87,18 @@ type TSConfig struct {
 	PreserveValueImports    MaybeBool
 	Target                  TSTarget
 	UseDefineForClassFields MaybeBool
+	VerbatimModuleSyntax    MaybeBool
 }
 
 func (cfg *TSConfig) UnusedImportFlags() (flags TSUnusedImportFlags) {
+	if cfg.VerbatimModuleSyntax == True {
+		return TSUnusedImport_KeepStmt | TSUnusedImport_KeepValues
+	}
 	if cfg.PreserveValueImports == True {
-		flags |= TSUnusedImportKeepValues
+		flags |= TSUnusedImport_KeepValues
 	}
 	if cfg.ImportsNotUsedAsValues != TSImportsNotUsedAsValues_Remove {
-		flags |= TSUnusedImportKeepStmt
+		flags |= TSUnusedImport_KeepStmt
 	}
 	return
 }
@@ -408,38 +412,47 @@ const (
 	TSImportsNotUsedAsValues_Error
 )
 
+// These flags represent the following separate "tsconfig.json" settings:
+//
+// - importsNotUsedAsValues
+// - preserveValueImports
+// - verbatimModuleSyntax
+//
+// TypeScript prefers for people to use "verbatimModuleSyntax" and has
+// deprecated the other two settings, but we must still support them.
+// All settings are combined into these two behavioral flags for us.
 type TSUnusedImportFlags uint8
 
-// With !TSUnusedImportKeepStmt && !TSUnusedImportKeepValues:
+// With !TSUnusedImport_KeepStmt && !TSUnusedImport_KeepValues:
 //
 //	"import 'foo'"                      => "import 'foo'"
 //	"import * as unused from 'foo'"     => ""
 //	"import { unused } from 'foo'"      => ""
 //	"import { type unused } from 'foo'" => ""
 //
-// With TSUnusedImportKeepStmt && !TSUnusedImportKeepValues:
+// With TSUnusedImport_KeepStmt && !TSUnusedImport_KeepValues:
 //
 //	"import 'foo'"                      => "import 'foo'"
 //	"import * as unused from 'foo'"     => "import 'foo'"
 //	"import { unused } from 'foo'"      => "import 'foo'"
 //	"import { type unused } from 'foo'" => "import 'foo'"
 //
-// With !TSUnusedImportKeepStmt && TSUnusedImportKeepValues:
+// With !TSUnusedImport_KeepStmt && TSUnusedImport_KeepValues:
 //
 //	"import 'foo'"                      => "import 'foo'"
 //	"import * as unused from 'foo'"     => "import * as unused from 'foo'"
 //	"import { unused } from 'foo'"      => "import { unused } from 'foo'"
 //	"import { type unused } from 'foo'" => ""
 //
-// With TSUnusedImportKeepStmt && TSUnusedImportKeepValues:
+// With TSUnusedImport_KeepStmt && TSUnusedImport_KeepValues:
 //
 //	"import 'foo'"                      => "import 'foo'"
 //	"import * as unused from 'foo'"     => "import * as unused from 'foo'"
 //	"import { unused } from 'foo'"      => "import { unused } from 'foo'"
 //	"import { type unused } from 'foo'" => "import {} from 'foo'"
 const (
-	TSUnusedImportKeepStmt   TSUnusedImportFlags = 1 << iota // "importsNotUsedAsValues" != "remove"
-	TSUnusedImportKeepValues                                 // "preserveValueImports" == true
+	TSUnusedImport_KeepStmt   TSUnusedImportFlags = 1 << iota // "importsNotUsedAsValues" != "remove"
+	TSUnusedImport_KeepValues                                 // "preserveValueImports" == true
 )
 
 type TSTarget uint8

@@ -249,6 +249,17 @@ func ParseTSConfigJSON(
 			}
 		}
 
+		// Parse "verbatimModuleSyntax"
+		if valueJSON, _, ok := getProperty(compilerOptionsJSON, "verbatimModuleSyntax"); ok {
+			if value, ok := getBool(valueJSON); ok {
+				if value {
+					result.Settings.VerbatimModuleSyntax = config.True
+				} else {
+					result.Settings.VerbatimModuleSyntax = config.False
+				}
+			}
+		}
+
 		// Parse "paths"
 		if valueJSON, _, ok := getProperty(compilerOptionsJSON, "paths"); ok {
 			if paths, ok := valueJSON.Data.(*js_ast.EObject); ok {

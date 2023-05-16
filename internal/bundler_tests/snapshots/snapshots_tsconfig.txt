@@ -393,6 +393,21 @@ console.log(/* @__PURE__ */ jsxDEV(Fragment, { children: [
 }, this));
 
 ================================================================================
+TestTsConfigVerbatimModuleSyntaxFalse
+---------- /Users/user/project/out/main.js ----------
+export { Car } from "./car";
+export {} from "./car";
+
+================================================================================
+TestTsConfigVerbatimModuleSyntaxTrue
+---------- /Users/user/project/out/main.js ----------
+export { Car } from "./car";
+import {} from "./car";
+export {} from "./car";
+import { b } from "bcd";
+import {} from "xyz";
+
+================================================================================
 TestTsConfigWithStatementAlwaysStrictFalse
 ---------- /Users/user/project/out.js ----------
 (() => {

@@ -2072,3 +2072,55 @@ func TestTsConfigExtendsWithExportsRequire(t *testing.T) {
 		},
 	})
 }
+
+func TestTsConfigVerbatimModuleSyntaxTrue(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/main.ts": `
+				export { Car } from "./car";
+				import type * as car from "./car";
+				import { type Car } from "./car";
+				export { type Car } from "./car";
+				import type { A } from "a";
+				import { b, type c, type d } from "bcd";
+				import { type xyz } from "xyz";
+			`,
+			"/Users/user/project/tsconfig.json": `{
+				"compilerOptions": {
+					"verbatimModuleSyntax": true
+				}
+			}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/main.ts"},
+		options: config.Options{
+			Mode:         config.ModePassThrough,
+			AbsOutputDir: "/Users/user/project/out",
+		},
+	})
+}
+
+func TestTsConfigVerbatimModuleSyntaxFalse(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/main.ts": `
+				export { Car } from "./car";
+				import type * as car from "./car";
+				import { type Car } from "./car";
+				export { type Car } from "./car";
+				import type { A } from "a";
+				import { b, type c, type d } from "bcd";
+				import { type xyz } from "xyz";
+			`,
+			"/Users/user/project/tsconfig.json": `{
+				"compilerOptions": {
+					"verbatimModuleSyntax": false
+				}
+			}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/main.ts"},
+		options: config.Options{
+			Mode:         config.ModePassThrough,
+			AbsOutputDir: "/Users/user/project/out",
+		},
+	})
+}
