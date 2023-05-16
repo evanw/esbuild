@@ -85,14 +85,50 @@ console.log(foo);
 ================================================================================
 TestTsConfigExtendsDotDotWithSlash
 ---------- /Users/user/project/out/main.js ----------
-// Users/user/project/src/main.ts
-console.log(123n);
+// Users/user/project/src/main.tsx
+console.log(/* @__PURE__ */ React.createElement("div", null));
+
+================================================================================
+TestTsConfigExtendsDotDotWithoutSlash
+---------- /Users/user/project/out/main.js ----------
+// Users/user/project/src/main.tsx
+console.log(/* @__PURE__ */ success("div", null));
 
 ================================================================================
 TestTsConfigExtendsDotWithSlash
 ---------- /Users/user/project/out/main.js ----------
-// Users/user/project/src/main.ts
-console.log(123n);
+// Users/user/project/src/main.tsx
+console.log(/* @__PURE__ */ React.createElement("div", null));
+
+================================================================================
+TestTsConfigExtendsDotWithoutSlash
+---------- /Users/user/project/out/main.js ----------
+// Users/user/project/src/main.tsx
+console.log(/* @__PURE__ */ success("div", null));
+
+================================================================================
+TestTsConfigExtendsWithExports
+---------- /Users/user/project/out/main.js ----------
+// Users/user/project/src/main.tsx
+console.log(/* @__PURE__ */ success("div", null));
+
+================================================================================
+TestTsConfigExtendsWithExportsRequire
+---------- /Users/user/project/out/main.js ----------
+// Users/user/project/src/main.tsx
+console.log(/* @__PURE__ */ success("div", null));
+
+================================================================================
+TestTsConfigExtendsWithExportsStar
+---------- /Users/user/project/out/main.js ----------
+// Users/user/project/src/main.tsx
+console.log(/* @__PURE__ */ success("div", null));
+
+================================================================================
+TestTsConfigExtendsWithExportsStarTrailing
+---------- /Users/user/project/out/main.js ----------
+// Users/user/project/src/main.tsx
+console.log(/* @__PURE__ */ success("div", null));
 
 ================================================================================
 TestTsConfigJSX
@@ -384,6 +420,14 @@ TestTsConfigWithStatementStrictTrueAlwaysStrictFalse
 })();
 
 ================================================================================
+TestTsconfigIgnoredTargetSilent
+---------- /Users/user/project/out.js ----------
+
+================================================================================
+TestTsconfigIgnoredTargetWarning
+---------- /Users/user/project/out.js ----------
+
+================================================================================
 TestTsconfigImportsNotUsedAsValuesPreserve
 ---------- /Users/user/project/out.js ----------
 import "./foo";
@@ -550,39 +594,6 @@ TestTsconfigRemoveUnusedImports
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/src/entry.ts
 console.log(1);
-
-================================================================================
-TestTsconfigTarget
----------- /Users/user/project/out.js ----------
-// Users/user/project/src/es2018/index.ts
-var x = { ...y };
-try {
-  y;
-} catch (e) {
-}
-x == null ? void 0 : x.y();
-
-// Users/user/project/src/es2019/index.ts
-var x2 = { ...y };
-try {
-  y;
-} catch {
-}
-x2 == null ? void 0 : x2.y();
-
-// Users/user/project/src/es2020/index.ts
-var x3 = { ...y };
-try {
-  y;
-} catch {
-}
-x3?.y();
-
-================================================================================
-TestTsconfigTargetIgnored
----------- /Users/user/project/out.js ----------
-// Users/user/project/src/entry.ts
-x = 123n;
 
 ================================================================================
 TestTsconfigUnrecognizedTargetWarning

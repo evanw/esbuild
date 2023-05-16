@@ -419,7 +419,6 @@ type thenCatchChain struct {
 type Options struct {
 	injectedFiles  []config.InjectedFile
 	jsx            config.JSXOptions
-	tsTarget       *config.TSTarget
 	tsAlwaysStrict *config.TSAlwaysStrict
 	mangleProps    *regexp.Regexp
 	reserveProps   *regexp.Regexp
@@ -447,7 +446,7 @@ type optionsThatSupportStructuralEquality struct {
 	mode                    config.Mode
 	platform                config.Platform
 	outputFormat            config.Format
-	targetFromAPI           config.TargetFromAPI
+	tsTarget                config.TSTarget
 	asciiOnly               bool
 	keepNames               bool
 	minifySyntax            bool
@@ -479,7 +478,6 @@ func OptionsFromConfig(options *config.Options) Options {
 		injectedFiles:  options.InjectedFiles,
 		jsx:            options.JSX,
 		defines:        options.Defines,
-		tsTarget:       options.TSTarget,
 		tsAlwaysStrict: options.TSAlwaysStrict,
 		mangleProps:    options.MangleProps,
 		reserveProps:   options.ReserveProps,
@@ -494,7 +492,7 @@ func OptionsFromConfig(options *config.Options) Options {
 			platform:                          options.Platform,
 			outputFormat:                      options.OutputFormat,
 			moduleTypeData:                    options.ModuleTypeData,
-			targetFromAPI:                     options.TargetFromAPI,
+			tsTarget:                          options.TSTarget,
 			asciiOnly:                         options.ASCIIOnly,
 			keepNames:                         options.KeepNames,
 			minifySyntax:                      options.MinifySyntax,
@@ -515,12 +513,6 @@ func OptionsFromConfig(options *config.Options) Options {
 func (a *Options) Equal(b *Options) bool {
 	// Compare "optionsThatSupportStructuralEquality"
 	if a.optionsThatSupportStructuralEquality != b.optionsThatSupportStructuralEquality {
-		return false
-	}
-
-	// Compare "TSTarget"
-	if (a.tsTarget == nil && b.tsTarget != nil) || (a.tsTarget != nil && b.tsTarget == nil) ||
-		(a.tsTarget != nil && b.tsTarget != nil && *a.tsTarget != *b.tsTarget) {
 		return false
 	}
 
@@ -15715,40 +15707,6 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 	}
 	if len(options.jsx.ImportSource) == 0 {
 		options.jsx.ImportSource = defaultJSXImportSource
-	}
-
-	if !options.ts.Parse {
-		// Non-TypeScript files always get the real JavaScript class field behavior
-		options.useDefineForClassFields = config.True
-	} else if options.useDefineForClassFields == config.Unspecified {
-		// The default behavior for TypeScript files depends on the value of the
-		// "target" field and on the version of TypeScript:
-		//
-		//   * TypeScript ≥4.3 and "target": "ESNext" => "useDefineForClassFields": true
-		//   * Otherwise => "useDefineForClassFields": false
-		//
-		// Context: https://github.com/microsoft/TypeScript/pull/42663. This was
-		// silently changed in TypeScript 4.3. It's a breaking change even though
-		// it wasn't mentioned in the announcement blog post for TypeScript 4.3:
-		// https://devblogs.microsoft.com/typescript/announcing-typescript-4-3/.
-		if options.targetFromAPI == config.TargetWasConfiguredAndAtLeastES2022 ||
-			(options.tsTarget != nil && options.tsTarget.TargetIsAtLeastES2022) {
-			options.useDefineForClassFields = config.True
-		} else {
-			options.useDefineForClassFields = config.False
-		}
-	}
-
-	// If there is no top-level esbuild "target" setting, include unsupported
-	// JavaScript features from the TypeScript "target" setting. Otherwise the
-	// TypeScript "target" setting is ignored.
-	if options.targetFromAPI == config.TargetWasUnconfigured && options.tsTarget != nil {
-		options.unsupportedJSFeatures |= options.tsTarget.UnsupportedJSFeatures
-
-		// Re-apply overrides to make sure they always win
-		options.unsupportedJSFeatures = options.unsupportedJSFeatures.ApplyOverrides(
-			options.unsupportedJSFeatureOverrides,
-			options.unsupportedJSFeatureOverridesMask)
 	}
 
 	p := newParser(log, source, js_lexer.NewLexer(log, source, options.ts), &options)

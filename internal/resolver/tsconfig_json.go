@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/evanw/esbuild/internal/cache"
-	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/js_ast"
@@ -35,7 +34,8 @@ type TSConfigJSON struct {
 	// "baseUrl" value in the "tsconfig.json" file.
 	Paths *TSConfigPaths
 
-	TSTarget                *config.TSTarget
+	tsTargetKey             tsTargetKey
+	TSTarget                config.TSTarget
 	TSStrict                *config.TSAlwaysStrict
 	TSAlwaysStrict          *config.TSAlwaysStrict
 	JSXSettings             config.TSConfigJSX
@@ -61,6 +61,13 @@ func (config *TSConfigJSON) TSAlwaysStrictOrStrict() *config.TSAlwaysStrict {
 
 	// If "alwaysStrict" is absent, it defaults to "strict" instead
 	return config.TSStrict
+}
+
+// This information is only used for error messages
+type tsTargetKey struct {
+	LowerValue string
+	Source     logger.Source
+	Range      logger.Range
 }
 
 type TSConfigPath struct {
@@ -172,52 +179,30 @@ func ParseTSConfigJSON(
 		}
 
 		// Parse "target"
-		if valueJSON, _, ok := getProperty(compilerOptionsJSON, "target"); ok {
+		if valueJSON, keyLoc, ok := getProperty(compilerOptionsJSON, "target"); ok {
 			if value, ok := getString(valueJSON); ok {
-				constraints := make(map[compat.Engine][]int)
-				r := source.RangeOfString(valueJSON.Loc)
+				lowerValue := strings.ToLower(value)
 				ok := true
 
 				// See https://www.typescriptlang.org/tsconfig#target
-				targetIsAtLeastES2022 := false
-				switch strings.ToLower(value) {
-				case "es5":
-					constraints[compat.ES] = []int{5}
-				case "es6", "es2015":
-					constraints[compat.ES] = []int{2015}
-				case "es2016":
-					constraints[compat.ES] = []int{2016}
-				case "es2017":
-					constraints[compat.ES] = []int{2017}
-				case "es2018":
-					constraints[compat.ES] = []int{2018}
-				case "es2019":
-					constraints[compat.ES] = []int{2019}
-				case "es2020":
-					constraints[compat.ES] = []int{2020}
-				case "es2021":
-					constraints[compat.ES] = []int{2021}
-				case "es2022":
-					constraints[compat.ES] = []int{2022}
-					targetIsAtLeastES2022 = true
-				case "esnext":
-					targetIsAtLeastES2022 = true
+				switch lowerValue {
+				case "es3", "es5", "es6", "es2015", "es2016", "es2017", "es2018", "es2019", "es2020", "es2021":
+					result.TSTarget = config.TSTargetBelowES2022
+				case "es2022", "esnext":
+					result.TSTarget = config.TSTargetAtOrAboveES2022
 				default:
 					ok = false
 					if !helpers.IsInsideNodeModules(source.KeyPath.Text) {
-						log.AddID(logger.MsgID_TsconfigJSON_InvalidTarget, logger.Warning, &tracker, r,
+						log.AddID(logger.MsgID_TsconfigJSON_InvalidTarget, logger.Warning, &tracker, source.RangeOfString(valueJSON.Loc),
 							fmt.Sprintf("Unrecognized target environment %q", value))
 					}
 				}
 
-				// These feature restrictions are merged with esbuild's own restrictions
 				if ok {
-					result.TSTarget = &config.TSTarget{
-						Source:                source,
-						Range:                 r,
-						Target:                value,
-						UnsupportedJSFeatures: compat.UnsupportedJSFeatures(constraints),
-						TargetIsAtLeastES2022: targetIsAtLeastES2022,
+					result.tsTargetKey = tsTargetKey{
+						Source:     source,
+						Range:      source.RangeOfString(keyLoc),
+						LowerValue: lowerValue,
 					}
 				}
 			}

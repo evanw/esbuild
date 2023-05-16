@@ -2,9 +2,70 @@
 
 ## Unreleased
 
-* Remove support for TypeScript's `moduleSuffixes` feature ([#2395](https://github.com/evanw/esbuild/issues/2395))
+* Changes to esbuild's `tsconfig.json` support ([#3019](https://github.com/evanw/esbuild/issues/3019))
 
-    The community has requested that esbuild remove support for TypeScript's `moduleSuffixes` feature, so it has been removed in this release. Instead you can use esbuild's `--resolve-extensions=` feature to select which module suffix you want to build with.
+    This release makes the following changes to esbuild's `tsconfig.json` support:
+
+    * TypeScript's `target` no longer affects esbuild's `target` ([#2628](https://github.com/evanw/esbuild/issues/2628))
+
+        Some people requested that esbuild support TypeScript's `target` setting, so support for it was added (in [version 0.12.4](https://github.com/evanw/esbuild/releases/v0.12.4)). However, esbuild supports reading from multiple `tsconfig.json` files within a single build, which opens up the possibility that different files in the build have different language targets configured. There isn't really any reason to do this and it can lead to unexpected results. So with this release, the `target` setting in `tsconfig.json` will no longer affect esbuild's own `target` setting. You will have to use esbuild's own target setting instead (which is a single, global value).
+
+    * `useDefineForClassFields` behavior has changed ([#2584](https://github.com/evanw/esbuild/issues/2584), [#2993](https://github.com/evanw/esbuild/issues/2993))
+
+        Class fields in TypeScript look like this (`x` is a class field):
+
+        ```js
+        class Foo {
+          x = 123
+        }
+        ```
+
+        TypeScript has legacy behavior that uses assignment semantics instead of define semantics for class fields when [`useDefineForClassFields`](https://www.typescriptlang.org/tsconfig#useDefineForClassFields) is enabled (in which case class fields in TypeScript behave differently than they do in JavaScript, which is arguably "wrong").
+
+        This legacy behavior exists because TypeScript added class fields to TypeScript before they were added to JavaScript. The TypeScript team decided to go with assignment semantics and shipped their implementation. Much later on TC39 decided to go with define semantics for class fields in JavaScript instead. This behaves differently if the base class has a setter with the same name:
+
+        ```js
+        class Base {
+          set x(_) {
+            console.log('x:', _)
+          }
+        }
+
+        // useDefineForClassFields: false
+        class AssignSemantics extends Base {
+          constructor() {
+            super()
+            this.x = 123
+          }
+        }
+
+        // useDefineForClassFields: true
+        class DefineSemantics extends Base {
+          constructor() {
+            super()
+            Object.defineProperty(this, 'x', { value: 123 })
+          }
+        }
+
+        console.log(
+          new AssignSemantics().x, // Calls the setter
+          new DefineSemantics().x // Doesn't call the setter
+        )
+        ```
+
+        When you run `tsc`, the value of `useDefineForClassFields` defaults to `false` when it's not specified and the `target` in `tsconfig.json` is present but earlier than `ES2022`. This sort of makes sense because the class field language feature was added in ES2022, so before ES2022 class fields didn't exist (and thus TypeScript's legacy behavior is active). However, TypeScript's `target` setting currently defaults to `ES3` which unfortunately means that the `useDefineForClassFields` setting currently defaults to false (i.e. to "wrong"). In other words if you run `tsc` with all default settings, class fields will behave incorrectly.
+
+        Previously esbuild tried to do what `tsc` did. That meant esbuild's version of `useDefineForClassFields` was `false` by default, and was also `false` if esbuild's `--target=` was present but earlier than `es2022`. However, TypeScript's legacy class field behavior is becoming increasingly irrelevant and people who expect class fields in TypeScript to work like they do in JavaScript are confused when they use esbuild with default settings. It's also confusing that the behavior of class fields would change if you changed the language target (even though that's exactly how TypeScript works).
+
+        So with this release, esbuild will now only use the information in `tsconfig.json` to determine whether `useDefineForClassFields` is true or not. Specifically `useDefineForClassFields` will be respected if present, otherwise it will be `false` if `target` is present in `tsconfig.json` and is `ES2021` or earlier, otherwise it will be `true`. Targets passed to esbuild's `--target=` setting will no longer affect `useDefineForClassFields`.
+
+        Note that this means different directories in your build can have different values for this setting since esbuild allows different directories to have different `tsconfig.json` files within the same build. This should let you migrate your code one directory at a time without esbuild's `--target=` setting affecting the semantics of your code.
+
+    * Remove support for `moduleSuffixes` ([#2395](https://github.com/evanw/esbuild/issues/2395))
+
+        The community has requested that esbuild remove support for TypeScript's `moduleSuffixes` feature, so it has been removed in this release. Instead you can use esbuild's `--resolve-extensions=` feature to select which module suffix you want to build with.
+
+    These changes are intended to improve esbuild's compatibility with `tsc` and reduce the number of unfortunate behaviors regarding `tsconfig.json` and esbuild.
 
 * Add a workaround for bugs in Safari 16.2 and earlier ([#3072](https://github.com/evanw/esbuild/issues/3072))
 

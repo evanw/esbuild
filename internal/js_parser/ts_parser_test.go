@@ -37,6 +37,16 @@ func expectPrintedTS(t *testing.T, contents string, expected string) {
 	})
 }
 
+func expectPrintedAssignSemanticsTS(t *testing.T, contents string, expected string) {
+	t.Helper()
+	expectPrintedCommon(t, contents, expected, config.Options{
+		TS: config.TSOptions{
+			Parse: true,
+		},
+		UseDefineForClassFields: config.False,
+	})
+}
+
 func expectPrintedMangleTS(t *testing.T, contents string, expected string) {
 	t.Helper()
 	expectPrintedCommon(t, contents, expected, config.Options{
@@ -44,6 +54,17 @@ func expectPrintedMangleTS(t *testing.T, contents string, expected string) {
 			Parse: true,
 		},
 		MinifySyntax: true,
+	})
+}
+
+func expectPrintedMangleAssignSemanticsTS(t *testing.T, contents string, expected string) {
+	t.Helper()
+	expectPrintedCommon(t, contents, expected, config.Options{
+		TS: config.TSOptions{
+			Parse: true,
+		},
+		MinifySyntax:            true,
+		UseDefineForClassFields: config.False,
 	})
 }
 
@@ -609,58 +630,58 @@ func TestTSClass(t *testing.T) {
 	expectParseErrorTS(t, "class Foo { constructor(readonly [x]) {} }", "<stdin>: ERROR: Expected identifier but found \"[\"\n")
 	expectParseErrorTS(t, "class Foo { constructor(override [x]) {} }", "<stdin>: ERROR: Expected identifier but found \"[\"\n")
 
-	expectPrintedTS(t, "class Foo { foo: number }", "class Foo {\n}\n")
-	expectPrintedTS(t, "class Foo { foo: number = 0 }", "class Foo {\n  constructor() {\n    this.foo = 0;\n  }\n}\n")
-	expectPrintedTS(t, "class Foo { foo(): void {} }", "class Foo {\n  foo() {\n  }\n}\n")
-	expectPrintedTS(t, "class Foo { foo(): void; foo(): void {} }", "class Foo {\n  foo() {\n  }\n}\n")
+	expectPrintedAssignSemanticsTS(t, "class Foo { foo: number }", "class Foo {\n}\n")
+	expectPrintedAssignSemanticsTS(t, "class Foo { foo: number = 0 }", "class Foo {\n  constructor() {\n    this.foo = 0;\n  }\n}\n")
+	expectPrintedAssignSemanticsTS(t, "class Foo { foo(): void {} }", "class Foo {\n  foo() {\n  }\n}\n")
+	expectPrintedAssignSemanticsTS(t, "class Foo { foo(): void; foo(): void {} }", "class Foo {\n  foo() {\n  }\n}\n")
 	expectParseErrorTS(t, "class Foo { foo(): void foo(): void {} }", "<stdin>: ERROR: Expected \";\" but found \"foo\"\n")
 
-	expectPrintedTS(t, "class Foo { foo?: number }", "class Foo {\n}\n")
-	expectPrintedTS(t, "class Foo { foo?: number = 0 }", "class Foo {\n  constructor() {\n    this.foo = 0;\n  }\n}\n")
-	expectPrintedTS(t, "class Foo { foo?(): void {} }", "class Foo {\n  foo() {\n  }\n}\n")
-	expectPrintedTS(t, "class Foo { foo?(): void; foo(): void {} }", "class Foo {\n  foo() {\n  }\n}\n")
+	expectPrintedAssignSemanticsTS(t, "class Foo { foo?: number }", "class Foo {\n}\n")
+	expectPrintedAssignSemanticsTS(t, "class Foo { foo?: number = 0 }", "class Foo {\n  constructor() {\n    this.foo = 0;\n  }\n}\n")
+	expectPrintedAssignSemanticsTS(t, "class Foo { foo?(): void {} }", "class Foo {\n  foo() {\n  }\n}\n")
+	expectPrintedAssignSemanticsTS(t, "class Foo { foo?(): void; foo(): void {} }", "class Foo {\n  foo() {\n  }\n}\n")
 	expectParseErrorTS(t, "class Foo { foo?(): void foo(): void {} }", "<stdin>: ERROR: Expected \";\" but found \"foo\"\n")
 
-	expectPrintedTS(t, "class Foo { foo!: number }", "class Foo {\n}\n")
-	expectPrintedTS(t, "class Foo { foo!: number = 0 }", "class Foo {\n  constructor() {\n    this.foo = 0;\n  }\n}\n")
+	expectPrintedAssignSemanticsTS(t, "class Foo { foo!: number }", "class Foo {\n}\n")
+	expectPrintedAssignSemanticsTS(t, "class Foo { foo!: number = 0 }", "class Foo {\n  constructor() {\n    this.foo = 0;\n  }\n}\n")
 	expectParseErrorTS(t, "class Foo { foo!() {} }", "<stdin>: ERROR: Expected \";\" but found \"(\"\n")
 	expectParseErrorTS(t, "class Foo { *foo!() {} }", "<stdin>: ERROR: Expected \"(\" but found \"!\"\n")
 	expectParseErrorTS(t, "class Foo { get foo!() {} }", "<stdin>: ERROR: Expected \"(\" but found \"!\"\n")
 	expectParseErrorTS(t, "class Foo { set foo!(x) {} }", "<stdin>: ERROR: Expected \"(\" but found \"!\"\n")
 	expectParseErrorTS(t, "class Foo { async foo!() {} }", "<stdin>: ERROR: Expected \"(\" but found \"!\"\n")
 
-	expectPrintedTS(t, "class Foo { 'foo' = 0 }", "class Foo {\n  constructor() {\n    this[\"foo\"] = 0;\n  }\n}\n")
-	expectPrintedTS(t, "class Foo { ['foo'] = 0 }", "class Foo {\n  constructor() {\n    this[\"foo\"] = 0;\n  }\n}\n")
-	expectPrintedTS(t, "class Foo { [foo] = 0 }", "var _a;\nclass Foo {\n  constructor() {\n    this[_a] = 0;\n  }\n}\n_a = foo;\n")
-	expectPrintedMangleTS(t, "class Foo { 'foo' = 0 }", "class Foo {\n  constructor() {\n    this.foo = 0;\n  }\n}\n")
-	expectPrintedMangleTS(t, "class Foo { ['foo'] = 0 }", "class Foo {\n  constructor() {\n    this.foo = 0;\n  }\n}\n")
+	expectPrintedAssignSemanticsTS(t, "class Foo { 'foo' = 0 }", "class Foo {\n  constructor() {\n    this[\"foo\"] = 0;\n  }\n}\n")
+	expectPrintedAssignSemanticsTS(t, "class Foo { ['foo'] = 0 }", "class Foo {\n  constructor() {\n    this[\"foo\"] = 0;\n  }\n}\n")
+	expectPrintedAssignSemanticsTS(t, "class Foo { [foo] = 0 }", "var _a;\nclass Foo {\n  constructor() {\n    this[_a] = 0;\n  }\n}\n_a = foo;\n")
+	expectPrintedMangleAssignSemanticsTS(t, "class Foo { 'foo' = 0 }", "class Foo {\n  constructor() {\n    this.foo = 0;\n  }\n}\n")
+	expectPrintedMangleAssignSemanticsTS(t, "class Foo { ['foo'] = 0 }", "class Foo {\n  constructor() {\n    this.foo = 0;\n  }\n}\n")
 
-	expectPrintedTS(t, "class Foo { foo \n ?: number }", "class Foo {\n}\n")
+	expectPrintedAssignSemanticsTS(t, "class Foo { foo \n ?: number }", "class Foo {\n}\n")
 	expectParseErrorTS(t, "class Foo { foo \n !: number }", "<stdin>: ERROR: Expected identifier but found \"!\"\n")
 
-	expectPrintedTS(t, "class Foo { public foo: number }", "class Foo {\n}\n")
-	expectPrintedTS(t, "class Foo { private foo: number }", "class Foo {\n}\n")
-	expectPrintedTS(t, "class Foo { protected foo: number }", "class Foo {\n}\n")
+	expectPrintedAssignSemanticsTS(t, "class Foo { public foo: number }", "class Foo {\n}\n")
+	expectPrintedAssignSemanticsTS(t, "class Foo { private foo: number }", "class Foo {\n}\n")
+	expectPrintedAssignSemanticsTS(t, "class Foo { protected foo: number }", "class Foo {\n}\n")
 	expectPrintedTS(t, "class Foo { declare foo: number }", "class Foo {\n}\n")
 	expectPrintedTS(t, "class Foo { declare public foo: number }", "class Foo {\n}\n")
 	expectPrintedTS(t, "class Foo { public declare foo: number }", "class Foo {\n}\n")
-	expectPrintedTS(t, "class Foo { override foo: number }", "class Foo {\n}\n")
-	expectPrintedTS(t, "class Foo { override public foo: number }", "class Foo {\n}\n")
-	expectPrintedTS(t, "class Foo { public override foo: number }", "class Foo {\n}\n")
+	expectPrintedAssignSemanticsTS(t, "class Foo { override foo: number }", "class Foo {\n}\n")
+	expectPrintedAssignSemanticsTS(t, "class Foo { override public foo: number }", "class Foo {\n}\n")
+	expectPrintedAssignSemanticsTS(t, "class Foo { public override foo: number }", "class Foo {\n}\n")
 	expectPrintedTS(t, "class Foo { declare override public foo: number }", "class Foo {\n}\n")
 	expectPrintedTS(t, "class Foo { declare foo = 123 }", "class Foo {\n}\n")
 
-	expectPrintedTS(t, "class Foo { public static foo: number }", "class Foo {\n}\n")
-	expectPrintedTS(t, "class Foo { private static foo: number }", "class Foo {\n}\n")
-	expectPrintedTS(t, "class Foo { protected static foo: number }", "class Foo {\n}\n")
+	expectPrintedAssignSemanticsTS(t, "class Foo { public static foo: number }", "class Foo {\n}\n")
+	expectPrintedAssignSemanticsTS(t, "class Foo { private static foo: number }", "class Foo {\n}\n")
+	expectPrintedAssignSemanticsTS(t, "class Foo { protected static foo: number }", "class Foo {\n}\n")
 	expectPrintedTS(t, "class Foo { declare static foo: number }", "class Foo {\n}\n")
 	expectPrintedTS(t, "class Foo { declare public static foo: number }", "class Foo {\n}\n")
 	expectPrintedTS(t, "class Foo { public declare static foo: number }", "class Foo {\n}\n")
 	expectPrintedTS(t, "class Foo { public static declare foo: number }", "class Foo {\n}\n")
-	expectPrintedTS(t, "class Foo { override static foo: number }", "class Foo {\n}\n")
-	expectPrintedTS(t, "class Foo { override public static foo: number }", "class Foo {\n}\n")
-	expectPrintedTS(t, "class Foo { public override static foo: number }", "class Foo {\n}\n")
-	expectPrintedTS(t, "class Foo { public static override foo: number }", "class Foo {\n}\n")
+	expectPrintedAssignSemanticsTS(t, "class Foo { override static foo: number }", "class Foo {\n}\n")
+	expectPrintedAssignSemanticsTS(t, "class Foo { override public static foo: number }", "class Foo {\n}\n")
+	expectPrintedAssignSemanticsTS(t, "class Foo { public override static foo: number }", "class Foo {\n}\n")
+	expectPrintedAssignSemanticsTS(t, "class Foo { public static override foo: number }", "class Foo {\n}\n")
 	expectPrintedTS(t, "class Foo { declare override public static foo: number }", "class Foo {\n}\n")
 	expectPrintedTS(t, "class Foo { declare static foo = 123 }", "class Foo {\n}\n")
 	expectPrintedTS(t, "class Foo { static declare foo = 123 }", "class Foo {\n}\n")
@@ -683,8 +704,8 @@ func TestTSClass(t *testing.T) {
 	expectParseErrorTS(t, "class Foo { static declare get foo() }", "<stdin>: ERROR: \"declare\" cannot be used with a getter\n")
 	expectParseErrorTS(t, "class Foo { static declare set foo(x) }", "<stdin>: ERROR: \"declare\" cannot be used with a setter\n")
 
-	expectPrintedTS(t, "class Foo { [key: string]: any\nfoo = 0 }", "class Foo {\n  constructor() {\n    this.foo = 0;\n  }\n}\n")
-	expectPrintedTS(t, "class Foo { [key: string]: any; foo = 0 }", "class Foo {\n  constructor() {\n    this.foo = 0;\n  }\n}\n")
+	expectPrintedAssignSemanticsTS(t, "class Foo { [key: string]: any\nfoo = 0 }", "class Foo {\n  constructor() {\n    this.foo = 0;\n  }\n}\n")
+	expectPrintedAssignSemanticsTS(t, "class Foo { [key: string]: any; foo = 0 }", "class Foo {\n  constructor() {\n    this.foo = 0;\n  }\n}\n")
 
 	expectParseErrorTS(t, "class Foo<> {}", "<stdin>: ERROR: Expected identifier but found \">\"\n")
 	expectParseErrorTS(t, "class Foo<,> {}", "<stdin>: ERROR: Expected identifier but found \",\"\n")
@@ -1887,7 +1908,7 @@ func TestTSArrow(t *testing.T) {
 }
 
 func TestTSSuperCall(t *testing.T) {
-	expectPrintedTS(t, "class A extends B { x = 1 }",
+	expectPrintedAssignSemanticsTS(t, "class A extends B { x = 1 }",
 		`class A extends B {
   constructor() {
     super(...arguments);
@@ -1896,12 +1917,12 @@ func TestTSSuperCall(t *testing.T) {
 }
 `)
 
-	expectPrintedTS(t, "class A extends B { x }",
+	expectPrintedAssignSemanticsTS(t, "class A extends B { x }",
 		`class A extends B {
 }
 `)
 
-	expectPrintedTS(t, "class A extends B { x = 1; constructor() { foo() } }",
+	expectPrintedAssignSemanticsTS(t, "class A extends B { x = 1; constructor() { foo() } }",
 		`class A extends B {
   constructor() {
     this.x = 1;
@@ -1910,7 +1931,7 @@ func TestTSSuperCall(t *testing.T) {
 }
 `)
 
-	expectPrintedTS(t, "class A extends B { x; constructor() { foo() } }",
+	expectPrintedAssignSemanticsTS(t, "class A extends B { x; constructor() { foo() } }",
 		`class A extends B {
   constructor() {
     foo();
@@ -1918,7 +1939,7 @@ func TestTSSuperCall(t *testing.T) {
 }
 `)
 
-	expectPrintedTS(t, "class A extends B { x = 1; constructor() { foo(); super(1); } }",
+	expectPrintedAssignSemanticsTS(t, "class A extends B { x = 1; constructor() { foo(); super(1); } }",
 		`class A extends B {
   constructor() {
     foo();
@@ -1928,7 +1949,7 @@ func TestTSSuperCall(t *testing.T) {
 }
 `)
 
-	expectPrintedTS(t, "class A extends B { x; constructor() { foo(); super(1); } }",
+	expectPrintedAssignSemanticsTS(t, "class A extends B { x; constructor() { foo(); super(1); } }",
 		`class A extends B {
   constructor() {
     foo();
@@ -1937,7 +1958,7 @@ func TestTSSuperCall(t *testing.T) {
 }
 `)
 
-	expectPrintedTS(t, "class A extends B { constructor(public x = 1) { foo(); super(1); } }",
+	expectPrintedAssignSemanticsTS(t, "class A extends B { constructor(public x = 1) { foo(); super(1); } }",
 		`class A extends B {
   constructor(x = 1) {
     foo();
@@ -1947,7 +1968,7 @@ func TestTSSuperCall(t *testing.T) {
 }
 `)
 
-	expectPrintedTS(t, "class A extends B { constructor(public x = 1) { foo(); super(1); super(2); } }",
+	expectPrintedAssignSemanticsTS(t, "class A extends B { constructor(public x = 1) { foo(); super(1); super(2); } }",
 		`class A extends B {
   constructor(x = 1) {
     var __super = (...args) => {
@@ -1961,7 +1982,7 @@ func TestTSSuperCall(t *testing.T) {
 }
 `)
 
-	expectPrintedTS(t, "class A extends B { constructor(public x = 1) { if (false) super(1); super(2); } }", `class A extends B {
+	expectPrintedAssignSemanticsTS(t, "class A extends B { constructor(public x = 1) { if (false) super(1); super(2); } }", `class A extends B {
   constructor(x = 1) {
     if (false)
       __super(1);
@@ -1971,7 +1992,7 @@ func TestTSSuperCall(t *testing.T) {
 }
 `)
 
-	expectPrintedTS(t, "class A extends B { constructor(public x = 1) { if (foo) super(1); super(2); } }", `class A extends B {
+	expectPrintedAssignSemanticsTS(t, "class A extends B { constructor(public x = 1) { if (foo) super(1); super(2); } }", `class A extends B {
   constructor(x = 1) {
     var __super = (...args) => {
       super(...args);
@@ -1984,7 +2005,7 @@ func TestTSSuperCall(t *testing.T) {
 }
 `)
 
-	expectPrintedTS(t, "class A extends B { constructor(public x = 1) { if (foo) super(1); else super(2); } }", `class A extends B {
+	expectPrintedAssignSemanticsTS(t, "class A extends B { constructor(public x = 1) { if (foo) super(1); else super(2); } }", `class A extends B {
   constructor(x = 1) {
     var __super = (...args) => {
       super(...args);
@@ -2552,7 +2573,7 @@ func TestTSNoAmbiguousLessThan(t *testing.T) {
 
 func TestTSClassSideEffectOrder(t *testing.T) {
 	// The order of computed property side effects must not change
-	expectPrintedTS(t, `class Foo {
+	expectPrintedAssignSemanticsTS(t, `class Foo {
 	[a()]() {}
 	[b()];
 	[c()] = 1;

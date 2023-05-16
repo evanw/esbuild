@@ -291,14 +291,13 @@ func validateEngine(value EngineName) compat.Engine {
 var versionRegex = regexp.MustCompile(`^([0-9]+)(?:\.([0-9]+))?(?:\.([0-9]+))?$`)
 var preReleaseVersionRegex = regexp.MustCompile(`^([0-9]+)(?:\.([0-9]+))?(?:\.([0-9]+))?-`)
 
-func validateFeatures(log logger.Log, target Target, engines []Engine) (config.TargetFromAPI, compat.JSFeature, compat.CSSFeature, string) {
+func validateFeatures(log logger.Log, target Target, engines []Engine) (compat.JSFeature, compat.CSSFeature, string) {
 	if target == DefaultTarget && len(engines) == 0 {
-		return config.TargetWasUnconfigured, 0, 0, ""
+		return 0, 0, ""
 	}
 
 	constraints := make(map[compat.Engine][]int)
 	targets := make([]string, 0, 1+len(engines))
-	targetFromAPI := config.TargetWasConfigured
 
 	switch target {
 	case ES5:
@@ -319,10 +318,7 @@ func validateFeatures(log logger.Log, target Target, engines []Engine) (config.T
 		constraints[compat.ES] = []int{2021}
 	case ES2022:
 		constraints[compat.ES] = []int{2022}
-		targetFromAPI = config.TargetWasConfiguredAndAtLeastES2022
-	case ESNext:
-		targetFromAPI = config.TargetWasConfiguredAndAtLeastES2022
-	case DefaultTarget:
+	case ESNext, DefaultTarget:
 	default:
 		panic("Invalid target")
 	}
@@ -366,11 +362,14 @@ func validateFeatures(log logger.Log, target Target, engines []Engine) (config.T
 		}
 		targets = append(targets, text)
 	}
+	if target == ESNext {
+		targets = append(targets, "esnext")
+	}
 
 	sort.Strings(targets)
 	targetEnv := helpers.StringArrayToQuotedCommaSeparatedString(targets)
 
-	return targetFromAPI, compat.UnsupportedJSFeatures(constraints), compat.UnsupportedCSSFeatures(constraints), targetEnv
+	return compat.UnsupportedJSFeatures(constraints), compat.UnsupportedCSSFeatures(constraints), targetEnv
 }
 
 func validateSupported(log logger.Log, supported map[string]bool) (
@@ -1244,7 +1243,7 @@ func validateBuildOptions(
 	options config.Options,
 	entryPoints []bundler.EntryPoint,
 ) {
-	targetFromAPI, jsFeatures, cssFeatures, targetEnv := validateFeatures(log, buildOpts.Target, buildOpts.Engines)
+	jsFeatures, cssFeatures, targetEnv := validateFeatures(log, buildOpts.Target, buildOpts.Engines)
 	jsOverrides, jsMask, cssOverrides, cssMask := validateSupported(log, buildOpts.Supported)
 	outJS, outCSS := validateOutputExtensions(log, buildOpts.OutExtension)
 	bannerJS, bannerCSS := validateBannerOrFooter(log, "banner", buildOpts.Banner)
@@ -1253,7 +1252,6 @@ func validateBuildOptions(
 	platform := validatePlatform(buildOpts.Platform)
 	defines, injectedDefines := validateDefines(log, buildOpts.Define, buildOpts.Pure, platform, true /* isBuildAPI */, minify, buildOpts.Drop)
 	options = config.Options{
-		TargetFromAPI:                      targetFromAPI,
 		UnsupportedJSFeatures:              jsFeatures.ApplyOverrides(jsOverrides, jsMask),
 		UnsupportedCSSFeatures:             cssFeatures.ApplyOverrides(cssOverrides, cssMask),
 		UnsupportedJSFeatureOverrides:      jsOverrides,
@@ -1685,7 +1683,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 	}
 
 	// Settings from "tsconfig.json" override those
-	var tsTarget *config.TSTarget
+	var tsTarget config.TSTarget
 	var tsAlwaysStrict *config.TSAlwaysStrict
 	caches := cache.MakeCacheSet()
 	if transformOpts.TsconfigRaw != "" {
@@ -1714,13 +1712,12 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 	}
 
 	// Convert and validate the transformOpts
-	targetFromAPI, jsFeatures, cssFeatures, targetEnv := validateFeatures(log, transformOpts.Target, transformOpts.Engines)
+	jsFeatures, cssFeatures, targetEnv := validateFeatures(log, transformOpts.Target, transformOpts.Engines)
 	jsOverrides, jsMask, cssOverrides, cssMask := validateSupported(log, transformOpts.Supported)
 	platform := validatePlatform(transformOpts.Platform)
 	defines, injectedDefines := validateDefines(log, transformOpts.Define, transformOpts.Pure, platform, false /* isBuildAPI */, false /* minify */, transformOpts.Drop)
 	mangleCache := cloneMangleCache(log, transformOpts.MangleCache)
 	options := config.Options{
-		TargetFromAPI:                      targetFromAPI,
 		UnsupportedJSFeatures:              jsFeatures.ApplyOverrides(jsOverrides, jsMask),
 		UnsupportedCSSFeatures:             cssFeatures.ApplyOverrides(cssOverrides, cssMask),
 		UnsupportedJSFeatureOverrides:      jsOverrides,

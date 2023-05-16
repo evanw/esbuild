@@ -128,9 +128,9 @@ func TestTSDeclareClassFields(t *testing.T) {
 				}
 				(() => new Bar())()
 			`,
-			"/define-true/tsconfig.json": `{
+			"/define-false/tsconfig.json": `{
 				"compilerOptions": {
-					"useDefineForClassFields": true
+					"useDefineForClassFields": false
 				}
 			}`,
 		},
@@ -604,6 +604,11 @@ func TestTSMinifyDerivedClass(t *testing.T) {
 					}
 				}
 			`,
+			"/tsconfig.json": `{
+				"compilerOptions": {
+					"useDefineForClassFields": false
+				}
+			}`,
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
@@ -935,6 +940,11 @@ func TestTypeScriptDecorators(t *testing.T) {
 					return Foo;
 				}
 			`,
+			"/tsconfig.json": `{
+				"compilerOptions": {
+					"useDefineForClassFields": false
+				}
+			}`,
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
@@ -989,6 +999,11 @@ func TestTypeScriptDecoratorScopeIssue2147(t *testing.T) {
 					}
 				}
 			`,
+			"/tsconfig.json": `{
+				"compilerOptions": {
+					"useDefineForClassFields": false
+				}
+			}`,
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
@@ -1117,6 +1132,11 @@ func TestTSExportDefaultTypeIssue316(t *testing.T) {
 				export default foo
 				export let bar = 123
 			`,
+			"/tsconfig.json": `{
+				"compilerOptions": {
+					"useDefineForClassFields": false
+				}
+			}`,
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
@@ -1344,6 +1364,11 @@ func TestThisInsideFunctionTSNoBundle(t *testing.T) {
 					new Bar(bar(objBar))
 				}
 			`,
+			"/tsconfig.json": `{
+				"compilerOptions": {
+					"useDefineForClassFields": false
+				}
+			}`,
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{

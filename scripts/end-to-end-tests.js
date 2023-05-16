@@ -4357,6 +4357,11 @@ for (let flags of [[], ['--target=es6']]) {
         const foo = new Foo
         if (b !== 1 || 'a' in foo || 1 in foo || 'c' in foo || 2 in foo) throw 'fail'
       `,
+      'tsconfig.json': `{
+				"compilerOptions": {
+					"useDefineForClassFields": false
+				}
+			}`,
     }),
     test(['in.ts', '--outfile=node.js'].concat(flags), {
       'in.ts': `

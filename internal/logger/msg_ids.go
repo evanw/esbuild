@@ -81,6 +81,7 @@ const (
 	MsgID_TsconfigJSON_InvalidPaths
 	MsgID_TsconfigJSON_InvalidTarget
 	MsgID_TsconfigJSON_Missing
+	MsgID_TsconfigJSON_TargetIgnored
 	MsgID_TsconfigJSON_LAST // Keep this last
 
 	MsgID_END // Keep this at the end (used only for tests)

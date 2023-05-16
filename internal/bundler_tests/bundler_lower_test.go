@@ -1634,6 +1634,11 @@ func TestTSLowerClassField2020NoBundle(t *testing.T) {
 					static s_bar
 				}
 			`,
+			"/tsconfig.json": `{
+				"compilerOptions": {
+					"useDefineForClassFields": false
+				}
+			}`,
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
@@ -1658,6 +1663,11 @@ func TestTSLowerClassPrivateFieldNextNoBundle(t *testing.T) {
 					static s_bar
 				}
 			`,
+			"/tsconfig.json": `{
+				"compilerOptions": {
+					"useDefineForClassFields": false
+				}
+			}`,
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{

@@ -1298,7 +1298,7 @@ func (s *scanner) maybeParseFile(
 	if resolveResult.UnusedImportFlagsTS != 0 {
 		optionsClone.UnusedImportFlagsTS = resolveResult.UnusedImportFlagsTS
 	}
-	if resolveResult.TSTarget != nil {
+	if resolveResult.TSTarget != config.TSTargetUnspecified {
 		optionsClone.TSTarget = resolveResult.TSTarget
 	}
 	if resolveResult.TSAlwaysStrict != nil {

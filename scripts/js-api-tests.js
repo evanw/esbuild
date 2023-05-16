@@ -3492,13 +3492,13 @@ import "after/alias";
   },
 
   async yarnPnP_tsconfig({ esbuild, testDir }) {
-    const entry = path.join(testDir, 'entry.js')
+    const entry = path.join(testDir, 'entry.jsx')
     const tsconfigExtends = path.join(testDir, 'tsconfig.json')
     const tsconfigBase = path.join(testDir, 'foo', 'tsconfig.json')
     const manifest = path.join(testDir, '.pnp.data.json')
 
     await writeFileAsync(entry, `
-      x **= 2
+      console.log(<div/>)
     `)
 
     await writeFileAsync(tsconfigExtends, `{
@@ -3508,7 +3508,7 @@ import "after/alias";
     await mkdirAsync(path.dirname(tsconfigBase), { recursive: true })
     await writeFileAsync(tsconfigBase, `{
       "compilerOptions": {
-        "target": "ES5"
+        "jsxFactory": "success"
       }
     }`)
 
@@ -3542,10 +3542,8 @@ import "after/alias";
 
     assert.strictEqual(value.outputFiles.length, 1)
     assert.strictEqual(value.outputFiles[0].text, `(() => {
-  var __pow = Math.pow;
-
-  // entry.js
-  x = __pow(x, 2);
+  // entry.jsx
+  console.log(/* @__PURE__ */ success("div", null));
 })();
 `)
   },
@@ -5056,6 +5054,11 @@ let transformTests = {
         throw 'fail: bar'
     `, {
       loader: 'ts',
+      tsconfigRaw: {
+        compilerOptions: {
+          useDefineForClassFields: false,
+        },
+      },
     })
     new Function(code)()
   },
@@ -5305,10 +5308,10 @@ let transformTests = {
   },
 
   async tsconfigRawTarget({ esbuild }) {
-    // The "target" from "tsconfig.json" should apply, but esbuild's "target" should override
+    // The "target" from "tsconfig.json" should not apply, but esbuild's "target" should apply
 
     assert.strictEqual((await esbuild.transform('x => x', { loader: 'ts', tsconfigRaw: { compilerOptions: { target: 'ES6' } } })).code, `(x) => x;\n`)
-    assert.strictEqual((await esbuild.transform('x => x', { loader: 'ts', tsconfigRaw: { compilerOptions: { target: 'ES5' } } })).code, `(function(x) {\n  return x;\n});\n`)
+    assert.strictEqual((await esbuild.transform('x => x', { loader: 'ts', tsconfigRaw: { compilerOptions: { target: 'ES5' } } })).code, `(x) => x;\n`)
 
     assert.strictEqual((await esbuild.transform('x => x', { loader: 'ts', target: 'es6' })).code, `(x) => x;\n`)
     assert.strictEqual((await esbuild.transform('x => x', { loader: 'ts', target: 'es5' })).code, `(function(x) {\n  return x;\n});\n`)
@@ -5321,13 +5324,24 @@ let transformTests = {
     var { code } = await esbuild.transform(`class Foo { foo }`, {
       loader: 'ts',
     })
-    assert.strictEqual(code, `class Foo {\n}\n`)
+    assert.strictEqual(code, `class Foo {\n  foo;\n}\n`)
 
     var { code } = await esbuild.transform(`class Foo { foo }`, {
       target: 'es2021',
       loader: 'ts',
     })
-    assert.strictEqual(code, `class Foo {\n}\n`)
+    assert.strictEqual(code, `var __defProp = Object.defineProperty;
+var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __publicField = (obj, key, value) => {
+  __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
+  return value;
+};
+class Foo {
+  constructor() {
+    __publicField(this, "foo");
+  }
+}
+`)
 
     var { code } = await esbuild.transform(`class Foo { foo }`, {
       target: 'es2022',

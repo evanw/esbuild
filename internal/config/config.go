@@ -282,7 +282,6 @@ func (flag *CancelFlag) DidCancel() bool {
 type Options struct {
 	ModuleTypeData js_ast.ModuleTypeData
 	Defines        *ProcessedDefines
-	TSTarget       *TSTarget
 	TSAlwaysStrict *TSAlwaysStrict
 	MangleProps    *regexp.Regexp
 	ReserveProps   *regexp.Regexp
@@ -377,25 +376,12 @@ type Options struct {
 	DropDebugger            bool
 	MangleQuoted            bool
 	Platform                Platform
-	TargetFromAPI           TargetFromAPI
+	TSTarget                TSTarget
 	OutputFormat            Format
 	NeedsMetafile           bool
 	SourceMap               SourceMap
 	ExcludeSourcesContent   bool
 }
-
-type TargetFromAPI uint8
-
-const (
-	// In this state, the "target" field in "tsconfig.json" is respected
-	TargetWasUnconfigured TargetFromAPI = iota
-
-	// In this state, the "target" field in "tsconfig.json" is overridden
-	TargetWasConfigured
-
-	// In this state, "useDefineForClassFields" is true unless overridden
-	TargetWasConfiguredAndAtLeastES2022
-)
 
 type TSImportsNotUsedAsValues uint8
 
@@ -439,16 +425,13 @@ const (
 	UnusedImportKeepValues                                 // "preserveValueImports" == true
 )
 
-type TSTarget struct {
-	// This information is only used for error messages
-	Target string
-	Source logger.Source
-	Range  logger.Range
+type TSTarget uint8
 
-	// This information can affect code transformation
-	UnsupportedJSFeatures compat.JSFeature
-	TargetIsAtLeastES2022 bool
-}
+const (
+	TSTargetUnspecified     TSTarget = iota
+	TSTargetBelowES2022              // "useDefineForClassFields" defaults to false
+	TSTargetAtOrAboveES2022          // "useDefineForClassFields" defaults to true
+)
 
 type TSAlwaysStrict struct {
 	// This information is only used for error messages

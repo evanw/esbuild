@@ -1343,109 +1343,6 @@ func TestTsconfigPreserveValueImportsAndImportsNotUsedAsValuesPreserve(t *testin
 	})
 }
 
-func TestTsconfigTarget(t *testing.T) {
-	tsconfig_suite.expectBundled(t, bundled{
-		files: map[string]string{
-			"/Users/user/project/src/entry.ts": `
-				import "./es2018"
-				import "./es2019"
-				import "./es2020"
-				import "./es4"
-			`,
-			"/Users/user/project/src/es2018/index.ts": `
-				let x = { ...y }   // es2018 syntax
-				try { y } catch {} // es2019 syntax
-				x?.y()             // es2020 syntax
-			`,
-			"/Users/user/project/src/es2019/index.ts": `
-				let x = { ...y }   // es2018 syntax
-				try { y } catch {} // es2019 syntax
-				x?.y()             // es2020 syntax
-			`,
-			"/Users/user/project/src/es2020/index.ts": `
-				let x = { ...y }   // es2018 syntax
-				try { y } catch {} // es2019 syntax
-				x?.y()             // es2020 syntax
-			`,
-			"/Users/user/project/src/es4/index.ts": `
-			`,
-			"/Users/user/project/src/es2018/tsconfig.json": `{
-				"compilerOptions": {
-					"target": "ES2018"
-				}
-			}`,
-			"/Users/user/project/src/es2019/tsconfig.json": `{
-				"compilerOptions": {
-					"target": "es2019"
-				}
-			}`,
-			"/Users/user/project/src/es2020/tsconfig.json": `{
-				"compilerOptions": {
-					"target": "ESNext"
-				}
-			}`,
-			"/Users/user/project/src/es4/tsconfig.json": `{
-				"compilerOptions": {
-					"target": "ES4"
-				}
-			}`,
-		},
-		entryPaths: []string{"/Users/user/project/src/entry.ts"},
-		options: config.Options{
-			Mode:          config.ModeBundle,
-			AbsOutputFile: "/Users/user/project/out.js",
-			TargetFromAPI: config.TargetWasUnconfigured,
-		},
-		expectedScanLog: `Users/user/project/src/es4/tsconfig.json: WARNING: Unrecognized target environment "ES4"
-`,
-	})
-}
-
-func TestTsconfigTargetError(t *testing.T) {
-	tsconfig_suite.expectBundled(t, bundled{
-		files: map[string]string{
-			"/Users/user/project/src/entry.ts": `
-				x = 123n
-			`,
-			"/Users/user/project/src/tsconfig.json": `{
-				"compilerOptions": {
-					"target": "ES2019"
-				}
-			}`,
-		},
-		entryPaths: []string{"/Users/user/project/src/entry.ts"},
-		options: config.Options{
-			Mode:          config.ModeBundle,
-			AbsOutputFile: "/Users/user/project/out.js",
-			TargetFromAPI: config.TargetWasUnconfigured,
-		},
-		expectedScanLog: `Users/user/project/src/entry.ts: ERROR: Big integer literals are not available in the configured target environment ("ES2019")
-Users/user/project/src/tsconfig.json: NOTE: The target environment was set to "ES2019" here:
-`,
-	})
-}
-
-func TestTsconfigTargetIgnored(t *testing.T) {
-	tsconfig_suite.expectBundled(t, bundled{
-		files: map[string]string{
-			"/Users/user/project/src/entry.ts": `
-				x = 123n
-			`,
-			"/Users/user/project/src/tsconfig.json": `{
-				"compilerOptions": {
-					"target": "ES2019"
-				}
-			}`,
-		},
-		entryPaths: []string{"/Users/user/project/src/entry.ts"},
-		options: config.Options{
-			Mode:          config.ModeBundle,
-			AbsOutputFile: "/Users/user/project/out.js",
-			TargetFromAPI: config.TargetWasConfigured,
-		},
-	})
-}
-
 func TestTsconfigUseDefineForClassFieldsES2020(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
@@ -1462,8 +1359,9 @@ func TestTsconfigUseDefineForClassFieldsES2020(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.ts"},
 		options: config.Options{
-			Mode:          config.ModeBundle,
-			AbsOutputFile: "/Users/user/project/out.js",
+			Mode:              config.ModeBundle,
+			AbsOutputFile:     "/Users/user/project/out.js",
+			OriginalTargetEnv: "esnext",
 		},
 	})
 }
@@ -1484,8 +1382,9 @@ func TestTsconfigUseDefineForClassFieldsESNext(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.ts"},
 		options: config.Options{
-			Mode:          config.ModeBundle,
-			AbsOutputFile: "/Users/user/project/out.js",
+			Mode:              config.ModeBundle,
+			AbsOutputFile:     "/Users/user/project/out.js",
+			OriginalTargetEnv: "esnext",
 		},
 	})
 }
@@ -1500,13 +1399,13 @@ func TestTsconfigUnrecognizedTargetWarning(t *testing.T) {
 			"/Users/user/project/src/a/index.ts": ``,
 			"/Users/user/project/src/a/tsconfig.json": `{
 				"compilerOptions": {
-					"target": "es3"
+					"target": "es4"
 				}
 			}`,
 			"/Users/user/project/src/node_modules/b/index.ts": ``,
 			"/Users/user/project/src/node_modules/b/tsconfig.json": `{
 				"compilerOptions": {
-					"target": "es3"
+					"target": "es4"
 				}
 			}`,
 		},
@@ -1515,22 +1414,59 @@ func TestTsconfigUnrecognizedTargetWarning(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
-		expectedScanLog: `Users/user/project/src/a/tsconfig.json: WARNING: Unrecognized target environment "es3"
+		expectedScanLog: `Users/user/project/src/a/tsconfig.json: WARNING: Unrecognized target environment "es4"
 `,
 	})
 }
 
-// This should point to "tsconfig.json" as the source of the
-// problem because it was not overridden with configuration
-func TestTsconfigTargetWarning(t *testing.T) {
+func TestTsconfigIgnoredTargetWarning(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.ts": `
-				await 0
+				import "./a"
+				import "b"
 			`,
-			"/Users/user/project/src/tsconfig.json": `{
+			"/Users/user/project/src/a/index.ts": ``,
+			"/Users/user/project/src/a/tsconfig.json": `{
 				"compilerOptions": {
-					"target": "es6"
+					"target": "es5"
+				}
+			}`,
+			"/Users/user/project/src/node_modules/b/index.ts": ``,
+			"/Users/user/project/src/node_modules/b/tsconfig.json": `{
+				"compilerOptions": {
+					"target": "es5"
+				}
+			}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expectedScanLog: `Users/user/project/src/a/tsconfig.json: WARNING: "tsconfig.json" does not affect esbuild's own target setting
+NOTE: This is because esbuild supports reading from multiple "tsconfig.json" files within a single build, and using different language targets for different files in the same build wouldn't be correct. If you want to set esbuild's language target, you should use esbuild's own global "target" setting such as with "Target: api.ES5".
+`,
+	})
+}
+
+func TestTsconfigIgnoredTargetSilent(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.ts": `
+				import "./a"
+				import "b"
+			`,
+			"/Users/user/project/src/a/index.ts": ``,
+			"/Users/user/project/src/a/tsconfig.json": `{
+				"compilerOptions": {
+					"target": "es5"
+				}
+			}`,
+			"/Users/user/project/src/node_modules/b/index.ts": ``,
+			"/Users/user/project/src/node_modules/b/tsconfig.json": `{
+				"compilerOptions": {
+					"target": "es5"
 				}
 			}`,
 		},
@@ -1538,39 +1474,9 @@ func TestTsconfigTargetWarning(t *testing.T) {
 		options: config.Options{
 			Mode:                  config.ModeBundle,
 			AbsOutputFile:         "/Users/user/project/out.js",
-			UnsupportedJSFeatures: es(6),
-			TargetFromAPI:         config.TargetWasUnconfigured,
+			UnsupportedJSFeatures: es(5),
+			OriginalTargetEnv:     "ES5",
 		},
-		expectedScanLog: `Users/user/project/src/entry.ts: ERROR: Top-level await is not available in the configured target environment ("es6")
-Users/user/project/src/tsconfig.json: NOTE: The target environment was set to "es6" here:
-`,
-	})
-}
-
-// This should not point to "tsconfig.json" as the source of the
-// problem because it was overridden with explicit configuration
-func TestTsconfigOverriddenTargetWarning(t *testing.T) {
-	tsconfig_suite.expectBundled(t, bundled{
-		files: map[string]string{
-			"/Users/user/project/src/entry.ts": `
-				await 0
-			`,
-			"/Users/user/project/src/tsconfig.json": `{
-				"compilerOptions": {
-					"target": "es6"
-				}
-			}`,
-		},
-		entryPaths: []string{"/Users/user/project/src/entry.ts"},
-		options: config.Options{
-			Mode:                  config.ModeBundle,
-			AbsOutputFile:         "/Users/user/project/out.js",
-			UnsupportedJSFeatures: es(2020),
-			TargetFromAPI:         config.TargetWasConfigured,
-			OriginalTargetEnv:     "es2020",
-		},
-		expectedScanLog: `Users/user/project/src/entry.ts: ERROR: Top-level await is not available in the configured target environment (es2020)
-`,
 	})
 }
 
@@ -1946,74 +1852,68 @@ func TestTsConfigAlwaysStrictTrueEmitDirectiveBundleESM(t *testing.T) {
 func TestTsConfigExtendsDotWithoutSlash(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
-			"/Users/user/project/src/main.ts": `
-				console.log(123n)
+			"/Users/user/project/src/main.tsx": `
+				console.log(<div/>)
 			`,
 			"/Users/user/project/src/foo.json": `{
 				"extends": "."
 			}`,
 			"/Users/user/project/src/tsconfig.json": `{
 				"compilerOptions": {
-					"target": "ES6"
+					"jsxFactory": "success"
 				}
 			}`,
 		},
-		entryPaths: []string{"/Users/user/project/src/main.ts"},
+		entryPaths: []string{"/Users/user/project/src/main.tsx"},
 		options: config.Options{
 			Mode:             config.ModeBundle,
 			AbsOutputDir:     "/Users/user/project/out",
 			OutputFormat:     config.FormatESModule,
 			TsConfigOverride: "/Users/user/project/src/foo.json",
 		},
-		expectedScanLog: `Users/user/project/src/main.ts: ERROR: Big integer literals are not available in the configured target environment ("ES6")
-Users/user/project/src/tsconfig.json: NOTE: The target environment was set to "ES6" here:
-`,
 	})
 }
 
 func TestTsConfigExtendsDotDotWithoutSlash(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
-			"/Users/user/project/src/main.ts": `
-				console.log(123n)
+			"/Users/user/project/src/main.tsx": `
+				console.log(<div/>)
 			`,
 			"/Users/user/project/src/tsconfig.json": `{
 				"extends": ".."
 			}`,
 			"/Users/user/project/tsconfig.json": `{
 				"compilerOptions": {
-					"target": "ES6"
+					"jsxFactory": "success"
 				}
 			}`,
 		},
-		entryPaths: []string{"/Users/user/project/src/main.ts"},
+		entryPaths: []string{"/Users/user/project/src/main.tsx"},
 		options: config.Options{
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/Users/user/project/out",
 			OutputFormat: config.FormatESModule,
 		},
-		expectedScanLog: `Users/user/project/src/main.ts: ERROR: Big integer literals are not available in the configured target environment ("ES6")
-Users/user/project/tsconfig.json: NOTE: The target environment was set to "ES6" here:
-`,
 	})
 }
 
 func TestTsConfigExtendsDotWithSlash(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
-			"/Users/user/project/src/main.ts": `
-				console.log(123n)
+			"/Users/user/project/src/main.tsx": `
+				console.log(<div/>)
 			`,
 			"/Users/user/project/src/foo.json": `{
 				"extends": "./"
 			}`,
 			"/Users/user/project/src/tsconfig.json": `{
 				"compilerOptions": {
-					"target": "ES6"
+					"jsxFactory": "FAILURE"
 				}
 			}`,
 		},
-		entryPaths: []string{"/Users/user/project/src/main.ts"},
+		entryPaths: []string{"/Users/user/project/src/main.tsx"},
 		options: config.Options{
 			Mode:             config.ModeBundle,
 			AbsOutputDir:     "/Users/user/project/out",
@@ -2028,19 +1928,19 @@ func TestTsConfigExtendsDotWithSlash(t *testing.T) {
 func TestTsConfigExtendsDotDotWithSlash(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
-			"/Users/user/project/src/main.ts": `
-				console.log(123n)
+			"/Users/user/project/src/main.tsx": `
+				console.log(<div/>)
 			`,
 			"/Users/user/project/src/tsconfig.json": `{
 				"extends": "../"
 			}`,
 			"/Users/user/project/tsconfig.json": `{
 				"compilerOptions": {
-					"target": "ES6"
+					"jsxFactory": "FAILURE"
 				}
 			}`,
 		},
-		entryPaths: []string{"/Users/user/project/src/main.ts"},
+		entryPaths: []string{"/Users/user/project/src/main.tsx"},
 		options: config.Options{
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/Users/user/project/out",
@@ -2054,8 +1954,8 @@ func TestTsConfigExtendsDotDotWithSlash(t *testing.T) {
 func TestTsConfigExtendsWithExports(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
-			"/Users/user/project/src/main.ts": `
-				console.log(123n)
+			"/Users/user/project/src/main.tsx": `
+				console.log(<div/>)
 			`,
 			"/Users/user/project/tsconfig.json": `{
 				"extends": "@whatever/tsconfig/a/b/c"
@@ -2067,27 +1967,24 @@ func TestTsConfigExtendsWithExports(t *testing.T) {
 			}`,
 			"/Users/user/project/node_modules/@whatever/tsconfig/foo.json": `{
 				"compilerOptions": {
-					"target": "ES6"
+					"jsxFactory": "success"
 				}
 			}`,
 		},
-		entryPaths: []string{"/Users/user/project/src/main.ts"},
+		entryPaths: []string{"/Users/user/project/src/main.tsx"},
 		options: config.Options{
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/Users/user/project/out",
 			OutputFormat: config.FormatESModule,
 		},
-		expectedScanLog: `Users/user/project/src/main.ts: ERROR: Big integer literals are not available in the configured target environment ("ES6")
-Users/user/project/node_modules/@whatever/tsconfig/foo.json: NOTE: The target environment was set to "ES6" here:
-`,
 	})
 }
 
 func TestTsConfigExtendsWithExportsStar(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
-			"/Users/user/project/src/main.ts": `
-				console.log(123n)
+			"/Users/user/project/src/main.tsx": `
+				console.log(<div/>)
 			`,
 			"/Users/user/project/tsconfig.json": `{
 				"extends": "@whatever/tsconfig/a/b/c"
@@ -2099,27 +1996,24 @@ func TestTsConfigExtendsWithExportsStar(t *testing.T) {
 			}`,
 			"/Users/user/project/node_modules/@whatever/tsconfig/tsconfig.a/b/c.json": `{
 				"compilerOptions": {
-					"target": "ES6"
+					"jsxFactory": "success"
 				}
 			}`,
 		},
-		entryPaths: []string{"/Users/user/project/src/main.ts"},
+		entryPaths: []string{"/Users/user/project/src/main.tsx"},
 		options: config.Options{
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/Users/user/project/out",
 			OutputFormat: config.FormatESModule,
 		},
-		expectedScanLog: `Users/user/project/src/main.ts: ERROR: Big integer literals are not available in the configured target environment ("ES6")
-Users/user/project/node_modules/@whatever/tsconfig/tsconfig.a/b/c.json: NOTE: The target environment was set to "ES6" here:
-`,
 	})
 }
 
 func TestTsConfigExtendsWithExportsStarTrailing(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
-			"/Users/user/project/src/main.ts": `
-				console.log(123n)
+			"/Users/user/project/src/main.tsx": `
+				console.log(<div/>)
 			`,
 			"/Users/user/project/tsconfig.json": `{
 				"extends": "@whatever/tsconfig/a/b/c.json"
@@ -2131,27 +2025,24 @@ func TestTsConfigExtendsWithExportsStarTrailing(t *testing.T) {
 			}`,
 			"/Users/user/project/node_modules/@whatever/tsconfig/tsconfig.a/b/c.json": `{
 				"compilerOptions": {
-					"target": "ES6"
+					"jsxFactory": "success"
 				}
 			}`,
 		},
-		entryPaths: []string{"/Users/user/project/src/main.ts"},
+		entryPaths: []string{"/Users/user/project/src/main.tsx"},
 		options: config.Options{
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/Users/user/project/out",
 			OutputFormat: config.FormatESModule,
 		},
-		expectedScanLog: `Users/user/project/src/main.ts: ERROR: Big integer literals are not available in the configured target environment ("ES6")
-Users/user/project/node_modules/@whatever/tsconfig/tsconfig.a/b/c.json: NOTE: The target environment was set to "ES6" here:
-`,
 	})
 }
 
 func TestTsConfigExtendsWithExportsRequire(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
-			"/Users/user/project/src/main.ts": `
-				console.log(123n)
+			"/Users/user/project/src/main.tsx": `
+				console.log(<div/>)
 			`,
 			"/Users/user/project/tsconfig.json": `{
 				"extends": "@whatever/tsconfig/a/b/c.json"
@@ -2169,18 +2060,15 @@ func TestTsConfigExtendsWithExportsRequire(t *testing.T) {
 			"/Users/user/project/node_modules/@whatever/tsconfig/default.json": `FAILURE`,
 			"/Users/user/project/node_modules/@whatever/tsconfig/require.json": `{
 				"compilerOptions": {
-					"target": "ES6"
+					"jsxFactory": "success"
 				}
 			}`,
 		},
-		entryPaths: []string{"/Users/user/project/src/main.ts"},
+		entryPaths: []string{"/Users/user/project/src/main.tsx"},
 		options: config.Options{
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/Users/user/project/out",
 			OutputFormat: config.FormatESModule,
 		},
-		expectedScanLog: `Users/user/project/src/main.ts: ERROR: Big integer literals are not available in the configured target environment ("ES6")
-Users/user/project/node_modules/@whatever/tsconfig/require.json: NOTE: The target environment was set to "ES6" here:
-`,
 	})
 }
