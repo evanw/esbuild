@@ -6259,6 +6259,11 @@ func (p *parser) parseDecorators(decoratorScope *js_ast.Scope, classKeyword logg
 					[]logger.MsgData{p.tracker.MsgData(classKeyword, "This is a class expression, not a class declaration:")})
 			} else if (context & decoratorBeforeClassExpr) != 0 {
 				p.log.AddError(&p.tracker, p.lexer.Range(), "Experimental decorators cannot be used in expression position in TypeScript")
+			} else if p.options.ts.Config.ExperimentalDecorators != config.True {
+				p.log.AddErrorWithNotes(&p.tracker, p.lexer.Range(), "Experimental decorators are not currently enabled", []logger.MsgData{{
+					Text: "To use experimental decorators in TypeScript with esbuild, you need to enable them by adding \"experimentalDecorators\": true in your \"tsconfig.json\" file. " +
+						"TypeScript's experimental decorators are currently the only kind of decorators that esbuild supports.",
+				}})
 			}
 		} else {
 			if (context & decoratorInFnArgs) != 0 {

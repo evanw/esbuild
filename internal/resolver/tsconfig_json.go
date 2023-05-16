@@ -154,6 +154,17 @@ func ParseTSConfigJSON(
 			}
 		}
 
+		// Parse "experimentalDecorators"
+		if valueJSON, _, ok := getProperty(compilerOptionsJSON, "experimentalDecorators"); ok {
+			if value, ok := getBool(valueJSON); ok {
+				if value {
+					result.Settings.ExperimentalDecorators = config.True
+				} else {
+					result.Settings.ExperimentalDecorators = config.False
+				}
+			}
+		}
+
 		// Parse "useDefineForClassFields"
 		if valueJSON, _, ok := getProperty(compilerOptionsJSON, "useDefineForClassFields"); ok {
 			if value, ok := getBool(valueJSON); ok {

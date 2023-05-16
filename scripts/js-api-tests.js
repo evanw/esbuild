@@ -2881,28 +2881,32 @@ import "after/alias";
     new Function(outputFiles[0].text)()
   },
 
-  async bundleTSDecoratorAvoidTDZ({ esbuild }) {
-    var { outputFiles } = await esbuild.build({
-      stdin: {
-        contents: `
-          class Bar {}
-          var oldFoo
-          function swap(target) {
-            oldFoo = target
-            return Bar
-          }
-          @swap
-          class Foo {
-            bar() { return new Foo }
-            static foo = new Foo
-          }
-          if (!(oldFoo.foo instanceof oldFoo))
-            throw 'fail: foo'
-          if (!(oldFoo.foo.bar() instanceof Bar))
-            throw 'fail: bar'
-        `,
-        loader: 'ts',
+  async bundleTSDecoratorAvoidTDZ({ testDir, esbuild }) {
+    const input = path.join(testDir, 'input.ts')
+    await writeFileAsync(input, `
+      class Bar {}
+      var oldFoo
+      function swap(target) {
+        oldFoo = target
+        return Bar
+      }
+      @swap
+      class Foo {
+        bar() { return new Foo }
+        static foo = new Foo
+      }
+      if (!(oldFoo.foo instanceof oldFoo))
+        throw 'fail: foo'
+      if (!(oldFoo.foo.bar() instanceof Bar))
+        throw 'fail: bar'
+    `)
+    await writeFileAsync(path.join(testDir, 'tsconfig.json'), `{
+      "compilerOptions": {
+        "experimentalDecorators": true,
       },
+    }`)
+    var { outputFiles } = await esbuild.build({
+      entryPoints: [input],
       bundle: true,
       write: false,
     })
@@ -5057,6 +5061,7 @@ let transformTests = {
       tsconfigRaw: {
         compilerOptions: {
           useDefineForClassFields: false,
+          experimentalDecorators: true,
         },
       },
     })
@@ -6212,7 +6217,14 @@ class Foo {
       ];
 
       return {observed, expected};
-    `, { loader: 'ts' });
+    `, {
+      loader: 'ts',
+      tsconfigRaw: {
+        compilerOptions: {
+          experimentalDecorators: true,
+        },
+      },
+    });
     const { observed, expected } = new Function(code)();
     assert.deepStrictEqual(observed, expected);
   },

@@ -83,6 +83,7 @@ type TSConfigJSX struct {
 // Note: This can currently only contain primitive values. It's compared
 // for equality using a structural equality comparison by the JS parser.
 type TSConfig struct {
+	ExperimentalDecorators  MaybeBool
 	ImportsNotUsedAsValues  TSImportsNotUsedAsValues
 	PreserveValueImports    MaybeBool
 	Target                  TSTarget
