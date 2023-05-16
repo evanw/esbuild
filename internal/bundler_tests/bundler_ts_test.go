@@ -803,7 +803,7 @@ func TestTSMinifiedBundleCommonJS(t *testing.T) {
 	})
 }
 
-func TestTypeScriptDecorators(t *testing.T) {
+func TestTSExperimentalDecorators(t *testing.T) {
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -954,7 +954,7 @@ func TestTypeScriptDecorators(t *testing.T) {
 	})
 }
 
-func TestTypeScriptDecoratorsKeepNames(t *testing.T) {
+func TestTSExperimentalDecoratorsKeepNames(t *testing.T) {
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -972,7 +972,7 @@ func TestTypeScriptDecoratorsKeepNames(t *testing.T) {
 }
 
 // See: https://github.com/evanw/esbuild/issues/2147
-func TestTypeScriptDecoratorScopeIssue2147(t *testing.T) {
+func TestTSExperimentalDecoratorScopeIssue2147(t *testing.T) {
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
