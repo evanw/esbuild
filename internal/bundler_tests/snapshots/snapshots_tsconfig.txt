@@ -396,7 +396,6 @@ console.log(/* @__PURE__ */ jsxDEV(Fragment, { children: [
 TestTsConfigVerbatimModuleSyntaxFalse
 ---------- /Users/user/project/out/main.js ----------
 export { Car } from "./car";
-export {} from "./car";
 
 ================================================================================
 TestTsConfigVerbatimModuleSyntaxTrue

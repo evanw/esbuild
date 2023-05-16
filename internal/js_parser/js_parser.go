@@ -15549,6 +15549,13 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result importsEx
 					}
 				}
 			}
+
+			// TypeScript always trims unused re-exports. This is important for
+			// correctness since some re-exports might be fake (only in the type
+			// system and used for type-only stuff).
+			if p.options.ts.Parse && len(s.Items) == 0 && (unusedImportFlags&config.TSUnusedImport_KeepStmt) == 0 {
+				continue
+			}
 		}
 
 		// Filter out statements we skipped over

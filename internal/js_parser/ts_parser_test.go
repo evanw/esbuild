@@ -2400,11 +2400,11 @@ func TestTSTypeOnlyExport(t *testing.T) {
 
 	// Arbitrary module namespace identifier names
 	expectPrintedTS(t, "export { type as \"\" } from 'mod'", "export { type as \"\" } from \"mod\";\n")
-	expectPrintedTS(t, "export { type as as \"\" } from 'mod'", "export {} from \"mod\";\n")
-	expectPrintedTS(t, "export { type x as \"\" } from 'mod'", "export {} from \"mod\";\n")
-	expectPrintedTS(t, "export { type \"\" as x } from 'mod'", "export {} from \"mod\";\n")
-	expectPrintedTS(t, "export { type \"\" as \" \" } from 'mod'", "export {} from \"mod\";\n")
-	expectPrintedTS(t, "export { type \"\" } from 'mod'", "export {} from \"mod\";\n")
+	expectPrintedTS(t, "export { x, type as as \"\" } from 'mod'", "export { x } from \"mod\";\n")
+	expectPrintedTS(t, "export { x, type x as \"\" } from 'mod'", "export { x } from \"mod\";\n")
+	expectPrintedTS(t, "export { x, type \"\" as x } from 'mod'", "export { x } from \"mod\";\n")
+	expectPrintedTS(t, "export { x, type \"\" as \" \" } from 'mod'", "export { x } from \"mod\";\n")
+	expectPrintedTS(t, "export { x, type \"\" } from 'mod'", "export { x } from \"mod\";\n")
 	expectParseErrorTS(t, "export { type \"\" }", "<stdin>: ERROR: Expected identifier but found \"\\\"\\\"\"\n")
 	expectParseErrorTS(t, "export { type \"\" as x }", "<stdin>: ERROR: Expected identifier but found \"\\\"\\\"\"\n")
 	expectParseErrorTS(t, "export { type \"\" as \" \" }", "<stdin>: ERROR: Expected identifier but found \"\\\"\\\"\"\n")
