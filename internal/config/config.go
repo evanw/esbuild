@@ -29,6 +29,7 @@ type TSJSX uint8
 const (
 	TSJSXNone TSJSX = iota
 	TSJSXPreserve
+	TSJSXReactNative
 	TSJSXReact
 	TSJSXReactJSX
 	TSJSXReactJSXDev
@@ -36,14 +37,17 @@ const (
 
 func (jsxOptions *JSXOptions) SetOptionsFromTSJSX(tsx TSJSX) {
 	switch tsx {
-	case TSJSXPreserve:
+	case TSJSXPreserve, TSJSXReactNative:
 		jsxOptions.Preserve = true
+
 	case TSJSXReact:
 		jsxOptions.AutomaticRuntime = false
 		jsxOptions.Development = false
+
 	case TSJSXReactJSX:
 		jsxOptions.AutomaticRuntime = true
-		// Don't set Development = false implicitly
+		// Don't set "Development = false" implicitly
+
 	case TSJSXReactJSXDev:
 		jsxOptions.AutomaticRuntime = true
 		jsxOptions.Development = true

@@ -128,8 +128,10 @@ func ParseTSConfigJSON(
 				switch strings.ToLower(value) {
 				case "none":
 					result.JSX = config.TSJSXNone
-				case "preserve", "react-native":
+				case "preserve":
 					result.JSX = config.TSJSXPreserve
+				case "react-native":
+					result.JSX = config.TSJSXReactNative
 				case "react":
 					result.JSX = config.TSJSXReact
 				case "react-jsx":
