@@ -601,6 +601,58 @@ func TestTsConfigNestedJSX(t *testing.T) {
 	})
 }
 
+func TestTsConfigPreserveJSX(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/entry.tsx": `
+				console.log(<><div/><div/></>)
+			`,
+			"/Users/user/project/tsconfig.json": `
+				{
+					"compilerOptions": {
+						"jsx": "preserve" // This should be ignored
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/entry.tsx"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
+func TestTsConfigPreserveJSXAutomatic(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/entry.tsx": `
+				console.log(<><div/><div/></>)
+			`,
+			"/Users/user/project/tsconfig.json": `
+				{
+					"compilerOptions": {
+						"jsx": "preserve" // This should be ignored
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/entry.tsx"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+			JSX: config.JSXOptions{
+				AutomaticRuntime: true,
+			},
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{Exact: map[string]bool{
+					"react/jsx-runtime": true,
+				}},
+			},
+		},
+	})
+}
+
 func TestTsConfigReactJSX(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{

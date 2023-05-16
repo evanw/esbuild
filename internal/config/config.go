@@ -35,10 +35,28 @@ const (
 	TSJSXReactJSXDev
 )
 
+type TSOptions struct {
+	Config              TSConfig
+	Parse               bool
+	NoAmbiguousLessThan bool
+}
+
+type TSConfigJSX struct {
+	// If not empty, these should override the default values
+	JSXFactory         []string // Default if empty: "React.createElement"
+	JSXFragmentFactory []string // Default if empty: "React.Fragment"
+	JSXImportSource    string   // Default if empty: "react"
+	JSX                TSJSX
+}
+
 func (tsConfig *TSConfigJSX) ApplyTo(jsxOptions *JSXOptions) {
 	switch tsConfig.JSX {
 	case TSJSXPreserve, TSJSXReactNative:
-		jsxOptions.Preserve = true
+		// Deliberately don't set "Preserve = true" here. Some tools from Vercel
+		// apparently automatically set "jsx": "preserve" in "tsconfig.json" and
+		// people are then confused when esbuild preserves their JSX. Ignoring this
+		// value means you now have to explicitly pass "--jsx=preserve" to esbuild
+		// to get this behavior.
 
 	case TSJSXReact:
 		jsxOptions.AutomaticRuntime = false
@@ -46,7 +64,9 @@ func (tsConfig *TSConfigJSX) ApplyTo(jsxOptions *JSXOptions) {
 
 	case TSJSXReactJSX:
 		jsxOptions.AutomaticRuntime = true
-		// Don't set "Development = false" implicitly
+		// Deliberately don't set "Development = false" here. People want to be
+		// able to have "react-jsx" in their "tsconfig.json" file and then swap
+		// that to "react-jsxdev" by passing "--jsx-dev" to esbuild.
 
 	case TSJSXReactJSXDev:
 		jsxOptions.AutomaticRuntime = true
@@ -64,20 +84,6 @@ func (tsConfig *TSConfigJSX) ApplyTo(jsxOptions *JSXOptions) {
 	if tsConfig.JSXImportSource != "" {
 		jsxOptions.ImportSource = tsConfig.JSXImportSource
 	}
-}
-
-type TSOptions struct {
-	Config              TSConfig
-	Parse               bool
-	NoAmbiguousLessThan bool
-}
-
-type TSConfigJSX struct {
-	// If not empty, these should override the default values
-	JSXFactory         []string // Default if empty: "React.createElement"
-	JSXFragmentFactory []string // Default if empty: "React.Fragment"
-	JSXImportSource    string   // Default if empty: "react"
-	JSX                TSJSX
 }
 
 // Note: This can currently only contain primitive values. It's compared

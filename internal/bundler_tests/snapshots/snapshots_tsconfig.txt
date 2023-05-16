@@ -339,6 +339,22 @@ function fib(input) {
 console.log(fib(10));
 
 ================================================================================
+TestTsConfigPreserveJSX
+---------- /Users/user/project/out.js ----------
+// Users/user/project/entry.tsx
+console.log(/* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", null), /* @__PURE__ */ React.createElement("div", null)));
+
+================================================================================
+TestTsConfigPreserveJSXAutomatic
+---------- /Users/user/project/out.js ----------
+// Users/user/project/entry.tsx
+import { Fragment, jsx, jsxs } from "react/jsx-runtime";
+console.log(/* @__PURE__ */ jsxs(Fragment, { children: [
+  /* @__PURE__ */ jsx("div", {}),
+  /* @__PURE__ */ jsx("div", {})
+] }));
+
+================================================================================
 TestTsConfigReactJSX
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/entry.tsx
