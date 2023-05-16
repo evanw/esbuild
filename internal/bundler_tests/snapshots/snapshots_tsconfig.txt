@@ -101,30 +101,6 @@ TestTsConfigJSX
 console.log(/* @__PURE__ */ R.c(R.F, null, /* @__PURE__ */ R.c("div", null), /* @__PURE__ */ R.c("div", null)));
 
 ================================================================================
-TestTsConfigModuleSuffixesInsert
----------- /Users/user/project/out.js ----------
-// Users/user/project/src/foo.a.ts
-console.log("foo.a");
-
-// Users/user/project/src/bar.a.ts
-console.log("bar.a");
-
-// Users/user/project/src/baz.a.ts
-console.log("baz.a");
-
-================================================================================
-TestTsConfigModuleSuffixesNoInsert
----------- /Users/user/project/out.js ----------
-// Users/user/project/src/foo.b.ts
-console.log("foo.b");
-
-// Users/user/project/src/bar.ts
-console.log("bar");
-
-// Users/user/project/src/baz.b.ts
-console.log("baz.b");
-
-================================================================================
 TestTsConfigNestedJSX
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/factory/index.tsx

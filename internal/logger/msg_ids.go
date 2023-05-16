@@ -78,7 +78,6 @@ const (
 	MsgID_TsconfigJSON_Cycle
 	MsgID_TsconfigJSON_InvalidImportsNotUsedAsValues
 	MsgID_TsconfigJSON_InvalidJSX
-	MsgID_TsconfigJSON_InvalidModuleSuffixes
 	MsgID_TsconfigJSON_InvalidPaths
 	MsgID_TsconfigJSON_InvalidTarget
 	MsgID_TsconfigJSON_Missing

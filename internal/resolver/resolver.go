@@ -226,10 +226,9 @@ type Resolver struct {
 
 type resolverQuery struct {
 	*Resolver
-	moduleSuffixes []string
-	debugMeta      *DebugMeta
-	debugLogs      *debugLogs
-	kind           ast.ImportKind
+	debugMeta *DebugMeta
+	debugLogs *debugLogs
+	kind      ast.ImportKind
 }
 
 func NewResolver(fs fs.FS, log logger.Log, caches *cache.CacheSet, options config.Options) *Resolver {
@@ -480,7 +479,7 @@ func (res *Resolver) Resolve(sourceDir string, importPath string, kind ast.Impor
 
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
-	sourceDirInfo := r.loadModuleSuffixesForSourceDir(sourceDir)
+	sourceDirInfo := r.dirInfoCached(sourceDir)
 
 	// Check for the Yarn PnP manifest if it hasn't already been checked for
 	if !r.pnpManifestWasChecked {
@@ -538,28 +537,6 @@ func (res *Resolver) Resolve(sourceDir string, importPath string, kind ast.Impor
 	return result, debugMeta
 }
 
-func (r *resolverQuery) loadModuleSuffixesForSourceDir(sourceDir string) *dirInfo {
-	// Load TypeScript's "moduleSuffixes" setting from the "tsconfig.json" file
-	// enclosing the source directory if present. Otherwise default to a single
-	// empty string, which means "no suffix".
-	r.moduleSuffixes = defaultModuleSuffixes
-	sourceDirInfo := r.dirInfoCached(sourceDir)
-	if sourceDirInfo != nil {
-		if tsConfig := sourceDirInfo.enclosingTSConfigJSON; tsConfig != nil {
-			if moduleSuffixes := tsConfig.ModuleSuffixes; moduleSuffixes != nil {
-				if r.debugLogs != nil {
-					r.debugLogs.addNote(fmt.Sprintf("Using \"moduleSuffixes\" value of [%s] from %q",
-						helpers.StringArrayToQuotedCommaSeparatedString(moduleSuffixes), tsConfig.AbsPath))
-				}
-				r.moduleSuffixes = moduleSuffixes
-			}
-		}
-	}
-
-	// Return this so we don't have to look it up again later
-	return sourceDirInfo
-}
-
 func (r resolverQuery) isExternal(matchers config.ExternalMatchers, path string, kind ast.ImportKind) bool {
 	if kind == ast.ImportEntryPoint {
 		// Never mark an entry point as external. This is not useful.
@@ -594,7 +571,6 @@ func (res *Resolver) ProbeResolvePackageAsRelative(sourceDir string, importPath 
 
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
-	r.loadModuleSuffixesForSourceDir(sourceDir)
 
 	if pair, ok, diffCase := r.loadAsFileOrDirectory(absPath); ok {
 		result := &ResolveResult{PathPair: pair, DifferentCase: diffCase}
@@ -1410,11 +1386,6 @@ func (r resolverQuery) dirInfoUncached(path string) *dirInfo {
 	return info
 }
 
-// From: https://devblogs.microsoft.com/typescript/announcing-typescript-4-7-beta/#resolution-customization-with-modulesuffixes
-// Note that the empty string "" in moduleSuffixes is necessary for TypeScript to
-// also look-up ./foo.ts. In a sense, the default value for moduleSuffixes is [""].
-var defaultModuleSuffixes = []string{""}
-
 var rewrittenFileExtensions = map[string][]string{
 	// Note that the official compiler code always tries ".ts" before
 	// ".tsx" even if the original extension was ".jsx".
@@ -1459,30 +1430,16 @@ func (r resolverQuery) loadAsFile(path string, extensionOrder []string) (string,
 	}
 
 	tryFile := func(base string) (string, bool, *fs.DifferentCase) {
-		// TypeScript lets you configure custom module suffixes
-		for _, suffix := range r.moduleSuffixes {
-			baseWithSuffix := base
-
-			// Splice in the suffix before the extension
-			if suffix != "" {
-				if lastDot := strings.LastIndexByte(base, '.'); lastDot != -1 && tsExtensionsToRemove[base[lastDot:]] {
-					baseWithSuffix = base[:lastDot]
-					suffix += base[lastDot:]
-				}
-				baseWithSuffix += suffix
-			}
-
-			if r.debugLogs != nil {
-				r.debugLogs.addNote(fmt.Sprintf("Checking for file %q", baseWithSuffix))
-			}
-			if entry, diffCase := entries.Get(baseWithSuffix); entry != nil && entry.Kind(r.fs) == fs.FileEntry {
-				if r.debugLogs != nil {
-					r.debugLogs.addNote(fmt.Sprintf("Found file %q", baseWithSuffix))
-				}
-				return r.fs.Join(dirPath, baseWithSuffix), true, diffCase
-			}
+		baseWithSuffix := base
+		if r.debugLogs != nil {
+			r.debugLogs.addNote(fmt.Sprintf("Checking for file %q", baseWithSuffix))
 		}
-
+		if entry, diffCase := entries.Get(baseWithSuffix); entry != nil && entry.Kind(r.fs) == fs.FileEntry {
+			if r.debugLogs != nil {
+				r.debugLogs.addNote(fmt.Sprintf("Found file %q", baseWithSuffix))
+			}
+			return r.fs.Join(dirPath, baseWithSuffix), true, diffCase
+		}
 		return "", false, nil
 	}
 
@@ -1498,38 +1455,22 @@ func (r resolverQuery) loadAsFile(path string, extensionOrder []string) (string,
 	//   ./x.js/index.json
 	//   ./x.js/index.node
 	//
-	// Given "./x.js" and a "moduleSuffixes" value of [".y", ""], TypeScript's
-	// algorithm tries things in the following order:
+	// Given "./x.js", TypeScript's algorithm tries things in the following order:
 	//
-	//   ./x.js.y.ts
 	//   ./x.js.ts
-	//   ./x.js.y.tsx
 	//   ./x.js.tsx
-	//   ./x.js.d.y.ts
 	//   ./x.js.d.ts
-	//   ./x.y.ts
 	//   ./x.ts
-	//   ./x.y.tsx
 	//   ./x.tsx
-	//   ./x.d.y.ts
 	//   ./x.d.ts
-	//   ./x.js/index.y.ts
 	//   ./x.js/index.ts
-	//   ./x.js/index.y.tsx
 	//   ./x.js/index.tsx
-	//   ./x.js/index.d.y.ts
 	//   ./x.js/index.d.ts
-	//   ./x.js.y.js
 	//   ./x.js.js
-	//   ./x.js.y.jsx
 	//   ./x.js.jsx
-	//   ./x.y.js
 	//   ./x.js
-	//   ./x.y.jsx
 	//   ./x.jsx
-	//   ./x.js/index.y.js
 	//   ./x.js/index.js
-	//   ./x.js/index.y.jsx
 	//   ./x.js/index.jsx
 	//
 	// Our order below is a blend of both. We try to follow node's algorithm but
