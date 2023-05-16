@@ -117,6 +117,14 @@ func lowerNestingInRuleWithContext(rule css_ast.Rule, context *lowerNestingConte
 				sel.Selectors = append([]css_ast.CompoundSelector{{HasNestingSelector: true}}, sel.Selectors...)
 			}
 
+			// Pseudo-elements aren't supported by ":is" (i.e. ":is(div, div::before)"
+			// is the same as ":is(div)") so we need to avoid generating ":is" if a
+			// pseudo-element is present.
+			if sel.UsesPseudoElement() {
+				canUseGroupDescendantCombinator = false
+				canUseGroupSubSelector = false
+			}
+
 			// Are all children of the form "& «something»"?
 			if len(sel.Selectors) < 2 || !sel.Selectors[0].IsSingleAmpersand() {
 				canUseGroupDescendantCombinator = false

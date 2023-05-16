@@ -923,6 +923,19 @@ func TestNestedSelector(t *testing.T) {
 	expectPrintedLower(t, "~ .a { > &.b, + &.c { color: red } }", "~ .a > .a.b,\n~ .a + .a.c {\n  color: red;\n}\n")
 	expectPrintedLower(t, ".foo .bar { > &.a, > &.b { color: red } }", ".foo .bar > :is(.foo .bar.a, .foo .bar.b) {\n  color: red;\n}\n")
 	expectPrintedLower(t, ".foo .bar { > &.a, + &.b { color: red } }", ".foo .bar > :is(.foo .bar).a,\n.foo .bar + :is(.foo .bar).b {\n  color: red;\n}\n")
+	expectPrintedLower(t, ".demo { .lg { &.triangle, &.circle { color: red } } }", ".demo .lg:is(.triangle, .circle) {\n  color: red;\n}\n")
+	expectPrintedLower(t, ".demo { .lg { .triangle, .circle { color: red } } }", ".demo .lg :is(.triangle, .circle) {\n  color: red;\n}\n")
+	expectPrintedLower(t, ".card { .featured & & & { color: red } }", ".featured .card .card .card {\n  color: red;\n}\n")
+	expectPrintedLower(t, ".card { &--header { color: red } }", "--header.card {\n  color: red;\n}\n")
+
+	// Check pseudo-elements (those coming through "&" must be dropped)
+	expectPrintedLower(t, "a, b::before { &.foo { color: red } }", "a.foo {\n  color: red;\n}\n")
+	expectPrintedLower(t, "a, b::before { & .foo { color: red } }", "a .foo {\n  color: red;\n}\n")
+	expectPrintedLower(t, "a { &.foo, &::before { color: red } }", "a.foo,\na::before {\n  color: red;\n}\n")
+	expectPrintedLower(t, "a { & .foo, & ::before { color: red } }", "a .foo,\na ::before {\n  color: red;\n}\n")
+	expectPrintedLower(t, "a, b::before { color: blue; &.foo, &::after { color: red } }", "a,\nb::before {\n  color: blue;\n}\na.foo,\na::after {\n  color: red;\n}\n")
+
+	// Test at-rules
 	expectPrintedLower(t, ".foo { @media screen {} }", "")
 	expectPrintedLower(t, ".foo { @media screen { color: red } }", "@media screen {\n  .foo {\n    color: red;\n  }\n}\n")
 	expectPrintedLower(t, ".foo { @media screen { &:hover { color: red } } }", "@media screen {\n  .foo:hover {\n    color: red;\n  }\n}\n")
@@ -943,14 +956,6 @@ func TestNestedSelector(t *testing.T) {
 		"@supports (display: flex) {\n  @supports selector(h2 > p) {\n    :is(a, b):hover {\n      color: red;\n    }\n  }\n}\n")
 	expectPrintedLower(t, "@layer foo { @layer bar { a, b { &:hover { color: red } } } }",
 		"@layer foo {\n  @layer bar {\n    :is(a, b):hover {\n      color: red;\n    }\n  }\n}\n")
-	expectPrintedLower(t, ".demo { .lg { &.triangle, &.circle { color: red } } }",
-		".demo .lg:is(.triangle, .circle) {\n  color: red;\n}\n")
-	expectPrintedLower(t, ".demo { .lg { .triangle, .circle { color: red } } }",
-		".demo .lg :is(.triangle, .circle) {\n  color: red;\n}\n")
-	expectPrintedLower(t, ".card { .featured & & & { color: red } }",
-		".featured .card .card .card {\n  color: red;\n}\n")
-	expectPrintedLower(t, ".card { &--header { color: red } }",
-		"--header.card {\n  color: red;\n}\n")
 	expectPrintedLower(t, ".card { @supports (selector(&)) { &:hover { color: red } } }",
 		"@supports (selector(&)) {\n  .card:hover {\n    color: red;\n  }\n}\n")
 	expectPrintedLower(t, "html { @layer base { color: blue; @layer support { & body { color: red } } } }",

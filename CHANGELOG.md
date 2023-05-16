@@ -156,6 +156,30 @@
 
     This change should hopefully not affect correct code. It should hopefully introduce type errors only for incorrect code.
 
+* Fix CSS nesting transform for pseudo-elements ([#3119](https://github.com/evanw/esbuild/issues/3119))
+
+    This release fixes esbuild's CSS nesting transform for pseudo-elements (e.g. `::before` and `::after`). The CSS nesting specification says that [the nesting selector does not work with pseudo-elements](https://www.w3.org/TR/css-nesting-1/#ref-for-matches-pseudo%E2%91%A0). This can be seen in the example below: esbuild does not carry the parent pseudo-element `::before` through the nesting selector `&`. However, that doesn't apply to pseudo-elements that are within the same selector. Previously esbuild had a bug where it considered pseudo-elements in both locations as invalid. This release changes esbuild to only consider those from the parent selector invalid, which should align with the specification:
+
+    ```css
+    /* Original code */
+    a, b::before {
+      &.c, &::after {
+        content: 'd';
+      }
+    }
+
+    /* Old output (with --target=chrome90) */
+    a:is(.c, ::after) {
+      content: "d";
+    }
+
+    /* New output (with --target=chrome90) */
+    a.c,
+    a::after {
+      content: "d";
+    }
+    ```
+
 ## 0.17.19
 
 * Fix CSS transform bugs with nested selectors that start with a combinator ([#3096](https://github.com/evanw/esbuild/issues/3096))
