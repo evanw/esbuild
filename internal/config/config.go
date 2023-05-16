@@ -67,6 +67,7 @@ func (tsConfig *TSConfigJSX) ApplyTo(jsxOptions *JSXOptions) {
 }
 
 type TSOptions struct {
+	Config              TSConfig
 	Parse               bool
 	NoAmbiguousLessThan bool
 }
@@ -77,6 +78,25 @@ type TSConfigJSX struct {
 	JSXFragmentFactory []string // Default if empty: "React.Fragment"
 	JSXImportSource    string   // Default if empty: "react"
 	JSX                TSJSX
+}
+
+// Note: This can currently only contain primitive values. It's compared
+// for equality using a structural equality comparison by the JS parser.
+type TSConfig struct {
+	ImportsNotUsedAsValues  TSImportsNotUsedAsValues
+	PreserveValueImports    MaybeBool
+	Target                  TSTarget
+	UseDefineForClassFields MaybeBool
+}
+
+func (cfg *TSConfig) UnusedImportFlags() (flags TSUnusedImportFlags) {
+	if cfg.PreserveValueImports == True {
+		flags |= TSUnusedImportKeepValues
+	}
+	if cfg.ImportsNotUsedAsValues != TSImportsNotUsedAsValues_Remove {
+		flags |= TSUnusedImportKeepStmt
+	}
+	return
 }
 
 type Platform uint8
@@ -365,64 +385,61 @@ type Options struct {
 	// If true, make sure to generate a single file that can be written to stdout
 	WriteToStdout bool
 
-	OmitRuntimeForTests     bool
-	OmitJSXRuntimeForTests  bool
-	UnusedImportFlagsTS     UnusedImportFlagsTS
-	UseDefineForClassFields MaybeBool
-	ASCIIOnly               bool
-	KeepNames               bool
-	IgnoreDCEAnnotations    bool
-	TreeShaking             bool
-	DropDebugger            bool
-	MangleQuoted            bool
-	Platform                Platform
-	TSTarget                TSTarget
-	OutputFormat            Format
-	NeedsMetafile           bool
-	SourceMap               SourceMap
-	ExcludeSourcesContent   bool
+	OmitRuntimeForTests    bool
+	OmitJSXRuntimeForTests bool
+	ASCIIOnly              bool
+	KeepNames              bool
+	IgnoreDCEAnnotations   bool
+	TreeShaking            bool
+	DropDebugger           bool
+	MangleQuoted           bool
+	Platform               Platform
+	OutputFormat           Format
+	NeedsMetafile          bool
+	SourceMap              SourceMap
+	ExcludeSourcesContent  bool
 }
 
 type TSImportsNotUsedAsValues uint8
 
 const (
-	ImportsNotUsedAsValues_Remove TSImportsNotUsedAsValues = iota
-	ImportsNotUsedAsValues_Preserve
-	ImportsNotUsedAsValues_Error
+	TSImportsNotUsedAsValues_Remove TSImportsNotUsedAsValues = iota
+	TSImportsNotUsedAsValues_Preserve
+	TSImportsNotUsedAsValues_Error
 )
 
-type UnusedImportFlagsTS uint8
+type TSUnusedImportFlags uint8
 
-// With !UnusedImportKeepStmt && !UnusedImportKeepValues:
+// With !TSUnusedImportKeepStmt && !TSUnusedImportKeepValues:
 //
 //	"import 'foo'"                      => "import 'foo'"
 //	"import * as unused from 'foo'"     => ""
 //	"import { unused } from 'foo'"      => ""
 //	"import { type unused } from 'foo'" => ""
 //
-// With UnusedImportKeepStmt && !UnusedImportKeepValues:
+// With TSUnusedImportKeepStmt && !TSUnusedImportKeepValues:
 //
 //	"import 'foo'"                      => "import 'foo'"
 //	"import * as unused from 'foo'"     => "import 'foo'"
 //	"import { unused } from 'foo'"      => "import 'foo'"
 //	"import { type unused } from 'foo'" => "import 'foo'"
 //
-// With !UnusedImportKeepStmt && UnusedImportKeepValues:
+// With !TSUnusedImportKeepStmt && TSUnusedImportKeepValues:
 //
 //	"import 'foo'"                      => "import 'foo'"
 //	"import * as unused from 'foo'"     => "import * as unused from 'foo'"
 //	"import { unused } from 'foo'"      => "import { unused } from 'foo'"
 //	"import { type unused } from 'foo'" => ""
 //
-// With UnusedImportKeepStmt && UnusedImportKeepValues:
+// With TSUnusedImportKeepStmt && TSUnusedImportKeepValues:
 //
 //	"import 'foo'"                      => "import 'foo'"
 //	"import * as unused from 'foo'"     => "import * as unused from 'foo'"
 //	"import { unused } from 'foo'"      => "import { unused } from 'foo'"
 //	"import { type unused } from 'foo'" => "import {} from 'foo'"
 const (
-	UnusedImportKeepStmt   UnusedImportFlagsTS = 1 << iota // "importsNotUsedAsValues" != "remove"
-	UnusedImportKeepValues                                 // "preserveValueImports" == true
+	TSUnusedImportKeepStmt   TSUnusedImportFlags = 1 << iota // "importsNotUsedAsValues" != "remove"
+	TSUnusedImportKeepValues                                 // "preserveValueImports" == true
 )
 
 type TSTarget uint8

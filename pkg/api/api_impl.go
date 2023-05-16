@@ -1670,8 +1670,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 	})
 
 	// Settings from the user come first
-	var unusedImportFlagsTS config.UnusedImportFlagsTS
-	useDefineForClassFieldsTS := config.Unspecified
+	var tsConfig config.TSConfig
 	jsx := config.JSXOptions{
 		Preserve:         transformOpts.JSX == JSXPreserve,
 		AutomaticRuntime: transformOpts.JSX == JSXAutomatic,
@@ -1683,7 +1682,6 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 	}
 
 	// Settings from "tsconfig.json" override those
-	var tsTarget config.TSTarget
 	var tsAlwaysStrict *config.TSAlwaysStrict
 	caches := cache.MakeCacheSet()
 	if transformOpts.TsconfigRaw != "" {
@@ -1693,12 +1691,8 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 			Contents:   transformOpts.TsconfigRaw,
 		}
 		if result := resolver.ParseTSConfigJSON(log, source, &caches.JSONCache, nil); result != nil {
+			tsConfig = result.Settings
 			result.JSXSettings.ApplyTo(&jsx)
-			if result.UseDefineForClassFields != config.Unspecified {
-				useDefineForClassFieldsTS = result.UseDefineForClassFields
-			}
-			unusedImportFlagsTS = result.UnusedImportFlagsTS()
-			tsTarget = result.TSTarget
 			tsAlwaysStrict = result.TSAlwaysStrictOrStrict()
 		}
 	}
@@ -1725,7 +1719,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		UnsupportedCSSFeatureOverrides:     cssOverrides,
 		UnsupportedCSSFeatureOverridesMask: cssMask,
 		OriginalTargetEnv:                  targetEnv,
-		TSTarget:                           tsTarget,
+		TS:                                 config.TSOptions{Config: tsConfig},
 		TSAlwaysStrict:                     tsAlwaysStrict,
 		JSX:                                jsx,
 		Defines:                            defines,
@@ -1749,8 +1743,6 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		TreeShaking:                        validateTreeShaking(transformOpts.TreeShaking, false /* bundle */, transformOpts.Format),
 		AbsOutputFile:                      transformOpts.Sourcefile + "-out",
 		KeepNames:                          transformOpts.KeepNames,
-		UseDefineForClassFields:            useDefineForClassFieldsTS,
-		UnusedImportFlagsTS:                unusedImportFlagsTS,
 		Stdin: &config.StdinInfo{
 			Loader:     validateLoader(transformOpts.Loader),
 			Contents:   input,

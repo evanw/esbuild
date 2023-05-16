@@ -2257,10 +2257,12 @@ func TestTreeShakingLoweredClassStaticFieldAssignment(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			Mode:                    config.ModeBundle,
-			AbsOutputDir:            "/out",
-			UnsupportedJSFeatures:   compat.ClassField,
-			UseDefineForClassFields: config.False,
+			Mode:                  config.ModeBundle,
+			AbsOutputDir:          "/out",
+			UnsupportedJSFeatures: compat.ClassField,
+			TS: config.TSOptions{Config: config.TSConfig{
+				UseDefineForClassFields: config.False,
+			}},
 		},
 	})
 }

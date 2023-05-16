@@ -1993,8 +1993,8 @@ func (p *parser) computeClassLoweringInfo(class *js_ast.Class) (result classLowe
 	// Users that want the wrong behavior can either set "useDefineForClassFields"
 	// to false in "tsconfig.json" explicitly, or set TypeScript's "target" to
 	// "ES2021" or earlier in their in "tsconfig.json" file.
-	result.useDefineForClassFields = !p.options.ts.Parse || p.options.useDefineForClassFields == config.True ||
-		(p.options.useDefineForClassFields == config.Unspecified && p.options.tsTarget != config.TSTargetBelowES2022)
+	result.useDefineForClassFields = !p.options.ts.Parse || p.options.ts.Config.UseDefineForClassFields == config.True ||
+		(p.options.ts.Config.UseDefineForClassFields == config.Unspecified && p.options.ts.Config.Target != config.TSTargetBelowES2022)
 
 	// Safari workaround: Automatically avoid TDZ issues when bundling
 	result.avoidTDZ = p.options.mode == config.ModeBundle && p.currentScope.Parent == nil

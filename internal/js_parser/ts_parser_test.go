@@ -42,8 +42,10 @@ func expectPrintedAssignSemanticsTS(t *testing.T, contents string, expected stri
 	expectPrintedCommon(t, contents, expected, config.Options{
 		TS: config.TSOptions{
 			Parse: true,
+			Config: config.TSConfig{
+				UseDefineForClassFields: config.False,
+			},
 		},
-		UseDefineForClassFields: config.False,
 	})
 }
 
@@ -62,9 +64,11 @@ func expectPrintedMangleAssignSemanticsTS(t *testing.T, contents string, expecte
 	expectPrintedCommon(t, contents, expected, config.Options{
 		TS: config.TSOptions{
 			Parse: true,
+			Config: config.TSConfig{
+				UseDefineForClassFields: config.False,
+			},
 		},
-		MinifySyntax:            true,
-		UseDefineForClassFields: config.False,
+		MinifySyntax: true,
 	})
 }
 

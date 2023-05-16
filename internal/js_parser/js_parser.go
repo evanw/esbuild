@@ -442,24 +442,21 @@ type optionsThatSupportStructuralEquality struct {
 	unsupportedJSFeatureOverridesMask compat.JSFeature
 
 	// Byte-sized values go here (gathered together here to keep this object compact)
-	ts                      config.TSOptions
-	mode                    config.Mode
-	platform                config.Platform
-	outputFormat            config.Format
-	tsTarget                config.TSTarget
-	asciiOnly               bool
-	keepNames               bool
-	minifySyntax            bool
-	minifyIdentifiers       bool
-	minifyWhitespace        bool
-	omitRuntimeForTests     bool
-	omitJSXRuntimeForTests  bool
-	ignoreDCEAnnotations    bool
-	treeShaking             bool
-	dropDebugger            bool
-	mangleQuoted            bool
-	unusedImportFlagsTS     config.UnusedImportFlagsTS
-	useDefineForClassFields config.MaybeBool
+	ts                     config.TSOptions
+	mode                   config.Mode
+	platform               config.Platform
+	outputFormat           config.Format
+	asciiOnly              bool
+	keepNames              bool
+	minifySyntax           bool
+	minifyIdentifiers      bool
+	minifyWhitespace       bool
+	omitRuntimeForTests    bool
+	omitJSXRuntimeForTests bool
+	ignoreDCEAnnotations   bool
+	treeShaking            bool
+	dropDebugger           bool
+	mangleQuoted           bool
 
 	// This is an internal-only option used for the implementation of Yarn PnP
 	decodeHydrateRuntimeStateYarnPnP bool
@@ -492,7 +489,6 @@ func OptionsFromConfig(options *config.Options) Options {
 			platform:                          options.Platform,
 			outputFormat:                      options.OutputFormat,
 			moduleTypeData:                    options.ModuleTypeData,
-			tsTarget:                          options.TSTarget,
 			asciiOnly:                         options.ASCIIOnly,
 			keepNames:                         options.KeepNames,
 			minifySyntax:                      options.MinifySyntax,
@@ -504,8 +500,6 @@ func OptionsFromConfig(options *config.Options) Options {
 			treeShaking:                       options.TreeShaking,
 			dropDebugger:                      options.DropDebugger,
 			mangleQuoted:                      options.MangleQuoted,
-			unusedImportFlagsTS:               options.UnusedImportFlagsTS,
-			useDefineForClassFields:           options.UseDefineForClassFields,
 		},
 	}
 }
@@ -7238,7 +7232,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		//   import d, {} from 'x'
 		//   import d, { type y } from 'x'
 		//
-		if p.options.ts.Parse && p.options.unusedImportFlagsTS == config.UnusedImportKeepValues && stmt.Items != nil && len(*stmt.Items) == 0 {
+		if p.options.ts.Parse && p.options.ts.Config.UnusedImportFlags() == config.TSUnusedImportKeepValues && stmt.Items != nil && len(*stmt.Items) == 0 {
 			if stmt.DefaultName == nil {
 				return js_ast.Stmt{Loc: loc, Data: &js_ast.STypeScript{}}
 			}
@@ -15224,6 +15218,7 @@ func (p *parser) scanForUnusedTSImportEquals(stmts []js_ast.Stmt) (result import
 }
 
 func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result importsExportsScanResult) {
+	unusedImportFlags := p.options.ts.Config.UnusedImportFlags()
 	stmtsEnd := 0
 
 	for _, stmt := range stmts {
@@ -15267,13 +15262,13 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result importsEx
 			//     user is expecting the output to be as small as possible. So we
 			//     should omit unused imports.
 			//
-			keepUnusedImports := p.options.ts.Parse && (p.options.unusedImportFlagsTS&config.UnusedImportKeepValues) != 0 &&
+			keepUnusedImports := p.options.ts.Parse && (unusedImportFlags&config.TSUnusedImportKeepValues) != 0 &&
 				p.options.mode != config.ModeBundle && !p.options.minifyIdentifiers
 
 			// Forbid non-default imports for standard JSON modules
 			if (record.Flags&ast.AssertTypeJSON) != 0 && p.options.mode == config.ModeBundle && s.Items != nil {
 				for _, item := range *s.Items {
-					if p.options.ts.Parse && p.tsUseCounts[item.Name.Ref.InnerIndex] == 0 && (p.options.unusedImportFlagsTS&config.UnusedImportKeepValues) == 0 {
+					if p.options.ts.Parse && p.tsUseCounts[item.Name.Ref.InnerIndex] == 0 && (unusedImportFlags&config.TSUnusedImportKeepValues) == 0 {
 						// Do not count imports that TypeScript interprets as type annotations
 						continue
 					}
@@ -15298,7 +15293,7 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result importsEx
 					symbol := p.symbols[s.DefaultName.Ref.InnerIndex]
 
 					// TypeScript has a separate definition of unused
-					if p.options.ts.Parse && (p.tsUseCounts[s.DefaultName.Ref.InnerIndex] != 0 || (p.options.unusedImportFlagsTS&config.UnusedImportKeepValues) != 0) {
+					if p.options.ts.Parse && (p.tsUseCounts[s.DefaultName.Ref.InnerIndex] != 0 || (p.options.ts.Config.UnusedImportFlags()&config.TSUnusedImportKeepValues) != 0) {
 						isUnusedInTypeScript = false
 					}
 
@@ -15314,7 +15309,7 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result importsEx
 					symbol := p.symbols[s.NamespaceRef.InnerIndex]
 
 					// TypeScript has a separate definition of unused
-					if p.options.ts.Parse && (p.tsUseCounts[s.NamespaceRef.InnerIndex] != 0 || (p.options.unusedImportFlagsTS&config.UnusedImportKeepValues) != 0) {
+					if p.options.ts.Parse && (p.tsUseCounts[s.NamespaceRef.InnerIndex] != 0 || (p.options.ts.Config.UnusedImportFlags()&config.TSUnusedImportKeepValues) != 0) {
 						isUnusedInTypeScript = false
 					}
 
@@ -15337,7 +15332,7 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result importsEx
 						symbol := p.symbols[item.Name.Ref.InnerIndex]
 
 						// TypeScript has a separate definition of unused
-						if p.options.ts.Parse && (p.tsUseCounts[item.Name.Ref.InnerIndex] != 0 || (p.options.unusedImportFlagsTS&config.UnusedImportKeepValues) != 0) {
+						if p.options.ts.Parse && (p.tsUseCounts[item.Name.Ref.InnerIndex] != 0 || (p.options.ts.Config.UnusedImportFlags()&config.TSUnusedImportKeepValues) != 0) {
 							isUnusedInTypeScript = false
 						}
 
@@ -15369,7 +15364,7 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result importsEx
 				//
 				// We do not want to do this culling in JavaScript though because the
 				// module may have side effects even if all imports are unused.
-				if p.options.ts.Parse && foundImports && isUnusedInTypeScript && (p.options.unusedImportFlagsTS&config.UnusedImportKeepStmt) == 0 {
+				if p.options.ts.Parse && foundImports && isUnusedInTypeScript && (unusedImportFlags&config.TSUnusedImportKeepStmt) == 0 {
 					// Ignore import records with a pre-filled source index. These are
 					// for injected files and we definitely do not want to trim these.
 					if !record.SourceIndex.IsValid() && !record.CopySourceIndex.IsValid() {

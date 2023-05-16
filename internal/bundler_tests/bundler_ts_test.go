@@ -1250,9 +1250,11 @@ func TestExportTypeIssue379(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			Mode:                    config.ModeBundle,
-			AbsOutputFile:           "/out.js",
-			UseDefineForClassFields: config.False,
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			TS: config.TSOptions{Config: config.TSConfig{
+				UseDefineForClassFields: config.False,
+			}},
 		},
 	})
 }
@@ -1289,9 +1291,11 @@ func TestThisInsideFunctionTS(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			Mode:                    config.ModeBundle,
-			AbsOutputFile:           "/out.js",
-			UseDefineForClassFields: config.False,
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			TS: config.TSOptions{Config: config.TSConfig{
+				UseDefineForClassFields: config.False,
+			}},
 		},
 	})
 }
@@ -1328,9 +1332,11 @@ func TestThisInsideFunctionTSUseDefineForClassFields(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			Mode:                    config.ModeBundle,
-			AbsOutputFile:           "/out.js",
-			UseDefineForClassFields: config.True,
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			TS: config.TSOptions{Config: config.TSConfig{
+				UseDefineForClassFields: config.True,
+			}},
 		},
 	})
 }
@@ -1410,9 +1416,11 @@ func TestThisInsideFunctionTSNoBundleUseDefineForClassFields(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			Mode:                    config.ModePassThrough,
-			AbsOutputFile:           "/out.js",
-			UseDefineForClassFields: config.True,
+			Mode:          config.ModePassThrough,
+			AbsOutputFile: "/out.js",
+			TS: config.TSOptions{Config: config.TSConfig{
+				UseDefineForClassFields: config.True,
+			}},
 		},
 	})
 }
@@ -1434,9 +1442,11 @@ func TestTSComputedClassFieldUseDefineFalse(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			Mode:                    config.ModePassThrough,
-			AbsOutputFile:           "/out.js",
-			UseDefineForClassFields: config.False,
+			Mode:          config.ModePassThrough,
+			AbsOutputFile: "/out.js",
+			TS: config.TSOptions{Config: config.TSConfig{
+				UseDefineForClassFields: config.False,
+			}},
 		},
 	})
 }
@@ -1458,9 +1468,11 @@ func TestTSComputedClassFieldUseDefineTrue(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			Mode:                    config.ModePassThrough,
-			AbsOutputFile:           "/out.js",
-			UseDefineForClassFields: config.True,
+			Mode:          config.ModePassThrough,
+			AbsOutputFile: "/out.js",
+			TS: config.TSOptions{Config: config.TSConfig{
+				UseDefineForClassFields: config.True,
+			}},
 		},
 	})
 }
@@ -1482,10 +1494,12 @@ func TestTSComputedClassFieldUseDefineTrueLower(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			Mode:                    config.ModePassThrough,
-			AbsOutputFile:           "/out.js",
-			UseDefineForClassFields: config.True,
-			UnsupportedJSFeatures:   compat.ClassField,
+			Mode:          config.ModePassThrough,
+			AbsOutputFile: "/out.js",
+			TS: config.TSOptions{Config: config.TSConfig{
+				UseDefineForClassFields: config.True,
+			}},
+			UnsupportedJSFeatures: compat.ClassField,
 		},
 	})
 }
@@ -1508,9 +1522,11 @@ func TestTSAbstractClassFieldUseAssign(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			Mode:                    config.ModePassThrough,
-			AbsOutputFile:           "/out.js",
-			UseDefineForClassFields: config.False,
+			Mode:          config.ModePassThrough,
+			AbsOutputFile: "/out.js",
+			TS: config.TSOptions{Config: config.TSConfig{
+				UseDefineForClassFields: config.False,
+			}},
 		},
 	})
 }
@@ -1533,9 +1549,11 @@ func TestTSAbstractClassFieldUseDefine(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			Mode:                    config.ModePassThrough,
-			AbsOutputFile:           "/out.js",
-			UseDefineForClassFields: config.True,
+			Mode:          config.ModePassThrough,
+			AbsOutputFile: "/out.js",
+			TS: config.TSOptions{Config: config.TSConfig{
+				UseDefineForClassFields: config.True,
+			}},
 		},
 	})
 }

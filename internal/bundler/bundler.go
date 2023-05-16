@@ -1292,14 +1292,8 @@ func (s *scanner) maybeParseFile(
 
 	// Allow certain properties to be overridden by "tsconfig.json"
 	resolveResult.TSConfigJSX.ApplyTo(&optionsClone.JSX)
-	if resolveResult.UseDefineForClassFieldsTS != config.Unspecified {
-		optionsClone.UseDefineForClassFields = resolveResult.UseDefineForClassFieldsTS
-	}
-	if resolveResult.UnusedImportFlagsTS != 0 {
-		optionsClone.UnusedImportFlagsTS = resolveResult.UnusedImportFlagsTS
-	}
-	if resolveResult.TSTarget != config.TSTargetUnspecified {
-		optionsClone.TSTarget = resolveResult.TSTarget
+	if resolveResult.TSConfig != nil {
+		optionsClone.TS.Config = *resolveResult.TSConfig
 	}
 	if resolveResult.TSAlwaysStrict != nil {
 		optionsClone.TSAlwaysStrict = resolveResult.TSAlwaysStrict

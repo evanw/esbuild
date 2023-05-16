@@ -108,19 +108,13 @@ type ResolveResult struct {
 
 	// These are from "tsconfig.json"
 	TSConfigJSX    config.TSConfigJSX
-	TSTarget       config.TSTarget
+	TSConfig       *config.TSConfig
 	TSAlwaysStrict *config.TSAlwaysStrict
 
 	// This is the "type" field from "package.json"
 	ModuleTypeData js_ast.ModuleTypeData
 
 	IsExternal bool
-
-	// If true, the class field transform should use Object.defineProperty().
-	UseDefineForClassFieldsTS config.MaybeBool
-
-	// This is the "importsNotUsedAsValues" and "preserveValueImports" fields from "package.json"
-	UnusedImportFlagsTS config.UnusedImportFlagsTS
 }
 
 type suggestionRange uint8
@@ -690,10 +684,8 @@ func (r resolverQuery) finalizeResolve(result *ResolveResult) {
 								result.PathPair.Primary.Text))
 						}
 					} else {
+						result.TSConfig = &dirInfo.enclosingTSConfigJSON.Settings
 						result.TSConfigJSX = dirInfo.enclosingTSConfigJSON.JSXSettings
-						result.UseDefineForClassFieldsTS = dirInfo.enclosingTSConfigJSON.UseDefineForClassFields
-						result.UnusedImportFlagsTS = dirInfo.enclosingTSConfigJSON.UnusedImportFlagsTS()
-						result.TSTarget = dirInfo.enclosingTSConfigJSON.TSTarget
 						result.TSAlwaysStrict = dirInfo.enclosingTSConfigJSON.TSAlwaysStrictOrStrict()
 
 						if r.debugLogs != nil {
@@ -993,7 +985,7 @@ func (r resolverQuery) parseTSConfig(file string, visited map[string]bool) (*TSC
 			}
 
 			if err == errParseErrorImportCycle {
-				r.log.AddID(logger.MsgID_TsconfigJSON_Cycle, logger.Warning, &tracker, extendsRange,
+				r.log.AddID(logger.MsgID_TSConfigJSON_Cycle, logger.Warning, &tracker, extendsRange,
 					fmt.Sprintf("Base config file %q forms cycle", extends))
 			} else if err != errParseErrorAlreadyLogged {
 				r.log.AddError(&tracker, extendsRange,
@@ -1172,7 +1164,7 @@ func (r resolverQuery) parseTSConfig(file string, visited map[string]bool) (*TSC
 		// Suppress warnings about missing base config files inside "node_modules"
 	pnpError:
 		if !helpers.IsInsideNodeModules(file) {
-			r.log.AddID(logger.MsgID_TsconfigJSON_Missing, logger.Warning, &tracker, extendsRange,
+			r.log.AddID(logger.MsgID_TSConfigJSON_Missing, logger.Warning, &tracker, extendsRange,
 				fmt.Sprintf("Cannot find base config file %q", extends))
 		}
 
@@ -1184,7 +1176,7 @@ func (r resolverQuery) parseTSConfig(file string, visited map[string]bool) (*TSC
 	}
 
 	// Warn when people try to set esbuild's target via "tsconfig.json" and esbuild's target is unset
-	if result.TSTarget != config.TSTargetUnspecified && r.options.OriginalTargetEnv == "" &&
+	if result.Settings.Target != config.TSTargetUnspecified && r.options.OriginalTargetEnv == "" &&
 		// Don't warn if the target is "ESNext" since esbuild's target also defaults to "esnext" (so that case is harmless)
 		result.tsTargetKey.LowerValue != "esnext" && !helpers.IsInsideNodeModules(file) {
 		var example string
@@ -1197,7 +1189,7 @@ func (r resolverQuery) parseTSConfig(file string, visited map[string]bool) (*TSC
 			example = fmt.Sprintf("Target: api.%s", strings.ToUpper(result.tsTargetKey.LowerValue))
 		}
 		tracker := logger.MakeLineColumnTracker(&result.tsTargetKey.Source)
-		r.log.AddIDWithNotes(logger.MsgID_TsconfigJSON_TargetIgnored, logger.Warning, &tracker, result.tsTargetKey.Range, "\"tsconfig.json\" does not affect esbuild's own target setting",
+		r.log.AddIDWithNotes(logger.MsgID_TSConfigJSON_TargetIgnored, logger.Warning, &tracker, result.tsTargetKey.Range, "\"tsconfig.json\" does not affect esbuild's own target setting",
 			[]logger.MsgData{{Text: fmt.Sprintf("This is because esbuild supports reading from multiple \"tsconfig.json\" files within a single build, and using different language targets "+
 				"for different files in the same build wouldn't be correct. If you want to set esbuild's language target, you should use esbuild's own global \"target\" setting such as with %q.", example)}})
 	}
@@ -1348,7 +1340,7 @@ func (r resolverQuery) dirInfoUncached(path string) *dirInfo {
 					r.log.AddError(nil, logger.Range{}, fmt.Sprintf("Cannot find tsconfig file %q",
 						PrettyPath(r.fs, logger.Path{Text: tsConfigPath, Namespace: "file"})))
 				} else if err != errParseErrorAlreadyLogged {
-					r.log.AddID(logger.MsgID_TsconfigJSON_Missing, logger.Debug, nil, logger.Range{},
+					r.log.AddID(logger.MsgID_TSConfigJSON_Missing, logger.Debug, nil, logger.Range{},
 						fmt.Sprintf("Cannot read file %q: %s",
 							PrettyPath(r.fs, logger.Path{Text: tsConfigPath, Namespace: "file"}), err.Error()))
 				}
