@@ -1710,10 +1710,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 			if result.UseDefineForClassFields != config.Unspecified {
 				useDefineForClassFieldsTS = result.UseDefineForClassFields
 			}
-			unusedImportFlagsTS = config.UnusedImportFlagsFromTsconfigValues(
-				result.PreserveImportsNotUsedAsValues,
-				result.PreserveValueImports,
-			)
+			unusedImportFlagsTS = result.UnusedImportFlagsTS()
 			tsTarget = result.TSTarget
 			tsAlwaysStrict = result.TSAlwaysStrictOrStrict()
 		}

@@ -35,16 +35,26 @@ type TSConfigJSON struct {
 	// "baseUrl" value in the "tsconfig.json" file.
 	Paths *TSConfigPaths
 
-	TSTarget                       *config.TSTarget
-	TSStrict                       *config.TSAlwaysStrict
-	TSAlwaysStrict                 *config.TSAlwaysStrict
-	JSX                            config.TSJSX
-	JSXFactory                     []string
-	JSXFragmentFactory             []string
-	JSXImportSource                string
-	UseDefineForClassFields        config.MaybeBool
-	PreserveImportsNotUsedAsValues bool
-	PreserveValueImports           bool
+	TSTarget                *config.TSTarget
+	TSStrict                *config.TSAlwaysStrict
+	TSAlwaysStrict          *config.TSAlwaysStrict
+	JSX                     config.TSJSX
+	JSXFactory              []string
+	JSXFragmentFactory      []string
+	JSXImportSource         string
+	UseDefineForClassFields config.MaybeBool
+	ImportsNotUsedAsValues  config.TSImportsNotUsedAsValues
+	PreserveValueImports    config.MaybeBool
+}
+
+func (cfg *TSConfigJSON) UnusedImportFlagsTS() (flags config.UnusedImportFlagsTS) {
+	if cfg.PreserveValueImports == config.True {
+		flags |= config.UnusedImportKeepValues
+	}
+	if cfg.ImportsNotUsedAsValues != config.ImportsNotUsedAsValues_Remove {
+		flags |= config.UnusedImportKeepStmt
+	}
+	return
 }
 
 func (config *TSConfigJSON) TSAlwaysStrictOrStrict() *config.TSAlwaysStrict {
@@ -244,11 +254,12 @@ func ParseTSConfigJSON(
 		if valueJSON, _, ok := getProperty(compilerOptionsJSON, "importsNotUsedAsValues"); ok {
 			if value, ok := getString(valueJSON); ok {
 				switch value {
-				case "preserve", "error":
-					result.PreserveImportsNotUsedAsValues = true
 				case "remove":
-					// Clear away any inherited values from the base config
-					result.PreserveImportsNotUsedAsValues = false
+					result.ImportsNotUsedAsValues = config.ImportsNotUsedAsValues_Remove
+				case "preserve":
+					result.ImportsNotUsedAsValues = config.ImportsNotUsedAsValues_Preserve
+				case "error":
+					result.ImportsNotUsedAsValues = config.ImportsNotUsedAsValues_Error
 				default:
 					log.AddID(logger.MsgID_TsconfigJSON_InvalidImportsNotUsedAsValues, logger.Warning, &tracker, source.RangeOfString(valueJSON.Loc),
 						fmt.Sprintf("Invalid value %q for \"importsNotUsedAsValues\"", value))
@@ -259,7 +270,11 @@ func ParseTSConfigJSON(
 		// Parse "preserveValueImports"
 		if valueJSON, _, ok := getProperty(compilerOptionsJSON, "preserveValueImports"); ok {
 			if value, ok := getBool(valueJSON); ok {
-				result.PreserveValueImports = value
+				if value {
+					result.PreserveValueImports = config.True
+				} else {
+					result.PreserveValueImports = config.False
+				}
 			}
 		}
 

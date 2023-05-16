@@ -373,6 +373,14 @@ const (
 	TargetWasConfiguredAndAtLeastES2022
 )
 
+type TSImportsNotUsedAsValues uint8
+
+const (
+	ImportsNotUsedAsValues_Remove TSImportsNotUsedAsValues = iota
+	ImportsNotUsedAsValues_Preserve
+	ImportsNotUsedAsValues_Error
+)
+
 type UnusedImportFlagsTS uint8
 
 // With !UnusedImportKeepStmt && !UnusedImportKeepValues:
@@ -406,16 +414,6 @@ const (
 	UnusedImportKeepStmt   UnusedImportFlagsTS = 1 << iota // "importsNotUsedAsValues" != "remove"
 	UnusedImportKeepValues                                 // "preserveValueImports" == true
 )
-
-func UnusedImportFlagsFromTsconfigValues(preserveImportsNotUsedAsValues bool, preserveValueImports bool) (flags UnusedImportFlagsTS) {
-	if preserveValueImports {
-		flags |= UnusedImportKeepValues
-	}
-	if preserveImportsNotUsedAsValues {
-		flags |= UnusedImportKeepStmt
-	}
-	return
-}
 
 type TSTarget struct {
 	// This information is only used for error messages

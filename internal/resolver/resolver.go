@@ -700,10 +700,7 @@ func (r resolverQuery) finalizeResolve(result *ResolveResult) {
 						result.JSX = dirInfo.enclosingTSConfigJSON.JSX
 						result.JSXImportSource = dirInfo.enclosingTSConfigJSON.JSXImportSource
 						result.UseDefineForClassFieldsTS = dirInfo.enclosingTSConfigJSON.UseDefineForClassFields
-						result.UnusedImportFlagsTS = config.UnusedImportFlagsFromTsconfigValues(
-							dirInfo.enclosingTSConfigJSON.PreserveImportsNotUsedAsValues,
-							dirInfo.enclosingTSConfigJSON.PreserveValueImports,
-						)
+						result.UnusedImportFlagsTS = dirInfo.enclosingTSConfigJSON.UnusedImportFlagsTS()
 						result.TSTarget = dirInfo.enclosingTSConfigJSON.TSTarget
 						result.TSAlwaysStrict = dirInfo.enclosingTSConfigJSON.TSAlwaysStrictOrStrict()
 
