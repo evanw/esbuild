@@ -748,7 +748,7 @@ demo/sucrase: | github/sucrase
 	cp -r github/sucrase/ demo/sucrase
 	cd demo/sucrase && npm i
 	cd demo/sucrase && find test -name '*.ts' | sed 's/\(.*\)\.ts/import ".\/\1"/g' > all-tests.ts
-	echo '{}' > demo/sucrase/tsconfig.json # Sucrase tests fail if tsconfig.json is respected due to useDefineForClassFields
+	echo '{"compilerOptions":{"useDefineForClassFields":false}}' > demo/sucrase/tsconfig.json # Sucrase tests fail if tsconfig.json is respected due to useDefineForClassFields
 
 test-sucrase: esbuild | demo/sucrase
 	cd demo/sucrase && ../../esbuild --bundle all-tests.ts --target=es6 --platform=node > out.js && npx mocha out.js
