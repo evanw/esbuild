@@ -180,6 +180,36 @@
     }
     ```
 
+* Forbid `&` before a type selector in nested CSS
+
+    The people behind the work-in-progress CSS nesting specification have very recently [decided to forbid nested CSS that looks like `&div`](https://github.com/w3c/csswg-drafts/issues/8662#issuecomment-1514977935). You will have to use either `div&` or `&:is(div)` instead. This release of esbuild has been updated to take this new change into consideration. Doing this now generates a warning. The suggested fix is slightly different depending on where in the overall selector it happened:
+
+    ```
+    ▲ [WARNING] Cannot use type selector "input" directly after nesting selector "&" [css-syntax-error]
+
+        example.css:2:3:
+          2 │   &input {
+            │    ~~~~~
+            ╵    :is(input)
+
+      CSS nesting syntax does not allow the "&" selector to come before a type selector. You can wrap
+      this selector in ":is()" as a workaround. This restriction exists to avoid problems with SASS
+      nesting, where the same syntax means something very different that has no equivalent in real CSS
+      (appending a suffix to the parent selector).
+
+    ▲ [WARNING] Cannot use type selector "input" directly after nesting selector "&" [css-syntax-error]
+
+        example.css:6:8:
+          6 │   .form &input {
+            │         ~~~~~~
+            ╵         input&
+
+      CSS nesting syntax does not allow the "&" selector to come before a type selector. You can move
+      the "&" to the end of this selector as a workaround. This restriction exists to avoid problems
+      with SASS nesting, where the same syntax means something very different that has no equivalent in
+      real CSS (appending a suffix to the parent selector).
+    ```
+
 ## 0.17.19
 
 * Fix CSS transform bugs with nested selectors that start with a combinator ([#3096](https://github.com/evanw/esbuild/issues/3096))

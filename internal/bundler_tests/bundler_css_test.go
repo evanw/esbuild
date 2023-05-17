@@ -852,7 +852,7 @@ func TestDeduplicateRules(t *testing.T) {
 			"/yes2.css": "@media screen { a { color: red } } @media screen { a { color: red } }",
 			"/yes3.css": "@media screen { a { color: red } } @media screen { & a { color: red } }",
 
-			"/no0.css": "@media screen { a { color: red } } @media screen { &a { color: red } }",
+			"/no0.css": "@media screen { a { color: red } } @media screen { b a& { color: red } }",
 			"/no1.css": "@media screen { a { color: red } } @media screen { a[x] { color: red } }",
 			"/no2.css": "@media screen { a { color: red } } @media screen { a.x { color: red } }",
 			"/no3.css": "@media screen { a { color: red } } @media screen { a#x { color: red } }",

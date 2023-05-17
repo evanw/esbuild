@@ -611,7 +611,7 @@ func TestSelector(t *testing.T) {
 	expectPrinted(t, "a {}", "a {\n}\n")
 	expectPrinted(t, "a b {}", "a b {\n}\n")
 
-	expectPrinted(t, "a/**/b {}", "a b {\n}\n")
+	expectPrinted(t, "a/**/b {}", "ab {\n}\n")
 	expectPrinted(t, "a/**/.b {}", "a.b {\n}\n")
 	expectPrinted(t, "a/**/:b {}", "a:b {\n}\n")
 	expectPrinted(t, "a/**/[b] {}", "a[b] {\n}\n")
@@ -628,6 +628,7 @@ func TestSelector(t *testing.T) {
 	expectParseError(t, "[b]] {}", "[b]] {\n}\n", "<stdin>: WARNING: Unexpected \"]\"\n")
 	expectParseError(t, "a[b {}", "a[b] {\n}\n", "<stdin>: WARNING: Expected \"]\" to go with \"[\"\n<stdin>: NOTE: The unbalanced \"[\" is here:\n")
 	expectParseError(t, "a[b]] {}", "a[b]] {\n}\n", "<stdin>: WARNING: Unexpected \"]\"\n")
+	expectParseError(t, "[b]a {}", "[b]a {\n}\n", "<stdin>: WARNING: Unexpected \"a\"\n")
 
 	expectPrinted(t, "[|b]{}", "[b] {\n}\n") // "[|b]" is equivalent to "[b]"
 	expectPrinted(t, "[*|b]{}", "[*|b] {\n}\n")
@@ -660,10 +661,10 @@ func TestSelector(t *testing.T) {
 	expectPrinted(t, "[b = \"c\" I] {}", "[b=c I] {\n}\n")
 	expectPrinted(t, "[b = \"c\" s] {}", "[b=c s] {\n}\n")
 	expectPrinted(t, "[b = \"c\" S] {}", "[b=c S] {\n}\n")
-	expectParseError(t, "[b i] {}", "[b i] {\n}\n", "<stdin>: WARNING: Expected \"]\" to go with \"[\"\n<stdin>: NOTE: The unbalanced \"[\" is here:\n<stdin>: WARNING: Unexpected \"]\"\n")
-	expectParseError(t, "[b I] {}", "[b I] {\n}\n", "<stdin>: WARNING: Expected \"]\" to go with \"[\"\n<stdin>: NOTE: The unbalanced \"[\" is here:\n<stdin>: WARNING: Unexpected \"]\"\n")
-	expectParseError(t, "[b s] {}", "[b s] {\n}\n", "<stdin>: WARNING: Expected \"]\" to go with \"[\"\n<stdin>: NOTE: The unbalanced \"[\" is here:\n<stdin>: WARNING: Unexpected \"]\"\n")
-	expectParseError(t, "[b S] {}", "[b S] {\n}\n", "<stdin>: WARNING: Expected \"]\" to go with \"[\"\n<stdin>: NOTE: The unbalanced \"[\" is here:\n<stdin>: WARNING: Unexpected \"]\"\n")
+	expectParseError(t, "[b i] {}", "[b i] {\n}\n", "<stdin>: WARNING: Expected \"]\" to go with \"[\"\n<stdin>: NOTE: The unbalanced \"[\" is here:\n")
+	expectParseError(t, "[b I] {}", "[b I] {\n}\n", "<stdin>: WARNING: Expected \"]\" to go with \"[\"\n<stdin>: NOTE: The unbalanced \"[\" is here:\n")
+	expectParseError(t, "[b s] {}", "[b s] {\n}\n", "<stdin>: WARNING: Expected \"]\" to go with \"[\"\n<stdin>: NOTE: The unbalanced \"[\" is here:\n")
+	expectParseError(t, "[b S] {}", "[b S] {\n}\n", "<stdin>: WARNING: Expected \"]\" to go with \"[\"\n<stdin>: NOTE: The unbalanced \"[\" is here:\n")
 
 	expectPrinted(t, "|b {}", "|b {\n}\n")
 	expectPrinted(t, "|* {}", "|* {\n}\n")
@@ -692,6 +693,7 @@ func TestSelector(t *testing.T) {
 	expectPrinted(t, "a:b:c {}", "a:b:c {\n}\n")
 	expectPrinted(t, "a:b(:c) {}", "a:b(:c) {\n}\n")
 	expectPrinted(t, "a: b {}", "a: b {\n}\n")
+	expectParseError(t, ":is(a)b {}", ":is(a)b {\n}\n", "<stdin>: WARNING: Unexpected \"b\"\n")
 
 	// These test cases previously caused a hang (see https://github.com/evanw/esbuild/issues/2276)
 	expectParseError(t, ":x(", ":x() {\n}\n", "<stdin>: WARNING: Unexpected end of file\n")
@@ -744,9 +746,9 @@ func TestNestedSelector(t *testing.T) {
 	expectPrinted(t, "a { & + & {} }", "a {\n  & + & {\n  }\n}\n")
 	expectPrinted(t, "a { & > & {} }", "a {\n  & > & {\n  }\n}\n")
 	expectPrinted(t, "a { & ~ & {} }", "a {\n  & ~ & {\n  }\n}\n")
-	expectPrinted(t, "a { & + c& {} }", "a {\n  & + &c {\n  }\n}\n")
+	expectPrinted(t, "a { & + c& {} }", "a {\n  & + c& {\n  }\n}\n")
 	expectPrinted(t, "a { .b& + & {} }", "a {\n  &.b + & {\n  }\n}\n")
-	expectPrinted(t, "a { .b& + c& {} }", "a {\n  &.b + &c {\n  }\n}\n")
+	expectPrinted(t, "a { .b& + c& {} }", "a {\n  &.b + c& {\n  }\n}\n")
 	expectPrinted(t, "a { & + & > & ~ & {} }", "a {\n  & + & > & ~ & {\n  }\n}\n")
 
 	// CSS nesting works for all tokens except identifiers and functions
@@ -804,7 +806,7 @@ func TestNestedSelector(t *testing.T) {
 	expectPrintedMangle(t, "& .x { color: red }", ".x {\n  color: red;\n}\n")
 	expectPrintedMangle(t, "& &.x { color: red }", "& &.x {\n  color: red;\n}\n")
 	expectPrintedMangle(t, "& + a { color: red }", "+ a {\n  color: red;\n}\n")
-	expectPrintedMangle(t, "& + &a { color: red }", "+ &a {\n  color: red;\n}\n")
+	expectPrintedMangle(t, "& + a& { color: red }", "+ a& {\n  color: red;\n}\n")
 	expectPrintedMangle(t, "&.x { color: red }", "&.x {\n  color: red;\n}\n")
 	expectPrintedMangle(t, "a & { color: red }", "a & {\n  color: red;\n}\n")
 	expectPrintedMangle(t, ".x & { color: red }", ".x & {\n  color: red;\n}\n")
@@ -812,11 +814,11 @@ func TestNestedSelector(t *testing.T) {
 	expectPrintedMangle(t, "div { & .x { color: red } }", "div {\n  .x {\n    color: red;\n  }\n}\n")
 	expectPrintedMangle(t, "div { & .x, & a { color: red } }", "div {\n  .x,\n  a {\n    color: red;\n  }\n}\n")
 	expectPrintedMangle(t, "div { .x, & a { color: red } }", "div {\n  .x,\n  a {\n    color: red;\n  }\n}\n")
-	expectPrintedMangle(t, "div { & &a { color: red } }", "div {\n  & &a {\n    color: red;\n  }\n}\n")
+	expectPrintedMangle(t, "div { & a& { color: red } }", "div {\n  & a& {\n    color: red;\n  }\n}\n")
 	expectPrintedMangle(t, "div { & .x { color: red } }", "div {\n  .x {\n    color: red;\n  }\n}\n")
 	expectPrintedMangle(t, "div { & &.x { color: red } }", "div {\n  & &.x {\n    color: red;\n  }\n}\n")
 	expectPrintedMangle(t, "div { & + a { color: red } }", "div {\n  + a {\n    color: red;\n  }\n}\n")
-	expectPrintedMangle(t, "div { & + &a { color: red } }", "div {\n  + &a {\n    color: red;\n  }\n}\n")
+	expectPrintedMangle(t, "div { & + a& { color: red } }", "div {\n  + a& {\n    color: red;\n  }\n}\n")
 	expectPrintedMangle(t, "div { .x & { color: red } }", "div {\n  .x & {\n    color: red;\n  }\n}\n")
 	expectPrintedMangle(t, "@media screen { & div { color: red } }", "@media screen {\n  div {\n    color: red;\n  }\n}\n")
 	expectPrintedMangle(t, "a { @media screen { & div { color: red } } }", "a {\n  @media screen {\n    & div {\n      color: red;\n    }\n  }\n}\n")
@@ -911,12 +913,12 @@ func TestNestedSelector(t *testing.T) {
 	expectPrintedLower(t, "a { > b, + c { color: red } }", "a > b,\na + c {\n  color: red;\n}\n")
 	expectPrintedLower(t, "a { & > b, & > c { color: red } }", "a > :is(b, c) {\n  color: red;\n}\n")
 	expectPrintedLower(t, "a { & > b, & + c { color: red } }", "a > b,\na + c {\n  color: red;\n}\n")
-	expectPrintedLower(t, "a { > &b, > &c { color: red } }", "a > :is(b:is(a), c:is(a)) {\n  color: red;\n}\n")
-	expectPrintedLower(t, "a { > &b, + &c { color: red } }", "a > a:is(b),\na + a:is(c) {\n  color: red;\n}\n")
+	expectPrintedLower(t, "a { > b&, > c& { color: red } }", "a > :is(b:is(a), c:is(a)) {\n  color: red;\n}\n")
+	expectPrintedLower(t, "a { > b&, + c& { color: red } }", "a > a:is(b),\na + a:is(c) {\n  color: red;\n}\n")
 	expectPrintedLower(t, "a { > &.b, > &.c { color: red } }", "a > :is(a.b, a.c) {\n  color: red;\n}\n")
 	expectPrintedLower(t, "a { > &.b, + &.c { color: red } }", "a > a.b,\na + a.c {\n  color: red;\n}\n")
-	expectPrintedLower(t, ".a { > &b, > &c { color: red } }", ".a > :is(b.a, c.a) {\n  color: red;\n}\n")
-	expectPrintedLower(t, ".a { > &b, + &c { color: red } }", ".a > b.a,\n.a + c.a {\n  color: red;\n}\n")
+	expectPrintedLower(t, ".a { > b&, > c& { color: red } }", ".a > :is(b.a, c.a) {\n  color: red;\n}\n")
+	expectPrintedLower(t, ".a { > b&, + c& { color: red } }", ".a > b.a,\n.a + c.a {\n  color: red;\n}\n")
 	expectPrintedLower(t, ".a { > &.b, > &.c { color: red } }", ".a > :is(.a.b, .a.c) {\n  color: red;\n}\n")
 	expectPrintedLower(t, ".a { > &.b, + &.c { color: red } }", ".a > .a.b,\n.a + .a.c {\n  color: red;\n}\n")
 	expectPrintedLower(t, "~ .a { > &.b, > &.c { color: red } }", "~ .a > :is(.a.b, .a.c) {\n  color: red;\n}\n")
@@ -926,7 +928,25 @@ func TestNestedSelector(t *testing.T) {
 	expectPrintedLower(t, ".demo { .lg { &.triangle, &.circle { color: red } } }", ".demo .lg:is(.triangle, .circle) {\n  color: red;\n}\n")
 	expectPrintedLower(t, ".demo { .lg { .triangle, .circle { color: red } } }", ".demo .lg :is(.triangle, .circle) {\n  color: red;\n}\n")
 	expectPrintedLower(t, ".card { .featured & & & { color: red } }", ".featured .card .card .card {\n  color: red;\n}\n")
-	expectPrintedLower(t, ".card { &--header { color: red } }", "--header.card {\n  color: red;\n}\n")
+
+	// These are invalid SASS-style nested suffixes
+	sassWarningStart := "NOTE: CSS nesting syntax does not allow the \"&\" selector to come before a type selector. "
+	sassWarningEnd :=
+		"This restriction exists to avoid problems with SASS nesting, where the same syntax means something very different " +
+			"that has no equivalent in real CSS (appending a suffix to the parent selector).\n"
+	expectPrintedLower(t, ".card { &--header { color: red } }", ".card {\n  &--header {\n    color: red;\n  }\n}\n")
+	expectPrintedLower(t, ".card { &__header { color: red } }", ".card {\n  &__header {\n    color: red;\n  }\n}\n")
+	expectPrintedLower(t, ".card { .nav &--header { color: red } }", ".card {\n  .nav &--header {\n    color: red;\n  }\n}\n")
+	expectPrintedLower(t, ".card { .nav &__header { color: red } }", ".card {\n  .nav &__header {\n    color: red;\n  }\n}\n")
+	expectParseError(t, ".card { &__header { color: red } }", ".card {\n  &__header {\n    color: red;\n  }\n}\n",
+		"<stdin>: WARNING: Cannot use type selector \"__header\" directly after nesting selector \"&\"\n"+
+			sassWarningStart+"You can wrap this selector in \":is()\" as a workaround. "+sassWarningEnd)
+	expectParseError(t, ".card { .nav &__header { color: red } }", ".card {\n  .nav &__header {\n    color: red;\n  }\n}\n",
+		"<stdin>: WARNING: Cannot use type selector \"__header\" directly after nesting selector \"&\"\n"+
+			sassWarningStart+"You can move the \"&\" to the end of this selector as a workaround. "+sassWarningEnd)
+	expectParseError(t, ".card { .nav, &__header { color: red } }", ".card {\n  .nav, &__header {\n    color: red;\n  }\n}\n",
+		"<stdin>: WARNING: Cannot use type selector \"__header\" directly after nesting selector \"&\"\n"+
+			sassWarningStart+"You can move the \"&\" to the end of this selector as a workaround. "+sassWarningEnd)
 
 	// Check pseudo-elements (those coming through "&" must be dropped)
 	expectPrintedLower(t, "a, b::before { &.foo { color: red } }", "a.foo {\n  color: red;\n}\n")

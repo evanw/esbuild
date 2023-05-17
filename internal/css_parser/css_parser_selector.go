@@ -1,14 +1,23 @@
 package css_parser
 
 import (
+	"fmt"
+
 	"github.com/evanw/esbuild/internal/css_ast"
 	"github.com/evanw/esbuild/internal/css_lexer"
 	"github.com/evanw/esbuild/internal/logger"
 )
 
+type parseSelectorOpts struct {
+	isDeclarationContext bool
+}
+
 func (p *parser) parseSelectorList(opts parseSelectorOpts) (list []css_ast.ComplexSelector, ok bool) {
 	// Parse the first selector
-	sel, good := p.parseComplexSelector(opts)
+	sel, good := p.parseComplexSelector(parseComplexSelectorOpts{
+		parseSelectorOpts: opts,
+		isFirst:           true,
+	})
 	if !good {
 		return
 	}
@@ -22,7 +31,9 @@ skip:
 			break
 		}
 		p.eat(css_lexer.TWhitespace)
-		sel, good := p.parseComplexSelector(opts)
+		sel, good := p.parseComplexSelector(parseComplexSelectorOpts{
+			parseSelectorOpts: opts,
+		})
 		if !good {
 			return
 		}
@@ -97,11 +108,12 @@ func analyzeLeadingAmpersand(sel css_ast.ComplexSelector, isDeclarationContext b
 	return cannotRemoveLeadingAmpersand
 }
 
-type parseSelectorOpts struct {
-	isDeclarationContext bool
+type parseComplexSelectorOpts struct {
+	parseSelectorOpts
+	isFirst bool
 }
 
-func (p *parser) parseComplexSelector(opts parseSelectorOpts) (result css_ast.ComplexSelector, ok bool) {
+func (p *parser) parseComplexSelector(opts parseComplexSelectorOpts) (result css_ast.ComplexSelector, ok bool) {
 	// This is an extension: https://drafts.csswg.org/css-nesting-1/
 	r := p.current().Range
 	combinator := p.parseCombinator()
@@ -111,7 +123,10 @@ func (p *parser) parseComplexSelector(opts parseSelectorOpts) (result css_ast.Co
 	}
 
 	// Parent
-	sel, good := p.parseCompoundSelector(opts)
+	sel, good := p.parseCompoundSelector(parseComplexSelectorOpts{
+		parseSelectorOpts: opts.parseSelectorOpts,
+		isFirst:           opts.isFirst,
+	})
 	if !good {
 		return
 	}
@@ -131,7 +146,9 @@ func (p *parser) parseComplexSelector(opts parseSelectorOpts) (result css_ast.Co
 		}
 
 		// Child
-		sel, good := p.parseCompoundSelector(opts)
+		sel, good := p.parseCompoundSelector(parseComplexSelectorOpts{
+			parseSelectorOpts: opts.parseSelectorOpts,
+		})
 		if !good {
 			return
 		}
@@ -150,15 +167,19 @@ func (p *parser) nameToken() css_ast.NameToken {
 	}
 }
 
-func (p *parser) parseCompoundSelector(opts parseSelectorOpts) (sel css_ast.CompoundSelector, ok bool) {
+func (p *parser) parseCompoundSelector(opts parseComplexSelectorOpts) (sel css_ast.CompoundSelector, ok bool) {
+	startLoc := p.current().Range.Loc
+
 	// This is an extension: https://drafts.csswg.org/css-nesting-1/
-	if p.peek(css_lexer.TDelimAmpersand) {
+	hasLeadingNestingSelector := p.peek(css_lexer.TDelimAmpersand)
+	if hasLeadingNestingSelector {
 		p.reportUseOfNesting(p.current().Range, opts.isDeclarationContext)
 		sel.HasNestingSelector = true
 		p.advance()
 	}
 
 	// Parse the type selector
+	typeSelectorLoc := p.current().Range.Loc
 	switch p.current().Kind {
 	case css_lexer.TDelimBar, css_lexer.TIdent, css_lexer.TDelimAsterisk:
 		nsName := css_ast.NamespacedName{}
@@ -250,6 +271,46 @@ subclassSelectors:
 
 	// The compound selector must be non-empty
 	if !sel.HasNestingSelector && sel.TypeSelector == nil && len(sel.SubclassSelectors) == 0 {
+		p.unexpected()
+		return
+	}
+
+	// Note: "&div {}" was originally valid, but is now an invalid selector:
+	// https://github.com/w3c/csswg-drafts/issues/8662#issuecomment-1514977935.
+	// This is because SASS already uses that syntax to mean something very
+	// different, so that syntax has been removed to avoid mistakes.
+	if hasLeadingNestingSelector && sel.TypeSelector != nil {
+		r := logger.Range{Loc: typeSelectorLoc, Len: p.at(p.index-1).Range.End() - typeSelectorLoc.Start}
+		text := sel.TypeSelector.Name.Text
+		if sel.TypeSelector.NamespacePrefix != nil {
+			text = fmt.Sprintf("%s|%s", sel.TypeSelector.NamespacePrefix.Text, text)
+		}
+		var howToFix string
+		suggestion := p.source.TextForRange(r)
+		if opts.isFirst {
+			suggestion = fmt.Sprintf(":is(%s)", suggestion)
+			howToFix = "You can wrap this selector in \":is()\" as a workaround. "
+		} else {
+			r = logger.Range{Loc: startLoc, Len: r.End() - startLoc.Start}
+			suggestion += "&"
+			howToFix = "You can move the \"&\" to the end of this selector as a workaround. "
+		}
+		msg := logger.Msg{
+			Kind: logger.Warning,
+			Data: p.tracker.MsgData(r, fmt.Sprintf("Cannot use type selector %q directly after nesting selector \"&\"", text)),
+			Notes: []logger.MsgData{{Text: "CSS nesting syntax does not allow the \"&\" selector to come before a type selector. " +
+				howToFix +
+				"This restriction exists to avoid problems with SASS nesting, where the same syntax means something very different " +
+				"that has no equivalent in real CSS (appending a suffix to the parent selector)."}},
+		}
+		msg.Data.Location.Suggestion = suggestion
+		p.log.AddMsgID(logger.MsgID_CSS_CSSSyntaxError, msg)
+		return
+	}
+
+	// The type selector must always come first
+	switch p.current().Kind {
+	case css_lexer.TDelimBar, css_lexer.TIdent, css_lexer.TDelimAsterisk:
 		p.unexpected()
 		return
 	}

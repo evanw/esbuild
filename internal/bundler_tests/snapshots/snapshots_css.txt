@@ -448,7 +448,7 @@ a {
   }
 }
 @media screen {
-  &a {
+  b a& {
     color: red;
   }
 }

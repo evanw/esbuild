@@ -368,10 +368,6 @@ func (p *printer) printCompoundSelector(sel css_ast.CompoundSelector, isFirst bo
 		}
 	}
 
-	if sel.HasNestingSelector {
-		p.print("&")
-	}
-
 	if sel.TypeSelector != nil {
 		whitespace := mayNeedWhitespaceAfter
 		if len(sel.SubclassSelectors) > 0 {
@@ -380,6 +376,10 @@ func (p *printer) printCompoundSelector(sel css_ast.CompoundSelector, isFirst bo
 			whitespace = canDiscardWhitespaceAfter
 		}
 		p.printNamespacedName(*sel.TypeSelector, whitespace)
+	}
+
+	if sel.HasNestingSelector {
+		p.print("&")
 	}
 
 	for i, sub := range sel.SubclassSelectors {
