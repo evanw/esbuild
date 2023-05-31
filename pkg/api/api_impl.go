@@ -1406,7 +1406,7 @@ func validateBuildOptions(
 		options.Mode = config.ModeConvertFormat
 	}
 
-	// Automatically enable the "module" condition for better tree shaking
+	// Automatically enable the "module" condition that allows package authors to avoid dual package hazard when their packages are bundled
 	if options.Conditions == nil && options.Platform != config.PlatformNeutral {
 		options.Conditions = []string{"module"}
 	}
