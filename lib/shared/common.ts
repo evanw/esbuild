@@ -161,6 +161,7 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   let pure = getFlag(options, keys, 'pure', mustBeArray)
   let keepNames = getFlag(options, keys, 'keepNames', mustBeBoolean)
   let platform = getFlag(options, keys, 'platform', mustBeString)
+  let tsconfigRaw = getFlag(options, keys, 'tsconfigRaw', mustBeStringOrObject)
 
   if (legalComments) flags.push(`--legal-comments=${legalComments}`)
   if (sourceRoot !== void 0) flags.push(`--source-root=${sourceRoot}`)
@@ -172,6 +173,7 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   if (format) flags.push(`--format=${format}`)
   if (globalName) flags.push(`--global-name=${globalName}`)
   if (platform) flags.push(`--platform=${platform}`)
+  if (tsconfigRaw) flags.push(`--tsconfig-raw=${typeof tsconfigRaw === 'string' ? tsconfigRaw : JSON.stringify(tsconfigRaw)}`)
 
   if (minify) flags.push('--minify')
   if (minifySyntax) flags.push('--minify-syntax')
@@ -422,7 +424,6 @@ function flagsForTransformOptions(
   pushCommonFlags(flags, options, keys)
 
   let sourcemap = getFlag(options, keys, 'sourcemap', mustBeStringOrBoolean)
-  let tsconfigRaw = getFlag(options, keys, 'tsconfigRaw', mustBeStringOrObject)
   let sourcefile = getFlag(options, keys, 'sourcefile', mustBeString)
   let loader = getFlag(options, keys, 'loader', mustBeString)
   let banner = getFlag(options, keys, 'banner', mustBeString)
@@ -431,7 +432,6 @@ function flagsForTransformOptions(
   checkForInvalidFlags(options, keys, `in ${callName}() call`)
 
   if (sourcemap) flags.push(`--sourcemap=${sourcemap === true ? 'external' : sourcemap}`)
-  if (tsconfigRaw) flags.push(`--tsconfig-raw=${typeof tsconfigRaw === 'string' ? tsconfigRaw : JSON.stringify(tsconfigRaw)}`)
   if (sourcefile) flags.push(`--sourcefile=${sourcefile}`)
   if (loader) flags.push(`--loader=${loader}`)
   if (banner) flags.push(`--banner=${banner}`)

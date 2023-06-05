@@ -320,6 +320,7 @@ type BuildOptions struct {
 	Loader            map[string]Loader // Documentation: https://esbuild.github.io/api/#loader
 	ResolveExtensions []string          // Documentation: https://esbuild.github.io/api/#resolve-extensions
 	Tsconfig          string            // Documentation: https://esbuild.github.io/api/#tsconfig
+	TsconfigRaw       string            // Documentation: https://esbuild.github.io/api/#tsconfig-raw
 	OutExtension      map[string]string // Documentation: https://esbuild.github.io/api/#out-extension
 	PublicPath        string            // Documentation: https://esbuild.github.io/api/#public-path
 	Inject            []string          // Documentation: https://esbuild.github.io/api/#inject

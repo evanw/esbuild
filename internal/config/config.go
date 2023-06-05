@@ -351,7 +351,8 @@ type Options struct {
 	OutputExtensionJS  string
 	OutputExtensionCSS string
 	GlobalName         []string
-	TsConfigOverride   string
+	TSConfigPath       string
+	TSConfigRaw        string
 	ExtensionToLoader  map[string]Loader
 
 	PublicPath      string

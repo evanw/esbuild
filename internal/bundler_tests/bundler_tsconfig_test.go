@@ -1103,9 +1103,9 @@ func TestTsconfigJsonOverrideMissing(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/app/entry.ts"},
 		options: config.Options{
-			Mode:             config.ModeBundle,
-			AbsOutputFile:    "/Users/user/project/out.js",
-			TsConfigOverride: "/Users/user/project/other/config-for-ts.json",
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+			TSConfigPath:  "/Users/user/project/other/config-for-ts.json",
 		},
 	})
 }
@@ -1148,9 +1148,9 @@ func TestTsconfigJsonOverrideNodeModules(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/app/entry.ts"},
 		options: config.Options{
-			Mode:             config.ModeBundle,
-			AbsOutputFile:    "/Users/user/project/out.js",
-			TsConfigOverride: "/Users/user/project/other/config-for-ts.json",
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+			TSConfigPath:  "/Users/user/project/other/config-for-ts.json",
 		},
 	})
 }
@@ -1162,9 +1162,9 @@ func TestTsconfigJsonOverrideInvalid(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{
-			Mode:             config.ModeBundle,
-			AbsOutputFile:    "/out.js",
-			TsConfigOverride: "/this/file/doesn't/exist/tsconfig.json",
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			TSConfigPath:  "/this/file/doesn't/exist/tsconfig.json",
 		},
 		expectedScanLog: `ERROR: Cannot find tsconfig file "this/file/doesn't/exist/tsconfig.json"
 `,
@@ -1918,10 +1918,10 @@ func TestTsConfigExtendsDotWithoutSlash(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/main.tsx"},
 		options: config.Options{
-			Mode:             config.ModeBundle,
-			AbsOutputDir:     "/Users/user/project/out",
-			OutputFormat:     config.FormatESModule,
-			TsConfigOverride: "/Users/user/project/src/foo.json",
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/Users/user/project/out",
+			OutputFormat: config.FormatESModule,
+			TSConfigPath: "/Users/user/project/src/foo.json",
 		},
 	})
 }
@@ -1967,10 +1967,10 @@ func TestTsConfigExtendsDotWithSlash(t *testing.T) {
 		},
 		entryPaths: []string{"/Users/user/project/src/main.tsx"},
 		options: config.Options{
-			Mode:             config.ModeBundle,
-			AbsOutputDir:     "/Users/user/project/out",
-			OutputFormat:     config.FormatESModule,
-			TsConfigOverride: "/Users/user/project/src/foo.json",
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/Users/user/project/out",
+			OutputFormat: config.FormatESModule,
+			TSConfigPath: "/Users/user/project/src/foo.json",
 		},
 		expectedScanLog: `Users/user/project/src/foo.json: WARNING: Cannot find base config file "./"
 `,

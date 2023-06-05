@@ -79,6 +79,26 @@ interface CommonOptions {
   logLimit?: number
   /** Documentation: https://esbuild.github.io/api/#log-override */
   logOverride?: Record<string, LogLevel>
+
+  /** Documentation: https://esbuild.github.io/api/#tsconfig-raw */
+  tsconfigRaw?: string | {
+    compilerOptions?: {
+      alwaysStrict?: boolean
+      baseUrl?: boolean
+      experimentalDecorators?: boolean
+      importsNotUsedAsValues?: 'remove' | 'preserve' | 'error'
+      jsx?: 'preserve' | 'react-native' | 'react' | 'react-jsx' | 'react-jsxdev'
+      jsxFactory?: string
+      jsxFragmentFactory?: string
+      jsxImportSource?: string
+      paths?: Record<string, string[]>
+      preserveValueImports?: boolean
+      strict?: boolean
+      target?: string
+      useDefineForClassFields?: boolean
+      verbatimModuleSyntax?: boolean
+    }
+  }
 }
 
 export interface BuildOptions extends CommonOptions {
@@ -233,23 +253,13 @@ export interface ServeResult {
 }
 
 export interface TransformOptions extends CommonOptions {
-  tsconfigRaw?: string | {
-    compilerOptions?: {
-      alwaysStrict?: boolean,
-      importsNotUsedAsValues?: 'remove' | 'preserve' | 'error',
-      jsx?: 'react' | 'react-jsx' | 'react-jsxdev' | 'preserve',
-      jsxFactory?: string,
-      jsxFragmentFactory?: string,
-      jsxImportSource?: string,
-      preserveValueImports?: boolean,
-      target?: string,
-      useDefineForClassFields?: boolean,
-    },
-  }
-
+  /** Documentation: https://esbuild.github.io/api/#sourcefile */
   sourcefile?: string
+  /** Documentation: https://esbuild.github.io/api/#loader */
   loader?: Loader
+  /** Documentation: https://esbuild.github.io/api/#banner */
   banner?: string
+  /** Documentation: https://esbuild.github.io/api/#footer */
   footer?: string
 }
 

@@ -414,8 +414,12 @@ func parseOptionsImpl(
 		case strings.HasPrefix(arg, "--tsconfig=") && buildOpts != nil:
 			buildOpts.Tsconfig = arg[len("--tsconfig="):]
 
-		case strings.HasPrefix(arg, "--tsconfig-raw=") && transformOpts != nil:
-			transformOpts.TsconfigRaw = arg[len("--tsconfig-raw="):]
+		case strings.HasPrefix(arg, "--tsconfig-raw="):
+			if buildOpts != nil {
+				buildOpts.TsconfigRaw = arg[len("--tsconfig-raw="):]
+			} else {
+				transformOpts.TsconfigRaw = arg[len("--tsconfig-raw="):]
+			}
 
 		case strings.HasPrefix(arg, "--entry-names=") && buildOpts != nil:
 			buildOpts.EntryNames = arg[len("--entry-names="):]

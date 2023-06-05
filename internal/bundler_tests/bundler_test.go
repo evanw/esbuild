@@ -153,7 +153,7 @@ func (s *suite) __expectBundledImpl(t *testing.T, args bundled, fsKind fs.MockKi
 			args.options.AbsOutputFile = unix2win(args.options.AbsOutputFile)
 			args.options.AbsOutputBase = unix2win(args.options.AbsOutputBase)
 			args.options.AbsOutputDir = unix2win(args.options.AbsOutputDir)
-			args.options.TsConfigOverride = unix2win(args.options.TsConfigOverride)
+			args.options.TSConfigPath = unix2win(args.options.TSConfigPath)
 		}
 
 		// Run the bundler

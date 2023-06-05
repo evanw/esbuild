@@ -117,8 +117,6 @@ func ParseTSConfigJSON(
 		if valueJSON, _, ok := getProperty(compilerOptionsJSON, "jsx"); ok {
 			if value, ok := getString(valueJSON); ok {
 				switch strings.ToLower(value) {
-				case "none":
-					result.JSXSettings.JSX = config.TSJSXNone
 				case "preserve":
 					result.JSXSettings.JSX = config.TSJSXPreserve
 				case "react-native":

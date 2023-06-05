@@ -85,6 +85,14 @@
 
         The community has requested that esbuild remove support for TypeScript's `moduleSuffixes` feature, so it has been removed in this release. Instead you can use esbuild's `--resolve-extensions=` feature to select which module suffix you want to build with.
 
+    * Apply `--tsconfig=` overrides to `stdin` ([#385](https://github.com/evanw/esbuild/issues/385), [#2543](https://github.com/evanw/esbuild/issues/2543))
+
+        When you override esbuild's automatic `tsconfig.json` file detection with `--tsconfig=` to pass a specific `tsconfig.json` file, esbuild previously didn't apply these settings to source code passed via the `stdin` API option. This release changes esbuild's behavior so that settings from `tsconfig.json` also apply to `stdin` source code as well.
+
+    * Support `--tsconfig-raw=` in build API calls ([#943](https://github.com/evanw/esbuild/issues/943), [#2440](https://github.com/evanw/esbuild/issues/2440))
+
+        Previously if you wanted to override esbuild's automatic `tsconfig.json` file detection, you had to create a new `tsconfig.json` file and pass the file name to esbuild via the `--tsconfig=` flag. With this release, you can now optionally use `--tsconfig-raw=` instead to pass the contents of `tsconfig.json` to esbuild directly instead of passing the file name. For example, you can now use `--tsconfig-raw={"compilerOptions":{"experimentalDecorators":true}}` to enable TypeScript experimental decorators directly using a command-line flag (assuming you escape the quotes correctly using your current shell's quoting rules). The `--tsconfig-raw=` flag previously only worked with transform API calls but with this release, it now works with build API calls too.
+
     These changes are intended to improve esbuild's compatibility with `tsc` and reduce the number of unfortunate behaviors regarding `tsconfig.json` and esbuild.
 
 * Add a workaround for bugs in Safari 16.2 and earlier ([#3072](https://github.com/evanw/esbuild/issues/3072))

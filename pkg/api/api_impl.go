@@ -1303,7 +1303,8 @@ func validateBuildOptions(
 		ExternalSettings:      validateExternals(log, realFS, buildOpts.External),
 		ExternalPackages:      buildOpts.Packages == PackagesExternal,
 		PackageAliases:        validateAlias(log, realFS, buildOpts.Alias),
-		TsConfigOverride:      validatePath(log, realFS, buildOpts.Tsconfig, "tsconfig path"),
+		TSConfigPath:          validatePath(log, realFS, buildOpts.Tsconfig, "tsconfig path"),
+		TSConfigRaw:           buildOpts.TsconfigRaw,
 		MainFields:            buildOpts.MainFields,
 		PublicPath:            buildOpts.PublicPath,
 		KeepNames:             buildOpts.KeepNames,
@@ -1414,6 +1415,11 @@ func validateBuildOptions(
 	// Code splitting is experimental and currently only enabled for ES6 modules
 	if options.CodeSplitting && options.OutputFormat != config.FormatESModule {
 		log.AddError(nil, logger.Range{}, "Splitting currently only works with the \"esm\" format")
+	}
+
+	// Code splitting is experimental and currently only enabled for ES6 modules
+	if options.TSConfigPath != "" && options.TSConfigRaw != "" {
+		log.AddError(nil, logger.Range{}, "Cannot provide \"tsconfig\" as both a raw string and a path")
 	}
 
 	// If we aren't writing the output to the file system, then we can allow the
@@ -1668,34 +1674,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		LogLevel:      validateLogLevel(transformOpts.LogLevel),
 		Overrides:     validateLogOverrides(transformOpts.LogOverride),
 	})
-
-	// Settings from the user come first
-	var tsConfig config.TSConfig
-	jsx := config.JSXOptions{
-		Preserve:         transformOpts.JSX == JSXPreserve,
-		AutomaticRuntime: transformOpts.JSX == JSXAutomatic,
-		Factory:          validateJSXExpr(log, transformOpts.JSXFactory, "factory"),
-		Fragment:         validateJSXExpr(log, transformOpts.JSXFragment, "fragment"),
-		Development:      transformOpts.JSXDev,
-		ImportSource:     transformOpts.JSXImportSource,
-		SideEffects:      transformOpts.JSXSideEffects,
-	}
-
-	// Settings from "tsconfig.json" override those
-	var tsAlwaysStrict *config.TSAlwaysStrict
 	caches := cache.MakeCacheSet()
-	if transformOpts.TsconfigRaw != "" {
-		source := logger.Source{
-			KeyPath:    logger.Path{Text: "tsconfig.json"},
-			PrettyPath: "tsconfig.json",
-			Contents:   transformOpts.TsconfigRaw,
-		}
-		if result := resolver.ParseTSConfigJSON(log, source, &caches.JSONCache, nil); result != nil {
-			tsConfig = result.Settings
-			result.JSXSettings.ApplyTo(&jsx)
-			tsAlwaysStrict = result.TSAlwaysStrictOrStrict()
-		}
-	}
 
 	// Apply default values
 	if transformOpts.Sourcefile == "" {
@@ -1719,30 +1698,37 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		UnsupportedCSSFeatureOverrides:     cssOverrides,
 		UnsupportedCSSFeatureOverridesMask: cssMask,
 		OriginalTargetEnv:                  targetEnv,
-		TS:                                 config.TSOptions{Config: tsConfig},
-		TSAlwaysStrict:                     tsAlwaysStrict,
-		JSX:                                jsx,
-		Defines:                            defines,
-		InjectedDefines:                    injectedDefines,
-		Platform:                           platform,
-		SourceMap:                          validateSourceMap(transformOpts.Sourcemap),
-		LegalComments:                      validateLegalComments(transformOpts.LegalComments, false /* bundle */),
-		SourceRoot:                         transformOpts.SourceRoot,
-		ExcludeSourcesContent:              transformOpts.SourcesContent == SourcesContentExclude,
-		OutputFormat:                       validateFormat(transformOpts.Format),
-		GlobalName:                         validateGlobalName(log, transformOpts.GlobalName),
-		MinifySyntax:                       transformOpts.MinifySyntax,
-		MinifyWhitespace:                   transformOpts.MinifyWhitespace,
-		MinifyIdentifiers:                  transformOpts.MinifyIdentifiers,
-		MangleProps:                        validateRegex(log, "mangle props", transformOpts.MangleProps),
-		ReserveProps:                       validateRegex(log, "reserve props", transformOpts.ReserveProps),
-		MangleQuoted:                       transformOpts.MangleQuoted == MangleQuotedTrue,
-		DropDebugger:                       (transformOpts.Drop & DropDebugger) != 0,
-		ASCIIOnly:                          validateASCIIOnly(transformOpts.Charset),
-		IgnoreDCEAnnotations:               transformOpts.IgnoreAnnotations,
-		TreeShaking:                        validateTreeShaking(transformOpts.TreeShaking, false /* bundle */, transformOpts.Format),
-		AbsOutputFile:                      transformOpts.Sourcefile + "-out",
-		KeepNames:                          transformOpts.KeepNames,
+		TSConfigRaw:                        transformOpts.TsconfigRaw,
+		JSX: config.JSXOptions{
+			Preserve:         transformOpts.JSX == JSXPreserve,
+			AutomaticRuntime: transformOpts.JSX == JSXAutomatic,
+			Factory:          validateJSXExpr(log, transformOpts.JSXFactory, "factory"),
+			Fragment:         validateJSXExpr(log, transformOpts.JSXFragment, "fragment"),
+			Development:      transformOpts.JSXDev,
+			ImportSource:     transformOpts.JSXImportSource,
+			SideEffects:      transformOpts.JSXSideEffects,
+		},
+		Defines:               defines,
+		InjectedDefines:       injectedDefines,
+		Platform:              platform,
+		SourceMap:             validateSourceMap(transformOpts.Sourcemap),
+		LegalComments:         validateLegalComments(transformOpts.LegalComments, false /* bundle */),
+		SourceRoot:            transformOpts.SourceRoot,
+		ExcludeSourcesContent: transformOpts.SourcesContent == SourcesContentExclude,
+		OutputFormat:          validateFormat(transformOpts.Format),
+		GlobalName:            validateGlobalName(log, transformOpts.GlobalName),
+		MinifySyntax:          transformOpts.MinifySyntax,
+		MinifyWhitespace:      transformOpts.MinifyWhitespace,
+		MinifyIdentifiers:     transformOpts.MinifyIdentifiers,
+		MangleProps:           validateRegex(log, "mangle props", transformOpts.MangleProps),
+		ReserveProps:          validateRegex(log, "reserve props", transformOpts.ReserveProps),
+		MangleQuoted:          transformOpts.MangleQuoted == MangleQuotedTrue,
+		DropDebugger:          (transformOpts.Drop & DropDebugger) != 0,
+		ASCIIOnly:             validateASCIIOnly(transformOpts.Charset),
+		IgnoreDCEAnnotations:  transformOpts.IgnoreAnnotations,
+		TreeShaking:           validateTreeShaking(transformOpts.TreeShaking, false /* bundle */, transformOpts.Format),
+		AbsOutputFile:         transformOpts.Sourcefile + "-out",
+		KeepNames:             transformOpts.KeepNames,
 		Stdin: &config.StdinInfo{
 			Loader:     validateLoader(transformOpts.Loader),
 			Contents:   input,
@@ -2054,7 +2040,8 @@ func loadPlugins(initialOptions *BuildOptions, fs fs.FS, log logger.Log, caches 
 
 			// Make a new resolver so it has its own log
 			log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug, validateLogOverrides(initialOptions.LogOverride))
-			resolver := resolver.NewResolver(fs, log, caches, *optionsForResolve)
+			optionsClone := *optionsForResolve
+			resolver := resolver.NewResolver(fs, log, caches, &optionsClone)
 
 			// Make sure the resolve directory is an absolute path, which can fail
 			absResolveDir := validatePath(log, fs, options.ResolveDir, "resolve directory")

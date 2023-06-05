@@ -1141,10 +1141,13 @@ func ScanBundle(
 		log.AddError(nil, logger.Range{}, fmt.Sprintf("Failed to read from randomness source: %s", err.Error()))
 	}
 
+	// This may mutate "options" by the "tsconfig.json" override settings
+	res := resolver.NewResolver(fs, log, caches, &options)
+
 	s := scanner{
 		log:             log,
 		fs:              fs,
-		res:             resolver.NewResolver(fs, log, caches, options),
+		res:             res,
 		caches:          caches,
 		options:         options,
 		timer:           timer,
