@@ -10893,15 +10893,26 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 			property.Key = key
 
 			if p.options.minifySyntax {
-				if str, ok := key.Data.(*js_ast.EString); ok {
-					if numberValue, ok := js_ast.StringToEquivalentNumberValue(str.Value); ok && numberValue >= 0 {
+				if inlined, ok := key.Data.(*js_ast.EInlinedEnum); ok {
+					switch inlined.Value.Data.(type) {
+					case *js_ast.EString, *js_ast.ENumber:
+						key.Data = inlined.Value.Data
+						property.Key.Data = key.Data
+					}
+				}
+				switch k := key.Data.(type) {
+				case *js_ast.ENumber:
+					// "class { [123] }" => "class { 123 }"
+					property.Flags &= ^js_ast.PropertyIsComputed
+				case *js_ast.EString:
+					if numberValue, ok := js_ast.StringToEquivalentNumberValue(k.Value); ok && numberValue >= 0 {
 						// "class { '123' }" => "class { 123 }"
 						property.Key.Data = &js_ast.ENumber{Value: numberValue}
 						property.Flags &= ^js_ast.PropertyIsComputed
 					} else if property.Flags.Has(js_ast.PropertyIsComputed) {
 						// "class {['x'] = y}" => "class {'x' = y}"
 						isInvalidConstructor := false
-						if helpers.UTF16EqualsString(str.Value, "constructor") {
+						if helpers.UTF16EqualsString(k.Value, "constructor") {
 							if !property.Flags.Has(js_ast.PropertyIsMethod) {
 								// "constructor" is an invalid name for both instance and static fields
 								isInvalidConstructor = true
@@ -10912,7 +10923,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 						}
 
 						// A static property must not be called "prototype"
-						isInvalidPrototype := property.Flags.Has(js_ast.PropertyIsStatic) && helpers.UTF16EqualsString(str.Value, "prototype")
+						isInvalidPrototype := property.Flags.Has(js_ast.PropertyIsStatic) && helpers.UTF16EqualsString(k.Value, "prototype")
 
 						if !isInvalidConstructor && !isInvalidPrototype {
 							property.Flags &= ^js_ast.PropertyIsComputed
@@ -13276,8 +13287,20 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 				// "{['x']: y}" => "{x: y}"
 				if p.options.minifySyntax && property.Flags.Has(js_ast.PropertyIsComputed) {
-					if str, ok := key.Data.(*js_ast.EString); ok && js_ast.IsIdentifierUTF16(str.Value) && !helpers.UTF16EqualsString(str.Value, "__proto__") {
+					if inlined, ok := key.Data.(*js_ast.EInlinedEnum); ok {
+						switch inlined.Value.Data.(type) {
+						case *js_ast.EString, *js_ast.ENumber:
+							key.Data = inlined.Value.Data
+							property.Key.Data = key.Data
+						}
+					}
+					switch k := key.Data.(type) {
+					case *js_ast.ENumber:
 						property.Flags &= ^js_ast.PropertyIsComputed
+					case *js_ast.EString:
+						if !helpers.UTF16EqualsString(k.Value, "__proto__") {
+							property.Flags &= ^js_ast.PropertyIsComputed
+						}
 					}
 				}
 			} else {

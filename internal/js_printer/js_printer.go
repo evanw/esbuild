@@ -982,6 +982,34 @@ func (p *printer) printProperty(property js_ast.Property) {
 		return
 	}
 
+	// Handle key syntax compression for cross-module constant inlining of enums
+	if p.options.MinifySyntax && property.Flags.Has(js_ast.PropertyIsComputed) {
+		if dot, ok := property.Key.Data.(*js_ast.EDot); ok {
+			if id, ok := dot.Target.Data.(*js_ast.EImportIdentifier); ok {
+				ref := js_ast.FollowSymbols(p.symbols, id.Ref)
+				if symbol := p.symbols.Get(ref); symbol.Kind == js_ast.SymbolTSEnum {
+					if enum, ok := p.options.TSEnums[ref]; ok {
+						if value, ok := enum[dot.Name]; ok {
+							if value.String != nil {
+								property.Key.Data = &js_ast.EString{Value: value.String}
+
+								// Problematic key names must stay computed for correctness
+								if !helpers.UTF16EqualsString(value.String, "__proto__") &&
+									!helpers.UTF16EqualsString(value.String, "constructor") &&
+									!helpers.UTF16EqualsString(value.String, "prototype") {
+									property.Flags &= ^js_ast.PropertyIsComputed
+								}
+							} else {
+								property.Key.Data = &js_ast.ENumber{Value: value.Number}
+								property.Flags &= ^js_ast.PropertyIsComputed
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
 	if property.Flags.Has(js_ast.PropertyIsStatic) {
 		p.addSourceMapping(property.Loc)
 		p.print("static")

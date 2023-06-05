@@ -1181,6 +1181,60 @@ var Foo=(e=>(e[e.A=0]="A",e[e.B=1]="B",e[e.C=e]="C",e))(Foo||{});
 export var Foo=(e=>(e[e.X=0]="X",e[e.Y=1]="Y",e[e.Z=e]="Z",e))(Foo||{});
 
 ================================================================================
+TestTSMinifyEnumPropertyNames
+---------- /out.js ----------
+// entry.ts
+var Foo = class {
+  100 = 100;
+  200 = 200;
+  300 = 300;
+  "str 1" = "str 1" /* STR */;
+  123 = 123 /* NUM */;
+  "str 2" = "str 2" /* STR */;
+  321 = 321 /* NUM */;
+};
+shouldNotBeComputed(
+  class {
+    100 = 100;
+    200 = 200;
+    300 = 300;
+    "str 1" = "str 1" /* STR */;
+    123 = 123 /* NUM */;
+    "str 2" = "str 2" /* STR */;
+    321 = 321 /* NUM */;
+  },
+  {
+    100: 100,
+    200: 200,
+    300: 300,
+    "str 1": "str 1" /* STR */,
+    123: 123 /* NUM */,
+    "str 2": "str 2" /* STR */,
+    321: 321 /* NUM */
+  }
+);
+mustBeComputed(
+  { ["__proto__"]: null },
+  { ["__proto__"]: null },
+  class {
+    ["constructor"]() {
+    }
+  },
+  class {
+    ["constructor"]() {
+    }
+  },
+  class {
+    static ["prototype"]() {
+    }
+  },
+  class {
+    static ["prototype"]() {
+    }
+  }
+);
+
+================================================================================
 TestTSMinifyNamespace
 ---------- /a.js ----------
 var Foo;(e=>{let a;(p=>foo(e,p))(a=e.Bar||={})})(Foo||={});
