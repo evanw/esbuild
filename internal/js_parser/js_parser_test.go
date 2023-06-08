@@ -2675,6 +2675,15 @@ func TestConstantFolding(t *testing.T) {
 	expectPrinted(t, "x = -0 == false", "x = true;\n")
 	expectPrinted(t, "x = 1 == true", "x = true;\n")
 	expectPrinted(t, "x = 2 == true", "x = false;\n")
+
+	expectPrintedMangle(t, `{ const x = 0; const f = () => x; f(); };`, "(() => 0)();\n")
+	expectPrintedMangle(t, `{ const f = () => x; const x = 0; f(); };`, "(() => 0)();\n")
+	expectPrintedMangle(t, `const f = () => x; const x = 0; f();`, "(() => 0)();\n")
+}
+
+func TestTemporalDeadZone(t *testing.T) {
+	expectPrintedMangle(t, "{ number; const number=10; };", "{\n  number;\n  const number = 10;\n}\n")
+	expectPrintedMangle(t, "{ const x = y; const y = 1; }", "{\n  const x = y, y = 1;\n}\n")
 }
 
 func TestConstantFoldingScopes(t *testing.T) {
