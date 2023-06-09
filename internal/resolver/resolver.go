@@ -711,44 +711,22 @@ func (r resolverQuery) finalizeResolve(result *ResolveResult) {
 				// Copy various fields from the nearest enclosing "tsconfig.json" file if present
 				if path == &result.PathPair.Primary {
 					if tsConfigJSON := r.tsConfigForDir(dirInfo); tsConfigJSON != nil {
-						// Except don't do this if we're inside a "node_modules" directory. Package
-						// authors often publish their "tsconfig.json" files to npm because of
-						// npm's default-include publishing model and because these authors
-						// probably don't know about ".npmignore" files.
-						//
-						// People trying to use these packages with esbuild have historically
-						// complained that esbuild is respecting "tsconfig.json" in these cases.
-						// The assumption is that the package author published these files by
-						// accident.
-						//
-						// Ignoring "tsconfig.json" files inside "node_modules" directories breaks
-						// the use case of publishing TypeScript code and having it be transpiled
-						// for you, but that's the uncommon case and likely doesn't work with
-						// many other tools anyway. So now these files are ignored.
-						if helpers.IsInsideNodeModules(result.PathPair.Primary.Text) {
-							if r.debugLogs != nil {
-								r.debugLogs.addNote(fmt.Sprintf("Ignoring %q because %q is inside \"node_modules\"",
-									tsConfigJSON.AbsPath,
-									result.PathPair.Primary.Text))
-							}
-						} else {
-							result.TSConfig = &tsConfigJSON.Settings
-							result.TSConfigJSX = tsConfigJSON.JSXSettings
-							result.TSAlwaysStrict = tsConfigJSON.TSAlwaysStrictOrStrict()
+						result.TSConfig = &tsConfigJSON.Settings
+						result.TSConfigJSX = tsConfigJSON.JSXSettings
+						result.TSAlwaysStrict = tsConfigJSON.TSAlwaysStrictOrStrict()
 
-							if r.debugLogs != nil {
-								r.debugLogs.addNote(fmt.Sprintf("This import is under the effect of %q",
+						if r.debugLogs != nil {
+							r.debugLogs.addNote(fmt.Sprintf("This import is under the effect of %q",
+								tsConfigJSON.AbsPath))
+							if result.TSConfigJSX.JSXFactory != nil {
+								r.debugLogs.addNote(fmt.Sprintf("\"jsxFactory\" is %q due to %q",
+									strings.Join(result.TSConfigJSX.JSXFactory, "."),
 									tsConfigJSON.AbsPath))
-								if result.TSConfigJSX.JSXFactory != nil {
-									r.debugLogs.addNote(fmt.Sprintf("\"jsxFactory\" is %q due to %q",
-										strings.Join(result.TSConfigJSX.JSXFactory, "."),
-										tsConfigJSON.AbsPath))
-								}
-								if result.TSConfigJSX.JSXFragmentFactory != nil {
-									r.debugLogs.addNote(fmt.Sprintf("\"jsxFragment\" is %q due to %q",
-										strings.Join(result.TSConfigJSX.JSXFragmentFactory, "."),
-										tsConfigJSON.AbsPath))
-								}
+							}
+							if result.TSConfigJSX.JSXFragmentFactory != nil {
+								r.debugLogs.addNote(fmt.Sprintf("\"jsxFragment\" is %q due to %q",
+									strings.Join(result.TSConfigJSX.JSXFragmentFactory, "."),
+									tsConfigJSON.AbsPath))
 							}
 						}
 					}
@@ -1402,16 +1380,40 @@ func (r resolverQuery) dirInfoUncached(path string) *dirInfo {
 			tsConfigPath = r.fs.Join(path, "jsconfig.json")
 		}
 		if tsConfigPath != "" {
-			var err error
-			info.enclosingTSConfigJSON, err = r.parseTSConfig(tsConfigPath, make(map[string]bool))
-			if err != nil {
-				if err == syscall.ENOENT {
-					r.log.AddError(nil, logger.Range{}, fmt.Sprintf("Cannot find tsconfig file %q",
-						PrettyPath(r.fs, logger.Path{Text: tsConfigPath, Namespace: "file"})))
-				} else if err != errParseErrorAlreadyLogged {
-					r.log.AddID(logger.MsgID_TSConfigJSON_Missing, logger.Debug, nil, logger.Range{},
-						fmt.Sprintf("Cannot read file %q: %s",
-							PrettyPath(r.fs, logger.Path{Text: tsConfigPath, Namespace: "file"}), err.Error()))
+			isInsideNodeModules := false
+			for dir := info; dir != nil; dir = dir.parent {
+				if dir.isNodeModules {
+					isInsideNodeModules = true
+					break
+				}
+			}
+
+			// Except don't do this if we're inside a "node_modules" directory. Package
+			// authors often publish their "tsconfig.json" files to npm because of
+			// npm's default-include publishing model and because these authors
+			// probably don't know about ".npmignore" files.
+			//
+			// People trying to use these packages with esbuild have historically
+			// complained that esbuild is respecting "tsconfig.json" in these cases.
+			// The assumption is that the package author published these files by
+			// accident.
+			//
+			// Ignoring "tsconfig.json" files inside "node_modules" directories breaks
+			// the use case of publishing TypeScript code and having it be transpiled
+			// for you, but that's the uncommon case and likely doesn't work with
+			// many other tools anyway. So now these files are ignored.
+			if !isInsideNodeModules {
+				var err error
+				info.enclosingTSConfigJSON, err = r.parseTSConfig(tsConfigPath, make(map[string]bool))
+				if err != nil {
+					if err == syscall.ENOENT {
+						r.log.AddError(nil, logger.Range{}, fmt.Sprintf("Cannot find tsconfig file %q",
+							PrettyPath(r.fs, logger.Path{Text: tsConfigPath, Namespace: "file"})))
+					} else if err != errParseErrorAlreadyLogged {
+						r.log.AddID(logger.MsgID_TSConfigJSON_Missing, logger.Debug, nil, logger.Range{},
+							fmt.Sprintf("Cannot read file %q: %s",
+								PrettyPath(r.fs, logger.Path{Text: tsConfigPath, Namespace: "file"}), err.Error()))
+					}
 				}
 			}
 		}

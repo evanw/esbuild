@@ -1629,6 +1629,53 @@ func TestTsConfigPathsExtendsBaseURL(t *testing.T) {
 	})
 }
 
+func TestTsConfigPathsInNodeModulesIssue2386(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/main.js": `
+				import first from "wow/first";
+				import next from "wow/next";
+				console.log(first, next);
+			`,
+			"/Users/user/project/node_modules/wow/package.json": `{
+				"name": "wow",
+				"type": "module",
+				"private": true,
+				"exports": {
+					"./*": "./dist/*.js"
+				},
+				"typesVersions": {
+					"*": {
+						"*": [
+							"dist/*"
+						]
+					}
+				}
+			}`,
+			"/Users/user/project/node_modules/wow/tsconfig.json": `{
+				"compilerOptions": {
+					"paths": { "wow/*": [ "./*" ] }
+				}
+			}`,
+			"/Users/user/project/node_modules/wow/dist/first.js": `
+				export default "dist";
+			`,
+			"/Users/user/project/node_modules/wow/dist/next.js": `
+				import next from "wow/first";
+				export default next;
+			`,
+			"/Users/user/project/node_modules/wow/first.ts": `
+				export default "source";
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/main.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
 func TestTsConfigWithStatementAlwaysStrictFalse(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{

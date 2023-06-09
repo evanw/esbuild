@@ -237,6 +237,18 @@ var foo = 123;
 console.log(foo);
 
 ================================================================================
+TestTsConfigPathsInNodeModulesIssue2386
+---------- /Users/user/project/out.js ----------
+// Users/user/project/node_modules/wow/dist/first.js
+var first_default = "dist";
+
+// Users/user/project/node_modules/wow/dist/next.js
+var next_default = first_default;
+
+// Users/user/project/main.js
+console.log(first_default, next_default);
+
+================================================================================
 TestTsConfigPathsNoBaseURL
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/simple/test0-success.ts

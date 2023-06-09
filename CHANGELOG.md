@@ -93,6 +93,10 @@
 
         Previously if you wanted to override esbuild's automatic `tsconfig.json` file detection, you had to create a new `tsconfig.json` file and pass the file name to esbuild via the `--tsconfig=` flag. With this release, you can now optionally use `--tsconfig-raw=` instead to pass the contents of `tsconfig.json` to esbuild directly instead of passing the file name. For example, you can now use `--tsconfig-raw={"compilerOptions":{"experimentalDecorators":true}}` to enable TypeScript experimental decorators directly using a command-line flag (assuming you escape the quotes correctly using your current shell's quoting rules). The `--tsconfig-raw=` flag previously only worked with transform API calls but with this release, it now works with build API calls too.
 
+    * Ignore all `tsconfig.json` files in `node_modules` ([#276](https://github.com/evanw/esbuild/issues/276), [#2386](https://github.com/evanw/esbuild/issues/2386))
+
+        This changes esbuild's behavior that applies `tsconfig.json` to all files in the subtree of the directory containing `tsconfig.json`. In version 0.12.7, esbuild started ignoring `tsconfig.json` files inside `node_modules` folders. The rationale is that people typically do this by mistake and that doing this intentionally is a rare use case that doesn't need to be supported. However, this change only applied to certain syntax-specific settings (e.g. `jsxFactory`) but did not apply to path resolution settings (e.g. `paths`). With this release, esbuild will now ignore all `tsconfig.json` files in `node_modules` instead of only ignoring certain settings.
+
     These changes are intended to improve esbuild's compatibility with `tsc` and reduce the number of unfortunate behaviors regarding `tsconfig.json` and esbuild.
 
 * Add a workaround for bugs in Safari 16.2 and earlier ([#3072](https://github.com/evanw/esbuild/issues/3072))
