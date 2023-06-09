@@ -1283,6 +1283,21 @@ function foo(){let u;return(n=>(n[n.A=0]="A",n[n.B=1]="B",n[n.C=n]="C"))(u||(u={
 export function foo(){let e;return(n=>(n[n.X=0]="X",n[n.Y=1]="Y",n[n.Z=n]="Z"))(e||(e={})),e}
 
 ================================================================================
+TestTSPreferJSOverTSInsideNodeModules
+---------- /out/main.js ----------
+// Users/user/project/src/relative/path.ts
+console.log("success");
+
+// Users/user/project/node_modules/package/path.js
+console.log("success");
+
+// Users/user/project/src/relative2/path.js
+console.log("success");
+
+// Users/user/project/node_modules/package2/path.js
+console.log("success");
+
+================================================================================
 TestTSSiblingEnum
 ---------- /out/number.js ----------
 export var x = /* @__PURE__ */ ((x2) => {

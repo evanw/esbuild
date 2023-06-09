@@ -195,6 +195,22 @@ type Resolver struct {
 	// picture but it's better than some alternatives and probably pretty good.
 	atImportExtensionOrder []string
 
+	// A special sorted import order for imports inside packages.
+	//
+	// The "resolve extensions" setting determines the order of implicit
+	// extensions to try when resolving imports with the extension omitted.
+	// Sometimes people author a package using TypeScript and publish both the
+	// compiled JavaScript and the original TypeScript. The compiled JavaScript
+	// depends on the "tsconfig.json" settings that were passed to "tsc" when
+	// it was compiled, and we don't know what they are (they may even be
+	// unknowable if the "tsconfig.json" file wasn't published).
+	//
+	// To work around this, we sort TypeScript file extensions after JavaScript
+	// file extensions (but only within packages) so that esbuild doesn't load
+	// the original source code in these scenarios. Instead we should load the
+	// compiled code, which is what will be loaded by node at run-time.
+	nodeModulesExtensionOrder []string
+
 	// This cache maps a directory path to information about that directory and
 	// all parent directories
 	dirCache map[string]*dirInfo
@@ -226,10 +242,23 @@ func NewResolver(call config.APICall, fs fs.FS, log logger.Log, caches *cache.Ca
 	// Filter out non-CSS extensions for CSS "@import" imports
 	atImportExtensionOrder := make([]string, 0, len(options.ExtensionOrder))
 	for _, ext := range options.ExtensionOrder {
-		if loader, ok := options.ExtensionToLoader[ext]; ok && loader != config.LoaderCSS {
-			continue
+		if loader, ok := options.ExtensionToLoader[ext]; !ok || loader == config.LoaderCSS {
+			atImportExtensionOrder = append(atImportExtensionOrder, ext)
 		}
-		atImportExtensionOrder = append(atImportExtensionOrder, ext)
+	}
+
+	// Sort all JavaScript file extensions after TypeScript file extensions
+	// for imports of files inside of "node_modules" directories
+	nodeModulesExtensionOrder := make([]string, 0, len(options.ExtensionOrder))
+	for _, ext := range options.ExtensionOrder {
+		if loader, ok := options.ExtensionToLoader[ext]; !ok || !loader.IsTypeScript() {
+			nodeModulesExtensionOrder = append(nodeModulesExtensionOrder, ext)
+		}
+	}
+	for _, ext := range options.ExtensionOrder {
+		if loader, ok := options.ExtensionToLoader[ext]; ok && loader.IsTypeScript() {
+			nodeModulesExtensionOrder = append(nodeModulesExtensionOrder, ext)
+		}
 	}
 
 	// Generate the condition sets for interpreting the "exports" field
@@ -253,15 +282,16 @@ func NewResolver(call config.APICall, fs fs.FS, log logger.Log, caches *cache.Ca
 	fs.Cwd()
 
 	res := &Resolver{
-		fs:                     fs,
-		log:                    log,
-		options:                *options,
-		caches:                 caches,
-		dirCache:               make(map[string]*dirInfo),
-		atImportExtensionOrder: atImportExtensionOrder,
-		esmConditionsDefault:   esmConditionsDefault,
-		esmConditionsImport:    esmConditionsImport,
-		esmConditionsRequire:   esmConditionsRequire,
+		fs:                        fs,
+		log:                       log,
+		options:                   *options,
+		caches:                    caches,
+		dirCache:                  make(map[string]*dirInfo),
+		atImportExtensionOrder:    atImportExtensionOrder,
+		nodeModulesExtensionOrder: nodeModulesExtensionOrder,
+		esmConditionsDefault:      esmConditionsDefault,
+		esmConditionsImport:       esmConditionsImport,
+		esmConditionsRequire:      esmConditionsRequire,
 	}
 
 	// Handle the "tsconfig.json" override when the resolver is created. This
@@ -1465,18 +1495,6 @@ var rewrittenFileExtensions = map[string][]string{
 	".cjs": {".cts"},
 }
 
-var tsExtensionsToRemove = map[string]bool{
-	".mjs":  true,
-	".mts":  true,
-	".cjs":  true,
-	".cts":  true,
-	".ts":   true,
-	".js":   true,
-	".tsx":  true,
-	".jsx":  true,
-	".json": true,
-}
-
 func (r resolverQuery) loadAsFile(path string, extensionOrder []string) (string, bool, *fs.DifferentCase) {
 	if r.debugLogs != nil {
 		r.debugLogs.addNote(fmt.Sprintf("Attempting to load %q as a file", path))
@@ -1680,10 +1698,13 @@ func getBool(json js_ast.Expr) (bool, bool) {
 }
 
 func (r resolverQuery) loadAsFileOrDirectory(path string) (PathPair, bool, *fs.DifferentCase) {
-	// Use a special import order for CSS "@import" imports
 	extensionOrder := r.options.ExtensionOrder
 	if r.kind == ast.ImportAt || r.kind == ast.ImportAtConditional {
+		// Use a special import order for CSS "@import" imports
 		extensionOrder = r.atImportExtensionOrder
+	} else if helpers.IsInsideNodeModules(path) {
+		// Use a special import order for imports inside "node_modules"
+		extensionOrder = r.nodeModulesExtensionOrder
 	}
 
 	// Is this a file?
