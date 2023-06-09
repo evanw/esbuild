@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.18.0
+
+**This release deliberately contains backwards-incompatible changes.** To avoid automatically picking up releases like this, you should either be pinning the exact version of `esbuild` in your `package.json` file (recommended) or be using a version range syntax that only accepts patch upgrades such as `^0.17.0` or `~0.17.0`. See npm's documentation about [semver](https://docs.npmjs.com/cli/v6/using-npm/semver/) for more information.
+
+The breaking changes in this release mainly focus on fixing some long-standing issues with esbuild's handling of `tsconfig.json` files. Here are all the changes in this release, in detail:
 
 * Add a way to try esbuild online ([#797](https://github.com/evanw/esbuild/issues/797))
 
