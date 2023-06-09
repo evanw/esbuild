@@ -2435,6 +2435,30 @@ error: Invalid path suffix "%what" returned from plugin (must start with "?" or 
     })
     assert.strictEqual(result.outputFiles[0].text, `var test2 = "injected";\nconsole.log(test2);\n`)
   },
+
+  async tsconfigRawAffectsVirtualFiles({ esbuild }) {
+    const result = await esbuild.build({
+      entryPoints: ['entry'],
+      tsconfigRaw: {
+        compilerOptions: {
+          jsxFactory: 'jay_ess_ex',
+        },
+      },
+      write: false,
+      plugins: [{
+        name: 'name',
+        setup(build) {
+          build.onResolve({ filter: /entry/ }, () => {
+            return { path: 'foo', namespace: 'ns' }
+          })
+          build.onLoad({ filter: /foo/ }, () => {
+            return { loader: 'tsx', contents: 'console.log(<div/>)' }
+          })
+        },
+      }],
+    })
+    assert.strictEqual(result.outputFiles[0].text, 'console.log(/* @__PURE__ */ jay_ess_ex("div", null));\n')
+  },
 }
 
 const makeRebuildUntilPlugin = () => {
