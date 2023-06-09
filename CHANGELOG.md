@@ -101,6 +101,10 @@
 
         This changes esbuild's behavior that applies `tsconfig.json` to all files in the subtree of the directory containing `tsconfig.json`. In version 0.12.7, esbuild started ignoring `tsconfig.json` files inside `node_modules` folders. The rationale is that people typically do this by mistake and that doing this intentionally is a rare use case that doesn't need to be supported. However, this change only applied to certain syntax-specific settings (e.g. `jsxFactory`) but did not apply to path resolution settings (e.g. `paths`). With this release, esbuild will now ignore all `tsconfig.json` files in `node_modules` instead of only ignoring certain settings.
 
+    * Ignore `tsconfig.json` when resolving paths within `node_modules` ([#2481](https://github.com/evanw/esbuild/issues/2481))
+
+        Previously fields in `tsconfig.json` related to path resolution (e.g. `paths`) were respected for all files in the subtree containing that `tsconfig.json` file, even within a nested `node_modules` subdirectory. This meant that a project's `paths` settings could potentially affect any bundled packages. With this release, esbuild will no longer use `tsconfig.json` settings during path resolution inside nested `node_modules` subdirectories.
+
     These changes are intended to improve esbuild's compatibility with `tsc` and reduce the number of unfortunate behaviors regarding `tsconfig.json` and esbuild.
 
 * Add a workaround for bugs in Safari 16.2 and earlier ([#3072](https://github.com/evanw/esbuild/issues/3072))

@@ -927,9 +927,13 @@ type dirInfo struct {
 	absRealPath           string        // If non-empty, this is the real absolute path resolving any symlinks
 	isNodeModules         bool          // Is the base name "node_modules"?
 	hasNodeModules        bool          // Is there a "node_modules" subdirectory?
+	isInsideNodeModules   bool          // Is this within a  "node_modules" subtree?
 }
 
 func (r resolverQuery) tsConfigForDir(dirInfo *dirInfo) *TSConfigJSON {
+	if dirInfo.isInsideNodeModules {
+		return nil
+	}
 	if r.tsConfigOverride != nil {
 		return r.tsConfigOverride
 	}
@@ -1329,6 +1333,7 @@ func (r resolverQuery) dirInfoUncached(path string) *dirInfo {
 	base := r.fs.Base(path)
 	if base == "node_modules" {
 		info.isNodeModules = true
+		info.isInsideNodeModules = true
 	} else if entry, _ := entries.Get("node_modules"); entry != nil {
 		info.hasNodeModules = entry.Kind(r.fs) == fs.DirEntry
 	}
@@ -1338,6 +1343,9 @@ func (r resolverQuery) dirInfoUncached(path string) *dirInfo {
 		info.enclosingPackageJSON = parentInfo.enclosingPackageJSON
 		info.enclosingBrowserScope = parentInfo.enclosingBrowserScope
 		info.enclosingTSConfigJSON = parentInfo.enclosingTSConfigJSON
+		if parentInfo.isInsideNodeModules {
+			info.isInsideNodeModules = true
+		}
 
 		// Make sure "absRealPath" is the real path of the directory (resolving any symlinks)
 		if !r.options.PreserveSymlinks {
@@ -1379,41 +1387,32 @@ func (r resolverQuery) dirInfoUncached(path string) *dirInfo {
 		} else if entry, _ := entries.Get("jsconfig.json"); entry != nil && entry.Kind(r.fs) == fs.FileEntry {
 			tsConfigPath = r.fs.Join(path, "jsconfig.json")
 		}
-		if tsConfigPath != "" {
-			isInsideNodeModules := false
-			for dir := info; dir != nil; dir = dir.parent {
-				if dir.isNodeModules {
-					isInsideNodeModules = true
-					break
-				}
-			}
 
-			// Except don't do this if we're inside a "node_modules" directory. Package
-			// authors often publish their "tsconfig.json" files to npm because of
-			// npm's default-include publishing model and because these authors
-			// probably don't know about ".npmignore" files.
-			//
-			// People trying to use these packages with esbuild have historically
-			// complained that esbuild is respecting "tsconfig.json" in these cases.
-			// The assumption is that the package author published these files by
-			// accident.
-			//
-			// Ignoring "tsconfig.json" files inside "node_modules" directories breaks
-			// the use case of publishing TypeScript code and having it be transpiled
-			// for you, but that's the uncommon case and likely doesn't work with
-			// many other tools anyway. So now these files are ignored.
-			if !isInsideNodeModules {
-				var err error
-				info.enclosingTSConfigJSON, err = r.parseTSConfig(tsConfigPath, make(map[string]bool))
-				if err != nil {
-					if err == syscall.ENOENT {
-						r.log.AddError(nil, logger.Range{}, fmt.Sprintf("Cannot find tsconfig file %q",
-							PrettyPath(r.fs, logger.Path{Text: tsConfigPath, Namespace: "file"})))
-					} else if err != errParseErrorAlreadyLogged {
-						r.log.AddID(logger.MsgID_TSConfigJSON_Missing, logger.Debug, nil, logger.Range{},
-							fmt.Sprintf("Cannot read file %q: %s",
-								PrettyPath(r.fs, logger.Path{Text: tsConfigPath, Namespace: "file"}), err.Error()))
-					}
+		// Except don't do this if we're inside a "node_modules" directory. Package
+		// authors often publish their "tsconfig.json" files to npm because of
+		// npm's default-include publishing model and because these authors
+		// probably don't know about ".npmignore" files.
+		//
+		// People trying to use these packages with esbuild have historically
+		// complained that esbuild is respecting "tsconfig.json" in these cases.
+		// The assumption is that the package author published these files by
+		// accident.
+		//
+		// Ignoring "tsconfig.json" files inside "node_modules" directories breaks
+		// the use case of publishing TypeScript code and having it be transpiled
+		// for you, but that's the uncommon case and likely doesn't work with
+		// many other tools anyway. So now these files are ignored.
+		if tsConfigPath != "" && !info.isInsideNodeModules {
+			var err error
+			info.enclosingTSConfigJSON, err = r.parseTSConfig(tsConfigPath, make(map[string]bool))
+			if err != nil {
+				if err == syscall.ENOENT {
+					r.log.AddError(nil, logger.Range{}, fmt.Sprintf("Cannot find tsconfig file %q",
+						PrettyPath(r.fs, logger.Path{Text: tsConfigPath, Namespace: "file"})))
+				} else if err != errParseErrorAlreadyLogged {
+					r.log.AddID(logger.MsgID_TSConfigJSON_Missing, logger.Debug, nil, logger.Range{},
+						fmt.Sprintf("Cannot read file %q: %s",
+							PrettyPath(r.fs, logger.Path{Text: tsConfigPath, Namespace: "file"}), err.Error()))
 				}
 			}
 		}

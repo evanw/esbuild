@@ -146,6 +146,45 @@ tests.push(
   }),
 )
 
+// Check "tsconfig.json" behavior
+tests.push(
+  // See: https://github.com/evanw/esbuild/issues/2481
+  test(['main.ts', '--bundle', '--outfile=node.js'], {
+    'main.ts': `
+      import { foo } from 'js-pkg'
+      import { bar } from 'ts-pkg'
+      import { foo as shimFoo, bar as shimBar } from 'pkg'
+      if (foo !== 'foo') throw 'fail: foo'
+      if (bar !== 'bar') throw 'fail: bar'
+      if (shimFoo !== 'shimFoo') throw 'fail: shimFoo'
+      if (shimBar !== 'shimBar') throw 'fail: shimBar'
+    `,
+    'shim.ts': `
+      export let foo = 'shimFoo'
+      export let bar = 'shimBar'
+    `,
+    'tsconfig.json': `{
+      "compilerOptions": {
+        "paths": {
+          "pkg": ["./shim"],
+        },
+      },
+    }`,
+    'node_modules/js-pkg/index.js': `
+      import { foo as pkgFoo } from 'pkg'
+      export let foo = pkgFoo
+    `,
+    'node_modules/ts-pkg/index.ts': `
+      import { bar as pkgBar } from 'pkg'
+      export let bar = pkgBar
+    `,
+    'node_modules/pkg/index.js': `
+      export let foo = 'foo'
+      export let bar = 'bar'
+    `,
+  }),
+)
+
 // Test coverage for a special JSX error message
 tests.push(
   test(['example.jsx', '--outfile=node.js'], {

@@ -2310,3 +2310,47 @@ func TestTsConfigExtendsArrayNested(t *testing.T) {
 		},
 	})
 }
+
+func TestTsConfigIgnoreInsideNodeModules(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/main.ts": `
+				import { foo } from 'js-pkg'
+				import { bar } from 'ts-pkg'
+				import { foo as shimFoo, bar as shimBar } from 'pkg'
+				if (foo !== 'foo') throw 'fail: foo'
+				if (bar !== 'bar') throw 'fail: bar'
+				if (shimFoo !== 'shimFoo') throw 'fail: shimFoo'
+				if (shimBar !== 'shimBar') throw 'fail: shimBar'
+			`,
+			"/Users/user/project/shim.ts": `
+				export let foo = 'shimFoo'
+				export let bar = 'shimBar'
+			`,
+			"/Users/user/project/tsconfig.json": `{
+				"compilerOptions": {
+					"paths": {
+						"pkg": ["./shim"],
+					},
+				},
+			}`,
+			"/Users/user/project/node_modules/js-pkg/index.js": `
+				import { foo as pkgFoo } from 'pkg'
+				export let foo = pkgFoo
+			`,
+			"/Users/user/project/node_modules/ts-pkg/index.ts": `
+				import { bar as pkgBar } from 'pkg'
+				export let bar = pkgBar
+			`,
+			"/Users/user/project/node_modules/pkg/index.js": `
+				export let foo = 'foo'
+				export let bar = 'bar'
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/main.ts"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/Users/user/project/out",
+		},
+	})
+}
