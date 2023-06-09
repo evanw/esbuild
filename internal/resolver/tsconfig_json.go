@@ -41,6 +41,27 @@ type TSConfigJSON struct {
 	Settings       config.TSConfig
 }
 
+func (derived *TSConfigJSON) applyExtendedConfig(base TSConfigJSON) {
+	if base.tsTargetKey.Range.Len > 0 {
+		derived.tsTargetKey = base.tsTargetKey
+	}
+	if base.TSStrict != nil {
+		derived.TSStrict = base.TSStrict
+	}
+	if base.TSAlwaysStrict != nil {
+		derived.TSAlwaysStrict = base.TSAlwaysStrict
+	}
+	if base.BaseURL != nil {
+		derived.BaseURL = base.BaseURL
+	}
+	if base.Paths != nil {
+		derived.Paths = base.Paths
+		derived.BaseURLForPaths = base.BaseURLForPaths
+	}
+	derived.JSXSettings.ApplyExtendedConfig(base.JSXSettings)
+	derived.Settings.ApplyExtendedConfig(base.Settings)
+}
+
 func (config *TSConfigJSON) TSAlwaysStrictOrStrict() *config.TSAlwaysStrict {
 	if config.TSAlwaysStrict != nil {
 		return config.TSAlwaysStrict
@@ -98,7 +119,15 @@ func ParseTSConfigJSON(
 		if valueJSON, _, ok := getProperty(json, "extends"); ok {
 			if value, ok := getString(valueJSON); ok {
 				if base := extends(value, source.RangeOfString(valueJSON.Loc)); base != nil {
-					result = *base
+					result.applyExtendedConfig(*base)
+				}
+			} else if array, ok := valueJSON.Data.(*js_ast.EArray); ok {
+				for _, item := range array.Items {
+					if str, ok := getString(item); ok {
+						if base := extends(str, source.RangeOfString(item.Loc)); base != nil {
+							result.applyExtendedConfig(*base)
+						}
+					}
 				}
 			}
 		}
@@ -148,7 +177,7 @@ func ParseTSConfigJSON(
 		// Parse "jsxImportSource"
 		if valueJSON, _, ok := getProperty(compilerOptionsJSON, "jsxImportSource"); ok {
 			if value, ok := getString(valueJSON); ok {
-				result.JSXSettings.JSXImportSource = value
+				result.JSXSettings.JSXImportSource = &value
 			}
 		}
 

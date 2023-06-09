@@ -81,6 +81,10 @@
 
         TypeScript 5.0 added a new option called [`verbatimModuleSyntax`](https://www.typescriptlang.org/tsconfig#verbatimModuleSyntax) that deprecates and replaces two older options, `preserveValueImports` and `importsNotUsedAsValues`. Setting `verbatimModuleSyntax` to true in `tsconfig.json` tells esbuild to not drop unused import statements. Specifically esbuild now treats `"verbatimModuleSyntax": true` as if you had specified both `"preserveValueImports": true` and `"importsNotUsedAsValues": "preserve"`.
 
+    * Add multiple inheritance for `tsconfig.json` from TypeScript 5.0
+
+        TypeScript 5.0 now allows [multiple inheritance for `tsconfig.json` files](https://devblogs.microsoft.com/typescript/announcing-typescript-5-0/#supporting-multiple-configuration-files-in-extends). You can now pass an array of filenames via the `extends` parameter and your `tsconfig.json` will start off containing properties from all of those configuration files, in order. This release of esbuild adds support for this new TypeScript feature.
+
     * Remove support for `moduleSuffixes` ([#2395](https://github.com/evanw/esbuild/issues/2395))
 
         The community has requested that esbuild remove support for TypeScript's `moduleSuffixes` feature, so it has been removed in this release. Instead you can use esbuild's `--resolve-extensions=` feature to select which module suffix you want to build with.

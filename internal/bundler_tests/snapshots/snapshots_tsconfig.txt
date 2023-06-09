@@ -83,6 +83,21 @@ var foo = 123;
 console.log(foo);
 
 ================================================================================
+TestTsConfigExtendsArray
+---------- /Users/user/project/out/main.js ----------
+console.log(/* @__PURE__ */ h(frag, null, /* @__PURE__ */ h("div", null)));
+
+================================================================================
+TestTsConfigExtendsArrayNested
+---------- /Users/user/project/out/main.js ----------
+import { foo } from "foo";
+export class Foo {
+  constructor() {
+    this.render = () => /* @__PURE__ */ b(bBase, null, /* @__PURE__ */ b("div", null));
+  }
+}
+
+================================================================================
 TestTsConfigExtendsDotDotWithSlash
 ---------- /Users/user/project/out/main.js ----------
 // Users/user/project/src/main.tsx

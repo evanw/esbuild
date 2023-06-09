@@ -45,8 +45,24 @@ type TSConfigJSX struct {
 	// If not empty, these should override the default values
 	JSXFactory         []string // Default if empty: "React.createElement"
 	JSXFragmentFactory []string // Default if empty: "React.Fragment"
-	JSXImportSource    string   // Default if empty: "react"
+	JSXImportSource    *string  // Default if empty: "react"
 	JSX                TSJSX
+}
+
+// This is used for "extends" in "tsconfig.json"
+func (derived *TSConfigJSX) ApplyExtendedConfig(base TSConfigJSX) {
+	if base.JSXFactory != nil {
+		derived.JSXFactory = base.JSXFactory
+	}
+	if base.JSXFragmentFactory != nil {
+		derived.JSXFragmentFactory = base.JSXFragmentFactory
+	}
+	if base.JSXImportSource != nil {
+		derived.JSXImportSource = base.JSXImportSource
+	}
+	if base.JSX != TSJSXNone {
+		derived.JSX = base.JSX
+	}
 }
 
 func (tsConfig *TSConfigJSX) ApplyTo(jsxOptions *JSXOptions) {
@@ -81,8 +97,8 @@ func (tsConfig *TSConfigJSX) ApplyTo(jsxOptions *JSXOptions) {
 		jsxOptions.Fragment = DefineExpr{Parts: tsConfig.JSXFragmentFactory}
 	}
 
-	if tsConfig.JSXImportSource != "" {
-		jsxOptions.ImportSource = tsConfig.JSXImportSource
+	if tsConfig.JSXImportSource != nil {
+		jsxOptions.ImportSource = *tsConfig.JSXImportSource
 	}
 }
 
@@ -97,6 +113,28 @@ type TSConfig struct {
 	VerbatimModuleSyntax    MaybeBool
 }
 
+// This is used for "extends" in "tsconfig.json"
+func (derived *TSConfig) ApplyExtendedConfig(base TSConfig) {
+	if base.ExperimentalDecorators != Unspecified {
+		derived.ExperimentalDecorators = base.ExperimentalDecorators
+	}
+	if base.ImportsNotUsedAsValues != TSImportsNotUsedAsValues_None {
+		derived.ImportsNotUsedAsValues = base.ImportsNotUsedAsValues
+	}
+	if base.PreserveValueImports != Unspecified {
+		derived.PreserveValueImports = base.PreserveValueImports
+	}
+	if base.Target != TSTargetUnspecified {
+		derived.Target = base.Target
+	}
+	if base.UseDefineForClassFields != Unspecified {
+		derived.UseDefineForClassFields = base.UseDefineForClassFields
+	}
+	if base.VerbatimModuleSyntax != Unspecified {
+		derived.VerbatimModuleSyntax = base.VerbatimModuleSyntax
+	}
+}
+
 func (cfg *TSConfig) UnusedImportFlags() (flags TSUnusedImportFlags) {
 	if cfg.VerbatimModuleSyntax == True {
 		return TSUnusedImport_KeepStmt | TSUnusedImport_KeepValues
@@ -104,7 +142,7 @@ func (cfg *TSConfig) UnusedImportFlags() (flags TSUnusedImportFlags) {
 	if cfg.PreserveValueImports == True {
 		flags |= TSUnusedImport_KeepValues
 	}
-	if cfg.ImportsNotUsedAsValues != TSImportsNotUsedAsValues_Remove {
+	if cfg.ImportsNotUsedAsValues == TSImportsNotUsedAsValues_Preserve || cfg.ImportsNotUsedAsValues == TSImportsNotUsedAsValues_Error {
 		flags |= TSUnusedImport_KeepStmt
 	}
 	return
@@ -422,7 +460,8 @@ type Options struct {
 type TSImportsNotUsedAsValues uint8
 
 const (
-	TSImportsNotUsedAsValues_Remove TSImportsNotUsedAsValues = iota
+	TSImportsNotUsedAsValues_None TSImportsNotUsedAsValues = iota
+	TSImportsNotUsedAsValues_Remove
 	TSImportsNotUsedAsValues_Preserve
 	TSImportsNotUsedAsValues_Error
 )

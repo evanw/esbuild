@@ -2223,3 +2223,90 @@ func TestTsConfigVerbatimModuleSyntaxFalse(t *testing.T) {
 		},
 	})
 }
+
+func TestTsConfigExtendsArray(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/main.tsx": `
+				declare let h: any, frag: any
+				console.log(<><div /></>)
+			`,
+			"/Users/user/project/tsconfig.json": `{
+				"extends": [
+					"./a.json",
+					"./b.json",
+				],
+			}`,
+			"/Users/user/project/a.json": `{
+				"compilerOptions": {
+					"jsxFactory": "h",
+					"jsxFragmentFactory": "FAILURE",
+				},
+			}`,
+			"/Users/user/project/b.json": `{
+				"compilerOptions": {
+					"jsxFragmentFactory": "frag",
+				},
+			}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/main.tsx"},
+		options: config.Options{
+			Mode:         config.ModePassThrough,
+			AbsOutputDir: "/Users/user/project/out",
+		},
+	})
+}
+
+func TestTsConfigExtendsArrayNested(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/main.tsx": `
+				import { foo } from 'foo'
+				declare let b: any, bBase: any
+				export class Foo {
+					render = () => <><div /></>
+				}
+			`,
+			"/Users/user/project/tsconfig.json": `{
+				"extends": [
+					"./a.json",
+					"./b.json",
+				],
+			}`,
+			"/Users/user/project/a.json": `{
+				"extends": "./a-base.json",
+				"compilerOptions": {
+					"jsxFactory": "a",
+					"jsxFragmentFactory": "a",
+					"target": "ES2015",
+				},
+			}`,
+			"/Users/user/project/a-base.json": `{
+				"compilerOptions": {
+					"jsxFactory": "aBase",
+					"jsxFragmentFactory": "aBase",
+					"target": "ES2022",
+					"verbatimModuleSyntax": true,
+				},
+			}`,
+			"/Users/user/project/b.json": `{
+				"extends": "./b-base.json",
+				"compilerOptions": {
+					"jsxFactory": "b",
+				},
+			}`,
+			"/Users/user/project/b-base.json": `{
+				"compilerOptions": {
+					"jsxFactory": "bBase",
+					"jsxFragmentFactory": "bBase",
+				},
+			}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/main.tsx"},
+		options: config.Options{
+			Mode:              config.ModePassThrough,
+			AbsOutputDir:      "/Users/user/project/out",
+			OriginalTargetEnv: "esnext",
+		},
+	})
+}
