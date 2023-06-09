@@ -281,6 +281,13 @@ type ExternalSettings struct {
 	PostResolve ExternalMatchers
 }
 
+type APICall uint8
+
+const (
+	BuildCall APICall = iota
+	TransformCall
+)
+
 type Mode uint8
 
 const (

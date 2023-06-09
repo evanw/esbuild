@@ -1106,6 +1106,7 @@ func generateUniqueKeyPrefix() (string, error) {
 // in the plugin API). Each unique module identifier is loaded once (i.e.
 // "onLoad" in the plugin API).
 func ScanBundle(
+	call config.APICall,
 	log logger.Log,
 	fs fs.FS,
 	caches *cache.CacheSet,
@@ -1142,7 +1143,7 @@ func ScanBundle(
 	}
 
 	// This may mutate "options" by the "tsconfig.json" override settings
-	res := resolver.NewResolver(fs, log, caches, &options)
+	res := resolver.NewResolver(call, fs, log, caches, &options)
 
 	s := scanner{
 		log:             log,

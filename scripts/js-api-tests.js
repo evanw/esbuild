@@ -5392,6 +5392,18 @@ let transformTests = {
     assert.strictEqual((await esbuild.transform('x => x', { loader: 'ts', target: 'es6', tsconfigRaw: { compilerOptions: { target: 'ES5' } } })).code, `(x) => x;\n`)
   },
 
+  async tsconfigRawExtends({ esbuild }) {
+    // Uses of "extends" in "tsconfigRaw" should be ignored for the transform API
+    const result = await esbuild.transform('let foo: bar', {
+      loader: 'ts',
+      logOverride: { 'tsconfig.json': 'error' },
+      tsconfigRaw: {
+        extends: __filename,
+      },
+    })
+    assert.strictEqual(result.code, `let foo;\n`)
+  },
+
   async tsImplicitUseDefineForClassFields({ esbuild }) {
     var { code } = await esbuild.transform(`class Foo { foo }`, {
       loader: 'ts',

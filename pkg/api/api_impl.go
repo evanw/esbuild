@@ -1484,7 +1484,7 @@ func rebuildImpl(args rebuildArgs, oldSummary buildSummary) rebuildState {
 	}
 
 	// Scan over the bundle
-	bundle := bundler.ScanBundle(log, realFS, args.caches, args.entryPoints, args.options, timer)
+	bundle := bundler.ScanBundle(config.BuildCall, log, realFS, args.caches, args.entryPoints, args.options, timer)
 	watchData = realFS.WatchData()
 
 	// The new build summary remains the same as the old one when there are
@@ -1774,7 +1774,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 
 		// Scan over the bundle
 		mockFS := fs.MockFS(make(map[string]string), fs.MockUnix, "/")
-		bundle := bundler.ScanBundle(log, mockFS, caches, nil, options, timer)
+		bundle := bundler.ScanBundle(config.TransformCall, log, mockFS, caches, nil, options, timer)
 
 		// Stop now if there were errors
 		if !log.HasErrors() {
@@ -2041,7 +2041,7 @@ func loadPlugins(initialOptions *BuildOptions, fs fs.FS, log logger.Log, caches 
 			// Make a new resolver so it has its own log
 			log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug, validateLogOverrides(initialOptions.LogOverride))
 			optionsClone := *optionsForResolve
-			resolver := resolver.NewResolver(fs, log, caches, &optionsClone)
+			resolver := resolver.NewResolver(config.BuildCall, fs, log, caches, &optionsClone)
 
 			// Make sure the resolve directory is an absolute path, which can fail
 			absResolveDir := validatePath(log, fs, options.ResolveDir, "resolve directory")

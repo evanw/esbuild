@@ -222,7 +222,7 @@ type resolverQuery struct {
 	kind      ast.ImportKind
 }
 
-func NewResolver(fs fs.FS, log logger.Log, caches *cache.CacheSet, options *config.Options) *Resolver {
+func NewResolver(call config.APICall, fs fs.FS, log logger.Log, caches *cache.CacheSet, options *config.Options) *Resolver {
 	// Filter out non-CSS extensions for CSS "@import" imports
 	atImportExtensionOrder := make([]string, 0, len(options.ExtensionOrder))
 	for _, ext := range options.ExtensionOrder {
@@ -274,16 +274,20 @@ func NewResolver(fs fs.FS, log logger.Log, caches *cache.CacheSet, options *conf
 			Resolver:  res,
 			debugMeta: &debugMeta,
 		}
+		var visited map[string]bool
 		var err error
+		if call == config.BuildCall {
+			visited = make(map[string]bool)
+		}
 		if options.TSConfigPath != "" {
-			res.tsConfigOverride, err = r.parseTSConfig(options.TSConfigPath, make(map[string]bool))
+			res.tsConfigOverride, err = r.parseTSConfig(options.TSConfigPath, visited)
 		} else {
 			source := logger.Source{
 				KeyPath:    logger.Path{Text: fs.Join(fs.Cwd(), "<tsconfig.json>"), Namespace: "file"},
 				PrettyPath: "<tsconfig.json>",
 				Contents:   options.TSConfigRaw,
 			}
-			res.tsConfigOverride, err = r.parseTSConfigFromSource(source, make(map[string]bool))
+			res.tsConfigOverride, err = r.parseTSConfigFromSource(source, visited)
 		}
 		if err != nil {
 			if err == syscall.ENOENT {
@@ -1000,7 +1004,11 @@ func (r resolverQuery) parseTSConfig(file string, visited map[string]bool) (*TSC
 	if visited[file] {
 		return nil, errParseErrorImportCycle
 	}
-	visited[file] = true
+	if visited != nil {
+		// This is only non-nil for "build" API calls. This is nil for "transform"
+		// API calls, which tells us to not process "extends" fields.
+		visited[file] = true
+	}
 
 	contents, err, originalError := r.caches.FSCache.ReadFile(r.fs, file)
 	if r.debugLogs != nil && originalError != nil {
@@ -1028,6 +1036,13 @@ func (r resolverQuery) parseTSConfigFromSource(source logger.Source, visited map
 	isExtends := len(visited) > 1
 
 	result := ParseTSConfigJSON(r.log, source, &r.caches.JSONCache, func(extends string, extendsRange logger.Range) *TSConfigJSON {
+		if visited == nil {
+			// If this is nil, then we're in a "transform" API call. In that case we
+			// deliberately skip processing "extends" fields. This is because the
+			// "transform" API is supposed to be without a file system.
+			return nil
+		}
+
 		// Note: This doesn't use the normal node module resolution algorithm
 		// both because it's different (e.g. we don't want to match a directory)
 		// and because it would deadlock since we're currently in the middle of
