@@ -480,23 +480,33 @@ func parseFile(args parseArgs) {
 						}
 					}
 
-					// If "sourcesContent" isn't present, try filling it in using the file system
-					if sourceMap != nil && sourceMap.SourcesContent == nil && !args.options.ExcludeSourcesContent {
-						for _, source := range sourceMap.Sources {
-							var absPath string
-							if args.fs.IsAbs(source) {
-								absPath = source
-							} else if path.Namespace == "file" {
-								absPath = args.fs.Join(args.fs.Dir(path.Text), source)
-							} else {
-								sourceMap.SourcesContent = append(sourceMap.SourcesContent, sourcemap.SourceContent{})
-								continue
+					// If "sourcesContent" entries aren't present, try filling them in
+					// using the file system. This includes both generating the entire
+					// "sourcesContent" array if it's absent as well as filling in
+					// individual null entries in the array if the array is present.
+					if sourceMap != nil && !args.options.ExcludeSourcesContent {
+						// Make sure "sourcesContent" is big enough
+						if len(sourceMap.SourcesContent) < len(sourceMap.Sources) {
+							slice := make([]sourcemap.SourceContent, len(sourceMap.Sources))
+							copy(slice, sourceMap.SourcesContent)
+							sourceMap.SourcesContent = slice
+						}
+
+						// Attempt to fill in null entries using the file system
+						for i, source := range sourceMap.Sources {
+							if sourceMap.SourcesContent[i].Value == nil {
+								var absPath string
+								if args.fs.IsAbs(source) {
+									absPath = source
+								} else if path.Namespace == "file" {
+									absPath = args.fs.Join(args.fs.Dir(path.Text), source)
+								} else {
+									continue
+								}
+								if contents, err, _ := args.caches.FSCache.ReadFile(args.fs, absPath); err == nil {
+									sourceMap.SourcesContent[i].Value = helpers.StringToUTF16(contents)
+								}
 							}
-							var sourceContent sourcemap.SourceContent
-							if contents, err, _ := args.caches.FSCache.ReadFile(args.fs, absPath); err == nil {
-								sourceContent.Value = helpers.StringToUTF16(contents)
-							}
-							sourceMap.SourcesContent = append(sourceMap.SourcesContent, sourceContent)
 						}
 					}
 

@@ -402,6 +402,34 @@ const toSearchMissingSourcesContent = {
   bar: 'src/foo.ts',
 }
 
+// The "null" should be filled in by the contents of "bar.ts"
+const testCaseNullSourcesContent = {
+  'entry.js': `import './foo.js'\n`,
+  'foo.ts': `import './bar.ts'\nconsole.log("foo")`,
+  'bar.ts': `console.log("bar")\n`,
+  'foo.js': `(() => {
+  // bar.ts
+  console.log("bar");
+
+  // foo.ts
+  console.log("foo");
+})();
+//# sourceMappingURL=foo.js.map
+`,
+  'foo.js.map': `{
+  "version": 3,
+  "sources": ["bar.ts", "foo.ts"],
+  "sourcesContent": [null, "import './bar.ts'\\nconsole.log(\\"foo\\")"],
+  "mappings": ";;AAAA,UAAQ,IAAI,KAAK;;;ACCjB,UAAQ,IAAI,KAAK;",
+  "names": []
+}
+`,
+}
+
+const toSearchNullSourcesContent = {
+  bar: 'bar.ts',
+}
+
 async function check(kind, testCase, toSearch, { ext, flags, entryPoints, crlf, followUpFlags = [] }) {
   let failed = 0
 
@@ -856,8 +884,16 @@ async function main() {
           crlf,
         }),
 
-        // Checks for loading missing sources content in nested source maps
+        // Checks for loading missing "sourcesContent" in nested source maps
         check('missing-sources-content' + suffix, testCaseMissingSourcesContent, toSearchMissingSourcesContent, {
+          ext: 'js',
+          flags: flags.concat('--outfile=out.js', '--bundle'),
+          entryPoints: ['foo.js'],
+          crlf,
+        }),
+
+        // Checks for null entries in "sourcesContent" in nested source maps
+        check('null-sources-content' + suffix, testCaseNullSourcesContent, toSearchNullSourcesContent, {
           ext: 'js',
           flags: flags.concat('--outfile=out.js', '--bundle'),
           entryPoints: ['foo.js'],

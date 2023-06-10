@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fill in `null` entries in input source maps ([#3144](https://github.com/evanw/esbuild/issues/3144))
+
+    If esbuild bundles input files with source maps and those source maps contain a `sourcesContent` array with `null` entries, esbuild previously copied those `null` entries over to the output source map. With this release, esbuild will now attempt to fill in those `null` entries by looking for a file on the file system with the corresponding name from the `sources` array. This matches esbuild's existing behavior that automatically generates the `sourcesContent` array from the file system if the entire `sourcesContent` array is missing.
+
 ## 0.18.0
 
 **This release deliberately contains backwards-incompatible changes.** To avoid automatically picking up releases like this, you should either be pinning the exact version of `esbuild` in your `package.json` file (recommended) or be using a version range syntax that only accepts patch upgrades such as `^0.17.0` or `~0.17.0`. See npm's documentation about [semver](https://docs.npmjs.com/cli/v6/using-npm/semver/) for more information.
