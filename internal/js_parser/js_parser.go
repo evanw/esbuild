@@ -7526,7 +7526,32 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 
 							// "declare const x: any"
 							scopeIndex := len(p.scopesInOrder)
+							oldLexer := p.lexer
 							stmt := p.parseStmt(opts)
+							switch stmt.Data.(type) {
+							case *js_ast.SEmpty:
+								return js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{Value: expr}}
+
+							case *js_ast.STypeScript:
+								// Type declarations are expected
+
+							case *js_ast.SLocal:
+								// This is also a type declaration (but doesn't use "STypeScript"
+								// because we need to be able to handle namespace exports below)
+
+							default:
+								// Anything that we don't expect is a syntax error. For example,
+								// we consider this a syntax error:
+								//
+								//   declare let declare: any, foo: any
+								//   declare foo
+								//
+								// Strangely TypeScript allows this code starting with version
+								// 4.4, but I assume this is a bug. This bug was reported here:
+								// https://github.com/microsoft/TypeScript/issues/54602
+								p.lexer = oldLexer
+								p.lexer.Unexpected()
+							}
 							if opts.decorators != nil {
 								p.discardScopesUpTo(opts.decorators.scopeIndex)
 							} else {

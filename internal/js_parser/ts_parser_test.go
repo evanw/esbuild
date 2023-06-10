@@ -1687,6 +1687,10 @@ func TestTSDeclare(t *testing.T) {
 	expectPrintedTS(t, "declare\nenum Foo {}", "declare;\nvar Foo = /* @__PURE__ */ ((Foo) => {\n})(Foo || {});\n")
 	expectPrintedTS(t, "class Foo { declare \n foo }", "class Foo {\n  declare;\n  foo;\n}\n")
 
+	expectPrintedTS(t, "declare;", "declare;\n")
+	expectPrintedTS(t, "declare();", "declare();\n")
+	expectPrintedTS(t, "declare[x];", "declare[x];\n")
+
 	expectPrintedTS(t, "declare var x: number", "")
 	expectPrintedTS(t, "declare let x: number", "")
 	expectPrintedTS(t, "declare const x: number", "")
@@ -1749,6 +1753,12 @@ func TestTSDeclare(t *testing.T) {
 	// This declares a global module
 	expectPrintedTS(t, "export as namespace ns", "")
 	expectParseErrorTS(t, "export as namespace ns.foo", "<stdin>: ERROR: Expected \";\" but found \".\"\n")
+
+	// TypeScript 4.4+ technically treats these as valid syntax, but I assume
+	// this is a bug: https://github.com/microsoft/TypeScript/issues/54602
+	expectParseErrorTS(t, "declare foo", "<stdin>: ERROR: Unexpected \"foo\"\n")
+	expectParseErrorTS(t, "declare foo()", "<stdin>: ERROR: Unexpected \"foo\"\n")
+	expectParseErrorTS(t, "declare {foo}", "<stdin>: ERROR: Unexpected \"{\"\n")
 }
 
 func TestTSExperimentalDecorator(t *testing.T) {
