@@ -1420,7 +1420,7 @@ func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) js_
 			p.hasNonLocalExportDeclareInsideNamespace = true
 		}
 
-		return js_ast.Stmt{Loc: loc, Data: &js_ast.STypeScript{}}
+		return js_ast.Stmt{Loc: loc, Data: js_ast.STypeScriptShared}
 	}
 
 	// Save these for when we do out-of-order enum visiting
@@ -1476,7 +1476,7 @@ func (p *parser) parseTypeScriptImportEqualsStmt(loc logger.Loc, opts parseStmtO
 	if opts.isTypeScriptDeclare {
 		// "import type foo = require('bar');"
 		// "import type foo = bar.baz;"
-		return js_ast.Stmt{Loc: loc, Data: &js_ast.STypeScript{}}
+		return js_ast.Stmt{Loc: loc, Data: js_ast.STypeScriptShared}
 	}
 
 	ref := p.declareSymbol(js_ast.SymbolConst, defaultNameLoc, defaultName)
@@ -1667,7 +1667,7 @@ func (p *parser) parseTypeScriptNamespaceStmt(loc logger.Loc, opts parseStmtOpts
 		if opts.isModuleScope {
 			p.localTypeNames[nameText] = true
 		}
-		return js_ast.Stmt{Loc: loc, Data: &js_ast.STypeScript{}}
+		return js_ast.Stmt{Loc: loc, Data: js_ast.STypeScriptShared}
 	}
 
 	if !opts.isTypeScriptDeclare {

@@ -5929,7 +5929,7 @@ func (p *parser) parseClassStmt(loc logger.Loc, opts parseStmtOpts) js_ast.Stmt 
 			p.hasNonLocalExportDeclareInsideNamespace = true
 		}
 
-		return js_ast.Stmt{Loc: loc, Data: &js_ast.STypeScript{}}
+		return js_ast.Stmt{Loc: loc, Data: js_ast.STypeScriptShared}
 	}
 
 	p.popScope()
@@ -6264,7 +6264,7 @@ func (p *parser) parseFnStmt(loc logger.Loc, opts parseStmtOpts, isAsync bool, a
 			p.hasNonLocalExportDeclareInsideNamespace = true
 		}
 
-		return js_ast.Stmt{Loc: loc, Data: &js_ast.STypeScript{}}
+		return js_ast.Stmt{Loc: loc, Data: js_ast.STypeScriptShared}
 	}
 
 	p.popScope()
@@ -6473,7 +6473,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 				p.lexer.ExpectContextualKeyword("namespace")
 				p.lexer.Expect(js_lexer.TIdentifier)
 				p.lexer.ExpectOrInsertSemicolon()
-				return js_ast.Stmt{Loc: loc, Data: &js_ast.STypeScript{}}
+				return js_ast.Stmt{Loc: loc, Data: js_ast.STypeScriptShared}
 			}
 
 			if p.lexer.IsContextualKeyword("async") {
@@ -6502,7 +6502,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 						panic(js_lexer.LexerPanic{})
 					}
 					p.skipTypeScriptTypeStmt(parseStmtOpts{isModuleScope: opts.isModuleScope, isExport: true})
-					return js_ast.Stmt{Loc: loc, Data: &js_ast.STypeScript{}}
+					return js_ast.Stmt{Loc: loc, Data: js_ast.STypeScriptShared}
 
 				case "namespace", "abstract", "module", "interface":
 					// "export namespace Foo {}"
@@ -7232,7 +7232,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 								p.lexer.ExpectContextualKeyword("from")
 								p.parsePath()
 								p.lexer.ExpectOrInsertSemicolon()
-								return js_ast.Stmt{Loc: loc, Data: &js_ast.STypeScript{}}
+								return js_ast.Stmt{Loc: loc, Data: js_ast.STypeScriptShared}
 							}
 						}
 
@@ -7244,7 +7244,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 						p.lexer.ExpectContextualKeyword("from")
 						p.parsePath()
 						p.lexer.ExpectOrInsertSemicolon()
-						return js_ast.Stmt{Loc: loc, Data: &js_ast.STypeScript{}}
+						return js_ast.Stmt{Loc: loc, Data: js_ast.STypeScriptShared}
 
 					case js_lexer.TOpenBrace:
 						// "import type {foo} from 'bar';"
@@ -7252,7 +7252,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 						p.lexer.ExpectContextualKeyword("from")
 						p.parsePath()
 						p.lexer.ExpectOrInsertSemicolon()
-						return js_ast.Stmt{Loc: loc, Data: &js_ast.STypeScript{}}
+						return js_ast.Stmt{Loc: loc, Data: js_ast.STypeScriptShared}
 					}
 				}
 
@@ -7317,7 +7317,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		//
 		if p.options.ts.Parse && p.options.ts.Config.UnusedImportFlags() == config.TSUnusedImport_KeepValues && stmt.Items != nil && len(*stmt.Items) == 0 {
 			if stmt.DefaultName == nil {
-				return js_ast.Stmt{Loc: loc, Data: &js_ast.STypeScript{}}
+				return js_ast.Stmt{Loc: loc, Data: js_ast.STypeScriptShared}
 			}
 			stmt.Items = nil
 		}
@@ -7470,7 +7470,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 						if p.lexer.Token == js_lexer.TIdentifier && !p.lexer.HasNewlineBefore {
 							// "type Foo = any"
 							p.skipTypeScriptTypeStmt(parseStmtOpts{isModuleScope: opts.isModuleScope})
-							return js_ast.Stmt{Loc: loc, Data: &js_ast.STypeScript{}}
+							return js_ast.Stmt{Loc: loc, Data: js_ast.STypeScriptShared}
 						}
 
 					case "namespace", "module":
@@ -7486,7 +7486,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 					case "interface":
 						// "interface Foo {}"
 						p.skipTypeScriptInterfaceStmt(parseStmtOpts{isModuleScope: opts.isModuleScope})
-						return js_ast.Stmt{Loc: loc, Data: &js_ast.STypeScript{}}
+						return js_ast.Stmt{Loc: loc, Data: js_ast.STypeScriptShared}
 
 					case "abstract":
 						if p.lexer.Token == js_lexer.TClass || opts.decorators != nil {
@@ -7499,7 +7499,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 							p.lexer.Next()
 							p.parseStmtsUpTo(js_lexer.TCloseBrace, opts)
 							p.lexer.Next()
-							return js_ast.Stmt{Loc: loc, Data: &js_ast.STypeScript{}}
+							return js_ast.Stmt{Loc: loc, Data: js_ast.STypeScriptShared}
 						}
 
 					case "declare":
@@ -7518,7 +7518,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 							p.lexer.Expect(js_lexer.TOpenBrace)
 							p.parseStmtsUpTo(js_lexer.TCloseBrace, opts)
 							p.lexer.Next()
-							return js_ast.Stmt{Loc: loc, Data: &js_ast.STypeScript{}}
+							return js_ast.Stmt{Loc: loc, Data: js_ast.STypeScriptShared}
 						}
 
 						// "declare const x: any"
@@ -7566,7 +7566,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 							}
 						}
 
-						return js_ast.Stmt{Loc: loc, Data: &js_ast.STypeScript{}}
+						return js_ast.Stmt{Loc: loc, Data: js_ast.STypeScriptShared}
 					}
 				}
 			}

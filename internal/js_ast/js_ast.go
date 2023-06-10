@@ -519,12 +519,13 @@ type EImportMeta struct {
 // These help reduce unnecessary memory allocations
 var BMissingShared = &BMissing{}
 var EMissingShared = &EMissing{}
-var ESuperShared = &ESuper{}
 var ENullShared = &ENull{}
-var EUndefinedShared = &EUndefined{}
+var ESuperShared = &ESuper{}
 var EThisShared = &EThis{}
-var SEmptyShared = &SEmpty{}
+var EUndefinedShared = &EUndefined{}
 var SDebuggerShared = &SDebugger{}
+var SEmptyShared = &SEmpty{}
+var STypeScriptShared = &STypeScript{}
 
 type ENew struct {
 	Target Expr
