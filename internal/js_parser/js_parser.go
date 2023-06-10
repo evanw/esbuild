@@ -5138,15 +5138,26 @@ func (p *parser) parseAndDeclareDecls(kind js_ast.SymbolKind, opts parseStmtOpts
 			// Rollup (the tool that invented the "@__NO_SIDE_EFFECTS__" comment) only
 			// applies this to the first declaration, and only when it's a "const".
 			// For more info see: https://github.com/rollup/rollup/pull/5024/files
-			if opts.hasNoSideEffectsComment && !p.options.ignoreDCEAnnotations && kind == js_ast.SymbolConst {
+			if !p.options.ignoreDCEAnnotations && kind == js_ast.SymbolConst {
 				switch e := valueOrNil.Data.(type) {
 				case *js_ast.EArrow:
-					if !e.IsAsync {
+					if opts.hasNoSideEffectsComment && !e.IsAsync {
 						e.HasNoSideEffectsComment = true
 					}
+					if e.HasNoSideEffectsComment && !opts.isTypeScriptDeclare {
+						if b, ok := local.Data.(*js_ast.BIdentifier); ok {
+							p.symbols[b.Ref.InnerIndex].Flags |= js_ast.CallCanBeUnwrappedIfUnused
+						}
+					}
+
 				case *js_ast.EFunction:
-					if !e.Fn.IsAsync {
+					if opts.hasNoSideEffectsComment && !e.Fn.IsAsync {
 						e.Fn.HasNoSideEffectsComment = true
+					}
+					if e.Fn.HasNoSideEffectsComment && !opts.isTypeScriptDeclare {
+						if b, ok := local.Data.(*js_ast.BIdentifier); ok {
+							p.symbols[b.Ref.InnerIndex].Flags |= js_ast.CallCanBeUnwrappedIfUnused
+						}
 					}
 				}
 
@@ -6281,6 +6292,9 @@ func (p *parser) parseFnStmt(loc logger.Loc, opts parseStmtOpts, isAsync bool, a
 	p.validateFunctionName(fn, fnStmt)
 	if opts.hasNoSideEffectsComment && !p.options.ignoreDCEAnnotations && !fn.IsAsync {
 		fn.HasNoSideEffectsComment = true
+		if name != nil && !opts.isTypeScriptDeclare {
+			p.symbols[name.Ref.InnerIndex].Flags |= js_ast.CallCanBeUnwrappedIfUnused
+		}
 	}
 	return js_ast.Stmt{Loc: loc, Data: &js_ast.SFunction{Fn: fn, IsExport: opts.isExport}}
 }
@@ -13822,8 +13836,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			// about this after everyone implemented it as a direct eval, but the
 			// language committee said it was indirect and everyone had to change it:
 			// https://github.com/tc39/ecma262/issues/2062.
-			if wasIdentifierBeforeVisit && e.OptionalChain == js_ast.OptionalChainNone {
-				if symbol := p.symbols[t.Ref.InnerIndex]; symbol.OriginalName == "eval" {
+			if e.OptionalChain == js_ast.OptionalChainNone {
+				symbol := p.symbols[t.Ref.InnerIndex]
+				if wasIdentifierBeforeVisit && symbol.OriginalName == "eval" {
 					e.Kind = js_ast.DirectEval
 
 					// Pessimistically assume that if this looks like a CommonJS module
@@ -13852,6 +13867,10 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					}
 					p.log.AddIDWithNotes(logger.MsgID_JS_DirectEval, kind, &p.tracker, js_lexer.RangeOfIdentifier(p.source, e.Target.Loc), text,
 						[]logger.MsgData{{Text: "You can read more about direct eval and bundling here: https://esbuild.github.io/link/direct-eval"}})
+				} else if symbol.Flags.Has(js_ast.CallCanBeUnwrappedIfUnused) {
+					// Automatically add a "/* @__PURE__ */" comment to file-local calls
+					// of functions declared with a "/* @__NO_SIDE_EFFECTS__ */" comment
+					t.CallCanBeUnwrappedIfUnused = true
 				}
 			}
 

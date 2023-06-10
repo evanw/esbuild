@@ -1663,6 +1663,52 @@ export default async function*(){}
 export default async function*f(){}
 
 ================================================================================
+TestNoSideEffectsCommentUnusedCalls
+---------- /out/stmt-fn.js ----------
+// @__NO_SIDE_EFFECTS__
+function f(y) {
+  sideEffect(y);
+}
+// @__NO_SIDE_EFFECTS__
+function* g(y) {
+  sideEffect(y);
+}
+onlyKeepThisIdentifier;
+onlyKeepThisIdentifier;
+x(/* @__PURE__ */ f("keepThisCall"));
+x(/* @__PURE__ */ g("keepThisCall"));
+
+---------- /out/stmt-local.js ----------
+const f = /* @__NO_SIDE_EFFECTS__ */ function(y) {
+  sideEffect(y);
+}, g = /* @__NO_SIDE_EFFECTS__ */ function* (y) {
+  sideEffect(y);
+};
+onlyKeepThisIdentifier;
+onlyKeepThisIdentifier;
+x(/* @__PURE__ */ f("keepThisCall"));
+x(/* @__PURE__ */ g("keepThisCall"));
+
+---------- /out/expr-fn.js ----------
+const f = /* @__NO_SIDE_EFFECTS__ */ function(y) {
+  sideEffect(y);
+}, g = /* @__NO_SIDE_EFFECTS__ */ function* (y) {
+  sideEffect(y);
+};
+onlyKeepThisIdentifier;
+onlyKeepThisIdentifier;
+x(/* @__PURE__ */ f("keepThisCall"));
+x(/* @__PURE__ */ g("keepThisCall"));
+
+---------- /out/stmt-export-default-fn.js ----------
+// @__NO_SIDE_EFFECTS__
+export default function f(y) {
+  sideEffect(y);
+}
+onlyKeepThisIdentifier;
+x(/* @__PURE__ */ f("keepThisCall"));
+
+================================================================================
 TestPackageJsonSideEffectsArrayGlob
 ---------- /out.js ----------
 // Users/user/project/node_modules/demo-pkg/keep/this/file.js

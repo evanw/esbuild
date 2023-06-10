@@ -1396,6 +1396,10 @@ const (
 	// This means the symbol is a normal function that takes a single argument
 	// and returns that argument.
 	IsIdentityFunction
+
+	// If true, calls to this symbol can be unwrapped (i.e. removed except for
+	// argument side effects) if the result is unused.
+	CallCanBeUnwrappedIfUnused
 )
 
 func (flags SymbolFlags) Has(flag SymbolFlags) bool {

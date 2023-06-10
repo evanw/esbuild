@@ -4221,3 +4221,57 @@ func TestNoSideEffectsCommentMinifyWhitespace(t *testing.T) {
 		},
 	})
 }
+
+func TestNoSideEffectsCommentUnusedCalls(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/stmt-fn.js": `
+				/* @__NO_SIDE_EFFECTS__ */ function f(y) { sideEffect(y) }
+				/* @__NO_SIDE_EFFECTS__ */ function* g(y) { sideEffect(y) }
+				f('removeThisCall')
+				g('removeThisCall')
+				f(onlyKeepThisIdentifier)
+				g(onlyKeepThisIdentifier)
+				x(f('keepThisCall'))
+				x(g('keepThisCall'))
+			`,
+			"/stmt-local.js": `
+				/* @__NO_SIDE_EFFECTS__ */ const f = function (y) { sideEffect(y) }
+				/* @__NO_SIDE_EFFECTS__ */ const g = function* (y) { sideEffect(y) }
+				f('removeThisCall')
+				g('removeThisCall')
+				f(onlyKeepThisIdentifier)
+				g(onlyKeepThisIdentifier)
+				x(f('keepThisCall'))
+				x(g('keepThisCall'))
+			`,
+			"/expr-fn.js": `
+				const f = /* @__NO_SIDE_EFFECTS__ */ function (y) { sideEffect(y) }
+				const g = /* @__NO_SIDE_EFFECTS__ */ function* (y) { sideEffect(y) }
+				f('removeThisCall')
+				g('removeThisCall')
+				f(onlyKeepThisIdentifier)
+				g(onlyKeepThisIdentifier)
+				x(f('keepThisCall'))
+				x(g('keepThisCall'))
+			`,
+			"/stmt-export-default-fn.js": `
+				/* @__NO_SIDE_EFFECTS__ */ export default function f(y) { sideEffect(y) }
+				f('removeThisCall')
+				f(onlyKeepThisIdentifier)
+				x(f('keepThisCall'))
+			`,
+		},
+		entryPaths: []string{
+			"/stmt-fn.js",
+			"/stmt-local.js",
+			"/expr-fn.js",
+			"/stmt-export-default-fn.js",
+		},
+		options: config.Options{
+			AbsOutputDir: "/out",
+			TreeShaking:  true,
+			MinifySyntax: true,
+		},
+	})
+}
