@@ -7522,9 +7522,12 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 						}
 
 						// "declare const x: any"
+						scopeIndex := len(p.scopesInOrder)
 						stmt := p.parseStmt(opts)
 						if opts.decorators != nil {
 							p.discardScopesUpTo(opts.decorators.scopeIndex)
+						} else {
+							p.discardScopesUpTo(scopeIndex)
 						}
 
 						// Unlike almost all uses of "declare", statements that use

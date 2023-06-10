@@ -1663,6 +1663,13 @@ export default async function*(){}
 export default async function*f(){}
 
 ================================================================================
+TestNoSideEffectsCommentTypeScriptDeclare
+---------- /out/entry.js ----------
+var ns;
+((ns2) => {
+})(ns || (ns = {}));
+
+================================================================================
 TestNoSideEffectsCommentUnusedCalls
 ---------- /out/stmt-fn.js ----------
 // @__NO_SIDE_EFFECTS__
