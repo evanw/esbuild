@@ -337,6 +337,9 @@ type Fn struct {
 	HasRestArg  bool
 	HasIfScope  bool
 
+	// See: https://github.com/rollup/rollup/pull/5024
+	HasNoSideEffectsComment bool
+
 	// This is true if the function is a method
 	IsUniqueFormalParameters bool
 }
@@ -634,6 +637,9 @@ type EArrow struct {
 	IsAsync    bool
 	HasRestArg bool
 	PreferExpr bool // Use shorthand if true and "Body" is a single return statement
+
+	// See: https://github.com/rollup/rollup/pull/5024
+	HasNoSideEffectsComment bool
 }
 
 type EFunction struct{ Fn Fn }

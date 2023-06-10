@@ -297,6 +297,7 @@ type CommentBefore uint8
 const (
 	PureCommentBefore CommentBefore = 1 << iota
 	KeyCommentBefore
+	NoSideEffectsCommentBefore
 )
 
 type LexerPanic struct{}
@@ -2598,6 +2599,9 @@ func (lexer *Lexer) scanCommentText() {
 			} else if hasPrefixWithWordBoundary(rest, "__KEY__") {
 				omitFromGeneralCommentPreservation = true
 				lexer.HasCommentBefore |= KeyCommentBefore
+			} else if hasPrefixWithWordBoundary(rest, "__NO_SIDE_EFFECTS__") {
+				omitFromGeneralCommentPreservation = true
+				lexer.HasCommentBefore |= NoSideEffectsCommentBefore
 			} else if i == 2 && strings.HasPrefix(rest, " sourceMappingURL=") {
 				if arg, ok := scanForPragmaArg(pragmaNoSpaceFirst, lexer.start+i+1, " sourceMappingURL=", rest); ok {
 					omitFromGeneralCommentPreservation = true
@@ -2613,6 +2617,9 @@ func (lexer *Lexer) scanCommentText() {
 			} else if hasPrefixWithWordBoundary(rest, "__KEY__") {
 				omitFromGeneralCommentPreservation = true
 				lexer.HasCommentBefore |= KeyCommentBefore
+			} else if hasPrefixWithWordBoundary(rest, "__NO_SIDE_EFFECTS__") {
+				omitFromGeneralCommentPreservation = true
+				lexer.HasCommentBefore |= NoSideEffectsCommentBefore
 			} else if hasPrefixWithWordBoundary(rest, "preserve") || hasPrefixWithWordBoundary(rest, "license") {
 				hasLegalAnnotation = true
 			} else if hasPrefixWithWordBoundary(rest, "jsx") {

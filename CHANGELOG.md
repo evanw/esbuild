@@ -35,6 +35,12 @@
     );
     ```
 
+* Support `/* @__NO_SIDE_EFFECTS__ */` comments for functions ([#3149](https://github.com/evanw/esbuild/issues/3149))
+
+    Rollup has recently added support for `/* @__NO_SIDE_EFFECTS__ */` annotations before functions to indicate that calls to these functions can be removed if the result is unused (i.e. the calls can be assumed to have no side effects). This release adds basic support for these to esbuild as well, which means esbuild will now parse these comments in input files and preserve them in output files. This should help people that use esbuild in combination with Rollup.
+
+    Note that this doesn't necessarily mean esbuild will treat these calls as having no side effects, as esbuild's parallel architecture currently isn't set up to enable this type of cross-file tree-shaking information (tree-shaking decisions regarding a function call are currently local to the file they appear in). If you want esbuild to consider a function call to have no side effects, make sure you continue to annotate the function call with `/* @__PURE__ */` (which is the previously-established convention for communicating this).
+
 ## 0.18.0
 
 **This release deliberately contains backwards-incompatible changes.** To avoid automatically picking up releases like this, you should either be pinning the exact version of `esbuild` in your `package.json` file (recommended) or be using a version range syntax that only accepts patch upgrades such as `^0.17.0` or `~0.17.0`. See npm's documentation about [semver](https://docs.npmjs.com/cli/v6/using-npm/semver/) for more information.

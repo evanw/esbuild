@@ -3749,3 +3749,475 @@ func TestPreserveDirectivesMinifyBundle(t *testing.T) {
 		},
 	})
 }
+
+// See: https://github.com/rollup/rollup/pull/5024
+func TestNoSideEffectsComment(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/expr-fn.js": `
+				//! These should all have "no side effects"
+				x([
+					/* #__NO_SIDE_EFFECTS__ */ function() {},
+					/* #__NO_SIDE_EFFECTS__ */ function y() {},
+					/* #__NO_SIDE_EFFECTS__ */ function*() {},
+					/* #__NO_SIDE_EFFECTS__ */ function* y() {},
+				])
+
+				//! These should not have "no side effects" (Rollup ignores "async" functions)
+				x([
+					/* #__NO_SIDE_EFFECTS__ */ async function() {},
+					/* #__NO_SIDE_EFFECTS__ */ async function y() {},
+					/* #__NO_SIDE_EFFECTS__ */ async function*() {},
+					/* #__NO_SIDE_EFFECTS__ */ async function* y() {},
+				])
+			`,
+			"/expr-arrow.js": `
+				//! These should all have "no side effects"
+				x([
+					/* #__NO_SIDE_EFFECTS__ */ y => y,
+					/* #__NO_SIDE_EFFECTS__ */ () => {},
+					/* #__NO_SIDE_EFFECTS__ */ (y) => (y),
+				])
+
+				//! These should not have "no side effects" (Rollup ignores "async" functions)
+				x([
+					/* #__NO_SIDE_EFFECTS__ */ async y => y,
+					/* #__NO_SIDE_EFFECTS__ */ async () => {},
+					/* #__NO_SIDE_EFFECTS__ */ async (y) => (y),
+				])
+			`,
+
+			"/stmt-fn.js": `
+				//! These should all have "no side effects"
+				// #__NO_SIDE_EFFECTS__
+				function a() {}
+				// #__NO_SIDE_EFFECTS__
+				function* b() {}
+
+				//! These should not have "no side effects" (Rollup ignores "async" functions)
+				// #__NO_SIDE_EFFECTS__
+				async function c() {}
+				// #__NO_SIDE_EFFECTS__
+				async function* d() {}
+			`,
+			"/stmt-export-fn.js": `
+				//! These should all have "no side effects"
+				/* @__NO_SIDE_EFFECTS__ */ export function a() {}
+				/* @__NO_SIDE_EFFECTS__ */ export function* b() {}
+				export /* #__NO_SIDE_EFFECTS__ */ function a2() {}
+				export /* #__NO_SIDE_EFFECTS__ */ function* b2() {}
+
+				//! These should not have "no side effects" (Rollup ignores "async" functions)
+				/* @__NO_SIDE_EFFECTS__ */ export async function c() {}
+				/* @__NO_SIDE_EFFECTS__ */ export async function* d() {}
+				export /* #__NO_SIDE_EFFECTS__ */ async function c2() {}
+				export /* #__NO_SIDE_EFFECTS__ */ async function* d2() {}
+			`,
+			"/stmt-local.js": `
+				//! Only "c0" and "c2" should have "no side effects" (Rollup only respects "const" and only for the first one)
+				/* #__NO_SIDE_EFFECTS__ */ var v0 = function() {}, v1 = function() {}
+				/* #__NO_SIDE_EFFECTS__ */ let l0 = function() {}, l1 = function() {}
+				/* #__NO_SIDE_EFFECTS__ */ const c0 = function() {}, c1 = function() {}
+
+				/* #__NO_SIDE_EFFECTS__ */ var v2 = () => {}, v3 = () => {}
+				/* #__NO_SIDE_EFFECTS__ */ let l2 = () => {}, l3 = () => {}
+				/* #__NO_SIDE_EFFECTS__ */ const c2 = () => {}, c3 = () => {}
+			`,
+			"/stmt-export-local.js": `
+				//! Only "c0" and "c2" should have "no side effects" (Rollup only respects "const" and only for the first one)
+				/* #__NO_SIDE_EFFECTS__ */ export var v0 = function() {}, v1 = function() {}
+				/* #__NO_SIDE_EFFECTS__ */ export let l0 = function() {}, l1 = function() {}
+				/* #__NO_SIDE_EFFECTS__ */ export const c0 = function() {}, c1 = function() {}
+
+				/* #__NO_SIDE_EFFECTS__ */ export var v2 = () => {}, v3 = () => {}
+				/* #__NO_SIDE_EFFECTS__ */ export let l2 = () => {}, l3 = () => {}
+				/* #__NO_SIDE_EFFECTS__ */ export const c2 = () => {}, c3 = () => {}
+			`,
+
+			"/ns-export-fn.ts": `
+				namespace ns {
+					//! These should all have "no side effects"
+					/* @__NO_SIDE_EFFECTS__ */ export function a() {}
+					/* @__NO_SIDE_EFFECTS__ */ export function* b() {}
+					export /* #__NO_SIDE_EFFECTS__ */ function a2() {}
+					export /* #__NO_SIDE_EFFECTS__ */ function* b2() {}
+
+					//! These should not have "no side effects" (Rollup ignores "async" functions)
+					/* @__NO_SIDE_EFFECTS__ */ export async function c() {}
+					/* @__NO_SIDE_EFFECTS__ */ export async function* d() {}
+					export /* #__NO_SIDE_EFFECTS__ */ async function c2() {}
+					export /* #__NO_SIDE_EFFECTS__ */ async function* d2() {}
+				}
+			`,
+			"/ns-export-local.ts": `
+				namespace ns {
+					//! Only "c0" and "c2" should have "no side effects" (Rollup only respects "const" and only for the first one)
+					/* #__NO_SIDE_EFFECTS__ */ export var v0 = function() {}, v1 = function() {}
+					/* #__NO_SIDE_EFFECTS__ */ export let l0 = function() {}, l1 = function() {}
+					/* #__NO_SIDE_EFFECTS__ */ export const c0 = function() {}, c1 = function() {}
+
+					/* #__NO_SIDE_EFFECTS__ */ export var v2 = () => {}, v3 = () => {}
+					/* #__NO_SIDE_EFFECTS__ */ export let l2 = () => {}, l3 = () => {}
+					/* #__NO_SIDE_EFFECTS__ */ export const c2 = () => {}, c3 = () => {}
+				}
+			`,
+
+			"/stmt-export-default-before-fn-anon.js":           `/*! This should have "no side effects" */ /* #__NO_SIDE_EFFECTS__ */ export default function() {}`,
+			"/stmt-export-default-before-fn-name.js":           `/*! This should have "no side effects" */ /* #__NO_SIDE_EFFECTS__ */ export default function f() {}`,
+			"/stmt-export-default-before-gen-fn-anon.js":       `/*! This should have "no side effects" */ /* #__NO_SIDE_EFFECTS__ */ export default function*() {}`,
+			"/stmt-export-default-before-gen-fn-name.js":       `/*! This should have "no side effects" */ /* #__NO_SIDE_EFFECTS__ */ export default function* f() {}`,
+			"/stmt-export-default-before-async-fn-anon.js":     `/*! This should not have "no side effects" (because "async") */ /* #__NO_SIDE_EFFECTS__ */ export default async function() {}`,
+			"/stmt-export-default-before-async-fn-name.js":     `/*! This should not have "no side effects" (because "async") */ /* #__NO_SIDE_EFFECTS__ */ export default async function f() {}`,
+			"/stmt-export-default-before-async-gen-fn-anon.js": `/*! This should not have "no side effects" (because "async") */ /* #__NO_SIDE_EFFECTS__ */ export default async function*() {}`,
+			"/stmt-export-default-before-async-gen-fn-name.js": `/*! This should not have "no side effects" (because "async") */ /* #__NO_SIDE_EFFECTS__ */ export default async function* f() {}`,
+
+			"/stmt-export-default-after-fn-anon.js":           `/*! This should have "no side effects" */ export default /* @__NO_SIDE_EFFECTS__ */ function() {}`,
+			"/stmt-export-default-after-fn-name.js":           `/*! This should have "no side effects" */ export default /* @__NO_SIDE_EFFECTS__ */ function f() {}`,
+			"/stmt-export-default-after-gen-fn-anon.js":       `/*! This should have "no side effects" */ export default /* @__NO_SIDE_EFFECTS__ */ function*() {}`,
+			"/stmt-export-default-after-gen-fn-name.js":       `/*! This should have "no side effects" */ export default /* @__NO_SIDE_EFFECTS__ */ function* f() {}`,
+			"/stmt-export-default-after-async-fn-anon.js":     `/*! This should not have "no side effects" (because "async") */ export default /* @__NO_SIDE_EFFECTS__ */ async function() {}`,
+			"/stmt-export-default-after-async-fn-name.js":     `/*! This should not have "no side effects" (because "async") */ export default /* @__NO_SIDE_EFFECTS__ */ async function f() {}`,
+			"/stmt-export-default-after-async-gen-fn-anon.js": `/*! This should not have "no side effects" (because "async") */ export default /* @__NO_SIDE_EFFECTS__ */ async function*() {}`,
+			"/stmt-export-default-after-async-gen-fn-name.js": `/*! This should not have "no side effects" (because "async") */ export default /* @__NO_SIDE_EFFECTS__ */ async function* f() {}`,
+		},
+		entryPaths: []string{
+			"/expr-fn.js",
+			"/expr-arrow.js",
+
+			"/stmt-fn.js",
+			"/stmt-export-fn.js",
+			"/stmt-local.js",
+			"/stmt-export-local.js",
+
+			"/ns-export-fn.ts",
+			"/ns-export-local.ts",
+
+			"/stmt-export-default-before-fn-anon.js",
+			"/stmt-export-default-before-fn-name.js",
+			"/stmt-export-default-before-gen-fn-anon.js",
+			"/stmt-export-default-before-gen-fn-name.js",
+			"/stmt-export-default-before-async-fn-anon.js",
+			"/stmt-export-default-before-async-fn-name.js",
+			"/stmt-export-default-before-async-gen-fn-anon.js",
+			"/stmt-export-default-before-async-gen-fn-name.js",
+
+			"/stmt-export-default-after-fn-anon.js",
+			"/stmt-export-default-after-fn-name.js",
+			"/stmt-export-default-after-gen-fn-anon.js",
+			"/stmt-export-default-after-gen-fn-name.js",
+			"/stmt-export-default-after-async-fn-anon.js",
+			"/stmt-export-default-after-async-fn-name.js",
+			"/stmt-export-default-after-async-gen-fn-anon.js",
+			"/stmt-export-default-after-async-gen-fn-name.js",
+		},
+		options: config.Options{
+			AbsOutputDir: "/out",
+		},
+	})
+}
+
+func TestNoSideEffectsCommentIgnoreAnnotations(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/expr-fn.js": `
+				x([
+					/* #__NO_SIDE_EFFECTS__ */ function() {},
+					/* #__NO_SIDE_EFFECTS__ */ function y() {},
+					/* #__NO_SIDE_EFFECTS__ */ function*() {},
+					/* #__NO_SIDE_EFFECTS__ */ function* y() {},
+				])
+
+				x([
+					/* #__NO_SIDE_EFFECTS__ */ async function() {},
+					/* #__NO_SIDE_EFFECTS__ */ async function y() {},
+					/* #__NO_SIDE_EFFECTS__ */ async function*() {},
+					/* #__NO_SIDE_EFFECTS__ */ async function* y() {},
+				])
+			`,
+			"/expr-arrow.js": `
+				x([
+					/* #__NO_SIDE_EFFECTS__ */ y => y,
+					/* #__NO_SIDE_EFFECTS__ */ () => {},
+					/* #__NO_SIDE_EFFECTS__ */ (y) => (y),
+				])
+
+				x([
+					/* #__NO_SIDE_EFFECTS__ */ async y => y,
+					/* #__NO_SIDE_EFFECTS__ */ async () => {},
+					/* #__NO_SIDE_EFFECTS__ */ async (y) => (y),
+				])
+			`,
+
+			"/stmt-fn.js": `
+				// #__NO_SIDE_EFFECTS__
+				function a() {}
+				// #__NO_SIDE_EFFECTS__
+				function* b() {}
+
+				// #__NO_SIDE_EFFECTS__
+				async function c() {}
+				// #__NO_SIDE_EFFECTS__
+				async function* d() {}
+			`,
+			"/stmt-export-fn.js": `
+				/* @__NO_SIDE_EFFECTS__ */ export function a() {}
+				/* @__NO_SIDE_EFFECTS__ */ export function* b() {}
+				export /* #__NO_SIDE_EFFECTS__ */ function a2() {}
+				export /* #__NO_SIDE_EFFECTS__ */ function* b2() {}
+
+				/* @__NO_SIDE_EFFECTS__ */ export async function c() {}
+				/* @__NO_SIDE_EFFECTS__ */ export async function* d() {}
+				export /* #__NO_SIDE_EFFECTS__ */ async function c2() {}
+				export /* #__NO_SIDE_EFFECTS__ */ async function* d2() {}
+			`,
+			"/stmt-local.js": `
+				/* #__NO_SIDE_EFFECTS__ */ var v0 = function() {}, v1 = function() {}
+				/* #__NO_SIDE_EFFECTS__ */ let l0 = function() {}, l1 = function() {}
+				/* #__NO_SIDE_EFFECTS__ */ const c0 = function() {}, c1 = function() {}
+
+				/* #__NO_SIDE_EFFECTS__ */ var v2 = () => {}, v3 = () => {}
+				/* #__NO_SIDE_EFFECTS__ */ let l2 = () => {}, l3 = () => {}
+				/* #__NO_SIDE_EFFECTS__ */ const c2 = () => {}, c3 = () => {}
+			`,
+			"/stmt-export-local.js": `
+				/* #__NO_SIDE_EFFECTS__ */ export var v0 = function() {}, v1 = function() {}
+				/* #__NO_SIDE_EFFECTS__ */ export let l0 = function() {}, l1 = function() {}
+				/* #__NO_SIDE_EFFECTS__ */ export const c0 = function() {}, c1 = function() {}
+
+				/* #__NO_SIDE_EFFECTS__ */ export var v2 = () => {}, v3 = () => {}
+				/* #__NO_SIDE_EFFECTS__ */ export let l2 = () => {}, l3 = () => {}
+				/* #__NO_SIDE_EFFECTS__ */ export const c2 = () => {}, c3 = () => {}
+			`,
+
+			"/ns-export-fn.ts": `
+				namespace ns {
+					/* @__NO_SIDE_EFFECTS__ */ export function a() {}
+					/* @__NO_SIDE_EFFECTS__ */ export function* b() {}
+					export /* #__NO_SIDE_EFFECTS__ */ function a2() {}
+					export /* #__NO_SIDE_EFFECTS__ */ function* b2() {}
+
+					/* @__NO_SIDE_EFFECTS__ */ export async function c() {}
+					/* @__NO_SIDE_EFFECTS__ */ export async function* d() {}
+					export /* #__NO_SIDE_EFFECTS__ */ async function c2() {}
+					export /* #__NO_SIDE_EFFECTS__ */ async function* d2() {}
+				}
+			`,
+			"/ns-export-local.ts": `
+				namespace ns {
+					/* #__NO_SIDE_EFFECTS__ */ export var v0 = function() {}, v1 = function() {}
+					/* #__NO_SIDE_EFFECTS__ */ export let l0 = function() {}, l1 = function() {}
+					/* #__NO_SIDE_EFFECTS__ */ export const c0 = function() {}, c1 = function() {}
+
+					/* #__NO_SIDE_EFFECTS__ */ export var v2 = () => {}, v3 = () => {}
+					/* #__NO_SIDE_EFFECTS__ */ export let l2 = () => {}, l3 = () => {}
+					/* #__NO_SIDE_EFFECTS__ */ export const c2 = () => {}, c3 = () => {}
+				}
+			`,
+
+			"/stmt-export-default-before-fn-anon.js":           `/* #__NO_SIDE_EFFECTS__ */ export default function() {}`,
+			"/stmt-export-default-before-fn-name.js":           `/* #__NO_SIDE_EFFECTS__ */ export default function f() {}`,
+			"/stmt-export-default-before-gen-fn-anon.js":       `/* #__NO_SIDE_EFFECTS__ */ export default function*() {}`,
+			"/stmt-export-default-before-gen-fn-name.js":       `/* #__NO_SIDE_EFFECTS__ */ export default function* f() {}`,
+			"/stmt-export-default-before-async-fn-anon.js":     `/* #__NO_SIDE_EFFECTS__ */ export default async function() {}`,
+			"/stmt-export-default-before-async-fn-name.js":     `/* #__NO_SIDE_EFFECTS__ */ export default async function f() {}`,
+			"/stmt-export-default-before-async-gen-fn-anon.js": `/* #__NO_SIDE_EFFECTS__ */ export default async function*() {}`,
+			"/stmt-export-default-before-async-gen-fn-name.js": `/* #__NO_SIDE_EFFECTS__ */ export default async function* f() {}`,
+
+			"/stmt-export-default-after-fn-anon.js":           `export default /* @__NO_SIDE_EFFECTS__ */ function() {}`,
+			"/stmt-export-default-after-fn-name.js":           `export default /* @__NO_SIDE_EFFECTS__ */ function f() {}`,
+			"/stmt-export-default-after-gen-fn-anon.js":       `export default /* @__NO_SIDE_EFFECTS__ */ function*() {}`,
+			"/stmt-export-default-after-gen-fn-name.js":       `export default /* @__NO_SIDE_EFFECTS__ */ function* f() {}`,
+			"/stmt-export-default-after-async-fn-anon.js":     `export default /* @__NO_SIDE_EFFECTS__ */ async function() {}`,
+			"/stmt-export-default-after-async-fn-name.js":     `export default /* @__NO_SIDE_EFFECTS__ */ async function f() {}`,
+			"/stmt-export-default-after-async-gen-fn-anon.js": `export default /* @__NO_SIDE_EFFECTS__ */ async function*() {}`,
+			"/stmt-export-default-after-async-gen-fn-name.js": `export default /* @__NO_SIDE_EFFECTS__ */ async function* f() {}`,
+		},
+		entryPaths: []string{
+			"/expr-fn.js",
+			"/expr-arrow.js",
+
+			"/stmt-fn.js",
+			"/stmt-export-fn.js",
+			"/stmt-local.js",
+			"/stmt-export-local.js",
+
+			"/ns-export-fn.ts",
+			"/ns-export-local.ts",
+
+			"/stmt-export-default-before-fn-anon.js",
+			"/stmt-export-default-before-fn-name.js",
+			"/stmt-export-default-before-gen-fn-anon.js",
+			"/stmt-export-default-before-gen-fn-name.js",
+			"/stmt-export-default-before-async-fn-anon.js",
+			"/stmt-export-default-before-async-fn-name.js",
+			"/stmt-export-default-before-async-gen-fn-anon.js",
+			"/stmt-export-default-before-async-gen-fn-name.js",
+
+			"/stmt-export-default-after-fn-anon.js",
+			"/stmt-export-default-after-fn-name.js",
+			"/stmt-export-default-after-gen-fn-anon.js",
+			"/stmt-export-default-after-gen-fn-name.js",
+			"/stmt-export-default-after-async-fn-anon.js",
+			"/stmt-export-default-after-async-fn-name.js",
+			"/stmt-export-default-after-async-gen-fn-anon.js",
+			"/stmt-export-default-after-async-gen-fn-name.js",
+		},
+		options: config.Options{
+			AbsOutputDir:         "/out",
+			IgnoreDCEAnnotations: true,
+		},
+	})
+}
+
+func TestNoSideEffectsCommentMinifyWhitespace(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/expr-fn.js": `
+				x([
+					/* #__NO_SIDE_EFFECTS__ */ function() {},
+					/* #__NO_SIDE_EFFECTS__ */ function y() {},
+					/* #__NO_SIDE_EFFECTS__ */ function*() {},
+					/* #__NO_SIDE_EFFECTS__ */ function* y() {},
+				])
+
+				x([
+					/* #__NO_SIDE_EFFECTS__ */ async function() {},
+					/* #__NO_SIDE_EFFECTS__ */ async function y() {},
+					/* #__NO_SIDE_EFFECTS__ */ async function*() {},
+					/* #__NO_SIDE_EFFECTS__ */ async function* y() {},
+				])
+			`,
+			"/expr-arrow.js": `
+				x([
+					/* #__NO_SIDE_EFFECTS__ */ y => y,
+					/* #__NO_SIDE_EFFECTS__ */ () => {},
+					/* #__NO_SIDE_EFFECTS__ */ (y) => (y),
+				])
+
+				x([
+					/* #__NO_SIDE_EFFECTS__ */ async y => y,
+					/* #__NO_SIDE_EFFECTS__ */ async () => {},
+					/* #__NO_SIDE_EFFECTS__ */ async (y) => (y),
+				])
+			`,
+
+			"/stmt-fn.js": `
+				// #__NO_SIDE_EFFECTS__
+				function a() {}
+				// #__NO_SIDE_EFFECTS__
+				function* b() {}
+
+				// #__NO_SIDE_EFFECTS__
+				async function c() {}
+				// #__NO_SIDE_EFFECTS__
+				async function* d() {}
+			`,
+			"/stmt-export-fn.js": `
+				/* @__NO_SIDE_EFFECTS__ */ export function a() {}
+				/* @__NO_SIDE_EFFECTS__ */ export function* b() {}
+				export /* #__NO_SIDE_EFFECTS__ */ function a2() {}
+				export /* #__NO_SIDE_EFFECTS__ */ function* b2() {}
+
+				/* @__NO_SIDE_EFFECTS__ */ export async function c() {}
+				/* @__NO_SIDE_EFFECTS__ */ export async function* d() {}
+				export /* #__NO_SIDE_EFFECTS__ */ async function c2() {}
+				export /* #__NO_SIDE_EFFECTS__ */ async function* d2() {}
+			`,
+			"/stmt-local.js": `
+				/* #__NO_SIDE_EFFECTS__ */ var v0 = function() {}, v1 = function() {}
+				/* #__NO_SIDE_EFFECTS__ */ let l0 = function() {}, l1 = function() {}
+				/* #__NO_SIDE_EFFECTS__ */ const c0 = function() {}, c1 = function() {}
+
+				/* #__NO_SIDE_EFFECTS__ */ var v2 = () => {}, v3 = () => {}
+				/* #__NO_SIDE_EFFECTS__ */ let l2 = () => {}, l3 = () => {}
+				/* #__NO_SIDE_EFFECTS__ */ const c2 = () => {}, c3 = () => {}
+			`,
+			"/stmt-export-local.js": `
+				/* #__NO_SIDE_EFFECTS__ */ export var v0 = function() {}, v1 = function() {}
+				/* #__NO_SIDE_EFFECTS__ */ export let l0 = function() {}, l1 = function() {}
+				/* #__NO_SIDE_EFFECTS__ */ export const c0 = function() {}, c1 = function() {}
+
+				/* #__NO_SIDE_EFFECTS__ */ export var v2 = () => {}, v3 = () => {}
+				/* #__NO_SIDE_EFFECTS__ */ export let l2 = () => {}, l3 = () => {}
+				/* #__NO_SIDE_EFFECTS__ */ export const c2 = () => {}, c3 = () => {}
+			`,
+
+			"/ns-export-fn.ts": `
+				namespace ns {
+					/* @__NO_SIDE_EFFECTS__ */ export function a() {}
+					/* @__NO_SIDE_EFFECTS__ */ export function* b() {}
+					export /* #__NO_SIDE_EFFECTS__ */ function a2() {}
+					export /* #__NO_SIDE_EFFECTS__ */ function* b2() {}
+
+					/* @__NO_SIDE_EFFECTS__ */ export async function c() {}
+					/* @__NO_SIDE_EFFECTS__ */ export async function* d() {}
+					export /* #__NO_SIDE_EFFECTS__ */ async function c2() {}
+					export /* #__NO_SIDE_EFFECTS__ */ async function* d2() {}
+				}
+			`,
+			"/ns-export-local.ts": `
+				namespace ns {
+					/* #__NO_SIDE_EFFECTS__ */ export var v0 = function() {}, v1 = function() {}
+					/* #__NO_SIDE_EFFECTS__ */ export let l0 = function() {}, l1 = function() {}
+					/* #__NO_SIDE_EFFECTS__ */ export const c0 = function() {}, c1 = function() {}
+
+					/* #__NO_SIDE_EFFECTS__ */ export var v2 = () => {}, v3 = () => {}
+					/* #__NO_SIDE_EFFECTS__ */ export let l2 = () => {}, l3 = () => {}
+					/* #__NO_SIDE_EFFECTS__ */ export const c2 = () => {}, c3 = () => {}
+				}
+			`,
+
+			"/stmt-export-default-before-fn-anon.js":           `/* #__NO_SIDE_EFFECTS__ */ export default function() {}`,
+			"/stmt-export-default-before-fn-name.js":           `/* #__NO_SIDE_EFFECTS__ */ export default function f() {}`,
+			"/stmt-export-default-before-gen-fn-anon.js":       `/* #__NO_SIDE_EFFECTS__ */ export default function*() {}`,
+			"/stmt-export-default-before-gen-fn-name.js":       `/* #__NO_SIDE_EFFECTS__ */ export default function* f() {}`,
+			"/stmt-export-default-before-async-fn-anon.js":     `/* #__NO_SIDE_EFFECTS__ */ export default async function() {}`,
+			"/stmt-export-default-before-async-fn-name.js":     `/* #__NO_SIDE_EFFECTS__ */ export default async function f() {}`,
+			"/stmt-export-default-before-async-gen-fn-anon.js": `/* #__NO_SIDE_EFFECTS__ */ export default async function*() {}`,
+			"/stmt-export-default-before-async-gen-fn-name.js": `/* #__NO_SIDE_EFFECTS__ */ export default async function* f() {}`,
+
+			"/stmt-export-default-after-fn-anon.js":           `export default /* @__NO_SIDE_EFFECTS__ */ function() {}`,
+			"/stmt-export-default-after-fn-name.js":           `export default /* @__NO_SIDE_EFFECTS__ */ function f() {}`,
+			"/stmt-export-default-after-gen-fn-anon.js":       `export default /* @__NO_SIDE_EFFECTS__ */ function*() {}`,
+			"/stmt-export-default-after-gen-fn-name.js":       `export default /* @__NO_SIDE_EFFECTS__ */ function* f() {}`,
+			"/stmt-export-default-after-async-fn-anon.js":     `export default /* @__NO_SIDE_EFFECTS__ */ async function() {}`,
+			"/stmt-export-default-after-async-fn-name.js":     `export default /* @__NO_SIDE_EFFECTS__ */ async function f() {}`,
+			"/stmt-export-default-after-async-gen-fn-anon.js": `export default /* @__NO_SIDE_EFFECTS__ */ async function*() {}`,
+			"/stmt-export-default-after-async-gen-fn-name.js": `export default /* @__NO_SIDE_EFFECTS__ */ async function* f() {}`,
+		},
+		entryPaths: []string{
+			"/expr-fn.js",
+			"/expr-arrow.js",
+
+			"/stmt-fn.js",
+			"/stmt-export-fn.js",
+			"/stmt-local.js",
+			"/stmt-export-local.js",
+
+			"/ns-export-fn.ts",
+			"/ns-export-local.ts",
+
+			"/stmt-export-default-before-fn-anon.js",
+			"/stmt-export-default-before-fn-name.js",
+			"/stmt-export-default-before-gen-fn-anon.js",
+			"/stmt-export-default-before-gen-fn-name.js",
+			"/stmt-export-default-before-async-fn-anon.js",
+			"/stmt-export-default-before-async-fn-name.js",
+			"/stmt-export-default-before-async-gen-fn-anon.js",
+			"/stmt-export-default-before-async-gen-fn-name.js",
+
+			"/stmt-export-default-after-fn-anon.js",
+			"/stmt-export-default-after-fn-name.js",
+			"/stmt-export-default-after-gen-fn-anon.js",
+			"/stmt-export-default-after-gen-fn-name.js",
+			"/stmt-export-default-after-async-fn-anon.js",
+			"/stmt-export-default-after-async-fn-name.js",
+			"/stmt-export-default-after-async-gen-fn-anon.js",
+			"/stmt-export-default-after-async-gen-fn-name.js",
+		},
+		options: config.Options{
+			AbsOutputDir:     "/out",
+			MinifyWhitespace: true,
+		},
+	})
+}

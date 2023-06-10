@@ -2539,6 +2539,9 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		if wrap {
 			p.print("(")
 		}
+		if !p.options.MinifyWhitespace && e.HasNoSideEffectsComment {
+			p.print("/* @__NO_SIDE_EFFECTS__ */ ")
+		}
 		if e.IsAsync {
 			p.addSourceMapping(expr.Loc)
 			p.printSpaceBeforeIdentifier()
@@ -2577,6 +2580,9 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			((flags&isPropertyAccessTarget) != 0 && p.options.UnsupportedFeatures.Has(compat.FunctionOrClassPropertyAccess))
 		if wrap {
 			p.print("(")
+		}
+		if !p.options.MinifyWhitespace && e.Fn.HasNoSideEffectsComment {
+			p.print("/* @__NO_SIDE_EFFECTS__ */ ")
 		}
 		p.printSpaceBeforeIdentifier()
 		p.addSourceMapping(expr.Loc)
@@ -3846,6 +3852,10 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 		p.printIndentedComment(text)
 
 	case *js_ast.SFunction:
+		if !p.options.MinifyWhitespace && s.Fn.HasNoSideEffectsComment {
+			p.printIndent()
+			p.print("// @__NO_SIDE_EFFECTS__\n")
+		}
 		p.addSourceMapping(stmt.Loc)
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
@@ -3889,6 +3899,12 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 		p.printNewline()
 
 	case *js_ast.SExportDefault:
+		if !p.options.MinifyWhitespace {
+			if s2, ok := s.Value.Data.(*js_ast.SFunction); ok && s2.Fn.HasNoSideEffectsComment {
+				p.printIndent()
+				p.print("// @__NO_SIDE_EFFECTS__\n")
+			}
+		}
 		p.addSourceMapping(stmt.Loc)
 		p.printIndent()
 		if s2, ok := s.Value.Data.(*js_ast.SClass); ok {

@@ -3874,20 +3874,35 @@ func (p *parser) parseExprWithFlags(level js_ast.L, flags exprFlag) js_ast.Expr 
 }
 
 func (p *parser) parseExprCommon(level js_ast.L, errors *deferredErrors, flags exprFlag) js_ast.Expr {
-	hadPureCommentBefore := (p.lexer.HasCommentBefore&js_lexer.PureCommentBefore) != 0 && !p.options.ignoreDCEAnnotations
+	lexerCommentFlags := p.lexer.HasCommentBefore
 	expr := p.parsePrefix(level, errors, flags)
 
-	// There is no formal spec for "__PURE__" comments but from reverse-
-	// engineering, it looks like they apply to the next CallExpression or
-	// NewExpression. So in "/* @__PURE__ */ a().b() + c()" the comment applies
-	// to the expression "a().b()".
-	if hadPureCommentBefore && level < js_ast.LCall {
-		expr = p.parseSuffix(expr, js_ast.LCall-1, errors, flags)
-		switch e := expr.Data.(type) {
-		case *js_ast.ECall:
-			e.CanBeUnwrappedIfUnused = true
-		case *js_ast.ENew:
-			e.CanBeUnwrappedIfUnused = true
+	if (lexerCommentFlags&(js_lexer.PureCommentBefore|js_lexer.NoSideEffectsCommentBefore)) != 0 && !p.options.ignoreDCEAnnotations {
+		if (lexerCommentFlags & js_lexer.NoSideEffectsCommentBefore) != 0 {
+			switch e := expr.Data.(type) {
+			case *js_ast.EArrow:
+				if !e.IsAsync {
+					e.HasNoSideEffectsComment = true
+				}
+			case *js_ast.EFunction:
+				if !e.Fn.IsAsync {
+					e.Fn.HasNoSideEffectsComment = true
+				}
+			}
+		}
+
+		// There is no formal spec for "__PURE__" comments but from reverse-
+		// engineering, it looks like they apply to the next CallExpression or
+		// NewExpression. So in "/* @__PURE__ */ a().b() + c()" the comment applies
+		// to the expression "a().b()".
+		if (lexerCommentFlags&js_lexer.PureCommentBefore) != 0 && level < js_ast.LCall {
+			expr = p.parseSuffix(expr, js_ast.LCall-1, errors, flags)
+			switch e := expr.Data.(type) {
+			case *js_ast.ECall:
+				e.CanBeUnwrappedIfUnused = true
+			case *js_ast.ENew:
+				e.CanBeUnwrappedIfUnused = true
+			}
 		}
 	}
 
@@ -5119,6 +5134,25 @@ func (p *parser) parseAndDeclareDecls(kind js_ast.SymbolKind, opts parseStmtOpts
 		if p.lexer.Token == js_lexer.TEquals {
 			p.lexer.Next()
 			valueOrNil = p.parseExpr(js_ast.LComma)
+
+			// Rollup (the tool that invented the "@__NO_SIDE_EFFECTS__" comment) only
+			// applies this to the first declaration, and only when it's a "const".
+			// For more info see: https://github.com/rollup/rollup/pull/5024/files
+			if opts.hasNoSideEffectsComment && !p.options.ignoreDCEAnnotations && kind == js_ast.SymbolConst {
+				switch e := valueOrNil.Data.(type) {
+				case *js_ast.EArrow:
+					if !e.IsAsync {
+						e.HasNoSideEffectsComment = true
+					}
+				case *js_ast.EFunction:
+					if !e.Fn.IsAsync {
+						e.Fn.HasNoSideEffectsComment = true
+					}
+				}
+
+				// Only apply this to the first declaration
+				opts.hasNoSideEffectsComment = false
+			}
 		}
 
 		decls = append(decls, js_ast.Decl{Binding: local, ValueOrNil: valueOrNil})
@@ -6245,6 +6279,9 @@ func (p *parser) parseFnStmt(loc logger.Loc, opts parseStmtOpts, isAsync bool, a
 
 	fn.HasIfScope = hasIfScope
 	p.validateFunctionName(fn, fnStmt)
+	if opts.hasNoSideEffectsComment && !p.options.ignoreDCEAnnotations && !fn.IsAsync {
+		fn.HasNoSideEffectsComment = true
+	}
 	return js_ast.Stmt{Loc: loc, Data: &js_ast.SFunction{Fn: fn, IsExport: opts.isExport}}
 }
 
@@ -6339,20 +6376,25 @@ const (
 )
 
 type parseStmtOpts struct {
-	decorators             *deferredDecorators
-	lexicalDecl            lexicalDecl
-	isModuleScope          bool
-	isNamespaceScope       bool
-	isExport               bool
-	isNameOptional         bool // For "export default" pseudo-statements
-	isTypeScriptDeclare    bool
-	isForLoopInit          bool
-	isForAwaitLoopInit     bool
-	allowDirectivePrologue bool
+	decorators              *deferredDecorators
+	lexicalDecl             lexicalDecl
+	isModuleScope           bool
+	isNamespaceScope        bool
+	isExport                bool
+	isNameOptional          bool // For "export default" pseudo-statements
+	isTypeScriptDeclare     bool
+	isForLoopInit           bool
+	isForAwaitLoopInit      bool
+	allowDirectivePrologue  bool
+	hasNoSideEffectsComment bool
 }
 
 func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 	loc := p.lexer.Loc()
+
+	if (p.lexer.HasCommentBefore & js_lexer.NoSideEffectsCommentBefore) != 0 {
+		opts.hasNoSideEffectsComment = true
+	}
 
 	// Do not attach any leading comments to the next expression
 	p.lexer.CommentsBeforeToken = p.lexer.CommentsBeforeToken[:0]
@@ -6476,6 +6518,11 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			defaultLoc := p.lexer.Loc()
 			p.lexer.Next()
 
+			// Also pick up comments after the "default" keyword
+			if (p.lexer.HasCommentBefore & js_lexer.NoSideEffectsCommentBefore) != 0 {
+				opts.hasNoSideEffectsComment = true
+			}
+
 			// The default name is lazily generated only if no other name is present
 			createDefaultName := func() js_ast.LocRef {
 				// This must be named "default" for when "--keep-names" is active
@@ -6498,8 +6545,9 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 				if p.lexer.Token == js_lexer.TFunction && !p.lexer.HasNewlineBefore {
 					p.lexer.Next()
 					stmt := p.parseFnStmt(loc, parseStmtOpts{
-						isNameOptional: true,
-						lexicalDecl:    lexicalDeclAllowAll,
+						isNameOptional:          true,
+						lexicalDecl:             lexicalDeclAllowAll,
+						hasNoSideEffectsComment: opts.hasNoSideEffectsComment,
 					}, true /* isAsync */, asyncRange)
 					if _, ok := stmt.Data.(*js_ast.STypeScript); ok {
 						return stmt // This was just a type annotation
@@ -6525,9 +6573,10 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 
 			if p.lexer.Token == js_lexer.TFunction || p.lexer.Token == js_lexer.TClass || p.lexer.IsContextualKeyword("interface") {
 				stmt := p.parseStmt(parseStmtOpts{
-					decorators:     opts.decorators,
-					isNameOptional: true,
-					lexicalDecl:    lexicalDeclAllowAll,
+					decorators:              opts.decorators,
+					isNameOptional:          true,
+					lexicalDecl:             lexicalDeclAllowAll,
+					hasNoSideEffectsComment: opts.hasNoSideEffectsComment,
 				})
 				if _, ok := stmt.Data.(*js_ast.STypeScript); ok {
 					return stmt // This was just a type annotation
