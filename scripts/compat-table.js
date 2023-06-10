@@ -555,6 +555,14 @@ ${engines.slice().sort().map(x => `\tcase ${upper(x)}:\n\t\treturn "${x}"`).join
 \treturn ""
 }
 
+func (e Engine) IsBrowser() bool {
+\tswitch e {
+\tcase Chrome, Edge, Firefox, IE, IOS, Opera, Safari:
+\t\treturn true
+\t}
+\treturn false
+}
+
 type JSFeature uint64
 
 const (

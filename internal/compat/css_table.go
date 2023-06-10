@@ -98,7 +98,7 @@ func UnsupportedCSSFeatures(constraints map[Engine][]int) (unsupported CSSFeatur
 			continue // This is purely user-specified
 		}
 		for engine, version := range constraints {
-			if engine == ES || engine == Node {
+			if !engine.IsBrowser() {
 				// Specifying "--target=es2020" shouldn't affect CSS
 				continue
 			}
