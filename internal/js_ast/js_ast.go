@@ -699,7 +699,8 @@ type EPrivateIdentifier struct {
 // This represents an internal property name that can be mangled. The symbol
 // referenced by this expression should be a "SymbolMangledProp" symbol.
 type EMangledProp struct {
-	Ref Ref
+	Ref                   Ref
+	HasPropertyKeyComment bool // If true, a preceding comment contains "@__KEY__"
 }
 
 type EJSXElement struct {
@@ -746,9 +747,10 @@ type ESpread struct{ Value Expr }
 // This is used for both strings and no-substitution template literals to reduce
 // the number of cases that need to be checked for string optimization code
 type EString struct {
-	Value          []uint16
-	LegacyOctalLoc logger.Loc
-	PreferTemplate bool
+	Value                 []uint16
+	LegacyOctalLoc        logger.Loc
+	PreferTemplate        bool
+	HasPropertyKeyComment bool // If true, a preceding comment contains "@__KEY__"
 }
 
 type TemplatePart struct {

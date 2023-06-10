@@ -282,7 +282,7 @@ type Lexer struct {
 	Token                           T
 	ts                              config.TSOptions
 	HasNewlineBefore                bool
-	HasPureCommentBefore            bool
+	HasCommentBefore                CommentBefore
 	IsLegacyOctalLiteral            bool
 	PrevTokenWasAwaitKeyword        bool
 	rescanCloseBraceAsTemplateToken bool
@@ -291,6 +291,13 @@ type Lexer struct {
 	// The log is disabled during speculative scans that may backtrack
 	IsLogDisabled bool
 }
+
+type CommentBefore uint8
+
+const (
+	PureCommentBefore CommentBefore = 1 << iota
+	KeyCommentBefore
+)
 
 type LexerPanic struct{}
 
@@ -982,7 +989,7 @@ func (lexer *Lexer) NextInsideJSXElement() {
 
 func (lexer *Lexer) Next() {
 	lexer.HasNewlineBefore = lexer.end == 0
-	lexer.HasPureCommentBefore = false
+	lexer.HasCommentBefore = 0
 	lexer.PrevTokenWasAwaitKeyword = false
 	lexer.LegalCommentsBeforeToken = lexer.LegalCommentsBeforeToken[:0]
 	lexer.CommentsBeforeToken = lexer.CommentsBeforeToken[:0]
@@ -2587,7 +2594,10 @@ func (lexer *Lexer) scanCommentText() {
 			rest := text[i+1 : endOfCommentText]
 			if hasPrefixWithWordBoundary(rest, "__PURE__") {
 				omitFromGeneralCommentPreservation = true
-				lexer.HasPureCommentBefore = true
+				lexer.HasCommentBefore |= PureCommentBefore
+			} else if hasPrefixWithWordBoundary(rest, "__KEY__") {
+				omitFromGeneralCommentPreservation = true
+				lexer.HasCommentBefore |= KeyCommentBefore
 			} else if i == 2 && strings.HasPrefix(rest, " sourceMappingURL=") {
 				if arg, ok := scanForPragmaArg(pragmaNoSpaceFirst, lexer.start+i+1, " sourceMappingURL=", rest); ok {
 					omitFromGeneralCommentPreservation = true
@@ -2599,7 +2609,10 @@ func (lexer *Lexer) scanCommentText() {
 			rest := text[i+1 : endOfCommentText]
 			if hasPrefixWithWordBoundary(rest, "__PURE__") {
 				omitFromGeneralCommentPreservation = true
-				lexer.HasPureCommentBefore = true
+				lexer.HasCommentBefore |= PureCommentBefore
+			} else if hasPrefixWithWordBoundary(rest, "__KEY__") {
+				omitFromGeneralCommentPreservation = true
+				lexer.HasCommentBefore |= KeyCommentBefore
 			} else if hasPrefixWithWordBoundary(rest, "preserve") || hasPrefixWithWordBoundary(rest, "license") {
 				hasLegalAnnotation = true
 			} else if hasPrefixWithWordBoundary(rest, "jsx") {

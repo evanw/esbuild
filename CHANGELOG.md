@@ -6,6 +6,35 @@
 
     If esbuild bundles input files with source maps and those source maps contain a `sourcesContent` array with `null` entries, esbuild previously copied those `null` entries over to the output source map. With this release, esbuild will now attempt to fill in those `null` entries by looking for a file on the file system with the corresponding name from the `sources` array. This matches esbuild's existing behavior that automatically generates the `sourcesContent` array from the file system if the entire `sourcesContent` array is missing.
 
+* Support `/* @__KEY__ */` comments for mangling property names ([#2574](https://github.com/evanw/esbuild/issues/2574))
+
+    Property mangling is an advanced feature that enables esbuild to minify certain property names, even though it's not possible to automatically determine that it's safe to do so. The safe property names are configured via regular expression such as `--mangle-props=_$` (mangle all properties ending in `_`).
+
+    Sometimes it's desirable to also minify strings containing property names, even though it's not possible to automatically determine which strings are property names. This release makes it possible to do this by annotating those strings with `/* @__KEY__ */`. This is a convention that Terser added earlier this year, and which esbuild is now following too: https://github.com/terser/terser/pull/1365. Using it looks like this:
+
+    ```js
+    // Original code
+    console.log(
+      [obj.mangle_, obj.keep],
+      [obj.get('mangle_'), obj.get('keep')],
+      [obj.get(/* @__KEY__ */ 'mangle_'), obj.get(/* @__KEY__ */ 'keep')],
+    )
+
+    // Old output (with --mangle-props=_$)
+    console.log(
+      [obj.a, obj.keep],
+      [obj.get("mangle_"), obj.get("keep")],
+      [obj.get(/* @__KEY__ */ "mangle_"), obj.get(/* @__KEY__ */ "keep")]
+    );
+
+    // New output (with --mangle-props=_$)
+    console.log(
+      [obj.a, obj.keep],
+      [obj.get("mangle_"), obj.get("keep")],
+      [obj.get(/* @__KEY__ */ "a"), obj.get(/* @__KEY__ */ "keep")]
+    );
+    ```
+
 ## 0.18.0
 
 **This release deliberately contains backwards-incompatible changes.** To avoid automatically picking up releases like this, you should either be pinning the exact version of `esbuild` in your `package.json` file (recommended) or be using a version range syntax that only accepts patch upgrades such as `^0.17.0` or `~0.17.0`. See npm's documentation about [semver](https://docs.npmjs.com/cli/v6/using-npm/semver/) for more information.

@@ -1889,13 +1889,28 @@ func (p *parser) parseStringLiteral() js_ast.Expr {
 	var legacyOctalLoc logger.Loc
 	loc := p.lexer.Loc()
 	text := p.lexer.StringLiteral()
+
+	// Enable using a "/* @__KEY__ */" comment to turn a string into a key
+	hasPropertyKeyComment := (p.lexer.HasCommentBefore & js_lexer.KeyCommentBefore) != 0
+	if hasPropertyKeyComment {
+		if name := helpers.UTF16ToString(text); p.isMangledProp(name) {
+			value := js_ast.Expr{Loc: loc, Data: &js_ast.EMangledProp{
+				Ref:                   p.storeNameInRef(js_lexer.MaybeSubstring{String: name}),
+				HasPropertyKeyComment: true,
+			}}
+			p.lexer.Next()
+			return value
+		}
+	}
+
 	if p.lexer.LegacyOctalLoc.Start > loc.Start {
 		legacyOctalLoc = p.lexer.LegacyOctalLoc
 	}
 	value := js_ast.Expr{Loc: loc, Data: &js_ast.EString{
-		Value:          text,
-		LegacyOctalLoc: legacyOctalLoc,
-		PreferTemplate: p.lexer.Token == js_lexer.TNoSubstitutionTemplateLiteral,
+		Value:                 text,
+		LegacyOctalLoc:        legacyOctalLoc,
+		PreferTemplate:        p.lexer.Token == js_lexer.TNoSubstitutionTemplateLiteral,
+		HasPropertyKeyComment: hasPropertyKeyComment,
 	}}
 	p.lexer.Next()
 	return value
@@ -3859,7 +3874,7 @@ func (p *parser) parseExprWithFlags(level js_ast.L, flags exprFlag) js_ast.Expr 
 }
 
 func (p *parser) parseExprCommon(level js_ast.L, errors *deferredErrors, flags exprFlag) js_ast.Expr {
-	hadPureCommentBefore := p.lexer.HasPureCommentBefore && !p.options.ignoreDCEAnnotations
+	hadPureCommentBefore := (p.lexer.HasCommentBefore&js_lexer.PureCommentBefore) != 0 && !p.options.ignoreDCEAnnotations
 	expr := p.parsePrefix(level, errors, flags)
 
 	// There is no formal spec for "__PURE__" comments but from reverse-
@@ -9110,13 +9125,9 @@ func (p *parser) visitBinding(binding js_ast.Binding, opts bindingOpts) {
 	case *js_ast.BObject:
 		for i, property := range b.Properties {
 			if !property.IsSpread {
-				if mangled, ok := property.Key.Data.(*js_ast.EMangledProp); ok {
-					mangled.Ref = p.symbolForMangledProp(p.loadNameFromRef(mangled.Ref))
-				} else {
-					property.Key, _ = p.visitExprInOut(property.Key, exprIn{
-						shouldMangleStringsAsProps: true,
-					})
-				}
+				property.Key, _ = p.visitExprInOut(property.Key, exprIn{
+					shouldMangleStringsAsProps: true,
+				})
 			}
 			p.visitBinding(property.Value, opts)
 			if property.DefaultValueOrNil.Data != nil {
@@ -10878,15 +10889,10 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 
 		property.Decorators = p.visitDecorators(property.Decorators, decoratorScope)
 
-		// Special-case certain expressions to allow them here
-		switch k := property.Key.Data.(type) {
-		case *js_ast.EPrivateIdentifier:
-			p.recordDeclaredSymbol(k.Ref)
-
-		case *js_ast.EMangledProp:
-			k.Ref = p.symbolForMangledProp(p.loadNameFromRef(k.Ref))
-
-		default:
+		// Special-case private identifiers
+		if private, ok := property.Key.Data.(*js_ast.EPrivateIdentifier); ok {
+			p.recordDeclaredSymbol(private.Ref)
+		} else {
 			key, _ := p.visitExprInOut(property.Key, exprIn{
 				shouldMangleStringsAsProps: true,
 			})
@@ -10901,7 +10907,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 					}
 				}
 				switch k := key.Data.(type) {
-				case *js_ast.ENumber:
+				case *js_ast.ENumber, *js_ast.EMangledProp:
 					// "class { [123] }" => "class { 123 }"
 					property.Flags &= ^js_ast.PropertyIsComputed
 				case *js_ast.EString:
@@ -12040,6 +12046,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 	switch e := expr.Data.(type) {
 	case *js_ast.ENull, *js_ast.ESuper, *js_ast.EBoolean, *js_ast.EBigInt, *js_ast.EUndefined:
 
+	case *js_ast.EMangledProp:
+		e.Ref = p.symbolForMangledProp(p.loadNameFromRef(e.Ref))
+
 	case *js_ast.ERegExp:
 		// "/pattern/flags" => "new RegExp('pattern', 'flags')"
 		if pattern, flags, ok := p.isUnsupportedRegularExpression(expr.Loc, e.Value); ok {
@@ -12887,12 +12896,11 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		})
 		e.Target = target
 
-		// Special-case certain expressions to allow them here
-		switch index := e.Index.Data.(type) {
-		case *js_ast.EPrivateIdentifier:
-			name := p.loadNameFromRef(index.Ref)
+		// Special-case private identifiers
+		if private, ok := e.Index.Data.(*js_ast.EPrivateIdentifier); ok {
+			name := p.loadNameFromRef(private.Ref)
 			result := p.findSymbol(e.Index.Loc, name)
-			index.Ref = result.ref
+			private.Ref = result.ref
 
 			// Unlike regular identifiers, there are no unbound private identifiers
 			kind := p.symbols[result.ref.InnerIndex].Kind
@@ -12924,16 +12932,12 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			// Lower private member access only if we're sure the target isn't needed
 			// for the value of "this" for a call expression. All other cases will be
 			// taken care of by the enclosing call expression.
-			if p.privateSymbolNeedsToBeLowered(index) && e.OptionalChain == js_ast.OptionalChainNone &&
+			if p.privateSymbolNeedsToBeLowered(private) && e.OptionalChain == js_ast.OptionalChainNone &&
 				in.assignTarget == js_ast.AssignTargetNone && !isCallTarget && !isTemplateTag {
 				// "foo.#bar" => "__privateGet(foo, #bar)"
-				return p.lowerPrivateGet(e.Target, e.Index.Loc, index), exprOut{}
+				return p.lowerPrivateGet(e.Target, e.Index.Loc, private), exprOut{}
 			}
-
-		case *js_ast.EMangledProp:
-			index.Ref = p.symbolForMangledProp(p.loadNameFromRef(index.Ref))
-
-		default:
+		} else {
 			e.Index, _ = p.visitExprInOut(e.Index, exprIn{
 				shouldMangleStringsAsProps: true,
 			})
@@ -13295,7 +13299,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 						}
 					}
 					switch k := key.Data.(type) {
-					case *js_ast.ENumber:
+					case *js_ast.ENumber, *js_ast.EMangledProp:
 						property.Flags &= ^js_ast.PropertyIsComputed
 					case *js_ast.EString:
 						if !helpers.UTF16EqualsString(k.Value, "__proto__") {

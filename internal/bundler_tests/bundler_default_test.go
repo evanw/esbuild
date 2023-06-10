@@ -7394,6 +7394,79 @@ func TestMangleQuotedPropsMinifySyntax(t *testing.T) {
 	})
 }
 
+func TestPreserveKeyComment(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				x(/* __KEY__ */ 'notKey', /* __KEY__ */ ` + "`" + `notKey` + "`" + `)
+				x(/* @__KEY__ */ 'key', /* @__KEY__ */ ` + "`" + `key` + "`" + `)
+				x(/* #__KEY__ */ 'alsoKey', /* #__KEY__ */ ` + "`" + `alsoKey` + "`" + `)
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModePassThrough,
+			AbsOutputDir: "/out",
+		},
+	})
+}
+
+func TestManglePropsKeyComment(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				x(/* __KEY__ */ '_doNotMangleThis', /* __KEY__ */ ` + "`" + `_doNotMangleThis` + "`" + `)
+				x._mangleThis(/* @__KEY__ */ '_mangleThis', /* @__KEY__ */ ` + "`" + `_mangleThis` + "`" + `)
+				x._mangleThisToo(/* #__KEY__ */ '_mangleThisToo', /* #__KEY__ */ ` + "`" + `_mangleThisToo` + "`" + `)
+				x._someKey = /* #__KEY__ */ '_someKey' in y
+				x([
+					` + "`" + `foo.${/* @__KEY__ */ '_mangleThis'} = bar.${/* @__KEY__ */ '_mangleThisToo'}` + "`" + `,
+					` + "`" + `foo.${/* @__KEY__ */ 'notMangled'} = bar.${/* @__KEY__ */ 'notMangledEither'}` + "`" + `,
+				])
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModePassThrough,
+			AbsOutputDir: "/out",
+			MangleProps:  regexp.MustCompile("_"),
+		},
+	})
+}
+
+func TestManglePropsKeyCommentMinify(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				x = class {
+					_mangleThis = 1;
+					[/* @__KEY__ */ '_mangleThisToo'] = 2;
+					'_doNotMangleThis' = 3;
+				}
+				x = {
+					_mangleThis: 1,
+					[/* @__KEY__ */ '_mangleThisToo']: 2,
+					'_doNotMangleThis': 3,
+				}
+				x._mangleThis = 1
+				x[/* @__KEY__ */ '_mangleThisToo'] = 2
+				x['_doNotMangleThis'] = 3
+				x([
+					` + "`" + `foo.${/* @__KEY__ */ '_mangleThis'} = bar.${/* @__KEY__ */ '_mangleThisToo'}` + "`" + `,
+					` + "`" + `foo.${/* @__KEY__ */ 'notMangled'} = bar.${/* @__KEY__ */ 'notMangledEither'}` + "`" + `,
+				])
+		`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModePassThrough,
+			AbsOutputDir: "/out",
+			MangleProps:  regexp.MustCompile("_"),
+			MinifySyntax: true,
+		},
+	})
+}
+
 func TestIndirectRequireMessage(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{

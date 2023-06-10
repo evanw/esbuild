@@ -3124,6 +3124,39 @@ export default [
 ];
 
 ================================================================================
+TestManglePropsKeyComment
+---------- /out/entry.js ----------
+x(
+  /* __KEY__ */
+  "_doNotMangleThis",
+  /* __KEY__ */
+  `_doNotMangleThis`
+);
+x.a(/* @__KEY__ */ "a", /* @__KEY__ */ "a");
+x.b(/* @__KEY__ */ "b", /* @__KEY__ */ "b");
+x.c = /* @__KEY__ */ "c" in y;
+x([
+  `foo.${/* @__KEY__ */ "a"} = bar.${/* @__KEY__ */ "b"}`,
+  `foo.${/* @__KEY__ */ "notMangled"} = bar.${/* @__KEY__ */ "notMangledEither"}`
+]);
+
+================================================================================
+TestManglePropsKeyCommentMinify
+---------- /out/entry.js ----------
+x = class {
+  a = 1;
+  b = 2;
+  _doNotMangleThis = 3;
+}, x = {
+  a: 1,
+  b: 2,
+  _doNotMangleThis: 3
+}, x.a = 1, x.b = 2, x._doNotMangleThis = 3, x([
+  "foo.a = bar.b",
+  "foo.notMangled = bar.notMangledEither"
+]);
+
+================================================================================
 TestManglePropsKeywordPropertyMinify
 ---------- /out/entry.js ----------
 class Foo{static t={get s(){return 123}}}
@@ -3381,10 +3414,10 @@ var { [foo("_keepThisProperty")]: x } = y;
 foo("_keepThisProperty") in x;
 
 ---------- /out/mangle.js ----------
-x.a, x?.a, x[y ? "a" : z], x?.[y ? "a" : z], x[y ? z : "a"], x?.[y ? z : "a"], x[y, "a"], x?.[y, "a"], "a" + "", (y, "a") + "", class {
+x.a, x?.a, x[y ? "a" : z], x?.[y ? "a" : z], x[y ? z : "a"], x?.[y ? z : "a"], x[y, "a"], x?.[y, "a"], (y, "a") + "", class {
   a = x;
 }, class {
-  ["a"] = x;
+  a = x;
 }, class {
   [(y, "a")] = x;
 };
@@ -4731,6 +4764,18 @@ import "alias/pkg_foo_bar";
 import "alias/pkg_foo_bar/baz";
 import "alias/pkg/bar/baz";
 import "alias/pkg/baz";
+
+================================================================================
+TestPreserveKeyComment
+---------- /out/entry.js ----------
+x(
+  /* __KEY__ */
+  "notKey",
+  /* __KEY__ */
+  `notKey`
+);
+x(/* @__KEY__ */ "key", /* @__KEY__ */ `key`);
+x(/* @__KEY__ */ "alsoKey", /* @__KEY__ */ `alsoKey`);
 
 ================================================================================
 TestQuotedProperty
