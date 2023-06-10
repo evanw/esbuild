@@ -2045,7 +2045,7 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 					}
 
 				case "async":
-					if !opts.isAsync && raw == name.String && !p.lexer.HasNewlineBefore {
+					if !p.lexer.HasNewlineBefore && !opts.isAsync && raw == name.String {
 						opts.isAsync = true
 						opts.asyncRange = nameRange
 						return p.parseProperty(startLoc, kind, opts, nil)
@@ -2058,7 +2058,7 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 					}
 
 				case "declare":
-					if opts.isClass && p.options.ts.Parse && opts.tsDeclareRange.Len == 0 && raw == name.String {
+					if !p.lexer.HasNewlineBefore && opts.isClass && p.options.ts.Parse && opts.tsDeclareRange.Len == 0 && raw == name.String {
 						opts.tsDeclareRange = nameRange
 						scopeIndex := len(p.scopesInOrder)
 
@@ -2085,7 +2085,7 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 					}
 
 				case "abstract":
-					if opts.isClass && p.options.ts.Parse && !opts.isTSAbstract && raw == name.String {
+					if !p.lexer.HasNewlineBefore && opts.isClass && p.options.ts.Parse && !opts.isTSAbstract && raw == name.String {
 						opts.isTSAbstract = true
 						scopeIndex := len(p.scopesInOrder)
 						p.parseProperty(startLoc, kind, opts, nil)
@@ -7467,7 +7467,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 				if p.options.ts.Parse {
 					switch name {
 					case "type":
-						if p.lexer.Token == js_lexer.TIdentifier && !p.lexer.HasNewlineBefore {
+						if !p.lexer.HasNewlineBefore && p.lexer.Token == js_lexer.TIdentifier {
 							// "type Foo = any"
 							p.skipTypeScriptTypeStmt(parseStmtOpts{isModuleScope: opts.isModuleScope})
 							return js_ast.Stmt{Loc: loc, Data: js_ast.STypeScriptShared}
@@ -7478,18 +7478,20 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 						// "module Foo {}"
 						// "declare module 'fs' {}"
 						// "declare module 'fs';"
-						if (opts.isModuleScope || opts.isNamespaceScope) && (p.lexer.Token == js_lexer.TIdentifier ||
+						if !p.lexer.HasNewlineBefore && (opts.isModuleScope || opts.isNamespaceScope) && (p.lexer.Token == js_lexer.TIdentifier ||
 							(p.lexer.Token == js_lexer.TStringLiteral && opts.isTypeScriptDeclare)) {
 							return p.parseTypeScriptNamespaceStmt(loc, opts)
 						}
 
 					case "interface":
 						// "interface Foo {}"
-						p.skipTypeScriptInterfaceStmt(parseStmtOpts{isModuleScope: opts.isModuleScope})
-						return js_ast.Stmt{Loc: loc, Data: js_ast.STypeScriptShared}
+						if !p.lexer.HasNewlineBefore {
+							p.skipTypeScriptInterfaceStmt(parseStmtOpts{isModuleScope: opts.isModuleScope})
+							return js_ast.Stmt{Loc: loc, Data: js_ast.STypeScriptShared}
+						}
 
 					case "abstract":
-						if p.lexer.Token == js_lexer.TClass || opts.decorators != nil {
+						if !p.lexer.HasNewlineBefore && (p.lexer.Token == js_lexer.TClass || opts.decorators != nil) {
 							return p.parseClassStmt(loc, opts)
 						}
 
@@ -7503,70 +7505,72 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 						}
 
 					case "declare":
-						opts.lexicalDecl = lexicalDeclAllowAll
-						opts.isTypeScriptDeclare = true
+						if !p.lexer.HasNewlineBefore {
+							opts.lexicalDecl = lexicalDeclAllowAll
+							opts.isTypeScriptDeclare = true
 
-						// "@decorator declare class Foo {}"
-						// "@decorator declare abstract class Foo {}"
-						if opts.decorators != nil && p.lexer.Token != js_lexer.TClass && !p.lexer.IsContextualKeyword("abstract") {
-							p.logDecoratorWithoutFollowingClassError(opts.decorators.firstAtLoc, opts.decorators.scopeIndex)
-						}
+							// "@decorator declare class Foo {}"
+							// "@decorator declare abstract class Foo {}"
+							if opts.decorators != nil && p.lexer.Token != js_lexer.TClass && !p.lexer.IsContextualKeyword("abstract") {
+								p.logDecoratorWithoutFollowingClassError(opts.decorators.firstAtLoc, opts.decorators.scopeIndex)
+							}
 
-						// "declare global { ... }"
-						if p.lexer.IsContextualKeyword("global") {
-							p.lexer.Next()
-							p.lexer.Expect(js_lexer.TOpenBrace)
-							p.parseStmtsUpTo(js_lexer.TCloseBrace, opts)
-							p.lexer.Next()
-							return js_ast.Stmt{Loc: loc, Data: js_ast.STypeScriptShared}
-						}
+							// "declare global { ... }"
+							if p.lexer.IsContextualKeyword("global") {
+								p.lexer.Next()
+								p.lexer.Expect(js_lexer.TOpenBrace)
+								p.parseStmtsUpTo(js_lexer.TCloseBrace, opts)
+								p.lexer.Next()
+								return js_ast.Stmt{Loc: loc, Data: js_ast.STypeScriptShared}
+							}
 
-						// "declare const x: any"
-						scopeIndex := len(p.scopesInOrder)
-						stmt := p.parseStmt(opts)
-						if opts.decorators != nil {
-							p.discardScopesUpTo(opts.decorators.scopeIndex)
-						} else {
-							p.discardScopesUpTo(scopeIndex)
-						}
+							// "declare const x: any"
+							scopeIndex := len(p.scopesInOrder)
+							stmt := p.parseStmt(opts)
+							if opts.decorators != nil {
+								p.discardScopesUpTo(opts.decorators.scopeIndex)
+							} else {
+								p.discardScopesUpTo(scopeIndex)
+							}
 
-						// Unlike almost all uses of "declare", statements that use
-						// "export declare" with "var/let/const" inside a namespace affect
-						// code generation. They cause any declared bindings to be
-						// considered exports of the namespace. Identifier references to
-						// those names must be converted into property accesses off the
-						// namespace object:
-						//
-						//   namespace ns {
-						//     export declare const x
-						//     export function y() { return x }
-						//   }
-						//
-						//   (ns as any).x = 1
-						//   console.log(ns.y())
-						//
-						// In this example, "return x" must be replaced with "return ns.x".
-						// This is handled by replacing each "export declare" statement
-						// inside a namespace with an "export var" statement containing all
-						// of the declared bindings. That "export var" statement will later
-						// cause identifiers to be transformed into property accesses.
-						if opts.isNamespaceScope && opts.isExport {
-							var decls []js_ast.Decl
-							if s, ok := stmt.Data.(*js_ast.SLocal); ok {
-								for _, decl := range s.Decls {
-									decls = extractDeclsForBinding(decl.Binding, decls)
+							// Unlike almost all uses of "declare", statements that use
+							// "export declare" with "var/let/const" inside a namespace affect
+							// code generation. They cause any declared bindings to be
+							// considered exports of the namespace. Identifier references to
+							// those names must be converted into property accesses off the
+							// namespace object:
+							//
+							//   namespace ns {
+							//     export declare const x
+							//     export function y() { return x }
+							//   }
+							//
+							//   (ns as any).x = 1
+							//   console.log(ns.y())
+							//
+							// In this example, "return x" must be replaced with "return ns.x".
+							// This is handled by replacing each "export declare" statement
+							// inside a namespace with an "export var" statement containing all
+							// of the declared bindings. That "export var" statement will later
+							// cause identifiers to be transformed into property accesses.
+							if opts.isNamespaceScope && opts.isExport {
+								var decls []js_ast.Decl
+								if s, ok := stmt.Data.(*js_ast.SLocal); ok {
+									for _, decl := range s.Decls {
+										decls = extractDeclsForBinding(decl.Binding, decls)
+									}
+								}
+								if len(decls) > 0 {
+									return js_ast.Stmt{Loc: loc, Data: &js_ast.SLocal{
+										Kind:     js_ast.LocalVar,
+										IsExport: true,
+										Decls:    decls,
+									}}
 								}
 							}
-							if len(decls) > 0 {
-								return js_ast.Stmt{Loc: loc, Data: &js_ast.SLocal{
-									Kind:     js_ast.LocalVar,
-									IsExport: true,
-									Decls:    decls,
-								}}
-							}
-						}
 
-						return js_ast.Stmt{Loc: loc, Data: js_ast.STypeScriptShared}
+							return js_ast.Stmt{Loc: loc, Data: js_ast.STypeScriptShared}
+						}
 					}
 				}
 			}

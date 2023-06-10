@@ -631,6 +631,9 @@ func TestTSClass(t *testing.T) {
 	expectPrintedTS(t, "(class <T> extends Foo<T>() {})", "(class extends Foo() {\n});\n")
 	expectPrintedTS(t, "(class <T> implements Foo<T> {})", "(class {\n});\n")
 
+	expectPrintedTS(t, "abstract \n class A {}", "abstract;\nclass A {\n}\n")
+	expectPrintedTS(t, "abstract class A { abstract \n foo(): void {} }", "class A {\n  abstract;\n  foo() {\n  }\n}\n")
+
 	expectPrintedTS(t, "abstract class A { abstract foo(): void; bar(): void {} }", "class A {\n  bar() {\n  }\n}\n")
 	expectPrintedTS(t, "export abstract class A { abstract foo(): void; bar(): void {} }", "export class A {\n  bar() {\n  }\n}\n")
 	expectPrintedTS(t, "export default abstract", "export default abstract;\n")
@@ -809,6 +812,8 @@ func TestTSPrivateIdentifiers(t *testing.T) {
 }
 
 func TestTSInterface(t *testing.T) {
+	expectPrintedTS(t, "interface\nA\n{ a }", "interface;\nA;\n{\n  a;\n}\n")
+
 	expectPrintedTS(t, "interface A { a } x", "x;\n")
 	expectPrintedTS(t, "interface A { a; b } x", "x;\n")
 	expectPrintedTS(t, "interface A { a() } x", "x;\n")
@@ -820,6 +825,8 @@ func TestTSInterface(t *testing.T) {
 }
 
 func TestTSNamespace(t *testing.T) {
+	expectPrintedTS(t, "namespace\nx\n{ var y }", "namespace;\nx;\n{\n  var y;\n}\n")
+
 	// Check ES5 emit
 	expectPrintedTargetTS(t, 5, "namespace x { export var y = 1 }", "var x;\n(function(x) {\n  x.y = 1;\n})(x || (x = {}));\n")
 	expectPrintedTargetTS(t, 2015, "namespace x { export var y = 1 }", "var x;\n((x) => {\n  x.y = 1;\n})(x || (x = {}));\n")
@@ -1671,6 +1678,15 @@ func TestTSDecl(t *testing.T) {
 }
 
 func TestTSDeclare(t *testing.T) {
+	expectPrintedTS(t, "declare\nfoo", "declare;\nfoo;\n")
+	expectPrintedTS(t, "declare\nvar foo", "declare;\nvar foo;\n")
+	expectPrintedTS(t, "declare\nlet foo", "declare;\nlet foo;\n")
+	expectPrintedTS(t, "declare\nconst foo = 0", "declare;\nconst foo = 0;\n")
+	expectPrintedTS(t, "declare\nfunction foo() {}", "declare;\nfunction foo() {\n}\n")
+	expectPrintedTS(t, "declare\nclass Foo {}", "declare;\nclass Foo {\n}\n")
+	expectPrintedTS(t, "declare\nenum Foo {}", "declare;\nvar Foo = /* @__PURE__ */ ((Foo) => {\n})(Foo || {});\n")
+	expectPrintedTS(t, "class Foo { declare \n foo }", "class Foo {\n  declare;\n  foo;\n}\n")
+
 	expectPrintedTS(t, "declare var x: number", "")
 	expectPrintedTS(t, "declare let x: number", "")
 	expectPrintedTS(t, "declare const x: number", "")
