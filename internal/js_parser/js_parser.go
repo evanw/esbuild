@@ -3881,13 +3881,9 @@ func (p *parser) parseExprCommon(level js_ast.L, errors *deferredErrors, flags e
 		if (lexerCommentFlags & js_lexer.NoSideEffectsCommentBefore) != 0 {
 			switch e := expr.Data.(type) {
 			case *js_ast.EArrow:
-				if !e.IsAsync {
-					e.HasNoSideEffectsComment = true
-				}
+				e.HasNoSideEffectsComment = true
 			case *js_ast.EFunction:
-				if !e.Fn.IsAsync {
-					e.Fn.HasNoSideEffectsComment = true
-				}
+				e.Fn.HasNoSideEffectsComment = true
 			}
 		}
 
@@ -5141,7 +5137,7 @@ func (p *parser) parseAndDeclareDecls(kind js_ast.SymbolKind, opts parseStmtOpts
 			if !p.options.ignoreDCEAnnotations && kind == js_ast.SymbolConst {
 				switch e := valueOrNil.Data.(type) {
 				case *js_ast.EArrow:
-					if opts.hasNoSideEffectsComment && !e.IsAsync {
+					if opts.hasNoSideEffectsComment {
 						e.HasNoSideEffectsComment = true
 					}
 					if e.HasNoSideEffectsComment && !opts.isTypeScriptDeclare {
@@ -5151,7 +5147,7 @@ func (p *parser) parseAndDeclareDecls(kind js_ast.SymbolKind, opts parseStmtOpts
 					}
 
 				case *js_ast.EFunction:
-					if opts.hasNoSideEffectsComment && !e.Fn.IsAsync {
+					if opts.hasNoSideEffectsComment {
 						e.Fn.HasNoSideEffectsComment = true
 					}
 					if e.Fn.HasNoSideEffectsComment && !opts.isTypeScriptDeclare {
@@ -6290,7 +6286,7 @@ func (p *parser) parseFnStmt(loc logger.Loc, opts parseStmtOpts, isAsync bool, a
 
 	fn.HasIfScope = hasIfScope
 	p.validateFunctionName(fn, fnStmt)
-	if opts.hasNoSideEffectsComment && !p.options.ignoreDCEAnnotations && !fn.IsAsync {
+	if opts.hasNoSideEffectsComment && !p.options.ignoreDCEAnnotations {
 		fn.HasNoSideEffectsComment = true
 		if name != nil && !opts.isTypeScriptDeclare {
 			p.symbols[name.Ref.InnerIndex].Flags |= js_ast.CallCanBeUnwrappedIfUnused

@@ -1097,17 +1097,14 @@ x([
   /* @__NO_SIDE_EFFECTS__ */ function* () {
   },
   /* @__NO_SIDE_EFFECTS__ */ function* y2() {
-  }
-]);
-//! These should not have "no side effects" (Rollup ignores "async" functions)
-x([
-  async function() {
   },
-  async function y3() {
+  /* @__NO_SIDE_EFFECTS__ */ async function() {
   },
-  async function* () {
+  /* @__NO_SIDE_EFFECTS__ */ async function y3() {
   },
-  async function* y4() {
+  /* @__NO_SIDE_EFFECTS__ */ async function* () {
+  },
+  /* @__NO_SIDE_EFFECTS__ */ async function* y4() {
   }
 ]);
 
@@ -1117,14 +1114,11 @@ x([
   /* @__NO_SIDE_EFFECTS__ */ (y) => y,
   /* @__NO_SIDE_EFFECTS__ */ () => {
   },
-  /* @__NO_SIDE_EFFECTS__ */ (y) => y
-]);
-//! These should not have "no side effects" (Rollup ignores "async" functions)
-x([
-  async (y) => y,
-  async () => {
+  /* @__NO_SIDE_EFFECTS__ */ (y) => y,
+  /* @__NO_SIDE_EFFECTS__ */ async (y) => y,
+  /* @__NO_SIDE_EFFECTS__ */ async () => {
   },
-  async (y) => y
+  /* @__NO_SIDE_EFFECTS__ */ async (y) => y
 ]);
 
 ---------- /out/stmt-fn.js ----------
@@ -1135,9 +1129,10 @@ function a() {
 // @__NO_SIDE_EFFECTS__
 function* b() {
 }
-//! These should not have "no side effects" (Rollup ignores "async" functions)
+// @__NO_SIDE_EFFECTS__
 async function c() {
 }
+// @__NO_SIDE_EFFECTS__
 async function* d() {
 }
 
@@ -1150,19 +1145,10 @@ export function a() {
 export function* b() {
 }
 // @__NO_SIDE_EFFECTS__
-export function a2() {
-}
-// @__NO_SIDE_EFFECTS__
-export function* b2() {
-}
-//! These should not have "no side effects" (Rollup ignores "async" functions)
 export async function c() {
 }
+// @__NO_SIDE_EFFECTS__
 export async function* d() {
-}
-export async function c2() {
-}
-export async function* d2() {
 }
 
 ---------- /out/stmt-local.js ----------
@@ -1220,26 +1206,13 @@ var ns;
   }
   ns2.b = b;
   // @__NO_SIDE_EFFECTS__
-  function a2() {
-  }
-  ns2.a2 = a2;
-  // @__NO_SIDE_EFFECTS__
-  function* b2() {
-  }
-  ns2.b2 = b2;
-  //! These should not have "no side effects" (Rollup ignores "async" functions)
   async function c() {
   }
   ns2.c = c;
+  // @__NO_SIDE_EFFECTS__
   async function* d() {
   }
   ns2.d = d;
-  async function c2() {
-  }
-  ns2.c2 = c2;
-  async function* d2() {
-  }
-  ns2.d2 = d2;
 })(ns || (ns = {}));
 
 ---------- /out/ns-export-local.js ----------
@@ -1297,22 +1270,26 @@ export default function* f() {
 }
 
 ---------- /out/stmt-export-default-before-async-fn-anon.js ----------
-/*! This should not have "no side effects" (because "async") */
+/*! This should have "no side effects" */
+// @__NO_SIDE_EFFECTS__
 export default async function() {
 }
 
 ---------- /out/stmt-export-default-before-async-fn-name.js ----------
-/*! This should not have "no side effects" (because "async") */
+/*! This should have "no side effects" */
+// @__NO_SIDE_EFFECTS__
 export default async function f() {
 }
 
 ---------- /out/stmt-export-default-before-async-gen-fn-anon.js ----------
-/*! This should not have "no side effects" (because "async") */
+/*! This should have "no side effects" */
+// @__NO_SIDE_EFFECTS__
 export default async function* () {
 }
 
 ---------- /out/stmt-export-default-before-async-gen-fn-name.js ----------
-/*! This should not have "no side effects" (because "async") */
+/*! This should have "no side effects" */
+// @__NO_SIDE_EFFECTS__
 export default async function* f() {
 }
 
@@ -1341,22 +1318,26 @@ export default function* f() {
 }
 
 ---------- /out/stmt-export-default-after-async-fn-anon.js ----------
-/*! This should not have "no side effects" (because "async") */
+/*! This should have "no side effects" */
+// @__NO_SIDE_EFFECTS__
 export default async function() {
 }
 
 ---------- /out/stmt-export-default-after-async-fn-name.js ----------
-/*! This should not have "no side effects" (because "async") */
+/*! This should have "no side effects" */
+// @__NO_SIDE_EFFECTS__
 export default async function f() {
 }
 
 ---------- /out/stmt-export-default-after-async-gen-fn-anon.js ----------
-/*! This should not have "no side effects" (because "async") */
+/*! This should have "no side effects" */
+// @__NO_SIDE_EFFECTS__
 export default async function* () {
 }
 
 ---------- /out/stmt-export-default-after-async-gen-fn-name.js ----------
-/*! This should not have "no side effects" (because "async") */
+/*! This should have "no side effects" */
+// @__NO_SIDE_EFFECTS__
 export default async function* f() {
 }
 
@@ -1371,9 +1352,7 @@ x([
   function* () {
   },
   function* y2() {
-  }
-]);
-x([
+  },
   async function() {
   },
   async function y3() {
@@ -1389,9 +1368,7 @@ x([
   (y) => y,
   () => {
   },
-  (y) => y
-]);
-x([
+  (y) => y,
   async (y) => y,
   async () => {
   },
@@ -1413,17 +1390,9 @@ export function a() {
 }
 export function* b() {
 }
-export function a2() {
-}
-export function* b2() {
-}
 export async function c() {
 }
 export async function* d() {
-}
-export async function c2() {
-}
-export async function* d2() {
 }
 
 ---------- /out/stmt-local.js ----------
@@ -1475,24 +1444,12 @@ var ns;
   function* b() {
   }
   ns2.b = b;
-  function a2() {
-  }
-  ns2.a2 = a2;
-  function* b2() {
-  }
-  ns2.b2 = b2;
   async function c() {
   }
   ns2.c = c;
   async function* d() {
   }
   ns2.d = d;
-  async function c2() {
-  }
-  ns2.c2 = c2;
-  async function* d2() {
-  }
-  ns2.d2 = d2;
 })(ns || (ns = {}));
 
 ---------- /out/ns-export-local.js ----------
@@ -1591,16 +1548,16 @@ export default async function* f() {
 ================================================================================
 TestNoSideEffectsCommentMinifyWhitespace
 ---------- /out/expr-fn.js ----------
-x([function(){},function y(){},function*(){},function*y2(){}]);x([async function(){},async function y3(){},async function*(){},async function*y4(){}]);
+x([function(){},function y(){},function*(){},function*y2(){},async function(){},async function y3(){},async function*(){},async function*y4(){}]);
 
 ---------- /out/expr-arrow.js ----------
-x([y=>y,()=>{},y=>y]);x([async y=>y,async()=>{},async y=>y]);
+x([y=>y,()=>{},y=>y,async y=>y,async()=>{},async y=>y]);
 
 ---------- /out/stmt-fn.js ----------
 function a(){}function*b(){}async function c(){}async function*d(){}
 
 ---------- /out/stmt-export-fn.js ----------
-export function a(){}export function*b(){}export function a2(){}export function*b2(){}export async function c(){}export async function*d(){}export async function c2(){}export async function*d2(){}
+export function a(){}export function*b(){}export async function c(){}export async function*d(){}
 
 ---------- /out/stmt-local.js ----------
 var v0=function(){},v1=function(){};let l0=function(){},l1=function(){};const c0=function(){},c1=function(){};var v2=()=>{},v3=()=>{};let l2=()=>{},l3=()=>{};const c2=()=>{},c3=()=>{};
@@ -1609,7 +1566,7 @@ var v0=function(){},v1=function(){};let l0=function(){},l1=function(){};const c0
 export var v0=function(){},v1=function(){};export let l0=function(){},l1=function(){};export const c0=function(){},c1=function(){};export var v2=()=>{},v3=()=>{};export let l2=()=>{},l3=()=>{};export const c2=()=>{},c3=()=>{};
 
 ---------- /out/ns-export-fn.js ----------
-var ns;(ns2=>{function a(){}ns2.a=a;function*b(){}ns2.b=b;function a2(){}ns2.a2=a2;function*b2(){}ns2.b2=b2;async function c(){}ns2.c=c;async function*d(){}ns2.d=d;async function c2(){}ns2.c2=c2;async function*d2(){}ns2.d2=d2})(ns||(ns={}));
+var ns;(ns2=>{function a(){}ns2.a=a;function*b(){}ns2.b=b;async function c(){}ns2.c=c;async function*d(){}ns2.d=d})(ns||(ns={}));
 
 ---------- /out/ns-export-local.js ----------
 var ns;(ns2=>{ns2.v0=function(){};ns2.v1=function(){};ns2.l0=function(){};ns2.l1=function(){};ns2.c0=function(){};ns2.c1=function(){};ns2.v2=()=>{};ns2.v3=()=>{};ns2.l2=()=>{};ns2.l3=()=>{};ns2.c2=()=>{};ns2.c3=()=>{}})(ns||(ns={}));
