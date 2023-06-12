@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.18.1
 
 * Fill in `null` entries in input source maps ([#3144](https://github.com/evanw/esbuild/issues/3144))
 
