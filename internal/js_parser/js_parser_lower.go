@@ -2345,7 +2345,30 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 	for _, prop := range class.Properties {
 		if prop.Kind == js_ast.PropertyClassStaticBlock {
 			if classLoweringInfo.lowerAllStaticFields {
-				if block := *prop.ClassStaticBlock; len(block.Block.Stmts) > 0 {
+				block := *prop.ClassStaticBlock
+				isAllExprs := []js_ast.Expr{}
+
+				// Are all statements in the block expression statements?
+			loop:
+				for _, stmt := range block.Block.Stmts {
+					switch s := stmt.Data.(type) {
+					case *js_ast.SEmpty:
+						// Omit stray semicolons completely
+					case *js_ast.SExpr:
+						isAllExprs = append(isAllExprs, s.Value)
+					default:
+						isAllExprs = nil
+						break loop
+					}
+				}
+
+				if isAllExprs != nil {
+					// I think it should be safe to inline the static block IIFE here
+					// since all uses of "this" should have already been replaced by now.
+					staticMembers = append(staticMembers, isAllExprs...)
+				} else {
+					// But if there is a non-expression statement, fall back to using an
+					// IIFE since we may be in an expression context and can't use a block.
 					staticMembers = append(staticMembers, js_ast.Expr{Loc: prop.Loc, Data: &js_ast.ECall{
 						Target: js_ast.Expr{Loc: prop.Loc, Data: &js_ast.EArrow{Body: js_ast.FnBody{
 							Loc:   block.Loc,

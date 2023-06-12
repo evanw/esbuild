@@ -341,15 +341,11 @@ TestDCEClassStaticBlocks
 // entry.ts
 var A_keep = class {
 };
-(() => {
-  foo;
-})();
+foo;
 var _B_keep = class {
 };
 var B_keep = _B_keep;
-(() => {
-  _B_keep.foo;
-})();
+_B_keep.foo;
 var C_keep = class {
 };
 (() => {

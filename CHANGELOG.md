@@ -27,9 +27,7 @@
     class Foo {
     }
     __publicField(Foo, "x", console.log(1));
-    (() => {
-      console.log(2);
-    })();
+    console.log(2);
     __publicField(Foo, "y", console.log(3));
     ```
 
