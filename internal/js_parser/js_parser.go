@@ -10653,6 +10653,23 @@ func (p *parser) maybeTransposeIfExprChain(expr js_ast.Expr, visit func(js_ast.E
 	return visit(expr)
 }
 
+func (p *parser) iifeCanBeRemovedIfUnused(args []js_ast.Arg, body js_ast.FnBody) bool {
+	for _, arg := range args {
+		if arg.DefaultOrNil.Data != nil && !js_ast.ExprCanBeRemovedIfUnused(arg.DefaultOrNil, p.isUnbound) {
+			// The default value has a side effect
+			return false
+		}
+
+		if _, ok := arg.Binding.Data.(*js_ast.BIdentifier); !ok {
+			// Destructuring is a side effect (due to property access)
+			return false
+		}
+	}
+
+	// Check whether any statements have side effects or not
+	return js_ast.StmtsCanBeRemovedIfUnused(body.Block.Stmts, 0, p.isUnbound)
+}
+
 type captureValueMode uint8
 
 const (
@@ -13791,6 +13808,20 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				hasSpread = true
 			}
 			e.Args[i] = arg
+		}
+
+		// Mark side-effect free IIFEs with "/* @__PURE__ */"
+		if !e.CanBeUnwrappedIfUnused {
+			switch target := e.Target.Data.(type) {
+			case *js_ast.EArrow:
+				if p.iifeCanBeRemovedIfUnused(target.Args, target.Body) {
+					e.CanBeUnwrappedIfUnused = true
+				}
+			case *js_ast.EFunction:
+				if p.iifeCanBeRemovedIfUnused(target.Fn.Args, target.Fn.Body) {
+					e.CanBeUnwrappedIfUnused = true
+				}
+			}
 		}
 
 		// Our hack for reading Yarn PnP files is implemented here:

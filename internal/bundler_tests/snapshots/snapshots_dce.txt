@@ -367,6 +367,23 @@ var D_keep = class {
 };
 
 ================================================================================
+TestDCEOfIIFE
+---------- /out/remove-these.js ----------
+keepThisButRemoveTheIIFE;
+
+---------- /out/keep-these.js ----------
+undef = /* @__PURE__ */ (() => {
+})();
+keepMe();
+((x = keepMe()) => {
+})();
+var someVar;
+(([y]) => {
+})(someVar);
+(({ z }) => {
+})(someVar);
+
+================================================================================
 TestDCETemplateLiteral
 ---------- /out/entry.js ----------
 // entry.js

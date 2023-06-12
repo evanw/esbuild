@@ -2364,6 +2364,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 							Loc:   block.Loc,
 							Block: block.Block,
 						}}},
+						CanBeUnwrappedIfUnused: js_ast.StmtsCanBeRemovedIfUnused(block.Block.Stmts, 0, p.isUnbound),
 					}})
 				}
 				continue

@@ -431,6 +431,12 @@ func TestLowerClassStatic(t *testing.T) {
 let Bar = (_a = class {
 }, __publicField(_a, "foo", 123), __publicField(_a, "bar", _a.foo), _a);
 `)
+
+	// Generated IIFEs for static class blocks should be appropriately annotated
+	expectPrintedTarget(t, 2015, "class Foo { static { impureCall() } }", "class Foo {\n}\n(() => {\n  impureCall();\n})();\n")
+	expectPrintedTarget(t, 2015, "(class Foo { static { impureCall() } })", "var _a;\n_a = class {\n}, (() => {\n  impureCall();\n})(), _a;\n")
+	expectPrintedTarget(t, 2015, "class Foo { static { /* @__PURE__ */ pureCall() } }", "class Foo {\n}\n/* @__PURE__ */ (() => {\n  /* @__PURE__ */ pureCall();\n})();\n")
+	expectPrintedTarget(t, 2015, "(class Foo { static { /* @__PURE__ */ pureCall() } })", "var _a;\n_a = class {\n}, /* @__PURE__ */ (() => {\n  /* @__PURE__ */ pureCall();\n})(), _a;\n")
 }
 
 func TestLowerClassStaticThis(t *testing.T) {

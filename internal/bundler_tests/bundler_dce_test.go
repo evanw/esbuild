@@ -4238,3 +4238,34 @@ func TestNoSideEffectsCommentTypeScriptDeclare(t *testing.T) {
 		},
 	})
 }
+
+func TestDCEOfIIFE(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/remove-these.js": `
+				(() => {})();
+				(() => {})(keepThisButRemoveTheIIFE);
+				(() => { /* @__PURE__ */ removeMe() })();
+				var someVar;
+				(x => {})(someVar);
+			`,
+			"/keep-these.js": `
+				undef = (() => {})();
+				(() => { keepMe() })();
+				((x = keepMe()) => {})();
+				var someVar;
+				(([y]) => {})(someVar);
+				(({z}) => {})(someVar);
+			`,
+		},
+		entryPaths: []string{
+			"/remove-these.js",
+			"/keep-these.js",
+		},
+		options: config.Options{
+			AbsOutputDir: "/out",
+			MinifySyntax: true,
+			TreeShaking:  true,
+		},
+	})
+}

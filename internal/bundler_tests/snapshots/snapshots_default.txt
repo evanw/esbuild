@@ -51,7 +51,7 @@ export let c = [
 ================================================================================
 TestArgumentsSpecialCaseNoBundle
 ---------- /out.js ----------
-(() => {
+/* @__PURE__ */ (() => {
   var r;
   function t(n = arguments) {
     return arguments;

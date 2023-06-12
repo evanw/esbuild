@@ -571,14 +571,14 @@ func TestCommentsAndParentheses(t *testing.T) {
 
 func TestPureComment(t *testing.T) {
 	expectPrinted(t,
-		"(function() {})",
-		"(function() {\n});\n")
+		"(function() { foo() })",
+		"(function() {\n  foo();\n});\n")
 	expectPrinted(t,
-		"(function() {})()",
-		"(function() {\n})();\n")
+		"(function() { foo() })()",
+		"(function() {\n  foo();\n})();\n")
 	expectPrinted(t,
-		"/*@__PURE__*/(function() {})()",
-		"/* @__PURE__ */ (function() {\n})();\n")
+		"/*@__PURE__*/(function() { foo() })()",
+		"/* @__PURE__ */ (function() {\n  foo();\n})();\n")
 
 	expectPrinted(t,
 		"new (function() {})",
@@ -591,14 +591,14 @@ func TestPureComment(t *testing.T) {
 		"/* @__PURE__ */ new function() {\n}();\n")
 
 	expectPrinted(t,
-		"export default (function() {})",
-		"export default (function() {\n});\n")
+		"export default (function() { foo() })",
+		"export default (function() {\n  foo();\n});\n")
 	expectPrinted(t,
-		"export default (function() {})()",
-		"export default (function() {\n})();\n")
+		"export default (function() { foo() })()",
+		"export default (function() {\n  foo();\n})();\n")
 	expectPrinted(t,
-		"export default /*@__PURE__*/(function() {})()",
-		"export default /* @__PURE__ */ (function() {\n})();\n")
+		"export default /*@__PURE__*/(function() { foo() })()",
+		"export default /* @__PURE__ */ (function() {\n  foo();\n})();\n")
 }
 
 func TestGenerator(t *testing.T) {
