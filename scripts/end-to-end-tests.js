@@ -3590,14 +3590,14 @@ for (let [code, expected] of [
 }
 
 // Class lowering tests
-for (let flags of [[], ['--target=es6']]) {
+for (let flags of [[], ['--target=es6'], ['--bundle'], ['--bundle', '--target=es6']]) {
   // Skip running these tests untransformed. I believe V8 actually has a bug
   // here and esbuild is correct, both because SpiderMonkey and JavaScriptCore
   // run this code fine and because the specification says that the left operand
   // of the assignment operator should be evaluated first but V8 appears to be
   // evaluating it later on. The bug with V8 has been filed here for reference:
   // https://bugs.chromium.org/p/v8/issues/detail?id=12352
-  if (flags.length > 0) {
+  if (flags.includes('--target=es6')) {
     tests.push(
       test(['in.js', '--outfile=node.js'].concat(flags), {
         'in.js': `
@@ -3635,6 +3635,11 @@ for (let flags of [[], ['--target=es6']]) {
       }),
     )
   }
+
+  // This log message is only an error during bundling
+  const assignToConstantMessage = flags.includes('--bundle')
+    ? `✘ [ERROR] Cannot assign to "Foo" because it is a constant`
+    : `▲ [WARNING] This assignment will throw because "Foo" is a constant [assign-to-constant]`
 
   tests.push(
     test(['in.js', '--outfile=node.js'].concat(flags), {
@@ -3870,7 +3875,7 @@ for (let flags of [[], ['--target=es6']]) {
           try {
             fn()
           } catch (e) {
-            ${flags.length > 0
+            ${flags.includes('--target=es6')
           // Only check the exact error message for esbuild
           ? `if (e instanceof TypeError && e.message === msg) return`
           // For node, just check whether a type error is thrown
@@ -4085,7 +4090,7 @@ for (let flags of [[], ['--target=es6']]) {
         }
       `,
     }, {
-      expectedStderr: `▲ [WARNING] This assignment will throw because "Foo" is a constant [assign-to-constant]
+      expectedStderr: assignToConstantMessage + `
 
     in.js:5:26:
       5 │             static #foo = Foo = class Bar {}
@@ -4114,7 +4119,7 @@ for (let flags of [[], ['--target=es6']]) {
         }
       `,
     }, {
-      expectedStderr: `▲ [WARNING] This assignment will throw because "Foo" is a constant [assign-to-constant]
+      expectedStderr: assignToConstantMessage + `
 
     in.js:4:26:
       4 │           static #foo() { Foo = class Bar{} }
@@ -4538,12 +4543,6 @@ for (let flags of [[], ['--target=es6']]) {
         if (!(it instanceof Foo)) throw 'fail'
       `,
     }),
-  )
-}
-
-// Class lowering tests with bundling
-for (let flags of [[], ['--target=es6'], ['--bundle'], ['--bundle', '--target=es6']]) {
-  tests.push(
     test(['in.js', '--outfile=node.js'].concat(flags), {
       'in.js': `
         const order = []
