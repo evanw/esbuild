@@ -3638,7 +3638,7 @@ for (let flags of [[], ['--target=es6'], ['--bundle'], ['--bundle', '--target=es
 
   // This log message is only an error during bundling
   const assignToConstantMessage = flags.includes('--bundle')
-    ? `✘ [ERROR] Cannot assign to "Foo" because it is a constant`
+    ? `${errorIcon} [ERROR] Cannot assign to "Foo" because it is a constant`
     : `▲ [WARNING] This assignment will throw because "Foo" is a constant [assign-to-constant]`
 
   tests.push(
