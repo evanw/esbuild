@@ -249,6 +249,7 @@ async function test_case(esbuild, test, basename) {
       'const.js: issue_4229',
       'const.js: issue_4245',
       'const.js: use_before_init_3',
+      'default-values.js: retain_empty_iife',
       'destructured.js: funarg_side_effects_2',
       'destructured.js: funarg_side_effects_3',
       'let.js: issue_4225',
