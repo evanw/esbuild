@@ -847,7 +847,7 @@ func TestMinify(t *testing.T) {
 	expectPrinted(t, "x = '\\n'", "x = \"\\n\";\n")
 	expectPrintedMangle(t, "x = '\\n'", "x = `\n`;\n")
 	expectPrintedMangle(t, "x = {'\\n': 0}", "x = { \"\\n\": 0 };\n")
-	expectPrintedMangle(t, "(class{'\\n' = 0})", "(class {\n  \"\\n\" = 0;\n});\n")
+	expectPrintedMangle(t, "x = class{'\\n' = 0}", "x = class {\n  \"\\n\" = 0;\n};\n")
 	expectPrintedMangle(t, "class Foo{'\\n' = 0}", "class Foo {\n  \"\\n\" = 0;\n}\n")
 
 	// Special identifiers must not be minified

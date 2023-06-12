@@ -357,6 +357,28 @@ type Class struct {
 	ClassKeyword  logger.Range
 	BodyLoc       logger.Loc
 	CloseBraceLoc logger.Loc
+
+	// If true, property field initializers cannot be assumed to have no side
+	// effects. For example:
+	//
+	//   class Foo {
+	//     static set foo(x) { importantSideEffect(x) }
+	//   }
+	//   class Bar extends Foo {
+	//     foo = 1
+	//   }
+	//
+	// This happens in TypeScript when "useDefineForClassFields" is disabled
+	// because TypeScript (and esbuild) transforms the above class into this:
+	//
+	//   class Foo {
+	//     static set foo(x) { importantSideEffect(x); }
+	//   }
+	//   class Bar extends Foo {
+	//   }
+	//   Bar.foo = 1;
+	//
+	UseDefineForClassFields bool
 }
 
 type ArrayBinding struct {
@@ -436,6 +458,7 @@ func (*EString) isExpr()               {}
 func (*ETemplate) isExpr()             {}
 func (*ERegExp) isExpr()               {}
 func (*EInlinedEnum) isExpr()          {}
+func (*EAnnotation) isExpr()           {}
 func (*EAwait) isExpr()                {}
 func (*EYield) isExpr()                {}
 func (*EIf) isExpr()                   {}
@@ -545,7 +568,6 @@ const (
 	NormalCall CallKind = iota
 	DirectEval
 	TargetWasOriginallyPropertyAccess
-	InternalPublicFieldCall
 )
 
 type OptionalChain uint8
@@ -791,6 +813,24 @@ type EInlinedEnum struct {
 	Comment string
 }
 
+type AnnotationFlags uint8
+
+const (
+	// This is sort of like an IIFE with a "/* @__PURE__ */" comment except it's an
+	// inline annotation on an expression itself without the nested scope. Sometimes
+	// we can't easily introduce a new scope (e.g. if the expression uses "await").
+	CanBeRemovedIfUnusedFlag AnnotationFlags = 1 << iota
+)
+
+func (flags AnnotationFlags) Has(flag AnnotationFlags) bool {
+	return (flags & flag) != 0
+}
+
+type EAnnotation struct {
+	Value Expr
+	Flags AnnotationFlags
+}
+
 type EAwait struct {
 	Value Expr
 }
@@ -938,10 +978,13 @@ type SLazyExport struct {
 type SExpr struct {
 	Value Expr
 
-	// This is set to true for automatically-generated expressions that should
-	// not affect tree shaking. For example, calling a function from the runtime
-	// that doesn't have externally-visible side effects.
-	DoesNotAffectTreeShaking bool
+	// This is set to true for automatically-generated expressions that are part
+	// of class syntax lowering. A single class declaration may end up with many
+	// generated expressions after it (e.g. class field initializations, a call
+	// to keep the original value of the "name" property). When this happens we
+	// can't tell that the class is side-effect free anymore because all of these
+	// methods mutate the class. We use this annotation for that instead.
+	IsFromClassThatCanBeRemovedIfUnused bool
 }
 
 type EnumValue struct {

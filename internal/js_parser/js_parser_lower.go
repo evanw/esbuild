@@ -1962,42 +1962,22 @@ func (p *parser) captureKeyForObjectRest(originalKey js_ast.Expr) (finalKey js_a
 }
 
 type classLoweringInfo struct {
-	useDefineForClassFields bool
-	avoidTDZ                bool
-	lowerAllInstanceFields  bool
-	lowerAllStaticFields    bool
-	shimSuperCtorCalls      bool
+	avoidTDZ               bool
+	lowerAllInstanceFields bool
+	lowerAllStaticFields   bool
+	shimSuperCtorCalls     bool
 }
 
 func (p *parser) computeClassLoweringInfo(class *js_ast.Class) (result classLoweringInfo) {
-	// TypeScript has legacy behavior that uses assignment semantics instead of
-	// define semantics for class fields when "useDefineForClassFields" is enabled
-	// (in which case TypeScript behaves differently than JavaScript, which is
-	// arguably "wrong").
-	//
-	// This legacy behavior exists because TypeScript added class fields to
-	// TypeScript before they were added to JavaScript. They decided to go with
-	// assignment semantics for whatever reason. Later on TC39 decided to go with
-	// define semantics for class fields instead. This behaves differently if the
-	// base class has a setter with the same name.
-	//
-	// The value of "useDefineForClassFields" defaults to false when it's not
-	// specified and the target is earlier than "ES2022" since the class field
-	// language feature was added in ES2022. However, TypeScript's "target"
-	// setting currently defaults to "ES3" which unfortunately means that the
-	// "useDefineForClassFields" setting defaults to false (i.e. to "wrong").
-	//
-	// We default "useDefineForClassFields" to true (i.e. to "correct") instead.
-	// This is partially because our target defaults to "esnext", and partially
-	// because this is a legacy behavior that no one should be using anymore.
-	// Users that want the wrong behavior can either set "useDefineForClassFields"
-	// to false in "tsconfig.json" explicitly, or set TypeScript's "target" to
-	// "ES2021" or earlier in their in "tsconfig.json" file.
-	result.useDefineForClassFields = !p.options.ts.Parse || p.options.ts.Config.UseDefineForClassFields == config.True ||
-		(p.options.ts.Config.UseDefineForClassFields == config.Unspecified && p.options.ts.Config.Target != config.TSTargetBelowES2022)
-
 	// Safari workaround: Automatically avoid TDZ issues when bundling
 	result.avoidTDZ = p.options.mode == config.ModeBundle && p.currentScope.Parent == nil
+
+	// Name keeping for classes is implemented with a static block. So we need to
+	// lower all static fields if static blocks are unsupported so that the name
+	// keeping comes first before other static initializers.
+	if p.options.keepNames && (result.avoidTDZ || p.options.unsupportedJSFeatures.Has(compat.ClassStaticBlocks)) {
+		result.lowerAllStaticFields = true
+	}
 
 	// Conservatively lower fields of a given type (instance or static) when any
 	// member of that type needs to be lowered. This must be done to preserve
@@ -2164,7 +2144,7 @@ func (p *parser) computeClassLoweringInfo(class *js_ast.Class) (result classLowe
 			// setting for this is enabled. I don't think this matters for private
 			// fields because there's no way for this to call a setter in the base
 			// class, so this isn't done for private fields.
-			if p.options.ts.Parse && !result.useDefineForClassFields {
+			if p.options.ts.Parse && !class.UseDefineForClassFields {
 				result.lowerAllStaticFields = true
 			}
 		} else {
@@ -2177,7 +2157,7 @@ func (p *parser) computeClassLoweringInfo(class *js_ast.Class) (result classLowe
 			// setting for this is enabled. I don't think this matters for private
 			// fields because there's no way for this to call a setter in the base
 			// class, so this isn't done for private fields.
-			if p.options.ts.Parse && !result.useDefineForClassFields {
+			if p.options.ts.Parse && !class.UseDefineForClassFields {
 				result.lowerAllInstanceFields = true
 			}
 		}
@@ -2191,16 +2171,6 @@ func (p *parser) computeClassLoweringInfo(class *js_ast.Class) (result classLowe
 	}
 
 	return
-}
-
-func propertyPreventsKeepNames(prop *js_ast.Property) bool {
-	// A static property called "name" shadows the automatically-generated name
-	if prop.Flags.Has(js_ast.PropertyIsStatic) {
-		if str, ok := prop.Key.Data.(*js_ast.EString); ok && helpers.UTF16EqualsString(str.Value, "name") {
-			return true
-		}
-	}
-	return false
 }
 
 // Lower class fields for environments that don't support them. This either
@@ -2219,14 +2189,12 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 	var class *js_ast.Class
 	var classLoc logger.Loc
 	var defaultName js_ast.LocRef
-	var nameToKeep string
 	if stmt.Data == nil {
 		e, _ := expr.Data.(*js_ast.EClass)
 		class = &e.Class
 		kind = classKindExpr
 		if class.Name != nil {
 			symbol := &p.symbols[class.Name.Ref.InnerIndex]
-			nameToKeep = symbol.OriginalName
 
 			// The shadowing name inside the class expression should be the same as
 			// the class expression name itself
@@ -2247,18 +2215,12 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 		} else {
 			kind = classKindStmt
 		}
-		nameToKeep = p.symbols[class.Name.Ref.InnerIndex].OriginalName
 	} else {
 		s, _ := stmt.Data.(*js_ast.SExportDefault)
 		s2, _ := s.Value.Data.(*js_ast.SClass)
 		class = &s2.Class
 		defaultName = s.DefaultName
 		kind = classKindExportDefaultStmt
-		if class.Name != nil {
-			nameToKeep = p.symbols[class.Name.Ref.InnerIndex].OriginalName
-		} else {
-			nameToKeep = "default"
-		}
 	}
 	if stmt.Data == nil {
 		classLoc = expr.Loc
@@ -2386,10 +2348,6 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 			continue
 		}
 
-		if p.options.keepNames && propertyPreventsKeepNames(&prop) {
-			nameToKeep = ""
-		}
-
 		// Merge parameter decorators with method decorators
 		if p.options.ts.Parse && prop.Flags.Has(js_ast.PropertyIsMethod) {
 			if fn, ok := prop.ValueOrNil.Data.(*js_ast.EFunction); ok {
@@ -2425,7 +2383,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 		private, _ := prop.Key.Data.(*js_ast.EPrivateIdentifier)
 		mustLowerPrivate := private != nil && p.privateSymbolNeedsToBeLowered(private)
 		shouldOmitFieldInitializer := p.options.ts.Parse && !prop.Flags.Has(js_ast.PropertyIsMethod) && prop.InitializerOrNil.Data == nil &&
-			!classLoweringInfo.useDefineForClassFields && !mustLowerPrivate
+			!class.UseDefineForClassFields && !mustLowerPrivate
 
 		// Class fields must be lowered if the environment doesn't support them
 		mustLowerField := false
@@ -2578,7 +2536,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 						init,
 					})
 					p.recordUsage(ref)
-				} else if private == nil && classLoweringInfo.useDefineForClassFields {
+				} else if private == nil && class.UseDefineForClassFields {
 					var args []js_ast.Expr
 					if _, ok := init.Data.(*js_ast.EUndefined); ok {
 						args = []js_ast.Expr{target, prop.Key}
@@ -2588,7 +2546,6 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 					memberExpr = js_ast.Expr{Loc: loc, Data: &js_ast.ECall{
 						Target: p.importFromRuntime(loc, "__publicField"),
 						Args:   args,
-						Kind:   js_ast.InternalPublicFieldCall,
 					}}
 				} else {
 					if key, ok := prop.Key.Data.(*js_ast.EString); ok && !prop.Flags.Has(js_ast.PropertyIsComputed) && !prop.Flags.Has(js_ast.PropertyPreferQuotedKey) {
@@ -2787,11 +2744,6 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 			nameToJoin = nameFunc()
 		}
 
-		// Optionally preserve the name
-		if p.options.keepNames && nameToKeep != "" {
-			expr = p.keepExprSymbolName(expr, nameToKeep)
-		}
-
 		// Then join "expr" with any other expressions that apply
 		if computedPropertyCache.Data != nil {
 			expr = js_ast.JoinWithComma(expr, computedPropertyCache)
@@ -2828,13 +2780,6 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 			len(instanceDecorators) > 0 ||
 			len(staticDecorators) > 0 ||
 			len(class.Decorators) > 0)
-
-	// Optionally preserve the name
-	var keepNameStmt js_ast.Stmt
-	if p.options.keepNames && nameToKeep != "" {
-		name := nameFunc()
-		keepNameStmt = p.keepStmtSymbolName(name.Loc, name.Data.(*js_ast.EIdentifier).Ref, nameToKeep)
-	}
 
 	// Pack the class back into a statement, with potentially some extra
 	// statements afterwards
@@ -2935,9 +2880,6 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 		if class.Name != nil && result.shadowRef != js_ast.InvalidRef {
 			p.mergeSymbols(result.shadowRef, class.Name.Ref)
 		}
-	}
-	if keepNameStmt.Data != nil {
-		stmts = append(stmts, keepNameStmt)
 	}
 
 	// The official TypeScript compiler adds generated code after the class body

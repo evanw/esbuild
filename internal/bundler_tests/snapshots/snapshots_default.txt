@@ -2408,9 +2408,11 @@ console.log([
 TestKeepNamesClassStaticName
 ---------- /out.js ----------
 class A {
+  static {
+    __name(this, "A");
+  }
   static foo;
 }
-__name(A, "A");
 class B {
   static name;
 }
@@ -2429,9 +2431,12 @@ class E {
 class F {
   static ["name"] = 0;
 }
-let a = /* @__PURE__ */ __name(class a3 {
+let a = class a3 {
+  static {
+    __name(this, "a");
+  }
   static foo;
-}, "a");
+};
 let b = class b3 {
   static name;
 };
@@ -2450,9 +2455,12 @@ let e = class e3 {
 let f = class f3 {
   static ["name"] = 0;
 };
-let a2 = /* @__PURE__ */ __name(class {
+let a2 = class {
+  static {
+    __name(this, "a2");
+  }
   static foo;
-}, "a2");
+};
 let b2 = class {
   static name;
 };
@@ -2476,6 +2484,9 @@ let f2 = class {
 TestKeepNamesTreeShaking
 ---------- /out.js ----------
 // entry.js
+function fnStmtRemove() {
+}
+__name(fnStmtRemove, "fnStmtRemove");
 function fnStmtKeep() {
 }
 __name(fnStmtKeep, "fnStmtKeep");
@@ -2483,12 +2494,12 @@ x = fnStmtKeep;
 var fnExprKeep = /* @__PURE__ */ __name(function() {
 }, "keep");
 x = fnExprKeep;
-var clsStmtKeep = class {
-};
-__name(clsStmtKeep, "clsStmtKeep");
+var _clsStmtKeep = class {
+}, clsStmtKeep = _clsStmtKeep;
+__name(_clsStmtKeep, "clsStmtKeep");
 new clsStmtKeep();
-var clsExprKeep = /* @__PURE__ */ __name(class {
-}, "keep");
+var _a, clsExprKeep = (_a = class {
+}, __name(_a, "keep"), _a);
 new clsExprKeep();
 
 ================================================================================
@@ -2947,9 +2958,7 @@ var { "_doNotMangleThis": x } = y;
 ================================================================================
 TestMangleNoQuotedPropsMinifySyntax
 ---------- /out/entry.js ----------
-x._doNotMangleThis, x?._doNotMangleThis, x[y ? "_doNotMangleThis" : z], x?.[y ? "_doNotMangleThis" : z], x[y ? z : "_doNotMangleThis"], x?.[y ? z : "_doNotMangleThis"], class {
-  _doNotMangleThis = x;
-};
+x._doNotMangleThis, x?._doNotMangleThis, x[y ? "_doNotMangleThis" : z], x?.[y ? "_doNotMangleThis" : z], x[y ? z : "_doNotMangleThis"], x?.[y ? z : "_doNotMangleThis"];
 var { _doNotMangleThis: x } = y;
 "_doNotMangleThis" in x, (y ? "_doNotMangleThis" : z) in x, (y ? z : "_doNotMangleThis") in x;
 
@@ -3415,10 +3424,6 @@ foo("_keepThisProperty") in x;
 
 ---------- /out/mangle.js ----------
 x.a, x?.a, x[y ? "a" : z], x?.[y ? "a" : z], x[y ? z : "a"], x?.[y ? z : "a"], x[y, "a"], x?.[y, "a"], (y, "a") + "", class {
-  a = x;
-}, class {
-  a = x;
-}, class {
   [(y, "a")] = x;
 };
 var { a: x } = y, { ["a"]: x } = y, { [(z, "a")]: x } = y;

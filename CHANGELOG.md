@@ -31,6 +31,41 @@
     __publicField(Foo, "y", console.log(3));
     ```
 
+* Use static blocks to implement `--keep-names` on classes ([#2389](https://github.com/evanw/esbuild/issues/2389))
+
+    This change fixes a bug where the `name` property could previously be incorrect within a class static context when using `--keep-names`. The problem was that the `name` property was being initialized after static blocks were run instead of before. This has been fixed by moving the `name` property initializer into a static block at the top of the class body:
+
+    ```js
+    // Original code
+    if (typeof Foo === 'undefined') {
+      let Foo = class {
+        static test = this.name
+      }
+      console.log(Foo.test)
+    }
+
+    // Old output (with --keep-names)
+    if (typeof Foo === "undefined") {
+      let Foo2 = /* @__PURE__ */ __name(class {
+        static test = this.name;
+      }, "Foo");
+      console.log(Foo2.test);
+    }
+
+    // New output (with --keep-names)
+    if (typeof Foo === "undefined") {
+      let Foo2 = class {
+        static {
+          __name(this, "Foo");
+        }
+        static test = this.name;
+      };
+      console.log(Foo2.test);
+    }
+    ```
+
+    This change was somewhat involved, especially regarding what esbuild considers to be side-effect free. Some unused classes that weren't removed by tree shaking in previous versions of esbuild may now be tree-shaken. One example is classes with static private fields that are transformed by esbuild into code that doesn't use JavaScript's private field syntax. Previously esbuild's tree shaking analysis ran on the class after syntax lowering, but with this release it will run on the class before syntax lowering, meaning it should no longer be confused by class mutations resulting from automatically-generated syntax lowering code.
+
 ## 0.18.1
 
 * Fill in `null` entries in input source maps ([#3144](https://github.com/evanw/esbuild/issues/3144))

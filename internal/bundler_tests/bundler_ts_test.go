@@ -1057,7 +1057,7 @@ func TestTSExperimentalDecoratorsKeepNames(t *testing.T) {
 		files: map[string]string{
 			"/entry.ts": `
 				@decoratorMustComeAfterName
-				class Foo {}
+				export class Foo {}
 			`,
 			"/tsconfig.json": `{
 				"compilerOptions": {

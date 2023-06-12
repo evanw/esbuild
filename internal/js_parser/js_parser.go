@@ -140,6 +140,15 @@ type parser struct {
 	// binding a name to it in a parent or sibling scope.
 	scopesInOrder []scopeOrder
 
+	// These propagate the name from the parent context into an anonymous child
+	// expression. For example:
+	//
+	//   let foo = function() {}
+	//   assert.strictEqual(foo.name, 'foo')
+	//
+	nameToKeep      string
+	nameToKeepIsFor js_ast.E
+
 	// These properties are for the visit pass, which runs after the parse pass.
 	// The visit pass binds identifiers to declared symbols, does constant
 	// folding, substitutes compile-time variable definitions, and lowers certain
@@ -6079,6 +6088,32 @@ func (p *parser) parseClass(classKeyword logger.Range, name *js_ast.LocRef, clas
 		BodyLoc:       bodyLoc,
 		Properties:    properties,
 		CloseBraceLoc: closeBraceLoc,
+
+		// TypeScript has legacy behavior that uses assignment semantics instead of
+		// define semantics for class fields when "useDefineForClassFields" is enabled
+		// (in which case TypeScript behaves differently than JavaScript, which is
+		// arguably "wrong").
+		//
+		// This legacy behavior exists because TypeScript added class fields to
+		// TypeScript before they were added to JavaScript. They decided to go with
+		// assignment semantics for whatever reason. Later on TC39 decided to go with
+		// define semantics for class fields instead. This behaves differently if the
+		// base class has a setter with the same name.
+		//
+		// The value of "useDefineForClassFields" defaults to false when it's not
+		// specified and the target is earlier than "ES2022" since the class field
+		// language feature was added in ES2022. However, TypeScript's "target"
+		// setting currently defaults to "ES3" which unfortunately means that the
+		// "useDefineForClassFields" setting defaults to false (i.e. to "wrong").
+		//
+		// We default "useDefineForClassFields" to true (i.e. to "correct") instead.
+		// This is partially because our target defaults to "esnext", and partially
+		// because this is a legacy behavior that no one should be using anymore.
+		// Users that want the wrong behavior can either set "useDefineForClassFields"
+		// to false in "tsconfig.json" explicitly, or set TypeScript's "target" to
+		// "ES2021" or earlier in their in "tsconfig.json" file.
+		UseDefineForClassFields: !p.options.ts.Parse || p.options.ts.Config.UseDefineForClassFields == config.True ||
+			(p.options.ts.Config.UseDefineForClassFields == config.Unspecified && p.options.ts.Config.Target != config.TSTargetBelowES2022),
 	}
 }
 
@@ -8418,7 +8453,6 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 				prevStmt := result[len(result)-1]
 				if prevS, ok := prevStmt.Data.(*js_ast.SExpr); ok {
 					prevS.Value = js_ast.JoinWithComma(prevS.Value, s.Value)
-					prevS.DoesNotAffectTreeShaking = prevS.DoesNotAffectTreeShaking && s.DoesNotAffectTreeShaking
 					continue
 				}
 			}
@@ -9202,14 +9236,15 @@ func (p *parser) visitBinding(binding js_ast.Binding, opts bindingOpts) {
 			item := &b.Items[i]
 			p.visitBinding(item.Binding, opts)
 			if item.DefaultValueOrNil.Data != nil {
-				wasAnonymousNamedExpr := p.isAnonymousNamedExpr(item.DefaultValueOrNil)
-				item.DefaultValueOrNil = p.visitExpr(item.DefaultValueOrNil)
-
-				// Optionally preserve the name
-				if id, ok := item.Binding.Data.(*js_ast.BIdentifier); ok {
-					item.DefaultValueOrNil = p.maybeKeepExprSymbolName(
-						item.DefaultValueOrNil, p.symbols[id.Ref.InnerIndex].OriginalName, wasAnonymousNamedExpr)
+				// Propagate the name to keep from the binding into the initializer
+				if p.options.keepNames {
+					if id, ok := item.Binding.Data.(*js_ast.BIdentifier); ok {
+						p.nameToKeep = p.symbols[id.Ref.InnerIndex].OriginalName
+						p.nameToKeepIsFor = item.DefaultValueOrNil.Data
+					}
 				}
+
+				item.DefaultValueOrNil = p.visitExpr(item.DefaultValueOrNil)
 			}
 		}
 
@@ -9222,14 +9257,15 @@ func (p *parser) visitBinding(binding js_ast.Binding, opts bindingOpts) {
 			}
 			p.visitBinding(property.Value, opts)
 			if property.DefaultValueOrNil.Data != nil {
-				wasAnonymousNamedExpr := p.isAnonymousNamedExpr(property.DefaultValueOrNil)
-				property.DefaultValueOrNil = p.visitExpr(property.DefaultValueOrNil)
-
-				// Optionally preserve the name
-				if id, ok := property.Value.Data.(*js_ast.BIdentifier); ok {
-					property.DefaultValueOrNil = p.maybeKeepExprSymbolName(
-						property.DefaultValueOrNil, p.symbols[id.Ref.InnerIndex].OriginalName, wasAnonymousNamedExpr)
+				// Propagate the name to keep from the binding into the initializer
+				if p.options.keepNames {
+					if id, ok := property.Value.Data.(*js_ast.BIdentifier); ok {
+						p.nameToKeep = p.symbols[id.Ref.InnerIndex].OriginalName
+						p.nameToKeepIsFor = property.DefaultValueOrNil.Data
+					}
 				}
+
+				property.DefaultValueOrNil = p.visitExpr(property.DefaultValueOrNil)
 			}
 			b.Properties[i] = property
 		}
@@ -9463,32 +9499,6 @@ func (p *parser) mangleIf(stmts []js_ast.Stmt, loc logger.Loc, s *js_ast.SIf) []
 	return append(stmts, js_ast.Stmt{Loc: loc, Data: s})
 }
 
-func (p *parser) isAnonymousNamedExpr(expr js_ast.Expr) bool {
-	switch e := expr.Data.(type) {
-	case *js_ast.EArrow:
-		return true
-	case *js_ast.EFunction:
-		return e.Fn.Name == nil
-	case *js_ast.EClass:
-		if e.Class.Name == nil {
-			for _, prop := range e.Class.Properties {
-				if propertyPreventsKeepNames(&prop) {
-					return false
-				}
-			}
-			return true
-		}
-	}
-	return false
-}
-
-func (p *parser) maybeKeepExprSymbolName(value js_ast.Expr, name string, wasAnonymousNamedExpr bool) js_ast.Expr {
-	if p.options.keepNames && wasAnonymousNamedExpr {
-		return p.keepExprSymbolName(value, name)
-	}
-	return value
-}
-
 func (p *parser) keepExprSymbolName(value js_ast.Expr, name string) js_ast.Expr {
 	value = p.callRuntime(value.Loc, "__name", []js_ast.Expr{value,
 		{Loc: value.Loc, Data: &js_ast.EString{Value: helpers.StringToUTF16(name)}},
@@ -9499,17 +9509,12 @@ func (p *parser) keepExprSymbolName(value js_ast.Expr, name string) js_ast.Expr 
 	return value
 }
 
-func (p *parser) keepStmtSymbolName(loc logger.Loc, ref js_ast.Ref, name string) js_ast.Stmt {
-	p.symbols[ref.InnerIndex].Flags |= js_ast.DidKeepName
-
+func (p *parser) keepStmtSymbolName(loc logger.Loc, expr js_ast.Expr, name string) js_ast.Stmt {
 	return js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{
 		Value: p.callRuntime(loc, "__name", []js_ast.Expr{
-			{Loc: loc, Data: &js_ast.EIdentifier{Ref: ref}},
+			expr,
 			{Loc: loc, Data: &js_ast.EString{Value: helpers.StringToUTF16(name)}},
 		}),
-
-		// Make sure tree shaking removes this if the function is never used
-		DoesNotAffectTreeShaking: true,
 	}}
 }
 
@@ -9640,11 +9645,13 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 
 		switch s2 := s.Value.Data.(type) {
 		case *js_ast.SExpr:
-			wasAnonymousNamedExpr := p.isAnonymousNamedExpr(s2.Value)
-			s2.Value = p.visitExpr(s2.Value)
+			// Propagate the name to keep from the export into the value
+			if p.options.keepNames {
+				p.nameToKeep = "default"
+				p.nameToKeepIsFor = s2.Value.Data
+			}
 
-			// Optionally preserve the name
-			s2.Value = p.maybeKeepExprSymbolName(s2.Value, "default", wasAnonymousNamedExpr)
+			s2.Value = p.visitExpr(s2.Value)
 
 			// Discard type-only export default statements
 			if p.options.ts.Parse {
@@ -9675,15 +9682,26 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			stmts = append(stmts, stmt)
 
 			// Optionally preserve the name
-			if p.options.keepNames && s2.Fn.Name != nil {
-				stmts = append(stmts, p.keepStmtSymbolName(s2.Fn.Name.Loc, s2.Fn.Name.Ref, name))
+			if p.options.keepNames {
+				p.symbols[s2.Fn.Name.Ref.InnerIndex].Flags |= js_ast.DidKeepName
+				fn := js_ast.Expr{Loc: s2.Fn.Name.Loc, Data: &js_ast.EIdentifier{Ref: s2.Fn.Name.Ref}}
+				stmts = append(stmts, p.keepStmtSymbolName(s2.Fn.Name.Loc, fn, name))
 			}
 
 		case *js_ast.SClass:
-			result := p.visitClass(s.Value.Loc, &s2.Class, s.DefaultName.Ref)
+			result := p.visitClass(s.Value.Loc, &s2.Class, s.DefaultName.Ref, "default")
 
 			// Lower class field syntax for browsers that don't support it
 			classStmts, _ := p.lowerClass(stmt, js_ast.Expr{}, result)
+
+			// Remember if the class was side-effect free before lowering
+			if result.canBeRemovedIfUnused {
+				for _, classStmt := range classStmts {
+					if s2, ok := classStmt.Data.(*js_ast.SExpr); ok {
+						s2.IsFromClassThatCanBeRemovedIfUnused = true
+					}
+				}
+			}
 
 			stmts = append(stmts, classStmts...)
 
@@ -9791,21 +9809,21 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 
 			// Visit the initializer
 			if d.ValueOrNil.Data != nil {
-				wasAnonymousNamedExpr := p.isAnonymousNamedExpr(d.ValueOrNil)
-
 				// Fold numeric constants in the initializer
 				oldShouldFoldTypeScriptConstantExpressions := p.shouldFoldTypeScriptConstantExpressions
 				p.shouldFoldTypeScriptConstantExpressions = p.options.minifySyntax && !p.currentScope.IsAfterConstLocalPrefix
 
+				// Propagate the name to keep from the binding into the initializer
+				if p.options.keepNames {
+					if id, ok := d.Binding.Data.(*js_ast.BIdentifier); ok {
+						p.nameToKeep = p.symbols[id.Ref.InnerIndex].OriginalName
+						p.nameToKeepIsFor = d.ValueOrNil.Data
+					}
+				}
+
 				d.ValueOrNil = p.visitExpr(d.ValueOrNil)
 
 				p.shouldFoldTypeScriptConstantExpressions = oldShouldFoldTypeScriptConstantExpressions
-
-				// Optionally preserve the name
-				if id, ok := d.Binding.Data.(*js_ast.BIdentifier); ok {
-					d.ValueOrNil = p.maybeKeepExprSymbolName(
-						d.ValueOrNil, p.symbols[id.Ref.InnerIndex].OriginalName, wasAnonymousNamedExpr)
-				}
 
 				// Initializing to undefined is implicit, but be careful to not
 				// accidentally cause a syntax error or behavior change by removing
@@ -10274,12 +10292,15 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 
 		// Optionally preserve the name
 		if p.options.keepNames {
-			stmts = append(stmts, p.keepStmtSymbolName(s.Fn.Name.Loc, s.Fn.Name.Ref, p.symbols[s.Fn.Name.Ref.InnerIndex].OriginalName))
+			symbol := &p.symbols[s.Fn.Name.Ref.InnerIndex]
+			symbol.Flags |= js_ast.DidKeepName
+			fn := js_ast.Expr{Loc: s.Fn.Name.Loc, Data: &js_ast.EIdentifier{Ref: s.Fn.Name.Ref}}
+			stmts = append(stmts, p.keepStmtSymbolName(s.Fn.Name.Loc, fn, symbol.OriginalName))
 		}
 		return stmts
 
 	case *js_ast.SClass:
-		result := p.visitClass(stmt.Loc, &s.Class, js_ast.InvalidRef)
+		result := p.visitClass(stmt.Loc, &s.Class, js_ast.InvalidRef, "")
 
 		// Remove the export flag inside a namespace
 		wasExportInsideNamespace := s.IsExport && p.enclosingNamespaceArgRef != nil
@@ -10289,6 +10310,16 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 
 		// Lower class field syntax for browsers that don't support it
 		classStmts, _ := p.lowerClass(stmt, js_ast.Expr{}, result)
+
+		// Remember if the class was side-effect free before lowering
+		if result.canBeRemovedIfUnused {
+			for _, classStmt := range classStmts {
+				if s2, ok := classStmt.Data.(*js_ast.SExpr); ok {
+					s2.IsFromClassThatCanBeRemovedIfUnused = true
+				}
+			}
+		}
+
 		stmts = append(stmts, classStmts...)
 
 		// Handle exporting this class from a namespace
@@ -10834,14 +10865,23 @@ func (p *parser) visitDecorators(decorators []js_ast.Expr, decoratorScope *js_as
 type visitClassResult struct {
 	shadowRef    js_ast.Ref
 	superCtorRef js_ast.Ref
+
+	// If true, the class was determined to be safe to remove if the class is
+	// never used (i.e. the class definition is side-effect free). This is
+	// determined after visiting but before lowering since lowering may generate
+	// class mutations that cannot be automatically analyzed as side-effect free.
+	canBeRemovedIfUnused bool
 }
 
-func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaultNameRef js_ast.Ref) (result visitClassResult) {
+func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaultNameRef js_ast.Ref, nameToKeep string) (result visitClassResult) {
 	decoratorScope := p.currentScope
 	class.Decorators = p.visitDecorators(class.Decorators, decoratorScope)
 
 	if class.Name != nil {
 		p.recordDeclaredSymbol(class.Name.Ref)
+		if p.options.keepNames {
+			nameToKeep = p.symbols[class.Name.Ref.InnerIndex].OriginalName
+		}
 	}
 
 	// Replace "this" with a reference to the class inside static field
@@ -10948,7 +10988,6 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 
 	// A scope is needed for private identifiers
 	p.pushScopeForVisitPass(js_ast.ScopeClassBody, class.BodyLoc)
-	defer p.popScope()
 
 	end := 0
 
@@ -11082,29 +11121,35 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 			}
 		}
 
+		// Handle methods
 		if property.ValueOrNil.Data != nil {
 			p.propMethodValue = property.ValueOrNil.Data
 			p.propMethodDecoratorScope = decoratorScope
-			if nameToKeep != "" {
-				wasAnonymousNamedExpr := p.isAnonymousNamedExpr(property.ValueOrNil)
-				property.ValueOrNil = p.maybeKeepExprSymbolName(p.visitExpr(property.ValueOrNil), nameToKeep, wasAnonymousNamedExpr)
-			} else {
-				property.ValueOrNil = p.visitExpr(property.ValueOrNil)
+
+			// Propagate the name to keep from the method into the initializer
+			if p.options.keepNames && nameToKeep != "" {
+				p.nameToKeep = nameToKeep
+				p.nameToKeepIsFor = property.ValueOrNil.Data
 			}
+
+			property.ValueOrNil = p.visitExpr(property.ValueOrNil)
 		}
 
+		// Handle initialized fields
 		if property.InitializerOrNil.Data != nil {
 			if property.Flags.Has(js_ast.PropertyIsStatic) && classLoweringInfo.lowerAllStaticFields {
 				// Need to lower "this" and "super" since they won't be valid outside the class body
 				p.fnOnlyDataVisit.shouldReplaceThisWithClassNameRef = true
 				p.fnOrArrowDataVisit.shouldLowerSuperPropertyAccess = true
 			}
-			if nameToKeep != "" {
-				wasAnonymousNamedExpr := p.isAnonymousNamedExpr(property.InitializerOrNil)
-				property.InitializerOrNil = p.maybeKeepExprSymbolName(p.visitExpr(property.InitializerOrNil), nameToKeep, wasAnonymousNamedExpr)
-			} else {
-				property.InitializerOrNil = p.visitExpr(property.InitializerOrNil)
+
+			// Propagate the name to keep from the field into the initializer
+			if p.options.keepNames && nameToKeep != "" {
+				p.nameToKeep = nameToKeep
+				p.nameToKeepIsFor = property.InitializerOrNil.Data
 			}
+
+			property.InitializerOrNil = p.visitExpr(property.InitializerOrNil)
 		}
 
 		// Restore "this" so it will take the inherited value in property keys
@@ -11121,6 +11166,40 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 
 	// Finish the filtering operation
 	class.Properties = class.Properties[:end]
+
+	// Analyze side effects before adding the name keeping call
+	result.canBeRemovedIfUnused = js_ast.ClassCanBeRemovedIfUnused(*class, p.isUnbound)
+
+	// Implement name keeping using a static block at the start of the class body
+	if p.options.keepNames && nameToKeep != "" {
+		propertyPreventsKeepNames := false
+		for _, prop := range class.Properties {
+			// A static property called "name" shadows the automatically-generated name
+			if prop.Flags.Has(js_ast.PropertyIsStatic) {
+				if str, ok := prop.Key.Data.(*js_ast.EString); ok && helpers.UTF16EqualsString(str.Value, "name") {
+					propertyPreventsKeepNames = true
+					break
+				}
+			}
+		}
+		if !propertyPreventsKeepNames {
+			var this js_ast.Expr
+			if classLoweringInfo.lowerAllStaticFields {
+				p.recordUsage(result.shadowRef)
+				this = js_ast.Expr{Loc: class.BodyLoc, Data: &js_ast.EIdentifier{Ref: result.shadowRef}}
+			} else {
+				this = js_ast.Expr{Loc: class.BodyLoc, Data: js_ast.EThisShared}
+			}
+			properties := make([]js_ast.Property, 0, 1+len(class.Properties))
+			properties = append(properties, js_ast.Property{
+				Kind: js_ast.PropertyClassStaticBlock,
+				ClassStaticBlock: &js_ast.ClassStaticBlock{Loc: class.BodyLoc, Block: js_ast.SBlock{Stmts: []js_ast.Stmt{
+					p.keepStmtSymbolName(class.BodyLoc, this, nameToKeep),
+				}}},
+			})
+			class.Properties = append(properties, class.Properties...)
+		}
+	}
 
 	p.enclosingClassKeyword = oldEnclosingClassKeyword
 	p.superCtorRef = oldSuperCtorRef
@@ -11142,6 +11221,15 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 			p.recordDeclaredSymbol(classNameRef)
 		}
 		class.Name = &js_ast.LocRef{Loc: nameScopeLoc, Ref: classNameRef}
+	}
+
+	p.popScope()
+
+	// Sanity check that the class lowering info hasn't changed before and after
+	// visiting. The class transform relies on this because lowering assumes that
+	// must be able to expect that visiting has done certain things.
+	if classLoweringInfo != p.computeClassLoweringInfo(class) {
+		panic("Internal error")
 	}
 
 	return
@@ -13333,15 +13421,17 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				hasSpread = true
 			case *js_ast.EBinary:
 				if in.assignTarget != js_ast.AssignTargetNone && e2.Op == js_ast.BinOpAssign {
-					wasAnonymousNamedExpr := p.isAnonymousNamedExpr(e2.Right)
 					e2.Left, _ = p.visitExprInOut(e2.Left, exprIn{assignTarget: js_ast.AssignTargetReplace})
-					e2.Right = p.visitExpr(e2.Right)
 
-					// Optionally preserve the name
-					if id, ok := e2.Left.Data.(*js_ast.EIdentifier); ok {
-						e2.Right = p.maybeKeepExprSymbolName(
-							e2.Right, p.symbols[id.Ref.InnerIndex].OriginalName, wasAnonymousNamedExpr)
+					// Propagate the name to keep from the binding into the initializer
+					if p.options.keepNames {
+						if id, ok := e2.Left.Data.(*js_ast.EIdentifier); ok {
+							p.nameToKeep = p.symbols[id.Ref.InnerIndex].OriginalName
+							p.nameToKeepIsFor = e2.Right.Data
+						}
 					}
+
+					e2.Right = p.visitExpr(e2.Right)
 				} else {
 					item, _ = p.visitExprInOut(item, exprIn{assignTarget: in.assignTarget})
 				}
@@ -13453,16 +13543,15 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 
 			if property.InitializerOrNil.Data != nil {
-				wasAnonymousNamedExpr := p.isAnonymousNamedExpr(property.InitializerOrNil)
-				property.InitializerOrNil = p.visitExpr(property.InitializerOrNil)
-
-				// Optionally preserve the name
-				if property.ValueOrNil.Data != nil {
+				// Propagate the name to keep from the binding into the initializer
+				if p.options.keepNames {
 					if id, ok := property.ValueOrNil.Data.(*js_ast.EIdentifier); ok {
-						property.InitializerOrNil = p.maybeKeepExprSymbolName(
-							property.InitializerOrNil, p.symbols[id.Ref.InnerIndex].OriginalName, wasAnonymousNamedExpr)
+						p.nameToKeep = p.symbols[id.Ref.InnerIndex].OriginalName
+						p.nameToKeepIsFor = property.InitializerOrNil.Data
 					}
 				}
+
+				property.InitializerOrNil = p.visitExpr(property.InitializerOrNil)
 			}
 
 			// "{ '123': 4 }" => "{ 123: 4 }" (this is done late to allow "'123'" to be mangled)
@@ -14219,6 +14308,12 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		p.maybeMarkKnownGlobalConstructorAsPure(e)
 
 	case *js_ast.EArrow:
+		// Check for a propagated name to keep from the parent context
+		var nameToKeep string
+		if p.nameToKeepIsFor == e {
+			nameToKeep = p.nameToKeep
+		}
+
 		asyncArrowNeedsToBeLowered := e.IsAsync && p.options.unsupportedJSFeatures.Has(compat.AsyncAwait)
 		oldFnOrArrowData := p.fnOrArrowDataVisit
 		p.fnOrArrowDataVisit = fnOrArrowDataVisit{
@@ -14265,16 +14360,27 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 		// Convert arrow functions to function expressions when lowering
 		if p.options.unsupportedJSFeatures.Has(compat.Arrow) {
-			return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EFunction{Fn: js_ast.Fn{
+			expr.Data = &js_ast.EFunction{Fn: js_ast.Fn{
 				Args:         e.Args,
 				Body:         e.Body,
 				ArgumentsRef: js_ast.InvalidRef,
 				IsAsync:      e.IsAsync,
 				HasRestArg:   e.HasRestArg,
-			}}}, exprOut{}
+			}}
+		}
+
+		// Optionally preserve the name
+		if nameToKeep != "" {
+			expr = p.keepExprSymbolName(expr, nameToKeep)
 		}
 
 	case *js_ast.EFunction:
+		// Check for a propagated name to keep from the parent context
+		var nameToKeep string
+		if p.nameToKeepIsFor == e {
+			nameToKeep = p.nameToKeep
+		}
+
 		p.visitFn(&e.Fn, expr.Loc, visitFnOpts{isClassMethod: e == p.propMethodValue})
 		name := e.Fn.Name
 
@@ -14285,15 +14391,36 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 		// Optionally preserve the name
-		if p.options.keepNames && name != nil {
-			expr = p.keepExprSymbolName(expr, p.symbols[name.Ref.InnerIndex].OriginalName)
+		if p.options.keepNames {
+			if name != nil {
+				expr = p.keepExprSymbolName(expr, p.symbols[name.Ref.InnerIndex].OriginalName)
+			} else if nameToKeep != "" {
+				expr = p.keepExprSymbolName(expr, nameToKeep)
+			}
 		}
 
 	case *js_ast.EClass:
-		result := p.visitClass(expr.Loc, &e.Class, js_ast.InvalidRef)
+		// Check for a propagated name to keep from the parent context
+		var nameToKeep string
+		if p.nameToKeepIsFor == e {
+			nameToKeep = p.nameToKeep
+		}
+
+		result := p.visitClass(expr.Loc, &e.Class, js_ast.InvalidRef, nameToKeep)
 
 		// Lower class field syntax for browsers that don't support it
 		_, expr = p.lowerClass(js_ast.Stmt{}, expr, result)
+
+		// We may be able to determine that a class is side-effect before lowering
+		// but not after lowering (e.g. due to "--keep-names" mutating the object).
+		// If that's the case, add a special annotation so this doesn't prevent
+		// tree-shaking from happening.
+		if result.canBeRemovedIfUnused {
+			expr.Data = &js_ast.EAnnotation{
+				Value: expr,
+				Flags: js_ast.CanBeRemovedIfUnusedFlag,
+			}
+		}
 
 	default:
 		// Note: EPrivateIdentifier and EMangledProperty should have already been handled
@@ -14353,7 +14480,6 @@ type binaryExprVisitor struct {
 
 	// "Local variables" passed from "checkAndPrepare" to "visitRightAndFinish"
 	isStmtExpr                               bool
-	wasAnonymousNamedExpr                    bool
 	oldSilenceWarningAboutThisBeingUndefined bool
 }
 
@@ -14382,7 +14508,6 @@ func (v *binaryExprVisitor) checkAndPrepare(p *parser) js_ast.Expr {
 	}
 
 	v.isStmtExpr = e == p.stmtExprValue
-	v.wasAnonymousNamedExpr = p.isAnonymousNamedExpr(e.Right)
 	v.oldSilenceWarningAboutThisBeingUndefined = p.fnOnlyDataVisit.silenceMessageAboutThisBeingUndefined
 
 	if _, ok := e.Left.Data.(*js_ast.EThis); ok && e.Op == js_ast.BinOpLogicalAnd {
@@ -14437,6 +14562,17 @@ func (v *binaryExprVisitor) visitRightAndFinish(p *parser) js_ast.Expr {
 		e.Right, _ = p.visitExprInOut(e.Right, exprIn{
 			shouldMangleStringsAsProps: v.in.shouldMangleStringsAsProps,
 		})
+
+	case js_ast.BinOpAssign:
+		// Check for a propagated name to keep from the parent context
+		if p.options.keepNames {
+			if id, ok := e.Left.Data.(*js_ast.EIdentifier); ok {
+				p.nameToKeep = p.symbols[id.Ref.InnerIndex].OriginalName
+				p.nameToKeepIsFor = e.Right.Data
+			}
+		}
+
+		e.Right = p.visitExpr(e.Right)
 
 	default:
 		e.Right = p.visitExpr(e.Right)
@@ -14661,11 +14797,6 @@ func (v *binaryExprVisitor) visitRightAndFinish(p *parser) js_ast.Expr {
 		// All assignment operators below here
 
 	case js_ast.BinOpAssign:
-		// Optionally preserve the name
-		if id, ok := e.Left.Data.(*js_ast.EIdentifier); ok {
-			e.Right = p.maybeKeepExprSymbolName(e.Right, p.symbols[id.Ref.InnerIndex].OriginalName, v.wasAnonymousNamedExpr)
-		}
-
 		if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
 			return p.lowerPrivateSet(target, loc, private, e.Right)
 		}

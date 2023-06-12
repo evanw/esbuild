@@ -1326,6 +1326,9 @@ prop_get = function() {
 prop_set = function(val) {
   this.prop = val;
 };
+export {
+  Foo
+};
 
 ================================================================================
 TestLowerPrivateGetterSetter2019
@@ -1385,6 +1388,9 @@ prop_get = function() {
 prop_set = function(val) {
   this.prop = val;
 };
+export {
+  Foo
+};
 
 ================================================================================
 TestLowerPrivateGetterSetter2020
@@ -1443,6 +1449,9 @@ prop_get = function() {
 };
 prop_set = function(val) {
   this.prop = val;
+};
+export {
+  Foo
 };
 
 ================================================================================
@@ -1538,6 +1547,9 @@ _field = new WeakMap();
 _method = new WeakSet();
 method_fn = function() {
 };
+export {
+  Foo
+};
 
 ================================================================================
 TestLowerPrivateMethod2020
@@ -1578,6 +1590,9 @@ var Foo = class {
 _field = new WeakMap();
 _method = new WeakSet();
 method_fn = function() {
+};
+export {
+  Foo
 };
 
 ================================================================================
@@ -1649,6 +1664,9 @@ sag_fn = async function* () {
 __privateAdd(Foo, _sg);
 __privateAdd(Foo, _sa);
 __privateAdd(Foo, _sag);
+export {
+  Foo
+};
 
 ================================================================================
 TestLowerPrivateSuperES2021
@@ -2595,6 +2613,10 @@ var WeakSet2 = class {
 };
 _y = new WeakSet();
 y_fn = function() {
+};
+export {
+  WeakMap2 as WeakMap,
+  WeakSet2 as WeakSet
 };
 
 ================================================================================

@@ -60,6 +60,9 @@ func Not(expr Expr) Expr {
 // called after the AST has been frozen (i.e. after parsing ends).
 func MaybeSimplifyNot(expr Expr) (Expr, bool) {
 	switch e := expr.Data.(type) {
+	case *EAnnotation:
+		return MaybeSimplifyNot(e.Value)
+
 	case *EInlinedEnum:
 		if value, ok := MaybeSimplifyNot(e.Value); ok {
 			return value, true
@@ -169,6 +172,9 @@ func MaybeSimplifyEqualityComparison(loc logger.Loc, e *EBinary, unsupportedFeat
 
 func IsPrimitiveLiteral(data E) bool {
 	switch e := data.(type) {
+	case *EAnnotation:
+		return IsPrimitiveLiteral(e.Value.Data)
+
 	case *EInlinedEnum:
 		return IsPrimitiveLiteral(e.Value.Data)
 
@@ -213,6 +219,9 @@ func MergedKnownPrimitiveTypes(a Expr, b Expr) PrimitiveType {
 // or not. For example, the expression "++x" always returns a primitive.
 func KnownPrimitiveType(expr E) PrimitiveType {
 	switch e := expr.(type) {
+	case *EAnnotation:
+		return KnownPrimitiveType(e.Value.Data)
+
 	case *EInlinedEnum:
 		return KnownPrimitiveType(e.Value.Data)
 
@@ -350,6 +359,11 @@ func CanChangeStrictToLoose(a Expr, b Expr) bool {
 // removed without consequence).
 func TypeofWithoutSideEffects(data E) (string, bool) {
 	switch e := data.(type) {
+	case *EAnnotation:
+		if e.Flags.Has(CanBeRemovedIfUnusedFlag) {
+			return TypeofWithoutSideEffects(e.Value.Data)
+		}
+
 	case *EInlinedEnum:
 		return TypeofWithoutSideEffects(e.Value.Data)
 
@@ -494,6 +508,11 @@ func ConvertBindingToExpr(binding Binding, wrapIdentifier func(logger.Loc, Ref) 
 // called after the AST has been frozen (i.e. after parsing ends).
 func SimplifyUnusedExpr(expr Expr, unsupportedFeatures compat.JSFeature, isUnbound func(Ref) bool) Expr {
 	switch e := expr.Data.(type) {
+	case *EAnnotation:
+		if e.Flags.Has(CanBeRemovedIfUnusedFlag) {
+			return Expr{}
+		}
+
 	case *EInlinedEnum:
 		return SimplifyUnusedExpr(e.Value, unsupportedFeatures, isUnbound)
 
@@ -909,6 +928,9 @@ func isInt32OrUint32(data E) bool {
 
 func ToNumberWithoutSideEffects(data E) (float64, bool) {
 	switch e := data.(type) {
+	case *EAnnotation:
+		return ToNumberWithoutSideEffects(e.Value.Data)
+
 	case *EInlinedEnum:
 		return ToNumberWithoutSideEffects(e.Value.Data)
 
@@ -934,6 +956,9 @@ func ToNumberWithoutSideEffects(data E) (float64, bool) {
 
 func extractNumericValue(data E) (float64, bool) {
 	switch e := data.(type) {
+	case *EAnnotation:
+		return extractNumericValue(e.Value.Data)
+
 	case *EInlinedEnum:
 		return extractNumericValue(e.Value.Data)
 
@@ -1565,6 +1590,13 @@ const (
 
 func ToNullOrUndefinedWithSideEffects(data E) (isNullOrUndefined bool, sideEffects SideEffects, ok bool) {
 	switch e := data.(type) {
+	case *EAnnotation:
+		isNullOrUndefined, sideEffects, ok = ToNullOrUndefinedWithSideEffects(e.Value.Data)
+		if e.Flags.Has(CanBeRemovedIfUnusedFlag) {
+			sideEffects = NoSideEffects
+		}
+		return
+
 	case *EInlinedEnum:
 		return ToNullOrUndefinedWithSideEffects(e.Value.Data)
 
@@ -1631,8 +1663,15 @@ func ToNullOrUndefinedWithSideEffects(data E) (isNullOrUndefined bool, sideEffec
 	return false, NoSideEffects, false
 }
 
-func ToBooleanWithSideEffects(data E) (boolean bool, SideEffects SideEffects, ok bool) {
+func ToBooleanWithSideEffects(data E) (boolean bool, sideEffects SideEffects, ok bool) {
 	switch e := data.(type) {
+	case *EAnnotation:
+		boolean, sideEffects, ok = ToBooleanWithSideEffects(e.Value.Data)
+		if e.Flags.Has(CanBeRemovedIfUnusedFlag) {
+			sideEffects = NoSideEffects
+		}
+		return
+
 	case *EInlinedEnum:
 		return ToBooleanWithSideEffects(e.Value.Data)
 
@@ -1815,15 +1854,22 @@ func StmtsCanBeRemovedIfUnused(stmts []Stmt, flags StmtsCanBeRemovedIfUnusedFlag
 			// its side effects.
 
 		case *SClass:
-			if !classCanBeRemovedIfUnused(s.Class, isUnbound) {
+			if !ClassCanBeRemovedIfUnused(s.Class, isUnbound) {
 				return false
 			}
 
 		case *SExpr:
-			if s.DoesNotAffectTreeShaking {
-				// Expressions marked with this are automatically generated and have
-				// no side effects by construction.
-				break
+			if s.IsFromClassThatCanBeRemovedIfUnused {
+				// This statement was automatically generated when lowering a class
+				// that we were able to analyze as having no side effects before
+				// lowering. So we consider it to be removable. The assumption here
+				// is that we are seeing at least all of the statements from the
+				// class lowering operation all at once (although we may possibly be
+				// seeing even more statements than that). Since we're making a binary
+				// all-or-nothing decision about the side effects of these statements,
+				// we can safely consider these to be side-effect free because we
+				// aren't in danger of partially dropping some of the class setup code.
+				return true
 			}
 
 			if !ExprCanBeRemovedIfUnused(s.Value, isUnbound) {
@@ -1864,7 +1910,7 @@ func StmtsCanBeRemovedIfUnused(stmts []Stmt, flags StmtsCanBeRemovedIfUnusedFlag
 				// These never have side effects
 
 			case *SClass:
-				if !classCanBeRemovedIfUnused(s2.Class, isUnbound) {
+				if !ClassCanBeRemovedIfUnused(s2.Class, isUnbound) {
 					return false
 				}
 
@@ -1882,7 +1928,17 @@ func StmtsCanBeRemovedIfUnused(stmts []Stmt, flags StmtsCanBeRemovedIfUnusedFlag
 	return true
 }
 
-func classCanBeRemovedIfUnused(class Class, isUnbound func(Ref) bool) bool {
+func ClassCanBeRemovedIfUnused(class Class, isUnbound func(Ref) bool) bool {
+	// Note: This check is incorrect. Extending a non-constructible object can
+	// throw an error, which is a side effect:
+	//
+	//   async function x() {}
+	//   class y extends x {}
+	//
+	// But refusing to tree-shake every class with a base class is not a useful
+	// thing for a bundler to do. So we pretend that this edge case doesn't
+	// exist. At the time of writing, both Rollup and Terser don't consider this
+	// to be a side effect either.
 	if class.ExtendsOrNil.Data != nil && !ExprCanBeRemovedIfUnused(class.ExtendsOrNil, isUnbound) {
 		return false
 	}
@@ -1907,6 +1963,44 @@ func classCanBeRemovedIfUnused(class Class, isUnbound func(Ref) bool) bool {
 			if property.InitializerOrNil.Data != nil && !ExprCanBeRemovedIfUnused(property.InitializerOrNil, isUnbound) {
 				return false
 			}
+
+			// Legacy TypeScript static class fields are considered to have side
+			// effects because they use assign semantics, not define semantics, and
+			// that can trigger getters. For example:
+			//
+			//   class Foo {
+			//     static set foo(x) { importantSideEffect(x) }
+			//   }
+			//   class Bar extends Foo {
+			//     foo = 1
+			//   }
+			//
+			// This happens in TypeScript when "useDefineForClassFields" is disabled
+			// because TypeScript (and esbuild) transforms the above class into this:
+			//
+			//   class Foo {
+			//     static set foo(x) { importantSideEffect(x); }
+			//   }
+			//   class Bar extends Foo {
+			//   }
+			//   Bar.foo = 1;
+			//
+			// Note that it's not possible to analyze the base class to determine that
+			// these assignments are side-effect free. For example:
+			//
+			//   // Some code that already ran before your code
+			//   Object.defineProperty(Object.prototype, 'foo', {
+			//     set(x) { imporantSideEffect(x) }
+			//   })
+			//
+			//   // Your code
+			//   class Foo {
+			//     static foo = 1
+			//   }
+			//
+			if !class.UseDefineForClassFields && !property.Flags.Has(PropertyIsMethod) {
+				return false
+			}
 		}
 	}
 
@@ -1915,6 +2009,9 @@ func classCanBeRemovedIfUnused(class Class, isUnbound func(Ref) bool) bool {
 
 func ExprCanBeRemovedIfUnused(expr Expr, isUnbound func(Ref) bool) bool {
 	switch e := expr.Data.(type) {
+	case *EAnnotation:
+		return e.Flags.Has(CanBeRemovedIfUnusedFlag)
+
 	case *EInlinedEnum:
 		return ExprCanBeRemovedIfUnused(e.Value, isUnbound)
 
@@ -1926,7 +2023,7 @@ func ExprCanBeRemovedIfUnused(expr Expr, isUnbound func(Ref) bool) bool {
 		return e.CanBeRemovedIfUnused
 
 	case *EClass:
-		return classCanBeRemovedIfUnused(e.Class, isUnbound)
+		return ClassCanBeRemovedIfUnused(e.Class, isUnbound)
 
 	case *EIdentifier:
 		if e.MustKeepDueToWithStmt {
@@ -2002,13 +2099,6 @@ func ExprCanBeRemovedIfUnused(expr Expr, isUnbound func(Ref) bool) bool {
 
 	case *ECall:
 		canCallBeRemoved := e.CanBeUnwrappedIfUnused
-
-		// Consider calls to our runtime "__publicField" function to be free of
-		// side effects for the purpose of expression removal. This allows class
-		// declarations with lowered static fields to be eligible for tree shaking.
-		if e.Kind == InternalPublicFieldCall {
-			canCallBeRemoved = true
-		}
 
 		// A call that has been marked "__PURE__" can be removed if all arguments
 		// can be removed. The annotation causes us to ignore the target.

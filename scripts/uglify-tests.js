@@ -259,6 +259,15 @@ async function test_case(esbuild, test, basename) {
 
       // Error difference
       'dead-code.js: dead_code_2_should_warn',
+
+      // These tests fail because esbuild assumes that declaring a class that
+      // extends a base class has no side effects. That's not true because
+      // extending a non-constructible object throws an error. But refusing to
+      // tree-shake every class with a base class is not a useful thing for a
+      // bundler to do. So we pretend that this edge case doesn't exist.
+      'classes.js: issue_4722_1',
+      'classes.js: issue_4722_2',
+      'classes.js: issue_4722_3',
     ].indexOf(`${basename}: ${test.name}`) >= 0
 
     if (!sandbox.same_stdout(test.expect_stdout, actual)) {

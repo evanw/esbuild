@@ -1863,6 +1863,9 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 	case *js_ast.EMissing:
 		p.addSourceMapping(expr.Loc)
 
+	case *js_ast.EAnnotation:
+		p.printExpr(e.Value, level, flags)
+
 	case *js_ast.EUndefined:
 		p.printUndefined(expr.Loc, level)
 

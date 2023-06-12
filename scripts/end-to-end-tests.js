@@ -4590,6 +4590,47 @@ for (let flags of [[], ['--target=es6'], ['--bundle'], ['--bundle', '--target=es
         if (new Foo().foo !== 'foo') throw 'fail'
       `,
     }),
+
+    // https://github.com/evanw/esbuild/issues/2389
+    test(['in.js', '--outfile=node.js', '--minify', '--keep-names'].concat(flags), {
+      'in.js': `
+        class DirectlyReferenced { static type = DirectlyReferenced.name }
+        class ReferencedViaThis { static type = this.name }
+        class StaticBlockViaThis { static { if (this.name !== 'StaticBlockViaThis') throw 'fail StaticBlockViaThis: ' + this.name } }
+        class StaticBlockDirectly { static { if (StaticBlockDirectly.name !== 'StaticBlockDirectly') throw 'fail StaticBlockDirectly: ' + StaticBlockDirectly.name } }
+        if (DirectlyReferenced.type !== 'DirectlyReferenced') throw 'fail DirectlyReferenced: ' + DirectlyReferenced.type
+        if (ReferencedViaThis.type !== 'ReferencedViaThis') throw 'fail ReferencedViaThis: ' + ReferencedViaThis.type
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--minify', '--keep-names'].concat(flags), {
+      'in.js': `
+        let ReferencedViaThis = class { static type = this.name }
+        let StaticBlockViaThis = class { static { if (this.name !== 'StaticBlockViaThis') throw 'fail StaticBlockViaThis: ' + this.name } }
+        if (ReferencedViaThis.type !== 'ReferencedViaThis') throw 'fail ReferencedViaThis: ' + ReferencedViaThis.type
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--keep-names', '--format=esm'].concat(flags), {
+      'in.js': `
+        // Cause the names in the inner scope to be renamed
+        if (
+          typeof DirectlyReferenced !== 'undefined' ||
+          typeof ReferencedViaThis !== 'undefined' ||
+          typeof StaticBlockViaThis !== 'undefined' ||
+          typeof StaticBlockDirectly !== 'undefined'
+        ) {
+          throw 'fail'
+        }
+        function innerScope() {
+          class DirectlyReferenced { static type = DirectlyReferenced.name }
+          class ReferencedViaThis { static type = this.name }
+          class StaticBlockViaThis { static { if (this.name !== 'StaticBlockViaThis') throw 'fail StaticBlockViaThis: ' + this.name } }
+          class StaticBlockDirectly { static { if (StaticBlockDirectly.name !== 'StaticBlockDirectly') throw 'fail StaticBlockDirectly: ' + StaticBlockDirectly.name } }
+          if (DirectlyReferenced.type !== 'DirectlyReferenced') throw 'fail DirectlyReferenced: ' + DirectlyReferenced.type
+          if (ReferencedViaThis.type !== 'ReferencedViaThis') throw 'fail ReferencedViaThis: ' + ReferencedViaThis.type
+        }
+        innerScope()
+      `,
+    }),
   )
 }
 
