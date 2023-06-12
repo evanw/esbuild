@@ -2373,25 +2373,22 @@ var B = (_a = class {
 TestStaticClassBlockESNext
 ---------- /out.js ----------
 // entry.js
-var A = class {
-  static {
-  }
-  static {
-    this.thisField++;
-    A.classField++;
-    super.superField = super.superField + 1;
-    super.superField++;
-  }
+var _A = class {
 };
-var B = class {
-  static {
-  }
-  static {
-    this.thisField++;
-    super.superField = super.superField + 1;
-    super.superField++;
-  }
-};
+var A = _A;
+(() => {
+  _A.thisField++;
+  _A.classField++;
+  __superSet(_A, _A, "superField", __superGet(_A, _A, "superField") + 1);
+  __superWrapper(_A, _A, "superField")._++;
+})();
+var _a;
+var B = (_a = class {
+}, (() => {
+  _a.thisField++;
+  __superSet(_a, _a, "superField", __superGet(_a, _a, "superField") + 1);
+  __superWrapper(_a, _a, "superField")._++;
+})(), _a);
 
 ================================================================================
 TestTSLowerClassField2020NoBundle

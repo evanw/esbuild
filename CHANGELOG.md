@@ -1,5 +1,38 @@
 # Changelog
 
+## Unreleased
+
+* Lower static blocks when static fields are lowered ([#2800](https://github.com/evanw/esbuild/issues/2800), [#2950](https://github.com/evanw/esbuild/issues/2950), [#3025](https://github.com/evanw/esbuild/issues/3025))
+
+    This release fixes a bug where esbuild incorrectly did not lower static class blocks when static class fields needed to be lowered. For example, the following code should print `1 2 3` but previously printed `2 1 3` instead due to this bug:
+
+    ```js
+    // Original code
+    class Foo {
+      static x = console.log(1)
+      static { console.log(2) }
+      static y = console.log(3)
+    }
+
+    // Old output (with --supported:class-static-field=false)
+    class Foo {
+      static {
+        console.log(2);
+      }
+    }
+    __publicField(Foo, "x", console.log(1));
+    __publicField(Foo, "y", console.log(3));
+
+    // New output (with --supported:class-static-field=false)
+    class Foo {
+    }
+    __publicField(Foo, "x", console.log(1));
+    (() => {
+      console.log(2);
+    })();
+    __publicField(Foo, "y", console.log(3));
+    ```
+
 ## 0.18.1
 
 * Fill in `null` entries in input source maps ([#3144](https://github.com/evanw/esbuild/issues/3144))

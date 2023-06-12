@@ -340,31 +340,32 @@ TestDCEClassStaticBlocks
 ---------- /out.js ----------
 // entry.ts
 var A_keep = class {
-  static {
+};
+(() => {
+  foo;
+})();
+var _B_keep = class {
+};
+var B_keep = _B_keep;
+(() => {
+  _B_keep.foo;
+})();
+var C_keep = class {
+};
+(() => {
+  try {
+    foo;
+  } catch {
+  }
+})();
+var D_keep = class {
+};
+(() => {
+  try {
+  } finally {
     foo;
   }
-};
-var B_keep = class {
-  static {
-    this.foo;
-  }
-};
-var C_keep = class {
-  static {
-    try {
-      foo;
-    } catch {
-    }
-  }
-};
-var D_keep = class {
-  static {
-    try {
-    } finally {
-      foo;
-    }
-  }
-};
+})();
 
 ================================================================================
 TestDCEOfIIFE

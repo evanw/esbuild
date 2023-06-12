@@ -2032,6 +2032,40 @@ func (p *parser) computeClassLoweringInfo(class *js_ast.Class) (result classLowe
 	//   _foo = new WeakMap();
 	//
 	for _, prop := range class.Properties {
+		// Be conservative and always lower static fields when we're doing TDZ-
+		// avoidance if the class's shadowing symbol is referenced at all (i.e.
+		// the class name within the class body, which can be referenced by name
+		// or by "this" in a static initializer). We can't transform this:
+		//
+		//   class Foo {
+		//     static foo = new Foo();
+		//     static #bar = new Foo();
+		//     static { new Foo(); }
+		//   }
+		//
+		// into this:
+		//
+		//   var Foo = class {
+		//     static foo = new Foo();
+		//     static #bar = new Foo();
+		//     static { new Foo(); }
+		//   };
+		//
+		// since "new Foo" will crash. We need to lower this static field to avoid
+		// crashing due to an uninitialized binding.
+		if result.avoidTDZ {
+			// Note that due to esbuild's single-pass design where private fields
+			// are lowered as they are resolved, we must decide whether to lower
+			// these private fields before we enter the class body. We can't wait
+			// until we've scanned the class body and know if the shadowing symbol
+			// is used or not before we decide, because if "#bar" does need to be
+			// lowered, references to "#bar" inside the class body weren't lowered.
+			// So we just unconditionally do this instead.
+			if prop.Kind == js_ast.PropertyClassStaticBlock || prop.Flags.Has(js_ast.PropertyIsStatic) {
+				result.lowerAllStaticFields = true
+			}
+		}
+
 		if prop.Kind == js_ast.PropertyClassStaticBlock {
 			if p.options.unsupportedJSFeatures.Has(compat.ClassStaticBlocks) && len(prop.ClassStaticBlock.Block.Stmts) > 0 {
 				result.lowerAllStaticFields = true
@@ -2042,34 +2076,6 @@ func (p *parser) computeClassLoweringInfo(class *js_ast.Class) (result classLowe
 		if private, ok := prop.Key.Data.(*js_ast.EPrivateIdentifier); ok {
 			if prop.Flags.Has(js_ast.PropertyIsStatic) {
 				if p.privateSymbolNeedsToBeLowered(private) {
-					result.lowerAllStaticFields = true
-				}
-
-				// Be conservative and always lower static fields when we're doing TDZ-
-				// avoidance if the class's shadowing symbol is referenced at all (i.e.
-				// the class name within the class body, which can be referenced by name
-				// or by "this" in a static initializer). We can't transform this:
-				//
-				//   class Foo {
-				//     static #foo = new Foo();
-				//   }
-				//
-				// into this:
-				//
-				//   var Foo = class {
-				//     static #foo = new Foo();
-				//   };
-				//
-				// since "new Foo" will crash. We need to lower this static field to avoid
-				// crashing due to an uninitialized binding.
-				if result.avoidTDZ {
-					// Note that due to esbuild's single-pass design where private fields
-					// are lowered as they are resolved, we must decide whether to lower
-					// these private fields before we enter the class body. We can't wait
-					// until we've scanned the class body and know if the shadowing symbol
-					// is used or not before we decide, because if "#foo" does need to be
-					// lowered, references to "#foo" inside the class body weren't lowered.
-					// So we just unconditionally do this instead.
 					result.lowerAllStaticFields = true
 				}
 			} else {
@@ -2159,25 +2165,6 @@ func (p *parser) computeClassLoweringInfo(class *js_ast.Class) (result classLowe
 			// fields because there's no way for this to call a setter in the base
 			// class, so this isn't done for private fields.
 			if p.options.ts.Parse && !result.useDefineForClassFields {
-				result.lowerAllStaticFields = true
-			}
-
-			// Be conservative and always lower static fields when we're doing TDZ-
-			// avoidance. We can't transform this:
-			//
-			//   class Foo {
-			//     static foo = new Foo();
-			//   }
-			//
-			// into this:
-			//
-			//   var Foo = class {
-			//     static foo = new Foo();
-			//   };
-			//
-			// since "new Foo" will crash. We need to lower this static field to avoid
-			// crashing due to an uninitialized binding.
-			if result.avoidTDZ {
 				result.lowerAllStaticFields = true
 			}
 		} else {
@@ -2357,7 +2344,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 
 	for _, prop := range class.Properties {
 		if prop.Kind == js_ast.PropertyClassStaticBlock {
-			if p.options.unsupportedJSFeatures.Has(compat.ClassStaticBlocks) {
+			if classLoweringInfo.lowerAllStaticFields {
 				if block := *prop.ClassStaticBlock; len(block.Block.Stmts) > 0 {
 					staticMembers = append(staticMembers, js_ast.Expr{Loc: prop.Loc, Data: &js_ast.ECall{
 						Target: js_ast.Expr{Loc: prop.Loc, Data: &js_ast.EArrow{Body: js_ast.FnBody{

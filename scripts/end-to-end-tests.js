@@ -4541,6 +4541,59 @@ for (let flags of [[], ['--target=es6']]) {
   )
 }
 
+// Class lowering tests with bundling
+for (let flags of [[], ['--target=es6'], ['--bundle'], ['--bundle', '--target=es6']]) {
+  tests.push(
+    test(['in.js', '--outfile=node.js'].concat(flags), {
+      'in.js': `
+        const order = []
+        class Test {
+          static first = order.push(1)
+          static { order.push(2) }
+          static third = order.push(3)
+        }
+        if ('' + order !== '1,2,3') throw 'fail: ' + order
+      `,
+    }),
+
+    // https://github.com/evanw/esbuild/issues/2800
+    test(['in.js', '--outfile=node.js'].concat(flags), {
+      'in.js': `
+        class Baz {
+          static thing = "value"
+          static {
+            this.prototype.thing = "value"
+          }
+        }
+        if (new Baz().thing !== 'value') throw 'fail'
+      `,
+    }),
+
+    // https://github.com/evanw/esbuild/issues/2950
+    test(['in.js', '--outfile=node.js'].concat(flags), {
+      'in.js': `
+        class SomeClass {
+          static { this.One = 1; }
+          static { this.Two = SomeClass.One * 2; }
+        }
+        if (SomeClass.Two !== 2) throw 'fail'
+      `,
+    }),
+
+    // https://github.com/evanw/esbuild/issues/3025
+    test(['in.js', '--outfile=node.js'].concat(flags), {
+      'in.js': `
+        class Foo {
+          static {
+            Foo.prototype.foo = 'foo'
+          }
+        }
+        if (new Foo().foo !== 'foo') throw 'fail'
+      `,
+    }),
+  )
+}
+
 // Async lowering tests
 for (let flags of [[], ['--target=es2017'], ['--target=es6']]) {
   tests.push(
