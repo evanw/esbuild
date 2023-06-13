@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.18.2
 
 * Lower static blocks when static fields are lowered ([#2800](https://github.com/evanw/esbuild/issues/2800), [#2950](https://github.com/evanw/esbuild/issues/2950), [#3025](https://github.com/evanw/esbuild/issues/3025))
 
