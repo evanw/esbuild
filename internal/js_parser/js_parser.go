@@ -10275,6 +10275,12 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			}
 		}
 
+		if p.options.minifySyntax && len(s.Fn.Body.Block.Stmts) == 1 {
+			if block, ok := s.Fn.Body.Block.Stmts[0].Data.(*js_ast.SBlock); ok {
+				s.Fn.Body.Block = *block
+			}
+		}
+
 		// Handle exporting this function from a namespace
 		if s.IsExport && p.enclosingNamespaceArgRef != nil {
 			s.IsExport = false
@@ -11026,6 +11032,11 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 			// "class { static {} }" => "class {}"
 			if p.options.minifySyntax && len(property.ClassStaticBlock.Block.Stmts) == 0 {
 				continue
+			}
+			if p.options.minifySyntax && len(property.ClassStaticBlock.Block.Stmts) == 1 {
+				if block, ok := property.ClassStaticBlock.Block.Stmts[0].Data.(*js_ast.SBlock); ok {
+					property.ClassStaticBlock.Block = *block
+				}
 			}
 
 			// Keep this property
@@ -14353,6 +14364,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					e.PreferExpr = true
 				}
 			}
+			if s, ok := e.Body.Block.Stmts[0].Data.(*js_ast.SBlock); ok {
+				e.Body.Block = *s
+			}
 		}
 
 		p.fnOnlyDataVisit.isInsideAsyncArrowFn = oldInsideAsyncArrowFn
@@ -14396,6 +14410,12 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				expr = p.keepExprSymbolName(expr, p.symbols[name.Ref.InnerIndex].OriginalName)
 			} else if nameToKeep != "" {
 				expr = p.keepExprSymbolName(expr, nameToKeep)
+			}
+		}
+
+		if p.options.minifySyntax && len(e.Fn.Body.Block.Stmts) == 1 {
+			if s, ok := e.Fn.Body.Block.Stmts[0].Data.(*js_ast.SBlock); ok {
+				e.Fn.Body.Block = *s
 			}
 		}
 

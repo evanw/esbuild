@@ -3189,6 +3189,16 @@ func TestMangleBlock(t *testing.T) {
 	expectPrintedMangle(t, "while(1) { function* x() {} }", "for (; ; ) {\n  function* x() {\n  }\n}\n")
 	expectPrintedMangle(t, "while(1) { async function x() {} }", "for (; ; ) {\n  async function x() {\n  }\n}\n")
 	expectPrintedMangle(t, "while(1) { async function* x() {} }", "for (; ; ) {\n  async function* x() {\n  }\n}\n")
+
+	expectPrintedMangle(t, "function f() {{ let a = ''; console.log(a); console.log(a); }}", "function f() {\n  let a = \"\";\n  console.log(a), console.log(a);\n}\n")
+	expectPrintedMangle(t, "const f = () => {{ let a = ''; console.log(a); console.log(a); }}", "const f = () => {\n  let a = \"\";\n  console.log(a), console.log(a);\n};\n")
+	expectPrintedMangle(t, "const f = function() {{ let a = ''; console.log(a); console.log(a); }}", "const f = function() {\n  let a = \"\";\n  console.log(a), console.log(a);\n};\n")
+	expectPrintedMangle(t, "const obj = { m() {{ let a = ''; console.log(a); console.log(a); }} }", "const obj = { m() {\n  let a = \"\";\n  console.log(a), console.log(a);\n} };\n")
+	expectPrintedMangle(t, "class F { static {{ let a = ''; console.log(a); console.log(a); }} }", "class F {\n  static {\n    let a = \"\";\n    console.log(a), console.log(a);\n  }\n}\n")
+	expectPrintedMangle(t, "class F { m() {{ let a = ''; console.log(a); console.log(a); }} }", "class F {\n  m() {\n    let a = \"\";\n    console.log(a), console.log(a);\n  }\n}\n")
+	expectPrintedMangle(t, "function f() {if (true) { let a = ''; console.log(a); console.log(a); }}", "function f() {\n  let a = \"\";\n  console.log(a), console.log(a);\n}\n")
+	expectPrintedMangle(t, "function f() {if (true) { let a = ''; console.log(a); console.log(a); } else { console.log() }}", "function f() {\n  let a = \"\";\n  console.log(a), console.log(a);\n}\n")
+	expectPrintedMangle(t, "function f() {{ let a = ''; console.log(a); console.log(a); }; let b = '';}", "function f() {\n  {\n    let a = \"\";\n    console.log(a), console.log(a);\n  }\n  let b = \"\";\n}\n")
 }
 
 func TestMangleSwitch(t *testing.T) {
