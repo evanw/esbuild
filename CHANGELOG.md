@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.18.3
 
 * Fix a panic due to empty static class blocks ([#3161](https://github.com/evanw/esbuild/issues/3161))
 
