@@ -2047,7 +2047,7 @@ func (p *parser) computeClassLoweringInfo(class *js_ast.Class) (result classLowe
 		}
 
 		if prop.Kind == js_ast.PropertyClassStaticBlock {
-			if p.options.unsupportedJSFeatures.Has(compat.ClassStaticBlocks) && len(prop.ClassStaticBlock.Block.Stmts) > 0 {
+			if p.options.unsupportedJSFeatures.Has(compat.ClassStaticBlocks) {
 				result.lowerAllStaticFields = true
 			}
 			continue
@@ -2306,6 +2306,11 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 
 	for _, prop := range class.Properties {
 		if prop.Kind == js_ast.PropertyClassStaticBlock {
+			// Drop empty class blocks when minifying
+			if p.options.minifySyntax && len(prop.ClassStaticBlock.Block.Stmts) == 0 {
+				continue
+			}
+
 			if classLoweringInfo.lowerAllStaticFields {
 				block := *prop.ClassStaticBlock
 				isAllExprs := []js_ast.Expr{}

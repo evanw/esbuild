@@ -10989,8 +10989,6 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 	// A scope is needed for private identifiers
 	p.pushScopeForVisitPass(js_ast.ScopeClassBody, class.BodyLoc)
 
-	end := 0
-
 	for i := range class.Properties {
 		property := &class.Properties[i]
 
@@ -11022,15 +11020,6 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 
 			p.fnOrArrowDataVisit = oldFnOrArrowData
 			p.fnOnlyDataVisit = oldFnOnlyDataVisit
-
-			// "class { static {} }" => "class {}"
-			if p.options.minifySyntax && len(property.ClassStaticBlock.Block.Stmts) == 0 {
-				continue
-			}
-
-			// Keep this property
-			class.Properties[end] = *property
-			end++
 			continue
 		}
 
@@ -11158,14 +11147,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 
 		// Restore the ability to use "arguments" in decorators and computed properties
 		p.currentScope.ForbidArguments = false
-
-		// Keep this property
-		class.Properties[end] = *property
-		end++
 	}
-
-	// Finish the filtering operation
-	class.Properties = class.Properties[:end]
 
 	// Analyze side effects before adding the name keeping call
 	result.canBeRemovedIfUnused = js_ast.ClassCanBeRemovedIfUnused(*class, p.isUnbound)

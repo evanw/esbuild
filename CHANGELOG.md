@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix a panic due to empty static class blocks ([#3161](https://github.com/evanw/esbuild/issues/3161))
+
+    This release fixes a bug where an internal invariant that was introduced in the previous release was sometimes violated, which then caused a panic. It happened when bundling code containing an empty static class block with both minification and bundling enabled.
+
 ## 0.18.2
 
 * Lower static blocks when static fields are lowered ([#2800](https://github.com/evanw/esbuild/issues/2800), [#2950](https://github.com/evanw/esbuild/issues/2950), [#3025](https://github.com/evanw/esbuild/issues/3025))

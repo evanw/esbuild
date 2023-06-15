@@ -1935,6 +1935,11 @@ func TestClassStaticBlocks(t *testing.T) {
 	expectParseError(t, "class Foo { static { continue } }", "<stdin>: ERROR: Cannot use \"continue\" here:\n")
 	expectParseError(t, "x: { class Foo { static { break x } } }", "<stdin>: ERROR: There is no containing label named \"x\"\n")
 	expectParseError(t, "x: { class Foo { static { continue x } } }", "<stdin>: ERROR: There is no containing label named \"x\"\n")
+
+	expectPrintedMangle(t, "class Foo { static {} }", "class Foo {\n}\n")
+	expectPrintedMangle(t, "class Foo { static { 123 } }", "class Foo {\n}\n")
+	expectPrintedMangle(t, "class Foo { static { /* @__PURE__ */ foo() } }", "class Foo {\n}\n")
+	expectPrintedMangle(t, "class Foo { static { foo() } }", "class Foo {\n  static {\n    foo();\n  }\n}\n")
 }
 
 func TestGenerator(t *testing.T) {

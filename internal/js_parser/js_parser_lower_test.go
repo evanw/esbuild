@@ -529,6 +529,18 @@ func TestLowerClassStaticThis(t *testing.T) {
 		"var _a;\nx = (_a = class {\n}, __publicField(_a, \"x\", class extends _a {\n}), _a);\n")
 }
 
+func TestLowerClassStaticBlocks(t *testing.T) {
+	expectPrintedTarget(t, 2015, "class Foo { static {} }", "class Foo {\n}\n")
+	expectPrintedTarget(t, 2015, "class Foo { static {} x() {} }", "class Foo {\n  x() {\n  }\n}\n")
+	expectPrintedTarget(t, 2015, "class Foo { x() {} static {} }", "class Foo {\n  x() {\n  }\n}\n")
+	expectPrintedTarget(t, 2015, "class Foo { static { x } static {} static { y } }", "class Foo {\n}\nx;\ny;\n")
+
+	expectPrintedMangleTarget(t, 2015, "class Foo { static {} }", "class Foo {\n}\n")
+	expectPrintedMangleTarget(t, 2015, "class Foo { static {} x() {} }", "class Foo {\n  x() {\n  }\n}\n")
+	expectPrintedMangleTarget(t, 2015, "class Foo { x() {} static {} }", "class Foo {\n  x() {\n  }\n}\n")
+	expectPrintedMangleTarget(t, 2015, "class Foo { static { x } static {} static { y } }", "class Foo {\n}\nx, y;\n")
+}
+
 func TestLowerOptionalChain(t *testing.T) {
 	expectPrintedTarget(t, 2019, "a?.b.c", "a == null ? void 0 : a.b.c;\n")
 	expectPrintedTarget(t, 2019, "(a?.b).c", "(a == null ? void 0 : a.b).c;\n")

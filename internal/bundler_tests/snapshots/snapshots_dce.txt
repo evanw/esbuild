@@ -364,6 +364,33 @@ var D_keep = class {
 })();
 
 ================================================================================
+TestDCEClassStaticBlocksMinifySyntax
+---------- /out.js ----------
+// entry.ts
+var A_keep = class {
+};
+foo;
+var _B_keep = class {
+}, B_keep = _B_keep;
+_B_keep.foo;
+var C_keep = class {
+};
+(() => {
+  try {
+    foo;
+  } catch {
+  }
+})();
+var D_keep = class {
+};
+(() => {
+  try {
+  } finally {
+    foo;
+  }
+})();
+
+================================================================================
 TestDCEOfIIFE
 ---------- /out/remove-these.js ----------
 keepThisButRemoveTheIIFE;

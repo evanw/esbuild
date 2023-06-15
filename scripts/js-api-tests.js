@@ -6485,6 +6485,12 @@ class Foo {
     assert.strictEqual(fromPromiseResolve(code4), `Promise.resolve().then(function(){return __toESM(require(foo))});\n`)
   },
 
+  async classStaticBlocks({ esbuild }) {
+    // Check that empty static class blocks are still lowered (this was a regression in version 0.18.2)
+    assert.strictEqual((await esbuild.transform(`class Foo { static {} }`, { supported: { 'class-static-blocks': false } })).code, `class Foo {\n}\n`)
+    assert.strictEqual((await esbuild.transform(`class Foo { static { x } }`, { supported: { 'class-static-blocks': false } })).code, `class Foo {\n}\nx;\n`)
+  },
+
   async inlineScript({ esbuild }) {
     let p
     assert.strictEqual((await esbuild.transform(`x = '</script>'`, {})).code, `x = "<\\/script>";\n`)
