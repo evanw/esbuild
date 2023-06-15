@@ -671,7 +671,7 @@ type fnOnlyDataVisit struct {
 
 	// If true, we're inside a static class context where "this" expressions
 	// should be replaced with the class name.
-	shouldReplaceThisWithClassNameRef bool
+	shouldReplaceThisWithInnerClassNameRef bool
 
 	// This is true if "this" is equal to the class name. It's true if we're in a
 	// static class field initializer, a static class method, or a static class
@@ -681,7 +681,7 @@ type fnOnlyDataVisit struct {
 	// This is a reference to the enclosing class name if there is one. It's used
 	// to implement "this" and "super" references. A name is automatically generated
 	// if one is missing so this will always be present inside a class body.
-	classNameRef *js_ast.Ref
+	innerClassNameRef *js_ast.Ref
 
 	// If we're inside an async arrow function and async functions are not
 	// supported, then we will have to convert that arrow function to a generator
@@ -10863,8 +10863,8 @@ func (p *parser) visitDecorators(decorators []js_ast.Expr, decoratorScope *js_as
 }
 
 type visitClassResult struct {
-	shadowRef    js_ast.Ref
-	superCtorRef js_ast.Ref
+	innerClassNameRef js_ast.Ref
+	superCtorRef      js_ast.Ref
 
 	// If true, the class was determined to be safe to remove if the class is
 	// never used (i.e. the class definition is side-effect free). This is
@@ -10962,25 +10962,27 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 	oldSuperCtorRef := p.superCtorRef
 	p.superCtorRef = result.superCtorRef
 
-	// Insert a shadowing name that spans the whole class, which matches
-	// JavaScript's semantics. The class body (and extends clause) "captures" the
-	// original value of the name. This matters for class statements because the
-	// symbol can be re-assigned to something else later. The captured values
-	// must be the original value of the name, not the re-assigned value.
-	// Use "const" for this symbol to match JavaScript run-time semantics. You
-	// are not allowed to assign to this symbol (it throws a TypeError).
+	// Insert an immutable inner name that spans the whole class to match
+	// JavaScript's semantics specifically the "CreateImmutableBinding" here:
+	// https://262.ecma-international.org/6.0/#sec-runtime-semantics-classdefinitionevaluation
+	// The class body (and extends clause) "captures" the original value of the
+	// class name. This matters for class statements because the symbol can be
+	// re-assigned to something else later. The captured values must be the
+	// original value of the name, not the re-assigned value. Use "const" for
+	// this symbol to match JavaScript run-time semantics. You are not allowed
+	// to assign to this symbol (it throws a TypeError).
 	if class.Name != nil {
 		name := p.symbols[class.Name.Ref.InnerIndex].OriginalName
-		result.shadowRef = p.newSymbol(js_ast.SymbolConst, "_"+name)
-		p.currentScope.Members[name] = js_ast.ScopeMember{Loc: class.Name.Loc, Ref: result.shadowRef}
+		result.innerClassNameRef = p.newSymbol(js_ast.SymbolConst, "_"+name)
+		p.currentScope.Members[name] = js_ast.ScopeMember{Loc: class.Name.Loc, Ref: result.innerClassNameRef}
 	} else {
 		name := "_this"
 		if defaultNameRef != js_ast.InvalidRef {
 			name = "_" + p.source.IdentifierName + "_default"
 		}
-		result.shadowRef = p.newSymbol(js_ast.SymbolConst, name)
+		result.innerClassNameRef = p.newSymbol(js_ast.SymbolConst, name)
 	}
-	p.recordDeclaredSymbol(result.shadowRef)
+	p.recordDeclaredSymbol(result.innerClassNameRef)
 
 	if class.ExtendsOrNil.Data != nil {
 		class.ExtendsOrNil = p.visitExpr(class.ExtendsOrNil)
@@ -11001,12 +11003,12 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 				isThisNested:           true,
 				isNewTargetAllowed:     true,
 				isInStaticClassContext: true,
-				classNameRef:           &result.shadowRef,
+				innerClassNameRef:      &result.innerClassNameRef,
 			}
 
 			if classLoweringInfo.lowerAllStaticFields {
 				// Need to lower "this" and "super" since they won't be valid outside the class body
-				p.fnOnlyDataVisit.shouldReplaceThisWithClassNameRef = true
+				p.fnOnlyDataVisit.shouldReplaceThisWithInnerClassNameRef = true
 				p.fnOrArrowDataVisit.shouldLowerSuperPropertyAccess = true
 			}
 
@@ -11082,11 +11084,11 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 		oldFnOnlyDataVisit := p.fnOnlyDataVisit
 		oldShouldLowerSuperPropertyAccess := p.fnOrArrowDataVisit.shouldLowerSuperPropertyAccess
 		p.fnOrArrowDataVisit.shouldLowerSuperPropertyAccess = false
-		p.fnOnlyDataVisit.shouldReplaceThisWithClassNameRef = false
+		p.fnOnlyDataVisit.shouldReplaceThisWithInnerClassNameRef = false
 		p.fnOnlyDataVisit.isThisNested = true
 		p.fnOnlyDataVisit.isNewTargetAllowed = true
 		p.fnOnlyDataVisit.isInStaticClassContext = property.Flags.Has(js_ast.PropertyIsStatic)
-		p.fnOnlyDataVisit.classNameRef = &result.shadowRef
+		p.fnOnlyDataVisit.innerClassNameRef = &result.innerClassNameRef
 
 		// We need to explicitly assign the name to the property initializer if it
 		// will be transformed such that it is no longer an inline initializer.
@@ -11128,7 +11130,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 		if property.InitializerOrNil.Data != nil {
 			if property.Flags.Has(js_ast.PropertyIsStatic) && classLoweringInfo.lowerAllStaticFields {
 				// Need to lower "this" and "super" since they won't be valid outside the class body
-				p.fnOnlyDataVisit.shouldReplaceThisWithClassNameRef = true
+				p.fnOnlyDataVisit.shouldReplaceThisWithInnerClassNameRef = true
 				p.fnOrArrowDataVisit.shouldLowerSuperPropertyAccess = true
 			}
 
@@ -11167,8 +11169,8 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 		if !propertyPreventsKeepNames {
 			var this js_ast.Expr
 			if classLoweringInfo.lowerAllStaticFields {
-				p.recordUsage(result.shadowRef)
-				this = js_ast.Expr{Loc: class.BodyLoc, Data: &js_ast.EIdentifier{Ref: result.shadowRef}}
+				p.recordUsage(result.innerClassNameRef)
+				this = js_ast.Expr{Loc: class.BodyLoc, Data: &js_ast.EIdentifier{Ref: result.innerClassNameRef}}
 			} else {
 				this = js_ast.Expr{Loc: class.BodyLoc, Data: js_ast.EThisShared}
 			}
@@ -11187,9 +11189,9 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 	p.superCtorRef = oldSuperCtorRef
 	p.popScope()
 
-	if p.symbols[result.shadowRef.InnerIndex].UseCountEstimate == 0 {
+	if p.symbols[result.innerClassNameRef.InnerIndex].UseCountEstimate == 0 {
 		// Don't generate a shadowing name if one isn't needed
-		result.shadowRef = js_ast.InvalidRef
+		result.innerClassNameRef = js_ast.InvalidRef
 	} else if class.Name == nil {
 		// If there was originally no class name but something inside needed one
 		// (e.g. there was a static property initializer that referenced "this"),
@@ -11950,9 +11952,9 @@ func (p *parser) valueForThis(
 	isDeleteTarget bool,
 ) (js_ast.Expr, bool) {
 	// Substitute "this" if we're inside a static class context
-	if p.fnOnlyDataVisit.shouldReplaceThisWithClassNameRef {
-		p.recordUsage(*p.fnOnlyDataVisit.classNameRef)
-		return js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: *p.fnOnlyDataVisit.classNameRef}}, true
+	if p.fnOnlyDataVisit.shouldReplaceThisWithInnerClassNameRef {
+		p.recordUsage(*p.fnOnlyDataVisit.innerClassNameRef)
+		return js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: *p.fnOnlyDataVisit.innerClassNameRef}}, true
 	}
 
 	// Is this a top-level use of "this"?
@@ -13438,7 +13440,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 		hasSpread := false
 		protoRange := logger.Range{}
-		classNameRef := js_ast.InvalidRef
+		innerClassNameRef := js_ast.InvalidRef
 
 		for i := range e.Properties {
 			property := &e.Properties[i]
@@ -13501,7 +13503,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 			if property.ValueOrNil.Data != nil {
 				oldIsInStaticClassContext := p.fnOnlyDataVisit.isInStaticClassContext
-				oldClassNameRef := p.fnOnlyDataVisit.classNameRef
+				oldInnerClassNameRef := p.fnOnlyDataVisit.innerClassNameRef
 
 				// If this is an async method and async methods are unsupported,
 				// generate a temporary variable in case this async method contains a
@@ -13509,18 +13511,18 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				// must be lowered which will need a reference to this object literal.
 				if property.Flags.Has(js_ast.PropertyIsMethod) && p.options.unsupportedJSFeatures.Has(compat.AsyncAwait) {
 					if fn, ok := property.ValueOrNil.Data.(*js_ast.EFunction); ok && fn.Fn.IsAsync {
-						if classNameRef == js_ast.InvalidRef {
-							classNameRef = p.generateTempRef(tempRefNeedsDeclareMayBeCapturedInsideLoop, "")
+						if innerClassNameRef == js_ast.InvalidRef {
+							innerClassNameRef = p.generateTempRef(tempRefNeedsDeclareMayBeCapturedInsideLoop, "")
 						}
 						p.propMethodValue = property.ValueOrNil.Data
 						p.fnOnlyDataVisit.isInStaticClassContext = true
-						p.fnOnlyDataVisit.classNameRef = &classNameRef
+						p.fnOnlyDataVisit.innerClassNameRef = &innerClassNameRef
 					}
 				}
 
 				property.ValueOrNil, _ = p.visitExprInOut(property.ValueOrNil, exprIn{assignTarget: in.assignTarget})
 
-				p.fnOnlyDataVisit.classNameRef = oldClassNameRef
+				p.fnOnlyDataVisit.innerClassNameRef = oldInnerClassNameRef
 				p.fnOnlyDataVisit.isInStaticClassContext = oldIsInStaticClassContext
 			}
 
@@ -13602,9 +13604,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			// If we generated and used the temporary variable for a lowered "super"
 			// property reference inside a lowered "async" method, then initialize
 			// the temporary with this object literal.
-			if classNameRef != js_ast.InvalidRef && p.symbols[classNameRef.InnerIndex].UseCountEstimate > 0 {
-				p.recordUsage(classNameRef)
-				value = js_ast.Assign(js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EIdentifier{Ref: classNameRef}}, value)
+			if innerClassNameRef != js_ast.InvalidRef && p.symbols[innerClassNameRef.InnerIndex].UseCountEstimate > 0 {
+				p.recordUsage(innerClassNameRef)
+				value = js_ast.Assign(js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EIdentifier{Ref: innerClassNameRef}}, value)
 			}
 
 			return value, exprOut{}
@@ -15363,7 +15365,7 @@ func (p *parser) visitFn(fn *js_ast.Fn, scopeLoc logger.Loc, opts visitFnOpts) {
 
 	if opts.isClassMethod {
 		decoratorScope = p.propMethodDecoratorScope
-		p.fnOnlyDataVisit.classNameRef = oldFnOnlyData.classNameRef
+		p.fnOnlyDataVisit.innerClassNameRef = oldFnOnlyData.innerClassNameRef
 		p.fnOnlyDataVisit.isInStaticClassContext = oldFnOnlyData.isInStaticClassContext
 		if oldFnOrArrowData.shouldLowerSuperPropertyAccess {
 			p.fnOrArrowDataVisit.shouldLowerSuperPropertyAccess = true

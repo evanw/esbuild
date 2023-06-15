@@ -2013,9 +2013,9 @@ func (p *parser) computeClassLoweringInfo(class *js_ast.Class) (result classLowe
 	//
 	for _, prop := range class.Properties {
 		// Be conservative and always lower static fields when we're doing TDZ-
-		// avoidance if the class's shadowing symbol is referenced at all (i.e.
-		// the class name within the class body, which can be referenced by name
-		// or by "this" in a static initializer). We can't transform this:
+		// avoidance if the class's inner class name symbol is referenced at all
+		// (i.e. the class name within the class body, which can be referenced by
+		// name or by "this" in a static initializer). We can't transform this:
 		//
 		//   class Foo {
 		//     static foo = new Foo();
@@ -2037,10 +2037,10 @@ func (p *parser) computeClassLoweringInfo(class *js_ast.Class) (result classLowe
 			// Note that due to esbuild's single-pass design where private fields
 			// are lowered as they are resolved, we must decide whether to lower
 			// these private fields before we enter the class body. We can't wait
-			// until we've scanned the class body and know if the shadowing symbol
-			// is used or not before we decide, because if "#bar" does need to be
-			// lowered, references to "#bar" inside the class body weren't lowered.
-			// So we just unconditionally do this instead.
+			// until we've scanned the class body and know if the inner class name
+			// symbol is used or not before we decide, because if "#bar" does need
+			// to be lowered, references to "#bar" inside the class body weren't
+			// lowered. So we just unconditionally do this instead.
 			if prop.Kind == js_ast.PropertyClassStaticBlock || prop.Flags.Has(js_ast.PropertyIsStatic) {
 				result.lowerAllStaticFields = true
 			}
@@ -2084,8 +2084,8 @@ func (p *parser) computeClassLoweringInfo(class *js_ast.Class) (result classLowe
 					// because "_Foo" won't be initialized in the initializer for "bar".
 					// So we currently lower all static fields in this case too. This
 					// isn't great and it would be good to find a way to avoid this.
-					// The shadowing symbol substitution mechanism should probably be
-					// rethought.
+					// The inner class name symbol substitution mechanism should probably
+					// be rethought.
 					result.lowerAllStaticFields = true
 				}
 			}
@@ -2196,14 +2196,14 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 		if class.Name != nil {
 			symbol := &p.symbols[class.Name.Ref.InnerIndex]
 
-			// The shadowing name inside the class expression should be the same as
+			// The inner class name inside the class expression should be the same as
 			// the class expression name itself
-			if result.shadowRef != js_ast.InvalidRef {
-				p.mergeSymbols(result.shadowRef, class.Name.Ref)
+			if result.innerClassNameRef != js_ast.InvalidRef {
+				p.mergeSymbols(result.innerClassNameRef, class.Name.Ref)
 			}
 
 			// Remove unused class names when minifying. Check this after we merge in
-			// the shadowing name above since that will adjust the use count.
+			// the inner class name above since that will adjust the use count.
 			if p.options.minifySyntax && symbol.UseCountEstimate == 0 {
 				class.Name = nil
 			}
@@ -2774,10 +2774,10 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 	}
 
 	// If this is true, we have removed some code from the class body that could
-	// potentially contain an expression that captures the shadowing class name.
+	// potentially contain an expression that captures the inner class name.
 	// This could lead to incorrect behavior if the class is later re-assigned,
-	// since the removed code would no longer be in the shadowing scope.
-	hasPotentialShadowCaptureEscape := result.shadowRef != js_ast.InvalidRef &&
+	// since the removed code would no longer be in the class body scope.
+	hasPotentialInnerClassNameEscape := result.innerClassNameRef != js_ast.InvalidRef &&
 		(computedPropertyCache.Data != nil ||
 			len(privateMembers) > 0 ||
 			len(staticPrivateMethods) > 0 ||
@@ -2791,7 +2791,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 	var stmts []js_ast.Stmt
 	var nameForClassDecorators js_ast.LocRef
 	generatedLocalStmt := false
-	if len(class.Decorators) > 0 || hasPotentialShadowCaptureEscape || classLoweringInfo.avoidTDZ {
+	if len(class.Decorators) > 0 || hasPotentialInnerClassNameEscape || classLoweringInfo.avoidTDZ {
 		generatedLocalStmt = true
 		name := nameFunc()
 		nameRef := name.Data.(*js_ast.EIdentifier).Ref
@@ -2800,8 +2800,8 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 		class = &classExpr.Class
 		init := js_ast.Expr{Loc: classLoc, Data: &classExpr}
 
-		if hasPotentialShadowCaptureEscape && len(class.Decorators) == 0 {
-			// If something captures the shadowing name and escapes the class body,
+		if hasPotentialInnerClassNameEscape && len(class.Decorators) == 0 {
+			// If something captures the inner class name and escapes the class body,
 			// make a new constant to store the class and forward that value to a
 			// mutable alias. That way if the alias is mutated, everything bound to
 			// the original constant doesn't change.
@@ -2829,14 +2829,14 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 			//   Foo = class Bar {
 			//   };
 			//
-			// Generate a new symbol instead of using the shadowing name directly
-			// because the shadowing name isn't a top-level symbol and we are now
+			// Generate a new symbol instead of using the inner class name directly
+			// because the inner class name isn't a top-level symbol and we are now
 			// making a top-level symbol. This symbol must be minified along with
 			// other top-level symbols to avoid name collisions.
-			captureRef := p.newSymbol(js_ast.SymbolOther, p.symbols[result.shadowRef.InnerIndex].OriginalName)
+			captureRef := p.newSymbol(js_ast.SymbolOther, p.symbols[result.innerClassNameRef.InnerIndex].OriginalName)
 			p.currentScope.Generated = append(p.currentScope.Generated, captureRef)
 			p.recordDeclaredSymbol(captureRef)
-			p.mergeSymbols(result.shadowRef, captureRef)
+			p.mergeSymbols(result.innerClassNameRef, captureRef)
 			stmts = append(stmts, js_ast.Stmt{Loc: classLoc, Data: &js_ast.SLocal{
 				Kind: p.selectLocalKind(js_ast.LocalConst),
 				Decls: []js_ast.Decl{{
@@ -2852,8 +2852,8 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 			// The official TypeScript compiler does this by rewriting all class name
 			// references in the class body to another temporary variable. This is
 			// basically what we're doing here.
-			if result.shadowRef != js_ast.InvalidRef {
-				p.mergeSymbols(result.shadowRef, nameRef)
+			if result.innerClassNameRef != js_ast.InvalidRef {
+				p.mergeSymbols(result.innerClassNameRef, nameRef)
 			}
 		}
 
@@ -2880,10 +2880,10 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 			}})
 		}
 
-		// The shadowing name inside the class statement should be the same as
+		// The inner class name inside the class statement should be the same as
 		// the class statement name itself
-		if class.Name != nil && result.shadowRef != js_ast.InvalidRef {
-			p.mergeSymbols(result.shadowRef, class.Name.Ref)
+		if class.Name != nil && result.innerClassNameRef != js_ast.InvalidRef {
+			p.mergeSymbols(result.innerClassNameRef, class.Name.Ref)
 		}
 	}
 
@@ -3210,13 +3210,13 @@ func (p *parser) shouldLowerSuperPropertyAccess(expr js_ast.Expr) bool {
 }
 
 func (p *parser) callSuperPropertyWrapper(loc logger.Loc, key js_ast.Expr) js_ast.Expr {
-	ref := *p.fnOnlyDataVisit.classNameRef
+	ref := *p.fnOnlyDataVisit.innerClassNameRef
 	p.recordUsage(ref)
 	class := js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: ref}}
 	this := js_ast.Expr{Loc: loc, Data: js_ast.EThisShared}
 
 	// Handle "this" in lowered static class field initializers
-	if p.fnOnlyDataVisit.shouldReplaceThisWithClassNameRef {
+	if p.fnOnlyDataVisit.shouldReplaceThisWithInnerClassNameRef {
 		p.recordUsage(ref)
 		this.Data = &js_ast.EIdentifier{Ref: ref}
 	}
@@ -3235,13 +3235,13 @@ func (p *parser) callSuperPropertyWrapper(loc logger.Loc, key js_ast.Expr) js_as
 }
 
 func (p *parser) lowerSuperPropertyGet(loc logger.Loc, key js_ast.Expr) js_ast.Expr {
-	ref := *p.fnOnlyDataVisit.classNameRef
+	ref := *p.fnOnlyDataVisit.innerClassNameRef
 	p.recordUsage(ref)
 	class := js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: ref}}
 	this := js_ast.Expr{Loc: loc, Data: js_ast.EThisShared}
 
 	// Handle "this" in lowered static class field initializers
-	if p.fnOnlyDataVisit.shouldReplaceThisWithClassNameRef {
+	if p.fnOnlyDataVisit.shouldReplaceThisWithInnerClassNameRef {
 		p.recordUsage(ref)
 		this.Data = &js_ast.EIdentifier{Ref: ref}
 	}
@@ -3262,13 +3262,13 @@ func (p *parser) lowerSuperPropertyGet(loc logger.Loc, key js_ast.Expr) js_ast.E
 func (p *parser) lowerSuperPropertySet(loc logger.Loc, key js_ast.Expr, value js_ast.Expr) js_ast.Expr {
 	// "super.foo = bar" => "__superSet(Class, this, 'foo', bar)"
 	// "super[foo] = bar" => "__superSet(Class, this, foo, bar)"
-	ref := *p.fnOnlyDataVisit.classNameRef
+	ref := *p.fnOnlyDataVisit.innerClassNameRef
 	p.recordUsage(ref)
 	class := js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: ref}}
 	this := js_ast.Expr{Loc: loc, Data: js_ast.EThisShared}
 
 	// Handle "this" in lowered static class field initializers
-	if p.fnOnlyDataVisit.shouldReplaceThisWithClassNameRef {
+	if p.fnOnlyDataVisit.shouldReplaceThisWithInnerClassNameRef {
 		p.recordUsage(ref)
 		this.Data = &js_ast.EIdentifier{Ref: ref}
 	}
