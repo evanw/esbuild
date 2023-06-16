@@ -1859,11 +1859,11 @@ func StmtsCanBeRemovedIfUnused(stmts []Stmt, flags StmtsCanBeRemovedIfUnusedFlag
 			}
 
 		case *SExpr:
-			if s.IsFromClassThatCanBeRemovedIfUnused {
+			if s.IsFromClassOrFnThatCanBeRemovedIfUnused {
 				// This statement was automatically generated when lowering a class
-				// that we were able to analyze as having no side effects before
-				// lowering. So we consider it to be removable. The assumption here
-				// is that we are seeing at least all of the statements from the
+				// or function that we were able to analyze as having no side effects
+				// before lowering. So we consider it to be removable. The assumption
+				// here is that we are seeing at least all of the statements from the
 				// class lowering operation all at once (although we may possibly be
 				// seeing even more statements than that). Since we're making a binary
 				// all-or-nothing decision about the side effects of these statements,

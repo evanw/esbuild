@@ -984,7 +984,7 @@ type SExpr struct {
 	// to keep the original value of the "name" property). When this happens we
 	// can't tell that the class is side-effect free anymore because all of these
 	// methods mutate the class. We use this annotation for that instead.
-	IsFromClassThatCanBeRemovedIfUnused bool
+	IsFromClassOrFnThatCanBeRemovedIfUnused bool
 }
 
 type EnumValue struct {

@@ -2484,9 +2484,6 @@ let f2 = class {
 TestKeepNamesTreeShaking
 ---------- /out.js ----------
 // entry.js
-function fnStmtRemove() {
-}
-__name(fnStmtRemove, "fnStmtRemove");
 function fnStmtKeep() {
 }
 __name(fnStmtKeep, "fnStmtKeep");

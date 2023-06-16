@@ -9509,12 +9509,13 @@ func (p *parser) keepExprSymbolName(value js_ast.Expr, name string) js_ast.Expr 
 	return value
 }
 
-func (p *parser) keepStmtSymbolName(loc logger.Loc, expr js_ast.Expr, name string) js_ast.Stmt {
+func (p *parser) keepClassOrFnSymbolName(loc logger.Loc, expr js_ast.Expr, name string) js_ast.Stmt {
 	return js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{
 		Value: p.callRuntime(loc, "__name", []js_ast.Expr{
 			expr,
 			{Loc: loc, Data: &js_ast.EString{Value: helpers.StringToUTF16(name)}},
 		}),
+		IsFromClassOrFnThatCanBeRemovedIfUnused: true,
 	}}
 }
 
@@ -9685,7 +9686,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			if p.options.keepNames {
 				p.symbols[s2.Fn.Name.Ref.InnerIndex].Flags |= js_ast.DidKeepName
 				fn := js_ast.Expr{Loc: s2.Fn.Name.Loc, Data: &js_ast.EIdentifier{Ref: s2.Fn.Name.Ref}}
-				stmts = append(stmts, p.keepStmtSymbolName(s2.Fn.Name.Loc, fn, name))
+				stmts = append(stmts, p.keepClassOrFnSymbolName(s2.Fn.Name.Loc, fn, name))
 			}
 
 		case *js_ast.SClass:
@@ -9698,7 +9699,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			if result.canBeRemovedIfUnused {
 				for _, classStmt := range classStmts {
 					if s2, ok := classStmt.Data.(*js_ast.SExpr); ok {
-						s2.IsFromClassThatCanBeRemovedIfUnused = true
+						s2.IsFromClassOrFnThatCanBeRemovedIfUnused = true
 					}
 				}
 			}
@@ -10295,7 +10296,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			symbol := &p.symbols[s.Fn.Name.Ref.InnerIndex]
 			symbol.Flags |= js_ast.DidKeepName
 			fn := js_ast.Expr{Loc: s.Fn.Name.Loc, Data: &js_ast.EIdentifier{Ref: s.Fn.Name.Ref}}
-			stmts = append(stmts, p.keepStmtSymbolName(s.Fn.Name.Loc, fn, symbol.OriginalName))
+			stmts = append(stmts, p.keepClassOrFnSymbolName(s.Fn.Name.Loc, fn, symbol.OriginalName))
 		}
 		return stmts
 
@@ -10315,7 +10316,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		if result.canBeRemovedIfUnused {
 			for _, classStmt := range classStmts {
 				if s2, ok := classStmt.Data.(*js_ast.SExpr); ok {
-					s2.IsFromClassThatCanBeRemovedIfUnused = true
+					s2.IsFromClassOrFnThatCanBeRemovedIfUnused = true
 				}
 			}
 		}
@@ -11178,7 +11179,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 			properties = append(properties, js_ast.Property{
 				Kind: js_ast.PropertyClassStaticBlock,
 				ClassStaticBlock: &js_ast.ClassStaticBlock{Loc: class.BodyLoc, Block: js_ast.SBlock{Stmts: []js_ast.Stmt{
-					p.keepStmtSymbolName(class.BodyLoc, this, nameToKeep),
+					p.keepClassOrFnSymbolName(class.BodyLoc, this, nameToKeep),
 				}}},
 			})
 			class.Properties = append(properties, class.Properties...)
