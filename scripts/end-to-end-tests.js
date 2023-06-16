@@ -2710,6 +2710,36 @@ for (const minify of [[], ['--minify-syntax']]) {
     test(['in.js', '--outfile=node.js'].concat(minify), {
       'in.js': `let fn = (a, b) => { if (a && (x = () => y) && b) return; var x; let y = 123; if (x() !== 123) throw 'fail' }; fn(fn)`,
     }),
+    test(['in.js', '--outfile=node.js'].concat(minify), {
+      'in.js': `
+        var x = { [-0]: 1 }; if (x['0'] !== 1 || x['-0'] !== void 0) throw 'fail: -0'
+        var x = { [-1]: 1 }; if (x['-1'] !== 1) throw 'fail: -1'
+        var x = { [NaN]: 1 }; if (x['NaN'] !== 1) throw 'fail: NaN'
+        var x = { [Infinity]: 1 }; if (x['Infinity'] !== 1) throw 'fail: Infinity'
+        var x = { [-Infinity]: 1 }; if (x['-Infinity'] !== 1) throw 'fail: -Infinity'
+        var x = { [1e5]: 1 }; if (x['100000'] !== 1) throw 'fail: 1e5'
+        var x = { [-1e5]: 1 }; if (x['-100000'] !== 1) throw 'fail: -1e5'
+        var x = { [1e100]: 1 }; if (x['1e+100'] !== 1) throw 'fail: 1e100'
+        var x = { [-1e100]: 1 }; if (x['-1e+100'] !== 1) throw 'fail: -1e100'
+        var x = { [0xFFFF_FFFF_FFFF]: 1 }; if (x['281474976710655'] !== 1) throw 'fail: 0xFFFF_FFFF_FFFF'
+        var x = { [-0xFFFF_FFFF_FFFF]: 1 }; if (x['-281474976710655'] !== 1) throw 'fail: -0xFFFF_FFFF_FFFF'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js'].concat(minify), {
+      'in.js': `
+        var x = class { static [-0] = 1 }; if (x['0'] !== 1 || x['-0'] !== void 0) throw 'fail: -0'
+        var x = class { static [-1] = 1 }; if (x['-1'] !== 1) throw 'fail: -1'
+        var x = class { static [NaN] = 1 }; if (x['NaN'] !== 1) throw 'fail: NaN'
+        var x = class { static [Infinity] = 1 }; if (x['Infinity'] !== 1) throw 'fail: Infinity'
+        var x = class { static [-Infinity] = 1 }; if (x['-Infinity'] !== 1) throw 'fail: -Infinity'
+        var x = class { static [1e5] = 1 }; if (x['100000'] !== 1) throw 'fail: 1e5'
+        var x = class { static [-1e5] = 1 }; if (x['-100000'] !== 1) throw 'fail: -1e5'
+        var x = class { static [1e100] = 1 }; if (x['1e+100'] !== 1) throw 'fail: 1e100'
+        var x = class { static [-1e100] = 1 }; if (x['-1e+100'] !== 1) throw 'fail: -1e100'
+        var x = class { static [0xFFFF_FFFF_FFFF] = 1 }; if (x['281474976710655'] !== 1) throw 'fail: 0xFFFF_FFFF_FFFF'
+        var x = class { static [-0xFFFF_FFFF_FFFF] = 1 }; if (x['-281474976710655'] !== 1) throw 'fail: -0xFFFF_FFFF_FFFF'
+      `,
+    }),
   )
 
   // Check property access simplification

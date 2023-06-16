@@ -1043,7 +1043,20 @@ func (p *printer) printProperty(property js_ast.Property) {
 		}
 	}
 
-	if property.Flags.Has(js_ast.PropertyIsComputed) {
+	isComputed := property.Flags.Has(js_ast.PropertyIsComputed)
+
+	// Automatically print numbers that would cause a syntax error as computed properties
+	if !isComputed {
+		if key, ok := property.Key.Data.(*js_ast.ENumber); ok {
+			if math.Signbit(key.Value) || (key.Value == positiveInfinity && p.options.MinifySyntax) {
+				// "{ -1: 0 }" must be printed as "{ [-1]: 0 }"
+				// "{ 1/0: 0 }" must be printed as "{ [1/0]: 0 }"
+				isComputed = true
+			}
+		}
+	}
+
+	if isComputed {
 		p.addSourceMapping(property.Loc)
 		isMultiLine := p.willPrintExprCommentsAtLoc(property.Key.Loc) || p.willPrintExprCommentsAtLoc(property.CloseBracketLoc)
 		p.print("[")

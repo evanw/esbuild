@@ -85,6 +85,27 @@
     let Foo = _Foo;
     ```
 
+* Fix a minification regression with negative numeric properties ([#3169](https://github.com/evanw/esbuild/issues/3169))
+
+    Version 0.18.0 introduced a regression where computed properties with negative numbers were incorrectly shortened into a non-computed property when minification was enabled. This regression has been fixed:
+
+    ```js
+    // Original code
+    x = {
+      [1]: 1,
+      [-1]: -1,
+      [NaN]: NaN,
+      [Infinity]: Infinity,
+      [-Infinity]: -Infinity,
+    }
+
+    // Old output (with --minify)
+    x={1:1,-1:-1,NaN:NaN,1/0:1/0,-1/0:-1/0};
+
+    // New output (with --minify)
+    x={1:1,[-1]:-1,NaN:NaN,[1/0]:1/0,[-1/0]:-1/0};
+    ```
+
 ## 0.18.3
 
 * Fix a panic due to empty static class blocks ([#3161](https://github.com/evanw/esbuild/issues/3161))
