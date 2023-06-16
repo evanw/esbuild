@@ -476,9 +476,9 @@ func TestLowerClassStaticThis(t *testing.T) {
 	expectPrintedTarget(t, 2015, "class Foo { [this.x] }",
 		"var _a;\nclass Foo {\n  constructor() {\n    __publicField(this, _a);\n  }\n}\n_a = this.x;\n")
 	expectPrintedTarget(t, 2015, "class Foo { static x = this }",
-		"const _Foo = class {\n};\nlet Foo = _Foo;\n__publicField(Foo, \"x\", _Foo);\n")
+		"const _Foo = class _Foo {\n};\n__publicField(_Foo, \"x\", _Foo);\nlet Foo = _Foo;\n")
 	expectPrintedTarget(t, 2015, "class Foo { static x = () => this }",
-		"const _Foo = class {\n};\nlet Foo = _Foo;\n__publicField(Foo, \"x\", () => _Foo);\n")
+		"const _Foo = class _Foo {\n};\n__publicField(_Foo, \"x\", () => _Foo);\nlet Foo = _Foo;\n")
 	expectPrintedTarget(t, 2015, "class Foo { static x = function() { return this } }",
 		"class Foo {\n}\n__publicField(Foo, \"x\", function() {\n  return this;\n});\n")
 	expectPrintedTarget(t, 2015, "class Foo { static [this.x] }",
@@ -486,9 +486,9 @@ func TestLowerClassStaticThis(t *testing.T) {
 	expectPrintedTarget(t, 2015, "class Foo { static x = class { y = this } }",
 		"class Foo {\n}\n__publicField(Foo, \"x\", class {\n  constructor() {\n    __publicField(this, \"y\", this);\n  }\n});\n")
 	expectPrintedTarget(t, 2015, "class Foo { static x = class { [this.y] } }",
-		"var _a, _b;\nconst _Foo = class {\n};\nlet Foo = _Foo;\n__publicField(Foo, \"x\", (_b = class {\n  constructor() {\n    __publicField(this, _a);\n  }\n}, _a = _Foo.y, _b));\n")
+		"var _a, _b;\nconst _Foo = class _Foo {\n};\n__publicField(_Foo, \"x\", (_b = class {\n  constructor() {\n    __publicField(this, _a);\n  }\n}, _a = _Foo.y, _b));\nlet Foo = _Foo;\n")
 	expectPrintedTarget(t, 2015, "class Foo { static x = class extends this {} }",
-		"const _Foo = class {\n};\nlet Foo = _Foo;\n__publicField(Foo, \"x\", class extends _Foo {\n});\n")
+		"const _Foo = class _Foo {\n};\n__publicField(_Foo, \"x\", class extends _Foo {\n});\nlet Foo = _Foo;\n")
 
 	expectPrintedTarget(t, 2015, "x = class Foo { x = this }",
 		"x = class Foo {\n  constructor() {\n    __publicField(this, \"x\", this);\n  }\n};\n")

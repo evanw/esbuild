@@ -236,16 +236,15 @@ var Foo = class {
 (() => new Foo())();
 
 // define-true/index.ts
-var _a, _b;
+var _a;
 var Bar = class {
   constructor() {
     __publicField(this, "a");
     __publicField(this, _a);
   }
+  static A;
+  static [(_a = (() => null, c), () => null, C)];
 };
-_a = (() => null, c), _b = (() => null, C);
-__publicField(Bar, "A");
-__publicField(Bar, _b);
 (() => new Bar())();
 
 ================================================================================
@@ -908,10 +907,10 @@ var declare_let_default = foo;
 var bar2 = 123;
 
 // keep/interface-merged.ts
-var _foo = class {
+var _foo = class _foo {
 };
+_foo.x = new _foo();
 var foo2 = _foo;
-foo2.x = new _foo();
 var interface_merged_default = foo2;
 var bar3 = 123;
 
@@ -1530,7 +1529,7 @@ var objFoo = {
     console.log(this);
   }
 };
-var _Foo = class {
+var _Foo = class _Foo {
   constructor() {
     this.x = this;
   }
@@ -1541,8 +1540,8 @@ var _Foo = class {
     console.log(this);
   }
 };
+_Foo.y = _Foo.z;
 var Foo = _Foo;
-Foo.y = _Foo.z;
 new Foo(foo(objFoo));
 if (nested) {
   let bar = function(x = this) {
@@ -1554,7 +1553,7 @@ if (nested) {
       console.log(this);
     }
   };
-  const _Bar = class {
+  const _Bar = class _Bar {
     constructor() {
       this.x = this;
     }
@@ -1565,8 +1564,8 @@ if (nested) {
       console.log(this);
     }
   };
+  _Bar.y = _Bar.z;
   let Bar = _Bar;
-  Bar.y = _Bar.z;
   new Bar(bar(objBar));
 }
 var bar2;
@@ -1582,7 +1581,7 @@ const objFoo = {
     console.log(this);
   }
 };
-const _Foo = class {
+const _Foo = class _Foo {
   constructor() {
     this.x = this;
   }
@@ -1593,8 +1592,8 @@ const _Foo = class {
     console.log(this);
   }
 };
+_Foo.y = _Foo.z;
 let Foo = _Foo;
-Foo.y = _Foo.z;
 new Foo(foo(objFoo));
 if (nested) {
   let bar2 = function(x = this) {
@@ -1606,7 +1605,7 @@ if (nested) {
       console.log(this);
     }
   };
-  const _Bar = class {
+  const _Bar = class _Bar {
     constructor() {
       this.x = this;
     }
@@ -1617,8 +1616,8 @@ if (nested) {
       console.log(this);
     }
   };
+  _Bar.y = _Bar.z;
   let Bar = _Bar;
-  Bar.y = _Bar.z;
   new Bar(bar2(objBar));
 }
 
@@ -1679,8 +1678,9 @@ var objFoo = {
     console.log(this);
   }
 };
-var _Foo = class {
+var Foo = class {
   x = this;
+  static y = this.z;
   foo(x = this) {
     console.log(this);
   }
@@ -1688,8 +1688,6 @@ var _Foo = class {
     console.log(this);
   }
 };
-var Foo = _Foo;
-__publicField(Foo, "y", _Foo.z);
 new Foo(foo(objFoo));
 if (nested) {
   let bar = function(x = this) {

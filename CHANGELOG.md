@@ -1,5 +1,90 @@
 # Changelog
 
+## Unreleased
+
+* Bundling no longer unnecessarily transforms class syntax ([#1360](https://github.com/evanw/esbuild/issues/1360), [#1328](https://github.com/evanw/esbuild/issues/1328), [#1524](https://github.com/evanw/esbuild/issues/1524), [#2416](https://github.com/evanw/esbuild/issues/2416))
+
+    When bundling, esbuild automatically converts top-level class statements to class expressions. Previously this conversion had the unfortunate side-effect of also transforming certain other class-related syntax features to avoid correctness issues when the references to the class name within the class body. This conversion has been reworked to avoid doing this:
+
+    ```js
+    // Original code
+    export class Foo {
+      static foo = () => Foo
+    }
+
+    // Old output (with --bundle)
+    var _Foo = class {
+    };
+    var Foo = _Foo;
+    __publicField(Foo, "foo", () => _Foo);
+
+    // New output (with --bundle)
+    var Foo = class _Foo {
+      static foo = () => _Foo;
+    };
+    ```
+
+    This conversion process is very complicated and has many edge cases (including interactions with static fields, static blocks, private class properties, and TypeScript experimental decorators). It should already be pretty robust but a change like this may introduce new unintentional behavior. Please report any issues with this upgrade on the esbuild bug tracker.
+
+    You may be wondering why esbuild needs to do this at all. One reason to do this is that esbuild's bundler sometimes needs to lazily-evaluate a module. For example, a module may end up being both the target of a dynamic `import()` call and a static `import` statement. Lazy module evaluation is done by wrapping the top-level module code in a closure. To avoid a performance hit for static `import` statements, esbuild stores top-level exported symbols outside of the closure and references them directly instead of indirectly.
+
+    Another reason to do this is that multiple JavaScript VMs have had and continue to have performance issues with TDZ (i.e. "temporal dead zone") checks. These checks validate that a let, or const, or class symbol isn't used before it's initialized. Here are two issues with well-known VMs:
+
+    * V8: https://bugs.chromium.org/p/v8/issues/detail?id=13723 (10% slowdown)
+    * JavaScriptCore: https://bugs.webkit.org/show_bug.cgi?id=199866 (1,000% slowdown!)
+
+    JavaScriptCore had a severe performance issue as their TDZ implementation had time complexity that was quadratic in the number of variables needing TDZ checks in the same scope (with the top-level scope typically being the worst offender). V8 has ongoing issues with TDZ checks being present throughout the code their JIT generates even when they have already been checked earlier in the same function or when the function in question has already been run (so the checks have already happened).
+
+    Due to esbuild's parallel architecture, esbuild both a) needs to convert class statements into class expressions during parsing and b) doesn't yet know whether this module will need to be lazily-evaluated or not in the parser. So esbuild always does this conversion during bundling in case it's needed for correctness (and also to avoid potentially catastrophic performance issues due to bundling creating a large scope with many TDZ variables).
+
+* Enforce TDZ errors in computed class property keys ([#2045](https://github.com/evanw/esbuild/issues/2045))
+
+    JavaScript allows class property keys to be generated at run-time using code, like this:
+
+    ```js
+    class Foo {
+      static foo = 'foo'
+      static [Foo.foo + '2'] = 2
+    }
+    ```
+
+    Previously esbuild treated references to the containing class name within computed property keys as a reference to the partially-initialized class object. That meant code that attempted to reference properties of the class object (such as the code above) would get back `undefined` instead of throwing an error.
+
+    This release rewrites references to the containing class name within computed property keys into code that always throws an error at run-time, which is how this JavaScript code is supposed to work. Code that does this will now also generate a warning. You should never write code like this, but it now should be more obvious when incorrect code like this is written.
+
+* Fix an issue with experimental decorators and static fields ([#2629](https://github.com/evanw/esbuild/issues/2629))
+
+    This release also fixes a bug regarding TypeScript experimental decorators and static class fields which reference the enclosing class name in their initializer. This affected top-level classes when bundling was enabled. Previously code that does this could crash because the class name wasn't initialized yet. This case should now be handled correctly:
+
+    ```ts
+    // Original code
+    class Foo {
+      @someDecorator
+      static foo = 'foo'
+      static bar = Foo.foo.length
+    }
+
+    // Old output
+    const _Foo = class {
+      static foo = "foo";
+      static bar = _Foo.foo.length;
+    };
+    let Foo = _Foo;
+    __decorateClass([
+      someDecorator
+    ], Foo, "foo", 2);
+
+    // New output
+    const _Foo = class _Foo {
+      static foo = "foo";
+      static bar = _Foo.foo.length;
+    };
+    __decorateClass([
+      someDecorator
+    ], _Foo, "foo", 2);
+    let Foo = _Foo;
+    ```
+
 ## 0.18.3
 
 * Fix a panic due to empty static class blocks ([#3161](https://github.com/evanw/esbuild/issues/3161))

@@ -2218,8 +2218,9 @@ func TestLowerPrivateClassFieldStaticIssue1424(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			Mode:          config.ModeBundle,
-			AbsOutputFile: "/out.js",
+			Mode:                  config.ModeBundle,
+			AbsOutputFile:         "/out.js",
+			UnsupportedJSFeatures: compat.ClassPrivateMethod,
 		},
 	})
 }

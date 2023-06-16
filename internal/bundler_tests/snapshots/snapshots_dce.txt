@@ -340,55 +340,59 @@ TestDCEClassStaticBlocks
 ---------- /out.js ----------
 // entry.ts
 var A_keep = class {
+  static {
+    foo;
+  }
 };
-foo;
-var _B_keep = class {
+var B_keep = class {
+  static {
+    this.foo;
+  }
 };
-var B_keep = _B_keep;
-_B_keep.foo;
 var C_keep = class {
-};
-(() => {
-  try {
-    foo;
-  } catch {
+  static {
+    try {
+      foo;
+    } catch {
+    }
   }
-})();
+};
 var D_keep = class {
-};
-(() => {
-  try {
-  } finally {
-    foo;
+  static {
+    try {
+    } finally {
+      foo;
+    }
   }
-})();
+};
 
 ================================================================================
 TestDCEClassStaticBlocksMinifySyntax
 ---------- /out.js ----------
 // entry.ts
 var A_keep = class {
-};
-foo;
-var _B_keep = class {
-}, B_keep = _B_keep;
-_B_keep.foo;
-var C_keep = class {
-};
-(() => {
-  try {
-    foo;
-  } catch {
-  }
-})();
-var D_keep = class {
-};
-(() => {
-  try {
-  } finally {
+  static {
     foo;
   }
-})();
+}, B_keep = class {
+  static {
+    this.foo;
+  }
+}, C_keep = class {
+  static {
+    try {
+      foo;
+    } catch {
+    }
+  }
+}, D_keep = class {
+  static {
+    try {
+    } finally {
+      foo;
+    }
+  }
+};
 
 ================================================================================
 TestDCEOfIIFE

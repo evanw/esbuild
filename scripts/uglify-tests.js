@@ -244,7 +244,6 @@ async function test_case(esbuild, test, basename) {
     // Ignore the known failures in CI, but not otherwise
     const isExpectingFailure = !process.env.CI ? false : [
       // Stdout difference
-      'classes.js: issue_5015_2',
       'const.js: issue_4225',
       'const.js: issue_4229',
       'const.js: issue_4245',

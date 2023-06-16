@@ -162,10 +162,9 @@ fs.readFile();
 TestAvoidTDZ
 ---------- /out.js ----------
 // entry.js
-var _Foo = class {
+var Foo = class _Foo {
+  static foo = new _Foo();
 };
-var Foo = _Foo;
-__publicField(Foo, "foo", new _Foo());
 var foo = Foo.foo;
 console.log(foo);
 var Bar = class {
@@ -2491,12 +2490,17 @@ x = fnStmtKeep;
 var fnExprKeep = /* @__PURE__ */ __name(function() {
 }, "keep");
 x = fnExprKeep;
-var _clsStmtKeep = class {
-}, clsStmtKeep = _clsStmtKeep;
-__name(_clsStmtKeep, "clsStmtKeep");
+var clsStmtKeep = class {
+  static {
+    __name(this, "clsStmtKeep");
+  }
+};
 new clsStmtKeep();
-var _a, clsExprKeep = (_a = class {
-}, __name(_a, "keep"), _a);
+var clsExprKeep = class {
+  static {
+    __name(this, "keep");
+  }
+};
 new clsExprKeep();
 
 ================================================================================
@@ -5313,8 +5317,9 @@ var objFoo = {
     console.log(this);
   }
 };
-var _Foo = class {
+var Foo = class {
   x = this;
+  static y = this.z;
   foo(x = this) {
     console.log(this);
   }
@@ -5322,8 +5327,6 @@ var _Foo = class {
     console.log(this);
   }
 };
-var Foo = _Foo;
-__publicField(Foo, "y", _Foo.z);
 new Foo(foo(objFoo));
 if (nested) {
   let bar = function(x = this) {
