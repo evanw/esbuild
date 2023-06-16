@@ -2238,7 +2238,7 @@ func TestTreeShakingLoweredClassStaticField(t *testing.T) {
 		options: config.Options{
 			Mode:                  config.ModeBundle,
 			AbsOutputDir:          "/out",
-			UnsupportedJSFeatures: compat.ClassField,
+			UnsupportedJSFeatures: compat.ClassStaticField,
 		},
 	})
 }
@@ -2272,7 +2272,7 @@ func TestTreeShakingLoweredClassStaticFieldMinified(t *testing.T) {
 		options: config.Options{
 			Mode:                  config.ModeBundle,
 			AbsOutputDir:          "/out",
-			UnsupportedJSFeatures: compat.ClassField,
+			UnsupportedJSFeatures: compat.ClassStaticField,
 			MinifySyntax:          true,
 		},
 	})
@@ -2305,7 +2305,7 @@ func TestTreeShakingLoweredClassStaticFieldAssignment(t *testing.T) {
 		options: config.Options{
 			Mode:                  config.ModeBundle,
 			AbsOutputDir:          "/out",
-			UnsupportedJSFeatures: compat.ClassField,
+			UnsupportedJSFeatures: compat.ClassStaticField,
 			TS: config.TSOptions{Config: config.TSConfig{
 				UseDefineForClassFields: config.False,
 			}},

@@ -95,99 +95,99 @@ export default [
 TestLowerAsyncArrowSuperES2016
 ---------- /out.js ----------
 // foo1.js
-var foo1_default = class extends x {
+var foo1_default = class _foo1_default extends x {
   foo1() {
     return () => __async(this, null, function* () {
-      return __superGet(foo1_default.prototype, this, "foo").call(this, "foo1");
+      return __superGet(_foo1_default.prototype, this, "foo").call(this, "foo1");
     });
   }
 };
 
 // foo2.js
-var foo2_default = class extends x {
+var foo2_default = class _foo2_default extends x {
   foo2() {
     return () => __async(this, null, function* () {
-      return () => __superGet(foo2_default.prototype, this, "foo").call(this, "foo2");
+      return () => __superGet(_foo2_default.prototype, this, "foo").call(this, "foo2");
     });
   }
 };
 
 // foo3.js
-var foo3_default = class extends x {
+var foo3_default = class _foo3_default extends x {
   foo3() {
     return () => () => __async(this, null, function* () {
-      return __superGet(foo3_default.prototype, this, "foo").call(this, "foo3");
+      return __superGet(_foo3_default.prototype, this, "foo").call(this, "foo3");
     });
   }
 };
 
 // foo4.js
-var foo4_default = class extends x {
+var foo4_default = class _foo4_default extends x {
   foo4() {
     return () => __async(this, null, function* () {
       return () => __async(this, null, function* () {
-        return __superGet(foo4_default.prototype, this, "foo").call(this, "foo4");
+        return __superGet(_foo4_default.prototype, this, "foo").call(this, "foo4");
       });
     });
   }
 };
 
 // bar1.js
-var bar1_default = class extends x {
+var bar1_default = class _bar1_default extends x {
   constructor() {
     super(...arguments);
     __publicField(this, "bar1", () => __async(this, null, function* () {
-      return __superGet(bar1_default.prototype, this, "foo").call(this, "bar1");
+      return __superGet(_bar1_default.prototype, this, "foo").call(this, "bar1");
     }));
   }
 };
 
 // bar2.js
-var bar2_default = class extends x {
+var bar2_default = class _bar2_default extends x {
   constructor() {
     super(...arguments);
     __publicField(this, "bar2", () => __async(this, null, function* () {
-      return () => __superGet(bar2_default.prototype, this, "foo").call(this, "bar2");
+      return () => __superGet(_bar2_default.prototype, this, "foo").call(this, "bar2");
     }));
   }
 };
 
 // bar3.js
-var bar3_default = class extends x {
+var bar3_default = class _bar3_default extends x {
   constructor() {
     super(...arguments);
     __publicField(this, "bar3", () => () => __async(this, null, function* () {
-      return __superGet(bar3_default.prototype, this, "foo").call(this, "bar3");
+      return __superGet(_bar3_default.prototype, this, "foo").call(this, "bar3");
     }));
   }
 };
 
 // bar4.js
-var bar4_default = class extends x {
+var bar4_default = class _bar4_default extends x {
   constructor() {
     super(...arguments);
     __publicField(this, "bar4", () => __async(this, null, function* () {
       return () => __async(this, null, function* () {
-        return __superGet(bar4_default.prototype, this, "foo").call(this, "bar4");
+        return __superGet(_bar4_default.prototype, this, "foo").call(this, "bar4");
       });
     }));
   }
 };
 
 // baz1.js
-var baz1_default = class extends x {
+var baz1_default = class _baz1_default extends x {
   baz1() {
     return __async(this, null, function* () {
-      return () => __superGet(baz1_default.prototype, this, "foo").call(this, "baz1");
+      return () => __superGet(_baz1_default.prototype, this, "foo").call(this, "baz1");
     });
   }
 };
 
 // baz2.js
-var baz2_default = class extends x {
+var baz2_default = class _baz2_default extends x {
   baz2() {
     return __async(this, null, function* () {
-      return () => () => __superGet(baz2_default.prototype, this, "foo").call(this, "baz2");
+      return () => () => __superGet(_baz2_default.prototype, this, "foo").call(this, "baz2");
     });
   }
 };
@@ -223,99 +223,99 @@ export {
 TestLowerAsyncArrowSuperSetterES2016
 ---------- /out.js ----------
 // foo1.js
-var foo1_default = class extends x {
+var foo1_default = class _foo1_default extends x {
   foo1() {
     return () => __async(this, null, function* () {
-      return __superSet(foo1_default.prototype, this, "foo", "foo1");
+      return __superSet(_foo1_default.prototype, this, "foo", "foo1");
     });
   }
 };
 
 // foo2.js
-var foo2_default = class extends x {
+var foo2_default = class _foo2_default extends x {
   foo2() {
     return () => __async(this, null, function* () {
-      return () => __superSet(foo2_default.prototype, this, "foo", "foo2");
+      return () => __superSet(_foo2_default.prototype, this, "foo", "foo2");
     });
   }
 };
 
 // foo3.js
-var foo3_default = class extends x {
+var foo3_default = class _foo3_default extends x {
   foo3() {
     return () => () => __async(this, null, function* () {
-      return __superSet(foo3_default.prototype, this, "foo", "foo3");
+      return __superSet(_foo3_default.prototype, this, "foo", "foo3");
     });
   }
 };
 
 // foo4.js
-var foo4_default = class extends x {
+var foo4_default = class _foo4_default extends x {
   foo4() {
     return () => __async(this, null, function* () {
       return () => __async(this, null, function* () {
-        return __superSet(foo4_default.prototype, this, "foo", "foo4");
+        return __superSet(_foo4_default.prototype, this, "foo", "foo4");
       });
     });
   }
 };
 
 // bar1.js
-var bar1_default = class extends x {
+var bar1_default = class _bar1_default extends x {
   constructor() {
     super(...arguments);
     __publicField(this, "bar1", () => __async(this, null, function* () {
-      return __superSet(bar1_default.prototype, this, "foo", "bar1");
+      return __superSet(_bar1_default.prototype, this, "foo", "bar1");
     }));
   }
 };
 
 // bar2.js
-var bar2_default = class extends x {
+var bar2_default = class _bar2_default extends x {
   constructor() {
     super(...arguments);
     __publicField(this, "bar2", () => __async(this, null, function* () {
-      return () => __superSet(bar2_default.prototype, this, "foo", "bar2");
+      return () => __superSet(_bar2_default.prototype, this, "foo", "bar2");
     }));
   }
 };
 
 // bar3.js
-var bar3_default = class extends x {
+var bar3_default = class _bar3_default extends x {
   constructor() {
     super(...arguments);
     __publicField(this, "bar3", () => () => __async(this, null, function* () {
-      return __superSet(bar3_default.prototype, this, "foo", "bar3");
+      return __superSet(_bar3_default.prototype, this, "foo", "bar3");
     }));
   }
 };
 
 // bar4.js
-var bar4_default = class extends x {
+var bar4_default = class _bar4_default extends x {
   constructor() {
     super(...arguments);
     __publicField(this, "bar4", () => __async(this, null, function* () {
       return () => __async(this, null, function* () {
-        return __superSet(bar4_default.prototype, this, "foo", "bar4");
+        return __superSet(_bar4_default.prototype, this, "foo", "bar4");
       });
     }));
   }
 };
 
 // baz1.js
-var baz1_default = class extends x {
+var baz1_default = class _baz1_default extends x {
   baz1() {
     return __async(this, null, function* () {
-      return () => __superSet(baz1_default.prototype, this, "foo", "baz1");
+      return () => __superSet(_baz1_default.prototype, this, "foo", "baz1");
     });
   }
 };
 
 // baz2.js
-var baz2_default = class extends x {
+var baz2_default = class _baz2_default extends x {
   baz2() {
     return __async(this, null, function* () {
-      return () => () => __superSet(baz2_default.prototype, this, "foo", "baz2");
+      return () => () => __superSet(_baz2_default.prototype, this, "foo", "baz2");
     });
   }
 };
@@ -1014,75 +1014,75 @@ console.log(new Foo().bar === 123);
 TestLowerPrivateClassStaticAccessorOrder
 ---------- /out.js ----------
 var _foo, foo_get, _foo2, foo_get2;
-const _Foo = class {
+const _Foo = class _Foo {
   // This must be set before "bar" is initialized
 };
-let Foo = _Foo;
 _foo = new WeakSet();
 foo_get = function() {
   return 123;
 };
-__privateAdd(Foo, _foo);
-__publicField(Foo, "bar", __privateGet(_Foo, _foo, foo_get));
+__privateAdd(_Foo, _foo);
+__publicField(_Foo, "bar", __privateGet(_Foo, _foo, foo_get));
+let Foo = _Foo;
 console.log(Foo.bar === 123);
-const _FooThis = class {
+const _FooThis = class _FooThis {
   // This must be set before "bar" is initialized
 };
-let FooThis = _FooThis;
 _foo2 = new WeakSet();
 foo_get2 = function() {
   return 123;
 };
-__privateAdd(FooThis, _foo2);
-__publicField(FooThis, "bar", __privateGet(_FooThis, _foo2, foo_get2));
+__privateAdd(_FooThis, _foo2);
+__publicField(_FooThis, "bar", __privateGet(_FooThis, _foo2, foo_get2));
+let FooThis = _FooThis;
 console.log(FooThis.bar === 123);
 
 ================================================================================
 TestLowerPrivateClassStaticFieldOrder
 ---------- /out.js ----------
 var _foo, _foo2;
-const _Foo = class {
+const _Foo = class _Foo {
 };
-let Foo = _Foo;
 _foo = new WeakMap();
-__privateAdd(Foo, _foo, 123);
+__privateAdd(_Foo, _foo, 123);
 // This must be set before "bar" is initialized
-__publicField(Foo, "bar", __privateGet(_Foo, _foo));
+__publicField(_Foo, "bar", __privateGet(_Foo, _foo));
+let Foo = _Foo;
 console.log(Foo.bar === 123);
-const _FooThis = class {
+const _FooThis = class _FooThis {
 };
-let FooThis = _FooThis;
 _foo2 = new WeakMap();
-__privateAdd(FooThis, _foo2, 123);
+__privateAdd(_FooThis, _foo2, 123);
 // This must be set before "bar" is initialized
-__publicField(FooThis, "bar", __privateGet(_FooThis, _foo2));
+__publicField(_FooThis, "bar", __privateGet(_FooThis, _foo2));
+let FooThis = _FooThis;
 console.log(FooThis.bar === 123);
 
 ================================================================================
 TestLowerPrivateClassStaticMethodOrder
 ---------- /out.js ----------
 var _a, _foo, foo_fn, _b, _foo2, foo_fn2;
-const _Foo = class {
+const _Foo = class _Foo {
   // This must be set before "bar" is initialized
 };
-let Foo = _Foo;
 _foo = new WeakSet();
 foo_fn = function() {
   return 123;
 };
-__privateAdd(Foo, _foo);
-__publicField(Foo, "bar", __privateMethod(_a = _Foo, _foo, foo_fn).call(_a));
+__privateAdd(_Foo, _foo);
+__publicField(_Foo, "bar", __privateMethod(_a = _Foo, _foo, foo_fn).call(_a));
+let Foo = _Foo;
 console.log(Foo.bar === 123);
-const _FooThis = class {
+const _FooThis = class _FooThis {
   // This must be set before "bar" is initialized
 };
-let FooThis = _FooThis;
 _foo2 = new WeakSet();
 foo_fn2 = function() {
   return 123;
 };
-__privateAdd(FooThis, _foo2);
-__publicField(FooThis, "bar", __privateMethod(_b = _FooThis, _foo2, foo_fn2).call(_b));
+__privateAdd(_FooThis, _foo2);
+__publicField(_FooThis, "bar", __privateMethod(_b = _FooThis, _foo2, foo_fn2).call(_b));
+let FooThis = _FooThis;
 console.log(FooThis.bar === 123);
 
 ================================================================================
@@ -1673,53 +1673,53 @@ TestLowerPrivateSuperES2021
 ---------- /out.js ----------
 // foo1.js
 var _foo, foo_fn;
-var _foo1_default = class extends x {
+var _foo1_default = class _foo1_default extends x {
   constructor() {
     super(...arguments);
     __privateAdd(this, _foo);
   }
 };
-var foo1_default = _foo1_default;
 _foo = new WeakSet();
 foo_fn = function() {
   __superGet(_foo1_default.prototype, this, "foo").call(this);
 };
+var foo1_default = _foo1_default;
 
 // foo2.js
 var _foo2, foo_fn2;
-var _foo2_default = class extends x {
+var _foo2_default = class _foo2_default extends x {
   constructor() {
     super(...arguments);
     __privateAdd(this, _foo2);
   }
 };
-var foo2_default = _foo2_default;
 _foo2 = new WeakSet();
 foo_fn2 = function() {
   __superWrapper(_foo2_default.prototype, this, "foo")._++;
 };
+var foo2_default = _foo2_default;
 
 // foo3.js
 var _foo3, foo_fn3;
-var _foo3_default = class extends x {
+var _foo3_default = class _foo3_default extends x {
 };
-var foo3_default = _foo3_default;
 _foo3 = new WeakSet();
 foo_fn3 = function() {
   __superGet(_foo3_default, this, "foo").call(this);
 };
-__privateAdd(foo3_default, _foo3);
+__privateAdd(_foo3_default, _foo3);
+var foo3_default = _foo3_default;
 
 // foo4.js
 var _foo4, foo_fn4;
-var _foo4_default = class extends x {
+var _foo4_default = class _foo4_default extends x {
 };
-var foo4_default = _foo4_default;
 _foo4 = new WeakSet();
 foo_fn4 = function() {
   __superWrapper(_foo4_default, this, "foo")._++;
 };
-__privateAdd(foo4_default, _foo4);
+__privateAdd(_foo4_default, _foo4);
+var foo4_default = _foo4_default;
 
 // foo5.js
 var _foo5;
@@ -1747,23 +1747,23 @@ _foo6 = new WeakMap();
 
 // foo7.js
 var _foo7;
-var _foo7_default = class extends x {
+var _foo7_default = class _foo7_default extends x {
 };
-var foo7_default = _foo7_default;
 _foo7 = new WeakMap();
-__privateAdd(foo7_default, _foo7, () => {
+__privateAdd(_foo7_default, _foo7, () => {
   __superGet(_foo7_default, _foo7_default, "foo").call(this);
 });
+var foo7_default = _foo7_default;
 
 // foo8.js
 var _foo8;
-var _foo8_default = class extends x {
+var _foo8_default = class _foo8_default extends x {
 };
-var foo8_default = _foo8_default;
 _foo8 = new WeakMap();
-__privateAdd(foo8_default, _foo8, () => {
+__privateAdd(_foo8_default, _foo8, () => {
   __superWrapper(_foo8_default, _foo8_default, "foo")._++;
 });
+var foo8_default = _foo8_default;
 export {
   foo1_default as foo1,
   foo2_default as foo2,
@@ -1793,26 +1793,18 @@ var foo2_default = class extends x {
 };
 
 // foo3.js
-var _foo, foo_fn;
-var _foo3_default = class extends x {
+var foo3_default = class extends x {
+  static #foo() {
+    super.foo();
+  }
 };
-var foo3_default = _foo3_default;
-_foo = new WeakSet();
-foo_fn = function() {
-  __superGet(_foo3_default, this, "foo").call(this);
-};
-__privateAdd(foo3_default, _foo);
 
 // foo4.js
-var _foo2, foo_fn2;
-var _foo4_default = class extends x {
+var foo4_default = class extends x {
+  static #foo() {
+    super.foo++;
+  }
 };
-var foo4_default = _foo4_default;
-_foo2 = new WeakSet();
-foo_fn2 = function() {
-  __superWrapper(_foo4_default, this, "foo")._++;
-};
-__privateAdd(foo4_default, _foo2);
 
 // foo5.js
 var foo5_default = class extends x {
@@ -1829,24 +1821,18 @@ var foo6_default = class extends x {
 };
 
 // foo7.js
-var _foo3;
-var _foo7_default = class extends x {
+var foo7_default = class extends x {
+  static #foo = () => {
+    super.foo();
+  };
 };
-var foo7_default = _foo7_default;
-_foo3 = new WeakMap();
-__privateAdd(foo7_default, _foo3, () => {
-  __superGet(_foo7_default, _foo7_default, "foo").call(this);
-});
 
 // foo8.js
-var _foo4;
-var _foo8_default = class extends x {
+var foo8_default = class extends x {
+  static #foo = () => {
+    super.foo++;
+  };
 };
-var foo8_default = _foo8_default;
-_foo4 = new WeakMap();
-__privateAdd(foo8_default, _foo4, () => {
-  __superWrapper(_foo8_default, _foo8_default, "foo")._++;
-});
 export {
   foo1_default as foo1,
   foo2_default as foo2,
@@ -1862,15 +1848,13 @@ export {
 TestLowerPrivateSuperStaticBundleIssue2158
 ---------- /out.js ----------
 // entry.js
-var _foo;
 var Foo = class extends Object {
+  static FOO;
   constructor() {
     super();
-    __privateAdd(this, _foo, void 0);
   }
+  #foo;
 };
-_foo = new WeakMap();
-__publicField(Foo, "FOO");
 export {
   Foo
 };
@@ -1890,91 +1874,91 @@ export {
 TestLowerStaticAsyncArrowSuperES2016
 ---------- /out.js ----------
 // foo1.js
-var foo1_default = class extends x {
+var foo1_default = class _foo1_default extends x {
   static foo1() {
     return () => __async(this, null, function* () {
-      return __superGet(foo1_default, this, "foo").call(this, "foo1");
+      return __superGet(_foo1_default, this, "foo").call(this, "foo1");
     });
   }
 };
 
 // foo2.js
-var foo2_default = class extends x {
+var foo2_default = class _foo2_default extends x {
   static foo2() {
     return () => __async(this, null, function* () {
-      return () => __superGet(foo2_default, this, "foo").call(this, "foo2");
+      return () => __superGet(_foo2_default, this, "foo").call(this, "foo2");
     });
   }
 };
 
 // foo3.js
-var foo3_default = class extends x {
+var foo3_default = class _foo3_default extends x {
   static foo3() {
     return () => () => __async(this, null, function* () {
-      return __superGet(foo3_default, this, "foo").call(this, "foo3");
+      return __superGet(_foo3_default, this, "foo").call(this, "foo3");
     });
   }
 };
 
 // foo4.js
-var foo4_default = class extends x {
+var foo4_default = class _foo4_default extends x {
   static foo4() {
     return () => __async(this, null, function* () {
       return () => __async(this, null, function* () {
-        return __superGet(foo4_default, this, "foo").call(this, "foo4");
+        return __superGet(_foo4_default, this, "foo").call(this, "foo4");
       });
     });
   }
 };
 
 // bar1.js
-var _bar1_default = class extends x {
+var _bar1_default = class _bar1_default extends x {
 };
-var bar1_default = _bar1_default;
-__publicField(bar1_default, "bar1", () => __async(_bar1_default, null, function* () {
+__publicField(_bar1_default, "bar1", () => __async(_bar1_default, null, function* () {
   return __superGet(_bar1_default, _bar1_default, "foo").call(this, "bar1");
 }));
+var bar1_default = _bar1_default;
 
 // bar2.js
-var _bar2_default = class extends x {
+var _bar2_default = class _bar2_default extends x {
 };
-var bar2_default = _bar2_default;
-__publicField(bar2_default, "bar2", () => __async(_bar2_default, null, function* () {
+__publicField(_bar2_default, "bar2", () => __async(_bar2_default, null, function* () {
   return () => __superGet(_bar2_default, _bar2_default, "foo").call(this, "bar2");
 }));
+var bar2_default = _bar2_default;
 
 // bar3.js
-var _bar3_default = class extends x {
+var _bar3_default = class _bar3_default extends x {
 };
-var bar3_default = _bar3_default;
-__publicField(bar3_default, "bar3", () => () => __async(_bar3_default, null, function* () {
+__publicField(_bar3_default, "bar3", () => () => __async(_bar3_default, null, function* () {
   return __superGet(_bar3_default, _bar3_default, "foo").call(this, "bar3");
 }));
+var bar3_default = _bar3_default;
 
 // bar4.js
-var _bar4_default = class extends x {
+var _bar4_default = class _bar4_default extends x {
 };
-var bar4_default = _bar4_default;
-__publicField(bar4_default, "bar4", () => __async(_bar4_default, null, function* () {
+__publicField(_bar4_default, "bar4", () => __async(_bar4_default, null, function* () {
   return () => __async(_bar4_default, null, function* () {
     return __superGet(_bar4_default, _bar4_default, "foo").call(this, "bar4");
   });
 }));
+var bar4_default = _bar4_default;
 
 // baz1.js
-var baz1_default = class extends x {
+var baz1_default = class _baz1_default extends x {
   static baz1() {
     return __async(this, null, function* () {
-      return () => __superGet(baz1_default, this, "foo").call(this, "baz1");
+      return () => __superGet(_baz1_default, this, "foo").call(this, "baz1");
     });
   }
 };
 
 // baz2.js
-var baz2_default = class extends x {
+var baz2_default = class _baz2_default extends x {
   static baz2() {
     return __async(this, null, function* () {
-      return () => () => __superGet(baz2_default, this, "foo").call(this, "baz2");
+      return () => () => __superGet(_baz2_default, this, "foo").call(this, "baz2");
     });
   }
 };
@@ -1982,12 +1966,12 @@ var baz2_default = class extends x {
 // outer.js
 var outer_default = function() {
   return __async(this, null, function* () {
-    const _y = class extends z {
+    const _y = class _y extends z {
     };
-    let y = _y;
-    __publicField(y, "foo", () => __async(_y, null, function* () {
+    __publicField(_y, "foo", () => __async(_y, null, function* () {
       return __superGet(_y, _y, "foo").call(this);
     }));
+    let y = _y;
     yield y.foo()();
   });
 }();
@@ -2008,91 +1992,91 @@ export {
 TestLowerStaticAsyncArrowSuperSetterES2016
 ---------- /out.js ----------
 // foo1.js
-var foo1_default = class extends x {
+var foo1_default = class _foo1_default extends x {
   static foo1() {
     return () => __async(this, null, function* () {
-      return __superSet(foo1_default, this, "foo", "foo1");
+      return __superSet(_foo1_default, this, "foo", "foo1");
     });
   }
 };
 
 // foo2.js
-var foo2_default = class extends x {
+var foo2_default = class _foo2_default extends x {
   static foo2() {
     return () => __async(this, null, function* () {
-      return () => __superSet(foo2_default, this, "foo", "foo2");
+      return () => __superSet(_foo2_default, this, "foo", "foo2");
     });
   }
 };
 
 // foo3.js
-var foo3_default = class extends x {
+var foo3_default = class _foo3_default extends x {
   static foo3() {
     return () => () => __async(this, null, function* () {
-      return __superSet(foo3_default, this, "foo", "foo3");
+      return __superSet(_foo3_default, this, "foo", "foo3");
     });
   }
 };
 
 // foo4.js
-var foo4_default = class extends x {
+var foo4_default = class _foo4_default extends x {
   static foo4() {
     return () => __async(this, null, function* () {
       return () => __async(this, null, function* () {
-        return __superSet(foo4_default, this, "foo", "foo4");
+        return __superSet(_foo4_default, this, "foo", "foo4");
       });
     });
   }
 };
 
 // bar1.js
-var _bar1_default = class extends x {
+var _bar1_default = class _bar1_default extends x {
 };
-var bar1_default = _bar1_default;
-__publicField(bar1_default, "bar1", () => __async(_bar1_default, null, function* () {
+__publicField(_bar1_default, "bar1", () => __async(_bar1_default, null, function* () {
   return __superSet(_bar1_default, _bar1_default, "foo", "bar1");
 }));
+var bar1_default = _bar1_default;
 
 // bar2.js
-var _bar2_default = class extends x {
+var _bar2_default = class _bar2_default extends x {
 };
-var bar2_default = _bar2_default;
-__publicField(bar2_default, "bar2", () => __async(_bar2_default, null, function* () {
+__publicField(_bar2_default, "bar2", () => __async(_bar2_default, null, function* () {
   return () => __superSet(_bar2_default, _bar2_default, "foo", "bar2");
 }));
+var bar2_default = _bar2_default;
 
 // bar3.js
-var _bar3_default = class extends x {
+var _bar3_default = class _bar3_default extends x {
 };
-var bar3_default = _bar3_default;
-__publicField(bar3_default, "bar3", () => () => __async(_bar3_default, null, function* () {
+__publicField(_bar3_default, "bar3", () => () => __async(_bar3_default, null, function* () {
   return __superSet(_bar3_default, _bar3_default, "foo", "bar3");
 }));
+var bar3_default = _bar3_default;
 
 // bar4.js
-var _bar4_default = class extends x {
+var _bar4_default = class _bar4_default extends x {
 };
-var bar4_default = _bar4_default;
-__publicField(bar4_default, "bar4", () => __async(_bar4_default, null, function* () {
+__publicField(_bar4_default, "bar4", () => __async(_bar4_default, null, function* () {
   return () => __async(_bar4_default, null, function* () {
     return __superSet(_bar4_default, _bar4_default, "foo", "bar4");
   });
 }));
+var bar4_default = _bar4_default;
 
 // baz1.js
-var baz1_default = class extends x {
+var baz1_default = class _baz1_default extends x {
   static baz1() {
     return __async(this, null, function* () {
-      return () => __superSet(baz1_default, this, "foo", "baz1");
+      return () => __superSet(_baz1_default, this, "foo", "baz1");
     });
   }
 };
 
 // baz2.js
-var baz2_default = class extends x {
+var baz2_default = class _baz2_default extends x {
   static baz2() {
     return __async(this, null, function* () {
-      return () => () => __superSet(baz2_default, this, "foo", "baz2");
+      return () => () => __superSet(_baz2_default, this, "foo", "baz2");
     });
   }
 };
@@ -2100,12 +2084,12 @@ var baz2_default = class extends x {
 // outer.js
 var outer_default = function() {
   return __async(this, null, function* () {
-    const _y = class extends z {
+    const _y = class _y extends z {
     };
-    let y = _y;
-    __publicField(y, "foo", () => __async(_y, null, function* () {
+    __publicField(_y, "foo", () => __async(_y, null, function* () {
       return __superSet(_y, _y, "foo", "foo");
     }));
+    let y = _y;
     yield y.foo()();
   });
 }();
@@ -2125,10 +2109,9 @@ export {
 ================================================================================
 TestLowerStaticAsyncSuperES2016NoBundle
 ---------- /out.js ----------
-const _Derived = class extends Base {
+const _Derived = class _Derived extends Base {
 };
-let Derived = _Derived;
-__publicField(Derived, "test", (key) => __async(_Derived, null, function* () {
+__publicField(_Derived, "test", (key) => __async(_Derived, null, function* () {
   var _a, _b, _c, _d;
   return [
     yield __superGet(_Derived, _Derived, "foo"),
@@ -2159,6 +2142,7 @@ __publicField(Derived, "test", (key) => __async(_Derived, null, function* () {
     yield __superGet(_Derived, _Derived, key).bind(this)``
   ];
 }));
+let Derived = _Derived;
 let fn = () => __async(this, null, function* () {
   var _a;
   return _a = class extends Base {
@@ -2170,7 +2154,7 @@ let fn = () => __async(this, null, function* () {
     }
   }, __publicField(_a, "a", __superGet(_a, _a, "a")), __publicField(_a, "b", () => __superGet(_a, _a, "b")), _a;
 });
-const _Derived2 = class extends Base {
+const _Derived2 = class _Derived2 extends Base {
   static a() {
     return __async(this, null, function* () {
       var _a, _b;
@@ -2182,8 +2166,7 @@ const _Derived2 = class extends Base {
     });
   }
 };
-let Derived2 = _Derived2;
-__publicField(Derived2, "b", () => __async(_Derived2, null, function* () {
+__publicField(_Derived2, "b", () => __async(_Derived2, null, function* () {
   var _a, _b;
   return _b = class {
     constructor() {
@@ -2191,14 +2174,14 @@ __publicField(Derived2, "b", () => __async(_Derived2, null, function* () {
     }
   }, _a = __superGet(_Derived2, _Derived2, "foo"), _b;
 }));
+let Derived2 = _Derived2;
 
 ================================================================================
 TestLowerStaticAsyncSuperES2021NoBundle
 ---------- /out.js ----------
-const _Derived = class extends Base {
+const _Derived = class _Derived extends Base {
 };
-let Derived = _Derived;
-__publicField(Derived, "test", async (key) => {
+__publicField(_Derived, "test", async (key) => {
   return [
     await __superGet(_Derived, _Derived, "foo"),
     await __superGet(_Derived, _Derived, key),
@@ -2228,6 +2211,7 @@ __publicField(Derived, "test", async (key) => {
     await __superGet(_Derived, _Derived, key).bind(this)``
   ];
 });
+let Derived = _Derived;
 let fn = async () => {
   var _a;
   return _a = class extends Base {
@@ -2239,7 +2223,7 @@ let fn = async () => {
     }
   }, __publicField(_a, "a", __superGet(_a, _a, "a")), __publicField(_a, "b", () => __superGet(_a, _a, "b")), _a;
 };
-const _Derived2 = class extends Base {
+const _Derived2 = class _Derived2 extends Base {
   static async a() {
     var _a, _b;
     return _b = class {
@@ -2249,8 +2233,7 @@ const _Derived2 = class extends Base {
     }, _a = super.foo, _b;
   }
 };
-let Derived2 = _Derived2;
-__publicField(Derived2, "b", async () => {
+__publicField(_Derived2, "b", async () => {
   var _a, _b;
   return _b = class {
     constructor() {
@@ -2258,14 +2241,14 @@ __publicField(Derived2, "b", async () => {
     }
   }, _a = __superGet(_Derived2, _Derived2, "foo"), _b;
 });
+let Derived2 = _Derived2;
 
 ================================================================================
 TestLowerStaticSuperES2016NoBundle
 ---------- /out.js ----------
-const _Derived = class extends Base {
+const _Derived = class _Derived extends Base {
 };
-let Derived = _Derived;
-__publicField(Derived, "test", (key) => {
+__publicField(_Derived, "test", (key) => {
   var _a, _b, _c, _d;
   return [
     __superGet(_Derived, _Derived, "foo"),
@@ -2296,14 +2279,14 @@ __publicField(Derived, "test", (key) => {
     __superGet(_Derived, _Derived, key).bind(this)``
   ];
 });
+let Derived = _Derived;
 
 ================================================================================
 TestLowerStaticSuperES2021NoBundle
 ---------- /out.js ----------
-const _Derived = class extends Base {
+const _Derived = class _Derived extends Base {
 };
-let Derived = _Derived;
-__publicField(Derived, "test", (key) => {
+__publicField(_Derived, "test", (key) => {
   return [
     __superGet(_Derived, _Derived, "foo"),
     __superGet(_Derived, _Derived, key),
@@ -2333,6 +2316,7 @@ __publicField(Derived, "test", (key) => {
     __superGet(_Derived, _Derived, key).bind(this)``
   ];
 });
+let Derived = _Derived;
 
 ================================================================================
 TestLowerStrictModeSyntax
@@ -2370,13 +2354,13 @@ y = () => [
 TestStaticClassBlockES2021
 ---------- /out.js ----------
 // entry.js
-var _A = class {
+var _A = class _A {
 };
-var A = _A;
 _A.thisField++;
 _A.classField++;
 __superSet(_A, _A, "superField", __superGet(_A, _A, "superField") + 1);
 __superWrapper(_A, _A, "superField")._++;
+var A = _A;
 var _a;
 var B = (_a = class {
 }, _a.thisField++, __superSet(_a, _a, "superField", __superGet(_a, _a, "superField") + 1), __superWrapper(_a, _a, "superField")._++, _a);
@@ -2385,16 +2369,25 @@ var B = (_a = class {
 TestStaticClassBlockESNext
 ---------- /out.js ----------
 // entry.js
-var _A = class {
+var A = class _A {
+  static {
+  }
+  static {
+    this.thisField++;
+    _A.classField++;
+    super.superField = super.superField + 1;
+    super.superField++;
+  }
 };
-var A = _A;
-_A.thisField++;
-_A.classField++;
-__superSet(_A, _A, "superField", __superGet(_A, _A, "superField") + 1);
-__superWrapper(_A, _A, "superField")._++;
-var _a;
-var B = (_a = class {
-}, _a.thisField++, __superSet(_a, _a, "superField", __superGet(_a, _a, "superField") + 1), __superWrapper(_a, _a, "superField")._++, _a);
+var B = class {
+  static {
+  }
+  static {
+    this.thisField++;
+    super.superField = super.superField + 1;
+    super.superField++;
+  }
+};
 
 ================================================================================
 TestTSLowerClassField2020NoBundle
@@ -2640,7 +2633,7 @@ _x = new WeakMap();
 TestTSLowerPrivateStaticMembers2015NoBundle
 ---------- /out.js ----------
 var _x, _y, y_get, y_set, _z, z_fn;
-const _Foo = class {
+const _Foo = class _Foo {
   foo() {
     var _a;
     __privateSet(_Foo, _x, __privateGet(_Foo, _x) + 1);
@@ -2648,7 +2641,6 @@ const _Foo = class {
     __privateMethod(_a = _Foo, _z, z_fn).call(_a);
   }
 };
-let Foo = _Foo;
 _x = new WeakMap();
 _y = new WeakSet();
 y_get = function() {
@@ -2658,6 +2650,7 @@ y_set = function(x) {
 _z = new WeakSet();
 z_fn = function() {
 };
-__privateAdd(Foo, _y);
-__privateAdd(Foo, _z);
-__privateAdd(Foo, _x, void 0);
+__privateAdd(_Foo, _y);
+__privateAdd(_Foo, _z);
+__privateAdd(_Foo, _x, void 0);
+let Foo = _Foo;

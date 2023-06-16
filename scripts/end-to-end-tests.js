@@ -4555,6 +4555,46 @@ for (let flags of [[], ['--target=es6'], ['--bundle'], ['--bundle', '--target=es
       `,
     }),
 
+    // Check for the specific reference behavior of TypeScript's implementation
+    // of "experimentalDecorators" with class decorators, which mutate the class
+    // binding itself. This test passes on TypeScript's implementation.
+    test(['in.ts', '--outfile=node.js'].concat(flags), {
+      'in.ts': `
+        let oldFoo: any
+        let e: any
+        let decorate = (foo: any): any => {
+          oldFoo = foo
+          return { foo }
+        }
+        @decorate
+        class newFoo {
+          a(): any { return [newFoo, () => newFoo] }
+          b: any = [newFoo, () => newFoo]
+          static c(): any { return [newFoo, () => newFoo] }
+          static d: any = [newFoo, () => newFoo]
+          static { e = [newFoo, () => newFoo] }
+        }
+        const fail: string[] = []
+        if ((newFoo as any).foo !== oldFoo) fail.push('decorate')
+        if (new oldFoo().a()[0] !== newFoo) fail.push('a[0]')
+        if (new oldFoo().a()[1]() !== newFoo) fail.push('a[1]')
+        if (new oldFoo().b[0] !== newFoo) fail.push('b[0]')
+        if (new oldFoo().b[1]() !== newFoo) fail.push('b[1]')
+        if (oldFoo.c()[0] !== newFoo) fail.push('c[0]')
+        if (oldFoo.c()[1]() !== newFoo) fail.push('c[1]')
+        if (oldFoo.d[0] !== oldFoo) fail.push('d[0]')
+        if (oldFoo.d[1]() !== newFoo) fail.push('d[1]')
+        if (e[0] !== oldFoo) fail.push('e[0]')
+        if (e[1]() !== newFoo) fail.push('e[1]')
+        if (fail.length) throw 'fail: ' + fail
+      `,
+      'tsconfig.json': `{
+        "compilerOptions": {
+          "experimentalDecorators": true,
+        },
+      }`,
+    }),
+
     // https://github.com/evanw/esbuild/issues/2800
     test(['in.js', '--outfile=node.js'].concat(flags), {
       'in.js': `
@@ -4629,6 +4669,117 @@ for (let flags of [[], ['--target=es6'], ['--bundle'], ['--bundle', '--target=es
           if (ReferencedViaThis.type !== 'ReferencedViaThis') throw 'fail ReferencedViaThis: ' + ReferencedViaThis.type
         }
         innerScope()
+      `,
+    }),
+
+    // https://github.com/evanw/esbuild/issues/2629
+    test(['in.ts', '--outfile=node.js'].concat(flags), {
+      'in.ts': `
+        // Stub out the decorator so TSC doesn't complain.
+        const someDecorator = (): PropertyDecorator => () => {};
+
+        class Foo {
+          static message = 'Hello world!';
+          static msgLength = Foo.message.length;
+
+          @someDecorator()
+          foo() {}
+        }
+
+        if (Foo.message !== 'Hello world!' || Foo.msgLength !== 12) throw 'fail'
+      `,
+      'tsconfig.json': `{
+        "compilerOptions": {
+          "experimentalDecorators": true,
+        },
+      }`,
+    }),
+
+    // https://github.com/evanw/esbuild/issues/2045
+    test(['in.js', '--bundle', '--outfile=node.js', '--log-override:class-name-will-throw=silent'].concat(flags), {
+      'in.js': `
+        let A = {a: 'a'} // This should not be used
+
+        let field
+        try { class A { static a = 1; [A.a] = 2 } } catch (err) { field = err }
+        if (!field) throw 'fail: field'
+
+        let staticField
+        try { class A { static a = 1; static [A.a] = 2 } } catch (err) { staticField = err }
+        if (!staticField) throw 'fail: staticField'
+
+        let method
+        try { class A { static a = 1; [A.a]() { return 2 } } } catch (err) { method = err }
+        if (!method) throw 'fail: method'
+
+        let staticMethod
+        try { class A { static a = 1; static [A.a]() { return 2 } } } catch (err) { staticMethod = err }
+        if (!staticMethod) throw 'fail: staticMethod'
+      `,
+    }),
+    test(['in.js', '--bundle', '--outfile=node.js', '--log-override:class-name-will-throw=silent'].concat(flags), {
+      'in.js': `
+        let A = {a: 'a'} // This should not be used
+
+        let field
+        try { class A { capture = () => A; static a = 1; [A.a] = 2 } } catch (err) { field = err }
+        if (!field) throw 'fail: field'
+
+        let staticField
+        try { class A { capture = () => A; static a = 1; static [A.a] = 2 } } catch (err) { staticField = err }
+        if (!staticField) throw 'fail: staticField'
+
+        let method
+        try { class A { capture = () => A; static a = 1; [A.a]() { return 2 } } } catch (err) { method = err }
+        if (!method) throw 'fail: method'
+
+        let staticMethod
+        try { class A { capture = () => A; static a = 1; static [A.a]() { return 2 } } } catch (err) { staticMethod = err }
+        if (!staticMethod) throw 'fail: staticMethod'
+      `,
+    }),
+    test(['in.js', '--bundle', '--outfile=node.js', '--log-override:class-name-will-throw=silent'].concat(flags), {
+      'in.js': `
+        let A = {a: 'a'} // This should not be used
+        let temp
+
+        let field
+        try { temp = (class A { static a = 1; [A.a] = 2 }) } catch (err) { field = err }
+        if (!field) throw 'fail: field'
+
+        let staticField
+        try { temp = (class A { static a = 1; static [A.a] = 2 }) } catch (err) { staticField = err }
+        if (!staticField) throw 'fail: staticField'
+
+        let method
+        try { temp = (class A { static a = 1; [A.a]() { return 2 } }) } catch (err) { method = err }
+        if (!method) throw 'fail: method'
+
+        let staticMethod
+        try { temp = (class A { static a = 1; static [A.a]() { return 2 } }) } catch (err) { staticMethod = err }
+        if (!staticMethod) throw 'fail: staticMethod'
+      `,
+    }),
+    test(['in.js', '--bundle', '--outfile=node.js', '--log-override:class-name-will-throw=silent'].concat(flags), {
+      'in.js': `
+        let A = {a: 'a'} // This should not be used
+        let temp
+
+        let field
+        try { temp = (class A { capture = () => A; static a = 1; [A.a] = 2 }) } catch (err) { field = err }
+        if (!field) throw 'fail: field'
+
+        let staticField
+        try { temp = (class A { capture = () => A; static a = 1; static [A.a] = 2 }) } catch (err) { staticField = err }
+        if (!staticField) throw 'fail: staticField'
+
+        let method
+        try { temp = (class A { capture = () => A; static a = 1; [A.a]() { return 2 } }) } catch (err) { method = err }
+        if (!method) throw 'fail: method'
+
+        let staticMethod
+        try { temp = (class A { capture = () => A; static a = 1; static [A.a]() { return 2 } }) } catch (err) { staticMethod = err }
+        if (!staticMethod) throw 'fail: staticMethod'
       `,
     }),
   )

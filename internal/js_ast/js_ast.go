@@ -1230,6 +1230,9 @@ const (
 	// Classes can merge with TypeScript namespaces.
 	SymbolClass
 
+	// Class names are not allowed to be referenced by computed property keys
+	SymbolClassInComputedPropertyKey
+
 	// A class-private identifier (i.e. "#foo").
 	SymbolPrivateField
 	SymbolPrivateMethod

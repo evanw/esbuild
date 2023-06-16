@@ -17,6 +17,7 @@ const (
 	MsgID_JS_AssignToDefine
 	MsgID_JS_AssignToImport
 	MsgID_JS_CallImportNamespace
+	MsgID_JS_ClassNameWillThrow
 	MsgID_JS_CommonJSVariableInESM
 	MsgID_JS_DeleteSuperProperty
 	MsgID_JS_DirectEval
@@ -100,6 +101,8 @@ func StringToMsgIDs(str string, logLevel LogLevel, overrides map[MsgID]LogLevel)
 		overrides[MsgID_JS_AssignToImport] = logLevel
 	case "call-import-namespace":
 		overrides[MsgID_JS_CallImportNamespace] = logLevel
+	case "class-name-will-throw":
+		overrides[MsgID_JS_ClassNameWillThrow] = logLevel
 	case "commonjs-variable-in-esm":
 		overrides[MsgID_JS_CommonJSVariableInESM] = logLevel
 	case "delete-super-property":
@@ -218,6 +221,8 @@ func MsgIDToString(id MsgID) string {
 		return "assign-to-import"
 	case MsgID_JS_CallImportNamespace:
 		return "call-import-namespace"
+	case MsgID_JS_ClassNameWillThrow:
+		return "class-name-will-throw"
 	case MsgID_JS_CommonJSVariableInESM:
 		return "commonjs-variable-in-esm"
 	case MsgID_JS_DeleteSuperProperty:

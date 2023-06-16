@@ -678,6 +678,8 @@ func TestTSClass(t *testing.T) {
 
 	expectPrintedAssignSemanticsTS(t, "class Foo { foo: number }", "class Foo {\n}\n")
 	expectPrintedAssignSemanticsTS(t, "class Foo { foo: number = 0 }", "class Foo {\n  constructor() {\n    this.foo = 0;\n  }\n}\n")
+	expectPrintedAssignSemanticsTS(t, "class Foo { ['foo']: number }", "class Foo {\n}\n")
+	expectPrintedAssignSemanticsTS(t, "class Foo { ['foo']: number = 0 }", "class Foo {\n  constructor() {\n    this[\"foo\"] = 0;\n  }\n}\n")
 	expectPrintedAssignSemanticsTS(t, "class Foo { foo(): void {} }", "class Foo {\n  foo() {\n  }\n}\n")
 	expectPrintedAssignSemanticsTS(t, "class Foo { foo(): void; foo(): void {} }", "class Foo {\n  foo() {\n  }\n}\n")
 	expectParseErrorTS(t, "class Foo { foo(): void foo(): void {} }", "<stdin>: ERROR: Expected \";\" but found \"foo\"\n")

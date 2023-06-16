@@ -276,6 +276,9 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 			setter ? setter.call(obj, value) : member.set(obj, value)
 			return value
 		}
+		export var __earlyAccess = (name) => {
+			throw ReferenceError('Cannot access "' + name + '" before initialization')
+		}
 	`
 
 	if !unsupportedJSFeatures.Has(compat.ObjectAccessors) {

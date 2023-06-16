@@ -11028,14 +11028,25 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 
 		property.Decorators = p.visitDecorators(property.Decorators, decoratorScope)
 
-		// Special-case private identifiers
+		// Visit the property key
 		if private, ok := property.Key.Data.(*js_ast.EPrivateIdentifier); ok {
+			// Special-case private identifiers here
 			p.recordDeclaredSymbol(private.Ref)
 		} else {
+			// It's forbidden to reference the class name in a computed key
+			if property.Flags.Has(js_ast.PropertyIsComputed) && class.Name != nil {
+				p.symbols[result.innerClassNameRef.InnerIndex].Kind = js_ast.SymbolClassInComputedPropertyKey
+			}
+
 			key, _ := p.visitExprInOut(property.Key, exprIn{
 				shouldMangleStringsAsProps: true,
 			})
 			property.Key = key
+
+			// Re-allow using the class name after visiting a computed key
+			if property.Flags.Has(js_ast.PropertyIsComputed) && class.Name != nil {
+				p.symbols[result.innerClassNameRef.InnerIndex].Kind = js_ast.SymbolConst
+			}
 
 			if p.options.minifySyntax {
 				if inlined, ok := key.Data.(*js_ast.EInlinedEnum); ok {
@@ -12360,6 +12371,20 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		result := p.findSymbol(expr.Loc, name)
 		e.MustKeepDueToWithStmt = result.isInsideWithScope
 		e.Ref = result.ref
+
+		// Handle referencing a class name within that class's computed property
+		// key. This is not allowed, and must fail at run-time:
+		//
+		//   class Foo {
+		//     static foo = 'bar'
+		//     static [Foo.foo] = 'foo'
+		//   }
+		//
+		if p.symbols[result.ref.InnerIndex].Kind == js_ast.SymbolClassInComputedPropertyKey {
+			p.log.AddID(logger.MsgID_JS_ClassNameWillThrow, logger.Warning, &p.tracker, js_lexer.RangeOfIdentifier(p.source, expr.Loc),
+				fmt.Sprintf("Accessing class %q before initialization will throw", name))
+			return p.callRuntime(expr.Loc, "__earlyAccess", []js_ast.Expr{{Loc: expr.Loc, Data: &js_ast.EString{Value: helpers.StringToUTF16(name)}}}), exprOut{}
+		}
 
 		// Handle assigning to a constant
 		if in.assignTarget != js_ast.AssignTargetNone {
