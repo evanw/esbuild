@@ -10,6 +10,15 @@ permissions:
   contents: read  #  to fetch code (actions/checkout)
 
 jobs:
+  esbuild-platforms:
+    # Split this out into its own runner because it's slow
+    name: esbuild CI (All Platforms)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Ensure all platforms can be built
+        run: make platform-all
+
   esbuild-slow:
     # Split these out into their own runner because they're very slow
     name: esbuild CI (Slow Tests)
@@ -36,8 +45,8 @@ jobs:
       - name: Uglify Tests
         run: CI=1 make uglify
 
-      - name: Ensure all platforms can be built
-        run: make clean && make platform-all
+      - name: Type check tsc using tsc
+        run: make test-tsc
 
   esbuild:
     name: esbuild CI

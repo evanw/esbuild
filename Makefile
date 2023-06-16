@@ -670,6 +670,24 @@ uglify: esbuild | demo/uglify
 	node scripts/uglify-tests.js
 
 ################################################################################
+# This builds the TypeScript compiler, then uses it to type check tsc itself
+
+github/tsc:
+	mkdir -p github/tsc
+	cd github/tsc && git init && git remote add origin https://github.com/Microsoft/TypeScript.git
+	cd github/tsc && git fetch --depth 1 origin e6ceba084147bd00045c573a1ba9843c0bb5c721 && git checkout FETCH_HEAD
+
+test-tsc: esbuild | github/tsc
+	rm -fr demo/tsc
+	mkdir -p demo/tsc/built/local
+	cp -r github/tsc/src github/tsc/scripts demo/tsc
+	cp github/tsc/lib/*.d.ts demo/tsc/built/local
+	cd demo/tsc && node scripts/processDiagnosticMessages.mjs src/compiler/diagnosticMessages.json
+	./esbuild --bundle demo/tsc/src/tsc/tsc.ts --outfile=demo/tsc/built/local/tsc.js --platform=node --target=es2018 --packages=external
+	echo '{"dependencies":{"@types/node":"20.2.5","@types/microsoft__typescript-etw":"0.1.1","@types/source-map-support":"0.5.6"}}' > demo/tsc/package.json
+	cd demo/tsc && npm i --silent && echo 'Type checking tsc using tsc...' && time -p node ./built/local/tsc.js -p src/compiler
+
+################################################################################
 # This builds Rollup using esbuild and then uses it to run Rollup's test suite
 
 TEST_ROLLUP_FIND = "compilerOptions": {
