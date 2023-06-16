@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.18.4
 
 * Bundling no longer unnecessarily transforms class syntax ([#1360](https://github.com/evanw/esbuild/issues/1360), [#1328](https://github.com/evanw/esbuild/issues/1328), [#1524](https://github.com/evanw/esbuild/issues/1524), [#2416](https://github.com/evanw/esbuild/issues/2416))
 
