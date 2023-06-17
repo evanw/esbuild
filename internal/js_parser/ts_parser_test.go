@@ -1898,6 +1898,11 @@ func TestTSExperimentalDecorator(t *testing.T) {
 		"let Foo = class {\n};\nFoo = __decorateClass([\n  function(x, y) {\n    return x + y;\n  }\n], Foo);\n")
 	expectPrintedExperimentalDecoratorTS(t, "@(function(x, y) { return x + y }) export class Foo {}",
 		"export let Foo = class {\n};\nFoo = __decorateClass([\n  function(x, y) {\n    return x + y;\n  }\n], Foo);\n")
+
+	// Don't allow decorators on static blocks
+	expectPrintedTS(t, "class Foo { static }", "class Foo {\n  static;\n}\n")
+	expectPrintedExperimentalDecoratorTS(t, "class Foo { @dec static }", "class Foo {\n  static;\n}\n__decorateClass([\n  dec\n], Foo.prototype, \"static\", 2);\n")
+	expectParseErrorExperimentalDecoratorTS(t, "class Foo { @dec static {} }", "<stdin>: ERROR: Expected \";\" but found \"{\"\n")
 }
 
 func TestTSTry(t *testing.T) {

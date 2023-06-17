@@ -871,10 +871,10 @@ const (
 	printDecoratorsAllOnOneLine
 )
 
-func (p *printer) printDecorators(decorators []js_ast.Expr, how printDecorators) {
+func (p *printer) printDecorators(decorators []js_ast.Decorator, how printDecorators) {
 	for _, decorator := range decorators {
 		wrap := false
-		expr := decorator
+		expr := decorator.Value
 
 	outer:
 		for {
@@ -885,31 +885,44 @@ func (p *printer) printDecorators(decorators []js_ast.Expr, how printDecorators)
 
 			case *js_ast.EDot:
 				// "@foo.bar"
-				expr = e.Target
-
-			case *js_ast.EIndex:
-				if _, ok := e.Index.Data.(*js_ast.EPrivateIdentifier); !ok {
-					// "@(foo[bar])"
-					wrap = true
-					break outer
+				if p.canPrintIdentifier(e.Name) {
+					expr = e.Target
+					continue
 				}
 
-				// "@foo.#bar"
-				expr = e.Target
+				// "@foo.\u30FF" => "@(foo['\u30FF'])"
+				break
+
+			case *js_ast.EIndex:
+				if _, ok := e.Index.Data.(*js_ast.EPrivateIdentifier); ok {
+					// "@foo.#bar"
+					expr = e.Target
+					continue
+				}
+
+				// "@(foo[bar])"
+				break
 
 			default:
 				// "@(foo + bar)"
 				// "@(() => {})"
-				wrap = true
-				break outer
+				break
 			}
+
+			wrap = true
+			break outer
+		}
+
+		p.addSourceMapping(decorator.AtLoc)
+		if how == printDecoratorsOnSeparateLines {
+			p.printIndent()
 		}
 
 		p.print("@")
 		if wrap {
 			p.print("(")
 		}
-		p.printExpr(decorator, js_ast.LLowest, 0)
+		p.printExpr(decorator.Value, js_ast.LLowest, 0)
 		if wrap {
 			p.print(")")
 		}
@@ -917,7 +930,6 @@ func (p *printer) printDecorators(decorators []js_ast.Expr, how printDecorators)
 		switch how {
 		case printDecoratorsOnSeparateLines:
 			p.printNewline()
-			p.printIndent()
 
 		case printDecoratorsAllOnOneLine:
 			p.printSpace()
@@ -940,8 +952,8 @@ func (p *printer) printClass(class js_ast.Class) {
 
 	for _, item := range class.Properties {
 		p.printSemicolonIfNeeded()
-		p.printIndent()
 		p.printDecorators(item.Decorators, printDecoratorsOnSeparateLines)
+		p.printIndent()
 
 		if item.Kind == js_ast.PropertyClassStaticBlock {
 			p.addSourceMapping(item.Loc)
@@ -1011,6 +1023,7 @@ func (p *printer) printProperty(property js_ast.Property) {
 	}
 
 	if property.Flags.Has(js_ast.PropertyIsStatic) {
+		p.printSpaceBeforeIdentifier()
 		p.addSourceMapping(property.Loc)
 		p.print("static")
 		p.printSpace()
@@ -3895,9 +3908,9 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 
 	case *js_ast.SClass:
 		p.printDecorators(s.Class.Decorators, printDecoratorsOnSeparateLines)
-		p.addSourceMapping(stmt.Loc)
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
+		p.addSourceMapping(stmt.Loc)
 		if s.IsExport {
 			p.print("export ")
 		}
@@ -3921,11 +3934,11 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 				p.print("// @__NO_SIDE_EFFECTS__\n")
 			}
 		}
-		p.addSourceMapping(stmt.Loc)
-		p.printIndent()
 		if s2, ok := s.Value.Data.(*js_ast.SClass); ok {
 			p.printDecorators(s2.Class.Decorators, printDecoratorsOnSeparateLines)
 		}
+		p.addSourceMapping(stmt.Loc)
+		p.printIndent()
 		p.printSpaceBeforeIdentifier()
 		p.print("export default")
 		p.printSpace()

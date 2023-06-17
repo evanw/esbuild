@@ -2398,3 +2398,27 @@ func TestLowerNestedFunctionDirectEval(t *testing.T) {
 		},
 	})
 }
+
+func TestJavaScriptDecoratorsESNext(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				@x.y()
+				@new y.x()
+				export default class Foo {
+					@x @y mUndef
+					@x @y mDef = 1
+					@x @y method() { return new Foo }
+					@x @y static sUndef
+					@x @y static sDef = new Foo
+					@x @y static sMethod() { return new Foo }
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModePassThrough,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}

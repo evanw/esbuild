@@ -101,6 +101,9 @@ func (p *parser) markSyntaxFeature(feature compat.JSFeature, r logger.Range) (di
 	case compat.NestedRestBinding:
 		name = "non-identifier array rest patterns"
 
+	case compat.Decorators:
+		name = "JavaScript decorators"
+
 	case compat.ImportAssertions:
 		p.log.AddErrorWithNotes(&p.tracker, r, fmt.Sprintf(
 			"Using an arbitrary value as the second argument to \"import()\" is not possible in %s", where), notes)
@@ -2354,16 +2357,17 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 				for i, arg := range args {
 					for _, decorator := range arg.Decorators {
 						// Generate a call to "__decorateParam()" for this parameter decorator
-						var decorators *[]js_ast.Expr = &prop.Decorators
+						var decorators *[]js_ast.Decorator = &prop.Decorators
 						if isConstructor {
 							decorators = &class.Decorators
 						}
-						*decorators = append(*decorators,
-							p.callRuntime(decorator.Loc, "__decorateParam", []js_ast.Expr{
-								{Loc: decorator.Loc, Data: &js_ast.ENumber{Value: float64(i)}},
-								decorator,
+						*decorators = append(*decorators, js_ast.Decorator{
+							Value: p.callRuntime(decorator.Value.Loc, "__decorateParam", []js_ast.Expr{
+								{Loc: decorator.Value.Loc, Data: &js_ast.ENumber{Value: float64(i)}},
+								decorator.Value,
 							}),
-						)
+							AtLoc: decorator.AtLoc,
+						})
 						args[i].Decorators = nil
 					}
 				}
@@ -2466,13 +2470,17 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 					target = js_ast.Expr{Loc: loc, Data: &js_ast.EDot{Target: nameFunc(), Name: "prototype", NameLoc: loc}}
 				}
 
+				values := make([]js_ast.Expr, len(prop.Decorators))
+				for i, decorator := range prop.Decorators {
+					values[i] = decorator.Value
+				}
+				prop.Decorators = nil
 				decorator := p.callRuntime(loc, "__decorateClass", []js_ast.Expr{
-					{Loc: loc, Data: &js_ast.EArray{Items: prop.Decorators}},
+					{Loc: loc, Data: &js_ast.EArray{Items: values}},
 					target,
 					descriptorKey,
 					{Loc: loc, Data: &js_ast.ENumber{Value: descriptorKind}},
 				})
-				prop.Decorators = nil
 
 				// Static decorators are grouped after instance decorators
 				if prop.Flags.Has(js_ast.PropertyIsStatic) {
@@ -2812,6 +2820,11 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 	// do this just in case it's needed.
 	mustConvertStmtToExpr := p.options.mode == config.ModeBundle && p.currentScope.Parent == nil
 
+	var tsClassDecorators []js_ast.Decorator
+	if p.options.ts.Parse {
+		tsClassDecorators = class.Decorators
+	}
+
 	// If this is true, we have removed some code from the class body that could
 	// potentially contain an expression that captures the inner class name.
 	// In this case we must explicitly store the class to a separate inner class
@@ -2824,7 +2837,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 			len(staticMembers) > 0 ||
 			len(instanceDecorators) > 0 ||
 			len(staticDecorators) > 0 ||
-			len(class.Decorators) > 0)
+			len(tsClassDecorators) > 0)
 
 	// Pack the class back into a statement, with potentially some extra
 	// statements afterwards
@@ -2832,7 +2845,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 	var outerClassNameDecl js_ast.Stmt
 	var nameForClassDecorators js_ast.LocRef
 	didGenerateLocalStmt := false
-	if len(class.Decorators) > 0 || hasPotentialInnerClassNameEscape || mustConvertStmtToExpr {
+	if len(tsClassDecorators) > 0 || hasPotentialInnerClassNameEscape || mustConvertStmtToExpr {
 		didGenerateLocalStmt = true
 
 		// Determine the name to use for decorators
@@ -2868,7 +2881,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 		}
 
 		// Generate the class initialization statement
-		if len(class.Decorators) > 0 {
+		if len(tsClassDecorators) > 0 {
 			// If there are class decorators, then we actually need to mutate the
 			// immutable "const" binding that shadows everything in the class body.
 			// The official TypeScript compiler does this by rewriting all class name
@@ -2969,17 +2982,21 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 		// This must come after the class body initializers have finished
 		stmts = append(stmts, outerClassNameDecl)
 	}
-	if len(class.Decorators) > 0 {
+	if len(tsClassDecorators) > 0 {
+		values := make([]js_ast.Expr, len(tsClassDecorators))
+		for i, decorator := range tsClassDecorators {
+			values[i] = decorator.Value
+		}
+		class.Decorators = nil
 		stmts = append(stmts, js_ast.AssignStmt(
 			js_ast.Expr{Loc: nameForClassDecorators.Loc, Data: &js_ast.EIdentifier{Ref: nameForClassDecorators.Ref}},
 			p.callRuntime(classLoc, "__decorateClass", []js_ast.Expr{
-				{Loc: classLoc, Data: &js_ast.EArray{Items: class.Decorators}},
+				{Loc: classLoc, Data: &js_ast.EArray{Items: values}},
 				{Loc: nameForClassDecorators.Loc, Data: &js_ast.EIdentifier{Ref: nameForClassDecorators.Ref}},
 			}),
 		))
 		p.recordUsage(nameForClassDecorators.Ref)
 		p.recordUsage(nameForClassDecorators.Ref)
-		class.Decorators = nil
 	}
 	if didGenerateLocalStmt && kind == classKindExportDefaultStmt {
 		// "export default class x {}" => "class x {} export {x as default}"

@@ -248,6 +248,11 @@ type LocRef struct {
 	Ref Ref
 }
 
+type Decorator struct {
+	Value Expr
+	AtLoc logger.Loc
+}
+
 type PropertyKind uint8
 
 const (
@@ -297,7 +302,7 @@ type Property struct {
 	//
 	InitializerOrNil Expr
 
-	Decorators []Expr
+	Decorators []Decorator
 
 	Loc             logger.Loc
 	CloseBracketLoc logger.Loc
@@ -319,7 +324,7 @@ type PropertyBinding struct {
 type Arg struct {
 	Binding      Binding
 	DefaultOrNil Expr
-	Decorators   []Expr
+	Decorators   []Decorator
 
 	// "constructor(public x: boolean) {}"
 	IsTypeScriptCtorField bool
@@ -350,7 +355,7 @@ type FnBody struct {
 }
 
 type Class struct {
-	Decorators    []Expr
+	Decorators    []Decorator
 	Name          *LocRef
 	ExtendsOrNil  Expr
 	Properties    []Property
