@@ -2402,12 +2402,17 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 			shouldOmitFieldInitializer = true
 		}
 
+		var propExperimentalDecorators []js_ast.Decorator
+		if p.options.ts.Parse && p.options.ts.Config.ExperimentalDecorators == config.True {
+			propExperimentalDecorators = prop.Decorators
+		}
+
 		// Make sure the order of computed property keys doesn't change. These
 		// expressions have side effects and must be evaluated in order.
 		keyExprNoSideEffects := prop.Key
-		if prop.Flags.Has(js_ast.PropertyIsComputed) && (len(prop.Decorators) > 0 || mustLowerField || computedPropertyCache.Data != nil) {
+		if prop.Flags.Has(js_ast.PropertyIsComputed) && (len(propExperimentalDecorators) > 0 || mustLowerField || computedPropertyCache.Data != nil) {
 			needsKey := true
-			if len(prop.Decorators) == 0 && (prop.Flags.Has(js_ast.PropertyIsMethod) || shouldOmitFieldInitializer || !mustLowerField) {
+			if len(propExperimentalDecorators) == 0 && (prop.Flags.Has(js_ast.PropertyIsMethod) || shouldOmitFieldInitializer || !mustLowerField) {
 				needsKey = false
 			}
 
@@ -2442,7 +2447,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 		// Handle decorators
 		if p.options.ts.Parse {
 			// Generate a single call to "__decorateClass()" for this property
-			if len(prop.Decorators) > 0 {
+			if len(propExperimentalDecorators) > 0 {
 				loc := prop.Key.Loc
 
 				// Clone the key for the property descriptor
@@ -2478,8 +2483,8 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 					target = js_ast.Expr{Loc: loc, Data: &js_ast.EDot{Target: nameFunc(), Name: "prototype", NameLoc: loc}}
 				}
 
-				values := make([]js_ast.Expr, len(prop.Decorators))
-				for i, decorator := range prop.Decorators {
+				values := make([]js_ast.Expr, len(propExperimentalDecorators))
+				for i, decorator := range propExperimentalDecorators {
 					values[i] = decorator.Value
 				}
 				prop.Decorators = nil
@@ -2828,9 +2833,9 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 	// do this just in case it's needed.
 	mustConvertStmtToExpr := p.options.mode == config.ModeBundle && p.currentScope.Parent == nil
 
-	var tsClassDecorators []js_ast.Decorator
-	if p.options.ts.Parse {
-		tsClassDecorators = class.Decorators
+	var classExperimentalDecorators []js_ast.Decorator
+	if p.options.ts.Parse && p.options.ts.Config.ExperimentalDecorators == config.True {
+		classExperimentalDecorators = class.Decorators
 	}
 
 	// If this is true, we have removed some code from the class body that could
@@ -2845,7 +2850,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 			len(staticMembers) > 0 ||
 			len(instanceDecorators) > 0 ||
 			len(staticDecorators) > 0 ||
-			len(tsClassDecorators) > 0)
+			len(classExperimentalDecorators) > 0)
 
 	// Pack the class back into a statement, with potentially some extra
 	// statements afterwards
@@ -2853,7 +2858,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 	var outerClassNameDecl js_ast.Stmt
 	var nameForClassDecorators js_ast.LocRef
 	didGenerateLocalStmt := false
-	if len(tsClassDecorators) > 0 || hasPotentialInnerClassNameEscape || mustConvertStmtToExpr {
+	if len(classExperimentalDecorators) > 0 || hasPotentialInnerClassNameEscape || mustConvertStmtToExpr {
 		didGenerateLocalStmt = true
 
 		// Determine the name to use for decorators
@@ -2889,7 +2894,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 		}
 
 		// Generate the class initialization statement
-		if len(tsClassDecorators) > 0 {
+		if len(classExperimentalDecorators) > 0 {
 			// If there are class decorators, then we actually need to mutate the
 			// immutable "const" binding that shadows everything in the class body.
 			// The official TypeScript compiler does this by rewriting all class name
@@ -2990,9 +2995,9 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 		// This must come after the class body initializers have finished
 		stmts = append(stmts, outerClassNameDecl)
 	}
-	if len(tsClassDecorators) > 0 {
-		values := make([]js_ast.Expr, len(tsClassDecorators))
-		for i, decorator := range tsClassDecorators {
+	if len(classExperimentalDecorators) > 0 {
+		values := make([]js_ast.Expr, len(classExperimentalDecorators))
+		for i, decorator := range classExperimentalDecorators {
 			values[i] = decorator.Value
 		}
 		class.Decorators = nil

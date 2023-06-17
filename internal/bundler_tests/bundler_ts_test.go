@@ -881,8 +881,21 @@ func TestTSExperimentalDecoratorsNoConfig(t *testing.T) {
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
-				@decorator
-				class Foo {}
+				@x.y()
+				@new y.x()
+				export default class Foo {
+					@x @y mUndef
+					@x @y mDef = 1
+					@x @y method() { return new Foo }
+					@x @y declare mDecl
+					@x @y accessor foo
+
+					@x @y static sUndef
+					@x @y static sDef = new Foo
+					@x @y static sMethod() { return new Foo }
+					@x @y static declare mDecl
+					@x @y static accessor foo
+				}
 			`,
 			"/tsconfig.json": `{
 				"compilerOptions": {
@@ -895,9 +908,6 @@ func TestTSExperimentalDecoratorsNoConfig(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: "entry.ts: ERROR: Experimental decorators are not currently enabled\n" +
-			"NOTE: To use experimental decorators in TypeScript with esbuild, you need to enable them by adding \"experimentalDecorators\": true in your \"tsconfig.json\" file. " +
-			"TypeScript's experimental decorators are currently the only kind of decorators that esbuild supports.\n",
 	})
 }
 

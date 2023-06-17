@@ -1795,9 +1795,14 @@ func TestTSDeclare(t *testing.T) {
 }
 
 func TestTSExperimentalDecorator(t *testing.T) {
-	expectParseErrorTS(t, "@dec class Foo {}", "<stdin>: ERROR: Experimental decorators are not currently enabled\n"+
-		"NOTE: To use experimental decorators in TypeScript with esbuild, you need to enable them by adding \"experimentalDecorators\": true in your \"tsconfig.json\" file. "+
-		"TypeScript's experimental decorators are currently the only kind of decorators that esbuild supports.\n")
+	expectPrintedTS(t, "@dec class Foo {}", "@dec\nclass Foo {\n}\n")
+	expectPrintedTS(t, "class Foo { @dec foo: any }", "class Foo {\n  @dec\n  foo;\n}\n")
+	expectPrintedTS(t, "class Foo { @dec foo(): any {} }", "class Foo {\n  @dec\n  foo() {\n  }\n}\n")
+	expectPrintedTS(t, "class Foo { @dec static foo: any }", "class Foo {\n  @dec\n  static foo;\n}\n")
+	expectPrintedTS(t, "class Foo { @dec static foo(): any {} }", "class Foo {\n  @dec\n  static foo() {\n  }\n}\n")
+	expectParseErrorTS(t, "class Foo { @dec static {} }", "<stdin>: ERROR: Expected \";\" but found \"{\"\n")
+	expectParseErrorTS(t, "class Foo { foo(@dec bar): any }", "<stdin>: ERROR: Parameter decorators only work when experimental decorators are enabled\n"+
+		"NOTE: You can enable experimental decorators by adding \"experimentalDecorators\": true to your \"tsconfig.json\" file.\n")
 
 	// Tests of "declare class"
 	expectPrintedExperimentalDecoratorTS(t, "@dec(() => 0) declare class Foo {} {let foo}", "{\n  let foo;\n}\n")
