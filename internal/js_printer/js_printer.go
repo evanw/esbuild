@@ -1041,6 +1041,12 @@ func (p *printer) printProperty(property js_ast.Property) {
 		p.addSourceMapping(property.Loc)
 		p.print("set")
 		p.printSpace()
+
+	case js_ast.PropertyAutoAccessor:
+		p.printSpaceBeforeIdentifier()
+		p.addSourceMapping(property.Loc)
+		p.print("accessor")
+		p.printSpace()
 	}
 
 	if fn, ok := property.ValueOrNil.Data.(*js_ast.EFunction); property.Flags.Has(js_ast.PropertyIsMethod) && ok {

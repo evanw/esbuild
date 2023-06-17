@@ -695,6 +695,13 @@ func TestClass(t *testing.T) {
 	expectPrinted(t, "class Foo { static set foo(x) {} }", "class Foo {\n  static set foo(x) {\n  }\n}\n")
 }
 
+func TestAutoAccessors(t *testing.T) {
+	expectPrinted(t, "class Foo { accessor x; static accessor y }", "class Foo {\n  accessor x;\n  static accessor y;\n}\n")
+	expectPrinted(t, "class Foo { accessor [x]; static accessor [y] }", "class Foo {\n  accessor [x];\n  static accessor [y];\n}\n")
+	expectPrintedMinify(t, "class Foo { accessor x; static accessor y }", "class Foo{accessor x;static accessor y}")
+	expectPrintedMinify(t, "class Foo { accessor [x]; static accessor [y] }", "class Foo{accessor[x];static accessor[y]}")
+}
+
 func TestPrivateIdentifiers(t *testing.T) {
 	expectPrinted(t, "class Foo { #foo; foo() { return #foo in this } }", "class Foo {\n  #foo;\n  foo() {\n    return #foo in this;\n  }\n}\n")
 	expectPrintedMinify(t, "class Foo { #foo; foo() { return #foo in this } }", "class Foo{#foo;foo(){return#foo in this}}")

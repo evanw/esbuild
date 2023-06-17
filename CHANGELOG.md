@@ -4,7 +4,19 @@
 
 * Pass through JavaScript decorators in JavaScript files ([#104](https://github.com/evanw/esbuild/issues/104))
 
-    In this release, esbuild now parses [JavaScript decorators](https://github.com/tc39/proposal-decorators) and passes them through to the output unmodified, at least as long as the language target is set to `esnext`. Transforming JavaScript decorators to environments that don't support them has not been implemented yet.
+    In this release, esbuild now parses decorators from the upcoming [JavaScript decorators proposal](https://github.com/tc39/proposal-decorators) and passes them through to the output unmodified, at least as long as the language target is set to `esnext`. Transforming JavaScript decorators to environments that don't support them has not been implemented yet.
+
+* Pass through auto accessors ([#3009](https://github.com/evanw/esbuild/issues/3009))
+
+    This release now parses the new auto-accessor syntax from the upcoming [JavaScript decorators proposal](https://github.com/tc39/proposal-decorators) and passes them through to the output unmodified, at least as long as the language target is set to `esnext`. Transforming auto-accessors to environments that don't support them has not been implemented yet. The auto-accessor syntax looks like this:
+
+    ```js
+    class Foo {
+      accessor foo;
+      static accessor bar;
+    }
+    new Foo().foo = Foo.bar;
+    ```
 
 ## 0.18.4
 

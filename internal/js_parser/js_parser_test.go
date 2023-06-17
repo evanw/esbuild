@@ -1942,6 +1942,46 @@ func TestClassStaticBlocks(t *testing.T) {
 	expectPrintedMangle(t, "class Foo { static { foo() } }", "class Foo {\n  static {\n    foo();\n  }\n}\n")
 }
 
+func TestAutoAccessors(t *testing.T) {
+	expectPrinted(t, "class Foo { accessor }", "class Foo {\n  accessor;\n}\n")
+	expectPrinted(t, "class Foo { accessor \n x }", "class Foo {\n  accessor;\n  x;\n}\n")
+	expectPrinted(t, "class Foo { static accessor }", "class Foo {\n  static accessor;\n}\n")
+	expectPrinted(t, "class Foo { static accessor \n x }", "class Foo {\n  static accessor;\n  x;\n}\n")
+
+	expectPrinted(t, "class Foo { accessor x }", "class Foo {\n  accessor x;\n}\n")
+	expectPrinted(t, "class Foo { accessor x = y }", "class Foo {\n  accessor x = y;\n}\n")
+	expectPrinted(t, "class Foo { accessor [x] }", "class Foo {\n  accessor [x];\n}\n")
+	expectPrinted(t, "class Foo { accessor [x] = y }", "class Foo {\n  accessor [x] = y;\n}\n")
+	expectPrinted(t, "class Foo { static accessor x }", "class Foo {\n  static accessor x;\n}\n")
+	expectPrinted(t, "class Foo { static accessor [x] }", "class Foo {\n  static accessor [x];\n}\n")
+	expectPrinted(t, "class Foo { static accessor x = y }", "class Foo {\n  static accessor x = y;\n}\n")
+	expectPrinted(t, "class Foo { static accessor [x] = y }", "class Foo {\n  static accessor [x] = y;\n}\n")
+
+	expectPrinted(t, "Foo = class { accessor x }", "Foo = class {\n  accessor x;\n};\n")
+	expectPrinted(t, "Foo = class { accessor [x] }", "Foo = class {\n  accessor [x];\n};\n")
+	expectPrinted(t, "Foo = class { accessor x = y }", "Foo = class {\n  accessor x = y;\n};\n")
+	expectPrinted(t, "Foo = class { accessor [x] = y }", "Foo = class {\n  accessor [x] = y;\n};\n")
+	expectPrinted(t, "Foo = class { static accessor x }", "Foo = class {\n  static accessor x;\n};\n")
+	expectPrinted(t, "Foo = class { static accessor [x] }", "Foo = class {\n  static accessor [x];\n};\n")
+	expectPrinted(t, "Foo = class { static accessor x = y }", "Foo = class {\n  static accessor x = y;\n};\n")
+
+	expectPrinted(t, "class Foo { accessor get }", "class Foo {\n  accessor get;\n}\n")
+	expectPrinted(t, "class Foo { get accessor() {} }", "class Foo {\n  get accessor() {\n  }\n}\n")
+	expectParseError(t, "class Foo { accessor x() {} }", "<stdin>: ERROR: Expected \";\" but found \"(\"\n")
+	expectParseError(t, "class Foo { accessor get x() {} }", "<stdin>: ERROR: Expected \";\" but found \"x\"\n")
+	expectParseError(t, "class Foo { get accessor x() {} }", "<stdin>: ERROR: Expected \"(\" but found \"x\"\n")
+
+	expectPrinted(t, "Foo = { get accessor() {} }", "Foo = { get accessor() {\n} };\n")
+	expectParseError(t, "Foo = { accessor x }", "<stdin>: ERROR: Expected \"}\" but found \"x\"\n")
+	expectParseError(t, "Foo = { accessor x() {} }", "<stdin>: ERROR: Expected \"}\" but found \"x\"\n")
+	expectParseError(t, "Foo = { get accessor x() {} }", "<stdin>: ERROR: Expected \"(\" but found \"x\"\n")
+
+	expectParseError(t, "class Foo { accessor x, y }", "<stdin>: ERROR: Expected \";\" but found \",\"\n")
+	expectParseError(t, "class Foo { static accessor x, y }", "<stdin>: ERROR: Expected \";\" but found \",\"\n")
+	expectParseError(t, "Foo = class { accessor x, y }", "<stdin>: ERROR: Expected \";\" but found \",\"\n")
+	expectParseError(t, "Foo = class { static accessor x, y }", "<stdin>: ERROR: Expected \";\" but found \",\"\n")
+}
+
 func TestGenerator(t *testing.T) {
 	expectParseError(t, "(class { * foo })", "<stdin>: ERROR: Expected \"(\" but found \"}\"\n")
 	expectParseError(t, "(class { * *foo() {} })", "<stdin>: ERROR: Unexpected \"*\"\n")

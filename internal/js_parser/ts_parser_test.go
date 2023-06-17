@@ -771,6 +771,37 @@ func TestTSClass(t *testing.T) {
 	expectParseErrorTS(t, "class Foo { [foo]!<T>() {} }", "<stdin>: ERROR: Expected \";\" but found \"<\"\n")
 }
 
+func TestTSAutoAccessors(t *testing.T) {
+	expectPrintedTS(t, "class Foo { accessor }", "class Foo {\n  accessor;\n}\n")
+	expectPrintedTS(t, "class Foo { accessor x }", "class Foo {\n  accessor x;\n}\n")
+	expectPrintedTS(t, "class Foo { accessor x? }", "class Foo {\n  accessor x;\n}\n")
+	expectPrintedTS(t, "class Foo { accessor x! }", "class Foo {\n  accessor x;\n}\n")
+	expectPrintedTS(t, "class Foo { accessor x = y }", "class Foo {\n  accessor x = y;\n}\n")
+	expectPrintedTS(t, "class Foo { accessor x? = y }", "class Foo {\n  accessor x = y;\n}\n")
+	expectPrintedTS(t, "class Foo { accessor x! = y }", "class Foo {\n  accessor x = y;\n}\n")
+	expectPrintedTS(t, "class Foo { accessor x: any }", "class Foo {\n  accessor x;\n}\n")
+	expectPrintedTS(t, "class Foo { accessor x?: any }", "class Foo {\n  accessor x;\n}\n")
+	expectPrintedTS(t, "class Foo { accessor x!: any }", "class Foo {\n  accessor x;\n}\n")
+	expectPrintedTS(t, "class Foo { accessor x: any = y }", "class Foo {\n  accessor x = y;\n}\n")
+	expectPrintedTS(t, "class Foo { accessor x?: any = y }", "class Foo {\n  accessor x = y;\n}\n")
+	expectPrintedTS(t, "class Foo { accessor x!: any = y }", "class Foo {\n  accessor x = y;\n}\n")
+	expectPrintedTS(t, "class Foo { accessor [x] }", "class Foo {\n  accessor [x];\n}\n")
+	expectPrintedTS(t, "class Foo { accessor [x]? }", "class Foo {\n  accessor [x];\n}\n")
+	expectPrintedTS(t, "class Foo { accessor [x]! }", "class Foo {\n  accessor [x];\n}\n")
+	expectPrintedTS(t, "class Foo { accessor [x] = y }", "class Foo {\n  accessor [x] = y;\n}\n")
+	expectPrintedTS(t, "class Foo { accessor [x]? = y }", "class Foo {\n  accessor [x] = y;\n}\n")
+	expectPrintedTS(t, "class Foo { accessor [x]! = y }", "class Foo {\n  accessor [x] = y;\n}\n")
+	expectPrintedTS(t, "class Foo { accessor [x]: any }", "class Foo {\n  accessor [x];\n}\n")
+	expectPrintedTS(t, "class Foo { accessor [x]?: any }", "class Foo {\n  accessor [x];\n}\n")
+	expectPrintedTS(t, "class Foo { accessor [x]!: any }", "class Foo {\n  accessor [x];\n}\n")
+	expectPrintedTS(t, "class Foo { accessor [x]: any = y }", "class Foo {\n  accessor [x] = y;\n}\n")
+	expectPrintedTS(t, "class Foo { accessor [x]?: any = y }", "class Foo {\n  accessor [x] = y;\n}\n")
+	expectPrintedTS(t, "class Foo { accessor [x]!: any = y }", "class Foo {\n  accessor [x] = y;\n}\n")
+
+	expectParseErrorTS(t, "class Foo { accessor x<T> }", "<stdin>: ERROR: Expected \";\" but found \"<\"\n")
+	expectParseErrorTS(t, "class Foo { accessor x<T>() {} }", "<stdin>: ERROR: Expected \";\" but found \"<\"\n")
+}
+
 func TestTSPrivateIdentifiers(t *testing.T) {
 	// The TypeScript compiler still moves private field initializers into the
 	// constructor, but it has to leave the private field declaration in place so

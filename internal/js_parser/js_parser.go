@@ -2053,6 +2053,12 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 						return p.parseProperty(startLoc, js_ast.PropertySet, opts, nil)
 					}
 
+				case "accessor":
+					if !p.lexer.HasNewlineBefore && !opts.isAsync && opts.isClass && raw == name.String {
+						p.markSyntaxFeature(compat.Decorators, nameRange)
+						return p.parseProperty(startLoc, js_ast.PropertyAutoAccessor, opts, nil)
+					}
+
 				case "async":
 					if !p.lexer.HasNewlineBefore && !opts.isAsync && raw == name.String {
 						opts.isAsync = true
@@ -2186,8 +2192,8 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 				// "class X { foo?: number }"
 				// "class X { foo?(): number }"
 				p.lexer.Next()
-			} else if p.lexer.Token == js_lexer.TExclamation && !p.lexer.HasNewlineBefore &&
-				kind == js_ast.PropertyNormal && !opts.isAsync && !opts.isGenerator {
+			} else if p.lexer.Token == js_lexer.TExclamation && !p.lexer.HasNewlineBefore && !opts.isAsync &&
+				!opts.isGenerator && (kind == js_ast.PropertyNormal || kind == js_ast.PropertyAutoAccessor) {
 				// "class X { foo!: number }"
 				p.lexer.Next()
 				hasDefiniteAssignmentAssertionOperator = true
@@ -2196,14 +2202,14 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 
 		// "class X { foo?<T>(): T }"
 		// "const x = { foo<T>(): T {} }"
-		if !hasDefiniteAssignmentAssertionOperator {
+		if !hasDefiniteAssignmentAssertionOperator && kind != js_ast.PropertyAutoAccessor {
 			hasTypeParameters = p.skipTypeScriptTypeParameters(allowConstModifier) != didNotSkipAnything
 		}
 	}
 
 	// Parse a class field with an optional initial value
-	if opts.isClass && kind == js_ast.PropertyNormal && !opts.isAsync && !opts.isGenerator &&
-		!hasTypeParameters && (p.lexer.Token != js_lexer.TOpenParen || hasDefiniteAssignmentAssertionOperator) {
+	if kind == js_ast.PropertyAutoAccessor || (opts.isClass && kind == js_ast.PropertyNormal && !opts.isAsync && !opts.isGenerator &&
+		!hasTypeParameters && (p.lexer.Token != js_lexer.TOpenParen || hasDefiniteAssignmentAssertionOperator)) {
 		var initializerOrNil js_ast.Expr
 
 		// Forbid the names "constructor" and "prototype" in some cases

@@ -259,6 +259,7 @@ const (
 	PropertyNormal PropertyKind = iota
 	PropertyGet
 	PropertySet
+	PropertyAutoAccessor
 	PropertySpread
 	PropertyDeclare
 	PropertyClassStaticBlock
