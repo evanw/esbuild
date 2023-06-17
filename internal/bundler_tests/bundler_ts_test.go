@@ -1,6 +1,7 @@
 package bundler_tests
 
 import (
+	"regexp"
 	"testing"
 
 	"github.com/evanw/esbuild/internal/compat"
@@ -2467,6 +2468,178 @@ func TestTSPreferJSOverTSInsideNodeModules(t *testing.T) {
 		options: config.Options{
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/out",
+		},
+	})
+}
+
+func TestTSExperimentalDecoratorsManglePropsDefineSemantics(t *testing.T) {
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				class Foo {
+					@dec(1) prop1 = null
+					@dec(2) prop2_ = null
+					@dec(3) ['prop3'] = null
+					@dec(4) ['prop4_'] = null
+					@dec(5) [/* @__KEY__ */ 'prop5'] = null
+					@dec(6) [/* @__KEY__ */ 'prop6_'] = null
+				}
+			`,
+			"/tsconfig.json": `{
+        "compilerOptions": {
+          "experimentalDecorators": true,
+          "useDefineForClassFields": true,
+        },
+			}`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			MangleProps:   regexp.MustCompile("_$"),
+		},
+	})
+}
+
+func TestTSExperimentalDecoratorsManglePropsAssignSemantics(t *testing.T) {
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				class Foo {
+					@dec(1) prop1 = null
+					@dec(2) prop2_ = null
+					@dec(3) ['prop3'] = null
+					@dec(4) ['prop4_'] = null
+					@dec(5) [/* @__KEY__ */ 'prop5'] = null
+					@dec(6) [/* @__KEY__ */ 'prop6_'] = null
+				}
+			`,
+			"/tsconfig.json": `{
+        "compilerOptions": {
+          "experimentalDecorators": true,
+          "useDefineForClassFields": false,
+        },
+			}`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			MangleProps:   regexp.MustCompile("_$"),
+		},
+	})
+}
+
+func TestTSExperimentalDecoratorsManglePropsMethods(t *testing.T) {
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				class Foo {
+					@dec(1) prop1() {}
+					@dec(2) prop2_() {}
+					@dec(3) ['prop3']() {}
+					@dec(4) ['prop4_']() {}
+					@dec(5) [/* @__KEY__ */ 'prop5']() {}
+					@dec(6) [/* @__KEY__ */ 'prop6_']() {}
+				}
+			`,
+			"/tsconfig.json": `{
+        "compilerOptions": {
+          "experimentalDecorators": true,
+        },
+			}`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			MangleProps:   regexp.MustCompile("_$"),
+		},
+	})
+}
+
+func TestTSExperimentalDecoratorsManglePropsStaticDefineSemantics(t *testing.T) {
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				class Foo {
+					@dec(1) static prop1 = null
+					@dec(2) static prop2_ = null
+					@dec(3) static ['prop3'] = null
+					@dec(4) static ['prop4_'] = null
+					@dec(5) static [/* @__KEY__ */ 'prop5'] = null
+					@dec(6) static [/* @__KEY__ */ 'prop6_'] = null
+				}
+			`,
+			"/tsconfig.json": `{
+        "compilerOptions": {
+          "experimentalDecorators": true,
+          "useDefineForClassFields": true,
+        },
+			}`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			MangleProps:   regexp.MustCompile("_$"),
+		},
+	})
+}
+
+func TestTSExperimentalDecoratorsManglePropsStaticAssignSemantics(t *testing.T) {
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				class Foo {
+					@dec(1) static prop1 = null
+					@dec(2) static prop2_ = null
+					@dec(3) static ['prop3'] = null
+					@dec(4) static ['prop4_'] = null
+					@dec(5) static [/* @__KEY__ */ 'prop5'] = null
+					@dec(6) static [/* @__KEY__ */ 'prop6_'] = null
+				}
+			`,
+			"/tsconfig.json": `{
+        "compilerOptions": {
+          "experimentalDecorators": true,
+          "useDefineForClassFields": false,
+        },
+			}`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			MangleProps:   regexp.MustCompile("_$"),
+		},
+	})
+}
+
+func TestTSExperimentalDecoratorsManglePropsStaticMethods(t *testing.T) {
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				class Foo {
+					@dec(1) static prop1() {}
+					@dec(2) static prop2_() {}
+					@dec(3) static ['prop3']() {}
+					@dec(4) static ['prop4_']() {}
+					@dec(5) static [/* @__KEY__ */ 'prop5']() {}
+					@dec(6) static [/* @__KEY__ */ 'prop6_']() {}
+				}
+			`,
+			"/tsconfig.json": `{
+        "compilerOptions": {
+          "experimentalDecorators": true,
+        },
+			}`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			MangleProps:   regexp.MustCompile("_$"),
 		},
 	})
 }

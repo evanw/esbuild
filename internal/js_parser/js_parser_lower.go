@@ -2405,15 +2405,17 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 		// Make sure the order of computed property keys doesn't change. These
 		// expressions have side effects and must be evaluated in order.
 		keyExprNoSideEffects := prop.Key
-		if prop.Flags.Has(js_ast.PropertyIsComputed) &&
-			(len(prop.Decorators) > 0 || mustLowerField || computedPropertyCache.Data != nil) {
+		if prop.Flags.Has(js_ast.PropertyIsComputed) && (len(prop.Decorators) > 0 || mustLowerField || computedPropertyCache.Data != nil) {
 			needsKey := true
 			if len(prop.Decorators) == 0 && (prop.Flags.Has(js_ast.PropertyIsMethod) || shouldOmitFieldInitializer || !mustLowerField) {
 				needsKey = false
 			}
 
-			// Assume all non-string computed keys have important side effects
-			if _, ok := prop.Key.Data.(*js_ast.EString); !ok {
+			// Assume all non-literal computed keys have important side effects
+			switch prop.Key.Data.(type) {
+			case *js_ast.EString, *js_ast.EMangledProp, *js_ast.ENumber:
+				// These have no side effects
+			default:
 				if !needsKey {
 					// Just evaluate the key for its side effects
 					computedPropertyCache = js_ast.JoinWithComma(computedPropertyCache, prop.Key)
@@ -2426,14 +2428,14 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 					prop.Key = js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}}
 					keyExprNoSideEffects = prop.Key
 				}
-			}
 
-			// If this is a computed method, the property value will be used
-			// immediately. In this case we inline all computed properties so far to
-			// make sure all computed properties before this one are evaluated first.
-			if !mustLowerField {
-				prop.Key = computedPropertyCache
-				computedPropertyCache = js_ast.Expr{}
+				// If this is a computed method, the property value will be used
+				// immediately. In this case we inline all computed properties so far to
+				// make sure all computed properties before this one are evaluated first.
+				if !mustLowerField {
+					prop.Key = computedPropertyCache
+					computedPropertyCache = js_ast.Expr{}
+				}
 			}
 		}
 
@@ -2447,11 +2449,17 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 				var descriptorKey js_ast.Expr
 				switch k := keyExprNoSideEffects.Data.(type) {
 				case *js_ast.ENumber:
-					descriptorKey = js_ast.Expr{Loc: loc, Data: &js_ast.ENumber{Value: k.Value}}
+					clone := *k
+					descriptorKey = js_ast.Expr{Loc: loc, Data: &clone}
 				case *js_ast.EString:
-					descriptorKey = js_ast.Expr{Loc: loc, Data: &js_ast.EString{Value: k.Value}}
+					clone := *k
+					descriptorKey = js_ast.Expr{Loc: loc, Data: &clone}
 				case *js_ast.EIdentifier:
-					descriptorKey = js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: k.Ref}}
+					clone := *k
+					descriptorKey = js_ast.Expr{Loc: loc, Data: &clone}
+				case *js_ast.EMangledProp:
+					clone := *k
+					descriptorKey = js_ast.Expr{Loc: loc, Data: &clone}
 				default:
 					panic("Internal error")
 				}

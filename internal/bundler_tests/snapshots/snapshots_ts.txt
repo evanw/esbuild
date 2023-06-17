@@ -896,6 +896,206 @@ export {
 };
 
 ================================================================================
+TestTSExperimentalDecoratorsManglePropsAssignSemantics
+---------- /out.js ----------
+// entry.ts
+var Foo = class {
+  constructor() {
+    this.prop1 = null;
+    this.a = null;
+    this["prop3"] = null;
+    this["prop4_"] = null;
+    this[/* @__KEY__ */ "prop5"] = null;
+    this.b = null;
+  }
+};
+__decorateClass([
+  dec(1)
+], Foo.prototype, "prop1", 2);
+__decorateClass([
+  dec(2)
+], Foo.prototype, "a", 2);
+__decorateClass([
+  dec(3)
+], Foo.prototype, "prop3", 2);
+__decorateClass([
+  dec(4)
+], Foo.prototype, "prop4_", 2);
+__decorateClass([
+  dec(5)
+], Foo.prototype, /* @__KEY__ */ "prop5", 2);
+__decorateClass([
+  dec(6)
+], Foo.prototype, /* @__KEY__ */ "b", 2);
+
+================================================================================
+TestTSExperimentalDecoratorsManglePropsDefineSemantics
+---------- /out.js ----------
+// entry.ts
+var Foo = class {
+  prop1 = null;
+  a = null;
+  ["prop3"] = null;
+  ["prop4_"] = null;
+  [/* @__KEY__ */ "prop5"] = null;
+  [/* @__KEY__ */ "b"] = null;
+};
+__decorateClass([
+  dec(1)
+], Foo.prototype, "prop1", 2);
+__decorateClass([
+  dec(2)
+], Foo.prototype, "a", 2);
+__decorateClass([
+  dec(3)
+], Foo.prototype, "prop3", 2);
+__decorateClass([
+  dec(4)
+], Foo.prototype, "prop4_", 2);
+__decorateClass([
+  dec(5)
+], Foo.prototype, /* @__KEY__ */ "prop5", 2);
+__decorateClass([
+  dec(6)
+], Foo.prototype, /* @__KEY__ */ "b", 2);
+
+================================================================================
+TestTSExperimentalDecoratorsManglePropsMethods
+---------- /out.js ----------
+// entry.ts
+var Foo = class {
+  prop1() {
+  }
+  a() {
+  }
+  ["prop3"]() {
+  }
+  ["prop4_"]() {
+  }
+  [/* @__KEY__ */ "prop5"]() {
+  }
+  [/* @__KEY__ */ "b"]() {
+  }
+};
+__decorateClass([
+  dec(1)
+], Foo.prototype, "prop1", 1);
+__decorateClass([
+  dec(2)
+], Foo.prototype, "a", 1);
+__decorateClass([
+  dec(3)
+], Foo.prototype, "prop3", 1);
+__decorateClass([
+  dec(4)
+], Foo.prototype, "prop4_", 1);
+__decorateClass([
+  dec(5)
+], Foo.prototype, /* @__KEY__ */ "prop5", 1);
+__decorateClass([
+  dec(6)
+], Foo.prototype, /* @__KEY__ */ "b", 1);
+
+================================================================================
+TestTSExperimentalDecoratorsManglePropsStaticAssignSemantics
+---------- /out.js ----------
+// entry.ts
+var Foo = class {
+};
+Foo.prop1 = null;
+Foo.a = null;
+Foo["prop3"] = null;
+Foo["prop4_"] = null;
+Foo[/* @__KEY__ */ "prop5"] = null;
+Foo.b = null;
+__decorateClass([
+  dec(1)
+], Foo, "prop1", 2);
+__decorateClass([
+  dec(2)
+], Foo, "a", 2);
+__decorateClass([
+  dec(3)
+], Foo, "prop3", 2);
+__decorateClass([
+  dec(4)
+], Foo, "prop4_", 2);
+__decorateClass([
+  dec(5)
+], Foo, /* @__KEY__ */ "prop5", 2);
+__decorateClass([
+  dec(6)
+], Foo, /* @__KEY__ */ "b", 2);
+
+================================================================================
+TestTSExperimentalDecoratorsManglePropsStaticDefineSemantics
+---------- /out.js ----------
+// entry.ts
+var Foo = class {
+  static prop1 = null;
+  static a = null;
+  static ["prop3"] = null;
+  static ["prop4_"] = null;
+  static [/* @__KEY__ */ "prop5"] = null;
+  static [/* @__KEY__ */ "b"] = null;
+};
+__decorateClass([
+  dec(1)
+], Foo, "prop1", 2);
+__decorateClass([
+  dec(2)
+], Foo, "a", 2);
+__decorateClass([
+  dec(3)
+], Foo, "prop3", 2);
+__decorateClass([
+  dec(4)
+], Foo, "prop4_", 2);
+__decorateClass([
+  dec(5)
+], Foo, /* @__KEY__ */ "prop5", 2);
+__decorateClass([
+  dec(6)
+], Foo, /* @__KEY__ */ "b", 2);
+
+================================================================================
+TestTSExperimentalDecoratorsManglePropsStaticMethods
+---------- /out.js ----------
+// entry.ts
+var Foo = class {
+  static prop1() {
+  }
+  static a() {
+  }
+  static ["prop3"]() {
+  }
+  static ["prop4_"]() {
+  }
+  static [/* @__KEY__ */ "prop5"]() {
+  }
+  static [/* @__KEY__ */ "b"]() {
+  }
+};
+__decorateClass([
+  dec(1)
+], Foo, "prop1", 1);
+__decorateClass([
+  dec(2)
+], Foo, "a", 1);
+__decorateClass([
+  dec(3)
+], Foo, "prop3", 1);
+__decorateClass([
+  dec(4)
+], Foo, "prop4_", 1);
+__decorateClass([
+  dec(5)
+], Foo, /* @__KEY__ */ "prop5", 1);
+__decorateClass([
+  dec(6)
+], Foo, /* @__KEY__ */ "b", 1);
+
+================================================================================
 TestTSExportDefaultTypeIssue316
 ---------- /out.js ----------
 // keep/declare-class.ts
