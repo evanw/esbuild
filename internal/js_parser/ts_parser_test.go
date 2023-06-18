@@ -800,6 +800,21 @@ func TestTSAutoAccessors(t *testing.T) {
 
 	expectParseErrorTS(t, "class Foo { accessor x<T> }", "<stdin>: ERROR: Expected \";\" but found \"<\"\n")
 	expectParseErrorTS(t, "class Foo { accessor x<T>() {} }", "<stdin>: ERROR: Expected \";\" but found \"<\"\n")
+
+	expectPrintedTS(t, "declare class Foo { accessor x }", "")
+	expectPrintedTS(t, "declare class Foo { accessor #x }", "")
+	expectPrintedTS(t, "declare class Foo { static accessor x }", "")
+	expectPrintedTS(t, "declare class Foo { static accessor #x }", "")
+
+	// TypeScript doesn't allow these combinations, but we shouldn't crash
+	expectPrintedTS(t, "class Foo { declare accessor x }", "class Foo {\n}\n")
+	expectPrintedTS(t, "class Foo { readonly accessor x }", "class Foo {\n  accessor x;\n}\n")
+	expectPrintedTS(t, "interface Foo { accessor x }", "")
+	expectPrintedTS(t, "interface Foo { static accessor x }", "")
+	expectPrintedTS(t, "let x: { accessor x }", "let x;\n")
+	expectPrintedTS(t, "let x: { static accessor x }", "let x;\n")
+	expectParseErrorTS(t, "class Foo { accessor declare x }", "<stdin>: ERROR: Expected \";\" but found \"x\"\n")
+	expectParseErrorTS(t, "class Foo { accessor readonly x }", "<stdin>: ERROR: Expected \";\" but found \"x\"\n")
 }
 
 func TestTSPrivateIdentifiers(t *testing.T) {
