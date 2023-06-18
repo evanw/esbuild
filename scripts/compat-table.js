@@ -125,18 +125,25 @@ function mergeVersions(target, res, omit = []) {
   // like "chrome44: true, chrome45: true, chrome46: true, ..." so we want to
   // take the minimum version to find the boundary.
   const lowestVersionMap = {}
+  // If current feature target is not supported for all versions, we will tag
+  // version[target] = { unsupported: true } to exclude it even other 
+  // sub-features is supported
+  const unsupportedEngines = new Set();
 
   for (const key in res) {
-    if (getValueOfTest(res[key])) {
-      const match = /^([a-z_]+)[0-9_]+$/.exec(key)
-      if (match) {
-        const engine = match[1]
+    const match = /^([a-z_]+)[0-9_]+$/.exec(key)
+    if (match) {
+      const engine = match[1]
+      if (getValueOfTest(res[key])) {
         if (engines.indexOf(engine) >= 0 && omit.indexOf(engine) < 0) {
           const version = parseEnvsVersions({ [key]: true })[engine][0].version
           if (!lowestVersionMap[engine] || compareVersions({ version }, { version: lowestVersionMap[engine] }) < 0) {
             lowestVersionMap[engine] = version
+            unsupportedEngines.delete(engine)
           }
         }
+      } else if (engines.indexOf(engine) >= 0 && !lowestVersionMap[engine]) {
+        unsupportedEngines.add(engine)
       }
     }
   }
@@ -145,7 +152,14 @@ function mergeVersions(target, res, omit = []) {
   // support a given feature if the version is greater than the maximum version
   // for all subtests. This is the inverse of the minimum test below.
   const highestVersionMap = versions[target] || (versions[target] = {})
+  unsupportedEngines.forEach(function(engine) {
+    versions[target][engine] = [{ start: null, end: null, unsupported: true }]
+  })
   for (const engine in lowestVersionMap) {
+    if (highestVersionMap[engine] && highestVersionMap[engine].unsupported) {
+      // ignore unsupported engines
+      continue;
+    }
     const version = lowestVersionMap[engine]
     if (!highestVersionMap[engine] || compareVersions({ version }, { version: highestVersionMap[engine][0].start }) > 0) {
       highestVersionMap[engine] = [{ start: version, end: null }]
@@ -495,6 +509,14 @@ for (const test of [...es5.tests, ...es6.tests, ...stage4.tests, ...stage1to3.te
 for (const feature in features) {
   if (!features[feature].found) {
     throw new Error(`Did not find ${feature}`)
+  }
+}
+
+for (const target in versions) {
+  for (const engine in versions[target]) {
+    if (versions[target][engine][0] && versions[target][engine][0].unsupported) {
+      delete versions[target][engine]
+    }
   }
 }
 
