@@ -1968,7 +1968,7 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 		p.lexer.Next()
 
 	case js_lexer.TPrivateIdentifier:
-		if !opts.isClass || len(opts.decorators) > 0 {
+		if !opts.isClass || (p.options.ts.Config.ExperimentalDecorators == config.True && len(opts.decorators) > 0) {
 			p.lexer.Expected(js_lexer.TIdentifier)
 		}
 		if opts.tsDeclareRange.Len != 0 {

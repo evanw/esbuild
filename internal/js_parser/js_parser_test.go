@@ -1982,6 +1982,23 @@ func TestAutoAccessors(t *testing.T) {
 	expectParseError(t, "Foo = class { static accessor x, y }", "<stdin>: ERROR: Expected \";\" but found \",\"\n")
 }
 
+func TestDecorators(t *testing.T) {
+	expectPrinted(t, "class Foo { @x y }", "class Foo {\n  @x\n  y;\n}\n")
+	expectPrinted(t, "class Foo { @x y() {} }", "class Foo {\n  @x\n  y() {\n  }\n}\n")
+	expectPrinted(t, "class Foo { @x static y }", "class Foo {\n  @x\n  static y;\n}\n")
+	expectPrinted(t, "class Foo { @x static y() {} }", "class Foo {\n  @x\n  static y() {\n  }\n}\n")
+	expectPrinted(t, "class Foo { @x accessor y }", "class Foo {\n  @x\n  accessor y;\n}\n")
+
+	expectPrinted(t, "class Foo { @x #y }", "class Foo {\n  @x\n  #y;\n}\n")
+	expectPrinted(t, "class Foo { @x #y() {} }", "class Foo {\n  @x\n  #y() {\n  }\n}\n")
+	expectPrinted(t, "class Foo { @x static #y }", "class Foo {\n  @x\n  static #y;\n}\n")
+	expectPrinted(t, "class Foo { @x static #y() {} }", "class Foo {\n  @x\n  static #y() {\n  }\n}\n")
+	expectPrinted(t, "class Foo { @x accessor #y }", "class Foo {\n  @x\n  accessor #y;\n}\n")
+
+	expectParseError(t, "class Foo { x(@y z) {} }", "<stdin>: ERROR: Parameter decorators are not allowed in JavaScript\n")
+	expectParseError(t, "class Foo { @x static {} }", "<stdin>: ERROR: Expected \";\" but found \"{\"\n")
+}
+
 func TestGenerator(t *testing.T) {
 	expectParseError(t, "(class { * foo })", "<stdin>: ERROR: Expected \"(\" but found \"}\"\n")
 	expectParseError(t, "(class { * *foo() {} })", "<stdin>: ERROR: Unexpected \"*\"\n")
