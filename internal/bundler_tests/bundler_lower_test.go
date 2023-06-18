@@ -2422,3 +2422,206 @@ func TestJavaScriptDecoratorsESNext(t *testing.T) {
 		},
 	})
 }
+
+func TestJavaScriptAutoAccessorESNext(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/js-define.js": `
+				class Foo {
+					accessor one = 1
+					accessor #two = 2
+					accessor [three()] = 3
+
+					static accessor four = 4
+					static accessor #five = 5
+					static accessor [six()] = 6
+				}
+			`,
+			"/ts-define/ts-define.ts": `
+				class Foo {
+					accessor one = 1
+					accessor #two = 2
+					accessor [three()] = 3
+
+					static accessor four = 4
+					static accessor #five = 5
+					static accessor [six()] = 6
+				}
+				class Normal { accessor a = b; c = d }
+				class Private { accessor #a = b; c = d }
+				class StaticNormal { static accessor a = b; static c = d }
+				class StaticPrivate { static accessor #a = b; static c = d }
+			`,
+			"/ts-define/tsconfig.json": `{
+				"compilerOptions": {
+					"useDefineForClassFields": true,
+				},
+			}`,
+			"/ts-assign/ts-assign.ts": `
+				class Foo {
+					accessor one = 1
+					accessor #two = 2
+					accessor [three()] = 3
+
+					static accessor four = 4
+					static accessor #five = 5
+					static accessor [six()] = 6
+				}
+				class Normal { accessor a = b; c = d }
+				class Private { accessor #a = b; c = d }
+				class StaticNormal { static accessor a = b; static c = d }
+				class StaticPrivate { static accessor #a = b; static c = d }
+			`,
+			"/ts-assign/tsconfig.json": `{
+				"compilerOptions": {
+					"useDefineForClassFields": false,
+				},
+			}`,
+		},
+		entryPaths: []string{
+			"/js-define.js",
+			"/ts-define/ts-define.ts",
+			"/ts-assign/ts-assign.ts",
+		},
+		options: config.Options{
+			Mode:         config.ModePassThrough,
+			AbsOutputDir: "/out",
+		},
+	})
+}
+
+func TestJavaScriptAutoAccessorES2022(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/js-define.js": `
+				class Foo {
+					accessor one = 1
+					accessor #two = 2
+					accessor [three()] = 3
+
+					static accessor four = 4
+					static accessor #five = 5
+					static accessor [six()] = 6
+				}
+			`,
+			"/ts-define/ts-define.ts": `
+				class Foo {
+					accessor one = 1
+					accessor #two = 2
+					accessor [three()] = 3
+
+					static accessor four = 4
+					static accessor #five = 5
+					static accessor [six()] = 6
+				}
+				class Normal { accessor a = b; c = d }
+				class Private { accessor #a = b; c = d }
+				class StaticNormal { static accessor a = b; static c = d }
+				class StaticPrivate { static accessor #a = b; static c = d }
+			`,
+			"/ts-define/tsconfig.json": `{
+				"compilerOptions": {
+					"useDefineForClassFields": true,
+				},
+			}`,
+			"/ts-assign/ts-assign.ts": `
+				class Foo {
+					accessor one = 1
+					accessor #two = 2
+					accessor [three()] = 3
+
+					static accessor four = 4
+					static accessor #five = 5
+					static accessor [six()] = 6
+				}
+				class Normal { accessor a = b; c = d }
+				class Private { accessor #a = b; c = d }
+				class StaticNormal { static accessor a = b; static c = d }
+				class StaticPrivate { static accessor #a = b; static c = d }
+			`,
+			"/ts-assign/tsconfig.json": `{
+				"compilerOptions": {
+					"useDefineForClassFields": false,
+				},
+			}`,
+		},
+		entryPaths: []string{
+			"/js-define.js",
+			"/ts-define/ts-define.ts",
+			"/ts-assign/ts-assign.ts",
+		},
+		options: config.Options{
+			Mode:                  config.ModePassThrough,
+			AbsOutputDir:          "/out",
+			UnsupportedJSFeatures: es(2022),
+		},
+	})
+}
+
+func TestJavaScriptAutoAccessorES2021(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/js-define.js": `
+				class Foo {
+					accessor one = 1
+					accessor #two = 2
+					accessor [three()] = 3
+
+					static accessor four = 4
+					static accessor #five = 5
+					static accessor [six()] = 6
+				}
+			`,
+			"/ts-define/ts-define.ts": `
+				class Foo {
+					accessor one = 1
+					accessor #two = 2
+					accessor [three()] = 3
+
+					static accessor four = 4
+					static accessor #five = 5
+					static accessor [six()] = 6
+				}
+				class Normal { accessor a = b; c = d }
+				class Private { accessor #a = b; c = d }
+				class StaticNormal { static accessor a = b; static c = d }
+				class StaticPrivate { static accessor #a = b; static c = d }
+			`,
+			"/ts-define/tsconfig.json": `{
+				"compilerOptions": {
+					"useDefineForClassFields": true,
+				},
+			}`,
+			"/ts-assign/ts-assign.ts": `
+				class Foo {
+					accessor one = 1
+					accessor #two = 2
+					accessor [three()] = 3
+
+					static accessor four = 4
+					static accessor #five = 5
+					static accessor [six()] = 6
+				}
+				class Normal { accessor a = b; c = d }
+				class Private { accessor #a = b; c = d }
+				class StaticNormal { static accessor a = b; static c = d }
+				class StaticPrivate { static accessor #a = b; static c = d }
+			`,
+			"/ts-assign/tsconfig.json": `{
+				"compilerOptions": {
+					"useDefineForClassFields": false,
+				},
+			}`,
+		},
+		entryPaths: []string{
+			"/js-define.js",
+			"/ts-define/ts-define.ts",
+			"/ts-assign/ts-assign.ts",
+		},
+		options: config.Options{
+			Mode:                  config.ModePassThrough,
+			AbsOutputDir:          "/out",
+			UnsupportedJSFeatures: es(2021),
+		},
+	})
+}

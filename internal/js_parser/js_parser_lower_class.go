@@ -487,6 +487,20 @@ func (p *parser) computeClassLoweringInfo(class *js_ast.Class) (result classLowe
 			continue
 		}
 
+		if prop.Kind == js_ast.PropertyAutoAccessor {
+			if prop.Flags.Has(js_ast.PropertyIsStatic) {
+				if p.options.unsupportedJSFeatures.Has(compat.ClassPrivateStaticField) {
+					result.lowerAllStaticFields = true
+				}
+			} else {
+				if p.options.unsupportedJSFeatures.Has(compat.ClassPrivateField) {
+					result.lowerAllInstanceFields = true
+					result.lowerAllStaticFields = true
+				}
+			}
+			continue
+		}
+
 		// This doesn't come before the private member check above because
 		// unsupported private methods must also trigger field lowering:
 		//
@@ -641,7 +655,6 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 	var parameterFields []js_ast.Stmt
 	var instanceMembers []js_ast.Stmt
 	var instancePrivateMethods []js_ast.Stmt
-	end := 0
 
 	// These expressions are generated after the class body, in this order
 	var computedPropertyCache js_ast.Expr
@@ -937,6 +950,8 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 	}
 
 	classLoweringInfo := p.computeClassLoweringInfo(class)
+	properties := make([]js_ast.Property, 0, len(class.Properties))
+	autoAccessorCount := 0
 
 	for _, prop := range class.Properties {
 		if prop.Kind == js_ast.PropertyClassStaticBlock {
@@ -982,8 +997,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 			}
 
 			// Keep this property
-			class.Properties[end] = prop
-			end++
+			properties = append(properties, prop)
 			continue
 		}
 
@@ -1047,6 +1061,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 		if p.options.ts.Parse && p.options.ts.Config.ExperimentalDecorators == config.True {
 			propExperimentalDecorators = prop.Decorators
 		}
+		rewriteAutoAccessorToGetSet := prop.Kind == js_ast.PropertyAutoAccessor && (p.options.unsupportedJSFeatures.Has(compat.Decorators) || mustLowerField)
 
 		// Transform non-lowered static fields that use assign semantics into an
 		// assignment in an inline static block instead of lowering them. This lets
@@ -1058,9 +1073,9 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 		// Make sure the order of computed property keys doesn't change. These
 		// expressions have side effects and must be evaluated in order.
 		keyExprNoSideEffects := prop.Key
-		if prop.Flags.Has(js_ast.PropertyIsComputed) && (len(propExperimentalDecorators) > 0 || mustLowerField || staticFieldToBlockAssign || computedPropertyCache.Data != nil) {
+		if prop.Flags.Has(js_ast.PropertyIsComputed) && (len(propExperimentalDecorators) > 0 || mustLowerField || staticFieldToBlockAssign || computedPropertyCache.Data != nil || rewriteAutoAccessorToGetSet) {
 			needsKey := true
-			if len(propExperimentalDecorators) == 0 && (prop.Flags.Has(js_ast.PropertyIsMethod) || shouldOmitFieldInitializer || (!mustLowerField && !staticFieldToBlockAssign)) {
+			if len(propExperimentalDecorators) == 0 && !rewriteAutoAccessorToGetSet && (prop.Flags.Has(js_ast.PropertyIsMethod) || shouldOmitFieldInitializer || (!mustLowerField && !staticFieldToBlockAssign)) {
 				needsKey = false
 			}
 
@@ -1085,7 +1100,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 				// If this is a computed method, the property value will be used
 				// immediately. In this case we inline all computed properties so far to
 				// make sure all computed properties before this one are evaluated first.
-				if !mustLowerField && !staticFieldToBlockAssign {
+				if rewriteAutoAccessorToGetSet || (!mustLowerField && !staticFieldToBlockAssign) {
 					prop.Key = computedPropertyCache
 					computedPropertyCache = js_ast.Expr{}
 				}
@@ -1097,25 +1112,6 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 			// Generate a single call to "__decorateClass()" for this property
 			if len(propExperimentalDecorators) > 0 {
 				loc := prop.Key.Loc
-
-				// Clone the key for the property descriptor
-				var descriptorKey js_ast.Expr
-				switch k := keyExprNoSideEffects.Data.(type) {
-				case *js_ast.ENumber:
-					clone := *k
-					descriptorKey = js_ast.Expr{Loc: loc, Data: &clone}
-				case *js_ast.EString:
-					clone := *k
-					descriptorKey = js_ast.Expr{Loc: loc, Data: &clone}
-				case *js_ast.EIdentifier:
-					clone := *k
-					descriptorKey = js_ast.Expr{Loc: loc, Data: &clone}
-				case *js_ast.EMangledProp:
-					clone := *k
-					descriptorKey = js_ast.Expr{Loc: loc, Data: &clone}
-				default:
-					panic("Internal error")
-				}
 
 				// This code tells "__decorateClass()" if the descriptor should be undefined
 				descriptorKind := float64(1)
@@ -1139,7 +1135,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 				decorator := p.callRuntime(loc, "__decorateClass", []js_ast.Expr{
 					{Loc: loc, Data: &js_ast.EArray{Items: values}},
 					target,
-					descriptorKey,
+					cloneKeyForLowerClass(keyExprNoSideEffects),
 					{Loc: loc, Data: &js_ast.ENumber{Value: descriptorKind}},
 				})
 
@@ -1150,6 +1146,126 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 					instanceDecorators = append(instanceDecorators, decorator)
 				}
 			}
+		}
+
+		// Generate get/set methods for auto-accessors
+		if rewriteAutoAccessorToGetSet {
+			var storageKind js_ast.SymbolKind
+			if prop.Flags.Has(js_ast.PropertyIsStatic) {
+				storageKind = js_ast.SymbolPrivateStaticField
+			} else {
+				storageKind = js_ast.SymbolPrivateField
+			}
+
+			// Generate the name of the private field to use for storage
+			var storageName string
+			switch k := keyExprNoSideEffects.Data.(type) {
+			case *js_ast.EString:
+				storageName = "#" + helpers.UTF16ToString(k.Value)
+			case *js_ast.EPrivateIdentifier:
+				storageName = "#_" + p.symbols[k.Ref.InnerIndex].OriginalName[1:]
+			default:
+				storageName = "#" + js_ast.DefaultNameMinifier.NumberToMinifiedName(autoAccessorCount)
+				autoAccessorCount++
+			}
+
+			// Generate the symbols we need
+			storageRef := p.newSymbol(storageKind, storageName)
+			argRef := p.newSymbol(js_ast.SymbolOther, "_")
+			result.bodyScope.Generated = append(result.bodyScope.Generated, storageRef)
+			result.bodyScope.Children = append(result.bodyScope.Children, &js_ast.Scope{Kind: js_ast.ScopeFunctionBody, Generated: []js_ast.Ref{argRef}})
+
+			// Replace this accessor with other properties
+			loc := keyExprNoSideEffects.Loc
+			storagePrivate := &js_ast.EPrivateIdentifier{Ref: storageRef}
+			storageNeedsToBeLowered := p.privateSymbolNeedsToBeLowered(storagePrivate)
+			storageProp := js_ast.Property{
+				Loc:              prop.Loc,
+				Kind:             js_ast.PropertyNormal,
+				Flags:            prop.Flags & js_ast.PropertyIsStatic,
+				Key:              js_ast.Expr{Loc: loc, Data: storagePrivate},
+				InitializerOrNil: prop.InitializerOrNil,
+			}
+			if !mustLowerField {
+				properties = append(properties, storageProp)
+			} else if prop, ok := lowerField(storageProp, storagePrivate, false, false); ok {
+				properties = append(properties, prop)
+			}
+
+			// Getter
+			var getExpr js_ast.Expr
+			if storageNeedsToBeLowered {
+				getExpr = p.lowerPrivateGet(js_ast.Expr{Loc: loc, Data: js_ast.EThisShared}, loc, storagePrivate)
+			} else {
+				p.recordUsage(storageRef)
+				getExpr = js_ast.Expr{Loc: loc, Data: &js_ast.EIndex{
+					Target: js_ast.Expr{Loc: loc, Data: js_ast.EThisShared},
+					Index:  js_ast.Expr{Loc: loc, Data: &js_ast.EPrivateIdentifier{Ref: storageRef}},
+				}}
+			}
+			getterProp := js_ast.Property{
+				Loc:   prop.Loc,
+				Kind:  js_ast.PropertyGet,
+				Flags: prop.Flags | js_ast.PropertyIsMethod,
+				Key:   prop.Key,
+				ValueOrNil: js_ast.Expr{Loc: loc, Data: &js_ast.EFunction{
+					Fn: js_ast.Fn{
+						Body: js_ast.FnBody{
+							Loc: loc,
+							Block: js_ast.SBlock{
+								Stmts: []js_ast.Stmt{
+									{Loc: loc, Data: &js_ast.SReturn{ValueOrNil: getExpr}},
+								},
+							},
+						},
+					},
+				}},
+			}
+			if !lowerMethod(getterProp, private) {
+				properties = append(properties, getterProp)
+			}
+
+			// Setter
+			var setExpr js_ast.Expr
+			if storageNeedsToBeLowered {
+				setExpr = p.lowerPrivateSet(js_ast.Expr{Loc: loc, Data: js_ast.EThisShared}, loc, storagePrivate,
+					js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: argRef}})
+			} else {
+				p.recordUsage(storageRef)
+				p.recordUsage(argRef)
+				setExpr = js_ast.Assign(
+					js_ast.Expr{Loc: loc, Data: &js_ast.EIndex{
+						Target: js_ast.Expr{Loc: loc, Data: js_ast.EThisShared},
+						Index:  js_ast.Expr{Loc: loc, Data: &js_ast.EPrivateIdentifier{Ref: storageRef}},
+					}},
+					js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: argRef}},
+				)
+			}
+			setterProp := js_ast.Property{
+				Loc:   prop.Loc,
+				Kind:  js_ast.PropertySet,
+				Flags: prop.Flags | js_ast.PropertyIsMethod,
+				Key:   cloneKeyForLowerClass(keyExprNoSideEffects),
+				ValueOrNil: js_ast.Expr{Loc: loc, Data: &js_ast.EFunction{
+					Fn: js_ast.Fn{
+						Args: []js_ast.Arg{
+							{Binding: js_ast.Binding{Loc: loc, Data: &js_ast.BIdentifier{Ref: argRef}}},
+						},
+						Body: js_ast.FnBody{
+							Loc: loc,
+							Block: js_ast.SBlock{
+								Stmts: []js_ast.Stmt{
+									{Loc: loc, Data: &js_ast.SExpr{Value: setExpr}},
+								},
+							},
+						},
+					},
+				}},
+			}
+			if !lowerMethod(setterProp, private) {
+				properties = append(properties, setterProp)
+			}
+			continue
 		}
 
 		// Lower fields
@@ -1167,12 +1283,11 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 		}
 
 		// Keep this property
-		class.Properties[end] = prop
-		end++
+		properties = append(properties, prop)
 	}
 
 	// Finish the filtering operation
-	class.Properties = class.Properties[:end]
+	class.Properties = properties
 
 	// If there are expressions with side effects left over and static blocks are
 	// supported, insert a static block at the start of the class body. This is
@@ -1529,6 +1644,29 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 		}})
 	}
 	return stmts, js_ast.Expr{}
+}
+
+func cloneKeyForLowerClass(key js_ast.Expr) js_ast.Expr {
+	switch k := key.Data.(type) {
+	case *js_ast.ENumber:
+		clone := *k
+		key.Data = &clone
+	case *js_ast.EString:
+		clone := *k
+		key.Data = &clone
+	case *js_ast.EIdentifier:
+		clone := *k
+		key.Data = &clone
+	case *js_ast.EMangledProp:
+		clone := *k
+		key.Data = &clone
+	case *js_ast.EPrivateIdentifier:
+		clone := *k
+		key.Data = &clone
+	default:
+		panic("Internal error")
+	}
+	return key
 }
 
 // Replace "super()" calls with our shim so that we can guarantee

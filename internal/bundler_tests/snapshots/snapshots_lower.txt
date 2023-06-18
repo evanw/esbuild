@@ -17,6 +17,608 @@ export class B extends A {
 _e = new WeakMap();
 
 ================================================================================
+TestJavaScriptAutoAccessorES2021
+---------- /out/js-define.js ----------
+var _one, __two, _two, two_get, two_set, _a, _a2, _four, __five, _five, five_get, five_set, _b, _b2;
+class Foo {
+  constructor() {
+    __privateAdd(this, _two);
+    __privateAdd(this, _one, 1);
+    __privateAdd(this, __two, 2);
+    __privateAdd(this, _a2, 3);
+  }
+  get one() {
+    return __privateGet(this, _one);
+  }
+  set one(_) {
+    __privateSet(this, _one, _);
+  }
+  get [_a = three()]() {
+    return __privateGet(this, _a2);
+  }
+  set [_a](_) {
+    __privateSet(this, _a2, _);
+  }
+  static get four() {
+    return __privateGet(this, _four);
+  }
+  static set four(_) {
+    __privateSet(this, _four, _);
+  }
+  static get [_b = six()]() {
+    return __privateGet(this, _b2);
+  }
+  static set [_b](_) {
+    __privateSet(this, _b2, _);
+  }
+}
+_one = new WeakMap();
+__two = new WeakMap();
+_two = new WeakSet();
+two_get = function() {
+  return __privateGet(this, __two);
+};
+two_set = function(_) {
+  __privateSet(this, __two, _);
+};
+_a2 = new WeakMap();
+_four = new WeakMap();
+__five = new WeakMap();
+_five = new WeakSet();
+five_get = function() {
+  return __privateGet(this, __five);
+};
+five_set = function(_) {
+  __privateSet(this, __five, _);
+};
+_b2 = new WeakMap();
+__privateAdd(Foo, _five);
+__privateAdd(Foo, _four, 4);
+__privateAdd(Foo, __five, 5);
+__privateAdd(Foo, _b2, 6);
+
+---------- /out/ts-define/ts-define.js ----------
+var _one, __two, _two, two_get, two_set, _a, _a2, _four, __five, _five, five_get, five_set, _b, _b2, _a3, __a, _a4, a_get, a_set, _a5, __a2, _a6, a_get2, a_set2;
+class Foo {
+  constructor() {
+    __privateAdd(this, _two);
+    __privateAdd(this, _one, 1);
+    __privateAdd(this, __two, 2);
+    __privateAdd(this, _a2, 3);
+  }
+  get one() {
+    return __privateGet(this, _one);
+  }
+  set one(_) {
+    __privateSet(this, _one, _);
+  }
+  get [_a = three()]() {
+    return __privateGet(this, _a2);
+  }
+  set [_a](_) {
+    __privateSet(this, _a2, _);
+  }
+  static get four() {
+    return __privateGet(this, _four);
+  }
+  static set four(_) {
+    __privateSet(this, _four, _);
+  }
+  static get [_b = six()]() {
+    return __privateGet(this, _b2);
+  }
+  static set [_b](_) {
+    __privateSet(this, _b2, _);
+  }
+}
+_one = new WeakMap();
+__two = new WeakMap();
+_two = new WeakSet();
+two_get = function() {
+  return __privateGet(this, __two);
+};
+two_set = function(_) {
+  __privateSet(this, __two, _);
+};
+_a2 = new WeakMap();
+_four = new WeakMap();
+__five = new WeakMap();
+_five = new WeakSet();
+five_get = function() {
+  return __privateGet(this, __five);
+};
+five_set = function(_) {
+  __privateSet(this, __five, _);
+};
+_b2 = new WeakMap();
+__privateAdd(Foo, _five);
+__privateAdd(Foo, _four, 4);
+__privateAdd(Foo, __five, 5);
+__privateAdd(Foo, _b2, 6);
+class Normal {
+  constructor() {
+    __privateAdd(this, _a3, b);
+    __publicField(this, "c", d);
+  }
+  get a() {
+    return __privateGet(this, _a3);
+  }
+  set a(_) {
+    __privateSet(this, _a3, _);
+  }
+}
+_a3 = new WeakMap();
+class Private {
+  constructor() {
+    __privateAdd(this, _a4);
+    __privateAdd(this, __a, b);
+    __publicField(this, "c", d);
+  }
+}
+__a = new WeakMap();
+_a4 = new WeakSet();
+a_get = function() {
+  return __privateGet(this, __a);
+};
+a_set = function(_) {
+  __privateSet(this, __a, _);
+};
+class StaticNormal {
+  static get a() {
+    return __privateGet(this, _a5);
+  }
+  static set a(_) {
+    __privateSet(this, _a5, _);
+  }
+}
+_a5 = new WeakMap();
+__privateAdd(StaticNormal, _a5, b);
+__publicField(StaticNormal, "c", d);
+class StaticPrivate {
+}
+__a2 = new WeakMap();
+_a6 = new WeakSet();
+a_get2 = function() {
+  return __privateGet(this, __a2);
+};
+a_set2 = function(_) {
+  __privateSet(this, __a2, _);
+};
+__privateAdd(StaticPrivate, _a6);
+__privateAdd(StaticPrivate, __a2, b);
+__publicField(StaticPrivate, "c", d);
+
+---------- /out/ts-assign/ts-assign.js ----------
+var _one, __two, _two, two_get, two_set, _a, _a2, _four, __five, _five, five_get, five_set, _b, _b2, _a3, __a, _a4, a_get, a_set, _a5, __a2, _a6, a_get2, a_set2;
+class Foo {
+  constructor() {
+    __privateAdd(this, _two);
+    __privateAdd(this, _one, 1);
+    __privateAdd(this, __two, 2);
+    __privateAdd(this, _a2, 3);
+  }
+  get one() {
+    return __privateGet(this, _one);
+  }
+  set one(_) {
+    __privateSet(this, _one, _);
+  }
+  get [_a = three()]() {
+    return __privateGet(this, _a2);
+  }
+  set [_a](_) {
+    __privateSet(this, _a2, _);
+  }
+  static get four() {
+    return __privateGet(this, _four);
+  }
+  static set four(_) {
+    __privateSet(this, _four, _);
+  }
+  static get [_b = six()]() {
+    return __privateGet(this, _b2);
+  }
+  static set [_b](_) {
+    __privateSet(this, _b2, _);
+  }
+}
+_one = new WeakMap();
+__two = new WeakMap();
+_two = new WeakSet();
+two_get = function() {
+  return __privateGet(this, __two);
+};
+two_set = function(_) {
+  __privateSet(this, __two, _);
+};
+_a2 = new WeakMap();
+_four = new WeakMap();
+__five = new WeakMap();
+_five = new WeakSet();
+five_get = function() {
+  return __privateGet(this, __five);
+};
+five_set = function(_) {
+  __privateSet(this, __five, _);
+};
+_b2 = new WeakMap();
+__privateAdd(Foo, _five);
+__privateAdd(Foo, _four, 4);
+__privateAdd(Foo, __five, 5);
+__privateAdd(Foo, _b2, 6);
+class Normal {
+  constructor() {
+    __privateAdd(this, _a3, b);
+    this.c = d;
+  }
+  get a() {
+    return __privateGet(this, _a3);
+  }
+  set a(_) {
+    __privateSet(this, _a3, _);
+  }
+}
+_a3 = new WeakMap();
+class Private {
+  constructor() {
+    __privateAdd(this, _a4);
+    __privateAdd(this, __a, b);
+    this.c = d;
+  }
+}
+__a = new WeakMap();
+_a4 = new WeakSet();
+a_get = function() {
+  return __privateGet(this, __a);
+};
+a_set = function(_) {
+  __privateSet(this, __a, _);
+};
+class StaticNormal {
+  static get a() {
+    return __privateGet(this, _a5);
+  }
+  static set a(_) {
+    __privateSet(this, _a5, _);
+  }
+}
+_a5 = new WeakMap();
+__privateAdd(StaticNormal, _a5, b);
+StaticNormal.c = d;
+class StaticPrivate {
+}
+__a2 = new WeakMap();
+_a6 = new WeakSet();
+a_get2 = function() {
+  return __privateGet(this, __a2);
+};
+a_set2 = function(_) {
+  __privateSet(this, __a2, _);
+};
+__privateAdd(StaticPrivate, _a6);
+__privateAdd(StaticPrivate, __a2, b);
+StaticPrivate.c = d;
+
+================================================================================
+TestJavaScriptAutoAccessorES2022
+---------- /out/js-define.js ----------
+var _a, _b;
+class Foo {
+  #one = 1;
+  get one() {
+    return this.#one;
+  }
+  set one(_) {
+    this.#one = _;
+  }
+  #_two = 2;
+  get #two() {
+    return this.#_two;
+  }
+  set #two(_) {
+    this.#_two = _;
+  }
+  #a = 3;
+  get [_a = three()]() {
+    return this.#a;
+  }
+  set [_a](_) {
+    this.#a = _;
+  }
+  static #four = 4;
+  static get four() {
+    return this.#four;
+  }
+  static set four(_) {
+    this.#four = _;
+  }
+  static #_five = 5;
+  static get #five() {
+    return this.#_five;
+  }
+  static set #five(_) {
+    this.#_five = _;
+  }
+  static #b = 6;
+  static get [_b = six()]() {
+    return this.#b;
+  }
+  static set [_b](_) {
+    this.#b = _;
+  }
+}
+
+---------- /out/ts-define/ts-define.js ----------
+var _a, _b;
+class Foo {
+  #one = 1;
+  get one() {
+    return this.#one;
+  }
+  set one(_) {
+    this.#one = _;
+  }
+  #_two = 2;
+  get #two() {
+    return this.#_two;
+  }
+  set #two(_) {
+    this.#_two = _;
+  }
+  #a = 3;
+  get [_a = three()]() {
+    return this.#a;
+  }
+  set [_a](_) {
+    this.#a = _;
+  }
+  static #four = 4;
+  static get four() {
+    return this.#four;
+  }
+  static set four(_) {
+    this.#four = _;
+  }
+  static #_five = 5;
+  static get #five() {
+    return this.#_five;
+  }
+  static set #five(_) {
+    this.#_five = _;
+  }
+  static #b = 6;
+  static get [_b = six()]() {
+    return this.#b;
+  }
+  static set [_b](_) {
+    this.#b = _;
+  }
+}
+class Normal {
+  #a = b;
+  get a() {
+    return this.#a;
+  }
+  set a(_) {
+    this.#a = _;
+  }
+  c = d;
+}
+class Private {
+  #_a = b;
+  get #a() {
+    return this.#_a;
+  }
+  set #a(_) {
+    this.#_a = _;
+  }
+  c = d;
+}
+class StaticNormal {
+  static #a = b;
+  static get a() {
+    return this.#a;
+  }
+  static set a(_) {
+    this.#a = _;
+  }
+  static c = d;
+}
+class StaticPrivate {
+  static #_a = b;
+  static get #a() {
+    return this.#_a;
+  }
+  static set #a(_) {
+    this.#_a = _;
+  }
+  static c = d;
+}
+
+---------- /out/ts-assign/ts-assign.js ----------
+var _a, _b;
+class Foo {
+  #one = 1;
+  get one() {
+    return this.#one;
+  }
+  set one(_) {
+    this.#one = _;
+  }
+  #_two = 2;
+  get #two() {
+    return this.#_two;
+  }
+  set #two(_) {
+    this.#_two = _;
+  }
+  #a = 3;
+  get [_a = three()]() {
+    return this.#a;
+  }
+  set [_a](_) {
+    this.#a = _;
+  }
+  static #four = 4;
+  static get four() {
+    return this.#four;
+  }
+  static set four(_) {
+    this.#four = _;
+  }
+  static #_five = 5;
+  static get #five() {
+    return this.#_five;
+  }
+  static set #five(_) {
+    this.#_five = _;
+  }
+  static #b = 6;
+  static get [_b = six()]() {
+    return this.#b;
+  }
+  static set [_b](_) {
+    this.#b = _;
+  }
+}
+class Normal {
+  constructor() {
+    this.#a = b;
+    this.c = d;
+  }
+  #a;
+  get a() {
+    return this.#a;
+  }
+  set a(_) {
+    this.#a = _;
+  }
+}
+class Private {
+  constructor() {
+    this.#_a = b;
+    this.c = d;
+  }
+  #_a;
+  get #a() {
+    return this.#_a;
+  }
+  set #a(_) {
+    this.#_a = _;
+  }
+}
+class StaticNormal {
+  static #a = b;
+  static get a() {
+    return this.#a;
+  }
+  static set a(_) {
+    this.#a = _;
+  }
+  static {
+    this.c = d;
+  }
+}
+class StaticPrivate {
+  static #_a = b;
+  static get #a() {
+    return this.#_a;
+  }
+  static set #a(_) {
+    this.#_a = _;
+  }
+  static {
+    this.c = d;
+  }
+}
+
+================================================================================
+TestJavaScriptAutoAccessorESNext
+---------- /out/js-define.js ----------
+class Foo {
+  accessor one = 1;
+  accessor #two = 2;
+  accessor [three()] = 3;
+  static accessor four = 4;
+  static accessor #five = 5;
+  static accessor [six()] = 6;
+}
+
+---------- /out/ts-define/ts-define.js ----------
+class Foo {
+  accessor one = 1;
+  accessor #two = 2;
+  accessor [three()] = 3;
+  static accessor four = 4;
+  static accessor #five = 5;
+  static accessor [six()] = 6;
+}
+class Normal {
+  accessor a = b;
+  c = d;
+}
+class Private {
+  accessor #a = b;
+  c = d;
+}
+class StaticNormal {
+  static accessor a = b;
+  static c = d;
+}
+class StaticPrivate {
+  static accessor #a = b;
+  static c = d;
+}
+
+---------- /out/ts-assign/ts-assign.js ----------
+class Foo {
+  accessor one = 1;
+  accessor #two = 2;
+  accessor [three()] = 3;
+  static accessor four = 4;
+  static accessor #five = 5;
+  static accessor [six()] = 6;
+}
+class Normal {
+  constructor() {
+    this.#a = b;
+    this.c = d;
+  }
+  #a;
+  get a() {
+    return this.#a;
+  }
+  set a(_) {
+    this.#a = _;
+  }
+}
+class Private {
+  constructor() {
+    this.#_a = b;
+    this.c = d;
+  }
+  #_a;
+  get #a() {
+    return this.#_a;
+  }
+  set #a(_) {
+    this.#_a = _;
+  }
+}
+class StaticNormal {
+  static accessor a = b;
+  static {
+    this.c = d;
+  }
+}
+class StaticPrivate {
+  static accessor #a = b;
+  static {
+    this.c = d;
+  }
+}
+
+================================================================================
 TestJavaScriptDecoratorsESNext
 ---------- /out.js ----------
 @x.y()

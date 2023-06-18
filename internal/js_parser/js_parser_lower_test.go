@@ -764,3 +764,23 @@ func TestForAwait(t *testing.T) {
 		"<stdin>: ERROR: With statements cannot be used in an ECMAScript module\n"+
 			"<stdin>: NOTE: This file is considered to be an ECMAScript module because of the top-level \"await\" keyword here:\n")
 }
+
+func TestLowerAutoAccessors(t *testing.T) {
+	expectPrintedWithUnsupportedFeatures(t, compat.Decorators, "class Foo { accessor x }",
+		"class Foo {\n  #x;\n  get x() {\n    return this.#x;\n  }\n  set x(_) {\n    this.#x = _;\n  }\n}\n")
+	expectPrintedWithUnsupportedFeatures(t, compat.Decorators, "class Foo { accessor [x] }",
+		"var _a;\nclass Foo {\n  #a;\n  get [_a = x]() {\n    return this.#a;\n  }\n  set [_a](_) {\n    this.#a = _;\n  }\n}\n")
+	expectPrintedWithUnsupportedFeatures(t, compat.Decorators, "class Foo { accessor x = null }",
+		"class Foo {\n  #x = null;\n  get x() {\n    return this.#x;\n  }\n  set x(_) {\n    this.#x = _;\n  }\n}\n")
+	expectPrintedWithUnsupportedFeatures(t, compat.Decorators, "class Foo { accessor [x] = null }",
+		"var _a;\nclass Foo {\n  #a = null;\n  get [_a = x]() {\n    return this.#a;\n  }\n  set [_a](_) {\n    this.#a = _;\n  }\n}\n")
+
+	expectPrintedWithUnsupportedFeatures(t, compat.Decorators, "class Foo { static accessor x }",
+		"class Foo {\n  static #x;\n  static get x() {\n    return this.#x;\n  }\n  static set x(_) {\n    this.#x = _;\n  }\n}\n")
+	expectPrintedWithUnsupportedFeatures(t, compat.Decorators, "class Foo { static accessor [x] }",
+		"var _a;\nclass Foo {\n  static #a;\n  static get [_a = x]() {\n    return this.#a;\n  }\n  static set [_a](_) {\n    this.#a = _;\n  }\n}\n")
+	expectPrintedWithUnsupportedFeatures(t, compat.Decorators, "class Foo { static accessor x = null }",
+		"class Foo {\n  static #x = null;\n  static get x() {\n    return this.#x;\n  }\n  static set x(_) {\n    this.#x = _;\n  }\n}\n")
+	expectPrintedWithUnsupportedFeatures(t, compat.Decorators, "class Foo { static accessor [x] = null }",
+		"var _a;\nclass Foo {\n  static #a = null;\n  static get [_a = x]() {\n    return this.#a;\n  }\n  static set [_a](_) {\n    this.#a = _;\n  }\n}\n")
+}

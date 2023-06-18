@@ -3620,7 +3620,7 @@ for (let [code, expected] of [
 }
 
 // Class lowering tests
-for (let flags of [[], ['--target=es6'], ['--bundle'], ['--bundle', '--target=es6']]) {
+for (let flags of [['--target=es2022'], ['--target=es6'], ['--bundle', '--target=es2022'], ['--bundle', '--target=es6']]) {
   // Skip running these tests untransformed. I believe V8 actually has a bug
   // here and esbuild is correct, both because SpiderMonkey and JavaScriptCore
   // run this code fine and because the specification says that the left operand
@@ -4939,6 +4939,90 @@ for (let flags of [[], ['--target=es6'], ['--bundle'], ['--bundle', '--target=es
           "experimentalDecorators": true,
           "useDefineForClassFields": false,
         },
+      }`,
+    }),
+  )
+
+  // Test class accessors
+  const classAccessorTest = `
+    const checkAccessor = (obj, key, value) => {
+      if (obj[key] !== value) throw 'fail: ' + key + ' get'
+      obj[key] = null
+      if (obj[key] !== null) throw 'fail: ' + key + ' set'
+    }
+
+    checkAccessor(new class { accessor undef }, 'undef')
+    checkAccessor(new class { accessor undef2; x = 0 }, 'undef2')
+    checkAccessor(new class { accessor def = 123 }, 'def', 123)
+    checkAccessor(new class { accessor def2 = 123; x = 0 }, 'def2', 123)
+
+    checkAccessor(class { static accessor staticUndef }, 'staticUndef')
+    checkAccessor(class { static accessor staticUndef2; x = 0 }, 'staticUndef2')
+    checkAccessor(class { static accessor staticDef = 123 }, 'staticDef', 123)
+    checkAccessor(class { static accessor staticDef2 = 123; x = 0 }, 'staticDef2', 123)
+
+    checkAccessor(new class { accessor #x; get privateUndef() { return this.#x } set privateUndef(_) { this.#x = _ } }, 'privateUndef')
+    checkAccessor(new class { accessor #x; get privateUndef2() { return this.#x } set privateUndef2(_) { this.#x = _ } x = 0 }, 'privateUndef2')
+    checkAccessor(new class { accessor #x = 123; get privateDef() { return this.#x } set privateDef(_) { this.#x = _ } }, 'privateDef', 123)
+    checkAccessor(new class { accessor #x = 123; get privateDef2() { return this.#x } set privateDef2(_) { this.#x = _ } x = 0 }, 'privateDef2', 123)
+
+    checkAccessor(class { static accessor #x; static get staticPrivateUndef() { return this.#x } static set staticPrivateUndef(_) { this.#x = _ } }, 'staticPrivateUndef')
+    checkAccessor(class { static accessor #x; static get staticPrivateUndef2() { return this.#x } static set staticPrivateUndef2(_) { this.#x = _ } x = 0 }, 'staticPrivateUndef2')
+    checkAccessor(class { static accessor #x = 123; static get staticPrivateDef() { return this.#x } static set staticPrivateDef(_) { this.#x = _ } }, 'staticPrivateDef', 123)
+    checkAccessor(class { static accessor #x = 123; static get staticPrivateDef2() { return this.#x } static set staticPrivateDef2(_) { this.#x = _ } x = 0 }, 'staticPrivateDef2', 123)
+
+    const order = []
+    const checkOrder = x => {
+      order.push(x)
+      return x
+    }
+    class Foo {
+      a = checkOrder(8)
+      #a = checkOrder(9)
+      accessor b = checkOrder(10)
+      accessor #b = checkOrder(11)
+      accessor [checkOrder(1)] = checkOrder(12)
+      static c = checkOrder(3)
+      static #c = checkOrder(4)
+      static accessor d = checkOrder(5)
+      static accessor #d = checkOrder(6)
+      static accessor [checkOrder(2)] = checkOrder(7)
+      'get#a'() { return this.#a }
+      'get#b'() { return this.#b }
+      static 'get#c'() { return this.#c }
+      static 'get#d'() { return this.#d }
+    }
+    const foo = new Foo
+    if (order + '' !== '1,2,3,4,5,6,7,8,9,10,11,12') throw 'fail: ' + order
+    if (foo.a !== 8) throw 'fail: a'
+    if (foo['get#a']() !== 9) throw 'fail: #a'
+    if (foo.b !== 10) throw 'fail: b'
+    if (foo['get#b']() !== 11) throw 'fail: #b'
+    if (foo[1] !== 12) throw 'fail: 1'
+    if (Foo.c !== 3) throw 'fail: c'
+    if (Foo['get#c']() !== 4) throw 'fail: #c'
+    if (Foo.d !== 5) throw 'fail: d'
+    if (Foo['get#d']() !== 6) throw 'fail: #d'
+    if (Foo[2] !== 7) throw 'fail: 2'
+  `
+  tests.push(
+    test(['in.js', '--outfile=node.js'].concat(flags), {
+      'in.js': classAccessorTest,
+    }),
+    test(['in.ts', '--outfile=node.js'].concat(flags), {
+      'in.ts': classAccessorTest,
+      'tsconfig.json': `{
+        "compilerOptions": {
+          "useDefineForClassFields": true,
+        }
+      }`,
+    }),
+    test(['in.ts', '--outfile=node.js'].concat(flags), {
+      'in.ts': classAccessorTest,
+      'tsconfig.json': `{
+        "compilerOptions": {
+          "useDefineForClassFields": false,
+        }
       }`,
     }),
   )

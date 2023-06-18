@@ -2,13 +2,9 @@
 
 ## Unreleased
 
-* Pass through JavaScript decorators ([#104](https://github.com/evanw/esbuild/issues/104))
+* Implement auto accessors ([#3009](https://github.com/evanw/esbuild/issues/3009))
 
-    In this release, esbuild now parses decorators from the upcoming [JavaScript decorators proposal](https://github.com/tc39/proposal-decorators) and passes them through to the output unmodified, at least as long as the language target is set to `esnext`. Transforming JavaScript decorators to environments that don't support them has not been implemented yet.
-
-* Pass through auto accessors ([#3009](https://github.com/evanw/esbuild/issues/3009))
-
-    This release now parses the new auto-accessor syntax from the upcoming [JavaScript decorators proposal](https://github.com/tc39/proposal-decorators) and passes them through to the output unmodified, at least as long as the language target is set to `esnext`. Transforming auto-accessors to environments that don't support them has not been implemented yet. The auto-accessor syntax looks like this:
+    This release implements the new auto-accessor syntax from the upcoming [JavaScript decorators proposal](https://github.com/tc39/proposal-decorators). The auto-accessor syntax looks like this:
 
     ```js
     class Foo {
@@ -17,6 +13,12 @@
     }
     new Foo().foo = Foo.bar;
     ```
+
+    This syntax is not yet a part of JavaScript but it was [added to TypeScript in version 4.9](https://devblogs.microsoft.com/typescript/announcing-typescript-4-9/#auto-accessors-in-classes). More information about this feature can be found in [microsoft/TypeScript#49705](https://github.com/microsoft/TypeScript/pull/49705).
+
+* Pass through JavaScript decorators ([#104](https://github.com/evanw/esbuild/issues/104))
+
+    In this release, esbuild now parses decorators from the upcoming [JavaScript decorators proposal](https://github.com/tc39/proposal-decorators) and passes them through to the output unmodified, at least as long as the language target is set to `esnext`. Transforming JavaScript decorators to environments that don't support them has not been implemented yet.
 
 * Static fields with assign semantics now use static blocks if possible
 

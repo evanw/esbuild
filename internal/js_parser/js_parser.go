@@ -2132,7 +2132,6 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 
 				case "accessor":
 					if !p.lexer.HasNewlineBefore && !opts.isAsync && opts.isClass && raw == name.String {
-						p.markSyntaxFeature(compat.Decorators, nameRange)
 						return p.parseProperty(startLoc, js_ast.PropertyAutoAccessor, opts, nil)
 					}
 
@@ -2325,12 +2324,23 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 				p.log.AddError(&p.tracker, keyRange, fmt.Sprintf("Invalid field name %q", name))
 			}
 			var declare js_ast.SymbolKind
-			if opts.isStatic {
-				declare = js_ast.SymbolPrivateStaticField
+			if kind == js_ast.PropertyAutoAccessor {
+				if opts.isStatic {
+					declare = js_ast.SymbolPrivateStaticGetSetPair
+				} else {
+					declare = js_ast.SymbolPrivateGetSetPair
+				}
+				private.Ref = p.declareSymbol(declare, key.Loc, name)
+				p.privateGetters[private.Ref] = p.newSymbol(js_ast.SymbolOther, name[1:]+"_get")
+				p.privateSetters[private.Ref] = p.newSymbol(js_ast.SymbolOther, name[1:]+"_set")
 			} else {
-				declare = js_ast.SymbolPrivateField
+				if opts.isStatic {
+					declare = js_ast.SymbolPrivateStaticField
+				} else {
+					declare = js_ast.SymbolPrivateField
+				}
+				private.Ref = p.declareSymbol(declare, key.Loc, name)
 			}
-			private.Ref = p.declareSymbol(declare, key.Loc, name)
 		}
 
 		p.lexer.ExpectOrInsertSemicolon()
@@ -10947,6 +10957,7 @@ func (p *parser) visitDecorators(decorators []js_ast.Decorator, decoratorScope *
 }
 
 type visitClassResult struct {
+	bodyScope         *js_ast.Scope
 	innerClassNameRef js_ast.Ref
 	superCtorRef      js_ast.Ref
 
@@ -11074,6 +11085,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 
 	// A scope is needed for private identifiers
 	p.pushScopeForVisitPass(js_ast.ScopeClassBody, class.BodyLoc)
+	result.bodyScope = p.currentScope
 
 	for i := range class.Properties {
 		property := &class.Properties[i]
