@@ -885,6 +885,83 @@ func duplicateCaseEquals(left js_ast.Expr, right js_ast.Expr) (equals bool, coul
 	return false, false
 }
 
+type duplicatePropertiesIn uint8
+
+const (
+	duplicatePropertiesInObject duplicatePropertiesIn = iota
+	duplicatePropertiesInClass
+)
+
+func (p *parser) warnAboutDuplicateProperties(properties []js_ast.Property, in duplicatePropertiesIn) {
+	if len(properties) < 2 {
+		return
+	}
+
+	type keyKind uint8
+	type existingKey struct {
+		loc  logger.Loc
+		kind keyKind
+	}
+	const (
+		keyMissing keyKind = iota
+		keyNormal
+		keyGet
+		keySet
+		keyGetAndSet
+	)
+	instanceKeys := make(map[string]existingKey)
+	staticKeys := make(map[string]existingKey)
+
+	for _, property := range properties {
+		if property.Kind != js_ast.PropertySpread {
+			if str, ok := property.Key.Data.(*js_ast.EString); ok {
+				var keys map[string]existingKey
+				if property.Flags.Has(js_ast.PropertyIsStatic) {
+					keys = staticKeys
+				} else {
+					keys = instanceKeys
+				}
+				key := helpers.UTF16ToString(str.Value)
+				prevKey := keys[key]
+				nextKey := existingKey{kind: keyNormal, loc: property.Key.Loc}
+
+				if property.Kind == js_ast.PropertyGet {
+					nextKey.kind = keyGet
+				} else if property.Kind == js_ast.PropertySet {
+					nextKey.kind = keySet
+				}
+
+				if prevKey.kind != keyMissing && (in != duplicatePropertiesInObject || key != "__proto__") && (in != duplicatePropertiesInClass || key != "constructor") {
+					if (prevKey.kind == keyGet && nextKey.kind == keySet) || (prevKey.kind == keySet && nextKey.kind == keyGet) {
+						nextKey.kind = keyGetAndSet
+					} else {
+						var id logger.MsgID
+						var what string
+						var where string
+						switch in {
+						case duplicatePropertiesInObject:
+							id = logger.MsgID_JS_DuplicateObjectKey
+							what = "key"
+							where = "object literal"
+						case duplicatePropertiesInClass:
+							id = logger.MsgID_JS_DuplicateClassMember
+							what = "member"
+							where = "class body"
+						}
+						r := js_lexer.RangeOfIdentifier(p.source, property.Key.Loc)
+						p.log.AddIDWithNotes(id, logger.Warning, &p.tracker, r,
+							fmt.Sprintf("Duplicate %s %q in %s", what, key, where),
+							[]logger.MsgData{p.tracker.MsgData(js_lexer.RangeOfIdentifier(p.source, prevKey.loc),
+								fmt.Sprintf("The original %s %q is here:", what, key))})
+					}
+				}
+
+				keys[key] = nextKey
+			}
+		}
+	}
+}
+
 func isJumpStatement(data js_ast.S) bool {
 	switch data.(type) {
 	case *js_ast.SBreak, *js_ast.SContinue, *js_ast.SReturn, *js_ast.SThrow:
@@ -11169,6 +11246,11 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 		p.currentScope.ForbidArguments = false
 	}
 
+	// Check for and warn about duplicate keys in class bodies
+	if !p.suppressWarningsAboutWeirdCode {
+		p.warnAboutDuplicateProperties(class.Properties, duplicatePropertiesInClass)
+	}
+
 	// Analyze side effects before adding the name keeping call
 	result.canBeRemovedIfUnused = js_ast.ClassCanBeRemovedIfUnused(*class, p.isUnbound)
 
@@ -13581,46 +13663,8 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 		// Check for and warn about duplicate keys in object literals
-		if len(e.Properties) > 1 && !p.suppressWarningsAboutWeirdCode {
-			type keyKind uint8
-			type existingKey struct {
-				loc  logger.Loc
-				kind keyKind
-			}
-			const (
-				keyMissing keyKind = iota
-				keyNormal
-				keyGet
-				keySet
-				keyGetAndSet
-			)
-			keys := make(map[string]existingKey)
-			for _, property := range e.Properties {
-				if property.Kind != js_ast.PropertySpread {
-					if str, ok := property.Key.Data.(*js_ast.EString); ok {
-						key := helpers.UTF16ToString(str.Value)
-						prevKey := keys[key]
-						nextKey := existingKey{kind: keyNormal, loc: property.Key.Loc}
-						if property.Kind == js_ast.PropertyGet {
-							nextKey.kind = keyGet
-						} else if property.Kind == js_ast.PropertySet {
-							nextKey.kind = keySet
-						}
-						if prevKey.kind != keyMissing && key != "__proto__" {
-							if (prevKey.kind == keyGet && nextKey.kind == keySet) || (prevKey.kind == keySet && nextKey.kind == keyGet) {
-								nextKey.kind = keyGetAndSet
-							} else {
-								r := js_lexer.RangeOfIdentifier(p.source, property.Key.Loc)
-								p.log.AddIDWithNotes(logger.MsgID_JS_DuplicateObjectKey, logger.Warning, &p.tracker, r,
-									fmt.Sprintf("Duplicate key %q in object literal", key),
-									[]logger.MsgData{p.tracker.MsgData(js_lexer.RangeOfIdentifier(p.source, prevKey.loc),
-										fmt.Sprintf("The original key %q is here:", key))})
-							}
-						}
-						keys[key] = nextKey
-					}
-				}
-			}
+		if !p.suppressWarningsAboutWeirdCode {
+			p.warnAboutDuplicateProperties(e.Properties, duplicatePropertiesInObject)
 		}
 
 		if in.assignTarget == js_ast.AssignTargetNone {

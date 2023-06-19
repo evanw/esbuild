@@ -22,6 +22,7 @@ const (
 	MsgID_JS_DeleteSuperProperty
 	MsgID_JS_DirectEval
 	MsgID_JS_DuplicateCase
+	MsgID_JS_DuplicateClassMember
 	MsgID_JS_DuplicateObjectKey
 	MsgID_JS_EmptyImportMeta
 	MsgID_JS_EqualsNaN
@@ -111,6 +112,8 @@ func StringToMsgIDs(str string, logLevel LogLevel, overrides map[MsgID]LogLevel)
 		overrides[MsgID_JS_DirectEval] = logLevel
 	case "duplicate-case":
 		overrides[MsgID_JS_DuplicateCase] = logLevel
+	case "duplicate-class-member":
+		overrides[MsgID_JS_DuplicateClassMember] = logLevel
 	case "duplicate-object-key":
 		overrides[MsgID_JS_DuplicateObjectKey] = logLevel
 	case "empty-import-meta":
@@ -231,6 +234,8 @@ func MsgIDToString(id MsgID) string {
 		return "direct-eval"
 	case MsgID_JS_DuplicateCase:
 		return "duplicate-case"
+	case MsgID_JS_DuplicateClassMember:
+		return "duplicate-class-member"
 	case MsgID_JS_DuplicateObjectKey:
 		return "duplicate-object-key"
 	case MsgID_JS_EmptyImportMeta:

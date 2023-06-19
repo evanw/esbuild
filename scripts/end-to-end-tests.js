@@ -3971,6 +3971,20 @@ for (let flags of [[], ['--target=es6'], ['--bundle'], ['--bundle', '--target=es
         let foo = new Foo()
         if (setterCalls !== 0 || !foo.hasOwnProperty('key') || foo.key !== void 0) throw 'fail'
       `,
+    }, {
+      expectedStderr: `▲ [WARNING] Duplicate member "key" in class body [duplicate-class-member]
+
+    in.js:5:14:
+      5 │           set key(x) { setterCalls++ }
+        ╵               ~~~
+
+  The original member "key" is here:
+
+    in.js:4:10:
+      4 │           key
+        ╵           ~~~
+
+`,
     }),
     test(['in.js', '--outfile=node.js'].concat(flags), {
       'in.js': `
@@ -3982,6 +3996,20 @@ for (let flags of [[], ['--target=es6'], ['--bundle'], ['--bundle', '--target=es
         let foo = new Foo()
         if (setterCalls !== 0 || !foo.hasOwnProperty('key') || foo.key !== 123) throw 'fail'
       `,
+    }, {
+      expectedStderr: `▲ [WARNING] Duplicate member "key" in class body [duplicate-class-member]
+
+    in.js:5:14:
+      5 │           set key(x) { setterCalls++ }
+        ╵               ~~~
+
+  The original member "key" is here:
+
+    in.js:4:10:
+      4 │           key = 123
+        ╵           ~~~
+
+`,
     }),
     test(['in.js', '--outfile=node.js'].concat(flags), {
       'in.js': `

@@ -3117,6 +3117,38 @@ func TestWarningDuplicateCase(t *testing.T) {
 	expectParseError(t, "switch (x) { case y?.[a]: case y?.[a]: }", likelyWarning)
 }
 
+func TestWarningDuplicateClassMember(t *testing.T) {
+	duplicateWarning := "<stdin>: WARNING: Duplicate member \"x\" in class body\n" +
+		"<stdin>: NOTE: The original member \"x\" is here:\n"
+
+	expectParseError(t, "class Foo { x; x }", duplicateWarning)
+	expectParseError(t, "class Foo { x() {}; x() {} }", duplicateWarning)
+	expectParseError(t, "class Foo { get x() {}; get x() {} }", duplicateWarning)
+	expectParseError(t, "class Foo { get x() {}; set x(y) {}; get x() {} }", duplicateWarning)
+	expectParseError(t, "class Foo { get x() {}; set x(y) {}; set x(y) {} }", duplicateWarning)
+	expectParseError(t, "class Foo { get x() {}; set x(y) {} }", "")
+	expectParseError(t, "class Foo { set x(y) {}; get x() {} }", "")
+
+	expectParseError(t, "class Foo { static x; static x }", duplicateWarning)
+	expectParseError(t, "class Foo { static x() {}; static x() {} }", duplicateWarning)
+	expectParseError(t, "class Foo { static get x() {}; static get x() {} }", duplicateWarning)
+	expectParseError(t, "class Foo { static get x() {}; static set x(y) {}; static get x() {} }", duplicateWarning)
+	expectParseError(t, "class Foo { static get x() {}; static set x(y) {}; static set x(y) {} }", duplicateWarning)
+	expectParseError(t, "class Foo { static get x() {}; static set x(y) {} }", "")
+	expectParseError(t, "class Foo { static set x(y) {}; static get x() {} }", "")
+
+	expectParseError(t, "class Foo { x; static x }", "")
+	expectParseError(t, "class Foo { x; static x() {} }", "")
+	expectParseError(t, "class Foo { x() {}; static x }", "")
+	expectParseError(t, "class Foo { x() {}; static x() {} }", "")
+	expectParseError(t, "class Foo { static x; x }", "")
+	expectParseError(t, "class Foo { static x; x() {} }", "")
+	expectParseError(t, "class Foo { static x() {}; x }", "")
+	expectParseError(t, "class Foo { static x() {}; x() {} }", "")
+	expectParseError(t, "class Foo { get x() {}; static get x() {} }", "")
+	expectParseError(t, "class Foo { set x(y) {}; static set x(y) {} }", "")
+}
+
 func TestMangleFor(t *testing.T) {
 	expectPrintedMangle(t, "var a; while (1) ;", "for (var a; ; )\n  ;\n")
 	expectPrintedMangle(t, "let a; while (1) ;", "let a;\nfor (; ; )\n  ;\n")
