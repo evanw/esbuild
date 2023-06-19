@@ -720,6 +720,124 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 		}
 	}
 
+	// Handle lowering of instance and static fields. Move their initializers
+	// from the class body to either the constructor (instance fields) or after
+	// the class (static fields).
+	//
+	// If this returns true, the return property should be added to the class
+	// body. Otherwise the property should be omitted from the class body.
+	lowerField := func(prop js_ast.Property, private *js_ast.EPrivateIdentifier, shouldOmitFieldInitializer bool, staticFieldToBlockAssign bool) (js_ast.Property, bool) {
+		mustLowerPrivate := private != nil && p.privateSymbolNeedsToBeLowered(private)
+
+		// The TypeScript compiler doesn't follow the JavaScript spec for
+		// uninitialized fields. They are supposed to be set to undefined but the
+		// TypeScript compiler just omits them entirely.
+		if !shouldOmitFieldInitializer {
+			loc := prop.Loc
+
+			// Determine where to store the field
+			var target js_ast.Expr
+			if prop.Flags.Has(js_ast.PropertyIsStatic) && !staticFieldToBlockAssign {
+				target = nameFunc()
+			} else {
+				target = js_ast.Expr{Loc: loc, Data: js_ast.EThisShared}
+			}
+
+			// Generate the assignment initializer
+			var init js_ast.Expr
+			if prop.InitializerOrNil.Data != nil {
+				init = prop.InitializerOrNil
+			} else {
+				init = js_ast.Expr{Loc: loc, Data: js_ast.EUndefinedShared}
+			}
+
+			// Generate the assignment target
+			var memberExpr js_ast.Expr
+			if mustLowerPrivate {
+				// Generate a new symbol for this private field
+				ref := p.generateTempRef(tempRefNeedsDeclare, "_"+p.symbols[private.Ref.InnerIndex].OriginalName[1:])
+				p.symbols[private.Ref.InnerIndex].Link = ref
+
+				// Initialize the private field to a new WeakMap
+				if p.weakMapRef == js_ast.InvalidRef {
+					p.weakMapRef = p.newSymbol(js_ast.SymbolUnbound, "WeakMap")
+					p.moduleScope.Generated = append(p.moduleScope.Generated, p.weakMapRef)
+				}
+				privateMembers = append(privateMembers, js_ast.Assign(
+					js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}},
+					js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.ENew{Target: js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: p.weakMapRef}}}},
+				))
+				p.recordUsage(ref)
+
+				// Add every newly-constructed instance into this map
+				memberExpr = p.callRuntime(loc, "__privateAdd", []js_ast.Expr{
+					target,
+					{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}},
+					init,
+				})
+				p.recordUsage(ref)
+			} else if private == nil && class.UseDefineForClassFields {
+				var args []js_ast.Expr
+				if _, ok := init.Data.(*js_ast.EUndefined); ok {
+					args = []js_ast.Expr{target, prop.Key}
+				} else {
+					args = []js_ast.Expr{target, prop.Key, init}
+				}
+				memberExpr = js_ast.Expr{Loc: loc, Data: &js_ast.ECall{
+					Target: p.importFromRuntime(loc, "__publicField"),
+					Args:   args,
+				}}
+			} else {
+				if key, ok := prop.Key.Data.(*js_ast.EString); ok && !prop.Flags.Has(js_ast.PropertyIsComputed) && !prop.Flags.Has(js_ast.PropertyPreferQuotedKey) {
+					target = js_ast.Expr{Loc: loc, Data: &js_ast.EDot{
+						Target:  target,
+						Name:    helpers.UTF16ToString(key.Value),
+						NameLoc: prop.Key.Loc,
+					}}
+				} else {
+					target = js_ast.Expr{Loc: loc, Data: &js_ast.EIndex{
+						Target: target,
+						Index:  prop.Key,
+					}}
+				}
+
+				memberExpr = js_ast.Assign(target, init)
+			}
+
+			if prop.Flags.Has(js_ast.PropertyIsStatic) {
+				// Move this property to an assignment after the class ends
+				if staticFieldToBlockAssign {
+					// Use inline assignment in a static block instead of lowering
+					return js_ast.Property{
+						Loc:  loc,
+						Kind: js_ast.PropertyClassStaticBlock,
+						ClassStaticBlock: &js_ast.ClassStaticBlock{
+							Loc: loc,
+							Block: js_ast.SBlock{Stmts: []js_ast.Stmt{
+								{Loc: loc, Data: &js_ast.SExpr{Value: memberExpr}}},
+							},
+						},
+					}, true
+				} else {
+					// Move this property to an assignment after the class ends
+					staticMembers = append(staticMembers, memberExpr)
+				}
+			} else {
+				// Move this property to an assignment inside the class constructor
+				instanceMembers = append(instanceMembers, js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{Value: memberExpr}})
+			}
+		}
+
+		if private == nil || mustLowerPrivate {
+			// Remove the field from the class body
+			return js_ast.Property{}, false
+		}
+
+		// Keep the private field but remove the initializer
+		prop.InitializerOrNil = js_ast.Expr{}
+		return prop, true
+	}
+
 	// If this returns true, the method property should be dropped as it has
 	// already been accounted for elsewhere (e.g. a lowered private method).
 	lowerMethod := func(prop js_ast.Property, private *js_ast.EPrivateIdentifier) bool {
@@ -1034,118 +1152,13 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 			}
 		}
 
-		// Handle lowering of instance and static fields. Move their initializers
-		// from the class body to either the constructor (instance fields) or after
-		// the class (static fields).
+		// Lower fields
 		if (!prop.Flags.Has(js_ast.PropertyIsMethod) && mustLowerField) || staticFieldToBlockAssign {
-			// The TypeScript compiler doesn't follow the JavaScript spec for
-			// uninitialized fields. They are supposed to be set to undefined but the
-			// TypeScript compiler just omits them entirely.
-			if !shouldOmitFieldInitializer {
-				loc := prop.Loc
-
-				// Determine where to store the field
-				var target js_ast.Expr
-				if prop.Flags.Has(js_ast.PropertyIsStatic) && !staticFieldToBlockAssign {
-					target = nameFunc()
-				} else {
-					target = js_ast.Expr{Loc: loc, Data: js_ast.EThisShared}
-				}
-
-				// Generate the assignment initializer
-				var init js_ast.Expr
-				if prop.InitializerOrNil.Data != nil {
-					init = prop.InitializerOrNil
-				} else {
-					init = js_ast.Expr{Loc: loc, Data: js_ast.EUndefinedShared}
-				}
-
-				// Generate the assignment target
-				var memberExpr js_ast.Expr
-				if mustLowerPrivate {
-					// Generate a new symbol for this private field
-					ref := p.generateTempRef(tempRefNeedsDeclare, "_"+p.symbols[private.Ref.InnerIndex].OriginalName[1:])
-					p.symbols[private.Ref.InnerIndex].Link = ref
-
-					// Initialize the private field to a new WeakMap
-					if p.weakMapRef == js_ast.InvalidRef {
-						p.weakMapRef = p.newSymbol(js_ast.SymbolUnbound, "WeakMap")
-						p.moduleScope.Generated = append(p.moduleScope.Generated, p.weakMapRef)
-					}
-					privateMembers = append(privateMembers, js_ast.Assign(
-						js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}},
-						js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.ENew{Target: js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: p.weakMapRef}}}},
-					))
-					p.recordUsage(ref)
-
-					// Add every newly-constructed instance into this map
-					memberExpr = p.callRuntime(loc, "__privateAdd", []js_ast.Expr{
-						target,
-						{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}},
-						init,
-					})
-					p.recordUsage(ref)
-				} else if private == nil && class.UseDefineForClassFields {
-					var args []js_ast.Expr
-					if _, ok := init.Data.(*js_ast.EUndefined); ok {
-						args = []js_ast.Expr{target, prop.Key}
-					} else {
-						args = []js_ast.Expr{target, prop.Key, init}
-					}
-					memberExpr = js_ast.Expr{Loc: loc, Data: &js_ast.ECall{
-						Target: p.importFromRuntime(loc, "__publicField"),
-						Args:   args,
-					}}
-				} else {
-					if key, ok := prop.Key.Data.(*js_ast.EString); ok && !prop.Flags.Has(js_ast.PropertyIsComputed) && !prop.Flags.Has(js_ast.PropertyPreferQuotedKey) {
-						target = js_ast.Expr{Loc: loc, Data: &js_ast.EDot{
-							Target:  target,
-							Name:    helpers.UTF16ToString(key.Value),
-							NameLoc: prop.Key.Loc,
-						}}
-					} else {
-						target = js_ast.Expr{Loc: loc, Data: &js_ast.EIndex{
-							Target: target,
-							Index:  prop.Key,
-						}}
-					}
-
-					memberExpr = js_ast.Assign(target, init)
-				}
-
-				if prop.Flags.Has(js_ast.PropertyIsStatic) {
-					// Move this property to an assignment after the class ends
-					if staticFieldToBlockAssign {
-						// Use inline assignment in a static block instead of lowering
-						class.Properties[end] = js_ast.Property{
-							Loc:  loc,
-							Kind: js_ast.PropertyClassStaticBlock,
-							ClassStaticBlock: &js_ast.ClassStaticBlock{
-								Loc: loc,
-								Block: js_ast.SBlock{Stmts: []js_ast.Stmt{
-									{Loc: loc, Data: &js_ast.SExpr{Value: memberExpr}}},
-								},
-							},
-						}
-						end++
-						continue
-					} else {
-						// Move this property to an assignment after the class ends
-						staticMembers = append(staticMembers, memberExpr)
-					}
-				} else {
-					// Move this property to an assignment inside the class constructor
-					instanceMembers = append(instanceMembers, js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{Value: memberExpr}})
-				}
-			}
-
-			if private == nil || mustLowerPrivate {
-				// Remove the field from the class body
+			var keep bool
+			prop, keep = lowerField(prop, private, shouldOmitFieldInitializer, staticFieldToBlockAssign)
+			if !keep {
 				continue
 			}
-
-			// Keep the private field but remove the initializer
-			prop.InitializerOrNil = js_ast.Expr{}
 		}
 
 		// Lower methods
