@@ -4585,6 +4585,42 @@ for (let flags of [[], ['--target=es6'], ['--bundle'], ['--bundle', '--target=es
       `,
     }),
 
+    // Check side effect order of computed properties with assign semantics
+    test(['in.ts', '--outfile=node.js'].concat(flags), {
+      'in.ts': `
+        const order = []
+        const check = x => {
+          order.push(x)
+          return x
+        }
+        class Foo {
+          [check('a')]() {}
+          [check('b')];
+          [check('c')] = 1;
+          [check('d')]() {}
+          static [check('e')];
+          static [check('f')] = 2;
+          static [check('g')]() {}
+          [check('h')];
+        }
+        if (order + '' !== 'a,b,c,d,e,f,g,h') throw 'fail: ' + order
+        const foo = new Foo
+        if (typeof foo.a !== 'function') throw 'fail: a'
+        if ('b' in foo) throw 'fail: b'
+        if (foo.c !== 1) throw 'fail: c'
+        if (typeof foo.d !== 'function') throw 'fail: d'
+        if ('e' in Foo) throw 'fail: e'
+        if (Foo.f !== 2) throw 'fail: f'
+        if (typeof Foo.g !== 'function') throw 'fail: g'
+        if ('h' in foo) throw 'fail: h'
+      `,
+      'tsconfig.json': `{
+        "compilerOptions": {
+          "useDefineForClassFields": false,
+        },
+      }`,
+    }),
+
     // Check for the specific reference behavior of TypeScript's implementation
     // of "experimentalDecorators" with class decorators, which mutate the class
     // binding itself. This test passes on TypeScript's implementation.
