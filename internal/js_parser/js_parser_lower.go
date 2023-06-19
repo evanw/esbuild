@@ -2128,7 +2128,11 @@ func (p *parser) computeClassLoweringInfo(class *js_ast.Class) (result classLowe
 			// setting for this is enabled. I don't think this matters for private
 			// fields because there's no way for this to call a setter in the base
 			// class, so this isn't done for private fields.
-			if p.options.ts.Parse && !class.UseDefineForClassFields {
+			//
+			// If class static blocks are supported, then we can do this inline
+			// without needing to move the initializers outside of the class body.
+			// Otherwise, we need to lower all static class fields.
+			if p.options.ts.Parse && !class.UseDefineForClassFields && p.options.unsupportedJSFeatures.Has(compat.ClassStaticBlocks) {
 				result.lowerAllStaticFields = true
 			}
 		} else {
@@ -2407,12 +2411,19 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 			propExperimentalDecorators = prop.Decorators
 		}
 
+		// Transform non-lowered static fields that use assign semantics into an
+		// assignment in an inline static block instead of lowering them. This lets
+		// us avoid having to unnecessarily lower static private fields when
+		// "useDefineForClassFields" is disabled.
+		staticFieldToBlockAssign := prop.Kind == js_ast.PropertyNormal && !mustLowerField && !class.UseDefineForClassFields &&
+			!prop.Flags.Has(js_ast.PropertyIsMethod) && prop.Flags.Has(js_ast.PropertyIsStatic) && private == nil
+
 		// Make sure the order of computed property keys doesn't change. These
 		// expressions have side effects and must be evaluated in order.
 		keyExprNoSideEffects := prop.Key
-		if prop.Flags.Has(js_ast.PropertyIsComputed) && (len(propExperimentalDecorators) > 0 || mustLowerField || computedPropertyCache.Data != nil) {
+		if prop.Flags.Has(js_ast.PropertyIsComputed) && (len(propExperimentalDecorators) > 0 || mustLowerField || staticFieldToBlockAssign || computedPropertyCache.Data != nil) {
 			needsKey := true
-			if len(propExperimentalDecorators) == 0 && (prop.Flags.Has(js_ast.PropertyIsMethod) || shouldOmitFieldInitializer || !mustLowerField) {
+			if len(propExperimentalDecorators) == 0 && (prop.Flags.Has(js_ast.PropertyIsMethod) || shouldOmitFieldInitializer || (!mustLowerField && !staticFieldToBlockAssign)) {
 				needsKey = false
 			}
 
@@ -2437,7 +2448,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 				// If this is a computed method, the property value will be used
 				// immediately. In this case we inline all computed properties so far to
 				// make sure all computed properties before this one are evaluated first.
-				if !mustLowerField {
+				if !mustLowerField && !staticFieldToBlockAssign {
 					prop.Key = computedPropertyCache
 					computedPropertyCache = js_ast.Expr{}
 				}
@@ -2507,7 +2518,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 		// Handle lowering of instance and static fields. Move their initializers
 		// from the class body to either the constructor (instance fields) or after
 		// the class (static fields).
-		if !prop.Flags.Has(js_ast.PropertyIsMethod) && mustLowerField {
+		if (!prop.Flags.Has(js_ast.PropertyIsMethod) && mustLowerField) || staticFieldToBlockAssign {
 			// The TypeScript compiler doesn't follow the JavaScript spec for
 			// uninitialized fields. They are supposed to be set to undefined but the
 			// TypeScript compiler just omits them entirely.
@@ -2516,7 +2527,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 
 				// Determine where to store the field
 				var target js_ast.Expr
-				if prop.Flags.Has(js_ast.PropertyIsStatic) {
+				if prop.Flags.Has(js_ast.PropertyIsStatic) && !staticFieldToBlockAssign {
 					target = nameFunc()
 				} else {
 					target = js_ast.Expr{Loc: loc, Data: js_ast.EThisShared}
@@ -2585,7 +2596,24 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 
 				if prop.Flags.Has(js_ast.PropertyIsStatic) {
 					// Move this property to an assignment after the class ends
-					staticMembers = append(staticMembers, memberExpr)
+					if staticFieldToBlockAssign {
+						// Use inline assignment in a static block instead of lowering
+						class.Properties[end] = js_ast.Property{
+							Loc:  loc,
+							Kind: js_ast.PropertyClassStaticBlock,
+							ClassStaticBlock: &js_ast.ClassStaticBlock{
+								Loc: loc,
+								Block: js_ast.SBlock{Stmts: []js_ast.Stmt{
+									{Loc: loc, Data: &js_ast.SExpr{Value: memberExpr}}},
+								},
+							},
+						}
+						end++
+						continue
+					} else {
+						// Move this property to an assignment after the class ends
+						staticMembers = append(staticMembers, memberExpr)
+					}
 				} else {
 					// Move this property to an assignment inside the class constructor
 					instanceMembers = append(instanceMembers, js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{Value: memberExpr}})
@@ -2700,6 +2728,44 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 
 	// Finish the filtering operation
 	class.Properties = class.Properties[:end]
+
+	// If there are expressions with side effects left over and static blocks are
+	// supported, insert a static block at the start of the class body. This is
+	// necessary because computed static fields need to reference variables that
+	// are initialized in this expression:
+	//
+	//   class Foo {
+	//     static [x()] = 1
+	//   }
+	//
+	// The TypeScript compiler transforms that to this:
+	//
+	//   var _a;
+	//   class Foo {
+	//     static { _a = x(); }
+	//     static { this[_a] = 1; }
+	//   }
+	//
+	if computedPropertyCache.Data != nil && !p.options.unsupportedJSFeatures.Has(compat.ClassStaticBlocks) {
+		loc := computedPropertyCache.Loc
+		class.Properties = append(append(
+			make([]js_ast.Property, 0, 1+len(class.Properties)),
+			js_ast.Property{
+				Loc:  loc,
+				Kind: js_ast.PropertyClassStaticBlock,
+				ClassStaticBlock: &js_ast.ClassStaticBlock{
+					Loc: loc,
+					Block: js_ast.SBlock{
+						Stmts: []js_ast.Stmt{
+							{Loc: loc, Data: &js_ast.SExpr{Value: computedPropertyCache}},
+						},
+					},
+				},
+			}),
+			class.Properties...,
+		)
+		computedPropertyCache = js_ast.Expr{}
+	}
 
 	// Insert instance field initializers into the constructor
 	if len(parameterFields) > 0 || len(instancePrivateMethods) > 0 || len(instanceMembers) > 0 || (ctor != nil && result.superCtorRef != js_ast.InvalidRef) {

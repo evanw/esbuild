@@ -18,6 +18,35 @@
     new Foo().foo = Foo.bar;
     ```
 
+* Static fields with assign semantics now use static blocks if possible
+
+    Setting `useDefineForClassFields` to false in TypeScript requires rewriting class fields to assignment statements. Previously this was done by removing the field from the class body and adding an assignment statement after the class declaration. However, this also caused any private fields to also be lowered by necessity (in case a field initializer uses a private symbol, either directly or indirectly). This release changes this transform to use an inline static block if it's supported, which avoids needing to lower private fields in this scenario:
+
+    ```js
+    // Original code
+    class Test {
+      static #foo = 123
+      static bar = this.#foo
+    }
+
+    // Old output (with useDefineForClassFields=false)
+    var _foo;
+    const _Test = class _Test {
+    };
+    _foo = new WeakMap();
+    __privateAdd(_Test, _foo, 123);
+    _Test.bar = __privateGet(_Test, _foo);
+    let Test = _Test;
+
+    // New output (with useDefineForClassFields=false)
+    class Test {
+      static #foo = 123;
+      static {
+        this.bar = this.#foo;
+      }
+    }
+    ```
+
 * Fix TypeScript experimental decorators combined with `--mangle-props` ([#3177](https://github.com/evanw/esbuild/issues/3177))
 
     Previously using TypeScript experimental decorators combined with the `--mangle-props` setting could result in a crash, as the experimental decorator transform was not expecting a mangled property as a class member. This release fixes the crash so you can now combine both of these features together safely.

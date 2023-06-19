@@ -2458,21 +2458,19 @@ console.log(loose_default, strict_default);
 ================================================================================
 TestTSLowerClassPrivateFieldNextNoBundle
 ---------- /out.js ----------
-var _foo, _bar, _s_foo, _s_bar;
 class Foo {
   constructor() {
-    __privateAdd(this, _foo, 123);
-    __privateAdd(this, _bar, void 0);
+    this.#foo = 123;
     this.foo = 123;
   }
+  #foo;
+  #bar;
+  static #s_foo = 123;
+  static #s_bar;
+  static {
+    this.s_foo = 123;
+  }
 }
-_foo = new WeakMap();
-_bar = new WeakMap();
-_s_foo = new WeakMap();
-_s_bar = new WeakMap();
-__privateAdd(Foo, _s_foo, 123);
-__privateAdd(Foo, _s_bar, void 0);
-Foo.s_foo = 123;
 
 ================================================================================
 TestTSLowerObjectRest2017NoBundle

@@ -61,6 +61,21 @@ func expectPrintedAssignSemanticsTS(t *testing.T, contents string, expected stri
 	})
 }
 
+func expectPrintedAssignSemanticsTargetTS(t *testing.T, esVersion int, contents string, expected string) {
+	t.Helper()
+	expectPrintedCommon(t, contents, expected, config.Options{
+		TS: config.TSOptions{
+			Parse: true,
+			Config: config.TSConfig{
+				UseDefineForClassFields: config.False,
+			},
+		},
+		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
+			compat.ES: {esVersion},
+		}),
+	})
+}
+
 func expectPrintedExperimentalDecoratorTS(t *testing.T, contents string, expected string) {
 	t.Helper()
 	expectPrintedCommon(t, contents, expected, config.Options{
@@ -700,7 +715,7 @@ func TestTSClass(t *testing.T) {
 
 	expectPrintedAssignSemanticsTS(t, "class Foo { 'foo' = 0 }", "class Foo {\n  constructor() {\n    this[\"foo\"] = 0;\n  }\n}\n")
 	expectPrintedAssignSemanticsTS(t, "class Foo { ['foo'] = 0 }", "class Foo {\n  constructor() {\n    this[\"foo\"] = 0;\n  }\n}\n")
-	expectPrintedAssignSemanticsTS(t, "class Foo { [foo] = 0 }", "var _a;\nclass Foo {\n  constructor() {\n    this[_a] = 0;\n  }\n}\n_a = foo;\n")
+	expectPrintedAssignSemanticsTS(t, "class Foo { [foo] = 0 }", "var _a;\nclass Foo {\n  constructor() {\n    this[_a] = 0;\n  }\n  static {\n    _a = foo;\n  }\n}\n")
 	expectPrintedMangleAssignSemanticsTS(t, "class Foo { 'foo' = 0 }", "class Foo {\n  constructor() {\n    this.foo = 0;\n  }\n}\n")
 	expectPrintedMangleAssignSemanticsTS(t, "class Foo { ['foo'] = 0 }", "class Foo {\n  constructor() {\n    this.foo = 0;\n  }\n}\n")
 
@@ -2718,6 +2733,48 @@ func TestTSNoAmbiguousLessThan(t *testing.T) {
 func TestTSClassSideEffectOrder(t *testing.T) {
 	// The order of computed property side effects must not change
 	expectPrintedAssignSemanticsTS(t, `class Foo {
+	[a()]() {}
+	[b()];
+	[c()] = 1;
+	[d()]() {}
+	static [e()];
+	static [f()] = 1;
+	static [g()]() {}
+	[h()];
+}
+`, `var _a, _b;
+class Foo {
+  constructor() {
+    this[_a] = 1;
+  }
+  static {
+    h();
+  }
+  [a()]() {
+  }
+  [(b(), _a = c(), d())]() {
+  }
+  static {
+    this[_b] = 1;
+  }
+  static [(e(), _b = f(), g())]() {
+  }
+}
+`)
+	expectPrintedAssignSemanticsTS(t, `class Foo {
+	static [x()] = 1;
+}
+`, `var _a;
+class Foo {
+  static {
+    _a = x();
+  }
+  static {
+    this[_a] = 1;
+  }
+}
+`)
+	expectPrintedAssignSemanticsTargetTS(t, 2021, `class Foo {
 	[a()]() {}
 	[b()];
 	[c()] = 1;

@@ -4603,7 +4603,13 @@ for (let flags of [[], ['--target=es6'], ['--bundle'], ['--bundle', '--target=es
           static [check('g')]() {}
           [check('h')];
         }
-        if (order + '' !== 'a,b,c,d,e,f,g,h') throw 'fail: ' + order
+        class Bar {
+          // Use a class with a single static field to check that the computed
+          // key isn't deferred outside of the class body while the initializer
+          // is left inside.
+          static [check('i')] = 3
+        }
+        if (order + '' !== 'a,b,c,d,e,f,g,h,i') throw 'fail: ' + order
         const foo = new Foo
         if (typeof foo.a !== 'function') throw 'fail: a'
         if ('b' in foo) throw 'fail: b'
@@ -4613,6 +4619,7 @@ for (let flags of [[], ['--target=es6'], ['--bundle'], ['--bundle', '--target=es
         if (Foo.f !== 2) throw 'fail: f'
         if (typeof Foo.g !== 'function') throw 'fail: g'
         if ('h' in foo) throw 'fail: h'
+        if (Bar.i !== 3) throw 'fail: i'
       `,
       'tsconfig.json': `{
         "compilerOptions": {

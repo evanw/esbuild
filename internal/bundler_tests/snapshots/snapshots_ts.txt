@@ -127,8 +127,10 @@ TestTSAbstractClassFieldUseAssign
 ---------- /out.js ----------
 const keepThis = Symbol("keepThis");
 class Foo {
+  static {
+    keepThis;
+  }
 }
-keepThis;
 (() => new Foo())();
 
 ================================================================================
@@ -156,8 +158,10 @@ class Foo {
     this[_a] = s;
     this[_c] = z;
   }
+  static {
+    q, _a = r, _b = x, _c = y;
+  }
 }
-q, _a = r, _b = x, _c = y;
 __decorateClass([
   dec
 ], Foo.prototype, _b, 2);
@@ -195,8 +199,10 @@ class Foo {
     __publicField(this, _c);
     __publicField(this, _d, z);
   }
+  static {
+    _a = q, _b = r, _c = x, _d = y;
+  }
 }
-_a = q, _b = r, _c = x, _d = y;
 __decorateClass([
   dec
 ], Foo.prototype, _c, 2);
@@ -231,8 +237,10 @@ TestTSDeclareClassFields
 ---------- /out.js ----------
 // define-false/index.ts
 var Foo = class {
+  static {
+    () => null, c, () => null, C;
+  }
 };
-() => null, c, () => null, C;
 (() => new Foo())();
 
 // define-true/index.ts
@@ -569,7 +577,6 @@ export {
 ================================================================================
 TestTSExperimentalDecoratorScopeIssue2147
 ---------- /out.js ----------
-var _a;
 let foo = 1;
 class Foo {
   method1(foo2 = 2) {
@@ -584,38 +591,43 @@ __decorateClass([
   __decorateParam(0, dec(() => foo))
 ], Foo.prototype, "method2", 1);
 class Bar {
+  static {
+    this.x = class {
+      static {
+        this.y = () => {
+          let bar = 1;
+          let Baz = class {
+            method1() {
+            }
+            method2() {
+            }
+            method3(bar2) {
+            }
+            method4(bar2) {
+            }
+          };
+          __decorateClass([
+            dec(bar)
+          ], Baz.prototype, "method1", 1);
+          __decorateClass([
+            dec(() => bar)
+          ], Baz.prototype, "method2", 1);
+          __decorateClass([
+            __decorateParam(0, dec(() => bar))
+          ], Baz.prototype, "method3", 1);
+          __decorateClass([
+            __decorateParam(0, dec(() => bar))
+          ], Baz.prototype, "method4", 1);
+          Baz = __decorateClass([
+            dec(bar),
+            dec(() => bar)
+          ], Baz);
+          return Baz;
+        };
+      }
+    };
+  }
 }
-Bar.x = (_a = class {
-}, _a.y = () => {
-  let bar = 1;
-  let Baz = class {
-    method1() {
-    }
-    method2() {
-    }
-    method3(bar2) {
-    }
-    method4(bar2) {
-    }
-  };
-  __decorateClass([
-    dec(bar)
-  ], Baz.prototype, "method1", 1);
-  __decorateClass([
-    dec(() => bar)
-  ], Baz.prototype, "method2", 1);
-  __decorateClass([
-    __decorateParam(0, dec(() => bar))
-  ], Baz.prototype, "method3", 1);
-  __decorateClass([
-    __decorateParam(0, dec(() => bar))
-  ], Baz.prototype, "method4", 1);
-  Baz = __decorateClass([
-    dec(bar),
-    dec(() => bar)
-  ], Baz);
-  return Baz;
-}, _a);
 
 ================================================================================
 TestTSExperimentalDecorators
@@ -689,6 +701,9 @@ var Foo2 = class {
     this[_b] = 1;
     this[_e] = 2;
   }
+  static {
+    _j = mDecl();
+  }
   [(_a = mUndef(), _b = mDef(), _c = method())](arg0, arg1) {
     return new Foo2();
   }
@@ -696,7 +711,6 @@ var Foo2 = class {
     return new Foo2();
   }
 };
-_j = mDecl();
 Foo2[_f] = 3;
 Foo2[_h] = new Foo2();
 __decorateClass([
@@ -1001,13 +1015,25 @@ TestTSExperimentalDecoratorsManglePropsStaticAssignSemantics
 ---------- /out.js ----------
 // entry.ts
 var Foo = class {
+  static {
+    this.prop1 = null;
+  }
+  static {
+    this.a = null;
+  }
+  static {
+    this["prop3"] = null;
+  }
+  static {
+    this["prop4_"] = null;
+  }
+  static {
+    this[/* @__KEY__ */ "prop5"] = null;
+  }
+  static {
+    this.b = null;
+  }
 };
-Foo.prop1 = null;
-Foo.a = null;
-Foo["prop3"] = null;
-Foo["prop4_"] = null;
-Foo[/* @__KEY__ */ "prop5"] = null;
-Foo.b = null;
 __decorateClass([
   dec(1)
 ], Foo, "prop1", 2);
@@ -1185,10 +1211,11 @@ var declare_let_default = foo;
 var bar2 = 123;
 
 // keep/interface-merged.ts
-var _foo = class _foo {
+var foo2 = class _foo {
+  static {
+    this.x = new _foo();
+  }
 };
-_foo.x = new _foo();
-var foo2 = _foo;
 var interface_merged_default = foo2;
 var bar3 = 123;
 
@@ -1807,9 +1834,12 @@ var objFoo = {
     console.log(this);
   }
 };
-var _Foo = class _Foo {
+var Foo = class {
   constructor() {
     this.x = this;
+  }
+  static {
+    this.y = this.z;
   }
   foo(x = this) {
     console.log(this);
@@ -1818,8 +1848,6 @@ var _Foo = class _Foo {
     console.log(this);
   }
 };
-_Foo.y = _Foo.z;
-var Foo = _Foo;
 new Foo(foo(objFoo));
 if (nested) {
   let bar = function(x = this) {
@@ -1831,9 +1859,12 @@ if (nested) {
       console.log(this);
     }
   };
-  const _Bar = class _Bar {
+  class Bar {
     constructor() {
       this.x = this;
+    }
+    static {
+      this.y = this.z;
     }
     foo(x = this) {
       console.log(this);
@@ -1841,9 +1872,7 @@ if (nested) {
     static bar(x = this) {
       console.log(this);
     }
-  };
-  _Bar.y = _Bar.z;
-  let Bar = _Bar;
+  }
   new Bar(bar(objBar));
 }
 var bar2;
@@ -1859,9 +1888,12 @@ const objFoo = {
     console.log(this);
   }
 };
-const _Foo = class _Foo {
+class Foo {
   constructor() {
     this.x = this;
+  }
+  static {
+    this.y = this.z;
   }
   foo(x = this) {
     console.log(this);
@@ -1869,9 +1901,7 @@ const _Foo = class _Foo {
   static bar(x = this) {
     console.log(this);
   }
-};
-_Foo.y = _Foo.z;
-let Foo = _Foo;
+}
 new Foo(foo(objFoo));
 if (nested) {
   let bar2 = function(x = this) {
@@ -1883,9 +1913,12 @@ if (nested) {
       console.log(this);
     }
   };
-  const _Bar = class _Bar {
+  class Bar {
     constructor() {
       this.x = this;
+    }
+    static {
+      this.y = this.z;
     }
     foo(x = this) {
       console.log(this);
@@ -1893,9 +1926,7 @@ if (nested) {
     static bar(x = this) {
       console.log(this);
     }
-  };
-  _Bar.y = _Bar.z;
-  let Bar = _Bar;
+  }
   new Bar(bar2(objBar));
 }
 
