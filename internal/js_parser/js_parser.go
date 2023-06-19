@@ -6444,15 +6444,21 @@ const (
 func (p *parser) parseDecorators(decoratorScope *js_ast.Scope, classKeyword logger.Range, context decoratorContextFlags) (decorators []js_ast.Decorator) {
 	if p.lexer.Token == js_lexer.TAt {
 		if p.options.ts.Parse {
-			if (context&decoratorInFnArgs) != 0 && p.options.ts.Config.ExperimentalDecorators != config.True {
-				p.log.AddErrorWithNotes(&p.tracker, p.lexer.Range(), "Parameter decorators only work when experimental decorators are enabled", []logger.MsgData{{
-					Text: "You can enable experimental decorators by adding \"experimentalDecorators\": true to your \"tsconfig.json\" file.",
-				}})
-			} else if (context & decoratorInClassExpr) != 0 {
-				p.lexer.AddRangeErrorWithNotes(p.lexer.Range(), "Experimental decorators can only be used with class declarations in TypeScript",
-					[]logger.MsgData{p.tracker.MsgData(classKeyword, "This is a class expression, not a class declaration:")})
-			} else if (context & decoratorBeforeClassExpr) != 0 {
-				p.log.AddError(&p.tracker, p.lexer.Range(), "Experimental decorators cannot be used in expression position in TypeScript")
+			if p.options.ts.Config.ExperimentalDecorators == config.True {
+				if (context & decoratorInClassExpr) != 0 {
+					p.lexer.AddRangeErrorWithNotes(p.lexer.Range(), "Experimental decorators can only be used with class declarations in TypeScript",
+						[]logger.MsgData{p.tracker.MsgData(classKeyword, "This is a class expression, not a class declaration:")})
+				} else if (context & decoratorBeforeClassExpr) != 0 {
+					p.log.AddError(&p.tracker, p.lexer.Range(), "Experimental decorators cannot be used in expression position in TypeScript")
+				}
+			} else {
+				if (context&decoratorInFnArgs) != 0 && p.options.ts.Config.ExperimentalDecorators != config.True {
+					p.log.AddErrorWithNotes(&p.tracker, p.lexer.Range(), "Parameter decorators only work when experimental decorators are enabled", []logger.MsgData{{
+						Text: "You can enable experimental decorators by adding \"experimentalDecorators\": true to your \"tsconfig.json\" file.",
+					}})
+				} else {
+					p.markSyntaxFeature(compat.Decorators, p.lexer.Range())
+				}
 			}
 		} else {
 			if (context & decoratorInFnArgs) != 0 {

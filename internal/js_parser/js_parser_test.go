@@ -1983,6 +1983,11 @@ func TestAutoAccessors(t *testing.T) {
 }
 
 func TestDecorators(t *testing.T) {
+	expectPrinted(t, "@x @y class Foo {}", "@x\n@y\nclass Foo {\n}\n")
+	expectPrinted(t, "@x @y export class Foo {}", "@x\n@y\nexport class Foo {\n}\n")
+	expectPrinted(t, "@x @y export default class Foo {}", "@x\n@y\nexport default class Foo {\n}\n")
+	expectPrinted(t, "_ = @x @y class {}", "_ = @x @y class {\n};\n")
+
 	expectPrinted(t, "class Foo { @x y }", "class Foo {\n  @x\n  y;\n}\n")
 	expectPrinted(t, "class Foo { @x y() {} }", "class Foo {\n  @x\n  y() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { @x static y }", "class Foo {\n  @x\n  static y;\n}\n")
@@ -1997,6 +2002,15 @@ func TestDecorators(t *testing.T) {
 
 	expectParseError(t, "class Foo { x(@y z) {} }", "<stdin>: ERROR: Parameter decorators are not allowed in JavaScript\n")
 	expectParseError(t, "class Foo { @x static {} }", "<stdin>: ERROR: Expected \";\" but found \"{\"\n")
+
+	errorText := "<stdin>: ERROR: Transforming JavaScript decorators to the configured target environment is not supported yet\n"
+	expectParseErrorWithUnsupportedFeatures(t, compat.Decorators, "@dec class Foo {}", errorText)
+	expectParseErrorWithUnsupportedFeatures(t, compat.Decorators, "class Foo { @dec x }", errorText)
+	expectParseErrorWithUnsupportedFeatures(t, compat.Decorators, "class Foo { @dec x() {} }", errorText)
+	expectParseErrorWithUnsupportedFeatures(t, compat.Decorators, "class Foo { @dec accessor x }", errorText)
+	expectParseErrorWithUnsupportedFeatures(t, compat.Decorators, "class Foo { @dec static x }", errorText)
+	expectParseErrorWithUnsupportedFeatures(t, compat.Decorators, "class Foo { @dec static x() {} }", errorText)
+	expectParseErrorWithUnsupportedFeatures(t, compat.Decorators, "class Foo { @dec static accessor x }", errorText)
 }
 
 func TestGenerator(t *testing.T) {
