@@ -42,11 +42,13 @@ func IsIdentifierES5AndESNext(text string) bool {
 	return true
 }
 
-func ForceValidIdentifier(text string) string {
-	if IsIdentifier(text) {
-		return text
-	}
+func ForceValidIdentifier(prefix string, text string) string {
 	sb := strings.Builder{}
+
+	// Private identifiers must be prefixed by "#"
+	if prefix != "" {
+		sb.WriteString(prefix)
+	}
 
 	// Identifier start
 	c, width := utf8.DecodeRuneInString(text)

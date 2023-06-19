@@ -439,7 +439,8 @@ func (r *NumberRenamer) assignName(scope *numberScope, ref js_ast.Ref) {
 
 	// Don't rename unbound symbols, symbols marked as reserved names, labels, or private names
 	symbol := r.symbols.Get(ref)
-	if symbol.SlotNamespace() != js_ast.SlotDefault {
+	ns := symbol.SlotNamespace()
+	if ns != js_ast.SlotDefault && ns != js_ast.SlotPrivateName {
 		return
 	}
 
@@ -452,7 +453,7 @@ func (r *NumberRenamer) assignName(scope *numberScope, ref js_ast.Ref) {
 	}
 
 	// Compute a new name
-	name := scope.findUnusedName(originalName)
+	name := scope.findUnusedName(originalName, ns)
 
 	// Store the new name
 	if inner == nil {
@@ -576,8 +577,17 @@ func (s *numberScope) findNameUse(name string) nameUse {
 	}
 }
 
-func (s *numberScope) findUnusedName(name string) string {
-	name = js_ast.ForceValidIdentifier(name)
+func (s *numberScope) findUnusedName(name string, ns js_ast.SlotNamespace) string {
+	// We may not have a valid identifier if this is an internally-constructed name
+	if ns == js_ast.SlotPrivateName {
+		if id := name[1:]; !js_ast.IsIdentifier(id) {
+			name = js_ast.ForceValidIdentifier("#", id)
+		}
+	} else {
+		if !js_ast.IsIdentifier(name) {
+			name = js_ast.ForceValidIdentifier("", name)
+		}
+	}
 
 	if use := s.findNameUse(name); use != nameUnused {
 		// If the name is already in use, generate a new name by appending a number

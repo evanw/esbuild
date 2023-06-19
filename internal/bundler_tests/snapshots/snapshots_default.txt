@@ -4925,9 +4925,9 @@ TestRenamePrivateIdentifiersNoBundle
 class Foo {
   #foo;
   foo = class {
-    #foo;
     #foo2;
-    #bar;
+    #foo22;
+    #bar2;
   };
   get #bar() {
   }
@@ -4938,8 +4938,8 @@ class Bar {
   #foo;
   foo = class {
     #foo2;
-    #foo;
-    #bar;
+    #foo3;
+    #bar2;
   };
   get #bar() {
   }
