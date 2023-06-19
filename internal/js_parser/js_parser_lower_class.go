@@ -720,6 +720,104 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 		}
 	}
 
+	// If this returns true, the method property should be dropped as it has
+	// already been accounted for elsewhere (e.g. a lowered private method).
+	lowerMethod := func(prop js_ast.Property, private *js_ast.EPrivateIdentifier) bool {
+		if private != nil && p.privateSymbolNeedsToBeLowered(private) {
+			loc := prop.Loc
+
+			// Don't generate a symbol for a getter/setter pair twice
+			if p.symbols[private.Ref.InnerIndex].Link == js_ast.InvalidRef {
+				// Generate a new symbol for this private method
+				ref := p.generateTempRef(tempRefNeedsDeclare, "_"+p.symbols[private.Ref.InnerIndex].OriginalName[1:])
+				p.symbols[private.Ref.InnerIndex].Link = ref
+
+				// Initialize the private method to a new WeakSet
+				if p.weakSetRef == js_ast.InvalidRef {
+					p.weakSetRef = p.newSymbol(js_ast.SymbolUnbound, "WeakSet")
+					p.moduleScope.Generated = append(p.moduleScope.Generated, p.weakSetRef)
+				}
+				privateMembers = append(privateMembers, js_ast.Assign(
+					js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}},
+					js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.ENew{Target: js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: p.weakSetRef}}}},
+				))
+				p.recordUsage(ref)
+
+				// Determine where to store the private method
+				var target js_ast.Expr
+				if prop.Flags.Has(js_ast.PropertyIsStatic) {
+					target = nameFunc()
+				} else {
+					target = js_ast.Expr{Loc: loc, Data: js_ast.EThisShared}
+				}
+
+				// Add every newly-constructed instance into this map
+				methodExpr := p.callRuntime(loc, "__privateAdd", []js_ast.Expr{
+					target,
+					{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}},
+				})
+				p.recordUsage(ref)
+
+				// Make sure that adding to the map happens before any field
+				// initializers to handle cases like this:
+				//
+				//   class A {
+				//     pub = this.#priv;
+				//     #priv() {}
+				//   }
+				//
+				if prop.Flags.Has(js_ast.PropertyIsStatic) {
+					// Move this property to an assignment after the class ends
+					staticPrivateMethods = append(staticPrivateMethods, methodExpr)
+				} else {
+					// Move this property to an assignment inside the class constructor
+					instancePrivateMethods = append(instancePrivateMethods, js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{Value: methodExpr}})
+				}
+			}
+
+			// Move the method definition outside the class body
+			methodRef := p.generateTempRef(tempRefNeedsDeclare, "_")
+			if prop.Kind == js_ast.PropertySet {
+				p.symbols[methodRef.InnerIndex].Link = p.privateSetters[private.Ref]
+			} else {
+				p.symbols[methodRef.InnerIndex].Link = p.privateGetters[private.Ref]
+			}
+			p.recordUsage(methodRef)
+			privateMembers = append(privateMembers, js_ast.Assign(
+				js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: methodRef}},
+				prop.ValueOrNil,
+			))
+			return true
+		}
+
+		if key, ok := prop.Key.Data.(*js_ast.EString); ok && helpers.UTF16EqualsString(key.Value, "constructor") {
+			if fn, ok := prop.ValueOrNil.Data.(*js_ast.EFunction); ok {
+				// Remember where the constructor is for later
+				ctor = fn
+
+				// Initialize TypeScript constructor parameter fields
+				if p.options.ts.Parse {
+					for _, arg := range ctor.Fn.Args {
+						if arg.IsTypeScriptCtorField {
+							if id, ok := arg.Binding.Data.(*js_ast.BIdentifier); ok {
+								parameterFields = append(parameterFields, js_ast.AssignStmt(
+									js_ast.Expr{Loc: arg.Binding.Loc, Data: p.dotOrMangledPropVisit(
+										js_ast.Expr{Loc: arg.Binding.Loc, Data: js_ast.EThisShared},
+										p.symbols[id.Ref.InnerIndex].OriginalName,
+										arg.Binding.Loc,
+									)},
+									js_ast.Expr{Loc: arg.Binding.Loc, Data: &js_ast.EIdentifier{Ref: id.Ref}},
+								))
+							}
+						}
+					}
+				}
+			}
+		}
+
+		return false
+	}
+
 	classLoweringInfo := p.computeClassLoweringInfo(class)
 
 	for _, prop := range class.Properties {
@@ -1050,96 +1148,9 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 			prop.InitializerOrNil = js_ast.Expr{}
 		}
 
-		if prop.Flags.Has(js_ast.PropertyIsMethod) {
-			if mustLowerPrivate {
-				loc := prop.Loc
-
-				// Don't generate a symbol for a getter/setter pair twice
-				if p.symbols[private.Ref.InnerIndex].Link == js_ast.InvalidRef {
-					// Generate a new symbol for this private method
-					ref := p.generateTempRef(tempRefNeedsDeclare, "_"+p.symbols[private.Ref.InnerIndex].OriginalName[1:])
-					p.symbols[private.Ref.InnerIndex].Link = ref
-
-					// Initialize the private method to a new WeakSet
-					if p.weakSetRef == js_ast.InvalidRef {
-						p.weakSetRef = p.newSymbol(js_ast.SymbolUnbound, "WeakSet")
-						p.moduleScope.Generated = append(p.moduleScope.Generated, p.weakSetRef)
-					}
-					privateMembers = append(privateMembers, js_ast.Assign(
-						js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}},
-						js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.ENew{Target: js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: p.weakSetRef}}}},
-					))
-					p.recordUsage(ref)
-
-					// Determine where to store the private method
-					var target js_ast.Expr
-					if prop.Flags.Has(js_ast.PropertyIsStatic) {
-						target = nameFunc()
-					} else {
-						target = js_ast.Expr{Loc: loc, Data: js_ast.EThisShared}
-					}
-
-					// Add every newly-constructed instance into this map
-					methodExpr := p.callRuntime(loc, "__privateAdd", []js_ast.Expr{
-						target,
-						{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}},
-					})
-					p.recordUsage(ref)
-
-					// Make sure that adding to the map happens before any field
-					// initializers to handle cases like this:
-					//
-					//   class A {
-					//     pub = this.#priv;
-					//     #priv() {}
-					//   }
-					//
-					if prop.Flags.Has(js_ast.PropertyIsStatic) {
-						// Move this property to an assignment after the class ends
-						staticPrivateMethods = append(staticPrivateMethods, methodExpr)
-					} else {
-						// Move this property to an assignment inside the class constructor
-						instancePrivateMethods = append(instancePrivateMethods, js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{Value: methodExpr}})
-					}
-				}
-
-				// Move the method definition outside the class body
-				methodRef := p.generateTempRef(tempRefNeedsDeclare, "_")
-				if prop.Kind == js_ast.PropertySet {
-					p.symbols[methodRef.InnerIndex].Link = p.privateSetters[private.Ref]
-				} else {
-					p.symbols[methodRef.InnerIndex].Link = p.privateGetters[private.Ref]
-				}
-				p.recordUsage(methodRef)
-				privateMembers = append(privateMembers, js_ast.Assign(
-					js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: methodRef}},
-					prop.ValueOrNil,
-				))
-				continue
-			} else if key, ok := prop.Key.Data.(*js_ast.EString); ok && helpers.UTF16EqualsString(key.Value, "constructor") {
-				if fn, ok := prop.ValueOrNil.Data.(*js_ast.EFunction); ok {
-					// Remember where the constructor is for later
-					ctor = fn
-
-					// Initialize TypeScript constructor parameter fields
-					if p.options.ts.Parse {
-						for _, arg := range ctor.Fn.Args {
-							if arg.IsTypeScriptCtorField {
-								if id, ok := arg.Binding.Data.(*js_ast.BIdentifier); ok {
-									parameterFields = append(parameterFields, js_ast.AssignStmt(
-										js_ast.Expr{Loc: arg.Binding.Loc, Data: p.dotOrMangledPropVisit(
-											js_ast.Expr{Loc: arg.Binding.Loc, Data: js_ast.EThisShared},
-											p.symbols[id.Ref.InnerIndex].OriginalName,
-											arg.Binding.Loc,
-										)},
-										js_ast.Expr{Loc: arg.Binding.Loc, Data: &js_ast.EIdentifier{Ref: id.Ref}},
-									))
-								}
-							}
-						}
-					}
-				}
-			}
+		// Lower methods
+		if prop.Flags.Has(js_ast.PropertyIsMethod) && lowerMethod(prop, private) {
+			continue
 		}
 
 		// Keep this property
