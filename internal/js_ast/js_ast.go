@@ -1144,6 +1144,7 @@ const (
 	LocalVar LocalKind = iota
 	LocalLet
 	LocalConst
+	LocalUsing
 )
 
 type SLocal struct {

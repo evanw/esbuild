@@ -115,6 +115,7 @@ const (
 	TopLevelAwait
 	TypeofExoticObjectIsObject
 	UnicodeEscapes
+	Using
 )
 
 var StringToJSFeature = map[string]JSFeature{
@@ -173,6 +174,7 @@ var StringToJSFeature = map[string]JSFeature{
 	"top-level-await":                   TopLevelAwait,
 	"typeof-exotic-object-is-object":    TypeofExoticObjectIsObject,
 	"unicode-escapes":                   UnicodeEscapes,
+	"using":                             Using,
 }
 
 func (features JSFeature) Has(feature JSFeature) bool {
@@ -745,6 +747,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Opera:   {{start: v{31, 0, 0}}},
 		Safari:  {{start: v{9, 0, 0}}},
 	},
+	Using: {},
 }
 
 // Return all features that are not available in at least one environment

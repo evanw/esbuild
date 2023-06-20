@@ -3481,12 +3481,14 @@ func (p *printer) printForLoopInit(init js_ast.Stmt, flags printExprFlags) {
 		p.printExpr(s.Value, js_ast.LLowest, flags|exprResultIsUnused)
 	case *js_ast.SLocal:
 		switch s.Kind {
-		case js_ast.LocalVar:
-			p.printDecls("var", s.Decls, flags)
-		case js_ast.LocalLet:
-			p.printDecls("let", s.Decls, flags)
 		case js_ast.LocalConst:
 			p.printDecls("const", s.Decls, flags)
+		case js_ast.LocalLet:
+			p.printDecls("let", s.Decls, flags)
+		case js_ast.LocalUsing:
+			p.printDecls("using", s.Decls, flags)
+		case js_ast.LocalVar:
+			p.printDecls("var", s.Decls, flags)
 		}
 	default:
 		panic("Internal error")
@@ -4115,6 +4117,8 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 			p.printDeclStmt(s.IsExport, "const", s.Decls)
 		case js_ast.LocalLet:
 			p.printDeclStmt(s.IsExport, "let", s.Decls)
+		case js_ast.LocalUsing:
+			p.printDeclStmt(s.IsExport, "using", s.Decls)
 		case js_ast.LocalVar:
 			p.printDeclStmt(s.IsExport, "var", s.Decls)
 		}

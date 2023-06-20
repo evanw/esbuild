@@ -210,6 +210,7 @@ mergeVersions('RegexpMatchIndices', { es2022: true })
 mergeVersions('RegexpSetNotation', {})
 mergeVersions('ImportAssertions', {})
 mergeVersions('Decorators', {})
+mergeVersions('Using', {})
 
 // Manually copied from https://caniuse.com/?search=export%20*%20as
 mergeVersions('ExportStarAs', {

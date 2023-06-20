@@ -2871,3 +2871,9 @@ func TestTSES5(t *testing.T) {
 	expectParseErrorTargetTS(t, 5, "0 ? ([]): 0 => 0 : 0", "<stdin>: ERROR: Transforming destructuring to the configured target environment is not supported yet\n")
 	expectParseErrorTargetTS(t, 5, "0 ? ({}): 0 => 0 : 0", "<stdin>: ERROR: Transforming destructuring to the configured target environment is not supported yet\n")
 }
+
+func TestTSUsing(t *testing.T) {
+	expectPrintedTS(t, "using x = y", "using x = y;\n")
+	expectPrintedTS(t, "using x: any = y", "using x = y;\n")
+	expectPrintedTS(t, "using x: any = y, z: any = _", "using x = y, z = _;\n")
+}

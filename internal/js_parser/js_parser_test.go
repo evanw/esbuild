@@ -6022,3 +6022,28 @@ func TestAutoPureForDate(t *testing.T) {
 	expectPrinted(t, "new Date(foo``)", "new Date(foo``);\n")
 	expectPrinted(t, "new Date(foo ? x : y)", "new Date(foo ? x : y);\n")
 }
+
+// See: https://github.com/tc39/proposal-explicit-resource-management
+func TestUsing(t *testing.T) {
+	expectPrinted(t, "using x = y", "using x = y;\n")
+	expectPrinted(t, "using x = y; z", "using x = y;\nz;\n")
+	expectPrinted(t, "using x = y, z = _", "using x = y, z = _;\n")
+	expectPrinted(t, "using x = y, \n z = _", "using x = y, z = _;\n")
+	expectPrinted(t, "using \n x = y", "using;\nx = y;\n")
+	expectPrinted(t, "using [x]", "using[x];\n")
+	expectPrinted(t, "using [x] = y", "using[x] = y;\n")
+	expectPrinted(t, "using \n [x] = y", "using[x] = y;\n")
+	expectParseError(t, "using x", "<stdin>: ERROR: The declaration \"x\" must be initialized\n")
+	expectParseError(t, "using {x}", "<stdin>: ERROR: Expected \";\" but found \"{\"\n")
+	expectParseError(t, "using x = y, z", "<stdin>: ERROR: The declaration \"z\" must be initialized\n")
+	expectParseError(t, "using x = y, [z] = _", "<stdin>: ERROR: Expected identifier but found \"[\"\n")
+	expectParseError(t, "using x = y, {z} = _", "<stdin>: ERROR: Expected identifier but found \"{\"\n")
+
+	expectPrinted(t, "for (using x of y) ;", "for (using x of y)\n  ;\n")
+	expectPrinted(t, "for (using x = y;;) ;", "for (using x = y; ; )\n  ;\n")
+	expectParseError(t, "for (using x in y) ;", "<stdin>: ERROR: \"using\" declarations are not allowed here\n")
+	expectParseError(t, "for (using x = y of z) ;", "<stdin>: ERROR: for-of loop variables cannot have an initializer\n")
+	expectParseError(t, "for (using x;;) ;", "<stdin>: ERROR: The declaration \"x\" must be initialized\n")
+
+	expectParseErrorWithUnsupportedFeatures(t, compat.Using, "using x = y", "<stdin>: ERROR: This feature is not available in the configured target environment\n")
+}

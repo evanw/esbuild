@@ -2609,7 +2609,7 @@ func (p *parser) parsePropertyBinding() js_ast.PropertyBinding {
 	}
 
 	p.lexer.Expect(js_lexer.TColon)
-	value := p.parseBinding()
+	value := p.parseBinding(parseBindingOpts{})
 
 	var defaultValueOrNil js_ast.Expr
 	if p.lexer.Token == js_lexer.TEquals {
@@ -4724,10 +4724,18 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 	}
 }
 
-func (p *parser) parseExprOrLetStmt(opts parseStmtOpts) (js_ast.Expr, js_ast.Stmt, []js_ast.Decl) {
-	letRange := p.lexer.Range()
+func (p *parser) parseExprOrLetOrUsingStmt(opts parseStmtOpts) (js_ast.Expr, js_ast.Stmt, []js_ast.Decl) {
+	couldBeLet := false
+	couldBeUsing := false
+	tokenRange := p.lexer.Range()
 
-	if p.lexer.Token != js_lexer.TIdentifier || p.lexer.Raw() != "let" {
+	if p.lexer.Token == js_lexer.TIdentifier {
+		raw := p.lexer.Raw()
+		couldBeLet = raw == "let"
+		couldBeUsing = raw == "using"
+	}
+
+	if !couldBeLet && !couldBeUsing {
 		var flags exprFlag
 		if opts.isForLoopInit {
 			flags |= exprFlagForLoopInit
@@ -4741,24 +4749,42 @@ func (p *parser) parseExprOrLetStmt(opts parseStmtOpts) (js_ast.Expr, js_ast.Stm
 	name := p.lexer.Identifier
 	p.lexer.Next()
 
-	switch p.lexer.Token {
-	case js_lexer.TIdentifier, js_lexer.TOpenBracket, js_lexer.TOpenBrace:
-		if opts.lexicalDecl == lexicalDeclAllowAll || !p.lexer.HasNewlineBefore || p.lexer.Token == js_lexer.TOpenBracket {
-			if opts.lexicalDecl != lexicalDeclAllowAll {
-				p.forbidLexicalDecl(letRange.Loc)
+	if couldBeLet {
+		switch p.lexer.Token {
+		case js_lexer.TIdentifier, js_lexer.TOpenBracket, js_lexer.TOpenBrace:
+			if opts.lexicalDecl == lexicalDeclAllowAll || !p.lexer.HasNewlineBefore || p.lexer.Token == js_lexer.TOpenBracket {
+				if opts.lexicalDecl != lexicalDeclAllowAll {
+					p.forbidLexicalDecl(tokenRange.Loc)
+				}
+				p.markSyntaxFeature(compat.ConstAndLet, tokenRange)
+				decls := p.parseAndDeclareDecls(js_ast.SymbolOther, opts)
+				return js_ast.Expr{}, js_ast.Stmt{Loc: tokenRange.Loc, Data: &js_ast.SLocal{
+					Kind:     js_ast.LocalLet,
+					Decls:    decls,
+					IsExport: opts.isExport,
+				}}, decls
 			}
-			p.markSyntaxFeature(compat.ConstAndLet, letRange)
-			decls := p.parseAndDeclareDecls(js_ast.SymbolOther, opts)
-			return js_ast.Expr{}, js_ast.Stmt{Loc: letRange.Loc, Data: &js_ast.SLocal{
-				Kind:     js_ast.LocalLet,
-				Decls:    decls,
-				IsExport: opts.isExport,
-			}}, decls
 		}
+	} else if p.lexer.Token == js_lexer.TIdentifier && !p.lexer.HasNewlineBefore {
+		// See: https://github.com/tc39/proposal-explicit-resource-management
+		if opts.lexicalDecl != lexicalDeclAllowAll {
+			p.forbidLexicalDecl(tokenRange.Loc)
+		}
+		p.markSyntaxFeature(compat.Using, tokenRange)
+		opts.isUsingStmt = true
+		decls := p.parseAndDeclareDecls(js_ast.SymbolConst, opts)
+		if !opts.isForLoopInit {
+			p.requireInitializers(js_ast.LocalUsing, decls)
+		}
+		return js_ast.Expr{}, js_ast.Stmt{Loc: tokenRange.Loc, Data: &js_ast.SLocal{
+			Kind:     js_ast.LocalUsing,
+			Decls:    decls,
+			IsExport: opts.isExport,
+		}}, decls
 	}
 
 	ref := p.storeNameInRef(name)
-	expr := js_ast.Expr{Loc: letRange.Loc, Data: &js_ast.EIdentifier{Ref: ref}}
+	expr := js_ast.Expr{Loc: tokenRange.Loc, Data: &js_ast.EIdentifier{Ref: ref}}
 	return p.parseSuffix(expr, js_ast.LLowest, nil, 0), js_ast.Stmt{}, nil
 }
 
@@ -5211,7 +5237,7 @@ func (p *parser) parseAndDeclareDecls(kind js_ast.SymbolKind, opts parseStmtOpts
 		}
 
 		var valueOrNil js_ast.Expr
-		local := p.parseBinding()
+		local := p.parseBinding(parseBindingOpts{isUsingStmt: opts.isUsingStmt})
 		p.declareBinding(kind, local, opts)
 
 		// Skip over types
@@ -5275,15 +5301,20 @@ func (p *parser) parseAndDeclareDecls(kind js_ast.SymbolKind, opts parseStmtOpts
 	return decls
 }
 
-func (p *parser) requireInitializers(decls []js_ast.Decl) {
+func (p *parser) requireInitializers(kind js_ast.LocalKind, decls []js_ast.Decl) {
 	for _, d := range decls {
 		if d.ValueOrNil.Data == nil {
+			what := "constant"
+			if kind == js_ast.LocalUsing {
+				what = "declaration"
+			}
 			if id, ok := d.Binding.Data.(*js_ast.BIdentifier); ok {
 				r := js_lexer.RangeOfIdentifier(p.source, d.Binding.Loc)
-				p.log.AddError(&p.tracker, r, fmt.Sprintf("The constant %q must be initialized",
-					p.symbols[id.Ref.InnerIndex].OriginalName))
+				p.log.AddError(&p.tracker, r,
+					fmt.Sprintf("The %s %q must be initialized", what, p.symbols[id.Ref.InnerIndex].OriginalName))
 			} else {
-				p.log.AddError(&p.tracker, logger.Range{Loc: d.Binding.Loc}, "This constant must be initialized")
+				p.log.AddError(&p.tracker, logger.Range{Loc: d.Binding.Loc},
+					fmt.Sprintf("This %s must be initialized", what))
 			}
 		}
 	}
@@ -5592,7 +5623,11 @@ func (p *parser) parseExportClause() ([]js_ast.ClauseItem, bool) {
 	return items, isSingleLine
 }
 
-func (p *parser) parseBinding() js_ast.Binding {
+type parseBindingOpts struct {
+	isUsingStmt bool
+}
+
+func (p *parser) parseBinding(opts parseBindingOpts) js_ast.Binding {
 	loc := p.lexer.Loc()
 
 	switch p.lexer.Token {
@@ -5610,6 +5645,9 @@ func (p *parser) parseBinding() js_ast.Binding {
 		return js_ast.Binding{Loc: loc, Data: &js_ast.BIdentifier{Ref: ref}}
 
 	case js_lexer.TOpenBracket:
+		if opts.isUsingStmt {
+			break
+		}
 		p.markSyntaxFeature(compat.Destructuring, p.lexer.Range())
 		p.lexer.Next()
 		isSingleLine := !p.lexer.HasNewlineBefore
@@ -5641,7 +5679,7 @@ func (p *parser) parseBinding() js_ast.Binding {
 				}
 
 				p.saveExprCommentsHere()
-				binding := p.parseBinding()
+				binding := p.parseBinding(parseBindingOpts{})
 
 				var defaultValueOrNil js_ast.Expr
 				if !hasSpread && p.lexer.Token == js_lexer.TEquals {
@@ -5689,6 +5727,9 @@ func (p *parser) parseBinding() js_ast.Binding {
 		}}
 
 	case js_lexer.TOpenBrace:
+		if opts.isUsingStmt {
+			break
+		}
 		p.markSyntaxFeature(compat.Destructuring, p.lexer.Range())
 		p.lexer.Next()
 		isSingleLine := !p.lexer.HasNewlineBefore
@@ -5855,7 +5896,7 @@ func (p *parser) parseFn(
 		isTypeScriptCtorField := false
 		isIdentifier := p.lexer.Token == js_lexer.TIdentifier
 		text := p.lexer.Identifier.String
-		arg := p.parseBinding()
+		arg := p.parseBinding(parseBindingOpts{})
 
 		if p.options.ts.Parse {
 			// Skip over TypeScript accessibility modifiers, which turn this argument
@@ -5875,7 +5916,7 @@ func (p *parser) parseFn(
 					text = p.lexer.Identifier.String
 
 					// Re-parse the binding (the current binding is the TypeScript keyword)
-					arg = p.parseBinding()
+					arg = p.parseBinding(parseBindingOpts{})
 				}
 			}
 
@@ -6531,6 +6572,7 @@ type parseStmtOpts struct {
 	isForAwaitLoopInit      bool
 	allowDirectivePrologue  bool
 	hasNoSideEffectsComment bool
+	isUsingStmt             bool
 }
 
 func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
@@ -6943,7 +6985,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		decls := p.parseAndDeclareDecls(js_ast.SymbolConst, opts)
 		p.lexer.ExpectOrInsertSemicolon()
 		if !opts.isTypeScriptDeclare {
-			p.requireInitializers(decls)
+			p.requireInitializers(js_ast.LocalConst, decls)
 		}
 		return js_ast.Stmt{Loc: loc, Data: &js_ast.SLocal{
 			Kind:     js_ast.LocalConst,
@@ -7088,7 +7130,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 				}
 			} else {
 				p.lexer.Expect(js_lexer.TOpenParen)
-				bindingOrNil = p.parseBinding()
+				bindingOrNil = p.parseBinding(parseBindingOpts{})
 
 				// Skip over types
 				if p.options.ts.Parse && p.lexer.Token == js_lexer.TColon {
@@ -7200,7 +7242,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		default:
 			var expr js_ast.Expr
 			var stmt js_ast.Stmt
-			expr, stmt, decls = p.parseExprOrLetStmt(parseStmtOpts{
+			expr, stmt, decls = p.parseExprOrLetOrUsingStmt(parseStmtOpts{
 				lexicalDecl:        lexicalDeclAllowAll,
 				isForLoopInit:      true,
 				isForAwaitLoopInit: awaitRange.Len > 0,
@@ -7240,6 +7282,11 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		// Detect for-in loops
 		if p.lexer.Token == js_lexer.TIn {
 			p.forbidInitializers(decls, "in", isVar)
+			if len(decls) == 1 {
+				if local, ok := initOrNil.Data.(*js_ast.SLocal); ok && local.Kind == js_ast.LocalUsing {
+					p.log.AddError(&p.tracker, js_lexer.RangeOfIdentifier(p.source, initOrNil.Loc), "\"using\" declarations are not allowed here")
+				}
+			}
 			p.lexer.Next()
 			value := p.parseExpr(js_ast.LLowest)
 			p.lexer.Expect(js_lexer.TCloseParen)
@@ -7248,8 +7295,8 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		}
 
 		// Only require "const" statement initializers when we know we're a normal for loop
-		if local, ok := initOrNil.Data.(*js_ast.SLocal); ok && local.Kind == js_ast.LocalConst {
-			p.requireInitializers(decls)
+		if local, ok := initOrNil.Data.(*js_ast.SLocal); ok && (local.Kind == js_ast.LocalConst || local.Kind == js_ast.LocalUsing) {
+			p.requireInitializers(local.Kind, decls)
 		}
 
 		p.lexer.Expect(js_lexer.TSemicolon)
@@ -7570,7 +7617,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			expr = p.parseSuffix(p.parseAsyncPrefixExpr(asyncRange, js_ast.LLowest, 0), js_ast.LLowest, nil, 0)
 		} else {
 			var stmt js_ast.Stmt
-			expr, stmt, _ = p.parseExprOrLetStmt(opts)
+			expr, stmt, _ = p.parseExprOrLetOrUsingStmt(opts)
 			if stmt.Data != nil {
 				p.lexer.ExpectOrInsertSemicolon()
 				return stmt
