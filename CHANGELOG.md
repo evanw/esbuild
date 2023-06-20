@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.18.6
 
 * Fix tree-shaking of classes with decorators ([#3164](https://github.com/evanw/esbuild/issues/3164))
 
