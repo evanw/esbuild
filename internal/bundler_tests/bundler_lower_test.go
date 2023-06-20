@@ -2404,7 +2404,7 @@ func TestJavaScriptDecoratorsESNext(t *testing.T) {
 		files: map[string]string{
 			"/entry.js": `
 				@x.y()
-				@new y.x()
+				@(new y.x)
 				export default class Foo {
 					@x @y mUndef
 					@x @y mDef = 1

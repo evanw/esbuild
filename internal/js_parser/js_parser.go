@@ -6520,21 +6520,87 @@ func (p *parser) parseDecorators(decoratorScope *js_ast.Scope, classKeyword logg
 		atLoc := p.lexer.Loc()
 		p.lexer.Next()
 
-		// Parse a new/call expression with "exprFlagDecorator" so we ignore
-		// EIndex expressions, since they may be part of a computed property:
-		//
-		//   class Foo {
-		//     @foo ['computed']() {}
-		//   }
-		//
-		// This matches the behavior of the TypeScript compiler.
-		value := p.parseExprWithFlags(js_ast.LNew, exprFlagDecorator)
+		var value js_ast.Expr
+		if p.options.ts.Parse && p.options.ts.Config.ExperimentalDecorators == config.True {
+			// TypeScript's experimental decorator syntax is more permissive than
+			// JavaScript. Parse a new/call expression with "exprFlagDecorator" so
+			// we ignore EIndex expressions, since they may be part of a computed
+			// property:
+			//
+			//   class Foo {
+			//     @foo ['computed']() {}
+			//   }
+			//
+			// This matches the behavior of the TypeScript compiler.
+			value = p.parseExprWithFlags(js_ast.LNew, exprFlagDecorator)
+		} else {
+			// JavaScript's decorator syntax is more restrictive. Parse it using a
+			// special parser that doesn't allow normal expressions (e.g. "?.").
+			value = p.parseDecorator()
+		}
 		decorators = append(decorators, js_ast.Decorator{Value: value, AtLoc: atLoc})
 	}
 
 	// Avoid "popScope" because this decorator scope is not hierarchical
 	p.currentScope = oldScope
 	return decorators
+}
+
+func (p *parser) parseDecorator() js_ast.Expr {
+	if p.lexer.Token == js_lexer.TOpenParen {
+		p.lexer.Next()
+		value := p.parseExpr(js_ast.LLowest)
+		p.lexer.Expect(js_lexer.TCloseParen)
+		return value
+	}
+
+	name := p.lexer.Identifier
+	nameRange := p.lexer.Range()
+	p.lexer.Expect(js_lexer.TIdentifier)
+
+	// Forbid invalid identifiers
+	if (p.fnOrArrowDataParse.await != allowIdent && name.String == "await") ||
+		(p.fnOrArrowDataParse.yield != allowIdent && name.String == "yield") {
+		p.log.AddError(&p.tracker, nameRange, fmt.Sprintf("Cannot use %q as an identifier here:", name.String))
+	}
+
+	memberExpr := js_ast.Expr{Loc: nameRange.Loc, Data: &js_ast.EIdentifier{Ref: p.storeNameInRef(name)}}
+
+	for p.lexer.Token == js_lexer.TDot {
+		p.lexer.Next()
+		if p.lexer.Token == js_lexer.TPrivateIdentifier {
+			memberExpr.Data = &js_ast.EIndex{
+				Target: memberExpr,
+				Index:  js_ast.Expr{Loc: p.lexer.Loc(), Data: &js_ast.EPrivateIdentifier{Ref: p.storeNameInRef(p.lexer.Identifier)}},
+			}
+			p.lexer.Next()
+		} else {
+			memberExpr.Data = &js_ast.EDot{
+				Target:  memberExpr,
+				Name:    p.lexer.Identifier.String,
+				NameLoc: p.lexer.Loc(),
+			}
+			p.lexer.Expect(js_lexer.TIdentifier)
+		}
+	}
+
+	// The grammar for "DecoratorMemberExpression" currently forbids "?."
+	if p.lexer.Token == js_lexer.TQuestionDot {
+		p.lexer.Expect(js_lexer.TDot)
+	}
+
+	if p.lexer.Token == js_lexer.TOpenParen {
+		args, closeParenLoc, isMultiLine := p.parseCallArgs()
+		memberExpr.Data = &js_ast.ECall{
+			Target:        memberExpr,
+			Args:          args,
+			CloseParenLoc: closeParenLoc,
+			IsMultiLine:   isMultiLine,
+			Kind:          js_ast.TargetWasOriginallyPropertyAccess,
+		}
+	}
+
+	return memberExpr
 }
 
 func (p *parser) logDecoratorWithoutFollowingClassError(firstAtLoc logger.Loc, scopeIndex int) {

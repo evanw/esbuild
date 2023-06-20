@@ -883,7 +883,7 @@ func TestTSExperimentalDecoratorsNoConfig(t *testing.T) {
 			"/entry.ts": `
 				declare let x: any, y: any
 				@x.y()
-				@new y.x()
+				@(new y.x)
 				export default class Foo {
 					@x @y mUndef: any
 					@x @y mDef = 1
