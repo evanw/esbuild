@@ -540,6 +540,10 @@ func TestStrictMode(t *testing.T) {
 	expectParseError(t, "with (y) z; await 0", tlaKeyword)
 	expectParseError(t, "for await (x of y); with (y) z", tlaKeyword)
 	expectParseError(t, "with (y) z; for await (x of y);", tlaKeyword)
+	expectParseError(t, "await using x = _; with (y) z", tlaKeyword)
+	expectParseError(t, "with (y) z; await using x = _", tlaKeyword)
+	expectParseError(t, "for (await using x of _) ; with (y) z", tlaKeyword)
+	expectParseError(t, "with (y) z; for (await using x of _) ;", tlaKeyword)
 
 	fAlreadyDeclaredError := "<stdin>: ERROR: The symbol \"f\" has already been declared\n" +
 		"<stdin>: NOTE: The symbol \"f\" was originally declared here:\n"
@@ -6060,6 +6064,21 @@ func TestUsing(t *testing.T) {
 	expectParseError(t, "for (using x in y) ;", "<stdin>: ERROR: \"using\" declarations are not allowed here\n")
 	expectParseError(t, "for (using x = y of z) ;", "<stdin>: ERROR: for-of loop variables cannot have an initializer\n")
 	expectParseError(t, "for (using x;;) ;", "<stdin>: ERROR: The declaration \"x\" must be initialized\n")
+	expectParseError(t, "for (using \n x of y) ;", "<stdin>: ERROR: Expected \";\" but found \"x\"\n")
+
+	expectPrinted(t, "await using \n x = y", "await using;\nx = y;\n")
+	expectPrinted(t, "await \n using \n x \n = \n y", "await using;\nx = y;\n")
+	expectPrinted(t, "await using [x]", "await using[x];\n")
+	expectPrinted(t, "await using ([x] = y)", "await using([x] = y);\n")
+	expectPrinted(t, "await (using [x] = y)", "await (using[x] = y);\n")
+	expectParseError(t, "await using [x] = y", "<stdin>: ERROR: Invalid assignment target\n")
+	expectParseError(t, "for (await using x in y) ;", "<stdin>: ERROR: \"await using\" declarations are not allowed here\n")
+	expectParseError(t, "for (await using x = y;;) ;", "<stdin>: ERROR: \"await using\" declarations are not allowed here\n")
+	expectParseError(t, "for (await using \n x of y) ;", "<stdin>: ERROR: Expected \";\" but found \"x\"\n")
+
+	expectPrinted(t, "await using x = y", "await using x = y;\n")
+	expectPrinted(t, "await using x = y, z = _", "await using x = y, z = _;\n")
+	expectPrinted(t, "for (await using x of y) ;", "for (await using x of y)\n  ;\n")
 
 	expectParseErrorWithUnsupportedFeatures(t, compat.Using, "using x = y", "<stdin>: ERROR: This feature is not available in the configured target environment\n")
 }

@@ -4727,15 +4727,17 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 func (p *parser) parseExprOrLetOrUsingStmt(opts parseStmtOpts) (js_ast.Expr, js_ast.Stmt, []js_ast.Decl) {
 	couldBeLet := false
 	couldBeUsing := false
+	couldBeAwaitUsing := false
 	tokenRange := p.lexer.Range()
 
 	if p.lexer.Token == js_lexer.TIdentifier {
 		raw := p.lexer.Raw()
 		couldBeLet = raw == "let"
 		couldBeUsing = raw == "using"
+		couldBeAwaitUsing = raw == "await" && p.fnOrArrowDataParse.await == allowExpr
 	}
 
-	if !couldBeLet && !couldBeUsing {
+	if !couldBeLet && !couldBeUsing && !couldBeAwaitUsing {
 		var flags exprFlag
 		if opts.isForLoopInit {
 			flags |= exprFlagForLoopInit
@@ -4753,6 +4755,7 @@ func (p *parser) parseExprOrLetOrUsingStmt(opts parseStmtOpts) (js_ast.Expr, js_
 		switch p.lexer.Token {
 		case js_lexer.TIdentifier, js_lexer.TOpenBracket, js_lexer.TOpenBrace:
 			if opts.lexicalDecl == lexicalDeclAllowAll || !p.lexer.HasNewlineBefore || p.lexer.Token == js_lexer.TOpenBracket {
+				// Handle a "let" declaration
 				if opts.lexicalDecl != lexicalDeclAllowAll {
 					p.forbidLexicalDecl(tokenRange.Loc)
 				}
@@ -4765,8 +4768,8 @@ func (p *parser) parseExprOrLetOrUsingStmt(opts parseStmtOpts) (js_ast.Expr, js_
 				}}, decls
 			}
 		}
-	} else if p.lexer.Token == js_lexer.TIdentifier && !p.lexer.HasNewlineBefore {
-		// See: https://github.com/tc39/proposal-explicit-resource-management
+	} else if couldBeUsing && p.lexer.Token == js_lexer.TIdentifier && !p.lexer.HasNewlineBefore {
+		// Handle a "using" declaration
 		if opts.lexicalDecl != lexicalDeclAllowAll {
 			p.forbidLexicalDecl(tokenRange.Loc)
 		}
@@ -4781,10 +4784,47 @@ func (p *parser) parseExprOrLetOrUsingStmt(opts parseStmtOpts) (js_ast.Expr, js_
 			Decls:    decls,
 			IsExport: opts.isExport,
 		}}, decls
+	} else if couldBeAwaitUsing {
+		// Handle an "await using" declaration
+		if p.fnOrArrowDataParse.isTopLevel {
+			p.topLevelAwaitKeyword = tokenRange
+		}
+		var value js_ast.Expr
+		if p.lexer.Token == js_lexer.TIdentifier && p.lexer.Raw() == "using" {
+			usingLoc := p.saveExprCommentsHere()
+			usingRange := p.lexer.Range()
+			p.lexer.Next()
+			if p.lexer.Token == js_lexer.TIdentifier && !p.lexer.HasNewlineBefore {
+				// It's an "await using" declaration if we get here
+				if opts.lexicalDecl != lexicalDeclAllowAll {
+					p.forbidLexicalDecl(usingRange.Loc)
+				}
+				p.markSyntaxFeature(compat.Using, usingRange)
+				opts.isUsingStmt = true
+				decls := p.parseAndDeclareDecls(js_ast.SymbolConst, opts)
+				if !opts.isForLoopInit {
+					p.requireInitializers(js_ast.LocalAwaitUsing, decls)
+				}
+				return js_ast.Expr{}, js_ast.Stmt{Loc: tokenRange.Loc, Data: &js_ast.SLocal{
+					Kind:     js_ast.LocalAwaitUsing,
+					Decls:    decls,
+					IsExport: opts.isExport,
+				}}, decls
+			}
+			value = js_ast.Expr{Loc: usingLoc, Data: &js_ast.EIdentifier{Ref: p.storeNameInRef(js_lexer.MaybeSubstring{String: "using"})}}
+		} else {
+			value = p.parseExpr(js_ast.LPrefix)
+		}
+		if p.lexer.Token == js_lexer.TAsteriskAsterisk {
+			p.lexer.Unexpected()
+		}
+		value = p.parseSuffix(value, js_ast.LPrefix, nil, 0)
+		expr := js_ast.Expr{Loc: tokenRange.Loc, Data: &js_ast.EAwait{Value: value}}
+		return p.parseSuffix(expr, js_ast.LLowest, nil, 0), js_ast.Stmt{}, nil
 	}
 
-	ref := p.storeNameInRef(name)
-	expr := js_ast.Expr{Loc: tokenRange.Loc, Data: &js_ast.EIdentifier{Ref: ref}}
+	// Parse the remainder of this expression that starts with an identifier
+	expr := js_ast.Expr{Loc: tokenRange.Loc, Data: &js_ast.EIdentifier{Ref: p.storeNameInRef(name)}}
 	return p.parseSuffix(expr, js_ast.LLowest, nil, 0), js_ast.Stmt{}, nil
 }
 
@@ -7349,8 +7389,12 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		if p.lexer.Token == js_lexer.TIn {
 			p.forbidInitializers(decls, "in", isVar)
 			if len(decls) == 1 {
-				if local, ok := initOrNil.Data.(*js_ast.SLocal); ok && local.Kind == js_ast.LocalUsing {
-					p.log.AddError(&p.tracker, js_lexer.RangeOfIdentifier(p.source, initOrNil.Loc), "\"using\" declarations are not allowed here")
+				if local, ok := initOrNil.Data.(*js_ast.SLocal); ok {
+					if local.Kind == js_ast.LocalUsing {
+						p.log.AddError(&p.tracker, js_lexer.RangeOfIdentifier(p.source, initOrNil.Loc), "\"using\" declarations are not allowed here")
+					} else if local.Kind == js_ast.LocalAwaitUsing {
+						p.log.AddError(&p.tracker, js_lexer.RangeOfIdentifier(p.source, initOrNil.Loc), "\"await using\" declarations are not allowed here")
+					}
 				}
 			}
 			p.lexer.Next()
@@ -7358,6 +7402,11 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			p.lexer.Expect(js_lexer.TCloseParen)
 			body := p.parseStmt(parseStmtOpts{})
 			return js_ast.Stmt{Loc: loc, Data: &js_ast.SForIn{Init: initOrNil, Value: value, Body: body}}
+		}
+
+		// "await using" declarations are only allowed in for-of loops
+		if local, ok := initOrNil.Data.(*js_ast.SLocal); ok && local.Kind == js_ast.LocalAwaitUsing {
+			p.log.AddError(&p.tracker, js_lexer.RangeOfIdentifier(p.source, initOrNil.Loc), "\"await using\" declarations are not allowed here")
 		}
 
 		// Only require "const" statement initializers when we know we're a normal for loop

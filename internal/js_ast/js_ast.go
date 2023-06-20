@@ -1145,6 +1145,7 @@ const (
 	LocalLet
 	LocalConst
 	LocalUsing
+	LocalAwaitUsing
 )
 
 type SLocal struct {

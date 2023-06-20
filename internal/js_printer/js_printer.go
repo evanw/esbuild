@@ -3481,6 +3481,8 @@ func (p *printer) printForLoopInit(init js_ast.Stmt, flags printExprFlags) {
 		p.printExpr(s.Value, js_ast.LLowest, flags|exprResultIsUnused)
 	case *js_ast.SLocal:
 		switch s.Kind {
+		case js_ast.LocalAwaitUsing:
+			p.printDecls("await using", s.Decls, flags)
 		case js_ast.LocalConst:
 			p.printDecls("const", s.Decls, flags)
 		case js_ast.LocalLet:
@@ -4113,6 +4115,8 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 	case *js_ast.SLocal:
 		p.addSourceMapping(stmt.Loc)
 		switch s.Kind {
+		case js_ast.LocalAwaitUsing:
+			p.printDeclStmt(s.IsExport, "await using", s.Decls)
 		case js_ast.LocalConst:
 			p.printDeclStmt(s.IsExport, "const", s.Decls)
 		case js_ast.LocalLet:

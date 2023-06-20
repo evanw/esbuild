@@ -1103,3 +1103,16 @@ func TestBinaryOperatorVisitor(t *testing.T) {
 	x := "x = f()" + strings.Repeat(" || f()", 10_000) + ";\n"
 	expectPrinted(t, x, x)
 }
+
+// See: https://github.com/tc39/proposal-explicit-resource-management
+func TestUsing(t *testing.T) {
+	expectPrinted(t, "using x = y", "using x = y;\n")
+	expectPrinted(t, "using x = y, z = _", "using x = y, z = _;\n")
+	expectPrintedMinify(t, "using x = y", "using x=y;")
+	expectPrintedMinify(t, "using x = y, z = _", "using x=y,z=_;")
+
+	expectPrinted(t, "await using x = y", "await using x = y;\n")
+	expectPrinted(t, "await using x = y, z = _", "await using x = y, z = _;\n")
+	expectPrintedMinify(t, "await using x = y", "await using x=y;")
+	expectPrintedMinify(t, "await using x = y, z = _", "await using x=y,z=_;")
+}
