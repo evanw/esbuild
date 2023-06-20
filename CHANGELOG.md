@@ -14,11 +14,67 @@
     new Foo().foo = Foo.bar;
     ```
 
-    This syntax is not yet a part of JavaScript but it was [added to TypeScript in version 4.9](https://devblogs.microsoft.com/typescript/announcing-typescript-4-9/#auto-accessors-in-classes). More information about this feature can be found in [microsoft/TypeScript#49705](https://github.com/microsoft/TypeScript/pull/49705).
+    This syntax is not yet a part of JavaScript but it was [added to TypeScript in version 4.9](https://devblogs.microsoft.com/typescript/announcing-typescript-4-9/#auto-accessors-in-classes). More information about this feature can be found in [microsoft/TypeScript#49705](https://github.com/microsoft/TypeScript/pull/49705). Auto-accessors will be transformed if the target is set to something other than `esnext`:
+
+    ```js
+    // Output (with --target=esnext)
+    class Foo {
+      accessor foo;
+      static accessor bar;
+    }
+    new Foo().foo = Foo.bar;
+
+    // Output (with --target=es2022)
+    class Foo {
+      #foo;
+      get foo() {
+        return this.#foo;
+      }
+      set foo(_) {
+        this.#foo = _;
+      }
+      static #bar;
+      static get bar() {
+        return this.#bar;
+      }
+      static set bar(_) {
+        this.#bar = _;
+      }
+    }
+    new Foo().foo = Foo.bar;
+
+    // Output (with --target=es2021)
+    var _foo, _bar;
+    class Foo {
+      constructor() {
+        __privateAdd(this, _foo, void 0);
+      }
+      get foo() {
+        return __privateGet(this, _foo);
+      }
+      set foo(_) {
+        __privateSet(this, _foo, _);
+      }
+      static get bar() {
+        return __privateGet(this, _bar);
+      }
+      static set bar(_) {
+        __privateSet(this, _bar, _);
+      }
+    }
+    _foo = new WeakMap();
+    _bar = new WeakMap();
+    __privateAdd(Foo, _bar, void 0);
+    new Foo().foo = Foo.bar;
+    ```
+
+    You can also now use auto-accessors with esbuild's TypeScript experimental decorator transformation, which should behave the same as decorating the underlying getter/setter pair.
+
+    **Please keep in mind that this syntax is not yet part of JavaScript.** This release enables auto-accessors in `.js` files with the expectation that it will be a part of JavaScript soon. However, esbuild may change or remove this feature in the future if JavaScript ends up changing or removing this feature. Use this feature with caution for now.
 
 * Pass through JavaScript decorators ([#104](https://github.com/evanw/esbuild/issues/104))
 
-    In this release, esbuild now parses decorators from the upcoming [JavaScript decorators proposal](https://github.com/tc39/proposal-decorators) and passes them through to the output unmodified, at least as long as the language target is set to `esnext`. Transforming JavaScript decorators to environments that don't support them has not been implemented yet.
+    In this release, esbuild now parses decorators from the upcoming [JavaScript decorators proposal](https://github.com/tc39/proposal-decorators) and passes them through to the output unmodified (as long as the language target is set to `esnext`). Transforming JavaScript decorators to environments that don't support them has not been implemented yet. The only decorator transform that esbuild currently implements is still the TypeScript experimental decorator transform, which only works in `.ts` files and which requires `"experimentalDecorators": true` in your `tsconfig.json` file.
 
 * Static fields with assign semantics now use static blocks if possible
 
