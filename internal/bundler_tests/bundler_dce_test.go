@@ -2849,6 +2849,13 @@ func TestConstValueInliningNoBundle(t *testing.T) {
 					)
 				}
 			`,
+			"/issue-3125.js": `
+				function foo() {
+					const f = () => x
+					const x = 0
+					return f()
+				}
+			`,
 		},
 		entryPaths: []string{
 			"/top-level.js",
@@ -2866,6 +2873,7 @@ func TestConstValueInliningNoBundle(t *testing.T) {
 			"/disabled-tdz.js",
 			"/backwards-reference-top-level.js",
 			"/backwards-reference-nested-function.js",
+			"/issue-3125.js",
 		},
 		options: config.Options{
 			Mode:         config.ModePassThrough,

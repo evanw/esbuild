@@ -8592,7 +8592,7 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 					end := 0
 					for _, d := range s.Decls {
 						if id, ok := d.Binding.Data.(*js_ast.BIdentifier); ok {
-							if _, ok := p.constValues[id.Ref]; ok {
+							if _, ok := p.constValues[id.Ref]; ok && p.symbols[id.Ref.InnerIndex].UseCountEstimate == 0 {
 								continue
 							}
 						}
@@ -10814,7 +10814,7 @@ func isUnsightlyPrimitive(data js_ast.E) bool {
 // But a situation like this is ok:
 //
 //	const x = 1;
-//	const y = [() => z];
+//	const y = [() => x + z];
 //	const z = 2;
 func isSafeForConstLocalPrefix(expr js_ast.Expr) bool {
 	switch e := expr.Data.(type) {

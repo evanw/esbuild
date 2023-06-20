@@ -4,7 +4,29 @@
 
 * Fix tree-shaking of classes with decorators ([#3164](https://github.com/evanw/esbuild/issues/3164))
 
-    This release fixes a bug where esbuild incorrectly allowed tree-shaking on classes with decorators. Each decorator is a function call, so classes with decorators must never be tree-shaken. This bug was a regression that was unintentionally introduced in version 0.18.2 by the change that enabled tree-shaking of lowered private fields.
+    This release fixes a bug where esbuild incorrectly allowed tree-shaking on classes with decorators. Each decorator is a function call, so classes with decorators must never be tree-shaken. This bug was a regression that was unintentionally introduced in version 0.18.2 by the change that enabled tree-shaking of lowered private fields. Previously decorators were always lowered, and esbuild always considered the automatically-generated decorator code to be a side effect. But this is no longer the case now that esbuild analyzes side effects using the AST before lowering takes place. This bug was fixed by considering any decorator a side effect.
+
+* Fix a minification bug involving function expressions ([#3125](https://github.com/evanw/esbuild/issues/3125))
+
+    When minification is enabled, esbuild does limited inlining of `const` symbols at the top of a scope. This release fixes a bug where inlineable symbols were incorrectly removed assuming that they were inlined. They may not be inlined in cases where they were referenced by earlier constants in the body of a function expression. The declarations involved in these edge cases are now kept instead of being removed:
+
+    ```js
+    // Original code
+    {
+      const fn = () => foo
+      const foo = 123
+      console.log(fn)
+    }
+
+    // Old output (with --minify-syntax)
+    console.log((() => foo)());
+
+    // New output (with --minify-syntax)
+    {
+      const fn = () => foo, foo = 123;
+      console.log(fn);
+    }
+    ```
 
 ## 0.18.5
 

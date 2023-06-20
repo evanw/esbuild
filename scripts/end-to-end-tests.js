@@ -2996,6 +2996,22 @@ for (const minify of [[], ['--minify-syntax']]) {
       `,
     }),
   );
+
+  // https://github.com/evanw/esbuild/issues/3125
+  tests.push(
+    test(['in.js', '--outfile=node.js'].concat(minify), {
+      'in.js': `
+        let y
+        {
+          // There was a bug where this incorrectly turned into "y = (() => x)()"
+          const f = () => x;
+          const x = 0;
+          y = f()
+        }
+        if (y !== 0) throw 'fail'
+      `,
+    }),
+  )
 }
 
 // Test minification of top-level symbols

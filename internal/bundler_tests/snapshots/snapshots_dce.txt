@@ -250,6 +250,12 @@ function foo() {
   );
 }
 
+---------- /out/issue-3125.js ----------
+function foo() {
+  const f = () => x, x = 0;
+  return f();
+}
+
 ================================================================================
 TestCrossModuleConstantFolding
 ---------- /out/enum-entry.js ----------
