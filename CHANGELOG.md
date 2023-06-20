@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.18.5
 
 * Implement auto accessors ([#3009](https://github.com/evanw/esbuild/issues/3009))
 
