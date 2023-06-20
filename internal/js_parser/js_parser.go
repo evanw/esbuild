@@ -4768,7 +4768,7 @@ func (p *parser) parseExprOrLetOrUsingStmt(opts parseStmtOpts) (js_ast.Expr, js_
 				}}, decls
 			}
 		}
-	} else if couldBeUsing && p.lexer.Token == js_lexer.TIdentifier && !p.lexer.HasNewlineBefore {
+	} else if couldBeUsing && p.lexer.Token == js_lexer.TIdentifier && !p.lexer.HasNewlineBefore && (!opts.isForLoopInit || p.lexer.Raw() != "of") {
 		// Handle a "using" declaration
 		if opts.lexicalDecl != lexicalDeclAllowAll {
 			p.forbidLexicalDecl(tokenRange.Loc)
@@ -4794,7 +4794,7 @@ func (p *parser) parseExprOrLetOrUsingStmt(opts parseStmtOpts) (js_ast.Expr, js_
 			usingLoc := p.saveExprCommentsHere()
 			usingRange := p.lexer.Range()
 			p.lexer.Next()
-			if p.lexer.Token == js_lexer.TIdentifier && !p.lexer.HasNewlineBefore {
+			if p.lexer.Token == js_lexer.TIdentifier && !p.lexer.HasNewlineBefore && (!opts.isForLoopInit || p.lexer.Raw() != "of") {
 				// It's an "await using" declaration if we get here
 				if opts.lexicalDecl != lexicalDeclAllowAll {
 					p.forbidLexicalDecl(usingRange.Loc)

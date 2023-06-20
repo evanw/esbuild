@@ -6059,12 +6059,17 @@ func TestUsing(t *testing.T) {
 	expectParseError(t, "using x = y, [z] = _", "<stdin>: ERROR: Expected identifier but found \"[\"\n")
 	expectParseError(t, "using x = y, {z} = _", "<stdin>: ERROR: Expected identifier but found \"{\"\n")
 
-	expectPrinted(t, "for (using x of y) ;", "for (using x of y)\n  ;\n")
 	expectPrinted(t, "for (using x = y;;) ;", "for (using x = y; ; )\n  ;\n")
+	expectPrinted(t, "for (using x of y) ;", "for (using x of y)\n  ;\n")
+	expectPrinted(t, "for (using of x) ;", "for (using of x)\n  ;\n")
+	expectPrinted(t, "for await (using x of y) ;", "for await (using x of y)\n  ;\n")
+	expectPrinted(t, "for await (using of x) ;", "for await (using of x)\n  ;\n")
 	expectParseError(t, "for (using x in y) ;", "<stdin>: ERROR: \"using\" declarations are not allowed here\n")
-	expectParseError(t, "for (using x = y of z) ;", "<stdin>: ERROR: for-of loop variables cannot have an initializer\n")
 	expectParseError(t, "for (using x;;) ;", "<stdin>: ERROR: The declaration \"x\" must be initialized\n")
+	expectParseError(t, "for (using x = y of z) ;", "<stdin>: ERROR: for-of loop variables cannot have an initializer\n")
 	expectParseError(t, "for (using \n x of y) ;", "<stdin>: ERROR: Expected \";\" but found \"x\"\n")
+	expectParseError(t, "for await (using x = y of z) ;", "<stdin>: ERROR: for-of loop variables cannot have an initializer\n")
+	expectParseError(t, "for await (using \n x of y) ;", "<stdin>: ERROR: Expected \"of\" but found \"x\"\n")
 
 	expectPrinted(t, "await using \n x = y", "await using;\nx = y;\n")
 	expectPrinted(t, "await \n using \n x \n = \n y", "await using;\nx = y;\n")
@@ -6074,11 +6079,18 @@ func TestUsing(t *testing.T) {
 	expectParseError(t, "await using [x] = y", "<stdin>: ERROR: Invalid assignment target\n")
 	expectParseError(t, "for (await using x in y) ;", "<stdin>: ERROR: \"await using\" declarations are not allowed here\n")
 	expectParseError(t, "for (await using x = y;;) ;", "<stdin>: ERROR: \"await using\" declarations are not allowed here\n")
+	expectParseError(t, "for (await using of x) ;", "<stdin>: ERROR: Invalid assignment target\n")
+	expectParseError(t, "for (await using x = y of z) ;", "<stdin>: ERROR: for-of loop variables cannot have an initializer\n")
 	expectParseError(t, "for (await using \n x of y) ;", "<stdin>: ERROR: Expected \";\" but found \"x\"\n")
+	expectParseError(t, "for await (await using of x) ;", "<stdin>: ERROR: Invalid assignment target\n")
+	expectParseError(t, "for await (await using x = y of z) ;", "<stdin>: ERROR: for-of loop variables cannot have an initializer\n")
+	expectParseError(t, "for await (await using \n x of y) ;", "<stdin>: ERROR: Expected \"of\" but found \"x\"\n")
 
 	expectPrinted(t, "await using x = y", "await using x = y;\n")
 	expectPrinted(t, "await using x = y, z = _", "await using x = y, z = _;\n")
 	expectPrinted(t, "for (await using x of y) ;", "for (await using x of y)\n  ;\n")
+	expectPrinted(t, "for await (await using x of y) ;", "for await (await using x of y)\n  ;\n")
 
 	expectParseErrorWithUnsupportedFeatures(t, compat.Using, "using x = y", "<stdin>: ERROR: This feature is not available in the configured target environment\n")
+	expectParseErrorWithUnsupportedFeatures(t, compat.Using, "await using x = y", "<stdin>: ERROR: This feature is not available in the configured target environment\n")
 }
