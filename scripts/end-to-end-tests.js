@@ -4883,29 +4883,32 @@ for (let flags of [['--target=es2022'], ['--target=es6'], ['--bundle', '--target
         if (!staticMethod) throw 'fail: staticMethod'
       `,
     }),
+  )
 
-    // https://github.com/evanw/esbuild/issues/3177
+  // https://github.com/evanw/esbuild/issues/3177
+  const input3177 = `
+    const props: Record<number, string> = {}
+    const dec = (n: number) => (_: any, prop: string): void => {
+      props[n] = prop
+    }
+    class Foo {
+      @dec(1) prop1: any
+      @dec(2) prop2_: any
+      @dec(3) ['prop3']: any
+      @dec(4) ['prop4_']: any
+      @dec(5) [/* @__KEY__ */ 'prop5']: any
+      @dec(6) [/* @__KEY__ */ 'prop6_']: any
+    }
+    if (props[1] !== 'prop1') throw 'fail 1: ' + props[1]
+    if (props[2] !== /* @__KEY__ */ 'prop2_') throw 'fail 2: ' + props[2]
+    if (props[3] !== 'prop3') throw 'fail 3: ' + props[3]
+    if (props[4] !== 'prop4_') throw 'fail 4: ' + props[4]
+    if (props[5] !== 'prop5') throw 'fail 5: ' + props[5]
+    if (props[6] !== /* @__KEY__ */ 'prop6_') throw 'fail 6: ' + props[6]
+  `
+  tests.push(
     test(['in.ts', '--outfile=node.js', '--mangle-props=_'].concat(flags), {
-      'in.ts': `
-        const props: Record<number, string> = {}
-        const dec = (n: number) => (_: any, prop: string): void => {
-          props[n] = prop
-        }
-        class Foo {
-          @dec(1) prop1: any
-          @dec(2) prop2_: any
-          @dec(3) ['prop3']: any
-          @dec(4) ['prop4_']: any
-          @dec(5) [/* @__KEY__ */ 'prop5']: any
-          @dec(6) [/* @__KEY__ */ 'prop6_']: any
-        }
-        if (props[1] !== 'prop1') throw 'fail 1: ' + props[1]
-        if (props[2] !== /* @__KEY__ */ 'prop2_') throw 'fail 2: ' + props[2]
-        if (props[3] !== 'prop3') throw 'fail 3: ' + props[3]
-        if (props[4] !== 'prop4_') throw 'fail 4: ' + props[4]
-        if (props[5] !== 'prop5') throw 'fail 5: ' + props[5]
-        if (props[6] !== /* @__KEY__ */ 'prop6_') throw 'fail 6: ' + props[6]
-      `,
+      'in.ts': input3177,
       'tsconfig.json': `{
         "compilerOptions": {
           "experimentalDecorators": true,
@@ -4914,26 +4917,73 @@ for (let flags of [['--target=es2022'], ['--target=es6'], ['--bundle', '--target
       }`,
     }),
     test(['in.ts', '--outfile=node.js', '--mangle-props=_'].concat(flags), {
-      'in.ts': `
-        const props: Record<number, string> = {}
-        const dec = (n: number) => (_: any, prop: string): void => {
-          props[n] = prop
-        }
-        class Foo {
-          @dec(1) prop1: any
-          @dec(2) prop2_: any
-          @dec(3) ['prop3']: any
-          @dec(4) ['prop4_']: any
-          @dec(5) [/* @__KEY__ */ 'prop5']: any
-          @dec(6) [/* @__KEY__ */ 'prop6_']: any
-        }
-        if (props[1] !== 'prop1') throw 'fail 1: ' + props[1]
-        if (props[2] !== /* @__KEY__ */ 'prop2_') throw 'fail 2: ' + props[2]
-        if (props[3] !== 'prop3') throw 'fail 3: ' + props[3]
-        if (props[4] !== 'prop4_') throw 'fail 4: ' + props[4]
-        if (props[5] !== 'prop5') throw 'fail 5: ' + props[5]
-        if (props[6] !== /* @__KEY__ */ 'prop6_') throw 'fail 6: ' + props[6]
-      `,
+      'in.ts': input3177,
+      'tsconfig.json': `{
+        "compilerOptions": {
+          "experimentalDecorators": true,
+          "useDefineForClassFields": false,
+        },
+      }`,
+    }),
+  )
+
+  // Test TypeScript experimental decorators and accessors
+  const experimentalDecoratorsAndAccessors = `
+    const log: string[] = []
+    const decorate = (target: any, key: string, descriptor: PropertyDescriptor): any => {
+      if (descriptor.get === void 0) throw 'fail: get ' + key
+      if (descriptor.set === void 0) throw 'fail: set ' + key
+      return {
+        get() {
+          const value = descriptor.get!.call(this)
+          log.push('get ' + key + ' ' + value)
+          return value
+        },
+        set(value: any) {
+          descriptor.set!.call(this, value)
+          log.push('set ' + key + ' ' + value)
+        },
+      }
+    }
+
+    // With esbuild's accessor syntax
+    class Foo {
+      @decorate accessor x = 1
+      @decorate static accessor y = 2
+    }
+    const foo = new Foo
+    if (++foo.x !== 2) throw 'fail: foo.x'
+    if (++Foo.y !== 3) throw 'fail: foo.y'
+    if (log + '' !== 'get x 1,set x 2,get y 2,set y 3') throw 'fail: foo ' + log
+
+    log.length = 0
+
+    // Without esbuild's accessor syntax (should be the same)
+    class Bar {
+      #x = 1
+      @decorate get x() { return this.#x }
+      set x(_) { this.#x = _ }
+      static #y = 2
+      @decorate static get y() { return this.#y }
+      static set y(_) { this.#y = _ }
+    }
+    const bar = new Bar
+    if (++bar.x !== 2) throw 'fail: bar.x'
+    if (++Bar.y !== 3) throw 'fail: Bar.y'
+    if (log + '' !== 'get x 1,set x 2,get y 2,set y 3') throw 'fail: bar ' + log
+  `
+  tests.push(
+    test(['in.ts', '--outfile=node.js'].concat(flags), {
+      'in.ts': experimentalDecoratorsAndAccessors,
+      'tsconfig.json': `{
+        "compilerOptions": {
+          "experimentalDecorators": true,
+          "useDefineForClassFields": true,
+        },
+      }`,
+    }),
+    test(['in.ts', '--outfile=node.js'].concat(flags), {
+      'in.ts': experimentalDecoratorsAndAccessors,
       'tsconfig.json': `{
         "compilerOptions": {
           "experimentalDecorators": true,

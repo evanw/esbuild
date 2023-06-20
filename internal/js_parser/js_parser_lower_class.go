@@ -1115,7 +1115,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 
 				// This code tells "__decorateClass()" if the descriptor should be undefined
 				descriptorKind := float64(1)
-				if !prop.Flags.Has(js_ast.PropertyIsMethod) {
+				if !prop.Flags.Has(js_ast.PropertyIsMethod) && prop.Kind != js_ast.PropertyAutoAccessor {
 					descriptorKind = 2
 				}
 
