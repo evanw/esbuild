@@ -1929,6 +1929,10 @@ func StmtsCanBeRemovedIfUnused(stmts []Stmt, flags StmtsCanBeRemovedIfUnusedFlag
 }
 
 func ClassCanBeRemovedIfUnused(class Class, isUnbound func(Ref) bool) bool {
+	if len(class.Decorators) > 0 {
+		return false
+	}
+
 	// Note: This check is incorrect. Extending a non-constructible object can
 	// throw an error, which is a side effect:
 	//
@@ -1951,8 +1955,22 @@ func ClassCanBeRemovedIfUnused(class Class, isUnbound func(Ref) bool) bool {
 			continue
 		}
 
+		if len(property.Decorators) > 0 {
+			return false
+		}
+
 		if property.Flags.Has(PropertyIsComputed) && !IsPrimitiveLiteral(property.Key.Data) {
 			return false
+		}
+
+		if property.Flags.Has(PropertyIsMethod) {
+			if fn, ok := property.ValueOrNil.Data.(*EFunction); ok {
+				for _, arg := range fn.Fn.Args {
+					if len(arg.Decorators) > 0 {
+						return false
+					}
+				}
+			}
 		}
 
 		if property.Flags.Has(PropertyIsStatic) {

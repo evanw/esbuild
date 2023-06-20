@@ -4315,3 +4315,64 @@ func TestDCEOfIIFE(t *testing.T) {
 		},
 	})
 }
+
+func TestDCEOfDecorators(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/keep-these.js": `
+				import { fn } from './decorator'
+				@fn class Class {}
+				class Field { @fn field }
+				class Method { @fn method() {} }
+				class Accessor { @fn accessor accessor }
+				class StaticField { @fn static field }
+				class StaticMethod { @fn static method() {} }
+				class StaticAccessor { @fn static accessor accessor }
+			`,
+			"/decorator.js": `
+				export const fn = () => {
+					console.log('side effect')
+				}
+			`,
+		},
+		entryPaths: []string{"/keep-these.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+	})
+}
+
+func TestDCEOfExperimentalDecorators(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/keep-these.ts": `
+				import { fn } from './decorator'
+				@fn class Class {}
+				class Field { @fn field }
+				class Method { @fn method() {} }
+				class Accessor { @fn accessor accessor }
+				class Parameter { foo(@fn bar) {} }
+				class StaticField { @fn static field }
+				class StaticMethod { @fn static method() {} }
+				class StaticAccessor { @fn static accessor accessor }
+				class StaticParameter { static foo(@fn bar) {} }
+			`,
+			"/decorator.ts": `
+				export const fn = () => {
+					console.log('side effect')
+				}
+			`,
+			"/tsconfig.json": `{
+				"compilerOptions": {
+					"experimentalDecorators": true
+				}
+			}`,
+		},
+		entryPaths: []string{"/keep-these.ts"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+	})
+}

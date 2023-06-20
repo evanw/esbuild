@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix tree-shaking of classes with decorators ([#3164](https://github.com/evanw/esbuild/issues/3164))
+
+    This release fixes a bug where esbuild incorrectly allowed tree-shaking on classes with decorators. Each decorator is a function call, so classes with decorators must never be tree-shaken. This bug was a regression that was unintentionally introduced in version 0.18.2 by the change that enabled tree-shaking of lowered private fields.
+
 ## 0.18.5
 
 * Implement auto accessors ([#3009](https://github.com/evanw/esbuild/issues/3009))

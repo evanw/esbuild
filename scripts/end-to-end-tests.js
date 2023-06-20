@@ -3552,6 +3552,43 @@ tests.push(
       if (!sideEffect) throw 'fail'
     `,
   }),
+
+  // Keep because side effects (decorators)
+  test(['--bundle', 'entry.ts', '--outfile=node.js', '--target=es2022'], {
+    'entry.ts': `
+      import { order } from './decorator'
+      import './class'
+      import './field'
+      import './method'
+      import './accessor'
+      import './parameter'
+      import './static-field'
+      import './static-method'
+      import './static-accessor'
+      import './static-parameter'
+      if (order + '' !== ',field,method,accessor,parameter,staticField,staticMethod,staticAccessor,staticParameter') throw 'fail: ' + order
+    `,
+    'decorator.ts': `
+      export const order = []
+      export const fn = (_, name) => {
+        order.push(name)
+      }
+    `,
+    'class.ts': `import { fn } from './decorator'; @fn class Foo {}`,
+    'field.ts': `import { fn } from './decorator'; class Foo { @fn field }`,
+    'method.ts': `import { fn } from './decorator'; class Foo { @fn method() {} }`,
+    'accessor.ts': `import { fn } from './decorator'; class Foo { @fn accessor accessor }`,
+    'parameter.ts': `import { fn } from './decorator'; class Foo { parameter(@fn arg) {} }`,
+    'static-field.ts': `import { fn } from './decorator'; class Foo { @fn static staticField }`,
+    'static-method.ts': `import { fn } from './decorator'; class Foo { @fn static staticMethod() {} }`,
+    'static-accessor.ts': `import { fn } from './decorator'; class Foo { @fn static accessor staticAccessor }`,
+    'static-parameter.ts': `import { fn } from './decorator'; class Foo { static staticParameter(@fn arg) {} }`,
+    'tsconfig.json': `{
+      "compilerOptions": {
+        "experimentalDecorators": true
+      }
+    }`,
+  }),
 )
 
 // Test obscure CommonJS symbol edge cases
