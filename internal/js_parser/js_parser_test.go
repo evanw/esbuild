@@ -6091,6 +6091,23 @@ func TestUsing(t *testing.T) {
 	expectPrinted(t, "for (await using x of y) ;", "for (await using x of y)\n  ;\n")
 	expectPrinted(t, "for await (await using x of y) ;", "for await (await using x of y)\n  ;\n")
 
+	expectPrinted(t, "function foo() { using x = y }", "function foo() {\n  using x = y;\n}\n")
+	expectPrinted(t, "foo = function() { using x = y }", "foo = function() {\n  using x = y;\n};\n")
+	expectPrinted(t, "foo = () => { using x = y }", "foo = () => {\n  using x = y;\n};\n")
+	expectPrinted(t, "async function foo() { using x = y }", "async function foo() {\n  using x = y;\n}\n")
+	expectPrinted(t, "foo = async function() { using x = y }", "foo = async function() {\n  using x = y;\n};\n")
+	expectPrinted(t, "foo = async () => { using x = y }", "foo = async () => {\n  using x = y;\n};\n")
+	expectPrinted(t, "async function foo() { await using x = y }", "async function foo() {\n  await using x = y;\n}\n")
+	expectPrinted(t, "foo = async function() { await using x = y }", "foo = async function() {\n  await using x = y;\n};\n")
+	expectPrinted(t, "foo = async () => { await using x = y }", "foo = async () => {\n  await using x = y;\n};\n")
+
+	needAsync := "<stdin>: ERROR: \"await\" can only be used inside an \"async\" function\n<stdin>: NOTE: Consider adding the \"async\" keyword here:\n"
+	expectParseError(t, "function foo() { await using x = y }", needAsync)
+	expectParseError(t, "foo = function() { await using x = y }", needAsync)
+	expectParseError(t, "foo = () => { await using x = y }", needAsync)
+
+	expectPrintedWithUnsupportedFeatures(t, compat.AsyncAwait, "using x = y", "using x = y;\n")
 	expectParseErrorWithUnsupportedFeatures(t, compat.Using, "using x = y", "<stdin>: ERROR: This feature is not available in the configured target environment\n")
+	expectParseErrorWithUnsupportedFeatures(t, compat.AsyncAwait, "await using x = y", "<stdin>: ERROR: Transforming async functions to the configured target environment is not supported yet\n")
 	expectParseErrorWithUnsupportedFeatures(t, compat.Using, "await using x = y", "<stdin>: ERROR: This feature is not available in the configured target environment\n")
 }

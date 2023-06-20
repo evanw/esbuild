@@ -4799,6 +4799,7 @@ func (p *parser) parseExprOrLetOrUsingStmt(opts parseStmtOpts) (js_ast.Expr, js_
 				if opts.lexicalDecl != lexicalDeclAllowAll {
 					p.forbidLexicalDecl(usingRange.Loc)
 				}
+				p.markSyntaxFeature(compat.AsyncAwait, tokenRange)
 				p.markSyntaxFeature(compat.Using, usingRange)
 				opts.isUsingStmt = true
 				decls := p.parseAndDeclareDecls(js_ast.SymbolConst, opts)
