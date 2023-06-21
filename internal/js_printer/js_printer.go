@@ -114,6 +114,7 @@ func (p *printer) printUnquotedUTF16(text []uint16, quote rune) {
 
 		case '\n':
 			if quote == '`' {
+				startLineLength = -i // Printing a real newline resets the line length
 				js = append(js, '\n')
 			} else {
 				js = append(js, "\\n"...)
