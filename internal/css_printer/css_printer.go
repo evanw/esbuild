@@ -24,6 +24,8 @@ type printer struct {
 	extractedLegalComments []string
 	jsonMetadataImports    []string
 	builder                sourcemap.ChunkBuilder
+	oldLineStart           int
+	oldLineEnd             int
 }
 
 type Options struct {
@@ -35,6 +37,7 @@ type Options struct {
 	// us do binary search on to figure out what line a given AST node came from
 	LineOffsetTables []sourcemap.LineOffsetTable
 
+	LineLimit           int
 	UnsupportedFeatures compat.CSSFeature
 	MinifyWhitespace    bool
 	ASCIIOnly           bool
@@ -112,6 +115,10 @@ func (p *printer) printRule(rule css_ast.Rule, indent int32, omitTrailingSemicol
 			p.extractedLegalComments = append(p.extractedLegalComments, r.Text)
 			return
 		}
+	}
+
+	if p.options.LineLimit > 0 {
+		p.printNewlinePastLineLimit(indent)
 	}
 
 	if p.options.AddSourceMappings {
@@ -338,6 +345,9 @@ func (p *printer) printComplexSelectors(selectors []css_ast.ComplexSelector, ind
 		if i > 0 {
 			if p.options.MinifyWhitespace {
 				p.print(",")
+				if p.options.LineLimit > 0 {
+					p.printNewlinePastLineLimit(indent)
+				}
 			} else {
 				p.print(",\n")
 				p.printIndent(indent)
@@ -345,17 +355,19 @@ func (p *printer) printComplexSelectors(selectors []css_ast.ComplexSelector, ind
 		}
 
 		for j, compound := range complex.Selectors {
-			p.printCompoundSelector(compound, j == 0, j+1 == len(complex.Selectors))
+			p.printCompoundSelector(compound, j == 0, j+1 == len(complex.Selectors), indent)
 		}
 	}
 }
 
-func (p *printer) printCompoundSelector(sel css_ast.CompoundSelector, isFirst bool, isLast bool) {
+func (p *printer) printCompoundSelector(sel css_ast.CompoundSelector, isFirst bool, isLast bool, indent int32) {
 	if !isFirst && sel.Combinator == 0 {
 		// A space is required in between compound selectors if there is no
 		// combinator in the middle. It's fine to convert "a + b" into "a+b"
 		// but not to convert "a b" into "ab".
-		p.print(" ")
+		if p.options.LineLimit <= 0 || !p.printNewlinePastLineLimit(indent) {
+			p.print(" ")
+		}
 	}
 
 	if sel.Combinator != 0 {
@@ -363,7 +375,7 @@ func (p *printer) printCompoundSelector(sel css_ast.CompoundSelector, isFirst bo
 			p.print(" ")
 		}
 		p.css = append(p.css, sel.Combinator)
-		if !p.options.MinifyWhitespace {
+		if (p.options.LineLimit <= 0 || !p.printNewlinePastLineLimit(indent)) && !p.options.MinifyWhitespace {
 			p.print(" ")
 		}
 	}
@@ -585,7 +597,28 @@ func (p *printer) printQuotedWithQuote(text string, quote byte) {
 	i := 0
 	runStart := 0
 
+	// Only compute the line length if necessary
+	var startLineLength int
+	wrapLongLines := false
+	if p.options.LineLimit > 0 && quote != quoteForURL {
+		startLineLength = p.currentLineLength()
+		if startLineLength > p.options.LineLimit {
+			startLineLength = p.options.LineLimit
+		}
+		wrapLongLines = true
+	}
+
 	for i < n {
+		// Wrap long lines that are over the limit using escaped newlines
+		if wrapLongLines && startLineLength+i >= p.options.LineLimit {
+			if runStart < i {
+				p.css = append(p.css, text[runStart:i]...)
+				runStart = i
+			}
+			p.css = append(p.css, "\\\n"...)
+			startLineLength -= p.options.LineLimit
+		}
+
 		c, width := utf8.DecodeRuneInString(text[i:])
 		escape := escapeNone
 
@@ -632,6 +665,34 @@ func (p *printer) printQuotedWithQuote(text string, quote byte) {
 	if quote != quoteForURL {
 		p.css = append(p.css, quote)
 	}
+}
+
+func (p *printer) currentLineLength() int {
+	css := p.css
+	n := len(css)
+	stop := p.oldLineEnd
+
+	// Update "oldLineStart" to the start of the current line
+	for i := n; i > stop; i-- {
+		if c := css[i-1]; c == '\r' || c == '\n' {
+			p.oldLineStart = i
+			break
+		}
+	}
+
+	p.oldLineEnd = n
+	return n - p.oldLineStart
+}
+
+func (p *printer) printNewlinePastLineLimit(indent int32) bool {
+	if p.currentLineLength() < p.options.LineLimit {
+		return false
+	}
+	p.print("\n")
+	if !p.options.MinifyWhitespace {
+		p.printIndent(indent)
+	}
+	return true
 }
 
 type identMode uint8
@@ -725,7 +786,11 @@ func (p *printer) printIdent(text string, mode identMode, whitespace trailingWhi
 }
 
 func (p *printer) printIndent(indent int32) {
-	for i, n := 0, int(indent); i < n; i++ {
+	n := int(indent)
+	if p.options.LineLimit > 0 && n*2 >= p.options.LineLimit {
+		n = p.options.LineLimit / 2
+	}
+	for i := 0; i < n; i++ {
 		p.css = append(p.css, "  "...)
 	}
 }
@@ -759,7 +824,7 @@ func (p *printer) printTokens(tokens []css_ast.Token, opts printTokensOpts) bool
 			if isMultiLineValue && (i == 0 || tokens[i-1].Kind == css_lexer.TComma) {
 				p.print("\n")
 				p.printIndent(opts.indent + 1)
-			} else {
+			} else if p.options.LineLimit <= 0 || !p.printNewlinePastLineLimit(opts.indent+1) {
 				p.print(" ")
 			}
 		}
@@ -801,8 +866,12 @@ func (p *printer) printTokens(tokens []css_ast.Token, opts printTokensOpts) bool
 
 		case css_lexer.TURL:
 			text := p.importRecords[t.ImportRecordIndex].Path.Text
+			tryToAvoidQuote := true
+			if p.options.LineLimit > 0 && p.currentLineLength()+len(text) >= p.options.LineLimit {
+				tryToAvoidQuote = false
+			}
 			p.print("url(")
-			p.printQuotedWithQuote(text, bestQuoteCharForString(text, true))
+			p.printQuotedWithQuote(text, bestQuoteCharForString(text, tryToAvoidQuote))
 			p.print(")")
 			p.recordImportPathForMetafile(t.ImportRecordIndex)
 
@@ -820,7 +889,7 @@ func (p *printer) printTokens(tokens []css_ast.Token, opts printTokensOpts) bool
 		}
 
 		if t.Children != nil {
-			p.printTokens(*t.Children, printTokensOpts{})
+			p.printTokens(*t.Children, printTokensOpts{indent: opts.indent})
 
 			switch t.Kind {
 			case css_lexer.TFunction:

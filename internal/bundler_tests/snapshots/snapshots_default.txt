@@ -2939,6 +2939,97 @@ c {
 /* entry.css */
 
 ================================================================================
+TestLineLimitMinified
+---------- /out/script.js ----------
+export const SignUpForm=props=>{
+return React.createElement("p",{
+class:"signup"},React.createElement(
+"label",null,"Username: ",React.
+createElement("input",{class:"us\
+ername",type:"text"})),React.createElement(
+"label",null,"Password: ",React.
+createElement("input",{class:"pa\
+ssword",type:"password"})),React.
+createElement("div",{class:"prim\
+ary disabled"},props.buttonText),
+React.createElement("small",null,
+"By signing up, you are agreeing\
+ to our ",React.createElement("a",
+{href:"/tos/"},"terms of service"),
+"."))};
+
+---------- /out/style.css ----------
+body.light-mode.new-user-segment:not(.logged-in)
+.signup,body.light-mode.new-user-segment:not(.logged-in)
+.login{font:10px/12px "Font 1","\
+Font 2","Font 3","Font 4",sans-serif;
+user-select:none;color:var(--fg,
+rgba(11, 22, 33, 0.5));background:url("\
+data:image/svg+xml;base64,PHN2Zy\
+B3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMC\
+IgeG1sbnM9Imh0dHA6Ly93d3cudzMub3\
+JnLzIwMDAvc3ZnIj4KICA8Y2lyY2xlIG\
+N4PSIxMDAiIGN5PSIxMDAiIHI9IjEwMC\
+IgZmlsbD0iI0ZGQ0YwMCIvPgogIDxwYX\
+RoIGQ9Ik00Ny41IDUyLjVMOTUgMTAwbC\
+00Ny41IDQ3LjVtNjAtOTVMMTU1IDEwMG\
+wtNDcuNSA0Ny41IiBmaWxsPSJub25lIi\
+BzdHJva2U9IiMxOTE5MTkiIHN0cm9rZS\
+13aWR0aD0iMjQiLz4KPC9zdmc+Cg==")}
+
+================================================================================
+TestLineLimitNotMinified
+---------- /out/script.js ----------
+export const SignUpForm = (props) => {
+  return /* @__PURE__ */ React.createElement(
+  "p", { class: "signup" }, /* @__PURE__ */ React.
+  createElement("label", null, "\
+Username: ", /* @__PURE__ */ React.
+  createElement("input", { class: "\
+username", type: "text" })), /* @__PURE__ */ React.
+  createElement("label", null, "\
+Password: ", /* @__PURE__ */ React.
+  createElement("input", { class: "\
+password", type: "password" })),
+  /* @__PURE__ */ React.createElement(
+  "div", { class: "primary disab\
+led" }, props.buttonText), /* @__PURE__ */ React.
+  createElement("small", null, "\
+By signing up, you are agreeing \
+to our ", /* @__PURE__ */ React.
+  createElement("a", { href: "/t\
+os/" }, "terms of service"), "."));
+};
+
+---------- /out/style.css ----------
+body.light-mode.new-user-segment:not(.logged-in)
+.signup,
+body.light-mode.new-user-segment:not(.logged-in)
+.login {
+  font:
+    10px/12px "Font 1",
+    "Font 2",
+    "Font 3",
+    "Font 4",
+    sans-serif;
+  user-select: none;
+  color: var(--fg, rgba(11, 22, 33,
+    0.5));
+  background: url("data:image/sv\
+g+xml;base64,PHN2ZyB3aWR0aD0iMjA\
+wIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh\
+0dHA6Ly93d3cudzMub3JnLzIwMDAvc3Z\
+nIj4KICA8Y2lyY2xlIGN4PSIxMDAiIGN\
+5PSIxMDAiIHI9IjEwMCIgZmlsbD0iI0Z\
+GQ0YwMCIvPgogIDxwYXRoIGQ9Ik00Ny4\
+1IDUyLjVMOTUgMTAwbC00Ny41IDQ3LjV\
+tNjAtOTVMMTU1IDEwMGwtNDcuNSA0Ny4\
+1IiBmaWxsPSJub25lIiBzdHJva2U9IiM\
+xOTE5MTkiIHN0cm9rZS13aWR0aD0iMjQ\
+iLz4KPC9zdmc+Cg==");
+}
+
+================================================================================
 TestMangleNoQuotedProps
 ---------- /out/entry.js ----------
 x["_doNotMangleThis"];

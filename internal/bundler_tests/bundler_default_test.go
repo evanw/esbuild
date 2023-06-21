@@ -8275,3 +8275,84 @@ NOTE: You can mark the path "node_modules/fflate" as external to exclude it from
 `,
 	})
 }
+
+func TestLineLimitNotMinified(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/script.jsx": `
+				export const SignUpForm = (props) => {
+					return <p class="signup">
+						<label>Username: <input class="username" type="text"/></label>
+						<label>Password: <input class="password" type="password"/></label>
+						<div class="primary disabled">
+							{props.buttonText}
+						</div>
+						<small>By signing up, you are agreeing to our <a href="/tos/">terms of service</a>.</small>
+					</p>
+				}
+			`,
+			"/style.css": `
+				body.light-mode.new-user-segment:not(.logged-in) .signup,
+				body.light-mode.new-user-segment:not(.logged-in) .login {
+					font: 10px/12px 'Font 1', 'Font 2', 'Font 3', 'Font 4', sans-serif;
+					user-select: none;
+					color: var(--fg, rgba(11, 22, 33, 0.5));
+					background: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sb` +
+				`nM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8Y2lyY2xlIGN4PSIxMDAiIGN5PSIxMDAiIHI9IjEwM` +
+				`CIgZmlsbD0iI0ZGQ0YwMCIvPgogIDxwYXRoIGQ9Ik00Ny41IDUyLjVMOTUgMTAwbC00Ny41IDQ3LjVtNjAtOTVMM` +
+				`TU1IDEwMGwtNDcuNSA0Ny41IiBmaWxsPSJub25lIiBzdHJva2U9IiMxOTE5MTkiIHN0cm9rZS13aWR0aD0iMjQiL` +
+				`z4KPC9zdmc+Cg==);
+				}
+			`,
+		},
+		entryPaths: []string{
+			"/script.jsx",
+			"/style.css",
+		},
+		options: config.Options{
+			AbsOutputDir: "/out",
+			LineLimit:    32,
+		},
+	})
+}
+
+func TestLineLimitMinified(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/script.jsx": `
+				export const SignUpForm = (props) => {
+					return <p class="signup">
+						<label>Username: <input class="username" type="text"/></label>
+						<label>Password: <input class="password" type="password"/></label>
+						<div class="primary disabled">
+							{props.buttonText}
+						</div>
+						<small>By signing up, you are agreeing to our <a href="/tos/">terms of service</a>.</small>
+					</p>
+				}
+			`,
+			"/style.css": `
+				body.light-mode.new-user-segment:not(.logged-in) .signup,
+				body.light-mode.new-user-segment:not(.logged-in) .login {
+					font: 10px/12px 'Font 1', 'Font 2', 'Font 3', 'Font 4', sans-serif;
+					user-select: none;
+					color: var(--fg, rgba(11, 22, 33, 0.5));
+					background: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sb` +
+				`nM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8Y2lyY2xlIGN4PSIxMDAiIGN5PSIxMDAiIHI9IjEwM` +
+				`CIgZmlsbD0iI0ZGQ0YwMCIvPgogIDxwYXRoIGQ9Ik00Ny41IDUyLjVMOTUgMTAwbC00Ny41IDQ3LjVtNjAtOTVMM` +
+				`TU1IDEwMGwtNDcuNSA0Ny41IiBmaWxsPSJub25lIiBzdHJva2U9IiMxOTE5MTkiIHN0cm9rZS13aWR0aD0iMjQiL` +
+				`z4KPC9zdmc+Cg==);
+				}
+			`,
+		},
+		entryPaths: []string{
+			"/script.jsx",
+			"/style.css",
+		},
+		options: config.Options{
+			AbsOutputDir:     "/out",
+			LineLimit:        32,
+			MinifyWhitespace: true,
+		},
+	})
+}

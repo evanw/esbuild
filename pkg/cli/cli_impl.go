@@ -744,6 +744,21 @@ func parseOptionsImpl(
 				transformOpts.LogLimit = limit
 			}
 
+		case strings.HasPrefix(arg, "--line-limit="):
+			value := arg[len("--line-limit="):]
+			limit, err := strconv.Atoi(value)
+			if err != nil || limit < 0 {
+				return parseOptionsExtras{}, cli_helpers.MakeErrorWithNote(
+					fmt.Sprintf("Invalid value %q in %q", value, arg),
+					"The line limit must be a non-negative integer.",
+				)
+			}
+			if buildOpts != nil {
+				buildOpts.LineLimit = limit
+			} else {
+				transformOpts.LineLimit = limit
+			}
+
 			// Make sure this stays in sync with "PrintErrorToStderr"
 		case isBoolFlag(arg, "--color"):
 			if value, err := parseBoolFlag(arg, true); err != nil {

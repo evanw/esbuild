@@ -90,6 +90,7 @@ var helpText = func(colors logger.Colors) string {
   --legal-comments=...      Where to place legal comments (none | inline |
                             eof | linked | external, default eof when bundling
                             and inline otherwise)
+  --line-limit=...          Lines longer than this will be wrap onto a new line
   --log-level=...           Disable logging (verbose | debug | info | warning |
                             error | silent, default info)
   --log-limit=...           Maximum message count or 0 to disable (default 6)

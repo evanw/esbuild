@@ -67,7 +67,24 @@ func (p *printer) printUnquotedUTF16(text []uint16, quote rune) {
 	i := 0
 	n := len(text)
 
+	// Only compute the line length if necessary
+	var startLineLength int
+	wrapLongLines := false
+	if p.options.LineLimit > 0 {
+		startLineLength = p.currentLineLength()
+		if startLineLength > p.options.LineLimit {
+			startLineLength = p.options.LineLimit
+		}
+		wrapLongLines = true
+	}
+
 	for i < n {
+		// Wrap long lines that are over the limit using escaped newlines
+		if wrapLongLines && startLineLength+i >= p.options.LineLimit {
+			js = append(js, "\\\n"...)
+			startLineLength -= p.options.LineLimit
+		}
+
 		c := text[i]
 		i++
 
@@ -353,6 +370,8 @@ type printer struct {
 	needSpaceBeforeDot   int
 	prevRegExpEnd        int
 	noLeadingNewlineHere int
+	oldLineStart         int
+	oldLineEnd           int
 	intToBytesBuffer     [64]byte
 	needsSemicolon       bool
 	prevOp               js_ast.OpCode
@@ -391,7 +410,11 @@ func (p *printer) addSourceMappingForName(loc logger.Loc, name string, ref js_as
 
 func (p *printer) printIndent() {
 	if !p.options.MinifyWhitespace {
-		for i := 0; i < p.options.Indent; i++ {
+		indent := p.options.Indent
+		if p.options.LineLimit > 0 && indent*2 >= p.options.LineLimit {
+			indent = p.options.LineLimit / 2
+		}
+		for i := 0; i < indent; i++ {
 			p.print("  ")
 		}
 	}
@@ -575,13 +598,14 @@ func (p *printer) printBinding(binding js_ast.Binding) {
 			for i, item := range b.Items {
 				if i != 0 {
 					p.print(",")
-					if !isMultiLine {
+				}
+				if p.options.LineLimit <= 0 || !p.printNewlinePastLineLimit() {
+					if isMultiLine {
+						p.printNewline()
+						p.printIndent()
+					} else if i != 0 {
 						p.printSpace()
 					}
-				}
-				if isMultiLine {
-					p.printNewline()
-					p.printIndent()
 				}
 				p.printExprCommentsAtLoc(item.Loc)
 				if b.HasSpread && i+1 == len(b.Items) {
@@ -635,11 +659,13 @@ func (p *printer) printBinding(binding js_ast.Binding) {
 				if i != 0 {
 					p.print(",")
 				}
-				if isMultiLine {
-					p.printNewline()
-					p.printIndent()
-				} else {
-					p.printSpace()
+				if p.options.LineLimit <= 0 || !p.printNewlinePastLineLimit() {
+					if isMultiLine {
+						p.printNewline()
+						p.printIndent()
+					} else {
+						p.printSpace()
+					}
 				}
 
 				p.printExprCommentsAtLoc(property.Loc)
@@ -767,6 +793,32 @@ func (p *printer) printNewline() {
 	if !p.options.MinifyWhitespace {
 		p.print("\n")
 	}
+}
+
+func (p *printer) currentLineLength() int {
+	js := p.js
+	n := len(js)
+	stop := p.oldLineEnd
+
+	// Update "oldLineStart" to the start of the current line
+	for i := n; i > stop; i-- {
+		if c := js[i-1]; c == '\r' || c == '\n' {
+			p.oldLineStart = i
+			break
+		}
+	}
+
+	p.oldLineEnd = n
+	return n - p.oldLineStart
+}
+
+func (p *printer) printNewlinePastLineLimit() bool {
+	if p.currentLineLength() < p.options.LineLimit {
+		return false
+	}
+	p.print("\n")
+	p.printIndent()
+	return true
 }
 
 func (p *printer) printSpaceBeforeOperator(next js_ast.OpCode) {
@@ -2155,17 +2207,18 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 				p.options.Indent++
 			}
 			for i, arg := range e.Args {
-				if isMultiLine {
-					if i != 0 {
-						p.print(",")
-					}
-					if needsNewline {
-						p.printNewline()
-					}
-					p.printIndent()
-				} else if i != 0 {
+				if i != 0 {
 					p.print(",")
-					p.printSpace()
+				}
+				if p.options.LineLimit <= 0 || !p.printNewlinePastLineLimit() {
+					if isMultiLine {
+						if needsNewline {
+							p.printNewline()
+						}
+						p.printIndent()
+					} else if i != 0 {
+						p.printSpace()
+					}
 				}
 				p.printExpr(arg, js_ast.LComma, 0)
 				needsNewline = true
@@ -2276,15 +2329,16 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			p.options.Indent++
 		}
 		for i, arg := range e.Args {
-			if isMultiLine {
-				if i != 0 {
-					p.print(",")
-				}
-				p.printNewline()
-				p.printIndent()
-			} else if i != 0 {
+			if i != 0 {
 				p.print(",")
-				p.printSpace()
+			}
+			if p.options.LineLimit <= 0 || !p.printNewlinePastLineLimit() {
+				if isMultiLine {
+					p.printNewline()
+					p.printIndent()
+				} else if i != 0 {
+					p.printSpace()
+				}
 			}
 			p.printExpr(arg, js_ast.LComma, 0)
 		}
@@ -2429,6 +2483,9 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			} else {
 				p.print(".")
 			}
+			if p.options.LineLimit > 0 {
+				p.printNewlinePastLineLimit()
+			}
 			p.addSourceMapping(e.NameLoc)
 			p.printIdentifier(e.Name)
 		} else {
@@ -2558,11 +2615,15 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		p.printExpr(e.Test, js_ast.LConditional, flags&forbidIn)
 		p.printSpace()
 		p.print("?")
-		p.printSpace()
+		if p.options.LineLimit <= 0 || !p.printNewlinePastLineLimit() {
+			p.printSpace()
+		}
 		p.printExprWithoutLeadingNewline(e.Yes, js_ast.LYield, 0)
 		p.printSpace()
 		p.print(":")
-		p.printSpace()
+		if p.options.LineLimit <= 0 || !p.printNewlinePastLineLimit() {
+			p.printSpace()
+		}
 		p.printExprWithoutLeadingNewline(e.No, js_ast.LYield, flags&forbidIn)
 		if wrap {
 			p.print(")")
@@ -2674,13 +2735,14 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			for i, item := range e.Items {
 				if i != 0 {
 					p.print(",")
-					if !isMultiLine {
+				}
+				if p.options.LineLimit <= 0 || !p.printNewlinePastLineLimit() {
+					if isMultiLine {
+						p.printNewline()
+						p.printIndent()
+					} else if i != 0 {
 						p.printSpace()
 					}
-				}
-				if isMultiLine {
-					p.printNewline()
-					p.printIndent()
 				}
 				p.printExpr(item, js_ast.LComma, 0)
 
@@ -2729,11 +2791,13 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 				if i != 0 {
 					p.print(",")
 				}
-				if isMultiLine {
-					p.printNewline()
-					p.printIndent()
-				} else {
-					p.printSpace()
+				if p.options.LineLimit <= 0 || !p.printNewlinePastLineLimit() {
+					if isMultiLine {
+						p.printNewline()
+						p.printIndent()
+					} else {
+						p.printSpace()
+					}
 				}
 				p.printProperty(item)
 			}
@@ -2864,6 +2928,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		for _, part := range e.Parts {
 			p.print("${")
 			p.printExpr(part.Value, js_ast.LLowest, 0)
+			p.addSourceMapping(part.TailLoc)
 			p.print("}")
 			if e.TagOrNil.Data != nil {
 				p.print(part.TailRaw)
@@ -3253,7 +3318,9 @@ func (v *binaryExprVisitor) visitRightAndFinish(p *printer) {
 		p.prevOpEnd = len(p.js)
 	}
 
-	p.printSpace()
+	if p.options.LineLimit <= 0 || !p.printNewlinePastLineLimit() {
+		p.printSpace()
+	}
 
 	if e.Op == js_ast.BinOpComma {
 		// The result of the right operand of the comma operator is unused if the caller doesn't use it
@@ -3504,7 +3571,9 @@ func (p *printer) printDecls(keyword string, decls []js_ast.Decl, flags printExp
 	for i, decl := range decls {
 		if i != 0 {
 			p.print(",")
-			p.printSpace()
+			if p.options.LineLimit <= 0 || !p.printNewlinePastLineLimit() {
+				p.printSpace()
+			}
 		}
 		p.printBinding(decl.Binding)
 
@@ -3861,6 +3930,10 @@ const (
 )
 
 func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
+	if p.options.LineLimit > 0 {
+		p.printNewlinePastLineLimit()
+	}
+
 	switch s := stmt.Data.(type) {
 	case *js_ast.SComment:
 		text := s.Text
@@ -4672,6 +4745,7 @@ type Options struct {
 	RuntimeRequireRef   js_ast.Ref
 	UnsupportedFeatures compat.JSFeature
 	Indent              int
+	LineLimit           int
 	OutputFormat        config.Format
 	MinifyWhitespace    bool
 	MinifyIdentifiers   bool

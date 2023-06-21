@@ -285,6 +285,7 @@ type BuildOptions struct {
 	MinifyWhitespace  bool                   // Documentation: https://esbuild.github.io/api/#minify
 	MinifyIdentifiers bool                   // Documentation: https://esbuild.github.io/api/#minify
 	MinifySyntax      bool                   // Documentation: https://esbuild.github.io/api/#minify
+	LineLimit         int                    // Documentation: https://esbuild.github.io/api/#line-limit
 	Charset           Charset                // Documentation: https://esbuild.github.io/api/#charset
 	TreeShaking       TreeShaking            // Documentation: https://esbuild.github.io/api/#tree-shaking
 	IgnoreAnnotations bool                   // Documentation: https://esbuild.github.io/api/#ignore-annotations
@@ -417,6 +418,7 @@ type TransformOptions struct {
 	MinifyWhitespace  bool                   // Documentation: https://esbuild.github.io/api/#minify
 	MinifyIdentifiers bool                   // Documentation: https://esbuild.github.io/api/#minify
 	MinifySyntax      bool                   // Documentation: https://esbuild.github.io/api/#minify
+	LineLimit         int                    // Documentation: https://esbuild.github.io/api/#line-limit
 	Charset           Charset                // Documentation: https://esbuild.github.io/api/#charset
 	TreeShaking       TreeShaking            // Documentation: https://esbuild.github.io/api/#tree-shaking
 	IgnoreAnnotations bool                   // Documentation: https://esbuild.github.io/api/#ignore-annotations

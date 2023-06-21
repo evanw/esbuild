@@ -418,6 +418,7 @@ type Options struct {
 	SourceRoot string
 	Stdin      *StdinInfo
 	JSX        JSXOptions
+	LineLimit  int
 
 	UnsupportedJSFeatures  compat.JSFeature
 	UnsupportedCSSFeatures compat.CSSFeature

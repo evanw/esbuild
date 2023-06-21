@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Add a `--line-limit=` flag to limit line length ([#3170](https://github.com/evanw/esbuild/issues/3170))
+
+    Long lines are common in minified code. However, many tools and text editors can't handle long lines. This release introduces the `--line-limit=` flag to tell esbuild to wrap lines longer than the provided number of bytes. For example, `--line-limit=80` tells esbuild to insert a newline soon after a given line reaches 80 bytes in length. This setting applies to both JavaScript and CSS, and works even when minification is disabled. Note that turning this setting on will make your files bigger, as the extra newlines take up additional space in the file (even after gzip compression).
+
 ## 0.18.6
 
 * Fix tree-shaking of classes with decorators ([#3164](https://github.com/evanw/esbuild/issues/3164))

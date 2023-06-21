@@ -4117,6 +4117,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 		MinifyIdentifiers:            c.options.MinifyIdentifiers,
 		MinifyWhitespace:             c.options.MinifyWhitespace,
 		MinifySyntax:                 c.options.MinifySyntax,
+		LineLimit:                    c.options.LineLimit,
 		ASCIIOnly:                    c.options.ASCIIOnly,
 		ToCommonJSRef:                toCommonJSRef,
 		ToESMRef:                     toESMRef,
@@ -4459,6 +4460,7 @@ func (c *linkerContext) generateEntryPointTailJS(
 		MinifyIdentifiers:            c.options.MinifyIdentifiers,
 		MinifyWhitespace:             c.options.MinifyWhitespace,
 		MinifySyntax:                 c.options.MinifySyntax,
+		LineLimit:                    c.options.LineLimit,
 		ASCIIOnly:                    c.options.ASCIIOnly,
 		ToCommonJSRef:                toCommonJSRef,
 		ToESMRef:                     toESMRef,
@@ -4780,6 +4782,7 @@ func (c *linkerContext) generateChunkJS(chunkIndex int, chunkWaitGroup *sync.Wai
 			MinifyIdentifiers: c.options.MinifyIdentifiers,
 			MinifyWhitespace:  c.options.MinifyWhitespace,
 			MinifySyntax:      c.options.MinifySyntax,
+			LineLimit:         c.options.LineLimit,
 			NeedsMetafile:     c.options.NeedsMetafile,
 		}
 		crossChunkImportRecords := make([]ast.ImportRecord, len(chunk.crossChunkImports))
@@ -5290,6 +5293,7 @@ func (c *linkerContext) generateChunkCSS(chunkIndex int, chunkWaitGroup *sync.Wa
 
 			cssOptions := css_printer.Options{
 				MinifyWhitespace:    c.options.MinifyWhitespace,
+				LineLimit:           c.options.LineLimit,
 				ASCIIOnly:           c.options.ASCIIOnly,
 				LegalComments:       c.options.LegalComments,
 				SourceMap:           c.options.SourceMap,
@@ -5351,6 +5355,7 @@ func (c *linkerContext) generateChunkCSS(chunkIndex int, chunkWaitGroup *sync.Wa
 		if len(tree.Rules) > 0 {
 			result := css_printer.Print(tree, css_printer.Options{
 				MinifyWhitespace: c.options.MinifyWhitespace,
+				LineLimit:        c.options.LineLimit,
 				ASCIIOnly:        c.options.ASCIIOnly,
 				NeedsMetafile:    c.options.NeedsMetafile,
 			})

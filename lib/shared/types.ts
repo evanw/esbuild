@@ -44,6 +44,8 @@ interface CommonOptions {
   minifyIdentifiers?: boolean
   /** Documentation: https://esbuild.github.io/api/#minify */
   minifySyntax?: boolean
+  /** Documentation: https://esbuild.github.io/api/#line-limit */
+  lineLimit?: number
   /** Documentation: https://esbuild.github.io/api/#charset */
   charset?: Charset
   /** Documentation: https://esbuild.github.io/api/#tree-shaking */
