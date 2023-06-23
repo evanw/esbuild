@@ -4735,21 +4735,25 @@ func (p *parser) parseExprOrLetOrUsingStmt(opts parseStmtOpts) (js_ast.Expr, js_
 	p.lexer.Next()
 
 	if couldBeLet {
+		isLet := opts.isExport
 		switch p.lexer.Token {
 		case js_lexer.TIdentifier, js_lexer.TOpenBracket, js_lexer.TOpenBrace:
 			if opts.lexicalDecl == lexicalDeclAllowAll || !p.lexer.HasNewlineBefore || p.lexer.Token == js_lexer.TOpenBracket {
-				// Handle a "let" declaration
-				if opts.lexicalDecl != lexicalDeclAllowAll {
-					p.forbidLexicalDecl(tokenRange.Loc)
-				}
-				p.markSyntaxFeature(compat.ConstAndLet, tokenRange)
-				decls := p.parseAndDeclareDecls(js_ast.SymbolOther, opts)
-				return js_ast.Expr{}, js_ast.Stmt{Loc: tokenRange.Loc, Data: &js_ast.SLocal{
-					Kind:     js_ast.LocalLet,
-					Decls:    decls,
-					IsExport: opts.isExport,
-				}}, decls
+				isLet = true
 			}
+		}
+		if isLet {
+			// Handle a "let" declaration
+			if opts.lexicalDecl != lexicalDeclAllowAll {
+				p.forbidLexicalDecl(tokenRange.Loc)
+			}
+			p.markSyntaxFeature(compat.ConstAndLet, tokenRange)
+			decls := p.parseAndDeclareDecls(js_ast.SymbolOther, opts)
+			return js_ast.Expr{}, js_ast.Stmt{Loc: tokenRange.Loc, Data: &js_ast.SLocal{
+				Kind:     js_ast.LocalLet,
+				Decls:    decls,
+				IsExport: opts.isExport,
+			}}, decls
 		}
 	} else if couldBeUsing && p.lexer.Token == js_lexer.TIdentifier && !p.lexer.HasNewlineBefore && (!opts.isForLoopInit || p.lexer.Raw() != "of") {
 		// Handle a "using" declaration

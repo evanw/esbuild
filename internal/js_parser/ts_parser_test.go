@@ -2906,4 +2906,6 @@ func TestTSUsing(t *testing.T) {
 	expectPrintedTS(t, "using x = y", "using x = y;\n")
 	expectPrintedTS(t, "using x: any = y", "using x = y;\n")
 	expectPrintedTS(t, "using x: any = y, z: any = _", "using x = y, z = _;\n")
+	expectParseErrorTS(t, "export using x: any = y", "<stdin>: ERROR: Unexpected \"using\"\n")
+	expectParseErrorTS(t, "namespace ns { export using x: any = y }", "<stdin>: ERROR: Unexpected \"using\"\n")
 }

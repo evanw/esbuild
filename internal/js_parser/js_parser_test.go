@@ -2884,6 +2884,9 @@ func TestExport(t *testing.T) {
 	expectParseError(t, "export async", "<stdin>: ERROR: Expected \"function\" but found end of file\n")
 	expectParseError(t, "export async function", "<stdin>: ERROR: Expected identifier but found end of file\n")
 	expectParseError(t, "export async () => {}", "<stdin>: ERROR: Expected \"function\" but found \"(\"\n")
+	expectParseError(t, "export var", "<stdin>: ERROR: Expected identifier but found end of file\n")
+	expectParseError(t, "export let", "<stdin>: ERROR: Expected identifier but found end of file\n")
+	expectParseError(t, "export const", "<stdin>: ERROR: Expected identifier but found end of file\n")
 
 	// String export alias with "export {}"
 	expectPrinted(t, "let x; export {x as ''}", "let x;\nexport { x as \"\" };\n")
@@ -6058,6 +6061,7 @@ func TestUsing(t *testing.T) {
 	expectParseError(t, "using x = y, z", "<stdin>: ERROR: The declaration \"z\" must be initialized\n")
 	expectParseError(t, "using x = y, [z] = _", "<stdin>: ERROR: Expected identifier but found \"[\"\n")
 	expectParseError(t, "using x = y, {z} = _", "<stdin>: ERROR: Expected identifier but found \"{\"\n")
+	expectParseError(t, "export using x = y", "<stdin>: ERROR: Unexpected \"using\"\n")
 
 	expectPrinted(t, "for (using x = y;;) ;", "for (using x = y; ; )\n  ;\n")
 	expectPrinted(t, "for (using x of y) ;", "for (using x of y)\n  ;\n")
