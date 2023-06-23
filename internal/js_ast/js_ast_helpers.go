@@ -1877,12 +1877,24 @@ func StmtsCanBeRemovedIfUnused(stmts []Stmt, flags StmtsCanBeRemovedIfUnusedFlag
 			}
 
 		case *SLocal:
+			// "await" is a side effect because it affects code timing
+			if s.Kind == LocalAwaitUsing {
+				return false
+			}
+
 			for _, decl := range s.Decls {
 				if _, ok := decl.Binding.Data.(*BIdentifier); !ok {
 					return false
 				}
-				if decl.ValueOrNil.Data != nil && !ExprCanBeRemovedIfUnused(decl.ValueOrNil, isUnbound) {
-					return false
+				if decl.ValueOrNil.Data != nil {
+					if !ExprCanBeRemovedIfUnused(decl.ValueOrNil, isUnbound) {
+						return false
+					} else if s.Kind.IsUsing() {
+						// "using" declarations are only side-effect free if they are initialized to null or undefined
+						if t := KnownPrimitiveType(decl.ValueOrNil.Data); t != PrimitiveNull && t != PrimitiveUndefined {
+							return false
+						}
+					}
 				}
 			}
 

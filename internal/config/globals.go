@@ -81,7 +81,9 @@ var knownGlobals = [][]string{
 
 	// Symbol: Static properties
 	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Symbol#static_properties
+	{"Symbol", "asyncDispose"},
 	{"Symbol", "asyncIterator"},
+	{"Symbol", "dispose"},
 	{"Symbol", "hasInstance"},
 	{"Symbol", "isConcatSpreadable"},
 	{"Symbol", "iterator"},

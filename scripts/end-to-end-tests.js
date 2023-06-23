@@ -7463,6 +7463,158 @@ if (process.platform === 'darwin' || process.platform === 'win32') {
   )
 }
 
+// Test "using" declarations
+for (const flags of [[], '--supported:async-await=false']) {
+  tests.push(
+    test(['in.js', '--outfile=node.js', '--supported:using=false'].concat(flags), {
+      'in.js': `
+        Symbol.dispose ||= Symbol.for('Symbol.dispose')
+        const log = []
+        {
+          using x = { [Symbol.dispose]() { log.push('x') } }
+          using y = { [Symbol.dispose]() { log.push('y') } }
+          using z1 = null
+          using z2 = undefined
+          try {
+            using no = 0
+          } catch {
+            log.push('no')
+          }
+          log.push('z')
+        }
+        if (log + '' !== 'no,z,y,x') throw 'fail: ' + log
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--supported:using=false', '--format=esm'].concat(flags), {
+      'in.js': `
+        Symbol.asyncDispose ||= Symbol.for('Symbol.asyncDispose')
+        export let async = async () => {
+          const log = []
+          {
+            await using x = { [Symbol.asyncDispose]() {
+              log.push('x1')
+              Promise.resolve().then(() => log.push('x2'))
+              return Promise.resolve()
+            } }
+            await using y = { [Symbol.asyncDispose]() {
+              log.push('y1')
+              Promise.resolve().then(() => log.push('y2'))
+              return Promise.resolve()
+            } }
+            await using z1 = null
+            await using z2 = undefined
+            try {
+              await using no = 0
+            } catch {
+              log.push('no')
+            }
+            log.push('z')
+          }
+          if (log + '' !== 'no,z,y1,y2,x1,x2') throw 'fail: ' + log
+        }
+      `,
+    }, { async: true }),
+    test(['in.js', '--outfile=node.js', '--supported:using=false'].concat(flags), {
+      'in.js': `
+        Symbol.dispose ||= Symbol.for('Symbol.dispose')
+        const log = []
+        for (using x of [
+          { [Symbol.dispose]() { log.push('x') } },
+          null,
+          { [Symbol.dispose]() { log.push('y') } },
+          undefined,
+        ]) {
+          try {
+            using no = 0
+          } catch {
+            log.push('no')
+          }
+          log.push('z')
+        }
+        if (log + '' !== 'no,z,x,no,z,no,z,y,no,z') throw 'fail: ' + log
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--supported:using=false', '--format=esm'].concat(flags), {
+      'in.js': `
+        Symbol.dispose ||= Symbol.for('Symbol.dispose')
+        Symbol.asyncDispose ||= Symbol.for('Symbol.asyncDispose')
+        export let async = async () => {
+          const log = []
+          for (await using x of [
+            { [Symbol.dispose]() { log.push('x') } },
+            null,
+            { [Symbol.asyncDispose]() {
+              log.push('y1')
+              Promise.resolve().then(() => log.push('y2'))
+              return Promise.resolve()
+            } },
+            undefined,
+          ]) {
+            try {
+              using no = 0
+            } catch {
+              log.push('no')
+            }
+            log.push('z')
+          }
+          if (log + '' !== 'no,z,x,no,z,no,z,y1,y2,no,z') throw 'fail: ' + log
+        }
+      `,
+    }, { async: true }),
+    test(['in.js', '--outfile=node.js', '--supported:using=false', '--format=esm'].concat(flags), {
+      'in.js': `
+        Symbol.dispose ||= Symbol.for('Symbol.dispose')
+        export let async = async () => {
+          const log = []
+          for await (using x of [
+            { [Symbol.dispose]() { log.push('x1') } },
+            Promise.resolve({ [Symbol.dispose]() { log.push('x2') } }),
+            null,
+            Promise.resolve(null),
+            undefined,
+            Promise.resolve(undefined),
+          ]) {
+            try {
+              using no = 0
+            } catch {
+              log.push('no')
+            }
+            log.push('z')
+          }
+          if (log + '' !== 'no,z,x1,no,z,x2,no,z,no,z,no,z,no,z') throw 'fail: ' + log
+        }
+      `,
+    }, { async: true }),
+    test(['in.js', '--outfile=node.js', '--supported:using=false', '--format=esm'].concat(flags), {
+      'in.js': `
+        Symbol.dispose ||= Symbol.for('Symbol.dispose')
+        Symbol.asyncDispose ||= Symbol.for('Symbol.asyncDispose')
+        export let async = async () => {
+          const log = []
+          for await (await using x of [
+            { [Symbol.dispose]() { log.push('x1') } },
+            Promise.resolve({ [Symbol.dispose]() { log.push('x2') } }),
+            { [Symbol.asyncDispose]() { log.push('y1') } },
+            Promise.resolve({ [Symbol.asyncDispose]() { log.push('y2') } }),
+            null,
+            Promise.resolve(null),
+            undefined,
+            Promise.resolve(undefined),
+          ]) {
+            try {
+              using no = 0
+            } catch {
+              log.push('no')
+            }
+            log.push('z')
+          }
+          if (log + '' !== 'no,z,x1,no,z,x2,no,z,y1,no,z,y2,no,z,no,z,no,z,no,z') throw 'fail: ' + log
+        }
+      `,
+    }, { async: true }),
+  )
+}
+
 // End-to-end watch mode tests
 tests.push(
   // Validate that the CLI watch mode correctly updates the metafile

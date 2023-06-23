@@ -1003,6 +1003,15 @@ func TestFor(t *testing.T) {
 	expectParseError(t, "for await (async of => {}) ;", "<stdin>: ERROR: Expected \"of\" but found \")\"\n")
 	expectParseError(t, "for await (async of => {} of []) ;", "<stdin>: ERROR: Invalid assignment target\n")
 	expectParseError(t, "for await (async o\\u0066 []) ;", "<stdin>: ERROR: Expected \"of\" but found \"o\\\\u0066\"\n")
+
+	// Can't use await at the top-level without top-level await
+	err := "<stdin>: ERROR: Top-level await is not available in the configured target environment\n"
+	expectParseErrorWithUnsupportedFeatures(t, compat.TopLevelAwait, "for await (x of y);", err)
+	expectParseErrorWithUnsupportedFeatures(t, compat.TopLevelAwait, "if (true) for await (x of y);", err)
+	expectPrintedWithUnsupportedFeatures(t, compat.TopLevelAwait, "if (false) for await (x of y);", "if (false)\n  for (x of y)\n    ;\n")
+	expectParseErrorWithUnsupportedFeatures(t, compat.TopLevelAwait, "with (x) y; if (false) for await (x of y);",
+		"<stdin>: ERROR: With statements cannot be used in an ECMAScript module\n"+
+			"<stdin>: NOTE: This file is considered to be an ECMAScript module because of the top-level \"await\" keyword here:\n")
 }
 
 func TestScope(t *testing.T) {
@@ -6105,13 +6114,37 @@ func TestUsing(t *testing.T) {
 	expectPrinted(t, "foo = async function() { await using x = y }", "foo = async function() {\n  await using x = y;\n};\n")
 	expectPrinted(t, "foo = async () => { await using x = y }", "foo = async () => {\n  await using x = y;\n};\n")
 
+	expectParseError(t, "export using x = y", "<stdin>: ERROR: Unexpected \"using\"\n")
+	expectParseError(t, "export await using x = y", "<stdin>: ERROR: Unexpected \"await\"\n")
+
 	needAsync := "<stdin>: ERROR: \"await\" can only be used inside an \"async\" function\n<stdin>: NOTE: Consider adding the \"async\" keyword here:\n"
 	expectParseError(t, "function foo() { await using x = y }", needAsync)
 	expectParseError(t, "foo = function() { await using x = y }", needAsync)
 	expectParseError(t, "foo = () => { await using x = y }", needAsync)
 
-	expectPrintedWithUnsupportedFeatures(t, compat.AsyncAwait, "using x = y", "using x = y;\n")
-	expectParseErrorWithUnsupportedFeatures(t, compat.Using, "using x = y", "<stdin>: ERROR: This feature is not available in the configured target environment\n")
-	expectParseErrorWithUnsupportedFeatures(t, compat.AsyncAwait, "await using x = y", "<stdin>: ERROR: Transforming async functions to the configured target environment is not supported yet\n")
-	expectParseErrorWithUnsupportedFeatures(t, compat.Using, "await using x = y", "<stdin>: ERROR: This feature is not available in the configured target environment\n")
+	// Can't use await at the top-level without top-level await
+	err := "<stdin>: ERROR: Top-level await is not available in the configured target environment\n"
+	expectParseErrorWithUnsupportedFeatures(t, compat.TopLevelAwait, "await using x = y;", err)
+	expectParseErrorWithUnsupportedFeatures(t, compat.TopLevelAwait, "for (await using x of y) ;", err)
+	expectParseErrorWithUnsupportedFeatures(t, compat.TopLevelAwait, "if (true) { await using x = y }", err)
+	expectParseErrorWithUnsupportedFeatures(t, compat.TopLevelAwait, "if (true) for (await using x of y) ;", err)
+	expectPrintedWithUnsupportedFeatures(t, compat.TopLevelAwait, "if (false) { await using x = y }", "if (false) {\n  using x = y;\n}\n")
+	expectPrintedWithUnsupportedFeatures(t, compat.TopLevelAwait, "if (false) for (await using x of y) ;", "if (false)\n  for (using x of y)\n    ;\n")
+	expectParseErrorWithUnsupportedFeatures(t, compat.TopLevelAwait, "with (x) y; if (false) { await using x = y }",
+		"<stdin>: ERROR: With statements cannot be used in an ECMAScript module\n"+
+			"<stdin>: NOTE: This file is considered to be an ECMAScript module because of the top-level \"await\" keyword here:\n")
+	expectParseErrorWithUnsupportedFeatures(t, compat.TopLevelAwait, "with (x) y; if (false) for (await using x of y) ;",
+		"<stdin>: ERROR: With statements cannot be used in an ECMAScript module\n"+
+			"<stdin>: NOTE: This file is considered to be an ECMAScript module because of the top-level \"await\" keyword here:\n")
+
+	// Optimization: "using" declarations initialized to null or undefined can avoid the "using" machinery
+	expectPrinted(t, "using x = {}", "using x = {};\n")
+	expectPrinted(t, "using x = null", "using x = null;\n")
+	expectPrinted(t, "using x = undefined", "using x = void 0;\n")
+	expectPrintedMangle(t, "using x = {}", "using x = {};\n")
+	expectPrintedMangle(t, "using x = null", "const x = null;\n")
+	expectPrintedMangle(t, "using x = undefined", "const x = void 0;\n")
+	expectPrintedMangle(t, "using x = null, y = undefined", "const x = null, y = void 0;\n")
+	expectPrintedMangle(t, "using x = null, y = z", "using x = null, y = z;\n")
+	expectPrintedMangle(t, "using x = z, y = undefined", "using x = z, y = void 0;\n")
 }

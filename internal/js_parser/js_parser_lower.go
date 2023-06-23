@@ -1867,3 +1867,275 @@ func (p *parser) maybeLowerSetBinOp(left js_ast.Expr, op js_ast.OpCode, right js
 	}
 	return js_ast.Expr{}
 }
+
+func (p *parser) shouldLowerUsingDeclarations(stmts []js_ast.Stmt) bool {
+	for _, stmt := range stmts {
+		if local, ok := stmt.Data.(*js_ast.SLocal); ok && ((local.Kind == js_ast.LocalUsing && p.options.unsupportedJSFeatures.Has(compat.Using)) ||
+			(local.Kind == js_ast.LocalAwaitUsing && (p.options.unsupportedJSFeatures.Has(compat.Using) || p.options.unsupportedJSFeatures.Has(compat.AsyncAwait)))) {
+			return true
+		}
+	}
+	return false
+}
+
+type lowerUsingDeclarationContext struct {
+	firstUsingLoc logger.Loc
+	stackRef      js_ast.Ref
+	hasAwaitUsing bool
+}
+
+func (p *parser) lowerUsingDeclarationContext() lowerUsingDeclarationContext {
+	return lowerUsingDeclarationContext{
+		stackRef: p.newSymbol(js_ast.SymbolOther, "_stack"),
+	}
+}
+
+// If this returns "nil", then no lowering needed to be done
+func (ctx *lowerUsingDeclarationContext) scanStmts(p *parser, stmts []js_ast.Stmt) {
+	for _, stmt := range stmts {
+		if local, ok := stmt.Data.(*js_ast.SLocal); ok && local.Kind.IsUsing() {
+			// Wrap each "using" initializer in a call to the "__using" helper function
+			if ctx.firstUsingLoc.Start == 0 {
+				ctx.firstUsingLoc = stmt.Loc
+			}
+			if local.Kind == js_ast.LocalAwaitUsing {
+				ctx.hasAwaitUsing = true
+			}
+			for i, decl := range local.Decls {
+				if decl.ValueOrNil.Data != nil {
+					valueLoc := decl.ValueOrNil.Loc
+					p.recordUsage(ctx.stackRef)
+					args := []js_ast.Expr{
+						{Loc: valueLoc, Data: &js_ast.EIdentifier{Ref: ctx.stackRef}},
+						decl.ValueOrNil,
+					}
+					if local.Kind == js_ast.LocalAwaitUsing {
+						args = append(args, js_ast.Expr{Loc: valueLoc, Data: &js_ast.EBoolean{Value: true}})
+					}
+					local.Decls[i].ValueOrNil = p.callRuntime(valueLoc, "__using", args)
+				}
+			}
+			if p.willWrapModuleInTryCatchForUsing && p.currentScope.Parent == nil {
+				local.Kind = js_ast.LocalVar
+			} else {
+				local.Kind = p.selectLocalKind(js_ast.LocalConst)
+			}
+		}
+	}
+}
+
+func (ctx *lowerUsingDeclarationContext) finalize(p *parser, stmts []js_ast.Stmt, shouldHoistFunctions bool) []js_ast.Stmt {
+	var result []js_ast.Stmt
+	var exports []js_ast.ClauseItem
+	end := 0
+
+	// Filter out statements that can't go in a try/catch block
+	for _, stmt := range stmts {
+		switch s := stmt.Data.(type) {
+		// Note: We don't need to handle class declarations here because they
+		// should have been already converted into local "var" declarations
+		// before this point. It's done in "lowerClass" instead of here because
+		// "lowerClass" already does this sometimes for other reasons, and it's
+		// more straightforward to do it in one place because it's complicated.
+
+		case *js_ast.SDirective, *js_ast.SImport, *js_ast.SExportFrom, *js_ast.SExportStar:
+			// These can't go in a try/catch block
+			result = append(result, stmt)
+			continue
+
+		case *js_ast.SExportClause:
+			// Merge export clauses together
+			exports = append(exports, s.Items...)
+			continue
+
+		case *js_ast.SFunction:
+			if shouldHoistFunctions {
+				// Hoist function declarations for cross-file ESM references
+				result = append(result, stmt)
+				continue
+			}
+
+		case *js_ast.SExportDefault:
+			if _, ok := s.Value.Data.(*js_ast.SFunction); ok && shouldHoistFunctions {
+				// Hoist function declarations for cross-file ESM references
+				result = append(result, stmt)
+				continue
+			}
+
+		case *js_ast.SLocal:
+			// If any of these are exported, turn it into a "var" and add export clauses
+			if s.IsExport {
+				js_ast.ForEachIdentifierBindingInDecls(s.Decls, func(loc logger.Loc, b *js_ast.BIdentifier) {
+					exports = append(exports, js_ast.ClauseItem{
+						Alias:    p.symbols[b.Ref.InnerIndex].OriginalName,
+						AliasLoc: loc,
+						Name:     js_ast.LocRef{Loc: loc, Ref: b.Ref},
+					})
+					s.Kind = js_ast.LocalVar
+				})
+				s.IsExport = false
+			}
+		}
+
+		stmts[end] = stmt
+		end++
+	}
+	stmts = stmts[:end]
+
+	// Generate the variables we'll need
+	caughtRef := p.newSymbol(js_ast.SymbolOther, "_")
+	errorRef := p.newSymbol(js_ast.SymbolOther, "_error")
+	hasErrorRef := p.newSymbol(js_ast.SymbolOther, "_hasError")
+
+	// Generated variables are declared with "var", so hoist them up
+	scope := p.currentScope
+	for !scope.Kind.StopsHoisting() {
+		scope = scope.Parent
+	}
+	isTopLevel := scope == p.moduleScope
+	scope.Generated = append(scope.Generated, ctx.stackRef, caughtRef, errorRef, hasErrorRef)
+	p.declaredSymbols = append(p.declaredSymbols,
+		js_ast.DeclaredSymbol{IsTopLevel: isTopLevel, Ref: ctx.stackRef},
+		js_ast.DeclaredSymbol{IsTopLevel: isTopLevel, Ref: caughtRef},
+		js_ast.DeclaredSymbol{IsTopLevel: isTopLevel, Ref: errorRef},
+		js_ast.DeclaredSymbol{IsTopLevel: isTopLevel, Ref: hasErrorRef},
+	)
+
+	// Call the "__callDispose" helper function at the end of the scope
+	loc := ctx.firstUsingLoc
+	p.recordUsage(ctx.stackRef)
+	p.recordUsage(errorRef)
+	p.recordUsage(hasErrorRef)
+	callDispose := p.callRuntime(loc, "__callDispose", []js_ast.Expr{
+		{Loc: loc, Data: &js_ast.EIdentifier{Ref: ctx.stackRef}},
+		{Loc: loc, Data: &js_ast.EIdentifier{Ref: errorRef}},
+		{Loc: loc, Data: &js_ast.EIdentifier{Ref: hasErrorRef}},
+	})
+
+	// If there was an "await using", optionally await the returned promise
+	var finallyStmts []js_ast.Stmt
+	if ctx.hasAwaitUsing {
+		promiseRef := p.generateTempRef(tempRefNoDeclare, "_promise")
+		scope.Generated = append(scope.Generated, promiseRef)
+		p.declaredSymbols = append(p.declaredSymbols, js_ast.DeclaredSymbol{IsTopLevel: isTopLevel, Ref: promiseRef})
+
+		// "await" expressions turn into "yield" expressions when lowering
+		p.recordUsage(promiseRef)
+		awaitExpr := js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: promiseRef}}
+		if p.options.unsupportedJSFeatures.Has(compat.AsyncAwait) {
+			awaitExpr.Data = &js_ast.EYield{ValueOrNil: awaitExpr}
+		} else {
+			awaitExpr.Data = &js_ast.EAwait{Value: awaitExpr}
+		}
+
+		p.recordUsage(promiseRef)
+		finallyStmts = []js_ast.Stmt{
+			{Loc: loc, Data: &js_ast.SLocal{Decls: []js_ast.Decl{{
+				Binding:    js_ast.Binding{Loc: loc, Data: &js_ast.BIdentifier{Ref: promiseRef}},
+				ValueOrNil: callDispose,
+			}}}},
+
+			// The "await" must not happen if an error was thrown before the
+			// "await using", so we conditionally await here:
+			//
+			//   var promise = __callDispose(stack, error, hasError);
+			//   promise && await promise;
+			//
+			{Loc: loc, Data: &js_ast.SExpr{Value: js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
+				Op:    js_ast.BinOpLogicalAnd,
+				Left:  js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: promiseRef}},
+				Right: awaitExpr,
+			}}}},
+		}
+	} else {
+		finallyStmts = []js_ast.Stmt{{Loc: loc, Data: &js_ast.SExpr{Value: callDispose}}}
+	}
+
+	// Wrap everything in a try/catch/finally block
+	p.recordUsage(caughtRef)
+	result = append(result,
+		js_ast.Stmt{Loc: loc, Data: &js_ast.SLocal{
+			Decls: []js_ast.Decl{{
+				Binding:    js_ast.Binding{Loc: loc, Data: &js_ast.BIdentifier{Ref: ctx.stackRef}},
+				ValueOrNil: js_ast.Expr{Loc: loc, Data: &js_ast.EArray{}},
+			}},
+		}},
+		js_ast.Stmt{Loc: loc, Data: &js_ast.STry{
+			Block: js_ast.SBlock{
+				Stmts: stmts,
+			},
+			BlockLoc: loc,
+			Catch: &js_ast.Catch{
+				Loc:          loc,
+				BindingOrNil: js_ast.Binding{Loc: loc, Data: &js_ast.BIdentifier{Ref: caughtRef}},
+				Block: js_ast.SBlock{Stmts: []js_ast.Stmt{{Loc: loc, Data: &js_ast.SLocal{
+					Decls: []js_ast.Decl{{
+						Binding:    js_ast.Binding{Loc: loc, Data: &js_ast.BIdentifier{Ref: errorRef}},
+						ValueOrNil: js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: caughtRef}},
+					}, {
+						Binding:    js_ast.Binding{Loc: loc, Data: &js_ast.BIdentifier{Ref: hasErrorRef}},
+						ValueOrNil: js_ast.Expr{Loc: loc, Data: &js_ast.EBoolean{Value: true}},
+					}},
+				}}}},
+				BlockLoc: loc,
+			},
+			Finally: &js_ast.Finally{
+				Loc:   loc,
+				Block: js_ast.SBlock{Stmts: finallyStmts},
+			},
+		}},
+	)
+	if len(exports) > 0 {
+		result = append(result, js_ast.Stmt{Loc: loc, Data: &js_ast.SExportClause{Items: exports}})
+	}
+	return result
+}
+
+func (p *parser) lowerUsingDeclarationInForOf(loc logger.Loc, init *js_ast.SLocal, body *js_ast.Stmt) {
+	binding := init.Decls[0].Binding
+	id := binding.Data.(*js_ast.BIdentifier)
+	tempRef := p.generateTempRef(tempRefNoDeclare, "_"+p.symbols[id.Ref.InnerIndex].OriginalName)
+	block, ok := body.Data.(*js_ast.SBlock)
+	if !ok {
+		block = &js_ast.SBlock{}
+		if _, ok := body.Data.(*js_ast.SEmpty); !ok {
+			block.Stmts = append(block.Stmts, *body)
+		}
+		body.Data = block
+	}
+	blockStmts := make([]js_ast.Stmt, 0, 1+len(block.Stmts))
+	blockStmts = append(blockStmts, js_ast.Stmt{Loc: loc, Data: &js_ast.SLocal{
+		Kind: init.Kind,
+		Decls: []js_ast.Decl{{
+			Binding:    js_ast.Binding{Loc: binding.Loc, Data: &js_ast.BIdentifier{Ref: id.Ref}},
+			ValueOrNil: js_ast.Expr{Loc: binding.Loc, Data: &js_ast.EIdentifier{Ref: tempRef}},
+		}},
+	}})
+	blockStmts = append(blockStmts, block.Stmts...)
+	ctx := p.lowerUsingDeclarationContext()
+	ctx.scanStmts(p, blockStmts)
+	block.Stmts = ctx.finalize(p, blockStmts, p.willWrapModuleInTryCatchForUsing && p.currentScope.Parent == nil)
+	init.Kind = js_ast.LocalVar
+	id.Ref = tempRef
+}
+
+func (p *parser) maybeLowerUsingDeclarationsInSwitch(loc logger.Loc, s *js_ast.SSwitch) []js_ast.Stmt {
+	// Check for a "using" declaration in any case
+	shouldLower := false
+	for _, c := range s.Cases {
+		if p.shouldLowerUsingDeclarations(c.Body) {
+			shouldLower = true
+			break
+		}
+	}
+	if !shouldLower {
+		return nil
+	}
+
+	// If we find one, lower all cases together
+	ctx := p.lowerUsingDeclarationContext()
+	for _, c := range s.Cases {
+		ctx.scanStmts(p, c.Body)
+	}
+	return ctx.finalize(p, []js_ast.Stmt{{Loc: loc, Data: s}}, false)
+}
