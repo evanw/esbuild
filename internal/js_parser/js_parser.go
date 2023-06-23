@@ -10179,12 +10179,10 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		if p.options.minifySyntax && s.Kind == js_ast.LocalUsing {
 			s.Kind = js_ast.LocalConst
 			for _, decl := range s.Decls {
-				switch decl.ValueOrNil.Data.(type) {
-				case *js_ast.ENull, *js_ast.EUndefined:
-					continue
+				if t := js_ast.KnownPrimitiveType(decl.ValueOrNil.Data); t != js_ast.PrimitiveNull && t != js_ast.PrimitiveUndefined {
+					s.Kind = js_ast.LocalUsing
+					break
 				}
-				s.Kind = js_ast.LocalUsing
-				break
 			}
 		}
 
