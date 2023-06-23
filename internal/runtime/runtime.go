@@ -387,6 +387,44 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 				return bytes
 			}
 		})()
+
+		// These are for the "using" statement in TypeScript 5.2+
+		export var __using = (stack, value, async) => {
+			if (value != null) {
+				if (typeof value !== 'object') throw new TypeError('Object expected')
+				var dispose, k
+				if (async) {
+					if (!(k = Symbol.asyncDispose)) throw new TypeError('Symbol.asyncDispose is not defined')
+					dispose = value[k]
+				}
+				if (dispose === void 0) {
+					if (!(k = Symbol.dispose)) throw new TypeError('Symbol.dispose is not defined')
+					dispose = value[k]
+				}
+				if (typeof dispose !== 'function') throw new TypeError('Object not disposable')
+				stack.push([async, dispose, value])
+			} else if (async) {
+				stack.push([async])
+			}
+			return value
+		}
+		export var __callDispose = (stack, error, hasError) => {
+			var E = typeof SuppressedError === 'function' ? SuppressedError :
+				(e, s, m, _) => (_ = new Error(m), _.name = 'SuppressedError', _.error = e, _.suppressed = s, _)
+			var fail = e => error = hasError ? new E(e, error, 'An error was suppressed during disposal') : (hasError = true, e)
+			var next = (it) => {
+				while (it = stack.pop()) {
+					try {
+						var result = it[1] && it[1].call(it[2])
+						if (it[0]) return Promise.resolve(result).then(next, (e) => (fail(e), next()))
+					} catch (e) {
+						fail(e)
+					}
+				}
+				if (hasError) throw error
+			}
+			return next()
+		}
 	`
 
 	return logger.Source{

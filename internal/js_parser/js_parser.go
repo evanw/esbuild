@@ -379,6 +379,9 @@ type parser struct {
 	latestReturnHadSemicolon    bool
 	messageAboutThisIsUndefined bool
 	isControlFlowDead           bool
+
+	// If this is true, then all top-level statements are wrapped in a try/catch
+	willWrapModuleInTryCatchForUsing bool
 }
 
 type namespaceImportItems struct {
@@ -995,8 +998,11 @@ func jumpStmtsLookTheSame(left js_ast.S, right js_ast.S) bool {
 }
 
 func (p *parser) selectLocalKind(kind js_ast.LocalKind) js_ast.LocalKind {
-	// Safari workaround: Automatically avoid TDZ issues when bundling
-	if p.options.mode == config.ModeBundle && p.currentScope.Parent == nil {
+	// Use "var" instead of "let" and "const" if the variable declaration may
+	// need to be separated from the initializer. This allows us to safely move
+	// this declaration into a nested scope.
+	if p.currentScope.Parent == nil && (kind == js_ast.LocalLet || kind == js_ast.LocalConst) &&
+		(p.options.mode == config.ModeBundle || p.willWrapModuleInTryCatchForUsing) {
 		return js_ast.LocalVar
 	}
 
@@ -4760,7 +4766,6 @@ func (p *parser) parseExprOrLetOrUsingStmt(opts parseStmtOpts) (js_ast.Expr, js_
 		if opts.lexicalDecl != lexicalDeclAllowAll {
 			p.forbidLexicalDecl(tokenRange.Loc)
 		}
-		p.markSyntaxFeature(compat.Using, tokenRange)
 		opts.isUsingStmt = true
 		decls := p.parseAndDeclareDecls(js_ast.SymbolConst, opts)
 		if !opts.isForLoopInit {
@@ -4786,8 +4791,6 @@ func (p *parser) parseExprOrLetOrUsingStmt(opts parseStmtOpts) (js_ast.Expr, js_
 				if opts.lexicalDecl != lexicalDeclAllowAll {
 					p.forbidLexicalDecl(usingRange.Loc)
 				}
-				p.markSyntaxFeature(compat.AsyncAwait, tokenRange)
-				p.markSyntaxFeature(compat.Using, usingRange)
 				opts.isUsingStmt = true
 				decls := p.parseAndDeclareDecls(js_ast.SymbolConst, opts)
 				if !opts.isForLoopInit {
@@ -8346,6 +8349,7 @@ type stmtsKind uint8
 
 const (
 	stmtsNormal stmtsKind = iota
+	stmtsSwitch
 	stmtsLoopBody
 	stmtsFnBody
 )
@@ -8506,6 +8510,13 @@ func (p *parser) visitStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt {
 	// Restore the current control-flow liveness if it was changed inside the
 	// loop above. This is important because the caller will not restore it.
 	p.isControlFlowDead = oldIsControlFlowDead
+
+	// Lower using declarations
+	if kind != stmtsSwitch && p.shouldLowerUsingDeclarations(visited) {
+		ctx := p.lowerUsingDeclarationContext()
+		ctx.scanStmts(p, visited)
+		visited = ctx.finalize(p, visited, p.currentScope.Parent == nil)
+	}
 
 	// Stop now if we're not mangling
 	if !p.options.minifySyntax {
@@ -9889,6 +9900,24 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 				}
 			}
 
+			// If there are lowered "using" declarations, change this into a "var"
+			if p.currentScope.Parent == nil && p.willWrapModuleInTryCatchForUsing {
+				stmts = append(stmts,
+					js_ast.Stmt{Loc: stmt.Loc, Data: &js_ast.SLocal{
+						Decls: []js_ast.Decl{{
+							Binding:    js_ast.Binding{Loc: s.DefaultName.Loc, Data: &js_ast.BIdentifier{Ref: s.DefaultName.Ref}},
+							ValueOrNil: s2.Value,
+						}},
+					}},
+					js_ast.Stmt{Loc: stmt.Loc, Data: &js_ast.SExportClause{Items: []js_ast.ClauseItem{{
+						Alias:    "default",
+						AliasLoc: s.DefaultName.Loc,
+						Name:     s.DefaultName,
+					}}}},
+				)
+				break
+			}
+
 			stmts = append(stmts, stmt)
 
 		case *js_ast.SFunction:
@@ -10026,6 +10055,16 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		}
 
 	case *js_ast.SLocal:
+		// Silently remove unsupported top-level "await" in dead code branches
+		if s.Kind == js_ast.LocalAwaitUsing && p.fnOrArrowDataVisit.isOutsideFnOrArrow {
+			if p.isControlFlowDead && (p.options.unsupportedJSFeatures.Has(compat.TopLevelAwait) || !p.options.outputFormat.KeepESMImportExportSyntax()) {
+				s.Kind = js_ast.LocalUsing
+			} else {
+				p.liveTopLevelAwaitKeyword = logger.Range{Loc: stmt.Loc, Len: 5}
+				p.markSyntaxFeature(compat.TopLevelAwait, logger.Range{Loc: stmt.Loc, Len: 5})
+			}
+		}
+
 		// Local statements do not end the const local prefix
 		p.currentScope.IsAfterConstLocalPrefix = wasAfterAfterConstLocalPrefix
 
@@ -10133,6 +10172,20 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		}
 
 		s.Decls = p.lowerObjectRestInDecls(s.Decls)
+
+		// Optimization: Avoid unnecessary "using" machinery by changing ones
+		// initialized to "null" or "undefined" into a normal variable. Note that
+		// "await using" still needs the "await", so we can't do it for those.
+		if p.options.minifySyntax && s.Kind == js_ast.LocalUsing {
+			s.Kind = js_ast.LocalConst
+			for _, decl := range s.Decls {
+				if t := js_ast.KnownPrimitiveType(decl.ValueOrNil.Data); t != js_ast.PrimitiveNull && t != js_ast.PrimitiveUndefined {
+					s.Kind = js_ast.LocalUsing
+					break
+				}
+			}
+		}
+
 		s.Kind = p.selectLocalKind(s.Kind)
 
 		// Potentially relocate "var" declarations to the top level
@@ -10397,6 +10450,28 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			}
 		}
 
+		// Handle "for (using x of y)" and "for (await using x of y)"
+		if local, ok := s.Init.Data.(*js_ast.SLocal); ok {
+			if local.Kind == js_ast.LocalUsing && p.options.unsupportedJSFeatures.Has(compat.Using) {
+				p.lowerUsingDeclarationInForOf(s.Init.Loc, local, &s.Body)
+			} else if local.Kind == js_ast.LocalAwaitUsing {
+				if p.fnOrArrowDataVisit.isOutsideFnOrArrow {
+					if p.isControlFlowDead && (p.options.unsupportedJSFeatures.Has(compat.TopLevelAwait) || !p.options.outputFormat.KeepESMImportExportSyntax()) {
+						// Silently remove unsupported top-level "await" in dead code branches
+						local.Kind = js_ast.LocalUsing
+					} else {
+						p.liveTopLevelAwaitKeyword = logger.Range{Loc: s.Init.Loc, Len: 5}
+						p.markSyntaxFeature(compat.TopLevelAwait, p.liveTopLevelAwaitKeyword)
+					}
+					if p.options.unsupportedJSFeatures.Has(compat.Using) {
+						p.lowerUsingDeclarationInForOf(s.Init.Loc, local, &s.Body)
+					}
+				} else if p.options.unsupportedJSFeatures.Has(compat.Using) || p.options.unsupportedJSFeatures.Has(compat.AsyncAwait) {
+					p.lowerUsingDeclarationInForOf(s.Init.Loc, local, &s.Body)
+				}
+			}
+		}
+
 		p.popScope()
 
 		p.lowerObjectRestInForLoopInit(s.Init, &s.Body)
@@ -10450,7 +10525,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 				p.warnAboutEqualityCheck("case", c.ValueOrNil, c.ValueOrNil.Loc)
 				p.warnAboutTypeofAndString(s.Test, c.ValueOrNil, onlyCheckOriginalOrder)
 			}
-			c.Body = p.visitStmts(c.Body, stmtsNormal)
+			c.Body = p.visitStmts(c.Body, stmtsSwitch)
 
 			// Make sure the assignment to the body above is preserved
 			s.Cases[i] = c
@@ -10464,6 +10539,11 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			if c.ValueOrNil.Data != nil {
 				p.duplicateCaseChecker.check(p, c.ValueOrNil)
 			}
+		}
+
+		// "using" declarations inside switch statements must be special-cased
+		if lowered := p.maybeLowerUsingDeclarationsInSwitch(stmt.Loc, s); lowered != nil {
+			return append(stmts, lowered...)
 		}
 
 	case *js_ast.SFunction:
@@ -16307,11 +16387,53 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 		}
 	}
 
+	// When "using" declarations appear at the top level, we change all TDZ
+	// variables in the top-level scope into "var" so that they aren't harmed
+	// when they are moved into the try/catch statement that lowering will
+	// generate.
+	//
+	// This is necessary because exported function declarations must be hoisted
+	// outside of the try/catch statement because they can be evaluated before
+	// this module is evaluated due to ESM cross-file function hoisting. And
+	// these function bodies might reference anything else in this scope, which
+	// must still work when those things are moved inside a try/catch statement.
+	//
+	// Before:
+	//
+	//   using foo = get()
+	//   export function fn() {
+	//     return [foo, new Bar]
+	//   }
+	//   class Bar {}
+	//
+	// After ("fn" is hoisted, "Bar" is converted to "var"):
+	//
+	//   export function fn() {
+	//     return [foo, new Bar]
+	//   }
+	//   try {
+	//     var foo = get();
+	//     var Bar = class {};
+	//   } catch (_) {
+	//     ...
+	//   } finally {
+	//     ...
+	//   }
+	//
+	// This is also necessary because other code might be appended to the code
+	// that we're processing and expect to be able to access top-level variables.
+	p.willWrapModuleInTryCatchForUsing = p.shouldLowerUsingDeclarations(stmts)
+
 	// Bind symbols in a second pass over the AST. I started off doing this in a
 	// single pass, but it turns out it's pretty much impossible to do this
 	// correctly while handling arrow functions because of the grammar
 	// ambiguities.
-	if !p.options.treeShaking {
+	//
+	// Note that top-level lowered "using" declarations disable tree-shaking
+	// because we only do tree-shaking on top-level statements and lowering
+	// a top-level "using" declaration moves all top-level statements into a
+	// nested scope.
+	if !p.options.treeShaking || p.willWrapModuleInTryCatchForUsing {
 		// When tree shaking is disabled, everything comes in a single part
 		parts = p.appendPart(parts, stmts)
 	} else {

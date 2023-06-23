@@ -2,6 +2,81 @@
 
 ## Unreleased
 
+* Add support for `using` declarations in TypeScript 5.2+ ([#3191](https://github.com/evanw/esbuild/issues/3191))
+
+    TypeScript 5.2 (due to be released in August of 2023) will introduce `using` declarations, which will allow you to automatically dispose of the declared resources when leaving the current scope. You can read the [TypeScript PR for this feature](https://github.com/microsoft/TypeScript/pull/54505) for more information. This release of esbuild adds support for transforming this syntax to target environments without support for `using` declarations (which is currently all targets other than `esnext`). Here's an example (helper functions are omitted):
+
+    ```js
+    // Original code
+    class Foo {
+      [Symbol.dispose]() {
+        console.log('cleanup')
+      }
+    }
+    using foo = new Foo;
+    foo.bar();
+
+    // New output (with --target=es6)
+    var _stack = [];
+    try {
+      var Foo = class {
+        [Symbol.dispose]() {
+          console.log("cleanup");
+        }
+      };
+      var foo = __using(_stack, new Foo());
+      foo.bar();
+    } catch (_) {
+      var _error = _, _hasError = true;
+    } finally {
+      __callDispose(_stack, _error, _hasError);
+    }
+    ```
+
+    The injected helper functions ensure that the method called `Symbol.dispose` is called on `new Foo` when control exits the scope. Note that as with all new JavaScript APIs, you'll need to polyfill `Symbol.dispose` if it's not present before you use it. This is not something that esbuild does for you because esbuild only handles syntax, not APIs. Polyfilling it can be done with something like this:
+
+    ```js
+    Symbol.dispose ||= Symbol.for('Symbol.dispose')
+    ```
+
+    This feature also introduces `await using` declarations which are like `using` declarations but they call `await` on the disposal method (not on the initializer). Here's an example (helper functions are omitted):
+
+    ```js
+    // Original code
+    class Foo {
+      async [Symbol.asyncDispose]() {
+        await new Promise(done => {
+          setTimeout(done, 1000)
+        })
+        console.log('cleanup')
+      }
+    }
+    await using foo = new Foo;
+    foo.bar();
+
+    // New output (with --target=es2022)
+    var _stack = [];
+    try {
+      var Foo = class {
+        async [Symbol.asyncDispose]() {
+          await new Promise((done) => {
+            setTimeout(done, 1e3);
+          });
+          console.log("cleanup");
+        }
+      };
+      var foo = __using(_stack, new Foo(), true);
+      foo.bar();
+    } catch (_) {
+      var _error = _, _hasError = true;
+    } finally {
+      var _promise = __callDispose(_stack, _error, _hasError);
+      _promise && await _promise;
+    }
+    ```
+
+    The injected helper functions ensure that the method called `Symbol.asyncDispose` is called on `new Foo` when control exits the scope, and that the returned promise is awaited. Similarly to `Symbol.dispose`, you'll also need to polyfill `Symbol.asyncDispose` before you use it.
+
 * Add a `--line-limit=` flag to limit line length ([#3170](https://github.com/evanw/esbuild/issues/3170))
 
     Long lines are common in minified code. However, many tools and text editors can't handle long lines. This release introduces the `--line-limit=` flag to tell esbuild to wrap lines longer than the provided number of bytes. For example, `--line-limit=80` tells esbuild to insert a newline soon after a given line reaches 80 bytes in length. This setting applies to both JavaScript and CSS, and works even when minification is disabled. Note that turning this setting on will make your files bigger, as the extra newlines take up additional space in the file (even after gzip compression).

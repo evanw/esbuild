@@ -1457,7 +1457,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 	// statements to variables during parsing and b) don't yet know whether this
 	// module will need to be lazily-evaluated or not in the parser. So we always
 	// do this just in case it's needed.
-	mustConvertStmtToExpr := p.options.mode == config.ModeBundle && p.currentScope.Parent == nil
+	mustConvertStmtToExpr := p.currentScope.Parent == nil && (p.options.mode == config.ModeBundle || p.willWrapModuleInTryCatchForUsing)
 
 	var classExperimentalDecorators []js_ast.Decorator
 	if p.options.ts.Parse && p.options.ts.Config.ExperimentalDecorators == config.True {

@@ -1148,6 +1148,10 @@ const (
 	LocalAwaitUsing
 )
 
+func (kind LocalKind) IsUsing() bool {
+	return kind >= LocalUsing
+}
+
 type SLocal struct {
 	Decls    []Decl
 	Kind     LocalKind

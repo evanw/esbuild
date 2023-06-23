@@ -2983,6 +2983,958 @@ y = () => [
 ];
 
 ================================================================================
+TestLowerUsing
+---------- /out/entry.js ----------
+function foo() {
+  var _stack4 = [];
+  try {
+    const a2 = __using(_stack4, b);
+    if (nested) {
+      var _stack3 = [];
+      try {
+        const x = __using(_stack3, 1);
+      } catch (_3) {
+        var _error3 = _3, _hasError3 = true;
+      } finally {
+        __callDispose(_stack3, _error3, _hasError3);
+      }
+    }
+  } catch (_4) {
+    var _error4 = _4, _hasError4 = true;
+  } finally {
+    __callDispose(_stack4, _error4, _hasError4);
+  }
+}
+async function bar() {
+  var _stack4 = [];
+  try {
+    const a2 = __using(_stack4, b);
+    const c2 = __using(_stack4, d, true);
+    if (nested) {
+      var _stack3 = [];
+      try {
+        const x = __using(_stack3, 1);
+        const y = __using(_stack3, 2, true);
+      } catch (_3) {
+        var _error3 = _3, _hasError3 = true;
+      } finally {
+        var _promise3 = __callDispose(_stack3, _error3, _hasError3);
+        _promise3 && await _promise3;
+      }
+    }
+  } catch (_4) {
+    var _error4 = _4, _hasError4 = true;
+  } finally {
+    var _promise4 = __callDispose(_stack4, _error4, _hasError4);
+    _promise4 && await _promise4;
+  }
+}
+var _stack2 = [];
+try {
+  var a = __using(_stack2, b);
+  var c = __using(_stack2, d, true);
+  if (nested) {
+    var _stack = [];
+    try {
+      const x = __using(_stack, 1);
+      const y = __using(_stack, 2, true);
+    } catch (_) {
+      var _error = _, _hasError = true;
+    } finally {
+      var _promise = __callDispose(_stack, _error, _hasError);
+      _promise && await _promise;
+    }
+  }
+} catch (_2) {
+  var _error2 = _2, _hasError2 = true;
+} finally {
+  var _promise2 = __callDispose(_stack2, _error2, _hasError2);
+  _promise2 && await _promise2;
+}
+
+---------- /out/loops.js ----------
+for (var _a of b) {
+  var _stack = [];
+  try {
+    const a = __using(_stack, _a);
+    c(() => a);
+  } catch (_) {
+    var _error = _, _hasError = true;
+  } finally {
+    __callDispose(_stack, _error, _hasError);
+  }
+}
+for (var _d of e) {
+  var _stack2 = [];
+  try {
+    const d = __using(_stack2, _d, true);
+    f(() => d);
+  } catch (_2) {
+    var _error2 = _2, _hasError2 = true;
+  } finally {
+    var _promise = __callDispose(_stack2, _error2, _hasError2);
+    _promise && await _promise;
+  }
+}
+for await (var _g of h) {
+  var _stack3 = [];
+  try {
+    const g = __using(_stack3, _g);
+    i(() => g);
+  } catch (_3) {
+    var _error3 = _3, _hasError3 = true;
+  } finally {
+    __callDispose(_stack3, _error3, _hasError3);
+  }
+}
+for await (var _j of k) {
+  var _stack4 = [];
+  try {
+    const j = __using(_stack4, _j, true);
+    l(() => j);
+  } catch (_4) {
+    var _error4 = _4, _hasError4 = true;
+  } finally {
+    var _promise2 = __callDispose(_stack4, _error4, _hasError4);
+    _promise2 && await _promise2;
+  }
+}
+if (nested) {
+  for (var _a of b) {
+    var _stack5 = [];
+    try {
+      const a = __using(_stack5, _a);
+      c(() => a);
+    } catch (_5) {
+      var _error5 = _5, _hasError5 = true;
+    } finally {
+      __callDispose(_stack5, _error5, _hasError5);
+    }
+  }
+  for (var _d of e) {
+    var _stack6 = [];
+    try {
+      const d = __using(_stack6, _d, true);
+      f(() => d);
+    } catch (_6) {
+      var _error6 = _6, _hasError6 = true;
+    } finally {
+      var _promise3 = __callDispose(_stack6, _error6, _hasError6);
+      _promise3 && await _promise3;
+    }
+  }
+  for await (var _g of h) {
+    var _stack7 = [];
+    try {
+      const g = __using(_stack7, _g);
+      i(() => g);
+    } catch (_7) {
+      var _error7 = _7, _hasError7 = true;
+    } finally {
+      __callDispose(_stack7, _error7, _hasError7);
+    }
+  }
+  for await (var _j of k) {
+    var _stack8 = [];
+    try {
+      const j = __using(_stack8, _j, true);
+      l(() => j);
+    } catch (_8) {
+      var _error8 = _8, _hasError8 = true;
+    } finally {
+      var _promise4 = __callDispose(_stack8, _error8, _hasError8);
+      _promise4 && await _promise4;
+    }
+  }
+}
+function foo() {
+  for (var _a of b) {
+    var _stack9 = [];
+    try {
+      const a = __using(_stack9, _a);
+      c(() => a);
+    } catch (_9) {
+      var _error9 = _9, _hasError9 = true;
+    } finally {
+      __callDispose(_stack9, _error9, _hasError9);
+    }
+  }
+}
+async function bar() {
+  for (var _a of b) {
+    var _stack9 = [];
+    try {
+      const a = __using(_stack9, _a);
+      c(() => a);
+    } catch (_9) {
+      var _error9 = _9, _hasError9 = true;
+    } finally {
+      __callDispose(_stack9, _error9, _hasError9);
+    }
+  }
+  for (var _d of e) {
+    var _stack10 = [];
+    try {
+      const d = __using(_stack10, _d, true);
+      f(() => d);
+    } catch (_10) {
+      var _error10 = _10, _hasError10 = true;
+    } finally {
+      var _promise5 = __callDispose(_stack10, _error10, _hasError10);
+      _promise5 && await _promise5;
+    }
+  }
+  for await (var _g of h) {
+    var _stack11 = [];
+    try {
+      const g = __using(_stack11, _g);
+      i(() => g);
+    } catch (_11) {
+      var _error11 = _11, _hasError11 = true;
+    } finally {
+      __callDispose(_stack11, _error11, _hasError11);
+    }
+  }
+  for await (var _j of k) {
+    var _stack12 = [];
+    try {
+      const j = __using(_stack12, _j, true);
+      l(() => j);
+    } catch (_12) {
+      var _error12 = _12, _hasError12 = true;
+    } finally {
+      var _promise6 = __callDispose(_stack12, _error12, _hasError12);
+      _promise6 && await _promise6;
+    }
+  }
+}
+
+---------- /out/switch.js ----------
+async function foo() {
+  var _stack6 = [];
+  try {
+    const x2 = __using(_stack6, y);
+    var _stack4 = [];
+    try {
+      switch (foo) {
+        case 0:
+          const c = __using(_stack4, d);
+        default:
+          const e = __using(_stack4, f);
+      }
+    } catch (_4) {
+      var _error4 = _4, _hasError4 = true;
+    } finally {
+      __callDispose(_stack4, _error4, _hasError4);
+    }
+    var _stack5 = [];
+    try {
+      switch (foo) {
+        case 0:
+          const c = __using(_stack5, d, true);
+        default:
+          const e = __using(_stack5, f);
+      }
+    } catch (_5) {
+      var _error5 = _5, _hasError5 = true;
+    } finally {
+      var _promise2 = __callDispose(_stack5, _error5, _hasError5);
+      _promise2 && await _promise2;
+    }
+  } catch (_6) {
+    var _error6 = _6, _hasError6 = true;
+  } finally {
+    __callDispose(_stack6, _error6, _hasError6);
+  }
+}
+var _stack3 = [];
+try {
+  var x = __using(_stack3, y);
+  var _stack = [];
+  try {
+    switch (foo) {
+      case 0:
+        var c = __using(_stack, d);
+      default:
+        var e = __using(_stack, f);
+    }
+  } catch (_) {
+    var _error = _, _hasError = true;
+  } finally {
+    __callDispose(_stack, _error, _hasError);
+  }
+  var _stack2 = [];
+  try {
+    switch (foo) {
+      case 0:
+        var c = __using(_stack2, d, true);
+      default:
+        var e = __using(_stack2, f);
+    }
+  } catch (_2) {
+    var _error2 = _2, _hasError2 = true;
+  } finally {
+    var _promise = __callDispose(_stack2, _error2, _hasError2);
+    _promise && await _promise;
+  }
+} catch (_3) {
+  var _error3 = _3, _hasError3 = true;
+} finally {
+  __callDispose(_stack3, _error3, _hasError3);
+}
+
+================================================================================
+TestLowerUsingHoisting
+---------- /out/hoist-use-strict.js ----------
+"use strict";
+function foo() {
+  "use strict";
+  var _stack2 = [];
+  try {
+    const a2 = __using(_stack2, b);
+  } catch (_2) {
+    var _error2 = _2, _hasError2 = true;
+  } finally {
+    __callDispose(_stack2, _error2, _hasError2);
+  }
+}
+var _stack = [];
+try {
+  var a = __using(_stack, b);
+} catch (_) {
+  var _error = _, _hasError = true;
+} finally {
+  __callDispose(_stack, _error, _hasError);
+}
+
+---------- /out/hoist-directive.js ----------
+"use wtf";
+function foo() {
+  "use wtf";
+  var _stack2 = [];
+  try {
+    const a2 = __using(_stack2, b);
+  } catch (_2) {
+    var _error2 = _2, _hasError2 = true;
+  } finally {
+    __callDispose(_stack2, _error2, _hasError2);
+  }
+}
+var _stack = [];
+try {
+  var a = __using(_stack, b);
+} catch (_) {
+  var _error = _, _hasError = true;
+} finally {
+  __callDispose(_stack, _error, _hasError);
+}
+
+---------- /out/hoist-import.js ----------
+import "./foo";
+var _stack = [];
+try {
+  var a = __using(_stack, b);
+  var c = __using(_stack, d);
+} catch (_) {
+  var _error = _, _hasError = true;
+} finally {
+  __callDispose(_stack, _error, _hasError);
+}
+
+---------- /out/hoist-export-star.js ----------
+export * from "./foo";
+var _stack = [];
+try {
+  var a = __using(_stack, b);
+  var c = __using(_stack, d);
+} catch (_) {
+  var _error = _, _hasError = true;
+} finally {
+  __callDispose(_stack, _error, _hasError);
+}
+
+---------- /out/hoist-export-from.js ----------
+export { x, y } from "./foo";
+var _stack = [];
+try {
+  var a = __using(_stack, b);
+  var c = __using(_stack, d);
+} catch (_) {
+  var _error = _, _hasError = true;
+} finally {
+  __callDispose(_stack, _error, _hasError);
+}
+
+---------- /out/hoist-export-clause.js ----------
+var _stack = [];
+try {
+  var a = __using(_stack, b);
+  var c = __using(_stack, d);
+} catch (_) {
+  var _error = _, _hasError = true;
+} finally {
+  __callDispose(_stack, _error, _hasError);
+}
+export {
+  a,
+  c as "c!"
+};
+
+---------- /out/hoist-export-local-direct.js ----------
+var _stack = [];
+try {
+  var a = __using(_stack, b);
+  var ac1 = [a, c], { x: [x1] } = foo;
+  var a1 = a, { y: [y1] } = foo;
+  var c1 = c, { z: [z1] } = foo;
+  var ac2 = [a, c], { x: [x2] } = foo;
+  var a2 = a, { y: [y2] } = foo;
+  var c2 = c, { z: [z2] } = foo;
+  var c = __using(_stack, d);
+} catch (_) {
+  var _error = _, _hasError = true;
+} finally {
+  __callDispose(_stack, _error, _hasError);
+}
+export {
+  ac1,
+  x1,
+  a1,
+  y1,
+  c1,
+  z1
+};
+
+---------- /out/hoist-export-local-indirect.js ----------
+var _stack = [];
+try {
+  var a = __using(_stack, b);
+  var ac1 = [a, c], { x: [x1] } = foo;
+  var a1 = a, { y: [y1] } = foo;
+  var c1 = c, { z: [z1] } = foo;
+  var ac2 = [a, c], { x: [x2] } = foo;
+  var a2 = a, { y: [y2] } = foo;
+  var c2 = c, { z: [z2] } = foo;
+  var c = __using(_stack, d);
+} catch (_) {
+  var _error = _, _hasError = true;
+} finally {
+  __callDispose(_stack, _error, _hasError);
+}
+export {
+  x1,
+  y1,
+  z1
+};
+
+---------- /out/hoist-export-class-direct.js ----------
+var _stack = [];
+try {
+  var a = __using(_stack, b);
+  var Foo1 = class {
+    ac = [a, c];
+  };
+  var Bar1 = class _Bar1 {
+    ac = [a, c, _Bar1];
+  };
+  var Foo2 = class {
+    ac = [a, c];
+  };
+  var Bar2 = class _Bar2 {
+    ac = [a, c, _Bar2];
+  };
+  var c = __using(_stack, d);
+} catch (_) {
+  var _error = _, _hasError = true;
+} finally {
+  __callDispose(_stack, _error, _hasError);
+}
+export {
+  Foo1,
+  Bar1
+};
+
+---------- /out/hoist-export-class-indirect.js ----------
+var _stack = [];
+try {
+  var a = __using(_stack, b);
+  var Foo1 = class {
+    ac = [a, c];
+  };
+  var Bar1 = class _Bar1 {
+    ac = [a, c, _Bar1];
+  };
+  var Foo2 = class {
+    ac = [a, c];
+  };
+  var Bar2 = class _Bar2 {
+    ac = [a, c, _Bar2];
+  };
+  var c = __using(_stack, d);
+} catch (_) {
+  var _error = _, _hasError = true;
+} finally {
+  __callDispose(_stack, _error, _hasError);
+}
+export {
+  Foo1,
+  Bar1
+};
+
+---------- /out/hoist-export-function-direct.js ----------
+export function foo1() {
+  return [a, c];
+}
+export function bar1() {
+  return [a, c, bar1];
+}
+function foo2() {
+  return [a, c];
+}
+function bar2() {
+  return [a, c, bar2];
+}
+var _stack = [];
+try {
+  var a = __using(_stack, b);
+  var c = __using(_stack, d);
+} catch (_) {
+  var _error = _, _hasError = true;
+} finally {
+  __callDispose(_stack, _error, _hasError);
+}
+
+---------- /out/hoist-export-function-indirect.js ----------
+function foo1() {
+  return [a, c];
+}
+function bar1() {
+  return [a, c, bar1];
+}
+function foo2() {
+  return [a, c];
+}
+function bar2() {
+  return [a, c, bar2];
+}
+var _stack = [];
+try {
+  var a = __using(_stack, b);
+  var c = __using(_stack, d);
+} catch (_) {
+  var _error = _, _hasError = true;
+} finally {
+  __callDispose(_stack, _error, _hasError);
+}
+export {
+  foo1,
+  bar1
+};
+
+---------- /out/hoist-export-default-class-name-unused.js ----------
+var _stack = [];
+try {
+  var a = __using(_stack, b);
+  var Foo = class {
+    ac = [a, c];
+  };
+  var c = __using(_stack, d);
+} catch (_) {
+  var _error = _, _hasError = true;
+} finally {
+  __callDispose(_stack, _error, _hasError);
+}
+export {
+  Foo as default
+};
+
+---------- /out/hoist-export-default-class-name-used.js ----------
+var _stack = [];
+try {
+  var a = __using(_stack, b);
+  var Foo = class _Foo {
+    ac = [a, c, _Foo];
+  };
+  var c = __using(_stack, d);
+} catch (_) {
+  var _error = _, _hasError = true;
+} finally {
+  __callDispose(_stack, _error, _hasError);
+}
+export {
+  Foo as default
+};
+
+---------- /out/hoist-export-default-class-anonymous.js ----------
+var _stack = [];
+try {
+  var a = __using(_stack, b);
+  var hoist_export_default_class_anonymous_default = class {
+    ac = [a, c];
+  };
+  var c = __using(_stack, d);
+} catch (_) {
+  var _error = _, _hasError = true;
+} finally {
+  __callDispose(_stack, _error, _hasError);
+}
+export {
+  hoist_export_default_class_anonymous_default as default
+};
+
+---------- /out/hoist-export-default-function-name-unused.js ----------
+export default function foo() {
+  return [a, c];
+}
+var _stack = [];
+try {
+  var a = __using(_stack, b);
+  var c = __using(_stack, d);
+} catch (_) {
+  var _error = _, _hasError = true;
+} finally {
+  __callDispose(_stack, _error, _hasError);
+}
+
+---------- /out/hoist-export-default-function-name-used.js ----------
+export default function foo() {
+  return [a, c, foo];
+}
+var _stack = [];
+try {
+  var a = __using(_stack, b);
+  var c = __using(_stack, d);
+} catch (_) {
+  var _error = _, _hasError = true;
+} finally {
+  __callDispose(_stack, _error, _hasError);
+}
+
+---------- /out/hoist-export-default-function-anonymous.js ----------
+export default function() {
+  return [a, c];
+}
+var _stack = [];
+try {
+  var a = __using(_stack, b);
+  var c = __using(_stack, d);
+} catch (_) {
+  var _error = _, _hasError = true;
+} finally {
+  __callDispose(_stack, _error, _hasError);
+}
+
+---------- /out/hoist-export-default-expr.js ----------
+var _stack = [];
+try {
+  var a = __using(_stack, b);
+  var hoist_export_default_expr_default = [a, c];
+  var c = __using(_stack, d);
+} catch (_) {
+  var _error = _, _hasError = true;
+} finally {
+  __callDispose(_stack, _error, _hasError);
+}
+export {
+  hoist_export_default_expr_default as default
+};
+
+================================================================================
+TestLowerUsingInsideTSNamespace
+---------- /out/entry.js ----------
+var ns;
+((ns2) => {
+  var _stack = [];
+  try {
+    ns2.a = b;
+    const c = __using(_stack, d);
+    ns2.e = f;
+  } catch (_) {
+    var _error = _, _hasError = true;
+  } finally {
+    __callDispose(_stack, _error, _hasError);
+  }
+})(ns || (ns = {}));
+
+================================================================================
+TestLowerUsingUnsupportedAsync
+---------- /out/entry.js ----------
+function foo() {
+  using a = b;
+  if (nested) {
+    using x = 1;
+  }
+}
+function bar() {
+  return __async(this, null, function* () {
+    var _stack2 = [];
+    try {
+      const a = __using(_stack2, b);
+      const c = __using(_stack2, d, true);
+      if (nested) {
+        var _stack = [];
+        try {
+          const x = __using(_stack, 1);
+          const y = __using(_stack, 2, true);
+        } catch (_) {
+          var _error = _, _hasError = true;
+        } finally {
+          var _promise = __callDispose(_stack, _error, _hasError);
+          _promise && (yield _promise);
+        }
+      }
+    } catch (_2) {
+      var _error2 = _2, _hasError2 = true;
+    } finally {
+      var _promise2 = __callDispose(_stack2, _error2, _hasError2);
+      _promise2 && (yield _promise2);
+    }
+  });
+}
+
+---------- /out/loops.js ----------
+for (using a of b)
+  c(() => a);
+if (nested) {
+  for (using a of b)
+    c(() => a);
+}
+function foo() {
+  for (using a of b)
+    c(() => a);
+}
+function bar() {
+  return __async(this, null, function* () {
+    for (using a of b)
+      c(() => a);
+    for (var _d of e) {
+      var _stack = [];
+      try {
+        const d = __using(_stack, _d, true);
+        f(() => d);
+      } catch (_) {
+        var _error = _, _hasError = true;
+      } finally {
+        var _promise = __callDispose(_stack, _error, _hasError);
+        _promise && (yield _promise);
+      }
+    }
+  });
+}
+
+---------- /out/switch.js ----------
+using x = y;
+switch (foo) {
+  case 0:
+    using c = d;
+  default:
+    using e = f;
+}
+function foo() {
+  return __async(this, null, function* () {
+    using x2 = y;
+    switch (foo) {
+      case 0:
+        using c = d;
+      default:
+        using e = f;
+    }
+    var _stack = [];
+    try {
+      switch (foo) {
+        case 0:
+          const c = __using(_stack, d, true);
+        default:
+          const e = __using(_stack, f);
+      }
+    } catch (_) {
+      var _error = _, _hasError = true;
+    } finally {
+      var _promise = __callDispose(_stack, _error, _hasError);
+      _promise && (yield _promise);
+    }
+  });
+}
+
+================================================================================
+TestLowerUsingUnsupportedUsingAndAsync
+---------- /out/entry.js ----------
+function foo() {
+  var _stack2 = [];
+  try {
+    const a = __using(_stack2, b);
+    if (nested) {
+      var _stack = [];
+      try {
+        const x = __using(_stack, 1);
+      } catch (_) {
+        var _error = _, _hasError = true;
+      } finally {
+        __callDispose(_stack, _error, _hasError);
+      }
+    }
+  } catch (_2) {
+    var _error2 = _2, _hasError2 = true;
+  } finally {
+    __callDispose(_stack2, _error2, _hasError2);
+  }
+}
+function bar() {
+  return __async(this, null, function* () {
+    var _stack2 = [];
+    try {
+      const a = __using(_stack2, b);
+      const c = __using(_stack2, d, true);
+      if (nested) {
+        var _stack = [];
+        try {
+          const x = __using(_stack, 1);
+          const y = __using(_stack, 2, true);
+        } catch (_) {
+          var _error = _, _hasError = true;
+        } finally {
+          var _promise = __callDispose(_stack, _error, _hasError);
+          _promise && (yield _promise);
+        }
+      }
+    } catch (_2) {
+      var _error2 = _2, _hasError2 = true;
+    } finally {
+      var _promise2 = __callDispose(_stack2, _error2, _hasError2);
+      _promise2 && (yield _promise2);
+    }
+  });
+}
+
+---------- /out/loops.js ----------
+for (var _a of b) {
+  var _stack = [];
+  try {
+    const a = __using(_stack, _a);
+    c(() => a);
+  } catch (_) {
+    var _error = _, _hasError = true;
+  } finally {
+    __callDispose(_stack, _error, _hasError);
+  }
+}
+if (nested) {
+  for (var _a of b) {
+    var _stack2 = [];
+    try {
+      const a = __using(_stack2, _a);
+      c(() => a);
+    } catch (_2) {
+      var _error2 = _2, _hasError2 = true;
+    } finally {
+      __callDispose(_stack2, _error2, _hasError2);
+    }
+  }
+}
+function foo() {
+  for (var _a of b) {
+    var _stack3 = [];
+    try {
+      const a = __using(_stack3, _a);
+      c(() => a);
+    } catch (_3) {
+      var _error3 = _3, _hasError3 = true;
+    } finally {
+      __callDispose(_stack3, _error3, _hasError3);
+    }
+  }
+}
+function bar() {
+  return __async(this, null, function* () {
+    for (var _a of b) {
+      var _stack3 = [];
+      try {
+        const a = __using(_stack3, _a);
+        c(() => a);
+      } catch (_3) {
+        var _error3 = _3, _hasError3 = true;
+      } finally {
+        __callDispose(_stack3, _error3, _hasError3);
+      }
+    }
+    for (var _d of e) {
+      var _stack4 = [];
+      try {
+        const d = __using(_stack4, _d, true);
+        f(() => d);
+      } catch (_4) {
+        var _error4 = _4, _hasError4 = true;
+      } finally {
+        var _promise = __callDispose(_stack4, _error4, _hasError4);
+        _promise && (yield _promise);
+      }
+    }
+  });
+}
+
+---------- /out/switch.js ----------
+function foo() {
+  return __async(this, null, function* () {
+    var _stack5 = [];
+    try {
+      const x2 = __using(_stack5, y);
+      var _stack3 = [];
+      try {
+        switch (foo) {
+          case 0:
+            const c = __using(_stack3, d);
+          default:
+            const e = __using(_stack3, f);
+        }
+      } catch (_3) {
+        var _error3 = _3, _hasError3 = true;
+      } finally {
+        __callDispose(_stack3, _error3, _hasError3);
+      }
+      var _stack4 = [];
+      try {
+        switch (foo) {
+          case 0:
+            const c = __using(_stack4, d, true);
+          default:
+            const e = __using(_stack4, f);
+        }
+      } catch (_4) {
+        var _error4 = _4, _hasError4 = true;
+      } finally {
+        var _promise = __callDispose(_stack4, _error4, _hasError4);
+        _promise && (yield _promise);
+      }
+    } catch (_5) {
+      var _error5 = _5, _hasError5 = true;
+    } finally {
+      __callDispose(_stack5, _error5, _hasError5);
+    }
+  });
+}
+var _stack2 = [];
+try {
+  var x = __using(_stack2, y);
+  var _stack = [];
+  try {
+    switch (foo) {
+      case 0:
+        var c = __using(_stack, d);
+      default:
+        var e = __using(_stack, f);
+    }
+  } catch (_) {
+    var _error = _, _hasError = true;
+  } finally {
+    __callDispose(_stack, _error, _hasError);
+  }
+} catch (_2) {
+  var _error2 = _2, _hasError2 = true;
+} finally {
+  __callDispose(_stack2, _error2, _hasError2);
+}
+
+================================================================================
 TestStaticClassBlockES2021
 ---------- /out.js ----------
 // entry.js

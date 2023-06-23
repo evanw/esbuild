@@ -2625,3 +2625,420 @@ func TestJavaScriptAutoAccessorES2021(t *testing.T) {
 		},
 	})
 }
+
+func TestLowerUsing(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				using a = b
+				await using c = d
+				if (nested) {
+					using x = 1
+					await using y = 2
+				}
+
+				function foo() {
+					using a = b
+					if (nested) {
+						using x = 1
+					}
+				}
+
+				async function bar() {
+					using a = b
+					await using c = d
+					if (nested) {
+						using x = 1
+						await using y = 2
+					}
+				}
+			`,
+			"/loops.js": `
+				for (using a of b) c(() => a)
+				for (await using d of e) f(() => d)
+				for await (using g of h) i(() => g)
+				for await (await using j of k) l(() => j)
+
+				if (nested) {
+					for (using a of b) c(() => a)
+					for (await using d of e) f(() => d)
+					for await (using g of h) i(() => g)
+					for await (await using j of k) l(() => j)
+				}
+
+				function foo() {
+					for (using a of b) c(() => a)
+				}
+
+				async function bar() {
+					for (using a of b) c(() => a)
+					for (await using d of e) f(() => d)
+					for await (using g of h) i(() => g)
+					for await (await using j of k) l(() => j)
+				}
+			`,
+			"/switch.js": `
+				using x = y
+				switch (foo) {
+					case 0: using c = d
+					default: using e = f
+				}
+				switch (foo) {
+					case 0: await using c = d
+					default: using e = f
+				}
+
+				async function foo() {
+					using x = y
+					switch (foo) {
+						case 0: using c = d
+						default: using e = f
+					}
+					switch (foo) {
+						case 0: await using c = d
+						default: using e = f
+					}
+				}
+			`,
+		},
+		entryPaths: []string{
+			"/entry.js",
+			"/loops.js",
+			"/switch.js",
+		},
+		options: config.Options{
+			Mode:                  config.ModePassThrough,
+			AbsOutputDir:          "/out",
+			UnsupportedJSFeatures: compat.Using,
+		},
+	})
+}
+
+func TestLowerUsingUnsupportedAsync(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				function foo() {
+					using a = b
+					if (nested) {
+						using x = 1
+					}
+				}
+
+				async function bar() {
+					using a = b
+					await using c = d
+					if (nested) {
+						using x = 1
+						await using y = 2
+					}
+				}
+			`,
+			"/loops.js": `
+				for (using a of b) c(() => a)
+
+				if (nested) {
+					for (using a of b) c(() => a)
+				}
+
+				function foo() {
+					for (using a of b) c(() => a)
+				}
+
+				async function bar() {
+					for (using a of b) c(() => a)
+					for (await using d of e) f(() => d)
+				}
+			`,
+			"/switch.js": `
+				using x = y
+				switch (foo) {
+					case 0: using c = d
+					default: using e = f
+				}
+
+				async function foo() {
+					using x = y
+					switch (foo) {
+						case 0: using c = d
+						default: using e = f
+					}
+					switch (foo) {
+						case 0: await using c = d
+						default: using e = f
+					}
+				}
+			`,
+		},
+		entryPaths: []string{
+			"/entry.js",
+			"/loops.js",
+			"/switch.js",
+		},
+		options: config.Options{
+			Mode:                  config.ModePassThrough,
+			AbsOutputDir:          "/out",
+			UnsupportedJSFeatures: compat.AsyncAwait | compat.TopLevelAwait,
+		},
+	})
+}
+
+func TestLowerUsingUnsupportedUsingAndAsync(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				function foo() {
+					using a = b
+					if (nested) {
+						using x = 1
+					}
+				}
+
+				async function bar() {
+					using a = b
+					await using c = d
+					if (nested) {
+						using x = 1
+						await using y = 2
+					}
+				}
+			`,
+			"/loops.js": `
+				for (using a of b) c(() => a)
+
+				if (nested) {
+					for (using a of b) c(() => a)
+				}
+
+				function foo() {
+					for (using a of b) c(() => a)
+				}
+
+				async function bar() {
+					for (using a of b) c(() => a)
+					for (await using d of e) f(() => d)
+				}
+			`,
+			"/switch.js": `
+				using x = y
+				switch (foo) {
+					case 0: using c = d
+					default: using e = f
+				}
+
+				async function foo() {
+					using x = y
+					switch (foo) {
+						case 0: using c = d
+						default: using e = f
+					}
+					switch (foo) {
+						case 0: await using c = d
+						default: using e = f
+					}
+				}
+			`,
+		},
+		entryPaths: []string{
+			"/entry.js",
+			"/loops.js",
+			"/switch.js",
+		},
+		options: config.Options{
+			Mode:                  config.ModePassThrough,
+			AbsOutputDir:          "/out",
+			UnsupportedJSFeatures: compat.Using | compat.AsyncAwait | compat.TopLevelAwait,
+		},
+	})
+}
+
+func TestLowerUsingHoisting(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/hoist-use-strict.js": `
+				"use strict"
+				using a = b
+				function foo() {
+					"use strict"
+					using a = b
+				}
+			`,
+			"/hoist-directive.js": `
+				"use wtf"
+				using a = b
+				function foo() {
+					"use wtf"
+					using a = b
+				}
+			`,
+			"/hoist-import.js": `
+				using a = b
+				import "./foo"
+				using c = d
+			`,
+			"/hoist-export-star.js": `
+				using a = b
+				export * from './foo'
+				using c = d
+			`,
+			"/hoist-export-from.js": `
+				using a = b
+				export {x, y} from './foo'
+				using c = d
+			`,
+			"/hoist-export-clause.js": `
+				using a = b
+				export {a, c as 'c!'}
+				using c = d
+			`,
+			"/hoist-export-local-direct.js": `
+				using a = b
+				export var ac1 = [a, c], { x: [x1] } = foo
+				export let a1 = a, { y: [y1] } = foo
+				export const c1 = c, { z: [z1] } = foo
+				var ac2 = [a, c], { x: [x2] } = foo
+				let a2 = a, { y: [y2] } = foo
+				const c2 = c, { z: [z2] } = foo
+				using c = d
+			`,
+			"/hoist-export-local-indirect.js": `
+				using a = b
+				var ac1 = [a, c], { x: [x1] } = foo
+				let a1 = a, { y: [y1] } = foo
+				const c1 = c, { z: [z1] } = foo
+				var ac2 = [a, c], { x: [x2] } = foo
+				let a2 = a, { y: [y2] } = foo
+				const c2 = c, { z: [z2] } = foo
+				using c = d
+				export {x1, y1, z1}
+			`,
+			"/hoist-export-class-direct.js": `
+				using a = b
+				export class Foo1 { ac = [a, c] }
+				export class Bar1 { ac = [a, c, Bar1] }
+				class Foo2 { ac = [a, c] }
+				class Bar2 { ac = [a, c, Bar2] }
+				using c = d
+			`,
+			"/hoist-export-class-indirect.js": `
+				using a = b
+				class Foo1 { ac = [a, c] }
+				class Bar1 { ac = [a, c, Bar1] }
+				class Foo2 { ac = [a, c] }
+				class Bar2 { ac = [a, c, Bar2] }
+				using c = d
+				export {Foo1, Bar1}
+			`,
+			"/hoist-export-function-direct.js": `
+				using a = b
+				export function foo1() { return [a, c] }
+				export function bar1() { return [a, c, bar1] }
+				function foo2() { return [a, c] }
+				function bar2() { return [a, c, bar2] }
+				using c = d
+			`,
+			"/hoist-export-function-indirect.js": `
+				using a = b
+				function foo1() { return [a, c] }
+				function bar1() { return [a, c, bar1] }
+				function foo2() { return [a, c] }
+				function bar2() { return [a, c, bar2] }
+				using c = d
+				export {foo1, bar1}
+			`,
+			"/hoist-export-default-class-name-unused.js": `
+				using a = b
+				export default class Foo {
+					ac = [a, c]
+				}
+				using c = d
+			`,
+			"/hoist-export-default-class-name-used.js": `
+				using a = b
+				export default class Foo {
+					ac = [a, c, Foo]
+				}
+				using c = d
+			`,
+			"/hoist-export-default-class-anonymous.js": `
+				using a = b
+				export default class {
+					ac = [a, c]
+				}
+				using c = d
+			`,
+			"/hoist-export-default-function-name-unused.js": `
+				using a = b
+				export default function foo() {
+					return [a, c]
+				}
+				using c = d
+			`,
+			"/hoist-export-default-function-name-used.js": `
+				using a = b
+				export default function foo() {
+					return [a, c, foo]
+				}
+				using c = d
+			`,
+			"/hoist-export-default-function-anonymous.js": `
+				using a = b
+				export default function() {
+					return [a, c]
+				}
+				using c = d
+			`,
+			"/hoist-export-default-expr.js": `
+				using a = b
+				export default [a, c]
+				using c = d
+			`,
+		},
+		entryPaths: []string{
+			"/hoist-use-strict.js",
+			"/hoist-directive.js",
+			"/hoist-import.js",
+			"/hoist-export-star.js",
+			"/hoist-export-from.js",
+			"/hoist-export-clause.js",
+			"/hoist-export-local-direct.js",
+			"/hoist-export-local-indirect.js",
+			"/hoist-export-class-direct.js",
+			"/hoist-export-class-indirect.js",
+			"/hoist-export-function-direct.js",
+			"/hoist-export-function-indirect.js",
+			"/hoist-export-default-class-name-unused.js",
+			"/hoist-export-default-class-name-used.js",
+			"/hoist-export-default-class-anonymous.js",
+			"/hoist-export-default-function-name-unused.js",
+			"/hoist-export-default-function-name-used.js",
+			"/hoist-export-default-function-anonymous.js",
+			"/hoist-export-default-expr.js",
+		},
+		options: config.Options{
+			Mode:                  config.ModePassThrough,
+			AbsOutputDir:          "/out",
+			UnsupportedJSFeatures: compat.Using,
+		},
+	})
+}
+
+func TestLowerUsingInsideTSNamespace(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				namespace ns {
+					export let a = b
+					using c = d
+					export let e = f
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:                  config.ModePassThrough,
+			AbsOutputDir:          "/out",
+			UnsupportedJSFeatures: compat.Using,
+		},
+	})
+}
