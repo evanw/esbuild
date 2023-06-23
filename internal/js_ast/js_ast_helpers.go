@@ -2566,3 +2566,31 @@ func MangleIfExpr(loc logger.Loc, e *EIf, unsupportedFeatures compat.JSFeature, 
 
 	return Expr{Loc: loc, Data: e}
 }
+
+func ForEachIdentifierBindingInDecls(decls []Decl, callback func(loc logger.Loc, b *BIdentifier)) {
+	for _, decl := range decls {
+		ForEachIdentifierBinding(decl.Binding, callback)
+	}
+}
+
+func ForEachIdentifierBinding(binding Binding, callback func(loc logger.Loc, b *BIdentifier)) {
+	switch b := binding.Data.(type) {
+	case *BMissing:
+
+	case *BIdentifier:
+		callback(binding.Loc, b)
+
+	case *BArray:
+		for _, item := range b.Items {
+			ForEachIdentifierBinding(item.Binding, callback)
+		}
+
+	case *BObject:
+		for _, property := range b.Properties {
+			ForEachIdentifierBinding(property.Value, callback)
+		}
+
+	default:
+		panic("Internal error")
+	}
+}

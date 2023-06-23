@@ -1562,28 +1562,11 @@ func (p *parser) hoistSymbols(scope *js_ast.Scope) {
 }
 
 func (p *parser) declareBinding(kind js_ast.SymbolKind, binding js_ast.Binding, opts parseStmtOpts) {
-	switch b := binding.Data.(type) {
-	case *js_ast.BMissing:
-
-	case *js_ast.BIdentifier:
-		name := p.loadNameFromRef(b.Ref)
+	js_ast.ForEachIdentifierBinding(binding, func(loc logger.Loc, b *js_ast.BIdentifier) {
 		if !opts.isTypeScriptDeclare || (opts.isNamespaceScope && opts.isExport) {
-			b.Ref = p.declareSymbol(kind, binding.Loc, name)
+			b.Ref = p.declareSymbol(kind, binding.Loc, p.loadNameFromRef(b.Ref))
 		}
-
-	case *js_ast.BArray:
-		for _, i := range b.Items {
-			p.declareBinding(kind, i.Binding, opts)
-		}
-
-	case *js_ast.BObject:
-		for _, property := range b.Properties {
-			p.declareBinding(kind, property.Value, opts)
-		}
-
-	default:
-		panic("Internal error")
-	}
+	})
 }
 
 func (p *parser) recordUsage(ref js_ast.Ref) {
@@ -7874,9 +7857,9 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 							if opts.isNamespaceScope && opts.isExport {
 								var decls []js_ast.Decl
 								if s, ok := stmt.Data.(*js_ast.SLocal); ok {
-									for _, decl := range s.Decls {
-										decls = extractDeclsForBinding(decl.Binding, decls)
-									}
+									js_ast.ForEachIdentifierBindingInDecls(s.Decls, func(loc logger.Loc, b *js_ast.BIdentifier) {
+										decls = append(decls, js_ast.Decl{Binding: js_ast.Binding{Loc: loc, Data: b}})
+									})
 								}
 								if len(decls) > 0 {
 									return js_ast.Stmt{Loc: loc, Data: &js_ast.SLocal{
@@ -7897,30 +7880,6 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		p.lexer.ExpectOrInsertSemicolon()
 		return js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{Value: expr}}
 	}
-}
-
-func extractDeclsForBinding(binding js_ast.Binding, decls []js_ast.Decl) []js_ast.Decl {
-	switch b := binding.Data.(type) {
-	case *js_ast.BMissing:
-
-	case *js_ast.BIdentifier:
-		decls = append(decls, js_ast.Decl{Binding: binding})
-
-	case *js_ast.BArray:
-		for _, item := range b.Items {
-			decls = extractDeclsForBinding(item.Binding, decls)
-		}
-
-	case *js_ast.BObject:
-		for _, property := range b.Properties {
-			decls = extractDeclsForBinding(property.Value, decls)
-		}
-
-	default:
-		panic("Internal error")
-	}
-
-	return decls
 }
 
 func (p *parser) addImportRecord(kind ast.ImportKind, loc logger.Loc, text string, assertions *ast.ImportAssertions, flags ast.ImportRecordFlags) uint32 {
@@ -10763,7 +10722,9 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		for _, childStmt := range s.Stmts {
 			if local, ok := childStmt.Data.(*js_ast.SLocal); ok {
 				if local.IsExport {
-					p.markExportedDeclsInsideNamespace(s.Arg, local.Decls)
+					js_ast.ForEachIdentifierBindingInDecls(local.Decls, func(loc logger.Loc, b *js_ast.BIdentifier) {
+						p.isExportedInsideNamespace[b.Ref] = s.Arg
+					})
 				}
 			}
 		}
@@ -10907,34 +10868,6 @@ func (p *parser) markExprAsParenthesized(value js_ast.Expr, openParenLoc logger.
 		e.IsParenthesized = true
 	case *js_ast.EObject:
 		e.IsParenthesized = true
-	}
-}
-
-func (p *parser) markExportedDeclsInsideNamespace(nsRef js_ast.Ref, decls []js_ast.Decl) {
-	for _, decl := range decls {
-		p.markExportedBindingInsideNamespace(nsRef, decl.Binding)
-	}
-}
-
-func (p *parser) markExportedBindingInsideNamespace(nsRef js_ast.Ref, binding js_ast.Binding) {
-	switch b := binding.Data.(type) {
-	case *js_ast.BMissing:
-
-	case *js_ast.BIdentifier:
-		p.isExportedInsideNamespace[b.Ref] = nsRef
-
-	case *js_ast.BArray:
-		for _, item := range b.Items {
-			p.markExportedBindingInsideNamespace(nsRef, item.Binding)
-		}
-
-	case *js_ast.BObject:
-		for _, property := range b.Properties {
-			p.markExportedBindingInsideNamespace(nsRef, property.Value)
-		}
-
-	default:
-		panic("Internal error")
 	}
 }
 
@@ -15665,27 +15598,6 @@ func (p *parser) recordExport(loc logger.Loc, alias string, ref js_ast.Ref) {
 	}
 }
 
-func (p *parser) recordExportedBinding(binding js_ast.Binding) {
-	switch b := binding.Data.(type) {
-	case *js_ast.BMissing:
-
-	case *js_ast.BIdentifier:
-		p.recordExport(binding.Loc, p.symbols[b.Ref.InnerIndex].OriginalName, b.Ref)
-
-	case *js_ast.BArray:
-		for _, item := range b.Items {
-			p.recordExportedBinding(item.Binding)
-		}
-
-	case *js_ast.BObject:
-		for _, item := range b.Properties {
-			p.recordExportedBinding(item.Value)
-		}
-	default:
-		panic("Internal error")
-	}
-}
-
 type importsExportsScanResult struct {
 	stmts               []js_ast.Stmt
 	keptImportEquals    bool
@@ -16006,9 +15918,9 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result importsEx
 
 		case *js_ast.SLocal:
 			if s.IsExport {
-				for _, decl := range s.Decls {
-					p.recordExportedBinding(decl.Binding)
-				}
+				js_ast.ForEachIdentifierBindingInDecls(s.Decls, func(loc logger.Loc, b *js_ast.BIdentifier) {
+					p.recordExport(loc, p.symbols[b.Ref.InnerIndex].OriginalName, b.Ref)
+				})
 			}
 
 			// Remove unused import-equals statements, since those likely

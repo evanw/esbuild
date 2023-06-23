@@ -1636,7 +1636,15 @@ func (p *parser) parseTypeScriptNamespaceStmt(loc logger.Loc, opts parseStmtOpts
 
 		case *js_ast.SLocal:
 			if s.IsExport {
-				p.exportDeclsInsideNamespace(exportedMembers, s.Decls)
+				js_ast.ForEachIdentifierBindingInDecls(s.Decls, func(loc logger.Loc, b *js_ast.BIdentifier) {
+					name := p.symbols[b.Ref.InnerIndex].OriginalName
+					member := js_ast.TSNamespaceMember{
+						Loc:  loc,
+						Data: &js_ast.TSNamespaceMemberProperty{},
+					}
+					exportedMembers[name] = member
+					p.refToTSNamespaceMemberData[b.Ref] = member.Data
+				})
 			}
 		}
 	}
@@ -1710,40 +1718,6 @@ func (p *parser) parseTypeScriptNamespaceStmt(loc logger.Loc, opts parseStmtOpts
 		Stmts:    stmts,
 		IsExport: opts.isExport,
 	}}
-}
-
-func (p *parser) exportDeclsInsideNamespace(exportedMembers js_ast.TSNamespaceMembers, decls []js_ast.Decl) {
-	for _, decl := range decls {
-		p.exportBindingInsideNamespace(exportedMembers, decl.Binding)
-	}
-}
-
-func (p *parser) exportBindingInsideNamespace(exportedMembers js_ast.TSNamespaceMembers, binding js_ast.Binding) {
-	switch b := binding.Data.(type) {
-	case *js_ast.BMissing:
-
-	case *js_ast.BIdentifier:
-		name := p.symbols[b.Ref.InnerIndex].OriginalName
-		member := js_ast.TSNamespaceMember{
-			Loc:  binding.Loc,
-			Data: &js_ast.TSNamespaceMemberProperty{},
-		}
-		exportedMembers[name] = member
-		p.refToTSNamespaceMemberData[b.Ref] = member.Data
-
-	case *js_ast.BArray:
-		for _, item := range b.Items {
-			p.exportBindingInsideNamespace(exportedMembers, item.Binding)
-		}
-
-	case *js_ast.BObject:
-		for _, property := range b.Properties {
-			p.exportBindingInsideNamespace(exportedMembers, property.Value)
-		}
-
-	default:
-		panic("Internal error")
-	}
 }
 
 func (p *parser) generateClosureForTypeScriptNamespaceOrEnum(
