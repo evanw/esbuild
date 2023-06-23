@@ -83,7 +83,6 @@ const (
 	MsgID_TSConfigJSON_InvalidPaths
 	MsgID_TSConfigJSON_InvalidTarget
 	MsgID_TSConfigJSON_Missing
-	MsgID_TSConfigJSON_TargetIgnored
 	MsgID_TSConfigJSON_LAST // Keep this last
 
 	MsgID_END // Keep this at the end (used only for tests)

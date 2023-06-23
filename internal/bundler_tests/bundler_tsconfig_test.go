@@ -1471,37 +1471,6 @@ func TestTsconfigUnrecognizedTargetWarning(t *testing.T) {
 	})
 }
 
-func TestTsconfigIgnoredTargetWarning(t *testing.T) {
-	tsconfig_suite.expectBundled(t, bundled{
-		files: map[string]string{
-			"/Users/user/project/src/entry.ts": `
-				import "./a"
-				import "b"
-			`,
-			"/Users/user/project/src/a/index.ts": ``,
-			"/Users/user/project/src/a/tsconfig.json": `{
-				"compilerOptions": {
-					"target": "es5"
-				}
-			}`,
-			"/Users/user/project/src/node_modules/b/index.ts": ``,
-			"/Users/user/project/src/node_modules/b/tsconfig.json": `{
-				"compilerOptions": {
-					"target": "es5"
-				}
-			}`,
-		},
-		entryPaths: []string{"/Users/user/project/src/entry.ts"},
-		options: config.Options{
-			Mode:          config.ModeBundle,
-			AbsOutputFile: "/Users/user/project/out.js",
-		},
-		expectedScanLog: `Users/user/project/src/a/tsconfig.json: WARNING: "tsconfig.json" does not affect esbuild's own target setting
-NOTE: This is because esbuild supports reading from multiple "tsconfig.json" files within a single build, and using different language targets for different files in the same build wouldn't be correct. If you want to set esbuild's language target, you should use esbuild's own global "target" setting such as with "Target: api.ES5".
-`,
-	})
-}
-
 func TestTsconfigIgnoredTargetSilent(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{

@@ -508,10 +508,6 @@ TestTsconfigIgnoredTargetSilent
 ---------- /Users/user/project/out.js ----------
 
 ================================================================================
-TestTsconfigIgnoredTargetWarning
----------- /Users/user/project/out.js ----------
-
-================================================================================
 TestTsconfigImportsNotUsedAsValuesPreserve
 ---------- /Users/user/project/out.js ----------
 import "./foo";

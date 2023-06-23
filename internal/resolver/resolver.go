@@ -1261,25 +1261,6 @@ func (r resolverQuery) parseTSConfigFromSource(source logger.Source, visited map
 		return nil, errParseErrorAlreadyLogged
 	}
 
-	// Warn when people try to set esbuild's target via "tsconfig.json" and esbuild's target is unset
-	if result.Settings.Target != config.TSTargetUnspecified && r.options.OriginalTargetEnv == "" &&
-		// Don't warn if the target is "ESNext" since esbuild's target also defaults to "esnext" (so that case is harmless)
-		result.tsTargetKey.LowerValue != "esnext" && !helpers.IsInsideNodeModules(source.KeyPath.Text) {
-		var example string
-		switch logger.API {
-		case logger.CLIAPI:
-			example = fmt.Sprintf("--target=%s", result.tsTargetKey.LowerValue)
-		case logger.JSAPI:
-			example = fmt.Sprintf("target: '%s'", result.tsTargetKey.LowerValue)
-		case logger.GoAPI:
-			example = fmt.Sprintf("Target: api.%s", strings.ToUpper(result.tsTargetKey.LowerValue))
-		}
-		tracker := logger.MakeLineColumnTracker(&result.tsTargetKey.Source)
-		r.log.AddIDWithNotes(logger.MsgID_TSConfigJSON_TargetIgnored, logger.Warning, &tracker, result.tsTargetKey.Range, "\"tsconfig.json\" does not affect esbuild's own target setting",
-			[]logger.MsgData{{Text: fmt.Sprintf("This is because esbuild supports reading from multiple \"tsconfig.json\" files within a single build, and using different language targets "+
-				"for different files in the same build wouldn't be correct. If you want to set esbuild's language target, you should use esbuild's own global \"target\" setting such as with %q.", example)}})
-	}
-
 	if result.BaseURL != nil && !r.fs.IsAbs(*result.BaseURL) {
 		*result.BaseURL = r.fs.Join(fileDir, *result.BaseURL)
 	}
