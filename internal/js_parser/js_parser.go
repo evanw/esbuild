@@ -3857,23 +3857,24 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 func (p *parser) parseYieldExpr(loc logger.Loc) js_ast.Expr {
 	// Parse a yield-from expression, which yields from an iterator
 	isStar := p.lexer.Token == js_lexer.TAsterisk
-	if isStar {
-		if p.lexer.HasNewlineBefore {
-			p.lexer.Unexpected()
-		}
+	if isStar && !p.lexer.HasNewlineBefore {
 		p.lexer.Next()
 	}
 
 	var valueOrNil js_ast.Expr
 
 	// The yield expression only has a value in certain cases
-	switch p.lexer.Token {
-	case js_lexer.TCloseBrace, js_lexer.TCloseBracket, js_lexer.TCloseParen,
-		js_lexer.TColon, js_lexer.TComma, js_lexer.TSemicolon:
+	if isStar {
+		valueOrNil = p.parseExpr(js_ast.LYield)
+	} else {
+		switch p.lexer.Token {
+		case js_lexer.TCloseBrace, js_lexer.TCloseBracket, js_lexer.TCloseParen,
+			js_lexer.TColon, js_lexer.TComma, js_lexer.TSemicolon:
 
-	default:
-		if isStar || !p.lexer.HasNewlineBefore {
-			valueOrNil = p.parseExpr(js_ast.LYield)
+		default:
+			if !p.lexer.HasNewlineBefore {
+				valueOrNil = p.parseExpr(js_ast.LYield)
+			}
 		}
 	}
 
