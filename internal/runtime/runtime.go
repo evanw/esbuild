@@ -355,6 +355,67 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 			})
 		}
 
+		// These help for lowering async generator functions
+		export var __await = function (promise, isYieldStar) {
+			this[0] = promise
+			this[1] = isYieldStar
+		}
+		export var __asyncGenerator = (__this, __arguments, generator) => {
+			var resume = (k, v, yes, no) => {
+				try {
+					var x = generator[k](v), isAwait = (v = x.value) instanceof __await, done = x.done
+					Promise.resolve(isAwait ? v[0] : v)
+						.then(y => isAwait
+							? resume(k === 'return' ? k : 'next', v[1] ? { done: y.done, value: y.value } : y, yes, no)
+							: yes({ value: y, done }))
+						.catch(e => resume('throw', e, yes, no))
+				} catch (e) {
+					no(e)
+				}
+			}
+			var method = k => it[k] = x => new Promise((yes, no) => resume(k, x, yes, no))
+			var it = {}
+			return generator = generator.apply(__this, __arguments),
+				it[Symbol.asyncIterator] = () => it,
+				method('next'),
+				method('throw'),
+				method('return'),
+				it
+		}
+		export var __yieldStar = value => {
+			var obj = value[__knownSymbol('asyncIterator')]
+			var isAwait = false
+			var method
+			var it = {}
+			if (obj == null) {
+				obj = value[__knownSymbol('iterator')]()
+				method = k => it[k] = x => obj[k](x)
+			} else {
+				obj = obj.call(value)
+				method = k => it[k] = v => {
+					if (isAwait) {
+						isAwait = false
+						if (k === 'throw') throw v
+						return v
+					}
+					isAwait = true
+					return {
+						done: false,
+						value: new __await(new Promise(resolve => {
+							var x = obj[k](v)
+							if (!(x instanceof Object)) throw TypeError('Object expected')
+							resolve(x)
+						}), 1),
+					}
+				}
+			}
+			return it[__knownSymbol('iterator')] = () => it,
+				method('next'),
+				'throw' in obj ? method('throw') : it.throw = x => { throw x },
+				'return' in obj && method('return'),
+				it
+		}
+
 		// This helps for lowering for-await loops
 		export var __forAwait = (obj, it, method) =>
 			(it = obj[__knownSymbol('asyncIterator')])

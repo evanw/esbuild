@@ -1,5 +1,59 @@
 # Changelog
 
+## Unreleased
+
+* Implement transforming `async` generator functions ([#2780](https://github.com/evanw/esbuild/issues/2780))
+
+    With this release, esbuild will now transform `async` generator functions into normal generator functions when the configured target environment doesn't support them. These functions behave similar to normal generator functions except that they use the `Symbol.asyncIterator` interface instead of the `Symbol.iterator` interface and the iteration methods return promises. Here's an example (helper functions are omitted):
+
+    ```js
+    // Original code
+    async function* foo() {
+      yield Promise.resolve(1)
+      await new Promise(r => setTimeout(r, 100))
+      yield *[Promise.resolve(2)]
+    }
+    async function bar() {
+      for await (const x of foo()) {
+        console.log(x)
+      }
+    }
+    bar()
+
+    // New output (with --target=es6)
+    function foo() {
+      return __asyncGenerator(this, null, function* () {
+        yield Promise.resolve(1);
+        yield new __await(new Promise((r) => setTimeout(r, 100)));
+        yield* __yieldStar([Promise.resolve(2)]);
+      });
+    }
+    function bar() {
+      return __async(this, null, function* () {
+        try {
+          for (var iter = __forAwait(foo()), more, temp, error; more = !(temp = yield iter.next()).done; more = false) {
+            const x = temp.value;
+            console.log(x);
+          }
+        } catch (temp) {
+          error = [temp];
+        } finally {
+          try {
+            more && (temp = iter.return) && (yield temp.call(iter));
+          } finally {
+            if (error)
+              throw error[0];
+          }
+        }
+      });
+    }
+    bar();
+    ```
+
+    This is an older feature that was added to JavaScript in ES2018 but I didn't implement the transformation then because it's a rarely-used feature. Note that esbuild already added support for transforming `for await` loops (the other part of the [asynchronous iteration proposal](https://github.com/tc39/proposal-async-iteration)) a year ago, so support for asynchronous iteration should now be complete.
+
+    I have never used this feature myself and code that uses this feature is hard to come by, so this transformation has not yet been tested on real-world code. If you do write code that uses this feature, please let me know if esbuild's `async` generator transformation doesn't work with your code.
+
 ## 0.18.7
 
 * Add support for `using` declarations in TypeScript 5.2+ ([#3191](https://github.com/evanw/esbuild/issues/3191))
