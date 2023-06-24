@@ -410,7 +410,7 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 		}
 		export var __callDispose = (stack, error, hasError) => {
 			var E = typeof SuppressedError === 'function' ? SuppressedError :
-				(e, s, m, _) => (_ = new Error(m), _.name = 'SuppressedError', _.error = e, _.suppressed = s, _)
+				function (e, s, m, _) { return _ = new Error(m), _.name = 'SuppressedError', _.error = e, _.suppressed = s, _ }
 			var fail = e => error = hasError ? new E(e, error, 'An error was suppressed during disposal') : (hasError = true, e)
 			var next = (it) => {
 				while (it = stack.pop()) {

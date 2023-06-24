@@ -7612,6 +7612,50 @@ for (const flags of [[], '--supported:async-await=false']) {
         }
       `,
     }, { async: true }),
+    test(['in.js', '--outfile=node.js', '--supported:using=false'].concat(flags), {
+      'in.js': `
+        Symbol.dispose ||= Symbol.for('Symbol.dispose')
+        class Foo { [Symbol.dispose]() { throw new Error('x') } }
+        try {
+          using x = new Foo
+          throw new Error('y')
+        } catch (err) {
+          var result = err
+        }
+        if (result.name !== 'SuppressedError') throw 'fail: SuppressedError'
+        if (result.error.message !== 'x') throw 'fail: x'
+        if (result.suppressed.message !== 'y') throw 'fail: y'
+        try {
+          using x = new Foo
+        } catch (err) {
+          var result = err
+        }
+        if (result.message !== 'x') throw 'fail: x (2)'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js', '--supported:using=false', '--format=esm'].concat(flags), {
+      'in.js': `
+        Symbol.asyncDispose ||= Symbol.for('Symbol.asyncDispose')
+        class Foo { [Symbol.asyncDispose]() { throw new Error('x') } }
+        export let async = async () => {
+          try {
+            await using x = new Foo
+            throw new Error('y')
+          } catch (err) {
+            var result = err
+          }
+          if (result.name !== 'SuppressedError') throw 'fail: SuppressedError'
+          if (result.error.message !== 'x') throw 'fail: x'
+          if (result.suppressed.message !== 'y') throw 'fail: y'
+          try {
+            await using x = new Foo
+          } catch (err) {
+            var result = err
+          }
+          if (result.message !== 'x') throw 'fail: x (2)'
+        }
+      `,
+    }, { async: true }),
   )
 }
 
