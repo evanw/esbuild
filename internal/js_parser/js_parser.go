@@ -12684,7 +12684,8 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				// "const" into a "var" during bundling. Also make this an error when
 				// the constant is inlined because we will otherwise generate code with
 				// a syntax error.
-				if _, isInlinedConstant := p.constValues[result.ref]; isInlinedConstant || p.options.mode == config.ModeBundle {
+				if _, isInlinedConstant := p.constValues[result.ref]; isInlinedConstant || p.options.mode == config.ModeBundle ||
+					(p.currentScope.Parent == nil && p.willWrapModuleInTryCatchForUsing) {
 					p.log.AddErrorWithNotes(&p.tracker, r,
 						fmt.Sprintf("Cannot assign to %q because it is a constant", name), notes)
 				} else {

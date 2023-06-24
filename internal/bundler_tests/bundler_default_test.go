@@ -5526,12 +5526,21 @@ NOTE: Use the relative path "./some/other/file" to reference the file "Users/use
 	})
 }
 
+// Assigning to a top-level "const" that will be transformed into a "var" must
+// be an error at compile-time because it won't be an error at run-time. Note
+// that the minifier is allowed to transform nested "const" into "let" (to
+// reduce code size further) when bundling is active, so nested "const" also
+// needs to be an error in this case.
 func TestForbidConstAssignWhenBundling(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				const x = 1
 				x = 2
+				function foo() {
+					const y = 1
+					y = 2
+				}
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
@@ -5541,6 +5550,37 @@ func TestForbidConstAssignWhenBundling(t *testing.T) {
 		},
 		expectedScanLog: `entry.js: ERROR: Cannot assign to "x" because it is a constant
 entry.js: NOTE: The symbol "x" was declared a constant here:
+entry.js: ERROR: Cannot assign to "y" because it is a constant
+entry.js: NOTE: The symbol "y" was declared a constant here:
+`,
+	})
+}
+
+// Assigning to a top-level "const" that will be transformed into a "var" must
+// be an error at compile-time because it won't be an error at run-time
+func TestForbidConstAssignWhenLoweringUsing(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				const x = 1
+				using x2 = 2
+				x = 3
+				function foo() {
+					const y = 1
+					using y2 = 2
+					y = 3
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			AbsOutputFile:         "/out.js",
+			UnsupportedJSFeatures: compat.Using,
+		},
+		expectedScanLog: `entry.js: ERROR: Cannot assign to "x" because it is a constant
+entry.js: NOTE: The symbol "x" was declared a constant here:
+entry.js: WARNING: This assignment will throw because "y" is a constant
+entry.js: NOTE: The symbol "y" was declared a constant here:
 `,
 	})
 }
