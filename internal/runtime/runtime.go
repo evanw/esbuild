@@ -75,6 +75,12 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 		var __reflectGet = Reflect.get
 		var __reflectSet = Reflect.set
 
+		var __knownSymbol = name => {
+			var symbol = Symbol[name]
+			if (!symbol) throw new Error('Symbol.' + name + ' is not defined')
+			return symbol
+		}
+
 		export var __pow = Math.pow
 
 		var __defNormalProp = (obj, key, value) => key in obj
@@ -352,7 +358,7 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 
 		// This helps for lowering for-await loops
 		export var __forAwait = (obj, it, method) => {
-			it = obj[Symbol.asyncIterator]
+			it = obj[__knownSymbol('asyncIterator')]
 			method = (key, fn) =>
 				(fn = obj[key]) && (it[key] = arg =>
 					new Promise((resolve, reject, done) => {
@@ -363,7 +369,7 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 					}))
 			return it
 				? it.call(obj)
-				: (obj = obj[Symbol.iterator](),
+				: (obj = obj[__knownSymbol('iterator')](),
 					it = {},
 					method("next"),
 					method("return"),
@@ -392,15 +398,9 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 		export var __using = (stack, value, async) => {
 			if (value != null) {
 				if (typeof value !== 'object') throw new TypeError('Object expected')
-				var dispose, k
-				if (async) {
-					if (!(k = Symbol.asyncDispose)) throw new TypeError('Symbol.asyncDispose is not defined')
-					dispose = value[k]
-				}
-				if (dispose === void 0) {
-					if (!(k = Symbol.dispose)) throw new TypeError('Symbol.dispose is not defined')
-					dispose = value[k]
-				}
+				var dispose
+				if (async) dispose = value[__knownSymbol('asyncDispose')]
+				if (dispose === void 0) dispose = value[__knownSymbol('dispose')]
 				if (typeof dispose !== 'function') throw new TypeError('Object not disposable')
 				stack.push([async, dispose, value])
 			} else if (async) {
