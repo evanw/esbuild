@@ -525,65 +525,110 @@ tests.push(
 )
 
 // Check for await lowering
-tests.push(
-  // return() must not be called in this case (TypeScript has this bug: https://github.com/microsoft/TypeScript/issues/50525)
-  test(['in.js', '--outfile=node.js', '--target=es6'], {
-    'in.js': `
-      let pass = true
-      async function f() {
-        const y = {
-          [Symbol.asyncIterator]() {
-            let count = 0
-            return {
-              async next() {
-                count++
-                if (count === 2) throw 'error'
-                return { value: count }
-              },
-              async return() {
-                pass = false
-              },
+for (const flags of [[], ['--target=es6']]) {
+  tests.push(
+    test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+      'in.js': `
+        export let async = async () => {
+          const log = []
+          const it = {
+            [Symbol.iterator]() { return this },
+            next() { log.push(this === it && 'next'); return { value: 123, done: false } },
+            return() { log.push(this === it && 'return') },
+          }
+          try {
+            for await (const x of it) {
+              if (x !== 123) throw 'fail: ' + x
+              throw 'foo'
             }
-          },
+          } catch (err) {
+            if (err !== 'foo') throw err
+          }
+          if (log + '' !== 'next,return') throw 'fail: ' + log
         }
-        for await (let x of y) {
+      `,
+    }, { async: true }),
+    test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+      'in.js': `
+        export let async = async () => {
+          const log = []
+          const it = {
+            [Symbol.asyncIterator]() { return this },
+            async next() { log.push(this === it && 'next'); return { value: 123, done: false } },
+            async return() { log.push(this === it && 'return') },
+          }
+          try {
+            for await (const x of it) {
+              if (x !== 123) throw 'fail: ' + x
+              throw 'foo'
+            }
+          } catch (err) {
+            if (err !== 'foo') throw err
+          }
+          if (log + '' !== 'next,return') throw 'fail: ' + log
         }
-      }
-      f().catch(() => {
-        if (!pass) throw 'fail'
-      })
-    `,
-  }),
+      `,
+    }, { async: true }),
 
-  // return() must be called in this case
-  test(['in.js', '--outfile=node.js', '--target=es6'], {
-    'in.js': `
-      let pass = false
-      async function f() {
-        const y = {
-          [Symbol.asyncIterator]() {
-            let count = 0
-            return {
-              async next() {
-                count++
-                return { value: count }
-              },
-              async return() {
-                pass = true
-              },
-            }
-          },
+    // return() must not be called in this case (TypeScript has this bug: https://github.com/microsoft/TypeScript/issues/50525)
+    test(['in.js', '--outfile=node.js'].concat(flags), {
+      'in.js': `
+        let pass = true
+        async function f() {
+          const y = {
+            [Symbol.asyncIterator]() {
+              let count = 0
+              return {
+                async next() {
+                  count++
+                  if (count === 2) throw 'error'
+                  return { value: count }
+                },
+                async return() {
+                  pass = false
+                },
+              }
+            },
+          }
+          for await (let x of y) {
+          }
         }
-        for await (let x of y) {
-          throw 'error'
+        f().catch(() => {
+          if (!pass) throw 'fail'
+        })
+      `,
+    }),
+
+    // return() must be called in this case
+    test(['in.js', '--outfile=node.js'].concat(flags), {
+      'in.js': `
+        let pass = false
+        async function f() {
+          const y = {
+            [Symbol.asyncIterator]() {
+              let count = 0
+              return {
+                async next() {
+                  count++
+                  return { value: count }
+                },
+                async return() {
+                  pass = true
+                },
+              }
+            },
+          }
+          for await (let x of y) {
+            throw 'error'
+          }
         }
-      }
-      f().catch(() => {
-        if (!pass) throw 'fail'
-      })
-    `,
-  }),
-)
+        f().catch(() => {
+          if (!pass) throw 'fail'
+        })
+      `,
+    }),
+  )
+}
 
 // Check object rest lowering
 // https://github.com/evanw/esbuild/issues/956

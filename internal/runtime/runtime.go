@@ -75,10 +75,9 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 		var __reflectGet = Reflect.get
 		var __reflectSet = Reflect.set
 
-		var __knownSymbol = name => {
-			var symbol = Symbol[name]
-			if (!symbol) throw new Error('Symbol.' + name + ' is not defined')
-			return symbol
+		var __knownSymbol = (name, symbol) => {
+			if (symbol = Symbol[name]) return symbol
+			throw Error('Symbol.' + name + ' is not defined')
 		}
 
 		export var __pow = Math.pow
@@ -131,7 +130,7 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 				}) : x
 			)(function(x) {
 				if (typeof require !== 'undefined') return require.apply(this, arguments)
-				throw new Error('Dynamic require of "' + x + '" is not supported')
+				throw Error('Dynamic require of "' + x + '" is not supported')
 			})
 
 		// For object rest patterns
@@ -357,24 +356,22 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 		}
 
 		// This helps for lowering for-await loops
-		export var __forAwait = (obj, it, method) => {
-			it = obj[__knownSymbol('asyncIterator')]
-			method = (key, fn) =>
-				(fn = obj[key]) && (it[key] = arg =>
-					new Promise((resolve, reject, done) => {
-						arg = fn.call(obj, arg)
-						done = arg.done
-						return Promise.resolve(arg.value)
-							.then((value) => resolve({ value, done }), reject)
-					}))
-			return it
+		export var __forAwait = (obj, it, method) =>
+			(it = obj[__knownSymbol('asyncIterator')])
 				? it.call(obj)
 				: (obj = obj[__knownSymbol('iterator')](),
 					it = {},
-					method("next"),
-					method("return"),
+					method = (key, fn) =>
+						(fn = obj[key]) && (it[key] = arg =>
+							new Promise((yes, no, done) => (
+								arg = fn.call(obj, arg),
+								done = arg.done,
+								Promise.resolve(arg.value)
+									.then(value => yes({ value, done }), no)
+							))),
+					method('next'),
+					method('return'),
 					it)
-		}
 
 		// This is for the "binary" loader (custom code is ~2x faster than "atob")
 		export var __toBinaryNode = base64 => new Uint8Array(Buffer.from(base64, 'base64'))
@@ -397,11 +394,11 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 		// These are for the "using" statement in TypeScript 5.2+
 		export var __using = (stack, value, async) => {
 			if (value != null) {
-				if (typeof value !== 'object') throw new TypeError('Object expected')
+				if (typeof value !== 'object') throw TypeError('Object expected')
 				var dispose
 				if (async) dispose = value[__knownSymbol('asyncDispose')]
 				if (dispose === void 0) dispose = value[__knownSymbol('dispose')]
-				if (typeof dispose !== 'function') throw new TypeError('Object not disposable')
+				if (typeof dispose !== 'function') throw TypeError('Object not disposable')
 				stack.push([async, dispose, value])
 			} else if (async) {
 				stack.push([async])
@@ -410,7 +407,7 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 		}
 		export var __callDispose = (stack, error, hasError) => {
 			var E = typeof SuppressedError === 'function' ? SuppressedError :
-				function (e, s, m, _) { return _ = new Error(m), _.name = 'SuppressedError', _.error = e, _.suppressed = s, _ }
+				function (e, s, m, _) { return _ = Error(m), _.name = 'SuppressedError', _.error = e, _.suppressed = s, _ }
 			var fail = e => error = hasError ? new E(e, error, 'An error was suppressed during disposal') : (hasError = true, e)
 			var next = (it) => {
 				while (it = stack.pop()) {
