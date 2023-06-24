@@ -429,11 +429,13 @@ func (p *printer) mangledPropName(ref js_ast.Ref) string {
 	return p.renamer.NameForSymbol(ref)
 }
 
-func (p *printer) printClauseAlias(alias string) {
+func (p *printer) printClauseAlias(loc logger.Loc, alias string) {
 	if js_ast.IsIdentifier(alias) {
 		p.printSpaceBeforeIdentifier()
+		p.addSourceMapping(loc)
 		p.printIdentifier(alias)
 	} else {
+		p.addSourceMapping(loc)
 		p.printQuotedUTF8(alias, false /* allowBacktick */)
 	}
 }
@@ -4082,7 +4084,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 		if s.Alias != nil {
 			p.print("as")
 			p.printSpace()
-			p.printClauseAlias(s.Alias.OriginalName)
+			p.printClauseAlias(s.Alias.Loc, s.Alias.OriginalName)
 			p.printSpace()
 			p.printSpaceBeforeIdentifier()
 		}
@@ -4108,11 +4110,13 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 				p.print(",")
 			}
 
-			if s.IsSingleLine {
-				p.printSpace()
-			} else {
-				p.printNewline()
-				p.printIndent()
+			if p.options.LineLimit <= 0 || !p.printNewlinePastLineLimit() {
+				if s.IsSingleLine {
+					p.printSpace()
+				} else {
+					p.printNewline()
+					p.printIndent()
+				}
 			}
 
 			name := p.renamer.NameForSymbol(item.Name.Ref)
@@ -4121,8 +4125,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 			if name != item.Alias {
 				p.print(" as")
 				p.printSpace()
-				p.addSourceMapping(item.AliasLoc)
-				p.printClauseAlias(item.Alias)
+				p.printClauseAlias(item.AliasLoc, item.Alias)
 			}
 		}
 
@@ -4154,20 +4157,22 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 				p.print(",")
 			}
 
-			if s.IsSingleLine {
-				p.printSpace()
-			} else {
-				p.printNewline()
-				p.printIndent()
+			if p.options.LineLimit <= 0 || !p.printNewlinePastLineLimit() {
+				if s.IsSingleLine {
+					p.printSpace()
+				} else {
+					p.printNewline()
+					p.printIndent()
+				}
 			}
 
-			p.printClauseAlias(item.OriginalName)
+			p.printClauseAlias(item.Name.Loc, item.OriginalName)
 			if item.OriginalName != item.Alias {
 				p.printSpace()
 				p.printSpaceBeforeIdentifier()
 				p.print("as")
 				p.printSpace()
-				p.printClauseAlias(item.Alias)
+				p.printClauseAlias(item.AliasLoc, item.Alias)
 			}
 		}
 
@@ -4561,15 +4566,16 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 					p.print(",")
 				}
 
-				if s.IsSingleLine {
-					p.printSpace()
-				} else {
-					p.printNewline()
-					p.printIndent()
+				if p.options.LineLimit <= 0 || !p.printNewlinePastLineLimit() {
+					if s.IsSingleLine {
+						p.printSpace()
+					} else {
+						p.printNewline()
+						p.printIndent()
+					}
 				}
 
-				p.addSourceMapping(item.AliasLoc)
-				p.printClauseAlias(item.Alias)
+				p.printClauseAlias(item.AliasLoc, item.Alias)
 
 				name := p.renamer.NameForSymbol(item.Name.Ref)
 				if name != item.Alias {
