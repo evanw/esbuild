@@ -52,7 +52,6 @@ const whiteBgWhiteColor = isatty ? `\x1b[107;97m` : ''
 const whiteBgBlackColor = isatty ? `\x1b[107;30m` : ''
 
 const skipTheseFeatures = new Set([
-  'decorators',
   'regexp-v-flag',
   'regexp-match-indices',
   'regexp-named-groups',
