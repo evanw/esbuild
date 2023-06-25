@@ -1,5 +1,40 @@
 # Changelog
 
+## Unreleased
+
+* Fix `await using` declarations inside `async` generator functions
+
+    I forgot about the new `await using` declarations when implementing lowering for `async` generator functions in the previous release. This change fixes the transformation of `await using` declarations when they are inside lowered `async` generator functions:
+
+    ```js
+    // Original code
+    async function* foo() {
+      await using x = await y
+    }
+
+    // Old output (with --supported:async-generator=false)
+    function foo() {
+      return __asyncGenerator(this, null, function* () {
+        await using x = yield new __await(y);
+      });
+    }
+
+    // New output (with --supported:async-generator=false)
+    function foo() {
+      return __asyncGenerator(this, null, function* () {
+        var _stack = [];
+        try {
+          const x = __using(_stack, yield new __await(y), true);
+        } catch (_) {
+          var _error = _, _hasError = true;
+        } finally {
+          var _promise = __callDispose(_stack, _error, _hasError);
+          _promise && (yield new __await(_promise));
+        }
+      });
+    }
+    ```
+
 ## 0.18.8
 
 * Implement transforming `async` generator functions ([#2780](https://github.com/evanw/esbuild/issues/2780))

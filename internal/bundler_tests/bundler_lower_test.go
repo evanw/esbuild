@@ -3051,37 +3051,47 @@ func TestLowerAsyncGenerator(t *testing.T) {
 					yield
 					yield x
 					yield *x
-					await x
-					for await (x of y) {}
+					await using x = await y
+					for await (let x of y) {}
+					for await (await using x of y) {}
 				}
 				foo = async function* () {
 					yield
 					yield x
 					yield *x
-					await x
-					for await (x of y) {}
+					await using x = await y
+					for await (let x of y) {}
+					for await (await using x of y) {}
 				}
 				foo = { async *bar () {
 					yield
 					yield x
 					yield *x
-					await x
-					for await (x of y) {}
+					await using x = await y
+					for await (let x of y) {}
+					for await (await using x of y) {}
 				} }
 				class Foo { async *bar () {
 					yield
 					yield x
 					yield *x
-					await x
-					for await (x of y) {}
+					await using x = await y
+					for await (let x of y) {}
+					for await (await using x of y) {}
 				} }
 				Foo = class { async *bar () {
 					yield
 					yield x
 					yield *x
-					await x
-					for await (x of y) {}
+					await using x = await y
+					for await (let x of y) {}
+					for await (await using x of y) {}
 				} }
+				async function bar() {
+					await using x = await y
+					for await (let x of y) {}
+					for await (await using x of y) {}
+				}
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
@@ -3101,37 +3111,47 @@ func TestLowerAsyncGeneratorNoAwait(t *testing.T) {
 					yield
 					yield x
 					yield *x
-					await x
-					for await (x of y) {}
+					await using x = await y
+					for await (let x of y) {}
+					for await (await using x of y) {}
 				}
 				foo = async function* () {
 					yield
 					yield x
 					yield *x
-					await x
-					for await (x of y) {}
+					await using x = await y
+					for await (let x of y) {}
+					for await (await using x of y) {}
 				}
 				foo = { async *bar () {
 					yield
 					yield x
 					yield *x
-					await x
-					for await (x of y) {}
+					await using x = await y
+					for await (let x of y) {}
+					for await (await using x of y) {}
 				} }
 				class Foo { async *bar () {
 					yield
 					yield x
 					yield *x
-					await x
-					for await (x of y) {}
+					await using x = await y
+					for await (let x of y) {}
+					for await (await using x of y) {}
 				} }
 				Foo = class { async *bar () {
 					yield
 					yield x
 					yield *x
-					await x
-					for await (x of y) {}
+					await using x = await y
+					for await (let x of y) {}
+					for await (await using x of y) {}
 				} }
+				async function bar() {
+					await using x = await y
+					for await (let x of y) {}
+					for await (await using x of y) {}
+				}
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},

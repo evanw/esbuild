@@ -10467,7 +10467,8 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 					if p.options.unsupportedJSFeatures.Has(compat.Using) {
 						p.lowerUsingDeclarationInForOf(s.Init.Loc, local, &s.Body)
 					}
-				} else if p.options.unsupportedJSFeatures.Has(compat.Using) || p.options.unsupportedJSFeatures.Has(compat.AsyncAwait) {
+				} else if p.options.unsupportedJSFeatures.Has(compat.Using) || p.options.unsupportedJSFeatures.Has(compat.AsyncAwait) ||
+					(p.options.unsupportedJSFeatures.Has(compat.AsyncGenerator) && p.fnOrArrowDataVisit.isGenerator) {
 					p.lowerUsingDeclarationInForOf(s.Init.Loc, local, &s.Body)
 				}
 			}
@@ -13703,7 +13704,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			e.ValueOrNil = p.visitExpr(e.ValueOrNil)
 		}
 
-		// "yield* x" turns into "yield *__yieldStar(x)" when lowering async generator functions
+		// "yield* x" turns into "yield* __yieldStar(x)" when lowering async generator functions
 		if e.IsStar && p.options.unsupportedJSFeatures.Has(compat.AsyncGenerator) && p.fnOrArrowDataVisit.isGenerator {
 			e.ValueOrNil = p.callRuntime(expr.Loc, "__yieldStar", []js_ast.Expr{e.ValueOrNil})
 		}
