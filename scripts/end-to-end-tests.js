@@ -524,8 +524,368 @@ tests.push(
   }),
 )
 
-// Check for await lowering
-for (const flags of [[], ['--target=es6']]) {
+// Check async generator lowering
+for (const flags of [[], ['--target=es6', '--target=es2017', '--supported:async-generator=false', '--supported:async-await=false']]) {
+  tests.push(
+    test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+      'in.js': `
+        function* x() {
+          yield 1
+          yield 2
+          return 3
+        }
+        async function y(arg) {
+          return -(await Promise.resolve(arg))
+        }
+        async function* z(arg) {
+          yield 1
+          yield Promise.resolve(2)
+          yield* [3, Promise.resolve(4)]
+          yield* {
+            [Symbol.iterator]() {
+              var value = 5
+              return { next: () => ({ value, done: value++ > 6 }) }
+            }
+          }
+          yield* {
+            [Symbol.asyncIterator]() {
+              var value = 7
+              return { next: async () => ({ value, done: value++ > 8 }) }
+            }
+          }
+          return -(await Promise.resolve(arg))
+        }
+        export let async = async () => {
+          let state
+
+          const X = x()
+          if (X[Symbol.iterator]() !== X) throw 'fail: x Symbol.iterator'
+          if (Symbol.asyncIterator in X) throw 'fail: x Symbol.asyncIterator'
+          state = X.next(); if (state.done !== false || state.value !== 1) throw 'fail: x 1: ' + JSON.stringify(state)
+          state = X.next(); if (state.done !== false || state.value !== 2) throw 'fail: x 2: ' + JSON.stringify(state)
+          state = X.next(); if (state.done !== true || state.value !== 3) throw 'fail: x 3: ' + JSON.stringify(state)
+
+          const Y = y(123)
+          if (Symbol.iterator in Y) throw 'fail: y Symbol.iterator'
+          if (Symbol.asyncIterator in Y) throw 'fail: y Symbol.asyncIterator'
+          if (await Y !== -123) throw 'fail: y'
+
+          const Z = z(123)
+          if (Symbol.iterator in Z) throw 'fail: z Symbol.iterator'
+          if (Z[Symbol.asyncIterator]() !== Z) throw 'fail: z Symbol.asyncIterator'
+          state = await Z.next(); if (state.done !== false || state.value !== 1) throw 'fail: z 1: ' + JSON.stringify(state)
+          state = await Z.next(); if (state.done !== false || state.value !== 2) throw 'fail: z 2: ' + JSON.stringify(state)
+          state = await Z.next(); if (state.done !== false || state.value !== 3) throw 'fail: z 3: ' + JSON.stringify(state)
+          state = await Z.next(); if (state.done !== false || state.value !== 4) throw 'fail: z 4: ' + JSON.stringify(state)
+          state = await Z.next(); if (state.done !== false || state.value !== 5) throw 'fail: z 5: ' + JSON.stringify(state)
+          state = await Z.next(); if (state.done !== false || state.value !== 6) throw 'fail: z 6: ' + JSON.stringify(state)
+          state = await Z.next(); if (state.done !== false || state.value !== 7) throw 'fail: z 7: ' + JSON.stringify(state)
+          state = await Z.next(); if (state.done !== false || state.value !== 8) throw 'fail: z 8: ' + JSON.stringify(state)
+          state = await Z.next(); if (state.done !== true || state.value !== -123) throw 'fail: z 123: ' + JSON.stringify(state)
+        }
+      `,
+    }, { async: true }),
+    test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+      'in.js': `
+        async function* f() {
+          yield* {
+            [Symbol.asyncIterator]: () => ({ next() { throw 'f' } })
+          }
+        }
+        export let async = async () => {
+          let it, state
+          it = f()
+          try { await it.next(); throw 'fail: f: next' } catch (err) { if (err !== 'f') throw err }
+          state = await it.next()
+          if (state.done !== true || state.value !== void 0) throw 'fail: f: done'
+        }
+      `,
+    }, { async: true }),
+    test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+      'in.js': `
+        async function* f() {
+          yield* {
+            [Symbol.asyncIterator]: () => ({ get next() { throw 'f' } })
+          }
+        }
+        export let async = async () => {
+          let it, state
+          it = f()
+          try { await it.next(); throw 'fail: f: next' } catch (err) { if (err !== 'f') throw err }
+          state = await it.next()
+          if (state.done !== true || state.value !== void 0) throw 'fail: f: done'
+        }
+      `,
+    }, { async: true }),
+    test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+      'in.js': `
+        async function* f() {
+          yield* {
+            [Symbol.asyncIterator]: () => ({ async next() { throw 'f' } })
+          }
+        }
+        export let async = async () => {
+          let it, state
+          it = f()
+          try { await it.next(); throw 'fail: f: next' } catch (err) { if (err !== 'f') throw err }
+          state = await it.next()
+          if (state.done !== true || state.value !== void 0) throw 'fail: f: done'
+        }
+      `,
+    }, { async: true }),
+    test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+      'in.js': `
+        async function* f() {
+          try {
+            yield* {
+              [Symbol.asyncIterator]: () => ({
+                next: () => ({
+                  done: false,
+                  get value() { throw 'f' }
+                })
+              }),
+            }
+          } catch (e) {
+            return e
+          }
+        }
+        export let async = async () => {
+          let it, state
+          it = f()
+          state = await it.next()
+          if (state.done !== true || state.value !== 'f') throw 'fail: f: next'
+        }
+      `,
+    }, { async: true }),
+    test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+      'in.js': `
+        async function* f() {
+          yield* [
+            Promise.reject('f.x'),
+            'f.y',
+          ]
+        }
+        export let async = async () => {
+          let it, state
+          it = f()
+          try { await it.next(); throw 'fail: f: next' } catch (err) { if (err !== 'f.x') throw err }
+          state = await it.next()
+          if (state.done !== true || state.value !== void 0) throw 'fail: f: done'
+        }
+      `,
+    }, { async: true }),
+    test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+      'in.js': `
+        async function* f() {
+          yield* {
+            [Symbol.iterator]: () => ({ next: () => 123 }),
+          }
+          return 'f'
+        }
+        export let async = async () => {
+          let it, state
+          it = f()
+          try { await it.next(); throw 'fail: f: next' } catch (err) { if (!(err instanceof TypeError)) throw err }
+          state = await it.next()
+          if (state.done !== true || state.value !== void 0) throw 'fail: f: done'
+        }
+      `,
+    }, { async: true }),
+    test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+      'in.js': `
+        async function* f() {
+          yield* {
+            [Symbol.asyncIterator]: () => ({ next: () => 123 }),
+          }
+          return 'f'
+        }
+        export let async = async () => {
+          let it, state
+          it = f()
+          try { await it.next(); throw 'fail: f: next' } catch (err) { if (!(err instanceof TypeError)) throw err }
+          state = await it.next()
+          if (state.done !== true || state.value !== void 0) throw 'fail: f: done'
+        }
+      `,
+    }, { async: true }),
+    test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+      'in.js': `
+        async function* f() {
+          yield* [
+            'f.x',
+            'f.y',
+          ]
+          return 'f'
+        }
+        export let async = async () => {
+          let it, state
+          it = f()
+          state = await it.next()
+          if (state.done !== false || state.value !== 'f.x') throw 'fail: f: next'
+          try { await it.throw('f: throw') } catch (err) { var error = err }
+          if (error !== 'f: throw') throw 'fail: f: ' + error
+          state = await it.next()
+          if (state.done !== true || state.value !== void 0) throw 'fail: f: done'
+        }
+      `,
+    }, { async: true }),
+    test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+      'in.js': `
+        async function* f() {
+          yield* {
+            [Symbol.iterator]: () => ({
+              next: a => ({ value: 'f.x.' + a, done: false }),
+              return: a => ({ value: 'f.y.' + a, done: true }),
+            })
+          }
+        }
+        export let async = async () => {
+          let it, state
+          it = f()
+          state = await it.next('A')
+          if (state.done !== false || state.value !== 'f.x.undefined') throw 'fail: f: next'
+          state = await it.return('B')
+          if (state.done !== true || state.value !== 'f.y.B') throw 'fail: f: return'
+        }
+      `,
+    }, { async: true }),
+    test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+      'in.js': `
+        async function* f() {
+          yield* {
+            [Symbol.asyncIterator]: () => ({
+              next: a => Promise.resolve({ value: 'f.x.' + a, done: false }),
+              return: a => Promise.resolve({ value: 'f.y.' + a, done: true }),
+            })
+          }
+        }
+        export let async = async () => {
+          let it, state
+          it = f()
+          state = await it.next('A')
+          if (state.done !== false || state.value !== 'f.x.undefined') throw 'fail: f: next'
+          state = await it.return('B')
+          if (state.done !== true || state.value !== 'f.y.B') throw 'fail: f: return'
+        }
+      `,
+    }, { async: true }),
+    test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+      'in.js': `
+        async function* f() {
+          yield* {
+            [Symbol.iterator]: () => ({
+              next: a => ({ value: 'f.x.' + a, done: false }),
+              throw: a => ({ value: 'f.y.' + a, done: true }),
+            })
+          }
+        }
+        export let async = async () => {
+          let it, state
+          it = f()
+          state = await it.next('A')
+          if (state.done !== false || state.value !== 'f.x.undefined') throw 'fail: f: next'
+          state = await it.throw('B')
+          if (state.done !== true || state.value !== undefined) throw 'fail: f: throw'
+        }
+      `,
+    }, { async: true }),
+    test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+      'in.js': `
+        async function* f() {
+          yield* {
+            [Symbol.asyncIterator]: () => ({
+              next: a => Promise.resolve({ value: 'f.x.' + a, done: false }),
+              throw: a => Promise.resolve({ value: 'f.y.' + a, done: true }),
+            })
+          }
+        }
+        export let async = async () => {
+          let it, state
+          it = f()
+          state = await it.next('A')
+          if (state.done !== false || state.value !== 'f.x.undefined') throw 'fail: f: next'
+          state = await it.throw('B')
+          if (state.done !== true || state.value !== undefined) throw 'fail: f: throw'
+        }
+      `,
+    }, { async: true }),
+    test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+      'in.js': `
+        async function* f() {
+          var value = 0
+          yield* {
+            [Symbol.iterator]: () => ({ next: () => ({ done: value > 10, value: value += 100 }) }),
+            get [Symbol.asyncIterator]() { value += 10; return undefined },
+          }
+          return value
+        }
+        export let async = async () => {
+          let it, state
+          it = f()
+          state = await it.next(); if (state.done !== false || state.value !== 110) throw 'fail: f 110: ' + JSON.stringify(state)
+          state = await it.next(); if (state.done !== true || state.value !== 210) throw 'fail: f 210: ' + JSON.stringify(state)
+        }
+      `,
+    }, { async: true }),
+    test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+      'in.js': `
+        async function* f() {
+          var value = 0
+          yield* {
+            [Symbol.iterator]: () => ({ next: () => ({ done: value > 10, value: value += 100 }) }),
+            get [Symbol.asyncIterator]() { value += 10; return null },
+          }
+          return value
+        }
+        export let async = async () => {
+          let it, state
+          it = f()
+          state = await it.next(); if (state.done !== false || state.value !== 110) throw 'fail: f 110: ' + JSON.stringify(state)
+          state = await it.next(); if (state.done !== true || state.value !== 210) throw 'fail: f 210: ' + JSON.stringify(state)
+        }
+      `,
+    }, { async: true }),
+    test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+      'in.js': `
+        async function* f() {
+          var value = 0
+          yield* {
+            [Symbol.iterator]: () => ({ next: () => ({ done: value > 10, value: value += 100 }) }),
+            get [Symbol.asyncIterator]() { value += 10; return false },
+          }
+          return value
+        }
+        export let async = async () => {
+          let it, state
+          it = f()
+          try { await it.next() } catch (e) { var error = e }
+          if (!(error instanceof TypeError)) throw 'fail: f'
+        }
+      `,
+    }, { async: true }),
+    test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+      'in.js': `
+        async function* f() {
+          var value = 0
+          yield* {
+            [Symbol.iterator]: () => ({ next: () => ({ done: value > 10, value: value += 100 }) }),
+            get [Symbol.asyncIterator]() { value += 10; return 0 },
+          }
+          return value
+        }
+        export let async = async () => {
+          let it, state
+          it = f()
+          try { await it.next() } catch (e) { var error = e }
+          if (!(error instanceof TypeError)) throw 'fail: f'
+        }
+      `,
+    }, { async: true }),
+  )
+}
+
+// Check "for await" lowering
+for (const flags of [[], ['--target=es6', '--target=es2017', '--supported:for-await=false']]) {
   tests.push(
     test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
       'in.js': `

@@ -732,7 +732,7 @@ func TestAsyncGeneratorFns(t *testing.T) {
 	expectParseErrorWithUnsupportedFeatures(t, compat.AsyncAwait|compat.Generator, "(async function () {});", err)
 	expectParseErrorWithUnsupportedFeatures(t, compat.AsyncAwait|compat.Generator, "({ async foo() {} });", err)
 
-	err = "<stdin>: ERROR: Transforming async generator functions to the configured target environment is not supported yet\n"
+	err = ""
 	expectParseErrorWithUnsupportedFeatures(t, compat.AsyncGenerator, "async function* gen() {}", err)
 	expectParseErrorWithUnsupportedFeatures(t, compat.AsyncGenerator, "(async function* () {});", err)
 	expectParseErrorWithUnsupportedFeatures(t, compat.AsyncGenerator, "({ async *foo() {} });", err)

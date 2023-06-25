@@ -10477,7 +10477,9 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 
 		p.lowerObjectRestInForLoopInit(s.Init, &s.Body)
 
-		if s.Await.Len > 0 && p.options.unsupportedJSFeatures.Has(compat.ForAwait) {
+		// Lower "for await" if it's unsupported if it's in a lowered async generator
+		if s.Await.Len > 0 && (p.options.unsupportedJSFeatures.Has(compat.ForAwait) ||
+			(p.options.unsupportedJSFeatures.Has(compat.AsyncGenerator) && p.fnOrArrowDataVisit.isGenerator)) {
 			return p.lowerForAwaitLoop(stmt.Loc, s, stmts)
 		}
 
@@ -13694,13 +13696,16 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		e.Value = p.visitExpr(e.Value)
 
 		// "await" expressions turn into "yield" expressions when lowering
-		if p.options.unsupportedJSFeatures.Has(compat.AsyncAwait) {
-			return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EYield{ValueOrNil: e.Value}}, exprOut{}
-		}
+		return p.maybeLowerAwait(expr.Loc, e), exprOut{}
 
 	case *js_ast.EYield:
 		if e.ValueOrNil.Data != nil {
 			e.ValueOrNil = p.visitExpr(e.ValueOrNil)
+		}
+
+		// "yield* x" turns into "yield *__yieldStar(x)" when lowering async generator functions
+		if e.IsStar && p.options.unsupportedJSFeatures.Has(compat.AsyncGenerator) && p.fnOrArrowDataVisit.isGenerator {
+			e.ValueOrNil = p.callRuntime(expr.Loc, "__yieldStar", []js_ast.Expr{e.ValueOrNil})
 		}
 
 	case *js_ast.EArray:
@@ -14600,7 +14605,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		p.pushScopeForVisitPass(js_ast.ScopeFunctionBody, e.Body.Loc)
 		e.Body.Block.Stmts = p.visitStmtsAndPrependTempRefs(e.Body.Block.Stmts, prependTempRefsOpts{kind: stmtsFnBody})
 		p.popScope()
-		p.lowerFunction(&e.IsAsync, &e.Args, e.Body.Loc, &e.Body.Block, &e.PreferExpr, &e.HasRestArg, true /* isArrow */)
+		p.lowerFunction(&e.IsAsync, nil, &e.Args, e.Body.Loc, &e.Body.Block, &e.PreferExpr, &e.HasRestArg, true /* isArrow */)
 		p.popScope()
 
 		if p.options.minifySyntax && len(e.Body.Block.Stmts) == 1 {
@@ -15665,7 +15670,7 @@ func (p *parser) visitFn(fn *js_ast.Fn, scopeLoc logger.Loc, opts visitFnOpts) {
 	}
 	fn.Body.Block.Stmts = p.visitStmtsAndPrependTempRefs(fn.Body.Block.Stmts, prependTempRefsOpts{fnBodyLoc: &fn.Body.Loc, kind: stmtsFnBody})
 	p.popScope()
-	p.lowerFunction(&fn.IsAsync, &fn.Args, fn.Body.Loc, &fn.Body.Block, nil, &fn.HasRestArg, false /* isArrow */)
+	p.lowerFunction(&fn.IsAsync, &fn.IsGenerator, &fn.Args, fn.Body.Loc, &fn.Body.Block, nil, &fn.HasRestArg, false /* isArrow */)
 	p.popScope()
 
 	p.fnOrArrowDataVisit = oldFnOrArrowData

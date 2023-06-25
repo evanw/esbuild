@@ -653,6 +653,9 @@ demo/test262: | github/test262
 test262: esbuild | demo/test262
 	node --experimental-vm-modules scripts/test262.js
 
+test262-async: esbuild | demo/test262
+	node --experimental-vm-modules scripts/test262-async.js
+
 ################################################################################
 # This runs UglifyJS's test suite through esbuild
 

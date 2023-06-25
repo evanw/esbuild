@@ -3042,3 +3042,103 @@ func TestLowerUsingInsideTSNamespace(t *testing.T) {
 		},
 	})
 }
+
+func TestLowerAsyncGenerator(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				async function* foo() {
+					yield
+					yield x
+					yield *x
+					await x
+					for await (x of y) {}
+				}
+				foo = async function* () {
+					yield
+					yield x
+					yield *x
+					await x
+					for await (x of y) {}
+				}
+				foo = { async *bar () {
+					yield
+					yield x
+					yield *x
+					await x
+					for await (x of y) {}
+				} }
+				class Foo { async *bar () {
+					yield
+					yield x
+					yield *x
+					await x
+					for await (x of y) {}
+				} }
+				Foo = class { async *bar () {
+					yield
+					yield x
+					yield *x
+					await x
+					for await (x of y) {}
+				} }
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:                  config.ModePassThrough,
+			AbsOutputDir:          "/out",
+			UnsupportedJSFeatures: compat.AsyncGenerator,
+		},
+	})
+}
+
+func TestLowerAsyncGeneratorNoAwait(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				async function* foo() {
+					yield
+					yield x
+					yield *x
+					await x
+					for await (x of y) {}
+				}
+				foo = async function* () {
+					yield
+					yield x
+					yield *x
+					await x
+					for await (x of y) {}
+				}
+				foo = { async *bar () {
+					yield
+					yield x
+					yield *x
+					await x
+					for await (x of y) {}
+				} }
+				class Foo { async *bar () {
+					yield
+					yield x
+					yield *x
+					await x
+					for await (x of y) {}
+				} }
+				Foo = class { async *bar () {
+					yield
+					yield x
+					yield *x
+					await x
+					for await (x of y) {}
+				} }
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:                  config.ModePassThrough,
+			AbsOutputDir:          "/out",
+			UnsupportedJSFeatures: compat.AsyncGenerator | compat.AsyncAwait,
+		},
+	})
+}

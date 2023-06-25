@@ -980,6 +980,242 @@ export {
 };
 
 ================================================================================
+TestLowerAsyncGenerator
+---------- /out/entry.js ----------
+function foo() {
+  return __asyncGenerator(this, null, function* () {
+    yield;
+    yield x;
+    yield* __yieldStar(x);
+    yield new __await(x);
+    try {
+      for (var iter = __forAwait(y), more, temp, error; more = !(temp = yield new __await(iter.next())).done; more = false) {
+        x = temp.value;
+      }
+    } catch (temp) {
+      error = [temp];
+    } finally {
+      try {
+        more && (temp = iter.return) && (yield new __await(temp.call(iter)));
+      } finally {
+        if (error)
+          throw error[0];
+      }
+    }
+  });
+}
+foo = function() {
+  return __asyncGenerator(this, null, function* () {
+    yield;
+    yield x;
+    yield* __yieldStar(x);
+    yield new __await(x);
+    try {
+      for (var iter = __forAwait(y), more, temp, error; more = !(temp = yield new __await(iter.next())).done; more = false) {
+        x = temp.value;
+      }
+    } catch (temp) {
+      error = [temp];
+    } finally {
+      try {
+        more && (temp = iter.return) && (yield new __await(temp.call(iter)));
+      } finally {
+        if (error)
+          throw error[0];
+      }
+    }
+  });
+};
+foo = { bar() {
+  return __asyncGenerator(this, null, function* () {
+    yield;
+    yield x;
+    yield* __yieldStar(x);
+    yield new __await(x);
+    try {
+      for (var iter = __forAwait(y), more, temp, error; more = !(temp = yield new __await(iter.next())).done; more = false) {
+        x = temp.value;
+      }
+    } catch (temp) {
+      error = [temp];
+    } finally {
+      try {
+        more && (temp = iter.return) && (yield new __await(temp.call(iter)));
+      } finally {
+        if (error)
+          throw error[0];
+      }
+    }
+  });
+} };
+class Foo {
+  bar() {
+    return __asyncGenerator(this, null, function* () {
+      yield;
+      yield x;
+      yield* __yieldStar(x);
+      yield new __await(x);
+      try {
+        for (var iter = __forAwait(y), more, temp, error; more = !(temp = yield new __await(iter.next())).done; more = false) {
+          x = temp.value;
+        }
+      } catch (temp) {
+        error = [temp];
+      } finally {
+        try {
+          more && (temp = iter.return) && (yield new __await(temp.call(iter)));
+        } finally {
+          if (error)
+            throw error[0];
+        }
+      }
+    });
+  }
+}
+Foo = class {
+  bar() {
+    return __asyncGenerator(this, null, function* () {
+      yield;
+      yield x;
+      yield* __yieldStar(x);
+      yield new __await(x);
+      try {
+        for (var iter = __forAwait(y), more, temp, error; more = !(temp = yield new __await(iter.next())).done; more = false) {
+          x = temp.value;
+        }
+      } catch (temp) {
+        error = [temp];
+      } finally {
+        try {
+          more && (temp = iter.return) && (yield new __await(temp.call(iter)));
+        } finally {
+          if (error)
+            throw error[0];
+        }
+      }
+    });
+  }
+};
+
+================================================================================
+TestLowerAsyncGeneratorNoAwait
+---------- /out/entry.js ----------
+function foo() {
+  return __asyncGenerator(this, null, function* () {
+    yield;
+    yield x;
+    yield* __yieldStar(x);
+    yield new __await(x);
+    try {
+      for (var iter = __forAwait(y), more, temp, error; more = !(temp = yield new __await(iter.next())).done; more = false) {
+        x = temp.value;
+      }
+    } catch (temp) {
+      error = [temp];
+    } finally {
+      try {
+        more && (temp = iter.return) && (yield new __await(temp.call(iter)));
+      } finally {
+        if (error)
+          throw error[0];
+      }
+    }
+  });
+}
+foo = function() {
+  return __asyncGenerator(this, null, function* () {
+    yield;
+    yield x;
+    yield* __yieldStar(x);
+    yield new __await(x);
+    try {
+      for (var iter = __forAwait(y), more, temp, error; more = !(temp = yield new __await(iter.next())).done; more = false) {
+        x = temp.value;
+      }
+    } catch (temp) {
+      error = [temp];
+    } finally {
+      try {
+        more && (temp = iter.return) && (yield new __await(temp.call(iter)));
+      } finally {
+        if (error)
+          throw error[0];
+      }
+    }
+  });
+};
+foo = { bar() {
+  return __asyncGenerator(this, null, function* () {
+    yield;
+    yield x;
+    yield* __yieldStar(x);
+    yield new __await(x);
+    try {
+      for (var iter = __forAwait(y), more, temp, error; more = !(temp = yield new __await(iter.next())).done; more = false) {
+        x = temp.value;
+      }
+    } catch (temp) {
+      error = [temp];
+    } finally {
+      try {
+        more && (temp = iter.return) && (yield new __await(temp.call(iter)));
+      } finally {
+        if (error)
+          throw error[0];
+      }
+    }
+  });
+} };
+class Foo {
+  bar() {
+    return __asyncGenerator(this, null, function* () {
+      yield;
+      yield x;
+      yield* __yieldStar(x);
+      yield new __await(x);
+      try {
+        for (var iter = __forAwait(y), more, temp, error; more = !(temp = yield new __await(iter.next())).done; more = false) {
+          x = temp.value;
+        }
+      } catch (temp) {
+        error = [temp];
+      } finally {
+        try {
+          more && (temp = iter.return) && (yield new __await(temp.call(iter)));
+        } finally {
+          if (error)
+            throw error[0];
+        }
+      }
+    });
+  }
+}
+Foo = class {
+  bar() {
+    return __asyncGenerator(this, null, function* () {
+      yield;
+      yield x;
+      yield* __yieldStar(x);
+      yield new __await(x);
+      try {
+        for (var iter = __forAwait(y), more, temp, error; more = !(temp = yield new __await(iter.next())).done; more = false) {
+          x = temp.value;
+        }
+      } catch (temp) {
+        error = [temp];
+      } finally {
+        try {
+          more && (temp = iter.return) && (yield new __await(temp.call(iter)));
+        } finally {
+          if (error)
+            throw error[0];
+        }
+      }
+    });
+  }
+};
+
+================================================================================
 TestLowerAsyncSuperES2016NoBundle
 ---------- /out.js ----------
 class Derived extends Base {

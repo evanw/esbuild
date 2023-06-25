@@ -253,12 +253,6 @@ func (p *parser) whyStrictMode(scope *js_ast.Scope) (where string, notes []logge
 }
 
 func (p *parser) markAsyncFn(asyncRange logger.Range, isGenerator bool) (didGenerateError bool) {
-	if isGenerator {
-		// Async generator functions cannot currently be lowered, so using them
-		// when they aren't supported is always an error
-		return p.markSyntaxFeature(compat.AsyncGenerator, asyncRange)
-	}
-
 	// Lowered async functions are implemented in terms of generators. So if
 	// generators aren't supported, async functions aren't supported either.
 	// But if generators are supported, then async functions are unconditionally
@@ -267,7 +261,11 @@ func (p *parser) markAsyncFn(asyncRange logger.Range, isGenerator bool) (didGene
 		return false
 	}
 
-	return p.markSyntaxFeature(compat.AsyncAwait, asyncRange)
+	feature := compat.AsyncAwait
+	if isGenerator {
+		feature = compat.AsyncGenerator
+	}
+	return p.markSyntaxFeature(feature, asyncRange)
 }
 
 func (p *parser) captureThis() js_ast.Ref {
@@ -294,6 +292,7 @@ func (p *parser) captureArguments() js_ast.Ref {
 
 func (p *parser) lowerFunction(
 	isAsync *bool,
+	isGenerator *bool,
 	args *[]js_ast.Arg,
 	bodyLoc logger.Loc,
 	bodyBlock *js_ast.SBlock,
@@ -358,8 +357,8 @@ func (p *parser) lowerFunction(
 		}
 	}
 
-	// Lower async functions
-	if p.options.unsupportedJSFeatures.Has(compat.AsyncAwait) && *isAsync {
+	// Lower async functions and async generator functions
+	if *isAsync && (p.options.unsupportedJSFeatures.Has(compat.AsyncAwait) || (isGenerator != nil && *isGenerator && p.options.unsupportedJSFeatures.Has(compat.AsyncGenerator))) {
 		// Use the shortened form if we're an arrow function
 		if preferExpr != nil {
 			*preferExpr = true
@@ -488,9 +487,17 @@ func (p *parser) lowerFunction(
 			}
 		}
 
-		// "async function foo(a, b) { stmts }" => "function foo(a, b) { return __async(this, null, function* () { stmts }) }"
+		var name string
+		if isGenerator != nil && *isGenerator {
+			// "async function* foo(a, b) { stmts }" => "function foo(a, b) { return __asyncGenerator(this, null, function* () { stmts }) }"
+			name = "__asyncGenerator"
+			*isGenerator = false
+		} else {
+			// "async function foo(a, b) { stmts }" => "function foo(a, b) { return __async(this, null, function* () { stmts }) }"
+			name = "__async"
+		}
 		*isAsync = false
-		callAsync := p.callRuntime(bodyLoc, "__async", []js_ast.Expr{
+		callAsync := p.callRuntime(bodyLoc, name, []js_ast.Expr{
 			thisValue,
 			forwardedArgs,
 			{Loc: bodyLoc, Data: &js_ast.EFunction{Fn: fn}},
@@ -1053,6 +1060,27 @@ func (p *parser) lowerObjectSpread(loc logger.Loc, e *js_ast.EObject) js_ast.Exp
 	return result
 }
 
+func (p *parser) maybeLowerAwait(loc logger.Loc, e *js_ast.EAwait) js_ast.Expr {
+	// "await x" turns into "yield __await(x)" when lowering async generator functions
+	if p.fnOrArrowDataVisit.isGenerator && (p.options.unsupportedJSFeatures.Has(compat.AsyncAwait) || p.options.unsupportedJSFeatures.Has(compat.AsyncGenerator)) {
+		return js_ast.Expr{Loc: loc, Data: &js_ast.EYield{
+			ValueOrNil: js_ast.Expr{Loc: loc, Data: &js_ast.ENew{
+				Target: p.importFromRuntime(loc, "__await"),
+				Args:   []js_ast.Expr{e.Value},
+			}},
+		}}
+	}
+
+	// "await x" turns into "yield x" when lowering async functions
+	if p.options.unsupportedJSFeatures.Has(compat.AsyncAwait) {
+		return js_ast.Expr{Loc: loc, Data: &js_ast.EYield{
+			ValueOrNil: e.Value,
+		}}
+	}
+
+	return js_ast.Expr{Loc: loc, Data: e}
+}
+
 func (p *parser) lowerForAwaitLoop(loc logger.Loc, loop *js_ast.SForOf, stmts []js_ast.Stmt) []js_ast.Stmt {
 	// This code:
 	//
@@ -1134,13 +1162,8 @@ func (p *parser) lowerForAwaitLoop(loc logger.Loc, loop *js_ast.SForOf, stmts []
 	}}
 
 	// "await" expressions turn into "yield" expressions when lowering
-	if p.options.unsupportedJSFeatures.Has(compat.AsyncAwait) {
-		awaitIterNext.Data = &js_ast.EYield{ValueOrNil: awaitIterNext}
-		awaitTempCallIter.Data = &js_ast.EYield{ValueOrNil: awaitTempCallIter}
-	} else {
-		awaitIterNext.Data = &js_ast.EAwait{Value: awaitIterNext}
-		awaitTempCallIter.Data = &js_ast.EAwait{Value: awaitTempCallIter}
-	}
+	awaitIterNext = p.maybeLowerAwait(awaitIterNext.Loc, &js_ast.EAwait{Value: awaitIterNext})
+	awaitTempCallIter = p.maybeLowerAwait(awaitTempCallIter.Loc, &js_ast.EAwait{Value: awaitTempCallIter})
 
 	return append(stmts, js_ast.Stmt{Loc: loc, Data: &js_ast.STry{
 		BlockLoc: loc,
