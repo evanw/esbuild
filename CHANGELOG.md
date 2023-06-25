@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.18.8
 
 * Implement transforming `async` generator functions ([#2780](https://github.com/evanw/esbuild/issues/2780))
 

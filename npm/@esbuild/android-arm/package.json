@@ -1,6 +1,6 @@
 {
   "name": "@esbuild/android-arm",
-  "version": "0.18.7",
+  "version": "0.18.8",
   "description": "A WebAssembly shim for esbuild on Android ARM.",
   "repository": "https://github.com/evanw/esbuild",
   "license": "MIT",
