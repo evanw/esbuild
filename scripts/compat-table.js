@@ -102,6 +102,20 @@ const engines = [
   'rhino',
 ]
 
+const testsToSkip = new Set([
+  // Safari supposedly doesn't throw an error for duplicate identifiers in
+  // a function parameter list. The failing test case looks like this:
+  //
+  //   var f = function f([id, id]) { return id }
+  //
+  // However, this code will cause a compile error with esbuild so it's not
+  // possible to encounter this issue when running esbuild-generated code in
+  // Safari. I'm ignoring this test since Safari's destructuring otherwise
+  // works fine so destructuring shouldn't be forbidden when building for
+  // Safari.
+  'destructuring, parameters: duplicate identifier',
+])
+
 function getValueOfTest(value) {
   // Handle values like this:
   //
@@ -410,12 +424,18 @@ for (const test of [...es5.tests, ...es6.tests, ...stage4.tests, ...stage1to3.te
       const res = {}
 
       // Intersect all subtests (so a key is only true if it's true in all subtests)
-      for (const subtest of test.subtests)
+      for (const subtest of test.subtests) {
+        if (testsToSkip.has(`${test.name}: ${subtest.name}`))
+          continue
         for (const key in subtest.res)
           res[key] = true
-      for (const subtest of test.subtests)
+      }
+      for (const subtest of test.subtests) {
+        if (testsToSkip.has(`${test.name}: ${subtest.name}`))
+          continue
         for (const key in res)
           res[key] &&= getValueOfTest(subtest.res[key] ?? false)
+      }
 
       mergeVersions(feature.target, res, omitNode)
     } else {
@@ -423,6 +443,8 @@ for (const test of [...es5.tests, ...es6.tests, ...stage4.tests, ...stage1to3.te
     }
   } else if (test.subtests) {
     for (const subtest of test.subtests) {
+      if (testsToSkip.has(`${test.name}: ${subtest.name}`))
+        continue
       const feature = features[`${test.name}: ${subtest.name}`]
       if (feature) {
         feature.found = true
@@ -481,18 +503,26 @@ for (const test of [...es5.tests, ...es6.tests, ...stage4.tests, ...stage1to3.te
       feature.found = true
       if (test.subtests) {
         const res = {}
-        for (const subtest of Object.values(test.subtests))
+        for (const subtest of Object.values(test.subtests)) {
+          if (testsToSkip.has(`${test.name}: ${subtest.name}`))
+            continue
           for (const key in subtest.res)
             res[key] = true
-        for (const subtest of Object.values(test.subtests))
+        }
+        for (const subtest of Object.values(test.subtests)) {
+          if (testsToSkip.has(`${test.name}: ${subtest.name}`))
+            continue
           for (const key in res)
             res[key] &&= getValueOfTest(subtest.res[key] ?? false)
+        }
         mergeVersions(feature.target, res)
       } else {
         mergeVersions(feature.target, test.res)
       }
     } else if (test.subtests) {
       for (const subtest of Object.values(test.subtests)) {
+        if (testsToSkip.has(`${test.name}: ${subtest.name}`))
+          continue
         const feature = features[`${test.name}: ${subtest.name}`]
         if (feature) {
           if (feature.target === 'ObjectAccessors') {
