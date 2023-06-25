@@ -139,10 +139,11 @@ function mergeVersions(target, res, omit = []) {
   // like "chrome44: true, chrome45: true, chrome46: true, ..." so we want to
   // take the minimum version to find the boundary.
   const lowestVersionMap = {}
-  // If current feature target is not supported for all versions, we will tag
-  // version[target] = { unsupported: true } to exclude it even other 
-  // sub-features is supported
-  const unsupportedEngines = new Set();
+
+  // If the current feature target is not supported for all versions, we will
+  // tag version[target] = { unsupported: true } to exclude it even when other
+  // sub-features are supported.
+  const unsupportedEngines = new Set()
 
   for (const key in res) {
     const match = /^([a-z_]+)[0-9_]+$/.exec(key)
@@ -166,13 +167,13 @@ function mergeVersions(target, res, omit = []) {
   // support a given feature if the version is greater than the maximum version
   // for all subtests. This is the inverse of the minimum test below.
   const highestVersionMap = versions[target] || (versions[target] = {})
-  unsupportedEngines.forEach(function(engine) {
+  for (const engine of unsupportedEngines) {
     versions[target][engine] = [{ start: null, end: null, unsupported: true }]
-  })
+  }
   for (const engine in lowestVersionMap) {
     if (highestVersionMap[engine] && highestVersionMap[engine].unsupported) {
-      // ignore unsupported engines
-      continue;
+      // Ignore unsupported engines
+      continue
     }
     const version = lowestVersionMap[engine]
     if (!highestVersionMap[engine] || compareVersions({ version }, { version: highestVersionMap[engine][0].start }) > 0) {
