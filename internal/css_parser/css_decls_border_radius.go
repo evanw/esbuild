@@ -35,7 +35,7 @@ func (borderRadius *borderRadiusTracker) updateCorner(rules []css_ast.Rule, corn
 	borderRadius.corners[corner] = new
 }
 
-func (borderRadius *borderRadiusTracker) mangleCorners(rules []css_ast.Rule, decl *css_ast.RDeclaration, index int, minifyWhitespace bool) {
+func (borderRadius *borderRadiusTracker) mangleCorners(rules []css_ast.Rule, decl *css_ast.RDeclaration, minifyWhitespace bool) {
 	// Reset if we see a change in the "!important" flag
 	if borderRadius.important != decl.Important {
 		borderRadius.corners = [4]borderRadiusCorner{}
@@ -87,7 +87,7 @@ func (borderRadius *borderRadiusTracker) mangleCorners(rules []css_ast.Rule, dec
 			firstToken:  t,
 			secondToken: t,
 			unitSafety:  unitSafety,
-			ruleIndex:   uint32(index),
+			ruleIndex:   uint32(len(rules) - 1),
 		})
 	}
 
@@ -105,7 +105,7 @@ func (borderRadius *borderRadiusTracker) mangleCorners(rules []css_ast.Rule, dec
 	borderRadius.compactRules(rules, decl.KeyRange, minifyWhitespace)
 }
 
-func (borderRadius *borderRadiusTracker) mangleCorner(rules []css_ast.Rule, decl *css_ast.RDeclaration, index int, minifyWhitespace bool, corner int) {
+func (borderRadius *borderRadiusTracker) mangleCorner(rules []css_ast.Rule, decl *css_ast.RDeclaration, minifyWhitespace bool, corner int) {
 	// Reset if we see a change in the "!important" flag
 	if borderRadius.important != decl.Important {
 		borderRadius.corners = [4]borderRadiusCorner{}
@@ -145,7 +145,7 @@ func (borderRadius *borderRadiusTracker) mangleCorner(rules []css_ast.Rule, decl
 			firstToken:    firstToken,
 			secondToken:   secondToken,
 			unitSafety:    unitSafety,
-			ruleIndex:     uint32(index),
+			ruleIndex:     uint32(len(rules) - 1),
 			wasSingleRule: true,
 		})
 		borderRadius.compactRules(rules, decl.KeyRange, minifyWhitespace)

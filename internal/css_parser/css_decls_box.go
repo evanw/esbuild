@@ -91,7 +91,7 @@ func (box *boxTracker) updateSide(rules []css_ast.Rule, side int, new boxSide) {
 	box.sides[side] = new
 }
 
-func (box *boxTracker) mangleSides(rules []css_ast.Rule, decl *css_ast.RDeclaration, index int, minifyWhitespace bool) {
+func (box *boxTracker) mangleSides(rules []css_ast.Rule, decl *css_ast.RDeclaration, minifyWhitespace bool) {
 	// Reset if we see a change in the "!important" flag
 	if box.important != decl.Important {
 		box.sides = [4]boxSide{}
@@ -116,7 +116,7 @@ func (box *boxTracker) mangleSides(rules []css_ast.Rule, decl *css_ast.RDeclarat
 			}
 			box.updateSide(rules, side, boxSide{
 				token:      t,
-				ruleIndex:  uint32(index),
+				ruleIndex:  uint32(len(rules) - 1),
 				unitSafety: unitSafety,
 			})
 		}
@@ -126,7 +126,7 @@ func (box *boxTracker) mangleSides(rules []css_ast.Rule, decl *css_ast.RDeclarat
 	}
 }
 
-func (box *boxTracker) mangleSide(rules []css_ast.Rule, decl *css_ast.RDeclaration, index int, minifyWhitespace bool, side int) {
+func (box *boxTracker) mangleSide(rules []css_ast.Rule, decl *css_ast.RDeclaration, minifyWhitespace bool, side int) {
 	// Reset if we see a change in the "!important" flag
 	if box.important != decl.Important {
 		box.sides = [4]boxSide{}
@@ -144,7 +144,7 @@ func (box *boxTracker) mangleSide(rules []css_ast.Rule, decl *css_ast.RDeclarati
 			}
 			box.updateSide(rules, side, boxSide{
 				token:         t,
-				ruleIndex:     uint32(index),
+				ruleIndex:     uint32(len(rules) - 1),
 				wasSingleRule: true,
 				unitSafety:    unitSafety,
 			})

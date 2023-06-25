@@ -77,13 +77,15 @@ func compactTokenQuad(a css_ast.Token, b css_ast.Token, c css_ast.Token, d css_a
 	return tokens
 }
 
-func (p *parser) processDeclarations(rules []css_ast.Rule) []css_ast.Rule {
+func (p *parser) processDeclarations(rules []css_ast.Rule) (rewrittenRules []css_ast.Rule) {
 	margin := boxTracker{key: css_ast.DMargin, keyText: "margin", allowAuto: true}
 	padding := boxTracker{key: css_ast.DPadding, keyText: "padding", allowAuto: false}
 	inset := boxTracker{key: css_ast.DInset, keyText: "inset", allowAuto: true}
 	borderRadius := borderRadiusTracker{}
+	rewrittenRules = make([]css_ast.Rule, 0, len(rules))
 
-	for i, rule := range rules {
+	for _, rule := range rules {
+		rewrittenRules = append(rewrittenRules, rule)
 		decl, ok := rule.Data.(*css_ast.RDeclaration)
 		if !ok {
 			continue
@@ -153,89 +155,89 @@ func (p *parser) processDeclarations(rules []css_ast.Rule) []css_ast.Rule {
 		// Margin
 		case css_ast.DMargin:
 			if p.options.MinifySyntax {
-				margin.mangleSides(rules, decl, i, p.options.MinifyWhitespace)
+				margin.mangleSides(rewrittenRules, decl, p.options.MinifyWhitespace)
 			}
 		case css_ast.DMarginTop:
 			if p.options.MinifySyntax {
-				margin.mangleSide(rules, decl, i, p.options.MinifyWhitespace, boxTop)
+				margin.mangleSide(rewrittenRules, decl, p.options.MinifyWhitespace, boxTop)
 			}
 		case css_ast.DMarginRight:
 			if p.options.MinifySyntax {
-				margin.mangleSide(rules, decl, i, p.options.MinifyWhitespace, boxRight)
+				margin.mangleSide(rewrittenRules, decl, p.options.MinifyWhitespace, boxRight)
 			}
 		case css_ast.DMarginBottom:
 			if p.options.MinifySyntax {
-				margin.mangleSide(rules, decl, i, p.options.MinifyWhitespace, boxBottom)
+				margin.mangleSide(rewrittenRules, decl, p.options.MinifyWhitespace, boxBottom)
 			}
 		case css_ast.DMarginLeft:
 			if p.options.MinifySyntax {
-				margin.mangleSide(rules, decl, i, p.options.MinifyWhitespace, boxLeft)
+				margin.mangleSide(rewrittenRules, decl, p.options.MinifyWhitespace, boxLeft)
 			}
 
 		// Padding
 		case css_ast.DPadding:
 			if p.options.MinifySyntax {
-				padding.mangleSides(rules, decl, i, p.options.MinifyWhitespace)
+				padding.mangleSides(rewrittenRules, decl, p.options.MinifyWhitespace)
 			}
 		case css_ast.DPaddingTop:
 			if p.options.MinifySyntax {
-				padding.mangleSide(rules, decl, i, p.options.MinifyWhitespace, boxTop)
+				padding.mangleSide(rewrittenRules, decl, p.options.MinifyWhitespace, boxTop)
 			}
 		case css_ast.DPaddingRight:
 			if p.options.MinifySyntax {
-				padding.mangleSide(rules, decl, i, p.options.MinifyWhitespace, boxRight)
+				padding.mangleSide(rewrittenRules, decl, p.options.MinifyWhitespace, boxRight)
 			}
 		case css_ast.DPaddingBottom:
 			if p.options.MinifySyntax {
-				padding.mangleSide(rules, decl, i, p.options.MinifyWhitespace, boxBottom)
+				padding.mangleSide(rewrittenRules, decl, p.options.MinifyWhitespace, boxBottom)
 			}
 		case css_ast.DPaddingLeft:
 			if p.options.MinifySyntax {
-				padding.mangleSide(rules, decl, i, p.options.MinifyWhitespace, boxLeft)
+				padding.mangleSide(rewrittenRules, decl, p.options.MinifyWhitespace, boxLeft)
 			}
 
 		// Inset
 		case css_ast.DInset:
 			if !p.options.UnsupportedCSSFeatures.Has(compat.InsetProperty) && p.options.MinifySyntax {
-				inset.mangleSides(rules, decl, i, p.options.MinifyWhitespace)
+				inset.mangleSides(rewrittenRules, decl, p.options.MinifyWhitespace)
 			}
 		case css_ast.DTop:
 			if !p.options.UnsupportedCSSFeatures.Has(compat.InsetProperty) && p.options.MinifySyntax {
-				inset.mangleSide(rules, decl, i, p.options.MinifyWhitespace, boxTop)
+				inset.mangleSide(rewrittenRules, decl, p.options.MinifyWhitespace, boxTop)
 			}
 		case css_ast.DRight:
 			if !p.options.UnsupportedCSSFeatures.Has(compat.InsetProperty) && p.options.MinifySyntax {
-				inset.mangleSide(rules, decl, i, p.options.MinifyWhitespace, boxRight)
+				inset.mangleSide(rewrittenRules, decl, p.options.MinifyWhitespace, boxRight)
 			}
 		case css_ast.DBottom:
 			if !p.options.UnsupportedCSSFeatures.Has(compat.InsetProperty) && p.options.MinifySyntax {
-				inset.mangleSide(rules, decl, i, p.options.MinifyWhitespace, boxBottom)
+				inset.mangleSide(rewrittenRules, decl, p.options.MinifyWhitespace, boxBottom)
 			}
 		case css_ast.DLeft:
 			if !p.options.UnsupportedCSSFeatures.Has(compat.InsetProperty) && p.options.MinifySyntax {
-				inset.mangleSide(rules, decl, i, p.options.MinifyWhitespace, boxLeft)
+				inset.mangleSide(rewrittenRules, decl, p.options.MinifyWhitespace, boxLeft)
 			}
 
 		// Border radius
 		case css_ast.DBorderRadius:
 			if p.options.MinifySyntax {
-				borderRadius.mangleCorners(rules, decl, i, p.options.MinifyWhitespace)
+				borderRadius.mangleCorners(rewrittenRules, decl, p.options.MinifyWhitespace)
 			}
 		case css_ast.DBorderTopLeftRadius:
 			if p.options.MinifySyntax {
-				borderRadius.mangleCorner(rules, decl, i, p.options.MinifyWhitespace, borderRadiusTopLeft)
+				borderRadius.mangleCorner(rewrittenRules, decl, p.options.MinifyWhitespace, borderRadiusTopLeft)
 			}
 		case css_ast.DBorderTopRightRadius:
 			if p.options.MinifySyntax {
-				borderRadius.mangleCorner(rules, decl, i, p.options.MinifyWhitespace, borderRadiusTopRight)
+				borderRadius.mangleCorner(rewrittenRules, decl, p.options.MinifyWhitespace, borderRadiusTopRight)
 			}
 		case css_ast.DBorderBottomRightRadius:
 			if p.options.MinifySyntax {
-				borderRadius.mangleCorner(rules, decl, i, p.options.MinifyWhitespace, borderRadiusBottomRight)
+				borderRadius.mangleCorner(rewrittenRules, decl, p.options.MinifyWhitespace, borderRadiusBottomRight)
 			}
 		case css_ast.DBorderBottomLeftRadius:
 			if p.options.MinifySyntax {
-				borderRadius.mangleCorner(rules, decl, i, p.options.MinifyWhitespace, borderRadiusBottomLeft)
+				borderRadius.mangleCorner(rewrittenRules, decl, p.options.MinifyWhitespace, borderRadiusBottomLeft)
 			}
 		}
 	}
@@ -243,14 +245,14 @@ func (p *parser) processDeclarations(rules []css_ast.Rule) []css_ast.Rule {
 	// Compact removed rules
 	if p.options.MinifySyntax {
 		end := 0
-		for _, rule := range rules {
+		for _, rule := range rewrittenRules {
 			if rule.Data != nil {
-				rules[end] = rule
+				rewrittenRules[end] = rule
 				end++
 			}
 		}
-		rules = rules[:end]
+		rewrittenRules = rewrittenRules[:end]
 	}
 
-	return rules
+	return
 }
