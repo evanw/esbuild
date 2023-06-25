@@ -63,6 +63,14 @@
     }
     ```
 
+* Fix a bug in esbuild's compatibility table script ([#3179](https://github.com/evanw/esbuild/pull/3179))
+
+    Setting esbuild's `target` to a specific JavaScript engine tells esbuild to use the JavaScript syntax feature compatibility data from https://kangax.github.io/compat-table/es6/ for that engine to determine which syntax features to allow. However, esbuild's script that builds this internal compatibility table had a bug that incorrectly ignores tests for engines that still have outstanding implementation bugs which were never fixed. This change fixes this bug with the script.
+
+    The only case where this changed the information in esbuild's internal compatibility table is that the `hermes` target is marked as no longer supporting destructuring. This is because there is a failing destructuring-related test for Hermes on https://kangax.github.io/compat-table/es6/. If you want to use destructuring with Hermes anyway, you can pass `--supported:destructuring=true` to esbuild to override the `hermes` target and force esbuild to accept this syntax.
+
+    This fix was contributed by [@ArrayZoneYour](https://github.com/ArrayZoneYour).
+
 ## 0.18.8
 
 * Implement transforming `async` generator functions ([#2780](https://github.com/evanw/esbuild/issues/2780))
@@ -334,14 +342,6 @@
 * Fix TypeScript experimental decorators combined with `--mangle-props` ([#3177](https://github.com/evanw/esbuild/issues/3177))
 
     Previously using TypeScript experimental decorators combined with the `--mangle-props` setting could result in a crash, as the experimental decorator transform was not expecting a mangled property as a class member. This release fixes the crash so you can now combine both of these features together safely.
-
-* Fix a bug in esbuild's compatibility table script ([#3179](https://github.com/evanw/esbuild/pull/3179))
-
-    Setting esbuild's `target` to a specific JavaScript engine tells esbuild to use the JavaScript syntax feature compatibility data from https://kangax.github.io/compat-table/es6/ for that engine to determine which syntax features to allow. However, esbuild's script that builds this internal compatibility table had a bug that incorrectly ignores tests for engines that still have outstanding implementation bugs which were never fixed. This change fixes this bug with the script.
-
-    The only case where this changed the information in esbuild's internal compatibility table is that the `hermes` target is marked as no longer supporting destructuring. This is because there is a failing destructuring-related test for Hermes on https://kangax.github.io/compat-table/es6/. If you want to use destructuring with Hermes anyway, you can pass `--supported:destructuring=true` to esbuild to override the `hermes` target and force esbuild to accept this syntax.
-
-    This fix was contributed by [@ArrayZoneYour](https://github.com/ArrayZoneYour).
 
 ## 0.18.4
 
