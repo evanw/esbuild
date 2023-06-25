@@ -1542,7 +1542,7 @@ type Symbol struct {
 // You should call "MergeSymbols" instead of calling this directly
 func (newSymbol *Symbol) MergeContentsWith(oldSymbol *Symbol) {
 	newSymbol.UseCountEstimate += oldSymbol.UseCountEstimate
-	if oldSymbol.Flags.Has(MustNotBeRenamed) {
+	if oldSymbol.Flags.Has(MustNotBeRenamed) && !newSymbol.Flags.Has(MustNotBeRenamed) {
 		newSymbol.OriginalName = oldSymbol.OriginalName
 		newSymbol.Flags |= MustNotBeRenamed
 	}

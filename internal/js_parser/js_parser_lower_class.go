@@ -1593,6 +1593,16 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 		// The inner class name inside the class statement should be the same as
 		// the class statement name itself
 		if class.Name != nil && result.innerClassNameRef != js_ast.InvalidRef {
+			// If the class body contains a direct eval call, then the inner class
+			// name will be marked as "MustNotBeRenamed" (because we have already
+			// popped the class body scope) but the outer class name won't be marked
+			// as "MustNotBeRenamed" yet (because we haven't yet popped the containing
+			// scope). Propagate this flag now before we merge these symbols so we
+			// don't end up accidentally renaming the outer class name to the inner
+			// class name.
+			if p.currentScope.ContainsDirectEval {
+				p.symbols[class.Name.Ref.InnerIndex].Flags |= (p.symbols[result.innerClassNameRef.InnerIndex].Flags & js_ast.MustNotBeRenamed)
+			}
 			p.mergeSymbols(result.innerClassNameRef, class.Name.Ref)
 		}
 	}
