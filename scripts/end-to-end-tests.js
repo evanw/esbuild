@@ -3818,6 +3818,37 @@ tests.push(
   }),
 )
 
+// Check for an obscure bug with minification, symbol renaming, and sloppy
+// nested function declarations: https://github.com/evanw/esbuild/issues/2809.
+// Previously esbuild generated the following code:
+//
+//   let f = 0;
+//   for (let l of [1, 2]) {
+//     let t = function(o) {
+//       return o;
+//     };
+//     var f = t;
+//     f += t(l);
+//   }
+//   if (f !== 3)
+//     throw "fail";
+//
+// Notice how "f" is declared twice, leading to a syntax error.
+for (const flags of [[], ['--minify']]) {
+  tests.push(
+    test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+      'in.js': `
+        let total = 0
+        for (let value of [1, 2]) {
+          function f(x) { return x }
+          total += f(value)
+        }
+        if (total !== 3) throw 'fail'
+      `,
+    }),
+  )
+}
+
 // Test hoisting variables inside for loop initializers outside of lazy ESM
 // wrappers. Previously this didn't work due to a bug that considered for
 // loop initializers to already be in the top-level scope. For more info

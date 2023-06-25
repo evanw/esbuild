@@ -8469,6 +8469,7 @@ func (p *parser) visitStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt {
 
 				// Also write the function to the hoisted sibling symbol if applicable
 				if hoistedRef, ok := p.hoistedRefForSloppyModeBlockFn[s.Fn.Name.Ref]; ok {
+					p.recordDeclaredSymbol(hoistedRef)
 					p.recordUsage(s.Fn.Name.Ref)
 					varDecls = append(varDecls, js_ast.Decl{
 						Binding:    js_ast.Binding{Loc: s.Fn.Name.Loc, Data: &js_ast.BIdentifier{Ref: hoistedRef}},

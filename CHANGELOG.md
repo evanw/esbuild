@@ -35,6 +35,34 @@
     }
     ```
 
+* Fix an obscure identifier minification bug ([#2809](https://github.com/evanw/esbuild/issues/2809))
+
+    Function declarations in nested scopes behave differently depending on whether or not `"use strict"` is present. To avoid generating code that behaves differently depending on whether strict mode is enabled or not, esbuild transforms nested function declarations into variable declarations. However, there was a bug where the generated variable name was not being recorded as declared internally, which meant that it wasn't being renamed correctly by the minifier and could cause a name collision. This bug has been fixed:
+
+    ```js
+    // Original code
+    const n = ''
+    for (let i of [0,1]) {
+      function f () {}
+    }
+
+    // Old output (with --minify-identifiers --format=esm)
+    const f = "";
+    for (let o of [0, 1]) {
+      let n = function() {
+      };
+      var f = n;
+    }
+
+    // New output (with --minify-identifiers --format=esm)
+    const f = "";
+    for (let o of [0, 1]) {
+      let n = function() {
+      };
+      var t = n;
+    }
+    ```
+
 ## 0.18.8
 
 * Implement transforming `async` generator functions ([#2780](https://github.com/evanw/esbuild/issues/2780))

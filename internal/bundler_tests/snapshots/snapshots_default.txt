@@ -4750,7 +4750,7 @@ console.log((0, import_demo_pkg.default)());
 TestNonDeterminismIssue2537
 ---------- /out.js ----------
 // entry.ts
-function b(o, e) {
+function i(o, e) {
   let r = "teun";
   if (o) {
     let u = function(n) {
@@ -4758,13 +4758,13 @@ function b(o, e) {
     }, t = function(n) {
       return n / 2;
     };
-    var i = u, a = t;
+    var b = u, f = t;
     r = u(e) + t(e);
   }
   return r;
 }
 export {
-  b as aap
+  i as aap
 };
 
 ================================================================================
