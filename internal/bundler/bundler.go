@@ -230,12 +230,7 @@ func parseFile(args parseArgs) {
 		result.ok = ok
 
 	case config.LoaderCSS:
-		ast := args.caches.CSSCache.Parse(args.log, source, css_parser.Options{
-			MinifySyntax:           args.options.MinifySyntax,
-			MinifyWhitespace:       args.options.MinifyWhitespace,
-			UnsupportedCSSFeatures: args.options.UnsupportedCSSFeatures,
-			OriginalTargetEnv:      args.options.OriginalTargetEnv,
-		})
+		ast := args.caches.CSSCache.Parse(args.log, source, css_parser.OptionsFromConfig(&args.options))
 		result.file.inputFile.Repr = &graph.CSSRepr{AST: ast}
 		result.ok = true
 

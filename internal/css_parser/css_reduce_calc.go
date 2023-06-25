@@ -13,7 +13,7 @@ import (
 func (p *parser) tryToReduceCalcExpression(token css_ast.Token) css_ast.Token {
 	if term := tryToParseCalcTerm(*token.Children); term != nil {
 		whitespace := css_ast.WhitespaceBefore | css_ast.WhitespaceAfter
-		if p.options.MinifyWhitespace {
+		if p.options.minifyWhitespace {
 			whitespace = 0
 		}
 		term = term.partiallySimplify()

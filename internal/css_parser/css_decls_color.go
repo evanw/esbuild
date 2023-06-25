@@ -281,7 +281,7 @@ func (p *parser) lowerColor(token css_ast.Token) css_ast.Token {
 
 	switch token.Kind {
 	case css_lexer.THash:
-		if p.options.UnsupportedCSSFeatures.Has(compat.HexRGBA) {
+		if p.options.unsupportedCSSFeatures.Has(compat.HexRGBA) {
 			switch len(text) {
 			case 4:
 				// "#1234" => "rgba(1, 2, 3, 0.004)"
@@ -315,7 +315,7 @@ func (p *parser) lowerColor(token css_ast.Token) css_ast.Token {
 		}
 
 	case css_lexer.TIdent:
-		if text == "rebeccapurple" && p.options.UnsupportedCSSFeatures.Has(compat.RebeccaPurple) {
+		if text == "rebeccapurple" && p.options.unsupportedCSSFeatures.Has(compat.RebeccaPurple) {
 			token.Kind = css_lexer.THash
 			token.Text = "663399"
 		}
@@ -323,7 +323,7 @@ func (p *parser) lowerColor(token css_ast.Token) css_ast.Token {
 	case css_lexer.TFunction:
 		switch text {
 		case "rgb", "rgba", "hsl", "hsla":
-			if p.options.UnsupportedCSSFeatures.Has(compat.Modern_RGB_HSL) {
+			if p.options.unsupportedCSSFeatures.Has(compat.Modern_RGB_HSL) {
 				args := *token.Children
 				removeAlpha := false
 				addAlpha := false
@@ -620,7 +620,7 @@ func (p *parser) mangleColor(token css_ast.Token, hex uint32) css_ast.Token {
 				token.Text = fmt.Sprintf("%06x", hex)
 			}
 		}
-	} else if !p.options.UnsupportedCSSFeatures.Has(compat.HexRGBA) {
+	} else if !p.options.unsupportedCSSFeatures.Has(compat.HexRGBA) {
 		token.Children = nil
 		token.Kind = css_lexer.THash
 		compact := compactHex(hex)

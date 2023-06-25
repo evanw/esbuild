@@ -64,7 +64,7 @@ func (p *parser) mangleBoxShadow(tokens []css_ast.Token) []css_ast.Token {
 	// Set the whitespace flags
 	for i := range tokens {
 		var whitespace css_ast.WhitespaceFlags
-		if i > 0 || !p.options.MinifyWhitespace {
+		if i > 0 || !p.options.minifyWhitespace {
 			whitespace |= css_ast.WhitespaceBefore
 		}
 		if i+1 < len(tokens) {

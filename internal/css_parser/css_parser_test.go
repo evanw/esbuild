@@ -16,11 +16,7 @@ func expectPrintedCommon(t *testing.T, name string, contents string, expected st
 	t.Run(name, func(t *testing.T) {
 		t.Helper()
 		log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug, nil)
-		tree := Parse(log, test.SourceForTest(contents), Options{
-			MinifySyntax:           options.MinifySyntax,
-			MinifyWhitespace:       options.MinifyWhitespace,
-			UnsupportedCSSFeatures: options.UnsupportedCSSFeatures,
-		})
+		tree := Parse(log, test.SourceForTest(contents), OptionsFromConfig(&options))
 		msgs := log.Done()
 		text := ""
 		if expectedLog != nil {
@@ -71,6 +67,21 @@ func expectPrintedLower(t *testing.T, contents string, expected string) {
 	t.Helper()
 	expectPrintedCommon(t, contents+" [lower]", contents, expected, nil, config.Options{
 		UnsupportedCSSFeatures: ^compat.CSSFeature(0),
+	})
+}
+
+func expectPrintedWithAllPrefixes(t *testing.T, contents string, expected string) {
+	t.Helper()
+	expectPrintedCommon(t, contents+" [prefixed]", contents, expected, nil, config.Options{
+		CSSPrefixData: compat.CSSPrefixData(map[compat.Engine][]int{
+			compat.Chrome:  {0},
+			compat.Edge:    {0},
+			compat.Firefox: {0},
+			compat.IE:      {0},
+			compat.IOS:     {0},
+			compat.Opera:   {0},
+			compat.Safari:  {0},
+		}),
 	})
 }
 
@@ -2114,4 +2125,76 @@ func TestParseErrorRecovery(t *testing.T) {
 		"<stdin>: ERROR: Expected \"*/\" to terminate multi-line comment\n<stdin>: NOTE: The multi-line comment starts here:\n")
 	expectParseError(t, "a { b: c; d: 'e\n f: g; h: i }", "a {\n  b: c;\n  d: 'e\n  f: g;\n  h: i;\n}\n", "<stdin>: WARNING: Unterminated string token\n")
 	expectParseErrorMinify(t, "a { b: c; d: 'e\n f: g; h: i }", "a{b:c;d:'e\nf: g;h:i}", "<stdin>: WARNING: Unterminated string token\n")
+}
+
+func TestPrefixInsertion(t *testing.T) {
+	// General "-webkit-" tests
+	for _, key := range []string{
+		"backdrop-filter",
+		"clip-path",
+		"font-kerning",
+		"initial-letter",
+		"mask-image",
+		"mask-origin",
+		"mask-position",
+		"mask-repeat",
+		"mask-size",
+		"print-color-adjust",
+		"text-orientation",
+	} {
+		expectPrintedWithAllPrefixes(t,
+			"a { "+key+": url(x.png) }",
+			"a {\n  -webkit-"+key+": url(x.png);\n  "+key+": url(x.png);\n}\n")
+
+		expectPrintedWithAllPrefixes(t,
+			"a { before: value; "+key+": url(x.png) }",
+			"a {\n  before: value;\n  -webkit-"+key+": url(x.png);\n  "+key+": url(x.png);\n}\n")
+
+		expectPrintedWithAllPrefixes(t,
+			"a { "+key+": url(x.png); after: value }",
+			"a {\n  -webkit-"+key+": url(x.png);\n  "+key+": url(x.png);\n  after: value;\n}\n")
+
+		expectPrintedWithAllPrefixes(t,
+			"a { before: value; "+key+": url(x.png); after: value }",
+			"a {\n  before: value;\n  -webkit-"+key+": url(x.png);\n  "+key+": url(x.png);\n  after: value;\n}\n")
+
+		expectPrintedWithAllPrefixes(t,
+			"a {\n  -webkit-"+key+": url(x.png);\n  "+key+": url(y.png);\n}\n",
+			"a {\n  -webkit-"+key+": url(x.png);\n  "+key+": url(y.png);\n}\n")
+
+		expectPrintedWithAllPrefixes(t,
+			"a { "+key+": url(x.png); "+key+": url(y.png) }",
+			"a {\n  -webkit-"+key+": url(x.png);\n  "+key+": url(x.png);\n  -webkit-"+key+": url(y.png);\n  "+key+": url(y.png);\n}\n")
+	}
+
+	// Special-case tests
+	expectPrintedWithAllPrefixes(t, "a { appearance: none }", "a {\n  -webkit-appearance: none;\n  -moz-appearance: none;\n  appearance: none;\n}\n")
+	expectPrintedWithAllPrefixes(t, "a { background-clip: not-text }", "a {\n  background-clip: not-text;\n}\n")
+	expectPrintedWithAllPrefixes(t, "a { background-clip: text !important }", "a {\n  -webkit-background-clip: text !important;\n  background-clip: text !important;\n}\n")
+	expectPrintedWithAllPrefixes(t, "a { background-clip: text }", "a {\n  -webkit-background-clip: text;\n  background-clip: text;\n}\n")
+	expectPrintedWithAllPrefixes(t, "a { hyphens: auto }", "a {\n  -webkit-hyphens: auto;\n  -moz-hyphens: auto;\n  -ms-hyphens: auto;\n  hyphens: auto;\n}\n")
+	expectPrintedWithAllPrefixes(t, "a { position: absolute }", "a {\n  position: absolute;\n}\n")
+	expectPrintedWithAllPrefixes(t, "a { position: sticky !important }", "a {\n  position: -webkit-sticky !important;\n  position: sticky !important;\n}\n")
+	expectPrintedWithAllPrefixes(t, "a { position: sticky }", "a {\n  position: -webkit-sticky;\n  position: sticky;\n}\n")
+	expectPrintedWithAllPrefixes(t, "a { tab-size: 2 }", "a {\n  -moz-tab-size: 2;\n  -o-tab-size: 2;\n  tab-size: 2;\n}\n")
+	expectPrintedWithAllPrefixes(t, "a { text-size-adjust: none }", "a {\n  -webkit-text-size-adjust: none;\n  -ms-text-size-adjust: none;\n  text-size-adjust: none;\n}\n")
+	expectPrintedWithAllPrefixes(t, "a { user-select: none }", "a {\n  -webkit-user-select: none;\n  -moz-user-select: -moz-none;\n  -ms-user-select: none;\n  user-select: none;\n}\n")
+
+	// Check that we insert prefixed rules each time an unprefixed rule is
+	// encountered. This matches the behavior of the popular "autoprefixer" tool.
+	expectPrintedWithAllPrefixes(t,
+		"a { before: value; mask-image: a; middle: value; mask-image: b; after: value }",
+		"a {\n  before: value;\n  -webkit-mask-image: a;\n  mask-image: a;\n  middle: value;\n  -webkit-mask-image: b;\n  mask-image: b;\n  after: value;\n}\n")
+
+	// Test that we don't insert duplicated rules when source code is processed
+	// twice. This matches the behavior of the popular "autoprefixer" tool.
+	expectPrintedWithAllPrefixes(t,
+		"a { before: value; -webkit-text-size-adjust: 1; -ms-text-size-adjust: 2; text-size-adjust: 3; after: value }",
+		"a {\n  before: value;\n  -webkit-text-size-adjust: 1;\n  -ms-text-size-adjust: 2;\n  text-size-adjust: 3;\n  after: value;\n}\n")
+	expectPrintedWithAllPrefixes(t,
+		"a { before: value; -webkit-text-size-adjust: 1; text-size-adjust: 3; after: value }",
+		"a {\n  before: value;\n  -webkit-text-size-adjust: 1;\n  -ms-text-size-adjust: 3;\n  text-size-adjust: 3;\n  after: value;\n}\n")
+	expectPrintedWithAllPrefixes(t,
+		"a { before: value; -ms-text-size-adjust: 2; text-size-adjust: 3; after: value }",
+		"a {\n  before: value;\n  -ms-text-size-adjust: 2;\n  -webkit-text-size-adjust: 3;\n  text-size-adjust: 3;\n  after: value;\n}\n")
 }

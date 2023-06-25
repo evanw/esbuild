@@ -6,6 +6,7 @@ import (
 
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/compat"
+	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/css_ast"
 	"github.com/evanw/esbuild/internal/css_lexer"
 	"github.com/evanw/esbuild/internal/logger"
@@ -31,10 +32,57 @@ type parser struct {
 }
 
 type Options struct {
-	OriginalTargetEnv      string
-	UnsupportedCSSFeatures compat.CSSFeature
-	MinifySyntax           bool
-	MinifyWhitespace       bool
+	cssPrefixData map[css_ast.D]compat.CSSPrefix
+
+	// This is an embedded struct. Always access these directly instead of off
+	// the name "optionsThatSupportStructuralEquality". This is only grouped like
+	// this to make the equality comparison easier and safer (and hopefully faster).
+	optionsThatSupportStructuralEquality
+}
+
+type optionsThatSupportStructuralEquality struct {
+	originalTargetEnv      string
+	unsupportedCSSFeatures compat.CSSFeature
+	minifySyntax           bool
+	minifyWhitespace       bool
+}
+
+func OptionsFromConfig(options *config.Options) Options {
+	return Options{
+		cssPrefixData: options.CSSPrefixData,
+
+		optionsThatSupportStructuralEquality: optionsThatSupportStructuralEquality{
+			minifySyntax:           options.MinifySyntax,
+			minifyWhitespace:       options.MinifyWhitespace,
+			unsupportedCSSFeatures: options.UnsupportedCSSFeatures,
+			originalTargetEnv:      options.OriginalTargetEnv,
+		},
+	}
+}
+
+func (a *Options) Equal(b *Options) bool {
+	// Compare "optionsThatSupportStructuralEquality"
+	if a.optionsThatSupportStructuralEquality != b.optionsThatSupportStructuralEquality {
+		return false
+	}
+
+	// Compare "cssPrefixData"
+	if len(a.cssPrefixData) != len(b.cssPrefixData) {
+		return false
+	}
+	for k, va := range a.cssPrefixData {
+		vb, ok := b.cssPrefixData[k]
+		if !ok || va != vb {
+			return false
+		}
+	}
+	for k := range b.cssPrefixData {
+		if _, ok := b.cssPrefixData[k]; !ok {
+			return false
+		}
+	}
+
+	return true
 }
 
 func Parse(log logger.Log, source logger.Source, options Options) css_ast.AST {
@@ -307,7 +355,7 @@ loop:
 		}
 	}
 
-	if p.options.MinifySyntax {
+	if p.options.minifySyntax {
 		rules = p.mangleRules(rules, context.isTopLevel)
 	}
 	return rules
@@ -328,7 +376,7 @@ func (p *parser) parseListOfDeclarations(opts listOfDeclarationsOpts) (list []cs
 
 		case css_lexer.TEndOfFile, css_lexer.TCloseBrace:
 			list = p.processDeclarations(list)
-			if p.options.MinifySyntax {
+			if p.options.minifySyntax {
 				list = p.mangleRules(list, false /* isTopLevel */)
 
 				// Pull out all unnecessarily-nested declarations and stick them at the end
@@ -954,7 +1002,7 @@ abortRuleParser:
 				// Insert or remove whitespace before the first token
 				if len(importConditions) > 0 {
 					kind = ast.ImportAtConditional
-					if p.options.MinifyWhitespace {
+					if p.options.minifyWhitespace {
 						importConditions[0].Whitespace &= ^css_ast.WhitespaceBefore
 					} else {
 						importConditions[0].Whitespace |= css_ast.WhitespaceBefore
@@ -1039,7 +1087,7 @@ abortRuleParser:
 							p.expectWithMatchingLoc(css_lexer.TCloseBrace, blockMatchingLoc)
 
 							// "@keyframes { from {} to { color: red } }" => "@keyframes { to { color: red } }"
-							if !p.options.MinifySyntax || len(rules) > 0 {
+							if !p.options.minifySyntax || len(rules) > 0 {
 								blocks = append(blocks, css_ast.KeyframeBlock{
 									Selectors: selectors,
 									Rules:     rules,
@@ -1055,13 +1103,13 @@ abortRuleParser:
 							text := p.decoded()
 							if t.Kind == css_lexer.TIdent {
 								if text == "from" {
-									if p.options.MinifySyntax {
+									if p.options.minifySyntax {
 										text = "0%" // "0%" is equivalent to but shorter than "from"
 									}
 								} else if text != "to" {
 									p.expect(css_lexer.TPercentage)
 								}
-							} else if p.options.MinifySyntax && text == "100%" {
+							} else if p.options.minifySyntax && text == "100%" {
 								text = "to" // "to" is equivalent to but shorter than "100%"
 							}
 							selectors = append(selectors, text)
@@ -1298,12 +1346,12 @@ func (p *parser) expectValidLayerNameIdent() (string, bool) {
 }
 
 func (p *parser) reportUseOfNesting(r logger.Range, didWarnAlready bool) {
-	if p.options.UnsupportedCSSFeatures.Has(compat.Nesting) {
+	if p.options.unsupportedCSSFeatures.Has(compat.Nesting) {
 		p.shouldLowerNesting = true
-		if p.options.UnsupportedCSSFeatures.Has(compat.IsPseudoClass) && !didWarnAlready {
+		if p.options.unsupportedCSSFeatures.Has(compat.IsPseudoClass) && !didWarnAlready {
 			text := "CSS nesting syntax is not supported in the configured target environment"
-			if p.options.OriginalTargetEnv != "" {
-				text = fmt.Sprintf("%s (%s)", text, p.options.OriginalTargetEnv)
+			if p.options.originalTargetEnv != "" {
+				text = fmt.Sprintf("%s (%s)", text, p.options.originalTargetEnv)
 			}
 			p.log.AddID(logger.MsgID_CSS_UnsupportedCSSNesting, logger.Warning, &p.tracker, r, text)
 		}
@@ -1402,14 +1450,14 @@ loop:
 			}
 
 		case css_lexer.TNumber:
-			if p.options.MinifySyntax {
+			if p.options.minifySyntax {
 				if text, ok := mangleNumber(token.Text); ok {
 					token.Text = text
 				}
 			}
 
 		case css_lexer.TPercentage:
-			if p.options.MinifySyntax {
+			if p.options.minifySyntax {
 				if text, ok := mangleNumber(token.PercentageValue()); ok {
 					token.Text = text + "%"
 				}
@@ -1418,7 +1466,7 @@ loop:
 		case css_lexer.TDimension:
 			token.UnitOffset = t.UnitOffset
 
-			if p.options.MinifySyntax {
+			if p.options.minifySyntax {
 				if text, ok := mangleNumber(token.DimensionValue()); ok {
 					token.Text = text + token.DimensionUnit()
 					token.UnitOffset = uint16(len(text))
@@ -1459,7 +1507,7 @@ loop:
 			token.Children = &nested
 
 			// Apply "calc" simplification rules when minifying
-			if p.options.MinifySyntax && token.Text == "calc" {
+			if p.options.minifySyntax && token.Text == "calc" {
 				token = p.tryToReduceCalcExpression(token)
 			}
 
@@ -1491,7 +1539,7 @@ loop:
 			nested, tokens = p.convertTokensHelper(tokens, css_lexer.TCloseBrace, opts)
 
 			// Pretty-printing: insert leading and trailing whitespace when not minifying
-			if !opts.verbatimWhitespace && !p.options.MinifyWhitespace && len(nested) > 0 {
+			if !opts.verbatimWhitespace && !p.options.minifyWhitespace && len(nested) > 0 {
 				nested[0].Whitespace |= css_ast.WhitespaceBefore
 				nested[len(nested)-1].Whitespace |= css_ast.WhitespaceAfter
 			}
@@ -1528,7 +1576,7 @@ loop:
 				}
 
 				// Assume whitespace can always be added after a comma
-				if p.options.MinifyWhitespace {
+				if p.options.minifyWhitespace {
 					token.Whitespace &= ^css_ast.WhitespaceAfter
 					if i+1 < len(result) {
 						result[i+1].Whitespace &= ^css_ast.WhitespaceBefore
@@ -1829,7 +1877,7 @@ stop:
 
 	// Insert or remove whitespace before the first token
 	if !verbatimWhitespace && len(result) > 0 {
-		if p.options.MinifyWhitespace {
+		if p.options.minifyWhitespace {
 			result[0].Whitespace &= ^css_ast.WhitespaceBefore
 		} else {
 			result[0].Whitespace |= css_ast.WhitespaceBefore

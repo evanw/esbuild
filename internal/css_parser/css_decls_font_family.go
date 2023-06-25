@@ -98,7 +98,7 @@ func (p *parser) mangleFamilyNameOrGenericName(result []css_ast.Token, tokens []
 			}
 			for i, name := range names {
 				var whitespace css_ast.WhitespaceFlags
-				if i != 0 || !p.options.MinifyWhitespace {
+				if i != 0 || !p.options.minifyWhitespace {
 					whitespace = css_ast.WhitespaceBefore
 				}
 				result = append(result, css_ast.Token{

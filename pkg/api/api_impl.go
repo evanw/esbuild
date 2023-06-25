@@ -25,6 +25,7 @@ import (
 	"github.com/evanw/esbuild/internal/cache"
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
+	"github.com/evanw/esbuild/internal/css_ast"
 	"github.com/evanw/esbuild/internal/fs"
 	"github.com/evanw/esbuild/internal/graph"
 	"github.com/evanw/esbuild/internal/helpers"
@@ -291,9 +292,9 @@ func validateEngine(value EngineName) compat.Engine {
 var versionRegex = regexp.MustCompile(`^([0-9]+)(?:\.([0-9]+))?(?:\.([0-9]+))?$`)
 var preReleaseVersionRegex = regexp.MustCompile(`^([0-9]+)(?:\.([0-9]+))?(?:\.([0-9]+))?-`)
 
-func validateFeatures(log logger.Log, target Target, engines []Engine) (compat.JSFeature, compat.CSSFeature, string) {
+func validateFeatures(log logger.Log, target Target, engines []Engine) (compat.JSFeature, compat.CSSFeature, map[css_ast.D]compat.CSSPrefix, string) {
 	if target == DefaultTarget && len(engines) == 0 {
-		return 0, 0, ""
+		return 0, 0, nil, ""
 	}
 
 	constraints := make(map[compat.Engine][]int)
@@ -369,7 +370,7 @@ func validateFeatures(log logger.Log, target Target, engines []Engine) (compat.J
 	sort.Strings(targets)
 	targetEnv := helpers.StringArrayToQuotedCommaSeparatedString(targets)
 
-	return compat.UnsupportedJSFeatures(constraints), compat.UnsupportedCSSFeatures(constraints), targetEnv
+	return compat.UnsupportedJSFeatures(constraints), compat.UnsupportedCSSFeatures(constraints), compat.CSSPrefixData(constraints), targetEnv
 }
 
 func validateSupported(log logger.Log, supported map[string]bool) (
@@ -1243,7 +1244,7 @@ func validateBuildOptions(
 	options config.Options,
 	entryPoints []bundler.EntryPoint,
 ) {
-	jsFeatures, cssFeatures, targetEnv := validateFeatures(log, buildOpts.Target, buildOpts.Engines)
+	jsFeatures, cssFeatures, cssPrefixData, targetEnv := validateFeatures(log, buildOpts.Target, buildOpts.Engines)
 	jsOverrides, jsMask, cssOverrides, cssMask := validateSupported(log, buildOpts.Supported)
 	outJS, outCSS := validateOutputExtensions(log, buildOpts.OutExtension)
 	bannerJS, bannerCSS := validateBannerOrFooter(log, "banner", buildOpts.Banner)
@@ -1252,6 +1253,7 @@ func validateBuildOptions(
 	platform := validatePlatform(buildOpts.Platform)
 	defines, injectedDefines := validateDefines(log, buildOpts.Define, buildOpts.Pure, platform, true /* isBuildAPI */, minify, buildOpts.Drop)
 	options = config.Options{
+		CSSPrefixData:                      cssPrefixData,
 		UnsupportedJSFeatures:              jsFeatures.ApplyOverrides(jsOverrides, jsMask),
 		UnsupportedCSSFeatures:             cssFeatures.ApplyOverrides(cssOverrides, cssMask),
 		UnsupportedJSFeatureOverrides:      jsOverrides,
@@ -1686,12 +1688,13 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 	}
 
 	// Convert and validate the transformOpts
-	jsFeatures, cssFeatures, targetEnv := validateFeatures(log, transformOpts.Target, transformOpts.Engines)
+	jsFeatures, cssFeatures, cssPrefixData, targetEnv := validateFeatures(log, transformOpts.Target, transformOpts.Engines)
 	jsOverrides, jsMask, cssOverrides, cssMask := validateSupported(log, transformOpts.Supported)
 	platform := validatePlatform(transformOpts.Platform)
 	defines, injectedDefines := validateDefines(log, transformOpts.Define, transformOpts.Pure, platform, false /* isBuildAPI */, false /* minify */, transformOpts.Drop)
 	mangleCache := cloneMangleCache(log, transformOpts.MangleCache)
 	options := config.Options{
+		CSSPrefixData:                      cssPrefixData,
 		UnsupportedJSFeatures:              jsFeatures.ApplyOverrides(jsOverrides, jsMask),
 		UnsupportedCSSFeatures:             cssFeatures.ApplyOverrides(cssOverrides, cssMask),
 		UnsupportedJSFeatureOverrides:      jsOverrides,

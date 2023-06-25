@@ -35,6 +35,51 @@
     }
     ```
 
+* Insert some prefixed CSS properties when appropriate ([#3122](https://github.com/evanw/esbuild/issues/3122))
+
+    With this release, esbuild will now insert prefixed CSS properties in certain cases when the `target` setting includes browsers that require a certain prefix. This is currently done for the following properties:
+
+    * `appearance: *;` => `-webkit-appearance: *; -moz-appearance: *;`
+    * `backdrop-filter: *;` => `-webkit-backdrop-filter: *;`
+    * `background-clip: text` => `-webkit-background-clip: text;`
+    * `clip-path: *` => `-webkit-clip-path: *;`
+    * `font-kerning: *;` => `-webkit-font-kerning: *;`
+    * `hyphens: *;` => `-webkit-hyphens: *;`
+    * `initial-letter: *;` => `-webkit-initial-letter: *;`
+    * `mask-image: *;` => `-webkit-mask-image: *;`
+    * `mask-origin: *;` => `-webkit-mask-origin: *;`
+    * `mask-position: *;` => `-webkit-mask-position: *;`
+    * `mask-repeat: *;` => `-webkit-mask-repeat: *;`
+    * `mask-size: *;` => `-webkit-mask-size: *;`
+    * `position: sticky;` => `position: -webkit-sticky;`
+    * `print-color-adjust: *;` => `-webkit-print-color-adjust: *;`
+    * `tab-size: *;` => `-moz-tab-size: *; -o-tab-size: *;`
+    * `text-orientation: *;` => `-webkit-text-orientation: *;`
+    * `text-size-adjust: *;` => `-webkit-text-size-adjust: *; -ms-text-size-adjust: *;`
+    * `user-select: *;` => `-webkit-user-select: *; -moz-user-select: *; -ms-user-select: *;`
+
+    Here is an example:
+
+    ```css
+    /* Original code */
+    div {
+      mask-image: url(x.png);
+    }
+
+    /* Old output (with --target=chrome99) */
+    div {
+      mask-image: url(x.png);
+    }
+
+    /* New output (with --target=chrome99) */
+    div {
+      -webkit-mask-image: url(x.png);
+      mask-image: url(x.png);
+    }
+    ```
+
+    Browser compatibility data was sourced from the tables on https://caniuse.com. Support for more CSS properties can be added in the future as appropriate.
+
 * Fix an obscure identifier minification bug ([#2809](https://github.com/evanw/esbuild/issues/2809))
 
     Function declarations in nested scopes behave differently depending on whether or not `"use strict"` is present. To avoid generating code that behaves differently depending on whether strict mode is enabled or not, esbuild transforms nested function declarations into variable declarations. However, there was a bug where the generated variable name was not being recorded as declared internally, which meant that it wasn't being renamed correctly by the minifier and could cause a name collision. This bug has been fixed:

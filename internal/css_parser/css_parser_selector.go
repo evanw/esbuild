@@ -39,7 +39,7 @@ skip:
 		}
 
 		// Omit duplicate selectors
-		if p.options.MinifySyntax {
+		if p.options.minifySyntax {
 			for _, existing := range list {
 				if sel.Equal(existing, nil) {
 					continue skip
@@ -50,7 +50,7 @@ skip:
 		list = append(list, sel)
 	}
 
-	if p.options.MinifySyntax {
+	if p.options.minifySyntax {
 		for i := 1; i < len(list); i++ {
 			if analyzeLeadingAmpersand(list[i], opts.isDeclarationContext) != cannotRemoveLeadingAmpersand {
 				list[i].Selectors = list[i].Selectors[1:]
@@ -243,7 +243,7 @@ subclassSelectors:
 					// and ::first-letter) may, for legacy reasons, be represented using
 					// the <pseudo-class-selector> grammar, with only a single ":"
 					// character at their start.
-					if p.options.MinifySyntax && isElement && len(pseudo.Args) == 0 {
+					if p.options.minifySyntax && isElement && len(pseudo.Args) == 0 {
 						switch pseudo.Name {
 						case "before", "after", "first-line", "first-letter":
 							isElement = false
