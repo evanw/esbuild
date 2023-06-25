@@ -2511,7 +2511,6 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		}
 
 	case *js_ast.EIndex:
-		wrap := false
 		if e.OptionalChain == js_ast.OptionalChainNone {
 			flags |= hasNonOptionalChainParent
 
@@ -2533,8 +2532,8 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			}
 		} else {
 			if (flags & hasNonOptionalChainParent) != 0 {
-				wrap = true
 				p.print("(")
+				defer p.print(")")
 			}
 			flags &= ^hasNonOptionalChainParent
 		}
@@ -2551,6 +2550,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			name := p.renamer.NameForSymbol(index.Ref)
 			p.addSourceMappingForName(e.Index.Loc, name, index.Ref)
 			p.printIdentifier(name)
+			return
 
 		case *js_ast.EMangledProp:
 			if name := p.mangledPropName(index.Ref); p.canPrintIdentifier(name) {
@@ -2559,53 +2559,52 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 				}
 				p.addSourceMappingForName(e.Index.Loc, name, index.Ref)
 				p.printIdentifier(name)
-			} else {
-				isMultiLine := p.willPrintExprCommentsAtLoc(e.Index.Loc) || p.willPrintExprCommentsAtLoc(e.CloseBracketLoc)
-				p.print("[")
-				if isMultiLine {
-					p.printNewline()
-					p.options.Indent++
-					p.printIndent()
-				}
-				p.printExprCommentsAtLoc(e.Index.Loc)
-				p.addSourceMapping(e.Index.Loc)
-				p.printQuotedUTF8(name, true /* allowBacktick */)
-				if isMultiLine {
-					p.printNewline()
-					p.printExprCommentsAfterCloseTokenAtLoc(e.CloseBracketLoc)
-					p.options.Indent--
-					p.printIndent()
-				}
-				if e.CloseBracketLoc.Start > expr.Loc.Start {
-					p.addSourceMapping(e.CloseBracketLoc)
-				}
-				p.print("]")
+				return
 			}
 
-		default:
-			isMultiLine := p.willPrintExprCommentsAtLoc(e.Index.Loc) || p.willPrintExprCommentsAtLoc(e.CloseBracketLoc)
-			p.print("[")
-			if isMultiLine {
-				p.printNewline()
-				p.options.Indent++
-				p.printIndent()
+		case *js_ast.EInlinedEnum:
+			if p.options.MinifySyntax {
+				if str, ok := index.Value.Data.(*js_ast.EString); ok && p.canPrintIdentifierUTF16(str.Value) {
+					if e.OptionalChain != js_ast.OptionalChainStart {
+						p.print(".")
+					}
+					p.addSourceMapping(index.Value.Loc)
+					p.printIdentifierUTF16(str.Value)
+					return
+				}
 			}
-			p.printExpr(e.Index, js_ast.LLowest, 0)
-			if isMultiLine {
-				p.printNewline()
-				p.printExprCommentsAfterCloseTokenAtLoc(e.CloseBracketLoc)
-				p.options.Indent--
-				p.printIndent()
+
+		case *js_ast.EDot:
+			if p.options.MinifySyntax {
+				if value, ok := p.tryToGetImportedEnumValue(index.Target, index.Name); ok && value.String != nil && p.canPrintIdentifierUTF16(value.String) {
+					if e.OptionalChain != js_ast.OptionalChainStart {
+						p.print(".")
+					}
+					p.addSourceMapping(e.Index.Loc)
+					p.printIdentifierUTF16(value.String)
+					return
+				}
 			}
-			if e.CloseBracketLoc.Start > expr.Loc.Start {
-				p.addSourceMapping(e.CloseBracketLoc)
-			}
-			p.print("]")
 		}
 
-		if wrap {
-			p.print(")")
+		isMultiLine := p.willPrintExprCommentsAtLoc(e.Index.Loc) || p.willPrintExprCommentsAtLoc(e.CloseBracketLoc)
+		p.print("[")
+		if isMultiLine {
+			p.printNewline()
+			p.options.Indent++
+			p.printIndent()
 		}
+		p.printExpr(e.Index, js_ast.LLowest, 0)
+		if isMultiLine {
+			p.printNewline()
+			p.printExprCommentsAfterCloseTokenAtLoc(e.CloseBracketLoc)
+			p.options.Indent--
+			p.printIndent()
+		}
+		if e.CloseBracketLoc.Start > expr.Loc.Start {
+			p.addSourceMapping(e.CloseBracketLoc)
+		}
+		p.print("]")
 
 	case *js_ast.EIf:
 		wrap := level >= js_ast.LConditional

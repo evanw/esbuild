@@ -2125,6 +2125,48 @@ func TestTSEnumCrossModuleInliningReExport(t *testing.T) {
 	})
 }
 
+func TestTSEnumCrossModuleInliningMinifyIndexIntoDot(t *testing.T) {
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				const enum Foo {
+					foo1 = 'abc',
+					foo2 = 'a b c',
+				}
+				import { Bar } from './lib'
+				inlined = [
+					obj[Foo.foo1],
+					obj[Bar.bar1],
+					obj?.[Foo.foo1],
+					obj?.[Bar.bar1],
+					obj?.prop[Foo.foo1],
+					obj?.prop[Bar.bar1],
+				]
+				notInlined = [
+					obj[Foo.foo2],
+					obj[Bar.bar2],
+					obj?.[Foo.foo2],
+					obj?.[Bar.bar2],
+					obj?.prop[Foo.foo2],
+					obj?.prop[Bar.bar2],
+				]
+			`,
+			"/lib.ts": `
+				export const enum Bar {
+					bar1 = 'xyz',
+					bar2 = 'x y z',
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			MinifySyntax:  true,
+		},
+	})
+}
+
 func TestTSEnumCrossModuleTreeShaking(t *testing.T) {
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
