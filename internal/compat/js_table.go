@@ -397,7 +397,6 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Edge:    {{start: v{18, 0, 0}}},
 		ES:      {{start: v{2015, 0, 0}}},
 		Firefox: {{start: v{53, 0, 0}}},
-		Hermes:  {{start: v{0, 7, 0}}},
 		IOS:     {{start: v{10, 0, 0}}},
 		Node:    {{start: v{6, 5, 0}}},
 		Opera:   {{start: v{38, 0, 0}}},

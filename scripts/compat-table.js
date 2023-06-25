@@ -102,6 +102,20 @@ const engines = [
   'rhino',
 ]
 
+const testsToSkip = new Set([
+  // Safari supposedly doesn't throw an error for duplicate identifiers in
+  // a function parameter list. The failing test case looks like this:
+  //
+  //   var f = function f([id, id]) { return id }
+  //
+  // However, this code will cause a compile error with esbuild so it's not
+  // possible to encounter this issue when running esbuild-generated code in
+  // Safari. I'm ignoring this test since Safari's destructuring otherwise
+  // works fine so destructuring shouldn't be forbidden when building for
+  // Safari.
+  'destructuring, parameters: duplicate identifier',
+])
+
 function getValueOfTest(value) {
   // Handle values like this:
   //
@@ -126,17 +140,25 @@ function mergeVersions(target, res, omit = []) {
   // take the minimum version to find the boundary.
   const lowestVersionMap = {}
 
+  // If the current feature target is not supported for all versions, we will
+  // tag version[target] = { unsupported: true } to exclude it even when other
+  // sub-features are supported.
+  const unsupportedEngines = new Set()
+
   for (const key in res) {
-    if (getValueOfTest(res[key])) {
-      const match = /^([a-z_]+)[0-9_]+$/.exec(key)
-      if (match) {
-        const engine = match[1]
+    const match = /^([a-z_]+)[0-9_]+$/.exec(key)
+    if (match) {
+      const engine = match[1]
+      if (getValueOfTest(res[key])) {
         if (engines.indexOf(engine) >= 0 && omit.indexOf(engine) < 0) {
           const version = parseEnvsVersions({ [key]: true })[engine][0].version
           if (!lowestVersionMap[engine] || compareVersions({ version }, { version: lowestVersionMap[engine] }) < 0) {
             lowestVersionMap[engine] = version
+            unsupportedEngines.delete(engine)
           }
         }
+      } else if (engines.indexOf(engine) >= 0 && !lowestVersionMap[engine]) {
+        unsupportedEngines.add(engine)
       }
     }
   }
@@ -145,7 +167,14 @@ function mergeVersions(target, res, omit = []) {
   // support a given feature if the version is greater than the maximum version
   // for all subtests. This is the inverse of the minimum test below.
   const highestVersionMap = versions[target] || (versions[target] = {})
+  for (const engine of unsupportedEngines) {
+    versions[target][engine] = [{ start: null, end: null, unsupported: true }]
+  }
   for (const engine in lowestVersionMap) {
+    if (highestVersionMap[engine] && highestVersionMap[engine].unsupported) {
+      // Ignore unsupported engines
+      continue
+    }
     const version = lowestVersionMap[engine]
     if (!highestVersionMap[engine] || compareVersions({ version }, { version: highestVersionMap[engine][0].start }) > 0) {
       highestVersionMap[engine] = [{ start: version, end: null }]
@@ -397,12 +426,18 @@ for (const test of [...es5.tests, ...es6.tests, ...stage4.tests, ...stage1to3.te
       const res = {}
 
       // Intersect all subtests (so a key is only true if it's true in all subtests)
-      for (const subtest of test.subtests)
+      for (const subtest of test.subtests) {
+        if (testsToSkip.has(`${test.name}: ${subtest.name}`))
+          continue
         for (const key in subtest.res)
           res[key] = true
-      for (const subtest of test.subtests)
+      }
+      for (const subtest of test.subtests) {
+        if (testsToSkip.has(`${test.name}: ${subtest.name}`))
+          continue
         for (const key in res)
           res[key] &&= getValueOfTest(subtest.res[key] ?? false)
+      }
 
       mergeVersions(feature.target, res, omitNode)
     } else {
@@ -410,6 +445,8 @@ for (const test of [...es5.tests, ...es6.tests, ...stage4.tests, ...stage1to3.te
     }
   } else if (test.subtests) {
     for (const subtest of test.subtests) {
+      if (testsToSkip.has(`${test.name}: ${subtest.name}`))
+        continue
       const feature = features[`${test.name}: ${subtest.name}`]
       if (feature) {
         feature.found = true
@@ -468,18 +505,26 @@ for (const test of [...es5.tests, ...es6.tests, ...stage4.tests, ...stage1to3.te
       feature.found = true
       if (test.subtests) {
         const res = {}
-        for (const subtest of Object.values(test.subtests))
+        for (const subtest of Object.values(test.subtests)) {
+          if (testsToSkip.has(`${test.name}: ${subtest.name}`))
+            continue
           for (const key in subtest.res)
             res[key] = true
-        for (const subtest of Object.values(test.subtests))
+        }
+        for (const subtest of Object.values(test.subtests)) {
+          if (testsToSkip.has(`${test.name}: ${subtest.name}`))
+            continue
           for (const key in res)
             res[key] &&= getValueOfTest(subtest.res[key] ?? false)
+        }
         mergeVersions(feature.target, res)
       } else {
         mergeVersions(feature.target, test.res)
       }
     } else if (test.subtests) {
       for (const subtest of Object.values(test.subtests)) {
+        if (testsToSkip.has(`${test.name}: ${subtest.name}`))
+          continue
         const feature = features[`${test.name}: ${subtest.name}`]
         if (feature) {
           if (feature.target === 'ObjectAccessors') {
@@ -496,6 +541,14 @@ for (const test of [...es5.tests, ...es6.tests, ...stage4.tests, ...stage1to3.te
 for (const feature in features) {
   if (!features[feature].found) {
     throw new Error(`Did not find ${feature}`)
+  }
+}
+
+for (const target in versions) {
+  for (const engine in versions[target]) {
+    if (versions[target][engine][0] && versions[target][engine][0].unsupported) {
+      delete versions[target][engine]
+    }
   }
 }
 
