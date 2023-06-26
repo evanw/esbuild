@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.18.9
 
 * Fix `await using` declarations inside `async` generator functions
 
@@ -43,7 +43,7 @@
     * `backdrop-filter: *;` => `-webkit-backdrop-filter: *;`
     * `background-clip: text` => `-webkit-background-clip: text;`
     * `box-decoration-break: *;` => `-webkit-box-decoration-break: *;`
-    * `clip-path: *` => `-webkit-clip-path: *;`
+    * `clip-path: *;` => `-webkit-clip-path: *;`
     * `font-kerning: *;` => `-webkit-font-kerning: *;`
     * `hyphens: *;` => `-webkit-hyphens: *;`
     * `initial-letter: *;` => `-webkit-initial-letter: *;`
