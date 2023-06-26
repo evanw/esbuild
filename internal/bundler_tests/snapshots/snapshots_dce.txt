@@ -506,6 +506,21 @@ __decorateClass([
 ], StaticParameter, "foo", 1);
 
 ================================================================================
+TestDCEOfExprAfterKeepNamesIssue3195
+---------- /out.js ----------
+(() => {
+  function f() {
+  }
+  __name(f, "f"), firstImportantSideEffect(void 0);
+})(), (() => {
+  function g() {
+  }
+  __name(g, "g");
+  debugger;
+  secondImportantSideEffect(void 0);
+})();
+
+================================================================================
 TestDCEOfIIFE
 ---------- /out/remove-these.js ----------
 keepThisButRemoveTheIIFE;

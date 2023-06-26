@@ -4423,3 +4423,27 @@ func TestDCEOfUsingDeclarations(t *testing.T) {
 		},
 	})
 }
+
+func TestDCEOfExprAfterKeepNamesIssue3195(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				(() => {
+					function f() {}
+					firstImportantSideEffect(f());
+				})();
+				(() => {
+					function g() {}
+					debugger;
+					secondImportantSideEffect(g());
+				})();
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			MinifySyntax:  true,
+			KeepNames:     true,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}

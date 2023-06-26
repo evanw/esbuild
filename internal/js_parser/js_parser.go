@@ -8690,6 +8690,9 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 			if len(result) > 0 {
 				prevStmt := result[len(result)-1]
 				if prevS, ok := prevStmt.Data.(*js_ast.SExpr); ok {
+					if !s.IsFromClassOrFnThatCanBeRemovedIfUnused {
+						prevS.IsFromClassOrFnThatCanBeRemovedIfUnused = false
+					}
 					prevS.Value = js_ast.JoinWithComma(prevS.Value, s.Value)
 					continue
 				}

@@ -3145,6 +3145,24 @@ for (const minify of [[], ['--minify-syntax']]) {
         var x = class { static [-0xFFFF_FFFF_FFFF] = 1 }; if (x['-281474976710655'] !== 1) throw 'fail: -0xFFFF_FFFF_FFFF'
       `,
     }),
+
+    // See: https://github.com/evanw/esbuild/issues/3195
+    test(['in.js', '--outfile=node.js', '--keep-names'].concat(minify), {
+      'in.js': `
+        const log = [];
+        const sideEffect = x => log.push(x);
+        (() => {
+          function f() {}
+          sideEffect(1, f());
+        })();
+        (() => {
+          function g() {}
+          debugger;
+          sideEffect(2, g());
+        })();
+        if (log + '' !== '1,2') throw 'fail: ' + log;
+      `,
+    }),
   )
 
   // Check property access simplification
