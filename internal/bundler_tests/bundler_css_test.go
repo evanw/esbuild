@@ -733,6 +733,9 @@ func TestCSSNestingOldBrowser(t *testing.T) {
 			"/media-hash.css":             `@media screen { #id { color: red; } }`,
 			"/media-plus.css":             `@media screen { + b { color: red; } }`,
 			"/media-tilde.css":            `@media screen { ~ b { color: red; } }`,
+
+			// See: https://github.com/evanw/esbuild/issues/3197
+			"/page-no-warning.css": `@page { @top-left { background: red } }`,
 		},
 		entryPaths: []string{
 			"/nested-@layer.css",
@@ -768,6 +771,8 @@ func TestCSSNestingOldBrowser(t *testing.T) {
 			"/media-hash.css",
 			"/media-plus.css",
 			"/media-tilde.css",
+
+			"/page-no-warning.css",
 		},
 		options: config.Options{
 			Mode:                   config.ModeBundle,

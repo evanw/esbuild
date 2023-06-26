@@ -6,6 +6,10 @@
 
     This fixes a regression in version 0.18.4 where combining `--minify-syntax` with `--keep-names` could cause expressions with side effects after a function declaration to be considered side-effect free for tree shaking purposes. The reason was because `--keep-names` generates an expression statement containing a call to a helper function after the function declaration with a special flag that makes the function call able to be tree shaken, and then `--minify-syntax` could potentially merge that expression statement with following expressions without clearing the flag. This release fixes the bug by clearing the flag when merging expression statements together.
 
+* Fix an incorrect warning about CSS nesting ([#3197](https://github.com/evanw/esbuild/issues/3197))
+
+    A warning is currently generated when transforming nested CSS to a browser that doesn't support `:is()` because transformed nested CSS may need to use that feature to represent nesting. This was previously always triggered when an at-rule was encountered in a declaration context. Typically the only case you would encounter this is when using CSS nesting within a selector rule. However, there is a case where that's not true: when using a margin at-rule such as `@top-left` within `@page`. This release avoids incorrectly generating a warning in this case by checking that the at-rule is within a selector rule before generating a warning.
+
 ## 0.18.9
 
 * Fix `await using` declarations inside `async` generator functions

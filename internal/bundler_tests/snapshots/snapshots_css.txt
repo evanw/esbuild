@@ -398,6 +398,14 @@ a,
   }
 }
 
+---------- /out/page-no-warning.css ----------
+/* page-no-warning.css */
+@page {
+  @top-left {
+    background: red;
+  }
+}
+
 ================================================================================
 TestDataURLImportURLInCSS
 ---------- /out/entry.css ----------

@@ -26,6 +26,7 @@ type parser struct {
 	index              int
 	end                int
 	legalCommentIndex  int
+	inSelectorSubtree  int
 	prevError          logger.Loc
 	options            Options
 	shouldLowerNesting bool
@@ -405,7 +406,9 @@ func (p *parser) parseListOfDeclarations(opts listOfDeclarationsOpts) (list []cs
 			return
 
 		case css_lexer.TAtKeyword:
-			p.reportUseOfNesting(p.current().Range, false)
+			if p.inSelectorSubtree > 0 {
+				p.reportUseOfNesting(p.current().Range, false)
+			}
 			list = append(list, p.parseAtRule(atRuleContext{
 				isDeclarationList:    true,
 				canInlineNoOpNesting: opts.canInlineNoOpNesting,
@@ -1725,9 +1728,11 @@ func (p *parser) parseSelectorRuleFrom(preludeStart int, isTopLevel bool, opts p
 		selector := css_ast.RSelector{Selectors: list}
 		matchingLoc := p.current().Range.Loc
 		if p.expect(css_lexer.TOpenBrace) {
+			p.inSelectorSubtree++
 			selector.Rules = p.parseListOfDeclarations(listOfDeclarationsOpts{
 				canInlineNoOpNesting: canInlineNoOpNesting,
 			})
+			p.inSelectorSubtree--
 			p.expectWithMatchingLoc(css_lexer.TCloseBrace, matchingLoc)
 			return css_ast.Rule{Loc: p.tokens[preludeStart].Range.Loc, Data: &selector}
 		}
