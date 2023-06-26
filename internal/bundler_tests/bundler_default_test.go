@@ -1318,12 +1318,16 @@ func TestSourceMap(t *testing.T) {
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
 				import {bar} from './bar'
+				import data from './data.txt'
 				function foo() { bar() }
 				foo()
+				console.log(data)
 			`,
 			"/Users/user/project/src/bar.js": `
 				export function bar() { throw new Error('test') }
 			`,
+			// Someone wanted data from the text loader to show up in the source map: https://github.com/evanw/esbuild/issues/2041
+			"/Users/user/project/src/data.txt": `#2041`,
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
 		options: config.Options{

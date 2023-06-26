@@ -5350,9 +5350,9 @@ TestSourceMap
 ---------- /Users/user/project/out.js.map ----------
 {
   "version": 3,
-  "sources": ["src/bar.js", "src/entry.js"],
-  "sourcesContent": ["\n\t\t\t\texport function bar() { throw new Error('test') }\n\t\t\t", "\n\t\t\t\timport {bar} from './bar'\n\t\t\t\tfunction foo() { bar() }\n\t\t\t\tfoo()\n\t\t\t"],
-  "mappings": ";AACW,SAAS,MAAM;AAAE,QAAM,IAAI,MAAM,MAAM;AAAE;;;ACChD,SAAS,MAAM;AAAE,MAAI;AAAE;AACvB,IAAI;",
+  "sources": ["src/bar.js", "src/data.txt", "src/entry.js"],
+  "sourcesContent": ["\n\t\t\t\texport function bar() { throw new Error('test') }\n\t\t\t", "#2041", "\n\t\t\t\timport {bar} from './bar'\n\t\t\t\timport data from './data.txt'\n\t\t\t\tfunction foo() { bar() }\n\t\t\t\tfoo()\n\t\t\t\tconsole.log(data)\n\t\t\t"],
+  "mappings": ";AACW,SAAS,MAAM;AAAE,QAAM,IAAI,MAAM,MAAM;AAAE;;;ACDpD;;;ACGI,SAAS,MAAM;AAAE,MAAI;AAAE;AACvB,IAAI;AACJ,QAAQ,IAAI,YAAI;",
   "names": []
 }
 
@@ -5362,11 +5362,15 @@ function bar() {
   throw new Error("test");
 }
 
+// Users/user/project/src/data.txt
+var data_default = "#2041";
+
 // Users/user/project/src/entry.js
 function foo() {
   bar();
 }
 foo();
+console.log(data_default);
 //# sourceMappingURL=out.js.map
 
 ================================================================================
