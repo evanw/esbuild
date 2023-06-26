@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.18.10
 
 * Fix a tree-shaking bug that removed side effects ([#3195](https://github.com/evanw/esbuild/issues/3195))
 
