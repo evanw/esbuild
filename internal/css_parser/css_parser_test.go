@@ -2131,6 +2131,7 @@ func TestPrefixInsertion(t *testing.T) {
 	// General "-webkit-" tests
 	for _, key := range []string{
 		"backdrop-filter",
+		"box-decoration-break",
 		"clip-path",
 		"font-kerning",
 		"initial-letter",
@@ -2140,6 +2141,10 @@ func TestPrefixInsertion(t *testing.T) {
 		"mask-repeat",
 		"mask-size",
 		"print-color-adjust",
+		"text-decoration-skip",
+		"text-emphasis-color",
+		"text-emphasis-position",
+		"text-emphasis-style",
 		"text-orientation",
 	} {
 		expectPrintedWithAllPrefixes(t,
@@ -2177,6 +2182,8 @@ func TestPrefixInsertion(t *testing.T) {
 	expectPrintedWithAllPrefixes(t, "a { position: sticky !important }", "a {\n  position: -webkit-sticky !important;\n  position: sticky !important;\n}\n")
 	expectPrintedWithAllPrefixes(t, "a { position: sticky }", "a {\n  position: -webkit-sticky;\n  position: sticky;\n}\n")
 	expectPrintedWithAllPrefixes(t, "a { tab-size: 2 }", "a {\n  -moz-tab-size: 2;\n  -o-tab-size: 2;\n  tab-size: 2;\n}\n")
+	expectPrintedWithAllPrefixes(t, "a { text-decoration-color: none }", "a {\n  -webkit-text-decoration-color: none;\n  -moz-text-decoration-color: none;\n  text-decoration-color: none;\n}\n")
+	expectPrintedWithAllPrefixes(t, "a { text-decoration-line: none }", "a {\n  -webkit-text-decoration-line: none;\n  -moz-text-decoration-line: none;\n  text-decoration-line: none;\n}\n")
 	expectPrintedWithAllPrefixes(t, "a { text-size-adjust: none }", "a {\n  -webkit-text-size-adjust: none;\n  -ms-text-size-adjust: none;\n  text-size-adjust: none;\n}\n")
 	expectPrintedWithAllPrefixes(t, "a { user-select: none }", "a {\n  -webkit-user-select: none;\n  -moz-user-select: -moz-none;\n  -ms-user-select: none;\n  user-select: none;\n}\n")
 

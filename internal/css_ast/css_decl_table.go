@@ -91,6 +91,7 @@ const (
 	DBorderTopWidth
 	DBorderWidth
 	DBottom
+	DBoxDecorationBreak
 	DBoxShadow
 	DBoxSizing
 	DBreakAfter
@@ -293,6 +294,7 @@ const (
 	DTextDecoration
 	DTextDecorationColor
 	DTextDecorationLine
+	DTextDecorationSkip
 	DTextDecorationStyle
 	DTextEmphasis
 	DTextEmphasisColor
@@ -416,6 +418,7 @@ var KnownDeclarations = map[string]D{
 	"border-top-width":            DBorderTopWidth,
 	"border-width":                DBorderWidth,
 	"bottom":                      DBottom,
+	"box-decoration-break":        DBoxDecorationBreak,
 	"box-shadow":                  DBoxShadow,
 	"box-sizing":                  DBoxSizing,
 	"break-after":                 DBreakAfter,
@@ -618,6 +621,7 @@ var KnownDeclarations = map[string]D{
 	"text-decoration":             DTextDecoration,
 	"text-decoration-color":       DTextDecorationColor,
 	"text-decoration-line":        DTextDecorationLine,
+	"text-decoration-skip":        DTextDecorationSkip,
 	"text-decoration-style":       DTextDecorationStyle,
 	"text-emphasis":               DTextEmphasis,
 	"text-emphasis-color":         DTextEmphasisColor,

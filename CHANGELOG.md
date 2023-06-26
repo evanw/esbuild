@@ -42,6 +42,7 @@
     * `appearance: *;` => `-webkit-appearance: *; -moz-appearance: *;`
     * `backdrop-filter: *;` => `-webkit-backdrop-filter: *;`
     * `background-clip: text` => `-webkit-background-clip: text;`
+    * `box-decoration-break: *;` => `-webkit-box-decoration-break: *;`
     * `clip-path: *` => `-webkit-clip-path: *;`
     * `font-kerning: *;` => `-webkit-font-kerning: *;`
     * `hyphens: *;` => `-webkit-hyphens: *;`
@@ -54,6 +55,12 @@
     * `position: sticky;` => `position: -webkit-sticky;`
     * `print-color-adjust: *;` => `-webkit-print-color-adjust: *;`
     * `tab-size: *;` => `-moz-tab-size: *; -o-tab-size: *;`
+    * `text-decoration-color: *;` => `-webkit-text-decoration-color: *; -moz-text-decoration-color: *;`
+    * `text-decoration-line: *;` => `-webkit-text-decoration-line: *; -moz-text-decoration-line: *;`
+    * `text-decoration-skip: *;` => `-webkit-text-decoration-skip: *;`
+    * `text-emphasis-color: *;` => `-webkit-text-emphasis-color: *;`
+    * `text-emphasis-position: *;` => `-webkit-text-emphasis-position: *;`
+    * `text-emphasis-style: *;` => `-webkit-text-emphasis-style: *;`
     * `text-orientation: *;` => `-webkit-text-orientation: *;`
     * `text-size-adjust: *;` => `-webkit-text-size-adjust: *; -ms-text-size-adjust: *;`
     * `user-select: *;` => `-webkit-user-select: *; -moz-user-select: *; -ms-user-select: *;`

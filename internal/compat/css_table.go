@@ -144,6 +144,12 @@ var cssMaskPrefixTable = map[Engine]prefixData{
 	Safari: {prefix: WebkitPrefix, withoutPrefix: v{15, 4, 0}},
 }
 
+var cssTextEmphasisTable = map[Engine]prefixData{
+	Chrome: {prefix: WebkitPrefix, withoutPrefix: v{99, 0, 0}},
+	Edge:   {prefix: WebkitPrefix, withoutPrefix: v{99, 0, 0}},
+	Opera:  {prefix: WebkitPrefix, withoutPrefix: v{85, 0, 0}},
+}
+
 var cssPrefixTable = map[css_ast.D]map[Engine]prefixData{
 	// https://caniuse.com/css-appearance
 	css_ast.DAppearance: {
@@ -168,6 +174,15 @@ var cssPrefixTable = map[css_ast.D]map[Engine]prefixData{
 		IOS:    {prefix: WebkitPrefix, withoutPrefix: v{14, 0, 0}},
 		Opera:  {prefix: WebkitPrefix},
 		Safari: {prefix: WebkitPrefix, withoutPrefix: v{14, 0, 0}},
+	},
+
+	// https://caniuse.com/css-boxdecorationbreak
+	css_ast.DBoxDecorationBreak: {
+		Chrome: {prefix: WebkitPrefix},
+		Edge:   {prefix: WebkitPrefix},
+		IOS:    {prefix: WebkitPrefix},
+		Opera:  {prefix: WebkitPrefix},
+		Safari: {prefix: WebkitPrefix},
 	},
 
 	// https://caniuse.com/css-clip-path
@@ -226,6 +241,30 @@ var cssPrefixTable = map[css_ast.D]map[Engine]prefixData{
 		Firefox: {prefix: MozPrefix, withoutPrefix: v{91, 0, 0}},
 		Opera:   {prefix: OPrefix, withoutPrefix: v{15, 0, 0}},
 	},
+
+	// https://caniuse.com/mdn-css_properties_text-decoration-color
+	css_ast.DTextDecorationColor: {
+		Firefox: {prefix: MozPrefix, withoutPrefix: v{36, 0, 0}},
+		IOS:     {prefix: WebkitPrefix, withoutPrefix: v{12, 2, 0}},
+		Safari:  {prefix: WebkitPrefix, withoutPrefix: v{12, 1, 0}},
+	},
+
+	// https://caniuse.com/mdn-css_properties_text-decoration-line
+	css_ast.DTextDecorationLine: {
+		Firefox: {prefix: MozPrefix, withoutPrefix: v{36, 0, 0}},
+		IOS:     {prefix: WebkitPrefix, withoutPrefix: v{12, 2, 0}},
+		Safari:  {prefix: WebkitPrefix, withoutPrefix: v{12, 1, 0}},
+	},
+
+	// https://caniuse.com/mdn-css_properties_text-decoration-skip
+	css_ast.DTextDecorationSkip: {
+		IOS:    {prefix: WebkitPrefix, withoutPrefix: v{12, 2, 0}},
+		Safari: {prefix: WebkitPrefix, withoutPrefix: v{12, 1, 0}},
+	},
+
+	css_ast.DTextEmphasisColor:    cssTextEmphasisTable, // https://caniuse.com/mdn-css_properties_text-emphasis-color
+	css_ast.DTextEmphasisPosition: cssTextEmphasisTable, // https://caniuse.com/mdn-css_properties_text-emphasis-position
+	css_ast.DTextEmphasisStyle:    cssTextEmphasisTable, // https://caniuse.com/mdn-css_properties_text-emphasis-style
 
 	// https://caniuse.com/css-text-orientation
 	css_ast.DTextOrientation: {
