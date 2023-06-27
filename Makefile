@@ -625,18 +625,11 @@ scripts/browser/node_modules:
 	cd scripts/browser && npm ci
 
 ################################################################################
-# This downloads the kangax compat-table and generates browser support mappings
+# This generates browser support mappings
 
-github/compat-table:
-	mkdir -p github/compat-table
-	git clone --depth 1 https://github.com/kangax/compat-table.git github/compat-table
-
-github/node-compat-table:
-	mkdir -p github/node-compat-table
-	git clone --depth 1 https://github.com/williamkapke/node-compat-table.git github/node-compat-table
-
-compat-table: | github/compat-table github/node-compat-table
-	node scripts/compat-table.js
+compat-table: esbuild
+	./esbuild compat-table/src/index.ts --bundle --platform=node --external:./compat-table/repos/* --outfile=compat-table/out.js --log-level=warning --sourcemap
+	node --enable-source-maps compat-table/out.js
 
 ################################################################################
 # This runs the test262 official JavaScript test suite through esbuild
