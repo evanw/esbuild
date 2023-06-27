@@ -665,12 +665,12 @@ import "github.com/evanw/esbuild/internal/compat"
 type EngineName uint8
 
 const (
-${engines.filter(x => x !== 'es').map((x, i) => `\tEngine${upper(x)}${i ? '' : ' EngineName = iota'}`).join('\n')}
+${engines.slice().sort().filter(x => x !== 'es').map((x, i) => `\tEngine${upper(x)}${i ? '' : ' EngineName = iota'}`).join('\n')}
 )
 
 func convertEngineName(engine EngineName) compat.Engine {
 \tswitch engine {
-${engines.filter(x => x !== 'es').map(x => `\tcase Engine${upper(x)}:\n\t\treturn compat.${upper(x)}`).join('\n')}
+${engines.slice().sort().filter(x => x !== 'es').map(x => `\tcase Engine${upper(x)}:\n\t\treturn compat.${upper(x)}`).join('\n')}
 \tdefault:
 \t\tpanic("Invalid engine name")
 \t}
