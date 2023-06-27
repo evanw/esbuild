@@ -4,6 +4,7 @@ import child_process = require('child_process')
 import fs = require('fs')
 import path = require('path')
 import { generateTableForJS } from './js_table'
+import * as caniuse from './caniuse'
 
 export type Engine = keyof typeof engines
 export const engines = {
@@ -104,6 +105,26 @@ const compareVersions = (a: number[], b: number[]): number => {
     }
   }
   return diff
+}
+
+const mergeSupportMaps = <F extends string>(to: SupportMap<F>, from: SupportMap<F>): void => {
+  for (const feature in from) {
+    const fromEngines = from[feature as F]
+    const toEngines = to[feature as F] || (to[feature as F] = {})
+
+    for (const engine in fromEngines) {
+      const fromVersions = fromEngines[engine as Engine]
+      const toVersions = toEngines[engine as Engine] || (toEngines[engine as Engine] = {})
+
+      for (const version in fromVersions) {
+        if (version in toVersions) {
+          throw new Error(`Merge conflict with feature=${feature} engine=${engine} version=${version}`)
+        }
+
+        toVersions[version] = fromVersions[version]
+      }
+    }
+  }
 }
 
 const supportMapToVersionRanges = <F extends string>(supportMap: SupportMap<F>): VersionRangeMap<F> => {
@@ -218,6 +239,9 @@ const updateGithubDependencies = (): void => {
 updateGithubDependencies()
 
 import('./kangax').then(({ js }) => {
+  // Merge data from https://caniuse.com into the JavaScript support map
+  mergeSupportMaps(js, caniuse.js)
+
   // ES5 features
   js.ObjectAccessors.ES = { 5: { force: true } }
   js.ObjectAccessors.Node = { '0.4': { force: true } } // "node-compat-table" doesn't appear to cover ES5 features...
@@ -313,14 +337,6 @@ import('./kangax').then(({ js }) => {
   js.TopLevelAwait.Node = { '14.8': { force: true } }
   js.TopLevelAwait.Opera = { 75: { force: true } }
   js.TopLevelAwait.Safari = { 15: { force: true } }
-
-  // Manually copied from https://caniuse.com/es6-module-dynamic-import
-  js.DynamicImport.Chrome = { 63: { force: true } }
-  js.DynamicImport.Edge = { 79: { force: true } }
-  js.DynamicImport.Firefox = { 67: { force: true } }
-  js.DynamicImport.IOS = { 11: { force: true } }
-  js.DynamicImport.Opera = { 50: { force: true } }
-  js.DynamicImport.Safari = { '11.1': { force: true } }
 
   // This is a problem specific to Internet Explorer. See https://github.com/tc39/ecma262/issues/1440
   for (const engine in engines) {

@@ -4,6 +4,8 @@
     "williamkapke/node-compat-table": "b11fbdb3e6c6d5fffbf4688d830c7453eb64cff7"
   },
   "dependencies": {
-    "@types/node": "20.3.2"
+    "@types/caniuse-lite": "1.0.1",
+    "@types/node": "20.3.2",
+    "caniuse-lite": "1.0.30001508"
   }
 }
