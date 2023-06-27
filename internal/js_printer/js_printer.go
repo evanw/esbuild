@@ -4390,7 +4390,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 				p.print(")")
 			}
 			p.printSpace()
-			p.printBlock(s.Catch.Loc, s.Catch.Block)
+			p.printBlock(s.Catch.BlockLoc, s.Catch.Block)
 		}
 
 		if s.Finally != nil {
