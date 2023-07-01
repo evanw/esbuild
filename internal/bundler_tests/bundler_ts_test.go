@@ -423,6 +423,47 @@ func TestTSExportNamespace(t *testing.T) {
 	})
 }
 
+func TestTSNamespaceKeepNames(t *testing.T) {
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				namespace ns {
+					export let foo = () => {}
+					export function bar() {}
+					export class Baz {}
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			KeepNames:     true,
+		},
+	})
+}
+
+func TestTSNamespaceKeepNamesTargetES2015(t *testing.T) {
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				namespace ns {
+					export let foo = () => {}
+					export function bar() {}
+					export class Baz {}
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:                  config.ModeBundle,
+			AbsOutputFile:         "/out.js",
+			KeepNames:             true,
+			UnsupportedJSFeatures: es(2015),
+		},
+	})
+}
+
 func TestTSMinifyEnum(t *testing.T) {
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{

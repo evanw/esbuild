@@ -1611,6 +1611,45 @@ function foo(){let u;return(n=>(n[n.A=0]="A",n[n.B=1]="B",n[n.C=n]="C"))(u||(u={
 export function foo(){let e;return(n=>(n[n.X=0]="X",n[n.Y=1]="Y",n[n.Z=n]="Z"))(e||(e={})),e}
 
 ================================================================================
+TestTSNamespaceKeepNames
+---------- /out.js ----------
+// entry.ts
+var ns;
+((ns2) => {
+  ns2.foo = /* @__PURE__ */ __name(() => {
+  }, "foo");
+  function bar() {
+  }
+  ns2.bar = bar;
+  __name(bar, "bar");
+  class Baz {
+    static {
+      __name(this, "Baz");
+    }
+  }
+  ns2.Baz = Baz;
+})(ns || (ns = {}));
+
+================================================================================
+TestTSNamespaceKeepNamesTargetES2015
+---------- /out.js ----------
+// entry.ts
+var ns;
+((ns2) => {
+  ns2.foo = /* @__PURE__ */ __name(() => {
+  }, "foo");
+  function bar() {
+  }
+  ns2.bar = bar;
+  __name(bar, "bar");
+  const _Baz = class _Baz {
+  };
+  __name(_Baz, "Baz");
+  let Baz = _Baz;
+  ns2.Baz = _Baz;
+})(ns || (ns = {}));
+
+================================================================================
 TestTSPreferJSOverTSInsideNodeModules
 ---------- /out/main.js ----------
 // Users/user/project/src/relative/path.ts

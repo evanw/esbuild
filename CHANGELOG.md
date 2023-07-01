@@ -1,5 +1,35 @@
 # Changelog
 
+## Unreleased
+
+* Fix a TypeScript code generation edge case ([#3199](https://github.com/evanw/esbuild/issues/3199))
+
+    This release fixes a regression in version 0.18.4 where using a TypeScript `namespace` that exports a `class` declaration combined with `--keep-names` and a `--target` of `es2021` or earlier could cause esbuild to export the class from the namespace using an incorrect name (notice the assignment to `X2._Y` vs. `X2.Y`):
+
+    ```ts
+    // Original code
+
+    // Old output (with --keep-names --target=es2021)
+    var X;
+    ((X2) => {
+      const _Y = class _Y {
+      };
+      __name(_Y, "Y");
+      let Y = _Y;
+      X2._Y = _Y;
+    })(X || (X = {}));
+
+    // New output (with --keep-names --target=es2021)
+    var X;
+    ((X2) => {
+      const _Y = class _Y {
+      };
+      __name(_Y, "Y");
+      let Y = _Y;
+      X2.Y = _Y;
+    })(X || (X = {}));
+    ```
+
 ## 0.18.10
 
 * Fix a tree-shaking bug that removed side effects ([#3195](https://github.com/evanw/esbuild/issues/3195))

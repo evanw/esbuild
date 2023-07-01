@@ -3628,6 +3628,20 @@ for (let flags of [[], ['--minify', '--keep-names']]) {
     test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
       'in.js': `(() => { let Foo = class { static foo() {} }; if (Foo.foo.name !== 'foo') throw 'fail: ' + Foo.foo.name })()`,
     }),
+
+    // See: https://github.com/evanw/esbuild/issues/3199
+    test(['in.ts', '--outfile=node.js', '--target=es6'].concat(flags), {
+      'in.ts': `
+        namespace foo { export class Foo {} }
+        if (foo.Foo.name !== 'Foo') throw 'fail: ' + foo.Foo.name
+      `,
+    }),
+    test(['in.ts', '--outfile=node.js', '--target=esnext'].concat(flags), {
+      'in.ts': `
+        namespace foo { export class Foo {} }
+        if (foo.Foo.name !== 'Foo') throw 'fail: ' + foo.Foo.name
+      `,
+    }),
   )
 }
 tests.push(

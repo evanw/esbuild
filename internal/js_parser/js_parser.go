@@ -10617,8 +10617,10 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		result := p.visitClass(stmt.Loc, &s.Class, js_ast.InvalidRef, "")
 
 		// Remove the export flag inside a namespace
+		var nameToExport string
 		wasExportInsideNamespace := s.IsExport && p.enclosingNamespaceArgRef != nil
 		if wasExportInsideNamespace {
+			nameToExport = p.symbols[s.Class.Name.Ref.InnerIndex].OriginalName
 			s.IsExport = false
 		}
 
@@ -10641,7 +10643,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			stmts = append(stmts, js_ast.AssignStmt(
 				js_ast.Expr{Loc: stmt.Loc, Data: p.dotOrMangledPropVisit(
 					js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: *p.enclosingNamespaceArgRef}},
-					p.symbols[s.Class.Name.Ref.InnerIndex].OriginalName,
+					nameToExport,
 					s.Class.Name.Loc,
 				)},
 				js_ast.Expr{Loc: s.Class.Name.Loc, Data: &js_ast.EIdentifier{Ref: s.Class.Name.Ref}},
