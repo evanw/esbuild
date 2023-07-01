@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.18.11
 
 * Fix a TypeScript code generation edge case ([#3199](https://github.com/evanw/esbuild/issues/3199))
 
