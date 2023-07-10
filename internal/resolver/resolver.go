@@ -2297,53 +2297,55 @@ func (r resolverQuery) finalizeImportsExportsResult(
 
 			if resolvedDirInfo == nil {
 				status = pjStatusModuleNotFound
-			} else if entry, diffCase := resolvedDirInfo.entries.Get(base); entry == nil {
-				endsWithStar := status == pjStatusExactEndsWithStar
-				status = pjStatusModuleNotFound
+			} else {
+				if entry, diffCase := resolvedDirInfo.entries.Get(base); entry == nil {
+					endsWithStar := status == pjStatusExactEndsWithStar
+					status = pjStatusModuleNotFound
 
-				// Try to have a friendly error message if people forget the extension
-				if endsWithStar {
-					for _, ext := range extensionOrder {
-						if entry, _ := resolvedDirInfo.entries.Get(base + ext); entry != nil {
-							if r.debugLogs != nil {
-								r.debugLogs.addNote(fmt.Sprintf("The import %q is missing the extension %q", path.Join(esmPackageName, esmPackageSubpath), ext))
-							}
-							status = pjStatusModuleNotFoundMissingExtension
-							missingSuffix = ext
-							break
-						}
-					}
-				}
-			} else if kind := entry.Kind(r.fs); kind == fs.DirEntry {
-				if r.debugLogs != nil {
-					r.debugLogs.addNote(fmt.Sprintf("The path %q is a directory, which is not allowed", absResolvedPath))
-				}
-				endsWithStar := status == pjStatusExactEndsWithStar
-				status = pjStatusUnsupportedDirectoryImport
-
-				// Try to have a friendly error message if people forget the "/index.js" suffix
-				if endsWithStar {
-					if resolvedDirInfo := r.dirInfoCached(absResolvedPath); resolvedDirInfo != nil {
+					// Try to have a friendly error message if people forget the extension
+					if endsWithStar {
 						for _, ext := range extensionOrder {
-							base := "index" + ext
-							if entry, _ := resolvedDirInfo.entries.Get(base); entry != nil && entry.Kind(r.fs) == fs.FileEntry {
-								status = pjStatusUnsupportedDirectoryImportMissingIndex
-								missingSuffix = "/" + base
+							if entry, _ := resolvedDirInfo.entries.Get(base + ext); entry != nil {
 								if r.debugLogs != nil {
-									r.debugLogs.addNote(fmt.Sprintf("The import %q is missing the suffix %q", path.Join(esmPackageName, esmPackageSubpath), missingSuffix))
+									r.debugLogs.addNote(fmt.Sprintf("The import %q is missing the extension %q", path.Join(esmPackageName, esmPackageSubpath), ext))
 								}
+								status = pjStatusModuleNotFoundMissingExtension
+								missingSuffix = ext
 								break
 							}
 						}
 					}
+				} else if kind := entry.Kind(r.fs); kind == fs.DirEntry {
+					if r.debugLogs != nil {
+						r.debugLogs.addNote(fmt.Sprintf("The path %q is a directory, which is not allowed", absResolvedPath))
+					}
+					endsWithStar := status == pjStatusExactEndsWithStar
+					status = pjStatusUnsupportedDirectoryImport
+
+					// Try to have a friendly error message if people forget the "/index.js" suffix
+					if endsWithStar {
+						if resolvedDirInfo := r.dirInfoCached(absResolvedPath); resolvedDirInfo != nil {
+							for _, ext := range extensionOrder {
+								base := "index" + ext
+								if entry, _ := resolvedDirInfo.entries.Get(base); entry != nil && entry.Kind(r.fs) == fs.FileEntry {
+									status = pjStatusUnsupportedDirectoryImportMissingIndex
+									missingSuffix = "/" + base
+									if r.debugLogs != nil {
+										r.debugLogs.addNote(fmt.Sprintf("The import %q is missing the suffix %q", path.Join(esmPackageName, esmPackageSubpath), missingSuffix))
+									}
+									break
+								}
+							}
+						}
+					}
+				} else if kind != fs.FileEntry {
+					status = pjStatusModuleNotFound
+				} else {
+					if r.debugLogs != nil {
+						r.debugLogs.addNote(fmt.Sprintf("Resolved to %q", absResolvedPath))
+					}
+					return PathPair{Primary: logger.Path{Text: absResolvedPath, Namespace: "file"}}, true, diffCase
 				}
-			} else if kind != fs.FileEntry {
-				status = pjStatusModuleNotFound
-			} else {
-				if r.debugLogs != nil {
-					r.debugLogs.addNote(fmt.Sprintf("Resolved to %q", absResolvedPath))
-				}
-				return PathPair{Primary: logger.Path{Text: absResolvedPath, Namespace: "file"}}, true, diffCase
 			}
 
 		case pjStatusInexact:
