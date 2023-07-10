@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix a redirect edge case in esbuild's development server ([#3208](https://github.com/evanw/esbuild/issues/3208))
+
+    The development server canonicalizes directory URLs by adding a trailing slash. For example, visiting `/about` redirects to `/about/` if `/about/index.html` would be served. However, if the requested path begins with two slashes, then the redirect incorrectly turned into a protocol-relative URL. For example, visiting `//about` redirected to `//about/` which the browser turns into `http://about/`. This release fixes the bug by canonicalizing the URL path when doing this redirect.
+
 ## 0.18.11
 
 * Fix a TypeScript code generation edge case ([#3199](https://github.com/evanw/esbuild/issues/3199))

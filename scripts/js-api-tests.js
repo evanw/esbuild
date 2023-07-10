@@ -3801,6 +3801,15 @@ function fetchHTTPS(host, port, path, { certfile }) {
   })
 }
 
+function partialFetch(host, port, path, { headers, method = 'GET' } = {}) {
+  return new Promise((resolve, reject) => {
+    http.request({ method, host, port, path, headers }, res => {
+      resolve(res)
+      res.socket.destroy()
+    }).on('error', reject).end()
+  })
+}
+
 const makeEventStream = (host, port, path) => {
   return new Promise((resolve, reject) => {
     const headers = {
@@ -4351,6 +4360,85 @@ let serveTests = {
       assert.strictEqual(singleRequest.status, 200);
       assert.strictEqual(typeof singleRequest.remoteAddress, 'string');
       assert.strictEqual(typeof singleRequest.timeInMS, 'number');
+    } finally {
+      await context.dispose();
+    }
+  },
+
+  async serveSlashRedirect({ esbuild, testDir }) {
+    const nestedDir = path.join(testDir, 'nested', 'dir')
+    const index = path.join(nestedDir, 'index.html')
+    await mkdirAsync(nestedDir, { recursive: true })
+    await writeFileAsync(index, `<!doctype html>`)
+
+    const context = await esbuild.context({});
+    try {
+      const result = await context.serve({
+        host: '127.0.0.1',
+        servedir: testDir,
+      })
+      assert.strictEqual(result.host, '127.0.0.1');
+      assert.strictEqual(typeof result.port, 'number');
+
+      // With a trailing slash
+      {
+        const buffer = await fetch(result.host, result.port, '/nested/dir/index.html')
+        assert.strictEqual(buffer.toString(), `<!doctype html>`)
+      }
+      {
+        const buffer = await fetch(result.host, result.port, '/nested/dir/')
+        assert.strictEqual(buffer.toString(), `<!doctype html>`)
+      }
+      {
+        const buffer = await fetch(result.host, result.port, '/nested/./dir/')
+        assert.strictEqual(buffer.toString(), `<!doctype html>`)
+      }
+      {
+        const buffer = await fetch(result.host, result.port, '/./nested/./dir/./')
+        assert.strictEqual(buffer.toString(), `<!doctype html>`)
+      }
+      {
+        const buffer = await fetch(result.host, result.port, '/nested/dir//')
+        assert.strictEqual(buffer.toString(), `<!doctype html>`)
+      }
+      {
+        const buffer = await fetch(result.host, result.port, '/nested//dir/')
+        assert.strictEqual(buffer.toString(), `<!doctype html>`)
+      }
+
+      // Without a trailing slash
+      {
+        const res = await partialFetch(result.host, result.port, '/nested')
+        assert.strictEqual(res.statusCode, 302)
+        assert.strictEqual(res.headers.location, '/nested/')
+      }
+      {
+        const res = await partialFetch(result.host, result.port, '/nested/dir')
+        assert.strictEqual(res.statusCode, 302)
+        assert.strictEqual(res.headers.location, '/nested/dir/')
+      }
+      {
+        const res = await partialFetch(result.host, result.port, '/nested//dir')
+        assert.strictEqual(res.statusCode, 302)
+        assert.strictEqual(res.headers.location, '/nested/dir/')
+      }
+
+      // With leading double slashes (looks like a protocol-relative URL)
+      {
+        const res = await partialFetch(result.host, result.port, '//nested')
+        assert.strictEqual(res.statusCode, 302)
+        assert.strictEqual(res.headers.location, '/nested/')
+      }
+      {
+        const res = await partialFetch(result.host, result.port, '//nested/dir')
+        assert.strictEqual(res.statusCode, 302)
+        assert.strictEqual(res.headers.location, '/nested/dir/')
+      }
+      {
+        const res = await partialFetch(result.host, result.port, '//nested//dir')
+        assert.strictEqual(res.statusCode, 302)
+        assert.strictEqual(res.headers.location, '/nested/dir/')
+      }
     } finally {
       await context.dispose();
     }

@@ -222,7 +222,7 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 
 		// Redirect to a trailing slash for directories
 		if kind == fs.DirEntry && !strings.HasSuffix(req.URL.Path, "/") {
-			res.Header().Set("Location", req.URL.Path+"/")
+			res.Header().Set("Location", path.Clean(req.URL.Path)+"/")
 			go h.notifyRequest(time.Since(start), req, http.StatusFound)
 			res.WriteHeader(http.StatusFound)
 			maybeWriteResponseBody(nil)
