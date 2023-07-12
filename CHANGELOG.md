@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+* Allow a newline in the middle of TypeScript `export type` statement ([#3225](https://github.com/evanw/esbuild/issues/3225))
+
+    Previously esbuild incorrectly rejected the following valid TypeScript code:
+
+    ```ts
+    export type
+    { T };
+
+    export type
+    * as foo from 'bar';
+    ```
+
+    Code that uses a newline after `export type` is now allowed starting with this release.
+
 * Rewrite `.js` to `.ts` inside packages with `exports` ([#3201](https://github.com/evanw/esbuild/issues/3201))
 
     Packages with the `exports` field are supposed to disable node's path resolution behavior that allows you to import a file with a different extension than the one in the source code (for example, importing `foo/bar` to get `foo/bar.js`). And TypeScript has behavior where you can import a non-existent `.js` file and you will get the `.ts` file instead. Previously the presence of the `exports` field caused esbuild to disable all extension manipulation stuff which included both node's implicit file extension searching and TypeScript's file extension swapping. However, TypeScript appears to always apply file extension swapping even in this case. So with this release, esbuild will now rewrite `.js` to `.ts` even inside packages with `exports`.

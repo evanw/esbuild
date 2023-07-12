@@ -6766,7 +6766,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 					// "export type foo = ..."
 					typeRange := p.lexer.Range()
 					p.lexer.Next()
-					if p.lexer.HasNewlineBefore {
+					if p.lexer.HasNewlineBefore && p.lexer.Token != js_lexer.TOpenBrace && p.lexer.Token != js_lexer.TAsterisk {
 						p.log.AddError(&p.tracker, logger.Range{Loc: logger.Loc{Start: typeRange.End()}},
 							"Unexpected newline after \"type\"")
 						panic(js_lexer.LexerPanic{})
