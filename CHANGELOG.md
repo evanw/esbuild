@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+* Fix a panic with `const enum` inside parentheses ([#3205](https://github.com/evanw/esbuild/issues/3205))
+
+    This release fixes an edge case where esbuild could potentially panic if a TypeScript `const enum` statement was used inside of a parenthesized expression and was followed by certain other scope-related statements. Here's a minimal example that triggers this edge case:
+
+    ```ts
+    (() => {
+      const enum E { a };
+      () => E.a
+    })
+    ```
+
 * Allow a newline in the middle of TypeScript `export type` statement ([#3225](https://github.com/evanw/esbuild/issues/3225))
 
     Previously esbuild incorrectly rejected the following valid TypeScript code:

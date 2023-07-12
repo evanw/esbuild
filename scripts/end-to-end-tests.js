@@ -144,6 +144,18 @@ tests.push(
       if (foo !== 1 || bar !== 3) throw 'fail'
     `,
   }),
+
+  // https://github.com/evanw/esbuild/issues/3205
+  test(['entry.ts', '--outfile=node.js'], {
+    'entry.ts': `
+      // Note: The parentheses are important here
+      let x = (() => {
+        const enum E { a = 123 }
+        return () => E.a
+      })
+      if (x()() !== 123) throw 'fail'
+    `,
+  }),
 )
 
 // Check "tsconfig.json" behavior

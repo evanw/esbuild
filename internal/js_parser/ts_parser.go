@@ -1427,7 +1427,10 @@ func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) js_
 	if p.scopesInOrderForEnum == nil {
 		p.scopesInOrderForEnum = make(map[logger.Loc][]scopeOrder)
 	}
-	p.scopesInOrderForEnum[loc] = p.scopesInOrder[scopeIndex:]
+
+	// Make a copy of "scopesInOrder" instead of a slice since the original
+	// array may be flattened in the future by "popAndFlattenScope"
+	p.scopesInOrderForEnum[loc] = append([]scopeOrder{}, p.scopesInOrder[scopeIndex:]...)
 
 	return js_ast.Stmt{Loc: loc, Data: &js_ast.SEnum{
 		Name:     name,

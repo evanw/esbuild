@@ -1601,6 +1601,16 @@ var Foo = /* @__PURE__ */ ((Foo) => {
 })(Foo || {});
 bar = 0 /* FOO */;
 `)
+
+	// https://github.com/evanw/esbuild/issues/3205
+	expectPrintedTS(t, "(() => { const enum Foo { A } () => Foo.A })", `() => {
+  let Foo;
+  ((Foo) => {
+    Foo[Foo["A"] = 0] = "A";
+  })(Foo || (Foo = {}));
+  () => 0 /* A */;
+};
+`)
 }
 
 func TestTSEnumConstantFolding(t *testing.T) {
