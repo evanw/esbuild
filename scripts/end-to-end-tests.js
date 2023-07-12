@@ -70,8 +70,9 @@ tests.push(
   }),
 )
 
-// Test TypeScript enum scope merging
+// Test TypeScript enum stuff
 tests.push(
+  // Scope merging
   test(['entry.ts', '--bundle', '--minify', '--outfile=node.js'], {
     'entry.ts': `
       const id = x => x
@@ -154,6 +155,28 @@ tests.push(
         return () => E.a
       })
       if (x()() !== 123) throw 'fail'
+    `,
+  }),
+
+  // https://github.com/evanw/esbuild/issues/3210
+  test(['entry.ts', '--bundle', '--outfile=node.js'], {
+    'entry.ts': `
+      import { MyEnum } from './enums';
+      enum MyEnum2 {
+        'A.A' = 'a',
+        'aa' = 'aa',
+      }
+      if (
+        MyEnum['A.A'] !== 'a' || MyEnum2['A.A'] !== 'a' ||
+        MyEnum.aa !== 'aa' || MyEnum2['aa'] !== 'aa' ||
+        MyEnum['aa'] !== 'aa' || MyEnum2.aa !== 'aa'
+      ) throw 'fail'
+    `,
+    'enums.ts': `
+      export enum MyEnum {
+        'A.A' = 'a',
+        'aa' = 'aa',
+      }
     `,
   }),
 )

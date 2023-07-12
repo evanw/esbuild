@@ -2094,18 +2094,35 @@ func TestTSEnumSameModuleInliningAccess(t *testing.T) {
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
-				enum a { x = 123 }
-				enum b { x = 123 }
-				enum c { x = 123 }
-				enum d { x = 123 }
-				enum e { x = 123 }
-				console.log([
-					a.x,
-					b['x'],
-					c?.x,
-					d?.['x'],
-					e,
-				])
+				enum a_num { x = 123 }
+				enum b_num { x = 123 }
+				enum c_num { x = 123 }
+				enum d_num { x = 123 }
+				enum e_num { x = 123 }
+
+				enum a_str { x = 'abc' }
+				enum b_str { x = 'abc' }
+				enum c_str { x = 'abc' }
+				enum d_str { x = 'abc' }
+				enum e_str { x = 'abc' }
+
+				inlined = [
+					a_num.x,
+					b_num['x'],
+
+					a_str.x,
+					b_str['x'],
+				]
+
+				not_inlined = [
+					c_num?.x,
+					d_num?.['x'],
+					e_num,
+
+					c_str?.x,
+					d_str?.['x'],
+					e_str,
+				]
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},
@@ -2120,21 +2137,41 @@ func TestTSEnumCrossModuleInliningAccess(t *testing.T) {
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
-				import { a, b, c, d, e } from './enums'
-				console.log([
-					a.x,
-					b['x'],
-					c?.x,
-					d?.['x'],
-					e,
-				])
+				import {
+					a_num, b_num, c_num, d_num, e_num,
+					a_str, b_str, c_str, d_str, e_str,
+				} from './enums'
+
+				inlined = [
+					a_num.x,
+					b_num['x'],
+
+					a_str.x,
+					b_str['x'],
+				]
+
+				not_inlined = [
+					c_num?.x,
+					d_num?.['x'],
+					e_num,
+
+					c_str?.x,
+					d_str?.['x'],
+					e_str,
+				]
 			`,
 			"/enums.ts": `
-				export enum a { x = 123 }
-				export enum b { x = 123 }
-				export enum c { x = 123 }
-				export enum d { x = 123 }
-				export enum e { x = 123 }
+				export enum a_num { x = 123 }
+				export enum b_num { x = 123 }
+				export enum c_num { x = 123 }
+				export enum d_num { x = 123 }
+				export enum e_num { x = 123 }
+
+				export enum a_str { x = 'abc' }
+				export enum b_str { x = 'abc' }
+				export enum c_str { x = 'abc' }
+				export enum d_str { x = 'abc' }
+				export enum e_str { x = 'abc' }
 			`,
 		},
 		entryPaths: []string{"/entry.ts"},

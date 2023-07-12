@@ -2516,7 +2516,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 
 			// Inline cross-module TypeScript enum references here
 			if index, ok := e.Index.Data.(*js_ast.EString); ok {
-				if value, name, ok := p.tryToGetImportedEnumValueUTF16(e.Target, index.Value); ok && value.String == nil {
+				if value, name, ok := p.tryToGetImportedEnumValueUTF16(e.Target, index.Value); ok {
 					if value.String != nil {
 						p.printQuotedUTF16(value.String, true /* allowBacktick */)
 					} else {
