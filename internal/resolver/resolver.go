@@ -1467,6 +1467,21 @@ func (r resolverQuery) dirInfoUncached(path string) *dirInfo {
 	return info
 }
 
+// TypeScript-specific behavior: if the extension is ".js" or ".jsx", try
+// replacing it with ".ts" or ".tsx". At the time of writing this specific
+// behavior comes from the function "loadModuleFromFile()" in the file
+// "moduleNameResolver.ts" in the TypeScript compiler source code. It
+// contains this comment:
+//
+//	If that didn't work, try stripping a ".js" or ".jsx" extension and
+//	replacing it with a TypeScript one; e.g. "./foo.js" can be matched
+//	by "./foo.ts" or "./foo.d.ts"
+//
+// We don't care about ".d.ts" files because we can't do anything with
+// those, so we ignore that part of the behavior.
+//
+// See the discussion here for more historical context:
+// https://github.com/microsoft/TypeScript/issues/4595
 var rewrittenFileExtensions = map[string][]string{
 	// Note that the official compiler code always tries ".ts" before
 	// ".tsx" even if the original extension was ".jsx".
@@ -1572,21 +1587,7 @@ func (r resolverQuery) loadAsFile(path string, extensionOrder []string) (string,
 		}
 	}
 
-	// TypeScript-specific behavior: if the extension is ".js" or ".jsx", try
-	// replacing it with ".ts" or ".tsx". At the time of writing this specific
-	// behavior comes from the function "loadModuleFromFile()" in the file
-	// "moduleNameResolver.ts" in the TypeScript compiler source code. It
-	// contains this comment:
-	//
-	//   If that didn't work, try stripping a ".js" or ".jsx" extension and
-	//   replacing it with a TypeScript one; e.g. "./foo.js" can be matched
-	//   by "./foo.ts" or "./foo.d.ts"
-	//
-	// We don't care about ".d.ts" files because we can't do anything with
-	// those, so we ignore that part of the behavior.
-	//
-	// See the discussion here for more historical context:
-	// https://github.com/microsoft/TypeScript/issues/4595
+	// TypeScript-specific behavior: try rewriting ".js" to ".ts"
 	for old, exts := range rewrittenFileExtensions {
 		if !strings.HasSuffix(base, old) {
 			continue
@@ -2298,7 +2299,28 @@ func (r resolverQuery) finalizeImportsExportsResult(
 			if resolvedDirInfo == nil {
 				status = pjStatusModuleNotFound
 			} else {
-				if entry, diffCase := resolvedDirInfo.entries.Get(base); entry == nil {
+				entry, diffCase := resolvedDirInfo.entries.Get(base)
+
+				// TypeScript-specific behavior: try rewriting ".js" to ".ts"
+				if entry == nil {
+					for old, exts := range rewrittenFileExtensions {
+						if !strings.HasSuffix(base, old) {
+							continue
+						}
+						lastDot := strings.LastIndexByte(base, '.')
+						for _, ext := range exts {
+							baseWithExt := base[:lastDot] + ext
+							entry, diffCase = resolvedDirInfo.entries.Get(baseWithExt)
+							if entry != nil {
+								absResolvedPath = r.fs.Join(resolvedDirInfo.absPath, baseWithExt)
+								break
+							}
+						}
+						break
+					}
+				}
+
+				if entry == nil {
 					endsWithStar := status == pjStatusExactEndsWithStar
 					status = pjStatusModuleNotFound
 
