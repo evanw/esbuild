@@ -5,6 +5,7 @@ import fs = require('fs')
 import path = require('path')
 import { generateTableForJS } from './js_table'
 import * as caniuse from './caniuse'
+import * as mdn from './mdn'
 
 export type Engine = keyof typeof engines
 export const engines = {
@@ -242,6 +243,9 @@ import('./kangax').then(({ js }) => {
   // Merge data from https://caniuse.com into the JavaScript support map
   mergeSupportMaps(js, caniuse.js)
 
+  // Merge data from the Mozilla Developer Network into the JavaScript support map
+  mergeSupportMaps(js, mdn.js)
+
   // ES5 features
   js.ObjectAccessors.ES = { 5: { force: true } }
   js.ObjectAccessors.Node = { '0.4': { force: true } } // "node-compat-table" doesn't appear to cover ES5 features...
@@ -284,6 +288,7 @@ import('./kangax').then(({ js }) => {
 
   // ES2020 features
   js.Bigint.ES = { 2020: { force: true } }
+  js.ExportStarAs.ES = { 2020: { force: true } }
   js.ImportMeta.ES = { 2020: { force: true } }
   js.NullishCoalescing.ES = { 2020: { force: true } }
   js.OptionalChain.ES = { 2020: { force: true } }
@@ -306,37 +311,6 @@ import('./kangax').then(({ js }) => {
   js.TopLevelAwait.ES = { 2022: { force: true } }
   js.ArbitraryModuleNamespaceNames.ES = { 2022: { force: true } }
   js.RegexpMatchIndices.ES = { 2022: { force: true } }
-
-  // Manually copied from https://caniuse.com/?search=export%20*%20as
-  {
-    js.ExportStarAs.Chrome = { 72: { force: true } }
-    js.ExportStarAs.Edge = { 79: { force: true } }
-    js.ExportStarAs.ES = { 2020: { force: true } }
-    js.ExportStarAs.Firefox = { 80: { force: true } }
-    js.ExportStarAs.Node = { 12: { force: true } } // From https://developer.mozilla.org/en-US/docs/web/javascript/reference/statements/export
-    js.ExportStarAs.Opera = { 60: { force: true } }
-
-    // This feature has been implemented in Safari but I have no idea what version
-    // this bug corresponds to: https://bugs.webkit.org/show_bug.cgi?id=214379
-  }
-
-  // Manually copied from https://caniuse.com/#search=import.meta
-  js.ImportMeta.Chrome = { 64: { force: true } }
-  js.ImportMeta.Edge = { 79: { force: true } }
-  js.ImportMeta.Firefox = { 62: { force: true } }
-  js.ImportMeta.IOS = { 12: { force: true } }
-  js.ImportMeta.Node = { '10.4': { force: true } } // From https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/import.meta
-  js.ImportMeta.Opera = { 51: { force: true } }
-  js.ImportMeta.Safari = { '11.1': { force: true } }
-
-  // Manually copied from https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/await
-  js.TopLevelAwait.Chrome = { 89: { force: true } }
-  js.TopLevelAwait.Edge = { 89: { force: true } }
-  js.TopLevelAwait.Firefox = { 89: { force: true } }
-  js.TopLevelAwait.IOS = { 15: { force: true } }
-  js.TopLevelAwait.Node = { '14.8': { force: true } }
-  js.TopLevelAwait.Opera = { 75: { force: true } }
-  js.TopLevelAwait.Safari = { 15: { force: true } }
 
   // This is a problem specific to Internet Explorer. See https://github.com/tc39/ecma262/issues/1440
   for (const engine in engines) {
@@ -420,31 +394,18 @@ import('./kangax').then(({ js }) => {
     // this bug corresponds to: https://bugs.webkit.org/show_bug.cgi?id=217576
   }
 
-  // Import assertions
+  // Import assertions (note: these were removed from the JavaScript specification and never standardized)
   {
-    // From https://www.chromestatus.com/feature/5765269513306112
-    js.ImportAssertions.Chrome = { 91: { force: true } }
-
     // From https://github.com/nodejs/node/blob/master/doc/changelogs/CHANGELOG_V16.md#16.14.0
     js.ImportAssertions.Node = { '16.14': { force: true } }
 
-    // Not yet in Firefox: https://bugzilla.mozilla.org/show_bug.cgi?id=1736059
+    // MDN data is wrong here: https://bugs.webkit.org/show_bug.cgi?id=251600
+    delete js.ImportAssertions.IOS
+    delete js.ImportAssertions.Safari
   }
 
-  // Manually copied from https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Classes/Class_static_initialization_blocks
-  js.ClassStaticBlocks.Chrome = { 91: { force: true } } // From https://www.chromestatus.com/feature/6482797915013120
-  js.ClassStaticBlocks.Edge = { 94: { force: true } }
-  js.ClassStaticBlocks.Firefox = { 93: { force: true } }
-  js.ClassStaticBlocks.Node = { '16.11': { force: true } }
-  js.ClassStaticBlocks.Opera = { 80: { force: true } }
-
-  // Manually copied from https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/RegExp/hasIndices
-  js.RegexpMatchIndices.Chrome = { 90: { force: true } }
-  js.RegexpMatchIndices.Edge = { 90: { force: true } }
-  js.RegexpMatchIndices.Firefox = { 88: { force: true } }
-  js.RegexpMatchIndices.IOS = { 15: { force: true } }
-  js.RegexpMatchIndices.Opera = { 76: { force: true } }
-  js.RegexpMatchIndices.Safari = { 15: { force: true } }
+  // MDN data is wrong here: https://www.chromestatus.com/feature/6482797915013120
+  js.ClassStaticBlocks.Chrome = { 91: { force: true } }
 
   const jsVersionRanges = supportMapToVersionRanges(js)
   generateTableForJS(jsVersionRanges)

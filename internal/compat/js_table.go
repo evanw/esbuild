@@ -351,11 +351,14 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	ClassStaticBlocks: {
 		Chrome:  {{start: v{91, 0, 0}}},
+		Deno:    {{start: v{1, 14, 0}}},
 		Edge:    {{start: v{94, 0, 0}}},
 		ES:      {{start: v{2022, 0, 0}}},
 		Firefox: {{start: v{93, 0, 0}}},
+		IOS:     {{start: v{16, 4, 0}}},
 		Node:    {{start: v{16, 11, 0}}},
 		Opera:   {{start: v{80, 0, 0}}},
+		Safari:  {{start: v{16, 4, 0}}},
 	},
 	ClassStaticField: {
 		Chrome:  {{start: v{73, 0, 0}}},
@@ -427,11 +430,14 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	ExportStarAs: {
 		Chrome:  {{start: v{72, 0, 0}}},
+		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{79, 0, 0}}},
 		ES:      {{start: v{2020, 0, 0}}},
 		Firefox: {{start: v{80, 0, 0}}},
-		Node:    {{start: v{12, 0, 0}}},
+		IOS:     {{start: v{14, 5, 0}}},
+		Node:    {{start: v{13, 2, 0}}},
 		Opera:   {{start: v{60, 0, 0}}},
+		Safari:  {{start: v{14, 1, 0}}},
 	},
 	ForAwait: {
 		Chrome:  {{start: v{63, 0, 0}}},
@@ -494,10 +500,13 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	ImportAssertions: {
 		Chrome: {{start: v{91, 0, 0}}},
+		Deno:   {{start: v{1, 17, 0}}},
+		Edge:   {{start: v{91, 0, 0}}},
 		Node:   {{start: v{16, 14, 0}}},
 	},
 	ImportMeta: {
 		Chrome:  {{start: v{64, 0, 0}}},
+		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{79, 0, 0}}},
 		ES:      {{start: v{2020, 0, 0}}},
 		Firefox: {{start: v{62, 0, 0}}},
@@ -649,10 +658,12 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	RegexpMatchIndices: {
 		Chrome:  {{start: v{90, 0, 0}}},
+		Deno:    {{start: v{1, 8, 0}}},
 		Edge:    {{start: v{90, 0, 0}}},
 		ES:      {{start: v{2022, 0, 0}}},
 		Firefox: {{start: v{88, 0, 0}}},
 		IOS:     {{start: v{15, 0, 0}}},
+		Node:    {{start: v{16, 0, 0}}},
 		Opera:   {{start: v{76, 0, 0}}},
 		Safari:  {{start: v{15, 0, 0}}},
 	},
@@ -715,6 +726,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	TopLevelAwait: {
 		Chrome:  {{start: v{89, 0, 0}}},
+		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{89, 0, 0}}},
 		ES:      {{start: v{2022, 0, 0}}},
 		Firefox: {{start: v{89, 0, 0}}},
