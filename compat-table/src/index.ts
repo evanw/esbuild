@@ -1,4 +1,5 @@
 // Run "make compat-table" to run this code
+// Run "make update-compat-table" to update the data sources
 
 import child_process = require('child_process')
 import fs = require('fs')
@@ -237,7 +238,9 @@ const updateGithubDependencies = (): void => {
   fs.writeFileSync(jsonPath, JSON.stringify(jsonData, null, 2) + '\n')
 }
 
-updateGithubDependencies()
+if (process.argv.includes('--update')) {
+  updateGithubDependencies()
+}
 
 import('./kangax').then(({ js }) => {
   // Merge data from https://caniuse.com into the JavaScript support map
