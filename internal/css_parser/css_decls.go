@@ -246,6 +246,9 @@ func (p *parser) processDeclarations(rules []css_ast.Rule) (rewrittenRules []css
 			if (prefixes & compat.WebkitPrefix) != 0 {
 				rewrittenRules = p.insertPrefixedDeclaration(rewrittenRules, "-webkit-", rule.Loc, decl)
 			}
+			if (prefixes & compat.KhtmlPrefix) != 0 {
+				rewrittenRules = p.insertPrefixedDeclaration(rewrittenRules, "-khtml-", rule.Loc, decl)
+			}
 			if (prefixes & compat.MozPrefix) != 0 {
 				rewrittenRules = p.insertPrefixedDeclaration(rewrittenRules, "-moz-", rule.Loc, decl)
 			}

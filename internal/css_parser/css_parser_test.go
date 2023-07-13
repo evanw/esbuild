@@ -2175,8 +2175,8 @@ func TestPrefixInsertion(t *testing.T) {
 	// Special-case tests
 	expectPrintedWithAllPrefixes(t, "a { appearance: none }", "a {\n  -webkit-appearance: none;\n  -moz-appearance: none;\n  appearance: none;\n}\n")
 	expectPrintedWithAllPrefixes(t, "a { background-clip: not-text }", "a {\n  background-clip: not-text;\n}\n")
-	expectPrintedWithAllPrefixes(t, "a { background-clip: text !important }", "a {\n  -webkit-background-clip: text !important;\n  background-clip: text !important;\n}\n")
-	expectPrintedWithAllPrefixes(t, "a { background-clip: text }", "a {\n  -webkit-background-clip: text;\n  background-clip: text;\n}\n")
+	expectPrintedWithAllPrefixes(t, "a { background-clip: text !important }", "a {\n  -webkit-background-clip: text !important;\n  -ms-background-clip: text !important;\n  background-clip: text !important;\n}\n")
+	expectPrintedWithAllPrefixes(t, "a { background-clip: text }", "a {\n  -webkit-background-clip: text;\n  -ms-background-clip: text;\n  background-clip: text;\n}\n")
 	expectPrintedWithAllPrefixes(t, "a { hyphens: auto }", "a {\n  -webkit-hyphens: auto;\n  -moz-hyphens: auto;\n  -ms-hyphens: auto;\n  hyphens: auto;\n}\n")
 	expectPrintedWithAllPrefixes(t, "a { position: absolute }", "a {\n  position: absolute;\n}\n")
 	expectPrintedWithAllPrefixes(t, "a { position: sticky !important }", "a {\n  position: -webkit-sticky !important;\n  position: sticky !important;\n}\n")
@@ -2185,7 +2185,7 @@ func TestPrefixInsertion(t *testing.T) {
 	expectPrintedWithAllPrefixes(t, "a { text-decoration-color: none }", "a {\n  -webkit-text-decoration-color: none;\n  -moz-text-decoration-color: none;\n  text-decoration-color: none;\n}\n")
 	expectPrintedWithAllPrefixes(t, "a { text-decoration-line: none }", "a {\n  -webkit-text-decoration-line: none;\n  -moz-text-decoration-line: none;\n  text-decoration-line: none;\n}\n")
 	expectPrintedWithAllPrefixes(t, "a { text-size-adjust: none }", "a {\n  -webkit-text-size-adjust: none;\n  -ms-text-size-adjust: none;\n  text-size-adjust: none;\n}\n")
-	expectPrintedWithAllPrefixes(t, "a { user-select: none }", "a {\n  -webkit-user-select: none;\n  -moz-user-select: -moz-none;\n  -ms-user-select: none;\n  user-select: none;\n}\n")
+	expectPrintedWithAllPrefixes(t, "a { user-select: none }", "a {\n  -webkit-user-select: none;\n  -khtml-user-select: none;\n  -moz-user-select: -moz-none;\n  -ms-user-select: none;\n  user-select: none;\n}\n")
 
 	// Check that we insert prefixed rules each time an unprefixed rule is
 	// encountered. This matches the behavior of the popular "autoprefixer" tool.

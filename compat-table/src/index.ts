@@ -5,6 +5,7 @@ import child_process = require('child_process')
 import fs = require('fs')
 import path = require('path')
 import { generateTableForJS } from './js_table'
+import { generateTableForCSS } from './css_table'
 import * as caniuse from './caniuse'
 import * as mdn from './mdn'
 
@@ -84,6 +85,46 @@ export const jsFeatures = {
   Using: true,
 }
 
+export type CSSFeature = keyof typeof cssFeatures
+export const cssFeatures = {
+  HexRGBA: true,
+  InlineStyle: true,
+  InsetProperty: true,
+  IsPseudoClass: true,
+  Modern_RGB_HSL: true,
+  Nesting: true,
+  RebeccaPurple: true,
+}
+
+export type CSSProperty = keyof typeof cssProperties
+export const cssProperties = {
+  DAppearance: true,
+  DBackdropFilter: true,
+  DBackgroundClip: true,
+  DBoxDecorationBreak: true,
+  DClipPath: true,
+  DFontKerning: true,
+  DHyphens: true,
+  DInitialLetter: true,
+  DMaskImage: true,
+  DMaskOrigin: true,
+  DMaskPosition: true,
+  DMaskRepeat: true,
+  DMaskSize: true,
+  DPosition: true,
+  DPrintColorAdjust: true,
+  DTabSize: true,
+  DTextDecorationColor: true,
+  DTextDecorationLine: true,
+  DTextDecorationSkip: true,
+  DTextEmphasisColor: true,
+  DTextEmphasisPosition: true,
+  DTextEmphasisStyle: true,
+  DTextOrientation: true,
+  DTextSizeAdjust: true,
+  DUserSelect: true,
+}
+
 export interface Support {
   force?: boolean
   passed?: number
@@ -95,8 +136,15 @@ export interface VersionRange {
   end?: number[]
 }
 
+export interface PrefixData {
+  engine: Engine
+  prefix: string
+  withoutPrefix?: number[]
+}
+
 export type SupportMap<F extends string> = Record<F, Partial<Record<Engine, Record<string, Support>>>>
 export type VersionRangeMap<F extends string> = Partial<Record<F, Partial<Record<Engine, VersionRange[]>>>>
+export type CSSPrefixMap = Partial<Record<CSSProperty, PrefixData[]>>
 
 const compareVersions = (a: number[], b: number[]): number => {
   let diff = a[0] - b[0]
@@ -126,6 +174,15 @@ const mergeSupportMaps = <F extends string>(to: SupportMap<F>, from: SupportMap<
         toVersions[version] = fromVersions[version]
       }
     }
+  }
+}
+
+const mergePrefixMaps = (to: CSSPrefixMap, from: CSSPrefixMap): void => {
+  for (const property in from) {
+    if (property in to) {
+      throw new Error(`Merge conflict with property=${property}`)
+    }
+    to[property as CSSProperty] = from[property as CSSProperty]
   }
 }
 
@@ -242,11 +299,12 @@ if (process.argv.includes('--update')) {
   updateGithubDependencies()
 }
 
-import('./kangax').then(({ js }) => {
-  // Merge data from https://caniuse.com into the JavaScript support map
-  mergeSupportMaps(js, caniuse.js)
+import('./kangax').then(kangax => {
+  const js: SupportMap<JSFeature> = {} as SupportMap<JSFeature>
+  for (const feature in jsFeatures) js[feature as JSFeature] = {}
 
-  // Merge data from the Mozilla Developer Network into the JavaScript support map
+  mergeSupportMaps(js, kangax.js)
+  mergeSupportMaps(js, caniuse.js)
   mergeSupportMaps(js, mdn.js)
 
   // ES5 features
@@ -410,6 +468,16 @@ import('./kangax').then(({ js }) => {
   // MDN data is wrong here: https://www.chromestatus.com/feature/6482797915013120
   js.ClassStaticBlocks.Chrome = { 91: { force: true } }
 
-  const jsVersionRanges = supportMapToVersionRanges(js)
-  generateTableForJS(jsVersionRanges)
+  generateTableForJS(supportMapToVersionRanges(js))
 })
+
+const css: SupportMap<CSSFeature> = {} as SupportMap<CSSFeature>
+const cssPrefix: CSSPrefixMap = {}
+for (const feature in cssFeatures) css[feature as CSSFeature] = {}
+
+mergeSupportMaps(css, caniuse.css)
+mergeSupportMaps(css, mdn.css)
+mergePrefixMaps(cssPrefix, caniuse.cssPrefix)
+mergePrefixMaps(cssPrefix, mdn.cssPrefix)
+
+generateTableForCSS(supportMapToVersionRanges(css), cssPrefix)

@@ -141,7 +141,7 @@ interface Test {
 }
 
 const updateMap = (map: SupportMap<JSFeature>, feature: JSFeature, engine: Engine, version: string, testName: string, passed: boolean): void => {
-  const engines = map[feature]
+  const engines = map[feature] || (map[feature] = {})
   const versions = engines[engine] || (engines[engine] = {})
   const support = versions[version] || (versions[version] = {})
   if (passed) support.passed = (support.passed || 0) + 1
@@ -247,7 +247,6 @@ const reformatNodeCompatTable = (): Test[] => {
 }
 
 export const js: SupportMap<JSFeature> = {} as SupportMap<JSFeature>
-for (const feature in jsFeatures) js[feature as JSFeature] = {}
 
 mergeAllTestResults(js, [...es5.tests, ...es6.tests, ...stage4.tests, ...stage1to3.tests], { omit: ['Node'] })
 mergeAllTestResults(js, reformatNodeCompatTable())
