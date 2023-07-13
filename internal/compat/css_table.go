@@ -9,28 +9,21 @@ type CSSFeature uint8
 const (
 	HexRGBA CSSFeature = 1 << iota
 	InlineStyle
-	RebeccaPurple
-
-	// This feature includes all of the following:
-	// - Allow floats in rgb() and rgba()
-	// - hsl() can accept alpha values
-	// - rgb() can accept alpha values
-	// - Space-separated functional color notations
-	Modern_RGB_HSL
-
 	InsetProperty
-	Nesting
 	IsPseudoClass
+	Modern_RGB_HSL
+	Nesting
+	RebeccaPurple
 )
 
 var StringToCSSFeature = map[string]CSSFeature{
 	"hex-rgba":        HexRGBA,
 	"inline-style":    InlineStyle,
-	"rebecca-purple":  RebeccaPurple,
-	"modern-rgb-hsl":  Modern_RGB_HSL,
 	"inset-property":  InsetProperty,
-	"nesting":         Nesting,
 	"is-pseudo-class": IsPseudoClass,
+	"modern-rgb-hsl":  Modern_RGB_HSL,
+	"nesting":         Nesting,
+	"rebecca-purple":  RebeccaPurple,
 }
 
 func (features CSSFeature) Has(feature CSSFeature) bool {
@@ -42,7 +35,6 @@ func (features CSSFeature) ApplyOverrides(overrides CSSFeature, mask CSSFeature)
 }
 
 var cssTable = map[CSSFeature]map[Engine][]versionRange{
-	// Data from: https://developer.mozilla.org/en-US/docs/Web/CSS/color_value
 	HexRGBA: {
 		Chrome:  {{start: v{62, 0, 0}}},
 		Edge:    {{start: v{79, 0, 0}}},
@@ -51,14 +43,21 @@ var cssTable = map[CSSFeature]map[Engine][]versionRange{
 		Opera:   {{start: v{49, 0, 0}}},
 		Safari:  {{start: v{9, 1, 0}}},
 	},
-	RebeccaPurple: {
-		Chrome:  {{start: v{38, 0, 0}}},
-		Edge:    {{start: v{12, 0, 0}}},
-		Firefox: {{start: v{33, 0, 0}}},
-		IE:      {{start: v{11, 0, 0}}},
-		IOS:     {{start: v{8, 0, 0}}},
-		Opera:   {{start: v{25, 0, 0}}},
-		Safari:  {{start: v{9, 0, 0}}},
+	InsetProperty: {
+		Chrome:  {{start: v{87, 0, 0}}},
+		Edge:    {{start: v{87, 0, 0}}},
+		Firefox: {{start: v{66, 0, 0}}},
+		IOS:     {{start: v{14, 5, 0}}},
+		Opera:   {{start: v{73, 0, 0}}},
+		Safari:  {{start: v{14, 1, 0}}},
+	},
+	IsPseudoClass: {
+		Chrome:  {{start: v{88, 0, 0}}},
+		Edge:    {{start: v{88, 0, 0}}},
+		Firefox: {{start: v{78, 0, 0}}},
+		IOS:     {{start: v{14, 0, 0}}},
+		Opera:   {{start: v{75, 0, 0}}},
+		Safari:  {{start: v{14, 0, 0}}},
 	},
 	Modern_RGB_HSL: {
 		Chrome:  {{start: v{66, 0, 0}}},
@@ -68,30 +67,17 @@ var cssTable = map[CSSFeature]map[Engine][]versionRange{
 		Opera:   {{start: v{53, 0, 0}}},
 		Safari:  {{start: v{12, 1, 0}}},
 	},
-
-	// Data from: https://developer.mozilla.org/en-US/docs/Web/CSS/inset
-	InsetProperty: {
-		Chrome:  {{start: v{87, 0, 0}}},
-		Edge:    {{start: v{87, 0, 0}}},
-		Firefox: {{start: v{66, 0, 0}}},
-		IOS:     {{start: v{14, 5, 0}}},
-		Opera:   {{start: v{73, 0, 0}}},
-		Safari:  {{start: v{14, 1, 0}}},
-	},
-
-	// Data from: https://caniuse.com/css-nesting
 	Nesting: {
 		Chrome: {{start: v{112, 0, 0}}},
 	},
-
-	// Data from: https://caniuse.com/css-matches-pseudo
-	IsPseudoClass: {
-		Chrome:  {{start: v{88, 0, 0}}},
-		Edge:    {{start: v{88, 0, 0}}},
-		Firefox: {{start: v{78, 0, 0}}},
-		IOS:     {{start: v{14, 0, 0}}},
-		Opera:   {{start: v{75, 0, 0}}},
-		Safari:  {{start: v{14, 0, 0}}},
+	RebeccaPurple: {
+		Chrome:  {{start: v{38, 0, 0}}},
+		Edge:    {{start: v{12, 0, 0}}},
+		Firefox: {{start: v{33, 0, 0}}},
+		IE:      {{start: v{11, 0, 0}}},
+		IOS:     {{start: v{8, 0, 0}}},
+		Opera:   {{start: v{25, 0, 0}}},
+		Safari:  {{start: v{9, 0, 0}}},
 	},
 }
 
@@ -136,22 +122,7 @@ type prefixData struct {
 	prefix        CSSPrefix
 }
 
-var cssMaskPrefixTable = map[Engine]prefixData{
-	Chrome: {prefix: WebkitPrefix},
-	Edge:   {prefix: WebkitPrefix},
-	IOS:    {prefix: WebkitPrefix, withoutPrefix: v{15, 4, 0}},
-	Opera:  {prefix: WebkitPrefix},
-	Safari: {prefix: WebkitPrefix, withoutPrefix: v{15, 4, 0}},
-}
-
-var cssTextEmphasisTable = map[Engine]prefixData{
-	Chrome: {prefix: WebkitPrefix, withoutPrefix: v{99, 0, 0}},
-	Edge:   {prefix: WebkitPrefix, withoutPrefix: v{99, 0, 0}},
-	Opera:  {prefix: WebkitPrefix, withoutPrefix: v{85, 0, 0}},
-}
-
 var cssPrefixTable = map[css_ast.D]map[Engine]prefixData{
-	// https://caniuse.com/css-appearance
 	css_ast.DAppearance: {
 		Chrome:  {prefix: WebkitPrefix, withoutPrefix: v{84, 0, 0}},
 		Edge:    {prefix: WebkitPrefix, withoutPrefix: v{84, 0, 0}},
@@ -160,14 +131,10 @@ var cssPrefixTable = map[css_ast.D]map[Engine]prefixData{
 		Opera:   {prefix: WebkitPrefix, withoutPrefix: v{73, 4, 0}},
 		Safari:  {prefix: WebkitPrefix, withoutPrefix: v{15, 4, 0}},
 	},
-
-	// https://caniuse.com/css-backdrop-filter
 	css_ast.DBackdropFilter: {
 		IOS:    {prefix: WebkitPrefix},
 		Safari: {prefix: WebkitPrefix},
 	},
-
-	// https://caniuse.com/background-clip-text (Note: only for "background-clip: text")
 	css_ast.DBackgroundClip: {
 		Chrome: {prefix: WebkitPrefix},
 		Edge:   {prefix: WebkitPrefix},
@@ -175,8 +142,6 @@ var cssPrefixTable = map[css_ast.D]map[Engine]prefixData{
 		Opera:  {prefix: WebkitPrefix},
 		Safari: {prefix: WebkitPrefix, withoutPrefix: v{14, 0, 0}},
 	},
-
-	// https://caniuse.com/css-boxdecorationbreak
 	css_ast.DBoxDecorationBreak: {
 		Chrome: {prefix: WebkitPrefix},
 		Edge:   {prefix: WebkitPrefix},
@@ -184,24 +149,18 @@ var cssPrefixTable = map[css_ast.D]map[Engine]prefixData{
 		Opera:  {prefix: WebkitPrefix},
 		Safari: {prefix: WebkitPrefix},
 	},
-
-	// https://caniuse.com/css-clip-path
 	css_ast.DClipPath: {
 		Chrome: {prefix: WebkitPrefix, withoutPrefix: v{55, 0, 0}},
 		IOS:    {prefix: WebkitPrefix, withoutPrefix: v{13, 0, 0}},
 		Opera:  {prefix: WebkitPrefix, withoutPrefix: v{42, 0, 0}},
 		Safari: {prefix: WebkitPrefix, withoutPrefix: v{13, 1, 0}},
 	},
-
-	// https://caniuse.com/font-kerning
 	css_ast.DFontKerning: {
 		Chrome: {prefix: WebkitPrefix, withoutPrefix: v{33, 0, 0}},
 		IOS:    {prefix: WebkitPrefix, withoutPrefix: v{12, 0, 0}},
 		Opera:  {prefix: WebkitPrefix, withoutPrefix: v{20, 0, 0}},
 		Safari: {prefix: WebkitPrefix, withoutPrefix: v{9, 1, 0}},
 	},
-
-	// https://caniuse.com/css-hyphens
 	css_ast.DHyphens: {
 		Edge:    {prefix: MsPrefix, withoutPrefix: v{79, 0, 0}},
 		Firefox: {prefix: MozPrefix, withoutPrefix: v{43, 0, 0}},
@@ -209,75 +168,95 @@ var cssPrefixTable = map[css_ast.D]map[Engine]prefixData{
 		IOS:     {prefix: WebkitPrefix},
 		Safari:  {prefix: WebkitPrefix},
 	},
-
-	// https://caniuse.com/css-initial-letter
 	css_ast.DInitialLetter: {
 		IOS:    {prefix: WebkitPrefix},
 		Safari: {prefix: WebkitPrefix},
 	},
-
-	css_ast.DMaskImage:    cssMaskPrefixTable, // https://caniuse.com/mdn-css_properties_mask-image
-	css_ast.DMaskOrigin:   cssMaskPrefixTable, // https://caniuse.com/mdn-css_properties_mask-origin
-	css_ast.DMaskPosition: cssMaskPrefixTable, // https://caniuse.com/mdn-css_properties_mask-position
-	css_ast.DMaskRepeat:   cssMaskPrefixTable, // https://caniuse.com/mdn-css_properties_mask-repeat
-	css_ast.DMaskSize:     cssMaskPrefixTable, // https://caniuse.com/mdn-css_properties_mask-size
-
-	// https://caniuse.com/css-sticky
+	css_ast.DMaskImage: {
+		Chrome: {prefix: WebkitPrefix},
+		Edge:   {prefix: WebkitPrefix},
+		IOS:    {prefix: WebkitPrefix, withoutPrefix: v{15, 4, 0}},
+		Opera:  {prefix: WebkitPrefix},
+		Safari: {prefix: WebkitPrefix, withoutPrefix: v{15, 4, 0}},
+	},
+	css_ast.DMaskOrigin: {
+		Chrome: {prefix: WebkitPrefix},
+		Edge:   {prefix: WebkitPrefix},
+		IOS:    {prefix: WebkitPrefix, withoutPrefix: v{15, 4, 0}},
+		Opera:  {prefix: WebkitPrefix},
+		Safari: {prefix: WebkitPrefix, withoutPrefix: v{15, 4, 0}},
+	},
+	css_ast.DMaskPosition: {
+		Chrome: {prefix: WebkitPrefix},
+		Edge:   {prefix: WebkitPrefix},
+		IOS:    {prefix: WebkitPrefix, withoutPrefix: v{15, 4, 0}},
+		Opera:  {prefix: WebkitPrefix},
+		Safari: {prefix: WebkitPrefix, withoutPrefix: v{15, 4, 0}},
+	},
+	css_ast.DMaskRepeat: {
+		Chrome: {prefix: WebkitPrefix},
+		Edge:   {prefix: WebkitPrefix},
+		IOS:    {prefix: WebkitPrefix, withoutPrefix: v{15, 4, 0}},
+		Opera:  {prefix: WebkitPrefix},
+		Safari: {prefix: WebkitPrefix, withoutPrefix: v{15, 4, 0}},
+	},
+	css_ast.DMaskSize: {
+		Chrome: {prefix: WebkitPrefix},
+		Edge:   {prefix: WebkitPrefix},
+		IOS:    {prefix: WebkitPrefix, withoutPrefix: v{15, 4, 0}},
+		Opera:  {prefix: WebkitPrefix},
+		Safari: {prefix: WebkitPrefix, withoutPrefix: v{15, 4, 0}},
+	},
 	css_ast.DPosition: {
 		IOS:    {prefix: WebkitPrefix, withoutPrefix: v{13, 0, 0}},
 		Safari: {prefix: WebkitPrefix, withoutPrefix: v{13, 0, 0}},
 	},
-
-	// https://caniuse.com/css-color-adjust
 	css_ast.DPrintColorAdjust: {
 		Chrome: {prefix: WebkitPrefix},
 		Edge:   {prefix: WebkitPrefix},
 		Opera:  {prefix: WebkitPrefix},
 		Safari: {prefix: WebkitPrefix, withoutPrefix: v{15, 4, 0}},
 	},
-
-	// https://caniuse.com/css3-tabsize
 	css_ast.DTabSize: {
 		Firefox: {prefix: MozPrefix, withoutPrefix: v{91, 0, 0}},
 		Opera:   {prefix: OPrefix, withoutPrefix: v{15, 0, 0}},
 	},
-
-	// https://caniuse.com/mdn-css_properties_text-decoration-color
 	css_ast.DTextDecorationColor: {
 		Firefox: {prefix: MozPrefix, withoutPrefix: v{36, 0, 0}},
 		IOS:     {prefix: WebkitPrefix, withoutPrefix: v{12, 2, 0}},
 		Safari:  {prefix: WebkitPrefix, withoutPrefix: v{12, 1, 0}},
 	},
-
-	// https://caniuse.com/mdn-css_properties_text-decoration-line
 	css_ast.DTextDecorationLine: {
 		Firefox: {prefix: MozPrefix, withoutPrefix: v{36, 0, 0}},
 		IOS:     {prefix: WebkitPrefix, withoutPrefix: v{12, 2, 0}},
 		Safari:  {prefix: WebkitPrefix, withoutPrefix: v{12, 1, 0}},
 	},
-
-	// https://caniuse.com/mdn-css_properties_text-decoration-skip
 	css_ast.DTextDecorationSkip: {
 		IOS:    {prefix: WebkitPrefix, withoutPrefix: v{12, 2, 0}},
 		Safari: {prefix: WebkitPrefix, withoutPrefix: v{12, 1, 0}},
 	},
-
-	css_ast.DTextEmphasisColor:    cssTextEmphasisTable, // https://caniuse.com/mdn-css_properties_text-emphasis-color
-	css_ast.DTextEmphasisPosition: cssTextEmphasisTable, // https://caniuse.com/mdn-css_properties_text-emphasis-position
-	css_ast.DTextEmphasisStyle:    cssTextEmphasisTable, // https://caniuse.com/mdn-css_properties_text-emphasis-style
-
-	// https://caniuse.com/css-text-orientation
+	css_ast.DTextEmphasisColor: {
+		Chrome: {prefix: WebkitPrefix, withoutPrefix: v{99, 0, 0}},
+		Edge:   {prefix: WebkitPrefix, withoutPrefix: v{99, 0, 0}},
+		Opera:  {prefix: WebkitPrefix, withoutPrefix: v{85, 0, 0}},
+	},
+	css_ast.DTextEmphasisPosition: {
+		Chrome: {prefix: WebkitPrefix, withoutPrefix: v{99, 0, 0}},
+		Edge:   {prefix: WebkitPrefix, withoutPrefix: v{99, 0, 0}},
+		Opera:  {prefix: WebkitPrefix, withoutPrefix: v{85, 0, 0}},
+	},
+	css_ast.DTextEmphasisStyle: {
+		Chrome: {prefix: WebkitPrefix, withoutPrefix: v{99, 0, 0}},
+		Edge:   {prefix: WebkitPrefix, withoutPrefix: v{99, 0, 0}},
+		Opera:  {prefix: WebkitPrefix, withoutPrefix: v{85, 0, 0}},
+	},
 	css_ast.DTextOrientation: {
 		Safari: {prefix: WebkitPrefix, withoutPrefix: v{14, 0, 0}},
 	},
-
-	// https://caniuse.com/text-size-adjust
 	css_ast.DTextSizeAdjust: {
 		Edge: {prefix: MsPrefix, withoutPrefix: v{79, 0, 0}},
 		IOS:  {prefix: WebkitPrefix},
 	},
-
-	// https://caniuse.com/mdn-css_properties_user-select
 	css_ast.DUserSelect: {
 		Chrome:  {prefix: WebkitPrefix, withoutPrefix: v{54, 0, 0}},
 		Edge:    {prefix: MsPrefix, withoutPrefix: v{79, 0, 0}},
