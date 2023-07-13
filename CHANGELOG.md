@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.18.12
 
 * Fix a panic with `const enum` inside parentheses ([#3205](https://github.com/evanw/esbuild/issues/3205))
 
