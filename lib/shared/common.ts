@@ -601,7 +601,15 @@ export function createChannel(streamIn: StreamIn): StreamOut {
 
       throw new Error(`Invalid command: ` + request.command)
     } catch (e) {
-      sendResponse(id, { errors: [extractErrorMessageV8(e, streamIn, null, void 0, '')] } as any)
+      const errors = [extractErrorMessageV8(e, streamIn, null, void 0, '')]
+      try {
+        sendResponse(id, { errors } as any)
+      } catch {
+        // This may fail if the esbuild process is no longer running, but
+        // that's ok. Catch and swallow this exception so that we don't
+        // cause an unhandled promise rejection. Our caller isn't expecting
+        // this call to fail and doesn't handle the promise rejection.
+      }
     }
   }
 

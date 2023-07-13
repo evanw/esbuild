@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Avoid causing `unhandledRejection` during shutdown ([#3219](https://github.com/evanw/esbuild/issues/3219))
+
+    All pending esbuild JavaScript API calls are supposed to fail if esbuild's underlying child process is unexpectedly terminated. This can happen if `SIGINT` is sent to the parent `node` process with Ctrl+C, for example. Previously doing this could also cause an unhandled promise rejection when esbuild attempted to communicate this failure to its own child process that no longer exists. This release now swallows this communication failure, which should prevent this internal unhandled promise rejection. This change means that you can now use esbuild's JavaScript API with a custom `SIGINT` handler that extends the lifetime of the `node` process without esbuild's internals causing an early exit due to an unhandled promise rejection.
+
 ## 0.18.12
 
 * Fix a panic with `const enum` inside parentheses ([#3205](https://github.com/evanw/esbuild/issues/3205))
