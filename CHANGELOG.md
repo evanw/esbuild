@@ -6,6 +6,19 @@
 
     All pending esbuild JavaScript API calls are supposed to fail if esbuild's underlying child process is unexpectedly terminated. This can happen if `SIGINT` is sent to the parent `node` process with Ctrl+C, for example. Previously doing this could also cause an unhandled promise rejection when esbuild attempted to communicate this failure to its own child process that no longer exists. This release now swallows this communication failure, which should prevent this internal unhandled promise rejection. This change means that you can now use esbuild's JavaScript API with a custom `SIGINT` handler that extends the lifetime of the `node` process without esbuild's internals causing an early exit due to an unhandled promise rejection.
 
+* Update browser compatibility table scripts
+
+    The scripts that esbuild uses to compile its internal browser compatibility table have been overhauled. Briefly:
+
+    * Converted from JavaScript to TypeScript
+    * Fixed some bugs that resulted in small changes to the table
+    * Added [`caniuse-lite`](https://www.npmjs.com/package/caniuse-lite) and [`@mdn/browser-compat-data`](https://www.npmjs.com/package/@mdn/browser-compat-data) as new data sources (replacing manually-copied information)
+
+    This change means it's now much easier to keep esbuild's internal compatibility tables up to date. You can review the table changes here if you need to debug something about this change:
+
+    * [JS table changes](https://github.com/evanw/esbuild/compare/d259b8fac717ee347c19bd8299f2c26d7c87481a...af1d35c372f78c14f364b63e819fd69548508f55#diff-1649eb68992c79753469f02c097de309adaf7231b45cc816c50bf751af400eb4)
+    * [CSS table changes](https://github.com/evanw/esbuild/commit/95feb2e09877597cb929469ce43811bdf11f50c1#diff-4e1c4f269e02c5ea31cbd5138d66751e32cf0e240524ee8a966ac756f0e3c3cd)
+
 ## 0.18.12
 
 * Fix a panic with `const enum` inside parentheses ([#3205](https://github.com/evanw/esbuild/issues/3205))
