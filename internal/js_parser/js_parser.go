@@ -1227,6 +1227,23 @@ func (p *parser) mergeSymbols(old js_ast.Ref, new js_ast.Ref) js_ast.Ref {
 	return new
 }
 
+// This is similar to "js_ast.FollowSymbols" but it works with this parser's
+// one-level symbol map instead of the linker's two-level symbol map.
+func (p *parser) followSymbol(ref js_ast.Ref) js_ast.Ref {
+	symbol := &p.symbols[ref.InnerIndex]
+	if symbol.Link == js_ast.InvalidRef {
+		return ref
+	}
+
+	link := p.followSymbol(symbol.Link)
+
+	if symbol.Link != link {
+		symbol.Link = link
+	}
+
+	return link
+}
+
 type mergeResult int
 
 const (
@@ -8587,6 +8604,7 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 		}
 	}
 
+	isFnBodyScope := p.currentScope.Kind == js_ast.ScopeFunctionBody
 	// Merge adjacent statements during mangling
 	result := make([]js_ast.Stmt, 0, len(stmts))
 	isControlFlowDead := false
@@ -8626,12 +8644,12 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 			//   return fn().prop;
 			//
 			for len(result) > 0 {
-				// Ignore "var" declarations since those have function-level scope and
-				// we may not have visited all of their uses yet by this point. We
+				// Substitute "var" declarations only in ScopeFunctionBody since those have function-level scope
+				// and we may not have visited all of their uses yet if we are inside a block. We
 				// should have visited all the uses of "let" and "const" declarations
 				// by now since they are scoped to this block which we just finished
 				// visiting.
-				if prevS, ok := result[len(result)-1].Data.(*js_ast.SLocal); ok && prevS.Kind != js_ast.LocalVar {
+				if prevS, ok := result[len(result)-1].Data.(*js_ast.SLocal); ok && (isFnBodyScope || prevS.Kind != js_ast.LocalVar) {
 					// The variable must be initialized, since we will be substituting
 					// the value into the usage.
 					if last := prevS.Decls[len(prevS.Decls)-1]; last.ValueOrNil.Data != nil {
@@ -8645,6 +8663,26 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 							// there is only one. The "__name" use isn't counted so that
 							// tree shaking still works when names are kept.
 							if symbol := p.symbols[id.Ref.InnerIndex]; symbol.UseCountEstimate == 1 && !symbol.Flags.Has(js_ast.DidKeepName) {
+								// "var" declarations can be merged.
+								// We should avoid substituting a symbol merged with function arguments to protect "arguments".
+								//
+								//   // example
+								//   function fn(arg) {
+								//     var arg = 1
+								//     return [arguments, arg]
+								//   }
+								//
+								if prevS.Kind == js_ast.LocalVar {
+									// Only "var" declarations in ScopeFunctionBody are handled,
+									// so p.currentScope should be ScopeFunctionBody,
+									// and p.currentScope.Parent should be ScopeFunctionArgs.
+									if arguments, ok := p.currentScope.Parent.Members["arguments"]; ok && p.symbols[arguments.Ref.InnerIndex].Kind == js_ast.SymbolArguments {
+										if arg, ok := p.currentScope.Parent.Members[symbol.OriginalName]; ok && p.followSymbol(arg.Ref) == id.Ref {
+											break
+										}
+									}
+								}
+
 								// Try to substitute the identifier with the initializer. This will
 								// fail if something with side effects is in between the declaration
 								// and the usage.
@@ -16126,13 +16164,7 @@ func (p *parser) appendPart(parts []js_ast.Part, stmts []js_ast.Stmt) []js_ast.P
 		alreadyDeclared := make(map[js_ast.Ref]bool)
 		for _, local := range p.relocatedTopLevelVars {
 			// Follow links because "var" declarations may be merged due to hoisting
-			for {
-				link := p.symbols[local.Ref.InnerIndex].Link
-				if link == js_ast.InvalidRef {
-					break
-				}
-				local.Ref = link
-			}
+			local.Ref = p.followSymbol(local.Ref)
 
 			// Only declare a given relocated variable once
 			if !alreadyDeclared[local.Ref] {
@@ -17093,10 +17125,8 @@ func (p *parser) toAST(before, parts, after []js_ast.Part, hashbang string, dire
 					// If this symbol was merged, use the symbol at the end of the
 					// linked list in the map. This is the case for multiple "var"
 					// declarations with the same name, for example.
-					ref := declared.Ref
-					for p.symbols[ref.InnerIndex].Link != js_ast.InvalidRef {
-						ref = p.symbols[ref.InnerIndex].Link
-					}
+					ref := p.followSymbol(declared.Ref)
+
 					p.topLevelSymbolToParts[ref] = append(
 						p.topLevelSymbolToParts[ref], uint32(partIndex))
 				}
