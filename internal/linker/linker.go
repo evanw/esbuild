@@ -452,8 +452,9 @@ func (c *linkerContext) mangleLocalCSS() {
 	localNames := make(map[ast.Ref]struct{})
 
 	// Collect all local and global CSS names
+	freq := ast.CharFreq{}
 	for _, sourceIndex := range c.graph.ReachableFiles {
-		if _, ok := c.graph.Files[sourceIndex].InputFile.Repr.(*graph.CSSRepr); ok {
+		if repr, ok := c.graph.Files[sourceIndex].InputFile.Repr.(*graph.CSSRepr); ok {
 			for innerIndex, symbol := range c.graph.Symbols.SymbolsForSource[sourceIndex] {
 				if symbol.Kind == ast.SymbolGlobalCSS {
 					globalNames[symbol.OriginalName] = true
@@ -462,6 +463,11 @@ func (c *linkerContext) mangleLocalCSS() {
 					ref = ast.FollowSymbols(c.graph.Symbols, ref)
 					localNames[ref] = struct{}{}
 				}
+			}
+
+			// Include this file's frequency histogram, which affects the mangled names
+			if repr.AST.CharFreq != nil {
+				freq.Include(repr.AST.CharFreq)
 			}
 		}
 	}
@@ -480,7 +486,7 @@ func (c *linkerContext) mangleLocalCSS() {
 
 	// Rename all local names to avoid collisions
 	if c.options.MinifyIdentifiers {
-		minifier := ast.DefaultNameMinifierCSS
+		minifier := ast.DefaultNameMinifierCSS.ShuffleByCharFreq(freq)
 		nextName := 0
 
 		for _, symbolCount := range sorted {

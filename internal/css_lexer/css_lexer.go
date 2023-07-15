@@ -158,8 +158,10 @@ func (token Token) DecodedText(contents string) string {
 }
 
 type lexer struct {
+	Options
 	log                     logger.Log
 	source                  logger.Source
+	allComments             []logger.Range
 	legalCommentsBefore     []Comment
 	sourceMappingURL        logger.Span
 	tracker                 logger.LineColumnTracker
@@ -178,13 +180,19 @@ type Comment struct {
 
 type TokenizeResult struct {
 	Tokens               []Token
+	AllComments          []logger.Range
 	LegalComments        []Comment
 	SourceMapComment     logger.Span
 	ApproximateLineCount int32
 }
 
-func Tokenize(log logger.Log, source logger.Source) TokenizeResult {
+type Options struct {
+	RecordAllComments bool
+}
+
+func Tokenize(log logger.Log, source logger.Source, options Options) TokenizeResult {
 	lexer := lexer{
+		Options: options,
 		log:     log,
 		source:  source,
 		tracker: logger.MakeLineColumnTracker(&source),
@@ -203,12 +211,12 @@ func Tokenize(log logger.Log, source logger.Source) TokenizeResult {
 
 	lexer.next()
 	var tokens []Token
-	var comments []Comment
+	var legalComments []Comment
 	for lexer.Token.Kind != TEndOfFile {
 		if lexer.legalCommentsBefore != nil {
 			for _, comment := range lexer.legalCommentsBefore {
 				comment.TokenIndexAfter = uint32(len(tokens))
-				comments = append(comments, comment)
+				legalComments = append(legalComments, comment)
 			}
 			lexer.legalCommentsBefore = nil
 		}
@@ -218,13 +226,14 @@ func Tokenize(log logger.Log, source logger.Source) TokenizeResult {
 	if lexer.legalCommentsBefore != nil {
 		for _, comment := range lexer.legalCommentsBefore {
 			comment.TokenIndexAfter = uint32(len(tokens))
-			comments = append(comments, comment)
+			legalComments = append(legalComments, comment)
 		}
 		lexer.legalCommentsBefore = nil
 	}
 	return TokenizeResult{
 		Tokens:               tokens,
-		LegalComments:        comments,
+		AllComments:          lexer.allComments,
+		LegalComments:        legalComments,
 		ApproximateLineCount: int32(lexer.approximateNewlineCount) + 1,
 		SourceMapComment:     lexer.sourceMappingURL,
 	}
@@ -502,9 +511,15 @@ func (lexer *lexer) consumeToEndOfMultiLineComment(startRange logger.Range) {
 					lexer.sourceMappingURL = logger.Span{Text: text[:r.Len], Range: r}
 				}
 
+				// Record all comments
+				commentRange := logger.Range{Loc: startRange.Loc, Len: int32(commentEnd) - startRange.Loc.Start}
+				if lexer.RecordAllComments {
+					lexer.allComments = append(lexer.allComments, commentRange)
+				}
+
 				// Record legal comments
 				if text := lexer.source.Contents[startRange.Loc.Start:commentEnd]; isLegalComment || containsAtPreserveOrAtLicense(text) {
-					text = lexer.source.CommentTextWithoutIndent(logger.Range{Loc: startRange.Loc, Len: int32(commentEnd) - startRange.Loc.Start})
+					text = lexer.source.CommentTextWithoutIndent(commentRange)
 					lexer.legalCommentsBefore = append(lexer.legalCommentsBefore, Comment{Loc: startRange.Loc, Text: text})
 				}
 				return

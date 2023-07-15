@@ -25,6 +25,7 @@ import (
 
 type AST struct {
 	Symbols              []ast.Symbol
+	CharFreq             *ast.CharFreq
 	ImportRecords        []ast.ImportRecord
 	Rules                []Rule
 	SourceMapComment     logger.Span

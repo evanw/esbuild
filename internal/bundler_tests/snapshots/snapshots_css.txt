@@ -691,9 +691,9 @@ console.log("file 2", button2, style_default2.b);
 TestImportLocalCSSFromJSMinifyIdentifiers
 ---------- /out/entry.js ----------
 // dir1/style.css
-var t = "b";
+var t = "l";
 var l = {
-  a: "a",
+  a: "o",
   button: t
 };
 
@@ -701,9 +701,9 @@ var l = {
 console.log("file 1", t, l.a);
 
 // dir2/style.css
-var e = "d";
+var e = "n";
 var f = {
-  b: "c",
+  b: "e",
   button: e
 };
 
@@ -712,18 +712,18 @@ console.log("file 2", e, f.b);
 
 ---------- /out/entry.css ----------
 /* dir1/style.css */
-.a {
+.o {
   color: red;
 }
-.b {
+.l {
   display: none;
 }
 
 /* dir2/style.css */
-.c {
+.e {
   color: blue;
 }
-.d {
+.n {
   display: none;
 }
 
@@ -740,7 +740,7 @@ TestImportLocalCSSFromJSMinifyIdentifiersAvoidGlobalNames
 }
 
 /* local.module.css */
-.aa {
+.oo {
   color: blue;
 }
 
