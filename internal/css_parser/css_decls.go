@@ -310,9 +310,7 @@ func (p *parser) insertPrefixedDeclaration(rules []css_ast.Rule, prefix string, 
 		}
 	}
 
-	// Clone the import records so that the duplicate has its own copy
-	var value []css_ast.Token
-	value, p.importRecords = css_ast.CloneTokensWithImportRecords(decl.Value, p.importRecords, nil, p.importRecords)
+	value := css_ast.CloneTokensWithoutImportRecords(decl.Value)
 
 	// Additional special cases for how to transform the contents
 	switch decl.Key {

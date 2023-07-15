@@ -1,5 +1,30 @@
 # Changelog
 
+## Unreleased
+
+* Parse `:is`, `:has`, `:not`, and `:where` in CSS
+
+    With this release, esbuild will now parse the contents of these pseudo-class selectors as a selector list. This means you will now get syntax warnings within these selectors for invalid selector syntax. It also means that esbuild's CSS nesting transform behaves slightly differently than before because esbuild is now operating on an AST instead of a token stream. For example:
+
+    ```css
+    /* Original code */
+    div {
+      :where(.foo&) {
+        color: red;
+      }
+    }
+
+    /* Old output (with --target=chrome90) */
+    :where(.foo:is(div)) {
+      color: red;
+    }
+
+    /* New output (with --target=chrome90) */
+    :where(div.foo) {
+      color: red;
+    }
+    ```
+
 ## 0.18.13
 
 * Add the `--drop-labels=` option ([#2398](https://github.com/evanw/esbuild/issues/2398))

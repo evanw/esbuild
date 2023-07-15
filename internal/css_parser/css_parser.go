@@ -750,6 +750,10 @@ func isSafeSelectors(complexSelectors []css_ast.ComplexSelector) bool {
 						}
 					}
 					return false
+
+				case *css_ast.SSPseudoClassWithSelectorList:
+					// These definitely don't work in IE 7
+					return false
 				}
 			}
 		}

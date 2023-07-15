@@ -232,7 +232,7 @@ func (p *printer) printRule(rule css_ast.Rule, indent int32, omitTrailingSemicol
 		}
 
 	case *css_ast.RSelector:
-		p.printComplexSelectors(r.Selectors, indent)
+		p.printComplexSelectors(r.Selectors, indent, layoutMultiLine)
 		if !p.options.MinifyWhitespace {
 			p.print(" ")
 		}
@@ -340,7 +340,14 @@ func (p *printer) printRuleBlock(rules []css_ast.Rule, indent int32) {
 	p.print("}")
 }
 
-func (p *printer) printComplexSelectors(selectors []css_ast.ComplexSelector, indent int32) {
+type selectorLayout uint8
+
+const (
+	layoutMultiLine selectorLayout = iota
+	layoutSingleLine
+)
+
+func (p *printer) printComplexSelectors(selectors []css_ast.ComplexSelector, indent int32, layout selectorLayout) {
 	for i, complex := range selectors {
 		if i > 0 {
 			if p.options.MinifyWhitespace {
@@ -348,9 +355,11 @@ func (p *printer) printComplexSelectors(selectors []css_ast.ComplexSelector, ind
 				if p.options.LineLimit > 0 {
 					p.printNewlinePastLineLimit(indent)
 				}
-			} else {
+			} else if layout == layoutMultiLine {
 				p.print(",\n")
 				p.printIndent(indent)
+			} else {
+				p.print(", ")
 			}
 		}
 
@@ -446,6 +455,16 @@ func (p *printer) printCompoundSelector(sel css_ast.CompoundSelector, isFirst bo
 
 		case *css_ast.SSPseudoClass:
 			p.printPseudoClassSelector(*s, whitespace)
+
+		case *css_ast.SSPseudoClassWithSelectorList:
+			p.print(":")
+			p.print(s.Kind.String())
+			p.print("(")
+			p.printComplexSelectors(s.Selectors, indent, layoutSingleLine)
+			p.print(")")
+
+		default:
+			panic("Internal error")
 		}
 	}
 }

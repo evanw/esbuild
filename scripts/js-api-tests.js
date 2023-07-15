@@ -5707,7 +5707,7 @@ class Foo {
 
   async cssSyntaxErrorWarning({ esbuild }) {
     const { code } = await esbuild.transform(`. {}`, { loader: 'css' })
-    assert.strictEqual(code, `.\\  {\n}\n`)
+    assert.strictEqual(code, `. {\n}\n`)
   },
 
   async cssSyntaxErrorWarningOverride({ esbuild }) {

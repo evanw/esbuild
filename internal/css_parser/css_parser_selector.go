@@ -10,6 +10,7 @@ import (
 
 type parseSelectorOpts struct {
 	isDeclarationContext bool
+	stopOnCloseParen     bool
 }
 
 func (p *parser) parseSelectorList(opts parseSelectorOpts) (list []css_ast.ComplexSelector, ok bool) {
@@ -133,9 +134,13 @@ func (p *parser) parseComplexSelector(opts parseComplexSelectorOpts) (result css
 	sel.Combinator = combinator
 	result.Selectors = append(result.Selectors, sel)
 
+	stop := css_lexer.TOpenBrace
+	if opts.stopOnCloseParen {
+		stop = css_lexer.TCloseParen
+	}
 	for {
 		p.eat(css_lexer.TWhitespace)
-		if p.peek(css_lexer.TEndOfFile) || p.peek(css_lexer.TComma) || p.peek(css_lexer.TOpenBrace) {
+		if p.peek(css_lexer.TEndOfFile) || p.peek(css_lexer.TComma) || p.peek(stop) {
 			break
 		}
 
@@ -219,7 +224,9 @@ subclassSelectors:
 			p.advance()
 			name := p.decoded()
 			sel.SubclassSelectors = append(sel.SubclassSelectors, &css_ast.SSClass{Name: name})
-			p.expect(css_lexer.TIdent)
+			if !p.expect(css_lexer.TIdent) {
+				return
+			}
 
 		case css_lexer.TOpenBracket:
 			attr, good := p.parseAttributeSelector()
@@ -236,27 +243,28 @@ subclassSelectors:
 					if isElement {
 						p.advance()
 					}
-					pseudo := p.parsePseudoClassSelector()
+					pseudo := p.parsePseudoClassSelector(isElement)
 
 					// https://www.w3.org/TR/selectors-4/#single-colon-pseudos
 					// The four Level 2 pseudo-elements (::before, ::after, ::first-line,
 					// and ::first-letter) may, for legacy reasons, be represented using
 					// the <pseudo-class-selector> grammar, with only a single ":"
 					// character at their start.
-					if p.options.minifySyntax && isElement && len(pseudo.Args) == 0 {
-						switch pseudo.Name {
-						case "before", "after", "first-line", "first-letter":
-							isElement = false
+					if p.options.minifySyntax && isElement {
+						if pseudo, ok := pseudo.(*css_ast.SSPseudoClass); ok && len(pseudo.Args) == 0 {
+							switch pseudo.Name {
+							case "before", "after", "first-line", "first-letter":
+								pseudo.IsElement = false
+							}
 						}
 					}
 
-					pseudo.IsElement = isElement
-					sel.SubclassSelectors = append(sel.SubclassSelectors, &pseudo)
+					sel.SubclassSelectors = append(sel.SubclassSelectors, pseudo)
 				}
 				break subclassSelectors
 			}
-			pseudo := p.parsePseudoClassSelector()
-			sel.SubclassSelectors = append(sel.SubclassSelectors, &pseudo)
+			pseudo := p.parsePseudoClassSelector(false)
+			sel.SubclassSelectors = append(sel.SubclassSelectors, pseudo)
 
 		case css_lexer.TDelimAmpersand:
 			// This is an extension: https://drafts.csswg.org/css-nesting-1/
@@ -383,7 +391,9 @@ func (p *parser) parseAttributeSelector() (attr css_ast.SSAttribute, ok bool) {
 		}
 		if attr.MatcherOp != "" {
 			p.advance()
-			p.expect(css_lexer.TDelimEquals)
+			if !p.expect(css_lexer.TDelimEquals) {
+				return
+			}
 		}
 	}
 
@@ -411,24 +421,49 @@ func (p *parser) parseAttributeSelector() (attr css_ast.SSAttribute, ok bool) {
 	return
 }
 
-func (p *parser) parsePseudoClassSelector() css_ast.SSPseudoClass {
+func (p *parser) parsePseudoClassSelector(isElement bool) css_ast.SS {
 	p.advance()
 
 	if p.peek(css_lexer.TFunction) {
 		text := p.decoded()
 		matchingLoc := logger.Loc{Start: p.current().Range.End() - 1}
 		p.advance()
+
+		// Potentially parse a pseudo-class with a selector list
+		if !isElement {
+			var kind css_ast.PseudoClassKind
+			ok := true
+			switch text {
+			case "has":
+				kind = css_ast.PseudoClassHas
+			case "is":
+				kind = css_ast.PseudoClassIs
+			case "not":
+				kind = css_ast.PseudoClassNot
+			case "where":
+				kind = css_ast.PseudoClassWhere
+			default:
+				ok = false
+			}
+			if ok {
+				old := p.index
+				if selectors, ok := p.parseSelectorList(parseSelectorOpts{stopOnCloseParen: true}); ok && p.expectWithMatchingLoc(css_lexer.TCloseParen, matchingLoc) {
+					return &css_ast.SSPseudoClassWithSelectorList{Kind: kind, Selectors: selectors}
+				}
+				p.index = old
+			}
+		}
 		args := p.convertTokens(p.parseAnyValue())
 		p.expectWithMatchingLoc(css_lexer.TCloseParen, matchingLoc)
-		return css_ast.SSPseudoClass{Name: text, Args: args}
+		return &css_ast.SSPseudoClass{IsElement: isElement, Name: text, Args: args}
 	}
 
 	name := p.decoded()
-	sel := css_ast.SSPseudoClass{}
+	sel := css_ast.SSPseudoClass{IsElement: isElement}
 	if p.expect(css_lexer.TIdent) {
 		sel.Name = name
 	}
-	return sel
+	return &sel
 }
 
 func (p *parser) parseAnyValue() []css_lexer.Token {
