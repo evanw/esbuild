@@ -4,6 +4,7 @@ import (
 	"math"
 	"strconv"
 
+	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/logger"
@@ -443,7 +444,7 @@ func JoinAllWithComma(all []Expr) (result Expr) {
 	return
 }
 
-func ConvertBindingToExpr(binding Binding, wrapIdentifier func(logger.Loc, Ref) Expr) Expr {
+func ConvertBindingToExpr(binding Binding, wrapIdentifier func(logger.Loc, ast.Ref) Expr) Expr {
 	loc := binding.Loc
 
 	switch b := binding.Data.(type) {
@@ -506,7 +507,7 @@ func ConvertBindingToExpr(binding Binding, wrapIdentifier func(logger.Loc, Ref) 
 //
 // This function intentionally avoids mutating the input AST so it can be
 // called after the AST has been frozen (i.e. after parsing ends).
-func SimplifyUnusedExpr(expr Expr, unsupportedFeatures compat.JSFeature, isUnbound func(Ref) bool) Expr {
+func SimplifyUnusedExpr(expr Expr, unsupportedFeatures compat.JSFeature, isUnbound func(ast.Ref) bool) Expr {
 	switch e := expr.Data.(type) {
 	case *EAnnotation:
 		if e.Flags.Has(CanBeRemovedIfUnusedFlag) {
@@ -1841,7 +1842,7 @@ const (
 	KeepExportClauses StmtsCanBeRemovedIfUnusedFlags = 1 << iota
 )
 
-func StmtsCanBeRemovedIfUnused(stmts []Stmt, flags StmtsCanBeRemovedIfUnusedFlags, isUnbound func(Ref) bool) bool {
+func StmtsCanBeRemovedIfUnused(stmts []Stmt, flags StmtsCanBeRemovedIfUnusedFlags, isUnbound func(ast.Ref) bool) bool {
 	for _, stmt := range stmts {
 		switch s := stmt.Data.(type) {
 		case *SFunction, *SEmpty:
@@ -1939,7 +1940,7 @@ func StmtsCanBeRemovedIfUnused(stmts []Stmt, flags StmtsCanBeRemovedIfUnusedFlag
 	return true
 }
 
-func ClassCanBeRemovedIfUnused(class Class, isUnbound func(Ref) bool) bool {
+func ClassCanBeRemovedIfUnused(class Class, isUnbound func(ast.Ref) bool) bool {
 	if len(class.Decorators) > 0 {
 		return false
 	}
@@ -2036,7 +2037,7 @@ func ClassCanBeRemovedIfUnused(class Class, isUnbound func(Ref) bool) bool {
 	return true
 }
 
-func ExprCanBeRemovedIfUnused(expr Expr, isUnbound func(Ref) bool) bool {
+func ExprCanBeRemovedIfUnused(expr Expr, isUnbound func(ast.Ref) bool) bool {
 	switch e := expr.Data.(type) {
 	case *EAnnotation:
 		return e.Flags.Has(CanBeRemovedIfUnusedFlag)
@@ -2225,7 +2226,7 @@ func ExprCanBeRemovedIfUnused(expr Expr, isUnbound func(Ref) bool) bool {
 	return false
 }
 
-func isSideEffectFreeUnboundIdentifierRef(value Expr, guardCondition Expr, isYesBranch bool, isUnbound func(Ref) bool) bool {
+func isSideEffectFreeUnboundIdentifierRef(value Expr, guardCondition Expr, isYesBranch bool, isUnbound func(ast.Ref) bool) bool {
 	if id, ok := value.Data.(*EIdentifier); ok && isUnbound(id.Ref) {
 		if binary, ok := guardCondition.Data.(*EBinary); ok {
 			switch binary.Op {
@@ -2376,7 +2377,7 @@ func MangleObjectSpread(properties []Property) []Property {
 
 // This function intentionally avoids mutating the input AST so it can be
 // called after the AST has been frozen (i.e. after parsing ends).
-func MangleIfExpr(loc logger.Loc, e *EIf, unsupportedFeatures compat.JSFeature, isUnbound func(Ref) bool) Expr {
+func MangleIfExpr(loc logger.Loc, e *EIf, unsupportedFeatures compat.JSFeature, isUnbound func(ast.Ref) bool) Expr {
 	test := e.Test
 	yes := e.Yes
 	no := e.No

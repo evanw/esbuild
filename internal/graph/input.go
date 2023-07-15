@@ -92,7 +92,7 @@ func (repr *JSRepr) ImportRecords() *[]ast.ImportRecord {
 	return &repr.AST.ImportRecords
 }
 
-func (repr *JSRepr) TopLevelSymbolToParts(ref js_ast.Ref) []uint32 {
+func (repr *JSRepr) TopLevelSymbolToParts(ref ast.Ref) []uint32 {
 	// Overlay the mutable map from the linker
 	if parts, ok := repr.Meta.TopLevelSymbolToPartsOverlay[ref]; ok {
 		return parts

@@ -7,6 +7,7 @@ package js_parser
 import (
 	"fmt"
 
+	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/helpers"
@@ -268,9 +269,9 @@ func (p *parser) markAsyncFn(asyncRange logger.Range, isGenerator bool) (didGene
 	return p.markSyntaxFeature(feature, asyncRange)
 }
 
-func (p *parser) captureThis() js_ast.Ref {
+func (p *parser) captureThis() ast.Ref {
 	if p.fnOnlyDataVisit.thisCaptureRef == nil {
-		ref := p.newSymbol(js_ast.SymbolHoisted, "_this")
+		ref := p.newSymbol(ast.SymbolHoisted, "_this")
 		p.fnOnlyDataVisit.thisCaptureRef = &ref
 	}
 
@@ -279,9 +280,9 @@ func (p *parser) captureThis() js_ast.Ref {
 	return ref
 }
 
-func (p *parser) captureArguments() js_ast.Ref {
+func (p *parser) captureArguments() ast.Ref {
 	if p.fnOnlyDataVisit.argumentsCaptureRef == nil {
-		ref := p.newSymbol(js_ast.SymbolHoisted, "_arguments")
+		ref := p.newSymbol(ast.SymbolHoisted, "_arguments")
 		p.fnOnlyDataVisit.argumentsCaptureRef = &ref
 	}
 
@@ -442,7 +443,7 @@ func (p *parser) lowerFunction(
 				}
 
 				// Generate a dummy variable
-				argRef := p.newSymbol(js_ast.SymbolOther, fmt.Sprintf("_%d", i))
+				argRef := p.newSymbol(ast.SymbolOther, fmt.Sprintf("_%d", i))
 				p.currentScope.Generated = append(p.currentScope.Generated, argRef)
 				*args = append(*args, js_ast.Arg{Binding: js_ast.Binding{Loc: arg.Binding.Loc, Data: &js_ast.BIdentifier{Ref: argRef}}})
 			}
@@ -467,7 +468,7 @@ func (p *parser) lowerFunction(
 				// add a rest argument to the set of forwarding variables. This is the
 				// case if the arrow function has rest or default arguments.
 				if len(*args) < len(fn.Args) {
-					argRef := p.newSymbol(js_ast.SymbolOther, fmt.Sprintf("_%d", len(*args)))
+					argRef := p.newSymbol(ast.SymbolOther, fmt.Sprintf("_%d", len(*args)))
 					p.currentScope.Generated = append(p.currentScope.Generated, argRef)
 					*args = append(*args, js_ast.Arg{Binding: js_ast.Binding{Loc: bodyLoc, Data: &js_ast.BIdentifier{Ref: argRef}}})
 					*hasRestArg = true
@@ -1491,7 +1492,7 @@ func (p *parser) lowerObjectRestHelper(
 	// If there is at least one rest binding, lower the whole expression
 	var visit func(js_ast.Expr, js_ast.Expr, []func() js_ast.Expr)
 
-	captureIntoRef := func(expr js_ast.Expr) js_ast.Ref {
+	captureIntoRef := func(expr js_ast.Expr) ast.Ref {
 		ref := p.generateTempRef(declare, "")
 		assign(js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EIdentifier{Ref: ref}}, expr)
 		p.recordUsage(ref)
@@ -1906,13 +1907,13 @@ func (p *parser) shouldLowerUsingDeclarations(stmts []js_ast.Stmt) bool {
 
 type lowerUsingDeclarationContext struct {
 	firstUsingLoc logger.Loc
-	stackRef      js_ast.Ref
+	stackRef      ast.Ref
 	hasAwaitUsing bool
 }
 
 func (p *parser) lowerUsingDeclarationContext() lowerUsingDeclarationContext {
 	return lowerUsingDeclarationContext{
-		stackRef: p.newSymbol(js_ast.SymbolOther, "_stack"),
+		stackRef: p.newSymbol(ast.SymbolOther, "_stack"),
 	}
 }
 
@@ -1995,7 +1996,7 @@ func (ctx *lowerUsingDeclarationContext) finalize(p *parser, stmts []js_ast.Stmt
 					exports = append(exports, js_ast.ClauseItem{
 						Alias:    p.symbols[b.Ref.InnerIndex].OriginalName,
 						AliasLoc: loc,
-						Name:     js_ast.LocRef{Loc: loc, Ref: b.Ref},
+						Name:     ast.LocRef{Loc: loc, Ref: b.Ref},
 					})
 					s.Kind = js_ast.LocalVar
 				})
@@ -2009,9 +2010,9 @@ func (ctx *lowerUsingDeclarationContext) finalize(p *parser, stmts []js_ast.Stmt
 	stmts = stmts[:end]
 
 	// Generate the variables we'll need
-	caughtRef := p.newSymbol(js_ast.SymbolOther, "_")
-	errorRef := p.newSymbol(js_ast.SymbolOther, "_error")
-	hasErrorRef := p.newSymbol(js_ast.SymbolOther, "_hasError")
+	caughtRef := p.newSymbol(ast.SymbolOther, "_")
+	errorRef := p.newSymbol(ast.SymbolOther, "_error")
+	hasErrorRef := p.newSymbol(ast.SymbolOther, "_hasError")
 
 	// Generated variables are declared with "var", so hoist them up
 	scope := p.currentScope

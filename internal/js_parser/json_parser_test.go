@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_printer"
 	"github.com/evanw/esbuild/internal/logger"
@@ -54,7 +55,7 @@ func expectPrintedJSONWithWarning(t *testing.T, contents string, warning string,
 			Parts: []js_ast.Part{{Stmts: []js_ast.Stmt{{Data: &js_ast.SExpr{Value: expr}}}}},
 		}
 
-		js := js_printer.Print(tree, js_ast.SymbolMap{}, nil, js_printer.Options{
+		js := js_printer.Print(tree, ast.SymbolMap{}, nil, js_printer.Options{
 			MinifyWhitespace: true,
 		}).JS
 

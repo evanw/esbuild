@@ -347,8 +347,8 @@ func (p *printer) printJSXTag(tagOrNil js_ast.Expr) {
 }
 
 type printer struct {
-	symbols                js_ast.SymbolMap
-	isUnbound              func(js_ast.Ref) bool
+	symbols                ast.SymbolMap
+	isUnbound              func(ast.Ref) bool
 	renamer                renamer.Renamer
 	importRecords          []ast.ImportRecord
 	callTarget             js_ast.E
@@ -399,9 +399,9 @@ func (p *printer) addSourceMapping(loc logger.Loc) {
 	}
 }
 
-func (p *printer) addSourceMappingForName(loc logger.Loc, name string, ref js_ast.Ref) {
+func (p *printer) addSourceMappingForName(loc logger.Loc, name string, ref ast.Ref) {
 	if p.options.AddSourceMappings {
-		if originalName := p.symbols.Get(js_ast.FollowSymbols(p.symbols, ref)).OriginalName; originalName != name {
+		if originalName := p.symbols.Get(ast.FollowSymbols(p.symbols, ref)).OriginalName; originalName != name {
 			p.builder.AddSourceMapping(loc, originalName, p.js)
 		} else {
 			p.builder.AddSourceMapping(loc, "", p.js)
@@ -421,8 +421,8 @@ func (p *printer) printIndent() {
 	}
 }
 
-func (p *printer) mangledPropName(ref js_ast.Ref) string {
-	ref = js_ast.FollowSymbols(p.symbols, ref)
+func (p *printer) mangledPropName(ref ast.Ref) string {
+	ref = ast.FollowSymbols(p.symbols, ref)
 	if name, ok := p.options.MangledProps[ref]; ok {
 		return name
 	}
@@ -431,8 +431,8 @@ func (p *printer) mangledPropName(ref js_ast.Ref) string {
 
 func (p *printer) tryToGetImportedEnumValue(target js_ast.Expr, name string) (js_ast.TSEnumValue, bool) {
 	if id, ok := target.Data.(*js_ast.EImportIdentifier); ok {
-		ref := js_ast.FollowSymbols(p.symbols, id.Ref)
-		if symbol := p.symbols.Get(ref); symbol.Kind == js_ast.SymbolTSEnum {
+		ref := ast.FollowSymbols(p.symbols, id.Ref)
+		if symbol := p.symbols.Get(ref); symbol.Kind == ast.SymbolTSEnum {
 			if enum, ok := p.options.TSEnums[ref]; ok {
 				value, ok := enum[name]
 				return value, ok
@@ -444,8 +444,8 @@ func (p *printer) tryToGetImportedEnumValue(target js_ast.Expr, name string) (js
 
 func (p *printer) tryToGetImportedEnumValueUTF16(target js_ast.Expr, name []uint16) (js_ast.TSEnumValue, string, bool) {
 	if id, ok := target.Data.(*js_ast.EImportIdentifier); ok {
-		ref := js_ast.FollowSymbols(p.symbols, id.Ref)
-		if symbol := p.symbols.Get(ref); symbol.Kind == js_ast.SymbolTSEnum {
+		ref := ast.FollowSymbols(p.symbols, id.Ref)
+		if symbol := p.symbols.Get(ref); symbol.Kind == ast.SymbolTSEnum {
 			if enum, ok := p.options.TSEnums[ref]; ok {
 				name := helpers.UTF16ToString(name)
 				value, ok := enum[name]
@@ -1219,7 +1219,7 @@ func (p *printer) printProperty(property js_ast.Property) {
 
 				case *js_ast.EImportIdentifier:
 					// Make sure we're not using a property access instead of an identifier
-					ref := js_ast.FollowSymbols(p.symbols, e.Ref)
+					ref := ast.FollowSymbols(p.symbols, e.Ref)
 					if symbol := p.symbols.Get(ref); symbol.NamespaceAlias == nil && name == p.renamer.NameForSymbol(ref) &&
 						p.options.ConstValues[ref].Kind == js_ast.ConstValueNone {
 						if property.InitializerOrNil.Data != nil {
@@ -1261,7 +1261,7 @@ func (p *printer) printProperty(property js_ast.Property) {
 
 				case *js_ast.EImportIdentifier:
 					// Make sure we're not using a property access instead of an identifier
-					ref := js_ast.FollowSymbols(p.symbols, e.Ref)
+					ref := ast.FollowSymbols(p.symbols, e.Ref)
 					if symbol := p.symbols.Get(ref); symbol.NamespaceAlias == nil && helpers.UTF16EqualsString(key.Value, p.renamer.NameForSymbol(ref)) &&
 						p.options.ConstValues[ref].Kind == js_ast.ConstValueNone {
 						if p.options.AddSourceMappings {
@@ -1493,7 +1493,7 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, level js_as
 
 	// Don't need the namespace object if the result is unused anyway
 	if (flags & exprResultIsUnused) != 0 {
-		meta.ExportsRef = js_ast.InvalidRef
+		meta.ExportsRef = ast.InvalidRef
 	}
 
 	// Internal "import()" of async ESM
@@ -1501,7 +1501,7 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, level js_as
 		p.printSpaceBeforeIdentifier()
 		p.printIdentifier(p.renamer.NameForSymbol(meta.WrapperRef))
 		p.print("()")
-		if meta.ExportsRef != js_ast.InvalidRef {
+		if meta.ExportsRef != ast.InvalidRef {
 			p.printDotThenPrefix()
 			p.printSpaceBeforeIdentifier()
 			p.printIdentifier(p.renamer.NameForSymbol(meta.ExportsRef))
@@ -1519,7 +1519,7 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, level js_as
 	}
 
 	// Make sure the comma operator is propertly wrapped
-	if meta.ExportsRef != js_ast.InvalidRef && level >= js_ast.LComma {
+	if meta.ExportsRef != ast.InvalidRef && level >= js_ast.LComma {
 		p.print("(")
 		defer p.print(")")
 	}
@@ -1538,7 +1538,7 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, level js_as
 	p.print("()")
 
 	// Return the namespace object if this is an ESM file
-	if meta.ExportsRef != js_ast.InvalidRef {
+	if meta.ExportsRef != ast.InvalidRef {
 		p.print(",")
 		p.printSpace()
 
@@ -1642,17 +1642,17 @@ func (p *printer) simplifyUnusedExpr(expr js_ast.Expr) js_ast.Expr {
 		}
 
 	case *js_ast.ECall:
-		var symbolFlags js_ast.SymbolFlags
+		var symbolFlags ast.SymbolFlags
 		switch target := e.Target.Data.(type) {
 		case *js_ast.EIdentifier:
 			symbolFlags = p.symbols.Get(target.Ref).Flags
 		case *js_ast.EImportIdentifier:
-			ref := js_ast.FollowSymbols(p.symbols, target.Ref)
+			ref := ast.FollowSymbols(p.symbols, target.Ref)
 			symbolFlags = p.symbols.Get(ref).Flags
 		}
 
 		// Replace non-mutated empty functions with their arguments at print time
-		if (symbolFlags & (js_ast.IsEmptyFunction | js_ast.CouldPotentiallyBeMutated)) == js_ast.IsEmptyFunction {
+		if (symbolFlags & (ast.IsEmptyFunction | ast.CouldPotentiallyBeMutated)) == ast.IsEmptyFunction {
 			var replacement js_ast.Expr
 			for _, arg := range e.Args {
 				if _, ok := arg.Data.(*js_ast.ESpread); ok {
@@ -1664,7 +1664,7 @@ func (p *printer) simplifyUnusedExpr(expr js_ast.Expr) js_ast.Expr {
 		}
 
 		// Inline non-mutated identity functions at print time
-		if (symbolFlags&(js_ast.IsIdentityFunction|js_ast.CouldPotentiallyBeMutated)) == js_ast.IsIdentityFunction && len(e.Args) == 1 {
+		if (symbolFlags&(ast.IsIdentityFunction|ast.CouldPotentiallyBeMutated)) == ast.IsIdentityFunction && len(e.Args) == 1 {
 			arg := e.Args[0]
 			if _, ok := arg.Data.(*js_ast.ESpread); !ok {
 				return js_ast.SimplifyUnusedExpr(p.simplifyUnusedExpr(arg), p.options.UnsupportedFeatures, p.isUnbound)
@@ -1724,7 +1724,7 @@ func (p *printer) guardAgainstBehaviorChangeDueToSubstitution(expr js_ast.Expr, 
 func (p *printer) lateConstantFoldUnaryOrBinaryExpr(expr js_ast.Expr) js_ast.Expr {
 	switch e := expr.Data.(type) {
 	case *js_ast.EImportIdentifier:
-		ref := js_ast.FollowSymbols(p.symbols, e.Ref)
+		ref := ast.FollowSymbols(p.symbols, e.Ref)
 		if value := p.options.ConstValues[ref]; value.Kind != js_ast.ConstValueNone {
 			return js_ast.ConstValueToExpr(expr.Loc, value)
 		}
@@ -1793,7 +1793,7 @@ func (p *printer) lateConstantFoldUnaryOrBinaryExpr(expr js_ast.Expr) js_ast.Exp
 
 func (p *printer) isUnboundIdentifier(expr js_ast.Expr) bool {
 	id, ok := expr.Data.(*js_ast.EIdentifier)
-	return ok && p.symbols.Get(js_ast.FollowSymbols(p.symbols, id.Ref)).Kind == js_ast.SymbolUnbound
+	return ok && p.symbols.Get(ast.FollowSymbols(p.symbols, id.Ref)).Kind == ast.SymbolUnbound
 }
 
 func (p *printer) isIdentifierOrNumericConstantOrPropertyAccess(expr js_ast.Expr) bool {
@@ -2259,17 +2259,17 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 
 	case *js_ast.ECall:
 		if p.options.MinifySyntax {
-			var symbolFlags js_ast.SymbolFlags
+			var symbolFlags ast.SymbolFlags
 			switch target := e.Target.Data.(type) {
 			case *js_ast.EIdentifier:
 				symbolFlags = p.symbols.Get(target.Ref).Flags
 			case *js_ast.EImportIdentifier:
-				ref := js_ast.FollowSymbols(p.symbols, target.Ref)
+				ref := ast.FollowSymbols(p.symbols, target.Ref)
 				symbolFlags = p.symbols.Get(ref).Flags
 			}
 
 			// Replace non-mutated empty functions with their arguments at print time
-			if (symbolFlags & (js_ast.IsEmptyFunction | js_ast.CouldPotentiallyBeMutated)) == js_ast.IsEmptyFunction {
+			if (symbolFlags & (ast.IsEmptyFunction | ast.CouldPotentiallyBeMutated)) == ast.IsEmptyFunction {
 				var replacement js_ast.Expr
 				for _, arg := range e.Args {
 					if _, ok := arg.Data.(*js_ast.ESpread); ok {
@@ -2285,7 +2285,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			}
 
 			// Inline non-mutated identity functions at print time
-			if (symbolFlags&(js_ast.IsIdentityFunction|js_ast.CouldPotentiallyBeMutated)) == js_ast.IsIdentityFunction && len(e.Args) == 1 {
+			if (symbolFlags&(ast.IsIdentityFunction|ast.CouldPotentiallyBeMutated)) == ast.IsIdentityFunction && len(e.Args) == 1 {
 				arg := e.Args[0]
 				if _, ok := arg.Data.(*js_ast.ESpread); !ok {
 					if (flags & exprResultIsUnused) != 0 {
@@ -2993,10 +2993,10 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 
 	case *js_ast.EImportIdentifier:
 		// Potentially use a property access instead of an identifier
-		ref := js_ast.FollowSymbols(p.symbols, e.Ref)
+		ref := ast.FollowSymbols(p.symbols, e.Ref)
 		symbol := p.symbols.Get(ref)
 
-		if symbol.ImportItemStatus == js_ast.ImportItemMissing {
+		if symbol.ImportItemStatus == ast.ImportItemMissing {
 			p.printUndefined(expr.Loc, level)
 		} else if symbol.NamespaceAlias != nil {
 			wrap := p.callTarget == e && e.WasOriginallyIdentifier
@@ -3337,8 +3337,8 @@ func (v *binaryExprVisitor) visitRightAndFinish(p *printer) {
 func (p *printer) isUnboundEvalIdentifier(value js_ast.Expr) bool {
 	if id, ok := value.Data.(*js_ast.EIdentifier); ok {
 		// Using the original name here is ok since unbound symbols are not renamed
-		symbol := p.symbols.Get(js_ast.FollowSymbols(p.symbols, id.Ref))
-		return symbol.Kind == js_ast.SymbolUnbound && symbol.OriginalName == "eval"
+		symbol := p.symbols.Get(ast.FollowSymbols(p.symbols, id.Ref))
+		return symbol.Kind == ast.SymbolUnbound && symbol.OriginalName == "eval"
 	}
 	return false
 }
@@ -4728,13 +4728,13 @@ type Options struct {
 	RequireOrImportMetaForSource func(uint32) RequireOrImportMeta
 
 	// Cross-module inlining of TypeScript enums is actually done during printing
-	TSEnums map[js_ast.Ref]map[string]js_ast.TSEnumValue
+	TSEnums map[ast.Ref]map[string]js_ast.TSEnumValue
 
 	// Cross-module inlining of detected inlinable constants is also done during printing
-	ConstValues map[js_ast.Ref]js_ast.ConstValue
+	ConstValues map[ast.Ref]js_ast.ConstValue
 
 	// Property mangling results go here
-	MangledProps map[js_ast.Ref]string
+	MangledProps map[ast.Ref]string
 
 	// This will be present if the input file had a source map. In that case we
 	// want to map all the way back to the original input file(s).
@@ -4744,9 +4744,9 @@ type Options struct {
 	// us do binary search on to figure out what line a given AST node came from
 	LineOffsetTables []sourcemap.LineOffsetTable
 
-	ToCommonJSRef       js_ast.Ref
-	ToESMRef            js_ast.Ref
-	RuntimeRequireRef   js_ast.Ref
+	ToCommonJSRef       ast.Ref
+	ToESMRef            ast.Ref
+	RuntimeRequireRef   ast.Ref
 	UnsupportedFeatures compat.JSFeature
 	Indent              int
 	LineLimit           int
@@ -4765,8 +4765,8 @@ type RequireOrImportMeta struct {
 	// CommonJS files will return the "require_*" wrapper function and an invalid
 	// exports object reference. Lazily-initialized ESM files will return the
 	// "init_*" wrapper function and the exports object for that file.
-	WrapperRef     js_ast.Ref
-	ExportsRef     js_ast.Ref
+	WrapperRef     ast.Ref
+	ExportsRef     ast.Ref
 	IsWrapperAsync bool
 }
 
@@ -4781,7 +4781,7 @@ type PrintResult struct {
 	SourceMapChunk sourcemap.Chunk
 }
 
-func Print(tree js_ast.AST, symbols js_ast.SymbolMap, r renamer.Renamer, options Options) PrintResult {
+func Print(tree js_ast.AST, symbols ast.SymbolMap, r renamer.Renamer, options Options) PrintResult {
 	p := &printer{
 		symbols:       symbols,
 		renamer:       r,
@@ -4806,9 +4806,9 @@ func Print(tree js_ast.AST, symbols js_ast.SymbolMap, r renamer.Renamer, options
 		p.printedExprComments = make(map[logger.Loc]bool)
 	}
 
-	p.isUnbound = func(ref js_ast.Ref) bool {
-		ref = js_ast.FollowSymbols(symbols, ref)
-		return symbols.Get(ref).Kind == js_ast.SymbolUnbound
+	p.isUnbound = func(ref ast.Ref) bool {
+		ref = ast.FollowSymbols(symbols, ref)
+		return symbols.Get(ref).Kind == ast.SymbolUnbound
 	}
 
 	// Add the top-level directive if present

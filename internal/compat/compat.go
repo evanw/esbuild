@@ -1,5 +1,7 @@
 package compat
 
+import "github.com/evanw/esbuild/internal/ast"
+
 type v struct {
 	major uint16
 	minor uint8
@@ -42,4 +44,23 @@ func isVersionSupported(ranges []versionRange, version []int) bool {
 		}
 	}
 	return false
+}
+
+func SymbolFeature(kind ast.SymbolKind) JSFeature {
+	switch kind {
+	case ast.SymbolPrivateField:
+		return ClassPrivateField
+	case ast.SymbolPrivateMethod:
+		return ClassPrivateMethod
+	case ast.SymbolPrivateGet, ast.SymbolPrivateSet, ast.SymbolPrivateGetSetPair:
+		return ClassPrivateAccessor
+	case ast.SymbolPrivateStaticField:
+		return ClassPrivateStaticField
+	case ast.SymbolPrivateStaticMethod:
+		return ClassPrivateStaticMethod
+	case ast.SymbolPrivateStaticGet, ast.SymbolPrivateStaticSet, ast.SymbolPrivateStaticGetSetPair:
+		return ClassPrivateStaticAccessor
+	default:
+		return 0
+	}
 }

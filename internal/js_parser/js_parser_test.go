@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/helpers"
@@ -76,7 +77,7 @@ func expectPrintedCommon(t *testing.T, contents string, expected string, options
 		if !ok {
 			t.Fatal("Parse error")
 		}
-		symbols := js_ast.NewSymbolMap(1)
+		symbols := ast.NewSymbolMap(1)
 		symbols.SymbolsForSource[0] = tree.Symbols
 		r := renamer.NewNoOpRenamer(symbols)
 		js := js_printer.Print(tree, symbols, r, js_printer.Options{
