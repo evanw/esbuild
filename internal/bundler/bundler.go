@@ -2063,8 +2063,9 @@ func (s *scanner) processScannedFiles(entryPointMeta []graph.EntryPoint) []scann
 							}
 							sourceIndex := s.allocateSourceIndex(stubKey, cache.SourceIndexJSStubForCSS)
 							source := logger.Source{
-								Index:      sourceIndex,
-								PrettyPath: otherFile.inputFile.Source.PrettyPath,
+								Index:          sourceIndex,
+								PrettyPath:     otherFile.inputFile.Source.PrettyPath,
+								IdentifierName: otherFile.inputFile.Source.IdentifierName,
 							}
 							s.results[sourceIndex] = parseResult{
 								file: scannerFile{

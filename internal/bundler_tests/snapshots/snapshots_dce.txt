@@ -2670,14 +2670,14 @@ menu {
 TestTreeShakingJSWithAssociatedCSSExportStarSideEffectsFalse
 ---------- /out/test.js ----------
 // project/node_modules/pkg/button.css
-var require_ = __commonJS({
+var require_button = __commonJS({
   "project/node_modules/pkg/button.css"(exports, module) {
     module.exports = {};
   }
 });
 
 // project/node_modules/pkg/components.jsx
-require_();
+require_button();
 var Button = () => /* @__PURE__ */ React.createElement("button", null);
 
 // project/test.jsx
@@ -2693,14 +2693,14 @@ button {
 TestTreeShakingJSWithAssociatedCSSExportStarSideEffectsFalseOnlyJS
 ---------- /out/test.js ----------
 // project/node_modules/pkg/button.css
-var require_ = __commonJS({
+var require_button = __commonJS({
   "project/node_modules/pkg/button.css"(exports, module) {
     module.exports = {};
   }
 });
 
 // project/node_modules/pkg/components.jsx
-require_();
+require_button();
 var Button = () => /* @__PURE__ */ React.createElement("button", null);
 
 // project/test.jsx
@@ -2716,14 +2716,14 @@ button {
 TestTreeShakingJSWithAssociatedCSSReExportSideEffectsFalse
 ---------- /out/test.js ----------
 // project/node_modules/pkg/button.css
-var require_ = __commonJS({
+var require_button = __commonJS({
   "project/node_modules/pkg/button.css"(exports, module) {
     module.exports = {};
   }
 });
 
 // project/node_modules/pkg/components.jsx
-require_();
+require_button();
 var Button = () => /* @__PURE__ */ React.createElement("button", null);
 
 // project/test.jsx
@@ -2739,14 +2739,14 @@ button {
 TestTreeShakingJSWithAssociatedCSSReExportSideEffectsFalseOnlyJS
 ---------- /out/test.js ----------
 // project/node_modules/pkg/button.css
-var require_ = __commonJS({
+var require_button = __commonJS({
   "project/node_modules/pkg/button.css"(exports, module) {
     module.exports = {};
   }
 });
 
 // project/node_modules/pkg/components.jsx
-require_();
+require_button();
 var Button = () => /* @__PURE__ */ React.createElement("button", null);
 
 // project/test.jsx
