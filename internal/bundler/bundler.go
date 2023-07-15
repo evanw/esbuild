@@ -2489,22 +2489,17 @@ func (b *Bundle) Compile(log logger.Log, timer *helpers.Timer, mangleCache map[s
 			go func(i int, entryPoint graph.EntryPoint) {
 				entryPoints := []graph.EntryPoint{entryPoint}
 				forked := timer.Fork()
-				var optionsPtr *config.Options
-				if mangleCache != nil {
-					// Each goroutine needs a separate options object
-					optionsClone := options
-					optionsClone.ExclusiveMangleCacheUpdate = func(cb func(mangleCache map[string]interface{})) {
-						// Serialize all accesses to the mangle cache in entry point order for determinism
-						serializer.Enter(i)
-						defer serializer.Leave(i)
-						cb(mangleCache)
-					}
-					optionsPtr = &optionsClone
-				} else {
-					// Each goroutine can share an options object
-					optionsPtr = &options
+
+				// Each goroutine needs a separate options object
+				optionsClone := options
+				optionsClone.ExclusiveMangleCacheUpdate = func(cb func(mangleCache map[string]interface{})) {
+					// Serialize all accesses to the mangle cache in entry point order for determinism
+					serializer.Enter(i)
+					defer serializer.Leave(i)
+					cb(mangleCache)
 				}
-				resultGroups[i] = link(optionsPtr, forked, log, b.fs, b.res, files, entryPoints,
+
+				resultGroups[i] = link(&optionsClone, forked, log, b.fs, b.res, files, entryPoints,
 					b.uniqueKeyPrefix, findReachableFiles(files, entryPoints), dataForSourceMaps)
 				timer.Join(forked)
 				waitGroup.Done()

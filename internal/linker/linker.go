@@ -311,6 +311,9 @@ func Link(
 
 	// Stop now if there were errors
 	if c.log.HasErrors() {
+		c.options.ExclusiveMangleCacheUpdate(func(mangleCache map[string]interface{}) {
+			// Always do this so that we don't cause other entry points when there are errors
+		})
 		return []graph.OutputFile{}
 	}
 
@@ -327,13 +330,11 @@ func Link(
 
 	// Merge mangled properties before chunks are generated since the names must
 	// be consistent across all chunks, or the generated code will break
-	if c.options.MangleProps != nil {
-		c.timer.Begin("Waiting for mangle cache")
-		c.options.ExclusiveMangleCacheUpdate(func(mangleCache map[string]interface{}) {
-			c.timer.End("Waiting for mangle cache")
-			c.mangleProps(mangleCache)
-		})
-	}
+	c.timer.Begin("Waiting for mangle cache")
+	c.options.ExclusiveMangleCacheUpdate(func(mangleCache map[string]interface{}) {
+		c.timer.End("Waiting for mangle cache")
+		c.mangleProps(mangleCache)
+	})
 
 	// Make sure calls to "ast.FollowSymbols()" in parallel goroutines after this
 	// won't hit concurrent map mutation hazards
