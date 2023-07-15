@@ -17,7 +17,7 @@ func expectPrintedCommon(t *testing.T, name string, contents string, expected st
 	t.Run(name, func(t *testing.T) {
 		t.Helper()
 		log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug, nil)
-		tree := Parse(log, test.SourceForTest(contents), OptionsFromConfig(&options))
+		tree := Parse(log, test.SourceForTest(contents), OptionsFromConfig(config.LoaderCSS, &options))
 		msgs := log.Done()
 		text := ""
 		if expectedLog != nil {

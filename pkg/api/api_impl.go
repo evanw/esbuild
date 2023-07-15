@@ -259,6 +259,8 @@ func validateLoader(value Loader) config.Loader {
 		return config.LoaderJSX
 	case LoaderNone:
 		return config.LoaderNone
+	case LoaderLocalCSS:
+		return config.LoaderLocalCSS
 	case LoaderText:
 		return config.LoaderText
 	case LoaderTS:

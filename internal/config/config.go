@@ -196,6 +196,7 @@ const (
 	LoaderJS
 	LoaderJSON
 	LoaderJSX
+	LoaderLocalCSS
 	LoaderText
 	LoaderTS
 	LoaderTSNoAmbiguousLessThan // Used with ".mts" and ".cts"
@@ -215,6 +216,7 @@ var LoaderToString = []string{
 	"js",
 	"json",
 	"jsx",
+	"local-css",
 	"text",
 	"ts",
 	"ts",

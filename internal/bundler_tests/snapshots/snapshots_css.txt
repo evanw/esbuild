@@ -622,13 +622,51 @@ TestIgnoreURLsInAtRulePrelude
 }
 
 ================================================================================
-TestImportCSSFromJS
+TestImportGlobalCSSFromJS
 ---------- /out/entry.js ----------
+// a.css
+var a_default = {};
+
 // a.js
-console.log("a");
+console.log("a", void 0, a_default.a);
+
+// b.css
+var b_default = {};
 
 // b.js
-console.log("b");
+console.log("b", void 0, b_default.b);
+
+---------- /out/entry.css ----------
+/* a.css */
+.a {
+  color: red;
+}
+
+/* b.css */
+.b {
+  color: blue;
+}
+
+================================================================================
+TestImportLocalCSSFromJS
+---------- /out/entry.js ----------
+// a.css
+var a = "a";
+var a_default = {
+  a
+};
+
+// a.js
+console.log("a", a, a_default.a);
+
+// b.css
+var b = "b";
+var b_default = {
+  b
+};
+
+// b.js
+console.log("b", b, b_default.b);
 
 ---------- /out/entry.css ----------
 /* a.css */

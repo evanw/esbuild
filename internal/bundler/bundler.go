@@ -229,8 +229,8 @@ func parseFile(args parseArgs) {
 		result.file.inputFile.Repr = &graph.JSRepr{AST: ast}
 		result.ok = ok
 
-	case config.LoaderCSS:
-		ast := args.caches.CSSCache.Parse(args.log, source, css_parser.OptionsFromConfig(&args.options))
+	case config.LoaderCSS, config.LoaderLocalCSS:
+		ast := args.caches.CSSCache.Parse(args.log, source, css_parser.OptionsFromConfig(loader, &args.options))
 		result.file.inputFile.Repr = &graph.CSSRepr{AST: ast}
 		result.ok = true
 
@@ -2067,13 +2067,27 @@ func (s *scanner) processScannedFiles(entryPointMeta []graph.EntryPoint) []scann
 								PrettyPath:     otherFile.inputFile.Source.PrettyPath,
 								IdentifierName: otherFile.inputFile.Source.IdentifierName,
 							}
+
+							// Export all local CSS names for JavaScript to use
+							exports := js_ast.EObject{}
+							cssSourceIndex := record.SourceIndex.GetIndex()
+							for innerIndex, symbol := range css.AST.Symbols {
+								if symbol.Kind == ast.SymbolLocalCSS {
+									ref := ast.Ref{SourceIndex: cssSourceIndex, InnerIndex: uint32(innerIndex)}
+									exports.Properties = append(exports.Properties, js_ast.Property{
+										Key:        js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16(symbol.OriginalName)}},
+										ValueOrNil: js_ast.Expr{Data: &js_ast.ENameOfSymbol{Ref: ref}},
+									})
+								}
+							}
+
 							s.results[sourceIndex] = parseResult{
 								file: scannerFile{
 									inputFile: graph.InputFile{
 										Source: source,
 										Repr: &graph.JSRepr{
 											AST: js_parser.LazyExportAST(s.log, source,
-												js_parser.OptionsFromConfig(&s.options), js_ast.Expr{Data: &js_ast.EObject{}}, ""),
+												js_parser.OptionsFromConfig(&s.options), js_ast.Expr{Data: &exports}, ""),
 											CSSSourceIndex: ast.MakeIndex32(record.SourceIndex.GetIndex()),
 										},
 									},

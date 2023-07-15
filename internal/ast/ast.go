@@ -286,6 +286,9 @@ const (
 	// CSS identifiers that are never renamed
 	SymbolGlobalCSS
 
+	// CSS identifiers that are renamed to be unique to the file they are in
+	SymbolLocalCSS
+
 	// This annotates all other symbols that don't have special behavior
 	SymbolOther
 )

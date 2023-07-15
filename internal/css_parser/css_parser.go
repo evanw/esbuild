@@ -23,6 +23,7 @@ type parser struct {
 	stack              []css_lexer.T
 	importRecords      []ast.ImportRecord
 	symbols            []ast.Symbol
+	localSymbolMap     map[string]ast.Ref
 	globalSymbolMap    map[string]ast.Ref
 	tracker            logger.LineColumnTracker
 	index              int
@@ -48,9 +49,10 @@ type optionsThatSupportStructuralEquality struct {
 	unsupportedCSSFeatures compat.CSSFeature
 	minifySyntax           bool
 	minifyWhitespace       bool
+	makeLocalSymbols       bool
 }
 
-func OptionsFromConfig(options *config.Options) Options {
+func OptionsFromConfig(loader config.Loader, options *config.Options) Options {
 	return Options{
 		cssPrefixData: options.CSSPrefixData,
 
@@ -59,6 +61,7 @@ func OptionsFromConfig(options *config.Options) Options {
 			minifyWhitespace:       options.MinifyWhitespace,
 			unsupportedCSSFeatures: options.UnsupportedCSSFeatures,
 			originalTargetEnv:      options.OriginalTargetEnv,
+			makeLocalSymbols:       loader == config.LoaderLocalCSS,
 		},
 	}
 }
@@ -98,6 +101,7 @@ func Parse(log logger.Log, source logger.Source, options Options) css_ast.AST {
 		tokens:          result.Tokens,
 		legalComments:   result.LegalComments,
 		prevError:       logger.Loc{Start: -1},
+		localSymbolMap:  make(map[string]ast.Ref),
 		globalSymbolMap: make(map[string]ast.Ref),
 	}
 	p.end = len(p.tokens)
@@ -237,19 +241,31 @@ func (p *parser) unexpected() {
 }
 
 func (p *parser) symbolForName(name string) ast.Ref {
-	ref, ok := p.globalSymbolMap[name]
+	var kind ast.SymbolKind
+	var scope map[string]ast.Ref
+
+	if p.options.makeLocalSymbols {
+		kind = ast.SymbolLocalCSS
+		scope = p.globalSymbolMap
+	} else {
+		kind = ast.SymbolGlobalCSS
+		scope = p.localSymbolMap
+	}
+
+	ref, ok := scope[name]
 	if !ok {
 		ref = ast.Ref{
 			SourceIndex: p.source.Index,
 			InnerIndex:  uint32(len(p.symbols)),
 		}
 		p.symbols = append(p.symbols, ast.Symbol{
-			Kind:         ast.SymbolGlobalCSS,
+			Kind:         kind,
 			OriginalName: name,
 			Link:         ast.InvalidRef,
 		})
-		p.globalSymbolMap[name] = ref
+		scope[name] = ref
 	}
+
 	return ref
 }
 

@@ -149,6 +149,7 @@ const (
 	LoaderJS
 	LoaderJSON
 	LoaderJSX
+	LoaderLocalCSS
 	LoaderText
 	LoaderTS
 	LoaderTSX

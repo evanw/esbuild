@@ -1,6 +1,6 @@
 export type Platform = 'browser' | 'node' | 'neutral'
 export type Format = 'iife' | 'cjs' | 'esm'
-export type Loader = 'base64' | 'binary' | 'copy' | 'css' | 'dataurl' | 'default' | 'empty' | 'file' | 'js' | 'json' | 'jsx' | 'text' | 'ts' | 'tsx'
+export type Loader = 'base64' | 'binary' | 'copy' | 'css' | 'dataurl' | 'default' | 'empty' | 'file' | 'js' | 'json' | 'jsx' | 'local-css' | 'text' | 'ts' | 'tsx'
 export type LogLevel = 'verbose' | 'debug' | 'info' | 'warning' | 'error' | 'silent'
 export type Charset = 'ascii' | 'utf8'
 export type Drop = 'console' | 'debugger'

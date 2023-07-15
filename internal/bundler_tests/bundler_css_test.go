@@ -167,7 +167,7 @@ func TestCSSFromJSMissingStarImport(t *testing.T) {
 	})
 }
 
-func TestImportCSSFromJS(t *testing.T) {
+func TestImportGlobalCSSFromJS(t *testing.T) {
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -175,15 +175,15 @@ func TestImportCSSFromJS(t *testing.T) {
 				import "./b.js"
 			`,
 			"/a.js": `
-				import "./a.css";
-				console.log('a')
+				import * as stylesA from "./a.css"
+				console.log('a', stylesA.a, stylesA.default.a)
 			`,
 			"/a.css": `
 				.a { color: red }
 			`,
 			"/b.js": `
-				import "./b.css";
-				console.log('b')
+				import * as stylesB from "./b.css"
+				console.log('b', stylesB.b, stylesB.default.b)
 			`,
 			"/b.css": `
 				.b { color: blue }
@@ -193,6 +193,40 @@ func TestImportCSSFromJS(t *testing.T) {
 		options: config.Options{
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/out",
+		},
+	})
+}
+
+func TestImportLocalCSSFromJS(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import "./a.js"
+				import "./b.js"
+			`,
+			"/a.js": `
+				import * as stylesA from "./a.css"
+				console.log('a', stylesA.a, stylesA.default.a)
+			`,
+			"/a.css": `
+				.a { color: red }
+			`,
+			"/b.js": `
+				import * as stylesB from "./b.css"
+				console.log('b', stylesB.b, stylesB.default.b)
+			`,
+			"/b.css": `
+				.b { color: blue }
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			ExtensionToLoader: map[string]config.Loader{
+				".js":  config.LoaderJS,
+				".css": config.LoaderLocalCSS,
+			},
 		},
 	})
 }
