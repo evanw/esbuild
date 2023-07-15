@@ -876,18 +876,24 @@ func (ss *SSPseudoClass) Clone() SS {
 type PseudoClassKind uint8
 
 const (
-	PseudoClassHas PseudoClassKind = iota
+	PseudoClassGlobal PseudoClassKind = iota
+	PseudoClassHas
 	PseudoClassIs
+	PseudoClassLocal
 	PseudoClassNot
 	PseudoClassWhere
 )
 
 func (kind PseudoClassKind) String() string {
 	switch kind {
+	case PseudoClassGlobal:
+		return "global"
 	case PseudoClassHas:
 		return "has"
 	case PseudoClassIs:
 		return "is"
+	case PseudoClassLocal:
+		return "local"
 	case PseudoClassNot:
 		return "not"
 	case PseudoClassWhere:

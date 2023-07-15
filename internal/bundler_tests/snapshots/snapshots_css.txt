@@ -622,6 +622,185 @@ TestIgnoreURLsInAtRulePrelude
 }
 
 ================================================================================
+TestImportCSSFromJSLocalVsGlobal
+---------- /out/entry.js ----------
+
+---------- /out/entry.css ----------
+/* foo.css */
+.GLOBAL {
+  color: #000;
+}
+.GLOBAL {
+  color: #001;
+}
+.foo_local {
+  color: #002;
+}
+div.GLOBAL {
+  color: #003;
+}
+div.foo_local {
+  color: #004;
+}
+div.GLOBAL {
+  color: #005;
+}
+div.GLOBAL {
+  color: #006;
+}
+div.GLOBAL {
+  color: #007;
+}
+div.foo_local {
+  color: #008;
+}
+div:is(span.GLOBAL) {
+  color: #009;
+}
+div:is(span.foo_local) {
+  color: #00A;
+}
+div#GLOBAL0.GLOBAL1.GLOBAL2.foo_local0.foo_local1#foo_local2 {
+  color: #00B;
+}
+div:is(#GLOBAL0 .GLOBAL1 .GLOBAL2):is(.foo_local0 .foo_local1 #foo_local2) {
+  color: #00C;
+}
+.nested {
+  &.GLOBAL {
+    color: #00D;
+  }
+  &.foo_local {
+    color: #00E;
+  }
+  &.GLOBAL {
+    color: #00F;
+  }
+  &.foo_local {
+    color: #010;
+  }
+}
+.GLOBAL0,
+.GLOBAL1 {
+  color: #011;
+}
+.foo_local0,
+.foo_local1 {
+  color: #012;
+}
+div:is(.GLOBAL0, .GLOBAL1) {
+  color: #013;
+}
+div:is(.foo_local0, .foo_local1) {
+  color: #014;
+}
+div :is(.GLOBAL0, .GLOBAL1) span {
+  color: #015;
+}
+div :is(.foo_local0, .foo_local1) span {
+  color: #016;
+}
+div .GLOBAL0 .GLOBAL1 span {
+  color: #017;
+}
+div .foo_local0 .foo_local1 span {
+  color: #018;
+}
+div > .GLOBAL0 ~ .GLOBAL1 + span {
+  color: #019;
+}
+div > .foo_local0 ~ .foo_local1 + span {
+  color: #01A;
+}
+
+/* bar.module.css */
+.bar_module_local {
+  color: #000;
+}
+.GLOBAL {
+  color: #001;
+}
+.bar_module_local {
+  color: #002;
+}
+div.GLOBAL {
+  color: #003;
+}
+div.bar_module_local {
+  color: #004;
+}
+div.bar_module_local {
+  color: #005;
+}
+div.bar_module_local {
+  color: #006;
+}
+div.GLOBAL {
+  color: #007;
+}
+div.bar_module_local {
+  color: #008;
+}
+div:is(span.GLOBAL) {
+  color: #009;
+}
+div:is(span.bar_module_local) {
+  color: #00A;
+}
+div#GLOBAL0.GLOBAL1.GLOBAL2.bar_module_local0.bar_module_local1#bar_module_local2 {
+  color: #00B;
+}
+div:is(#GLOBAL0 .GLOBAL1 .GLOBAL2):is(.bar_module_local0 .bar_module_local1 #bar_module_local2) {
+  color: #00C;
+}
+.bar_module_nested {
+  &.GLOBAL {
+    color: #00D;
+  }
+  &.bar_module_local {
+    color: #00E;
+  }
+  &.GLOBAL {
+    color: #00F;
+  }
+  &.bar_module_local {
+    color: #010;
+  }
+}
+.GLOBAL0,
+.GLOBAL1 {
+  color: #011;
+}
+.bar_module_local0,
+.bar_module_local1 {
+  color: #012;
+}
+div:is(.GLOBAL0, .GLOBAL1) {
+  color: #013;
+}
+div:is(.bar_module_local0, .bar_module_local1) {
+  color: #014;
+}
+div :is(.GLOBAL0, .GLOBAL1) span {
+  color: #015;
+}
+div :is(.bar_module_local0, .bar_module_local1) span {
+  color: #016;
+}
+div .GLOBAL0 .GLOBAL1 span {
+  color: #017;
+}
+div .bar_module_local0 .bar_module_local1 span {
+  color: #018;
+}
+div > .GLOBAL0 ~ .GLOBAL1 + span {
+  color: #019;
+}
+div > .bar_module_local0 ~ .bar_module_local1 + span {
+  color: #01A;
+}
+
+================================================================================
 TestImportGlobalCSSFromJS
 ---------- /out/entry.js ----------
 // a.css
