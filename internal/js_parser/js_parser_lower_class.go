@@ -1166,7 +1166,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 			case *js_ast.EPrivateIdentifier:
 				storageName = "#_" + p.symbols[k.Ref.InnerIndex].OriginalName[1:]
 			default:
-				storageName = "#" + js_ast.DefaultNameMinifier.NumberToMinifiedName(autoAccessorCount)
+				storageName = "#" + ast.DefaultNameMinifierJS.NumberToMinifiedName(autoAccessorCount)
 				autoAccessorCount++
 			}
 

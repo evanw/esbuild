@@ -257,7 +257,7 @@ func (r *MinifyRenamer) AllocateTopLevelSymbolSlots(topLevelSymbols StableSymbol
 	}
 }
 
-func (r *MinifyRenamer) AssignNamesByFrequency(minifier *js_ast.NameMinifier) {
+func (r *MinifyRenamer) AssignNamesByFrequency(minifier *ast.NameMinifier) {
 	for ns, slots := range r.slots {
 		// Sort symbols by count
 		sorted := make(slotAndCountArray, len(slots))
@@ -656,7 +656,7 @@ func (r *ExportRenamer) NextRenamedName(name string) string {
 }
 
 func (r *ExportRenamer) NextMinifiedName() string {
-	name := js_ast.DefaultNameMinifier.NumberToMinifiedName(r.count)
+	name := ast.DefaultNameMinifierJS.NumberToMinifiedName(r.count)
 	r.count++
 	return name
 }

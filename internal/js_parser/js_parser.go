@@ -8067,7 +8067,7 @@ func (p *parser) generateTempRef(declare generateTempRefArg, optionalName string
 	}
 
 	if optionalName == "" {
-		optionalName = "_" + js_ast.DefaultNameMinifier.NumberToMinifiedName(p.tempRefCount)
+		optionalName = "_" + ast.DefaultNameMinifierJS.NumberToMinifiedName(p.tempRefCount)
 		p.tempRefCount++
 	}
 	ref := p.newSymbol(ast.SymbolOther, optionalName)
@@ -8083,7 +8083,7 @@ func (p *parser) generateTempRef(declare generateTempRefArg, optionalName string
 }
 
 func (p *parser) generateTopLevelTempRef() ast.Ref {
-	ref := p.newSymbol(ast.SymbolOther, "_"+js_ast.DefaultNameMinifier.NumberToMinifiedName(p.topLevelTempRefCount))
+	ref := p.newSymbol(ast.SymbolOther, "_"+ast.DefaultNameMinifierJS.NumberToMinifiedName(p.topLevelTempRefCount))
 	p.topLevelTempRefsToDeclare = append(p.topLevelTempRefsToDeclare, tempRef{ref: ref})
 	p.moduleScope.Generated = append(p.moduleScope.Generated, ref)
 	p.topLevelTempRefCount++
@@ -16863,13 +16863,13 @@ func (p *parser) declareCommonJSSymbol(kind ast.SymbolKind, name string) ast.Ref
 // symbol. This is used to modify how minified names are generated for slightly
 // better gzip compression. Even though it's a very small win, we still do it
 // because it's simple to do and very cheap to compute.
-func (p *parser) computeCharacterFrequency() *js_ast.CharFreq {
+func (p *parser) computeCharacterFrequency() *ast.CharFreq {
 	if !p.options.minifyIdentifiers || p.source.Index == runtime.SourceIndex {
 		return nil
 	}
 
 	// Add everything in the file to the histogram
-	charFreq := &js_ast.CharFreq{}
+	charFreq := &ast.CharFreq{}
 	charFreq.Scan(p.source.Contents, 1)
 
 	// Subtract out all comments

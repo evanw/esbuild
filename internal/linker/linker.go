@@ -366,7 +366,7 @@ func (c *linkerContext) mangleProps(mangleCache map[string]interface{}) {
 	}
 
 	// Merge all mangled property symbols together
-	freq := js_ast.CharFreq{}
+	freq := ast.CharFreq{}
 	mergedProps := make(map[string]ast.Ref)
 	for _, sourceIndex := range c.graph.ReachableFiles {
 		// Don't mangle anything in the runtime code
@@ -410,7 +410,7 @@ func (c *linkerContext) mangleProps(mangleCache map[string]interface{}) {
 	sort.Sort(sorted)
 
 	// Assign names in order of use count
-	minifier := freq.Compile()
+	minifier := ast.DefaultNameMinifierJS.ShuffleByCharFreq(freq)
 	nextName := 0
 	for _, symbolCount := range sorted {
 		symbol := c.graph.Symbols.Get(symbolCount.Ref)
@@ -4524,7 +4524,7 @@ func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []ui
 		timer.Begin("Parallel phase")
 		allTopLevelSymbols := make([]renamer.StableSymbolCountArray, len(filesInOrder))
 		stableSourceIndices := c.graph.StableSourceIndices
-		freq := js_ast.CharFreq{}
+		freq := ast.CharFreq{}
 		waitGroup := sync.WaitGroup{}
 		waitGroup.Add(len(filesInOrder))
 		for i, sourceIndex := range filesInOrder {
@@ -4588,7 +4588,7 @@ func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []ui
 		// over assigning minified names in order (i.e. "a b c ..."). Even though
 		// it's a very small win, we still do it because it's simple to do and very
 		// cheap to compute.
-		minifier := freq.Compile()
+		minifier := ast.DefaultNameMinifierJS.ShuffleByCharFreq(freq)
 		timer.Begin("Assign names by frequency")
 		r.AssignNamesByFrequency(&minifier)
 		timer.End("Assign names by frequency")
