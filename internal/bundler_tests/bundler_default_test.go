@@ -8396,3 +8396,34 @@ func TestLineLimitMinified(t *testing.T) {
 		},
 	})
 }
+
+func TestBadImportErrorMessageWithHandlesImportErrorsFlag(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import('foo')
+				import('foo')
+				import('foo').catch()
+				import('foo').catch()
+
+				import('bar').catch()
+				import('bar').catch()
+				import('bar') // We should get an error report here even though the earlier imports have the "HandlesImportErrors" flag
+				import('bar')
+
+				import('baz').catch()
+				import('baz').catch()
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `entry.js: ERROR: Could not resolve "foo"
+NOTE: You can mark the path "foo" as external to exclude it from the bundle, which will remove this error. You can also add ".catch()" here to handle this failure at run-time instead of bundle-time.
+entry.js: ERROR: Could not resolve "bar"
+NOTE: You can mark the path "bar" as external to exclude it from the bundle, which will remove this error. You can also add ".catch()" here to handle this failure at run-time instead of bundle-time.
+`,
+	})
+}

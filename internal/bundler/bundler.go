@@ -357,7 +357,13 @@ func parseFile(args parseArgs) {
 			result.resolveResults = make([]*resolver.ResolveResult, len(records))
 
 			if len(records) > 0 {
-				resolverCache := make(map[ast.ImportKind]map[string]*resolver.ResolveResult)
+				type cacheEntry struct {
+					resolveResult *resolver.ResolveResult
+					debug         resolver.DebugMeta
+					didLogError   bool
+				}
+
+				resolverCache := make(map[ast.ImportKind]map[string]cacheEntry)
 				tracker := logger.MakeLineColumnTracker(&source)
 
 				for importRecordIndex := range records {
@@ -376,54 +382,70 @@ func parseFile(args parseArgs) {
 					// Cache the path in case it's imported multiple times in this file
 					cache, ok := resolverCache[record.Kind]
 					if !ok {
-						cache = make(map[string]*resolver.ResolveResult)
+						cache = make(map[string]cacheEntry)
 						resolverCache[record.Kind] = cache
 					}
-					if resolveResult, ok := cache[record.Path.Text]; ok {
-						result.resolveResults[importRecordIndex] = resolveResult
-						continue
-					}
 
-					// Run the resolver and log an error if the path couldn't be resolved
-					resolveResult, didLogError, debug := RunOnResolvePlugins(
-						args.options.Plugins,
-						args.res,
-						args.log,
-						args.fs,
-						&args.caches.FSCache,
-						&source,
-						record.Range,
-						source.KeyPath,
-						record.Path.Text,
-						record.Kind,
-						absResolveDir,
-						pluginData,
-					)
-					cache[record.Path.Text] = resolveResult
-
-					// All "require.resolve()" imports should be external because we don't
-					// want to waste effort traversing into them
-					if record.Kind == ast.ImportRequireResolve {
-						if resolveResult != nil && resolveResult.IsExternal {
-							// Allow path substitution as long as the result is external
-							result.resolveResults[importRecordIndex] = resolveResult
-						} else if !record.Flags.Has(ast.HandlesImportErrors) {
-							args.log.AddID(logger.MsgID_Bundler_RequireResolveNotExternal, logger.Warning, &tracker, record.Range,
-								fmt.Sprintf("%q should be marked as external for use with \"require.resolve\"", record.Path.Text))
+					entry, ok := cache[record.Path.Text]
+					if ok {
+						result.resolveResults[importRecordIndex] = entry.resolveResult
+					} else {
+						// Run the resolver and log an error if the path couldn't be resolved
+						resolveResult, didLogError, debug := RunOnResolvePlugins(
+							args.options.Plugins,
+							args.res,
+							args.log,
+							args.fs,
+							&args.caches.FSCache,
+							&source,
+							record.Range,
+							source.KeyPath,
+							record.Path.Text,
+							record.Kind,
+							absResolveDir,
+							pluginData,
+						)
+						entry = cacheEntry{
+							resolveResult: resolveResult,
+							debug:         debug,
+							didLogError:   didLogError,
 						}
-						continue
+						cache[record.Path.Text] = entry
+
+						// All "require.resolve()" imports should be external because we don't
+						// want to waste effort traversing into them
+						if record.Kind == ast.ImportRequireResolve {
+							if resolveResult != nil && resolveResult.IsExternal {
+								// Allow path substitution as long as the result is external
+								result.resolveResults[importRecordIndex] = resolveResult
+							} else if !record.Flags.Has(ast.HandlesImportErrors) {
+								args.log.AddID(logger.MsgID_Bundler_RequireResolveNotExternal, logger.Warning, &tracker, record.Range,
+									fmt.Sprintf("%q should be marked as external for use with \"require.resolve\"", record.Path.Text))
+							}
+							continue
+						}
 					}
 
-					if resolveResult == nil {
+					// Check whether we should log an error every time the result is nil,
+					// even if it's from the cache. Do this because the error may not
+					// have been logged for nil entries if the previous instances had
+					// the "HandlesImportErrors" flag.
+					if entry.resolveResult == nil {
 						// Failed imports inside a try/catch are silently turned into
 						// external imports instead of causing errors. This matches a common
 						// code pattern for conditionally importing a module with a graceful
 						// fallback.
-						if !didLogError && !record.Flags.Has(ast.HandlesImportErrors) {
+						if !entry.didLogError && !record.Flags.Has(ast.HandlesImportErrors) {
+							// Report an error
 							text, suggestion, notes := ResolveFailureErrorTextSuggestionNotes(args.res, record.Path.Text, record.Kind,
-								pluginName, args.fs, absResolveDir, args.options.Platform, source.PrettyPath, debug.ModifiedImportPath)
-							debug.LogErrorMsg(args.log, &source, record.Range, text, suggestion, notes)
-						} else if !didLogError && record.Flags.Has(ast.HandlesImportErrors) {
+								pluginName, args.fs, absResolveDir, args.options.Platform, source.PrettyPath, entry.debug.ModifiedImportPath)
+							entry.debug.LogErrorMsg(args.log, &source, record.Range, text, suggestion, notes)
+
+							// Only report this error once per unique import path in the file
+							entry.didLogError = true
+							cache[record.Path.Text] = entry
+						} else if !entry.didLogError && record.Flags.Has(ast.HandlesImportErrors) {
+							// Report a debug message about why there was no error
 							args.log.AddIDWithNotes(logger.MsgID_Bundler_IgnoredDynamicImport, logger.Debug, &tracker, record.Range,
 								fmt.Sprintf("Importing %q was allowed even though it could not be resolved because dynamic import failures appear to be handled here:",
 									record.Path.Text), []logger.MsgData{tracker.MsgData(js_lexer.RangeOfIdentifier(source, record.ErrorHandlerLoc),
@@ -432,7 +454,7 @@ func parseFile(args parseArgs) {
 						continue
 					}
 
-					result.resolveResults[importRecordIndex] = resolveResult
+					result.resolveResults[importRecordIndex] = entry.resolveResult
 				}
 			}
 		}
