@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.18.13
 
 * Add the `--drop-labels=` option ([#2398](https://github.com/evanw/esbuild/issues/2398))
 
