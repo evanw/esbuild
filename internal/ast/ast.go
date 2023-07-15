@@ -707,6 +707,11 @@ var DefaultNameMinifierJS = NameMinifier{
 	tail: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_$",
 }
 
+var DefaultNameMinifierCSS = NameMinifier{
+	head: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_",
+	tail: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_",
+}
+
 type charAndCount struct {
 	char  string
 	count int32
@@ -749,15 +754,18 @@ func (source NameMinifier) ShuffleByCharFreq(freq CharFreq) NameMinifier {
 }
 
 func (minifier NameMinifier) NumberToMinifiedName(i int) string {
-	j := i % 54
+	n_head := len(minifier.head)
+	n_tail := len(minifier.tail)
+
+	j := i % n_head
 	name := minifier.head[j : j+1]
-	i = i / 54
+	i = i / n_head
 
 	for i > 0 {
 		i--
-		j := i % 64
+		j := i % n_tail
 		name += minifier.tail[j : j+1]
-		i = i / 64
+		i = i / n_tail
 	}
 
 	return name

@@ -266,6 +266,7 @@ func (p *parser) symbolForName(name string) ast.Ref {
 		scope[name] = ref
 	}
 
+	p.symbols[ref.InnerIndex].UseCountEstimate++
 	return ref
 }
 

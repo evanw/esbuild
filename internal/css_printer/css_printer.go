@@ -38,6 +38,9 @@ type Options struct {
 	// us do binary search on to figure out what line a given AST node came from
 	LineOffsetTables []sourcemap.LineOffsetTable
 
+	// Local symbol renaming results go here
+	LocalNames map[ast.Ref]string
+
 	LineLimit           int
 	UnsupportedFeatures compat.CSSFeature
 	MinifyWhitespace    bool
@@ -808,7 +811,10 @@ func (p *printer) printIdent(text string, mode identMode, whitespace trailingWhi
 
 func (p *printer) printSymbol(ref ast.Ref, mode identMode, whitespace trailingWhitespace) {
 	ref = ast.FollowSymbols(p.symbols, ref)
-	name := p.symbols.Get(ref).OriginalName
+	name, ok := p.options.LocalNames[ref]
+	if !ok {
+		name = p.symbols.Get(ref).OriginalName
+	}
 	p.printIdent(name, mode, whitespace)
 }
 

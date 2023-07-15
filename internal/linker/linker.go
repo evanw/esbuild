@@ -15,6 +15,7 @@ import (
 	"hash"
 	"path"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -334,6 +335,7 @@ func Link(
 	c.options.ExclusiveMangleCacheUpdate(func(mangleCache map[string]interface{}) {
 		c.timer.End("Waiting for mangle cache")
 		c.mangleProps(mangleCache)
+		c.mangleLocalCSS()
 	})
 
 	// Make sure calls to "ast.FollowSymbols()" in parallel goroutines after this
@@ -438,6 +440,99 @@ func (c *linkerContext) mangleProps(mangleCache map[string]interface{}) {
 			mangleCache[symbol.OriginalName] = name
 		}
 		mangledProps[symbolCount.Ref] = name
+	}
+}
+
+func (c *linkerContext) mangleLocalCSS() {
+	c.timer.Begin("Mangle local CSS")
+	defer c.timer.End("Mangle local CSS")
+
+	mangledProps := c.mangledProps
+	globalNames := make(map[string]bool)
+	localNames := make(map[ast.Ref]struct{})
+
+	// Collect all local and global CSS names
+	for _, sourceIndex := range c.graph.ReachableFiles {
+		if _, ok := c.graph.Files[sourceIndex].InputFile.Repr.(*graph.CSSRepr); ok {
+			for innerIndex, symbol := range c.graph.Symbols.SymbolsForSource[sourceIndex] {
+				if symbol.Kind == ast.SymbolGlobalCSS {
+					globalNames[symbol.OriginalName] = true
+				} else {
+					ref := ast.Ref{SourceIndex: sourceIndex, InnerIndex: uint32(innerIndex)}
+					ref = ast.FollowSymbols(c.graph.Symbols, ref)
+					localNames[ref] = struct{}{}
+				}
+			}
+		}
+	}
+
+	// Sort by use count (note: does not currently account for live vs. dead code)
+	sorted := make(renamer.StableSymbolCountArray, 0, len(localNames))
+	stableSourceIndices := c.graph.StableSourceIndices
+	for ref := range localNames {
+		sorted = append(sorted, renamer.StableSymbolCount{
+			StableSourceIndex: stableSourceIndices[ref.SourceIndex],
+			Ref:               ref,
+			Count:             c.graph.Symbols.Get(ref).UseCountEstimate,
+		})
+	}
+	sort.Sort(sorted)
+
+	// Rename all local names to avoid collisions
+	if c.options.MinifyIdentifiers {
+		minifier := ast.DefaultNameMinifierCSS
+		nextName := 0
+
+		for _, symbolCount := range sorted {
+			name := minifier.NumberToMinifiedName(nextName)
+			for globalNames[name] {
+				nextName++
+				name = minifier.NumberToMinifiedName(nextName)
+			}
+
+			// Turn this local name into a global one
+			mangledProps[symbolCount.Ref] = name
+			globalNames[name] = true
+		}
+	} else {
+		nameCounts := make(map[string]uint32)
+
+		for _, symbolCount := range sorted {
+			symbol := c.graph.Symbols.Get(symbolCount.Ref)
+			name := fmt.Sprintf("%s_%s", c.graph.Files[symbolCount.Ref.SourceIndex].InputFile.Source.IdentifierName, symbol.OriginalName)
+
+			// If the name is already in use, generate a new name by appending a number
+			if globalNames[name] {
+				// To avoid O(n^2) behavior, the number must start off being the number
+				// that we used last time there was a collision with this name. Otherwise
+				// if there are many collisions with the same name, each name collision
+				// would have to increment the counter past all previous name collisions
+				// which is a O(n^2) time algorithm.
+				tries, ok := nameCounts[name]
+				if !ok {
+					tries = 1
+				}
+				prefix := name
+
+				// Keep incrementing the number until the name is unused
+				for {
+					tries++
+					name = prefix + strconv.Itoa(int(tries))
+
+					// Make sure this new name is unused
+					if !globalNames[name] {
+						// Store the count so we can start here next time instead of starting
+						// from 1. This means we avoid O(n^2) behavior.
+						nameCounts[prefix] = tries
+						break
+					}
+				}
+			}
+
+			// Turn this local name into a global one
+			mangledProps[symbolCount.Ref] = name
+			globalNames[name] = true
+		}
 	}
 }
 
@@ -5303,6 +5398,7 @@ func (c *linkerContext) generateChunkCSS(chunkIndex int, chunkWaitGroup *sync.Wa
 				InputSourceMap:      inputSourceMap,
 				LineOffsetTables:    lineOffsetTables,
 				NeedsMetafile:       c.options.NeedsMetafile,
+				LocalNames:          c.mangledProps,
 			}
 			compileResult.PrintResult = css_printer.Print(asts[i], c.graph.Symbols, cssOptions)
 			compileResult.sourceIndex = sourceIndex
