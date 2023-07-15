@@ -283,7 +283,10 @@ const (
 	// Properties can optionally be renamed to shorter names
 	SymbolMangledProp
 
-	// This annotates all other symbols that don't have special behavior.
+	// CSS identifiers that are never renamed
+	SymbolGlobalCSS
+
+	// This annotates all other symbols that don't have special behavior
 	SymbolOther
 )
 

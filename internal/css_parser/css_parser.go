@@ -22,6 +22,8 @@ type parser struct {
 	legalComments      []css_lexer.Comment
 	stack              []css_lexer.T
 	importRecords      []ast.ImportRecord
+	symbols            []ast.Symbol
+	globalSymbolMap    map[string]ast.Ref
 	tracker            logger.LineColumnTracker
 	index              int
 	end                int
@@ -89,13 +91,14 @@ func (a *Options) Equal(b *Options) bool {
 func Parse(log logger.Log, source logger.Source, options Options) css_ast.AST {
 	result := css_lexer.Tokenize(log, source)
 	p := parser{
-		log:           log,
-		source:        source,
-		tracker:       logger.MakeLineColumnTracker(&source),
-		options:       options,
-		tokens:        result.Tokens,
-		legalComments: result.LegalComments,
-		prevError:     logger.Loc{Start: -1},
+		log:             log,
+		source:          source,
+		tracker:         logger.MakeLineColumnTracker(&source),
+		options:         options,
+		tokens:          result.Tokens,
+		legalComments:   result.LegalComments,
+		prevError:       logger.Loc{Start: -1},
+		globalSymbolMap: make(map[string]ast.Ref),
 	}
 	p.end = len(p.tokens)
 	rules := p.parseListOfRules(ruleContext{
@@ -105,6 +108,7 @@ func Parse(log logger.Log, source logger.Source, options Options) css_ast.AST {
 	p.expect(css_lexer.TEndOfFile)
 	return css_ast.AST{
 		Rules:                rules,
+		Symbols:              p.symbols,
 		ImportRecords:        p.importRecords,
 		ApproximateLineCount: result.ApproximateLineCount,
 		SourceMapComment:     result.SourceMapComment,
@@ -230,6 +234,23 @@ func (p *parser) unexpected() {
 		p.log.AddID(logger.MsgID_CSS_CSSSyntaxError, logger.Warning, &p.tracker, t.Range, text)
 		p.prevError = t.Range.Loc
 	}
+}
+
+func (p *parser) symbolForName(name string) ast.Ref {
+	ref, ok := p.globalSymbolMap[name]
+	if !ok {
+		ref = ast.Ref{
+			SourceIndex: p.source.Index,
+			InnerIndex:  uint32(len(p.symbols)),
+		}
+		p.symbols = append(p.symbols, ast.Symbol{
+			Kind:         ast.SymbolGlobalCSS,
+			OriginalName: name,
+			Link:         ast.InvalidRef,
+		})
+		p.globalSymbolMap[name] = ref
+	}
+	return ref
 }
 
 type ruleContext struct {

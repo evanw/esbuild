@@ -3,6 +3,7 @@ package css_printer
 import (
 	"testing"
 
+	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/css_parser"
 	"github.com/evanw/esbuild/internal/logger"
@@ -25,7 +26,9 @@ func expectPrintedCommon(t *testing.T, name string, contents string, expected st
 			}
 		}
 		test.AssertEqualWithDiff(t, text, "")
-		result := Print(tree, options)
+		symbols := ast.NewSymbolMap(1)
+		symbols.SymbolsForSource[0] = tree.Symbols
+		result := Print(tree, symbols, options)
 		test.AssertEqualWithDiff(t, string(result.CSS), expected)
 	})
 }

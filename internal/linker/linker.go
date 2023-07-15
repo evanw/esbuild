@@ -5303,7 +5303,7 @@ func (c *linkerContext) generateChunkCSS(chunkIndex int, chunkWaitGroup *sync.Wa
 				LineOffsetTables:    lineOffsetTables,
 				NeedsMetafile:       c.options.NeedsMetafile,
 			}
-			compileResult.PrintResult = css_printer.Print(asts[i], cssOptions)
+			compileResult.PrintResult = css_printer.Print(asts[i], c.graph.Symbols, cssOptions)
 			compileResult.sourceIndex = sourceIndex
 			waitGroup.Done()
 		}(i, sourceIndex, &compileResults[i])
@@ -5353,7 +5353,7 @@ func (c *linkerContext) generateChunkCSS(chunkIndex int, chunkWaitGroup *sync.Wa
 		}
 
 		if len(tree.Rules) > 0 {
-			result := css_printer.Print(tree, css_printer.Options{
+			result := css_printer.Print(tree, c.graph.Symbols, css_printer.Options{
 				MinifyWhitespace: c.options.MinifyWhitespace,
 				LineLimit:        c.options.LineLimit,
 				ASCIIOnly:        c.options.ASCIIOnly,

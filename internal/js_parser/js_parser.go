@@ -14718,7 +14718,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 	default:
-		// Note: EPrivateIdentifier and EMangledProperty should have already been handled
+		// Note: EPrivateIdentifier should have already been handled
 		panic(fmt.Sprintf("Unexpected expression of type %T", expr.Data))
 	}
 

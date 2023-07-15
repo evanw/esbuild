@@ -217,13 +217,13 @@ subclassSelectors:
 				break subclassSelectors
 			}
 			name := p.decoded()
-			sel.SubclassSelectors = append(sel.SubclassSelectors, &css_ast.SSHash{Name: name})
+			sel.SubclassSelectors = append(sel.SubclassSelectors, &css_ast.SSHash{Ref: p.symbolForName(name)})
 			p.advance()
 
 		case css_lexer.TDelimDot:
 			p.advance()
 			name := p.decoded()
-			sel.SubclassSelectors = append(sel.SubclassSelectors, &css_ast.SSClass{Name: name})
+			sel.SubclassSelectors = append(sel.SubclassSelectors, &css_ast.SSClass{Ref: p.symbolForName(name)})
 			if !p.expect(css_lexer.TIdent) {
 				return
 			}

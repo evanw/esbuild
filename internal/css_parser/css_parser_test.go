@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/css_printer"
@@ -32,7 +33,9 @@ func expectPrintedCommon(t *testing.T, name string, contents string, expected st
 			}
 			test.AssertEqualWithDiff(t, text, "")
 		}
-		result := css_printer.Print(tree, css_printer.Options{
+		symbols := ast.NewSymbolMap(1)
+		symbols.SymbolsForSource[0] = tree.Symbols
+		result := css_printer.Print(tree, symbols, css_printer.Options{
 			MinifyWhitespace: options.MinifyWhitespace,
 		})
 		test.AssertEqualWithDiff(t, string(result.CSS), expected)

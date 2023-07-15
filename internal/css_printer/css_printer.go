@@ -18,6 +18,7 @@ const quoteForURL byte = 0
 
 type printer struct {
 	options                Options
+	symbols                ast.SymbolMap
 	importRecords          []ast.ImportRecord
 	css                    []byte
 	hasLegalComment        map[string]struct{}
@@ -58,9 +59,10 @@ type PrintResult struct {
 	SourceMapChunk sourcemap.Chunk
 }
 
-func Print(tree css_ast.AST, options Options) PrintResult {
+func Print(tree css_ast.AST, symbols ast.SymbolMap, options Options) PrintResult {
 	p := printer{
 		options:       options,
+		symbols:       symbols,
 		importRecords: tree.ImportRecords,
 		builder:       sourcemap.MakeChunkBuilder(options.InputSourceMap, options.LineOffsetTables, options.ASCIIOnly),
 	}
@@ -417,11 +419,11 @@ func (p *printer) printCompoundSelector(sel css_ast.CompoundSelector, isFirst bo
 
 			// This deliberately does not use identHash. From the specification:
 			// "In <id-selector>, the <hash-token>'s value must be an identifier."
-			p.printIdent(s.Name, identNormal, whitespace)
+			p.printSymbol(s.Ref, identNormal, whitespace)
 
 		case *css_ast.SSClass:
 			p.print(".")
-			p.printIdent(s.Name, identNormal, whitespace)
+			p.printSymbol(s.Ref, identNormal, whitespace)
 
 		case *css_ast.SSAttribute:
 			p.print("[")
@@ -802,6 +804,12 @@ func (p *printer) printIdent(text string, mode identMode, whitespace trailingWhi
 		mayNeedWhitespaceAfter := whitespace == mayNeedWhitespaceAfter && escape != escapeNone && i+utf8.RuneLen(c) == n
 		p.printWithEscape(c, escape, text[i:], mayNeedWhitespaceAfter)
 	}
+}
+
+func (p *printer) printSymbol(ref ast.Ref, mode identMode, whitespace trailingWhitespace) {
+	ref = ast.FollowSymbols(p.symbols, ref)
+	name := p.symbols.Get(ref).OriginalName
+	p.printIdent(name, mode, whitespace)
 }
 
 func (p *printer) printIndent(indent int32) {

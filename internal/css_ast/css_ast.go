@@ -24,6 +24,7 @@ import (
 // representation that helps provide good parsing and printing performance.
 
 type AST struct {
+	Symbols              []ast.Symbol
 	ImportRecords        []ast.ImportRecord
 	Rules                []Rule
 	SourceMapComment     logger.Span
@@ -777,17 +778,18 @@ type SS interface {
 }
 
 type SSHash struct {
-	Name string
+	Ref ast.Ref
 }
 
 func (a *SSHash) Equal(ss SS, check *CrossFileEqualityCheck) bool {
 	b, ok := ss.(*SSHash)
-	return ok && a.Name == b.Name
+	return ok && a.Ref == b.Ref
 }
 
 func (ss *SSHash) Hash() uint32 {
 	hash := uint32(1)
-	hash = helpers.HashCombineString(hash, ss.Name)
+	hash = helpers.HashCombine(hash, ss.Ref.SourceIndex)
+	hash = helpers.HashCombine(hash, ss.Ref.InnerIndex)
 	return hash
 }
 
@@ -797,17 +799,18 @@ func (ss *SSHash) Clone() SS {
 }
 
 type SSClass struct {
-	Name string
+	Ref ast.Ref
 }
 
 func (a *SSClass) Equal(ss SS, check *CrossFileEqualityCheck) bool {
 	b, ok := ss.(*SSClass)
-	return ok && a.Name == b.Name
+	return ok && a.Ref == b.Ref
 }
 
 func (ss *SSClass) Hash() uint32 {
 	hash := uint32(2)
-	hash = helpers.HashCombineString(hash, ss.Name)
+	hash = helpers.HashCombine(hash, ss.Ref.SourceIndex)
+	hash = helpers.HashCombine(hash, ss.Ref.InnerIndex)
 	return hash
 }
 

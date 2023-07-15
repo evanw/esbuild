@@ -238,6 +238,11 @@ func CloneLinkerGraph(
 					file.InputFile.Repr = repr
 				}
 
+				// Clone the symbol map
+				fileSymbols := append([]ast.Symbol{}, repr.AST.Symbols...)
+				symbols.SymbolsForSource[sourceIndex] = fileSymbols
+				repr.AST.Symbols = nil
+
 				// Clone the import records
 				repr.AST.ImportRecords = append([]ast.ImportRecord{}, repr.AST.ImportRecords...)
 			}
