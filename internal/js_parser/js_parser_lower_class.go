@@ -1082,7 +1082,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 
 			// Assume all non-literal computed keys have important side effects
 			switch prop.Key.Data.(type) {
-			case *js_ast.EString, *js_ast.EMangledProp, *js_ast.ENumber:
+			case *js_ast.EString, *js_ast.ENameOfSymbol, *js_ast.ENumber:
 				// These have no side effects
 			default:
 				if !needsKey {
@@ -1668,7 +1668,7 @@ func cloneKeyForLowerClass(key js_ast.Expr) js_ast.Expr {
 	case *js_ast.EIdentifier:
 		clone := *k
 		key.Data = &clone
-	case *js_ast.EMangledProp:
+	case *js_ast.ENameOfSymbol:
 		clone := *k
 		key.Data = &clone
 	case *js_ast.EPrivateIdentifier:

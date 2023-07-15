@@ -447,7 +447,7 @@ func (*EClass) isExpr()                {}
 func (*EIdentifier) isExpr()           {}
 func (*EImportIdentifier) isExpr()     {}
 func (*EPrivateIdentifier) isExpr()    {}
-func (*EMangledProp) isExpr()          {}
+func (*ENameOfSymbol) isExpr()         {}
 func (*EJSXElement) isExpr()           {}
 func (*EMissing) isExpr()              {}
 func (*ENumber) isExpr()               {}
@@ -727,7 +727,7 @@ type EPrivateIdentifier struct {
 
 // This represents an internal property name that can be mangled. The symbol
 // referenced by this expression should be a "SymbolMangledProp" symbol.
-type EMangledProp struct {
+type ENameOfSymbol struct {
 	Ref                   ast.Ref
 	HasPropertyKeyComment bool // If true, a preceding comment contains "@__KEY__"
 }

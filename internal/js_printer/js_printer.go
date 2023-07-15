@@ -757,7 +757,7 @@ func (p *printer) printBinding(binding js_ast.Binding) {
 
 						p.addSourceMapping(property.Key.Loc)
 						p.printIdentifierUTF16(str.Value)
-					} else if mangled, ok := property.Key.Data.(*js_ast.EMangledProp); ok {
+					} else if mangled, ok := property.Key.Data.(*js_ast.ENameOfSymbol); ok {
 						if name := p.mangledPropName(mangled.Ref); p.canPrintIdentifier(name) {
 							p.addSourceMappingForName(property.Key.Loc, name, mangled.Ref)
 							p.printIdentifier(name)
@@ -1197,7 +1197,7 @@ func (p *printer) printProperty(property js_ast.Property) {
 		p.addSourceMappingForName(property.Key.Loc, name, key.Ref)
 		p.printIdentifier(name)
 
-	case *js_ast.EMangledProp:
+	case *js_ast.ENameOfSymbol:
 		if name := p.mangledPropName(key.Ref); p.canPrintIdentifier(name) {
 			p.printSpaceBeforeIdentifier()
 			p.addSourceMappingForName(property.Key.Loc, name, key.Ref)
@@ -1999,7 +1999,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		p.addSourceMapping(expr.Loc)
 		p.print("import.meta")
 
-	case *js_ast.EMangledProp:
+	case *js_ast.ENameOfSymbol:
 		name := p.mangledPropName(e.Ref)
 		p.addSourceMappingForName(expr.Loc, name, e.Ref)
 
@@ -2049,7 +2049,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			}
 
 			p.printSpaceBeforeIdentifier()
-			if mangled, ok := property.Key.Data.(*js_ast.EMangledProp); ok {
+			if mangled, ok := property.Key.Data.(*js_ast.ENameOfSymbol); ok {
 				name := p.mangledPropName(mangled.Ref)
 				p.addSourceMappingForName(property.Key.Loc, name, mangled.Ref)
 				p.printIdentifier(name)
@@ -2552,7 +2552,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			p.printIdentifier(name)
 			return
 
-		case *js_ast.EMangledProp:
+		case *js_ast.ENameOfSymbol:
 			if name := p.mangledPropName(index.Ref); p.canPrintIdentifier(name) {
 				if e.OptionalChain != js_ast.OptionalChainStart {
 					p.print(".")
@@ -2866,7 +2866,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			// Inline mangled properties when minifying
 			var replaced []js_ast.TemplatePart
 			for i, part := range e.Parts {
-				if mangled, ok := part.Value.Data.(*js_ast.EMangledProp); ok {
+				if mangled, ok := part.Value.Data.(*js_ast.ENameOfSymbol); ok {
 					if replaced == nil {
 						replaced = make([]js_ast.TemplatePart, len(e.Parts))
 					}

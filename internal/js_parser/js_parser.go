@@ -1977,7 +1977,7 @@ func (p *parser) parseStringLiteral() js_ast.Expr {
 	hasPropertyKeyComment := (p.lexer.HasCommentBefore & js_lexer.KeyCommentBefore) != 0
 	if hasPropertyKeyComment {
 		if name := helpers.UTF16ToString(text); p.isMangledProp(name) {
-			value := js_ast.Expr{Loc: loc, Data: &js_ast.EMangledProp{
+			value := js_ast.Expr{Loc: loc, Data: &js_ast.ENameOfSymbol{
 				Ref:                   p.storeNameInRef(js_lexer.MaybeSubstring{String: name}),
 				HasPropertyKeyComment: true,
 			}}
@@ -2218,7 +2218,7 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 		}
 
 		if p.isMangledProp(name.String) {
-			key = js_ast.Expr{Loc: nameRange.Loc, Data: &js_ast.EMangledProp{Ref: p.storeNameInRef(name)}}
+			key = js_ast.Expr{Loc: nameRange.Loc, Data: &js_ast.ENameOfSymbol{Ref: p.storeNameInRef(name)}}
 		} else {
 			key = js_ast.Expr{Loc: nameRange.Loc, Data: &js_ast.EString{Value: helpers.StringToUTF16(name.String)}}
 		}
@@ -2575,7 +2575,7 @@ func (p *parser) parsePropertyBinding() js_ast.PropertyBinding {
 		}
 		p.lexer.Next()
 		if p.isMangledProp(name.String) {
-			key = js_ast.Expr{Loc: nameRange.Loc, Data: &js_ast.EMangledProp{Ref: p.storeNameInRef(name)}}
+			key = js_ast.Expr{Loc: nameRange.Loc, Data: &js_ast.ENameOfSymbol{Ref: p.storeNameInRef(name)}}
 		} else {
 			key = js_ast.Expr{Loc: nameRange.Loc, Data: &js_ast.EString{Value: helpers.StringToUTF16(name.String)}}
 		}
@@ -2689,7 +2689,7 @@ func (p *parser) dotOrMangledPropParse(
 	if (original != wasOriginallyIndex || p.options.mangleQuoted) && p.isMangledProp(name.String) {
 		return &js_ast.EIndex{
 			Target:        target,
-			Index:         js_ast.Expr{Loc: nameLoc, Data: &js_ast.EMangledProp{Ref: p.storeNameInRef(name)}},
+			Index:         js_ast.Expr{Loc: nameLoc, Data: &js_ast.ENameOfSymbol{Ref: p.storeNameInRef(name)}},
 			OptionalChain: optionalChain,
 		}
 	}
@@ -2706,7 +2706,7 @@ func (p *parser) dotOrMangledPropVisit(target js_ast.Expr, name string, nameLoc 
 	if p.isMangledProp(name) {
 		return &js_ast.EIndex{
 			Target: target,
-			Index:  js_ast.Expr{Loc: nameLoc, Data: &js_ast.EMangledProp{Ref: p.symbolForMangledProp(name)}},
+			Index:  js_ast.Expr{Loc: nameLoc, Data: &js_ast.ENameOfSymbol{Ref: p.symbolForMangledProp(name)}},
 		}
 	}
 
@@ -4977,7 +4977,7 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 				keyRange, keyName := p.parseJSXNamespacedName()
 				var key js_ast.Expr
 				if p.isMangledProp(keyName.String) && !strings.ContainsRune(keyName.String, ':') {
-					key = js_ast.Expr{Loc: keyRange.Loc, Data: &js_ast.EMangledProp{Ref: p.storeNameInRef(keyName)}}
+					key = js_ast.Expr{Loc: keyRange.Loc, Data: &js_ast.ENameOfSymbol{Ref: p.storeNameInRef(keyName)}}
 				} else {
 					key = js_ast.Expr{Loc: keyRange.Loc, Data: &js_ast.EString{Value: helpers.StringToUTF16(keyName.String)}}
 				}
@@ -11371,7 +11371,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 					}
 				}
 				switch k := key.Data.(type) {
-				case *js_ast.ENumber, *js_ast.EMangledProp:
+				case *js_ast.ENumber, *js_ast.ENameOfSymbol:
 					// "class { [123] }" => "class { 123 }"
 					property.Flags &= ^js_ast.PropertyIsComputed
 				case *js_ast.EString:
@@ -11771,7 +11771,7 @@ func (p *parser) instantiateDefineExpr(loc logger.Loc, expr config.DefineExpr, o
 		} else if p.isMangledProp(part) {
 			value = js_ast.Expr{Loc: loc, Data: &js_ast.EIndex{
 				Target: value,
-				Index:  js_ast.Expr{Loc: loc, Data: &js_ast.EMangledProp{Ref: p.symbolForMangledProp(part)}},
+				Index:  js_ast.Expr{Loc: loc, Data: &js_ast.ENameOfSymbol{Ref: p.symbolForMangledProp(part)}},
 			}}
 		} else {
 			value = js_ast.Expr{Loc: loc, Data: &js_ast.EDot{
@@ -12228,7 +12228,7 @@ type exprIn struct {
 	storeThisArgForParentOptionalChain bool
 
 	// If true, string literals that match the current property mangling pattern
-	// should be turned into EMangledProp expressions, which will cause us to
+	// should be turned into ENameOfSymbol expressions, which will cause us to
 	// rename them in the linker.
 	shouldMangleStringsAsProps bool
 
@@ -12557,7 +12557,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 	switch e := expr.Data.(type) {
 	case *js_ast.ENull, *js_ast.ESuper, *js_ast.EBoolean, *js_ast.EBigInt, *js_ast.EUndefined:
 
-	case *js_ast.EMangledProp:
+	case *js_ast.ENameOfSymbol:
 		e.Ref = p.symbolForMangledProp(p.loadNameFromRef(e.Ref))
 
 	case *js_ast.ERegExp:
@@ -12599,7 +12599,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 		if in.shouldMangleStringsAsProps && p.options.mangleQuoted && !e.PreferTemplate {
 			if name := helpers.UTF16ToString(e.Value); p.isMangledProp(name) {
-				return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EMangledProp{
+				return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENameOfSymbol{
 					Ref: p.symbolForMangledProp(name),
 				}}, exprOut{}
 			}
@@ -12824,7 +12824,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			if property.Kind == js_ast.PropertySpread {
 				hasSpread = true
 			} else {
-				if mangled, ok := property.Key.Data.(*js_ast.EMangledProp); ok {
+				if mangled, ok := property.Key.Data.(*js_ast.ENameOfSymbol); ok {
 					mangled.Ref = p.symbolForMangledProp(p.loadNameFromRef(mangled.Ref))
 				} else {
 					property.Key = p.visitExpr(property.Key)
@@ -13796,7 +13796,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 			if property.Kind != js_ast.PropertySpread {
 				key := property.Key
-				if mangled, ok := key.Data.(*js_ast.EMangledProp); ok {
+				if mangled, ok := key.Data.(*js_ast.ENameOfSymbol); ok {
 					mangled.Ref = p.symbolForMangledProp(p.loadNameFromRef(mangled.Ref))
 				} else {
 					key, _ = p.visitExprInOut(property.Key, exprIn{
@@ -13830,7 +13830,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 						}
 					}
 					switch k := key.Data.(type) {
-					case *js_ast.ENumber, *js_ast.EMangledProp:
+					case *js_ast.ENumber, *js_ast.ENameOfSymbol:
 						property.Flags &= ^js_ast.PropertyIsComputed
 					case *js_ast.EString:
 						if !helpers.UTF16EqualsString(k.Value, "__proto__") {
