@@ -2,6 +2,38 @@
 
 ## Unreleased
 
+* Add the `--drop-labels=` option ([#2398](https://github.com/evanw/esbuild/issues/2398))
+
+    If you want to conditionally disable some development-only code and have it not be present in the final production bundle, right now the most straightforward way of doing this is to use the `--define:` flag along with a specially-named global variable. For example, consider the following code:
+
+    ```js
+    function main() {
+      DEV && doAnExpensiveCheck()
+    }
+    ```
+
+    You can build this for development and production like this:
+
+    * Development: `esbuild --define:DEV=true`
+    * Production: `esbuild --define:DEV=false`
+
+    One drawback of this approach is that the resulting code crashes if you don't provide a value for `DEV` with `--define:`. In practice this isn't that big of a problem, and there are also various ways to work around this.
+
+    However, another approach that avoids this drawback is to use JavaScript label statements instead. That's what the `--drop-labels=` flag implements. For example, consider the following code:
+
+    ```js
+    function main() {
+      DEV: doAnExpensiveCheck()
+    }
+    ```
+
+    With this release, you can now build this for development and production like this:
+
+    * Development: `esbuild`
+    * Production: `esbuild --drop-labels=DEV`
+
+    This means that code containing optional development-only checks can now be written such that it's safe to run without any additional configuration. The `--drop-labels=` flag takes comma-separated list of multiple label names to drop.
+
 * Avoid causing `unhandledRejection` during shutdown ([#3219](https://github.com/evanw/esbuild/issues/3219))
 
     All pending esbuild JavaScript API calls are supposed to fail if esbuild's underlying child process is unexpectedly terminated. This can happen if `SIGINT` is sent to the parent `node` process with Ctrl+C, for example. Previously doing this could also cause an unhandled promise rejection when esbuild attempted to communicate this failure to its own child process that no longer exists. This release now swallows this communication failure, which should prevent this internal unhandled promise rejection. This change means that you can now use esbuild's JavaScript API with a custom `SIGINT` handler that extends the lifetime of the `node` process without esbuild's internals causing an early exit due to an unhandled promise rejection.

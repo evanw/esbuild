@@ -36,6 +36,8 @@ interface CommonOptions {
   mangleCache?: Record<string, string | false>
   /** Documentation: https://esbuild.github.io/api/#drop */
   drop?: Drop[]
+  /** Documentation: https://esbuild.github.io/api/#drop-labels */
+  dropLabels?: string[]
   /** Documentation: https://esbuild.github.io/api/#minify */
   minify?: boolean
   /** Documentation: https://esbuild.github.io/api/#minify */

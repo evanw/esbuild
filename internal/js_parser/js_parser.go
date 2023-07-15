@@ -48,6 +48,7 @@ type parser struct {
 	injectedDefineSymbols      []js_ast.Ref
 	injectedSymbolSources      map[js_ast.Ref]injectedSymbolSource
 	injectedDotNames           map[string][]injectedDotName
+	dropLabelsMap              map[string]struct{}
 	exprComments               map[logger.Loc][]string
 	mangledProps               map[string]js_ast.Ref
 	reservedProps              map[string]bool
@@ -434,6 +435,7 @@ type Options struct {
 	tsAlwaysStrict *config.TSAlwaysStrict
 	mangleProps    *regexp.Regexp
 	reserveProps   *regexp.Regexp
+	dropLabels     []string
 
 	// This pointer will always be different for each build but the contents
 	// shouldn't ever behave different semantically. We ignore this field for the
@@ -490,6 +492,7 @@ func OptionsFromConfig(options *config.Options) Options {
 		tsAlwaysStrict: options.TSAlwaysStrict,
 		mangleProps:    options.MangleProps,
 		reserveProps:   options.ReserveProps,
+		dropLabels:     options.DropLabels,
 
 		optionsThatSupportStructuralEquality: optionsThatSupportStructuralEquality{
 			unsupportedJSFeatures:             options.UnsupportedJSFeatures,
@@ -522,18 +525,23 @@ func (a *Options) Equal(b *Options) bool {
 		return false
 	}
 
-	// Compare "TSAlwaysStrict"
+	// Compare "tsAlwaysStrict"
 	if (a.tsAlwaysStrict == nil && b.tsAlwaysStrict != nil) || (a.tsAlwaysStrict != nil && b.tsAlwaysStrict == nil) ||
 		(a.tsAlwaysStrict != nil && b.tsAlwaysStrict != nil && *a.tsAlwaysStrict != *b.tsAlwaysStrict) {
 		return false
 	}
 
-	// Compare "MangleProps" and "ReserveProps"
+	// Compare "mangleProps" and "reserveProps"
 	if !isSameRegexp(a.mangleProps, b.mangleProps) || !isSameRegexp(a.reserveProps, b.reserveProps) {
 		return false
 	}
 
-	// Compare "InjectedFiles"
+	// Compare "dropLabels"
+	if !helpers.StringArraysEqual(a.dropLabels, b.dropLabels) {
+		return false
+	}
+
+	// Compare "injectedFiles"
 	if len(a.injectedFiles) != len(b.injectedFiles) {
 		return false
 	}
@@ -549,7 +557,7 @@ func (a *Options) Equal(b *Options) bool {
 		}
 	}
 
-	// Compare "JSX"
+	// Compare "jsx"
 	if a.jsx.Parse != b.jsx.Parse || !jsxExprsEqual(a.jsx.Factory, b.jsx.Factory) || !jsxExprsEqual(a.jsx.Fragment, b.jsx.Fragment) {
 		return false
 	}
@@ -8803,7 +8811,7 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 							break
 						}
 					}
-					result = appendIfBodyPreservingScope(result, stmt)
+					result = appendIfOrLabelBodyPreservingScope(result, stmt)
 					if isJumpStatement(stmt.Data) {
 						isControlFlowDead = true
 					}
@@ -9601,7 +9609,7 @@ func mangleFor(s *js_ast.SFor) {
 	}
 }
 
-func appendIfBodyPreservingScope(stmts []js_ast.Stmt, body js_ast.Stmt) []js_ast.Stmt {
+func appendIfOrLabelBodyPreservingScope(stmts []js_ast.Stmt, body js_ast.Stmt) []js_ast.Stmt {
 	if block, ok := body.Data.(*js_ast.SBlock); ok {
 		keepBlock := false
 		for _, stmt := range block.Stmts {
@@ -9635,7 +9643,7 @@ func (p *parser) mangleIf(stmts []js_ast.Stmt, loc logger.Loc, s *js_ast.SIf) []
 						stmts = append(stmts, js_ast.Stmt{Loc: s.Test.Loc, Data: &js_ast.SExpr{Value: test}})
 					}
 				}
-				return appendIfBodyPreservingScope(stmts, s.Yes)
+				return appendIfOrLabelBodyPreservingScope(stmts, s.Yes)
 			} else {
 				// We have to keep the "no" branch
 			}
@@ -9652,7 +9660,7 @@ func (p *parser) mangleIf(stmts []js_ast.Stmt, loc logger.Loc, s *js_ast.SIf) []
 				if s.NoOrNil.Data == nil {
 					return stmts
 				}
-				return appendIfBodyPreservingScope(stmts, s.NoOrNil)
+				return appendIfOrLabelBodyPreservingScope(stmts, s.NoOrNil)
 			} else {
 				// We have to keep the "yes" branch
 			}
@@ -10049,13 +10057,28 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		case *js_ast.SFor, *js_ast.SForIn, *js_ast.SForOf, *js_ast.SWhile, *js_ast.SDoWhile:
 			p.currentScope.LabelStmtIsLoop = true
 		}
+
+		// Drop this entire statement if requested
+		if _, ok := p.dropLabelsMap[name]; ok {
+			old := p.isControlFlowDead
+			p.isControlFlowDead = true
+			s.Stmt = p.visitSingleStmt(s.Stmt, stmtsNormal)
+			p.isControlFlowDead = old
+			return stmts
+		}
+
 		s.Stmt = p.visitSingleStmt(s.Stmt, stmtsNormal)
 		p.popScope()
 
-		// Optimize "x: break x" which some people apparently write by hand
 		if p.options.minifySyntax {
+			// Optimize "x: break x" which some people apparently write by hand
 			if child, ok := s.Stmt.Data.(*js_ast.SBreak); ok && child.Label != nil && child.Label.Ref == s.Name.Ref {
 				return stmts
+			}
+
+			// Remove the label if it's not necessary
+			if p.symbols[ref.InnerIndex].UseCountEstimate == 0 {
+				return appendIfOrLabelBodyPreservingScope(stmts, s.Stmt)
 			}
 		}
 
@@ -16210,6 +16233,13 @@ func newParser(log logger.Log, source logger.Source, lexer js_lexer.Lexer, optio
 		jsxLegacyImports:  make(map[string]js_ast.LocRef),
 
 		suppressWarningsAboutWeirdCode: helpers.IsInsideNodeModules(source.KeyPath.Text),
+	}
+
+	if len(options.dropLabels) > 0 {
+		p.dropLabelsMap = make(map[string]struct{})
+		for _, name := range options.dropLabels {
+			p.dropLabelsMap[name] = struct{}{}
+		}
 	}
 
 	if !options.minifyWhitespace {

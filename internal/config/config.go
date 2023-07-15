@@ -383,6 +383,7 @@ type Options struct {
 	// unsupported feature sets above. It's used for error messages.
 	OriginalTargetEnv string
 
+	DropLabels       []string
 	ExtensionOrder   []string
 	MainFields       []string
 	Conditions       []string

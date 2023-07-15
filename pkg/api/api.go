@@ -282,6 +282,7 @@ type BuildOptions struct {
 	MangleQuoted      MangleQuoted           // Documentation: https://esbuild.github.io/api/#mangle-props
 	MangleCache       map[string]interface{} // Documentation: https://esbuild.github.io/api/#mangle-props
 	Drop              Drop                   // Documentation: https://esbuild.github.io/api/#drop
+	DropLabels        []string               // Documentation: https://esbuild.github.io/api/#drop-labels
 	MinifyWhitespace  bool                   // Documentation: https://esbuild.github.io/api/#minify
 	MinifyIdentifiers bool                   // Documentation: https://esbuild.github.io/api/#minify
 	MinifySyntax      bool                   // Documentation: https://esbuild.github.io/api/#minify
@@ -415,6 +416,7 @@ type TransformOptions struct {
 	MangleQuoted      MangleQuoted           // Documentation: https://esbuild.github.io/api/#mangle-props
 	MangleCache       map[string]interface{} // Documentation: https://esbuild.github.io/api/#mangle-props
 	Drop              Drop                   // Documentation: https://esbuild.github.io/api/#drop
+	DropLabels        []string               // Documentation: https://esbuild.github.io/api/#drop-labels
 	MinifyWhitespace  bool                   // Documentation: https://esbuild.github.io/api/#minify
 	MinifyIdentifiers bool                   // Documentation: https://esbuild.github.io/api/#minify
 	MinifySyntax      bool                   // Documentation: https://esbuild.github.io/api/#minify

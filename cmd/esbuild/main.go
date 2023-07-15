@@ -68,6 +68,7 @@ var helpText = func(colors logger.Colors) string {
                             (default "[name]-[hash]")
   --color=...               Force use of color terminal escapes (true | false)
   --drop:...                Remove certain constructs (console | debugger)
+  --drop-labels=...         Remove labeled statements with these label names
   --entry-names=...         Path template to use for entry point output paths
                             (default "[dir]/[name]", can also use "[hash]")
   --footer:T=...            Text to be appended to each output file of type T

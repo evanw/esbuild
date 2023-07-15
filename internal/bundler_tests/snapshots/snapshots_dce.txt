@@ -778,9 +778,7 @@ function testStmts() {
     var f;
   if (!x)
     var g;
-  var h;
-  x:
-    var i;
+  var h, i;
 }
 testReturn();
 testThrow();
@@ -804,6 +802,20 @@ function keepMe3() {
 var keepMe4 = keepMe3();
 var keepMe5 = pure();
 var keepMe6 = some.fn();
+
+================================================================================
+TestDropLabels
+---------- /out.js ----------
+// entry.js
+keep_1:
+  require("foo1");
+exports.bar = function() {
+  if (x)
+    ;
+  if (y)
+    keep_2:
+      require("bar2");
+};
 
 ================================================================================
 TestFileLoaderRemoveUnused
@@ -2346,6 +2358,19 @@ TestPureCallsWithSpread
 // entry.js
 [...args];
 [...args];
+
+================================================================================
+TestRemoveCodeAfterLabelWithReturn
+---------- /out.js ----------
+function earlyReturn() {
+  onlyWithKeep();
+}
+function loop() {
+  if (foo()) {
+    bar();
+    return;
+  }
+}
 
 ================================================================================
 TestRemoveTrailingReturn

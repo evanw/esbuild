@@ -4447,3 +4447,66 @@ func TestDCEOfExprAfterKeepNamesIssue3195(t *testing.T) {
 		},
 	})
 }
+
+func TestDropLabels(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				keep_1: require('foo1')
+				DROP_1: require('bar1')
+				exports.bar = function() {
+					if (x) DROP_2: require('foo2')
+					if (y) keep_2: require('bar2')
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode: config.ModeBundle,
+			DropLabels: []string{
+				"DROP_1",
+				"DROP_2",
+			},
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{
+					Exact: map[string]bool{
+						"foo1": true,
+						"bar2": true,
+					},
+				},
+			},
+			AbsOutputFile: "/out.js",
+			OutputFormat:  config.FormatCommonJS,
+		},
+	})
+}
+
+func TestRemoveCodeAfterLabelWithReturn(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				function earlyReturn() {
+					// This comes up when doing conditional compilation with "DropLabels"
+					keep: {
+						onlyWithKeep()
+						return
+					}
+					onlyWithoutKeep()
+				}
+				function loop() {
+					if (foo()) {
+						keep: {
+							bar()
+							return;
+						}
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			AbsOutputFile: "/out.js",
+			MinifySyntax:  true,
+		},
+	})
+}

@@ -2306,10 +2306,10 @@ func TestLabels(t *testing.T) {
 	expectPrinted(t, "x: { class X { static { new X } } }", "x: {\n  class X {\n    static {\n      new X();\n    }\n  }\n}\n")
 	expectPrintedMangle(t, "x: break x", "")
 	expectPrintedMangle(t, "x: { break x; foo() }", "")
-	expectPrintedMangle(t, "y: while (foo()) x: { break x; foo() }", "y:\n  for (; foo(); )\n    ;\n")
-	expectPrintedMangle(t, "y: while (foo()) x: { break y; foo() }", "y:\n  for (; foo(); )\n    x:\n      break y;\n")
-	expectPrintedMangle(t, "x: { y: { z: { foo(); break x; } } }", "x:\n  y:\n    z: {\n      foo();\n      break x;\n    }\n")
-	expectPrintedMangle(t, "x: { class X { static { new X } } }", "x: {\n  class X {\n    static {\n      new X();\n    }\n  }\n}\n")
+	expectPrintedMangle(t, "y: while (foo()) x: { break x; foo() }", "for (; foo(); )\n  ;\n")
+	expectPrintedMangle(t, "y: while (foo()) x: { break y; foo() }", "y:\n  for (; foo(); )\n    break y;\n")
+	expectPrintedMangle(t, "x: { y: { z: { foo(); break x; } } }", "x: {\n  foo();\n  break x;\n}\n")
+	expectPrintedMangle(t, "x: { class X { static { new X } } }", "{\n  class X {\n    static {\n      new X();\n    }\n  }\n}\n")
 }
 
 func TestArrow(t *testing.T) {
@@ -3678,9 +3678,13 @@ func TestMangleIf(t *testing.T) {
 	expectPrintedMangle(t, "x: while (x) y: while (y) { if (a) continue x; if (b) continue y; }",
 		"x:\n  for (; x; )\n    y:\n      for (; y; ) {\n        if (a)\n          continue x;\n        if (b)\n          continue y;\n      }\n")
 	expectPrintedMangle(t, "x: while (x) y: while (y) { if (a) break x; if (b) break x; }",
-		"x:\n  for (; x; )\n    y:\n      for (; y; )\n        if (a || b)\n          break x;\n")
+		"x:\n  for (; x; )\n    for (; y; )\n      if (a || b)\n        break x;\n")
 	expectPrintedMangle(t, "x: while (x) y: while (y) { if (a) continue x; if (b) continue x; }",
-		"x:\n  for (; x; )\n    y:\n      for (; y; )\n        if (a || b)\n          continue x;\n")
+		"x:\n  for (; x; )\n    for (; y; )\n      if (a || b)\n        continue x;\n")
+	expectPrintedMangle(t, "x: while (x) y: while (y) { if (a) break y; if (b) break y; }",
+		"for (; x; )\n  y:\n    for (; y; )\n      if (a || b)\n        break y;\n")
+	expectPrintedMangle(t, "x: while (x) y: while (y) { if (a) continue y; if (b) continue y; }",
+		"for (; x; )\n  y:\n    for (; y; )\n      if (a || b)\n        continue y;\n")
 
 	expectPrintedNormalAndMangle(t, "if (x ? y : 0) foo()", "if (x ? y : 0)\n  foo();\n", "x && y && foo();\n")
 	expectPrintedNormalAndMangle(t, "if (x ? y : 1) foo()", "if (x ? y : 1)\n  foo();\n", "(!x || y) && foo();\n")
@@ -3754,7 +3758,7 @@ func TestMangleWrapToAvoidAmbiguousElse(t *testing.T) {
 	expectPrintedMangle(t, "if (a) for (x in y) { if (b) return c } else return d", "if (a) {\n  for (x in y)\n    if (b)\n      return c;\n} else\n  return d;\n")
 	expectPrintedMangle(t, "if (a) for (x of y) { if (b) return c } else return d", "if (a) {\n  for (x of y)\n    if (b)\n      return c;\n} else\n  return d;\n")
 	expectPrintedMangle(t, "if (a) with (x) { if (b) return c } else return d", "if (a) {\n  with (x)\n    if (b)\n      return c;\n} else\n  return d;\n")
-	expectPrintedMangle(t, "if (a) x: { if (b) return c } else return d", "if (a) {\n  x:\n    if (b)\n      return c;\n} else\n  return d;\n")
+	expectPrintedMangle(t, "if (a) x: { if (b) break x } else return c", "if (a) {\n  x:\n    if (b)\n      break x;\n} else\n  return c;\n")
 }
 
 func TestMangleOptionalChain(t *testing.T) {
@@ -4921,8 +4925,12 @@ func TestTrimCodeInDeadControlFlow(t *testing.T) {
 	expectPrintedMangle(t, "if (1) a(); else { let b }", "a();\n")
 	expectPrintedMangle(t, "if (1) a(); else { throw b }", "a();\n")
 	expectPrintedMangle(t, "if (1) a(); else { return b }", "a();\n")
-	expectPrintedMangle(t, "b: { if (1) a(); else { break b } }", "b:\n  a();\n")
-	expectPrintedMangle(t, "b: while (1) if (1) a(); else { continue b }", "b:\n  for (; ; )\n    a();\n")
+	expectPrintedMangle(t, "b: { if (x) a(); else { break b } }", "b:\n  if (x)\n    a();\n  else\n    break b;\n")
+	expectPrintedMangle(t, "b: { if (1) a(); else { break b } }", "a();\n")
+	expectPrintedMangle(t, "b: { if (0) a(); else { break b } }", "")
+	expectPrintedMangle(t, "b: while (1) if (x) a(); else { continue b }", "b:\n  for (; ; )\n    if (x)\n      a();\n    else\n      continue b;\n")
+	expectPrintedMangle(t, "b: while (1) if (1) a(); else { continue b }", "for (; ; )\n  a();\n")
+	expectPrintedMangle(t, "b: while (1) if (0) a(); else { continue b }", "b:\n  for (; ; )\n    continue b;\n")
 	expectPrintedMangle(t, "if (1) a(); else { class b {} }", "a();\n")
 	expectPrintedMangle(t, "if (1) a(); else { debugger }", "a();\n")
 

@@ -226,6 +226,13 @@ func parseOptionsImpl(
 				)
 			}
 
+		case strings.HasPrefix(arg, "--drop-labels="):
+			if buildOpts != nil {
+				buildOpts.DropLabels = splitWithEmptyCheck(arg[len("--drop-labels="):], ",")
+			} else {
+				transformOpts.DropLabels = splitWithEmptyCheck(arg[len("--drop-labels="):], ",")
+			}
+
 		case strings.HasPrefix(arg, "--legal-comments="):
 			value := arg[len("--legal-comments="):]
 			var legalComments api.LegalComments
