@@ -759,7 +759,12 @@ func (sel CompoundSelector) Clone() CompoundSelector {
 
 type NameToken struct {
 	Text string
+	Loc  logger.Loc
 	Kind css_lexer.T
+}
+
+func (a NameToken) Equal(b NameToken) bool {
+	return a.Text == b.Text && a.Kind == b.Kind
 }
 
 type NamespacedName struct {
@@ -780,8 +785,8 @@ func (n NamespacedName) Clone() NamespacedName {
 }
 
 func (a NamespacedName) Equal(b NamespacedName) bool {
-	return a.Name == b.Name && (a.NamespacePrefix == nil) == (b.NamespacePrefix == nil) &&
-		(a.NamespacePrefix == nil || b.NamespacePrefix == nil || *a.NamespacePrefix == *b.NamespacePrefix)
+	return a.Name.Equal(b.Name) && (a.NamespacePrefix == nil) == (b.NamespacePrefix == nil) &&
+		(a.NamespacePrefix == nil || b.NamespacePrefix == nil || a.NamespacePrefix.Equal(b.Name))
 }
 
 type SS interface {

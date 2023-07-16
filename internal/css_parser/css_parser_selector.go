@@ -249,8 +249,10 @@ func (p *parser) parseComplexSelector(opts parseComplexSelectorOpts) (result css
 }
 
 func (p *parser) nameToken() css_ast.NameToken {
+	t := p.current()
 	return css_ast.NameToken{
-		Kind: p.current().Kind,
+		Kind: t.Kind,
+		Loc:  t.Range.Loc,
 		Text: p.decoded(),
 	}
 }

@@ -520,10 +520,14 @@ func (p *printer) printCompoundSelector(sel css_ast.CompoundSelector, isFirst bo
 }
 
 func (p *printer) printNamespacedName(nsName css_ast.NamespacedName, whitespace trailingWhitespace) {
-	if nsName.NamespacePrefix != nil {
-		switch nsName.NamespacePrefix.Kind {
+	if prefix := nsName.NamespacePrefix; prefix != nil {
+		if p.options.AddSourceMappings {
+			p.builder.AddSourceMapping(prefix.Loc, "", p.css)
+		}
+
+		switch prefix.Kind {
 		case css_lexer.TIdent:
-			p.printIdent(nsName.NamespacePrefix.Text, identNormal, canDiscardWhitespaceAfter)
+			p.printIdent(prefix.Text, identNormal, canDiscardWhitespaceAfter)
 		case css_lexer.TDelimAsterisk:
 			p.print("*")
 		default:
@@ -531,6 +535,10 @@ func (p *printer) printNamespacedName(nsName css_ast.NamespacedName, whitespace 
 		}
 
 		p.print("|")
+	}
+
+	if p.options.AddSourceMappings {
+		p.builder.AddSourceMapping(nsName.Name.Loc, "", p.css)
 	}
 
 	switch nsName.Name.Kind {
