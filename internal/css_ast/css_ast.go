@@ -617,8 +617,8 @@ func HashComplexSelectors(hash uint32, selectors []ComplexSelector) uint32 {
 				hash = helpers.HashCombine(hash, 0)
 			}
 			hash = helpers.HashCombine(hash, uint32(len(sel.SubclassSelectors)))
-			for _, sub := range sel.SubclassSelectors {
-				hash = helpers.HashCombine(hash, sub.Hash())
+			for _, ss := range sel.SubclassSelectors {
+				hash = helpers.HashCombine(hash, ss.Data.Hash())
 			}
 			hash = helpers.HashCombine(hash, uint32(sel.Combinator.Byte))
 		}
@@ -644,7 +644,7 @@ func (sel ComplexSelector) IsRelative() bool {
 				return false
 			}
 			for _, ss := range inner.SubclassSelectors {
-				if pseudo, ok := ss.(*SSPseudoClassWithSelectorList); ok {
+				if pseudo, ok := ss.Data.(*SSPseudoClassWithSelectorList); ok {
 					for _, nested := range pseudo.Selectors {
 						if !nested.IsRelative() {
 							return false
@@ -671,8 +671,8 @@ func tokensContainAmpersandRecursive(tokens []Token) bool {
 
 func (sel ComplexSelector) UsesPseudoElement() bool {
 	for _, sel := range sel.Selectors {
-		for _, sub := range sel.SubclassSelectors {
-			if class, ok := sub.(*SSPseudoClass); ok {
+		for _, ss := range sel.SubclassSelectors {
+			if class, ok := ss.Data.(*SSPseudoClass); ok {
 				if class.IsElement {
 					return true
 				}
@@ -713,7 +713,7 @@ func (a ComplexSelector) Equal(b ComplexSelector, check *CrossFileEqualityCheck)
 			return false
 		}
 		for j, aj := range ai.SubclassSelectors {
-			if !aj.Equal(bi.SubclassSelectors[j], check) {
+			if !aj.Data.Equal(bi.SubclassSelectors[j].Data, check) {
 				return false
 			}
 		}
@@ -729,7 +729,7 @@ type Combinator struct {
 
 type CompoundSelector struct {
 	TypeSelector       *NamespacedName
-	SubclassSelectors  []SS
+	SubclassSelectors  []SubclassSelector
 	Combinator         Combinator // Optional, may be 0
 	HasNestingSelector bool       // "&"
 }
@@ -747,9 +747,10 @@ func (sel CompoundSelector) Clone() CompoundSelector {
 	}
 
 	if sel.SubclassSelectors != nil {
-		selectors := make([]SS, len(sel.SubclassSelectors))
+		selectors := make([]SubclassSelector, len(sel.SubclassSelectors))
 		for i, ss := range sel.SubclassSelectors {
-			selectors[i] = ss.Clone()
+			ss.Data = ss.Data.Clone()
+			selectors[i] = ss
 		}
 		clone.SubclassSelectors = selectors
 	}
@@ -787,6 +788,10 @@ func (n NamespacedName) Clone() NamespacedName {
 func (a NamespacedName) Equal(b NamespacedName) bool {
 	return a.Name.Equal(b.Name) && (a.NamespacePrefix == nil) == (b.NamespacePrefix == nil) &&
 		(a.NamespacePrefix == nil || b.NamespacePrefix == nil || a.NamespacePrefix.Equal(b.Name))
+}
+
+type SubclassSelector struct {
+	Data SS
 }
 
 type SS interface {

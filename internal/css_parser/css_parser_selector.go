@@ -86,7 +86,7 @@ func flattenLocalAndGlobalSelectors(list []css_ast.ComplexSelector, sel css_ast.
 	// multiple complex selectors.
 	if len(sel.Selectors) == 1 {
 		if single := sel.Selectors[0]; !single.HasNestingSelector && single.TypeSelector == nil && len(single.SubclassSelectors) == 1 && single.Combinator.Byte == 0 {
-			if pseudo, ok := single.SubclassSelectors[0].(*css_ast.SSPseudoClassWithSelectorList); ok && (pseudo.Kind == css_ast.PseudoClassGlobal || pseudo.Kind == css_ast.PseudoClassLocal) {
+			if pseudo, ok := single.SubclassSelectors[0].Data.(*css_ast.SSPseudoClassWithSelectorList); ok && (pseudo.Kind == css_ast.PseudoClassGlobal || pseudo.Kind == css_ast.PseudoClassLocal) {
 				// ":local(.a, .b)" => ".a, .b"
 				return append(list, pseudo.Selectors...)
 			}
@@ -99,7 +99,7 @@ func flattenLocalAndGlobalSelectors(list []css_ast.ComplexSelector, sel css_ast.
 	// But if we can't, we just turn it into an ":is()" instead.
 	for _, s := range sel.Selectors {
 		for _, ss := range s.SubclassSelectors {
-			if pseudo, ok := ss.(*css_ast.SSPseudoClassWithSelectorList); ok && (pseudo.Kind == css_ast.PseudoClassGlobal || pseudo.Kind == css_ast.PseudoClassLocal) {
+			if pseudo, ok := ss.Data.(*css_ast.SSPseudoClassWithSelectorList); ok && (pseudo.Kind == css_ast.PseudoClassGlobal || pseudo.Kind == css_ast.PseudoClassLocal) {
 				// Only do the work to flatten the whole list if there's a ":local" or a ":global"
 				var selectors []css_ast.CompoundSelector
 				for _, s := range sel.Selectors {
@@ -108,7 +108,7 @@ func flattenLocalAndGlobalSelectors(list []css_ast.ComplexSelector, sel css_ast.
 					// done separately from the loop below because inlining may produce
 					// multiple compound selectors.
 					if !s.HasNestingSelector && s.TypeSelector == nil && len(s.SubclassSelectors) == 1 {
-						if pseudo, ok := s.SubclassSelectors[0].(*css_ast.SSPseudoClassWithSelectorList); ok &&
+						if pseudo, ok := s.SubclassSelectors[0].Data.(*css_ast.SSPseudoClassWithSelectorList); ok &&
 							(pseudo.Kind == css_ast.PseudoClassGlobal || pseudo.Kind == css_ast.PseudoClassLocal) && len(pseudo.Selectors) == 1 {
 							if nested := pseudo.Selectors[0].Selectors; ok && (s.Combinator.Byte == 0 || nested[0].Combinator.Byte == 0) {
 								if s.Combinator.Byte != 0 {
@@ -122,9 +122,9 @@ func flattenLocalAndGlobalSelectors(list []css_ast.ComplexSelector, sel css_ast.
 						}
 					}
 
-					var subclassSelectors []css_ast.SS
+					var subclassSelectors []css_ast.SubclassSelector
 					for _, ss := range s.SubclassSelectors {
-						if pseudo, ok := ss.(*css_ast.SSPseudoClassWithSelectorList); ok && (pseudo.Kind == css_ast.PseudoClassGlobal || pseudo.Kind == css_ast.PseudoClassLocal) {
+						if pseudo, ok := ss.Data.(*css_ast.SSPseudoClassWithSelectorList); ok && (pseudo.Kind == css_ast.PseudoClassGlobal || pseudo.Kind == css_ast.PseudoClassLocal) {
 							// If the contents are a single compound selector, try to merge the contents into this compound selector
 							if len(pseudo.Selectors) == 1 && len(pseudo.Selectors[0].Selectors) == 1 {
 								if single := pseudo.Selectors[0].Selectors[0]; single.Combinator.Byte == 0 && (s.TypeSelector == nil || single.TypeSelector == nil) {
@@ -303,8 +303,10 @@ subclassSelectors:
 			}
 			nameLoc := logger.Loc{Start: p.current().Range.Loc.Start + 1}
 			name := p.decoded()
-			sel.SubclassSelectors = append(sel.SubclassSelectors, &css_ast.SSHash{
-				Name: ast.LocRef{Loc: nameLoc, Ref: p.symbolForName(name)},
+			sel.SubclassSelectors = append(sel.SubclassSelectors, css_ast.SubclassSelector{
+				Data: &css_ast.SSHash{
+					Name: ast.LocRef{Loc: nameLoc, Ref: p.symbolForName(name)},
+				},
 			})
 			p.advance()
 
@@ -312,8 +314,10 @@ subclassSelectors:
 			p.advance()
 			nameLoc := p.current().Range.Loc
 			name := p.decoded()
-			sel.SubclassSelectors = append(sel.SubclassSelectors, &css_ast.SSClass{
-				Name: ast.LocRef{Loc: nameLoc, Ref: p.symbolForName(name)},
+			sel.SubclassSelectors = append(sel.SubclassSelectors, css_ast.SubclassSelector{
+				Data: &css_ast.SSClass{
+					Name: ast.LocRef{Loc: nameLoc, Ref: p.symbolForName(name)},
+				},
 			})
 			if !p.expect(css_lexer.TIdent) {
 				return
@@ -324,7 +328,9 @@ subclassSelectors:
 			if !good {
 				return
 			}
-			sel.SubclassSelectors = append(sel.SubclassSelectors, &attr)
+			sel.SubclassSelectors = append(sel.SubclassSelectors, css_ast.SubclassSelector{
+				Data: &attr,
+			})
 
 		case css_lexer.TColon:
 			if p.next().Kind == css_lexer.TColon {
@@ -350,12 +356,15 @@ subclassSelectors:
 						}
 					}
 
-					sel.SubclassSelectors = append(sel.SubclassSelectors, pseudo)
+					sel.SubclassSelectors = append(sel.SubclassSelectors, css_ast.SubclassSelector{
+						Data: pseudo,
+					})
 				}
 				break subclassSelectors
 			}
-			pseudo := p.parsePseudoClassSelector(false)
-			sel.SubclassSelectors = append(sel.SubclassSelectors, pseudo)
+			sel.SubclassSelectors = append(sel.SubclassSelectors, css_ast.SubclassSelector{
+				Data: p.parsePseudoClassSelector(false),
+			})
 
 		case css_lexer.TDelimAmpersand:
 			// This is an extension: https://drafts.csswg.org/css-nesting-1/

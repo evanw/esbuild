@@ -811,7 +811,7 @@ func isSafeSelectors(complexSelectors []css_ast.ComplexSelector) bool {
 			}
 
 			for _, ss := range compound.SubclassSelectors {
-				switch s := ss.(type) {
+				switch s := ss.Data.(type) {
 				case *css_ast.SSAttribute:
 					if s.MatcherModifier != 0 {
 						// Bail if we hit a case modifier, which doesn't work in IE at all

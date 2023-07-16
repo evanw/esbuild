@@ -9,7 +9,9 @@ func lowerNestingInRule(rule css_ast.Rule, results []css_ast.Rule) []css_ast.Rul
 	case *css_ast.RSelector:
 		scope := css_ast.ComplexSelector{
 			Selectors: []css_ast.CompoundSelector{{
-				SubclassSelectors: []css_ast.SS{&css_ast.SSPseudoClass{Name: "scope"}},
+				SubclassSelectors: []css_ast.SubclassSelector{{
+					Data: &css_ast.SSPseudoClass{Name: "scope"},
+				}},
 			}},
 		}
 
@@ -260,21 +262,25 @@ func substituteAmpersandsInCompoundSelector(sel css_ast.CompoundSelector, replac
 			// ".foo .bar { :hover & {} }" => ":hover :is(.foo .bar) {}"
 			// ".foo .bar { > &:hover {} }" => ".foo .bar > :is(.foo .bar):hover {}"
 			single = css_ast.CompoundSelector{
-				SubclassSelectors: []css_ast.SS{&css_ast.SSPseudoClassWithSelectorList{
-					Kind:      css_ast.PseudoClassIs,
-					Selectors: []css_ast.ComplexSelector{replacement.CloneWithoutLeadingCombinator()},
+				SubclassSelectors: []css_ast.SubclassSelector{{
+					Data: &css_ast.SSPseudoClassWithSelectorList{
+						Kind:      css_ast.PseudoClassIs,
+						Selectors: []css_ast.ComplexSelector{replacement.CloneWithoutLeadingCombinator()},
+					},
 				}},
 			}
 		}
 
-		var subclassSelectorPrefix []css_ast.SS
+		var subclassSelectorPrefix []css_ast.SubclassSelector
 
 		// Insert the type selector
 		if single.TypeSelector != nil {
 			if sel.TypeSelector != nil {
-				subclassSelectorPrefix = append(subclassSelectorPrefix, &css_ast.SSPseudoClassWithSelectorList{
-					Kind:      css_ast.PseudoClassIs,
-					Selectors: []css_ast.ComplexSelector{{Selectors: []css_ast.CompoundSelector{{TypeSelector: sel.TypeSelector}}}},
+				subclassSelectorPrefix = append(subclassSelectorPrefix, css_ast.SubclassSelector{
+					Data: &css_ast.SSPseudoClassWithSelectorList{
+						Kind:      css_ast.PseudoClassIs,
+						Selectors: []css_ast.ComplexSelector{{Selectors: []css_ast.CompoundSelector{{TypeSelector: sel.TypeSelector}}}},
+					},
 				})
 			}
 			sel.TypeSelector = single.TypeSelector
@@ -291,7 +297,7 @@ func substituteAmpersandsInCompoundSelector(sel css_ast.CompoundSelector, replac
 
 	// "div { :is(&.foo) {} }" => ":is(div.foo) {}"
 	for _, ss := range sel.SubclassSelectors {
-		if class, ok := ss.(*css_ast.SSPseudoClassWithSelectorList); ok {
+		if class, ok := ss.Data.(*css_ast.SSPseudoClassWithSelectorList); ok {
 			outer := make([]css_ast.ComplexSelector, 0, len(class.Selectors))
 			for _, complex := range class.Selectors {
 				inner := make([]css_ast.CompoundSelector, 0, len(complex.Selectors))
@@ -327,9 +333,11 @@ func multipleComplexSelectorsToSingleComplexSelector(selectors []css_ast.Complex
 	return css_ast.ComplexSelector{
 		Selectors: []css_ast.CompoundSelector{{
 			Combinator: leadingCombinator,
-			SubclassSelectors: []css_ast.SS{&css_ast.SSPseudoClassWithSelectorList{
-				Kind:      css_ast.PseudoClassIs,
-				Selectors: clones,
+			SubclassSelectors: []css_ast.SubclassSelector{{
+				Data: &css_ast.SSPseudoClassWithSelectorList{
+					Kind:      css_ast.PseudoClassIs,
+					Selectors: clones,
+				},
 			}},
 		}},
 	}

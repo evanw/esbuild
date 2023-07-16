@@ -453,7 +453,7 @@ func (p *printer) printCompoundSelector(sel css_ast.CompoundSelector, isFirst bo
 		p.print("&")
 	}
 
-	for i, sub := range sel.SubclassSelectors {
+	for i, ss := range sel.SubclassSelectors {
 		whitespace := mayNeedWhitespaceAfter
 
 		// There is no chance of whitespace between subclass selectors
@@ -461,7 +461,7 @@ func (p *printer) printCompoundSelector(sel css_ast.CompoundSelector, isFirst bo
 			whitespace = canDiscardWhitespaceAfter
 		}
 
-		switch s := sub.(type) {
+		switch s := ss.Data.(type) {
 		case *css_ast.SSHash:
 			p.print("#")
 
