@@ -1576,7 +1576,7 @@ body {
           },
         },
         [makePath(output + '.map')]: {
-          bytes: 315,
+          bytes: 325,
           exports: [],
           imports: [],
           inputs: {},
