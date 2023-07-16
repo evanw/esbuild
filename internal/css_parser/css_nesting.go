@@ -1,6 +1,7 @@
 package css_parser
 
 import (
+	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/css_ast"
 )
 
@@ -115,7 +116,7 @@ func lowerNestingInRuleWithContext(rule css_ast.Rule, context *lowerNestingConte
 
 			// Inject the implicit "&" now for simplicity later on
 			if sel.IsRelative() {
-				sel.Selectors = append([]css_ast.CompoundSelector{{HasNestingSelector: true}}, sel.Selectors...)
+				sel.Selectors = append([]css_ast.CompoundSelector{{NestingSelectorLoc: ast.MakeIndex32(uint32(rule.Loc.Start))}}, sel.Selectors...)
 			}
 
 			// Pseudo-elements aren't supported by ":is" (i.e. ":is(div, div::before)"
@@ -143,7 +144,7 @@ func lowerNestingInRuleWithContext(rule css_ast.Rule, context *lowerNestingConte
 			}
 
 			// Are all children of the form "&«something»"?
-			if first := sel.Selectors[0]; !first.HasNestingSelector || first.IsSingleAmpersand() {
+			if first := sel.Selectors[0]; !first.HasNestingSelector() || first.IsSingleAmpersand() {
 				canUseGroupSubSelector = false
 			}
 		}
@@ -152,22 +153,24 @@ func lowerNestingInRuleWithContext(rule css_ast.Rule, context *lowerNestingConte
 		if canUseGroupDescendantCombinator {
 			// "& a, & b {}" => "& :is(a, b) {}"
 			// "& > a, & > b {}" => "& > :is(a, b) {}"
+			nestingSelectorLoc := r.Selectors[0].Selectors[0].NestingSelectorLoc
 			for i := range r.Selectors {
 				sel := &r.Selectors[i]
 				sel.Selectors = sel.Selectors[1:]
 			}
 			merged := multipleComplexSelectorsToSingleComplexSelector(r.Selectors)
-			merged.Selectors = append([]css_ast.CompoundSelector{{HasNestingSelector: true}}, merged.Selectors...)
+			merged.Selectors = append([]css_ast.CompoundSelector{{NestingSelectorLoc: nestingSelectorLoc}}, merged.Selectors...)
 			r.Selectors = []css_ast.ComplexSelector{merged}
 		} else if canUseGroupSubSelector {
 			// "&a, &b {}" => "&:is(a, b) {}"
 			// "> &a, > &b {}" => "> &:is(a, b) {}"
+			nestingSelectorLoc := r.Selectors[0].Selectors[0].NestingSelectorLoc
 			for i := range r.Selectors {
 				sel := &r.Selectors[i]
-				sel.Selectors[0].HasNestingSelector = false
+				sel.Selectors[0].NestingSelectorLoc = ast.Index32{}
 			}
 			merged := multipleComplexSelectorsToSingleComplexSelector(r.Selectors)
-			merged.Selectors[0].HasNestingSelector = true
+			merged.Selectors[0].NestingSelectorLoc = nestingSelectorLoc
 			r.Selectors = []css_ast.ComplexSelector{merged}
 		}
 
@@ -237,8 +240,8 @@ const (
 )
 
 func substituteAmpersandsInCompoundSelector(sel css_ast.CompoundSelector, replacement css_ast.ComplexSelector, results []css_ast.CompoundSelector, strip leadingCombinatorStrip) []css_ast.CompoundSelector {
-	if sel.HasNestingSelector {
-		sel.HasNestingSelector = false
+	if sel.HasNestingSelector() {
+		sel.NestingSelectorLoc = ast.Index32{}
 
 		// Convert the replacement to a single compound selector
 		var single css_ast.CompoundSelector

@@ -640,7 +640,7 @@ func (s ComplexSelector) CloneWithoutLeadingCombinator() ComplexSelector {
 func (sel ComplexSelector) IsRelative() bool {
 	if sel.Selectors[0].Combinator.Byte == 0 {
 		for _, inner := range sel.Selectors {
-			if inner.HasNestingSelector {
+			if inner.HasNestingSelector() {
 				return false
 			}
 			for _, ss := range inner.SubclassSelectors {
@@ -699,7 +699,7 @@ func (a ComplexSelector) Equal(b ComplexSelector, check *CrossFileEqualityCheck)
 
 	for i, ai := range a.Selectors {
 		bi := b.Selectors[i]
-		if ai.HasNestingSelector != bi.HasNestingSelector || ai.Combinator.Byte != bi.Combinator.Byte {
+		if ai.HasNestingSelector() != bi.HasNestingSelector() || ai.Combinator.Byte != bi.Combinator.Byte {
 			return false
 		}
 
@@ -730,12 +730,16 @@ type Combinator struct {
 type CompoundSelector struct {
 	TypeSelector       *NamespacedName
 	SubclassSelectors  []SubclassSelector
-	Combinator         Combinator // Optional, may be 0
-	HasNestingSelector bool       // "&"
+	NestingSelectorLoc ast.Index32 // "&"
+	Combinator         Combinator  // Optional, may be 0
+}
+
+func (sel *CompoundSelector) HasNestingSelector() bool {
+	return sel.NestingSelectorLoc.IsValid()
 }
 
 func (sel CompoundSelector) IsSingleAmpersand() bool {
-	return sel.HasNestingSelector && sel.Combinator.Byte == 0 && sel.TypeSelector == nil && len(sel.SubclassSelectors) == 0
+	return sel.HasNestingSelector() && sel.Combinator.Byte == 0 && sel.TypeSelector == nil && len(sel.SubclassSelectors) == 0
 }
 
 func (sel CompoundSelector) Clone() CompoundSelector {

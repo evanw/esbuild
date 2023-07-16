@@ -65,7 +65,7 @@ skip:
 
 		case canRemoveLeadingAmpersandIfNotFirst:
 			for i := 1; i < len(list); i++ {
-				if sel := list[i].Selectors[0]; !sel.HasNestingSelector && (sel.Combinator.Byte != 0 || sel.TypeSelector == nil) {
+				if sel := list[i].Selectors[0]; !sel.HasNestingSelector() && (sel.Combinator.Byte != 0 || sel.TypeSelector == nil) {
 					list[0].Selectors = list[0].Selectors[1:]
 					list[0], list[i] = list[i], list[0]
 					break
@@ -85,7 +85,7 @@ func flattenLocalAndGlobalSelectors(list []css_ast.ComplexSelector, sel css_ast.
 	// done separately from the loop below because inlining may produce
 	// multiple complex selectors.
 	if len(sel.Selectors) == 1 {
-		if single := sel.Selectors[0]; !single.HasNestingSelector && single.TypeSelector == nil && len(single.SubclassSelectors) == 1 && single.Combinator.Byte == 0 {
+		if single := sel.Selectors[0]; !single.HasNestingSelector() && single.TypeSelector == nil && len(single.SubclassSelectors) == 1 && single.Combinator.Byte == 0 {
 			if pseudo, ok := single.SubclassSelectors[0].Data.(*css_ast.SSPseudoClassWithSelectorList); ok && (pseudo.Kind == css_ast.PseudoClassGlobal || pseudo.Kind == css_ast.PseudoClassLocal) {
 				// ":local(.a, .b)" => ".a, .b"
 				return append(list, pseudo.Selectors...)
@@ -107,7 +107,7 @@ func flattenLocalAndGlobalSelectors(list []css_ast.ComplexSelector, sel css_ast.
 					// contents can be inlined, then inline it directly. This has to be
 					// done separately from the loop below because inlining may produce
 					// multiple compound selectors.
-					if !s.HasNestingSelector && s.TypeSelector == nil && len(s.SubclassSelectors) == 1 {
+					if !s.HasNestingSelector() && s.TypeSelector == nil && len(s.SubclassSelectors) == 1 {
 						if pseudo, ok := s.SubclassSelectors[0].Data.(*css_ast.SSPseudoClassWithSelectorList); ok &&
 							(pseudo.Kind == css_ast.PseudoClassGlobal || pseudo.Kind == css_ast.PseudoClassLocal) && len(pseudo.Selectors) == 1 {
 							if nested := pseudo.Selectors[0].Selectors; ok && (s.Combinator.Byte == 0 || nested[0].Combinator.Byte == 0) {
@@ -132,9 +132,9 @@ func flattenLocalAndGlobalSelectors(list []css_ast.ComplexSelector, sel css_ast.
 										// ".foo:local(div)" => "div.foo"
 										s.TypeSelector = single.TypeSelector
 									}
-									if single.HasNestingSelector {
+									if single.HasNestingSelector() {
 										// ".foo:local(&)" => "&.foo"
-										s.HasNestingSelector = true
+										s.NestingSelectorLoc = single.NestingSelectorLoc
 									}
 									// ".foo:local(.bar)" => ".foo.bar"
 									subclassSelectors = append(subclassSelectors, single.SubclassSelectors...)
@@ -171,7 +171,7 @@ const (
 func analyzeLeadingAmpersand(sel css_ast.ComplexSelector, isDeclarationContext bool) leadingAmpersand {
 	if len(sel.Selectors) > 1 {
 		if first := sel.Selectors[0]; first.IsSingleAmpersand() {
-			if second := sel.Selectors[1]; second.Combinator.Byte == 0 && second.HasNestingSelector {
+			if second := sel.Selectors[1]; second.Combinator.Byte == 0 && second.HasNestingSelector() {
 				// ".foo { & &.bar {} }" => ".foo { & &.bar {} }"
 			} else if second.Combinator.Byte != 0 || second.TypeSelector == nil || !isDeclarationContext {
 				// "& + div {}" => "+ div {}"
@@ -264,7 +264,7 @@ func (p *parser) parseCompoundSelector(opts parseComplexSelectorOpts) (sel css_a
 	hasLeadingNestingSelector := p.peek(css_lexer.TDelimAmpersand)
 	if hasLeadingNestingSelector {
 		p.reportUseOfNesting(p.current().Range, opts.isDeclarationContext)
-		sel.HasNestingSelector = true
+		sel.NestingSelectorLoc = ast.MakeIndex32(uint32(startLoc.Start))
 		p.advance()
 	}
 
@@ -296,12 +296,14 @@ func (p *parser) parseCompoundSelector(opts parseComplexSelectorOpts) (sel css_a
 	// Parse the subclass selectors
 subclassSelectors:
 	for {
-		switch p.current().Kind {
+		subclassToken := p.current()
+
+		switch subclassToken.Kind {
 		case css_lexer.THash:
-			if (p.current().Flags & css_lexer.IsID) == 0 {
+			if (subclassToken.Flags & css_lexer.IsID) == 0 {
 				break subclassSelectors
 			}
-			nameLoc := logger.Loc{Start: p.current().Range.Loc.Start + 1}
+			nameLoc := logger.Loc{Start: subclassToken.Range.Loc.Start + 1}
 			name := p.decoded()
 			sel.SubclassSelectors = append(sel.SubclassSelectors, css_ast.SubclassSelector{
 				Data: &css_ast.SSHash{
@@ -368,8 +370,8 @@ subclassSelectors:
 
 		case css_lexer.TDelimAmpersand:
 			// This is an extension: https://drafts.csswg.org/css-nesting-1/
-			p.reportUseOfNesting(p.current().Range, sel.HasNestingSelector)
-			sel.HasNestingSelector = true
+			p.reportUseOfNesting(subclassToken.Range, sel.HasNestingSelector())
+			sel.NestingSelectorLoc = ast.MakeIndex32(uint32(subclassToken.Range.Loc.Start))
 			p.advance()
 
 		default:
@@ -378,7 +380,7 @@ subclassSelectors:
 	}
 
 	// The compound selector must be non-empty
-	if !sel.HasNestingSelector && sel.TypeSelector == nil && len(sel.SubclassSelectors) == 0 {
+	if !sel.HasNestingSelector() && sel.TypeSelector == nil && len(sel.SubclassSelectors) == 0 {
 		p.unexpected()
 		return
 	}
