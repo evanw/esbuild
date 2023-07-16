@@ -860,7 +860,11 @@ func (p *printer) printSymbol(loc logger.Loc, ref ast.Ref, mode identMode, white
 	name, ok := p.options.LocalNames[ref]
 	if !ok {
 		name = originalName
-	} else if p.options.AddSourceMappings && name != originalName {
+	}
+	if p.options.AddSourceMappings {
+		if originalName == name {
+			originalName = ""
+		}
 		p.builder.AddSourceMapping(loc, originalName, p.css)
 	}
 	p.printIdent(name, mode, whitespace)
