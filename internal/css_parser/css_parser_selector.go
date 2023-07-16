@@ -65,7 +65,7 @@ skip:
 
 		case canRemoveLeadingAmpersandIfNotFirst:
 			for i := 1; i < len(list); i++ {
-				if sel := list[i].Selectors[0]; !sel.HasNestingSelector && (sel.Combinator != 0 || sel.TypeSelector == nil) {
+				if sel := list[i].Selectors[0]; !sel.HasNestingSelector && (sel.Combinator.Byte != 0 || sel.TypeSelector == nil) {
 					list[0].Selectors = list[0].Selectors[1:]
 					list[0], list[i] = list[i], list[0]
 					break
@@ -85,7 +85,7 @@ func flattenLocalAndGlobalSelectors(list []css_ast.ComplexSelector, sel css_ast.
 	// done separately from the loop below because inlining may produce
 	// multiple complex selectors.
 	if len(sel.Selectors) == 1 {
-		if single := sel.Selectors[0]; !single.HasNestingSelector && single.TypeSelector == nil && len(single.SubclassSelectors) == 1 && single.Combinator == 0 {
+		if single := sel.Selectors[0]; !single.HasNestingSelector && single.TypeSelector == nil && len(single.SubclassSelectors) == 1 && single.Combinator.Byte == 0 {
 			if pseudo, ok := single.SubclassSelectors[0].(*css_ast.SSPseudoClassWithSelectorList); ok && (pseudo.Kind == css_ast.PseudoClassGlobal || pseudo.Kind == css_ast.PseudoClassLocal) {
 				// ":local(.a, .b)" => ".a, .b"
 				return append(list, pseudo.Selectors...)
@@ -110,8 +110,8 @@ func flattenLocalAndGlobalSelectors(list []css_ast.ComplexSelector, sel css_ast.
 					if !s.HasNestingSelector && s.TypeSelector == nil && len(s.SubclassSelectors) == 1 {
 						if pseudo, ok := s.SubclassSelectors[0].(*css_ast.SSPseudoClassWithSelectorList); ok &&
 							(pseudo.Kind == css_ast.PseudoClassGlobal || pseudo.Kind == css_ast.PseudoClassLocal) && len(pseudo.Selectors) == 1 {
-							if nested := pseudo.Selectors[0].Selectors; ok && (s.Combinator == 0 || nested[0].Combinator == 0) {
-								if s.Combinator != 0 {
+							if nested := pseudo.Selectors[0].Selectors; ok && (s.Combinator.Byte == 0 || nested[0].Combinator.Byte == 0) {
+								if s.Combinator.Byte != 0 {
 									// ".a + :local(.b .c) .d" => ".a + .b .c .d"
 									nested[0].Combinator = s.Combinator
 								}
@@ -127,7 +127,7 @@ func flattenLocalAndGlobalSelectors(list []css_ast.ComplexSelector, sel css_ast.
 						if pseudo, ok := ss.(*css_ast.SSPseudoClassWithSelectorList); ok && (pseudo.Kind == css_ast.PseudoClassGlobal || pseudo.Kind == css_ast.PseudoClassLocal) {
 							// If the contents are a single compound selector, try to merge the contents into this compound selector
 							if len(pseudo.Selectors) == 1 && len(pseudo.Selectors[0].Selectors) == 1 {
-								if single := pseudo.Selectors[0].Selectors[0]; single.Combinator == 0 && (s.TypeSelector == nil || single.TypeSelector == nil) {
+								if single := pseudo.Selectors[0].Selectors[0]; single.Combinator.Byte == 0 && (s.TypeSelector == nil || single.TypeSelector == nil) {
 									if single.TypeSelector != nil {
 										// ".foo:local(div)" => "div.foo"
 										s.TypeSelector = single.TypeSelector
@@ -171,9 +171,9 @@ const (
 func analyzeLeadingAmpersand(sel css_ast.ComplexSelector, isDeclarationContext bool) leadingAmpersand {
 	if len(sel.Selectors) > 1 {
 		if first := sel.Selectors[0]; first.IsSingleAmpersand() {
-			if second := sel.Selectors[1]; second.Combinator == 0 && second.HasNestingSelector {
+			if second := sel.Selectors[1]; second.Combinator.Byte == 0 && second.HasNestingSelector {
 				// ".foo { & &.bar {} }" => ".foo { & &.bar {} }"
-			} else if second.Combinator != 0 || second.TypeSelector == nil || !isDeclarationContext {
+			} else if second.Combinator.Byte != 0 || second.TypeSelector == nil || !isDeclarationContext {
 				// "& + div {}" => "+ div {}"
 				// "& div {}" => "div {}"
 				// ".foo { & + div {} }" => ".foo { + div {} }"
@@ -201,7 +201,7 @@ func (p *parser) parseComplexSelector(opts parseComplexSelectorOpts) (result css
 	// This is an extension: https://drafts.csswg.org/css-nesting-1/
 	r := p.current().Range
 	combinator := p.parseCombinator()
-	if combinator != 0 {
+	if combinator.Byte != 0 {
 		p.reportUseOfNesting(r, opts.isDeclarationContext)
 		p.eat(css_lexer.TWhitespace)
 	}
@@ -229,7 +229,7 @@ func (p *parser) parseComplexSelector(opts parseComplexSelectorOpts) (result css
 
 		// Optional combinator
 		combinator := p.parseCombinator()
-		if combinator != 0 {
+		if combinator.Byte != 0 {
 			p.eat(css_lexer.TWhitespace)
 		}
 
@@ -614,21 +614,23 @@ loop:
 	return tokens
 }
 
-func (p *parser) parseCombinator() uint8 {
-	switch p.current().Kind {
+func (p *parser) parseCombinator() css_ast.Combinator {
+	t := p.current()
+
+	switch t.Kind {
 	case css_lexer.TDelimGreaterThan:
 		p.advance()
-		return '>'
+		return css_ast.Combinator{Loc: t.Range.Loc, Byte: '>'}
 
 	case css_lexer.TDelimPlus:
 		p.advance()
-		return '+'
+		return css_ast.Combinator{Loc: t.Range.Loc, Byte: '+'}
 
 	case css_lexer.TDelimTilde:
 		p.advance()
-		return '~'
+		return css_ast.Combinator{Loc: t.Range.Loc, Byte: '~'}
 
 	default:
-		return 0
+		return css_ast.Combinator{}
 	}
 }

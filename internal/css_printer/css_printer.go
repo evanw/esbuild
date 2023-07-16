@@ -385,7 +385,7 @@ func (p *printer) printComplexSelectors(selectors []css_ast.ComplexSelector, ind
 }
 
 func (p *printer) printCompoundSelector(sel css_ast.CompoundSelector, isFirst bool, isLast bool, indent int32) {
-	if !isFirst && sel.Combinator == 0 {
+	if !isFirst && sel.Combinator.Byte == 0 {
 		// A space is required in between compound selectors if there is no
 		// combinator in the middle. It's fine to convert "a + b" into "a+b"
 		// but not to convert "a b" into "ab".
@@ -394,11 +394,16 @@ func (p *printer) printCompoundSelector(sel css_ast.CompoundSelector, isFirst bo
 		}
 	}
 
-	if sel.Combinator != 0 {
+	if sel.Combinator.Byte != 0 {
 		if !isFirst && !p.options.MinifyWhitespace {
 			p.print(" ")
 		}
-		p.css = append(p.css, sel.Combinator)
+
+		if p.options.AddSourceMappings {
+			p.builder.AddSourceMapping(sel.Combinator.Loc, "", p.css)
+		}
+		p.css = append(p.css, sel.Combinator.Byte)
+
 		if (p.options.LineLimit <= 0 || !p.printNewlinePastLineLimit(indent)) && !p.options.MinifyWhitespace {
 			p.print(" ")
 		}

@@ -107,7 +107,7 @@ func lowerNestingInRuleWithContext(rule css_ast.Rule, context *lowerNestingConte
 		// Pass 1: Canonicalize and analyze our selectors
 		canUseGroupDescendantCombinator := true // Can we do "parent «space» :is(...selectors)"?
 		canUseGroupSubSelector := true          // Can we do "parent«nospace»:is(...selectors)"?
-		var commonLeadingCombinator uint8
+		var commonLeadingCombinator css_ast.Combinator
 		for i := range r.Selectors {
 			sel := &r.Selectors[i]
 
@@ -129,13 +129,13 @@ func lowerNestingInRuleWithContext(rule css_ast.Rule, context *lowerNestingConte
 				canUseGroupDescendantCombinator = false
 			} else {
 				// If all children are of the form "& «COMBINATOR» «something»", is «COMBINATOR» the same in all cases?
-				var combinator uint8
+				var combinator css_ast.Combinator
 				if len(sel.Selectors) >= 2 {
 					combinator = sel.Selectors[1].Combinator
 				}
 				if i == 0 {
 					commonLeadingCombinator = combinator
-				} else if commonLeadingCombinator != combinator {
+				} else if commonLeadingCombinator.Byte != combinator.Byte {
 					canUseGroupDescendantCombinator = false
 				}
 			}
@@ -240,21 +240,21 @@ func substituteAmpersandsInCompoundSelector(sel css_ast.CompoundSelector, replac
 
 		// Convert the replacement to a single compound selector
 		var single css_ast.CompoundSelector
-		if sel.Combinator == 0 && (len(replacement.Selectors) == 1 || len(results) == 0) {
+		if sel.Combinator.Byte == 0 && (len(replacement.Selectors) == 1 || len(results) == 0) {
 			// ".foo { :hover & {} }" => ":hover .foo {}"
 			// ".foo .bar { &:hover {} }" => ".foo .bar:hover {}"
 			last := len(replacement.Selectors) - 1
 			results = append(results, replacement.Selectors[:last]...)
 			single = replacement.Selectors[last]
 			if strip == stripLeadingCombinator {
-				single.Combinator = 0
+				single.Combinator = css_ast.Combinator{}
 			}
 			sel.Combinator = single.Combinator
 		} else if len(replacement.Selectors) == 1 {
 			// ".foo { > &:hover {} }" => ".foo > .foo:hover {}"
 			single = replacement.Selectors[0]
 			if strip == stripLeadingCombinator {
-				single.Combinator = 0
+				single.Combinator = css_ast.Combinator{}
 			}
 		} else {
 			// ".foo .bar { :hover & {} }" => ":hover :is(.foo .bar) {}"
@@ -315,7 +315,7 @@ func multipleComplexSelectorsToSingleComplexSelector(selectors []css_ast.Complex
 		return selectors[0]
 	}
 
-	var leadingCombinator uint8
+	var leadingCombinator css_ast.Combinator
 	clones := make([]css_ast.ComplexSelector, len(selectors))
 
 	for i, sel := range selectors {

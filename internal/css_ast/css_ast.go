@@ -620,7 +620,7 @@ func HashComplexSelectors(hash uint32, selectors []ComplexSelector) uint32 {
 			for _, sub := range sel.SubclassSelectors {
 				hash = helpers.HashCombine(hash, sub.Hash())
 			}
-			hash = helpers.HashCombine(hash, uint32(sel.Combinator))
+			hash = helpers.HashCombine(hash, uint32(sel.Combinator.Byte))
 		}
 	}
 	return hash
@@ -630,7 +630,7 @@ func (s ComplexSelector) CloneWithoutLeadingCombinator() ComplexSelector {
 	clone := ComplexSelector{Selectors: make([]CompoundSelector, len(s.Selectors))}
 	for i, sel := range s.Selectors {
 		if i == 0 {
-			sel.Combinator = 0
+			sel.Combinator = Combinator{}
 		}
 		clone.Selectors[i] = sel.Clone()
 	}
@@ -638,7 +638,7 @@ func (s ComplexSelector) CloneWithoutLeadingCombinator() ComplexSelector {
 }
 
 func (sel ComplexSelector) IsRelative() bool {
-	if sel.Selectors[0].Combinator == 0 {
+	if sel.Selectors[0].Combinator.Byte == 0 {
 		for _, inner := range sel.Selectors {
 			if inner.HasNestingSelector {
 				return false
@@ -699,7 +699,7 @@ func (a ComplexSelector) Equal(b ComplexSelector, check *CrossFileEqualityCheck)
 
 	for i, ai := range a.Selectors {
 		bi := b.Selectors[i]
-		if ai.HasNestingSelector != bi.HasNestingSelector || ai.Combinator != bi.Combinator {
+		if ai.HasNestingSelector != bi.HasNestingSelector || ai.Combinator.Byte != bi.Combinator.Byte {
 			return false
 		}
 
@@ -722,15 +722,20 @@ func (a ComplexSelector) Equal(b ComplexSelector, check *CrossFileEqualityCheck)
 	return true
 }
 
+type Combinator struct {
+	Loc  logger.Loc
+	Byte uint8 // Optional, may be 0 for no combinator
+}
+
 type CompoundSelector struct {
 	TypeSelector       *NamespacedName
 	SubclassSelectors  []SS
-	Combinator         uint8 // Optional, may be 0
-	HasNestingSelector bool  // "&"
+	Combinator         Combinator // Optional, may be 0
+	HasNestingSelector bool       // "&"
 }
 
 func (sel CompoundSelector) IsSingleAmpersand() bool {
-	return sel.HasNestingSelector && sel.Combinator == 0 && sel.TypeSelector == nil && len(sel.SubclassSelectors) == 0
+	return sel.HasNestingSelector && sel.Combinator.Byte == 0 && sel.TypeSelector == nil && len(sel.SubclassSelectors) == 0
 }
 
 func (sel CompoundSelector) Clone() CompoundSelector {
