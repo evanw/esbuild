@@ -432,11 +432,11 @@ func (p *printer) printCompoundSelector(sel css_ast.CompoundSelector, isFirst bo
 
 			// This deliberately does not use identHash. From the specification:
 			// "In <id-selector>, the <hash-token>'s value must be an identifier."
-			p.printSymbol(s.Ref, identNormal, whitespace)
+			p.printSymbol(s.Name.Loc, s.Name.Ref, identNormal, whitespace)
 
 		case *css_ast.SSClass:
 			p.print(".")
-			p.printSymbol(s.Ref, identNormal, whitespace)
+			p.printSymbol(s.Name.Loc, s.Name.Ref, identNormal, whitespace)
 
 		case *css_ast.SSAttribute:
 			p.print("[")
@@ -819,11 +819,14 @@ func (p *printer) printIdent(text string, mode identMode, whitespace trailingWhi
 	}
 }
 
-func (p *printer) printSymbol(ref ast.Ref, mode identMode, whitespace trailingWhitespace) {
+func (p *printer) printSymbol(loc logger.Loc, ref ast.Ref, mode identMode, whitespace trailingWhitespace) {
 	ref = ast.FollowSymbols(p.symbols, ref)
+	originalName := p.symbols.Get(ref).OriginalName
 	name, ok := p.options.LocalNames[ref]
 	if !ok {
-		name = p.symbols.Get(ref).OriginalName
+		name = originalName
+	} else if p.options.AddSourceMappings && name != originalName {
+		p.builder.AddSourceMapping(loc, originalName, p.css)
 	}
 	p.printIdent(name, mode, whitespace)
 }

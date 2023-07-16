@@ -234,7 +234,7 @@ func (loader Loader) IsTypeScript() bool {
 
 func (loader Loader) CanHaveSourceMap() bool {
 	switch loader {
-	case LoaderJS, LoaderJSX, LoaderTS, LoaderTSNoAmbiguousLessThan, LoaderTSX, LoaderCSS, LoaderJSON, LoaderText:
+	case LoaderJS, LoaderJSX, LoaderTS, LoaderTSNoAmbiguousLessThan, LoaderTSX, LoaderCSS, LoaderLocalCSS, LoaderJSON, LoaderText:
 		return true
 	default:
 		return false

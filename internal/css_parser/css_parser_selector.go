@@ -3,6 +3,7 @@ package css_parser
 import (
 	"fmt"
 
+	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/css_ast"
 	"github.com/evanw/esbuild/internal/css_lexer"
 	"github.com/evanw/esbuild/internal/logger"
@@ -298,14 +299,20 @@ subclassSelectors:
 			if (p.current().Flags & css_lexer.IsID) == 0 {
 				break subclassSelectors
 			}
+			nameLoc := logger.Loc{Start: p.current().Range.Loc.Start + 1}
 			name := p.decoded()
-			sel.SubclassSelectors = append(sel.SubclassSelectors, &css_ast.SSHash{Ref: p.symbolForName(name)})
+			sel.SubclassSelectors = append(sel.SubclassSelectors, &css_ast.SSHash{
+				Name: ast.LocRef{Loc: nameLoc, Ref: p.symbolForName(name)},
+			})
 			p.advance()
 
 		case css_lexer.TDelimDot:
 			p.advance()
+			nameLoc := p.current().Range.Loc
 			name := p.decoded()
-			sel.SubclassSelectors = append(sel.SubclassSelectors, &css_ast.SSClass{Ref: p.symbolForName(name)})
+			sel.SubclassSelectors = append(sel.SubclassSelectors, &css_ast.SSClass{
+				Name: ast.LocRef{Loc: nameLoc, Ref: p.symbolForName(name)},
+			})
 			if !p.expect(css_lexer.TIdent) {
 				return
 			}

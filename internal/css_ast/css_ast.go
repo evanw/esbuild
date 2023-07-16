@@ -786,18 +786,18 @@ type SS interface {
 }
 
 type SSHash struct {
-	Ref ast.Ref
+	Name ast.LocRef
 }
 
 func (a *SSHash) Equal(ss SS, check *CrossFileEqualityCheck) bool {
 	b, ok := ss.(*SSHash)
-	return ok && a.Ref == b.Ref
+	return ok && a.Name.Ref == b.Name.Ref
 }
 
 func (ss *SSHash) Hash() uint32 {
 	hash := uint32(1)
-	hash = helpers.HashCombine(hash, ss.Ref.SourceIndex)
-	hash = helpers.HashCombine(hash, ss.Ref.InnerIndex)
+	hash = helpers.HashCombine(hash, ss.Name.Ref.SourceIndex)
+	hash = helpers.HashCombine(hash, ss.Name.Ref.InnerIndex)
 	return hash
 }
 
@@ -807,18 +807,18 @@ func (ss *SSHash) Clone() SS {
 }
 
 type SSClass struct {
-	Ref ast.Ref
+	Name ast.LocRef
 }
 
 func (a *SSClass) Equal(ss SS, check *CrossFileEqualityCheck) bool {
 	b, ok := ss.(*SSClass)
-	return ok && a.Ref == b.Ref
+	return ok && a.Name.Ref == b.Name.Ref
 }
 
 func (ss *SSClass) Hash() uint32 {
 	hash := uint32(2)
-	hash = helpers.HashCombine(hash, ss.Ref.SourceIndex)
-	hash = helpers.HashCombine(hash, ss.Ref.InnerIndex)
+	hash = helpers.HashCombine(hash, ss.Name.Ref.SourceIndex)
+	hash = helpers.HashCombine(hash, ss.Name.Ref.InnerIndex)
 	return hash
 }
 
