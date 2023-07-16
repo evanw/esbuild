@@ -306,6 +306,7 @@ subclassSelectors:
 			nameLoc := logger.Loc{Start: subclassToken.Range.Loc.Start + 1}
 			name := p.decoded()
 			sel.SubclassSelectors = append(sel.SubclassSelectors, css_ast.SubclassSelector{
+				Loc: subclassToken.Range.Loc,
 				Data: &css_ast.SSHash{
 					Name: ast.LocRef{Loc: nameLoc, Ref: p.symbolForName(name)},
 				},
@@ -317,6 +318,7 @@ subclassSelectors:
 			nameLoc := p.current().Range.Loc
 			name := p.decoded()
 			sel.SubclassSelectors = append(sel.SubclassSelectors, css_ast.SubclassSelector{
+				Loc: subclassToken.Range.Loc,
 				Data: &css_ast.SSClass{
 					Name: ast.LocRef{Loc: nameLoc, Ref: p.symbolForName(name)},
 				},
@@ -331,6 +333,7 @@ subclassSelectors:
 				return
 			}
 			sel.SubclassSelectors = append(sel.SubclassSelectors, css_ast.SubclassSelector{
+				Loc:  subclassToken.Range.Loc,
 				Data: &attr,
 			})
 
@@ -338,6 +341,7 @@ subclassSelectors:
 			if p.next().Kind == css_lexer.TColon {
 				// Special-case the start of the pseudo-element selector section
 				for p.current().Kind == css_lexer.TColon {
+					firstColonLoc := p.current().Range.Loc
 					isElement := p.next().Kind == css_lexer.TColon
 					if isElement {
 						p.advance()
@@ -359,12 +363,15 @@ subclassSelectors:
 					}
 
 					sel.SubclassSelectors = append(sel.SubclassSelectors, css_ast.SubclassSelector{
+						Loc:  firstColonLoc,
 						Data: pseudo,
 					})
 				}
 				break subclassSelectors
 			}
+
 			sel.SubclassSelectors = append(sel.SubclassSelectors, css_ast.SubclassSelector{
+				Loc:  subclassToken.Range.Loc,
 				Data: p.parsePseudoClassSelector(false),
 			})
 

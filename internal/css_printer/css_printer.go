@@ -256,9 +256,6 @@ func (p *printer) printRule(rule css_ast.Rule, indent int32, omitTrailingSemicol
 		}
 
 	case *css_ast.RSelector:
-		if p.options.AddSourceMappings {
-			p.builder.AddSourceMapping(rule.Loc, "", p.css)
-		}
 		p.printComplexSelectors(r.Selectors, indent, layoutMultiLine)
 		if !p.options.MinifyWhitespace {
 			p.print(" ")
@@ -463,6 +460,10 @@ func (p *printer) printCompoundSelector(sel css_ast.CompoundSelector, isFirst bo
 		// There is no chance of whitespace between subclass selectors
 		if i+1 < len(sel.SubclassSelectors) {
 			whitespace = canDiscardWhitespaceAfter
+		}
+
+		if p.options.AddSourceMappings {
+			p.builder.AddSourceMapping(ss.Loc, "", p.css)
 		}
 
 		switch s := ss.Data.(type) {

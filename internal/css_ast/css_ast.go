@@ -780,6 +780,13 @@ type NamespacedName struct {
 	Name NameToken
 }
 
+func (n NamespacedName) FirstLoc() logger.Loc {
+	if n.NamespacePrefix != nil {
+		return n.NamespacePrefix.Loc
+	}
+	return n.Name.Loc
+}
+
 func (n NamespacedName) Clone() NamespacedName {
 	clone := n
 	if n.NamespacePrefix != nil {
@@ -796,6 +803,7 @@ func (a NamespacedName) Equal(b NamespacedName) bool {
 
 type SubclassSelector struct {
 	Data SS
+	Loc  logger.Loc
 }
 
 type SS interface {

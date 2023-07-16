@@ -3,17 +3,21 @@ package css_parser
 import (
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/css_ast"
+	"github.com/evanw/esbuild/internal/logger"
 )
 
 func lowerNestingInRule(rule css_ast.Rule, results []css_ast.Rule) []css_ast.Rule {
 	switch r := rule.Data.(type) {
 	case *css_ast.RSelector:
-		scope := css_ast.ComplexSelector{
-			Selectors: []css_ast.CompoundSelector{{
-				SubclassSelectors: []css_ast.SubclassSelector{{
-					Data: &css_ast.SSPseudoClass{Name: "scope"},
+		scope := func(loc logger.Loc) css_ast.ComplexSelector {
+			return css_ast.ComplexSelector{
+				Selectors: []css_ast.CompoundSelector{{
+					SubclassSelectors: []css_ast.SubclassSelector{{
+						Loc:  loc,
+						Data: &css_ast.SSPseudoClass{Name: "scope"},
+					}},
 				}},
-			}},
+			}
 		}
 
 		// Filter out pseudo elements because they are ignored by nested style
@@ -158,7 +162,7 @@ func lowerNestingInRuleWithContext(rule css_ast.Rule, context *lowerNestingConte
 				sel := &r.Selectors[i]
 				sel.Selectors = sel.Selectors[1:]
 			}
-			merged := multipleComplexSelectorsToSingleComplexSelector(r.Selectors)
+			merged := multipleComplexSelectorsToSingleComplexSelector(r.Selectors)(rule.Loc)
 			merged.Selectors = append([]css_ast.CompoundSelector{{NestingSelectorLoc: nestingSelectorLoc}}, merged.Selectors...)
 			r.Selectors = []css_ast.ComplexSelector{merged}
 		} else if canUseGroupSubSelector {
@@ -169,7 +173,7 @@ func lowerNestingInRuleWithContext(rule css_ast.Rule, context *lowerNestingConte
 				sel := &r.Selectors[i]
 				sel.Selectors[0].NestingSelectorLoc = ast.Index32{}
 			}
-			merged := multipleComplexSelectorsToSingleComplexSelector(r.Selectors)
+			merged := multipleComplexSelectorsToSingleComplexSelector(r.Selectors)(rule.Loc)
 			merged.Selectors[0].NestingSelectorLoc = nestingSelectorLoc
 			r.Selectors = []css_ast.ComplexSelector{merged}
 		}
@@ -239,9 +243,16 @@ const (
 	stripLeadingCombinator
 )
 
-func substituteAmpersandsInCompoundSelector(sel css_ast.CompoundSelector, replacement css_ast.ComplexSelector, results []css_ast.CompoundSelector, strip leadingCombinatorStrip) []css_ast.CompoundSelector {
+func substituteAmpersandsInCompoundSelector(
+	sel css_ast.CompoundSelector,
+	replacementFn func(logger.Loc) css_ast.ComplexSelector,
+	results []css_ast.CompoundSelector,
+	strip leadingCombinatorStrip,
+) []css_ast.CompoundSelector {
 	if sel.HasNestingSelector() {
+		nestingSelectorLoc := logger.Loc{Start: int32(sel.NestingSelectorLoc.GetIndex())}
 		sel.NestingSelectorLoc = ast.Index32{}
+		replacement := replacementFn(nestingSelectorLoc)
 
 		// Convert the replacement to a single compound selector
 		var single css_ast.CompoundSelector
@@ -266,6 +277,7 @@ func substituteAmpersandsInCompoundSelector(sel css_ast.CompoundSelector, replac
 			// ".foo .bar { > &:hover {} }" => ".foo .bar > :is(.foo .bar):hover {}"
 			single = css_ast.CompoundSelector{
 				SubclassSelectors: []css_ast.SubclassSelector{{
+					Loc: nestingSelectorLoc,
 					Data: &css_ast.SSPseudoClassWithSelectorList{
 						Kind:      css_ast.PseudoClassIs,
 						Selectors: []css_ast.ComplexSelector{replacement.CloneWithoutLeadingCombinator()},
@@ -280,6 +292,7 @@ func substituteAmpersandsInCompoundSelector(sel css_ast.CompoundSelector, replac
 		if single.TypeSelector != nil {
 			if sel.TypeSelector != nil {
 				subclassSelectorPrefix = append(subclassSelectorPrefix, css_ast.SubclassSelector{
+					Loc: sel.TypeSelector.FirstLoc(),
 					Data: &css_ast.SSPseudoClassWithSelectorList{
 						Kind:      css_ast.PseudoClassIs,
 						Selectors: []css_ast.ComplexSelector{{Selectors: []css_ast.CompoundSelector{{TypeSelector: sel.TypeSelector}}}},
@@ -305,7 +318,7 @@ func substituteAmpersandsInCompoundSelector(sel css_ast.CompoundSelector, replac
 			for _, complex := range class.Selectors {
 				inner := make([]css_ast.CompoundSelector, 0, len(complex.Selectors))
 				for _, sel := range complex.Selectors {
-					inner = substituteAmpersandsInCompoundSelector(sel, replacement, inner, stripLeadingCombinator)
+					inner = substituteAmpersandsInCompoundSelector(sel, replacementFn, inner, stripLeadingCombinator)
 				}
 				outer = append(outer, css_ast.ComplexSelector{Selectors: inner})
 			}
@@ -319,9 +332,11 @@ func substituteAmpersandsInCompoundSelector(sel css_ast.CompoundSelector, replac
 // Turn the list of selectors into a single selector by wrapping lists
 // without a single element with ":is(...)". Note that this may result
 // in an empty ":is()" selector (which matches nothing).
-func multipleComplexSelectorsToSingleComplexSelector(selectors []css_ast.ComplexSelector) css_ast.ComplexSelector {
+func multipleComplexSelectorsToSingleComplexSelector(selectors []css_ast.ComplexSelector) func(logger.Loc) css_ast.ComplexSelector {
 	if len(selectors) == 1 {
-		return selectors[0]
+		return func(logger.Loc) css_ast.ComplexSelector {
+			return selectors[0]
+		}
 	}
 
 	var leadingCombinator css_ast.Combinator
@@ -333,15 +348,18 @@ func multipleComplexSelectorsToSingleComplexSelector(selectors []css_ast.Complex
 		clones[i] = sel.CloneWithoutLeadingCombinator()
 	}
 
-	return css_ast.ComplexSelector{
-		Selectors: []css_ast.CompoundSelector{{
-			Combinator: leadingCombinator,
-			SubclassSelectors: []css_ast.SubclassSelector{{
-				Data: &css_ast.SSPseudoClassWithSelectorList{
-					Kind:      css_ast.PseudoClassIs,
-					Selectors: clones,
-				},
+	return func(loc logger.Loc) css_ast.ComplexSelector {
+		return css_ast.ComplexSelector{
+			Selectors: []css_ast.CompoundSelector{{
+				Combinator: leadingCombinator,
+				SubclassSelectors: []css_ast.SubclassSelector{{
+					Loc: loc,
+					Data: &css_ast.SSPseudoClassWithSelectorList{
+						Kind:      css_ast.PseudoClassIs,
+						Selectors: clones,
+					},
+				}},
 			}},
-		}},
+		}
 	}
 }
