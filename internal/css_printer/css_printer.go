@@ -11,6 +11,7 @@ import (
 	"github.com/evanw/esbuild/internal/css_ast"
 	"github.com/evanw/esbuild/internal/css_lexer"
 	"github.com/evanw/esbuild/internal/helpers"
+	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/sourcemap"
 )
 
@@ -169,6 +170,9 @@ func (p *printer) printRule(rule css_ast.Rule, indent int32, omitTrailingSemicol
 		}
 		indent++
 		for _, block := range r.Blocks {
+			if p.options.AddSourceMappings {
+				p.builder.AddSourceMapping(block.Loc, "", p.css)
+			}
 			if !p.options.MinifyWhitespace {
 				p.printIndent(indent)
 			}
@@ -185,12 +189,15 @@ func (p *printer) printRule(rule css_ast.Rule, indent int32, omitTrailingSemicol
 			if !p.options.MinifyWhitespace {
 				p.print(" ")
 			}
-			p.printRuleBlock(block.Rules, indent)
+			p.printRuleBlock(block.Rules, indent, block.CloseBraceLoc)
 			if !p.options.MinifyWhitespace {
 				p.print("\n")
 			}
 		}
 		indent--
+		if p.options.AddSourceMappings && r.CloseBraceLoc.Start != 0 {
+			p.builder.AddSourceMapping(r.CloseBraceLoc, "", p.css)
+		}
 		if !p.options.MinifyWhitespace {
 			p.printIndent(indent)
 		}
@@ -213,7 +220,7 @@ func (p *printer) printRule(rule css_ast.Rule, indent int32, omitTrailingSemicol
 			if !p.options.MinifyWhitespace && len(r.Prelude) > 0 {
 				p.print(" ")
 			}
-			p.printRuleBlock(r.Rules, indent)
+			p.printRuleBlock(r.Rules, indent, r.CloseBraceLoc)
 		}
 
 	case *css_ast.RUnknownAt:
@@ -241,14 +248,14 @@ func (p *printer) printRule(rule css_ast.Rule, indent int32, omitTrailingSemicol
 		if !p.options.MinifyWhitespace {
 			p.print(" ")
 		}
-		p.printRuleBlock(r.Rules, indent)
+		p.printRuleBlock(r.Rules, indent, r.CloseBraceLoc)
 
 	case *css_ast.RQualified:
 		hasWhitespaceAfter := p.printTokens(r.Prelude, printTokensOpts{})
 		if !hasWhitespaceAfter && !p.options.MinifyWhitespace {
 			p.print(" ")
 		}
-		p.printRuleBlock(r.Rules, indent)
+		p.printRuleBlock(r.Rules, indent, r.CloseBraceLoc)
 
 	case *css_ast.RDeclaration:
 		p.printIdent(r.KeyText, identNormal, canDiscardWhitespaceAfter)
@@ -294,7 +301,7 @@ func (p *printer) printRule(rule css_ast.Rule, indent int32, omitTrailingSemicol
 			if !p.options.MinifyWhitespace {
 				p.print(" ")
 			}
-			p.printRuleBlock(r.Rules, indent)
+			p.printRuleBlock(r.Rules, indent, r.CloseBraceLoc)
 		}
 
 	default:
@@ -327,7 +334,7 @@ func (p *printer) printIndentedComment(indent int32, text string) {
 	p.print(text)
 }
 
-func (p *printer) printRuleBlock(rules []css_ast.Rule, indent int32) {
+func (p *printer) printRuleBlock(rules []css_ast.Rule, indent int32, closeBraceLoc logger.Loc) {
 	if p.options.MinifyWhitespace {
 		p.print("{")
 	} else {
@@ -339,6 +346,9 @@ func (p *printer) printRuleBlock(rules []css_ast.Rule, indent int32) {
 		p.printRule(decl, indent+1, omitTrailingSemicolon)
 	}
 
+	if p.options.AddSourceMappings && closeBraceLoc.Start != 0 {
+		p.builder.AddSourceMapping(closeBraceLoc, "", p.css)
+	}
 	if !p.options.MinifyWhitespace {
 		p.printIndent(indent)
 	}

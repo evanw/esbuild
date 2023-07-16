@@ -363,14 +363,17 @@ func (r *RAtImport) Hash() (uint32, bool) {
 }
 
 type RAtKeyframes struct {
-	AtToken string
-	Name    string
-	Blocks  []KeyframeBlock
+	AtToken       string
+	Name          string
+	Blocks        []KeyframeBlock
+	CloseBraceLoc logger.Loc
 }
 
 type KeyframeBlock struct {
-	Selectors []string
-	Rules     []Rule
+	Selectors     []string
+	Rules         []Rule
+	Loc           logger.Loc
+	CloseBraceLoc logger.Loc
 }
 
 func (a *RAtKeyframes) Equal(rule R, check *CrossFileEqualityCheck) bool {
@@ -410,9 +413,10 @@ func (r *RAtKeyframes) Hash() (uint32, bool) {
 }
 
 type RKnownAt struct {
-	AtToken string
-	Prelude []Token
-	Rules   []Rule
+	AtToken       string
+	Prelude       []Token
+	Rules         []Rule
+	CloseBraceLoc logger.Loc
 }
 
 func (a *RKnownAt) Equal(rule R, check *CrossFileEqualityCheck) bool {
@@ -448,8 +452,9 @@ func (r *RUnknownAt) Hash() (uint32, bool) {
 }
 
 type RSelector struct {
-	Selectors []ComplexSelector
-	Rules     []Rule
+	Selectors     []ComplexSelector
+	Rules         []Rule
+	CloseBraceLoc logger.Loc
 }
 
 func (a *RSelector) Equal(rule R, check *CrossFileEqualityCheck) bool {
@@ -466,8 +471,9 @@ func (r *RSelector) Hash() (uint32, bool) {
 }
 
 type RQualified struct {
-	Prelude []Token
-	Rules   []Rule
+	Prelude       []Token
+	Rules         []Rule
+	CloseBraceLoc logger.Loc
 }
 
 func (a *RQualified) Equal(rule R, check *CrossFileEqualityCheck) bool {
@@ -547,8 +553,9 @@ func (r *RComment) Hash() (uint32, bool) {
 }
 
 type RAtLayer struct {
-	Names [][]string
-	Rules []Rule
+	Names         [][]string
+	Rules         []Rule
+	CloseBraceLoc logger.Loc
 }
 
 func (a *RAtLayer) Equal(rule R, check *CrossFileEqualityCheck) bool {

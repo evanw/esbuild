@@ -1142,11 +1142,13 @@ abortRuleParser:
 					continue
 
 				case css_lexer.TCloseBrace:
+					closeBraceLoc := p.current().Range.Loc
 					p.advance()
 					return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RAtKeyframes{
-						AtToken: atToken,
-						Name:    name,
-						Blocks:  blocks,
+						AtToken:       atToken,
+						Name:          name,
+						Blocks:        blocks,
+						CloseBraceLoc: closeBraceLoc,
 					}}
 
 				case css_lexer.TEndOfFile:
@@ -1158,6 +1160,7 @@ abortRuleParser:
 
 				default:
 					var selectors []string
+					var firstSelectorLoc logger.Loc
 
 				selectors:
 					for {
@@ -1171,13 +1174,18 @@ abortRuleParser:
 							blockMatchingLoc := p.current().Range.Loc
 							p.advance()
 							rules := p.parseListOfDeclarations(listOfDeclarationsOpts{})
-							p.expectWithMatchingLoc(css_lexer.TCloseBrace, blockMatchingLoc)
+							closeBraceLoc := p.current().Range.Loc
+							if !p.expectWithMatchingLoc(css_lexer.TCloseBrace, blockMatchingLoc) {
+								closeBraceLoc = logger.Loc{}
+							}
 
 							// "@keyframes { from {} to { color: red } }" => "@keyframes { to { color: red } }"
 							if !p.options.minifySyntax || len(rules) > 0 {
 								blocks = append(blocks, css_ast.KeyframeBlock{
-									Selectors: selectors,
-									Rules:     rules,
+									Selectors:     selectors,
+									Rules:         rules,
+									Loc:           firstSelectorLoc,
+									CloseBraceLoc: closeBraceLoc,
 								})
 							}
 							break selectors
@@ -1187,6 +1195,9 @@ abortRuleParser:
 							break badSyntax
 
 						case css_lexer.TIdent, css_lexer.TPercentage:
+							if firstSelectorLoc.Start == 0 {
+								firstSelectorLoc = p.current().Range.Loc
+							}
 							text := p.decoded()
 							if t.Kind == css_lexer.TIdent {
 								if text == "from" {
@@ -1280,8 +1291,11 @@ abortRuleParser:
 					parseSelectors: true,
 				})
 			}
-			p.expectWithMatchingLoc(css_lexer.TCloseBrace, matchingLoc)
-			return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RAtLayer{Names: names, Rules: rules}}
+			closeBraceLoc := p.current().Range.Loc
+			if !p.expectWithMatchingLoc(css_lexer.TCloseBrace, matchingLoc) {
+				closeBraceLoc = logger.Loc{}
+			}
+			return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RAtLayer{Names: names, Rules: rules, CloseBraceLoc: closeBraceLoc}}
 		}
 
 		// Handle lack of a block
@@ -1377,8 +1391,11 @@ prelude:
 		matchingLoc := p.current().Range.Loc
 		p.expect(css_lexer.TOpenBrace)
 		rules := p.parseListOfDeclarations(listOfDeclarationsOpts{})
-		p.expectWithMatchingLoc(css_lexer.TCloseBrace, matchingLoc)
-		return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RKnownAt{AtToken: atToken, Prelude: prelude, Rules: rules}}
+		closeBraceLoc := p.current().Range.Loc
+		if !p.expectWithMatchingLoc(css_lexer.TCloseBrace, matchingLoc) {
+			closeBraceLoc = logger.Loc{}
+		}
+		return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RKnownAt{AtToken: atToken, Prelude: prelude, Rules: rules, CloseBraceLoc: closeBraceLoc}}
 
 	case atRuleInheritContext:
 		// Parse known rules whose blocks consist of whatever the current context is
@@ -1394,8 +1411,11 @@ prelude:
 				parseSelectors: true,
 			})
 		}
-		p.expectWithMatchingLoc(css_lexer.TCloseBrace, matchingLoc)
-		return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RKnownAt{AtToken: atToken, Prelude: prelude, Rules: rules}}
+		closeBraceLoc := p.current().Range.Loc
+		if !p.expectWithMatchingLoc(css_lexer.TCloseBrace, matchingLoc) {
+			closeBraceLoc = logger.Loc{}
+		}
+		return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RKnownAt{AtToken: atToken, Prelude: prelude, Rules: rules, CloseBraceLoc: closeBraceLoc}}
 
 	case atRuleQualifiedOrEmpty:
 		matchingLoc := p.current().Range.Loc
@@ -1403,8 +1423,11 @@ prelude:
 			rules := p.parseListOfRules(ruleContext{
 				parseSelectors: true,
 			})
-			p.expectWithMatchingLoc(css_lexer.TCloseBrace, matchingLoc)
-			return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RKnownAt{AtToken: atToken, Prelude: prelude, Rules: rules}}
+			closeBraceLoc := p.current().Range.Loc
+			if !p.expectWithMatchingLoc(css_lexer.TCloseBrace, matchingLoc) {
+				closeBraceLoc = logger.Loc{}
+			}
+			return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RKnownAt{AtToken: atToken, Prelude: prelude, Rules: rules, CloseBraceLoc: closeBraceLoc}}
 		}
 		p.expect(css_lexer.TSemicolon)
 		return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RKnownAt{AtToken: atToken, Prelude: prelude}}
@@ -1817,7 +1840,10 @@ func (p *parser) parseSelectorRuleFrom(preludeStart int, isTopLevel bool, opts p
 				canInlineNoOpNesting: canInlineNoOpNesting,
 			})
 			p.inSelectorSubtree--
-			p.expectWithMatchingLoc(css_lexer.TCloseBrace, matchingLoc)
+			closeBraceLoc := p.current().Range.Loc
+			if p.expectWithMatchingLoc(css_lexer.TCloseBrace, matchingLoc) {
+				selector.CloseBraceLoc = closeBraceLoc
+			}
 			return css_ast.Rule{Loc: p.tokens[preludeStart].Range.Loc, Data: &selector}
 		}
 	}
@@ -1861,7 +1887,10 @@ loop:
 	matchingLoc := p.current().Range.Loc
 	if p.eat(css_lexer.TOpenBrace) {
 		qualified.Rules = p.parseListOfDeclarations(listOfDeclarationsOpts{})
-		p.expectWithMatchingLoc(css_lexer.TCloseBrace, matchingLoc)
+		closeBraceLoc := p.current().Range.Loc
+		if p.expectWithMatchingLoc(css_lexer.TCloseBrace, matchingLoc) {
+			qualified.CloseBraceLoc = closeBraceLoc
+		}
 	} else if !opts.isAlreadyInvalid {
 		p.expect(css_lexer.TOpenBrace)
 	}
