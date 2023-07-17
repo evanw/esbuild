@@ -46,6 +46,9 @@ type Token struct {
 	// contains the decoded string contents for "TString" tokens.
 	Text string // 16 bytes
 
+	// The source location at the start of the token
+	Loc logger.Loc // 4 bytes
+
 	// URL tokens have an associated import record at the top-level of the AST.
 	// This index points to that import record.
 	ImportRecordIndex uint32 // 4 bytes

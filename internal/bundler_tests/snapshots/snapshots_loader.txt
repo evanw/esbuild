@@ -17,7 +17,7 @@ TestEmptyLoaderCSS
   "version": 3,
   "sources": ["entry.css"],
   "sourcesContent": ["\n\t\t\t\t@import 'a.empty';\n\t\t\t\ta { background: url(b.empty) }\n\t\t\t"],
-  "mappings": ";AAEI;AAAA,EAAI;AAAyB;",
+  "mappings": ";AAEI;AAAA,EAAI,YAAY;AAAa;",
   "names": []
 }
 
@@ -58,7 +58,7 @@ a {
       "imports": [],
       "exports": [],
       "inputs": {},
-      "bytes": 204
+      "bytes": 208
     },
     "entry.css": {
       "imports": [

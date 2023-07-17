@@ -7,8 +7,9 @@ import (
 	"github.com/evanw/esbuild/internal/logger"
 )
 
-func (p *parser) commaToken() css_ast.Token {
+func (p *parser) commaToken(loc logger.Loc) css_ast.Token {
 	t := css_ast.Token{
+		Loc:  loc,
 		Kind: css_lexer.TComma,
 		Text: ",",
 	}

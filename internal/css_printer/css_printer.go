@@ -263,9 +263,6 @@ func (p *printer) printRule(rule css_ast.Rule, indent int32, omitTrailingSemicol
 		p.printRuleBlock(r.Rules, indent, r.CloseBraceLoc)
 
 	case *css_ast.RQualified:
-		if p.options.AddSourceMappings {
-			p.builder.AddSourceMapping(rule.Loc, "", p.css)
-		}
 		hasWhitespaceAfter := p.printTokens(r.Prelude, printTokensOpts{})
 		if !hasWhitespaceAfter && !p.options.MinifyWhitespace {
 			p.print(" ")
@@ -293,9 +290,6 @@ func (p *printer) printRule(rule css_ast.Rule, indent int32, omitTrailingSemicol
 		}
 
 	case *css_ast.RBadDeclaration:
-		if p.options.AddSourceMappings {
-			p.builder.AddSourceMapping(rule.Loc, "", p.css)
-		}
 		p.printTokens(r.Tokens, printTokensOpts{})
 		if !omitTrailingSemicolon {
 			p.print(";")
@@ -932,6 +926,10 @@ func (p *printer) printTokens(tokens []css_ast.Token, opts printTokensOpts) bool
 		whitespace := mayNeedWhitespaceAfter
 		if !hasWhitespaceAfter {
 			whitespace = canDiscardWhitespaceAfter
+		}
+
+		if p.options.AddSourceMappings {
+			p.builder.AddSourceMapping(t.Loc, "", p.css)
 		}
 
 		switch t.Kind {

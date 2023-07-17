@@ -180,17 +180,20 @@ func (box *boxTracker) compactRules(rules []css_ast.Rule, keyRange logger.Range,
 	)
 
 	// Remove all of the existing declarations
-	rules[box.sides[0].ruleIndex] = css_ast.Rule{}
-	rules[box.sides[1].ruleIndex] = css_ast.Rule{}
-	rules[box.sides[2].ruleIndex] = css_ast.Rule{}
-	rules[box.sides[3].ruleIndex] = css_ast.Rule{}
+	var minLoc logger.Loc
+	for i, side := range box.sides {
+		if loc := rules[side.ruleIndex].Loc; i == 0 || loc.Start < minLoc.Start {
+			minLoc = loc
+		}
+		rules[side.ruleIndex] = css_ast.Rule{}
+	}
 
 	// Insert the combined declaration where the last rule was
-	rules[box.sides[3].ruleIndex].Data = &css_ast.RDeclaration{
+	rules[box.sides[3].ruleIndex] = css_ast.Rule{Loc: minLoc, Data: &css_ast.RDeclaration{
 		Key:       box.key,
 		KeyText:   box.keyText,
 		Value:     tokens,
 		KeyRange:  keyRange,
 		Important: box.important,
-	}
+	}}
 }

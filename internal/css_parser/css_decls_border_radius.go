@@ -189,6 +189,7 @@ func (borderRadius *borderRadiusTracker) compactRules(rules []css_ast.Rule, keyR
 			whitespace = css_ast.WhitespaceBefore | css_ast.WhitespaceAfter
 		}
 		tokens = append(tokens, css_ast.Token{
+			Loc:        tokens[len(tokens)-1].Loc,
 			Kind:       css_lexer.TDelimSlash,
 			Text:       "/",
 			Whitespace: whitespace,
@@ -197,17 +198,20 @@ func (borderRadius *borderRadiusTracker) compactRules(rules []css_ast.Rule, keyR
 	}
 
 	// Remove all of the existing declarations
-	rules[borderRadius.corners[0].ruleIndex] = css_ast.Rule{}
-	rules[borderRadius.corners[1].ruleIndex] = css_ast.Rule{}
-	rules[borderRadius.corners[2].ruleIndex] = css_ast.Rule{}
-	rules[borderRadius.corners[3].ruleIndex] = css_ast.Rule{}
+	var minLoc logger.Loc
+	for i, corner := range borderRadius.corners {
+		if loc := rules[corner.ruleIndex].Loc; i == 0 || loc.Start < minLoc.Start {
+			minLoc = loc
+		}
+		rules[corner.ruleIndex] = css_ast.Rule{}
+	}
 
 	// Insert the combined declaration where the last rule was
-	rules[borderRadius.corners[3].ruleIndex].Data = &css_ast.RDeclaration{
+	rules[borderRadius.corners[3].ruleIndex] = css_ast.Rule{Loc: minLoc, Data: &css_ast.RDeclaration{
 		Key:       css_ast.DBorderRadius,
 		KeyText:   "border-radius",
 		Value:     tokens,
 		KeyRange:  keyRange,
 		Important: borderRadius.important,
-	}
+	}}
 }

@@ -102,6 +102,7 @@ func (p *parser) mangleFamilyNameOrGenericName(result []css_ast.Token, tokens []
 					whitespace = css_ast.WhitespaceBefore
 				}
 				result = append(result, css_ast.Token{
+					Loc:        t.Loc,
 					Kind:       css_lexer.TIdent,
 					Text:       name,
 					Whitespace: whitespace,

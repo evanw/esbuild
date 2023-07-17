@@ -1523,6 +1523,7 @@ loop:
 			break loop
 		}
 		token := css_ast.Token{
+			Loc:        t.Range.Loc,
 			Kind:       t.Kind,
 			Text:       t.DecodedText(p.source.Contents),
 			Whitespace: nextWhitespace,
