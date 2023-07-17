@@ -127,16 +127,28 @@ func (p *printer) printRule(rule css_ast.Rule, indent int32, omitTrailingSemicol
 		p.printNewlinePastLineLimit(indent)
 	}
 
+	if p.options.AddSourceMappings {
+		shouldPrintMapping := true
+		if indent == 0 || p.options.MinifyWhitespace {
+			switch rule.Data.(type) {
+			case *css_ast.RSelector, *css_ast.RQualified, *css_ast.RBadDeclaration:
+				// These rules will begin with a potentially more accurate mapping. We
+				// shouldn't print a mapping here if there's no indent in between this
+				// mapping and the rule.
+				shouldPrintMapping = false
+			}
+		}
+		if shouldPrintMapping {
+			p.builder.AddSourceMapping(rule.Loc, "", p.css)
+		}
+	}
+
 	if !p.options.MinifyWhitespace {
 		p.printIndent(indent)
 	}
 
 	switch r := rule.Data.(type) {
 	case *css_ast.RAtCharset:
-		if p.options.AddSourceMappings {
-			p.builder.AddSourceMapping(rule.Loc, "", p.css)
-		}
-
 		// It's not valid to remove the space in between these two tokens
 		p.print("@charset ")
 
@@ -145,9 +157,6 @@ func (p *printer) printRule(rule css_ast.Rule, indent int32, omitTrailingSemicol
 		p.print(";")
 
 	case *css_ast.RAtImport:
-		if p.options.AddSourceMappings {
-			p.builder.AddSourceMapping(rule.Loc, "", p.css)
-		}
 		if p.options.MinifyWhitespace {
 			p.print("@import")
 		} else {
@@ -159,9 +168,6 @@ func (p *printer) printRule(rule css_ast.Rule, indent int32, omitTrailingSemicol
 		p.print(";")
 
 	case *css_ast.RAtKeyframes:
-		if p.options.AddSourceMappings {
-			p.builder.AddSourceMapping(rule.Loc, "", p.css)
-		}
 		p.print("@")
 		p.printIdent(r.AtToken, identNormal, mayNeedWhitespaceAfter)
 		p.print(" ")
@@ -176,11 +182,11 @@ func (p *printer) printRule(rule css_ast.Rule, indent int32, omitTrailingSemicol
 		}
 		indent++
 		for _, block := range r.Blocks {
-			if !p.options.MinifyWhitespace {
-				p.printIndent(indent)
-			}
 			if p.options.AddSourceMappings {
 				p.builder.AddSourceMapping(block.Loc, "", p.css)
+			}
+			if !p.options.MinifyWhitespace {
+				p.printIndent(indent)
 			}
 			for i, sel := range block.Selectors {
 				if i > 0 {
@@ -201,18 +207,15 @@ func (p *printer) printRule(rule css_ast.Rule, indent int32, omitTrailingSemicol
 			}
 		}
 		indent--
-		if !p.options.MinifyWhitespace {
-			p.printIndent(indent)
-		}
 		if p.options.AddSourceMappings && r.CloseBraceLoc.Start != 0 {
 			p.builder.AddSourceMapping(r.CloseBraceLoc, "", p.css)
+		}
+		if !p.options.MinifyWhitespace {
+			p.printIndent(indent)
 		}
 		p.print("}")
 
 	case *css_ast.RKnownAt:
-		if p.options.AddSourceMappings {
-			p.builder.AddSourceMapping(rule.Loc, "", p.css)
-		}
 		p.print("@")
 		whitespace := mayNeedWhitespaceAfter
 		if len(r.Prelude) == 0 {
@@ -233,9 +236,6 @@ func (p *printer) printRule(rule css_ast.Rule, indent int32, omitTrailingSemicol
 		}
 
 	case *css_ast.RUnknownAt:
-		if p.options.AddSourceMappings {
-			p.builder.AddSourceMapping(rule.Loc, "", p.css)
-		}
 		p.print("@")
 		whitespace := mayNeedWhitespaceAfter
 		if len(r.Prelude) == 0 {
@@ -270,9 +270,6 @@ func (p *printer) printRule(rule css_ast.Rule, indent int32, omitTrailingSemicol
 		p.printRuleBlock(r.Rules, indent, r.CloseBraceLoc)
 
 	case *css_ast.RDeclaration:
-		if p.options.AddSourceMappings {
-			p.builder.AddSourceMapping(rule.Loc, "", p.css)
-		}
 		p.printIdent(r.KeyText, identNormal, canDiscardWhitespaceAfter)
 		p.print(":")
 		hasWhitespaceAfter := p.printTokens(r.Value, printTokensOpts{
@@ -296,15 +293,9 @@ func (p *printer) printRule(rule css_ast.Rule, indent int32, omitTrailingSemicol
 		}
 
 	case *css_ast.RComment:
-		if p.options.AddSourceMappings {
-			p.builder.AddSourceMapping(rule.Loc, "", p.css)
-		}
 		p.printIndentedComment(indent, r.Text)
 
 	case *css_ast.RAtLayer:
-		if p.options.AddSourceMappings {
-			p.builder.AddSourceMapping(rule.Loc, "", p.css)
-		}
 		p.print("@layer")
 		for i, parts := range r.Names {
 			if i == 0 {
@@ -367,11 +358,11 @@ func (p *printer) printRuleBlock(rules []css_ast.Rule, indent int32, closeBraceL
 		p.printRule(decl, indent+1, omitTrailingSemicolon)
 	}
 
-	if !p.options.MinifyWhitespace {
-		p.printIndent(indent)
-	}
 	if p.options.AddSourceMappings && closeBraceLoc.Start != 0 {
 		p.builder.AddSourceMapping(closeBraceLoc, "", p.css)
+	}
+	if !p.options.MinifyWhitespace {
+		p.printIndent(indent)
 	}
 	p.print("}")
 }

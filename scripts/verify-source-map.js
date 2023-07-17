@@ -507,13 +507,6 @@ async function check(kind, testCase, toSearch, { ext, flags, entryPoints, crlf, 
         const inLastLine = inLines[inLines.length - 1]
         let inColumn = inLastLine.length
 
-        if (ext === 'css') {
-          const outMatch = /\s*content:\s*$/.exec(outLastLine)
-          const inMatch = /\bcontent:\s*$/.exec(inLastLine)
-          if (outMatch) outColumn -= outMatch[0].length
-          if (inMatch) inColumn -= inMatch[0].length
-        }
-
         const expected = JSON.stringify({ source, line: inLine, column: inColumn })
         const observed = JSON.stringify({ source, line, column })
         recordCheck(expected === observed, `expected original position: ${expected}, observed original position: ${observed}`)
