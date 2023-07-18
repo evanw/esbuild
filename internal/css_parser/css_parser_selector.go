@@ -91,68 +91,85 @@ func (p *parser) parseSelectorList(opts parseSelectorOpts) (list []css_ast.Compl
 	return
 }
 
+func mergeCompoundSelectors(target *css_ast.CompoundSelector, source css_ast.CompoundSelector) {
+	// ".foo:local(&)" => "&.foo"
+	if source.HasNestingSelector() && !target.HasNestingSelector() {
+		target.NestingSelectorLoc = source.NestingSelectorLoc
+	}
+
+	if source.TypeSelector != nil {
+		if target.TypeSelector == nil {
+			// ".foo:local(div)" => "div.foo"
+			target.TypeSelector = source.TypeSelector
+		} else {
+			// "div:local(span)" => "div:is(span)"
+			//
+			// Note: All other implementations of this (Lightning CSS, PostCSS, and
+			// Webpack) do something really weird here. They do this instead:
+			//
+			// "div:local(span)" => "divspan"
+			//
+			// But that just seems so obviously wrong that I'm not going to do that.
+			target.SubclassSelectors = append(target.SubclassSelectors, css_ast.SubclassSelector{
+				Loc: source.TypeSelector.FirstLoc(),
+				Data: &css_ast.SSPseudoClassWithSelectorList{
+					Kind:      css_ast.PseudoClassIs,
+					Selectors: []css_ast.ComplexSelector{{Selectors: []css_ast.CompoundSelector{{TypeSelector: source.TypeSelector}}}},
+				},
+			})
+		}
+	}
+
+	// ".foo:local(.bar)" => ".foo.bar"
+	target.SubclassSelectors = append(target.SubclassSelectors, source.SubclassSelectors...)
+}
+
 // This handles the ":local()" and ":global()" annotations from CSS modules
 func (p *parser) flattenLocalAndGlobalSelectors(list []css_ast.ComplexSelector, sel css_ast.ComplexSelector) []css_ast.ComplexSelector {
 	if p.options.symbolMode == symbolModeDisabled {
 		return append(list, sel)
 	}
 
-	// Otherwise, rewrite any ":local" and ":global" annotations within
-	// this compound selector. Normally the contents are just a single
-	// compound selector, and normally we can merge it into this one.
-	// But if we can't, we just turn it into an ":is()" instead.
+	// Rewrite all ":local" and ":global" annotations within this compound selector
 	for _, s := range sel.Selectors {
 		for _, ss := range s.SubclassSelectors {
 			if pseudo, ok := ss.Data.(*css_ast.SSPseudoClassWithSelectorList); ok && (pseudo.Kind == css_ast.PseudoClassGlobal || pseudo.Kind == css_ast.PseudoClassLocal) {
 				// Only do the work to flatten the whole list if there's a ":local" or a ":global"
 				var selectors []css_ast.CompoundSelector
 				for _, s := range sel.Selectors {
-					// If this selector consists only of ":local" or ":global" and the
-					// contents can be inlined, then inline it directly. This has to be
-					// done separately from the loop below because inlining may produce
-					// multiple compound selectors.
-					if !s.HasNestingSelector() && s.TypeSelector == nil && len(s.SubclassSelectors) == 1 {
-						if pseudo, ok := s.SubclassSelectors[0].Data.(*css_ast.SSPseudoClassWithSelectorList); ok &&
-							(pseudo.Kind == css_ast.PseudoClassGlobal || pseudo.Kind == css_ast.PseudoClassLocal) && len(pseudo.Selectors) == 1 {
-							if nested := pseudo.Selectors[0].Selectors; ok && (s.Combinator.Byte == 0 || nested[0].Combinator.Byte == 0) {
-								if s.Combinator.Byte != 0 {
-									// ".a + :local(.b .c) .d" => ".a + .b .c .d"
-									nested[0].Combinator = s.Combinator
-								}
-								// ".a :local(.b .c) .d" => ".a .b .c .d"
-								selectors = append(selectors, nested...)
-								continue
-							}
-						}
-					}
+					oldSubclassSelectors := s.SubclassSelectors
+					s.SubclassSelectors = make([]css_ast.SubclassSelector, 0, len(oldSubclassSelectors))
 
-					var subclassSelectors []css_ast.SubclassSelector
-					for _, ss := range s.SubclassSelectors {
+					for _, ss := range oldSubclassSelectors {
 						if pseudo, ok := ss.Data.(*css_ast.SSPseudoClassWithSelectorList); ok && (pseudo.Kind == css_ast.PseudoClassGlobal || pseudo.Kind == css_ast.PseudoClassLocal) {
-							// If the contents are a single compound selector, try to merge the contents into this compound selector
-							if len(pseudo.Selectors) == 1 && len(pseudo.Selectors[0].Selectors) == 1 {
-								if single := pseudo.Selectors[0].Selectors[0]; single.Combinator.Byte == 0 && (s.TypeSelector == nil || single.TypeSelector == nil) {
-									if single.TypeSelector != nil {
-										// ".foo:local(div)" => "div.foo"
-										s.TypeSelector = single.TypeSelector
-									}
-									if single.HasNestingSelector() {
-										// ".foo:local(&)" => "&.foo"
-										s.NestingSelectorLoc = single.NestingSelectorLoc
-									}
-									// ".foo:local(.bar)" => ".foo.bar"
-									subclassSelectors = append(subclassSelectors, single.SubclassSelectors...)
-									continue
-								}
-							}
+							inner := pseudo.Selectors[0].Selectors
 
-							// If it's something weird, just turn it into an ":is()". For example:
-							// "div :local(.foo, .bar) span" => "div :is(.foo, .bar) span"
-							pseudo.Kind = css_ast.PseudoClassIs
+							// Replace this pseudo-class with all inner compound selectors.
+							// The first inner compound selector is merged with the compound
+							// selector before it and the last inner compound selector is
+							// merged with the compound selector after it:
+							//
+							// "div:local(.a .b):hover" => "div.a b:hover"
+							//
+							// This behavior is really strange since this is not how anything
+							// involving pseudo-classes in real CSS works at all. However, all
+							// other implementations (Lightning CSS, PostCSS, and Webpack) are
+							// consistent with this strange behavior, so we do it too.
+							if inner[0].Combinator.Byte == 0 {
+								mergeCompoundSelectors(&s, inner[0])
+								inner = inner[1:]
+							} else {
+								// "div:local(+ .foo):hover" => "div + .foo:hover"
+							}
+							if n := len(inner); n > 0 {
+								selectors = append(append(selectors, s), inner[:n-1]...)
+								s = inner[n-1]
+							}
+						} else {
+							s.SubclassSelectors = append(s.SubclassSelectors, ss)
 						}
-						subclassSelectors = append(subclassSelectors, ss)
 					}
-					s.SubclassSelectors = subclassSelectors
+
 					selectors = append(selectors, s)
 				}
 				sel.Selectors = selectors

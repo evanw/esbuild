@@ -711,10 +711,10 @@ div:global(#GLOBAL_A .GLOBAL_B .GLOBAL_C):local(.local_a .local_b #local_c) {
 :local(.local_a .local_b) {
   color: #012;
 }
-div:global(.GLOBAL_A .GLOBAL_B) {
+div:global(.GLOBAL_A .GLOBAL_B):hover {
   color: #013;
 }
-div:local(.local_a .local_b) {
+div:local(.local_a .local_b):hover {
   color: #014;
 }
 div :global(.GLOBAL_A .GLOBAL_B) span {
@@ -728,6 +728,12 @@ div > :global(.GLOBAL_A ~ .GLOBAL_B) + span {
 }
 div > :local(.local_a ~ .local_b) + span {
   color: #018;
+}
+div:global(+ .GLOBAL_A):hover {
+  color: #019;
+}
+div:local(+ .local_a):hover {
+  color: #01A;
 }
 
 /* LOCAL.global-css */
@@ -758,16 +764,16 @@ div.GLOBAL {
 div.LOCAL_local {
   color: #008;
 }
-div:is(span.GLOBAL) {
+div:is(span).GLOBAL {
   color: #009;
 }
-div:is(span.LOCAL_local) {
+div:is(span).LOCAL_local {
   color: #00A;
 }
 div#GLOBAL_A.GLOBAL_B.GLOBAL_C.LOCAL_local_a.LOCAL_local_b#LOCAL_local_c {
   color: #00B;
 }
-div:is(#GLOBAL_A .GLOBAL_B .GLOBAL_C):is(.LOCAL_local_a .LOCAL_local_b #LOCAL_local_c) {
+div#GLOBAL_A .GLOBAL_B .GLOBAL_C.LOCAL_local_a .LOCAL_local_b #LOCAL_local_c {
   color: #00C;
 }
 .nested {
@@ -790,10 +796,10 @@ div:is(#GLOBAL_A .GLOBAL_B .GLOBAL_C):is(.LOCAL_local_a .LOCAL_local_b #LOCAL_lo
 .LOCAL_local_a .LOCAL_local_b {
   color: #012;
 }
-div:is(.GLOBAL_A .GLOBAL_B) {
+div.GLOBAL_A .GLOBAL_B:hover {
   color: #013;
 }
-div:is(.LOCAL_local_a .LOCAL_local_b) {
+div.LOCAL_local_a .LOCAL_local_b:hover {
   color: #014;
 }
 div .GLOBAL_A .GLOBAL_B span {
@@ -807,6 +813,12 @@ div > .GLOBAL_A ~ .GLOBAL_B + span {
 }
 div > .LOCAL_local_a ~ .LOCAL_local_b + span {
   color: #018;
+}
+div + .GLOBAL_A:hover {
+  color: #019;
+}
+div + .LOCAL_local_a:hover {
+  color: #01A;
 }
 
 /* LOCAL.local-css */
@@ -837,16 +849,16 @@ div.GLOBAL {
 div.LOCAL_local2 {
   color: #008;
 }
-div:is(span.GLOBAL) {
+div:is(span).GLOBAL {
   color: #009;
 }
-div:is(span.LOCAL_local2) {
+div:is(span).LOCAL_local2 {
   color: #00A;
 }
 div#GLOBAL_A.GLOBAL_B.GLOBAL_C.LOCAL_local_a2.LOCAL_local_b2#LOCAL_local_c2 {
   color: #00B;
 }
-div:is(#GLOBAL_A .GLOBAL_B .GLOBAL_C):is(.LOCAL_local_a2 .LOCAL_local_b2 #LOCAL_local_c2) {
+div#GLOBAL_A .GLOBAL_B .GLOBAL_C.LOCAL_local_a2 .LOCAL_local_b2 #LOCAL_local_c2 {
   color: #00C;
 }
 .LOCAL_nested {
@@ -869,10 +881,10 @@ div:is(#GLOBAL_A .GLOBAL_B .GLOBAL_C):is(.LOCAL_local_a2 .LOCAL_local_b2 #LOCAL_
 .LOCAL_local_a2 .LOCAL_local_b2 {
   color: #012;
 }
-div:is(.GLOBAL_A .GLOBAL_B) {
+div.GLOBAL_A .GLOBAL_B:hover {
   color: #013;
 }
-div:is(.LOCAL_local_a2 .LOCAL_local_b2) {
+div.LOCAL_local_a2 .LOCAL_local_b2:hover {
   color: #014;
 }
 div .GLOBAL_A .GLOBAL_B span {
@@ -886,6 +898,12 @@ div > .GLOBAL_A ~ .GLOBAL_B + span {
 }
 div > .LOCAL_local_a2 ~ .LOCAL_local_b2 + span {
   color: #018;
+}
+div + .GLOBAL_A:hover {
+  color: #019;
+}
+div + .LOCAL_local_a2:hover {
+  color: #01A;
 }
 
 ================================================================================
