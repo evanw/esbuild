@@ -2229,6 +2229,14 @@ tests.push(
       if (ns.default !== void 0) throw 'fail'
     `,
     'node_modules/pkg/index.mjs': ``,
+  }, {
+    expectedStderr: `▲ [WARNING] Import "default" will always be undefined because there is no matching export in "node_modules/pkg/index.mjs" [import-is-undefined]
+
+    in.js:3:13:
+      3 │       if (ns.default !== void 0) throw 'fail'
+        ╵              ~~~~~~~
+
+`,
   }),
   test(['in.js', '--outfile=node.js', '--bundle'], {
     'in.js': `
@@ -2236,6 +2244,14 @@ tests.push(
       if (ns.default !== void 0) throw 'fail'
     `,
     'node_modules/pkg/index.mts': ``,
+  }, {
+    expectedStderr: `▲ [WARNING] Import "default" will always be undefined because there is no matching export in "node_modules/pkg/index.mts" [import-is-undefined]
+
+    in.js:3:13:
+      3 │       if (ns.default !== void 0) throw 'fail'
+        ╵              ~~~~~~~
+
+`,
   }),
   test(['in.js', '--outfile=node.js', '--bundle'], {
     'in.js': `
@@ -2256,6 +2272,14 @@ tests.push(
       "type": "module"
     }`,
     'node_modules/pkg/index.js': ``,
+  }, {
+    expectedStderr: `▲ [WARNING] Import "default" will always be undefined because there is no matching export in "node_modules/pkg/index.js" [import-is-undefined]
+
+    in.js:3:13:
+      3 │       if (ns.default !== void 0) throw 'fail'
+        ╵              ~~~~~~~
+
+`,
   }),
   test(['in.js', '--outfile=node.js', '--bundle', '--external:pkg'], {
     'in.js': `

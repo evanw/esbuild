@@ -161,8 +161,7 @@ func TestCSSFromJSMissingStarImport(t *testing.T) {
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/out",
 		},
-		debugLogs: true,
-		expectedCompileLog: `entry.js: DEBUG: Import "missing" will always be undefined because there is no matching export in "a.css"
+		expectedCompileLog: `entry.js: WARNING: Import "missing" will always be undefined because there is no matching export in "a.css"
 `,
 	})
 }
@@ -194,6 +193,9 @@ func TestImportGlobalCSSFromJS(t *testing.T) {
 			Mode:         config.ModeBundle,
 			AbsOutputDir: "/out",
 		},
+		expectedCompileLog: `a.js: WARNING: Import "a" will always be undefined because there is no matching export in "a.css"
+b.js: WARNING: Import "b" will always be undefined because there is no matching export in "b.css"
+`,
 	})
 }
 
@@ -1120,5 +1122,55 @@ func TestDeduplicateRules(t *testing.T) {
 			AbsOutputDir: "/out",
 			MinifySyntax: true,
 		},
+	})
+}
+
+// This test makes sure JS files that import local CSS names using the
+// wrong name (e.g. a typo) get a warning so that the problem is noticed.
+func TestUndefinedImportWarningCSS(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import * as empty_js from './empty.js'
+				import * as empty_esm_js from './empty.esm.js'
+				import * as empty_json from './empty.json'
+				import * as empty_css from './empty.css'
+				import * as empty_global_css from './empty.global-css'
+				import * as empty_local_css from './empty.local-css'
+				console.log(
+					empty_js.foo,
+					empty_esm_js.foo,
+					empty_json.foo,
+					empty_css.foo,
+					empty_global_css.foo,
+					empty_local_css.foo,
+				)
+			`,
+			"/empty.js":         ``,
+			"/empty.esm.js":     `export {}`,
+			"/empty.json":       `{}`,
+			"/empty.css":        ``,
+			"/empty.global-css": ``,
+			"/empty.local-css":  ``,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			ExtensionToLoader: map[string]config.Loader{
+				".js":         config.LoaderJS,
+				".json":       config.LoaderJSON,
+				".css":        config.LoaderCSS,
+				".global-css": config.LoaderGlobalCSS,
+				".local-css":  config.LoaderLocalCSS,
+			},
+		},
+		expectedCompileLog: `entry.js: WARNING: Import "foo" will always be undefined because the file "empty.js" has no exports
+entry.js: WARNING: Import "foo" will always be undefined because there is no matching export in "empty.esm.js"
+entry.js: WARNING: Import "foo" will always be undefined because there is no matching export in "empty.json"
+entry.js: WARNING: Import "foo" will always be undefined because there is no matching export in "empty.css"
+entry.js: WARNING: Import "foo" will always be undefined because there is no matching export in "empty.global-css"
+entry.js: WARNING: Import "foo" will always be undefined because there is no matching export in "empty.local-css"
+`,
 	})
 }

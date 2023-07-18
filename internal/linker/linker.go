@@ -2510,7 +2510,7 @@ loop:
 				// time, so we emit a debug message and rewrite the value to the literal
 				// "undefined" instead of emitting an error.
 				symbol.ImportItemStatus = ast.ImportItemMissing
-				c.log.AddID(logger.MsgID_Bundler_ImportIsUndefined, logger.Debug, trackerFile.LineColumnTracker(), r, fmt.Sprintf(
+				c.log.AddID(logger.MsgID_Bundler_ImportIsUndefined, logger.Warning, trackerFile.LineColumnTracker(), r, fmt.Sprintf(
 					"Import %q will always be undefined because there is no matching export in %q",
 					namedImport.Alias, c.graph.Files[nextTracker.sourceIndex].InputFile.Source.PrettyPath))
 			} else {

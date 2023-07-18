@@ -1240,3 +1240,28 @@ TestTextImportURLInCSSText
 a {
   background: url(data:text/plain;base64,VGhpcyBpcyBzb21lIHRleHQu);
 }
+
+================================================================================
+TestUndefinedImportWarningCSS
+---------- /out/entry.js ----------
+// empty.js
+var require_empty = __commonJS({
+  "empty.js"() {
+  }
+});
+
+// entry.js
+var empty_js = __toESM(require_empty());
+console.log(
+  void 0,
+  void 0,
+  void 0,
+  void 0,
+  void 0,
+  void 0
+);
+
+---------- /out/entry.css ----------
+/* empty.css */
+/* empty.global-css */
+/* empty.local-css */
