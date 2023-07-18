@@ -86,6 +86,12 @@ func (p *parser) processDeclarations(rules []css_ast.Rule) (rewrittenRules []css
 	borderRadius := borderRadiusTracker{}
 	rewrittenRules = make([]css_ast.Rule, 0, len(rules))
 
+	// Don't automatically generate the "inset" property if it's not supported
+	if p.options.unsupportedCSSFeatures.Has(compat.InsetProperty) {
+		inset.key = css_ast.DUnknown
+		inset.keyText = ""
+	}
+
 	for _, rule := range rules {
 		rewrittenRules = append(rewrittenRules, rule)
 		decl, ok := rule.Data.(*css_ast.RDeclaration)
@@ -200,23 +206,35 @@ func (p *parser) processDeclarations(rules []css_ast.Rule) (rewrittenRules []css
 
 		// Inset
 		case css_ast.DInset:
-			if !p.options.unsupportedCSSFeatures.Has(compat.InsetProperty) && p.options.minifySyntax {
+			if p.options.unsupportedCSSFeatures.Has(compat.InsetProperty) {
+				if decls, ok := p.lowerInset(rule.Loc, decl); ok {
+					rewrittenRules = rewrittenRules[:len(rewrittenRules)-1]
+					for i := range decls {
+						rewrittenRules = append(rewrittenRules, decls[i])
+						if p.options.minifySyntax {
+							inset.mangleSide(rewrittenRules, decls[i].Data.(*css_ast.RDeclaration), p.options.minifyWhitespace, i)
+						}
+					}
+					break
+				}
+			}
+			if p.options.minifySyntax {
 				inset.mangleSides(rewrittenRules, decl, p.options.minifyWhitespace)
 			}
 		case css_ast.DTop:
-			if !p.options.unsupportedCSSFeatures.Has(compat.InsetProperty) && p.options.minifySyntax {
+			if p.options.minifySyntax {
 				inset.mangleSide(rewrittenRules, decl, p.options.minifyWhitespace, boxTop)
 			}
 		case css_ast.DRight:
-			if !p.options.unsupportedCSSFeatures.Has(compat.InsetProperty) && p.options.minifySyntax {
+			if p.options.minifySyntax {
 				inset.mangleSide(rewrittenRules, decl, p.options.minifyWhitespace, boxRight)
 			}
 		case css_ast.DBottom:
-			if !p.options.unsupportedCSSFeatures.Has(compat.InsetProperty) && p.options.minifySyntax {
+			if p.options.minifySyntax {
 				inset.mangleSide(rewrittenRules, decl, p.options.minifyWhitespace, boxBottom)
 			}
 		case css_ast.DLeft:
-			if !p.options.unsupportedCSSFeatures.Has(compat.InsetProperty) && p.options.minifySyntax {
+			if p.options.minifySyntax {
 				inset.mangleSide(rewrittenRules, decl, p.options.minifyWhitespace, boxLeft)
 			}
 
@@ -338,4 +356,47 @@ func (p *parser) insertPrefixedDeclaration(rules []css_ast.Rule, prefix string, 
 	// Re-add the latest declaration after the inserted declaration
 	rules = append(rules, css_ast.Rule{Loc: loc, Data: decl})
 	return rules
+}
+
+func (p *parser) lowerInset(loc logger.Loc, decl *css_ast.RDeclaration) ([]css_ast.Rule, bool) {
+	if tokens, ok := expandTokenQuad(decl.Value, ""); ok {
+		mask := ^css_ast.WhitespaceAfter
+		if p.options.minifyWhitespace {
+			mask = 0
+		}
+		for i := range tokens {
+			tokens[i].Whitespace &= mask
+		}
+		return []css_ast.Rule{
+			{Loc: loc, Data: &css_ast.RDeclaration{
+				KeyText:   "top",
+				KeyRange:  decl.KeyRange,
+				Key:       css_ast.DTop,
+				Value:     tokens[0:1],
+				Important: decl.Important,
+			}},
+			{Loc: loc, Data: &css_ast.RDeclaration{
+				KeyText:   "right",
+				KeyRange:  decl.KeyRange,
+				Key:       css_ast.DRight,
+				Value:     tokens[1:2],
+				Important: decl.Important,
+			}},
+			{Loc: loc, Data: &css_ast.RDeclaration{
+				KeyText:   "bottom",
+				KeyRange:  decl.KeyRange,
+				Key:       css_ast.DBottom,
+				Value:     tokens[2:3],
+				Important: decl.Important,
+			}},
+			{Loc: loc, Data: &css_ast.RDeclaration{
+				KeyText:   "left",
+				KeyRange:  decl.KeyRange,
+				Key:       css_ast.DLeft,
+				Value:     tokens[3:4],
+				Important: decl.Important,
+			}},
+		}, true
+	}
+	return nil, false
 }

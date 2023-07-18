@@ -1,5 +1,34 @@
 # Changelog
 
+## Unreleased
+
+* Automatically lower `inset` in CSS for older browsers
+
+    With this release, esbuild will now automatically expand the `inset` property to the `top`, `right`, `bottom`, and `left` properties when esbuild's `target` is set to a browser that doesn't support `inset`:
+
+    ```css
+    /* Original code */
+    .app {
+      position: absolute;
+      inset: 10px 20px;
+    }
+
+    /* Old output (with --target=chrome80) */
+    .app {
+      position: absolute;
+      inset: 10px 20px;
+    }
+
+    /* New output (with --target=chrome80) */
+    .app {
+      position: absolute;
+      top: 10px;
+      right: 20px;
+      bottom: 10px;
+      left: 20px;
+    }
+    ```
+
 ## 0.18.14
 
 * Implement local CSS names ([#20](https://github.com/evanw/esbuild/issues/20))

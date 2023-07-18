@@ -157,6 +157,11 @@ func (box *boxTracker) mangleSide(rules []css_ast.Rule, decl *css_ast.RDeclarati
 }
 
 func (box *boxTracker) compactRules(rules []css_ast.Rule, keyRange logger.Range, minifyWhitespace bool) {
+	// Don't compact if the shorthand form is unsupported
+	if box.key == css_ast.DUnknown {
+		return
+	}
+
 	// All tokens must be present
 	if eof := css_lexer.TEndOfFile; box.sides[0].token.Kind == eof || box.sides[1].token.Kind == eof ||
 		box.sides[2].token.Kind == eof || box.sides[3].token.Kind == eof {

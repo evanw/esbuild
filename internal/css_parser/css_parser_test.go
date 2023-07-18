@@ -104,7 +104,7 @@ func expectPrintedMangle(t *testing.T, contents string, expected string) {
 
 func expectPrintedLowerMangle(t *testing.T, contents string, expected string) {
 	t.Helper()
-	expectPrintedCommon(t, contents+" [mangle]", contents, expected, nil, config.Options{
+	expectPrintedCommon(t, contents+" [lower, mangle]", contents, expected, nil, config.Options{
 		UnsupportedCSSFeatures: ^compat.CSSFeature(0),
 		MinifySyntax:           true,
 	})
@@ -115,6 +115,14 @@ func expectPrintedMangleMinify(t *testing.T, contents string, expected string) {
 	expectPrintedCommon(t, contents+" [mangle, minify]", contents, expected, nil, config.Options{
 		MinifySyntax:     true,
 		MinifyWhitespace: true,
+	})
+}
+
+func expectPrintedLowerMinify(t *testing.T, contents string, expected string) {
+	t.Helper()
+	expectPrintedCommon(t, contents+" [lower, minify]", contents, expected, nil, config.Options{
+		UnsupportedCSSFeatures: ^compat.CSSFeature(0),
+		MinifyWhitespace:       true,
 	})
 }
 
@@ -1541,6 +1549,30 @@ func TestMarginAndPaddingAndInset(t *testing.T) {
 	expectPrintedMangle(t, "a { padding: inherit; padding-left: 1px }", "a {\n  padding: inherit;\n  padding-left: 1px;\n}\n")
 
 	expectPrintedLowerMangle(t, "a { top: 0; right: 0; bottom: 0; left: 0; }", "a {\n  top: 0;\n  right: 0;\n  bottom: 0;\n  left: 0;\n}\n")
+
+	// "inset" should be expanded when not supported
+	expectPrintedLower(t, "a { inset: 0; }", "a {\n  top: 0;\n  right: 0;\n  bottom: 0;\n  left: 0;\n}\n")
+	expectPrintedLower(t, "a { inset: 0px; }", "a {\n  top: 0px;\n  right: 0px;\n  bottom: 0px;\n  left: 0px;\n}\n")
+	expectPrintedLower(t, "a { inset: 1px 2px; }", "a {\n  top: 1px;\n  right: 2px;\n  bottom: 1px;\n  left: 2px;\n}\n")
+	expectPrintedLower(t, "a { inset: 1px 2px 3px; }", "a {\n  top: 1px;\n  right: 2px;\n  bottom: 3px;\n  left: 2px;\n}\n")
+	expectPrintedLower(t, "a { inset: 1px 2px 3px 4px; }", "a {\n  top: 1px;\n  right: 2px;\n  bottom: 3px;\n  left: 4px;\n}\n")
+
+	// When "inset" isn't supported, other mangling should still work
+	expectPrintedLowerMangle(t, "a { top: 0px; }", "a {\n  top: 0;\n}\n")
+	expectPrintedLowerMangle(t, "a { right: 0px; }", "a {\n  right: 0;\n}\n")
+	expectPrintedLowerMangle(t, "a { bottom: 0px; }", "a {\n  bottom: 0;\n}\n")
+	expectPrintedLowerMangle(t, "a { left: 0px; }", "a {\n  left: 0;\n}\n")
+	expectPrintedLowerMangle(t, "a { inset: 0px; }", "a {\n  top: 0;\n  right: 0;\n  bottom: 0;\n  left: 0;\n}\n")
+
+	// When "inset" isn't supported, whitespace minifying should still work
+	expectPrintedLowerMinify(t, "a { top: 0px; }", "a{top:0px}")
+	expectPrintedLowerMinify(t, "a { right: 0px; }", "a{right:0px}")
+	expectPrintedLowerMinify(t, "a { bottom: 0px; }", "a{bottom:0px}")
+	expectPrintedLowerMinify(t, "a { left: 0px; }", "a{left:0px}")
+	expectPrintedLowerMinify(t, "a { inset: 0px; }", "a{top:0px;right:0px;bottom:0px;left:0px}")
+	expectPrintedLowerMinify(t, "a { inset: 1px 2px; }", "a{top:1px;right:2px;bottom:1px;left:2px}")
+	expectPrintedLowerMinify(t, "a { inset: 1px 2px 3px; }", "a{top:1px;right:2px;bottom:3px;left:2px}")
+	expectPrintedLowerMinify(t, "a { inset: 1px 2px 3px 4px; }", "a{top:1px;right:2px;bottom:3px;left:4px}")
 }
 
 func TestBorderRadius(t *testing.T) {
