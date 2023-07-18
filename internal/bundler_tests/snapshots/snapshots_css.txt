@@ -705,35 +705,29 @@ div:global(#GLOBAL_A .GLOBAL_B .GLOBAL_C):local(.local_a .local_b #local_c) {
     color: #010;
   }
 }
-:global(.GLOBAL_A, .GLOBAL_B) {
+:global(.GLOBAL_A .GLOBAL_B) {
   color: #011;
 }
-:local(.local_a, .local_b) {
+:local(.local_a .local_b) {
   color: #012;
 }
-div:global(.GLOBAL_A, .GLOBAL_B) {
+div:global(.GLOBAL_A .GLOBAL_B) {
   color: #013;
 }
-div:local(.local_a, .local_b) {
+div:local(.local_a .local_b) {
   color: #014;
 }
-div :global(.GLOBAL_A, .GLOBAL_B) span {
+div :global(.GLOBAL_A .GLOBAL_B) span {
   color: #015;
 }
-div :local(.local_a, .local_b) span {
+div :local(.local_a .local_b) span {
   color: #016;
 }
-div :global(.GLOBAL_A .GLOBAL_B) span {
+div > :global(.GLOBAL_A ~ .GLOBAL_B) + span {
   color: #017;
 }
-div :local(.local_a .local_b) span {
-  color: #018;
-}
-div > :global(.GLOBAL_A ~ .GLOBAL_B) + span {
-  color: #019;
-}
 div > :local(.local_a ~ .local_b) + span {
-  color: #01A;
+  color: #018;
 }
 
 /* LOCAL.global-css */
@@ -790,37 +784,29 @@ div:is(#GLOBAL_A .GLOBAL_B .GLOBAL_C):is(.LOCAL_local_a .LOCAL_local_b #LOCAL_lo
     color: #010;
   }
 }
-.GLOBAL_A,
-.GLOBAL_B {
+.GLOBAL_A .GLOBAL_B {
   color: #011;
 }
-.LOCAL_local_a,
-.LOCAL_local_b {
+.LOCAL_local_a .LOCAL_local_b {
   color: #012;
 }
-div:is(.GLOBAL_A, .GLOBAL_B) {
+div:is(.GLOBAL_A .GLOBAL_B) {
   color: #013;
 }
-div:is(.LOCAL_local_a, .LOCAL_local_b) {
+div:is(.LOCAL_local_a .LOCAL_local_b) {
   color: #014;
 }
-div :is(.GLOBAL_A, .GLOBAL_B) span {
+div .GLOBAL_A .GLOBAL_B span {
   color: #015;
 }
-div :is(.LOCAL_local_a, .LOCAL_local_b) span {
+div .LOCAL_local_a .LOCAL_local_b span {
   color: #016;
 }
-div .GLOBAL_A .GLOBAL_B span {
+div > .GLOBAL_A ~ .GLOBAL_B + span {
   color: #017;
 }
-div .LOCAL_local_a .LOCAL_local_b span {
-  color: #018;
-}
-div > .GLOBAL_A ~ .GLOBAL_B + span {
-  color: #019;
-}
 div > .LOCAL_local_a ~ .LOCAL_local_b + span {
-  color: #01A;
+  color: #018;
 }
 
 /* LOCAL.local-css */
@@ -877,37 +863,29 @@ div:is(#GLOBAL_A .GLOBAL_B .GLOBAL_C):is(.LOCAL_local_a2 .LOCAL_local_b2 #LOCAL_
     color: #010;
   }
 }
-.GLOBAL_A,
-.GLOBAL_B {
+.GLOBAL_A .GLOBAL_B {
   color: #011;
 }
-.LOCAL_local_a2,
-.LOCAL_local_b2 {
+.LOCAL_local_a2 .LOCAL_local_b2 {
   color: #012;
 }
-div:is(.GLOBAL_A, .GLOBAL_B) {
+div:is(.GLOBAL_A .GLOBAL_B) {
   color: #013;
 }
-div:is(.LOCAL_local_a2, .LOCAL_local_b2) {
+div:is(.LOCAL_local_a2 .LOCAL_local_b2) {
   color: #014;
 }
-div :is(.GLOBAL_A, .GLOBAL_B) span {
+div .GLOBAL_A .GLOBAL_B span {
   color: #015;
 }
-div :is(.LOCAL_local_a2, .LOCAL_local_b2) span {
+div .LOCAL_local_a2 .LOCAL_local_b2 span {
   color: #016;
 }
-div .GLOBAL_A .GLOBAL_B span {
+div > .GLOBAL_A ~ .GLOBAL_B + span {
   color: #017;
 }
-div .LOCAL_local_a2 .LOCAL_local_b2 span {
-  color: #018;
-}
-div > .GLOBAL_A ~ .GLOBAL_B + span {
-  color: #019;
-}
 div > .LOCAL_local_a2 ~ .LOCAL_local_b2 + span {
-  color: #01A;
+  color: #018;
 }
 
 ================================================================================

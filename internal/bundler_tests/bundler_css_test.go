@@ -330,20 +330,17 @@ func TestImportCSSFromJSLocalVsGlobal(t *testing.T) {
 			&:local(.local) { color: #010 }
 		}
 
-		:global(.GLOBAL_A, .GLOBAL_B) { color: #011 }
-		:local(.local_a, .local_b) { color: #012 }
+		:global(.GLOBAL_A .GLOBAL_B) { color: #011 }
+		:local(.local_a .local_b) { color: #012 }
 
-		div:global(.GLOBAL_A, .GLOBAL_B) { color: #013 }
-		div:local(.local_a, .local_b) { color: #014 }
+		div:global(.GLOBAL_A .GLOBAL_B) { color: #013 }
+		div:local(.local_a .local_b) { color: #014 }
 
-		div :global(.GLOBAL_A, .GLOBAL_B) span { color: #015 }
-		div :local(.local_a, .local_b) span { color: #016 }
+		div :global(.GLOBAL_A .GLOBAL_B) span { color: #015 }
+		div :local(.local_a .local_b) span { color: #016 }
 
-		div :global(.GLOBAL_A .GLOBAL_B) span { color: #017 }
-		div :local(.local_a .local_b) span { color: #018 }
-
-		div > :global(.GLOBAL_A ~ .GLOBAL_B) + span { color: #019 }
-		div > :local(.local_a ~ .local_b) + span { color: #01A }
+		div > :global(.GLOBAL_A ~ .GLOBAL_B) + span { color: #017 }
+		div > :local(.local_a ~ .local_b) + span { color: #018 }
 	`
 
 	css_suite.expectBundled(t, bundled{

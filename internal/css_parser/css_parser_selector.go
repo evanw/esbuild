@@ -10,8 +10,10 @@ import (
 )
 
 type parseSelectorOpts struct {
-	isDeclarationContext bool
-	stopOnCloseParen     bool
+	pseudoClassKind        css_ast.PseudoClassKind
+	isDeclarationContext   bool
+	stopOnCloseParen       bool
+	onlyOneComplexSelector bool
 }
 
 func (p *parser) parseSelectorList(opts parseSelectorOpts) (list []css_ast.ComplexSelector, ok bool) {
@@ -26,30 +28,41 @@ func (p *parser) parseSelectorList(opts parseSelectorOpts) (list []css_ast.Compl
 	list = p.flattenLocalAndGlobalSelectors(list, sel)
 
 	// Parse the remaining selectors
-skip:
-	for {
-		p.eat(css_lexer.TWhitespace)
-		if !p.eat(css_lexer.TComma) {
-			break
+	if opts.onlyOneComplexSelector {
+		if t := p.current(); t.Kind == css_lexer.TComma {
+			p.prevError = t.Range.Loc
+			kind := fmt.Sprintf(":%s(...)", opts.pseudoClassKind.String())
+			p.log.AddIDWithNotes(logger.MsgID_CSS_CSSSyntaxError, logger.Warning, &p.tracker, t.Range,
+				fmt.Sprintf("Unexpected \",\" inside %q", kind),
+				[]logger.MsgData{{Text: fmt.Sprintf("Different CSS tools behave differently in this case, so esbuild doesn't allow it. "+
+					"Either remove this comma or split this selector up into multiple comma-separated %q selectors instead.", kind)}})
 		}
-		p.eat(css_lexer.TWhitespace)
-		sel, good := p.parseComplexSelector(parseComplexSelectorOpts{
-			parseSelectorOpts: opts,
-		})
-		if !good {
-			return
-		}
+	} else {
+	skip:
+		for {
+			p.eat(css_lexer.TWhitespace)
+			if !p.eat(css_lexer.TComma) {
+				break
+			}
+			p.eat(css_lexer.TWhitespace)
+			sel, good := p.parseComplexSelector(parseComplexSelectorOpts{
+				parseSelectorOpts: opts,
+			})
+			if !good {
+				return
+			}
 
-		// Omit duplicate selectors
-		if p.options.minifySyntax {
-			for _, existing := range list {
-				if sel.Equal(existing, nil) {
-					continue skip
+			// Omit duplicate selectors
+			if p.options.minifySyntax {
+				for _, existing := range list {
+					if sel.Equal(existing, nil) {
+						continue skip
+					}
 				}
 			}
-		}
 
-		list = p.flattenLocalAndGlobalSelectors(list, sel)
+			list = p.flattenLocalAndGlobalSelectors(list, sel)
+		}
 	}
 
 	if p.options.minifySyntax {
@@ -82,19 +95,6 @@ skip:
 func (p *parser) flattenLocalAndGlobalSelectors(list []css_ast.ComplexSelector, sel css_ast.ComplexSelector) []css_ast.ComplexSelector {
 	if p.options.symbolMode == symbolModeDisabled {
 		return append(list, sel)
-	}
-
-	// If this selector consists only of ":local" or ":global" and the
-	// contents can be inlined, then inline it directly. This has to be
-	// done separately from the loop below because inlining may produce
-	// multiple complex selectors.
-	if len(sel.Selectors) == 1 {
-		if single := sel.Selectors[0]; !single.HasNestingSelector() && single.TypeSelector == nil && len(single.SubclassSelectors) == 1 && single.Combinator.Byte == 0 {
-			if pseudo, ok := single.SubclassSelectors[0].Data.(*css_ast.SSPseudoClassWithSelectorList); ok && (pseudo.Kind == css_ast.PseudoClassGlobal || pseudo.Kind == css_ast.PseudoClassLocal) {
-				// ":local(.a, .b)" => ".a, .b"
-				return append(list, pseudo.Selectors...)
-			}
-		}
 	}
 
 	// Otherwise, rewrite any ":local" and ":global" annotations within
@@ -575,7 +575,11 @@ func (p *parser) parsePseudoClassSelector(isElement bool) css_ast.SS {
 				// ":local" forces local names and ":global" forces global names
 				oldLocal := p.makeLocalSymbols
 				p.makeLocalSymbols = local
-				selectors, ok := p.parseSelectorList(parseSelectorOpts{stopOnCloseParen: true})
+				selectors, ok := p.parseSelectorList(parseSelectorOpts{
+					pseudoClassKind:        kind,
+					stopOnCloseParen:       true,
+					onlyOneComplexSelector: kind == css_ast.PseudoClassGlobal || kind == css_ast.PseudoClassLocal,
+				})
 				p.makeLocalSymbols = oldLocal
 
 				if ok && p.expectWithMatchingLoc(css_lexer.TCloseParen, matchingLoc) {

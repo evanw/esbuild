@@ -735,6 +735,13 @@ func TestSelector(t *testing.T) {
 	// Make sure '-' and '\\' consume an ident-like token instead of a name
 	expectParseError(t, "_:-ms-lang(x) {}", "_:-ms-lang(x) {\n}\n", "")
 	expectParseError(t, "_:\\ms-lang(x) {}", "_:ms-lang(x) {\n}\n", "")
+
+	expectParseError(t, ":local(a, b) {}", ":local(a, b) {\n}\n", "<stdin>: WARNING: Unexpected \",\" inside \":local(...)\"\n"+
+		"NOTE: Different CSS tools behave differently in this case, so esbuild doesn't allow it. Either remove "+
+		"this comma or split this selector up into multiple comma-separated \":local(...)\" selectors instead.\n")
+	expectParseError(t, ":global(a, b) {}", ":global(a, b) {\n}\n", "<stdin>: WARNING: Unexpected \",\" inside \":global(...)\"\n"+
+		"NOTE: Different CSS tools behave differently in this case, so esbuild doesn't allow it. Either remove "+
+		"this comma or split this selector up into multiple comma-separated \":global(...)\" selectors instead.\n")
 }
 
 func TestNestedSelector(t *testing.T) {
