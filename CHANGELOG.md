@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.18.14
 
 * Implement local CSS names ([#20](https://github.com/evanw/esbuild/issues/20))
 
