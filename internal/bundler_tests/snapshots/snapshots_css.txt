@@ -1250,8 +1250,36 @@ var require_empty = __commonJS({
   }
 });
 
+// node_modules/pkg/empty.js
+var require_empty2 = __commonJS({
+  "node_modules/pkg/empty.js"() {
+  }
+});
+
 // entry.js
-var empty_js = __toESM(require_empty());
+var empty_js2 = __toESM(require_empty());
+var pkg_empty_js = __toESM(require_empty2());
+
+// node_modules/pkg/index.js
+var empty_js = __toESM(require_empty2());
+console.log(
+  void 0,
+  void 0,
+  void 0,
+  void 0,
+  void 0,
+  void 0
+);
+
+// entry.js
+console.log(
+  void 0,
+  void 0,
+  void 0,
+  void 0,
+  void 0,
+  void 0
+);
 console.log(
   void 0,
   void 0,
@@ -1265,3 +1293,6 @@ console.log(
 /* empty.css */
 /* empty.global-css */
 /* empty.local-css */
+/* node_modules/pkg/empty.css */
+/* node_modules/pkg/empty.global-css */
+/* node_modules/pkg/empty.local-css */

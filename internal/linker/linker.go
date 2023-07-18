@@ -2471,7 +2471,11 @@ loop:
 			if status == importCommonJSWithoutExports {
 				symbol := c.graph.Symbols.Get(tracker.importRef)
 				symbol.ImportItemStatus = ast.ImportItemMissing
-				c.log.AddID(logger.MsgID_Bundler_ImportIsUndefined, logger.Warning,
+				kind := logger.Warning
+				if helpers.IsInsideNodeModules(trackerFile.InputFile.Source.KeyPath.Text) {
+					kind = logger.Debug
+				}
+				c.log.AddID(logger.MsgID_Bundler_ImportIsUndefined, kind,
 					trackerFile.LineColumnTracker(),
 					js_lexer.RangeOfIdentifier(trackerFile.InputFile.Source, namedImport.AliasLoc),
 					fmt.Sprintf("Import %q will always be undefined because the file %q has no exports",
@@ -2510,7 +2514,11 @@ loop:
 				// time, so we emit a debug message and rewrite the value to the literal
 				// "undefined" instead of emitting an error.
 				symbol.ImportItemStatus = ast.ImportItemMissing
-				c.log.AddID(logger.MsgID_Bundler_ImportIsUndefined, logger.Warning, trackerFile.LineColumnTracker(), r, fmt.Sprintf(
+				kind := logger.Warning
+				if helpers.IsInsideNodeModules(trackerFile.InputFile.Source.KeyPath.Text) {
+					kind = logger.Debug
+				}
+				c.log.AddID(logger.MsgID_Bundler_ImportIsUndefined, kind, trackerFile.LineColumnTracker(), r, fmt.Sprintf(
 					"Import %q will always be undefined because there is no matching export in %q",
 					namedImport.Alias, c.graph.Files[nextTracker.sourceIndex].InputFile.Source.PrettyPath))
 			} else {

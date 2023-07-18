@@ -1137,6 +1137,58 @@ func TestUndefinedImportWarningCSS(t *testing.T) {
 				import * as empty_css from './empty.css'
 				import * as empty_global_css from './empty.global-css'
 				import * as empty_local_css from './empty.local-css'
+
+				import * as pkg_empty_js from 'pkg/empty.js'
+				import * as pkg_empty_esm_js from 'pkg/empty.esm.js'
+				import * as pkg_empty_json from 'pkg/empty.json'
+				import * as pkg_empty_css from 'pkg/empty.css'
+				import * as pkg_empty_global_css from 'pkg/empty.global-css'
+				import * as pkg_empty_local_css from 'pkg/empty.local-css'
+
+				import 'pkg'
+
+				console.log(
+					empty_js.foo,
+					empty_esm_js.foo,
+					empty_json.foo,
+					empty_css.foo,
+					empty_global_css.foo,
+					empty_local_css.foo,
+				)
+
+				console.log(
+					pkg_empty_js.foo,
+					pkg_empty_esm_js.foo,
+					pkg_empty_json.foo,
+					pkg_empty_css.foo,
+					pkg_empty_global_css.foo,
+					pkg_empty_local_css.foo,
+				)
+			`,
+
+			"/empty.js":         ``,
+			"/empty.esm.js":     `export {}`,
+			"/empty.json":       `{}`,
+			"/empty.css":        ``,
+			"/empty.global-css": ``,
+			"/empty.local-css":  ``,
+
+			"/node_modules/pkg/empty.js":         ``,
+			"/node_modules/pkg/empty.esm.js":     `export {}`,
+			"/node_modules/pkg/empty.json":       `{}`,
+			"/node_modules/pkg/empty.css":        ``,
+			"/node_modules/pkg/empty.global-css": ``,
+			"/node_modules/pkg/empty.local-css":  ``,
+
+			// Files inside of "node_modules" should not generate a warning
+			"/node_modules/pkg/index.js": `
+				import * as empty_js from './empty.js'
+				import * as empty_esm_js from './empty.esm.js'
+				import * as empty_json from './empty.json'
+				import * as empty_css from './empty.css'
+				import * as empty_global_css from './empty.global-css'
+				import * as empty_local_css from './empty.local-css'
+
 				console.log(
 					empty_js.foo,
 					empty_esm_js.foo,
@@ -1146,12 +1198,6 @@ func TestUndefinedImportWarningCSS(t *testing.T) {
 					empty_local_css.foo,
 				)
 			`,
-			"/empty.js":         ``,
-			"/empty.esm.js":     `export {}`,
-			"/empty.json":       `{}`,
-			"/empty.css":        ``,
-			"/empty.global-css": ``,
-			"/empty.local-css":  ``,
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
@@ -1171,6 +1217,12 @@ entry.js: WARNING: Import "foo" will always be undefined because there is no mat
 entry.js: WARNING: Import "foo" will always be undefined because there is no matching export in "empty.css"
 entry.js: WARNING: Import "foo" will always be undefined because there is no matching export in "empty.global-css"
 entry.js: WARNING: Import "foo" will always be undefined because there is no matching export in "empty.local-css"
+entry.js: WARNING: Import "foo" will always be undefined because the file "node_modules/pkg/empty.js" has no exports
+entry.js: WARNING: Import "foo" will always be undefined because there is no matching export in "node_modules/pkg/empty.esm.js"
+entry.js: WARNING: Import "foo" will always be undefined because there is no matching export in "node_modules/pkg/empty.json"
+entry.js: WARNING: Import "foo" will always be undefined because there is no matching export in "node_modules/pkg/empty.css"
+entry.js: WARNING: Import "foo" will always be undefined because there is no matching export in "node_modules/pkg/empty.global-css"
+entry.js: WARNING: Import "foo" will always be undefined because there is no matching export in "node_modules/pkg/empty.local-css"
 `,
 	})
 }
