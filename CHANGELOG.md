@@ -4,11 +4,11 @@
 
 * Implement local CSS names ([#20](https://github.com/evanw/esbuild/issues/20))
 
-    This release introduces a new loader called `local-css` and two new pseudo-class selectors `:local()` and `:global()`. This is a partial implementation of the popular [CSS modules](https://github.com/css-modules/css-modules) approach for avoiding unintentional name collisions in CSS. I'm not calling this feature "CSS modules" because although some people in the community call it that, other people in the community have started using "CSS modules" to refer to [something completely different](https://github.com/WICG/webcomponents/blob/60c9f682b63c622bfa0d8222ea6b1f3b659e007c/proposals/css-modules-v1-explainer.md) and now CSS modules is an overloaded term.
+    This release introduces two new loaders called `global-css` and `local-css` and two new pseudo-class selectors `:local()` and `:global()`. This is a partial implementation of the popular [CSS modules](https://github.com/css-modules/css-modules) approach for avoiding unintentional name collisions in CSS. I'm not calling this feature "CSS modules" because although some people in the community call it that, other people in the community have started using "CSS modules" to refer to [something completely different](https://github.com/WICG/webcomponents/blob/60c9f682b63c622bfa0d8222ea6b1f3b659e007c/proposals/css-modules-v1-explainer.md) and now CSS modules is an overloaded term.
 
     Here's how this new local CSS name feature works with esbuild:
 
-    * Identifiers that look like `.className` and `#idName` are global with the `css` loader and local with the `local-css` loader. Global identifiers are the same across all files (the way CSS normally works) but local identifiers are different between different files. If two separate CSS files use the same local identifier `.button`, esbuild will automatically rename one of them so that they don't collide. This is analogous to how esbuild automatically renames JS local variables with the same name in separate JS files to avoid name collisions.
+    * Identifiers that look like `.className` and `#idName` are global with the `global-css` loader and local with the `local-css` loader. Global identifiers are the same across all files (the way CSS normally works) but local identifiers are different between different files. If two separate CSS files use the same local identifier `.button`, esbuild will automatically rename one of them so that they don't collide. This is analogous to how esbuild automatically renames JS local variables with the same name in separate JS files to avoid name collisions.
 
     * It only makes sense to use local CSS names with esbuild when you are also using esbuild's bundler to bundle JS files that import CSS files. When you do that, esbuild will generate one export for each local name in the CSS file. The JS code can import these names and use them when constructing HTML DOM. For example:
 
@@ -53,7 +53,7 @@
 
         This feature only makes sense to use when bundling is enabled both because your code needs to `import` the renamed local names so that it can use them, and because esbuild needs to be able to process all CSS files containing local names in a single bundling operation so that it can successfully rename conflicting local names to avoid collisions.
 
-    * If you are in a global CSS file (with the `css` loader) you can create a local name using `:local()`, and if you are in a local CSS file (with the `local-css` loader) you can create a global name with `:global()`. So the choice of the `css` loader vs. the `local-css` loader just sets the default behavior for identifiers, but you can override it on a case-by-case basis as necessary. For example:
+    * If you are in a global CSS file (with the `global-css` loader) you can create a local name using `:local()`, and if you are in a local CSS file (with the `local-css` loader) you can create a global name with `:global()`. So the choice of the `global-css` loader vs. the `local-css` loader just sets the default behavior for identifiers, but you can override it on a case-by-case basis as necessary. For example:
 
         ```css
         :local(.button) {
@@ -64,7 +64,7 @@
         }
         ```
 
-        Processing this CSS file with esbuild will result in something like this:
+        Processing this CSS file with esbuild with either the `global-css` or `local-css` loader will result in something like this:
 
         ```css
         .stdin_button {
@@ -77,7 +77,9 @@
 
     * The names that esbuild generates for local CSS names are an implementation detail and are not intended to be hard-coded anywhere. The only way you should be referencing the local CSS names in your JS or HTML is with an `import` statement in JS that is bundled with esbuild, as demonstrated above. For example, when `--minify` is enabled esbuild will use a different name generation algorithm which generates names that are as short as possible (analogous to how esbuild minifies local identifiers in JS).
 
-    * You can easily use both global CSS files and local CSS files simultaneously if you give them different file extensions. For example, you could pass `--loader:.module.css=local-css` to esbuild so that `.css` files still use global names by default but `.module.css` files use local names by default.
+    * You can easily use both global CSS files and local CSS files simultaneously if you give them different file extensions. For example, you could pass `--loader:.css=global-css` and `--loader:.module.css=local-css` to esbuild so that `.css` files still use global names by default but `.module.css` files use local names by default.
+
+    * Keep in mind that the `css` loader is different than the `global-css` loader. The `:local` and `:global` annotations are not enabled with the `css` loader and will be passed through unchanged. This allows you to have the option of using esbuild to process CSS containing while preserving these annotations. It also means that local CSS names are disabled by default for now (since the `css` loader is currently the default for CSS files). The `:local` and `:global` syntax may be enabled by default in a future release.
 
     Note that esbuild's implementation does not currently have feature parity with other implementations of modular CSS in similar tools. This is only a preliminary release with a partial implementation that includes some basic behavior to get the process started. Additional behavior may be added in future releases. In particular, this release does not implement:
 

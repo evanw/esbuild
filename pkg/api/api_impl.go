@@ -251,16 +251,18 @@ func validateLoader(value Loader) config.Loader {
 		return config.LoaderEmpty
 	case LoaderFile:
 		return config.LoaderFile
+	case LoaderGlobalCSS:
+		return config.LoaderGlobalCSS
 	case LoaderJS:
 		return config.LoaderJS
 	case LoaderJSON:
 		return config.LoaderJSON
 	case LoaderJSX:
 		return config.LoaderJSX
-	case LoaderNone:
-		return config.LoaderNone
 	case LoaderLocalCSS:
 		return config.LoaderLocalCSS
+	case LoaderNone:
+		return config.LoaderNone
 	case LoaderText:
 		return config.LoaderText
 	case LoaderTS:

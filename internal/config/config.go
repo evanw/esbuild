@@ -193,6 +193,7 @@ const (
 	LoaderDefault
 	LoaderEmpty
 	LoaderFile
+	LoaderGlobalCSS
 	LoaderJS
 	LoaderJSON
 	LoaderJSX
@@ -213,6 +214,7 @@ var LoaderToString = []string{
 	"default",
 	"empty",
 	"file",
+	"global-css",
 	"js",
 	"json",
 	"jsx",
@@ -234,7 +236,11 @@ func (loader Loader) IsTypeScript() bool {
 
 func (loader Loader) CanHaveSourceMap() bool {
 	switch loader {
-	case LoaderJS, LoaderJSX, LoaderTS, LoaderTSNoAmbiguousLessThan, LoaderTSX, LoaderCSS, LoaderLocalCSS, LoaderJSON, LoaderText:
+	case
+		LoaderJS, LoaderJSX,
+		LoaderTS, LoaderTSNoAmbiguousLessThan, LoaderTSX,
+		LoaderCSS, LoaderGlobalCSS, LoaderLocalCSS,
+		LoaderJSON, LoaderText:
 		return true
 	default:
 		return false

@@ -23,7 +23,7 @@ func (p *parser) parseSelectorList(opts parseSelectorOpts) (list []css_ast.Compl
 	if !good {
 		return
 	}
-	list = flattenLocalAndGlobalSelectors(list, sel)
+	list = p.flattenLocalAndGlobalSelectors(list, sel)
 
 	// Parse the remaining selectors
 skip:
@@ -49,7 +49,7 @@ skip:
 			}
 		}
 
-		list = flattenLocalAndGlobalSelectors(list, sel)
+		list = p.flattenLocalAndGlobalSelectors(list, sel)
 	}
 
 	if p.options.minifySyntax {
@@ -79,7 +79,11 @@ skip:
 }
 
 // This handles the ":local()" and ":global()" annotations from CSS modules
-func flattenLocalAndGlobalSelectors(list []css_ast.ComplexSelector, sel css_ast.ComplexSelector) []css_ast.ComplexSelector {
+func (p *parser) flattenLocalAndGlobalSelectors(list []css_ast.ComplexSelector, sel css_ast.ComplexSelector) []css_ast.ComplexSelector {
+	if p.options.symbolMode == symbolModeDisabled {
+		return append(list, sel)
+	}
+
 	// If this selector consists only of ":local" or ":global" and the
 	// contents can be inlined, then inline it directly. This has to be
 	// done separately from the loop below because inlining may produce
@@ -541,19 +545,23 @@ func (p *parser) parsePseudoClassSelector(isElement bool) css_ast.SS {
 		// Potentially parse a pseudo-class with a selector list
 		if !isElement {
 			var kind css_ast.PseudoClassKind
-			local := p.options.makeLocalSymbols
+			local := p.makeLocalSymbols
 			ok := true
 			switch text {
 			case "global":
 				kind = css_ast.PseudoClassGlobal
-				local = false
+				if p.options.symbolMode != symbolModeDisabled {
+					local = false
+				}
 			case "has":
 				kind = css_ast.PseudoClassHas
 			case "is":
 				kind = css_ast.PseudoClassIs
 			case "local":
 				kind = css_ast.PseudoClassLocal
-				local = true
+				if p.options.symbolMode != symbolModeDisabled {
+					local = true
+				}
 			case "not":
 				kind = css_ast.PseudoClassNot
 			case "where":
@@ -565,10 +573,10 @@ func (p *parser) parsePseudoClassSelector(isElement bool) css_ast.SS {
 				old := p.index
 
 				// ":local" forces local names and ":global" forces global names
-				oldLocal := p.options.makeLocalSymbols
-				p.options.makeLocalSymbols = local
+				oldLocal := p.makeLocalSymbols
+				p.makeLocalSymbols = local
 				selectors, ok := p.parseSelectorList(parseSelectorOpts{stopOnCloseParen: true})
-				p.options.makeLocalSymbols = oldLocal
+				p.makeLocalSymbols = oldLocal
 
 				if ok && p.expectWithMatchingLoc(css_lexer.TCloseParen, matchingLoc) {
 					return &css_ast.SSPseudoClassWithSelectorList{Kind: kind, Selectors: selectors}

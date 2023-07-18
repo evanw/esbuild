@@ -134,7 +134,7 @@ const (
 	ES2022
 )
 
-type Loader uint8
+type Loader uint16
 
 const (
 	LoaderNone Loader = iota
@@ -146,6 +146,7 @@ const (
 	LoaderDefault
 	LoaderEmpty
 	LoaderFile
+	LoaderGlobalCSS
 	LoaderJS
 	LoaderJSON
 	LoaderJSX

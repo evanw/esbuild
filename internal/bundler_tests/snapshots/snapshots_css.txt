@@ -624,179 +624,289 @@ TestIgnoreURLsInAtRulePrelude
 ================================================================================
 TestImportCSSFromJSLocalVsGlobal
 ---------- /out/entry.js ----------
+// normal.css
+var normal_default = {};
+
+// LOCAL.global-css
+var LOCAL_default = {
+  local: "LOCAL_local",
+  local_a: "LOCAL_local_a",
+  local_b: "LOCAL_local_b",
+  local_c: "LOCAL_local_c"
+};
+
+// LOCAL.local-css
+var LOCAL_default2 = {
+  top_level: "LOCAL_top_level",
+  local: "LOCAL_local2",
+  local_a: "LOCAL_local_a2",
+  local_b: "LOCAL_local_b2",
+  local_c: "LOCAL_local_c2",
+  nested: "LOCAL_nested"
+};
+
+// entry.js
+console.log("should be empty:", normal_default);
+console.log("fewer local names:", LOCAL_default);
+console.log("more local names:", LOCAL_default2);
 
 ---------- /out/entry.css ----------
-/* foo.css */
-.GLOBAL {
+/* normal.css */
+.top_level {
+  color: #000;
+}
+:global(.GLOBAL) {
+  color: #001;
+}
+:local(.local) {
+  color: #002;
+}
+div:global(.GLOBAL) {
+  color: #003;
+}
+div:local(.local) {
+  color: #004;
+}
+.top_level:global(div) {
+  color: #005;
+}
+.top_level:local(div) {
+  color: #006;
+}
+:global(div.GLOBAL) {
+  color: #007;
+}
+:local(div.local) {
+  color: #008;
+}
+div:global(span.GLOBAL) {
+  color: #009;
+}
+div:local(span.local) {
+  color: #00A;
+}
+div:global(#GLOBAL_A.GLOBAL_B.GLOBAL_C):local(.local_a.local_b#local_c) {
+  color: #00B;
+}
+div:global(#GLOBAL_A .GLOBAL_B .GLOBAL_C):local(.local_a .local_b #local_c) {
+  color: #00C;
+}
+.nested {
+  :global(&.GLOBAL) {
+    color: #00D;
+  }
+  :local(&.local) {
+    color: #00E;
+  }
+  &:global(.GLOBAL) {
+    color: #00F;
+  }
+  &:local(.local) {
+    color: #010;
+  }
+}
+:global(.GLOBAL_A, .GLOBAL_B) {
+  color: #011;
+}
+:local(.local_a, .local_b) {
+  color: #012;
+}
+div:global(.GLOBAL_A, .GLOBAL_B) {
+  color: #013;
+}
+div:local(.local_a, .local_b) {
+  color: #014;
+}
+div :global(.GLOBAL_A, .GLOBAL_B) span {
+  color: #015;
+}
+div :local(.local_a, .local_b) span {
+  color: #016;
+}
+div :global(.GLOBAL_A .GLOBAL_B) span {
+  color: #017;
+}
+div :local(.local_a .local_b) span {
+  color: #018;
+}
+div > :global(.GLOBAL_A ~ .GLOBAL_B) + span {
+  color: #019;
+}
+div > :local(.local_a ~ .local_b) + span {
+  color: #01A;
+}
+
+/* LOCAL.global-css */
+.top_level {
   color: #000;
 }
 .GLOBAL {
   color: #001;
 }
-.foo_local {
+.LOCAL_local {
   color: #002;
 }
 div.GLOBAL {
   color: #003;
 }
-div.foo_local {
+div.LOCAL_local {
   color: #004;
 }
-div.GLOBAL {
+div.top_level {
   color: #005;
 }
-div.GLOBAL {
+div.top_level {
   color: #006;
 }
 div.GLOBAL {
   color: #007;
 }
-div.foo_local {
+div.LOCAL_local {
   color: #008;
 }
 div:is(span.GLOBAL) {
   color: #009;
 }
-div:is(span.foo_local) {
+div:is(span.LOCAL_local) {
   color: #00A;
 }
-div#GLOBAL0.GLOBAL1.GLOBAL2.foo_local0.foo_local1#foo_local2 {
+div#GLOBAL_A.GLOBAL_B.GLOBAL_C.LOCAL_local_a.LOCAL_local_b#LOCAL_local_c {
   color: #00B;
 }
-div:is(#GLOBAL0 .GLOBAL1 .GLOBAL2):is(.foo_local0 .foo_local1 #foo_local2) {
+div:is(#GLOBAL_A .GLOBAL_B .GLOBAL_C):is(.LOCAL_local_a .LOCAL_local_b #LOCAL_local_c) {
   color: #00C;
 }
 .nested {
   &.GLOBAL {
     color: #00D;
   }
-  &.foo_local {
+  &.LOCAL_local {
     color: #00E;
   }
   &.GLOBAL {
     color: #00F;
   }
-  &.foo_local {
+  &.LOCAL_local {
     color: #010;
   }
 }
-.GLOBAL0,
-.GLOBAL1 {
+.GLOBAL_A,
+.GLOBAL_B {
   color: #011;
 }
-.foo_local0,
-.foo_local1 {
+.LOCAL_local_a,
+.LOCAL_local_b {
   color: #012;
 }
-div:is(.GLOBAL0, .GLOBAL1) {
+div:is(.GLOBAL_A, .GLOBAL_B) {
   color: #013;
 }
-div:is(.foo_local0, .foo_local1) {
+div:is(.LOCAL_local_a, .LOCAL_local_b) {
   color: #014;
 }
-div :is(.GLOBAL0, .GLOBAL1) span {
+div :is(.GLOBAL_A, .GLOBAL_B) span {
   color: #015;
 }
-div :is(.foo_local0, .foo_local1) span {
+div :is(.LOCAL_local_a, .LOCAL_local_b) span {
   color: #016;
 }
-div .GLOBAL0 .GLOBAL1 span {
+div .GLOBAL_A .GLOBAL_B span {
   color: #017;
 }
-div .foo_local0 .foo_local1 span {
+div .LOCAL_local_a .LOCAL_local_b span {
   color: #018;
 }
-div > .GLOBAL0 ~ .GLOBAL1 + span {
+div > .GLOBAL_A ~ .GLOBAL_B + span {
   color: #019;
 }
-div > .foo_local0 ~ .foo_local1 + span {
+div > .LOCAL_local_a ~ .LOCAL_local_b + span {
   color: #01A;
 }
 
-/* bar.module.css */
-.bar_module_local {
+/* LOCAL.local-css */
+.LOCAL_top_level {
   color: #000;
 }
 .GLOBAL {
   color: #001;
 }
-.bar_module_local {
+.LOCAL_local2 {
   color: #002;
 }
 div.GLOBAL {
   color: #003;
 }
-div.bar_module_local {
+div.LOCAL_local2 {
   color: #004;
 }
-div.bar_module_local {
+div.LOCAL_top_level {
   color: #005;
 }
-div.bar_module_local {
+div.LOCAL_top_level {
   color: #006;
 }
 div.GLOBAL {
   color: #007;
 }
-div.bar_module_local {
+div.LOCAL_local2 {
   color: #008;
 }
 div:is(span.GLOBAL) {
   color: #009;
 }
-div:is(span.bar_module_local) {
+div:is(span.LOCAL_local2) {
   color: #00A;
 }
-div#GLOBAL0.GLOBAL1.GLOBAL2.bar_module_local0.bar_module_local1#bar_module_local2 {
+div#GLOBAL_A.GLOBAL_B.GLOBAL_C.LOCAL_local_a2.LOCAL_local_b2#LOCAL_local_c2 {
   color: #00B;
 }
-div:is(#GLOBAL0 .GLOBAL1 .GLOBAL2):is(.bar_module_local0 .bar_module_local1 #bar_module_local2) {
+div:is(#GLOBAL_A .GLOBAL_B .GLOBAL_C):is(.LOCAL_local_a2 .LOCAL_local_b2 #LOCAL_local_c2) {
   color: #00C;
 }
-.bar_module_nested {
+.LOCAL_nested {
   &.GLOBAL {
     color: #00D;
   }
-  &.bar_module_local {
+  &.LOCAL_local2 {
     color: #00E;
   }
   &.GLOBAL {
     color: #00F;
   }
-  &.bar_module_local {
+  &.LOCAL_local2 {
     color: #010;
   }
 }
-.GLOBAL0,
-.GLOBAL1 {
+.GLOBAL_A,
+.GLOBAL_B {
   color: #011;
 }
-.bar_module_local0,
-.bar_module_local1 {
+.LOCAL_local_a2,
+.LOCAL_local_b2 {
   color: #012;
 }
-div:is(.GLOBAL0, .GLOBAL1) {
+div:is(.GLOBAL_A, .GLOBAL_B) {
   color: #013;
 }
-div:is(.bar_module_local0, .bar_module_local1) {
+div:is(.LOCAL_local_a2, .LOCAL_local_b2) {
   color: #014;
 }
-div :is(.GLOBAL0, .GLOBAL1) span {
+div :is(.GLOBAL_A, .GLOBAL_B) span {
   color: #015;
 }
-div :is(.bar_module_local0, .bar_module_local1) span {
+div :is(.LOCAL_local_a2, .LOCAL_local_b2) span {
   color: #016;
 }
-div .GLOBAL0 .GLOBAL1 span {
+div .GLOBAL_A .GLOBAL_B span {
   color: #017;
 }
-div .bar_module_local0 .bar_module_local1 span {
+div .LOCAL_local_a2 .LOCAL_local_b2 span {
   color: #018;
 }
-div > .GLOBAL0 ~ .GLOBAL1 + span {
+div > .GLOBAL_A ~ .GLOBAL_B + span {
   color: #019;
 }
-div > .bar_module_local0 ~ .bar_module_local1 + span {
+div > .LOCAL_local_a2 ~ .LOCAL_local_b2 + span {
   color: #01A;
 }
 

@@ -301,100 +301,65 @@ func TestImportLocalCSSFromJSMinifyIdentifiersAvoidGlobalNames(t *testing.T) {
 }
 
 func TestImportCSSFromJSLocalVsGlobal(t *testing.T) {
+	css := `
+		.top_level { color: #000 }
+
+		:global(.GLOBAL) { color: #001 }
+		:local(.local) { color: #002 }
+
+		div:global(.GLOBAL) { color: #003 }
+		div:local(.local) { color: #004 }
+
+		.top_level:global(div) { color: #005 }
+		.top_level:local(div) { color: #006 }
+
+		:global(div.GLOBAL) { color: #007 }
+		:local(div.local) { color: #008 }
+
+		div:global(span.GLOBAL) { color: #009 }
+		div:local(span.local) { color: #00A }
+
+		div:global(#GLOBAL_A.GLOBAL_B.GLOBAL_C):local(.local_a.local_b#local_c) { color: #00B }
+		div:global(#GLOBAL_A .GLOBAL_B .GLOBAL_C):local(.local_a .local_b #local_c) { color: #00C }
+
+		.nested {
+			:global(&.GLOBAL) { color: #00D }
+			:local(&.local) { color: #00E }
+
+			&:global(.GLOBAL) { color: #00F }
+			&:local(.local) { color: #010 }
+		}
+
+		:global(.GLOBAL_A, .GLOBAL_B) { color: #011 }
+		:local(.local_a, .local_b) { color: #012 }
+
+		div:global(.GLOBAL_A, .GLOBAL_B) { color: #013 }
+		div:local(.local_a, .local_b) { color: #014 }
+
+		div :global(.GLOBAL_A, .GLOBAL_B) span { color: #015 }
+		div :local(.local_a, .local_b) span { color: #016 }
+
+		div :global(.GLOBAL_A .GLOBAL_B) span { color: #017 }
+		div :local(.local_a .local_b) span { color: #018 }
+
+		div > :global(.GLOBAL_A ~ .GLOBAL_B) + span { color: #019 }
+		div > :local(.local_a ~ .local_b) + span { color: #01A }
+	`
+
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
-				import "./foo.css"
-				import "./bar.module.css"
+				import normalStyles from "./normal.css"
+				import globalStyles from "./LOCAL.global-css"
+				import localStyles from "./LOCAL.local-css"
+
+				console.log('should be empty:', normalStyles)
+				console.log('fewer local names:', globalStyles)
+				console.log('more local names:', localStyles)
 			`,
-			"/foo.css": `
-				.GLOBAL { color: #000 }
-
-				:global(.GLOBAL) { color: #001 }
-				:local(.local) { color: #002 }
-
-				div:global(.GLOBAL) { color: #003 }
-				div:local(.local) { color: #004 }
-
-				.GLOBAL:global(div) { color: #005 }
-				.GLOBAL:local(div) { color: #006 }
-
-				:global(div.GLOBAL) { color: #007 }
-				:local(div.local) { color: #008 }
-
-				div:global(span.GLOBAL) { color: #009 }
-				div:local(span.local) { color: #00A }
-
-				div:global(#GLOBAL0.GLOBAL1.GLOBAL2):local(.local0.local1#local2) { color: #00B }
-				div:global(#GLOBAL0 .GLOBAL1 .GLOBAL2):local(.local0 .local1 #local2) { color: #00C }
-
-				.nested {
-					:global(&.GLOBAL) { color: #00D }
-					:local(&.local) { color: #00E }
-
-					&:global(.GLOBAL) { color: #00F }
-					&:local(.local) { color: #010 }
-				}
-
-				:global(.GLOBAL0, .GLOBAL1) { color: #011 }
-				:local(.local0, .local1) { color: #012 }
-
-				div:global(.GLOBAL0, .GLOBAL1) { color: #013 }
-				div:local(.local0, .local1) { color: #014 }
-
-				div :global(.GLOBAL0, .GLOBAL1) span { color: #015 }
-				div :local(.local0, .local1) span { color: #016 }
-
-				div :global(.GLOBAL0 .GLOBAL1) span { color: #017 }
-				div :local(.local0 .local1) span { color: #018 }
-
-				div > :global(.GLOBAL0 ~ .GLOBAL1) + span { color: #019 }
-				div > :local(.local0 ~ .local1) + span { color: #01A }
-			`,
-			"/bar.module.css": `
-				.local { color: #000 }
-
-				:global(.GLOBAL) { color: #001 }
-				:local(.local) { color: #002 }
-
-				div:global(.GLOBAL) { color: #003 }
-				div:local(.local) { color: #004 }
-
-				.local:global(div) { color: #005 }
-				.local:local(div) { color: #006 }
-
-				:global(div.GLOBAL) { color: #007 }
-				:local(div.local) { color: #008 }
-
-				div:global(span.GLOBAL) { color: #009 }
-				div:local(span.local) { color: #00A }
-
-				div:global(#GLOBAL0.GLOBAL1.GLOBAL2):local(.local0.local1#local2) { color: #00B }
-				div:global(#GLOBAL0 .GLOBAL1 .GLOBAL2):local(.local0 .local1 #local2) { color: #00C }
-
-				.nested {
-					:global(&.GLOBAL) { color: #00D }
-					:local(&.local) { color: #00E }
-
-					&:global(.GLOBAL) { color: #00F }
-					&:local(.local) { color: #010 }
-				}
-
-				:global(.GLOBAL0, .GLOBAL1) { color: #011 }
-				:local(.local0, .local1) { color: #012 }
-
-				div:global(.GLOBAL0, .GLOBAL1) { color: #013 }
-				div:local(.local0, .local1) { color: #014 }
-
-				div :global(.GLOBAL0, .GLOBAL1) span { color: #015 }
-				div :local(.local0, .local1) span { color: #016 }
-
-				div :global(.GLOBAL0 .GLOBAL1) span { color: #017 }
-				div :local(.local0 .local1) span { color: #018 }
-
-				div > :global(.GLOBAL0 ~ .GLOBAL1) + span { color: #019 }
-				div > :local(.local0 ~ .local1) + span { color: #01A }
-			`,
+			"/normal.css":       css,
+			"/LOCAL.global-css": css,
+			"/LOCAL.local-css":  css,
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
@@ -403,7 +368,8 @@ func TestImportCSSFromJSLocalVsGlobal(t *testing.T) {
 			ExtensionToLoader: map[string]config.Loader{
 				".js":         config.LoaderJS,
 				".css":        config.LoaderCSS,
-				".module.css": config.LoaderLocalCSS,
+				".global-css": config.LoaderGlobalCSS,
+				".local-css":  config.LoaderLocalCSS,
 			},
 		},
 	})

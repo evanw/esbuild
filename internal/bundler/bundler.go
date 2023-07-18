@@ -229,7 +229,7 @@ func parseFile(args parseArgs) {
 		result.file.inputFile.Repr = &graph.JSRepr{AST: ast}
 		result.ok = ok
 
-	case config.LoaderCSS, config.LoaderLocalCSS:
+	case config.LoaderCSS, config.LoaderGlobalCSS, config.LoaderLocalCSS:
 		ast := args.caches.CSSCache.Parse(args.log, source, css_parser.OptionsFromConfig(loader, &args.options))
 		result.file.inputFile.Repr = &graph.CSSRepr{AST: ast}
 		result.ok = true

@@ -34,6 +34,7 @@ type parser struct {
 	prevError          logger.Loc
 	options            Options
 	shouldLowerNesting bool
+	makeLocalSymbols   bool
 }
 
 type Options struct {
@@ -45,16 +46,32 @@ type Options struct {
 	optionsThatSupportStructuralEquality
 }
 
+type symbolMode uint8
+
+const (
+	symbolModeDisabled symbolMode = iota
+	symbolModeGlobal
+	symbolModeLocal
+)
+
 type optionsThatSupportStructuralEquality struct {
 	originalTargetEnv      string
 	unsupportedCSSFeatures compat.CSSFeature
 	minifySyntax           bool
 	minifyWhitespace       bool
 	minifyIdentifiers      bool
-	makeLocalSymbols       bool
+	symbolMode             symbolMode
 }
 
 func OptionsFromConfig(loader config.Loader, options *config.Options) Options {
+	var symbolMode symbolMode
+	switch loader {
+	case config.LoaderGlobalCSS:
+		symbolMode = symbolModeGlobal
+	case config.LoaderLocalCSS:
+		symbolMode = symbolModeLocal
+	}
+
 	return Options{
 		cssPrefixData: options.CSSPrefixData,
 
@@ -64,7 +81,7 @@ func OptionsFromConfig(loader config.Loader, options *config.Options) Options {
 			minifyIdentifiers:      options.MinifyIdentifiers,
 			unsupportedCSSFeatures: options.UnsupportedCSSFeatures,
 			originalTargetEnv:      options.OriginalTargetEnv,
-			makeLocalSymbols:       loader == config.LoaderLocalCSS,
+			symbolMode:             symbolMode,
 		},
 	}
 }
@@ -99,16 +116,17 @@ func Parse(log logger.Log, source logger.Source, options Options) css_ast.AST {
 		RecordAllComments: options.minifyIdentifiers,
 	})
 	p := parser{
-		log:             log,
-		source:          source,
-		tracker:         logger.MakeLineColumnTracker(&source),
-		options:         options,
-		tokens:          result.Tokens,
-		allComments:     result.AllComments,
-		legalComments:   result.LegalComments,
-		prevError:       logger.Loc{Start: -1},
-		localSymbolMap:  make(map[string]ast.Ref),
-		globalSymbolMap: make(map[string]ast.Ref),
+		log:              log,
+		source:           source,
+		tracker:          logger.MakeLineColumnTracker(&source),
+		options:          options,
+		tokens:           result.Tokens,
+		allComments:      result.AllComments,
+		legalComments:    result.LegalComments,
+		prevError:        logger.Loc{Start: -1},
+		localSymbolMap:   make(map[string]ast.Ref),
+		globalSymbolMap:  make(map[string]ast.Ref),
+		makeLocalSymbols: options.symbolMode == symbolModeLocal,
 	}
 	p.end = len(p.tokens)
 	rules := p.parseListOfRules(ruleContext{
@@ -286,7 +304,7 @@ func (p *parser) symbolForName(name string) ast.Ref {
 	var kind ast.SymbolKind
 	var scope map[string]ast.Ref
 
-	if p.options.makeLocalSymbols {
+	if p.makeLocalSymbols {
 		kind = ast.SymbolLocalCSS
 		scope = p.globalSymbolMap
 	} else {
