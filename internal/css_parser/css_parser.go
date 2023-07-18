@@ -1835,6 +1835,11 @@ func mangleNumber(t string) (string, bool) {
 }
 
 func (p *parser) parseSelectorRuleFrom(preludeStart int, isTopLevel bool, opts parseSelectorOpts) css_ast.Rule {
+	// Save and restore the local symbol state in case there are any bare
+	// ":global" or ":local" annotations. The effect of these should be scoped
+	// to within the selector rule.
+	local := p.makeLocalSymbols
+
 	// Try parsing the prelude as a selector list
 	if list, ok := p.parseSelectorList(opts); ok {
 		canInlineNoOpNesting := true
@@ -1863,9 +1868,11 @@ func (p *parser) parseSelectorRuleFrom(preludeStart int, isTopLevel bool, opts p
 			if p.expectWithMatchingLoc(css_lexer.TCloseBrace, matchingLoc) {
 				selector.CloseBraceLoc = closeBraceLoc
 			}
+			p.makeLocalSymbols = local
 			return css_ast.Rule{Loc: p.tokens[preludeStart].Range.Loc, Data: &selector}
 		}
 	}
+	p.makeLocalSymbols = local
 
 	// Otherwise, parse a generic qualified rule
 	return p.parseQualifiedRuleFrom(preludeStart, parseQualifiedRuleOpts{

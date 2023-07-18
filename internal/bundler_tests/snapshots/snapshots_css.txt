@@ -735,6 +735,21 @@ div:global(+ .GLOBAL_A):hover {
 div:local(+ .local_a):hover {
   color: #01A;
 }
+:global.GLOBAL:local.local {
+  color: #01B;
+}
+:global .GLOBAL :local .local {
+  color: #01C;
+}
+:global {
+  .GLOBAL {
+    :local {
+      .local {
+        color: #01D;
+      }
+    }
+  }
+}
 
 /* LOCAL.global-css */
 .top_level {
@@ -820,6 +835,21 @@ div + .GLOBAL_A:hover {
 div + .LOCAL_local_a:hover {
   color: #01A;
 }
+.GLOBAL.LOCAL_local {
+  color: #01B;
+}
+.GLOBAL .LOCAL_local {
+  color: #01C;
+}
+& {
+  .GLOBAL {
+    & {
+      .LOCAL_local {
+        color: #01D;
+      }
+    }
+  }
+}
 
 /* LOCAL.local-css */
 .LOCAL_top_level {
@@ -904,6 +934,73 @@ div + .GLOBAL_A:hover {
 }
 div + .LOCAL_local_a2:hover {
   color: #01A;
+}
+.GLOBAL.LOCAL_local2 {
+  color: #01B;
+}
+.GLOBAL .LOCAL_local2 {
+  color: #01C;
+}
+& {
+  .GLOBAL {
+    & {
+      .LOCAL_local2 {
+        color: #01D;
+      }
+    }
+  }
+}
+
+================================================================================
+TestImportCSSFromJSLowerBareLocalAndGlobal
+---------- /out/entry.js ----------
+// styles.css
+var styles_default = {
+  before: "styles_before",
+  button: "styles_button",
+  after: "styles_after"
+};
+
+// entry.js
+console.log(styles_default);
+
+---------- /out/entry.css ----------
+/* styles.css */
+.styles_before {
+  color: #000;
+}
+:scope .styles_button {
+  color: #000;
+}
+.styles_after {
+  color: #000;
+}
+.styles_before {
+  color: #001;
+}
+:scope .button {
+  color: #001;
+}
+.styles_after {
+  color: #001;
+}
+div .styles_button {
+  color: #002;
+}
+div .button {
+  color: #003;
+}
+:scope {
+  color: #004;
+}
+:scope {
+  color: #005;
+}
+:scope .styles_button {
+  color: #006;
+}
+:scope .styles_button {
+  color: #007;
 }
 
 ================================================================================

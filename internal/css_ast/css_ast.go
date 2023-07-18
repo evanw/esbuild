@@ -745,6 +745,23 @@ func (sel CompoundSelector) IsSingleAmpersand() bool {
 	return sel.HasNestingSelector() && sel.Combinator.Byte == 0 && sel.TypeSelector == nil && len(sel.SubclassSelectors) == 0
 }
 
+func (sel CompoundSelector) IsInvalidBecauseEmpty() bool {
+	return !sel.HasNestingSelector() && sel.TypeSelector == nil && len(sel.SubclassSelectors) == 0
+}
+
+func (sel CompoundSelector) FirstLoc() logger.Loc {
+	var firstLoc ast.Index32
+	if sel.TypeSelector != nil {
+		firstLoc = ast.MakeIndex32(uint32(sel.TypeSelector.FirstLoc().Start))
+	} else if len(sel.SubclassSelectors) > 0 {
+		firstLoc = ast.MakeIndex32(uint32(sel.SubclassSelectors[0].Loc.Start))
+	}
+	if firstLoc.IsValid() && (!sel.NestingSelectorLoc.IsValid() || firstLoc.GetIndex() < sel.NestingSelectorLoc.GetIndex()) {
+		return logger.Loc{Start: int32(firstLoc.GetIndex())}
+	}
+	return logger.Loc{Start: int32(sel.NestingSelectorLoc.GetIndex())}
+}
+
 func (sel CompoundSelector) Clone() CompoundSelector {
 	clone := sel
 

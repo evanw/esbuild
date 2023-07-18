@@ -344,6 +344,10 @@ func TestImportCSSFromJSLocalVsGlobal(t *testing.T) {
 
 		div:global(+ .GLOBAL_A):hover { color: #019 }
 		div:local(+ .local_a):hover { color: #01A }
+
+		:global.GLOBAL:local.local { color: #01B }
+		:global .GLOBAL :local .local { color: #01C }
+		:global { .GLOBAL { :local { .local { color: #01D } } } }
 	`
 
 	css_suite.expectBundled(t, bundled{
@@ -371,6 +375,47 @@ func TestImportCSSFromJSLocalVsGlobal(t *testing.T) {
 				".global-css": config.LoaderGlobalCSS,
 				".local-css":  config.LoaderLocalCSS,
 			},
+		},
+	})
+}
+
+func TestImportCSSFromJSLowerBareLocalAndGlobal(t *testing.T) {
+	css := `
+		.before { color: #000 }
+		:local { .button { color: #000 } }
+		.after { color: #000 }
+
+		.before { color: #001 }
+		:global { .button { color: #001 } }
+		.after { color: #001 }
+
+		div { :local { .button { color: #002 } } }
+		div { :global { .button { color: #003 } } }
+
+		:local(:global) { color: #004 }
+		:global(:local) { color: #005 }
+
+		:local(:global) { .button { color: #006 } }
+		:global(:local) { .button { color: #007 } }
+	`
+
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import styles from "./styles.css"
+				console.log(styles)
+			`,
+			"/styles.css": css,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			ExtensionToLoader: map[string]config.Loader{
+				".js":  config.LoaderJS,
+				".css": config.LoaderLocalCSS,
+			},
+			UnsupportedCSSFeatures: compat.Nesting,
 		},
 	})
 }

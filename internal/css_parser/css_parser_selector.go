@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/evanw/esbuild/internal/ast"
+	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/css_ast"
 	"github.com/evanw/esbuild/internal/css_lexer"
 	"github.com/evanw/esbuild/internal/logger"
@@ -124,58 +125,98 @@ func mergeCompoundSelectors(target *css_ast.CompoundSelector, source css_ast.Com
 	target.SubclassSelectors = append(target.SubclassSelectors, source.SubclassSelectors...)
 }
 
-// This handles the ":local()" and ":global()" annotations from CSS modules
-func (p *parser) flattenLocalAndGlobalSelectors(list []css_ast.ComplexSelector, sel css_ast.ComplexSelector) []css_ast.ComplexSelector {
-	if p.options.symbolMode == symbolModeDisabled {
-		return append(list, sel)
-	}
-
-	// Rewrite all ":local" and ":global" annotations within this compound selector
+func containsLocalOrGlobalSelector(sel css_ast.ComplexSelector) bool {
 	for _, s := range sel.Selectors {
 		for _, ss := range s.SubclassSelectors {
-			if pseudo, ok := ss.Data.(*css_ast.SSPseudoClassWithSelectorList); ok && (pseudo.Kind == css_ast.PseudoClassGlobal || pseudo.Kind == css_ast.PseudoClassLocal) {
-				// Only do the work to flatten the whole list if there's a ":local" or a ":global"
-				var selectors []css_ast.CompoundSelector
-				for _, s := range sel.Selectors {
-					oldSubclassSelectors := s.SubclassSelectors
-					s.SubclassSelectors = make([]css_ast.SubclassSelector, 0, len(oldSubclassSelectors))
-
-					for _, ss := range oldSubclassSelectors {
-						if pseudo, ok := ss.Data.(*css_ast.SSPseudoClassWithSelectorList); ok && (pseudo.Kind == css_ast.PseudoClassGlobal || pseudo.Kind == css_ast.PseudoClassLocal) {
-							inner := pseudo.Selectors[0].Selectors
-
-							// Replace this pseudo-class with all inner compound selectors.
-							// The first inner compound selector is merged with the compound
-							// selector before it and the last inner compound selector is
-							// merged with the compound selector after it:
-							//
-							// "div:local(.a .b):hover" => "div.a b:hover"
-							//
-							// This behavior is really strange since this is not how anything
-							// involving pseudo-classes in real CSS works at all. However, all
-							// other implementations (Lightning CSS, PostCSS, and Webpack) are
-							// consistent with this strange behavior, so we do it too.
-							if inner[0].Combinator.Byte == 0 {
-								mergeCompoundSelectors(&s, inner[0])
-								inner = inner[1:]
-							} else {
-								// "div:local(+ .foo):hover" => "div + .foo:hover"
-							}
-							if n := len(inner); n > 0 {
-								selectors = append(append(selectors, s), inner[:n-1]...)
-								s = inner[n-1]
-							}
-						} else {
-							s.SubclassSelectors = append(s.SubclassSelectors, ss)
-						}
-					}
-
-					selectors = append(selectors, s)
+			switch pseudo := ss.Data.(type) {
+			case *css_ast.SSPseudoClass:
+				if pseudo.Name == "global" || pseudo.Name == "local" {
+					return true
 				}
-				sel.Selectors = selectors
-				return append(list, sel)
+
+			case *css_ast.SSPseudoClassWithSelectorList:
+				if pseudo.Kind == css_ast.PseudoClassGlobal || pseudo.Kind == css_ast.PseudoClassLocal {
+					return true
+				}
 			}
 		}
+	}
+	return false
+}
+
+// This handles the ":local()" and ":global()" annotations from CSS modules
+func (p *parser) flattenLocalAndGlobalSelectors(list []css_ast.ComplexSelector, sel css_ast.ComplexSelector) []css_ast.ComplexSelector {
+	// Only do the work to flatten the whole list if there's a ":local" or a ":global"
+	if p.options.symbolMode != symbolModeDisabled && containsLocalOrGlobalSelector(sel) {
+		var selectors []css_ast.CompoundSelector
+
+		for _, s := range sel.Selectors {
+			oldSubclassSelectors := s.SubclassSelectors
+			s.SubclassSelectors = make([]css_ast.SubclassSelector, 0, len(oldSubclassSelectors))
+
+			for _, ss := range oldSubclassSelectors {
+				switch pseudo := ss.Data.(type) {
+				case *css_ast.SSPseudoClass:
+					if pseudo.Name == "global" || pseudo.Name == "local" {
+						// Remove bare ":global" and ":local" pseudo-classes
+						continue
+					}
+
+				case *css_ast.SSPseudoClassWithSelectorList:
+					if pseudo.Kind == css_ast.PseudoClassGlobal || pseudo.Kind == css_ast.PseudoClassLocal {
+						inner := pseudo.Selectors[0].Selectors
+
+						// Replace this pseudo-class with all inner compound selectors.
+						// The first inner compound selector is merged with the compound
+						// selector before it and the last inner compound selector is
+						// merged with the compound selector after it:
+						//
+						// "div:local(.a .b):hover" => "div.a b:hover"
+						//
+						// This behavior is really strange since this is not how anything
+						// involving pseudo-classes in real CSS works at all. However, all
+						// other implementations (Lightning CSS, PostCSS, and Webpack) are
+						// consistent with this strange behavior, so we do it too.
+						if inner[0].Combinator.Byte == 0 {
+							mergeCompoundSelectors(&s, inner[0])
+							inner = inner[1:]
+						} else {
+							// "div:local(+ .foo):hover" => "div + .foo:hover"
+						}
+						if n := len(inner); n > 0 {
+							if !s.IsInvalidBecauseEmpty() {
+								// Don't add this selector if it consisted only of a bare ":global" or ":local"
+								selectors = append(selectors, s)
+							}
+							selectors = append(selectors, inner[:n-1]...)
+							s = inner[n-1]
+						}
+						continue
+					}
+				}
+
+				s.SubclassSelectors = append(s.SubclassSelectors, ss)
+			}
+
+			if !s.IsInvalidBecauseEmpty() {
+				// Don't add this selector if it consisted only of a bare ":global" or ":local"
+				selectors = append(selectors, s)
+			}
+		}
+
+		if len(selectors) == 0 {
+			// Treat a bare ":global" or ":local" as a bare "&" nesting selector
+			selectors = append(selectors, css_ast.CompoundSelector{
+				NestingSelectorLoc: ast.MakeIndex32(uint32(sel.Selectors[0].FirstLoc().Start)),
+			})
+
+			// Make sure we report that nesting is present so that it can be lowered
+			if p.options.unsupportedCSSFeatures.Has(compat.Nesting) {
+				p.shouldLowerNesting = true
+			}
+		}
+
+		sel.Selectors = selectors
 	}
 
 	return append(list, sel)
@@ -408,7 +449,7 @@ subclassSelectors:
 	}
 
 	// The compound selector must be non-empty
-	if !sel.HasNestingSelector() && sel.TypeSelector == nil && len(sel.SubclassSelectors) == 0 {
+	if sel.IsInvalidBecauseEmpty() {
 		p.unexpected()
 		return
 	}
@@ -615,6 +656,17 @@ func (p *parser) parsePseudoClassSelector(isElement bool) css_ast.SS {
 	sel := css_ast.SSPseudoClass{IsElement: isElement}
 	if p.expect(css_lexer.TIdent) {
 		sel.Name = name
+
+		// ":local .local_name :global .global_name {}"
+		// ":local { .local_name { :global { .global_name {} } }"
+		if p.options.symbolMode != symbolModeDisabled {
+			switch name {
+			case "local":
+				p.makeLocalSymbols = true
+			case "global":
+				p.makeLocalSymbols = false
+			}
+		}
 	}
 	return &sel
 }
