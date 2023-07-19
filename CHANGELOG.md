@@ -2,6 +2,73 @@
 
 ## Unreleased
 
+* Implement CSS nesting without `:is()` when possible ([#1945](https://github.com/evanw/esbuild/issues/1945))
+
+    Previously esbuild would always produce a warning when transforming nested CSS for a browser that doesn't support the `:is()` pseudo-class. This was because the nesting transform needs to generate an `:is()` in some complex cases which means the transformed CSS would then not work in that browser. However, the CSS nesting transform can often be done without generating an `:is()`. So with this release, esbuild will no longer warn when targeting browsers that don't support `:is()` in the cases where an `:is()` isn't needed to represent the nested CSS.
+
+    In addition, esbuild's nested CSS transform has been updated to avoid generating an `:is()` in cases where an `:is()` is preferable but there's a longer alternative that is also equivalent. This update means esbuild can now generate a combinatorial explosion of CSS for complex CSS nesting syntax when targeting browsers that don't support `:is()`. This combinatorial explosion is necessary to accurately represent the original semantics. For example:
+
+    ```css
+    /* Original code */
+    .first,
+    .second,
+    .third {
+      & > & {
+        color: red;
+      }
+    }
+
+    /* Old output (with --target=chrome80) */
+    :is(.first, .second, .third) > :is(.first, .second, .third) {
+      color: red;
+    }
+
+    /* New output (with --target=chrome80) */
+    .first > .first,
+    .first > .second,
+    .first > .third,
+    .second > .first,
+    .second > .second,
+    .second > .third,
+    .third > .first,
+    .third > .second,
+    .third > .third {
+      color: red;
+    }
+    ```
+
+    This change means you can now use CSS nesting with esbuild when targeting an older browser that doesn't support `:is()`. You'll now only get a warning from esbuild if you use complex CSS nesting syntax that esbuild can't represent in that older browser without using `:is()`. There are two such cases:
+
+    ```css
+    /* Case 1 */
+    a b {
+      .foo & {
+        color: red;
+      }
+    }
+
+    /* Case 2 */
+    a {
+      > b& {
+        color: red;
+      }
+    }
+    ```
+
+    These two cases still need to use `:is()`, both for different reasons, and cannot be used when targeting an older browser that doesn't support `:is()`:
+
+    ```css
+    /* Case 1 */
+    .foo :is(a b) {
+      color: red;
+    }
+
+    /* Case 2 */
+    a > a:is(b) {
+      color: red;
+    }
+    ```
+
 * Automatically lower `inset` in CSS for older browsers
 
     With this release, esbuild will now automatically expand the `inset` property to the `top`, `right`, `bottom`, and `left` properties when esbuild's `target` is set to a browser that doesn't support `inset`:

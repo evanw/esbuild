@@ -258,11 +258,9 @@ type parseComplexSelectorOpts struct {
 
 func (p *parser) parseComplexSelector(opts parseComplexSelectorOpts) (result css_ast.ComplexSelector, ok bool) {
 	// This is an extension: https://drafts.csswg.org/css-nesting-1/
-	r := p.current().Range
 	combinator := p.parseCombinator()
 	if combinator.Byte != 0 {
 		p.shouldLowerNesting = true
-		p.reportUseOfNesting(r, opts.isDeclarationContext)
 		p.eat(css_lexer.TWhitespace)
 	}
 
@@ -324,7 +322,6 @@ func (p *parser) parseCompoundSelector(opts parseComplexSelectorOpts) (sel css_a
 	hasLeadingNestingSelector := p.peek(css_lexer.TDelimAmpersand)
 	if hasLeadingNestingSelector {
 		p.shouldLowerNesting = true
-		p.reportUseOfNesting(p.current().Range, opts.isDeclarationContext)
 		sel.NestingSelectorLoc = ast.MakeIndex32(uint32(startLoc.Start))
 		p.advance()
 	}
@@ -439,7 +436,6 @@ subclassSelectors:
 		case css_lexer.TDelimAmpersand:
 			// This is an extension: https://drafts.csswg.org/css-nesting-1/
 			p.shouldLowerNesting = true
-			p.reportUseOfNesting(subclassToken.Range, sel.HasNestingSelector())
 			sel.NestingSelectorLoc = ast.MakeIndex32(uint32(subclassToken.Range.Loc.Start))
 			p.advance()
 
@@ -468,7 +464,7 @@ subclassSelectors:
 		suggestion := p.source.TextForRange(r)
 		if opts.isFirst {
 			suggestion = fmt.Sprintf(":is(%s)", suggestion)
-			howToFix = "You can wrap this selector in \":is()\" as a workaround. "
+			howToFix = "You can wrap this selector in \":is(...)\" as a workaround. "
 		} else {
 			r = logger.Range{Loc: startLoc, Len: r.End() - startLoc.Start}
 			suggestion += "&"

@@ -180,6 +180,18 @@ console.log(void 0);
 
 ================================================================================
 TestCSSNestingOldBrowser
+---------- /out/two-type-selectors.css ----------
+/* two-type-selectors.css */
+.c a:is(b) {
+  color: red;
+}
+
+---------- /out/two-parent-selectors.css ----------
+/* two-parent-selectors.css */
+.c :is(a b) {
+  color: red;
+}
+
 ---------- /out/nested-@layer.css ----------
 /* nested-@layer.css */
 @layer base {

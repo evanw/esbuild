@@ -925,6 +925,10 @@ func TestCSSExternalQueryAndHashMatchIssue1822(t *testing.T) {
 func TestCSSNestingOldBrowser(t *testing.T) {
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
+			// These are now the only two cases that warn about ":is" not being supported
+			"/two-type-selectors.css":   `a { .c b& { color: red; } }`,
+			"/two-parent-selectors.css": `a b { .c & { color: red; } }`,
+
 			"/nested-@layer.css":          `a { @layer base { color: red; } }`,
 			"/nested-@media.css":          `a { @media screen { color: red; } }`,
 			"/nested-ampersand-twice.css": `a { &, & { color: red; } }`,
@@ -963,6 +967,9 @@ func TestCSSNestingOldBrowser(t *testing.T) {
 			"/page-no-warning.css": `@page { @top-left { background: red } }`,
 		},
 		entryPaths: []string{
+			"/two-type-selectors.css",
+			"/two-parent-selectors.css",
+
 			"/nested-@layer.css",
 			"/nested-@media.css",
 			"/nested-ampersand-twice.css",
@@ -1005,31 +1012,10 @@ func TestCSSNestingOldBrowser(t *testing.T) {
 			UnsupportedCSSFeatures: compat.Nesting | compat.IsPseudoClass,
 			OriginalTargetEnv:      "chrome10",
 		},
-		expectedScanLog: `media-ampersand-first.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
-media-ampersand-second.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
-media-ampersand-twice.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
-media-ampersand-twice.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
-media-greaterthan.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
-media-plus.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
-media-tilde.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
-nested-@layer.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
-nested-@media.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
-nested-ampersand-first.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
-nested-ampersand-twice.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
-nested-attribute.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
-nested-colon.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
-nested-dot.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
-nested-greaterthan.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
-nested-hash.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
-nested-plus.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
-nested-tilde.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
-toplevel-ampersand-first.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
-toplevel-ampersand-second.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
-toplevel-ampersand-twice.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
-toplevel-ampersand-twice.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
-toplevel-greaterthan.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
-toplevel-plus.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
-toplevel-tilde.css: WARNING: CSS nesting syntax is not supported in the configured target environment (chrome10)
+		expectedScanLog: `two-parent-selectors.css: WARNING: Transforming this CSS nesting syntax is not supported in the configured target environment (chrome10)
+NOTE: The nesting transform for this case must generate an ":is(...)" but the configured target environment does not support the ":is" pseudo-class.
+two-type-selectors.css: WARNING: Transforming this CSS nesting syntax is not supported in the configured target environment (chrome10)
+NOTE: The nesting transform for this case must generate an ":is(...)" but the configured target environment does not support the ":is" pseudo-class.
 `,
 	})
 }

@@ -1,7 +1,10 @@
 package css_parser
 
 import (
+	"fmt"
+
 	"github.com/evanw/esbuild/internal/ast"
+	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/css_ast"
 	"github.com/evanw/esbuild/internal/logger"
 )
@@ -153,6 +156,12 @@ func (p *parser) lowerNestingInRuleWithContext(rule css_ast.Rule, context *lower
 			}
 		}
 
+		// Avoid generating ":is" if it's not supported
+		if p.options.unsupportedCSSFeatures.Has(compat.IsPseudoClass) && len(r.Selectors) > 1 {
+			canUseGroupDescendantCombinator = false
+			canUseGroupSubSelector = false
+		}
+
 		// Try to apply simplifications for shorter output
 		if canUseGroupDescendantCombinator {
 			// "& a, & b {}" => "& :is(a, b) {}"
@@ -179,14 +188,104 @@ func (p *parser) lowerNestingInRuleWithContext(rule css_ast.Rule, context *lower
 		}
 
 		// Pass 2: Substitue "&" for the parent selector
-		for i := range r.Selectors {
-			complex := &r.Selectors[i]
-			results := make([]css_ast.CompoundSelector, 0, len(complex.Selectors))
-			parent := p.multipleComplexSelectorsToSingleComplexSelector(context.parentSelectors)
-			for _, compound := range complex.Selectors {
-				results = p.substituteAmpersandsInCompoundSelector(compound, parent, results, keepLeadingCombinator)
+		if !p.options.unsupportedCSSFeatures.Has(compat.IsPseudoClass) || len(context.parentSelectors) <= 1 {
+			// If we can use ":is", or we don't have to because there's only one
+			// parent selector, or we are using ":is()" to match zero parent selectors
+			// (even if ":is" is unsupported), then substituting "&" for the parent
+			// selector is easy.
+			for i := range r.Selectors {
+				complex := &r.Selectors[i]
+				results := make([]css_ast.CompoundSelector, 0, len(complex.Selectors))
+				parent := p.multipleComplexSelectorsToSingleComplexSelector(context.parentSelectors)
+				for _, compound := range complex.Selectors {
+					results = p.substituteAmpersandsInCompoundSelector(compound, parent, results, keepLeadingCombinator)
+				}
+				complex.Selectors = results
 			}
-			complex.Selectors = results
+		} else {
+			// Otherwise if we can't use ":is", the transform is more complicated.
+			// Avoiding ":is" can lead to a combinatorial explosion of cases so we
+			// want to avoid this if possible. For example:
+			//
+			//   .first, .second, .third {
+			//     & > & {
+			//       color: red;
+			//     }
+			//   }
+			//
+			// If we can use ":is" (the easy case above) then we can do this:
+			//
+			//   :is(.first, .second, .third) > :is(.first, .second, .third) {
+			//     color: red;
+			//   }
+			//
+			// But if we can't use ":is" then we have to do this instead:
+			//
+			//   .first > .first,
+			//   .first > .second,
+			//   .first > .third,
+			//   .second > .first,
+			//   .second > .second,
+			//   .second > .third,
+			//   .third > .first,
+			//   .third > .second,
+			//   .third > .third {
+			//     color: red;
+			//   }
+			//
+			// That combinatorial explosion is what the loop below implements. Note
+			// that PostCSS's implementation of nesting gets this wrong. It generates
+			// this instead:
+			//
+			//   .first > .first,
+			//   .second > .second,
+			//   .third > .third {
+			//     color: red;
+			//   }
+			//
+			// That's not equivalent, so that's an incorrect transformation.
+			var selectors []css_ast.ComplexSelector
+			var indices []int
+			for {
+				// Every time we encounter another "&", add another dimension
+				offset := 0
+				parent := func(loc logger.Loc) css_ast.ComplexSelector {
+					if offset == len(indices) {
+						indices = append(indices, 0)
+					}
+					index := indices[offset]
+					offset++
+					return context.parentSelectors[index]
+				}
+
+				// Do the substitution for this particular combination
+				for i := range r.Selectors {
+					complex := r.Selectors[i]
+					results := make([]css_ast.CompoundSelector, 0, len(complex.Selectors))
+					for _, compound := range complex.Selectors {
+						results = p.substituteAmpersandsInCompoundSelector(compound, parent, results, keepLeadingCombinator)
+					}
+					complex.Selectors = results
+					selectors = append(selectors, complex)
+					offset = 0
+				}
+
+				// Do addition with carry on the indices across dimensions
+				carry := len(indices)
+				for carry > 0 {
+					index := &indices[carry-1]
+					if *index+1 < len(context.parentSelectors) {
+						*index++
+						break
+					}
+					*index = 0
+					carry--
+				}
+				if carry == 0 {
+					break
+				}
+			}
+			r.Selectors = selectors
 		}
 
 		// Lower all child rules using our newly substituted selector
@@ -275,6 +374,7 @@ func (p *parser) substituteAmpersandsInCompoundSelector(
 		} else {
 			// ".foo .bar { :hover & {} }" => ":hover :is(.foo .bar) {}"
 			// ".foo .bar { > &:hover {} }" => ".foo .bar > :is(.foo .bar):hover {}"
+			p.reportNestingWithGeneratedPseudoClassIs(logger.Range{Loc: nestingSelectorLoc, Len: 1})
 			single = css_ast.CompoundSelector{
 				SubclassSelectors: []css_ast.SubclassSelector{{
 					Loc: nestingSelectorLoc,
@@ -291,6 +391,7 @@ func (p *parser) substituteAmpersandsInCompoundSelector(
 		// Insert the type selector
 		if single.TypeSelector != nil {
 			if sel.TypeSelector != nil {
+				p.reportNestingWithGeneratedPseudoClassIs(logger.Range{Loc: nestingSelectorLoc, Len: 1})
 				subclassSelectorPrefix = append(subclassSelectorPrefix, css_ast.SubclassSelector{
 					Loc: sel.TypeSelector.FirstLoc(),
 					Data: &css_ast.SSPseudoClassWithSelectorList{
@@ -361,5 +462,16 @@ func (p *parser) multipleComplexSelectorsToSingleComplexSelector(selectors []css
 				}},
 			}},
 		}
+	}
+}
+
+func (p *parser) reportNestingWithGeneratedPseudoClassIs(r logger.Range) {
+	if p.options.unsupportedCSSFeatures.Has(compat.IsPseudoClass) {
+		text := "Transforming this CSS nesting syntax is not supported in the configured target environment"
+		if p.options.originalTargetEnv != "" {
+			text = fmt.Sprintf("%s (%s)", text, p.options.originalTargetEnv)
+		}
+		p.log.AddIDWithNotes(logger.MsgID_CSS_UnsupportedCSSNesting, logger.Warning, &p.tracker, r, text, []logger.MsgData{{
+			Text: "The nesting transform for this case must generate an \":is(...)\" but the configured target environment does not support the \":is\" pseudo-class."}})
 	}
 }
