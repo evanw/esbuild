@@ -10,22 +10,29 @@ declare const ESBUILD_VERSION: string
 declare function postMessage(message: any): void
 
 onmessage = ({ data: wasm }: { data: WebAssembly.Module | string }) => {
-  let decoder = new TextDecoder()
-  let fs = (globalThis as any).fs
+  let originalFs = (globalThis as any).fs
 
-  let stderr = ''
-  fs.writeSync = (fd: number, buffer: Uint8Array) => {
+  const writeSync = (fd: number, buffer: Uint8Array) => {
     if (fd === 1) {
       postMessage(buffer)
-    } else if (fd === 2) {
-      stderr += decoder.decode(buffer)
-      let parts = stderr.split('\n')
-      if (parts.length > 1) console.log(parts.slice(0, -1).join('\n'))
-      stderr = parts[parts.length - 1]
-    } else {
-      throw new Error('Bad write')
+      return
     }
-    return buffer.length
+    return originalFs.writeSync(fd, buffer)
+  }
+
+  const write = (
+    fd: number, buffer: Uint8Array, offset: number, length: number,
+    position: null, callback: (err: Error | null, count?: number) => void
+  ) => {
+    if (fd === 1) {
+      if (offset !== 0 || length !== buffer.length || position !== null) {
+        throw new Error('Bad write')
+      }
+      postMessage(buffer)
+      callback(null, buffer.length)
+      return
+    }
+    return originalFs.write(fd, buffer, offset, length, position, callback)
   }
 
   let stdin: Uint8Array[] = []
@@ -39,28 +46,48 @@ onmessage = ({ data: wasm }: { data: WebAssembly.Module | string }) => {
     }
   }
 
-  fs.read = (
+  const read = (
     fd: number, buffer: Uint8Array, offset: number, length: number,
     position: null, callback: (err: Error | null, count?: number) => void,
   ) => {
-    if (fd !== 0 || offset !== 0 || length !== buffer.length || position !== null) {
-      throw new Error('Bad read')
-    }
-
-    if (stdin.length === 0) {
-      resumeStdin = () => fs.read(fd, buffer, offset, length, position, callback)
+    if (fd === 0) {
+      if (offset !== 0 || length !== buffer.length || position !== null) {
+        throw new Error('Bad read')
+      }
+  
+      if (stdin.length === 0) {
+        resumeStdin = () => read(fd, buffer, offset, length, position, callback)
+        return
+      }
+  
+      let first = stdin[0]
+      let count = Math.max(0, Math.min(length, first.length - stdinPos))
+      buffer.set(first.subarray(stdinPos, stdinPos + count), offset)
+      stdinPos += count
+      if (stdinPos === first.length) {
+        stdin.shift()
+        stdinPos = 0
+      }
+      callback(null, count)
       return
     }
 
-    let first = stdin[0]
-    let count = Math.max(0, Math.min(length, first.length - stdinPos))
-    buffer.set(first.subarray(stdinPos, stdinPos + count), offset)
-    stdinPos += count
-    if (stdinPos === first.length) {
-      stdin.shift()
-      stdinPos = 0
-    }
-    callback(null, count)
+    return originalFs.read(fd, buffer, offset, length, position, callback)
+  }
+
+  (globalThis as any).fs = {
+    ...originalFs,
+    writeSync,
+    write,
+    read,
+  }
+
+  let process = (globalThis as any).process;
+  let defaultWD: string;
+  try {
+    defaultWD = process.cwd()
+  } catch {
+    defaultWD = "/"
   }
 
   let go: Go = new (globalThis as any).Go()
@@ -69,11 +96,11 @@ onmessage = ({ data: wasm }: { data: WebAssembly.Module | string }) => {
   // Try to instantiate the module in the worker, then report back to the main thread
   tryToInstantiateModule(wasm, go).then(
     instance => {
-      postMessage(null)
+      postMessage({ ok: defaultWD })
       go.run(instance)
     },
     error => {
-      postMessage(error)
+      postMessage({ error })
     },
   )
 }

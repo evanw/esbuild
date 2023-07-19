@@ -92,7 +92,7 @@ async function generateWorkerCode({ esbuildPath, wasm_exec_js, minify, target })
     for (let o = self; o; o = Object.getPrototypeOf(o))
       for (let k of Object.getOwnPropertyNames(o))
         if (!(k in globalThis))
-          Object.defineProperty(globalThis, k, { get: () => self[k] })
+          Object.defineProperty(globalThis, k, { get: () => self[k], set: (value) => Object.defineProperty(globalThis, k, { value }), configurable: true })
     ${wasm_exec_js.replace(/\bfs\./g, 'globalThis.fs.')}
     ${fs.readFileSync(path.join(repoDir, 'lib', 'shared', 'worker.ts'), 'utf8')}
     return m => onmessage(m)
