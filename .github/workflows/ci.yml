@@ -5,6 +5,7 @@ on:
     branches: ['*']
   pull_request:
     branches: ['*']
+  workflow_dispatch:
 
 permissions:
   contents: read  #  to fetch code (actions/checkout)
