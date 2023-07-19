@@ -6,7 +6,7 @@ import (
 	"github.com/evanw/esbuild/internal/logger"
 )
 
-func lowerNestingInRule(rule css_ast.Rule, results []css_ast.Rule) []css_ast.Rule {
+func (p *parser) lowerNestingInRule(rule css_ast.Rule, results []css_ast.Rule) []css_ast.Rule {
 	switch r := rule.Data.(type) {
 	case *css_ast.RSelector:
 		scope := func(loc logger.Loc) css_ast.ComplexSelector {
@@ -39,7 +39,7 @@ func lowerNestingInRule(rule css_ast.Rule, results []css_ast.Rule) []css_ast.Rul
 				//
 				substituted := make([]css_ast.CompoundSelector, 0, len(sel.Selectors))
 				for _, x := range sel.Selectors {
-					substituted = substituteAmpersandsInCompoundSelector(x, scope, substituted, keepLeadingCombinator)
+					substituted = p.substituteAmpersandsInCompoundSelector(x, scope, substituted, keepLeadingCombinator)
 				}
 				selectors[n] = css_ast.ComplexSelector{Selectors: substituted}
 				n++
@@ -56,7 +56,7 @@ func lowerNestingInRule(rule css_ast.Rule, results []css_ast.Rule) []css_ast.Rul
 			parentSelectors: selectors,
 			loweredRules:    results,
 		}
-		r.Rules = lowerNestingInRulesAndReturnRemaining(r.Rules, &context)
+		r.Rules = p.lowerNestingInRulesAndReturnRemaining(r.Rules, &context)
 
 		// Omit this selector entirely if it's now empty
 		if len(r.Rules) == 0 {
@@ -68,14 +68,14 @@ func lowerNestingInRule(rule css_ast.Rule, results []css_ast.Rule) []css_ast.Rul
 	case *css_ast.RKnownAt:
 		var rules []css_ast.Rule
 		for _, child := range r.Rules {
-			rules = lowerNestingInRule(child, rules)
+			rules = p.lowerNestingInRule(child, rules)
 		}
 		r.Rules = rules
 
 	case *css_ast.RAtLayer:
 		var rules []css_ast.Rule
 		for _, child := range r.Rules {
-			rules = lowerNestingInRule(child, rules)
+			rules = p.lowerNestingInRule(child, rules)
 		}
 		r.Rules = rules
 	}
@@ -84,10 +84,10 @@ func lowerNestingInRule(rule css_ast.Rule, results []css_ast.Rule) []css_ast.Rul
 }
 
 // Lower all children and filter out ones that become empty
-func lowerNestingInRulesAndReturnRemaining(rules []css_ast.Rule, context *lowerNestingContext) []css_ast.Rule {
+func (p *parser) lowerNestingInRulesAndReturnRemaining(rules []css_ast.Rule, context *lowerNestingContext) []css_ast.Rule {
 	n := 0
 	for _, child := range rules {
-		child = lowerNestingInRuleWithContext(child, context)
+		child = p.lowerNestingInRuleWithContext(child, context)
 		if child.Data != nil {
 			rules[n] = child
 			n++
@@ -101,7 +101,7 @@ type lowerNestingContext struct {
 	loweredRules    []css_ast.Rule
 }
 
-func lowerNestingInRuleWithContext(rule css_ast.Rule, context *lowerNestingContext) css_ast.Rule {
+func (p *parser) lowerNestingInRuleWithContext(rule css_ast.Rule, context *lowerNestingContext) css_ast.Rule {
 	switch r := rule.Data.(type) {
 	case *css_ast.RSelector:
 		// "a { & b {} }" => "a b {}"
@@ -162,7 +162,7 @@ func lowerNestingInRuleWithContext(rule css_ast.Rule, context *lowerNestingConte
 				sel := &r.Selectors[i]
 				sel.Selectors = sel.Selectors[1:]
 			}
-			merged := multipleComplexSelectorsToSingleComplexSelector(r.Selectors)(rule.Loc)
+			merged := p.multipleComplexSelectorsToSingleComplexSelector(r.Selectors)(rule.Loc)
 			merged.Selectors = append([]css_ast.CompoundSelector{{NestingSelectorLoc: nestingSelectorLoc}}, merged.Selectors...)
 			r.Selectors = []css_ast.ComplexSelector{merged}
 		} else if canUseGroupSubSelector {
@@ -173,7 +173,7 @@ func lowerNestingInRuleWithContext(rule css_ast.Rule, context *lowerNestingConte
 				sel := &r.Selectors[i]
 				sel.Selectors[0].NestingSelectorLoc = ast.Index32{}
 			}
-			merged := multipleComplexSelectorsToSingleComplexSelector(r.Selectors)(rule.Loc)
+			merged := p.multipleComplexSelectorsToSingleComplexSelector(r.Selectors)(rule.Loc)
 			merged.Selectors[0].NestingSelectorLoc = nestingSelectorLoc
 			r.Selectors = []css_ast.ComplexSelector{merged}
 		}
@@ -182,20 +182,20 @@ func lowerNestingInRuleWithContext(rule css_ast.Rule, context *lowerNestingConte
 		for i := range r.Selectors {
 			complex := &r.Selectors[i]
 			results := make([]css_ast.CompoundSelector, 0, len(complex.Selectors))
-			parent := multipleComplexSelectorsToSingleComplexSelector(context.parentSelectors)
+			parent := p.multipleComplexSelectorsToSingleComplexSelector(context.parentSelectors)
 			for _, compound := range complex.Selectors {
-				results = substituteAmpersandsInCompoundSelector(compound, parent, results, keepLeadingCombinator)
+				results = p.substituteAmpersandsInCompoundSelector(compound, parent, results, keepLeadingCombinator)
 			}
 			complex.Selectors = results
 		}
 
 		// Lower all child rules using our newly substituted selector
-		context.loweredRules = lowerNestingInRule(rule, context.loweredRules)
+		context.loweredRules = p.lowerNestingInRule(rule, context.loweredRules)
 		return css_ast.Rule{}
 
 	case *css_ast.RKnownAt:
 		childContext := lowerNestingContext{parentSelectors: context.parentSelectors}
-		r.Rules = lowerNestingInRulesAndReturnRemaining(r.Rules, &childContext)
+		r.Rules = p.lowerNestingInRulesAndReturnRemaining(r.Rules, &childContext)
 
 		// "div { @media screen { color: red } }" "@media screen { div { color: red } }"
 		if len(r.Rules) > 0 {
@@ -216,7 +216,7 @@ func lowerNestingInRuleWithContext(rule css_ast.Rule, context *lowerNestingConte
 	case *css_ast.RAtLayer:
 		// Lower all children and filter out ones that become empty
 		childContext := lowerNestingContext{parentSelectors: context.parentSelectors}
-		r.Rules = lowerNestingInRulesAndReturnRemaining(r.Rules, &childContext)
+		r.Rules = p.lowerNestingInRulesAndReturnRemaining(r.Rules, &childContext)
 
 		// "div { @layer foo { color: red } }" "@layer foo { div { color: red } }"
 		if len(r.Rules) > 0 {
@@ -243,7 +243,7 @@ const (
 	stripLeadingCombinator
 )
 
-func substituteAmpersandsInCompoundSelector(
+func (p *parser) substituteAmpersandsInCompoundSelector(
 	sel css_ast.CompoundSelector,
 	replacementFn func(logger.Loc) css_ast.ComplexSelector,
 	results []css_ast.CompoundSelector,
@@ -318,7 +318,7 @@ func substituteAmpersandsInCompoundSelector(
 			for _, complex := range class.Selectors {
 				inner := make([]css_ast.CompoundSelector, 0, len(complex.Selectors))
 				for _, sel := range complex.Selectors {
-					inner = substituteAmpersandsInCompoundSelector(sel, replacementFn, inner, stripLeadingCombinator)
+					inner = p.substituteAmpersandsInCompoundSelector(sel, replacementFn, inner, stripLeadingCombinator)
 				}
 				outer = append(outer, css_ast.ComplexSelector{Selectors: inner})
 			}
@@ -332,7 +332,7 @@ func substituteAmpersandsInCompoundSelector(
 // Turn the list of selectors into a single selector by wrapping lists
 // without a single element with ":is(...)". Note that this may result
 // in an empty ":is()" selector (which matches nothing).
-func multipleComplexSelectorsToSingleComplexSelector(selectors []css_ast.ComplexSelector) func(logger.Loc) css_ast.ComplexSelector {
+func (p *parser) multipleComplexSelectorsToSingleComplexSelector(selectors []css_ast.ComplexSelector) func(logger.Loc) css_ast.ComplexSelector {
 	if len(selectors) == 1 {
 		return func(logger.Loc) css_ast.ComplexSelector {
 			return selectors[0]

@@ -420,7 +420,7 @@ loop:
 
 			// Lower CSS nesting if it's not supported (but only at the top level)
 			if context.isTopLevel && p.shouldLowerNesting {
-				rules = lowerNestingInRule(rule, rules)
+				rules = p.lowerNestingInRule(rule, rules)
 			} else {
 				rules = append(rules, rule)
 			}
@@ -448,7 +448,7 @@ loop:
 
 		// Lower CSS nesting if it's not supported (but only at the top level)
 		if context.isTopLevel && p.shouldLowerNesting {
-			rules = lowerNestingInRule(rule, rules)
+			rules = p.lowerNestingInRule(rule, rules)
 		} else {
 			rules = append(rules, rule)
 		}
