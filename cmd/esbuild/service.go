@@ -383,6 +383,9 @@ func (service *serviceType) handleIncomingPacket(bytes []byte) {
 					if value, ok := request["certfile"]; ok {
 						options.Certfile = value.(string)
 					}
+					if value, ok := request["fallback"]; ok {
+						options.Fallback = value.(string)
+					}
 					if request["onRequest"].(bool) {
 						options.OnRequest = func(args api.ServeOnRequestArgs) {
 							// This could potentially be called after we return from

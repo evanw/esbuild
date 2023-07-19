@@ -30,6 +30,7 @@ export interface ServeRequest {
   servedir?: string
   keyfile?: string
   certfile?: string
+  fallback?: string
 }
 
 export interface ServeResponse {

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+* Add the `--serve-fallback=` option ([#2904](https://github.com/evanw/esbuild/issues/2904))
+
+    The web server built into esbuild serves the latest in-memory results of the configured build. If the requested path doesn't match any in-memory build result, esbuild also provides the `--servedir=` option to tell esbuild to serve the requested path from that directory instead. And if the requested path doesn't match either of those things, esbuild will either automatically generate a directory listing (for directories) or return a 404 error.
+
+    Starting with this release, that last step can now be replaced with telling esbuild to serve a specific HTML file using the `--serve-fallback=` option. This can be used to provide a "not found" page for missing URLs. It can also be used to implement a [single-page app](https://en.wikipedia.org/wiki/Single-page_application) that mutates the current URL and therefore requires the single app entry point to be served when the page is loaded regardless of whatever the current URL is.
+
 * Implement CSS nesting without `:is()` when possible ([#1945](https://github.com/evanw/esbuild/issues/1945))
 
     Previously esbuild would always produce a warning when transforming nested CSS for a browser that doesn't support the `:is()` pseudo-class. This was because the nesting transform needs to generate an `:is()` in some complex cases which means the transformed CSS would then not work in that browser. However, the CSS nesting transform can often be done without generating an `:is()`. So with this release, esbuild will no longer warn when targeting browsers that don't support `:is()` in the cases where an `:is()` isn't needed to represent the nested CSS.

@@ -842,6 +842,7 @@ func parseOptionsImpl(
 				"chunk-names":        true,
 				"color":              true,
 				"conditions":         true,
+				"drop-labels":        true,
 				"entry-names":        true,
 				"footer":             true,
 				"format":             true,
@@ -875,6 +876,7 @@ func parseOptionsImpl(
 				"public-path":        true,
 				"reserve-props":      true,
 				"resolve-extensions": true,
+				"serve-fallback":     true,
 				"serve":              true,
 				"servedir":           true,
 				"source-root":        true,
@@ -1082,7 +1084,10 @@ func runImpl(osArgs []string) int {
 
 	for _, arg := range osArgs {
 		// Special-case running a server
-		if arg == "--serve" || strings.HasPrefix(arg, "--serve=") || strings.HasPrefix(arg, "--servedir=") {
+		if arg == "--serve" ||
+			strings.HasPrefix(arg, "--serve=") ||
+			strings.HasPrefix(arg, "--servedir=") ||
+			strings.HasPrefix(arg, "--serve-fallback=") {
 			serveImpl(osArgs)
 			return 1 // There was an error starting the server if we get here
 		}
@@ -1339,6 +1344,7 @@ func parseServeOptionsImpl(osArgs []string) (api.ServeOptions, []string, error) 
 	servedir := ""
 	keyfile := ""
 	certfile := ""
+	fallback := ""
 
 	// Filter out server-specific flags
 	filteredArgs := make([]string, 0, len(osArgs))
@@ -1353,6 +1359,8 @@ func parseServeOptionsImpl(osArgs []string) (api.ServeOptions, []string, error) 
 			keyfile = arg[len("--keyfile="):]
 		} else if strings.HasPrefix(arg, "--certfile=") {
 			certfile = arg[len("--certfile="):]
+		} else if strings.HasPrefix(arg, "--serve-fallback=") {
+			fallback = arg[len("--serve-fallback="):]
 		} else {
 			filteredArgs = append(filteredArgs, arg)
 		}
@@ -1382,6 +1390,7 @@ func parseServeOptionsImpl(osArgs []string) (api.ServeOptions, []string, error) 
 		Servedir: servedir,
 		Keyfile:  keyfile,
 		Certfile: certfile,
+		Fallback: fallback,
 	}, filteredArgs, nil
 }
 

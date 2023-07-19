@@ -117,6 +117,7 @@ var helpText = func(colors logger.Colors) string {
   --reserve-props=...       Do not mangle these properties
   --resolve-extensions=...  A comma-separated list of implicit extensions
                             (default ".tsx,.ts,.jsx,.js,.css,.json")
+  --serve-fallback=...      Serve this HTML page when the request doesn't match
   --servedir=...            What to serve in addition to generated output files
   --source-root=...         Sets the "sourceRoot" field in generated source maps
   --sourcefile=...          Set the source file for the source map (for stdin)

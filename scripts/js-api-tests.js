@@ -4489,7 +4489,7 @@ let serveTests = {
     }
   },
 
-  async serveWithFallbackDir({ esbuild, testDir }) {
+  async serveWithServedir({ esbuild, testDir }) {
     const input = path.join(testDir, 'in.js')
     const wwwDir = path.join(testDir, 'www')
     const index = path.join(wwwDir, 'index.html')
@@ -4551,7 +4551,7 @@ let serveTests = {
     }
   },
 
-  async serveWithFallbackDirAndSiblingOutputDir({ esbuild, testDir }) {
+  async serveWithServedirAndSiblingOutputDir({ esbuild, testDir }) {
     const context = await esbuild.context({
       entryPoints: [path.join(testDir, 'in.js')],
       outdir: 'out',
@@ -4568,7 +4568,7 @@ let serveTests = {
     }
   },
 
-  async serveWithFallbackDirAndParentOutputDir({ esbuild, testDir }) {
+  async serveWithServedirAndParentOutputDir({ esbuild, testDir }) {
     const context = await esbuild.context({
       entryPoints: [path.join(testDir, 'in.js')],
       outdir: testDir,
@@ -4586,7 +4586,7 @@ let serveTests = {
     }
   },
 
-  async serveWithFallbackDirAndOutputDir({ esbuild, testDir }) {
+  async serveWithServedirAndOutputDir({ esbuild, testDir }) {
     const input = path.join(testDir, 'in.js')
     const outputDir = path.join(testDir, 'www/out')
     const wwwDir = path.join(testDir, 'www')
@@ -4662,7 +4662,7 @@ let serveTests = {
     }
   },
 
-  async serveWithFallbackDirNoEntryPoints({ esbuild, testDir }) {
+  async serveWithServedirNoEntryPoints({ esbuild, testDir }) {
     const index = path.join(testDir, 'index.html')
     await writeFileAsync(index, `<!doctype html>`)
 
@@ -5088,6 +5088,52 @@ let serveTests = {
 
     // This stream should end once "dispose()" is called above
     await endPromise
+  },
+
+  async serveWithFallback({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    const wwwDir = path.join(testDir, 'www')
+    const index = path.join(wwwDir, 'app', 'index.html')
+    const fallback = path.join(testDir, 'fallback.html')
+    await mkdirAsync(path.dirname(index), { recursive: true })
+    await writeFileAsync(input, `console.log(123)`)
+    await writeFileAsync(index, `<p>index</p>`)
+    await writeFileAsync(fallback, `<p>fallback</p>`)
+
+    const context = await esbuild.context({
+      entryPoints: [input],
+      format: 'esm',
+      outdir: wwwDir,
+      write: false,
+    });
+    try {
+      const result = await context.serve({
+        host: '127.0.0.1',
+        servedir: wwwDir,
+        fallback,
+      })
+      assert.strictEqual(result.host, '127.0.0.1');
+      assert.strictEqual(typeof result.port, 'number');
+
+      let buffer;
+
+      buffer = await fetch(result.host, result.port, '/in.js')
+      assert.strictEqual(buffer.toString(), `console.log(123);\n`);
+
+      buffer = await fetch(result.host, result.port, '/')
+      assert.strictEqual(buffer.toString(), `<p>fallback</p>`);
+
+      buffer = await fetch(result.host, result.port, '/app/')
+      assert.strictEqual(buffer.toString(), `<p>index</p>`);
+
+      buffer = await fetch(result.host, result.port, '/app/?foo')
+      assert.strictEqual(buffer.toString(), `<p>index</p>`);
+
+      buffer = await fetch(result.host, result.port, '/app/foo')
+      assert.strictEqual(buffer.toString(), `<p>fallback</p>`);
+    } finally {
+      await context.dispose();
+    }
   },
 }
 

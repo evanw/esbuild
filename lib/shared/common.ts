@@ -1092,6 +1092,7 @@ function buildOrContextImpl(
           const servedir = getFlag(options, keys, 'servedir', mustBeString)
           const keyfile = getFlag(options, keys, 'keyfile', mustBeString)
           const certfile = getFlag(options, keys, 'certfile', mustBeString)
+          const fallback = getFlag(options, keys, 'fallback', mustBeString)
           const onRequest = getFlag(options, keys, 'onRequest', mustBeFunction)
           checkForInvalidFlags(options, keys, `in serve() call`)
 
@@ -1105,6 +1106,7 @@ function buildOrContextImpl(
           if (servedir !== void 0) request.servedir = servedir
           if (keyfile !== void 0) request.keyfile = keyfile
           if (certfile !== void 0) request.certfile = certfile
+          if (fallback !== void 0) request.fallback = fallback
 
           sendRequest<protocol.ServeRequest, protocol.ServeResponse>(refs, request, (error, response) => {
             if (error) return reject(new Error(error))

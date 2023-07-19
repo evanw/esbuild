@@ -238,6 +238,7 @@ export interface ServeOptions {
   servedir?: string
   keyfile?: string
   certfile?: string
+  fallback?: string
   onRequest?: (args: ServeOnRequestArgs) => void
 }
 

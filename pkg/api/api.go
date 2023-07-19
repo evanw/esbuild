@@ -473,6 +473,7 @@ type ServeOptions struct {
 	Servedir  string
 	Keyfile   string
 	Certfile  string
+	Fallback  string
 	OnRequest func(ServeOnRequestArgs)
 }
 
