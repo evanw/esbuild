@@ -929,6 +929,9 @@ func TestCSSNestingOldBrowser(t *testing.T) {
 			"/two-type-selectors.css":   `a { .c b& { color: red; } }`,
 			"/two-parent-selectors.css": `a b { .c & { color: red; } }`,
 
+			// Make sure this only generates one warning (even though it generates ":is" three times)
+			"/only-one-warning.css": `.a, .b .c, .d { & > & { color: red; } }`,
+
 			"/nested-@layer.css":          `a { @layer base { color: red; } }`,
 			"/nested-@media.css":          `a { @media screen { color: red; } }`,
 			"/nested-ampersand-twice.css": `a { &, & { color: red; } }`,
@@ -969,6 +972,8 @@ func TestCSSNestingOldBrowser(t *testing.T) {
 		entryPaths: []string{
 			"/two-type-selectors.css",
 			"/two-parent-selectors.css",
+
+			"/only-one-warning.css",
 
 			"/nested-@layer.css",
 			"/nested-@media.css",
@@ -1012,7 +1017,9 @@ func TestCSSNestingOldBrowser(t *testing.T) {
 			UnsupportedCSSFeatures: compat.Nesting | compat.IsPseudoClass,
 			OriginalTargetEnv:      "chrome10",
 		},
-		expectedScanLog: `two-parent-selectors.css: WARNING: Transforming this CSS nesting syntax is not supported in the configured target environment (chrome10)
+		expectedScanLog: `only-one-warning.css: WARNING: Transforming this CSS nesting syntax is not supported in the configured target environment (chrome10)
+NOTE: The nesting transform for this case must generate an ":is(...)" but the configured target environment does not support the ":is" pseudo-class.
+two-parent-selectors.css: WARNING: Transforming this CSS nesting syntax is not supported in the configured target environment (chrome10)
 NOTE: The nesting transform for this case must generate an ":is(...)" but the configured target environment does not support the ":is" pseudo-class.
 two-type-selectors.css: WARNING: Transforming this CSS nesting syntax is not supported in the configured target environment (chrome10)
 NOTE: The nesting transform for this case must generate an ":is(...)" but the configured target environment does not support the ":is" pseudo-class.

@@ -374,7 +374,7 @@ func (p *parser) substituteAmpersandsInCompoundSelector(
 		} else {
 			// ".foo .bar { :hover & {} }" => ":hover :is(.foo .bar) {}"
 			// ".foo .bar { > &:hover {} }" => ".foo .bar > :is(.foo .bar):hover {}"
-			p.reportNestingWithGeneratedPseudoClassIs(logger.Range{Loc: nestingSelectorLoc, Len: 1})
+			p.reportNestingWithGeneratedPseudoClassIs(nestingSelectorLoc)
 			single = css_ast.CompoundSelector{
 				SubclassSelectors: []css_ast.SubclassSelector{{
 					Loc: nestingSelectorLoc,
@@ -391,7 +391,7 @@ func (p *parser) substituteAmpersandsInCompoundSelector(
 		// Insert the type selector
 		if single.TypeSelector != nil {
 			if sel.TypeSelector != nil {
-				p.reportNestingWithGeneratedPseudoClassIs(logger.Range{Loc: nestingSelectorLoc, Len: 1})
+				p.reportNestingWithGeneratedPseudoClassIs(nestingSelectorLoc)
 				subclassSelectorPrefix = append(subclassSelectorPrefix, css_ast.SubclassSelector{
 					Loc: sel.TypeSelector.FirstLoc(),
 					Data: &css_ast.SSPseudoClassWithSelectorList{
@@ -465,12 +465,22 @@ func (p *parser) multipleComplexSelectorsToSingleComplexSelector(selectors []css
 	}
 }
 
-func (p *parser) reportNestingWithGeneratedPseudoClassIs(r logger.Range) {
+func (p *parser) reportNestingWithGeneratedPseudoClassIs(nestingSelectorLoc logger.Loc) {
 	if p.options.unsupportedCSSFeatures.Has(compat.IsPseudoClass) {
+		_, didWarn := p.nestingWarnings[nestingSelectorLoc]
+		if didWarn {
+			// Only warn at each location once
+			return
+		}
+		if p.nestingWarnings == nil {
+			p.nestingWarnings = make(map[logger.Loc]struct{})
+		}
+		p.nestingWarnings[nestingSelectorLoc] = struct{}{}
 		text := "Transforming this CSS nesting syntax is not supported in the configured target environment"
 		if p.options.originalTargetEnv != "" {
 			text = fmt.Sprintf("%s (%s)", text, p.options.originalTargetEnv)
 		}
+		r := logger.Range{Loc: nestingSelectorLoc, Len: 1}
 		p.log.AddIDWithNotes(logger.MsgID_CSS_UnsupportedCSSNesting, logger.Warning, &p.tracker, r, text, []logger.MsgData{{
 			Text: "The nesting transform for this case must generate an \":is(...)\" but the configured target environment does not support the \":is\" pseudo-class."}})
 	}

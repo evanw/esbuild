@@ -26,6 +26,7 @@ type parser struct {
 	symbols            []ast.Symbol
 	localSymbolMap     map[string]ast.Ref
 	globalSymbolMap    map[string]ast.Ref
+	nestingWarnings    map[logger.Loc]struct{}
 	tracker            logger.LineColumnTracker
 	index              int
 	end                int
