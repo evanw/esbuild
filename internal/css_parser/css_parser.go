@@ -419,7 +419,7 @@ loop:
 			}
 
 			// Lower CSS nesting if it's not supported (but only at the top level)
-			if context.isTopLevel && p.shouldLowerNesting {
+			if p.shouldLowerNesting && p.options.unsupportedCSSFeatures.Has(compat.Nesting) && context.isTopLevel {
 				rules = p.lowerNestingInRule(rule, rules)
 			} else {
 				rules = append(rules, rule)
@@ -447,7 +447,7 @@ loop:
 		}
 
 		// Lower CSS nesting if it's not supported (but only at the top level)
-		if context.isTopLevel && p.shouldLowerNesting {
+		if p.shouldLowerNesting && p.options.unsupportedCSSFeatures.Has(compat.Nesting) && context.isTopLevel {
 			rules = p.lowerNestingInRule(rule, rules)
 		} else {
 			rules = append(rules, rule)
@@ -505,6 +505,7 @@ func (p *parser) parseListOfDeclarations(opts listOfDeclarationsOpts) (list []cs
 
 		case css_lexer.TAtKeyword:
 			if p.inSelectorSubtree > 0 {
+				p.shouldLowerNesting = true
 				p.reportUseOfNesting(p.current().Range, false)
 			}
 			list = append(list, p.parseAtRule(atRuleContext{
@@ -523,6 +524,7 @@ func (p *parser) parseListOfDeclarations(opts listOfDeclarationsOpts) (list []cs
 			css_lexer.TDelimPlus,
 			css_lexer.TDelimGreaterThan,
 			css_lexer.TDelimTilde:
+			p.shouldLowerNesting = true
 			p.reportUseOfNesting(p.current().Range, false)
 			list = append(list, p.parseSelectorRuleFrom(p.index, false, parseSelectorOpts{isDeclarationContext: true}))
 			foundNesting = true
@@ -1474,15 +1476,12 @@ func (p *parser) expectValidLayerNameIdent() (string, bool) {
 }
 
 func (p *parser) reportUseOfNesting(r logger.Range, didWarnAlready bool) {
-	if p.options.unsupportedCSSFeatures.Has(compat.Nesting) {
-		p.shouldLowerNesting = true
-		if p.options.unsupportedCSSFeatures.Has(compat.IsPseudoClass) && !didWarnAlready {
-			text := "CSS nesting syntax is not supported in the configured target environment"
-			if p.options.originalTargetEnv != "" {
-				text = fmt.Sprintf("%s (%s)", text, p.options.originalTargetEnv)
-			}
-			p.log.AddID(logger.MsgID_CSS_UnsupportedCSSNesting, logger.Warning, &p.tracker, r, text)
+	if p.options.unsupportedCSSFeatures.Has(compat.Nesting) && p.options.unsupportedCSSFeatures.Has(compat.IsPseudoClass) && !didWarnAlready {
+		text := "CSS nesting syntax is not supported in the configured target environment"
+		if p.options.originalTargetEnv != "" {
+			text = fmt.Sprintf("%s (%s)", text, p.options.originalTargetEnv)
 		}
+		p.log.AddID(logger.MsgID_CSS_UnsupportedCSSNesting, logger.Warning, &p.tracker, r, text)
 	}
 }
 

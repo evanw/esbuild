@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/evanw/esbuild/internal/ast"
-	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/css_ast"
 	"github.com/evanw/esbuild/internal/css_lexer"
 	"github.com/evanw/esbuild/internal/logger"
@@ -211,9 +210,7 @@ func (p *parser) flattenLocalAndGlobalSelectors(list []css_ast.ComplexSelector, 
 			})
 
 			// Make sure we report that nesting is present so that it can be lowered
-			if p.options.unsupportedCSSFeatures.Has(compat.Nesting) {
-				p.shouldLowerNesting = true
-			}
+			p.shouldLowerNesting = true
 		}
 
 		sel.Selectors = selectors
@@ -264,6 +261,7 @@ func (p *parser) parseComplexSelector(opts parseComplexSelectorOpts) (result css
 	r := p.current().Range
 	combinator := p.parseCombinator()
 	if combinator.Byte != 0 {
+		p.shouldLowerNesting = true
 		p.reportUseOfNesting(r, opts.isDeclarationContext)
 		p.eat(css_lexer.TWhitespace)
 	}
@@ -325,6 +323,7 @@ func (p *parser) parseCompoundSelector(opts parseComplexSelectorOpts) (sel css_a
 	// This is an extension: https://drafts.csswg.org/css-nesting-1/
 	hasLeadingNestingSelector := p.peek(css_lexer.TDelimAmpersand)
 	if hasLeadingNestingSelector {
+		p.shouldLowerNesting = true
 		p.reportUseOfNesting(p.current().Range, opts.isDeclarationContext)
 		sel.NestingSelectorLoc = ast.MakeIndex32(uint32(startLoc.Start))
 		p.advance()
@@ -439,6 +438,7 @@ subclassSelectors:
 
 		case css_lexer.TDelimAmpersand:
 			// This is an extension: https://drafts.csswg.org/css-nesting-1/
+			p.shouldLowerNesting = true
 			p.reportUseOfNesting(subclassToken.Range, sel.HasNestingSelector())
 			sel.NestingSelectorLoc = ast.MakeIndex32(uint32(subclassToken.Range.Loc.Start))
 			p.advance()
