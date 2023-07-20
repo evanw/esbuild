@@ -5,6 +5,8 @@ export type LogLevel = 'verbose' | 'debug' | 'info' | 'warning' | 'error' | 'sil
 export type Charset = 'ascii' | 'utf8'
 export type Drop = 'console' | 'debugger'
 
+export type JSONValue = string | number | boolean | { [key: string]: JSONValue } | JSONValue[]
+
 interface CommonOptions {
   /** Documentation: https://esbuild.github.io/api/#sourcemap */
   sourcemap?: boolean | 'linked' | 'inline' | 'external' | 'both'
@@ -69,7 +71,7 @@ interface CommonOptions {
   jsxSideEffects?: boolean
 
   /** Documentation: https://esbuild.github.io/api/#define */
-  define?: { [key: string]: string }
+  define?: { [key: string]: JSONValue }
   /** Documentation: https://esbuild.github.io/api/#pure */
   pure?: string[]
   /** Documentation: https://esbuild.github.io/api/#keep-names */
