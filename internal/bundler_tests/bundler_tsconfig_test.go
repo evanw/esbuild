@@ -10,7 +10,7 @@ var tsconfig_suite = suite{
 	name: "tsconfig",
 }
 
-func TestTsConfigPaths(t *testing.T) {
+func TestTsconfigPaths(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/entry.ts": `
@@ -183,7 +183,7 @@ func TestTsConfigPaths(t *testing.T) {
 	})
 }
 
-func TestTsConfigPathsNoBaseURL(t *testing.T) {
+func TestTsconfigPathsNoBaseURL(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/entry.ts": `
@@ -323,7 +323,7 @@ func TestTsConfigPathsNoBaseURL(t *testing.T) {
 	})
 }
 
-func TestTsConfigBadPathsNoBaseURL(t *testing.T) {
+func TestTsconfigBadPathsNoBaseURL(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/entry.ts": `
@@ -381,7 +381,7 @@ Users/user/project/tsconfig.json: WARNING: Non-relative path "http://bad" is not
 }
 
 // https://github.com/evanw/esbuild/issues/913
-func TestTsConfigPathsOverriddenBaseURL(t *testing.T) {
+func TestTsconfigPathsOverriddenBaseURL(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.ts": `
@@ -417,7 +417,7 @@ func TestTsConfigPathsOverriddenBaseURL(t *testing.T) {
 	})
 }
 
-func TestTsConfigPathsOverriddenBaseURLDifferentDir(t *testing.T) {
+func TestTsconfigPathsOverriddenBaseURLDifferentDir(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.ts": `
@@ -453,7 +453,7 @@ func TestTsConfigPathsOverriddenBaseURLDifferentDir(t *testing.T) {
 	})
 }
 
-func TestTsConfigPathsMissingBaseURL(t *testing.T) {
+func TestTsconfigPathsMissingBaseURL(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.ts": `
@@ -491,7 +491,7 @@ NOTE: You can mark the path "#/test" as external to exclude it from the bundle, 
 	})
 }
 
-func TestTsConfigPathsTypeOnly(t *testing.T) {
+func TestTsconfigPathsTypeOnly(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/entry.ts": `
@@ -529,7 +529,7 @@ func TestTsConfigPathsTypeOnly(t *testing.T) {
 	})
 }
 
-func TestTsConfigJSX(t *testing.T) {
+func TestTsconfigJSX(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/entry.tsx": `
@@ -552,7 +552,7 @@ func TestTsConfigJSX(t *testing.T) {
 	})
 }
 
-func TestTsConfigNestedJSX(t *testing.T) {
+func TestTsconfigNestedJSX(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/entry.ts": `
@@ -601,7 +601,7 @@ func TestTsConfigNestedJSX(t *testing.T) {
 	})
 }
 
-func TestTsConfigPreserveJSX(t *testing.T) {
+func TestTsconfigPreserveJSX(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/entry.tsx": `
@@ -623,7 +623,7 @@ func TestTsConfigPreserveJSX(t *testing.T) {
 	})
 }
 
-func TestTsConfigPreserveJSXAutomatic(t *testing.T) {
+func TestTsconfigPreserveJSXAutomatic(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/entry.tsx": `
@@ -653,7 +653,7 @@ func TestTsConfigPreserveJSXAutomatic(t *testing.T) {
 	})
 }
 
-func TestTsConfigReactJSX(t *testing.T) {
+func TestTsconfigReactJSX(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/entry.tsx": `
@@ -681,7 +681,7 @@ func TestTsConfigReactJSX(t *testing.T) {
 	})
 }
 
-func TestTsConfigReactJSXDev(t *testing.T) {
+func TestTsconfigReactJSXDev(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/entry.tsx": `
@@ -708,7 +708,7 @@ func TestTsConfigReactJSXDev(t *testing.T) {
 	})
 }
 
-func TestTsConfigReactJSXWithDevInMainConfig(t *testing.T) {
+func TestTsconfigReactJSXWithDevInMainConfig(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/entry.tsx": `
@@ -1501,7 +1501,7 @@ func TestTsconfigIgnoredTargetSilent(t *testing.T) {
 	})
 }
 
-func TestTsConfigNoBaseURLExtendsPaths(t *testing.T) {
+func TestTsconfigNoBaseURLExtendsPaths(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.ts": `
@@ -1534,7 +1534,7 @@ NOTE: You can mark the path "foo" as external to exclude it from the bundle, whi
 	})
 }
 
-func TestTsConfigBaseURLExtendsPaths(t *testing.T) {
+func TestTsconfigBaseURLExtendsPaths(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.ts": `
@@ -1566,7 +1566,7 @@ func TestTsConfigBaseURLExtendsPaths(t *testing.T) {
 	})
 }
 
-func TestTsConfigPathsExtendsBaseURL(t *testing.T) {
+func TestTsconfigPathsExtendsBaseURL(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.ts": `
@@ -1598,7 +1598,7 @@ func TestTsConfigPathsExtendsBaseURL(t *testing.T) {
 	})
 }
 
-func TestTsConfigPathsInNodeModulesIssue2386(t *testing.T) {
+func TestTsconfigPathsInNodeModulesIssue2386(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/main.js": `
@@ -1645,7 +1645,7 @@ func TestTsConfigPathsInNodeModulesIssue2386(t *testing.T) {
 	})
 }
 
-func TestTsConfigWithStatementAlwaysStrictFalse(t *testing.T) {
+func TestTsconfigWithStatementAlwaysStrictFalse(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.ts": `
@@ -1666,7 +1666,7 @@ func TestTsConfigWithStatementAlwaysStrictFalse(t *testing.T) {
 	})
 }
 
-func TestTsConfigWithStatementAlwaysStrictTrue(t *testing.T) {
+func TestTsconfigWithStatementAlwaysStrictTrue(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.ts": `
@@ -1689,7 +1689,7 @@ Users/user/project/tsconfig.json: NOTE: TypeScript's "alwaysStrict" setting was 
 	})
 }
 
-func TestTsConfigWithStatementStrictFalse(t *testing.T) {
+func TestTsconfigWithStatementStrictFalse(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.ts": `
@@ -1710,7 +1710,7 @@ func TestTsConfigWithStatementStrictFalse(t *testing.T) {
 	})
 }
 
-func TestTsConfigWithStatementStrictTrue(t *testing.T) {
+func TestTsconfigWithStatementStrictTrue(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.ts": `
@@ -1733,7 +1733,7 @@ Users/user/project/tsconfig.json: NOTE: TypeScript's "strict" setting was enable
 	})
 }
 
-func TestTsConfigWithStatementStrictFalseAlwaysStrictTrue(t *testing.T) {
+func TestTsconfigWithStatementStrictFalseAlwaysStrictTrue(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.ts": `
@@ -1757,7 +1757,7 @@ Users/user/project/tsconfig.json: NOTE: TypeScript's "alwaysStrict" setting was 
 	})
 }
 
-func TestTsConfigWithStatementStrictTrueAlwaysStrictFalse(t *testing.T) {
+func TestTsconfigWithStatementStrictTrueAlwaysStrictFalse(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.ts": `
@@ -1779,7 +1779,7 @@ func TestTsConfigWithStatementStrictTrueAlwaysStrictFalse(t *testing.T) {
 	})
 }
 
-func TestTsConfigAlwaysStrictTrueEmitDirectivePassThrough(t *testing.T) {
+func TestTsconfigAlwaysStrictTrueEmitDirectivePassThrough(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/implicit.ts": `
@@ -1806,7 +1806,7 @@ func TestTsConfigAlwaysStrictTrueEmitDirectivePassThrough(t *testing.T) {
 	})
 }
 
-func TestTsConfigAlwaysStrictTrueEmitDirectiveFormat(t *testing.T) {
+func TestTsconfigAlwaysStrictTrueEmitDirectiveFormat(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/implicit.ts": `
@@ -1833,7 +1833,7 @@ func TestTsConfigAlwaysStrictTrueEmitDirectiveFormat(t *testing.T) {
 	})
 }
 
-func TestTsConfigAlwaysStrictTrueEmitDirectiveBundleIIFE(t *testing.T) {
+func TestTsconfigAlwaysStrictTrueEmitDirectiveBundleIIFE(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/implicit.ts": `
@@ -1861,7 +1861,7 @@ func TestTsConfigAlwaysStrictTrueEmitDirectiveBundleIIFE(t *testing.T) {
 	})
 }
 
-func TestTsConfigAlwaysStrictTrueEmitDirectiveBundleCJS(t *testing.T) {
+func TestTsconfigAlwaysStrictTrueEmitDirectiveBundleCJS(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/implicit.ts": `
@@ -1889,7 +1889,7 @@ func TestTsConfigAlwaysStrictTrueEmitDirectiveBundleCJS(t *testing.T) {
 	})
 }
 
-func TestTsConfigAlwaysStrictTrueEmitDirectiveBundleESM(t *testing.T) {
+func TestTsconfigAlwaysStrictTrueEmitDirectiveBundleESM(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/implicit.ts": `
@@ -1917,7 +1917,7 @@ func TestTsConfigAlwaysStrictTrueEmitDirectiveBundleESM(t *testing.T) {
 	})
 }
 
-func TestTsConfigExtendsDotWithoutSlash(t *testing.T) {
+func TestTsconfigExtendsDotWithoutSlash(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/main.tsx": `
@@ -1942,7 +1942,7 @@ func TestTsConfigExtendsDotWithoutSlash(t *testing.T) {
 	})
 }
 
-func TestTsConfigExtendsDotDotWithoutSlash(t *testing.T) {
+func TestTsconfigExtendsDotDotWithoutSlash(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/main.tsx": `
@@ -1966,7 +1966,7 @@ func TestTsConfigExtendsDotDotWithoutSlash(t *testing.T) {
 	})
 }
 
-func TestTsConfigExtendsDotWithSlash(t *testing.T) {
+func TestTsconfigExtendsDotWithSlash(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/main.tsx": `
@@ -1993,7 +1993,7 @@ func TestTsConfigExtendsDotWithSlash(t *testing.T) {
 	})
 }
 
-func TestTsConfigExtendsDotDotWithSlash(t *testing.T) {
+func TestTsconfigExtendsDotDotWithSlash(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/main.tsx": `
@@ -2019,7 +2019,7 @@ func TestTsConfigExtendsDotDotWithSlash(t *testing.T) {
 	})
 }
 
-func TestTsConfigExtendsWithExports(t *testing.T) {
+func TestTsconfigExtendsWithExports(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/main.tsx": `
@@ -2048,7 +2048,7 @@ func TestTsConfigExtendsWithExports(t *testing.T) {
 	})
 }
 
-func TestTsConfigExtendsWithExportsStar(t *testing.T) {
+func TestTsconfigExtendsWithExportsStar(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/main.tsx": `
@@ -2077,7 +2077,7 @@ func TestTsConfigExtendsWithExportsStar(t *testing.T) {
 	})
 }
 
-func TestTsConfigExtendsWithExportsStarTrailing(t *testing.T) {
+func TestTsconfigExtendsWithExportsStarTrailing(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/main.tsx": `
@@ -2106,7 +2106,7 @@ func TestTsConfigExtendsWithExportsStarTrailing(t *testing.T) {
 	})
 }
 
-func TestTsConfigExtendsWithExportsRequire(t *testing.T) {
+func TestTsconfigExtendsWithExportsRequire(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/main.tsx": `
@@ -2141,7 +2141,7 @@ func TestTsConfigExtendsWithExportsRequire(t *testing.T) {
 	})
 }
 
-func TestTsConfigVerbatimModuleSyntaxTrue(t *testing.T) {
+func TestTsconfigVerbatimModuleSyntaxTrue(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/main.ts": `
@@ -2167,7 +2167,7 @@ func TestTsConfigVerbatimModuleSyntaxTrue(t *testing.T) {
 	})
 }
 
-func TestTsConfigVerbatimModuleSyntaxFalse(t *testing.T) {
+func TestTsconfigVerbatimModuleSyntaxFalse(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/main.ts": `
@@ -2193,7 +2193,7 @@ func TestTsConfigVerbatimModuleSyntaxFalse(t *testing.T) {
 	})
 }
 
-func TestTsConfigExtendsArray(t *testing.T) {
+func TestTsconfigExtendsArray(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/main.tsx": `
@@ -2226,7 +2226,7 @@ func TestTsConfigExtendsArray(t *testing.T) {
 	})
 }
 
-func TestTsConfigExtendsArrayNested(t *testing.T) {
+func TestTsconfigExtendsArrayNested(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/main.tsx": `
@@ -2280,7 +2280,7 @@ func TestTsConfigExtendsArrayNested(t *testing.T) {
 	})
 }
 
-func TestTsConfigIgnoreInsideNodeModules(t *testing.T) {
+func TestTsconfigIgnoreInsideNodeModules(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/main.ts": `

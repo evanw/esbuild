@@ -14,7 +14,7 @@ var import_util = __toESM(require_util());
 console.log((0, import_util.default)());
 
 ================================================================================
-TestTsConfigAlwaysStrictTrueEmitDirectiveBundleCJS
+TestTsconfigAlwaysStrictTrueEmitDirectiveBundleCJS
 ---------- /Users/user/project/out/implicit.js ----------
 "use strict";
 
@@ -28,7 +28,7 @@ console.log('this file should start with "use strict"');
 console.log('this file should start with "use strict"');
 
 ================================================================================
-TestTsConfigAlwaysStrictTrueEmitDirectiveBundleESM
+TestTsconfigAlwaysStrictTrueEmitDirectiveBundleESM
 ---------- /Users/user/project/out/implicit.js ----------
 // Users/user/project/src/implicit.ts
 console.log('this file should not start with "use strict"');
@@ -38,7 +38,7 @@ console.log('this file should not start with "use strict"');
 console.log('this file should not start with "use strict"');
 
 ================================================================================
-TestTsConfigAlwaysStrictTrueEmitDirectiveBundleIIFE
+TestTsconfigAlwaysStrictTrueEmitDirectiveBundleIIFE
 ---------- /Users/user/project/out/implicit.js ----------
 "use strict";
 (() => {
@@ -54,7 +54,7 @@ TestTsConfigAlwaysStrictTrueEmitDirectiveBundleIIFE
 })();
 
 ================================================================================
-TestTsConfigAlwaysStrictTrueEmitDirectiveFormat
+TestTsconfigAlwaysStrictTrueEmitDirectiveFormat
 ---------- /Users/user/project/out/implicit.js ----------
 "use strict";
 console.log('this file should start with "use strict"');
@@ -64,7 +64,7 @@ console.log('this file should start with "use strict"');
 console.log('this file should start with "use strict"');
 
 ================================================================================
-TestTsConfigAlwaysStrictTrueEmitDirectivePassThrough
+TestTsconfigAlwaysStrictTrueEmitDirectivePassThrough
 ---------- /Users/user/project/out/implicit.js ----------
 "use strict";
 console.log('this file should start with "use strict"');
@@ -74,7 +74,7 @@ console.log('this file should start with "use strict"');
 console.log('this file should start with "use strict"');
 
 ================================================================================
-TestTsConfigBaseURLExtendsPaths
+TestTsconfigBaseURLExtendsPaths
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/lib/foo.ts
 var foo = 123;
@@ -83,12 +83,12 @@ var foo = 123;
 console.log(foo);
 
 ================================================================================
-TestTsConfigExtendsArray
+TestTsconfigExtendsArray
 ---------- /Users/user/project/out/main.js ----------
 console.log(/* @__PURE__ */ h(frag, null, /* @__PURE__ */ h("div", null)));
 
 ================================================================================
-TestTsConfigExtendsArrayNested
+TestTsconfigExtendsArrayNested
 ---------- /Users/user/project/out/main.js ----------
 import { foo } from "foo";
 export class Foo {
@@ -98,55 +98,55 @@ export class Foo {
 }
 
 ================================================================================
-TestTsConfigExtendsDotDotWithSlash
+TestTsconfigExtendsDotDotWithSlash
 ---------- /Users/user/project/out/main.js ----------
 // Users/user/project/src/main.tsx
 console.log(/* @__PURE__ */ React.createElement("div", null));
 
 ================================================================================
-TestTsConfigExtendsDotDotWithoutSlash
+TestTsconfigExtendsDotDotWithoutSlash
 ---------- /Users/user/project/out/main.js ----------
 // Users/user/project/src/main.tsx
 console.log(/* @__PURE__ */ success("div", null));
 
 ================================================================================
-TestTsConfigExtendsDotWithSlash
+TestTsconfigExtendsDotWithSlash
 ---------- /Users/user/project/out/main.js ----------
 // Users/user/project/src/main.tsx
 console.log(/* @__PURE__ */ React.createElement("div", null));
 
 ================================================================================
-TestTsConfigExtendsDotWithoutSlash
+TestTsconfigExtendsDotWithoutSlash
 ---------- /Users/user/project/out/main.js ----------
 // Users/user/project/src/main.tsx
 console.log(/* @__PURE__ */ success("div", null));
 
 ================================================================================
-TestTsConfigExtendsWithExports
+TestTsconfigExtendsWithExports
 ---------- /Users/user/project/out/main.js ----------
 // Users/user/project/src/main.tsx
 console.log(/* @__PURE__ */ success("div", null));
 
 ================================================================================
-TestTsConfigExtendsWithExportsRequire
+TestTsconfigExtendsWithExportsRequire
 ---------- /Users/user/project/out/main.js ----------
 // Users/user/project/src/main.tsx
 console.log(/* @__PURE__ */ success("div", null));
 
 ================================================================================
-TestTsConfigExtendsWithExportsStar
+TestTsconfigExtendsWithExportsStar
 ---------- /Users/user/project/out/main.js ----------
 // Users/user/project/src/main.tsx
 console.log(/* @__PURE__ */ success("div", null));
 
 ================================================================================
-TestTsConfigExtendsWithExportsStarTrailing
+TestTsconfigExtendsWithExportsStarTrailing
 ---------- /Users/user/project/out/main.js ----------
 // Users/user/project/src/main.tsx
 console.log(/* @__PURE__ */ success("div", null));
 
 ================================================================================
-TestTsConfigIgnoreInsideNodeModules
+TestTsconfigIgnoreInsideNodeModules
 ---------- /Users/user/project/out/main.js ----------
 // Users/user/project/node_modules/pkg/index.js
 var foo = "foo";
@@ -173,337 +173,6 @@ if (bar3 !== "shimBar")
   throw "fail: shimBar";
 
 ================================================================================
-TestTsConfigJSX
----------- /Users/user/project/out.js ----------
-// Users/user/project/entry.tsx
-console.log(/* @__PURE__ */ R.c(R.F, null, /* @__PURE__ */ R.c("div", null), /* @__PURE__ */ R.c("div", null)));
-
-================================================================================
-TestTsConfigNestedJSX
----------- /Users/user/project/out.js ----------
-// Users/user/project/factory/index.tsx
-var factory_default = /* @__PURE__ */ h(React.Fragment, null, /* @__PURE__ */ h("div", null), /* @__PURE__ */ h("div", null));
-
-// Users/user/project/fragment/index.tsx
-var fragment_default = /* @__PURE__ */ React.createElement(a.b, null, /* @__PURE__ */ React.createElement("div", null), /* @__PURE__ */ React.createElement("div", null));
-
-// Users/user/project/both/index.tsx
-var both_default = /* @__PURE__ */ R.c(R.F, null, /* @__PURE__ */ R.c("div", null), /* @__PURE__ */ R.c("div", null));
-
-// Users/user/project/entry.ts
-console.log(factory_default, fragment_default, both_default);
-
-================================================================================
-TestTsConfigPaths
----------- /Users/user/project/out.js ----------
-// Users/user/project/baseurl_dot/test0-success.ts
-var test0_success_default = "test0-success";
-
-// Users/user/project/baseurl_dot/test1-success.ts
-var test1_success_default = "test1-success";
-
-// Users/user/project/baseurl_dot/test2-success/foo.ts
-var foo_default = "test2-success";
-
-// Users/user/project/baseurl_dot/test3-success.ts
-var test3_success_default = "test3-success";
-
-// Users/user/project/baseurl_dot/test4-first/foo.ts
-var foo_default2 = "test4-success";
-
-// Users/user/project/baseurl_dot/test5-second/foo.ts
-var foo_default3 = "test5-success";
-
-// Users/user/project/baseurl_dot/actual/test.ts
-var test_default = "absolute-success";
-
-// Users/user/project/baseurl_dot/index.ts
-var baseurl_dot_default = {
-  test0: test0_success_default,
-  test1: test1_success_default,
-  test2: foo_default,
-  test3: test3_success_default,
-  test4: foo_default2,
-  test5: foo_default3,
-  absoluteIn: test_default,
-  absoluteInStar: test_default,
-  absoluteOut: test_default,
-  absoluteOutStar: test_default
-};
-
-// Users/user/project/baseurl_nested/nested/test0-success.ts
-var test0_success_default2 = "test0-success";
-
-// Users/user/project/baseurl_nested/nested/test1-success.ts
-var test1_success_default2 = "test1-success";
-
-// Users/user/project/baseurl_nested/nested/test2-success/foo.ts
-var foo_default4 = "test2-success";
-
-// Users/user/project/baseurl_nested/nested/test3-success.ts
-var test3_success_default2 = "test3-success";
-
-// Users/user/project/baseurl_nested/nested/test4-first/foo.ts
-var foo_default5 = "test4-success";
-
-// Users/user/project/baseurl_nested/nested/test5-second/foo.ts
-var foo_default6 = "test5-success";
-
-// Users/user/project/baseurl_nested/nested/actual/test.ts
-var test_default2 = "absolute-success";
-
-// Users/user/project/baseurl_nested/index.ts
-var baseurl_nested_default = {
-  test0: test0_success_default2,
-  test1: test1_success_default2,
-  test2: foo_default4,
-  test3: test3_success_default2,
-  test4: foo_default5,
-  test5: foo_default6,
-  absoluteIn: test_default2,
-  absoluteInStar: test_default2,
-  absoluteOut: test_default2,
-  absoluteOutStar: test_default2
-};
-
-// Users/user/project/entry.ts
-console.log(baseurl_dot_default, baseurl_nested_default);
-
-================================================================================
-TestTsConfigPathsExtendsBaseURL
----------- /Users/user/project/out.js ----------
-// Users/user/project/base/test/lib/foo.ts
-var foo = 123;
-
-// Users/user/project/src/entry.ts
-console.log(foo);
-
-================================================================================
-TestTsConfigPathsInNodeModulesIssue2386
----------- /Users/user/project/out.js ----------
-// Users/user/project/node_modules/wow/dist/first.js
-var first_default = "dist";
-
-// Users/user/project/node_modules/wow/dist/next.js
-var next_default = first_default;
-
-// Users/user/project/main.js
-console.log(first_default, next_default);
-
-================================================================================
-TestTsConfigPathsNoBaseURL
----------- /Users/user/project/out.js ----------
-// Users/user/project/simple/test0-success.ts
-var test0_success_default = "test0-success";
-
-// Users/user/project/simple/test1-success.ts
-var test1_success_default = "test1-success";
-
-// Users/user/project/simple/test2-success/foo.ts
-var foo_default = "test2-success";
-
-// Users/user/project/simple/test3-success.ts
-var test3_success_default = "test3-success";
-
-// Users/user/project/simple/test4-first/foo.ts
-var foo_default2 = "test4-success";
-
-// Users/user/project/simple/test5-second/foo.ts
-var foo_default3 = "test5-success";
-
-// Users/user/project/simple/actual/test.ts
-var test_default = "absolute-success";
-
-// Users/user/project/simple/index.ts
-var simple_default = {
-  test0: test0_success_default,
-  test1: test1_success_default,
-  test2: foo_default,
-  test3: test3_success_default,
-  test4: foo_default2,
-  test5: foo_default3,
-  absolute: test_default
-};
-
-// Users/user/project/extended/nested/test0-success.ts
-var test0_success_default2 = "test0-success";
-
-// Users/user/project/extended/nested/test1-success.ts
-var test1_success_default2 = "test1-success";
-
-// Users/user/project/extended/nested/test2-success/foo.ts
-var foo_default4 = "test2-success";
-
-// Users/user/project/extended/nested/test3-success.ts
-var test3_success_default2 = "test3-success";
-
-// Users/user/project/extended/nested/test4-first/foo.ts
-var foo_default5 = "test4-success";
-
-// Users/user/project/extended/nested/test5-second/foo.ts
-var foo_default6 = "test5-success";
-
-// Users/user/project/extended/nested/actual/test.ts
-var test_default2 = "absolute-success";
-
-// Users/user/project/extended/index.ts
-var extended_default = {
-  test0: test0_success_default2,
-  test1: test1_success_default2,
-  test2: foo_default4,
-  test3: test3_success_default2,
-  test4: foo_default5,
-  test5: foo_default6,
-  absolute: test_default2
-};
-
-// Users/user/project/entry.ts
-console.log(simple_default, extended_default);
-
-================================================================================
-TestTsConfigPathsOverriddenBaseURL
----------- /Users/user/project/out.js ----------
-// Users/user/project/src/test.ts
-var test_default = 123;
-
-// Users/user/project/src/entry.ts
-console.log(test_default);
-
-================================================================================
-TestTsConfigPathsOverriddenBaseURLDifferentDir
----------- /Users/user/project/out.js ----------
-// Users/user/project/src/test.ts
-var test_default = 123;
-
-// Users/user/project/src/entry.ts
-console.log(test_default);
-
-================================================================================
-TestTsConfigPathsTypeOnly
----------- /Users/user/project/out.js ----------
-// Users/user/project/node_modules/fib/index.js
-function fib(input) {
-  if (input < 2) {
-    return input;
-  }
-  return fib(input - 1) + fib(input - 2);
-}
-
-// Users/user/project/entry.ts
-console.log(fib(10));
-
-================================================================================
-TestTsConfigPreserveJSX
----------- /Users/user/project/out.js ----------
-// Users/user/project/entry.tsx
-console.log(/* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", null), /* @__PURE__ */ React.createElement("div", null)));
-
-================================================================================
-TestTsConfigPreserveJSXAutomatic
----------- /Users/user/project/out.js ----------
-// Users/user/project/entry.tsx
-import { Fragment, jsx, jsxs } from "react/jsx-runtime";
-console.log(/* @__PURE__ */ jsxs(Fragment, { children: [
-  /* @__PURE__ */ jsx("div", {}),
-  /* @__PURE__ */ jsx("div", {})
-] }));
-
-================================================================================
-TestTsConfigReactJSX
----------- /Users/user/project/out.js ----------
-// Users/user/project/entry.tsx
-import { Fragment, jsx, jsxs } from "notreact/jsx-runtime";
-console.log(/* @__PURE__ */ jsxs(Fragment, { children: [
-  /* @__PURE__ */ jsx("div", {}),
-  /* @__PURE__ */ jsx("div", {})
-] }));
-
-================================================================================
-TestTsConfigReactJSXDev
----------- /Users/user/project/out.js ----------
-// Users/user/project/entry.tsx
-import { Fragment, jsxDEV } from "react/jsx-dev-runtime";
-console.log(/* @__PURE__ */ jsxDEV(Fragment, { children: [
-  /* @__PURE__ */ jsxDEV("div", {}, void 0, false, {
-    fileName: "Users/user/project/entry.tsx",
-    lineNumber: 2,
-    columnNumber: 19
-  }, this),
-  /* @__PURE__ */ jsxDEV("div", {}, void 0, false, {
-    fileName: "Users/user/project/entry.tsx",
-    lineNumber: 2,
-    columnNumber: 25
-  }, this)
-] }, void 0, true, {
-  fileName: "Users/user/project/entry.tsx",
-  lineNumber: 2,
-  columnNumber: 17
-}, this));
-
-================================================================================
-TestTsConfigReactJSXWithDevInMainConfig
----------- /Users/user/project/out.js ----------
-// Users/user/project/entry.tsx
-import { Fragment, jsxDEV } from "react/jsx-dev-runtime";
-console.log(/* @__PURE__ */ jsxDEV(Fragment, { children: [
-  /* @__PURE__ */ jsxDEV("div", {}, void 0, false, {
-    fileName: "Users/user/project/entry.tsx",
-    lineNumber: 2,
-    columnNumber: 19
-  }, this),
-  /* @__PURE__ */ jsxDEV("div", {}, void 0, false, {
-    fileName: "Users/user/project/entry.tsx",
-    lineNumber: 2,
-    columnNumber: 25
-  }, this)
-] }, void 0, true, {
-  fileName: "Users/user/project/entry.tsx",
-  lineNumber: 2,
-  columnNumber: 17
-}, this));
-
-================================================================================
-TestTsConfigVerbatimModuleSyntaxFalse
----------- /Users/user/project/out/main.js ----------
-export { Car } from "./car";
-
-================================================================================
-TestTsConfigVerbatimModuleSyntaxTrue
----------- /Users/user/project/out/main.js ----------
-export { Car } from "./car";
-import {} from "./car";
-export {} from "./car";
-import { b } from "bcd";
-import {} from "xyz";
-
-================================================================================
-TestTsConfigWithStatementAlwaysStrictFalse
----------- /Users/user/project/out.js ----------
-(() => {
-  // Users/user/project/src/entry.ts
-  with (x)
-    y;
-})();
-
-================================================================================
-TestTsConfigWithStatementStrictFalse
----------- /Users/user/project/out.js ----------
-(() => {
-  // Users/user/project/src/entry.ts
-  with (x)
-    y;
-})();
-
-================================================================================
-TestTsConfigWithStatementStrictTrueAlwaysStrictFalse
----------- /Users/user/project/out.js ----------
-(() => {
-  // Users/user/project/src/entry.ts
-  with (x)
-    y;
-})();
-
-================================================================================
 TestTsconfigIgnoredTargetSilent
 ---------- /Users/user/project/out.js ----------
 
@@ -514,6 +183,12 @@ import "./foo";
 import "./foo";
 import "./foo";
 console.log(1, 2, 3);
+
+================================================================================
+TestTsconfigJSX
+---------- /Users/user/project/out.js ----------
+// Users/user/project/entry.tsx
+console.log(/* @__PURE__ */ R.c(R.F, null, /* @__PURE__ */ R.c("div", null), /* @__PURE__ */ R.c("div", null)));
 
 ================================================================================
 TestTsconfigJsonAbsoluteBaseUrl
@@ -637,6 +312,236 @@ var import_util = __toESM(require_util());
 console.log((0, import_util.default)());
 
 ================================================================================
+TestTsconfigNestedJSX
+---------- /Users/user/project/out.js ----------
+// Users/user/project/factory/index.tsx
+var factory_default = /* @__PURE__ */ h(React.Fragment, null, /* @__PURE__ */ h("div", null), /* @__PURE__ */ h("div", null));
+
+// Users/user/project/fragment/index.tsx
+var fragment_default = /* @__PURE__ */ React.createElement(a.b, null, /* @__PURE__ */ React.createElement("div", null), /* @__PURE__ */ React.createElement("div", null));
+
+// Users/user/project/both/index.tsx
+var both_default = /* @__PURE__ */ R.c(R.F, null, /* @__PURE__ */ R.c("div", null), /* @__PURE__ */ R.c("div", null));
+
+// Users/user/project/entry.ts
+console.log(factory_default, fragment_default, both_default);
+
+================================================================================
+TestTsconfigPaths
+---------- /Users/user/project/out.js ----------
+// Users/user/project/baseurl_dot/test0-success.ts
+var test0_success_default = "test0-success";
+
+// Users/user/project/baseurl_dot/test1-success.ts
+var test1_success_default = "test1-success";
+
+// Users/user/project/baseurl_dot/test2-success/foo.ts
+var foo_default = "test2-success";
+
+// Users/user/project/baseurl_dot/test3-success.ts
+var test3_success_default = "test3-success";
+
+// Users/user/project/baseurl_dot/test4-first/foo.ts
+var foo_default2 = "test4-success";
+
+// Users/user/project/baseurl_dot/test5-second/foo.ts
+var foo_default3 = "test5-success";
+
+// Users/user/project/baseurl_dot/actual/test.ts
+var test_default = "absolute-success";
+
+// Users/user/project/baseurl_dot/index.ts
+var baseurl_dot_default = {
+  test0: test0_success_default,
+  test1: test1_success_default,
+  test2: foo_default,
+  test3: test3_success_default,
+  test4: foo_default2,
+  test5: foo_default3,
+  absoluteIn: test_default,
+  absoluteInStar: test_default,
+  absoluteOut: test_default,
+  absoluteOutStar: test_default
+};
+
+// Users/user/project/baseurl_nested/nested/test0-success.ts
+var test0_success_default2 = "test0-success";
+
+// Users/user/project/baseurl_nested/nested/test1-success.ts
+var test1_success_default2 = "test1-success";
+
+// Users/user/project/baseurl_nested/nested/test2-success/foo.ts
+var foo_default4 = "test2-success";
+
+// Users/user/project/baseurl_nested/nested/test3-success.ts
+var test3_success_default2 = "test3-success";
+
+// Users/user/project/baseurl_nested/nested/test4-first/foo.ts
+var foo_default5 = "test4-success";
+
+// Users/user/project/baseurl_nested/nested/test5-second/foo.ts
+var foo_default6 = "test5-success";
+
+// Users/user/project/baseurl_nested/nested/actual/test.ts
+var test_default2 = "absolute-success";
+
+// Users/user/project/baseurl_nested/index.ts
+var baseurl_nested_default = {
+  test0: test0_success_default2,
+  test1: test1_success_default2,
+  test2: foo_default4,
+  test3: test3_success_default2,
+  test4: foo_default5,
+  test5: foo_default6,
+  absoluteIn: test_default2,
+  absoluteInStar: test_default2,
+  absoluteOut: test_default2,
+  absoluteOutStar: test_default2
+};
+
+// Users/user/project/entry.ts
+console.log(baseurl_dot_default, baseurl_nested_default);
+
+================================================================================
+TestTsconfigPathsExtendsBaseURL
+---------- /Users/user/project/out.js ----------
+// Users/user/project/base/test/lib/foo.ts
+var foo = 123;
+
+// Users/user/project/src/entry.ts
+console.log(foo);
+
+================================================================================
+TestTsconfigPathsInNodeModulesIssue2386
+---------- /Users/user/project/out.js ----------
+// Users/user/project/node_modules/wow/dist/first.js
+var first_default = "dist";
+
+// Users/user/project/node_modules/wow/dist/next.js
+var next_default = first_default;
+
+// Users/user/project/main.js
+console.log(first_default, next_default);
+
+================================================================================
+TestTsconfigPathsNoBaseURL
+---------- /Users/user/project/out.js ----------
+// Users/user/project/simple/test0-success.ts
+var test0_success_default = "test0-success";
+
+// Users/user/project/simple/test1-success.ts
+var test1_success_default = "test1-success";
+
+// Users/user/project/simple/test2-success/foo.ts
+var foo_default = "test2-success";
+
+// Users/user/project/simple/test3-success.ts
+var test3_success_default = "test3-success";
+
+// Users/user/project/simple/test4-first/foo.ts
+var foo_default2 = "test4-success";
+
+// Users/user/project/simple/test5-second/foo.ts
+var foo_default3 = "test5-success";
+
+// Users/user/project/simple/actual/test.ts
+var test_default = "absolute-success";
+
+// Users/user/project/simple/index.ts
+var simple_default = {
+  test0: test0_success_default,
+  test1: test1_success_default,
+  test2: foo_default,
+  test3: test3_success_default,
+  test4: foo_default2,
+  test5: foo_default3,
+  absolute: test_default
+};
+
+// Users/user/project/extended/nested/test0-success.ts
+var test0_success_default2 = "test0-success";
+
+// Users/user/project/extended/nested/test1-success.ts
+var test1_success_default2 = "test1-success";
+
+// Users/user/project/extended/nested/test2-success/foo.ts
+var foo_default4 = "test2-success";
+
+// Users/user/project/extended/nested/test3-success.ts
+var test3_success_default2 = "test3-success";
+
+// Users/user/project/extended/nested/test4-first/foo.ts
+var foo_default5 = "test4-success";
+
+// Users/user/project/extended/nested/test5-second/foo.ts
+var foo_default6 = "test5-success";
+
+// Users/user/project/extended/nested/actual/test.ts
+var test_default2 = "absolute-success";
+
+// Users/user/project/extended/index.ts
+var extended_default = {
+  test0: test0_success_default2,
+  test1: test1_success_default2,
+  test2: foo_default4,
+  test3: test3_success_default2,
+  test4: foo_default5,
+  test5: foo_default6,
+  absolute: test_default2
+};
+
+// Users/user/project/entry.ts
+console.log(simple_default, extended_default);
+
+================================================================================
+TestTsconfigPathsOverriddenBaseURL
+---------- /Users/user/project/out.js ----------
+// Users/user/project/src/test.ts
+var test_default = 123;
+
+// Users/user/project/src/entry.ts
+console.log(test_default);
+
+================================================================================
+TestTsconfigPathsOverriddenBaseURLDifferentDir
+---------- /Users/user/project/out.js ----------
+// Users/user/project/src/test.ts
+var test_default = 123;
+
+// Users/user/project/src/entry.ts
+console.log(test_default);
+
+================================================================================
+TestTsconfigPathsTypeOnly
+---------- /Users/user/project/out.js ----------
+// Users/user/project/node_modules/fib/index.js
+function fib(input) {
+  if (input < 2) {
+    return input;
+  }
+  return fib(input - 1) + fib(input - 2);
+}
+
+// Users/user/project/entry.ts
+console.log(fib(10));
+
+================================================================================
+TestTsconfigPreserveJSX
+---------- /Users/user/project/out.js ----------
+// Users/user/project/entry.tsx
+console.log(/* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", null), /* @__PURE__ */ React.createElement("div", null)));
+
+================================================================================
+TestTsconfigPreserveJSXAutomatic
+---------- /Users/user/project/out.js ----------
+// Users/user/project/entry.tsx
+import { Fragment, jsx, jsxs } from "react/jsx-runtime";
+console.log(/* @__PURE__ */ jsxs(Fragment, { children: [
+  /* @__PURE__ */ jsx("div", {}),
+  /* @__PURE__ */ jsx("div", {})
+] }));
+
+================================================================================
 TestTsconfigPreserveUnusedImports
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/src/entry.ts
@@ -670,6 +575,60 @@ import * as i1 from "i";
 import "j";
 
 ================================================================================
+TestTsconfigReactJSX
+---------- /Users/user/project/out.js ----------
+// Users/user/project/entry.tsx
+import { Fragment, jsx, jsxs } from "notreact/jsx-runtime";
+console.log(/* @__PURE__ */ jsxs(Fragment, { children: [
+  /* @__PURE__ */ jsx("div", {}),
+  /* @__PURE__ */ jsx("div", {})
+] }));
+
+================================================================================
+TestTsconfigReactJSXDev
+---------- /Users/user/project/out.js ----------
+// Users/user/project/entry.tsx
+import { Fragment, jsxDEV } from "react/jsx-dev-runtime";
+console.log(/* @__PURE__ */ jsxDEV(Fragment, { children: [
+  /* @__PURE__ */ jsxDEV("div", {}, void 0, false, {
+    fileName: "Users/user/project/entry.tsx",
+    lineNumber: 2,
+    columnNumber: 19
+  }, this),
+  /* @__PURE__ */ jsxDEV("div", {}, void 0, false, {
+    fileName: "Users/user/project/entry.tsx",
+    lineNumber: 2,
+    columnNumber: 25
+  }, this)
+] }, void 0, true, {
+  fileName: "Users/user/project/entry.tsx",
+  lineNumber: 2,
+  columnNumber: 17
+}, this));
+
+================================================================================
+TestTsconfigReactJSXWithDevInMainConfig
+---------- /Users/user/project/out.js ----------
+// Users/user/project/entry.tsx
+import { Fragment, jsxDEV } from "react/jsx-dev-runtime";
+console.log(/* @__PURE__ */ jsxDEV(Fragment, { children: [
+  /* @__PURE__ */ jsxDEV("div", {}, void 0, false, {
+    fileName: "Users/user/project/entry.tsx",
+    lineNumber: 2,
+    columnNumber: 19
+  }, this),
+  /* @__PURE__ */ jsxDEV("div", {}, void 0, false, {
+    fileName: "Users/user/project/entry.tsx",
+    lineNumber: 2,
+    columnNumber: 25
+  }, this)
+] }, void 0, true, {
+  fileName: "Users/user/project/entry.tsx",
+  lineNumber: 2,
+  columnNumber: 17
+}, this));
+
+================================================================================
 TestTsconfigRemoveUnusedImports
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/src/entry.ts
@@ -698,5 +657,46 @@ Foo = class {
 };
 
 ================================================================================
+TestTsconfigVerbatimModuleSyntaxFalse
+---------- /Users/user/project/out/main.js ----------
+export { Car } from "./car";
+
+================================================================================
+TestTsconfigVerbatimModuleSyntaxTrue
+---------- /Users/user/project/out/main.js ----------
+export { Car } from "./car";
+import {} from "./car";
+export {} from "./car";
+import { b } from "bcd";
+import {} from "xyz";
+
+================================================================================
 TestTsconfigWarningsInsideNodeModules
 ---------- /Users/user/project/out.js ----------
+
+================================================================================
+TestTsconfigWithStatementAlwaysStrictFalse
+---------- /Users/user/project/out.js ----------
+(() => {
+  // Users/user/project/src/entry.ts
+  with (x)
+    y;
+})();
+
+================================================================================
+TestTsconfigWithStatementStrictFalse
+---------- /Users/user/project/out.js ----------
+(() => {
+  // Users/user/project/src/entry.ts
+  with (x)
+    y;
+})();
+
+================================================================================
+TestTsconfigWithStatementStrictTrueAlwaysStrictFalse
+---------- /Users/user/project/out.js ----------
+(() => {
+  // Users/user/project/src/entry.ts
+  with (x)
+    y;
+})();
