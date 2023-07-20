@@ -284,6 +284,30 @@ TestTsconfigJsonNodeModulesImplicitFile
 console.log(/* @__PURE__ */ worked("div", null));
 
 ================================================================================
+TestTsconfigJsonNodeModulesTsconfigPathBad
+---------- /Users/user/project/out.js ----------
+// Users/user/project/src/app/entry.tsx
+console.log(/* @__PURE__ */ React.createElement("div", null));
+
+================================================================================
+TestTsconfigJsonNodeModulesTsconfigPathDirectory
+---------- /Users/user/project/out.js ----------
+// Users/user/project/src/app/entry.tsx
+console.log(/* @__PURE__ */ worked("div", null));
+
+================================================================================
+TestTsconfigJsonNodeModulesTsconfigPathExact
+---------- /Users/user/project/out.js ----------
+// Users/user/project/src/app/entry.tsx
+console.log(/* @__PURE__ */ worked("div", null));
+
+================================================================================
+TestTsconfigJsonNodeModulesTsconfigPathImplicitJson
+---------- /Users/user/project/out.js ----------
+// Users/user/project/src/app/entry.tsx
+console.log(/* @__PURE__ */ worked("div", null));
+
+================================================================================
 TestTsconfigJsonOverrideMissing
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/other/foo-good.ts

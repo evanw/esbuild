@@ -21,6 +21,14 @@ type packageJSON struct {
 	mainFields     map[string]mainField
 	moduleTypeData js_ast.ModuleTypeData
 
+	// "TypeScript will first check whether package.json contains a "tsconfig"
+	// field, and if it does, TypeScript will try to load a configuration file
+	// from that field. If neither exists, TypeScript will try to read from a
+	// tsconfig.json at the root."
+	//
+	// See: https://www.typescriptlang.org/docs/handbook/release-notes/typescript-3-2.html#tsconfigjson-inheritance-via-nodejs-packages
+	tsconfig string
+
 	// Present if the "browser" field is present. This field is intended to be
 	// used by bundlers and lets you redirect the paths of certain 3rd-party
 	// modules that don't work in the browser to other modules that shim that
@@ -320,6 +328,13 @@ func (r resolverQuery) parsePackageJSON(inputPath string) *packageJSON {
 		} else {
 			r.log.AddID(logger.MsgID_PackageJSON_InvalidType, logger.Warning, &tracker, logger.Range{Loc: typeJSON.Loc},
 				"The value for \"type\" must be a string")
+		}
+	}
+
+	// Read the "tsconfig" field
+	if tsconfigJSON, _, ok := getProperty(json, "tsconfig"); ok {
+		if tsconfigValue, ok := getString(tsconfigJSON); ok {
+			packageJSON.tsconfig = tsconfigValue
 		}
 	}
 

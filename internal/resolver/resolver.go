@@ -1142,30 +1142,44 @@ func (r resolverQuery) parseTSConfigFromSource(source logger.Source, visited map
 			for {
 				// Skip "node_modules" folders
 				if r.fs.Base(current) != "node_modules" {
-					// if "package.json" exists, try checking the "exports" map. The
-					// ability to use "extends" like this was added in TypeScript 5.0.
+					join := r.fs.Join(current, "node_modules", extends)
+
+					// Check to see if "package.json" exists
 					pkgDir := r.fs.Join(current, "node_modules", esmPackageName)
 					pjFile := r.fs.Join(pkgDir, "package.json")
 					if _, err, originalError := r.fs.ReadFile(pjFile); err == nil {
-						if packageJSON := r.parsePackageJSON(pkgDir); packageJSON != nil && packageJSON.exportsMap != nil {
-							if r.debugLogs != nil {
-								r.debugLogs.addNote(fmt.Sprintf("Looking for %q in \"exports\" map in %q", esmPackageSubpath, packageJSON.source.KeyPath.Text))
-								r.debugLogs.increaseIndent()
-								defer r.debugLogs.decreaseIndent()
+						if packageJSON := r.parsePackageJSON(pkgDir); packageJSON != nil {
+							// Try checking the "tsconfig" field of "package.json". The ability to use "extends" like this was added in TypeScript 3.2:
+							// https://www.typescriptlang.org/docs/handbook/release-notes/typescript-3-2.html#tsconfigjson-inheritance-via-nodejs-packages
+							if packageJSON.tsconfig != "" {
+								join = packageJSON.tsconfig
+								if !r.fs.IsAbs(join) {
+									join = r.fs.Join(pkgDir, join)
+								}
 							}
 
-							// Note: TypeScript appears to always treat this as a "require" import
-							conditions := r.esmConditionsRequire
-							resolvedPath, status, debug := r.esmPackageExportsResolve("/", esmPackageSubpath, packageJSON.exportsMap.root, conditions)
-							resolvedPath, status, debug = r.esmHandlePostConditions(resolvedPath, status, debug)
+							// Try checking the "exports" map. The ability to use "extends" like this was added in TypeScript 5.0:
+							// https://devblogs.microsoft.com/typescript/announcing-typescript-5-0/
+							if packageJSON.exportsMap != nil {
+								if r.debugLogs != nil {
+									r.debugLogs.addNote(fmt.Sprintf("Looking for %q in \"exports\" map in %q", esmPackageSubpath, packageJSON.source.KeyPath.Text))
+									r.debugLogs.increaseIndent()
+									defer r.debugLogs.decreaseIndent()
+								}
 
-							// This is a very abbreviated version of our ESM resolution
-							if status == pjStatusExact || status == pjStatusExactEndsWithStar {
-								fileToCheck := r.fs.Join(pkgDir, resolvedPath)
-								base, err := r.parseTSConfig(fileToCheck, visited)
+								// Note: TypeScript appears to always treat this as a "require" import
+								conditions := r.esmConditionsRequire
+								resolvedPath, status, debug := r.esmPackageExportsResolve("/", esmPackageSubpath, packageJSON.exportsMap.root, conditions)
+								resolvedPath, status, debug = r.esmHandlePostConditions(resolvedPath, status, debug)
 
-								if result, shouldReturn := maybeFinishOurSearch(base, err, fileToCheck); shouldReturn {
-									return result
+								// This is a very abbreviated version of our ESM resolution
+								if status == pjStatusExact || status == pjStatusExactEndsWithStar {
+									fileToCheck := r.fs.Join(pkgDir, resolvedPath)
+									base, err := r.parseTSConfig(fileToCheck, visited)
+
+									if result, shouldReturn := maybeFinishOurSearch(base, err, fileToCheck); shouldReturn {
+										return result
+									}
 								}
 							}
 						}
@@ -1173,7 +1187,6 @@ func (r resolverQuery) parseTSConfigFromSource(source logger.Source, visited map
 						r.debugLogs.addNote(fmt.Sprintf("Failed to read file %q: %s", pjFile, originalError.Error()))
 					}
 
-					join := r.fs.Join(current, "node_modules", extends)
 					filesToCheck := []string{r.fs.Join(join, "tsconfig.json"), join, join + ".json"}
 					for _, fileToCheck := range filesToCheck {
 						base, err := r.parseTSConfig(fileToCheck, visited)

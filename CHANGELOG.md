@@ -8,6 +8,10 @@
 
     Starting with this release, that last step can now be replaced with telling esbuild to serve a specific HTML file using the `--serve-fallback=` option. This can be used to provide a "not found" page for missing URLs. It can also be used to implement a [single-page app](https://en.wikipedia.org/wiki/Single-page_application) that mutates the current URL and therefore requires the single app entry point to be served when the page is loaded regardless of whatever the current URL is.
 
+* Use the `tsconfig` field in `package.json` during `extends` resolution ([#3247](https://github.com/evanw/esbuild/issues/3247))
+
+     This release adds a feature from [TypeScript 3.2](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-3-2.html#tsconfigjson-inheritance-via-nodejs-packages) where if a `tsconfig.json` file specifies a package name in the `extends` field and that package's `package.json` file has a `tsconfig` field, the contents of that field are used in the search for the base `tsconfig.json` file.
+
 * Implement CSS nesting without `:is()` when possible ([#1945](https://github.com/evanw/esbuild/issues/1945))
 
     Previously esbuild would always produce a warning when transforming nested CSS for a browser that doesn't support the `:is()` pseudo-class. This was because the nesting transform needs to generate an `:is()` in some complex cases which means the transformed CSS would then not work in that browser. However, the CSS nesting transform can often be done without generating an `:is()`. So with this release, esbuild will no longer warn when targeting browsers that don't support `:is()` in the cases where an `:is()` isn't needed to represent the nested CSS.
