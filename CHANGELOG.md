@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.18.15
 
 * Add the `--serve-fallback=` option ([#2904](https://github.com/evanw/esbuild/issues/2904))
 
@@ -108,7 +108,7 @@
 
 * Add support for the new [`@starting-style`](https://drafts.csswg.org/css-transitions-2/#defining-before-change-style-the-starting-style-rule) CSS rule ([#3249](https://github.com/evanw/esbuild/pull/3249))
 
-    This at rule allow authors to start CSS transitions on first style update. That is, you can now make the transition take effect when the display property changes from none to block.
+    This at rule allow authors to start CSS transitions on first style update. That is, you can now make the transition take effect when the `display` property changes from `none` to `block`.
 
     ```css
     /* Original code */
