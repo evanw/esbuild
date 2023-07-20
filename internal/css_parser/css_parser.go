@@ -985,6 +985,10 @@ var specialAtRules = map[string]atRuleKind{
 	// Container Queries
 	// Reference: https://drafts.csswg.org/css-contain-3/#container-rule
 	"container": atRuleInheritContext,
+
+	// Defining before-change style: the @starting-style rule
+	// Reference: https://drafts.csswg.org/css-transitions-2/#defining-before-change-style-the-starting-style-rule
+	"starting-style": atRuleInheritContext,
 }
 
 var atKnownRuleCanBeRemovedIfEmpty = map[string]bool{

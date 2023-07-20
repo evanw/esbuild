@@ -1199,6 +1199,37 @@ func TestAtRule(t *testing.T) {
 	}
 }`, "@supports (container-type: size){@container (width <= 150px){#inner{background-color:#87ceeb}}}")
 
+	// https://drafts.csswg.org/css-transitions-2/#defining-before-change-style-the-starting-style-rule
+	expectPrinted(t, `
+	@starting-style {
+		h1 {
+			background-color: transparent;
+		}
+		@layer foo {
+			div {
+				height: 100px;
+			}
+		}
+	}
+
+	`, `@starting-style {
+  h1 {
+    background-color: transparent;
+  }
+  @layer foo {
+    div {
+      height: 100px;
+    }
+  }
+}
+`)
+
+	expectPrintedMinify(t, `@starting-style {
+	h1 {
+		background-color: transparent;
+	}
+}`, "@starting-style{h1{background-color:transparent}}")
+
 	// https://drafts.csswg.org/css-counter-styles/#the-counter-style-rule
 	expectPrinted(t, `
 		@counter-style box-corner {

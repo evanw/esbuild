@@ -102,6 +102,22 @@
     }
     ```
 
+* Add support for the new [`@starting-style`](https://drafts.csswg.org/css-transitions-2/#defining-before-change-style-the-starting-style-rule) CSS rule ([#3249](https://github.com/evanw/esbuild/pull/3249))
+    This at rule allow authors to start CSS transitions on first style update. That is, you can now make the transition take effect when the display property changes from none to block.
+
+    ```css
+    /* Original code */
+    @starting-style {
+      h1 {
+        background-color: transparent;
+      }
+    }
+
+    /* Output */
+    @starting-style{h1{background-color:transparent}}
+    ```
+
+    This was contributed by [@yisibl](https://github.com/yisibl).
 ## 0.18.14
 
 * Implement local CSS names ([#20](https://github.com/evanw/esbuild/issues/20))
