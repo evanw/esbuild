@@ -1201,17 +1201,16 @@ func TestAtRule(t *testing.T) {
 
 	// https://drafts.csswg.org/css-transitions-2/#defining-before-change-style-the-starting-style-rule
 	expectPrinted(t, `
-	@starting-style {
-		h1 {
-			background-color: transparent;
-		}
-		@layer foo {
-			div {
-				height: 100px;
+		@starting-style {
+			h1 {
+				background-color: transparent;
+			}
+			@layer foo {
+				div {
+					height: 100px;
+				}
 			}
 		}
-	}
-
 	`, `@starting-style {
   h1 {
     background-color: transparent;
