@@ -200,14 +200,14 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
 
   if (define) {
     for (let key in define) {
-	  //if non-string is passed we have to convert to JSON first
-	  if(typeof define[key] != 'string') {
-		try {
-			define[key] = JSON.stringify(define[key])
-		} catch(err) {
-			throw new Error(`Invalid define: ${key}`)
-		}
-	  }
+      //if non-string is passed we have to convert to JSON first
+      if(typeof define[key] != 'string') {
+        try {
+          define[key] = JSON.stringify(define[key])
+        } catch(err) {
+          throw new Error(`Invalid define: ${key}`)
+        }
+      }
       if (key.indexOf('=') >= 0) throw new Error(`Invalid define: ${key}`)
       flags.push(`--define:${key}=${validateStringValue(define[key], 'define', key)}`)
     }
