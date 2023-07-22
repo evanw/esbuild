@@ -625,6 +625,7 @@ func (p *parser) parsePseudoClassSelector(isElement bool) css_ast.SS {
 			}
 			if ok {
 				old := p.index
+				p.eat(css_lexer.TWhitespace)
 
 				// ":local" forces local names and ":global" forces global names
 				oldLocal := p.makeLocalSymbols

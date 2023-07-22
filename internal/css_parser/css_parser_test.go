@@ -699,6 +699,10 @@ func TestSelector(t *testing.T) {
 	expectPrinted(t, "a:b(:c) {}", "a:b(:c) {\n}\n", "")
 	expectPrinted(t, "a: b {}", "a: b {\n}\n", "<stdin>: WARNING: Expected identifier but found whitespace\n")
 	expectPrinted(t, ":is(a)b {}", ":is(a)b {\n}\n", "<stdin>: WARNING: Unexpected \"b\"\n")
+	expectPrinted(t, "a:b( c ) {}", "a:b(c) {\n}\n", "")
+	expectPrinted(t, "a:b( c , d ) {}", "a:b(c, d) {\n}\n", "")
+	expectPrinted(t, "a:is( c ) {}", "a:is(c) {\n}\n", "")
+	expectPrinted(t, "a:is( c , d ) {}", "a:is(c, d) {\n}\n", "")
 
 	// These test cases previously caused a hang (see https://github.com/evanw/esbuild/issues/2276)
 	expectPrinted(t, ":x(", ":x() {\n}\n", "<stdin>: WARNING: Unexpected end of file\n")

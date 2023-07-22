@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix a regression with whitespace inside `:is()` ([#3265](https://github.com/evanw/esbuild/issues/3265))
+
+    The change to parse the contents of `:is()` in version 0.18.14 introduced a regression that incorrectly flagged the contents as a syntax error if the contents started with a whitespace token (for example `div:is( .foo ) {}`). This regression has been fixed.
+
 ## 0.18.15
 
 * Add the `--serve-fallback=` option ([#2904](https://github.com/evanw/esbuild/issues/2904))
