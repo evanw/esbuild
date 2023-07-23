@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.18.16
 
 * Fix a regression with whitespace inside `:is()` ([#3265](https://github.com/evanw/esbuild/issues/3265))
 
