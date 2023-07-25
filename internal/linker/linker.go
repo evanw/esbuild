@@ -2544,31 +2544,19 @@ loop:
 					if helpers.IsInsideNodeModules(trackerFile.InputFile.Source.KeyPath.Text) {
 						msg.Kind = logger.Debug
 					}
-
-					// Attempt to correct an import name with a typo
-					repr := nextFile.Repr.(*graph.JSRepr)
-					if repr.Meta.ResolvedExportTypos == nil {
-						valid := make([]string, 0, len(repr.Meta.ResolvedExports))
-						for alias := range repr.Meta.ResolvedExports {
-							valid = append(valid, alias)
-						}
-						sort.Strings(valid)
-						typos := helpers.MakeTypoDetector(valid)
-						repr.Meta.ResolvedExportTypos = &typos
-					}
-					if corrected, ok := repr.Meta.ResolvedExportTypos.MaybeCorrectTypo(namedImport.Alias); ok {
-						msg.Data.Location.Suggestion = corrected
-						export := repr.Meta.ResolvedExports[corrected]
-						importedFile := &c.graph.Files[export.SourceIndex]
-						msg.Notes = append(msg.Notes, importedFile.LineColumnTracker().MsgData(
-							js_lexer.RangeOfIdentifier(importedFile.InputFile.Source, export.NameLoc),
-							fmt.Sprintf("Did you mean to import %q instead?", corrected)))
-					}
+					c.maybeCorrectObviousTypo(nextFile.Repr.(*graph.JSRepr), namedImport.Alias, &msg)
 					c.log.AddMsgID(logger.MsgID_Bundler_ImportIsUndefined, msg)
 				}
 			} else {
-				c.log.AddError(trackerFile.LineColumnTracker(), r, fmt.Sprintf("No matching export in %q for import %q",
-					c.graph.Files[nextTracker.sourceIndex].InputFile.Source.PrettyPath, namedImport.Alias))
+				nextFile := &c.graph.Files[nextTracker.sourceIndex].InputFile
+				msg := logger.Msg{
+					Kind: logger.Error,
+					Data: trackerFile.LineColumnTracker().MsgData(r, fmt.Sprintf(
+						"No matching export in %q for import %q",
+						nextFile.Source.PrettyPath, namedImport.Alias)),
+				}
+				c.maybeCorrectObviousTypo(nextFile.Repr.(*graph.JSRepr), namedImport.Alias, &msg)
+				c.log.AddMsg(msg)
 			}
 
 		case importProbablyTypeScriptType:
@@ -2655,6 +2643,28 @@ loop:
 	}
 
 	return
+}
+
+// Attempt to correct an import name with a typo
+func (c *linkerContext) maybeCorrectObviousTypo(repr *graph.JSRepr, name string, msg *logger.Msg) {
+	if repr.Meta.ResolvedExportTypos == nil {
+		valid := make([]string, 0, len(repr.Meta.ResolvedExports))
+		for alias := range repr.Meta.ResolvedExports {
+			valid = append(valid, alias)
+		}
+		sort.Strings(valid)
+		typos := helpers.MakeTypoDetector(valid)
+		repr.Meta.ResolvedExportTypos = &typos
+	}
+
+	if corrected, ok := repr.Meta.ResolvedExportTypos.MaybeCorrectTypo(name); ok {
+		msg.Data.Location.Suggestion = corrected
+		export := repr.Meta.ResolvedExports[corrected]
+		importedFile := &c.graph.Files[export.SourceIndex]
+		msg.Notes = append(msg.Notes, importedFile.LineColumnTracker().MsgData(
+			js_lexer.RangeOfIdentifier(importedFile.InputFile.Source, export.NameLoc),
+			fmt.Sprintf("Did you mean to import %q instead?", corrected)))
+	}
 }
 
 func (c *linkerContext) recursivelyWrapDependencies(sourceIndex uint32) {

@@ -835,10 +835,10 @@ func TestExportMissingES6(t *testing.T) {
 				console.log(ns)
 			`,
 			"/foo.js": `
-				export {nope} from './bar'
+				export {buton} from './bar'
 			`,
 			"/bar.js": `
-				export const yep = 123
+				export const button = 123
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
@@ -846,7 +846,8 @@ func TestExportMissingES6(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedCompileLog: `foo.js: ERROR: No matching export in "bar.js" for import "nope"
+		expectedCompileLog: `foo.js: ERROR: No matching export in "bar.js" for import "buton"
+bar.js: NOTE: Did you mean to import "button" instead?
 `,
 	})
 }
