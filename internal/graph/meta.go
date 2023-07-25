@@ -5,6 +5,7 @@ package graph
 
 import (
 	"github.com/evanw/esbuild/internal/ast"
+	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/logger"
 )
@@ -92,8 +93,9 @@ type JSReprMeta struct {
 	//
 	// Re-exports come from other files and are the result of resolving export
 	// star statements (i.e. "export * from 'foo'").
-	ResolvedExports    map[string]ExportData
-	ResolvedExportStar *ExportData
+	ResolvedExports     map[string]ExportData
+	ResolvedExportStar  *ExportData
+	ResolvedExportTypos *helpers.TypoDetector
 
 	// Never iterate over "resolvedExports" directly. Instead, iterate over this
 	// array. Some exports in that map aren't meant to end up in generated code.

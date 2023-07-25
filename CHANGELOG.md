@@ -1,5 +1,52 @@
 # Changelog
 
+## Unreleased
+
+* Adjust esbuild's warning about undefined imports for TypeScript `import` equals declarations ([#3271](https://github.com/evanw/esbuild/issues/3271))
+
+    In JavaScript, accessing a missing property on an import namespace object is supposed to result in a value of `undefined` at run-time instead of an error at compile-time. This is something that esbuild warns you about by default because doing this can indicate a bug with your code. For example:
+
+    ```js
+    // app.js
+    import * as styles from './styles'
+    console.log(styles.buton)
+    ```
+
+    ```js
+    // styles.js
+    export let button = {}
+    ```
+
+    If you bundle `app.js` with esbuild you will get this:
+
+    ```
+    ▲ [WARNING] Import "buton" will always be undefined because there is no matching export in "styles.js" [import-is-undefined]
+
+        app.js:2:19:
+          2 │ console.log(styles.buton)
+            │                    ~~~~~
+            ╵                    button
+
+      Did you mean to import "button" instead?
+
+        styles.js:1:11:
+          1 │ export let button = {}
+            ╵            ~~~~~~
+    ```
+
+    However, there is TypeScript-only syntax for `import` equals declarations that can represent either a type import (which esbuild should ignore) or a value import (which esbuild should respect). Since esbuild doesn't have a type system, it tries to only respect `import` equals declarations that are actually used as values. Previously esbuild always generated this warning for unused imports referenced within `import` equals declarations even when the reference could be a type instead of a value. Starting with this release, esbuild will now only warn in this case if the import is actually used. Here is an example of some code that no longer causes an incorrect warning:
+
+    ```ts
+    // app.ts
+    import * as styles from './styles'
+    import ButtonType = styles.Button
+    ```
+
+    ```ts
+    // styles.ts
+    export interface Button {}
+    ```
+
 ## 0.18.16
 
 * Fix a regression with whitespace inside `:is()` ([#3265](https://github.com/evanw/esbuild/issues/3265))

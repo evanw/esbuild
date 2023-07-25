@@ -867,6 +867,36 @@ func TestTSImportEqualsBundle(t *testing.T) {
 	})
 }
 
+func TestTSImportEqualsUndefinedImport(t *testing.T) {
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				import * as ns from './import.ts'
+				import value_copy = ns.value
+				import Type_copy = ns.Type
+				let foo: Type_copy = value_copy
+				console.log(foo)
+			`,
+			"/import.ts": `
+				export let value = 123
+				export type Type = number
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{
+					Exact: map[string]bool{
+						"pkg": true,
+					},
+				},
+			},
+		},
+	})
+}
+
 func TestTSMinifiedBundleES6(t *testing.T) {
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{

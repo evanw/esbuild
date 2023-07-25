@@ -1491,7 +1491,6 @@ TestTSImportEqualsTreeShakingFalse
 ---------- /out.js ----------
 import { foo } from "pkg";
 const used = foo.used;
-const unused = foo.unused;
 export { used };
 
 ================================================================================
@@ -1500,6 +1499,17 @@ TestTSImportEqualsTreeShakingTrue
 import { foo } from "pkg";
 const used = foo.used;
 export { used };
+
+================================================================================
+TestTSImportEqualsUndefinedImport
+---------- /out.js ----------
+// import.ts
+var value = 123;
+
+// entry.ts
+var value_copy = value;
+var foo = value_copy;
+console.log(foo);
 
 ================================================================================
 TestTSImportMTS

@@ -1668,6 +1668,7 @@ internal-ns-def.js: WARNING: Import "def" will always be undefined because there
 }
 
 func TestImportDefaultNamespaceComboNoDefault(t *testing.T) {
+	// Note: "entry-dead.js" checks that this warning doesn't happen for dead code
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry-default-ns-prop.js": `import def, * as ns from './foo'; console.log(def, ns, ns.default)`,
@@ -1675,7 +1676,11 @@ func TestImportDefaultNamespaceComboNoDefault(t *testing.T) {
 			"/entry-default-prop.js":    `import def, * as ns from './foo'; console.log(def, ns.default)`,
 			"/entry-default.js":         `import def from './foo'; console.log(def)`,
 			"/entry-prop.js":            `import * as ns from './foo'; console.log(ns.default)`,
-			"/foo.js":                   `export let foo = 123`,
+			"/entry-dead.js":            `import * as ns from './foo'; 0 && console.log(ns.default)`,
+			"/entry-typo.js":            `import * as ns from './foo'; console.log(ns.buton)`,
+			"/entry-typo-indirect.js":   `import * as ns from './indirect'; console.log(ns.buton)`,
+			"/foo.js":                   `export let button = {}`,
+			"/indirect.js":              `export * from './foo'`,
 		},
 		entryPaths: []string{
 			"/entry-default-ns-prop.js",
@@ -1683,6 +1688,9 @@ func TestImportDefaultNamespaceComboNoDefault(t *testing.T) {
 			"/entry-default-prop.js",
 			"/entry-default.js",
 			"/entry-prop.js",
+			"/entry-dead.js",
+			"/entry-typo.js",
+			"/entry-typo-indirect.js",
 		},
 		options: config.Options{
 			Mode:         config.ModeBundle,
@@ -1695,6 +1703,10 @@ entry-default-prop.js: ERROR: No matching export in "foo.js" for import "default
 entry-default-prop.js: WARNING: Import "default" will always be undefined because there is no matching export in "foo.js"
 entry-default.js: ERROR: No matching export in "foo.js" for import "default"
 entry-prop.js: WARNING: Import "default" will always be undefined because there is no matching export in "foo.js"
+entry-typo-indirect.js: WARNING: Import "buton" will always be undefined because there is no matching export in "indirect.js"
+foo.js: NOTE: Did you mean to import "button" instead?
+entry-typo.js: WARNING: Import "buton" will always be undefined because there is no matching export in "foo.js"
+foo.js: NOTE: Did you mean to import "button" instead?
 `,
 	})
 }

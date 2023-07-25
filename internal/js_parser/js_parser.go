@@ -15741,11 +15741,18 @@ func (p *parser) checkForUnusedTSImportEquals(s *js_ast.SLocal, result *importsE
 		}
 
 		// Is this an identifier reference and not a require() call?
-		if id, ok := value.Data.(*js_ast.EIdentifier); ok {
+		valueRef := ast.InvalidRef
+		switch v := value.Data.(type) {
+		case *js_ast.EIdentifier:
+			valueRef = v.Ref
+		case *js_ast.EImportIdentifier:
+			valueRef = v.Ref
+		}
+		if valueRef != ast.InvalidRef {
 			// Is this import statement unused?
 			if ref := decl.Binding.Data.(*js_ast.BIdentifier).Ref; p.symbols[ref.InnerIndex].UseCountEstimate == 0 {
 				// Also don't count the referenced identifier
-				p.ignoreUsage(id.Ref)
+				p.ignoreUsage(valueRef)
 
 				// Import-equals statements can come in any order. Removing one
 				// could potentially cause another one to be removable too.

@@ -2506,21 +2506,66 @@ loop:
 
 			// Report mismatched imports and exports
 			if symbol.ImportItemStatus == ast.ImportItemGenerated {
-				// This is a debug message instead of an error because although it
-				// appears to be a named import, it's actually an automatically-
-				// generated named import that was originally a property access on an
-				// import star namespace object. Normally this property access would
-				// just resolve to undefined at run-time instead of failing at binding-
-				// time, so we emit a debug message and rewrite the value to the literal
-				// "undefined" instead of emitting an error.
+				// This is not an error because although it appears to be a named
+				// import, it's actually an automatically-generated named import
+				// that was originally a property access on an import star
+				// namespace object:
+				//
+				//   import * as ns from 'foo'
+				//   const undefinedValue = ns.notAnExport
+				//
+				// If this code wasn't bundled, this property access would just resolve
+				// to undefined at run-time instead of failing at binding-time, so we
+				// emit rewrite the value to the literal "undefined" instead of
+				// emitting an error.
 				symbol.ImportItemStatus = ast.ImportItemMissing
-				kind := logger.Warning
-				if helpers.IsInsideNodeModules(trackerFile.InputFile.Source.KeyPath.Text) {
-					kind = logger.Debug
+
+				// Don't emit a log message if this symbol isn't used, since then the
+				// log message isn't helpful. This can happen with "import" assignment
+				// statements in TypeScript code since they are ambiguously either a
+				// type or a value. We consider them to be a type if they aren't used.
+				//
+				//   import * as ns from 'foo'
+				//
+				//   // There's no warning here because this is dead code
+				//   if (false) ns.notAnExport
+				//
+				//   // There's no warning here because this is never used
+				//   import unused = ns.notAnExport
+				//
+				if symbol.UseCountEstimate > 0 {
+					nextFile := &c.graph.Files[nextTracker.sourceIndex].InputFile
+					msg := logger.Msg{
+						Kind: logger.Warning,
+						Data: trackerFile.LineColumnTracker().MsgData(r, fmt.Sprintf(
+							"Import %q will always be undefined because there is no matching export in %q",
+							namedImport.Alias, nextFile.Source.PrettyPath)),
+					}
+					if helpers.IsInsideNodeModules(trackerFile.InputFile.Source.KeyPath.Text) {
+						msg.Kind = logger.Debug
+					}
+
+					// Attempt to correct an import name with a typo
+					repr := nextFile.Repr.(*graph.JSRepr)
+					if repr.Meta.ResolvedExportTypos == nil {
+						valid := make([]string, 0, len(repr.Meta.ResolvedExports))
+						for alias := range repr.Meta.ResolvedExports {
+							valid = append(valid, alias)
+						}
+						sort.Strings(valid)
+						typos := helpers.MakeTypoDetector(valid)
+						repr.Meta.ResolvedExportTypos = &typos
+					}
+					if corrected, ok := repr.Meta.ResolvedExportTypos.MaybeCorrectTypo(namedImport.Alias); ok {
+						msg.Data.Location.Suggestion = corrected
+						export := repr.Meta.ResolvedExports[corrected]
+						importedFile := &c.graph.Files[export.SourceIndex]
+						msg.Notes = append(msg.Notes, importedFile.LineColumnTracker().MsgData(
+							js_lexer.RangeOfIdentifier(importedFile.InputFile.Source, export.NameLoc),
+							fmt.Sprintf("Did you mean to import %q instead?", corrected)))
+					}
+					c.log.AddMsgID(logger.MsgID_Bundler_ImportIsUndefined, msg)
 				}
-				c.log.AddID(logger.MsgID_Bundler_ImportIsUndefined, kind, trackerFile.LineColumnTracker(), r, fmt.Sprintf(
-					"Import %q will always be undefined because there is no matching export in %q",
-					namedImport.Alias, c.graph.Files[nextTracker.sourceIndex].InputFile.Source.PrettyPath))
 			} else {
 				c.log.AddError(trackerFile.LineColumnTracker(), r, fmt.Sprintf("No matching export in %q for import %q",
 					c.graph.Files[nextTracker.sourceIndex].InputFile.Source.PrettyPath, namedImport.Alias))
