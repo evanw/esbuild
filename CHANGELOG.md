@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+* Adjust CSS nesting parser for IE7 hacks ([#3272](https://github.com/evanw/esbuild/issues/3272))
+
+    This fixes a regression with esbuild's treatment of IE7 hacks in CSS. CSS nesting allows selectors to be used where declarations are expected. There's an IE7 hack where prefixing a declaration with a `*` causes that declaration to only be applied in IE7 due to a bug in IE7's CSS parser. However, it's valid for nested CSS selectors to start with `*`. So esbuild was incorrectly parsing these declarations and anything following it up until the next `{` as a selector for a nested CSS rule. This release changes esbuild's parser to terminate the parsing of selectors for nested CSS rules when a `;` is encountered to fix this edge case:
+
+    ```css
+    /* Original code */
+    .item {
+      *width: 100%;
+      height: 1px;
+    }
+
+    /* Old output */
+    .item {
+      *width: 100%; height: 1px; {
+      }
+    }
+
+    /* New output */
+    .item {
+      *width: 100%;
+      height: 1px;
+    }
+    ```
+
+    Note that the syntax for CSS nesting is [about to change again](https://github.com/w3c/csswg-drafts/issues/7961), so esbuild's CSS parser may still not be completely accurate with how browsers do and/or will interpret CSS nesting syntax. Expect additional updates to esbuild's CSS parser in the future to deal with upcoming CSS specification changes.
+
 * Adjust esbuild's warning about undefined imports for TypeScript `import` equals declarations ([#3271](https://github.com/evanw/esbuild/issues/3271))
 
     In JavaScript, accessing a missing property on an import namespace object is supposed to result in a value of `undefined` at run-time instead of an error at compile-time. This is something that esbuild warns you about by default because doing this can indicate a bug with your code. For example:

@@ -603,7 +603,7 @@ func TestDeclaration(t *testing.T) {
 	// See http://browserhacks.com/
 	expectPrinted(t, ".selector { (;property: value;); }", ".selector {\n  (;property: value;);\n}\n",
 		"<stdin>: WARNING: Expected identifier but found \"(\"\n")
-	expectPrinted(t, ".selector { [;property: value;]; }", ".selector {\n  [;property: value;]; {\n  }\n}\n",
+	expectPrinted(t, ".selector { [;property: value;]; }", ".selector {\n  [;property: value;];\n}\n",
 		"<stdin>: WARNING: Expected identifier but found \";\"\n") // Note: This now overlaps with CSS nesting syntax
 	expectPrinted(t, ".selector, {}", ".selector, {\n}\n", "<stdin>: WARNING: Unexpected \"{\"\n")
 	expectPrinted(t, ".selector\\ {}", ".selector\\  {\n}\n", "")
@@ -1032,6 +1032,7 @@ func TestNestedSelector(t *testing.T) {
 
 func TestBadQualifiedRules(t *testing.T) {
 	expectPrinted(t, "$bad: rule;", "$bad: rule; {\n}\n", "<stdin>: WARNING: Unexpected \"$\"\n")
+	expectPrinted(t, "$bad: rule; div { color: red }", "$bad: rule; div {\n  color: red;\n}\n", "<stdin>: WARNING: Unexpected \"$\"\n")
 	expectPrinted(t, "$bad { color: red }", "$bad {\n  color: red;\n}\n", "<stdin>: WARNING: Unexpected \"$\"\n")
 	expectPrinted(t, "a { div.major { color: blue } color: red }", "a {\n  div.major { color: blue } color: red;\n}\n",
 		"<stdin>: WARNING: A nested style rule cannot start with \"div\" because it looks like the start of a declaration\n"+
@@ -1040,6 +1041,9 @@ func TestBadQualifiedRules(t *testing.T) {
 	expectPrinted(t, "a { div:hover { color: blue }; color: red }", "a {\n  div: hover { color: blue };\n  color: red;\n}\n", "")
 	expectPrinted(t, "a { div:hover { color: blue } ; color: red }", "a {\n  div: hover { color: blue };\n  color: red;\n}\n", "")
 	expectPrinted(t, "! { x: {} }", "! {\n  x: {};\n}\n", "<stdin>: WARNING: Unexpected \"!\"\n")
+	expectPrinted(t, "a { *width: 100%; height: 1px }", "a {\n  *width: 100%;\n  height: 1px;\n}\n", "<stdin>: WARNING: Unexpected \"width\"\n")
+	expectPrinted(t, "a { garbage; height: 1px }", "a {\n  garbage;\n  height: 1px;\n}\n", "<stdin>: WARNING: Expected \":\"\n")
+	expectPrinted(t, "a { !; height: 1px }", "a {\n  !;\n  height: 1px;\n}\n", "<stdin>: WARNING: Expected identifier but found \"!\"\n")
 }
 
 func TestAtRule(t *testing.T) {
