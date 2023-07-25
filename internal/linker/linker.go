@@ -1999,7 +1999,7 @@ func (c *linkerContext) generateCodeForLazyExport(sourceIndex uint32) {
 	part.Stmts = nil
 
 	// Generate a new symbol and link the export into the graph for tree shaking
-	generateExport := func(name string, alias string) (ast.Ref, uint32) {
+	generateExport := func(loc logger.Loc, name string, alias string) (ast.Ref, uint32) {
 		ref := c.graph.GenerateNewSymbol(sourceIndex, ast.SymbolOther, name)
 		partIndex := c.graph.AddPartToFile(sourceIndex, js_ast.Part{
 			DeclaredSymbols:      []js_ast.DeclaredSymbol{{Ref: ref, IsTopLevel: true}},
@@ -2007,7 +2007,11 @@ func (c *linkerContext) generateCodeForLazyExport(sourceIndex uint32) {
 		})
 		c.graph.GenerateSymbolImportAndUse(sourceIndex, partIndex, repr.AST.ModuleRef, 1, sourceIndex)
 		repr.Meta.TopLevelSymbolToPartsOverlay[ref] = []uint32{partIndex}
-		repr.Meta.ResolvedExports[alias] = graph.ExportData{Ref: ref, SourceIndex: sourceIndex}
+		repr.Meta.ResolvedExports[alias] = graph.ExportData{
+			Ref:         ref,
+			NameLoc:     loc,
+			SourceIndex: sourceIndex,
+		}
 		return ref, partIndex
 	}
 
@@ -2019,7 +2023,7 @@ func (c *linkerContext) generateCodeForLazyExport(sourceIndex uint32) {
 				(!file.IsEntryPoint() || js_ast.IsIdentifierUTF16(str.Value) ||
 					!c.options.UnsupportedJSFeatures.Has(compat.ArbitraryModuleNamespaceNames)) {
 				if name := helpers.UTF16ToString(str.Value); name != "default" {
-					ref, partIndex := generateExport(name, name)
+					ref, partIndex := generateExport(property.Key.Loc, name, name)
 
 					// This initializes the generated variable with a copy of the property
 					// value, which is INCORRECT for values that are objects/arrays because
@@ -2045,7 +2049,7 @@ func (c *linkerContext) generateCodeForLazyExport(sourceIndex uint32) {
 	}
 
 	// Generate the default export
-	ref, partIndex := generateExport(file.InputFile.Source.IdentifierName+"_default", "default")
+	ref, partIndex := generateExport(jsonValue.Loc, file.InputFile.Source.IdentifierName+"_default", "default")
 	repr.AST.Parts[partIndex].Stmts = []js_ast.Stmt{{Loc: jsonValue.Loc, Data: &js_ast.SExportDefault{
 		DefaultName: ast.LocRef{Loc: jsonValue.Loc, Ref: ref},
 		Value:       js_ast.Stmt{Loc: jsonValue.Loc, Data: &js_ast.SExpr{Value: jsonValue}},
@@ -2661,9 +2665,17 @@ func (c *linkerContext) maybeCorrectObviousTypo(repr *graph.JSRepr, name string,
 		msg.Data.Location.Suggestion = corrected
 		export := repr.Meta.ResolvedExports[corrected]
 		importedFile := &c.graph.Files[export.SourceIndex]
-		msg.Notes = append(msg.Notes, importedFile.LineColumnTracker().MsgData(
-			js_lexer.RangeOfIdentifier(importedFile.InputFile.Source, export.NameLoc),
-			fmt.Sprintf("Did you mean to import %q instead?", corrected)))
+		text := fmt.Sprintf("Did you mean to import %q instead?", corrected)
+		var note logger.MsgData
+		if export.NameLoc.Start == 0 {
+			// Don't report a source location for definitions without one. This can
+			// happen with automatically-generated exports from non-JavaScript files.
+			note.Text = text
+		} else {
+			r := js_lexer.RangeOfIdentifier(importedFile.InputFile.Source, export.NameLoc)
+			note = importedFile.LineColumnTracker().MsgData(r, text)
+		}
+		msg.Notes = append(msg.Notes, note)
 	}
 }
 
