@@ -7845,6 +7845,34 @@ tests.push(
   }),
 )
 
+// Test CSS-related warning ranges
+tests.push(
+  test(['in.js', '--outfile=node.js', '--bundle', '--loader:.css=local-css'], {
+    'in.js': `
+      import * as ns from './styles.css'
+      if (ns.buton !== void 0) throw 'fail'
+    `,
+    'styles.css': `
+      .bu\\74 ton { color: red }
+    `,
+  }, {
+    expectedStderr: `▲ [WARNING] Import "buton" will always be undefined because there is no matching export in "styles.css" [import-is-undefined]
+
+    in.js:3:13:
+      3 │       if (ns.buton !== void 0) throw 'fail'
+        │              ~~~~~
+        ╵              button
+
+  Did you mean to import "button" instead?
+
+    styles.css:2:7:
+      2 │       .bu\\74 ton { color: red }
+        ╵        ~~~~~~~~~
+
+`,
+  }),
+)
+
 // Test writing to stdout
 tests.push(
   // These should succeed

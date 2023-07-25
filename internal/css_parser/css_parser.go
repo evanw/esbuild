@@ -24,6 +24,7 @@ type parser struct {
 	stack              []css_lexer.T
 	importRecords      []ast.ImportRecord
 	symbols            []ast.Symbol
+	defineLocs         map[ast.Ref]logger.Loc
 	localSymbolMap     map[string]ast.Ref
 	globalSymbolMap    map[string]ast.Ref
 	nestingWarnings    map[logger.Loc]struct{}
@@ -125,6 +126,7 @@ func Parse(log logger.Log, source logger.Source, options Options) css_ast.AST {
 		allComments:      result.AllComments,
 		legalComments:    result.LegalComments,
 		prevError:        logger.Loc{Start: -1},
+		defineLocs:       make(map[ast.Ref]logger.Loc),
 		localSymbolMap:   make(map[string]ast.Ref),
 		globalSymbolMap:  make(map[string]ast.Ref),
 		makeLocalSymbols: options.symbolMode == symbolModeLocal,
@@ -142,6 +144,7 @@ func Parse(log logger.Log, source logger.Source, options Options) css_ast.AST {
 		ImportRecords:        p.importRecords,
 		ApproximateLineCount: result.ApproximateLineCount,
 		SourceMapComment:     result.SourceMapComment,
+		DefineLocs:           p.defineLocs,
 	}
 }
 
@@ -301,7 +304,7 @@ func (p *parser) unexpected() {
 	}
 }
 
-func (p *parser) symbolForName(name string) ast.Ref {
+func (p *parser) symbolForName(loc logger.Loc, name string) ast.Ref {
 	var kind ast.SymbolKind
 	var scope map[string]ast.Ref
 
@@ -325,6 +328,7 @@ func (p *parser) symbolForName(name string) ast.Ref {
 			Link:         ast.InvalidRef,
 		})
 		scope[name] = ref
+		p.defineLocs[ref] = loc
 	}
 
 	p.symbols[ref.InnerIndex].UseCountEstimate++

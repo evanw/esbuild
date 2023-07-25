@@ -1110,13 +1110,13 @@ console.log("file 1", t, l.a);
 
 // dir2/style.css
 var e = "n";
-var f = {
+var n = {
   b: "e",
   button: e
 };
 
 // b.js
-console.log("file 2", e, f.b);
+console.log("file 2", e, n.b);
 
 ---------- /out/entry.css ----------
 /* dir1/style.css */
@@ -1154,7 +1154,7 @@ TestImportLocalCSSFromJSMinifyIdentifiersAvoidGlobalNames
 
 ================================================================================
 TestMetafileCSSBundleTwoToOne
----------- /out/js/UOATE6K4.js ----------
+---------- /out/js/2PSDKYWE.js ----------
 // foo/entry.js
 console.log("foo");
 
@@ -1164,7 +1164,7 @@ body {
   color: red;
 }
 
----------- /out/js/6ZCNL5VY.js ----------
+---------- /out/js/MA6C7ZBK.js ----------
 // bar/entry.js
 console.log("bar");
 ---------- metafile.json ----------
@@ -1198,7 +1198,7 @@ console.log("bar");
     }
   },
   "outputs": {
-    "out/js/UOATE6K4.js": {
+    "out/js/2PSDKYWE.js": {
       "imports": [],
       "exports": [],
       "entryPoint": "foo/entry.js",
@@ -1222,7 +1222,7 @@ console.log("bar");
       },
       "bytes": 40
     },
-    "out/js/6ZCNL5VY.js": {
+    "out/js/MA6C7ZBK.js": {
       "imports": [],
       "exports": [],
       "entryPoint": "bar/entry.js",

@@ -598,6 +598,54 @@ func WouldStartIdentifierWithoutEscapes(text string) bool {
 	return false
 }
 
+func RangeOfIdentifier(source logger.Source, loc logger.Loc) logger.Range {
+	text := source.Contents[loc.Start:]
+	if len(text) == 0 {
+		return logger.Range{Loc: loc, Len: 0}
+	}
+
+	i := 0
+	n := len(text)
+
+	for {
+		c, width := utf8.DecodeRuneInString(text[i:])
+		if IsNameContinue(c) {
+			i += width
+			continue
+		}
+
+		// Handle an escape
+		if c == '\\' && i+1 < n && !isNewline(rune(text[i+1])) {
+			i += width // Skip the backslash
+			c, width = utf8.DecodeRuneInString(text[i:])
+			if _, ok := isHex(c); ok {
+				i += width
+				c, width = utf8.DecodeRuneInString(text[i:])
+				for j := 0; j < 5; j++ {
+					if _, ok := isHex(c); !ok {
+						break
+					}
+					i += width
+					c, width = utf8.DecodeRuneInString(text[i:])
+				}
+				if isWhitespace(c) {
+					i += width
+				}
+			}
+			continue
+		}
+
+		break
+	}
+
+	// Don't end with a whitespace
+	if i > 0 && isWhitespace(rune(text[i-1])) {
+		i--
+	}
+
+	return logger.Range{Loc: loc, Len: int32(i)}
+}
+
 func (lexer *lexer) wouldStartNumber() bool {
 	if lexer.codePoint >= '0' && lexer.codePoint <= '9' {
 		return true

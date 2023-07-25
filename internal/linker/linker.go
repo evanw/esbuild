@@ -24,6 +24,7 @@ import (
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/css_ast"
+	"github.com/evanw/esbuild/internal/css_lexer"
 	"github.com/evanw/esbuild/internal/css_parser"
 	"github.com/evanw/esbuild/internal/css_printer"
 	"github.com/evanw/esbuild/internal/fs"
@@ -2672,7 +2673,12 @@ func (c *linkerContext) maybeCorrectObviousTypo(repr *graph.JSRepr, name string,
 			// happen with automatically-generated exports from non-JavaScript files.
 			note.Text = text
 		} else {
-			r := js_lexer.RangeOfIdentifier(importedFile.InputFile.Source, export.NameLoc)
+			var r logger.Range
+			if importedFile.InputFile.Loader.IsCSS() {
+				r = css_lexer.RangeOfIdentifier(importedFile.InputFile.Source, export.NameLoc)
+			} else {
+				r = js_lexer.RangeOfIdentifier(importedFile.InputFile.Source, export.NameLoc)
+			}
 			note = importedFile.LineColumnTracker().MsgData(r, text)
 		}
 		msg.Notes = append(msg.Notes, note)

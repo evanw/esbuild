@@ -30,6 +30,7 @@ type AST struct {
 	Rules                []Rule
 	SourceMapComment     logger.Span
 	ApproximateLineCount int32
+	DefineLocs           map[ast.Ref]logger.Loc
 }
 
 // We create a lot of tokens, so make sure this layout is memory-efficient.

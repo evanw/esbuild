@@ -1170,13 +1170,13 @@ console.log((init_types(), __toCommonJS(types_exports)));
 
 ================================================================================
 TestEntryNamesChunkNamesExtPlaceholder
----------- /out/main/js/entry1-L7KI5G7A.js ----------
+---------- /out/main/js/entry1-4X3SO762.js ----------
 import "../../common/js/chunk-XHGYOYUR.js";
 
 // src/entries/entry1.js
 console.log("entry1");
 
----------- /out/main/js/entry2-KTHKWVT2.js ----------
+---------- /out/main/js/entry2-URQRHZS5.js ----------
 import "../../common/js/chunk-XHGYOYUR.js";
 
 // src/entries/entry2.js

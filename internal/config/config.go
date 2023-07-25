@@ -229,9 +229,17 @@ func (loader Loader) IsTypeScript() bool {
 	switch loader {
 	case LoaderTS, LoaderTSNoAmbiguousLessThan, LoaderTSX:
 		return true
-	default:
-		return false
 	}
+	return false
+}
+
+func (loader Loader) IsCSS() bool {
+	switch loader {
+	case
+		LoaderCSS, LoaderGlobalCSS, LoaderLocalCSS:
+		return true
+	}
+	return false
 }
 
 func (loader Loader) CanHaveSourceMap() bool {
@@ -242,9 +250,8 @@ func (loader Loader) CanHaveSourceMap() bool {
 		LoaderCSS, LoaderGlobalCSS, LoaderLocalCSS,
 		LoaderJSON, LoaderText:
 		return true
-	default:
-		return false
 	}
+	return false
 }
 
 type Format uint8

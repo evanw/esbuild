@@ -366,7 +366,7 @@ subclassSelectors:
 			sel.SubclassSelectors = append(sel.SubclassSelectors, css_ast.SubclassSelector{
 				Loc: subclassToken.Range.Loc,
 				Data: &css_ast.SSHash{
-					Name: ast.LocRef{Loc: nameLoc, Ref: p.symbolForName(name)},
+					Name: ast.LocRef{Loc: nameLoc, Ref: p.symbolForName(nameLoc, name)},
 				},
 			})
 			p.advance()
@@ -378,7 +378,7 @@ subclassSelectors:
 			sel.SubclassSelectors = append(sel.SubclassSelectors, css_ast.SubclassSelector{
 				Loc: subclassToken.Range.Loc,
 				Data: &css_ast.SSClass{
-					Name: ast.LocRef{Loc: nameLoc, Ref: p.symbolForName(name)},
+					Name: ast.LocRef{Loc: nameLoc, Ref: p.symbolForName(nameLoc, name)},
 				},
 			})
 			if !p.expect(css_lexer.TIdent) {
