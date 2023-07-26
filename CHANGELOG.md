@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.18.17
 
 * Support `An+B` syntax and `:nth-*()` pseudo-classes in CSS
 
