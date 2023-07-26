@@ -52,7 +52,11 @@ type Token struct {
 
 	// URL tokens have an associated import record at the top-level of the AST.
 	// This index points to that import record.
-	ImportRecordIndex uint32 // 4 bytes
+	//
+	// Symbol tokens have an associated symbol. This index is the "InnerIndex"
+	// of the "Ref" for this symbol. The "SourceIndex" for the "Ref" is just
+	// the source index of the file for this AST.
+	PayloadIndex uint32 // 4 bytes
 
 	// The division between the number and the unit for "TDimension" tokens.
 	UnitOffset uint16 // 2 bytes
@@ -90,6 +94,8 @@ type CrossFileEqualityCheck struct {
 	ImportRecordsA []ast.ImportRecord
 	ImportRecordsB []ast.ImportRecord
 	Symbols        ast.SymbolMap
+	SourceIndexA   uint32
+	SourceIndexB   uint32
 }
 
 func (check *CrossFileEqualityCheck) RefsAreEquivalent(a ast.Ref, b ast.Ref) bool {
@@ -116,7 +122,7 @@ func (a Token) Equal(b Token, check *CrossFileEqualityCheck) bool {
 		if a.Kind == css_lexer.TURL {
 			if check == nil {
 				// If both tokens are in the same file, just compare the index
-				if a.ImportRecordIndex != b.ImportRecordIndex {
+				if a.PayloadIndex != b.PayloadIndex {
 					return false
 				}
 			} else {
@@ -127,8 +133,26 @@ func (a Token) Equal(b Token, check *CrossFileEqualityCheck) bool {
 				// linking, paths inside the bundle (e.g. due to the "copy" loader)
 				// should have already been converted into text (e.g. the "unique key"
 				// string).
-				if check.ImportRecordsA[a.ImportRecordIndex].Path.Text !=
-					check.ImportRecordsB[b.ImportRecordIndex].Path.Text {
+				if check.ImportRecordsA[a.PayloadIndex].Path.Text !=
+					check.ImportRecordsB[b.PayloadIndex].Path.Text {
+					return false
+				}
+			}
+		}
+
+		// Symbols should be compared based on the symbol reference instead of the
+		// original text
+		if a.Kind == css_lexer.TSymbol {
+			if check == nil {
+				// If both tokens are in the same file, just compare the index
+				if a.PayloadIndex != b.PayloadIndex {
+					return false
+				}
+			} else {
+				// If the tokens come from separate files, compare the symbols themselves
+				refA := ast.Ref{SourceIndex: check.SourceIndexA, InnerIndex: a.PayloadIndex}
+				refB := ast.Ref{SourceIndex: check.SourceIndexB, InnerIndex: b.PayloadIndex}
+				if !check.RefsAreEquivalent(refA, refB) {
 					return false
 				}
 			}
@@ -175,7 +199,7 @@ func HashTokens(hash uint32, tokens []Token) uint32 {
 }
 
 func (a Token) EqualIgnoringWhitespace(b Token) bool {
-	if a.Kind == b.Kind && a.Text == b.Text && a.ImportRecordIndex == b.ImportRecordIndex {
+	if a.Kind == b.Kind && a.Text == b.Text && a.PayloadIndex == b.PayloadIndex {
 		if a.Children == nil && b.Children == nil {
 			return true
 		}
@@ -305,8 +329,8 @@ func CloneTokensWithImportRecords(
 		// If this is a URL token, also clone the import record
 		if t.Kind == css_lexer.TURL {
 			importRecordIndex := uint32(len(importRecordsOut))
-			importRecordsOut = append(importRecordsOut, importRecordsIn[t.ImportRecordIndex])
-			t.ImportRecordIndex = importRecordIndex
+			importRecordsOut = append(importRecordsOut, importRecordsIn[t.PayloadIndex])
+			t.PayloadIndex = importRecordIndex
 		}
 
 		// Also search for URL tokens in this token's children
@@ -386,7 +410,7 @@ func (r *RAtImport) Hash() (uint32, bool) {
 
 type RAtKeyframes struct {
 	AtToken       string
-	Name          string
+	Name          ast.LocRef
 	Blocks        []KeyframeBlock
 	CloseBraceLoc logger.Loc
 }
@@ -399,7 +423,7 @@ type KeyframeBlock struct {
 }
 
 func (a *RAtKeyframes) Equal(rule R, check *CrossFileEqualityCheck) bool {
-	if b, ok := rule.(*RAtKeyframes); ok && a.AtToken == b.AtToken && a.Name == b.Name && len(a.Blocks) == len(b.Blocks) {
+	if b, ok := rule.(*RAtKeyframes); ok && a.AtToken == b.AtToken && check.RefsAreEquivalent(a.Name.Ref, b.Name.Ref) && len(a.Blocks) == len(b.Blocks) {
 		for i, ai := range a.Blocks {
 			bi := b.Blocks[i]
 			if len(ai.Selectors) != len(bi.Selectors) {
@@ -422,7 +446,6 @@ func (a *RAtKeyframes) Equal(rule R, check *CrossFileEqualityCheck) bool {
 func (r *RAtKeyframes) Hash() (uint32, bool) {
 	hash := uint32(2)
 	hash = helpers.HashCombineString(hash, r.AtToken)
-	hash = helpers.HashCombineString(hash, r.Name)
 	hash = helpers.HashCombine(hash, uint32(len(r.Blocks)))
 	for _, block := range r.Blocks {
 		hash = helpers.HashCombine(hash, uint32(len(block.Selectors)))

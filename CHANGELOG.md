@@ -2,6 +2,49 @@
 
 ## Unreleased
 
+* Support local keyframe animation names in CSS ([#20](https://github.com/evanw/esbuild/issues/20))
+
+    This release adds support for local keyframe animation names in CSS files loaded with the `local-css` loader. Here's an example:
+
+    ```css
+    @keyframes hide {
+      from { opacity: 1 }
+      to { opacity: 0 }
+    }
+    div {
+      animation: 0.5s ease-in-out hide;
+    }
+    ```
+
+    With the `local-css` loader enabled, that CSS will be turned into something like this (with the `hide` => `stdin_hide` mapping exposed to JS):
+
+    ```css
+    @keyframes stdin_hide {
+      from {
+        opacity: 1;
+      }
+      to {
+        opacity: 0;
+      }
+    }
+    div {
+      animation: 0.5s ease-in-out stdin_hide;
+    }
+    ```
+
+    If you want to use a global animation name within a file loaded with the `local-css` loader, you can use a `:global` selector to do that:
+
+    ```css
+    div {
+      /* All symbols are global inside this scope (including the "hide" animation name) */
+      :global {
+        animation: 0.5s ease-in-out hide;
+      }
+    }
+    ```
+
+    If you want to define a global animation name, make sure it's defined in a file that uses the `css` or `global-css` loader instead of the `local-css` loader. For example, you can configure `--loader:.module.css=local-css` so that the `local-css` loader only applies to `*.module.css` files.
+
 * Support strings as keyframe animation names in CSS ([#2555](https://github.com/evanw/esbuild/issues/2555))
 
     With this release, esbuild will now parse animation names that are specified as strings and will convert them to identifiers. The CSS specification allows animation names to be specified using either identifiers or strings but Chrome only understands identifiers, so esbuild will now always convert string names to identifier names for Chrome compatibility:

@@ -612,6 +612,9 @@ b {
 .a_bar {
   color: green;
 }
+div {
+  animation-name: a_anim_local;
+}
 
 /* b.css */
 a {
@@ -631,6 +634,12 @@ b {
 }
 .b_bar {
   color: #00f;
+}
+div {
+  animation-name: anim_global;
+}
+div {
+  animation-name: b_anim_local;
 }
 
 /* entry.css */
@@ -684,6 +693,37 @@ TestIgnoreURLsInAtRulePrelude
   a {
     color: red;
   }
+}
+
+================================================================================
+TestImportCSSFromJSLocalKeyframeAnimationNames
+---------- /out/entry.js ----------
+// styles.css
+var styles_default = {
+  local_name: "styles_local_name"
+};
+
+// entry.js
+console.log(styles_default);
+
+---------- /out/entry.css ----------
+/* styles.css */
+@keyframes styles_local_name {
+  to {
+    color: red;
+  }
+}
+div {
+  animation-name: global_name;
+}
+div {
+  animation-name: styles_local_name;
+}
+div {
+  animation: 2s infinite global_name;
+}
+div {
+  animation: 2s infinite styles_local_name;
 }
 
 ================================================================================

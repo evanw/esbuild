@@ -87,11 +87,8 @@ func (p *parser) processAnimationShorthand(tokens []css_ast.Token) {
 }
 
 func (p *parser) processAnimationName(token *css_ast.Token) {
-	// Note: Strings as names is allowed in the CSS specification and works in
-	// Firefox and Safari but Chrome has strangely decided to deliberately not
-	// support this. We always turn all string names into identifiers to avoid
-	// them silently breaking in Chrome.
-	if token.Kind == css_lexer.TString {
-		token.Kind = css_lexer.TIdent
+	if token.Kind == css_lexer.TIdent || token.Kind == css_lexer.TString {
+		token.Kind = css_lexer.TSymbol
+		token.PayloadIndex = p.symbolForName(token.Loc, token.Text).Ref.InnerIndex
 	}
 }

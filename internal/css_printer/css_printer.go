@@ -43,6 +43,7 @@ type Options struct {
 	LocalNames map[ast.Ref]string
 
 	LineLimit           int
+	InputSourceIndex    uint32
 	UnsupportedFeatures compat.CSSFeature
 	MinifyWhitespace    bool
 	ASCIIOnly           bool
@@ -171,7 +172,7 @@ func (p *printer) printRule(rule css_ast.Rule, indent int32, omitTrailingSemicol
 		p.print("@")
 		p.printIdent(r.AtToken, identNormal, mayNeedWhitespaceAfter)
 		p.print(" ")
-		p.printIdent(r.Name, identNormal, canDiscardWhitespaceAfter)
+		p.printSymbol(r.Name.Loc, r.Name.Ref, identNormal, canDiscardWhitespaceAfter)
 		if !p.options.MinifyWhitespace {
 			p.print(" ")
 		}
@@ -956,6 +957,10 @@ func (p *printer) printTokens(tokens []css_ast.Token, opts printTokensOpts) bool
 		case css_lexer.TIdent:
 			p.printIdent(t.Text, identNormal, whitespace)
 
+		case css_lexer.TSymbol:
+			ref := ast.Ref{SourceIndex: p.options.InputSourceIndex, InnerIndex: t.PayloadIndex}
+			p.printSymbol(t.Loc, ref, identNormal, whitespace)
+
 		case css_lexer.TFunction:
 			p.printIdent(t.Text, identNormal, whitespace)
 			p.print("(")
@@ -981,7 +986,7 @@ func (p *printer) printTokens(tokens []css_ast.Token, opts printTokensOpts) bool
 			p.printQuoted(t.Text)
 
 		case css_lexer.TURL:
-			text := p.importRecords[t.ImportRecordIndex].Path.Text
+			text := p.importRecords[t.PayloadIndex].Path.Text
 			tryToAvoidQuote := true
 			if p.options.LineLimit > 0 && p.currentLineLength()+len(text) >= p.options.LineLimit {
 				tryToAvoidQuote = false
@@ -989,7 +994,7 @@ func (p *printer) printTokens(tokens []css_ast.Token, opts printTokensOpts) bool
 			p.print("url(")
 			p.printQuotedWithQuote(text, bestQuoteCharForString(text, tryToAvoidQuote))
 			p.print(")")
-			p.recordImportPathForMetafile(t.ImportRecordIndex)
+			p.recordImportPathForMetafile(t.PayloadIndex)
 
 		case css_lexer.TUnterminatedString:
 			// We must end this with a newline so that this string stays unterminated

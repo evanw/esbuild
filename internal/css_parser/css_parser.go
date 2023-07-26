@@ -304,7 +304,7 @@ func (p *parser) unexpected() {
 	}
 }
 
-func (p *parser) symbolForName(loc logger.Loc, name string) ast.Ref {
+func (p *parser) symbolForName(loc logger.Loc, name string) ast.LocRef {
 	var kind ast.SymbolKind
 	var scope map[string]ast.Ref
 
@@ -332,7 +332,7 @@ func (p *parser) symbolForName(loc logger.Loc, name string) ast.Ref {
 	}
 
 	p.symbols[ref.InnerIndex].UseCountEstimate++
-	return ref
+	return ast.LocRef{Loc: loc, Ref: ref}
 }
 
 type ruleContext struct {
@@ -625,7 +625,7 @@ func (p *parser) mangleRules(rules []css_ast.Rule, isTopLevel bool) []css_ast.Ru
 	// will be mangled by the linker instead for cross-file rule mangling.
 	if !isTopLevel {
 		remover := MakeDuplicateRuleMangler(ast.SymbolMap{})
-		rules = remover.RemoveDuplicateRulesInPlace(rules, p.importRecords)
+		rules = remover.RemoveDuplicateRulesInPlace(p.source.Index, rules, p.importRecords)
 	}
 
 	return rules
@@ -640,10 +640,15 @@ type hashEntry struct {
 	rules []ruleEntry
 }
 
+type callEntry struct {
+	importRecords []ast.ImportRecord
+	sourceIndex   uint32
+}
+
 type DuplicateRuleRemover struct {
 	symbols ast.SymbolMap
 	entries map[uint32]hashEntry
-	calls   [][]ast.ImportRecord
+	calls   []callEntry
 	check   css_ast.CrossFileEqualityCheck
 }
 
@@ -654,12 +659,12 @@ func MakeDuplicateRuleMangler(symbols ast.SymbolMap) DuplicateRuleRemover {
 	}
 }
 
-func (remover *DuplicateRuleRemover) RemoveDuplicateRulesInPlace(rules []css_ast.Rule, importRecords []ast.ImportRecord) []css_ast.Rule {
+func (remover *DuplicateRuleRemover) RemoveDuplicateRulesInPlace(sourceIndex uint32, rules []css_ast.Rule, importRecords []ast.ImportRecord) []css_ast.Rule {
 	// The caller may call this function multiple times, each with a different
 	// set of import records. Remember each set of import records for equality
 	// checks later.
 	callCounter := uint32(len(remover.calls))
-	remover.calls = append(remover.calls, importRecords)
+	remover.calls = append(remover.calls, callEntry{importRecords, sourceIndex})
 
 	// Remove duplicate rules, scanning from the back so we keep the last
 	// duplicate. Note that the linker calls this, so we do not want to do
@@ -685,8 +690,11 @@ skipRule:
 				if current.callCounter != callCounter {
 					// Reuse the same memory allocation
 					check = &remover.check
+					call := remover.calls[current.callCounter]
 					check.ImportRecordsA = importRecords
-					check.ImportRecordsB = remover.calls[current.callCounter]
+					check.ImportRecordsB = call.importRecords
+					check.SourceIndexA = sourceIndex
+					check.SourceIndexB = call.sourceIndex
 				}
 
 				if rule.Data.Equal(current.data, check) {
@@ -1143,6 +1151,7 @@ abortRuleParser:
 
 	case "keyframes", "-webkit-keyframes", "-moz-keyframes", "-ms-keyframes", "-o-keyframes":
 		p.eat(css_lexer.TWhitespace)
+		nameLoc := p.current().Range.Loc
 		var name string
 
 		if p.peek(css_lexer.TIdent) {
@@ -1178,7 +1187,7 @@ abortRuleParser:
 					p.advance()
 					return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RAtKeyframes{
 						AtToken:       atToken,
-						Name:          name,
+						Name:          p.symbolForName(nameLoc, name),
 						Blocks:        blocks,
 						CloseBraceLoc: closeBraceLoc,
 					}}
@@ -1609,7 +1618,7 @@ loop:
 			}
 
 		case css_lexer.TURL:
-			token.ImportRecordIndex = uint32(len(p.importRecords))
+			token.PayloadIndex = uint32(len(p.importRecords))
 			var flags ast.ImportRecordFlags
 			if !opts.allowImports {
 				flags |= ast.IsUnused
@@ -1646,7 +1655,7 @@ loop:
 				token.Kind = css_lexer.TURL
 				token.Text = ""
 				token.Children = nil
-				token.ImportRecordIndex = uint32(len(p.importRecords))
+				token.PayloadIndex = uint32(len(p.importRecords))
 				var flags ast.ImportRecordFlags
 				if !opts.allowImports {
 					flags |= ast.IsUnused

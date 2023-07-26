@@ -5445,7 +5445,7 @@ func (c *linkerContext) generateChunkCSS(chunkIndex int, chunkWaitGroup *sync.Wa
 
 		// Remove top-level duplicate rules across files
 		if c.options.MinifySyntax {
-			rules = remover.RemoveDuplicateRulesInPlace(rules, ast.ImportRecords)
+			rules = remover.RemoveDuplicateRulesInPlace(sourceIndex, rules, ast.ImportRecords)
 		}
 
 		ast.Rules = rules
@@ -5483,6 +5483,7 @@ func (c *linkerContext) generateChunkCSS(chunkIndex int, chunkWaitGroup *sync.Wa
 				UnsupportedFeatures: c.options.UnsupportedCSSFeatures,
 				AddSourceMappings:   addSourceMappings,
 				InputSourceMap:      inputSourceMap,
+				InputSourceIndex:    sourceIndex,
 				LineOffsetTables:    lineOffsetTables,
 				NeedsMetafile:       c.options.NeedsMetafile,
 				LocalNames:          c.mangledProps,

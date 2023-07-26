@@ -55,6 +55,11 @@ const (
 	TString
 	TURL
 	TWhitespace
+
+	// This is never something that the lexer generates directly. Instead this is
+	// an esbuild-specific token for global/local names that "TIdent" tokens may
+	// be changed into.
+	TSymbol
 )
 
 var tokenToString = []string{
@@ -96,6 +101,8 @@ var tokenToString = []string{
 	"string token",
 	"URL token",
 	"whitespace",
+
+	"identifier",
 }
 
 func (t T) String() string {

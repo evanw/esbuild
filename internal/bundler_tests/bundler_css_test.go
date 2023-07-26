@@ -420,6 +420,36 @@ func TestImportCSSFromJSLowerBareLocalAndGlobal(t *testing.T) {
 	})
 }
 
+func TestImportCSSFromJSLocalKeyframeAnimationNames(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import styles from "./styles.css"
+				console.log(styles)
+			`,
+			"/styles.css": `
+				@keyframes local_name { to { color: red } }
+
+				div :global { animation-name: global_name }
+				div :local { animation-name: local_name }
+
+				div :global { animation: 2s infinite global_name }
+				div :local { animation: 2s infinite local_name }
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			ExtensionToLoader: map[string]config.Loader{
+				".js":  config.LoaderJS,
+				".css": config.LoaderLocalCSS,
+			},
+			UnsupportedCSSFeatures: compat.Nesting,
+		},
+	})
+}
+
 func TestImportCSSFromJSNthIndexLocal(t *testing.T) {
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
@@ -1156,21 +1186,17 @@ func TestDeduplicateRulesGlobalVsLocalNames(t *testing.T) {
 				@import "b.css";
 			`,
 			"/a.css": `
-				/*
-				Duplicate rule removal should remove "a" and ":global(.foo)" from this
-				file. The rule ":global(.foo)" needs to be tested separately here since
-				"foo" is a symbol and symbols are represented differently than strings
-				in esbuild's AST. The rule ":local(.foo)" should not be deduplicated.
-				*/
-
-				a { color: red }
+				a { color: red } /* SHOULD BE REMOVED */
 				b { color: green }
 
-				:global(.foo) { color: red }
+				:global(.foo) { color: red } /* SHOULD BE REMOVED */
 				:global(.bar) { color: green }
 
 				:local(.foo) { color: red }
 				:local(.bar) { color: green }
+
+				div :global { animation-name: anim_global } /* SHOULD BE REMOVED */
+				div :local { animation-name: anim_local }
 			`,
 			"/b.css": `
 				a { color: red }
@@ -1181,6 +1207,9 @@ func TestDeduplicateRulesGlobalVsLocalNames(t *testing.T) {
 
 				:local(.foo) { color: red }
 				:local(.bar) { color: blue }
+
+				div :global { animation-name: anim_global }
+				div :local { animation-name: anim_local }
 			`,
 		},
 		entryPaths: []string{"entry.css"},
