@@ -1320,7 +1320,6 @@ func TestLegalComment(t *testing.T) {
 
 func TestAtKeyframes(t *testing.T) {
 	expectPrinted(t, "@keyframes {}", "@keyframes {}\n", "<stdin>: WARNING: Expected identifier but found \"{\"\n")
-	expectPrinted(t, "@keyframes 'name' {}", "@keyframes \"name\" {}\n", "")
 	expectPrinted(t, "@keyframes name{}", "@keyframes name {\n}\n", "")
 	expectPrinted(t, "@keyframes name {}", "@keyframes name {\n}\n", "")
 	expectPrinted(t, "@keyframes name{0%,50%{color:red}25%,75%{color:blue}}",
@@ -1331,6 +1330,13 @@ func TestAtKeyframes(t *testing.T) {
 		"@keyframes name {\n  from {\n    color: red;\n  }\n  to {\n    color: blue;\n  }\n}\n", "")
 	expectPrinted(t, "@keyframes name { from { color: red } to { color: blue } }",
 		"@keyframes name {\n  from {\n    color: red;\n  }\n  to {\n    color: blue;\n  }\n}\n", "")
+
+	// Note: Strings as names is allowed in the CSS specification and works in
+	// Firefox and Safari but Chrome has strangely decided to deliberately not
+	// support this. We always turn all string names into identifiers to avoid
+	// them silently breaking in Chrome.
+	expectPrinted(t, "@keyframes 'name' {}", "@keyframes name {\n}\n", "")
+	expectPrinted(t, "@keyframes 'name 2' {}", "@keyframes name\\ 2 {\n}\n", "")
 
 	expectPrinted(t, "@keyframes name { from { color: red } }", "@keyframes name {\n  from {\n    color: red;\n  }\n}\n", "")
 	expectPrinted(t, "@keyframes name { 100% { color: red } }", "@keyframes name {\n  100% {\n    color: red;\n  }\n}\n", "")
@@ -1343,7 +1349,6 @@ func TestAtKeyframes(t *testing.T) {
 	expectPrinted(t, "@-o-keyframes name {}", "@-o-keyframes name {\n}\n", "")
 
 	expectPrinted(t, "@keyframes {}", "@keyframes {}\n", "<stdin>: WARNING: Expected identifier but found \"{\"\n")
-	expectPrinted(t, "@keyframes 'name' {}", "@keyframes \"name\" {}\n", "") // This is allowed as it's technically possible to use in Firefox (but in no other browser)
 	expectPrinted(t, "@keyframes name { 0% 100% {} }", "@keyframes name { 0% 100% {} }\n", "<stdin>: WARNING: Expected \",\" but found \"100%\"\n")
 	expectPrinted(t, "@keyframes name { {} 0% {} }", "@keyframes name { {} 0% {} }\n", "<stdin>: WARNING: Expected percentage but found \"{\"\n")
 	expectPrinted(t, "@keyframes name { 100 {} }", "@keyframes name { 100 {} }\n", "<stdin>: WARNING: Expected percentage but found \"100\"\n")
@@ -1369,6 +1374,16 @@ func TestAtKeyframes(t *testing.T) {
 	expectPrinted(t, "@keyframes x { 1% {", "@keyframes x { 1% {} }\n", "<stdin>: WARNING: Expected \"}\" to go with \"{\"\n<stdin>: NOTE: The unbalanced \"{\" is here:\n")
 	expectPrinted(t, "@keyframes x { 1%", "@keyframes x { 1% }\n", "<stdin>: WARNING: Expected \"{\" but found end of file\n")
 	expectPrinted(t, "@keyframes x {", "@keyframes x {}\n", "<stdin>: WARNING: Expected \"}\" to go with \"{\"\n<stdin>: NOTE: The unbalanced \"{\" is here:\n")
+}
+
+func TestAnimationName(t *testing.T) {
+	// Note: Strings as names is allowed in the CSS specification and works in
+	// Firefox and Safari but Chrome has strangely decided to deliberately not
+	// support this. We always turn all string names into identifiers to avoid
+	// them silently breaking in Chrome.
+	expectPrinted(t, "div { animation-name: 'name' }", "div {\n  animation-name: name;\n}\n", "")
+	expectPrinted(t, "div { animation-name: 'name 2' }", "div {\n  animation-name: name\\ 2;\n}\n", "")
+	expectPrinted(t, "div { animation: 2s linear 'name 2', 3s infinite 'name 3' }", "div {\n  animation: 2s linear name\\ 2, 3s infinite name\\ 3;\n}\n", "")
 }
 
 func TestAtRuleValidation(t *testing.T) {

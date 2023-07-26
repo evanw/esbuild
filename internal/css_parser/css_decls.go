@@ -133,6 +133,14 @@ func (p *parser) processDeclarations(rules []css_ast.Rule) (rewrittenRules []css
 				}
 			}
 
+		case css_ast.DAnimation:
+			p.processAnimationShorthand(decl.Value)
+
+		case css_ast.DAnimationName:
+			if len(decl.Value) == 1 {
+				p.processAnimationName(&decl.Value[0])
+			}
+
 		case css_ast.DFont:
 			if p.options.minifySyntax {
 				decl.Value = p.mangleFont(decl.Value)

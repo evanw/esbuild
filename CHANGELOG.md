@@ -1,5 +1,41 @@
 # Changelog
 
+## Unreleased
+
+* Support strings as keyframe animation names in CSS ([#2555](https://github.com/evanw/esbuild/issues/2555))
+
+    With this release, esbuild will now parse animation names that are specified as strings and will convert them to identifiers. The CSS specification allows animation names to be specified using either identifiers or strings but Chrome only understands identifiers, so esbuild will now always convert string names to identifier names for Chrome compatibility:
+
+    ```css
+    /* Original code */
+    @keyframes "hide menu" {
+      from { opacity: 1 }
+      to { opacity: 0 }
+    }
+    menu.hide {
+      animation: 0.5s ease-in-out "hide menu";
+    }
+
+    /* Old output */
+    @keyframes "hide menu" { from { opacity: 1 } to { opacity: 0 } }
+    menu.hide {
+      animation: 0.5s ease-in-out "hide menu";
+    }
+
+    /* New output */
+    @keyframes hide\ menu {
+      from {
+        opacity: 1;
+      }
+      to {
+        opacity: 0;
+      }
+    }
+    menu.hide {
+      animation: 0.5s ease-in-out hide\ menu;
+    }
+    ```
+
 ## 0.18.17
 
 * Support `An+B` syntax and `:nth-*()` pseudo-classes in CSS
