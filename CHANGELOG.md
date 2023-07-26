@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+* Support `An+B` syntax and `:nth-*()` pseudo-classes in CSS
+
+    This adds support for the `:nth-child()`, `:nth-last-child()`, `:nth-of-type()`, and `:nth-last-of-type()` pseudo-classes to esbuild, which has the following consequences:
+
+    * The [`An+B` syntax](https://drafts.csswg.org/css-syntax-3/#anb-microsyntax) is now parsed, so parse errors are now reported
+    * `An+B` values inside these pseudo-classes are now pretty-printed (e.g. a leading `+` will be stripped because it's not in the AST)
+    * When minification is enabled, `An+B` values are reduced to equivalent but shorter forms (e.g. `2n+0` => `2n`, `2n+1` => `odd`)
+    * Local CSS names in an `of` clause are now detected (e.g. in `:nth-child(2n of :local(.foo))` the name `foo` is now renamed)
+
+    ```css
+    /* Original code */
+    .foo:nth-child(+2n+1 of :local(.bar)) {
+      color: red;
+    }
+
+    /* Old output (with --loader=local-css) */
+    .stdin_foo:nth-child(+2n + 1 of :local(.bar)) {
+      color: red;
+    }
+
+    /* New output (with --loader=local-css) */
+    .stdin_foo:nth-child(2n+1 of .stdin_bar) {
+      color: red;
+    }
+    ```
+
 * Adjust CSS nesting parser for IE7 hacks ([#3272](https://github.com/evanw/esbuild/issues/3272))
 
     This fixes a regression with esbuild's treatment of IE7 hacks in CSS. CSS nesting allows selectors to be used where declarations are expected. There's an IE7 hack where prefixing a declaration with a `*` causes that declaration to only be applied in IE7 due to a bug in IE7's CSS parser. However, it's valid for nested CSS selectors to start with `*`. So esbuild was incorrectly parsing these declarations and anything following it up until the next `{` as a selector for a nested CSS rule. This release changes esbuild's parser to terminate the parsing of selectors for nested CSS rules when a `;` is encountered to fix this edge case:

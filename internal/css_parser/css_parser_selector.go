@@ -2,6 +2,7 @@ package css_parser
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/css_ast"
@@ -14,6 +15,7 @@ type parseSelectorOpts struct {
 	isDeclarationContext   bool
 	stopOnCloseParen       bool
 	onlyOneComplexSelector bool
+	noLeadingCombinator    bool
 }
 
 func (p *parser) parseSelectorList(opts parseSelectorOpts) (list []css_ast.ComplexSelector, ok bool) {
@@ -258,10 +260,13 @@ type parseComplexSelectorOpts struct {
 
 func (p *parser) parseComplexSelector(opts parseComplexSelectorOpts) (result css_ast.ComplexSelector, ok bool) {
 	// This is an extension: https://drafts.csswg.org/css-nesting-1/
-	combinator := p.parseCombinator()
-	if combinator.Byte != 0 {
-		p.shouldLowerNesting = true
-		p.eat(css_lexer.TWhitespace)
+	var combinator css_ast.Combinator
+	if !opts.noLeadingCombinator {
+		combinator = p.parseCombinator()
+		if combinator.Byte != 0 {
+			p.shouldLowerNesting = true
+			p.eat(css_lexer.TWhitespace)
+		}
 	}
 
 	// Parent
@@ -618,6 +623,14 @@ func (p *parser) parsePseudoClassSelector(isElement bool) css_ast.SS {
 				}
 			case "not":
 				kind = css_ast.PseudoClassNot
+			case "nth-child":
+				kind = css_ast.PseudoClassNthChild
+			case "nth-last-child":
+				kind = css_ast.PseudoClassNthLastChild
+			case "nth-of-type":
+				kind = css_ast.PseudoClassNthOfType
+			case "nth-last-of-type":
+				kind = css_ast.PseudoClassNthLastOfType
 			case "where":
 				kind = css_ast.PseudoClassWhere
 			default:
@@ -625,25 +638,60 @@ func (p *parser) parsePseudoClassSelector(isElement bool) css_ast.SS {
 			}
 			if ok {
 				old := p.index
-				p.eat(css_lexer.TWhitespace)
+				if kind.HasNthIndex() {
+					p.eat(css_lexer.TWhitespace)
 
-				// ":local" forces local names and ":global" forces global names
-				oldLocal := p.makeLocalSymbols
-				p.makeLocalSymbols = local
-				selectors, ok := p.parseSelectorList(parseSelectorOpts{
-					pseudoClassKind:        kind,
-					stopOnCloseParen:       true,
-					onlyOneComplexSelector: kind == css_ast.PseudoClassGlobal || kind == css_ast.PseudoClassLocal,
-				})
-				p.makeLocalSymbols = oldLocal
+					// Parse the "An+B" syntax
+					if index, ok := p.parseNthIndex(); ok {
+						var selectors []css_ast.ComplexSelector
 
-				if ok && p.expectWithMatchingLoc(css_lexer.TCloseParen, matchingLoc) {
-					return &css_ast.SSPseudoClassWithSelectorList{Kind: kind, Selectors: selectors}
+						// Parse the optional "of" clause
+						if (kind == css_ast.PseudoClassNthChild || kind == css_ast.PseudoClassNthLastChild) &&
+							p.peek(css_lexer.TIdent) && p.decoded() == "of" {
+							p.advance()
+							p.eat(css_lexer.TWhitespace)
+
+							// Contain the effects of ":local" and ":global"
+							oldLocal := p.makeLocalSymbols
+							selectors, ok = p.parseSelectorList(parseSelectorOpts{
+								stopOnCloseParen:    true,
+								noLeadingCombinator: true,
+							})
+							p.makeLocalSymbols = oldLocal
+						}
+
+						// "2n+0" => "2n"
+						if p.options.minifySyntax {
+							index.Minify()
+						}
+
+						// Match the closing ")"
+						if ok && p.expectWithMatchingLoc(css_lexer.TCloseParen, matchingLoc) {
+							return &css_ast.SSPseudoClassWithSelectorList{Kind: kind, Selectors: selectors, Index: index}
+						}
+					}
+				} else {
+					p.eat(css_lexer.TWhitespace)
+
+					// ":local" forces local names and ":global" forces global names
+					oldLocal := p.makeLocalSymbols
+					p.makeLocalSymbols = local
+					selectors, ok := p.parseSelectorList(parseSelectorOpts{
+						pseudoClassKind:        kind,
+						stopOnCloseParen:       true,
+						onlyOneComplexSelector: kind == css_ast.PseudoClassGlobal || kind == css_ast.PseudoClassLocal,
+					})
+					p.makeLocalSymbols = oldLocal
+
+					// Match the closing ")"
+					if ok && p.expectWithMatchingLoc(css_lexer.TCloseParen, matchingLoc) {
+						return &css_ast.SSPseudoClassWithSelectorList{Kind: kind, Selectors: selectors}
+					}
 				}
-
 				p.index = old
 			}
 		}
+
 		args := p.convertTokens(p.parseAnyValue())
 		p.expectWithMatchingLoc(css_lexer.TCloseParen, matchingLoc)
 		return &css_ast.SSPseudoClass{IsElement: isElement, Name: text, Args: args}
@@ -731,4 +779,177 @@ func (p *parser) parseCombinator() css_ast.Combinator {
 	default:
 		return css_ast.Combinator{}
 	}
+}
+
+func parseInteger(text string) (string, bool) {
+	n := len(text)
+	if n == 0 {
+		return "", false
+	}
+
+	// Trim leading zeros
+	start := 0
+	for start < n && text[start] == '0' {
+		start++
+	}
+
+	// Make sure remaining characters are digits
+	if start == n {
+		return "0", true
+	}
+	for i := start; i < n; i++ {
+		if c := text[i]; c < '0' || c > '9' {
+			return "", false
+		}
+	}
+	return text[start:], true
+}
+
+func (p *parser) parseNthIndex() (css_ast.NthIndex, bool) {
+	type sign uint8
+	const (
+		none sign = iota
+		negative
+		positive
+	)
+
+	// Reference: https://drafts.csswg.org/css-syntax-3/#anb-microsyntax
+	t0 := p.current()
+	text0 := p.decoded()
+
+	// Handle "even" and "odd"
+	if t0.Kind == css_lexer.TIdent && (text0 == "even" || text0 == "odd") {
+		p.advance()
+		p.eat(css_lexer.TWhitespace)
+		return css_ast.NthIndex{B: text0}, true
+	}
+
+	// Handle a single number
+	if t0.Kind == css_lexer.TNumber {
+		bNeg := false
+		if strings.HasPrefix(text0, "-") {
+			bNeg = true
+			text0 = text0[1:]
+		} else if strings.HasPrefix(text0, "+") {
+			text0 = text0[1:]
+		}
+		if b, ok := parseInteger(text0); ok {
+			if bNeg {
+				b = "-" + b
+			}
+			p.advance()
+			p.eat(css_lexer.TWhitespace)
+			return css_ast.NthIndex{B: b}, true
+		}
+		p.unexpected()
+		return css_ast.NthIndex{}, false
+	}
+
+	aSign := none
+	if p.eat(css_lexer.TDelimPlus) {
+		aSign = positive
+		t0 = p.current()
+		text0 = p.decoded()
+	}
+
+	// Everything from here must be able to contain an "n"
+	if t0.Kind != css_lexer.TIdent && t0.Kind != css_lexer.TDimension {
+		p.unexpected()
+		return css_ast.NthIndex{}, false
+	}
+
+	// Check for a leading sign
+	if aSign == none {
+		if strings.HasPrefix(text0, "-") {
+			aSign = negative
+			text0 = text0[1:]
+		} else if strings.HasPrefix(text0, "+") {
+			text0 = text0[1:]
+		}
+	}
+
+	// The string must contain an "n"
+	n := strings.IndexByte(text0, 'n')
+	if n < 0 {
+		p.unexpected()
+		return css_ast.NthIndex{}, false
+	}
+
+	// Parse the number before the "n"
+	var a string
+	if n == 0 {
+		if aSign == negative {
+			a = "-1"
+		} else {
+			a = "1"
+		}
+	} else if aInt, ok := parseInteger(text0[:n]); ok {
+		if aSign == negative {
+			aInt = "-" + aInt
+		}
+		a = aInt
+	} else {
+		p.unexpected()
+		return css_ast.NthIndex{}, false
+	}
+	text0 = text0[n+1:]
+
+	// Parse the stuff after the "n"
+	bSign := none
+	if strings.HasPrefix(text0, "-") {
+		text0 = text0[1:]
+		if b, ok := parseInteger(text0); ok {
+			p.advance()
+			p.eat(css_lexer.TWhitespace)
+			return css_ast.NthIndex{A: a, B: "-" + b}, true
+		}
+		bSign = negative
+	}
+	if text0 != "" {
+		p.unexpected()
+		return css_ast.NthIndex{}, false
+	}
+	p.advance()
+	p.eat(css_lexer.TWhitespace)
+
+	// Parse an optional sign delimiter
+	if bSign == none {
+		if p.eat(css_lexer.TDelimMinus) {
+			bSign = negative
+			p.eat(css_lexer.TWhitespace)
+		} else if p.eat(css_lexer.TDelimPlus) {
+			bSign = positive
+			p.eat(css_lexer.TWhitespace)
+		}
+	}
+
+	// Parse an optional trailing number
+	t1 := p.current()
+	text1 := p.decoded()
+	if t1.Kind == css_lexer.TNumber {
+		if bSign == none {
+			if strings.HasPrefix(text1, "-") {
+				bSign = negative
+				text1 = text1[1:]
+			} else if strings.HasPrefix(text1, "+") {
+				text1 = text1[1:]
+			}
+		}
+		if b, ok := parseInteger(text1); ok {
+			if bSign == negative {
+				b = "-" + b
+			}
+			p.advance()
+			p.eat(css_lexer.TWhitespace)
+			return css_ast.NthIndex{A: a, B: b}, true
+		}
+	}
+
+	// If there is a trailing sign, then there must also be a trailing number
+	if bSign != none {
+		p.expect(css_lexer.TNumber)
+		return css_ast.NthIndex{}, false
+	}
+
+	return css_ast.NthIndex{A: a}, true
 }

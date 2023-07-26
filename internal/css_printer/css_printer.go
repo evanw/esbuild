@@ -500,12 +500,41 @@ func (p *printer) printCompoundSelector(sel css_ast.CompoundSelector, isFirst bo
 			p.print(":")
 			p.print(s.Kind.String())
 			p.print("(")
+			if s.Index.A != "" || s.Index.B != "" {
+				p.printNthIndex(s.Index)
+				if len(s.Selectors) > 0 {
+					if p.options.MinifyWhitespace && s.Selectors[0].Selectors[0].TypeSelector == nil {
+						p.print(" of")
+					} else {
+						p.print(" of ")
+					}
+				}
+			}
 			p.printComplexSelectors(s.Selectors, indent, layoutSingleLine)
 			p.print(")")
 
 		default:
 			panic("Internal error")
 		}
+	}
+}
+
+func (p *printer) printNthIndex(index css_ast.NthIndex) {
+	if index.A != "" {
+		if index.A == "-1" {
+			p.print("-")
+		} else if index.A != "1" {
+			p.print(index.A)
+		}
+		p.print("n")
+		if index.B != "" {
+			if !strings.HasPrefix(index.B, "-") {
+				p.print("+")
+			}
+			p.print(index.B)
+		}
+	} else if index.B != "" {
+		p.print(index.B)
 	}
 }
 

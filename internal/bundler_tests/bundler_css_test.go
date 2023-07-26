@@ -382,32 +382,62 @@ func TestImportCSSFromJSLocalVsGlobal(t *testing.T) {
 }
 
 func TestImportCSSFromJSLowerBareLocalAndGlobal(t *testing.T) {
-	css := `
-		.before { color: #000 }
-		:local { .button { color: #000 } }
-		.after { color: #000 }
-
-		.before { color: #001 }
-		:global { .button { color: #001 } }
-		.after { color: #001 }
-
-		div { :local { .button { color: #002 } } }
-		div { :global { .button { color: #003 } } }
-
-		:local(:global) { color: #004 }
-		:global(:local) { color: #005 }
-
-		:local(:global) { .button { color: #006 } }
-		:global(:local) { .button { color: #007 } }
-	`
-
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
 				import styles from "./styles.css"
 				console.log(styles)
 			`,
-			"/styles.css": css,
+			"/styles.css": `
+				.before { color: #000 }
+				:local { .button { color: #000 } }
+				.after { color: #000 }
+
+				.before { color: #001 }
+				:global { .button { color: #001 } }
+				.after { color: #001 }
+
+				div { :local { .button { color: #002 } } }
+				div { :global { .button { color: #003 } } }
+
+				:local(:global) { color: #004 }
+				:global(:local) { color: #005 }
+
+				:local(:global) { .button { color: #006 } }
+				:global(:local) { .button { color: #007 } }
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			ExtensionToLoader: map[string]config.Loader{
+				".js":  config.LoaderJS,
+				".css": config.LoaderLocalCSS,
+			},
+			UnsupportedCSSFeatures: compat.Nesting,
+		},
+	})
+}
+
+func TestImportCSSFromJSNthIndexLocal(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import styles from "./styles.css"
+				console.log(styles)
+			`,
+			"/styles.css": `
+				:nth-child(2n of .local) { color: #000 }
+				:nth-child(2n of :local(#local), :global(.GLOBAL)) { color: #001 }
+				:nth-child(2n of .local1 :global .GLOBAL1, .GLOBAL2 :local .local2) { color: #002 }
+				.local1, :nth-child(2n of :global .GLOBAL), .local2 { color: #003 }
+
+				:nth-last-child(2n of .local) { color: #000 }
+				:nth-last-child(2n of :local(#local), :global(.GLOBAL)) { color: #001 }
+				:nth-last-child(2n of .local1 :global .GLOBAL1, .GLOBAL2 :local .local2) { color: #002 }
+				.local1, :nth-last-child(2n of :global .GLOBAL), .local2 { color: #003 }
+			`,
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{

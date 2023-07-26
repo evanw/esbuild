@@ -936,8 +936,16 @@ const (
 	PseudoClassIs
 	PseudoClassLocal
 	PseudoClassNot
+	PseudoClassNthChild
+	PseudoClassNthLastChild
+	PseudoClassNthLastOfType
+	PseudoClassNthOfType
 	PseudoClassWhere
 )
+
+func (kind PseudoClassKind) HasNthIndex() bool {
+	return kind >= PseudoClassNthChild && kind <= PseudoClassNthOfType
+}
 
 func (kind PseudoClassKind) String() string {
 	switch kind {
@@ -951,6 +959,14 @@ func (kind PseudoClassKind) String() string {
 		return "local"
 	case PseudoClassNot:
 		return "not"
+	case PseudoClassNthChild:
+		return "nth-child"
+	case PseudoClassNthLastChild:
+		return "nth-last-child"
+	case PseudoClassNthLastOfType:
+		return "nth-last-of-type"
+	case PseudoClassNthOfType:
+		return "nth-of-type"
 	case PseudoClassWhere:
 		return "where"
 	default:
@@ -958,20 +974,60 @@ func (kind PseudoClassKind) String() string {
 	}
 }
 
+// This is the "An+B" syntax
+type NthIndex struct {
+	A string
+	B string // May be "even" or "odd"
+}
+
+func (index *NthIndex) Minify() {
+	// "even" => "2n"
+	if index.B == "even" {
+		index.A = "2"
+		index.B = ""
+		return
+	}
+
+	// "2n+1" => "odd"
+	if index.A == "2" && index.B == "1" {
+		index.A = ""
+		index.B = "odd"
+		return
+	}
+
+	// "0n+1" => "1"
+	if index.A == "0" {
+		index.A = ""
+		if index.B == "" {
+			// "0n" => "0"
+			index.B = "0"
+		}
+		return
+	}
+
+	// "1n+0" => "1n"
+	if index.B == "0" && index.A != "" {
+		index.B = ""
+	}
+}
+
 // See https://drafts.csswg.org/selectors/#grouping
 type SSPseudoClassWithSelectorList struct {
-	Kind      PseudoClassKind
 	Selectors []ComplexSelector
+	Index     NthIndex
+	Kind      PseudoClassKind
 }
 
 func (a *SSPseudoClassWithSelectorList) Equal(ss SS, check *CrossFileEqualityCheck) bool {
 	b, ok := ss.(*SSPseudoClassWithSelectorList)
-	return ok && a.Kind == b.Kind && ComplexSelectorsEqual(a.Selectors, b.Selectors, check)
+	return ok && a.Kind == b.Kind && a.Index == b.Index && ComplexSelectorsEqual(a.Selectors, b.Selectors, check)
 }
 
 func (ss *SSPseudoClassWithSelectorList) Hash() uint32 {
 	hash := uint32(5)
 	hash = helpers.HashCombine(hash, uint32(ss.Kind))
+	hash = helpers.HashCombineString(hash, ss.Index.A)
+	hash = helpers.HashCombineString(hash, ss.Index.B)
 	hash = HashComplexSelectors(hash, ss.Selectors)
 	return hash
 }

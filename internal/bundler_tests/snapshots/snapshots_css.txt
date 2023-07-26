@@ -1030,6 +1030,50 @@ div .button {
 }
 
 ================================================================================
+TestImportCSSFromJSNthIndexLocal
+---------- /out/entry.js ----------
+// styles.css
+var styles_default = {
+  local: "styles_local",
+  local1: "styles_local1",
+  local2: "styles_local2"
+};
+
+// entry.js
+console.log(styles_default);
+
+---------- /out/entry.css ----------
+/* styles.css */
+:nth-child(2n of .styles_local) {
+  color: #000;
+}
+:nth-child(2n of #styles_local, .GLOBAL) {
+  color: #001;
+}
+:nth-child(2n of .styles_local1 .GLOBAL1, .GLOBAL2 .styles_local2) {
+  color: #002;
+}
+.styles_local1,
+:nth-child(2n of .GLOBAL),
+.styles_local2 {
+  color: #003;
+}
+:nth-last-child(2n of .styles_local) {
+  color: #000;
+}
+:nth-last-child(2n of #styles_local, .GLOBAL) {
+  color: #001;
+}
+:nth-last-child(2n of .styles_local1 .GLOBAL1, .GLOBAL2 .styles_local2) {
+  color: #002;
+}
+.styles_local1,
+:nth-last-child(2n of .GLOBAL),
+.styles_local2 {
+  color: #003;
+}
+
+================================================================================
 TestImportGlobalCSSFromJS
 ---------- /out/entry.js ----------
 // a.css
