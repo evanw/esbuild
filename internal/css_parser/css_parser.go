@@ -624,7 +624,7 @@ func (p *parser) mangleRules(rules []css_ast.Rule, isTopLevel bool) []css_ast.Ru
 	// Mangle non-top-level rules using a back-to-front pass. Top-level rules
 	// will be mangled by the linker instead for cross-file rule mangling.
 	if !isTopLevel {
-		remover := MakeDuplicateRuleMangler()
+		remover := MakeDuplicateRuleMangler(ast.SymbolMap{})
 		rules = remover.RemoveDuplicateRulesInPlace(rules, p.importRecords)
 	}
 
@@ -641,13 +641,17 @@ type hashEntry struct {
 }
 
 type DuplicateRuleRemover struct {
+	symbols ast.SymbolMap
 	entries map[uint32]hashEntry
 	calls   [][]ast.ImportRecord
 	check   css_ast.CrossFileEqualityCheck
 }
 
-func MakeDuplicateRuleMangler() DuplicateRuleRemover {
-	return DuplicateRuleRemover{entries: make(map[uint32]hashEntry)}
+func MakeDuplicateRuleMangler(symbols ast.SymbolMap) DuplicateRuleRemover {
+	return DuplicateRuleRemover{
+		entries: make(map[uint32]hashEntry),
+		check:   css_ast.CrossFileEqualityCheck{Symbols: symbols},
+	}
 }
 
 func (remover *DuplicateRuleRemover) RemoveDuplicateRulesInPlace(rules []css_ast.Rule, importRecords []ast.ImportRecord) []css_ast.Rule {

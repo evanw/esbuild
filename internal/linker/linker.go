@@ -5423,7 +5423,7 @@ func (c *linkerContext) generateChunkCSS(chunkIndex int, chunkWaitGroup *sync.Wa
 	asts := make([]css_ast.AST, len(chunkRepr.filesInChunkInOrder))
 	var remover css_parser.DuplicateRuleRemover
 	if c.options.MinifySyntax {
-		remover = css_parser.MakeDuplicateRuleMangler()
+		remover = css_parser.MakeDuplicateRuleMangler(c.graph.Symbols)
 	}
 	for i := len(chunkRepr.filesInChunkInOrder) - 1; i >= 0; i-- {
 		sourceIndex := chunkRepr.filesInChunkInOrder[i]

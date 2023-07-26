@@ -89,6 +89,24 @@ const (
 type CrossFileEqualityCheck struct {
 	ImportRecordsA []ast.ImportRecord
 	ImportRecordsB []ast.ImportRecord
+	Symbols        ast.SymbolMap
+}
+
+func (check *CrossFileEqualityCheck) RefsAreEquivalent(a ast.Ref, b ast.Ref) bool {
+	if a == b {
+		return true
+	}
+	if check == nil || check.Symbols.SymbolsForSource == nil {
+		return false
+	}
+	a = ast.FollowSymbols(check.Symbols, a)
+	b = ast.FollowSymbols(check.Symbols, b)
+	if a == b {
+		return true
+	}
+	symbolA := check.Symbols.Get(a)
+	symbolB := check.Symbols.Get(b)
+	return symbolA.Kind == ast.SymbolGlobalCSS && symbolB.Kind == ast.SymbolGlobalCSS && symbolA.OriginalName == symbolB.OriginalName
 }
 
 func (a Token) Equal(b Token, check *CrossFileEqualityCheck) bool {
@@ -839,13 +857,11 @@ type SSHash struct {
 
 func (a *SSHash) Equal(ss SS, check *CrossFileEqualityCheck) bool {
 	b, ok := ss.(*SSHash)
-	return ok && a.Name.Ref == b.Name.Ref
+	return ok && check.RefsAreEquivalent(a.Name.Ref, b.Name.Ref)
 }
 
 func (ss *SSHash) Hash() uint32 {
 	hash := uint32(1)
-	hash = helpers.HashCombine(hash, ss.Name.Ref.SourceIndex)
-	hash = helpers.HashCombine(hash, ss.Name.Ref.InnerIndex)
 	return hash
 }
 
@@ -860,13 +876,11 @@ type SSClass struct {
 
 func (a *SSClass) Equal(ss SS, check *CrossFileEqualityCheck) bool {
 	b, ok := ss.(*SSClass)
-	return ok && a.Name.Ref == b.Name.Ref
+	return ok && check.RefsAreEquivalent(a.Name.Ref, b.Name.Ref)
 }
 
 func (ss *SSClass) Hash() uint32 {
 	hash := uint32(2)
-	hash = helpers.HashCombine(hash, ss.Name.Ref.SourceIndex)
-	hash = helpers.HashCombine(hash, ss.Name.Ref.InnerIndex)
 	return hash
 }
 

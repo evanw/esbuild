@@ -597,6 +597,45 @@ a {
 /* across-files-url.css */
 
 ================================================================================
+TestDeduplicateRulesGlobalVsLocalNames
+---------- /out/entry.css ----------
+/* a.css */
+b {
+  color: green;
+}
+.bar {
+  color: green;
+}
+.a_foo {
+  color: red;
+}
+.a_bar {
+  color: green;
+}
+
+/* b.css */
+a {
+  color: red;
+}
+b {
+  color: #00f;
+}
+.foo {
+  color: red;
+}
+.bar {
+  color: #00f;
+}
+.b_foo {
+  color: red;
+}
+.b_bar {
+  color: #00f;
+}
+
+/* entry.css */
+
+================================================================================
 TestExternalImportURLInCSS
 ---------- /out/entry.css ----------
 /* src/entry.css */

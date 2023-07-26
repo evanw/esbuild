@@ -1148,6 +1148,53 @@ func TestDeduplicateRules(t *testing.T) {
 	})
 }
 
+func TestDeduplicateRulesGlobalVsLocalNames(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.css": `
+				@import "a.css";
+				@import "b.css";
+			`,
+			"/a.css": `
+				/*
+				Duplicate rule removal should remove "a" and ":global(.foo)" from this
+				file. The rule ":global(.foo)" needs to be tested separately here since
+				"foo" is a symbol and symbols are represented differently than strings
+				in esbuild's AST. The rule ":local(.foo)" should not be deduplicated.
+				*/
+
+				a { color: red }
+				b { color: green }
+
+				:global(.foo) { color: red }
+				:global(.bar) { color: green }
+
+				:local(.foo) { color: red }
+				:local(.bar) { color: green }
+			`,
+			"/b.css": `
+				a { color: red }
+				b { color: blue }
+
+				:global(.foo) { color: red }
+				:global(.bar) { color: blue }
+
+				:local(.foo) { color: red }
+				:local(.bar) { color: blue }
+			`,
+		},
+		entryPaths: []string{"entry.css"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			MinifySyntax: true,
+			ExtensionToLoader: map[string]config.Loader{
+				".css": config.LoaderLocalCSS,
+			},
+		},
+	})
+}
+
 // This test makes sure JS files that import local CSS names using the
 // wrong name (e.g. a typo) get a warning so that the problem is noticed.
 func TestUndefinedImportWarningCSS(t *testing.T) {
