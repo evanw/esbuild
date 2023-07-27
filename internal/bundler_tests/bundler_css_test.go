@@ -456,6 +456,81 @@ func TestImportCSSFromJSLocalKeyframeAnimationNames(t *testing.T) {
 	})
 }
 
+func TestImportCSSFromJSLocalKeyframeListStyle(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import list_style_type from "./list_style_type.css"
+				import list_style from "./list_style.css"
+				console.log(list_style_type, list_style)
+			`,
+			"/list_style_type.css": `
+				@counter-style local { symbols: A B C }
+
+				div :global { list-style-type: GLOBAL }
+				div :local { list-style-type: local }
+
+				/* Must not accept invalid type values */
+				div :local { list-style-type: INITIAL }
+				div :local { list-style-type: decimal }
+				div :local { list-style-type: disc }
+				div :local { list-style-type: SQUARE }
+				div :local { list-style-type: circle }
+				div :local { list-style-type: disclosure-OPEN }
+				div :local { list-style-type: DISCLOSURE-closed }
+			`,
+
+			"/list_style.css": `
+				@counter-style local { symbols: A B C }
+
+				div :global { list-style: GLOBAL }
+				div :local { list-style: local }
+
+				/* The first one is the type */
+				div :local { list-style: local none }
+				div :local { list-style: local url(http://) }
+				div :local { list-style: local linear-gradient(red, green) }
+				div :local { list-style: local inside }
+				div :local { list-style: local outside }
+
+				/* The second one is the type */
+				div :local { list-style: none local }
+				div :local { list-style: url(http://) local }
+				div :local { list-style: linear-gradient(red, green) local }
+				div :local { list-style: local inside }
+				div :local { list-style: local outside }
+				div :local { list-style: inside inside }
+				div :local { list-style: inside outside }
+				div :local { list-style: outside inside }
+				div :local { list-style: outside outside }
+
+				/* The type is set to "none" here */
+				div :local { list-style: url(http://) none invalid }
+				div :local { list-style: linear-gradient(red, green) none invalid }
+
+				/* Must not accept invalid type values */
+				div :local { list-style: INITIAL }
+				div :local { list-style: decimal }
+				div :local { list-style: disc }
+				div :local { list-style: SQUARE }
+				div :local { list-style: circle }
+				div :local { list-style: disclosure-OPEN }
+				div :local { list-style: DISCLOSURE-closed }
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			ExtensionToLoader: map[string]config.Loader{
+				".js":  config.LoaderJS,
+				".css": config.LoaderLocalCSS,
+			},
+			UnsupportedCSSFeatures: compat.Nesting,
+		},
+	})
+}
+
 func TestImportCSSFromJSNthIndexLocal(t *testing.T) {
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{

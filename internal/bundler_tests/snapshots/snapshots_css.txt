@@ -757,6 +757,144 @@ div {
 }
 
 ================================================================================
+TestImportCSSFromJSLocalKeyframeListStyle
+---------- /out/entry.js ----------
+// list_style_type.css
+var list_style_type_default = {
+  local: "list_style_type_local",
+  INITIAL: "list_style_type_INITIAL",
+  decimal: "list_style_type_decimal",
+  disc: "list_style_type_disc",
+  SQUARE: "list_style_type_SQUARE",
+  circle: "list_style_type_circle",
+  "disclosure-OPEN": "list_style_type_disclosure-OPEN",
+  "DISCLOSURE-closed": "list_style_type_DISCLOSURE-closed"
+};
+
+// list_style.css
+var list_style_default = {
+  local: "list_style_local",
+  inside: "list_style_inside",
+  outside: "list_style_outside"
+};
+
+// entry.js
+console.log(list_style_type_default, list_style_default);
+
+---------- /out/entry.css ----------
+/* list_style_type.css */
+@counter-style list_style_type_local {
+  symbols: A B C;
+}
+div {
+  list-style-type: GLOBAL;
+}
+div {
+  list-style-type: list_style_type_local;
+}
+div {
+  list-style-type: list_style_type_INITIAL;
+}
+div {
+  list-style-type: list_style_type_decimal;
+}
+div {
+  list-style-type: list_style_type_disc;
+}
+div {
+  list-style-type: list_style_type_SQUARE;
+}
+div {
+  list-style-type: list_style_type_circle;
+}
+div {
+  list-style-type: list_style_type_disclosure-OPEN;
+}
+div {
+  list-style-type: list_style_type_DISCLOSURE-closed;
+}
+
+/* list_style.css */
+@counter-style list_style_local {
+  symbols: A B C;
+}
+div {
+  list-style: GLOBAL;
+}
+div {
+  list-style: list_style_local;
+}
+div {
+  list-style: list_style_local none;
+}
+div {
+  list-style: list_style_local url(http://);
+}
+div {
+  list-style: list_style_local linear-gradient(red, green);
+}
+div {
+  list-style: list_style_local inside;
+}
+div {
+  list-style: list_style_local outside;
+}
+div {
+  list-style: none list_style_local;
+}
+div {
+  list-style: url(http://) list_style_local;
+}
+div {
+  list-style: linear-gradient(red, green) list_style_local;
+}
+div {
+  list-style: list_style_local inside;
+}
+div {
+  list-style: list_style_local outside;
+}
+div {
+  list-style: inside list_style_inside;
+}
+div {
+  list-style: inside list_style_outside;
+}
+div {
+  list-style: outside list_style_inside;
+}
+div {
+  list-style: outside list_style_outside;
+}
+div {
+  list-style: url(http://) none invalid;
+}
+div {
+  list-style: linear-gradient(red, green) none invalid;
+}
+div {
+  list-style: INITIAL;
+}
+div {
+  list-style: decimal;
+}
+div {
+  list-style: disc;
+}
+div {
+  list-style: SQUARE;
+}
+div {
+  list-style: circle;
+}
+div {
+  list-style: disclosure-OPEN;
+}
+div {
+  list-style: DISCLOSURE-closed;
+}
+
+================================================================================
 TestImportCSSFromJSLocalVsGlobal
 ---------- /out/entry.js ----------
 // normal.css

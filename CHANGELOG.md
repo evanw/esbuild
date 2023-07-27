@@ -2,48 +2,60 @@
 
 ## Unreleased
 
-* Support local keyframe animation names in CSS ([#20](https://github.com/evanw/esbuild/issues/20))
+* Support local names in CSS for `@keyframe` and `@counter-style` ([#20](https://github.com/evanw/esbuild/issues/20))
 
-    This release adds support for local keyframe animation names in CSS files loaded with the `local-css` loader. Here's an example:
+    This release extends support for local names in CSS files loaded with the `local-css` loader to cover the `@keyframe` and `@counter-style` rules (and also `animation` and `list-style` declarations). Here's an example:
 
     ```css
-    @keyframes hide {
-      from { opacity: 1 }
-      to { opacity: 0 }
+    @keyframes pulse {
+      from, to { opacity: 1 }
+      50% { opacity: 0.5 }
     }
-    div {
-      animation: 0.5s ease-in-out hide;
+    @counter-style moon {
+      system: cyclic;
+      symbols: 🌕 🌖 🌗 🌘 🌑 🌒 🌓 🌔;
+    }
+    ul {
+      animation: 2s ease-in-out infinite pulse;
+      list-style: inside moon;
     }
     ```
 
-    With the `local-css` loader enabled, that CSS will be turned into something like this (with the `hide` => `stdin_hide` mapping exposed to JS):
+    With the `local-css` loader enabled, that CSS will be turned into something like this (with the local name mapping exposed to JS):
 
     ```css
-    @keyframes stdin_hide {
-      from {
+    @keyframes stdin_stdin_pulse {
+      from, to {
         opacity: 1;
       }
-      to {
-        opacity: 0;
+      50% {
+        opacity: 0.5;
       }
     }
-    div {
-      animation: 0.5s ease-in-out stdin_hide;
+    @counter-style stdin_stdin_moon {
+      system: cyclic;
+      symbols: 🌕 🌖 🌗 🌘 🌑 🌒 🌓 🌔;
+    }
+    ul {
+      animation: 2s ease-in-out infinite stdin_stdin_pulse;
+      list-style: inside stdin_stdin_moon;
     }
     ```
 
-    If you want to use a global animation name within a file loaded with the `local-css` loader, you can use a `:global` selector to do that:
+    If you want to use a global name within a file loaded with the `local-css` loader, you can use a `:global` selector to do that:
 
     ```css
     div {
-      /* All symbols are global inside this scope (including the "hide" animation name) */
+      /* All symbols are global inside this scope
+       * (i.e. "hide" and "moon" are global below) */
       :global {
-        animation: 0.5s ease-in-out hide;
+        animation: 2s ease-in-out infinite pulse;
+        list-style: inside moon;
       }
     }
     ```
 
-    If you want to define a global animation name, make sure it's defined in a file that uses the `css` or `global-css` loader instead of the `local-css` loader. For example, you can configure `--loader:.module.css=local-css` so that the `local-css` loader only applies to `*.module.css` files.
+    If you want to use `@keyframes` or `@counter-style` with a global name, make sure it's defined in a file that uses the `css` or `global-css` loader instead of the `local-css` loader. For example, you can configure `--loader:.module.css=local-css` so that the `local-css` loader only applies to `*.module.css` files.
 
 * Support strings as keyframe animation names in CSS ([#2555](https://github.com/evanw/esbuild/issues/2555))
 

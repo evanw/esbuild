@@ -133,29 +133,6 @@ func (p *parser) processDeclarations(rules []css_ast.Rule) (rewrittenRules []css
 				}
 			}
 
-		case css_ast.DAnimation:
-			p.processAnimationShorthand(decl.Value)
-
-		case css_ast.DAnimationName:
-			p.processAnimationName(decl.Value)
-
-		case css_ast.DFont:
-			if p.options.minifySyntax {
-				decl.Value = p.mangleFont(decl.Value)
-			}
-
-		case css_ast.DFontFamily:
-			if p.options.minifySyntax {
-				if value, ok := p.mangleFontFamily(decl.Value); ok {
-					decl.Value = value
-				}
-			}
-
-		case css_ast.DFontWeight:
-			if len(decl.Value) == 1 && p.options.minifySyntax {
-				decl.Value[0] = p.mangleFontWeight(decl.Value[0])
-			}
-
 		case css_ast.DTransform:
 			if p.options.minifySyntax {
 				decl.Value = p.mangleTransforms(decl.Value)
@@ -166,7 +143,37 @@ func (p *parser) processDeclarations(rules []css_ast.Rule) (rewrittenRules []css
 				decl.Value = p.mangleBoxShadows(decl.Value)
 			}
 
-		// Margin
+		// Animation name
+		case css_ast.DAnimation:
+			p.processAnimationShorthand(decl.Value)
+		case css_ast.DAnimationName:
+			p.processAnimationName(decl.Value)
+
+		// List style
+		case css_ast.DListStyle:
+			p.processListStyleShorthand(decl.Value)
+		case css_ast.DListStyleType:
+			if len(decl.Value) == 1 {
+				p.processListStyleType(&decl.Value[0])
+			}
+
+			// Font
+		case css_ast.DFont:
+			if p.options.minifySyntax {
+				decl.Value = p.mangleFont(decl.Value)
+			}
+		case css_ast.DFontFamily:
+			if p.options.minifySyntax {
+				if value, ok := p.mangleFontFamily(decl.Value); ok {
+					decl.Value = value
+				}
+			}
+		case css_ast.DFontWeight:
+			if len(decl.Value) == 1 && p.options.minifySyntax {
+				decl.Value[0] = p.mangleFontWeight(decl.Value[0])
+			}
+
+			// Margin
 		case css_ast.DMargin:
 			if p.options.minifySyntax {
 				margin.mangleSides(rewrittenRules, decl, p.options.minifyWhitespace)
