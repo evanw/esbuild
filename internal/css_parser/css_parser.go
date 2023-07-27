@@ -529,8 +529,24 @@ func (p *parser) parseListOfDeclarations(opts listOfDeclarationsOpts) (list []cs
 			css_lexer.TDelimGreaterThan,
 			css_lexer.TDelimTilde:
 			p.nestingIsPresent = true
-			list = append(list, p.parseSelectorRule(false, parseSelectorOpts{isDeclarationContext: true}))
 			foundNesting = true
+			rule := p.parseSelectorRule(false, parseSelectorOpts{isDeclarationContext: true})
+
+			// If this rule was a single ":global" or ":local", inline it here. This
+			// is handled differently than a bare "&" with normal CSS nesting because
+			// that would be inlined at the end of the parent rule's body instead,
+			// which is probably unexpected (e.g. it would trip people up when trying
+			// to write rules in a specific order).
+			if sel, ok := rule.Data.(*css_ast.RSelector); ok && len(sel.Selectors) == 1 {
+				if first := sel.Selectors[0]; len(first.Selectors) == 1 {
+					if first := first.Selectors[0]; first.WasEmptyFromLocalOrGlobal && first.IsSingleAmpersand() {
+						list = append(list, sel.Rules...)
+						continue
+					}
+				}
+			}
+
+			list = append(list, rule)
 
 		default:
 			list = append(list, p.parseDeclaration())

@@ -208,7 +208,8 @@ func (p *parser) flattenLocalAndGlobalSelectors(list []css_ast.ComplexSelector, 
 		if len(selectors) == 0 {
 			// Treat a bare ":global" or ":local" as a bare "&" nesting selector
 			selectors = append(selectors, css_ast.CompoundSelector{
-				NestingSelectorLoc: ast.MakeIndex32(uint32(sel.Selectors[0].FirstLoc().Start)),
+				NestingSelectorLoc:        ast.MakeIndex32(uint32(sel.Selectors[0].FirstLoc().Start)),
+				WasEmptyFromLocalOrGlobal: true,
 			})
 
 			// Make sure we report that nesting is present so that it can be lowered

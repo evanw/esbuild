@@ -24,7 +24,7 @@
     With the `local-css` loader enabled, that CSS will be turned into something like this (with the local name mapping exposed to JS):
 
     ```css
-    @keyframes stdin_stdin_pulse {
+    @keyframes stdin_pulse {
       from, to {
         opacity: 1;
       }
@@ -32,13 +32,13 @@
         opacity: 0.5;
       }
     }
-    @counter-style stdin_stdin_moon {
+    @counter-style stdin_moon {
       system: cyclic;
       symbols: 🌕 🌖 🌗 🌘 🌑 🌒 🌓 🌔;
     }
     ul {
-      animation: 2s ease-in-out infinite stdin_stdin_pulse;
-      list-style: inside stdin_stdin_moon;
+      animation: 2s ease-in-out infinite stdin_pulse;
+      list-style: inside stdin_moon;
     }
     ```
 
@@ -47,7 +47,7 @@
     ```css
     div {
       /* All symbols are global inside this scope
-       * (i.e. "hide" and "moon" are global below) */
+       * (i.e. "pulse" and "moon" are global below) */
       :global {
         animation: 2s ease-in-out infinite pulse;
         list-style: inside moon;
@@ -55,7 +55,7 @@
     }
     ```
 
-    If you want to use `@keyframes` or `@counter-style` with a global name, make sure it's defined in a file that uses the `css` or `global-css` loader instead of the `local-css` loader. For example, you can configure `--loader:.module.css=local-css` so that the `local-css` loader only applies to `*.module.css` files.
+    If you want to use `@keyframes` or `@counter-style` with a global name, make sure it's in a file that uses the `css` or `global-css` loader instead of the `local-css` loader. For example, you can configure `--loader:.module.css=local-css` so that the `local-css` loader only applies to `*.module.css` files.
 
 * Support strings as keyframe animation names in CSS ([#2555](https://github.com/evanw/esbuild/issues/2555))
 

@@ -1016,11 +1016,15 @@ div:local(+ .local_a):hover {
 }
 :global {
   .GLOBAL {
+    before: outer;
     :local {
+      before: inner;
       .local {
         color: #01D;
       }
+      after: inner;
     }
+    after: outer;
   }
 }
 
@@ -1116,11 +1120,13 @@ div + .LOCAL_local_a:hover {
 }
 & {
   .GLOBAL {
-    & {
-      .LOCAL_local {
-        color: #01D;
-      }
+    before: outer;
+    before: inner;
+    .LOCAL_local {
+      color: #01D;
     }
+    after: inner;
+    after: outer;
   }
 }
 
@@ -1216,11 +1222,13 @@ div + .LOCAL_local_a2:hover {
 }
 & {
   .GLOBAL {
-    & {
-      .LOCAL_local2 {
-        color: #01D;
-      }
+    before: outer;
+    before: inner;
+    .LOCAL_local2 {
+      color: #01D;
     }
+    after: inner;
+    after: outer;
   }
 }
 

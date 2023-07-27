@@ -349,7 +349,20 @@ func TestImportCSSFromJSLocalVsGlobal(t *testing.T) {
 
 		:global.GLOBAL:local.local { color: #01B }
 		:global .GLOBAL :local .local { color: #01C }
-		:global { .GLOBAL { :local { .local { color: #01D } } } }
+
+		:global {
+			.GLOBAL {
+				before: outer;
+				:local {
+					before: inner;
+					.local {
+						color: #01D;
+					}
+					after: inner;
+				}
+				after: outer;
+			}
+		}
 	`
 
 	css_suite.expectBundled(t, bundled{
