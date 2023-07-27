@@ -2868,12 +2868,13 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			for i, part := range e.Parts {
 				if mangled, ok := part.Value.Data.(*js_ast.ENameOfSymbol); ok {
 					if replaced == nil {
-						replaced = make([]js_ast.TemplatePart, len(e.Parts))
+						replaced = make([]js_ast.TemplatePart, 0, len(e.Parts))
+						replaced = append(replaced, e.Parts[:i]...)
 					}
 					part.Value.Data = &js_ast.EString{Value: helpers.StringToUTF16(p.mangledPropName(mangled.Ref))}
-					replaced[i] = part
+					replaced = append(replaced, part)
 				} else if replaced != nil {
-					replaced[i] = part
+					replaced = append(replaced, part)
 				}
 			}
 			if replaced != nil {
