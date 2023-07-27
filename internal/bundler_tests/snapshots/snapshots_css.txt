@@ -700,7 +700,9 @@ TestImportCSSFromJSLocalKeyframeAnimationNames
 ---------- /out/entry.js ----------
 // styles.css
 var styles_default = {
-  local_name: "styles_local_name"
+  local_name: "styles_local_name",
+  local_name1: "styles_local_name1",
+  local_name2: "styles_local_name2"
 };
 
 // entry.js
@@ -714,10 +716,38 @@ console.log(styles_default);
   }
 }
 div {
+  animation-name: none;
+}
+div {
+  animation-name: none;
+}
+div {
   animation-name: global_name;
 }
 div {
   animation-name: styles_local_name;
+}
+div {
+  animation-name:
+    global_name1,
+    none,
+    global_name2,
+    Inherit,
+    INITIAL,
+    revert,
+    revert-layer,
+    unset;
+}
+div {
+  animation-name:
+    styles_local_name1,
+    none,
+    styles_local_name2,
+    Inherit,
+    INITIAL,
+    revert,
+    revert-layer,
+    unset;
 }
 div {
   animation: 2s infinite global_name;

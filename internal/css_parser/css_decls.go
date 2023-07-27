@@ -137,9 +137,7 @@ func (p *parser) processDeclarations(rules []css_ast.Rule) (rewrittenRules []css
 			p.processAnimationShorthand(decl.Value)
 
 		case css_ast.DAnimationName:
-			if len(decl.Value) == 1 {
-				p.processAnimationName(&decl.Value[0])
-			}
+			p.processAnimationName(decl.Value)
 
 		case css_ast.DFont:
 			if p.options.minifySyntax {

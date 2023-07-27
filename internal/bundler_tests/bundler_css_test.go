@@ -430,8 +430,14 @@ func TestImportCSSFromJSLocalKeyframeAnimationNames(t *testing.T) {
 			"/styles.css": `
 				@keyframes local_name { to { color: red } }
 
+				div :global { animation-name: none }
+				div :local { animation-name: none }
+
 				div :global { animation-name: global_name }
 				div :local { animation-name: local_name }
+
+				div :global { animation-name: global_name1, none, global_name2, Inherit, INITIAL, revert, revert-layer, unset }
+				div :local { animation-name: local_name1, none, local_name2, Inherit, INITIAL, revert, revert-layer, unset }
 
 				div :global { animation: 2s infinite global_name }
 				div :local { animation: 2s infinite local_name }

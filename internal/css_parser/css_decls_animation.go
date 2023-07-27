@@ -71,14 +71,14 @@ func (p *parser) processAnimationShorthand(tokens []css_ast.Token) {
 			}
 
 			if !found.name {
-				p.processAnimationName(&tokens[i])
+				p.handleSingleAnimationName(&tokens[i])
 				found.name = true
 				continue
 			}
 
 		case css_lexer.TString:
 			if !found.name {
-				p.processAnimationName(&tokens[i])
+				p.handleSingleAnimationName(&tokens[i])
 				found.name = true
 				continue
 			}
@@ -86,9 +86,21 @@ func (p *parser) processAnimationShorthand(tokens []css_ast.Token) {
 	}
 }
 
-func (p *parser) processAnimationName(token *css_ast.Token) {
-	if token.Kind == css_lexer.TIdent || token.Kind == css_lexer.TString {
-		token.Kind = css_lexer.TSymbol
-		token.PayloadIndex = p.symbolForName(token.Loc, token.Text).Ref.InnerIndex
+func (p *parser) processAnimationName(tokens []css_ast.Token) {
+	for i, t := range tokens {
+		if t.Kind == css_lexer.TIdent || t.Kind == css_lexer.TString {
+			p.handleSingleAnimationName(&tokens[i])
+		}
 	}
+}
+
+func (p *parser) handleSingleAnimationName(token *css_ast.Token) {
+	if token.Kind == css_lexer.TIdent {
+		if lower := strings.ToLower(token.Text); lower == "none" || cssWideAndReservedKeywords[lower] {
+			return
+		}
+	}
+
+	token.Kind = css_lexer.TSymbol
+	token.PayloadIndex = p.symbolForName(token.Loc, token.Text).Ref.InnerIndex
 }
