@@ -696,68 +696,7 @@ TestIgnoreURLsInAtRulePrelude
 }
 
 ================================================================================
-TestImportCSSFromJSLocalKeyframeAnimationNames
----------- /out/entry.js ----------
-// styles.css
-var styles_default = {
-  local_name: "styles_local_name",
-  local_name1: "styles_local_name1",
-  local_name2: "styles_local_name2"
-};
-
-// entry.js
-console.log(styles_default);
-
----------- /out/entry.css ----------
-/* styles.css */
-@keyframes styles_local_name {
-  to {
-    color: red;
-  }
-}
-div {
-  animation-name: none;
-}
-div {
-  animation-name: none;
-}
-div {
-  animation-name: global_name;
-}
-div {
-  animation-name: styles_local_name;
-}
-div {
-  animation-name:
-    global_name1,
-    none,
-    global_name2,
-    Inherit,
-    INITIAL,
-    revert,
-    revert-layer,
-    unset;
-}
-div {
-  animation-name:
-    styles_local_name1,
-    none,
-    styles_local_name2,
-    Inherit,
-    INITIAL,
-    revert,
-    revert-layer,
-    unset;
-}
-div {
-  animation: 2s infinite global_name;
-}
-div {
-  animation: 2s infinite styles_local_name;
-}
-
-================================================================================
-TestImportCSSFromJSLocalKeyframeListStyle
+TestImportCSSFromJSLocalAtCounterStyle
 ---------- /out/entry.js ----------
 // list_style_type.css
 var list_style_type_default = {
@@ -892,6 +831,67 @@ div {
 }
 div {
   list-style: DISCLOSURE-closed;
+}
+
+================================================================================
+TestImportCSSFromJSLocalAtKeyframes
+---------- /out/entry.js ----------
+// styles.css
+var styles_default = {
+  local_name: "styles_local_name",
+  local_name1: "styles_local_name1",
+  local_name2: "styles_local_name2"
+};
+
+// entry.js
+console.log(styles_default);
+
+---------- /out/entry.css ----------
+/* styles.css */
+@keyframes styles_local_name {
+  to {
+    color: red;
+  }
+}
+div {
+  animation-name: none;
+}
+div {
+  animation-name: none;
+}
+div {
+  animation-name: global_name;
+}
+div {
+  animation-name: styles_local_name;
+}
+div {
+  animation-name:
+    global_name1,
+    none,
+    global_name2,
+    Inherit,
+    INITIAL,
+    revert,
+    revert-layer,
+    unset;
+}
+div {
+  animation-name:
+    styles_local_name1,
+    none,
+    styles_local_name2,
+    Inherit,
+    INITIAL,
+    revert,
+    revert-layer,
+    unset;
+}
+div {
+  animation: 2s infinite global_name;
+}
+div {
+  animation: 2s infinite styles_local_name;
 }
 
 ================================================================================

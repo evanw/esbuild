@@ -433,7 +433,7 @@ func TestImportCSSFromJSLowerBareLocalAndGlobal(t *testing.T) {
 	})
 }
 
-func TestImportCSSFromJSLocalKeyframeAnimationNames(t *testing.T) {
+func TestImportCSSFromJSLocalAtKeyframes(t *testing.T) {
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -469,7 +469,7 @@ func TestImportCSSFromJSLocalKeyframeAnimationNames(t *testing.T) {
 	})
 }
 
-func TestImportCSSFromJSLocalKeyframeListStyle(t *testing.T) {
+func TestImportCSSFromJSLocalAtCounterStyle(t *testing.T) {
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
