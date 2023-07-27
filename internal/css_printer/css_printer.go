@@ -454,7 +454,7 @@ func (p *printer) printCompoundSelector(sel css_ast.CompoundSelector, isFirst bo
 		}
 
 		if p.options.AddSourceMappings {
-			p.builder.AddSourceMapping(ss.Loc, "", p.css)
+			p.builder.AddSourceMapping(ss.Range.Loc, "", p.css)
 		}
 
 		switch s := ss.Data.(type) {

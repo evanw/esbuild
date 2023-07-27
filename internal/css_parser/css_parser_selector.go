@@ -113,7 +113,7 @@ func mergeCompoundSelectors(target *css_ast.CompoundSelector, source css_ast.Com
 			//
 			// But that just seems so obviously wrong that I'm not going to do that.
 			target.SubclassSelectors = append(target.SubclassSelectors, css_ast.SubclassSelector{
-				Loc: source.TypeSelector.Range().Loc,
+				Range: source.TypeSelector.Range(),
 				Data: &css_ast.SSPseudoClassWithSelectorList{
 					Kind:      css_ast.PseudoClassIs,
 					Selectors: []css_ast.ComplexSelector{{Selectors: []css_ast.CompoundSelector{{TypeSelector: source.TypeSelector}}}},
@@ -370,7 +370,7 @@ subclassSelectors:
 			nameLoc := logger.Loc{Start: subclassToken.Range.Loc.Start + 1}
 			name := p.decoded()
 			sel.SubclassSelectors = append(sel.SubclassSelectors, css_ast.SubclassSelector{
-				Loc: subclassToken.Range.Loc,
+				Range: subclassToken.Range,
 				Data: &css_ast.SSHash{
 					Name: p.symbolForName(nameLoc, name),
 				},
@@ -379,12 +379,12 @@ subclassSelectors:
 
 		case css_lexer.TDelimDot:
 			p.advance()
-			nameLoc := p.current().Range.Loc
+			nameRange := p.current().Range
 			name := p.decoded()
 			sel.SubclassSelectors = append(sel.SubclassSelectors, css_ast.SubclassSelector{
-				Loc: subclassToken.Range.Loc,
+				Range: logger.Range{Loc: subclassToken.Range.Loc, Len: nameRange.End() - subclassToken.Range.Loc.Start},
 				Data: &css_ast.SSClass{
-					Name: p.symbolForName(nameLoc, name),
+					Name: p.symbolForName(nameRange.Loc, name),
 				},
 			})
 			if !p.expect(css_lexer.TIdent) {
@@ -392,13 +392,13 @@ subclassSelectors:
 			}
 
 		case css_lexer.TOpenBracket:
-			attr, good := p.parseAttributeSelector()
-			if !good {
+			attr, r := p.parseAttributeSelector()
+			if r.Len == 0 {
 				return
 			}
 			sel.SubclassSelectors = append(sel.SubclassSelectors, css_ast.SubclassSelector{
-				Loc:  subclassToken.Range.Loc,
-				Data: &attr,
+				Range: r,
+				Data:  &attr,
 			})
 
 		case css_lexer.TColon:
@@ -410,7 +410,7 @@ subclassSelectors:
 					if isElement {
 						p.advance()
 					}
-					pseudo := p.parsePseudoClassSelector(isElement)
+					pseudo, r := p.parsePseudoClassSelector(firstColonLoc, isElement)
 
 					// https://www.w3.org/TR/selectors-4/#single-colon-pseudos
 					// The four Level 2 pseudo-elements (::before, ::after, ::first-line,
@@ -427,16 +427,17 @@ subclassSelectors:
 					}
 
 					sel.SubclassSelectors = append(sel.SubclassSelectors, css_ast.SubclassSelector{
-						Loc:  firstColonLoc,
-						Data: pseudo,
+						Range: r,
+						Data:  pseudo,
 					})
 				}
 				break subclassSelectors
 			}
 
+			pseudo, r := p.parsePseudoClassSelector(subclassToken.Range.Loc, false)
 			sel.SubclassSelectors = append(sel.SubclassSelectors, css_ast.SubclassSelector{
-				Loc:  subclassToken.Range.Loc,
-				Data: p.parsePseudoClassSelector(false),
+				Range: r,
+				Data:  pseudo,
 			})
 
 		case css_lexer.TDelimAmpersand:
@@ -500,7 +501,7 @@ subclassSelectors:
 	return
 }
 
-func (p *parser) parseAttributeSelector() (attr css_ast.SSAttribute, ok bool) {
+func (p *parser) parseAttributeSelector() (attr css_ast.SSAttribute, r logger.Range) {
 	matchingLoc := p.current().Range.Loc
 	p.advance()
 
@@ -589,12 +590,15 @@ func (p *parser) parseAttributeSelector() (attr css_ast.SSAttribute, ok bool) {
 		}
 	}
 
-	p.expectWithMatchingLoc(css_lexer.TCloseBracket, matchingLoc)
-	ok = true
+	closeRange := p.current().Range
+	if !p.expectWithMatchingLoc(css_lexer.TCloseBracket, matchingLoc) {
+		closeRange.Len = 0
+	}
+	r = logger.Range{Loc: matchingLoc, Len: closeRange.End() - matchingLoc.Start}
 	return
 }
 
-func (p *parser) parsePseudoClassSelector(isElement bool) css_ast.SS {
+func (p *parser) parsePseudoClassSelector(loc logger.Loc, isElement bool) (css_ast.SS, logger.Range) {
 	p.advance()
 
 	if p.peek(css_lexer.TFunction) {
@@ -667,8 +671,13 @@ func (p *parser) parsePseudoClassSelector(isElement bool) css_ast.SS {
 						}
 
 						// Match the closing ")"
-						if ok && p.expectWithMatchingLoc(css_lexer.TCloseParen, matchingLoc) {
-							return &css_ast.SSPseudoClassWithSelectorList{Kind: kind, Selectors: selectors, Index: index}
+						if ok {
+							closeRange := p.current().Range
+							if !p.expectWithMatchingLoc(css_lexer.TCloseParen, matchingLoc) {
+								closeRange.Len = 0
+							}
+							return &css_ast.SSPseudoClassWithSelectorList{Kind: kind, Selectors: selectors, Index: index},
+								logger.Range{Loc: loc, Len: closeRange.End() - loc.Start}
 						}
 					}
 				} else {
@@ -685,8 +694,13 @@ func (p *parser) parsePseudoClassSelector(isElement bool) css_ast.SS {
 					p.makeLocalSymbols = oldLocal
 
 					// Match the closing ")"
-					if ok && p.expectWithMatchingLoc(css_lexer.TCloseParen, matchingLoc) {
-						return &css_ast.SSPseudoClassWithSelectorList{Kind: kind, Selectors: selectors}
+					if ok {
+						closeRange := p.current().Range
+						if !p.expectWithMatchingLoc(css_lexer.TCloseParen, matchingLoc) {
+							closeRange.Len = 0
+						}
+						return &css_ast.SSPseudoClassWithSelectorList{Kind: kind, Selectors: selectors},
+							logger.Range{Loc: loc, Len: closeRange.End() - loc.Start}
 					}
 				}
 				p.index = old
@@ -694,10 +708,15 @@ func (p *parser) parsePseudoClassSelector(isElement bool) css_ast.SS {
 		}
 
 		args := p.convertTokens(p.parseAnyValue())
-		p.expectWithMatchingLoc(css_lexer.TCloseParen, matchingLoc)
-		return &css_ast.SSPseudoClass{IsElement: isElement, Name: text, Args: args}
+		closeRange := p.current().Range
+		if !p.expectWithMatchingLoc(css_lexer.TCloseParen, matchingLoc) {
+			closeRange.Len = 0
+		}
+		return &css_ast.SSPseudoClass{IsElement: isElement, Name: text, Args: args},
+			logger.Range{Loc: loc, Len: closeRange.End() - loc.Start}
 	}
 
+	nameRange := p.current().Range
 	name := p.decoded()
 	sel := css_ast.SSPseudoClass{IsElement: isElement}
 	if p.expect(css_lexer.TIdent) {
@@ -713,8 +732,10 @@ func (p *parser) parsePseudoClassSelector(isElement bool) css_ast.SS {
 				p.makeLocalSymbols = false
 			}
 		}
+	} else {
+		nameRange.Len = 0
 	}
-	return &sel
+	return &sel, logger.Range{Loc: loc, Len: nameRange.End() - loc.Start}
 }
 
 func (p *parser) parseAnyValue() []css_lexer.Token {

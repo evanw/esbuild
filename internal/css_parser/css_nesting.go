@@ -16,8 +16,8 @@ func (p *parser) lowerNestingInRule(rule css_ast.Rule, results []css_ast.Rule) [
 			return css_ast.ComplexSelector{
 				Selectors: []css_ast.CompoundSelector{{
 					SubclassSelectors: []css_ast.SubclassSelector{{
-						Loc:  loc,
-						Data: &css_ast.SSPseudoClass{Name: "scope"},
+						Range: logger.Range{Loc: loc},
+						Data:  &css_ast.SSPseudoClass{Name: "scope"},
 					}},
 				}},
 			}
@@ -377,7 +377,7 @@ func (p *parser) substituteAmpersandsInCompoundSelector(
 			p.reportNestingWithGeneratedPseudoClassIs(nestingSelectorLoc)
 			single = css_ast.CompoundSelector{
 				SubclassSelectors: []css_ast.SubclassSelector{{
-					Loc: nestingSelectorLoc,
+					Range: logger.Range{Loc: nestingSelectorLoc},
 					Data: &css_ast.SSPseudoClassWithSelectorList{
 						Kind:      css_ast.PseudoClassIs,
 						Selectors: []css_ast.ComplexSelector{replacement.CloneWithoutLeadingCombinator()},
@@ -393,7 +393,7 @@ func (p *parser) substituteAmpersandsInCompoundSelector(
 			if sel.TypeSelector != nil {
 				p.reportNestingWithGeneratedPseudoClassIs(nestingSelectorLoc)
 				subclassSelectorPrefix = append(subclassSelectorPrefix, css_ast.SubclassSelector{
-					Loc: sel.TypeSelector.Range().Loc,
+					Range: sel.TypeSelector.Range(),
 					Data: &css_ast.SSPseudoClassWithSelectorList{
 						Kind:      css_ast.PseudoClassIs,
 						Selectors: []css_ast.ComplexSelector{{Selectors: []css_ast.CompoundSelector{{TypeSelector: sel.TypeSelector}}}},
@@ -454,7 +454,7 @@ func (p *parser) multipleComplexSelectorsToSingleComplexSelector(selectors []css
 			Selectors: []css_ast.CompoundSelector{{
 				Combinator: leadingCombinator,
 				SubclassSelectors: []css_ast.SubclassSelector{{
-					Loc: loc,
+					Range: logger.Range{Loc: loc},
 					Data: &css_ast.SSPseudoClassWithSelectorList{
 						Kind:      css_ast.PseudoClassIs,
 						Selectors: clones,

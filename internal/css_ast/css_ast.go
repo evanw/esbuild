@@ -799,7 +799,7 @@ func (sel CompoundSelector) FirstLoc() logger.Loc {
 	if sel.TypeSelector != nil {
 		firstLoc = ast.MakeIndex32(uint32(sel.TypeSelector.Range().Loc.Start))
 	} else if len(sel.SubclassSelectors) > 0 {
-		firstLoc = ast.MakeIndex32(uint32(sel.SubclassSelectors[0].Loc.Start))
+		firstLoc = ast.MakeIndex32(uint32(sel.SubclassSelectors[0].Range.Loc.Start))
 	}
 	if firstLoc.IsValid() && (!sel.NestingSelectorLoc.IsValid() || firstLoc.GetIndex() < sel.NestingSelectorLoc.GetIndex()) {
 		return logger.Loc{Start: int32(firstLoc.GetIndex())}
@@ -868,8 +868,8 @@ func (a NamespacedName) Equal(b NamespacedName) bool {
 }
 
 type SubclassSelector struct {
-	Data SS
-	Loc  logger.Loc
+	Data  SS
+	Range logger.Range
 }
 
 type SS interface {
