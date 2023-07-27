@@ -16,27 +16,27 @@ import (
 // support for parsing https://drafts.csswg.org/css-nesting-1/.
 
 type parser struct {
-	log                logger.Log
-	source             logger.Source
-	tokens             []css_lexer.Token
-	allComments        []logger.Range
-	legalComments      []css_lexer.Comment
-	stack              []css_lexer.T
-	importRecords      []ast.ImportRecord
-	symbols            []ast.Symbol
-	defineLocs         map[ast.Ref]logger.Loc
-	localSymbolMap     map[string]ast.Ref
-	globalSymbolMap    map[string]ast.Ref
-	nestingWarnings    map[logger.Loc]struct{}
-	tracker            logger.LineColumnTracker
-	index              int
-	end                int
-	legalCommentIndex  int
-	inSelectorSubtree  int
-	prevError          logger.Loc
-	options            Options
-	shouldLowerNesting bool
-	makeLocalSymbols   bool
+	log               logger.Log
+	source            logger.Source
+	tokens            []css_lexer.Token
+	allComments       []logger.Range
+	legalComments     []css_lexer.Comment
+	stack             []css_lexer.T
+	importRecords     []ast.ImportRecord
+	symbols           []ast.Symbol
+	defineLocs        map[ast.Ref]logger.Loc
+	localSymbolMap    map[string]ast.Ref
+	globalSymbolMap   map[string]ast.Ref
+	nestingWarnings   map[logger.Loc]struct{}
+	tracker           logger.LineColumnTracker
+	index             int
+	end               int
+	legalCommentIndex int
+	inSelectorSubtree int
+	prevError         logger.Loc
+	options           Options
+	nestingIsPresent  bool
+	makeLocalSymbols  bool
 }
 
 type Options struct {
@@ -353,7 +353,7 @@ func (p *parser) parseListOfRules(context ruleContext) []css_ast.Rule {
 loop:
 	for {
 		if context.isTopLevel {
-			p.shouldLowerNesting = false
+			p.nestingIsPresent = false
 		}
 
 		// If there are any legal comments immediately before the current token,
@@ -424,7 +424,7 @@ loop:
 			}
 
 			// Lower CSS nesting if it's not supported (but only at the top level)
-			if p.shouldLowerNesting && p.options.unsupportedCSSFeatures.Has(compat.Nesting) && context.isTopLevel {
+			if p.nestingIsPresent && p.options.unsupportedCSSFeatures.Has(compat.Nesting) && context.isTopLevel {
 				rules = p.lowerNestingInRule(rule, rules)
 			} else {
 				rules = append(rules, rule)
@@ -452,7 +452,7 @@ loop:
 		}
 
 		// Lower CSS nesting if it's not supported (but only at the top level)
-		if p.shouldLowerNesting && p.options.unsupportedCSSFeatures.Has(compat.Nesting) && context.isTopLevel {
+		if p.nestingIsPresent && p.options.unsupportedCSSFeatures.Has(compat.Nesting) && context.isTopLevel {
 			rules = p.lowerNestingInRule(rule, rules)
 		} else {
 			rules = append(rules, rule)
@@ -510,7 +510,7 @@ func (p *parser) parseListOfDeclarations(opts listOfDeclarationsOpts) (list []cs
 
 		case css_lexer.TAtKeyword:
 			if p.inSelectorSubtree > 0 {
-				p.shouldLowerNesting = true
+				p.nestingIsPresent = true
 			}
 			list = append(list, p.parseAtRule(atRuleContext{
 				isDeclarationList:    true,
@@ -528,7 +528,7 @@ func (p *parser) parseListOfDeclarations(opts listOfDeclarationsOpts) (list []cs
 			css_lexer.TDelimPlus,
 			css_lexer.TDelimGreaterThan,
 			css_lexer.TDelimTilde:
-			p.shouldLowerNesting = true
+			p.nestingIsPresent = true
 			list = append(list, p.parseSelectorRule(false, parseSelectorOpts{isDeclarationContext: true}))
 			foundNesting = true
 
