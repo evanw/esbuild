@@ -1587,6 +1587,17 @@ var Foo=(e=>(e[e.A=0]="A",e[e.B=1]="B",e[e.C=e]="C",e))(Foo||{});
 export var Foo=(e=>(e[e.X=0]="X",e[e.Y=1]="Y",e[e.Z=e]="Z",e))(Foo||{});
 
 ================================================================================
+TestTSMinifyEnumCrossFileInlineStringsIntoTemplates
+---------- /out.js ----------
+// entry.ts
+console.log(`
+					SameFile.STR = str 1
+					SameFile.NUM = 123
+					CrossFile.STR = str 2
+					CrossFile.NUM = 321
+				`);
+
+================================================================================
 TestTSMinifyEnumPropertyNames
 ---------- /out.js ----------
 // entry.ts

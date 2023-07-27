@@ -2863,15 +2863,28 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 
 	case *js_ast.ETemplate:
 		if p.options.MinifySyntax && e.TagOrNil.Data == nil {
-			// Inline mangled properties when minifying
+			// Inline enums and mangled properties when minifying
 			var replaced []js_ast.TemplatePart
 			for i, part := range e.Parts {
-				if mangled, ok := part.Value.Data.(*js_ast.ENameOfSymbol); ok {
+				var inlinedValue js_ast.E
+				switch e2 := part.Value.Data.(type) {
+				case *js_ast.ENameOfSymbol:
+					inlinedValue = &js_ast.EString{Value: helpers.StringToUTF16(p.mangledPropName(e2.Ref))}
+				case *js_ast.EDot:
+					if value, ok := p.tryToGetImportedEnumValue(e2.Target, e2.Name); ok {
+						if value.String != nil {
+							inlinedValue = &js_ast.EString{Value: value.String}
+						} else {
+							inlinedValue = &js_ast.ENumber{Value: value.Number}
+						}
+					}
+				}
+				if inlinedValue != nil {
 					if replaced == nil {
 						replaced = make([]js_ast.TemplatePart, 0, len(e.Parts))
 						replaced = append(replaced, e.Parts[:i]...)
 					}
-					part.Value.Data = &js_ast.EString{Value: helpers.StringToUTF16(p.mangledPropName(mangled.Ref))}
+					part.Value.Data = inlinedValue
 					replaced = append(replaced, part)
 				} else if replaced != nil {
 					replaced = append(replaced, part)

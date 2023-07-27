@@ -733,6 +733,37 @@ func TestTSMinifyEnumPropertyNames(t *testing.T) {
 		},
 	})
 }
+func TestTSMinifyEnumCrossFileInlineStringsIntoTemplates(t *testing.T) {
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				import { CrossFile } from './cross-file'
+				enum SameFile {
+					STR = 'str 1',
+					NUM = 123,
+				}
+				console.log(` + "`" + `
+					SameFile.STR = ${SameFile.STR}
+					SameFile.NUM = ${SameFile.NUM}
+					CrossFile.STR = ${CrossFile.STR}
+					CrossFile.NUM = ${CrossFile.NUM}
+				` + "`" + `)
+			`,
+			"/cross-file.ts": `
+				export enum CrossFile {
+					STR = 'str 2',
+					NUM = 321,
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			MinifySyntax:  true,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
 
 func TestTSImportVsLocalCollisionAllTypes(t *testing.T) {
 	ts_suite.expectBundled(t, bundled{
