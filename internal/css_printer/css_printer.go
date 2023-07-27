@@ -547,7 +547,7 @@ func (p *printer) printNthIndex(index css_ast.NthIndex) {
 func (p *printer) printNamespacedName(nsName css_ast.NamespacedName, whitespace trailingWhitespace) {
 	if prefix := nsName.NamespacePrefix; prefix != nil {
 		if p.options.AddSourceMappings {
-			p.builder.AddSourceMapping(prefix.Loc, "", p.css)
+			p.builder.AddSourceMapping(prefix.Range.Loc, "", p.css)
 		}
 
 		switch prefix.Kind {
@@ -563,7 +563,7 @@ func (p *printer) printNamespacedName(nsName css_ast.NamespacedName, whitespace 
 	}
 
 	if p.options.AddSourceMappings {
-		p.builder.AddSourceMapping(nsName.Name.Loc, "", p.css)
+		p.builder.AddSourceMapping(nsName.Name.Range.Loc, "", p.css)
 	}
 
 	switch nsName.Name.Kind {

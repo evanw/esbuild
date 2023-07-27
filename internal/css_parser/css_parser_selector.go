@@ -113,7 +113,7 @@ func mergeCompoundSelectors(target *css_ast.CompoundSelector, source css_ast.Com
 			//
 			// But that just seems so obviously wrong that I'm not going to do that.
 			target.SubclassSelectors = append(target.SubclassSelectors, css_ast.SubclassSelector{
-				Loc: source.TypeSelector.FirstLoc(),
+				Loc: source.TypeSelector.Range().Loc,
 				Data: &css_ast.SSPseudoClassWithSelectorList{
 					Kind:      css_ast.PseudoClassIs,
 					Selectors: []css_ast.ComplexSelector{{Selectors: []css_ast.CompoundSelector{{TypeSelector: source.TypeSelector}}}},
@@ -315,9 +315,9 @@ func (p *parser) parseComplexSelector(opts parseComplexSelectorOpts) (result css
 func (p *parser) nameToken() css_ast.NameToken {
 	t := p.current()
 	return css_ast.NameToken{
-		Kind: t.Kind,
-		Loc:  t.Range.Loc,
-		Text: p.decoded(),
+		Kind:  t.Kind,
+		Range: t.Range,
+		Text:  p.decoded(),
 	}
 }
 

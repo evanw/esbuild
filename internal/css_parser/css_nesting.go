@@ -393,7 +393,7 @@ func (p *parser) substituteAmpersandsInCompoundSelector(
 			if sel.TypeSelector != nil {
 				p.reportNestingWithGeneratedPseudoClassIs(nestingSelectorLoc)
 				subclassSelectorPrefix = append(subclassSelectorPrefix, css_ast.SubclassSelector{
-					Loc: sel.TypeSelector.FirstLoc(),
+					Loc: sel.TypeSelector.Range().Loc,
 					Data: &css_ast.SSPseudoClassWithSelectorList{
 						Kind:      css_ast.PseudoClassIs,
 						Selectors: []css_ast.ComplexSelector{{Selectors: []css_ast.CompoundSelector{{TypeSelector: sel.TypeSelector}}}},

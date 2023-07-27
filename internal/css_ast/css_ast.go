@@ -797,7 +797,7 @@ func (sel CompoundSelector) IsInvalidBecauseEmpty() bool {
 func (sel CompoundSelector) FirstLoc() logger.Loc {
 	var firstLoc ast.Index32
 	if sel.TypeSelector != nil {
-		firstLoc = ast.MakeIndex32(uint32(sel.TypeSelector.FirstLoc().Start))
+		firstLoc = ast.MakeIndex32(uint32(sel.TypeSelector.Range().Loc.Start))
 	} else if len(sel.SubclassSelectors) > 0 {
 		firstLoc = ast.MakeIndex32(uint32(sel.SubclassSelectors[0].Loc.Start))
 	}
@@ -828,9 +828,9 @@ func (sel CompoundSelector) Clone() CompoundSelector {
 }
 
 type NameToken struct {
-	Text string
-	Loc  logger.Loc
-	Kind css_lexer.T
+	Text  string
+	Range logger.Range
+	Kind  css_lexer.T
 }
 
 func (a NameToken) Equal(b NameToken) bool {
@@ -845,11 +845,12 @@ type NamespacedName struct {
 	Name NameToken
 }
 
-func (n NamespacedName) FirstLoc() logger.Loc {
+func (n NamespacedName) Range() logger.Range {
 	if n.NamespacePrefix != nil {
-		return n.NamespacePrefix.Loc
+		loc := n.NamespacePrefix.Range.Loc
+		return logger.Range{Loc: loc, Len: n.Name.Range.End() - loc.Start}
 	}
-	return n.Name.Loc
+	return n.Name.Range
 }
 
 func (n NamespacedName) Clone() NamespacedName {
