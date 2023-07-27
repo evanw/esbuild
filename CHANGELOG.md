@@ -2,9 +2,9 @@
 
 ## Unreleased
 
-* Support local names in CSS for `@keyframe` and `@counter-style` ([#20](https://github.com/evanw/esbuild/issues/20))
+* Support local names in CSS for `@keyframe`, `@counter-style`, and `@container` ([#20](https://github.com/evanw/esbuild/issues/20))
 
-    This release extends support for local names in CSS files loaded with the `local-css` loader to cover the `@keyframe` and `@counter-style` rules (and also `animation` and `list-style` declarations). Here's an example:
+    This release extends support for local names in CSS files loaded with the `local-css` loader to cover the `@keyframe`, `@counter-style`, and `@container` rules (and also `animation`, `list-style`, and `container` declarations). Here's an example:
 
     ```css
     @keyframes pulse {
@@ -15,9 +15,13 @@
       system: cyclic;
       symbols: 🌕 🌖 🌗 🌘 🌑 🌒 🌓 🌔;
     }
+    @container squish {
+      li { float: left }
+    }
     ul {
       animation: 2s ease-in-out infinite pulse;
       list-style: inside moon;
+      container: squish / size;
     }
     ```
 
@@ -36,9 +40,15 @@
       system: cyclic;
       symbols: 🌕 🌖 🌗 🌘 🌑 🌒 🌓 🌔;
     }
+    @container stdin_squish {
+      li {
+        float: left;
+      }
+    }
     ul {
       animation: 2s ease-in-out infinite stdin_pulse;
       list-style: inside stdin_moon;
+      container: stdin_squish / size;
     }
     ```
 
@@ -46,16 +56,17 @@
 
     ```css
     div {
-      /* All symbols are global inside this scope
-       * (i.e. "pulse" and "moon" are global below) */
+      /* All symbols are global inside this scope (i.e.
+       * "pulse", "moon", and "squish" are global below) */
       :global {
         animation: 2s ease-in-out infinite pulse;
         list-style: inside moon;
+        container: squish / size;
       }
     }
     ```
 
-    If you want to use `@keyframes` or `@counter-style` with a global name, make sure it's in a file that uses the `css` or `global-css` loader instead of the `local-css` loader. For example, you can configure `--loader:.module.css=local-css` so that the `local-css` loader only applies to `*.module.css` files.
+    If you want to use `@keyframes`, `@counter-style`, or `@container` with a global name, make sure it's in a file that uses the `css` or `global-css` loader instead of the `local-css` loader. For example, you can configure `--loader:.module.css=local-css` so that the `local-css` loader only applies to `*.module.css` files.
 
 * Support strings as keyframe animation names in CSS ([#2555](https://github.com/evanw/esbuild/issues/2555))
 

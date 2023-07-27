@@ -1455,9 +1455,9 @@ prelude:
 
 		// Handle local names for "@counter-style"
 		if len(prelude) == 1 && atToken == "counter-style" {
-			if token := &prelude[0]; token.Kind == css_lexer.TIdent {
-				token.Kind = css_lexer.TSymbol
-				token.PayloadIndex = p.symbolForName(token.Loc, token.Text).Ref.InnerIndex
+			if t := &prelude[0]; t.Kind == css_lexer.TIdent {
+				t.Kind = css_lexer.TSymbol
+				t.PayloadIndex = p.symbolForName(t.Loc, t.Text).Ref.InnerIndex
 			}
 		}
 
@@ -1481,6 +1481,15 @@ prelude:
 		if !p.expectWithMatchingLoc(css_lexer.TCloseBrace, matchingLoc) {
 			closeBraceLoc = logger.Loc{}
 		}
+
+		// Handle local names for "@container"
+		if len(prelude) >= 1 && atToken == "container" {
+			if t := &prelude[0]; t.Kind == css_lexer.TIdent && strings.ToLower(t.Text) != "not" {
+				t.Kind = css_lexer.TSymbol
+				t.PayloadIndex = p.symbolForName(t.Loc, t.Text).Ref.InnerIndex
+			}
+		}
+
 		return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RKnownAt{AtToken: atToken, Prelude: prelude, Rules: rules, CloseBraceLoc: closeBraceLoc}}
 
 	case atRuleQualifiedOrEmpty:

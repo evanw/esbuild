@@ -143,7 +143,13 @@ func (p *parser) processDeclarations(rules []css_ast.Rule) (rewrittenRules []css
 				decl.Value = p.mangleBoxShadows(decl.Value)
 			}
 
-		// Animation name
+		// Container name
+		case css_ast.DContainer:
+			p.processContainerShorthand(decl.Value)
+		case css_ast.DContainerName:
+			p.processContainerName(decl.Value)
+
+			// Animation name
 		case css_ast.DAnimation:
 			p.processAnimationShorthand(decl.Value)
 		case css_ast.DAnimationName:

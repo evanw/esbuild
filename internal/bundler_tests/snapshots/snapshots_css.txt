@@ -696,6 +696,93 @@ TestIgnoreURLsInAtRulePrelude
 }
 
 ================================================================================
+TestImportCSSFromJSLocalAtContainer
+---------- /out/entry.js ----------
+// styles.css
+var styles_default = {
+  local: "styles_local",
+  local1: "styles_local1",
+  local2: "styles_local2"
+};
+
+// entry.js
+console.log(styles_default);
+
+---------- /out/entry.css ----------
+/* styles.css */
+@container not (max-width: 100px) {
+  div {
+    color: red;
+  }
+}
+@container styles_local (max-width: 100px) {
+  div {
+    color: red;
+  }
+}
+@container styles_local not (max-width: 100px) {
+  div {
+    color: red;
+  }
+}
+@container styles_local (max-width: 100px) or (min-height: 100px) {
+  div {
+    color: red;
+  }
+}
+@container styles_local (max-width: 100px) and (min-height: 100px) {
+  div {
+    color: red;
+  }
+}
+@container general_enclosed(max-width: 100px) {
+  div {
+    color: red;
+  }
+}
+@container styles_local general_enclosed(max-width: 100px) {
+  div {
+    color: red;
+  }
+}
+div {
+  container-name: NONE initial;
+}
+div {
+  container-name: none INITIAL;
+}
+div {
+  container-name: GLOBAL1 GLOBAL2;
+}
+div {
+  container-name: styles_local1 styles_local2;
+}
+div {
+  container: none;
+}
+div {
+  container: NONE;
+}
+div {
+  container: NONE / size;
+}
+div {
+  container: none / size;
+}
+div {
+  container: GLOBAL1 GLOBAL2;
+}
+div {
+  container: styles_local1 styles_local2;
+}
+div {
+  container: GLOBAL1 GLOBAL2 / size;
+}
+div {
+  container: styles_local1 styles_local2 / size;
+}
+
+================================================================================
 TestImportCSSFromJSLocalAtCounterStyle
 ---------- /out/entry.js ----------
 // list_style_type.css

@@ -116,6 +116,9 @@ const (
 	DColumnSpan
 	DColumnWidth
 	DColumns
+	DContainer
+	DContainerName
+	DContainerType
 	DContent
 	DCounterIncrement
 	DCounterReset
@@ -443,6 +446,9 @@ var KnownDeclarations = map[string]D{
 	"column-span":                 DColumnSpan,
 	"column-width":                DColumnWidth,
 	"columns":                     DColumns,
+	"container":                   DContainer,
+	"container-name":              DContainerName,
+	"container-type":              DContainerType,
 	"content":                     DContent,
 	"counter-increment":           DCounterIncrement,
 	"counter-reset":               DCounterReset,

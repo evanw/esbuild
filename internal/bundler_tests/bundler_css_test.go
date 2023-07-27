@@ -544,6 +544,51 @@ func TestImportCSSFromJSLocalAtCounterStyle(t *testing.T) {
 	})
 }
 
+func TestImportCSSFromJSLocalAtContainer(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import styles from "./styles.css"
+				console.log(styles)
+			`,
+			"/styles.css": `
+				@container not (max-width: 100px) { div { color: red } }
+				@container local (max-width: 100px) { div { color: red } }
+				@container local not (max-width: 100px) { div { color: red } }
+				@container local (max-width: 100px) or (min-height: 100px) { div { color: red } }
+				@container local (max-width: 100px) and (min-height: 100px) { div { color: red } }
+				@container general_enclosed(max-width: 100px) { div { color: red } }
+				@container local general_enclosed(max-width: 100px) { div { color: red } }
+
+				div :global { container-name: NONE initial }
+				div :local { container-name: none INITIAL }
+				div :global { container-name: GLOBAL1 GLOBAL2 }
+				div :local { container-name: local1 local2 }
+
+				div :global { container: none }
+				div :local { container: NONE }
+				div :global { container: NONE / size }
+				div :local { container: none / size }
+
+				div :global { container: GLOBAL1 GLOBAL2 }
+				div :local { container: local1 local2 }
+				div :global { container: GLOBAL1 GLOBAL2 / size }
+				div :local { container: local1 local2 / size }
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			ExtensionToLoader: map[string]config.Loader{
+				".js":  config.LoaderJS,
+				".css": config.LoaderLocalCSS,
+			},
+			UnsupportedCSSFeatures: compat.Nesting,
+		},
+	})
+}
+
 func TestImportCSSFromJSNthIndexLocal(t *testing.T) {
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
