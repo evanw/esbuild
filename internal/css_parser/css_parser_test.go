@@ -1287,10 +1287,10 @@ func TestAtImport(t *testing.T) {
 	expectPrinted(t, "@import;", "@import;\n", "<stdin>: WARNING: Expected URL token but found \";\"\n")
 	expectPrinted(t, "@import ;", "@import;\n", "<stdin>: WARNING: Expected URL token but found \";\"\n")
 	expectPrinted(t, "@import \"foo.css\"", "@import \"foo.css\";\n", "<stdin>: WARNING: Expected \";\" but found end of file\n")
-	expectPrinted(t, "@import url(\"foo.css\";", "@import url(foo.css);\n", "<stdin>: WARNING: Expected \")\" to go with \"(\"\n<stdin>: NOTE: The unbalanced \"(\" is here:\n")
+	expectPrinted(t, "@import url(\"foo.css\";", "@import \"foo.css\";\n", "<stdin>: WARNING: Expected \")\" to go with \"(\"\n<stdin>: NOTE: The unbalanced \"(\" is here:\n")
 	expectPrinted(t, "@import noturl(\"foo.css\");", "@import noturl(\"foo.css\");\n", "<stdin>: WARNING: Expected URL token but found \"noturl(\"\n")
-	expectPrinted(t, "@import url(", "@import url(;\n", `<stdin>: WARNING: Expected URL token but found bad URL token
-<stdin>: ERROR: Expected ")" to end URL token
+	expectPrinted(t, "@import url(foo.css", "@import \"foo.css\";\n", `<stdin>: WARNING: Expected ")" to end URL token
+<stdin>: NOTE: The unbalanced "(" is here:
 <stdin>: WARNING: Expected ";" but found end of file
 `)
 
@@ -2222,10 +2222,14 @@ func TestParseErrorRecovery(t *testing.T) {
 	expectPrinted(t, "x { y: {", "x {\n  y: {};\n}\n", "<stdin>: WARNING: Expected \"}\" to go with \"{\"\n<stdin>: NOTE: The unbalanced \"{\" is here:\n")
 	expectPrinted(t, "x { y: z(", "x {\n  y: z();\n}\n", "<stdin>: WARNING: Expected \")\" to go with \"(\"\n<stdin>: NOTE: The unbalanced \"(\" is here:\n")
 	expectPrinted(t, "x { y: z(abc", "x {\n  y: z(abc);\n}\n", "<stdin>: WARNING: Expected \")\" to go with \"(\"\n<stdin>: NOTE: The unbalanced \"(\" is here:\n")
-	expectPrinted(t, "x { y: url(", "x {\n  y: url(;\n}\n",
-		"<stdin>: ERROR: Expected \")\" to end URL token\n<stdin>: WARNING: Expected \"}\" to go with \"{\"\n<stdin>: NOTE: The unbalanced \"{\" is here:\n")
-	expectPrinted(t, "x { y: url(abc", "x {\n  y: url(abc;\n}\n",
-		"<stdin>: ERROR: Expected \")\" to end URL token\n<stdin>: WARNING: Expected \"}\" to go with \"{\"\n<stdin>: NOTE: The unbalanced \"{\" is here:\n")
+	expectPrinted(t, "x { y: url(", "x {\n  y: url();\n}\n",
+		"<stdin>: WARNING: Expected \")\" to end URL token\n<stdin>: NOTE: The unbalanced \"(\" is here:\n<stdin>: WARNING: Expected \"}\" to go with \"{\"\n<stdin>: NOTE: The unbalanced \"{\" is here:\n")
+	expectPrinted(t, "x { y: url(abc", "x {\n  y: url(abc);\n}\n",
+		"<stdin>: WARNING: Expected \")\" to end URL token\n<stdin>: NOTE: The unbalanced \"(\" is here:\n<stdin>: WARNING: Expected \"}\" to go with \"{\"\n<stdin>: NOTE: The unbalanced \"{\" is here:\n")
+	expectPrinted(t, "x { y: url(; }", "x {\n  y: url(; };\n}\n",
+		"<stdin>: WARNING: Expected \")\" to end URL token\n<stdin>: NOTE: The unbalanced \"(\" is here:\n<stdin>: WARNING: Expected \"}\" to go with \"{\"\n<stdin>: NOTE: The unbalanced \"{\" is here:\n")
+	expectPrinted(t, "x { y: url(abc;", "x {\n  y: url(abc;);\n}\n",
+		"<stdin>: WARNING: Expected \")\" to end URL token\n<stdin>: NOTE: The unbalanced \"(\" is here:\n<stdin>: WARNING: Expected \"}\" to go with \"{\"\n<stdin>: NOTE: The unbalanced \"{\" is here:\n")
 	expectPrinted(t, "/* @license */ x {} /* @preserve", "/* @license */\nx {\n}\n",
 		"<stdin>: ERROR: Expected \"*/\" to terminate multi-line comment\n<stdin>: NOTE: The multi-line comment starts here:\n")
 	expectPrinted(t, "a { b: c; d: 'e\n f: g; h: i }", "a {\n  b: c;\n  d: 'e\n  f: g;\n  h: i;\n}\n", "<stdin>: WARNING: Unterminated string token\n")

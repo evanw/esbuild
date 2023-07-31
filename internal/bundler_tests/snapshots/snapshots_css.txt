@@ -179,6 +179,24 @@ console.log(void 0);
 }
 
 ================================================================================
+TestCSSMalformedAtImport
+---------- /out/entry.css ----------
+@import "https://example.com/url-token-eof.css";
+@import "https://example.com/url-token-whitespace-eof.css";
+@import "https://example.com/function-token-eof.css";
+@import "https://example.com/function-token-whitespace-eof.css";
+
+/* url-token-eof.css */
+
+/* url-token-whitespace-eof.css */
+
+/* function-token-eof.css */
+
+/* function-token-whitespace-eof.css */
+
+/* entry.css */
+
+================================================================================
 TestCSSNestingOldBrowser
 ---------- /out/two-type-selectors.css ----------
 /* two-type-selectors.css */

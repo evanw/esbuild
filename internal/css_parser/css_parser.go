@@ -911,7 +911,8 @@ func (p *parser) parseURLOrString() (string, logger.Range, bool) {
 			p.advance()
 			t = p.current()
 			text := p.decoded()
-			if p.expect(css_lexer.TString) && p.expectWithMatchingLoc(css_lexer.TCloseParen, matchingLoc) {
+			if p.expect(css_lexer.TString) {
+				p.expectWithMatchingLoc(css_lexer.TCloseParen, matchingLoc)
 				return text, t.Range, true
 			}
 		}

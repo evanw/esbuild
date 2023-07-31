@@ -829,7 +829,7 @@ func (r resolverQuery) resolveWithoutSymlinks(sourceDir string, sourceDirInfo *d
 	// Check both relative and package paths for CSS URL tokens, with relative
 	// paths taking precedence over package paths to match Webpack behavior.
 	isPackagePath := IsPackagePath(importPath)
-	checkRelative := !isPackagePath || r.kind == ast.ImportURL || r.kind == ast.ImportAt
+	checkRelative := !isPackagePath || r.kind == ast.ImportURL || r.kind == ast.ImportAt || r.kind == ast.ImportAtConditional
 	checkPackage := isPackagePath
 
 	if checkRelative {

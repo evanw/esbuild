@@ -1464,3 +1464,40 @@ entry.js: WARNING: Import "foo" will always be undefined because there is no mat
 `,
 	})
 }
+
+func TestCSSMalformedAtImport(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.css": `
+				@import "./url-token-eof.css";
+				@import "./url-token-whitespace-eof.css";
+				@import "./function-token-eof.css";
+				@import "./function-token-whitespace-eof.css";
+			`,
+			"/url-token-eof.css": `@import url(https://example.com/url-token-eof.css`,
+			"/url-token-whitespace-eof.css": `
+				@import url(https://example.com/url-token-whitespace-eof.css
+			`,
+			"/function-token-eof.css": `@import url("https://example.com/function-token-eof.css"`,
+			"/function-token-whitespace-eof.css": `
+				@import url("https://example.com/function-token-whitespace-eof.css"
+			`,
+		},
+		entryPaths: []string{"/entry.css"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+		expectedScanLog: `function-token-eof.css: WARNING: Expected ")" to go with "("
+function-token-eof.css: NOTE: The unbalanced "(" is here:
+function-token-whitespace-eof.css: WARNING: Expected ")" to go with "("
+function-token-whitespace-eof.css: NOTE: The unbalanced "(" is here:
+url-token-eof.css: WARNING: Expected ")" to end URL token
+url-token-eof.css: NOTE: The unbalanced "(" is here:
+url-token-eof.css: WARNING: Expected ";" but found end of file
+url-token-whitespace-eof.css: WARNING: Expected ")" to end URL token
+url-token-whitespace-eof.css: NOTE: The unbalanced "(" is here:
+url-token-whitespace-eof.css: WARNING: Expected ";" but found end of file
+`,
+	})
+}
