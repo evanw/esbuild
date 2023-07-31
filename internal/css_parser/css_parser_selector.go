@@ -38,6 +38,7 @@ func (p *parser) parseSelectorList(opts parseSelectorOpts) (list []css_ast.Compl
 				fmt.Sprintf("Unexpected \",\" inside %q", kind),
 				[]logger.MsgData{{Text: fmt.Sprintf("Different CSS tools behave differently in this case, so esbuild doesn't allow it. "+
 					"Either remove this comma or split this selector up into multiple comma-separated %q selectors instead.", kind)}})
+			return
 		}
 	} else {
 	skip:
@@ -208,7 +209,7 @@ func (p *parser) flattenLocalAndGlobalSelectors(list []css_ast.ComplexSelector, 
 		if len(selectors) == 0 {
 			// Treat a bare ":global" or ":local" as a bare "&" nesting selector
 			selectors = append(selectors, css_ast.CompoundSelector{
-				NestingSelectorLoc:        ast.MakeIndex32(uint32(sel.Selectors[0].FirstLoc().Start)),
+				NestingSelectorLoc:        ast.MakeIndex32(uint32(sel.Selectors[0].Range().Loc.Start)),
 				WasEmptyFromLocalOrGlobal: true,
 			})
 

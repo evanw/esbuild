@@ -794,17 +794,22 @@ func (sel CompoundSelector) IsInvalidBecauseEmpty() bool {
 	return !sel.HasNestingSelector() && sel.TypeSelector == nil && len(sel.SubclassSelectors) == 0
 }
 
-func (sel CompoundSelector) FirstLoc() logger.Loc {
-	var firstLoc ast.Index32
+func (sel CompoundSelector) Range() (r logger.Range) {
+	if sel.Combinator.Byte != 0 {
+		r = logger.Range{Loc: sel.Combinator.Loc, Len: 1}
+	}
 	if sel.TypeSelector != nil {
-		firstLoc = ast.MakeIndex32(uint32(sel.TypeSelector.Range().Loc.Start))
-	} else if len(sel.SubclassSelectors) > 0 {
-		firstLoc = ast.MakeIndex32(uint32(sel.SubclassSelectors[0].Range.Loc.Start))
+		r.ExpandBy(sel.TypeSelector.Range())
 	}
-	if firstLoc.IsValid() && (!sel.NestingSelectorLoc.IsValid() || firstLoc.GetIndex() < sel.NestingSelectorLoc.GetIndex()) {
-		return logger.Loc{Start: int32(firstLoc.GetIndex())}
+	if sel.NestingSelectorLoc.IsValid() {
+		r.ExpandBy(logger.Range{Loc: logger.Loc{Start: int32(sel.NestingSelectorLoc.GetIndex())}, Len: 1})
 	}
-	return logger.Loc{Start: int32(sel.NestingSelectorLoc.GetIndex())}
+	if len(sel.SubclassSelectors) > 0 {
+		for _, ss := range sel.SubclassSelectors {
+			r.ExpandBy(ss.Range)
+		}
+	}
+	return
 }
 
 func (sel CompoundSelector) Clone() CompoundSelector {

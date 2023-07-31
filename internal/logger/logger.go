@@ -185,6 +185,21 @@ func (r Range) End() int32 {
 	return r.Loc.Start + r.Len
 }
 
+func (a *Range) ExpandBy(b Range) {
+	if a.Len == 0 {
+		*a = b
+	} else {
+		end := a.End()
+		if n := b.End(); n > end {
+			end = n
+		}
+		if b.Loc.Start < a.Loc.Start {
+			a.Loc.Start = b.Loc.Start
+		}
+		a.Len = end - a.Loc.Start
+	}
+}
+
 type Span struct {
 	Text  string
 	Range Range
