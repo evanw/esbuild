@@ -87,6 +87,7 @@ func (p *parser) processAnimationShorthand(tokens []css_ast.Token) {
 }
 
 func (p *parser) processAnimationName(tokens []css_ast.Token) {
+	// Convert any local names
 	for i, t := range tokens {
 		if t.Kind == css_lexer.TIdent || t.Kind == css_lexer.TString {
 			p.handleSingleAnimationName(&tokens[i])
@@ -95,10 +96,8 @@ func (p *parser) processAnimationName(tokens []css_ast.Token) {
 }
 
 func (p *parser) handleSingleAnimationName(token *css_ast.Token) {
-	if token.Kind == css_lexer.TIdent {
-		if lower := strings.ToLower(token.Text); lower == "none" || cssWideAndReservedKeywords[lower] {
-			return
-		}
+	if lower := strings.ToLower(token.Text); lower == "none" || cssWideAndReservedKeywords[lower] {
+		return
 	}
 
 	token.Kind = css_lexer.TSymbol

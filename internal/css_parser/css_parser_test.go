@@ -1337,6 +1337,8 @@ func TestAtKeyframes(t *testing.T) {
 	// them silently breaking in Chrome.
 	expectPrinted(t, "@keyframes 'name' {}", "@keyframes name {\n}\n", "")
 	expectPrinted(t, "@keyframes 'name 2' {}", "@keyframes name\\ 2 {\n}\n", "")
+	// TODO: this should be @keyframes "none"
+	// expectPrinted(t, "@keyframes 'none' {}", "@keyframes \"none\" {\n}\n", "")
 
 	expectPrinted(t, "@keyframes name { from { color: red } }", "@keyframes name {\n  from {\n    color: red;\n  }\n}\n", "")
 	expectPrinted(t, "@keyframes name { 100% { color: red } }", "@keyframes name {\n  100% {\n    color: red;\n  }\n}\n", "")
@@ -1383,6 +1385,12 @@ func TestAnimationName(t *testing.T) {
 	// them silently breaking in Chrome.
 	expectPrinted(t, "div { animation-name: 'name' }", "div {\n  animation-name: name;\n}\n", "")
 	expectPrinted(t, "div { animation-name: 'name 2' }", "div {\n  animation-name: name\\ 2;\n}\n", "")
+	expectPrinted(t, "div { animation-name: 'none' }", "div {\n  animation-name: \"none\";\n}\n", "")
+	expectPrinted(t, "div { animation-name: 'None' }", "div {\n  animation-name: \"None\";\n}\n", "")
+	expectPrinted(t, "div { animation-name: 'unset' }", "div {\n  animation-name: \"unset\";\n}\n", "")
+	expectPrinted(t, "div { animation-name: 'revert' }", "div {\n  animation-name: \"revert\";\n}\n", "")
+	expectPrinted(t, "div { animation-name: none }", "div {\n  animation-name: none;\n}\n", "")
+	expectPrinted(t, "div { animation-name: unset }", "div {\n  animation-name: unset;\n}\n", "")
 	expectPrinted(t, "div { animation: 2s linear 'name 2', 3s infinite 'name 3' }", "div {\n  animation: 2s linear name\\ 2, 3s infinite name\\ 3;\n}\n", "")
 }
 
