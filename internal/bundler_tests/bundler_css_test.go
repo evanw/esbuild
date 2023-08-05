@@ -454,6 +454,11 @@ func TestImportCSSFromJSLocalAtKeyframes(t *testing.T) {
 
 				div :global { animation: 2s infinite global_name }
 				div :local { animation: 2s infinite local_name }
+
+				/* Someone wanted to be able to name their animations "none" */
+				@keyframes "none" { to { color: red } }
+				div :global { animation-name: "none" }
+				div :local { animation-name: "none" }
 			`,
 		},
 		entryPaths: []string{"/entry.js"},

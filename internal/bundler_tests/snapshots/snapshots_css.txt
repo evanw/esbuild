@@ -945,7 +945,8 @@ TestImportCSSFromJSLocalAtKeyframes
 var styles_default = {
   local_name: "styles_local_name",
   local_name1: "styles_local_name1",
-  local_name2: "styles_local_name2"
+  local_name2: "styles_local_name2",
+  none: "styles_none"
 };
 
 // entry.js
@@ -997,6 +998,17 @@ div {
 }
 div {
   animation: 2s infinite styles_local_name;
+}
+@keyframes styles_none {
+  to {
+    color: red;
+  }
+}
+div {
+  animation-name: "none";
+}
+div {
+  animation-name: styles_none;
 }
 
 ================================================================================

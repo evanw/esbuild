@@ -95,12 +95,25 @@ func (p *parser) processAnimationName(tokens []css_ast.Token) {
 }
 
 func (p *parser) handleSingleAnimationName(token *css_ast.Token) {
-	if token.Kind == css_lexer.TIdent {
-		if lower := strings.ToLower(token.Text); lower == "none" || cssWideAndReservedKeywords[lower] {
-			return
-		}
+	// Do not transform CSS keywords into symbols because they have special
+	// meaning in declarations. For example, "animation-name: none" clears
+	// the animation name. It does not set it to the animation named "none".
+	// You need to use "animation-name: 'none'" to do that.
+	//
+	// Also don't transform strings containing CSS keywords into global symbols
+	// because global symbols are passed through without being renamed, which
+	// will print them as keywords. However, we still want to unconditionally
+	// transform strings into local symbols because local symbols are always
+	// renamed, so they will never be printed as keywords.
+	if (token.Kind == css_lexer.TIdent || (token.Kind == css_lexer.TString && !p.makeLocalSymbols)) && isInvalidAnimationName(token.Text) {
+		return
 	}
 
 	token.Kind = css_lexer.TSymbol
 	token.PayloadIndex = p.symbolForName(token.Loc, token.Text).Ref.InnerIndex
+}
+
+func isInvalidAnimationName(text string) bool {
+	lower := strings.ToLower(text)
+	return lower == "none" || cssWideAndReservedKeywords[lower]
 }

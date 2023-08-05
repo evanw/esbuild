@@ -1173,6 +1173,17 @@ abortRuleParser:
 
 		if p.peek(css_lexer.TIdent) {
 			name = p.decoded()
+			if isInvalidAnimationName(name) {
+				msg := logger.Msg{
+					ID:    logger.MsgID_CSS_CSSSyntaxError,
+					Kind:  logger.Warning,
+					Data:  p.tracker.MsgData(p.current().Range, fmt.Sprintf("Cannot use %q as a name for \"@keyframes\" without quotes", name)),
+					Notes: []logger.MsgData{{Text: fmt.Sprintf("You can put %q in quotes to prevent it from becoming a CSS keyword.", name)}},
+				}
+				msg.Data.Location.Suggestion = fmt.Sprintf("%q", name)
+				p.log.AddMsg(msg)
+				break
+			}
 			p.advance()
 		} else if p.peek(css_lexer.TString) {
 			// Note: Strings as names is allowed in the CSS specification and works in
@@ -1181,6 +1192,9 @@ abortRuleParser:
 			// them silently breaking in Chrome.
 			name = p.decoded()
 			p.advance()
+			if !p.makeLocalSymbols && isInvalidAnimationName(name) {
+				break
+			}
 		} else if !p.expect(css_lexer.TIdent) {
 			break
 		}

@@ -1337,6 +1337,16 @@ func TestAtKeyframes(t *testing.T) {
 	// them silently breaking in Chrome.
 	expectPrinted(t, "@keyframes 'name' {}", "@keyframes name {\n}\n", "")
 	expectPrinted(t, "@keyframes 'name 2' {}", "@keyframes name\\ 2 {\n}\n", "")
+	expectPrinted(t, "@keyframes 'none' {}", "@keyframes \"none\" {}\n", "")
+	expectPrinted(t, "@keyframes 'None' {}", "@keyframes \"None\" {}\n", "")
+	expectPrinted(t, "@keyframes 'unset' {}", "@keyframes \"unset\" {}\n", "")
+	expectPrinted(t, "@keyframes 'revert' {}", "@keyframes \"revert\" {}\n", "")
+	expectPrinted(t, "@keyframes None {}", "@keyframes None {}\n",
+		"<stdin>: WARNING: Cannot use \"None\" as a name for \"@keyframes\" without quotes\n"+
+			"NOTE: You can put \"None\" in quotes to prevent it from becoming a CSS keyword.\n")
+	expectPrinted(t, "@keyframes REVERT {}", "@keyframes REVERT {}\n",
+		"<stdin>: WARNING: Cannot use \"REVERT\" as a name for \"@keyframes\" without quotes\n"+
+			"NOTE: You can put \"REVERT\" in quotes to prevent it from becoming a CSS keyword.\n")
 
 	expectPrinted(t, "@keyframes name { from { color: red } }", "@keyframes name {\n  from {\n    color: red;\n  }\n}\n", "")
 	expectPrinted(t, "@keyframes name { 100% { color: red } }", "@keyframes name {\n  100% {\n    color: red;\n  }\n}\n", "")
@@ -1383,6 +1393,12 @@ func TestAnimationName(t *testing.T) {
 	// them silently breaking in Chrome.
 	expectPrinted(t, "div { animation-name: 'name' }", "div {\n  animation-name: name;\n}\n", "")
 	expectPrinted(t, "div { animation-name: 'name 2' }", "div {\n  animation-name: name\\ 2;\n}\n", "")
+	expectPrinted(t, "div { animation-name: 'none' }", "div {\n  animation-name: \"none\";\n}\n", "")
+	expectPrinted(t, "div { animation-name: 'None' }", "div {\n  animation-name: \"None\";\n}\n", "")
+	expectPrinted(t, "div { animation-name: 'unset' }", "div {\n  animation-name: \"unset\";\n}\n", "")
+	expectPrinted(t, "div { animation-name: 'revert' }", "div {\n  animation-name: \"revert\";\n}\n", "")
+	expectPrinted(t, "div { animation-name: none }", "div {\n  animation-name: none;\n}\n", "")
+	expectPrinted(t, "div { animation-name: unset }", "div {\n  animation-name: unset;\n}\n", "")
 	expectPrinted(t, "div { animation: 2s linear 'name 2', 3s infinite 'name 3' }", "div {\n  animation: 2s linear name\\ 2, 3s infinite name\\ 3;\n}\n", "")
 }
 
