@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.18.18
 
 * Fix asset references with the `--line-limit` flag ([#3286](https://github.com/evanw/esbuild/issues/3286))
 
