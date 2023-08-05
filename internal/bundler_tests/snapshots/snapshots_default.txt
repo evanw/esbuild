@@ -2979,8 +2979,24 @@ BzdHJva2U9IiMxOTE5MTkiIHN0cm9rZS\
 
 ================================================================================
 TestLineLimitNotMinified
+---------- /out/x-TZ25B4WH.file ----------
+...file...
+---------- /out/x-UF3O47Y3.copy ----------
+...copy...
 ---------- /out/script.js ----------
-export const SignUpForm = (props) => {
+// x.file
+var x_default = "./x-TZ25B4WH.file";
+
+// script.jsx
+import copyURL from "./x-UF3O47Y3.copy";
+
+// x.data
+var x_default2 = "data:text/plai\
+n;charset=utf-8,...lots of long \
+data...lots of long data...";
+
+// script.jsx
+var SignUpForm = (props) => {
   return /* @__PURE__ */ React.createElement(
   "p", { class: "signup" }, /* @__PURE__ */ React.
   createElement("label", null, "\
@@ -2998,10 +3014,19 @@ led" }, props.buttonText), /* @__PURE__ */ React.
 By signing up, you are agreeing \
 to our ", /* @__PURE__ */ React.
   createElement("a", { href: "/t\
-os/" }, "terms of service"), "."));
+os/" }, "terms of service"), "."),
+  /* @__PURE__ */ React.createElement(
+  "img", { src: x_default }), /* @__PURE__ */ React.
+  createElement("img", { src: copyURL }),
+  /* @__PURE__ */ React.createElement(
+  "img", { src: x_default2 }));
+};
+export {
+  SignUpForm
 };
 
 ---------- /out/style.css ----------
+/* style.css */
 body.light-mode.new-user-segment:not(.logged-in)
 .signup,
 body.light-mode.new-user-segment:not(.logged-in)
@@ -3027,6 +3052,11 @@ tNjAtOTVMMTU1IDEwMGwtNDcuNSA0Ny4\
 1IiBmaWxsPSJub25lIiBzdHJva2U9IiM\
 xOTE5MTkiIHN0cm9rZS13aWR0aD0iMjQ\
 iLz4KPC9zdmc+Cg==");
+  cursor: url(./x-TZ25B4WH.file);
+  cursor: url(./x-UF3O47Y3.copy);
+  cursor: url("data:text/plain;c\
+harset=utf-8,...lots of long dat\
+a...lots of long data...");
 }
 
 ================================================================================

@@ -310,7 +310,10 @@ func parseFile(args parseArgs) {
 	case config.LoaderFile:
 		uniqueKey := fmt.Sprintf("%sA%08d", args.uniqueKeyPrefix, args.sourceIndex)
 		uniqueKeyPath := uniqueKey + source.KeyPath.IgnoredSuffix
-		expr := js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16(uniqueKeyPath)}}
+		expr := js_ast.Expr{Data: &js_ast.EString{
+			Value:             helpers.StringToUTF16(uniqueKeyPath),
+			ContainsUniqueKey: true,
+		}}
 		ast := js_parser.LazyExportAST(args.log, source, js_parser.OptionsFromConfig(&args.options), expr, "")
 		ast.URLForCSS = uniqueKeyPath
 		if pluginName != "" {

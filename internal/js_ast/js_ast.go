@@ -779,6 +779,7 @@ type EString struct {
 	LegacyOctalLoc        logger.Loc
 	PreferTemplate        bool
 	HasPropertyKeyComment bool // If true, a preceding comment contains "@__KEY__"
+	ContainsUniqueKey     bool // If true, this string must not be wrapped
 }
 
 type TemplatePart struct {

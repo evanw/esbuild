@@ -8321,6 +8321,9 @@ func TestLineLimitNotMinified(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/script.jsx": `
+				import fileURL from './x.file'
+				import copyURL from './x.copy'
+				import dataURL from './x.data'
 				export const SignUpForm = (props) => {
 					return <p class="signup">
 						<label>Username: <input class="username" type="text"/></label>
@@ -8329,6 +8332,9 @@ func TestLineLimitNotMinified(t *testing.T) {
 							{props.buttonText}
 						</div>
 						<small>By signing up, you are agreeing to our <a href="/tos/">terms of service</a>.</small>
+						<img src={fileURL} />
+						<img src={copyURL} />
+						<img src={dataURL} />
 					</p>
 				}
 			`,
@@ -8343,16 +8349,30 @@ func TestLineLimitNotMinified(t *testing.T) {
 				`CIgZmlsbD0iI0ZGQ0YwMCIvPgogIDxwYXRoIGQ9Ik00Ny41IDUyLjVMOTUgMTAwbC00Ny41IDQ3LjVtNjAtOTVMM` +
 				`TU1IDEwMGwtNDcuNSA0Ny41IiBmaWxsPSJub25lIiBzdHJva2U9IiMxOTE5MTkiIHN0cm9rZS13aWR0aD0iMjQiL` +
 				`z4KPC9zdmc+Cg==);
+					cursor: url(x.file);
+					cursor: url(x.copy);
+					cursor: url(x.data);
 				}
 			`,
+			"/x.file": `...file...`,
+			"/x.copy": `...copy...`,
+			"/x.data": `...lots of long data...lots of long data...`,
 		},
 		entryPaths: []string{
 			"/script.jsx",
 			"/style.css",
 		},
 		options: config.Options{
+			Mode:         config.ModeBundle,
 			AbsOutputDir: "/out",
 			LineLimit:    32,
+			ExtensionToLoader: map[string]config.Loader{
+				".jsx":  config.LoaderJSX,
+				".css":  config.LoaderCSS,
+				".file": config.LoaderFile,
+				".copy": config.LoaderCopy,
+				".data": config.LoaderDataURL,
+			},
 		},
 	})
 }

@@ -57,7 +57,7 @@ func expectPrintedString(t *testing.T, stringValue string, expected string) {
 	t.Run(stringValue, func(t *testing.T) {
 		t.Helper()
 		p := printer{}
-		p.printQuoted(stringValue)
+		p.printQuoted(stringValue, 0)
 		test.AssertEqualWithDiff(t, string(p.css), expected)
 	})
 }

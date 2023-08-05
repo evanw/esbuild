@@ -942,7 +942,7 @@ func (c *linkerContext) computeCrossChunkDependencies() {
 								otherChunkIndex := c.graph.Files[record.SourceIndex.GetIndex()].EntryPointChunkIndex
 								record.Path.Text = c.chunks[otherChunkIndex].uniqueKey
 								record.SourceIndex = ast.Index32{}
-								record.Flags |= ast.ShouldNotBeExternalInMetafile
+								record.Flags |= ast.ShouldNotBeExternalInMetafile | ast.ContainsUniqueKey
 
 								// Track this cross-chunk dynamic import so we make sure to
 								// include its hash when we're calculating the hashes of all
@@ -1302,6 +1302,9 @@ func (c *linkerContext) scanImportsAndExports() {
 						} else {
 							record.Flags |= ast.ShouldNotBeExternalInMetafile
 						}
+						if strings.Contains(otherRepr.AST.URLForCSS, c.uniqueKeyPrefix) {
+							record.Flags |= ast.ContainsUniqueKey
+						}
 
 						// Copy the additional files to the output directory
 						additionalFiles = append(additionalFiles, otherFile.InputFile.AdditionalFiles...)
@@ -1312,7 +1315,7 @@ func (c *linkerContext) scanImportsAndExports() {
 						record.Path.Text = otherRepr.URLForCode
 						record.Path.Namespace = ""
 						record.CopySourceIndex = ast.Index32{}
-						record.Flags |= ast.ShouldNotBeExternalInMetafile
+						record.Flags |= ast.ShouldNotBeExternalInMetafile | ast.ContainsUniqueKey
 
 						// Copy the additional files to the output directory
 						additionalFiles = append(additionalFiles, otherFile.InputFile.AdditionalFiles...)
@@ -1330,7 +1333,7 @@ func (c *linkerContext) scanImportsAndExports() {
 							record.Path.Text = otherRepr.URLForCode
 							record.Path.Namespace = ""
 							record.CopySourceIndex = ast.Index32{}
-							record.Flags |= ast.ShouldNotBeExternalInMetafile
+							record.Flags |= ast.ShouldNotBeExternalInMetafile | ast.ContainsUniqueKey
 
 							// Copy the additional files to the output directory
 							additionalFiles = append(additionalFiles, otherFile.InputFile.AdditionalFiles...)
@@ -4973,7 +4976,7 @@ func (c *linkerContext) generateChunkJS(chunkIndex int, chunkWaitGroup *sync.Wai
 			crossChunkImportRecords[i] = ast.ImportRecord{
 				Kind:  chunkImport.importKind,
 				Path:  logger.Path{Text: c.chunks[chunkImport.chunkIndex].uniqueKey},
-				Flags: ast.ShouldNotBeExternalInMetafile,
+				Flags: ast.ShouldNotBeExternalInMetafile | ast.ContainsUniqueKey,
 			}
 		}
 		crossChunkResult := js_printer.Print(js_ast.AST{

@@ -61,7 +61,7 @@ func QuoteIdentifier(js []byte, name string, unsupportedFeatures compat.JSFeatur
 	return js
 }
 
-func (p *printer) printUnquotedUTF16(text []uint16, quote rune) {
+func (p *printer) printUnquotedUTF16(text []uint16, quote rune, flags printQuotedFlags) {
 	temp := make([]byte, utf8.UTFMax)
 	js := p.js
 	i := 0
@@ -70,7 +70,7 @@ func (p *printer) printUnquotedUTF16(text []uint16, quote rune) {
 	// Only compute the line length if necessary
 	var startLineLength int
 	wrapLongLines := false
-	if p.options.LineLimit > 0 {
+	if p.options.LineLimit > 0 && (flags&printQuotedNoWrap) == 0 {
 		startLineLength = p.currentLineLength()
 		if startLineLength > p.options.LineLimit {
 			startLineLength = p.options.LineLimit
@@ -389,8 +389,15 @@ func (p *printer) printBytes(bytes []byte) {
 	p.js = append(p.js, bytes...)
 }
 
-func (p *printer) printQuotedUTF8(text string, allowBacktick bool) {
-	p.printQuotedUTF16(helpers.StringToUTF16(text), allowBacktick)
+type printQuotedFlags uint8
+
+const (
+	printQuotedAllowBacktick printQuotedFlags = 1 << iota
+	printQuotedNoWrap
+)
+
+func (p *printer) printQuotedUTF8(text string, flags printQuotedFlags) {
+	p.printQuotedUTF16(helpers.StringToUTF16(text), flags)
 }
 
 func (p *printer) addSourceMapping(loc logger.Loc) {
@@ -463,7 +470,7 @@ func (p *printer) printClauseAlias(loc logger.Loc, alias string) {
 		p.printIdentifier(alias)
 	} else {
 		p.addSourceMapping(loc)
-		p.printQuotedUTF8(alias, false /* allowBacktick */)
+		p.printQuotedUTF8(alias, 0)
 	}
 }
 
@@ -776,7 +783,7 @@ func (p *printer) printBinding(binding js_ast.Binding) {
 							}
 						} else {
 							p.addSourceMapping(property.Key.Loc)
-							p.printQuotedUTF8(name, false /* allowBacktick */)
+							p.printQuotedUTF8(name, 0)
 						}
 					} else {
 						p.printExpr(property.Key, js_ast.LLowest, 0)
@@ -1234,7 +1241,7 @@ func (p *printer) printProperty(property js_ast.Property) {
 			}
 		} else {
 			p.addSourceMapping(property.Key.Loc)
-			p.printQuotedUTF8(name, false /* allowBacktick */)
+			p.printQuotedUTF8(name, 0)
 		}
 
 	case *js_ast.EString:
@@ -1283,7 +1290,7 @@ func (p *printer) printProperty(property js_ast.Property) {
 			p.printIdentifierUTF16(key.Value)
 		} else {
 			p.addSourceMapping(property.Key.Loc)
-			p.printQuotedUTF16(key.Value, false /* allowBacktick */)
+			p.printQuotedUTF16(key.Value, 0)
 		}
 
 	default:
@@ -1317,9 +1324,9 @@ func (p *printer) printProperty(property js_ast.Property) {
 	}
 }
 
-func (p *printer) printQuotedUTF16(data []uint16, allowBacktick bool) {
+func (p *printer) printQuotedUTF16(data []uint16, flags printQuotedFlags) {
 	if p.options.UnsupportedFeatures.Has(compat.TemplateLiteral) {
-		allowBacktick = false
+		flags &= ^printQuotedAllowBacktick
 	}
 
 	singleCost := 0
@@ -1351,15 +1358,15 @@ func (p *printer) printQuotedUTF16(data []uint16, allowBacktick bool) {
 	c := "\""
 	if doubleCost > singleCost {
 		c = "'"
-		if singleCost > backtickCost && allowBacktick {
+		if singleCost > backtickCost && (flags&printQuotedAllowBacktick) != 0 {
 			c = "`"
 		}
-	} else if doubleCost > backtickCost && allowBacktick {
+	} else if doubleCost > backtickCost && (flags&printQuotedAllowBacktick) != 0 {
 		c = "`"
 	}
 
 	p.print(c)
-	p.printUnquotedUTF16(data, rune(c[0]))
+	p.printUnquotedUTF16(data, rune(c[0]), flags)
 	p.print(c)
 }
 
@@ -2007,7 +2014,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			p.print("/* @__KEY__ */ ")
 		}
 
-		p.printQuotedUTF8(name, true)
+		p.printQuotedUTF8(name, printQuotedAllowBacktick)
 
 	case *js_ast.EJSXElement:
 		// Start the opening tag
@@ -2463,7 +2470,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			// Inline cross-module TypeScript enum references here
 			if value, ok := p.tryToGetImportedEnumValue(e.Target, e.Name); ok {
 				if value.String != nil {
-					p.printQuotedUTF16(value.String, true /* allowBacktick */)
+					p.printQuotedUTF16(value.String, printQuotedAllowBacktick)
 				} else {
 					p.printNumber(value.Number, level)
 				}
@@ -2503,7 +2510,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			}
 			p.print("[")
 			p.addSourceMapping(e.NameLoc)
-			p.printQuotedUTF8(e.Name, true /* allowBacktick */)
+			p.printQuotedUTF8(e.Name, printQuotedAllowBacktick)
 			p.print("]")
 		}
 		if wrap {
@@ -2518,7 +2525,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			if index, ok := e.Index.Data.(*js_ast.EString); ok {
 				if value, name, ok := p.tryToGetImportedEnumValueUTF16(e.Target, index.Value); ok {
 					if value.String != nil {
-						p.printQuotedUTF16(value.String, true /* allowBacktick */)
+						p.printQuotedUTF16(value.String, printQuotedAllowBacktick)
 					} else {
 						p.printNumber(value.Number, level)
 					}
@@ -2845,6 +2852,10 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		}
 
 	case *js_ast.EString:
+		var flags printQuotedFlags
+		if e.ContainsUniqueKey {
+			flags = printQuotedNoWrap
+		}
 		p.addSourceMapping(expr.Loc)
 
 		if !p.options.MinifyWhitespace && e.HasPropertyKeyComment {
@@ -2854,12 +2865,12 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		// If this was originally a template literal, print it as one as long as we're not minifying
 		if e.PreferTemplate && !p.options.MinifySyntax && !p.options.UnsupportedFeatures.Has(compat.TemplateLiteral) {
 			p.print("`")
-			p.printUnquotedUTF16(e.Value, '`')
+			p.printUnquotedUTF16(e.Value, '`', flags)
 			p.print("`")
 			return
 		}
 
-		p.printQuotedUTF16(e.Value, true /* allowBacktick */)
+		p.printQuotedUTF16(e.Value, flags|printQuotedAllowBacktick)
 
 	case *js_ast.ETemplate:
 		if p.options.MinifySyntax && e.TagOrNil.Data == nil {
@@ -2895,7 +2906,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 				copy.Parts = replaced
 				switch e2 := js_ast.InlineStringsAndNumbersIntoTemplate(logger.Loc{}, &copy).Data.(type) {
 				case *js_ast.EString:
-					p.printQuotedUTF16(e2.Value, true /* allowBacktick */)
+					p.printQuotedUTF16(e2.Value, printQuotedAllowBacktick)
 					return
 				case *js_ast.ETemplate:
 					e = e2
@@ -2905,7 +2916,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			// Convert no-substitution template literals into strings if it's smaller
 			if len(e.Parts) == 0 {
 				p.addSourceMapping(expr.Loc)
-				p.printQuotedUTF16(e.HeadCooked, true /* allowBacktick */)
+				p.printQuotedUTF16(e.HeadCooked, printQuotedAllowBacktick)
 				return
 			}
 		}
@@ -2937,7 +2948,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		if e.TagOrNil.Data != nil {
 			p.print(e.HeadRaw)
 		} else {
-			p.printUnquotedUTF16(e.HeadCooked, '`')
+			p.printUnquotedUTF16(e.HeadCooked, '`', 0)
 		}
 		for _, part := range e.Parts {
 			p.print("${")
@@ -2947,7 +2958,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			if e.TagOrNil.Data != nil {
 				p.print(part.TailRaw)
 			} else {
-				p.printUnquotedUTF16(part.TailCooked, '`')
+				p.printUnquotedUTF16(part.TailCooked, '`', 0)
 			}
 		}
 		p.print("`")
@@ -3032,7 +3043,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			} else {
 				p.print("[")
 				p.addSourceMappingForName(expr.Loc, alias, ref)
-				p.printQuotedUTF8(alias, true /* allowBacktick */)
+				p.printQuotedUTF8(alias, printQuotedAllowBacktick)
 				p.print("]")
 			}
 			if wrap {
@@ -3781,7 +3792,7 @@ func (p *printer) printIndentedComment(text string) {
 func (p *printer) printPath(importRecordIndex uint32, importKind ast.ImportKind) {
 	record := p.importRecords[importRecordIndex]
 	p.addSourceMapping(record.Range.Loc)
-	p.printQuotedUTF8(record.Path.Text, false /* allowBacktick */)
+	p.printQuotedUTF8(record.Path.Text, printQuotedNoWrap)
 
 	if p.options.NeedsMetafile {
 		external := ""
@@ -3904,7 +3915,7 @@ func (p *printer) printImportAssertionsClause(assertions ast.ImportAssertions) {
 			p.printSpaceBeforeIdentifier()
 			p.printIdentifierUTF16(entry.Key)
 		} else {
-			p.printQuotedUTF16(entry.Key, false /* allowBacktick */)
+			p.printQuotedUTF16(entry.Key, 0)
 		}
 
 		p.print(":")
@@ -3915,12 +3926,12 @@ func (p *printer) printImportAssertionsClause(assertions ast.ImportAssertions) {
 			p.printIndent()
 			p.printExprCommentsAtLoc(entry.ValueLoc)
 			p.addSourceMapping(entry.ValueLoc)
-			p.printQuotedUTF16(entry.Value, false /* allowBacktick */)
+			p.printQuotedUTF16(entry.Value, 0)
 			p.options.Indent--
 		} else {
 			p.printSpace()
 			p.addSourceMapping(entry.ValueLoc)
-			p.printQuotedUTF16(entry.Value, false /* allowBacktick */)
+			p.printQuotedUTF16(entry.Value, 0)
 		}
 	}
 
@@ -4652,7 +4663,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 		p.addSourceMapping(stmt.Loc)
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
-		p.printQuotedUTF16(s.Value, false /* allowBacktick */)
+		p.printQuotedUTF16(s.Value, 0)
 		p.printSemicolonAfterStatement()
 
 	case *js_ast.SBreak:
@@ -4828,7 +4839,7 @@ func Print(tree js_ast.AST, symbols ast.SymbolMap, r renamer.Renamer, options Op
 	// Add the top-level directive if present
 	for _, directive := range tree.Directives {
 		p.printIndent()
-		p.printQuotedUTF8(directive, options.ASCIIOnly)
+		p.printQuotedUTF8(directive, 0)
 		p.print(";")
 		p.printNewline()
 	}

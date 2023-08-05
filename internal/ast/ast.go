@@ -124,6 +124,10 @@ const (
 
 	// CSS "@import" of an empty file should be removed
 	WasLoadedWithEmptyLoader
+
+	// Unique keys are randomly-generated strings that are used to replace paths
+	// in the source code after it's printed. These must not ever be split apart.
+	ContainsUniqueKey
 )
 
 func (flags ImportRecordFlags) Has(flag ImportRecordFlags) bool {

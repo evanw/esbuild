@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+* Fix asset references with the `--line-limit` flag ([#3286](https://github.com/evanw/esbuild/issues/3286))
+
+    The recently-released `--line-limit` flag tells esbuild to terminate long lines after they pass this length limit. This includes automatically wrapping long strings across multiple lines using escaped newline syntax. However, using this could cause esbuild to generate incorrect code for references from generated output files to assets in the bundle (i.e. files loaded with the `file` or `copy` loaders). This is because esbuild implements asset references internally using find-and-replace with a randomly-generated string, but the find operation fails if the string is split by an escaped newline due to line wrapping. This release fixes the problem by not wrapping these strings. This issue affected asset references in both JS and CSS files.
+
 * Support local names in CSS for `@keyframe`, `@counter-style`, and `@container` ([#20](https://github.com/evanw/esbuild/issues/20))
 
     This release extends support for local names in CSS files loaded with the `local-css` loader to cover the `@keyframe`, `@counter-style`, and `@container` rules (and also `animation`, `list-style`, and `container` declarations). Here's an example:
