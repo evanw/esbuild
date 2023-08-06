@@ -380,14 +380,11 @@ func (fs *realFS) canonicalizeError(err error) error {
 		err = pathErr.Unwrap()
 	}
 
-	// This has been copied from golang.org/x/sys/windows
-	const ERROR_INVALID_NAME syscall.Errno = 123
-
 	// Windows is much more restrictive than Unix about file names. If a file name
 	// is invalid, it will return ERROR_INVALID_NAME. Treat this as ENOENT (i.e.
 	// "the file does not exist") so that the resolver continues trying to resolve
 	// the path on this failure instead of aborting with an error.
-	if fs.fp.isWindows && err == ERROR_INVALID_NAME {
+	if fs.fp.isWindows && is_ERROR_INVALID_NAME(err) {
 		err = syscall.ENOENT
 	}
 

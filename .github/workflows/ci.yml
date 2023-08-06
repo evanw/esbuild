@@ -34,6 +34,13 @@ jobs:
       - name: Ensure all platforms can be built
         run: make platform-all
 
+      # Plan 9 is not a supported platform, but someone wanted esbuild to be able to build for it anyway...
+      - name: Ensure esbuild can be built for Plan 9
+        run: |
+          GOOS=plan9 GOARCH=386 go build ./cmd/esbuild
+          GOOS=plan9 GOARCH=amd64 go build ./cmd/esbuild
+          GOOS=plan9 GOARCH=arm go build ./cmd/esbuild
+
   esbuild-slow:
     # Split these out into their own runner because they're very slow
     name: esbuild CI (Slow Tests)
