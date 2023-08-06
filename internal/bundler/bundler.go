@@ -2075,9 +2075,35 @@ func (s *scanner) processScannedFiles(entryPointMeta []graph.EntryPoint) []scann
 								if symbol.Kind == ast.SymbolLocalCSS {
 									ref := ast.Ref{SourceIndex: cssSourceIndex, InnerIndex: uint32(innerIndex)}
 									loc := css.AST.DefineLocs[ref]
+									value := js_ast.Expr{Loc: loc, Data: &js_ast.ENameOfSymbol{Ref: ref}}
+									visited := map[ast.Ref]bool{ref: true}
+									var parts []js_ast.TemplatePart
+									var visitComposes func(ast.Ref)
+									visitComposes = func(ref ast.Ref) {
+										if composes, ok := css.AST.Composes[ref]; ok {
+											for _, name := range composes.Names {
+												if !visited[name.Ref] {
+													visited[name.Ref] = true
+													visitComposes(name.Ref)
+													parts = append(parts, js_ast.TemplatePart{
+														Value:      js_ast.Expr{Loc: name.Loc, Data: &js_ast.ENameOfSymbol{Ref: name.Ref}},
+														TailCooked: []uint16{' '},
+														TailLoc:    name.Loc,
+													})
+												}
+											}
+										}
+									}
+									visitComposes(ref)
+									if len(parts) > 0 {
+										value.Data = &js_ast.ETemplate{Parts: append(parts, js_ast.TemplatePart{
+											Value:   value,
+											TailLoc: value.Loc,
+										})}
+									}
 									exports.Properties = append(exports.Properties, js_ast.Property{
 										Key:        js_ast.Expr{Loc: loc, Data: &js_ast.EString{Value: helpers.StringToUTF16(symbol.OriginalName)}},
-										ValueOrNil: js_ast.Expr{Loc: loc, Data: &js_ast.ENameOfSymbol{Ref: ref}},
+										ValueOrNil: value,
 									})
 								}
 							}

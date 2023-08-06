@@ -12,12 +12,12 @@ import (
 	"github.com/evanw/esbuild/internal/test"
 )
 
-func expectPrintedCommon(t *testing.T, name string, contents string, expected string, expectedLog string, options config.Options) {
+func expectPrintedCommon(t *testing.T, name string, contents string, expected string, expectedLog string, loader config.Loader, options config.Options) {
 	t.Helper()
 	t.Run(name, func(t *testing.T) {
 		t.Helper()
 		log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug, nil)
-		tree := Parse(log, test.SourceForTest(contents), OptionsFromConfig(config.LoaderCSS, &options))
+		tree := Parse(log, test.SourceForTest(contents), OptionsFromConfig(loader, &options))
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
@@ -35,26 +35,31 @@ func expectPrintedCommon(t *testing.T, name string, contents string, expected st
 
 func expectPrinted(t *testing.T, contents string, expected string, expectedLog string) {
 	t.Helper()
-	expectPrintedCommon(t, contents, contents, expected, expectedLog, config.Options{})
+	expectPrintedCommon(t, contents, contents, expected, expectedLog, config.LoaderCSS, config.Options{})
+}
+
+func expectPrintedLocal(t *testing.T, contents string, expected string, expectedLog string) {
+	t.Helper()
+	expectPrintedCommon(t, contents+" [local]", contents, expected, expectedLog, config.LoaderLocalCSS, config.Options{})
 }
 
 func expectPrintedLower(t *testing.T, contents string, expected string, expectedLog string) {
 	t.Helper()
-	expectPrintedCommon(t, contents+" [lower]", contents, expected, expectedLog, config.Options{
+	expectPrintedCommon(t, contents+" [lower]", contents, expected, expectedLog, config.LoaderCSS, config.Options{
 		UnsupportedCSSFeatures: ^compat.CSSFeature(0),
 	})
 }
 
 func expectPrintedLowerUnsupported(t *testing.T, unsupportedCSSFeatures compat.CSSFeature, contents string, expected string, expectedLog string) {
 	t.Helper()
-	expectPrintedCommon(t, contents+" [lower]", contents, expected, expectedLog, config.Options{
+	expectPrintedCommon(t, contents+" [lower]", contents, expected, expectedLog, config.LoaderCSS, config.Options{
 		UnsupportedCSSFeatures: unsupportedCSSFeatures,
 	})
 }
 
 func expectPrintedWithAllPrefixes(t *testing.T, contents string, expected string, expectedLog string) {
 	t.Helper()
-	expectPrintedCommon(t, contents+" [prefixed]", contents, expected, expectedLog, config.Options{
+	expectPrintedCommon(t, contents+" [prefixed]", contents, expected, expectedLog, config.LoaderCSS, config.Options{
 		CSSPrefixData: compat.CSSPrefixData(map[compat.Engine][]int{
 			compat.Chrome:  {0},
 			compat.Edge:    {0},
@@ -69,21 +74,21 @@ func expectPrintedWithAllPrefixes(t *testing.T, contents string, expected string
 
 func expectPrintedMinify(t *testing.T, contents string, expected string, expectedLog string) {
 	t.Helper()
-	expectPrintedCommon(t, contents+" [minify]", contents, expected, expectedLog, config.Options{
+	expectPrintedCommon(t, contents+" [minify]", contents, expected, expectedLog, config.LoaderCSS, config.Options{
 		MinifyWhitespace: true,
 	})
 }
 
 func expectPrintedMangle(t *testing.T, contents string, expected string, expectedLog string) {
 	t.Helper()
-	expectPrintedCommon(t, contents+" [mangle]", contents, expected, expectedLog, config.Options{
+	expectPrintedCommon(t, contents+" [mangle]", contents, expected, expectedLog, config.LoaderCSS, config.Options{
 		MinifySyntax: true,
 	})
 }
 
 func expectPrintedLowerMangle(t *testing.T, contents string, expected string, expectedLog string) {
 	t.Helper()
-	expectPrintedCommon(t, contents+" [lower, mangle]", contents, expected, expectedLog, config.Options{
+	expectPrintedCommon(t, contents+" [lower, mangle]", contents, expected, expectedLog, config.LoaderCSS, config.Options{
 		UnsupportedCSSFeatures: ^compat.CSSFeature(0),
 		MinifySyntax:           true,
 	})
@@ -91,7 +96,7 @@ func expectPrintedLowerMangle(t *testing.T, contents string, expected string, ex
 
 func expectPrintedMangleMinify(t *testing.T, contents string, expected string, expectedLog string) {
 	t.Helper()
-	expectPrintedCommon(t, contents+" [mangle, minify]", contents, expected, expectedLog, config.Options{
+	expectPrintedCommon(t, contents+" [mangle, minify]", contents, expected, expectedLog, config.LoaderCSS, config.Options{
 		MinifySyntax:     true,
 		MinifyWhitespace: true,
 	})
@@ -99,7 +104,7 @@ func expectPrintedMangleMinify(t *testing.T, contents string, expected string, e
 
 func expectPrintedLowerMinify(t *testing.T, contents string, expected string, expectedLog string) {
 	t.Helper()
-	expectPrintedCommon(t, contents+" [lower, minify]", contents, expected, expectedLog, config.Options{
+	expectPrintedCommon(t, contents+" [lower, minify]", contents, expected, expectedLog, config.LoaderCSS, config.Options{
 		UnsupportedCSSFeatures: ^compat.CSSFeature(0),
 		MinifyWhitespace:       true,
 	})
@@ -2432,4 +2437,26 @@ func TestNthChild(t *testing.T) {
 			"<stdin>: WARNING: Expected \")\" to go with \"(\"\n<stdin>: NOTE: The unbalanced \"(\" is here:\n")
 		expectPrinted(t, ":"+nth+"(+2n + 1) {}", ":"+nth+"(2n+1) {\n}\n", "")
 	}
+}
+
+func TestComposes(t *testing.T) {
+	expectPrinted(t, ".foo { composes: bar; color: red }", ".foo {\n  composes: bar;\n  color: red;\n}\n", "")
+	expectPrinted(t, ".foo .bar { composes: bar; color: red }", ".foo .bar {\n  composes: bar;\n  color: red;\n}\n", "")
+	expectPrinted(t, ".foo, .bar { composes: bar; color: red }", ".foo,\n.bar {\n  composes: bar;\n  color: red;\n}\n", "")
+	expectPrintedLocal(t, ".foo { composes: bar; color: red }", ".foo {\n  color: red;\n}\n", "")
+	expectPrintedLocal(t, ".foo { composes: bar baz; color: red }", ".foo {\n  color: red;\n}\n", "")
+	expectPrintedLocal(t, ".foo { composes: bar from global; color: red }", ".foo {\n  color: red;\n}\n", "")
+
+	expectPrinted(t, ".foo, .bar { composes: bar from github }", ".foo,\n.bar {\n  composes: bar from github;\n}\n", "")
+	expectPrintedLocal(t, ".foo { composes: bar from github }", ".foo {\n}\n", "<stdin>: WARNING: \"composes\" declaration uses invalid location \"github\"\n")
+
+	badComposes := "<stdin>: WARNING: \"composes\" only works inside single class selectors\n" +
+		"<stdin>: NOTE: This parent selector is not a single class selector because of the syntax here:\n"
+	expectPrintedLocal(t, "& { composes: bar; color: red }", "& {\n  color: red;\n}\n", badComposes)
+	expectPrintedLocal(t, ".foo& { composes: bar; color: red }", "&.foo {\n  color: red;\n}\n", badComposes)
+	expectPrintedLocal(t, ".foo.bar { composes: bar; color: red }", ".foo.bar {\n  color: red;\n}\n", badComposes)
+	expectPrintedLocal(t, ".foo:hover { composes: bar; color: red }", ".foo:hover {\n  color: red;\n}\n", badComposes)
+	expectPrintedLocal(t, ".foo[href] { composes: bar; color: red }", ".foo[href] {\n  color: red;\n}\n", badComposes)
+	expectPrintedLocal(t, ".foo .bar { composes: bar; color: red }", ".foo .bar {\n  color: red;\n}\n", badComposes)
+	expectPrintedLocal(t, ".foo, div { composes: bar; color: red }", ".foo,\ndiv {\n  color: red;\n}\n", badComposes)
 }

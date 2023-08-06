@@ -116,6 +116,7 @@ const (
 	DColumnSpan
 	DColumnWidth
 	DColumns
+	DComposes
 	DContainer
 	DContainerName
 	DContainerType
@@ -446,6 +447,7 @@ var KnownDeclarations = map[string]D{
 	"column-span":                 DColumnSpan,
 	"column-width":                DColumnWidth,
 	"columns":                     DColumns,
+	"composes":                    DComposes,
 	"container":                   DContainer,
 	"container-name":              DContainerName,
 	"container-type":              DContainerType,

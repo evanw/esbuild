@@ -1,0 +1,90 @@
+package css_parser
+
+import (
+	"fmt"
+
+	"github.com/evanw/esbuild/internal/ast"
+	"github.com/evanw/esbuild/internal/css_ast"
+	"github.com/evanw/esbuild/internal/css_lexer"
+	"github.com/evanw/esbuild/internal/logger"
+)
+
+type composesContext struct {
+	parentRefs   []ast.Ref
+	problemRange logger.Range
+}
+
+func (p *parser) handleComposesPragma(context composesContext, tokens []css_ast.Token) {
+	type nameWithLoc struct {
+		loc  logger.Loc
+		text string
+	}
+	var names []nameWithLoc
+	fromGlobal := false
+
+	if p.composes == nil {
+		p.composes = make(map[ast.Ref]*css_ast.Composes)
+	}
+
+	for i, t := range tokens {
+		if t.Kind == css_lexer.TIdent {
+			// Check for a "from" clause at the end
+			if t.Text == "from" && i+2 == len(tokens) {
+				last := tokens[i+1]
+
+				// A string or a URL is an external file
+				if last.Kind == css_lexer.TString || last.Kind == css_lexer.TURL {
+					r := css_lexer.RangeOfIdentifier(p.source, t.Loc)
+					p.log.AddID(logger.MsgID_CSS_CSSSyntaxError, logger.Warning, &p.tracker, r,
+						"Using \"composes\" with names from other files is not supported yet")
+					return
+				}
+
+				// An identifier must be "global"
+				if last.Kind == css_lexer.TIdent {
+					if last.Text == "global" {
+						fromGlobal = true
+						break
+					}
+
+					p.log.AddID(logger.MsgID_CSS_CSSSyntaxError, logger.Warning, &p.tracker, css_lexer.RangeOfIdentifier(p.source, last.Loc),
+						fmt.Sprintf("\"composes\" declaration uses invalid location %q", last.Text))
+					p.prevError = t.Loc
+					return
+				}
+			}
+
+			names = append(names, nameWithLoc{t.Loc, t.Text})
+			continue
+		}
+
+		// Any unexpected tokens are a syntax error
+		var text string
+		switch t.Kind {
+		case css_lexer.TURL, css_lexer.TBadURL, css_lexer.TString, css_lexer.TUnterminatedString:
+			text = fmt.Sprintf("Unexpected %s", t.Kind.String())
+		default:
+			text = fmt.Sprintf("Unexpected %q", t.Text)
+		}
+		p.log.AddID(logger.MsgID_CSS_CSSSyntaxError, logger.Warning, &p.tracker, logger.Range{Loc: t.Loc}, text)
+		p.prevError = t.Loc
+		return
+	}
+
+	// If we get here, all of these names are not references to another file
+	old := p.makeLocalSymbols
+	if fromGlobal {
+		p.makeLocalSymbols = false
+	}
+	for _, parentRef := range context.parentRefs {
+		composes := p.composes[parentRef]
+		if composes == nil {
+			composes = &css_ast.Composes{}
+			p.composes[parentRef] = composes
+		}
+		for _, name := range names {
+			composes.Names = append(composes.Names, p.symbolForName(name.loc, name.text))
+		}
+	}
+	p.makeLocalSymbols = old
+}

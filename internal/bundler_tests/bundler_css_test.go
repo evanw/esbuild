@@ -626,6 +626,53 @@ func TestImportCSSFromJSNthIndexLocal(t *testing.T) {
 	})
 }
 
+func TestImportCSSFromJSComposes(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import styles from "./styles.css"
+				console.log(styles)
+			`,
+			"/styles.css": `
+				.local0 {
+					composes: local1;
+					:global {
+						composes: GLOBAL1 GLOBAL2;
+					}
+				}
+				.local0 {
+					composes: GLOBAL2 GLOBAL3 from global;
+					composes: local1 local2;
+					background: green;
+				}
+				.local0 :global {
+					composes: GLOBAL4;
+				}
+				.local3 {
+					border: 1px solid black;
+					composes: local4;
+				}
+				.local4 {
+					opacity: 0.5;
+				}
+				.local1 {
+					color: red;
+					composes: local3;
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			ExtensionToLoader: map[string]config.Loader{
+				".js":  config.LoaderJS,
+				".css": config.LoaderLocalCSS,
+			},
+		},
+	})
+}
+
 func TestImportCSSFromJSWriteToStdout(t *testing.T) {
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{

@@ -11,6 +11,7 @@ import (
 )
 
 type parseSelectorOpts struct {
+	composesContext        *composesContext
 	pseudoClassKind        css_ast.PseudoClassKind
 	isDeclarationContext   bool
 	stopOnCloseParen       bool

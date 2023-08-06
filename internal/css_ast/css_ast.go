@@ -31,6 +31,23 @@ type AST struct {
 	SourceMapComment     logger.Span
 	ApproximateLineCount int32
 	DefineLocs           map[ast.Ref]logger.Loc
+	Composes             map[ast.Ref]*Composes
+}
+
+type Composes struct {
+	// Note that each of these can be either local or global. Local examples:
+	//
+	//   .foo { composes: bar }
+	//   .bar { color: red }
+	//
+	// Global examples:
+	//
+	//   .foo { composes: bar from global }
+	//   .foo :global { composes: bar }
+	//   .foo { :global { composes: bar } }
+	//   :global .bar { color: red }
+	//
+	Names []ast.LocRef
 }
 
 // We create a lot of tokens, so make sure this layout is memory-efficient.

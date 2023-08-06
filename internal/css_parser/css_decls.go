@@ -79,12 +79,13 @@ func compactTokenQuad(a css_ast.Token, b css_ast.Token, c css_ast.Token, d css_a
 	return tokens
 }
 
-func (p *parser) processDeclarations(rules []css_ast.Rule) (rewrittenRules []css_ast.Rule) {
+func (p *parser) processDeclarations(rules []css_ast.Rule, composesContext *composesContext) (rewrittenRules []css_ast.Rule) {
 	margin := boxTracker{key: css_ast.DMargin, keyText: "margin", allowAuto: true}
 	padding := boxTracker{key: css_ast.DPadding, keyText: "padding", allowAuto: false}
 	inset := boxTracker{key: css_ast.DInset, keyText: "inset", allowAuto: true}
 	borderRadius := borderRadiusTracker{}
 	rewrittenRules = make([]css_ast.Rule, 0, len(rules))
+	didWarnAboutComposes := false
 	var declarationKeys map[string]struct{}
 
 	// Don't automatically generate the "inset" property if it's not supported
@@ -101,6 +102,30 @@ func (p *parser) processDeclarations(rules []css_ast.Rule) (rewrittenRules []css
 		}
 
 		switch decl.Key {
+		case css_ast.DComposes:
+			// Only process "composes" directives if we're in "local-css" or
+			// "global-css" mode. In these cases, "composes" directives will always
+			// be removed (because they are being processed) even if they contain
+			// errors. Otherwise we leave "composes" directives there untouched and
+			// don't check them for errors.
+			if p.options.symbolMode != symbolModeDisabled {
+				if composesContext == nil {
+					if !didWarnAboutComposes {
+						didWarnAboutComposes = true
+						p.log.AddID(logger.MsgID_CSS_CSSSyntaxError, logger.Warning, &p.tracker, decl.KeyRange, "\"composes\" is not valid here")
+					}
+				} else if composesContext.problemRange.Len > 0 {
+					if !didWarnAboutComposes {
+						didWarnAboutComposes = true
+						p.log.AddIDWithNotes(logger.MsgID_CSS_CSSSyntaxError, logger.Warning, &p.tracker, decl.KeyRange, "\"composes\" only works inside single class selectors",
+							[]logger.MsgData{p.tracker.MsgData(composesContext.problemRange, "This parent selector is not a single class selector because of the syntax here:")})
+					}
+				} else {
+					p.handleComposesPragma(*composesContext, decl.Value)
+				}
+				rewrittenRules = rewrittenRules[:len(rewrittenRules)-1]
+			}
+
 		case css_ast.DBackgroundColor,
 			css_ast.DBorderBlockEndColor,
 			css_ast.DBorderBlockStartColor,

@@ -714,6 +714,40 @@ TestIgnoreURLsInAtRulePrelude
 }
 
 ================================================================================
+TestImportCSSFromJSComposes
+---------- /out/entry.js ----------
+// styles.css
+var styles_default = {
+  local0: "GLOBAL1 GLOBAL2 styles_local4 styles_local3 styles_local1 GLOBAL3 styles_local2 GLOBAL4 styles_local0",
+  local1: "styles_local4 styles_local3 styles_local1",
+  local2: "styles_local2",
+  local3: "styles_local4 styles_local3",
+  local4: "styles_local4"
+};
+
+// entry.js
+console.log(styles_default);
+
+---------- /out/entry.css ----------
+/* styles.css */
+.styles_local0 {
+}
+.styles_local0 {
+  background: green;
+}
+.styles_local0 {
+}
+.styles_local3 {
+  border: 1px solid black;
+}
+.styles_local4 {
+  opacity: 0.5;
+}
+.styles_local1 {
+  color: red;
+}
+
+================================================================================
 TestImportCSSFromJSLocalAtContainer
 ---------- /out/entry.js ----------
 // styles.css

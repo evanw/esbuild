@@ -25,6 +25,7 @@ type parser struct {
 	importRecords     []ast.ImportRecord
 	symbols           []ast.Symbol
 	defineLocs        map[ast.Ref]logger.Loc
+	composes          map[ast.Ref]*css_ast.Composes
 	localSymbolMap    map[string]ast.Ref
 	globalSymbolMap   map[string]ast.Ref
 	nestingWarnings   map[logger.Loc]struct{}
@@ -145,6 +146,7 @@ func Parse(log logger.Log, source logger.Source, options Options) css_ast.AST {
 		ApproximateLineCount: result.ApproximateLineCount,
 		SourceMapComment:     result.SourceMapComment,
 		DefineLocs:           p.defineLocs,
+		Composes:             p.composes,
 	}
 }
 
@@ -466,6 +468,7 @@ loop:
 }
 
 type listOfDeclarationsOpts struct {
+	composesContext      *composesContext
 	canInlineNoOpNesting bool
 }
 
@@ -479,7 +482,7 @@ func (p *parser) parseListOfDeclarations(opts listOfDeclarationsOpts) (list []cs
 			p.advance()
 
 		case css_lexer.TEndOfFile, css_lexer.TCloseBrace:
-			list = p.processDeclarations(list)
+			list = p.processDeclarations(list, opts.composesContext)
 			if p.options.minifySyntax {
 				list = p.mangleRules(list, false /* isTopLevel */)
 
@@ -530,7 +533,10 @@ func (p *parser) parseListOfDeclarations(opts listOfDeclarationsOpts) (list []cs
 			css_lexer.TDelimTilde:
 			p.nestingIsPresent = true
 			foundNesting = true
-			rule := p.parseSelectorRule(false, parseSelectorOpts{isDeclarationContext: true})
+			rule := p.parseSelectorRule(false, parseSelectorOpts{
+				isDeclarationContext: true,
+				composesContext:      opts.composesContext,
+			})
 
 			// If this rule was a single ":global" or ":local", inline it here. This
 			// is handled differently than a bare "&" with normal CSS nesting because
@@ -1920,9 +1926,50 @@ func (p *parser) parseSelectorRule(isTopLevel bool, opts parseSelectorOpts) css_
 		matchingLoc := p.current().Range.Loc
 		if p.expect(css_lexer.TOpenBrace) {
 			p.inSelectorSubtree++
-			selector.Rules = p.parseListOfDeclarations(listOfDeclarationsOpts{
+			declOpts := listOfDeclarationsOpts{
 				canInlineNoOpNesting: canInlineNoOpNesting,
-			})
+			}
+
+			// Prepare for "composes" declarations
+			composesContext := composesContext{}
+			for _, sel := range list {
+				first := sel.Selectors[0]
+				if first.IsSingleAmpersand() && opts.composesContext != nil {
+					// Support code like this:
+					//
+					//   .foo {
+					//     :local { composes: bar }
+					//     :global { composes: baz }
+					//   }
+					//
+					composesContext.parentRefs = append(composesContext.parentRefs, opts.composesContext.parentRefs...)
+				} else if first.Combinator.Byte != 0 {
+					composesContext.problemRange = logger.Range{Loc: first.Combinator.Loc, Len: 1}
+				} else if first.TypeSelector != nil {
+					composesContext.problemRange = first.TypeSelector.Range()
+				} else if first.NestingSelectorLoc.IsValid() {
+					composesContext.problemRange = logger.Range{Loc: logger.Loc{Start: int32(first.NestingSelectorLoc.GetIndex())}, Len: 1}
+				} else {
+					for i, ss := range first.SubclassSelectors {
+						class, ok := ss.Data.(*css_ast.SSClass)
+						if i > 0 || !ok {
+							composesContext.problemRange = ss.Range
+						} else {
+							composesContext.parentRefs = append(composesContext.parentRefs, class.Name.Ref)
+						}
+					}
+				}
+				if composesContext.problemRange.Len > 0 {
+					break
+				}
+				if len(sel.Selectors) > 1 {
+					composesContext.problemRange = sel.Selectors[1].Range()
+					break
+				}
+			}
+			declOpts.composesContext = &composesContext
+
+			selector.Rules = p.parseListOfDeclarations(declOpts)
 			p.inSelectorSubtree--
 			closeBraceLoc := p.current().Range.Loc
 			if p.expectWithMatchingLoc(css_lexer.TCloseBrace, matchingLoc) {

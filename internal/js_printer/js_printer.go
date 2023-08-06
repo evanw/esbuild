@@ -375,6 +375,7 @@ type printer struct {
 	oldLineEnd           int
 	intToBytesBuffer     [64]byte
 	needsSemicolon       bool
+	wasLazyExport        bool
 	prevOp               js_ast.OpCode
 	moduleType           js_ast.ModuleType
 }
@@ -2873,7 +2874,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		p.printQuotedUTF16(e.Value, flags|printQuotedAllowBacktick)
 
 	case *js_ast.ETemplate:
-		if p.options.MinifySyntax && e.TagOrNil.Data == nil {
+		if e.TagOrNil.Data == nil && (p.options.MinifySyntax || p.wasLazyExport) {
 			// Inline enums and mangled properties when minifying
 			var replaced []js_ast.TemplatePart
 			for i, part := range e.Parts {
@@ -4814,6 +4815,7 @@ func Print(tree js_ast.AST, symbols ast.SymbolMap, r renamer.Renamer, options Op
 		options:       options,
 		moduleType:    tree.ModuleTypeData.Type,
 		exprComments:  tree.ExprComments,
+		wasLazyExport: tree.HasLazyExport,
 
 		stmtStart:          -1,
 		exportDefaultStart: -1,
