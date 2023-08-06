@@ -85,23 +85,25 @@ interface CommonOptions {
   logOverride?: Record<string, LogLevel>
 
   /** Documentation: https://esbuild.github.io/api/#tsconfig-raw */
-  tsconfigRaw?: string | {
-    compilerOptions?: {
-      alwaysStrict?: boolean
-      baseUrl?: boolean
-      experimentalDecorators?: boolean
-      importsNotUsedAsValues?: 'remove' | 'preserve' | 'error'
-      jsx?: 'preserve' | 'react-native' | 'react' | 'react-jsx' | 'react-jsxdev'
-      jsxFactory?: string
-      jsxFragmentFactory?: string
-      jsxImportSource?: string
-      paths?: Record<string, string[]>
-      preserveValueImports?: boolean
-      strict?: boolean
-      target?: string
-      useDefineForClassFields?: boolean
-      verbatimModuleSyntax?: boolean
-    }
+  tsconfigRaw?: string | TsconfigRaw
+}
+
+export interface TsconfigRaw {
+  compilerOptions?: {
+    alwaysStrict?: boolean
+    baseUrl?: boolean
+    experimentalDecorators?: boolean
+    importsNotUsedAsValues?: 'remove' | 'preserve' | 'error'
+    jsx?: 'preserve' | 'react-native' | 'react' | 'react-jsx' | 'react-jsxdev'
+    jsxFactory?: string
+    jsxFragmentFactory?: string
+    jsxImportSource?: string
+    paths?: Record<string, string[]>
+    preserveValueImports?: boolean
+    strict?: boolean
+    target?: string
+    useDefineForClassFields?: boolean
+    verbatimModuleSyntax?: boolean
   }
 }
 
