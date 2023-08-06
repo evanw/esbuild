@@ -1530,7 +1530,8 @@ func rebuildImpl(args rebuildArgs, oldHashes map[string]string) (rebuildState, m
 				}
 				hasher := xxhash.New()
 				hasher.Write(item.Contents)
-				hash := base64.RawStdEncoding.EncodeToString(binary.LittleEndian.AppendUint64(hashBytes[:0], hasher.Sum64()))
+				binary.LittleEndian.PutUint64(hashBytes[:], hasher.Sum64())
+				hash := base64.RawStdEncoding.EncodeToString(hashBytes[:])
 				result.OutputFiles[i] = OutputFile{
 					Path:     item.AbsPath,
 					Contents: item.Contents,
