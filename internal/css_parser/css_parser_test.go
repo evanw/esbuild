@@ -2293,6 +2293,10 @@ func TestPrefixInsertion(t *testing.T) {
 			"a {\n  -webkit-"+key+": url(x.png);\n  "+key+": url(y.png);\n}\n", "")
 
 		expectPrintedWithAllPrefixes(t,
+			"a {\n  "+key+": url(y.png);\n  -webkit-"+key+": url(x.png);\n}\n",
+			"a {\n  "+key+": url(y.png);\n  -webkit-"+key+": url(x.png);\n}\n", "")
+
+		expectPrintedWithAllPrefixes(t,
 			"a { "+key+": url(x.png); "+key+": url(y.png) }",
 			"a {\n  -webkit-"+key+": url(x.png);\n  "+key+": url(x.png);\n  -webkit-"+key+": url(y.png);\n  "+key+": url(y.png);\n}\n", "")
 	}

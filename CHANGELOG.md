@@ -14,6 +14,33 @@
 
     The hash algorithm (currently [XXH64](https://xxhash.com/)) is implementation-dependent and may be changed at any time in between esbuild versions. If you don't like esbuild's choice of hash algorithm then you are welcome to hash the contents yourself instead. As with any hash algorithm, note that while two different hashes mean that the contents are different, two equal hashes do not necessarily mean that the contents are equal. You may still want to compare the contents in addition to the hashes to detect with certainty when output files have been changed.
 
+* Avoid generating duplicate prefixed declarations in CSS ([#3292](https://github.com/evanw/esbuild/issues/3292))
+
+    There was a request for esbuild's CSS prefixer to avoid generating a prefixed declaration if a declaration by that name is already present in the same rule block. So with this release, esbuild will now avoid doing this:
+
+    ```css
+    /* Original code */
+    body {
+      backdrop-filter: blur(30px);
+      -webkit-backdrop-filter: blur(45px);
+    }
+
+    /* Old output (with --target=safari12) */
+    body {
+      -webkit-backdrop-filter: blur(30px);
+      backdrop-filter: blur(30px);
+      -webkit-backdrop-filter: blur(45px);
+    }
+
+    /* New output (with --target=safari12) */
+    body {
+      backdrop-filter: blur(30px);
+      -webkit-backdrop-filter: blur(45px);
+    }
+    ```
+
+    This can result in a visual difference in certain cases (for example if the browser understands `blur(30px)` but not `blur(45px)`, it will be able to fall back to `blur(30px)`). But this change means esbuild now matches the behavior of [Autoprefixer](https://autoprefixer.github.io/) which is probably a good representation of how people expect this feature to work.
+
 ## 0.18.18
 
 * Fix asset references with the `--line-limit` flag ([#3286](https://github.com/evanw/esbuild/issues/3286))

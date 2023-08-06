@@ -85,6 +85,7 @@ func (p *parser) processDeclarations(rules []css_ast.Rule) (rewrittenRules []css
 	inset := boxTracker{key: css_ast.DInset, keyText: "inset", allowAuto: true}
 	borderRadius := borderRadiusTracker{}
 	rewrittenRules = make([]css_ast.Rule, 0, len(rules))
+	var declarationKeys map[string]struct{}
 
 	// Don't automatically generate the "inset" property if it's not supported
 	if p.options.unsupportedCSSFeatures.Has(compat.InsetProperty) {
@@ -281,20 +282,29 @@ func (p *parser) processDeclarations(rules []css_ast.Rule) (rewrittenRules []css
 		}
 
 		if prefixes, ok := p.options.cssPrefixData[decl.Key]; ok {
+			if declarationKeys == nil {
+				// Only generate this map if it's needed
+				declarationKeys = make(map[string]struct{})
+				for _, rule := range rules {
+					if decl, ok := rule.Data.(*css_ast.RDeclaration); ok {
+						declarationKeys[decl.KeyText] = struct{}{}
+					}
+				}
+			}
 			if (prefixes & compat.WebkitPrefix) != 0 {
-				rewrittenRules = p.insertPrefixedDeclaration(rewrittenRules, "-webkit-", rule.Loc, decl)
+				rewrittenRules = p.insertPrefixedDeclaration(rewrittenRules, "-webkit-", rule.Loc, decl, declarationKeys)
 			}
 			if (prefixes & compat.KhtmlPrefix) != 0 {
-				rewrittenRules = p.insertPrefixedDeclaration(rewrittenRules, "-khtml-", rule.Loc, decl)
+				rewrittenRules = p.insertPrefixedDeclaration(rewrittenRules, "-khtml-", rule.Loc, decl, declarationKeys)
 			}
 			if (prefixes & compat.MozPrefix) != 0 {
-				rewrittenRules = p.insertPrefixedDeclaration(rewrittenRules, "-moz-", rule.Loc, decl)
+				rewrittenRules = p.insertPrefixedDeclaration(rewrittenRules, "-moz-", rule.Loc, decl, declarationKeys)
 			}
 			if (prefixes & compat.MsPrefix) != 0 {
-				rewrittenRules = p.insertPrefixedDeclaration(rewrittenRules, "-ms-", rule.Loc, decl)
+				rewrittenRules = p.insertPrefixedDeclaration(rewrittenRules, "-ms-", rule.Loc, decl, declarationKeys)
 			}
 			if (prefixes & compat.OPrefix) != 0 {
-				rewrittenRules = p.insertPrefixedDeclaration(rewrittenRules, "-o-", rule.Loc, decl)
+				rewrittenRules = p.insertPrefixedDeclaration(rewrittenRules, "-o-", rule.Loc, decl, declarationKeys)
 			}
 		}
 	}
@@ -314,23 +324,14 @@ func (p *parser) processDeclarations(rules []css_ast.Rule) (rewrittenRules []css
 	return
 }
 
-func (p *parser) insertPrefixedDeclaration(rules []css_ast.Rule, prefix string, loc logger.Loc, decl *css_ast.RDeclaration) []css_ast.Rule {
+func (p *parser) insertPrefixedDeclaration(rules []css_ast.Rule, prefix string, loc logger.Loc, decl *css_ast.RDeclaration, declarationKeys map[string]struct{}) []css_ast.Rule {
 	keyText := prefix + decl.KeyText
 
 	// Don't insert a prefixed declaration if there already is one
-	for i := len(rules) - 2; i >= 0; i-- {
-		if prev, ok := rules[i].Data.(*css_ast.RDeclaration); ok && prev.Key == css_ast.DUnknown {
-			if prev.KeyText == keyText {
-				// We found a previous declaration with a matching prefixed property.
-				// The value is ignored, which matches the behavior of "autoprefixer".
-				return rules
-			}
-			if p, d := len(prev.KeyText), len(decl.KeyText); p > d && prev.KeyText[p-d-1] == '-' && prev.KeyText[p-d:] == decl.KeyText {
-				// Continue through a run of prefixed properties with the same name
-				continue
-			}
-		}
-		break
+	if _, ok := declarationKeys[keyText]; ok {
+		// We found a previous declaration with a matching prefixed property.
+		// The value is ignored, which matches the behavior of "autoprefixer".
+		return rules
 	}
 
 	// Additional special cases for when the prefix applies
