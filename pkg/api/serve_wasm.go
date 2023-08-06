@@ -14,7 +14,7 @@ func (*internalContext) Serve(ServeOptions) (ServeResult, error) {
 type apiHandler struct {
 }
 
-func (*apiHandler) broadcastBuildResult(BuildResult, buildSummary) {
+func (*apiHandler) broadcastBuildResult(BuildResult, map[string]string) {
 }
 
 func (*apiHandler) stop() {
