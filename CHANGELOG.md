@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix non-determinism with `tsconfig.json` and symlinks ([#3284](https://github.com/evanw/esbuild/issues/3284))
+
+    This release fixes an issue that could cause esbuild to sometimes emit incorrect build output in cases where a file under the effect of `tsconfig.json` is inconsistently referenced through a symlink. It can happen when using `npm link` to create a symlink within `node_modules` to an unpublished package. The build result was non-deterministic because esbuild runs module resolution in parallel and the result of the `tsconfig.json` lookup depended on whether the import through the symlink or not through the symlink was resolved first. This problem was fixed by moving the `realpath` operation before the `tsconfig.json` lookup.
+
 ## 0.18.18
 
 * Fix asset references with the `--line-limit` flag ([#3286](https://github.com/evanw/esbuild/issues/3286))

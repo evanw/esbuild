@@ -695,90 +695,103 @@ func (r resolverQuery) finalizeResolve(result *ResolveResult) {
 		return
 	}
 
-	for _, path := range result.PathPair.iter() {
-		if path.Namespace == "file" {
-			if dirInfo := r.dirInfoCached(r.fs.Dir(path.Text)); dirInfo != nil {
-				base := r.fs.Base(path.Text)
+	for i, path := range result.PathPair.iter() {
+		if path.Namespace != "file" {
+			continue
+		}
+		dirInfo := r.dirInfoCached(r.fs.Dir(path.Text))
+		if dirInfo == nil {
+			continue
+		}
+		base := r.fs.Base(path.Text)
 
-				// Look up this file in the "sideEffects" map in the nearest enclosing
-				// directory with a "package.json" file.
-				//
-				// Only do this for the primary path. Some packages have the primary
-				// path marked as having side effects and the secondary path marked
-				// as not having side effects. This is likely a bug in the package
-				// definition but we don't want to consider the primary path as not
-				// having side effects just because the secondary path is marked as
-				// not having side effects.
-				if pkgJSON := dirInfo.enclosingPackageJSON; pkgJSON != nil && *path == result.PathPair.Primary {
-					if pkgJSON.sideEffectsMap != nil {
-						hasSideEffects := false
-						pathLookup := strings.ReplaceAll(path.Text, "\\", "/") // Avoid problems with Windows-style slashes
-						if pkgJSON.sideEffectsMap[pathLookup] {
-							// Fast path: map lookup
+		// If the path contains symlinks, rewrite the path to the real path
+		if !r.options.PreserveSymlinks {
+			if entry, _ := dirInfo.entries.Get(base); entry != nil {
+				symlink := entry.Symlink(r.fs)
+				if symlink != "" {
+					// This means the entry itself is a symlink
+				} else if dirInfo.absRealPath != "" {
+					// There is at least one parent directory with a symlink
+					symlink = r.fs.Join(dirInfo.absRealPath, base)
+				}
+				if symlink != "" {
+					if r.debugLogs != nil {
+						r.debugLogs.addNote(fmt.Sprintf("Resolved symlink %q to %q", path.Text, symlink))
+					}
+					path.Text = symlink
+
+					// Look up the directory over again if it was changed
+					dirInfo = r.dirInfoCached(r.fs.Dir(path.Text))
+					if dirInfo == nil {
+						continue
+					}
+					base = r.fs.Base(path.Text)
+				}
+			}
+		}
+
+		// Path attributes are only taken from the primary path
+		if i > 0 {
+			continue
+		}
+
+		// Look up this file in the "sideEffects" map in the nearest enclosing
+		// directory with a "package.json" file.
+		//
+		// Only do this for the primary path. Some packages have the primary
+		// path marked as having side effects and the secondary path marked
+		// as not having side effects. This is likely a bug in the package
+		// definition but we don't want to consider the primary path as not
+		// having side effects just because the secondary path is marked as
+		// not having side effects.
+		if pkgJSON := dirInfo.enclosingPackageJSON; pkgJSON != nil {
+			if pkgJSON.sideEffectsMap != nil {
+				hasSideEffects := false
+				pathLookup := strings.ReplaceAll(path.Text, "\\", "/") // Avoid problems with Windows-style slashes
+				if pkgJSON.sideEffectsMap[pathLookup] {
+					// Fast path: map lookup
+					hasSideEffects = true
+				} else {
+					// Slow path: glob tests
+					for _, re := range pkgJSON.sideEffectsRegexps {
+						if re.MatchString(pathLookup) {
 							hasSideEffects = true
-						} else {
-							// Slow path: glob tests
-							for _, re := range pkgJSON.sideEffectsRegexps {
-								if re.MatchString(pathLookup) {
-									hasSideEffects = true
-									break
-								}
-							}
-						}
-						if !hasSideEffects {
-							if r.debugLogs != nil {
-								r.debugLogs.addNote(fmt.Sprintf("Marking this file as having no side effects due to %q",
-									pkgJSON.source.KeyPath.Text))
-							}
-							result.PrimarySideEffectsData = pkgJSON.sideEffectsData
-						}
-					}
-
-					// Also copy over the "type" field
-					result.ModuleTypeData = pkgJSON.moduleTypeData
-				}
-
-				// Copy various fields from the nearest enclosing "tsconfig.json" file if present
-				if path == &result.PathPair.Primary {
-					if tsConfigJSON := r.tsConfigForDir(dirInfo); tsConfigJSON != nil {
-						result.TSConfig = &tsConfigJSON.Settings
-						result.TSConfigJSX = tsConfigJSON.JSXSettings
-						result.TSAlwaysStrict = tsConfigJSON.TSAlwaysStrictOrStrict()
-
-						if r.debugLogs != nil {
-							r.debugLogs.addNote(fmt.Sprintf("This import is under the effect of %q",
-								tsConfigJSON.AbsPath))
-							if result.TSConfigJSX.JSXFactory != nil {
-								r.debugLogs.addNote(fmt.Sprintf("\"jsxFactory\" is %q due to %q",
-									strings.Join(result.TSConfigJSX.JSXFactory, "."),
-									tsConfigJSON.AbsPath))
-							}
-							if result.TSConfigJSX.JSXFragmentFactory != nil {
-								r.debugLogs.addNote(fmt.Sprintf("\"jsxFragment\" is %q due to %q",
-									strings.Join(result.TSConfigJSX.JSXFragmentFactory, "."),
-									tsConfigJSON.AbsPath))
-							}
+							break
 						}
 					}
 				}
-
-				if !r.options.PreserveSymlinks {
-					if entry, _ := dirInfo.entries.Get(base); entry != nil {
-						if symlink := entry.Symlink(r.fs); symlink != "" {
-							// Is this entry itself a symlink?
-							if r.debugLogs != nil {
-								r.debugLogs.addNote(fmt.Sprintf("Resolved symlink %q to %q", path.Text, symlink))
-							}
-							path.Text = symlink
-						} else if dirInfo.absRealPath != "" {
-							// Is there at least one parent directory with a symlink?
-							symlink := r.fs.Join(dirInfo.absRealPath, base)
-							if r.debugLogs != nil {
-								r.debugLogs.addNote(fmt.Sprintf("Resolved symlink %q to %q", path.Text, symlink))
-							}
-							path.Text = symlink
-						}
+				if !hasSideEffects {
+					if r.debugLogs != nil {
+						r.debugLogs.addNote(fmt.Sprintf("Marking this file as having no side effects due to %q",
+							pkgJSON.source.KeyPath.Text))
 					}
+					result.PrimarySideEffectsData = pkgJSON.sideEffectsData
+				}
+			}
+
+			// Also copy over the "type" field
+			result.ModuleTypeData = pkgJSON.moduleTypeData
+		}
+
+		// Copy various fields from the nearest enclosing "tsconfig.json" file if present
+		if tsConfigJSON := r.tsConfigForDir(dirInfo); tsConfigJSON != nil {
+			result.TSConfig = &tsConfigJSON.Settings
+			result.TSConfigJSX = tsConfigJSON.JSXSettings
+			result.TSAlwaysStrict = tsConfigJSON.TSAlwaysStrictOrStrict()
+
+			if r.debugLogs != nil {
+				r.debugLogs.addNote(fmt.Sprintf("This import is under the effect of %q",
+					tsConfigJSON.AbsPath))
+				if result.TSConfigJSX.JSXFactory != nil {
+					r.debugLogs.addNote(fmt.Sprintf("\"jsxFactory\" is %q due to %q",
+						strings.Join(result.TSConfigJSX.JSXFactory, "."),
+						tsConfigJSON.AbsPath))
+				}
+				if result.TSConfigJSX.JSXFragmentFactory != nil {
+					r.debugLogs.addNote(fmt.Sprintf("\"jsxFragment\" is %q due to %q",
+						strings.Join(result.TSConfigJSX.JSXFragmentFactory, "."),
+						tsConfigJSON.AbsPath))
 				}
 			}
 		}
