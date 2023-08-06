@@ -1750,13 +1750,14 @@ function sanitizeStringArray(values: any[], property: string): string[] {
   return result
 }
 
-function convertOutputFiles({ path, contents }: protocol.BuildOutputFile): types.OutputFile {
+function convertOutputFiles({ path, contents, hash }: protocol.BuildOutputFile): types.OutputFile {
   // The text is lazily-generated for performance reasons. If no one asks for
   // it, then it never needs to be generated.
   let text: string | null = null
   return {
     path,
     contents,
+    hash,
     get text() {
       // People want to be able to set "contents" and have esbuild automatically
       // derive "text" for them, so grab the contents off of this object instead

@@ -1638,8 +1638,10 @@ body {
     assert.strictEqual(value.outputFiles.length, 2)
     assert.strictEqual(value.outputFiles[0].path, output + '.map')
     assert.strictEqual(value.outputFiles[0].contents.constructor, Uint8Array)
+    assert.strictEqual(value.outputFiles[0].hash, 'BIjVBRZOQ5s')
     assert.strictEqual(value.outputFiles[1].path, output)
     assert.strictEqual(value.outputFiles[1].contents.constructor, Uint8Array)
+    assert.strictEqual(value.outputFiles[1].hash, 'zvyzJPvi96o')
 
     const sourceMap = JSON.parse(Buffer.from(value.outputFiles[0].contents).toString())
     const js = Buffer.from(value.outputFiles[1].contents).toString()
@@ -7061,6 +7063,7 @@ let syncTests = {
     assert.strictEqual(result.outputFiles[0].path, output)
     assert.strictEqual(result.outputFiles[0].text, text)
     assert.deepStrictEqual(result.outputFiles[0].contents, new Uint8Array(Buffer.from(text)))
+    assert.strictEqual(result.outputFiles[0].hash, 'H4KMzZ07fA0')
   },
 
   async transformSyncJSMap({ esbuild }) {

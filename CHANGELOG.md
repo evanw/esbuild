@@ -6,6 +6,14 @@
 
     This release fixes an issue that could cause esbuild to sometimes emit incorrect build output in cases where a file under the effect of `tsconfig.json` is inconsistently referenced through a symlink. It can happen when using `npm link` to create a symlink within `node_modules` to an unpublished package. The build result was non-deterministic because esbuild runs module resolution in parallel and the result of the `tsconfig.json` lookup depended on whether the import through the symlink or not through the symlink was resolved first. This problem was fixed by moving the `realpath` operation before the `tsconfig.json` lookup.
 
+* Add a `hash` property to output files ([#3084](https://github.com/evanw/esbuild/issues/3084), [#3293](https://github.com/evanw/esbuild/issues/3293))
+
+    As a convenience, every output file in esbuild's API now includes a `hash` property that is a hash of the `contents` field. This is the hash that's used internally by esbuild to detect changes between builds for esbuild's live-reload feature. You may also use it to detect changes between your own builds if its properties are sufficient for your use case.
+
+    This feature has been added directly to output file objects since it's just a hash of the `contents` field, so it makes conceptual sense to store it in the same location. Another benefit of putting it there instead of including it as a part of the watch mode API is that it can be used without watch mode enabled. You can use it to compare the output of two independent builds that were done at different times.
+
+    The hash algorithm (currently [XXH64](https://xxhash.com/)) is implementation-dependent and may be changed at any time in between esbuild versions. If you don't like esbuild's choice of hash algorithm then you are welcome to hash the contents yourself instead. As with any hash algorithm, note that while two different hashes mean that the contents are different, two equal hashes do not necessarily mean that the contents are equal. You may still want to compare the contents in addition to the hashes to detect with certainty when output files have been changed.
+
 ## 0.18.18
 
 * Fix asset references with the `--line-limit` flag ([#3286](https://github.com/evanw/esbuild/issues/3286))

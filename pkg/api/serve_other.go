@@ -50,7 +50,7 @@ type apiHandler struct {
 	fallback         string
 	serveWaitGroup   sync.WaitGroup
 	activeStreams    []chan serverSentEvent
-	buildSummary     buildSummary
+	currentHashes    map[string]string
 	mutex            sync.Mutex
 }
 
@@ -405,7 +405,7 @@ func (h *apiHandler) serveEventStream(start time.Time, req *http.Request, res ht
 	res.Write([]byte("500 - Event stream error"))
 }
 
-func (h *apiHandler) broadcastBuildResult(result BuildResult, newSummary buildSummary) {
+func (h *apiHandler) broadcastBuildResult(result BuildResult, newHashes map[string]string) {
 	h.mutex.Lock()
 
 	var added []string
@@ -429,11 +429,11 @@ func (h *apiHandler) broadcastBuildResult(result BuildResult, newSummary buildSu
 	// Diff the old and new states, but only if the build succeeded. We shouldn't
 	// make it appear as if all files were removed when there is a build error.
 	if len(result.Errors) == 0 {
-		oldSummary := h.buildSummary
-		h.buildSummary = newSummary
+		oldHashes := h.currentHashes
+		h.currentHashes = newHashes
 
-		for absPath, newHash := range newSummary {
-			if oldHash, ok := oldSummary[absPath]; !ok {
+		for absPath, newHash := range newHashes {
+			if oldHash, ok := oldHashes[absPath]; !ok {
 				if url, ok := urlForPath(absPath); ok {
 					added = append(added, url)
 				}
@@ -444,8 +444,8 @@ func (h *apiHandler) broadcastBuildResult(result BuildResult, newSummary buildSu
 			}
 		}
 
-		for absPath := range oldSummary {
-			if _, ok := newSummary[absPath]; !ok {
+		for absPath := range oldHashes {
+			if _, ok := newHashes[absPath]; !ok {
 				if url, ok := urlForPath(absPath); ok {
 					removed = append(removed, url)
 				}

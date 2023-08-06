@@ -5,6 +5,8 @@ package api
 
 import (
 	"bytes"
+	"encoding/base64"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -985,12 +987,16 @@ type internalContext struct {
 	args          rebuildArgs
 	activeBuild   *buildInProgress
 	recentBuild   *BuildResult
-	latestSummary buildSummary
 	realFS        fs.FS
 	absWorkingDir string
 	watcher       *watcher
 	handler       *apiHandler
 	didDispose    bool
+
+	// This saves just enough information to be able to compute a useful diff
+	// between two sets of output files. That way we don't need to hold both
+	// sets of output files in memory at once to compute a diff.
+	latestHashes map[string]string
 }
 
 func (ctx *internalContext) rebuild() rebuildState {
@@ -1016,14 +1022,15 @@ func (ctx *internalContext) rebuild() rebuildState {
 	args := ctx.args
 	watcher := ctx.watcher
 	handler := ctx.handler
-	oldSummary := ctx.latestSummary
+	oldHashes := ctx.latestHashes
 	args.options.CancelFlag = &build.cancel
 	ctx.mutex.Unlock()
 
 	// Do the build without holding the mutex
-	build.state = rebuildImpl(args, oldSummary)
+	var newHashes map[string]string
+	build.state, newHashes = rebuildImpl(args, oldHashes)
 	if handler != nil {
-		handler.broadcastBuildResult(build.state.result, build.state.summary)
+		handler.broadcastBuildResult(build.state.result, newHashes)
 	}
 	if watcher != nil {
 		watcher.setWatchData(build.state.watchData)
@@ -1034,7 +1041,7 @@ func (ctx *internalContext) rebuild() rebuildState {
 	ctx.mutex.Lock()
 	ctx.activeBuild = nil
 	ctx.recentBuild = recentBuild
-	ctx.latestSummary = build.state.summary
+	ctx.latestHashes = newHashes
 	ctx.mutex.Unlock()
 
 	// Clear the recent build after it goes stale
@@ -1459,12 +1466,11 @@ type rebuildArgs struct {
 
 type rebuildState struct {
 	result    BuildResult
-	summary   buildSummary
 	watchData fs.WatchData
 	options   config.Options
 }
 
-func rebuildImpl(args rebuildArgs, oldSummary buildSummary) rebuildState {
+func rebuildImpl(args rebuildArgs, oldHashes map[string]string) (rebuildState, map[string]string) {
 	log := logger.NewStderrLog(args.logOptions)
 
 	// All validation warnings are repeated for every rebuild
@@ -1497,7 +1503,7 @@ func rebuildImpl(args rebuildArgs, oldSummary buildSummary) rebuildState {
 
 	// The new build summary remains the same as the old one when there are
 	// errors. A failed build shouldn't erase the previous successful build.
-	newSummary := oldSummary
+	newHashes := oldHashes
 
 	// Stop now if there were errors
 	if !log.HasErrors() {
@@ -1515,17 +1521,23 @@ func rebuildImpl(args rebuildArgs, oldSummary buildSummary) rebuildState {
 			result.Metafile = metafile
 
 			// Populate the results to return
+			var hashBytes [8]byte
 			result.OutputFiles = make([]OutputFile, len(results))
+			newHashes = make(map[string]string)
 			for i, item := range results {
 				if args.options.WriteToStdout {
 					item.AbsPath = "<stdout>"
 				}
+				hasher := xxhash.New()
+				hasher.Write(item.Contents)
+				hash := base64.RawStdEncoding.EncodeToString(binary.LittleEndian.AppendUint64(hashBytes[:0], hasher.Sum64()))
 				result.OutputFiles[i] = OutputFile{
 					Path:     item.AbsPath,
 					Contents: item.Contents,
+					Hash:     hash,
 				}
+				newHashes[item.AbsPath] = hash
 			}
-			newSummary = summarizeOutputFiles(result.OutputFiles)
 
 			// Write output files before "OnEnd" callbacks run so they can expect
 			// output files to exist on the file system. "OnEnd" callbacks can be
@@ -1544,8 +1556,8 @@ func rebuildImpl(args rebuildArgs, oldSummary buildSummary) rebuildState {
 				} else {
 					// Delete old files that are no longer relevant
 					var toDelete []string
-					for absPath := range oldSummary {
-						if _, ok := newSummary[absPath]; !ok {
+					for absPath := range oldHashes {
+						if _, ok := newHashes[absPath]; !ok {
 							toDelete = append(toDelete, absPath)
 						}
 					}
@@ -1558,7 +1570,7 @@ func rebuildImpl(args rebuildArgs, oldSummary buildSummary) rebuildState {
 							defer waitGroup.Done()
 							fs.BeforeFileOpen()
 							defer fs.AfterFileClose()
-							if oldHash, ok := oldSummary[result.AbsPath]; ok && oldHash == newSummary[result.AbsPath] {
+							if oldHash, ok := oldHashes[result.AbsPath]; ok && oldHash == newHashes[result.AbsPath] {
 								if contents, err := ioutil.ReadFile(result.AbsPath); err == nil && bytes.Equal(contents, result.Contents) {
 									// Skip writing out files that haven't changed since last time
 									return
@@ -1665,10 +1677,9 @@ func rebuildImpl(args rebuildArgs, oldSummary buildSummary) rebuildState {
 
 	return rebuildState{
 		result:    result,
-		summary:   newSummary,
 		options:   args.options,
 		watchData: watchData,
-	}
+	}, newHashes
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2467,21 +2478,6 @@ func analyzeMetafileImpl(metafile string, opts AnalyzeMetafileOptions) string {
 	}
 
 	return ""
-}
-
-type buildSummary map[string]uint64
-
-// This saves just enough information to be able to compute a useful diff
-// between two sets of output files. That way we don't need to hold both
-// sets of output files in memory at once to compute a diff.
-func summarizeOutputFiles(outputFiles []OutputFile) buildSummary {
-	summary := make(map[string]uint64)
-	for _, outputFile := range outputFiles {
-		hash := xxhash.New()
-		hash.Write(outputFile.Contents)
-		summary[outputFile.Path] = hash.Sum64()
-	}
-	return summary
 }
 
 func stripDirPrefix(path string, prefix string, allowedSlashes string) (string, bool) {

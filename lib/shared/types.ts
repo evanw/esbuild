@@ -209,8 +209,8 @@ export interface Location {
 
 export interface OutputFile {
   path: string
-  /** "text" as bytes */
   contents: Uint8Array
+  hash: string
   /** "contents" as text (changes automatically with "contents") */
   readonly text: string
 }

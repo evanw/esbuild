@@ -67,6 +67,7 @@ export interface OnEndResponse {
 export interface BuildOutputFile {
   path: string
   contents: Uint8Array
+  hash: string
 }
 
 export interface PingRequest {

@@ -1260,6 +1260,7 @@ func encodeOutputFiles(outputFiles []api.OutputFile) []interface{} {
 		values[i] = value
 		value["path"] = outputFile.Path
 		value["contents"] = outputFile.Contents
+		value["hash"] = outputFile.Hash
 	}
 	return values
 }
