@@ -674,6 +674,7 @@ const (
 	ResolveJSDynamicImport
 	ResolveJSRequireResolve
 	ResolveCSSImportRule
+	ResolveCSSComposesFrom
 	ResolveCSSURLToken
 )
 

@@ -789,6 +789,8 @@ func resolveKindToString(kind api.ResolveKind) string {
 	// CSS
 	case api.ResolveCSSImportRule:
 		return "import-rule"
+	case api.ResolveCSSComposesFrom:
+		return "composes-from"
 	case api.ResolveCSSURLToken:
 		return "url-token"
 
@@ -815,6 +817,8 @@ func stringToResolveKind(kind string) (api.ResolveKind, bool) {
 	// CSS
 	case "import-rule":
 		return api.ResolveCSSImportRule, true
+	case "composes-from":
+		return api.ResolveCSSComposesFrom, true
 	case "url-token":
 		return api.ResolveCSSURLToken, true
 	}

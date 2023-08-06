@@ -630,10 +630,16 @@ func TestImportCSSFromJSComposes(t *testing.T) {
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
-				import styles from "./styles.css"
+				import styles from "./styles.module.css"
 				console.log(styles)
 			`,
-			"/styles.css": `
+			"/global.css": `
+				.GLOBAL1 {
+					color: black;
+				}
+			`,
+			"/styles.module.css": `
+				@import "global.css";
 				.local0 {
 					composes: local1;
 					:global {
@@ -658,6 +664,182 @@ func TestImportCSSFromJSComposes(t *testing.T) {
 				.local1 {
 					color: red;
 					composes: local3;
+				}
+				.fromOtherFile {
+					composes: local0 from "other1.module.css";
+					composes: local0 from "other2.module.css";
+				}
+			`,
+			"/other1.module.css": `
+				.local0 {
+					composes: base1 base2 from "base.module.css";
+					color: blue;
+				}
+			`,
+			"/other2.module.css": `
+				.local0 {
+					composes: base1 base3 from "base.module.css";
+					background: purple;
+				}
+			`,
+			"/base.module.css": `
+				.base1 {
+					cursor: pointer;
+				}
+				.base2 {
+					display: inline;
+				}
+				.base3 {
+					float: left;
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			ExtensionToLoader: map[string]config.Loader{
+				".js":         config.LoaderJS,
+				".css":        config.LoaderCSS,
+				".module.css": config.LoaderLocalCSS,
+			},
+		},
+	})
+}
+
+func TestImportCSSFromJSComposesFromMissingImport(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import styles from "./styles.module.css"
+				console.log(styles)
+			`,
+			"/styles.module.css": `
+				.foo {
+					composes: x from "file.module.css";
+					composes: y from "file.module.css";
+					composes: z from "file.module.css";
+					composes: x from "file.css";
+				}
+			`,
+			"/file.module.css": `
+				.x {
+					color: red;
+				}
+				:global(.y) {
+					color: blue;
+				}
+			`,
+			"/file.css": `
+				.x {
+					color: red;
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			ExtensionToLoader: map[string]config.Loader{
+				".js":         config.LoaderJS,
+				".module.css": config.LoaderLocalCSS,
+				".css":        config.LoaderCSS,
+			},
+		},
+		expectedCompileLog: `styles.module.css: ERROR: Cannot use global name "y" with "composes"
+file.module.css: NOTE: The global name "y" is defined here:
+NOTE: Use the ":local" selector to change "y" into a local name.
+styles.module.css: ERROR: The name "z" never appears in "file.module.css"
+styles.module.css: ERROR: Cannot use global name "x" with "composes"
+file.css: NOTE: The global name "x" is defined here:
+NOTE: Use the "local-css" loader for "file.css" to enable local names.
+`,
+	})
+}
+
+func TestImportCSSFromJSComposesFromNotCSS(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import styles from "./styles.css"
+				console.log(styles)
+			`,
+			"/styles.css": `
+				.foo {
+					composes: bar from "file.txt";
+				}
+			`,
+			"/file.txt": `
+				.bar {
+					color: red;
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			ExtensionToLoader: map[string]config.Loader{
+				".js":  config.LoaderJS,
+				".css": config.LoaderLocalCSS,
+				".txt": config.LoaderText,
+			},
+		},
+		expectedScanLog: `styles.css: ERROR: Cannot use "composes" with "file.txt"
+NOTE: You can only use "composes" with CSS files and "file.txt" is not a CSS file (it was loaded with the "text" loader).
+`,
+	})
+}
+
+func TestImportCSSFromJSComposesCircular(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import styles from "./styles.css"
+				console.log(styles)
+			`,
+			"/styles.css": `
+				.foo {
+					composes: bar;
+				}
+				.bar {
+					composes: foo;
+				}
+				.baz {
+					composes: baz;
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			ExtensionToLoader: map[string]config.Loader{
+				".js":  config.LoaderJS,
+				".css": config.LoaderLocalCSS,
+			},
+		},
+	})
+}
+
+func TestImportCSSFromJSComposesFromCircular(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import styles from "./styles.css"
+				console.log(styles)
+			`,
+			"/styles.css": `
+				.foo {
+					composes: bar from "other.css";
+				}
+				.bar {
+					composes: bar from "styles.css";
+				}
+			`,
+			"/other.css": `
+				.bar {
+					composes: foo from "styles.css";
 				}
 			`,
 		},
@@ -709,7 +891,7 @@ func TestImportJSFromCSS(t *testing.T) {
 			AbsOutputDir: "/out",
 		},
 		expectedScanLog: `entry.css: ERROR: Cannot import "entry.js" into a CSS file
-NOTE: An "@import" rule can only be used to import another CSS file, and "entry.js" is not a CSS file (it was loaded with the "js" loader).
+NOTE: An "@import" rule can only be used to import another CSS file and "entry.js" is not a CSS file (it was loaded with the "js" loader).
 `,
 	})
 }
@@ -730,7 +912,7 @@ func TestImportJSONFromCSS(t *testing.T) {
 			AbsOutputDir: "/out",
 		},
 		expectedScanLog: `entry.css: ERROR: Cannot import "entry.json" into a CSS file
-NOTE: An "@import" rule can only be used to import another CSS file, and "entry.json" is not a CSS file (it was loaded with the "json" loader).
+NOTE: An "@import" rule can only be used to import another CSS file and "entry.json" is not a CSS file (it was loaded with the "json" loader).
 `,
 	})
 }

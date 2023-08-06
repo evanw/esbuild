@@ -11,6 +11,7 @@ import (
 
 type composesContext struct {
 	parentRefs   []ast.Ref
+	parentRange  logger.Range
 	problemRange logger.Range
 }
 
@@ -34,9 +35,32 @@ func (p *parser) handleComposesPragma(context composesContext, tokens []css_ast.
 
 				// A string or a URL is an external file
 				if last.Kind == css_lexer.TString || last.Kind == css_lexer.TURL {
-					r := css_lexer.RangeOfIdentifier(p.source, t.Loc)
-					p.log.AddID(logger.MsgID_CSS_CSSSyntaxError, logger.Warning, &p.tracker, r,
-						"Using \"composes\" with names from other files is not supported yet")
+					var importRecordIndex uint32
+					if last.Kind == css_lexer.TString {
+						importRecordIndex = uint32(len(p.importRecords))
+						p.importRecords = append(p.importRecords, ast.ImportRecord{
+							Kind:  ast.ImportComposesFrom,
+							Path:  logger.Path{Text: last.Text},
+							Range: p.source.RangeOfString(last.Loc),
+						})
+					} else {
+						importRecordIndex = last.PayloadIndex
+						p.importRecords[importRecordIndex].Kind = ast.ImportComposesFrom
+					}
+					for _, parentRef := range context.parentRefs {
+						composes := p.composes[parentRef]
+						if composes == nil {
+							composes = &css_ast.Composes{}
+							p.composes[parentRef] = composes
+						}
+						for _, name := range names {
+							composes.ImportedNames = append(composes.ImportedNames, css_ast.ImportedComposesName{
+								ImportRecordIndex: importRecordIndex,
+								Alias:             name.text,
+								AliasLoc:          name.loc,
+							})
+						}
+					}
 					return
 				}
 

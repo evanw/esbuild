@@ -392,6 +392,7 @@ export type ImportKind =
 
   // CSS
   | 'import-rule'
+  | 'composes-from'
   | 'url-token'
 
 /** Documentation: https://esbuild.github.io/plugins/#on-resolve-results */

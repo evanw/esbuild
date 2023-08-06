@@ -2009,13 +2009,23 @@ func (s *scanner) processScannedFiles(entryPointMeta []graph.EntryPoint) []scann
 				}
 
 				switch record.Kind {
+				case ast.ImportComposesFrom:
+					// Using a JavaScript file with CSS "composes" is not allowed
+					if _, ok := otherFile.inputFile.Repr.(*graph.JSRepr); ok && otherFile.inputFile.Loader != config.LoaderEmpty {
+						s.log.AddErrorWithNotes(&tracker, record.Range,
+							fmt.Sprintf("Cannot use \"composes\" with %q", otherFile.inputFile.Source.PrettyPath),
+							[]logger.MsgData{{Text: fmt.Sprintf(
+								"You can only use \"composes\" with CSS files and %q is not a CSS file (it was loaded with the %q loader).",
+								otherFile.inputFile.Source.PrettyPath, config.LoaderToString[otherFile.inputFile.Loader])}})
+					}
+
 				case ast.ImportAt, ast.ImportAtConditional:
 					// Using a JavaScript file with CSS "@import" is not allowed
 					if _, ok := otherFile.inputFile.Repr.(*graph.JSRepr); ok && otherFile.inputFile.Loader != config.LoaderEmpty {
 						s.log.AddErrorWithNotes(&tracker, record.Range,
 							fmt.Sprintf("Cannot import %q into a CSS file", otherFile.inputFile.Source.PrettyPath),
 							[]logger.MsgData{{Text: fmt.Sprintf(
-								"An \"@import\" rule can only be used to import another CSS file, and %q is not a CSS file (it was loaded with the %q loader).",
+								"An \"@import\" rule can only be used to import another CSS file and %q is not a CSS file (it was loaded with the %q loader).",
 								otherFile.inputFile.Source.PrettyPath, config.LoaderToString[otherFile.inputFile.Loader])}})
 					} else if record.Kind == ast.ImportAtConditional {
 						s.log.AddError(&tracker, record.Range,
@@ -2067,55 +2077,15 @@ func (s *scanner) processScannedFiles(entryPointMeta []graph.EntryPoint) []scann
 							sourceIndex := s.allocateSourceIndex(stubKey, cache.SourceIndexJSStubForCSS)
 							source := otherFile.inputFile.Source
 							source.Index = sourceIndex
-
-							// Export all local CSS names for JavaScript to use
-							exports := js_ast.EObject{}
-							cssSourceIndex := record.SourceIndex.GetIndex()
-							for innerIndex, symbol := range css.AST.Symbols {
-								if symbol.Kind == ast.SymbolLocalCSS {
-									ref := ast.Ref{SourceIndex: cssSourceIndex, InnerIndex: uint32(innerIndex)}
-									loc := css.AST.DefineLocs[ref]
-									value := js_ast.Expr{Loc: loc, Data: &js_ast.ENameOfSymbol{Ref: ref}}
-									visited := map[ast.Ref]bool{ref: true}
-									var parts []js_ast.TemplatePart
-									var visitComposes func(ast.Ref)
-									visitComposes = func(ref ast.Ref) {
-										if composes, ok := css.AST.Composes[ref]; ok {
-											for _, name := range composes.Names {
-												if !visited[name.Ref] {
-													visited[name.Ref] = true
-													visitComposes(name.Ref)
-													parts = append(parts, js_ast.TemplatePart{
-														Value:      js_ast.Expr{Loc: name.Loc, Data: &js_ast.ENameOfSymbol{Ref: name.Ref}},
-														TailCooked: []uint16{' '},
-														TailLoc:    name.Loc,
-													})
-												}
-											}
-										}
-									}
-									visitComposes(ref)
-									if len(parts) > 0 {
-										value.Data = &js_ast.ETemplate{Parts: append(parts, js_ast.TemplatePart{
-											Value:   value,
-											TailLoc: value.Loc,
-										})}
-									}
-									exports.Properties = append(exports.Properties, js_ast.Property{
-										Key:        js_ast.Expr{Loc: loc, Data: &js_ast.EString{Value: helpers.StringToUTF16(symbol.OriginalName)}},
-										ValueOrNil: value,
-									})
-								}
-							}
-
 							s.results[sourceIndex] = parseResult{
 								file: scannerFile{
 									inputFile: graph.InputFile{
 										Source: source,
 										Loader: otherFile.inputFile.Loader,
 										Repr: &graph.JSRepr{
+											// Note: The actual export object will be filled in by the linker
 											AST: js_parser.LazyExportAST(s.log, source,
-												js_parser.OptionsFromConfig(&s.options), js_ast.Expr{Data: &exports}, ""),
+												js_parser.OptionsFromConfig(&s.options), js_ast.Expr{Data: js_ast.ENullShared}, ""),
 											CSSSourceIndex: ast.MakeIndex32(record.SourceIndex.GetIndex()),
 										},
 									},

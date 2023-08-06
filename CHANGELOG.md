@@ -2,6 +2,84 @@
 
 ## Unreleased
 
+* Implement `composes` from CSS modules ([#20](https://github.com/evanw/esbuild/issues/20))
+
+    This release implements the `composes` annotation from the [CSS modules specification](https://github.com/css-modules/css-modules#composition). It provides a way for class selectors to reference other class selectors (assuming you are using the `local-css` loader). And with the `from` syntax, this can even work with local names across CSS files. For example:
+
+    ```js
+    // app.js
+    import { submit } from './style.css'
+    const div = document.createElement('div')
+    div.className = submit
+    document.body.appendChild(div)
+    ```
+
+    ```css
+    /* style.css */
+    .button {
+      composes: pulse from "anim.css";
+      display: inline-block;
+    }
+    .submit {
+      composes: button;
+      font-weight: bold;
+    }
+    ```
+
+    ```css
+    /* anim.css */
+    @keyframes pulse {
+      from, to { opacity: 1 }
+      50% { opacity: 0.5 }
+    }
+    .pulse {
+      animation: 2s ease-in-out infinite pulse;
+    }
+    ```
+
+    Bundling this with esbuild using `--bundle --outdir=dist --loader:.css=local-css` now gives the following:
+
+    ```js
+    (() => {
+      // style.css
+      var submit = "anim_pulse style_button style_submit";
+
+      // app.js
+      var div = document.createElement("div");
+      div.className = submit;
+      document.body.appendChild(div);
+    })();
+    ```
+
+    ```css
+    /* anim.css */
+    @keyframes anim_pulse {
+      from, to {
+        opacity: 1;
+      }
+      50% {
+        opacity: 0.5;
+      }
+    }
+    .anim_pulse {
+      animation: 2s ease-in-out infinite anim_pulse;
+    }
+
+    /* style.css */
+    .style_button {
+      display: inline-block;
+    }
+    .style_submit {
+      font-weight: bold;
+    }
+    ```
+
+    Import paths in the `composes: ... from` syntax are resolved using the new `composes-from` import kind, which can be intercepted by plugins during import path resolution when bundling is enabled.
+
+    Note that the order in which composed CSS classes from separate files appear in the bundled output file is deliberately _**undefined**_ by design (see [the specification](https://github.com/css-modules/css-modules#composing-from-other-files) for details). You are not supposed to declare the same CSS property in two separate class selectors and then compose them together. You are only supposed to compose CSS class selectors that declare non-overlapping CSS properties.
+
+    Issue [#20](https://github.com/evanw/esbuild/issues/20) (the issue tracking CSS modules) is esbuild's most-upvoted issue! With this change, I now consider esbuild's implementation of CSS modules to be complete. There are still improvements to make and there may also be bugs with the current implementation, but these can be tracked in separate issues.
+
 * Fix non-determinism with `tsconfig.json` and symlinks ([#3284](https://github.com/evanw/esbuild/issues/3284))
 
     This release fixes an issue that could cause esbuild to sometimes emit incorrect build output in cases where a file under the effect of `tsconfig.json` is inconsistently referenced through a symlink. It can happen when using `npm link` to create a symlink within `node_modules` to an unpublished package. The build result was non-deterministic because esbuild runs module resolution in parallel and the result of the `tsconfig.json` lookup depended on whether the import through the symlink or not through the symlink was resolved first. This problem was fixed by moving the `realpath` operation before the `tsconfig.json` lookup.

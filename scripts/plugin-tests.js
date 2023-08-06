@@ -1958,6 +1958,32 @@ let pluginTests = {
     assert.strictEqual(resolveKind, 'import-rule')
   },
 
+  async resolveKindComposesFrom({ esbuild }) {
+    let resolveKind = '<missing>'
+    try {
+      await esbuild.build({
+        entryPoints: ['entry'],
+        bundle: true,
+        write: false,
+        logLevel: 'silent',
+        plugins: [{
+          name: 'plugin',
+          setup(build) {
+            build.onResolve({ filter: /.*/ }, args => {
+              if (args.importer === '') return { path: args.path, namespace: 'ns' }
+              else resolveKind = args.kind
+            })
+            build.onLoad({ filter: /.*/, namespace: 'ns' }, () => {
+              return { contents: `.foo { composes: bar from 'entry' }`, loader: 'local-css' }
+            })
+          },
+        }],
+      })
+    } catch (e) {
+    }
+    assert.strictEqual(resolveKind, 'composes-from')
+  },
+
   async resolveKindURLToken({ esbuild }) {
     let resolveKind = '<missing>'
     try {

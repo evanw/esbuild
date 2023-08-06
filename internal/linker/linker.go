@@ -1323,6 +1323,42 @@ func (c *linkerContext) scanImportsAndExports() {
 				}
 			}
 
+			// Validate cross-file "composes: ... from" named imports
+			for _, composes := range repr.AST.Composes {
+				for _, name := range composes.ImportedNames {
+					if record := repr.AST.ImportRecords[name.ImportRecordIndex]; record.SourceIndex.IsValid() {
+						otherFile := &c.graph.Files[record.SourceIndex.GetIndex()]
+						if otherRepr, ok := otherFile.InputFile.Repr.(*graph.CSSRepr); ok {
+							if _, ok := otherRepr.AST.LocalScope[name.Alias]; !ok {
+								if global, ok := otherRepr.AST.GlobalScope[name.Alias]; ok {
+									var hint string
+									if otherFile.InputFile.Loader == config.LoaderCSS {
+										hint = fmt.Sprintf("Use the \"local-css\" loader for %q to enable local names.", otherFile.InputFile.Source.PrettyPath)
+									} else {
+										hint = fmt.Sprintf("Use the \":local\" selector to change %q into a local name.", name.Alias)
+									}
+									c.log.AddErrorWithNotes(file.LineColumnTracker(),
+										css_lexer.RangeOfIdentifier(file.InputFile.Source, name.AliasLoc),
+										fmt.Sprintf("Cannot use global name %q with \"composes\"", name.Alias),
+										[]logger.MsgData{
+											otherFile.LineColumnTracker().MsgData(
+												css_lexer.RangeOfIdentifier(otherFile.InputFile.Source, global.Loc),
+												fmt.Sprintf("The global name %q is defined here:", name.Alias),
+											),
+											{Text: hint},
+										})
+								} else {
+									c.log.AddError(file.LineColumnTracker(),
+										css_lexer.RangeOfIdentifier(file.InputFile.Source, name.AliasLoc),
+										fmt.Sprintf("The name %q never appears in %q",
+											name.Alias, otherFile.InputFile.Source.PrettyPath))
+								}
+							}
+						}
+					}
+				}
+			}
+
 		case *graph.JSRepr:
 			for importRecordIndex := range repr.AST.ImportRecords {
 				record := &repr.AST.ImportRecords[importRecordIndex]
@@ -1979,20 +2015,78 @@ func (c *linkerContext) generateCodeForLazyExport(sourceIndex uint32) {
 	if len(part.Stmts) != 1 {
 		panic("Internal error")
 	}
-	lazy, ok := part.Stmts[0].Data.(*js_ast.SLazyExport)
-	if !ok {
-		panic("Internal error")
+	lazyValue := part.Stmts[0].Data.(*js_ast.SLazyExport).Value
+
+	// If this JavaScript file is a stub from a CSS file, populate the exports of
+	// this JavaScript stub with the local names from that CSS file. This is done
+	// now instead of earlier because we need the whole bundle to be present.
+	if repr.CSSSourceIndex.IsValid() {
+		cssSourceIndex := repr.CSSSourceIndex.GetIndex()
+		if css, ok := c.graph.Files[cssSourceIndex].InputFile.Repr.(*graph.CSSRepr); ok {
+			exports := js_ast.EObject{}
+
+			for _, local := range css.AST.LocalSymbols {
+				value := js_ast.Expr{Loc: local.Loc, Data: &js_ast.ENameOfSymbol{Ref: local.Ref}}
+				visited := map[ast.Ref]bool{local.Ref: true}
+				var parts []js_ast.TemplatePart
+				var visitName func(*graph.CSSRepr, ast.Ref)
+				var visitComposes func(*graph.CSSRepr, ast.Ref)
+
+				visitName = func(repr *graph.CSSRepr, ref ast.Ref) {
+					if !visited[ref] {
+						visited[ref] = true
+						visitComposes(repr, ref)
+						parts = append(parts, js_ast.TemplatePart{
+							Value:      js_ast.Expr{Data: &js_ast.ENameOfSymbol{Ref: ref}},
+							TailCooked: []uint16{' '},
+						})
+					}
+				}
+
+				visitComposes = func(repr *graph.CSSRepr, ref ast.Ref) {
+					if composes, ok := repr.AST.Composes[ref]; ok {
+						for _, name := range composes.ImportedNames {
+							if record := repr.AST.ImportRecords[name.ImportRecordIndex]; record.SourceIndex.IsValid() {
+								otherFile := &c.graph.Files[record.SourceIndex.GetIndex()]
+								if otherRepr, ok := otherFile.InputFile.Repr.(*graph.CSSRepr); ok {
+									if otherName, ok := otherRepr.AST.LocalScope[name.Alias]; ok {
+										visitName(otherRepr, otherName.Ref)
+									}
+								}
+							}
+						}
+
+						for _, name := range composes.Names {
+							visitName(repr, name.Ref)
+						}
+					}
+				}
+
+				visitComposes(css, local.Ref)
+
+				if len(parts) > 0 {
+					value.Data = &js_ast.ETemplate{Parts: append(parts, js_ast.TemplatePart{Value: value})}
+				}
+
+				exports.Properties = append(exports.Properties, js_ast.Property{
+					Key:        js_ast.Expr{Loc: local.Loc, Data: &js_ast.EString{Value: helpers.StringToUTF16(c.graph.Symbols.Get(local.Ref).OriginalName)}},
+					ValueOrNil: value,
+				})
+			}
+
+			lazyValue.Data = &exports
+		}
 	}
 
 	// Use "module.exports = value" for CommonJS-style modules
 	if repr.AST.ExportsKind == js_ast.ExportsCommonJS {
 		part.Stmts = []js_ast.Stmt{js_ast.AssignStmt(
-			js_ast.Expr{Loc: lazy.Value.Loc, Data: &js_ast.EDot{
-				Target:  js_ast.Expr{Loc: lazy.Value.Loc, Data: &js_ast.EIdentifier{Ref: repr.AST.ModuleRef}},
+			js_ast.Expr{Loc: lazyValue.Loc, Data: &js_ast.EDot{
+				Target:  js_ast.Expr{Loc: lazyValue.Loc, Data: &js_ast.EIdentifier{Ref: repr.AST.ModuleRef}},
 				Name:    "exports",
-				NameLoc: lazy.Value.Loc,
+				NameLoc: lazyValue.Loc,
 			}},
-			lazy.Value,
+			lazyValue,
 		)}
 		c.graph.GenerateSymbolImportAndUse(sourceIndex, 0, repr.AST.ModuleRef, 1, sourceIndex)
 		return
@@ -2020,8 +2114,7 @@ func (c *linkerContext) generateCodeForLazyExport(sourceIndex uint32) {
 	}
 
 	// Unwrap JSON objects into separate top-level variables
-	jsonValue := lazy.Value
-	if object, ok := jsonValue.Data.(*js_ast.EObject); ok {
+	if object, ok := lazyValue.Data.(*js_ast.EObject); ok {
 		for _, property := range object.Properties {
 			if str, ok := property.Key.Data.(*js_ast.EString); ok &&
 				(!file.IsEntryPoint() || js_ast.IsIdentifierUTF16(str.Value) ||
@@ -2053,10 +2146,10 @@ func (c *linkerContext) generateCodeForLazyExport(sourceIndex uint32) {
 	}
 
 	// Generate the default export
-	ref, partIndex := generateExport(jsonValue.Loc, file.InputFile.Source.IdentifierName+"_default", "default")
-	repr.AST.Parts[partIndex].Stmts = []js_ast.Stmt{{Loc: jsonValue.Loc, Data: &js_ast.SExportDefault{
-		DefaultName: ast.LocRef{Loc: jsonValue.Loc, Ref: ref},
-		Value:       js_ast.Stmt{Loc: jsonValue.Loc, Data: &js_ast.SExpr{Value: jsonValue}},
+	ref, partIndex := generateExport(lazyValue.Loc, file.InputFile.Source.IdentifierName+"_default", "default")
+	repr.AST.Parts[partIndex].Stmts = []js_ast.Stmt{{Loc: lazyValue.Loc, Data: &js_ast.SExportDefault{
+		DefaultName: ast.LocRef{Loc: lazyValue.Loc, Ref: ref},
+		Value:       js_ast.Stmt{Loc: lazyValue.Loc, Data: &js_ast.SExpr{Value: lazyValue}},
 	}}}
 }
 
@@ -3179,6 +3272,16 @@ func (c *linkerContext) findImportedFilesInCSSOrder(entryPoints []uint32) (exter
 
 			// Iterate in reverse preorder (will be reversed again later)
 			internalOrder = append(internalOrder, sourceIndex)
+
+			// Iterate in the inverse order of "composes" directives. Note that the
+			// order doesn't matter for these because the output order is explicitly
+			// undefined in the specification.
+			records := repr.AST.ImportRecords
+			for i := len(records) - 1; i >= 0; i-- {
+				if record := &records[i]; record.Kind == ast.ImportComposesFrom && record.SourceIndex.IsValid() {
+					visit(record.SourceIndex.GetIndex())
+				}
+			}
 
 			// Iterate in the inverse order of top-level "@import" rules
 		outer:

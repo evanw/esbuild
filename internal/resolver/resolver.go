@@ -193,7 +193,7 @@ type Resolver struct {
 	// order but avoids the scenario where we match an import in a CSS file to a
 	// JavaScript-related file. It's probably not perfect with plugins in the
 	// picture but it's better than some alternatives and probably pretty good.
-	atImportExtensionOrder []string
+	cssExtensionOrder []string
 
 	// A special sorted import order for imports inside packages.
 	//
@@ -240,10 +240,10 @@ type resolverQuery struct {
 
 func NewResolver(call config.APICall, fs fs.FS, log logger.Log, caches *cache.CacheSet, options *config.Options) *Resolver {
 	// Filter out non-CSS extensions for CSS "@import" imports
-	atImportExtensionOrder := make([]string, 0, len(options.ExtensionOrder))
+	cssExtensionOrder := make([]string, 0, len(options.ExtensionOrder))
 	for _, ext := range options.ExtensionOrder {
-		if loader, ok := options.ExtensionToLoader[ext]; !ok || loader == config.LoaderCSS {
-			atImportExtensionOrder = append(atImportExtensionOrder, ext)
+		if loader, ok := options.ExtensionToLoader[ext]; !ok || loader.IsCSS() {
+			cssExtensionOrder = append(cssExtensionOrder, ext)
 		}
 	}
 
@@ -287,7 +287,7 @@ func NewResolver(call config.APICall, fs fs.FS, log logger.Log, caches *cache.Ca
 		options:                   *options,
 		caches:                    caches,
 		dirCache:                  make(map[string]*dirInfo),
-		atImportExtensionOrder:    atImportExtensionOrder,
+		cssExtensionOrder:         cssExtensionOrder,
 		nodeModulesExtensionOrder: nodeModulesExtensionOrder,
 		esmConditionsDefault:      esmConditionsDefault,
 		esmConditionsImport:       esmConditionsImport,
@@ -842,7 +842,7 @@ func (r resolverQuery) resolveWithoutSymlinks(sourceDir string, sourceDirInfo *d
 	// Check both relative and package paths for CSS URL tokens, with relative
 	// paths taking precedence over package paths to match Webpack behavior.
 	isPackagePath := IsPackagePath(importPath)
-	checkRelative := !isPackagePath || r.kind == ast.ImportURL || r.kind == ast.ImportAt || r.kind == ast.ImportAtConditional
+	checkRelative := !isPackagePath || r.kind.IsFromCSS()
 	checkPackage := isPackagePath
 
 	if checkRelative {
@@ -1707,9 +1707,9 @@ func getBool(json js_ast.Expr) (bool, bool) {
 
 func (r resolverQuery) loadAsFileOrDirectory(path string) (PathPair, bool, *fs.DifferentCase) {
 	extensionOrder := r.options.ExtensionOrder
-	if r.kind == ast.ImportAt || r.kind == ast.ImportAtConditional {
+	if r.kind.MustResolveToCSS() {
 		// Use a special import order for CSS "@import" imports
-		extensionOrder = r.atImportExtensionOrder
+		extensionOrder = r.cssExtensionOrder
 	} else if helpers.IsInsideNodeModules(path) {
 		// Use a special import order for imports inside "node_modules"
 		extensionOrder = r.nodeModulesExtensionOrder
@@ -2318,8 +2318,8 @@ func (r resolverQuery) finalizeImportsExportsResult(
 			resolvedDirInfo := r.dirInfoCached(r.fs.Dir(absResolvedPath))
 			base := r.fs.Base(absResolvedPath)
 			extensionOrder := r.options.ExtensionOrder
-			if r.kind == ast.ImportAt || r.kind == ast.ImportAtConditional {
-				extensionOrder = r.atImportExtensionOrder
+			if r.kind.MustResolveToCSS() {
+				extensionOrder = r.cssExtensionOrder
 			}
 
 			if resolvedDirInfo == nil {

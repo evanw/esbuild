@@ -2446,12 +2446,17 @@ func TestComposes(t *testing.T) {
 	expectPrintedLocal(t, ".foo { composes: bar; color: red }", ".foo {\n  color: red;\n}\n", "")
 	expectPrintedLocal(t, ".foo { composes: bar baz; color: red }", ".foo {\n  color: red;\n}\n", "")
 	expectPrintedLocal(t, ".foo { composes: bar from global; color: red }", ".foo {\n  color: red;\n}\n", "")
+	expectPrintedLocal(t, ".foo { composes: bar from \"file.css\"; color: red }", ".foo {\n  color: red;\n}\n", "")
+	expectPrintedLocal(t, ".foo { composes: bar from url(file.css); color: red }", ".foo {\n  color: red;\n}\n", "")
+	expectPrintedLocal(t, ".foo { & { composes: bar; color: red } }", ".foo {\n  & {\n    color: red;\n  }\n}\n", "")
+	expectPrintedLocal(t, ".foo { :local { composes: bar; color: red } }", ".foo {\n  color: red;\n}\n", "")
+	expectPrintedLocal(t, ".foo { :global { composes: bar; color: red } }", ".foo {\n  color: red;\n}\n", "")
 
 	expectPrinted(t, ".foo, .bar { composes: bar from github }", ".foo,\n.bar {\n  composes: bar from github;\n}\n", "")
 	expectPrintedLocal(t, ".foo { composes: bar from github }", ".foo {\n}\n", "<stdin>: WARNING: \"composes\" declaration uses invalid location \"github\"\n")
 
 	badComposes := "<stdin>: WARNING: \"composes\" only works inside single class selectors\n" +
-		"<stdin>: NOTE: This parent selector is not a single class selector because of the syntax here:\n"
+		"<stdin>: NOTE: The parent selector is not a single class selector because of the syntax here:\n"
 	expectPrintedLocal(t, "& { composes: bar; color: red }", "& {\n  color: red;\n}\n", badComposes)
 	expectPrintedLocal(t, ".foo& { composes: bar; color: red }", "&.foo {\n  color: red;\n}\n", badComposes)
 	expectPrintedLocal(t, ".foo.bar { composes: bar; color: red }", ".foo.bar {\n  color: red;\n}\n", badComposes)
@@ -2459,4 +2464,5 @@ func TestComposes(t *testing.T) {
 	expectPrintedLocal(t, ".foo[href] { composes: bar; color: red }", ".foo[href] {\n  color: red;\n}\n", badComposes)
 	expectPrintedLocal(t, ".foo .bar { composes: bar; color: red }", ".foo .bar {\n  color: red;\n}\n", badComposes)
 	expectPrintedLocal(t, ".foo, div { composes: bar; color: red }", ".foo,\ndiv {\n  color: red;\n}\n", badComposes)
+	expectPrintedLocal(t, ".foo { .bar { composes: foo; color: red } }", ".foo {\n  .bar {\n    color: red;\n  }\n}\n", badComposes)
 }

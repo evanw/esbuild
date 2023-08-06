@@ -30,7 +30,9 @@ type AST struct {
 	Rules                []Rule
 	SourceMapComment     logger.Span
 	ApproximateLineCount int32
-	DefineLocs           map[ast.Ref]logger.Loc
+	LocalSymbols         []ast.LocRef
+	LocalScope           map[string]ast.LocRef
+	GlobalScope          map[string]ast.LocRef
 	Composes             map[ast.Ref]*Composes
 }
 
@@ -48,6 +50,19 @@ type Composes struct {
 	//   :global .bar { color: red }
 	//
 	Names []ast.LocRef
+
+	// Each of these is local in another file. For example:
+	//
+	//   .foo { composes: bar from "bar.css" }
+	//   .foo { composes: bar from url(bar.css) }
+	//
+	ImportedNames []ImportedComposesName
+}
+
+type ImportedComposesName struct {
+	Alias             string
+	AliasLoc          logger.Loc
+	ImportRecordIndex uint32
 }
 
 // We create a lot of tokens, so make sure this layout is memory-efficient.

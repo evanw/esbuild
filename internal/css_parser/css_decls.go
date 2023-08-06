@@ -118,7 +118,7 @@ func (p *parser) processDeclarations(rules []css_ast.Rule, composesContext *comp
 					if !didWarnAboutComposes {
 						didWarnAboutComposes = true
 						p.log.AddIDWithNotes(logger.MsgID_CSS_CSSSyntaxError, logger.Warning, &p.tracker, decl.KeyRange, "\"composes\" only works inside single class selectors",
-							[]logger.MsgData{p.tracker.MsgData(composesContext.problemRange, "This parent selector is not a single class selector because of the syntax here:")})
+							[]logger.MsgData{p.tracker.MsgData(composesContext.problemRange, "The parent selector is not a single class selector because of the syntax here:")})
 					}
 				} else {
 					p.handleComposesPragma(*composesContext, decl.Value)

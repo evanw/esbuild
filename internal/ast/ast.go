@@ -35,6 +35,9 @@ const (
 	// A CSS "@import" rule with import conditions
 	ImportAtConditional
 
+	// A CSS "composes" declaration
+	ImportComposesFrom
+
 	// A CSS "url(...)" token
 	ImportURL
 )
@@ -51,6 +54,8 @@ func (kind ImportKind) StringForMetafile() string {
 		return "require-resolve"
 	case ImportAt, ImportAtConditional:
 		return "import-rule"
+	case ImportComposesFrom:
+		return "composes-from"
 	case ImportURL:
 		return "url-token"
 	case ImportEntryPoint:
@@ -61,7 +66,19 @@ func (kind ImportKind) StringForMetafile() string {
 }
 
 func (kind ImportKind) IsFromCSS() bool {
-	return kind == ImportAt || kind == ImportURL
+	switch kind {
+	case ImportAt, ImportAtConditional, ImportComposesFrom, ImportURL:
+		return true
+	}
+	return false
+}
+
+func (kind ImportKind) MustResolveToCSS() bool {
+	switch kind {
+	case ImportAt, ImportAtConditional, ImportComposesFrom:
+		return true
+	}
+	return false
 }
 
 type ImportRecordFlags uint16

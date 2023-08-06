@@ -1889,6 +1889,8 @@ func importKindToResolveKind(kind ast.ImportKind) ResolveKind {
 		return ResolveJSRequireResolve
 	case ast.ImportAt, ast.ImportAtConditional:
 		return ResolveCSSImportRule
+	case ast.ImportComposesFrom:
+		return ResolveCSSComposesFrom
 	case ast.ImportURL:
 		return ResolveCSSURLToken
 	default:
@@ -1910,6 +1912,8 @@ func resolveKindToImportKind(kind ResolveKind) ast.ImportKind {
 		return ast.ImportRequireResolve
 	case ResolveCSSImportRule:
 		return ast.ImportAt
+	case ResolveCSSComposesFrom:
+		return ast.ImportComposesFrom
 	case ResolveCSSURLToken:
 		return ast.ImportURL
 	default:
