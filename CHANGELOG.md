@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+* Support advanced CSS `@import` rules ([#953](https://github.com/evanw/esbuild/issues/953), [#3137](https://github.com/evanw/esbuild/issues/3137))
+
+    CSS `@import` statements have been extended to allow additional trailing tokens after the import path. These tokens sort of make the imported file behave as if it were wrapped in a `@layer`, `@supports`, and/or `@media` rule. Here are some examples:
+
+    ```css
+    @import url(foo.css);
+    @import url(foo.css) layer;
+    @import url(foo.css) layer(bar);
+    @import url(foo.css) layer(bar) supports(display: flex);
+    @import url(foo.css) layer(bar) supports(display: flex) print;
+    @import url(foo.css) layer(bar) print;
+    @import url(foo.css) supports(display: flex);
+    @import url(foo.css) supports(display: flex) print;
+    @import url(foo.css) print;
+    ```
+
+    You can read more about this advanced syntax [here](https://developer.mozilla.org/en-US/docs/Web/CSS/@import). With this release, esbuild will now bundle `@import` rules with these trailing tokens and will wrap the imported files in the corresponding rules. Note that this now means a given imported file can potentially appear in multiple places in the bundle. However, esbuild will still only load it once (e.g. on-load plugins will only run once per file, not once per import).
+
 ## 0.18.19
 
 * Implement `composes` from CSS modules ([#20](https://github.com/evanw/esbuild/issues/20))

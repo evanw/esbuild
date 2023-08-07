@@ -1154,12 +1154,10 @@ abortRuleParser:
 					break // Avoid parsing an invalid "@import" rule
 				}
 				conditions.Media = p.convertTokens(p.tokens[importConditionsStart:p.index])
-				kind := ast.ImportAt
 
 				// Insert or remove whitespace before the first token
 				var importConditions *css_ast.ImportConditions
 				if len(conditions.Media) > 0 {
-					kind = ast.ImportAtConditional
 					importConditions = &conditions
 
 					// Handle "layer()"
@@ -1192,7 +1190,7 @@ abortRuleParser:
 				p.expect(css_lexer.TSemicolon)
 				importRecordIndex := uint32(len(p.importRecords))
 				p.importRecords = append(p.importRecords, ast.ImportRecord{
-					Kind:  kind,
+					Kind:  ast.ImportAt,
 					Path:  logger.Path{Text: path},
 					Range: r,
 				})

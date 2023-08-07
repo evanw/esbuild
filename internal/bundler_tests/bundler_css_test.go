@@ -1347,16 +1347,85 @@ func TestCSSAtImportConditionsBundleExternalConditionWithURL(t *testing.T) {
 func TestCSSAtImportConditionsBundle(t *testing.T) {
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
-			"/entry.css": `@import "./print.css" print;`,
-			"/print.css": `body { color: red }`,
+			"/entry.css": `
+				@import url(http://example.com/foo.css);
+				@import url(http://example.com/foo.css) layer;
+				@import url(http://example.com/foo.css) layer(layer-name);
+				@import url(http://example.com/foo.css) layer(layer-name) supports(supports-condition);
+				@import url(http://example.com/foo.css) layer(layer-name) supports(supports-condition) list-of-media-queries;
+				@import url(http://example.com/foo.css) layer(layer-name) list-of-media-queries;
+				@import url(http://example.com/foo.css) supports(supports-condition);
+				@import url(http://example.com/foo.css) supports(supports-condition) list-of-media-queries;
+				@import url(http://example.com/foo.css) list-of-media-queries;
+
+				@import url(foo.css);
+				@import url(foo.css) layer;
+				@import url(foo.css) layer(layer-name);
+				@import url(foo.css) layer(layer-name) supports(supports-condition);
+				@import url(foo.css) layer(layer-name) supports(supports-condition) list-of-media-queries;
+				@import url(foo.css) layer(layer-name) list-of-media-queries;
+				@import url(foo.css) supports(supports-condition);
+				@import url(foo.css) supports(supports-condition) list-of-media-queries;
+				@import url(foo.css) list-of-media-queries;
+
+				@import url(empty-1.css) layer(empty-1);
+				@import url(empty-2.css) supports(empty: 2);
+				@import url(empty-3.css) (empty: 3);
+
+				@import "nested-layer.css" layer(outer);
+				@import "nested-layer.css" supports(outer: true);
+				@import "nested-layer.css" (outer: true);
+				@import "nested-supports.css" layer(outer);
+				@import "nested-supports.css" supports(outer: true);
+				@import "nested-supports.css" (outer: true);
+				@import "nested-media.css" layer(outer);
+				@import "nested-media.css" supports(outer: true);
+				@import "nested-media.css" (outer: true);
+			`,
+
+			"/foo.css": `body { color: red }`,
+
+			"/empty-1.css": ``,
+			"/empty-2.css": ``,
+			"/empty-3.css": ``,
+
+			"/nested-layer.css":    `@import "foo.css" layer(inner);`,
+			"/nested-supports.css": `@import "foo.css" supports(inner: true);`,
+			"/nested-media.css":    `@import "foo.css" (inner: true);`,
 		},
 		entryPaths: []string{"/entry.css"},
 		options: config.Options{
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.css",
 		},
-		expectedScanLog: `entry.css: ERROR: Bundling with conditional "@import" rules is not currently supported
-`,
+	})
+}
+
+func TestCSSAtImportConditionsWithImportRecordsBundle(t *testing.T) {
+	// This tests that esbuild correctly clones the import records for all import
+	// condition tokens. If they aren't cloned correctly, then something will
+	// likely crash with an out-of-bounds error.
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.css": `
+				@import url(foo.css) supports(background: url(a.png));
+				@import url(foo.css) supports(background: url(b.png)) list-of-media-queries;
+				@import url(foo.css) layer(layer-name) supports(background: url(a.png));
+				@import url(foo.css) layer(layer-name) supports(background: url(b.png)) list-of-media-queries;
+			`,
+			"/foo.css": `body { color: red }`,
+			"/a.png":   `A`,
+			"/b.png":   `B`,
+		},
+		entryPaths: []string{"/entry.css"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.css",
+			ExtensionToLoader: map[string]config.Loader{
+				".css": config.LoaderCSS,
+				".png": config.LoaderBase64,
+			},
+		},
 	})
 }
 

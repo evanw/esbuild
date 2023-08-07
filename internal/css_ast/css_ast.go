@@ -362,7 +362,15 @@ func CloneTokensWithImportRecords(
 	tokensIn []Token, importRecordsIn []ast.ImportRecord,
 	tokensOut []Token, importRecordsOut []ast.ImportRecord,
 ) ([]Token, []ast.ImportRecord) {
+	// Preallocate the output array if we can
+	if tokensOut == nil {
+		tokensOut = make([]Token, 0, len(tokensIn))
+	}
+
 	for _, t := range tokensIn {
+		// Clear the source mapping if this token is being used in another file
+		t.Loc.Start = 0
+
 		// If this is a URL token, also clone the import record
 		if t.Kind == css_lexer.TURL {
 			importRecordIndex := uint32(len(importRecordsOut))
@@ -433,17 +441,36 @@ func (r *RAtCharset) Hash() (uint32, bool) {
 }
 
 type ImportConditions struct {
+	// The syntax for "@import" has been extended with optional conditions that
+	// behave as if the imported file was wrapped in a "@layer", "@supports",
+	// and/or "@media" rule. The possible syntax combinations are as follows:
+	//
+	//   @import url(...);
+	//   @import url(...) layer;
+	//   @import url(...) layer(layer-name);
+	//   @import url(...) layer(layer-name) supports(supports-condition);
+	//   @import url(...) layer(layer-name) supports(supports-condition) list-of-media-queries;
+	//   @import url(...) layer(layer-name) list-of-media-queries;
+	//   @import url(...) supports(supports-condition);
+	//   @import url(...) supports(supports-condition) list-of-media-queries;
+	//   @import url(...) list-of-media-queries;
+	//
+	// From: https://developer.mozilla.org/en-US/docs/Web/CSS/@import#syntax
+	Media []Token
+
+	// These two fields will only ever have zero or one tokens. However, they are
+	// implemented as arrays for convenience because most of esbuild's helper
+	// functions that operate on tokens take arrays instead of individual tokens.
 	Layers   []Token
 	Supports []Token
-	Media    []Token
 }
 
-func (conditions *ImportConditions) CloneWithImportRecords(importRecordsIn []ast.ImportRecord, importRecordsOut []ast.ImportRecord) (*ImportConditions, []ast.ImportRecord) {
+func (c *ImportConditions) CloneWithImportRecords(importRecordsIn []ast.ImportRecord, importRecordsOut []ast.ImportRecord) (ImportConditions, []ast.ImportRecord) {
 	result := ImportConditions{}
-	result.Layers, importRecordsOut = CloneTokensWithImportRecords(conditions.Layers, importRecordsIn, nil, importRecordsOut)
-	result.Supports, importRecordsOut = CloneTokensWithImportRecords(conditions.Supports, importRecordsIn, nil, importRecordsOut)
-	result.Media, importRecordsOut = CloneTokensWithImportRecords(conditions.Media, importRecordsIn, nil, importRecordsOut)
-	return &result, importRecordsOut
+	result.Layers, importRecordsOut = CloneTokensWithImportRecords(c.Layers, importRecordsIn, nil, importRecordsOut)
+	result.Supports, importRecordsOut = CloneTokensWithImportRecords(c.Supports, importRecordsIn, nil, importRecordsOut)
+	result.Media, importRecordsOut = CloneTokensWithImportRecords(c.Media, importRecordsIn, nil, importRecordsOut)
+	return result, importRecordsOut
 }
 
 type RAtImport struct {

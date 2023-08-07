@@ -32,9 +32,6 @@ const (
 	// A CSS "@import" rule
 	ImportAt
 
-	// A CSS "@import" rule with import conditions
-	ImportAtConditional
-
 	// A CSS "composes" declaration
 	ImportComposesFrom
 
@@ -52,7 +49,7 @@ func (kind ImportKind) StringForMetafile() string {
 		return "dynamic-import"
 	case ImportRequireResolve:
 		return "require-resolve"
-	case ImportAt, ImportAtConditional:
+	case ImportAt:
 		return "import-rule"
 	case ImportComposesFrom:
 		return "composes-from"
@@ -67,7 +64,7 @@ func (kind ImportKind) StringForMetafile() string {
 
 func (kind ImportKind) IsFromCSS() bool {
 	switch kind {
-	case ImportAt, ImportAtConditional, ImportComposesFrom, ImportURL:
+	case ImportAt, ImportComposesFrom, ImportURL:
 		return true
 	}
 	return false
@@ -75,7 +72,7 @@ func (kind ImportKind) IsFromCSS() bool {
 
 func (kind ImportKind) MustResolveToCSS() bool {
 	switch kind {
-	case ImportAt, ImportAtConditional, ImportComposesFrom:
+	case ImportAt, ImportComposesFrom:
 		return true
 	}
 	return false

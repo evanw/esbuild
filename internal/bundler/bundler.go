@@ -2019,7 +2019,7 @@ func (s *scanner) processScannedFiles(entryPointMeta []graph.EntryPoint) []scann
 								otherFile.inputFile.Source.PrettyPath, config.LoaderToString[otherFile.inputFile.Loader])}})
 					}
 
-				case ast.ImportAt, ast.ImportAtConditional:
+				case ast.ImportAt:
 					// Using a JavaScript file with CSS "@import" is not allowed
 					if _, ok := otherFile.inputFile.Repr.(*graph.JSRepr); ok && otherFile.inputFile.Loader != config.LoaderEmpty {
 						s.log.AddErrorWithNotes(&tracker, record.Range,
@@ -2027,9 +2027,6 @@ func (s *scanner) processScannedFiles(entryPointMeta []graph.EntryPoint) []scann
 							[]logger.MsgData{{Text: fmt.Sprintf(
 								"An \"@import\" rule can only be used to import another CSS file and %q is not a CSS file (it was loaded with the %q loader).",
 								otherFile.inputFile.Source.PrettyPath, config.LoaderToString[otherFile.inputFile.Loader])}})
-					} else if record.Kind == ast.ImportAtConditional {
-						s.log.AddError(&tracker, record.Range,
-							"Bundling with conditional \"@import\" rules is not currently supported")
 					}
 
 				case ast.ImportURL:

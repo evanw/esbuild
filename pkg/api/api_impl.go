@@ -1887,7 +1887,7 @@ func importKindToResolveKind(kind ast.ImportKind) ResolveKind {
 		return ResolveJSDynamicImport
 	case ast.ImportRequireResolve:
 		return ResolveJSRequireResolve
-	case ast.ImportAt, ast.ImportAtConditional:
+	case ast.ImportAt:
 		return ResolveCSSImportRule
 	case ast.ImportComposesFrom:
 		return ResolveCSSComposesFrom

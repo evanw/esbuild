@@ -87,6 +87,200 @@ TestCSSAtImport
 }
 
 ================================================================================
+TestCSSAtImportConditionsBundle
+---------- /out.css ----------
+@import "http://example.com/foo.css";
+@import "http://example.com/foo.css" layer;
+@import "http://example.com/foo.css" layer(layer-name);
+@import "http://example.com/foo.css" layer(layer-name) supports(supports-condition);
+@import "http://example.com/foo.css" layer(layer-name) supports(supports-condition) list-of-media-queries;
+@import "http://example.com/foo.css" layer(layer-name) list-of-media-queries;
+@import "http://example.com/foo.css" supports(supports-condition);
+@import "http://example.com/foo.css" list-of-media-queries;
+
+/* foo.css */
+body {
+  color: red;
+}
+
+/* foo.css */
+@layer {
+  body {
+    color: red;
+  }
+}
+
+/* foo.css */
+@layer layer-name {
+  body {
+    color: red;
+  }
+}
+
+/* foo.css */
+@supports (supports-condition) {
+  @layer layer-name {
+    body {
+      color: red;
+    }
+  }
+}
+
+/* foo.css */
+@media list-of-media-queries {
+  @supports (supports-condition) {
+    @layer layer-name {
+      body {
+        color: red;
+      }
+    }
+  }
+}
+
+/* foo.css */
+@media list-of-media-queries {
+  @layer layer-name {
+    body {
+      color: red;
+    }
+  }
+}
+
+/* foo.css */
+@supports (supports-condition) {
+  body {
+    color: red;
+  }
+}
+
+/* foo.css */
+@media list-of-media-queries {
+  @supports (supports-condition) {
+    body {
+      color: red;
+    }
+  }
+}
+
+/* foo.css */
+@media list-of-media-queries {
+  body {
+    color: red;
+  }
+}
+
+/* empty-1.css */
+@layer empty-1;
+
+/* empty-2.css */
+
+/* empty-3.css */
+
+/* foo.css */
+@layer outer {
+  @layer inner {
+    body {
+      color: red;
+    }
+  }
+}
+
+/* nested-layer.css */
+@layer outer;
+
+/* foo.css */
+@supports (outer: true) {
+  @layer inner {
+    body {
+      color: red;
+    }
+  }
+}
+
+/* nested-layer.css */
+
+/* foo.css */
+@media (outer: true) {
+  @layer inner {
+    body {
+      color: red;
+    }
+  }
+}
+
+/* nested-layer.css */
+
+/* foo.css */
+@layer outer {
+  @supports (inner: true) {
+    body {
+      color: red;
+    }
+  }
+}
+
+/* nested-supports.css */
+@layer outer;
+
+/* foo.css */
+@supports (outer: true) {
+  @supports (inner: true) {
+    body {
+      color: red;
+    }
+  }
+}
+
+/* nested-supports.css */
+
+/* foo.css */
+@media (outer: true) {
+  @supports (inner: true) {
+    body {
+      color: red;
+    }
+  }
+}
+
+/* nested-supports.css */
+
+/* foo.css */
+@layer outer {
+  @media (inner: true) {
+    body {
+      color: red;
+    }
+  }
+}
+
+/* nested-media.css */
+@layer outer;
+
+/* foo.css */
+@supports (outer: true) {
+  @media (inner: true) {
+    body {
+      color: red;
+    }
+  }
+}
+
+/* nested-media.css */
+
+/* foo.css */
+@media (outer: true) {
+  @media (inner: true) {
+    body {
+      color: red;
+    }
+  }
+}
+
+/* nested-media.css */
+
+/* entry.css */
+
+================================================================================
 TestCSSAtImportConditionsBundleExternal
 ---------- /out.css ----------
 @import "https://example.com/print.css" print;
@@ -104,6 +298,47 @@ TestCSSAtImportConditionsBundleExternalConditionWithURL
 TestCSSAtImportConditionsNoBundle
 ---------- /out.css ----------
 @import "./print.css" print;
+
+================================================================================
+TestCSSAtImportConditionsWithImportRecordsBundle
+---------- /out.css ----------
+/* foo.css */
+@supports (background: url(a.png)) {
+  body {
+    color: red;
+  }
+}
+
+/* foo.css */
+@media list-of-media-queries {
+  @supports (background: url(b.png)) {
+    body {
+      color: red;
+    }
+  }
+}
+
+/* foo.css */
+@supports (background: url(a.png)) {
+  @layer layer-name {
+    body {
+      color: red;
+    }
+  }
+}
+
+/* foo.css */
+@media list-of-media-queries {
+  @supports (background: url(b.png)) {
+    @layer layer-name {
+      body {
+        color: red;
+      }
+    }
+  }
+}
+
+/* entry.css */
 
 ================================================================================
 TestCSSAtImportExtensionOrderCollision

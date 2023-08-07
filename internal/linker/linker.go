@@ -189,12 +189,12 @@ type chunkReprJS struct {
 
 type chunkReprCSS struct {
 	externalImportsInOrder []externalImportCSS
-	filesInChunkInOrder    []uint32
+	filesInChunkInOrder    []cssImportOrder
 }
 
 type externalImportCSS struct {
 	path                   logger.Path
-	conditions             *css_ast.ImportConditions
+	conditions             css_ast.ImportConditions
 	conditionImportRecords []ast.ImportRecord
 }
 
@@ -668,8 +668,8 @@ func (c *linkerContext) generateChunksInParallel(additionalFiles []graph.OutputF
 				commentPrefix = "//"
 
 			case *chunkReprCSS:
-				for _, sourceIndex := range chunkRepr.filesInChunkInOrder {
-					outputFiles = append(outputFiles, c.graph.Files[sourceIndex].InputFile.AdditionalFiles...)
+				for _, entry := range chunkRepr.filesInChunkInOrder {
+					outputFiles = append(outputFiles, c.graph.Files[entry.sourceIndex].InputFile.AdditionalFiles...)
 				}
 				commentPrefix = "/*"
 				commentSuffix = " */"
@@ -3321,6 +3321,12 @@ func (c *linkerContext) findImportedCSSFilesInJSOrder(entryPoint uint32) (order 
 	return
 }
 
+type cssImportOrder struct {
+	sourceIndex            uint32
+	conditions             []css_ast.ImportConditions
+	conditionImportRecords []ast.ImportRecord
+}
+
 // CSS files are traversed in depth-first reversed reverse preorder. This is
 // because unlike JavaScript import statements, CSS "@import" rules are
 // evaluated every time instead of just the first time. However, evaluating a
@@ -3335,24 +3341,32 @@ func (c *linkerContext) findImportedCSSFilesInJSOrder(entryPoint uint32) (order 
 //
 // If A imports B and then C, B imports D, and C imports D, then the CSS
 // traversal order is B D C A.
-func (c *linkerContext) findImportedFilesInCSSOrder(entryPoints []uint32) (externalOrder []externalImportCSS, internalOrder []uint32) {
+func (c *linkerContext) findImportedFilesInCSSOrder(entryPoints []uint32) (externalOrder []externalImportCSS, internalOrder []cssImportOrder) {
 	type externalImportsCSS struct {
 		conditions []css_ast.ImportConditions
 	}
 
-	visited := make(map[uint32]bool)
 	externals := make(map[logger.Path]externalImportsCSS)
-	var visit func(uint32)
+	var visit func(uint32, map[uint32]bool, []css_ast.ImportConditions, []ast.ImportRecord)
 
 	// Include this file and all files it imports
-	visit = func(sourceIndex uint32) {
+	visit = func(
+		sourceIndex uint32,
+		visited map[uint32]bool,
+		wrappingConditions []css_ast.ImportConditions,
+		wrappingImportRecords []ast.ImportRecord,
+	) {
 		if !visited[sourceIndex] {
 			visited[sourceIndex] = true
 			repr := c.graph.Files[sourceIndex].InputFile.Repr.(*graph.CSSRepr)
 			topLevelRules := repr.AST.Rules
 
 			// Iterate in reverse preorder (will be reversed again later)
-			internalOrder = append(internalOrder, sourceIndex)
+			internalOrder = append(internalOrder, cssImportOrder{
+				sourceIndex:            sourceIndex,
+				conditions:             wrappingConditions,
+				conditionImportRecords: wrappingImportRecords,
+			})
 
 			// Iterate in the inverse order of "composes" directives. Note that the
 			// order doesn't matter for these because the output order is explicitly
@@ -3360,7 +3374,7 @@ func (c *linkerContext) findImportedFilesInCSSOrder(entryPoints []uint32) (exter
 			records := repr.AST.ImportRecords
 			for i := len(records) - 1; i >= 0; i-- {
 				if record := &records[i]; record.Kind == ast.ImportComposesFrom && record.SourceIndex.IsValid() {
-					visit(record.SourceIndex.GetIndex())
+					visit(record.SourceIndex.GetIndex(), visited, wrappingConditions, wrappingImportRecords)
 				}
 			}
 
@@ -3368,33 +3382,78 @@ func (c *linkerContext) findImportedFilesInCSSOrder(entryPoints []uint32) (exter
 		outer:
 			for i := len(topLevelRules) - 1; i >= 0; i-- {
 				if atImport, ok := topLevelRules[i].Data.(*css_ast.RAtImport); ok {
-					if record := &repr.AST.ImportRecords[atImport.ImportRecordIndex]; record.SourceIndex.IsValid() {
-						// Follow internal dependencies
-						visit(record.SourceIndex.GetIndex())
-					} else if (record.Flags & ast.WasLoadedWithEmptyLoader) == 0 {
-						// Record external dependencies
-						external := externals[record.Path]
+					record := &repr.AST.ImportRecords[atImport.ImportRecordIndex]
 
-						var before css_ast.ImportConditions
-						if conditions := atImport.ImportConditions; conditions != nil {
-							before = *conditions
+					// Follow internal dependencies
+					if record.SourceIndex.IsValid() {
+						nestedVisited := visited
+						nestedConditions := wrappingConditions
+						nestedImportRecords := wrappingImportRecords
+
+						// If this import has conditions, fork our state so that the entire
+						// imported stylesheet subtree is wrapped in all of the conditions
+						if atImport.ImportConditions != nil {
+							// Fork our state
+							nestedVisited = make(map[uint32]bool)
+							for sourceIndex := range visited {
+								nestedVisited[sourceIndex] = true
+							}
+							nestedConditions = append([]css_ast.ImportConditions{}, nestedConditions...)
+							nestedImportRecords = append([]ast.ImportRecord{}, nestedImportRecords...)
+
+							// Clone these import conditions and append them to the state
+							var conditions css_ast.ImportConditions
+							conditions, nestedImportRecords = atImport.ImportConditions.CloneWithImportRecords(repr.AST.ImportRecords, nestedImportRecords)
+							nestedConditions = append(nestedConditions, conditions)
 						}
 
-						// Skip this rule if a later rule masks it
-						for _, after := range external.conditions {
-							if css_ast.TokensEqualIgnoringWhitespace(before.Layers, after.Layers) {
-								if len(after.Supports) == 0 && len(after.Media) == 0 {
-									// If the later one doesn't have any conditions, only keep
-									// the later one. The later one will mask the effects of the
-									// earlier one regardless of whether the earlier one has any
-									// conditions or not. Only do this if the layers are equal.
-									continue outer
+						visit(record.SourceIndex.GetIndex(), nestedVisited, nestedConditions, nestedImportRecords)
+						continue
+					}
+
+					// Record external dependencies
+					if (record.Flags & ast.WasLoadedWithEmptyLoader) == 0 {
+						external := externals[record.Path]
+
+						// This is stored as a pointer to save space. But it's easier to
+						// compare against if we don't have to test for nil. So convert
+						// it from a pointer to a value.
+						var before css_ast.ImportConditions
+						if atImport.ImportConditions != nil {
+							before = *atImport.ImportConditions
+						}
+
+						// Skip this rule if a later rule masks it. Note that we avoid
+						// skipping rules with layers because this code tries to keep
+						// the last instance of each import (since usually that's the
+						// only one that matters in CSS) but layers take effect for the
+						// first instance instead of the last.
+						if len(before.Layers) == 0 {
+							for _, after := range external.conditions {
+								if len(after.Layers) > 0 {
+									continue
 								}
+
+								sameSupports := css_ast.TokensEqualIgnoringWhitespace(before.Supports, after.Supports)
+								sameMedia := css_ast.TokensEqualIgnoringWhitespace(before.Media, after.Media)
 
 								// If the import conditions are exactly equal, then only keep
 								// the later one. The earlier one will have no effect.
-								if css_ast.TokensEqualIgnoringWhitespace(before.Supports, after.Supports) &&
-									css_ast.TokensEqualIgnoringWhitespace(before.Media, after.Media) {
+								if sameSupports && sameMedia {
+									continue outer
+								}
+
+								// If the media conditions are exactly equal and the later one
+								// doesn't have any supports conditions, then the later one will
+								// apply in all cases where the earlier one applies.
+								if sameMedia && len(after.Supports) == 0 {
+									continue outer
+								}
+
+								// If the supports conditions are exactly equal and the later one
+								// doesn't have any media conditions, then the later one will
+								// apply in all cases where the earlier one applies.
+								if sameSupports && len(after.Media) == 0 {
 									continue outer
 								}
 							}
@@ -3403,16 +3462,16 @@ func (c *linkerContext) findImportedFilesInCSSOrder(entryPoints []uint32) (exter
 						external.conditions = append(external.conditions, before)
 						externals[record.Path] = external
 
-						var conditions *css_ast.ImportConditions
-						var conditionImportRecords []ast.ImportRecord
+						var conditions css_ast.ImportConditions
+						var importRecords []ast.ImportRecord
 						if atImport.ImportConditions != nil {
-							conditions, conditionImportRecords = atImport.ImportConditions.CloneWithImportRecords(repr.AST.ImportRecords, conditionImportRecords)
+							conditions, importRecords = atImport.ImportConditions.CloneWithImportRecords(repr.AST.ImportRecords, importRecords)
 						}
 
 						externalOrder = append(externalOrder, externalImportCSS{
 							path:                   record.Path,
 							conditions:             conditions,
-							conditionImportRecords: conditionImportRecords,
+							conditionImportRecords: importRecords,
 						})
 					}
 				}
@@ -3421,8 +3480,9 @@ func (c *linkerContext) findImportedFilesInCSSOrder(entryPoints []uint32) (exter
 	}
 
 	// Include all files reachable from any entry point
+	visited := make(map[uint32]bool)
 	for i := len(entryPoints) - 1; i >= 0; i-- {
-		visit(entryPoints[i])
+		visit(entryPoints[i], visited, nil, nil)
 	}
 
 	// Reverse the order afterward when traversing in CSS order
@@ -3476,8 +3536,8 @@ func (c *linkerContext) computeChunks() {
 			if cssSourceIndices := c.findImportedCSSFilesInJSOrder(entryPoint.SourceIndex); len(cssSourceIndices) > 0 {
 				externalOrder, internalOrder := c.findImportedFilesInCSSOrder(cssSourceIndices)
 				cssFilesWithPartsInChunk := make(map[uint32]bool)
-				for _, sourceIndex := range internalOrder {
-					cssFilesWithPartsInChunk[uint32(sourceIndex)] = true
+				for _, entry := range internalOrder {
+					cssFilesWithPartsInChunk[uint32(entry.sourceIndex)] = true
 				}
 				cssChunks[key] = chunkInfo{
 					entryBits:             entryBits,
@@ -3495,8 +3555,8 @@ func (c *linkerContext) computeChunks() {
 
 		case *graph.CSSRepr:
 			externalOrder, internalOrder := c.findImportedFilesInCSSOrder([]uint32{entryPoint.SourceIndex})
-			for _, sourceIndex := range internalOrder {
-				chunk.filesWithPartsInChunk[uint32(sourceIndex)] = true
+			for _, entry := range internalOrder {
+				chunk.filesWithPartsInChunk[uint32(entry.sourceIndex)] = true
 			}
 			chunk.chunkRepr = &chunkReprCSS{
 				externalImportsInOrder: externalOrder,
@@ -5621,8 +5681,8 @@ func (c *linkerContext) generateChunkCSS(chunkIndex int, chunkWaitGroup *sync.Wa
 		remover = css_parser.MakeDuplicateRuleMangler(c.graph.Symbols)
 	}
 	for i := len(chunkRepr.filesInChunkInOrder) - 1; i >= 0; i-- {
-		sourceIndex := chunkRepr.filesInChunkInOrder[i]
-		file := &c.graph.Files[sourceIndex]
+		entry := chunkRepr.filesInChunkInOrder[i]
+		file := &c.graph.Files[entry.sourceIndex]
 		ast := file.InputFile.Repr.(*graph.CSSRepr).AST
 
 		// Filter out "@charset" and "@import" rules
@@ -5638,9 +5698,60 @@ func (c *linkerContext) generateChunkCSS(chunkIndex int, chunkWaitGroup *sync.Wa
 			rules = append(rules, rule)
 		}
 
+		for i := len(entry.conditions) - 1; i >= 0; i-- {
+			conditions := entry.conditions[i]
+
+			// Generate "@layer" wrappers. Note that empty "@layer" rules still have
+			// a side effect (they set the layer order) so they cannot be removed.
+			for _, t := range conditions.Layers {
+				var prelude []css_ast.Token
+				if t.Children != nil {
+					prelude = *t.Children
+				}
+				if len(rules) == 0 {
+					// Generate "@layer foo;" instead of "@layer foo {}"
+					rules = nil
+				}
+				prelude, ast.ImportRecords = css_ast.CloneTokensWithImportRecords(prelude, entry.conditionImportRecords, nil, ast.ImportRecords)
+				rules = []css_ast.Rule{{Data: &css_ast.RKnownAt{
+					AtToken: "layer",
+					Prelude: prelude,
+					Rules:   rules,
+				}}}
+			}
+
+			// Generate "@supports" wrappers. This is not done if the rule block is
+			// empty because empty "@supports" rules have no effect.
+			if len(rules) > 0 {
+				for _, t := range conditions.Supports {
+					t.Kind = css_lexer.TOpenParen
+					t.Text = "("
+					var prelude []css_ast.Token
+					prelude, ast.ImportRecords = css_ast.CloneTokensWithImportRecords([]css_ast.Token{t}, entry.conditionImportRecords, nil, ast.ImportRecords)
+					rules = []css_ast.Rule{{Data: &css_ast.RKnownAt{
+						AtToken: "supports",
+						Prelude: prelude,
+						Rules:   rules,
+					}}}
+				}
+			}
+
+			// Generate "@media" wrappers. This is not done if the rule block is
+			// empty because empty "@media" rules have no effect.
+			if len(rules) > 0 && len(conditions.Media) > 0 {
+				var prelude []css_ast.Token
+				prelude, ast.ImportRecords = css_ast.CloneTokensWithImportRecords(conditions.Media, entry.conditionImportRecords, nil, ast.ImportRecords)
+				rules = []css_ast.Rule{{Data: &css_ast.RKnownAt{
+					AtToken: "media",
+					Prelude: prelude,
+					Rules:   rules,
+				}}}
+			}
+		}
+
 		// Remove top-level duplicate rules across files
 		if c.options.MinifySyntax {
-			rules = remover.RemoveDuplicateRulesInPlace(sourceIndex, rules, ast.ImportRecords)
+			rules = remover.RemoveDuplicateRulesInPlace(entry.sourceIndex, rules, ast.ImportRecords)
 		}
 
 		ast.Rules = rules
@@ -5651,7 +5762,7 @@ func (c *linkerContext) generateChunkCSS(chunkIndex int, chunkWaitGroup *sync.Wa
 	// Generate CSS for each file in parallel
 	timer.Begin("Print CSS files")
 	waitGroup := sync.WaitGroup{}
-	for i, sourceIndex := range chunkRepr.filesInChunkInOrder {
+	for i, entry := range chunkRepr.filesInChunkInOrder {
 		// Create a goroutine for this file
 		waitGroup.Add(1)
 		go func(i int, sourceIndex uint32, compileResult *compileResultCSS) {
@@ -5686,7 +5797,7 @@ func (c *linkerContext) generateChunkCSS(chunkIndex int, chunkWaitGroup *sync.Wa
 			compileResult.PrintResult = css_printer.Print(asts[i], c.graph.Symbols, cssOptions)
 			compileResult.sourceIndex = sourceIndex
 			waitGroup.Done()
-		}(i, sourceIndex, &compileResults[i])
+		}(i, entry.sourceIndex, &compileResults[i])
 	}
 
 	waitGroup.Wait()
@@ -5720,8 +5831,10 @@ func (c *linkerContext) generateChunkCSS(chunkIndex int, chunkWaitGroup *sync.Wa
 		// rules must come first or the browser will just ignore them.
 		for _, external := range chunkRepr.externalImportsInOrder {
 			var conditions *css_ast.ImportConditions
-			if external.conditions != nil {
-				conditions, tree.ImportRecords = external.conditions.CloneWithImportRecords(external.conditionImportRecords, tree.ImportRecords)
+			if len(external.conditions.Layers) > 0 || len(external.conditions.Supports) > 0 || len(external.conditions.Media) > 0 {
+				var clone css_ast.ImportConditions
+				clone, tree.ImportRecords = external.conditions.CloneWithImportRecords(external.conditionImportRecords, tree.ImportRecords)
+				conditions = &clone
 			}
 			tree.Rules = append(tree.Rules, css_ast.Rule{Data: &css_ast.RAtImport{
 				ImportRecordIndex: uint32(len(tree.ImportRecords)),
