@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.18.19
 
 * Implement `composes` from CSS modules ([#20](https://github.com/evanw/esbuild/issues/20))
 
