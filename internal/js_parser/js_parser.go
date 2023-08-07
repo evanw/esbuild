@@ -11703,7 +11703,7 @@ func (p *parser) instantiateDefineExpr(loc logger.Loc, expr config.DefineExpr, o
 		// Substitute user-specified defines
 		if defines, ok := p.options.defines.DotDefines[parts[len(parts)-1]]; ok {
 			for _, define := range defines {
-				if define.Data.DefineExpr != nil && helpers.StringSlicesAreEqual(define.Parts, parts) {
+				if define.Data.DefineExpr != nil && helpers.StringArraysEqual(define.Parts, parts) {
 					return p.instantiateDefineExpr(loc, *define.Data.DefineExpr, opts)
 				}
 			}
@@ -11713,7 +11713,7 @@ func (p *parser) instantiateDefineExpr(loc logger.Loc, expr config.DefineExpr, o
 	// Check injected dot names
 	if names, ok := p.injectedDotNames[parts[len(parts)-1]]; ok {
 		for _, name := range names {
-			if helpers.StringSlicesAreEqual(name.parts, parts) {
+			if helpers.StringArraysEqual(name.parts, parts) {
 				return p.instantiateInjectDotName(loc, name, opts.assignTarget)
 			}
 		}
