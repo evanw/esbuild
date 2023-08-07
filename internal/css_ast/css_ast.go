@@ -57,6 +57,11 @@ type Composes struct {
 	//   .foo { composes: bar from url(bar.css) }
 	//
 	ImportedNames []ImportedComposesName
+
+	// This tracks what CSS properties each class uses so that we can warn when
+	// "composes" is used incorrectly to compose two classes from separate files
+	// that declare the same CSS properties.
+	Properties map[string]logger.Loc
 }
 
 type ImportedComposesName struct {

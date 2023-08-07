@@ -855,6 +855,101 @@ func TestImportCSSFromJSComposesFromCircular(t *testing.T) {
 	})
 }
 
+func TestImportCSSFromJSComposesFromUndefined(t *testing.T) {
+	note := "NOTE: The specification of \"composes\" does not define an order when class declarations from separate files are composed together. " +
+		"The value of the \"zoom\" property for \"foo\" may change unpredictably as the code is edited. " +
+		"Make sure that all definitions of \"zoom\" for \"foo\" are in a single file."
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import styles from "./styles.css"
+				console.log(styles)
+			`,
+			"/styles.css": `
+				@import "well-defined.css";
+				@import "undefined/case1.css";
+				@import "undefined/case2.css";
+				@import "undefined/case3.css";
+				@import "undefined/case4.css";
+				@import "undefined/case5.css";
+			`,
+			"/well-defined.css": `
+				.z1 { composes: z2; zoom: 1; }
+				.z2 { zoom: 2; }
+
+				.z4 { zoom: 4; }
+				.z3 { composes: z4; zoom: 3; }
+
+				.z5 { composes: foo bar from "file-1.css"; }
+			`,
+			"/undefined/case1.css": `
+				.foo {
+					composes: foo from "../file-1.css";
+					zoom: 2;
+				}
+			`,
+			"/undefined/case2.css": `
+				.foo {
+					composes: foo from "../file-1.css";
+					composes: foo from "../file-2.css";
+				}
+			`,
+			"/undefined/case3.css": `
+				.foo { composes: nested1 nested2; }
+				.nested1 { zoom: 3; }
+				.nested2 { composes: foo from "../file-2.css"; }
+			`,
+			"/undefined/case4.css": `
+				.foo { composes: nested1 nested2; }
+				.nested1 { composes: foo from "../file-1.css"; }
+				.nested2 { zoom: 3; }
+			`,
+			"/undefined/case5.css": `
+				.foo { composes: nested1 nested2; }
+				.nested1 { composes: foo from "../file-1.css"; }
+				.nested2 { composes: foo from "../file-2.css"; }
+			`,
+			"/file-1.css": `
+				.foo { zoom: 1; }
+				.bar { zoom: 2; }
+			`,
+			"/file-2.css": `
+				.foo { zoom: 2; }
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			ExtensionToLoader: map[string]config.Loader{
+				".js":  config.LoaderJS,
+				".css": config.LoaderLocalCSS,
+			},
+		},
+		expectedCompileLog: `undefined/case1.css: WARNING: The value of "zoom" in the "foo" class is undefined
+file-1.css: NOTE: The first definition of "zoom" is here:
+undefined/case1.css: NOTE: The second definition of "zoom" is here:
+` + note + `
+undefined/case2.css: WARNING: The value of "zoom" in the "foo" class is undefined
+file-1.css: NOTE: The first definition of "zoom" is here:
+file-2.css: NOTE: The second definition of "zoom" is here:
+` + note + `
+undefined/case3.css: WARNING: The value of "zoom" in the "foo" class is undefined
+undefined/case3.css: NOTE: The first definition of "zoom" is here:
+file-2.css: NOTE: The second definition of "zoom" is here:
+` + note + `
+undefined/case4.css: WARNING: The value of "zoom" in the "foo" class is undefined
+file-1.css: NOTE: The first definition of "zoom" is here:
+undefined/case4.css: NOTE: The second definition of "zoom" is here:
+` + note + `
+undefined/case5.css: WARNING: The value of "zoom" in the "foo" class is undefined
+file-1.css: NOTE: The first definition of "zoom" is here:
+file-2.css: NOTE: The second definition of "zoom" is here:
+` + note + `
+`,
+	})
+}
+
 func TestImportCSSFromJSWriteToStdout(t *testing.T) {
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{

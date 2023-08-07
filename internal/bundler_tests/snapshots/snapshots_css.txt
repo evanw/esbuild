@@ -822,6 +822,82 @@ console.log(styles_default);
 }
 
 ================================================================================
+TestImportCSSFromJSComposesFromUndefined
+---------- /out/entry.js ----------
+// styles.css
+var styles_default = {};
+
+// entry.js
+console.log(styles_default);
+
+---------- /out/entry.css ----------
+/* well-defined.css */
+.well_defined_z1 {
+  zoom: 1;
+}
+.well_defined_z2 {
+  zoom: 2;
+}
+.well_defined_z4 {
+  zoom: 4;
+}
+.well_defined_z3 {
+  zoom: 3;
+}
+.well_defined_z5 {
+}
+
+/* undefined/case1.css */
+.case1_foo {
+  zoom: 2;
+}
+
+/* undefined/case2.css */
+.case2_foo {
+}
+
+/* undefined/case3.css */
+.case3_foo {
+}
+.case3_nested1 {
+  zoom: 3;
+}
+.case3_nested2 {
+}
+
+/* undefined/case4.css */
+.case4_foo {
+}
+.case4_nested1 {
+}
+.case4_nested2 {
+  zoom: 3;
+}
+
+/* file-1.css */
+.file_1_foo {
+  zoom: 1;
+}
+.file_1_bar {
+  zoom: 2;
+}
+
+/* file-2.css */
+.file_2_foo {
+  zoom: 2;
+}
+
+/* undefined/case5.css */
+.case5_foo {
+}
+.case5_nested1 {
+}
+.case5_nested2 {
+}
+
+/* styles.css */
+
+================================================================================
 TestImportCSSFromJSLocalAtContainer
 ---------- /out/entry.js ----------
 // styles.css

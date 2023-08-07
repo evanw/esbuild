@@ -94,6 +94,28 @@ func (p *parser) processDeclarations(rules []css_ast.Rule, composesContext *comp
 		inset.keyText = ""
 	}
 
+	// If this is a local class selector, track which CSS properties it declares.
+	// This is used to warn when CSS "composes" is used incorrectly.
+	if composesContext != nil {
+		for _, ref := range composesContext.parentRefs {
+			composes, ok := p.composes[ref]
+			if !ok {
+				composes = &css_ast.Composes{}
+				p.composes[ref] = composes
+			}
+			properties := composes.Properties
+			if properties == nil {
+				properties = make(map[string]logger.Loc)
+				composes.Properties = properties
+			}
+			for _, rule := range rules {
+				if decl, ok := rule.Data.(*css_ast.RDeclaration); ok && decl.Key != css_ast.DComposes {
+					properties[decl.KeyText] = decl.KeyRange.Loc
+				}
+			}
+		}
+	}
+
 	for _, rule := range rules {
 		rewrittenRules = append(rewrittenRules, rule)
 		decl, ok := rule.Data.(*css_ast.RDeclaration)

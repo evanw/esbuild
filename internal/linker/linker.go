@@ -1359,6 +1359,8 @@ func (c *linkerContext) scanImportsAndExports() {
 				}
 			}
 
+			c.validateComposesFromProperties(file, repr)
+
 		case *graph.JSRepr:
 			for importRecordIndex := range repr.AST.ImportRecords {
 				record := &repr.AST.ImportRecords[importRecordIndex]
@@ -2001,6 +2003,86 @@ func (c *linkerContext) scanImportsAndExports() {
 		}
 	}
 	c.timer.End("Step 6")
+}
+
+func (c *linkerContext) validateComposesFromProperties(rootFile *graph.LinkerFile, rootRepr *graph.CSSRepr) {
+	for _, local := range rootRepr.AST.LocalSymbols {
+		type propertyInFile struct {
+			file *graph.LinkerFile
+			loc  logger.Loc
+		}
+
+		visited := make(map[ast.Ref]bool)
+		properties := make(map[string]propertyInFile)
+		var visit func(*graph.LinkerFile, *graph.CSSRepr, ast.Ref)
+
+		visit = func(file *graph.LinkerFile, repr *graph.CSSRepr, ref ast.Ref) {
+			if visited[ref] {
+				return
+			}
+			visited[ref] = true
+
+			composes, ok := repr.AST.Composes[ref]
+			if !ok {
+				return
+			}
+
+			for _, name := range composes.ImportedNames {
+				if record := repr.AST.ImportRecords[name.ImportRecordIndex]; record.SourceIndex.IsValid() {
+					otherFile := &c.graph.Files[record.SourceIndex.GetIndex()]
+					if otherRepr, ok := otherFile.InputFile.Repr.(*graph.CSSRepr); ok {
+						if otherName, ok := otherRepr.AST.LocalScope[name.Alias]; ok {
+							visit(otherFile, otherRepr, otherName.Ref)
+						}
+					}
+				}
+			}
+
+			for _, name := range composes.Names {
+				visit(file, repr, name.Ref)
+			}
+
+			// Warn about cross-file composition with the same CSS properties
+			for keyText, keyLoc := range composes.Properties {
+				property, ok := properties[keyText]
+				if !ok {
+					properties[keyText] = propertyInFile{file, keyLoc}
+					continue
+				}
+				if property.file == file || property.file == nil {
+					continue
+				}
+
+				localOriginalName := c.graph.Symbols.Get(local.Ref).OriginalName
+				c.log.AddMsgID(logger.MsgID_CSS_UndefinedComposesFrom, logger.Msg{
+					Kind: logger.Warning,
+					Data: rootFile.LineColumnTracker().MsgData(
+						css_lexer.RangeOfIdentifier(rootFile.InputFile.Source, local.Loc),
+						fmt.Sprintf("The value of %q in the %q class is undefined", keyText, localOriginalName),
+					),
+					Notes: []logger.MsgData{
+						property.file.LineColumnTracker().MsgData(
+							css_lexer.RangeOfIdentifier(property.file.InputFile.Source, property.loc),
+							fmt.Sprintf("The first definition of %q is here:", keyText),
+						),
+						file.LineColumnTracker().MsgData(
+							css_lexer.RangeOfIdentifier(file.InputFile.Source, keyLoc),
+							fmt.Sprintf("The second definition of %q is here:", keyText),
+						),
+						{Text: fmt.Sprintf("The specification of \"composes\" does not define an order when class declarations from separate files are composed together. "+
+							"The value of the %q property for %q may change unpredictably as the code is edited. "+
+							"Make sure that all definitions of %q for %q are in a single file.", keyText, localOriginalName, keyText, localOriginalName)},
+					},
+				})
+
+				// Don't warn more than once
+				property.file = nil
+				properties[keyText] = property
+			}
+		}
+
+		visit(rootFile, rootRepr, local.Ref)
+	}
 }
 
 func (c *linkerContext) generateCodeForLazyExport(sourceIndex uint32) {

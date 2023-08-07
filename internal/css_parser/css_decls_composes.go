@@ -23,10 +23,6 @@ func (p *parser) handleComposesPragma(context composesContext, tokens []css_ast.
 	var names []nameWithLoc
 	fromGlobal := false
 
-	if p.composes == nil {
-		p.composes = make(map[ast.Ref]*css_ast.Composes)
-	}
-
 	for i, t := range tokens {
 		if t.Kind == css_lexer.TIdent {
 			// Check for a "from" clause at the end
@@ -49,10 +45,6 @@ func (p *parser) handleComposesPragma(context composesContext, tokens []css_ast.
 					}
 					for _, parentRef := range context.parentRefs {
 						composes := p.composes[parentRef]
-						if composes == nil {
-							composes = &css_ast.Composes{}
-							p.composes[parentRef] = composes
-						}
 						for _, name := range names {
 							composes.ImportedNames = append(composes.ImportedNames, css_ast.ImportedComposesName{
 								ImportRecordIndex: importRecordIndex,
@@ -102,10 +94,6 @@ func (p *parser) handleComposesPragma(context composesContext, tokens []css_ast.
 	}
 	for _, parentRef := range context.parentRefs {
 		composes := p.composes[parentRef]
-		if composes == nil {
-			composes = &css_ast.Composes{}
-			p.composes[parentRef] = composes
-		}
 		for _, name := range names {
 			composes.Names = append(composes.Names, p.symbolForName(name.loc, name.text))
 		}

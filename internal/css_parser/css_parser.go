@@ -127,6 +127,7 @@ func Parse(log logger.Log, source logger.Source, options Options) css_ast.AST {
 		allComments:      result.AllComments,
 		legalComments:    result.LegalComments,
 		prevError:        logger.Loc{Start: -1},
+		composes:         make(map[ast.Ref]*css_ast.Composes),
 		localScope:       make(map[string]ast.LocRef),
 		globalScope:      make(map[string]ast.LocRef),
 		makeLocalSymbols: options.symbolMode == symbolModeLocal,

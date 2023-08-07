@@ -48,6 +48,7 @@ const (
 	MsgID_CSS_InvalidAtLayer
 	MsgID_CSS_InvalidCalc
 	MsgID_CSS_JSCommentInCSS
+	MsgID_CSS_UndefinedComposesFrom
 	MsgID_CSS_UnsupportedAtCharset
 	MsgID_CSS_UnsupportedAtNamespace
 	MsgID_CSS_UnsupportedCSSProperty
@@ -161,6 +162,8 @@ func StringToMsgIDs(str string, logLevel LogLevel, overrides map[MsgID]LogLevel)
 		overrides[MsgID_CSS_InvalidCalc] = logLevel
 	case "js-comment-in-css":
 		overrides[MsgID_CSS_JSCommentInCSS] = logLevel
+	case "undefined-composes-from":
+		overrides[MsgID_CSS_UndefinedComposesFrom] = logLevel
 	case "unsupported-@charset":
 		overrides[MsgID_CSS_UnsupportedAtCharset] = logLevel
 	case "unsupported-@namespace":
@@ -283,6 +286,8 @@ func MsgIDToString(id MsgID) string {
 		return "invalid-calc"
 	case MsgID_CSS_JSCommentInCSS:
 		return "js-comment-in-css"
+	case MsgID_CSS_UndefinedComposesFrom:
+		return "undefined-composes-from"
 	case MsgID_CSS_UnsupportedAtCharset:
 		return "unsupported-@charset"
 	case MsgID_CSS_UnsupportedAtNamespace:
