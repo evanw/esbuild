@@ -5704,13 +5704,18 @@ func (c *linkerContext) generateChunkCSS(chunkIndex int, chunkWaitGroup *sync.Wa
 			// Generate "@layer" wrappers. Note that empty "@layer" rules still have
 			// a side effect (they set the layer order) so they cannot be removed.
 			for _, t := range conditions.Layers {
+				if len(rules) == 0 {
+					if t.Children == nil {
+						// Omit an empty "@layer {}" entirely
+						continue
+					} else {
+						// Generate "@layer foo;" instead of "@layer foo {}"
+						rules = nil
+					}
+				}
 				var prelude []css_ast.Token
 				if t.Children != nil {
 					prelude = *t.Children
-				}
-				if len(rules) == 0 {
-					// Generate "@layer foo;" instead of "@layer foo {}"
-					rules = nil
 				}
 				prelude, ast.ImportRecords = css_ast.CloneTokensWithImportRecords(prelude, entry.conditionImportRecords, nil, ast.ImportRecords)
 				rules = []css_ast.Rule{{Data: &css_ast.RKnownAt{

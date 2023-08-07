@@ -1429,6 +1429,348 @@ func TestCSSAtImportConditionsWithImportRecordsBundle(t *testing.T) {
 	})
 }
 
+// From: https://github.com/romainmenke/css-import-tests. These test cases just
+// serve to document any changes in esbuild's behavior. Any changes in behavior
+// should be tested to ensure they don't cause any regressions. The easiest way
+// to test the changes is to bundle https://github.com/evanw/css-import-tests
+// and visually inspect a browser's rendering of the resulting CSS file.
+func TestCSSAtImportConditionsFromExternalRepo(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/001/default/a.css":     `.box { background-color: green; }`,
+			"/001/default/style.css": `@import url("a.css");`,
+
+			"/001/relative-url/a.css":     `.box { background-color: green; }`,
+			"/001/relative-url/style.css": `@import url("./a.css");`,
+
+			"/at-charset/001/a.css":     `@charset "utf-8"; .box { background-color: red; }`,
+			"/at-charset/001/b.css":     `@charset "utf-8"; .box { background-color: green; }`,
+			"/at-charset/001/style.css": `@charset "utf-8"; @import url("a.css"); @import url("b.css");`,
+
+			"/at-keyframes/001/a.css": `
+				.box { animation: BOX; animation-duration: 0s; animation-fill-mode: both; }
+				@keyframes BOX { 0%, 100% { background-color: green; } }
+			`,
+			"/at-keyframes/001/b.css": `
+				.box { animation: BOX; animation-duration: 0s; animation-fill-mode: both; }
+				@keyframes BOX { 0%, 100% { background-color: red; } }
+			`,
+			"/at-keyframes/001/style.css": `@import url("a.css") screen; @import url("b.css") print;`,
+
+			"/at-layer/001/a.css": `.box { background-color: red; }`,
+			"/at-layer/001/b.css": `.box { background-color: green; }`,
+			"/at-layer/001/style.css": `
+				@import url("a.css") layer(a);
+				@import url("b.css") layer(b);
+				@import url("a.css") layer(a);
+			`,
+
+			"/at-layer/002/a.css": `.box { background-color: green; }`,
+			"/at-layer/002/b.css": `.box { background-color: red; }`,
+			"/at-layer/002/style.css": `
+				@import url("a.css") layer(a) print;
+				@import url("b.css") layer(b);
+				@import url("a.css") layer(a);
+			`,
+
+			// Note: This case is currently bundled incorrectly. Normal CSS takes
+			// effect at the position of the last "@import". However, "@layer" CSS
+			// takes effect at the position of the first "@import". This discrepancy
+			// in behavior is not currently handled.
+			"/at-layer/003/a.css":     `@layer a { .box { background-color: red; } }`,
+			"/at-layer/003/b.css":     `@layer b { .box { background-color: green; } }`,
+			"/at-layer/003/style.css": `@import url("a.css"); @import url("b.css"); @import url("a.css");`,
+
+			"/at-layer/004/a.css":     `@layer { .box { background-color: green; } }`,
+			"/at-layer/004/b.css":     `@layer { .box { background-color: red; } }`,
+			"/at-layer/004/style.css": `@import url("a.css"); @import url("b.css"); @import url("a.css");`,
+
+			"/at-layer/005/a.css": `@import url("b.css") layer(b) (width: 1px);`,
+			"/at-layer/005/b.css": `.box { background-color: red; }`,
+			"/at-layer/005/style.css": `
+				@import url("a.css") layer(a) (min-width: 1px);
+				@layer a.c { .box { background-color: red; } }
+				@layer a.b { .box { background-color: green; } }
+			`,
+
+			"/at-layer/006/a.css": `@import url("b.css") layer(b) (min-width: 1px);`,
+			"/at-layer/006/b.css": `.box { background-color: red; }`,
+			"/at-layer/006/style.css": `
+				@import url("a.css") layer(a) (min-width: 1px);
+				@layer a.c { .box { background-color: green; } }
+				@layer a.b { .box { background-color: red; } }
+			`,
+
+			"/at-layer/007/style.css": `
+				@layer foo {}
+				@layer bar {}
+				@layer bar { .box { background-color: green; } }
+				@layer foo { .box { background-color: red; } }
+			`,
+
+			"/at-layer/008/a.css":     `@import "b.css" layer; .box { background-color: green; }`,
+			"/at-layer/008/b.css":     `.box { background-color: red; }`,
+			"/at-layer/008/style.css": `@import url("a.css") layer;`,
+
+			"/at-media/001/default/a.css":     `.box { background-color: green; }`,
+			"/at-media/001/default/style.css": `@import url("a.css") screen;`,
+
+			"/at-media/002/a.css":     `.box { background-color: green; }`,
+			"/at-media/002/b.css":     `.box { background-color: red; }`,
+			"/at-media/002/style.css": `@import url("a.css") screen; @import url("b.css") print;`,
+
+			"/at-media/003/a.css":     `@import url("b.css") (min-width: 1px);`,
+			"/at-media/003/b.css":     `.box { background-color: green; }`,
+			"/at-media/003/style.css": `@import url("a.css") screen;`,
+
+			"/at-media/004/a.css":     `@import url("b.css") print;`,
+			"/at-media/004/b.css":     `.box { background-color: red; }`,
+			"/at-media/004/c.css":     `.box { background-color: green; }`,
+			"/at-media/004/style.css": `@import url("c.css"); @import url("a.css") print;`,
+
+			"/at-media/005/a.css":     `@import url("b.css") (max-width: 1px);`,
+			"/at-media/005/b.css":     `.box { background-color: red; }`,
+			"/at-media/005/c.css":     `.box { background-color: green; }`,
+			"/at-media/005/style.css": `@import url("c.css"); @import url("a.css") (max-width: 1px);`,
+
+			"/at-media/006/a.css":     `@import url("b.css") (min-width: 1px);`,
+			"/at-media/006/b.css":     `.box { background-color: green; }`,
+			"/at-media/006/style.css": `@import url("a.css") (min-height: 1px);`,
+
+			"/at-media/007/a.css":     `@import url("b.css") screen;`,
+			"/at-media/007/b.css":     `.box { background-color: green; }`,
+			"/at-media/007/style.css": `@import url("a.css") all;`,
+
+			"/at-media/008/a.css":     `@import url("green.css") layer(alpha) print;`,
+			"/at-media/008/b.css":     `@import url("red.css") layer(beta) print;`,
+			"/at-media/008/green.css": `.box { background-color: green; }`,
+			"/at-media/008/red.css":   `.box { background-color: red; }`,
+			"/at-media/008/style.css": `
+				@import url("a.css") layer(alpha) all;
+				@import url("b.css") layer(beta) all;
+				@layer beta { .box { background-color: green; } }
+				@layer alpha { .box { background-color: red; } }
+			`,
+
+			"/at-supports/001/a.css":     `.box { background-color: green; }`,
+			"/at-supports/001/style.css": `@import url("a.css") supports(display: block);`,
+
+			"/at-supports/002/a.css":     `@import url("b.css") supports(width: 10px);`,
+			"/at-supports/002/b.css":     `.box { background-color: green; }`,
+			"/at-supports/002/style.css": `@import url("a.css") supports(display: block);`,
+
+			"/at-supports/003/a.css":     `@import url("b.css") supports(width: 10px);`,
+			"/at-supports/003/b.css":     `.box { background-color: green; }`,
+			"/at-supports/003/style.css": `@import url("a.css") supports((display: block) or (display: inline));`,
+
+			"/at-supports/004/a.css":     `@import url("b.css") layer(b) supports(width: 10px);`,
+			"/at-supports/004/b.css":     `.box { background-color: green; }`,
+			"/at-supports/004/style.css": `@import url("a.css") layer(a) supports(display: block);`,
+
+			"/at-supports/005/a.css":     `@import url("green.css") layer(alpha) supports(foo: bar);`,
+			"/at-supports/005/b.css":     `@import url("red.css") layer(beta) supports(foo: bar);`,
+			"/at-supports/005/green.css": `.box { background-color: green; }`,
+			"/at-supports/005/red.css":   `.box { background-color: red; }`,
+			"/at-supports/005/style.css": `
+				@import url("a.css") layer(alpha) supports(display: block);
+				@import url("b.css") layer(beta) supports(display: block);
+				@layer beta { .box { background-color: green; } }
+				@layer alpha { .box { background-color: red; } }
+			`,
+
+			"/cycles/001/style.css": `@import url("style.css"); .box { background-color: green; }`,
+
+			"/cycles/002/a.css":     `@import url("red.css"); @import url("b.css");`,
+			"/cycles/002/b.css":     `@import url("green.css"); @import url("a.css");`,
+			"/cycles/002/green.css": `.box { background-color: green; }`,
+			"/cycles/002/red.css":   `.box { background-color: red; }`,
+			"/cycles/002/style.css": `@import url("a.css");`,
+
+			"/cycles/003/a.css":     `@import url("b.css"); .box { background-color: green; }`,
+			"/cycles/003/b.css":     `@import url("a.css"); .box { background-color: red; }`,
+			"/cycles/003/style.css": `@import url("a.css");`,
+
+			"/cycles/004/a.css":     `@import url("b.css"); .box { background-color: red; }`,
+			"/cycles/004/b.css":     `@import url("a.css"); .box { background-color: green; }`,
+			"/cycles/004/style.css": `@import url("a.css"); @import url("b.css");`,
+
+			"/cycles/005/a.css":     `@import url("b.css"); .box { background-color: green; }`,
+			"/cycles/005/b.css":     `@import url("a.css"); .box { background-color: red; }`,
+			"/cycles/005/style.css": `@import url("a.css"); @import url("b.css"); @import url("a.css");`,
+
+			"/cycles/006/a.css":     `@import url("red.css"); @import url("b.css");`,
+			"/cycles/006/b.css":     `@import url("green.css"); @import url("a.css");`,
+			"/cycles/006/c.css":     `@import url("a.css");`,
+			"/cycles/006/green.css": `.box { background-color: green; }`,
+			"/cycles/006/red.css":   `.box { background-color: red; }`,
+			"/cycles/006/style.css": `@import url("b.css"); @import url("c.css");`,
+
+			"/cycles/007/a.css":     `@import url("red.css"); @import url("b.css") screen;`,
+			"/cycles/007/b.css":     `@import url("green.css"); @import url("a.css") all;`,
+			"/cycles/007/c.css":     `@import url("a.css") not print;`,
+			"/cycles/007/green.css": `.box { background-color: green; }`,
+			"/cycles/007/red.css":   `.box { background-color: red; }`,
+			"/cycles/007/style.css": `@import url("b.css"); @import url("c.css");`,
+
+			"/cycles/008/a.css":     `@import url("red.css") layer; @import url("b.css");`,
+			"/cycles/008/b.css":     `@import url("green.css") layer; @import url("a.css");`,
+			"/cycles/008/c.css":     `@import url("a.css") layer;`,
+			"/cycles/008/green.css": `.box { background-color: green; }`,
+			"/cycles/008/red.css":   `.box { background-color: red; }`,
+			"/cycles/008/style.css": `@import url("b.css"); @import url("c.css");`,
+
+			"/data-urls/002/style.css": `@import url('data:text/css;plain,.box%20%7B%0A%09background-color%3A%20green%3B%0A%7D%0A');`,
+
+			"/data-urls/003/style.css": `@import url('data:text/css,.box%20%7B%0A%09background-color%3A%20green%3B%0A%7D%0A');`,
+
+			"/duplicates/001/a.css":     `.box { background-color: green; }`,
+			"/duplicates/001/b.css":     `.box { background-color: red; }`,
+			"/duplicates/001/style.css": `@import url("a.css"); @import url("b.css"); @import url("a.css");`,
+
+			"/duplicates/002/a.css":     `.box { background-color: green; }`,
+			"/duplicates/002/b.css":     `.box { background-color: red; }`,
+			"/duplicates/002/style.css": `@import url("a.css"); @import url("b.css"); @import url("a.css"); @import url("b.css"); @import url("a.css");`,
+
+			"/empty/001/empty.css": ``,
+			"/empty/001/style.css": `@import url("./empty.css"); .box { background-color: green; }`,
+
+			"/relative-paths/001/a/a.css":   `@import url("../b/b.css")`,
+			"/relative-paths/001/b/b.css":   `.box { background-color: green; }`,
+			"/relative-paths/001/style.css": `@import url("./a/a.css");`,
+
+			"/relative-paths/002/a/a.css":   `@import url("./../b/b.css")`,
+			"/relative-paths/002/b/b.css":   `.box { background-color: green; }`,
+			"/relative-paths/002/style.css": `@import url("./a/a.css");`,
+
+			"/subresource/001/something/images/green.png": `...`,
+			"/subresource/001/something/styles/green.css": `.box { background-image: url("../images/green.png"); }`,
+			"/subresource/001/style.css":                  `@import url("./something/styles/green.css");`,
+
+			"/subresource/002/green.png":        `...`,
+			"/subresource/002/style.css":        `@import url("./styles/green.css");`,
+			"/subresource/002/styles/green.css": `.box { background-image: url("../green.png"); }`,
+
+			"/subresource/004/style.css":        `@import url("./styles/green.css");`,
+			"/subresource/004/styles/green.css": `.box { background-image: url("green.png"); }`,
+			"/subresource/004/styles/green.png": `...`,
+
+			"/subresource/005/style.css":        `@import url("./styles/green.css");`,
+			"/subresource/005/styles/green.css": `.box { background-image: url("./green.png"); }`,
+			"/subresource/005/styles/green.png": `...`,
+
+			"/subresource/007/green.png": `...`,
+			"/subresource/007/style.css": `.box { background-image: url("./green.png"); }`,
+
+			"/url-format/001/default/a.css":     `.box { background-color: green; }`,
+			"/url-format/001/default/style.css": `@import url(a.css);`,
+
+			"/url-format/001/relative-url/a.css":     `.box { background-color: green; }`,
+			"/url-format/001/relative-url/style.css": `@import url(./a.css);`,
+
+			"/url-format/002/default/a.css":     `.box { background-color: green; }`,
+			"/url-format/002/default/style.css": `@import "a.css";`,
+
+			"/url-format/002/relative-url/a.css":     `.box { background-color: green; }`,
+			"/url-format/002/relative-url/style.css": `@import "./a.css";`,
+
+			"/url-format/003/default/a.css":     `.box { background-color: green; }`,
+			"/url-format/003/default/style.css": `@import url("a.css"`,
+
+			"/url-format/003/relative-url/a.css":     `.box { background-color: green; }`,
+			"/url-format/003/relative-url/style.css": `@import url("./a.css"`,
+
+			"/url-fragments/001/a.css":     `.box { background-color: green; }`,
+			"/url-fragments/001/style.css": `@import url("./a.css#foo");`,
+
+			"/url-fragments/002/a.css":     `.box { background-color: green; }`,
+			"/url-fragments/002/b.css":     `.box { background-color: red; }`,
+			"/url-fragments/002/style.css": `@import url("./a.css#1"); @import url("./b.css#2"); @import url("./a.css#3");`,
+		},
+		entryPaths: []string{
+			"/001/default/style.css",
+			"/001/relative-url/style.css",
+
+			"/at-charset/001/style.css",
+
+			"/at-keyframes/001/style.css",
+
+			"/at-layer/001/style.css",
+			"/at-layer/002/style.css",
+			"/at-layer/003/style.css",
+			"/at-layer/004/style.css",
+			"/at-layer/005/style.css",
+			"/at-layer/006/style.css",
+			"/at-layer/007/style.css",
+			"/at-layer/008/style.css",
+
+			"/at-media/001/default/style.css",
+			"/at-media/002/style.css",
+			"/at-media/003/style.css",
+			"/at-media/004/style.css",
+			"/at-media/005/style.css",
+			"/at-media/006/style.css",
+			"/at-media/007/style.css",
+			"/at-media/008/style.css",
+
+			"/at-supports/001/style.css",
+			"/at-supports/002/style.css",
+			"/at-supports/003/style.css",
+			"/at-supports/004/style.css",
+			"/at-supports/005/style.css",
+
+			"/cycles/001/style.css",
+			"/cycles/002/style.css",
+			"/cycles/003/style.css",
+			"/cycles/004/style.css",
+			"/cycles/005/style.css",
+			"/cycles/006/style.css",
+			"/cycles/007/style.css",
+			"/cycles/008/style.css",
+
+			"/data-urls/002/style.css",
+			"/data-urls/003/style.css",
+
+			"/duplicates/001/style.css",
+			"/duplicates/002/style.css",
+
+			"/empty/001/style.css",
+
+			"/relative-paths/001/style.css",
+			"/relative-paths/002/style.css",
+
+			"/subresource/001/style.css",
+			"/subresource/002/style.css",
+			"/subresource/004/style.css",
+			"/subresource/005/style.css",
+			"/subresource/007/style.css",
+
+			"/url-format/001/default/style.css",
+			"/url-format/001/relative-url/style.css",
+			"/url-format/002/default/style.css",
+			"/url-format/002/relative-url/style.css",
+			"/url-format/003/default/style.css",
+			"/url-format/003/relative-url/style.css",
+			"/url-fragments/001/style.css",
+			"/url-fragments/002/style.css",
+		},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			ExtensionToLoader: map[string]config.Loader{
+				".css": config.LoaderCSS,
+				".png": config.LoaderBase64,
+			},
+		},
+		expectedScanLog: `relative-paths/001/a/a.css: WARNING: Expected ";" but found end of file
+relative-paths/002/a/a.css: WARNING: Expected ";" but found end of file
+url-format/003/default/style.css: WARNING: Expected ")" to go with "("
+url-format/003/default/style.css: NOTE: The unbalanced "(" is here:
+url-format/003/relative-url/style.css: WARNING: Expected ")" to go with "("
+url-format/003/relative-url/style.css: NOTE: The unbalanced "(" is here:
+`,
+	})
+}
+
 // This test mainly just makes sure that this scenario doesn't crash
 func TestCSSAndJavaScriptCodeSplittingIssue1064(t *testing.T) {
 	css_suite.expectBundled(t, bundled{

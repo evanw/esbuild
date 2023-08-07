@@ -295,6 +295,864 @@ TestCSSAtImportConditionsBundleExternalConditionWithURL
 /* entry.css */
 
 ================================================================================
+TestCSSAtImportConditionsFromExternalRepo
+---------- /out/001/default/style.css ----------
+/* 001/default/a.css */
+.box {
+  background-color: green;
+}
+
+/* 001/default/style.css */
+
+---------- /out/001/relative-url/style.css ----------
+/* 001/relative-url/a.css */
+.box {
+  background-color: green;
+}
+
+/* 001/relative-url/style.css */
+
+---------- /out/at-charset/001/style.css ----------
+@charset "UTF-8";
+
+/* at-charset/001/a.css */
+.box {
+  background-color: red;
+}
+
+/* at-charset/001/b.css */
+.box {
+  background-color: green;
+}
+
+/* at-charset/001/style.css */
+
+---------- /out/at-keyframes/001/style.css ----------
+/* at-keyframes/001/a.css */
+@media screen {
+  .box {
+    animation: BOX;
+    animation-duration: 0s;
+    animation-fill-mode: both;
+  }
+  @keyframes BOX {
+    0%, 100% {
+      background-color: green;
+    }
+  }
+}
+
+/* at-keyframes/001/b.css */
+@media print {
+  .box {
+    animation: BOX;
+    animation-duration: 0s;
+    animation-fill-mode: both;
+  }
+  @keyframes BOX {
+    0%, 100% {
+      background-color: red;
+    }
+  }
+}
+
+/* at-keyframes/001/style.css */
+
+---------- /out/at-layer/001/style.css ----------
+/* at-layer/001/a.css */
+@layer a {
+  .box {
+    background-color: red;
+  }
+}
+
+/* at-layer/001/b.css */
+@layer b {
+  .box {
+    background-color: green;
+  }
+}
+
+/* at-layer/001/a.css */
+@layer a {
+  .box {
+    background-color: red;
+  }
+}
+
+/* at-layer/001/style.css */
+
+---------- /out/at-layer/002/style.css ----------
+/* at-layer/002/a.css */
+@media print {
+  @layer a {
+    .box {
+      background-color: green;
+    }
+  }
+}
+
+/* at-layer/002/b.css */
+@layer b {
+  .box {
+    background-color: red;
+  }
+}
+
+/* at-layer/002/a.css */
+@layer a {
+  .box {
+    background-color: green;
+  }
+}
+
+/* at-layer/002/style.css */
+
+---------- /out/at-layer/003/style.css ----------
+/* at-layer/003/b.css */
+@layer b {
+  .box {
+    background-color: green;
+  }
+}
+
+/* at-layer/003/a.css */
+@layer a {
+  .box {
+    background-color: red;
+  }
+}
+
+/* at-layer/003/style.css */
+
+---------- /out/at-layer/004/style.css ----------
+/* at-layer/004/b.css */
+@layer {
+  .box {
+    background-color: red;
+  }
+}
+
+/* at-layer/004/a.css */
+@layer {
+  .box {
+    background-color: green;
+  }
+}
+
+/* at-layer/004/style.css */
+
+---------- /out/at-layer/005/style.css ----------
+/* at-layer/005/b.css */
+@media (min-width: 1px) {
+  @layer a {
+    @media (width: 1px) {
+      @layer b {
+        .box {
+          background-color: red;
+        }
+      }
+    }
+  }
+}
+
+/* at-layer/005/a.css */
+@media (min-width: 1px) {
+  @layer a;
+}
+
+/* at-layer/005/style.css */
+@layer a.c {
+  .box {
+    background-color: red;
+  }
+}
+@layer a.b {
+  .box {
+    background-color: green;
+  }
+}
+
+---------- /out/at-layer/006/style.css ----------
+/* at-layer/006/b.css */
+@media (min-width: 1px) {
+  @layer a {
+    @media (min-width: 1px) {
+      @layer b {
+        .box {
+          background-color: red;
+        }
+      }
+    }
+  }
+}
+
+/* at-layer/006/a.css */
+@media (min-width: 1px) {
+  @layer a;
+}
+
+/* at-layer/006/style.css */
+@layer a.c {
+  .box {
+    background-color: green;
+  }
+}
+@layer a.b {
+  .box {
+    background-color: red;
+  }
+}
+
+---------- /out/at-layer/007/style.css ----------
+/* at-layer/007/style.css */
+@layer foo {
+}
+@layer bar {
+}
+@layer bar {
+  .box {
+    background-color: green;
+  }
+}
+@layer foo {
+  .box {
+    background-color: red;
+  }
+}
+
+---------- /out/at-layer/008/style.css ----------
+/* at-layer/008/b.css */
+@layer {
+  @layer {
+    .box {
+      background-color: red;
+    }
+  }
+}
+
+/* at-layer/008/a.css */
+@layer {
+  .box {
+    background-color: green;
+  }
+}
+
+/* at-layer/008/style.css */
+
+---------- /out/at-media/001/default/style.css ----------
+/* at-media/001/default/a.css */
+@media screen {
+  .box {
+    background-color: green;
+  }
+}
+
+/* at-media/001/default/style.css */
+
+---------- /out/at-media/002/style.css ----------
+/* at-media/002/a.css */
+@media screen {
+  .box {
+    background-color: green;
+  }
+}
+
+/* at-media/002/b.css */
+@media print {
+  .box {
+    background-color: red;
+  }
+}
+
+/* at-media/002/style.css */
+
+---------- /out/at-media/003/style.css ----------
+/* at-media/003/b.css */
+@media screen {
+  @media (min-width: 1px) {
+    .box {
+      background-color: green;
+    }
+  }
+}
+
+/* at-media/003/a.css */
+
+/* at-media/003/style.css */
+
+---------- /out/at-media/004/style.css ----------
+/* at-media/004/c.css */
+.box {
+  background-color: green;
+}
+
+/* at-media/004/b.css */
+@media print {
+  @media print {
+    .box {
+      background-color: red;
+    }
+  }
+}
+
+/* at-media/004/a.css */
+
+/* at-media/004/style.css */
+
+---------- /out/at-media/005/style.css ----------
+/* at-media/005/c.css */
+.box {
+  background-color: green;
+}
+
+/* at-media/005/b.css */
+@media (max-width: 1px) {
+  @media (max-width: 1px) {
+    .box {
+      background-color: red;
+    }
+  }
+}
+
+/* at-media/005/a.css */
+
+/* at-media/005/style.css */
+
+---------- /out/at-media/006/style.css ----------
+/* at-media/006/b.css */
+@media (min-height: 1px) {
+  @media (min-width: 1px) {
+    .box {
+      background-color: green;
+    }
+  }
+}
+
+/* at-media/006/a.css */
+
+/* at-media/006/style.css */
+
+---------- /out/at-media/007/style.css ----------
+/* at-media/007/b.css */
+@media all {
+  @media screen {
+    .box {
+      background-color: green;
+    }
+  }
+}
+
+/* at-media/007/a.css */
+
+/* at-media/007/style.css */
+
+---------- /out/at-media/008/style.css ----------
+/* at-media/008/green.css */
+@media all {
+  @layer alpha {
+    @media print {
+      @layer alpha {
+        .box {
+          background-color: green;
+        }
+      }
+    }
+  }
+}
+
+/* at-media/008/a.css */
+@media all {
+  @layer alpha;
+}
+
+/* at-media/008/red.css */
+@media all {
+  @layer beta {
+    @media print {
+      @layer beta {
+        .box {
+          background-color: red;
+        }
+      }
+    }
+  }
+}
+
+/* at-media/008/b.css */
+@media all {
+  @layer beta;
+}
+
+/* at-media/008/style.css */
+@layer beta {
+  .box {
+    background-color: green;
+  }
+}
+@layer alpha {
+  .box {
+    background-color: red;
+  }
+}
+
+---------- /out/at-supports/001/style.css ----------
+/* at-supports/001/a.css */
+@supports (display: block) {
+  .box {
+    background-color: green;
+  }
+}
+
+/* at-supports/001/style.css */
+
+---------- /out/at-supports/002/style.css ----------
+/* at-supports/002/b.css */
+@supports (display: block) {
+  @supports (width: 10px) {
+    .box {
+      background-color: green;
+    }
+  }
+}
+
+/* at-supports/002/a.css */
+
+/* at-supports/002/style.css */
+
+---------- /out/at-supports/003/style.css ----------
+/* at-supports/003/b.css */
+@supports ((display: block) or (display: inline)) {
+  @supports (width: 10px) {
+    .box {
+      background-color: green;
+    }
+  }
+}
+
+/* at-supports/003/a.css */
+
+/* at-supports/003/style.css */
+
+---------- /out/at-supports/004/style.css ----------
+/* at-supports/004/b.css */
+@supports (display: block) {
+  @layer a {
+    @supports (width: 10px) {
+      @layer b {
+        .box {
+          background-color: green;
+        }
+      }
+    }
+  }
+}
+
+/* at-supports/004/a.css */
+@supports (display: block) {
+  @layer a;
+}
+
+/* at-supports/004/style.css */
+
+---------- /out/at-supports/005/style.css ----------
+/* at-supports/005/green.css */
+@supports (display: block) {
+  @layer alpha {
+    @supports (foo: bar) {
+      @layer alpha {
+        .box {
+          background-color: green;
+        }
+      }
+    }
+  }
+}
+
+/* at-supports/005/a.css */
+@supports (display: block) {
+  @layer alpha;
+}
+
+/* at-supports/005/red.css */
+@supports (display: block) {
+  @layer beta {
+    @supports (foo: bar) {
+      @layer beta {
+        .box {
+          background-color: red;
+        }
+      }
+    }
+  }
+}
+
+/* at-supports/005/b.css */
+@supports (display: block) {
+  @layer beta;
+}
+
+/* at-supports/005/style.css */
+@layer beta {
+  .box {
+    background-color: green;
+  }
+}
+@layer alpha {
+  .box {
+    background-color: red;
+  }
+}
+
+---------- /out/cycles/001/style.css ----------
+/* cycles/001/style.css */
+.box {
+  background-color: green;
+}
+
+---------- /out/cycles/002/style.css ----------
+/* cycles/002/red.css */
+.box {
+  background-color: red;
+}
+
+/* cycles/002/green.css */
+.box {
+  background-color: green;
+}
+
+/* cycles/002/b.css */
+
+/* cycles/002/a.css */
+
+/* cycles/002/style.css */
+
+---------- /out/cycles/003/style.css ----------
+/* cycles/003/b.css */
+.box {
+  background-color: red;
+}
+
+/* cycles/003/a.css */
+.box {
+  background-color: green;
+}
+
+/* cycles/003/style.css */
+
+---------- /out/cycles/004/style.css ----------
+/* cycles/004/a.css */
+.box {
+  background-color: red;
+}
+
+/* cycles/004/b.css */
+.box {
+  background-color: green;
+}
+
+/* cycles/004/style.css */
+
+---------- /out/cycles/005/style.css ----------
+/* cycles/005/b.css */
+.box {
+  background-color: red;
+}
+
+/* cycles/005/a.css */
+.box {
+  background-color: green;
+}
+
+/* cycles/005/style.css */
+
+---------- /out/cycles/006/style.css ----------
+/* cycles/006/red.css */
+.box {
+  background-color: red;
+}
+
+/* cycles/006/green.css */
+.box {
+  background-color: green;
+}
+
+/* cycles/006/b.css */
+
+/* cycles/006/a.css */
+
+/* cycles/006/c.css */
+
+/* cycles/006/style.css */
+
+---------- /out/cycles/007/style.css ----------
+/* cycles/007/green.css */
+.box {
+  background-color: green;
+}
+
+/* cycles/007/red.css */
+@media all {
+  .box {
+    background-color: red;
+  }
+}
+
+/* cycles/007/a.css */
+
+/* cycles/007/b.css */
+
+/* cycles/007/red.css */
+@media not print {
+  .box {
+    background-color: red;
+  }
+}
+
+/* cycles/007/green.css */
+@media not print {
+  @media screen {
+    .box {
+      background-color: green;
+    }
+  }
+}
+
+/* cycles/007/b.css */
+
+/* cycles/007/a.css */
+
+/* cycles/007/c.css */
+
+/* cycles/007/style.css */
+
+---------- /out/cycles/008/style.css ----------
+/* cycles/008/green.css */
+@layer {
+  .box {
+    background-color: green;
+  }
+}
+
+/* cycles/008/red.css */
+@layer {
+  .box {
+    background-color: red;
+  }
+}
+
+/* cycles/008/a.css */
+
+/* cycles/008/b.css */
+
+/* cycles/008/red.css */
+@layer {
+  @layer {
+    .box {
+      background-color: red;
+    }
+  }
+}
+
+/* cycles/008/green.css */
+@layer {
+  @layer {
+    .box {
+      background-color: green;
+    }
+  }
+}
+
+/* cycles/008/b.css */
+
+/* cycles/008/a.css */
+
+/* cycles/008/c.css */
+
+/* cycles/008/style.css */
+
+---------- /out/data-urls/002/style.css ----------
+/* <data:text/css;plain,.box%20%7B%0A%09background-color%3A%20green%...> */
+.box {
+  background-color: green;
+}
+
+/* data-urls/002/style.css */
+
+---------- /out/data-urls/003/style.css ----------
+/* <data:text/css,.box%20%7B%0A%09background-color%3A%20green%3B%0A%...> */
+.box {
+  background-color: green;
+}
+
+/* data-urls/003/style.css */
+
+---------- /out/duplicates/001/style.css ----------
+/* duplicates/001/b.css */
+.box {
+  background-color: red;
+}
+
+/* duplicates/001/a.css */
+.box {
+  background-color: green;
+}
+
+/* duplicates/001/style.css */
+
+---------- /out/duplicates/002/style.css ----------
+/* duplicates/002/b.css */
+.box {
+  background-color: red;
+}
+
+/* duplicates/002/a.css */
+.box {
+  background-color: green;
+}
+
+/* duplicates/002/style.css */
+
+---------- /out/empty/001/style.css ----------
+/* empty/001/empty.css */
+/* empty/001/style.css */
+.box {
+  background-color: green;
+}
+
+---------- /out/relative-paths/001/style.css ----------
+/* relative-paths/001/b/b.css */
+.box {
+  background-color: green;
+}
+
+/* relative-paths/001/a/a.css */
+
+/* relative-paths/001/style.css */
+
+---------- /out/relative-paths/002/style.css ----------
+/* relative-paths/002/b/b.css */
+.box {
+  background-color: green;
+}
+
+/* relative-paths/002/a/a.css */
+
+/* relative-paths/002/style.css */
+
+---------- /out/subresource/001/style.css ----------
+/* subresource/001/something/styles/green.css */
+.box {
+  background-image: url(data:image/png;base64,Li4u);
+}
+
+/* subresource/001/style.css */
+
+---------- /out/subresource/002/style.css ----------
+/* subresource/002/styles/green.css */
+.box {
+  background-image: url(data:image/png;base64,Li4u);
+}
+
+/* subresource/002/style.css */
+
+---------- /out/subresource/004/style.css ----------
+/* subresource/004/styles/green.css */
+.box {
+  background-image: url(data:image/png;base64,Li4u);
+}
+
+/* subresource/004/style.css */
+
+---------- /out/subresource/005/style.css ----------
+/* subresource/005/styles/green.css */
+.box {
+  background-image: url(data:image/png;base64,Li4u);
+}
+
+/* subresource/005/style.css */
+
+---------- /out/subresource/007/style.css ----------
+/* subresource/007/style.css */
+.box {
+  background-image: url(data:image/png;base64,Li4u);
+}
+
+---------- /out/url-format/001/default/style.css ----------
+/* url-format/001/default/a.css */
+.box {
+  background-color: green;
+}
+
+/* url-format/001/default/style.css */
+
+---------- /out/url-format/001/relative-url/style.css ----------
+/* url-format/001/relative-url/a.css */
+.box {
+  background-color: green;
+}
+
+/* url-format/001/relative-url/style.css */
+
+---------- /out/url-format/002/default/style.css ----------
+/* url-format/002/default/a.css */
+.box {
+  background-color: green;
+}
+
+/* url-format/002/default/style.css */
+
+---------- /out/url-format/002/relative-url/style.css ----------
+/* url-format/002/relative-url/a.css */
+.box {
+  background-color: green;
+}
+
+/* url-format/002/relative-url/style.css */
+
+---------- /out/url-format/003/default/style.css ----------
+/* url-format/003/default/a.css */
+.box {
+  background-color: green;
+}
+
+/* url-format/003/default/style.css */
+
+---------- /out/url-format/003/relative-url/style.css ----------
+/* url-format/003/relative-url/a.css */
+.box {
+  background-color: green;
+}
+
+/* url-format/003/relative-url/style.css */
+
+---------- /out/url-fragments/001/style.css ----------
+/* url-fragments/001/a.css#foo */
+.box {
+  background-color: green;
+}
+
+/* url-fragments/001/style.css */
+
+---------- /out/url-fragments/002/style.css ----------
+/* url-fragments/002/a.css#1 */
+.box {
+  background-color: green;
+}
+
+/* url-fragments/002/b.css#2 */
+.box {
+  background-color: red;
+}
+
+/* url-fragments/002/a.css#3 */
+.box {
+  background-color: green;
+}
+
+/* url-fragments/002/style.css */
+
+================================================================================
 TestCSSAtImportConditionsNoBundle
 ---------- /out.css ----------
 @import "./print.css" print;
