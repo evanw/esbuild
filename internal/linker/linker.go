@@ -3757,7 +3757,6 @@ func (c *linkerContext) findImportedPartsInJSOrder(chunk *chunkInfo) (js []uint3
 
 				// Then include this part after the files it imports
 				if isPartInThisChunk {
-					isFileInThisChunk = true
 					if canFileBeSplit && uint32(partIndex) != js_ast.NSExportPartIndex && c.shouldIncludePart(repr, part) {
 						if sourceIndex == runtime.SourceIndex {
 							jsPartsPrefix = appendOrExtendPartRange(jsPartsPrefix, sourceIndex, uint32(partIndex))
