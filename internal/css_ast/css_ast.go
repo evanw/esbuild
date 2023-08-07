@@ -432,8 +432,22 @@ func (r *RAtCharset) Hash() (uint32, bool) {
 	return hash, true
 }
 
+type ImportConditions struct {
+	Layers   []Token
+	Supports []Token
+	Media    []Token
+}
+
+func (conditions *ImportConditions) CloneWithImportRecords(importRecordsIn []ast.ImportRecord, importRecordsOut []ast.ImportRecord) (*ImportConditions, []ast.ImportRecord) {
+	result := ImportConditions{}
+	result.Layers, importRecordsOut = CloneTokensWithImportRecords(conditions.Layers, importRecordsIn, nil, importRecordsOut)
+	result.Supports, importRecordsOut = CloneTokensWithImportRecords(conditions.Supports, importRecordsIn, nil, importRecordsOut)
+	result.Media, importRecordsOut = CloneTokensWithImportRecords(conditions.Media, importRecordsIn, nil, importRecordsOut)
+	return &result, importRecordsOut
+}
+
 type RAtImport struct {
-	ImportConditions  []Token
+	ImportConditions  *ImportConditions
 	ImportRecordIndex uint32
 }
 

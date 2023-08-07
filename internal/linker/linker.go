@@ -194,7 +194,7 @@ type chunkReprCSS struct {
 
 type externalImportCSS struct {
 	path                   logger.Path
-	conditions             []css_ast.Token
+	conditions             *css_ast.ImportConditions
 	conditionImportRecords []ast.ImportRecord
 }
 
@@ -3337,8 +3337,7 @@ func (c *linkerContext) findImportedCSSFilesInJSOrder(entryPoint uint32) (order 
 // traversal order is B D C A.
 func (c *linkerContext) findImportedFilesInCSSOrder(entryPoints []uint32) (externalOrder []externalImportCSS, internalOrder []uint32) {
 	type externalImportsCSS struct {
-		conditions    [][]css_ast.Token
-		unconditional bool
+		conditions []css_ast.ImportConditions
 	}
 
 	visited := make(map[uint32]bool)
@@ -3376,32 +3375,40 @@ func (c *linkerContext) findImportedFilesInCSSOrder(entryPoints []uint32) (exter
 						// Record external dependencies
 						external := externals[record.Path]
 
-						// Check for an unconditional import. An unconditional import
-						// should always mask all conditional imports that are overridden
-						// by the unconditional import.
-						if external.unconditional {
-							continue
+						var before css_ast.ImportConditions
+						if conditions := atImport.ImportConditions; conditions != nil {
+							before = *conditions
 						}
 
-						if len(atImport.ImportConditions) == 0 {
-							external.unconditional = true
-						} else {
-							// Check for a conditional import. A conditional import does not
-							// mask an earlier unconditional import because re-evaluating a
-							// CSS file can have observable results.
-							for _, tokens := range external.conditions {
-								if css_ast.TokensEqualIgnoringWhitespace(tokens, atImport.ImportConditions) {
+						// Skip this rule if a later rule masks it
+						for _, after := range external.conditions {
+							if css_ast.TokensEqualIgnoringWhitespace(before.Layers, after.Layers) {
+								if len(after.Supports) == 0 && len(after.Media) == 0 {
+									// If the later one doesn't have any conditions, only keep
+									// the later one. The later one will mask the effects of the
+									// earlier one regardless of whether the earlier one has any
+									// conditions or not. Only do this if the layers are equal.
+									continue outer
+								}
+
+								// If the import conditions are exactly equal, then only keep
+								// the later one. The earlier one will have no effect.
+								if css_ast.TokensEqualIgnoringWhitespace(before.Supports, after.Supports) &&
+									css_ast.TokensEqualIgnoringWhitespace(before.Media, after.Media) {
 									continue outer
 								}
 							}
-							external.conditions = append(external.conditions, atImport.ImportConditions)
 						}
 
-						// Clone any import records associated with the condition tokens
-						conditions, conditionImportRecords := css_ast.CloneTokensWithImportRecords(
-							atImport.ImportConditions, repr.AST.ImportRecords, nil, nil)
-
+						external.conditions = append(external.conditions, before)
 						externals[record.Path] = external
+
+						var conditions *css_ast.ImportConditions
+						var conditionImportRecords []ast.ImportRecord
+						if atImport.ImportConditions != nil {
+							conditions, conditionImportRecords = atImport.ImportConditions.CloneWithImportRecords(repr.AST.ImportRecords, conditionImportRecords)
+						}
+
 						externalOrder = append(externalOrder, externalImportCSS{
 							path:                   record.Path,
 							conditions:             conditions,
@@ -5712,9 +5719,10 @@ func (c *linkerContext) generateChunkCSS(chunkIndex int, chunkWaitGroup *sync.Wa
 		// Insert all external "@import" rules at the front. In CSS, all "@import"
 		// rules must come first or the browser will just ignore them.
 		for _, external := range chunkRepr.externalImportsInOrder {
-			var conditions []css_ast.Token
-			conditions, tree.ImportRecords = css_ast.CloneTokensWithImportRecords(
-				external.conditions, external.conditionImportRecords, conditions, tree.ImportRecords)
+			var conditions *css_ast.ImportConditions
+			if external.conditions != nil {
+				conditions, tree.ImportRecords = external.conditions.CloneWithImportRecords(external.conditionImportRecords, tree.ImportRecords)
+			}
 			tree.Rules = append(tree.Rules, css_ast.Rule{Data: &css_ast.RAtImport{
 				ImportRecordIndex: uint32(len(tree.ImportRecords)),
 				ImportConditions:  conditions,

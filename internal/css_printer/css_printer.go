@@ -170,7 +170,29 @@ func (p *printer) printRule(rule css_ast.Rule, indent int32, omitTrailingSemicol
 		}
 		p.printQuoted(record.Path.Text, flags)
 		p.recordImportPathForMetafile(r.ImportRecordIndex)
-		p.printTokens(r.ImportConditions, printTokensOpts{})
+		if conditions := r.ImportConditions; conditions != nil {
+			space := !p.options.MinifyWhitespace
+			if len(conditions.Layers) > 0 {
+				if space {
+					p.print(" ")
+				}
+				p.printTokens(conditions.Layers, printTokensOpts{})
+				space = true
+			}
+			if len(conditions.Supports) > 0 {
+				if space {
+					p.print(" ")
+				}
+				p.printTokens(conditions.Supports, printTokensOpts{})
+				space = true
+			}
+			if len(conditions.Media) > 0 {
+				if space {
+					p.print(" ")
+				}
+				p.printTokens(conditions.Media, printTokensOpts{})
+			}
+		}
 		p.print(";")
 
 	case *css_ast.RAtKeyframes:
