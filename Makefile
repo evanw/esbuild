@@ -119,7 +119,7 @@ lib/deno/lib.deno.d.ts:
 	deno types > lib/deno/lib.deno.d.ts
 
 # End-to-end tests
-test-e2e: test-e2e-npm test-e2e-pnpm test-e2e-yarn-berry test-e2e-deno
+test-e2e: test-e2e-npm test-e2e-pnpm test-e2e-yarn test-e2e-yarn-berry test-e2e-deno
 
 test-e2e-npm:
 	# Test normal install
@@ -188,6 +188,31 @@ test-e2e-pnpm:
 
 	# Clean up
 	rm -fr e2e-pnpm
+
+test-e2e-yarn:
+	# Test normal install
+	rm -fr e2e-yarn && mkdir e2e-yarn && cd e2e-yarn && echo {} > package.json && touch yarn.lock && yarn set version classic && yarn add esbuild
+	cd e2e-yarn && echo "1+2" | yarn esbuild && yarn node -p "require('esbuild').transformSync('1+2').code"
+	# Test CI reinstall
+	cd e2e-yarn && rm -fr node_modules && yarn install --immutable
+	cd e2e-yarn && echo "1+2" | yarn esbuild && yarn node -p "require('esbuild').transformSync('1+2').code"
+
+	# Test install without scripts
+	rm -fr e2e-yarn && mkdir e2e-yarn && cd e2e-yarn && echo {} > package.json && touch yarn.lock && echo 'enableScripts: false' > .yarnrc.yml && yarn set version classic && yarn add esbuild
+	cd e2e-yarn && echo "1+2" | yarn esbuild && yarn node -p "require('esbuild').transformSync('1+2').code"
+	# Test CI reinstall
+	cd e2e-yarn && rm -fr node_modules && yarn install --immutable
+	cd e2e-yarn && echo "1+2" | yarn esbuild && yarn node -p "require('esbuild').transformSync('1+2').code"
+
+	# Test install without optional dependencies
+	rm -fr e2e-yarn && mkdir e2e-yarn && cd e2e-yarn && echo {} > package.json && touch yarn.lock && yarn set version classic && yarn add esbuild
+	cd e2e-yarn && echo "1+2" | yarn esbuild && yarn node -p "require('esbuild').transformSync('1+2').code"
+	# Test CI reinstall
+	cd e2e-yarn && rm -fr node_modules && yarn install --immutable --ignore-optional
+	cd e2e-yarn && echo "1+2" | yarn esbuild && yarn node -p "require('esbuild').transformSync('1+2').code"
+
+	# Clean up
+	rm -fr e2e-yarn
 
 test-e2e-yarn-berry:
 	# Test normal install

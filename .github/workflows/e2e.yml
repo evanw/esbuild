@@ -37,7 +37,12 @@ jobs:
           npm i -g pnpm@next-7
           time make test-e2e-pnpm
 
-      - name: Test yarn
+      - name: Test yarn (classic)
+        run: |
+          npm i -g yarn@latest
+          time make test-e2e-yarn
+
+      - name: Test yarn (berry)
         run: |
           npm i -g yarn@latest
           time make test-e2e-yarn-berry
