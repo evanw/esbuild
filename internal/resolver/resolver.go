@@ -436,19 +436,6 @@ func (res *Resolver) Resolve(sourceDir string, importPath string, kind ast.Impor
 		}, debugMeta
 	}
 
-	// "import 'pkg'" when all packages are external (vs. "import './pkg'")
-	if r.options.ExternalPackages && IsPackagePath(importPath) && !r.fs.IsAbs(importPath) && !strings.HasPrefix(importPath, "#") {
-		if r.debugLogs != nil {
-			r.debugLogs.addNote("Marking this path as external because it's a package path")
-		}
-
-		r.flushDebugLogs(flushDueToSuccess)
-		return &ResolveResult{
-			PathPair:   PathPair{Primary: logger.Path{Text: importPath}},
-			IsExternal: true,
-		}, debugMeta
-	}
-
 	// "import fs from 'fs'"
 	if r.options.Platform == config.PlatformNode && BuiltInNodeModules[importPath] {
 		if r.debugLogs != nil {
@@ -1010,11 +997,47 @@ func (r resolverQuery) resolveWithoutSymlinks(sourceDir string, sourceDirInfo *d
 		}
 	}
 
+	// First, check path overrides from the nearest enclosing TypeScript "tsconfig.json" file
+	if sourceDirInfo != nil {
+		if tsConfigJSON := r.tsConfigForDir(sourceDirInfo); tsConfigJSON != nil {
+			// Try path substitutions first
+			if tsConfigJSON.Paths != nil {
+				if absolute, ok, diffCase := r.matchTSConfigPaths(tsConfigJSON, importPath); ok {
+					return &ResolveResult{PathPair: absolute, DifferentCase: diffCase}
+				}
+			}
+
+			// Try looking up the path relative to the base URL
+			if tsConfigJSON.BaseURL != nil {
+				basePath := r.fs.Join(*tsConfigJSON.BaseURL, importPath)
+				if absolute, ok, diffCase := r.loadAsFileOrDirectory(basePath); ok {
+					return &ResolveResult{PathPair: absolute, DifferentCase: diffCase}
+				}
+			}
+		}
+	}
+
 	// Check both relative and package paths for CSS URL tokens, with relative
 	// paths taking precedence over package paths to match Webpack behavior.
 	isPackagePath := IsPackagePath(importPath)
 	checkRelative := !isPackagePath || r.kind.IsFromCSS()
 	checkPackage := isPackagePath
+
+	// "import 'pkg'" when all packages are external (vs. "import './pkg'"). This
+	// is deliberately done after we check for "tsconfig.json" aliases because
+	// people want to be able to make things look like packages but have them not
+	// be packages.
+	if r.options.ExternalPackages && isPackagePath && !strings.HasPrefix(importPath, "#") {
+		if r.debugLogs != nil {
+			r.debugLogs.addNote("Marking this path as external because it's a package path")
+		}
+
+		r.flushDebugLogs(flushDueToSuccess)
+		return &ResolveResult{
+			PathPair:   PathPair{Primary: logger.Path{Text: importPath}},
+			IsExternal: true,
+		}
+	}
 
 	if checkRelative {
 		absPath := r.fs.Join(sourceDir, importPath)
@@ -2293,24 +2316,6 @@ func (r resolverQuery) loadNodeModules(importPath string, dirInfo *dirInfo, forb
 		r.debugLogs.addNote(fmt.Sprintf("Searching for %q in \"node_modules\" directories starting from %q", importPath, dirInfo.absPath))
 		r.debugLogs.increaseIndent()
 		defer r.debugLogs.decreaseIndent()
-	}
-
-	// First, check path overrides from the nearest enclosing TypeScript "tsconfig.json" file
-	if tsConfigJSON := r.tsConfigForDir(dirInfo); tsConfigJSON != nil {
-		// Try path substitutions first
-		if tsConfigJSON.Paths != nil {
-			if absolute, ok, diffCase := r.matchTSConfigPaths(tsConfigJSON, importPath); ok {
-				return absolute, true, diffCase
-			}
-		}
-
-		// Try looking up the path relative to the base URL
-		if tsConfigJSON.BaseURL != nil {
-			basePath := r.fs.Join(*tsConfigJSON.BaseURL, importPath)
-			if absolute, ok, diffCase := r.loadAsFileOrDirectory(basePath); ok {
-				return absolute, true, diffCase
-			}
-		}
 	}
 
 	// Find the parent directory with the "package.json" file

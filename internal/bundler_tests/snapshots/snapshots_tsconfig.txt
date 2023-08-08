@@ -320,6 +320,19 @@ TestTsconfigJsonOverrideNodeModules
 console.log("good");
 
 ================================================================================
+TestTsconfigJsonPackagesExternal
+---------- /Users/user/project/out.js ----------
+// Users/user/project/src/entry.js
+import truePkg from "pkg1";
+
+// Users/user/project/src/stuff/pkg2.js
+var pkg2_default = success;
+
+// Users/user/project/src/entry.js
+truePkg();
+pkg2_default();
+
+================================================================================
 TestTsconfigJsonTrailingCommaAllowed
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/src/lib/util.js

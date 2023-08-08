@@ -2457,3 +2457,34 @@ func TestTsconfigIgnoreInsideNodeModules(t *testing.T) {
 		},
 	})
 }
+
+func TestTsconfigJsonPackagesExternal(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import truePkg from 'pkg1'
+				import falsePkg from 'internal/pkg2'
+				truePkg()
+				falsePkg()
+			`,
+			"/Users/user/project/src/tsconfig.json": `
+				{
+					"compilerOptions": {
+						"paths": {
+							"internal/*": ["./stuff/*"]
+						}
+					}
+				}
+			`,
+			"/Users/user/project/src/stuff/pkg2.js": `
+				export default success
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:             config.ModeBundle,
+			AbsOutputFile:    "/Users/user/project/out.js",
+			ExternalPackages: true,
+		},
+	})
+}

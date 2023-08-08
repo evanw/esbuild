@@ -39,6 +39,10 @@
 
         Note that using this feature means esbuild will potentially do a lot of file system I/O to find all possible files that might match the pattern. This is by design, and is not a bug. If this is a concern, I recommend either avoiding the `/**/` pattern (e.g. by not putting a `/` before a wildcard) or using this feature only in directory subtrees which do not have many files that don't match the pattern (e.g. making a subdirectory for your JSON files and explicitly including that subdirectory in the pattern).
 
+* Path aliases in `tsconfig.json` no longer count as packages ([#2792](https://github.com/evanw/esbuild/issues/2792), [#3003](https://github.com/evanw/esbuild/issues/3003), [#3160](https://github.com/evanw/esbuild/issues/3160), [#3238](https://github.com/evanw/esbuild/issues/3238))
+
+    Setting `--packages=external` tells esbuild to make all import paths external when they look like a package path. For example, an import of `./foo/bar` is not a package path and won't be external while an import of `foo/bar` is a package path and will be external. However, the [`paths` field](https://www.typescriptlang.org/tsconfig#paths) in `tsconfig.json` allows you to create import paths that look like package paths but that do not resolve to packages. People do not want these paths to count as package paths. So with this release, the behavior of `--packages=external` has been changed to happen after the `tsconfig.json` path remapping step.
+
 * Use the `local-css` loader for `.module.css` files by default ([#20](https://github.com/evanw/esbuild/issues/20))
 
     With this release the `css` loader is still used for `.css` files except that `.module.css` files now use the `local-css` loader. This is a common convention in the web development community. If you need `.module.css` files to use the `css` loader instead, then you can override this behavior with `--loader:.module.css=css`.
