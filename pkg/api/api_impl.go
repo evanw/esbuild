@@ -1588,9 +1588,9 @@ func rebuildImpl(args rebuildArgs, oldHashes map[string]string) (rebuildState, m
 								log.AddError(nil, logger.Range{}, fmt.Sprintf(
 									"Failed to create output directory: %s", err.Error()))
 							} else {
-								var mode os.FileMode = 0644
+								var mode os.FileMode = 0666
 								if result.IsExecutable {
-									mode = 0755
+									mode = 0777
 								}
 								if err := ioutil.WriteFile(result.AbsPath, result.Contents, mode); err != nil {
 									log.AddError(nil, logger.Range{}, fmt.Sprintf(

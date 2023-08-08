@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+* Change the permissions of esbuild's generated output files ([#3285](https://github.com/evanw/esbuild/issues/3285))
+
+    This release changes the permissions of the output files that esbuild generates to align with the default behavior of node's [`fs.writeFileSync`](https://nodejs.org/api/fs.html#fswritefilesyncfile-data-options) function. Since most tools written in JavaScript use `fs.writeFileSync`, this should make esbuild more consistent with how other JavaScript build tools behave.
+
+    The full Unix-y details: Unix permissions use three-digit octal notation where the three digits mean "user, group, other" in that order. Within a digit, 4 means "read" and 2 means "write" and 1 means "execute". So 6 == 4 + 2 == read + write. Previously esbuild uses 0644 permissions (the leading 0 means octal notation) but the permissions for `fs.writeFileSync` defaults to 0666, so esbuild will now use 0666 permissions. This does not necessarily mean that the files esbuild generates will end up having 0666 permissions, however, as there is another Unix feature called "umask" where the operating system masks out some of these bits. If your umask is set to 0022 then the generated files will have 0644 permissions, and if your umask is set to 0002 then the generated files will have 0664 permissions.
+
 ## 0.19.0
 
 **This release deliberately contains backwards-incompatible changes.** To avoid automatically picking up releases like this, you should either be pinning the exact version of `esbuild` in your `package.json` file (recommended) or be using a version range syntax that only accepts patch upgrades such as `^0.18.0` or `~0.18.0`. See npm's documentation about [semver](https://docs.npmjs.com/cli/v6/using-npm/semver/) for more information.
