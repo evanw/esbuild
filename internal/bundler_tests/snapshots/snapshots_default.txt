@@ -3953,7 +3953,7 @@ copy
 import {
   __commonJS,
   __require
-} from "./chunk-O3JHV3KG.js";
+} from "./chunk-WXLYCZIT.js";
 
 // project/cjs.js
 var require_cjs = __commonJS({
@@ -3984,15 +3984,15 @@ console.log(
   e,
   __require("extern-cjs"),
   require_cjs(),
-  import("./dynamic-3QRP4J6Z.js")
+  import("./dynamic-TGITTCVZ.js")
 );
 var exported;
 export {
   exported
 };
 
----------- /out/dynamic-3QRP4J6Z.js ----------
-import "./chunk-O3JHV3KG.js";
+---------- /out/dynamic-TGITTCVZ.js ----------
+import "./chunk-WXLYCZIT.js";
 
 // project/dynamic.js
 var dynamic_default = 5;
@@ -4000,7 +4000,7 @@ export {
   dynamic_default as default
 };
 
----------- /out/chunk-O3JHV3KG.js ----------
+---------- /out/chunk-WXLYCZIT.js ----------
 export {
   __require,
   __commonJS
@@ -4157,7 +4157,7 @@ d {
     "out/entry.js": {
       "imports": [
         {
-          "path": "out/chunk-O3JHV3KG.js",
+          "path": "out/chunk-WXLYCZIT.js",
           "kind": "import-statement"
         },
         {
@@ -4179,7 +4179,7 @@ d {
           "external": true
         },
         {
-          "path": "out/dynamic-3QRP4J6Z.js",
+          "path": "out/dynamic-TGITTCVZ.js",
           "kind": "dynamic-import"
         }
       ],
@@ -4206,10 +4206,10 @@ d {
       },
       "bytes": 642
     },
-    "out/dynamic-3QRP4J6Z.js": {
+    "out/dynamic-TGITTCVZ.js": {
       "imports": [
         {
-          "path": "out/chunk-O3JHV3KG.js",
+          "path": "out/chunk-WXLYCZIT.js",
           "kind": "import-statement"
         }
       ],
@@ -4224,7 +4224,7 @@ d {
       },
       "bytes": 119
     },
-    "out/chunk-O3JHV3KG.js": {
+    "out/chunk-WXLYCZIT.js": {
       "imports": [],
       "exports": [
         "__commonJS",

@@ -923,8 +923,8 @@ export {
     const names2 = result2.outputFiles.map(x => path.basename(x.path)).sort()
 
     // Check that the public path is included in chunk hashes but not asset hashes
-    assert.deepStrictEqual(names1, ['data-BYATPJRB.bin', 'in-IN5VRZMW.js'])
-    assert.deepStrictEqual(names2, ['data-BYATPJRB.bin', 'in-7HV645WS.js'])
+    assert.deepStrictEqual(names1, ['data-BYATPJRB.bin', 'in-7SVE3DTC.js'])
+    assert.deepStrictEqual(names2, ['data-BYATPJRB.bin', 'in-E6EBO534.js'])
   },
 
   async fileLoaderPublicPath({ esbuild, testDir }) {
