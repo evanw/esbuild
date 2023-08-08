@@ -1810,17 +1810,17 @@ TestIgnoreURLsInAtRulePrelude
 TestImportCSSFromJSComposes
 ---------- /out/entry.js ----------
 // styles.module.css
-var styles_module_default = {
-  local0: "GLOBAL1 GLOBAL2 styles_module_local4 styles_module_local3 styles_module_local1 GLOBAL3 styles_module_local2 GLOBAL4 styles_module_local0",
-  local1: "styles_module_local4 styles_module_local3 styles_module_local1",
-  local2: "styles_module_local2",
-  local3: "styles_module_local4 styles_module_local3",
-  local4: "styles_module_local4",
-  fromOtherFile: "base_module_base1 base_module_base2 other1_module_local0 base_module_base3 other2_module_local0 styles_module_fromOtherFile"
+var styles_default = {
+  local0: "GLOBAL1 GLOBAL2 styles_local4 styles_local3 styles_local1 GLOBAL3 styles_local2 GLOBAL4 styles_local0",
+  local1: "styles_local4 styles_local3 styles_local1",
+  local2: "styles_local2",
+  local3: "styles_local4 styles_local3",
+  local4: "styles_local4",
+  fromOtherFile: "base_base1 base_base2 other1_local0 base_base3 other2_local0 styles_fromOtherFile"
 };
 
 // entry.js
-console.log(styles_module_default);
+console.log(styles_default);
 
 ---------- /out/entry.css ----------
 /* global.css */
@@ -1829,44 +1829,44 @@ console.log(styles_module_default);
 }
 
 /* other1.module.css */
-.other1_module_local0 {
+.other1_local0 {
   color: blue;
 }
 
 /* base.module.css */
-.base_module_base1 {
+.base_base1 {
   cursor: pointer;
 }
-.base_module_base2 {
+.base_base2 {
   display: inline;
 }
-.base_module_base3 {
+.base_base3 {
   float: left;
 }
 
 /* other2.module.css */
-.other2_module_local0 {
+.other2_local0 {
   background: purple;
 }
 
 /* styles.module.css */
-.styles_module_local0 {
+.styles_local0 {
 }
-.styles_module_local0 {
+.styles_local0 {
   background: green;
 }
-.styles_module_local0 {
+.styles_local0 {
 }
-.styles_module_local3 {
+.styles_local3 {
   border: 1px solid black;
 }
-.styles_module_local4 {
+.styles_local4 {
   opacity: 0.5;
 }
-.styles_module_local1 {
+.styles_local1 {
   color: red;
 }
-.styles_module_fromOtherFile {
+.styles_fromOtherFile {
 }
 
 ================================================================================

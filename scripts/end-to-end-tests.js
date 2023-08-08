@@ -7845,7 +7845,7 @@ tests.push(
   }),
 )
 
-// Test CSS-related warning ranges
+// Tests for CSS modules
 tests.push(
   test(['in.js', '--outfile=node.js', '--bundle', '--loader:.css=local-css'], {
     'in.js': `
@@ -7870,6 +7870,42 @@ tests.push(
         ╵        ~~~~~~~~~
 
 `,
+  }),
+  test(['in.js', '--outfile=node.js', '--bundle'], {
+    'in.js': `
+      import * as foo_styles from "./foo.css"
+      import * as bar_styles from "./bar"
+      const { foo } = foo_styles
+      const { bar } = bar_styles
+      if (foo !== void 0) throw 'fail: foo=' + foo
+      if (bar !== void 0) throw 'fail: bar=' + bar
+    `,
+    'foo.css': `.foo { color: red }`,
+    'bar.css': `.bar { color: green }`,
+  }),
+  test(['in.js', '--outfile=node.js', '--bundle'], {
+    'in.js': `
+      import * as foo_styles from "./foo.module.css"
+      import * as bar_styles from "./bar.module"
+      const { foo } = foo_styles
+      const { bar } = bar_styles
+      if (foo !== 'foo_foo') throw 'fail: foo=' + foo
+      if (bar !== 'bar_bar') throw 'fail: bar=' + bar
+    `,
+    'foo.module.css': `.foo { color: red }`,
+    'bar.module.css': `.bar { color: green }`,
+  }),
+  test(['in.js', '--outfile=node.js', '--bundle', '--loader:.module.css=css'], {
+    'in.js': `
+      import * as foo_styles from "./foo.module.css"
+      import * as bar_styles from "./bar.module"
+      const { foo } = foo_styles
+      const { bar } = bar_styles
+      if (foo !== void 0) throw 'fail: foo=' + foo
+      if (bar !== void 0) throw 'fail: bar=' + bar
+    `,
+    'foo.module.css': `.foo { color: red }`,
+    'bar.module.css': `.bar { color: green }`,
   }),
 )
 

@@ -2552,18 +2552,19 @@ func (s *scanner) validateTLA(sourceIndex uint32) tlaCheck {
 
 func DefaultExtensionToLoaderMap() map[string]config.Loader {
 	return map[string]config.Loader{
-		"":      config.LoaderJS, // This represents files without an extension
-		".js":   config.LoaderJS,
-		".mjs":  config.LoaderJS,
-		".cjs":  config.LoaderJS,
-		".jsx":  config.LoaderJSX,
-		".ts":   config.LoaderTS,
-		".cts":  config.LoaderTSNoAmbiguousLessThan,
-		".mts":  config.LoaderTSNoAmbiguousLessThan,
-		".tsx":  config.LoaderTSX,
-		".css":  config.LoaderCSS,
-		".json": config.LoaderJSON,
-		".txt":  config.LoaderText,
+		"":            config.LoaderJS, // This represents files without an extension
+		".js":         config.LoaderJS,
+		".mjs":        config.LoaderJS,
+		".cjs":        config.LoaderJS,
+		".jsx":        config.LoaderJSX,
+		".ts":         config.LoaderTS,
+		".cts":        config.LoaderTSNoAmbiguousLessThan,
+		".mts":        config.LoaderTSNoAmbiguousLessThan,
+		".tsx":        config.LoaderTSX,
+		".css":        config.LoaderCSS,
+		".module.css": config.LoaderLocalCSS,
+		".json":       config.LoaderJSON,
+		".txt":        config.LoaderText,
 	}
 }
 
