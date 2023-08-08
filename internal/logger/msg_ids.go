@@ -57,6 +57,7 @@ const (
 	// Bundler
 	MsgID_Bundler_AmbiguousReexport
 	MsgID_Bundler_DifferentPathCase
+	MsgID_Bundler_EmptyGlob
 	MsgID_Bundler_IgnoredBareImport
 	MsgID_Bundler_IgnoredDynamicImport
 	MsgID_Bundler_ImportIsUndefined
@@ -178,6 +179,8 @@ func StringToMsgIDs(str string, logLevel LogLevel, overrides map[MsgID]LogLevel)
 		overrides[MsgID_Bundler_AmbiguousReexport] = logLevel
 	case "different-path-case":
 		overrides[MsgID_Bundler_DifferentPathCase] = logLevel
+	case "empty-glob":
+		overrides[MsgID_Bundler_EmptyGlob] = logLevel
 	case "ignored-bare-import":
 		overrides[MsgID_Bundler_IgnoredBareImport] = logLevel
 	case "ignored-dynamic-import":
@@ -302,6 +305,8 @@ func MsgIDToString(id MsgID) string {
 		return "ambiguous-reexport"
 	case MsgID_Bundler_DifferentPathCase:
 		return "different-path-case"
+	case MsgID_Bundler_EmptyGlob:
+		return "empty-glob"
 	case MsgID_Bundler_IgnoredBareImport:
 		return "ignored-bare-import"
 	case MsgID_Bundler_IgnoredDynamicImport:

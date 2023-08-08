@@ -980,7 +980,7 @@ let pluginTests = {
 
   async virtualEntryPoints({ esbuild, testDir }) {
     const result = await esbuild.build({
-      entryPoints: ['1', '2', 'a<>:"|?*b', 'a/b/c.d.e'],
+      entryPoints: ['1', '2', 'a<>:"|?b', 'a/b/c.d.e'],
       bundle: true,
       write: false,
       outdir: testDir,
@@ -1004,7 +1004,7 @@ let pluginTests = {
     assert.strictEqual(result.outputFiles[3].path, path.join(testDir, 'a/b/c.d.js'))
     assert.strictEqual(result.outputFiles[0].text, `// virtual-ns:input 1\nconsole.log("input 1");\n`)
     assert.strictEqual(result.outputFiles[1].text, `// virtual-ns:input 2\nconsole.log("input 2");\n`)
-    assert.strictEqual(result.outputFiles[2].text, `// virtual-ns:input a<>:"|?*b\nconsole.log('input a<>:"|?*b');\n`)
+    assert.strictEqual(result.outputFiles[2].text, `// virtual-ns:input a<>:"|?b\nconsole.log('input a<>:"|?b');\n`)
     assert.strictEqual(result.outputFiles[3].text, `// virtual-ns:input a/b/c.d.e\nconsole.log("input a/b/c.d.e");\n`)
   },
 

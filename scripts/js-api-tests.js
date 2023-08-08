@@ -47,24 +47,6 @@ let buildTests = {
     }
   },
 
-  async errorIfGlob({ esbuild }) {
-    try {
-      await esbuild.build({
-        entryPoints: ['./src/*.js'],
-        logLevel: 'silent',
-        write: false,
-      })
-      throw new Error('Expected build failure');
-    } catch (e) {
-      if (!e.errors || !e.errors[0] || e.errors[0].text !== 'Could not resolve "./src/*.js"' ||
-        e.errors[0].notes[0].text !== 'It looks like you are trying to use glob syntax (i.e. "*") with esbuild. ' +
-        'This syntax is typically handled by your shell, and isn\'t handled by esbuild itself. ' +
-        'You must expand glob syntax first before passing your paths to esbuild.') {
-        throw e;
-      }
-    }
-  },
-
   // Verify that it's possible to disable a loader by setting it to "default".
   // In particular, verify that it's possible to disable the special loader ""
   // for extensionless files.

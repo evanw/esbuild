@@ -2093,7 +2093,7 @@ func (c *linkerContext) generateCodeForLazyExport(sourceIndex uint32) {
 	if len(repr.AST.Parts) < 1 {
 		panic("Internal error")
 	}
-	part := &repr.AST.Parts[1]
+	part := &repr.AST.Parts[len(repr.AST.Parts)-1]
 	if len(part.Stmts) != 1 {
 		panic("Internal error")
 	}
@@ -5417,7 +5417,6 @@ func (c *linkerContext) generateChunkJS(chunkIndex int, chunkWaitGroup *sync.Wai
 		metaBytes = make(map[uint32][][]byte, len(compileResults))
 	}
 	for _, compileResult := range compileResults {
-		isRuntime := compileResult.sourceIndex == runtime.SourceIndex
 		if len(compileResult.ExtractedLegalComments) > 0 {
 			legalCommentList = append(legalCommentList, legalCommentEntry{
 				sourceIndex: compileResult.sourceIndex,
@@ -5450,7 +5449,7 @@ func (c *linkerContext) generateChunkJS(chunkIndex int, chunkWaitGroup *sync.Wai
 		}
 
 		// Don't include the runtime in source maps
-		if isRuntime {
+		if c.graph.Files[compileResult.sourceIndex].InputFile.OmitFromSourceMapsAndMetafile {
 			prevOffset.AdvanceString(string(compileResult.JS))
 			j.AddBytes(compileResult.JS)
 		} else {

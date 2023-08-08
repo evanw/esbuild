@@ -1,0 +1,158 @@
+TestGlobBasicNoSplitting
+---------- /out.js ----------
+// src/a.js
+var require_a = __commonJS({
+  "src/a.js"(exports, module) {
+    module.exports = "a";
+  }
+});
+
+// src/b.js
+var require_b = __commonJS({
+  "src/b.js"(exports, module) {
+    module.exports = "b";
+  }
+});
+
+// require("./src/**/*") in entry.js
+var globRequire_src = __glob({
+  "./src/a.js": () => require_a(),
+  "./src/b.js": () => require_b()
+});
+
+// import("./src/**/*") in entry.js
+var globImport_src = __glob({
+  "./src/a.js": () => Promise.resolve().then(() => __toESM(require_a())),
+  "./src/b.js": () => Promise.resolve().then(() => __toESM(require_b()))
+});
+
+// entry.js
+var ab = Math.random() < 0.5 ? "a.js" : "b.js";
+console.log({
+  concat: {
+    require: globRequire_src("./src/" + ab),
+    import: globImport_src("./src/" + ab)
+  },
+  template: {
+    require: globRequire_src(`./src/${ab}`),
+    import: globImport_src(`./src/${ab}`)
+  }
+});
+
+================================================================================
+TestGlobBasicSplitting
+---------- /out/entry.js ----------
+import {
+  require_a
+} from "./chunk-Z3PINQB2.js";
+import {
+  require_b
+} from "./chunk-XAB6ATD2.js";
+import {
+  __glob
+} from "./chunk-NI2FVOS3.js";
+
+// require("./src/**/*") in entry.js
+var globRequire_src = __glob({
+  "./src/a.js": () => require_a(),
+  "./src/b.js": () => require_b()
+});
+
+// import("./src/**/*") in entry.js
+var globImport_src = __glob({
+  "./src/a.js": () => import("./a-G7HQS5H7.js"),
+  "./src/b.js": () => import("./b-DBW3WPXU.js")
+});
+
+// entry.js
+var ab = Math.random() < 0.5 ? "a.js" : "b.js";
+console.log({
+  concat: {
+    require: globRequire_src("./src/" + ab),
+    import: globImport_src("./src/" + ab)
+  },
+  template: {
+    require: globRequire_src(`./src/${ab}`),
+    import: globImport_src(`./src/${ab}`)
+  }
+});
+
+---------- /out/a-G7HQS5H7.js ----------
+import {
+  require_a
+} from "./chunk-Z3PINQB2.js";
+import "./chunk-NI2FVOS3.js";
+export default require_a();
+
+---------- /out/chunk-Z3PINQB2.js ----------
+import {
+  __commonJS
+} from "./chunk-NI2FVOS3.js";
+
+// src/a.js
+var require_a = __commonJS({
+  "src/a.js"(exports, module) {
+    module.exports = "a";
+  }
+});
+
+export {
+  require_a
+};
+
+---------- /out/b-DBW3WPXU.js ----------
+import {
+  require_b
+} from "./chunk-XAB6ATD2.js";
+import "./chunk-NI2FVOS3.js";
+export default require_b();
+
+---------- /out/chunk-XAB6ATD2.js ----------
+import {
+  __commonJS
+} from "./chunk-NI2FVOS3.js";
+
+// src/b.js
+var require_b = __commonJS({
+  "src/b.js"(exports, module) {
+    module.exports = "b";
+  }
+});
+
+export {
+  require_b
+};
+
+---------- /out/chunk-NI2FVOS3.js ----------
+export {
+  __glob,
+  __commonJS
+};
+
+================================================================================
+TestGlobEntryPointAbsPath
+---------- /out/entry.js ----------
+// Users/user/project/src/entry.js
+works = true;
+
+================================================================================
+TestGlobNoMatches
+---------- /out/entry.js ----------
+// require("./src/**/*.json") in entry.js
+var globRequire_src_json = __glob({});
+
+// import("./src/**/*.json") in entry.js
+var globImport_src_json = __glob({});
+
+// entry.js
+var ab = Math.random() < 0.5 ? "a.js" : "b.js";
+console.log({
+  concat: {
+    require: globRequire_src_json("./src/" + ab + ".json"),
+    import: globImport_src_json("./src/" + ab + ".json")
+  },
+  template: {
+    require: globRequire_src_json(`./src/${ab}.json`),
+    import: globImport_src_json(`./src/${ab}.json`)
+  }
+});

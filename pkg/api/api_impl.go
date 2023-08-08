@@ -1341,11 +1341,18 @@ func validateBuildOptions(
 		options.AbsNodePaths[i] = validatePath(log, realFS, path, "node path")
 	}
 	entryPoints = make([]bundler.EntryPoint, 0, len(buildOpts.EntryPoints)+len(buildOpts.EntryPointsAdvanced))
+	hasEntryPointWithWildcard := false
 	for _, ep := range buildOpts.EntryPoints {
 		entryPoints = append(entryPoints, bundler.EntryPoint{InputPath: ep})
+		if strings.ContainsRune(ep, '*') {
+			hasEntryPointWithWildcard = true
+		}
 	}
 	for _, ep := range buildOpts.EntryPointsAdvanced {
 		entryPoints = append(entryPoints, bundler.EntryPoint{InputPath: ep.InputPath, OutputPath: ep.OutputPath})
+		if strings.ContainsRune(ep.InputPath, '*') {
+			hasEntryPointWithWildcard = true
+		}
 	}
 	entryPointCount := len(entryPoints)
 	if buildOpts.Stdin != nil {
@@ -1358,7 +1365,7 @@ func validateBuildOptions(
 		}
 	}
 
-	if options.AbsOutputDir == "" && entryPointCount > 1 {
+	if options.AbsOutputDir == "" && (entryPointCount > 1 || hasEntryPointWithWildcard) {
 		log.AddError(nil, logger.Range{},
 			"Must use \"outdir\" when there are multiple input files")
 	} else if options.AbsOutputDir == "" && options.CodeSplitting {
