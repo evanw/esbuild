@@ -3356,124 +3356,126 @@ func (c *linkerContext) findImportedFilesInCSSOrder(entryPoints []uint32) (exter
 		wrappingConditions []css_ast.ImportConditions,
 		wrappingImportRecords []ast.ImportRecord,
 	) {
-		if !visited[sourceIndex] {
-			visited[sourceIndex] = true
-			repr := c.graph.Files[sourceIndex].InputFile.Repr.(*graph.CSSRepr)
-			topLevelRules := repr.AST.Rules
+		if visited[sourceIndex] {
+			return
+		}
+		visited[sourceIndex] = true
 
-			// Iterate in reverse preorder (will be reversed again later)
-			internalOrder = append(internalOrder, cssImportOrder{
-				sourceIndex:            sourceIndex,
-				conditions:             wrappingConditions,
-				conditionImportRecords: wrappingImportRecords,
-			})
+		repr := c.graph.Files[sourceIndex].InputFile.Repr.(*graph.CSSRepr)
+		topLevelRules := repr.AST.Rules
 
-			// Iterate in the inverse order of "composes" directives. Note that the
-			// order doesn't matter for these because the output order is explicitly
-			// undefined in the specification.
-			records := repr.AST.ImportRecords
-			for i := len(records) - 1; i >= 0; i-- {
-				if record := &records[i]; record.Kind == ast.ImportComposesFrom && record.SourceIndex.IsValid() {
-					visit(record.SourceIndex.GetIndex(), visited, wrappingConditions, wrappingImportRecords)
-				}
+		// Iterate in reverse preorder (will be reversed again later)
+		internalOrder = append(internalOrder, cssImportOrder{
+			sourceIndex:            sourceIndex,
+			conditions:             wrappingConditions,
+			conditionImportRecords: wrappingImportRecords,
+		})
+
+		// Iterate in the inverse order of "composes" directives. Note that the
+		// order doesn't matter for these because the output order is explicitly
+		// undefined in the specification.
+		records := repr.AST.ImportRecords
+		for i := len(records) - 1; i >= 0; i-- {
+			if record := &records[i]; record.Kind == ast.ImportComposesFrom && record.SourceIndex.IsValid() {
+				visit(record.SourceIndex.GetIndex(), visited, wrappingConditions, wrappingImportRecords)
 			}
+		}
 
-			// Iterate in the inverse order of top-level "@import" rules
-		outer:
-			for i := len(topLevelRules) - 1; i >= 0; i-- {
-				if atImport, ok := topLevelRules[i].Data.(*css_ast.RAtImport); ok {
-					record := &repr.AST.ImportRecords[atImport.ImportRecordIndex]
+		// Iterate in the inverse order of top-level "@import" rules
+	outer:
+		for i := len(topLevelRules) - 1; i >= 0; i-- {
+			if atImport, ok := topLevelRules[i].Data.(*css_ast.RAtImport); ok {
+				record := &repr.AST.ImportRecords[atImport.ImportRecordIndex]
 
-					// Follow internal dependencies
-					if record.SourceIndex.IsValid() {
-						nestedVisited := visited
-						nestedConditions := wrappingConditions
-						nestedImportRecords := wrappingImportRecords
+				// Follow internal dependencies
+				if record.SourceIndex.IsValid() {
+					nestedVisited := visited
+					nestedConditions := wrappingConditions
+					nestedImportRecords := wrappingImportRecords
 
-						// If this import has conditions, fork our state so that the entire
-						// imported stylesheet subtree is wrapped in all of the conditions
-						if atImport.ImportConditions != nil {
-							// Fork our state
-							nestedVisited = make(map[uint32]bool)
-							for sourceIndex := range visited {
-								nestedVisited[sourceIndex] = true
-							}
-							nestedConditions = append([]css_ast.ImportConditions{}, nestedConditions...)
-							nestedImportRecords = append([]ast.ImportRecord{}, nestedImportRecords...)
-
-							// Clone these import conditions and append them to the state
-							var conditions css_ast.ImportConditions
-							conditions, nestedImportRecords = atImport.ImportConditions.CloneWithImportRecords(repr.AST.ImportRecords, nestedImportRecords)
-							nestedConditions = append(nestedConditions, conditions)
+					// If this import has conditions, fork our state so that the entire
+					// imported stylesheet subtree is wrapped in all of the conditions
+					if atImport.ImportConditions != nil {
+						// Fork our state
+						nestedVisited = make(map[uint32]bool)
+						for sourceIndex := range visited {
+							nestedVisited[sourceIndex] = true
 						}
+						nestedConditions = append([]css_ast.ImportConditions{}, nestedConditions...)
+						nestedImportRecords = append([]ast.ImportRecord{}, nestedImportRecords...)
 
-						visit(record.SourceIndex.GetIndex(), nestedVisited, nestedConditions, nestedImportRecords)
-						continue
-					}
-
-					// Record external dependencies
-					if (record.Flags & ast.WasLoadedWithEmptyLoader) == 0 {
-						external := externals[record.Path]
-
-						// This is stored as a pointer to save space. But it's easier to
-						// compare against if we don't have to test for nil. So convert
-						// it from a pointer to a value.
-						var before css_ast.ImportConditions
-						if atImport.ImportConditions != nil {
-							before = *atImport.ImportConditions
-						}
-
-						// Skip this rule if a later rule masks it. Note that we avoid
-						// skipping rules with layers because this code tries to keep
-						// the last instance of each import (since usually that's the
-						// only one that matters in CSS) but layers take effect for the
-						// first instance instead of the last.
-						if len(before.Layers) == 0 {
-							for _, after := range external.conditions {
-								if len(after.Layers) > 0 {
-									continue
-								}
-
-								sameSupports := css_ast.TokensEqualIgnoringWhitespace(before.Supports, after.Supports)
-								sameMedia := css_ast.TokensEqualIgnoringWhitespace(before.Media, after.Media)
-
-								// If the import conditions are exactly equal, then only keep
-								// the later one. The earlier one will have no effect.
-								if sameSupports && sameMedia {
-									continue outer
-								}
-
-								// If the media conditions are exactly equal and the later one
-								// doesn't have any supports conditions, then the later one will
-								// apply in all cases where the earlier one applies.
-								if sameMedia && len(after.Supports) == 0 {
-									continue outer
-								}
-
-								// If the supports conditions are exactly equal and the later one
-								// doesn't have any media conditions, then the later one will
-								// apply in all cases where the earlier one applies.
-								if sameSupports && len(after.Media) == 0 {
-									continue outer
-								}
-							}
-						}
-
-						external.conditions = append(external.conditions, before)
-						externals[record.Path] = external
-
+						// Clone these import conditions and append them to the state
 						var conditions css_ast.ImportConditions
-						var importRecords []ast.ImportRecord
-						if atImport.ImportConditions != nil {
-							conditions, importRecords = atImport.ImportConditions.CloneWithImportRecords(repr.AST.ImportRecords, importRecords)
-						}
-
-						externalOrder = append(externalOrder, externalImportCSS{
-							path:                   record.Path,
-							conditions:             conditions,
-							conditionImportRecords: importRecords,
-						})
+						conditions, nestedImportRecords = atImport.ImportConditions.CloneWithImportRecords(repr.AST.ImportRecords, nestedImportRecords)
+						nestedConditions = append(nestedConditions, conditions)
 					}
+
+					visit(record.SourceIndex.GetIndex(), nestedVisited, nestedConditions, nestedImportRecords)
+					continue
+				}
+
+				// Record external dependencies
+				if (record.Flags & ast.WasLoadedWithEmptyLoader) == 0 {
+					external := externals[record.Path]
+
+					// This is stored as a pointer to save space. But it's easier to
+					// compare against if we don't have to test for nil. So convert
+					// it from a pointer to a value.
+					var before css_ast.ImportConditions
+					if atImport.ImportConditions != nil {
+						before = *atImport.ImportConditions
+					}
+
+					// Skip this rule if a later rule masks it. Note that we avoid
+					// skipping rules with layers because this code tries to keep
+					// the last instance of each import (since usually that's the
+					// only one that matters in CSS) but layers take effect for the
+					// first instance instead of the last.
+					if len(before.Layers) == 0 {
+						for _, after := range external.conditions {
+							if len(after.Layers) > 0 {
+								continue
+							}
+
+							sameSupports := css_ast.TokensEqualIgnoringWhitespace(before.Supports, after.Supports)
+							sameMedia := css_ast.TokensEqualIgnoringWhitespace(before.Media, after.Media)
+
+							// If the import conditions are exactly equal, then only keep
+							// the later one. The earlier one will have no effect.
+							if sameSupports && sameMedia {
+								continue outer
+							}
+
+							// If the media conditions are exactly equal and the later one
+							// doesn't have any supports conditions, then the later one will
+							// apply in all cases where the earlier one applies.
+							if sameMedia && len(after.Supports) == 0 {
+								continue outer
+							}
+
+							// If the supports conditions are exactly equal and the later one
+							// doesn't have any media conditions, then the later one will
+							// apply in all cases where the earlier one applies.
+							if sameSupports && len(after.Media) == 0 {
+								continue outer
+							}
+						}
+					}
+
+					external.conditions = append(external.conditions, before)
+					externals[record.Path] = external
+
+					var conditions css_ast.ImportConditions
+					var importRecords []ast.ImportRecord
+					if atImport.ImportConditions != nil {
+						conditions, importRecords = atImport.ImportConditions.CloneWithImportRecords(repr.AST.ImportRecords, importRecords)
+					}
+
+					externalOrder = append(externalOrder, externalImportCSS{
+						path:                   record.Path,
+						conditions:             conditions,
+						conditionImportRecords: importRecords,
+					})
 				}
 			}
 		}
