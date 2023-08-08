@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+**This release deliberately contains backwards-incompatible changes.** To avoid automatically picking up releases like this, you should either be pinning the exact version of `esbuild` in your `package.json` file (recommended) or be using a version range syntax that only accepts patch upgrades such as `^0.18.0` or `~0.18.0`. See npm's documentation about [semver](https://docs.npmjs.com/cli/v6/using-npm/semver/) for more information.
+
 * Handle import paths containing wildcards ([#56](https://github.com/evanw/esbuild/issues/56), [#700](https://github.com/evanw/esbuild/issues/700), [#875](https://github.com/evanw/esbuild/issues/875), [#976](https://github.com/evanw/esbuild/issues/976), [#2221](https://github.com/evanw/esbuild/issues/2221), [#2515](https://github.com/evanw/esbuild/issues/2515))
 
     This release introduces wildcards in import paths in two places:
