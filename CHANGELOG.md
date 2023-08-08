@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.18.20
 
 * Support advanced CSS `@import` rules ([#953](https://github.com/evanw/esbuild/issues/953), [#3137](https://github.com/evanw/esbuild/issues/3137))
 
