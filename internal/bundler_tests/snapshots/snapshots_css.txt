@@ -87,13 +87,384 @@ TestCSSAtImport
 }
 
 ================================================================================
+TestCSSAtImportConditionsAtLayerBundle
+---------- /out/case1.css ----------
+/* case1-foo.css */
+@layer first.one;
+
+/* case1-foo.css */
+@layer last.one {
+  body {
+    color: red;
+  }
+}
+
+/* case1-foo.css */
+@layer first.one {
+  body {
+    color: red;
+  }
+}
+
+/* case1.css */
+
+---------- /out/case2.css ----------
+/* case2-foo.css */
+@layer first.one;
+
+/* case2-bar.css */
+@layer last.one {
+  body {
+    color: green;
+  }
+}
+
+/* case2-foo.css */
+@layer first.one {
+  body {
+    color: red;
+  }
+}
+
+/* case2.css */
+
+---------- /out/case3.css ----------
+/* case3-bar.css */
+@layer only.one {
+  body {
+    color: green;
+  }
+}
+
+/* case3-foo.css */
+@layer {
+  body {
+    color: red;
+  }
+}
+
+/* case3.css */
+
+---------- /out/case4.css ----------
+/* case4-foo.css */
+@layer first {
+  @layer one, one.two, one.three.four;
+}
+
+/* case4-foo.css */
+@layer last {
+  @layer one {
+    @layer two, three.four;
+    body {
+      color: red;
+    }
+  }
+}
+
+/* case4-foo.css */
+@layer first {
+  @layer one {
+    @layer two, three.four;
+    body {
+      color: red;
+    }
+  }
+}
+
+/* case4.css */
+
+---------- /out/case5.css ----------
+/* case5-foo.css */
+@layer middle {
+  @layer one {
+    @layer two, three.four;
+    body {
+      color: red;
+    }
+  }
+}
+
+/* case5-foo.css */
+@layer {
+  @layer one {
+    @layer two, three.four;
+    body {
+      color: red;
+    }
+  }
+}
+
+/* case5.css */
+
+---------- /out/case6.css ----------
+/* case6-foo.css */
+@layer first;
+
+/* case6-foo.css */
+@layer last {
+  @layer {
+    @layer two, three.four;
+    body {
+      color: red;
+    }
+  }
+}
+
+/* case6-foo.css */
+@layer first {
+  @layer {
+    @layer two, three.four;
+    body {
+      color: red;
+    }
+  }
+}
+
+/* case6.css */
+
+================================================================================
+TestCSSAtImportConditionsAtLayerBundleAlternatingLayerInFile
+---------- /out/case1.css ----------
+/* a.css */
+@layer first {
+  body {
+    color: red;
+  }
+}
+
+/* case1.css */
+
+---------- /out/case2.css ----------
+/* a.css */
+@layer first;
+
+/* b.css */
+@layer last {
+  body {
+    color: green;
+  }
+}
+
+/* a.css */
+@layer first {
+  body {
+    color: red;
+  }
+}
+
+/* case2.css */
+
+---------- /out/case3.css ----------
+/* a.css */
+@layer first;
+
+/* b.css */
+@layer last;
+
+/* a.css */
+@layer first {
+  body {
+    color: red;
+  }
+}
+
+/* b.css */
+@layer last {
+  body {
+    color: green;
+  }
+}
+
+/* case3.css */
+
+---------- /out/case4.css ----------
+/* a.css */
+@layer first;
+
+/* b.css */
+@layer last {
+  body {
+    color: green;
+  }
+}
+
+/* a.css */
+@layer first {
+  body {
+    color: red;
+  }
+}
+
+/* case4.css */
+
+---------- /out/case5.css ----------
+/* a.css */
+@layer first;
+
+/* b.css */
+@layer last;
+
+/* a.css */
+@layer first {
+  body {
+    color: red;
+  }
+}
+
+/* b.css */
+@layer last {
+  body {
+    color: green;
+  }
+}
+
+/* case5.css */
+
+---------- /out/case6.css ----------
+/* a.css */
+@layer first;
+
+/* b.css */
+@layer last {
+  body {
+    color: green;
+  }
+}
+
+/* a.css */
+@layer first {
+  body {
+    color: red;
+  }
+}
+
+/* case6.css */
+
+================================================================================
+TestCSSAtImportConditionsAtLayerBundleAlternatingLayerOnImport
+---------- /out/case1.css ----------
+/* a.css */
+@layer first {
+  body {
+    color: red;
+  }
+}
+
+/* case1.css */
+
+---------- /out/case2.css ----------
+/* a.css */
+@layer first;
+
+/* b.css */
+@layer last {
+  body {
+    color: green;
+  }
+}
+
+/* a.css */
+@layer first {
+  body {
+    color: red;
+  }
+}
+
+/* case2.css */
+
+---------- /out/case3.css ----------
+/* a.css */
+@layer first;
+
+/* b.css */
+@layer last;
+
+/* a.css */
+@layer first {
+  body {
+    color: red;
+  }
+}
+
+/* b.css */
+@layer last {
+  body {
+    color: green;
+  }
+}
+
+/* case3.css */
+
+---------- /out/case4.css ----------
+/* a.css */
+@layer first;
+
+/* b.css */
+@layer last {
+  body {
+    color: green;
+  }
+}
+
+/* a.css */
+@layer first {
+  body {
+    color: red;
+  }
+}
+
+/* case4.css */
+
+---------- /out/case5.css ----------
+/* a.css */
+@layer first;
+
+/* b.css */
+@layer last;
+
+/* a.css */
+@layer first {
+  body {
+    color: red;
+  }
+}
+
+/* b.css */
+@layer last {
+  body {
+    color: green;
+  }
+}
+
+/* case5.css */
+
+---------- /out/case6.css ----------
+/* a.css */
+@layer first;
+
+/* b.css */
+@layer last {
+  body {
+    color: green;
+  }
+}
+
+/* a.css */
+@layer first {
+  body {
+    color: red;
+  }
+}
+
+/* case6.css */
+
+================================================================================
 TestCSSAtImportConditionsBundle
 ---------- /out.css ----------
 @import "http://example.com/foo.css";
 @import "http://example.com/foo.css" layer;
 @import "http://example.com/foo.css" layer(layer-name);
 @import "http://example.com/foo.css" layer(layer-name) supports(supports-condition);
-@import "http://example.com/foo.css" layer(layer-name) supports(supports-condition) list-of-media-queries;
 @import "http://example.com/foo.css" layer(layer-name) list-of-media-queries;
 @import "http://example.com/foo.css" supports(supports-condition);
 @import "http://example.com/foo.css" list-of-media-queries;
@@ -128,17 +499,6 @@ body {
 
 /* foo.css */
 @media list-of-media-queries {
-  @supports (supports-condition) {
-    @layer layer-name {
-      body {
-        color: red;
-      }
-    }
-  }
-}
-
-/* foo.css */
-@media list-of-media-queries {
   @layer layer-name {
     body {
       color: red;
@@ -150,15 +510,6 @@ body {
 @supports (supports-condition) {
   body {
     color: red;
-  }
-}
-
-/* foo.css */
-@media list-of-media-queries {
-  @supports (supports-condition) {
-    body {
-      color: red;
-    }
   }
 }
 
@@ -360,11 +711,7 @@ TestCSSAtImportConditionsFromExternalRepo
 
 ---------- /out/at-layer/001/style.css ----------
 /* at-layer/001/a.css */
-@layer a {
-  .box {
-    background-color: red;
-  }
-}
+@layer a;
 
 /* at-layer/001/b.css */
 @layer b {
@@ -385,11 +732,7 @@ TestCSSAtImportConditionsFromExternalRepo
 ---------- /out/at-layer/002/style.css ----------
 /* at-layer/002/a.css */
 @media print {
-  @layer a {
-    .box {
-      background-color: green;
-    }
-  }
+  @layer a;
 }
 
 /* at-layer/002/b.css */
@@ -409,6 +752,9 @@ TestCSSAtImportConditionsFromExternalRepo
 /* at-layer/002/style.css */
 
 ---------- /out/at-layer/003/style.css ----------
+/* at-layer/003/a.css */
+@layer a;
+
 /* at-layer/003/b.css */
 @layer b {
   .box {

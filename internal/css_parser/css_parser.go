@@ -30,6 +30,9 @@ type parser struct {
 	globalScope       map[string]ast.LocRef
 	nestingWarnings   map[logger.Loc]struct{}
 	tracker           logger.LineColumnTracker
+	layers            [][]string
+	enclosingLayer    []string
+	anonLayerCount    int
 	index             int
 	end               int
 	legalCommentIndex int
@@ -149,6 +152,7 @@ func Parse(log logger.Log, source logger.Source, options Options) css_ast.AST {
 		LocalScope:           p.localScope,
 		GlobalScope:          p.globalScope,
 		Composes:             p.composes,
+		Layers:               p.layers,
 	}
 }
 
@@ -342,6 +346,20 @@ func (p *parser) symbolForName(loc logger.Loc, name string) ast.LocRef {
 
 	p.symbols[entry.Ref.InnerIndex].UseCountEstimate++
 	return entry
+}
+
+func (p *parser) recordAtLayerRule(layers [][]string) {
+	if p.anonLayerCount > 0 {
+		return
+	}
+
+	for _, layer := range layers {
+		if len(p.enclosingLayer) > 0 {
+			clone := make([]string, 0, len(p.enclosingLayer)+len(layer))
+			layer = append(append(clone, p.enclosingLayer...), layer...)
+		}
+		p.layers = append(p.layers, layer)
+	}
 }
 
 type ruleContext struct {
@@ -1388,6 +1406,13 @@ abortRuleParser:
 		// Read the optional block
 		matchingLoc := p.current().Range.Loc
 		if len(names) <= 1 && p.eat(css_lexer.TOpenBrace) {
+			p.recordAtLayerRule(names)
+			oldEnclosingLayer := p.enclosingLayer
+			if len(names) == 1 {
+				p.enclosingLayer = append(p.enclosingLayer, names[0]...)
+			} else {
+				p.anonLayerCount++
+			}
 			var rules []css_ast.Rule
 			if context.isDeclarationList {
 				rules = p.parseListOfDeclarations(listOfDeclarationsOpts{
@@ -1398,6 +1423,10 @@ abortRuleParser:
 					parseSelectors: true,
 				})
 			}
+			if len(names) != 1 {
+				p.anonLayerCount--
+			}
+			p.enclosingLayer = oldEnclosingLayer
 			closeBraceLoc := p.current().Range.Loc
 			if !p.expectWithMatchingLoc(css_lexer.TCloseBrace, matchingLoc) {
 				closeBraceLoc = logger.Loc{}
@@ -1407,6 +1436,7 @@ abortRuleParser:
 
 		// Handle lack of a block
 		if len(names) >= 1 && p.eat(css_lexer.TSemicolon) {
+			p.recordAtLayerRule(names)
 			return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RAtLayer{Names: names}}
 		}
 
@@ -1414,11 +1444,13 @@ abortRuleParser:
 		switch p.current().Kind {
 		case css_lexer.TEndOfFile:
 			p.expect(css_lexer.TSemicolon)
+			p.recordAtLayerRule(names)
 			return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RAtLayer{Names: names}}
 
 		case css_lexer.TCloseBrace:
 			p.expect(css_lexer.TSemicolon)
 			if !context.isTopLevel {
+				p.recordAtLayerRule(names)
 				return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RAtLayer{Names: names}}
 			}
 

@@ -1771,6 +1771,202 @@ url-format/003/relative-url/style.css: NOTE: The unbalanced "(" is here:
 	})
 }
 
+func TestCSSAtImportConditionsAtLayerBundle(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/case1.css": `
+				@import url(case1-foo.css) layer(first.one);
+				@import url(case1-foo.css) layer(last.one);
+				@import url(case1-foo.css) layer(first.one);
+			`,
+			"/case1-foo.css": `body { color: red }`,
+
+			"/case2.css": `
+				@import url(case2-foo.css);
+				@import url(case2-bar.css);
+				@import url(case2-foo.css);
+			`,
+			"/case2-foo.css": `@layer first.one { body { color: red } }`,
+			"/case2-bar.css": `@layer last.one { body { color: green } }`,
+
+			"/case3.css": `
+				@import url(case3-foo.css);
+				@import url(case3-bar.css);
+				@import url(case3-foo.css);
+			`,
+			"/case3-foo.css": `@layer { body { color: red } }`,
+			"/case3-bar.css": `@layer only.one { body { color: green } }`,
+
+			"/case4.css": `
+				@import url(case4-foo.css) layer(first);
+				@import url(case4-foo.css) layer(last);
+				@import url(case4-foo.css) layer(first);
+			`,
+			"/case4-foo.css": `@layer one { @layer two, three.four; body { color: red } }`,
+
+			"/case5.css": `
+				@import url(case5-foo.css) layer;
+				@import url(case5-foo.css) layer(middle);
+				@import url(case5-foo.css) layer;
+			`,
+			"/case5-foo.css": `@layer one { @layer two, three.four; body { color: red } }`,
+
+			"/case6.css": `
+				@import url(case6-foo.css) layer(first);
+				@import url(case6-foo.css) layer(last);
+				@import url(case6-foo.css) layer(first);
+			`,
+			"/case6-foo.css": `@layer { @layer two, three.four; body { color: red } }`,
+		},
+		entryPaths: []string{
+			"/case1.css",
+			"/case2.css",
+			"/case3.css",
+			"/case4.css",
+			"/case5.css",
+			"/case6.css",
+		},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+	})
+}
+
+func TestCSSAtImportConditionsAtLayerBundleAlternatingLayerInFile(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/a.css": `@layer first { body { color: red } }`,
+			"/b.css": `@layer last { body { color: green } }`,
+
+			"/case1.css": `
+				@import url(a.css);
+				@import url(a.css);
+			`,
+
+			"/case2.css": `
+				@import url(a.css);
+				@import url(b.css);
+				@import url(a.css);
+			`,
+
+			"/case3.css": `
+				@import url(a.css);
+				@import url(b.css);
+				@import url(a.css);
+				@import url(b.css);
+			`,
+
+			"/case4.css": `
+				@import url(a.css);
+				@import url(b.css);
+				@import url(a.css);
+				@import url(b.css);
+				@import url(a.css);
+			`,
+
+			"/case5.css": `
+				@import url(a.css);
+				@import url(b.css);
+				@import url(a.css);
+				@import url(b.css);
+				@import url(a.css);
+				@import url(b.css);
+			`,
+
+			// Note: There was a bug that only showed up in this case. We need at least this many cases.
+			"/case6.css": `
+				@import url(a.css);
+				@import url(b.css);
+				@import url(a.css);
+				@import url(b.css);
+				@import url(a.css);
+				@import url(b.css);
+				@import url(a.css);
+			`,
+		},
+		entryPaths: []string{
+			"/case1.css",
+			"/case2.css",
+			"/case3.css",
+			"/case4.css",
+			"/case5.css",
+			"/case6.css",
+		},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+	})
+}
+
+func TestCSSAtImportConditionsAtLayerBundleAlternatingLayerOnImport(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/a.css": `body { color: red }`,
+			"/b.css": `body { color: green }`,
+
+			"/case1.css": `
+				@import url(a.css) layer(first);
+				@import url(a.css) layer(first);
+			`,
+
+			"/case2.css": `
+				@import url(a.css) layer(first);
+				@import url(b.css) layer(last);
+				@import url(a.css) layer(first);
+			`,
+
+			"/case3.css": `
+				@import url(a.css) layer(first);
+				@import url(b.css) layer(last);
+				@import url(a.css) layer(first);
+				@import url(b.css) layer(last);
+			`,
+
+			"/case4.css": `
+				@import url(a.css) layer(first);
+				@import url(b.css) layer(last);
+				@import url(a.css) layer(first);
+				@import url(b.css) layer(last);
+				@import url(a.css) layer(first);
+			`,
+
+			"/case5.css": `
+				@import url(a.css) layer(first);
+				@import url(b.css) layer(last);
+				@import url(a.css) layer(first);
+				@import url(b.css) layer(last);
+				@import url(a.css) layer(first);
+				@import url(b.css) layer(last);
+			`,
+
+			// Note: There was a bug that only showed up in this case. We need at least this many cases.
+			"/case6.css": `
+				@import url(a.css) layer(first);
+				@import url(b.css) layer(last);
+				@import url(a.css) layer(first);
+				@import url(b.css) layer(last);
+				@import url(a.css) layer(first);
+				@import url(b.css) layer(last);
+				@import url(a.css) layer(first);
+			`,
+		},
+		entryPaths: []string{
+			"/case1.css",
+			"/case2.css",
+			"/case3.css",
+			"/case4.css",
+			"/case5.css",
+			"/case6.css",
+		},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+	})
+}
+
 // This test mainly just makes sure that this scenario doesn't crash
 func TestCSSAndJavaScriptCodeSplittingIssue1064(t *testing.T) {
 	css_suite.expectBundled(t, bundled{

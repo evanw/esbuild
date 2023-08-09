@@ -3322,16 +3322,15 @@ func (c *linkerContext) findImportedCSSFilesInJSOrder(entryPoint uint32) (order 
 }
 
 type cssImportOrder struct {
-	sourceIndex            uint32
 	conditions             []css_ast.ImportConditions
 	conditionImportRecords []ast.ImportRecord
+	sourceIndex            uint32
+	isRedundantDueTo       ast.Index32
 }
 
-// CSS files are traversed in depth-first reversed reverse preorder. This is
-// because unlike JavaScript import statements, CSS "@import" rules are
-// evaluated every time instead of just the first time. However, evaluating a
-// CSS file multiple times is equivalent to evaluating it once at the last
-// location. So we drop all but the last evaluation in the order.
+// CSS files are traversed in depth-first postorder just like JavaScript. But
+// unlike JavaScript import statements, CSS "@import" rules are evaluated every
+// time instead of just the first time.
 //
 //	  A
 //	 / \
@@ -3340,56 +3339,53 @@ type cssImportOrder struct {
 //	  D
 //
 // If A imports B and then C, B imports D, and C imports D, then the CSS
-// traversal order is B D C A.
+// traversal order is D B D C A.
+//
+// However, evaluating a CSS file multiple times is sort of equivalent to
+// evaluating it once at the last location. So we basically drop all but the
+// last evaluation in the order.
+//
+// The only exception to this is "@layer". Evaluating a CSS file multiple
+// times is sort of equivalent to evaluating it once at the first location
+// as far as "@layer" is concerned. So we may in some cases keep both the
+// first and and last locations and only write out the "@layer" information
+// for the first location.
 func (c *linkerContext) findImportedFilesInCSSOrder(entryPoints []uint32) (externalOrder []externalImportCSS, internalOrder []cssImportOrder) {
-	type externalImportsCSS struct {
-		conditions []css_ast.ImportConditions
-	}
-
-	externals := make(map[logger.Path]externalImportsCSS)
-	var visit func(uint32, map[uint32]bool, []css_ast.ImportConditions, []ast.ImportRecord)
+	var visit func(uint32, []uint32, []css_ast.ImportConditions, []ast.ImportRecord)
 
 	// Include this file and all files it imports
 	visit = func(
 		sourceIndex uint32,
-		visited map[uint32]bool,
+		visited []uint32,
 		wrappingConditions []css_ast.ImportConditions,
 		wrappingImportRecords []ast.ImportRecord,
 	) {
-		if visited[sourceIndex] {
-			return
+		// The CSS specification strangely does not describe what to do when there
+		// is a cycle. So we are left with reverse-engineering the behavior from a
+		// real browser. Here's what the WebKit code base has to say about this:
+		//
+		//   "Check for a cycle in our import chain. If we encounter a stylesheet
+		//   in our parent chain with the same URL, then just bail."
+		//
+		// So that's what we do here. See "StyleRuleImport::requestStyleSheet()" in
+		// WebKit for more information.
+		for _, visitedSourceIndex := range visited {
+			if visitedSourceIndex == sourceIndex {
+				return
+			}
 		}
-		visited[sourceIndex] = true
+		visited = append(visited, sourceIndex)
 
 		repr := c.graph.Files[sourceIndex].InputFile.Repr.(*graph.CSSRepr)
 		topLevelRules := repr.AST.Rules
 
-		// Iterate in reverse preorder (will be reversed again later)
-		internalOrder = append(internalOrder, cssImportOrder{
-			sourceIndex:            sourceIndex,
-			conditions:             wrappingConditions,
-			conditionImportRecords: wrappingImportRecords,
-		})
-
-		// Iterate in the inverse order of "composes" directives. Note that the
-		// order doesn't matter for these because the output order is explicitly
-		// undefined in the specification.
-		records := repr.AST.ImportRecords
-		for i := len(records) - 1; i >= 0; i-- {
-			if record := &records[i]; record.Kind == ast.ImportComposesFrom && record.SourceIndex.IsValid() {
-				visit(record.SourceIndex.GetIndex(), visited, wrappingConditions, wrappingImportRecords)
-			}
-		}
-
-		// Iterate in the inverse order of top-level "@import" rules
-	outer:
-		for i := len(topLevelRules) - 1; i >= 0; i-- {
-			if atImport, ok := topLevelRules[i].Data.(*css_ast.RAtImport); ok {
+		// Iterate over the top-level "@import" rules
+		for _, rule := range topLevelRules {
+			if atImport, ok := rule.Data.(*css_ast.RAtImport); ok {
 				record := &repr.AST.ImportRecords[atImport.ImportRecordIndex]
 
 				// Follow internal dependencies
 				if record.SourceIndex.IsValid() {
-					nestedVisited := visited
 					nestedConditions := wrappingConditions
 					nestedImportRecords := wrappingImportRecords
 
@@ -3397,10 +3393,6 @@ func (c *linkerContext) findImportedFilesInCSSOrder(entryPoints []uint32) (exter
 					// imported stylesheet subtree is wrapped in all of the conditions
 					if atImport.ImportConditions != nil {
 						// Fork our state
-						nestedVisited = make(map[uint32]bool)
-						for sourceIndex := range visited {
-							nestedVisited[sourceIndex] = true
-						}
 						nestedConditions = append([]css_ast.ImportConditions{}, nestedConditions...)
 						nestedImportRecords = append([]ast.ImportRecord{}, nestedImportRecords...)
 
@@ -3410,67 +3402,17 @@ func (c *linkerContext) findImportedFilesInCSSOrder(entryPoints []uint32) (exter
 						nestedConditions = append(nestedConditions, conditions)
 					}
 
-					visit(record.SourceIndex.GetIndex(), nestedVisited, nestedConditions, nestedImportRecords)
+					visit(record.SourceIndex.GetIndex(), visited, nestedConditions, nestedImportRecords)
 					continue
 				}
 
 				// Record external dependencies
 				if (record.Flags & ast.WasLoadedWithEmptyLoader) == 0 {
-					external := externals[record.Path]
-
-					// This is stored as a pointer to save space. But it's easier to
-					// compare against if we don't have to test for nil. So convert
-					// it from a pointer to a value.
-					var before css_ast.ImportConditions
-					if atImport.ImportConditions != nil {
-						before = *atImport.ImportConditions
-					}
-
-					// Skip this rule if a later rule masks it. Note that we avoid
-					// skipping rules with layers because this code tries to keep
-					// the last instance of each import (since usually that's the
-					// only one that matters in CSS) but layers take effect for the
-					// first instance instead of the last.
-					if len(before.Layers) == 0 {
-						for _, after := range external.conditions {
-							if len(after.Layers) > 0 {
-								continue
-							}
-
-							sameSupports := css_ast.TokensEqualIgnoringWhitespace(before.Supports, after.Supports)
-							sameMedia := css_ast.TokensEqualIgnoringWhitespace(before.Media, after.Media)
-
-							// If the import conditions are exactly equal, then only keep
-							// the later one. The earlier one will have no effect.
-							if sameSupports && sameMedia {
-								continue outer
-							}
-
-							// If the media conditions are exactly equal and the later one
-							// doesn't have any supports conditions, then the later one will
-							// apply in all cases where the earlier one applies.
-							if sameMedia && len(after.Supports) == 0 {
-								continue outer
-							}
-
-							// If the supports conditions are exactly equal and the later one
-							// doesn't have any media conditions, then the later one will
-							// apply in all cases where the earlier one applies.
-							if sameSupports && len(after.Media) == 0 {
-								continue outer
-							}
-						}
-					}
-
-					external.conditions = append(external.conditions, before)
-					externals[record.Path] = external
-
 					var conditions css_ast.ImportConditions
 					var importRecords []ast.ImportRecord
 					if atImport.ImportConditions != nil {
 						conditions, importRecords = atImport.ImportConditions.CloneWithImportRecords(repr.AST.ImportRecords, importRecords)
 					}
-
 					externalOrder = append(externalOrder, externalImportCSS{
 						path:                   record.Path,
 						conditions:             conditions,
@@ -3479,23 +3421,253 @@ func (c *linkerContext) findImportedFilesInCSSOrder(entryPoints []uint32) (exter
 				}
 			}
 		}
+
+		// Iterate over the "composes" directives. Note that the order doesn't
+		// matter for these because the output order is explicitly undefined
+		// in the specification.
+		for _, record := range repr.AST.ImportRecords {
+			if record.Kind == ast.ImportComposesFrom && record.SourceIndex.IsValid() {
+				visit(record.SourceIndex.GetIndex(), visited, wrappingConditions, wrappingImportRecords)
+			}
+		}
+
+		// Accumulate imports in depth-first postorder
+		internalOrder = append(internalOrder, cssImportOrder{
+			sourceIndex:            sourceIndex,
+			conditions:             wrappingConditions,
+			conditionImportRecords: wrappingImportRecords,
+		})
 	}
 
 	// Include all files reachable from any entry point
-	visited := make(map[uint32]bool)
-	for i := len(entryPoints) - 1; i >= 0; i-- {
-		visit(entryPoints[i], visited, nil, nil)
+	var visited [16]uint32 // Preallocate some space for the visited set
+	for _, sourceIndex := range entryPoints {
+		visit(sourceIndex, visited[:], nil, nil)
 	}
 
-	// Reverse the order afterward when traversing in CSS order
-	for i, j := 0, len(internalOrder)-1; i < j; i, j = i+1, j-1 {
-		internalOrder[i], internalOrder[j] = internalOrder[j], internalOrder[i]
+	// Optimize the internal import order
+	{
+		internalDuplicates := make(map[uint32][]int)
+
+		// If there are duplicate entries, mark all but the last entry as redundant.
+		// This uses the term "redundant" because for normal CSS that does not use
+		// "@layer", only the last entry actually has any effect.
+	nextInternal:
+		for i := len(internalOrder) - 1; i >= 0; i-- {
+			order := internalOrder[i]
+			duplicates := internalDuplicates[order.sourceIndex]
+			for _, j := range duplicates {
+				if isConditionalImportRedundant(order.conditions, internalOrder[j].conditions) {
+					internalOrder[i].isRedundantDueTo = ast.MakeIndex32(uint32(j))
+					continue nextInternal
+				}
+			}
+			internalDuplicates[order.sourceIndex] = append(duplicates, i)
+		}
+
+		// Remove duplicate redundant entries from the list. We always keep the
+		// first redundant entry in case it contains one or more "@layer" rules.
+		// In CSS "@layer" always takes effect in the first location it appears.
+		// But we only care about at most the first and last duplicate entries.
+		redundantDuplicates := make(map[uint32]bool)
+		end := 0
+		for i := 0; i < len(internalOrder); i++ {
+			order := internalOrder[i]
+
+			// Overwrite the previous entry if it's the same as this one
+			if end > 0 {
+				if prev := internalOrder[end-1].isRedundantDueTo; prev.IsValid() && (prev == order.isRedundantDueTo || prev.GetIndex() == uint32(i)) {
+					delete(redundantDuplicates, order.isRedundantDueTo.GetIndex())
+					end--
+				}
+			}
+
+			// Redundant entries may be removed
+			if order.isRedundantDueTo.IsValid() {
+				// Remove this redundant entry if it's a duplicate of a previous one
+				if redundantDuplicates[order.isRedundantDueTo.GetIndex()] {
+					continue
+				}
+
+				// Remove this redundant entry either if it has no named layers
+				// or if it's wrapped in an anonymous layer without a name
+				hasNamedLayers := len(c.graph.Files[order.sourceIndex].InputFile.Repr.(*graph.CSSRepr).AST.Layers) > 0
+				hasAnonymousLayer := false
+				for _, conditions := range order.conditions {
+					if len(conditions.Layers) == 1 {
+						if t := conditions.Layers[0]; t.Children == nil || len(*t.Children) == 0 {
+							hasAnonymousLayer = true
+						} else {
+							hasNamedLayers = true
+						}
+					}
+				}
+				if !hasNamedLayers || hasAnonymousLayer {
+					continue
+				}
+
+				// Remove further copies of this redundant entry
+				redundantDuplicates[order.isRedundantDueTo.GetIndex()] = true
+			}
+
+			internalOrder[end] = order
+			end++
+		}
+		internalOrder = internalOrder[:end]
 	}
-	for i, j := 0, len(externalOrder)-1; i < j; i, j = i+1, j-1 {
-		externalOrder[i], externalOrder[j] = externalOrder[j], externalOrder[i]
+
+	// Optimize the external import order
+	{
+		externalDuplicates := make(map[logger.Path][]int)
+		isRedundantDueTo := make([]ast.Index32, len(externalOrder))
+
+		// If there are duplicate entries, mark all but the last entry as redundant.
+		// This uses the term "redundant" because for normal CSS that does not use
+		// "@layer", only the last entry actually has any effect.
+	nextExternal:
+		for i := len(externalOrder) - 1; i >= 0; i-- {
+			order := externalOrder[i]
+			duplicates := externalDuplicates[order.path]
+			for _, j := range duplicates {
+				if isConditionalImportRedundant([]css_ast.ImportConditions{order.conditions}, []css_ast.ImportConditions{externalOrder[j].conditions}) {
+					isRedundantDueTo[i] = ast.MakeIndex32(uint32(j))
+					continue nextExternal
+				}
+			}
+			externalDuplicates[order.path] = append(duplicates, i)
+		}
+
+		// Remove duplicate redundant entries from the list. We always keep the
+		// first redundant entry in case it contains one or more "@layer" rules.
+		// In CSS "@layer" always takes effect in the first location it appears.
+		// But we only care about at most the first and last duplicate entries.
+		redundantDuplicates := make(map[uint32]bool)
+		end := 0
+		for i := 0; i < len(externalOrder); i++ {
+			order := externalOrder[i]
+			redundant := isRedundantDueTo[i]
+
+			// Overwrite the previous entry if it's the same as this one
+			if end > 0 {
+				if prev := isRedundantDueTo[end-1]; prev.IsValid() && (prev == redundant || prev.GetIndex() == uint32(i)) {
+					delete(redundantDuplicates, redundant.GetIndex())
+					end--
+				}
+			}
+
+			// Redundant entries may be removed
+			if redundant.IsValid() {
+				// Remove this redundant entry if it's a duplicate of a previous one
+				if redundantDuplicates[redundant.GetIndex()] {
+					continue
+				}
+
+				// Remove this redundant entry if it has no layers. THIS ASSUMES THAT
+				// EXTERNAL IMPORTS DO NOT CONTAIN "@layer" INFORMATION. While this is not
+				// necessarily a correct assumption, there are other ordering things that
+				// are also not correct about external "@import" rules when bundling (e.g.
+				// CSS doesn't allow you to put an "@import" rule in the middle of a file
+				// so we have to hoist them all to the top) so we don't worry about this.
+				if len(order.conditions.Layers) == 0 {
+					continue
+				}
+
+				// Remove further copies of this redundant entry
+				redundantDuplicates[redundant.GetIndex()] = true
+			}
+
+			externalOrder[end] = order
+			end++
+		}
+		externalOrder = externalOrder[:end]
 	}
 
 	return
+}
+
+// Given two "@import" rules for the same source index (an earlier one and a
+// later one), the earlier one is masked by the later one if the later one's
+// condition list is a prefix of the earlier one's condition list.
+//
+// For example:
+//
+//	// entry.css
+//	@import "foo.css" supports(display: flex);
+//	@import "bar.css" supports(display: flex);
+//
+//	// foo.css
+//	@import "lib.css" screen;
+//
+//	// bar.css
+//	@import "lib.css";
+//
+// When we bundle this code we'll get an import order as follows:
+//
+//  1. lib.css [supports(display: flex), screen]
+//  2. foo.css [supports(display: flex)]
+//  3. lib.css [supports(display: flex)]
+//  4. bar.css [supports(display: flex)]
+//  5. entry.css []
+//
+// For "lib.css", the entry with the conditions [supports(display: flex)] should
+// make the entry with the conditions [supports(display: flex), screen] redundant.
+//
+// Note that all of this deliberately ignores the existance of "@layer" because
+// that is handled separately. All of this is only for handling unlayered styles.
+func isConditionalImportRedundant(earlier []css_ast.ImportConditions, later []css_ast.ImportConditions) bool {
+	if len(later) > len(earlier) {
+		return false
+	}
+
+	for i := 0; i < len(later); i++ {
+		a := earlier[i]
+		b := later[i]
+
+		// Only compare "@supports" and "@media" if "@layers" is equal
+		if css_ast.TokensEqualIgnoringWhitespace(a.Layers, b.Layers) {
+			sameSupports := css_ast.TokensEqualIgnoringWhitespace(a.Supports, b.Supports)
+			sameMedia := css_ast.TokensEqualIgnoringWhitespace(a.Media, b.Media)
+
+			// If the import conditions are exactly equal, then only keep
+			// the later one. The earlier one is redundant. Example:
+			//
+			//   @import "foo.css" layer(abc) supports(display: flex) screen;
+			//   @import "foo.css" layer(abc) supports(display: flex) screen;
+			//
+			// The later one makes the earlier one redundant.
+			if sameSupports && sameMedia {
+				continue
+			}
+
+			// If the media conditions are exactly equal and the later one
+			// doesn't have any supports conditions, then the later one will
+			// apply in all cases where the earlier one applies. Example:
+			//
+			//   @import "foo.css" layer(abc) supports(display: flex) screen;
+			//   @import "foo.css" layer(abc) screen;
+			//
+			// The later one makes the earlier one redundant.
+			if sameMedia && len(b.Supports) == 0 {
+				continue
+			}
+
+			// If the supports conditions are exactly equal and the later one
+			// doesn't have any media conditions, then the later one will
+			// apply in all cases where the earlier one applies. Example:
+			//
+			//   @import "foo.css" layer(abc) supports(display: flex) screen;
+			//   @import "foo.css" layer(abc) supports(display: flex);
+			//
+			// The later one makes the earlier one redundant.
+			if sameSupports && len(b.Media) == 0 {
+				continue
+			}
+		}
+
+		return false
+	}
+
+	return true
 }
 
 func (c *linkerContext) computeChunks() {
@@ -5685,18 +5857,24 @@ func (c *linkerContext) generateChunkCSS(chunkIndex int, chunkWaitGroup *sync.Wa
 		entry := chunkRepr.filesInChunkInOrder[i]
 		file := &c.graph.Files[entry.sourceIndex]
 		ast := file.InputFile.Repr.(*graph.CSSRepr).AST
+		var rules []css_ast.Rule
 
-		// Filter out "@charset" and "@import" rules
-		rules := make([]css_ast.Rule, 0, len(ast.Rules))
-		for _, rule := range ast.Rules {
-			switch rule.Data.(type) {
-			case *css_ast.RAtCharset:
-				compileResults[i].hasCharset = true
-				continue
-			case *css_ast.RAtImport:
-				continue
+		if !entry.isRedundantDueTo.IsValid() {
+			// Filter out "@charset" and "@import" rules
+			rules = make([]css_ast.Rule, 0, len(ast.Rules))
+			for _, rule := range ast.Rules {
+				switch rule.Data.(type) {
+				case *css_ast.RAtCharset:
+					compileResults[i].hasCharset = true
+					continue
+				case *css_ast.RAtImport:
+					continue
+				}
+				rules = append(rules, rule)
 			}
-			rules = append(rules, rule)
+		} else if len(ast.Layers) > 0 {
+			// Only include "@layer" information for redundant import order entries
+			rules = []css_ast.Rule{{Data: &css_ast.RAtLayer{Names: ast.Layers}}}
 		}
 
 		for i := len(entry.conditions) - 1; i >= 0; i-- {

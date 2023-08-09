@@ -8,6 +8,78 @@
 
     The full Unix-y details: Unix permissions use three-digit octal notation where the three digits mean "user, group, other" in that order. Within a digit, 4 means "read" and 2 means "write" and 1 means "execute". So 6 == 4 + 2 == read + write. Previously esbuild uses 0644 permissions (the leading 0 means octal notation) but the permissions for `fs.writeFileSync` defaults to 0666, so esbuild will now use 0666 permissions. This does not necessarily mean that the files esbuild generates will end up having 0666 permissions, however, as there is another Unix feature called "umask" where the operating system masks out some of these bits. If your umask is set to 0022 then the generated files will have 0644 permissions, and if your umask is set to 0002 then the generated files will have 0664 permissions.
 
+* Fix a subtle CSS ordering issue with `@import` and `@layer`
+
+    With this release, esbuild may now introduce additional `@layer` rules when bundling CSS to better preserve the layer ordering of the input code. Here's an example of an edge case where this matters:
+
+    ```css
+    /* entry.css */
+    @import "a.css";
+    @import "b.css";
+    @import "a.css";
+    ```
+
+    ```css
+    /* a.css */
+    @layer a {
+      body {
+        background: red;
+      }
+    }
+    ```
+
+    ```css
+    /* b.css */
+    @layer b {
+      body {
+        background: green;
+      }
+    }
+    ```
+
+    This CSS should set the body background to `green`, which is what happens in the browser. Previously esbuild generated the following output which incorrectly sets the body background to `red`:
+
+    ```css
+    /* b.css */
+    @layer b {
+      body {
+        background: green;
+      }
+    }
+
+    /* a.css */
+    @layer a {
+      body {
+        background: red;
+      }
+    }
+    ```
+
+    This difference in behavior is because the browser evaluates `a.css` + `b.css` + `a.css` (in CSS, each `@import` is replaced with a copy of the imported file) while esbuild was only writing out `b.css` + `a.css`. The first copy of `a.css` wasn't being written out by esbuild for two reasons: 1) bundlers care about code size and try to avoid emitting duplicate CSS and 2) when there are multiple copies of a CSS file, normally only the _last_ copy matters since the last declaration with equal specificity wins in CSS.
+
+    However, `@layer` was recently added to CSS and for `@layer` the _first_ copy matters because layers are ordered using their first location in source code order. This introduction of `@layer` means esbuild needs to change its bundling algorithm. An easy solution would be for esbuild to write out `a.css` twice, but that would be inefficient. So what I'm going to try to have esbuild do with this release is to write out an abbreviated form of the first copy of a CSS file that only includes the `@layer` information, and then still only write out the full CSS file once for the last copy. So esbuild's output for this edge case now looks like this:
+
+    ```css
+    /* a.css */
+    @layer a;
+
+    /* b.css */
+    @layer b {
+      body {
+        background: green;
+      }
+    }
+
+    /* a.css */
+    @layer a {
+      body {
+        background: red;
+      }
+    }
+    ```
+
+    The behavior of the bundled CSS now matches the behavior of the unbundled CSS. You may be wondering why esbuild doesn't just write out `a.css` first followed by `b.css`. That would work in this case but it doesn't work in general because for any rules outside of a `@layer` rule, the last copy shold still win instead of the first copy.
+
 ## 0.19.0
 
 **This release deliberately contains backwards-incompatible changes.** To avoid automatically picking up releases like this, you should either be pinning the exact version of `esbuild` in your `package.json` file (recommended) or be using a version range syntax that only accepts patch upgrades such as `^0.18.0` or `~0.18.0`. See npm's documentation about [semver](https://docs.npmjs.com/cli/v6/using-npm/semver/) for more information.
