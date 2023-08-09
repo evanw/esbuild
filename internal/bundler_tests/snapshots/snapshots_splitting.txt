@@ -622,3 +622,50 @@ export {
   a,
   b
 };
+
+================================================================================
+TestSplittingWithMinChunkSize
+---------- /out/a.js ----------
+import {
+  bar
+} from "./chunk-RIRTUAAF.js";
+
+// common_mini.js
+var foo = 123;
+
+// a.js
+var a = "a" + foo;
+var aa = "a" + bar;
+export {
+  a,
+  aa
+};
+
+---------- /out/b.js ----------
+// common_mini.js
+var foo = 123;
+
+// b.js
+var b = "b" + foo;
+export {
+  b
+};
+
+---------- /out/c.js ----------
+import {
+  bar
+} from "./chunk-RIRTUAAF.js";
+
+// c.js
+var b = "b" + bar;
+export {
+  b
+};
+
+---------- /out/chunk-RIRTUAAF.js ----------
+// common_large.js
+var bar = 1234;
+
+export {
+  bar
+};

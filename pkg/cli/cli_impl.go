@@ -113,6 +113,19 @@ func parseOptionsImpl(
 				buildOpts.Splitting = value
 			}
 
+		case strings.HasPrefix(arg, "--min-chunk-size="):
+			value := arg[len("--min-chunk-size="):]
+			minChunkSize, err := strconv.Atoi(value)
+			if err != nil || minChunkSize < 0 {
+				return parseOptionsExtras{}, cli_helpers.MakeErrorWithNote(
+					fmt.Sprintf("Invalid value %q in %q", value, arg),
+					"The min chunk size must be a non-negative integer.",
+				)
+			}
+			if buildOpts != nil {
+				buildOpts.MinChunkSize = minChunkSize
+			}
+
 		case isBoolFlag(arg, "--allow-overwrite") && buildOpts != nil:
 			if value, err := parseBoolFlag(arg, true); err != nil {
 				return parseOptionsExtras{}, err

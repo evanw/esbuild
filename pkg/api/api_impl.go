@@ -1303,6 +1303,7 @@ func validateBuildOptions(
 		TreeShaking:           validateTreeShaking(buildOpts.TreeShaking, buildOpts.Bundle, buildOpts.Format),
 		GlobalName:            validateGlobalName(log, buildOpts.GlobalName),
 		CodeSplitting:         buildOpts.Splitting,
+		MinChunkSize:          buildOpts.MinChunkSize,
 		OutputFormat:          validateFormat(buildOpts.Format),
 		AbsOutputFile:         validatePath(log, realFS, buildOpts.Outfile, "outfile path"),
 		AbsOutputDir:          validatePath(log, realFS, buildOpts.Outdir, "outdir path"),

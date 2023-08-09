@@ -7038,6 +7038,35 @@ tests.push(
     `,
   }),
 
+  // Code splitting via minChunkSize control
+  test([
+    'a.js', 'b.js', 'c.js', '--splitting',
+    '--outdir=out', '--format=esm', '--bundle', '--min-chunk-size=22'
+  ], {
+    'a.js': `
+      import * as ns from './common_mini'
+      import * as nsl from './common_large'
+      export let a = 'a' + ns.foo
+      export let aa = 'a' + nsl.bar
+    `,
+    'b.js': `
+      import * as ns from './common_mini'
+      export let b = 'b' + ns.foo
+    `,
+    'c.js': `
+      import * as ns from './common_large'
+      export let c = 'c' + ns.bar
+    `,
+    'common_mini.js': `export let foo = 123`,
+    'common_large.js': `export let bar = 1234`,
+    'node.js': `
+      import {a, aa} from './out/a.js'
+      import {b} from './out/b.js'
+      import {c} from './out/c.js'
+      if (a !== 'a123' || aa !== 'a1234' || b !== 'b123' || c !== 'c1234') throw 'fail'
+    `,
+  }),
+
   // Code splitting via ES6 module double-imported with sync and async imports
   test(['a.js', '--outdir=out', '--splitting', '--format=esm', '--bundle'], {
     'a.js': `
