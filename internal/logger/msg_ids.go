@@ -84,6 +84,7 @@ const (
 	MsgID_TSConfigJSON_InvalidJSX
 	MsgID_TSConfigJSON_InvalidPaths
 	MsgID_TSConfigJSON_InvalidTarget
+	MsgID_TSConfigJSON_InvalidTopLevelOption
 	MsgID_TSConfigJSON_Missing
 	MsgID_TSConfigJSON_LAST // Keep this last
 

@@ -353,6 +353,37 @@ func ParseTSConfigJSON(
 		}
 	}
 
+	// Warn about compiler options not wrapped in "compilerOptions".
+	// For example: https://github.com/evanw/esbuild/issues/3301
+	if obj, ok := json.Data.(*js_ast.EObject); ok {
+	loop:
+		for _, prop := range obj.Properties {
+			if key, ok := prop.Key.Data.(*js_ast.EString); ok && key.Value != nil {
+				key := helpers.UTF16ToString(key.Value)
+				switch key {
+				case "alwaysStrict",
+					"baseUrl",
+					"experimentalDecorators",
+					"importsNotUsedAsValues",
+					"jsx",
+					"jsxFactory",
+					"jsxFragmentFactory",
+					"jsxImportSource",
+					"paths",
+					"preserveValueImports",
+					"strict",
+					"target",
+					"useDefineForClassFields",
+					"verbatimModuleSyntax":
+					log.AddIDWithNotes(logger.MsgID_TSConfigJSON_InvalidTopLevelOption, logger.Warning, &tracker, source.RangeOfString(prop.Key.Loc),
+						fmt.Sprintf("Expected the %q option to be nested inside a \"compilerOptions\" object", key),
+						[]logger.MsgData{})
+					break loop
+				}
+			}
+		}
+	}
+
 	return &result
 }
 

@@ -333,6 +333,13 @@ truePkg();
 pkg2_default();
 
 ================================================================================
+TestTsconfigJsonTopLevelMistakeWarning
+---------- /Users/user/project/out.js ----------
+// Users/user/project/src/entry.ts
+var Foo = @foo class {
+};
+
+================================================================================
 TestTsconfigJsonTrailingCommaAllowed
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/src/lib/util.js

@@ -80,6 +80,22 @@
 
     The behavior of the bundled CSS now matches the behavior of the unbundled CSS. You may be wondering why esbuild doesn't just write out `a.css` first followed by `b.css`. That would work in this case but it doesn't work in general because for any rules outside of a `@layer` rule, the last copy shold still win instead of the first copy.
 
+* Fix a bug with esbuild's TypeScript type definitions ([#3299](https://github.com/evanw/esbuild/pull/3299))
+
+    This release fixes a copy/paste error with the TypeScript type definitions for esbuild's JS API:
+
+    ```diff
+     export interface TsconfigRaw {
+       compilerOptions?: {
+    -    baseUrl?: boolean
+    +    baseUrl?: string
+         ...
+       }
+     }
+    ```
+
+    This fix was contributed by [@privatenumber](https://github.com/privatenumber).
+
 ## 0.19.0
 
 **This release deliberately contains backwards-incompatible changes.** To avoid automatically picking up releases like this, you should either be pinning the exact version of `esbuild` in your `package.json` file (recommended) or be using a version range syntax that only accepts patch upgrades such as `^0.18.0` or `~0.18.0`. See npm's documentation about [semver](https://docs.npmjs.com/cli/v6/using-npm/semver/) for more information.

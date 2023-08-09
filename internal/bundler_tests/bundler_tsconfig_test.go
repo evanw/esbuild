@@ -2488,3 +2488,26 @@ func TestTsconfigJsonPackagesExternal(t *testing.T) {
 		},
 	})
 }
+
+func TestTsconfigJsonTopLevelMistakeWarning(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.ts": `
+				@foo
+				class Foo {}
+			`,
+			"/Users/user/project/src/tsconfig.json": `
+				{
+					"experimentalDecorators": true
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+		expectedScanLog: `Users/user/project/src/tsconfig.json: WARNING: Expected the "experimentalDecorators" option to be nested inside a "compilerOptions" object
+`,
+	})
+}
