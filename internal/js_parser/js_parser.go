@@ -774,8 +774,18 @@ func (dc *duplicateCaseChecker) check(p *parser, expr js_ast.Expr) {
 			for _, c := range dc.cases {
 				if c.hash == hash {
 					if equals, couldBeIncorrect := duplicateCaseEquals(c.value, expr); equals {
-						r := p.source.RangeOfOperatorBefore(expr.Loc, "case")
-						earlierRange := p.source.RangeOfOperatorBefore(c.value.Loc, "case")
+						var laterRange logger.Range
+						var earlierRange logger.Range
+						if _, ok := expr.Data.(*js_ast.EString); ok {
+							laterRange = p.source.RangeOfString(expr.Loc)
+						} else {
+							laterRange = p.source.RangeOfOperatorBefore(expr.Loc, "case")
+						}
+						if _, ok := c.value.Data.(*js_ast.EString); ok {
+							earlierRange = p.source.RangeOfString(c.value.Loc)
+						} else {
+							earlierRange = p.source.RangeOfOperatorBefore(c.value.Loc, "case")
+						}
 						text := "This case clause will never be evaluated because it duplicates an earlier case clause"
 						if couldBeIncorrect {
 							text = "This case clause may never be evaluated because it likely duplicates an earlier case clause"
@@ -784,7 +794,7 @@ func (dc *duplicateCaseChecker) check(p *parser, expr js_ast.Expr) {
 						if p.suppressWarningsAboutWeirdCode {
 							kind = logger.Debug
 						}
-						p.log.AddIDWithNotes(logger.MsgID_JS_DuplicateCase, kind, &p.tracker, r, text,
+						p.log.AddIDWithNotes(logger.MsgID_JS_DuplicateCase, kind, &p.tracker, laterRange, text,
 							[]logger.MsgData{p.tracker.MsgData(earlierRange, "The earlier case clause is here:")})
 					}
 					return
