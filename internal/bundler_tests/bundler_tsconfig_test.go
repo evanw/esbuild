@@ -2511,3 +2511,30 @@ func TestTsconfigJsonTopLevelMistakeWarning(t *testing.T) {
 `,
 	})
 }
+
+// https://github.com/evanw/esbuild/issues/3307
+func TestTsconfigJsonBaseUrlIssue3307(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/tsconfig.json": `
+				{
+					"compilerOptions": {
+						"baseUrl": "./subdir"
+					}
+				}
+			`,
+			"/Users/user/project/src/test.ts": `
+				export const foo = "well, this is correct...";
+			`,
+			"/Users/user/project/src/subdir/test.ts": `
+				export const foo = "WRONG";
+			`,
+		},
+		entryPaths:    []string{"test.ts"},
+		absWorkingDir: "/Users/user/project/src",
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}

@@ -1000,20 +1000,9 @@ func (r resolverQuery) resolveWithoutSymlinks(sourceDir string, sourceDirInfo *d
 
 	// First, check path overrides from the nearest enclosing TypeScript "tsconfig.json" file
 	if sourceDirInfo != nil {
-		if tsConfigJSON := r.tsConfigForDir(sourceDirInfo); tsConfigJSON != nil {
-			// Try path substitutions first
-			if tsConfigJSON.Paths != nil {
-				if absolute, ok, diffCase := r.matchTSConfigPaths(tsConfigJSON, importPath); ok {
-					return &ResolveResult{PathPair: absolute, DifferentCase: diffCase}
-				}
-			}
-
-			// Try looking up the path relative to the base URL
-			if tsConfigJSON.BaseURL != nil {
-				basePath := r.fs.Join(*tsConfigJSON.BaseURL, importPath)
-				if absolute, ok, diffCase := r.loadAsFileOrDirectory(basePath); ok {
-					return &ResolveResult{PathPair: absolute, DifferentCase: diffCase}
-				}
+		if tsConfigJSON := r.tsConfigForDir(sourceDirInfo); tsConfigJSON != nil && tsConfigJSON.Paths != nil {
+			if absolute, ok, diffCase := r.matchTSConfigPaths(tsConfigJSON, importPath); ok {
+				return &ResolveResult{PathPair: absolute, DifferentCase: diffCase}
 			}
 		}
 	}
@@ -2316,6 +2305,14 @@ func (r resolverQuery) loadNodeModules(importPath string, dirInfo *dirInfo, forb
 		r.debugLogs.addNote(fmt.Sprintf("Searching for %q in \"node_modules\" directories starting from %q", importPath, dirInfo.absPath))
 		r.debugLogs.increaseIndent()
 		defer r.debugLogs.decreaseIndent()
+	}
+
+	// Try looking up the path relative to the base URL from "tsconfig.json"
+	if tsConfigJSON := r.tsConfigForDir(dirInfo); tsConfigJSON != nil && tsConfigJSON.BaseURL != nil {
+		basePath := r.fs.Join(*tsConfigJSON.BaseURL, importPath)
+		if absolute, ok, diffCase := r.loadAsFileOrDirectory(basePath); ok {
+			return absolute, true, diffCase
+		}
 	}
 
 	// Find the parent directory with the "package.json" file

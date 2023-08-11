@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+* Fix a regression with `baseURL` in `tsconfig.json` ([#3307](https://github.com/evanw/esbuild/issues/3307))
+
+    The previous release moved `tsconfig.json` path resolution before `--packages=external` checks to allow the [`paths` field](https://www.typescriptlang.org/tsconfig#paths) in `tsconfig.json` to avoid a package being marked as external. However, that reordering accidentally broke the behavior of the `baseURL` field from `tsconfig.json`. This release moves these path resolution rules around again in an attempt to allow both of these cases to work.
+
 * Parse TypeScript type arguments for JavaScript decorators ([#3308](https://github.com/evanw/esbuild/issues/3308))
 
     When parsing JavaScript decorators in TypeScript (i.e. with `experimentalDecorators` disabled), esbuild previously didn't parse type arguments. Type arguments will now be parsed starting with this release. For example:

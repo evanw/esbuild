@@ -223,6 +223,15 @@ var import_util = __toESM(require_util());
 console.log((0, import_util.default)());
 
 ================================================================================
+TestTsconfigJsonBaseUrlIssue3307
+---------- /Users/user/project/out.js ----------
+// test.ts
+var foo = "well, this is correct...";
+export {
+  foo
+};
+
+================================================================================
 TestTsconfigJsonCommentAllowed
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/src/lib/util.js
