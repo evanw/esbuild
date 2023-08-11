@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Make renamed CSS names unique across entry points ([#3295](https://github.com/evanw/esbuild/issues/3295))
+
+    Previously esbuild's generated names for local names in CSS were only unique within a given entry point (or across all entry points when code splitting was enabled). That meant that building multiple entry points with esbuild could result in local names being renamed to the same identifier even when those entry points were built simultaneously within a single esbuild API call. This problem was especially likely to happen with minification enabled. With this release, esbuild will now avoid renaming local names from two separate entry points to the same name if those entry points were built with a single esbuild API call, even when code splitting is disabled.
+
 ## 0.19.1
 
 * Fix a regression with `baseURL` in `tsconfig.json` ([#3307](https://github.com/evanw/esbuild/issues/3307))

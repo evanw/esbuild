@@ -313,7 +313,7 @@ func Link(
 
 	// Stop now if there were errors
 	if c.log.HasErrors() {
-		c.options.ExclusiveMangleCacheUpdate(func(mangleCache map[string]interface{}) {
+		c.options.ExclusiveMangleCacheUpdate(func(map[string]interface{}, map[string]bool) {
 			// Always do this so that we don't cause other entry points when there are errors
 		})
 		return []graph.OutputFile{}
@@ -333,10 +333,13 @@ func Link(
 	// Merge mangled properties before chunks are generated since the names must
 	// be consistent across all chunks, or the generated code will break
 	c.timer.Begin("Waiting for mangle cache")
-	c.options.ExclusiveMangleCacheUpdate(func(mangleCache map[string]interface{}) {
+	c.options.ExclusiveMangleCacheUpdate(func(
+		mangleCache map[string]interface{},
+		cssUsedLocalNames map[string]bool,
+	) {
 		c.timer.End("Waiting for mangle cache")
 		c.mangleProps(mangleCache)
-		c.mangleLocalCSS()
+		c.mangleLocalCSS(cssUsedLocalNames)
 	})
 
 	// Make sure calls to "ast.FollowSymbols()" in parallel goroutines after this
@@ -444,7 +447,7 @@ func (c *linkerContext) mangleProps(mangleCache map[string]interface{}) {
 	}
 }
 
-func (c *linkerContext) mangleLocalCSS() {
+func (c *linkerContext) mangleLocalCSS(usedLocalNames map[string]bool) {
 	c.timer.Begin("Mangle local CSS")
 	defer c.timer.End("Mangle local CSS")
 
@@ -492,14 +495,14 @@ func (c *linkerContext) mangleLocalCSS() {
 
 		for _, symbolCount := range sorted {
 			name := minifier.NumberToMinifiedName(nextName)
-			for globalNames[name] {
+			for globalNames[name] || usedLocalNames[name] {
 				nextName++
 				name = minifier.NumberToMinifiedName(nextName)
 			}
 
 			// Turn this local name into a global one
 			mangledProps[symbolCount.Ref] = name
-			globalNames[name] = true
+			usedLocalNames[name] = true
 		}
 	} else {
 		nameCounts := make(map[string]uint32)
@@ -509,7 +512,7 @@ func (c *linkerContext) mangleLocalCSS() {
 			name := fmt.Sprintf("%s_%s", c.graph.Files[symbolCount.Ref.SourceIndex].InputFile.Source.IdentifierName, symbol.OriginalName)
 
 			// If the name is already in use, generate a new name by appending a number
-			if globalNames[name] {
+			if globalNames[name] || usedLocalNames[name] {
 				// To avoid O(n^2) behavior, the number must start off being the number
 				// that we used last time there was a collision with this name. Otherwise
 				// if there are many collisions with the same name, each name collision
@@ -527,7 +530,7 @@ func (c *linkerContext) mangleLocalCSS() {
 					name = prefix + strconv.Itoa(int(tries))
 
 					// Make sure this new name is unused
-					if !globalNames[name] {
+					if !globalNames[name] && !usedLocalNames[name] {
 						// Store the count so we can start here next time instead of starting
 						// from 1. This means we avoid O(n^2) behavior.
 						nameCounts[prefix] = tries
@@ -538,7 +541,7 @@ func (c *linkerContext) mangleLocalCSS() {
 
 			// Turn this local name into a global one
 			mangledProps[symbolCount.Ref] = name
-			globalNames[name] = true
+			usedLocalNames[name] = true
 		}
 	}
 }

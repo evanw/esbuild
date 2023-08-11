@@ -3216,6 +3216,42 @@ TestImportLocalCSSFromJSMinifyIdentifiersAvoidGlobalNames
 }
 
 ================================================================================
+TestImportLocalCSSFromJSMinifyIdentifiersMultipleEntryPoints
+---------- /out/a.js ----------
+// a.module.css
+var r = "o";
+var l = "c";
+
+// a.js
+console.log(r, l);
+
+---------- /out/a.css ----------
+/* a.module.css */
+.o {
+  color: #001;
+}
+.c {
+  color: #002;
+}
+
+---------- /out/b.js ----------
+// b.module.css
+var r = "l";
+var l = "r";
+
+// b.js
+console.log(r, l);
+
+---------- /out/b.css ----------
+/* b.module.css */
+.l {
+  color: #003;
+}
+.r {
+  color: #004;
+}
+
+================================================================================
 TestMetafileCSSBundleTwoToOne
 ---------- /out/js/2PSDKYWE.js ----------
 // foo/entry.js

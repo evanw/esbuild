@@ -2653,8 +2653,12 @@ func (b *Bundle) Compile(log logger.Log, timer *helpers.Timer, mangleCache map[s
 	options := b.options
 
 	// In most cases we don't need synchronized access to the mangle cache
-	options.ExclusiveMangleCacheUpdate = func(cb func(mangleCache map[string]interface{})) {
-		cb(mangleCache)
+	cssUsedLocalNames := make(map[string]bool)
+	options.ExclusiveMangleCacheUpdate = func(cb func(
+		mangleCache map[string]interface{},
+		cssUsedLocalNames map[string]bool,
+	)) {
+		cb(mangleCache, cssUsedLocalNames)
 	}
 
 	files := make([]graph.InputFile, len(b.files))
@@ -2688,11 +2692,14 @@ func (b *Bundle) Compile(log logger.Log, timer *helpers.Timer, mangleCache map[s
 
 				// Each goroutine needs a separate options object
 				optionsClone := options
-				optionsClone.ExclusiveMangleCacheUpdate = func(cb func(mangleCache map[string]interface{})) {
+				optionsClone.ExclusiveMangleCacheUpdate = func(cb func(
+					mangleCache map[string]interface{},
+					cssUsedLocalNames map[string]bool,
+				)) {
 					// Serialize all accesses to the mangle cache in entry point order for determinism
 					serializer.Enter(i)
 					defer serializer.Leave(i)
-					cb(mangleCache)
+					cb(mangleCache, cssUsedLocalNames)
 				}
 
 				resultGroups[i] = link(&optionsClone, forked, log, b.fs, b.res, files, entryPoints,

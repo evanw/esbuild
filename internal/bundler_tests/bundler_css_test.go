@@ -302,6 +302,36 @@ func TestImportLocalCSSFromJSMinifyIdentifiersAvoidGlobalNames(t *testing.T) {
 	})
 }
 
+// See: https://github.com/evanw/esbuild/issues/3295
+func TestImportLocalCSSFromJSMinifyIdentifiersMultipleEntryPoints(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/a.js": `
+				import { foo, bar } from "./a.module.css";
+				console.log(foo, bar);
+			`,
+			"/a.module.css": `
+				.foo { color: #001; }
+				.bar { color: #002; }
+			`,
+			"/b.js": `
+				import { foo, bar } from "./b.module.css";
+				console.log(foo, bar);
+			`,
+			"/b.module.css": `
+				.foo { color: #003; }
+				.bar { color: #004; }
+			`,
+		},
+		entryPaths: []string{"/a.js", "/b.js"},
+		options: config.Options{
+			Mode:              config.ModeBundle,
+			AbsOutputDir:      "/out",
+			MinifyIdentifiers: true,
+		},
+	})
+}
+
 func TestImportCSSFromJSLocalVsGlobal(t *testing.T) {
 	css := `
 		.top_level { color: #000 }
