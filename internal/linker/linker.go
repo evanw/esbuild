@@ -5835,7 +5835,11 @@ type compileResultCSS struct {
 	// or the start of the file if this is the first CSS string.
 	generatedOffset sourcemap.LineColumnOffset
 
-	sourceIndex uint32
+	// The source index can be invalid for short snippets that aren't necessarily
+	// tied to any one file and/or that don't really need source mappings. The
+	// source index is really only valid for the compile result that contains the
+	// main contents of a file, which we try to only ever write out once.
+	sourceIndex ast.Index32
 	hasCharset  bool
 }
 
@@ -6007,7 +6011,7 @@ func (c *linkerContext) generateChunkCSS(chunkIndex int, chunkWaitGroup *sync.Wa
 				LocalNames:          c.mangledProps,
 			}
 			compileResult.PrintResult = css_printer.Print(asts[i], c.graph.Symbols, cssOptions)
-			compileResult.sourceIndex = sourceIndex
+			compileResult.sourceIndex = ast.MakeIndex32(sourceIndex)
 			waitGroup.Done()
 		}(i, entry.sourceIndex, &compileResults[i])
 	}
@@ -6149,19 +6153,19 @@ func (c *linkerContext) generateChunkCSS(chunkIndex int, chunkWaitGroup *sync.Wa
 	var compileResultsForSourceMap []compileResultForSourceMap
 	var legalCommentList []legalCommentEntry
 	for _, compileResult := range compileResults {
-		if len(compileResult.ExtractedLegalComments) > 0 {
+		if len(compileResult.ExtractedLegalComments) > 0 && compileResult.sourceIndex.IsValid() {
 			legalCommentList = append(legalCommentList, legalCommentEntry{
-				sourceIndex: compileResult.sourceIndex,
+				sourceIndex: compileResult.sourceIndex.GetIndex(),
 				comments:    compileResult.ExtractedLegalComments,
 			})
 		}
 
-		if c.options.Mode == config.ModeBundle && !c.options.MinifyWhitespace {
+		if c.options.Mode == config.ModeBundle && !c.options.MinifyWhitespace && compileResult.sourceIndex.IsValid() {
 			var newline string
 			if newlineBeforeComment {
 				newline = "\n"
 			}
-			comment := fmt.Sprintf("%s/* %s */\n", newline, c.graph.Files[compileResult.sourceIndex].InputFile.Source.PrettyPath)
+			comment := fmt.Sprintf("%s/* %s */\n", newline, c.graph.Files[compileResult.sourceIndex.GetIndex()].InputFile.Source.PrettyPath)
 			prevOffset.AdvanceString(comment)
 			j.AddString(comment)
 		}
@@ -6180,11 +6184,11 @@ func (c *linkerContext) generateChunkCSS(chunkIndex int, chunkWaitGroup *sync.Wa
 			prevOffset = sourcemap.LineColumnOffset{}
 
 			// Include this file in the source map
-			if c.options.SourceMap != config.SourceMapNone {
+			if c.options.SourceMap != config.SourceMapNone && compileResult.sourceIndex.IsValid() {
 				compileResultsForSourceMap = append(compileResultsForSourceMap, compileResultForSourceMap{
 					sourceMapChunk:  compileResult.SourceMapChunk,
 					generatedOffset: compileResult.generatedOffset,
-					sourceIndex:     compileResult.sourceIndex,
+					sourceIndex:     compileResult.sourceIndex.GetIndex(),
 				})
 			}
 		}
@@ -6223,12 +6227,18 @@ func (c *linkerContext) generateChunkCSS(chunkIndex int, chunkWaitGroup *sync.Wa
 		}
 		chunk.jsonMetadataChunkCallback = func(finalOutputSize int) helpers.Joiner {
 			finalRelDir := c.fs.Dir(chunk.finalRelPath)
+			isFirst := true
 			for i, compileResult := range compileResults {
-				if i > 0 {
+				if !compileResult.sourceIndex.IsValid() {
+					continue
+				}
+				if isFirst {
+					isFirst = false
+				} else {
 					jMeta.AddString(",")
 				}
 				jMeta.AddString(fmt.Sprintf("\n        %s: {\n          \"bytesInOutput\": %d\n        }",
-					helpers.QuoteForJSON(c.graph.Files[compileResult.sourceIndex].InputFile.Source.PrettyPath, c.options.ASCIIOnly),
+					helpers.QuoteForJSON(c.graph.Files[compileResult.sourceIndex.GetIndex()].InputFile.Source.PrettyPath, c.options.ASCIIOnly),
 					c.accurateFinalByteCount(pieces[i], finalRelDir)))
 			}
 			if len(compileResults) > 0 {
