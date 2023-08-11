@@ -6626,8 +6626,14 @@ func (p *parser) parseDecorator() js_ast.Expr {
 
 	memberExpr := js_ast.Expr{Loc: nameRange.Loc, Data: &js_ast.EIdentifier{Ref: p.storeNameInRef(name)}}
 
+	// "@x<y>() class{}"
+	if p.options.ts.Parse {
+		p.skipTypeScriptTypeArguments(skipTypeScriptTypeArgumentsOpts{})
+	}
+
 	for p.lexer.Token == js_lexer.TDot {
 		p.lexer.Next()
+
 		if p.lexer.Token == js_lexer.TPrivateIdentifier {
 			memberExpr.Data = &js_ast.EIndex{
 				Target: memberExpr,
@@ -6641,6 +6647,11 @@ func (p *parser) parseDecorator() js_ast.Expr {
 				NameLoc: p.lexer.Loc(),
 			}
 			p.lexer.Expect(js_lexer.TIdentifier)
+		}
+
+		// "@x.y<z>() class{}"
+		if p.options.ts.Parse {
+			p.skipTypeScriptTypeArguments(skipTypeScriptTypeArgumentsOpts{})
 		}
 	}
 

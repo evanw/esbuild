@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+* Parse TypeScript type arguments for JavaScript decorators ([#3308](https://github.com/evanw/esbuild/issues/3308))
+
+    When parsing JavaScript decorators in TypeScript (i.e. with `experimentalDecorators` disabled), esbuild previously didn't parse type arguments. Type arguments will now be parsed starting with this release. For example:
+
+    ```ts
+    @foo<number>
+    @bar<number, string>()
+    class Foo {}
+    ```
+
 * Fix glob patterns matching extra stuff at the end ([#3306](https://github.com/evanw/esbuild/issues/3306))
 
     Previously glob patterns such as `./*.js` would incorrectly behave like `./*.js*` during path matching (also matching `.js.map` files, for example). This was never intentional behavior, and has now been fixed.

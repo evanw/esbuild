@@ -2037,6 +2037,16 @@ func TestTSDecorators(t *testing.T) {
 	expectParseErrorTS(t, "@new Function() class Foo {}", "<stdin>: ERROR: Expected identifier but found \"new\"\n")
 	expectParseErrorTS(t, "@() => {} class Foo {}", "<stdin>: ERROR: Unexpected \")\"\n")
 
+	expectPrintedTS(t, "class Foo { @x<{}> y: any }", "class Foo {\n  @x\n  y;\n}\n")
+	expectPrintedTS(t, "class Foo { @x<{}>() y: any }", "class Foo {\n  @x()\n  y;\n}\n")
+	expectPrintedTS(t, "class Foo { @x<{}> @y<[], () => {}> z: any }", "class Foo {\n  @x\n  @y\n  z;\n}\n")
+	expectPrintedTS(t, "class Foo { @x<{}>() @y<[], () => {}>() z: any }", "class Foo {\n  @x()\n  @y()\n  z;\n}\n")
+	expectPrintedTS(t, "class Foo { @x<{}>.y<[], () => {}> z: any }", "class Foo {\n  @x.y\n  z;\n}\n")
+
+	// TypeScript 5.0+ allows this but Babel doesn't. I believe this is a bug
+	// with TypeScript: https://github.com/microsoft/TypeScript/issues/55336
+	expectParseErrorTS(t, "class Foo { @x<{}>().y<[], () => {}>() z: any }", "<stdin>: ERROR: Expected identifier but found \".\"\n")
+
 	errorText := "<stdin>: ERROR: Transforming JavaScript decorators to the configured target environment is not supported yet\n"
 	expectParseErrorWithUnsupportedFeaturesTS(t, compat.Decorators, "@dec class Foo {}", errorText)
 	expectParseErrorWithUnsupportedFeaturesTS(t, compat.Decorators, "class Foo { @dec x }", errorText)
