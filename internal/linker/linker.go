@@ -5909,61 +5909,7 @@ func (c *linkerContext) generateChunkCSS(chunkIndex int, chunkWaitGroup *sync.Wa
 			rules = []css_ast.Rule{{Data: &css_ast.RAtLayer{Names: layers}}}
 		}
 
-		for i := len(entry.conditions) - 1; i >= 0; i-- {
-			conditions := entry.conditions[i]
-
-			// Generate "@layer" wrappers. Note that empty "@layer" rules still have
-			// a side effect (they set the layer order) so they cannot be removed.
-			for _, t := range conditions.Layers {
-				if len(rules) == 0 {
-					if t.Children == nil {
-						// Omit an empty "@layer {}" entirely
-						continue
-					} else {
-						// Generate "@layer foo;" instead of "@layer foo {}"
-						rules = nil
-					}
-				}
-				var prelude []css_ast.Token
-				if t.Children != nil {
-					prelude = *t.Children
-				}
-				prelude, ast.ImportRecords = css_ast.CloneTokensWithImportRecords(prelude, entry.conditionImportRecords, nil, ast.ImportRecords)
-				rules = []css_ast.Rule{{Data: &css_ast.RKnownAt{
-					AtToken: "layer",
-					Prelude: prelude,
-					Rules:   rules,
-				}}}
-			}
-
-			// Generate "@supports" wrappers. This is not done if the rule block is
-			// empty because empty "@supports" rules have no effect.
-			if len(rules) > 0 {
-				for _, t := range conditions.Supports {
-					t.Kind = css_lexer.TOpenParen
-					t.Text = "("
-					var prelude []css_ast.Token
-					prelude, ast.ImportRecords = css_ast.CloneTokensWithImportRecords([]css_ast.Token{t}, entry.conditionImportRecords, nil, ast.ImportRecords)
-					rules = []css_ast.Rule{{Data: &css_ast.RKnownAt{
-						AtToken: "supports",
-						Prelude: prelude,
-						Rules:   rules,
-					}}}
-				}
-			}
-
-			// Generate "@media" wrappers. This is not done if the rule block is
-			// empty because empty "@media" rules have no effect.
-			if len(rules) > 0 && len(conditions.Media) > 0 {
-				var prelude []css_ast.Token
-				prelude, ast.ImportRecords = css_ast.CloneTokensWithImportRecords(conditions.Media, entry.conditionImportRecords, nil, ast.ImportRecords)
-				rules = []css_ast.Rule{{Data: &css_ast.RKnownAt{
-					AtToken: "media",
-					Prelude: prelude,
-					Rules:   rules,
-				}}}
-			}
-		}
+		rules, ast.ImportRecords = wrapRulesWithConditions(rules, ast.ImportRecords, entry.conditions, entry.conditionImportRecords)
 
 		// Remove top-level duplicate rules across files
 		if c.options.MinifySyntax {
@@ -6251,6 +6197,69 @@ func (c *linkerContext) generateChunkCSS(chunkIndex int, chunkWaitGroup *sync.Wa
 
 	c.generateIsolatedHashInParallel(chunk)
 	chunkWaitGroup.Done()
+}
+
+func wrapRulesWithConditions(
+	rules []css_ast.Rule, importRecords []ast.ImportRecord,
+	conditions []css_ast.ImportConditions, conditionImportRecords []ast.ImportRecord,
+) ([]css_ast.Rule, []ast.ImportRecord) {
+	for i := len(conditions) - 1; i >= 0; i-- {
+		item := conditions[i]
+
+		// Generate "@layer" wrappers. Note that empty "@layer" rules still have
+		// a side effect (they set the layer order) so they cannot be removed.
+		for _, t := range item.Layers {
+			if len(rules) == 0 {
+				if t.Children == nil {
+					// Omit an empty "@layer {}" entirely
+					continue
+				} else {
+					// Generate "@layer foo;" instead of "@layer foo {}"
+					rules = nil
+				}
+			}
+			var prelude []css_ast.Token
+			if t.Children != nil {
+				prelude = *t.Children
+			}
+			prelude, importRecords = css_ast.CloneTokensWithImportRecords(prelude, conditionImportRecords, nil, importRecords)
+			rules = []css_ast.Rule{{Data: &css_ast.RKnownAt{
+				AtToken: "layer",
+				Prelude: prelude,
+				Rules:   rules,
+			}}}
+		}
+
+		// Generate "@supports" wrappers. This is not done if the rule block is
+		// empty because empty "@supports" rules have no effect.
+		if len(rules) > 0 {
+			for _, t := range item.Supports {
+				t.Kind = css_lexer.TOpenParen
+				t.Text = "("
+				var prelude []css_ast.Token
+				prelude, importRecords = css_ast.CloneTokensWithImportRecords([]css_ast.Token{t}, conditionImportRecords, nil, importRecords)
+				rules = []css_ast.Rule{{Data: &css_ast.RKnownAt{
+					AtToken: "supports",
+					Prelude: prelude,
+					Rules:   rules,
+				}}}
+			}
+		}
+
+		// Generate "@media" wrappers. This is not done if the rule block is
+		// empty because empty "@media" rules have no effect.
+		if len(rules) > 0 && len(item.Media) > 0 {
+			var prelude []css_ast.Token
+			prelude, importRecords = css_ast.CloneTokensWithImportRecords(item.Media, conditionImportRecords, nil, importRecords)
+			rules = []css_ast.Rule{{Data: &css_ast.RKnownAt{
+				AtToken: "media",
+				Prelude: prelude,
+				Rules:   rules,
+			}}}
+		}
+	}
+
+	return rules, importRecords
 }
 
 type legalCommentEntry struct {
