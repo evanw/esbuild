@@ -646,6 +646,30 @@ TestCSSAtImportConditionsBundleExternalConditionWithURL
 /* entry.css */
 
 ================================================================================
+TestCSSAtImportConditionsChainExternal
+---------- /out.css ----------
+@import "http://example.com/external1.css" layer(a) not print;
+@import 'data:text/css,@import "http://example.com/external3.css" layer(b) not tv;' layer(a) not print;
+@import "data:text/css,@import 'data:text/css,@import \"http://example.com/external4.css\" layer(b2);' layer(b) not tv;" layer(a) not print;
+@import 'data:text/css,@import "http://example.com/external2.css" layer(a2);' layer(a) not print;
+
+/* b.css */
+@media not print {
+  @layer a {
+    @media not tv {
+      @layer b;
+    }
+  }
+}
+
+/* a.css */
+@media not print {
+  @layer a;
+}
+
+/* entry.css */
+
+================================================================================
 TestCSSAtImportConditionsFromExternalRepo
 ---------- /out/001/default/style.css ----------
 /* 001/default/a.css */

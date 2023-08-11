@@ -1,9 +1,21 @@
 package helpers
 
 import (
+	"encoding/base64"
+	"fmt"
 	"strings"
 	"unicode/utf8"
 )
+
+// Returns the shorter of either a base64-encoded or percent-escaped data URL
+func EncodeStringAsShortestDataURL(mimeType string, text string) string {
+	encoded := base64.StdEncoding.EncodeToString([]byte(text))
+	url := fmt.Sprintf("data:%s;base64,%s", mimeType, encoded)
+	if percentURL, ok := EncodeStringAsPercentEscapedDataURL(mimeType, text); ok && len(percentURL) < len(url) {
+		return percentURL
+	}
+	return url
+}
 
 // See "scripts/dataurl-escapes.html" for how this was derived
 func EncodeStringAsPercentEscapedDataURL(mimeType string, text string) (string, bool) {

@@ -194,7 +194,7 @@ type chunkReprCSS struct {
 
 type externalImportCSS struct {
 	path                   logger.Path
-	conditions             css_ast.ImportConditions
+	conditions             []css_ast.ImportConditions
 	conditionImportRecords []ast.ImportRecord
 }
 
@@ -3408,15 +3408,17 @@ func (c *linkerContext) findImportedFilesInCSSOrder(entryPoints []uint32) (exter
 
 				// Record external dependencies
 				if (record.Flags & ast.WasLoadedWithEmptyLoader) == 0 {
-					var conditions css_ast.ImportConditions
-					var importRecords []ast.ImportRecord
+					allConditions := append([]css_ast.ImportConditions{}, wrappingConditions...)
+					allImportRecords := append([]ast.ImportRecord{}, wrappingImportRecords...)
 					if atImport.ImportConditions != nil {
-						conditions, importRecords = atImport.ImportConditions.CloneWithImportRecords(repr.AST.ImportRecords, importRecords)
+						var conditions css_ast.ImportConditions
+						conditions, allImportRecords = atImport.ImportConditions.CloneWithImportRecords(repr.AST.ImportRecords, allImportRecords)
+						allConditions = append(allConditions, conditions)
 					}
 					externalOrder = append(externalOrder, externalImportCSS{
 						path:                   record.Path,
-						conditions:             conditions,
-						conditionImportRecords: importRecords,
+						conditions:             allConditions,
+						conditionImportRecords: allImportRecords,
 					})
 				}
 			}
@@ -3529,7 +3531,7 @@ func (c *linkerContext) findImportedFilesInCSSOrder(entryPoints []uint32) (exter
 			order := externalOrder[i]
 			duplicates := externalDuplicates[order.path]
 			for _, j := range duplicates {
-				if isConditionalImportRedundant([]css_ast.ImportConditions{order.conditions}, []css_ast.ImportConditions{externalOrder[j].conditions}) {
+				if isConditionalImportRedundant(order.conditions, externalOrder[j].conditions) {
 					isRedundantDueTo[i] = ast.MakeIndex32(uint32(j))
 					continue nextExternal
 				}
@@ -3562,13 +3564,27 @@ func (c *linkerContext) findImportedFilesInCSSOrder(entryPoints []uint32) (exter
 					continue
 				}
 
-				// Remove this redundant entry if it has no layers. THIS ASSUMES THAT
-				// EXTERNAL IMPORTS DO NOT CONTAIN "@layer" INFORMATION. While this is not
-				// necessarily a correct assumption, there are other ordering things that
-				// are also not correct about external "@import" rules when bundling (e.g.
-				// CSS doesn't allow you to put an "@import" rule in the middle of a file
-				// so we have to hoist them all to the top) so we don't worry about this.
-				if len(order.conditions.Layers) == 0 {
+				// Remove this redundant entry either if it has no named layers
+				// or if it's wrapped in an anonymous layer without a name.
+				//
+				// Note: This assumes that external imports do not contain "@layer"
+				// information. While this is not necessarily a correct assumption,
+				// there are other ordering things that are also not correct about
+				// external "@import" rules when bundling (e.g. CSS doesn't allow
+				// you to put an "@import" rule in the middle of a file so we have
+				// to hoist them all to the top) so we don't worry about this.
+				hasNamedLayers := false
+				hasAnonymousLayer := false
+				for _, conditions := range order.conditions {
+					if len(conditions.Layers) == 1 {
+						if t := conditions.Layers[0]; t.Children == nil || len(*t.Children) == 0 {
+							hasAnonymousLayer = true
+						} else {
+							hasNamedLayers = true
+						}
+					}
+				}
+				if !hasNamedLayers || hasAnonymousLayer {
 					continue
 				}
 
@@ -6015,10 +6031,38 @@ func (c *linkerContext) generateChunkCSS(chunkIndex int, chunkWaitGroup *sync.Wa
 		// rules must come first or the browser will just ignore them.
 		for _, external := range chunkRepr.externalImportsInOrder {
 			var conditions *css_ast.ImportConditions
-			if len(external.conditions.Layers) > 0 || len(external.conditions.Supports) > 0 || len(external.conditions.Media) > 0 {
+			if len(external.conditions) > 0 {
 				var clone css_ast.ImportConditions
-				clone, tree.ImportRecords = external.conditions.CloneWithImportRecords(external.conditionImportRecords, tree.ImportRecords)
+				clone, tree.ImportRecords = external.conditions[0].CloneWithImportRecords(external.conditionImportRecords, tree.ImportRecords)
 				conditions = &clone
+
+				// Handling a chain of nested conditions is complicated. We can't
+				// necessarily join them together because a) there may be multiple
+				// layer names and b) layer names are only supposed to be inserted
+				// into the layer order if the parent conditions are applied.
+				//
+				// Instead we handle them by preserving the "@import" nesting using
+				// imports of data URL stylesheets. This may seem strange but I think
+				// this is the only way to do this in CSS.
+				for i := len(external.conditions) - 1; i > 0; i-- {
+					astImport := css_ast.AST{
+						Rules: []css_ast.Rule{{Data: &css_ast.RAtImport{
+							ImportRecordIndex: uint32(len(external.conditionImportRecords)),
+							ImportConditions:  &external.conditions[i],
+						}}},
+						ImportRecords: append(external.conditionImportRecords, ast.ImportRecord{
+							Kind: ast.ImportAt,
+							Path: external.path,
+						}),
+					}
+					astResult := css_printer.Print(astImport, c.graph.Symbols, css_printer.Options{
+						MinifyWhitespace: c.options.MinifyWhitespace,
+						ASCIIOnly:        c.options.ASCIIOnly,
+					})
+					external.path = logger.Path{
+						Text: helpers.EncodeStringAsShortestDataURL("text/css", string(bytes.TrimSpace(astResult.CSS))),
+					}
+				}
 			}
 			tree.Rules = append(tree.Rules, css_ast.Rule{Data: &css_ast.RAtImport{
 				ImportRecordIndex: uint32(len(tree.ImportRecords)),

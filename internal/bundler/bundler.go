@@ -299,11 +299,7 @@ func parseFile(args parseArgs) {
 
 	case config.LoaderDataURL:
 		mimeType := guessMimeType(ext, source.Contents)
-		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
-		url := fmt.Sprintf("data:%s;base64,%s", mimeType, encoded)
-		if percentURL, ok := helpers.EncodeStringAsPercentEscapedDataURL(mimeType, source.Contents); ok && len(percentURL) < len(url) {
-			url = percentURL
-		}
+		url := helpers.EncodeStringAsShortestDataURL(mimeType, source.Contents)
 		expr := js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16(url)}}
 		ast := js_parser.LazyExportAST(args.log, source, js_parser.OptionsFromConfig(&args.options), expr, "")
 		ast.URLForCSS = url

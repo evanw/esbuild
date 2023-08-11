@@ -1967,6 +1967,30 @@ func TestCSSAtImportConditionsAtLayerBundleAlternatingLayerOnImport(t *testing.T
 	})
 }
 
+func TestCSSAtImportConditionsChainExternal(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.css": `
+				@import "a.css" layer(a) not print;
+			`,
+			"/a.css": `
+				@import "http://example.com/external1.css";
+				@import "b.css" layer(b) not tv;
+				@import "http://example.com/external2.css" layer(a2);
+			`,
+			"/b.css": `
+				@import "http://example.com/external3.css";
+				@import "http://example.com/external4.css" layer(b2);
+			`,
+		},
+		entryPaths: []string{"/entry.css"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.css",
+		},
+	})
+}
+
 // This test mainly just makes sure that this scenario doesn't crash
 func TestCSSAndJavaScriptCodeSplittingIssue1064(t *testing.T) {
 	css_suite.expectBundled(t, bundled{
