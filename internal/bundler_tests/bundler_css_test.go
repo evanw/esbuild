@@ -2491,3 +2491,49 @@ url-token-whitespace-eof.css: WARNING: Expected ";" but found end of file
 `,
 	})
 }
+
+func TestCSSAtLayerBeforeImportNoBundle(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.css": `
+				@layer layer1, layer2.layer3;
+				@import "a.css";
+				@import "b.css";
+				@layer layer6.layer7, layer8;
+			`,
+		},
+		entryPaths: []string{"/entry.css"},
+		options: config.Options{
+			Mode:         config.ModePassThrough,
+			AbsOutputDir: "/out",
+		},
+	})
+}
+
+func TestCSSAtLayerBeforeImportBundle(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.css": `
+				@layer layer1, layer2.layer3;
+				@import "a.css";
+				@import "b.css";
+				@layer layer6.layer7, layer8;
+			`,
+			"/a.css": `
+				@layer layer4 {
+					a { color: red }
+				}
+			`,
+			"/b.css": `
+				@layer layer5 {
+					b { color: red }
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.css"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+	})
+}

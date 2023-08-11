@@ -89,7 +89,6 @@ TestCSSAtImport
 ================================================================================
 TestCSSAtImportConditionsAtLayerBundle
 ---------- /out/case1.css ----------
-/* case1-foo.css */
 @layer first.one;
 
 /* case1-foo.css */
@@ -109,7 +108,6 @@ TestCSSAtImportConditionsAtLayerBundle
 /* case1.css */
 
 ---------- /out/case2.css ----------
-/* case2-foo.css */
 @layer first.one;
 
 /* case2-bar.css */
@@ -146,7 +144,6 @@ TestCSSAtImportConditionsAtLayerBundle
 /* case3.css */
 
 ---------- /out/case4.css ----------
-/* case4-foo.css */
 @layer first {
   @layer one, one.two, one.three.four;
 }
@@ -197,7 +194,6 @@ TestCSSAtImportConditionsAtLayerBundle
 /* case5.css */
 
 ---------- /out/case6.css ----------
-/* case6-foo.css */
 @layer first;
 
 /* case6-foo.css */
@@ -235,7 +231,6 @@ TestCSSAtImportConditionsAtLayerBundleAlternatingLayerInFile
 /* case1.css */
 
 ---------- /out/case2.css ----------
-/* a.css */
 @layer first;
 
 /* b.css */
@@ -255,10 +250,7 @@ TestCSSAtImportConditionsAtLayerBundleAlternatingLayerInFile
 /* case2.css */
 
 ---------- /out/case3.css ----------
-/* a.css */
 @layer first;
-
-/* b.css */
 @layer last;
 
 /* a.css */
@@ -278,7 +270,6 @@ TestCSSAtImportConditionsAtLayerBundleAlternatingLayerInFile
 /* case3.css */
 
 ---------- /out/case4.css ----------
-/* a.css */
 @layer first;
 
 /* b.css */
@@ -298,10 +289,7 @@ TestCSSAtImportConditionsAtLayerBundleAlternatingLayerInFile
 /* case4.css */
 
 ---------- /out/case5.css ----------
-/* a.css */
 @layer first;
-
-/* b.css */
 @layer last;
 
 /* a.css */
@@ -321,7 +309,6 @@ TestCSSAtImportConditionsAtLayerBundleAlternatingLayerInFile
 /* case5.css */
 
 ---------- /out/case6.css ----------
-/* a.css */
 @layer first;
 
 /* b.css */
@@ -353,7 +340,6 @@ TestCSSAtImportConditionsAtLayerBundleAlternatingLayerOnImport
 /* case1.css */
 
 ---------- /out/case2.css ----------
-/* a.css */
 @layer first;
 
 /* b.css */
@@ -373,10 +359,7 @@ TestCSSAtImportConditionsAtLayerBundleAlternatingLayerOnImport
 /* case2.css */
 
 ---------- /out/case3.css ----------
-/* a.css */
 @layer first;
-
-/* b.css */
 @layer last;
 
 /* a.css */
@@ -396,7 +379,6 @@ TestCSSAtImportConditionsAtLayerBundleAlternatingLayerOnImport
 /* case3.css */
 
 ---------- /out/case4.css ----------
-/* a.css */
 @layer first;
 
 /* b.css */
@@ -416,10 +398,7 @@ TestCSSAtImportConditionsAtLayerBundleAlternatingLayerOnImport
 /* case4.css */
 
 ---------- /out/case5.css ----------
-/* a.css */
 @layer first;
-
-/* b.css */
 @layer last;
 
 /* a.css */
@@ -439,7 +418,6 @@ TestCSSAtImportConditionsAtLayerBundleAlternatingLayerOnImport
 /* case5.css */
 
 ---------- /out/case6.css ----------
-/* a.css */
 @layer first;
 
 /* b.css */
@@ -734,7 +712,6 @@ TestCSSAtImportConditionsFromExternalRepo
 /* at-keyframes/001/style.css */
 
 ---------- /out/at-layer/001/style.css ----------
-/* at-layer/001/a.css */
 @layer a;
 
 /* at-layer/001/b.css */
@@ -754,7 +731,6 @@ TestCSSAtImportConditionsFromExternalRepo
 /* at-layer/001/style.css */
 
 ---------- /out/at-layer/002/style.css ----------
-/* at-layer/002/a.css */
 @media print {
   @layer a;
 }
@@ -776,7 +752,6 @@ TestCSSAtImportConditionsFromExternalRepo
 /* at-layer/002/style.css */
 
 ---------- /out/at-layer/003/style.css ----------
-/* at-layer/003/a.css */
 @layer a;
 
 /* at-layer/003/b.css */
@@ -1608,6 +1583,36 @@ TestCSSAtImportExternal
 }
 
 /* entry.css */
+
+================================================================================
+TestCSSAtLayerBeforeImportBundle
+---------- /out/entry.css ----------
+@layer layer1, layer2.layer3;
+
+/* a.css */
+@layer layer4 {
+  a {
+    color: red;
+  }
+}
+
+/* b.css */
+@layer layer5 {
+  b {
+    color: red;
+  }
+}
+
+/* entry.css */
+@layer layer6.layer7, layer8;
+
+================================================================================
+TestCSSAtLayerBeforeImportNoBundle
+---------- /out/entry.css ----------
+@layer layer1, layer2.layer3;
+@import "a.css";
+@import "b.css";
+@layer layer6.layer7, layer8;
 
 ================================================================================
 TestCSSEntryPoint

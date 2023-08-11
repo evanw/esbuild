@@ -6,6 +6,30 @@
 
     Previously esbuild's generated names for local names in CSS were only unique within a given entry point (or across all entry points when code splitting was enabled). That meant that building multiple entry points with esbuild could result in local names being renamed to the same identifier even when those entry points were built simultaneously within a single esbuild API call. This problem was especially likely to happen with minification enabled. With this release, esbuild will now avoid renaming local names from two separate entry points to the same name if those entry points were built with a single esbuild API call, even when code splitting is disabled.
 
+* Fix CSS ordering bug with `@layer` before `@import`
+
+    CSS lets you put `@layer` rules before `@import` rules to define the order of layers in a stylesheet. Previously esbuild's CSS bundler incorrectly ordered these after the imported files because before the introduction of cascade layers to CSS, imported files could be bundled by removing the `@import` rules and then joining files together in the right order. But with `@layer`, CSS files may now need to be split apart into multiple pieces in the bundle. For example:
+
+    ```
+    /* Original code */
+    @layer start;
+    @import "data:text/css,@layer inner.start;";
+    @import "data:text/css,@layer inner.end;";
+    @layer end;
+
+    /* Old output (with --bundle) */
+    @layer inner.start;
+    @layer inner.end;
+    @layer start;
+    @layer end;
+
+    /* New output (with --bundle) */
+    @layer start;
+    @layer inner.start;
+    @layer inner.end;
+    @layer end;
+    ```
+
 * Unwrap nested duplicate `@media` rules ([#3226](https://github.com/evanw/esbuild/issues/3226))
 
     With this release, esbuild's CSS minifier will now automatically unwrap duplicate nested `@media` rules:
