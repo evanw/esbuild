@@ -31,7 +31,8 @@ type parser struct {
 	nestingWarnings   map[logger.Loc]struct{}
 	tracker           logger.LineColumnTracker
 	enclosingAtMedia  [][]css_ast.Token
-	layers            [][]string
+	layersPreImport   [][]string
+	layersPostImport  [][]string
 	enclosingLayer    []string
 	anonLayerCount    int
 	index             int
@@ -42,6 +43,7 @@ type parser struct {
 	options           Options
 	nestingIsPresent  bool
 	makeLocalSymbols  bool
+	hasSeenAtImport   bool
 }
 
 type Options struct {
@@ -153,7 +155,8 @@ func Parse(log logger.Log, source logger.Source, options Options) css_ast.AST {
 		LocalScope:           p.localScope,
 		GlobalScope:          p.globalScope,
 		Composes:             p.composes,
-		Layers:               p.layers,
+		LayersPreImport:      p.layersPreImport,
+		LayersPostImport:     p.layersPostImport,
 	}
 }
 
@@ -359,7 +362,7 @@ func (p *parser) recordAtLayerRule(layers [][]string) {
 			clone := make([]string, 0, len(p.enclosingLayer)+len(layer))
 			layer = append(append(clone, p.enclosingLayer...), layer...)
 		}
-		p.layers = append(p.layers, layer)
+		p.layersPostImport = append(p.layersPostImport, layer)
 	}
 }
 
@@ -1248,6 +1251,14 @@ abortRuleParser:
 					Path:  logger.Path{Text: path},
 					Range: r,
 				})
+
+				// Fill in the pre-import layers once we see the first "@import"
+				if !p.hasSeenAtImport {
+					p.hasSeenAtImport = true
+					p.layersPreImport = p.layersPostImport
+					p.layersPostImport = nil
+				}
+
 				return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RAtImport{
 					ImportRecordIndex: importRecordIndex,
 					ImportConditions:  importConditions,

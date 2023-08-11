@@ -3496,7 +3496,8 @@ func (c *linkerContext) findImportedFilesInCSSOrder(entryPoints []uint32) (exter
 
 				// Remove this redundant entry either if it has no named layers
 				// or if it's wrapped in an anonymous layer without a name
-				hasNamedLayers := len(c.graph.Files[order.sourceIndex].InputFile.Repr.(*graph.CSSRepr).AST.Layers) > 0
+				tree := c.graph.Files[order.sourceIndex].InputFile.Repr.(*graph.CSSRepr).AST
+				hasNamedLayers := len(tree.LayersPreImport) > 0 || len(tree.LayersPostImport) > 0
 				hasAnonymousLayer := false
 				for _, conditions := range order.conditions {
 					if len(conditions.Layers) == 1 {
@@ -5891,9 +5892,17 @@ func (c *linkerContext) generateChunkCSS(chunkIndex int, chunkWaitGroup *sync.Wa
 				}
 				rules = append(rules, rule)
 			}
-		} else if len(ast.Layers) > 0 {
+		} else if pre, post := len(ast.LayersPreImport), len(ast.LayersPostImport); pre > 0 || post > 0 {
 			// Only include "@layer" information for redundant import order entries
-			rules = []css_ast.Rule{{Data: &css_ast.RAtLayer{Names: ast.Layers}}}
+			var layers [][]string
+			if pre == 0 {
+				layers = ast.LayersPostImport
+			} else if post == 0 {
+				layers = ast.LayersPreImport
+			} else {
+				layers = append(append(make([][]string, 0, pre+post), ast.LayersPreImport...), ast.LayersPostImport...)
+			}
+			rules = []css_ast.Rule{{Data: &css_ast.RAtLayer{Names: layers}}}
 		}
 
 		for i := len(entry.conditions) - 1; i >= 0; i-- {
