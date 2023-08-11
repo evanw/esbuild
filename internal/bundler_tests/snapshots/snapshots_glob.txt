@@ -156,3 +156,105 @@ console.log({
     import: globImport_src_json(`./src/${ab}.json`)
   }
 });
+
+================================================================================
+TestGlobWildcardNoSlash
+---------- /out.js ----------
+// src/file-a.js
+var require_file_a = __commonJS({
+  "src/file-a.js"(exports, module) {
+    module.exports = "a";
+  }
+});
+
+// src/file-b.js
+var require_file_b = __commonJS({
+  "src/file-b.js"(exports, module) {
+    module.exports = "b";
+  }
+});
+
+// require("./src/file-*.js") in entry.js
+var globRequire_src_file_js = __glob({
+  "./src/file-a.js": () => require_file_a(),
+  "./src/file-b.js": () => require_file_b()
+});
+
+// import("./src/file-*.js") in entry.js
+var globImport_src_file_js = __glob({
+  "./src/file-a.js": () => Promise.resolve().then(() => __toESM(require_file_a())),
+  "./src/file-b.js": () => Promise.resolve().then(() => __toESM(require_file_b()))
+});
+
+// entry.js
+var ab = Math.random() < 0.5 ? "a.js" : "b.js";
+console.log({
+  concat: {
+    require: globRequire_src_file_js("./src/file-" + ab + ".js"),
+    import: globImport_src_file_js("./src/file-" + ab + ".js")
+  },
+  template: {
+    require: globRequire_src_file_js(`./src/file-${ab}.js`),
+    import: globImport_src_file_js(`./src/file-${ab}.js`)
+  }
+});
+
+================================================================================
+TestGlobWildcardSlash
+---------- /out.js ----------
+// src/file-a.js
+var require_file_a = __commonJS({
+  "src/file-a.js"(exports, module) {
+    module.exports = "a";
+  }
+});
+
+// src/file-b.js
+var require_file_b = __commonJS({
+  "src/file-b.js"(exports, module) {
+    module.exports = "b";
+  }
+});
+
+// src/nested/dir/file-a.js
+var require_file_a2 = __commonJS({
+  "src/nested/dir/file-a.js"(exports, module) {
+    module.exports = "a";
+  }
+});
+
+// src/nested/dir/file-b.js
+var require_file_b2 = __commonJS({
+  "src/nested/dir/file-b.js"(exports, module) {
+    module.exports = "b";
+  }
+});
+
+// require("./src/**/*.js") in entry.js
+var globRequire_src_js = __glob({
+  "./src/file-a.js": () => require_file_a(),
+  "./src/file-b.js": () => require_file_b(),
+  "./src/nested/dir/file-a.js": () => require_file_a2(),
+  "./src/nested/dir/file-b.js": () => require_file_b2()
+});
+
+// import("./src/**/*.js") in entry.js
+var globImport_src_js = __glob({
+  "./src/file-a.js": () => Promise.resolve().then(() => __toESM(require_file_a())),
+  "./src/file-b.js": () => Promise.resolve().then(() => __toESM(require_file_b())),
+  "./src/nested/dir/file-a.js": () => Promise.resolve().then(() => __toESM(require_file_a2())),
+  "./src/nested/dir/file-b.js": () => Promise.resolve().then(() => __toESM(require_file_b2()))
+});
+
+// entry.js
+var ab = Math.random() < 0.5 ? "a.js" : "b.js";
+console.log({
+  concat: {
+    require: globRequire_src_js("./src/" + ab + ".js"),
+    import: globImport_src_js("./src/" + ab + ".js")
+  },
+  template: {
+    require: globRequire_src_js(`./src/${ab}.js`),
+    import: globImport_src_js(`./src/${ab}.js`)
+  }
+});

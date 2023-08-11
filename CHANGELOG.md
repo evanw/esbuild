@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+* Fix glob patterns matching extra stuff at the end ([#3306](https://github.com/evanw/esbuild/issues/3306))
+
+    Previously glob patterns such as `./*.js` would incorrectly behave like `./*.js*` during path matching (also matching `.js.map` files, for example). This was never intentional behavior, and has now been fixed.
+
 * Change the permissions of esbuild's generated output files ([#3285](https://github.com/evanw/esbuild/issues/3285))
 
     This release changes the permissions of the output files that esbuild generates to align with the default behavior of node's [`fs.writeFileSync`](https://nodejs.org/api/fs.html#fswritefilesyncfile-data-options) function. Since most tools written in JavaScript use `fs.writeFileSync`, this should make esbuild more consistent with how other JavaScript build tools behave.

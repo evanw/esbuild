@@ -694,12 +694,13 @@ func (res *Resolver) ResolveGlob(sourceDir string, importPathPattern []helpers.G
 			prefix = prefix[1:] // Move over the "/" after a globstar
 		}
 		sb.WriteString(regexp.QuoteMeta(prefix))
-		if part.Wildcard == helpers.GlobAllIncludingSlash {
+		switch part.Wildcard {
+		case helpers.GlobAllIncludingSlash:
 			// It's a globstar, so match zero or more path segments
 			sb.WriteString("(?:[^/]*(?:/|$))*")
 			canMatchOnSlash = true
 			wasGlobStar = true
-		} else {
+		case helpers.GlobAllExceptSlash:
 			// It's not a globstar, so only match one path segment
 			sb.WriteString("[^/]*")
 			wasGlobStar = false
