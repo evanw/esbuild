@@ -2151,6 +2151,17 @@ func TestMangleDuplicateSelectorRules(t *testing.T) {
 	expectPrintedMangle(t, "c { color: green } a { color: red } /*!x*/ /*!y*/ a { color: red }", "c {\n  color: green;\n}\na {\n  color: red;\n}\n/*!x*/\n/*!y*/\n", "")
 }
 
+func TestMangleAtMedia(t *testing.T) {
+	expectPrinted(t, "@media screen { @media screen { a { color: red } } }", "@media screen {\n  @media screen {\n    a {\n      color: red;\n    }\n  }\n}\n", "")
+	expectPrintedMangle(t, "@media screen { @media screen { a { color: red } } }", "@media screen {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedMangle(t, "@media screen { @media not print { a { color: red } } }", "@media screen {\n  @media not print {\n    a {\n      color: red;\n    }\n  }\n}\n", "")
+	expectPrintedMangle(t, "@media screen { @media not print { @media screen { a { color: red } } } }", "@media screen {\n  @media not print {\n    a {\n      color: red;\n    }\n  }\n}\n", "")
+	expectPrintedMangle(t, "@media screen { a { color: red } @media screen { a { color: red } } }", "@media screen {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedMangle(t, "@media screen { a { color: red } @media screen { a { color: blue } } }", "@media screen {\n  a {\n    color: red;\n  }\n  a {\n    color: #00f;\n  }\n}\n", "")
+	expectPrintedMangle(t, "@media screen { .a { color: red; @media screen { .b { color: blue } } } }", "@media screen {\n  .a {\n    color: red;\n    .b {\n      color: #00f;\n    }\n  }\n}\n", "")
+	expectPrintedMangle(t, "@media screen { a { color: red } } @media screen { b { color: red } }", "@media screen {\n  a {\n    color: red;\n  }\n}\n@media screen {\n  b {\n    color: red;\n  }\n}\n", "")
+}
+
 func TestFontWeight(t *testing.T) {
 	expectPrintedMangle(t, "a { font-weight: normal }", "a {\n  font-weight: 400;\n}\n", "")
 	expectPrintedMangle(t, "a { font-weight: bold }", "a {\n  font-weight: 700;\n}\n", "")

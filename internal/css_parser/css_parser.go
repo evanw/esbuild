@@ -30,6 +30,7 @@ type parser struct {
 	globalScope       map[string]ast.LocRef
 	nestingWarnings   map[logger.Loc]struct{}
 	tracker           logger.LineColumnTracker
+	enclosingAtMedia  [][]css_ast.Token
 	layers            [][]string
 	enclosingLayer    []string
 	anonLayerCount    int
@@ -591,8 +592,9 @@ func (p *parser) mangleRules(rules []css_ast.Rule, isTopLevel bool) []css_ast.Ru
 	}
 
 	// Remove empty rules
+	mangledRules := make([]css_ast.Rule, 0, len(rules))
 	var prevNonComment css_ast.R
-	n := 0
+next:
 	for _, rule := range rules {
 		nextNonComment := rule.Data
 
@@ -629,6 +631,42 @@ func (p *parser) mangleRules(rules []css_ast.Rule, isTopLevel bool) []css_ast.Ru
 				continue
 			}
 
+			// Unwrap "@media" rules that duplicate conditions from a parent "@media"
+			// rule. This is unlikely to be authored manually but can be automatically
+			// generated when using a CSS framework such as Tailwind.
+			//
+			//   @media (min-width: 1024px) {
+			//     .md\:class {
+			//       color: red;
+			//     }
+			//     @media (min-width: 1024px) {
+			//       .md\:class {
+			//         color: red;
+			//       }
+			//     }
+			//   }
+			//
+			// This converts that code into the following:
+			//
+			//   @media (min-width: 1024px) {
+			//     .md\:class {
+			//       color: red;
+			//     }
+			//     .md\:class {
+			//       color: red;
+			//     }
+			//   }
+			//
+			// Which can then be mangled further.
+			if r.AtToken == "media" {
+				for _, prelude := range p.enclosingAtMedia {
+					if css_ast.TokensEqualIgnoringWhitespace(r.Prelude, prelude) {
+						mangledRules = append(mangledRules, r.Rules...)
+						continue next
+					}
+				}
+			}
+
 		case *css_ast.RSelector:
 			if len(r.Rules) == 0 {
 				continue
@@ -663,19 +701,17 @@ func (p *parser) mangleRules(rules []css_ast.Rule, isTopLevel bool) []css_ast.Ru
 			prevNonComment = nextNonComment
 		}
 
-		rules[n] = rule
-		n++
+		mangledRules = append(mangledRules, rule)
 	}
-	rules = rules[:n]
 
 	// Mangle non-top-level rules using a back-to-front pass. Top-level rules
 	// will be mangled by the linker instead for cross-file rule mangling.
 	if !isTopLevel {
 		remover := MakeDuplicateRuleMangler(ast.SymbolMap{})
-		rules = remover.RemoveDuplicateRulesInPlace(p.source.Index, rules, p.importRecords)
+		mangledRules = remover.RemoveDuplicateRulesInPlace(p.source.Index, mangledRules, p.importRecords)
 	}
 
-	return rules
+	return mangledRules
 }
 
 type ruleEntry struct {
@@ -1550,6 +1586,14 @@ prelude:
 		matchingLoc := p.current().Range.Loc
 		p.expect(css_lexer.TOpenBrace)
 		var rules []css_ast.Rule
+
+		// Push the "@media" conditions
+		isAtMedia := atToken == "media"
+		if isAtMedia {
+			p.enclosingAtMedia = append(p.enclosingAtMedia, prelude)
+		}
+
+		// Parse the block for this rule
 		if context.isDeclarationList {
 			rules = p.parseListOfDeclarations(listOfDeclarationsOpts{
 				canInlineNoOpNesting: context.canInlineNoOpNesting,
@@ -1559,6 +1603,12 @@ prelude:
 				parseSelectors: true,
 			})
 		}
+
+		// Pop the "@media" conditions
+		if isAtMedia {
+			p.enclosingAtMedia = p.enclosingAtMedia[:len(p.enclosingAtMedia)-1]
+		}
+
 		closeBraceLoc := p.current().Range.Loc
 		if !p.expectWithMatchingLoc(css_lexer.TCloseBrace, matchingLoc) {
 			closeBraceLoc = logger.Loc{}

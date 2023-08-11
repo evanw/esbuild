@@ -6,6 +6,28 @@
 
     Previously esbuild's generated names for local names in CSS were only unique within a given entry point (or across all entry points when code splitting was enabled). That meant that building multiple entry points with esbuild could result in local names being renamed to the same identifier even when those entry points were built simultaneously within a single esbuild API call. This problem was especially likely to happen with minification enabled. With this release, esbuild will now avoid renaming local names from two separate entry points to the same name if those entry points were built with a single esbuild API call, even when code splitting is disabled.
 
+* Unwrap nested duplicate `@media` rules ([#3226](https://github.com/evanw/esbuild/issues/3226))
+
+    With this release, esbuild's CSS minifier will now automatically unwrap duplicate nested `@media` rules:
+
+    ```css
+    /* Original code */
+    @media (min-width: 1024px) {
+      .foo { color: red }
+      @media (min-width: 1024px) {
+        .bar { color: blue }
+      }
+    }
+
+    /* Old output (with --minify) */
+    @media (min-width: 1024px){.foo{color:red}@media (min-width: 1024px){.bar{color:#00f}}}
+
+    /* New output (with --minify) */
+    @media (min-width: 1024px){.foo{color:red}.bar{color:#00f}}
+    ```
+
+    These rules are unlikely to be authored manually but may result from using frameworks such as Tailwind to generate CSS.
+
 ## 0.19.1
 
 * Fix a regression with `baseURL` in `tsconfig.json` ([#3307](https://github.com/evanw/esbuild/issues/3307))
