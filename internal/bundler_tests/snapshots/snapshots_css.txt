@@ -250,8 +250,7 @@ TestCSSAtImportConditionsAtLayerBundleAlternatingLayerInFile
 /* case2.css */
 
 ---------- /out/case3.css ----------
-@layer first;
-@layer last;
+@layer first, last;
 
 /* a.css */
 @layer first {
@@ -289,8 +288,7 @@ TestCSSAtImportConditionsAtLayerBundleAlternatingLayerInFile
 /* case4.css */
 
 ---------- /out/case5.css ----------
-@layer first;
-@layer last;
+@layer first, last;
 
 /* a.css */
 @layer first {
@@ -1613,6 +1611,33 @@ TestCSSAtLayerBeforeImportNoBundle
 @import "a.css";
 @import "b.css";
 @layer layer6.layer7, layer8;
+
+================================================================================
+TestCSSAtLayerMergingWithImportConditions
+---------- /out/entry.css ----------
+@supports (color: first) {
+  @layer a;
+}
+@import "http://example.com/a.css" supports(color: first);
+@import "http://example.com/a.css" supports(color: second);
+@import "http://example.com/b.css" supports(color: second);
+@import "http://example.com/b.css" supports(color: first);
+@supports (color: second) {
+  @layer a, b;
+}
+
+/* a.css */
+@supports (color: first) {
+  @layer b;
+}
+
+/* a.css */
+
+/* b.css */
+
+/* b.css */
+
+/* entry.css */
 
 ================================================================================
 TestCSSEntryPoint

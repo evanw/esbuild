@@ -2537,3 +2537,37 @@ func TestCSSAtLayerBeforeImportBundle(t *testing.T) {
 		},
 	})
 }
+
+func TestCSSAtLayerMergingWithImportConditions(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.css": `
+				@import "a.css" supports(color: first);
+
+				@import "a.css" supports(color: second);
+				@import "b.css" supports(color: second);
+
+				@import "a.css" supports(color: first);
+				@import "b.css" supports(color: first);
+
+				@import "a.css" supports(color: second);
+				@import "b.css" supports(color: second);
+
+				@import "b.css" supports(color: first);
+			`,
+			"/a.css": `
+				@layer a;
+				@import "http://example.com/a.css";
+			`,
+			"/b.css": `
+				@layer b;
+				@import "http://example.com/b.css";
+			`,
+		},
+		entryPaths: []string{"/entry.css"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+	})
+}

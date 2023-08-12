@@ -3703,6 +3703,27 @@ func (c *linkerContext) findImportedFilesInCSSOrder(entryPoints []uint32) (order
 			wipOrder = append(wipOrder, entry)
 		}
 
+		order, wipOrder = wipOrder, order[:0]
+	}
+
+	// Finally, merge adjacent "@layer" rules with identical conditions together.
+	{
+		didClone := -1
+		for _, entry := range order {
+			if entry.kind == cssImportLayers && len(wipOrder) > 0 {
+				prevIndex := len(wipOrder) - 1
+				prev := wipOrder[prevIndex]
+				if prev.kind == cssImportLayers && importConditionsAreEqual(prev.conditions, entry.conditions) {
+					if didClone != prevIndex {
+						didClone = prevIndex
+						prev.layers = append([][]string{}, prev.layers...)
+					}
+					wipOrder[prevIndex].layers = append(prev.layers, entry.layers...)
+					continue
+				}
+			}
+			wipOrder = append(wipOrder, entry)
+		}
 		order = wipOrder
 	}
 
