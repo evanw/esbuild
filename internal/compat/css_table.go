@@ -70,13 +70,7 @@ var cssTable = map[CSSFeature]map[Engine][]versionRange{
 		Opera:   {{start: v{53, 0, 0}}},
 		Safari:  {{start: v{12, 1, 0}}},
 	},
-	Nesting: {
-		Chrome: {{start: v{112, 0, 0}}},
-		Edge:   {{start: v{112, 0, 0}}},
-		IOS:    {{start: v{16, 5, 0}}},
-		Opera:  {{start: v{98, 0, 0}}},
-		Safari: {{start: v{16, 5, 0}}},
-	},
+	Nesting: {},
 	RebeccaPurple: {
 		Chrome:  {{start: v{38, 0, 0}}},
 		Edge:    {{start: v{12, 0, 0}}},

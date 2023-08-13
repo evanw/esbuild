@@ -38,6 +38,7 @@ const cssFeatures: Partial<Record<CSSFeature, string | string[]>> = {
     'css.types.color.rgba.float_values',
     'css.types.color.rgba.space_separated_parameters',
   ],
+  Nesting: 'css.selectors.nesting',
 }
 
 const cssPrefixFeatures: Record<string, CSSProperty> = {
@@ -95,10 +96,11 @@ const addFeatures = <F extends string>(map: SupportMap<F>, features: Partial<Rec
         if (engine) {
           const entries = support[env as BrowserName]!
 
-          for (const { flags, version_added, version_removed } of Array.isArray(entries) ? entries : [entries]) {
+          for (const { flags, version_added, version_removed, partial_implementation } of Array.isArray(entries) ? entries : [entries]) {
             if (typeof version_added === 'string' && isSemver.test(version_added)) {
-              // The feature isn't considered to be supported if it was removed or if it requires a flag
-              const isSupported = !version_removed || !flags
+              // The feature isn't considered to be supported if it was removed,
+              // if it requires a flag, or if it's only partially-implemented
+              const isSupported = (!version_removed || !flags) && !partial_implementation
               const maxVersion = maxVersions[engine]
               if (
                 !maxVersion ||

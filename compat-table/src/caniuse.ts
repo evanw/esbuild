@@ -29,7 +29,6 @@ const jsFeatures: Record<string, JSFeature> = {
 
 const cssFeatures: Record<string, CSSFeature> = {
   'css-matches-pseudo': 'IsPseudoClass',
-  'css-nesting': 'Nesting',
 }
 
 const cssPrefixFeatures: Record<string, CSSProperty> = {
