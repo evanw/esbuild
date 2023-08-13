@@ -155,9 +155,9 @@ func TestBadQualifiedRules(t *testing.T) {
 	expectPrinted(t, ";", "; {\n}\n")
 	expectPrinted(t, "$bad: rule;", "$bad: rule; {\n}\n")
 	expectPrinted(t, "a {}; b {};", "a {\n}\n; b {\n}\n; {\n}\n")
-	expectPrinted(t, "a { div.major { color: blue } color: red }", "a {\n  div.major { color: blue } color: red;\n}\n")
-	expectPrinted(t, "a { div:hover { color: blue } color: red }", "a {\n  div: hover { color: blue } color: red;\n}\n")
-	expectPrinted(t, "a { div:hover { color: blue }; color: red }", "a {\n  div: hover { color: blue };\n  color: red;\n}\n")
+	expectPrinted(t, "a { div.major { color: blue } color: red }", "a {\n  div.major {\n    color: blue;\n  }\n  color: red;\n}\n")
+	expectPrinted(t, "a { div:hover { color: blue } color: red }", "a {\n  div:hover {\n    color: blue;\n  }\n  color: red;\n}\n")
+	expectPrinted(t, "a { div:hover { color: blue }; color: red }", "a {\n  div:hover {\n    color: blue;\n  }\n  color: red;\n}\n")
 
 	expectPrinted(t, "$bad{ color: red }", "$bad {\n  color: red;\n}\n")
 	expectPrinted(t, "$bad { color: red }", "$bad {\n  color: red;\n}\n")
@@ -276,17 +276,19 @@ func TestVerbatimWhitespace(t *testing.T) {
 	expectPrintedMinify(t, "* { --x:[y ]; }", "*{--x:[y ]}")
 	expectPrintedMinify(t, "* { --x:[ y]; }", "*{--x:[ y]}")
 
-	expectPrinted(t, "* { --x:{y}; }", "* {\n  --x:{y};\n}\n")
-	expectPrinted(t, "* { --x:{y} ; }", "* {\n  --x:{y} ;\n}\n")
-	expectPrinted(t, "* { --x: {y}; }", "* {\n  --x: {y};\n}\n")
-	expectPrinted(t, "* { --x:{y }; }", "* {\n  --x:{y };\n}\n")
-	expectPrinted(t, "* { --x:{ y}; }", "* {\n  --x:{ y};\n}\n")
+	// Note: These cases now behave like qualified rules
+	expectPrinted(t, "* { --x:{y}; }", "* {\n  --x: {\n    y;\n  }\n}\n")
+	expectPrinted(t, "* { --x:{y} ; }", "* {\n  --x: {\n    y;\n  }\n}\n")
+	expectPrinted(t, "* { --x: {y}; }", "* {\n  --x: {\n    y;\n  }\n}\n")
+	expectPrinted(t, "* { --x:{y }; }", "* {\n  --x: {\n    y;\n  }\n}\n")
+	expectPrinted(t, "* { --x:{ y}; }", "* {\n  --x: {\n    y;\n  }\n}\n")
 
+	// Note: These cases now behave like qualified rules
 	expectPrintedMinify(t, "* { --x:{y}; }", "*{--x:{y}}")
-	expectPrintedMinify(t, "* { --x:{y} ; }", "*{--x:{y} }")
-	expectPrintedMinify(t, "* { --x: {y}; }", "*{--x: {y}}")
-	expectPrintedMinify(t, "* { --x:{y }; }", "*{--x:{y }}")
-	expectPrintedMinify(t, "* { --x:{ y}; }", "*{--x:{ y}}")
+	expectPrintedMinify(t, "* { --x:{y} ; }", "*{--x:{y}}")
+	expectPrintedMinify(t, "* { --x: {y}; }", "*{--x:{y}}")
+	expectPrintedMinify(t, "* { --x:{y }; }", "*{--x:{y}}")
+	expectPrintedMinify(t, "* { --x:{ y}; }", "*{--x:{y}}")
 
 	expectPrintedMinify(t, "@supports ( --x : y , z ) { a { color: red; } }", "@supports ( --x : y , z ){a{color:red}}")
 	expectPrintedMinify(t, "@supports ( --x : ) { a { color: red; } }", "@supports ( --x : ){a{color:red}}")

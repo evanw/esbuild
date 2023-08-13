@@ -36,7 +36,6 @@ type parser struct {
 	enclosingLayer    []string
 	anonLayerCount    int
 	index             int
-	end               int
 	legalCommentIndex int
 	inSelectorSubtree int
 	prevError         logger.Loc
@@ -138,7 +137,6 @@ func Parse(log logger.Log, source logger.Source, options Options) css_ast.AST {
 		globalScope:      make(map[string]ast.LocRef),
 		makeLocalSymbols: options.symbolMode == symbolModeLocal,
 	}
-	p.end = len(p.tokens)
 	rules := p.parseListOfRules(ruleContext{
 		isTopLevel:     true,
 		parseSelectors: true,
@@ -196,20 +194,14 @@ func (p *parser) computeCharacterFrequency() *ast.CharFreq {
 }
 
 func (p *parser) advance() {
-	if p.index < p.end {
+	if p.index < len(p.tokens) {
 		p.index++
 	}
 }
 
 func (p *parser) at(index int) css_lexer.Token {
-	if index < p.end {
+	if index < len(p.tokens) {
 		return p.tokens[index]
-	}
-	if p.end < len(p.tokens) {
-		return css_lexer.Token{
-			Kind:  css_lexer.TEndOfFile,
-			Range: logger.Range{Loc: p.tokens[p.end].Range.Loc},
-		}
 	}
 	return css_lexer.Token{
 		Kind:  css_lexer.TEndOfFile,
@@ -475,6 +467,18 @@ loop:
 			atRuleContext.importValidity = atRuleInvalidAfter
 		}
 
+		// Note: CSS recently changed to parse and discard declarations
+		// here instead of treating them as the start of a qualified rule.
+		// See also: https://github.com/w3c/csswg-drafts/issues/8834
+		if !context.isTopLevel {
+			if scan, index := p.scanForEndOfRule(); scan == endOfRuleSemicolon {
+				tokens := p.convertTokens(p.tokens[p.index:index])
+				rules = append(rules, css_ast.Rule{Loc: p.current().Range.Loc, Data: &css_ast.RBadDeclaration{Tokens: tokens}})
+				p.index = index + 1
+				continue
+			}
+		}
+
 		var rule css_ast.Rule
 		if context.parseSelectors {
 			rule = p.parseSelectorRule(context.isTopLevel, parseSelectorOpts{})
@@ -550,41 +554,33 @@ func (p *parser) parseListOfDeclarations(opts listOfDeclarationsOpts) (list []cs
 			}))
 
 		// Reference: https://drafts.csswg.org/css-nesting-1/
-		case css_lexer.TDelimAmpersand,
-			css_lexer.TDelimDot,
-			css_lexer.THash,
-			css_lexer.TColon,
-			css_lexer.TOpenBracket,
-			css_lexer.TDelimAsterisk,
-			css_lexer.TDelimBar,
-			css_lexer.TDelimPlus,
-			css_lexer.TDelimGreaterThan,
-			css_lexer.TDelimTilde:
-			p.nestingIsPresent = true
-			foundNesting = true
-			rule := p.parseSelectorRule(false, parseSelectorOpts{
-				isDeclarationContext: true,
-				composesContext:      opts.composesContext,
-			})
+		default:
+			if scan, _ := p.scanForEndOfRule(); scan == endOfRuleOpenBrace {
+				p.nestingIsPresent = true
+				foundNesting = true
+				rule := p.parseSelectorRule(false, parseSelectorOpts{
+					isDeclarationContext: true,
+					composesContext:      opts.composesContext,
+				})
 
-			// If this rule was a single ":global" or ":local", inline it here. This
-			// is handled differently than a bare "&" with normal CSS nesting because
-			// that would be inlined at the end of the parent rule's body instead,
-			// which is probably unexpected (e.g. it would trip people up when trying
-			// to write rules in a specific order).
-			if sel, ok := rule.Data.(*css_ast.RSelector); ok && len(sel.Selectors) == 1 {
-				if first := sel.Selectors[0]; len(first.Selectors) == 1 {
-					if first := first.Selectors[0]; first.WasEmptyFromLocalOrGlobal && first.IsSingleAmpersand() {
-						list = append(list, sel.Rules...)
-						continue
+				// If this rule was a single ":global" or ":local", inline it here. This
+				// is handled differently than a bare "&" with normal CSS nesting because
+				// that would be inlined at the end of the parent rule's body instead,
+				// which is probably unexpected (e.g. it would trip people up when trying
+				// to write rules in a specific order).
+				if sel, ok := rule.Data.(*css_ast.RSelector); ok && len(sel.Selectors) == 1 {
+					if first := sel.Selectors[0]; len(first.Selectors) == 1 {
+						if first := first.Selectors[0]; first.WasEmptyFromLocalOrGlobal && first.IsSingleAmpersand() {
+							list = append(list, sel.Rules...)
+							continue
+						}
 					}
 				}
+
+				list = append(list, rule)
+			} else {
+				list = append(list, p.parseDeclaration())
 			}
-
-			list = append(list, rule)
-
-		default:
-			list = append(list, p.parseDeclaration())
 		}
 	}
 }
@@ -2168,6 +2164,56 @@ loop:
 	return css_ast.Rule{Loc: preludeLoc, Data: &qualified}
 }
 
+type endOfRuleScan uint8
+
+const (
+	endOfRuleUnknown endOfRuleScan = iota
+	endOfRuleSemicolon
+	endOfRuleOpenBrace
+)
+
+// Note: This was a late change to the CSS nesting syntax.
+// See also: https://github.com/w3c/csswg-drafts/issues/7961
+func (p *parser) scanForEndOfRule() (endOfRuleScan, int) {
+	var initialStack [4]css_lexer.T
+	stack := initialStack[:0]
+
+	for i, t := range p.tokens[p.index:] {
+		switch t.Kind {
+		case css_lexer.TSemicolon:
+			if len(stack) == 0 {
+				return endOfRuleSemicolon, p.index + i
+			}
+
+		case css_lexer.TFunction, css_lexer.TOpenParen:
+			stack = append(stack, css_lexer.TCloseParen)
+
+		case css_lexer.TOpenBracket:
+			stack = append(stack, css_lexer.TCloseBracket)
+
+		case css_lexer.TOpenBrace:
+			if len(stack) == 0 {
+				return endOfRuleOpenBrace, p.index + i
+			}
+			stack = append(stack, css_lexer.TCloseBrace)
+
+		case css_lexer.TCloseParen, css_lexer.TCloseBracket:
+			if n := len(stack); n > 0 && t.Kind == stack[n-1] {
+				stack = stack[:n-1]
+			}
+
+		case css_lexer.TCloseBrace:
+			if n := len(stack); n > 0 && t.Kind == stack[n-1] {
+				stack = stack[:n-1]
+			} else {
+				return endOfRuleUnknown, -1
+			}
+		}
+	}
+
+	return endOfRuleUnknown, -1
+}
+
 func (p *parser) parseDeclaration() css_ast.Rule {
 	// Parse the key
 	keyStart := p.index
@@ -2181,16 +2227,11 @@ func (p *parser) parseDeclaration() css_ast.Rule {
 
 	// Parse the value
 	valueStart := p.index
-	foundOpenBrace := false
 stop:
 	for {
 		switch p.current().Kind {
 		case css_lexer.TEndOfFile, css_lexer.TSemicolon, css_lexer.TCloseBrace:
 			break stop
-
-		case css_lexer.TOpenBrace:
-			foundOpenBrace = true
-			p.parseComponentValue()
 
 		default:
 			p.parseComponentValue()
@@ -2200,32 +2241,14 @@ stop:
 	// Stop now if this is not a valid declaration
 	if !ok {
 		if keyIsIdent {
-			if foundOpenBrace {
-				// If we encountered a "{", assume this is someone trying to make a nested style rule
-				if keyRange.Loc.Start > p.prevError.Start {
-					p.prevError.Start = keyRange.Loc.Start
-					key := p.tokens[keyStart].DecodedText(p.source.Contents)
-					data := p.tracker.MsgData(keyRange, fmt.Sprintf("A nested style rule cannot start with %q because it looks like the start of a declaration", key))
-					data.Location.Suggestion = fmt.Sprintf(":is(%s)", p.source.TextForRange(keyRange))
-					p.log.AddMsgID(logger.MsgID_CSS_CSSSyntaxError, logger.Msg{
-						Kind: logger.Warning,
-						Data: data,
-						Notes: []logger.MsgData{{
-							Text: "To start a nested style rule with an identifier, you need to wrap the " +
-								"identifier in \":is(...)\" to prevent the rule from being parsed as a declaration."}},
-					})
-				}
-			} else {
-				// Otherwise, show a generic error about a missing ":"
-				if end := keyRange.End(); end > p.prevError.Start {
-					p.prevError.Start = end
-					data := p.tracker.MsgData(logger.Range{Loc: logger.Loc{Start: end}}, "Expected \":\"")
-					data.Location.Suggestion = ":"
-					p.log.AddMsgID(logger.MsgID_CSS_CSSSyntaxError, logger.Msg{
-						Kind: logger.Warning,
-						Data: data,
-					})
-				}
+			if end := keyRange.End(); end > p.prevError.Start {
+				p.prevError.Start = end
+				data := p.tracker.MsgData(logger.Range{Loc: logger.Loc{Start: end}}, "Expected \":\"")
+				data.Location.Suggestion = ":"
+				p.log.AddMsgID(logger.MsgID_CSS_CSSSyntaxError, logger.Msg{
+					Kind: logger.Warning,
+					Data: data,
+				})
 			}
 		}
 
