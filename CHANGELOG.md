@@ -14,7 +14,7 @@
     }
     ```
 
-    Previously this was disallowed in the CSS specification because it's ambiguous whether an identifier is a declaration or a nested rule starting with a type selector without requiring unbounded lookahead in the parser. It has now been allowed because the CSS working group has decided that requiring unbounded lookahead is acceptible after all.
+    Previously this was disallowed in the CSS specification because it's ambiguous whether an identifier is a declaration or a nested rule starting with a type selector without requiring unbounded lookahead in the parser. It has now been allowed because the CSS working group has decided that requiring unbounded lookahead is acceptable after all.
 
     Note that this change means esbuild no longer considers any existing browser to support CSS nesting since none of the existing browsers support this new syntax. CSS nesting will now always be transformed when targeting a browser. This situation will change in the future as browsers add support for this new syntax.
 
@@ -164,7 +164,7 @@
     }
     ```
 
-    The behavior of the bundled CSS now matches the behavior of the unbundled CSS. You may be wondering why esbuild doesn't just write out `a.css` first followed by `b.css`. That would work in this case but it doesn't work in general because for any rules outside of a `@layer` rule, the last copy shold still win instead of the first copy.
+    The behavior of the bundled CSS now matches the behavior of the unbundled CSS. You may be wondering why esbuild doesn't just write out `a.css` first followed by `b.css`. That would work in this case but it doesn't work in general because for any rules outside of a `@layer` rule, the last copy should still win instead of the first copy.
 
 * Fix a bug with esbuild's TypeScript type definitions ([#3299](https://github.com/evanw/esbuild/pull/3299))
 
