@@ -10089,17 +10089,21 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			p.currentScope.LabelStmtIsLoop = true
 		}
 
-		// Drop this entire statement if requested
-		if _, ok := p.dropLabelsMap[name]; ok {
-			old := p.isControlFlowDead
+		// If we're dropping this statement, consider control flow to be dead
+		_, shouldDropLabel := p.dropLabelsMap[name]
+		old := p.isControlFlowDead
+		if shouldDropLabel {
 			p.isControlFlowDead = true
-			s.Stmt = p.visitSingleStmt(s.Stmt, stmtsNormal)
-			p.isControlFlowDead = old
-			return stmts
 		}
 
 		s.Stmt = p.visitSingleStmt(s.Stmt, stmtsNormal)
 		p.popScope()
+
+		// Drop this entire statement if requested
+		if shouldDropLabel {
+			p.isControlFlowDead = old
+			return stmts
+		}
 
 		if p.options.minifySyntax {
 			// Optimize "x: break x" which some people apparently write by hand

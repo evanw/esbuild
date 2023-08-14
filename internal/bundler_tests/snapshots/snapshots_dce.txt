@@ -804,6 +804,18 @@ var keepMe5 = pure();
 var keepMe6 = some.fn();
 
 ================================================================================
+TestDropLabelTreeShakingBugIssue3311
+---------- /out.js ----------
+// entry.js
+var myFunc = () => {
+  console.log("keep");
+};
+var entry_default = myFunc;
+export {
+  entry_default as default
+};
+
+================================================================================
 TestDropLabels
 ---------- /out.js ----------
 // entry.js

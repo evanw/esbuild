@@ -4510,3 +4510,24 @@ func TestRemoveCodeAfterLabelWithReturn(t *testing.T) {
 		},
 	})
 }
+
+func TestDropLabelTreeShakingBugIssue3311(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				const myFunc = ()=> {
+					DROP: {console.log("drop")}
+					console.log("keep")
+				}
+				export default myFunc
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			DropLabels:    []string{"DROP"},
+			OutputFormat:  config.FormatESModule,
+		},
+	})
+}
