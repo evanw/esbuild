@@ -16410,6 +16410,11 @@ func (p *parser) appendPart(parts []js_ast.Part, stmts []js_ast.Stmt) []js_ast.P
 		SymbolUses: p.symbolUses,
 	}
 
+	// Sanity check
+	if p.currentScope != p.moduleScope {
+		panic("Internal error: Scope stack imbalance")
+	}
+
 	// Insert any relocated variable statements now
 	if len(p.relocatedTopLevelVars) > 0 {
 		alreadyDeclared := make(map[ast.Ref]bool)
