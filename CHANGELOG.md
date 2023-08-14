@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.19.2
 
 * Update how CSS nesting is parsed again
 
