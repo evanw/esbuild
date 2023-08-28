@@ -2719,6 +2719,40 @@ func TestTSPreferJSOverTSInsideNodeModules(t *testing.T) {
 	})
 }
 
+func TestTSPreferTSOverCssInsideNodeModules(t *testing.T) {
+	// We now prefer ".js" over ".ts" inside "node_modules"
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/main.ts": `
+				// Implicit extensions
+				import './relative/path'
+				import 'package/path'
+
+				// Explicit extensions
+				import './relative2/path.css'
+				import 'package2/path.css'
+			`,
+
+			"/Users/user/project/src/relative/path.ts": `console.log('success')`,
+			"/Users/user/project/src/relative/path.css": `failure`,
+
+			"/Users/user/project/src/relative2/path.ts": `console.log('FAILURE')`,
+			"/Users/user/project/src/relative2/path.css": `html {}`,
+
+			"/Users/user/project/node_modules/package/path.ts": `console.log('success')`,
+			"/Users/user/project/node_modules/package/path.css": `failure`,
+
+			"/Users/user/project/node_modules/package2/path.ts": `console.log('FAILURE')`,
+			"/Users/user/project/node_modules/package2/path.css": `html {}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/main.ts"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+	})
+}
+
 func TestTSExperimentalDecoratorsManglePropsDefineSemantics(t *testing.T) {
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{

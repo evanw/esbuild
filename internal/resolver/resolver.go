@@ -252,12 +252,17 @@ func NewResolver(call config.APICall, fs fs.FS, log logger.Log, caches *cache.Ca
 	// for imports of files inside of "node_modules" directories
 	nodeModulesExtensionOrder := make([]string, 0, len(options.ExtensionOrder))
 	for _, ext := range options.ExtensionOrder {
-		if loader, ok := options.ExtensionToLoader[ext]; !ok || !loader.IsTypeScript() {
+		if loader, ok := options.ExtensionToLoader[ext]; !ok || !loader.IsTypeScript() || !loader.IsCSS() {
 			nodeModulesExtensionOrder = append(nodeModulesExtensionOrder, ext)
 		}
 	}
 	for _, ext := range options.ExtensionOrder {
 		if loader, ok := options.ExtensionToLoader[ext]; ok && loader.IsTypeScript() {
+			nodeModulesExtensionOrder = append(nodeModulesExtensionOrder, ext)
+		}
+	}
+	for _, ext := range options.ExtensionOrder {
+		if loader, ok := options.ExtensionToLoader[ext]; ok && loader.IsCSS() {
 			nodeModulesExtensionOrder = append(nodeModulesExtensionOrder, ext)
 		}
 	}

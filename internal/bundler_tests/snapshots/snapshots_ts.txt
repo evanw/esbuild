@@ -1744,14 +1744,32 @@ TestTSPreferJSOverTSInsideNodeModules
 // Users/user/project/src/relative/path.ts
 console.log("success");
 
-// Users/user/project/node_modules/package/path.js
-console.log("success");
+// Users/user/project/node_modules/package/path.ts
+console.log("FAILURE");
 
 // Users/user/project/src/relative2/path.js
 console.log("success");
 
 // Users/user/project/node_modules/package2/path.js
 console.log("success");
+
+================================================================================
+TestTSPreferTSOverCssInsideNodeModules
+---------- /out/main.js ----------
+// Users/user/project/src/relative/path.ts
+console.log("success");
+
+// Users/user/project/node_modules/package/path.ts
+console.log("success");
+
+---------- /out/main.css ----------
+/* Users/user/project/src/relative2/path.css */
+html {
+}
+
+/* Users/user/project/node_modules/package2/path.css */
+html {
+}
 
 ================================================================================
 TestTSSiblingEnum
