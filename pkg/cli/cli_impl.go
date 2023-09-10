@@ -1323,6 +1323,10 @@ func runImpl(osArgs []string) int {
 		}
 
 	case transformOptions != nil:
+		if analyze != analyzeDisabled {
+			logger.PrintErrorWithNoteToStderr(osArgs, "--analyze not supported while transforming", "")
+			return 1
+		}
 		// Read the input from stdin
 		bytes, err := ioutil.ReadAll(os.Stdin)
 		if err != nil {
