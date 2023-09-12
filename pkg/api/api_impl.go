@@ -1106,8 +1106,11 @@ func (ctx *internalContext) Watch(options WatchOptions) error {
 		return errors.New("Watch mode has already been enabled")
 	}
 
+	logLevel := ctx.args.logOptions.LogLevel
 	ctx.watcher = &watcher{
-		fs: ctx.realFS,
+		fs:        ctx.realFS,
+		shouldLog: logLevel == logger.LevelInfo || logLevel == logger.LevelDebug || logLevel == logger.LevelVerbose,
+		useColor:  ctx.args.logOptions.Color,
 		rebuild: func() fs.WatchData {
 			return ctx.rebuild().watchData
 		},
@@ -1117,7 +1120,7 @@ func (ctx *internalContext) Watch(options WatchOptions) error {
 	ctx.args.options.WatchMode = true
 
 	// Start the file watcher goroutine
-	ctx.watcher.start(ctx.args.logOptions.LogLevel, ctx.args.logOptions.Color)
+	ctx.watcher.start()
 
 	// Do the first watch mode build on another goroutine
 	go func() {
