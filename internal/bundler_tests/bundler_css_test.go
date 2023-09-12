@@ -519,6 +519,7 @@ func TestImportCSSFromJSLocalAtCounterStyle(t *testing.T) {
 				div :local { list-style-type: local }
 
 				/* Must not accept invalid type values */
+				div :local { list-style-type: none }
 				div :local { list-style-type: INITIAL }
 				div :local { list-style-type: decimal }
 				div :local { list-style-type: disc }
@@ -526,6 +527,8 @@ func TestImportCSSFromJSLocalAtCounterStyle(t *testing.T) {
 				div :local { list-style-type: circle }
 				div :local { list-style-type: disclosure-OPEN }
 				div :local { list-style-type: DISCLOSURE-closed }
+				div :local { list-style-type: LAO }
+				div :local { list-style-type: "\1F44D" }
 			`,
 
 			"/list_style.css": `
@@ -564,6 +567,7 @@ func TestImportCSSFromJSLocalAtCounterStyle(t *testing.T) {
 				div :local { list-style: circle }
 				div :local { list-style: disclosure-OPEN }
 				div :local { list-style: DISCLOSURE-closed }
+				div :local { list-style: LAO }
 			`,
 		},
 		entryPaths: []string{"/entry.js"},

@@ -1,5 +1,28 @@
 # Changelog
 
+## Unreleased
+
+* Fix `list-style-type` with the `local-css` loader ([#3325](https://github.com/evanw/esbuild/issues/3325))
+
+    The `local-css` loader incorrectly treated all identifiers provided to `list-style-type` as a custom local identifier. That included identifiers such as `none` which have special meaning in CSS, and which should not be treated as custom local identifiers. This release fixes this bug:
+
+    ```css
+    /* Original code */
+    ul { list-style-type: none }
+
+    /* Old output (with --loader=local-css) */
+    ul {
+      list-style-type: stdin_none;
+    }
+
+    /* New output (with --loader=local-css) */
+    ul {
+      list-style-type: none;
+    }
+    ```
+
+    Note that this bug only affected code using the `local-css` loader. It did not affect code using the `css` loader.
+
 ## 0.19.2
 
 * Update how CSS nesting is parsed again

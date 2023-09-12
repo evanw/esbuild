@@ -65,12 +65,7 @@ func (p *parser) processListStyleShorthand(tokens []css_ast.Token) {
 			}
 
 			if typeIndex == -1 {
-				switch lower {
-				case "decimal", "disc", "square", "circle", "disclosure-open", "disclosure-closed":
-					// "list-style-type" is definitely not a <custom-ident>
-					return
-				}
-				if cssWideAndReservedKeywords[lower] {
+				if cssWideAndReservedKeywords[lower] || predefinedCounterStyles[lower] {
 					// "list-style-type" is definitely not a <custom-ident>
 					return
 				}
@@ -94,13 +89,91 @@ func (p *parser) processListStyleShorthand(tokens []css_ast.Token) {
 			return
 		}
 
-		p.processListStyleType(&tokens[typeIndex])
+		if t := &tokens[typeIndex]; t.Kind == css_lexer.TIdent {
+			t.Kind = css_lexer.TSymbol
+			t.PayloadIndex = p.symbolForName(t.Loc, t.Text).Ref.InnerIndex
+		}
 	}
 }
 
-func (p *parser) processListStyleType(token *css_ast.Token) {
-	if token.Kind == css_lexer.TIdent {
-		token.Kind = css_lexer.TSymbol
-		token.PayloadIndex = p.symbolForName(token.Loc, token.Text).Ref.InnerIndex
+func (p *parser) processListStyleType(t *css_ast.Token) {
+	if t.Kind == css_lexer.TIdent {
+		if lower := strings.ToLower(t.Text); lower != "none" && !cssWideAndReservedKeywords[lower] && !predefinedCounterStyles[lower] {
+			t.Kind = css_lexer.TSymbol
+			t.PayloadIndex = p.symbolForName(t.Loc, t.Text).Ref.InnerIndex
+		}
 	}
+}
+
+// https://drafts.csswg.org/css-counter-styles-3/#predefined-counters
+var predefinedCounterStyles = map[string]bool{
+	// 6.1. Numeric:
+	"arabic-indic":         true,
+	"armenian":             true,
+	"bengali":              true,
+	"cambodian":            true,
+	"cjk-decimal":          true,
+	"decimal-leading-zero": true,
+	"decimal":              true,
+	"devanagari":           true,
+	"georgian":             true,
+	"gujarati":             true,
+	"gurmukhi":             true,
+	"hebrew":               true,
+	"kannada":              true,
+	"khmer":                true,
+	"lao":                  true,
+	"lower-armenian":       true,
+	"lower-roman":          true,
+	"malayalam":            true,
+	"mongolian":            true,
+	"myanmar":              true,
+	"oriya":                true,
+	"persian":              true,
+	"tamil":                true,
+	"telugu":               true,
+	"thai":                 true,
+	"tibetan":              true,
+	"upper-armenian":       true,
+	"upper-roman":          true,
+
+	// 6.2. Alphabetic:
+	"hiragana-iroha": true,
+	"hiragana":       true,
+	"katakana-iroha": true,
+	"katakana":       true,
+	"lower-alpha":    true,
+	"lower-greek":    true,
+	"lower-latin":    true,
+	"upper-alpha":    true,
+	"upper-latin":    true,
+
+	// 6.3. Symbolic:
+	"circle":            true,
+	"disc":              true,
+	"disclosure-closed": true,
+	"disclosure-open":   true,
+	"square":            true,
+
+	// 6.4. Fixed:
+	"cjk-earthly-branch": true,
+	"cjk-heavenly-stem":  true,
+
+	// 7.1.1. Japanese:
+	"japanese-formal":   true,
+	"japanese-informal": true,
+
+	// 7.1.2. Korean:
+	"korean-hangul-formal":  true,
+	"korean-hanja-formal":   true,
+	"korean-hanja-informal": true,
+
+	// 7.1.3. Chinese:
+	"simp-chinese-formal":   true,
+	"simp-chinese-informal": true,
+	"trad-chinese-formal":   true,
+	"trad-chinese-informal": true,
+
+	// 7.2. Ethiopic Numeric Counter Style:
+	"ethiopic-numeric": true,
 }
