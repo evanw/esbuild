@@ -90,6 +90,7 @@ const (
 	Generator
 	Hashbang
 	ImportAssertions
+	ImportAttributes
 	ImportMeta
 	InlineScript
 	LogicalAssignment
@@ -149,6 +150,7 @@ var StringToJSFeature = map[string]JSFeature{
 	"generator":                         Generator,
 	"hashbang":                          Hashbang,
 	"import-assertions":                 ImportAssertions,
+	"import-attributes":                 ImportAttributes,
 	"import-meta":                       ImportMeta,
 	"inline-script":                     InlineScript,
 	"logical-assignment":                LogicalAssignment,
@@ -504,6 +506,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Edge:   {{start: v{91, 0, 0}}},
 		Node:   {{start: v{16, 14, 0}}},
 	},
+	ImportAttributes: {},
 	ImportMeta: {
 		Chrome:  {{start: v{64, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},

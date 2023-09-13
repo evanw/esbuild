@@ -5717,6 +5717,92 @@ func TestImportAssertions(t *testing.T) {
 	// Make sure there are no errors when bundling is disabled
 	expectParseError(t, "import { foo } from 'x' assert {type: 'json'}", "")
 	expectParseError(t, "export { foo } from 'x' assert {type: 'json'}", "")
+
+	// Only omit the second argument to "import()" if both assertions and attributes aren't supported
+	expectPrintedWithUnsupportedFeatures(t, compat.ImportAssertions,
+		"import 'x' assert {y: 'z'}; import('x', {assert: {y: 'z'}})",
+		"import \"x\";\nimport(\"x\", { assert: { y: \"z\" } });\n")
+	expectPrintedWithUnsupportedFeatures(t, compat.ImportAttributes,
+		"import 'x' assert {y: 'z'}; import('x', {assert: {y: 'z'}})",
+		"import \"x\" assert { y: \"z\" };\nimport(\"x\", { assert: { y: \"z\" } });\n")
+	expectPrintedWithUnsupportedFeatures(t, compat.ImportAssertions|compat.ImportAttributes,
+		"import 'x' assert {y: 'z'}; import('x', {assert: {y: 'z'}})",
+		"import \"x\";\nimport(\"x\");\n")
+}
+
+func TestImportAttributes(t *testing.T) {
+	expectPrinted(t, "import 'x' with {}", "import \"x\" with {};\n")
+	expectPrinted(t, "import 'x' with {\n}", "import \"x\" with {};\n")
+	expectPrinted(t, "import 'x' with\n{}", "import \"x\" with {};\n")
+	expectPrinted(t, "import 'x'\nassert\n{}", "import \"x\";\nassert;\n{\n}\n")
+	expectPrinted(t, "import 'x' with {type: 'json'}", "import \"x\" with { type: \"json\" };\n")
+	expectPrinted(t, "import 'x' with {type: 'json',}", "import \"x\" with { type: \"json\" };\n")
+	expectPrinted(t, "import 'x' with {'type': 'json'}", "import \"x\" with { \"type\": \"json\" };\n")
+	expectPrinted(t, "import 'x' with {a: 'b', c: 'd'}", "import \"x\" with { a: \"b\", c: \"d\" };\n")
+	expectPrinted(t, "import 'x' with {a: 'b', c: 'd',}", "import \"x\" with { a: \"b\", c: \"d\" };\n")
+	expectPrinted(t, "import 'x' with {if: 'keyword'}", "import \"x\" with { if: \"keyword\" };\n")
+	expectPrintedMangle(t, "import 'x' with {'type': 'json'}", "import \"x\" with { type: \"json\" };\n")
+	expectPrintedMangle(t, "import 'x' with {'ty pe': 'json'}", "import \"x\" with { \"ty pe\": \"json\" };\n")
+
+	expectParseError(t, "import 'x' with {,}", "<stdin>: ERROR: Expected identifier but found \",\"\n")
+	expectParseError(t, "import 'x' with {x}", "<stdin>: ERROR: Expected \":\" but found \"}\"\n")
+	expectParseError(t, "import 'x' with {x 'y'}", "<stdin>: ERROR: Expected \":\" but found \"'y'\"\n")
+	expectParseError(t, "import 'x' with {x: y}", "<stdin>: ERROR: Expected string but found \"y\"\n")
+	expectParseError(t, "import 'x' with {x: 'y',,}", "<stdin>: ERROR: Expected identifier but found \",\"\n")
+	expectParseError(t, "import 'x' with {`x`: 'y'}", "<stdin>: ERROR: Expected identifier but found \"`x`\"\n")
+	expectParseError(t, "import 'x' with {x: `y`}", "<stdin>: ERROR: Expected string but found \"`y`\"\n")
+	expectParseError(t, "import 'x' with: {x: 'y'}", "<stdin>: ERROR: Expected \"{\" but found \":\"\n")
+
+	expectParseError(t, "import 'x' with {x: 'y', x: 'y'}",
+		"<stdin>: ERROR: Duplicate import attribute \"x\"\n<stdin>: NOTE: The first \"x\" was here:\n")
+	expectParseError(t, "import 'x' with {x: 'y', \\u0078: 'y'}",
+		"<stdin>: ERROR: Duplicate import attribute \"x\"\n<stdin>: NOTE: The first \"x\" was here:\n")
+
+	expectPrinted(t, "import x from 'x' with {x: 'y'}", "import x from \"x\" with { x: \"y\" };\n")
+	expectPrinted(t, "import * as x from 'x' with {x: 'y'}", "import * as x from \"x\" with { x: \"y\" };\n")
+	expectPrinted(t, "import {} from 'x' with {x: 'y'}", "import {} from \"x\" with { x: \"y\" };\n")
+	expectPrinted(t, "export {} from 'x' with {x: 'y'}", "export {} from \"x\" with { x: \"y\" };\n")
+	expectPrinted(t, "export * from 'x' with {x: 'y'}", "export * from \"x\" with { x: \"y\" };\n")
+
+	expectPrinted(t, "import(x ? 'y' : 'z')", "x ? import(\"y\") : import(\"z\");\n")
+	expectPrinted(t, "import(x ? 'y' : 'z', {with: {}})",
+		"x ? import(\"y\", { with: {} }) : import(\"z\", { with: {} });\n")
+	expectPrinted(t, "import(x ? 'y' : 'z', {with: {a: 'b'}})",
+		"x ? import(\"y\", { with: { a: \"b\" } }) : import(\"z\", { with: { a: \"b\" } });\n")
+	expectPrinted(t, "import(x ? 'y' : 'z', {with: {'a': 'b'}})",
+		"x ? import(\"y\", { with: { \"a\": \"b\" } }) : import(\"z\", { with: { \"a\": \"b\" } });\n")
+	expectPrintedMangle(t, "import(x ? 'y' : 'z', {with: {'a': 'b'}})",
+		"x ? import(\"y\", { with: { a: \"b\" } }) : import(\"z\", { with: { a: \"b\" } });\n")
+	expectPrintedMangle(t, "import(x ? 'y' : 'z', {with: {'a a': 'b'}})",
+		"x ? import(\"y\", { with: { \"a a\": \"b\" } }) : import(\"z\", { with: { \"a a\": \"b\" } });\n")
+
+	expectPrinted(t, "import(x ? 'y' : 'z', {})", "import(x ? \"y\" : \"z\", {});\n")
+	expectPrinted(t, "import(x ? 'y' : 'z', {with: []})", "import(x ? \"y\" : \"z\", { with: [] });\n")
+	expectPrinted(t, "import(x ? 'y' : 'z', {whithe: {}})", "import(x ? \"y\" : \"z\", { whithe: {} });\n")
+	expectPrinted(t, "import(x ? 'y' : 'z', {with: {x: 1}})", "import(x ? \"y\" : \"z\", { with: { x: 1 } });\n")
+
+	expectPrintedTarget(t, 2015, "import 'x' with {x: 'y'}", "import \"x\";\n")
+	expectPrintedTarget(t, 2015, "import(x, {with: {x: 'y'}})", "import(x);\n")
+	expectPrintedTarget(t, 2015, "import(x, {with: {x: 1}})", "import(x);\n")
+	expectPrintedTarget(t, 2015, "import(x ? 'y' : 'z', {with: {x: 'y'}})", "x ? import(\"y\") : import(\"z\");\n")
+	expectPrintedTarget(t, 2015, "import(x ? 'y' : 'z', {with: {x: 1}})", "import(x ? \"y\" : \"z\");\n")
+	expectParseErrorTarget(t, 2015, "import(x ? 'y' : 'z', {with: {x: foo()}})",
+		"<stdin>: ERROR: Using an arbitrary value as the second argument to \"import()\" is not possible in the configured target environment\n")
+
+	// Make sure there are no errors when bundling is disabled
+	expectParseError(t, "import { foo } from 'x' with {type: 'json'}", "")
+	expectParseError(t, "export { foo } from 'x' with {type: 'json'}", "")
+
+	// Only omit the second argument to "import()" if both assertions and attributes aren't supported
+	expectPrintedWithUnsupportedFeatures(t, compat.ImportAssertions,
+		"import 'x' with {y: 'z'}; import('x', {with: {y: 'z'}})",
+		"import \"x\" with { y: \"z\" };\nimport(\"x\", { with: { y: \"z\" } });\n")
+	expectPrintedWithUnsupportedFeatures(t, compat.ImportAttributes,
+		"import 'x' with {y: 'z'}; import('x', {with: {y: 'z'}})",
+		"import \"x\";\nimport(\"x\", { with: { y: \"z\" } });\n")
+	expectPrintedWithUnsupportedFeatures(t, compat.ImportAssertions|compat.ImportAttributes,
+		"import 'x' with {y: 'z'}; import('x', {with: {y: 'z'}})",
+		"import \"x\";\nimport(\"x\");\n")
 }
 
 func TestES5(t *testing.T) {

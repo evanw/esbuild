@@ -57,6 +57,7 @@ export const jsFeatures = {
   Generator: true,
   Hashbang: true,
   ImportAssertions: true,
+  ImportAttributes: true,
   ImportMeta: true,
   InlineScript: true,
   LogicalAssignment: true,

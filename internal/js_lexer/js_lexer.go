@@ -673,9 +673,9 @@ func RangeOfIdentifier(source logger.Source, loc logger.Loc) logger.Range {
 	return source.RangeOfString(loc)
 }
 
-func RangeOfImportAssertion(source logger.Source, assertion ast.AssertEntry) logger.Range {
-	loc := RangeOfIdentifier(source, assertion.KeyLoc).Loc
-	return logger.Range{Loc: loc, Len: source.RangeOfString(assertion.ValueLoc).End() - loc.Start}
+func RangeOfImportAssertOrWith(source logger.Source, assertOrWith ast.AssertOrWithEntry) logger.Range {
+	loc := RangeOfIdentifier(source, assertOrWith.KeyLoc).Loc
+	return logger.Range{Loc: loc, Len: source.RangeOfString(assertOrWith.ValueLoc).End() - loc.Start}
 }
 
 func (lexer *Lexer) ExpectJSXElementChild(token T) {

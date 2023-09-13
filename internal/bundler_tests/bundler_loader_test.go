@@ -1537,3 +1537,23 @@ func TestLoaderCopyWithInjectedFileBundle(t *testing.T) {
 		},
 	})
 }
+
+func TestLoaderBundleWithImportAttributes(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import x from "./import.js"
+				import y from "./import.js" with { type: 'json' }
+				console.log(x === y)
+			`,
+			"/import.js": `{}`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `entry.js: ERROR: Bundling with import attributes is not currently supported
+`,
+	})
+}

@@ -387,7 +387,7 @@ type parser struct {
 }
 
 type globPatternImport struct {
-	assertions       *ast.ImportAssertions
+	assertOrWith     *ast.ImportAssertOrWith
 	parts            []helpers.GlobPart
 	name             string
 	approximateRange logger.Range
@@ -1981,7 +1981,7 @@ func (p *parser) checkForLegacyOctalLiteral(e js_ast.E) {
 
 func (p *parser) notesForAssertTypeJSON(record *ast.ImportRecord, alias string) []logger.MsgData {
 	return []logger.MsgData{p.tracker.MsgData(
-		js_lexer.RangeOfImportAssertion(p.source, *ast.FindAssertion(record.Assertions.Entries, "type")),
+		js_lexer.RangeOfImportAssertOrWith(p.source, *ast.FindAssertOrWithEntry(record.AssertOrWith.Entries, "type")),
 		"This is considered an import of a standard JSON module because of the import assertion here:"),
 		{Text: fmt.Sprintf("You can either keep the import assertion and only use the \"default\" import, "+
 			"or you can remove the import assertion and use the %q import (which is non-standard behavior).", alias)}}
@@ -6321,7 +6321,7 @@ func (p *parser) parseLabelName() *ast.LocRef {
 	return &name
 }
 
-func (p *parser) parsePath() (logger.Range, string, *ast.ImportAssertions, ast.ImportRecordFlags) {
+func (p *parser) parsePath() (logger.Range, string, *ast.ImportAssertOrWith, ast.ImportRecordFlags) {
 	var flags ast.ImportRecordFlags
 	pathRange := p.lexer.Range()
 	pathText := helpers.UTF16ToString(p.lexer.StringLiteral())
@@ -6331,13 +6331,18 @@ func (p *parser) parsePath() (logger.Range, string, *ast.ImportAssertions, ast.I
 		p.lexer.Expect(js_lexer.TStringLiteral)
 	}
 
-	// See https://github.com/tc39/proposal-import-assertions for more info
-	var assertions *ast.ImportAssertions
-	if !p.lexer.HasNewlineBefore && p.lexer.IsContextualKeyword("assert") {
+	// See https://github.com/tc39/proposal-import-attributes for more info
+	var assertOrWith *ast.ImportAssertOrWith
+	if !p.lexer.HasNewlineBefore && (p.lexer.IsContextualKeyword("assert") || p.lexer.Token == js_lexer.TWith) {
 		// "import './foo.json' assert { type: 'json' }"
-		var entries []ast.AssertEntry
+		// "import './foo.json' with { type: 'json' }"
+		var entries []ast.AssertOrWithEntry
 		duplicates := make(map[string]logger.Range)
-		assertLoc := p.saveExprCommentsHere()
+		keyword := ast.WithKeyword
+		if p.lexer.Token != js_lexer.TWith {
+			keyword = ast.AssertKeyword
+		}
+		keywordLoc := p.saveExprCommentsHere()
 		p.lexer.Next()
 		openBraceLoc := p.saveExprCommentsHere()
 		p.lexer.Expect(js_lexer.TOpenBrace)
@@ -6359,7 +6364,11 @@ func (p *parser) parsePath() (logger.Range, string, *ast.ImportAssertions, ast.I
 				p.lexer.Expect(js_lexer.TIdentifier)
 			}
 			if prevRange, ok := duplicates[keyText]; ok {
-				p.log.AddErrorWithNotes(&p.tracker, p.lexer.Range(), fmt.Sprintf("Duplicate import assertion %q", keyText),
+				what := "attribute"
+				if keyword == ast.AssertKeyword {
+					what = "assertion"
+				}
+				p.log.AddErrorWithNotes(&p.tracker, p.lexer.Range(), fmt.Sprintf("Duplicate import %s %q", what, keyText),
 					[]logger.MsgData{p.tracker.MsgData(prevRange, fmt.Sprintf("The first %q was here:", keyText))})
 			}
 			duplicates[keyText] = p.lexer.Range()
@@ -6371,7 +6380,7 @@ func (p *parser) parsePath() (logger.Range, string, *ast.ImportAssertions, ast.I
 			value := p.lexer.StringLiteral()
 			p.lexer.Expect(js_lexer.TStringLiteral)
 
-			entries = append(entries, ast.AssertEntry{
+			entries = append(entries, ast.AssertOrWithEntry{
 				Key:             key,
 				KeyLoc:          keyLoc,
 				Value:           value,
@@ -6380,7 +6389,7 @@ func (p *parser) parsePath() (logger.Range, string, *ast.ImportAssertions, ast.I
 			})
 
 			// Using "assert: { type: 'json' }" triggers special behavior
-			if helpers.UTF16EqualsString(key, "type") && helpers.UTF16EqualsString(value, "json") {
+			if keyword == ast.AssertKeyword && helpers.UTF16EqualsString(key, "type") && helpers.UTF16EqualsString(value, "json") {
 				flags |= ast.AssertTypeJSON
 			}
 
@@ -6392,15 +6401,16 @@ func (p *parser) parsePath() (logger.Range, string, *ast.ImportAssertions, ast.I
 
 		closeBraceLoc := p.saveExprCommentsHere()
 		p.lexer.Expect(js_lexer.TCloseBrace)
-		assertions = &ast.ImportAssertions{
+		assertOrWith = &ast.ImportAssertOrWith{
 			Entries:            entries,
-			AssertLoc:          assertLoc,
+			Keyword:            keyword,
+			KeywordLoc:         keywordLoc,
 			InnerOpenBraceLoc:  openBraceLoc,
 			InnerCloseBraceLoc: closeBraceLoc,
 		}
 	}
 
-	return pathRange, pathText, assertions, flags
+	return pathRange, pathText, assertOrWith, flags
 }
 
 // This assumes the "function" token has already been parsed
@@ -6966,7 +6976,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			var alias *js_ast.ExportStarAlias
 			var pathRange logger.Range
 			var pathText string
-			var assertions *ast.ImportAssertions
+			var assertOrWith *ast.ImportAssertOrWith
 			var flags ast.ImportRecordFlags
 
 			if p.lexer.IsContextualKeyword("as") {
@@ -6977,15 +6987,15 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 				alias = &js_ast.ExportStarAlias{Loc: p.lexer.Loc(), OriginalName: name.String}
 				p.lexer.Next()
 				p.lexer.ExpectContextualKeyword("from")
-				pathRange, pathText, assertions, flags = p.parsePath()
+				pathRange, pathText, assertOrWith, flags = p.parsePath()
 			} else {
 				// "export * from 'path'"
 				p.lexer.ExpectContextualKeyword("from")
-				pathRange, pathText, assertions, flags = p.parsePath()
+				pathRange, pathText, assertOrWith, flags = p.parsePath()
 				name := js_ast.GenerateNonUniqueNameFromPath(pathText) + "_star"
 				namespaceRef = p.storeNameInRef(js_lexer.MaybeSubstring{String: name})
 			}
-			importRecordIndex := p.addImportRecord(ast.ImportStmt, pathRange, pathText, assertions, flags)
+			importRecordIndex := p.addImportRecord(ast.ImportStmt, pathRange, pathText, assertOrWith, flags)
 
 			// Export-star statements anywhere in the file disable top-level const
 			// local prefix because import cycles can be used to trigger TDZ
@@ -7007,8 +7017,8 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			if p.lexer.IsContextualKeyword("from") {
 				// "export {} from 'path'"
 				p.lexer.Next()
-				pathLoc, pathText, assertions, flags := p.parsePath()
-				importRecordIndex := p.addImportRecord(ast.ImportStmt, pathLoc, pathText, assertions, flags)
+				pathLoc, pathText, assertOrWith, flags := p.parsePath()
+				importRecordIndex := p.addImportRecord(ast.ImportStmt, pathLoc, pathText, assertOrWith, flags)
 				name := "import_" + js_ast.GenerateNonUniqueNameFromPath(pathText)
 				namespaceRef := p.storeNameInRef(js_lexer.MaybeSubstring{String: name})
 
@@ -7616,7 +7626,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			return js_ast.Stmt{}
 		}
 
-		pathLoc, pathText, assertions, flags := p.parsePath()
+		pathLoc, pathText, assertOrWith, flags := p.parsePath()
 		p.lexer.ExpectOrInsertSemicolon()
 
 		// If TypeScript's "preserveValueImports": true setting is active, TypeScript's
@@ -7648,7 +7658,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		if wasOriginallyBareImport {
 			flags |= ast.WasOriginallyBareImport
 		}
-		stmt.ImportRecordIndex = p.addImportRecord(ast.ImportStmt, pathLoc, pathText, assertions, flags)
+		stmt.ImportRecordIndex = p.addImportRecord(ast.ImportStmt, pathLoc, pathText, assertOrWith, flags)
 
 		if stmt.StarNameLoc != nil {
 			name := p.loadNameFromRef(stmt.NamespaceRef)
@@ -7929,14 +7939,14 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 	}
 }
 
-func (p *parser) addImportRecord(kind ast.ImportKind, pathRange logger.Range, text string, assertions *ast.ImportAssertions, flags ast.ImportRecordFlags) uint32 {
+func (p *parser) addImportRecord(kind ast.ImportKind, pathRange logger.Range, text string, assertOrWith *ast.ImportAssertOrWith, flags ast.ImportRecordFlags) uint32 {
 	index := uint32(len(p.importRecords))
 	p.importRecords = append(p.importRecords, ast.ImportRecord{
-		Kind:       kind,
-		Range:      pathRange,
-		Path:       logger.Path{Text: text},
-		Assertions: assertions,
-		Flags:      flags,
+		Kind:         kind,
+		Range:        pathRange,
+		Path:         logger.Path{Text: text},
+		AssertOrWith: assertOrWith,
+		Flags:        flags,
 	})
 	return index
 }
@@ -13982,7 +13992,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		isThenCatchTarget := e == p.thenCatchChain.nextTarget && p.thenCatchChain.hasCatch
 		e.Expr = p.visitExpr(e.Expr)
 
-		var assertions *ast.ImportAssertions
+		var assertOrWith *ast.ImportAssertOrWith
 		var flags ast.ImportRecordFlags
 		if e.OptionsOrNil.Data != nil {
 			e.OptionsOrNil = p.visitExpr(e.OptionsOrNil)
@@ -13996,25 +14006,30 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			whyLoc := e.OptionsOrNil.Loc
 
 			// However, make a special case for an additional argument that contains
-			// only an "assert" clause. In that case we can split this AST node.
+			// only an "assert" or a "with" clause. In that case we can split this
+			// AST node.
 			if object, ok := e.OptionsOrNil.Data.(*js_ast.EObject); ok {
 				if len(object.Properties) == 1 {
 					if prop := object.Properties[0]; prop.Kind == js_ast.PropertyNormal && !prop.Flags.Has(js_ast.PropertyIsComputed) && !prop.Flags.Has(js_ast.PropertyIsMethod) {
-						if str, ok := prop.Key.Data.(*js_ast.EString); ok && helpers.UTF16EqualsString(str.Value, "assert") {
+						if str, ok := prop.Key.Data.(*js_ast.EString); ok && (helpers.UTF16EqualsString(str.Value, "assert") || helpers.UTF16EqualsString(str.Value, "with")) {
+							keyword := ast.WithKeyword
+							if helpers.UTF16EqualsString(str.Value, "assert") {
+								keyword = ast.AssertKeyword
+							}
 							if value, ok := prop.ValueOrNil.Data.(*js_ast.EObject); ok {
-								entries := []ast.AssertEntry{}
+								entries := []ast.AssertOrWithEntry{}
 								for _, p := range value.Properties {
 									if p.Kind == js_ast.PropertyNormal && !p.Flags.Has(js_ast.PropertyIsComputed) && !p.Flags.Has(js_ast.PropertyIsMethod) {
 										if key, ok := p.Key.Data.(*js_ast.EString); ok {
 											if value, ok := p.ValueOrNil.Data.(*js_ast.EString); ok {
-												entries = append(entries, ast.AssertEntry{
+												entries = append(entries, ast.AssertOrWithEntry{
 													Key:             key.Value,
 													KeyLoc:          p.Key.Loc,
 													Value:           value.Value,
 													ValueLoc:        p.ValueOrNil.Loc,
 													PreferQuotedKey: p.Flags.Has(js_ast.PropertyPreferQuotedKey),
 												})
-												if helpers.UTF16EqualsString(key.Value, "type") && helpers.UTF16EqualsString(value.Value, "json") {
+												if keyword == ast.AssertKeyword && helpers.UTF16EqualsString(key.Value, "type") && helpers.UTF16EqualsString(value.Value, "json") {
 													flags |= ast.AssertTypeJSON
 												}
 												continue
@@ -14035,9 +14050,10 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 									break
 								}
 								if entries != nil {
-									assertions = &ast.ImportAssertions{
+									assertOrWith = &ast.ImportAssertOrWith{
 										Entries:            entries,
-										AssertLoc:          prop.Key.Loc,
+										Keyword:            keyword,
+										KeywordLoc:         prop.Key.Loc,
 										InnerOpenBraceLoc:  prop.ValueOrNil.Loc,
 										InnerCloseBraceLoc: value.CloseBraceLoc,
 										OuterOpenBraceLoc:  e.OptionsOrNil.Loc,
@@ -14050,7 +14066,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 								whyLoc = prop.ValueOrNil.Loc
 							}
 						} else {
-							why = "this property was not called \"assert\""
+							why = "this property was not called \"assert\" or \"with\""
 							whyLoc = prop.Key.Loc
 						}
 					} else {
@@ -14058,12 +14074,12 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 						whyLoc = prop.Key.Loc
 					}
 				} else {
-					why = "the second argument was not an object literal with a single property called \"assert\""
+					why = "the second argument was not an object literal with a single property called \"assert\" or \"with\""
 					whyLoc = e.OptionsOrNil.Loc
 				}
 			}
 
-			// Handle the case that isn't just an import assertion clause
+			// Handle the case that isn't just an import assertion or attribute clause
 			if why != "" {
 				// Only warn when bundling
 				if p.options.mode == config.ModeBundle {
@@ -14075,16 +14091,17 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					p.log.AddID(logger.MsgID_JS_UnsupportedDynamicImport, kind, &p.tracker, logger.Range{Loc: whyLoc}, text)
 				}
 
-				// If import assertions aren't supported in the target platform, keeping
-				// them would be a syntax error so we need to get rid of them. We can't
-				// just not print them because they may have important side effects.
-				// Attempt to discard them without changing side effects and generate an
-				// error if that isn't possible.
-				if p.options.unsupportedJSFeatures.Has(compat.ImportAssertions) {
+				// If import assertions and/attributes are both not supported in the
+				// target platform, then "import()" cannot accept a second argument
+				// and keeping them would be a syntax error, so we need to get rid of
+				// them. We can't just not print them because they may have important
+				// side effects. Attempt to discard them without changing side effects
+				// and generate an error if that isn't possible.
+				if p.options.unsupportedJSFeatures.Has(compat.ImportAssertions) && p.options.unsupportedJSFeatures.Has(compat.ImportAttributes) {
 					if js_ast.ExprCanBeRemovedIfUnused(e.OptionsOrNil, p.isUnbound) {
 						e.OptionsOrNil = js_ast.Expr{}
 					} else {
-						p.markSyntaxFeature(compat.ImportAssertions, logger.Range{Loc: e.OptionsOrNil.Loc})
+						p.markSyntaxFeature(compat.ImportAttributes, logger.Range{Loc: e.OptionsOrNil.Loc})
 					}
 				}
 
@@ -14104,7 +14121,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					return js_ast.Expr{Loc: arg.Loc, Data: js_ast.ENullShared}
 				}
 
-				importRecordIndex := p.addImportRecord(ast.ImportDynamic, p.source.RangeOfString(arg.Loc), helpers.UTF16ToString(str.Value), assertions, flags)
+				importRecordIndex := p.addImportRecord(ast.ImportDynamic, p.source.RangeOfString(arg.Loc), helpers.UTF16ToString(str.Value), assertOrWith, flags)
 				if isAwaitTarget && p.fnOrArrowDataVisit.tryBodyCount != 0 {
 					record := &p.importRecords[importRecordIndex]
 					record.Flags |= ast.HandlesImportErrors
@@ -14123,7 +14140,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 			// Handle glob patterns
 			if p.options.mode == config.ModeBundle {
-				if value := p.handleGlobPattern(arg, ast.ImportDynamic, "globImport", assertions); value.Data != nil {
+				if value := p.handleGlobPattern(arg, ast.ImportDynamic, "globImport", assertOrWith); value.Data != nil {
 					return value
 				}
 			}
@@ -15359,7 +15376,7 @@ func remapExprLocsInJSON(expr *js_ast.Expr, table []logger.StringInJSTableEntry)
 	}
 }
 
-func (p *parser) handleGlobPattern(expr js_ast.Expr, kind ast.ImportKind, prefix string, assertions *ast.ImportAssertions) js_ast.Expr {
+func (p *parser) handleGlobPattern(expr js_ast.Expr, kind ast.ImportKind, prefix string, assertOrWith *ast.ImportAssertOrWith) js_ast.Expr {
 	pattern, approximateRange := p.globPatternFromExpr(expr)
 	if pattern == nil {
 		return js_ast.Expr{}
@@ -15422,17 +15439,20 @@ outer:
 			}
 		}
 
-		// Check the import assertions
-		if assertions == nil {
-			if globPattern.assertions != nil {
+		// Check the import assertions/attributes
+		if assertOrWith == nil {
+			if globPattern.assertOrWith != nil {
 				continue
 			}
 		} else {
-			if globPattern.assertions == nil {
+			if globPattern.assertOrWith == nil {
 				continue
 			}
-			a := assertions.Entries
-			b := globPattern.assertions.Entries
+			if assertOrWith.Keyword != globPattern.assertOrWith.Keyword {
+				continue
+			}
+			a := assertOrWith.Entries
+			b := globPattern.assertOrWith.Entries
 			if len(a) != len(b) {
 				continue
 			}
@@ -15475,7 +15495,7 @@ outer:
 		p.moduleScope.Generated = append(p.moduleScope.Generated, ref)
 
 		p.globPatternImports = append(p.globPatternImports, globPatternImport{
-			assertions:       assertions,
+			assertOrWith:     assertOrWith,
 			parts:            parts,
 			name:             name,
 			approximateRange: approximateRange,
@@ -17358,7 +17378,7 @@ func (p *parser) toAST(before, parts, after []js_ast.Part, hashbang string, dire
 		var importRecordIndex uint32
 		before, importRecordIndex = p.generateImportStmt(helpers.GlobPatternToString(glob.parts), glob.approximateRange, []string{glob.name}, before, symbols, nil, nil)
 		record := &p.importRecords[importRecordIndex]
-		record.Assertions = glob.assertions
+		record.AssertOrWith = glob.assertOrWith
 		record.GlobPattern = &ast.GlobPattern{
 			Parts:       glob.parts,
 			ExportAlias: glob.name,

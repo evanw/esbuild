@@ -149,10 +149,10 @@ func (flags ImportRecordFlags) Has(flag ImportRecordFlags) bool {
 }
 
 type ImportRecord struct {
-	Assertions  *ImportAssertions
-	GlobPattern *GlobPattern
-	Path        logger.Path
-	Range       logger.Range
+	AssertOrWith *ImportAssertOrWith
+	GlobPattern  *GlobPattern
+	Path         logger.Path
+	Range        logger.Range
 
 	// If the "HandlesImportErrors" flag is present, then this is the location
 	// of the error handler. This is used for error reporting.
@@ -170,16 +170,31 @@ type ImportRecord struct {
 	Kind  ImportKind
 }
 
-type ImportAssertions struct {
-	Entries            []AssertEntry
-	AssertLoc          logger.Loc
+type AssertOrWithKeyword uint8
+
+const (
+	AssertKeyword AssertOrWithKeyword = iota
+	WithKeyword
+)
+
+func (kw AssertOrWithKeyword) String() string {
+	if kw == AssertKeyword {
+		return "assert"
+	}
+	return "with"
+}
+
+type ImportAssertOrWith struct {
+	Entries            []AssertOrWithEntry
+	KeywordLoc         logger.Loc
 	InnerOpenBraceLoc  logger.Loc
 	InnerCloseBraceLoc logger.Loc
 	OuterOpenBraceLoc  logger.Loc
 	OuterCloseBraceLoc logger.Loc
+	Keyword            AssertOrWithKeyword
 }
 
-type AssertEntry struct {
+type AssertOrWithEntry struct {
 	Key             []uint16 // An identifier or a string
 	Value           []uint16 // Always a string
 	KeyLoc          logger.Loc
@@ -187,7 +202,7 @@ type AssertEntry struct {
 	PreferQuotedKey bool
 }
 
-func FindAssertion(assertions []AssertEntry, name string) *AssertEntry {
+func FindAssertOrWithEntry(assertions []AssertOrWithEntry, name string) *AssertOrWithEntry {
 	for _, assertion := range assertions {
 		if helpers.UTF16EqualsString(assertion.Key, name) {
 			return &assertion

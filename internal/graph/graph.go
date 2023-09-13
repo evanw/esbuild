@@ -195,7 +195,7 @@ func CloneLinkerGraph(
 							// For example, "import('./foo.json', { assert: { type: 'json' } })"
 							// will likely be converted into an import of a JavaScript file and
 							// leaving the import assertion there will prevent it from working.
-							record.Assertions = nil
+							record.AssertOrWith = nil
 						}
 					}
 				}

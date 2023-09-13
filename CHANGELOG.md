@@ -131,6 +131,24 @@
       this error and leave the unresolved path in the bundle.
     ```
 
+* Parse and print the `with` keyword in `import` statements
+
+    JavaScript was going to have a feature called "import assertions" that adds an `assert` keyword to `import` statements. It looked like this:
+
+    ```js
+    import stuff from './stuff.json' assert { type: 'json' }
+    ```
+
+    The feature provided a way to assert that the imported file is of a certain type (but was not allowed to affect how the import is interpreted, even though that's how everyone expected it to behave). The feature was fully specified and then actually implemented and shipped in Chrome before the people behind the feature realized that they should allow it to affect how the import is interpreted after all. So import assertions are no longer going to be added to the language.
+
+    Instead, the [current proposal](https://github.com/tc39/proposal-import-attributes) is to add a feature called "import attributes" instead that adds a `with` keyword to import statements. It looks like this:
+
+    ```js
+    import stuff from './stuff.json' with { type: 'json' }
+    ```
+
+    This feature provides a way to affect how the import is interpreted. With this release, esbuild now has preliminary support for parsing and printing this new `with` keyword. The `with` keyword is not yet interpreted by esbuild, however, so bundling code with it will generate a build error. All this release does is allow you to use esbuild to process code containing it (such as removing types from TypeScript code). Note that this syntax is not yet a part of JavaScript and may be removed or altered in the future if the specification changes (which it already has once, as described above). If that happens, esbuild reserves the right to remove or alter its support for this syntax too.
+
 ## 0.19.2
 
 * Update how CSS nesting is parsed again

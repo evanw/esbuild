@@ -380,6 +380,13 @@ func parseFile(args parseArgs) {
 						continue
 					}
 
+					// TODO: Implement bundling with import attributes
+					if record.AssertOrWith != nil && record.AssertOrWith.Keyword == ast.WithKeyword {
+						args.log.AddError(&tracker, js_lexer.RangeOfIdentifier(result.file.inputFile.Source, record.AssertOrWith.KeywordLoc),
+							"Bundling with import attributes is not currently supported")
+						continue
+					}
+
 					// Special-case glob pattern imports
 					if record.GlobPattern != nil {
 						prettyPath := helpers.GlobPatternToString(record.GlobPattern.Parts)
@@ -1962,7 +1969,7 @@ func (s *scanner) scanAllDependencies() {
 						sourceIndex := s.allocateGlobSourceIndex(result.file.inputFile.Source.Index, uint32(importRecordIndex))
 						record.SourceIndex = ast.MakeIndex32(sourceIndex)
 						s.results[sourceIndex] = s.generateResultForGlobResolve(sourceIndex, globResults.absPath,
-							&result.file.inputFile.Source, record.Range, record.GlobPattern.Kind, globResults, record.Assertions)
+							&result.file.inputFile.Source, record.Range, record.GlobPattern.Kind, globResults, record.AssertOrWith)
 					}
 					continue
 				}
@@ -2010,7 +2017,7 @@ func (s *scanner) generateResultForGlobResolve(
 	importRange logger.Range,
 	kind ast.ImportKind,
 	result globResolveResult,
-	assertions *ast.ImportAssertions,
+	assertions *ast.ImportAssertOrWith,
 ) parseResult {
 	keys := make([]string, 0, len(result.resolveResults))
 	for key := range result.resolveResults {
@@ -2057,10 +2064,10 @@ func (s *scanner) generateResultForGlobResolve(
 
 		resolveResults = append(resolveResults, &resolveResult)
 		importRecords = append(importRecords, ast.ImportRecord{
-			Path:        path,
-			SourceIndex: sourceIndex,
-			Assertions:  assertions,
-			Kind:        kind,
+			Path:         path,
+			SourceIndex:  sourceIndex,
+			AssertOrWith: assertions,
+			Kind:         kind,
 		})
 
 		switch kind {
@@ -2203,7 +2210,7 @@ func (s *scanner) processScannedFiles(entryPointMeta []graph.EntryPoint) []scann
 					s.log.AddErrorWithNotes(&tracker, record.Range,
 						fmt.Sprintf("The file %q was loaded with the %q loader", otherFile.inputFile.Source.PrettyPath, config.LoaderToString[otherFile.inputFile.Loader]),
 						[]logger.MsgData{
-							tracker.MsgData(js_lexer.RangeOfImportAssertion(result.file.inputFile.Source, *ast.FindAssertion(record.Assertions.Entries, "type")),
+							tracker.MsgData(js_lexer.RangeOfImportAssertOrWith(result.file.inputFile.Source, *ast.FindAssertOrWithEntry(record.AssertOrWith.Entries, "type")),
 								"This import assertion requires the loader to be \"json\" instead:"),
 							{Text: "You need to either reconfigure esbuild to ensure that the loader for this file is \"json\" or you need to remove this import assertion."}})
 				}

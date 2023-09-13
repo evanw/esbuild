@@ -1470,10 +1470,11 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, level js_as
 		}
 		isMultiLine := p.willPrintExprCommentsAtLoc(record.Range.Loc) ||
 			p.willPrintExprCommentsAtLoc(closeParenLoc) ||
-			(record.Assertions != nil &&
+			(record.AssertOrWith != nil &&
 				!p.options.UnsupportedFeatures.Has(compat.DynamicImport) &&
-				!p.options.UnsupportedFeatures.Has(compat.ImportAssertions) &&
-				p.willPrintExprCommentsAtLoc(record.Assertions.OuterOpenBraceLoc))
+				(!p.options.UnsupportedFeatures.Has(compat.ImportAssertions) ||
+					!p.options.UnsupportedFeatures.Has(compat.ImportAttributes)) &&
+				p.willPrintExprCommentsAtLoc(record.AssertOrWith.OuterOpenBraceLoc))
 		if isMultiLine {
 			p.printNewline()
 			p.options.Indent++
@@ -1482,7 +1483,7 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, level js_as
 		p.printExprCommentsAtLoc(record.Range.Loc)
 		p.printPath(importRecordIndex, kind)
 		if !p.options.UnsupportedFeatures.Has(compat.DynamicImport) {
-			p.printImportCallAssertions(record.Assertions, isMultiLine)
+			p.printImportCallAssertOrWith(record.AssertOrWith, isMultiLine)
 		}
 		if isMultiLine {
 			p.printNewline()
@@ -2421,11 +2422,11 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		p.printRequireOrImportExpr(e.ImportRecordIndex, level, flags, e.CloseParenLoc)
 
 	case *js_ast.EImportCall:
-		// Just omit import assertions if they aren't supported
-		printImportAssertions := e.OptionsOrNil.Data != nil && !p.options.UnsupportedFeatures.Has(compat.ImportAssertions)
+		// Only print the second argument if either import assertions or import attributes are supported
+		printImportAssertOrWith := e.OptionsOrNil.Data != nil && (!p.options.UnsupportedFeatures.Has(compat.ImportAssertions) || !p.options.UnsupportedFeatures.Has(compat.ImportAttributes))
 		isMultiLine := !p.options.MinifyWhitespace &&
 			(p.willPrintExprCommentsAtLoc(e.Expr.Loc) ||
-				(printImportAssertions && p.willPrintExprCommentsAtLoc(e.OptionsOrNil.Loc)) ||
+				(printImportAssertOrWith && p.willPrintExprCommentsAtLoc(e.OptionsOrNil.Loc)) ||
 				p.willPrintExprCommentsAtLoc(e.CloseParenLoc))
 		wrap := level >= js_ast.LNew || (flags&forbidCall) != 0
 		if wrap {
@@ -2441,7 +2442,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		}
 		p.printExpr(e.Expr, js_ast.LComma, 0)
 
-		if printImportAssertions {
+		if printImportAssertOrWith {
 			p.print(",")
 			if isMultiLine {
 				p.printNewline()
@@ -3806,33 +3807,36 @@ func (p *printer) printPath(importRecordIndex uint32, importKind ast.ImportKind)
 			external))
 	}
 
-	// Just omit import assertions if they aren't supported
-	if p.options.UnsupportedFeatures.Has(compat.ImportAssertions) {
-		return
-	}
+	if record.AssertOrWith != nil && importKind == ast.ImportStmt {
+		feature := compat.ImportAttributes
+		if record.AssertOrWith.Keyword == ast.AssertKeyword {
+			feature = compat.ImportAssertions
+		}
 
-	if record.Assertions != nil && importKind == ast.ImportStmt {
+		// Omit import assertions/attributes on this import statement if they would cause a syntax error
+		if p.options.UnsupportedFeatures.Has(feature) {
+			return
+		}
+
 		p.printSpace()
-		p.addSourceMapping(record.Assertions.AssertLoc)
-		p.print("assert")
+		p.addSourceMapping(record.AssertOrWith.KeywordLoc)
+		p.print(record.AssertOrWith.Keyword.String())
 		p.printSpace()
-		p.printImportAssertionsClause(*record.Assertions)
+		p.printImportAssertOrWithClause(*record.AssertOrWith)
 	}
 }
 
-func (p *printer) printImportCallAssertions(assertions *ast.ImportAssertions, outerIsMultiLine bool) {
-	// Just omit import assertions if they aren't supported
-	if p.options.UnsupportedFeatures.Has(compat.ImportAssertions) {
+func (p *printer) printImportCallAssertOrWith(assertOrWith *ast.ImportAssertOrWith, outerIsMultiLine bool) {
+	// Omit import assertions/attributes if we know the "import()" syntax doesn't
+	// support a second argument (i.e. both import assertions and import
+	// attributes aren't supported) and doing so would cause a syntax error
+	if assertOrWith == nil || (p.options.UnsupportedFeatures.Has(compat.ImportAssertions) && p.options.UnsupportedFeatures.Has(compat.ImportAttributes)) {
 		return
 	}
 
-	if assertions == nil {
-		return
-	}
-
-	isMultiLine := p.willPrintExprCommentsAtLoc(assertions.AssertLoc) ||
-		p.willPrintExprCommentsAtLoc(assertions.InnerOpenBraceLoc) ||
-		p.willPrintExprCommentsAtLoc(assertions.OuterCloseBraceLoc)
+	isMultiLine := p.willPrintExprCommentsAtLoc(assertOrWith.KeywordLoc) ||
+		p.willPrintExprCommentsAtLoc(assertOrWith.InnerOpenBraceLoc) ||
+		p.willPrintExprCommentsAtLoc(assertOrWith.OuterCloseBraceLoc)
 
 	p.print(",")
 	if outerIsMultiLine {
@@ -3841,8 +3845,8 @@ func (p *printer) printImportCallAssertions(assertions *ast.ImportAssertions, ou
 	} else {
 		p.printSpace()
 	}
-	p.printExprCommentsAtLoc(assertions.OuterOpenBraceLoc)
-	p.addSourceMapping(assertions.OuterOpenBraceLoc)
+	p.printExprCommentsAtLoc(assertOrWith.OuterOpenBraceLoc)
+	p.addSourceMapping(assertOrWith.OuterOpenBraceLoc)
 	p.print("{")
 
 	if isMultiLine {
@@ -3853,39 +3857,40 @@ func (p *printer) printImportCallAssertions(assertions *ast.ImportAssertions, ou
 		p.printSpace()
 	}
 
-	p.printExprCommentsAtLoc(assertions.AssertLoc)
-	p.addSourceMapping(assertions.AssertLoc)
-	p.print("assert:")
+	p.printExprCommentsAtLoc(assertOrWith.KeywordLoc)
+	p.addSourceMapping(assertOrWith.KeywordLoc)
+	p.print(assertOrWith.Keyword.String())
+	p.print(":")
 
-	if p.willPrintExprCommentsAtLoc(assertions.InnerOpenBraceLoc) {
+	if p.willPrintExprCommentsAtLoc(assertOrWith.InnerOpenBraceLoc) {
 		p.printNewline()
 		p.options.Indent++
 		p.printIndent()
-		p.printExprCommentsAtLoc(assertions.InnerOpenBraceLoc)
-		p.printImportAssertionsClause(*assertions)
+		p.printExprCommentsAtLoc(assertOrWith.InnerOpenBraceLoc)
+		p.printImportAssertOrWithClause(*assertOrWith)
 		p.options.Indent--
 	} else {
 		p.printSpace()
-		p.printImportAssertionsClause(*assertions)
+		p.printImportAssertOrWithClause(*assertOrWith)
 	}
 
 	if isMultiLine {
 		p.printNewline()
-		p.printExprCommentsAfterCloseTokenAtLoc(assertions.OuterCloseBraceLoc)
+		p.printExprCommentsAfterCloseTokenAtLoc(assertOrWith.OuterCloseBraceLoc)
 		p.options.Indent--
 		p.printIndent()
 	} else {
 		p.printSpace()
 	}
 
-	p.addSourceMapping(assertions.OuterCloseBraceLoc)
+	p.addSourceMapping(assertOrWith.OuterCloseBraceLoc)
 	p.print("}")
 }
 
-func (p *printer) printImportAssertionsClause(assertions ast.ImportAssertions) {
-	isMultiLine := p.willPrintExprCommentsAtLoc(assertions.InnerCloseBraceLoc)
+func (p *printer) printImportAssertOrWithClause(assertOrWith ast.ImportAssertOrWith) {
+	isMultiLine := p.willPrintExprCommentsAtLoc(assertOrWith.InnerCloseBraceLoc)
 	if !isMultiLine {
-		for _, entry := range assertions.Entries {
+		for _, entry := range assertOrWith.Entries {
 			if p.willPrintExprCommentsAtLoc(entry.KeyLoc) || p.willPrintExprCommentsAtLoc(entry.ValueLoc) {
 				isMultiLine = true
 				break
@@ -3893,13 +3898,13 @@ func (p *printer) printImportAssertionsClause(assertions ast.ImportAssertions) {
 		}
 	}
 
-	p.addSourceMapping(assertions.InnerOpenBraceLoc)
+	p.addSourceMapping(assertOrWith.InnerOpenBraceLoc)
 	p.print("{")
 	if isMultiLine {
 		p.options.Indent++
 	}
 
-	for i, entry := range assertions.Entries {
+	for i, entry := range assertOrWith.Entries {
 		if i > 0 {
 			p.print(",")
 		}
@@ -3938,14 +3943,14 @@ func (p *printer) printImportAssertionsClause(assertions ast.ImportAssertions) {
 
 	if isMultiLine {
 		p.printNewline()
-		p.printExprCommentsAfterCloseTokenAtLoc(assertions.InnerCloseBraceLoc)
+		p.printExprCommentsAfterCloseTokenAtLoc(assertOrWith.InnerCloseBraceLoc)
 		p.options.Indent--
 		p.printIndent()
-	} else if len(assertions.Entries) > 0 {
+	} else if len(assertOrWith.Entries) > 0 {
 		p.printSpace()
 	}
 
-	p.addSourceMapping(assertions.InnerCloseBraceLoc)
+	p.addSourceMapping(assertOrWith.InnerCloseBraceLoc)
 	p.print("}")
 }
 

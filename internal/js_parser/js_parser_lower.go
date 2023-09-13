@@ -105,7 +105,7 @@ func (p *parser) markSyntaxFeature(feature compat.JSFeature, r logger.Range) (di
 	case compat.Decorators:
 		name = "JavaScript decorators"
 
-	case compat.ImportAssertions:
+	case compat.ImportAttributes:
 		p.log.AddErrorWithNotes(&p.tracker, r, fmt.Sprintf(
 			"Using an arbitrary value as the second argument to \"import()\" is not possible in %s", where), notes)
 		return
