@@ -592,12 +592,17 @@ export function createChannel(streamIn: StreamIn): StreamOut {
 
       if (typeof request.key === 'number') {
         const requestCallbacks = requestCallbacksByKey[request.key]
-        if (requestCallbacks) {
-          const callback = requestCallbacks[request.command]
-          if (callback) {
-            await callback(id, request)
-            return
-          }
+        if (!requestCallbacks) {
+          // Ignore invalid commands for old builds that no longer exist.
+          // This can happen when "context.cancel" and "context.dispose"
+          // is called while esbuild is processing many files in parallel.
+          // See https://github.com/evanw/esbuild/issues/3318 for details.
+          return
+        }
+        const callback = requestCallbacks[request.command]
+        if (callback) {
+          await callback(id, request)
+          return
         }
       }
 
