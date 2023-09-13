@@ -1175,14 +1175,14 @@ func (r resolverQuery) esmPackageTargetResolve(
 				//
 				// We want the warning to say this:
 				//
-				//   note: None of the conditions provided ("require") match any of the
+				//   note: None of the conditions in the package definition ("require") match any of the
 				//         currently active conditions ("default", "import", "node")
 				//   14 |       "node": {
 				//      |               ^
 				//
 				// We don't want the warning to say this:
 				//
-				//   note: None of the conditions provided ("browser", "electron", "node")
+				//   note: None of the conditions in the package definition ("browser", "electron", "node")
 				//         match any of the currently active conditions ("default", "import", "node")
 				//   7 |   "exports": {
 				//     |              ^

@@ -1291,7 +1291,7 @@ func TestImportInsideTry(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expectedScanLog: `entry.js: ERROR: Could not resolve "nope1"
-NOTE: You can mark the path "nope1" as external to exclude it from the bundle, which will remove this error. You can also add ".catch()" here to handle this failure at run-time instead of bundle-time.
+NOTE: You can mark the path "nope1" as external to exclude it from the bundle, which will remove this error and leave the unresolved path in the bundle. You can also add ".catch()" here to handle this failure at run-time instead of bundle-time.
 `,
 	})
 }
@@ -2295,17 +2295,17 @@ func TestExternalModuleExclusionScopedPackage(t *testing.T) {
 			},
 		},
 		expectedScanLog: `index.js: ERROR: Could not resolve "@a1-a2"
-NOTE: You can mark the path "@a1-a2" as external to exclude it from the bundle, which will remove this error.
+NOTE: You can mark the path "@a1-a2" as external to exclude it from the bundle, which will remove this error and leave the unresolved path in the bundle.
 index.js: ERROR: Could not resolve "@b1"
-NOTE: You can mark the path "@b1" as external to exclude it from the bundle, which will remove this error.
+NOTE: You can mark the path "@b1" as external to exclude it from the bundle, which will remove this error and leave the unresolved path in the bundle.
 index.js: ERROR: Could not resolve "@b1/b2-b3"
-NOTE: You can mark the path "@b1/b2-b3" as external to exclude it from the bundle, which will remove this error.
+NOTE: You can mark the path "@b1/b2-b3" as external to exclude it from the bundle, which will remove this error and leave the unresolved path in the bundle.
 index.js: ERROR: Could not resolve "@c1"
-NOTE: You can mark the path "@c1" as external to exclude it from the bundle, which will remove this error.
+NOTE: You can mark the path "@c1" as external to exclude it from the bundle, which will remove this error and leave the unresolved path in the bundle.
 index.js: ERROR: Could not resolve "@c1/c2"
-NOTE: You can mark the path "@c1/c2" as external to exclude it from the bundle, which will remove this error.
+NOTE: You can mark the path "@c1/c2" as external to exclude it from the bundle, which will remove this error and leave the unresolved path in the bundle.
 index.js: ERROR: Could not resolve "@c1/c2/c3-c4"
-NOTE: You can mark the path "@c1/c2/c3-c4" as external to exclude it from the bundle, which will remove this error.
+NOTE: You can mark the path "@c1/c2/c3-c4" as external to exclude it from the bundle, which will remove this error and leave the unresolved path in the bundle.
 `,
 	})
 }
@@ -8312,7 +8312,7 @@ func TestErrorMessageCrashStdinIssue2913(t *testing.T) {
 			AbsOutputDir: "/out",
 		},
 		expectedScanLog: `<stdin>: ERROR: Could not resolve "node_modules/fflate"
-NOTE: You can mark the path "node_modules/fflate" as external to exclude it from the bundle, which will remove this error.
+NOTE: You can mark the path "node_modules/fflate" as external to exclude it from the bundle, which will remove this error and leave the unresolved path in the bundle.
 `,
 	})
 }
@@ -8442,9 +8442,9 @@ func TestBadImportErrorMessageWithHandlesImportErrorsFlag(t *testing.T) {
 			AbsOutputFile: "/out.js",
 		},
 		expectedScanLog: `entry.js: ERROR: Could not resolve "foo"
-NOTE: You can mark the path "foo" as external to exclude it from the bundle, which will remove this error. You can also add ".catch()" here to handle this failure at run-time instead of bundle-time.
+NOTE: You can mark the path "foo" as external to exclude it from the bundle, which will remove this error and leave the unresolved path in the bundle. You can also add ".catch()" here to handle this failure at run-time instead of bundle-time.
 entry.js: ERROR: Could not resolve "bar"
-NOTE: You can mark the path "bar" as external to exclude it from the bundle, which will remove this error. You can also add ".catch()" here to handle this failure at run-time instead of bundle-time.
+NOTE: You can mark the path "bar" as external to exclude it from the bundle, which will remove this error and leave the unresolved path in the bundle. You can also add ".catch()" here to handle this failure at run-time instead of bundle-time.
 `,
 	})
 }

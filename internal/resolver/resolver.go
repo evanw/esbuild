@@ -2684,7 +2684,7 @@ func (r resolverQuery) finalizeImportsExportsResult(
 					esmPackageSubpath, esmPackageName)),
 
 			tracker.MsgData(debug.token,
-				fmt.Sprintf("None of the conditions provided (%s) match any of the currently active conditions (%s):",
+				fmt.Sprintf("None of the conditions in the package definition (%s) match any of the currently active conditions (%s):",
 					helpers.StringArrayToQuotedCommaSeparatedString(unmatchedConditions),
 					helpers.StringArrayToQuotedCommaSeparatedString(keys),
 				)),

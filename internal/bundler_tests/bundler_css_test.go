@@ -2086,9 +2086,9 @@ func TestCSSExternalQueryAndHashNoMatchIssue1822(t *testing.T) {
 			},
 		},
 		expectedScanLog: `entry.css: ERROR: Could not resolve "foo/bar.png?baz"
-NOTE: You can mark the path "foo/bar.png?baz" as external to exclude it from the bundle, which will remove this error.
+NOTE: You can mark the path "foo/bar.png?baz" as external to exclude it from the bundle, which will remove this error and leave the unresolved path in the bundle.
 entry.css: ERROR: Could not resolve "foo/bar.png#baz"
-NOTE: You can mark the path "foo/bar.png#baz" as external to exclude it from the bundle, which will remove this error.
+NOTE: You can mark the path "foo/bar.png#baz" as external to exclude it from the bundle, which will remove this error and leave the unresolved path in the bundle.
 `,
 	})
 }
