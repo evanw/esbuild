@@ -58,7 +58,7 @@ console.log(
 // not-supported.ts
 var NonIntegerNumberToString = ((NonIntegerNumberToString2) => {
   NonIntegerNumberToString2["SUPPORTED"] = "1";
-  NonIntegerNumberToString2[NonIntegerNumberToString2["UNSUPPORTED"] = "" + 1.5] = "UNSUPPORTED";
+  NonIntegerNumberToString2["UNSUPPORTED"] = "" + 1.5;
   return NonIntegerNumberToString2;
 })(NonIntegerNumberToString || {});
 console.log(
@@ -67,7 +67,7 @@ console.log(
 );
 var OutOfBoundsNumberToString = ((OutOfBoundsNumberToString2) => {
   OutOfBoundsNumberToString2["SUPPORTED"] = "1000000000";
-  OutOfBoundsNumberToString2[OutOfBoundsNumberToString2["UNSUPPORTED"] = "" + 1e12] = "UNSUPPORTED";
+  OutOfBoundsNumberToString2["UNSUPPORTED"] = "" + 1e12;
   return OutOfBoundsNumberToString2;
 })(OutOfBoundsNumberToString || {});
 console.log(
@@ -75,10 +75,10 @@ console.log(
   OutOfBoundsNumberToString.UNSUPPORTED
 );
 var TemplateExpressions = ((TemplateExpressions2) => {
-  TemplateExpressions2[TemplateExpressions2["NULL"] = "" + null] = "NULL";
-  TemplateExpressions2[TemplateExpressions2["TRUE"] = "" + true] = "TRUE";
-  TemplateExpressions2[TemplateExpressions2["FALSE"] = "" + false] = "FALSE";
-  TemplateExpressions2[TemplateExpressions2["BIGINT"] = "" + 123n] = "BIGINT";
+  TemplateExpressions2["NULL"] = "" + null;
+  TemplateExpressions2["TRUE"] = "" + true;
+  TemplateExpressions2["FALSE"] = "" + false;
+  TemplateExpressions2["BIGINT"] = "" + 123n;
   return TemplateExpressions2;
 })(TemplateExpressions || {});
 console.log(

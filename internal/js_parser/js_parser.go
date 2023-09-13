@@ -10792,6 +10792,9 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 					hasStringValue = true
 
 				default:
+					if js_ast.KnownPrimitiveType(underlyingValue.Data) == js_ast.PrimitiveString {
+						hasStringValue = true
+					}
 					if !js_ast.ExprCanBeRemovedIfUnused(underlyingValue, p.isUnbound) {
 						allValuesArePure = false
 					}

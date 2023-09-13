@@ -23,6 +23,48 @@
 
     Note that this bug only affected code using the `local-css` loader. It did not affect code using the `css` loader.
 
+* Adjust TypeScript `enum` output to better approximate `tsc` ([#3329](https://github.com/evanw/esbuild/issues/3329))
+
+    TypeScript enum values can be either number literals or string literals. Numbers create a bidirectional mapping between the name and the value but strings only create a unidirectional mapping from the name to the value. When the enum value is neither a number literal nor a string literal, TypeScript and esbuild both default to treating it as a number:
+
+    ```ts
+    // Original TypeScript code
+    declare const foo: any
+    enum Foo {
+      NUMBER = 1,
+      STRING = 'a',
+      OTHER = foo,
+    }
+
+    // Compiled JavaScript code (from "tsc")
+    var Foo;
+    (function (Foo) {
+      Foo[Foo["NUMBER"] = 1] = "NUMBER";
+      Foo["STRING"] = "a";
+      Foo[Foo["OTHER"] = foo] = "OTHER";
+    })(Foo || (Foo = {}));
+    ```
+
+    However, TypeScript does constant folding slightly differently than esbuild. For example, it may consider template literals to be string literals in some cases:
+
+    ```ts
+    // Original TypeScript code
+    declare const foo = 'foo'
+    enum Foo {
+      PRESENT = `${foo}`,
+      MISSING = `${bar}`,
+    }
+
+    // Compiled JavaScript code (from "tsc")
+    var Foo;
+    (function (Foo) {
+      Foo["PRESENT"] = "foo";
+      Foo[Foo["MISSING"] = `${bar}`] = "MISSING";
+    })(Foo || (Foo = {}));
+    ```
+
+    The template literal initializer for `PRESENT` is treated as a string while the template literal initializer for `MISSING` is treated as a number. Previously esbuild treated both of these cases as a number but starting with this release, esbuild will now treat both of these cases as a string. This doesn't exactly match the behavior of `tsc` but in the case where the behavior diverges `tsc` reports a compile error, so this seems like acceptible behavior for esbuild. Note that handling these cases completely correctly would require esbuild to parse type declarations (see the `declare` keyword), which esbuild deliberately doesn't do.
+
 * Ignore case in CSS in more places ([#3316](https://github.com/evanw/esbuild/issues/3316))
 
     This release makes esbuild's CSS support more case-agnostic, which better matches how browsers work. For example:

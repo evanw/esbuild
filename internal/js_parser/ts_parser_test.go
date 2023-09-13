@@ -1495,7 +1495,7 @@ func TestTSEnum(t *testing.T) {
   Foo[Foo["D"] = void 0] = "D";
   Foo[Foo["E"] = void 0] = "E";
   Foo["F"] = `+"`y`"+`;
-  Foo[Foo["G"] = `+"`${z}`"+`] = "G";
+  Foo["G"] = `+"`${z}`"+`;
   Foo[Foo["H"] = tag`+"``"+`] = "H";
   return Foo;
 })(Foo || {});
