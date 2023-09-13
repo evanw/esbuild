@@ -5302,14 +5302,16 @@ let transformTests = {
   },
 
   async cssBannerFooterTransform({ esbuild }) {
-    var { code } = await esbuild.transform(`
-      div { color: red }
-    `, {
-      loader: 'css',
-      banner: '/* banner */',
-      footer: '/* footer */',
-    })
-    assert.strictEqual(code, `/* banner */\ndiv {\n  color: red;\n}\n/* footer */\n`)
+    for (const loader of ['css', 'local-css', 'global-css']) {
+      var { code } = await esbuild.transform(`
+        div { color: red }
+      `, {
+        loader,
+        banner: '/* banner */',
+        footer: '/* footer */',
+      })
+      assert.strictEqual(code, `/* banner */\ndiv {\n  color: red;\n}\n/* footer */\n`)
+    }
   },
 
   async transformDirectEval({ esbuild }) {

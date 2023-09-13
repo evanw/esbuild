@@ -1768,7 +1768,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 			SourceFile: transformOpts.Sourcefile,
 		},
 	}
-	if options.Stdin.Loader == config.LoaderCSS {
+	if options.Stdin.Loader.IsCSS() {
 		options.CSSBanner = transformOpts.Banner
 		options.CSSFooter = transformOpts.Footer
 	} else {
