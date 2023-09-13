@@ -2803,3 +2803,41 @@ func TestPackageJsonNodePathsIssue2752(t *testing.T) {
 		},
 	})
 }
+
+// See: https://github.com/evanw/esbuild/issues/3377
+func TestPackageJsonReversePackageExportsIssue3377(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/lib/msw-config.ts": `
+				import { setupWorker, type SetupWorker } from 'msw/browser'
+				setupWorker();
+			`,
+			"/node_modules/msw/package.json": `{
+				"exports": {
+					"./browser": {
+						"node": null,
+						"require": "./lib/browser/index.js",
+						"import": "./lib/browser/index.mjs",
+						"default": "./lib/browser/index.js"
+					}
+				}
+			}`,
+			"/node_modules/msw/browser/package.json": `{
+				"main": "../lib/browser/index.js",
+				"module": "../lib/browser/index.mjs"
+			}`,
+			"/node_modules/msw/lib/browser/index.js":  `TEST FAILURE`,
+			"/node_modules/msw/lib/browser/index.mjs": `TEST FAILURE`,
+		},
+		entryPaths: []string{"/lib/msw-config.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			Platform:      config.PlatformNode,
+		},
+		expectedScanLog: `lib/msw-config.ts: ERROR: Could not resolve "msw/browser"
+node_modules/msw/package.json: NOTE: The path "./browser" cannot be imported from package "msw" because it was explicitly disabled by the package author here:
+NOTE: You can mark the path "msw/browser" as external to exclude it from the bundle, which will remove this error and leave the unresolved path in the bundle.
+`,
+	})
+}

@@ -41,6 +41,28 @@
 
     Please never actually write code like this.
 
+* Improve the error message for `null` entries in `exports` ([#3377](https://github.com/evanw/esbuild/issues/3377))
+
+    Package authors can disable package export paths with the `exports` map in `package.json`. With this release, esbuild now has a clearer error message that points to the `null` token in `package.json` itself instead of to the surrounding context. Here is an example of the new error message:
+
+    ```
+    ✘ [ERROR] Could not resolve "msw/browser"
+
+        lib/msw-config.ts:2:28:
+          2 │ import { setupWorker } from 'msw/browser';
+            ╵                             ~~~~~~~~~~~~~
+
+      The path "./browser" cannot be imported from package "msw" because it was explicitly disabled by
+      the package author here:
+
+        node_modules/msw/package.json:17:14:
+          17 │       "node": null,
+             ╵               ~~~~
+
+      You can mark the path "msw/browser" as external to exclude it from the bundle, which will remove
+      this error and leave the unresolved path in the bundle.
+    ```
+
 ## 0.19.2
 
 * Update how CSS nesting is parsed again

@@ -2609,6 +2609,12 @@ func (r resolverQuery) finalizeImportsExportsResult(
 		r.debugMeta.notes = []logger.MsgData{tracker.MsgData(debug.token, why)}
 
 	case pjStatusPackagePathNotExported:
+		if debug.isBecauseOfNullLiteral {
+			r.debugMeta.notes = []logger.MsgData{tracker.MsgData(debug.token,
+				fmt.Sprintf("The path %q cannot be imported from package %q because it was explicitly disabled by the package author here:", esmPackageSubpath, esmPackageName))}
+			break
+		}
+
 		r.debugMeta.notes = []logger.MsgData{tracker.MsgData(debug.token,
 			fmt.Sprintf("The path %q is not exported by package %q:", esmPackageSubpath, esmPackageName))}
 
@@ -2706,7 +2712,10 @@ func (r resolverQuery) finalizeImportsExportsResult(
 				}
 
 			default:
-				if !didSuggestEnablingCondition {
+				// Note: Don't suggest the adding the "types" condition because
+				// TypeScript uses that for type definitions, which are not
+				// intended to be included in a bundle as executable code
+				if !didSuggestEnablingCondition && key.Text != "types" {
 					var how string
 					switch logger.API {
 					case logger.CLIAPI:
