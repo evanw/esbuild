@@ -99,6 +99,10 @@ func TestLowerNullishCoalescing(t *testing.T) {
 		"function foo() {\n  var _a, _b;\n  if (x) {\n    (_b = (_a = a()) != null ? _a : b()) != null ? _b : c();\n  }\n}\n")
 	expectPrintedTarget(t, 2019, "() => a ?? b", "() => a != null ? a : b;\n")
 	expectPrintedTarget(t, 2019, "() => a() ?? b()", "() => {\n  var _a;\n  return (_a = a()) != null ? _a : b();\n};\n")
+
+	// Temporary variables should not come before "use strict"
+	expectPrintedTarget(t, 2019, "function f() { /*! @license */ 'use strict'; a = b.c ?? d }",
+		"function f() {\n  /*! @license */\n  \"use strict\";\n  var _a;\n  a = (_a = b.c) != null ? _a : d;\n}\n")
 }
 
 func TestLowerNullishCoalescingAssign(t *testing.T) {
@@ -152,6 +156,10 @@ class Foo {
 }
 _x = new WeakMap();
 `)
+
+	// Temporary variables should not come before "use strict"
+	expectPrintedTarget(t, 2019, "function f() { /*! @license */ 'use strict'; a.b ??= c.d }",
+		"function f() {\n  /*! @license */\n  \"use strict\";\n  var _a;\n  (_a = a.b) != null ? _a : a.b = c.d;\n}\n")
 }
 
 func TestLowerLogicalAssign(t *testing.T) {
@@ -704,6 +712,10 @@ func TestLowerOptionalChain(t *testing.T) {
 	expectPrintedTarget(t, 2020, "(x?.y)``", "(x?.y)``;\n")
 	expectPrintedTarget(t, 2019, "(x?.y)``", "var _a;\n(x == null ? void 0 : x.y).call(x, _a || (_a = __template([\"\"])));\n")
 	expectPrintedTarget(t, 5, "(x?.y)``", "var _a;\n(x == null ? void 0 : x.y).call(x, _a || (_a = __template([\"\"])));\n")
+
+	// Temporary variables should not come before "use strict"
+	expectPrintedTarget(t, 2019, "function f() { /*! @license */ 'use strict'; a.b?.c() }",
+		"function f() {\n  /*! @license */\n  \"use strict\";\n  var _a;\n  (_a = a.b) == null ? void 0 : _a.c();\n}\n")
 }
 
 func TestLowerOptionalCatchBinding(t *testing.T) {

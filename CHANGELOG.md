@@ -23,6 +23,32 @@
 
     Note that this bug only affected code using the `local-css` loader. It did not affect code using the `css` loader.
 
+* Avoid inserting temporary variables before `use strict` ([#3322](https://github.com/evanw/esbuild/issues/3322))
+
+    This release fixes a bug where esbuild could incorrectly insert automatically-generated temporary variables before `use strict` directives:
+
+    ```js
+    // Original code
+    function foo() {
+      'use strict'
+      a.b?.c()
+    }
+
+    // Old output (with --target=es6)
+    function foo() {
+      var _a;
+      "use strict";
+      (_a = a.b) == null ? void 0 : _a.c();
+    }
+
+    // New output (with --target=es6)
+    function foo() {
+      "use strict";
+      var _a;
+      (_a = a.b) == null ? void 0 : _a.c();
+    }
+    ```
+
 * Adjust TypeScript `enum` output to better approximate `tsc` ([#3329](https://github.com/evanw/esbuild/issues/3329))
 
     TypeScript enum values can be either number literals or string literals. Numbers create a bidirectional mapping between the name and the value but strings only create a unidirectional mapping from the name to the value. When the enum value is neither a number literal nor a string literal, TypeScript and esbuild both default to treating it as a number:

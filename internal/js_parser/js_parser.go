@@ -8377,7 +8377,23 @@ func (p *parser) visitStmtsAndPrependTempRefs(stmts []js_ast.Stmt, opts prependT
 		}
 	}
 	if len(decls) > 0 {
-		stmts = append([]js_ast.Stmt{{Data: &js_ast.SLocal{Kind: js_ast.LocalVar, Decls: decls}}}, stmts...)
+		// Skip past leading directives and comments
+		split := 0
+		for split < len(stmts) {
+			switch stmts[split].Data.(type) {
+			case *js_ast.SComment, *js_ast.SDirective:
+				split++
+				continue
+			}
+			break
+		}
+		stmts = append(
+			append(
+				append(
+					[]js_ast.Stmt{},
+					stmts[:split]...),
+				js_ast.Stmt{Data: &js_ast.SLocal{Kind: js_ast.LocalVar, Decls: decls}}),
+			stmts[split:]...)
 	}
 
 	p.tempRefsToDeclare = oldTempRefs
