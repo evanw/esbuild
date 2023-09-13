@@ -1,6 +1,8 @@
 package css_parser
 
 import (
+	"strings"
+
 	"github.com/evanw/esbuild/internal/css_ast"
 	"github.com/evanw/esbuild/internal/css_lexer"
 )
@@ -36,7 +38,7 @@ func (p *parser) mangleBoxShadow(tokens []css_ast.Token) []css_ast.Token {
 			if hex, ok := parseColor(t); ok {
 				colorCount++
 				tokens[i] = p.mangleColor(t, hex)
-			} else if t.Kind == css_lexer.TIdent && t.Text == "inset" {
+			} else if t.Kind == css_lexer.TIdent && strings.EqualFold(t.Text, "inset") {
 				insetCount++
 			} else {
 				// Track if we found a token other than a number, a color, or "inset"

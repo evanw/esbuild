@@ -654,7 +654,7 @@ func (p *parser) parsePseudoClassSelector(loc logger.Loc, isElement bool) (css_a
 
 						// Parse the optional "of" clause
 						if (kind == css_ast.PseudoClassNthChild || kind == css_ast.PseudoClassNthLastChild) &&
-							p.peek(css_lexer.TIdent) && p.decoded() == "of" {
+							p.peek(css_lexer.TIdent) && strings.EqualFold(p.decoded(), "of") {
 							p.advance()
 							p.eat(css_lexer.TWhitespace)
 

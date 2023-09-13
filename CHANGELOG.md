@@ -23,6 +23,24 @@
 
     Note that this bug only affected code using the `local-css` loader. It did not affect code using the `css` loader.
 
+* Ignore case in CSS in more places ([#3316](https://github.com/evanw/esbuild/issues/3316))
+
+    This release makes esbuild's CSS support more case-agnostic, which better matches how browsers work. For example:
+
+    ```css
+    /* Original code */
+    @KeyFrames Foo { From { OpaCity: 0 } To { OpaCity: 1 } }
+    body { CoLoR: YeLLoW }
+
+    /* Old output (with --minify) */
+    @KeyFrames Foo{From {OpaCity: 0} To {OpaCity: 1}}body{CoLoR:YeLLoW}
+
+    /* New output (with --minify) */
+    @KeyFrames Foo{0%{OpaCity:0}To{OpaCity:1}}body{CoLoR:#ff0}
+    ```
+
+    Please never actually write code like this.
+
 ## 0.19.2
 
 * Update how CSS nesting is parsed again

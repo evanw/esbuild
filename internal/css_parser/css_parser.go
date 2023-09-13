@@ -657,7 +657,7 @@ next:
 			//   }
 			//
 			// Which can then be mangled further.
-			if r.AtToken == "media" {
+			if strings.EqualFold(r.AtToken, "media") {
 				for _, prelude := range p.enclosingAtMedia {
 					if css_ast.TokensEqualIgnoringWhitespace(r.Prelude, prelude) {
 						mangledRules = append(mangledRules, r.Rules...)
@@ -972,7 +972,7 @@ func (p *parser) parseURLOrString() (string, logger.Range, bool) {
 		return text, t.Range, true
 
 	case css_lexer.TFunction:
-		if p.decoded() == "url" {
+		if strings.EqualFold(p.decoded(), "url") {
 			matchingLoc := logger.Loc{Start: p.current().Range.End() - 1}
 			p.advance()
 			t = p.current()
@@ -1145,13 +1145,14 @@ func (p *parser) parseAtRule(context atRuleContext) css_ast.Rule {
 	// Parse the name
 	atToken := p.decoded()
 	atRange := p.current().Range
-	kind := specialAtRules[atToken]
+	lowerAtToken := strings.ToLower(atToken)
+	kind := specialAtRules[lowerAtToken]
 	p.advance()
 
 	// Parse the prelude
 	preludeStart := p.index
 abortRuleParser:
-	switch atToken {
+	switch lowerAtToken {
 	case "charset":
 		switch context.charsetValidity {
 		case atRuleInvalid:
@@ -1214,14 +1215,14 @@ abortRuleParser:
 					importConditions = &conditions
 
 					// Handle "layer()"
-					if t := conditions.Media[0]; (t.Kind == css_lexer.TIdent || t.Kind == css_lexer.TFunction) && t.Text == "layer" {
+					if t := conditions.Media[0]; (t.Kind == css_lexer.TIdent || t.Kind == css_lexer.TFunction) && strings.EqualFold(t.Text, "layer") {
 						conditions.Layers = conditions.Media[:1]
 						conditions.Media = conditions.Media[1:]
 					}
 
 					// Handle "supports()"
 					if len(conditions.Media) > 0 {
-						if t := conditions.Media[0]; t.Kind == css_lexer.TFunction && t.Text == "supports" {
+						if t := conditions.Media[0]; t.Kind == css_lexer.TFunction && strings.EqualFold(t.Text, "supports") {
 							conditions.Supports = conditions.Media[:1]
 							conditions.Media = conditions.Media[1:]
 						}
@@ -1368,11 +1369,11 @@ abortRuleParser:
 							}
 							text := p.decoded()
 							if t.Kind == css_lexer.TIdent {
-								if text == "from" {
+								if strings.EqualFold(text, "from") {
 									if p.options.minifySyntax {
 										text = "0%" // "0%" is equivalent to but shorter than "from"
 									}
-								} else if text != "to" {
+								} else if !strings.EqualFold(text, "to") {
 									p.expect(css_lexer.TPercentage)
 								}
 							} else if p.options.minifySyntax && text == "100%" {
@@ -1505,7 +1506,7 @@ abortRuleParser:
 		}
 
 	default:
-		if kind == atRuleUnknown && atToken == "namespace" {
+		if kind == atRuleUnknown && lowerAtToken == "namespace" {
 			// CSS namespaces are a weird feature that appears to only really be
 			// useful for styling XML. And the world has moved on from XHTML to
 			// HTML5 so pretty much no one uses CSS namespaces anymore. They are
@@ -1579,7 +1580,7 @@ prelude:
 		}
 
 		// Handle local names for "@counter-style"
-		if len(prelude) == 1 && atToken == "counter-style" {
+		if len(prelude) == 1 && lowerAtToken == "counter-style" {
 			if t := &prelude[0]; t.Kind == css_lexer.TIdent {
 				t.Kind = css_lexer.TSymbol
 				t.PayloadIndex = p.symbolForName(t.Loc, t.Text).Ref.InnerIndex
@@ -1595,7 +1596,7 @@ prelude:
 		var rules []css_ast.Rule
 
 		// Push the "@media" conditions
-		isAtMedia := atToken == "media"
+		isAtMedia := lowerAtToken == "media"
 		if isAtMedia {
 			p.enclosingAtMedia = append(p.enclosingAtMedia, prelude)
 		}
@@ -1622,7 +1623,7 @@ prelude:
 		}
 
 		// Handle local names for "@container"
-		if len(prelude) >= 1 && atToken == "container" {
+		if len(prelude) >= 1 && lowerAtToken == "container" {
 			if t := &prelude[0]; t.Kind == css_lexer.TIdent && strings.ToLower(t.Text) != "not" {
 				t.Kind = css_lexer.TSymbol
 				t.PayloadIndex = p.symbolForName(t.Loc, t.Text).Ref.InnerIndex
@@ -1808,23 +1809,23 @@ loop:
 			var nested []css_ast.Token
 			original := tokens
 			nestedOpts := opts
-			if token.Text == "var" {
+			if strings.EqualFold(token.Text, "var") {
 				// CSS variables require verbatim whitespace for correctness
 				nestedOpts.verbatimWhitespace = true
 			}
-			if token.Text == "calc" {
+			if strings.EqualFold(token.Text, "calc") {
 				nestedOpts.isInsideCalcFunction = true
 			}
 			nested, tokens = p.convertTokensHelper(tokens, css_lexer.TCloseParen, nestedOpts)
 			token.Children = &nested
 
 			// Apply "calc" simplification rules when minifying
-			if p.options.minifySyntax && token.Text == "calc" {
+			if p.options.minifySyntax && strings.EqualFold(token.Text, "calc") {
 				token = p.tryToReduceCalcExpression(token)
 			}
 
 			// Treat a URL function call with a string just like a URL token
-			if token.Text == "url" && len(nested) == 1 && nested[0].Kind == css_lexer.TString {
+			if strings.EqualFold(token.Text, "url") && len(nested) == 1 && nested[0].Kind == css_lexer.TString {
 				token.Kind = css_lexer.TURL
 				token.Text = ""
 				token.Children = nil
@@ -2295,11 +2296,12 @@ stop:
 		}
 	}
 
-	key := css_ast.KnownDeclarations[keyText]
+	lowerKeyText := strings.ToLower(keyText)
+	key := css_ast.KnownDeclarations[lowerKeyText]
 
 	// Attempt to point out trivial typos
 	if key == css_ast.DUnknown {
-		if corrected, ok := css_ast.MaybeCorrectDeclarationTypo(keyText); ok {
+		if corrected, ok := css_ast.MaybeCorrectDeclarationTypo(lowerKeyText); ok {
 			data := p.tracker.MsgData(keyToken.Range, fmt.Sprintf("%q is not a known CSS property", keyText))
 			data.Location.Suggestion = corrected
 			p.log.AddMsgID(logger.MsgID_CSS_UnsupportedCSSProperty, logger.Msg{Kind: logger.Warning, Data: data,

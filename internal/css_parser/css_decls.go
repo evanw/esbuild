@@ -1,6 +1,8 @@
 package css_parser
 
 import (
+	"strings"
+
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/css_ast"
 	"github.com/evanw/esbuild/internal/css_lexer"
@@ -385,13 +387,13 @@ func (p *parser) insertPrefixedDeclaration(rules []css_ast.Rule, prefix string, 
 	switch decl.Key {
 	case css_ast.DBackgroundClip:
 		// The prefix is only needed for "background-clip: text"
-		if len(decl.Value) != 1 || decl.Value[0].Kind != css_lexer.TIdent || decl.Value[0].Text != "text" {
+		if len(decl.Value) != 1 || decl.Value[0].Kind != css_lexer.TIdent || !strings.EqualFold(decl.Value[0].Text, "text") {
 			return rules
 		}
 
 	case css_ast.DPosition:
 		// The prefix is only needed for "position: sticky"
-		if len(decl.Value) != 1 || decl.Value[0].Kind != css_lexer.TIdent || decl.Value[0].Text != "sticky" {
+		if len(decl.Value) != 1 || decl.Value[0].Kind != css_lexer.TIdent || !strings.EqualFold(decl.Value[0].Text, "sticky") {
 			return rules
 		}
 	}
@@ -407,7 +409,7 @@ func (p *parser) insertPrefixedDeclaration(rules []css_ast.Rule, prefix string, 
 
 	case css_ast.DUserSelect:
 		// The prefix applies to the value as well as the property
-		if prefix == "-moz-" && len(value) == 1 && value[0].Kind == css_lexer.TIdent && value[0].Text == "none" {
+		if prefix == "-moz-" && len(value) == 1 && value[0].Kind == css_lexer.TIdent && strings.EqualFold(value[0].Text, "none") {
 			value[0].Text = "-moz-none"
 		}
 	}

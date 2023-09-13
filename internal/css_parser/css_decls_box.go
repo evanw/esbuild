@@ -1,6 +1,8 @@
 package css_parser
 
 import (
+	"strings"
+
 	"github.com/evanw/esbuild/internal/css_ast"
 	"github.com/evanw/esbuild/internal/css_lexer"
 	"github.com/evanw/esbuild/internal/logger"
@@ -134,7 +136,7 @@ func (box *boxTracker) mangleSide(rules []css_ast.Rule, decl *css_ast.RDeclarati
 	}
 
 	if tokens := decl.Value; len(tokens) == 1 {
-		if t := tokens[0]; t.Kind.IsNumeric() || (t.Kind == css_lexer.TIdent && box.allowAuto && t.Text == "auto") {
+		if t := tokens[0]; t.Kind.IsNumeric() || (t.Kind == css_lexer.TIdent && box.allowAuto && strings.EqualFold(t.Text, "auto")) {
 			unitSafety := unitSafetyTracker{}
 			if !box.allowAuto || t.Kind.IsNumeric() {
 				unitSafety.includeUnitOf(t)

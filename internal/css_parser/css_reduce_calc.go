@@ -317,7 +317,7 @@ func (c *calcSum) partiallySimplify() calcTerm {
 			end := i + 1
 			for j := end; j < len(terms); j++ {
 				term2 := terms[j]
-				if numeric2, ok := term2.data.(*calcNumeric); ok && numeric2.unit == numeric.unit {
+				if numeric2, ok := term2.data.(*calcNumeric); ok && strings.EqualFold(numeric2.unit, numeric.unit) {
 					numeric.number += numeric2.number
 				} else {
 					terms[end] = term2
@@ -471,10 +471,10 @@ func tryToParseCalcTerm(tokens []css_ast.Token) calcTerm {
 
 	for i, token := range tokens {
 		var term calcTerm
-		if token.Kind == css_lexer.TFunction && token.Text == "var" {
+		if token.Kind == css_lexer.TFunction && strings.EqualFold(token.Text, "var") {
 			// Using "var()" should bail because it can expand to any number of tokens
 			return nil
-		} else if token.Kind == css_lexer.TOpenParen || (token.Kind == css_lexer.TFunction && token.Text == "calc") {
+		} else if token.Kind == css_lexer.TOpenParen || (token.Kind == css_lexer.TFunction && strings.EqualFold(token.Text, "calc")) {
 			term = tryToParseCalcTerm(*token.Children)
 			if term == nil {
 				return nil

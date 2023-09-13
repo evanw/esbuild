@@ -2,6 +2,7 @@ package css_ast
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/css_lexer"
@@ -329,7 +330,7 @@ func (t Token) DimensionUnit() string {
 }
 
 func (t Token) DimensionUnitIsSafeLength() bool {
-	switch t.DimensionUnit() {
+	switch strings.ToLower(t.DimensionUnit()) {
 	// These units can be reasonably expected to be supported everywhere.
 	// Information used: https://developer.mozilla.org/en-US/docs/Web/CSS/length
 	case "cm", "em", "in", "mm", "pc", "pt", "px":
@@ -348,7 +349,7 @@ func (t Token) IsOne() bool {
 
 func (t Token) IsAngle() bool {
 	if t.Kind == css_lexer.TDimension {
-		unit := t.DimensionUnit()
+		unit := strings.ToLower(t.DimensionUnit())
 		return unit == "deg" || unit == "grad" || unit == "rad" || unit == "turn"
 	}
 	return false
@@ -508,7 +509,7 @@ type KeyframeBlock struct {
 }
 
 func (a *RAtKeyframes) Equal(rule R, check *CrossFileEqualityCheck) bool {
-	if b, ok := rule.(*RAtKeyframes); ok && a.AtToken == b.AtToken && check.RefsAreEquivalent(a.Name.Ref, b.Name.Ref) && len(a.Blocks) == len(b.Blocks) {
+	if b, ok := rule.(*RAtKeyframes); ok && strings.EqualFold(a.AtToken, b.AtToken) && check.RefsAreEquivalent(a.Name.Ref, b.Name.Ref) && len(a.Blocks) == len(b.Blocks) {
 		for i, ai := range a.Blocks {
 			bi := b.Blocks[i]
 			if len(ai.Selectors) != len(bi.Selectors) {
@@ -551,7 +552,7 @@ type RKnownAt struct {
 
 func (a *RKnownAt) Equal(rule R, check *CrossFileEqualityCheck) bool {
 	b, ok := rule.(*RKnownAt)
-	return ok && a.AtToken == b.AtToken && TokensEqual(a.Prelude, b.Prelude, check) && RulesEqual(a.Rules, b.Rules, check)
+	return ok && strings.EqualFold(a.AtToken, b.AtToken) && TokensEqual(a.Prelude, b.Prelude, check) && RulesEqual(a.Rules, b.Rules, check)
 }
 
 func (r *RKnownAt) Hash() (uint32, bool) {
@@ -570,7 +571,7 @@ type RUnknownAt struct {
 
 func (a *RUnknownAt) Equal(rule R, check *CrossFileEqualityCheck) bool {
 	b, ok := rule.(*RUnknownAt)
-	return ok && a.AtToken == b.AtToken && TokensEqual(a.Prelude, b.Prelude, check) && TokensEqual(a.Block, b.Block, check)
+	return ok && strings.EqualFold(a.AtToken, b.AtToken) && TokensEqual(a.Prelude, b.Prelude, check) && TokensEqual(a.Block, b.Block, check)
 }
 
 func (r *RUnknownAt) Hash() (uint32, bool) {

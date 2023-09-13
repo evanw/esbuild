@@ -2,6 +2,7 @@ package css_parser
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/css_ast"
@@ -26,7 +27,7 @@ func (p *parser) handleComposesPragma(context composesContext, tokens []css_ast.
 	for i, t := range tokens {
 		if t.Kind == css_lexer.TIdent {
 			// Check for a "from" clause at the end
-			if t.Text == "from" && i+2 == len(tokens) {
+			if strings.EqualFold(t.Text, "from") && i+2 == len(tokens) {
 				last := tokens[i+1]
 
 				// A string or a URL is an external file
@@ -58,7 +59,7 @@ func (p *parser) handleComposesPragma(context composesContext, tokens []css_ast.
 
 				// An identifier must be "global"
 				if last.Kind == css_lexer.TIdent {
-					if last.Text == "global" {
+					if strings.EqualFold(last.Text, "global") {
 						fromGlobal = true
 						break
 					}

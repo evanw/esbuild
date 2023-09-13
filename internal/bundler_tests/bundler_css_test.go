@@ -2575,3 +2575,45 @@ func TestCSSAtLayerMergingWithImportConditions(t *testing.T) {
 		},
 	})
 }
+
+func TestCSSCaseInsensitivity(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.css": `
+				/* "@IMPORT" should be recognized as an import */
+				/* "LAYER(...)" should wrap with "@layer" */
+				/* "SUPPORTS(...)" should wrap with "@supports" */
+				@IMPORT Url("nested.css") LAYER(layer-name) SUPPORTS(supports-condition) list-of-media-queries;
+			`,
+			"/nested.css": `
+				/* "from" should be recognized and optimized to "0%" */
+				@KeyFrames Foo {
+					froM { OPAcity: 0 }
+					tO { opaCITY: 1 }
+				}
+
+				body {
+					/* "#FF0000" should be optimized to "red" because "BACKGROUND-color" should be recognized */
+					BACKGROUND-color: #FF0000;
+
+					/* This should be optimized to 50px */
+					width: CaLc(20Px + 30pX);
+
+					/* This URL token should be recognized and bundled */
+					background-IMAGE: Url(image.png);
+				}
+			`,
+			"/image.png": `...`,
+		},
+		entryPaths: []string{"/entry.css"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.css",
+			MinifySyntax:  true,
+			ExtensionToLoader: map[string]config.Loader{
+				".css": config.LoaderCSS,
+				".png": config.LoaderCopy,
+			},
+		},
+	})
+}
