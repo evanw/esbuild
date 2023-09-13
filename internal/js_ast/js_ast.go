@@ -1533,6 +1533,7 @@ type AST struct {
 
 	ExportsRef ast.Ref
 	ModuleRef  ast.Ref
+	DefineRef  ast.Ref
 	WrapperRef ast.Ref
 
 	ApproximateLineCount  int32
@@ -1545,6 +1546,7 @@ type AST struct {
 	// here because only the parser checks those.
 	UsesExportsRef bool
 	UsesModuleRef  bool
+	UsesDefineRef  bool
 	ExportsKind    ExportsKind
 }
 

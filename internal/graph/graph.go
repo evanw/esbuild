@@ -396,6 +396,9 @@ func (g *LinkerGraph) GenerateSymbolImportAndUse(
 	if ref == repr.AST.ModuleRef {
 		repr.AST.UsesModuleRef = true
 	}
+	if ref == repr.AST.DefineRef {
+		repr.AST.UsesDefineRef = true
+	}
 
 	// Track that this specific symbol was imported
 	if sourceIndexToImportFrom != sourceIndex {

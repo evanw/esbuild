@@ -1557,3 +1557,29 @@ func TestLoaderBundleWithImportAttributes(t *testing.T) {
 `,
 	})
 }
+
+func TestLoaderUmdDefineShouldBeShadowed(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				const LZString = "test";
+				if (typeof define === 'function' && define.amd) {
+				  define(function () { return LZString; });
+				} else if( typeof module !== 'undefined' && module != null ) {
+				  module.exports = LZString
+				} else if( typeof angular !== 'undefined' && angular != null ) {
+				  angular.module('LZString', [])
+				  .factory('LZString', function () {
+				    return LZString;
+				  });
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeConvertFormat,
+			OutputFormat:  config.FormatESModule,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}

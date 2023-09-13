@@ -220,6 +220,7 @@ type parser struct {
 	exportsRef    ast.Ref
 	requireRef    ast.Ref
 	moduleRef     ast.Ref
+	defineRef     ast.Ref
 	importMetaRef ast.Ref
 	promiseRef    ast.Ref
 	regExpRef     ast.Ref
@@ -14368,6 +14369,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					if p.options.mode == config.ModeBundle && !p.isFileConsideredToHaveESMExports {
 						p.recordUsage(p.moduleRef)
 						p.recordUsage(p.exportsRef)
+						p.recordUsage(p.defineRef)
 					}
 
 					// Mark this scope and all parent scopes as containing a direct eval.
@@ -17103,10 +17105,12 @@ func (p *parser) prepareForVisitPass() {
 		// CommonJS-style exports
 		p.exportsRef = p.declareCommonJSSymbol(ast.SymbolHoisted, "exports")
 		p.moduleRef = p.declareCommonJSSymbol(ast.SymbolHoisted, "module")
+		p.defineRef = p.declareCommonJSSymbol(ast.SymbolHoisted, "define")
 	} else {
 		// ESM-style exports
 		p.exportsRef = p.newSymbol(ast.SymbolHoisted, "exports")
 		p.moduleRef = p.newSymbol(ast.SymbolHoisted, "module")
+		p.defineRef = p.newSymbol(ast.SymbolHoisted, "define")
 	}
 
 	// Handle "@jsx" and "@jsxFrag" pragmas now that lexing is done
@@ -17522,6 +17526,7 @@ func (p *parser) toAST(before, parts, after []js_ast.Part, hashbang string, dire
 	exportsKind := js_ast.ExportsNone
 	usesExportsRef := p.symbols[p.exportsRef.InnerIndex].UseCountEstimate > 0
 	usesModuleRef := p.symbols[p.moduleRef.InnerIndex].UseCountEstimate > 0
+	usesDefineRef := p.symbols[p.defineRef.InnerIndex].UseCountEstimate > 0
 
 	if p.esmExportKeyword.Len > 0 || p.esmImportMeta.Len > 0 || p.topLevelAwaitKeyword.Len > 0 {
 		exportsKind = js_ast.ExportsESM
@@ -17558,6 +17563,7 @@ func (p *parser) toAST(before, parts, after []js_ast.Part, hashbang string, dire
 		Symbols:                         p.symbols,
 		ExportsRef:                      p.exportsRef,
 		ModuleRef:                       p.moduleRef,
+		DefineRef:                       p.defineRef,
 		WrapperRef:                      wrapperRef,
 		Hashbang:                        hashbang,
 		Directives:                      directives,
@@ -17578,6 +17584,7 @@ func (p *parser) toAST(before, parts, after []js_ast.Part, hashbang string, dire
 		// CommonJS features
 		UsesExportsRef: usesExportsRef,
 		UsesModuleRef:  usesModuleRef,
+		UsesDefineRef:  usesDefineRef,
 		ExportsKind:    exportsKind,
 
 		// ES6 features
