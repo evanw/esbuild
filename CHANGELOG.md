@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.19.3
 
 * Fix `list-style-type` with the `local-css` loader ([#3325](https://github.com/evanw/esbuild/issues/3325))
 
