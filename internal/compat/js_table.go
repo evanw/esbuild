@@ -195,6 +195,8 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Node:    {{start: v{16, 0, 0}}},
 	},
 	ArraySpread: {
+		// Note: The latest version of "IE" failed 15 tests including: spread syntax for iterable objects: spreading non-iterables is a runtime error
+		// Note: The latest version of "Rhino" failed 15 tests including: spread syntax for iterable objects: spreading non-iterables is a runtime error
 		Chrome:  {{start: v{46, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{13, 0, 0}}},
@@ -207,6 +209,9 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Safari:  {{start: v{10, 0, 0}}},
 	},
 	Arrow: {
+		// Note: The latest version of "Hermes" failed 3 tests including: arrow functions: lexical "super" binding in constructors
+		// Note: The latest version of "IE" failed 13 tests including: arrow functions: "this" unchanged by call or apply
+		// Note: The latest version of "Rhino" failed 3 tests including: arrow functions: lexical "new.target" binding
 		Chrome:  {{start: v{49, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{13, 0, 0}}},
@@ -218,6 +223,9 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Safari:  {{start: v{10, 0, 0}}},
 	},
 	AsyncAwait: {
+		// Note: The latest version of "Hermes" failed 4 tests including: async functions: async arrow functions
+		// Note: The latest version of "IE" failed 16 tests including: async functions: async arrow functions
+		// Note: The latest version of "Rhino" failed 16 tests including: async functions: async arrow functions
 		Chrome:  {{start: v{55, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{15, 0, 0}}},
@@ -229,6 +237,9 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Safari:  {{start: v{11, 0, 0}}},
 	},
 	AsyncGenerator: {
+		// Note: The latest version of "Hermes" failed this test: Asynchronous Iterators: async generators
+		// Note: The latest version of "IE" failed this test: Asynchronous Iterators: async generators
+		// Note: The latest version of "Rhino" failed this test: Asynchronous Iterators: async generators
 		Chrome:  {{start: v{63, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{79, 0, 0}}},
@@ -240,6 +251,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Safari:  {{start: v{12, 0, 0}}},
 	},
 	Bigint: {
+		// Note: The latest version of "IE" failed this test: BigInt: basic functionality
 		Chrome:  {{start: v{67, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{79, 0, 0}}},
@@ -253,6 +265,9 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Safari:  {{start: v{14, 0, 0}}},
 	},
 	Class: {
+		// Note: The latest version of "Hermes" failed 24 tests including: class: accessor properties
+		// Note: The latest version of "IE" failed 24 tests including: class: accessor properties
+		// Note: The latest version of "Rhino" failed 24 tests including: class: accessor properties
 		Chrome:  {{start: v{49, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{13, 0, 0}}},
@@ -264,6 +279,9 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Safari:  {{start: v{10, 0, 0}}},
 	},
 	ClassField: {
+		// Note: The latest version of "Hermes" failed 2 tests including: instance class fields: computed instance class fields
+		// Note: The latest version of "IE" failed 2 tests including: instance class fields: computed instance class fields
+		// Note: The latest version of "Rhino" failed 2 tests including: instance class fields: computed instance class fields
 		Chrome:  {{start: v{73, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{79, 0, 0}}},
@@ -275,6 +293,9 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Safari:  {{start: v{14, 0, 0}}},
 	},
 	ClassPrivateAccessor: {
+		// Note: The latest version of "Hermes" failed this test: private class methods: private accessor properties
+		// Note: The latest version of "IE" failed this test: private class methods: private accessor properties
+		// Note: The latest version of "Rhino" failed this test: private class methods: private accessor properties
 		Chrome:  {{start: v{84, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{84, 0, 0}}},
@@ -286,6 +307,9 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Safari:  {{start: v{15, 0, 0}}},
 	},
 	ClassPrivateBrandCheck: {
+		// Note: The latest version of "Hermes" failed this test: Ergonomic brand checks for private fields
+		// Note: The latest version of "IE" failed this test: Ergonomic brand checks for private fields
+		// Note: The latest version of "Rhino" failed this test: Ergonomic brand checks for private fields
 		Chrome:  {{start: v{91, 0, 0}}},
 		Deno:    {{start: v{1, 9, 0}}},
 		Edge:    {{start: v{91, 0, 0}}},
@@ -297,6 +321,9 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Safari:  {{start: v{15, 0, 0}}},
 	},
 	ClassPrivateField: {
+		// Note: The latest version of "Hermes" failed 4 tests including: instance class fields: optional deep private instance class fields access
+		// Note: The latest version of "IE" failed 4 tests including: instance class fields: optional deep private instance class fields access
+		// Note: The latest version of "Rhino" failed 4 tests including: instance class fields: optional deep private instance class fields access
 		Chrome:  {{start: v{84, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{84, 0, 0}}},
@@ -308,6 +335,9 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Safari:  {{start: v{14, 1, 0}}},
 	},
 	ClassPrivateMethod: {
+		// Note: The latest version of "Hermes" failed this test: private class methods: private instance methods
+		// Note: The latest version of "IE" failed this test: private class methods: private instance methods
+		// Note: The latest version of "Rhino" failed this test: private class methods: private instance methods
 		Chrome:  {{start: v{84, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{84, 0, 0}}},
@@ -319,6 +349,9 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Safari:  {{start: v{15, 0, 0}}},
 	},
 	ClassPrivateStaticAccessor: {
+		// Note: The latest version of "Hermes" failed this test: private class methods: private static accessor properties
+		// Note: The latest version of "IE" failed this test: private class methods: private static accessor properties
+		// Note: The latest version of "Rhino" failed this test: private class methods: private static accessor properties
 		Chrome:  {{start: v{84, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{84, 0, 0}}},
@@ -330,6 +363,9 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Safari:  {{start: v{15, 0, 0}}},
 	},
 	ClassPrivateStaticField: {
+		// Note: The latest version of "Hermes" failed this test: static class fields: private static class fields
+		// Note: The latest version of "IE" failed this test: static class fields: private static class fields
+		// Note: The latest version of "Rhino" failed this test: static class fields: private static class fields
 		Chrome:  {{start: v{74, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{79, 0, 0}}},
@@ -341,6 +377,9 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Safari:  {{start: v{14, 1, 0}}},
 	},
 	ClassPrivateStaticMethod: {
+		// Note: The latest version of "Hermes" failed this test: private class methods: private static methods
+		// Note: The latest version of "IE" failed this test: private class methods: private static methods
+		// Note: The latest version of "Rhino" failed this test: private class methods: private static methods
 		Chrome:  {{start: v{84, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{84, 0, 0}}},
@@ -363,6 +402,9 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Safari:  {{start: v{16, 4, 0}}},
 	},
 	ClassStaticField: {
+		// Note: The latest version of "Hermes" failed 2 tests including: static class fields: computed static class fields
+		// Note: The latest version of "IE" failed 2 tests including: static class fields: computed static class fields
+		// Note: The latest version of "Rhino" failed 2 tests including: static class fields: computed static class fields
 		Chrome:  {{start: v{73, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{79, 0, 0}}},
@@ -374,6 +416,9 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Safari:  {{start: v{14, 1, 0}}},
 	},
 	ConstAndLet: {
+		// Note: The latest version of "Hermes" failed 20 tests including: const: for loop statement scope
+		// Note: The latest version of "IE" failed 6 tests including: const: for-in loop iteration scope
+		// Note: The latest version of "Rhino" failed 22 tests including: const: cannot be in statements
 		Chrome:  {{start: v{49, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{14, 0, 0}}},
@@ -386,6 +431,9 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	Decorators: {},
 	DefaultArgument: {
+		// Note: The latest version of "Hermes" failed 2 tests including: default function parameters: separate scope
+		// Note: The latest version of "IE" failed 7 tests including: default function parameters: arguments object interaction
+		// Note: The latest version of "Rhino" failed 7 tests including: default function parameters: arguments object interaction
 		Chrome:  {{start: v{49, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{14, 0, 0}}},
@@ -397,6 +445,9 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Safari:  {{start: v{10, 0, 0}}},
 	},
 	Destructuring: {
+		// Note: The latest version of "Hermes" failed 3 tests including: destructuring, declarations: defaults, let temporal dead zone
+		// Note: The latest version of "IE" failed 71 tests including: destructuring, assignment: chained iterable destructuring
+		// Note: The latest version of "Rhino" failed 33 tests including: destructuring, assignment: computed properties
 		Chrome:  {{start: v{51, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{18, 0, 0}}},
@@ -418,6 +469,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Safari:  {{start: v{11, 1, 0}}},
 	},
 	ExponentOperator: {
+		// Note: The latest version of "IE" failed 3 tests including: exponentiation (**) operator: assignment
 		Chrome:  {{start: v{52, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{14, 0, 0}}},
@@ -442,6 +494,9 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Safari:  {{start: v{14, 1, 0}}},
 	},
 	ForAwait: {
+		// Note: The latest version of "Hermes" failed this test: Asynchronous Iterators: for-await-of loops
+		// Note: The latest version of "IE" failed this test: Asynchronous Iterators: for-await-of loops
+		// Note: The latest version of "Rhino" failed this test: Asynchronous Iterators: for-await-of loops
 		Chrome:  {{start: v{63, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{79, 0, 0}}},
@@ -453,6 +508,8 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Safari:  {{start: v{12, 0, 0}}},
 	},
 	ForOf: {
+		// Note: The latest version of "IE" failed 9 tests including: for..of loops: iterator closing, break
+		// Note: The latest version of "Rhino" failed 4 tests including: for..of loops: iterator closing, break
 		Chrome:  {{start: v{51, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{15, 0, 0}}},
@@ -479,6 +536,9 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Safari:  {{start: v{16, 3, 0}}},
 	},
 	Generator: {
+		// Note: The latest version of "Hermes" failed 3 tests including: generators: computed shorthand generators, classes
+		// Note: The latest version of "IE" failed 27 tests including: generators: %GeneratorPrototype%
+		// Note: The latest version of "Rhino" failed 15 tests including: generators: %GeneratorPrototype%
 		Chrome:  {{start: v{50, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{13, 0, 0}}},
@@ -490,6 +550,8 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Safari:  {{start: v{10, 0, 0}}},
 	},
 	Hashbang: {
+		// Note: The latest version of "IE" failed this test: Hashbang Grammar
+		// Note: The latest version of "Rhino" failed this test: Hashbang Grammar
 		Chrome:  {{start: v{74, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{79, 0, 0}}},
@@ -520,6 +582,8 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	InlineScript: {},
 	LogicalAssignment: {
+		// Note: The latest version of "IE" failed 9 tests including: Logical Assignment: &&= basic support
+		// Note: The latest version of "Rhino" failed 9 tests including: Logical Assignment: &&= basic support
 		Chrome:  {{start: v{85, 0, 0}}},
 		Deno:    {{start: v{1, 2, 0}}},
 		Edge:    {{start: v{85, 0, 0}}},
@@ -532,6 +596,8 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Safari:  {{start: v{14, 0, 0}}},
 	},
 	NestedRestBinding: {
+		// Note: The latest version of "IE" failed 2 tests including: nested rest destructuring, declarations
+		// Note: The latest version of "Rhino" failed 2 tests including: nested rest destructuring, declarations
 		Chrome:  {{start: v{49, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{14, 0, 0}}},
@@ -544,6 +610,8 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Safari:  {{start: v{10, 1, 0}}},
 	},
 	NewTarget: {
+		// Note: The latest version of "IE" failed 2 tests including: new.target: assignment is an early error
+		// Note: The latest version of "Rhino" failed 2 tests including: new.target: assignment is an early error
 		Chrome:  {{start: v{46, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{14, 0, 0}}},
@@ -562,6 +630,8 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Node: {{start: v{14, 18, 0}, end: v{15, 0, 0}}, {start: v{16, 0, 0}}},
 	},
 	NullishCoalescing: {
+		// Note: The latest version of "IE" failed this test: nullish coalescing operator (??)
+		// Note: The latest version of "Rhino" failed this test: nullish coalescing operator (??)
 		Chrome:  {{start: v{80, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{80, 0, 0}}},
@@ -588,6 +658,8 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Safari:  {{start: v{3, 1, 0}}},
 	},
 	ObjectExtensions: {
+		// Note: The latest version of "IE" failed 6 tests including: object literal extensions: computed accessors
+		// Note: The latest version of "Rhino" failed 3 tests including: object literal extensions: computed accessors
 		Chrome:  {{start: v{44, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{12, 0, 0}}},
@@ -600,6 +672,8 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Safari:  {{start: v{10, 0, 0}}},
 	},
 	ObjectRestSpread: {
+		// Note: The latest version of "IE" failed 2 tests including: object rest/spread properties: object rest properties
+		// Note: The latest version of "Rhino" failed 2 tests including: object rest/spread properties: object rest properties
 		Chrome:  {{start: v{60, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{79, 0, 0}}},
@@ -612,6 +686,8 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Safari:  {{start: v{11, 1, 0}}},
 	},
 	OptionalCatchBinding: {
+		// Note: The latest version of "IE" failed 3 tests including: optional catch binding: await
+		// Note: The latest version of "Rhino" failed 3 tests including: optional catch binding: await
 		Chrome:  {{start: v{66, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{79, 0, 0}}},
@@ -624,6 +700,8 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Safari:  {{start: v{11, 1, 0}}},
 	},
 	OptionalChain: {
+		// Note: The latest version of "IE" failed 5 tests including: optional chaining operator (?.): optional bracket access
+		// Note: The latest version of "Rhino" failed 5 tests including: optional chaining operator (?.): optional bracket access
 		Chrome:  {{start: v{91, 0, 0}}},
 		Deno:    {{start: v{1, 9, 0}}},
 		Edge:    {{start: v{91, 0, 0}}},
@@ -636,6 +714,8 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Safari:  {{start: v{13, 1, 0}}},
 	},
 	RegexpDotAllFlag: {
+		// Note: The latest version of "IE" failed this test: s (dotAll) flag for regular expressions
+		// Note: The latest version of "Rhino" failed this test: s (dotAll) flag for regular expressions
 		Chrome:  {{start: v{62, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{79, 0, 0}}},
@@ -648,6 +728,8 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Safari:  {{start: v{11, 1, 0}}},
 	},
 	RegexpLookbehindAssertions: {
+		// Note: The latest version of "IE" failed this test: RegExp Lookbehind Assertions
+		// Note: The latest version of "Rhino" failed this test: RegExp Lookbehind Assertions
 		Chrome:  {{start: v{62, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{79, 0, 0}}},
@@ -671,6 +753,9 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Safari:  {{start: v{15, 0, 0}}},
 	},
 	RegexpNamedCaptureGroups: {
+		// Note: The latest version of "Hermes" failed this test: RegExp named capture groups
+		// Note: The latest version of "IE" failed this test: RegExp named capture groups
+		// Note: The latest version of "Rhino" failed this test: RegExp named capture groups
 		Chrome:  {{start: v{64, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{79, 0, 0}}},
@@ -683,6 +768,8 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	RegexpSetNotation: {},
 	RegexpStickyAndUnicodeFlags: {
+		// Note: The latest version of "IE" failed 6 tests including: RegExp "y" and "u" flags: "u" flag
+		// Note: The latest version of "Rhino" failed 6 tests including: RegExp "y" and "u" flags: "u" flag
 		Chrome:  {{start: v{50, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{13, 0, 0}}},
@@ -695,17 +782,23 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Safari:  {{start: v{12, 0, 0}}},
 	},
 	RegexpUnicodePropertyEscapes: {
-		Chrome:  {{start: v{64, 0, 0}}},
-		Deno:    {{start: v{1, 0, 0}}},
-		Edge:    {{start: v{79, 0, 0}}},
-		ES:      {{start: v{2018, 0, 0}}},
-		Firefox: {{start: v{78, 0, 0}}},
-		IOS:     {{start: v{11, 3, 0}}},
-		Node:    {{start: v{10, 0, 0}}},
-		Opera:   {{start: v{51, 0, 0}}},
-		Safari:  {{start: v{11, 1, 0}}},
+		// Note: The latest version of "Chrome" failed this test: RegExp Unicode Property Escapes: Unicode 15.1
+		// Note: The latest version of "Firefox" failed this test: RegExp Unicode Property Escapes: Unicode 15.1
+		// Note: The latest version of "Hermes" failed 8 tests including: RegExp Unicode Property Escapes: Unicode 11
+		// Note: The latest version of "IE" failed 8 tests including: RegExp Unicode Property Escapes: Unicode 11
+		// Note: The latest version of "IOS" failed 2 tests including: RegExp Unicode Property Escapes: Unicode 15
+		// Note: The latest version of "Node" failed this test: RegExp Unicode Property Escapes: Unicode 15.1
+		// Note: The latest version of "Rhino" failed 8 tests including: RegExp Unicode Property Escapes: Unicode 11
+		// Note: The latest version of "Safari" failed 2 tests including: RegExp Unicode Property Escapes: Unicode 15
+		Deno:  {{start: v{1, 31, 0}}},
+		Edge:  {{start: v{110, 0, 0}}},
+		ES:    {{start: v{2018, 0, 0}}},
+		Opera: {{start: v{96, 0, 0}}},
 	},
 	RestArgument: {
+		// Note: The latest version of "Hermes" failed this test: rest parameters: function 'length' property
+		// Note: The latest version of "IE" failed 5 tests including: rest parameters: arguments object interaction
+		// Note: The latest version of "Rhino" failed 5 tests including: rest parameters: arguments object interaction
 		Chrome:  {{start: v{47, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{12, 0, 0}}},
@@ -717,6 +810,9 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Safari:  {{start: v{10, 0, 0}}},
 	},
 	TemplateLiteral: {
+		// Note: The latest version of "Hermes" failed this test: template literals: TemplateStrings call site caching
+		// Note: The latest version of "IE" failed 7 tests including: template literals: TemplateStrings call site caching
+		// Note: The latest version of "Rhino" failed 2 tests including: template literals: basic functionality
 		Chrome:  {{start: v{41, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{13, 0, 0}}},
@@ -752,6 +848,8 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Safari:  {{start: v{0, 0, 0}}},
 	},
 	UnicodeEscapes: {
+		// Note: The latest version of "IE" failed 2 tests including: Unicode code point escapes: in identifiers
+		// Note: The latest version of "Rhino" failed 4 tests including: Unicode code point escapes: in identifiers
 		Chrome:  {{start: v{44, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{12, 0, 0}}},

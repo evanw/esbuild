@@ -144,8 +144,12 @@ const updateMap = (map: SupportMap<JSFeature>, feature: JSFeature, engine: Engin
   const engines = map[feature] || (map[feature] = {})
   const versions = engines[engine] || (engines[engine] = {})
   const support = versions[version] || (versions[version] = {})
-  if (passed) support.passed = (support.passed || 0) + 1
-  else support.failed = (support.failed || 0) + 1
+  if (passed) {
+    support.passed = (support.passed || 0) + 1
+  } else {
+    support.failed ||= new Set
+    support.failed.add(testName)
+  }
 }
 
 const mergeIndividualTestResults = (map: SupportMap<JSFeature>, feature: JSFeature, testName: string, res: Record<string, boolean | { val: boolean }>, omit: Engine[]): void => {

@@ -129,7 +129,7 @@ export const cssProperties = {
 export interface Support {
   force?: boolean
   passed?: number
-  failed?: number
+  failed?: Set<string>
 }
 
 export interface VersionRange {
@@ -145,6 +145,7 @@ export interface PrefixData {
 
 export type SupportMap<F extends string> = Record<F, Partial<Record<Engine, Record<string, Support>>>>
 export type VersionRangeMap<F extends string> = Partial<Record<F, Partial<Record<Engine, VersionRange[]>>>>
+export type WhyNotMap<F extends string> = Partial<Record<F, Partial<Record<Engine, string[]>>>>
 export type CSSPrefixMap = Partial<Record<CSSProperty, PrefixData[]>>
 
 const compareVersions = (a: number[], b: number[]): number => {
@@ -187,12 +188,14 @@ const mergePrefixMaps = (to: CSSPrefixMap, from: CSSPrefixMap): void => {
   }
 }
 
-const supportMapToVersionRanges = <F extends string>(supportMap: SupportMap<F>): VersionRangeMap<F> => {
+const supportMapToVersionRanges = <F extends string>(supportMap: SupportMap<F>): [VersionRangeMap<F>, WhyNotMap<F>] => {
   const versionRangeMap: VersionRangeMap<F> = {}
+  const whyNotMap: WhyNotMap<F> = {}
 
   for (const feature in supportMap) {
     const engines = supportMap[feature as F]
     const featureMap: Partial<Record<Engine, VersionRange[]>> = {}
+    const whyNotByEngine: Partial<Record<Engine, string[]>> = {}
 
     // Compute the maximum number of tests that any one engine has passed
     let maxPassed = 0
@@ -206,7 +209,7 @@ const supportMapToVersionRanges = <F extends string>(supportMap: SupportMap<F>):
 
     for (const engine in engines) {
       const versions = engines[engine as Engine]
-      const sortedVersions: { version: number[], supported: boolean }[] = []
+      const sortedVersions: { version: number[], supported: boolean, failed?: Set<string> }[] = []
 
       for (const version in versions) {
         const { force, passed, failed } = versions[version]
@@ -221,10 +224,16 @@ const supportMapToVersionRanges = <F extends string>(supportMap: SupportMap<F>):
             // feature to be unsupported if not all tests were run, since it could
             // be dangerous to assume otherwise.
             !failed && passed === maxPassed,
+          failed,
         })
       }
 
       sortedVersions.sort((a, b) => compareVersions(a.version, b.version))
+
+      if (sortedVersions.length) {
+        const last = sortedVersions[sortedVersions.length - 1]
+        if (last.failed) whyNotByEngine[engine as Engine] = [...last.failed].sort()
+      }
 
       const versionRanges: VersionRange[] = []
       let i = 0
@@ -270,9 +279,10 @@ const supportMapToVersionRanges = <F extends string>(supportMap: SupportMap<F>):
     }
 
     versionRangeMap[feature as F] = featureMap
+    whyNotMap[feature as F] = whyNotByEngine
   }
 
-  return versionRangeMap
+  return [versionRangeMap, whyNotMap]
 }
 
 const updateGithubDependencies = (): void => {
@@ -469,7 +479,8 @@ import('./kangax').then(kangax => {
   // MDN data is wrong here: https://www.chromestatus.com/feature/6482797915013120
   js.ClassStaticBlocks.Chrome = { 91: { force: true } }
 
-  generateTableForJS(supportMapToVersionRanges(js))
+  const [jsVersionRanges, jsWhyNot] = supportMapToVersionRanges(js)
+  generateTableForJS(jsVersionRanges, jsWhyNot)
 })
 
 const css: SupportMap<CSSFeature> = {} as SupportMap<CSSFeature>
@@ -481,4 +492,5 @@ mergeSupportMaps(css, mdn.css)
 mergePrefixMaps(cssPrefix, caniuse.cssPrefix)
 mergePrefixMaps(cssPrefix, mdn.cssPrefix)
 
-generateTableForCSS(supportMapToVersionRanges(css), cssPrefix)
+const [cssVersionRanges] = supportMapToVersionRanges(css)
+generateTableForCSS(cssVersionRanges, cssPrefix)
