@@ -767,7 +767,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 }
 
 // Return all features that are not available in at least one environment
-func UnsupportedJSFeatures(constraints map[Engine][]int) (unsupported JSFeature) {
+func UnsupportedJSFeatures(constraints map[Engine]Semver) (unsupported JSFeature) {
 	for feature, engines := range jsTable {
 		if feature == InlineScript {
 			continue // This is purely user-specified

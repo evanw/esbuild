@@ -89,7 +89,7 @@ ${Object.keys(map).sort().map(feature => `\t${feature}: ${cssTableMap(map[featur
 }
 
 // Return all features that are not available in at least one environment
-func UnsupportedCSSFeatures(constraints map[Engine][]int) (unsupported CSSFeature) {
+func UnsupportedCSSFeatures(constraints map[Engine]Semver) (unsupported CSSFeature) {
 \tfor feature, engines := range cssTable {
 \t\tif feature == InlineStyle {
 \t\t\tcontinue // This is purely user-specified
@@ -131,7 +131,7 @@ var cssPrefixTable = map[css_ast.D][]prefixData{
 ${Object.keys(prefixes).sort().map(property => `\tcss_ast.${property}: ${cssPrefixMap(prefixes[property as CSSProperty]!)},`).join('\n')}
 }
 
-func CSSPrefixData(constraints map[Engine][]int) (entries map[css_ast.D]CSSPrefix) {
+func CSSPrefixData(constraints map[Engine]Semver) (entries map[css_ast.D]CSSPrefix) {
 \tfor property, items := range cssPrefixTable {
 \t\tprefixes := NoPrefix
 \t\tfor engine, version := range constraints {

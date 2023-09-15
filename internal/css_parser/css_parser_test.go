@@ -60,14 +60,14 @@ func expectPrintedLowerUnsupported(t *testing.T, unsupportedCSSFeatures compat.C
 func expectPrintedWithAllPrefixes(t *testing.T, contents string, expected string, expectedLog string) {
 	t.Helper()
 	expectPrintedCommon(t, contents+" [prefixed]", contents, expected, expectedLog, config.LoaderCSS, config.Options{
-		CSSPrefixData: compat.CSSPrefixData(map[compat.Engine][]int{
-			compat.Chrome:  {0},
-			compat.Edge:    {0},
-			compat.Firefox: {0},
-			compat.IE:      {0},
-			compat.IOS:     {0},
-			compat.Opera:   {0},
-			compat.Safari:  {0},
+		CSSPrefixData: compat.CSSPrefixData(map[compat.Engine]compat.Semver{
+			compat.Chrome:  {Parts: []int{0}},
+			compat.Edge:    {Parts: []int{0}},
+			compat.Firefox: {Parts: []int{0}},
+			compat.IE:      {Parts: []int{0}},
+			compat.IOS:     {Parts: []int{0}},
+			compat.Opera:   {Parts: []int{0}},
+			compat.Safari:  {Parts: []int{0}},
 		}),
 	})
 }

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Allow pre-release versions to be passed to `target` ([#3388](https://github.com/evanw/esbuild/issues/3388))
+
+    People want to be able to pass version numbers for unreleased versions of node (which have extra stuff after the version numbers) to esbuild's `target` setting and have esbuild do something reasonable with them. These version strings are of course not present in esbuild's internal feature compatibility table because an unreleased version has not been released yet (by definition). With this release, esbuild will now attempt to accept these version strings passed to `target` and do something reasonable with them.
+
 ## 0.19.3
 
 * Fix `list-style-type` with the `local-css` loader ([#3325](https://github.com/evanw/esbuild/issues/3325))

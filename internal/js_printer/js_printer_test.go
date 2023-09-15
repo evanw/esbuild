@@ -93,8 +93,8 @@ func expectPrintedMinifyASCII(t *testing.T, contents string, expected string) {
 func expectPrintedTarget(t *testing.T, esVersion int, contents string, expected string) {
 	t.Helper()
 	expectPrintedCommon(t, contents, contents, expected, config.Options{
-		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
-			compat.ES: {esVersion},
+		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine]compat.Semver{
+			compat.ES: {Parts: []int{esVersion}},
 		}),
 	})
 }
@@ -102,8 +102,8 @@ func expectPrintedTarget(t *testing.T, esVersion int, contents string, expected 
 func expectPrintedTargetMinify(t *testing.T, esVersion int, contents string, expected string) {
 	t.Helper()
 	expectPrintedCommon(t, contents+" [minified]", contents, expected, config.Options{
-		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
-			compat.ES: {esVersion},
+		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine]compat.Semver{
+			compat.ES: {Parts: []int{esVersion}},
 		}),
 		MinifyWhitespace: true,
 	})
@@ -112,8 +112,8 @@ func expectPrintedTargetMinify(t *testing.T, esVersion int, contents string, exp
 func expectPrintedTargetMangle(t *testing.T, esVersion int, contents string, expected string) {
 	t.Helper()
 	expectPrintedCommon(t, contents+" [mangled]", contents, expected, config.Options{
-		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
-			compat.ES: {esVersion},
+		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine]compat.Semver{
+			compat.ES: {Parts: []int{esVersion}},
 		}),
 		MinifySyntax: true,
 	})
@@ -122,8 +122,8 @@ func expectPrintedTargetMangle(t *testing.T, esVersion int, contents string, exp
 func expectPrintedTargetASCII(t *testing.T, esVersion int, contents string, expected string) {
 	t.Helper()
 	expectPrintedCommon(t, contents+" [ascii]", contents, expected, config.Options{
-		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
-			compat.ES: {esVersion},
+		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine]compat.Semver{
+			compat.ES: {Parts: []int{esVersion}},
 		}),
 		ASCIIOnly: true,
 	})

@@ -27,8 +27,8 @@ import (
 )
 
 func es(version int) compat.JSFeature {
-	return compat.UnsupportedJSFeatures(map[compat.Engine][]int{
-		compat.ES: {version},
+	return compat.UnsupportedJSFeatures(map[compat.Engine]compat.Semver{
+		compat.ES: {Parts: []int{version}},
 	})
 }
 

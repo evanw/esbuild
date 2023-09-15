@@ -39,8 +39,8 @@ func expectParseError(t *testing.T, contents string, expected string) {
 func expectParseErrorTarget(t *testing.T, esVersion int, contents string, expected string) {
 	t.Helper()
 	expectParseErrorCommon(t, contents, expected, config.Options{
-		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
-			compat.ES: {esVersion},
+		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine]compat.Semver{
+			compat.ES: {Parts: []int{esVersion}},
 		}),
 	})
 }
@@ -108,8 +108,8 @@ func expectPrintedNormalAndMangle(t *testing.T, contents string, normal string, 
 func expectPrintedTarget(t *testing.T, esVersion int, contents string, expected string) {
 	t.Helper()
 	expectPrintedCommon(t, contents, expected, config.Options{
-		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
-			compat.ES: {esVersion},
+		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine]compat.Semver{
+			compat.ES: {Parts: []int{esVersion}},
 		}),
 	})
 }
@@ -117,8 +117,8 @@ func expectPrintedTarget(t *testing.T, esVersion int, contents string, expected 
 func expectPrintedMangleTarget(t *testing.T, esVersion int, contents string, expected string) {
 	t.Helper()
 	expectPrintedCommon(t, contents, expected, config.Options{
-		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
-			compat.ES: {esVersion},
+		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine]compat.Semver{
+			compat.ES: {Parts: []int{esVersion}},
 		}),
 		MinifySyntax: true,
 	})
@@ -134,8 +134,8 @@ func expectPrintedASCII(t *testing.T, contents string, expected string) {
 func expectPrintedTargetASCII(t *testing.T, esVersion int, contents string, expected string) {
 	t.Helper()
 	expectPrintedCommon(t, contents, expected, config.Options{
-		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
-			compat.ES: {esVersion},
+		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine]compat.Semver{
+			compat.ES: {Parts: []int{esVersion}},
 		}),
 		ASCIIOnly: true,
 	})
@@ -144,8 +144,8 @@ func expectPrintedTargetASCII(t *testing.T, esVersion int, contents string, expe
 func expectParseErrorTargetASCII(t *testing.T, esVersion int, contents string, expected string) {
 	t.Helper()
 	expectParseErrorCommon(t, contents, expected, config.Options{
-		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
-			compat.ES: {esVersion},
+		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine]compat.Semver{
+			compat.ES: {Parts: []int{esVersion}},
 		}),
 		ASCIIOnly: true,
 	})

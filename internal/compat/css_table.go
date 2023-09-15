@@ -85,7 +85,7 @@ var cssTable = map[CSSFeature]map[Engine][]versionRange{
 }
 
 // Return all features that are not available in at least one environment
-func UnsupportedCSSFeatures(constraints map[Engine][]int) (unsupported CSSFeature) {
+func UnsupportedCSSFeatures(constraints map[Engine]Semver) (unsupported CSSFeature) {
 	for feature, engines := range cssTable {
 		if feature == InlineStyle {
 			continue // This is purely user-specified
@@ -275,7 +275,7 @@ var cssPrefixTable = map[css_ast.D][]prefixData{
 	},
 }
 
-func CSSPrefixData(constraints map[Engine][]int) (entries map[css_ast.D]CSSPrefix) {
+func CSSPrefixData(constraints map[Engine]Semver) (entries map[css_ast.D]CSSPrefix) {
 	for property, items := range cssPrefixTable {
 		prefixes := NoPrefix
 		for engine, version := range constraints {

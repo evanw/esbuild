@@ -295,36 +295,35 @@ func validateEngine(value EngineName) compat.Engine {
 	}
 }
 
-var versionRegex = regexp.MustCompile(`^([0-9]+)(?:\.([0-9]+))?(?:\.([0-9]+))?$`)
-var preReleaseVersionRegex = regexp.MustCompile(`^([0-9]+)(?:\.([0-9]+))?(?:\.([0-9]+))?-`)
+var versionRegex = regexp.MustCompile(`^([0-9]+)(?:\.([0-9]+))?(?:\.([0-9]+))?(-[A-Za-z0-9]+(?:\.[A-Za-z0-9]+)*)?$`)
 
 func validateFeatures(log logger.Log, target Target, engines []Engine) (compat.JSFeature, compat.CSSFeature, map[css_ast.D]compat.CSSPrefix, string) {
 	if target == DefaultTarget && len(engines) == 0 {
 		return 0, 0, nil, ""
 	}
 
-	constraints := make(map[compat.Engine][]int)
+	constraints := make(map[compat.Engine]compat.Semver)
 	targets := make([]string, 0, 1+len(engines))
 
 	switch target {
 	case ES5:
-		constraints[compat.ES] = []int{5}
+		constraints[compat.ES] = compat.Semver{Parts: []int{5}}
 	case ES2015:
-		constraints[compat.ES] = []int{2015}
+		constraints[compat.ES] = compat.Semver{Parts: []int{2015}}
 	case ES2016:
-		constraints[compat.ES] = []int{2016}
+		constraints[compat.ES] = compat.Semver{Parts: []int{2016}}
 	case ES2017:
-		constraints[compat.ES] = []int{2017}
+		constraints[compat.ES] = compat.Semver{Parts: []int{2017}}
 	case ES2018:
-		constraints[compat.ES] = []int{2018}
+		constraints[compat.ES] = compat.Semver{Parts: []int{2018}}
 	case ES2019:
-		constraints[compat.ES] = []int{2019}
+		constraints[compat.ES] = compat.Semver{Parts: []int{2019}}
 	case ES2020:
-		constraints[compat.ES] = []int{2020}
+		constraints[compat.ES] = compat.Semver{Parts: []int{2020}}
 	case ES2021:
-		constraints[compat.ES] = []int{2021}
+		constraints[compat.ES] = compat.Semver{Parts: []int{2021}}
 	case ES2022:
-		constraints[compat.ES] = []int{2022}
+		constraints[compat.ES] = compat.Semver{Parts: []int{2022}}
 	case ESNext, DefaultTarget:
 	default:
 		panic("Invalid target")
@@ -333,41 +332,29 @@ func validateFeatures(log logger.Log, target Target, engines []Engine) (compat.J
 	for _, engine := range engines {
 		if match := versionRegex.FindStringSubmatch(engine.Version); match != nil {
 			if major, err := strconv.Atoi(match[1]); err == nil {
-				version := []int{major}
+				parts := []int{major}
 				if minor, err := strconv.Atoi(match[2]); err == nil {
-					version = append(version, minor)
+					parts = append(parts, minor)
+					if patch, err := strconv.Atoi(match[3]); err == nil {
+						parts = append(parts, patch)
+					}
 				}
-				if patch, err := strconv.Atoi(match[3]); err == nil {
-					version = append(version, patch)
+				constraints[convertEngineName(engine.Name)] = compat.Semver{
+					Parts:      parts,
+					PreRelease: match[4],
 				}
-				constraints[convertEngineName(engine.Name)] = version
 				continue
 			}
 		}
 
 		text := "All version numbers passed to esbuild must be in the format \"X\", \"X.Y\", or \"X.Y.Z\" where X, Y, and Z are non-negative integers."
 
-		// Our internal version-to-feature database only includes version triples.
-		// We don't have any data on pre-release versions, so we don't accept them.
-		if preReleaseVersionRegex.MatchString(engine.Version) {
-			text += " Pre-release versions are not supported and cannot be used."
-		}
-
 		log.AddErrorWithNotes(nil, logger.Range{}, fmt.Sprintf("Invalid version: %q", engine.Version),
 			[]logger.MsgData{{Text: text}})
 	}
 
 	for engine, version := range constraints {
-		var text string
-		switch len(version) {
-		case 1:
-			text = fmt.Sprintf("%s%d", engine.String(), version[0])
-		case 2:
-			text = fmt.Sprintf("%s%d.%d", engine.String(), version[0], version[1])
-		case 3:
-			text = fmt.Sprintf("%s%d.%d.%d", engine.String(), version[0], version[1], version[2])
-		}
-		targets = append(targets, text)
+		targets = append(targets, engine.String()+version.String())
 	}
 	if target == ESNext {
 		targets = append(targets, "esnext")

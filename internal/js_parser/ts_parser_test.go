@@ -44,8 +44,8 @@ func expectParseErrorTargetTS(t *testing.T, esVersion int, contents string, expe
 		TS: config.TSOptions{
 			Parse: true,
 		},
-		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
-			compat.ES: {esVersion},
+		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine]compat.Semver{
+			compat.ES: {Parts: []int{esVersion}},
 		}),
 	})
 }
@@ -80,8 +80,8 @@ func expectPrintedAssignSemanticsTargetTS(t *testing.T, esVersion int, contents 
 				UseDefineForClassFields: config.False,
 			},
 		},
-		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
-			compat.ES: {esVersion},
+		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine]compat.Semver{
+			compat.ES: {Parts: []int{esVersion}},
 		}),
 	})
 }
@@ -127,8 +127,8 @@ func expectPrintedTargetTS(t *testing.T, esVersion int, contents string, expecte
 		TS: config.TSOptions{
 			Parse: true,
 		},
-		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
-			compat.ES: {esVersion},
+		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine]compat.Semver{
+			compat.ES: {Parts: []int{esVersion}},
 		}),
 	})
 }
@@ -142,8 +142,8 @@ func expectPrintedTargetExperimentalDecoratorTS(t *testing.T, esVersion int, con
 				ExperimentalDecorators: config.True,
 			},
 		},
-		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine][]int{
-			compat.ES: {esVersion},
+		UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine]compat.Semver{
+			compat.ES: {Parts: []int{esVersion}},
 		}),
 	})
 }

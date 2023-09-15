@@ -96,7 +96,7 @@ ${Object.keys(map).sort().map(feature => `\t${feature}: ${jsTableMap(map[feature
 }
 
 // Return all features that are not available in at least one environment
-func UnsupportedJSFeatures(constraints map[Engine][]int) (unsupported JSFeature) {
+func UnsupportedJSFeatures(constraints map[Engine]Semver) (unsupported JSFeature) {
 \tfor feature, engines := range jsTable {
 \t\tif feature == InlineScript {
 \t\t\tcontinue // This is purely user-specified
