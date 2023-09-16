@@ -462,7 +462,7 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 		// These are for the "using" statement in TypeScript 5.2+
 		export var __using = (stack, value, async) => {
 			if (value != null) {
-				if (typeof value !== 'object') throw TypeError('Object expected')
+				if (typeof value !== 'object' && typeof value !== 'function') throw TypeError('Object expected')
 				var dispose
 				if (async) dispose = value[__knownSymbol('asyncDispose')]
 				if (dispose === void 0) dispose = value[__knownSymbol('dispose')]
