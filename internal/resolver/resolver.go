@@ -514,16 +514,13 @@ func (res *Resolver) Resolve(sourceDir string, importPath string, kind ast.Impor
 			r.debugLogs.addNote("Marking this path as implicitly external due to it being a Bun built-in")
 		}
 
-		// If this is a known node built-in module, mark it with "sideEffects: false"
-		var sideEffects *SideEffectsData = &SideEffectsData{}
-
 		// NodeColonPrefixImport check isn't necessary because the "bun:" prefix is always required
 
 		r.flushDebugLogs(flushDueToSuccess)
 		return &ResolveResult{
 			PathPair:               PathPair{Primary: logger.Path{Text: importPath}},
 			IsExternal:             true,
-			PrimarySideEffectsData: sideEffects,
+			PrimarySideEffectsData: &SideEffectsData{},
 		}, debugMeta
 	}
 
