@@ -661,18 +661,23 @@ func ResolveFailureErrorTextSuggestionNotes(
 		if strings.HasPrefix(pkg, "node:") {
 			pkg = pkg[5:]
 		}
+
+		var how string
+		switch logger.API {
+		case logger.CLIAPI:
+			how = "--platform=node"
+		case logger.JSAPI:
+			how = "platform: 'node'"
+		case logger.GoAPI:
+			how = "Platform: api.PlatformNode"
+		}
+
 		if resolver.BuiltInNodeModules[pkg] {
-			var how string
-			switch logger.API {
-			case logger.CLIAPI:
-				how = "--platform=node"
-			case logger.JSAPI:
-				how = "platform: 'node'"
-			case logger.GoAPI:
-				how = "Platform: api.PlatformNode"
-			}
 			hint = fmt.Sprintf("The package %q wasn't found on the file system but is built into node. "+
 				"Are you trying to bundle for node? You can use %q to do that, which will remove this error.", path, how)
+		} else if strings.HasPrefix(pkg, "bun:") {
+			hint = fmt.Sprintf("The package %q wasn't found on the file system but is built into Bun. "+
+				"Bun users should target Node.js with %q which will remove this error.", path, how)
 		}
 	}
 
