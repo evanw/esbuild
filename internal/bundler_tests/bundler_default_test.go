@@ -2548,7 +2548,10 @@ func TestAutoExternalBun(t *testing.T) {
 		files: map[string]string{
 			"/entry.js": `
 				// These URLs should be external automatically
+				import {file} from "bun";
 				import { Database } from "bun:sqlite";
+
+				await file("./test.txt");
 				const db = new Database(":memory:");
 
 				// This should be external and should be tree-shaken because it's side-effect free
