@@ -438,7 +438,6 @@ func (res *Resolver) Resolve(sourceDir string, importPath string, kind ast.Impor
 
 	// "import fs from 'fs'"
 	if r.options.Platform == config.PlatformNode && BuiltInNodeModules[importPath] {
-
 		if r.debugLogs != nil {
 			r.debugLogs.addNote("Marking this path as implicitly external due to it being a node built-in")
 		}
@@ -450,7 +449,7 @@ func (res *Resolver) Resolve(sourceDir string, importPath string, kind ast.Impor
 		}, debugMeta
 	}
 
-	if r.options.Platform == config.PlatformNode && strings.HasPrefix(importPath, "bun:") {
+	if r.options.Platform == config.PlatformNode && (strings.HasPrefix(importPath, "bun:") || importPath == "bun") {
 		if r.debugLogs != nil {
 			r.debugLogs.addNote("Marking this path as implicitly external due to it being a Bun built-in")
 		}
@@ -465,7 +464,6 @@ func (res *Resolver) Resolve(sourceDir string, importPath string, kind ast.Impor
 	// "import fs from 'node:fs'"
 	// "require('node:fs')"
 	if r.options.Platform == config.PlatformNode && strings.HasPrefix(importPath, "node:") {
-
 		if r.debugLogs != nil {
 			r.debugLogs.addNote("Marking this path as implicitly external due to the \"node:\" prefix")
 		}
@@ -510,16 +508,16 @@ func (res *Resolver) Resolve(sourceDir string, importPath string, kind ast.Impor
 		}, debugMeta
 
 	}
-	if r.options.Platform == config.PlatformNode && strings.HasPrefix(importPath, "bun:") {
+
+	if r.options.Platform == config.PlatformNode && (strings.HasPrefix(importPath, "bun:") || importPath == "bun") {
 		if r.debugLogs != nil {
-			r.debugLogs.addNote("Marking this path as implicitly external due to the \"bun:\" prefix")
+			r.debugLogs.addNote("Marking this path as implicitly external due to it being a Bun built-in")
 		}
 
 		// If this is a known node built-in module, mark it with "sideEffects: false"
 		var sideEffects *SideEffectsData = &SideEffectsData{}
 
-		// NodeColonPrefixImport check isn't necessary because
-		// the bun: prefix is always required.
+		// NodeColonPrefixImport check isn't necessary because the "bun:" prefix is always required
 
 		r.flushDebugLogs(flushDueToSuccess)
 		return &ResolveResult{

@@ -2543,6 +2543,28 @@ func TestAutoExternalNode(t *testing.T) {
 	})
 }
 
+func TestAutoExternalBun(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				// These URLs should be external automatically
+				import { Database } from "bun:sqlite";
+				const db = new Database(":memory:");
+
+				// This should be external and should be tree-shaken because it's side-effect free
+				import "bun:ffi";
+				import "bun";
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			Platform:     config.PlatformNode,
+		},
+	})
+}
+
 func TestExternalWithWildcard(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
