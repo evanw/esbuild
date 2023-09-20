@@ -437,99 +437,96 @@ func (res *Resolver) Resolve(sourceDir string, importPath string, kind ast.Impor
 	}
 
 	// "import fs from 'fs'"
-	if r.options.Platform == config.PlatformNode {
+	if r.options.Platform == config.PlatformNode && BuiltInNodeModules[importPath] {
 
-		if BuiltInNodeModules[importPath] {
-			if r.debugLogs != nil {
-				r.debugLogs.addNote("Marking this path as implicitly external due to it being a node built-in")
-			}
-			r.flushDebugLogs(flushDueToSuccess)
-			return &ResolveResult{
-				PathPair:               PathPair{Primary: logger.Path{Text: importPath}},
-				IsExternal:             true,
-				PrimarySideEffectsData: &SideEffectsData{}, // Mark this with "sideEffects: false"
-			}, debugMeta
+		if r.debugLogs != nil {
+			r.debugLogs.addNote("Marking this path as implicitly external due to it being a node built-in")
 		}
+		r.flushDebugLogs(flushDueToSuccess)
+		return &ResolveResult{
+			PathPair:               PathPair{Primary: logger.Path{Text: importPath}},
+			IsExternal:             true,
+			PrimarySideEffectsData: &SideEffectsData{}, // Mark this with "sideEffects: false"
+		}, debugMeta
+	}
 
-		if strings.HasPrefix(importPath, "bun:") {
-			if r.debugLogs != nil {
-				r.debugLogs.addNote("Marking this path as implicitly external due to it being a Bun built-in")
-			}
-			r.flushDebugLogs(flushDueToSuccess)
-			return &ResolveResult{
-				PathPair:               PathPair{Primary: logger.Path{Text: importPath}},
-				IsExternal:             true,
-				PrimarySideEffectsData: &SideEffectsData{}, // Mark this with "sideEffects: false"
-			}, debugMeta
+	if r.options.Platform == config.PlatformNode && strings.HasPrefix(importPath, "bun:") {
+		if r.debugLogs != nil {
+			r.debugLogs.addNote("Marking this path as implicitly external due to it being a Bun built-in")
 		}
+		r.flushDebugLogs(flushDueToSuccess)
+		return &ResolveResult{
+			PathPair:               PathPair{Primary: logger.Path{Text: importPath}},
+			IsExternal:             true,
+			PrimarySideEffectsData: &SideEffectsData{}, // Mark this with "sideEffects: false"
+		}, debugMeta
 	}
 
 	// "import fs from 'node:fs'"
 	// "require('node:fs')"
-	if r.options.Platform == config.PlatformNode {
-		if strings.HasPrefix(importPath, "node:") {
-			if r.debugLogs != nil {
-				r.debugLogs.addNote("Marking this path as implicitly external due to the \"node:\" prefix")
-			}
+	if r.options.Platform == config.PlatformNode && strings.HasPrefix(importPath, "node:") {
 
-			// If this is a known node built-in module, mark it with "sideEffects: false"
-			var sideEffects *SideEffectsData
-			if BuiltInNodeModules[strings.TrimPrefix(importPath, "node:")] {
-				sideEffects = &SideEffectsData{}
-			}
-
-			// Check whether the path will end up as "import" or "require"
-			convertImportToRequire := !r.options.OutputFormat.KeepESMImportExportSyntax()
-			isImport := !convertImportToRequire && (kind == ast.ImportStmt || kind == ast.ImportDynamic)
-			isRequire := kind == ast.ImportRequire || kind == ast.ImportRequireResolve ||
-				(convertImportToRequire && (kind == ast.ImportStmt || kind == ast.ImportDynamic))
-
-			// Check for support with "import"
-			if isImport && r.options.UnsupportedJSFeatures.Has(compat.NodeColonPrefixImport) {
-				if r.debugLogs != nil {
-					r.debugLogs.addNote("Removing the \"node:\" prefix because the target environment doesn't support it with \"import\" statements")
-				}
-
-				// Automatically strip the prefix if it's not supported
-				importPath = importPath[5:]
-			}
-
-			// Check for support with "require"
-			if isRequire && r.options.UnsupportedJSFeatures.Has(compat.NodeColonPrefixRequire) {
-				if r.debugLogs != nil {
-					r.debugLogs.addNote("Removing the \"node:\" prefix because the target environment doesn't support it with \"require\" calls")
-				}
-
-				// Automatically strip the prefix if it's not supported
-				importPath = importPath[5:]
-			}
-
-			r.flushDebugLogs(flushDueToSuccess)
-			return &ResolveResult{
-				PathPair:               PathPair{Primary: logger.Path{Text: importPath}},
-				IsExternal:             true,
-				PrimarySideEffectsData: sideEffects,
-			}, debugMeta
+		if r.debugLogs != nil {
+			r.debugLogs.addNote("Marking this path as implicitly external due to the \"node:\" prefix")
 		}
 
-		if strings.HasPrefix(importPath, "bun:") {
+		// If this is a known node built-in module, mark it with "sideEffects: false"
+		var sideEffects *SideEffectsData
+		if BuiltInNodeModules[strings.TrimPrefix(importPath, "node:")] {
+			sideEffects = &SideEffectsData{}
+		}
+
+		// Check whether the path will end up as "import" or "require"
+		convertImportToRequire := !r.options.OutputFormat.KeepESMImportExportSyntax()
+		isImport := !convertImportToRequire && (kind == ast.ImportStmt || kind == ast.ImportDynamic)
+		isRequire := kind == ast.ImportRequire || kind == ast.ImportRequireResolve ||
+			(convertImportToRequire && (kind == ast.ImportStmt || kind == ast.ImportDynamic))
+
+		// Check for support with "import"
+		if isImport && r.options.UnsupportedJSFeatures.Has(compat.NodeColonPrefixImport) {
 			if r.debugLogs != nil {
-				r.debugLogs.addNote("Marking this path as implicitly external due to the \"bun:\" prefix")
+				r.debugLogs.addNote("Removing the \"node:\" prefix because the target environment doesn't support it with \"import\" statements")
 			}
 
-			// If this is a known node built-in module, mark it with "sideEffects: false"
-			var sideEffects *SideEffectsData = &SideEffectsData{}
-
-			// NodeColonPrefixImport check isn't necessary because
-			// the bun: prefix is always required.
-
-			r.flushDebugLogs(flushDueToSuccess)
-			return &ResolveResult{
-				PathPair:               PathPair{Primary: logger.Path{Text: importPath}},
-				IsExternal:             true,
-				PrimarySideEffectsData: sideEffects,
-			}, debugMeta
+			// Automatically strip the prefix if it's not supported
+			importPath = importPath[5:]
 		}
+
+		// Check for support with "require"
+		if isRequire && r.options.UnsupportedJSFeatures.Has(compat.NodeColonPrefixRequire) {
+			if r.debugLogs != nil {
+				r.debugLogs.addNote("Removing the \"node:\" prefix because the target environment doesn't support it with \"require\" calls")
+			}
+
+			// Automatically strip the prefix if it's not supported
+			importPath = importPath[5:]
+		}
+
+		r.flushDebugLogs(flushDueToSuccess)
+		return &ResolveResult{
+			PathPair:               PathPair{Primary: logger.Path{Text: importPath}},
+			IsExternal:             true,
+			PrimarySideEffectsData: sideEffects,
+		}, debugMeta
+
+	}
+	if r.options.Platform == config.PlatformNode && strings.HasPrefix(importPath, "bun:") {
+		if r.debugLogs != nil {
+			r.debugLogs.addNote("Marking this path as implicitly external due to the \"bun:\" prefix")
+		}
+
+		// If this is a known node built-in module, mark it with "sideEffects: false"
+		var sideEffects *SideEffectsData = &SideEffectsData{}
+
+		// NodeColonPrefixImport check isn't necessary because
+		// the bun: prefix is always required.
+
+		r.flushDebugLogs(flushDueToSuccess)
+		return &ResolveResult{
+			PathPair:               PathPair{Primary: logger.Path{Text: importPath}},
+			IsExternal:             true,
+			PrimarySideEffectsData: sideEffects,
+		}, debugMeta
 	}
 
 	if parsed, ok := ParseDataURL(importPath); ok {
