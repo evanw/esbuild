@@ -116,7 +116,10 @@ for (const feature in cssPrefixFeatures) {
         ? (model.prefix_exceptions && model.prefix_exceptions[versionRange]) || model.prefix
         : null
       for (const version of versionRange.split('-')) {
-        sortedVersions.push({ version, prefix })
+        // Filter out bogus versions such as "TP" for Safari
+        if (/^\d+(\.\d+)*$/.test(version)) {
+          sortedVersions.push({ version, prefix })
+        }
       }
       if (prefix !== null) {
         prefixes.add(prefix)
