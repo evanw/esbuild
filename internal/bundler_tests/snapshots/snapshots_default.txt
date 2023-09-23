@@ -921,6 +921,102 @@ for (const e of x)
   console.log(e);
 
 ================================================================================
+TestDecoratorPrintingCJS
+---------- /out.js ----------
+// entry.js
+var import_somewhere = require("somewhere");
+_ = class {
+  #bar;
+  classes = [
+    class {
+      @(import_somewhere.imported)
+      @(0, import_somewhere.imported)()
+      imported;
+    },
+    class {
+      @unbound
+      @unbound()
+      unbound;
+    },
+    class {
+      @(123)
+      @123()
+      constant;
+    },
+    class {
+      @(void 0)
+      @(void 0)()
+      undef;
+    },
+    class {
+      @(element[access])
+      indexed;
+    },
+    class {
+      @foo.#bar
+      private;
+    },
+    class {
+      @(foo["ヿ"])
+      unicode;
+    },
+    class {
+      @(() => {
+      })
+      arrow;
+    }
+  ];
+};
+
+================================================================================
+TestDecoratorPrintingESM
+---------- /out.js ----------
+// entry.js
+import { imported } from "somewhere";
+_ = class {
+  #bar;
+  classes = [
+    class {
+      @(imported)
+      @imported()
+      imported;
+    },
+    class {
+      @unbound
+      @unbound()
+      unbound;
+    },
+    class {
+      @(123)
+      @123()
+      constant;
+    },
+    class {
+      @(void 0)
+      @(void 0)()
+      undef;
+    },
+    class {
+      @(element[access])
+      indexed;
+    },
+    class {
+      @foo.#bar
+      private;
+    },
+    class {
+      @(foo["ヿ"])
+      unicode;
+    },
+    class {
+      @(() => {
+      })
+      arrow;
+    }
+  ];
+};
+
+================================================================================
 TestDefineAssignWarning
 ---------- /out/read.js ----------
 // read.js

@@ -8448,3 +8448,87 @@ NOTE: You can mark the path "bar" as external to exclude it from the bundle, whi
 `,
 	})
 }
+
+func TestDecoratorPrintingESM(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import { constant } from './constants'
+				import { imported } from 'somewhere'
+				import { undef } from './empty'
+
+				_ = class Outer {
+					#bar;
+
+					classes = [
+						class { @imported @imported() imported },
+						class { @unbound @unbound() unbound },
+						class { @constant @constant() constant },
+						class { @undef @undef() undef },
+
+						class { @(element[access]) indexed },
+						class { @foo.#bar private },
+						class { @foo.\u30FF unicode },
+						class { @(() => {}) arrow },
+					]
+				}
+			`,
+			"/constants.js": `
+				export const constant = 123
+			`,
+			"/empty.js": ``,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:             config.ModeBundle,
+			OutputFormat:     config.FormatESModule,
+			AbsOutputFile:    "/out.js",
+			ExternalPackages: true,
+			MinifySyntax:     true,
+		},
+		expectedCompileLog: `entry.js: WARNING: Import "undef" will always be undefined because the file "empty.js" has no exports
+`,
+	})
+}
+
+func TestDecoratorPrintingCJS(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import { constant } from './constants'
+				import { imported } from 'somewhere'
+				import { undef } from './empty'
+
+				_ = class Outer {
+					#bar;
+
+					classes = [
+						class { @imported @imported() imported },
+						class { @unbound @unbound() unbound },
+						class { @constant @constant() constant },
+						class { @undef @undef() undef },
+
+						class { @(element[access]) indexed },
+						class { @foo.#bar private },
+						class { @foo.\u30FF unicode },
+						class { @(() => {}) arrow },
+					]
+				}
+			`,
+			"/constants.js": `
+				export const constant = 123
+			`,
+			"/empty.js": ``,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:             config.ModeBundle,
+			OutputFormat:     config.FormatCommonJS,
+			AbsOutputFile:    "/out.js",
+			ExternalPackages: true,
+			MinifySyntax:     true,
+		},
+		expectedCompileLog: `entry.js: WARNING: Import "undef" will always be undefined because the file "empty.js" has no exports
+`,
+	})
+}

@@ -2036,6 +2036,11 @@ func TestDecorators(t *testing.T) {
 	expectParseError(t, "@new Function() class Foo {}", "<stdin>: ERROR: Expected identifier but found \"new\"\n")
 	expectParseError(t, "@() => {} class Foo {}", "<stdin>: ERROR: Unexpected \")\"\n")
 
+	// See: https://github.com/microsoft/TypeScript/issues/55336
+	expectParseError(t, "@x().y() class Foo {}",
+		"<stdin>: ERROR: Expected \"class\" after decorator but found \".\"\n"+
+			"<stdin>: NOTE: The preceding decorator is here:\nNOTE: Decorators can only be used with class declarations.\n")
+
 	errorText := "<stdin>: ERROR: Transforming JavaScript decorators to the configured target environment is not supported yet\n"
 	expectParseErrorWithUnsupportedFeatures(t, compat.Decorators, "@dec class Foo {}", errorText)
 	expectParseErrorWithUnsupportedFeatures(t, compat.Decorators, "class Foo { @dec x }", errorText)
