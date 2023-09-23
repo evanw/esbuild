@@ -2,6 +2,41 @@
 
 ## Unreleased
 
+* Fix printing of JavaScript decorators in tricky cases ([#3396](https://github.com/evanw/esbuild/issues/3396))
+
+    This release fixes some bugs where esbuild's pretty-printing of JavaScript decorators could incorrectly produced code with a syntax error. The problem happened because esbuild sometimes substitutes identifiers for other expressions in the pretty-printer itself, but the decision about whether to wrap the expression or not didn't account for this. Here are some examples:
+
+    ```js
+    // Original code
+    import { constant } from './constants.js'
+    import { imported } from 'external'
+    import { undef } from './empty.js'
+    class Foo {
+      @constant()
+      @imported()
+      @undef()
+      foo
+    }
+
+    // Old output (with --bundle --format=cjs --packages=external --minify-syntax)
+    var import_external = require("external");
+    var Foo = class {
+      @123()
+      @(0, import_external.imported)()
+      @(void 0)()
+      foo;
+    };
+
+    // New output (with --bundle --format=cjs --packages=external --minify-syntax)
+    var import_external = require("external");
+    var Foo = class {
+      @(123())
+      @((0, import_external.imported)())
+      @((void 0)())
+      foo;
+    };
+    ```
+
 * Allow pre-release versions to be passed to `target` ([#3388](https://github.com/evanw/esbuild/issues/3388))
 
     People want to be able to pass version numbers for unreleased versions of node (which have extra stuff after the version numbers) to esbuild's `target` setting and have esbuild do something reasonable with them. These version strings are of course not present in esbuild's internal feature compatibility table because an unreleased version has not been released yet (by definition). With this release, esbuild will now attempt to accept these version strings passed to `target` and do something reasonable with them.

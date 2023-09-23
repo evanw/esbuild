@@ -929,8 +929,8 @@ _ = class {
   #bar;
   classes = [
     class {
-      @(import_somewhere.imported)
-      @(0, import_somewhere.imported)()
+      @import_somewhere.imported
+      @((0, import_somewhere.imported)())
       imported;
     },
     class {
@@ -940,12 +940,12 @@ _ = class {
     },
     class {
       @(123)
-      @123()
+      @(123())
       constant;
     },
     class {
       @(void 0)
-      @(void 0)()
+      @((void 0)())
       undef;
     },
     class {
@@ -977,7 +977,7 @@ _ = class {
   #bar;
   classes = [
     class {
-      @(imported)
+      @imported
       @imported()
       imported;
     },
@@ -988,12 +988,12 @@ _ = class {
     },
     class {
       @(123)
-      @123()
+      @(123())
       constant;
     },
     class {
       @(void 0)
-      @(void 0)()
+      @((void 0)())
       undef;
     },
     class {

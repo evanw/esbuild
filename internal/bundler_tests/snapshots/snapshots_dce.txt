@@ -409,32 +409,32 @@ var fn = () => {
 };
 
 // keep-these.js
-var Class = @(fn) class {
+var Class = @fn class {
 };
 var Field = class {
-  @(fn)
+  @fn
   field;
 };
 var Method = class {
-  @(fn)
+  @fn
   method() {
   }
 };
 var Accessor = class {
-  @(fn)
+  @fn
   accessor accessor;
 };
 var StaticField = class {
-  @(fn)
+  @fn
   static field;
 };
 var StaticMethod = class {
-  @(fn)
+  @fn
   static method() {
   }
 };
 var StaticAccessor = class {
-  @(fn)
+  @fn
   static accessor accessor;
 };
 

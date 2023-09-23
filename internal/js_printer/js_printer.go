@@ -964,14 +964,24 @@ const (
 func (p *printer) printDecorators(decorators []js_ast.Decorator, how printDecorators) {
 	for _, decorator := range decorators {
 		wrap := false
+		wasCallTarget := false
 		expr := decorator.Value
 
 	outer:
 		for {
+			isCallTarget := wasCallTarget
+			wasCallTarget = false
+
 			switch e := expr.Data.(type) {
-			case *js_ast.EIdentifier, *js_ast.ECall:
+			case *js_ast.EIdentifier:
 				// "@foo"
 				break outer
+
+			case *js_ast.ECall:
+				// "@foo()"
+				expr = e.Target
+				wasCallTarget = true
+				continue
 
 			case *js_ast.EDot:
 				// "@foo.bar"
@@ -992,6 +1002,29 @@ func (p *printer) printDecorators(decorators []js_ast.Decorator, how printDecora
 
 				// "@(foo[bar])"
 				break
+
+			case *js_ast.EImportIdentifier:
+				ref := ast.FollowSymbols(p.symbols, e.Ref)
+				symbol := p.symbols.Get(ref)
+
+				if symbol.ImportItemStatus == ast.ImportItemMissing {
+					// "@(void 0)"
+					break
+				}
+
+				if symbol.NamespaceAlias != nil && isCallTarget && e.WasOriginallyIdentifier {
+					// "@((0, import_ns.fn)())"
+					break
+				}
+
+				if value := p.options.ConstValues[ref]; value.Kind != js_ast.ConstValueNone {
+					// "@(<inlined constant>)"
+					break
+				}
+
+				// "@foo"
+				// "@import_ns.fn"
+				break outer
 
 			default:
 				// "@(foo + bar)"
@@ -3028,11 +3061,8 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		} else if symbol.NamespaceAlias != nil {
 			wrap := p.callTarget == e && e.WasOriginallyIdentifier
 			if wrap {
-				if p.options.MinifyWhitespace {
-					p.print("(0,")
-				} else {
-					p.print("(0, ")
-				}
+				p.print("(0,")
+				p.printSpace()
 			}
 			p.printSpaceBeforeIdentifier()
 			p.addSourceMapping(expr.Loc)
