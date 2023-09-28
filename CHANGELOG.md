@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.19.4
 
 * Fix printing of JavaScript decorators in tricky cases ([#3396](https://github.com/evanw/esbuild/issues/3396))
 
