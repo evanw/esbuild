@@ -2623,6 +2623,11 @@ func (r resolverQuery) finalizeImportsExportsResult(
 			if relPath, ok := r.fs.Rel(absDirPath, absolute.Primary.Text); ok {
 				query := "." + path.Join("/", strings.ReplaceAll(relPath, "\\", "/"))
 
+				// If we are trying to look up package.json, return it directly.
+				if path.Base(absImportPath) == "package.json" {
+					return PathPair{Primary: logger.Path{Text: absImportPath, Namespace: "file"}}, true, nil
+				}
+
 				// If that succeeds, try to do a reverse lookup using the
 				// "exports" map for the currently-active set of conditions
 				if ok, subpath, token := r.esmPackageExportsReverseResolve(
