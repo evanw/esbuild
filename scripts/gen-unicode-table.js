@@ -45,11 +45,11 @@ const idContinueES5 = idStartES5.concat(
 // is presumed to be the Unicode set, collection 10646.
 //
 // UnicodeIDStart: any Unicode code point with the Unicode property “ID_Start”
-const idStartESNext = require('@unicode/unicode-15.0.0/Binary_Property/ID_Start/code-points')
+const idStartESNext = require('@unicode/unicode-15.1.0/Binary_Property/ID_Start/code-points')
 const idStartESNextSet = new Set(idStartESNext)
 
 // UnicodeIDContinue: any Unicode code point with the Unicode property “ID_Continue”
-const idContinueESNext = require('@unicode/unicode-15.0.0/Binary_Property/ID_Continue/code-points')
+const idContinueESNext = require('@unicode/unicode-15.1.0/Binary_Property/ID_Continue/code-points')
 const idContinueESNextSet = new Set(idContinueESNext)
 
 // These identifiers are valid in both ES5 and ES6+ (i.e. an intersection of both)
