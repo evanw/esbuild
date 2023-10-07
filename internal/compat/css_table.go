@@ -171,8 +171,8 @@ var cssPrefixTable = map[css_ast.D][]prefixData{
 		{engine: Edge, prefix: MsPrefix, withoutPrefix: v{79, 0, 0}},
 		{engine: Firefox, prefix: MozPrefix, withoutPrefix: v{43, 0, 0}},
 		{engine: IE, prefix: MsPrefix},
-		{engine: IOS, prefix: WebkitPrefix},
-		{engine: Safari, prefix: WebkitPrefix},
+		{engine: IOS, prefix: WebkitPrefix, withoutPrefix: v{17, 0, 0}},
+		{engine: Safari, prefix: WebkitPrefix, withoutPrefix: v{17, 0, 0}},
 	},
 	css_ast.DInitialLetter: {
 		{engine: IOS, prefix: WebkitPrefix},
