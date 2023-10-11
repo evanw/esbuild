@@ -48,13 +48,21 @@ const idContinueES5 = idStartES5.concat(
 const idStartESNext = require('@unicode/unicode-15.1.0/Binary_Property/ID_Start/code-points')
 const idStartESNextSet = new Set(idStartESNext)
 
+// Unicode 4.1 through Unicode 15 omitted these two characters from ID_Continue
+// by accident. However, this accident was corrected in Unicode 15.1. Any JS VM
+// that supports ES6+ but that uses a version of Unicode earlier than 15.1 will
+// consider these to be a syntax error, so we deliberately omit these characters
+// from the set of identifiers that are valid in both ES5 and ES6+. For more info
+// see 2.2 in https://www.unicode.org/L2/L2023/23160-utc176-properties-recs.pdf
+const ID_Continue_mistake = new Set([0x30FB, 0xFF65])
+
 // UnicodeIDContinue: any Unicode code point with the Unicode property “ID_Continue”
 const idContinueESNext = require('@unicode/unicode-15.1.0/Binary_Property/ID_Continue/code-points')
 const idContinueESNextSet = new Set(idContinueESNext)
 
 // These identifiers are valid in both ES5 and ES6+ (i.e. an intersection of both)
 const idStartES5AndESNext = idStartES5.filter(n => idStartESNextSet.has(n))
-const idContinueES5AndESNext = idContinueES5.filter(n => idContinueESNextSet.has(n))
+const idContinueES5AndESNext = idContinueES5.filter(n => idContinueESNextSet.has(n) && !ID_Continue_mistake.has(n))
 
 // These identifiers are valid in either ES5 or ES6+ (i.e. a union of both)
 const idStartES5OrESNext = [...new Set(idStartES5.concat(idStartESNext))].sort((a, b) => a - b)
