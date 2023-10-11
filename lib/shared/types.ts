@@ -348,6 +348,7 @@ export interface ResolveResult {
   warnings: Message[]
 
   path: string
+  moduleType: number
   external: boolean
   sideEffects: boolean
   namespace: string
@@ -403,6 +404,7 @@ export interface OnResolveResult {
   warnings?: PartialMessage[]
 
   path?: string
+  moduleType?: number
   external?: boolean
   sideEffects?: boolean
   namespace?: string

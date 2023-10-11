@@ -8,6 +8,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"github.com/evanw/esbuild/internal/js_ast"
 	"io"
 	"io/ioutil"
 	"os"
@@ -927,6 +928,7 @@ func (service *serviceType) convertPlugins(key int, jsPlugins interface{}, activ
 						"errors":      encodeMessages(result.Errors),
 						"warnings":    encodeMessages(result.Warnings),
 						"path":        result.Path,
+						"moduleType":  result.ModuleType,
 						"external":    result.External,
 						"sideEffects": result.SideEffects,
 						"namespace":   result.Namespace,
@@ -1002,6 +1004,9 @@ func (service *serviceType) convertPlugins(key int, jsPlugins interface{}, activ
 					}
 					if value, ok := response["path"]; ok {
 						result.Path = value.(string)
+					}
+					if value, ok := response["moduleType"]; ok {
+						result.ModuleType = js_ast.ModuleType(value.(int))
 					}
 					if value, ok := response["namespace"]; ok {
 						result.Namespace = value.(string)

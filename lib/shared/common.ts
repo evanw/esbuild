@@ -1273,6 +1273,7 @@ let handlePlugins = async (
               errors: replaceDetailsInMessages(response!.errors, details),
               warnings: replaceDetailsInMessages(response!.warnings, details),
               path: response!.path,
+              moduleType: response!.moduleType,
               external: response!.external,
               sideEffects: response!.sideEffects,
               namespace: response!.namespace,
@@ -1390,6 +1391,7 @@ let handlePlugins = async (
           let keys: OptionKeys = {}
           let pluginName = getFlag(result, keys, 'pluginName', mustBeString)
           let path = getFlag(result, keys, 'path', mustBeString)
+          let moduleType = getFlag(result, keys, 'moduleType', mustBeInteger)
           let namespace = getFlag(result, keys, 'namespace', mustBeString)
           let suffix = getFlag(result, keys, 'suffix', mustBeString)
           let external = getFlag(result, keys, 'external', mustBeBoolean)
@@ -1404,6 +1406,7 @@ let handlePlugins = async (
           response.id = id
           if (pluginName != null) response.pluginName = pluginName
           if (path != null) response.path = path
+          if (moduleType != null) response.moduleType = moduleType
           if (namespace != null) response.namespace = namespace
           if (suffix != null) response.suffix = suffix
           if (external != null) response.external = external

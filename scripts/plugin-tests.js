@@ -829,6 +829,38 @@ let pluginTests = {
       'Ignoring this import because "ns:plugin:ignored-false" was marked as having no side effects by plugin "name"')
   },
 
+  async resolveModuleType({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+
+    await writeFileAsync(input, `
+      import { __assign } from 'tslib'
+      console.log(__assign)
+    `)
+
+    const result = await esbuild.build({
+      entryPoints: [input],
+      bundle: true,
+      write: false,
+      format: 'cjs',
+      logLevel: 'error',
+      plugins: [{
+        name: 'resolver',
+        setup(build) {
+        build.onResolve({ filter: /.*/ }, args => {
+          if (args.path === 'tslib') {
+            return {
+              path: path.resolve(require.resolve(args.path), '../modules/index.js'),
+              moduleType: 6
+            }
+          }
+        })
+        }
+      }]
+    })
+
+    assert(result.outputFiles[0].text.includes("__toESM(require_tslib(), 1)"))
+  },
+
   async noResolveDirInFileModule({ esbuild, testDir }) {
     const input = path.join(testDir, 'in.js')
     const output = path.join(testDir, 'out.js')

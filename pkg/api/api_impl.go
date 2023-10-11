@@ -1957,6 +1957,7 @@ func (impl *pluginImpl) onResolve(options OnResolveOptions, callback func(OnReso
 				Namespace:     response.Namespace,
 				IgnoredSuffix: response.Suffix,
 			}
+			result.ModuleType = response.ModuleType
 			result.External = response.External
 			result.IsSideEffectFree = response.SideEffects == SideEffectsFalse
 			result.PluginData = response.PluginData
@@ -2099,6 +2100,7 @@ func loadPlugins(initialOptions *BuildOptions, fs fs.FS, log logger.Log, caches 
 			result.Warnings = convertMessagesToPublic(logger.Warning, msgs)
 			if resolveResult != nil {
 				result.Path = resolveResult.PathPair.Primary.Text
+				result.ModuleType = int(resolveResult.ModuleTypeData.Type)
 				result.External = resolveResult.IsExternal
 				result.SideEffects = resolveResult.PrimarySideEffectsData == nil
 				result.Namespace = resolveResult.PathPair.Primary.Namespace

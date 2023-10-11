@@ -782,6 +782,7 @@ type OnResolveResult struct {
 
 	PluginData       interface{}
 	Path             logger.Path
+	ModuleType       js_ast.ModuleType
 	External         bool
 	IsSideEffectFree bool
 }
