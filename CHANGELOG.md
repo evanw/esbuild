@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Update to Unicode 15.1.0
+
+    The character tables that determine which characters form valid JavaScript identifiers have been updated from Unicode version 15.0.0 to the newly-released Unicode version 15.1.0. I'm not putting an example in the release notes because all of the new characters will likely just show up as little squares since fonts haven't been updated yet. But you can read https://www.unicode.org/versions/Unicode15.1.0/#Summary for more information about the changes.
+
 ## 0.19.4
 
 * Fix printing of JavaScript decorators in tricky cases ([#3396](https://github.com/evanw/esbuild/issues/3396))
