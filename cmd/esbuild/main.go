@@ -114,6 +114,7 @@ var helpText = func(colors logger.Colors) string {
   --preserve-symlinks       Disable symlink resolution for module lookup
   --public-path=...         Set the base URL for the "file" loader
   --pure:N                  Mark the name N as a pure function for tree shaking
+  --react-refresh           Enable React Fast Refresh transformation
   --reserve-props=...       Do not mangle these properties
   --resolve-extensions=...  A comma-separated list of implicit extensions
                             (default ".tsx,.ts,.jsx,.js,.css,.json")

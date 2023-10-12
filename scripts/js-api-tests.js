@@ -7336,6 +7336,343 @@ let childProcessTests = {
   },
 }
 
+let refreshTests = [
+  {
+    name: "registers top-level function declarations",
+    input: `
+export function Hello() {
+  function handleClick() {}
+  return <h1 onClick={handleClick}>Hi</h1>;
+}
+export default function Bar() {
+  return <Hello />;
+}
+function Baz() {
+  return <h1>OK</h1>;
+}
+
+const NotAComp = 'hi';
+export { Baz, NotAComp };
+
+export function sum() {}
+export const Bad = 42;
+`,
+    output: `
+export function Hello() {
+  function handleClick() {
+  }
+  return <h1 onClick={handleClick}>Hi</h1>;
+}
+_c = Hello;
+export default function Bar() {
+  return <Hello />;
+}
+_c2 = Bar;
+function Baz() {
+  return <h1>OK</h1>;
+}
+_c3 = Baz;
+const NotAComp = "hi";
+export { Baz, NotAComp };
+export function sum() {
+}
+export const Bad = 42;
+var _c, _c2, _c3;
+$RefreshReg$(_c, "Hello");
+$RefreshReg$(_c2, "Bar");
+$RefreshReg$(_c3, "Baz");
+`.trimStart(),
+  },
+  {
+    name: "registers top-level named arrow functions",
+    input: `
+export const Hello = () => {
+  function handleClick() {}
+  return <h1 onClick={handleClick}>Hi</h1>;
+};
+export let Bar = (props) => <Hello />;
+export default () => {
+  // This one should be ignored.
+  // You should name your components.
+  return <Hello />;
+};
+const Baz = () => {
+  return <Hello />;
+};
+`,
+    output: `
+export const Hello = () => {
+  function handleClick() {
+  }
+  return <h1 onClick={handleClick}>Hi</h1>;
+};
+_c = Hello;
+export let Bar = (props) => <Hello />;
+_c2 = Bar;
+export default () => {
+  return <Hello />;
+};
+const Baz = () => {
+  return <Hello />;
+};
+_c3 = Baz;
+var _c, _c2, _c3;
+$RefreshReg$(_c, "Hello");
+$RefreshReg$(_c2, "Bar");
+$RefreshReg$(_c3, "Baz");
+`.trimStart(),
+  },
+  {
+    name: "registers memo & forwardRef",
+    input: `
+import React, { memo, forwardRef } from "react";
+const A = React.forwardRef(function() {
+  return <h1>Foo</h1>;
+});
+const B = memo(forwardRef(() => {
+  return <h1>Foo</h1>;
+}));
+`,
+    output: `
+import React, { memo, forwardRef } from "react";
+const A = React.forwardRef(function() {
+  return <h1>Foo</h1>;
+});
+_c = A;
+const B = memo(forwardRef(() => {
+  return <h1>Foo</h1>;
+}));
+_c2 = B;
+var _c, _c2;
+$RefreshReg$(_c, "A");
+$RefreshReg$(_c2, "B");
+`.trimStart(),
+  },
+  {
+    name: "ignores complex definitions",
+    input: `
+let A = foo ? () => {
+  return <h1>Hi</h1>;
+} : null
+const B = (function Foo() {
+  return <h1>Hi</h1>;
+})();
+let C = () => () => {
+  return <h1>Hi</h1>;
+};
+let D = bar && (() => {
+  return <h1>Hi</h1>;
+});
+`,
+    output: `
+let A = foo ? () => {
+  return <h1>Hi</h1>;
+} : null;
+const B = function Foo() {
+  return <h1>Hi</h1>;
+}();
+let C = () => () => {
+  return <h1>Hi</h1>;
+};
+let D = bar && (() => {
+  return <h1>Hi</h1>;
+});
+`.trimStart(),
+  },
+  {
+    name: "registers capitalized identifiers in HOC calls",
+    input: `
+function Foo() {
+  return <h1>Hi</h1>;
+}
+export default hoc(Foo); // Will be registered at runtime
+export const A = hoc(Foo);
+const B = hoc(Foo);
+`,
+    output: `
+function Foo() {
+  return <h1>Hi</h1>;
+}
+_c = Foo;
+export default hoc(Foo);
+export const A = hoc(Foo);
+_c2 = A;
+const B = hoc(Foo);
+_c3 = B;
+var _c, _c2, _c3;
+$RefreshReg$(_c, "Foo");
+$RefreshReg$(_c2, "A");
+$RefreshReg$(_c3, "B");
+`.trimStart(),
+  },
+  {
+    name: "generates signatures for function declarations calling hooks",
+    input: `
+import React, { useState, useReducer, useCallback } from "react";
+export function App() {
+  const [foo, setFoo] = useState(0);
+  const [state, dispatch] = useReducer(reducer, createInitialState(username));
+  const reducerV2 = useReducer(reducer, username, createInitialState);
+  useCallback(() => {});
+  React.useEffect(() => {});
+  return <h1>{foo}</h1>;
+}
+`,
+    output: `
+import React, { useState, useReducer, useCallback } from "react";
+export function App() {
+  _s();
+  const [foo, setFoo] = useState(0);
+  const [state, dispatch] = useReducer(reducer, createInitialState(username));
+  const reducerV2 = useReducer(reducer, username, createInitialState);
+  useCallback(() => {
+  });
+  React.useEffect(() => {
+  });
+  return <h1>{foo}</h1>;
+}
+var _s = $RefreshSig$();
+_s(App, "useState{0} useReducer{createInitialState(username)} useReducer{username, createInitialState} useCallback{} useEffect{}");
+_c = App;
+var _c;
+$RefreshReg$(_c, "App");
+`.trimStart(),
+  },
+  {
+    name: "generates signatures for memo & forwardRef",
+    input:
+        `
+import React, { useState, forwardRef, memo } from "react";
+export const A = React.memo(React.forwardRef((props, ref) => {
+  const [foo, setFoo] = useState(0);
+  React.useEffect(() => {});
+  return <h1 ref={ref}>{foo}</h1>;
+}));
+
+export const B = forwardRef(memo(function(props, ref) {
+  const [foo, setFoo] = useState(0);
+  React.useEffect(() => {});
+  return <h1 ref={ref}>{foo}</h1>;
+}));
+`,
+    output: `
+import React, { useState, forwardRef, memo } from "react";
+export const A = React.memo(React.forwardRef((props, ref) => {
+  _s();
+  const [foo, setFoo] = useState(0);
+  React.useEffect(() => {
+  });
+  return <h1 ref={ref}>{foo}</h1>;
+}));
+var _s = $RefreshSig$();
+_s(A, "useState{0} useEffect{}");
+_c = A;
+export const B = forwardRef(memo(function(props, ref) {
+  _s2();
+  const [foo, setFoo] = useState(0);
+  React.useEffect(() => {
+  });
+  return <h1 ref={ref}>{foo}</h1>;
+}));
+var _s2 = $RefreshSig$();
+_s2(B, "useState{0} useEffect{}");
+_c2 = B;
+var _c, _c2;
+$RefreshReg$(_c, "A");
+$RefreshReg$(_c2, "B");
+`.trimStart(),
+  },
+  {
+    name: "includes custom hooks into the signatures",
+    input: `
+import React from "react";
+import FancyHooks from "fancy";
+
+function useFancyState() {
+  const [foo, setFoo] = React.useState(0);
+  useFancyEffect();
+  return foo;
+}
+
+const useFancyEffect = () => {
+  React.useEffect(() => {});
+};
+
+export default function App() {
+  const bar = FancyHooks.useThing();
+  const baz = useFancyState();
+  React.useState();
+  FancyHooks.useThePlatform();
+  useFancyEffect();
+  return <h1>{bar}</h1>;
+}
+`,
+    output: `
+import React from "react";
+import FancyHooks from "fancy";
+function useFancyState() {
+  _s();
+  const [foo, setFoo] = React.useState(0);
+  useFancyEffect();
+  return foo;
+}
+var _s = $RefreshSig$();
+_s(useFancyState, "useState{0} useFancyEffect{}", false, function() {
+  return [useFancyEffect];
+});
+const useFancyEffect = () => {
+  _s2();
+  React.useEffect(() => {
+  });
+};
+var _s2 = $RefreshSig$();
+_s2(useFancyEffect, "useEffect{}");
+export default function App() {
+  _s3();
+  const bar = FancyHooks.useThing();
+  const baz = useFancyState();
+  React.useState();
+  FancyHooks.useThePlatform();
+  useFancyEffect();
+  return <h1>{bar}</h1>;
+}
+var _s3 = $RefreshSig$();
+_s3(App, "useThing{} useFancyState{} useState{} useThePlatform{} useFancyEffect{}", false, function() {
+  return [FancyHooks.useThing, useFancyState, FancyHooks.useThePlatform, useFancyEffect];
+});
+_c = App;
+var _c;
+$RefreshReg$(_c, "App");
+`.trimStart(),
+  },
+  {
+    name: "handle @refresh reset comments",
+    input: `
+import { useState } from "react";
+/* @refresh reset */
+function useFancyState() {
+  const [foo, setFoo] = useState(0);
+  return foo;
+}`,
+    output: `
+import { useState } from "react";
+function useFancyState() {
+  _s();
+  const [foo, setFoo] = useState(0);
+  return foo;
+}
+var _s = $RefreshSig$();
+_s(useFancyState, "useState{0}", true);
+`.trimStart(),
+  },
+].map(t => [
+  t.name,
+  async ({ esbuild }) => assert.strictEqual(
+    (await esbuild.transform(t.input, { loader: 'jsx', reactRefresh: true, jsx: 'preserve' })).code,
+    t.output
+  )
+]);
+
 async function assertSourceMap(jsSourceMap, source) {
   jsSourceMap = JSON.parse(jsSourceMap)
   assert.deepStrictEqual(jsSourceMap.version, 3)
@@ -7381,6 +7718,7 @@ async function main() {
     ...Object.entries(analyzeTests),
     ...Object.entries(syncTests),
     ...Object.entries(childProcessTests),
+    ...refreshTests,
   ]
 
   const allTestsPassed = (await Promise.all(tests.map(([name, fn]) => {

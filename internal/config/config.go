@@ -434,11 +434,12 @@ type Options struct {
 	ChunkPathTemplate []PathTemplate
 	AssetPathTemplate []PathTemplate
 
-	Plugins    []Plugin
-	SourceRoot string
-	Stdin      *StdinInfo
-	JSX        JSXOptions
-	LineLimit  int
+	Plugins      []Plugin
+	SourceRoot   string
+	Stdin        *StdinInfo
+	JSX          JSXOptions
+	ReactRefresh bool
+	LineLimit    int
 
 	CSSPrefixData          map[css_ast.D]compat.CSSPrefix
 	UnsupportedJSFeatures  compat.JSFeature

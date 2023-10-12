@@ -5,6 +5,7 @@ import (
 	"math"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -229,6 +230,11 @@ type parser struct {
 	// (Or whatever was specified in the "importSource" option)
 	jsxRuntimeImports map[string]ast.LocRef
 	jsxLegacyImports  map[string]ast.LocRef
+
+	reactRefreshReg      ast.Ref
+	reactRefreshSig      ast.Ref
+	reactRefreshHandles  []reactRefreshHandle
+	reactRefreshSigCount int
 
 	// For lowering private methods
 	weakMapRef ast.Ref
@@ -481,6 +487,7 @@ type optionsThatSupportStructuralEquality struct {
 	treeShaking            bool
 	dropDebugger           bool
 	mangleQuoted           bool
+	reactRefresh           bool
 
 	// This is an internal-only option used for the implementation of Yarn PnP
 	decodeHydrateRuntimeStateYarnPnP bool
@@ -525,6 +532,7 @@ func OptionsFromConfig(options *config.Options) Options {
 			treeShaking:                       options.TreeShaking,
 			dropDebugger:                      options.DropDebugger,
 			mangleQuoted:                      options.MangleQuoted,
+			reactRefresh:                      options.ReactRefresh,
 		},
 	}
 }
@@ -1731,6 +1739,297 @@ func (p *parser) importJSXSymbol(loc logger.Loc, jsx JSXImport) js_ast.Expr {
 	return p.handleIdentifier(loc, &js_ast.EIdentifier{Ref: it.Ref}, identifierOpts{
 		wasOriginallyIdentifier: true,
 	})
+}
+
+func isValidReactComponentName(candidate string) bool {
+	return len(candidate) > 0 && candidate[0] >= 'A' && candidate[0] <= 'Z'
+}
+
+func isReactCustomHook(candidate string) bool {
+	return len(candidate) >= 4 &&
+		candidate[0] == 'u' &&
+		candidate[1] == 's' &&
+		candidate[2] == 'e' &&
+		candidate[3] >= 'A' &&
+		candidate[3] <= 'Z'
+}
+
+var reactBuiltInHooks = map[string]bool{
+	"useState":            true,
+	"useReducer":          true,
+	"useEffect":           true,
+	"useLayoutEffect":     true,
+	"useMemo":             true,
+	"useCallback":         true,
+	"useRef":              true,
+	"useContext":          true,
+	"useImperativeHandle": true,
+	"useDebugValue":       true,
+}
+
+type reactRefreshHandle struct {
+	handle ast.Ref
+	id     string
+}
+
+func (p *parser) reactRefreshRegisterHandle(target ast.Ref, id string) js_ast.Stmt {
+	var handleName = "_c"
+	if len(p.reactRefreshHandles) > 0 {
+		handleName += strconv.Itoa(len(p.reactRefreshHandles) + 1)
+	}
+	var handle = p.newSymbol(ast.SymbolOther, handleName)
+	p.reactRefreshHandles = append(p.reactRefreshHandles, reactRefreshHandle{
+		handle: handle,
+		id:     id,
+	})
+	var loc = p.lexer.Loc()
+	return js_ast.AssignStmt(
+		js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: handle}},
+		js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: target}},
+	)
+}
+
+func (p *parser) reactRefreshGetHookSignature(name string, call *js_ast.ECall) string {
+	if name == "useState" && len(call.Args) > 0 {
+		return "useState{" + p.source.Contents[call.Args[0].Loc.Start:call.CloseParenLoc.Start] + "}"
+	} else if name == "useReducer" && len(call.Args) > 1 {
+		return "useReducer{" + p.source.Contents[call.Args[1].Loc.Start:call.CloseParenLoc.Start] + "}"
+	} else {
+		return name + "{}"
+	}
+}
+
+type ReactRefreshVisitFunctionBodyOutput struct {
+	invalidReturnType      bool
+	registerSignatureStmts []js_ast.Stmt
+}
+
+func (p *parser) reactRefreshVisitFunctionBody(target ast.Ref, body *js_ast.FnBody, isComponent bool) ReactRefreshVisitFunctionBodyOutput {
+	var hooksSignatures []string
+	var customHooks []string
+	var output ReactRefreshVisitFunctionBodyOutput
+
+	for _, stmt := range body.Block.Stmts {
+		// const [state, setState] = (React.)useState()
+		if local, ok := stmt.Data.(*js_ast.SLocal); ok {
+			for _, decl := range local.Decls {
+				if call, ok := decl.ValueOrNil.Data.(*js_ast.ECall); ok {
+					// useState()
+					if importId, ok := call.Target.Data.(*js_ast.EImportIdentifier); ok {
+						var name = p.symbols[importId.Ref.InnerIndex].OriginalName
+						if reactBuiltInHooks[name] {
+							hooksSignatures = append(hooksSignatures, p.reactRefreshGetHookSignature(name, call))
+						}
+					}
+					// React.useState()
+					if member, ok := call.Target.Data.(*js_ast.EDot); ok {
+						if id, ok := member.Target.Data.(*js_ast.EImportIdentifier); ok {
+							var targetName = p.symbols[id.Ref.InnerIndex].OriginalName
+							if targetName == "React" && reactBuiltInHooks[member.Name] {
+								hooksSignatures = append(hooksSignatures, p.reactRefreshGetHookSignature(member.Name, call))
+							} else if isReactCustomHook(member.Name) {
+								// SomeLib.useCustomState()
+								hooksSignatures = append(hooksSignatures, p.reactRefreshGetHookSignature(member.Name, call))
+								customHooks = append(customHooks, targetName+"."+member.Name)
+							}
+						}
+					}
+					// useCustomState() (local)
+					if id, ok := call.Target.Data.(*js_ast.EIdentifier); ok {
+						var name = p.symbols[id.Ref.InnerIndex].OriginalName
+						if isReactCustomHook(name) {
+							hooksSignatures = append(hooksSignatures, p.reactRefreshGetHookSignature(name, call))
+							customHooks = append(customHooks, name)
+						}
+					}
+				}
+			}
+		}
+		// (React.)useEffect(()=> {})
+		if expr, ok := stmt.Data.(*js_ast.SExpr); ok {
+			if call, ok := expr.Value.Data.(*js_ast.ECall); ok {
+				// use(Custom)Effect(()=> {}) (import)
+				if id, ok := call.Target.Data.(*js_ast.EImportIdentifier); ok {
+					var name = p.symbols[id.Ref.InnerIndex].OriginalName
+					if reactBuiltInHooks[name] {
+						hooksSignatures = append(hooksSignatures, p.reactRefreshGetHookSignature(name, call))
+					} else if isReactCustomHook(name) {
+						hooksSignatures = append(hooksSignatures, p.reactRefreshGetHookSignature(name, call))
+						customHooks = append(customHooks, name)
+					}
+				}
+				if member, ok := call.Target.Data.(*js_ast.EDot); ok {
+					// React.useEffect(()=> {})
+					if id, ok := member.Target.Data.(*js_ast.EImportIdentifier); ok {
+						var targetName = p.symbols[id.Ref.InnerIndex].OriginalName
+						if targetName == "React" && reactBuiltInHooks[member.Name] {
+							hooksSignatures = append(hooksSignatures, p.reactRefreshGetHookSignature(member.Name, call))
+						} else if isReactCustomHook(member.Name) {
+							// SomeLib.useCustomEffect()
+							hooksSignatures = append(hooksSignatures, p.reactRefreshGetHookSignature(member.Name, call))
+							customHooks = append(customHooks, targetName+"."+member.Name)
+						}
+					}
+				}
+				// useCustomEffect() (local)
+				if id, ok := call.Target.Data.(*js_ast.EIdentifier); ok {
+					var name = p.symbols[id.Ref.InnerIndex].OriginalName
+					if isReactCustomHook(name) {
+						hooksSignatures = append(hooksSignatures, p.reactRefreshGetHookSignature(name, call))
+						customHooks = append(customHooks, name)
+					}
+				}
+			}
+		}
+		if isComponent {
+			if sReturn, ok := stmt.Data.(*js_ast.SReturn); ok {
+				if _, ok := sReturn.ValueOrNil.Data.(*js_ast.EArrow); ok {
+					output.invalidReturnType = true
+				}
+			}
+		}
+	}
+
+	if output.invalidReturnType {
+		return output
+	}
+
+	if len(hooksSignatures) > 0 {
+		p.reactRefreshSigCount++
+		var sigHandleName = "_s"
+		if p.reactRefreshSigCount > 1 {
+			sigHandleName += strconv.Itoa(p.reactRefreshSigCount)
+		}
+		var sigHandle = p.newSymbol(ast.SymbolOther, sigHandleName)
+		if p.reactRefreshSig == ast.InvalidRef {
+			p.reactRefreshSig = p.newSymbol(ast.SymbolUnbound, "$RefreshSig$")
+		}
+		// add _s() at the start of the body
+		body.Block.Stmts = append([]js_ast.Stmt{{Data: &js_ast.SExpr{
+			Value: js_ast.Expr{Data: &js_ast.ECall{
+				Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: sigHandle}},
+			}},
+		}}}, body.Block.Stmts...)
+		// Comp, "signature", resetBool, function() { return [useA, useB] }
+		var signatureArgs = []js_ast.Expr{
+			{Data: &js_ast.EIdentifier{Ref: target}},
+			{Data: &js_ast.EString{Value: helpers.StringToUTF16(strings.Join(hooksSignatures, " "))}},
+		}
+		var hasRefreshReset = strings.Contains(p.source.Contents, "@refresh reset")
+		if len(customHooks) > 0 || hasRefreshReset {
+			signatureArgs = append(signatureArgs, js_ast.Expr{Data: &js_ast.EBoolean{Value: hasRefreshReset}})
+		}
+		if len(customHooks) > 0 {
+			var customHooksArgs []js_ast.Expr
+			for _, customHook := range customHooks {
+				customHooksArgs = append(customHooksArgs, js_ast.Expr{
+					Data: &js_ast.EIdentifier{Ref: p.newSymbol(ast.SymbolOther, customHook)},
+				})
+			}
+			signatureArgs = append(signatureArgs,
+				js_ast.Expr{Data: &js_ast.EFunction{
+					Fn: js_ast.Fn{
+						Body: js_ast.FnBody{
+							Block: js_ast.SBlock{
+								Stmts: []js_ast.Stmt{{
+									Data: &js_ast.SReturn{
+										ValueOrNil: js_ast.Expr{Data: &js_ast.EArray{
+											IsSingleLine: true,
+											Items:        customHooksArgs,
+										}},
+									},
+								}},
+							},
+						},
+					},
+				}},
+			)
+		}
+
+		output.registerSignatureStmts = append(
+			output.registerSignatureStmts,
+			// var _s = $RefreshSig$()
+			js_ast.Stmt{Data: &js_ast.SLocal{
+				Kind: js_ast.LocalVar,
+				Decls: []js_ast.Decl{{
+					Binding: js_ast.Binding{Data: &js_ast.BIdentifier{Ref: sigHandle}},
+					ValueOrNil: js_ast.Expr{Data: &js_ast.ECall{
+						Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: p.reactRefreshSig}},
+					}},
+				}},
+			}},
+			// _s(...signatureArgs)
+			js_ast.Stmt{Data: &js_ast.SExpr{
+				Value: js_ast.Expr{Data: &js_ast.ECall{
+					Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: sigHandle}},
+					Args:   signatureArgs,
+				}},
+			}},
+		)
+	}
+
+	return output
+}
+
+func (p *parser) reactRefreshVisitComponentBody(target ast.Ref, id string, body *js_ast.FnBody) []js_ast.Stmt {
+	var stmts []js_ast.Stmt
+
+	var output = p.reactRefreshVisitFunctionBody(target, body, true)
+	if output.invalidReturnType {
+		return stmts
+	}
+
+	if len(output.registerSignatureStmts) > 0 {
+		stmts = append(stmts, output.registerSignatureStmts...)
+	}
+
+	stmts = append(stmts, p.reactRefreshRegisterHandle(target, id))
+	return stmts
+}
+
+func (p *parser) reactRefreshVisitFunction(fn *js_ast.Fn) []js_ast.Stmt {
+	var name = p.symbols[fn.Name.Ref.InnerIndex].OriginalName
+	if isValidReactComponentName(name) {
+		return p.reactRefreshVisitComponentBody(fn.Name.Ref, name, &fn.Body)
+	} else if isReactCustomHook(name) {
+		return p.reactRefreshVisitFunctionBody(fn.Name.Ref, &fn.Body, false).registerSignatureStmts
+	}
+	return []js_ast.Stmt{}
+}
+
+func (p *parser) reactRefreshVisitExpression(target ast.Ref, id string, expr *js_ast.Expr) []js_ast.Stmt {
+	var fnBody *js_ast.FnBody
+	// Arrow & expression functions
+	if eArrow, ok := expr.Data.(*js_ast.EArrow); ok {
+		fnBody = &eArrow.Body
+	}
+	if eFn, ok := expr.Data.(*js_ast.EFunction); ok {
+		fnBody = &eFn.Fn.Body
+	}
+	if fnBody != nil {
+		return p.reactRefreshVisitComponentBody(target, id, fnBody)
+	}
+	if eCall, ok := expr.Data.(*js_ast.ECall); ok {
+		if member, ok := eCall.Target.Data.(*js_ast.EDot); ok {
+			if importId, ok := member.Target.Data.(*js_ast.EImportIdentifier); ok {
+				if p.symbols[importId.Ref.InnerIndex].OriginalName == "React" {
+					if member.Name == "forwardRef" || member.Name == "memo" {
+						if len(eCall.Args) == 1 {
+							return p.reactRefreshVisitExpression(target, id, &eCall.Args[0])
+						}
+					}
+				}
+			}
+		} else if importId, ok := eCall.Target.Data.(*js_ast.EImportIdentifier); ok {
+			var fnName = p.symbols[importId.Ref.InnerIndex].OriginalName
+			if fnName == "forwardRef" || fnName == "memo" {
+				if len(eCall.Args) == 1 {
+					return p.reactRefreshVisitExpression(target, id, &eCall.Args[0])
+				}
+			}
+		}
+	}
+	return []js_ast.Stmt{}
 }
 
 func (p *parser) valueToSubstituteForRequire(loc logger.Loc) js_ast.Expr {
@@ -8408,6 +8707,31 @@ func (p *parser) visitStmtsAndPrependTempRefs(stmts []js_ast.Stmt, opts prependT
 
 	p.tempRefsToDeclare = oldTempRefs
 	p.tempRefCount = oldTempRefCount
+
+	if p.options.reactRefresh && p.currentScope == p.moduleScope && len(p.reactRefreshHandles) > 0 {
+		// Append to the end of the module:
+		// var _c, _c2;
+		// $RefreshReg$(_c, "Hello");
+		// $RefreshReg$(_c2, "Bar");
+		if p.reactRefreshReg == ast.InvalidRef {
+			p.reactRefreshReg = p.newSymbol(ast.SymbolUnbound, "$RefreshReg$")
+		}
+		var decls []js_ast.Decl
+		for _, handle := range p.reactRefreshHandles {
+			decls = append(decls, js_ast.Decl{Binding: js_ast.Binding{Data: &js_ast.BIdentifier{Ref: handle.handle}}})
+		}
+		stmts = append(stmts, js_ast.Stmt{Data: &js_ast.SLocal{Kind: js_ast.LocalVar, Decls: decls}})
+		for _, handle := range p.reactRefreshHandles {
+			stmts = append(stmts, js_ast.Stmt{Data: &js_ast.SExpr{Value: js_ast.Expr{Data: &js_ast.ECall{
+				Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: p.reactRefreshReg}},
+				Args: []js_ast.Expr{
+					{Data: &js_ast.EIdentifier{Ref: handle.handle}},
+					{Data: &js_ast.EString{Value: helpers.StringToUTF16(handle.id)}},
+				},
+			}}}})
+		}
+	}
+
 	return stmts
 }
 
@@ -10006,6 +10330,13 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			p.visitFn(&s2.Fn, s2.Fn.OpenParenLoc, visitFnOpts{})
 			stmts = append(stmts, stmt)
 
+			if p.options.reactRefresh && s2.Fn.Name != nil {
+				var reactRefreshStmts = p.reactRefreshVisitFunction(&s2.Fn)
+				if len(reactRefreshStmts) > 0 {
+					stmts = append(stmts, reactRefreshStmts...)
+				}
+			}
+
 			// Optionally preserve the name
 			if p.options.keepNames {
 				p.symbols[s2.Fn.Name.Ref.InnerIndex].Flags |= ast.DidKeepName
@@ -10157,6 +10488,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		// Local statements do not end the const local prefix
 		p.currentScope.IsAfterConstLocalPrefix = wasAfterAfterConstLocalPrefix
 
+		var registerRefreshStmts []js_ast.Stmt
 		for i := range s.Decls {
 			d := &s.Decls[i]
 			p.visitBinding(d.Binding, bindingOpts{})
@@ -10174,8 +10506,46 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 						p.nameToKeepIsFor = d.ValueOrNil.Data
 					}
 				}
+				if p.options.reactRefresh && p.currentScope == p.moduleScope {
+					// This case is done before visitExpr because loadNameFromRef throws invalid symbol reference otherwise
+					if id, ok := d.Binding.Data.(*js_ast.BIdentifier); ok {
+						var name = p.symbols[id.Ref.InnerIndex].OriginalName
+						if isValidReactComponentName(name) {
+							if eCall, ok := d.ValueOrNil.Data.(*js_ast.ECall); ok {
+								// HOC calls (e.g. const Foo = connect(Bar))
+								if len(eCall.Args) == 1 {
+									if argId, ok := eCall.Args[0].Data.(*js_ast.EIdentifier); ok {
+										if isValidReactComponentName(p.loadNameFromRef(argId.Ref)) {
+											registerRefreshStmts = append(registerRefreshStmts, p.reactRefreshRegisterHandle(id.Ref, name))
+										}
+									}
+								}
+							}
+						}
+					}
+				}
 
 				d.ValueOrNil = p.visitExpr(d.ValueOrNil)
+
+				if p.options.reactRefresh && p.currentScope == p.moduleScope {
+					if id, ok := d.Binding.Data.(*js_ast.BIdentifier); ok {
+						var name = p.symbols[id.Ref.InnerIndex].OriginalName
+						if isValidReactComponentName(name) {
+							var reactRefreshStmts = p.reactRefreshVisitExpression(id.Ref, name, &d.ValueOrNil)
+							if len(reactRefreshStmts) > 0 {
+								registerRefreshStmts = append(registerRefreshStmts, reactRefreshStmts...)
+							}
+						}
+						if isReactCustomHook(name) {
+							if eArrow, ok := d.ValueOrNil.Data.(*js_ast.EArrow); ok {
+								var data = p.reactRefreshVisitFunctionBody(id.Ref, &eArrow.Body, false)
+								if len(data.registerSignatureStmts) > 0 {
+									registerRefreshStmts = append(registerRefreshStmts, data.registerSignatureStmts...)
+								}
+							}
+						}
+					}
+				}
 
 				p.shouldFoldTypeScriptConstantExpressions = oldShouldFoldTypeScriptConstantExpressions
 
@@ -10285,6 +10655,12 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 				}
 				return stmts
 			}
+		}
+
+		if len(registerRefreshStmts) > 0 {
+			stmts = append(stmts, stmt)
+			stmts = append(stmts, registerRefreshStmts...)
+			return stmts
 		}
 
 	case *js_ast.SExpr:
@@ -10686,6 +11062,13 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			))
 		} else {
 			stmts = append(stmts, stmt)
+		}
+
+		if p.options.reactRefresh && p.currentScope == p.moduleScope && s.Fn.Name != nil {
+			var reactRefreshStmts = p.reactRefreshVisitFunction(&s.Fn)
+			if len(reactRefreshStmts) > 0 {
+				stmts = append(stmts, reactRefreshStmts...)
+			}
 		}
 
 		// Optionally preserve the name
@@ -16541,6 +16924,9 @@ func newParser(log logger.Log, source logger.Source, lexer js_lexer.Lexer, optio
 		// For JSX runtime imports
 		jsxRuntimeImports: make(map[string]ast.LocRef),
 		jsxLegacyImports:  make(map[string]ast.LocRef),
+
+		reactRefreshReg: ast.InvalidRef,
+		reactRefreshSig: ast.InvalidRef,
 
 		suppressWarningsAboutWeirdCode: helpers.IsInsideNodeModules(source.KeyPath.Text),
 	}
