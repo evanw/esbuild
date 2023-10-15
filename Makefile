@@ -1049,8 +1049,12 @@ bench-rome-parcel2: | require/parcel2/node_modules bench/rome bench/rome-verify
 	# Also inject "includeNodeModules": true or the aliases will be ignored.
 	cat require/parcel2/package.json | sed '/^\}/d' > bench/rome/parcel2/package.json
 	echo ', "engines": { "node": "14.0.0" }' >> bench/rome/parcel2/package.json
-	echo ', "targets": { "main": { "includeNodeModules": true } }' >> bench/rome/parcel2/package.json
+	echo ', "targets": { "main": { "includeNodeModules": true, "optimize": true } }' >> bench/rome/parcel2/package.json
 	echo ', $(ROME_PARCEL_ALIASES) }' >> bench/rome/parcel2/package.json
+
+	# Parcel's minifier preserves all comments in the source code by default.
+	# Removing comments in the minified output requires a config file.
+	echo '{ "format": { "comments": false } }' > bench/rome/parcel2/.terserrc
 
 	cd bench/rome/parcel2 && time -p node_modules/.bin/parcel build entry.ts --dist-dir . --cache-dir .cache
 	du -h bench/rome/parcel2/entry.js*
