@@ -97,6 +97,9 @@ func (p *parser) mangleFont(tokens []css_ast.Token) []css_ast.Token {
 
 	// <font-family>
 	if family, ok := p.mangleFontFamily(tokens[pos:]); ok {
+		if len(result) > 0 && len(family) > 0 && family[0].Kind != css_lexer.TString {
+			family[0].Whitespace |= css_ast.WhitespaceBefore
+		}
 		return append(result, family...)
 	}
 	return tokens

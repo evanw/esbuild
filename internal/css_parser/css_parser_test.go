@@ -2215,6 +2215,14 @@ func TestFont(t *testing.T) {
 
 	expectPrintedMangleMinify(t, "a { font: italic small-caps bold ultra-condensed 1rem/1.2 'aaa bbb' }", "a{font:italic small-caps 700 ultra-condensed 1rem/1.2 aaa bbb}", "")
 	expectPrintedMangleMinify(t, "a { font: italic small-caps bold ultra-condensed 1rem / 1.2 'aaa bbb' }", "a{font:italic small-caps 700 ultra-condensed 1rem/1.2 aaa bbb}", "")
+
+	// See: https://github.com/evanw/esbuild/issues/3452
+	expectPrinted(t, "a { font: 10px'foo' }", "a {\n  font: 10px\"foo\";\n}\n", "")
+	expectPrinted(t, "a { font: 10px'123' }", "a {\n  font: 10px\"123\";\n}\n", "")
+	expectPrintedMangle(t, "a { font: 10px'foo' }", "a {\n  font: 10px foo;\n}\n", "")
+	expectPrintedMangle(t, "a { font: 10px'123' }", "a {\n  font: 10px\"123\";\n}\n", "")
+	expectPrintedMangleMinify(t, "a { font: 10px'foo' }", "a{font:10px foo}", "")
+	expectPrintedMangleMinify(t, "a { font: 10px'123' }", "a{font:10px\"123\"}", "")
 }
 
 func TestWarningUnexpectedCloseBrace(t *testing.T) {

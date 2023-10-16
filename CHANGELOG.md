@@ -2,9 +2,26 @@
 
 ## Unreleased
 
+* Fix a CSS `font` property minification bug ([#3452](https://github.com/evanw/esbuild/issues/3452))
+
+    This release fixes a bug where esbuild's CSS minifier didn't insert a space between the font size and the font family in the `font` CSS shorthand property in the edge case where the original source code didn't already have a space and the leading string token was shortened to an identifier:
+
+    ```css
+    /* Original code */
+    .foo { font: 16px"Menlo"; }
+
+    /* Old output (with --minify) */
+    .foo{font:16pxMenlo}
+
+    /* New output (with --minify) */
+    .foo{font:16px Menlo}
+    ```
+
 * Update to Unicode 15.1.0
 
     The character tables that determine which characters form valid JavaScript identifiers have been updated from Unicode version 15.0.0 to the newly-released Unicode version 15.1.0. I'm not putting an example in the release notes because all of the new characters will likely just show up as little squares since fonts haven't been updated yet. But you can read https://www.unicode.org/versions/Unicode15.1.0/#Summary for more information about the changes.
+
+    This upgrade was contributed by [@JLHwung](https://github.com/JLHwung).
 
 ## 0.19.4
 
