@@ -889,6 +889,11 @@ func (r resolverQuery) finalizeResolve(result *ResolveResult) {
 				continue
 			}
 
+			// Path attributes are not taken from disabled files
+			if path.IsDisabled() {
+				continue
+			}
+
 			// Look up this file in the "sideEffects" map in the nearest enclosing
 			// directory with a "package.json" file.
 			//

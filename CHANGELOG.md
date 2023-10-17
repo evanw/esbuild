@@ -29,6 +29,10 @@
 
     In the future, CSS `url()` tokens may contain additional stuff after the URL. This is irrelevant today as no CSS specification does this. But esbuild previously had a bug where using these tokens in an `@import` rule resulted in malformed output. This bug has been fixed.
 
+* Fix `browser` + `false` + `type: module` in `package.json` ([#3367](https://github.com/evanw/esbuild/issues/3367))
+
+    The `browser` field in `package.json` allows you to map a file to `false` to have it be treated as an empty file when bundling for the browser. However, if `package.json` contains `"type": "module"` then all `.js` files will be considered ESM, not CommonJS. Importing a named import from an empty CommonJS file gives you undefined, but importing a named export from an empty ESM file is a build error. This release changes esbuild's interpretation of these files mapped to `false` in this situation from ESM to CommonJS to avoid generating build errors for named imports.
+
 * Fix a bug in top-level await error reporting ([#3400](https://github.com/evanw/esbuild/issues/3400))
 
     Using `require()` on a file that contains [top-level await](https://v8.dev/features/top-level-await) is not allowed because `require()` must return synchronously and top-level await makes that impossible. You will get a build error if you try to bundle code that does this with esbuild. This release fixes a bug in esbuild's error reporting code for complex cases of this situation involving multiple levels of imports to get to the module containing the top-level await.

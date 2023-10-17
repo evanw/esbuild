@@ -2841,3 +2841,35 @@ NOTE: You can mark the path "msw/browser" as external to exclude it from the bun
 `,
 	})
 }
+
+// See: https://github.com/evanw/esbuild/issues/3367
+func TestPackageJsonDisabledTypeModuleIssue3367(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import foo from 'foo'
+				foo()
+			`,
+			"/package.json": `
+				{
+					"browser": {
+						"foo": false
+					}
+				}
+			`,
+			"/node_modules/foo/package.json": `
+				{
+					"type": "module"
+				}
+			`,
+			"/node_modules/foo/index.js": `
+				export default function() {}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}

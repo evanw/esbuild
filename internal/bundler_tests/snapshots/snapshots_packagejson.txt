@@ -416,6 +416,19 @@ function main_browser_esm_default() {
 console.log(main_browser_esm_default());
 
 ================================================================================
+TestPackageJsonDisabledTypeModuleIssue3367
+---------- /out.js ----------
+// (disabled):node_modules/foo/index.js
+var require_foo = __commonJS({
+  "(disabled):node_modules/foo/index.js"() {
+  }
+});
+
+// entry.js
+var import_foo = __toESM(require_foo());
+(0, import_foo.default)();
+
+================================================================================
 TestPackageJsonDualPackageHazardImportAndRequireBrowser
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/node_modules/demo-pkg/main.browser.js
