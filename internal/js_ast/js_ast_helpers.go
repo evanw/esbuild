@@ -938,8 +938,20 @@ func ToNumberWithoutSideEffects(data E) (float64, bool) {
 	case *ENull:
 		return 0, true
 
-	case *EUndefined:
+	case *EUndefined, *ERegExp:
 		return math.NaN(), true
+
+	case *EArray:
+		if len(e.Items) == 0 {
+			// "+[]" => "0"
+			return 0, true
+		}
+
+	case *EObject:
+		if len(e.Properties) == 0 {
+			// "+{}" => "NaN"
+			return math.NaN(), true
+		}
 
 	case *EBoolean:
 		if e.Value {
