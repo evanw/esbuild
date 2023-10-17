@@ -3408,6 +3408,20 @@ func TestMangleStringLength(t *testing.T) {
 	expectPrintedMangle(t, "a = '👯‍♂️'.length", "a = 5;\n")
 }
 
+func TestMangleStringIndex(t *testing.T) {
+	expectPrinted(t, "a = 'abc'[0]", "a = \"abc\"[0];\n")
+	expectPrintedMangle(t, "a = 'abc'[-1]", "a = \"abc\"[-1];\n")
+	expectPrintedMangle(t, "a = 'abc'[-0]", "a = \"a\";\n")
+	expectPrintedMangle(t, "a = 'abc'[0]", "a = \"a\";\n")
+	expectPrintedMangle(t, "a = 'abc'[2]", "a = \"c\";\n")
+	expectPrintedMangle(t, "a = 'abc'[3]", "a = \"abc\"[3];\n")
+	expectPrintedMangle(t, "a = 'abc'[NaN]", "a = \"abc\"[NaN];\n")
+	expectPrintedMangle(t, "a = 'abc'[-1e100]", "a = \"abc\"[-1e100];\n")
+	expectPrintedMangle(t, "a = 'abc'[1e100]", "a = \"abc\"[1e100];\n")
+	expectPrintedMangle(t, "a = 'abc'[-Infinity]", "a = \"abc\"[-Infinity];\n")
+	expectPrintedMangle(t, "a = 'abc'[Infinity]", "a = \"abc\"[Infinity];\n")
+}
+
 func TestMangleNot(t *testing.T) {
 	// These can be mangled
 	expectPrintedNormalAndMangle(t, "a = !(b == c)", "a = !(b == c);\n", "a = b != c;\n")

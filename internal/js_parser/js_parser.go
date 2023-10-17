@@ -13601,11 +13601,20 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 		}
 
-		// "a['123']" => "a[123]" (this is done late to allow "'123'" to be mangled)
 		if p.options.minifySyntax {
-			if str, ok := e.Index.Data.(*js_ast.EString); ok {
-				if numberValue, ok := js_ast.StringToEquivalentNumberValue(str.Value); ok {
+			switch index := e.Index.Data.(type) {
+			case *js_ast.EString:
+				// "a['123']" => "a[123]" (this is done late to allow "'123'" to be mangled)
+				if numberValue, ok := js_ast.StringToEquivalentNumberValue(index.Value); ok {
 					e.Index.Data = &js_ast.ENumber{Value: numberValue}
+				}
+
+			case *js_ast.ENumber:
+				// "'abc'[1]" => "'b'"
+				if target, ok := e.Target.Data.(*js_ast.EString); ok {
+					if intValue := math.Floor(index.Value); index.Value == intValue && intValue >= 0 && intValue < float64(len(target.Value)) {
+						return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EString{Value: []uint16{target.Value[int(intValue)]}}}, out
+					}
 				}
 			}
 		}
