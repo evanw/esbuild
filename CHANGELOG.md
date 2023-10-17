@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.19.5
 
 * Fix a regression in 0.19.0 regarding `paths` in `tsconfig.json` ([#3354](https://github.com/evanw/esbuild/issues/3354))
 
