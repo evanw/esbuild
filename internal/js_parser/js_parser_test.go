@@ -3332,6 +3332,9 @@ func TestMangleIndex(t *testing.T) {
 	expectPrintedNormalAndMangle(t, "x?.['y']()", "x?.[\"y\"]();\n", "x?.y();\n")
 	expectPrintedNormalAndMangle(t, "x?.['y z']()", "x?.[\"y z\"]();\n", "x?.[\"y z\"]();\n")
 
+	expectPrintedNormalAndMangle(t, "x['y' + 'z']", "x[\"yz\"];\n", "x.yz;\n")
+	expectPrintedNormalAndMangle(t, "x?.['y' + 'z']", "x?.[\"yz\"];\n", "x?.[\"yz\"];\n")
+
 	// Check the string-to-int optimization
 	expectPrintedNormalAndMangle(t, "x['0']", "x[\"0\"];\n", "x[0];\n")
 	expectPrintedNormalAndMangle(t, "x['123']", "x[\"123\"];\n", "x[123];\n")

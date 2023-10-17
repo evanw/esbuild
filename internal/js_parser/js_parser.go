@@ -13604,6 +13604,18 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		if p.options.minifySyntax {
 			switch index := e.Index.Data.(type) {
 			case *js_ast.EString:
+				// "a['x' + 'y']" => "a.xy" (this is done late to allow for constant folding)
+				if js_ast.IsIdentifierUTF16(index.Value) {
+					return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EDot{
+						Target:                     e.Target,
+						Name:                       helpers.UTF16ToString(index.Value),
+						NameLoc:                    e.Index.Loc,
+						OptionalChain:              e.OptionalChain,
+						CanBeRemovedIfUnused:       e.CanBeRemovedIfUnused,
+						CallCanBeUnwrappedIfUnused: e.CallCanBeUnwrappedIfUnused,
+					}}, out
+				}
+
 				// "a['123']" => "a[123]" (this is done late to allow "'123'" to be mangled)
 				if numberValue, ok := js_ast.StringToEquivalentNumberValue(index.Value); ok {
 					e.Index.Data = &js_ast.ENumber{Value: numberValue}
