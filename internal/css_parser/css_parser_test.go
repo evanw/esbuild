@@ -375,6 +375,27 @@ func TestNumber(t *testing.T) {
 	}
 }
 
+func TestURL(t *testing.T) {
+	expectPrinted(t, "a { background: url(foo.png) }", "a {\n  background: url(foo.png);\n}\n", "")
+	expectPrinted(t, "a { background: url('foo.png') }", "a {\n  background: url(foo.png);\n}\n", "")
+	expectPrinted(t, "a { background: url(\"foo.png\") }", "a {\n  background: url(foo.png);\n}\n", "")
+	expectPrinted(t, "a { background: url(\"foo.png\" ) }", "a {\n  background: url(foo.png);\n}\n", "")
+	expectPrinted(t, "a { background: url(\"foo.png\"\t) }", "a {\n  background: url(foo.png);\n}\n", "")
+	expectPrinted(t, "a { background: url(\"foo.png\"\r) }", "a {\n  background: url(foo.png);\n}\n", "")
+	expectPrinted(t, "a { background: url(\"foo.png\"\n) }", "a {\n  background: url(foo.png);\n}\n", "")
+	expectPrinted(t, "a { background: url(\"foo.png\"\f) }", "a {\n  background: url(foo.png);\n}\n", "")
+	expectPrinted(t, "a { background: url(\"foo.png\"\r\n) }", "a {\n  background: url(foo.png);\n}\n", "")
+	expectPrinted(t, "a { background: url( \"foo.png\") }", "a {\n  background: url(foo.png);\n}\n", "")
+	expectPrinted(t, "a { background: url(\t\"foo.png\") }", "a {\n  background: url(foo.png);\n}\n", "")
+	expectPrinted(t, "a { background: url(\r\"foo.png\") }", "a {\n  background: url(foo.png);\n}\n", "")
+	expectPrinted(t, "a { background: url(\n\"foo.png\") }", "a {\n  background: url(foo.png);\n}\n", "")
+	expectPrinted(t, "a { background: url(\f\"foo.png\") }", "a {\n  background: url(foo.png);\n}\n", "")
+	expectPrinted(t, "a { background: url(\r\n\"foo.png\") }", "a {\n  background: url(foo.png);\n}\n", "")
+	expectPrinted(t, "a { background: url( \"foo.png\" ) }", "a {\n  background: url(foo.png);\n}\n", "")
+	expectPrinted(t, "a { background: url(\"foo.png\" extra-stuff) }", "a {\n  background: url(\"foo.png\" extra-stuff);\n}\n", "")
+	expectPrinted(t, "a { background: url( \"foo.png\" extra-stuff ) }", "a {\n  background: url(\"foo.png\" extra-stuff);\n}\n", "")
+}
+
 func TestHexColor(t *testing.T) {
 	// "#RGBA"
 

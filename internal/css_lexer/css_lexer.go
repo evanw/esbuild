@@ -763,12 +763,25 @@ func (lexer *lexer) consumeIdentLike() T {
 		if len(name) == 3 {
 			u, r, l := name[0], name[1], name[2]
 			if (u == 'u' || u == 'U') && (r == 'r' || r == 'R') && (l == 'l' || l == 'L') {
+				// Save state
+				approximateNewlineCount := lexer.approximateNewlineCount
+				codePoint := lexer.codePoint
+				tokenRangeLen := lexer.Token.Range.Len
+				current := lexer.current
+
+				// Check to see if this is a URL token instead of a function
 				for isWhitespace(lexer.codePoint) {
 					lexer.step()
 				}
 				if lexer.codePoint != '"' && lexer.codePoint != '\'' {
 					return lexer.consumeURL(matchingLoc)
 				}
+
+				// Restore state (i.e. backtrack)
+				lexer.approximateNewlineCount = approximateNewlineCount
+				lexer.codePoint = codePoint
+				lexer.Token.Range.Len = tokenRangeLen
+				lexer.current = current
 			}
 		}
 		return TFunction
