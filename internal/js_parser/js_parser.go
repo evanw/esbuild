@@ -14554,6 +14554,29 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				}
 			}
 
+			// Recognize "charCodeAt()" calls
+			if p.options.minifySyntax && len(e.Args) <= 1 {
+				if t.Name == "charCodeAt" {
+					if str, ok := t.Target.Data.(*js_ast.EString); ok {
+						index := 0
+						hasIndex := false
+						if len(e.Args) == 0 {
+							hasIndex = true
+						} else if num, ok := e.Args[0].Data.(*js_ast.ENumber); ok && num.Value == math.Trunc(num.Value) && math.Abs(num.Value) <= 0x7FFF_FFFF {
+							index = int(num.Value)
+							hasIndex = true
+						}
+						if hasIndex {
+							if index >= 0 && index < len(str.Value) {
+								return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(str.Value[index])}}, exprOut{}
+							} else {
+								return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: math.NaN()}}, exprOut{}
+							}
+						}
+					}
+				}
+			}
+
 			// Copy the call side effect flag over if this is a known target
 			if t.CallCanBeUnwrappedIfUnused {
 				e.CanBeUnwrappedIfUnused = true

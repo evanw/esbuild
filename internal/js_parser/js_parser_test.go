@@ -3559,6 +3559,28 @@ func TestMangleBigIntConstructor(t *testing.T) {
 	expectPrintedNormalAndMangle(t, "a = BigInt(b ? 0n : 1n)", "a = BigInt(b ? 0n : 1n);\n", "a = b ? 0n : 1n;\n")
 }
 
+func TestMangleCharCodeAt(t *testing.T) {
+	expectPrinted(t, "a = 'xy'.charCodeAt(0)", "a = \"xy\".charCodeAt(0);\n")
+
+	expectPrintedMangle(t, "a = 'xy'.charCodeAt()", "a = 120;\n")
+	expectPrintedMangle(t, "a = 'xy'.charCodeAt(0)", "a = 120;\n")
+	expectPrintedMangle(t, "a = 'xy'.charCodeAt(1)", "a = 121;\n")
+	expectPrintedMangle(t, "a = 'xy'.charCodeAt(-1)", "a = NaN;\n")
+	expectPrintedMangle(t, "a = 'xy'.charCodeAt(2)", "a = NaN;\n")
+
+	expectPrintedMangle(t, "a = '🧀'.charCodeAt()", "a = 55358;\n")
+	expectPrintedMangle(t, "a = '🧀'.charCodeAt(0)", "a = 55358;\n")
+	expectPrintedMangle(t, "a = '🧀'.charCodeAt(1)", "a = 56768;\n")
+	expectPrintedMangle(t, "a = '🧀'.charCodeAt(-1)", "a = NaN;\n")
+	expectPrintedMangle(t, "a = '🧀'.charCodeAt(2)", "a = NaN;\n")
+
+	expectPrintedMangle(t, "a = 'xy'.charCodeAt(NaN)", "a = \"xy\".charCodeAt(NaN);\n")
+	expectPrintedMangle(t, "a = 'xy'.charCodeAt(0.5)", "a = \"xy\".charCodeAt(0.5);\n")
+	expectPrintedMangle(t, "a = 'xy'.charCodeAt(1e99)", "a = \"xy\".charCodeAt(1e99);\n")
+	expectPrintedMangle(t, "a = 'xy'.charCodeAt('1')", "a = \"xy\".charCodeAt(\"1\");\n")
+	expectPrintedMangle(t, "a = 'xy'.charCodeAt(1, 2)", "a = \"xy\".charCodeAt(1, 2);\n")
+}
+
 func TestMangleIf(t *testing.T) {
 	expectPrintedNormalAndMangle(t, "1 ? a() : b()", "1 ? a() : b();\n", "a();\n")
 	expectPrintedNormalAndMangle(t, "0 ? a() : b()", "0 ? a() : b();\n", "b();\n")
