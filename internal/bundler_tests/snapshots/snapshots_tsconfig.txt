@@ -207,6 +207,23 @@ var import_util = __toESM(require_util());
 console.log((0, import_util.default)());
 
 ================================================================================
+TestTsconfigJsonAsteriskNameCollisionIssue3354
+---------- /Users/user/project/out.js ----------
+// web/bar/foo/foo.ts
+function foo() {
+  console.log("bar/foo");
+}
+
+// web/foo.ts
+function foo2() {
+  console.log("web/foo");
+  foo();
+}
+
+// entry.ts
+foo2();
+
+================================================================================
 TestTsconfigJsonBaseUrl
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/src/lib/util.js

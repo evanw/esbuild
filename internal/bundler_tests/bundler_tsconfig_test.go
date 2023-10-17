@@ -2538,3 +2538,46 @@ func TestTsconfigJsonBaseUrlIssue3307(t *testing.T) {
 		},
 	})
 }
+
+// https://github.com/evanw/esbuild/issues/3354
+func TestTsconfigJsonAsteriskNameCollisionIssue3354(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.ts": `
+				import {foo} from "foo";
+				foo();
+			`,
+			"/Users/user/project/src/tsconfig.json": `
+				{
+					"compilerOptions": {
+						"baseUrl": ".",
+						"paths": {
+							"*": ["web/*"]
+						}
+					}
+				}
+			`,
+			"/Users/user/project/src/web/foo.ts": `
+				import {foo as barFoo} from 'bar/foo';
+				export function foo() {
+					console.log('web/foo');
+					barFoo();
+				}
+			`,
+			"/Users/user/project/src/web/bar/foo/foo.ts": `
+				export function foo() {
+					console.log('bar/foo');
+				}
+			`,
+			"/Users/user/project/src/web/bar/foo/index.ts": `
+				export {foo} from './foo'
+			`,
+		},
+		entryPaths:    []string{"entry.ts"},
+		absWorkingDir: "/Users/user/project/src",
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}

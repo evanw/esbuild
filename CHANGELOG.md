@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+* Fix a regression in 0.19.0 regarding `paths` in `tsconfig.json` ([#3354](https://github.com/evanw/esbuild/issues/3354))
+
+    The fix in esbuild version 0.19.0 to process `tsconfig.json` aliases before the `--packages=external` setting unintentionally broke an edge case in esbuild's handling of certain `tsconfig.json` aliases where there are multiple files with the same name in different directories. This release adjusts esbuild's behavior for this edge case so that it passes while still processing aliases before `--packages=external`. Please read the linked issue for more details.
+
 * Fix a CSS `font` property minification bug ([#3452](https://github.com/evanw/esbuild/issues/3452))
 
     This release fixes a bug where esbuild's CSS minifier didn't insert a space between the font size and the font family in the `font` CSS shorthand property in the edge case where the original source code didn't already have a space and the leading string token was shortened to an identifier:

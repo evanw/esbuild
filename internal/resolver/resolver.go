@@ -993,35 +993,11 @@ func (r resolverQuery) resolveWithoutSymlinks(sourceDir string, sourceDirInfo *d
 		}
 	}
 
-	// First, check path overrides from the nearest enclosing TypeScript "tsconfig.json" file
-	if sourceDirInfo != nil {
-		if tsConfigJSON := r.tsConfigForDir(sourceDirInfo); tsConfigJSON != nil && tsConfigJSON.Paths != nil {
-			if absolute, ok, diffCase := r.matchTSConfigPaths(tsConfigJSON, importPath); ok {
-				return &ResolveResult{PathPair: absolute, DifferentCase: diffCase}
-			}
-		}
-	}
-
 	// Check both relative and package paths for CSS URL tokens, with relative
 	// paths taking precedence over package paths to match Webpack behavior.
 	isPackagePath := IsPackagePath(importPath)
 	checkRelative := !isPackagePath || r.kind.IsFromCSS()
 	checkPackage := isPackagePath
-
-	// "import 'pkg'" when all packages are external (vs. "import './pkg'"). This
-	// is deliberately done after we check for "tsconfig.json" aliases because
-	// people want to be able to make things look like packages but have them not
-	// be packages.
-	if r.options.ExternalPackages && isPackagePath && !strings.HasPrefix(importPath, "#") {
-		if r.debugLogs != nil {
-			r.debugLogs.addNote("Marking this path as external because it's a package path")
-		}
-
-		r.flushDebugLogs(flushDueToSuccess)
-		return &ResolveResult{
-			PathPair: PathPair{Primary: logger.Path{Text: importPath}, IsExternal: true},
-		}
-	}
 
 	if checkRelative {
 		absPath := r.fs.Join(sourceDir, importPath)
@@ -2301,11 +2277,21 @@ func (r resolverQuery) loadNodeModules(importPath string, dirInfo *dirInfo, forb
 		defer r.debugLogs.decreaseIndent()
 	}
 
-	// Try looking up the path relative to the base URL from "tsconfig.json"
-	if tsConfigJSON := r.tsConfigForDir(dirInfo); tsConfigJSON != nil && tsConfigJSON.BaseURL != nil {
-		basePath := r.fs.Join(*tsConfigJSON.BaseURL, importPath)
-		if absolute, ok, diffCase := r.loadAsFileOrDirectory(basePath); ok {
-			return absolute, true, diffCase
+	// First, check path overrides from the nearest enclosing TypeScript "tsconfig.json" file
+	if tsConfigJSON := r.tsConfigForDir(dirInfo); tsConfigJSON != nil {
+		// Try path substitutions first
+		if tsConfigJSON.Paths != nil {
+			if absolute, ok, diffCase := r.matchTSConfigPaths(tsConfigJSON, importPath); ok {
+				return absolute, true, diffCase
+			}
+		}
+
+		// Try looking up the path relative to the base URL
+		if tsConfigJSON.BaseURL != nil {
+			basePath := r.fs.Join(*tsConfigJSON.BaseURL, importPath)
+			if absolute, ok, diffCase := r.loadAsFileOrDirectory(basePath); ok {
+				return absolute, true, diffCase
+			}
 		}
 	}
 
@@ -2318,6 +2304,14 @@ func (r resolverQuery) loadNodeModules(importPath string, dirInfo *dirInfo, forb
 	// Check for subpath imports: https://nodejs.org/api/packages.html#subpath-imports
 	if dirInfoPackageJSON != nil && strings.HasPrefix(importPath, "#") && !forbidImports && dirInfoPackageJSON.packageJSON.importsMap != nil {
 		return r.loadPackageImports(importPath, dirInfoPackageJSON)
+	}
+
+	// "import 'pkg'" when all packages are external (vs. "import './pkg'")
+	if r.options.ExternalPackages && IsPackagePath(importPath) {
+		if r.debugLogs != nil {
+			r.debugLogs.addNote("Marking this path as external because it's a package path")
+		}
+		return PathPair{Primary: logger.Path{Text: importPath}, IsExternal: true}, true, nil
 	}
 
 	// If Yarn PnP is active, use it to find the package
