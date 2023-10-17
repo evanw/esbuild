@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+* Add some improvements to the JavaScript minifier
+
+    This release adds more cases to the JavaScript minifier, including support for inlining `String.fromCharCode` and `String.prototype.charCodeAt` when possible:
+
+    ```js
+    // Original code
+    document.onkeydown = e => e.keyCode === 'A'.charCodeAt(0) && console.log(String.fromCharCode(55358, 56768))
+
+    // Old output (with --minify)
+    document.onkeydown=o=>o.keyCode==="A".charCodeAt(0)&&console.log(String.fromCharCode(55358,56768));
+
+    // New output (with --minify)
+    document.onkeydown=o=>o.keyCode===65&&console.log("🧀");
+    ```
+
 ## 0.19.5
 
 * Fix a regression in 0.19.0 regarding `paths` in `tsconfig.json` ([#3354](https://github.com/evanw/esbuild/issues/3354))

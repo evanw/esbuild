@@ -3581,6 +3581,26 @@ func TestMangleCharCodeAt(t *testing.T) {
 	expectPrintedMangle(t, "a = 'xy'.charCodeAt(1, 2)", "a = \"xy\".charCodeAt(1, 2);\n")
 }
 
+func TestMangleFromCharCode(t *testing.T) {
+	expectPrinted(t, "a = String.fromCharCode(120, 121)", "a = String.fromCharCode(120, 121);\n")
+
+	expectPrintedMangle(t, "a = String.fromCharCode()", "a = \"\";\n")
+	expectPrintedMangle(t, "a = String.fromCharCode(0)", "a = \"\\0\";\n")
+	expectPrintedMangle(t, "a = String.fromCharCode(120)", "a = \"x\";\n")
+	expectPrintedMangle(t, "a = String.fromCharCode(120, 121)", "a = \"xy\";\n")
+	expectPrintedMangle(t, "a = String.fromCharCode(55358, 56768)", "a = \"🧀\";\n")
+	expectPrintedMangle(t, "a = String.fromCharCode(0x10000)", "a = \"\\0\";\n")
+	expectPrintedMangle(t, "a = String.fromCharCode(0x10078, 0x10079)", "a = \"xy\";\n")
+	expectPrintedMangle(t, "a = String.fromCharCode(0x1_0000_FFFF)", "a = \"\uFFFF\";\n")
+	expectPrintedMangle(t, "a = String.fromCharCode(NaN)", "a = \"\\0\";\n")
+	expectPrintedMangle(t, "a = String.fromCharCode(Infinity)", "a = \"\\0\";\n")
+	expectPrintedMangle(t, "a = String.fromCharCode(null)", "a = \"\\0\";\n")
+	expectPrintedMangle(t, "a = String.fromCharCode(undefined)", "a = \"\\0\";\n")
+
+	expectPrintedMangle(t, "a = String.fromCharCode(x)", "a = String.fromCharCode(x);\n")
+	expectPrintedMangle(t, "a = String.fromCharCode('123')", "a = String.fromCharCode(\"123\");\n")
+}
+
 func TestMangleIf(t *testing.T) {
 	expectPrintedNormalAndMangle(t, "1 ? a() : b()", "1 ? a() : b();\n", "a();\n")
 	expectPrintedNormalAndMangle(t, "0 ? a() : b()", "0 ? a() : b();\n", "b();\n")

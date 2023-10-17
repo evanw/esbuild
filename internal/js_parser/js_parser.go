@@ -14554,9 +14554,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				}
 			}
 
-			// Recognize "charCodeAt()" calls
-			if p.options.minifySyntax && len(e.Args) <= 1 {
-				if t.Name == "charCodeAt" {
+			if p.options.minifySyntax {
+				if len(e.Args) <= 1 && t.Name == "charCodeAt" {
+					// Recognize "charCodeAt()" calls
 					if str, ok := t.Target.Data.(*js_ast.EString); ok {
 						index := 0
 						hasIndex := false
@@ -14571,6 +14571,23 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 								return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(str.Value[index])}}, exprOut{}
 							} else {
 								return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: math.NaN()}}, exprOut{}
+							}
+						}
+					}
+				} else if t.Name == "fromCharCode" {
+					// Recognize "fromCharCode()" calls
+					if id, ok := t.Target.Data.(*js_ast.EIdentifier); ok {
+						if symbol := &p.symbols[id.Ref.InnerIndex]; symbol.Kind == ast.SymbolUnbound && symbol.OriginalName == "String" {
+							charCodes := make([]uint16, 0, len(e.Args))
+							for _, arg := range e.Args {
+								arg, ok := js_ast.ToNumberWithoutSideEffects(arg.Data)
+								if !ok {
+									break
+								}
+								charCodes = append(charCodes, uint16(js_ast.ToInt32(arg)))
+							}
+							if len(charCodes) == len(e.Args) {
+								return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EString{Value: charCodes}}, exprOut{}
 							}
 						}
 					}

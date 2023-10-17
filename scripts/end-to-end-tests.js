@@ -3242,7 +3242,7 @@ for (const minify of [[], ['--minify-syntax']]) {
       test(['in.js', '--outfile=node.js', '--log-level=error'].concat(minify), {
         'in.js': `if ({a: 1, a: 2}${access} !== 2) throw 'fail'`,
       }),
-      test(['in.js', '--outfile=node.js'].concat(minify), {
+      test(['in.js', '--outfile=node.js', '--log-level=error'].concat(minify), {
         'in.js': `if ({a: 1, [String.fromCharCode(97)]: 2}${access} !== 2) throw 'fail'`,
       }),
       test(['in.js', '--outfile=node.js'].concat(minify), {
