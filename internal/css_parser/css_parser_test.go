@@ -1302,15 +1302,19 @@ func TestAtImport(t *testing.T) {
 	expectPrinted(t, "@import url();", "@import \"\";\n", "")
 	expectPrinted(t, "@import url(foo.css);", "@import \"foo.css\";\n", "")
 	expectPrinted(t, "@import url(foo.css) ;", "@import \"foo.css\";\n", "")
+	expectPrinted(t, "@import url( foo.css );", "@import \"foo.css\";\n", "")
 	expectPrinted(t, "@import url(\"foo.css\");", "@import \"foo.css\";\n", "")
 	expectPrinted(t, "@import url(\"foo.css\") ;", "@import \"foo.css\";\n", "")
+	expectPrinted(t, "@import url( \"foo.css\" );", "@import \"foo.css\";\n", "")
 	expectPrinted(t, "@import url(\"foo.css\") print;", "@import \"foo.css\" print;\n", "")
 	expectPrinted(t, "@import url(\"foo.css\") screen and (orientation:landscape);", "@import \"foo.css\" screen and (orientation:landscape);\n", "")
 
 	expectPrinted(t, "@import;", "@import;\n", "<stdin>: WARNING: Expected URL token but found \";\"\n")
 	expectPrinted(t, "@import ;", "@import;\n", "<stdin>: WARNING: Expected URL token but found \";\"\n")
 	expectPrinted(t, "@import \"foo.css\"", "@import \"foo.css\";\n", "<stdin>: WARNING: Expected \";\" but found end of file\n")
-	expectPrinted(t, "@import url(\"foo.css\";", "@import \"foo.css\";\n", "<stdin>: WARNING: Expected \")\" to go with \"(\"\n<stdin>: NOTE: The unbalanced \"(\" is here:\n")
+	expectPrinted(t, "@import url(\"foo.css\" extra-stuff);", "@import url(\"foo.css\" extra-stuff);\n", "<stdin>: WARNING: Expected URL token but found \"url(\"\n")
+	expectPrinted(t, "@import url(\"foo.css\";", "@import url(\"foo.css\";);\n",
+		"<stdin>: WARNING: Expected URL token but found \"url(\"\n<stdin>: WARNING: Expected \")\" to go with \"(\"\n<stdin>: NOTE: The unbalanced \"(\" is here:\n")
 	expectPrinted(t, "@import noturl(\"foo.css\");", "@import noturl(\"foo.css\");\n", "<stdin>: WARNING: Expected URL token but found \"noturl(\"\n")
 	expectPrinted(t, "@import url(foo.css", "@import \"foo.css\";\n", `<stdin>: WARNING: Expected ")" to end URL token
 <stdin>: NOTE: The unbalanced "(" is here:

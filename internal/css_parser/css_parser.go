@@ -974,12 +974,31 @@ func (p *parser) parseURLOrString() (string, logger.Range, bool) {
 	case css_lexer.TFunction:
 		if strings.EqualFold(p.decoded(), "url") {
 			matchingLoc := logger.Loc{Start: p.current().Range.End() - 1}
-			p.advance()
-			t = p.current()
-			text := p.decoded()
-			if p.expect(css_lexer.TString) {
-				p.expectWithMatchingLoc(css_lexer.TCloseParen, matchingLoc)
-				return text, t.Range, true
+			i := p.index + 1
+
+			// Skip over whitespace
+			for p.at(i).Kind == css_lexer.TWhitespace {
+				i++
+			}
+
+			// Consume a string
+			if p.at(i).Kind == css_lexer.TString {
+				stringIndex := i
+				i++
+
+				// Skip over whitespace
+				for p.at(i).Kind == css_lexer.TWhitespace {
+					i++
+				}
+
+				// Consume a closing parenthesis
+				if close := p.at(i).Kind; close == css_lexer.TCloseParen || close == css_lexer.TEndOfFile {
+					t := p.at(stringIndex)
+					text := t.DecodedText(p.source.Contents)
+					p.index = i
+					p.expectWithMatchingLoc(css_lexer.TCloseParen, matchingLoc)
+					return text, t.Range, true
+				}
 			}
 		}
 	}
