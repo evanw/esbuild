@@ -311,7 +311,7 @@ console.log(x);
 ---------- /out/src/entry.css ----------
 /* Users/user/project/src/entry.css */
 body {
-  background: url(../assets/some.file);
+  background: url("../assets/some.file");
 }
 
 ================================================================================
@@ -321,7 +321,7 @@ stuff
 ---------- /out/src/entry.css ----------
 /* Users/user/project/src/entry.css */
 body {
-  background: url(../some-BYATPJRB.file);
+  background: url("../some-BYATPJRB.file");
 }
 
 ================================================================================
@@ -666,7 +666,7 @@ x
 ---------- /out/entries/entry.css ----------
 /* src/shared/common.css */
 div {
-  background: url(../common-LSAMBFUD.png);
+  background: url("../common-LSAMBFUD.png");
 }
 
 /* src/entries/entry.css */
@@ -674,7 +674,7 @@ div {
 ---------- /out/entries/other/entry.css ----------
 /* src/shared/common.css */
 div {
-  background: url(../../common-LSAMBFUD.png);
+  background: url("../../common-LSAMBFUD.png");
 }
 
 /* src/entries/other/entry.css */
@@ -704,7 +704,7 @@ x
 ---------- /out/entries/entry.css ----------
 /* src/entries/entry.css */
 div {
-  background: url(https://example.com/images/image-LSAMBFUD.png);
+  background: url("https://example.com/images/image-LSAMBFUD.png");
 }
 
 ================================================================================
@@ -725,7 +725,7 @@ x
 ---------- /out/entries/entry.css ----------
 /* src/entries/entry.css */
 div {
-  background: url(https://example.com/image-LSAMBFUD.png);
+  background: url("https://example.com/image-LSAMBFUD.png");
 }
 
 ================================================================================
@@ -746,7 +746,7 @@ x
 ---------- /out/entries/entry.css ----------
 /* src/entries/entry.css */
 div {
-  background: url(../images/image-LSAMBFUD.png);
+  background: url("../images/image-LSAMBFUD.png");
 }
 
 ================================================================================
@@ -767,7 +767,7 @@ x
 ---------- /out/entries/entry.css ----------
 /* src/entries/entry.css */
 div {
-  background: url(../image-LSAMBFUD.png);
+  background: url("../image-LSAMBFUD.png");
 }
 
 ================================================================================

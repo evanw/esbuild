@@ -3148,8 +3148,8 @@ tNjAtOTVMMTU1IDEwMGwtNDcuNSA0Ny4\
 1IiBmaWxsPSJub25lIiBzdHJva2U9IiM\
 xOTE5MTkiIHN0cm9rZS13aWR0aD0iMjQ\
 iLz4KPC9zdmc+Cg==");
-  cursor: url(./x-TZ25B4WH.file);
-  cursor: url(./x-UF3O47Y3.copy);
+  cursor: url("./x-TZ25B4WH.file");
+  cursor: url("./x-UF3O47Y3.copy");
   cursor: url("data:text/plain;c\
 harset=utf-8,...lots of long dat\
 a...lots of long data...");
@@ -4110,10 +4110,10 @@ a {
   background: url(data:image/svg+xml,<svg/>);
 }
 b {
-  background: url(./file-NVISQQTV.file);
+  background: url("./file-NVISQQTV.file");
 }
 c {
-  background: url(./copy-O3Y5SCJE.copy);
+  background: url("./copy-O3Y5SCJE.copy");
 }
 d {
   background: url(extern.png);
@@ -4357,10 +4357,10 @@ d {
       "entryPoint": "project/entry.css",
       "inputs": {
         "project/entry.css": {
-          "bytesInOutput": 183
+          "bytesInOutput": 187
         }
       },
-      "bytes": 230
+      "bytes": 234
     }
   }
 }
@@ -4394,7 +4394,7 @@ import("./3333333333333333333333333333333333333333333333333333333333333333333333
 ---------- /out/bytesInOutput should be at least 99.css ----------
 /* project/bytesInOutput should be at least 99.css */
 a {
-  background: url(./444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444-55DNWN2R.file);
+  background: url("./444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444-55DNWN2R.file");
 }
 ---------- metafile.json ----------
 {
@@ -4561,10 +4561,10 @@ a {
       "entryPoint": "project/bytesInOutput should be at least 99.css",
       "inputs": {
         "project/bytesInOutput should be at least 99.css": {
-          "bytesInOutput": 142
+          "bytesInOutput": 144
         }
       },
-      "bytes": 196
+      "bytes": 198
     }
   }
 }

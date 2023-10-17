@@ -2617,3 +2617,37 @@ func TestCSSCaseInsensitivity(t *testing.T) {
 		},
 	})
 }
+
+func TestCSSAssetPathsWithSpacesBundle(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.css": `
+				a {
+					background: url(foo.copy);
+					background: url(foo.file);
+				}
+
+				/*! The URLs for "foo 2" files must have quotes in the final CSS */
+				b {
+					background: url('foo 2.copy');
+					background: url('foo 2.file');
+				}
+			`,
+			"/foo.file":   `...`,
+			"/foo.copy":   `...`,
+			"/foo 2.file": `...`,
+			"/foo 2.copy": `...`,
+		},
+		entryPaths: []string{"/entry.css"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.css",
+			MinifySyntax:  true,
+			ExtensionToLoader: map[string]config.Loader{
+				".css":  config.LoaderCSS,
+				".file": config.LoaderFile,
+				".copy": config.LoaderCopy,
+			},
+		},
+	})
+}

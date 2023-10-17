@@ -1025,6 +1025,13 @@ func (p *printer) printTokens(tokens []css_ast.Token, opts printTokensOpts) bool
 			var flags printQuotedFlags
 			if record.Flags.Has(ast.ContainsUniqueKey) {
 				flags |= printQuotedNoWrap
+
+				// If the caller will be substituting a path here later using string
+				// substitution, then we can't be sure that it will form a valid URL
+				// token when unquoted (e.g. it may contain spaces). So we need to
+				// quote the unique key here just in case. For more info see this
+				// issue: https://github.com/evanw/esbuild/issues/3410
+				tryToAvoidQuote = false
 			} else if p.options.LineLimit > 0 && p.currentLineLength()+len(text) >= p.options.LineLimit {
 				tryToAvoidQuote = false
 			}

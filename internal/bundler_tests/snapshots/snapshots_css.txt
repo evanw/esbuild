@@ -64,6 +64,28 @@ body {
 }
 
 ================================================================================
+TestCSSAssetPathsWithSpacesBundle
+---------- /foo-AKINYSFH.copy ----------
+...
+---------- /foo-AKINYSFH.file ----------
+...
+---------- /foo 2-AKINYSFH.copy ----------
+...
+---------- /foo 2-AKINYSFH.file ----------
+...
+---------- /out.css ----------
+/* entry.css */
+a {
+  background: url("./foo-AKINYSFH.copy");
+  background: url("./foo-AKINYSFH.file");
+}
+/*! The URLs for "foo 2" files must have quotes in the final CSS */
+b {
+  background: url("./foo 2-AKINYSFH.copy");
+  background: url("./foo 2-AKINYSFH.file");
+}
+
+================================================================================
 TestCSSAtImport
 ---------- /out.css ----------
 /* a.css */
@@ -1659,7 +1681,7 @@ TestCSSCaseInsensitivity
       body {
         BACKGROUND-color: red;
         width: 50Px;
-        background-IMAGE: url(./image-AKINYSFH.png);
+        background-IMAGE: url("./image-AKINYSFH.png");
       }
     }
   }
@@ -2214,12 +2236,12 @@ This is some data.
 ---------- /out/entry.css ----------
 /* one.css */
 a {
-  background: url(./example-GDKWWYFY.data);
+  background: url("./example-GDKWWYFY.data");
 }
 
 /* two.css */
 b {
-  background: url(./example-GDKWWYFY.data);
+  background: url("./example-GDKWWYFY.data");
 }
 
 /* entry.css */

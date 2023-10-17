@@ -945,7 +945,7 @@ export {
     assert.strictEqual(value.outputFiles, void 0)
     assert.strictEqual(await readFileAsync(output, 'utf8'), `/* scripts/.js-api-tests/fileLoaderCSS/in.css */
 body {
-  background: url(https://www.example.com/assets/data-BYATPJRB.bin);
+  background: url("https://www.example.com/assets/data-BYATPJRB.bin");
 }
 `)
   },
