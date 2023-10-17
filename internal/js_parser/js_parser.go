@@ -8850,7 +8850,7 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 							bodyLoc = body[0].Loc
 						}
 						return p.mangleIf(result, stmt.Loc, &js_ast.SIf{
-							Test: js_ast.SimplifyBooleanExpr(js_ast.Not(s.Test)),
+							Test: js_ast.SimplifyBooleanExpr(js_ast.Not(s.Test), p.isUnbound),
 							Yes:  stmtsToSingleStmt(bodyLoc, body, logger.Loc{}),
 						})
 					}
@@ -9702,7 +9702,6 @@ func (p *parser) mangleIf(stmts []js_ast.Stmt, loc logger.Loc, s *js_ast.SIf) []
 				}
 				return appendIfOrLabelBodyPreservingScope(stmts, s.Yes)
 			} else {
-				// We have to keep the "no" branch
 			}
 		} else {
 			// The test is falsy
@@ -9720,6 +9719,15 @@ func (p *parser) mangleIf(stmts []js_ast.Stmt, loc logger.Loc, s *js_ast.SIf) []
 				return appendIfOrLabelBodyPreservingScope(stmts, s.NoOrNil)
 			} else {
 				// We have to keep the "yes" branch
+			}
+		}
+
+		// Use "1" and "0" instead of "true" and "false" to be shorter
+		if sideEffects == js_ast.NoSideEffects {
+			if boolean {
+				s.Test.Data = &js_ast.ENumber{Value: 1}
+			} else {
+				s.Test.Data = &js_ast.ENumber{Value: 0}
 			}
 		}
 	}
@@ -10372,7 +10380,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		s.Body = p.visitLoopBody(s.Body)
 
 		if p.options.minifySyntax {
-			s.Test = js_ast.SimplifyBooleanExpr(s.Test)
+			s.Test = js_ast.SimplifyBooleanExpr(s.Test, p.isUnbound)
 
 			// A true value is implied
 			testOrNil := s.Test
@@ -10391,14 +10399,14 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		s.Test = p.visitExpr(s.Test)
 
 		if p.options.minifySyntax {
-			s.Test = js_ast.SimplifyBooleanExpr(s.Test)
+			s.Test = js_ast.SimplifyBooleanExpr(s.Test, p.isUnbound)
 		}
 
 	case *js_ast.SIf:
 		s.Test = p.visitExpr(s.Test)
 
 		if p.options.minifySyntax {
-			s.Test = js_ast.SimplifyBooleanExpr(s.Test)
+			s.Test = js_ast.SimplifyBooleanExpr(s.Test, p.isUnbound)
 		}
 
 		// Fold constants
@@ -10448,7 +10456,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			s.TestOrNil = p.visitExpr(s.TestOrNil)
 
 			if p.options.minifySyntax {
-				s.TestOrNil = js_ast.SimplifyBooleanExpr(s.TestOrNil)
+				s.TestOrNil = js_ast.SimplifyBooleanExpr(s.TestOrNil, p.isUnbound)
 
 				// A true value is implied
 				if boolean, sideEffects, ok := js_ast.ToBooleanWithSideEffects(s.TestOrNil.Data); ok && boolean && sideEffects == js_ast.NoSideEffects {
@@ -13656,7 +13664,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			switch e.Op {
 			case js_ast.UnOpNot:
 				if p.options.minifySyntax {
-					e.Value = js_ast.SimplifyBooleanExpr(e.Value)
+					e.Value = js_ast.SimplifyBooleanExpr(e.Value, p.isUnbound)
 				}
 
 				if boolean, sideEffects, ok := js_ast.ToBooleanWithSideEffects(e.Value.Data); ok && sideEffects == js_ast.NoSideEffects {
@@ -13722,7 +13730,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		e.Test = p.visitExpr(e.Test)
 
 		if p.options.minifySyntax {
-			e.Test = js_ast.SimplifyBooleanExpr(e.Test)
+			e.Test = js_ast.SimplifyBooleanExpr(e.Test, p.isUnbound)
 		}
 
 		// Propagate these flags into the branches
@@ -14405,7 +14413,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 						if len(e.Args) == 0 {
 							return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EBoolean{Value: false}}, exprOut{}
 						} else {
-							expr.Data = &js_ast.EUnary{Value: js_ast.SimplifyBooleanExpr(e.Args[0]), Op: js_ast.UnOpNot}
+							expr.Data = &js_ast.EUnary{Value: js_ast.SimplifyBooleanExpr(e.Args[0], p.isUnbound), Op: js_ast.UnOpNot}
 							return js_ast.Not(expr), exprOut{}
 						}
 

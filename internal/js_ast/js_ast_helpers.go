@@ -706,7 +706,7 @@ func SimplifyUnusedExpr(expr Expr, unsupportedFeatures compat.JSFeature, isUnbou
 			// we know the left operand will only be used for its boolean value and
 			// can be simplified under that assumption
 			if e.Op != BinOpNullishCoalescing {
-				left = SimplifyBooleanExpr(left)
+				left = SimplifyBooleanExpr(left, isUnbound)
 			}
 
 			// Preserve short-circuit behavior: the left expression is only unused if
@@ -1745,17 +1745,17 @@ func ToBooleanWithSideEffects(data E) (boolean bool, sideEffects SideEffects, ok
 //
 // This function intentionally avoids mutating the input AST so it can be
 // called after the AST has been frozen (i.e. after parsing ends).
-func SimplifyBooleanExpr(expr Expr) Expr {
+func SimplifyBooleanExpr(expr Expr, isUnbound func(ast.Ref) bool) Expr {
 	switch e := expr.Data.(type) {
 	case *EUnary:
 		if e.Op == UnOpNot {
 			// "!!a" => "a"
 			if e2, ok2 := e.Value.Data.(*EUnary); ok2 && e2.Op == UnOpNot {
-				return SimplifyBooleanExpr(e2.Value)
+				return SimplifyBooleanExpr(e2.Value, isUnbound)
 			}
 
 			// "!!!a" => "!a"
-			return Expr{Loc: expr.Loc, Data: &EUnary{Op: UnOpNot, Value: SimplifyBooleanExpr(e.Value)}}
+			return Expr{Loc: expr.Loc, Data: &EUnary{Op: UnOpNot, Value: SimplifyBooleanExpr(e.Value, isUnbound)}}
 		}
 
 	case *EBinary:
@@ -1780,8 +1780,8 @@ func SimplifyBooleanExpr(expr Expr) Expr {
 
 		case BinOpLogicalAnd:
 			// "if (!!a && !!b)" => "if (a && b)"
-			left = SimplifyBooleanExpr(left)
-			right = SimplifyBooleanExpr(right)
+			left = SimplifyBooleanExpr(left, isUnbound)
+			right = SimplifyBooleanExpr(right, isUnbound)
 
 			if boolean, SideEffects, ok := ToBooleanWithSideEffects(right.Data); ok && boolean && SideEffects == NoSideEffects {
 				// "if (anything && truthyNoSideEffects)" => "if (anything)"
@@ -1790,8 +1790,8 @@ func SimplifyBooleanExpr(expr Expr) Expr {
 
 		case BinOpLogicalOr:
 			// "if (!!a || !!b)" => "if (a || b)"
-			left = SimplifyBooleanExpr(left)
-			right = SimplifyBooleanExpr(right)
+			left = SimplifyBooleanExpr(left, isUnbound)
+			right = SimplifyBooleanExpr(right, isUnbound)
 
 			if boolean, SideEffects, ok := ToBooleanWithSideEffects(right.Data); ok && !boolean && SideEffects == NoSideEffects {
 				// "if (anything || falsyNoSideEffects)" => "if (anything)"
@@ -1805,8 +1805,8 @@ func SimplifyBooleanExpr(expr Expr) Expr {
 
 	case *EIf:
 		// "if (a ? !!b : !!c)" => "if (a ? b : c)"
-		yes := SimplifyBooleanExpr(e.Yes)
-		no := SimplifyBooleanExpr(e.No)
+		yes := SimplifyBooleanExpr(e.Yes, isUnbound)
+		no := SimplifyBooleanExpr(e.No, isUnbound)
 
 		if boolean, SideEffects, ok := ToBooleanWithSideEffects(yes.Data); ok && SideEffects == NoSideEffects {
 			if boolean {
@@ -1830,6 +1830,12 @@ func SimplifyBooleanExpr(expr Expr) Expr {
 
 		if yes != e.Yes || no != e.No {
 			return Expr{Loc: expr.Loc, Data: &EIf{Test: e.Test, Yes: yes, No: no}}
+		}
+
+	default:
+		// "!![]" => "true"
+		if boolean, sideEffects, ok := ToBooleanWithSideEffects(expr.Data); ok && (sideEffects == NoSideEffects || ExprCanBeRemovedIfUnused(expr, isUnbound)) {
+			return Expr{Loc: expr.Loc, Data: &EBoolean{Value: boolean}}
 		}
 	}
 

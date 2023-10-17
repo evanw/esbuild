@@ -3880,13 +3880,13 @@ func TestMangleNullOrUndefinedWithSideEffects(t *testing.T) {
 
 func TestMangleBooleanWithSideEffects(t *testing.T) {
 	falsyNoSideEffects := []string{"false", "\"\"", "0", "0n", "null", "void 0"}
-	truthyNoSideEffects := []string{"true", "\" \"", "1", "1n", "/./", "(() => {\n})", "function() {\n}"}
+	truthyNoSideEffects := []string{"true", "\" \"", "1", "1n", "/./", "(() => {\n})", "function() {\n}", "[1, 2]", "{ a: 0 }"}
 
 	for _, value := range falsyNoSideEffects {
 		expectPrintedMangle(t, "y(x && "+value+")", "y(x && "+value+");\n")
 		expectPrintedMangle(t, "y(x || "+value+")", "y(x || "+value+");\n")
 
-		expectPrintedMangle(t, "y(!(x && "+value+"))", "y(!(x && "+value+"));\n")
+		expectPrintedMangle(t, "y(!(x && "+value+"))", "y(!(x && false));\n")
 		expectPrintedMangle(t, "y(!(x || "+value+"))", "y(!x);\n")
 
 		expectPrintedMangle(t, "if (x && "+value+") y", "x;\n")
@@ -3898,8 +3898,8 @@ func TestMangleBooleanWithSideEffects(t *testing.T) {
 		expectPrintedMangle(t, "y(x && "+value+" ? y : z)", "y((x, z));\n")
 		expectPrintedMangle(t, "y(x || "+value+" ? y : z)", "y(x ? y : z);\n")
 
-		expectPrintedMangle(t, "while ("+value+") x()", "for (; "+value+"; )\n  x();\n")
-		expectPrintedMangle(t, "for (; "+value+"; ) x()", "for (; "+value+"; )\n  x();\n")
+		expectPrintedMangle(t, "while ("+value+") x()", "for (; false; )\n  x();\n")
+		expectPrintedMangle(t, "for (; "+value+"; ) x()", "for (; false; )\n  x();\n")
 	}
 
 	for _, value := range truthyNoSideEffects {
@@ -3907,7 +3907,7 @@ func TestMangleBooleanWithSideEffects(t *testing.T) {
 		expectPrintedMangle(t, "y(x || "+value+")", "y(x || "+value+");\n")
 
 		expectPrintedMangle(t, "y(!(x && "+value+"))", "y(!x);\n")
-		expectPrintedMangle(t, "y(!(x || "+value+"))", "y(!(x || "+value+"));\n")
+		expectPrintedMangle(t, "y(!(x || "+value+"))", "y(!(x || true));\n")
 
 		expectPrintedMangle(t, "if (x && "+value+") y", "x && y;\n")
 		expectPrintedMangle(t, "if (x || "+value+") y", "x, y;\n")
