@@ -1479,6 +1479,21 @@ func stringAdditionOperandToString(expr Expr) Expr {
 		if str, ok := tryToStringOnNumberSafely(e.Value); ok {
 			expr.Data = &EString{Value: helpers.StringToUTF16(str)}
 		}
+
+	case *ERegExp:
+		expr.Data = &EString{Value: helpers.StringToUTF16(e.Value)}
+
+	case *EDot:
+		// This is dumb but some JavaScript obfuscators use this to generate string literals
+		if e.Name == "constructor" {
+			switch e.Target.Data.(type) {
+			case *EString:
+				expr.Data = &EString{Value: helpers.StringToUTF16("function String() { [native code] }")}
+
+			case *ERegExp:
+				expr.Data = &EString{Value: helpers.StringToUTF16("function RegExp() { [native code] }")}
+			}
+		}
 	}
 	return expr
 }

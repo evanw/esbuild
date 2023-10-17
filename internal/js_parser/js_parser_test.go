@@ -3412,6 +3412,14 @@ func TestMangleAddEmptyString(t *testing.T) {
 	expectPrintedNormalAndMangle(t, "a = true + ''", "a = \"true\";\n", "a = \"true\";\n")
 	expectPrintedNormalAndMangle(t, "a = 1 + false + ''", "a = 1 + false + \"\";\n", "a = 1 + false + \"\";\n")
 	expectPrintedNormalAndMangle(t, "a = 0 + true + ''", "a = 0 + true + \"\";\n", "a = 0 + true + \"\";\n")
+
+	expectPrintedNormalAndMangle(t, "a = '' + /a\\\\b/ig", "a = \"/a\\\\\\\\b/ig\";\n", "a = \"/a\\\\\\\\b/ig\";\n")
+	expectPrintedNormalAndMangle(t, "a = /a\\\\b/ig + ''", "a = \"/a\\\\\\\\b/ig\";\n", "a = \"/a\\\\\\\\b/ig\";\n")
+
+	expectPrintedNormalAndMangle(t, "a = '' + ''.constructor", "a = \"function String() { [native code] }\";\n", "a = \"function String() { [native code] }\";\n")
+	expectPrintedNormalAndMangle(t, "a = ''.constructor + ''", "a = \"function String() { [native code] }\";\n", "a = \"function String() { [native code] }\";\n")
+	expectPrintedNormalAndMangle(t, "a = '' + /./.constructor", "a = \"function RegExp() { [native code] }\";\n", "a = \"function RegExp() { [native code] }\";\n")
+	expectPrintedNormalAndMangle(t, "a = /./.constructor + ''", "a = \"function RegExp() { [native code] }\";\n", "a = \"function RegExp() { [native code] }\";\n")
 }
 
 func TestMangleStringLength(t *testing.T) {
