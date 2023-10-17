@@ -457,7 +457,7 @@ func parseFile(args parseArgs) {
 						// All "require.resolve()" imports should be external because we don't
 						// want to waste effort traversing into them
 						if record.Kind == ast.ImportRequireResolve {
-							if resolveResult != nil && resolveResult.IsExternal {
+							if resolveResult != nil && resolveResult.PathPair.IsExternal {
 								// Allow path substitution as long as the result is external
 								result.resolveResults[importRecordIndex] = resolveResult
 							} else if !record.Flags.Has(ast.HandlesImportErrors) {
@@ -926,8 +926,7 @@ func RunOnResolvePlugins(
 			}
 
 			return &resolver.ResolveResult{
-				PathPair:               resolver.PathPair{Primary: result.Path},
-				IsExternal:             result.External,
+				PathPair:               resolver.PathPair{Primary: result.Path, IsExternal: result.External},
 				PluginData:             result.PluginData,
 				PrimarySideEffectsData: sideEffectsData,
 			}, false, resolver.DebugMeta{}
@@ -1580,7 +1579,7 @@ func (s *scanner) preprocessInjectedFiles() {
 				nil,
 			)
 			if resolveResult != nil {
-				if resolveResult.IsExternal {
+				if resolveResult.PathPair.IsExternal {
 					s.log.AddError(nil, logger.Range{}, fmt.Sprintf("The injected path %q cannot be marked as external", importPath))
 				} else {
 					injectResolveResults[i] = resolveResult
@@ -1759,7 +1758,7 @@ func (s *scanner) addEntryPoints(entryPoints []EntryPoint) []graph.EntryPoint {
 				nil,
 			)
 			if resolveResult != nil {
-				if resolveResult.IsExternal {
+				if resolveResult.PathPair.IsExternal {
 					s.log.AddError(nil, logger.Range{}, fmt.Sprintf("The entry point %q cannot be marked as external", entryPoint.InputPath))
 				} else {
 					entryPointInfos[i] = entryPointInfo{results: []resolver.ResolveResult{*resolveResult}}
@@ -1975,7 +1974,7 @@ func (s *scanner) scanAllDependencies() {
 				}
 
 				path := resolveResult.PathPair.Primary
-				if !resolveResult.IsExternal {
+				if !resolveResult.PathPair.IsExternal {
 					// Handle a path within the bundle
 					sourceIndex := s.maybeParseFile(*resolveResult, resolver.PrettyPath(s.fs, path),
 						&result.file.inputFile.Source, record.Range, inputKindNormal, nil)
@@ -2036,7 +2035,7 @@ func (s *scanner) generateResultForGlobResolve(
 		importRecordIndex := uint32(len(importRecords))
 		var sourceIndex ast.Index32
 
-		if !resolveResult.IsExternal {
+		if !resolveResult.PathPair.IsExternal {
 			sourceIndex = ast.MakeIndex32(s.maybeParseFile(
 				resolveResult,
 				resolver.PrettyPath(s.fs, resolveResult.PathPair.Primary),

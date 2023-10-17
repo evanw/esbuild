@@ -2099,7 +2099,7 @@ func loadPlugins(initialOptions *BuildOptions, fs fs.FS, log logger.Log, caches 
 			result.Warnings = convertMessagesToPublic(logger.Warning, msgs)
 			if resolveResult != nil {
 				result.Path = resolveResult.PathPair.Primary.Text
-				result.External = resolveResult.IsExternal
+				result.External = resolveResult.PathPair.IsExternal
 				result.SideEffects = resolveResult.PrimarySideEffectsData == nil
 				result.Namespace = resolveResult.PathPair.Primary.Namespace
 				result.Suffix = resolveResult.PathPair.Primary.IgnoredSuffix

@@ -69,6 +69,8 @@ type PathPair struct {
 	// will be "main"
 	Primary   logger.Path
 	Secondary logger.Path
+
+	IsExternal bool
 }
 
 func (pp *PathPair) iter() []*logger.Path {
@@ -114,8 +116,6 @@ type ResolveResult struct {
 
 	// This is the "type" field from "package.json"
 	ModuleTypeData js_ast.ModuleTypeData
-
-	IsExternal bool
 }
 
 type suggestionRange uint8
@@ -431,8 +431,7 @@ func (res *Resolver) Resolve(sourceDir string, importPath string, kind ast.Impor
 
 		r.flushDebugLogs(flushDueToSuccess)
 		return &ResolveResult{
-			PathPair:   PathPair{Primary: logger.Path{Text: importPath}},
-			IsExternal: true,
+			PathPair: PathPair{Primary: logger.Path{Text: importPath}, IsExternal: true},
 		}, debugMeta
 	}
 
@@ -444,8 +443,7 @@ func (res *Resolver) Resolve(sourceDir string, importPath string, kind ast.Impor
 
 		r.flushDebugLogs(flushDueToSuccess)
 		return &ResolveResult{
-			PathPair:               PathPair{Primary: logger.Path{Text: importPath}},
-			IsExternal:             true,
+			PathPair:               PathPair{Primary: logger.Path{Text: importPath}, IsExternal: true},
 			PrimarySideEffectsData: &SideEffectsData{}, // Mark this with "sideEffects: false"
 		}, debugMeta
 	}
@@ -491,8 +489,7 @@ func (res *Resolver) Resolve(sourceDir string, importPath string, kind ast.Impor
 
 		r.flushDebugLogs(flushDueToSuccess)
 		return &ResolveResult{
-			PathPair:               PathPair{Primary: logger.Path{Text: importPath}},
-			IsExternal:             true,
+			PathPair:               PathPair{Primary: logger.Path{Text: importPath}, IsExternal: true},
 			PrimarySideEffectsData: sideEffects,
 		}, debugMeta
 	}
@@ -516,8 +513,7 @@ func (res *Resolver) Resolve(sourceDir string, importPath string, kind ast.Impor
 		}
 		r.flushDebugLogs(flushDueToSuccess)
 		return &ResolveResult{
-			PathPair:   PathPair{Primary: logger.Path{Text: importPath}},
-			IsExternal: true,
+			PathPair: PathPair{Primary: logger.Path{Text: importPath}, IsExternal: true},
 		}, debugMeta
 	}
 
@@ -730,8 +726,7 @@ func (res *Resolver) ResolveGlob(sourceDir string, importPathPattern []helpers.G
 					var result ResolveResult
 
 					if r.isExternal(r.options.ExternalSettings.PreResolve, relPath, kind) {
-						result.PathPair = PathPair{Primary: logger.Path{Text: relPath}}
-						result.IsExternal = true
+						result.PathPair = PathPair{Primary: logger.Path{Text: relPath}, IsExternal: true}
 
 						if r.debugLogs != nil {
 							r.debugLogs.addNote(fmt.Sprintf("The path %q was marked as external by the user", result.PathPair.Primary.Text))
@@ -847,11 +842,11 @@ func (r resolverQuery) flushDebugLogs(mode flushMode) {
 }
 
 func (r resolverQuery) finalizeResolve(result *ResolveResult) {
-	if !result.IsExternal && r.isExternal(r.options.ExternalSettings.PostResolve, result.PathPair.Primary.Text, r.kind) {
+	if !result.PathPair.IsExternal && r.isExternal(r.options.ExternalSettings.PostResolve, result.PathPair.Primary.Text, r.kind) {
 		if r.debugLogs != nil {
 			r.debugLogs.addNote(fmt.Sprintf("The path %q was marked as external by the user", result.PathPair.Primary.Text))
 		}
-		result.IsExternal = true
+		result.PathPair.IsExternal = true
 	} else {
 		for i, path := range result.PathPair.iter() {
 			if path.Namespace != "file" {
@@ -1024,8 +1019,7 @@ func (r resolverQuery) resolveWithoutSymlinks(sourceDir string, sourceDirInfo *d
 
 		r.flushDebugLogs(flushDueToSuccess)
 		return &ResolveResult{
-			PathPair:   PathPair{Primary: logger.Path{Text: importPath}},
-			IsExternal: true,
+			PathPair: PathPair{Primary: logger.Path{Text: importPath}, IsExternal: true},
 		}
 	}
 
@@ -1037,7 +1031,7 @@ func (r resolverQuery) resolveWithoutSymlinks(sourceDir string, sourceDirInfo *d
 			if r.debugLogs != nil {
 				r.debugLogs.addNote(fmt.Sprintf("The path %q was marked as external by the user", absPath))
 			}
-			return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: absPath, Namespace: "file"}}, IsExternal: true}
+			return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: absPath, Namespace: "file"}, IsExternal: true}}
 		}
 
 		// Check the "browser" map
