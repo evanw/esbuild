@@ -2519,7 +2519,7 @@ func (s *scanner) validateTLA(sourceIndex uint32) tlaCheck {
 
 							tracker := logger.MakeLineColumnTracker(&parentResult.file.inputFile.Source)
 							notes = append(notes, tracker.MsgData(
-								parentRepr.AST.ImportRecords[parent.importRecordIndex].Range,
+								parentRepr.AST.ImportRecords[parentResult.tlaCheck.importRecordIndex].Range,
 								fmt.Sprintf("The file %q imports the file %q here:",
 									parentResult.file.inputFile.Source.PrettyPath, s.results[otherSourceIndex].file.inputFile.Source.PrettyPath)))
 						}

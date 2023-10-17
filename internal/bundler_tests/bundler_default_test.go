@@ -4059,6 +4059,7 @@ func TestTopLevelAwaitForbiddenRequire(t *testing.T) {
 				await 0
 			`,
 			"/a.js": `
+				import './something' // Deliberately offset the import record index
 				import './b'
 			`,
 			"/b.js": `
@@ -4067,6 +4068,7 @@ func TestTopLevelAwaitForbiddenRequire(t *testing.T) {
 			"/c.js": `
 				await 0
 			`,
+			"/something.js": ``,
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{

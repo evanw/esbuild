@@ -21,6 +21,14 @@
 
     Assets referenced via CSS `url()` tokens may cause esbuild to generate invalid output when bundling if the file name contains spaces (e.g. `url(image 2.png)`). With this release, esbuild will now quote all bundled asset references in `url()` tokens to avoid this problem. This only affects assets loaded using the `file` and `copy` loaders.
 
+* Fix invalid CSS `url()` tokens in `@import` rules ([#3426](https://github.com/evanw/esbuild/issues/3426))
+
+    In the future, CSS `url()` tokens may contain additional stuff after the URL. This is irrelevant today as no CSS specification does this. But esbuild previously had a bug where using these tokens in an `@import` rule resulted in malformed output. This bug has been fixed.
+
+* Fix a bug in top-level await error reporting ([#3400](https://github.com/evanw/esbuild/issues/3400))
+
+    Using `require()` on a file that contains [top-level await](https://v8.dev/features/top-level-await) is not allowed because `require()` must return synchronously and top-level await makes that impossible. You will get a build error if you try to bundle code that does this with esbuild. This release fixes a bug in esbuild's error reporting code for complex cases of this situation involving multiple levels of imports to get to the module containing the top-level await.
+
 * Update to Unicode 15.1.0
 
     The character tables that determine which characters form valid JavaScript identifiers have been updated from Unicode version 15.0.0 to the newly-released Unicode version 15.1.0. I'm not putting an example in the release notes because all of the new characters will likely just show up as little squares since fonts haven't been updated yet. But you can read https://www.unicode.org/versions/Unicode15.1.0/#Summary for more information about the changes.
