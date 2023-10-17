@@ -1453,6 +1453,16 @@ func FoldStringAddition(left Expr, right Expr, kind StringAdditionKind) Expr {
 		right = r.Value
 	}
 
+	// "[] + x" => "'' + x"
+	if l, ok := left.Data.(*EArray); ok && len(l.Items) == 0 {
+		left.Data = &EString{}
+	}
+
+	// "x + []" => "x + ''"
+	if r, ok := right.Data.(*EArray); ok && len(r.Items) == 0 {
+		right.Data = &EString{}
+	}
+
 	// Transforming the left operand into a string is not safe if it comes from
 	// a nested AST node. The following transforms are invalid:
 	//
@@ -1460,11 +1470,24 @@ func FoldStringAddition(left Expr, right Expr, kind StringAdditionKind) Expr {
 	//   "0 + 1 + `${x}`" => "0 + `1${x}`"
 	//
 	if kind != StringAdditionWithNestedLeft {
-		if l, ok := left.Data.(*ENumber); ok {
+		switch l := left.Data.(type) {
+		case *EBoolean:
 			switch right.Data.(type) {
 			case *EString, *ETemplate:
-				// "0 + 'x'" => "0 + 'x'"
-				// "0 + `${x}`" => "0 + `${x}`"
+				// "false + 'x'" => "'false' + 'x'"
+				// "false + `${x}`" => "'false' + `${x}`"
+				if l.Value {
+					left.Data = &EString{Value: helpers.StringToUTF16("true")}
+				} else {
+					left.Data = &EString{Value: helpers.StringToUTF16("false")}
+				}
+			}
+
+		case *ENumber:
+			switch right.Data.(type) {
+			case *EString, *ETemplate:
+				// "0 + 'x'" => "'0' + 'x'"
+				// "0 + `${x}`" => "'0' + `${x}`"
 				if str, ok := tryToStringOnNumberSafely(l.Value); ok {
 					left.Data = &EString{Value: helpers.StringToUTF16(str)}
 				}
@@ -1475,7 +1498,15 @@ func FoldStringAddition(left Expr, right Expr, kind StringAdditionKind) Expr {
 	switch l := left.Data.(type) {
 	case *EString:
 		// "'x' + 0" => "'x' + '0'"
-		if r, ok := right.Data.(*ENumber); ok {
+		switch r := right.Data.(type) {
+		case *EBoolean:
+			if r.Value {
+				right.Data = &EString{Value: helpers.StringToUTF16("true")}
+			} else {
+				right.Data = &EString{Value: helpers.StringToUTF16("false")}
+			}
+
+		case *ENumber:
 			if str, ok := tryToStringOnNumberSafely(r.Value); ok {
 				right.Data = &EString{Value: helpers.StringToUTF16(str)}
 			}
@@ -1508,7 +1539,15 @@ func FoldStringAddition(left Expr, right Expr, kind StringAdditionKind) Expr {
 	case *ETemplate:
 		if l.TagOrNil.Data == nil {
 			// "`${x}` + 0" => "`${x}` + '0'"
-			if r, ok := right.Data.(*ENumber); ok {
+			switch r := right.Data.(type) {
+			case *EBoolean:
+				if r.Value {
+					right.Data = &EString{Value: helpers.StringToUTF16("true")}
+				} else {
+					right.Data = &EString{Value: helpers.StringToUTF16("false")}
+				}
+
+			case *ENumber:
 				if str, ok := tryToStringOnNumberSafely(r.Value); ok {
 					right.Data = &EString{Value: helpers.StringToUTF16(str)}
 				}

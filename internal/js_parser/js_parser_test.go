@@ -3370,10 +3370,27 @@ func TestMangleAddEmptyString(t *testing.T) {
 	expectPrintedNormalAndMangle(t, "a = '' + b", "a = \"\" + b;\n", "a = \"\" + b;\n")
 	expectPrintedNormalAndMangle(t, "a = b + ''", "a = b + \"\";\n", "a = b + \"\";\n")
 
+	expectPrintedNormalAndMangle(t, "a = [] + 0", "a = \"0\";\n", "a = \"0\";\n")
+	expectPrintedNormalAndMangle(t, "a = 0 + []", "a = \"0\";\n", "a = \"0\";\n")
+	expectPrintedNormalAndMangle(t, "a = [] + b", "a = [] + b;\n", "a = [] + b;\n")
+	expectPrintedNormalAndMangle(t, "a = b + []", "a = b + [];\n", "a = b + [];\n")
+
 	expectPrintedNormalAndMangle(t, "a = '' + `${b}`", "a = `${b}`;\n", "a = `${b}`;\n")
 	expectPrintedNormalAndMangle(t, "a = `${b}` + ''", "a = `${b}`;\n", "a = `${b}`;\n")
 	expectPrintedNormalAndMangle(t, "a = '' + typeof b", "a = typeof b;\n", "a = typeof b;\n")
 	expectPrintedNormalAndMangle(t, "a = typeof b + ''", "a = typeof b;\n", "a = typeof b;\n")
+
+	expectPrintedNormalAndMangle(t, "a = [] + `${b}`", "a = `${b}`;\n", "a = `${b}`;\n")
+	expectPrintedNormalAndMangle(t, "a = `${b}` + []", "a = `${b}`;\n", "a = `${b}`;\n")
+	expectPrintedNormalAndMangle(t, "a = [] + typeof b", "a = typeof b;\n", "a = typeof b;\n")
+	expectPrintedNormalAndMangle(t, "a = typeof b + []", "a = typeof b;\n", "a = typeof b;\n")
+
+	expectPrintedNormalAndMangle(t, "a = '' + false", "a = \"false\";\n", "a = \"false\";\n")
+	expectPrintedNormalAndMangle(t, "a = '' + true", "a = \"true\";\n", "a = \"true\";\n")
+	expectPrintedNormalAndMangle(t, "a = false + ''", "a = \"false\";\n", "a = \"false\";\n")
+	expectPrintedNormalAndMangle(t, "a = true + ''", "a = \"true\";\n", "a = \"true\";\n")
+	expectPrintedNormalAndMangle(t, "a = 1 + false + ''", "a = 1 + false + \"\";\n", "a = 1 + false + \"\";\n")
+	expectPrintedNormalAndMangle(t, "a = 0 + true + ''", "a = 0 + true + \"\";\n", "a = 0 + true + \"\";\n")
 }
 
 func TestMangleStringLength(t *testing.T) {
