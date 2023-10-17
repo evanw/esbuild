@@ -1435,6 +1435,46 @@ func tryToStringOnNumberSafely(n float64) (string, bool) {
 	return "", false
 }
 
+// Note: We don't know if this is string addition yet at this point
+func foldAdditionPreProcess(expr Expr) Expr {
+	switch e := expr.Data.(type) {
+	case *EInlinedEnum:
+		// "See through" inline enum constants
+		expr = e.Value
+
+	case *EArray:
+		// "[] + x" => "'' + x"
+		if len(e.Items) == 0 {
+			expr.Data = &EString{}
+		}
+
+	case *EObject:
+		// "{} + x" => "'[object Object]' + x"
+		if len(e.Properties) == 0 {
+			expr.Data = &EString{Value: helpers.StringToUTF16("[object Object]")}
+		}
+	}
+	return expr
+}
+
+// Note: We know that this is string addition when we get here
+func stringAdditionOperandToString(expr Expr) Expr {
+	switch e := expr.Data.(type) {
+	case *EBoolean:
+		if e.Value {
+			expr.Data = &EString{Value: helpers.StringToUTF16("true")}
+		} else {
+			expr.Data = &EString{Value: helpers.StringToUTF16("false")}
+		}
+
+	case *ENumber:
+		if str, ok := tryToStringOnNumberSafely(e.Value); ok {
+			expr.Data = &EString{Value: helpers.StringToUTF16(str)}
+		}
+	}
+	return expr
+}
+
 type StringAdditionKind uint8
 
 const (
@@ -1445,23 +1485,8 @@ const (
 // This function intentionally avoids mutating the input AST so it can be
 // called after the AST has been frozen (i.e. after parsing ends).
 func FoldStringAddition(left Expr, right Expr, kind StringAdditionKind) Expr {
-	// "See through" inline enum constants
-	if l, ok := left.Data.(*EInlinedEnum); ok {
-		left = l.Value
-	}
-	if r, ok := right.Data.(*EInlinedEnum); ok {
-		right = r.Value
-	}
-
-	// "[] + x" => "'' + x"
-	if l, ok := left.Data.(*EArray); ok && len(l.Items) == 0 {
-		left.Data = &EString{}
-	}
-
-	// "x + []" => "x + ''"
-	if r, ok := right.Data.(*EArray); ok && len(r.Items) == 0 {
-		right.Data = &EString{}
-	}
+	left = foldAdditionPreProcess(left)
+	right = foldAdditionPreProcess(right)
 
 	// Transforming the left operand into a string is not safe if it comes from
 	// a nested AST node. The following transforms are invalid:
@@ -1470,47 +1495,16 @@ func FoldStringAddition(left Expr, right Expr, kind StringAdditionKind) Expr {
 	//   "0 + 1 + `${x}`" => "0 + `1${x}`"
 	//
 	if kind != StringAdditionWithNestedLeft {
-		switch l := left.Data.(type) {
-		case *EBoolean:
-			switch right.Data.(type) {
-			case *EString, *ETemplate:
-				// "false + 'x'" => "'false' + 'x'"
-				// "false + `${x}`" => "'false' + `${x}`"
-				if l.Value {
-					left.Data = &EString{Value: helpers.StringToUTF16("true")}
-				} else {
-					left.Data = &EString{Value: helpers.StringToUTF16("false")}
-				}
-			}
-
-		case *ENumber:
-			switch right.Data.(type) {
-			case *EString, *ETemplate:
-				// "0 + 'x'" => "'0' + 'x'"
-				// "0 + `${x}`" => "'0' + `${x}`"
-				if str, ok := tryToStringOnNumberSafely(l.Value); ok {
-					left.Data = &EString{Value: helpers.StringToUTF16(str)}
-				}
-			}
+		switch right.Data.(type) {
+		case *EString, *ETemplate:
+			left = stringAdditionOperandToString(left)
 		}
 	}
 
 	switch l := left.Data.(type) {
 	case *EString:
 		// "'x' + 0" => "'x' + '0'"
-		switch r := right.Data.(type) {
-		case *EBoolean:
-			if r.Value {
-				right.Data = &EString{Value: helpers.StringToUTF16("true")}
-			} else {
-				right.Data = &EString{Value: helpers.StringToUTF16("false")}
-			}
-
-		case *ENumber:
-			if str, ok := tryToStringOnNumberSafely(r.Value); ok {
-				right.Data = &EString{Value: helpers.StringToUTF16(str)}
-			}
-		}
+		right = stringAdditionOperandToString(right)
 
 		switch r := right.Data.(type) {
 		case *EString:
@@ -1539,19 +1533,7 @@ func FoldStringAddition(left Expr, right Expr, kind StringAdditionKind) Expr {
 	case *ETemplate:
 		if l.TagOrNil.Data == nil {
 			// "`${x}` + 0" => "`${x}` + '0'"
-			switch r := right.Data.(type) {
-			case *EBoolean:
-				if r.Value {
-					right.Data = &EString{Value: helpers.StringToUTF16("true")}
-				} else {
-					right.Data = &EString{Value: helpers.StringToUTF16("false")}
-				}
-
-			case *ENumber:
-				if str, ok := tryToStringOnNumberSafely(r.Value); ok {
-					right.Data = &EString{Value: helpers.StringToUTF16(str)}
-				}
-			}
+			right = stringAdditionOperandToString(right)
 
 			switch r := right.Data.(type) {
 			case *EString:

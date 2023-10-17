@@ -3374,6 +3374,15 @@ func TestMangleAddEmptyString(t *testing.T) {
 	expectPrintedNormalAndMangle(t, "a = 0 + []", "a = \"0\";\n", "a = \"0\";\n")
 	expectPrintedNormalAndMangle(t, "a = [] + b", "a = [] + b;\n", "a = [] + b;\n")
 	expectPrintedNormalAndMangle(t, "a = b + []", "a = b + [];\n", "a = b + [];\n")
+	expectPrintedNormalAndMangle(t, "a = [1] + 0", "a = [1] + 0;\n", "a = [1] + 0;\n")
+	expectPrintedNormalAndMangle(t, "a = 0 + [1]", "a = 0 + [1];\n", "a = 0 + [1];\n")
+
+	expectPrintedNormalAndMangle(t, "a = {} + 0", "a = \"[object Object]0\";\n", "a = \"[object Object]0\";\n")
+	expectPrintedNormalAndMangle(t, "a = 0 + {}", "a = \"0[object Object]\";\n", "a = \"0[object Object]\";\n")
+	expectPrintedNormalAndMangle(t, "a = {} + b", "a = {} + b;\n", "a = {} + b;\n")
+	expectPrintedNormalAndMangle(t, "a = b + {}", "a = b + {};\n", "a = b + {};\n")
+	expectPrintedNormalAndMangle(t, "a = {toString:()=>1} + 0", "a = { toString: () => 1 } + 0;\n", "a = { toString: () => 1 } + 0;\n")
+	expectPrintedNormalAndMangle(t, "a = 0 + {toString:()=>1}", "a = 0 + { toString: () => 1 };\n", "a = 0 + { toString: () => 1 };\n")
 
 	expectPrintedNormalAndMangle(t, "a = '' + `${b}`", "a = `${b}`;\n", "a = `${b}`;\n")
 	expectPrintedNormalAndMangle(t, "a = `${b}` + ''", "a = `${b}`;\n", "a = `${b}`;\n")
@@ -3384,6 +3393,15 @@ func TestMangleAddEmptyString(t *testing.T) {
 	expectPrintedNormalAndMangle(t, "a = `${b}` + []", "a = `${b}`;\n", "a = `${b}`;\n")
 	expectPrintedNormalAndMangle(t, "a = [] + typeof b", "a = typeof b;\n", "a = typeof b;\n")
 	expectPrintedNormalAndMangle(t, "a = typeof b + []", "a = typeof b;\n", "a = typeof b;\n")
+	expectPrintedNormalAndMangle(t, "a = [1] + `${b}`", "a = [1] + `${b}`;\n", "a = [1] + `${b}`;\n")
+	expectPrintedNormalAndMangle(t, "a = `${b}` + [1]", "a = `${b}` + [1];\n", "a = `${b}` + [1];\n")
+
+	expectPrintedNormalAndMangle(t, "a = {} + `${b}`", "a = `[object Object]${b}`;\n", "a = `[object Object]${b}`;\n")
+	expectPrintedNormalAndMangle(t, "a = `${b}` + {}", "a = `${b}[object Object]`;\n", "a = `${b}[object Object]`;\n")
+	expectPrintedNormalAndMangle(t, "a = {} + typeof b", "a = {} + typeof b;\n", "a = {} + typeof b;\n")
+	expectPrintedNormalAndMangle(t, "a = typeof b + {}", "a = typeof b + {};\n", "a = typeof b + {};\n")
+	expectPrintedNormalAndMangle(t, "a = {toString:()=>1} + `${b}`", "a = { toString: () => 1 } + `${b}`;\n", "a = { toString: () => 1 } + `${b}`;\n")
+	expectPrintedNormalAndMangle(t, "a = `${b}` + {toString:()=>1}", "a = `${b}` + { toString: () => 1 };\n", "a = `${b}` + { toString: () => 1 };\n")
 
 	expectPrintedNormalAndMangle(t, "a = '' + false", "a = \"false\";\n", "a = \"false\";\n")
 	expectPrintedNormalAndMangle(t, "a = '' + true", "a = \"true\";\n", "a = \"true\";\n")

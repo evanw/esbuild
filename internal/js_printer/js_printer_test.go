@@ -805,7 +805,7 @@ func TestWhitespace(t *testing.T) {
 
 	expectPrintedMinify(t, "()=>({})", "()=>({});")
 	expectPrintedMinify(t, "()=>({}[1])", "()=>({})[1];")
-	expectPrintedMinify(t, "()=>({}+0)", "()=>({}+0);")
+	expectPrintedMinify(t, "()=>({}+0)", "()=>\"[object Object]0\";")
 	expectPrintedMinify(t, "()=>function(){}", "()=>function(){};")
 
 	expectPrintedMinify(t, "(function(){})", "(function(){});")
