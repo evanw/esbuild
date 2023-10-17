@@ -1002,6 +1002,24 @@ func ShouldFoldBinaryArithmeticWhenMinifying(binary *EBinary) bool {
 		BinOpBitwiseXor:
 		return true
 
+	case BinOpAdd:
+		// Addition of small-ish integers can definitely be folded without issues
+		// "1 + 2" => "3"
+		if left, right, ok := extractNumericValues(binary.Left, binary.Right); ok &&
+			left == math.Trunc(left) && math.Abs(left) <= 0xFFFF_FFFF &&
+			right == math.Trunc(right) && math.Abs(right) <= 0xFFFF_FFFF {
+			return true
+		}
+
+	case BinOpSub:
+		// Subtraction of small-ish integers can definitely be folded without issues
+		// "3 - 1" => "2"
+		if left, right, ok := extractNumericValues(binary.Left, binary.Right); ok &&
+			left == math.Trunc(left) && math.Abs(left) <= 0xFFFF_FFFF &&
+			right == math.Trunc(right) && math.Abs(right) <= 0xFFFF_FFFF {
+			return true
+		}
+
 	case BinOpShl:
 		// "1 << 3" => "8"
 		// "1 << 24" => "1 << 24" (since "1<<24" is shorter than "16777216")

@@ -4377,8 +4377,8 @@ func TestMangleUnaryConstantFolding(t *testing.T) {
 }
 
 func TestMangleBinaryConstantFolding(t *testing.T) {
-	expectPrintedNormalAndMangle(t, "x = 3 + 6", "x = 3 + 6;\n", "x = 3 + 6;\n")
-	expectPrintedNormalAndMangle(t, "x = 3 - 6", "x = 3 - 6;\n", "x = 3 - 6;\n")
+	expectPrintedNormalAndMangle(t, "x = 3 + 6", "x = 3 + 6;\n", "x = 9;\n")
+	expectPrintedNormalAndMangle(t, "x = 3 - 6", "x = 3 - 6;\n", "x = -3;\n")
 	expectPrintedNormalAndMangle(t, "x = 3 * 6", "x = 3 * 6;\n", "x = 3 * 6;\n")
 	expectPrintedNormalAndMangle(t, "x = 3 / 6", "x = 3 / 6;\n", "x = 3 / 6;\n")
 	expectPrintedNormalAndMangle(t, "x = 3 % 6", "x = 3 % 6;\n", "x = 3 % 6;\n")
