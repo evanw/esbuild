@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+* Fix a constant folding bug with bigint equality
+
+    This release fixes a bug where esbuild incorrectly checked for bigint equality by checking the equality of the bigint literal text. This is correct if the bigint doesn't have a radix because bigint literals without a radix are always in canonical form (since leading zeros are not allowed). However, this is incorrect if the bigint has a radix (e.g. `0x123n`) because the canonical form is not enforced when a radix is present.
+
+    ```js
+    // Original code
+    console.log(!!0n, !!1n, 123n === 123n)
+    console.log(!!0x0n, !!0x1n, 123n === 0x7Bn)
+
+    // Old output
+    console.log(false, true, true);
+    console.log(true, true, false);
+
+    // New output
+    console.log(false, true, true);
+    console.log(!!0x0n, !!0x1n, 123n === 0x7Bn);
+    ```
+
 * Add some improvements to the JavaScript minifier
 
     This release adds more cases to the JavaScript minifier, including support for inlining `String.fromCharCode` and `String.prototype.charCodeAt` when possible:

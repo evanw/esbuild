@@ -2636,6 +2636,12 @@ func TestConstantFolding(t *testing.T) {
 	expectPrinted(t, "x = !!(() => {})", "x = true;\n")
 	expectPrinted(t, "x = !!0n", "x = false;\n")
 	expectPrinted(t, "x = !!1n", "x = true;\n")
+	expectPrinted(t, "x = !!0b0n", "x = !!0b0n;\n")
+	expectPrinted(t, "x = !!0b1n", "x = !!0b1n;\n")
+	expectPrinted(t, "x = !!0o0n", "x = !!0o0n;\n")
+	expectPrinted(t, "x = !!0o1n", "x = !!0o1n;\n")
+	expectPrinted(t, "x = !!0x0n", "x = !!0x0n;\n")
+	expectPrinted(t, "x = !!0x1n", "x = !!0x1n;\n")
 
 	expectPrinted(t, "x = 1 ? a : b", "x = 1 ? a : b;\n")
 	expectPrinted(t, "x = 0 ? a : b", "x = 0 ? a : b;\n")
@@ -2762,7 +2768,19 @@ func TestConstantFolding(t *testing.T) {
 	expectPrinted(t, "x = Infinity === Infinity", "x = true;\n")
 	expectPrinted(t, "x = Infinity === -Infinity", "x = false;\n")
 
+	expectPrinted(t, "x = 0n === 0n", "x = true;\n")
+	expectPrinted(t, "x = 1n === 1n", "x = true;\n")
+	expectPrinted(t, "x = 0n === 1n", "x = false;\n")
+	expectPrinted(t, "x = 0n !== 1n", "x = true;\n")
+	expectPrinted(t, "x = 0n !== 0n", "x = false;\n")
 	expectPrinted(t, "x = 123n === 1_2_3n", "x = true;\n")
+
+	expectPrinted(t, "x = 0n === 0b0n", "x = 0n === 0b0n;\n")
+	expectPrinted(t, "x = 0n === 0o0n", "x = 0n === 0o0n;\n")
+	expectPrinted(t, "x = 0n === 0x0n", "x = 0n === 0x0n;\n")
+	expectPrinted(t, "x = 0b0n === 0b0n", "x = true;\n")
+	expectPrinted(t, "x = 0o0n === 0o0n", "x = true;\n")
+	expectPrinted(t, "x = 0x0n === 0x0n", "x = true;\n")
 
 	// We support folding strings from sibling AST nodes since that ends up being
 	// equivalent with string addition. For example, "(x + 'a') + 'b'" is the

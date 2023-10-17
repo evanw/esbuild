@@ -891,8 +891,10 @@ func duplicateCaseEquals(left js_ast.Expr, right js_ast.Expr) (equals bool, coul
 		return ok && helpers.UTF16EqualsUTF16(a.Value, b.Value), false
 
 	case *js_ast.EBigInt:
-		b, ok := right.Data.(*js_ast.EBigInt)
-		return ok && a.Value == b.Value, false
+		if b, ok := right.Data.(*js_ast.EBigInt); ok {
+			equal, ok := js_ast.CheckEqualityBigInt(a.Value, b.Value)
+			return ok && equal, false
+		}
 
 	case *js_ast.EIdentifier:
 		b, ok := right.Data.(*js_ast.EIdentifier)

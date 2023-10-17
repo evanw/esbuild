@@ -79,7 +79,9 @@ func MaybeSimplifyNot(expr Expr) (Expr, bool) {
 		return Expr{Loc: expr.Loc, Data: &EBoolean{Value: e.Value == 0 || math.IsNaN(e.Value)}}, true
 
 	case *EBigInt:
-		return Expr{Loc: expr.Loc, Data: &EBoolean{Value: e.Value == "0"}}, true
+		if equal, ok := CheckEqualityBigInt(e.Value, "0"); ok {
+			return Expr{Loc: expr.Loc, Data: &EBoolean{Value: equal}}, true
+		}
 
 	case *EString:
 		return Expr{Loc: expr.Loc, Data: &EBoolean{Value: len(e.Value) == 0}}, true
@@ -1168,6 +1170,22 @@ func IsBinaryNullAndUndefined(left Expr, right Expr, op OpCode) (Expr, Expr, boo
 	return Expr{}, Expr{}, false
 }
 
+func CheckEqualityBigInt(a string, b string) (equal bool, ok bool) {
+	// Equal literals are always equal
+	if a == b {
+		return true, true
+	}
+
+	// Unequal literals are unequal if neither has a radix. Leading zeros are
+	// disallowed in bigint literals without a radix, so in this case we know
+	// each value is in canonical form.
+	if (len(a) < 2 || a[0] != '0') && (len(b) < 2 || b[0] != '0') {
+		return false, true
+	}
+
+	return false, false
+}
+
 type EqualityKind uint8
 
 const (
@@ -1282,7 +1300,7 @@ func CheckEqualityIfNoSideEffects(left E, right E, kind EqualityKind) (equal boo
 		case *EBigInt:
 			// "0n === 0n" is true
 			// "0n === 1n" is false
-			return l.Value == r.Value, true
+			return CheckEqualityBigInt(l.Value, r.Value)
 
 		case *ENull, *EUndefined:
 			// "(not null or undefined) == undefined" is false
@@ -1760,7 +1778,8 @@ func ToBooleanWithSideEffects(data E) (boolean bool, sideEffects SideEffects, ok
 		return e.Value != 0 && !math.IsNaN(e.Value), NoSideEffects, true
 
 	case *EBigInt:
-		return e.Value != "0", NoSideEffects, true
+		equal, ok := CheckEqualityBigInt(e.Value, "0")
+		return !equal, NoSideEffects, ok
 
 	case *EString:
 		return len(e.Value) > 0, NoSideEffects, true
