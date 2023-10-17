@@ -4440,6 +4440,12 @@ func TestMangleBinaryConstantFolding(t *testing.T) {
 	expectPrintedNormalAndMangle(t, "x = 3 % 6", "x = 3 % 6;\n", "x = 3 % 6;\n")
 	expectPrintedNormalAndMangle(t, "x = 3 ** 6", "x = 3 ** 6;\n", "x = 3 ** 6;\n")
 
+	expectPrintedNormalAndMangle(t, "x = 0 / 0", "x = 0 / 0;\n", "x = NaN;\n")
+	expectPrintedNormalAndMangle(t, "x = 123 / 0", "x = 123 / 0;\n", "x = Infinity;\n")
+	expectPrintedNormalAndMangle(t, "x = 123 / -0", "x = 123 / -0;\n", "x = -Infinity;\n")
+	expectPrintedNormalAndMangle(t, "x = -123 / 0", "x = -123 / 0;\n", "x = -Infinity;\n")
+	expectPrintedNormalAndMangle(t, "x = -123 / -0", "x = -123 / -0;\n", "x = Infinity;\n")
+
 	expectPrintedNormalAndMangle(t, "x = 3 < 6", "x = 3 < 6;\n", "x = 3 < 6;\n")
 	expectPrintedNormalAndMangle(t, "x = 3 > 6", "x = 3 > 6;\n", "x = 3 > 6;\n")
 	expectPrintedNormalAndMangle(t, "x = 3 <= 6", "x = 3 <= 6;\n", "x = 3 <= 6;\n")

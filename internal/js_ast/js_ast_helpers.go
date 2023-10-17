@@ -1032,6 +1032,14 @@ func ShouldFoldBinaryArithmeticWhenMinifying(binary *EBinary) bool {
 			return true
 		}
 
+	case BinOpDiv:
+		// "0/0" => "NaN"
+		// "1/0" => "Infinity"
+		// "1/-0" => "-Infinity"
+		if _, right, ok := extractNumericValues(binary.Left, binary.Right); ok && right == 0 {
+			return true
+		}
+
 	case BinOpShl:
 		// "1 << 3" => "8"
 		// "1 << 24" => "1 << 24" (since "1<<24" is shorter than "16777216")
