@@ -3395,8 +3395,17 @@ func TestMangleAddEmptyString(t *testing.T) {
 	expectPrintedNormalAndMangle(t, "a = 0 + []", "a = \"0\";\n", "a = \"0\";\n")
 	expectPrintedNormalAndMangle(t, "a = [] + b", "a = [] + b;\n", "a = [] + b;\n")
 	expectPrintedNormalAndMangle(t, "a = b + []", "a = b + [];\n", "a = b + [];\n")
-	expectPrintedNormalAndMangle(t, "a = [1] + 0", "a = [1] + 0;\n", "a = [1] + 0;\n")
-	expectPrintedNormalAndMangle(t, "a = 0 + [1]", "a = 0 + [1];\n", "a = 0 + [1];\n")
+	expectPrintedNormalAndMangle(t, "a = [b] + 0", "a = [b] + 0;\n", "a = [b] + 0;\n")
+	expectPrintedNormalAndMangle(t, "a = 0 + [b]", "a = 0 + [b];\n", "a = 0 + [b];\n")
+
+	expectPrintedNormalAndMangle(t, "a = [1, 2] + ''", "a = \"1,2\";\n", "a = \"1,2\";\n")
+	expectPrintedNormalAndMangle(t, "a = [1, 0, 2] + ''", "a = \"1,0,2\";\n", "a = \"1,0,2\";\n")
+	expectPrintedNormalAndMangle(t, "a = [1, null, 2] + ''", "a = \"1,,2\";\n", "a = \"1,,2\";\n")
+	expectPrintedNormalAndMangle(t, "a = [1, undefined, 2] + ''", "a = \"1,,2\";\n", "a = \"1,,2\";\n")
+	expectPrintedNormalAndMangle(t, "a = [1, true, 2] + ''", "a = \"1,true,2\";\n", "a = \"1,true,2\";\n")
+	expectPrintedNormalAndMangle(t, "a = [1, false, 2] + ''", "a = \"1,false,2\";\n", "a = \"1,false,2\";\n")
+	expectPrintedNormalAndMangle(t, "a = [1, , 2] + ''", "a = [1, , 2] + \"\";\n", "a = [1, , 2] + \"\";\n") // Note: Prototype hazards
+	expectPrintedNormalAndMangle(t, "a = [1, , ,] + ''", "a = [1, , ,] + \"\";\n", "a = [1, , ,] + \"\";\n") // Note: Prototype hazards
 
 	expectPrintedNormalAndMangle(t, "a = {} + 0", "a = \"[object Object]0\";\n", "a = \"[object Object]0\";\n")
 	expectPrintedNormalAndMangle(t, "a = 0 + {}", "a = \"0[object Object]\";\n", "a = \"0[object Object]\";\n")
@@ -3414,8 +3423,8 @@ func TestMangleAddEmptyString(t *testing.T) {
 	expectPrintedNormalAndMangle(t, "a = `${b}` + []", "a = `${b}`;\n", "a = `${b}`;\n")
 	expectPrintedNormalAndMangle(t, "a = [] + typeof b", "a = typeof b;\n", "a = typeof b;\n")
 	expectPrintedNormalAndMangle(t, "a = typeof b + []", "a = typeof b;\n", "a = typeof b;\n")
-	expectPrintedNormalAndMangle(t, "a = [1] + `${b}`", "a = [1] + `${b}`;\n", "a = [1] + `${b}`;\n")
-	expectPrintedNormalAndMangle(t, "a = `${b}` + [1]", "a = `${b}` + [1];\n", "a = `${b}` + [1];\n")
+	expectPrintedNormalAndMangle(t, "a = [b] + `${b}`", "a = [b] + `${b}`;\n", "a = [b] + `${b}`;\n")
+	expectPrintedNormalAndMangle(t, "a = `${b}` + [b]", "a = `${b}` + [b];\n", "a = `${b}` + [b];\n")
 
 	expectPrintedNormalAndMangle(t, "a = {} + `${b}`", "a = `[object Object]${b}`;\n", "a = `[object Object]${b}`;\n")
 	expectPrintedNormalAndMangle(t, "a = `${b}` + {}", "a = `${b}[object Object]`;\n", "a = `${b}[object Object]`;\n")

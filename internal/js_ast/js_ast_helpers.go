@@ -3,6 +3,7 @@ package js_ast
 import (
 	"math"
 	"strconv"
+	"strings"
 
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/compat"
@@ -1470,8 +1471,23 @@ func foldAdditionPreProcess(expr Expr) Expr {
 
 	case *EArray:
 		// "[] + x" => "'' + x"
-		if len(e.Items) == 0 {
-			expr.Data = &EString{}
+		// "[1,2] + x" => "'1,2' + x"
+		items := make([]string, 0, len(e.Items))
+		for _, item := range e.Items {
+			switch item.Data.(type) {
+			case *EUndefined, *ENull:
+				items = append(items, "")
+				continue
+			}
+			item = stringAdditionOperandToString(item)
+			str, ok := item.Data.(*EString)
+			if !ok {
+				break
+			}
+			items = append(items, helpers.UTF16ToString(str.Value))
+		}
+		if len(items) == len(e.Items) {
+			expr.Data = &EString{Value: helpers.StringToUTF16(strings.Join(items, ","))}
 		}
 
 	case *EObject:
