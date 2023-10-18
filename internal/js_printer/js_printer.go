@@ -367,6 +367,7 @@ type printer struct {
 	arrowExprStart     int
 	forOfInitStart     int
 
+	withNesting          int
 	prevOpEnd            int
 	needSpaceBeforeDot   int
 	prevRegExpEnd        int
@@ -549,9 +550,26 @@ func (p *printer) printNumber(value float64, level js_ast.L) {
 
 	if value != value {
 		p.printSpaceBeforeIdentifier()
-		p.print("NaN")
+		if p.withNesting != 0 {
+			// "with (x) NaN" really means "x.NaN" so avoid identifiers when "with" is present
+			wrap := level >= js_ast.LMultiply
+			if wrap {
+				p.print("(")
+			}
+			if p.options.MinifyWhitespace {
+				p.print("0/0")
+			} else {
+				p.print("0 / 0")
+			}
+			if wrap {
+				p.print(")")
+			}
+		} else {
+			p.print("NaN")
+		}
 	} else if value == positiveInfinity || value == negativeInfinity {
-		wrap := (p.options.MinifySyntax && level >= js_ast.LMultiply) ||
+		// "with (x) Infinity" really means "x.Infinity" so avoid identifiers when "with" is present
+		wrap := ((p.options.MinifySyntax || p.withNesting != 0) && level >= js_ast.LMultiply) ||
 			(value == negativeInfinity && level >= js_ast.LPrefix)
 		if wrap {
 			p.print("(")
@@ -562,7 +580,7 @@ func (p *printer) printNumber(value float64, level js_ast.L) {
 		} else {
 			p.printSpaceBeforeIdentifier()
 		}
-		if !p.options.MinifySyntax {
+		if !p.options.MinifySyntax && p.withNesting == 0 {
 			p.print("Infinity")
 		} else if p.options.MinifyWhitespace {
 			p.print("1/0")
@@ -4417,7 +4435,9 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 			p.printExpr(s.Value, js_ast.LLowest, 0)
 		}
 		p.print(")")
+		p.withNesting++
 		p.printBody(s.Body)
+		p.withNesting--
 
 	case *js_ast.SLabel:
 		// Avoid printing a source mapping that masks the one from the label

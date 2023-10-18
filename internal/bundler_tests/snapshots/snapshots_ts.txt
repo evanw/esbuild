@@ -1754,6 +1754,40 @@ console.log("success");
 console.log("success");
 
 ================================================================================
+TestTSPrintNonFiniteNumberInsideWith
+---------- /out.js ----------
+var Foo = /* @__PURE__ */ ((Foo2) => {
+  Foo2[Foo2["NAN"] = NaN] = "NAN";
+  Foo2[Foo2["POS_INF"] = Infinity] = "POS_INF";
+  Foo2[Foo2["NEG_INF"] = -Infinity] = "NEG_INF";
+  return Foo2;
+})(Foo || {});
+//! It's ok to use "NaN" and "Infinity" here
+console.log(
+  NaN /* NAN */,
+  Infinity /* POS_INF */,
+  -Infinity /* NEG_INF */
+);
+checkPrecedence(
+  1 / NaN /* NAN */,
+  1 / Infinity /* POS_INF */,
+  1 / -Infinity /* NEG_INF */
+);
+//! We must not use "NaN" or "Infinity" inside "with"
+with (x) {
+  console.log(
+    0 / 0 /* NAN */,
+    1 / 0 /* POS_INF */,
+    -1 / 0 /* NEG_INF */
+  );
+  checkPrecedence(
+    1 / (0 / 0) /* NAN */,
+    1 / (1 / 0) /* POS_INF */,
+    1 / (-1 / 0) /* NEG_INF */
+  );
+}
+
+================================================================================
 TestTSSiblingEnum
 ---------- /out/number.js ----------
 export var x = /* @__PURE__ */ ((x2) => {
