@@ -152,17 +152,17 @@ test("basicTransform", ['native', 'wasm-main', 'wasm-worker'], async ({ esbuild 
 test("largeTransform", ['native'], async ({ esbuild }) => {
   // This should be large enough to be bigger than Deno's write buffer
   let x = '0'
-  for (let i = 0; i < 1000; i++)x += '+' + i
+  for (let i = 0; i < 1000; i++) x += '+' + i
   x += ','
   let y = 'return['
-  for (let i = 0; i < 1000; i++)y += x
+  for (let i = 0; i < 1000; i++) y += x
   y += ']'
   const result = await esbuild.build({
     stdin: {
       contents: y,
     },
     write: false,
-    minify: true,
+    minifyWhitespace: true,
   })
   asserts.assertStrictEquals(result.outputFiles[0].text, y.slice(0, -2) + '];\n')
 })
