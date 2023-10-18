@@ -74,18 +74,11 @@ console.log(
   "1000000000" /* SUPPORTED */,
   OutOfBoundsNumberToString.UNSUPPORTED
 );
-var TemplateExpressions = ((TemplateExpressions2) => {
-  TemplateExpressions2["NULL"] = "" + null;
-  TemplateExpressions2["TRUE"] = "true";
-  TemplateExpressions2["FALSE"] = "false";
-  TemplateExpressions2["BIGINT"] = "" + 123n;
-  return TemplateExpressions2;
-})(TemplateExpressions || {});
 console.log(
-  TemplateExpressions.NULL,
+  "null" /* NULL */,
   "true" /* TRUE */,
   "false" /* FALSE */,
-  TemplateExpressions.BIGINT
+  "123" /* BIGINT */
 );
 
 ================================================================================

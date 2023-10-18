@@ -14557,9 +14557,10 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 
 			if p.options.minifySyntax {
-				if len(e.Args) <= 1 && t.Name == "charCodeAt" {
+				switch t.Name {
+				case "charCodeAt":
 					// Recognize "charCodeAt()" calls
-					if str, ok := t.Target.Data.(*js_ast.EString); ok {
+					if str, ok := t.Target.Data.(*js_ast.EString); ok && len(e.Args) <= 1 {
 						index := 0
 						hasIndex := false
 						if len(e.Args) == 0 {
@@ -14576,7 +14577,8 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 							}
 						}
 					}
-				} else if t.Name == "fromCharCode" {
+
+				case "fromCharCode":
 					// Recognize "fromCharCode()" calls
 					if id, ok := t.Target.Data.(*js_ast.EIdentifier); ok {
 						if symbol := &p.symbols[id.Ref.InnerIndex]; symbol.Kind == ast.SymbolUnbound && symbol.OriginalName == "String" {
@@ -14591,6 +14593,35 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 							if len(charCodes) == len(e.Args) {
 								return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EString{Value: charCodes}}, exprOut{}
 							}
+						}
+					}
+
+				case "toString":
+					switch target := t.Target.Data.(type) {
+					case *js_ast.ENumber:
+						if len(e.Args) == 0 {
+							if str, ok := js_ast.TryToStringOnNumberSafely(target.Value); ok {
+								return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EString{Value: helpers.StringToUTF16(str)}}, exprOut{}
+							}
+						}
+
+					case *js_ast.ERegExp:
+						if len(e.Args) == 0 {
+							return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EString{Value: helpers.StringToUTF16(target.Value)}}, exprOut{}
+						}
+
+					case *js_ast.EBoolean:
+						if len(e.Args) == 0 {
+							if target.Value {
+								return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EString{Value: helpers.StringToUTF16("true")}}, exprOut{}
+							} else {
+								return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EString{Value: helpers.StringToUTF16("false")}}, exprOut{}
+							}
+						}
+
+					case *js_ast.EString:
+						if len(e.Args) == 0 {
+							return t.Target, exprOut{}
 						}
 					}
 				}

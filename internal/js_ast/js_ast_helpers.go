@@ -1445,7 +1445,7 @@ func joinStrings(a []uint16, b []uint16) []uint16 {
 // correctness bugs by accidentally stringifying a number differently than how
 // a real JavaScript VM would do it. So we are conservative and we only do this
 // when we know it'll be the same result.
-func tryToStringOnNumberSafely(n float64) (string, bool) {
+func TryToStringOnNumberSafely(n float64) (string, bool) {
 	if i := int32(n); float64(i) == n {
 		return strconv.Itoa(int(i)), true
 	}
@@ -1486,6 +1486,12 @@ func foldAdditionPreProcess(expr Expr) Expr {
 // Note: We know that this is string addition when we get here
 func stringAdditionOperandToString(expr Expr) Expr {
 	switch e := expr.Data.(type) {
+	case *ENull:
+		expr.Data = &EString{Value: helpers.StringToUTF16("null")}
+
+	case *EUndefined:
+		expr.Data = &EString{Value: helpers.StringToUTF16("undefined")}
+
 	case *EBoolean:
 		if e.Value {
 			expr.Data = &EString{Value: helpers.StringToUTF16("true")}
@@ -1493,8 +1499,14 @@ func stringAdditionOperandToString(expr Expr) Expr {
 			expr.Data = &EString{Value: helpers.StringToUTF16("false")}
 		}
 
+	case *EBigInt:
+		// Only do this if there is no radix
+		if len(e.Value) < 2 || e.Value[0] != '0' {
+			expr.Data = &EString{Value: helpers.StringToUTF16(e.Value)}
+		}
+
 	case *ENumber:
-		if str, ok := tryToStringOnNumberSafely(e.Value); ok {
+		if str, ok := TryToStringOnNumberSafely(e.Value); ok {
 			expr.Data = &EString{Value: helpers.StringToUTF16(str)}
 		}
 
@@ -1643,7 +1655,7 @@ func InlineStringsAndNumbersIntoTemplate(loc logger.Loc, e *ETemplate) Expr {
 			part.Value = value.Value
 		}
 		if value, ok := part.Value.Data.(*ENumber); ok {
-			if str, ok := tryToStringOnNumberSafely(value.Value); ok {
+			if str, ok := TryToStringOnNumberSafely(value.Value); ok {
 				part.Value.Data = &EString{Value: helpers.StringToUTF16(str)}
 			}
 		}
