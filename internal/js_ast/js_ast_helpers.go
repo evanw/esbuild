@@ -981,6 +981,51 @@ func ToNumberWithoutSideEffects(data E) (float64, bool) {
 	return 0, false
 }
 
+func ToStringWithoutSideEffects(data E) (string, bool) {
+	switch e := data.(type) {
+	case *ENull:
+		return "null", true
+
+	case *EUndefined:
+		return "undefined", true
+
+	case *EBoolean:
+		if e.Value {
+			return "true", true
+		} else {
+			return "false", true
+		}
+
+	case *EBigInt:
+		// Only do this if there is no radix
+		if len(e.Value) < 2 || e.Value[0] != '0' {
+			return e.Value, true
+		}
+
+	case *ENumber:
+		if str, ok := TryToStringOnNumberSafely(e.Value, 10); ok {
+			return str, true
+		}
+
+	case *ERegExp:
+		return e.Value, true
+
+	case *EDot:
+		// This is dumb but some JavaScript obfuscators use this to generate string literals
+		if e.Name == "constructor" {
+			switch e.Target.Data.(type) {
+			case *EString:
+				return "function String() { [native code] }", true
+
+			case *ERegExp:
+				return "function RegExp() { [native code] }", true
+			}
+		}
+	}
+
+	return "", false
+}
+
 func extractNumericValue(data E) (float64, bool) {
 	switch e := data.(type) {
 	case *EAnnotation:
@@ -1490,7 +1535,9 @@ func foldAdditionPreProcess(expr Expr) Expr {
 				items = append(items, "")
 				continue
 			}
-			item = stringAdditionOperandToString(item)
+			if str, ok := ToStringWithoutSideEffects(item.Data); ok {
+				item.Data = &EString{Value: helpers.StringToUTF16(str)}
+			}
 			str, ok := item.Data.(*EString)
 			if !ok {
 				break
@@ -1505,51 +1552,6 @@ func foldAdditionPreProcess(expr Expr) Expr {
 		// "{} + x" => "'[object Object]' + x"
 		if len(e.Properties) == 0 {
 			expr.Data = &EString{Value: helpers.StringToUTF16("[object Object]")}
-		}
-	}
-	return expr
-}
-
-// Note: We know that this is string addition when we get here
-func stringAdditionOperandToString(expr Expr) Expr {
-	switch e := expr.Data.(type) {
-	case *ENull:
-		expr.Data = &EString{Value: helpers.StringToUTF16("null")}
-
-	case *EUndefined:
-		expr.Data = &EString{Value: helpers.StringToUTF16("undefined")}
-
-	case *EBoolean:
-		if e.Value {
-			expr.Data = &EString{Value: helpers.StringToUTF16("true")}
-		} else {
-			expr.Data = &EString{Value: helpers.StringToUTF16("false")}
-		}
-
-	case *EBigInt:
-		// Only do this if there is no radix
-		if len(e.Value) < 2 || e.Value[0] != '0' {
-			expr.Data = &EString{Value: helpers.StringToUTF16(e.Value)}
-		}
-
-	case *ENumber:
-		if str, ok := TryToStringOnNumberSafely(e.Value, 10); ok {
-			expr.Data = &EString{Value: helpers.StringToUTF16(str)}
-		}
-
-	case *ERegExp:
-		expr.Data = &EString{Value: helpers.StringToUTF16(e.Value)}
-
-	case *EDot:
-		// This is dumb but some JavaScript obfuscators use this to generate string literals
-		if e.Name == "constructor" {
-			switch e.Target.Data.(type) {
-			case *EString:
-				expr.Data = &EString{Value: helpers.StringToUTF16("function String() { [native code] }")}
-
-			case *ERegExp:
-				expr.Data = &EString{Value: helpers.StringToUTF16("function RegExp() { [native code] }")}
-			}
 		}
 	}
 	return expr
@@ -1577,14 +1579,18 @@ func FoldStringAddition(left Expr, right Expr, kind StringAdditionKind) Expr {
 	if kind != StringAdditionWithNestedLeft {
 		switch right.Data.(type) {
 		case *EString, *ETemplate:
-			left = stringAdditionOperandToString(left)
+			if str, ok := ToStringWithoutSideEffects(left.Data); ok {
+				left.Data = &EString{Value: helpers.StringToUTF16(str)}
+			}
 		}
 	}
 
 	switch l := left.Data.(type) {
 	case *EString:
 		// "'x' + 0" => "'x' + '0'"
-		right = stringAdditionOperandToString(right)
+		if str, ok := ToStringWithoutSideEffects(right.Data); ok {
+			right.Data = &EString{Value: helpers.StringToUTF16(str)}
+		}
 
 		switch r := right.Data.(type) {
 		case *EString:
@@ -1613,7 +1619,9 @@ func FoldStringAddition(left Expr, right Expr, kind StringAdditionKind) Expr {
 	case *ETemplate:
 		if l.TagOrNil.Data == nil {
 			// "`${x}` + 0" => "`${x}` + '0'"
-			right = stringAdditionOperandToString(right)
+			if str, ok := ToStringWithoutSideEffects(right.Data); ok {
+				right.Data = &EString{Value: helpers.StringToUTF16(str)}
+			}
 
 			switch r := right.Data.(type) {
 			case *EString:
