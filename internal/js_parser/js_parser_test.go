@@ -3636,9 +3636,11 @@ func TestMangleFromCharCode(t *testing.T) {
 	expectPrintedMangle(t, "a = String.fromCharCode(Infinity)", "a = \"\\0\";\n")
 	expectPrintedMangle(t, "a = String.fromCharCode(null)", "a = \"\\0\";\n")
 	expectPrintedMangle(t, "a = String.fromCharCode(undefined)", "a = \"\\0\";\n")
+	expectPrintedMangle(t, "a = String.fromCharCode('123')", "a = \"{\";\n")
 
 	expectPrintedMangle(t, "a = String.fromCharCode(x)", "a = String.fromCharCode(x);\n")
-	expectPrintedMangle(t, "a = String.fromCharCode('123')", "a = String.fromCharCode(\"123\");\n")
+	expectPrintedMangle(t, "a = String.fromCharCode('x')", "a = String.fromCharCode(\"x\");\n")
+	expectPrintedMangle(t, "a = String.fromCharCode('0.5')", "a = String.fromCharCode(\"0.5\");\n")
 }
 
 func TestMangleToString(t *testing.T) {
@@ -4558,10 +4560,14 @@ func TestMangleUnaryConstantFolding(t *testing.T) {
 	expectPrintedNormalAndMangle(t, "x = !5", "x = false;\n", "x = false;\n")
 	expectPrintedNormalAndMangle(t, "x = typeof 5", "x = \"number\";\n", "x = \"number\";\n")
 
+	expectPrintedNormalAndMangle(t, "x = +''", "x = 0;\n", "x = 0;\n")
 	expectPrintedNormalAndMangle(t, "x = +[]", "x = 0;\n", "x = 0;\n")
 	expectPrintedNormalAndMangle(t, "x = +{}", "x = NaN;\n", "x = NaN;\n")
 	expectPrintedNormalAndMangle(t, "x = +/1/", "x = NaN;\n", "x = NaN;\n")
 	expectPrintedNormalAndMangle(t, "x = +[1]", "x = +[1];\n", "x = +[1];\n")
+	expectPrintedNormalAndMangle(t, "x = +'123'", "x = 123;\n", "x = 123;\n")
+	expectPrintedNormalAndMangle(t, "x = +'-123'", "x = -123;\n", "x = -123;\n")
+	expectPrintedNormalAndMangle(t, "x = +'0x10'", "x = +\"0x10\";\n", "x = +\"0x10\";\n")
 	expectPrintedNormalAndMangle(t, "x = +{toString:()=>1}", "x = +{ toString: () => 1 };\n", "x = +{ toString: () => 1 };\n")
 	expectPrintedNormalAndMangle(t, "x = +{valueOf:()=>1}", "x = +{ valueOf: () => 1 };\n", "x = +{ valueOf: () => 1 };\n")
 }

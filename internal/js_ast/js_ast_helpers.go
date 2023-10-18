@@ -965,6 +965,17 @@ func ToNumberWithoutSideEffects(data E) (float64, bool) {
 
 	case *ENumber:
 		return e.Value, true
+
+	case *EString:
+		// "+''" => "0"
+		if len(e.Value) == 0 {
+			return 0, true
+		}
+
+		// "+'1'" => "1"
+		if num, ok := StringToEquivalentNumberValue(e.Value); ok {
+			return num, true
+		}
 	}
 
 	return 0, false
