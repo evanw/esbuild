@@ -3647,6 +3647,23 @@ func TestMangleToString(t *testing.T) {
 	expectPrintedMangle(t, "a = (-Infinity).toString()", "a = \"-Infinity\";\n")
 	expectPrintedMangle(t, "a = /a\\\\b/ig.toString()", "a = \"/a\\\\\\\\b/ig\";\n")
 
+	// Handle a radix other than 10
+	expectPrintedMangle(t, "a = 100 .toString(0)", "a = 100 .toString(0);\n")
+	expectPrintedMangle(t, "a = 100 .toString(1)", "a = 100 .toString(1);\n")
+	expectPrintedMangle(t, "a = 100 .toString(2)", "a = \"1100100\";\n")
+	expectPrintedMangle(t, "a = 100 .toString(5)", "a = \"400\";\n")
+	expectPrintedMangle(t, "a = 100 .toString(8)", "a = \"144\";\n")
+	expectPrintedMangle(t, "a = 100 .toString(13)", "a = \"79\";\n")
+	expectPrintedMangle(t, "a = 100 .toString(16)", "a = \"64\";\n")
+	expectPrintedMangle(t, "a = 10000 .toString(19)", "a = \"18d6\";\n")
+	expectPrintedMangle(t, "a = 10000 .toString(23)", "a = \"iki\";\n")
+	expectPrintedMangle(t, "a = 1000000 .toString(29)", "a = \"1c01m\";\n")
+	expectPrintedMangle(t, "a = 1000000 .toString(31)", "a = \"12hi2\";\n")
+	expectPrintedMangle(t, "a = 1000000 .toString(36)", "a = \"lfls\";\n")
+	expectPrintedMangle(t, "a = (-1000000).toString(36)", "a = \"-lfls\";\n")
+	expectPrintedMangle(t, "a = 0 .toString(36)", "a = \"0\";\n")
+	expectPrintedMangle(t, "a = (-0).toString(36)", "a = \"0\";\n")
+
 	expectPrintedMangle(t, "a = false.toString(b)", "a = false.toString(b);\n")
 	expectPrintedMangle(t, "a = true.toString(b)", "a = true.toString(b);\n")
 	expectPrintedMangle(t, "a = \"xy\".toString(b)", "a = \"xy\".toString(b);\n")

@@ -1445,9 +1445,9 @@ func joinStrings(a []uint16, b []uint16) []uint16 {
 // correctness bugs by accidentally stringifying a number differently than how
 // a real JavaScript VM would do it. So we are conservative and we only do this
 // when we know it'll be the same result.
-func TryToStringOnNumberSafely(n float64) (string, bool) {
+func TryToStringOnNumberSafely(n float64, radix int) (string, bool) {
 	if i := int32(n); float64(i) == n {
-		return strconv.Itoa(int(i)), true
+		return strconv.FormatInt(int64(i), radix), true
 	}
 	if math.IsNaN(n) {
 		return "NaN", true
@@ -1506,7 +1506,7 @@ func stringAdditionOperandToString(expr Expr) Expr {
 		}
 
 	case *ENumber:
-		if str, ok := TryToStringOnNumberSafely(e.Value); ok {
+		if str, ok := TryToStringOnNumberSafely(e.Value, 10); ok {
 			expr.Data = &EString{Value: helpers.StringToUTF16(str)}
 		}
 
@@ -1655,7 +1655,7 @@ func InlineStringsAndNumbersIntoTemplate(loc logger.Loc, e *ETemplate) Expr {
 			part.Value = value.Value
 		}
 		if value, ok := part.Value.Data.(*ENumber); ok {
-			if str, ok := TryToStringOnNumberSafely(value.Value); ok {
+			if str, ok := TryToStringOnNumberSafely(value.Value, 10); ok {
 				part.Value.Data = &EString{Value: helpers.StringToUTF16(str)}
 			}
 		}

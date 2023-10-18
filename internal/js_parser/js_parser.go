@@ -14599,8 +14599,16 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				case "toString":
 					switch target := t.Target.Data.(type) {
 					case *js_ast.ENumber:
+						radix := 0
 						if len(e.Args) == 0 {
-							if str, ok := js_ast.TryToStringOnNumberSafely(target.Value); ok {
+							radix = 10
+						} else if len(e.Args) == 1 {
+							if num, ok := e.Args[0].Data.(*js_ast.ENumber); ok && num.Value == math.Trunc(num.Value) && num.Value >= 2 && num.Value <= 36 {
+								radix = int(num.Value)
+							}
+						}
+						if radix != 0 {
+							if str, ok := js_ast.TryToStringOnNumberSafely(target.Value, radix); ok {
 								return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EString{Value: helpers.StringToUTF16(str)}}, exprOut{}
 							}
 						}
