@@ -1127,7 +1127,7 @@ func addAnalyzePlugin(buildOptions *api.BuildOptions, analyze analyzeMode, osArg
 	buildOptions.Metafile = true
 }
 
-func runImpl(osArgs []string) int {
+func runImpl(osArgs []string, plugins []api.Plugin) int {
 	// Special-case running a server
 	for _, arg := range osArgs {
 		if arg == "--serve" ||
@@ -1278,6 +1278,8 @@ func runImpl(osArgs []string) int {
 			}
 		}
 
+		buildOptions.Plugins = plugins
+		// buildOptions.Plugins = append(buildOptions.Plugins, scssPlugin)
 		// Handle post-build actions with a plugin so they also work in watch mode
 		buildOptions.Plugins = append(buildOptions.Plugins, api.Plugin{
 			Name: "PostBuildActions",
