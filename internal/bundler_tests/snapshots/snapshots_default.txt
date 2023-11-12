@@ -151,6 +151,15 @@ import "//example.com/code.js";
 import "data:application/javascript;base64,ZXhwb3J0IGRlZmF1bHQgMTIz";
 
 ================================================================================
+TestAutoExternalBun
+---------- /out/entry.js ----------
+// entry.js
+import { file } from "bun";
+import { Database } from "bun:sqlite";
+await file("./test.txt");
+var db = new Database(":memory:");
+
+================================================================================
 TestAutoExternalNode
 ---------- /out/entry.js ----------
 // entry.js

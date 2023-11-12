@@ -440,7 +440,18 @@ func (res *Resolver) Resolve(sourceDir string, importPath string, kind ast.Impor
 		if r.debugLogs != nil {
 			r.debugLogs.addNote("Marking this path as implicitly external due to it being a node built-in")
 		}
+		r.flushDebugLogs(flushDueToSuccess)
+		return &ResolveResult{
+			PathPair:               PathPair{Primary: logger.Path{Text: importPath}},
+			IsExternal:             true,
+			PrimarySideEffectsData: &SideEffectsData{}, // Mark this with "sideEffects: false"
+		}, debugMeta
+	}
 
+	if r.options.Platform == config.PlatformNode && (strings.HasPrefix(importPath, "bun:") || importPath == "bun") {
+		if r.debugLogs != nil {
+			r.debugLogs.addNote("Marking this path as implicitly external due to it being a Bun built-in")
+		}
 		r.flushDebugLogs(flushDueToSuccess)
 		return &ResolveResult{
 			PathPair:               PathPair{Primary: logger.Path{Text: importPath}, IsExternal: true},
@@ -491,6 +502,22 @@ func (res *Resolver) Resolve(sourceDir string, importPath string, kind ast.Impor
 		return &ResolveResult{
 			PathPair:               PathPair{Primary: logger.Path{Text: importPath}, IsExternal: true},
 			PrimarySideEffectsData: sideEffects,
+		}, debugMeta
+
+	}
+
+	if r.options.Platform == config.PlatformNode && (strings.HasPrefix(importPath, "bun:") || importPath == "bun") {
+		if r.debugLogs != nil {
+			r.debugLogs.addNote("Marking this path as implicitly external due to it being a Bun built-in")
+		}
+
+		// NodeColonPrefixImport check isn't necessary because the "bun:" prefix is always required
+
+		r.flushDebugLogs(flushDueToSuccess)
+		return &ResolveResult{
+			PathPair:               PathPair{Primary: logger.Path{Text: importPath}},
+			IsExternal:             true,
+			PrimarySideEffectsData: &SideEffectsData{},
 		}, debugMeta
 	}
 
