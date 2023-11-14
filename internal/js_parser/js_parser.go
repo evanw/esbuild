@@ -7546,6 +7546,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 
 			defaultName := p.lexer.Identifier
 			stmt.DefaultName = &ast.LocRef{Loc: p.lexer.Loc(), Ref: p.storeNameInRef(defaultName)}
+			oldLexer := p.lexer
 			p.lexer.Next()
 
 			if p.options.ts.Parse {
@@ -7553,10 +7554,10 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 				if defaultName.String == "type" {
 					switch p.lexer.Token {
 					case js_lexer.TIdentifier:
-						if p.lexer.Identifier.String != "from" {
-							defaultName = p.lexer.Identifier
-							stmt.DefaultName.Loc = p.lexer.Loc()
-							p.lexer.Next()
+						defaultName = p.lexer.Identifier
+						stmt.DefaultName.Loc = p.lexer.Loc()
+						p.lexer.Next()
+						if defaultName.String != "from" || p.lexer.IsContextualKeyword("from") {
 							if p.lexer.Token == js_lexer.TEquals {
 								// "import type foo = require('bar');"
 								// "import type foo = bar.baz;"
@@ -7569,6 +7570,11 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 								p.lexer.ExpectOrInsertSemicolon()
 								return js_ast.Stmt{Loc: loc, Data: js_ast.STypeScriptShared}
 							}
+						} else {
+							defaultName = oldLexer.Identifier
+							stmt.DefaultName.Loc = oldLexer.Loc()
+							p.lexer = oldLexer
+							p.lexer.Next()
 						}
 
 					case js_lexer.TAsterisk:

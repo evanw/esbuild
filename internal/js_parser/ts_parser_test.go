@@ -2540,6 +2540,7 @@ func TestTSImportEqualsInNamespace(t *testing.T) {
 func TestTSTypeOnlyImport(t *testing.T) {
 	expectPrintedTS(t, "import type foo from 'bar'; x", "x;\n")
 	expectPrintedTS(t, "import type foo from 'bar'\nx", "x;\n")
+	expectPrintedTS(t, "import type from from 'bar'\nx", "x;\n")
 	expectPrintedTS(t, "import type * as foo from 'bar'; x", "x;\n")
 	expectPrintedTS(t, "import type * as foo from 'bar'\nx", "x;\n")
 	expectPrintedTS(t, "import type {foo, bar as baz} from 'bar'; x", "x;\n")
