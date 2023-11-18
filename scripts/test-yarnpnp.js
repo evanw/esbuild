@@ -37,7 +37,12 @@ function reinstallYarnIfNeeded() {
     run('yarn set version 4.0.0-rc.22')
   }
 
-  const rc = fs.readFileSync(path.join(rootDir, '.yarnrc.yml'), 'utf8')
+  let rc
+  try {
+    rc = fs.readFileSync(path.join(rootDir, '.yarnrc.yml'), 'utf8')
+  } catch {
+    rc = '' // Sometimes this file doesn't exist, so pretend it's empty
+  }
   fs.writeFileSync(path.join(rootDir, '.yarnrc.yml'), `
 pnpEnableEsmLoader: true
 pnpIgnorePatterns: ["./bar/**"]

@@ -174,9 +174,6 @@ jobs:
         if: matrix.os != 'ubuntu-latest'
         run: node scripts/wasm-tests.js
 
-      - name: Yarn PnP tests
-        run: make test-yarnpnp
-
       - name: Sucrase Tests
         if: matrix.os == 'ubuntu-latest'
         run: make test-sucrase
@@ -192,6 +189,15 @@ jobs:
       - name: Check the unicode table generator
         if: matrix.os == 'ubuntu-latest'
         run: cd scripts && node gen-unicode-table.js
+
+      - name: Yarn PnP tests
+        run: |
+          # Note that Yarn recently deliberately broke "npm install -g yarn".
+          # They say you now have to run "corepack enable" to fix it. They have
+          # written about this here: https://yarnpkg.com/corepack
+          corepack enable
+
+          make test-yarnpnp
 
   esbuild-old-versions:
     name: esbuild CI (old versions)
