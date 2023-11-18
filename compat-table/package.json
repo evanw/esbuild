@@ -4,9 +4,9 @@
     "williamkapke/node-compat-table": "c80fd4ddbeca5c2d3c76d20e1a984ad470f9b412"
   },
   "dependencies": {
-    "@mdn/browser-compat-data": "5.3.21",
+    "@mdn/browser-compat-data": "5.4.0",
     "@types/caniuse-lite": "1.0.1",
     "@types/node": "20.3.2",
-    "caniuse-lite": "1.0.30001546"
+    "caniuse-lite": "1.0.30001563"
   }
 }

@@ -568,7 +568,10 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Edge:   {{start: v{91, 0, 0}}},
 		Node:   {{start: v{16, 14, 0}}},
 	},
-	ImportAttributes: {},
+	ImportAttributes: {
+		Deno: {{start: v{1, 37, 0}}},
+		Node: {{start: v{21, 0, 0}}},
+	},
 	ImportMeta: {
 		Chrome:  {{start: v{64, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},

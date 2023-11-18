@@ -16,12 +16,13 @@ const supportedEnvironments: Record<string, Engine> = {
 }
 
 const jsFeatures: Partial<Record<JSFeature, string>> = {
-  RegexpMatchIndices: 'javascript.builtins.RegExp.hasIndices',
   ClassStaticBlocks: 'javascript.classes.static_initialization_blocks',
-  TopLevelAwait: 'javascript.operators.await.top_level',
-  ImportMeta: 'javascript.operators.import_meta',
   ExportStarAs: 'javascript.statements.export.namespace',
-  ImportAssertions: 'javascript.statements.import.import_assertions',
+  ImportAssertions: 'javascript.statements.import.import_attribues_assert',
+  ImportAttributes: 'javascript.statements.import.import_attributes',
+  ImportMeta: 'javascript.operators.import_meta',
+  RegexpMatchIndices: 'javascript.builtins.RegExp.hasIndices',
+  TopLevelAwait: 'javascript.operators.await.top_level',
 }
 
 const cssFeatures: Partial<Record<CSSFeature, string | string[]>> = {
