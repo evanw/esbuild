@@ -155,13 +155,14 @@ type parser struct {
 	// The visit pass binds identifiers to declared symbols, does constant
 	// folding, substitutes compile-time variable definitions, and lowers certain
 	// syntactic constructs as appropriate.
-	stmtExprValue    js_ast.E
-	callTarget       js_ast.E
-	dotOrIndexTarget js_ast.E
-	templateTag      js_ast.E
-	deleteTarget     js_ast.E
-	loopBody         js_ast.S
-	moduleScope      *js_ast.Scope
+	stmtExprValue                        js_ast.E
+	callTarget                           js_ast.E
+	dotOrIndexTarget                     js_ast.E
+	templateTag                          js_ast.E
+	deleteTarget                         js_ast.E
+	loopBody                             js_ast.S
+	suspiciousLogicalOperatorInsideArrow js_ast.E
+	moduleScope                          *js_ast.Scope
 
 	// This is internal-only data used for the implementation of Yarn PnP
 	manifestForYarnPnP     js_ast.Expr
@@ -14804,6 +14805,17 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			nameToKeep = p.nameToKeep
 		}
 
+		// Prepare for suspicious logical operator checking
+		if e.PreferExpr && len(e.Args) == 1 && e.Args[0].DefaultOrNil.Data == nil && len(e.Body.Block.Stmts) == 1 {
+			if _, ok := e.Args[0].Binding.Data.(*js_ast.BIdentifier); ok {
+				if stmt, ok := e.Body.Block.Stmts[0].Data.(*js_ast.SReturn); ok {
+					if binary, ok := stmt.ValueOrNil.Data.(*js_ast.EBinary); ok && (binary.Op == js_ast.BinOpLogicalAnd || binary.Op == js_ast.BinOpLogicalOr) {
+						p.suspiciousLogicalOperatorInsideArrow = binary
+					}
+				}
+			}
+		}
+
 		asyncArrowNeedsToBeLowered := e.IsAsync && p.options.unsupportedJSFeatures.Has(compat.AsyncAwait)
 		oldFnOrArrowData := p.fnOrArrowDataVisit
 		p.fnOrArrowDataVisit = fnOrArrowDataVisit{
@@ -15242,6 +15254,25 @@ func (v *binaryExprVisitor) visitRightAndFinish(p *parser) js_ast.Expr {
 
 	case js_ast.BinOpLogicalOr:
 		if boolean, sideEffects, ok := js_ast.ToBooleanWithSideEffects(e.Left.Data); ok {
+			// Warn about potential bugs
+			if e == p.suspiciousLogicalOperatorInsideArrow {
+				// "return foo => 1 || foo <= 0"
+				var which string
+				if boolean {
+					which = "left"
+				} else {
+					which = "right"
+				}
+				if arrowLoc := p.source.RangeOfOperatorBefore(v.loc, "=>"); arrowLoc.Loc.Start+2 == p.source.LocBeforeWhitespace(v.loc).Start {
+					note := p.tracker.MsgData(arrowLoc,
+						"The \"=>\" symbol creates an arrow function expression in JavaScript. Did you mean to use the greater-than-or-equal-to operator \">=\" here instead?")
+					note.Location.Suggestion = ">="
+					rOp := p.source.RangeOfOperatorBefore(e.Right.Loc, "||")
+					p.log.AddIDWithNotes(logger.MsgID_JS_SuspiciousLogicalOperator, logger.Warning, &p.tracker, rOp,
+						fmt.Sprintf("The \"||\" operator here will always return the %s operand", which), []logger.MsgData{note})
+				}
+			}
+
 			if boolean {
 				return e.Left
 			} else if sideEffects == js_ast.NoSideEffects {
@@ -15266,6 +15297,25 @@ func (v *binaryExprVisitor) visitRightAndFinish(p *parser) js_ast.Expr {
 
 	case js_ast.BinOpLogicalAnd:
 		if boolean, sideEffects, ok := js_ast.ToBooleanWithSideEffects(e.Left.Data); ok {
+			// Warn about potential bugs
+			if e == p.suspiciousLogicalOperatorInsideArrow {
+				// "return foo => 0 && foo <= 1"
+				var which string
+				if !boolean {
+					which = "left"
+				} else {
+					which = "right"
+				}
+				if arrowLoc := p.source.RangeOfOperatorBefore(v.loc, "=>"); arrowLoc.Loc.Start+2 == p.source.LocBeforeWhitespace(v.loc).Start {
+					note := p.tracker.MsgData(arrowLoc,
+						"The \"=>\" symbol creates an arrow function expression in JavaScript. Did you mean to use the greater-than-or-equal-to operator \">=\" here instead?")
+					note.Location.Suggestion = ">="
+					rOp := p.source.RangeOfOperatorBefore(e.Right.Loc, "&&")
+					p.log.AddIDWithNotes(logger.MsgID_JS_SuspiciousLogicalOperator, logger.Warning, &p.tracker, rOp,
+						fmt.Sprintf("The \"&&\" operator here will always return the %s operand", which), []logger.MsgData{note})
+				}
+			}
+
 			if !boolean {
 				return e.Left
 			} else if sideEffects == js_ast.NoSideEffects {

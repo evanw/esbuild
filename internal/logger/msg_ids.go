@@ -35,6 +35,7 @@ const (
 	MsgID_JS_SemicolonAfterReturn
 	MsgID_JS_SuspiciousBooleanNot
 	MsgID_JS_SuspiciousDefine
+	MsgID_JS_SuspiciousLogicalOperator
 	MsgID_JS_SuspiciousNullishCoalescing
 	MsgID_JS_ThisIsUndefinedInESM
 	MsgID_JS_UnsupportedDynamicImport
@@ -141,6 +142,8 @@ func StringToMsgIDs(str string, logLevel LogLevel, overrides map[MsgID]LogLevel)
 		overrides[MsgID_JS_SuspiciousBooleanNot] = logLevel
 	case "suspicious-define":
 		overrides[MsgID_JS_SuspiciousDefine] = logLevel
+	case "suspicious-logical-operator":
+		overrides[MsgID_JS_SuspiciousLogicalOperator] = logLevel
 	case "suspicious-nullish-coalescing":
 		overrides[MsgID_JS_SuspiciousNullishCoalescing] = logLevel
 	case "this-is-undefined-in-esm":
@@ -269,6 +272,8 @@ func MsgIDToString(id MsgID) string {
 		return "suspicious-boolean-not"
 	case MsgID_JS_SuspiciousDefine:
 		return "suspicious-define"
+	case MsgID_JS_SuspiciousLogicalOperator:
+		return "suspicious-logical-operator"
 	case MsgID_JS_SuspiciousNullishCoalescing:
 		return "suspicious-nullish-coalescing"
 	case MsgID_JS_ThisIsUndefinedInESM:

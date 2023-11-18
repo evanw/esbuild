@@ -3260,6 +3260,24 @@ func TestWarningNullishCoalescing(t *testing.T) {
 	expectParseError(t, "x = void a ?? y", alwaysRight)
 }
 
+func TestWarningLogicalOperator(t *testing.T) {
+	expectParseError(t, "x(a => b && a <= c)", "")
+	expectParseError(t, "x(a => b || a <= c)", "")
+	expectParseError(t, "x(a => (0 && a <= 1))", "")
+	expectParseError(t, "x(a => (-1 && a <= 0))", "")
+	expectParseError(t, "x(a => (0 || a <= -1))", "")
+	expectParseError(t, "x(a => (1 || a <= 0))", "")
+
+	expectParseError(t, "x(a => 0 && a <= 1)", "<stdin>: WARNING: The \"&&\" operator here will always return the left operand\n"+
+		"<stdin>: NOTE: The \"=>\" symbol creates an arrow function expression in JavaScript. Did you mean to use the greater-than-or-equal-to operator \">=\" here instead?\n")
+	expectParseError(t, "x(a => -1 && a <= 0)", "<stdin>: WARNING: The \"&&\" operator here will always return the right operand\n"+
+		"<stdin>: NOTE: The \"=>\" symbol creates an arrow function expression in JavaScript. Did you mean to use the greater-than-or-equal-to operator \">=\" here instead?\n")
+	expectParseError(t, "x(a => 0 || a <= -1)", "<stdin>: WARNING: The \"||\" operator here will always return the right operand\n"+
+		"<stdin>: NOTE: The \"=>\" symbol creates an arrow function expression in JavaScript. Did you mean to use the greater-than-or-equal-to operator \">=\" here instead?\n")
+	expectParseError(t, "x(a => 1 || a <= 0)", "<stdin>: WARNING: The \"||\" operator here will always return the left operand\n"+
+		"<stdin>: NOTE: The \"=>\" symbol creates an arrow function expression in JavaScript. Did you mean to use the greater-than-or-equal-to operator \">=\" here instead?\n")
+}
+
 func TestMangleFor(t *testing.T) {
 	expectPrintedMangle(t, "var a; while (1) ;", "for (var a; ; )\n  ;\n")
 	expectPrintedMangle(t, "let a; while (1) ;", "let a;\nfor (; ; )\n  ;\n")
