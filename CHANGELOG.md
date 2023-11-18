@@ -35,17 +35,18 @@
     document.onkeydown=o=>o.keyCode===65&&console.log("🧀");
     ```
 
-* Parse an upcoming change to TypeScript type syntax ([#3490](https://github.com/evanw/esbuild/issues/3490), [#3491](https://github.com/evanw/esbuild/pull/3491))
+* Parse upcoming changes to TypeScript syntax ([#3490](https://github.com/evanw/esbuild/issues/3490), [#3491](https://github.com/evanw/esbuild/pull/3491))
 
-    With this release, you can now use `from` as the name of a default type-only import in TypeScript code:
+    With this release, you can now use `from` as the name of a default type-only import in TypeScript code, as well as `of` as the name of an `await using` loop iteration variable:
 
     ```ts
     import type from from 'from'
+    for (await using of of of) ;
     ```
 
-    This matches a similar [change in the TypeScript compiler](https://github.com/microsoft/TypeScript/issues/56376) which will start allowing this syntax in an upcoming version of TypeScript.
+    This matches similar changes in the TypeScript compiler ([#56376](https://github.com/microsoft/TypeScript/issues/56376) and [#55555](https://github.com/microsoft/TypeScript/issues/55555)) which will start allowing this syntax in an upcoming version of TypeScript. Please never actually write code like this.
 
-    This change was contributed by [@magic-akari](https://github.com/magic-akari).
+    The type-only import syntax change was contributed by [@magic-akari](https://github.com/magic-akari).
 
 ## 0.19.5
 

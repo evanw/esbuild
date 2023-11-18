@@ -4817,7 +4817,7 @@ func (p *parser) parseExprOrLetOrUsingStmt(opts parseStmtOpts) (js_ast.Expr, js_
 			usingLoc := p.saveExprCommentsHere()
 			usingRange := p.lexer.Range()
 			p.lexer.Next()
-			if p.lexer.Token == js_lexer.TIdentifier && !p.lexer.HasNewlineBefore && (!opts.isForLoopInit || p.lexer.Raw() != "of") {
+			if p.lexer.Token == js_lexer.TIdentifier && !p.lexer.HasNewlineBefore {
 				// It's an "await using" declaration if we get here
 				if opts.lexicalDecl != lexicalDeclAllowAll {
 					p.forbidLexicalDecl(usingRange.Loc)
@@ -7447,6 +7447,8 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			return js_ast.Stmt{Loc: loc, Data: &js_ast.SForIn{Init: initOrNil, Value: value, Body: body}}
 		}
 
+		p.lexer.Expect(js_lexer.TSemicolon)
+
 		// "await using" declarations are only allowed in for-of loops
 		if local, ok := initOrNil.Data.(*js_ast.SLocal); ok && local.Kind == js_ast.LocalAwaitUsing {
 			p.log.AddError(&p.tracker, js_lexer.RangeOfIdentifier(p.source, initOrNil.Loc), "\"await using\" declarations are not allowed here")
@@ -7456,8 +7458,6 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		if local, ok := initOrNil.Data.(*js_ast.SLocal); ok && (local.Kind == js_ast.LocalConst || local.Kind == js_ast.LocalUsing) {
 			p.requireInitializers(local.Kind, decls)
 		}
-
-		p.lexer.Expect(js_lexer.TSemicolon)
 
 		if p.lexer.Token != js_lexer.TSemicolon {
 			testOrNil = p.parseExpr(js_ast.LLowest)
