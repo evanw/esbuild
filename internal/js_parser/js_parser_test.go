@@ -3241,6 +3241,25 @@ func TestWarningDuplicateClassMember(t *testing.T) {
 	expectParseError(t, "class Foo { set x(y) {}; static set x(y) {} }", "")
 }
 
+func TestWarningNullishCoalescing(t *testing.T) {
+	expectParseError(t, "x = null ?? y", "")
+	expectParseError(t, "x = undefined ?? y", "")
+	expectParseError(t, "x = false ?? y", "")
+	expectParseError(t, "x = true ?? y", "")
+	expectParseError(t, "x = 0 ?? y", "")
+	expectParseError(t, "x = 1 ?? y", "")
+
+	alwaysLeft := "<stdin>: WARNING: The \"??\" operator here will always return the left operand\n" +
+		"<stdin>: NOTE: The left operand of the \"??\" operator here will never be null or undefined, so it will always be returned. This usually indicates a bug in your code:\n"
+	alwaysRight := "<stdin>: WARNING: The \"??\" operator here will always return the right operand\n" +
+		"<stdin>: NOTE: The left operand of the \"??\" operator here will always be null or undefined, so it will never be returned. This usually indicates a bug in your code:\n"
+
+	expectParseError(t, "x = a === b ?? y", alwaysLeft)
+	expectParseError(t, "x = { ...a } ?? y", alwaysLeft)
+	expectParseError(t, "x = (a => b) ?? y", alwaysLeft)
+	expectParseError(t, "x = void a ?? y", alwaysRight)
+}
+
 func TestMangleFor(t *testing.T) {
 	expectPrintedMangle(t, "var a; while (1) ;", "for (var a; ; )\n  ;\n")
 	expectPrintedMangle(t, "let a; while (1) ;", "let a;\nfor (; ; )\n  ;\n")

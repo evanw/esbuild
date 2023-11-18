@@ -15197,6 +15197,30 @@ func (v *binaryExprVisitor) visitRightAndFinish(p *parser) js_ast.Expr {
 
 	case js_ast.BinOpNullishCoalescing:
 		if isNullOrUndefined, sideEffects, ok := js_ast.ToNullOrUndefinedWithSideEffects(e.Left.Data); ok {
+			// Warn about potential bugs
+			if !js_ast.IsPrimitiveLiteral(e.Left.Data) {
+				// "return props.flag === flag ?? true" is "return (props.flag === flag) ?? true" not "return props.flag === (flag ?? true)"
+				var which string
+				var leftIsNullOrUndefined string
+				var leftIsReturned string
+				if !isNullOrUndefined {
+					which = "left"
+					leftIsNullOrUndefined = "never"
+					leftIsReturned = "always"
+				} else {
+					which = "right"
+					leftIsNullOrUndefined = "always"
+					leftIsReturned = "never"
+				}
+				rOp := p.source.RangeOfOperatorBefore(e.Right.Loc, "??")
+				rLeft := logger.Range{Loc: e.Left.Loc, Len: p.source.LocBeforeWhitespace(rOp.Loc).Start - e.Left.Loc.Start}
+				p.log.AddIDWithNotes(logger.MsgID_JS_SuspiciousNullishCoalescing, logger.Warning, &p.tracker, rOp,
+					fmt.Sprintf("The \"??\" operator here will always return the %s operand", which), []logger.MsgData{
+						p.tracker.MsgData(rLeft, fmt.Sprintf(
+							"The left operand of the \"??\" operator here will %s be null or undefined, so it will %s be returned. This usually indicates a bug in your code:",
+							leftIsNullOrUndefined, leftIsReturned))})
+			}
+
 			if !isNullOrUndefined {
 				return e.Left
 			} else if sideEffects == js_ast.NoSideEffects {
