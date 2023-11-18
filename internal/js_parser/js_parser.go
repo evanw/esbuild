@@ -7557,19 +7557,17 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 						defaultName = p.lexer.Identifier
 						stmt.DefaultName.Loc = p.lexer.Loc()
 						p.lexer.Next()
-						if defaultName.String != "from" || p.lexer.IsContextualKeyword("from") {
-							if p.lexer.Token == js_lexer.TEquals {
-								// "import type foo = require('bar');"
-								// "import type foo = bar.baz;"
-								opts.isTypeScriptDeclare = true
-								return p.parseTypeScriptImportEqualsStmt(loc, opts, stmt.DefaultName.Loc, defaultName.String)
-							} else {
-								// "import type foo from 'bar';"
-								p.lexer.ExpectContextualKeyword("from")
-								p.parsePath()
-								p.lexer.ExpectOrInsertSemicolon()
-								return js_ast.Stmt{Loc: loc, Data: js_ast.STypeScriptShared}
-							}
+						if p.lexer.Token == js_lexer.TEquals {
+							// "import type foo = require('bar');"
+							// "import type foo = bar.baz;"
+							opts.isTypeScriptDeclare = true
+							return p.parseTypeScriptImportEqualsStmt(loc, opts, stmt.DefaultName.Loc, defaultName.String)
+						} else if defaultName.String != "from" || p.lexer.IsContextualKeyword("from") {
+							// "import type foo from 'bar';"
+							p.lexer.ExpectContextualKeyword("from")
+							p.parsePath()
+							p.lexer.ExpectOrInsertSemicolon()
+							return js_ast.Stmt{Loc: loc, Data: js_ast.STypeScriptShared}
 						} else {
 							defaultName = oldLexer.Identifier
 							stmt.DefaultName.Loc = oldLexer.Loc()
