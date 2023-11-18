@@ -7491,6 +7491,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			p.lexer.Expected(js_lexer.TIdentifier)
 		}
 
+	syntaxBeforePath:
 		switch p.lexer.Token {
 		case js_lexer.TOpenParen, js_lexer.TDot:
 			// "import('path')"
@@ -7553,22 +7554,23 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 				if defaultName.String == "type" {
 					switch p.lexer.Token {
 					case js_lexer.TIdentifier:
-						if p.lexer.Identifier.String != "from" {
-							defaultName = p.lexer.Identifier
-							stmt.DefaultName.Loc = p.lexer.Loc()
-							p.lexer.Next()
-							if p.lexer.Token == js_lexer.TEquals {
-								// "import type foo = require('bar');"
-								// "import type foo = bar.baz;"
-								opts.isTypeScriptDeclare = true
-								return p.parseTypeScriptImportEqualsStmt(loc, opts, stmt.DefaultName.Loc, defaultName.String)
-							} else {
-								// "import type foo from 'bar';"
-								p.lexer.ExpectContextualKeyword("from")
-								p.parsePath()
-								p.lexer.ExpectOrInsertSemicolon()
-								return js_ast.Stmt{Loc: loc, Data: js_ast.STypeScriptShared}
-							}
+						nameSubstring := p.lexer.Identifier
+						nameLoc := p.lexer.Loc()
+						p.lexer.Next()
+						if p.lexer.Token == js_lexer.TEquals {
+							// "import type foo = require('bar');"
+							// "import type foo = bar.baz;"
+							opts.isTypeScriptDeclare = true
+							return p.parseTypeScriptImportEqualsStmt(loc, opts, nameLoc, nameSubstring.String)
+						} else if p.lexer.Token == js_lexer.TStringLiteral && nameSubstring.String == "from" {
+							// "import type from 'bar';"
+							break syntaxBeforePath
+						} else {
+							// "import type foo from 'bar';"
+							p.lexer.ExpectContextualKeyword("from")
+							p.parsePath()
+							p.lexer.ExpectOrInsertSemicolon()
+							return js_ast.Stmt{Loc: loc, Data: js_ast.STypeScriptShared}
 						}
 
 					case js_lexer.TAsterisk:
