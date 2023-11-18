@@ -42,7 +42,15 @@ const cssFeatures: Partial<Record<CSSFeature, string | string[]>> = {
   Nesting: 'css.selectors.nesting',
 }
 
+const similarPrefixedProperty: Record<string, { prefix: string, property: string }> = {
+  'css.properties.mask-composite': {
+    prefix: '-webkit-',
+    property: 'css.properties.-webkit-mask-composite',
+  },
+}
+
 const cssPrefixFeatures: Record<string, CSSProperty> = {
+  'css.properties.mask-composite': 'DMaskComposite',
   'css.properties.mask-image': 'DMaskImage',
   'css.properties.mask-origin': 'DMaskOrigin',
   'css.properties.mask-position': 'DMaskPosition',
@@ -141,6 +149,9 @@ for (const fullKey in cssPrefixFeatures) {
 
       // Figure out which version this property can be used unprefixed, if any.
       // This assumes that support for these CSS properties is never removed.
+      // This assumption is wrong (Edge removed many features when it changed
+      // its engine from EdgeHTML to Blink, basically becoming another browser)
+      // but we ignore those cases for now.
       let version_unprefixed: string | undefined
       for (const { prefix, flags, version_added, version_removed } of entries) {
         if (!prefix && !flags && typeof version_added === 'string' && !version_removed && isSemver.test(version_added)) {
@@ -151,9 +162,25 @@ for (const fullKey in cssPrefixFeatures) {
       type PrefixRange = { prefix: string, start: string, end?: string }
       const ranges: PrefixRange[] = []
 
+      // The MDN dataset sometimes doesn't list prefixes if the values for the
+      // prefixed property are sufficiently different. In that case, we may need
+      // to search for the prefix information within another property instead.
+      const similar = similarPrefixedProperty[fullKey]
+      if (similar) {
+        const similarSupport: SupportBlock = extractProperty(bcd, similar.property).__compat.support
+        const similarEntries = similarSupport[env as BrowserName]
+        if (!similarEntries) continue
+        entries = Array.isArray(similarEntries) ? similarEntries : [similarEntries]
+      }
+
       // Find all version ranges where a given prefix is supported
       for (let i = 0; i < entries.length; i++) {
-        const { prefix, flags, version_added, version_removed } = entries[i]
+        let { prefix, flags, version_added, version_removed } = entries[i]
+
+        if (similar) {
+          if (prefix) throw new Error(`Unexpected prefix "${prefix}" for similar property "${similar.property}"`)
+          prefix = similar.prefix
+        }
 
         if (prefix && !flags && typeof version_added === 'string' && isSemver.test(version_added)) {
           const range: PrefixRange = { prefix, start: version_added }

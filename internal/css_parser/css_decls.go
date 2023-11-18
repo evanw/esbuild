@@ -412,6 +412,25 @@ func (p *parser) insertPrefixedDeclaration(rules []css_ast.Rule, prefix string, 
 		if prefix == "-moz-" && len(value) == 1 && value[0].Kind == css_lexer.TIdent && strings.EqualFold(value[0].Text, "none") {
 			value[0].Text = "-moz-none"
 		}
+
+	case css_ast.DMaskComposite:
+		// WebKit uses different names for these values
+		if prefix == "-webkit-" {
+			for i, token := range value {
+				if token.Kind == css_lexer.TIdent {
+					switch token.Text {
+					case "add":
+						value[i].Text = "source-over"
+					case "subtract":
+						value[i].Text = "source-out"
+					case "intersect":
+						value[i].Text = "source-in"
+					case "exclude":
+						value[i].Text = "xor"
+					}
+				}
+			}
+		}
 	}
 
 	// Overwrite the latest declaration with the prefixed declaration

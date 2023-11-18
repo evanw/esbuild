@@ -107,6 +107,7 @@ export const cssProperties = {
   DFontKerning: true,
   DHyphens: true,
   DInitialLetter: true,
+  DMaskComposite: true,
   DMaskImage: true,
   DMaskOrigin: true,
   DMaskPosition: true,

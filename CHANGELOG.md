@@ -35,6 +35,31 @@
     document.onkeydown=o=>o.keyCode===65&&console.log("🧀");
     ```
 
+* Automatically prefix the `mask-composite` CSS property for WebKit ([#3493](https://github.com/evanw/esbuild/issues/3493))
+
+    The `mask-composite` property will now be prefixed as `-webkit-mask-composite` for older WebKit-based browsers. In addition to prefixing the property name, handling older browsers also requires rewriting the values since WebKit uses non-standard names for the mask composite modes:
+
+    ```css
+    /* Original code */
+    div {
+      mask-composite: add, subtract, intersect, exclude;
+    }
+
+    /* New output (with --target=chrome100) */
+    div {
+      -webkit-mask-composite:
+        source-over,
+        source-out,
+        source-in,
+        xor;
+      mask-composite:
+        add,
+        subtract,
+        intersect,
+        exclude;
+    }
+    ```
+
 * Parse upcoming changes to TypeScript syntax ([#3490](https://github.com/evanw/esbuild/issues/3490), [#3491](https://github.com/evanw/esbuild/pull/3491))
 
     With this release, you can now use `from` as the name of a default type-only import in TypeScript code, as well as `of` as the name of an `await using` loop iteration variable:

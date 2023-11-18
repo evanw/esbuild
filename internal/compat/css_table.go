@@ -178,6 +178,13 @@ var cssPrefixTable = map[css_ast.D][]prefixData{
 		{engine: IOS, prefix: WebkitPrefix},
 		{engine: Safari, prefix: WebkitPrefix},
 	},
+	css_ast.DMaskComposite: {
+		{engine: Chrome, prefix: WebkitPrefix, withoutPrefix: v{120, 0, 0}},
+		{engine: Edge, prefix: WebkitPrefix},
+		{engine: IOS, prefix: WebkitPrefix, withoutPrefix: v{15, 4, 0}},
+		{engine: Opera, prefix: WebkitPrefix},
+		{engine: Safari, prefix: WebkitPrefix, withoutPrefix: v{15, 4, 0}},
+	},
 	css_ast.DMaskImage: {
 		{engine: Chrome, prefix: WebkitPrefix, withoutPrefix: v{120, 0, 0}},
 		{engine: Edge, prefix: WebkitPrefix},

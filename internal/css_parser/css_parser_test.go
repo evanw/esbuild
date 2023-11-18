@@ -2362,6 +2362,8 @@ func TestPrefixInsertion(t *testing.T) {
 	expectPrintedWithAllPrefixes(t, "a { text-decoration-line: none }", "a {\n  -webkit-text-decoration-line: none;\n  -moz-text-decoration-line: none;\n  text-decoration-line: none;\n}\n", "")
 	expectPrintedWithAllPrefixes(t, "a { text-size-adjust: none }", "a {\n  -webkit-text-size-adjust: none;\n  -ms-text-size-adjust: none;\n  text-size-adjust: none;\n}\n", "")
 	expectPrintedWithAllPrefixes(t, "a { user-select: none }", "a {\n  -webkit-user-select: none;\n  -khtml-user-select: none;\n  -moz-user-select: -moz-none;\n  -ms-user-select: none;\n  user-select: none;\n}\n", "")
+	expectPrintedWithAllPrefixes(t, "a { mask-composite: add, subtract, intersect, exclude }",
+		"a {\n  -webkit-mask-composite:\n    source-over,\n    source-out,\n    source-in,\n    xor;\n  mask-composite:\n    add,\n    subtract,\n    intersect,\n    exclude;\n}\n", "")
 
 	// Check that we insert prefixed rules each time an unprefixed rule is
 	// encountered. This matches the behavior of the popular "autoprefixer" tool.
