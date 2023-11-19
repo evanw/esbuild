@@ -60,6 +60,31 @@
     }
     ```
 
+* Allow package subpath imports to map to node built-ins ([#3485](https://github.com/evanw/esbuild/issues/3485))
+
+    You are now able to use a [subpath import](https://nodejs.org/api/packages.html#subpath-imports) in your package to resolve to a node built-in module. For example, with a `package.json` file like this:
+
+    ```json
+    {
+      "type": "module",
+      "imports": {
+        "#stream": {
+          "node": "stream",
+          "default": "./stub.js"
+        }
+      }
+    }
+    ```
+
+    You can now import from node's `stream` module like this:
+
+    ```js
+    import * as stream from '#stream';
+    console.log(Object.keys(stream));
+    ```
+
+    This will import from node's `stream` module when the platform is `node` and from `./stub.js` otherwise.
+
 * No longer throw an error when a `Symbol` is missing ([#3453](https://github.com/evanw/esbuild/issues/3453))
 
     Certain JavaScript syntax features use special properties on the global `Symbol` object. For example, the asynchronous iteration syntax uses `Symbol.asyncIterator`. Previously esbuild's generated code for older browsers required this symbol to be polyfilled. However, starting with this release esbuild will use [`Symbol.for()`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Symbol/for) to construct these symbols if they are missing instead of throwing an error about a missing polyfill. This means your code no longer needs to include a polyfill for missing symbols as long as your code also uses `Symbol.for()` for missing symbols.

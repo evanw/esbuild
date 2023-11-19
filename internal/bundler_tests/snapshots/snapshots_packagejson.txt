@@ -844,5 +844,14 @@ console.log("pkg3");
 console.log("pkg4");
 
 ================================================================================
+TestPackageJsonSubpathImportNodeBuiltinIssue3485
+---------- /out.js ----------
+// entry.js
+import fs from "fs";
+import http from "node:http";
+fs.readFileSync();
+http.createServer();
+
+================================================================================
 TestPackageJsonTypeShouldBeTypes
 ---------- /Users/user/project/out.js ----------

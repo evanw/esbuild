@@ -2873,3 +2873,38 @@ func TestPackageJsonDisabledTypeModuleIssue3367(t *testing.T) {
 		},
 	})
 }
+
+// See: https://github.com/evanw/esbuild/issues/3485
+func TestPackageJsonSubpathImportNodeBuiltinIssue3485(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import fs from '#fs'
+				import http from '#http'
+				fs.readFileSync()
+				http.createServer()
+			`,
+			"/package.json": `
+				{
+					"imports": {
+						"#fs": {
+							"node": "fs",
+							"default": "./empty.js"
+						},
+						"#http": {
+							"node": "node:http",
+							"default": "./empty.js"
+						}
+					}
+				}
+			`,
+			"/empty.js": ``,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			Platform:      config.PlatformNode,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
