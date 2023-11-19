@@ -322,6 +322,22 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		}
 	}
 
+	// Satisfy requests for "favicon.ico" to avoid errors in Firefox developer tools
+	if req.Method == "GET" && req.URL.Path == "/favicon.ico" {
+		for _, encoding := range strings.Split(req.Header.Get("Accept-Encoding"), ",") {
+			if semi := strings.IndexByte(encoding, ';'); semi >= 0 {
+				encoding = encoding[:semi]
+			}
+			if strings.TrimSpace(encoding) == "gzip" {
+				res.Header().Set("Content-Encoding", "gzip")
+				res.Header().Set("Content-Type", "image/vnd.microsoft.icon")
+				go h.notifyRequest(time.Since(start), req, http.StatusOK)
+				maybeWriteResponseBody(favicon_ico_gz)
+				return
+			}
+		}
+	}
+
 	// Default to a 404
 	res.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	go h.notifyRequest(time.Since(start), req, http.StatusNotFound)
