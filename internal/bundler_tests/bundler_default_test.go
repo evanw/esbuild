@@ -8187,9 +8187,8 @@ func TestCommentPreservation(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			Mode:         config.ModeBundle,
+			Mode:         config.ModePassThrough,
 			AbsOutputDir: "/out",
-			OutputFormat: config.FormatCommonJS,
 			ExternalSettings: config.ExternalSettings{
 				PreResolve: config.ExternalMatchers{
 					Exact: map[string]bool{"foo": true},

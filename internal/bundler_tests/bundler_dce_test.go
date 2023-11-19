@@ -4335,6 +4335,34 @@ func TestDCEOfIIFE(t *testing.T) {
 	})
 }
 
+func TestDCEOfDestructuring(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				// Identifier bindings
+				var remove1
+				var remove2 = null
+				var KEEP1 = x
+
+				// Array patterns
+				var [remove3] = []
+				var [remove4, ...remove5] = [...[1, 2], 3]
+				var [, , remove6] = [, , 3]
+				var [KEEP2] = [x]
+				var [KEEP3] = [...{}]
+
+				// Object patterns (not handled right now)
+				var { KEEP4 } = {}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+	})
+}
+
 func TestDCEOfDecorators(t *testing.T) {
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{

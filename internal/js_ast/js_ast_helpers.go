@@ -2035,14 +2035,46 @@ func StmtsCanBeRemovedIfUnused(stmts []Stmt, flags StmtsCanBeRemovedIfUnusedFlag
 			}
 
 			for _, decl := range s.Decls {
-				if _, ok := decl.Binding.Data.(*BIdentifier); !ok {
+				// Check that the bindings are side-effect free
+				switch binding := decl.Binding.Data.(type) {
+				case *BIdentifier:
+					// An identifier binding has no side effects
+
+				case *BArray:
+					// Destructuring the initializer has no side effects if the
+					// initializer is an array, since we assume the iterator is then
+					// the built-in side-effect free array iterator.
+					if _, ok := decl.ValueOrNil.Data.(*EArray); ok {
+						for _, item := range binding.Items {
+							if item.DefaultValueOrNil.Data != nil && !ExprCanBeRemovedIfUnused(item.DefaultValueOrNil, isUnbound) {
+								return false
+							}
+
+							switch item.Binding.Data.(type) {
+							case *BIdentifier, *BMissing:
+								// Right now we only handle an array pattern with identifier
+								// bindings or with empty holes (i.e. "missing" elements)
+							default:
+								return false
+							}
+						}
+						break
+					}
+					return false
+
+				default:
+					// Consider anything else to potentially have side effects
 					return false
 				}
+
+				// Check that the initializer is side-effect free
 				if decl.ValueOrNil.Data != nil {
 					if !ExprCanBeRemovedIfUnused(decl.ValueOrNil, isUnbound) {
 						return false
-					} else if s.Kind.IsUsing() {
-						// "using" declarations are only side-effect free if they are initialized to null or undefined
+					}
+
+					// "using" declarations are only side-effect free if they are initialized to null or undefined
+					if s.Kind.IsUsing() {
 						if t := KnownPrimitiveType(decl.ValueOrNil.Data); t != PrimitiveNull && t != PrimitiveUndefined {
 							return false
 						}
@@ -2261,6 +2293,13 @@ func ExprCanBeRemovedIfUnused(expr Expr, isUnbound func(ast.Ref) bool) bool {
 
 	case *EArray:
 		for _, item := range e.Items {
+			if spread, ok := item.Data.(*ESpread); ok {
+				if _, ok := spread.Value.Data.(*EArray); ok {
+					// Spread of an inline array such as "[...[x]]" is side-effect free
+					item = spread.Value
+				}
+			}
+
 			if !ExprCanBeRemovedIfUnused(item, isUnbound) {
 				return false
 			}

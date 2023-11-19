@@ -439,6 +439,15 @@ var StaticAccessor = class {
 };
 
 ================================================================================
+TestDCEOfDestructuring
+---------- /out/entry.js ----------
+// entry.js
+var KEEP1 = x;
+var [KEEP2] = [x];
+var [KEEP3] = [...{}];
+var { KEEP4 } = {};
+
+================================================================================
 TestDCEOfExperimentalDecorators
 ---------- /out/keep-these.js ----------
 // decorator.ts
