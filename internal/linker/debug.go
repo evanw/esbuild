@@ -26,6 +26,7 @@ func (c *linkerContext) generateExtraDataForFileJS(sourceIndex uint32) string {
 	file := &c.graph.Files[sourceIndex]
 	repr := file.InputFile.Repr.(*graph.JSRepr)
 	sb := strings.Builder{}
+	isFirstPartWithStmts := true
 
 	quoteSym := func(ref ast.Ref) string {
 		name := fmt.Sprintf("%d:%d [%s]", ref.SourceIndex, ref.InnerIndex, c.graph.Symbols.Get(ref).OriginalName)
@@ -48,16 +49,23 @@ func (c *linkerContext) generateExtraDataForFileJS(sourceIndex uint32) string {
 		} else if ast.MakeIndex32(uint32(partIndex)) == repr.Meta.WrapperPartIndex {
 			sb.WriteString(`,"wrapperPartIndex":true`)
 		} else if len(part.Stmts) > 0 {
-			start := part.Stmts[0].Loc.Start
-			end := len(file.InputFile.Source.Contents)
+			contents := file.InputFile.Source.Contents
+			start := int(part.Stmts[0].Loc.Start)
+			if isFirstPartWithStmts {
+				start = 0
+				isFirstPartWithStmts = false
+			}
+			end := len(contents)
 			if partIndex+1 < len(repr.AST.Parts) {
 				if nextStmts := repr.AST.Parts[partIndex+1].Stmts; len(nextStmts) > 0 {
-					if nextStart := nextStmts[0].Loc.Start; nextStart >= start {
+					if nextStart := int(nextStmts[0].Loc.Start); nextStart >= start {
 						end = int(nextStart)
 					}
 				}
 			}
-			code = file.InputFile.Source.Contents[start:end]
+			start = moveBeforeExport(contents, start)
+			end = moveBeforeExport(contents, end)
+			code = contents[start:end]
 		}
 
 		// importRecords
@@ -122,11 +130,19 @@ func (c *linkerContext) generateExtraDataForFileJS(sourceIndex uint32) string {
 
 		// code
 		sb.WriteString(`,"code":`)
-		sb.Write(helpers.QuoteForJSON(strings.TrimRight(code, "\n"), c.options.ASCIIOnly))
+		sb.Write(helpers.QuoteForJSON(code, c.options.ASCIIOnly))
 
 		sb.WriteByte('}')
 	}
 	sb.WriteString(`]`)
 
 	return sb.String()
+}
+
+func moveBeforeExport(contents string, i int) int {
+	contents = strings.TrimRight(contents[:i], " \t\r\n")
+	if strings.HasSuffix(contents, "export") {
+		return len(contents) - 6
+	}
+	return i
 }

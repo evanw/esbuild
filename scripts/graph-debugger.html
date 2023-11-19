@@ -1,9 +1,4 @@
-<!--
-This is a debugger for some of esbuild's internals. To use:
-1. Set "debugVerboseMetafile = true"
-2. Serve the esbuild repo over localhost
-3. Visit this page with "#metafile=path/to/metafile.json"
--->
+<!DOCTYPE html>
 <html>
 
 <head>
@@ -13,6 +8,16 @@ This is a debugger for some of esbuild's internals. To use:
     body {
       margin: 0;
       overflow: hidden;
+      font: 14px/20px sans-serif;
+      background: #fff;
+      color: #000;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      body {
+        background: #222;
+        color: #ddd;
+      }
     }
 
     canvas {
@@ -22,10 +27,23 @@ This is a debugger for some of esbuild's internals. To use:
       width: 100%;
       height: 100%;
     }
+
+    #instructions {
+      padding: 20px;
+    }
+
   </style>
 </head>
 
 <body>
+  <div id="instructions">
+    This is a debugger for some of esbuild's internals. To use:
+    <ol>
+      <li>Set "debugVerboseMetafile = true"</li>
+      <li>Serve the esbuild repo over localhost</li>
+      <li>Visit this page with "#metafile=path/to/metafile.json"</li>
+    </ol>
+  </div>
   <canvas></canvas>
   <script type="module">
 
@@ -71,19 +89,30 @@ This is a debugger for some of esbuild's internals. To use:
         this.h += titleLineHeight
 
         // Parts
+        let prevIndent = 0
         c.font = codeFont
         for (const part of this.data.parts) {
-          part.lines = part.code.split('\n')
+          let code = part.code.replace(/\t/g, '  ')
+          const lastNewline = code.lastIndexOf('\n')
+          let nextIndent = 0
+          if (lastNewline >= 0) {
+            const lastLine = code.slice(lastNewline + 1)
+            nextIndent = lastLine.length
+            if (!/\S/.test(lastLine)) code = code.slice(0, lastNewline)
+          }
+          code = ' '.repeat(prevIndent) + code
+          prevIndent = nextIndent
+          part.lines = code.split('\n')
           part.y = this.h
           for (const line of part.lines) {
             this.w = Math.max(this.w, c.measureText(line).width)
             this.h += codeLineHeight
           }
           if (part.nsExportPartIndex) {
-            this.w = Math.max(this.w, c.measureText('// nsExportPartIndex').width)
+            this.w = Math.max(this.w, c.measureText('/* <nsExportPartIndex> */').width)
           }
           if (part.wrapperPartIndex) {
-            this.w = Math.max(this.w, c.measureText('// wrapperPartIndex').width)
+            this.w = Math.max(this.w, c.measureText('/* <wrapperPartIndex> */').width)
           }
           part.h = this.h - part.y
         }
@@ -114,10 +143,10 @@ This is a debugger for some of esbuild's internals. To use:
             c.fillText(part.lines[i], this.x + paddingX, this.y + paddingY + part.y + i * codeLineHeight + codeLineHeight / 2)
           }
           if (part.nsExportPartIndex) {
-            c.fillText('// nsExportPartIndex', this.x + paddingX, this.y + paddingY + part.y + codeLineHeight / 2)
+            c.fillText('/* <nsExportPartIndex> */', this.x + paddingX, this.y + paddingY + part.y + codeLineHeight / 2)
           }
           if (part.wrapperPartIndex) {
-            c.fillText('// wrapperPartIndex', this.x + paddingX, this.y + paddingY + part.y + codeLineHeight / 2)
+            c.fillText('/* <wrapperPartIndex> */', this.x + paddingX, this.y + paddingY + part.y + codeLineHeight / 2)
           }
         }
 
@@ -309,8 +338,20 @@ This is a debugger for some of esbuild's internals. To use:
     let width = 0, height = 0
     let scrollX = 0, scrollY = 0
 
-    if (!location.hash.startsWith('#metafile=')) throw new Error('Expected "#metafile=" in URL')
-    const metafile = await fetch(location.hash.slice('#metafile='.length)).then(r => r.json())
+    let metafile
+    const instructions = document.getElementById('instructions')
+    try {
+      if (!location.hash.startsWith('#metafile=')) throw new Error('Expected "#metafile=" in URL')
+      metafile = await fetch(location.hash.slice('#metafile='.length)).then(r => r.json())
+    } catch (err) {
+      const error = document.createElement('div')
+      error.style.color = 'red'
+      error.textContent = err
+      instructions.append(error)
+      throw err
+    }
+    instructions.remove()
+
     const outputSource = Object.keys(metafile.outputs)[0]
     const output = metafile.outputs[outputSource]
     const inputFiles = Object.entries(output.inputs).map(([source, data]) => new InputFile(source, data)).reverse()

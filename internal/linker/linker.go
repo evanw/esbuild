@@ -5891,9 +5891,9 @@ func (c *linkerContext) generateChunkJS(chunkIndex int, chunkWaitGroup *sync.Wai
 				for _, output := range pieces[i] {
 					count += c.accurateFinalByteCount(output, finalRelDir)
 				}
-				jMeta.AddString(fmt.Sprintf("\n        %s: {\n          \"bytesInOutput\": %d\n        }",
+				jMeta.AddString(fmt.Sprintf("\n        %s: {\n          \"bytesInOutput\": %d\n        %s}",
 					helpers.QuoteForJSON(c.graph.Files[sourceIndex].InputFile.Source.PrettyPath, c.options.ASCIIOnly),
-					count))
+					count, c.generateExtraDataForFileJS(sourceIndex)))
 			}
 			if len(metaOrder) > 0 {
 				jMeta.AddString("\n      ")
