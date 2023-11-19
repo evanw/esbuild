@@ -348,7 +348,7 @@ func (p *printer) printJSXTag(tagOrNil js_ast.Expr) {
 
 type printer struct {
 	symbols                ast.SymbolMap
-	isUnbound              func(ast.Ref) bool
+	astHelpers             js_ast.HelperContext
 	renamer                renamer.Renamer
 	importRecords          []ast.ImportRecord
 	callTarget             js_ast.E
@@ -1718,7 +1718,7 @@ func (p *printer) simplifyUnusedExpr(expr js_ast.Expr) js_ast.Expr {
 				if _, ok := arg.Data.(*js_ast.ESpread); ok {
 					arg.Data = &js_ast.EArray{Items: []js_ast.Expr{arg}, IsSingleLine: true}
 				}
-				replacement = js_ast.JoinWithComma(replacement, js_ast.SimplifyUnusedExpr(p.simplifyUnusedExpr(arg), p.options.UnsupportedFeatures, p.isUnbound))
+				replacement = js_ast.JoinWithComma(replacement, p.astHelpers.SimplifyUnusedExpr(p.simplifyUnusedExpr(arg), p.options.UnsupportedFeatures))
 			}
 			return replacement // Don't add "undefined" here because the result isn't used
 		}
@@ -1727,7 +1727,7 @@ func (p *printer) simplifyUnusedExpr(expr js_ast.Expr) js_ast.Expr {
 		if (symbolFlags&(ast.IsIdentityFunction|ast.CouldPotentiallyBeMutated)) == ast.IsIdentityFunction && len(e.Args) == 1 {
 			arg := e.Args[0]
 			if _, ok := arg.Data.(*js_ast.ESpread); !ok {
-				return js_ast.SimplifyUnusedExpr(p.simplifyUnusedExpr(arg), p.options.UnsupportedFeatures, p.isUnbound)
+				return p.astHelpers.SimplifyUnusedExpr(p.simplifyUnusedExpr(arg), p.options.UnsupportedFeatures)
 			}
 		}
 	}
@@ -2335,7 +2335,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 					if _, ok := arg.Data.(*js_ast.ESpread); ok {
 						arg.Data = &js_ast.EArray{Items: []js_ast.Expr{arg}, IsSingleLine: true}
 					}
-					replacement = js_ast.JoinWithComma(replacement, js_ast.SimplifyUnusedExpr(arg, p.options.UnsupportedFeatures, p.isUnbound))
+					replacement = js_ast.JoinWithComma(replacement, p.astHelpers.SimplifyUnusedExpr(arg, p.options.UnsupportedFeatures))
 				}
 				if replacement.Data == nil || (flags&exprResultIsUnused) == 0 {
 					replacement = js_ast.JoinWithComma(replacement, js_ast.Expr{Loc: expr.Loc, Data: js_ast.EUndefinedShared})
@@ -2349,7 +2349,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 				arg := e.Args[0]
 				if _, ok := arg.Data.(*js_ast.ESpread); !ok {
 					if (flags & exprResultIsUnused) != 0 {
-						arg = js_ast.SimplifyUnusedExpr(arg, p.options.UnsupportedFeatures, p.isUnbound)
+						arg = p.astHelpers.SimplifyUnusedExpr(arg, p.options.UnsupportedFeatures)
 					}
 					p.printExpr(p.guardAgainstBehaviorChangeDueToSubstitution(arg, flags), level, flags)
 					break
@@ -4918,10 +4918,10 @@ func Print(tree js_ast.AST, symbols ast.SymbolMap, r renamer.Renamer, options Op
 		p.printedExprComments = make(map[logger.Loc]bool)
 	}
 
-	p.isUnbound = func(ref ast.Ref) bool {
+	p.astHelpers = js_ast.MakeHelperContext(func(ref ast.Ref) bool {
 		ref = ast.FollowSymbols(symbols, ref)
 		return symbols.Get(ref).Kind == ast.SymbolUnbound
-	}
+	})
 
 	// Add the top-level directive if present
 	for _, directive := range tree.Directives {
