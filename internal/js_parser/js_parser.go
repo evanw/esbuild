@@ -95,6 +95,7 @@ type parser struct {
 	tsEnums                    map[ast.Ref]map[string]js_ast.TSEnumValue
 	constValues                map[ast.Ref]js_ast.ConstValue
 	propMethodValue            js_ast.E
+	propDerivedCtorValue       js_ast.E
 	propMethodDecoratorScope   *js_ast.Scope
 
 	// This is the reference to the generated function argument for the namespace,
@@ -671,6 +672,7 @@ type fnOrArrowDataVisit struct {
 	isGenerator                    bool
 	isInsideLoop                   bool
 	isInsideSwitch                 bool
+	isDerivedClassCtor             bool
 	isOutsideFnOrArrow             bool
 	shouldLowerSuperPropertyAccess bool
 }
@@ -11526,6 +11528,13 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 				p.nameToKeepIsFor = property.ValueOrNil.Data
 			}
 
+			// Propagate whether we're in a derived class constructor
+			if class.ExtendsOrNil.Data != nil && !property.Flags.Has(js_ast.PropertyIsComputed) {
+				if str, ok := property.Key.Data.(*js_ast.EString); ok && helpers.UTF16EqualsString(str.Value, "constructor") {
+					p.propDerivedCtorValue = property.ValueOrNil.Data
+				}
+			}
+
 			property.ValueOrNil = p.visitExpr(property.ValueOrNil)
 		}
 
@@ -13131,10 +13140,23 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					}})
 
 					// "__self"
-					if p.fnOrArrowDataParse.isThisDisallowed {
-						args = append(args, js_ast.Expr{Loc: expr.Loc, Data: js_ast.EUndefinedShared})
-					} else {
-						args = append(args, js_ast.Expr{Loc: expr.Loc, Data: js_ast.EThisShared})
+					__self := js_ast.Expr{Loc: expr.Loc, Data: js_ast.EThisShared}
+					{
+						if p.fnOnlyDataVisit.shouldReplaceThisWithInnerClassNameRef {
+							// Substitute "this" if we're inside a static class context
+							p.recordUsage(*p.fnOnlyDataVisit.innerClassNameRef)
+							__self.Data = &js_ast.EIdentifier{Ref: *p.fnOnlyDataVisit.innerClassNameRef}
+						} else if !p.fnOnlyDataVisit.isThisNested && p.options.mode != config.ModePassThrough {
+							// Replace top-level "this" with "undefined" if there's an output format
+							__self.Data = js_ast.EUndefinedShared
+						} else if p.fnOrArrowDataVisit.isDerivedClassCtor {
+							// We can't use "this" here in case it comes before "super()"
+							__self.Data = js_ast.EUndefinedShared
+						}
+					}
+					if _, ok := __self.Data.(*js_ast.EUndefined); !ok {
+						// Omit "__self" entirely if it's undefined
+						args = append(args, __self)
 					}
 				}
 
@@ -14883,7 +14905,10 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			nameToKeep = p.nameToKeep
 		}
 
-		p.visitFn(&e.Fn, expr.Loc, visitFnOpts{isClassMethod: e == p.propMethodValue})
+		p.visitFn(&e.Fn, expr.Loc, visitFnOpts{
+			isClassMethod:      e == p.propMethodValue,
+			isDerivedClassCtor: e == p.propDerivedCtorValue,
+		})
 		name := e.Fn.Name
 
 		// Remove unused function names when minifying
@@ -16152,7 +16177,8 @@ func (p *parser) handleIdentifier(loc logger.Loc, e *js_ast.EIdentifier, opts id
 }
 
 type visitFnOpts struct {
-	isClassMethod bool
+	isClassMethod      bool
+	isDerivedClassCtor bool
 }
 
 func (p *parser) visitFn(fn *js_ast.Fn, scopeLoc logger.Loc, opts visitFnOpts) {
@@ -16162,6 +16188,7 @@ func (p *parser) visitFn(fn *js_ast.Fn, scopeLoc logger.Loc, opts visitFnOpts) {
 	p.fnOrArrowDataVisit = fnOrArrowDataVisit{
 		isAsync:                        fn.IsAsync,
 		isGenerator:                    fn.IsGenerator,
+		isDerivedClassCtor:             opts.isDerivedClassCtor,
 		shouldLowerSuperPropertyAccess: fn.IsAsync && p.options.unsupportedJSFeatures.Has(compat.AsyncAwait),
 	}
 	p.fnOnlyDataVisit = fnOnlyDataVisit{

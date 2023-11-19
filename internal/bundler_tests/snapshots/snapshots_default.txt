@@ -2288,6 +2288,226 @@ console.log(/* @__PURE__ */ React.createElement("[", null));
 console.log(/* @__PURE__ */ React.createElement("]", null));
 
 ================================================================================
+TestJSXDevSelfEdgeCases
+---------- /out/class-this.js ----------
+// class-this.jsx
+import { jsxDEV } from "react/jsx-dev-runtime";
+var Foo = class {
+  foo() {
+    return /* @__PURE__ */ jsxDEV("div", {}, void 0, false, {
+      fileName: "class-this.jsx",
+      lineNumber: 1,
+      columnNumber: 35
+    }, this);
+  }
+};
+export {
+  Foo
+};
+
+---------- /out/derived-constructor-arg.js ----------
+// derived-constructor-arg.jsx
+import { jsxDEV } from "react/jsx-dev-runtime";
+var Foo = class extends Object {
+  constructor(foo = /* @__PURE__ */ jsxDEV("div", {}, void 0, false, {
+    fileName: "derived-constructor-arg.jsx",
+    lineNumber: 1,
+    columnNumber: 53
+  })) {
+    super();
+  }
+};
+export {
+  Foo
+};
+
+---------- /out/derived-constructor-field.js ----------
+// derived-constructor-field.tsx
+import { jsxDEV } from "react/jsx-dev-runtime";
+var Foo = class extends Object {
+  constructor() {
+    super(...arguments);
+    this.foo = /* @__PURE__ */ jsxDEV("div", {}, void 0, false, {
+      fileName: "derived-constructor-field.tsx",
+      lineNumber: 1,
+      columnNumber: 41
+    }, this);
+  }
+};
+export {
+  Foo
+};
+
+---------- /out/derived-constructor.js ----------
+// derived-constructor.jsx
+import { jsxDEV } from "react/jsx-dev-runtime";
+var Foo = class extends Object {
+  constructor() {
+    super(/* @__PURE__ */ jsxDEV("div", {}, void 0, false, {
+      fileName: "derived-constructor.jsx",
+      lineNumber: 1,
+      columnNumber: 57
+    }));
+    this.foo = /* @__PURE__ */ jsxDEV("div", {}, void 0, false, {
+      fileName: "derived-constructor.jsx",
+      lineNumber: 1,
+      columnNumber: 77
+    });
+  }
+};
+export {
+  Foo
+};
+
+---------- /out/function-this.js ----------
+// function-this.jsx
+import { jsxDEV } from "react/jsx-dev-runtime";
+function Foo() {
+  return /* @__PURE__ */ jsxDEV("div", {}, void 0, false, {
+    fileName: "function-this.jsx",
+    lineNumber: 1,
+    columnNumber: 32
+  }, this);
+}
+export {
+  Foo
+};
+
+---------- /out/normal-constructor-arg.js ----------
+// normal-constructor-arg.jsx
+import { jsxDEV } from "react/jsx-dev-runtime";
+var Foo = class {
+  constructor(foo = /* @__PURE__ */ jsxDEV("div", {}, void 0, false, {
+    fileName: "normal-constructor-arg.jsx",
+    lineNumber: 1,
+    columnNumber: 38
+  }, this)) {
+  }
+};
+export {
+  Foo
+};
+
+---------- /out/normal-constructor-field.js ----------
+// normal-constructor-field.tsx
+import { jsxDEV } from "react/jsx-dev-runtime";
+var Foo = class {
+  constructor() {
+    this.foo = /* @__PURE__ */ jsxDEV("div", {}, void 0, false, {
+      fileName: "normal-constructor-field.tsx",
+      lineNumber: 1,
+      columnNumber: 26
+    }, this);
+  }
+};
+export {
+  Foo
+};
+
+---------- /out/normal-constructor.js ----------
+// normal-constructor.jsx
+import { jsxDEV } from "react/jsx-dev-runtime";
+var Foo = class {
+  constructor() {
+    this.foo = /* @__PURE__ */ jsxDEV("div", {}, void 0, false, {
+      fileName: "normal-constructor.jsx",
+      lineNumber: 1,
+      columnNumber: 47
+    }, this);
+  }
+};
+export {
+  Foo
+};
+
+---------- /out/static-field.js ----------
+// static-field.jsx
+import { jsxDEV } from "react/jsx-dev-runtime";
+var _Foo = class _Foo {
+};
+__publicField(_Foo, "foo", /* @__PURE__ */ jsxDEV("div", {}, void 0, false, {
+  fileName: "static-field.jsx",
+  lineNumber: 1,
+  columnNumber: 33
+}, _Foo));
+var Foo = _Foo;
+export {
+  Foo
+};
+
+---------- /out/top-level-this-cjs.js ----------
+// top-level-this-cjs.jsx
+import { jsxDEV } from "react/jsx-dev-runtime";
+var require_top_level_this_cjs = __commonJS({
+  "top-level-this-cjs.jsx"(exports) {
+    exports.foo = /* @__PURE__ */ jsxDEV("div", {}, void 0, false, {
+      fileName: "top-level-this-cjs.jsx",
+      lineNumber: 1,
+      columnNumber: 15
+    });
+  }
+});
+export default require_top_level_this_cjs();
+
+---------- /out/top-level-this-esm.js ----------
+// top-level-this-esm.jsx
+import { jsxDEV } from "react/jsx-dev-runtime";
+var foo = /* @__PURE__ */ jsxDEV("div", {}, void 0, false, {
+  fileName: "top-level-this-esm.jsx",
+  lineNumber: 1,
+  columnNumber: 18
+});
+if (Foo) {
+  foo = /* @__PURE__ */ jsxDEV(Foo, { children: "nested top-level this" }, void 0, false, {
+    fileName: "top-level-this-esm.jsx",
+    lineNumber: 1,
+    columnNumber: 43
+  });
+}
+export {
+  foo
+};
+
+---------- /out/tsconfig.js ----------
+// tsconfig.json
+var compilerOptions = { useDefineForClassFields: false };
+var tsconfig_default = { compilerOptions };
+export {
+  compilerOptions,
+  tsconfig_default as default
+};
+
+---------- /out/typescript-enum.js ----------
+// typescript-enum.tsx
+import { jsxDEV } from "react/jsx-dev-runtime";
+var Foo = /* @__PURE__ */ ((Foo2) => {
+  Foo2[Foo2["foo"] = /* @__PURE__ */ jsxDEV("div", {}, void 0, false, {
+    fileName: "typescript-enum.tsx",
+    lineNumber: 1,
+    columnNumber: 25
+  })] = "foo";
+  return Foo2;
+})(Foo || {});
+export {
+  Foo
+};
+
+---------- /out/typescript-namespace.js ----------
+// typescript-namespace.tsx
+import { jsxDEV } from "react/jsx-dev-runtime";
+var Foo;
+((Foo2) => {
+  Foo2.foo = /* @__PURE__ */ jsxDEV("div", {}, void 0, false, {
+    fileName: "typescript-namespace.tsx",
+    lineNumber: 1,
+    columnNumber: 41
+  });
+})(Foo || (Foo = {}));
+export {
+  Foo
+};
+
+================================================================================
 TestJSXImportMetaProperty
 ---------- /out/factory.js ----------
 // factory.jsx

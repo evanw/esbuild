@@ -60,6 +60,33 @@
     }
     ```
 
+* Avoid referencing `this` from JSX elements in derived class constructors ([#3454](https://github.com/evanw/esbuild/issues/3454))
+
+    When you enable `--jsx=automatic` and `--jsx-dev`, the JSX transform is supposed to insert `this` as the last argument to the `jsxDEV` function. I'm not sure exactly why this is and I can't find any specification for it, but in any case this causes the generated code to crash when you use a JSX element in a derived class constructor before the call to `super()` as `this` is not allowed to be accessed at that point. For example
+
+    ```js
+    // Original code
+    class ChildComponent extends ParentComponent {
+      constructor() {
+        super(<div />)
+      }
+    }
+
+    // Problematic output (with --loader=jsx --jsx=automatic --jsx-dev)
+    import { jsxDEV } from "react/jsx-dev-runtime";
+    class ChildComponent extends ParentComponent {
+      constructor() {
+        super(/* @__PURE__ */ jsxDEV("div", {}, void 0, false, {
+          fileName: "<stdin>",
+          lineNumber: 3,
+          columnNumber: 15
+        }, this)); // The reference to "this" crashes here
+      }
+    }
+    ```
+
+    The TypeScript compiler doesn't handle this at all while the Babel compiler just omits `this` for the entire constructor (even after the call to `super()`). There seems to be no specification so I can't be sure that this change doesn't break anything important. But given that Babel is pretty loose with this and TypeScript doesn't handle this at all, I'm guessing this value isn't too important. React's blog post seems to indicate that this value was intended to be used for a React-specific migration warning at some point, so it could even be that this value is irrelevant now. Anyway the crash in this case should now be fixed.
+
 * Allow package subpath imports to map to node built-ins ([#3485](https://github.com/evanw/esbuild/issues/3485))
 
     You are now able to use a [subpath import](https://nodejs.org/api/packages.html#subpath-imports) in your package to resolve to a node built-in module. For example, with a `package.json` file like this:

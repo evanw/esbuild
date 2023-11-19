@@ -8534,3 +8534,57 @@ func TestDecoratorPrintingCJS(t *testing.T) {
 `,
 	})
 }
+
+// React's development-mode transform has a special "__self" value that's sort
+// of supposed to be set to "this". Except there's no specification for it
+// AFAIK and the value of "this" isn't always allowed to be accessed. For
+// example, accessing it before "super()" in a constructor call will crash.
+//
+// From what I understand the React team wanted to have it in case they need it
+// for some run-time warnings, but having it be accurate in all cases doesn't
+// really matter. For example, I'm not sure if it needs to even be any value in
+// particular for top-level JSX elements (top-level "this" can technically be
+// the module's exports object, which could materialize a lot of code to
+// generate one when bundling, so Facebook probably doesn't want that to
+// happen?).
+//
+// Anyway, this test case documents what esbuild does in case a specification
+// is produced in the future and it turns out esbuild should be doing something
+// else.
+func TestJSXDevSelfEdgeCases(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/function-this.jsx":             `export function Foo() { return <div/> }`,
+			"/class-this.jsx":                `export class Foo { foo() { return <div/> } }`,
+			"/normal-constructor.jsx":        `export class Foo { constructor() { this.foo = <div/> } }`,
+			"/derived-constructor.jsx":       `export class Foo extends Object { constructor() { super(<div/>); this.foo = <div/> } }`,
+			"/normal-constructor-arg.jsx":    `export class Foo { constructor(foo = <div/>) {} }`,
+			"/derived-constructor-arg.jsx":   `export class Foo extends Object { constructor(foo = <div/>) { super() } }`,
+			"/normal-constructor-field.tsx":  `export class Foo { foo = <div/> }`,
+			"/derived-constructor-field.tsx": `export class Foo extends Object { foo = <div/> }`,
+			"/static-field.jsx":              `export class Foo { static foo = <div/> }`,
+			"/top-level-this-esm.jsx":        `export let foo = <div/>; if (Foo) { foo = <Foo>nested top-level this</Foo> }`,
+			"/top-level-this-cjs.jsx":        `exports.foo = <div/>`,
+			"/typescript-namespace.tsx":      `export namespace Foo { export let foo = <div/> }`,
+			"/typescript-enum.tsx":           `export enum Foo { foo = <div/> }`,
+			"/tsconfig.json":                 `{ "compilerOptions": { "useDefineForClassFields": false } }`,
+		},
+		entryPaths: []string{"*"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			JSX: config.JSXOptions{
+				AutomaticRuntime: true,
+				Development:      true,
+			},
+			UnsupportedJSFeatures: compat.ClassStaticField,
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{
+					Exact: map[string]bool{
+						"react/jsx-dev-runtime": true,
+					},
+				},
+			},
+		},
+	})
+}

@@ -664,17 +664,17 @@ console.log(/* @__PURE__ */ jsxDEV(Fragment, { children: [
     fileName: "Users/user/project/entry.tsx",
     lineNumber: 2,
     columnNumber: 19
-  }, this),
+  }),
   /* @__PURE__ */ jsxDEV("div", {}, void 0, false, {
     fileName: "Users/user/project/entry.tsx",
     lineNumber: 2,
     columnNumber: 25
-  }, this)
+  })
 ] }, void 0, true, {
   fileName: "Users/user/project/entry.tsx",
   lineNumber: 2,
   columnNumber: 17
-}, this));
+}));
 
 ================================================================================
 TestTsconfigReactJSXWithDevInMainConfig
@@ -686,17 +686,17 @@ console.log(/* @__PURE__ */ jsxDEV(Fragment, { children: [
     fileName: "Users/user/project/entry.tsx",
     lineNumber: 2,
     columnNumber: 19
-  }, this),
+  }),
   /* @__PURE__ */ jsxDEV("div", {}, void 0, false, {
     fileName: "Users/user/project/entry.tsx",
     lineNumber: 2,
     columnNumber: 25
-  }, this)
+  })
 ] }, void 0, true, {
   fileName: "Users/user/project/entry.tsx",
   lineNumber: 2,
   columnNumber: 17
-}, this));
+}));
 
 ================================================================================
 TestTsconfigRemoveUnusedImports
