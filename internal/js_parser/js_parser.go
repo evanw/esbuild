@@ -15224,9 +15224,13 @@ func (v *binaryExprVisitor) visitRightAndFinish(p *parser) js_ast.Expr {
 					leftIsNullOrUndefined = "always"
 					leftIsReturned = "never"
 				}
+				kind := logger.Warning
+				if p.suppressWarningsAboutWeirdCode {
+					kind = logger.Debug
+				}
 				rOp := p.source.RangeOfOperatorBefore(e.Right.Loc, "??")
 				rLeft := logger.Range{Loc: e.Left.Loc, Len: p.source.LocBeforeWhitespace(rOp.Loc).Start - e.Left.Loc.Start}
-				p.log.AddIDWithNotes(logger.MsgID_JS_SuspiciousNullishCoalescing, logger.Warning, &p.tracker, rOp,
+				p.log.AddIDWithNotes(logger.MsgID_JS_SuspiciousNullishCoalescing, kind, &p.tracker, rOp,
 					fmt.Sprintf("The \"??\" operator here will always return the %s operand", which), []logger.MsgData{
 						p.tracker.MsgData(rLeft, fmt.Sprintf(
 							"The left operand of the \"??\" operator here will %s be null or undefined, so it will %s be returned. This usually indicates a bug in your code:",
@@ -15256,19 +15260,23 @@ func (v *binaryExprVisitor) visitRightAndFinish(p *parser) js_ast.Expr {
 		if boolean, sideEffects, ok := js_ast.ToBooleanWithSideEffects(e.Left.Data); ok {
 			// Warn about potential bugs
 			if e == p.suspiciousLogicalOperatorInsideArrow {
-				// "return foo => 1 || foo <= 0"
-				var which string
-				if boolean {
-					which = "left"
-				} else {
-					which = "right"
-				}
 				if arrowLoc := p.source.RangeOfOperatorBefore(v.loc, "=>"); arrowLoc.Loc.Start+2 == p.source.LocBeforeWhitespace(v.loc).Start {
+					// "return foo => 1 || foo <= 0"
+					var which string
+					if boolean {
+						which = "left"
+					} else {
+						which = "right"
+					}
+					kind := logger.Warning
+					if p.suppressWarningsAboutWeirdCode {
+						kind = logger.Debug
+					}
 					note := p.tracker.MsgData(arrowLoc,
 						"The \"=>\" symbol creates an arrow function expression in JavaScript. Did you mean to use the greater-than-or-equal-to operator \">=\" here instead?")
 					note.Location.Suggestion = ">="
 					rOp := p.source.RangeOfOperatorBefore(e.Right.Loc, "||")
-					p.log.AddIDWithNotes(logger.MsgID_JS_SuspiciousLogicalOperator, logger.Warning, &p.tracker, rOp,
+					p.log.AddIDWithNotes(logger.MsgID_JS_SuspiciousLogicalOperator, kind, &p.tracker, rOp,
 						fmt.Sprintf("The \"||\" operator here will always return the %s operand", which), []logger.MsgData{note})
 				}
 			}
@@ -15299,19 +15307,23 @@ func (v *binaryExprVisitor) visitRightAndFinish(p *parser) js_ast.Expr {
 		if boolean, sideEffects, ok := js_ast.ToBooleanWithSideEffects(e.Left.Data); ok {
 			// Warn about potential bugs
 			if e == p.suspiciousLogicalOperatorInsideArrow {
-				// "return foo => 0 && foo <= 1"
-				var which string
-				if !boolean {
-					which = "left"
-				} else {
-					which = "right"
-				}
 				if arrowLoc := p.source.RangeOfOperatorBefore(v.loc, "=>"); arrowLoc.Loc.Start+2 == p.source.LocBeforeWhitespace(v.loc).Start {
+					// "return foo => 0 && foo <= 1"
+					var which string
+					if !boolean {
+						which = "left"
+					} else {
+						which = "right"
+					}
+					kind := logger.Warning
+					if p.suppressWarningsAboutWeirdCode {
+						kind = logger.Debug
+					}
 					note := p.tracker.MsgData(arrowLoc,
 						"The \"=>\" symbol creates an arrow function expression in JavaScript. Did you mean to use the greater-than-or-equal-to operator \">=\" here instead?")
 					note.Location.Suggestion = ">="
 					rOp := p.source.RangeOfOperatorBefore(e.Right.Loc, "&&")
-					p.log.AddIDWithNotes(logger.MsgID_JS_SuspiciousLogicalOperator, logger.Warning, &p.tracker, rOp,
+					p.log.AddIDWithNotes(logger.MsgID_JS_SuspiciousLogicalOperator, kind, &p.tracker, rOp,
 						fmt.Sprintf("The \"&&\" operator here will always return the %s operand", which), []logger.MsgData{note})
 				}
 			}
