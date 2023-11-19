@@ -76,8 +76,7 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 		var __reflectSet = Reflect.set
 
 		var __knownSymbol = (name, symbol) => {
-			if (symbol = Symbol[name]) return symbol
-			throw Error('Symbol.' + name + ' is not defined')
+			return (symbol = Symbol[name]) ? symbol : Symbol.for('Symbol.' + name)
 		}
 
 		export var __pow = Math.pow
@@ -383,7 +382,7 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 			var method = k => it[k] = x => new Promise((yes, no) => resume(k, x, yes, no))
 			var it = {}
 			return generator = generator.apply(__this, __arguments),
-				it[Symbol.asyncIterator] = () => it,
+				it[__knownSymbol('asyncIterator')] = () => it,
 				method('next'),
 				method('throw'),
 				method('return'),
