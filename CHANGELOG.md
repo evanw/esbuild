@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Forbid `--keep-names` when targeting old browsers ([#3477](https://github.com/evanw/esbuild/issues/3477))
+
+    The `--keep-names` setting needs to be able to assign to the `name` property on functions and classes. However, before ES6 this property was non-configurable, and attempting to assign to it would throw an error. So with this release, esbuild will no longer allow you to enable this setting and also target a really old browser.
+
 ## 0.19.6
 
 * Fix a constant folding bug with bigint equality

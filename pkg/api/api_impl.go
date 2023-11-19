@@ -771,6 +771,15 @@ func validateBannerOrFooter(log logger.Log, name string, values map[string]strin
 	return
 }
 
+func validateKeepNames(log logger.Log, options *config.Options) {
+	if options.KeepNames && options.UnsupportedJSFeatures.Has(compat.FunctionNameConfigurable) {
+		where := config.PrettyPrintTargetEnvironment(options.OriginalTargetEnv, options.UnsupportedJSFeatureOverridesMask)
+		log.AddErrorWithNotes(nil, logger.Range{}, fmt.Sprintf("The \"keep names\" setting cannot be used with %s", where), []logger.MsgData{{
+			Text: "In this environment, the \"Function.prototype.name\" property is not configurable and assigning to it will throw an error. " +
+				"Either use a newer target environment or disable the \"keep names\" setting."}})
+	}
+}
+
 func convertLocationToPublic(loc *logger.MsgLocation) *Location {
 	if loc != nil {
 		return &Location{
@@ -1321,6 +1330,7 @@ func validateBuildOptions(
 		CSSFooter:             footerCSS,
 		PreserveSymlinks:      buildOpts.PreserveSymlinks,
 	}
+	validateKeepNames(log, &options)
 	if buildOpts.Conditions != nil {
 		options.Conditions = append([]string{}, buildOpts.Conditions...)
 	}
@@ -1755,6 +1765,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 			SourceFile: transformOpts.Sourcefile,
 		},
 	}
+	validateKeepNames(log, &options)
 	if options.Stdin.Loader.IsCSS() {
 		options.CSSBanner = transformOpts.Banner
 		options.CSSFooter = transformOpts.Footer

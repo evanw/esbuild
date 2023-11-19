@@ -53,6 +53,7 @@ export const jsFeatures = {
   ExportStarAs: true,
   ForAwait: true,
   ForOf: true,
+  FunctionNameConfigurable: true,
   FunctionOrClassPropertyAccess: true,
   Generator: true,
   Hashbang: true,
@@ -332,6 +333,7 @@ import('./kangax').then(kangax => {
   js.Destructuring.ES = { 2015: { force: true } }
   js.DynamicImport.ES = { 2015: { force: true } }
   js.ForOf.ES = { 2015: { force: true } }
+  js.FunctionNameConfigurable.ES = { 2015: { force: true } }
   js.Generator.ES = { 2015: { force: true } }
   js.NewTarget.ES = { 2015: { force: true } }
   js.ObjectExtensions.ES = { 2015: { force: true } }

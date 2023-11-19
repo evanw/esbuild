@@ -15,30 +15,6 @@ import (
 	"github.com/evanw/esbuild/internal/logger"
 )
 
-func (p *parser) prettyPrintTargetEnvironment(feature compat.JSFeature) (where string, notes []logger.MsgData) {
-	where = "the configured target environment"
-	overrides := ""
-	if p.options.unsupportedJSFeatureOverridesMask != 0 {
-		count := 0
-		mask := p.options.unsupportedJSFeatureOverridesMask
-		for mask != 0 {
-			if (mask & 1) != 0 {
-				count++
-			}
-			mask >>= 1
-		}
-		s := "s"
-		if count == 1 {
-			s = ""
-		}
-		overrides = fmt.Sprintf(" + %d override%s", count, s)
-	}
-	if p.options.originalTargetEnv != "" {
-		where = fmt.Sprintf("%s (%s%s)", where, p.options.originalTargetEnv, overrides)
-	}
-	return
-}
-
 func (p *parser) markSyntaxFeature(feature compat.JSFeature, r logger.Range) (didGenerateError bool) {
 	didGenerateError = true
 
@@ -54,7 +30,7 @@ func (p *parser) markSyntaxFeature(feature compat.JSFeature, r logger.Range) (di
 	}
 
 	var name string
-	where, notes := p.prettyPrintTargetEnvironment(feature)
+	where := config.PrettyPrintTargetEnvironment(p.options.originalTargetEnv, p.options.unsupportedJSFeatureOverridesMask)
 
 	switch feature {
 	case compat.DefaultArgument:
@@ -106,24 +82,24 @@ func (p *parser) markSyntaxFeature(feature compat.JSFeature, r logger.Range) (di
 		name = "JavaScript decorators"
 
 	case compat.ImportAttributes:
-		p.log.AddErrorWithNotes(&p.tracker, r, fmt.Sprintf(
-			"Using an arbitrary value as the second argument to \"import()\" is not possible in %s", where), notes)
+		p.log.AddError(&p.tracker, r, fmt.Sprintf(
+			"Using an arbitrary value as the second argument to \"import()\" is not possible in %s", where))
 		return
 
 	case compat.TopLevelAwait:
-		p.log.AddErrorWithNotes(&p.tracker, r, fmt.Sprintf(
-			"Top-level await is not available in %s", where), notes)
+		p.log.AddError(&p.tracker, r, fmt.Sprintf(
+			"Top-level await is not available in %s", where))
 		return
 
 	case compat.ArbitraryModuleNamespaceNames:
-		p.log.AddErrorWithNotes(&p.tracker, r, fmt.Sprintf(
-			"Using a string as a module namespace identifier name is not supported in %s", where), notes)
+		p.log.AddError(&p.tracker, r, fmt.Sprintf(
+			"Using a string as a module namespace identifier name is not supported in %s", where))
 		return
 
 	case compat.Bigint:
 		// Transforming these will never be supported
-		p.log.AddErrorWithNotes(&p.tracker, r, fmt.Sprintf(
-			"Big integer literals are not available in %s", where), notes)
+		p.log.AddError(&p.tracker, r, fmt.Sprintf(
+			"Big integer literals are not available in %s", where))
 		return
 
 	case compat.ImportMeta:
@@ -132,18 +108,18 @@ func (p *parser) markSyntaxFeature(feature compat.JSFeature, r logger.Range) (di
 		if p.suppressWarningsAboutWeirdCode || p.fnOrArrowDataVisit.tryBodyCount > 0 {
 			kind = logger.Debug
 		}
-		p.log.AddIDWithNotes(logger.MsgID_JS_EmptyImportMeta, kind, &p.tracker, r, fmt.Sprintf(
-			"\"import.meta\" is not available in %s and will be empty", where), notes)
+		p.log.AddID(logger.MsgID_JS_EmptyImportMeta, kind, &p.tracker, r, fmt.Sprintf(
+			"\"import.meta\" is not available in %s and will be empty", where))
 		return
 
 	default:
-		p.log.AddErrorWithNotes(&p.tracker, r, fmt.Sprintf(
-			"This feature is not available in %s", where), notes)
+		p.log.AddError(&p.tracker, r, fmt.Sprintf(
+			"This feature is not available in %s", where))
 		return
 	}
 
-	p.log.AddErrorWithNotes(&p.tracker, r, fmt.Sprintf(
-		"Transforming %s to %s is not supported yet", name, where), notes)
+	p.log.AddError(&p.tracker, r, fmt.Sprintf(
+		"Transforming %s to %s is not supported yet", name, where))
 	return
 }
 

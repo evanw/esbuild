@@ -86,6 +86,7 @@ const (
 	ExportStarAs
 	ForAwait
 	ForOf
+	FunctionNameConfigurable
 	FunctionOrClassPropertyAccess
 	Generator
 	Hashbang
@@ -146,6 +147,7 @@ var StringToJSFeature = map[string]JSFeature{
 	"export-star-as":                    ExportStarAs,
 	"for-await":                         ForAwait,
 	"for-of":                            ForOf,
+	"function-name-configurable":        FunctionNameConfigurable,
 	"function-or-class-property-access": FunctionOrClassPropertyAccess,
 	"generator":                         Generator,
 	"hashbang":                          Hashbang,
@@ -519,6 +521,20 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		IOS:     {{start: v{10, 0, 0}}},
 		Node:    {{start: v{6, 5, 0}}},
 		Opera:   {{start: v{38, 0, 0}}},
+		Safari:  {{start: v{10, 0, 0}}},
+	},
+	FunctionNameConfigurable: {
+		// Note: The latest version of "IE" failed this test: function "name" property: isn't writable, is configurable
+		// Note: The latest version of "Rhino" failed this test: function "name" property: isn't writable, is configurable
+		Chrome:  {{start: v{43, 0, 0}}},
+		Deno:    {{start: v{1, 0, 0}}},
+		Edge:    {{start: v{12, 0, 0}}},
+		ES:      {{start: v{2015, 0, 0}}},
+		Firefox: {{start: v{38, 0, 0}}},
+		Hermes:  {{start: v{0, 7, 0}}},
+		IOS:     {{start: v{10, 0, 0}}},
+		Node:    {{start: v{4, 0, 0}}},
+		Opera:   {{start: v{30, 0, 0}}},
 		Safari:  {{start: v{10, 0, 0}}},
 	},
 	FunctionOrClassPropertyAccess: {

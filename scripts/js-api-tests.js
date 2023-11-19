@@ -6611,6 +6611,26 @@ class Foo {
     assert.strictEqual((await esbuild.transform(`class Foo { static { x } }`, { supported: { 'class-static-blocks': false } })).code, `class Foo {\n}\nx;\n`)
   },
 
+  async keepNamesUnsupported({ esbuild }) {
+    try {
+      await esbuild.transform(``, { keepNames: true, target: 'chrome36' })
+      throw new Error('Expected an error to be thrown')
+    } catch (e) {
+      assert.strictEqual(e.errors[0].text,
+        'The "keep names" setting cannot be used with the configured target environment ("chrome36")')
+    }
+
+    try {
+      await esbuild.transform(``, { keepNames: true, target: 'chrome46', supported: { 'function-name-configurable': false } })
+      throw new Error('Expected an error to be thrown')
+    } catch (e) {
+      assert.strictEqual(e.errors[0].text,
+        'The "keep names" setting cannot be used with the configured target environment ("chrome46" + 1 override)')
+    }
+
+    await esbuild.transform(``, { keepNames: true, target: 'chrome46' })
+  },
+
   async inlineScript({ esbuild }) {
     let p
     assert.strictEqual((await esbuild.transform(`x = '</script>'`, {})).code, `x = "<\\/script>";\n`)

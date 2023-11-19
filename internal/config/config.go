@@ -813,3 +813,27 @@ type OnLoadResult struct {
 
 	Loader Loader
 }
+
+func PrettyPrintTargetEnvironment(originalTargetEnv string, unsupportedJSFeatureOverridesMask compat.JSFeature) (where string) {
+	where = "the configured target environment"
+	overrides := ""
+	if unsupportedJSFeatureOverridesMask != 0 {
+		count := 0
+		mask := unsupportedJSFeatureOverridesMask
+		for mask != 0 {
+			if (mask & 1) != 0 {
+				count++
+			}
+			mask >>= 1
+		}
+		s := "s"
+		if count == 1 {
+			s = ""
+		}
+		overrides = fmt.Sprintf(" + %d override%s", count, s)
+	}
+	if originalTargetEnv != "" {
+		where = fmt.Sprintf("%s (%s%s)", where, originalTargetEnv, overrides)
+	}
+	return
+}

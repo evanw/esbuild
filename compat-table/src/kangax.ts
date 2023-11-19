@@ -31,6 +31,7 @@ const features: Record<string, JSFeature> = {
   'destructuring, declarations': 'Destructuring',
   'destructuring, parameters': 'Destructuring',
   'for..of loops': 'ForOf',
+  'function "name" property: isn\'t writable, is configurable': 'FunctionNameConfigurable',
   'generators': 'Generator',
   'let': 'ConstAndLet',
   'new.target': 'NewTarget',

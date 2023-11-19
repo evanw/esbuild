@@ -11906,10 +11906,10 @@ func (p *parser) checkForUnrepresentableIdentifier(loc logger.Loc, name string) 
 		}
 		if !p.unrepresentableIdentifiers[name] {
 			p.unrepresentableIdentifiers[name] = true
-			where, notes := p.prettyPrintTargetEnvironment(compat.UnicodeEscapes)
+			where := config.PrettyPrintTargetEnvironment(p.options.originalTargetEnv, p.options.unsupportedJSFeatureOverridesMask)
 			r := js_lexer.RangeOfIdentifier(p.source, loc)
-			p.log.AddErrorWithNotes(&p.tracker, r, fmt.Sprintf("%q cannot be escaped in %s but you "+
-				"can set the charset to \"utf8\" to allow unescaped Unicode characters", name, where), notes)
+			p.log.AddError(&p.tracker, r, fmt.Sprintf("%q cannot be escaped in %s but you "+
+				"can set the charset to \"utf8\" to allow unescaped Unicode characters", name, where))
 		}
 	}
 }
@@ -12489,7 +12489,6 @@ func containsClosingScriptTag(text string) bool {
 }
 
 func (p *parser) isUnsupportedRegularExpression(loc logger.Loc, value string) (pattern string, flags string, isUnsupported bool) {
-	var feature compat.JSFeature
 	var what string
 	var r logger.Range
 
@@ -12531,7 +12530,6 @@ pattern:
 
 			if strings.HasPrefix(tail, "?<=") || strings.HasPrefix(tail, "?<!") {
 				if p.options.unsupportedJSFeatures.Has(compat.RegexpLookbehindAssertions) {
-					feature = compat.RegexpLookbehindAssertions
 					what = "Lookbehind assertions in regular expressions are not available"
 					r = logger.Range{Loc: logger.Loc{Start: loc.Start + int32(i) + 1}, Len: 3}
 					isUnsupported = true
@@ -12540,7 +12538,6 @@ pattern:
 			} else if strings.HasPrefix(tail, "?<") {
 				if p.options.unsupportedJSFeatures.Has(compat.RegexpNamedCaptureGroups) {
 					if end := strings.IndexByte(tail, '>'); end >= 0 {
-						feature = compat.RegexpNamedCaptureGroups
 						what = "Named capture groups in regular expressions are not available"
 						r = logger.Range{Loc: logger.Loc{Start: loc.Start + int32(i) + 1}, Len: int32(end) + 1}
 						isUnsupported = true
@@ -12566,7 +12563,6 @@ pattern:
 			if isUnicode && (strings.HasPrefix(tail, "p{") || strings.HasPrefix(tail, "P{")) {
 				if p.options.unsupportedJSFeatures.Has(compat.RegexpUnicodePropertyEscapes) {
 					if end := strings.IndexByte(tail, '}'); end >= 0 {
-						feature = compat.RegexpUnicodePropertyEscapes
 						what = "Unicode property escapes in regular expressions are not available"
 						r = logger.Range{Loc: logger.Loc{Start: loc.Start + int32(i)}, Len: int32(end) + 2}
 						isUnsupported = true
@@ -12589,25 +12585,21 @@ pattern:
 				if !p.options.unsupportedJSFeatures.Has(compat.RegexpDotAllFlag) {
 					continue // This is part of ES2018
 				}
-				feature = compat.RegexpDotAllFlag
 
 			case 'y', 'u':
 				if !p.options.unsupportedJSFeatures.Has(compat.RegexpStickyAndUnicodeFlags) {
 					continue // These are part of ES2018
 				}
-				feature = compat.RegexpStickyAndUnicodeFlags
 
 			case 'd':
 				if !p.options.unsupportedJSFeatures.Has(compat.RegexpMatchIndices) {
 					continue // This is part of ES2022
 				}
-				feature = compat.RegexpMatchIndices
 
 			case 'v':
 				if !p.options.unsupportedJSFeatures.Has(compat.RegexpSetNotation) {
 					continue // This is from a proposal: https://github.com/tc39/proposal-regexp-v-flag
 				}
-				feature = compat.RegexpSetNotation
 
 			default:
 				// Unknown flags are never supported
@@ -12621,11 +12613,11 @@ pattern:
 	}
 
 	if isUnsupported {
-		where, notes := p.prettyPrintTargetEnvironment(feature)
-		p.log.AddIDWithNotes(logger.MsgID_JS_UnsupportedRegExp, logger.Debug, &p.tracker, r, fmt.Sprintf("%s in %s", what, where), append(notes, logger.MsgData{
+		where := config.PrettyPrintTargetEnvironment(p.options.originalTargetEnv, p.options.unsupportedJSFeatureOverridesMask)
+		p.log.AddIDWithNotes(logger.MsgID_JS_UnsupportedRegExp, logger.Debug, &p.tracker, r, fmt.Sprintf("%s in %s", what, where), []logger.MsgData{{
 			Text: "This regular expression literal has been converted to a \"new RegExp()\" constructor " +
 				"to avoid generating code with a syntax error. However, you will need to include a " +
-				"polyfill for \"RegExp\" for your code to have the correct behavior at run-time."}))
+				"polyfill for \"RegExp\" for your code to have the correct behavior at run-time."}})
 	}
 
 	return
