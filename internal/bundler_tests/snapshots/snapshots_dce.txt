@@ -526,8 +526,7 @@ TestDCEOfIIFE
 keepThisButRemoveTheIIFE;
 
 ---------- /out/keep-these.js ----------
-undef = /* @__PURE__ */ (() => {
-})();
+undef = void 0;
 keepMe();
 ((x = keepMe()) => {
 })();
@@ -536,6 +535,14 @@ var someVar;
 })(someVar);
 (({ z }) => {
 })(someVar);
+var keepThis = stuff();
+keepThis();
+((_ = keepMe()) => {
+})();
+var isPure = /* @__PURE__ */ ((x, y) => 123)();
+use(isPure);
+var isNotPure = ((x = foo, y = bar) => 123)();
+use(isNotPure);
 
 ================================================================================
 TestDCEOfUsingDeclarations

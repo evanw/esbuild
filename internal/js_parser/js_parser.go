@@ -11089,8 +11089,11 @@ func (p *parser) iifeCanBeRemovedIfUnused(args []js_ast.Arg, body js_ast.FnBody)
 		}
 	}
 
-	// Check whether any statements have side effects or not
-	return js_ast.StmtsCanBeRemovedIfUnused(body.Block.Stmts, 0, p.isUnbound)
+	// Check whether any statements have side effects or not. Consider return
+	// statements as not having side effects because if the IIFE can be removed
+	// then we know the return value is unused, so we know that returning the
+	// value has no side effects.
+	return js_ast.StmtsCanBeRemovedIfUnused(body.Block.Stmts, js_ast.ReturnCanBeRemovedIfUnused, p.isUnbound)
 }
 
 type captureValueMode uint8

@@ -1986,6 +1986,7 @@ type StmtsCanBeRemovedIfUnusedFlags uint8
 
 const (
 	KeepExportClauses StmtsCanBeRemovedIfUnusedFlags = 1 << iota
+	ReturnCanBeRemovedIfUnused
 )
 
 func StmtsCanBeRemovedIfUnused(stmts []Stmt, flags StmtsCanBeRemovedIfUnusedFlags, isUnbound func(ast.Ref) bool) bool {
@@ -2002,6 +2003,11 @@ func StmtsCanBeRemovedIfUnused(stmts []Stmt, flags StmtsCanBeRemovedIfUnusedFlag
 
 		case *SClass:
 			if !ClassCanBeRemovedIfUnused(s.Class, isUnbound) {
+				return false
+			}
+
+		case *SReturn:
+			if (flags&ReturnCanBeRemovedIfUnused) == 0 || (s.ValueOrNil.Data != nil && !ExprCanBeRemovedIfUnused(s.ValueOrNil, isUnbound)) {
 				return false
 			}
 

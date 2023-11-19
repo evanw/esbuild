@@ -4302,6 +4302,8 @@ func TestDCEOfIIFE(t *testing.T) {
 				(() => { /* @__PURE__ */ removeMe() })();
 				var someVar;
 				(x => {})(someVar);
+				var removeThis = /* @__PURE__ */ (() => stuff())();
+				var removeThis2 = (() => 123)();
 			`,
 			"/keep-these.js": `
 				undef = (() => {})();
@@ -4310,6 +4312,13 @@ func TestDCEOfIIFE(t *testing.T) {
 				var someVar;
 				(([y]) => {})(someVar);
 				(({z}) => {})(someVar);
+				var keepThis = /* @__PURE__ */ (() => stuff())();
+				keepThis();
+				((_ = keepMe()) => {})();
+				var isPure = ((x, y) => 123)();
+				use(isPure);
+				var isNotPure = ((x = foo, y = bar) => 123)();
+				use(isNotPure);
 			`,
 		},
 		entryPaths: []string{

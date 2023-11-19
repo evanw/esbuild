@@ -35,6 +35,20 @@
     document.onkeydown=o=>o.keyCode===65&&console.log("🧀");
     ```
 
+    In addition, immediately-invoked function expressions (IIFEs) that return a single expression are now inlined when minifying. This makes it possible to use IIFEs in combination with `@__PURE__` annotations to annotate arbitrary expressions as side-effect free without the IIFE wrapper impacting code size. For example:
+
+    ```js
+    // Original code
+    const sideEffectFreeOffset = /* @__PURE__ */ (() => computeSomething())()
+    use(sideEffectFreeOffset)
+
+    // Old output (with --minify)
+    const e=(()=>computeSomething())();use(e);
+
+    // New output (with --minify)
+    const e=computeSomething();use(e);
+    ```
+
 * Automatically prefix the `mask-composite` CSS property for WebKit ([#3493](https://github.com/evanw/esbuild/issues/3493))
 
     The `mask-composite` property will now be prefixed as `-webkit-mask-composite` for older WebKit-based browsers. In addition to prefixing the property name, handling older browsers also requires rewriting the values since WebKit uses non-standard names for the mask composite modes:
