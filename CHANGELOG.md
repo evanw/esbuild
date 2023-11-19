@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.19.6
 
 * Fix a constant folding bug with bigint equality
 
