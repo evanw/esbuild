@@ -800,7 +800,6 @@ export function createChannel(streamIn: StreamIn): StreamOut {
   }
 
   let formatMessages: StreamService['formatMessages'] = ({ callName, refs, messages, options, callback }) => {
-    let result = sanitizeMessages(messages, 'messages', null, '')
     if (!options) throw new Error(`Missing second argument in ${callName}() call`)
     let keys: OptionKeys = {}
     let kind = getFlag(options, keys, 'kind', mustBeString)
@@ -811,7 +810,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     if (kind !== 'error' && kind !== 'warning') throw new Error(`Expected "kind" to be "error" or "warning" in ${callName}() call`)
     let request: protocol.FormatMsgsRequest = {
       command: 'format-msgs',
-      messages: result,
+      messages: sanitizeMessages(messages, 'messages', null, '', terminalWidth),
       isWarning: kind === 'warning',
     }
     if (color !== void 0) request.color = color
@@ -1361,8 +1360,8 @@ let handlePlugins = async (
           let warnings = getFlag(result, keys, 'warnings', mustBeArray)
           checkForInvalidFlags(result, keys, `from onStart() callback in plugin ${quote(name)}`)
 
-          if (errors != null) response.errors!.push(...sanitizeMessages(errors, 'errors', details, name))
-          if (warnings != null) response.warnings!.push(...sanitizeMessages(warnings, 'warnings', details, name))
+          if (errors != null) response.errors!.push(...sanitizeMessages(errors, 'errors', details, name, undefined))
+          if (warnings != null) response.warnings!.push(...sanitizeMessages(warnings, 'warnings', details, name, undefined))
         }
       } catch (e) {
         response.errors!.push(extractErrorMessageV8(e, streamIn, details, note && note(), name))
@@ -1409,8 +1408,8 @@ let handlePlugins = async (
           if (external != null) response.external = external
           if (sideEffects != null) response.sideEffects = sideEffects
           if (pluginData != null) response.pluginData = details.store(pluginData)
-          if (errors != null) response.errors = sanitizeMessages(errors, 'errors', details, name)
-          if (warnings != null) response.warnings = sanitizeMessages(warnings, 'warnings', details, name)
+          if (errors != null) response.errors = sanitizeMessages(errors, 'errors', details, name, undefined)
+          if (warnings != null) response.warnings = sanitizeMessages(warnings, 'warnings', details, name, undefined)
           if (watchFiles != null) response.watchFiles = sanitizeStringArray(watchFiles, 'watchFiles')
           if (watchDirs != null) response.watchDirs = sanitizeStringArray(watchDirs, 'watchDirs')
           break
@@ -1456,8 +1455,8 @@ let handlePlugins = async (
           if (resolveDir != null) response.resolveDir = resolveDir
           if (pluginData != null) response.pluginData = details.store(pluginData)
           if (loader != null) response.loader = loader
-          if (errors != null) response.errors = sanitizeMessages(errors, 'errors', details, name)
-          if (warnings != null) response.warnings = sanitizeMessages(warnings, 'warnings', details, name)
+          if (errors != null) response.errors = sanitizeMessages(errors, 'errors', details, name, undefined)
+          if (warnings != null) response.warnings = sanitizeMessages(warnings, 'warnings', details, name, undefined)
           if (watchFiles != null) response.watchFiles = sanitizeStringArray(watchFiles, 'watchFiles')
           if (watchDirs != null) response.watchDirs = sanitizeStringArray(watchDirs, 'watchDirs')
           break
@@ -1492,8 +1491,8 @@ let handlePlugins = async (
               let warnings = getFlag(value, keys, 'warnings', mustBeArray)
               checkForInvalidFlags(value, keys, `from onEnd() callback in plugin ${quote(name)}`)
 
-              if (errors != null) newErrors = sanitizeMessages(errors, 'errors', details, name)
-              if (warnings != null) newWarnings = sanitizeMessages(warnings, 'warnings', details, name)
+              if (errors != null) newErrors = sanitizeMessages(errors, 'errors', details, name, undefined)
+              if (warnings != null) newWarnings = sanitizeMessages(warnings, 'warnings', details, name, undefined)
             }
           } catch (e) {
             newErrors = [extractErrorMessageV8(e, streamIn, details, note && note(), name)]
@@ -1696,7 +1695,7 @@ function replaceDetailsInMessages(messages: types.Message[], stash: ObjectStash)
   return messages
 }
 
-function sanitizeLocation(location: types.PartialMessage['location'], where: string): types.Message['location'] {
+function sanitizeLocation(location: types.PartialMessage['location'], where: string, terminalWidth: number | undefined): types.Message['location'] {
   if (location == null) return null
 
   let keys: OptionKeys = {}
@@ -1709,6 +1708,32 @@ function sanitizeLocation(location: types.PartialMessage['location'], where: str
   let suggestion = getFlag(location, keys, 'suggestion', mustBeString)
   checkForInvalidFlags(location, keys, where)
 
+  // Performance hack: Some people pass enormous minified files as the line
+  // text with a column near the beginning of the line and then complain
+  // when this function is slow. The slowness comes from serializing a huge
+  // string. But the vast majority of that string is unnecessary. Try to
+  // detect when this is the case and trim the string before serialization
+  // to avoid the performance hit. See: https://github.com/evanw/esbuild/issues/3467
+  if (lineText) {
+    // Try to conservatively guess the maximum amount of relevant text
+    const relevantASCII = lineText.slice(0,
+      (column && column > 0 ? column : 0) +
+      (length && length > 0 ? length : 0) +
+      (terminalWidth && terminalWidth > 0 ? terminalWidth : 80))
+
+    // Make sure it's ASCII (so the byte-oriented column and length values
+    // are correct) and that there are no newlines (so that our logging code
+    // doesn't look at the end of the string)
+    if (!/[\x7F-\uFFFF]/.test(relevantASCII) && !/\n/.test(lineText)) {
+      lineText = relevantASCII
+    }
+  }
+
+  // Note: We could technically make this even faster by maintaining two copies
+  // of this code, one in Go and one in TypeScript. But I'm not going to do that.
+  // The point of this function is to call into the real Go code to get what it
+  // does. If someone wants a JS version, they can port it themselves.
+
   return {
     file: file || '',
     namespace: namespace || '',
@@ -1720,7 +1745,13 @@ function sanitizeLocation(location: types.PartialMessage['location'], where: str
   }
 }
 
-function sanitizeMessages(messages: types.PartialMessage[], property: string, stash: ObjectStash | null, fallbackPluginName: string): types.Message[] {
+function sanitizeMessages(
+  messages: types.PartialMessage[],
+  property: string,
+  stash: ObjectStash | null,
+  fallbackPluginName: string,
+  terminalWidth: number | undefined,
+): types.Message[] {
   let messagesClone: types.Message[] = []
   let index = 0
 
@@ -1744,7 +1775,7 @@ function sanitizeMessages(messages: types.PartialMessage[], property: string, st
         checkForInvalidFlags(note, noteKeys, where)
         notesClone.push({
           text: noteText || '',
-          location: sanitizeLocation(noteLocation, where),
+          location: sanitizeLocation(noteLocation, where, terminalWidth),
         })
       }
     }
@@ -1753,7 +1784,7 @@ function sanitizeMessages(messages: types.PartialMessage[], property: string, st
       id: id || '',
       pluginName: pluginName || fallbackPluginName,
       text: text || '',
-      location: sanitizeLocation(location, where),
+      location: sanitizeLocation(location, where, terminalWidth),
       notes: notesClone,
       detail: stash ? stash.store(detail) : -1,
     })

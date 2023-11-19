@@ -1544,12 +1544,14 @@ func detailStruct(data MsgData, terminalInfo TerminalInfo, maxMargin int) MsgDet
 	// Only highlight the first line of the line text
 	loc := *data.Location
 	endOfFirstLine := len(loc.LineText)
-	for i, c := range loc.LineText {
-		if c == '\r' || c == '\n' || c == '\u2028' || c == '\u2029' {
-			endOfFirstLine = i
-			break
-		}
+
+	// Note: This uses "IndexByte" because Go implements this with SIMD, which
+	// can matter a lot for really long lines. Some people pass huge >100mb
+	// minified files as line text for the log message.
+	if i := strings.IndexByte(loc.LineText, '\n'); i >= 0 {
+		endOfFirstLine = i
 	}
+
 	firstLine := loc.LineText[:endOfFirstLine]
 	afterFirstLine := loc.LineText[endOfFirstLine:]
 	if afterFirstLine != "" && !strings.HasSuffix(afterFirstLine, "\n") {
