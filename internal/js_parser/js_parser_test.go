@@ -2415,9 +2415,9 @@ func TestArrow(t *testing.T) {
 
 	expectPrinted(t, "(() => {})\n(0)", "/* @__PURE__ */ (() => {\n})(0);\n")
 	expectPrinted(t, "(x => {})\n(0)", "/* @__PURE__ */ ((x) => {\n})(0);\n")
-	expectPrinted(t, "(async () => {})\n(0)", "/* @__PURE__ */ (async () => {\n})(0);\n")
-	expectPrinted(t, "(async x => {})\n(0)", "/* @__PURE__ */ (async (x) => {\n})(0);\n")
-	expectPrinted(t, "(async (x) => {})\n(0)", "/* @__PURE__ */ (async (x) => {\n})(0);\n")
+	expectPrinted(t, "(async () => {})\n(0)", "(async () => {\n})(0);\n")
+	expectPrinted(t, "(async x => {})\n(0)", "(async (x) => {\n})(0);\n")
+	expectPrinted(t, "(async (x) => {})\n(0)", "(async (x) => {\n})(0);\n")
 
 	expectParseError(t, "y = () => {}(0)", "<stdin>: ERROR: Expected \";\" but found \"(\"\n")
 	expectParseError(t, "y = x => {}(0)", "<stdin>: ERROR: Expected \";\" but found \"(\"\n")
@@ -2439,9 +2439,9 @@ func TestArrow(t *testing.T) {
 
 	expectPrinted(t, "y = (() => {})\n(0)", "y = /* @__PURE__ */ (() => {\n})(0);\n")
 	expectPrinted(t, "y = (x => {})\n(0)", "y = /* @__PURE__ */ ((x) => {\n})(0);\n")
-	expectPrinted(t, "y = (async () => {})\n(0)", "y = /* @__PURE__ */ (async () => {\n})(0);\n")
-	expectPrinted(t, "y = (async x => {})\n(0)", "y = /* @__PURE__ */ (async (x) => {\n})(0);\n")
-	expectPrinted(t, "y = (async (x) => {})\n(0)", "y = /* @__PURE__ */ (async (x) => {\n})(0);\n")
+	expectPrinted(t, "y = (async () => {})\n(0)", "y = (async () => {\n})(0);\n")
+	expectPrinted(t, "y = (async x => {})\n(0)", "y = (async (x) => {\n})(0);\n")
+	expectPrinted(t, "y = (async (x) => {})\n(0)", "y = (async (x) => {\n})(0);\n")
 
 	expectParseError(t, "(() => {}(0))", "<stdin>: ERROR: Expected \")\" but found \"(\"\n")
 	expectParseError(t, "(x => {}(0))", "<stdin>: ERROR: Expected \")\" but found \"(\"\n")
@@ -2463,9 +2463,9 @@ func TestArrow(t *testing.T) {
 
 	expectPrinted(t, "((() => {})\n(0))", "/* @__PURE__ */ (() => {\n})(0);\n")
 	expectPrinted(t, "((x => {})\n(0))", "/* @__PURE__ */ ((x) => {\n})(0);\n")
-	expectPrinted(t, "((async () => {})\n(0))", "/* @__PURE__ */ (async () => {\n})(0);\n")
-	expectPrinted(t, "((async x => {})\n(0))", "/* @__PURE__ */ (async (x) => {\n})(0);\n")
-	expectPrinted(t, "((async (x) => {})\n(0))", "/* @__PURE__ */ (async (x) => {\n})(0);\n")
+	expectPrinted(t, "((async () => {})\n(0))", "(async () => {\n})(0);\n")
+	expectPrinted(t, "((async x => {})\n(0))", "(async (x) => {\n})(0);\n")
+	expectPrinted(t, "((async (x) => {})\n(0))", "(async (x) => {\n})(0);\n")
 
 	expectParseError(t, "y = (() => {}(0))", "<stdin>: ERROR: Expected \")\" but found \"(\"\n")
 	expectParseError(t, "y = (x => {}(0))", "<stdin>: ERROR: Expected \")\" but found \"(\"\n")
@@ -2487,9 +2487,9 @@ func TestArrow(t *testing.T) {
 
 	expectPrinted(t, "y = ((() => {})\n(0))", "y = /* @__PURE__ */ (() => {\n})(0);\n")
 	expectPrinted(t, "y = ((x => {})\n(0))", "y = /* @__PURE__ */ ((x) => {\n})(0);\n")
-	expectPrinted(t, "y = ((async () => {})\n(0))", "y = /* @__PURE__ */ (async () => {\n})(0);\n")
-	expectPrinted(t, "y = ((async x => {})\n(0))", "y = /* @__PURE__ */ (async (x) => {\n})(0);\n")
-	expectPrinted(t, "y = ((async (x) => {})\n(0))", "y = /* @__PURE__ */ (async (x) => {\n})(0);\n")
+	expectPrinted(t, "y = ((async () => {})\n(0))", "y = (async () => {\n})(0);\n")
+	expectPrinted(t, "y = ((async x => {})\n(0))", "y = (async (x) => {\n})(0);\n")
+	expectPrinted(t, "y = ((async (x) => {})\n(0))", "y = (async (x) => {\n})(0);\n")
 }
 
 func TestTemplate(t *testing.T) {
@@ -4412,14 +4412,14 @@ func TestMangleIIFE(t *testing.T) {
 	expectPrintedNormalAndMangle(t, "(() => { return a() })()", "(() => {\n  return a();\n})();\n", "a();\n")
 	expectPrintedNormalAndMangle(t, "(() => { let b = a; b() })()", "(() => {\n  let b = a;\n  b();\n})();\n", "a();\n")
 	expectPrintedNormalAndMangle(t, "(() => { let b = a; return b() })()", "(() => {\n  let b = a;\n  return b();\n})();\n", "a();\n")
-	expectPrintedNormalAndMangle(t, "(async () => {})()", "/* @__PURE__ */ (async () => {\n})();\n", "")
+	expectPrintedNormalAndMangle(t, "(async () => {})()", "(async () => {\n})();\n", "")
 	expectPrintedNormalAndMangle(t, "(async () => { a() })()", "(async () => {\n  a();\n})();\n", "(async () => a())();\n")
 	expectPrintedNormalAndMangle(t, "(async () => { let b = a; b() })()", "(async () => {\n  let b = a;\n  b();\n})();\n", "(async () => a())();\n")
 
 	expectPrintedNormalAndMangle(t, "var a = (function() {})()", "var a = /* @__PURE__ */ function() {\n}();\n", "var a = /* @__PURE__ */ function() {\n}();\n")
 	expectPrintedNormalAndMangle(t, "(function() {})()", "/* @__PURE__ */ (function() {\n})();\n", "")
-	expectPrintedNormalAndMangle(t, "(function*() {})()", "/* @__PURE__ */ (function* () {\n})();\n", "")
-	expectPrintedNormalAndMangle(t, "(async function() {})()", "/* @__PURE__ */ (async function() {\n})();\n", "")
+	expectPrintedNormalAndMangle(t, "(function*() {})()", "(function* () {\n})();\n", "")
+	expectPrintedNormalAndMangle(t, "(async function() {})()", "(async function() {\n})();\n", "")
 	expectPrintedNormalAndMangle(t, "(function() { a() })()", "(function() {\n  a();\n})();\n", "(function() {\n  a();\n})();\n")
 	expectPrintedNormalAndMangle(t, "(function*() { a() })()", "(function* () {\n  a();\n})();\n", "(function* () {\n  a();\n})();\n")
 	expectPrintedNormalAndMangle(t, "(async function() { a() })()", "(async function() {\n  a();\n})();\n", "(async function() {\n  a();\n})();\n")

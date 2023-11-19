@@ -14335,11 +14335,11 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		if !e.CanBeUnwrappedIfUnused {
 			switch target := e.Target.Data.(type) {
 			case *js_ast.EArrow:
-				if p.iifeCanBeRemovedIfUnused(target.Args, target.Body) {
+				if !target.IsAsync && p.iifeCanBeRemovedIfUnused(target.Args, target.Body) {
 					e.CanBeUnwrappedIfUnused = true
 				}
 			case *js_ast.EFunction:
-				if p.iifeCanBeRemovedIfUnused(target.Fn.Args, target.Fn.Body) {
+				if !target.Fn.IsAsync && !target.Fn.IsGenerator && p.iifeCanBeRemovedIfUnused(target.Fn.Args, target.Fn.Body) {
 					e.CanBeUnwrappedIfUnused = true
 				}
 			}

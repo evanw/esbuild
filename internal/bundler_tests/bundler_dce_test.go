@@ -4319,6 +4319,8 @@ func TestDCEOfIIFE(t *testing.T) {
 				use(isPure);
 				var isNotPure = ((x = foo, y = bar) => 123)();
 				use(isNotPure);
+				(async () => ({ get then() { notPure() } }))();
+				(async function() { return { get then() { notPure() } }; })();
 			`,
 		},
 		entryPaths: []string{

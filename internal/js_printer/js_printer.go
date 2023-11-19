@@ -2358,7 +2358,11 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 
 			// Inline IIFEs that return expressions at print time
 			if len(e.Args) == 0 {
-				if arrow, ok := e.Target.Data.(*js_ast.EArrow); ok && len(arrow.Args) == 0 {
+				// Note: Do not inline async arrow functions as they are not IIFEs. In
+				// particular, they are not necessarily invoked immediately, and any
+				// exceptions involved in their evaluation will be swallowed without
+				// bubbling up to the surrounding context.
+				if arrow, ok := e.Target.Data.(*js_ast.EArrow); ok && len(arrow.Args) == 0 && !arrow.IsAsync {
 					stmts := arrow.Body.Block.Stmts
 
 					// "(() => {})()" => "void 0"
