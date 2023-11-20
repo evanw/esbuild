@@ -2,6 +2,71 @@
 
 ## Unreleased
 
+* Add support for bundling code that uses import attributes ([#3384](https://github.com/evanw/esbuild/issues/3384))
+
+    JavaScript is gaining new syntax for associating a map of string key-value pairs with individual ESM imports. The proposal is still a work in progress and is still undergoing significant changes before being finalized. However, the first iteration has already been shipping in Chromium-based browsers for a while, and the second iteration has landed in V8 and is now shipping in node, so it makes sense for esbuild to support it. Here are the two major iterations of this proposal (so far):
+
+    1. Import assertions (deprecated, will not be standardized)
+        * Uses the `assert` keyword
+        * Does _not_ affect module resolution
+        * Causes an error if the assertion fails
+        * Shipping in Chrome 91+ (and in esbuild 0.11.22+)
+
+    2. Import attributes (currently set to become standardized)
+        * Uses the `with` keyword
+        * Affects module resolution
+        * Unknown attributes cause an error
+        * Shipping in node 21+
+
+    You can already use esbuild to bundle code that uses import assertions (the first iteration). However, this feature is mostly useless for bundlers because import assertions are not allowed to affect module resolution. It's basically only useful as an annotation on external imports, which esbuild will then preserve in the output for use in a browser (which would otherwise refuse to load certain imports).
+
+    With this release, esbuild now supports bundling code that uses import attributes (the second iteration). This is much more useful for bundlers because they are allowed to affect module resolution, which means the key-value pairs can be provided to plugins. Here's an example, which uses esbuild's built-in support for the upcoming [JSON module standard](https://github.com/tc39/proposal-json-modules):
+
+    ```js
+    // On static imports
+    import foo from './package.json' with { type: 'json' }
+    console.log(foo)
+
+    // On dynamic imports
+    const bar = await import('./package.json', { with: { type: 'json' } })
+    console.log(bar)
+    ```
+
+    One important consequence of the change in semantics between import assertions and import attributes is that two imports with identical paths but different import attributes are now considered to be different modules. This is because the import attributes are provided to the loader, which might then use those attributes during loading. For example, you could imagine an image loader that produces an image of a different size depending on the import attributes.
+
+    Import attributes are now reported in the [metafile](https://esbuild.github.io/api/#metafile) and are now provided to [on-load plugins](https://esbuild.github.io/plugins/#on-load) as a map in the `with` property. For example, here's an esbuild plugin that turns all imports with a `type` import attribute equal to `'cheese'` into a module that exports the cheese emoji:
+
+    ```js
+    const cheesePlugin = {
+      name: 'cheese',
+      setup(build) {
+        build.onLoad({ filter: /.*/ }, args => {
+          if (args.with.type === 'cheese') return {
+            contents: `export default "🧀"`,
+          }
+        })
+      }
+    }
+
+    require('esbuild').build({
+      bundle: true,
+      write: false,
+      stdin: {
+        contents: `
+          import foo from 'data:text/javascript,' with { type: 'cheese' }
+          console.log(foo)
+        `,
+      },
+      plugins: [cheesePlugin],
+    }).then(result => {
+      const code = new Function(result.outputFiles[0].text)
+      code()
+    })
+    ```
+
+    > [!Warning]
+    > It's possible that the second iteration of this feature may change significantly again even though it's already shipping in real JavaScript VMs (since it has already happened once before). In that case, esbuild may end up adjusting its implementation to match the eventual standard behavior. So keep in mind that by using this, you are using an unstable upcoming JavaScript feature that may undergo breaking changes in the future.
+
 * Adjust TypeScript experimental decorator behavior ([#3230](https://github.com/evanw/esbuild/issues/3230), [#3326](https://github.com/evanw/esbuild/issues/3326), [#3394](https://github.com/evanw/esbuild/issues/3394))
 
     With this release, esbuild will now allow TypeScript experimental decorators to access both static class properties and `#private` class names. For example:
@@ -27,11 +92,11 @@
 
     Note that TypeScript's experimental decorator support is currently buggy: TypeScript's compiler passes this test if only the first `@check` is present or if only the second `@check` is present, but TypeScript's compiler fails this test if both checks are present together. I haven't changed esbuild to match TypeScript's behavior exactly here because I'm waiting for TypeScript to fix these bugs instead.
 
-    Some background: TypeScript experimental decorators don't have consistent semantics regarding the context that the decorators are evaluated in. For example, TypeScript will let you use `await` within a decorator, which implies that the decorator runs outside the class (since `await` isn't supported inside a class body), but TypeScript will also let you use `#private` names, which implies that the decorator runs inside the class body (since `#private` names are only supported inside a class body). The value of `this` in a decorator is also buggy (the run-time value of `this` changes if any decorator in the class uses a `#private` name but the type of `this` doesn't change, leading to the type checker no longer matching reality). These inconsistent semantics make it hard for esbuild to implement this feature as decorator evaluation happens in some superposition of both inside and outside the class body that is particular to the internal implementation details of the TypeScript compiler.
+    Some background: TypeScript experimental decorators don't have consistent semantics regarding the context that the decorators are evaluated in. For example, TypeScript will let you use `await` within a decorator, which implies that the decorator runs outside the class body (since `await` isn't supported inside a class body), but TypeScript will also let you use `#private` names, which implies that the decorator runs inside the class body (since `#private` names are only supported inside a class body). The value of `this` in a decorator is also buggy (the run-time value of `this` changes if any decorator in the class uses a `#private` name but the type of `this` doesn't change, leading to the type checker no longer matching reality). These inconsistent semantics make it hard for esbuild to implement this feature as decorator evaluation happens in some superposition of both inside and outside the class body that is particular to the internal implementation details of the TypeScript compiler.
 
 * Forbid `--keep-names` when targeting old browsers ([#3477](https://github.com/evanw/esbuild/issues/3477))
 
-    The `--keep-names` setting needs to be able to assign to the `name` property on functions and classes. However, before ES6 this property was non-configurable, and attempting to assign to it would throw an error. So with this release, esbuild will no longer allow you to enable this setting and also target a really old browser.
+    The `--keep-names` setting needs to be able to assign to the `name` property on functions and classes. However, before ES6 this property was non-configurable, and attempting to assign to it would throw an error. So with this release, esbuild will no longer allow you to enable this setting while also targeting a really old browser.
 
 ## 0.19.6
 

@@ -4169,6 +4169,7 @@ x = [data_default, data_default, data_default2];
     "project/data.json with { type: 'json' }": {
       "bytes": 16,
       "imports": [],
+      "format": "esm",
       "with": {
         "type": "json"
       }

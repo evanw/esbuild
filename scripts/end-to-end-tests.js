@@ -3083,6 +3083,20 @@ tests.push(
   }),
 )
 
+// Test import attributes
+tests.push(
+  test(['--bundle', 'entry.js', '--outfile=node.js', '--format=esm'], {
+    'entry.js': `
+      import * as foo from './package.json' with { type: 'json' }
+      if (foo.default.type !== 'module' || 'type' in foo) throw 'fail: static'
+
+      const bar = await import('./package.json', { with: { type: 'json' } })
+      if (bar.default.type !== 'module' || 'type' in bar) throw 'fail: dynamic'
+    `,
+    'package.json': `{ "type": "module" }`,
+  }),
+)
+
 // Test directive preservation
 tests.push(
   // The "__pow" symbol must not be hoisted above "use strict"

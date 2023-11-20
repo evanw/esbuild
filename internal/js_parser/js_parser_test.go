@@ -5978,7 +5978,7 @@ func TestImportAttributes(t *testing.T) {
 	expectPrinted(t, "import 'x' with {}", "import \"x\" with {};\n")
 	expectPrinted(t, "import 'x' with {\n}", "import \"x\" with {};\n")
 	expectPrinted(t, "import 'x' with\n{}", "import \"x\" with {};\n")
-	expectPrinted(t, "import 'x'\nassert\n{}", "import \"x\";\nassert;\n{\n}\n")
+	expectPrinted(t, "import 'x'\nwith\n{}", "import \"x\" with {};\n")
 	expectPrinted(t, "import 'x' with {type: 'json'}", "import \"x\" with { type: \"json\" };\n")
 	expectPrinted(t, "import 'x' with {type: 'json',}", "import \"x\" with { type: \"json\" };\n")
 	expectPrinted(t, "import 'x' with {'type': 'json'}", "import \"x\" with { \"type\": \"json\" };\n")

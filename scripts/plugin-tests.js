@@ -2506,10 +2506,8 @@ error: Invalid path suffix "%what" returned from plugin (must start with "?" or 
               console.log(a, b)
             `
             if (args.path === 'entry') return { contents: entry }
-            if (args.with) {
-              if (args.with.type === 'cheese') return { contents: `export default "🧀"` }
-              if (args.with.pizza === 'true') return { contents: `export default "🍕"` }
-            }
+            if (args.with.type === 'cheese') return { contents: `export default "🧀"` }
+            if (args.with.pizza === 'true') return { contents: `export default "🍕"` }
           })
         },
       }],

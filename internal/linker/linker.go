@@ -2199,8 +2199,13 @@ func (c *linkerContext) generateCodeForLazyExport(sourceIndex uint32) {
 		return ref, partIndex
 	}
 
-	// Unwrap JSON objects into separate top-level variables
-	if object, ok := lazyValue.Data.(*js_ast.EObject); ok {
+	// Unwrap JSON objects into separate top-level variables. This improves tree-
+	// shaking by letting you only import part of a JSON file.
+	//
+	// But don't do this for files loaded via "with { type: 'json' }" as that
+	// behavior is specified to not export anything except for the "default"
+	// export: https://github.com/tc39/proposal-json-modules
+	if object, ok := lazyValue.Data.(*js_ast.EObject); ok && file.InputFile.Loader != config.LoaderWithTypeJSON {
 		for _, property := range object.Properties {
 			if str, ok := property.Key.Data.(*js_ast.EString); ok &&
 				(!file.IsEntryPoint() || js_ast.IsIdentifierUTF16(str.Value) ||

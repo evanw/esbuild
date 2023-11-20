@@ -1990,9 +1990,9 @@ func (p *parser) checkForLegacyOctalLiteral(e js_ast.E) {
 func (p *parser) notesForAssertTypeJSON(record *ast.ImportRecord, alias string) []logger.MsgData {
 	return []logger.MsgData{p.tracker.MsgData(
 		js_lexer.RangeOfImportAssertOrWith(p.source, *ast.FindAssertOrWithEntry(record.AssertOrWith.Entries, "type"), js_lexer.KeyAndValueRange),
-		"This is considered an import of a standard JSON module because of the import assertion here:"),
+		"The JSON import assertion is here:"),
 		{Text: fmt.Sprintf("You can either keep the import assertion and only use the \"default\" import, "+
-			"or you can remove the import assertion and use the %q import (which is non-standard behavior).", alias)}}
+			"or you can remove the import assertion and use the %q import.", alias)}}
 }
 
 // This assumes the caller has already checked for TStringLiteral or TNoSubstitutionTemplateLiteral
@@ -6342,7 +6342,7 @@ func (p *parser) parsePath() (logger.Range, string, *ast.ImportAssertOrWith, ast
 
 	// See https://github.com/tc39/proposal-import-attributes for more info
 	var assertOrWith *ast.ImportAssertOrWith
-	if !p.lexer.HasNewlineBefore && (p.lexer.IsContextualKeyword("assert") || p.lexer.Token == js_lexer.TWith) {
+	if p.lexer.Token == js_lexer.TWith || (!p.lexer.HasNewlineBefore && p.lexer.IsContextualKeyword("assert")) {
 		// "import './foo.json' assert { type: 'json' }"
 		// "import './foo.json' with { type: 'json' }"
 		var entries []ast.AssertOrWithEntry
@@ -12056,14 +12056,14 @@ func (p *parser) maybeRewritePropertyAccess(
 				// Cache translation so each property access resolves to the same import
 				item, ok := importItems.entries[name]
 				if !ok {
-					// Replace non-default imports with "undefined" for standard JSON modules
+					// Replace non-default imports with "undefined" for JSON import assertions
 					if record := &p.importRecords[importItems.importRecordIndex]; (record.Flags&ast.AssertTypeJSON) != 0 && name != "default" {
 						kind := logger.Warning
 						if p.suppressWarningsAboutWeirdCode {
 							kind = logger.Debug
 						}
 						p.log.AddIDWithNotes(logger.MsgID_JS_AssertTypeJSON, kind, &p.tracker, js_lexer.RangeOfIdentifier(p.source, nameLoc),
-							fmt.Sprintf("Non-default import %q is undefined with a standard JSON module", name),
+							fmt.Sprintf("Non-default import %q is undefined with a JSON import assertion", name),
 							p.notesForAssertTypeJSON(record, name))
 						p.ignoreUsage(id.Ref)
 						return js_ast.Expr{Loc: loc, Data: js_ast.EUndefinedShared}, true
@@ -16370,7 +16370,7 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result importsEx
 			keepUnusedImports := p.options.ts.Parse && (unusedImportFlags&config.TSUnusedImport_KeepValues) != 0 &&
 				p.options.mode != config.ModeBundle && !p.options.minifyIdentifiers
 
-			// Forbid non-default imports for standard JSON modules
+			// Forbid non-default imports for JSON import assertions
 			if (record.Flags&ast.AssertTypeJSON) != 0 && p.options.mode == config.ModeBundle && s.Items != nil {
 				for _, item := range *s.Items {
 					if p.options.ts.Parse && p.tsUseCounts[item.Name.Ref.InnerIndex] == 0 && (unusedImportFlags&config.TSUnusedImport_KeepValues) == 0 {
@@ -16379,7 +16379,7 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result importsEx
 					}
 					if item.Alias != "default" {
 						p.log.AddErrorWithNotes(&p.tracker, js_lexer.RangeOfIdentifier(p.source, item.AliasLoc),
-							fmt.Sprintf("Cannot use non-default import %q with a standard JSON module", item.Alias),
+							fmt.Sprintf("Cannot use non-default import %q with a JSON import assertion", item.Alias),
 							p.notesForAssertTypeJSON(record, item.Alias))
 					}
 				}
@@ -16644,12 +16644,12 @@ func (p *parser) scanForImportsAndExports(stmts []js_ast.Stmt) (result importsEx
 				}
 			}
 
-			// Forbid non-default imports for standard JSON modules
+			// Forbid non-default imports for JSON import assertions
 			if (record.Flags&ast.AssertTypeJSON) != 0 && p.options.mode == config.ModeBundle {
 				for _, item := range s.Items {
 					if item.OriginalName != "default" {
 						p.log.AddErrorWithNotes(&p.tracker, js_lexer.RangeOfIdentifier(p.source, item.Name.Loc),
-							fmt.Sprintf("Cannot use non-default import %q with a standard JSON module", item.OriginalName),
+							fmt.Sprintf("Cannot use non-default import %q with a JSON import assertion", item.OriginalName),
 							p.notesForAssertTypeJSON(record, item.OriginalName))
 					}
 				}

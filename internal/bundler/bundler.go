@@ -244,9 +244,19 @@ func parseFile(args parseArgs) {
 		result.file.inputFile.Repr = &graph.CSSRepr{AST: ast}
 		result.ok = true
 
-	case config.LoaderJSON:
+	case config.LoaderJSON, config.LoaderWithTypeJSON:
 		expr, ok := args.caches.JSONCache.Parse(args.log, source, js_parser.JSONOptions{})
 		ast := js_parser.LazyExportAST(args.log, source, js_parser.OptionsFromConfig(&args.options), expr, "")
+		if loader == config.LoaderWithTypeJSON {
+			// The exports kind defaults to "none", in which case the linker picks
+			// either ESM or CommonJS depending on the situation. Dynamic imports
+			// causes the linker to pick CommonJS which uses "require()" and then
+			// converts the return value to ESM, which adds extra properties that
+			// aren't supposed to be there when "{ with: { type: 'json' } }" is
+			// present. So if there's an import attribute, we force the type to
+			// be ESM to avoid this.
+			ast.ExportsKind = js_ast.ExportsESM
+		}
 		if pluginName != "" {
 			result.file.inputFile.SideEffects.Kind = graph.NoSideEffects_PureData_FromPlugin
 		} else {
@@ -1054,7 +1064,7 @@ func runOnLoadPlugins(
 	for _, attr := range source.KeyPath.ImportAttributes.Decode() {
 		if attr.Key == "type" {
 			if attr.Value == "json" {
-				loader = config.LoaderJSON
+				loader = config.LoaderWithTypeJSON
 			} else {
 				r := importPathRange
 				if importWith != nil {

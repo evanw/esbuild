@@ -196,6 +196,7 @@ const (
 	LoaderGlobalCSS
 	LoaderJS
 	LoaderJSON
+	LoaderWithTypeJSON // Has a "with { type: 'json' }" attribute
 	LoaderJSX
 	LoaderLocalCSS
 	LoaderText
@@ -216,6 +217,7 @@ var LoaderToString = []string{
 	"file",
 	"global-css",
 	"js",
+	"json",
 	"json",
 	"jsx",
 	"local-css",
@@ -248,7 +250,7 @@ func (loader Loader) CanHaveSourceMap() bool {
 		LoaderJS, LoaderJSX,
 		LoaderTS, LoaderTSNoAmbiguousLessThan, LoaderTSX,
 		LoaderCSS, LoaderGlobalCSS, LoaderLocalCSS,
-		LoaderJSON, LoaderText:
+		LoaderJSON, LoaderWithTypeJSON, LoaderText:
 		return true
 	}
 	return false

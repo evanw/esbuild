@@ -7773,39 +7773,39 @@ func TestErrorsForAssertTypeJSON(t *testing.T) {
 				".copy": config.LoaderCopy,
 			},
 		},
-		expectedScanLog: `js-entry.js: ERROR: Cannot use non-default import "unused" with a standard JSON module
-js-entry.js: NOTE: This is considered an import of a standard JSON module because of the import assertion here:
-NOTE: You can either keep the import assertion and only use the "default" import, or you can remove the import assertion and use the "unused" import (which is non-standard behavior).
-js-entry.js: ERROR: Cannot use non-default import "used" with a standard JSON module
-js-entry.js: NOTE: This is considered an import of a standard JSON module because of the import assertion here:
-NOTE: You can either keep the import assertion and only use the "default" import, or you can remove the import assertion and use the "used" import (which is non-standard behavior).
-js-entry.js: WARNING: Non-default import "prop" is undefined with a standard JSON module
-js-entry.js: NOTE: This is considered an import of a standard JSON module because of the import assertion here:
-NOTE: You can either keep the import assertion and only use the "default" import, or you can remove the import assertion and use the "prop" import (which is non-standard behavior).
-js-entry.js: ERROR: Cannot use non-default import "exported" with a standard JSON module
-js-entry.js: NOTE: This is considered an import of a standard JSON module because of the import assertion here:
-NOTE: You can either keep the import assertion and only use the "default" import, or you can remove the import assertion and use the "exported" import (which is non-standard behavior).
-js-entry.js: ERROR: Cannot use non-default import "def3" with a standard JSON module
-js-entry.js: NOTE: This is considered an import of a standard JSON module because of the import assertion here:
-NOTE: You can either keep the import assertion and only use the "default" import, or you can remove the import assertion and use the "def3" import (which is non-standard behavior).
+		expectedScanLog: `js-entry.js: ERROR: Cannot use non-default import "unused" with a JSON import assertion
+js-entry.js: NOTE: The JSON import assertion is here:
+NOTE: You can either keep the import assertion and only use the "default" import, or you can remove the import assertion and use the "unused" import.
+js-entry.js: ERROR: Cannot use non-default import "used" with a JSON import assertion
+js-entry.js: NOTE: The JSON import assertion is here:
+NOTE: You can either keep the import assertion and only use the "default" import, or you can remove the import assertion and use the "used" import.
+js-entry.js: WARNING: Non-default import "prop" is undefined with a JSON import assertion
+js-entry.js: NOTE: The JSON import assertion is here:
+NOTE: You can either keep the import assertion and only use the "default" import, or you can remove the import assertion and use the "prop" import.
+js-entry.js: ERROR: Cannot use non-default import "exported" with a JSON import assertion
+js-entry.js: NOTE: The JSON import assertion is here:
+NOTE: You can either keep the import assertion and only use the "default" import, or you can remove the import assertion and use the "exported" import.
+js-entry.js: ERROR: Cannot use non-default import "def3" with a JSON import assertion
+js-entry.js: NOTE: The JSON import assertion is here:
+NOTE: You can either keep the import assertion and only use the "default" import, or you can remove the import assertion and use the "def3" import.
 js-entry.js: ERROR: The file "foo.text" was loaded with the "text" loader
 js-entry.js: NOTE: This import assertion requires the loader to be "json" instead:
 NOTE: You need to either reconfigure esbuild to ensure that the loader for this file is "json" or you need to remove this import assertion.
 js-entry.js: ERROR: The file "foo.file" was loaded with the "file" loader
 js-entry.js: NOTE: This import assertion requires the loader to be "json" instead:
 NOTE: You need to either reconfigure esbuild to ensure that the loader for this file is "json" or you need to remove this import assertion.
-ts-entry.ts: ERROR: Cannot use non-default import "used" with a standard JSON module
-ts-entry.ts: NOTE: This is considered an import of a standard JSON module because of the import assertion here:
-NOTE: You can either keep the import assertion and only use the "default" import, or you can remove the import assertion and use the "used" import (which is non-standard behavior).
-ts-entry.ts: WARNING: Non-default import "prop" is undefined with a standard JSON module
-ts-entry.ts: NOTE: This is considered an import of a standard JSON module because of the import assertion here:
-NOTE: You can either keep the import assertion and only use the "default" import, or you can remove the import assertion and use the "prop" import (which is non-standard behavior).
-ts-entry.ts: ERROR: Cannot use non-default import "exported" with a standard JSON module
-ts-entry.ts: NOTE: This is considered an import of a standard JSON module because of the import assertion here:
-NOTE: You can either keep the import assertion and only use the "default" import, or you can remove the import assertion and use the "exported" import (which is non-standard behavior).
-ts-entry.ts: ERROR: Cannot use non-default import "def3" with a standard JSON module
-ts-entry.ts: NOTE: This is considered an import of a standard JSON module because of the import assertion here:
-NOTE: You can either keep the import assertion and only use the "default" import, or you can remove the import assertion and use the "def3" import (which is non-standard behavior).
+ts-entry.ts: ERROR: Cannot use non-default import "used" with a JSON import assertion
+ts-entry.ts: NOTE: The JSON import assertion is here:
+NOTE: You can either keep the import assertion and only use the "default" import, or you can remove the import assertion and use the "used" import.
+ts-entry.ts: WARNING: Non-default import "prop" is undefined with a JSON import assertion
+ts-entry.ts: NOTE: The JSON import assertion is here:
+NOTE: You can either keep the import assertion and only use the "default" import, or you can remove the import assertion and use the "prop" import.
+ts-entry.ts: ERROR: Cannot use non-default import "exported" with a JSON import assertion
+ts-entry.ts: NOTE: The JSON import assertion is here:
+NOTE: You can either keep the import assertion and only use the "default" import, or you can remove the import assertion and use the "exported" import.
+ts-entry.ts: ERROR: Cannot use non-default import "def3" with a JSON import assertion
+ts-entry.ts: NOTE: The JSON import assertion is here:
+NOTE: You can either keep the import assertion and only use the "default" import, or you can remove the import assertion and use the "def3" import.
 `,
 	})
 }
@@ -7847,12 +7847,12 @@ func TestOutputForAssertTypeJSON(t *testing.T) {
 				".copy": config.LoaderCopy,
 			},
 		},
-		expectedScanLog: `js-entry.js: WARNING: Non-default import "prop" is undefined with a standard JSON module
-js-entry.js: NOTE: This is considered an import of a standard JSON module because of the import assertion here:
-NOTE: You can either keep the import assertion and only use the "default" import, or you can remove the import assertion and use the "prop" import (which is non-standard behavior).
-ts-entry.ts: WARNING: Non-default import "prop" is undefined with a standard JSON module
-ts-entry.ts: NOTE: This is considered an import of a standard JSON module because of the import assertion here:
-NOTE: You can either keep the import assertion and only use the "default" import, or you can remove the import assertion and use the "prop" import (which is non-standard behavior).
+		expectedScanLog: `js-entry.js: WARNING: Non-default import "prop" is undefined with a JSON import assertion
+js-entry.js: NOTE: The JSON import assertion is here:
+NOTE: You can either keep the import assertion and only use the "default" import, or you can remove the import assertion and use the "prop" import.
+ts-entry.ts: WARNING: Non-default import "prop" is undefined with a JSON import assertion
+ts-entry.ts: NOTE: The JSON import assertion is here:
+NOTE: You can either keep the import assertion and only use the "default" import, or you can remove the import assertion and use the "prop" import.
 `,
 	})
 }

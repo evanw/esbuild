@@ -1613,3 +1613,22 @@ func TestLoaderBundleWithImportAttributes(t *testing.T) {
 		},
 	})
 }
+
+func TestLoaderBundleWithTypeJSONOnlyDefaultExport(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import x, {foo as x2} from "./data.json"
+				import y, {foo as y2} from "./data.json" with { type: 'json' }
+			`,
+			"/data.json": `{ "foo": 123 }`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+		expectedCompileLog: `entry.js: ERROR: No matching export in "data.json with { type: 'json' }" for import "foo"
+`,
+	})
+}
