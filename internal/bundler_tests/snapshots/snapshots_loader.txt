@@ -257,6 +257,18 @@ var x_b64 = require_x();
 console.log(x_b64, y_default);
 
 ================================================================================
+TestLoaderBundleWithImportAttributes
+---------- /out.js ----------
+// data.json
+var data_default = { works: true };
+
+// data.json with { type: 'json' }
+var data_default2 = { works: true };
+
+// entry.js
+console.log(data_default === data_default, data_default !== data_default2);
+
+================================================================================
 TestLoaderCopyEntryPointAdvanced
 ---------- /out/xyz-DYPYXS7B.copy ----------
 more stuff
@@ -978,3 +990,12 @@ var require_test = __commonJS({
 
 // entry.js
 console.log(require_test());
+
+================================================================================
+TestWithTypeJSONOverrideLoader
+---------- entry.js ----------
+// foo.js
+var foo_default = { "this is json not js": true };
+
+// entry.js
+console.log(foo_default);

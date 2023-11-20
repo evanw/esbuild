@@ -222,6 +222,7 @@ export interface OnLoadRequest {
   namespace: string
   suffix: string
   pluginData: number
+  with: Record<string, string>
 }
 
 export interface OnLoadResponse {

@@ -4149,6 +4149,77 @@ var shared_default = 123;
 console.log(shared_default);
 
 ================================================================================
+TestMetafileImportWithTypeJSON
+---------- /out/entry.js ----------
+// project/data.json
+var data_default = { some: "data" };
+
+// project/data.json with { type: 'json' }
+var data_default2 = { some: "data" };
+
+// project/entry.js
+x = [data_default, data_default, data_default2];
+---------- metafile.json ----------
+{
+  "inputs": {
+    "project/data.json": {
+      "bytes": 16,
+      "imports": []
+    },
+    "project/data.json with { type: 'json' }": {
+      "bytes": 16,
+      "imports": [],
+      "with": {
+        "type": "json"
+      }
+    },
+    "project/entry.js": {
+      "bytes": 164,
+      "imports": [
+        {
+          "path": "project/data.json",
+          "kind": "import-statement",
+          "original": "./data.json"
+        },
+        {
+          "path": "project/data.json",
+          "kind": "import-statement",
+          "original": "./data.json"
+        },
+        {
+          "path": "project/data.json with { type: 'json' }",
+          "kind": "import-statement",
+          "original": "./data.json",
+          "with": {
+            "type": "json"
+          }
+        }
+      ],
+      "format": "esm"
+    }
+  },
+  "outputs": {
+    "out/entry.js": {
+      "imports": [],
+      "exports": [],
+      "entryPoint": "project/entry.js",
+      "inputs": {
+        "project/data.json": {
+          "bytesInOutput": 37
+        },
+        "project/data.json with { type: 'json' }": {
+          "bytesInOutput": 38
+        },
+        "project/entry.js": {
+          "bytesInOutput": 49
+        }
+      },
+      "bytes": 210
+    }
+  }
+}
+
+================================================================================
 TestMetafileNoBundle
 ---------- /out/entry.js ----------
 import a from "pkg";

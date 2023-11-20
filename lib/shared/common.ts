@@ -1432,6 +1432,7 @@ let handlePlugins = async (
           namespace: request.namespace,
           suffix: request.suffix,
           pluginData: details.load(request.pluginData),
+          with: request.with,
         })
 
         if (result != null) {

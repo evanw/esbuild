@@ -1055,6 +1055,11 @@ func (service *serviceType) convertPlugins(key int, jsPlugins interface{}, activ
 						return result, nil
 					}
 
+					with := make(map[string]interface{})
+					for k, v := range args.With {
+						with[k] = v
+					}
+
 					response, ok := service.sendRequest(map[string]interface{}{
 						"command":    "on-load",
 						"key":        key,
@@ -1063,6 +1068,7 @@ func (service *serviceType) convertPlugins(key int, jsPlugins interface{}, activ
 						"namespace":  args.Namespace,
 						"suffix":     args.Suffix,
 						"pluginData": args.PluginData,
+						"with":       with,
 					}).(map[string]interface{})
 					if !ok {
 						return result, errors.New("The service was stopped")

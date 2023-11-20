@@ -11,6 +11,7 @@ package logger
 // default.
 
 import (
+	"encoding/binary"
 	"fmt"
 	"os"
 	"runtime"
@@ -248,7 +249,64 @@ type Path struct {
 	// the output. This is supported by other bundlers, so we also support this.
 	IgnoredSuffix string
 
+	// Import attributes (the "with" keyword after an import) can affect path
+	// resolution. In other words, two paths in the same file that are otherwise
+	// equal but that have different import attributes may resolve to different
+	// paths.
+	ImportAttributes ImportAttributes
+
 	Flags PathFlags
+}
+
+// We rely on paths as map keys. Go doesn't support custom hash codes and
+// only implements hash codes for certain types. In particular, hash codes
+// are implemented for strings but not for arrays of strings. So we have to
+// pack these import attributes into a string.
+type ImportAttributes struct {
+	packedData string
+}
+
+type ImportAttribute struct {
+	Key   string
+	Value string
+}
+
+// This returns a sorted array instead of a map to make determinism easier
+func (attrs ImportAttributes) Decode() (result []ImportAttribute) {
+	if attrs.packedData == "" {
+		return nil
+	}
+	bytes := []byte(attrs.packedData)
+	for len(bytes) > 0 {
+		kn := 4 + binary.LittleEndian.Uint32(bytes[:4])
+		k := string(bytes[4:kn])
+		bytes = bytes[kn:]
+		vn := 4 + binary.LittleEndian.Uint32(bytes[:4])
+		v := string(bytes[4:vn])
+		bytes = bytes[vn:]
+		result = append(result, ImportAttribute{Key: k, Value: v})
+	}
+	return result
+}
+
+func EncodeImportAttributes(value map[string]string) ImportAttributes {
+	keys := make([]string, 0, len(value))
+	for k := range value {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	var sb strings.Builder
+	var n [4]byte
+	for _, k := range keys {
+		v := value[k]
+		binary.LittleEndian.PutUint32(n[:], uint32(len(k)))
+		sb.Write(n[:])
+		sb.WriteString(k)
+		binary.LittleEndian.PutUint32(n[:], uint32(len(v)))
+		sb.Write(n[:])
+		sb.WriteString(v)
+	}
+	return ImportAttributes{packedData: sb.String()}
 }
 
 type PathFlags uint8

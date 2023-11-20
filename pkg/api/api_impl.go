@@ -1990,11 +1990,16 @@ func (impl *pluginImpl) onLoad(options OnLoadOptions, callback func(OnLoadArgs) 
 		Filter:    filter,
 		Namespace: options.Namespace,
 		Callback: func(args config.OnLoadArgs) (result config.OnLoadResult) {
+			with := make(map[string]string)
+			for _, attr := range args.Path.ImportAttributes.Decode() {
+				with[attr.Key] = attr.Value
+			}
 			response, err := callback(OnLoadArgs{
 				Path:       args.Path.Text,
 				Namespace:  args.Path.Namespace,
 				PluginData: args.PluginData,
 				Suffix:     args.Path.IgnoredSuffix,
+				With:       with,
 			})
 			result.PluginName = response.PluginName
 			result.AbsWatchFiles = impl.validatePathsArray(response.WatchFiles, "watch file")

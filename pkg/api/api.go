@@ -646,6 +646,7 @@ type OnLoadArgs struct {
 	Namespace  string
 	Suffix     string
 	PluginData interface{}
+	With       map[string]string
 }
 
 // Documentation: https://esbuild.github.io/plugins/#on-load-results

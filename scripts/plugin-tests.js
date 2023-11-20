@@ -2485,6 +2485,45 @@ error: Invalid path suffix "%what" returned from plugin (must start with "?" or 
     })
     assert.strictEqual(result.outputFiles[0].text, 'console.log(/* @__PURE__ */ jay_ess_ex("div", null));\n')
   },
+
+  async importAttributes({ esbuild }) {
+    const result = await esbuild.build({
+      entryPoints: ['entry'],
+      bundle: true,
+      format: 'esm',
+      charset: 'utf8',
+      write: false,
+      plugins: [{
+        name: 'name',
+        setup(build) {
+          build.onResolve({ filter: /.*/ }, args => {
+            return { path: args.path, namespace: 'ns' }
+          })
+          build.onLoad({ filter: /.*/ }, args => {
+            const entry = `
+              import a from 'foo' with { type: 'cheese' }
+              import b from 'foo' with { pizza: 'true' }
+              console.log(a, b)
+            `
+            if (args.path === 'entry') return { contents: entry }
+            if (args.with) {
+              if (args.with.type === 'cheese') return { contents: `export default "🧀"` }
+              if (args.with.pizza === 'true') return { contents: `export default "🍕"` }
+            }
+          })
+        },
+      }],
+    })
+    assert.strictEqual(result.outputFiles[0].text, `// ns:foo with { type: 'cheese' }
+var foo_default = "🧀";
+
+// ns:foo with { pizza: 'true' }
+var foo_default2 = "🍕";
+
+// ns:entry
+console.log(foo_default, foo_default2);
+`)
+  },
 }
 
 const makeRebuildUntilPlugin = () => {

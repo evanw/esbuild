@@ -8032,6 +8032,26 @@ func TestMetafileVeryLongExternalPaths(t *testing.T) {
 	})
 }
 
+func TestMetafileImportWithTypeJSON(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/project/entry.js": `
+				import a from './data.json'
+				import b from './data.json' assert { type: 'json' }
+				import c from './data.json' with { type: 'json' }
+				x = [a, b, c]
+			`,
+			"/project/data.json": `{"some": "data"}`,
+		},
+		entryPaths: []string{"/project/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputDir:  "/out",
+			NeedsMetafile: true,
+		},
+	})
+}
+
 func TestCommentPreservation(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{

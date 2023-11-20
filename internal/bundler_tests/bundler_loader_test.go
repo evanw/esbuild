@@ -1268,6 +1268,7 @@ func TestAssertTypeJSONWrongLoader(t *testing.T) {
 		files: map[string]string{
 			"/entry.js": `
 				import foo from './foo.json' assert { type: 'json' }
+				console.log(foo)
 			`,
 			"/foo.json": `{}`,
 		},
@@ -1282,6 +1283,62 @@ func TestAssertTypeJSONWrongLoader(t *testing.T) {
 		expectedScanLog: `entry.js: ERROR: The file "foo.json" was loaded with the "js" loader
 entry.js: NOTE: This import assertion requires the loader to be "json" instead:
 NOTE: You need to either reconfigure esbuild to ensure that the loader for this file is "json" or you need to remove this import assertion.
+`,
+	})
+}
+
+func TestWithTypeJSONOverrideLoader(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import foo from './foo.js' with { type: 'json' }
+				console.log(foo)
+			`,
+			"/foo.js": `{ "this is json not js": true }`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode: config.ModeBundle,
+		},
+	})
+}
+
+func TestWithBadType(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import foo from './foo.json' with { type: '' }
+				import bar from './foo.json' with { type: 'garbage' }
+				console.log(bar)
+			`,
+			"/foo.json": `{}`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode: config.ModeBundle,
+		},
+		expectedScanLog: `entry.js: ERROR: Importing with a type attribute of "" is not supported
+entry.js: ERROR: Importing with a type attribute of "garbage" is not supported
+`,
+	})
+}
+
+func TestWithBadAttribute(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import foo from './foo.json' with { '': 'json' }
+				import bar from './foo.json' with { garbage: 'json' }
+				console.log(bar)
+			`,
+			"/foo.json": `{}`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode: config.ModeBundle,
+		},
+		expectedScanLog: `entry.js: ERROR: Importing with the "" attribute is not supported
+entry.js: ERROR: Importing with the "garbage" attribute is not supported
 `,
 	})
 }
@@ -1542,18 +1599,17 @@ func TestLoaderBundleWithImportAttributes(t *testing.T) {
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
-				import x from "./import.js"
-				import y from "./import.js" with { type: 'json' }
-				console.log(x === y)
+				import x from "./data.json"
+				import y from "./data.json" assert { type: 'json' }
+				import z from "./data.json" with { type: 'json' }
+				console.log(x === y, x !== z)
 			`,
-			"/import.js": `{}`,
+			"/data.json": `{ "works": true }`,
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 		},
-		expectedScanLog: `entry.js: ERROR: Bundling with import attributes is not currently supported
-`,
 	})
 }

@@ -425,6 +425,7 @@ export interface OnLoadArgs {
   namespace: string
   suffix: string
   pluginData: any
+  with: Record<string, string>
 }
 
 /** Documentation: https://esbuild.github.io/plugins/#on-load-results */
@@ -467,8 +468,10 @@ export interface Metafile {
         kind: ImportKind
         external?: boolean
         original?: string
+        with?: Record<string, string>
       }[]
       format?: 'cjs' | 'esm'
+      with?: Record<string, string>
     }
   }
   outputs: {

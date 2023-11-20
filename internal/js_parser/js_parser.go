@@ -1989,7 +1989,7 @@ func (p *parser) checkForLegacyOctalLiteral(e js_ast.E) {
 
 func (p *parser) notesForAssertTypeJSON(record *ast.ImportRecord, alias string) []logger.MsgData {
 	return []logger.MsgData{p.tracker.MsgData(
-		js_lexer.RangeOfImportAssertOrWith(p.source, *ast.FindAssertOrWithEntry(record.AssertOrWith.Entries, "type")),
+		js_lexer.RangeOfImportAssertOrWith(p.source, *ast.FindAssertOrWithEntry(record.AssertOrWith.Entries, "type"), js_lexer.KeyAndValueRange),
 		"This is considered an import of a standard JSON module because of the import assertion here:"),
 		{Text: fmt.Sprintf("You can either keep the import assertion and only use the \"default\" import, "+
 			"or you can remove the import assertion and use the %q import (which is non-standard behavior).", alias)}}
