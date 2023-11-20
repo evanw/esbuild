@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+* Adjust TypeScript experimental decorator behavior ([#3230](https://github.com/evanw/esbuild/issues/3230), [#3326](https://github.com/evanw/esbuild/issues/3326), [#3394](https://github.com/evanw/esbuild/issues/3394))
+
+    With this release, esbuild will now allow TypeScript experimental decorators to access both static class properties and `#private` class names. For example:
+
+    ```js
+    const check =
+      <T,>(a: T, b: T): PropertyDecorator =>
+        () => console.log(a === b)
+
+    async function test() {
+      class Foo {
+        static #foo = 1
+        static bar = 1 + Foo.#foo
+        @check(Foo.#foo, 1) a: any
+        @check(Foo.bar, await Promise.resolve(2)) b: any
+      }
+    }
+
+    test().then(() => console.log('pass'))
+    ```
+
+    This will now print `true true pass` when compiled by esbuild. Previously esbuild evaluated TypeScript decorators outside of the class body, so it didn't allow decorators to access `Foo` or `#foo`. Now esbuild does something different, although it's hard to concisely explain exactly what esbuild is doing now (see the background section below for more information).
+
+    Note that TypeScript's experimental decorator support is currently buggy: TypeScript's compiler passes this test if only the first `@check` is present or if only the second `@check` is present, but TypeScript's compiler fails this test if both checks are present together. I haven't changed esbuild to match TypeScript's behavior exactly here because I'm waiting for TypeScript to fix these bugs instead.
+
+    Some background: TypeScript experimental decorators don't have consistent semantics regarding the context that the decorators are evaluated in. For example, TypeScript will let you use `await` within a decorator, which implies that the decorator runs outside the class (since `await` isn't supported inside a class body), but TypeScript will also let you use `#private` names, which implies that the decorator runs inside the class body (since `#private` names are only supported inside a class body). The value of `this` in a decorator is also buggy (the run-time value of `this` changes if any decorator in the class uses a `#private` name but the type of `this` doesn't change, leading to the type checker no longer matching reality). These inconsistent semantics make it hard for esbuild to implement this feature as decorator evaluation happens in some superposition of both inside and outside the class body that is particular to the internal implementation details of the TypeScript compiler.
+
 * Forbid `--keep-names` when targeting old browsers ([#3477](https://github.com/evanw/esbuild/issues/3477))
 
     The `--keep-names` setting needs to be able to assign to the `name` property on functions and classes. However, before ES6 this property was non-configurable, and attempting to assign to it would throw an error. So with this release, esbuild will no longer allow you to enable this setting and also target a really old browser.

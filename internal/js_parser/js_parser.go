@@ -201,7 +201,7 @@ type parser struct {
 	// references. Then, during the second pass when we are about to enter into
 	// a class, we conservatively decide to lower all private names in that class
 	// which are used in a brand check anywhere in the file.
-	classPrivateBrandChecksToLower map[string]bool
+	lowerAllOfThesePrivateNames map[string]bool
 
 	// Temporary variables used for lowering
 	tempLetsToDeclare         []ast.Ref
@@ -209,6 +209,9 @@ type parser struct {
 	topLevelTempRefsToDeclare []tempRef
 
 	lexer js_lexer.Lexer
+
+	// Private field access in a decorator lowers all private fields in that class
+	parseExperimentalDecoratorNesting int
 
 	// Temporary variables used for lowering
 	tempRefCount         int
@@ -2073,7 +2076,9 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 		if opts.tsDeclareRange.Len != 0 {
 			p.log.AddError(&p.tracker, opts.tsDeclareRange, "\"declare\" cannot be used with a private identifier")
 		}
-		key = js_ast.Expr{Loc: p.lexer.Loc(), Data: &js_ast.EPrivateIdentifier{Ref: p.storeNameInRef(p.lexer.Identifier)}}
+		name := p.lexer.Identifier
+		key = js_ast.Expr{Loc: p.lexer.Loc(), Data: &js_ast.EPrivateIdentifier{Ref: p.storeNameInRef(name)}}
+		p.reportPrivateNameUsage(name.String)
 		p.lexer.Next()
 
 	case js_lexer.TOpenBracket:
@@ -3360,10 +3365,10 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 
 		// Make sure to lower all matching private names
 		if p.options.unsupportedJSFeatures.Has(compat.ClassPrivateBrandCheck) {
-			if p.classPrivateBrandChecksToLower == nil {
-				p.classPrivateBrandChecksToLower = make(map[string]bool)
+			if p.lowerAllOfThesePrivateNames == nil {
+				p.lowerAllOfThesePrivateNames = make(map[string]bool)
 			}
-			p.classPrivateBrandChecksToLower[name.String] = true
+			p.lowerAllOfThesePrivateNames[name.String] = true
 		}
 
 		return js_ast.Expr{Loc: loc, Data: &js_ast.EPrivateIdentifier{Ref: p.storeNameInRef(name)}}
@@ -4072,6 +4077,7 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 				}
 				name := p.lexer.Identifier
 				nameLoc := p.lexer.Loc()
+				p.reportPrivateNameUsage(name.String)
 				p.lexer.Next()
 				ref := p.storeNameInRef(name)
 				left = js_ast.Expr{Loc: left.Loc, Data: &js_ast.EIndex{
@@ -4177,6 +4183,7 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 					// "a?.#b"
 					name := p.lexer.Identifier
 					nameLoc := p.lexer.Loc()
+					p.reportPrivateNameUsage(name.String)
 					p.lexer.Next()
 					ref := p.storeNameInRef(name)
 					left = js_ast.Expr{Loc: left.Loc, Data: &js_ast.EIndex{
@@ -6117,7 +6124,6 @@ func (p *parser) parseClassStmt(loc logger.Loc, opts parseStmtOpts) js_ast.Stmt 
 	}
 
 	classOpts := parseClassOpts{
-		decoratorScope:      p.currentScope,
 		isTypeScriptDeclare: opts.isTypeScriptDeclare,
 	}
 	if opts.deferredDecorators != nil {
@@ -6148,7 +6154,6 @@ func (p *parser) parseClassExpr(decorators []js_ast.Decorator) js_ast.Expr {
 
 	opts := parseClassOpts{
 		decorators:       decorators,
-		decoratorScope:   p.currentScope,
 		decoratorContext: decoratorInClassExpr,
 	}
 	p.pushScopeForParsePass(js_ast.ScopeClassName, classKeyword.Loc)
@@ -6177,7 +6182,6 @@ func (p *parser) parseClassExpr(decorators []js_ast.Decorator) js_ast.Expr {
 
 type parseClassOpts struct {
 	decorators          []js_ast.Decorator
-	decoratorScope      *js_ast.Scope
 	decoratorContext    decoratorContextFlags
 	isTypeScriptDeclare bool
 }
@@ -6229,7 +6233,7 @@ func (p *parser) parseClass(classKeyword logger.Range, name *ast.LocRef, classOp
 
 	opts := propertyOpts{
 		isClass:          true,
-		decoratorScope:   classOpts.decoratorScope,
+		decoratorScope:   p.currentScope,
 		decoratorContext: classOpts.decoratorContext,
 		classHasExtends:  extendsOrNil.Data != nil,
 		classKeyword:     classKeyword,
@@ -6244,7 +6248,7 @@ func (p *parser) parseClass(classKeyword logger.Range, name *ast.LocRef, classOp
 
 		// Parse decorators for this property
 		firstDecoratorLoc := p.lexer.Loc()
-		opts.decorators = p.parseDecorators(opts.decoratorScope, classKeyword, opts.decoratorContext)
+		opts.decorators = p.parseDecorators(p.currentScope, classKeyword, opts.decoratorContext)
 
 		// This property may turn out to be a type in TypeScript, which should be ignored
 		if property, ok := p.parseProperty(p.saveExprCommentsHere(), js_ast.PropertyNormal, opts, nil); ok {
@@ -6607,7 +6611,9 @@ func (p *parser) parseDecorators(decoratorScope *js_ast.Scope, classKeyword logg
 			//   }
 			//
 			// This matches the behavior of the TypeScript compiler.
+			p.parseExperimentalDecoratorNesting++
 			value = p.parseExprWithFlags(js_ast.LNew, exprFlagDecorator)
+			p.parseExperimentalDecoratorNesting--
 		} else {
 			// JavaScript's decorator syntax is more restrictive. Parse it using a
 			// special parser that doesn't allow normal expressions (e.g. "?.").
@@ -6650,10 +6656,12 @@ func (p *parser) parseDecorator() js_ast.Expr {
 		p.lexer.Next()
 
 		if p.lexer.Token == js_lexer.TPrivateIdentifier {
+			name := p.lexer.Identifier
 			memberExpr.Data = &js_ast.EIndex{
 				Target: memberExpr,
-				Index:  js_ast.Expr{Loc: p.lexer.Loc(), Data: &js_ast.EPrivateIdentifier{Ref: p.storeNameInRef(p.lexer.Identifier)}},
+				Index:  js_ast.Expr{Loc: p.lexer.Loc(), Data: &js_ast.EPrivateIdentifier{Ref: p.storeNameInRef(name)}},
 			}
+			p.reportPrivateNameUsage(name.String)
 			p.lexer.Next()
 		} else {
 			memberExpr.Data = &js_ast.EDot{
@@ -11270,8 +11278,7 @@ type visitClassResult struct {
 }
 
 func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaultNameRef ast.Ref, nameToKeep string) (result visitClassResult) {
-	decoratorScope := p.currentScope
-	class.Decorators = p.visitDecorators(class.Decorators, decoratorScope)
+	class.Decorators = p.visitDecorators(class.Decorators, p.currentScope)
 
 	if class.Name != nil {
 		p.recordDeclaredSymbol(class.Name.Ref)
@@ -11321,10 +11328,10 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 
 	// Conservatively lower all private names that have been used in a private
 	// brand check anywhere in the file. See the comment on this map for details.
-	if p.classPrivateBrandChecksToLower != nil {
+	if p.lowerAllOfThesePrivateNames != nil {
 		for _, prop := range class.Properties {
 			if private, ok := prop.Key.Data.(*js_ast.EPrivateIdentifier); ok {
-				if symbol := &p.symbols[private.Ref.InnerIndex]; p.classPrivateBrandChecksToLower[symbol.OriginalName] {
+				if symbol := &p.symbols[private.Ref.InnerIndex]; p.lowerAllOfThesePrivateNames[symbol.OriginalName] {
 					symbol.Flags |= ast.PrivateSymbolMustBeLowered
 					recomputeClassLoweringInfo = true
 				}
@@ -11422,7 +11429,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 			continue
 		}
 
-		property.Decorators = p.visitDecorators(property.Decorators, decoratorScope)
+		property.Decorators = p.visitDecorators(property.Decorators, result.bodyScope)
 
 		// Visit the property key
 		if private, ok := property.Key.Data.(*js_ast.EPrivateIdentifier); ok {
@@ -11523,7 +11530,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 		// Handle methods
 		if property.ValueOrNil.Data != nil {
 			p.propMethodValue = property.ValueOrNil.Data
-			p.propMethodDecoratorScope = decoratorScope
+			p.propMethodDecoratorScope = result.bodyScope
 
 			// Propagate the name to keep from the method into the initializer
 			if p.options.keepNames && nameToKeep != "" {
@@ -12448,6 +12455,15 @@ func locAfterOp(e *js_ast.EBinary) logger.Loc {
 // This function exists to tie all of these checks together in one place
 func isEvalOrArguments(name string) bool {
 	return name == "eval" || name == "arguments"
+}
+
+func (p *parser) reportPrivateNameUsage(name string) {
+	if p.parseExperimentalDecoratorNesting > 0 {
+		if p.lowerAllOfThesePrivateNames == nil {
+			p.lowerAllOfThesePrivateNames = make(map[string]bool)
+		}
+		p.lowerAllOfThesePrivateNames[name] = true
+	}
 }
 
 func (p *parser) isValidAssignmentTarget(expr js_ast.Expr) bool {

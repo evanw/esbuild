@@ -5463,6 +5463,53 @@ for (let flags of [['--target=es2022'], ['--target=es6'], ['--bundle', '--target
         if (!staticMethod) throw 'fail: staticMethod'
       `,
     }),
+
+    // https://github.com/evanw/esbuild/issues/3326
+    test(['in.ts', '--outfile=node.js'].concat(flags), {
+      'in.ts': `
+        const log: string[] = []
+        class Test1 {
+          static deco(target: any, key: any, desc: any): any { log.push('Test1') }
+          @Test1.deco static test(): void { }
+        }
+        class Test2 {
+          static deco(target: any, key: any, desc: any): any { log.push('Test2') }
+          @Test2.deco static test(): Test2 { return new Test2(); }
+        }
+        @Test3.deco
+        class Test3 {
+          static deco(target: any): any { log.push('Test3') }
+        }
+        if (log + '' !== 'Test1,Test2,Test3') throw 'fail: ' + log
+      `,
+      'tsconfig.json': `{
+        "compilerOptions": {
+          "experimentalDecorators": true,
+        },
+      }`,
+    }),
+
+    // https://github.com/evanw/esbuild/issues/3394
+    test(['in.ts', '--outfile=node.js'].concat(flags), {
+      'in.ts': `
+        const dec = (arg: number): ParameterDecorator => () => { answer = arg }
+        let answer = 0
+
+        class Foo {
+          static #foo = 123
+          static bar = 234
+          method(@dec(Foo.#foo + Foo.bar) arg: any) {
+          }
+        }
+
+        if (answer !== 357) throw 'fail: ' + answer
+      `,
+      'tsconfig.json': `{
+        "compilerOptions": {
+          "experimentalDecorators": true,
+        },
+      }`,
+    }),
   )
 
   // https://github.com/evanw/esbuild/issues/3177

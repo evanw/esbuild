@@ -878,13 +878,12 @@ func TestTSPrivateIdentifiers(t *testing.T) {
 	expectParseErrorExperimentalDecoratorTS(t, "class Foo { @dec static get #foo() {} }", "<stdin>: ERROR: Expected identifier but found \"#foo\"\n")
 	expectParseErrorExperimentalDecoratorTS(t, "class Foo { @dec static set #foo() {x} }", "<stdin>: ERROR: Expected identifier but found \"#foo\"\n")
 
-	// Decorators are not able to access private names, since they use the scope
-	// that encloses the class declaration. Note that the TypeScript compiler has
-	// a bug where it doesn't handle this case and generates invalid code as a
-	// result: https://github.com/microsoft/TypeScript/issues/48515.
-	expectParseErrorExperimentalDecoratorTS(t, "class Foo { static #foo; @dec(Foo.#foo) bar }", "<stdin>: ERROR: Private name \"#foo\" must be declared in an enclosing class\n")
-	expectParseErrorExperimentalDecoratorTS(t, "class Foo { static #foo; @dec(Foo.#foo) bar() {} }", "<stdin>: ERROR: Private name \"#foo\" must be declared in an enclosing class\n")
-	expectParseErrorExperimentalDecoratorTS(t, "class Foo { static #foo; bar(@dec(Foo.#foo) x) {} }", "<stdin>: ERROR: Private name \"#foo\" must be declared in an enclosing class\n")
+	// Decorators are now able to access private names, since the TypeScript
+	// compiler was changed to move them into a "static {}" block within the
+	// class body: https://github.com/microsoft/TypeScript/pull/50074
+	expectParseErrorExperimentalDecoratorTS(t, "class Foo { static #foo; @dec(Foo.#foo) bar }", "")
+	expectParseErrorExperimentalDecoratorTS(t, "class Foo { static #foo; @dec(Foo.#foo) bar() {} }", "")
+	expectParseErrorExperimentalDecoratorTS(t, "class Foo { static #foo; bar(@dec(Foo.#foo) x) {} }", "")
 }
 
 func TestTSInterface(t *testing.T) {
