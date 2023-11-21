@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.19.7
 
 * Add support for bundling code that uses import attributes ([#3384](https://github.com/evanw/esbuild/issues/3384))
 
