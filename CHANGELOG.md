@@ -64,8 +64,7 @@
     })
     ```
 
-    > [!Warning]
-    > It's possible that the second iteration of this feature may change significantly again even though it's already shipping in real JavaScript VMs (since it has already happened once before). In that case, esbuild may end up adjusting its implementation to match the eventual standard behavior. So keep in mind that by using this, you are using an unstable upcoming JavaScript feature that may undergo breaking changes in the future.
+    Warning: It's possible that the second iteration of this feature may change significantly again even though it's already shipping in real JavaScript VMs (since it has already happened once before). In that case, esbuild may end up adjusting its implementation to match the eventual standard behavior. So keep in mind that by using this, you are using an unstable upcoming JavaScript feature that may undergo breaking changes in the future.
 
 * Adjust TypeScript experimental decorator behavior ([#3230](https://github.com/evanw/esbuild/issues/3230), [#3326](https://github.com/evanw/esbuild/issues/3326), [#3394](https://github.com/evanw/esbuild/issues/3394))
 
