@@ -6552,7 +6552,6 @@ func (p *parser) parseFnStmt(loc logger.Loc, opts parseStmtOpts, isAsync bool, a
 
 type deferredDecorators struct {
 	decorators []js_ast.Decorator
-	firstAtLoc logger.Loc
 }
 
 type decoratorContextFlags uint8
@@ -7081,7 +7080,6 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		//   "@decorator export declare abstract class Foo {}"
 		//
 		opts.deferredDecorators = &deferredDecorators{
-			firstAtLoc: loc,
 			decorators: decorators,
 		}
 
