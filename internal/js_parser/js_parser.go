@@ -6700,6 +6700,7 @@ type parseStmtOpts struct {
 	isModuleScope           bool
 	isNamespaceScope        bool
 	isExport                bool
+	isExportDefault         bool
 	isNameOptional          bool // For "export default" pseudo-statements
 	isTypeScriptDeclare     bool
 	isForLoopInit           bool
@@ -6839,6 +6840,8 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 				return defaultName
 			}
 
+			// "export default async function() {}"
+			// "export default async function foo() {}"
 			if p.lexer.IsContextualKeyword("async") {
 				asyncRange := p.lexer.Range()
 				p.lexer.Next()
@@ -6872,20 +6875,27 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 					DefaultName: defaultName, Value: js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{Value: expr}}}}
 			}
 
-			if p.lexer.Token == js_lexer.TFunction || p.lexer.Token == js_lexer.TClass || p.lexer.IsContextualKeyword("interface") {
+			// "export default class {}"
+			// "export default class Foo {}"
+			// "export default function() {}"
+			// "export default function foo() {}"
+			// "export default interface Foo {}"
+			// "export default interface + 1"
+			if p.lexer.Token == js_lexer.TFunction || p.lexer.Token == js_lexer.TClass ||
+				(p.options.ts.Parse && p.lexer.IsContextualKeyword("interface")) {
 				stmt := p.parseStmt(parseStmtOpts{
 					deferredDecorators:      opts.deferredDecorators,
 					isNameOptional:          true,
+					isExportDefault:         true,
 					lexicalDecl:             lexicalDeclAllowAll,
 					hasNoSideEffectsComment: opts.hasNoSideEffectsComment,
 				})
-				if _, ok := stmt.Data.(*js_ast.STypeScript); ok {
-					return stmt // This was just a type annotation
-				}
 
 				// Use the statement name if present, since it's a better name
 				var defaultName ast.LocRef
 				switch s := stmt.Data.(type) {
+				case *js_ast.STypeScript, *js_ast.SExpr:
+					return stmt // Handle the "interface" case above
 				case *js_ast.SFunction:
 					if s.Fn.Name != nil {
 						defaultName = ast.LocRef{Loc: defaultLoc, Ref: s.Fn.Name.Ref}
@@ -6901,7 +6911,6 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 				default:
 					panic("Internal error")
 				}
-
 				return js_ast.Stmt{Loc: loc, Data: &js_ast.SExportDefault{DefaultName: defaultName, Value: stmt}}
 			}
 
@@ -6910,6 +6919,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			expr := p.parseExpr(js_ast.LComma)
 
 			// "export default abstract class {}"
+			// "export default abstract class Foo {}"
 			if p.options.ts.Parse && isIdentifier && name == "abstract" && !p.lexer.HasNewlineBefore {
 				if _, ok := expr.Data.(*js_ast.EIdentifier); ok && (p.lexer.Token == js_lexer.TClass || opts.deferredDecorators != nil) {
 					stmt := p.parseClassStmt(loc, parseStmtOpts{
@@ -7741,18 +7751,18 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 
 	default:
 		isIdentifier := p.lexer.Token == js_lexer.TIdentifier
+		nameRange := p.lexer.Range()
 		name := p.lexer.Identifier.String
 
 		// Parse either an async function, an async expression, or a normal expression
 		var expr js_ast.Expr
 		if isIdentifier && p.lexer.Raw() == "async" {
-			asyncRange := p.lexer.Range()
 			p.lexer.Next()
 			if p.lexer.Token == js_lexer.TFunction && !p.lexer.HasNewlineBefore {
 				p.lexer.Next()
-				return p.parseFnStmt(asyncRange.Loc, opts, true /* isAsync */, asyncRange)
+				return p.parseFnStmt(nameRange.Loc, opts, true /* isAsync */, nameRange)
 			}
-			expr = p.parseSuffix(p.parseAsyncPrefixExpr(asyncRange, js_ast.LLowest, 0), js_ast.LLowest, nil, 0)
+			expr = p.parseSuffix(p.parseAsyncPrefixExpr(nameRange, js_ast.LLowest, 0), js_ast.LLowest, nil, 0)
 		} else {
 			var stmt js_ast.Stmt
 			expr, stmt, _ = p.parseExprOrLetOrUsingStmt(opts)
@@ -7800,9 +7810,18 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 
 					case "interface":
 						// "interface Foo {}"
-						if !p.lexer.HasNewlineBefore {
+						// "export default interface Foo {}"
+						// "export default interface \n Foo {}"
+						if !p.lexer.HasNewlineBefore || opts.isExportDefault {
 							p.skipTypeScriptInterfaceStmt(parseStmtOpts{isModuleScope: opts.isModuleScope})
 							return js_ast.Stmt{Loc: loc, Data: js_ast.STypeScriptShared}
+						}
+
+						// "interface \n Foo {}"
+						// "export interface \n Foo {}"
+						if opts.isExport {
+							p.log.AddError(&p.tracker, nameRange, "Unexpected \"interface\"")
+							panic(js_lexer.LexerPanic{})
 						}
 
 					case "abstract":

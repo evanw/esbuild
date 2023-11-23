@@ -899,6 +899,18 @@ func TestTSInterface(t *testing.T) {
 	expectPrintedTS(t, "interface A<T extends number> extends B.C<D, E>, F.G<H, I> {} x", "x;\n")
 	expectPrintedTS(t, "export interface A<T extends number> extends B.C<D, E>, F.G<H, I> {} x", "x;\n")
 	expectPrintedTS(t, "export default interface Foo {} x", "x;\n")
+	expectParseErrorTS(t, "export default interface + x",
+		"<stdin>: ERROR: \"interface\" is a reserved word and cannot be used in an ECMAScript module\n"+
+			"<stdin>: NOTE: This file is considered to be an ECMAScript module because of the \"export\" keyword here:\n")
+
+	// Check ASI for "interface"
+	expectPrintedTS(t, "interface\nFoo\n{}", "interface;\nFoo;\n{\n}\n")
+	expectPrintedTS(t, "export default interface\nFoo {} x", "x;\n")
+	expectPrintedTS(t, "export default interface\nFoo\n{} x", "x;\n")
+	expectParseErrorTS(t, "interface\nFoo {}", "<stdin>: ERROR: Expected \";\" but found \"{\"\n")
+	expectParseErrorTS(t, "export interface\nFoo {}", "<stdin>: ERROR: Unexpected \"interface\"\n")
+	expectParseErrorTS(t, "export interface\nFoo\n{}", "<stdin>: ERROR: Unexpected \"interface\"\n")
+	expectParseErrorTS(t, "export default interface\nFoo", "<stdin>: ERROR: Expected \"{\" but found end of file\n")
 }
 
 func TestTSNamespace(t *testing.T) {

@@ -2944,6 +2944,14 @@ func TestExport(t *testing.T) {
 	expectParseError(t, "export let", "<stdin>: ERROR: Expected identifier but found end of file\n")
 	expectParseError(t, "export const", "<stdin>: ERROR: Expected identifier but found end of file\n")
 
+	// Do not parse TypeScript export syntax in JavaScript
+	expectParseError(t, "export enum Foo {}", "<stdin>: ERROR: Unexpected \"enum\"\n")
+	expectParseError(t, "export interface Foo {}", "<stdin>: ERROR: Unexpected \"interface\"\n")
+	expectParseError(t, "export namespace Foo {}", "<stdin>: ERROR: Unexpected \"namespace\"\n")
+	expectParseError(t, "export abstract class Foo {}", "<stdin>: ERROR: Unexpected \"abstract\"\n")
+	expectParseError(t, "export declare class Foo {}", "<stdin>: ERROR: Unexpected \"declare\"\n")
+	expectParseError(t, "export declare function foo() {}", "<stdin>: ERROR: Unexpected \"declare\"\n")
+
 	// String export alias with "export {}"
 	expectPrinted(t, "let x; export {x as ''}", "let x;\nexport { x as \"\" };\n")
 	expectPrinted(t, "let x; export {x as '🍕'}", "let x;\nexport { x as \"🍕\" };\n")
