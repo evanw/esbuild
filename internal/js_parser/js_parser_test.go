@@ -2027,19 +2027,16 @@ func TestDecorators(t *testing.T) {
 	expectPrinted(t, "@(() => {}) class Foo {}", "@(() => {\n})\nclass Foo {\n}\n")
 	expectPrinted(t, "class Foo { #x = @y.#x.y.#x class {} }", "class Foo {\n  #x = @y.#x.y.#x class {\n  };\n}\n")
 	expectParseError(t, "@123 class Foo {}", "<stdin>: ERROR: Expected identifier but found \"123\"\n")
-	expectParseError(t, "@x[y] class Foo {}",
-		"<stdin>: ERROR: Expected \"class\" after decorator but found \"[\"\n<stdin>: NOTE: The preceding decorator is here:\n"+
-			"NOTE: Decorators can only be used with class declarations.\n<stdin>: ERROR: Expected \";\" but found \"class\"\n")
+	expectParseError(t, "@x[y] class Foo {}", "<stdin>: ERROR: Expected \";\" but found \"class\"\n")
 	expectParseError(t, "@x?.() class Foo {}", "<stdin>: ERROR: Expected \".\" but found \"?.\"\n")
 	expectParseError(t, "@x?.y() class Foo {}", "<stdin>: ERROR: Expected \".\" but found \"?.\"\n")
 	expectParseError(t, "@x?.[y]() class Foo {}", "<stdin>: ERROR: Expected \".\" but found \"?.\"\n")
 	expectParseError(t, "@new Function() class Foo {}", "<stdin>: ERROR: Expected identifier but found \"new\"\n")
 	expectParseError(t, "@() => {} class Foo {}", "<stdin>: ERROR: Unexpected \")\"\n")
+	expectParseError(t, "x = @y function() {}", "<stdin>: ERROR: Expected \"class\" but found \"function\"\n")
 
 	// See: https://github.com/microsoft/TypeScript/issues/55336
-	expectParseError(t, "@x().y() class Foo {}",
-		"<stdin>: ERROR: Expected \"class\" after decorator but found \".\"\n"+
-			"<stdin>: NOTE: The preceding decorator is here:\nNOTE: Decorators can only be used with class declarations.\n")
+	expectParseError(t, "@x().y() class Foo {}", "<stdin>: ERROR: Unexpected \".\"\n")
 
 	errorText := "<stdin>: ERROR: Transforming JavaScript decorators to the configured target environment is not supported yet\n"
 	expectParseErrorWithUnsupportedFeatures(t, compat.Decorators, "@dec class Foo {}", errorText)
@@ -2051,13 +2048,8 @@ func TestDecorators(t *testing.T) {
 	expectParseErrorWithUnsupportedFeatures(t, compat.Decorators, "class Foo { @dec static accessor x }", errorText)
 
 	// Check ASI for "abstract"
-	expectParseError(t, "@x abstract class Foo {}",
-		"<stdin>: ERROR: Expected \"class\" after decorator but found \"abstract\"\n"+
-			"<stdin>: NOTE: The preceding decorator is here:\nNOTE: Decorators can only be used with class declarations.\n"+
-			"<stdin>: ERROR: Expected \";\" but found \"class\"\n")
-	expectParseError(t, "@x abstract\nclass Foo {}",
-		"<stdin>: ERROR: Expected \"class\" after decorator but found \"abstract\"\n"+
-			"<stdin>: NOTE: The preceding decorator is here:\nNOTE: Decorators can only be used with class declarations.\n")
+	expectParseError(t, "@x abstract class Foo {}", "<stdin>: ERROR: Expected \";\" but found \"class\"\n")
+	expectParseError(t, "@x abstract\nclass Foo {}", "<stdin>: ERROR: Decorators are not valid here\n")
 }
 
 func TestGenerator(t *testing.T) {

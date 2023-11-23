@@ -548,6 +548,7 @@ var EUndefinedShared = &EUndefined{}
 var SDebuggerShared = &SDebugger{}
 var SEmptyShared = &SEmpty{}
 var STypeScriptShared = &STypeScript{}
+var STypeScriptSharedWasDeclareClass = &STypeScript{WasDeclareClass: true}
 
 type ENew struct {
 	Target Expr
@@ -918,7 +919,9 @@ type SBlock struct {
 type SEmpty struct{}
 
 // This is a stand-in for a TypeScript type declaration
-type STypeScript struct{}
+type STypeScript struct {
+	WasDeclareClass bool
+}
 
 type SComment struct {
 	Text           string
