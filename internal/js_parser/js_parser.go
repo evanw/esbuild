@@ -2181,10 +2181,11 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 						scopeIndex := len(p.scopesInOrder)
 
 						if prop, ok := p.parseProperty(startLoc, kind, opts, nil); ok &&
-							prop.Kind == js_ast.PropertyNormal && prop.ValueOrNil.Data == nil && len(opts.decorators) > 0 {
+							prop.Kind == js_ast.PropertyNormal && prop.ValueOrNil.Data == nil &&
+							(p.options.ts.Config.ExperimentalDecorators == config.True && len(opts.decorators) > 0) {
 							// If this is a well-formed class field with the "declare" keyword,
 							// only keep the declaration to preserve its side-effects when
-							// there are TypeScript decorators present:
+							// there are TypeScript experimental decorators present:
 							//
 							//   class Foo {
 							//     // Remove this
@@ -2193,6 +2194,15 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 							//     // Keep this
 							//     @decorator(console.log('side effect 2')) declare bar
 							//   }
+							//
+							// This behavior is surprisingly somehow valid with TypeScript
+							// experimental decorators, which was possibly by accident.
+							// TypeScript does not allow this with JavaScript decorators.
+							//
+							// References:
+							//
+							//   https://github.com/evanw/esbuild/issues/1675
+							//   https://github.com/microsoft/TypeScript/issues/46345
 							//
 							prop.Kind = js_ast.PropertyDeclare
 							return prop, true
@@ -6241,6 +6251,7 @@ func (p *parser) parseClass(classKeyword logger.Range, name *ast.LocRef, classOp
 
 		// Parse decorators for this property
 		firstDecoratorLoc := p.lexer.Loc()
+		scopeIndex := len(p.scopesInOrder)
 		opts.decorators = p.parseDecorators(p.currentScope, classKeyword, opts.decoratorContext)
 
 		// This property may turn out to be a type in TypeScript, which should be ignored
@@ -6261,6 +6272,9 @@ func (p *parser) parseClass(classKeyword logger.Range, name *ast.LocRef, classOp
 					hasConstructor = true
 				}
 			}
+		} else if !classOpts.isTypeScriptDeclare && len(opts.decorators) > 0 {
+			p.log.AddError(&p.tracker, logger.Range{Loc: firstDecoratorLoc, Len: 1}, "Decorators are not valid here")
+			p.discardScopesUpTo(scopeIndex)
 		}
 	}
 
