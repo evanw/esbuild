@@ -2050,6 +2050,20 @@ func TestDecorators(t *testing.T) {
 	// Check ASI for "abstract"
 	expectParseError(t, "@x abstract class Foo {}", "<stdin>: ERROR: Expected \";\" but found \"class\"\n")
 	expectParseError(t, "@x abstract\nclass Foo {}", "<stdin>: ERROR: Decorators are not valid here\n")
+
+	// Check decorator locations in relation to the "export" keyword
+	expectPrinted(t, "@x export class Foo {}", "@x\nexport class Foo {\n}\n")
+	expectPrinted(t, "export @x class Foo {}", "@x\nexport class Foo {\n}\n")
+	expectPrinted(t, "@x export default class {}", "@x\nexport default class {\n}\n")
+	expectPrinted(t, "export default @x class {}", "@x\nexport default class {\n}\n")
+	expectPrinted(t, "@x export default class Foo {}", "@x\nexport default class Foo {\n}\n")
+	expectPrinted(t, "export default @x class Foo {}", "@x\nexport default class Foo {\n}\n")
+	expectPrinted(t, "export default (@x class {})", "export default (@x class {\n});\n")
+	expectPrinted(t, "export default (@x class Foo {})", "export default (@x class Foo {\n});\n")
+	expectParseError(t, "export @x default class {}", "<stdin>: ERROR: Unexpected \"default\"\n")
+	expectParseError(t, "@x export @y class Foo {}", "<stdin>: ERROR: Decorators are not valid here\n")
+	expectParseError(t, "@x export default abstract", "<stdin>: ERROR: Decorators are not valid here\n")
+	expectParseError(t, "@x export @y default class {}", "<stdin>: ERROR: Decorators are not valid here\n<stdin>: ERROR: Unexpected \"default\"\n")
 }
 
 func TestGenerator(t *testing.T) {

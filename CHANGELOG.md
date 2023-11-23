@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+* Allow decorators after the `export` keyword ([#104](https://github.com/evanw/esbuild/issues/104))
+
+    Previously esbuild's decorator parser followed the original behavior of TypeScript's experimental decorators feature, which only allowed decorators to come before the `export` keyword. However, the upcoming JavaScript decorators feature also allows decorators to come after the `export` keyword. And with TypeScript 5.0, TypeScript now also allows experimental decorators to come after the `export` keyword too. So esbuild now allows this as well:
+
+    ```js
+    // This old syntax has always been permitted:
+    @decorator export class Foo {}
+    @decorator export default class Foo {}
+
+    // This new syntax is now permitted too:
+    export @decorator class Foo {}
+    export default @decorator class Foo {}
+    ```
+
+    In addition, esbuild's decorator parser has been rewritten to fix several subtle and likely unimportant edge cases with esbuild's parsing of exports and decorators in TypeScript (e.g. TypeScript apparently does automatic semicolon insertion after `interface` and `export interface` but not after `export default interface`).
+
 ## 0.19.7
 
 * Add support for bundling code that uses import attributes ([#3384](https://github.com/evanw/esbuild/issues/3384))

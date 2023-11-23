@@ -6735,7 +6735,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		p.lexer.Next()
 
 		switch p.lexer.Token {
-		case js_lexer.TClass, js_lexer.TConst, js_lexer.TFunction, js_lexer.TVar:
+		case js_lexer.TClass, js_lexer.TConst, js_lexer.TFunction, js_lexer.TVar, js_lexer.TAt:
 			opts.isExport = true
 			return p.parseStmt(opts)
 
@@ -6877,11 +6877,13 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 
 			// "export default class {}"
 			// "export default class Foo {}"
+			// "export default @x class {}"
+			// "export default @x class Foo {}"
 			// "export default function() {}"
 			// "export default function foo() {}"
 			// "export default interface Foo {}"
 			// "export default interface + 1"
-			if p.lexer.Token == js_lexer.TFunction || p.lexer.Token == js_lexer.TClass ||
+			if p.lexer.Token == js_lexer.TFunction || p.lexer.Token == js_lexer.TClass || p.lexer.Token == js_lexer.TAt ||
 				(p.options.ts.Parse && p.lexer.IsContextualKeyword("interface")) {
 				stmt := p.parseStmt(parseStmtOpts{
 					deferredDecorators:      opts.deferredDecorators,
@@ -6921,7 +6923,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			// "export default abstract class {}"
 			// "export default abstract class Foo {}"
 			if p.options.ts.Parse && isIdentifier && name == "abstract" && !p.lexer.HasNewlineBefore {
-				if _, ok := expr.Data.(*js_ast.EIdentifier); ok && (p.lexer.Token == js_lexer.TClass || opts.deferredDecorators != nil) {
+				if _, ok := expr.Data.(*js_ast.EIdentifier); ok && p.lexer.Token == js_lexer.TClass {
 					stmt := p.parseClassStmt(loc, parseStmtOpts{
 						deferredDecorators: opts.deferredDecorators,
 						isNameOptional:     true,
@@ -7047,6 +7049,13 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		// Parse decorators before class statements, which are potentially exported
 		scopeIndex := len(p.scopesInOrder)
 		decorators := p.parseDecorators(p.currentScope, logger.Range{}, 0)
+
+		// "@x export @y class Foo {}"
+		if opts.deferredDecorators != nil {
+			p.log.AddError(&p.tracker, logger.Range{Loc: loc, Len: 1}, "Decorators are not valid here")
+			p.discardScopesUpTo(scopeIndex)
+			return p.parseStmt(opts)
+		}
 
 		// If this turns out to be a "declare class" statement, we need to undo the
 		// scopes that were potentially pushed while parsing the decorator arguments.
@@ -7825,7 +7834,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 						}
 
 					case "abstract":
-						if !p.lexer.HasNewlineBefore && (p.lexer.Token == js_lexer.TClass || opts.deferredDecorators != nil) {
+						if !p.lexer.HasNewlineBefore && p.lexer.Token == js_lexer.TClass {
 							return p.parseClassStmt(loc, opts)
 						}
 
