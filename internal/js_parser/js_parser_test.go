@@ -2049,6 +2049,15 @@ func TestDecorators(t *testing.T) {
 	expectParseErrorWithUnsupportedFeatures(t, compat.Decorators, "class Foo { @dec static x }", errorText)
 	expectParseErrorWithUnsupportedFeatures(t, compat.Decorators, "class Foo { @dec static x() {} }", errorText)
 	expectParseErrorWithUnsupportedFeatures(t, compat.Decorators, "class Foo { @dec static accessor x }", errorText)
+
+	// Check ASI for "abstract"
+	expectParseError(t, "@x abstract class Foo {}",
+		"<stdin>: ERROR: Expected \"class\" after decorator but found \"abstract\"\n"+
+			"<stdin>: NOTE: The preceding decorator is here:\nNOTE: Decorators can only be used with class declarations.\n"+
+			"<stdin>: ERROR: Expected \";\" but found \"class\"\n")
+	expectParseError(t, "@x abstract\nclass Foo {}",
+		"<stdin>: ERROR: Expected \"class\" after decorator but found \"abstract\"\n"+
+			"<stdin>: NOTE: The preceding decorator is here:\nNOTE: Decorators can only be used with class declarations.\n")
 }
 
 func TestGenerator(t *testing.T) {
@@ -3058,6 +3067,10 @@ func TestExportDefault(t *testing.T) {
 	expectPrinted(t, "export default async function* foo() {} - after", "export default async function* foo() {\n}\n-after;\n")
 	expectPrinted(t, "export default class {} - after", "export default class {\n}\n-after;\n")
 	expectPrinted(t, "export default class Foo {} - after", "export default class Foo {\n}\n-after;\n")
+
+	// Check ASI for "abstract"
+	expectPrinted(t, "export default abstract\nclass Foo {}", "export default abstract;\nclass Foo {\n}\n")
+	expectParseError(t, "export default abstract class {}", "<stdin>: ERROR: Expected \";\" but found \"class\"\n")
 }
 
 func TestExportClause(t *testing.T) {

@@ -6954,8 +6954,8 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			name := p.lexer.Identifier.String
 			expr := p.parseExpr(js_ast.LComma)
 
-			// Handle the default export of an abstract class in TypeScript
-			if p.options.ts.Parse && isIdentifier && name == "abstract" {
+			// "export default abstract class {}"
+			if p.options.ts.Parse && isIdentifier && name == "abstract" && !p.lexer.HasNewlineBefore {
 				if _, ok := expr.Data.(*js_ast.EIdentifier); ok && (p.lexer.Token == js_lexer.TClass || opts.deferredDecorators != nil) {
 					stmt := p.parseClassStmt(loc, parseStmtOpts{
 						deferredDecorators: opts.deferredDecorators,

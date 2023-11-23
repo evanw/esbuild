@@ -659,7 +659,9 @@ func TestTSClass(t *testing.T) {
 	expectPrintedTS(t, "(class <T> extends Foo<T>() {})", "(class extends Foo() {\n});\n")
 	expectPrintedTS(t, "(class <T> implements Foo<T> {})", "(class {\n});\n")
 
+	// Check ASI for "abstract"
 	expectPrintedTS(t, "abstract \n class A {}", "abstract;\nclass A {\n}\n")
+	expectPrintedTS(t, "export default abstract \n class A {}", "export default abstract;\nclass A {\n}\n")
 	expectPrintedTS(t, "abstract class A { abstract \n foo(): void {} }", "class A {\n  abstract;\n  foo() {\n  }\n}\n")
 
 	expectPrintedTS(t, "abstract class A { abstract foo(): void; bar(): void {} }", "class A {\n  bar() {\n  }\n}\n")
@@ -1996,6 +1998,10 @@ func TestTSExperimentalDecorator(t *testing.T) {
 		"<stdin>: ERROR: Expected \"class\" after decorator but found \"[\"\n<stdin>: NOTE: The preceding decorator is here:\n"+
 			"NOTE: Decorators can only be used with class declarations.\n<stdin>: ERROR: Expected \";\" but found \"class\"\n")
 	expectParseErrorExperimentalDecoratorTS(t, "@() => {} class Foo {}", "<stdin>: ERROR: Unexpected \")\"\n")
+
+	// Check ASI for "abstract"
+	expectPrintedExperimentalDecoratorTS(t, "@x abstract class Foo {}", "let Foo = class {\n};\nFoo = __decorateClass([\n  x\n], Foo);\n")
+	expectParseErrorExperimentalDecoratorTS(t, "@x abstract\nclass Foo {}", "") // TODO
 }
 
 func TestTSDecorators(t *testing.T) {
@@ -2054,6 +2060,10 @@ func TestTSDecorators(t *testing.T) {
 	expectParseErrorWithUnsupportedFeaturesTS(t, compat.Decorators, "class Foo { @dec static x }", errorText)
 	expectParseErrorWithUnsupportedFeaturesTS(t, compat.Decorators, "class Foo { @dec static x() {} }", errorText)
 	expectParseErrorWithUnsupportedFeaturesTS(t, compat.Decorators, "class Foo { @dec static accessor x }", errorText)
+
+	// Check ASI for "abstract"
+	expectPrintedTS(t, "@x abstract class Foo {}", "@x\nclass Foo {\n}\n")
+	expectParseErrorTS(t, "@x abstract\nclass Foo {}", "") // TODO
 }
 
 func TestTSTry(t *testing.T) {
