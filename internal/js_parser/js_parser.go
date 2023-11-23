@@ -3594,7 +3594,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 
 		// "@decorator class {}"
 		// "@decorator class Foo {}"
-		if p.lexer.Token != js_lexer.TClass && p.lexer.Token != js_lexer.TExport {
+		if p.lexer.Token != js_lexer.TClass {
 			p.logDecoratorWithoutFollowingClassError(loc, scopeIndex)
 		}
 

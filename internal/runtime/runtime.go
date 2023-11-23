@@ -247,7 +247,7 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 		// to "true", which overwrites any existing export named "__esModule".
 		export var __toCommonJS = mod => __copyProps(__defProp({}, '__esModule', { value: true }), mod)
 
-		// For TypeScript decorators
+		// For TypeScript experimental decorators
 		// - kind === undefined: class
 		// - kind === 1: method, parameter
 		// - kind === 2: field
