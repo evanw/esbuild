@@ -18,6 +18,36 @@
 
     In addition, esbuild's decorator parser has been rewritten to fix several subtle and likely unimportant edge cases with esbuild's parsing of exports and decorators in TypeScript (e.g. TypeScript apparently does automatic semicolon insertion after `interface` and `export interface` but not after `export default interface`).
 
+* Pretty-print decorators using the same whitespace as the original
+
+    When printing code containing decorators, esbuild will now try to respect whether the original code contained newlines after the decorator or not. This can make generated code containing many decorators much more compact to read:
+
+    ```js
+    // Original code
+    class Foo {
+      @a @b @c abc
+      @x @y @z xyz
+    }
+
+    // Old output
+    class Foo {
+      @a
+      @b
+      @c
+      abc;
+      @x
+      @y
+      @z
+      xyz;
+    }
+
+    // New output
+    class Foo {
+      @a @b @c abc;
+      @x @y @z xyz;
+    }
+    ```
+
 ## 0.19.7
 
 * Add support for bundling code that uses import attributes ([#3384](https://github.com/evanw/esbuild/issues/3384))
