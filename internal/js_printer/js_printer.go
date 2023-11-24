@@ -947,7 +947,7 @@ func (p *printer) printFnArgs(args []js_ast.Arg, opts fnArgsOpts) {
 			p.print(",")
 			p.printSpace()
 		}
-		p.printDecorators(arg.Decorators, printDecoratorsAllOnOneLine)
+		p.printDecorators(arg.Decorators, printSpaceAfterDecorator)
 		if opts.hasRestArg && i+1 == len(args) {
 			p.print("...")
 		}
@@ -972,18 +972,24 @@ func (p *printer) printFn(fn js_ast.Fn) {
 	p.printBlock(fn.Body.Loc, fn.Body.Block)
 }
 
-type printDecorators uint8
+type printAfterDecorator uint8
 
 const (
-	printDecoratorsOnSeparateLines printDecorators = iota
-	printDecoratorsAllOnOneLine
+	printNewlineAfterDecorator printAfterDecorator = iota
+	printSpaceAfterDecorator
 )
 
-func (p *printer) printDecorators(decorators []js_ast.Decorator, how printDecorators) {
+func (p *printer) printDecorators(decorators []js_ast.Decorator, defaultMode printAfterDecorator) (omitIndentAfter bool) {
+	oldMode := defaultMode
+
 	for _, decorator := range decorators {
 		wrap := false
 		wasCallTarget := false
 		expr := decorator.Value
+		mode := defaultMode
+		if decorator.OmitNewlineAfter {
+			mode = printSpaceAfterDecorator
+		}
 
 	outer:
 		for {
@@ -1055,7 +1061,7 @@ func (p *printer) printDecorators(decorators []js_ast.Decorator, how printDecora
 		}
 
 		p.addSourceMapping(decorator.AtLoc)
-		if how == printDecoratorsOnSeparateLines {
+		if oldMode == printNewlineAfterDecorator {
 			p.printIndent()
 		}
 
@@ -1068,14 +1074,18 @@ func (p *printer) printDecorators(decorators []js_ast.Decorator, how printDecora
 			p.print(")")
 		}
 
-		switch how {
-		case printDecoratorsOnSeparateLines:
+		switch mode {
+		case printNewlineAfterDecorator:
 			p.printNewline()
 
-		case printDecoratorsAllOnOneLine:
+		case printSpaceAfterDecorator:
 			p.printSpace()
 		}
+		oldMode = mode
 	}
+
+	omitIndentAfter = oldMode == printSpaceAfterDecorator
+	return
 }
 
 func (p *printer) printClass(class js_ast.Class) {
@@ -1093,8 +1103,10 @@ func (p *printer) printClass(class js_ast.Class) {
 
 	for _, item := range class.Properties {
 		p.printSemicolonIfNeeded()
-		p.printDecorators(item.Decorators, printDecoratorsOnSeparateLines)
-		p.printIndent()
+		omitIndent := p.printDecorators(item.Decorators, printNewlineAfterDecorator)
+		if !omitIndent {
+			p.printIndent()
+		}
 
 		if item.Kind == js_ast.PropertyClassStaticBlock {
 			p.addSourceMapping(item.Loc)
@@ -2798,7 +2810,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		if wrap {
 			p.print("(")
 		}
-		p.printDecorators(e.Class.Decorators, printDecoratorsAllOnOneLine)
+		p.printDecorators(e.Class.Decorators, printSpaceAfterDecorator)
 		p.printSpaceBeforeIdentifier()
 		p.addSourceMapping(expr.Loc)
 		p.print("class")
@@ -4099,8 +4111,10 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 		p.printNewline()
 
 	case *js_ast.SClass:
-		p.printDecorators(s.Class.Decorators, printDecoratorsOnSeparateLines)
-		p.printIndent()
+		omitIndent := p.printDecorators(s.Class.Decorators, printNewlineAfterDecorator)
+		if !omitIndent {
+			p.printIndent()
+		}
 		p.printSpaceBeforeIdentifier()
 		p.addSourceMapping(stmt.Loc)
 		if s.IsExport {
@@ -4126,11 +4140,14 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 				p.print("// @__NO_SIDE_EFFECTS__\n")
 			}
 		}
+		omitIndent := false
 		if s2, ok := s.Value.Data.(*js_ast.SClass); ok {
-			p.printDecorators(s2.Class.Decorators, printDecoratorsOnSeparateLines)
+			omitIndent = p.printDecorators(s2.Class.Decorators, printNewlineAfterDecorator)
 		}
 		p.addSourceMapping(stmt.Loc)
-		p.printIndent()
+		if !omitIndent {
+			p.printIndent()
+		}
 		p.printSpaceBeforeIdentifier()
 		p.print("export default")
 		p.printSpace()

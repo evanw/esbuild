@@ -2036,32 +2036,32 @@ func TestTSExperimentalDecorator(t *testing.T) {
 }
 
 func TestTSDecorators(t *testing.T) {
-	expectPrintedTS(t, "@x @y class Foo {}", "@x\n@y\nclass Foo {\n}\n")
-	expectPrintedTS(t, "@x @y export class Foo {}", "@x\n@y\nexport class Foo {\n}\n")
-	expectPrintedTS(t, "@x @y export default class Foo {}", "@x\n@y\nexport default class Foo {\n}\n")
+	expectPrintedTS(t, "@x @y class Foo {}", "@x @y class Foo {\n}\n")
+	expectPrintedTS(t, "@x @y export class Foo {}", "@x @y export class Foo {\n}\n")
+	expectPrintedTS(t, "@x @y export default class Foo {}", "@x @y export default class Foo {\n}\n")
 	expectPrintedTS(t, "_ = @x @y class {}", "_ = @x @y class {\n};\n")
 
-	expectPrintedTS(t, "class Foo { @x y: any }", "class Foo {\n  @x\n  y;\n}\n")
-	expectPrintedTS(t, "class Foo { @x y(): any {} }", "class Foo {\n  @x\n  y() {\n  }\n}\n")
-	expectPrintedTS(t, "class Foo { @x static y: any }", "class Foo {\n  @x\n  static y;\n}\n")
-	expectPrintedTS(t, "class Foo { @x static y(): any {} }", "class Foo {\n  @x\n  static y() {\n  }\n}\n")
-	expectPrintedTS(t, "class Foo { @x accessor y: any }", "class Foo {\n  @x\n  accessor y;\n}\n")
+	expectPrintedTS(t, "class Foo { @x y: any }", "class Foo {\n  @x y;\n}\n")
+	expectPrintedTS(t, "class Foo { @x y(): any {} }", "class Foo {\n  @x y() {\n  }\n}\n")
+	expectPrintedTS(t, "class Foo { @x static y: any }", "class Foo {\n  @x static y;\n}\n")
+	expectPrintedTS(t, "class Foo { @x static y(): any {} }", "class Foo {\n  @x static y() {\n  }\n}\n")
+	expectPrintedTS(t, "class Foo { @x accessor y: any }", "class Foo {\n  @x accessor y;\n}\n")
 
-	expectPrintedTS(t, "class Foo { @x #y: any }", "class Foo {\n  @x\n  #y;\n}\n")
-	expectPrintedTS(t, "class Foo { @x #y(): any {} }", "class Foo {\n  @x\n  #y() {\n  }\n}\n")
-	expectPrintedTS(t, "class Foo { @x static #y: any }", "class Foo {\n  @x\n  static #y;\n}\n")
-	expectPrintedTS(t, "class Foo { @x static #y(): any {} }", "class Foo {\n  @x\n  static #y() {\n  }\n}\n")
-	expectPrintedTS(t, "class Foo { @x accessor #y: any }", "class Foo {\n  @x\n  accessor #y;\n}\n")
+	expectPrintedTS(t, "class Foo { @x #y: any }", "class Foo {\n  @x #y;\n}\n")
+	expectPrintedTS(t, "class Foo { @x #y(): any {} }", "class Foo {\n  @x #y() {\n  }\n}\n")
+	expectPrintedTS(t, "class Foo { @x static #y: any }", "class Foo {\n  @x static #y;\n}\n")
+	expectPrintedTS(t, "class Foo { @x static #y(): any {} }", "class Foo {\n  @x static #y() {\n  }\n}\n")
+	expectPrintedTS(t, "class Foo { @x accessor #y: any }", "class Foo {\n  @x accessor #y;\n}\n")
 
 	expectParseErrorTS(t, "class Foo { x(@y z) {} }", "<stdin>: ERROR: Parameter decorators only work when experimental decorators are enabled\n"+
 		"NOTE: You can enable experimental decorators by adding \"experimentalDecorators\": true to your \"tsconfig.json\" file.\n")
 	expectParseErrorTS(t, "class Foo { @x static {} }", "<stdin>: ERROR: Expected \";\" but found \"{\"\n")
 
 	expectPrintedTS(t, "@\na\n(\n)\n@\n(\nb\n)\nclass\nFoo\n{\n}\n", "@a()\n@b\nclass Foo {\n}\n")
-	expectPrintedTS(t, "@(a, b) class Foo {}\n", "@(a, b)\nclass Foo {\n}\n")
-	expectPrintedTS(t, "@x() class Foo {}", "@x()\nclass Foo {\n}\n")
-	expectPrintedTS(t, "@x.y() class Foo {}", "@x.y()\nclass Foo {\n}\n")
-	expectPrintedTS(t, "@(() => {}) class Foo {}", "@(() => {\n})\nclass Foo {\n}\n")
+	expectPrintedTS(t, "@(a, b) class Foo {}", "@(a, b) class Foo {\n}\n")
+	expectPrintedTS(t, "@x() class Foo {}", "@x() class Foo {\n}\n")
+	expectPrintedTS(t, "@x.y() class Foo {}", "@x.y() class Foo {\n}\n")
+	expectPrintedTS(t, "@(() => {}) class Foo {}", "@(() => {\n}) class Foo {\n}\n")
 	expectPrintedTS(t, "class Foo { #x = @y.#x.y.#x class {} }", "class Foo {\n  #x = @y.#x.y.#x class {\n  };\n}\n")
 	expectParseErrorTS(t, "@123 class Foo {}", "<stdin>: ERROR: Expected identifier but found \"123\"\n")
 	expectParseErrorTS(t, "@x[y] class Foo {}", "<stdin>: ERROR: Expected \";\" but found \"class\"\n")
@@ -2072,11 +2072,11 @@ func TestTSDecorators(t *testing.T) {
 	expectParseErrorTS(t, "@() => {} class Foo {}", "<stdin>: ERROR: Unexpected \")\"\n")
 	expectParseErrorTS(t, "x = @y function() {}", "<stdin>: ERROR: Expected \"class\" but found \"function\"\n")
 
-	expectPrintedTS(t, "class Foo { @x<{}> y: any }", "class Foo {\n  @x\n  y;\n}\n")
-	expectPrintedTS(t, "class Foo { @x<{}>() y: any }", "class Foo {\n  @x()\n  y;\n}\n")
-	expectPrintedTS(t, "class Foo { @x<{}> @y<[], () => {}> z: any }", "class Foo {\n  @x\n  @y\n  z;\n}\n")
-	expectPrintedTS(t, "class Foo { @x<{}>() @y<[], () => {}>() z: any }", "class Foo {\n  @x()\n  @y()\n  z;\n}\n")
-	expectPrintedTS(t, "class Foo { @x<{}>.y<[], () => {}> z: any }", "class Foo {\n  @x.y\n  z;\n}\n")
+	expectPrintedTS(t, "class Foo { @x<{}> y: any }", "class Foo {\n  @x y;\n}\n")
+	expectPrintedTS(t, "class Foo { @x<{}>() y: any }", "class Foo {\n  @x() y;\n}\n")
+	expectPrintedTS(t, "class Foo { @x<{}> @y<[], () => {}> z: any }", "class Foo {\n  @x @y z;\n}\n")
+	expectPrintedTS(t, "class Foo { @x<{}>() @y<[], () => {}>() z: any }", "class Foo {\n  @x() @y() z;\n}\n")
+	expectPrintedTS(t, "class Foo { @x<{}>.y<[], () => {}> z: any }", "class Foo {\n  @x.y z;\n}\n")
 
 	// TypeScript 5.0+ allows this but Babel doesn't. I believe this is a bug
 	// with TypeScript: https://github.com/microsoft/TypeScript/issues/55336
@@ -2092,16 +2092,16 @@ func TestTSDecorators(t *testing.T) {
 	expectParseErrorWithUnsupportedFeaturesTS(t, compat.Decorators, "class Foo { @dec static accessor x }", errorText)
 
 	// Check ASI for "abstract"
-	expectPrintedTS(t, "@x abstract class Foo {}", "@x\nclass Foo {\n}\n")
+	expectPrintedTS(t, "@x abstract class Foo {}", "@x class Foo {\n}\n")
 	expectParseErrorTS(t, "@x abstract\nclass Foo {}", "<stdin>: ERROR: Decorators are not valid here\n")
 
 	// Check decorator locations in relation to the "export" keyword
-	expectPrintedTS(t, "@x export class Foo {}", "@x\nexport class Foo {\n}\n")
-	expectPrintedTS(t, "export @x class Foo {}", "@x\nexport class Foo {\n}\n")
-	expectPrintedTS(t, "@x export default class {}", "@x\nexport default class {\n}\n")
-	expectPrintedTS(t, "export default @x class {}", "@x\nexport default class {\n}\n")
-	expectPrintedTS(t, "@x export default class Foo {}", "@x\nexport default class Foo {\n}\n")
-	expectPrintedTS(t, "export default @x class Foo {}", "@x\nexport default class Foo {\n}\n")
+	expectPrintedTS(t, "@x export class Foo {}", "@x export class Foo {\n}\n")
+	expectPrintedTS(t, "export @x class Foo {}", "@x export class Foo {\n}\n")
+	expectPrintedTS(t, "@x export default class {}", "@x export default class {\n}\n")
+	expectPrintedTS(t, "export default @x class {}", "@x export default class {\n}\n")
+	expectPrintedTS(t, "@x export default class Foo {}", "@x export default class Foo {\n}\n")
+	expectPrintedTS(t, "export default @x class Foo {}", "@x export default class Foo {\n}\n")
 	expectPrintedTS(t, "export default (@x class {})", "export default (@x class {\n});\n")
 	expectPrintedTS(t, "export default (@x class Foo {})", "export default (@x class Foo {\n});\n")
 	expectParseErrorTS(t, "export @x default class {}", "<stdin>: ERROR: Unexpected \"default\"\n")

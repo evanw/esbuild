@@ -6620,7 +6620,11 @@ func (p *parser) parseDecorators(decoratorScope *js_ast.Scope, classKeyword logg
 			// special parser that doesn't allow normal expressions (e.g. "?.").
 			value = p.parseDecorator()
 		}
-		decorators = append(decorators, js_ast.Decorator{Value: value, AtLoc: atLoc})
+		decorators = append(decorators, js_ast.Decorator{
+			Value:            value,
+			AtLoc:            atLoc,
+			OmitNewlineAfter: !p.lexer.HasNewlineBefore,
+		})
 	}
 
 	// Avoid "popScope" because this decorator scope is not hierarchical

@@ -242,8 +242,9 @@ var OpTable = []OpTableEntry{
 }
 
 type Decorator struct {
-	Value Expr
-	AtLoc logger.Loc
+	Value            Expr
+	AtLoc            logger.Loc
+	OmitNewlineAfter bool
 }
 
 type PropertyKind uint8

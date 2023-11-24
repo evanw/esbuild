@@ -928,41 +928,29 @@ _ = class {
   #bar;
   classes = [
     class {
-      @import_somewhere.imported
-      @((0, import_somewhere.imported)())
-      imported;
+      @import_somewhere.imported @((0, import_somewhere.imported)()) imported;
     },
     class {
-      @unbound
-      @unbound()
-      unbound;
+      @unbound @unbound() unbound;
     },
     class {
-      @(123)
-      @(123())
-      constant;
+      @(123) @(123()) constant;
     },
     class {
-      @(void 0)
-      @((void 0)())
-      undef;
+      @(void 0) @((void 0)()) undef;
     },
     class {
-      @(element[access])
-      indexed;
+      @(element[access]) indexed;
     },
     class {
-      @foo.#bar
-      private;
+      @foo.#bar private;
     },
     class {
-      @(foo["ヿ"])
-      unicode;
+      @(foo["ヿ"]) unicode;
     },
     class {
       @(() => {
-      })
-      arrow;
+      }) arrow;
     }
   ];
 };
@@ -976,41 +964,29 @@ _ = class {
   #bar;
   classes = [
     class {
-      @imported
-      @imported()
-      imported;
+      @imported @imported() imported;
     },
     class {
-      @unbound
-      @unbound()
-      unbound;
+      @unbound @unbound() unbound;
     },
     class {
-      @(123)
-      @(123())
-      constant;
+      @(123) @(123()) constant;
     },
     class {
-      @(void 0)
-      @((void 0)())
-      undef;
+      @(void 0) @((void 0)()) undef;
     },
     class {
-      @(element[access])
-      indexed;
+      @(element[access]) indexed;
     },
     class {
-      @foo.#bar
-      private;
+      @foo.#bar private;
     },
     class {
-      @(foo["ヿ"])
-      unicode;
+      @(foo["ヿ"]) unicode;
     },
     class {
       @(() => {
-      })
-      arrow;
+      }) arrow;
     }
   ];
 };

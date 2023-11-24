@@ -707,6 +707,13 @@ func TestPrivateIdentifiers(t *testing.T) {
 	expectPrintedMinify(t, "class Foo { #foo; foo() { return #foo in this } }", "class Foo{#foo;foo(){return#foo in this}}")
 }
 
+func TestDecorators(t *testing.T) {
+	example := "class Foo {\n@w\nw; @x x; @a1\n@b1@b2\n@c1@c2@c3\ny = @y1 @y2 class {}; @a1\n@b1@b2\n@c1@c2@c3 z =\n@z1\n@z2\nclass {}}"
+	expectPrinted(t, example, "class Foo {\n  @w\n  w;\n  @x x;\n  @a1\n  @b1 @b2\n  @c1 @c2 @c3\n  "+
+		"y = @y1 @y2 class {\n  };\n  @a1\n  @b1 @b2\n  @c1 @c2 @c3 z = @z1 @z2 class {\n  };\n}\n")
+	expectPrintedMinify(t, example, "class Foo{@w w;@x x;@a1@b1@b2@c1@c2@c3 y=@y1@y2 class{};@a1@b1@b2@c1@c2@c3 z=@z1@z2 class{}}")
+}
+
 func TestImport(t *testing.T) {
 	expectPrinted(t, "import('path');", "import(\"path\");\n") // The semicolon must not be a separate statement
 
