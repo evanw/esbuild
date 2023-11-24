@@ -1890,9 +1890,9 @@ func TestTSExperimentalDecorator(t *testing.T) {
 
 	// Decorators must be forbidden outside class statements
 	note := "<stdin>: NOTE: This is a class expression, not a class declaration:\n"
-	expectParseErrorExperimentalDecoratorTS(t, "(class { @dec foo })", "<stdin>: ERROR: Experimental decorators can only be used with class declarations in TypeScript\n"+note)
-	expectParseErrorExperimentalDecoratorTS(t, "(class { @dec foo() {} })", "<stdin>: ERROR: Experimental decorators can only be used with class declarations in TypeScript\n"+note)
-	expectParseErrorExperimentalDecoratorTS(t, "(class { foo(@dec x) {} })", "<stdin>: ERROR: Experimental decorators can only be used with class declarations in TypeScript\n"+note)
+	expectParseErrorExperimentalDecoratorTS(t, "(class { @dec foo })", "<stdin>: ERROR: TypeScript experimental decorators can only be used with class declarations\n"+note)
+	expectParseErrorExperimentalDecoratorTS(t, "(class { @dec foo() {} })", "<stdin>: ERROR: TypeScript experimental decorators can only be used with class declarations\n"+note)
+	expectParseErrorExperimentalDecoratorTS(t, "(class { foo(@dec x) {} })", "<stdin>: ERROR: TypeScript experimental decorators can only be used with class declarations\n"+note)
 	expectParseErrorExperimentalDecoratorTS(t, "({ @dec foo })", "<stdin>: ERROR: Expected identifier but found \"@\"\n")
 	expectParseErrorExperimentalDecoratorTS(t, "({ @dec foo() {} })", "<stdin>: ERROR: Expected identifier but found \"@\"\n")
 	expectParseErrorExperimentalDecoratorTS(t, "({ foo(@dec x) {} })", "<stdin>: ERROR: Expected identifier but found \"@\"\n")
@@ -2007,7 +2007,7 @@ func TestTSExperimentalDecorator(t *testing.T) {
 	expectParseErrorExperimentalDecoratorTS(t, "@x[y] class Foo {}", "<stdin>: ERROR: Expected \";\" but found \"class\"\n")
 	expectParseErrorExperimentalDecoratorTS(t, "@() => {} class Foo {}", "<stdin>: ERROR: Unexpected \")\"\n")
 	expectParseErrorExperimentalDecoratorTS(t, "x = @y function() {}",
-		"<stdin>: ERROR: Experimental decorators cannot be used in expression position in TypeScript\n"+
+		"<stdin>: ERROR: TypeScript experimental decorators cannot be used in expression position\n"+
 			"<stdin>: ERROR: Expected \"class\" but found \"function\"\n")
 
 	// Check ASI for "abstract"
@@ -2023,8 +2023,8 @@ func TestTSExperimentalDecorator(t *testing.T) {
 		"let stdin_default = class {\n};\nstdin_default = __decorateClass([\n  x\n], stdin_default);\nexport {\n  stdin_default as default\n};\n")
 	expectPrintedExperimentalDecoratorTS(t, "@x export default class Foo {}", "let Foo = class {\n};\nFoo = __decorateClass([\n  x\n], Foo);\nexport {\n  Foo as default\n};\n")
 	expectPrintedExperimentalDecoratorTS(t, "export default @x class Foo {}", "let Foo = class {\n};\nFoo = __decorateClass([\n  x\n], Foo);\nexport {\n  Foo as default\n};\n")
-	expectParseErrorExperimentalDecoratorTS(t, "export default (@x class {})", "<stdin>: ERROR: Experimental decorators cannot be used in expression position in TypeScript\n")
-	expectParseErrorExperimentalDecoratorTS(t, "export default (@x class Foo {})", "<stdin>: ERROR: Experimental decorators cannot be used in expression position in TypeScript\n")
+	expectParseErrorExperimentalDecoratorTS(t, "export default (@x class {})", "<stdin>: ERROR: TypeScript experimental decorators cannot be used in expression position\n")
+	expectParseErrorExperimentalDecoratorTS(t, "export default (@x class Foo {})", "<stdin>: ERROR: TypeScript experimental decorators cannot be used in expression position\n")
 	expectParseErrorExperimentalDecoratorTS(t, "export @x default class {}", "<stdin>: ERROR: Unexpected \"default\"\n")
 	expectParseErrorExperimentalDecoratorTS(t, "@x export @y class Foo {}", "<stdin>: ERROR: Decorators are not valid here\n")
 	expectParseErrorExperimentalDecoratorTS(t, "@x export default abstract", "<stdin>: ERROR: Decorators are not valid here\n")

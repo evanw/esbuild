@@ -6567,10 +6567,10 @@ func (p *parser) parseDecorators(decoratorScope *js_ast.Scope, classKeyword logg
 		if p.options.ts.Parse {
 			if p.options.ts.Config.ExperimentalDecorators == config.True {
 				if (context & decoratorInClassExpr) != 0 {
-					p.lexer.AddRangeErrorWithNotes(p.lexer.Range(), "Experimental decorators can only be used with class declarations in TypeScript",
+					p.lexer.AddRangeErrorWithNotes(p.lexer.Range(), "TypeScript experimental decorators can only be used with class declarations",
 						[]logger.MsgData{p.tracker.MsgData(classKeyword, "This is a class expression, not a class declaration:")})
 				} else if (context & decoratorBeforeClassExpr) != 0 {
-					p.log.AddError(&p.tracker, p.lexer.Range(), "Experimental decorators cannot be used in expression position in TypeScript")
+					p.log.AddError(&p.tracker, p.lexer.Range(), "TypeScript experimental decorators cannot be used in expression position")
 				}
 			} else {
 				if (context&decoratorInFnArgs) != 0 && p.options.ts.Config.ExperimentalDecorators != config.True {
@@ -11251,7 +11251,8 @@ func (p *parser) visitDecorators(decorators []js_ast.Decorator, decoratorScope *
 	if decorators != nil {
 		// Decorators cause us to temporarily revert to the scope that encloses the
 		// class declaration, since that's where the generated code for decorators
-		// will be inserted.
+		// will be inserted. I believe this currently only matters for parameter
+		// decorators, where the scope should not be within the argument list.
 		oldScope := p.currentScope
 		p.currentScope = decoratorScope
 
