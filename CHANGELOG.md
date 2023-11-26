@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.19.8
 
 * Add a treemap chart to esbuild's bundle analyzer ([#2848](https://github.com/evanw/esbuild/issues/2848))
 
