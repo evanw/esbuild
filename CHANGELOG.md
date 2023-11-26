@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+* Add a treemap chart to esbuild's bundle analyzer ([#2848](https://github.com/evanw/esbuild/issues/2848))
+
+    The bundler analyzer on esbuild's website (https://esbuild.github.io/analyze/) now has a treemap chart type in addition to the two existing chart types (sunburst and flame). This should be more familiar for people coming from other similar tools, as well as make better use of large screens.
+
 * Allow decorators after the `export` keyword ([#104](https://github.com/evanw/esbuild/issues/104))
 
     Previously esbuild's decorator parser followed the original behavior of TypeScript's experimental decorators feature, which only allowed decorators to come before the `export` keyword. However, the upcoming JavaScript decorators feature also allows decorators to come after the `export` keyword. And with TypeScript 5.0, TypeScript now also allows experimental decorators to come after the `export` keyword too. So esbuild now allows this as well:
