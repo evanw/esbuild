@@ -323,6 +323,12 @@ func TestTSTypes(t *testing.T) {
 	expectPrintedTS(t, "type Foo = Array<<T>(x: T) => T>\n x", "x;\n")
 	expectPrintedTSX(t, "<Foo<<T>(x: T) => T>/>", "/* @__PURE__ */ React.createElement(Foo, null);\n")
 
+	expectPrintedTS(t, "interface Foo<> {}", "")
+	expectPrintedTSX(t, "interface Foo<> {}", "")
+
+	expectPrintedTS(t, "type Foo<> = {}", "")
+	expectPrintedTSX(t, "type Foo<> = {}", "")
+
 	// Certain built-in types do not accept type parameters
 	expectPrintedTS(t, "x as 1 < 1", "x < 1;\n")
 	expectPrintedTS(t, "x as 1n < 1", "x < 1;\n")
