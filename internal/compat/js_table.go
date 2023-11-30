@@ -194,7 +194,9 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Chrome:  {{start: v{90, 0, 0}}},
 		ES:      {{start: v{2022, 0, 0}}},
 		Firefox: {{start: v{87, 0, 0}}},
+		IOS:     {{start: v{14, 5, 0}}},
 		Node:    {{start: v{16, 0, 0}}},
+		Safari:  {{start: v{14, 1, 0}}},
 	},
 	ArraySpread: {
 		// Note: The latest version of "IE" failed 15 tests including: spread syntax for iterable objects: spreading non-iterables is a runtime error

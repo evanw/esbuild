@@ -465,8 +465,9 @@ import('./kangax').then(kangax => {
     // From https://bugzilla.mozilla.org/show_bug.cgi?id=1670044
     js.ArbitraryModuleNamespaceNames.Firefox = { 87: { force: true } }
 
-    // This feature has been implemented in Safari but I have no idea what version
-    // this bug corresponds to: https://bugs.webkit.org/show_bug.cgi?id=217576
+    // From https://developer.apple.com/documentation/safari-release-notes/safari-14_1-release-notes#:~:text=Added%20support%20for%20Arbitrary%20module%20namespace%20identifier%20names.
+    js.ArbitraryModuleNamespaceNames.Safari = { '14.1': { force: true } }
+    js.ArbitraryModuleNamespaceNames.IOS = { '14.5': { force: true } }
   }
 
   // Import assertions (note: these were removed from the JavaScript specification and never standardized)
