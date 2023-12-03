@@ -5504,11 +5504,14 @@ func TestJSX(t *testing.T) {
 
 	expectParseErrorJSX(t, "<a b=true/>", "<stdin>: ERROR: Expected \"{\" but found \"true\"\n")
 	expectParseErrorJSX(t, "</a>", "<stdin>: ERROR: Expected identifier but found \"/\"\n")
-	expectParseErrorJSX(t, "<></b>", "<stdin>: ERROR: Expected closing \"b\" tag to match opening \"\" tag\n<stdin>: NOTE: The opening \"\" tag is here:\n")
-	expectParseErrorJSX(t, "<a></>", "<stdin>: ERROR: Expected closing \"\" tag to match opening \"a\" tag\n<stdin>: NOTE: The opening \"a\" tag is here:\n")
-	expectParseErrorJSX(t, "<a></b>", "<stdin>: ERROR: Expected closing \"b\" tag to match opening \"a\" tag\n<stdin>: NOTE: The opening \"a\" tag is here:\n")
+	expectParseErrorJSX(t, "<></b>",
+		"<stdin>: ERROR: Unexpected closing \"b\" tag does not match opening fragment tag\n<stdin>: NOTE: The opening fragment tag is here:\n")
+	expectParseErrorJSX(t, "<a></>",
+		"<stdin>: ERROR: Unexpected closing fragment tag does not match opening \"a\" tag\n<stdin>: NOTE: The opening \"a\" tag is here:\n")
+	expectParseErrorJSX(t, "<a></b>",
+		"<stdin>: ERROR: Unexpected closing \"b\" tag does not match opening \"a\" tag\n<stdin>: NOTE: The opening \"a\" tag is here:\n")
 	expectParseErrorJSX(t, "<\na\n.\nb\n>\n<\n/\nc\n.\nd\n>",
-		"<stdin>: ERROR: Expected closing \"c.d\" tag to match opening \"a.b\" tag\n<stdin>: NOTE: The opening \"a.b\" tag is here:\n")
+		"<stdin>: ERROR: Unexpected closing \"c.d\" tag does not match opening \"a.b\" tag\n<stdin>: NOTE: The opening \"a.b\" tag is here:\n")
 	expectParseErrorJSX(t, "<a-b.c>", "<stdin>: ERROR: Expected \">\" but found \".\"\n")
 	expectParseErrorJSX(t, "<a.b-c>", "<stdin>: ERROR: Unexpected \"-\"\n")
 

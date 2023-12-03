@@ -325,9 +325,20 @@ func TestTSTypes(t *testing.T) {
 
 	expectPrintedTS(t, "interface Foo<> {}", "")
 	expectPrintedTSX(t, "interface Foo<> {}", "")
-
 	expectPrintedTS(t, "type Foo<> = {}", "")
 	expectPrintedTSX(t, "type Foo<> = {}", "")
+	expectParseErrorTS(t, "class Foo<> {}", "<stdin>: ERROR: Expected identifier but found \">\"\n")
+	expectParseErrorTSX(t, "class Foo<> {}", "<stdin>: ERROR: Expected identifier but found \">\"\n")
+	expectParseErrorTS(t, "class Foo { foo<>() {} }", "<stdin>: ERROR: Expected identifier but found \">\"\n")
+	expectParseErrorTSX(t, "class Foo { foo<>() {} }", "<stdin>: ERROR: Expected identifier but found \">\"\n")
+	expectParseErrorTS(t, "type Foo = { foo<>(): void }", "<stdin>: ERROR: Expected identifier but found \">\"\n")
+	expectParseErrorTSX(t, "type Foo = { foo<>(): void }", "<stdin>: ERROR: Expected identifier but found \">\"\n")
+	expectParseErrorTS(t, "type Foo = <>() => {}", "<stdin>: ERROR: Expected identifier but found \">\"\n")
+	expectParseErrorTSX(t, "type Foo = <>() => {}", "<stdin>: ERROR: Expected identifier but found \">\"\n")
+	expectParseErrorTS(t, "let Foo = <>() => {}", "<stdin>: ERROR: Unexpected \">\"\n")
+	expectParseErrorTSX(t, "let Foo = <>() => {}",
+		"<stdin>: ERROR: The character \">\" is not valid inside a JSX element\nNOTE: Did you mean to escape it as \"{'>'}\" instead?\n"+
+			"<stdin>: ERROR: Unexpected end of file before a closing fragment tag\n<stdin>: NOTE: The opening fragment tag is here:\n")
 
 	// Certain built-in types do not accept type parameters
 	expectPrintedTS(t, "x as 1 < 1", "x < 1;\n")

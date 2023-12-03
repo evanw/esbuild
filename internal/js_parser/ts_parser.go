@@ -292,12 +292,12 @@ loop:
 				return
 			}
 
-			p.skipTypeScriptTypeParameters(allowConstModifier, false)
+			p.skipTypeScriptTypeParameters(allowConstModifier)
 			p.skipTypeScriptParenOrFnType()
 
 		case js_lexer.TLessThan:
 			// "<T>() => Foo<T>"
-			p.skipTypeScriptTypeParameters(allowConstModifier, false)
+			p.skipTypeScriptTypeParameters(allowConstModifier)
 			p.skipTypeScriptParenOrFnType()
 
 		case js_lexer.TOpenParen:
@@ -602,7 +602,7 @@ func (p *parser) skipTypeScriptObjectType() {
 		}
 
 		// Type parameters come right after the optional mark
-		p.skipTypeScriptTypeParameters(allowConstModifier, false)
+		p.skipTypeScriptTypeParameters(allowConstModifier)
 
 		switch p.lexer.Token {
 		case js_lexer.TColon:
@@ -651,6 +651,9 @@ const (
 
 	// TypeScript 5.0
 	allowConstModifier
+
+	// Allow "<>" without any type parameters
+	allowEmptyTypeParameters
 )
 
 type skipTypeScriptTypeParametersResult uint8
@@ -663,7 +666,7 @@ const (
 
 // This is the type parameter declarations that go with other symbol
 // declarations (class, function, type, etc.)
-func (p *parser) skipTypeScriptTypeParameters(flags typeParameterFlags, allowEmptyTypeList bool) skipTypeScriptTypeParametersResult {
+func (p *parser) skipTypeScriptTypeParameters(flags typeParameterFlags) skipTypeScriptTypeParametersResult {
 	if p.lexer.Token != js_lexer.TLessThan {
 		return didNotSkipAnything
 	}
@@ -671,8 +674,8 @@ func (p *parser) skipTypeScriptTypeParameters(flags typeParameterFlags, allowEmp
 	p.lexer.Next()
 	result := couldBeTypeCast
 
-	if allowEmptyTypeList && p.lexer.Token == js_lexer.TGreaterThan {
-		p.lexer.ExpectGreaterThan(false /* isInsideJSXElement */)
+	if (flags&allowEmptyTypeParameters) != 0 && p.lexer.Token == js_lexer.TGreaterThan {
+		p.lexer.Next()
 		return definitelyTypeParameters
 	}
 
@@ -869,7 +872,7 @@ func (p *parser) trySkipTypeScriptTypeParametersThenOpenParenWithBacktracking() 
 		}
 	}()
 
-	result := p.skipTypeScriptTypeParameters(allowConstModifier, false)
+	result := p.skipTypeScriptTypeParameters(allowConstModifier)
 	if p.lexer.Token != js_lexer.TOpenParen {
 		p.lexer.Unexpected()
 	}
@@ -1186,7 +1189,7 @@ func (p *parser) skipTypeScriptInterfaceStmt(opts parseStmtOpts) {
 		p.localTypeNames[name] = true
 	}
 
-	p.skipTypeScriptTypeParameters(allowInOutVarianceAnnotations, true)
+	p.skipTypeScriptTypeParameters(allowInOutVarianceAnnotations | allowEmptyTypeParameters)
 
 	if p.lexer.Token == js_lexer.TExtends {
 		p.lexer.Next()
@@ -1261,7 +1264,7 @@ func (p *parser) skipTypeScriptTypeStmt(opts parseStmtOpts) {
 		p.localTypeNames[name] = true
 	}
 
-	p.skipTypeScriptTypeParameters(allowInOutVarianceAnnotations, true)
+	p.skipTypeScriptTypeParameters(allowInOutVarianceAnnotations | allowEmptyTypeParameters)
 	p.lexer.Expect(js_lexer.TEquals)
 	p.skipTypeScriptType(js_ast.LLowest)
 	p.lexer.ExpectOrInsertSemicolon()
