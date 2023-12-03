@@ -651,6 +651,9 @@ const (
 
 	// TypeScript 5.0
 	allowConstModifier
+
+	// Allow "<>" without any type parameters
+	allowEmptyTypeParameters
 )
 
 type skipTypeScriptTypeParametersResult uint8
@@ -670,6 +673,11 @@ func (p *parser) skipTypeScriptTypeParameters(flags typeParameterFlags) skipType
 
 	p.lexer.Next()
 	result := couldBeTypeCast
+
+	if (flags&allowEmptyTypeParameters) != 0 && p.lexer.Token == js_lexer.TGreaterThan {
+		p.lexer.Next()
+		return definitelyTypeParameters
+	}
 
 	for {
 		hasIn := false
@@ -1181,7 +1189,7 @@ func (p *parser) skipTypeScriptInterfaceStmt(opts parseStmtOpts) {
 		p.localTypeNames[name] = true
 	}
 
-	p.skipTypeScriptTypeParameters(allowInOutVarianceAnnotations)
+	p.skipTypeScriptTypeParameters(allowInOutVarianceAnnotations | allowEmptyTypeParameters)
 
 	if p.lexer.Token == js_lexer.TExtends {
 		p.lexer.Next()
@@ -1256,7 +1264,7 @@ func (p *parser) skipTypeScriptTypeStmt(opts parseStmtOpts) {
 		p.localTypeNames[name] = true
 	}
 
-	p.skipTypeScriptTypeParameters(allowInOutVarianceAnnotations)
+	p.skipTypeScriptTypeParameters(allowInOutVarianceAnnotations | allowEmptyTypeParameters)
 	p.lexer.Expect(js_lexer.TEquals)
 	p.skipTypeScriptType(js_ast.LLowest)
 	p.lexer.ExpectOrInsertSemicolon()

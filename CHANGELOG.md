@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+* Allow empty type parameter lists in certain cases ([#3512](https://github.com/evanw/esbuild/issues/3512))
+
+    TypeScript allows interface declarations and type aliases to have empty type parameter lists. Previously esbuild didn't handle this edge case but with this release, esbuild will now parse this syntax:
+
+    ```ts
+    interface Foo<> {}
+    type Bar<> = {}
+    ```
+
+    This fix was contributed by [@magic-akari](https://github.com/magic-akari).
+
 ## 0.19.8
 
 * Add a treemap chart to esbuild's bundle analyzer ([#2848](https://github.com/evanw/esbuild/issues/2848))

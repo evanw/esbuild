@@ -3795,9 +3795,13 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 		//     <const A>(x) => {}
 		//     <const A extends B>(x) => {}
 		//
+		//   A syntax error:
+		//     <>() => {}
+		//
 		// TSX:
 		//
 		//   A JSX element:
+		//     <>() => {}</>
 		//     <A>(x) => {}</A>
 		//     <A extends/>
 		//     <A extends>(x) => {}</A>
@@ -3816,6 +3820,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 		//   A syntax error:
 		//     <[]>(x)
 		//     <A[]>(x)
+		//     <>() => {}
 		//     <A>(x) => {}
 
 		if p.options.ts.Parse && p.options.jsx.Parse && p.isTSArrowFnJSX() {
@@ -4933,6 +4938,13 @@ func (p *parser) parseJSXNamespacedName() (logger.Range, js_lexer.MaybeSubstring
 	return nameRange, name
 }
 
+func tagOrFragmentHelpText(tag string) string {
+	if tag == "" {
+		return "fragment tag"
+	}
+	return fmt.Sprintf("%q tag", tag)
+}
+
 func (p *parser) parseJSXTag() (logger.Range, string, js_ast.Expr) {
 	loc := p.lexer.Loc()
 
@@ -5226,10 +5238,12 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 			p.lexer.NextInsideJSXElement()
 			endRange, endText, _ := p.parseJSXTag()
 			if startText != endText {
+				startTag := tagOrFragmentHelpText(startText)
+				endTag := tagOrFragmentHelpText(endText)
 				msg := logger.Msg{
 					Kind:  logger.Error,
-					Data:  p.tracker.MsgData(endRange, fmt.Sprintf("Expected closing %q tag to match opening %q tag", endText, startText)),
-					Notes: []logger.MsgData{p.tracker.MsgData(startRange, fmt.Sprintf("The opening %q tag is here:", startText))},
+					Data:  p.tracker.MsgData(endRange, fmt.Sprintf("Unexpected closing %s does not match opening %s", endTag, startTag)),
+					Notes: []logger.MsgData{p.tracker.MsgData(startRange, fmt.Sprintf("The opening %s is here:", startTag))},
 				}
 				msg.Data.Location.Suggestion = startText
 				p.log.AddMsg(msg)
@@ -5247,10 +5261,11 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 			}}
 
 		case js_lexer.TEndOfFile:
+			startTag := tagOrFragmentHelpText(startText)
 			msg := logger.Msg{
 				Kind:  logger.Error,
-				Data:  p.tracker.MsgData(p.lexer.Range(), fmt.Sprintf("Unexpected end of file before a closing %q tag", startText)),
-				Notes: []logger.MsgData{p.tracker.MsgData(startRange, fmt.Sprintf("The opening %q tag is here:", startText))},
+				Data:  p.tracker.MsgData(p.lexer.Range(), fmt.Sprintf("Unexpected end of file before a closing %s", startTag)),
+				Notes: []logger.MsgData{p.tracker.MsgData(startRange, fmt.Sprintf("The opening %s is here:", startTag))},
 			}
 			msg.Data.Location.Suggestion = fmt.Sprintf("</%s>", startText)
 			p.log.AddMsg(msg)
