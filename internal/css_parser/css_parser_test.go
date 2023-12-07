@@ -613,6 +613,21 @@ func TestLowerColor(t *testing.T) {
 	expectPrintedLower(t, "a { color: hsl(1, 2%, 3%, 4) }", "a {\n  color: hsla(1, 2%, 3%, 4);\n}\n", "")
 	expectPrintedLower(t, "a { color: hsla(1deg, 2%, 3%, 4%) }", "a {\n  color: hsla(1, 2%, 3%, 0.04);\n}\n", "")
 	expectPrintedLower(t, "a { color: hsl(1deg, 2%, 3%, 0.4%) }", "a {\n  color: hsla(1, 2%, 3%, 0.004);\n}\n", "")
+
+	expectPrintedLower(t, "a { color: hwb(90deg 20% 40%) }", "a {\n  color: #669933;\n}\n", "")
+	expectPrintedLower(t, "a { color: hwb(90deg 20% 40% / 0.2) }", "a {\n  color: rgba(102, 153, 51, .2);\n}\n", "")
+	expectPrintedLower(t, "a { color: hwb(1deg 40% 80%) }", "a {\n  color: #555555;\n}\n", "")
+	expectPrintedLower(t, "a { color: hwb(1deg 9000% 50%) }", "a {\n  color: #aaaaaa;\n}\n", "")
+	expectPrintedLower(t, "a { color: hwb(1deg 9000% 50% / 0.6) }", "a {\n  color: rgba(170, 170, 170, .6);\n}\n", "")
+	expectPrintedLower(t, "a { color: hwb(90deg, 20%, 40%) }", "a {\n  color: hwb(90deg, 20%, 40%);\n}\n", "") // This is invalid
+	expectPrintedLower(t, "a { color: hwb(none 20% 40%) }", "a {\n  color: hwb(none 20% 40%);\n}\n", "")       // Interpolation
+	expectPrintedLower(t, "a { color: hwb(90deg none 40%) }", "a {\n  color: hwb(90deg none 40%);\n}\n", "")   // Interpolation
+	expectPrintedLower(t, "a { color: hwb(90deg 20% none) }", "a {\n  color: hwb(90deg 20% none);\n}\n", "")   // Interpolation
+
+	expectPrintedMangle(t, "a { color: hwb(90deg 20% 40%) }", "a {\n  color: #693;\n}\n", "")
+	expectPrintedMangle(t, "a { color: hwb(0.75turn 20% 40% / 0.75) }", "a {\n  color: #663399bf;\n}\n", "")
+	expectPrintedLowerMangle(t, "a { color: hwb(90deg 20% 40%) }", "a {\n  color: #693;\n}\n", "")
+	expectPrintedLowerMangle(t, "a { color: hwb(0.75turn 20% 40% / 0.75) }", "a {\n  color: rgba(102, 51, 153, .75);\n}\n", "")
 }
 
 func TestDeclaration(t *testing.T) {

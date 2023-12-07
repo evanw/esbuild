@@ -9,7 +9,8 @@ import (
 type CSSFeature uint8
 
 const (
-	HexRGBA CSSFeature = 1 << iota
+	HWB CSSFeature = 1 << iota
+	HexRGBA
 	InlineStyle
 	InsetProperty
 	IsPseudoClass
@@ -19,6 +20,7 @@ const (
 )
 
 var StringToCSSFeature = map[string]CSSFeature{
+	"hwb":             HWB,
 	"hex-rgba":        HexRGBA,
 	"inline-style":    InlineStyle,
 	"inset-property":  InsetProperty,
@@ -37,6 +39,14 @@ func (features CSSFeature) ApplyOverrides(overrides CSSFeature, mask CSSFeature)
 }
 
 var cssTable = map[CSSFeature]map[Engine][]versionRange{
+	HWB: {
+		Chrome:  {{start: v{101, 0, 0}}},
+		Edge:    {{start: v{101, 0, 0}}},
+		Firefox: {{start: v{96, 0, 0}}},
+		IOS:     {{start: v{15, 0, 0}}},
+		Opera:   {{start: v{87, 0, 0}}},
+		Safari:  {{start: v{15, 0, 0}}},
+	},
 	HexRGBA: {
 		Chrome:  {{start: v{62, 0, 0}}},
 		Edge:    {{start: v{79, 0, 0}}},

@@ -39,6 +39,7 @@ const cssFeatures: Partial<Record<CSSFeature, string | string[]>> = {
     'css.types.color.rgba.float_values',
     'css.types.color.rgba.space_separated_parameters',
   ],
+  HWB: 'css.types.color.hwb',
   Nesting: 'css.selectors.nesting',
 }
 

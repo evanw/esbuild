@@ -178,7 +178,7 @@ func (p *parser) processDeclarations(rules []css_ast.Rule, composesContext *comp
 				if p.options.minifySyntax {
 					t := decl.Value[0]
 					if hex, ok := parseColor(t); ok {
-						decl.Value[0] = p.mangleColor(t, hex)
+						decl.Value[0] = p.generateColor(t, hex)
 					}
 				}
 			}

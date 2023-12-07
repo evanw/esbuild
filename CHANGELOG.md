@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+* Add support for HWB colors in CSS
+
+    CSS has recently added lots of new ways of specifying colors. This release adds support for lowering and/or minifying colors that use the `hwb()` syntax:
+
+    ```css
+    /* Original code */
+    div {
+      color: hwb(90deg 20% 40%);
+    }
+
+    /* New output (with --target=chrome99) */
+    div {
+      color: #669933;
+    }
+    ```
+
 * Allow empty type parameter lists in certain cases ([#3512](https://github.com/evanw/esbuild/issues/3512))
 
     TypeScript allows interface declarations and type aliases to have empty type parameter lists. Previously esbuild didn't handle this edge case but with this release, esbuild will now parse this syntax:

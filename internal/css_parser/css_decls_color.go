@@ -407,6 +407,13 @@ func (p *parser) lowerColor(token css_ast.Token) css_ast.Token {
 					}
 				}
 			}
+
+		case "hwb":
+			if p.options.unsupportedCSSFeatures.Has(compat.HWB) {
+				if hex, ok := parseColor(token); ok {
+					return p.generateColor(token, hex)
+				}
+			}
 		}
 	}
 
@@ -483,7 +490,7 @@ func parseColor(token css_ast.Token) (uint32, bool) {
 				if g, ok := parseColorByte(g, 1); ok {
 					if b, ok := parseColorByte(b, 1); ok {
 						if a, ok := parseAlphaByte(a); ok {
-							return uint32((r << 24) | (g << 16) | (b << 8) | a), true
+							return (r << 24) | (g << 16) | (b << 8) | a, true
 						}
 					}
 				}
@@ -517,24 +524,47 @@ func parseColor(token css_ast.Token) (uint32, bool) {
 				}
 			}
 
-			// Convert from HSL to RGB. The algorithm is from the section
-			// "Converting HSL colors to sRGB colors" in the specification.
+			// HSL => RGB
 			if h, ok := degreesForAngle(h); ok {
 				if s, ok := s.FractionForPercentage(); ok {
 					if l, ok := l.FractionForPercentage(); ok {
 						if a, ok := parseAlphaByte(a); ok {
-							h /= 360.0
-							var t2 float64
-							if l <= 0.5 {
-								t2 = l * (s + 1)
-							} else {
-								t2 = l + s - (l * s)
-							}
-							t1 := l*2 - t2
-							r := hueToRgb(t1, t2, h+1.0/3.0)
-							g := hueToRgb(t1, t2, h)
-							b := hueToRgb(t1, t2, h-1.0/3.0)
-							return uint32((r << 24) | (g << 16) | (b << 8) | a), true
+							rf, gf, bf := hslToRgb(h, s, l)
+							r := floatToByte(rf)
+							g := floatToByte(gf)
+							b := floatToByte(bf)
+							return (r << 24) | (g << 16) | (b << 8) | a, true
+						}
+					}
+				}
+			}
+
+		case "hwb":
+			args := *token.Children
+			var h, s, l, a css_ast.Token
+
+			switch len(args) {
+			case 3:
+				// "hwb(1 2 3)"
+				h, s, l = args[0], args[1], args[2]
+
+			case 5:
+				// "hwb(1 2 3 / 4%)"
+				if args[3].Kind == css_lexer.TDelimSlash {
+					h, s, l, a = args[0], args[1], args[2], args[4]
+				}
+			}
+
+			// HWB => RGB
+			if h, ok := degreesForAngle(h); ok {
+				if white, ok := s.FractionForPercentage(); ok {
+					if black, ok := l.FractionForPercentage(); ok {
+						if a, ok := parseAlphaByte(a); ok {
+							rf, gf, bf := hwbToRgb(h, white, black)
+							r := floatToByte(rf)
+							g := floatToByte(gf)
+							b := floatToByte(bf)
+							return (r << 24) | (g << 16) | (b << 8) | a, true
 						}
 					}
 				}
@@ -545,7 +575,37 @@ func parseColor(token css_ast.Token) (uint32, bool) {
 	return 0, false
 }
 
-func hueToRgb(t1 float64, t2 float64, hue float64) uint32 {
+// Reference: https://drafts.csswg.org/css-color/#hwb-to-rgb
+func hwbToRgb(hue float64, white float64, black float64) (r float64, g float64, b float64) {
+	if white+black >= 1 {
+		gray := white / (white + black)
+		return gray, gray, gray
+	}
+	delta := 1 - white - black
+	r, g, b = hslToRgb(hue, 1, 0.5)
+	r = white + delta*r
+	g = white + delta*g
+	b = white + delta*b
+	return
+}
+
+// Reference https://drafts.csswg.org/css-color/#hsl-to-rgb
+func hslToRgb(hue float64, sat float64, light float64) (r float64, g float64, b float64) {
+	hue /= 360.0
+	var t2 float64
+	if light <= 0.5 {
+		t2 = light * (sat + 1)
+	} else {
+		t2 = light + sat - (light * sat)
+	}
+	t1 := light*2 - t2
+	r = hueToRgb(t1, t2, hue+1.0/3.0)
+	g = hueToRgb(t1, t2, hue)
+	b = hueToRgb(t1, t2, hue-1.0/3.0)
+	return
+}
+
+func hueToRgb(t1 float64, t2 float64, hue float64) float64 {
 	hue -= math.Floor(hue)
 	hue *= 6.0
 	var f float64
@@ -558,6 +618,10 @@ func hueToRgb(t1 float64, t2 float64, hue float64) uint32 {
 	} else {
 		f = t1
 	}
+	return f
+}
+
+func floatToByte(f float64) uint32 {
 	i := int(math.Round(f * 255))
 	if i < 0 {
 		i = 0
@@ -600,7 +664,7 @@ func parseColorByte(token css_ast.Token, scale float64) (uint32, bool) {
 	return uint32(i), ok
 }
 
-func (p *parser) mangleColor(token css_ast.Token, hex uint32) css_ast.Token {
+func (p *parser) generateColor(token css_ast.Token, hex uint32) css_ast.Token {
 	// Note: Do NOT remove color information from fully transparent colors.
 	// Safari behaves differently than other browsers for color interpolation:
 	// https://css-tricks.com/thing-know-gradients-transparent-black/
@@ -614,7 +678,7 @@ func (p *parser) mangleColor(token css_ast.Token, hex uint32) css_ast.Token {
 			token.Kind = css_lexer.THash
 			hex >>= 8
 			compact := compactHex(hex)
-			if hex == expandHex(compact) {
+			if p.options.minifySyntax && hex == expandHex(compact) {
 				token.Text = fmt.Sprintf("%03x", compact)
 			} else {
 				token.Text = fmt.Sprintf("%06x", hex)
@@ -624,7 +688,7 @@ func (p *parser) mangleColor(token css_ast.Token, hex uint32) css_ast.Token {
 		token.Children = nil
 		token.Kind = css_lexer.THash
 		compact := compactHex(hex)
-		if hex == expandHex(compact) {
+		if p.options.minifySyntax && hex == expandHex(compact) {
 			token.Text = fmt.Sprintf("%04x", compact)
 		} else {
 			token.Text = fmt.Sprintf("%08x", hex)

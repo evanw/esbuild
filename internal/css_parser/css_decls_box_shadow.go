@@ -37,7 +37,7 @@ func (p *parser) mangleBoxShadow(tokens []css_ast.Token) []css_ast.Token {
 			}
 			if hex, ok := parseColor(t); ok {
 				colorCount++
-				tokens[i] = p.mangleColor(t, hex)
+				tokens[i] = p.generateColor(t, hex)
 			} else if t.Kind == css_lexer.TIdent && strings.EqualFold(t.Text, "inset") {
 				insetCount++
 			} else {
