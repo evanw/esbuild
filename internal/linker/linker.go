@@ -112,7 +112,7 @@ type chunkInfo struct {
 	waitForIsolatedHash func() []byte
 
 	// Other fields relating to the output file for this chunk
-	jsonMetadataChunkCallback func(finalOutputSize int) helpers.Joiner
+	jsonMetadataChunkCallback func(finalOutputSize int, finalOutputHash string) helpers.Joiner
 	outputSourceMap           sourcemap.SourceMapPieces
 
 	// When this chunk is initially generated in isolation, the output pieces
@@ -701,11 +701,13 @@ func (c *linkerContext) generateChunksInParallel(additionalFiles []graph.OutputF
 				}
 
 				// Write the external legal comments file
+				legalCommentsHash := bundler.GenerateOutputFileHash(chunk.externalLegalComments)
 				outputFiles = append(outputFiles, graph.OutputFile{
 					AbsPath:  c.fs.Join(c.options.AbsOutputDir, finalRelPathForLegalComments),
 					Contents: chunk.externalLegalComments,
+					Hash:     legalCommentsHash,
 					JSONMetadataChunk: fmt.Sprintf(
-						"{\n      \"imports\": [],\n      \"exports\": [],\n      \"inputs\": {},\n      \"bytes\": %d\n    }", len(chunk.externalLegalComments)),
+						"{\n      \"imports\": [],\n      \"exports\": [],\n      \"inputs\": {},\n      \"bytes\": %d,\n      \"hash\": \"%s\"\n    }", len(chunk.externalLegalComments), legalCommentsHash),
 				})
 			}
 
@@ -738,22 +740,25 @@ func (c *linkerContext) generateChunksInParallel(additionalFiles []graph.OutputF
 				// Potentially write the external source map file
 				switch c.options.SourceMap {
 				case config.SourceMapLinkedWithComment, config.SourceMapInlineAndExternal, config.SourceMapExternalWithoutComment:
+					outputSourceMapHash := bundler.GenerateOutputFileHash(outputSourceMap)
 					outputFiles = append(outputFiles, graph.OutputFile{
 						AbsPath:  c.fs.Join(c.options.AbsOutputDir, finalRelPathForSourceMap),
 						Contents: outputSourceMap,
+						Hash:     outputSourceMapHash,
 						JSONMetadataChunk: fmt.Sprintf(
-							"{\n      \"imports\": [],\n      \"exports\": [],\n      \"inputs\": {},\n      \"bytes\": %d\n    }", len(outputSourceMap)),
+							"{\n      \"imports\": [],\n      \"exports\": [],\n      \"inputs\": {},\n      \"bytes\": %d,\n      \"hash\": \"%s\"\n    }", len(outputSourceMap), outputSourceMapHash),
 					})
 				}
 			}
 
 			// Finalize the output contents
 			outputContents := outputContentsJoiner.Done()
+			outputHash := bundler.GenerateOutputFileHash(outputContents)
 
 			// Path substitution for the JSON metadata
 			var jsonMetadataChunk string
 			if c.options.NeedsMetafile {
-				jsonMetadataChunkPieces := c.breakJoinerIntoPieces(chunk.jsonMetadataChunkCallback(len(outputContents)))
+				jsonMetadataChunkPieces := c.breakJoinerIntoPieces(chunk.jsonMetadataChunkCallback(len(outputContents), outputHash))
 				jsonMetadataChunkBytes, _ := c.substituteFinalPaths(jsonMetadataChunkPieces, func(finalRelPathForImport string) string {
 					return resolver.PrettyPath(c.fs, logger.Path{Text: c.fs.Join(c.options.AbsOutputDir, finalRelPathForImport), Namespace: "file"})
 				})
@@ -764,6 +769,7 @@ func (c *linkerContext) generateChunksInParallel(additionalFiles []graph.OutputF
 			outputFiles = append(outputFiles, graph.OutputFile{
 				AbsPath:           c.fs.Join(c.options.AbsOutputDir, chunk.finalRelPath),
 				Contents:          outputContents,
+				Hash:              outputHash,
 				JSONMetadataChunk: jsonMetadataChunk,
 				IsExecutable:      chunk.isExecutable,
 			})
@@ -5886,7 +5892,7 @@ func (c *linkerContext) generateChunkJS(chunkIndex int, chunkWaitGroup *sync.Wai
 			}
 			pieces[i] = outputs
 		}
-		chunk.jsonMetadataChunkCallback = func(finalOutputSize int) helpers.Joiner {
+		chunk.jsonMetadataChunkCallback = func(finalOutputSize int, finalOutputHash string) helpers.Joiner {
 			finalRelDir := c.fs.Dir(chunk.finalRelPath)
 			for i, sourceIndex := range metaOrder {
 				if i > 0 {
@@ -5903,7 +5909,7 @@ func (c *linkerContext) generateChunkJS(chunkIndex int, chunkWaitGroup *sync.Wai
 			if len(metaOrder) > 0 {
 				jMeta.AddString("\n      ")
 			}
-			jMeta.AddString(fmt.Sprintf("},\n      \"bytes\": %d\n    }", finalOutputSize))
+			jMeta.AddString(fmt.Sprintf("},\n      \"bytes\": %d,\n      \"hash\": \"%s\"\n    }", finalOutputSize, finalOutputHash))
 			return jMeta
 		}
 	}
@@ -6328,7 +6334,7 @@ func (c *linkerContext) generateChunkCSS(chunkIndex int, chunkWaitGroup *sync.Wa
 		for i, compileResult := range compileResults {
 			pieces[i] = c.breakOutputIntoPieces(compileResult.CSS)
 		}
-		chunk.jsonMetadataChunkCallback = func(finalOutputSize int) helpers.Joiner {
+		chunk.jsonMetadataChunkCallback = func(finalOutputSize int, finalOutputHash string) helpers.Joiner {
 			finalRelDir := c.fs.Dir(chunk.finalRelPath)
 			isFirst := true
 			for i, compileResult := range compileResults {
@@ -6347,7 +6353,7 @@ func (c *linkerContext) generateChunkCSS(chunkIndex int, chunkWaitGroup *sync.Wa
 			if len(compileResults) > 0 {
 				jMeta.AddString("\n      ")
 			}
-			jMeta.AddString(fmt.Sprintf("},\n      \"bytes\": %d\n    }", finalOutputSize))
+			jMeta.AddString(fmt.Sprintf("},\n      \"bytes\": %d,\n      \"hash\": \"%s\"\n    }", finalOutputSize, finalOutputHash))
 			return jMeta
 		}
 	}
