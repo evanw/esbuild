@@ -204,7 +204,7 @@ func (r resolverQuery) resolveToUnqualified(specifier string, parentURL string, 
 			}
 
 			// If parentLocator isn't in manifest.fallbackExclusionList, then
-			if set, _ := manifest.fallbackExclusionList[parentLocator.ident]; !set[parentLocator.reference] {
+			if set := manifest.fallbackExclusionList[parentLocator.ident]; !set[parentLocator.reference] {
 				// Let fallback be RESOLVE_VIA_FALLBACK(manifest, ident)
 				fallback, _ := r.resolveViaFallback(manifest, ident)
 

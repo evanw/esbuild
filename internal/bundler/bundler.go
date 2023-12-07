@@ -683,9 +683,7 @@ func ResolveFailureErrorTextSuggestionNotes(
 
 	if platform != config.PlatformNode {
 		pkg := path
-		if strings.HasPrefix(pkg, "node:") {
-			pkg = pkg[5:]
-		}
+		pkg = strings.TrimPrefix(pkg, "node:")
 		if resolver.BuiltInNodeModules[pkg] {
 			var how string
 			switch logger.API {

@@ -854,9 +854,8 @@ func (p *parser) parseNthIndex() (css_ast.NthIndex, bool) {
 		if strings.HasPrefix(text0, "-") {
 			bNeg = true
 			text0 = text0[1:]
-		} else if strings.HasPrefix(text0, "+") {
-			text0 = text0[1:]
 		}
+		text0 = strings.TrimPrefix(text0, "+")
 		if b, ok := parseInteger(text0); ok {
 			if bNeg {
 				b = "-" + b
@@ -887,9 +886,8 @@ func (p *parser) parseNthIndex() (css_ast.NthIndex, bool) {
 		if strings.HasPrefix(text0, "-") {
 			aSign = negative
 			text0 = text0[1:]
-		} else if strings.HasPrefix(text0, "+") {
-			text0 = text0[1:]
 		}
+		text0 = strings.TrimPrefix(text0, "+")
 	}
 
 	// The string must contain an "n"

@@ -17407,7 +17407,7 @@ func (p *parser) prepareForVisitPass() {
 		if jsxImportSource := p.lexer.JSXImportSourcePragmaComment; jsxImportSource.Text != "" {
 			if !p.options.jsx.AutomaticRuntime {
 				p.log.AddIDWithNotes(logger.MsgID_JS_UnsupportedJSXComment, logger.Warning, &p.tracker, jsxImportSource.Range,
-					fmt.Sprintf("The JSX import source cannot be set without also enabling React's \"automatic\" JSX transform"),
+					"The JSX import source cannot be set without also enabling React's \"automatic\" JSX transform",
 					[]logger.MsgData{{Text: "You can enable React's \"automatic\" JSX transform for this file by using a \"@jsxRuntime automatic\" comment."}})
 			} else {
 				p.options.jsx.ImportSource = jsxImportSource.Text

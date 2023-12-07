@@ -987,10 +987,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 					// But if there is a non-expression statement, fall back to using an
 					// IIFE since we may be in an expression context and can't use a block.
 					staticMembers = append(staticMembers, js_ast.Expr{Loc: prop.Loc, Data: &js_ast.ECall{
-						Target: js_ast.Expr{Loc: prop.Loc, Data: &js_ast.EArrow{Body: js_ast.FnBody{
-							Loc:   block.Loc,
-							Block: block.Block,
-						}}},
+						Target:                 js_ast.Expr{Loc: prop.Loc, Data: &js_ast.EArrow{Body: js_ast.FnBody(block)}},
 						CanBeUnwrappedIfUnused: p.astHelpers.StmtsCanBeRemovedIfUnused(block.Block.Stmts, 0),
 					}})
 				}
