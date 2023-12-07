@@ -281,7 +281,7 @@ func TokensAreCommaSeparated(tokens []Token) bool {
 	return false
 }
 
-func (t Token) FractionForPercentage() (float64, bool) {
+func (t Token) ClampedFractionForPercentage() (float64, bool) {
 	if t.Kind == css_lexer.TPercentage {
 		if f, err := strconv.ParseFloat(t.PercentageValue(), 64); err == nil {
 			if f < 0 {

@@ -6784,7 +6784,7 @@ class Foo {
 
       // CSS: lower
       check({ supported: { 'hex-rgba': true }, loader: 'css' }, `a { color: #1234 }`, `a {\n  color: #1234;\n}\n`),
-      check({ supported: { 'hex-rgba': false }, loader: 'css' }, `a { color: #1234 }`, `a {\n  color: rgba(17, 34, 51, 0.267);\n}\n`),
+      check({ supported: { 'hex-rgba': false }, loader: 'css' }, `a { color: #1234 }`, `a {\n  color: rgba(17, 34, 51, .267);\n}\n`),
       check({ target: 'safari15.3', loader: 'css' }, `a { mask-image: url(x.png) }`, `a {\n  -webkit-mask-image: url(x.png);\n  mask-image: url(x.png);\n}\n`),
       check({ target: 'safari15.4', loader: 'css' }, `a { mask-image: url(x.png) }`, `a {\n  mask-image: url(x.png);\n}\n`),
 

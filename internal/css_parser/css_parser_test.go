@@ -583,12 +583,12 @@ func TestColorHSLA(t *testing.T) {
 func TestLowerColor(t *testing.T) {
 	expectPrintedLower(t, "a { color: rebeccapurple }", "a {\n  color: #663399;\n}\n", "")
 
-	expectPrintedLower(t, "a { color: #0123 }", "a {\n  color: rgba(0, 17, 34, 0.2);\n}\n", "")
+	expectPrintedLower(t, "a { color: #0123 }", "a {\n  color: rgba(0, 17, 34, .2);\n}\n", "")
 	expectPrintedLower(t, "a { color: #1230 }", "a {\n  color: rgba(17, 34, 51, 0);\n}\n", "")
-	expectPrintedLower(t, "a { color: #1234 }", "a {\n  color: rgba(17, 34, 51, 0.267);\n}\n", "")
-	expectPrintedLower(t, "a { color: #123f }", "a {\n  color: rgba(17, 34, 51, 1);\n}\n", "")
-	expectPrintedLower(t, "a { color: #12345678 }", "a {\n  color: rgba(18, 52, 86, 0.471);\n}\n", "")
-	expectPrintedLower(t, "a { color: #ff00007f }", "a {\n  color: rgba(255, 0, 0, 0.498);\n}\n", "")
+	expectPrintedLower(t, "a { color: #1234 }", "a {\n  color: rgba(17, 34, 51, .267);\n}\n", "")
+	expectPrintedLower(t, "a { color: #123f }", "a {\n  color: #112233;\n}\n", "")
+	expectPrintedLower(t, "a { color: #12345678 }", "a {\n  color: rgba(18, 52, 86, .47);\n}\n", "")
+	expectPrintedLower(t, "a { color: #ff00007f }", "a {\n  color: rgba(255, 0, 0, .498);\n}\n", "")
 
 	expectPrintedLower(t, "a { color: rgb(1 2 3) }", "a {\n  color: rgb(1, 2, 3);\n}\n", "")
 	expectPrintedLower(t, "a { color: hsl(1 2% 3%) }", "a {\n  color: hsl(1, 2%, 3%);\n}\n", "")
@@ -633,11 +633,11 @@ func TestLowerColor(t *testing.T) {
 func TestBackground(t *testing.T) {
 	expectPrinted(t, "a { background: #11223344 }", "a {\n  background: #11223344;\n}\n", "")
 	expectPrintedMangle(t, "a { background: #11223344 }", "a {\n  background: #1234;\n}\n", "")
-	expectPrintedLower(t, "a { background: #11223344 }", "a {\n  background: rgba(17, 34, 51, 0.267);\n}\n", "")
+	expectPrintedLower(t, "a { background: #11223344 }", "a {\n  background: rgba(17, 34, 51, .267);\n}\n", "")
 
 	expectPrinted(t, "a { background: border-box #11223344 }", "a {\n  background: border-box #11223344;\n}\n", "")
 	expectPrintedMangle(t, "a { background: border-box #11223344 }", "a {\n  background: border-box #1234;\n}\n", "")
-	expectPrintedLower(t, "a { background: border-box #11223344 }", "a {\n  background: border-box rgba(17, 34, 51, 0.267);\n}\n", "")
+	expectPrintedLower(t, "a { background: border-box #11223344 }", "a {\n  background: border-box rgba(17, 34, 51, .267);\n}\n", "")
 }
 
 func TestDeclaration(t *testing.T) {

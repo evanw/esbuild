@@ -152,14 +152,7 @@ func (p *parser) processDeclarations(rules []css_ast.Rule, composesContext *comp
 
 		case css_ast.DBackground:
 			for i, t := range decl.Value {
-				decl.Value[i] = p.lowerColor(t)
-
-				if p.options.minifySyntax {
-					t := decl.Value[i]
-					if hex, ok := parseColor(t); ok {
-						decl.Value[i] = p.generateColor(t, hex)
-					}
-				}
+				decl.Value[i] = p.lowerAndMinifyColor(t)
 			}
 
 		case css_ast.DBackgroundColor,
@@ -185,14 +178,7 @@ func (p *parser) processDeclarations(rules []css_ast.Rule, composesContext *comp
 			css_ast.DTextEmphasisColor:
 
 			if len(decl.Value) == 1 {
-				decl.Value[0] = p.lowerColor(decl.Value[0])
-
-				if p.options.minifySyntax {
-					t := decl.Value[0]
-					if hex, ok := parseColor(t); ok {
-						decl.Value[0] = p.generateColor(t, hex)
-					}
-				}
+				decl.Value[0] = p.lowerAndMinifyColor(decl.Value[0])
 			}
 
 		case css_ast.DTransform:

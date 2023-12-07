@@ -276,7 +276,7 @@ func lowerAlphaPercentageToNumber(token css_ast.Token) css_ast.Token {
 }
 
 // Convert newer color syntax to older color syntax for older browsers
-func (p *parser) lowerColor(token css_ast.Token) css_ast.Token {
+func (p *parser) lowerAndMinifyColor(token css_ast.Token) css_ast.Token {
 	text := token.Text
 
 	switch token.Kind {
@@ -287,29 +287,13 @@ func (p *parser) lowerColor(token css_ast.Token) css_ast.Token {
 				// "#1234" => "rgba(1, 2, 3, 0.004)"
 				if hex, ok := parseHex(text); ok {
 					hex = expandHex(hex)
-					token.Kind = css_lexer.TFunction
-					token.Text = "rgba"
-					commaToken := p.commaToken(token.Loc)
-					token.Children = &[]css_ast.Token{
-						{Loc: token.Loc, Kind: css_lexer.TNumber, Text: strconv.Itoa(hexR(hex))}, commaToken,
-						{Loc: token.Loc, Kind: css_lexer.TNumber, Text: strconv.Itoa(hexG(hex))}, commaToken,
-						{Loc: token.Loc, Kind: css_lexer.TNumber, Text: strconv.Itoa(hexB(hex))}, commaToken,
-						{Loc: token.Loc, Kind: css_lexer.TNumber, Text: floatToStringForColor(float64(hexA(hex)) / 255)},
-					}
+					return p.generateColor(token, hex)
 				}
 
 			case 8:
 				// "#12345678" => "rgba(18, 52, 86, 0.47)"
 				if hex, ok := parseHex(text); ok {
-					token.Kind = css_lexer.TFunction
-					token.Text = "rgba"
-					commaToken := p.commaToken(token.Loc)
-					token.Children = &[]css_ast.Token{
-						{Loc: token.Loc, Kind: css_lexer.TNumber, Text: strconv.Itoa(hexR(hex))}, commaToken,
-						{Loc: token.Loc, Kind: css_lexer.TNumber, Text: strconv.Itoa(hexG(hex))}, commaToken,
-						{Loc: token.Loc, Kind: css_lexer.TNumber, Text: strconv.Itoa(hexB(hex))}, commaToken,
-						{Loc: token.Loc, Kind: css_lexer.TNumber, Text: floatToStringForColor(float64(hexA(hex)) / 255)},
-					}
+					return p.generateColor(token, hex)
 				}
 			}
 		}
@@ -414,6 +398,14 @@ func (p *parser) lowerColor(token css_ast.Token) css_ast.Token {
 					return p.generateColor(token, hex)
 				}
 			}
+		}
+	}
+
+	// When minifying, try to parse the color and print it back out. This minifies
+	// the color because we always print it out using the shortest encoding.
+	if p.options.minifySyntax {
+		if hex, ok := parseColor(token); ok {
+			token = p.generateColor(token, hex)
 		}
 	}
 
@@ -526,8 +518,8 @@ func parseColor(token css_ast.Token) (uint32, bool) {
 
 			// HSL => RGB
 			if h, ok := degreesForAngle(h); ok {
-				if s, ok := s.FractionForPercentage(); ok {
-					if l, ok := l.FractionForPercentage(); ok {
+				if s, ok := s.ClampedFractionForPercentage(); ok {
+					if l, ok := l.ClampedFractionForPercentage(); ok {
 						if a, ok := parseAlphaByte(a); ok {
 							rf, gf, bf := hslToRgb(h, s, l)
 							r := floatToByte(rf)
@@ -557,8 +549,8 @@ func parseColor(token css_ast.Token) (uint32, bool) {
 
 			// HWB => RGB
 			if h, ok := degreesForAngle(h); ok {
-				if white, ok := s.FractionForPercentage(); ok {
-					if black, ok := l.FractionForPercentage(); ok {
+				if white, ok := s.ClampedFractionForPercentage(); ok {
+					if black, ok := l.ClampedFractionForPercentage(); ok {
 						if a, ok := parseAlphaByte(a); ok {
 							rf, gf, bf := hwbToRgb(h, white, black)
 							r := floatToByte(rf)
