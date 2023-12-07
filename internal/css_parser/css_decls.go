@@ -150,6 +150,18 @@ func (p *parser) processDeclarations(rules []css_ast.Rule, composesContext *comp
 				rewrittenRules = rewrittenRules[:len(rewrittenRules)-1]
 			}
 
+		case css_ast.DBackground:
+			for i, t := range decl.Value {
+				decl.Value[i] = p.lowerColor(t)
+
+				if p.options.minifySyntax {
+					t := decl.Value[i]
+					if hex, ok := parseColor(t); ok {
+						decl.Value[i] = p.generateColor(t, hex)
+					}
+				}
+			}
+
 		case css_ast.DBackgroundColor,
 			css_ast.DBorderBlockEndColor,
 			css_ast.DBorderBlockStartColor,

@@ -630,6 +630,16 @@ func TestLowerColor(t *testing.T) {
 	expectPrintedLowerMangle(t, "a { color: hwb(0.75turn 20% 40% / 0.75) }", "a {\n  color: rgba(102, 51, 153, .75);\n}\n", "")
 }
 
+func TestBackground(t *testing.T) {
+	expectPrinted(t, "a { background: #11223344 }", "a {\n  background: #11223344;\n}\n", "")
+	expectPrintedMangle(t, "a { background: #11223344 }", "a {\n  background: #1234;\n}\n", "")
+	expectPrintedLower(t, "a { background: #11223344 }", "a {\n  background: rgba(17, 34, 51, 0.267);\n}\n", "")
+
+	expectPrinted(t, "a { background: border-box #11223344 }", "a {\n  background: border-box #11223344;\n}\n", "")
+	expectPrintedMangle(t, "a { background: border-box #11223344 }", "a {\n  background: border-box #1234;\n}\n", "")
+	expectPrintedLower(t, "a { background: border-box #11223344 }", "a {\n  background: border-box rgba(17, 34, 51, 0.267);\n}\n", "")
+}
+
 func TestDeclaration(t *testing.T) {
 	expectPrinted(t, ".decl {}", ".decl {\n}\n", "")
 	expectPrinted(t, ".decl { a: b }", ".decl {\n  a: b;\n}\n", "")
