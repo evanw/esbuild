@@ -1015,7 +1015,6 @@ func (p *printer) printDecorators(decorators []js_ast.Decorator, defaultMode pri
 				}
 
 				// "@foo.\u30FF" => "@(foo['\u30FF'])"
-				break
 
 			case *js_ast.EIndex:
 				if _, ok := e.Index.Data.(*js_ast.EPrivateIdentifier); ok {
@@ -1025,7 +1024,6 @@ func (p *printer) printDecorators(decorators []js_ast.Decorator, defaultMode pri
 				}
 
 				// "@(foo[bar])"
-				break
 
 			case *js_ast.EImportIdentifier:
 				ref := ast.FollowSymbols(p.symbols, e.Ref)
