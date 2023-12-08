@@ -281,6 +281,28 @@ func TokensAreCommaSeparated(tokens []Token) bool {
 	return false
 }
 
+func (t Token) NumberOrFractionForPercentage() (float64, bool) {
+	switch t.Kind {
+	case css_lexer.TNumber:
+		if f, err := strconv.ParseFloat(t.Text, 64); err == nil {
+			return f, true
+		}
+
+	case css_lexer.TPercentage:
+		if f, err := strconv.ParseFloat(t.PercentageValue(), 64); err == nil {
+			if f < 0 {
+				return 0, true
+			}
+			if f > 100 {
+				return 1, true
+			}
+			return f / 100, true
+		}
+	}
+
+	return 0, false
+}
+
 func (t Token) ClampedFractionForPercentage() (float64, bool) {
 	if t.Kind == css_lexer.TPercentage {
 		if f, err := strconv.ParseFloat(t.PercentageValue(), 64); err == nil {
@@ -290,9 +312,10 @@ func (t Token) ClampedFractionForPercentage() (float64, bool) {
 			if f > 100 {
 				return 1, true
 			}
-			return f / 100.0, true
+			return f / 100, true
 		}
 	}
+
 	return 0, false
 }
 

@@ -26,9 +26,10 @@ const jsFeatures: Partial<Record<JSFeature, string>> = {
 }
 
 const cssFeatures: Partial<Record<CSSFeature, string | string[]>> = {
-  InsetProperty: 'css.properties.inset',
-  RebeccaPurple: 'css.types.color.named-color.rebeccapurple',
+  ColorFunction: 'css.types.color.color',
   HexRGBA: 'css.types.color.rgb_hexadecimal_notation.alpha_hexadecimal_notation',
+  HWB: 'css.types.color.hwb',
+  InsetProperty: 'css.properties.inset',
   Modern_RGB_HSL: [
     'css.types.color.hsl.alpha_parameter',
     'css.types.color.hsl.space_separated_parameters',
@@ -39,8 +40,8 @@ const cssFeatures: Partial<Record<CSSFeature, string | string[]>> = {
     'css.types.color.rgba.float_values',
     'css.types.color.rgba.space_separated_parameters',
   ],
-  HWB: 'css.types.color.hwb',
   Nesting: 'css.selectors.nesting',
+  RebeccaPurple: 'css.types.color.named-color.rebeccapurple',
 }
 
 const similarPrefixedProperty: Record<string, { prefix: string, property: string }> = {

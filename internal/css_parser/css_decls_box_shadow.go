@@ -7,7 +7,7 @@ import (
 	"github.com/evanw/esbuild/internal/css_lexer"
 )
 
-func (p *parser) mangleBoxShadow(tokens []css_ast.Token) []css_ast.Token {
+func (p *parser) lowerAndMangleBoxShadow(tokens []css_ast.Token, wouldClamp *bool) []css_ast.Token {
 	insetCount := 0
 	colorCount := 0
 	numbersBegin := 0
@@ -21,7 +21,7 @@ func (p *parser) mangleBoxShadow(tokens []css_ast.Token) []css_ast.Token {
 				// Track if we found a non-number in between two numbers
 				foundUnexpectedToken = true
 			}
-			if t.TurnLengthIntoNumberIfZero() {
+			if p.options.minifySyntax && t.TurnLengthIntoNumberIfZero() {
 				// "0px" => "0"
 				tokens[i] = t
 			}
@@ -35,9 +35,10 @@ func (p *parser) mangleBoxShadow(tokens []css_ast.Token) []css_ast.Token {
 				// Track when we find a non-number after a number
 				numbersDone = true
 			}
-			if hex, ok := parseColor(t); ok {
+
+			if _, ok := parseColor(t); ok {
 				colorCount++
-				tokens[i] = p.generateColor(t, hex)
+				tokens[i] = p.lowerAndMinifyColor(t, wouldClamp)
 			} else if t.Kind == css_lexer.TIdent && strings.EqualFold(t.Text, "inset") {
 				insetCount++
 			} else {
@@ -55,7 +56,7 @@ func (p *parser) mangleBoxShadow(tokens []css_ast.Token) []css_ast.Token {
 	//   offset-x | offset-y | blur-radius | spread-radius
 	//
 	// If omitted, blur-radius and spread-radius are implied to be zero.
-	if insetCount <= 1 && colorCount <= 1 && numbersCount > 2 && numbersCount <= 4 && !foundUnexpectedToken {
+	if p.options.minifySyntax && insetCount <= 1 && colorCount <= 1 && numbersCount > 2 && numbersCount <= 4 && !foundUnexpectedToken {
 		numbersEnd := numbersBegin + numbersCount
 		for numbersCount > 2 && tokens[numbersBegin+numbersCount-1].IsZero() {
 			numbersCount--
@@ -77,7 +78,7 @@ func (p *parser) mangleBoxShadow(tokens []css_ast.Token) []css_ast.Token {
 	return tokens
 }
 
-func (p *parser) mangleBoxShadows(tokens []css_ast.Token) []css_ast.Token {
+func (p *parser) lowerAndMangleBoxShadows(tokens []css_ast.Token, wouldClamp *bool) []css_ast.Token {
 	n := len(tokens)
 	end := 0
 	i := 0
@@ -90,7 +91,7 @@ func (p *parser) mangleBoxShadows(tokens []css_ast.Token) []css_ast.Token {
 		}
 
 		// Mangle this individual shadow
-		end += copy(tokens[end:], p.mangleBoxShadow(tokens[i:comma]))
+		end += copy(tokens[end:], p.lowerAndMangleBoxShadow(tokens[i:comma], wouldClamp))
 
 		// Skip over the comma
 		if comma < n {

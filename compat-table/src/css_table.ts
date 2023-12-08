@@ -66,7 +66,7 @@ import (
 \t"github.com/evanw/esbuild/internal/css_ast"
 )
 
-type CSSFeature uint8
+type CSSFeature uint16
 
 const (
 ${Object.keys(map).sort().map((feature, i) => `\t${feature}${i ? '' : ' CSSFeature = 1 << iota'}`).join('\n')}

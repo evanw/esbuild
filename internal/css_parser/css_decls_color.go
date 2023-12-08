@@ -3,6 +3,7 @@ package css_parser
 import (
 	"fmt"
 	"math"
+	"os"
 	"strconv"
 	"strings"
 
@@ -276,7 +277,7 @@ func lowerAlphaPercentageToNumber(token css_ast.Token) css_ast.Token {
 }
 
 // Convert newer color syntax to older color syntax for older browsers
-func (p *parser) lowerAndMinifyColor(token css_ast.Token) css_ast.Token {
+func (p *parser) lowerAndMinifyColor(token css_ast.Token, wouldClamp *bool) css_ast.Token {
 	text := token.Text
 
 	switch token.Kind {
@@ -287,13 +288,13 @@ func (p *parser) lowerAndMinifyColor(token css_ast.Token) css_ast.Token {
 				// "#1234" => "rgba(1, 2, 3, 0.004)"
 				if hex, ok := parseHex(text); ok {
 					hex = expandHex(hex)
-					return p.generateColor(token, hex)
+					return p.tryToGenerateColor(token, parsedColor{sRGB: true, hex: hex}, nil)
 				}
 
 			case 8:
 				// "#12345678" => "rgba(18, 52, 86, 0.47)"
 				if hex, ok := parseHex(text); ok {
-					return p.generateColor(token, hex)
+					return p.tryToGenerateColor(token, parsedColor{sRGB: true, hex: hex}, nil)
 				}
 			}
 		}
@@ -394,8 +395,15 @@ func (p *parser) lowerAndMinifyColor(token css_ast.Token) css_ast.Token {
 
 		case "hwb":
 			if p.options.unsupportedCSSFeatures.Has(compat.HWB) {
-				if hex, ok := parseColor(token); ok {
-					return p.generateColor(token, hex)
+				if color, ok := parseColor(token); ok {
+					return p.tryToGenerateColor(token, color, wouldClamp)
+				}
+			}
+
+		case "color":
+			if p.options.unsupportedCSSFeatures.Has(compat.ColorFunction) {
+				if color, ok := parseColor(token); ok {
+					return p.tryToGenerateColor(token, color, wouldClamp)
 				}
 			}
 		}
@@ -405,20 +413,26 @@ func (p *parser) lowerAndMinifyColor(token css_ast.Token) css_ast.Token {
 	// the color because we always print it out using the shortest encoding.
 	if p.options.minifySyntax {
 		if hex, ok := parseColor(token); ok {
-			token = p.generateColor(token, hex)
+			token = p.tryToGenerateColor(token, hex, wouldClamp)
 		}
 	}
 
 	return token
 }
 
-func parseColor(token css_ast.Token) (uint32, bool) {
+type parsedColor struct {
+	x, y, z float64 // color if sRGB == false
+	hex     uint32  // color and alpha if sRGB == true, alpha if sRGB == false
+	sRGB    bool
+}
+
+func parseColor(token css_ast.Token) (parsedColor, bool) {
 	text := token.Text
 
 	switch token.Kind {
 	case css_lexer.TIdent:
 		if hex, ok := colorNameToHex[strings.ToLower(text)]; ok {
-			return hex, true
+			return parsedColor{sRGB: true, hex: hex}, true
 		}
 
 	case css_lexer.THash:
@@ -426,25 +440,25 @@ func parseColor(token css_ast.Token) (uint32, bool) {
 		case 3:
 			// "#123"
 			if hex, ok := parseHex(text); ok {
-				return (expandHex(hex) << 8) | 0xFF, true
+				return parsedColor{sRGB: true, hex: (expandHex(hex) << 8) | 0xFF}, true
 			}
 
 		case 4:
 			// "#1234"
 			if hex, ok := parseHex(text); ok {
-				return expandHex(hex), true
+				return parsedColor{sRGB: true, hex: expandHex(hex)}, true
 			}
 
 		case 6:
 			// "#112233"
 			if hex, ok := parseHex(text); ok {
-				return (hex << 8) | 0xFF, true
+				return parsedColor{sRGB: true, hex: (hex << 8) | 0xFF}, true
 			}
 
 		case 8:
 			// "#11223344"
 			if hex, ok := parseHex(text); ok {
-				return hex, true
+				return parsedColor{sRGB: true, hex: hex}, true
 			}
 		}
 
@@ -482,7 +496,7 @@ func parseColor(token css_ast.Token) (uint32, bool) {
 				if g, ok := parseColorByte(g, 1); ok {
 					if b, ok := parseColorByte(b, 1); ok {
 						if a, ok := parseAlphaByte(a); ok {
-							return (r << 24) | (g << 16) | (b << 8) | a, true
+							return parsedColor{sRGB: true, hex: (r << 24) | (g << 16) | (b << 8) | a}, true
 						}
 					}
 				}
@@ -521,11 +535,8 @@ func parseColor(token css_ast.Token) (uint32, bool) {
 				if s, ok := s.ClampedFractionForPercentage(); ok {
 					if l, ok := l.ClampedFractionForPercentage(); ok {
 						if a, ok := parseAlphaByte(a); ok {
-							rf, gf, bf := hslToRgb(h, s, l)
-							r := floatToByte(rf)
-							g := floatToByte(gf)
-							b := floatToByte(bf)
-							return (r << 24) | (g << 16) | (b << 8) | a, true
+							r, g, b := hslToRgb(h, s, l)
+							return parsedColor{sRGB: true, hex: packRGBA(r, g, b, a)}, true
 						}
 					}
 				}
@@ -552,11 +563,77 @@ func parseColor(token css_ast.Token) (uint32, bool) {
 				if white, ok := s.ClampedFractionForPercentage(); ok {
 					if black, ok := l.ClampedFractionForPercentage(); ok {
 						if a, ok := parseAlphaByte(a); ok {
-							rf, gf, bf := hwbToRgb(h, white, black)
-							r := floatToByte(rf)
-							g := floatToByte(gf)
-							b := floatToByte(bf)
-							return (r << 24) | (g << 16) | (b << 8) | a, true
+							r, g, b := hwbToRgb(h, white, black)
+							return parsedColor{sRGB: true, hex: packRGBA(r, g, b, a)}, true
+						}
+					}
+				}
+			}
+
+		case "color":
+			args := *token.Children
+			var colorSpace, alpha css_ast.Token
+
+			switch len(args) {
+			case 4:
+				// "color(xyz 1 2 3)"
+				colorSpace = args[0]
+
+			case 6:
+				// "color(xyz 1 2 3 / 50%)"
+				if args[4].Kind == css_lexer.TDelimSlash {
+					colorSpace, alpha = args[0], args[5]
+				}
+			}
+
+			if colorSpace.Kind == css_lexer.TIdent {
+				if v0, ok := args[1].NumberOrFractionForPercentage(); ok {
+					if v1, ok := args[2].NumberOrFractionForPercentage(); ok {
+						if v2, ok := args[3].NumberOrFractionForPercentage(); ok {
+							if a, ok := parseAlphaByte(alpha); ok {
+								switch colorSpace.Text {
+								case "a98-rgb":
+									r, g, b := lin_a98rgb(v0, v1, v2)
+									x, y, z := lin_a98rgb_to_xyz(r, g, b)
+									return parsedColor{x: x, y: y, z: z, hex: a}, true
+
+								case "display-p3":
+									r, g, b := lin_p3(v0, v1, v2)
+									x, y, z := lin_p3_to_xyz(r, g, b)
+									return parsedColor{x: x, y: y, z: z, hex: a}, true
+
+								case "prophoto-rgb":
+									fmt.Fprintf(os.Stderr, "v012 %f %f %f\n", v0, v1, v2)
+									r, g, b := lin_prophoto(v0, v1, v2)
+									x, y, z := lin_prophoto_to_xyz(r, g, b)
+									x, y, z = d50_to_d65(x, y, z)
+									return parsedColor{x: x, y: y, z: z, hex: a}, true
+
+								case "rec2020":
+									r, g, b := lin_2020(v0, v1, v2)
+									x, y, z := lin_2020_to_xyz(r, g, b)
+									return parsedColor{x: x, y: y, z: z, hex: a}, true
+
+								case "srgb":
+									r, g, b := lin_srgb(v0, v1, v2)
+									x, y, z := lin_srgb_to_xyz(r, g, b)
+									return parsedColor{x: x, y: y, z: z, hex: a}, true
+
+								case "srgb-linear":
+									x, y, z := lin_srgb_to_xyz(v0, v1, v2)
+									return parsedColor{x: x, y: y, z: z, hex: a}, true
+
+								case "xyz":
+									return parsedColor{x: v0, y: v1, z: v2, hex: a}, true
+
+								case "xyz-d50":
+									x, y, z := d50_to_d65(v0, v1, v2)
+									return parsedColor{x: x, y: y, z: z, hex: a}, true
+
+								case "xyz-d65":
+									return parsedColor{x: v0, y: v1, z: v2, hex: a}, true
+								}
+							}
 						}
 					}
 				}
@@ -564,7 +641,7 @@ func parseColor(token css_ast.Token) (uint32, bool) {
 		}
 	}
 
-	return 0, false
+	return parsedColor{}, false
 }
 
 // Reference: https://drafts.csswg.org/css-color/#hwb-to-rgb
@@ -613,6 +690,13 @@ func hueToRgb(t1 float64, t2 float64, hue float64) float64 {
 	return f
 }
 
+func packRGBA(rf float64, gf float64, bf float64, a uint32) uint32 {
+	r := floatToByte(rf)
+	g := floatToByte(gf)
+	b := floatToByte(bf)
+	return (r << 24) | (g << 16) | (b << 8) | a
+}
+
 func floatToByte(f float64) uint32 {
 	i := int(math.Round(f * 255))
 	if i < 0 {
@@ -656,14 +740,31 @@ func parseColorByte(token css_ast.Token, scale float64) (uint32, bool) {
 	return uint32(i), ok
 }
 
-func (p *parser) generateColor(token css_ast.Token, hex uint32) css_ast.Token {
+func (p *parser) tryToGenerateColor(token css_ast.Token, color parsedColor, wouldClamp *bool) css_ast.Token {
 	// Note: Do NOT remove color information from fully transparent colors.
 	// Safari behaves differently than other browsers for color interpolation:
 	// https://css-tricks.com/thing-know-gradients-transparent-black/
 
+	// Attempt to convert other color spaces to sRGB, and only continue if the
+	// result (rounded to the nearest byte) will be in the 0-to-1 sRGB range
+	var hex uint32
+	if color.sRGB {
+		hex = color.hex
+	} else {
+		r, g, b := gam_srgb(xyz_to_lin_srgb(color.x, color.y, color.z))
+		if r < -0.5/255 || r > 255.5/255 || g < -0.5/255 || g > 255.5/255 || b < -0.5/255 || b > 255.5/255 {
+			if wouldClamp != nil {
+				*wouldClamp = true
+				return token
+			}
+			r, g, b = gamut_mapping_xyz_to_srgb(color.x, color.y, color.z)
+		}
+		hex = packRGBA(r, g, b, color.hex)
+	}
+
 	if hexA(hex) == 255 {
 		token.Children = nil
-		if name, ok := shortColorName[hex]; ok {
+		if name, ok := shortColorName[hex]; ok && p.options.minifySyntax {
 			token.Kind = css_lexer.TIdent
 			token.Text = name
 		} else {

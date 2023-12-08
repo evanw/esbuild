@@ -6,10 +6,11 @@ import (
 	"github.com/evanw/esbuild/internal/css_ast"
 )
 
-type CSSFeature uint8
+type CSSFeature uint16
 
 const (
-	HWB CSSFeature = 1 << iota
+	ColorFunction CSSFeature = 1 << iota
+	HWB
 	HexRGBA
 	InlineStyle
 	InsetProperty
@@ -20,6 +21,7 @@ const (
 )
 
 var StringToCSSFeature = map[string]CSSFeature{
+	"color-function":  ColorFunction,
 	"hwb":             HWB,
 	"hex-rgba":        HexRGBA,
 	"inline-style":    InlineStyle,
@@ -39,6 +41,14 @@ func (features CSSFeature) ApplyOverrides(overrides CSSFeature, mask CSSFeature)
 }
 
 var cssTable = map[CSSFeature]map[Engine][]versionRange{
+	ColorFunction: {
+		Chrome:  {{start: v{111, 0, 0}}},
+		Edge:    {{start: v{111, 0, 0}}},
+		Firefox: {{start: v{113, 0, 0}}},
+		IOS:     {{start: v{15, 0, 0}}},
+		Opera:   {{start: v{97, 0, 0}}},
+		Safari:  {{start: v{15, 0, 0}}},
+	},
 	HWB: {
 		Chrome:  {{start: v{101, 0, 0}}},
 		Edge:    {{start: v{101, 0, 0}}},

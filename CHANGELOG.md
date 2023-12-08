@@ -2,21 +2,26 @@
 
 ## Unreleased
 
-* Add support for HWB colors in CSS
+* Add support for `hwb()` and `color()` in CSS
 
-    CSS has recently added lots of new ways of specifying colors. This release adds support for lowering and/or minifying colors that use the `hwb()` syntax:
+    CSS has recently added lots of new ways of specifying colors. This release adds support for lowering and/or minifying colors that use the `hwb()` or `color()` syntax for browsers that don't support it yet:
 
     ```css
     /* Original code */
     div {
       color: hwb(90deg 20% 40%);
+      background: color(display-p3 1 0 0);
     }
 
     /* New output (with --target=chrome99) */
     div {
       color: #669933;
+      background: #ff0f0e;
+      background: color(display-p3 1 0 0);
     }
     ```
+
+    As you can see, colors outside of the sRGB color space such as `color(display-p3 1 0 0)` are mapped back into the sRGB gamut and inserted as a fallback for browsers that don't support the `color()` syntax.
 
 * Allow empty type parameter lists in certain cases ([#3512](https://github.com/evanw/esbuild/issues/3512))
 

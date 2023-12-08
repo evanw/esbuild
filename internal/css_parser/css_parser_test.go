@@ -522,6 +522,64 @@ func TestHexColor(t *testing.T) {
 	expectPrintedMangle(t, "a { color: #AABBCCEF }", "a {\n  color: #aabbccef;\n}\n", "")
 }
 
+func TestColorFunction(t *testing.T) {
+	expectPrinted(t, "a { color: color(display-p3 0.5 0.0 0.0%) }", "a {\n  color: color(display-p3 0.5 0.0 0.0%);\n}\n", "")
+	expectPrinted(t, "a { color: color(display-p3 0.5 0.0 0.0% / 0.5) }", "a {\n  color: color(display-p3 0.5 0.0 0.0% / 0.5);\n}\n", "")
+
+	// Check minification of tokens
+	expectPrintedMangle(t, "a { color: color(display-p3 0.5 0.0 0.0%) }", "a {\n  color: color(display-p3 .5 0 0%);\n}\n", "")
+	expectPrintedMangle(t, "a { color: color(display-p3 0.5 0.0 0.0% / 0.5) }", "a {\n  color: color(display-p3 .5 0 0% / .5);\n}\n", "")
+
+	// Check out-of-range colors
+	expectPrintedLower(t, "a { before: 0; color: color(display-p3 1 0 0); after: 1 }",
+		"a {\n  before: 0;\n  color: #ff0f0e;\n  color: color(display-p3 1 0 0);\n  after: 1;\n}\n", "")
+	expectPrintedLowerMangle(t, "a { before: 0; color: color(display-p3 1 0 0); after: 1 }",
+		"a {\n  before: 0;\n  color: #ff0f0e;\n  color: color(display-p3 1 0 0);\n  after: 1;\n}\n", "")
+	expectPrintedLower(t, "a { before: 0; color: color(display-p3 1 0 0 / 0.5); after: 1 }",
+		"a {\n  before: 0;\n  color: rgba(255, 15, 14, .5);\n  color: color(display-p3 1 0 0 / 0.5);\n  after: 1;\n}\n", "")
+	expectPrintedLowerMangle(t, "a { before: 0; color: color(display-p3 1 0 0 / 0.5); after: 1 }",
+		"a {\n  before: 0;\n  color: rgba(255, 15, 14, .5);\n  color: color(display-p3 1 0 0 / .5);\n  after: 1;\n}\n", "")
+	expectPrintedLower(t, "a { before: 0; background: color(display-p3 1 0 0); after: 1 }",
+		"a {\n  before: 0;\n  background: #ff0f0e;\n  background: color(display-p3 1 0 0);\n  after: 1;\n}\n", "")
+	expectPrintedLowerMangle(t, "a { before: 0; background: color(display-p3 1 0 0); after: 1 }",
+		"a {\n  before: 0;\n  background: #ff0f0e;\n  background: color(display-p3 1 0 0);\n  after: 1;\n}\n", "")
+	expectPrintedLower(t, "a { before: 0; background: color(display-p3 1 0 0 / 0.5); after: 1 }",
+		"a {\n  before: 0;\n  background: rgba(255, 15, 14, .5);\n  background: color(display-p3 1 0 0 / 0.5);\n  after: 1;\n}\n", "")
+	expectPrintedLowerMangle(t, "a { before: 0; background: color(display-p3 1 0 0 / 0.5); after: 1 }",
+		"a {\n  before: 0;\n  background: rgba(255, 15, 14, .5);\n  background: color(display-p3 1 0 0 / .5);\n  after: 1;\n}\n", "")
+	expectPrintedLower(t, "a { before: 0; box-shadow: 1px color(display-p3 1 0 0); after: 1 }",
+		"a {\n  before: 0;\n  box-shadow: 1px #ff0f0e;\n  box-shadow: 1px color(display-p3 1 0 0);\n  after: 1;\n}\n", "")
+	expectPrintedLowerMangle(t, "a { before: 0; box-shadow: 1px color(display-p3 1 0 0); after: 1 }",
+		"a {\n  before: 0;\n  box-shadow: 1px #ff0f0e;\n  box-shadow: 1px color(display-p3 1 0 0);\n  after: 1;\n}\n", "")
+	expectPrintedLower(t, "a { before: 0; box-shadow: 1px color(display-p3 1 0 0 / 0.5); after: 1 }",
+		"a {\n  before: 0;\n  box-shadow: 1px rgba(255, 15, 14, .5);\n  box-shadow: 1px color(display-p3 1 0 0 / 0.5);\n  after: 1;\n}\n", "")
+	expectPrintedLowerMangle(t, "a { before: 0; box-shadow: 1px color(display-p3 1 0 0 / 0.5); after: 1 }",
+		"a {\n  before: 0;\n  box-shadow: 1px rgba(255, 15, 14, .5);\n  box-shadow: 1px color(display-p3 1 0 0 / .5);\n  after: 1;\n}\n", "")
+
+	// Check in-range colors in various color spaces
+	expectPrintedLower(t, "a { color: color(a98-rgb 0.9 0.98 0.81) }", "a {\n  color: #deface;\n}\n", "")
+	expectPrintedLower(t, "a { color: color(a98-rgb 90% 98% 81%) }", "a {\n  color: #deface;\n}\n", "")
+	expectPrintedLower(t, "a { color: color(display-p3 0.89 0.977 0.823) }", "a {\n  color: #deface;\n}\n", "")
+	expectPrintedLower(t, "a { color: color(display-p3 89% 97.7% 82.3%) }", "a {\n  color: #deface;\n}\n", "")
+	expectPrintedLower(t, "a { color: color(prophoto-rgb 0.877 0.959 0.793) }", "a {\n  color: #deface;\n}\n", "")
+	expectPrintedLower(t, "a { color: color(prophoto-rgb 87.7% 95.9% 79.3%) }", "a {\n  color: #deface;\n}\n", "")
+	expectPrintedLower(t, "a { color: color(rec2020 0.895 0.968 0.805) }", "a {\n  color: #deface;\n}\n", "")
+	expectPrintedLower(t, "a { color: color(rec2020 89.5% 96.8% 80.5%) }", "a {\n  color: #deface;\n}\n", "")
+	expectPrintedLower(t, "a { color: color(srgb 0.87 0.98 0.807) }", "a {\n  color: #deface;\n}\n", "")
+	expectPrintedLower(t, "a { color: color(srgb 87% 98% 80.7%) }", "a {\n  color: #deface;\n}\n", "")
+	expectPrintedLower(t, "a { color: color(srgb-linear 0.73 0.96 0.62) }", "a {\n  color: #deface;\n}\n", "")
+	expectPrintedLower(t, "a { color: color(srgb-linear 73% 96% 62%) }", "a {\n  color: #deface;\n}\n", "")
+	expectPrintedLower(t, "a { color: color(xyz 0.754 0.883 0.715) }", "a {\n  color: #deface;\n}\n", "")
+	expectPrintedLower(t, "a { color: color(xyz 75.4% 88.3% 71.5%) }", "a {\n  color: #deface;\n}\n", "")
+	expectPrintedLower(t, "a { color: color(xyz-d50 0.773 0.883 0.545) }", "a {\n  color: #deface;\n}\n", "")
+	expectPrintedLower(t, "a { color: color(xyz-d50 77.3% 88.3% 54.5%) }", "a {\n  color: #deface;\n}\n", "")
+	expectPrintedLower(t, "a { color: color(xyz-d65 0.754 0.883 0.715) }", "a {\n  color: #deface;\n}\n", "")
+	expectPrintedLower(t, "a { color: color(xyz-d65 75.4% 88.3% 71.5%) }", "a {\n  color: #deface;\n}\n", "")
+
+	// Test alpha
+	expectPrintedLower(t, "a { color: color(srgb 0.87 0.98 0.807 / 0.5) }", "a {\n  color: rgba(222, 250, 206, .5);\n}\n", "")
+}
+
 func TestColorNames(t *testing.T) {
 	expectPrinted(t, "a { color: #f00 }", "a {\n  color: #f00;\n}\n", "")
 	expectPrinted(t, "a { color: #f00f }", "a {\n  color: #f00f;\n}\n", "")
