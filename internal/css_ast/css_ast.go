@@ -281,7 +281,15 @@ func TokensAreCommaSeparated(tokens []Token) bool {
 	return false
 }
 
-func (t Token) NumberOrFractionForPercentage() (float64, bool) {
+type PercentageFlags uint8
+
+const (
+	AllowPercentageBelow0 PercentageFlags = 1 << iota
+	AllowPercentageAbove100
+	AllowAnyPercentage = AllowPercentageBelow0 | AllowPercentageAbove100
+)
+
+func (t Token) NumberOrFractionForPercentage(percentReferenceRange float64, flags PercentageFlags) (float64, bool) {
 	switch t.Kind {
 	case css_lexer.TNumber:
 		if f, err := strconv.ParseFloat(t.Text, 64); err == nil {
@@ -290,13 +298,13 @@ func (t Token) NumberOrFractionForPercentage() (float64, bool) {
 
 	case css_lexer.TPercentage:
 		if f, err := strconv.ParseFloat(t.PercentageValue(), 64); err == nil {
-			if f < 0 {
+			if (flags&AllowPercentageBelow0) == 0 && f < 0 {
 				return 0, true
 			}
-			if f > 100 {
-				return 1, true
+			if (flags&AllowPercentageAbove100) == 0 && f > 100 {
+				return percentReferenceRange, true
 			}
-			return f / 100, true
+			return f / 100 * percentReferenceRange, true
 		}
 	}
 

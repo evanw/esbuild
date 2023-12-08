@@ -26,7 +26,13 @@ const jsFeatures: Partial<Record<JSFeature, string>> = {
 }
 
 const cssFeatures: Partial<Record<CSSFeature, string | string[]>> = {
-  ColorFunction: 'css.types.color.color',
+  ColorFunctions: [
+    'css.types.color.color',
+    'css.types.color.lab',
+    'css.types.color.lch',
+    'css.types.color.oklab',
+    'css.types.color.oklch',
+  ],
   HexRGBA: 'css.types.color.rgb_hexadecimal_notation.alpha_hexadecimal_notation',
   HWB: 'css.types.color.hwb',
   InsetProperty: 'css.properties.inset',

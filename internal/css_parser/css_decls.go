@@ -375,7 +375,7 @@ func (p *parser) processDeclarations(rules []css_ast.Rule, composesContext *comp
 		// next iteration of the loop to duplicate this rule and process it again
 		// with color clipping enabled.
 		if wouldClipColorFlag {
-			if p.options.unsupportedCSSFeatures.Has(compat.ColorFunction) {
+			if p.options.unsupportedCSSFeatures.Has(compat.ColorFunctions) {
 				// Only do this if there was no previous instance of that property so
 				// we avoid overwriting any manually-specified fallback values
 				for j := len(rewrittenRules) - 2; j >= 0; j-- {

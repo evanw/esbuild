@@ -522,7 +522,7 @@ func TestHexColor(t *testing.T) {
 	expectPrintedMangle(t, "a { color: #AABBCCEF }", "a {\n  color: #aabbccef;\n}\n", "")
 }
 
-func TestColorFunction(t *testing.T) {
+func TestColorFunctions(t *testing.T) {
 	expectPrinted(t, "a { color: color(display-p3 0.5 0.0 0.0%) }", "a {\n  color: color(display-p3 0.5 0.0 0.0%);\n}\n", "")
 	expectPrinted(t, "a { color: color(display-p3 0.5 0.0 0.0% / 0.5) }", "a {\n  color: color(display-p3 0.5 0.0 0.0% / 0.5);\n}\n", "")
 
@@ -587,8 +587,30 @@ func TestColorFunction(t *testing.T) {
 	expectPrintedLower(t, "a { color: color(xyz-d65 0.754 0.883 0.715) }", "a {\n  color: #deface;\n}\n", "")
 	expectPrintedLower(t, "a { color: color(xyz-d65 75.4% 88.3% 71.5%) }", "a {\n  color: #deface;\n}\n", "")
 
+	// Check color functions with unusual percent reference ranges
+	expectPrintedLower(t, "a { color: lab(95.38 -15 18) }", "a {\n  color: #deface;\n}\n", "")
+	expectPrintedLower(t, "a { color: lab(95.38% -15 18) }", "a {\n  color: #deface;\n}\n", "")
+	expectPrintedLower(t, "a { color: lab(95.38 -12% 18) }", "a {\n  color: #deface;\n}\n", "")
+	expectPrintedLower(t, "a { color: lab(95.38% -15 14.4%) }", "a {\n  color: #deface;\n}\n", "")
+	expectPrintedLower(t, "a { color: lch(95.38 23.57 130.22) }", "a {\n  color: #deface;\n}\n", "")
+	expectPrintedLower(t, "a { color: lch(95.38% 23.57 130.22) }", "a {\n  color: #deface;\n}\n", "")
+	expectPrintedLower(t, "a { color: lch(95.38 19% 130.22) }", "a {\n  color: #deface;\n}\n", "")
+	expectPrintedLower(t, "a { color: lch(95.38 23.57 0.362turn) }", "a {\n  color: #deface;\n}\n", "")
+	expectPrintedLower(t, "a { color: oklab(0.953 -0.045 0.046) }", "a {\n  color: #deface;\n}\n", "")
+	expectPrintedLower(t, "a { color: oklab(95.3% -0.045 0.046) }", "a {\n  color: #deface;\n}\n", "")
+	expectPrintedLower(t, "a { color: oklab(0.953 -11.2% 0.046) }", "a {\n  color: #deface;\n}\n", "")
+	expectPrintedLower(t, "a { color: oklab(0.953 -0.045 11.5%) }", "a {\n  color: #deface;\n}\n", "")
+	expectPrintedLower(t, "a { color: oklch(0.953 0.064 134) }", "a {\n  color: #deface;\n}\n", "")
+	expectPrintedLower(t, "a { color: oklch(95.3% 0.064 134) }", "a {\n  color: #deface;\n}\n", "")
+	expectPrintedLower(t, "a { color: oklch(0.953 16% 134) }", "a {\n  color: #deface;\n}\n", "")
+	expectPrintedLower(t, "a { color: oklch(0.953 0.064 0.372turn) }", "a {\n  color: #deface;\n}\n", "")
+
 	// Test alpha
 	expectPrintedLower(t, "a { color: color(srgb 0.87 0.98 0.807 / 0.5) }", "a {\n  color: rgba(222, 250, 206, .5);\n}\n", "")
+	expectPrintedLower(t, "a { color: lab(95.38 -15 18 / 0.5) }", "a {\n  color: rgba(222, 250, 206, .5);\n}\n", "")
+	expectPrintedLower(t, "a { color: lch(95.38 23.57 130.22 / 0.5) }", "a {\n  color: rgba(222, 250, 206, .5);\n}\n", "")
+	expectPrintedLower(t, "a { color: oklab(0.953 -0.045 0.046 / 0.5) }", "a {\n  color: rgba(222, 250, 206, .5);\n}\n", "")
+	expectPrintedLower(t, "a { color: oklch(0.953 0.064 134 / 0.5) }", "a {\n  color: rgba(222, 250, 206, .5);\n}\n", "")
 }
 
 func TestColorNames(t *testing.T) {

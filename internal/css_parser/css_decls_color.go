@@ -400,8 +400,8 @@ func (p *parser) lowerAndMinifyColor(token css_ast.Token, wouldClipColor *bool) 
 				}
 			}
 
-		case "color":
-			if p.options.unsupportedCSSFeatures.Has(compat.ColorFunction) {
+		case "color", "lab", "lch", "oklab", "oklch":
+			if p.options.unsupportedCSSFeatures.Has(compat.ColorFunctions) {
 				if color, ok := parseColor(token); ok {
 					return p.tryToGenerateColor(token, color, wouldClipColor)
 				}
@@ -463,7 +463,8 @@ func parseColor(token css_ast.Token) (parsedColor, bool) {
 		}
 
 	case css_lexer.TFunction:
-		switch strings.ToLower(text) {
+		lowerText := strings.ToLower(text)
+		switch lowerText {
 		case "rgb", "rgba":
 			args := *token.Children
 			var r, g, b, a css_ast.Token
@@ -587,9 +588,9 @@ func parseColor(token css_ast.Token) (parsedColor, bool) {
 			}
 
 			if colorSpace.Kind == css_lexer.TIdent {
-				if v0, ok := args[1].NumberOrFractionForPercentage(); ok {
-					if v1, ok := args[2].NumberOrFractionForPercentage(); ok {
-						if v2, ok := args[3].NumberOrFractionForPercentage(); ok {
+				if v0, ok := args[1].NumberOrFractionForPercentage(1, 0); ok {
+					if v1, ok := args[2].NumberOrFractionForPercentage(1, 0); ok {
+						if v2, ok := args[3].NumberOrFractionForPercentage(1, 0); ok {
 							if a, ok := parseAlphaByte(alpha); ok {
 								switch strings.ToLower(colorSpace.Text) {
 								case "a98-rgb":
@@ -632,6 +633,72 @@ func parseColor(token css_ast.Token) (parsedColor, bool) {
 
 								case "xyz-d65":
 									return parsedColor{x: v0, y: v1, z: v2, hex: a}, true
+								}
+							}
+						}
+					}
+				}
+			}
+
+		case "lab", "lch", "oklab", "oklch":
+			args := *token.Children
+			var v0, v1, v2, alpha css_ast.Token
+
+			switch len(args) {
+			case 3:
+				// "lab(1 2 3)"
+				v0, v1, v2 = args[0], args[1], args[2]
+
+			case 5:
+				// "lab(1 2 3 / 50%)"
+				if args[3].Kind == css_lexer.TDelimSlash {
+					v0, v1, v2, alpha = args[0], args[1], args[2], args[4]
+				}
+			}
+
+			if v0.Kind != css_lexer.T(0) {
+				if alpha, ok := parseAlphaByte(alpha); ok {
+					switch lowerText {
+					case "lab":
+						if v0, ok := v0.NumberOrFractionForPercentage(100, 0); ok {
+							if v1, ok := v1.NumberOrFractionForPercentage(125, css_ast.AllowAnyPercentage); ok {
+								if v2, ok := v2.NumberOrFractionForPercentage(125, css_ast.AllowAnyPercentage); ok {
+									x, y, z := lab_to_xyz(v0, v1, v2)
+									x, y, z = d50_to_d65(x, y, z)
+									return parsedColor{x: x, y: y, z: z, hex: alpha}, true
+								}
+							}
+						}
+
+					case "lch":
+						if v0, ok := v0.NumberOrFractionForPercentage(100, 0); ok {
+							if v1, ok := v1.NumberOrFractionForPercentage(125, css_ast.AllowPercentageAbove100); ok {
+								if v2, ok := degreesForAngle(v2); ok {
+									l, a, b := lch_to_lab(v0, v1, v2)
+									x, y, z := lab_to_xyz(l, a, b)
+									x, y, z = d50_to_d65(x, y, z)
+									return parsedColor{x: x, y: y, z: z, hex: alpha}, true
+								}
+							}
+						}
+
+					case "oklab":
+						if v0, ok := v0.NumberOrFractionForPercentage(1, 0); ok {
+							if v1, ok := v1.NumberOrFractionForPercentage(0.4, css_ast.AllowAnyPercentage); ok {
+								if v2, ok := v2.NumberOrFractionForPercentage(0.4, css_ast.AllowAnyPercentage); ok {
+									x, y, z := oklab_to_xyz(v0, v1, v2)
+									return parsedColor{x: x, y: y, z: z, hex: alpha}, true
+								}
+							}
+						}
+
+					case "oklch":
+						if v0, ok := v0.NumberOrFractionForPercentage(1, 0); ok {
+							if v1, ok := v1.NumberOrFractionForPercentage(0.4, css_ast.AllowPercentageAbove100); ok {
+								if v2, ok := degreesForAngle(v2); ok {
+									l, a, b := oklch_to_oklab(v0, v1, v2)
+									x, y, z := oklab_to_xyz(l, a, b)
+									return parsedColor{x: x, y: y, z: z, hex: alpha}, true
 								}
 							}
 						}
