@@ -556,6 +556,12 @@ func TestColorFunction(t *testing.T) {
 	expectPrintedLowerMangle(t, "a { before: 0; box-shadow: 1px color(display-p3 1 0 0 / 0.5); after: 1 }",
 		"a {\n  before: 0;\n  box-shadow: 1px rgba(255, 15, 14, .5);\n  box-shadow: 1px color(display-p3 1 0 0 / .5);\n  after: 1;\n}\n", "")
 
+	// Don't insert a fallback after a previous instance of the same property
+	expectPrintedLower(t, "a { color: red; color: color(display-p3 1 0 0) }",
+		"a {\n  color: red;\n  color: color(display-p3 1 0 0);\n}\n", "")
+	expectPrintedLower(t, "a { color: color(display-p3 1 0 0); color: color(display-p3 0 1 0) }",
+		"a {\n  color: #ff0f0e;\n  color: color(display-p3 1 0 0);\n  color: color(display-p3 0 1 0);\n}\n", "")
+
 	// Check case sensitivity
 	expectPrintedLower(t, "a { color: color(srgb 0.87 0.98 0.807) }", "a {\n  color: #deface;\n}\n", "")
 	expectPrintedLower(t, "A { Color: Color(Srgb 0.87 0.98 0.807) }", "A {\n  Color: #deface;\n}\n", "")

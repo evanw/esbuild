@@ -127,12 +127,10 @@ func (p *parser) processDeclarations(rules []css_ast.Rule, composesContext *comp
 			continue
 		}
 
-		// If the previous loop iteration would have clipped a color, we duplicate
-		// it and insert the clipped copy before the unclipped copy. But we only do
-		// this if there was no previous instance of that property so we avoid
-		// overwriting any manually-specified fallback values.
+		// If the previous loop iteration would have clipped a color, we will
+		// duplicate it and insert the clipped copy before the unclipped copy
 		var wouldClipColor *bool
-		if wouldClipColorFlag && p.options.unsupportedCSSFeatures.Has(compat.ColorFunction) {
+		if wouldClipColorFlag {
 			wouldClipColorFlag = false
 			clone := *decl
 			clone.Value = css_ast.CloneTokensWithoutImportRecords(clone.Value)
@@ -372,8 +370,28 @@ func (p *parser) processDeclarations(rules []css_ast.Rule, composesContext *comp
 			}
 		}
 
-		if wouldClipColorFlag && p.options.unsupportedCSSFeatures.Has(compat.ColorFunction) {
-			i -= 1
+		// If this loop iteration would have clipped a color, the out-of-gamut
+		// colors will not be clipped and this flag will be set. We then set up the
+		// next iteration of the loop to duplicate this rule and process it again
+		// with color clipping enabled.
+		if wouldClipColorFlag {
+			if p.options.unsupportedCSSFeatures.Has(compat.ColorFunction) {
+				// Only do this if there was no previous instance of that property so
+				// we avoid overwriting any manually-specified fallback values
+				for j := len(rewrittenRules) - 2; j >= 0; j-- {
+					if prev, ok := rewrittenRules[j].Data.(*css_ast.RDeclaration); ok && prev.Key == decl.Key {
+						wouldClipColorFlag = false
+						break
+					}
+				}
+				if wouldClipColorFlag {
+					// If the code above would have clipped a color outside of the sRGB gamut,
+					// process this rule again so we can generate the clipped version next time
+					i -= 1
+					continue
+				}
+			}
+			wouldClipColorFlag = false
 		}
 	}
 
