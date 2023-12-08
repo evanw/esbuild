@@ -88,6 +88,7 @@ func (p *parser) processDeclarations(rules []css_ast.Rule, composesContext *comp
 	borderRadius := borderRadiusTracker{}
 	rewrittenRules = make([]css_ast.Rule, 0, len(rules))
 	didWarnAboutComposes := false
+	wouldClipColorFlag := false
 	var declarationKeys map[string]struct{}
 
 	// Don't automatically generate the "inset" property if it's not supported
@@ -118,11 +119,29 @@ func (p *parser) processDeclarations(rules []css_ast.Rule, composesContext *comp
 		}
 	}
 
-	for _, rule := range rules {
+	for i := 0; i < len(rules); i++ {
+		rule := rules[i]
 		rewrittenRules = append(rewrittenRules, rule)
 		decl, ok := rule.Data.(*css_ast.RDeclaration)
 		if !ok {
 			continue
+		}
+
+		// If the previous loop iteration would have clipped a color, we duplicate
+		// it and insert the clipped copy before the unclipped copy. But we only do
+		// this if there was no previous instance of that property so we avoid
+		// overwriting any manually-specified fallback values.
+		var wouldClipColor *bool
+		if wouldClipColorFlag && p.options.unsupportedCSSFeatures.Has(compat.ColorFunction) {
+			wouldClipColorFlag = false
+			clone := *decl
+			clone.Value = css_ast.CloneTokensWithoutImportRecords(clone.Value)
+			decl = &clone
+			rule.Data = decl
+			n := len(rewrittenRules) - 2
+			rewrittenRules = append(rewrittenRules[:n], rule, rewrittenRules[n])
+		} else {
+			wouldClipColor = &wouldClipColorFlag
 		}
 
 		switch decl.Key {
@@ -151,19 +170,8 @@ func (p *parser) processDeclarations(rules []css_ast.Rule, composesContext *comp
 			}
 
 		case css_ast.DBackground:
-			wouldClamp := false
 			for i, t := range decl.Value {
-				decl.Value[i] = p.lowerAndMinifyColor(t, &wouldClamp)
-			}
-
-			// If this contains values outside of sRGB, duplicate and clamp
-			if wouldClamp && p.options.unsupportedCSSFeatures.Has(compat.ColorFunction) {
-				clamped := *decl
-				clamped.Value = css_ast.CloneTokensWithoutImportRecords(clamped.Value)
-				for i, t := range clamped.Value {
-					clamped.Value[i] = p.lowerAndMinifyColor(t, nil)
-				}
-				rewrittenRules = append(rewrittenRules[:len(rewrittenRules)-1], css_ast.Rule{Loc: rule.Loc, Data: &clamped}, rule)
+				decl.Value[i] = p.lowerAndMinifyColor(t, wouldClipColor)
 			}
 
 		case css_ast.DBackgroundColor,
@@ -189,16 +197,7 @@ func (p *parser) processDeclarations(rules []css_ast.Rule, composesContext *comp
 			css_ast.DTextEmphasisColor:
 
 			if len(decl.Value) == 1 {
-				wouldClamp := false
-				decl.Value[0] = p.lowerAndMinifyColor(decl.Value[0], &wouldClamp)
-
-				// If this contains values outside of sRGB, duplicate and clamp
-				if wouldClamp && p.options.unsupportedCSSFeatures.Has(compat.ColorFunction) && len(decl.Value) == 1 {
-					clamped := *decl
-					clamped.Value = css_ast.CloneTokensWithoutImportRecords(clamped.Value)
-					clamped.Value[0] = p.lowerAndMinifyColor(clamped.Value[0], nil)
-					rewrittenRules = append(rewrittenRules[:len(rewrittenRules)-1], css_ast.Rule{Loc: rule.Loc, Data: &clamped}, rule)
-				}
+				decl.Value[0] = p.lowerAndMinifyColor(decl.Value[0], wouldClipColor)
 			}
 
 		case css_ast.DTransform:
@@ -207,16 +206,7 @@ func (p *parser) processDeclarations(rules []css_ast.Rule, composesContext *comp
 			}
 
 		case css_ast.DBoxShadow:
-			wouldClamp := false
-			decl.Value = p.lowerAndMangleBoxShadows(decl.Value, &wouldClamp)
-
-			// If this contains values outside of sRGB, duplicate and clamp
-			if wouldClamp && p.options.unsupportedCSSFeatures.Has(compat.ColorFunction) {
-				clamped := *decl
-				clamped.Value = css_ast.CloneTokensWithoutImportRecords(clamped.Value)
-				clamped.Value = p.lowerAndMangleBoxShadows(clamped.Value, nil)
-				rewrittenRules = append(rewrittenRules[:len(rewrittenRules)-1], css_ast.Rule{Loc: rule.Loc, Data: &clamped}, rule)
-			}
+			decl.Value = p.lowerAndMangleBoxShadows(decl.Value, wouldClipColor)
 
 		// Container name
 		case css_ast.DContainer:
@@ -380,6 +370,10 @@ func (p *parser) processDeclarations(rules []css_ast.Rule, composesContext *comp
 			if (prefixes & compat.OPrefix) != 0 {
 				rewrittenRules = p.insertPrefixedDeclaration(rewrittenRules, "-o-", rule.Loc, decl, declarationKeys)
 			}
+		}
+
+		if wouldClipColorFlag && p.options.unsupportedCSSFeatures.Has(compat.ColorFunction) {
+			i -= 1
 		}
 	}
 

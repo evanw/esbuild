@@ -7,7 +7,7 @@ import (
 	"github.com/evanw/esbuild/internal/css_lexer"
 )
 
-func (p *parser) lowerAndMangleBoxShadow(tokens []css_ast.Token, wouldClamp *bool) []css_ast.Token {
+func (p *parser) lowerAndMangleBoxShadow(tokens []css_ast.Token, wouldClipColor *bool) []css_ast.Token {
 	insetCount := 0
 	colorCount := 0
 	numbersBegin := 0
@@ -38,7 +38,7 @@ func (p *parser) lowerAndMangleBoxShadow(tokens []css_ast.Token, wouldClamp *boo
 
 			if _, ok := parseColor(t); ok {
 				colorCount++
-				tokens[i] = p.lowerAndMinifyColor(t, wouldClamp)
+				tokens[i] = p.lowerAndMinifyColor(t, wouldClipColor)
 			} else if t.Kind == css_lexer.TIdent && strings.EqualFold(t.Text, "inset") {
 				insetCount++
 			} else {
@@ -78,7 +78,7 @@ func (p *parser) lowerAndMangleBoxShadow(tokens []css_ast.Token, wouldClamp *boo
 	return tokens
 }
 
-func (p *parser) lowerAndMangleBoxShadows(tokens []css_ast.Token, wouldClamp *bool) []css_ast.Token {
+func (p *parser) lowerAndMangleBoxShadows(tokens []css_ast.Token, wouldClipColor *bool) []css_ast.Token {
 	n := len(tokens)
 	end := 0
 	i := 0
@@ -91,7 +91,7 @@ func (p *parser) lowerAndMangleBoxShadows(tokens []css_ast.Token, wouldClamp *bo
 		}
 
 		// Mangle this individual shadow
-		end += copy(tokens[end:], p.lowerAndMangleBoxShadow(tokens[i:comma], wouldClamp))
+		end += copy(tokens[end:], p.lowerAndMangleBoxShadow(tokens[i:comma], wouldClipColor))
 
 		// Skip over the comma
 		if comma < n {

@@ -277,7 +277,7 @@ func lowerAlphaPercentageToNumber(token css_ast.Token) css_ast.Token {
 }
 
 // Convert newer color syntax to older color syntax for older browsers
-func (p *parser) lowerAndMinifyColor(token css_ast.Token, wouldClamp *bool) css_ast.Token {
+func (p *parser) lowerAndMinifyColor(token css_ast.Token, wouldClipColor *bool) css_ast.Token {
 	text := token.Text
 
 	switch token.Kind {
@@ -396,14 +396,14 @@ func (p *parser) lowerAndMinifyColor(token css_ast.Token, wouldClamp *bool) css_
 		case "hwb":
 			if p.options.unsupportedCSSFeatures.Has(compat.HWB) {
 				if color, ok := parseColor(token); ok {
-					return p.tryToGenerateColor(token, color, wouldClamp)
+					return p.tryToGenerateColor(token, color, wouldClipColor)
 				}
 			}
 
 		case "color":
 			if p.options.unsupportedCSSFeatures.Has(compat.ColorFunction) {
 				if color, ok := parseColor(token); ok {
-					return p.tryToGenerateColor(token, color, wouldClamp)
+					return p.tryToGenerateColor(token, color, wouldClipColor)
 				}
 			}
 		}
@@ -413,7 +413,7 @@ func (p *parser) lowerAndMinifyColor(token css_ast.Token, wouldClamp *bool) css_
 	// the color because we always print it out using the shortest encoding.
 	if p.options.minifySyntax {
 		if hex, ok := parseColor(token); ok {
-			token = p.tryToGenerateColor(token, hex, wouldClamp)
+			token = p.tryToGenerateColor(token, hex, wouldClipColor)
 		}
 	}
 
@@ -740,7 +740,7 @@ func parseColorByte(token css_ast.Token, scale float64) (uint32, bool) {
 	return uint32(i), ok
 }
 
-func (p *parser) tryToGenerateColor(token css_ast.Token, color parsedColor, wouldClamp *bool) css_ast.Token {
+func (p *parser) tryToGenerateColor(token css_ast.Token, color parsedColor, wouldClipColor *bool) css_ast.Token {
 	// Note: Do NOT remove color information from fully transparent colors.
 	// Safari behaves differently than other browsers for color interpolation:
 	// https://css-tricks.com/thing-know-gradients-transparent-black/
@@ -753,8 +753,8 @@ func (p *parser) tryToGenerateColor(token css_ast.Token, color parsedColor, woul
 	} else {
 		r, g, b := gam_srgb(xyz_to_lin_srgb(color.x, color.y, color.z))
 		if r < -0.5/255 || r > 255.5/255 || g < -0.5/255 || g > 255.5/255 || b < -0.5/255 || b > 255.5/255 {
-			if wouldClamp != nil {
-				*wouldClamp = true
+			if wouldClipColor != nil {
+				*wouldClipColor = true
 				return token
 			}
 			r, g, b = gamut_mapping_xyz_to_srgb(color.x, color.y, color.z)
