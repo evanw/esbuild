@@ -300,13 +300,13 @@ func (p *parser) lowerAndMinifyColor(token css_ast.Token, wouldClamp *bool) css_
 		}
 
 	case css_lexer.TIdent:
-		if text == "rebeccapurple" && p.options.unsupportedCSSFeatures.Has(compat.RebeccaPurple) {
+		if p.options.unsupportedCSSFeatures.Has(compat.RebeccaPurple) && strings.EqualFold(text, "rebeccapurple") {
 			token.Kind = css_lexer.THash
 			token.Text = "663399"
 		}
 
 	case css_lexer.TFunction:
-		switch text {
+		switch strings.ToLower(text) {
 		case "rgb", "rgba", "hsl", "hsla":
 			if p.options.unsupportedCSSFeatures.Has(compat.Modern_RGB_HSL) {
 				args := *token.Children
@@ -379,15 +379,15 @@ func (p *parser) lowerAndMinifyColor(token css_ast.Token, wouldClamp *bool) css_
 				}
 
 				if removeAlpha {
-					if text == "rgba" {
+					if strings.EqualFold(text, "rgba") {
 						token.Text = "rgb"
-					} else if text == "hsla" {
+					} else if strings.EqualFold(text, "hsla") {
 						token.Text = "hsl"
 					}
 				} else if addAlpha {
-					if text == "rgb" {
+					if strings.EqualFold(text, "rgb") {
 						token.Text = "rgba"
-					} else if text == "hsl" {
+					} else if strings.EqualFold(text, "hsl") {
 						token.Text = "hsla"
 					}
 				}
@@ -463,7 +463,7 @@ func parseColor(token css_ast.Token) (parsedColor, bool) {
 		}
 
 	case css_lexer.TFunction:
-		switch text {
+		switch strings.ToLower(text) {
 		case "rgb", "rgba":
 			args := *token.Children
 			var r, g, b, a css_ast.Token
@@ -591,7 +591,7 @@ func parseColor(token css_ast.Token) (parsedColor, bool) {
 					if v1, ok := args[2].NumberOrFractionForPercentage(); ok {
 						if v2, ok := args[3].NumberOrFractionForPercentage(); ok {
 							if a, ok := parseAlphaByte(alpha); ok {
-								switch colorSpace.Text {
+								switch strings.ToLower(colorSpace.Text) {
 								case "a98-rgb":
 									r, g, b := lin_a98rgb(v0, v1, v2)
 									x, y, z := lin_a98rgb_to_xyz(r, g, b)
