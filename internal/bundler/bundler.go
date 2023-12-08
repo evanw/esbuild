@@ -1035,11 +1035,12 @@ func runOnLoadPlugins(
 			}
 
 			// Otherwise, continue on to the next loader if this loader didn't succeed
-			if result.Contents == nil {
+			if result.Contents != nil {
+				source.Contents = *result.Contents
+			} else if result.Loader != config.LoaderEmpty {
 				continue
 			}
 
-			source.Contents = *result.Contents
 			loader := result.Loader
 			if loader == config.LoaderNone {
 				loader = config.LoaderJS
