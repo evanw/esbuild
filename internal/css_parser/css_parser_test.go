@@ -760,18 +760,49 @@ func TestGradient(t *testing.T) {
 		code = "a { background: " + gradient + "(yellow, #11223344) }"
 		expectPrinted(t, code, "a {\n  background: "+gradient+"(yellow, #11223344);\n}\n", "")
 		expectPrintedMangle(t, code, "a {\n  background: "+gradient+"(#ff0, #1234);\n}\n", "")
+		expectPrintedMinify(t, code, "a{background:"+gradient+"(yellow,#11223344)}", "")
 		expectPrintedLower(t, code, "a {\n  background: "+gradient+"(yellow, rgba(17, 34, 51, .267));\n}\n", "")
+
+		// Basic with positions
+		code = "a { background: " + gradient + "(yellow 10%, #11223344 90%) }"
+		expectPrinted(t, code, "a {\n  background: "+gradient+"(yellow 10%, #11223344 90%);\n}\n", "")
+		expectPrintedMangle(t, code, "a {\n  background: "+gradient+"(#ff0 10%, #1234 90%);\n}\n", "")
+		expectPrintedMinify(t, code, "a{background:"+gradient+"(yellow 10%,#11223344 90%)}", "")
+		expectPrintedLower(t, code, "a {\n  background: "+gradient+"(yellow 10%, rgba(17, 34, 51, .267) 90%);\n}\n", "")
+
+		// Basic with hints
+		code = "a { background: " + gradient + "(yellow, 25%, #11223344) }"
+		expectPrinted(t, code, "a {\n  background: "+gradient+"(yellow, 25%, #11223344);\n}\n", "")
+		expectPrintedMangle(t, code, "a {\n  background: "+gradient+"(#ff0, 25%, #1234);\n}\n", "")
+		expectPrintedMinify(t, code, "a{background:"+gradient+"(yellow,25%,#11223344)}", "")
+		expectPrintedLower(t, code, "a {\n  background: "+gradient+"(yellow, 25%, rgba(17, 34, 51, .267));\n}\n", "")
 
 		// Double positions
 		code = "a { background: " + gradient + "(green, red 10%, red 20%, yellow 70% 80%, black) }"
 		expectPrinted(t, code, "a {\n  background: "+gradient+"(green, red 10%, red 20%, yellow 70% 80%, black);\n}\n", "")
 		expectPrintedMangle(t, code, "a {\n  background: "+gradient+"(green, red 10% 20%, #ff0 70% 80%, #000);\n}\n", "")
+		expectPrintedMinify(t, code, "a{background:"+gradient+"(green,red 10%,red 20%,yellow 70% 80%,black)}", "")
 		expectPrintedLower(t, code, "a {\n  background: "+gradient+"(green, red 10%, red 20%, yellow 70%, yellow 80%, black);\n}\n", "")
+
+		// Double positions with hints
+		code = "a { background: " + gradient + "(green, red 10%, red 20%, 30%, yellow 70% 80%, 85%, black) }"
+		expectPrinted(t, code, "a {\n  background: "+gradient+"(green, red 10%, red 20%, 30%, yellow 70% 80%, 85%, black);\n}\n", "")
+		expectPrintedMangle(t, code, "a {\n  background: "+gradient+"(green, red 10% 20%, 30%, #ff0 70% 80%, 85%, #000);\n}\n", "")
+		expectPrintedMinify(t, code, "a{background:"+gradient+"(green,red 10%,red 20%,30%,yellow 70% 80%,85%,black)}", "")
+		expectPrintedLower(t, code, "a {\n  background: "+gradient+"(green, red 10%, red 20%, 30%, yellow 70%, yellow 80%, 85%, black);\n}\n", "")
+
+		// Non-double positions with hints
+		code = "a { background: " + gradient + "(green, red 10%, 1%, red 20%, black) }"
+		expectPrinted(t, code, "a {\n  background: "+gradient+"(green, red 10%, 1%, red 20%, black);\n}\n", "")
+		expectPrintedMangle(t, code, "a {\n  background: "+gradient+"(green, red 10%, 1%, red 20%, #000);\n}\n", "")
+		expectPrintedMinify(t, code, "a{background:"+gradient+"(green,red 10%,1%,red 20%,black)}", "")
+		expectPrintedLower(t, code, "a {\n  background: "+gradient+"(green, red 10%, 1%, red 20%, black);\n}\n", "")
 
 		// Out-of-gamut colors
 		code = "a { background: " + gradient + "(yellow, color(display-p3 1 0 0)) }"
 		expectPrinted(t, code, "a {\n  background: "+gradient+"(yellow, color(display-p3 1 0 0));\n}\n", "")
 		expectPrintedMangle(t, code, "a {\n  background: "+gradient+"(#ff0, color(display-p3 1 0 0));\n}\n", "")
+		expectPrintedMinify(t, code, "a{background:"+gradient+"(yellow,color(display-p3 1 0 0))}", "")
 		expectPrintedLower(t, code, "a {\n  background: "+gradient+"(yellow, #ff0f0e);\n  "+
 			"background: "+gradient+"(yellow, color(display-p3 1 0 0));\n}\n", "")
 

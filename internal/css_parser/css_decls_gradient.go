@@ -26,6 +26,7 @@ type parsedGradient struct {
 type colorStop struct {
 	positions []css_ast.Token
 	color     css_ast.Token
+	hint      css_ast.Token // Absent if "hint.Kind == css_lexer.T(0)"
 }
 
 func parseGradient(token css_ast.Token) (gradient parsedGradient, success bool) {
@@ -102,19 +103,36 @@ func parseGradient(token css_ast.Token) (gradient parsedGradient, success bool) 
 			tokens = tokens[1:]
 		}
 
-		// Add the color stop
-		gradient.colorStops = append(gradient.colorStops, colorStop{
-			color:     color,
-			positions: positions,
-		})
-
 		// Parse the comma
+		var hint css_ast.Token
 		if len(tokens) > 0 {
 			if tokens[0].Kind != css_lexer.TComma {
 				return
 			}
 			tokens = tokens[1:]
+			if len(tokens) == 0 {
+				return
+			}
+
+			// Parse the hint, if any
+			if len(tokens) > 0 && tokens[0].Kind.IsNumeric() {
+				hint = tokens[0]
+				tokens = tokens[1:]
+
+				// Followed by a mandatory comma
+				if len(tokens) == 0 || tokens[0].Kind != css_lexer.TComma {
+					return
+				}
+				tokens = tokens[1:]
+			}
 		}
+
+		// Add the color stop
+		gradient.colorStops = append(gradient.colorStops, colorStop{
+			color:     color,
+			positions: positions,
+			hint:      hint,
+		})
 	}
 
 	success = true
@@ -132,6 +150,9 @@ func (p *parser) generateGradient(token css_ast.Token, gradient parsedGradient) 
 		}
 		children = append(children, stop.color)
 		children = append(children, stop.positions...)
+		if stop.hint.Kind != css_lexer.T(0) {
+			children = append(children, commaToken, stop.hint)
+		}
 	}
 
 	token.Children = &children
@@ -161,7 +182,7 @@ func (p *parser) lowerAndMinifyGradient(token css_ast.Token, wouldClipColor *boo
 		// Replace duplicated single positions with double positions
 		for i, stop := range gradient.colorStops {
 			if i > 0 && len(stop.positions) == 1 {
-				if prev := gradient.colorStops[i-1]; len(prev.positions) == 1 &&
+				if prev := gradient.colorStops[i-1]; len(prev.positions) == 1 && prev.hint.Kind == css_lexer.T(0) &&
 					css_ast.TokensEqual([]css_ast.Token{prev.color}, []css_ast.Token{stop.color}, nil) {
 					gradient.colorStops = switchToDoublePositions(gradient.colorStops)
 					break
@@ -175,14 +196,17 @@ func (p *parser) lowerAndMinifyGradient(token css_ast.Token, wouldClipColor *boo
 
 func switchToSinglePositions(double []colorStop) (single []colorStop) {
 	for _, stop := range double {
-		for _, position := range stop.positions {
-			position.Whitespace = css_ast.WhitespaceBefore
-			stop.positions = []css_ast.Token{position}
-			single = append(single, stop)
+		for i := range stop.positions {
+			stop.positions[i].Whitespace = css_ast.WhitespaceBefore
 		}
-		if len(stop.positions) == 0 {
-			single = append(single, stop)
+		for len(stop.positions) > 1 {
+			clone := stop
+			clone.positions = stop.positions[:1]
+			clone.hint = css_ast.Token{}
+			single = append(single, clone)
+			stop.positions = stop.positions[1:]
 		}
+		single = append(single, stop)
 	}
 	return
 }
@@ -190,12 +214,13 @@ func switchToSinglePositions(double []colorStop) (single []colorStop) {
 func switchToDoublePositions(single []colorStop) (double []colorStop) {
 	for i := 0; i < len(single); i++ {
 		stop := single[i]
-		if i+1 < len(single) && len(stop.positions) == 1 {
+		if i+1 < len(single) && len(stop.positions) == 1 && stop.hint.Kind == css_lexer.T(0) {
 			if next := single[i+1]; len(next.positions) == 1 &&
 				css_ast.TokensEqual([]css_ast.Token{stop.color}, []css_ast.Token{next.color}, nil) {
 				double = append(double, colorStop{
 					color:     stop.color,
 					positions: []css_ast.Token{stop.positions[0], next.positions[0]},
+					hint:      next.hint,
 				})
 				i++
 				continue
