@@ -811,7 +811,7 @@ func TestGradient(t *testing.T) {
 		expectPrinted(t, code, "a {\n  background: "+gradient+
 			"(color-mix(in lab, red, green)calc(1px)calc(2px), color-mix(in lab, blue, red)calc(98%)calc(99%));\n}\n", "")
 		expectPrintedMangle(t, code, "a {\n  background: "+gradient+
-			"(color-mix(in lab, red, green)1px2px, color-mix(in lab, blue, red)98%99%);\n}\n", "")
+			"(color-mix(in lab, red, green) 1px 2px, color-mix(in lab, blue, red) 98% 99%);\n}\n", "")
 		expectPrintedMinify(t, code, "a{background:"+gradient+
 			"(color-mix(in lab,red,green)calc(1px)calc(2px),color-mix(in lab,blue,red)calc(98%)calc(99%))}", "")
 		expectPrintedLower(t, code, "a {\n  background: "+gradient+

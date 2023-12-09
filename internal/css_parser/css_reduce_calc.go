@@ -24,6 +24,7 @@ func (p *parser) tryToReduceCalcExpression(token css_ast.Token) css_ast.Token {
 				result.Text = "calc"
 			}
 			result.Loc = token.Loc
+			result.Whitespace = css_ast.WhitespaceBefore | css_ast.WhitespaceAfter
 			return result
 		}
 	}
