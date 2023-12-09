@@ -169,7 +169,18 @@ func (p *parser) processDeclarations(rules []css_ast.Rule, composesContext *comp
 
 		case css_ast.DBackground:
 			for i, t := range decl.Value {
-				decl.Value[i] = p.lowerAndMinifyColor(t, wouldClipColor)
+				t = p.lowerAndMinifyColor(t, wouldClipColor)
+				t = p.lowerAndMinifyGradient(t, wouldClipColor)
+				decl.Value[i] = t
+			}
+
+		case css_ast.DBackgroundImage,
+			css_ast.DBorderImage,
+			css_ast.DMaskImage:
+
+			for i, t := range decl.Value {
+				t = p.lowerAndMinifyGradient(t, wouldClipColor)
+				decl.Value[i] = t
 			}
 
 		case css_ast.DBackgroundColor,

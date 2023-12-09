@@ -737,6 +737,61 @@ func TestBackground(t *testing.T) {
 	expectPrintedLower(t, "a { background: border-box #11223344 }", "a {\n  background: border-box rgba(17, 34, 51, .267);\n}\n", "")
 }
 
+func TestGradient(t *testing.T) {
+	gradientKinds := []string{
+		"linear-gradient",
+		"radial-gradient",
+		"conic-gradient",
+		"repeating-linear-gradient",
+		"repeating-radial-gradient",
+		"repeating-conic-gradient",
+	}
+
+	for _, gradient := range gradientKinds {
+		var code string
+
+		// Different properties
+		expectPrinted(t, "a { background: "+gradient+"(red, blue) }", "a {\n  background: "+gradient+"(red, blue);\n}\n", "")
+		expectPrinted(t, "a { background-image: "+gradient+"(red, blue) }", "a {\n  background-image: "+gradient+"(red, blue);\n}\n", "")
+		expectPrinted(t, "a { border-image: "+gradient+"(red, blue) }", "a {\n  border-image: "+gradient+"(red, blue);\n}\n", "")
+		expectPrinted(t, "a { mask-image: "+gradient+"(red, blue) }", "a {\n  mask-image: "+gradient+"(red, blue);\n}\n", "")
+
+		// Basic
+		code = "a { background: " + gradient + "(yellow, #11223344) }"
+		expectPrinted(t, code, "a {\n  background: "+gradient+"(yellow, #11223344);\n}\n", "")
+		expectPrintedMangle(t, code, "a {\n  background: "+gradient+"(#ff0, #1234);\n}\n", "")
+		expectPrintedLower(t, code, "a {\n  background: "+gradient+"(yellow, rgba(17, 34, 51, .267));\n}\n", "")
+
+		// Double positions
+		code = "a { background: " + gradient + "(green, red 10%, red 20%, yellow 70% 80%, black) }"
+		expectPrinted(t, code, "a {\n  background: "+gradient+"(green, red 10%, red 20%, yellow 70% 80%, black);\n}\n", "")
+		expectPrintedMangle(t, code, "a {\n  background: "+gradient+"(green, red 10% 20%, #ff0 70% 80%, #000);\n}\n", "")
+		expectPrintedLower(t, code, "a {\n  background: "+gradient+"(green, red 10%, red 20%, yellow 70%, yellow 80%, black);\n}\n", "")
+
+		// Out-of-gamut colors
+		code = "a { background: " + gradient + "(yellow, color(display-p3 1 0 0)) }"
+		expectPrinted(t, code, "a {\n  background: "+gradient+"(yellow, color(display-p3 1 0 0));\n}\n", "")
+		expectPrintedMangle(t, code, "a {\n  background: "+gradient+"(#ff0, color(display-p3 1 0 0));\n}\n", "")
+		expectPrintedLower(t, code, "a {\n  background: "+gradient+"(yellow, #ff0f0e);\n  "+
+			"background: "+gradient+"(yellow, color(display-p3 1 0 0));\n}\n", "")
+
+		// Whitespace
+		code = "a { background: " + gradient + "(color-mix(in lab,red,green)calc(1px)calc(2px),color-mix(in lab,blue,red)calc(98%)calc(99%)) }"
+		expectPrinted(t, code, "a {\n  background: "+gradient+
+			"(color-mix(in lab, red, green)calc(1px)calc(2px), color-mix(in lab, blue, red)calc(98%)calc(99%));\n}\n", "")
+		expectPrintedMangle(t, code, "a {\n  background: "+gradient+
+			"(color-mix(in lab, red, green)1px2px, color-mix(in lab, blue, red)98%99%);\n}\n", "")
+		expectPrintedMinify(t, code, "a{background:"+gradient+
+			"(color-mix(in lab,red,green)calc(1px)calc(2px),color-mix(in lab,blue,red)calc(98%)calc(99%))}", "")
+		expectPrintedLower(t, code, "a {\n  background: "+gradient+
+			"(color-mix(in lab, red, green) calc(1px), color-mix(in lab, red, green) calc(2px),"+
+			" color-mix(in lab, blue, red) calc(98%), color-mix(in lab, blue, red) calc(99%));\n}\n", "")
+		expectPrintedLowerMangle(t, code, "a {\n  background: "+gradient+
+			"(color-mix(in lab, red, green) 1px, color-mix(in lab, red, green) 2px,"+
+			" color-mix(in lab, blue, red) 98%, color-mix(in lab, blue, red) 99%);\n}\n", "")
+	}
+}
+
 func TestDeclaration(t *testing.T) {
 	expectPrinted(t, ".decl {}", ".decl {\n}\n", "")
 	expectPrinted(t, ".decl { a: b }", ".decl {\n  a: b;\n}\n", "")

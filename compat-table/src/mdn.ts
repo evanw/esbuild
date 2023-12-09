@@ -33,6 +33,13 @@ const cssFeatures: Partial<Record<CSSFeature, string | string[]>> = {
     'css.types.color.oklab',
     'css.types.color.oklch',
   ],
+  GradientDoublePosition: [
+    'css.types.image.gradient.linear-gradient.doubleposition',
+    'css.types.image.gradient.radial-gradient.doubleposition',
+    'css.types.image.gradient.conic-gradient.doubleposition',
+    'css.types.image.gradient.repeating-linear-gradient.doubleposition',
+    'css.types.image.gradient.repeating-radial-gradient.doubleposition',
+  ],
   HexRGBA: 'css.types.color.rgb_hexadecimal_notation.alpha_hexadecimal_notation',
   HWB: 'css.types.color.hwb',
   InsetProperty: 'css.properties.inset',

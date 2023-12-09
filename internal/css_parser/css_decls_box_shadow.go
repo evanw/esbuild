@@ -36,7 +36,7 @@ func (p *parser) lowerAndMangleBoxShadow(tokens []css_ast.Token, wouldClipColor 
 				numbersDone = true
 			}
 
-			if _, ok := parseColor(t); ok {
+			if looksLikeColor(t) {
 				colorCount++
 				tokens[i] = p.lowerAndMinifyColor(t, wouldClipColor)
 			} else if t.Kind == css_lexer.TIdent && strings.EqualFold(t.Text, "inset") {

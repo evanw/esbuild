@@ -10,6 +10,7 @@ type CSSFeature uint16
 
 const (
 	ColorFunctions CSSFeature = 1 << iota
+	GradientDoublePosition
 	HWB
 	HexRGBA
 	InlineStyle
@@ -21,15 +22,16 @@ const (
 )
 
 var StringToCSSFeature = map[string]CSSFeature{
-	"color-functions": ColorFunctions,
-	"hwb":             HWB,
-	"hex-rgba":        HexRGBA,
-	"inline-style":    InlineStyle,
-	"inset-property":  InsetProperty,
-	"is-pseudo-class": IsPseudoClass,
-	"modern-rgb-hsl":  Modern_RGB_HSL,
-	"nesting":         Nesting,
-	"rebecca-purple":  RebeccaPurple,
+	"color-functions":          ColorFunctions,
+	"gradient-double-position": GradientDoublePosition,
+	"hwb":                      HWB,
+	"hex-rgba":                 HexRGBA,
+	"inline-style":             InlineStyle,
+	"inset-property":           InsetProperty,
+	"is-pseudo-class":          IsPseudoClass,
+	"modern-rgb-hsl":           Modern_RGB_HSL,
+	"nesting":                  Nesting,
+	"rebecca-purple":           RebeccaPurple,
 }
 
 func (features CSSFeature) Has(feature CSSFeature) bool {
@@ -48,6 +50,14 @@ var cssTable = map[CSSFeature]map[Engine][]versionRange{
 		IOS:     {{start: v{15, 4, 0}}},
 		Opera:   {{start: v{97, 0, 0}}},
 		Safari:  {{start: v{15, 4, 0}}},
+	},
+	GradientDoublePosition: {
+		Chrome:  {{start: v{72, 0, 0}}},
+		Edge:    {{start: v{79, 0, 0}}},
+		Firefox: {{start: v{83, 0, 0}}},
+		IOS:     {{start: v{12, 2, 0}}},
+		Opera:   {{start: v{60, 0, 0}}},
+		Safari:  {{start: v{12, 1, 0}}},
 	},
 	HWB: {
 		Chrome:  {{start: v{101, 0, 0}}},

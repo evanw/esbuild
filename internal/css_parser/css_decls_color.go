@@ -426,6 +426,42 @@ type parsedColor struct {
 	sRGB    bool
 }
 
+func looksLikeColor(token css_ast.Token) bool {
+	switch token.Kind {
+	case css_lexer.TIdent:
+		if _, ok := colorNameToHex[strings.ToLower(token.Text)]; ok {
+			return true
+		}
+
+	case css_lexer.THash:
+		switch len(token.Text) {
+		case 3, 4, 6, 8:
+			if _, ok := parseHex(token.Text); ok {
+				return true
+			}
+		}
+
+	case css_lexer.TFunction:
+		switch strings.ToLower(token.Text) {
+		case
+			"color-mix",
+			"color",
+			"hsl",
+			"hsla",
+			"hwb",
+			"lab",
+			"lch",
+			"oklab",
+			"oklch",
+			"rgb",
+			"rgba":
+			return true
+		}
+	}
+
+	return false
+}
+
 func parseColor(token css_ast.Token) (parsedColor, bool) {
 	text := token.Text
 
