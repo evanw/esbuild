@@ -3,7 +3,6 @@ package css_parser
 import (
 	"fmt"
 	"math"
-	"os"
 	"strconv"
 	"strings"
 
@@ -640,7 +639,6 @@ func parseColor(token css_ast.Token) (parsedColor, bool) {
 									return parsedColor{x: x, y: y, z: z, hex: a}, true
 
 								case "prophoto-rgb":
-									fmt.Fprintf(os.Stderr, "v012 %f %f %f\n", v0, v1, v2)
 									r, g, b := lin_prophoto(v0, v1, v2)
 									x, y, z := lin_prophoto_to_xyz(r, g, b)
 									x, y, z = d50_to_d65(x, y, z)
