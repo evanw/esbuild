@@ -1,0 +1,95 @@
+.linear.red_to_green-esbuild {
+  background: linear-gradient(to right, color(display-p3 1 0 0), color(display-p3 0 0.6 0));
+}
+
+.radial.red_to_green-esbuild {
+  background: radial-gradient(color(display-p3 1 0 0), color(display-p3 0 0.6 0));
+}
+
+.conic.red_to_green-esbuild {
+  background: conic-gradient(color(display-p3 1 0 0), color(display-p3 0 0.6 0));
+}
+
+.linear.rainbow_shorter-esbuild {
+  background: linear-gradient(to right in hwb shorter hue, hsl(180deg 100% 75%) 10%, hsl(240deg 100% 75%) 90%);
+}
+
+.radial.rainbow_shorter-esbuild {
+  background: radial-gradient(in hwb shorter hue, hsl(180deg 100% 75%) 10%, hsl(240deg 100% 75%) 90%);
+}
+
+.conic.rainbow_shorter-esbuild {
+  background: conic-gradient(in hwb shorter hue, hsl(180deg 100% 75%) 10%, hsl(240deg 100% 75%) 90%);
+}
+
+.linear.rainbow_longer-esbuild {
+  background: linear-gradient(to right in hsl longer hue, hsl(180deg 100% 75%) 10%, hsl(240deg 100% 75%) 90%);
+}
+
+.radial.rainbow_longer-esbuild {
+  background: radial-gradient(in hsl longer hue, hsl(180deg 100% 75%) 10%, hsl(240deg 100% 75%) 90%);
+}
+
+.conic.rainbow_longer-esbuild {
+  background: conic-gradient(in hsl longer hue, hsl(180deg 100% 75%) 10%, hsl(240deg 100% 75%) 90%);
+}
+
+.linear.rainbow_increasing-esbuild {
+  background: linear-gradient(to right in lch increasing hue, hsl(240deg 100% 75%) 10%, hsl(180deg 100% 75%) 90%);
+}
+
+.radial.rainbow_increasing-esbuild {
+  background: radial-gradient(in lch increasing hue, hsl(240deg 100% 75%) 10%, hsl(180deg 100% 75%) 90%);
+}
+
+.conic.rainbow_increasing-esbuild {
+  background: conic-gradient(in lch increasing hue, hsl(240deg 100% 75%) 10%, hsl(180deg 100% 75%) 90%);
+}
+
+.linear.rainbow_decreasing-esbuild {
+  background: linear-gradient(to right in oklch decreasing hue, hsl(180deg 100% 75%) 10%, hsl(240deg 100% 75%) 90%);
+}
+
+.radial.rainbow_decreasing-esbuild {
+  background: radial-gradient(in oklch decreasing hue, hsl(180deg 100% 75%) 10%, hsl(240deg 100% 75%) 90%);
+}
+
+.conic.rainbow_decreasing-esbuild {
+  background: conic-gradient(in oklch decreasing hue, hsl(180deg 100% 75%) 10%, hsl(240deg 100% 75%) 90%);
+}
+
+.linear.midpoint_hint-esbuild {
+  background: linear-gradient(to right, #f00, #ff0, 75%, #0ff, #00f);
+}
+
+.radial.midpoint_hint-esbuild {
+  background: radial-gradient(#f00, #ff0, 75%, #0ff, #00f);
+}
+
+.conic.midpoint_hint-esbuild {
+  background: conic-gradient(#f00, #ff0, 75%, #0ff, #00f);
+}
+
+.linear.premultiplied_alpha-esbuild {
+  background: linear-gradient(to right, #f00f, 10%, #00f1, 90%, #0f0f);
+}
+
+.radial.premultiplied_alpha-esbuild {
+  background: radial-gradient(#f00f, 10%, #00f1, 90%, #0f0f);
+}
+
+.conic.premultiplied_alpha-esbuild {
+  background: conic-gradient(#f00f, 10%, #00f1, 90%, #0f0f);
+}
+
+.linear.mixed_units-esbuild {
+  background: linear-gradient(to right, color(display-p3 0.4 0 1) 30px, color(display-p3 0.96 0.75 0.4) 60%);
+}
+
+.radial.mixed_units-esbuild {
+  background: radial-gradient(color(display-p3 0.4 0 1) 30px, color(display-p3 1 0.75 0.4) 60%);
+}
+
+.conic.mixed_units-esbuild {
+  background: conic-gradient(color(display-p3 0.4 0 1) 30deg, color(display-p3 1 0.75 0.4) 60%);
+}

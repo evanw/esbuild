@@ -942,32 +942,74 @@ func (p *printer) printIndent(indent int32) {
 }
 
 type printTokensOpts struct {
-	indent        int32
-	isDeclaration bool
+	indent               int32
+	multiLineCommaPeriod uint8
+	isDeclaration        bool
+}
+
+func functionMultiLineCommaPeriod(token css_ast.Token) uint8 {
+	if token.Kind == css_lexer.TFunction {
+		commaCount := 0
+		for _, t := range *token.Children {
+			if t.Kind == css_lexer.TComma {
+				commaCount++
+			}
+		}
+
+		switch strings.ToLower(token.Text) {
+		case "linear-gradient", "radial-gradient", "conic-gradient",
+			"repeating-linear-gradient", "repeating-radial-gradient", "repeating-conic-gradient":
+			if commaCount >= 2 {
+				return 1
+			}
+
+		case "matrix":
+			if commaCount == 5 {
+				return 2
+			}
+
+		case "matrix3d":
+			if commaCount == 15 {
+				return 4
+			}
+		}
+	}
+	return 0
 }
 
 func (p *printer) printTokens(tokens []css_ast.Token, opts printTokensOpts) bool {
 	hasWhitespaceAfter := len(tokens) > 0 && (tokens[0].Whitespace&css_ast.WhitespaceBefore) != 0
 
 	// Pretty-print long comma-separated declarations of 3 or more items
-	isMultiLineValue := false
+	commaPeriod := int(opts.multiLineCommaPeriod)
 	if !p.options.MinifyWhitespace && opts.isDeclaration {
 		commaCount := 0
 		for _, t := range tokens {
 			if t.Kind == css_lexer.TComma {
 				commaCount++
+				if commaCount >= 2 {
+					commaPeriod = 1
+					break
+				}
+			}
+			if t.Kind == css_lexer.TFunction && functionMultiLineCommaPeriod(t) > 0 {
+				commaPeriod = 1
+				break
 			}
 		}
-		isMultiLineValue = commaCount >= 2
 	}
 
+	commaCount := 0
 	for i, t := range tokens {
+		if t.Kind == css_lexer.TComma {
+			commaCount++
+		}
 		if t.Kind == css_lexer.TWhitespace {
 			hasWhitespaceAfter = true
 			continue
 		}
 		if hasWhitespaceAfter {
-			if isMultiLineValue && (i == 0 || tokens[i-1].Kind == css_lexer.TComma) {
+			if commaPeriod > 0 && (i == 0 || (tokens[i-1].Kind == css_lexer.TComma && commaCount%commaPeriod == 0)) {
 				p.print("\n")
 				p.printIndent(opts.indent + 1)
 			} else if p.options.LineLimit <= 0 || !p.printNewlinePastLineLimit(opts.indent+1) {
@@ -1054,7 +1096,28 @@ func (p *printer) printTokens(tokens []css_ast.Token, opts printTokensOpts) bool
 		}
 
 		if t.Children != nil {
-			p.printTokens(*t.Children, printTokensOpts{indent: opts.indent})
+			childCommaPeriod := uint8(0)
+
+			if commaPeriod > 0 && opts.isDeclaration {
+				childCommaPeriod = functionMultiLineCommaPeriod(t)
+			}
+
+			if childCommaPeriod > 0 {
+				opts.indent++
+				if !p.options.MinifyWhitespace {
+					p.print("\n")
+					p.printIndent(opts.indent + 1)
+				}
+			}
+
+			p.printTokens(*t.Children, printTokensOpts{
+				indent:               opts.indent,
+				multiLineCommaPeriod: childCommaPeriod,
+			})
+
+			if childCommaPeriod > 0 {
+				opts.indent--
+			}
 
 			switch t.Kind {
 			case css_lexer.TFunction:

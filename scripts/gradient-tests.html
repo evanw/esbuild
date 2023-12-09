@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf8">
+  <link rel="stylesheet" href="out.css">
+  <style>
+    body {
+      margin: 30px;
+      font: 16px/20px sans-serif;
+      color: black;
+      background: white;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      body {
+        color: white;
+        background: black;
+      }
+    }
+
+    a {
+      color: inherit;
+    }
+
+    p {
+      margin: 20px 0;
+    }
+
+    pre {
+      margin: 20px 0 10px 0;
+      font: 14px/20px Monaco, monospace;
+      white-space: pre-wrap;
+    }
+
+    h2 {
+      margin: 50px 0 0 0;
+    }
+
+    .linear {
+      max-width: 400px;
+      height: 20px;
+      text-indent: 4px;
+      font-size: 14px;
+      color: white;
+      text-shadow: 0 0 3px black;
+      background: repeating-linear-gradient(-45deg,
+          rgba(191, 191, 191, 0.4) 0 7px,
+          transparent 7px 14px);
+    }
+
+    section {
+      margin-top: 12px;
+      display: flex;
+    }
+
+    .radial+.radial {
+      margin-right: 12px;
+    }
+
+    .radial,
+    .conic {
+      width: 97px;
+      height: 97px;
+      text-align: center;
+      line-height: 97px;
+      font-size: 14px;
+      color: white;
+      text-shadow: 0 0 3px black;
+      background: repeating-linear-gradient(-45deg,
+          transparent 0 6.86px,
+          rgba(191, 191, 191, 0.4) 6.86px 13.72px);
+    }
+
+    .checkerboard {
+      position: relative;
+    }
+
+    .checkerboard:after {
+      content: ' ';
+      display: block;
+      position: absolute;
+      left: 0;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      z-index: -1;
+      background: url('data:image/svg+xml,<svg width="20" height="20" xmlns="http://www.w3.org/2000/svg"><rect width="20" height="20" fill="white"/><path d="M0 10V0H10V10H20V20H10V10H0Z" fill="%23EEEEEE"/></svg>');
+    }
+
+    .linear.red_to_green-native {
+      background: linear-gradient(to right, color(display-p3 1 0 0), color(display-p3 0 0.6 0));
+    }
+
+    .radial.red_to_green-native {
+      background: radial-gradient(color(display-p3 1 0 0), color(display-p3 0 0.6 0));
+    }
+
+    .conic.red_to_green-native {
+      background: conic-gradient(color(display-p3 1 0 0), color(display-p3 0 0.6 0));
+    }
+
+    .linear.rainbow_shorter-native {
+      background: linear-gradient(to right in hwb shorter hue, hsl(180deg 100% 75%) 10%, hsl(240deg 100% 75%) 90%);
+    }
+
+    .radial.rainbow_shorter-native {
+      background: radial-gradient(in hwb shorter hue, hsl(180deg 100% 75%) 10%, hsl(240deg 100% 75%) 90%);
+    }
+
+    .conic.rainbow_shorter-native {
+      background: conic-gradient(in hwb shorter hue, hsl(180deg 100% 75%) 10%, hsl(240deg 100% 75%) 90%);
+    }
+
+    .linear.rainbow_longer-native {
+      background: linear-gradient(to right in hsl longer hue, hsl(180deg 100% 75%) 10%, hsl(240deg 100% 75%) 90%);
+    }
+
+    .radial.rainbow_longer-native {
+      background: radial-gradient(in hsl longer hue, hsl(180deg 100% 75%) 10%, hsl(240deg 100% 75%) 90%);
+    }
+
+    .conic.rainbow_longer-native {
+      background: conic-gradient(in hsl longer hue, hsl(180deg 100% 75%) 10%, hsl(240deg 100% 75%) 90%);
+    }
+
+    .linear.rainbow_increasing-native {
+      background: linear-gradient(to right in lch increasing hue, hsl(240deg 100% 75%) 10%, hsl(180deg 100% 75%) 90%);
+    }
+
+    .radial.rainbow_increasing-native {
+      background: radial-gradient(in lch increasing hue, hsl(240deg 100% 75%) 10%, hsl(180deg 100% 75%) 90%);
+    }
+
+    .conic.rainbow_increasing-native {
+      background: conic-gradient(in lch increasing hue, hsl(240deg 100% 75%) 10%, hsl(180deg 100% 75%) 90%);
+    }
+
+    .linear.rainbow_decreasing-native {
+      background: linear-gradient(to right in oklch decreasing hue, hsl(180deg 100% 75%) 10%, hsl(240deg 100% 75%) 90%);
+    }
+
+    .radial.rainbow_decreasing-native {
+      background: radial-gradient(in oklch decreasing hue, hsl(180deg 100% 75%) 10%, hsl(240deg 100% 75%) 90%);
+    }
+
+    .conic.rainbow_decreasing-native {
+      background: conic-gradient(in oklch decreasing hue, hsl(180deg 100% 75%) 10%, hsl(240deg 100% 75%) 90%);
+    }
+
+    .linear.midpoint_hint-native {
+      background: linear-gradient(to right, #f00, #ff0, 75%, #0ff, #00f);
+    }
+
+    .radial.midpoint_hint-native {
+      background: radial-gradient(#f00, #ff0, 75%, #0ff, #00f);
+    }
+
+    .conic.midpoint_hint-native {
+      background: conic-gradient(#f00, #ff0, 75%, #0ff, #00f);
+    }
+
+    .linear.premultiplied_alpha-native {
+      background: linear-gradient(to right, #f00f, 10%, #00f1, 90%, #0f0f);
+    }
+
+    .radial.premultiplied_alpha-native {
+      background: radial-gradient(#f00f, 10%, #00f1, 90%, #0f0f);
+    }
+
+    .conic.premultiplied_alpha-native {
+      background: conic-gradient(#f00f, 10%, #00f1, 90%, #0f0f);
+    }
+
+    .linear.mixed_units-native {
+      background: linear-gradient(to right, color(display-p3 0.4 0 1) 30px, color(display-p3 1 0.75 0.4) 60%);
+    }
+
+    .radial.mixed_units-native {
+      background: radial-gradient(color(display-p3 0.4 0 1) 30px, color(display-p3 1 0.75 0.4) 60%);
+    }
+
+    .conic.mixed_units-native {
+      background: conic-gradient(color(display-p3 0.4 0 1) 30deg, color(display-p3 1 0.75 0.4) 60%);
+    }
+
+  </style>
+</head>
+
+<body>
+  <p>This page is a visual test of esbuild's CSS gradient transformation. Run it like this:</p>
+  <pre>./esbuild --servedir=scripts --outfile=scripts/out.css scripts/gradient-tests.css --target=firefox30</pre>
+  <p>Then open this page as <a
+      href="http://localhost:8000/gradient-tests.html">http://localhost:8000/gradient-tests.html</a>.</p>
+
+  <h2>1. Red to green in P3</h2>
+  <pre>gradient(
+  color(display-p3 1 0 0),
+  color(display-p3 0 0.6 0))</pre>
+  <div class="linear red_to_green-native">native</div>
+  <div class="linear red_to_green-esbuild">esbuild</div>
+  <section>
+    <div class="radial red_to_green-native">native</div>
+    <div class="radial red_to_green-esbuild">esbuild</div>
+    <div class="conic red_to_green-native">native</div>
+    <div class="conic red_to_green-esbuild">esbuild</div>
+  </section>
+
+  <h2>2. Rainbow using shorter hue</h2>
+  <pre>gradient(
+  in hwb shorter hue,
+  hsl(180deg 100% 75%) 10%,
+  hsl(240deg 100% 75%) 90%)</pre>
+  <div class="linear rainbow_shorter-native">native</div>
+  <div class="linear rainbow_shorter-esbuild">esbuild</div>
+  <section>
+    <div class="radial rainbow_shorter-native">native</div>
+    <div class="radial rainbow_shorter-esbuild">esbuild</div>
+    <div class="conic rainbow_shorter-native">native</div>
+    <div class="conic rainbow_shorter-esbuild">esbuild</div>
+  </section>
+
+  <h2>3. Rainbow using longer hue</h2>
+  <pre>gradient(
+  in hsl longer hue,
+  hsl(180deg 100% 75%) 10%,
+  hsl(240deg 100% 75%) 90%)</pre>
+  <div class="linear rainbow_longer-native">native</div>
+  <div class="linear rainbow_longer-esbuild">esbuild</div>
+  <section>
+    <div class="radial rainbow_longer-native">native</div>
+    <div class="radial rainbow_longer-esbuild">esbuild</div>
+    <div class="conic rainbow_longer-native">native</div>
+    <div class="conic rainbow_longer-esbuild">esbuild</div>
+  </section>
+
+  <h2>4. Rainbow using increasing hue</h2>
+  <pre>gradient(
+  in lch increasing hue,
+  hsl(240deg 100% 75%) 10%,
+  hsl(180deg 100% 75%) 90%)</pre>
+  <div class="linear rainbow_increasing-native">native</div>
+  <div class="linear rainbow_increasing-esbuild">esbuild</div>
+  <section>
+    <div class="radial rainbow_increasing-native">native</div>
+    <div class="radial rainbow_increasing-esbuild">esbuild</div>
+    <div class="conic rainbow_increasing-native">native</div>
+    <div class="conic rainbow_increasing-esbuild">esbuild</div>
+  </section>
+
+  <h2>5. Rainbow using decreasing hue</h2>
+  <pre>gradient(
+  in oklch decreasing hue,
+  hsl(180deg 100% 75%) 10%,
+  hsl(240deg 100% 75%) 90%)</pre>
+  <div class="linear rainbow_decreasing-native">native</div>
+  <div class="linear rainbow_decreasing-esbuild">esbuild</div>
+  <section>
+    <div class="radial rainbow_decreasing-native">native</div>
+    <div class="radial rainbow_decreasing-esbuild">esbuild</div>
+    <div class="conic rainbow_decreasing-native">native</div>
+    <div class="conic rainbow_decreasing-esbuild">esbuild</div>
+  </section>
+
+  <h2>6. Transition hint / midpoint</h2>
+  <pre>gradient(#f00, #ff0, 75%, #0ff, #00f)</pre>
+  <div class="linear midpoint_hint-native">native</div>
+  <div class="linear midpoint_hint-esbuild">esbuild</div>
+  <section>
+    <div class="radial midpoint_hint-native">native</div>
+    <div class="radial midpoint_hint-esbuild">esbuild</div>
+    <div class="conic midpoint_hint-native">native</div>
+    <div class="conic midpoint_hint-esbuild">esbuild</div>
+  </section>
+
+  <h2>7. Premultiplied alpha</h2>
+  <pre>gradient(#f00f, 10%, #00f1, 90%, #0f0f)</pre>
+  <div class="checkerboard linear premultiplied_alpha-native">native</div>
+  <div class="checkerboard linear premultiplied_alpha-esbuild">esbuild</div>
+  <section>
+    <div class="checkerboard radial premultiplied_alpha-native">native</div>
+    <div class="checkerboard radial premultiplied_alpha-esbuild">esbuild</div>
+    <div class="checkerboard conic premultiplied_alpha-native">native</div>
+    <div class="checkerboard conic premultiplied_alpha-esbuild">esbuild</div>
+  </section>
+
+  <h2>8. Mixed units</h2>
+  <pre>gradient(
+  color(display-p3 0.4 0 1) 30px,
+  color(display-p3 1 0.75 0.4) 60%)</pre>
+  <div class="linear mixed_units-native">native</div>
+  <div class="linear mixed_units-esbuild">esbuild</div>
+  <section>
+    <div class="radial mixed_units-native">native</div>
+    <div class="radial mixed_units-esbuild">esbuild</div>
+    <div class="conic mixed_units-native">native</div>
+    <div class="conic mixed_units-esbuild">esbuild</div>
+  </section>
+</body>
+
+</html>

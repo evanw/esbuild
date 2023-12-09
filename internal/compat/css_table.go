@@ -11,6 +11,8 @@ type CSSFeature uint16
 const (
 	ColorFunctions CSSFeature = 1 << iota
 	GradientDoublePosition
+	GradientInterpolation
+	GradientMidpoints
 	HWB
 	HexRGBA
 	InlineStyle
@@ -24,6 +26,8 @@ const (
 var StringToCSSFeature = map[string]CSSFeature{
 	"color-functions":          ColorFunctions,
 	"gradient-double-position": GradientDoublePosition,
+	"gradient-interpolation":   GradientInterpolation,
+	"gradient-midpoints":       GradientMidpoints,
 	"hwb":                      HWB,
 	"hex-rgba":                 HexRGBA,
 	"inline-style":             InlineStyle,
@@ -58,6 +62,21 @@ var cssTable = map[CSSFeature]map[Engine][]versionRange{
 		IOS:     {{start: v{12, 2, 0}}},
 		Opera:   {{start: v{60, 0, 0}}},
 		Safari:  {{start: v{12, 1, 0}}},
+	},
+	GradientInterpolation: {
+		Chrome: {{start: v{111, 0, 0}}},
+		Edge:   {{start: v{111, 0, 0}}},
+		IOS:    {{start: v{16, 2, 0}}},
+		Opera:  {{start: v{97, 0, 0}}},
+		Safari: {{start: v{16, 2, 0}}},
+	},
+	GradientMidpoints: {
+		Chrome:  {{start: v{40, 0, 0}}},
+		Edge:    {{start: v{79, 0, 0}}},
+		Firefox: {{start: v{36, 0, 0}}},
+		IOS:     {{start: v{7, 0, 0}}},
+		Opera:   {{start: v{27, 0, 0}}},
+		Safari:  {{start: v{7, 0, 0}}},
 	},
 	HWB: {
 		Chrome:  {{start: v{101, 0, 0}}},

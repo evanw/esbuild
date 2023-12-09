@@ -287,13 +287,13 @@ func (p *parser) lowerAndMinifyColor(token css_ast.Token, wouldClipColor *bool) 
 				// "#1234" => "rgba(1, 2, 3, 0.004)"
 				if hex, ok := parseHex(text); ok {
 					hex = expandHex(hex)
-					return p.tryToGenerateColor(token, parsedColor{sRGB: true, hex: hex}, nil)
+					return p.tryToGenerateColor(token, parsedColor{hex: hex}, nil)
 				}
 
 			case 8:
 				// "#12345678" => "rgba(18, 52, 86, 0.47)"
 				if hex, ok := parseHex(text); ok {
-					return p.tryToGenerateColor(token, parsedColor{sRGB: true, hex: hex}, nil)
+					return p.tryToGenerateColor(token, parsedColor{hex: hex}, nil)
 				}
 			}
 		}
@@ -420,9 +420,9 @@ func (p *parser) lowerAndMinifyColor(token css_ast.Token, wouldClipColor *bool) 
 }
 
 type parsedColor struct {
-	x, y, z float64 // color if sRGB == false
-	hex     uint32  // color and alpha if sRGB == true, alpha if sRGB == false
-	sRGB    bool
+	x, y, z       float64 // color if hasColorSpace == true
+	hex           uint32  // color and alpha if hasColorSpace == false, alpha if hasColorSpace == true
+	hasColorSpace bool
 }
 
 func looksLikeColor(token css_ast.Token) bool {
@@ -467,7 +467,7 @@ func parseColor(token css_ast.Token) (parsedColor, bool) {
 	switch token.Kind {
 	case css_lexer.TIdent:
 		if hex, ok := colorNameToHex[strings.ToLower(text)]; ok {
-			return parsedColor{sRGB: true, hex: hex}, true
+			return parsedColor{hex: hex}, true
 		}
 
 	case css_lexer.THash:
@@ -475,25 +475,25 @@ func parseColor(token css_ast.Token) (parsedColor, bool) {
 		case 3:
 			// "#123"
 			if hex, ok := parseHex(text); ok {
-				return parsedColor{sRGB: true, hex: (expandHex(hex) << 8) | 0xFF}, true
+				return parsedColor{hex: (expandHex(hex) << 8) | 0xFF}, true
 			}
 
 		case 4:
 			// "#1234"
 			if hex, ok := parseHex(text); ok {
-				return parsedColor{sRGB: true, hex: expandHex(hex)}, true
+				return parsedColor{hex: expandHex(hex)}, true
 			}
 
 		case 6:
 			// "#112233"
 			if hex, ok := parseHex(text); ok {
-				return parsedColor{sRGB: true, hex: (hex << 8) | 0xFF}, true
+				return parsedColor{hex: (hex << 8) | 0xFF}, true
 			}
 
 		case 8:
 			// "#11223344"
 			if hex, ok := parseHex(text); ok {
-				return parsedColor{sRGB: true, hex: hex}, true
+				return parsedColor{hex: hex}, true
 			}
 		}
 
@@ -532,7 +532,7 @@ func parseColor(token css_ast.Token) (parsedColor, bool) {
 				if g, ok := parseColorByte(g, 1); ok {
 					if b, ok := parseColorByte(b, 1); ok {
 						if a, ok := parseAlphaByte(a); ok {
-							return parsedColor{sRGB: true, hex: (r << 24) | (g << 16) | (b << 8) | a}, true
+							return parsedColor{hex: (r << 24) | (g << 16) | (b << 8) | a}, true
 						}
 					}
 				}
@@ -572,7 +572,7 @@ func parseColor(token css_ast.Token) (parsedColor, bool) {
 					if l, ok := l.ClampedFractionForPercentage(); ok {
 						if a, ok := parseAlphaByte(a); ok {
 							r, g, b := hslToRgb(h, s, l)
-							return parsedColor{sRGB: true, hex: packRGBA(r, g, b, a)}, true
+							return parsedColor{hex: packRGBA(r, g, b, a)}, true
 						}
 					}
 				}
@@ -600,7 +600,7 @@ func parseColor(token css_ast.Token) (parsedColor, bool) {
 					if black, ok := l.ClampedFractionForPercentage(); ok {
 						if a, ok := parseAlphaByte(a); ok {
 							r, g, b := hwbToRgb(h, white, black)
-							return parsedColor{sRGB: true, hex: packRGBA(r, g, b, a)}, true
+							return parsedColor{hex: packRGBA(r, g, b, a)}, true
 						}
 					}
 				}
@@ -631,42 +631,39 @@ func parseColor(token css_ast.Token) (parsedColor, bool) {
 								case "a98-rgb":
 									r, g, b := lin_a98rgb(v0, v1, v2)
 									x, y, z := lin_a98rgb_to_xyz(r, g, b)
-									return parsedColor{x: x, y: y, z: z, hex: a}, true
+									return parsedColor{hasColorSpace: true, x: x, y: y, z: z, hex: a}, true
 
 								case "display-p3":
 									r, g, b := lin_p3(v0, v1, v2)
 									x, y, z := lin_p3_to_xyz(r, g, b)
-									return parsedColor{x: x, y: y, z: z, hex: a}, true
+									return parsedColor{hasColorSpace: true, x: x, y: y, z: z, hex: a}, true
 
 								case "prophoto-rgb":
 									r, g, b := lin_prophoto(v0, v1, v2)
 									x, y, z := lin_prophoto_to_xyz(r, g, b)
 									x, y, z = d50_to_d65(x, y, z)
-									return parsedColor{x: x, y: y, z: z, hex: a}, true
+									return parsedColor{hasColorSpace: true, x: x, y: y, z: z, hex: a}, true
 
 								case "rec2020":
 									r, g, b := lin_2020(v0, v1, v2)
 									x, y, z := lin_2020_to_xyz(r, g, b)
-									return parsedColor{x: x, y: y, z: z, hex: a}, true
+									return parsedColor{hasColorSpace: true, x: x, y: y, z: z, hex: a}, true
 
 								case "srgb":
 									r, g, b := lin_srgb(v0, v1, v2)
 									x, y, z := lin_srgb_to_xyz(r, g, b)
-									return parsedColor{x: x, y: y, z: z, hex: a}, true
+									return parsedColor{hasColorSpace: true, x: x, y: y, z: z, hex: a}, true
 
 								case "srgb-linear":
 									x, y, z := lin_srgb_to_xyz(v0, v1, v2)
-									return parsedColor{x: x, y: y, z: z, hex: a}, true
+									return parsedColor{hasColorSpace: true, x: x, y: y, z: z, hex: a}, true
 
-								case "xyz":
-									return parsedColor{x: v0, y: v1, z: v2, hex: a}, true
+								case "xyz", "xyz-d65":
+									return parsedColor{hasColorSpace: true, x: v0, y: v1, z: v2, hex: a}, true
 
 								case "xyz-d50":
 									x, y, z := d50_to_d65(v0, v1, v2)
-									return parsedColor{x: x, y: y, z: z, hex: a}, true
-
-								case "xyz-d65":
-									return parsedColor{x: v0, y: v1, z: v2, hex: a}, true
+									return parsedColor{hasColorSpace: true, x: x, y: y, z: z, hex: a}, true
 								}
 							}
 						}
@@ -699,7 +696,7 @@ func parseColor(token css_ast.Token) (parsedColor, bool) {
 								if v2, ok := v2.NumberOrFractionForPercentage(125, css_ast.AllowAnyPercentage); ok {
 									x, y, z := lab_to_xyz(v0, v1, v2)
 									x, y, z = d50_to_d65(x, y, z)
-									return parsedColor{x: x, y: y, z: z, hex: alpha}, true
+									return parsedColor{hasColorSpace: true, x: x, y: y, z: z, hex: alpha}, true
 								}
 							}
 						}
@@ -711,7 +708,7 @@ func parseColor(token css_ast.Token) (parsedColor, bool) {
 									l, a, b := lch_to_lab(v0, v1, v2)
 									x, y, z := lab_to_xyz(l, a, b)
 									x, y, z = d50_to_d65(x, y, z)
-									return parsedColor{x: x, y: y, z: z, hex: alpha}, true
+									return parsedColor{hasColorSpace: true, x: x, y: y, z: z, hex: alpha}, true
 								}
 							}
 						}
@@ -721,7 +718,7 @@ func parseColor(token css_ast.Token) (parsedColor, bool) {
 							if v1, ok := v1.NumberOrFractionForPercentage(0.4, css_ast.AllowAnyPercentage); ok {
 								if v2, ok := v2.NumberOrFractionForPercentage(0.4, css_ast.AllowAnyPercentage); ok {
 									x, y, z := oklab_to_xyz(v0, v1, v2)
-									return parsedColor{x: x, y: y, z: z, hex: alpha}, true
+									return parsedColor{hasColorSpace: true, x: x, y: y, z: z, hex: alpha}, true
 								}
 							}
 						}
@@ -732,7 +729,7 @@ func parseColor(token css_ast.Token) (parsedColor, bool) {
 								if v2, ok := degreesForAngle(v2); ok {
 									l, a, b := oklch_to_oklab(v0, v1, v2)
 									x, y, z := oklab_to_xyz(l, a, b)
-									return parsedColor{x: x, y: y, z: z, hex: alpha}, true
+									return parsedColor{hasColorSpace: true, x: x, y: y, z: z, hex: alpha}, true
 								}
 							}
 						}
@@ -841,6 +838,14 @@ func parseColorByte(token css_ast.Token, scale float64) (uint32, bool) {
 	return uint32(i), ok
 }
 
+func tryToConvertToHexWithoutClipping(x float64, y float64, z float64, a uint32) (uint32, bool) {
+	r, g, b := gam_srgb(xyz_to_lin_srgb(x, y, z))
+	if r < -0.5/255 || r > 255.5/255 || g < -0.5/255 || g > 255.5/255 || b < -0.5/255 || b > 255.5/255 {
+		return 0, false
+	}
+	return packRGBA(r, g, b, a), true
+}
+
 func (p *parser) tryToGenerateColor(token css_ast.Token, color parsedColor, wouldClipColor *bool) css_ast.Token {
 	// Note: Do NOT remove color information from fully transparent colors.
 	// Safari behaves differently than other browsers for color interpolation:
@@ -849,17 +854,15 @@ func (p *parser) tryToGenerateColor(token css_ast.Token, color parsedColor, woul
 	// Attempt to convert other color spaces to sRGB, and only continue if the
 	// result (rounded to the nearest byte) will be in the 0-to-1 sRGB range
 	var hex uint32
-	if color.sRGB {
+	if !color.hasColorSpace {
 		hex = color.hex
+	} else if result, ok := tryToConvertToHexWithoutClipping(color.x, color.y, color.z, color.hex); ok {
+		hex = result
+	} else if wouldClipColor != nil {
+		*wouldClipColor = true
+		return token
 	} else {
-		r, g, b := gam_srgb(xyz_to_lin_srgb(color.x, color.y, color.z))
-		if r < -0.5/255 || r > 255.5/255 || g < -0.5/255 || g > 255.5/255 || b < -0.5/255 || b > 255.5/255 {
-			if wouldClipColor != nil {
-				*wouldClipColor = true
-				return token
-			}
-			r, g, b = gamut_mapping_xyz_to_srgb(color.x, color.y, color.z)
-		}
+		r, g, b := gamut_mapping_xyz_to_srgb(color.x, color.y, color.z)
 		hex = packRGBA(r, g, b, color.hex)
 	}
 

@@ -2,9 +2,98 @@
 
 ## Unreleased
 
+* Add support for transforming new CSS gradient syntax for older browsers
+
+    The specification called [CSS Images Module Level 4](https://www.w3.org/TR/css-images-4/) introduces new CSS gradient syntax for customizing how the browser interpolates colors in between color stops. You can now control the color space that the interpolation happens in as well as (for "polar" color spaces) control whether hue angle interpolation happens clockwise or counterclockwise. You can read more about this in [Mozilla's blog post about new CSS gradient features](https://developer.mozilla.org/en-US/blog/css-color-module-level-4/).
+
+    With this release, esbuild will now automatically transform this syntax for older browsers in the `target` list. For example, here's a gradient that should appear as a rainbow in a browser that supports this new syntax:
+
+    ```css
+    /* Original code */
+    .rainbow-gradient {
+      width: 100px;
+      height: 100px;
+      background: linear-gradient(in hsl longer hue, #7ff, #77f);
+    }
+
+    /* New output (with --target=chrome99) */
+    .rainbow-gradient {
+      width: 100px;
+      height: 100px;
+      background:
+        linear-gradient(
+          #77ffff,
+          #77ffaa 12.5%,
+          #77ff80 18.75%,
+          #84ff77 21.88%,
+          #99ff77 25%,
+          #eeff77 37.5%,
+          #fffb77 40.62%,
+          #ffe577 43.75%,
+          #ffbb77 50%,
+          #ff9077 56.25%,
+          #ff7b77 59.38%,
+          #ff7788 62.5%,
+          #ff77dd 75%,
+          #ff77f2 78.12%,
+          #f777ff 81.25%,
+          #cc77ff 87.5%,
+          #7777ff);
+    }
+    ```
+
+    You can now use this syntax in your CSS source code and esbuild will automatically convert it to an equivalent gradient for older browsers. In addition, esbuild will now also transform "double position" and "transition hint" syntax for older browsers as appropriate:
+
+    ```css
+    /* Original code */
+    .stripes {
+      width: 100px;
+      height: 100px;
+      background: linear-gradient(#e65 33%, #ff2 33% 67%, #99e 67%);
+    }
+    .glow {
+      width: 100px;
+      height: 100px;
+      background: radial-gradient(white 10%, 20%, black);
+    }
+
+    /* New output (with --target=chrome33) */
+    .stripes {
+      width: 100px;
+      height: 100px;
+      background:
+        linear-gradient(
+          #e65 33%,
+          #ff2 33%,
+          #ff2 67%,
+          #99e 67%);
+    }
+    .glow {
+      width: 100px;
+      height: 100px;
+      background:
+        radial-gradient(
+          #ffffff 10%,
+          #aaaaaa 12.81%,
+          #959595 15.62%,
+          #7b7b7b 21.25%,
+          #5a5a5a 32.5%,
+          #444444 43.75%,
+          #323232 55%,
+          #161616 77.5%,
+          #000000);
+    }
+    ```
+
+    If necessary, esbuild will construct a new gradient that approximates the original gradient by recursively splitting the interval in between color stops until the approximation error is within a small threshold. That is why the above output CSS contains many more color stops than the input CSS.
+
+    Note that esbuild deliberately _replaces_ the original gradient with the approximation instead of inserting the approximation before the original gradient as a fallback. The latest version of Firefox has multiple gradient rendering bugs (including incorrect interpolation of partially-transparent colors and interpolating non-sRGB colors using the incorrect color space). If esbuild didn't replace the original gradient, then Firefox would use the original gradient instead of the fallback the appearance would be incorrect in Firefox. In other words, the latest version of Firefox supports modern gradient syntax but interprets it incorrectly.
+
 * Add support for `color()`, `lab()`, `lch()`, `oklab()`, `oklch()`, and `hwb()` in CSS
 
-    CSS has recently added lots of new ways of specifying colors. This release adds support for lowering and/or minifying colors that use the `color()`, `lab()`, `lch()`, `oklab()`, `oklch()`, or `hwb()` syntax for browsers that don't support it yet:
+    CSS has recently added lots of new ways of specifying colors. You can read more about this in [Chrome's blog post about CSS color spaces](https://developer.chrome.com/docs/css-ui/high-definition-css-color-guide).
+
+    This release adds support for minifying colors that use the `color()`, `lab()`, `lch()`, `oklab()`, `oklch()`, or `hwb()` syntax and/or transforming these colors for browsers that don't support it yet:
 
     ```css
     /* Original code */
@@ -21,7 +110,7 @@
     }
     ```
 
-    As you can see, colors outside of the sRGB color space such as `color(display-p3 1 0 0)` are mapped back into the sRGB gamut and inserted as a fallback for browsers that don't support the new color syntax. You can enable or disable this behavior by setting `--supported:color-functions=` to `true` or `false`.
+    As you can see, colors outside of the sRGB color space such as `color(display-p3 1 0 0)` are mapped back into the sRGB gamut and inserted as a fallback for browsers that don't support the new color syntax.
 
 * Allow empty type parameter lists in certain cases ([#3512](https://github.com/evanw/esbuild/issues/3512))
 

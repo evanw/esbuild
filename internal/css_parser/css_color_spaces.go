@@ -4,6 +4,43 @@ import "math"
 
 // Reference: https://drafts.csswg.org/css-color/#color-conversion-code
 
+type colorSpace uint8
+
+const (
+	colorSpace_a98_rgb colorSpace = iota
+	colorSpace_display_p3
+	colorSpace_hsl
+	colorSpace_hwb
+	colorSpace_lab
+	colorSpace_lch
+	colorSpace_oklab
+	colorSpace_oklch
+	colorSpace_prophoto_rgb
+	colorSpace_rec2020
+	colorSpace_srgb
+	colorSpace_srgb_linear
+	colorSpace_xyz
+	colorSpace_xyz_d50
+	colorSpace_xyz_d65
+)
+
+func (colorSpace colorSpace) isPolar() bool {
+	switch colorSpace {
+	case colorSpace_hsl, colorSpace_hwb, colorSpace_lch, colorSpace_oklch:
+		return true
+	}
+	return false
+}
+
+type hueMethod uint8
+
+const (
+	shorterHue hueMethod = iota
+	longerHue
+	increasingHue
+	decreasingHue
+)
+
 func lin_srgb(r float64, g float64, b float64) (float64, float64, float64) {
 	f := func(val float64) float64 {
 		if abs := math.Abs(val); abs < 0.04045 {
@@ -48,6 +85,10 @@ func lin_p3(r float64, g float64, b float64) (float64, float64, float64) {
 	return lin_srgb(r, g, b)
 }
 
+func gam_p3(r float64, g float64, b float64) (float64, float64, float64) {
+	return gam_srgb(r, g, b)
+}
+
 func lin_p3_to_xyz(r float64, g float64, b float64) (float64, float64, float64) {
 	M := [9]float64{
 		608311.0 / 1250200, 189793.0 / 714400, 198249.0 / 1000160,
@@ -55,6 +96,15 @@ func lin_p3_to_xyz(r float64, g float64, b float64) (float64, float64, float64) 
 		0.0 / 1, 32229.0 / 714400, 5220557.0 / 5000800,
 	}
 	return multiplyMatrices(M, r, g, b)
+}
+
+func xyz_to_lin_p3(x float64, y float64, z float64) (float64, float64, float64) {
+	M := [9]float64{
+		446124.0 / 178915, -333277.0 / 357830, -72051.0 / 178915,
+		-14852.0 / 17905, 63121.0 / 35810, 423.0 / 17905,
+		11844.0 / 330415, -50337.0 / 660830, 316169.0 / 330415,
+	}
+	return multiplyMatrices(M, x, y, z)
 }
 
 func lin_prophoto(r float64, g float64, b float64) (float64, float64, float64) {
@@ -69,6 +119,18 @@ func lin_prophoto(r float64, g float64, b float64) (float64, float64, float64) {
 	return f(r), f(g), f(b)
 }
 
+func gam_prophoto(r float64, g float64, b float64) (float64, float64, float64) {
+	f := func(val float64) float64 {
+		const Et = 1.0 / 512
+		if abs := math.Abs(val); abs >= Et {
+			return math.Copysign(math.Pow(abs, 1/1.8), val)
+		} else {
+			return 16 * val
+		}
+	}
+	return f(r), f(g), f(b)
+}
+
 func lin_prophoto_to_xyz(r float64, g float64, b float64) (float64, float64, float64) {
 	M := [9]float64{
 		0.7977604896723027, 0.13518583717574031, 0.0313493495815248,
@@ -78,9 +140,25 @@ func lin_prophoto_to_xyz(r float64, g float64, b float64) (float64, float64, flo
 	return multiplyMatrices(M, r, g, b)
 }
 
+func xyz_to_lin_prophoto(x float64, y float64, z float64) (float64, float64, float64) {
+	M := [9]float64{
+		1.3457989731028281, -0.25558010007997534, -0.05110628506753401,
+		-0.5446224939028347, 1.5082327413132781, 0.02053603239147973,
+		0.0, 0.0, 1.2119675456389454,
+	}
+	return multiplyMatrices(M, x, y, z)
+}
+
 func lin_a98rgb(r float64, g float64, b float64) (float64, float64, float64) {
 	f := func(val float64) float64 {
 		return math.Copysign(math.Pow(math.Abs(val), 563.0/256), val)
+	}
+	return f(r), f(g), f(b)
+}
+
+func gam_a98rgb(r float64, g float64, b float64) (float64, float64, float64) {
+	f := func(val float64) float64 {
+		return math.Copysign(math.Pow(math.Abs(val), 256.0/563), val)
 	}
 	return f(r), f(g), f(b)
 }
@@ -92,6 +170,15 @@ func lin_a98rgb_to_xyz(r float64, g float64, b float64) (float64, float64, float
 		53769.0 / 1989134, 351524.0 / 4972835, 4929758.0 / 4972835,
 	}
 	return multiplyMatrices(M, r, g, b)
+}
+
+func xyz_to_lin_a98rgb(x float64, y float64, z float64) (float64, float64, float64) {
+	M := [9]float64{
+		1829569.0 / 896150, -506331.0 / 896150, -308931.0 / 896150,
+		-851781.0 / 878810, 1648619.0 / 878810, 36519.0 / 878810,
+		16779.0 / 1248040, -147721.0 / 1248040, 1266979.0 / 1248040,
+	}
+	return multiplyMatrices(M, x, y, z)
 }
 
 func lin_2020(r float64, g float64, b float64) (float64, float64, float64) {
@@ -107,6 +194,19 @@ func lin_2020(r float64, g float64, b float64) (float64, float64, float64) {
 	return f(r), f(g), f(b)
 }
 
+func gam_2020(r float64, g float64, b float64) (float64, float64, float64) {
+	f := func(val float64) float64 {
+		const α = 1.09929682680944
+		const β = 0.018053968510807
+		if abs := math.Abs(val); abs > β {
+			return math.Copysign(α*math.Pow(abs, 0.45)-(α-1), val)
+		} else {
+			return 4.5 * val
+		}
+	}
+	return f(r), f(g), f(b)
+}
+
 func lin_2020_to_xyz(r float64, g float64, b float64) (float64, float64, float64) {
 	var M = [9]float64{
 		63426534.0 / 99577255, 20160776.0 / 139408157, 47086771.0 / 278816314,
@@ -114,6 +214,15 @@ func lin_2020_to_xyz(r float64, g float64, b float64) (float64, float64, float64
 		0.0 / 1, 19567812.0 / 697040785, 295819943.0 / 278816314,
 	}
 	return multiplyMatrices(M, r, g, b)
+}
+
+func xyz_to_lin_2020(x float64, y float64, z float64) (float64, float64, float64) {
+	M := [9]float64{
+		30757411.0 / 17917100, -6372589.0 / 17917100, -4539589.0 / 17917100,
+		-19765991.0 / 29648200, 47925759.0 / 29648200, 467509.0 / 29648200,
+		792561.0 / 44930125, -1921689.0 / 44930125, 42328811.0 / 44930125,
+	}
+	return multiplyMatrices(M, x, y, z)
 }
 
 func d65_to_d50(x float64, y float64, z float64) (float64, float64, float64) {
@@ -330,4 +439,172 @@ func gamut_mapping_xyz_to_srgb(x float64, y float64, z float64) (float64, float6
 	}
 
 	return r, g, b
+}
+
+func hsl_to_rgb(hue float64, sat float64, light float64) (float64, float64, float64) {
+	hue /= 360
+	hue -= math.Floor(hue)
+	hue *= 360
+
+	sat /= 100
+	light /= 100
+
+	f := func(n float64) float64 {
+		k := n + hue/30
+		k /= 12
+		k -= math.Floor(k)
+		k *= 12
+		a := sat * math.Min(light, 1-light)
+		return light - a*math.Max(-1, math.Min(math.Min(k-3, 9-k), 1))
+	}
+
+	return f(0), f(8), f(4)
+}
+
+func rgb_to_hsl(red float64, green float64, blue float64) (float64, float64, float64) {
+	max := math.Max(math.Max(red, green), blue)
+	min := math.Min(math.Min(red, green), blue)
+	hue, sat, light := math.NaN(), 0.0, (min+max)/2
+	d := max - min
+
+	if d != 0 {
+		if div := math.Min(light, 1-light); div != 0 {
+			sat = (max - light) / div
+		}
+
+		switch max {
+		case red:
+			hue = (green - blue) / d
+			if green < blue {
+				hue += 6
+			}
+		case green:
+			hue = (blue-red)/d + 2
+		case blue:
+			hue = (red-green)/d + 4
+		}
+
+		hue = hue * 60
+	}
+
+	return hue, sat * 100, light * 100
+}
+
+func hwb_to_rgb(hue float64, white float64, black float64) (float64, float64, float64) {
+	white /= 100
+	black /= 100
+	if white+black >= 1 {
+		gray := white / (white + black)
+		return gray, gray, gray
+	}
+	r, g, b := hsl_to_rgb(hue, 100, 50)
+	r = white + r*(1-white-black)
+	g = white + g*(1-white-black)
+	b = white + b*(1-white-black)
+	return r, g, b
+}
+
+func rgb_to_hwb(red float64, green float64, blue float64) (float64, float64, float64) {
+	h, _, _ := rgb_to_hsl(red, green, blue)
+	white := math.Min(math.Min(red, green), blue)
+	black := 1 - math.Max(math.Max(red, green), blue)
+	return h, white * 100, black * 100
+}
+
+func xyz_to_colorSpace(x float64, y float64, z float64, colorSpace colorSpace) (float64, float64, float64) {
+	switch colorSpace {
+	case colorSpace_a98_rgb:
+		return gam_a98rgb(xyz_to_lin_a98rgb(x, y, z))
+
+	case colorSpace_display_p3:
+		return gam_p3(xyz_to_lin_p3(x, y, z))
+
+	case colorSpace_hsl:
+		return rgb_to_hsl(gam_srgb(xyz_to_lin_srgb(x, y, z)))
+
+	case colorSpace_hwb:
+		return rgb_to_hwb(gam_srgb(xyz_to_lin_srgb(x, y, z)))
+
+	case colorSpace_lab:
+		return xyz_to_lab(d65_to_d50(x, y, z))
+
+	case colorSpace_lch:
+		return lab_to_lch(xyz_to_lab(d65_to_d50(x, y, z)))
+
+	case colorSpace_oklab:
+		return xyz_to_oklab(x, y, z)
+
+	case colorSpace_oklch:
+		return oklab_to_oklch(xyz_to_oklab(x, y, z))
+
+	case colorSpace_prophoto_rgb:
+		return gam_prophoto(xyz_to_lin_prophoto(d65_to_d50(x, y, z)))
+
+	case colorSpace_rec2020:
+		return gam_2020(xyz_to_lin_2020(x, y, z))
+
+	case colorSpace_srgb:
+		return gam_srgb(xyz_to_lin_srgb(x, y, z))
+
+	case colorSpace_srgb_linear:
+		return xyz_to_lin_srgb(x, y, z)
+
+	case colorSpace_xyz, colorSpace_xyz_d65:
+		return x, y, z
+
+	case colorSpace_xyz_d50:
+		return d65_to_d50(x, y, z)
+
+	default:
+		panic("Internal error")
+	}
+}
+
+func colorSpace_to_xyz(v0 float64, v1 float64, v2 float64, colorSpace colorSpace) (float64, float64, float64) {
+	switch colorSpace {
+	case colorSpace_a98_rgb:
+		return lin_a98rgb_to_xyz(lin_a98rgb(v0, v1, v2))
+
+	case colorSpace_display_p3:
+		return lin_p3_to_xyz(lin_p3(v0, v1, v2))
+
+	case colorSpace_hsl:
+		return lin_srgb_to_xyz(lin_srgb(hsl_to_rgb(v0, v1, v2)))
+
+	case colorSpace_hwb:
+		return lin_srgb_to_xyz(lin_srgb(hwb_to_rgb(v0, v1, v2)))
+
+	case colorSpace_lab:
+		return d50_to_d65(lab_to_xyz(v0, v1, v2))
+
+	case colorSpace_lch:
+		return d50_to_d65(lab_to_xyz(lch_to_lab(v0, v1, v2)))
+
+	case colorSpace_oklab:
+		return oklab_to_xyz(v0, v1, v2)
+
+	case colorSpace_oklch:
+		return oklab_to_xyz(oklch_to_oklab(v0, v1, v2))
+
+	case colorSpace_prophoto_rgb:
+		return d50_to_d65(lin_prophoto_to_xyz(lin_prophoto(v0, v1, v2)))
+
+	case colorSpace_rec2020:
+		return lin_2020_to_xyz(lin_2020(v0, v1, v2))
+
+	case colorSpace_srgb:
+		return lin_srgb_to_xyz(lin_srgb(v0, v1, v2))
+
+	case colorSpace_srgb_linear:
+		return lin_srgb_to_xyz(v0, v1, v2)
+
+	case colorSpace_xyz, colorSpace_xyz_d65:
+		return v0, v1, v2
+
+	case colorSpace_xyz_d50:
+		return d50_to_d65(v0, v1, v2)
+
+	default:
+		panic("Internal error")
+	}
 }
