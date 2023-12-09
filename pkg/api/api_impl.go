@@ -1578,7 +1578,14 @@ func rebuildImpl(args rebuildArgs, oldHashes map[string]string) (rebuildState, m
 							defer waitGroup.Done()
 							fs.BeforeFileOpen()
 							defer fs.AfterFileClose()
-							if oldHash, ok := oldHashes[result.AbsPath]; ok && oldHash == newHashes[result.AbsPath] {
+							oldHash, ok := oldHashes[result.AbsPath]
+							if ok {
+								if oldHash == newHashes[result.AbsPath] {
+									// Skip writing out files that haven't changed since last time
+									return
+								}
+							} else {
+								// The old hash is empty on the first build, we compare them by content.
 								if contents, err := ioutil.ReadFile(result.AbsPath); err == nil && bytes.Equal(contents, result.Contents) {
 									// Skip writing out files that haven't changed since last time
 									return
