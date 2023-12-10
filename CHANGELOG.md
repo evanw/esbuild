@@ -85,6 +85,8 @@
     }
     ```
 
+    You can see visual examples of these new syntax features by looking at [esbuild's gradient transformation tests](https://esbuild.github.io/gradient-tests/).
+
     If necessary, esbuild will construct a new gradient that approximates the original gradient by recursively splitting the interval in between color stops until the approximation error is within a small threshold. That is why the above output CSS contains many more color stops than the input CSS.
 
     Note that esbuild deliberately _replaces_ the original gradient with the approximation instead of inserting the approximation before the original gradient as a fallback. The latest version of Firefox has multiple gradient rendering bugs (including incorrect interpolation of partially-transparent colors and interpolating non-sRGB colors using the incorrect color space). If esbuild didn't replace the original gradient, then Firefox would use the original gradient instead of the fallback the appearance would be incorrect in Firefox. In other words, the latest version of Firefox supports modern gradient syntax but interprets it incorrectly.
