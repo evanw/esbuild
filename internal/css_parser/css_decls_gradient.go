@@ -152,6 +152,9 @@ func (p *parser) generateGradient(token css_ast.Token, gradient parsedGradient) 
 		if len(children) > 0 {
 			children = append(children, commaToken)
 		}
+		if len(stop.positions) == 0 && stop.midpoint.Kind == css_lexer.T(0) {
+			stop.color.Whitespace &= ^css_ast.WhitespaceAfter
+		}
 		children = append(children, stop.color)
 		children = append(children, stop.positions...)
 		if stop.midpoint.Kind != css_lexer.T(0) {
@@ -189,6 +192,7 @@ func (p *parser) lowerAndMinifyGradient(token css_ast.Token, wouldClipColor *boo
 	}
 
 	// Potentially expand the gradient to handle unsupported features
+	didExpand := false
 	if lowerMidpoints || lowerColorSpaces || lowerInterpolation {
 		if colorStops, ok := tryToParseColorStops(gradient); ok {
 			hasColorSpace := false
@@ -213,6 +217,7 @@ func (p *parser) lowerAndMinifyGradient(token css_ast.Token, wouldClipColor *boo
 					}
 					tryToExpandGradient(token.Loc, &gradient, colorStops, gradient.leadingTokens, colorSpace, shorterHue)
 				}
+				didExpand = true
 			}
 		}
 	}
@@ -243,7 +248,77 @@ func (p *parser) lowerAndMinifyGradient(token css_ast.Token, wouldClipColor *boo
 		}
 	}
 
+	if p.options.minifySyntax || didExpand {
+		gradient.colorStops = removeImpliedPositions(gradient.kind, gradient.colorStops)
+	}
+
 	return p.generateGradient(token, gradient)
+}
+
+func removeImpliedPositions(kind gradientKind, colorStops []colorStop) []colorStop {
+	if len(colorStops) == 0 {
+		return colorStops
+	}
+
+	positions := make([]valueWithUnit, len(colorStops))
+	for i, stop := range colorStops {
+		if len(stop.positions) == 1 {
+			if pos, ok := tryToParseValue(stop.positions[0], kind); ok {
+				positions[i] = pos
+				continue
+			}
+		}
+		positions[i].value = math.NaN()
+	}
+
+	start := 0
+	for start < len(colorStops) {
+		if startPos := positions[start]; !math.IsNaN(startPos.value) {
+			end := start + 1
+		run:
+			for colorStops[end-1].midpoint.Kind == css_lexer.T(0) && end < len(colorStops) {
+				endPos := positions[end]
+				if math.IsNaN(endPos.value) || endPos.unit != startPos.unit {
+					break
+				}
+
+				// Check that all values in this run are implied. Interpolation is done
+				// using the start and end positions instead of the first and second
+				// positions because it's more accurate.
+				for i := start + 1; i < end; i++ {
+					t := float64(i-start) / float64(end-start)
+					impliedValue := startPos.value + (endPos.value-startPos.value)*t
+					if math.Abs(positions[i].value-impliedValue) > 0.01 {
+						break run
+					}
+				}
+				end++
+			}
+
+			// Clear out all implied values
+			if end-start > 1 {
+				for i := start + 1; i+1 < end; i++ {
+					colorStops[i].positions = nil
+				}
+				start = end - 1
+				continue
+			}
+		}
+		start++
+	}
+
+	if first := colorStops[0].positions; len(first) == 1 &&
+		((first[0].Kind == css_lexer.TPercentage && first[0].PercentageValue() == "0") ||
+			(first[0].Kind == css_lexer.TDimension && first[0].DimensionValue() == "0")) {
+		colorStops[0].positions = nil
+	}
+
+	if last := colorStops[len(colorStops)-1].positions; len(last) == 1 &&
+		last[0].Kind == css_lexer.TPercentage && last[0].PercentageValue() == "100" {
+		colorStops[len(colorStops)-1].positions = nil
+	}
+
+	return colorStops
 }
 
 func switchToSinglePositions(double []colorStop) (single []colorStop) {
@@ -737,19 +812,6 @@ func tryToExpandGradient(
 			generateColorStops(0, stop, next,
 				stop.x, stop.y, stop.z, stop.r, stop.g, stop.b, stop.alpha, 0,
 				next.x, next.y, next.z, next.r, next.g, next.b, next.alpha, 1)
-		}
-	}
-
-	// Remove implied positions for neatness
-	if len(newColorStops) > 0 {
-		first := newColorStops[0].positions[0]
-		if (first.Kind == css_lexer.TPercentage && first.PercentageValue() == "0") ||
-			(first.Kind == css_lexer.TDimension && first.DimensionValue() == "0") {
-			newColorStops[0].positions = nil
-		}
-		last := newColorStops[len(newColorStops)-1].positions[0]
-		if last.Kind == css_lexer.TPercentage && last.PercentageValue() == "100" {
-			newColorStops[len(newColorStops)-1].positions = nil
 		}
 	}
 

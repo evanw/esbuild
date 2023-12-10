@@ -780,8 +780,8 @@ func TestGradient(t *testing.T) {
 		expectPrintedLowerUnsupported(t, compat.HexRGBA, code,
 			"a {\n  background:\n    "+gradient+"(\n      yellow,\n      25%,\n      rgba(17, 34, 51, .267));\n}\n", "")
 		expectPrintedLowerUnsupported(t, compat.GradientMidpoints, code,
-			"a {\n  background:\n    "+gradient+"(\n      #ffff00,\n      #f2f303de 3.12%,\n      #eced04d0 6.25%,\n      "+
-				"#e1e306bd 12.5%,\n      #cdd00ba2 25%,\n      #a2a8147b 50%,\n      #6873205d 75%,\n      #11223344);\n}\n", "")
+			"a {\n  background:\n    "+gradient+"(\n      #ffff00,\n      #f2f303de,\n      #eced04d0 6.25%,\n      "+
+				"#e1e306bd 12.5%,\n      #cdd00ba2 25%,\n      #a2a8147b,\n      #6873205d,\n      #11223344);\n}\n", "")
 
 		// Double positions
 		code = "a { background: " + gradient + "(green, red 10%, red 20%, yellow 70% 80%, black) }"
@@ -821,14 +821,14 @@ func TestGradient(t *testing.T) {
 		expectPrintedMangle(t, code, "a {\n  background: "+gradient+"(#ff0, color(display-p3 1 0 0));\n}\n", "")
 		expectPrintedMinify(t, code, "a{background:"+gradient+"(yellow,color(display-p3 1 0 0))}", "")
 		expectPrintedLowerUnsupported(t, compat.ColorFunctions, code,
-			"a {\n  background:\n    "+gradient+"(\n      #ffff00,\n      #ffe971 12.5%,\n      #ffd472 25%,\n      "+
-				"#ffab5f 50%,\n      #ff7b45 75%,\n      #ff5e38 87.5%,\n      #ff5534 90.62%,\n      #ff4c30 93.75%,\n      "+
-				"#ff412c 96.88%,\n      #ff0e0e);\n  "+
-				"background:\n    "+gradient+"(\n      #ffff00,\n      color(xyz 0.734 0.805 0.111) 12.5%,\n      "+
-				"color(xyz 0.699 0.693 0.087) 25%,\n      color(xyz 0.627 0.501 0.048) 50%,\n      "+
+			"a {\n  background:\n    "+gradient+"(\n      #ffff00,\n      #ffe971,\n      #ffd472 25%,\n      "+
+				"#ffab5f,\n      #ff7b45 75%,\n      #ff5e38 87.5%,\n      #ff5534,\n      #ff4c30,\n      "+
+				"#ff412c,\n      #ff0e0e);\n  "+
+				"background:\n    "+gradient+"(\n      #ffff00,\n      color(xyz 0.734 0.805 0.111),\n      "+
+				"color(xyz 0.699 0.693 0.087) 25%,\n      color(xyz 0.627 0.501 0.048),\n      "+
 				"color(xyz 0.556 0.348 0.019) 75%,\n      color(xyz 0.521 0.284 0.009) 87.5%,\n      "+
-				"color(xyz 0.512 0.27 0.006) 90.62%,\n      color(xyz 0.504 0.256 0.004) 93.75%,\n      "+
-				"color(xyz 0.495 0.242 0.002) 96.88%,\n      color(xyz 0.487 0.229 0));\n}\n", "")
+				"color(xyz 0.512 0.27 0.006),\n      color(xyz 0.504 0.256 0.004),\n      "+
+				"color(xyz 0.495 0.242 0.002),\n      color(xyz 0.487 0.229 0));\n}\n", "")
 
 		// Whitespace
 		code = "a { background: " + gradient + "(color-mix(in lab,red,green)calc(1px)calc(2px),color-mix(in lab,blue,red)calc(98%)calc(99%)) }"
@@ -851,27 +851,27 @@ func TestGradient(t *testing.T) {
 			"a {\n  background: "+gradient+"(#ff0000, #008000);\n}\n", "")
 		expectPrintedLowerUnsupported(t, compat.GradientInterpolation,
 			"a { background: "+gradient+"(in srgb-linear, red, green) }",
-			"a {\n  background:\n    "+gradient+"(\n      #ff0000,\n      #fb1300 3.12%,\n      #f81f00 6.25%,\n      "+
-				"#f02e00 12.5%,\n      #e14200 25%,\n      #bc5c00 50%,\n      #897000 75%,\n      #637800 87.5%,\n      "+
-				"#477c00 93.75%,\n      #317e00 96.88%,\n      #008000);\n}\n", "")
+			"a {\n  background:\n    "+gradient+"(\n      #ff0000,\n      #fb1300,\n      #f81f00 6.25%,\n      "+
+				"#f02e00 12.5%,\n      #e14200 25%,\n      #bc5c00,\n      #897000 75%,\n      #637800 87.5%,\n      "+
+				"#477c00 93.75%,\n      #317e00,\n      #008000);\n}\n", "")
 		expectPrintedLowerUnsupported(t, compat.GradientInterpolation,
 			"a { background: "+gradient+"(in lab, red, green) }",
-			"a {\n  background:\n    "+gradient+"(\n      #ff0000,\n      color(xyz 0.396 0.211 0.019) 3.12%,\n      "+
+			"a {\n  background:\n    "+gradient+"(\n      #ff0000,\n      color(xyz 0.396 0.211 0.019),\n      "+
 				"color(xyz 0.38 0.209 0.02) 6.25%,\n      color(xyz 0.35 0.205 0.02) 12.5%,\n      "+
-				"color(xyz 0.294 0.198 0.02) 25%,\n      color(xyz 0.2 0.183 0.022) 50%,\n      "+
+				"color(xyz 0.294 0.198 0.02) 25%,\n      color(xyz 0.2 0.183 0.022),\n      "+
 				"color(xyz 0.129 0.168 0.024) 75%,\n      color(xyz 0.101 0.161 0.025) 87.5%,\n      "+
-				"color(xyz 0.089 0.158 0.025) 93.75%,\n      color(xyz 0.083 0.156 0.025) 96.88%,\n      #008000);\n}\n", "")
+				"color(xyz 0.089 0.158 0.025) 93.75%,\n      color(xyz 0.083 0.156 0.025),\n      #008000);\n}\n", "")
 
 		// Hue interpolation
 		expectPrintedLowerUnsupported(t, compat.GradientInterpolation,
 			"a { background: "+gradient+"(in hsl shorter hue, red, green) }",
-			"a {\n  background:\n    "+gradient+"(\n      #ff0000,\n      #df7000 25%,\n      "+
-				"#bfbf00 50%,\n      #50a000 75%,\n      #008000);\n}\n", "")
+			"a {\n  background:\n    "+gradient+"(\n      #ff0000,\n      #df7000,\n      "+
+				"#bfbf00,\n      #50a000,\n      #008000);\n}\n", "")
 		expectPrintedLowerUnsupported(t, compat.GradientInterpolation,
 			"a { background: "+gradient+"(in hsl longer hue, red, green) }",
-			"a {\n  background:\n    "+gradient+"(\n      #ff0000,\n      #ef0078 12.5%,\n      "+
-				"#df00df 25%,\n      #6800cf 37.5%,\n      #0000c0 50%,\n      #0058b0 62.5%,\n      "+
-				"#00a0a0 75%,\n      #009048 87.5%,\n      #008000);\n}\n", "")
+			"a {\n  background:\n    "+gradient+"(\n      #ff0000,\n      #ef0078,\n      "+
+				"#df00df,\n      #6800cf,\n      #0000c0,\n      #0058b0,\n      "+
+				"#00a0a0,\n      #009048,\n      #008000);\n}\n", "")
 	}
 }
 
