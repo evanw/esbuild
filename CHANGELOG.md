@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.19.9
 
 * Add support for transforming new CSS gradient syntax for older browsers
 
