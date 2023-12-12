@@ -2268,11 +2268,90 @@ func TestTSSuperCall(t *testing.T) {
 }
 `)
 
+	expectPrintedAssignSemanticsTS(t, "class A extends B { x = 1; constructor() { foo(); y ||= super(1); } }",
+		`class A extends B {
+  constructor() {
+    var __super = (...args) => {
+      super(...args);
+      this.x = 1;
+      return this;
+    };
+    foo();
+    y ||= __super(1);
+  }
+}
+`)
+
 	expectPrintedAssignSemanticsTS(t, "class A extends B { x; constructor() { foo(); super(1); } }",
 		`class A extends B {
   constructor() {
     foo();
     super(1);
+  }
+}
+`)
+
+	expectPrintedAssignSemanticsTS(t, "class A extends B { x; constructor() { foo(); y ||= super(1); } }",
+		`class A extends B {
+  constructor() {
+    foo();
+    y ||= super(1);
+  }
+}
+`)
+
+	expectPrintedAssignSemanticsTS(t, "class A extends B { [x] = 1; constructor() { foo(); super(1); } }",
+		`var _a;
+class A extends B {
+  constructor() {
+    foo();
+    super(1);
+    this[_a] = 1;
+  }
+  static {
+    _a = x;
+  }
+}
+`)
+
+	expectPrintedAssignSemanticsTS(t, "class A extends B { [x] = 1; constructor() { foo(); y ||= super(1); } }",
+		`var _a;
+class A extends B {
+  constructor() {
+    var __super = (...args) => {
+      super(...args);
+      this[_a] = 1;
+      return this;
+    };
+    foo();
+    y ||= __super(1);
+  }
+  static {
+    _a = x;
+  }
+}
+`)
+
+	expectPrintedAssignSemanticsTS(t, "class A extends B { [x]; constructor() { foo(); super(1); } }",
+		`class A extends B {
+  static {
+    x;
+  }
+  constructor() {
+    foo();
+    super(1);
+  }
+}
+`)
+
+	expectPrintedAssignSemanticsTS(t, "class A extends B { [x]; constructor() { foo(); y ||= super(1); } }",
+		`class A extends B {
+  static {
+    x;
+  }
+  constructor() {
+    foo();
+    y ||= super(1);
   }
 }
 `)
@@ -2293,6 +2372,7 @@ func TestTSSuperCall(t *testing.T) {
     var __super = (...args) => {
       super(...args);
       this.x = x;
+      return this;
     };
     foo();
     __super(1);
@@ -2316,6 +2396,7 @@ func TestTSSuperCall(t *testing.T) {
     var __super = (...args) => {
       super(...args);
       this.x = x;
+      return this;
     };
     if (foo)
       __super(1);
@@ -2329,6 +2410,7 @@ func TestTSSuperCall(t *testing.T) {
     var __super = (...args) => {
       super(...args);
       this.x = x;
+      return this;
     };
     if (foo)
       __super(1);

@@ -1,5 +1,47 @@
 # Changelog
 
+## Unreleased
+
+* Fix the return value of esbuild's `super()` shim ([#3538](https://github.com/evanw/esbuild/issues/3538))
+
+    Some people write `constructor` methods that use the return value of `super()` instead of using `this`. This isn't too common because [TypeScript doesn't let you do that](https://github.com/microsoft/TypeScript/issues/37847) but it can come up when writing JavaScript. Previously esbuild's class lowering transform incorrectly transformed the return value of `super()` into `undefined`. With this release, the return value of `super()` will now be `this` instead:
+
+    ```js
+    // Original code
+    class Foo extends Object {
+      field
+      constructor() {
+        console.log(typeof super())
+      }
+    }
+    new Foo
+
+    // Old output (with --target=es6)
+    class Foo extends Object {
+      constructor() {
+        var __super = (...args) => {
+          super(...args);
+          __publicField(this, "field");
+        };
+        console.log(typeof __super());
+      }
+    }
+    new Foo();
+
+    // New output (with --target=es6)
+    class Foo extends Object {
+      constructor() {
+        var __super = (...args) => {
+          super(...args);
+          __publicField(this, "field");
+          return this;
+        };
+        console.log(typeof __super());
+      }
+    }
+    new Foo();
+    ```
+
 ## 0.19.9
 
 * Add support for transforming new CSS gradient syntax for older browsers

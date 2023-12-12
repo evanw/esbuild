@@ -5524,6 +5524,84 @@ for (let flags of [['--target=es2022'], ['--target=es6'], ['--bundle', '--target
         },
       }`,
     }),
+
+    // https://github.com/evanw/esbuild/issues/3538
+    test(['in.js', '--outfile=node.js'].concat(flags), {
+      'in.js': `
+        class Foo extends Array {
+          pass = false
+          constructor() {
+            let base = super()
+            this.pass = base === this &&
+              base instanceof Array &&
+              base instanceof Foo
+          }
+        }
+        if (!new Foo().pass) throw 'fail'
+      `,
+    }),
+    test(['in.ts', '--outfile=node.js'].concat(flags), {
+      'in.ts': `
+        class Foo extends Array {
+          pass: boolean = false
+          constructor() {
+            let base = super()
+            this.pass = base === this &&
+              base instanceof Array &&
+              base instanceof Foo
+          }
+        }
+        if (!new Foo().pass) throw 'fail'
+      `,
+      'tsconfig.json': `{
+        "compilerOptions": {
+          "useDefineForClassFields": false,
+        },
+      }`,
+    }),
+    test(['in.js', '--outfile=node.js'].concat(flags), {
+      'in.js': `
+        class Bar {
+          constructor(x) {
+            return x
+          }
+        }
+        class Foo extends Bar {
+          pass = false
+          constructor() {
+            let base = super([])
+            this.pass = base === this &&
+              base instanceof Array &&
+              !(base instanceof Foo)
+          }
+        }
+        if (!new Foo().pass) throw 'fail'
+      `,
+    }),
+    test(['in.ts', '--outfile=node.js'].concat(flags), {
+      'in.ts': `
+        class Bar {
+          constructor(x) {
+            return x
+          }
+        }
+        class Foo extends Bar {
+          pass: boolean = false
+          constructor() {
+            let base = super([])
+            this.pass = base === this &&
+              base instanceof Array &&
+              !(base instanceof Foo)
+          }
+        }
+        if (!new Foo().pass) throw 'fail'
+      `,
+      'tsconfig.json': `{
+        "compilerOptions": {
+          "useDefineForClassFields": false,
+        },
+      }`,
+    }),
   )
 
   // https://github.com/evanw/esbuild/issues/3177
