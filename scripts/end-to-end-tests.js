@@ -2109,6 +2109,26 @@ tests.push(
     'foo.js': `export default 123`,
     'node.js': `import out from './out.js'; if (out !== 123) throw 'fail'`,
   }),
+  test(['--bundle', 'foo.js', '--outfile=out.js', '--format=cjs', '--platform=node'], {
+    'foo.js': `
+      export function confuseNode(exports) {
+        // If this local is called "exports", node incorrectly
+        // thinks this file has an export called "notAnExport".
+        // We must make sure that it doesn't have that name
+        // when targeting Node with CommonJS. See also:
+        // https://github.com/evanw/esbuild/issues/3544
+        exports.notAnExport = function() {
+        };
+      }
+    `,
+    'node.js': `
+      exports.async = async () => {
+        const foo = await import('./out.js')
+        if (typeof foo.confuseNode !== 'function') throw 'fail: confuseNode'
+        if ('notAnExport' in foo) throw 'fail: notAnExport'
+      }
+    `,
+  }, { async: true }),
 
   // External package
   test(['--bundle', 'foo.js', '--outfile=out.js', '--format=cjs', '--external:fs'], {

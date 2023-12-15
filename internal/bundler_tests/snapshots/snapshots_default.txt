@@ -5121,6 +5121,24 @@ module.exports = foo;
 console.log(module, exports);
 
 ================================================================================
+TestNodeAnnotationFalsePositiveIssue3544
+---------- /out.js ----------
+// entry.mjs
+var entry_exports = {};
+__export(entry_exports, {
+  confuseNode: () => confuseNode
+});
+module.exports = __toCommonJS(entry_exports);
+function confuseNode(exports2) {
+  exports2.notAnExport = function() {
+  };
+}
+// Annotate the CommonJS export names for ESM import in node:
+0 && (module.exports = {
+  confuseNode
+});
+
+================================================================================
 TestNodeModules
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/node_modules/demo-pkg/index.js

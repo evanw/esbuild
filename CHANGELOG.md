@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+* Work around a bug in node's CommonJS export name detector ([#3544](https://github.com/evanw/esbuild/issues/3544))
+
+    The export names of a CommonJS module are dynamically-determined at run time because CommonJS exports are properties on a mutable object. But the export names of an ES module are statically-determined at module instantiation time by using `import` and `export` syntax and cannot be changed at run time.
+
+    When you import a CommonJS module into an ES module in node, node scans over the source code to attempt to detect the set of export names that the CommonJS module will end up using. That statically-determined set of names is used as the set of names that the ES module is allowed to import at module instantiation time. However, this scan appears to have bugs (or at least, can cause false positives) because it doesn't appear to do any scope analysis. Node will incorrectly consider the module to export something even if the assignment is done to a local variable instead of to the module-level `exports` object. For example:
+
+    ```js
+    // confuseNode.js
+    exports.confuseNode = function(exports) {
+      // If this local is called "exports", node incorrectly
+      // thinks this file has an export called "notAnExport".
+      exports.notAnExport = function() {
+      };
+    };
+    ```
+
+    You can see that node incorrectly thinks the file `confuseNode.js` has an export called `notAnExport` when that file is loaded in an ES module context:
+
+    ```console
+    $ node -e 'import("./confuseNode.js").then(console.log)'
+    [Module: null prototype] {
+      confuseNode: [Function (anonymous)],
+      default: { confuseNode: [Function (anonymous)] },
+      notAnExport: undefined
+    }
+    ```
+
+    To avoid this, esbuild will now rename local variables that use the names `exports` and `module` when generating CommonJS output for the `node` platform.
+
 * Fix the return value of esbuild's `super()` shim ([#3538](https://github.com/evanw/esbuild/issues/3538))
 
     Some people write `constructor` methods that use the return value of `super()` instead of using `this`. This isn't too common because [TypeScript doesn't let you do that](https://github.com/microsoft/TypeScript/issues/37847) but it can come up when writing JavaScript. Previously esbuild's class lowering transform incorrectly transformed the return value of `super()` into `undefined`. With this release, the return value of `super()` will now be `this` instead:

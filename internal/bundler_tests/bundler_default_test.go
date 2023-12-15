@@ -1673,6 +1673,31 @@ func TestExportWildcardFSNodeCommonJS(t *testing.T) {
 	})
 }
 
+// https://github.com/evanw/esbuild/issues/3544
+func TestNodeAnnotationFalsePositiveIssue3544(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.mjs": `
+				export function confuseNode(exports) {
+					// If this local is called "exports", node incorrectly
+					// thinks this file has an export called "notAnExport".
+					// We must make sure that it doesn't have that name
+					// when targeting Node with CommonJS.
+					exports.notAnExport = function() {
+					};
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.mjs"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			OutputFormat:  config.FormatCommonJS,
+			AbsOutputFile: "/out.js",
+			Platform:      config.PlatformNode,
+		},
+	})
+}
+
 func TestMinifiedBundleES6(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
