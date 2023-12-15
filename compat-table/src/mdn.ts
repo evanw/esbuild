@@ -18,7 +18,7 @@ const supportedEnvironments: Record<string, Engine> = {
 const jsFeatures: Partial<Record<JSFeature, string>> = {
   ClassStaticBlocks: 'javascript.classes.static_initialization_blocks',
   ExportStarAs: 'javascript.statements.export.namespace',
-  ImportAssertions: 'javascript.statements.import.import_attribues_assert',
+  ImportAssertions: 'javascript.statements.import.import_assertions',
   ImportAttributes: 'javascript.statements.import.import_attributes',
   ImportMeta: 'javascript.operators.import_meta',
   RegexpMatchIndices: 'javascript.builtins.RegExp.hasIndices',
@@ -123,6 +123,7 @@ const extractProperty = (object: any, fullKey: string): any => {
   for (const key of fullKey.split('.')) {
     object = object[key]
   }
+  if (!object) throw new Error(`Failed to find "${fullKey}"`)
   return object
 }
 
