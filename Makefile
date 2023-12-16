@@ -271,6 +271,7 @@ version-go:
 
 platform-all:
 	@$(MAKE) --no-print-directory -j4 \
+		platform-aix-ppc64 \
 		platform-android-arm \
 		platform-android-arm64 \
 		platform-android-x64 \
@@ -321,6 +322,9 @@ platform-android-x64: platform-wasm
 
 platform-android-arm: platform-wasm
 	node scripts/esbuild.js npm/@esbuild/android-arm/package.json --version
+
+platform-aix-ppc64:
+	@$(MAKE) --no-print-directory GOOS=aix GOARCH=ppc64 NPMDIR=npm/@esbuild/aix-ppc64 platform-unixlike
 
 platform-android-arm64:
 	@$(MAKE) --no-print-directory GOOS=android GOARCH=arm64 NPMDIR=npm/@esbuild/android-arm64 platform-unixlike
@@ -443,6 +447,7 @@ publish-all: check-go-version
 
 	@echo Enter one-time password:
 	@read OTP && OTP="$$OTP" $(MAKE) --no-print-directory -j4 \
+		publish-aix-ppc64 \
 		publish-linux-ppc64 \
 		publish-linux-s390x
 
@@ -464,6 +469,9 @@ publish-win32-ia32: platform-win32-ia32
 
 publish-win32-arm64: platform-win32-arm64
 	test -n "$(OTP)" && cd npm/@esbuild/win32-arm64 && npm publish --otp="$(OTP)"
+
+publish-aix-ppc64: platform-aix-ppc64
+	test -n "$(OTP)" && cd npm/@esbuild/aix-ppc64 && npm publish --otp="$(OTP)"
 
 publish-android-x64: platform-android-x64
 	test -n "$(OTP)" && cd npm/@esbuild/android-x64 && npm publish --otp="$(OTP)"
@@ -563,6 +571,7 @@ validate-build:
 # This checks that the published binaries are bitwise-identical to the locally-build binaries
 validate-builds:
 	git fetch --all --tags && git checkout "v$(ESBUILD_VERSION)"
+	@$(MAKE) --no-print-directory TARGET=platform-aix-ppc64      SCOPE=@esbuild/ PACKAGE=aix-ppc64       SUBPATH=bin/esbuild  validate-build
 	@$(MAKE) --no-print-directory TARGET=platform-android-arm    SCOPE=@esbuild/ PACKAGE=android-arm     SUBPATH=esbuild.wasm validate-build
 	@$(MAKE) --no-print-directory TARGET=platform-android-arm64  SCOPE=@esbuild/ PACKAGE=android-arm64   SUBPATH=bin/esbuild  validate-build
 	@$(MAKE) --no-print-directory TARGET=platform-android-x64    SCOPE=@esbuild/ PACKAGE=android-x64     SUBPATH=esbuild.wasm validate-build
@@ -595,6 +604,7 @@ clean:
 	rm -f npm/@esbuild/win32-ia32/esbuild.exe
 	rm -f npm/@esbuild/win32-x64/esbuild.exe
 	rm -f npm/esbuild-wasm/esbuild.wasm npm/esbuild-wasm/wasm_exec*.js
+	rm -rf npm/@esbuild/aix-ppc64/bin
 	rm -rf npm/@esbuild/android-arm/bin npm/@esbuild/android-arm/esbuild.wasm npm/@esbuild/android-arm/wasm_exec*.js
 	rm -rf npm/@esbuild/android-arm64/bin
 	rm -rf npm/@esbuild/android-x64/bin npm/@esbuild/android-x64/esbuild.wasm npm/@esbuild/android-x64/wasm_exec*.js
