@@ -484,6 +484,10 @@ func (p *parser) lowerFunction(
 }
 
 func (p *parser) lowerOptionalChain(expr js_ast.Expr, in exprIn, childOut exprOut) (js_ast.Expr, exprOut) {
+	if childOut.skipOptionalChain {
+		return expr, exprOut{skipOptionalChain: true}
+	}
+
 	valueWhenUndefined := js_ast.Expr{Loc: expr.Loc, Data: js_ast.EUndefinedShared}
 	endsWithPropertyAccess := false
 	containsPrivateName := false

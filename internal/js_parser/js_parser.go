@@ -12385,6 +12385,9 @@ type exprOut struct {
 	// If true and this is used as a call target, the whole call expression
 	// must be replaced with undefined.
 	methodCallMustBeReplacedWithUndefined bool
+
+	// flag to avoid processing lowering of "a?.b.c" when "a.b" is replaced via "defines"
+	skipOptionalChain bool
 }
 
 func (p *parser) visitExpr(expr js_ast.Expr) js_ast.Expr {
@@ -13388,7 +13391,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 						if in.assignTarget == js_ast.AssignTargetNone || defineValueCanBeUsedInAssignTarget(new.Data) {
 							// Note: We don't need to "ignoreRef" on the underlying identifier
 							// because we have only parsed it but not visited it yet
-							return new, exprOut{}
+							return new, exprOut{skipOptionalChain: true}
 						} else {
 							r := logger.Range{Loc: expr.Loc, Len: js_lexer.RangeOfIdentifier(p.source, e.NameLoc).End() - expr.Loc.Start}
 							p.logAssignToDefine(r, "", expr)
@@ -13473,6 +13476,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			methodCallMustBeReplacedWithUndefined: out.methodCallMustBeReplacedWithUndefined,
 			thisArgFunc:                           out.thisArgFunc,
 			thisArgWrapFunc:                       out.thisArgWrapFunc,
+			skipOptionalChain:                     out.skipOptionalChain,
 		}
 		if !in.hasChainParent {
 			out.thisArgFunc = nil

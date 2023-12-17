@@ -5329,6 +5329,39 @@ func TestDefineOptionalChainLowered(t *testing.T) {
 	})
 }
 
+func TestDefineOptionalChainPanic3551(t *testing.T) {
+	defines := config.ProcessDefines(map[string]config.DefineData{
+		"a.b": {
+			DefineExpr: &config.DefineExpr{
+				Constant: &js_ast.EObject{},
+			},
+		},
+		"globalThis.process.env": {
+			DefineExpr: &config.DefineExpr{
+				Constant: &js_ast.EObject{},
+			},
+		},
+	})
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				a?.b.c;
+				(a?.b).c;
+				a?.b["c"];
+				(a?.b)["c"];
+				globalThis.process?.env.SHELL;
+				globalThis.process?.env["SHELL"];
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			Defines:       &defines,
+		},
+	})
+}
+
 // See: https://github.com/evanw/esbuild/issues/2407
 func TestDefineInfiniteLoopIssue2407(t *testing.T) {
 	defines := config.ProcessDefines(map[string]config.DefineData{
