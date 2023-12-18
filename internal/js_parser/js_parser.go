@@ -15762,6 +15762,7 @@ outer:
 		})
 	}
 
+	p.recordUsage(ref)
 	return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ECall{
 		Target: js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EIdentifier{Ref: ref}},
 		Args:   []js_ast.Expr{expr},

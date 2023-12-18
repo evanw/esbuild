@@ -258,3 +258,135 @@ console.log({
     import: globImport_src_js(`./src/${ab}.js`)
   }
 });
+
+================================================================================
+TestTSGlobBasicNoSplitting
+---------- /out.js ----------
+// src/a.ts
+var require_a = __commonJS({
+  "src/a.ts"(exports, module) {
+    module.exports = "a";
+  }
+});
+
+// src/b.ts
+var require_b = __commonJS({
+  "src/b.ts"(exports, module) {
+    module.exports = "b";
+  }
+});
+
+// require("./src/**/*") in entry.ts
+var globRequire_src = __glob({
+  "./src/a.ts": () => require_a(),
+  "./src/b.ts": () => require_b()
+});
+
+// import("./src/**/*") in entry.ts
+var globImport_src = __glob({
+  "./src/a.ts": () => Promise.resolve().then(() => __toESM(require_a())),
+  "./src/b.ts": () => Promise.resolve().then(() => __toESM(require_b()))
+});
+
+// entry.ts
+var ab = Math.random() < 0.5 ? "a.ts" : "b.ts";
+console.log({
+  concat: {
+    require: globRequire_src("./src/" + ab),
+    import: globImport_src("./src/" + ab)
+  },
+  template: {
+    require: globRequire_src(`./src/${ab}`),
+    import: globImport_src(`./src/${ab}`)
+  }
+});
+
+================================================================================
+TestTSGlobBasicSplitting
+---------- /out/entry.js ----------
+import {
+  require_a
+} from "./chunk-NW3BCH2J.js";
+import {
+  require_b
+} from "./chunk-LX6LSYGO.js";
+import {
+  __glob
+} from "./chunk-NI2FVOS3.js";
+
+// require("./src/**/*") in entry.ts
+var globRequire_src = __glob({
+  "./src/a.ts": () => require_a(),
+  "./src/b.ts": () => require_b()
+});
+
+// import("./src/**/*") in entry.ts
+var globImport_src = __glob({
+  "./src/a.ts": () => import("./a-CIKLEGQA.js"),
+  "./src/b.ts": () => import("./b-UWTMLRMB.js")
+});
+
+// entry.ts
+var ab = Math.random() < 0.5 ? "a.ts" : "b.ts";
+console.log({
+  concat: {
+    require: globRequire_src("./src/" + ab),
+    import: globImport_src("./src/" + ab)
+  },
+  template: {
+    require: globRequire_src(`./src/${ab}`),
+    import: globImport_src(`./src/${ab}`)
+  }
+});
+
+---------- /out/a-CIKLEGQA.js ----------
+import {
+  require_a
+} from "./chunk-NW3BCH2J.js";
+import "./chunk-NI2FVOS3.js";
+export default require_a();
+
+---------- /out/chunk-NW3BCH2J.js ----------
+import {
+  __commonJS
+} from "./chunk-NI2FVOS3.js";
+
+// src/a.ts
+var require_a = __commonJS({
+  "src/a.ts"(exports, module) {
+    module.exports = "a";
+  }
+});
+
+export {
+  require_a
+};
+
+---------- /out/b-UWTMLRMB.js ----------
+import {
+  require_b
+} from "./chunk-LX6LSYGO.js";
+import "./chunk-NI2FVOS3.js";
+export default require_b();
+
+---------- /out/chunk-LX6LSYGO.js ----------
+import {
+  __commonJS
+} from "./chunk-NI2FVOS3.js";
+
+// src/b.ts
+var require_b = __commonJS({
+  "src/b.ts"(exports, module) {
+    module.exports = "b";
+  }
+});
+
+export {
+  require_b
+};
+
+---------- /out/chunk-NI2FVOS3.js ----------
+export {
+  __glob,
+  __commonJS
+};

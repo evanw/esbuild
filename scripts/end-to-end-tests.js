@@ -8214,66 +8214,68 @@ if (process.platform === 'darwin' || process.platform === 'win32') {
 }
 
 // Test glob import behavior
-tests.push(
-  test(['./src/*.ts', '--outdir=out', '--bundle', '--format=cjs'], {
-    'node.js': `
-      if (require('./out/a.js') !== 10) throw 'fail: a'
-      if (require('./out/b.js') !== 11) throw 'fail: b'
-      if (require('./out/c.js') !== 12) throw 'fail: c'
-    `,
-    'src/a.ts': `module.exports = 10 as number`,
-    'src/b.ts': `module.exports = 11 as number`,
-    'src/c.ts': `module.exports = 12 as number`,
-  }),
-  test(['in.js', '--outfile=node.js', '--bundle'], {
-    'in.js': `
-      for (let i = 0; i < 3; i++) {
-        const value = require('./' + i + '.js')
-        if (value !== i + 10) throw 'fail: ' + i
-      }
-    `,
-    '0.js': `module.exports = 10`,
-    '1.js': `module.exports = 11`,
-    '2.js': `module.exports = 12`,
-  }),
-  test(['in.js', '--outfile=node.js', '--bundle'], {
-    'in.js': `
-      for (let i = 0; i < 3; i++) {
-        const value = require(\`./\${i}.js\`)
-        if (value !== i + 10) throw 'fail: ' + i
-      }
-    `,
-    '0.js': `module.exports = 10`,
-    '1.js': `module.exports = 11`,
-    '2.js': `module.exports = 12`,
-  }),
-  test(['in.js', '--outfile=node.js', '--bundle'], {
-    'in.js': `
-      export let async = async () => {
+for (const ext of ['.js', '.ts']) {
+  tests.push(
+    test(['./src/*' + ext, '--outdir=out', '--bundle', '--format=cjs'], {
+      'node.js': `
+        if (require('./out/a.js') !== 10) throw 'fail: a'
+        if (require('./out/b.js') !== 11) throw 'fail: b'
+        if (require('./out/c.js') !== 12) throw 'fail: c'
+      `,
+      ['src/a' + ext]: `module.exports = 10`,
+      ['src/b' + ext]: `module.exports = 11`,
+      ['src/c' + ext]: `module.exports = 12`,
+    }),
+    test(['in' + ext, '--outfile=node.js', '--bundle'], {
+      ['in' + ext]: `
         for (let i = 0; i < 3; i++) {
-          const { default: value } = await import('./' + i + '.js')
+          const value = require('./' + i + '${ext}')
           if (value !== i + 10) throw 'fail: ' + i
         }
-      }
-    `,
-    '0.js': `export default 10`,
-    '1.js': `export default 11`,
-    '2.js': `export default 12`,
-  }, { async: true }),
-  test(['in.js', '--outfile=node.js', '--bundle'], {
-    'in.js': `
-      export let async = async () => {
+      `,
+      ['0' + ext]: `module.exports = 10`,
+      ['1' + ext]: `module.exports = 11`,
+      ['2' + ext]: `module.exports = 12`,
+    }),
+    test(['in' + ext, '--outfile=node.js', '--bundle'], {
+      ['in' + ext]: `
         for (let i = 0; i < 3; i++) {
-          const { default: value } = await import(\`./\${i}.js\`)
+          const value = require(\`./\${i}${ext}\`)
           if (value !== i + 10) throw 'fail: ' + i
         }
-      }
-    `,
-    '0.js': `export default 10`,
-    '1.js': `export default 11`,
-    '2.js': `export default 12`,
-  }, { async: true }),
-)
+      `,
+      ['0' + ext]: `module.exports = 10`,
+      ['1' + ext]: `module.exports = 11`,
+      ['2' + ext]: `module.exports = 12`,
+    }),
+    test(['in' + ext, '--outfile=node.js', '--bundle'], {
+      ['in' + ext]: `
+        export let async = async () => {
+          for (let i = 0; i < 3; i++) {
+            const { default: value } = await import('./' + i + '${ext}')
+            if (value !== i + 10) throw 'fail: ' + i
+          }
+        }
+      `,
+      ['0' + ext]: `export default 10`,
+      ['1' + ext]: `export default 11`,
+      ['2' + ext]: `export default 12`,
+    }, { async: true }),
+    test(['in' + ext, '--outfile=node.js', '--bundle'], {
+      ['in' + ext]: `
+        export let async = async () => {
+          for (let i = 0; i < 3; i++) {
+            const { default: value } = await import(\`./\${i}${ext}\`)
+            if (value !== i + 10) throw 'fail: ' + i
+          }
+        }
+      `,
+      ['0' + ext]: `export default 10`,
+      ['1' + ext]: `export default 11`,
+      ['2' + ext]: `export default 12`,
+    }, { async: true }),
+  )
+}
 
 // Test "using" declarations
 for (const flags of [[], '--supported:async-await=false']) {
