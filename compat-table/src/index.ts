@@ -470,7 +470,7 @@ import('./kangax').then(kangax => {
     // From https://bugzilla.mozilla.org/show_bug.cgi?id=1670044
     js.ArbitraryModuleNamespaceNames.Firefox = { 87: { force: true } }
 
-    // From https://developer.apple.com/documentation/safari-release-notes/safari-14_1-release-notes#:~:text=Added%20support%20for%20Arbitrary%20module%20namespace%20identifier%20names.
+    // From https://developer.apple.com/documentation/safari-release-notes/safari-14_1-release-notes
     js.ArbitraryModuleNamespaceNames.Safari = { '14.1': { force: true } }
     js.ArbitraryModuleNamespaceNames.IOS = { '14.5': { force: true } }
   }
