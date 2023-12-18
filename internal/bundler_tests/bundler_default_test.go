@@ -5350,7 +5350,9 @@ func TestDefineOptionalChainPanic3551(t *testing.T) {
 				a?.b["c"];
 				(a?.b)["c"];
 				globalThis.process?.env.SHELL;
+				(globalThis.process?.env).SHELL;
 				globalThis.process?.env["SHELL"];
+				(globalThis.process?.env)["SHELL"];
 			`,
 		},
 		entryPaths: []string{"/entry.js"},
