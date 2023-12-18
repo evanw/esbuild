@@ -13237,6 +13237,11 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			tagThisFunc = tagOut.thisArgFunc
 			tagWrapFunc = tagOut.thisArgWrapFunc
 
+			// Copy the call side effect flag over if this is a known target
+			if id, ok := tag.Data.(*js_ast.EIdentifier); ok && p.symbols[id.Ref.InnerIndex].Flags.Has(ast.CallCanBeUnwrappedIfUnused) {
+				e.CanBeUnwrappedIfUnused = true
+			}
+
 			// The value of "this" must be manually preserved for private member
 			// accesses inside template tag expressions such as "this.#foo``".
 			// The private member "this.#foo" must see the value of "this".

@@ -1222,6 +1222,31 @@ func TestRemoveUnusedPureCommentCalls(t *testing.T) {
 	})
 }
 
+func TestRemoveUnusedNoSideEffectsTaggedTemplates(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				// @__NO_SIDE_EFFECTS__
+				function foo() {}
+
+				foo` + "`remove`" + `;
+				foo` + "`remove${null}`" + `;
+				foo` + "`remove${123}`" + `;
+
+				use(foo` + "`keep`" + `);
+				foo` + "`remove this part ${keep} and this ${alsoKeep}`" + `;
+				` + "`remove this part ${keep} and this ${alsoKeep}`" + `;
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			MinifySyntax:  true,
+		},
+	})
+}
+
 func TestTreeShakingReactElements(t *testing.T) {
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{

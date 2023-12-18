@@ -103,6 +103,28 @@
 
     With this release, esbuild will now attempt to terminate the Go GC in this edge case by calling `clearTimeout()` on these pending timeouts.
 
+* Apply `/* @__NO_SIDE_EFFECTS__ */` on tagged template literals ([#3511](https://github.com/evanw/esbuild/issues/3511))
+
+    Tagged template literals that reference functions annotated with a `@__NO_SIDE_EFFECTS__` comment are now able to be removed via tree-shaking if the result is unused. This is a convention from [Rollup](https://github.com/rollup/rollup/pull/5024). Here is an example:
+
+    ```js
+    // Original code
+    const html = /* @__NO_SIDE_EFFECTS__ */ (a, ...b) => ({ a, b })
+    html`<a>remove</a>`
+    x = html`<b>keep</b>`
+
+    // Old output (with --tree-shaking=true)
+    const html = /* @__NO_SIDE_EFFECTS__ */ (a, ...b) => ({ a, b });
+    html`<a>remove</a>`;
+    x = html`<b>keep</b>`;
+
+    // New output (with --tree-shaking=true)
+    const html = /* @__NO_SIDE_EFFECTS__ */ (a, ...b) => ({ a, b });
+    x = html`<b>keep</b>`;
+    ```
+
+    Note that this feature currently only works within a single file, so it's not especially useful. This feature does not yet work across separate files. I still recommend using `@__PURE__` annotations instead of this feature, as they have wider tooling support. The drawback of course is that `@__PURE__` annotations need to be added at each call site, not at the declaration, and for non-call expressions such as template literals you need to wrap the expression in an IIFE (immediately-invoked function expression) to create a call expression to apply the `@__PURE__` annotation to.
+
 * Publish builds for IBM AIX PowerPC 64-bit ([#3549](https://github.com/evanw/esbuild/issues/3549))
 
     This release publishes a binary executable to npm for IBM AIX PowerPC 64-bit, which means that in theory esbuild can now be installed in that environment with `npm install esbuild`. This hasn't actually been tested yet. If you have access to such a system, it would be helpful to confirm whether or not doing this actually works.

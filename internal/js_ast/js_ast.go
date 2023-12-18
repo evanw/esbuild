@@ -799,6 +799,13 @@ type ETemplate struct {
 	HeadLoc        logger.Loc
 	LegacyOctalLoc logger.Loc
 
+	// True if this is a tagged template literal with a comment that indicates
+	// this function call can be removed if the result is unused. Note that the
+	// arguments are not considered to be part of the call. If the call itself
+	// is removed due to this annotation, the arguments must remain if they have
+	// side effects (including the string conversions).
+	CanBeUnwrappedIfUnused bool
+
 	// If the tag is present, it is expected to be a function and is called. If
 	// the tag is a syntactic property access, then the value for "this" in the
 	// function call is the object whose property was accessed (e.g. in "a.b``"

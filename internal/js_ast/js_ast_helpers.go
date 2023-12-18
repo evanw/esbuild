@@ -576,6 +576,16 @@ func (ctx HelperContext) SimplifyUnusedExpr(expr Expr, unsupportedFeatures compa
 				comma = JoinWithComma(comma, Expr{Loc: templateLoc, Data: template})
 			}
 			return comma
+		} else if e.CanBeUnwrappedIfUnused {
+			// If the function call was annotated as being able to be removed if the
+			// result is unused, then we can remove it and just keep the arguments.
+			// Note that there are no implicit "ToString" operations for tagged
+			// template literals.
+			var comma Expr
+			for _, part := range e.Parts {
+				comma = JoinWithComma(comma, ctx.SimplifyUnusedExpr(part.Value, unsupportedFeatures))
+			}
+			return comma
 		}
 
 	case *EArray:
@@ -2413,7 +2423,7 @@ func (ctx HelperContext) ExprCanBeRemovedIfUnused(expr Expr) bool {
 		// A template can be removed if it has no tag and every value has no side
 		// effects and results in some kind of primitive, since all primitives
 		// have a "ToString" operation with no side effects.
-		if e.TagOrNil.Data == nil {
+		if e.TagOrNil.Data == nil || e.CanBeUnwrappedIfUnused {
 			for _, part := range e.Parts {
 				if !ctx.ExprCanBeRemovedIfUnused(part.Value) || KnownPrimitiveType(part.Value.Data) == PrimitiveUnknown {
 					return false

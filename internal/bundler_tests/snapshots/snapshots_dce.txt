@@ -2457,6 +2457,17 @@ TestRemoveUnusedImportsEvalTS
 eval("foo(a, b, c)");
 
 ================================================================================
+TestRemoveUnusedNoSideEffectsTaggedTemplates
+---------- /out.js ----------
+// entry.js
+// @__NO_SIDE_EFFECTS__
+function foo() {
+}
+use(foo`keep`);
+keep, alsoKeep;
+`${keep}${alsoKeep}`;
+
+================================================================================
 TestRemoveUnusedPureCommentCalls
 ---------- /out.js ----------
 // entry.js
