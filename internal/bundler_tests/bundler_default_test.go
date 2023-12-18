@@ -5329,6 +5329,64 @@ func TestDefineOptionalChainLowered(t *testing.T) {
 	})
 }
 
+// See: https://github.com/evanw/esbuild/issues/3551
+func TestDefineOptionalChainPanicIssue3551(t *testing.T) {
+	defines := config.ProcessDefines(map[string]config.DefineData{
+		"x": {
+			DefineExpr: &config.DefineExpr{
+				Constant: &js_ast.EObject{},
+			},
+		},
+		"a.b": {
+			DefineExpr: &config.DefineExpr{
+				Constant: &js_ast.EObject{},
+			},
+		},
+	})
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/id-define.js": `
+				x?.y.z;
+				(x?.y).z;
+				x?.y["z"];
+				(x?.y)["z"];
+				x?.y();
+				(x?.y)();
+				x?.y.z();
+				(x?.y).z();
+				x?.y["z"]();
+				(x?.y)["z"]();
+				delete x?.y.z;
+				delete (x?.y).z;
+				delete x?.y["z"];
+				delete (x?.y)["z"];
+			`,
+			"/dot-define.js": `
+				a?.b.c;
+				(a?.b).c;
+				a?.b["c"];
+				(a?.b)["c"];
+				a?.b();
+				(a?.b)();
+				a?.b.c();
+				(a?.b).c();
+				a?.b["c"]();
+				(a?.b)["c"]();
+				delete a?.b.c;
+				delete (a?.b).c;
+				delete a?.b["c"];
+				delete (a?.b)["c"];
+			`,
+		},
+		entryPaths: []string{"/id-define.js", "/dot-define.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			Defines:      &defines,
+		},
+	})
+}
+
 // See: https://github.com/evanw/esbuild/issues/2407
 func TestDefineInfiniteLoopIssue2407(t *testing.T) {
 	defines := config.ProcessDefines(map[string]config.DefineData{
