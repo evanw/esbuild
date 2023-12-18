@@ -89,6 +89,12 @@
     new Foo();
     ```
 
+* Terminate the Go GC when esbuild's `stop()` API is called ([#3552](https://github.com/evanw/esbuild/issues/3552))
+
+    If you use esbuild with WebAssembly and pass the `worker: false` flag to `esbuild.initialize()`, then esbuild will run the WebAssembly module on the main thread. If you do this within a Deno test and that test calls `esbuild.stop()` to clean up esbuild's resources, Deno may complain that a `setTimeout()` call lasted past the end of the test. This happens when the Go is in the middle of a garbage collection pass and has scheduled additional ongoing garbage collection work. Normally calling `esbuild.stop()` will terminate the web worker that the WebAssembly module runs in, which will terminate the Go GC, but that doesn't happen if you disable the web worker with `worker: false`.
+
+    With this release, esbuild will now attempt to terminate the Go GC in this edge case by calling `clearTimeout()` on these pending timeouts.
+
 ## 0.19.9
 
 * Add support for transforming new CSS gradient syntax for older browsers

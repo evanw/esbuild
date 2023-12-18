@@ -25,10 +25,6 @@ function test(name, backends, fn) {
       promise.then(cancel, cancel)
       promise.then(resolve, reject)
     }),
-
-    // It's ok that the Go WebAssembly runtime uses "setTimeout"
-    sanitizeResources: false,
-    sanitizeOps: false,
   })
 
   for (const backend of backends) {
