@@ -95,6 +95,10 @@
 
     With this release, esbuild will now attempt to terminate the Go GC in this edge case by calling `clearTimeout()` on these pending timeouts.
 
+* Publish builds for IBM AIX PowerPC 64-bit ([#3549](https://github.com/evanw/esbuild/issues/3549))
+
+    This release publishes a binary executable to npm for IBM AIX PowerPC 64-bit, which means that in theory esbuild can now be installed in that environment with `npm install esbuild`. This hasn't actually been tested yet. If you have access to such a system, it would be helpful to confirm whether or not doing this actually works.
+
 ## 0.19.9
 
 * Add support for transforming new CSS gradient syntax for older browsers

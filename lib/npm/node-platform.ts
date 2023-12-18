@@ -26,6 +26,7 @@ export const knownWindowsPackages: Record<string, string> = {
 }
 
 export const knownUnixlikePackages: Record<string, string> = {
+  'aix ppc64 BE': '@esbuild/aix-ppc64',
   'android arm64 LE': '@esbuild/android-arm64',
   'darwin arm64 LE': '@esbuild/darwin-arm64',
   'darwin x64 LE': '@esbuild/darwin-x64',
