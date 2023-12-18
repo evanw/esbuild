@@ -13462,7 +13462,8 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 		// Lower optional chaining if we're the top of the chain
-		containsOptionalChain := e.OptionalChain != js_ast.OptionalChainNone
+		containsOptionalChain := e.OptionalChain == js_ast.OptionalChainStart ||
+			(e.OptionalChain == js_ast.OptionalChainContinue && out.childContainsOptionalChain)
 		if containsOptionalChain && !in.hasChainParent {
 			return p.lowerOptionalChain(expr, in, out)
 		}
@@ -13620,7 +13621,8 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 		// Lower optional chaining if we're the top of the chain
-		containsOptionalChain := e.OptionalChain != js_ast.OptionalChainNone
+		containsOptionalChain := e.OptionalChain == js_ast.OptionalChainStart ||
+			(e.OptionalChain == js_ast.OptionalChainContinue && out.childContainsOptionalChain)
 		if containsOptionalChain && !in.hasChainParent {
 			return p.lowerOptionalChain(expr, in, out)
 		}
@@ -14718,7 +14720,8 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 		// Lower optional chaining if we're the top of the chain
-		containsOptionalChain := e.OptionalChain != js_ast.OptionalChainNone
+		containsOptionalChain := e.OptionalChain == js_ast.OptionalChainStart ||
+			(e.OptionalChain == js_ast.OptionalChainContinue && out.childContainsOptionalChain)
 		if containsOptionalChain && !in.hasChainParent {
 			return p.lowerOptionalChain(expr, in, out)
 		}

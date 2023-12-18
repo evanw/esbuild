@@ -1082,17 +1082,40 @@ console.log([
 ]);
 
 ================================================================================
-TestDefineOptionalChainPanic3551
----------- /out.js ----------
-// entry.js
+TestDefineOptionalChainPanicIssue3551
+---------- /out/id-define.js ----------
+// id-define.js
+({})?.y.z;
+({}?.y).z;
+({})?.y["z"];
+({}?.y)["z"];
+({})?.y();
+({}?.y)();
+({})?.y.z();
+({}?.y).z();
+({})?.y["z"]();
+({}?.y)["z"]();
+delete {}?.y.z;
+delete ({}?.y).z;
+delete {}?.y["z"];
+delete ({}?.y)["z"];
+
+---------- /out/dot-define.js ----------
+// dot-define.js
 ({}).c;
 ({}).c;
 ({})["c"];
 ({})["c"];
-({}).SHELL;
-({}).SHELL;
-({})["SHELL"];
-({})["SHELL"];
+({})();
+({})();
+({}).c();
+({}).c();
+({})["c"]();
+({})["c"]();
+delete {}.c;
+delete {}.c;
+delete {}["c"];
+delete {}["c"];
 
 ================================================================================
 TestDefineThis

@@ -538,11 +538,6 @@ flatten:
 			expr = e.Value
 
 		default:
-			// "defines" replacement can make opitonal chain in the "target" to disapper.
-			// Skip processing if that happens.
-			if !childOut.childContainsOptionalChain {
-				return originalExpr, exprOut{}
-			}
 			panic("Internal error")
 		}
 	}
