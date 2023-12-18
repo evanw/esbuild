@@ -14790,8 +14790,10 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 							}
 
 							// Handle glob patterns
-							if value := p.handleGlobPattern(arg, ast.ImportRequire, "globRequire", nil); value.Data != nil {
-								return value
+							if p.options.mode == config.ModeBundle {
+								if value := p.handleGlobPattern(arg, ast.ImportRequire, "globRequire", nil); value.Data != nil {
+									return value
+								}
 							}
 
 							// Use a debug log so people can see this if they want to

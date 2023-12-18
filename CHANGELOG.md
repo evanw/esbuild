@@ -6,6 +6,10 @@
 
     This release fixes a problem where bundling a TypeScript file containing a glob import could emit a call to a helper function that doesn't exist. The problem happened because esbuild's TypeScript transformation removes unused imports (which is required for correctness, as they may be type-only imports) and esbuild's glob import transformation wasn't correctly marking the imported helper function as used. This wasn't caught earlier because most of esbuild's glob import tests were written in JavaScript, not in TypeScript.
 
+* Fix `require()` glob imports with bundling disabled ([#3546](https://github.com/evanw/esbuild/issues/3546))
+
+    Previously `require()` calls containing glob imports were incorrectly transformed when bundling was disabled. All glob imports should only be transformed when bundling is enabled. This bug has been fixed.
+
 * Fix a panic when transforming optional chaining with `define` ([#3551](https://github.com/evanw/esbuild/issues/3551), [#3554](https://github.com/evanw/esbuild/pull/3554))
 
     This release fixes a case where esbuild could crash with a panic, which was triggered by using `define` to replace an expression containing an optional chain. Here is an example:

@@ -10,6 +10,32 @@ var glob_suite = suite{
 	name: "glob",
 }
 
+func TestGlobBasicNoBundle(t *testing.T) {
+	glob_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				const ab = Math.random() < 0.5 ? 'a.js' : 'b.js'
+				console.log({
+					concat: {
+						require: require('./src/' + ab),
+						import: import('./src/' + ab),
+					},
+					template: {
+						require: require(` + "`./src/${ab}`" + `),
+						import: import(` + "`./src/${ab}`" + `),
+					},
+				})
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeConvertFormat,
+			OutputFormat:  config.FormatCommonJS,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
 func TestGlobBasicNoSplitting(t *testing.T) {
 	glob_suite.expectBundled(t, bundled{
 		files: map[string]string{
