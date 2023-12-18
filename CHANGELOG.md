@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+* Fix a panic when transforming optional chaining with `define` ([#3551](https://github.com/evanw/esbuild/issues/3551), [#3554](https://github.com/evanw/esbuild/pull/3554))
+
+    This release fixes a case where esbuild could crash with a panic, which was triggered by using `define` to replace an expression containing an optional chain. Here is an example:
+
+    ```js
+    // Original code
+    console.log(process?.env.SHELL)
+
+    // Old output (with --define:process.env={})
+    /* panic: Internal error (while parsing "<stdin>") */
+
+    // New output (with --define:process.env={})
+    var define_process_env_default = {};
+    console.log(define_process_env_default.SHELL);
+    ```
+
+    This fix was contributed by [@hi-ogawa](https://github.com/hi-ogawa).
+
 * Work around a bug in node's CommonJS export name detector ([#3544](https://github.com/evanw/esbuild/issues/3544))
 
     The export names of a CommonJS module are dynamically-determined at run time because CommonJS exports are properties on a mutable object. But the export names of an ES module are statically-determined at module instantiation time by using `import` and `export` syntax and cannot be changed at run time.
@@ -70,6 +88,12 @@
     }
     new Foo();
     ```
+
+* Terminate the Go GC when esbuild's `stop()` API is called ([#3552](https://github.com/evanw/esbuild/issues/3552))
+
+    If you use esbuild with WebAssembly and pass the `worker: false` flag to `esbuild.initialize()`, then esbuild will run the WebAssembly module on the main thread. If you do this within a Deno test and that test calls `esbuild.stop()` to clean up esbuild's resources, Deno may complain that a `setTimeout()` call lasted past the end of the test. This happens when the Go is in the middle of a garbage collection pass and has scheduled additional ongoing garbage collection work. Normally calling `esbuild.stop()` will terminate the web worker that the WebAssembly module runs in, which will terminate the Go GC, but that doesn't happen if you disable the web worker with `worker: false`.
+
+    With this release, esbuild will now attempt to terminate the Go GC in this edge case by calling `clearTimeout()` on these pending timeouts.
 
 * Publish builds for IBM AIX PowerPC 64-bit ([#3549](https://github.com/evanw/esbuild/issues/3549))
 

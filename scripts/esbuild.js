@@ -192,7 +192,7 @@ exports.buildWasmLib = async (esbuildPath) => {
     ].concat(minifyFlags), { cwd: repoDir }).toString().replace('WEB_WORKER_FUNCTION', wasmWorkerCodeUMD)
     fs.writeFileSync(path.join(libDir, minify ? 'browser.min.js' : 'browser.js'), browserCJS)
 
-    // Generate "npm/esbuild-wasm/esm/browser.min.js"
+    // Generate "npm/esbuild-wasm/esm/browser.*"
     const browserESM = childProcess.execFileSync(esbuildPath, [
       path.join(repoDir, 'lib', 'npm', 'browser.ts'),
       '--bundle',
@@ -222,7 +222,7 @@ exports.buildWasmLib = async (esbuildPath) => {
 }
 
 const buildDenoLib = async (esbuildPath) => {
-  // Generate "deno/esbuild/mod.js"
+  // Generate "deno/mod.js"
   childProcess.execFileSync(esbuildPath, [
     path.join(repoDir, 'lib', 'deno', 'mod.ts'),
     '--bundle',
@@ -234,7 +234,7 @@ const buildDenoLib = async (esbuildPath) => {
     '--banner:js=/// <reference types="./mod.d.ts" />',
   ], { cwd: repoDir })
 
-  // Generate "deno/esbuild/wasm.js"
+  // Generate "deno/wasm.js"
   const GOROOT = childProcess.execFileSync('go', ['env', 'GOROOT']).toString().trim()
   let wasm_exec_js = fs.readFileSync(path.join(GOROOT, 'misc', 'wasm', 'wasm_exec.js'), 'utf8')
   const wasmWorkerCode = await generateWorkerCode({ esbuildPath, wasm_exec_js, minify: true, target: 'esnext' })
@@ -250,7 +250,7 @@ const buildDenoLib = async (esbuildPath) => {
   ], { cwd: repoDir }).toString().replace('WEB_WORKER_FUNCTION', wasmWorkerCode)
   fs.writeFileSync(path.join(denoDir, 'wasm.js'), modWASM)
 
-  // Generate "deno/esbuild/mod.d.ts"
+  // Generate "deno/mod.d.ts"
   const types_ts = fs.readFileSync(path.join(repoDir, 'lib', 'shared', 'types.ts'), 'utf8') +
     `\n// Unlike node, Deno lacks the necessary APIs to clean up child processes` +
     `\n// automatically. You must manually call stop() in Deno when you're done` +

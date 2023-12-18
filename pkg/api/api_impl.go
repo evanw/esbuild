@@ -540,13 +540,11 @@ func validateResolveExtensions(log logger.Log, order []string) []string {
 
 func validateLoaders(log logger.Log, loaders map[string]Loader) map[string]config.Loader {
 	result := bundler.DefaultExtensionToLoaderMap()
-	if loaders != nil {
-		for ext, loader := range loaders {
-			if ext != "" && !isValidExtension(ext) {
-				log.AddError(nil, logger.Range{}, fmt.Sprintf("Invalid file extension: %q", ext))
-			}
-			result[ext] = validateLoader(loader)
+	for ext, loader := range loaders {
+		if ext != "" && !isValidExtension(ext) {
+			log.AddError(nil, logger.Range{}, fmt.Sprintf("Invalid file extension: %q", ext))
 		}
+		result[ext] = validateLoader(loader)
 	}
 	return result
 }

@@ -13462,7 +13462,8 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 		// Lower optional chaining if we're the top of the chain
-		containsOptionalChain := e.OptionalChain != js_ast.OptionalChainNone
+		containsOptionalChain := e.OptionalChain == js_ast.OptionalChainStart ||
+			(e.OptionalChain == js_ast.OptionalChainContinue && out.childContainsOptionalChain)
 		if containsOptionalChain && !in.hasChainParent {
 			return p.lowerOptionalChain(expr, in, out)
 		}
@@ -13620,7 +13621,8 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 		// Lower optional chaining if we're the top of the chain
-		containsOptionalChain := e.OptionalChain != js_ast.OptionalChainNone
+		containsOptionalChain := e.OptionalChain == js_ast.OptionalChainStart ||
+			(e.OptionalChain == js_ast.OptionalChainContinue && out.childContainsOptionalChain)
 		if containsOptionalChain && !in.hasChainParent {
 			return p.lowerOptionalChain(expr, in, out)
 		}
@@ -14718,7 +14720,8 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 		// Lower optional chaining if we're the top of the chain
-		containsOptionalChain := e.OptionalChain != js_ast.OptionalChainNone
+		containsOptionalChain := e.OptionalChain == js_ast.OptionalChainStart ||
+			(e.OptionalChain == js_ast.OptionalChainContinue && out.childContainsOptionalChain)
 		if containsOptionalChain && !in.hasChainParent {
 			return p.lowerOptionalChain(expr, in, out)
 		}
@@ -17407,7 +17410,7 @@ func (p *parser) prepareForVisitPass() {
 		if jsxImportSource := p.lexer.JSXImportSourcePragmaComment; jsxImportSource.Text != "" {
 			if !p.options.jsx.AutomaticRuntime {
 				p.log.AddIDWithNotes(logger.MsgID_JS_UnsupportedJSXComment, logger.Warning, &p.tracker, jsxImportSource.Range,
-					fmt.Sprintf("The JSX import source cannot be set without also enabling React's \"automatic\" JSX transform"),
+					"The JSX import source cannot be set without also enabling React's \"automatic\" JSX transform",
 					[]logger.MsgData{{Text: "You can enable React's \"automatic\" JSX transform for this file by using a \"@jsxRuntime automatic\" comment."}})
 			} else {
 				p.options.jsx.ImportSource = jsxImportSource.Text
