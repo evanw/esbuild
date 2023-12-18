@@ -5334,12 +5334,12 @@ func TestDefineOptionalChainPanicIssue3551(t *testing.T) {
 	defines := config.ProcessDefines(map[string]config.DefineData{
 		"x": {
 			DefineExpr: &config.DefineExpr{
-				Constant: &js_ast.EObject{},
+				Constant: &js_ast.ENumber{Value: 1},
 			},
 		},
 		"a.b": {
 			DefineExpr: &config.DefineExpr{
-				Constant: &js_ast.EObject{},
+				Constant: &js_ast.ENumber{Value: 1},
 			},
 		},
 	})

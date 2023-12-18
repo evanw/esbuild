@@ -1085,37 +1085,37 @@ console.log([
 TestDefineOptionalChainPanicIssue3551
 ---------- /out/id-define.js ----------
 // id-define.js
-({})?.y.z;
-({}?.y).z;
-({})?.y["z"];
-({}?.y)["z"];
-({})?.y();
-({}?.y)();
-({})?.y.z();
-({}?.y).z();
-({})?.y["z"]();
-({}?.y)["z"]();
-delete {}?.y.z;
-delete ({}?.y).z;
-delete {}?.y["z"];
-delete ({}?.y)["z"];
+1?.y.z;
+(1?.y).z;
+1?.y["z"];
+(1?.y)["z"];
+1?.y();
+(1?.y)();
+1?.y.z();
+(1?.y).z();
+1?.y["z"]();
+(1?.y)["z"]();
+delete 1?.y.z;
+delete (1?.y).z;
+delete 1?.y["z"];
+delete (1?.y)["z"];
 
 ---------- /out/dot-define.js ----------
 // dot-define.js
-({}).c;
-({}).c;
-({})["c"];
-({})["c"];
-({})();
-({})();
-({}).c();
-({}).c();
-({})["c"]();
-({})["c"]();
-delete {}.c;
-delete {}.c;
-delete {}["c"];
-delete {}["c"];
+1 .c;
+1 .c;
+1["c"];
+1["c"];
+1();
+1();
+1 .c();
+1 .c();
+1["c"]();
+1["c"]();
+delete 1 .c;
+delete 1 .c;
+delete 1["c"];
+delete 1["c"];
 
 ================================================================================
 TestDefineThis
