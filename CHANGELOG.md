@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.19.10
 
 * Fix glob imports in TypeScript files ([#3319](https://github.com/evanw/esbuild/issues/3319))
 
