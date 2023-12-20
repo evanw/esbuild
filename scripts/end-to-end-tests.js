@@ -5622,6 +5622,78 @@ for (let flags of [['--target=es2022'], ['--target=es6'], ['--bundle', '--target
         },
       }`,
     }),
+
+    // https://github.com/evanw/esbuild/issues/3559
+    test(['in.ts', '--outfile=node.js'].concat(flags), {
+      'in.ts': `
+        class Foo extends Array {
+          #private: any
+          pass: any
+          constructor() {
+            super()
+            this.pass = true
+          }
+        }
+        if (!new Foo().pass) throw 'fail'
+      `,
+      'tsconfig.json': `{
+        "compilerOptions": {
+          "useDefineForClassFields": false,
+        },
+      }`,
+    }),
+    test(['in.ts', '--outfile=node.js'].concat(flags), {
+      'in.ts': `
+        class Foo extends Array {
+          #private: any
+          pass = true
+          constructor() {
+            super()
+          }
+        }
+        if (!new Foo().pass) throw 'fail'
+      `,
+      'tsconfig.json': `{
+        "compilerOptions": {
+          "useDefineForClassFields": false,
+        },
+      }`,
+    }),
+    test(['in.ts', '--outfile=node.js'].concat(flags), {
+      'in.ts': `
+        class Foo extends Array {
+          #private = 123
+          pass: any
+          constructor() {
+            super()
+            this.pass = true
+          }
+        }
+        if (!new Foo().pass) throw 'fail'
+      `,
+      'tsconfig.json': `{
+        "compilerOptions": {
+          "useDefineForClassFields": false,
+        },
+      }`,
+    }),
+    test(['in.ts', '--outfile=node.js'].concat(flags), {
+      'in.ts': `
+        class Foo extends Array {
+          #private = 123
+          pass: any = true
+          constructor() {
+            super()
+          }
+        }
+        if (!new Foo().pass) throw 'fail'
+      `,
+      'tsconfig.json': `{
+        "compilerOptions": {
+          "useDefineForClassFields": false,
+        },
+      }`,
+    }),
   )
 
   // https://github.com/evanw/esbuild/issues/3177

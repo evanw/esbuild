@@ -2419,6 +2419,45 @@ class A extends B {
   }
 }
 `)
+
+	expectPrintedAssignSemanticsTS(t, "class A extends B { #x; y; constructor() { super() } }",
+		`class A extends B {
+  #x;
+  constructor() {
+    super();
+  }
+}
+`)
+
+	expectPrintedAssignSemanticsTS(t, "class A extends B { #x = 1; y; constructor() { super() } }",
+		`class A extends B {
+  #x = 1;
+  constructor() {
+    super();
+  }
+}
+`)
+
+	expectPrintedAssignSemanticsTS(t, "class A extends B { #x; y = 1; constructor() { super() } }",
+		`class A extends B {
+  constructor() {
+    super();
+    this.y = 1;
+  }
+  #x;
+}
+`)
+
+	expectPrintedAssignSemanticsTS(t, "class A extends B { #x = 1; y = 2; constructor() { super() } }",
+		`class A extends B {
+  constructor() {
+    super();
+    this.#x = 1;
+    this.y = 2;
+  }
+  #x;
+}
+`)
 }
 
 func TestTSCall(t *testing.T) {

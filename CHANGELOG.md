@@ -1,5 +1,48 @@
 # Changelog
 
+## Unreleased
+
+* Fix TypeScript-specific class transform edge case ([#3559](https://github.com/evanw/esbuild/issues/3559))
+
+    The previous release introduced an optimization that avoided transforming `super()` in the class constructor for TypeScript code compiled with `useDefineForClassFields` set to `false` if all class instance fields have no initializers. The rationale was that in this case, all class instance fields are omitted in the output so no changes to the constructor are needed. However, if all of this is the case _and_ there are `#private` instance fields with initializers, those private instance field initializers were still being moved into the constructor. This was problematic because they were being inserted before the call to `super()` (since `super()` is now no longer transformed in that case). This release introduces an additional optimization that avoids moving the private instance field initializers into the constructor in this edge case, which generates smaller code, matches the TypeScript compiler's output more closely, and avoids this bug:
+
+    ```ts
+    // Original code
+    class Foo extends Bar {
+      #private = 1;
+      public: any;
+      constructor() {
+        super();
+      }
+    }
+
+    // Old output (with esbuild v0.19.9)
+    class Foo extends Bar {
+      constructor() {
+        super();
+        this.#private = 1;
+      }
+      #private;
+    }
+
+    // Old output (with esbuild v0.19.10)
+    class Foo extends Bar {
+      constructor() {
+        this.#private = 1;
+        super();
+      }
+      #private;
+    }
+
+    // New output
+    class Foo extends Bar {
+      #private = 1;
+      constructor() {
+        super();
+      }
+    }
+    ```
+
 ## 0.19.10
 
 * Fix glob imports in TypeScript files ([#3319](https://github.com/evanw/esbuild/issues/3319))

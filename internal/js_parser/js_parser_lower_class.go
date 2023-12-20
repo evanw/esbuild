@@ -376,16 +376,8 @@ func (p *parser) maybeLowerSuperPropertyGetInsideCall(call *js_ast.ECall) {
 	call.Args = append([]js_ast.Expr{thisExpr}, call.Args...)
 }
 
-type lowerAllInstanceFields uint8
-
-const (
-	lowerAllInstanceFields_false lowerAllInstanceFields = iota
-	lowerAllInstanceFields_true_skipSuperCallShim
-	lowerAllInstanceFields_true_needSuperCallShim
-)
-
 type classLoweringInfo struct {
-	lowerAllInstanceFields lowerAllInstanceFields
+	lowerAllInstanceFields bool
 	lowerAllStaticFields   bool
 	shimSuperCtorCalls     bool
 }
@@ -464,7 +456,7 @@ func (p *parser) computeClassLoweringInfo(class *js_ast.Class) (result classLowe
 				}
 			} else {
 				if p.privateSymbolNeedsToBeLowered(private) {
-					result.lowerAllInstanceFields = lowerAllInstanceFields_true_needSuperCallShim
+					result.lowerAllInstanceFields = true
 
 					// We can't transform this:
 					//
@@ -503,7 +495,7 @@ func (p *parser) computeClassLoweringInfo(class *js_ast.Class) (result classLowe
 				}
 			} else {
 				if p.options.unsupportedJSFeatures.Has(compat.ClassPrivateField) {
-					result.lowerAllInstanceFields = lowerAllInstanceFields_true_needSuperCallShim
+					result.lowerAllInstanceFields = true
 					result.lowerAllStaticFields = true
 				}
 			}
@@ -576,16 +568,14 @@ func (p *parser) computeClassLoweringInfo(class *js_ast.Class) (result classLowe
 				// fields because there's no way for this to call a setter in the base
 				// class, so this isn't done for private fields.
 				if prop.InitializerOrNil.Data != nil {
-					result.lowerAllInstanceFields = lowerAllInstanceFields_true_needSuperCallShim
-				} else if result.lowerAllInstanceFields != lowerAllInstanceFields_true_needSuperCallShim {
-					// We can skip the "super()" call shim if all instance fields
+					// We can skip lowering all instance fields if all instance fields
 					// disappear completely when lowered. This happens when
 					// "useDefineForClassFields" is false and there is no initializer.
-					result.lowerAllInstanceFields = lowerAllInstanceFields_true_skipSuperCallShim
+					result.lowerAllInstanceFields = true
 				}
 			} else if p.options.unsupportedJSFeatures.Has(compat.ClassField) {
 				// Instance fields must be lowered if the target doesn't support them
-				result.lowerAllInstanceFields = lowerAllInstanceFields_true_needSuperCallShim
+				result.lowerAllInstanceFields = true
 			}
 		}
 	}
@@ -593,7 +583,7 @@ func (p *parser) computeClassLoweringInfo(class *js_ast.Class) (result classLowe
 	// We need to shim "super()" inside the constructor if this is a derived
 	// class and there are any instance fields that need to be lowered, since
 	// those use "this" and we can only access "this" after "super()" is called
-	if result.lowerAllInstanceFields == lowerAllInstanceFields_true_needSuperCallShim && class.ExtendsOrNil.Data != nil {
+	if result.lowerAllInstanceFields && class.ExtendsOrNil.Data != nil {
 		result.shimSuperCtorCalls = true
 	}
 
@@ -1058,8 +1048,17 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 		if !prop.Flags.Has(js_ast.PropertyIsMethod) {
 			if prop.Flags.Has(js_ast.PropertyIsStatic) {
 				mustLowerField = classLoweringInfo.lowerAllStaticFields
+			} else if prop.Kind == js_ast.PropertyNormal && p.options.ts.Parse && !class.UseDefineForClassFields && private == nil {
+				// Lower non-private instance fields (not accessors) if TypeScript's
+				// "useDefineForClassFields" setting is disabled. When all such fields
+				// have no initializers, we avoid setting the "lowerAllInstanceFields"
+				// flag as an optimization because we can just remove all class field
+				// declarations in that case without messing with the constructor. But
+				// we must set the "mustLowerField" flag here to cause this class field
+				// declaration to still be removed.
+				mustLowerField = true
 			} else {
-				mustLowerField = classLoweringInfo.lowerAllInstanceFields != lowerAllInstanceFields_false
+				mustLowerField = classLoweringInfo.lowerAllInstanceFields
 			}
 		}
 
