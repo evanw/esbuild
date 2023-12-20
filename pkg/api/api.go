@@ -300,6 +300,7 @@ type BuildOptions struct {
 	JSXImportSource string // Documentation: https://esbuild.github.io/api/#jsx-import-source
 	JSXDev          bool   // Documentation: https://esbuild.github.io/api/#jsx-dev
 	JSXSideEffects  bool   // Documentation: https://esbuild.github.io/api/#jsx-side-effects
+	ReactRefresh    bool   // Documentation: https://esbuild.github.io/api/#react-refresh
 
 	Define    map[string]string // Documentation: https://esbuild.github.io/api/#define
 	Pure      []string          // Documentation: https://esbuild.github.io/api/#pure
@@ -435,6 +436,7 @@ type TransformOptions struct {
 	JSXImportSource string // Documentation: https://esbuild.github.io/api/#jsx-import-source
 	JSXDev          bool   // Documentation: https://esbuild.github.io/api/#jsx-dev
 	JSXSideEffects  bool   // Documentation: https://esbuild.github.io/api/#jsx-side-effects
+	ReactRefresh    bool   // Documentation: https://esbuild.github.io/api/#react-refresh
 
 	TsconfigRaw string // Documentation: https://esbuild.github.io/api/#tsconfig-raw
 	Banner      string // Documentation: https://esbuild.github.io/api/#banner

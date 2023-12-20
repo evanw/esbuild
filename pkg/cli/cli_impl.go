@@ -708,6 +708,15 @@ func parseOptionsImpl(
 				transformOpts.JSXSideEffects = value
 			}
 
+		case isBoolFlag(arg, "--react-refresh"):
+			if value, err := parseBoolFlag(arg, true); err != nil {
+				return parseOptionsExtras{}, err
+			} else if buildOpts != nil {
+				buildOpts.ReactRefresh = value
+			} else {
+				transformOpts.ReactRefresh = value
+			}
+
 		case strings.HasPrefix(arg, "--banner=") && transformOpts != nil:
 			transformOpts.Banner = arg[len("--banner="):]
 
@@ -827,6 +836,7 @@ func parseOptionsImpl(
 				"minify-whitespace":  true,
 				"minify":             true,
 				"preserve-symlinks":  true,
+				"react-refresh":      true,
 				"sourcemap":          true,
 				"splitting":          true,
 				"watch":              true,

@@ -157,6 +157,7 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   let jsxImportSource = getFlag(options, keys, 'jsxImportSource', mustBeString)
   let jsxDev = getFlag(options, keys, 'jsxDev', mustBeBoolean)
   let jsxSideEffects = getFlag(options, keys, 'jsxSideEffects', mustBeBoolean)
+  let reactRefresh = getFlag(options, keys, 'reactRefresh', mustBeBoolean)
   let define = getFlag(options, keys, 'define', mustBeObject)
   let logOverride = getFlag(options, keys, 'logOverride', mustBeObject)
   let supported = getFlag(options, keys, 'supported', mustBeObject)
@@ -197,6 +198,7 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   if (jsxImportSource) flags.push(`--jsx-import-source=${jsxImportSource}`)
   if (jsxDev) flags.push(`--jsx-dev`)
   if (jsxSideEffects) flags.push(`--jsx-side-effects`)
+  if (reactRefresh) flags.push(`--react-refresh`)
 
   if (define) {
     for (let key in define) {
