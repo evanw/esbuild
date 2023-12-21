@@ -218,7 +218,7 @@ function maybeOptimizePackage(binPath: string): void {
 async function downloadDirectlyFromNPM(pkg: string, subpath: string, binPath: string): Promise<void> {
   // If that fails, the user could have npm configured incorrectly or could not
   // have npm installed. Try downloading directly from npm as a last resort.
-  const url = `https://registry.npmjs.org/${pkg}/-/${pkg.replace('@esbuild/', '')}-${versionFromPackageJSON}.tgz`
+  const url = `${getCurrentNPMRegistry()}/${pkg}/-/${pkg.replace('@esbuild/', '')}-${versionFromPackageJSON}.tgz`
   console.error(`[esbuild] Trying to download ${JSON.stringify(url)}`)
   try {
     fs.writeFileSync(binPath, extractFileFromTarGzip(await fetch(url), subpath))
@@ -226,6 +226,15 @@ async function downloadDirectlyFromNPM(pkg: string, subpath: string, binPath: st
   } catch (e: any) {
     console.error(`[esbuild] Failed to download ${JSON.stringify(url)}: ${e && e.message || e}`)
     throw e
+  }
+}
+
+function getCurrentNPMRegistry() {
+  try {
+    const npmRegistryFromConfig = process.env.npm_config_registry;
+    return npmRegistryFromConfig.trim().replace(/\/?$/g, '')
+  } catch (_) {
+    return 'https://registry.npmjs.org'
   }
 }
 
