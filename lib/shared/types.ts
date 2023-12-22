@@ -661,3 +661,16 @@ export interface InitializeOptions {
 }
 
 export let version: string
+
+// Call this function to terminate esbuild's child process. The child process
+// is not terminated and re-created for each API call because it's more
+// efficient to keep it around when there are multiple API calls.
+//
+// In node this happens automatically before the parent node process exits. So
+// you only need to call this if you know you will not make any more esbuild
+// API calls and you want to clean up resources.
+//
+// Unlike node, Deno lacks the necessary APIs to clean up child processes
+// automatically. You must manually call stop() in Deno when you're done
+// using esbuild or Deno will continue running forever.
+export declare function stop(): void;

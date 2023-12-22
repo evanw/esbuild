@@ -43,6 +43,10 @@
     }
     ```
 
+* Provide the `stop()` API in node to exit esbuild's child process ([#3558](https://github.com/evanw/esbuild/issues/3558))
+
+    You can now call `stop()` in esbuild's node API to exit esbuild's child process to reclaim the resources used. It only makes sense to do this for a long-lived node process when you know you will no longer be making any more esbuild API calls. It is not necessary to call this to allow node to exit, and it's advantageous to not call this in between calls to esbuild's API as sharing a single long-lived esbuild child process is more efficient than re-creating a new esbuild child process for every API call. This API call used to exist but was removed in [version 0.9.0](https://github.com/evanw/esbuild/releases/v0.9.0). This release adds it back due to a user request.
+
 ## 0.19.10
 
 * Fix glob imports in TypeScript files ([#3319](https://github.com/evanw/esbuild/issues/3319))

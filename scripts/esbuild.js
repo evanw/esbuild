@@ -251,12 +251,7 @@ const buildDenoLib = async (esbuildPath) => {
   fs.writeFileSync(path.join(denoDir, 'wasm.js'), modWASM)
 
   // Generate "deno/mod.d.ts"
-  const types_ts = fs.readFileSync(path.join(repoDir, 'lib', 'shared', 'types.ts'), 'utf8') +
-    `\n// Unlike node, Deno lacks the necessary APIs to clean up child processes` +
-    `\n// automatically. You must manually call stop() in Deno when you're done` +
-    `\n// using esbuild or Deno will continue running forever.` +
-    `\nexport function stop(): void;` +
-    `\n`
+  const types_ts = fs.readFileSync(path.join(repoDir, 'lib', 'shared', 'types.ts'), 'utf8')
   fs.writeFileSync(path.join(denoDir, 'mod.d.ts'), types_ts)
   fs.writeFileSync(path.join(denoDir, 'wasm.d.ts'), types_ts)
 

@@ -220,6 +220,11 @@ export let analyzeMetafileSync: typeof types.analyzeMetafileSync = (metafile, op
   return result!
 }
 
+export const stop = () => {
+  if (stopService) stopService()
+  if (workerThreadService) workerThreadService.stop()
+}
+
 let initializeWasCalled = false
 
 export let initialize: typeof types.initialize = options => {
@@ -243,6 +248,7 @@ interface Service {
 
 let defaultWD = process.cwd()
 let longLivedService: Service | undefined
+let stopService: (() => void) | undefined
 
 let ensureServiceIsRunning = (): Service => {
   if (longLivedService) return longLivedService
@@ -277,6 +283,16 @@ let ensureServiceIsRunning = (): Service => {
 
   stdout.on('data', readFromStdout)
   stdout.on('end', afterClose)
+
+  stopService = () => {
+    // Close all resources related to the subprocess.
+    stdin.destroy()
+    stdout.destroy()
+    child.kill()
+    initializeWasCalled = false
+    longLivedService = undefined
+    stopService = undefined
+  }
 
   let refCount = 0
   child.unref()
@@ -395,6 +411,7 @@ interface WorkerThreadService {
   transformSync(input: string | Uint8Array, options?: types.TransformOptions): types.TransformResult
   formatMessagesSync: typeof types.formatMessagesSync
   analyzeMetafileSync: typeof types.analyzeMetafileSync
+  stop(): void
 }
 
 let workerThreadService: WorkerThreadService | null = null
@@ -475,7 +492,7 @@ let startWorkerThreadService = (worker_threads: typeof import('worker_threads'))
   // Calling unref() on a worker will allow the thread to exit if it's the last
   // only active handle in the event system. This means node will still exit
   // when there are no more event handlers from the main thread. So there's no
-  // need to have a "stop()" function.
+  // need to call the "stop()" function.
   worker.unref()
 
   return {
@@ -491,6 +508,10 @@ let startWorkerThreadService = (worker_threads: typeof import('worker_threads'))
     },
     analyzeMetafileSync(metafile, options) {
       return runCallSync('analyzeMetafile', [metafile, options])
+    },
+    stop() {
+      worker.terminate()
+      workerThreadService = null
     },
   }
 }

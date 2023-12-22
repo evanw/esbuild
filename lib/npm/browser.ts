@@ -43,6 +43,10 @@ export const analyzeMetafileSync: typeof types.analyzeMetafileSync = () => {
   throw new Error(`The "analyzeMetafileSync" API only works in node`)
 }
 
+export const stop = () => {
+  if (stopService) stopService()
+}
+
 interface Service {
   build: typeof types.build
   context: typeof types.context
@@ -52,6 +56,7 @@ interface Service {
 }
 
 let initializePromise: Promise<void> | undefined
+let stopService: (() => void) | undefined
 let longLivedService: Service | undefined
 
 let ensureServiceIsRunning = (): Service => {
@@ -128,6 +133,13 @@ const startRunningService = async (wasmURL: string | URL, wasmModule: WebAssembl
 
   // This will throw if WebAssembly module instantiation fails
   await firstMessagePromise
+
+  stopService = () => {
+    worker.terminate()
+    initializePromise = undefined
+    stopService = undefined
+    longLivedService = undefined
+  }
 
   longLivedService = {
     build: (options: types.BuildOptions) =>

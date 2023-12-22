@@ -7038,7 +7038,7 @@ let functionScopeCases = [
   }
 }
 
-let syncTests = {
+let apiSyncTests = {
   async defaultExport({ esbuild }) {
     assert.strictEqual(typeof esbuild.version, 'string')
     assert.strictEqual(esbuild.version, esbuild.default.version)
@@ -7356,6 +7356,26 @@ let childProcessTests = {
   },
 }
 
+let syncTests = {
+  async startStop({ esbuild }) {
+    for (let i = 0; i < 3; i++) {
+      let result1 = await esbuild.transform('1+2')
+      assert.strictEqual(result1.code, '1 + 2;\n')
+
+      let result2 = esbuild.transformSync('2+3')
+      assert.strictEqual(result2.code, '2 + 3;\n')
+
+      let result3 = await esbuild.build({ stdin: { contents: '1+2' }, write: false })
+      assert.strictEqual(result3.outputFiles[0].text, '1 + 2;\n')
+
+      let result4 = esbuild.buildSync({ stdin: { contents: '2+3' }, write: false })
+      assert.strictEqual(result4.outputFiles[0].text, '2 + 3;\n')
+
+      esbuild.stop()
+    }
+  },
+}
+
 async function assertSourceMap(jsSourceMap, source) {
   jsSourceMap = JSON.parse(jsSourceMap)
   assert.deepStrictEqual(jsSourceMap.version, 3)
@@ -7399,11 +7419,11 @@ async function main() {
     ...Object.entries(transformTests),
     ...Object.entries(formatTests),
     ...Object.entries(analyzeTests),
-    ...Object.entries(syncTests),
+    ...Object.entries(apiSyncTests),
     ...Object.entries(childProcessTests),
   ]
 
-  const allTestsPassed = (await Promise.all(tests.map(([name, fn]) => {
+  let allTestsPassed = (await Promise.all(tests.map(([name, fn]) => {
     const promise = runTest(name, fn)
 
     // Time out each individual test after 3 minutes. This exists to help debug test hangs in CI.
@@ -7414,6 +7434,12 @@ async function main() {
     }, minutes * 60 * 1000)
     return promise.finally(() => clearTimeout(timeout))
   }))).every(success => success)
+
+  for (let [name, fn] of Object.entries(syncTests)) {
+    if (!await runTest(name, fn)) {
+      allTestsPassed = false
+    }
+  }
 
   if (!allTestsPassed) {
     console.error(`❌ js api tests failed`)
