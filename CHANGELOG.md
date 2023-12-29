@@ -64,6 +64,17 @@
     function f(){return $.template('<p contenteditable="false">hello world</p>')}
     ```
 
+* Minifier: consider properties named using known `Symbol` instances to be side-effect free ([#3561](https://github.com/evanw/esbuild/issues/3561))
+
+    Many things in JavaScript can have side effects including property accesses and ToString operations, so using a symbol such as `Symbol.iterator` as a computed property name is not obviously side-effect free. This release adds a special case for known `Symbol` instances so that they are considered side-effect free when used as property names. For example, this class declaration will now be considered side-effect free:
+
+    ```js
+    class Foo {
+      *[Symbol.iterator]() {
+      }
+    }
+    ```
+
 * Provide the `stop()` API in node to exit esbuild's child process ([#3558](https://github.com/evanw/esbuild/issues/3558))
 
     You can now call `stop()` in esbuild's node API to exit esbuild's child process to reclaim the resources used. It only makes sense to do this for a long-lived node process when you know you will no longer be making any more esbuild API calls. It is not necessary to call this to allow node to exit, and it's advantageous to not call this in between calls to esbuild's API as sharing a single long-lived esbuild child process is more efficient than re-creating a new esbuild child process for every API call. This API call used to exist but was removed in [version 0.9.0](https://github.com/evanw/esbuild/releases/v0.9.0). This release adds it back due to a user request.

@@ -890,6 +890,10 @@ const (
 	// output, even when the arguments have side effects. This is used to
 	// implement the "--drop:console" flag.
 	MethodCallsMustBeReplacedWithUndefined
+
+	// Symbol values are known to not have side effects when used as property
+	// names in class declarations and object literals.
+	IsSymbolInstance
 )
 
 func (flags DefineFlags) Has(flag DefineFlags) bool {
@@ -943,7 +947,16 @@ func ProcessDefines(userDefines map[string]DefineData) ProcessedDefines {
 		if len(parts) == 1 {
 			result.IdentifierDefines[tail] = DefineData{Flags: CanBeRemovedIfUnused}
 		} else {
-			result.DotDefines[tail] = append(result.DotDefines[tail], DotDefine{Parts: parts, Data: DefineData{Flags: CanBeRemovedIfUnused}})
+			flags := CanBeRemovedIfUnused
+
+			// All properties on the "Symbol" global are currently symbol instances
+			// (i.e. "typeof Symbol.iterator === 'symbol'"). This is used to avoid
+			// treating properties with these names as having side effects.
+			if parts[0] == "Symbol" {
+				flags |= IsSymbolInstance
+			}
+
+			result.DotDefines[tail] = append(result.DotDefines[tail], DotDefine{Parts: parts, Data: DefineData{Flags: flags}})
 		}
 	}
 

@@ -184,6 +184,17 @@ func MaybeSimplifyEqualityComparison(loc logger.Loc, e *EBinary, unsupportedFeat
 	return Expr{}, false
 }
 
+func IsSymbolInstance(data E) bool {
+	switch e := data.(type) {
+	case *EDot:
+		return e.IsSymbolInstance
+
+	case *EIndex:
+		return e.IsSymbolInstance
+	}
+	return false
+}
+
 func IsPrimitiveLiteral(data E) bool {
 	switch e := data.(type) {
 	case *EAnnotation:
@@ -2173,7 +2184,7 @@ func (ctx HelperContext) ClassCanBeRemovedIfUnused(class Class) bool {
 			return false
 		}
 
-		if property.Flags.Has(PropertyIsComputed) && !IsPrimitiveLiteral(property.Key.Data) {
+		if property.Flags.Has(PropertyIsComputed) && !IsPrimitiveLiteral(property.Key.Data) && !IsSymbolInstance(property.Key.Data) {
 			return false
 		}
 
@@ -2327,7 +2338,10 @@ func (ctx HelperContext) ExprCanBeRemovedIfUnused(expr Expr) bool {
 	case *EObject:
 		for _, property := range e.Properties {
 			// The key must still be evaluated if it's computed or a spread
-			if property.Kind == PropertySpread || (property.Flags.Has(PropertyIsComputed) && !IsPrimitiveLiteral(property.Key.Data)) {
+			if property.Kind == PropertySpread {
+				return false
+			}
+			if property.Flags.Has(PropertyIsComputed) && !IsPrimitiveLiteral(property.Key.Data) && !IsSymbolInstance(property.Key.Data) {
 				return false
 			}
 			if property.ValueOrNil.Data != nil && !ctx.ExprCanBeRemovedIfUnused(property.ValueOrNil) {

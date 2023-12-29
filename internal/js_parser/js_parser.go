@@ -13412,6 +13412,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					if define.Data.Flags.Has(config.CallCanBeUnwrappedIfUnused) && !p.options.ignoreDCEAnnotations {
 						e.CallCanBeUnwrappedIfUnused = true
 					}
+					if define.Data.Flags.Has(config.IsSymbolInstance) {
+						e.IsSymbolInstance = true
+					}
 					break
 				}
 			}
@@ -13534,6 +13537,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 						}
 						if define.Data.Flags.Has(config.CallCanBeUnwrappedIfUnused) && !p.options.ignoreDCEAnnotations {
 							e.CallCanBeUnwrappedIfUnused = true
+						}
+						if define.Data.Flags.Has(config.IsSymbolInstance) {
+							e.IsSymbolInstance = true
 						}
 						break
 					}

@@ -624,12 +624,17 @@ type EDot struct {
 	// unwrapped if the resulting value is unused. Unwrapping means discarding
 	// the call target but keeping any arguments with side effects.
 	CallCanBeUnwrappedIfUnused bool
+
+	// Symbol values are known to not have side effects when used as property
+	// names in class declarations and object literals.
+	IsSymbolInstance bool
 }
 
 func (a *EDot) HasSameFlagsAs(b *EDot) bool {
 	return a.OptionalChain == b.OptionalChain &&
 		a.CanBeRemovedIfUnused == b.CanBeRemovedIfUnused &&
-		a.CallCanBeUnwrappedIfUnused == b.CallCanBeUnwrappedIfUnused
+		a.CallCanBeUnwrappedIfUnused == b.CallCanBeUnwrappedIfUnused &&
+		a.IsSymbolInstance == b.IsSymbolInstance
 }
 
 type EIndex struct {
@@ -646,12 +651,17 @@ type EIndex struct {
 	// unwrapped if the resulting value is unused. Unwrapping means discarding
 	// the call target but keeping any arguments with side effects.
 	CallCanBeUnwrappedIfUnused bool
+
+	// Symbol values are known to not have side effects when used as property
+	// names in class declarations and object literals.
+	IsSymbolInstance bool
 }
 
 func (a *EIndex) HasSameFlagsAs(b *EIndex) bool {
 	return a.OptionalChain == b.OptionalChain &&
 		a.CanBeRemovedIfUnused == b.CanBeRemovedIfUnused &&
-		a.CallCanBeUnwrappedIfUnused == b.CallCanBeUnwrappedIfUnused
+		a.CallCanBeUnwrappedIfUnused == b.CallCanBeUnwrappedIfUnused &&
+		a.IsSymbolInstance == b.IsSymbolInstance
 }
 
 type EArrow struct {
