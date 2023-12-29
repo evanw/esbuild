@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.19.11
 
 * Fix TypeScript-specific class transform edge case ([#3559](https://github.com/evanw/esbuild/issues/3559))
 
