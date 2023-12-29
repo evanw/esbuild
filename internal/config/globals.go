@@ -869,31 +869,35 @@ type DefineExpr struct {
 
 type DefineData struct {
 	DefineExpr *DefineExpr
+	Flags      DefineFlags
+}
 
+type DefineFlags uint8
+
+const (
 	// True if accessing this value is known to not have any side effects. For
 	// example, a bare reference to "Object.create" can be removed because it
 	// does not have any observable side effects.
-	CanBeRemovedIfUnused bool
+	CanBeRemovedIfUnused DefineFlags = 1 << iota
 
 	// True if a call to this value is known to not have any side effects. For
 	// example, a bare call to "Object()" can be removed because it does not
 	// have any observable side effects.
-	CallCanBeUnwrappedIfUnused bool
+	CallCanBeUnwrappedIfUnused
 
 	// If true, the user has indicated that every direct calls to a property on
 	// this object and all of that call's arguments are to be removed from the
 	// output, even when the arguments have side effects. This is used to
 	// implement the "--drop:console" flag.
-	MethodCallsMustBeReplacedWithUndefined bool
+	MethodCallsMustBeReplacedWithUndefined
+)
+
+func (flags DefineFlags) Has(flag DefineFlags) bool {
+	return (flags & flag) != 0
 }
 
 func mergeDefineData(old DefineData, new DefineData) DefineData {
-	if old.CanBeRemovedIfUnused {
-		new.CanBeRemovedIfUnused = true
-	}
-	if old.CallCanBeUnwrappedIfUnused {
-		new.CallCanBeUnwrappedIfUnused = true
-	}
+	new.Flags |= old.Flags
 	return new
 }
 
@@ -937,9 +941,9 @@ func ProcessDefines(userDefines map[string]DefineData) ProcessedDefines {
 	for _, parts := range knownGlobals {
 		tail := parts[len(parts)-1]
 		if len(parts) == 1 {
-			result.IdentifierDefines[tail] = DefineData{CanBeRemovedIfUnused: true}
+			result.IdentifierDefines[tail] = DefineData{Flags: CanBeRemovedIfUnused}
 		} else {
-			result.DotDefines[tail] = append(result.DotDefines[tail], DotDefine{Parts: parts, Data: DefineData{CanBeRemovedIfUnused: true}})
+			result.DotDefines[tail] = append(result.DotDefines[tail], DotDefine{Parts: parts, Data: DefineData{Flags: CanBeRemovedIfUnused}})
 		}
 	}
 

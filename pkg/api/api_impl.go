@@ -694,7 +694,7 @@ func validateDefines(
 	// If we're dropping all console API calls, replace each one with undefined
 	if (drop & DropConsole) != 0 {
 		define := rawDefines["console"]
-		define.MethodCallsMustBeReplacedWithUndefined = true
+		define.Flags |= config.MethodCallsMustBeReplacedWithUndefined
 		rawDefines["console"] = define
 	}
 
@@ -709,7 +709,7 @@ func validateDefines(
 
 		// Merge with any previously-specified defines
 		define := rawDefines[key]
-		define.CallCanBeUnwrappedIfUnused = true
+		define.Flags |= config.CallCanBeUnwrappedIfUnused
 		rawDefines[key] = define
 	}
 

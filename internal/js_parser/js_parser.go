@@ -12880,13 +12880,13 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				}
 
 				// Copy the side effect flags over in case this expression is unused
-				if data.CanBeRemovedIfUnused {
+				if data.Flags.Has(config.CanBeRemovedIfUnused) {
 					e.CanBeRemovedIfUnused = true
 				}
-				if data.CallCanBeUnwrappedIfUnused && !p.options.ignoreDCEAnnotations {
+				if data.Flags.Has(config.CallCanBeUnwrappedIfUnused) && !p.options.ignoreDCEAnnotations {
 					e.CallCanBeUnwrappedIfUnused = true
 				}
-				if data.MethodCallsMustBeReplacedWithUndefined {
+				if data.Flags.Has(config.MethodCallsMustBeReplacedWithUndefined) {
 					methodCallMustBeReplacedWithUndefined = true
 				}
 			}
@@ -13406,10 +13406,10 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					}
 
 					// Copy the side effect flags over in case this expression is unused
-					if define.Data.CanBeRemovedIfUnused {
+					if define.Data.Flags.Has(config.CanBeRemovedIfUnused) {
 						e.CanBeRemovedIfUnused = true
 					}
-					if define.Data.CallCanBeUnwrappedIfUnused && !p.options.ignoreDCEAnnotations {
+					if define.Data.Flags.Has(config.CallCanBeUnwrappedIfUnused) && !p.options.ignoreDCEAnnotations {
 						e.CallCanBeUnwrappedIfUnused = true
 					}
 					break
@@ -13529,10 +13529,10 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 						}
 
 						// Copy the side effect flags over in case this expression is unused
-						if define.Data.CanBeRemovedIfUnused {
+						if define.Data.Flags.Has(config.CanBeRemovedIfUnused) {
 							e.CanBeRemovedIfUnused = true
 						}
-						if define.Data.CallCanBeUnwrappedIfUnused && !p.options.ignoreDCEAnnotations {
+						if define.Data.Flags.Has(config.CallCanBeUnwrappedIfUnused) && !p.options.ignoreDCEAnnotations {
 							e.CallCanBeUnwrappedIfUnused = true
 						}
 						break
