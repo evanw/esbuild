@@ -2999,7 +2999,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			if replaced != nil {
 				copy := *e
 				copy.Parts = replaced
-				switch e2 := js_ast.InlineStringsAndNumbersIntoTemplate(logger.Loc{}, &copy).Data.(type) {
+				switch e2 := js_ast.InlinePrimitivesIntoTemplate(logger.Loc{}, &copy).Data.(type) {
 				case *js_ast.EString:
 					p.printQuotedUTF16(e2.Value, printQuotedAllowBacktick)
 					return

@@ -8732,34 +8732,40 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 				// by now since they are scoped to this block which we just finished
 				// visiting.
 				if prevS, ok := result[len(result)-1].Data.(*js_ast.SLocal); ok && prevS.Kind != js_ast.LocalVar {
-					// The variable must be initialized, since we will be substituting
-					// the value into the usage.
-					if last := prevS.Decls[len(prevS.Decls)-1]; last.ValueOrNil.Data != nil {
-						// The binding must be an identifier that is only used once.
-						// Ignore destructuring bindings since that's not the simple case.
-						// Destructuring bindings could potentially execute side-effecting
-						// code which would invalidate reordering.
-						if id, ok := last.Binding.Data.(*js_ast.BIdentifier); ok {
-							// Don't do this if "__name" was called on this symbol. In that
-							// case there is actually more than one use even though it says
-							// there is only one. The "__name" use isn't counted so that
-							// tree shaking still works when names are kept.
-							if symbol := p.symbols[id.Ref.InnerIndex]; symbol.UseCountEstimate == 1 && !symbol.Flags.Has(ast.DidKeepName) {
-								// Try to substitute the identifier with the initializer. This will
-								// fail if something with side effects is in between the declaration
-								// and the usage.
-								if p.substituteSingleUseSymbolInStmt(stmt, id.Ref, last.ValueOrNil) {
-									// Remove the previous declaration, since the substitution was
-									// successful.
-									if len(prevS.Decls) == 1 {
-										result = result[:len(result)-1]
-									} else {
-										prevS.Decls = prevS.Decls[:len(prevS.Decls)-1]
-									}
+					last := prevS.Decls[len(prevS.Decls)-1]
 
-									// Loop back to try again
-									continue
+					// The binding must be an identifier that is only used once.
+					// Ignore destructuring bindings since that's not the simple case.
+					// Destructuring bindings could potentially execute side-effecting
+					// code which would invalidate reordering.
+					if id, ok := last.Binding.Data.(*js_ast.BIdentifier); ok {
+						// Don't do this if "__name" was called on this symbol. In that
+						// case there is actually more than one use even though it says
+						// there is only one. The "__name" use isn't counted so that
+						// tree shaking still works when names are kept.
+						if symbol := p.symbols[id.Ref.InnerIndex]; symbol.UseCountEstimate == 1 && !symbol.Flags.Has(ast.DidKeepName) {
+							replacement := last.ValueOrNil
+
+							// The variable must be initialized, since we will be substituting
+							// the value into the usage.
+							if replacement.Data == nil {
+								replacement = js_ast.Expr{Loc: last.Binding.Loc, Data: js_ast.EUndefinedShared}
+							}
+
+							// Try to substitute the identifier with the initializer. This will
+							// fail if something with side effects is in between the declaration
+							// and the usage.
+							if p.substituteSingleUseSymbolInStmt(stmt, id.Ref, replacement) {
+								// Remove the previous declaration, since the substitution was
+								// successful.
+								if len(prevS.Decls) == 1 {
+									result = result[:len(result)-1]
+								} else {
+									prevS.Decls = prevS.Decls[:len(prevS.Decls)-1]
 								}
+
+								// Loop back to try again
+								continue
 							}
 						}
 					}
@@ -9437,10 +9443,9 @@ func (p *parser) substituteSingleUseSymbolInExpr(
 			if value, status := p.substituteSingleUseSymbolInExpr(part.Value, ref, replacement, replacementCanBeRemoved); status != substituteContinue {
 				e.Parts[i].Value = value
 
-				// If we substituted a string or number, merge it into the template
-				switch value.Data.(type) {
-				case *js_ast.EString, *js_ast.ENumber:
-					expr = js_ast.InlineStringsAndNumbersIntoTemplate(expr.Loc, e)
+				// If we substituted a primitive, merge it into the template
+				if js_ast.IsPrimitiveLiteral(value.Data) {
+					expr = js_ast.InlinePrimitivesIntoTemplate(expr.Loc, e)
 				}
 				return expr, status
 			}
@@ -9454,7 +9459,7 @@ func (p *parser) substituteSingleUseSymbolInExpr(
 	}
 
 	// We can always reorder past primitive values
-	if js_ast.IsPrimitiveLiteral(expr.Data) {
+	if js_ast.IsPrimitiveLiteral(expr.Data) || js_ast.IsPrimitiveLiteral(replacement.Data) {
 		return expr, substituteContinue
 	}
 
@@ -13268,7 +13273,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		// it may no longer be a template literal after this point (it may turn into
 		// a plain string literal instead).
 		if p.shouldFoldTypeScriptConstantExpressions || p.options.minifySyntax {
-			expr = js_ast.InlineStringsAndNumbersIntoTemplate(expr.Loc, e)
+			expr = js_ast.InlinePrimitivesIntoTemplate(expr.Loc, e)
 		}
 
 		shouldLowerTemplateLiteral := p.options.unsupportedJSFeatures.Has(compat.TemplateLiteral)

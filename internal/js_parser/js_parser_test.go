@@ -4974,15 +4974,23 @@ func TestMangleInlineLocals(t *testing.T) {
 	check("let x = 1; return void x", "let x = 1;")
 	check("let x = 1; return typeof x", "return typeof 1;")
 
+	// Can substitute into template literals
+	check("let x = 1; return `<${x}>`", "return `<1>`;")
+	check("let x = 1n; return `<${x}>`", "return `<1>`;")
+	check("let x = null; return `<${x}>`", "return `<null>`;")
+	check("let x = undefined; return `<${x}>`", "return `<undefined>`;")
+	check("let x = false; return `<${x}>`", "return `<false>`;")
+	check("let x = true; return `<${x}>`", "return `<true>`;")
+
 	// Check substituting a side-effect free value into normal binary operators
 	check("let x = 1; return x + 2", "return 1 + 2;")
 	check("let x = 1; return 2 + x", "return 2 + 1;")
 	check("let x = 1; return x + arg0", "return 1 + arg0;")
 	check("let x = 1; return arg0 + x", "return arg0 + 1;")
 	check("let x = 1; return x + fn()", "return 1 + fn();")
-	check("let x = 1; return fn() + x", "let x = 1;\nreturn fn() + x;")
+	check("let x = 1; return fn() + x", "return fn() + 1;")
 	check("let x = 1; return x + undef", "return 1 + undef;")
-	check("let x = 1; return undef + x", "let x = 1;\nreturn undef + x;")
+	check("let x = 1; return undef + x", "return undef + 1;")
 
 	// Check substituting a value with side-effects into normal binary operators
 	check("let x = fn(); return x + 2", "return fn() + 2;")
