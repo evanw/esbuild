@@ -3679,6 +3679,8 @@ func TestMangleCharCodeAt(t *testing.T) {
 	expectPrintedMangle(t, "a = '🧀'.charCodeAt(2)", "a = NaN;\n")
 
 	expectPrintedMangle(t, "a = 'xy'.charCodeAt(NaN)", "a = \"xy\".charCodeAt(NaN);\n")
+	expectPrintedMangle(t, "a = 'xy'.charCodeAt(-Infinity)", "a = \"xy\".charCodeAt(-Infinity);\n")
+	expectPrintedMangle(t, "a = 'xy'.charCodeAt(Infinity)", "a = \"xy\".charCodeAt(Infinity);\n")
 	expectPrintedMangle(t, "a = 'xy'.charCodeAt(0.5)", "a = \"xy\".charCodeAt(0.5);\n")
 	expectPrintedMangle(t, "a = 'xy'.charCodeAt(1e99)", "a = \"xy\".charCodeAt(1e99);\n")
 	expectPrintedMangle(t, "a = 'xy'.charCodeAt('1')", "a = \"xy\".charCodeAt(\"1\");\n")
@@ -3697,6 +3699,7 @@ func TestMangleFromCharCode(t *testing.T) {
 	expectPrintedMangle(t, "a = String.fromCharCode(0x10078, 0x10079)", "a = \"xy\";\n")
 	expectPrintedMangle(t, "a = String.fromCharCode(0x1_0000_FFFF)", "a = \"\uFFFF\";\n")
 	expectPrintedMangle(t, "a = String.fromCharCode(NaN)", "a = \"\\0\";\n")
+	expectPrintedMangle(t, "a = String.fromCharCode(-Infinity)", "a = \"\\0\";\n")
 	expectPrintedMangle(t, "a = String.fromCharCode(Infinity)", "a = \"\\0\";\n")
 	expectPrintedMangle(t, "a = String.fromCharCode(null)", "a = \"\\0\";\n")
 	expectPrintedMangle(t, "a = String.fromCharCode(undefined)", "a = \"\\0\";\n")

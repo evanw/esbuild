@@ -929,6 +929,11 @@ func ToInt32(f float64) int32 {
 		return i
 	}
 
+	// Special-case non-finite numbers (casting them is unspecified behavior in Go)
+	if math.IsNaN(f) || math.IsInf(f, 0) {
+		return 0
+	}
+
 	// The hard way
 	i = int32(uint32(math.Mod(math.Abs(f), 4294967296)))
 	if math.Signbit(f) {
