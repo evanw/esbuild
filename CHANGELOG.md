@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+* Fix a bug with TypeScript type parsing ([#3574](https://github.com/evanw/esbuild/issues/3574))
+
+    This release fixes a bug with esbuild's TypeScript parser where a conditional type containing a union type that ends with an infer type that ends with a constraint could fail to parse. This was caused by the "don't parse a conditional type" flag not getting passed through the union type parser. Here's an example of valid TypeScript code that previously failed to parse correctly:
+
+    ```ts
+    type InferUnion<T> = T extends { a: infer U extends number } | infer U extends number ? U : never
+    ```
+
 ## 0.19.11
 
 * Fix TypeScript-specific class transform edge case ([#3559](https://github.com/evanw/esbuild/issues/3559))

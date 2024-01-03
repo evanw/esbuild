@@ -482,14 +482,14 @@ loop:
 				return
 			}
 			p.lexer.Next()
-			p.skipTypeScriptType(js_ast.LBitwiseOr)
+			p.skipTypeScriptTypeWithFlags(js_ast.LBitwiseOr, flags)
 
 		case js_lexer.TAmpersand:
 			if level >= js_ast.LBitwiseAnd {
 				return
 			}
 			p.lexer.Next()
-			p.skipTypeScriptType(js_ast.LBitwiseAnd)
+			p.skipTypeScriptTypeWithFlags(js_ast.LBitwiseAnd, flags)
 
 		case js_lexer.TExclamation:
 			// A postfix "!" is allowed in JSDoc types in TypeScript, which are only
