@@ -120,7 +120,12 @@ var cssTable = map[CSSFeature]map[Engine][]versionRange{
 		Safari:  {{start: v{12, 1, 0}}},
 	},
 	Nesting: {
+		Chrome:  {{start: v{120, 0, 0}}},
+		Edge:    {{start: v{120, 0, 0}}},
 		Firefox: {{start: v{117, 0, 0}}},
+		IOS:     {{start: v{17, 2, 0}}},
+		Opera:   {{start: v{106, 0, 0}}},
+		Safari:  {{start: v{17, 2, 0}}},
 	},
 	RebeccaPurple: {
 		Chrome:  {{start: v{38, 0, 0}}},
@@ -192,9 +197,9 @@ var cssPrefixTable = map[css_ast.D][]prefixData{
 	css_ast.DBackgroundClip: {
 		{engine: Chrome, prefix: WebkitPrefix, withoutPrefix: v{120, 0, 0}},
 		{engine: Edge, prefix: MsPrefix, withoutPrefix: v{15, 0, 0}},
-		{engine: Edge, prefix: WebkitPrefix},
+		{engine: Edge, prefix: WebkitPrefix, withoutPrefix: v{120, 0, 0}},
 		{engine: IOS, prefix: WebkitPrefix, withoutPrefix: v{14, 0, 0}},
-		{engine: Opera, prefix: WebkitPrefix},
+		{engine: Opera, prefix: WebkitPrefix, withoutPrefix: v{106, 0, 0}},
 		{engine: Safari, prefix: WebkitPrefix, withoutPrefix: v{14, 0, 0}},
 	},
 	css_ast.DBoxDecorationBreak: {
