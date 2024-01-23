@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+* Allow JSX elements as JSX attribute values
+
+    JSX has an obscure feature where you can use JSX elements in attribute position without surrounding them with `{...}`. It looks like this:
+
+    ```jsx
+    let el = <div data-ab=<><a/><b/></>/>;
+    ```
+
+    I think I originally didn't implement it even though it's part of the [JSX specification](https://facebook.github.io/jsx/) because it previously didn't work in TypeScript (and potentially also in Babel?). However, support for it was [silently added in TypeScript 4.8](https://github.com/microsoft/TypeScript/pull/47994) without me noticing and Babel has also since fixed their [bugs regarding this feature](https://github.com/babel/babel/pull/6006). So I'm adding it to esbuild too now that I know it's widely supported.
+
+    Keep in mind that there is some ongoing discussion about [removing this feature from JSX](https://github.com/facebook/jsx/issues/53). I agree that the syntax seems out of place (it does away with the elegance of "JSX is basically just XML with `{...}` escapes" for something arguably harder to read, which doesn't seem like a good trade-off), but it's in the specification and TypeScript and Babel both implement it so I'm going to have esbuild implement it too. However, I reserve the right to remove it from esbuild if it's ever removed from the specification in the future. So use it with caution.
+
 * Fix a bug with TypeScript type parsing ([#3574](https://github.com/evanw/esbuild/issues/3574))
 
     This release fixes a bug with esbuild's TypeScript parser where a conditional type containing a union type that ends with an infer type that ends with a constraint could fail to parse. This was caused by the "don't parse a conditional type" flag not getting passed through the union type parser. Here's an example of valid TypeScript code that previously failed to parse correctly:

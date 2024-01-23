@@ -5045,6 +5045,17 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 						}
 						value = js_ast.Expr{Loc: stringLoc, Data: &js_ast.EString{Value: p.lexer.StringLiteral()}}
 						p.lexer.NextInsideJSXElement()
+					} else if p.lexer.Token == js_lexer.TLessThan {
+						// This may be removed in the future: https://github.com/facebook/jsx/issues/53
+						loc := p.lexer.Loc()
+						p.lexer.NextInsideJSXElement()
+						value = p.parseJSXElement(loc)
+
+						// The call to parseJSXElement() above doesn't consume the last
+						// TGreaterThan because the caller knows what Next() function to call.
+						// Use NextJSXElementChild() here since the next token is inside a JSX
+						// element.
+						p.lexer.NextInsideJSXElement()
 					} else {
 						// Use Expect() not ExpectInsideJSXElement() so we can parse expression tokens
 						p.lexer.Expect(js_lexer.TOpenBrace)

@@ -972,6 +972,10 @@ func TestJSX(t *testing.T) {
 	expectPrintedJSX(t, "<></>", "<></>;\n")
 	expectPrintedJSX(t, "<>x<y/>z</>", "<>\n  {\"x\"}\n  <y />\n  {\"z\"}\n</>;\n")
 
+	expectPrintedJSX(t, "<a b=<c/>/>", "<a b={<c />} />;\n")
+	expectPrintedJSX(t, "<a b=<>c</>/>", "<a b={<>c</>} />;\n")
+	expectPrintedJSX(t, "<a b=<>{c}</>/>", "<a b={<>{c}</>} />;\n")
+
 	// These can't be escaped because JSX lacks a syntax for escapes
 	expectPrintedJSXASCII(t, "<π/>", "<π />;\n")
 	expectPrintedJSXASCII(t, "<π.𐀀/>", "<π.𐀀 />;\n")
