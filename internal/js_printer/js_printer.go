@@ -246,80 +246,6 @@ func (p *printer) printUnquotedUTF16(text []uint16, quote rune, flags printQuote
 	p.js = js
 }
 
-// Use JS strings for JSX attributes that need escape characters. Technically
-// the JSX specification doesn't say anything about using XML character escape
-// sequences, so JSX implementations may not be able to consume them. See
-// https://facebook.github.io/jsx/ for the specification.
-func (p *printer) canPrintTextAsJSXAttribute(text []uint16) (quote string, ok bool) {
-	single := true
-	double := true
-
-	for _, c := range text {
-		// Use JS strings for control characters
-		if c < firstASCII {
-			return "", false
-		}
-
-		// Use JS strings if we need to escape non-ASCII characters
-		if p.options.ASCIIOnly && c > lastASCII {
-			return "", false
-		}
-
-		switch c {
-		case '&':
-			// Use JS strings if the text would need to be escaped with "&amp;"
-			return "", false
-
-		case '"':
-			double = false
-			if !single {
-				break
-			}
-
-		case '\'':
-			single = false
-			if !double {
-				break
-			}
-		}
-	}
-
-	// Prefer duble quotes to single quotes
-	if double {
-		return "\"", true
-	}
-	if single {
-		return "'", true
-	}
-	return "", false
-}
-
-// Use JS strings for text inside JSX elements that need escape characters.
-// Technically the JSX specification doesn't say anything about using XML
-// character escape sequences, so JSX implementations may not be able to
-// consume them. See https://facebook.github.io/jsx/ for the specification.
-func (p *printer) canPrintTextAsJSXChild(text []uint16) bool {
-	for _, c := range text {
-		// Use JS strings for control characters
-		if c < firstASCII {
-			return false
-		}
-
-		// Use JS strings if we need to escape non-ASCII characters
-		if p.options.ASCIIOnly && c > lastASCII {
-			return false
-		}
-
-		switch c {
-		case '&', '<', '>', '{', '}':
-			// Use JS strings if the text would need to be escaped
-			return false
-		}
-	}
-
-	return true
-}
-
 // JSX tag syntax doesn't support character escapes so non-ASCII identifiers
 // must be printed as UTF-8 even when the charset is set to ASCII.
 func (p *printer) printJSXTag(tagOrNil js_ast.Expr) {
@@ -2143,24 +2069,26 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 
 			isMultiLine := p.willPrintExprCommentsAtLoc(property.ValueOrNil.Loc)
 
-			// Don't use shorthand syntax if it would discard comments
-			if !isMultiLine {
-				// Special-case string values
-				if str, ok := property.ValueOrNil.Data.(*js_ast.EString); ok {
-					if quote, ok := p.canPrintTextAsJSXAttribute(str.Value); ok {
-						p.print("=")
-						p.addSourceMapping(property.ValueOrNil.Loc)
-						p.print(quote)
-						p.print(helpers.UTF16ToString(str.Value))
-						p.print(quote)
-						continue
-					}
-				}
-
+			if property.Flags.Has(js_ast.PropertyWasShorthand) {
 				// Implicit "true" value
-				if boolean, ok := property.ValueOrNil.Data.(*js_ast.EBoolean); ok && boolean.Value && property.Flags.Has(js_ast.PropertyWasShorthand) {
+				if boolean, ok := property.ValueOrNil.Data.(*js_ast.EBoolean); ok && boolean.Value {
 					continue
 				}
+
+				// JSX element as JSX attribute value
+				if _, ok := property.ValueOrNil.Data.(*js_ast.EJSXElement); ok {
+					p.print("=")
+					p.printExpr(property.ValueOrNil, js_ast.LLowest, 0)
+					continue
+				}
+			}
+
+			// Special-case raw text
+			if text, ok := property.ValueOrNil.Data.(*js_ast.EJSXText); ok {
+				p.print("=")
+				p.addSourceMapping(property.ValueOrNil.Loc)
+				p.print(text.Raw)
+				continue
 			}
 
 			// Generic JS value
@@ -2197,30 +2125,13 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		}
 		p.print(">")
 
-		isSingleLine := true
-		if !p.options.MinifyWhitespace {
-			isSingleLine = len(e.NullableChildren) < 2
-			if len(e.NullableChildren) == 1 {
-				if _, ok := e.NullableChildren[0].Data.(*js_ast.EJSXElement); !ok {
-					isSingleLine = true
-				}
-			}
-		}
-		if !isSingleLine {
-			p.options.Indent++
-		}
-
 		// Print the children
 		for _, childOrNil := range e.NullableChildren {
-			if !isSingleLine {
-				p.printNewline()
-				p.printIndent()
-			}
 			if _, ok := childOrNil.Data.(*js_ast.EJSXElement); ok {
 				p.printExpr(childOrNil, js_ast.LLowest, 0)
-			} else if str, ok := childOrNil.Data.(*js_ast.EString); ok && isSingleLine && p.canPrintTextAsJSXChild(str.Value) {
+			} else if text, ok := childOrNil.Data.(*js_ast.EJSXText); ok {
 				p.addSourceMapping(childOrNil.Loc)
-				p.print(helpers.UTF16ToString(str.Value))
+				p.print(text.Raw)
 			} else if childOrNil.Data != nil {
 				isMultiLine := p.willPrintExprCommentsAtLoc(childOrNil.Loc)
 				p.print("{")
@@ -2251,11 +2162,6 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		}
 
 		// Print the closing tag
-		if !isSingleLine {
-			p.options.Indent--
-			p.printNewline()
-			p.printIndent()
-		}
 		p.addSourceMapping(e.CloseLoc)
 		p.print("</")
 		p.printJSXTag(e.TagOrNil)

@@ -449,6 +449,7 @@ func (*EImportIdentifier) isExpr()     {}
 func (*EPrivateIdentifier) isExpr()    {}
 func (*ENameOfSymbol) isExpr()         {}
 func (*EJSXElement) isExpr()           {}
+func (*EJSXText) isExpr()              {}
 func (*EMissing) isExpr()              {}
 func (*ENumber) isExpr()               {}
 func (*EBigInt) isExpr()               {}
@@ -768,6 +769,16 @@ type EJSXElement struct {
 
 	CloseLoc        logger.Loc
 	IsTagSingleLine bool
+}
+
+// The JSX specification doesn't say how JSX text is supposed to be interpreted
+// so our "preserve" JSX transform should reproduce the original source code
+// verbatim. One reason why this matters is because there is no canonical way
+// to interpret JSX text (Babel and TypeScript differ in what newlines mean).
+// Another reason is that some people want to do custom things such as this:
+// https://github.com/evanw/esbuild/issues/3605
+type EJSXText struct {
+	Raw string
 }
 
 type ENumber struct{ Value float64 }

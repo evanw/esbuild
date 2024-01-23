@@ -5043,12 +5043,17 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 						if p.lexer.PreviousBackslashQuoteInJSX.Loc.Start > stringLoc.Start {
 							previousStringWithBackslashLoc = stringLoc
 						}
-						value = js_ast.Expr{Loc: stringLoc, Data: &js_ast.EString{Value: p.lexer.StringLiteral()}}
+						if p.options.jsx.Preserve {
+							value = js_ast.Expr{Loc: stringLoc, Data: &js_ast.EJSXText{Raw: p.lexer.Raw()}}
+						} else {
+							value = js_ast.Expr{Loc: stringLoc, Data: &js_ast.EString{Value: p.lexer.StringLiteral()}}
+						}
 						p.lexer.NextInsideJSXElement()
 					} else if p.lexer.Token == js_lexer.TLessThan {
 						// This may be removed in the future: https://github.com/facebook/jsx/issues/53
 						loc := p.lexer.Loc()
 						p.lexer.NextInsideJSXElement()
+						flags |= js_ast.PropertyWasShorthand
 						value = p.parseJSXElement(loc)
 
 						// The call to parseJSXElement() above doesn't consume the last
@@ -5199,7 +5204,11 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 	for {
 		switch p.lexer.Token {
 		case js_lexer.TStringLiteral:
-			nullableChildren = append(nullableChildren, js_ast.Expr{Loc: p.lexer.Loc(), Data: &js_ast.EString{Value: p.lexer.StringLiteral()}})
+			if p.options.jsx.Preserve {
+				nullableChildren = append(nullableChildren, js_ast.Expr{Loc: p.lexer.Loc(), Data: &js_ast.EJSXText{Raw: p.lexer.Raw()}})
+			} else {
+				nullableChildren = append(nullableChildren, js_ast.Expr{Loc: p.lexer.Loc(), Data: &js_ast.EString{Value: p.lexer.StringLiteral()}})
+			}
 			p.lexer.NextJSXElementChild()
 
 		case js_lexer.TOpenBrace:
@@ -5209,7 +5218,7 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 			// The expression is optional, and may be absent
 			if p.lexer.Token == js_lexer.TCloseBrace {
 				// Save comments even for absent expressions
-				nullableChildren = append(nullableChildren, js_ast.Expr{Loc: p.saveExprCommentsHere()})
+				nullableChildren = append(nullableChildren, js_ast.Expr{Loc: p.saveExprCommentsHere(), Data: nil})
 			} else {
 				if p.lexer.Token == js_lexer.TDotDotDot {
 					// TypeScript preserves "..." before JSX child expressions here.
@@ -12689,7 +12698,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 	// it doesn't affect these mitigations by ensuring that the mitigations are not
 	// applied in those cases (e.g. by adding an additional conditional check).
 	switch e := expr.Data.(type) {
-	case *js_ast.ENull, *js_ast.ESuper, *js_ast.EBoolean, *js_ast.EBigInt, *js_ast.EUndefined:
+	case *js_ast.ENull, *js_ast.ESuper, *js_ast.EBoolean, *js_ast.EBigInt, *js_ast.EUndefined, *js_ast.EJSXText:
 
 	case *js_ast.ENameOfSymbol:
 		e.Ref = p.symbolForMangledProp(p.loadNameFromRef(e.Ref))
@@ -13097,7 +13106,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 						propName := helpers.UTF16ToString(str.Value)
 						switch propName {
 						case "key":
-							if property.Flags.Has(js_ast.PropertyWasShorthand) {
+							if boolean, ok := property.ValueOrNil.Data.(*js_ast.EBoolean); ok && boolean.Value && property.Flags.Has(js_ast.PropertyWasShorthand) {
 								r := js_lexer.RangeOfIdentifier(p.source, property.Loc)
 								msg := logger.Msg{
 									Kind:  logger.Error,

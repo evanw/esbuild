@@ -946,35 +946,41 @@ func TestJSX(t *testing.T) {
 	expectPrintedJSX(t, "<a b></a>", "<a b />;\n")
 
 	expectPrintedJSX(t, "<a b={true}></a>", "<a b={true} />;\n")
-	expectPrintedJSX(t, "<a b={'x'}></a>", "<a b=\"x\" />;\n")
-	expectPrintedJSX(t, "<a b={`'`}></a>", "<a b=\"'\" />;\n")
-	expectPrintedJSX(t, "<a b={`\"`}></a>", "<a b='\"' />;\n")
+	expectPrintedJSX(t, "<a b='x'></a>", "<a b='x' />;\n")
+	expectPrintedJSX(t, "<a b=\"x\"></a>", "<a b=\"x\" />;\n")
+	expectPrintedJSX(t, "<a b={'x'}></a>", "<a b={\"x\"} />;\n")
+	expectPrintedJSX(t, "<a b={`'`}></a>", "<a b={`'`} />;\n")
+	expectPrintedJSX(t, "<a b={`\"`}></a>", "<a b={`\"`} />;\n")
 	expectPrintedJSX(t, "<a b={`'\"`}></a>", "<a b={`'\"`} />;\n")
-	expectPrintedJSX(t, "<a b=\"&quot;\"></a>", "<a b='\"' />;\n")
-	expectPrintedJSX(t, "<a b=\"&amp;\"></a>", "<a b={\"&\"} />;\n")
+	expectPrintedJSX(t, "<a b=\"&quot;\"></a>", "<a b=\"&quot;\" />;\n")
+	expectPrintedJSX(t, "<a b=\"&amp;\"></a>", "<a b=\"&amp;\" />;\n")
 
 	expectPrintedJSX(t, "<a>x</a>", "<a>x</a>;\n")
-	expectPrintedJSX(t, "<a>x\ny</a>", "<a>x y</a>;\n")
-	expectPrintedJSX(t, "<a>{'x'}{'y'}</a>", "<a>\n  {\"x\"}\n  {\"y\"}\n</a>;\n")
+	expectPrintedJSX(t, "<a>x\ny</a>", "<a>x\ny</a>;\n")
+	expectPrintedJSX(t, "<a>{'x'}{'y'}</a>", "<a>{\"x\"}{\"y\"}</a>;\n")
 	expectPrintedJSX(t, "<a> x</a>", "<a> x</a>;\n")
 	expectPrintedJSX(t, "<a>x </a>", "<a>x </a>;\n")
-	expectPrintedJSX(t, "<a>&#10;</a>", "<a>{\"\\n\"}</a>;\n")
-	expectPrintedJSX(t, "<a>&amp;</a>", "<a>{\"&\"}</a>;\n")
-	expectPrintedJSX(t, "<a>&lt;</a>", "<a>{\"<\"}</a>;\n")
-	expectPrintedJSX(t, "<a>&gt;</a>", "<a>{\">\"}</a>;\n")
-	expectPrintedJSX(t, "<a>&#123;</a>", "<a>{\"{\"}</a>;\n")
-	expectPrintedJSX(t, "<a>&#125;</a>", "<a>{\"}\"}</a>;\n")
+	expectPrintedJSX(t, "<a>&#10;</a>", "<a>&#10;</a>;\n")
+	expectPrintedJSX(t, "<a>&amp;</a>", "<a>&amp;</a>;\n")
+	expectPrintedJSX(t, "<a>&lt;</a>", "<a>&lt;</a>;\n")
+	expectPrintedJSX(t, "<a>&gt;</a>", "<a>&gt;</a>;\n")
+	expectPrintedJSX(t, "<a>&#123;</a>", "<a>&#123;</a>;\n")
+	expectPrintedJSX(t, "<a>&#125;</a>", "<a>&#125;</a>;\n")
 
 	expectPrintedJSX(t, "<a><x/></a>", "<a><x /></a>;\n")
-	expectPrintedJSX(t, "<a><x/><y/></a>", "<a>\n  <x />\n  <y />\n</a>;\n")
-	expectPrintedJSX(t, "<a>b<c/>d</a>", "<a>\n  {\"b\"}\n  <c />\n  {\"d\"}\n</a>;\n")
+	expectPrintedJSX(t, "<a><x/><y/></a>", "<a><x /><y /></a>;\n")
+	expectPrintedJSX(t, "<a>b<c/>d</a>", "<a>b<c />d</a>;\n")
 
 	expectPrintedJSX(t, "<></>", "<></>;\n")
-	expectPrintedJSX(t, "<>x<y/>z</>", "<>\n  {\"x\"}\n  <y />\n  {\"z\"}\n</>;\n")
+	expectPrintedJSX(t, "<>x<y/>z</>", "<>x<y />z</>;\n")
 
-	expectPrintedJSX(t, "<a b=<c/>/>", "<a b={<c />} />;\n")
-	expectPrintedJSX(t, "<a b=<>c</>/>", "<a b={<>c</>} />;\n")
-	expectPrintedJSX(t, "<a b=<>{c}</>/>", "<a b={<>{c}</>} />;\n")
+	// JSX elements as JSX attribute values
+	expectPrintedJSX(t, "<a b=<c/>/>", "<a b=<c /> />;\n")
+	expectPrintedJSX(t, "<a b=<>c</>/>", "<a b=<>c</> />;\n")
+	expectPrintedJSX(t, "<a b=<>{c}</>/>", "<a b=<>{c}</> />;\n")
+	expectPrintedJSX(t, "<a b={<c/>}/>", "<a b={<c />} />;\n")
+	expectPrintedJSX(t, "<a b={<>c</>}/>", "<a b={<>c</>} />;\n")
+	expectPrintedJSX(t, "<a b={<>{c}</>}/>", "<a b={<>{c}</>} />;\n")
 
 	// These can't be escaped because JSX lacks a syntax for escapes
 	expectPrintedJSXASCII(t, "<π/>", "<π />;\n")
@@ -985,16 +991,23 @@ func TestJSX(t *testing.T) {
 	expectPrintedJSXASCII(t, "<a π/>", "<a π />;\n")
 	expectPrintedJSXASCII(t, "<a 𐀀/>", "<a 𐀀 />;\n")
 
-	// These can be escaped but as JS strings (since XML entities in JSX aren't standard)
-	expectPrintedJSXASCII(t, "<a b='π'/>", "<a b={\"\\u03C0\"} />;\n")
-	expectPrintedJSXASCII(t, "<a b='𐀀'/>", "<a b={\"\\u{10000}\"} />;\n")
-	expectPrintedJSXASCII(t, "<a>π</a>", "<a>{\"\\u03C0\"}</a>;\n")
-	expectPrintedJSXASCII(t, "<a>𐀀</a>", "<a>{\"\\u{10000}\"}</a>;\n")
+	// JSX text is deliberately not printed as ASCII when JSX preservation is
+	// enabled. This is because:
+	//
+	// a) The JSX specification doesn't say how JSX text is supposed to be interpreted
+	// b) Enabling JSX preservation means that JSX will be transformed again anyway
+	// c) People do very weird/custom things with JSX that "preserve" shouldn't break
+	//
+	// See also: https://github.com/evanw/esbuild/issues/3605
+	expectPrintedJSXASCII(t, "<a b='π'/>", "<a b='π' />;\n")
+	expectPrintedJSXASCII(t, "<a b='𐀀'/>", "<a b='𐀀' />;\n")
+	expectPrintedJSXASCII(t, "<a>π</a>", "<a>π</a>;\n")
+	expectPrintedJSXASCII(t, "<a>𐀀</a>", "<a>𐀀</a>;\n")
 
-	expectPrintedJSXMinify(t, "<a b c={x,y} d='true'/>", "<a b c={(x,y)}d=\"true\"/>;")
+	expectPrintedJSXMinify(t, "<a b c={x,y} d='true'/>", "<a b c={(x,y)}d='true'/>;")
 	expectPrintedJSXMinify(t, "<a><b/><c/></a>", "<a><b/><c/></a>;")
 	expectPrintedJSXMinify(t, "<a> x <b/> y </a>", "<a> x <b/> y </a>;")
-	expectPrintedJSXMinify(t, "<a>{' x '}{'<b/>'}{' y '}</a>", "<a> x {\"<b/>\"} y </a>;")
+	expectPrintedJSXMinify(t, "<a>{' x '}{'<b/>'}{' y '}</a>", "<a>{\" x \"}{\"<b/>\"}{\" y \"}</a>;")
 }
 
 func TestJSXSingleLine(t *testing.T) {

@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+* The "preserve" JSX mode now preserves JSX text verbatim ([#3605](https://github.com/evanw/esbuild/issues/3605))
+
+    The [JSX specification](https://facebook.github.io/jsx/) deliberately doesn't specify how JSX text is supposed to be interpreted and there is no canonical way to interpret JSX text. Two most popular interpretations are Babel and TypeScript. Yes [they are different](https://twitter.com/jarredsumner/status/1456118847937781764) (esbuild [deliberately follows TypeScript](https://twitter.com/evanwallace/status/1456122279453208576) by the way). Previously esbuild normalized text to the TypeScript interpretation when the "preserve" JSX mode is active. However, "preserve" should arguably reproduce the original JSX text verbatim so that whatever JSX transform runs after esbuild is free to interpret it however it wants. So with this release, esbuild will now pass JSX text through unmodified:
+
+    ```jsx
+    // Original code
+    let el =
+      <a href={'/'} title='&apos;&quot;'> some text
+        {foo}
+          more text </a>
+
+    // Old output (with --loader=jsx --jsx=preserve)
+    let el = <a href="/" title={`'"`}>
+      {" some text"}
+      {foo}
+      {"more text "}
+    </a>;
+
+    // New output (with --loader=jsx --jsx=preserve)
+    let el = <a href={"/"} title='&apos;&quot;'> some text
+        {foo}
+          more text </a>;
+    ```
+
 * Allow JSX elements as JSX attribute values
 
     JSX has an obscure feature where you can use JSX elements in attribute position without surrounding them with `{...}`. It looks like this:
