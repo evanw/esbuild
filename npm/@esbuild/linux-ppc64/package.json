@@ -2,7 +2,10 @@
   "name": "@esbuild/linux-ppc64",
   "version": "0.19.12",
   "description": "The Linux PowerPC 64-bit Little Endian binary for esbuild, a JavaScript bundler.",
-  "repository": "https://github.com/evanw/esbuild",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/evanw/esbuild.git"
+  },
   "license": "MIT",
   "preferUnplugged": true,
   "engines": {

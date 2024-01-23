@@ -2,7 +2,10 @@
   "name": "esbuild",
   "version": "0.19.12",
   "description": "An extremely fast JavaScript and CSS bundler and minifier.",
-  "repository": "https://github.com/evanw/esbuild",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/evanw/esbuild.git"
+  },
   "scripts": {
     "postinstall": "node install.js"
   },
