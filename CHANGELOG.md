@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+* Reorder implicit file extensions within `node_modules` ([#3341](https://github.com/evanw/esbuild/issues/3341), [#3608](https://github.com/evanw/esbuild/issues/3608))
+
+    In [version 0.18.0](https://github.com/evanw/esbuild/releases/v0.18.0), esbuild changed the behavior of implicit file extensions within `node_modules` directories (i.e. in published packages) to prefer `.js` over `.ts` even when the `--resolve-extensions=` order prefers `.ts` over `.js` (which it does by default). However, doing that also accidentally made esbuild prefer `.css` over `.ts`, which caused problems for people that published packages containing both TypeScript and CSS in files with the same name.
+
+    With this release, esbuild will reorder TypeScript file extensions immediately after the last JavaScript file extensions in the implicit file extension order instead of putting them at the end of the order. Specifically the default implicit file extension order is `.tsx,.ts,.jsx,.js,.css,.json` which used to become `.jsx,.js,.css,.json,.tsx,.ts` in `node_modules` directories. With this release it will now become `.jsx,.js,.tsx,.ts,.css,.json` instead.
+
+    Why even rewrite the implicit file extension order at all? One reason is because the `.js` file is more likely to behave correctly than the `.ts` file. The behavior of the `.ts` file  may depend on `tsconfig.json` and the `tsconfig.json` file may not even be published, or may use `extends` to refer to a base `tsconfig.json` file that wasn't published. People can get into this situation when they forget to add all `.ts` files to their `.npmignore` file before publishing to npm. Picking `.js` over `.ts` helps make it more likely that resulting bundle will behave correctly.
+
 ## 0.19.12
 
 * The "preserve" JSX mode now preserves JSX text verbatim ([#3605](https://github.com/evanw/esbuild/issues/3605))

@@ -1465,6 +1465,35 @@ var foo = value_copy;
 console.log(foo);
 
 ================================================================================
+TestTSImportInNodeModulesNameCollisionWithCSS
+---------- /out.js ----------
+// node_modules/pkg/js_ts_css.js
+function js_ts_css_default() {
+}
+
+// node_modules/pkg/ts_css.ts
+function ts_css_default() {
+}
+
+// node_modules/pkg/js_ts.js
+function js_ts_default() {
+}
+
+// node_modules/pkg/index.ts
+js_ts_css_default();
+ts_css_default();
+js_ts_default();
+
+---------- /out.css ----------
+/* node_modules/pkg/js_ts_css.css */
+.js_ts_css {
+}
+
+/* node_modules/pkg/ts_css.css */
+.ts_css {
+}
+
+================================================================================
 TestTSImportMTS
 ---------- /out.js ----------
 // imported.mts
