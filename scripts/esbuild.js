@@ -8,6 +8,7 @@ const denoDir = path.join(repoDir, 'deno')
 const npmDir = path.join(repoDir, 'npm', 'esbuild')
 const version = fs.readFileSync(path.join(repoDir, 'version.txt'), 'utf8').trim()
 const nodeTarget = 'node10'; // See: https://nodejs.org/en/about/releases/
+const denoTarget = 'deno1'; // See: https://nodejs.org/en/about/releases/
 const umdBrowserTarget = 'es2015'; // Transpiles "async"
 const esmBrowserTarget = 'es2017'; // Preserves "async"
 
@@ -227,7 +228,7 @@ const buildDenoLib = async (esbuildPath) => {
     path.join(repoDir, 'lib', 'deno', 'mod.ts'),
     '--bundle',
     '--outfile=' + path.join(denoDir, 'mod.js'),
-    '--target=esnext',
+    '--target=' + denoTarget,
     '--define:ESBUILD_VERSION=' + JSON.stringify(version),
     '--platform=neutral',
     '--log-level=warning',
@@ -237,11 +238,11 @@ const buildDenoLib = async (esbuildPath) => {
   // Generate "deno/wasm.js"
   const GOROOT = childProcess.execFileSync('go', ['env', 'GOROOT']).toString().trim()
   let wasm_exec_js = fs.readFileSync(path.join(GOROOT, 'misc', 'wasm', 'wasm_exec.js'), 'utf8')
-  const wasmWorkerCode = await generateWorkerCode({ esbuildPath, wasm_exec_js, minify: true, target: 'esnext' })
+  const wasmWorkerCode = await generateWorkerCode({ esbuildPath, wasm_exec_js, minify: true, target: denoTarget })
   const modWASM = childProcess.execFileSync(esbuildPath, [
     path.join(repoDir, 'lib', 'deno', 'wasm.ts'),
     '--bundle',
-    '--target=esnext',
+    '--target=' + denoTarget,
     '--define:ESBUILD_VERSION=' + JSON.stringify(version),
     '--define:WEB_WORKER_SOURCE_CODE=' + JSON.stringify(wasmWorkerCode),
     '--platform=neutral',
