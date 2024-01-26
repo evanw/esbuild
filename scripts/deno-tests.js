@@ -14,6 +14,8 @@ try {
 }
 Deno.mkdirSync(rootTestDir, { recursive: true })
 
+await esbuildNative.initialize()
+
 function test(name, backends, fn) {
   const singleTest = (name, fn) => Deno.test({
     name,
@@ -37,7 +39,7 @@ function test(name, backends, fn) {
             await fn({ esbuild: esbuildNative, testDir })
             await Deno.remove(testDir, { recursive: true }).catch(() => null)
           } finally {
-            esbuildNative.stop()
+            // esbuildNative.stop()
           }
         })
         break
@@ -75,6 +77,7 @@ function test(name, backends, fn) {
 
 window.addEventListener("unload", (e) => {
   try {
+    esbuildNative.stop()
     Deno.removeSync(rootTestDir, { recursive: true })
   } catch {
     // root test dir possibly already removed, so ignore

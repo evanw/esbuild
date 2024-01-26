@@ -184,21 +184,26 @@ let ensureServiceIsRunning = (): Promise<Service> => {
   if (!longLivedService) {
     longLivedService = (async (): Promise<Service> => {
       const binPath = await install()
-      const isTTY = Deno.isatty(Deno.stderr.rid)
+      const isTTY = Deno.stderr.isTerminal()
 
-      const child = Deno.run({
-        cmd: [binPath, `--service=${version}`],
+      const command = new Deno.Command(binPath, {
+        args: [
+          `--service=${version}`
+        ],
         cwd: defaultWD,
         stdin: 'piped',
         stdout: 'piped',
         stderr: 'inherit',
       })
+      const child = command.spawn()
+      const writer = child.stdin.getWriter()
+      const reader = child.stdout.getReader()
 
       stopService = () => {
         // Close all resources related to the subprocess.
+        writer.releaseLock()
         child.stdin.close()
-        child.stdout.close()
-        child.close()
+        child.kill()
         initializeWasCalled = false
         longLivedService = undefined
         stopService = undefined
@@ -211,10 +216,9 @@ let ensureServiceIsRunning = (): Promise<Service> => {
       const startWriteFromQueueWorker = () => {
         if (isQueueLocked || writeQueue.length === 0) return
         isQueueLocked = true
-        child.stdin.write(writeQueue[0]).then(bytesWritten => {
+        writer.write(writeQueue[0]).then(() => {
           isQueueLocked = false
-          if (bytesWritten === writeQueue[0].length) writeQueue.shift()
-          else writeQueue[0] = writeQueue[0].subarray(bytesWritten)
+          writeQueue.shift()
           startWriteFromQueueWorker()
         })
       }
@@ -229,12 +233,11 @@ let ensureServiceIsRunning = (): Promise<Service> => {
         esbuild: ourselves,
       })
 
-      const stdoutBuffer = new Uint8Array(4 * 1024 * 1024)
-      const readMoreStdout = () => child.stdout.read(stdoutBuffer).then(n => {
-        if (n === null) {
+      const readMoreStdout = () => reader.read().then(({done, value}) => {
+        if (done || !value) {
           afterClose(null)
         } else {
-          readFromStdout(stdoutBuffer.subarray(0, n))
+          readFromStdout(value)
           readMoreStdout()
         }
       }).catch(e => {
@@ -331,13 +334,14 @@ let ensureServiceIsRunning = (): Promise<Service> => {
 
 // If we're called as the main script, forward the CLI to the underlying executable
 if (import.meta.main) {
-  Deno.run({
-    cmd: [await install()].concat(Deno.args),
+  const command = new Deno.Command(await install(), {
+    args: Deno.args,
     cwd: defaultWD,
     stdin: 'inherit',
     stdout: 'inherit',
-    stderr: 'inherit',
-  }).status().then(({ code }) => {
+    stderr:'inherit',
+  })
+  command.output().then(({ code }) => {
     Deno.exit(code)
   })
 }
