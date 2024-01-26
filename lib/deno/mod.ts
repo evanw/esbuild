@@ -189,11 +189,11 @@ type SpawnFn = (cmd: string, options: {
 }) => {
   stdin: {
     write(bytes: Uint8Array): void
-    close(): void
+    close(): Promise<void> | void
   }
   stdout: {
     read(): Promise<Uint8Array | null>
-    close(): void
+    close(): Promise<void> | void
   }
   close(): Promise<void> | void
   status(): Promise<{ code: number }>
@@ -292,8 +292,8 @@ const ensureServiceIsRunning = (): Promise<Service> => {
 
       stopService = async () => {
         // Close all resources related to the subprocess.
-        child.stdin.close()
-        child.stdout.close()
+        await child.stdin.close()
+        await child.stdout.close()
         await child.close()
         initializeWasCalled = false
         longLivedService = undefined
