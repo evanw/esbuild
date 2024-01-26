@@ -37,7 +37,7 @@ function test(name, backends, fn) {
             await fn({ esbuild: esbuildNative, testDir })
             await Deno.remove(testDir, { recursive: true }).catch(() => null)
           } finally {
-            esbuildNative.stop()
+            await esbuildNative.stop()
           }
         })
         break
@@ -51,7 +51,7 @@ function test(name, backends, fn) {
             await fn({ esbuild: esbuildWASM, testDir })
             await Deno.remove(testDir, { recursive: true }).catch(() => null)
           } finally {
-            esbuildWASM.stop()
+            await esbuildWASM.stop()
           }
         })
         break
@@ -65,7 +65,7 @@ function test(name, backends, fn) {
             await fn({ esbuild: esbuildWASM, testDir })
             await Deno.remove(testDir, { recursive: true }).catch(() => null)
           } finally {
-            esbuildWASM.stop()
+            await esbuildWASM.stop()
           }
         })
         break

@@ -673,4 +673,4 @@ export let version: string
 // Unlike node, Deno lacks the necessary APIs to clean up child processes
 // automatically. You must manually call stop() in Deno when you're done
 // using esbuild or Deno will continue running forever.
-export declare function stop(): void;
+export declare function stop(): Promise<void>

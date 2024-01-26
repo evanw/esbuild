@@ -43,8 +43,8 @@ export const analyzeMetafileSync: typeof types.analyzeMetafileSync = () => {
   throw new Error(`The "analyzeMetafileSync" API does not work in Deno`)
 }
 
-export const stop = () => {
-  if (stopService) stopService()
+export const stop = async () => {
+  if (stopService) await stopService()
 }
 
 let initializeWasCalled = false
@@ -178,63 +178,142 @@ interface Service {
 
 let defaultWD = Deno.cwd()
 let longLivedService: Promise<Service> | undefined
-let stopService: (() => void) | undefined
+let stopService: (() => Promise<void>) | undefined
 
-let ensureServiceIsRunning = (): Promise<Service> => {
+// Declare a common subprocess API for the two implementations below
+type SpawnFn = (cmd: string, options: {
+  args: string[]
+  stdin: 'piped' | 'inherit'
+  stdout: 'piped' | 'inherit'
+  stderr: 'inherit'
+}) => {
+  stdin: {
+    write(bytes: Uint8Array): void
+    close(): void
+  }
+  stdout: {
+    read(): Promise<Uint8Array | null>
+    close(): void
+  }
+  close(): Promise<void> | void
+  status(): Promise<{ code: number }>
+}
+
+// Deno ≥1.40
+const spawnNew: SpawnFn = (cmd, { args, stdin, stdout, stderr }) => {
+  const child = new Deno.Command(cmd, {
+    args,
+    cwd: defaultWD,
+    stdin,
+    stdout,
+    stderr,
+  }).spawn()
+  const writer = child.stdin.getWriter()
+  const reader = child.stdout.getReader()
+  return {
+    stdin: {
+      write: bytes => writer.write(bytes),
+      close: () => writer.close(),
+    },
+    stdout: {
+      read: () => reader.read().then(x => x.value || null),
+      close: () => reader.cancel(),
+    },
+    close: async () => {
+      // Note: This can throw with EPERM on Windows (happens in GitHub Actions)
+      child.kill()
+
+      // Without this, Deno will fail tests with some weird error about "op_spawn_wait"
+      await child.status
+    },
+    status: () => child.status,
+  }
+}
+
+// Deno <1.40
+const spawnOld: SpawnFn = (cmd, { args, stdin, stdout, stderr }) => {
+  const child = Deno.run({
+    cmd: [cmd].concat(args),
+    cwd: defaultWD,
+    stdin,
+    stdout,
+    stderr,
+  })
+  const stdoutBuffer = new Uint8Array(4 * 1024 * 1024)
+  let writeQueue: Uint8Array[] = []
+  let isQueueLocked = false
+
+  // We need to keep calling "write()" until it actually writes the data
+  const startWriteFromQueueWorker = () => {
+    if (isQueueLocked || writeQueue.length === 0) return
+    isQueueLocked = true
+    child.stdin!.write(writeQueue[0]).then(bytesWritten => {
+      isQueueLocked = false
+      if (bytesWritten === writeQueue[0].length) writeQueue.shift()
+      else writeQueue[0] = writeQueue[0].subarray(bytesWritten)
+      startWriteFromQueueWorker()
+    })
+  }
+
+  return {
+    stdin: {
+      write: bytes => {
+        writeQueue.push(bytes)
+        startWriteFromQueueWorker()
+      },
+      close: () => child.stdin!.close(),
+    },
+    stdout: {
+      read: () => child.stdout!.read(stdoutBuffer).then(n => n === null ? null : stdoutBuffer.subarray(0, n)),
+      close: () => child.stdout!.close(),
+    },
+    close: () => child.close(),
+    status: () => child.status(),
+  }
+}
+
+// This is a shim for "Deno.run" for newer versions of Deno
+const spawn: SpawnFn = Deno.Command ? spawnNew : spawnOld
+
+const ensureServiceIsRunning = (): Promise<Service> => {
   if (!longLivedService) {
     longLivedService = (async (): Promise<Service> => {
       const binPath = await install()
-      const isTTY = Deno.isatty(Deno.stderr.rid)
+      const isTTY = Deno.stderr.isTerminal
+        ? Deno.stderr.isTerminal() // Deno ≥1.40
+        : Deno.isatty(Deno.stderr.rid) // Deno <1.40
 
-      const child = Deno.run({
-        cmd: [binPath, `--service=${version}`],
-        cwd: defaultWD,
+      const child = spawn(binPath, {
+        args: [`--service=${version}`],
         stdin: 'piped',
         stdout: 'piped',
         stderr: 'inherit',
       })
 
-      stopService = () => {
+      stopService = async () => {
         // Close all resources related to the subprocess.
         child.stdin.close()
         child.stdout.close()
-        child.close()
+        await child.close()
         initializeWasCalled = false
         longLivedService = undefined
         stopService = undefined
       }
 
-      let writeQueue: Uint8Array[] = []
-      let isQueueLocked = false
-
-      // We need to keep calling "write()" until it actually writes the data
-      const startWriteFromQueueWorker = () => {
-        if (isQueueLocked || writeQueue.length === 0) return
-        isQueueLocked = true
-        child.stdin.write(writeQueue[0]).then(bytesWritten => {
-          isQueueLocked = false
-          if (bytesWritten === writeQueue[0].length) writeQueue.shift()
-          else writeQueue[0] = writeQueue[0].subarray(bytesWritten)
-          startWriteFromQueueWorker()
-        })
-      }
-
       const { readFromStdout, afterClose, service } = common.createChannel({
         writeToStdin(bytes) {
-          writeQueue.push(bytes)
-          startWriteFromQueueWorker()
+          child.stdin.write(bytes)
         },
         isSync: false,
         hasFS: true,
         esbuild: ourselves,
       })
 
-      const stdoutBuffer = new Uint8Array(4 * 1024 * 1024)
-      const readMoreStdout = () => child.stdout.read(stdoutBuffer).then(n => {
-        if (n === null) {
+      const readMoreStdout = () => child.stdout.read().then(buffer => {
+        if (buffer === null) {
           afterClose(null)
         } else {
-          readFromStdout(stdoutBuffer.subarray(0, n))
+          readFromStdout(buffer)
           readMoreStdout()
         }
       }).catch(e => {
@@ -331,9 +410,8 @@ let ensureServiceIsRunning = (): Promise<Service> => {
 
 // If we're called as the main script, forward the CLI to the underlying executable
 if (import.meta.main) {
-  Deno.run({
-    cmd: [await install()].concat(Deno.args),
-    cwd: defaultWD,
+  spawn(await install(), {
+    args: Deno.args,
     stdin: 'inherit',
     stdout: 'inherit',
     stderr: 'inherit',

@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+* Work around API deprecations in Deno 1.40.x ([#3609](https://github.com/evanw/esbuild/issues/3609))
+
+    Deno 1.40.0 introduced run-time warnings about certain APIs that esbuild uses. With this release, esbuild will work around these run-time warnings by using other APIs if they are present, and falling back to the original APIs otherwise. This should avoid the warnings without breaking compatibility with older versions of Deno.
+
+    Unfortunately, doing this introduces a breaking change. The other child process APIs seem to lack a way to synchronously terminate esbuild's child process, which causes Deno to now fail tests with a confusing error about a thing called `op_spawn_wait` in Deno's internals. To work around this, esbuild's `stop()` function has been changed to return a promise, and you now have to change `esbuild.stop()` to `await esbuild.stop()` in all of your Deno tests.
+
 ## 0.19.12
 
 * The "preserve" JSX mode now preserves JSX text verbatim ([#3605](https://github.com/evanw/esbuild/issues/3605))

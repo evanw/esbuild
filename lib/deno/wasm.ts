@@ -50,6 +50,7 @@ export const analyzeMetafileSync: typeof types.analyzeMetafileSync = () => {
 
 export const stop = () => {
   if (stopService) stopService()
+  return Promise.resolve()
 }
 
 interface Service {
