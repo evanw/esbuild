@@ -1,10 +1,14 @@
 # Changelog
 
-## Unreleased
+## 0.20.0
+
+**This release deliberately contains backwards-incompatible changes.** To avoid automatically picking up releases like this, you should either be pinning the exact version of `esbuild` in your `package.json` file (recommended) or be using a version range syntax that only accepts patch upgrades such as `^0.19.0` or `~0.19.0`. See npm's documentation about [semver](https://docs.npmjs.com/cli/v6/using-npm/semver/) for more information.
+
+This time there is only one breaking change, and it only matters for people using Deno. Deno tests that use esbuild will now fail unless you make the change described below.
 
 * Work around API deprecations in Deno 1.40.x ([#3609](https://github.com/evanw/esbuild/issues/3609), [#3611](https://github.com/evanw/esbuild/pull/3611))
 
-    Deno 1.40.0 introduced run-time warnings about certain APIs that esbuild uses. With this release, esbuild will work around these run-time warnings by using newer APIs if they are present and falling back to the original APIs otherwise. This should avoid the warnings without breaking compatibility with older versions of Deno.
+    [Deno 1.40.0](https://deno.com/blog/v1.40) was just released and introduced run-time warnings about certain APIs that esbuild uses. With this release, esbuild will work around these run-time warnings by using newer APIs if they are present and falling back to the original APIs otherwise. This should avoid the warnings without breaking compatibility with older versions of Deno.
 
     Unfortunately, doing this introduces a breaking change. The newer child process APIs lack a way to synchronously terminate esbuild's child process, so calling `esbuild.stop()` from within a Deno test is no longer sufficient to prevent Deno from failing a test that uses esbuild's API (Deno fails tests that create a child process without killing it before the test ends). To work around this, esbuild's `stop()` function has been changed to return a promise, and you now have to change `esbuild.stop()` to `await esbuild.stop()` in all of your Deno tests.
 
