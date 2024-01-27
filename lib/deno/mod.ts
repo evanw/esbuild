@@ -187,14 +187,8 @@ type SpawnFn = (cmd: string, options: {
   stdout: 'piped' | 'inherit'
   stderr: 'inherit'
 }) => {
-  stdin: {
-    write(bytes: Uint8Array): void
-    close(): Promise<void> | void
-  }
-  stdout: {
-    read(): Promise<Uint8Array | null>
-    close(): Promise<void> | void
-  }
+  write(bytes: Uint8Array): void
+  read(): Promise<Uint8Array | null>
   close(): Promise<void> | void
   status(): Promise<{ code: number }>
 }
@@ -211,19 +205,15 @@ const spawnNew: SpawnFn = (cmd, { args, stdin, stdout, stderr }) => {
   const writer = child.stdin.getWriter()
   const reader = child.stdout.getReader()
   return {
-    stdin: {
-      write: bytes => writer.write(bytes),
-      close: () => writer.close(),
-    },
-    stdout: {
-      read: () => reader.read().then(x => x.value || null),
-      close: () => reader.cancel(),
-    },
+    write: bytes => writer.write(bytes),
+    read: () => reader.read().then(x => x.value || null),
     close: async () => {
-      // Note: This can throw with EPERM on Windows (happens in GitHub Actions)
       child.kill()
 
-      // Without this, Deno will fail tests with some weird error about "op_spawn_wait"
+      // Wait for the process to exit. The new "kill()" API doesn't flag the
+      // process as having exited because processes can technically ignore the
+      // kill signal. Without this, Deno will fail tests that use esbuild with
+      // an error because the test spawned a process but didn't wait for it.
       await child.status
     },
     status: () => child.status,
@@ -256,18 +246,16 @@ const spawnOld: SpawnFn = (cmd, { args, stdin, stdout, stderr }) => {
   }
 
   return {
-    stdin: {
-      write: bytes => {
-        writeQueue.push(bytes)
-        startWriteFromQueueWorker()
-      },
-      close: () => child.stdin!.close(),
+    write: bytes => {
+      writeQueue.push(bytes)
+      startWriteFromQueueWorker()
     },
-    stdout: {
-      read: () => child.stdout!.read(stdoutBuffer).then(n => n === null ? null : stdoutBuffer.subarray(0, n)),
-      close: () => child.stdout!.close(),
+    read: () => child.stdout!.read(stdoutBuffer).then(n => n === null ? null : stdoutBuffer.subarray(0, n)),
+    close: () => {
+      child.stdin!.close()
+      child.stdout!.close()
+      child.close()
     },
-    close: () => child.close(),
     status: () => child.status(),
   }
 }
@@ -292,8 +280,6 @@ const ensureServiceIsRunning = (): Promise<Service> => {
 
       stopService = async () => {
         // Close all resources related to the subprocess.
-        await child.stdin.close()
-        await child.stdout.close()
         await child.close()
         initializeWasCalled = false
         longLivedService = undefined
@@ -302,14 +288,14 @@ const ensureServiceIsRunning = (): Promise<Service> => {
 
       const { readFromStdout, afterClose, service } = common.createChannel({
         writeToStdin(bytes) {
-          child.stdin.write(bytes)
+          child.write(bytes)
         },
         isSync: false,
         hasFS: true,
         esbuild: ourselves,
       })
 
-      const readMoreStdout = () => child.stdout.read().then(buffer => {
+      const readMoreStdout = () => child.read().then(buffer => {
         if (buffer === null) {
           afterClose(null)
         } else {
