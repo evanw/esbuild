@@ -223,6 +223,7 @@ export let analyzeMetafileSync: typeof types.analyzeMetafileSync = (metafile, op
 export const stop = () => {
   if (stopService) stopService()
   if (workerThreadService) workerThreadService.stop()
+  return Promise.resolve()
 }
 
 let initializeWasCalled = false
