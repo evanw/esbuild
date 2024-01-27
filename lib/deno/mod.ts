@@ -208,7 +208,22 @@ const spawnNew: SpawnFn = (cmd, { args, stdin, stdout, stderr }) => {
     write: bytes => writer.write(bytes),
     read: () => reader.read().then(x => x.value || null),
     close: async () => {
-      child.kill()
+      // We can't call "kill()" because it doesn't seem to work. Tests will
+      // still fail with "A child process was opened during the test, but not
+      // closed during the test" even though we kill the child process.
+      //
+      // And we can't call both "writer.close()" and "kill()" because then
+      // there's a race as the child process exits when stdin is closed, and
+      // "kill()" fails when the child process has already been killed.
+      //
+      // So instead we just call "writer.close()" and then hope that this
+      // causes the child process to exit. It won't work if the stdin consumer
+      // thread in the child process is hung or busy, but that may be the best
+      // we can do.
+      //
+      // See this for more info: https://github.com/evanw/esbuild/pull/3611
+      await writer.close()
+      await reader.cancel()
 
       // Wait for the process to exit. The new "kill()" API doesn't flag the
       // process as having exited because processes can technically ignore the
