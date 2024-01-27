@@ -154,8 +154,9 @@ async function install(): Promise<string> {
     'x86_64-unknown-linux-gnu': '@esbuild/linux-x64',
 
     // These platforms are not supported by Deno
-    'x86_64-unknown-freebsd': '@esbuild/freebsd-x64',
     'aarch64-linux-android': '@esbuild/android-arm64',
+    'x86_64-unknown-freebsd': '@esbuild/freebsd-x64',
+    "x86_64-alpine-linux-musl": '@esbuild/linux-x64',
   }
 
   // Pick a package to install
