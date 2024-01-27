@@ -248,17 +248,34 @@ func NewResolver(call config.APICall, fs fs.FS, log logger.Log, caches *cache.Ca
 		}
 	}
 
-	// Sort all JavaScript file extensions after TypeScript file extensions
-	// for imports of files inside of "node_modules" directories
+	// Sort all TypeScript file extensions after all JavaScript file extensions
+	// for imports of files inside of "node_modules" directories. But insert
+	// the TypeScript file extensions right after the last JavaScript file
+	// extension instead of at the end so that they might come before the
+	// first CSS file extension, which is important to people that publish
+	// TypeScript and CSS code to npm with the same file names for both.
 	nodeModulesExtensionOrder := make([]string, 0, len(options.ExtensionOrder))
-	for _, ext := range options.ExtensionOrder {
-		if loader, ok := options.ExtensionToLoader[ext]; !ok || !loader.IsTypeScript() {
-			nodeModulesExtensionOrder = append(nodeModulesExtensionOrder, ext)
+	split := 0
+	for i, ext := range options.ExtensionOrder {
+		if loader, ok := options.ExtensionToLoader[ext]; ok && loader == config.LoaderJS || loader == config.LoaderJSX {
+			split = i + 1 // Split after the last JavaScript extension
 		}
 	}
-	for _, ext := range options.ExtensionOrder {
-		if loader, ok := options.ExtensionToLoader[ext]; ok && loader.IsTypeScript() {
-			nodeModulesExtensionOrder = append(nodeModulesExtensionOrder, ext)
+	if split != 0 { // Only do this if there are any JavaScript extensions
+		for _, ext := range options.ExtensionOrder[:split] { // Non-TypeScript extensions before the split
+			if loader, ok := options.ExtensionToLoader[ext]; !ok || !loader.IsTypeScript() {
+				nodeModulesExtensionOrder = append(nodeModulesExtensionOrder, ext)
+			}
+		}
+		for _, ext := range options.ExtensionOrder { // All TypeScript extensions
+			if loader, ok := options.ExtensionToLoader[ext]; ok && loader.IsTypeScript() {
+				nodeModulesExtensionOrder = append(nodeModulesExtensionOrder, ext)
+			}
+		}
+		for _, ext := range options.ExtensionOrder[split:] { // Non-TypeScript extensions after the split
+			if loader, ok := options.ExtensionToLoader[ext]; !ok || !loader.IsTypeScript() {
+				nodeModulesExtensionOrder = append(nodeModulesExtensionOrder, ext)
+			}
 		}
 	}
 
