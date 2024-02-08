@@ -504,7 +504,6 @@ func (res *Resolver) Resolve(sourceDir string, importPath string, kind ast.Impor
 
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
-	sourceDirInfo := r.dirInfoCached(sourceDir)
 
 	// Check for the Yarn PnP manifest if it hasn't already been checked for
 	if !r.pnpManifestWasChecked {
@@ -531,6 +530,12 @@ func (res *Resolver) Resolve(sourceDir string, importPath string, kind ast.Impor
 				break
 			}
 		}
+	}
+
+	sourceDirInfo := r.dirInfoCached(sourceDir)
+	if sourceDirInfo == nil {
+		// Bail if the directory is missing for some reason
+		return nil, debugMeta
 	}
 
 	result := r.resolveWithoutSymlinks(sourceDir, sourceDirInfo, importPath)
@@ -1006,11 +1011,6 @@ func (r resolverQuery) resolveWithoutSymlinks(sourceDir string, sourceDirInfo *d
 	}
 
 	if checkPackage {
-		if sourceDirInfo == nil {
-			// Bail if the directory is missing for some reason
-			return nil
-		}
-
 		// Support remapping one package path to another via the "browser" field
 		if remapped, ok := r.checkBrowserMap(sourceDirInfo, importPath, packagePathKind); ok {
 			if remapped == nil {

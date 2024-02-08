@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix a crash when resolving a path from a directory that doesn't exist ([#3634](https://github.com/evanw/esbuild/issues/3634))
+
+    This release fixes a regression where esbuild could crash when resolving an absolute path if the source directory for the path resolution operation doesn't exist. While this situation doesn't normally come up, it could come up when running esbuild concurrently with another operation that mutates the file system as esbuild is doing a build (such as using `git` to switch branches). The underlying problem was a regression that was introduced in version 0.18.0.
+
 ## 0.20.0
 
 **This release deliberately contains backwards-incompatible changes.** To avoid automatically picking up releases like this, you should either be pinning the exact version of `esbuild` in your `package.json` file (recommended) or be using a version range syntax that only accepts patch upgrades such as `^0.19.0` or `~0.19.0`. See npm's documentation about [semver](https://docs.npmjs.com/cli/v6/using-npm/semver/) for more information.

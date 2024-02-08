@@ -2522,6 +2522,25 @@ var foo_default2 = "🍕";
 console.log(foo_default, foo_default2);
 `)
   },
+
+  async internalCrashIssue3634({ esbuild }) {
+    await esbuild.build({
+      entryPoints: [],
+      bundle: true,
+      plugins: [{
+        name: 'abc',
+        setup(build) {
+          build.onStart(async () => {
+            const result = await build.resolve('/foo', {
+              kind: 'require-call',
+              resolveDir: 'bar',
+            })
+            assert.strictEqual(result.errors.length, 1)
+          })
+        }
+      }],
+    })
+  },
 }
 
 const makeRebuildUntilPlugin = () => {
