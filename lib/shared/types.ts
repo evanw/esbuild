@@ -20,9 +20,9 @@ interface CommonOptions {
   /** Documentation: https://esbuild.github.io/api/#global-name */
   globalName?: string
   /** Documentation: https://esbuild.github.io/api/#target */
-  target?: string | string[]
+  target?: string | readonly string[]
   /** Documentation: https://esbuild.github.io/api/#supported */
-  supported?: Record<string, boolean>
+  supported?: Readonly<Record<string, boolean>>
   /** Documentation: https://esbuild.github.io/api/#platform */
   platform?: Platform
 
@@ -33,11 +33,11 @@ interface CommonOptions {
   /** Documentation: https://esbuild.github.io/api/#mangle-props */
   mangleQuoted?: boolean
   /** Documentation: https://esbuild.github.io/api/#mangle-props */
-  mangleCache?: Record<string, string | false>
+  mangleCache?: Readonly<Record<string, string | false>>
   /** Documentation: https://esbuild.github.io/api/#drop */
-  drop?: Drop[]
+  drop?: readonly Drop[]
   /** Documentation: https://esbuild.github.io/api/#drop-labels */
-  dropLabels?: string[]
+  dropLabels?: readonly string[]
   /** Documentation: https://esbuild.github.io/api/#minify */
   minify?: boolean
   /** Documentation: https://esbuild.github.io/api/#minify */
@@ -69,9 +69,9 @@ interface CommonOptions {
   jsxSideEffects?: boolean
 
   /** Documentation: https://esbuild.github.io/api/#define */
-  define?: { [key: string]: string }
+  define?: Readonly<{ [key: string]: string }>
   /** Documentation: https://esbuild.github.io/api/#pure */
-  pure?: string[]
+  pure?: readonly string[]
   /** Documentation: https://esbuild.github.io/api/#keep-names */
   keepNames?: boolean
 
@@ -82,10 +82,10 @@ interface CommonOptions {
   /** Documentation: https://esbuild.github.io/api/#log-limit */
   logLimit?: number
   /** Documentation: https://esbuild.github.io/api/#log-override */
-  logOverride?: Record<string, LogLevel>
+  logOverride?: Readonly<Record<string, LogLevel>>
 
   /** Documentation: https://esbuild.github.io/api/#tsconfig-raw */
-  tsconfigRaw?: string | TsconfigRaw
+  tsconfigRaw?: string | Readonly<TsconfigRaw>
 }
 
 export interface TsconfigRaw {
@@ -123,19 +123,19 @@ export interface BuildOptions extends CommonOptions {
   /** Documentation: https://esbuild.github.io/api/#outbase */
   outbase?: string
   /** Documentation: https://esbuild.github.io/api/#external */
-  external?: string[]
+  external?: readonly string[]
   /** Documentation: https://esbuild.github.io/api/#packages */
   packages?: 'external'
   /** Documentation: https://esbuild.github.io/api/#alias */
-  alias?: Record<string, string>
+  alias?: Readonly<Record<string, string>>
   /** Documentation: https://esbuild.github.io/api/#loader */
-  loader?: { [ext: string]: Loader }
+  loader?: Readonly<{ [ext: string]: Loader }>
   /** Documentation: https://esbuild.github.io/api/#resolve-extensions */
-  resolveExtensions?: string[]
+  resolveExtensions?: readonly string[]
   /** Documentation: https://esbuild.github.io/api/#main-fields */
-  mainFields?: string[]
+  mainFields?: readonly string[]
   /** Documentation: https://esbuild.github.io/api/#conditions */
-  conditions?: string[]
+  conditions?: readonly string[]
   /** Documentation: https://esbuild.github.io/api/#write */
   write?: boolean
   /** Documentation: https://esbuild.github.io/api/#allow-overwrite */
@@ -143,7 +143,7 @@ export interface BuildOptions extends CommonOptions {
   /** Documentation: https://esbuild.github.io/api/#tsconfig */
   tsconfig?: string
   /** Documentation: https://esbuild.github.io/api/#out-extension */
-  outExtension?: { [ext: string]: string }
+  outExtension?: Readonly<{ [ext: string]: string }>
   /** Documentation: https://esbuild.github.io/api/#public-path */
   publicPath?: string
   /** Documentation: https://esbuild.github.io/api/#entry-names */
@@ -153,21 +153,21 @@ export interface BuildOptions extends CommonOptions {
   /** Documentation: https://esbuild.github.io/api/#asset-names */
   assetNames?: string
   /** Documentation: https://esbuild.github.io/api/#inject */
-  inject?: string[]
+  inject?: readonly string[]
   /** Documentation: https://esbuild.github.io/api/#banner */
-  banner?: { [type: string]: string }
+  banner?: Readonly<{ [type: string]: string }>
   /** Documentation: https://esbuild.github.io/api/#footer */
-  footer?: { [type: string]: string }
+  footer?: Readonly<{ [type: string]: string }>
   /** Documentation: https://esbuild.github.io/api/#entry-points */
-  entryPoints?: string[] | Record<string, string> | { in: string, out: string }[]
+  entryPoints?: readonly string[] | Readonly<Record<string, string>> | ReadonlyArray<{ in: string, out: string }>
   /** Documentation: https://esbuild.github.io/api/#stdin */
-  stdin?: StdinOptions
+  stdin?: Readonly<StdinOptions>
   /** Documentation: https://esbuild.github.io/plugins/ */
-  plugins?: Plugin[]
+  plugins?: readonly Plugin[]
   /** Documentation: https://esbuild.github.io/api/#working-directory */
   absWorkingDir?: string
   /** Documentation: https://esbuild.github.io/api/#node-paths */
-  nodePaths?: string[]; // The "NODE_PATH" variable from Node.js
+  nodePaths?: readonly string[]; // The "NODE_PATH" variable from Node.js
 }
 
 export interface StdinOptions {
