@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+* Fix a bug with the CSS nesting transform ([#3648](https://github.com/evanw/esbuild/issues/3648))
+
+    This release fixes a bug with the CSS nesting transform for older browsers where the generated CSS could be incorrect if a selector list contained a pseudo element followed by another selector. The bug was caused by incorrectly mutating the parent rule's selector list when filtering out pseudo elements for the child rules:
+
+    ```css
+    /* Original code */
+    .foo {
+      &:after,
+      & .bar {
+        color: red;
+      }
+    }
+
+    /* Old output (with --supported:nesting=false) */
+    .foo .bar,
+    .foo .bar {
+      color: red;
+    }
+
+    /* New output (with --supported:nesting=false) */
+    .foo:after,
+    .foo .bar {
+      color: red;
+    }
+    ```
+
 * Fix a crash when resolving a path from a directory that doesn't exist ([#3634](https://github.com/evanw/esbuild/issues/3634))
 
     This release fixes a regression where esbuild could crash when resolving an absolute path if the source directory for the path resolution operation doesn't exist. While this situation doesn't normally come up, it could come up when running esbuild concurrently with another operation that mutates the file system as esbuild is doing a build (such as using `git` to switch branches). The underlying problem was a regression that was introduced in version 0.18.0.

@@ -1213,6 +1213,8 @@ func TestNestedSelector(t *testing.T) {
 	expectPrintedLowerUnsupported(t, nesting, ".foo, .bar:before { :hover & { color: red } }", ":hover .foo {\n  color: red;\n}\n", "")
 	expectPrintedLowerUnsupported(t, nesting, ".bar:before { &:hover { color: red } }", ":is():hover {\n  color: red;\n}\n", "")
 	expectPrintedLowerUnsupported(t, nesting, ".bar:before { :hover & { color: red } }", ":hover :is() {\n  color: red;\n}\n", "")
+	expectPrintedLowerUnsupported(t, nesting, ".foo { &:after, & .bar { color: red } }", ".foo:after,\n.foo .bar {\n  color: red;\n}\n", "")
+	expectPrintedLowerUnsupported(t, nesting, ".foo { & .bar, &:after { color: red } }", ".foo .bar,\n.foo:after {\n  color: red;\n}\n", "")
 	expectPrintedLowerUnsupported(t, nesting, ".xy { :where(&.foo) { color: red } }", ":where(.xy.foo) {\n  color: red;\n}\n", "")
 	expectPrintedLowerUnsupported(t, nesting, "div { :where(&.foo) { color: red } }", ":where(div.foo) {\n  color: red;\n}\n", "")
 	expectPrintedLowerUnsupported(t, nesting, ".xy { :where(.foo&) { color: red } }", ":where(.xy.foo) {\n  color: red;\n}\n", "")

@@ -23,32 +23,35 @@ func (p *parser) lowerNestingInRule(rule css_ast.Rule, results []css_ast.Rule) [
 			}
 		}
 
-		// Filter out pseudo elements because they are ignored by nested style
-		// rules. This is because pseudo-elements are not valid within :is():
-		// https://www.w3.org/TR/selectors-4/#matches-pseudo. This restriction
-		// may be relaxed in the future, but this restriction hash shipped so
-		// we're stuck with it: https://github.com/w3c/csswg-drafts/issues/7433.
-		selectors := r.Selectors
-		n := 0
-		for _, sel := range selectors {
+		parentSelectors := make([]css_ast.ComplexSelector, 0, len(r.Selectors))
+		for i, sel := range r.Selectors {
+			// Top-level "&" should be replaced with ":scope" to avoid recursion.
+			// From https://www.w3.org/TR/css-nesting-1/#nest-selector:
+			//
+			//   "When used in the selector of a nested style rule, the nesting
+			//   selector represents the elements matched by the parent rule. When
+			//   used in any other context, it represents the same elements as
+			//   :scope in that context (unless otherwise defined)."
+			//
+			substituted := make([]css_ast.CompoundSelector, 0, len(sel.Selectors))
+			for _, x := range sel.Selectors {
+				substituted = p.substituteAmpersandsInCompoundSelector(x, scope, substituted, keepLeadingCombinator)
+			}
+			r.Selectors[i] = css_ast.ComplexSelector{Selectors: substituted}
+
+			// Filter out pseudo elements because they are ignored by nested style
+			// rules. This is because pseudo-elements are not valid within :is():
+			// https://www.w3.org/TR/selectors-4/#matches-pseudo. This restriction
+			// may be relaxed in the future, but this restriction hash shipped so
+			// we're stuck with it: https://github.com/w3c/csswg-drafts/issues/7433.
+			//
+			// Note: This is only for the parent selector list that is used to
+			// substitute "&" within child rules. Do not filter out the pseudo
+			// element from the top-level selector list.
 			if !sel.UsesPseudoElement() {
-				// Top-level "&" should be replaced with ":scope" to avoid recursion.
-				// From https://www.w3.org/TR/css-nesting-1/#nest-selector:
-				//
-				//   "When used in the selector of a nested style rule, the nesting
-				//   selector represents the elements matched by the parent rule. When
-				//   used in any other context, it represents the same elements as
-				//   :scope in that context (unless otherwise defined)."
-				//
-				substituted := make([]css_ast.CompoundSelector, 0, len(sel.Selectors))
-				for _, x := range sel.Selectors {
-					substituted = p.substituteAmpersandsInCompoundSelector(x, scope, substituted, keepLeadingCombinator)
-				}
-				selectors[n] = css_ast.ComplexSelector{Selectors: substituted}
-				n++
+				parentSelectors = append(parentSelectors, css_ast.ComplexSelector{Selectors: substituted})
 			}
 		}
-		selectors = selectors[:n]
 
 		// Emit this selector before its nested children
 		start := len(results)
@@ -56,7 +59,7 @@ func (p *parser) lowerNestingInRule(rule css_ast.Rule, results []css_ast.Rule) [
 
 		// Lower all children and filter out ones that become empty
 		context := lowerNestingContext{
-			parentSelectors: selectors,
+			parentSelectors: parentSelectors,
 			loweredRules:    results,
 		}
 		r.Rules = p.lowerNestingInRulesAndReturnRemaining(r.Rules, &context)
