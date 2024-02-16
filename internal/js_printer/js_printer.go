@@ -1242,7 +1242,7 @@ func (p *printer) printProperty(property js_ast.Property) {
 			if !p.options.UnsupportedFeatures.Has(compat.ObjectExtensions) && property.ValueOrNil.Data != nil && !p.willPrintExprCommentsAtLoc(property.ValueOrNil.Loc) {
 				switch e := property.ValueOrNil.Data.(type) {
 				case *js_ast.EIdentifier:
-					if helpers.UTF16EqualsString(key.Value, p.renamer.NameForSymbol(e.Ref)) {
+					if helpers.UTF16EqualsString(key.Value, p.renamer.NameForSymbol(e.Ref)) && !helpers.UTF16EqualsString(key.Value, "__proto__") {
 						if p.options.AddSourceMappings {
 							p.addSourceMappingForName(property.Key.Loc, helpers.UTF16ToString(key.Value), e.Ref)
 						}

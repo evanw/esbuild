@@ -1330,6 +1330,7 @@ func TestObject(t *testing.T) {
 
 	expectPrintedMangle(t, "x = {['_proto_']: x}", "x = { _proto_: x };\n")
 	expectPrintedMangle(t, "x = {['__proto__']: x}", "x = { [\"__proto__\"]: x };\n")
+	expectPrinted(t, "({ __proto__: __proto__ })", "({ __proto__: __proto__ });\n")
 
 	expectParseError(t, "({set foo() {}})", "<stdin>: ERROR: Setter \"foo\" must have exactly one argument\n")
 	expectParseError(t, "({get foo(x) {}})", "<stdin>: ERROR: Getter \"foo\" must have zero arguments\n")
