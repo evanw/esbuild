@@ -4653,14 +4653,30 @@ func TestMangleBinaryConstantFolding(t *testing.T) {
 	expectPrintedNormalAndMangle(t, "x = -123 / 0", "x = -123 / 0;\n", "x = -Infinity;\n")
 	expectPrintedNormalAndMangle(t, "x = -123 / -0", "x = -123 / -0;\n", "x = Infinity;\n")
 
-	expectPrintedNormalAndMangle(t, "x = 3 < 6", "x = 3 < 6;\n", "x = 3 < 6;\n")
-	expectPrintedNormalAndMangle(t, "x = 3 > 6", "x = 3 > 6;\n", "x = 3 > 6;\n")
-	expectPrintedNormalAndMangle(t, "x = 3 <= 6", "x = 3 <= 6;\n", "x = 3 <= 6;\n")
-	expectPrintedNormalAndMangle(t, "x = 3 >= 6", "x = 3 >= 6;\n", "x = 3 >= 6;\n")
+	expectPrintedNormalAndMangle(t, "x = 3 < 6", "x = 3 < 6;\n", "x = true;\n")
+	expectPrintedNormalAndMangle(t, "x = 3 > 6", "x = 3 > 6;\n", "x = false;\n")
+	expectPrintedNormalAndMangle(t, "x = 3 <= 6", "x = 3 <= 6;\n", "x = true;\n")
+	expectPrintedNormalAndMangle(t, "x = 3 >= 6", "x = 3 >= 6;\n", "x = false;\n")
 	expectPrintedNormalAndMangle(t, "x = 3 == 6", "x = false;\n", "x = false;\n")
 	expectPrintedNormalAndMangle(t, "x = 3 != 6", "x = true;\n", "x = true;\n")
 	expectPrintedNormalAndMangle(t, "x = 3 === 6", "x = false;\n", "x = false;\n")
 	expectPrintedNormalAndMangle(t, "x = 3 !== 6", "x = true;\n", "x = true;\n")
+
+	expectPrintedNormalAndMangle(t, "x = 'a' < 'b'", "x = \"a\" < \"b\";\n", "x = true;\n")
+	expectPrintedNormalAndMangle(t, "x = 'a' > 'b'", "x = \"a\" > \"b\";\n", "x = false;\n")
+	expectPrintedNormalAndMangle(t, "x = 'a' <= 'b'", "x = \"a\" <= \"b\";\n", "x = true;\n")
+	expectPrintedNormalAndMangle(t, "x = 'a' >= 'b'", "x = \"a\" >= \"b\";\n", "x = false;\n")
+
+	expectPrintedNormalAndMangle(t, "x = 'ab' < 'abc'", "x = \"ab\" < \"abc\";\n", "x = true;\n")
+	expectPrintedNormalAndMangle(t, "x = 'ab' > 'abc'", "x = \"ab\" > \"abc\";\n", "x = false;\n")
+	expectPrintedNormalAndMangle(t, "x = 'ab' <= 'abc'", "x = \"ab\" <= \"abc\";\n", "x = true;\n")
+	expectPrintedNormalAndMangle(t, "x = 'ab' >= 'abc'", "x = \"ab\" >= \"abc\";\n", "x = false;\n")
+
+	// This checks for comparing by code point vs. by code unit
+	expectPrintedNormalAndMangle(t, "x = '𐙩' < 'ﬡ'", "x = \"𐙩\" < \"ﬡ\";\n", "x = true;\n")
+	expectPrintedNormalAndMangle(t, "x = '𐙩' > 'ﬡ'", "x = \"𐙩\" > \"ﬡ\";\n", "x = false;\n")
+	expectPrintedNormalAndMangle(t, "x = '𐙩' <= 'ﬡ'", "x = \"𐙩\" <= \"ﬡ\";\n", "x = true;\n")
+	expectPrintedNormalAndMangle(t, "x = '𐙩' >= 'ﬡ'", "x = \"𐙩\" >= \"ﬡ\";\n", "x = false;\n")
 
 	expectPrintedNormalAndMangle(t, "x = 3 in 6", "x = 3 in 6;\n", "x = 3 in 6;\n")
 	expectPrintedNormalAndMangle(t, "x = 3 instanceof 6", "x = 3 instanceof 6;\n", "x = 3 instanceof 6;\n")

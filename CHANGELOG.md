@@ -28,6 +28,21 @@
     }
     ```
 
+* Constant folding for JavaScript inequality operators ([#3645](https://github.com/evanw/esbuild/issues/3645))
+
+    This release introduces constant folding for the `< > <= >=` operators. The minifier will now replace these operators with `true` or `false` when both sides are compile-time numeric or string constants:
+
+    ```js
+    // Original code
+    console.log(1 < 2, '🍕' > '🧀')
+
+    // Old output (with --minify)
+    console.log(1<2,"🍕">"🧀");
+
+    // New output (with --minify)
+    console.log(!0,!1);
+    ```
+
 * Fix cross-platform non-determinism with CSS color space transformations ([#3650](https://github.com/evanw/esbuild/issues/3650))
 
     The Go compiler takes advantage of "fused multiply and add" (FMA) instructions on certain processors which do the operation `x*y + z` without intermediate rounding. This causes esbuild's CSS color space math to differ on different processors (currently `ppc64le` and `s390x`), which breaks esbuild's guarantee of deterministic output. To avoid this, esbuild's color space math now inserts a `float64()` cast around every single math operation. This tells the Go compiler not to use the FMA optimization.

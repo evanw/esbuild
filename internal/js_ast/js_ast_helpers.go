@@ -1086,6 +1086,45 @@ func extractNumericValues(left Expr, right Expr) (float64, float64, bool) {
 	return 0, 0, false
 }
 
+func extractStringValue(data E) ([]uint16, bool) {
+	switch e := data.(type) {
+	case *EAnnotation:
+		return extractStringValue(e.Value.Data)
+
+	case *EInlinedEnum:
+		return extractStringValue(e.Value.Data)
+
+	case *EString:
+		return e.Value, true
+	}
+
+	return nil, false
+}
+
+func extractStringValues(left Expr, right Expr) ([]uint16, []uint16, bool) {
+	if a, ok := extractStringValue(left.Data); ok {
+		if b, ok := extractStringValue(right.Data); ok {
+			return a, b, true
+		}
+	}
+	return nil, nil, false
+}
+
+func stringCompareUCS2(a []uint16, b []uint16) int {
+	var n int
+	if len(a) < len(b) {
+		n = len(a)
+	} else {
+		n = len(b)
+	}
+	for i := 0; i < n; i++ {
+		if delta := int(a[i]) - int(b[i]); delta != 0 {
+			return delta
+		}
+	}
+	return len(a) - len(b)
+}
+
 func approximatePrintedIntCharCount(intValue float64) int {
 	count := 1 + (int)(math.Max(0, math.Floor(math.Log10(math.Abs(intValue)))))
 	if intValue < 0 {
@@ -1106,7 +1145,11 @@ func ShouldFoldBinaryArithmeticWhenMinifying(binary *EBinary) bool {
 		// are unlikely to result in larger output.
 		BinOpBitwiseAnd,
 		BinOpBitwiseOr,
-		BinOpBitwiseXor:
+		BinOpBitwiseXor,
+		BinOpLt,
+		BinOpGt,
+		BinOpLe,
+		BinOpGe:
 		return true
 
 	case BinOpAdd:
@@ -1220,6 +1263,38 @@ func FoldBinaryArithmetic(loc logger.Loc, e *EBinary) Expr {
 	case BinOpBitwiseXor:
 		if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
 			return Expr{Loc: loc, Data: &ENumber{Value: float64(ToInt32(left) ^ ToInt32(right))}}
+		}
+
+	case BinOpLt:
+		if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
+			return Expr{Loc: loc, Data: &EBoolean{Value: left < right}}
+		}
+		if left, right, ok := extractStringValues(e.Left, e.Right); ok {
+			return Expr{Loc: loc, Data: &EBoolean{Value: stringCompareUCS2(left, right) < 0}}
+		}
+
+	case BinOpGt:
+		if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
+			return Expr{Loc: loc, Data: &EBoolean{Value: left > right}}
+		}
+		if left, right, ok := extractStringValues(e.Left, e.Right); ok {
+			return Expr{Loc: loc, Data: &EBoolean{Value: stringCompareUCS2(left, right) > 0}}
+		}
+
+	case BinOpLe:
+		if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
+			return Expr{Loc: loc, Data: &EBoolean{Value: left <= right}}
+		}
+		if left, right, ok := extractStringValues(e.Left, e.Right); ok {
+			return Expr{Loc: loc, Data: &EBoolean{Value: stringCompareUCS2(left, right) <= 0}}
+		}
+
+	case BinOpGe:
+		if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
+			return Expr{Loc: loc, Data: &EBoolean{Value: left >= right}}
+		}
+		if left, right, ok := extractStringValues(e.Left, e.Right); ok {
+			return Expr{Loc: loc, Data: &EBoolean{Value: stringCompareUCS2(left, right) >= 0}}
 		}
 	}
 
