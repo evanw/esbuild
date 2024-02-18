@@ -9,6 +9,7 @@ import (
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/css_ast"
 	"github.com/evanw/esbuild/internal/css_lexer"
+	"github.com/evanw/esbuild/internal/helpers"
 )
 
 // These names are shorter than their hex codes
@@ -420,8 +421,8 @@ func (p *parser) lowerAndMinifyColor(token css_ast.Token, wouldClipColor *bool) 
 }
 
 type parsedColor struct {
-	x, y, z       float64 // color if hasColorSpace == true
-	hex           uint32  // color and alpha if hasColorSpace == false, alpha if hasColorSpace == true
+	x, y, z       F64    // color if hasColorSpace == true
+	hex           uint32 // color and alpha if hasColorSpace == false, alpha if hasColorSpace == true
 	hasColorSpace bool
 }
 
@@ -571,7 +572,7 @@ func parseColor(token css_ast.Token) (parsedColor, bool) {
 				if s, ok := s.ClampedFractionForPercentage(); ok {
 					if l, ok := l.ClampedFractionForPercentage(); ok {
 						if a, ok := parseAlphaByte(a); ok {
-							r, g, b := hslToRgb(h, s, l)
+							r, g, b := hslToRgb(helpers.NewF64(h), helpers.NewF64(s), helpers.NewF64(l))
 							return parsedColor{hex: packRGBA(r, g, b, a)}, true
 						}
 					}
@@ -599,7 +600,7 @@ func parseColor(token css_ast.Token) (parsedColor, bool) {
 				if white, ok := s.ClampedFractionForPercentage(); ok {
 					if black, ok := l.ClampedFractionForPercentage(); ok {
 						if a, ok := parseAlphaByte(a); ok {
-							r, g, b := hwbToRgb(h, white, black)
+							r, g, b := hwbToRgb(helpers.NewF64(h), helpers.NewF64(white), helpers.NewF64(black))
 							return parsedColor{hex: packRGBA(r, g, b, a)}, true
 						}
 					}
@@ -627,6 +628,7 @@ func parseColor(token css_ast.Token) (parsedColor, bool) {
 					if v1, ok := args[2].NumberOrFractionForPercentage(1, 0); ok {
 						if v2, ok := args[3].NumberOrFractionForPercentage(1, 0); ok {
 							if a, ok := parseAlphaByte(alpha); ok {
+								v0, v1, v2 := helpers.NewF64(v0), helpers.NewF64(v1), helpers.NewF64(v2)
 								switch strings.ToLower(colorSpace.Text) {
 								case "a98-rgb":
 									r, g, b := lin_a98rgb(v0, v1, v2)
@@ -694,6 +696,7 @@ func parseColor(token css_ast.Token) (parsedColor, bool) {
 						if v0, ok := v0.NumberOrFractionForPercentage(100, 0); ok {
 							if v1, ok := v1.NumberOrFractionForPercentage(125, css_ast.AllowAnyPercentage); ok {
 								if v2, ok := v2.NumberOrFractionForPercentage(125, css_ast.AllowAnyPercentage); ok {
+									v0, v1, v2 := helpers.NewF64(v0), helpers.NewF64(v1), helpers.NewF64(v2)
 									x, y, z := lab_to_xyz(v0, v1, v2)
 									x, y, z = d50_to_d65(x, y, z)
 									return parsedColor{hasColorSpace: true, x: x, y: y, z: z, hex: alpha}, true
@@ -705,6 +708,7 @@ func parseColor(token css_ast.Token) (parsedColor, bool) {
 						if v0, ok := v0.NumberOrFractionForPercentage(100, 0); ok {
 							if v1, ok := v1.NumberOrFractionForPercentage(125, css_ast.AllowPercentageAbove100); ok {
 								if v2, ok := degreesForAngle(v2); ok {
+									v0, v1, v2 := helpers.NewF64(v0), helpers.NewF64(v1), helpers.NewF64(v2)
 									l, a, b := lch_to_lab(v0, v1, v2)
 									x, y, z := lab_to_xyz(l, a, b)
 									x, y, z = d50_to_d65(x, y, z)
@@ -717,6 +721,7 @@ func parseColor(token css_ast.Token) (parsedColor, bool) {
 						if v0, ok := v0.NumberOrFractionForPercentage(1, 0); ok {
 							if v1, ok := v1.NumberOrFractionForPercentage(0.4, css_ast.AllowAnyPercentage); ok {
 								if v2, ok := v2.NumberOrFractionForPercentage(0.4, css_ast.AllowAnyPercentage); ok {
+									v0, v1, v2 := helpers.NewF64(v0), helpers.NewF64(v1), helpers.NewF64(v2)
 									x, y, z := oklab_to_xyz(v0, v1, v2)
 									return parsedColor{hasColorSpace: true, x: x, y: y, z: z, hex: alpha}, true
 								}
@@ -727,6 +732,7 @@ func parseColor(token css_ast.Token) (parsedColor, bool) {
 						if v0, ok := v0.NumberOrFractionForPercentage(1, 0); ok {
 							if v1, ok := v1.NumberOrFractionForPercentage(0.4, css_ast.AllowPercentageAbove100); ok {
 								if v2, ok := degreesForAngle(v2); ok {
+									v0, v1, v2 := helpers.NewF64(v0), helpers.NewF64(v1), helpers.NewF64(v2)
 									l, a, b := oklch_to_oklab(v0, v1, v2)
 									x, y, z := oklab_to_xyz(l, a, b)
 									return parsedColor{hasColorSpace: true, x: x, y: y, z: z, hex: alpha}, true
@@ -743,55 +749,55 @@ func parseColor(token css_ast.Token) (parsedColor, bool) {
 }
 
 // Reference: https://drafts.csswg.org/css-color/#hwb-to-rgb
-func hwbToRgb(hue float64, white float64, black float64) (r float64, g float64, b float64) {
-	if white+black >= 1 {
-		gray := white / (white + black)
+func hwbToRgb(hue F64, white F64, black F64) (r F64, g F64, b F64) {
+	if white.Add(black).Value() >= 1 {
+		gray := white.Div(white.Add(black))
 		return gray, gray, gray
 	}
-	delta := 1 - white - black
-	r, g, b = hslToRgb(hue, 1, 0.5)
-	r = white + delta*r
-	g = white + delta*g
-	b = white + delta*b
+	delta := white.Add(black).Neg().AddConst(1)
+	r, g, b = hslToRgb(hue, helpers.NewF64(1), helpers.NewF64(0.5))
+	r = delta.Mul(r).Add(white)
+	g = delta.Mul(g).Add(white)
+	b = delta.Mul(b).Add(white)
 	return
 }
 
 // Reference https://drafts.csswg.org/css-color/#hsl-to-rgb
-func hslToRgb(hue float64, sat float64, light float64) (r float64, g float64, b float64) {
-	hue /= 360.0
-	var t2 float64
-	if light <= 0.5 {
-		t2 = light * (sat + 1)
+func hslToRgb(hue F64, sat F64, light F64) (r F64, g F64, b F64) {
+	hue = hue.DivConst(360.0)
+	var t2 F64
+	if light.Value() <= 0.5 {
+		t2 = sat.AddConst(1).Mul(light)
 	} else {
-		t2 = light + sat - (light * sat)
+		t2 = light.Add(sat).Sub(light.Mul(sat))
 	}
-	t1 := light*2 - t2
-	r = hueToRgb(t1, t2, hue+1.0/3.0)
+	t1 := light.MulConst(2).Sub(t2)
+	r = hueToRgb(t1, t2, hue.AddConst(1.0/3.0))
 	g = hueToRgb(t1, t2, hue)
-	b = hueToRgb(t1, t2, hue-1.0/3.0)
+	b = hueToRgb(t1, t2, hue.SubConst(1.0/3.0))
 	return
 }
 
-func hueToRgb(t1 float64, t2 float64, hue float64) float64 {
-	hue -= math.Floor(hue)
-	hue *= 6.0
-	var f float64
-	if hue < 1 {
-		f = (t2-t1)*hue + t1
-	} else if hue < 3 {
+func hueToRgb(t1 F64, t2 F64, hue F64) F64 {
+	hue = hue.Sub(hue.Floor())
+	hue = hue.MulConst(6)
+	var f F64
+	if hue.Value() < 1 {
+		f = helpers.Lerp(t1, t2, hue)
+	} else if hue.Value() < 3 {
 		f = t2
-	} else if hue < 4 {
-		f = (t2-t1)*(4-hue) + t1
+	} else if hue.Value() < 4 {
+		f = helpers.Lerp(t1, t2, hue.Neg().AddConst(4))
 	} else {
 		f = t1
 	}
 	return f
 }
 
-func packRGBA(rf float64, gf float64, bf float64, a uint32) uint32 {
-	r := floatToByte(rf)
-	g := floatToByte(gf)
-	b := floatToByte(bf)
+func packRGBA(rf F64, gf F64, bf F64, a uint32) uint32 {
+	r := floatToByte(rf.Value())
+	g := floatToByte(gf.Value())
+	b := floatToByte(bf.Value())
 	return (r << 24) | (g << 16) | (b << 8) | a
 }
 
@@ -838,9 +844,11 @@ func parseColorByte(token css_ast.Token, scale float64) (uint32, bool) {
 	return uint32(i), ok
 }
 
-func tryToConvertToHexWithoutClipping(x float64, y float64, z float64, a uint32) (uint32, bool) {
+func tryToConvertToHexWithoutClipping(x F64, y F64, z F64, a uint32) (uint32, bool) {
 	r, g, b := gam_srgb(xyz_to_lin_srgb(x, y, z))
-	if r < -0.5/255 || r > 255.5/255 || g < -0.5/255 || g > 255.5/255 || b < -0.5/255 || b > 255.5/255 {
+	if r.Value() < -0.5/255 || r.Value() > 255.5/255 ||
+		g.Value() < -0.5/255 || g.Value() > 255.5/255 ||
+		b.Value() < -0.5/255 || b.Value() > 255.5/255 {
 		return 0, false
 	}
 	return packRGBA(r, g, b, a), true

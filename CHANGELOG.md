@@ -28,6 +28,10 @@
     }
     ```
 
+* Fix cross-platform non-determinism with CSS color space transformations ([#3650](https://github.com/evanw/esbuild/issues/3650))
+
+    The Go compiler takes advantage of "fused multiply and add" (FMA) instructions on certain processors which do the operation `x*y + z` without intermediate rounding. This causes esbuild's CSS color space math to differ on different processors (currently `ppc64le` and `s390x`), which breaks esbuild's guarantee of deterministic output. To avoid this, esbuild's color space math now inserts a `float64()` cast around every single math operation. This tells the Go compiler not to use the FMA optimization.
+
 * Fix a crash when resolving a path from a directory that doesn't exist ([#3634](https://github.com/evanw/esbuild/issues/3634))
 
     This release fixes a regression where esbuild could crash when resolving an absolute path if the source directory for the path resolution operation doesn't exist. While this situation doesn't normally come up, it could come up when running esbuild concurrently with another operation that mutates the file system as esbuild is doing a build (such as using `git` to switch branches). The underlying problem was a regression that was introduced in version 0.18.0.

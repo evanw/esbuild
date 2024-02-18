@@ -1,6 +1,13 @@
 package css_parser
 
-import "math"
+import (
+	"math"
+
+	"github.com/evanw/esbuild/internal/helpers"
+)
+
+// Wrap float64 math to avoid compiler optimizations that break determinism
+type F64 = helpers.F64
 
 // Reference: https://drafts.csswg.org/css-color/#color-conversion-code
 
@@ -41,29 +48,29 @@ const (
 	decreasingHue
 )
 
-func lin_srgb(r float64, g float64, b float64) (float64, float64, float64) {
-	f := func(val float64) float64 {
-		if abs := math.Abs(val); abs < 0.04045 {
-			return val / 12.92
+func lin_srgb(r F64, g F64, b F64) (F64, F64, F64) {
+	f := func(val F64) F64 {
+		if abs := val.Abs(); abs.Value() < 0.04045 {
+			return val.DivConst(12.92)
 		} else {
-			return math.Copysign(math.Pow((abs+0.055)/1.055, 2.4), val)
+			return abs.AddConst(0.055).DivConst(1.055).PowConst(2.4).WithSignFrom(val)
 		}
 	}
 	return f(r), f(g), f(b)
 }
 
-func gam_srgb(r float64, g float64, b float64) (float64, float64, float64) {
-	f := func(val float64) float64 {
-		if abs := math.Abs(val); abs > 0.0031308 {
-			return math.Copysign(1.055*math.Pow(abs, 1/2.4)-0.055, val)
+func gam_srgb(r F64, g F64, b F64) (F64, F64, F64) {
+	f := func(val F64) F64 {
+		if abs := val.Abs(); abs.Value() > 0.0031308 {
+			return abs.PowConst(1 / 2.4).MulConst(1.055).SubConst(0.055).WithSignFrom(val)
 		} else {
-			return 12.92 * val
+			return val.MulConst(12.92)
 		}
 	}
 	return f(r), f(g), f(b)
 }
 
-func lin_srgb_to_xyz(r float64, g float64, b float64) (float64, float64, float64) {
+func lin_srgb_to_xyz(r F64, g F64, b F64) (F64, F64, F64) {
 	M := [9]float64{
 		506752.0 / 1228815, 87881.0 / 245763, 12673.0 / 70218,
 		87098.0 / 409605, 175762.0 / 245763, 12673.0 / 175545,
@@ -72,7 +79,7 @@ func lin_srgb_to_xyz(r float64, g float64, b float64) (float64, float64, float64
 	return multiplyMatrices(M, r, g, b)
 }
 
-func xyz_to_lin_srgb(x float64, y float64, z float64) (float64, float64, float64) {
+func xyz_to_lin_srgb(x F64, y F64, z F64) (F64, F64, F64) {
 	M := [9]float64{
 		12831.0 / 3959, -329.0 / 214, -1974.0 / 3959,
 		-851781.0 / 878810, 1648619.0 / 878810, 36519.0 / 878810,
@@ -81,15 +88,15 @@ func xyz_to_lin_srgb(x float64, y float64, z float64) (float64, float64, float64
 	return multiplyMatrices(M, x, y, z)
 }
 
-func lin_p3(r float64, g float64, b float64) (float64, float64, float64) {
+func lin_p3(r F64, g F64, b F64) (F64, F64, F64) {
 	return lin_srgb(r, g, b)
 }
 
-func gam_p3(r float64, g float64, b float64) (float64, float64, float64) {
+func gam_p3(r F64, g F64, b F64) (F64, F64, F64) {
 	return gam_srgb(r, g, b)
 }
 
-func lin_p3_to_xyz(r float64, g float64, b float64) (float64, float64, float64) {
+func lin_p3_to_xyz(r F64, g F64, b F64) (F64, F64, F64) {
 	M := [9]float64{
 		608311.0 / 1250200, 189793.0 / 714400, 198249.0 / 1000160,
 		35783.0 / 156275, 247089.0 / 357200, 198249.0 / 2500400,
@@ -98,7 +105,7 @@ func lin_p3_to_xyz(r float64, g float64, b float64) (float64, float64, float64) 
 	return multiplyMatrices(M, r, g, b)
 }
 
-func xyz_to_lin_p3(x float64, y float64, z float64) (float64, float64, float64) {
+func xyz_to_lin_p3(x F64, y F64, z F64) (F64, F64, F64) {
 	M := [9]float64{
 		446124.0 / 178915, -333277.0 / 357830, -72051.0 / 178915,
 		-14852.0 / 17905, 63121.0 / 35810, 423.0 / 17905,
@@ -107,31 +114,31 @@ func xyz_to_lin_p3(x float64, y float64, z float64) (float64, float64, float64) 
 	return multiplyMatrices(M, x, y, z)
 }
 
-func lin_prophoto(r float64, g float64, b float64) (float64, float64, float64) {
-	f := func(val float64) float64 {
+func lin_prophoto(r F64, g F64, b F64) (F64, F64, F64) {
+	f := func(val F64) F64 {
 		const Et2 = 16.0 / 512
-		if abs := math.Abs(val); abs <= Et2 {
-			return val / 16
+		if abs := val.Abs(); abs.Value() <= Et2 {
+			return val.DivConst(16)
 		} else {
-			return math.Copysign(math.Pow(abs, 1.8), val)
+			return abs.PowConst(1.8).WithSignFrom(val)
 		}
 	}
 	return f(r), f(g), f(b)
 }
 
-func gam_prophoto(r float64, g float64, b float64) (float64, float64, float64) {
-	f := func(val float64) float64 {
+func gam_prophoto(r F64, g F64, b F64) (F64, F64, F64) {
+	f := func(val F64) F64 {
 		const Et = 1.0 / 512
-		if abs := math.Abs(val); abs >= Et {
-			return math.Copysign(math.Pow(abs, 1/1.8), val)
+		if abs := val.Abs(); abs.Value() >= Et {
+			return abs.PowConst(1 / 1.8).WithSignFrom(val)
 		} else {
-			return 16 * val
+			return val.MulConst(16)
 		}
 	}
 	return f(r), f(g), f(b)
 }
 
-func lin_prophoto_to_xyz(r float64, g float64, b float64) (float64, float64, float64) {
+func lin_prophoto_to_xyz(r F64, g F64, b F64) (F64, F64, F64) {
 	M := [9]float64{
 		0.7977604896723027, 0.13518583717574031, 0.0313493495815248,
 		0.2880711282292934, 0.7118432178101014, 0.00008565396060525902,
@@ -140,7 +147,7 @@ func lin_prophoto_to_xyz(r float64, g float64, b float64) (float64, float64, flo
 	return multiplyMatrices(M, r, g, b)
 }
 
-func xyz_to_lin_prophoto(x float64, y float64, z float64) (float64, float64, float64) {
+func xyz_to_lin_prophoto(x F64, y F64, z F64) (F64, F64, F64) {
 	M := [9]float64{
 		1.3457989731028281, -0.25558010007997534, -0.05110628506753401,
 		-0.5446224939028347, 1.5082327413132781, 0.02053603239147973,
@@ -149,21 +156,21 @@ func xyz_to_lin_prophoto(x float64, y float64, z float64) (float64, float64, flo
 	return multiplyMatrices(M, x, y, z)
 }
 
-func lin_a98rgb(r float64, g float64, b float64) (float64, float64, float64) {
-	f := func(val float64) float64 {
-		return math.Copysign(math.Pow(math.Abs(val), 563.0/256), val)
+func lin_a98rgb(r F64, g F64, b F64) (F64, F64, F64) {
+	f := func(val F64) F64 {
+		return val.Abs().PowConst(563.0 / 256).WithSignFrom(val)
 	}
 	return f(r), f(g), f(b)
 }
 
-func gam_a98rgb(r float64, g float64, b float64) (float64, float64, float64) {
-	f := func(val float64) float64 {
-		return math.Copysign(math.Pow(math.Abs(val), 256.0/563), val)
+func gam_a98rgb(r F64, g F64, b F64) (F64, F64, F64) {
+	f := func(val F64) F64 {
+		return val.Abs().PowConst(256.0 / 563).WithSignFrom(val)
 	}
 	return f(r), f(g), f(b)
 }
 
-func lin_a98rgb_to_xyz(r float64, g float64, b float64) (float64, float64, float64) {
+func lin_a98rgb_to_xyz(r F64, g F64, b F64) (F64, F64, F64) {
 	M := [9]float64{
 		573536.0 / 994567, 263643.0 / 1420810, 187206.0 / 994567,
 		591459.0 / 1989134, 6239551.0 / 9945670, 374412.0 / 4972835,
@@ -172,7 +179,7 @@ func lin_a98rgb_to_xyz(r float64, g float64, b float64) (float64, float64, float
 	return multiplyMatrices(M, r, g, b)
 }
 
-func xyz_to_lin_a98rgb(x float64, y float64, z float64) (float64, float64, float64) {
+func xyz_to_lin_a98rgb(x F64, y F64, z F64) (F64, F64, F64) {
 	M := [9]float64{
 		1829569.0 / 896150, -506331.0 / 896150, -308931.0 / 896150,
 		-851781.0 / 878810, 1648619.0 / 878810, 36519.0 / 878810,
@@ -181,33 +188,33 @@ func xyz_to_lin_a98rgb(x float64, y float64, z float64) (float64, float64, float
 	return multiplyMatrices(M, x, y, z)
 }
 
-func lin_2020(r float64, g float64, b float64) (float64, float64, float64) {
-	f := func(val float64) float64 {
+func lin_2020(r F64, g F64, b F64) (F64, F64, F64) {
+	f := func(val F64) F64 {
 		const α = 1.09929682680944
 		const β = 0.018053968510807
-		if abs := math.Abs(val); abs < β*4.5 {
-			return val / 4.5
+		if abs := val.Abs(); abs.Value() < β*4.5 {
+			return val.DivConst(4.5)
 		} else {
-			return math.Copysign(math.Pow((abs+(α-1))/α, 1/0.45), val)
+			return abs.AddConst(α - 1).DivConst(α).PowConst(1 / 0.45).WithSignFrom(val)
 		}
 	}
 	return f(r), f(g), f(b)
 }
 
-func gam_2020(r float64, g float64, b float64) (float64, float64, float64) {
-	f := func(val float64) float64 {
+func gam_2020(r F64, g F64, b F64) (F64, F64, F64) {
+	f := func(val F64) F64 {
 		const α = 1.09929682680944
 		const β = 0.018053968510807
-		if abs := math.Abs(val); abs > β {
-			return math.Copysign(α*math.Pow(abs, 0.45)-(α-1), val)
+		if abs := val.Abs(); abs.Value() > β {
+			return abs.PowConst(0.45).MulConst(α).SubConst(α - 1).WithSignFrom(val)
 		} else {
-			return 4.5 * val
+			return val.MulConst(4.5)
 		}
 	}
 	return f(r), f(g), f(b)
 }
 
-func lin_2020_to_xyz(r float64, g float64, b float64) (float64, float64, float64) {
+func lin_2020_to_xyz(r F64, g F64, b F64) (F64, F64, F64) {
 	var M = [9]float64{
 		63426534.0 / 99577255, 20160776.0 / 139408157, 47086771.0 / 278816314,
 		26158966.0 / 99577255, 472592308.0 / 697040785, 8267143.0 / 139408157,
@@ -216,7 +223,7 @@ func lin_2020_to_xyz(r float64, g float64, b float64) (float64, float64, float64
 	return multiplyMatrices(M, r, g, b)
 }
 
-func xyz_to_lin_2020(x float64, y float64, z float64) (float64, float64, float64) {
+func xyz_to_lin_2020(x F64, y F64, z F64) (F64, F64, F64) {
 	M := [9]float64{
 		30757411.0 / 17917100, -6372589.0 / 17917100, -4539589.0 / 17917100,
 		-19765991.0 / 29648200, 47925759.0 / 29648200, 467509.0 / 29648200,
@@ -225,7 +232,7 @@ func xyz_to_lin_2020(x float64, y float64, z float64) (float64, float64, float64
 	return multiplyMatrices(M, x, y, z)
 }
 
-func d65_to_d50(x float64, y float64, z float64) (float64, float64, float64) {
+func d65_to_d50(x F64, y F64, z F64) (F64, F64, F64) {
 	M := [9]float64{
 		1.0479297925449969, 0.022946870601609652, -0.05019226628920524,
 		0.02962780877005599, 0.9904344267538799, -0.017073799063418826,
@@ -234,7 +241,7 @@ func d65_to_d50(x float64, y float64, z float64) (float64, float64, float64) {
 	return multiplyMatrices(M, x, y, z)
 }
 
-func d50_to_d65(x float64, y float64, z float64) (float64, float64, float64) {
+func d50_to_d65(x F64, y F64, z F64) (F64, F64, F64) {
 	M := [9]float64{
 		0.955473421488075, -0.02309845494876471, 0.06325924320057072,
 		-0.0283697093338637, 1.0099953980813041, 0.021041441191917323,
@@ -246,83 +253,83 @@ func d50_to_d65(x float64, y float64, z float64) (float64, float64, float64) {
 const d50_x = 0.3457 / 0.3585
 const d50_z = (1.0 - 0.3457 - 0.3585) / 0.3585
 
-func xyz_to_lab(x float64, y float64, z float64) (float64, float64, float64) {
+func xyz_to_lab(x F64, y F64, z F64) (F64, F64, F64) {
 	const ε = 216.0 / 24389
 	const κ = 24389.0 / 27
 
-	x /= d50_x
-	z /= d50_z
+	x = x.DivConst(d50_x)
+	z = z.DivConst(d50_z)
 
-	var f0, f1, f2 float64
-	if x > ε {
-		f0 = math.Cbrt(x)
+	var f0, f1, f2 F64
+	if x.Value() > ε {
+		f0 = x.Cbrt()
 	} else {
-		f0 = (κ*x + 16) / 116
+		f0 = x.MulConst(κ).AddConst(16).DivConst(116)
 	}
-	if y > ε {
-		f1 = math.Cbrt(y)
+	if y.Value() > ε {
+		f1 = y.Cbrt()
 	} else {
-		f1 = (κ*y + 16) / 116
+		f1 = y.MulConst(κ).AddConst(16).DivConst(116)
 	}
-	if z > ε {
-		f2 = math.Cbrt(z)
+	if z.Value() > ε {
+		f2 = z.Cbrt()
 	} else {
-		f2 = (κ*z + 16) / 116
+		f2 = z.MulConst(κ).AddConst(16).DivConst(116)
 	}
 
-	return (116 * f1) - 16,
-		500 * (f0 - f1),
-		200 * (f1 - f2)
+	return f1.MulConst(116).SubConst(16),
+		f0.Sub(f1).MulConst(500),
+		f1.Sub(f2).MulConst(200)
 }
 
-func lab_to_xyz(l float64, a float64, b float64) (x float64, y float64, z float64) {
+func lab_to_xyz(l F64, a F64, b F64) (x F64, y F64, z F64) {
 	const κ = 24389.0 / 27
 	const ε = 216.0 / 24389
 
-	f1 := (l + 16) / 116
-	f0 := a/500 + f1
-	f2 := f1 - b/200
+	f1 := l.AddConst(16).DivConst(116)
+	f0 := a.DivConst(500).Add(f1)
+	f2 := f1.Sub(b.DivConst(200))
 
-	f0_3 := f0 * f0 * f0
-	f2_3 := f2 * f2 * f2
+	f0_3 := f0.Cubed()
+	f2_3 := f2.Cubed()
 
-	if f0_3 > ε {
+	if f0_3.Value() > ε {
 		x = f0_3
 	} else {
-		x = (116*f0 - 16) / κ
+		x = f0.MulConst(116).SubConst(16).DivConst(κ)
 	}
-	if l > κ*ε {
-		y = (l + 16) / 116
-		y = y * y * y
+	if l.Value() > κ*ε {
+		y = l.AddConst(16).DivConst(116)
+		y = y.Cubed()
 	} else {
-		y = l / κ
+		y = l.DivConst(κ)
 	}
-	if f2_3 > ε {
+	if f2_3.Value() > ε {
 		z = f2_3
 	} else {
-		z = (116*f2 - 16) / κ
+		z = f2.MulConst(116).SubConst(16).DivConst(κ)
 	}
 
-	return x * d50_x, y, z * d50_z
+	return x.MulConst(d50_x), y, z.MulConst(d50_z)
 }
 
-func lab_to_lch(l float64, a float64, b float64) (float64, float64, float64) {
-	hue := math.Atan2(b, a) * (180 / math.Pi)
-	if hue < 0 {
-		hue += 360
+func lab_to_lch(l F64, a F64, b F64) (F64, F64, F64) {
+	hue := b.Atan2(a).MulConst(180 / math.Pi)
+	if hue.Value() < 0 {
+		hue = hue.AddConst(360)
 	}
 	return l,
-		math.Sqrt(a*a + b*b),
+		a.Squared().Add(b.Squared()).Sqrt(),
 		hue
 }
 
-func lch_to_lab(l float64, c float64, h float64) (float64, float64, float64) {
+func lch_to_lab(l F64, c F64, h F64) (F64, F64, F64) {
 	return l,
-		c * math.Cos(h*math.Pi/180),
-		c * math.Sin(h*math.Pi/180)
+		h.MulConst(math.Pi / 180).Cos().Mul(c),
+		h.MulConst(math.Pi / 180).Sin().Mul(c)
 }
 
-func xyz_to_oklab(x float64, y float64, z float64) (float64, float64, float64) {
+func xyz_to_oklab(x F64, y F64, z F64) (F64, F64, F64) {
 	XYZtoLMS := [9]float64{
 		0.8190224432164319, 0.3619062562801221, -0.12887378261216414,
 		0.0329836671980271, 0.9292868468965546, 0.03614466816999844,
@@ -334,10 +341,10 @@ func xyz_to_oklab(x float64, y float64, z float64) (float64, float64, float64) {
 		0.0259040371, 0.7827717662, -0.8086757660,
 	}
 	l, m, s := multiplyMatrices(XYZtoLMS, x, y, z)
-	return multiplyMatrices(LMStoOKLab, math.Cbrt(l), math.Cbrt(m), math.Cbrt(s))
+	return multiplyMatrices(LMStoOKLab, l.Cbrt(), m.Cbrt(), s.Cbrt())
 }
 
-func oklab_to_xyz(l float64, a float64, b float64) (float64, float64, float64) {
+func oklab_to_xyz(l F64, a F64, b F64) (F64, F64, F64) {
 	LMStoXYZ := [9]float64{
 		1.2268798733741557, -0.5578149965554813, 0.28139105017721583,
 		-0.04057576262431372, 1.1122868293970594, -0.07171106666151701,
@@ -349,52 +356,54 @@ func oklab_to_xyz(l float64, a float64, b float64) (float64, float64, float64) {
 		1.0000000546724109177, -0.089484182094965759684, -1.2914855378640917399,
 	}
 	l, m, s := multiplyMatrices(OKLabtoLMS, l, a, b)
-	return multiplyMatrices(LMStoXYZ, l*l*l, m*m*m, s*s*s)
+	return multiplyMatrices(LMStoXYZ, l.Cubed(), m.Cubed(), s.Cubed())
 }
 
-func oklab_to_oklch(l float64, a float64, b float64) (float64, float64, float64) {
+func oklab_to_oklch(l F64, a F64, b F64) (F64, F64, F64) {
 	return lab_to_lch(l, a, b)
 }
 
-func oklch_to_oklab(l float64, c float64, h float64) (float64, float64, float64) {
+func oklch_to_oklab(l F64, c F64, h F64) (F64, F64, F64) {
 	return lch_to_lab(l, c, h)
 }
 
-func multiplyMatrices(A [9]float64, b0 float64, b1 float64, b2 float64) (float64, float64, float64) {
-	return A[0]*b0 + A[1]*b1 + A[2]*b2,
-		A[3]*b0 + A[4]*b1 + A[5]*b2,
-		A[6]*b0 + A[7]*b1 + A[8]*b2
+func multiplyMatrices(A [9]float64, b0 F64, b1 F64, b2 F64) (F64, F64, F64) {
+	return b0.MulConst(A[0]).Add(b1.MulConst(A[1])).Add(b2.MulConst(A[2])),
+		b0.MulConst(A[3]).Add(b1.MulConst(A[4])).Add(b2.MulConst(A[5])),
+		b0.MulConst(A[6]).Add(b1.MulConst(A[7])).Add(b2.MulConst(A[8]))
 }
 
-func delta_eok(L1 float64, a1 float64, b1 float64, L2 float64, a2 float64, b2 float64) float64 {
-	ΔL := L1 - L2
-	Δa := a1 - a2
-	Δb := b1 - b2
-	return math.Sqrt(ΔL*ΔL + Δa*Δa + Δb*Δb)
+func delta_eok(L1 F64, a1 F64, b1 F64, L2 F64, a2 F64, b2 F64) F64 {
+	ΔL_sq := L1.Sub(L2).Squared()
+	Δa_sq := a1.Sub(a2).Squared()
+	Δb_sq := b1.Sub(b2).Squared()
+	return ΔL_sq.Add(Δa_sq).Add(Δb_sq).Sqrt()
 }
 
-func gamut_mapping_xyz_to_srgb(x float64, y float64, z float64) (float64, float64, float64) {
+func gamut_mapping_xyz_to_srgb(x F64, y F64, z F64) (F64, F64, F64) {
 	origin_l, origin_c, origin_h := oklab_to_oklch(xyz_to_oklab(x, y, z))
 
-	if origin_l >= 1 || origin_l <= 0 {
+	if origin_l.Value() >= 1 || origin_l.Value() <= 0 {
 		return origin_l, origin_l, origin_l
 	}
 
-	oklch_to_srgb := func(l float64, c float64, h float64) (float64, float64, float64) {
+	oklch_to_srgb := func(l F64, c F64, h F64) (F64, F64, F64) {
 		l, a, b := oklch_to_oklab(l, c, h)
 		x, y, z := oklab_to_xyz(l, a, b)
 		r, g, b := xyz_to_lin_srgb(x, y, z)
 		return gam_srgb(r, g, b)
 	}
 
-	srgb_to_oklab := func(r float64, g float64, b float64) (float64, float64, float64) {
+	srgb_to_oklab := func(r F64, g F64, b F64) (F64, F64, F64) {
 		r, g, b = lin_srgb(r, g, b)
 		x, y, z := lin_srgb_to_xyz(r, g, b)
 		return xyz_to_oklab(x, y, z)
 	}
 
-	inGamut := func(r float64, g float64, b float64) bool {
-		return r >= 0 && r <= 1 && g >= 0 && g <= 1 && b >= 0 && b <= 1
+	inGamut := func(r F64, g F64, b F64) bool {
+		return r.Value() >= 0 && r.Value() <= 1 &&
+			g.Value() >= 0 && g.Value() <= 1 &&
+			b.Value() >= 0 && b.Value() <= 1
 	}
 
 	r, g, b := oklch_to_srgb(origin_l, origin_c, origin_h)
@@ -404,21 +413,21 @@ func gamut_mapping_xyz_to_srgb(x float64, y float64, z float64) (float64, float6
 
 	const JND = 0.02
 	const epsilon = 0.0001
-	min := 0.0
+	min := helpers.NewF64(0.0)
 	max := origin_c
 
-	clip := func(x float64) float64 {
-		if x < 0 {
-			return 0
+	clip := func(x F64) F64 {
+		if x.Value() < 0 {
+			return helpers.NewF64(0)
 		}
-		if x > 1 {
-			return 1
+		if x.Value() > 1 {
+			return helpers.NewF64(1)
 		}
 		return x
 	}
 
-	for max-min > epsilon {
-		chroma := (min + max) / 2
+	for max.Sub(min).Value() > epsilon {
+		chroma := min.Add(max).DivConst(2)
 		origin_c = chroma
 
 		r, g, b = oklch_to_srgb(origin_l, origin_c, origin_h)
@@ -431,7 +440,7 @@ func gamut_mapping_xyz_to_srgb(x float64, y float64, z float64) (float64, float6
 		L1, a1, b1 := srgb_to_oklab(clipped_r, clipped_b, clipped_g)
 		L2, a2, b2 := srgb_to_oklab(r, g, b)
 		E := delta_eok(L1, a1, b1, L2, a2, b2)
-		if E < JND {
+		if E.Value() < JND {
 			return clipped_r, clipped_g, clipped_b
 		}
 
@@ -441,77 +450,78 @@ func gamut_mapping_xyz_to_srgb(x float64, y float64, z float64) (float64, float6
 	return r, g, b
 }
 
-func hsl_to_rgb(hue float64, sat float64, light float64) (float64, float64, float64) {
-	hue /= 360
-	hue -= math.Floor(hue)
-	hue *= 360
+func hsl_to_rgb(hue F64, sat F64, light F64) (F64, F64, F64) {
+	hue = hue.DivConst(360)
+	hue = hue.Sub(hue.Floor())
+	hue = hue.MulConst(360)
 
-	sat /= 100
-	light /= 100
+	sat = sat.DivConst(100)
+	light = light.DivConst(100)
 
-	f := func(n float64) float64 {
-		k := n + hue/30
-		k /= 12
-		k -= math.Floor(k)
-		k *= 12
-		a := sat * math.Min(light, 1-light)
-		return light - a*math.Max(-1, math.Min(math.Min(k-3, 9-k), 1))
+	f := func(n float64) F64 {
+		k := hue.DivConst(30).AddConst(n)
+		k = k.DivConst(12)
+		k = k.Sub(k.Floor())
+		k = k.MulConst(12)
+		a := helpers.Min2(light, light.Neg().AddConst(1)).Mul(sat)
+		return light.Sub(helpers.Max2(helpers.NewF64(-1), helpers.Min3(k.SubConst(3), k.Neg().AddConst(9), helpers.NewF64(1))).Mul(a))
 	}
 
 	return f(0), f(8), f(4)
 }
 
-func rgb_to_hsl(red float64, green float64, blue float64) (float64, float64, float64) {
-	max := math.Max(math.Max(red, green), blue)
-	min := math.Min(math.Min(red, green), blue)
-	hue, sat, light := math.NaN(), 0.0, (min+max)/2
-	d := max - min
+func rgb_to_hsl(red F64, green F64, blue F64) (F64, F64, F64) {
+	max := helpers.Max3(red, green, blue)
+	min := helpers.Min3(red, green, blue)
+	hue, sat, light := helpers.NewF64(math.NaN()), helpers.NewF64(0.0), min.Add(max).DivConst(2)
+	d := max.Sub(min)
 
-	if d != 0 {
-		if div := math.Min(light, 1-light); div != 0 {
-			sat = (max - light) / div
+	if d.Value() != 0 {
+		if div := helpers.Min2(light, light.Neg().AddConst(1)); div.Value() != 0 {
+			sat = max.Sub(light).Div(div)
 		}
 
 		switch max {
 		case red:
-			hue = (green - blue) / d
-			if green < blue {
-				hue += 6
+			hue = green.Sub(blue).Div(d)
+			if green.Value() < blue.Value() {
+				hue = hue.AddConst(6)
 			}
 		case green:
-			hue = (blue-red)/d + 2
+			hue = blue.Sub(red).Div(d).AddConst(2)
 		case blue:
-			hue = (red-green)/d + 4
+			hue = red.Sub(green).Div(d).AddConst(4)
 		}
 
-		hue = hue * 60
+		hue = hue.MulConst(60)
 	}
 
-	return hue, sat * 100, light * 100
+	return hue, sat.MulConst(100), light.MulConst(100)
 }
 
-func hwb_to_rgb(hue float64, white float64, black float64) (float64, float64, float64) {
-	white /= 100
-	black /= 100
-	if white+black >= 1 {
-		gray := white / (white + black)
+func hwb_to_rgb(hue F64, white F64, black F64) (F64, F64, F64) {
+	white = white.DivConst(100)
+	black = black.DivConst(100)
+	if white.Add(black).Value() >= 1 {
+		gray := white.Div(white.Add(black))
 		return gray, gray, gray
 	}
-	r, g, b := hsl_to_rgb(hue, 100, 50)
-	r = white + r*(1-white-black)
-	g = white + g*(1-white-black)
-	b = white + b*(1-white-black)
+	delta := white.Add(black).Neg().AddConst(1)
+	r, g, b := hsl_to_rgb(hue, helpers.NewF64(100), helpers.NewF64(50))
+	r = delta.Mul(r).Add(white)
+	g = delta.Mul(g).Add(white)
+	b = delta.Mul(b).Add(white)
 	return r, g, b
 }
 
-func rgb_to_hwb(red float64, green float64, blue float64) (float64, float64, float64) {
+func rgb_to_hwb(red F64, green F64, blue F64) (F64, F64, F64) {
 	h, _, _ := rgb_to_hsl(red, green, blue)
-	white := math.Min(math.Min(red, green), blue)
-	black := 1 - math.Max(math.Max(red, green), blue)
-	return h, white * 100, black * 100
+	white := helpers.Min3(red, green, blue)
+	black := helpers.Max3(red, green, blue).Neg().AddConst(1)
+	return h, white.MulConst(100), black.MulConst(100)
 }
 
-func xyz_to_colorSpace(x float64, y float64, z float64, colorSpace colorSpace) (float64, float64, float64) {
+func xyz_to_colorSpace(x F64, y F64, z F64, colorSpace colorSpace) (F64, F64, F64) {
 	switch colorSpace {
 	case colorSpace_a98_rgb:
 		return gam_a98rgb(xyz_to_lin_a98rgb(x, y, z))
@@ -560,7 +570,7 @@ func xyz_to_colorSpace(x float64, y float64, z float64, colorSpace colorSpace) (
 	}
 }
 
-func colorSpace_to_xyz(v0 float64, v1 float64, v2 float64, colorSpace colorSpace) (float64, float64, float64) {
+func colorSpace_to_xyz(v0 F64, v1 F64, v2 F64, colorSpace colorSpace) (F64, F64, F64) {
 	switch colorSpace {
 	case colorSpace_a98_rgb:
 		return lin_a98rgb_to_xyz(lin_a98rgb(v0, v1, v2))

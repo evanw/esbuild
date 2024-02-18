@@ -9,6 +9,7 @@ import (
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/css_ast"
 	"github.com/evanw/esbuild/internal/css_lexer"
+	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/logger"
 )
 
@@ -268,17 +269,17 @@ func removeImpliedPositions(kind gradientKind, colorStops []colorStop) []colorSt
 				continue
 			}
 		}
-		positions[i].value = math.NaN()
+		positions[i].value = helpers.NewF64(math.NaN())
 	}
 
 	start := 0
 	for start < len(colorStops) {
-		if startPos := positions[start]; !math.IsNaN(startPos.value) {
+		if startPos := positions[start]; !startPos.value.IsNaN() {
 			end := start + 1
 		run:
 			for colorStops[end-1].midpoint.Kind == css_lexer.T(0) && end < len(colorStops) {
 				endPos := positions[end]
-				if math.IsNaN(endPos.value) || endPos.unit != startPos.unit {
+				if endPos.value.IsNaN() || endPos.unit != startPos.unit {
 					break
 				}
 
@@ -286,9 +287,9 @@ func removeImpliedPositions(kind gradientKind, colorStops []colorStop) []colorSt
 				// using the start and end positions instead of the first and second
 				// positions because it's more accurate.
 				for i := start + 1; i < end; i++ {
-					t := float64(i-start) / float64(end-start)
-					impliedValue := startPos.value + (endPos.value-startPos.value)*t
-					if math.Abs(positions[i].value-impliedValue) > 0.01 {
+					t := helpers.NewF64(float64(i - start)).DivConst(float64(end - start))
+					impliedValue := helpers.Lerp(startPos.value, endPos.value, t)
+					if positions[i].value.Sub(impliedValue).Abs().Value() > 0.01 {
 						break run
 					}
 				}
@@ -440,7 +441,7 @@ func removeColorInterpolation(tokens []css_ast.Token) ([]css_ast.Token, colorSpa
 
 type valueWithUnit struct {
 	unit  string
-	value float64
+	value F64
 }
 
 type parsedColorStop struct {
@@ -451,13 +452,13 @@ type parsedColorStop struct {
 	midpoint *valueWithUnit
 
 	// Non-premultiplied color information in XYZ space
-	x, y, z, alpha float64
+	x, y, z, alpha F64
 
 	// Non-premultiplied color information in sRGB space
-	r, g, b float64
+	r, g, b F64
 
 	// Premultiplied color information in the interpolation color space
-	v0, v1, v2 float64
+	v0, v1, v2 F64
 
 	// True if the original color has a color space
 	hasColorSpace bool
@@ -471,11 +472,11 @@ func tryToParseColorStops(gradient parsedGradient) ([]parsedColorStop, bool) {
 		if !ok {
 			return nil, false
 		}
-		var r, g, b float64
+		var r, g, b F64
 		if !color.hasColorSpace {
-			r = float64(hexR(color.hex)) / 255
-			g = float64(hexG(color.hex)) / 255
-			b = float64(hexB(color.hex)) / 255
+			r = helpers.NewF64(float64(hexR(color.hex))).DivConst(255)
+			g = helpers.NewF64(float64(hexG(color.hex))).DivConst(255)
+			b = helpers.NewF64(float64(hexB(color.hex))).DivConst(255)
 			color.x, color.y, color.z = lin_srgb_to_xyz(lin_srgb(r, g, b))
 		} else {
 			r, g, b = gam_srgb(xyz_to_lin_srgb(color.x, color.y, color.z))
@@ -487,7 +488,7 @@ func tryToParseColorStops(gradient parsedGradient) ([]parsedColorStop, bool) {
 			r:             r,
 			g:             g,
 			b:             b,
-			alpha:         float64(hexA(color.hex)) / 255,
+			alpha:         helpers.NewF64(float64(hexA(color.hex))).DivConst(255),
 			hasColorSpace: color.hasColorSpace,
 		}
 
@@ -526,10 +527,10 @@ func tryToParseColorStops(gradient parsedGradient) ([]parsedColorStop, bool) {
 
 		// Fill in missing positions for the endpoints first
 		if first := &colorStops[0]; len(first.positionTerms) == 0 {
-			first.positionTerms = []valueWithUnit{{value: 0, unit: "%"}}
+			first.positionTerms = []valueWithUnit{{value: helpers.NewF64(0), unit: "%"}}
 		}
 		if last := &colorStops[len(colorStops)-1]; len(last.positionTerms) == 0 {
-			last.positionTerms = []valueWithUnit{{value: 100, unit: "%"}}
+			last.positionTerms = []valueWithUnit{{value: helpers.NewF64(100), unit: "%"}}
 		}
 
 		// Set all positions to be greater than the position before them
@@ -548,12 +549,12 @@ func tryToParseColorStops(gradient parsedGradient) ([]parsedColorStop, bool) {
 			}
 			if len(stop.positionTerms) == 1 {
 				if prevPos.unit == stop.positionTerms[0].unit {
-					stop.positionTerms[0].value = math.Max(prevPos.value, stop.positionTerms[0].value)
+					stop.positionTerms[0].value = helpers.Max2(prevPos.value, stop.positionTerms[0].value)
 				}
 				prevPos = stop.positionTerms[0]
 			}
 			if stop.midpoint != nil && prevPos.unit == stop.midpoint.unit {
-				stop.midpoint.value = math.Max(prevPos.value, stop.midpoint.value)
+				stop.midpoint.value = helpers.Max2(prevPos.value, stop.midpoint.value)
 			}
 		}
 
@@ -599,18 +600,18 @@ func tryToParseColorStops(gradient parsedGradient) ([]parsedColorStop, bool) {
 		for i, stop := range colorStops {
 			if len(stop.positionTerms) != 1 {
 				info := infos[i]
-				t := float64(info.fromCount) / float64(info.fromCount+info.toCount)
+				t := helpers.NewF64(float64(info.fromCount)).DivConst(float64(info.fromCount + info.toCount))
 				if info.fromPos.unit == info.toPos.unit {
 					colorStops[i].positionTerms = []valueWithUnit{{
-						value: info.fromPos.value + (info.toPos.value-info.fromPos.value)*t,
+						value: helpers.Lerp(info.fromPos.value, info.toPos.value, t),
 						unit:  info.fromPos.unit,
 					}}
 				} else {
 					colorStops[i].positionTerms = []valueWithUnit{{
-						value: info.fromPos.value * (1 - t),
+						value: t.Neg().AddConst(1).Mul(info.fromPos.value),
 						unit:  info.fromPos.unit,
 					}, {
-						value: info.toPos.value * t,
+						value: t.Mul(info.toPos.value),
 						unit:  info.toPos.unit,
 					}}
 				}
@@ -641,7 +642,7 @@ func tryToParseValue(token css_ast.Token, kind gradientKind) (result valueWithUn
 			if !ok {
 				return
 			}
-			result.value = degrees * (100.0 / 360)
+			result.value = helpers.NewF64(degrees).MulConst(100.0 / 360)
 			result.unit = "%"
 
 		case css_lexer.TPercentage:
@@ -649,7 +650,7 @@ func tryToParseValue(token css_ast.Token, kind gradientKind) (result valueWithUn
 			if err != nil {
 				return
 			}
-			result.value = percent
+			result.value = helpers.NewF64(percent)
 			result.unit = "%"
 
 		default:
@@ -663,7 +664,7 @@ func tryToParseValue(token css_ast.Token, kind gradientKind) (result valueWithUn
 			if err != nil || zero != 0 {
 				return
 			}
-			result.value = 0
+			result.value = helpers.NewF64(0)
 			result.unit = "%"
 
 		case css_lexer.TDimension:
@@ -671,7 +672,7 @@ func tryToParseValue(token css_ast.Token, kind gradientKind) (result valueWithUn
 			if err != nil {
 				return
 			}
-			result.value = dimensionValue
+			result.value = helpers.NewF64(dimensionValue)
 			result.unit = token.DimensionUnit()
 
 		case css_lexer.TPercentage:
@@ -679,7 +680,7 @@ func tryToParseValue(token css_ast.Token, kind gradientKind) (result valueWithUn
 			if err != nil {
 				return
 			}
-			result.value = percentageValue
+			result.value = helpers.NewF64(percentageValue)
 			result.unit = "%"
 
 		default:
@@ -709,17 +710,17 @@ func tryToExpandGradient(
 	// Duplicate the endpoints if they should wrap around to themselves
 	if hueMethod == longerHue && colorSpace.isPolar() && len(colorStops) > 0 {
 		if first := colorStops[0]; len(first.positionTerms) == 1 {
-			if first.positionTerms[0].value < 0 {
-				colorStops[0].positionTerms[0].value = 0
-			} else if first.positionTerms[0].value > 0 {
+			if first.positionTerms[0].value.Value() < 0 {
+				colorStops[0].positionTerms[0].value = helpers.NewF64(0)
+			} else if first.positionTerms[0].value.Value() > 0 {
 				first.midpoint = nil
-				first.positionTerms = []valueWithUnit{{value: 0, unit: first.positionTerms[0].unit}}
+				first.positionTerms = []valueWithUnit{{value: helpers.NewF64(0), unit: first.positionTerms[0].unit}}
 				colorStops = append([]parsedColorStop{first}, colorStops...)
 			}
 		}
 		if last := colorStops[len(colorStops)-1]; len(last.positionTerms) == 1 {
-			if last.positionTerms[0].unit != "%" || last.positionTerms[0].value < 100 {
-				last.positionTerms = []valueWithUnit{{value: 100, unit: "%"}}
+			if last.positionTerms[0].unit != "%" || last.positionTerms[0].value.Value() < 100 {
+				last.positionTerms = []valueWithUnit{{value: helpers.NewF64(100), unit: "%"}}
 				colorStops = append(colorStops, last)
 			}
 		}
@@ -728,51 +729,51 @@ func tryToExpandGradient(
 	var newColorStops []colorStop
 	var generateColorStops func(
 		int, parsedColorStop, parsedColorStop,
-		float64, float64, float64, float64, float64, float64, float64, float64,
-		float64, float64, float64, float64, float64, float64, float64, float64,
+		F64, F64, F64, F64, F64, F64, F64, F64,
+		F64, F64, F64, F64, F64, F64, F64, F64,
 	)
 
 	generateColorStops = func(
 		depth int,
 		from parsedColorStop, to parsedColorStop,
-		prevX, prevY, prevZ, prevR, prevG, prevB, prevA, prevT float64,
-		nextX, nextY, nextZ, nextR, nextG, nextB, nextA, nextT float64,
+		prevX, prevY, prevZ, prevR, prevG, prevB, prevA, prevT F64,
+		nextX, nextY, nextZ, nextR, nextG, nextB, nextA, nextT F64,
 	) {
 		if depth > 4 {
 			return
 		}
 
-		t := (prevT + nextT) / 2
+		t := prevT.Add(nextT).DivConst(2)
 		positionT := t
 
 		// Handle midpoints (which we have already checked uses the same units)
 		if from.midpoint != nil {
 			fromPos := from.positionTerms[0].value
 			toPos := to.positionTerms[0].value
-			stopPos := fromPos + (toPos-fromPos)*t
-			H := (from.midpoint.value - fromPos) / (toPos - fromPos)
-			P := (stopPos - fromPos) / (toPos - fromPos)
-			if H <= 0 {
-				positionT = 1
-			} else if H >= 1 {
-				positionT = 0
+			stopPos := helpers.Lerp(fromPos, toPos, t)
+			H := from.midpoint.value.Sub(fromPos).Div(toPos.Sub(fromPos))
+			P := stopPos.Sub(fromPos).Div(toPos.Sub(fromPos))
+			if H.Value() <= 0 {
+				positionT = helpers.NewF64(1)
+			} else if H.Value() >= 1 {
+				positionT = helpers.NewF64(0)
 			} else {
-				positionT = math.Pow(P, -1/math.Log2(H))
+				positionT = P.Pow(helpers.NewF64(-1).Div(H.Log2()))
 			}
 		}
 
 		v0, v1, v2 := interpolateColors(from.v0, from.v1, from.v2, to.v0, to.v1, to.v2, colorSpace, hueMethod, positionT)
-		a := from.alpha + (to.alpha-from.alpha)*positionT
+		a := helpers.Lerp(from.alpha, to.alpha, positionT)
 		v0, v1, v2 = unpremultiply(v0, v1, v2, a, colorSpace)
 		x, y, z := colorSpace_to_xyz(v0, v1, v2, colorSpace)
 
 		// Stop when the color is similar enough to the sRGB midpoint
 		const epsilon = 4.0 / 255
 		r, g, b := gam_srgb(xyz_to_lin_srgb(x, y, z))
-		dr := r*a - (prevR*prevA+nextR*nextA)/2
-		dg := g*a - (prevG*prevA+nextG*nextA)/2
-		db := b*a - (prevB*prevA+nextB*nextA)/2
-		if d := dr*dr + dg*dg + db*db; d < epsilon*epsilon {
+		dr := r.Mul(a).Sub(prevR.Mul(prevA).Add(nextR.Mul(nextA)).DivConst(2))
+		dg := g.Mul(a).Sub(prevG.Mul(prevA).Add(nextG.Mul(nextA)).DivConst(2))
+		db := b.Mul(a).Sub(prevB.Mul(prevA).Add(nextB.Mul(nextA)).DivConst(2))
+		if d := dr.Squared().Add(dg.Squared()).Add(db.Squared()); d.Value() < epsilon*epsilon {
 			return
 		}
 
@@ -810,8 +811,8 @@ func tryToExpandGradient(
 		if i+1 < len(colorStops) {
 			next := colorStops[i+1]
 			generateColorStops(0, stop, next,
-				stop.x, stop.y, stop.z, stop.r, stop.g, stop.b, stop.alpha, 0,
-				next.x, next.y, next.z, next.r, next.g, next.b, next.alpha, 1)
+				stop.x, stop.y, stop.z, stop.r, stop.g, stop.b, stop.alpha, helpers.NewF64(0),
+				next.x, next.y, next.z, next.r, next.g, next.b, next.alpha, helpers.NewF64(1))
 		}
 	}
 
@@ -820,11 +821,11 @@ func tryToExpandGradient(
 	return true
 }
 
-func formatFloat(value float64, decimals int) string {
-	return strings.TrimSuffix(strings.TrimRight(strconv.FormatFloat(value, 'f', decimals, 64), "0"), ".")
+func formatFloat(value F64, decimals int) string {
+	return strings.TrimSuffix(strings.TrimRight(strconv.FormatFloat(value.Value(), 'f', decimals, 64), "0"), ".")
 }
 
-func makeDimensionOrPercentToken(loc logger.Loc, value float64, unit string) (token css_ast.Token) {
+func makeDimensionOrPercentToken(loc logger.Loc, value F64, unit string) (token css_ast.Token) {
 	token.Loc = loc
 	token.Text = formatFloat(value, 2)
 	if unit == "%" {
@@ -863,9 +864,9 @@ func makePositionToken(loc logger.Loc, positionTerms []valueWithUnit) css_ast.To
 	}
 }
 
-func makeColorToken(loc logger.Loc, x float64, y float64, z float64, a float64) (color css_ast.Token) {
+func makeColorToken(loc logger.Loc, x F64, y F64, z F64, a F64) (color css_ast.Token) {
 	color.Loc = loc
-	alpha := uint32(math.Round(a * 255))
+	alpha := uint32(a.MulConst(255).Round().Value())
 	if hex, ok := tryToConvertToHexWithoutClipping(x, y, z, alpha); ok {
 		color.Kind = css_lexer.THash
 		if alpha == 255 {
@@ -900,7 +901,7 @@ func makeColorToken(loc logger.Loc, x float64, y float64, z float64, a float64) 
 				Whitespace: css_ast.WhitespaceBefore,
 			},
 		}
-		if a < 1 {
+		if a.Value() < 1 {
 			children = append(children,
 				css_ast.Token{
 					Loc:        loc,
@@ -923,69 +924,69 @@ func makeColorToken(loc logger.Loc, x float64, y float64, z float64, a float64) 
 	return
 }
 
-func interpolateHues(a, b, t float64, hueMethod hueMethod) float64 {
-	a /= 360
-	b /= 360
-	a -= math.Floor(a)
-	b -= math.Floor(b)
+func interpolateHues(a, b, t F64, hueMethod hueMethod) F64 {
+	a = a.DivConst(360)
+	b = b.DivConst(360)
+	a = a.Sub(a.Floor())
+	b = b.Sub(b.Floor())
 
 	switch hueMethod {
 	case shorterHue:
-		delta := b - a
-		if delta > 0.5 {
-			a++
+		delta := b.Sub(a)
+		if delta.Value() > 0.5 {
+			a = a.AddConst(1)
 		}
-		if delta < -0.5 {
-			b++
+		if delta.Value() < -0.5 {
+			b = b.AddConst(1)
 		}
 
 	case longerHue:
-		delta := b - a
-		if delta > 0 && delta < 0.5 {
-			a++
+		delta := b.Sub(a)
+		if delta.Value() > 0 && delta.Value() < 0.5 {
+			a = a.AddConst(1)
 		}
-		if delta > -0.5 && delta <= 0 {
-			b++
+		if delta.Value() > -0.5 && delta.Value() <= 0 {
+			b = b.AddConst(1)
 		}
 
 	case increasingHue:
-		if b < a {
-			b++
+		if b.Value() < a.Value() {
+			b = b.AddConst(1)
 		}
 
 	case decreasingHue:
-		if a < b {
-			a++
+		if a.Value() < b.Value() {
+			a = a.AddConst(1)
 		}
 	}
 
-	return (a + (b-a)*t) * 360
+	return helpers.Lerp(a, b, t).MulConst(360)
 }
 
 func interpolateColors(
-	a0, a1, a2 float64, b0, b1, b2 float64,
-	colorSpace colorSpace, hueMethod hueMethod, t float64,
-) (v0 float64, v1 float64, v2 float64) {
-	v1 = a1 + (b1-a1)*t
+	a0, a1, a2 F64, b0, b1, b2 F64,
+	colorSpace colorSpace, hueMethod hueMethod, t F64,
+) (v0 F64, v1 F64, v2 F64) {
+	v1 = helpers.Lerp(a1, b1, t)
 
 	switch colorSpace {
 	case colorSpace_hsl, colorSpace_hwb:
-		v2 = a2 + (b2-a2)*t
+		v2 = helpers.Lerp(a2, b2, t)
 		v0 = interpolateHues(a0, b0, t, hueMethod)
 
 	case colorSpace_lch, colorSpace_oklch:
-		v0 = a0 + (b0-a0)*t
+		v0 = helpers.Lerp(a0, b0, t)
 		v2 = interpolateHues(a2, b2, t, hueMethod)
 
 	default:
-		v0 = a0 + (b0-a0)*t
-		v2 = a2 + (b2-a2)*t
+		v0 = helpers.Lerp(a0, b0, t)
+		v2 = helpers.Lerp(a2, b2, t)
 	}
 
 	return v0, v1, v2
 }
 
-func interpolatePositions(a []valueWithUnit, b []valueWithUnit, t float64) (result []valueWithUnit) {
+func interpolatePositions(a []valueWithUnit, b []valueWithUnit, t F64) (result []valueWithUnit) {
 	findUnit := func(unit string) int {
 		for i, x := range result {
 			if x.unit == unit {
@@ -998,19 +999,21 @@ func interpolatePositions(a []valueWithUnit, b []valueWithUnit, t float64) (resu
 
 	// "result += a * (1 - t)"
 	for _, term := range a {
-		result[findUnit(term.unit)].value += term.value * (1 - t)
+		ptr := &result[findUnit(term.unit)]
+		ptr.value = t.Neg().AddConst(1).Mul(term.value).Add(ptr.value)
 	}
 
 	// "result += b * t"
 	for _, term := range b {
-		result[findUnit(term.unit)].value += term.value * t
+		ptr := &result[findUnit(term.unit)]
+		ptr.value = t.Mul(term.value).Add(ptr.value)
 	}
 
 	// Remove an extra zero value for neatness. We don't remove all
 	// of them because it may be important to retain a single zero.
 	if len(result) > 1 {
 		for i, term := range result {
-			if term.value == 0 {
+			if term.value.Value() == 0 {
 				copy(result[i:], result[i+1:])
 				result = result[:len(result)-1]
 				break
@@ -1021,34 +1024,34 @@ func interpolatePositions(a []valueWithUnit, b []valueWithUnit, t float64) (resu
 	return
 }
 
-func premultiply(v0, v1, v2, alpha float64, colorSpace colorSpace) (float64, float64, float64) {
-	if alpha < 1 {
+func premultiply(v0, v1, v2, alpha F64, colorSpace colorSpace) (F64, F64, F64) {
+	if alpha.Value() < 1 {
 		switch colorSpace {
 		case colorSpace_hsl, colorSpace_hwb:
-			v2 *= alpha
+			v2 = v2.Mul(alpha)
 		case colorSpace_lch, colorSpace_oklch:
-			v0 *= alpha
+			v0 = v0.Mul(alpha)
 		default:
-			v0 *= alpha
-			v2 *= alpha
+			v0 = v0.Mul(alpha)
+			v2 = v2.Mul(alpha)
 		}
-		v1 *= alpha
+		v1 = v1.Mul(alpha)
 	}
 	return v0, v1, v2
 }
 
-func unpremultiply(v0, v1, v2, alpha float64, colorSpace colorSpace) (float64, float64, float64) {
-	if alpha > 0 && alpha < 1 {
+func unpremultiply(v0, v1, v2, alpha F64, colorSpace colorSpace) (F64, F64, F64) {
+	if alpha.Value() > 0 && alpha.Value() < 1 {
 		switch colorSpace {
 		case colorSpace_hsl, colorSpace_hwb:
-			v2 /= alpha
+			v2 = v2.Div(alpha)
 		case colorSpace_lch, colorSpace_oklch:
-			v0 /= alpha
+			v0 = v0.Div(alpha)
 		default:
-			v0 /= alpha
-			v2 /= alpha
+			v0 = v0.Div(alpha)
+			v2 = v2.Div(alpha)
 		}
-		v1 /= alpha
+		v1 = v1.Div(alpha)
 	}
 	return v0, v1, v2
 }
