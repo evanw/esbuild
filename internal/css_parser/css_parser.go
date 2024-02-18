@@ -586,10 +586,6 @@ func (p *parser) parseListOfDeclarations(opts listOfDeclarationsOpts) (list []cs
 }
 
 func (p *parser) mangleRules(rules []css_ast.Rule, isTopLevel bool) []css_ast.Rule {
-	type hashEntry struct {
-		indices []uint32
-	}
-
 	// Remove empty rules
 	mangledRules := make([]css_ast.Rule, 0, len(rules))
 	var prevNonComment css_ast.R
@@ -728,7 +724,6 @@ type callEntry struct {
 }
 
 type DuplicateRuleRemover struct {
-	symbols ast.SymbolMap
 	entries map[uint32]hashEntry
 	calls   []callEntry
 	check   css_ast.CrossFileEqualityCheck
