@@ -1242,7 +1242,7 @@ func (p *printer) printProperty(property js_ast.Property) {
 			if !p.options.UnsupportedFeatures.Has(compat.ObjectExtensions) && property.ValueOrNil.Data != nil && !p.willPrintExprCommentsAtLoc(property.ValueOrNil.Loc) {
 				switch e := property.ValueOrNil.Data.(type) {
 				case *js_ast.EIdentifier:
-					if helpers.UTF16EqualsString(key.Value, p.renamer.NameForSymbol(e.Ref)) {
+					if canUseShorthandProperty(key.Value, p.renamer.NameForSymbol(e.Ref), property.Flags) {
 						if p.options.AddSourceMappings {
 							p.addSourceMappingForName(property.Key.Loc, helpers.UTF16ToString(key.Value), e.Ref)
 						}
@@ -1259,7 +1259,7 @@ func (p *printer) printProperty(property js_ast.Property) {
 				case *js_ast.EImportIdentifier:
 					// Make sure we're not using a property access instead of an identifier
 					ref := ast.FollowSymbols(p.symbols, e.Ref)
-					if symbol := p.symbols.Get(ref); symbol.NamespaceAlias == nil && helpers.UTF16EqualsString(key.Value, p.renamer.NameForSymbol(ref)) &&
+					if symbol := p.symbols.Get(ref); symbol.NamespaceAlias == nil && canUseShorthandProperty(key.Value, p.renamer.NameForSymbol(ref), property.Flags) &&
 						p.options.ConstValues[ref].Kind == js_ast.ConstValueNone {
 						if p.options.AddSourceMappings {
 							p.addSourceMappingForName(property.Key.Loc, helpers.UTF16ToString(key.Value), ref)
@@ -1274,6 +1274,21 @@ func (p *printer) printProperty(property js_ast.Property) {
 						return
 					}
 				}
+			}
+
+			// The JavaScript specification special-cases the property identifier
+			// "__proto__" with a colon after it to set the prototype of the object.
+			// If we keep the identifier but add a colon then we'll cause a behavior
+			// change because the prototype will now be set. Avoid using an identifier
+			// by using a computed property with a string instead. For more info see:
+			// https://tc39.es/ecma262/#sec-runtime-semantics-propertydefinitionevaluation
+			if property.Flags.Has(js_ast.PropertyWasShorthand) && !p.options.UnsupportedFeatures.Has(compat.ObjectExtensions) &&
+				helpers.UTF16EqualsString(key.Value, "__proto__") {
+				p.print("[")
+				p.addSourceMapping(property.Key.Loc)
+				p.printQuotedUTF16(key.Value, 0)
+				p.print("]")
+				break
 			}
 
 			p.addSourceMapping(property.Key.Loc)
@@ -1312,6 +1327,20 @@ func (p *printer) printProperty(property js_ast.Property) {
 		p.printSpace()
 		p.printExprWithoutLeadingNewline(property.InitializerOrNil, js_ast.LComma, 0)
 	}
+}
+
+func canUseShorthandProperty(key []uint16, name string, flags js_ast.PropertyFlags) bool {
+	// The JavaScript specification special-cases the property identifier
+	// "__proto__" with a colon after it to set the prototype of the object. If
+	// we remove the colon then we'll cause a behavior change because the
+	// prototype will no longer be set, but we also don't want to add a colon
+	// if it was omitted. Always use a shorthand property if the property is not
+	// "__proto__", otherwise try to preserve the original shorthand status. See:
+	// https://tc39.es/ecma262/#sec-runtime-semantics-propertydefinitionevaluation
+	if !helpers.UTF16EqualsString(key, name) {
+		return false
+	}
+	return helpers.UTF16EqualsString(key, name) && (name != "__proto__" || flags.Has(js_ast.PropertyWasShorthand))
 }
 
 func (p *printer) printQuotedUTF16(data []uint16, flags printQuotedFlags) {

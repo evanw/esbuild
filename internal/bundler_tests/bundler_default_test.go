@@ -8690,3 +8690,124 @@ func TestJSXDevSelfEdgeCases(t *testing.T) {
 		},
 	})
 }
+
+func TestObjectLiteralProtoSetterEdgeCases(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/local-shorthand.js": `
+				function foo(__proto__, bar) {
+					{
+						let __proto__, bar // These locals will be renamed
+						console.log(
+							'this must not become "{ __proto__: ... }":',
+							{
+								__proto__,
+								bar,
+							},
+						)
+					}
+				}
+			`,
+			"/local-normal.js": `
+				function foo(__proto__, bar) {
+					console.log(
+						'this must not become "{ __proto__ }":',
+						{
+							__proto__: __proto__,
+							bar: bar,
+						},
+					)
+				}
+			`,
+			"/import-shorthand.js": `
+				import { __proto__, bar } from 'foo'
+				function foo() {
+					console.log(
+						'this must not become "{ __proto__: ... }":',
+						{
+							__proto__,
+							bar,
+						},
+					)
+				}
+			`,
+			"/import-normal.js": `
+				import { __proto__, bar } from 'foo'
+				function foo() {
+					console.log(
+						'this must not become "{ __proto__ }":',
+						{
+							__proto__: __proto__,
+							bar: bar,
+						},
+					)
+				}
+			`,
+		},
+		entryPaths: []string{"*"},
+		options: config.Options{
+			AbsOutputDir: "/out",
+		},
+	})
+}
+
+func TestObjectLiteralProtoSetterEdgeCasesMinifySyntax(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/local-computed.js": `
+				function foo(__proto__, bar) {
+					{
+						let __proto__, bar // These locals will be renamed
+						console.log(
+							'this must not become "{ __proto__: ... }":',
+							{
+								['__proto__']: __proto__,
+								['bar']: bar,
+							},
+						)
+					}
+				}
+			`,
+			"/local-normal.js": `
+				function foo(__proto__, bar) {
+					console.log(
+						'this must not become "{ __proto__ }":',
+						{
+							__proto__: __proto__,
+							bar: bar,
+						},
+					)
+				}
+			`,
+			"/import-computed.js": `
+				import { __proto__, bar } from 'foo'
+				function foo() {
+					console.log(
+						'this must not become "{ __proto__: ... }":',
+						{
+							['__proto__']: __proto__,
+							['bar']: bar,
+						},
+					)
+				}
+			`,
+			"/import-normal.js": `
+				import { __proto__, bar } from 'foo'
+				function foo() {
+					console.log(
+						'this must not become "{ __proto__ }":',
+						{
+							__proto__: __proto__,
+							bar: bar,
+						},
+					)
+				}
+			`,
+		},
+		entryPaths: []string{"*"},
+		options: config.Options{
+			AbsOutputDir: "/out",
+			MinifySyntax: true,
+		},
+	})
+}

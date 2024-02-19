@@ -13,13 +13,6 @@ import (
 	"github.com/evanw/esbuild/internal/test"
 )
 
-func assertEqual(t *testing.T, a interface{}, b interface{}) {
-	t.Helper()
-	if a != b {
-		t.Fatalf("%s != %s", a, b)
-	}
-}
-
 func expectPrintedCommon(t *testing.T, name string, contents string, expected string, options config.Options) {
 	t.Helper()
 	t.Run(name, func(t *testing.T) {
@@ -511,6 +504,17 @@ func TestObject(t *testing.T) {
 	expectPrinted(t, "let x = () => ({}.x)", "let x = () => ({}).x;\n")
 	expectPrinted(t, "let x = () => ({} = {})", "let x = () => ({} = {});\n")
 	expectPrinted(t, "let x = () => (x, {} = {})", "let x = () => (x, {} = {});\n")
+
+	// "{ __proto__: __proto__ }" must not become "{ __proto__ }"
+	expectPrinted(t, "function foo(__proto__) { return { __proto__: __proto__ } }", "function foo(__proto__) {\n  return { __proto__: __proto__ };\n}\n")
+	expectPrinted(t, "function foo(__proto__) { return { '__proto__': __proto__ } }", "function foo(__proto__) {\n  return { \"__proto__\": __proto__ };\n}\n")
+	expectPrinted(t, "function foo(__proto__) { return { ['__proto__']: __proto__ } }", "function foo(__proto__) {\n  return { [\"__proto__\"]: __proto__ };\n}\n")
+	expectPrinted(t, "import { __proto__ } from 'foo'; let foo = () => ({ __proto__: __proto__ })", "import { __proto__ } from \"foo\";\nlet foo = () => ({ __proto__: __proto__ });\n")
+	expectPrinted(t, "import { __proto__ } from 'foo'; let foo = () => ({ '__proto__': __proto__ })", "import { __proto__ } from \"foo\";\nlet foo = () => ({ \"__proto__\": __proto__ });\n")
+	expectPrinted(t, "import { __proto__ } from 'foo'; let foo = () => ({ ['__proto__']: __proto__ })", "import { __proto__ } from \"foo\";\nlet foo = () => ({ [\"__proto__\"]: __proto__ });\n")
+
+	// Don't use ES6+ features (such as a shorthand or computed property name) in ES5
+	expectPrintedTarget(t, 5, "function foo(__proto__) { return { __proto__ } }", "function foo(__proto__) {\n  return { __proto__: __proto__ };\n}\n")
 }
 
 func TestFor(t *testing.T) {

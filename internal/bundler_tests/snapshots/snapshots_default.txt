@@ -5188,6 +5188,108 @@ export {
 };
 
 ================================================================================
+TestObjectLiteralProtoSetterEdgeCases
+---------- /out/import-normal.js ----------
+import { __proto__, bar } from "foo";
+function foo() {
+  console.log(
+    'this must not become "{ __proto__ }":',
+    {
+      __proto__: __proto__,
+      bar
+    }
+  );
+}
+
+---------- /out/import-shorthand.js ----------
+import { __proto__, bar } from "foo";
+function foo() {
+  console.log(
+    'this must not become "{ __proto__: ... }":',
+    {
+      __proto__,
+      bar
+    }
+  );
+}
+
+---------- /out/local-normal.js ----------
+function foo(__proto__, bar) {
+  console.log(
+    'this must not become "{ __proto__ }":',
+    {
+      __proto__: __proto__,
+      bar
+    }
+  );
+}
+
+---------- /out/local-shorthand.js ----------
+function foo(__proto__, bar) {
+  {
+    let __proto__2, bar2;
+    console.log(
+      'this must not become "{ __proto__: ... }":',
+      {
+        ["__proto__"]: __proto__2,
+        bar: bar2
+      }
+    );
+  }
+}
+
+================================================================================
+TestObjectLiteralProtoSetterEdgeCasesMinifySyntax
+---------- /out/import-computed.js ----------
+import { __proto__, bar } from "foo";
+function foo() {
+  console.log(
+    'this must not become "{ __proto__: ... }":',
+    {
+      ["__proto__"]: __proto__,
+      bar
+    }
+  );
+}
+
+---------- /out/import-normal.js ----------
+import { __proto__, bar } from "foo";
+function foo() {
+  console.log(
+    'this must not become "{ __proto__ }":',
+    {
+      __proto__: __proto__,
+      bar
+    }
+  );
+}
+
+---------- /out/local-computed.js ----------
+function foo(__proto__, bar) {
+  {
+    let __proto__2, bar2;
+    console.log(
+      'this must not become "{ __proto__: ... }":',
+      {
+        ["__proto__"]: __proto__2,
+        bar: bar2
+      }
+    );
+  }
+}
+
+---------- /out/local-normal.js ----------
+function foo(__proto__, bar) {
+  console.log(
+    'this must not become "{ __proto__ }":',
+    {
+      __proto__: __proto__,
+      bar
+    }
+  );
+}
+
+================================================================================
 TestOutbase
 ---------- /out/a/b/c.js ----------
 // a/b/c.js
