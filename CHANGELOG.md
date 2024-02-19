@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.20.1
 
 * Fix a bug with the CSS nesting transform ([#3648](https://github.com/evanw/esbuild/issues/3648))
 
