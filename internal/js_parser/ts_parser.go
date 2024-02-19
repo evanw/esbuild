@@ -1930,19 +1930,17 @@ func (p *parser) generateClosureForTypeScriptEnum(
 
 	// Generate the body of the closure, including a return statement at the end
 	stmtsInsideClosure := []js_ast.Stmt{}
-	if len(exprsInsideClosure) > 0 {
-		argExpr := js_ast.Expr{Loc: nameLoc, Data: &js_ast.EIdentifier{Ref: argRef}}
-		if p.options.minifySyntax {
-			// "a; b; return c;" => "return a, b, c;"
-			joined := js_ast.JoinAllWithComma(exprsInsideClosure)
-			joined = js_ast.JoinWithComma(joined, argExpr)
-			stmtsInsideClosure = append(stmtsInsideClosure, js_ast.Stmt{Loc: joined.Loc, Data: &js_ast.SReturn{ValueOrNil: joined}})
-		} else {
-			for _, expr := range exprsInsideClosure {
-				stmtsInsideClosure = append(stmtsInsideClosure, js_ast.Stmt{Loc: expr.Loc, Data: &js_ast.SExpr{Value: expr}})
-			}
-			stmtsInsideClosure = append(stmtsInsideClosure, js_ast.Stmt{Loc: argExpr.Loc, Data: &js_ast.SReturn{ValueOrNil: argExpr}})
+	argExpr := js_ast.Expr{Loc: nameLoc, Data: &js_ast.EIdentifier{Ref: argRef}}
+	if p.options.minifySyntax {
+		// "a; b; return c;" => "return a, b, c;"
+		joined := js_ast.JoinAllWithComma(exprsInsideClosure)
+		joined = js_ast.JoinWithComma(joined, argExpr)
+		stmtsInsideClosure = append(stmtsInsideClosure, js_ast.Stmt{Loc: joined.Loc, Data: &js_ast.SReturn{ValueOrNil: joined}})
+	} else {
+		for _, expr := range exprsInsideClosure {
+			stmtsInsideClosure = append(stmtsInsideClosure, js_ast.Stmt{Loc: expr.Loc, Data: &js_ast.SExpr{Value: expr}})
 		}
+		stmtsInsideClosure = append(stmtsInsideClosure, js_ast.Stmt{Loc: argExpr.Loc, Data: &js_ast.SReturn{ValueOrNil: argExpr}})
 	}
 
 	// Try to use an arrow function if possible for compactness

@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+* Empty enums should behave like an object literal ([#3657](https://github.com/evanw/esbuild/issues/3657))
+
+    TypeScript allows you to create an empty enum and add properties to it at run time. While people usually use an empty object literal for this instead of a TypeScript enum, esbuild's enum transform didn't anticipate this use case and generated `undefined` instead of `{}` for an empty enum. With this release, you can now use an empty enum to generate an empty object literal.
+
+    ```ts
+    // Original code
+    enum Foo {}
+
+    // Old output (with --loader=ts)
+    var Foo = /* @__PURE__ */ ((Foo2) => {
+    })(Foo || {});
+
+    // New output (with --loader=ts)
+    var Foo = /* @__PURE__ */ ((Foo2) => {
+      return Foo2;
+    })(Foo || {});
+    ```
+
 ## 0.20.1
 
 * Fix a bug with the CSS nesting transform ([#3648](https://github.com/evanw/esbuild/issues/3648))

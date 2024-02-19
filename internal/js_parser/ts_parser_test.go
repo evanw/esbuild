@@ -1804,7 +1804,7 @@ func TestTSDeclare(t *testing.T) {
 	expectPrintedTS(t, "declare\nconst foo = 0", "declare;\nconst foo = 0;\n")
 	expectPrintedTS(t, "declare\nfunction foo() {}", "declare;\nfunction foo() {\n}\n")
 	expectPrintedTS(t, "declare\nclass Foo {}", "declare;\nclass Foo {\n}\n")
-	expectPrintedTS(t, "declare\nenum Foo {}", "declare;\nvar Foo = /* @__PURE__ */ ((Foo) => {\n})(Foo || {});\n")
+	expectPrintedTS(t, "declare\nenum Foo {}", "declare;\nvar Foo = /* @__PURE__ */ ((Foo) => {\n  return Foo;\n})(Foo || {});\n")
 	expectPrintedTS(t, "class Foo { declare \n foo }", "class Foo {\n  declare;\n  foo;\n}\n")
 
 	expectPrintedTS(t, "declare;", "declare;\n")
