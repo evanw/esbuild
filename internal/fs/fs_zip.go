@@ -332,7 +332,7 @@ func (fs *zipFS) WatchData() WatchData {
 }
 
 func HasDriveLetter(path string) bool {
-	return unicode.IsLetter(rune(path[0])) && path[1] == ':'
+	return len(path) >= 2 && unicode.IsLetter(rune(path[0])) && path[1] == ':'
 }
 
 func ParseYarnPnPVirtualPath(path string) (string, string, bool) {
