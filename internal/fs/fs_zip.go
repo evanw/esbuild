@@ -24,6 +24,7 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"unicode"
 )
 
 type zipFS struct {
@@ -330,6 +331,10 @@ func (fs *zipFS) WatchData() WatchData {
 	return fs.inner.WatchData()
 }
 
+func HasDriveLetter(path string) bool {
+	return unicode.IsLetter(rune(path[0])) && path[1] == ':'
+}
+
 func ParseYarnPnPVirtualPath(path string) (string, string, bool) {
 	i := 0
 
@@ -356,7 +361,7 @@ func ParseYarnPnPVirtualPath(path string) (string, string, bool) {
 				// Find the range of the count
 				if slash := strings.IndexAny(path[j:], "/\\"); slash != -1 {
 					count = path[j : j+slash]
-					suffix = path[j+slash:]
+					suffix = path[j+slash+1:]
 				} else {
 					count = path[j:]
 				}
@@ -369,6 +374,9 @@ func ParseYarnPnPVirtualPath(path string) (string, string, bool) {
 					for n > 0 && (strings.HasSuffix(prefix, "/") || strings.HasSuffix(prefix, "\\")) {
 						slash := strings.LastIndexAny(prefix[:len(prefix)-1], "/\\")
 						if slash == -1 {
+							if HasDriveLetter(prefix) {
+								prefix = ""
+							}
 							break
 						}
 						prefix = prefix[:slash+1]
@@ -378,8 +386,8 @@ func ParseYarnPnPVirtualPath(path string) (string, string, bool) {
 					// Make sure the prefix and suffix work well when joined together
 					if suffix == "" && strings.IndexAny(prefix, "/\\") != strings.LastIndexAny(prefix, "/\\") {
 						prefix = prefix[:len(prefix)-1]
-					} else if prefix == "" {
-						prefix = "."
+					} else if prefix == "" && !HasDriveLetter(suffix) {
+						prefix = "./"
 					} else if strings.HasPrefix(suffix, "/") || strings.HasPrefix(suffix, "\\") {
 						suffix = suffix[1:]
 					}
