@@ -10704,6 +10704,14 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			}
 		}
 
+		// Unwrap switch statements in dead code
+		if p.options.minifySyntax && p.isControlFlowDead {
+			for _, c := range s.Cases {
+				stmts = append(stmts, c.Body...)
+			}
+			return stmts
+		}
+
 		// "using" declarations inside switch statements must be special-cased
 		if lowered := p.maybeLowerUsingDeclarationsInSwitch(stmt.Loc, s); lowered != nil {
 			return append(stmts, lowered...)

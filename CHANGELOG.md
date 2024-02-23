@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+* Improve dead code removal of `switch` statements ([#3659](https://github.com/evanw/esbuild/issues/3659))
+
+    With this release, esbuild will now remove `switch` statements in branches when minifying if they are known to never be evaluated:
+
+    ```js
+    // Original code
+    if (true) foo(); else switch (bar) { case 1: baz(); break }
+
+    // Old output (with --minify)
+    if(1)foo();else switch(bar){case 1:}
+
+    // New output (with --minify)
+    foo();
+    ```
+
 * Empty enums should behave like an object literal ([#3657](https://github.com/evanw/esbuild/issues/3657))
 
     TypeScript allows you to create an empty enum and add properties to it at run time. While people usually use an empty object literal for this instead of a TypeScript enum, esbuild's enum transform didn't anticipate this use case and generated `undefined` instead of `{}` for an empty enum. With this release, you can now use an empty enum to generate an empty object literal.

@@ -5232,6 +5232,7 @@ func TestTrimCodeInDeadControlFlow(t *testing.T) {
 	expectPrintedMangle(t, "b: while (1) if (0) a(); else { continue b }", "b:\n  for (; ; )\n    continue b;\n")
 	expectPrintedMangle(t, "if (1) a(); else { class b {} }", "a();\n")
 	expectPrintedMangle(t, "if (1) a(); else { debugger }", "a();\n")
+	expectPrintedMangle(t, "if (1) a(); else { switch (1) { case 1: b() } }", "a();\n")
 
 	expectPrintedMangle(t, "if (0) {let a = 1} else a()", "a();\n")
 	expectPrintedMangle(t, "if (1) {let a = 1} else a()", "{\n  let a = 1;\n}\n")
@@ -5246,6 +5247,7 @@ func TestTrimCodeInDeadControlFlow(t *testing.T) {
 	expectPrintedMangle(t, "if (1) a(); else { function a() {} }", "if (1)\n  a();\nelse\n  var a;\n")
 	expectPrintedMangle(t, "if (1) a(); else { for(;;){var a} }", "if (1)\n  a();\nelse\n  for (; ; )\n    var a;\n")
 	expectPrintedMangle(t, "if (1) { a(); b() } else { var a; var b; }", "if (1)\n  a(), b();\nelse\n  var a, b;\n")
+	expectPrintedMangle(t, "if (1) a(); else { switch (1) { case 1: case 2: var a } }", "if (1)\n  a();\nelse\n  var a;\n")
 }
 
 func TestPreservedComments(t *testing.T) {
