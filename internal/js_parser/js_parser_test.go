@@ -5241,6 +5241,8 @@ func TestTrimCodeInDeadControlFlow(t *testing.T) {
 	expectPrintedMangle(t, "if (1) a(); else { var a = b }", "if (1)\n  a();\nelse\n  var a;\n")
 	expectPrintedMangle(t, "if (1) a(); else { var [a] = b }", "if (1)\n  a();\nelse\n  var a;\n")
 	expectPrintedMangle(t, "if (1) a(); else { var {x: a} = b }", "if (1)\n  a();\nelse\n  var a;\n")
+	expectPrintedMangle(t, "if (1) a(); else { var [] = b }", "a();\n")
+	expectPrintedMangle(t, "if (1) a(); else { var {} = b }", "a();\n")
 	expectPrintedMangle(t, "if (1) a(); else { function a() {} }", "if (1)\n  a();\nelse\n  var a;\n")
 	expectPrintedMangle(t, "if (1) a(); else { for(;;){var a} }", "if (1)\n  a();\nelse\n  for (; ; )\n    var a;\n")
 	expectPrintedMangle(t, "if (1) { a(); b() } else { var a; var b; }", "if (1)\n  a(), b();\nelse\n  var a, b;\n")

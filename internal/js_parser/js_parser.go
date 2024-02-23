@@ -8355,6 +8355,9 @@ func shouldKeepStmtInDeadControlFlow(stmt js_ast.Stmt) bool {
 		for _, decl := range s.Decls {
 			identifiers = findIdentifiers(decl.Binding, identifiers)
 		}
+		if len(identifiers) == 0 {
+			return false
+		}
 		s.Decls = identifiers
 		return true
 
