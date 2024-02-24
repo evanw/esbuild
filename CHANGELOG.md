@@ -35,6 +35,22 @@
     })(Foo || {});
     ```
 
+* Add `exclude?: RegExp` option to `onLoad` on `onResolve` hooks
+
+    Allows plugins to stamp out files and folders to not execute the hook.
+
+    ```js
+    const myPlugin = {
+      name: 'my-plugin',
+      setup(build) {
+        build.onResolve({ filter: /.js$/, exclude: /^(static|my-lib)\// }, args => {
+        })
+        build.onLoad({ filter: /.js$/, exclude: /\/node_modules\// }, args => {
+        })
+      }
+    }
+    ```
+
 ## 0.20.1
 
 * Fix a bug with the CSS nesting transform ([#3648](https://github.com/evanw/esbuild/issues/3648))

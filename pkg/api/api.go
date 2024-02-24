@@ -603,6 +603,7 @@ type OnEndResult struct {
 // Documentation: https://esbuild.github.io/plugins/#on-resolve-options
 type OnResolveOptions struct {
 	Filter    string
+	Exclude   string
 	Namespace string
 }
 
@@ -637,6 +638,7 @@ type OnResolveResult struct {
 // Documentation: https://esbuild.github.io/plugins/#on-load-options
 type OnLoadOptions struct {
 	Filter    string
+	Exclude   string
 	Namespace string
 }
 

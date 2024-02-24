@@ -1929,7 +1929,12 @@ func resolveKindToImportKind(kind ResolveKind) ast.ImportKind {
 
 func (impl *pluginImpl) onResolve(options OnResolveOptions, callback func(OnResolveArgs) (OnResolveResult, error)) {
 	filter, err := config.CompileFilterForPlugin(impl.plugin.Name, "OnResolve", options.Filter)
-	if filter == nil {
+	if filter == nil || err != nil  {
+		impl.log.AddError(nil, logger.Range{}, err.Error())
+		return
+	}
+	exclude, err := config.CompileExcludeForPlugin(impl.plugin.Name, "OnResolve", options.Exclude)
+	if err != nil {
 		impl.log.AddError(nil, logger.Range{}, err.Error())
 		return
 	}
@@ -1937,6 +1942,7 @@ func (impl *pluginImpl) onResolve(options OnResolveOptions, callback func(OnReso
 	impl.plugin.OnResolve = append(impl.plugin.OnResolve, config.OnResolve{
 		Name:      impl.plugin.Name,
 		Filter:    filter,
+		Exclude:   exclude,
 		Namespace: options.Namespace,
 		Callback: func(args config.OnResolveArgs) (result config.OnResolveResult) {
 			response, err := callback(OnResolveArgs{
@@ -1979,13 +1985,19 @@ func (impl *pluginImpl) onResolve(options OnResolveOptions, callback func(OnReso
 
 func (impl *pluginImpl) onLoad(options OnLoadOptions, callback func(OnLoadArgs) (OnLoadResult, error)) {
 	filter, err := config.CompileFilterForPlugin(impl.plugin.Name, "OnLoad", options.Filter)
-	if filter == nil {
+	if filter == nil || err != nil {
+		impl.log.AddError(nil, logger.Range{}, err.Error())
+		return
+	}
+	exclude, err := config.CompileExcludeForPlugin(impl.plugin.Name, "OnLoad", options.Exclude)
+	if err != nil {
 		impl.log.AddError(nil, logger.Range{}, err.Error())
 		return
 	}
 
 	impl.plugin.OnLoad = append(impl.plugin.OnLoad, config.OnLoad{
 		Filter:    filter,
+		Exclude:   exclude,
 		Namespace: options.Namespace,
 		Callback: func(args config.OnLoadArgs) (result config.OnLoadResult) {
 			with := make(map[string]string)

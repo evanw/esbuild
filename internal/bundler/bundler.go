@@ -885,7 +885,7 @@ func RunOnResolvePlugins(
 	// Apply resolver plugins in order until one succeeds
 	for _, plugin := range plugins {
 		for _, onResolve := range plugin.OnResolve {
-			if !config.PluginAppliesToPath(applyPath, onResolve.Filter, onResolve.Namespace) {
+			if !config.PluginAppliesToPath(applyPath, onResolve.Filter, onResolve.Exclude, onResolve.Namespace) {
 				continue
 			}
 
@@ -1002,7 +1002,7 @@ func runOnLoadPlugins(
 	// Apply loader plugins in order until one succeeds
 	for _, plugin := range plugins {
 		for _, onLoad := range plugin.OnLoad {
-			if !config.PluginAppliesToPath(source.KeyPath, onLoad.Filter, onLoad.Namespace) {
+			if !config.PluginAppliesToPath(source.KeyPath, onLoad.Filter, onLoad.Exclude, onLoad.Namespace) {
 				continue
 			}
 

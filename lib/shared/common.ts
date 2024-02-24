@@ -1306,12 +1306,13 @@ let handlePlugins = async (
           let registeredNote = extractCallerV8(new Error(registeredText), streamIn, 'onResolve')
           let keys: OptionKeys = {}
           let filter = getFlag(options, keys, 'filter', mustBeRegExp)
+          let exclude = getFlag(options, keys, 'exclude', mustBeRegExp)
           let namespace = getFlag(options, keys, 'namespace', mustBeString)
           checkForInvalidFlags(options, keys, `in onResolve() call for plugin ${quote(name)}`)
           if (filter == null) throw new Error(`onResolve() call is missing a filter`)
           let id = nextCallbackID++
           onResolveCallbacks[id] = { name: name!, callback, note: registeredNote }
-          plugin.onResolve.push({ id, filter: filter.source, namespace: namespace || '' })
+          plugin.onResolve.push({ id, filter: filter.source, exclude: exclude?.source || '', namespace: namespace || '' })
         },
 
         onLoad(options, callback) {
@@ -1319,12 +1320,13 @@ let handlePlugins = async (
           let registeredNote = extractCallerV8(new Error(registeredText), streamIn, 'onLoad')
           let keys: OptionKeys = {}
           let filter = getFlag(options, keys, 'filter', mustBeRegExp)
+          let exclude = getFlag(options, keys, 'exclude', mustBeRegExp)
           let namespace = getFlag(options, keys, 'namespace', mustBeString)
           checkForInvalidFlags(options, keys, `in onLoad() call for plugin ${quote(name)}`)
           if (filter == null) throw new Error(`onLoad() call is missing a filter`)
           let id = nextCallbackID++
           onLoadCallbacks[id] = { name: name!, callback, note: registeredNote }
-          plugin.onLoad.push({ id, filter: filter.source, namespace: namespace || '' })
+          plugin.onLoad.push({ id, filter: filter.source, exclude: exclude?.source || '', namespace: namespace || '' })
         },
 
         onDispose(callback) {

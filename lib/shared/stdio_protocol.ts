@@ -42,8 +42,8 @@ export interface BuildPlugin {
   name: string
   onStart: boolean
   onEnd: boolean
-  onResolve: { id: number, filter: string, namespace: string }[]
-  onLoad: { id: number, filter: string, namespace: string }[]
+  onResolve: { id: number, filter: string, exclude: string, namespace: string }[]
+  onLoad: { id: number, filter: string, exclude: string, namespace: string }[]
 }
 
 export interface BuildResponse {
