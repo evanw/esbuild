@@ -2354,7 +2354,7 @@ error: Invalid path suffix "%what" returned from plugin (must start with "?" or 
       ],
       onLoad: [
         { path: pathFor('a') },
-        // { path: pathFor('c') }, should have been excluded via `exclude: /_b(\.js)?$/`
+        // { path: pathFor('b') }, should have been excluded via `exclude: /_b(\.js)?$/`
         { path: pathFor('c') },
       ],
     }, null, 2)

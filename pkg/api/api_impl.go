@@ -1929,7 +1929,7 @@ func resolveKindToImportKind(kind ResolveKind) ast.ImportKind {
 
 func (impl *pluginImpl) onResolve(options OnResolveOptions, callback func(OnResolveArgs) (OnResolveResult, error)) {
 	filter, err := config.CompileFilterForPlugin(impl.plugin.Name, "OnResolve", options.Filter)
-	if filter == nil {
+	if filter == nil || err != nil  {
 		impl.log.AddError(nil, logger.Range{}, err.Error())
 		return
 	}
@@ -1985,7 +1985,7 @@ func (impl *pluginImpl) onResolve(options OnResolveOptions, callback func(OnReso
 
 func (impl *pluginImpl) onLoad(options OnLoadOptions, callback func(OnLoadArgs) (OnLoadResult, error)) {
 	filter, err := config.CompileFilterForPlugin(impl.plugin.Name, "OnLoad", options.Filter)
-	if err != nil {
+	if filter == nil || err != nil {
 		impl.log.AddError(nil, logger.Range{}, err.Error())
 		return
 	}
