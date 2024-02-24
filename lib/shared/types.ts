@@ -368,6 +368,7 @@ export interface OnEndResult {
 /** Documentation: https://esbuild.github.io/plugins/#on-resolve-options */
 export interface OnResolveOptions {
   filter: RegExp
+  exclude?: RegExp
   namespace?: string
 }
 
@@ -416,6 +417,7 @@ export interface OnResolveResult {
 /** Documentation: https://esbuild.github.io/plugins/#on-load-options */
 export interface OnLoadOptions {
   filter: RegExp
+  exclude?: RegExp
   namespace?: string
 }
 

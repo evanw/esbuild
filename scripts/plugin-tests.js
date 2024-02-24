@@ -108,8 +108,8 @@ let pluginTests = {
   },
 
   async invalidRegExp({ esbuild }) {
-    for (const filter of [/x(?=y)/, /x(?!y)/, /x(?<=y)/, /x(?<!y)/, /(x)\1/]) {
-      // onResolve
+    for (const regexp of [/x(?=y)/, /x(?!y)/, /x(?<=y)/, /x(?<!y)/, /(x)\1/]) {
+      // onResolve regexp in filter
       try {
         await esbuild.build({
           entryPoints: ['invalid.js'],
@@ -117,16 +117,16 @@ let pluginTests = {
           plugins: [{
             name: 'name',
             setup(build) {
-              build.onResolve({ filter }, () => { })
+              build.onResolve({ filter: regexp }, () => { })
             },
           }],
         })
-        throw new Error(`Expected filter ${filter} to fail`)
+        throw new Error(`Expected filter ${regexp} to fail`)
       } catch (e) {
-        assert.strictEqual(e.message, `[name] "onResolve" filter is not a valid Go regular expression: ${JSON.stringify(filter.source)}`)
+        assert.strictEqual(e.message, `[name] "onResolve" filter is not a valid Go regular expression: ${JSON.stringify(regexp.source)}`)
       }
 
-      // onLoad
+      // onLoad regexp in filter
       try {
         await esbuild.build({
           entryPoints: ['invalid.js'],
@@ -134,13 +134,47 @@ let pluginTests = {
           plugins: [{
             name: 'name',
             setup(build) {
-              build.onLoad({ filter }, () => { })
+              build.onLoad({ filter: regexp }, () => { })
             },
           }],
         })
-        throw new Error(`Expected filter ${filter} to fail`)
+        throw new Error(`Expected filter ${regexp} to fail`)
       } catch (e) {
-        assert.strictEqual(e.message, `[name] "onLoad" filter is not a valid Go regular expression: ${JSON.stringify(filter.source)}`)
+        assert.strictEqual(e.message, `[name] "onLoad" filter is not a valid Go regular expression: ${JSON.stringify(regexp.source)}`)
+      }
+
+      // onResolve regexp in exclude
+      try {
+        await esbuild.build({
+          entryPoints: ['invalid.js'],
+          write: false,
+          plugins: [{
+            name: 'name',
+            setup(build) {
+              build.onResolve({ filter: /.?/, exclude: regexp }, () => { })
+            },
+          }],
+        })
+        throw new Error(`Expected exclude ${regexp} to fail`)
+      } catch (e) {
+        assert.strictEqual(e.message, `[name] "onResolve" exclude is not a valid Go regular expression: ${JSON.stringify(regexp.source)}`)
+      }
+
+      // onLoad regexp in exclude
+      try {
+        await esbuild.build({
+          entryPoints: ['invalid.js'],
+          write: false,
+          plugins: [{
+            name: 'name',
+            setup(build) {
+              build.onLoad({ filter: /.?/, exclude: regexp }, () => { })
+            },
+          }],
+        })
+        throw new Error(`Expected exclude ${regexp} to fail`)
+      } catch (e) {
+        assert.strictEqual(e.message, `[name] "onLoad" exclude is not a valid Go regular expression: ${JSON.stringify(regexp.source)}`)
       }
     }
   },
@@ -2266,6 +2300,62 @@ error: Invalid path suffix "%what" returned from plugin (must start with "?" or 
       onLoad: [
         { path: path.join(testDir, 'entry.js'), suffix: '?a' },
         { path: path.join(testDir, 'entry.js'), suffix: '?b' },
+      ],
+    }, null, 2)
+    if (observed !== expected) throw new Error(`Observed ${observed}, expected ${expected}`)
+  },
+
+  async excludeOptionOnResolveAndOnLoad({ testDir, esbuild }) {
+    const pathFor = (item) => path.join(testDir, `entry_${item}.js`)
+
+    for (let item of ['a', 'b', 'c']) {
+        await writeFileAsync(pathFor(item), `console.log('entry_${item}.js')`)
+    }
+
+    const onResolveSet = new Set()
+    const onLoadSet = new Set()
+    await esbuild.build({
+      stdin: {
+        resolveDir: testDir,
+        contents: `
+          import "./entry_a"
+          import "./entry_b"
+          import "./entry_c"
+        `,
+      },
+      bundle: true,
+      write: false,
+      plugins: [{
+        name: 'plugin',
+        setup(build) {
+          build.onResolve({ filter: /.*/, exclude: /_b$/ }, args => {
+            onResolveSet.add({ path: args.path })
+          })
+          build.onLoad({ filter: /.*/, exclude: /_b(\.js)?$/ }, args => {
+            onLoadSet.add({ path: args.path })
+          })
+        },
+      }],
+    })
+    const order = (a, b) => {
+      a = JSON.stringify(a)
+      b = JSON.stringify(b)
+      return (a > b) - (a < b)
+    }
+    const observed = JSON.stringify({
+      onResolve: [...onResolveSet].sort(order),
+      onLoad: [...onLoadSet].sort(order),
+    }, null, 2)
+    const expected = JSON.stringify({
+      onResolve: [
+        { path: './entry_a' },
+        // { path: './entry_b' }, should have been excluded via `exclude: /_b$/`
+        { path: './entry_c' },
+      ],
+      onLoad: [
+        { path: pathFor('a') },
+        // { path: pathFor('c') }, should have been excluded via `exclude: /_b(\.js)?$/`
+        { path: pathFor('c') },
       ],
     }, null, 2)
     if (observed !== expected) throw new Error(`Observed ${observed}, expected ${expected}`)

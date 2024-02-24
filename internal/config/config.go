@@ -683,22 +683,22 @@ type InjectableExport struct {
 	Loc   logger.Loc
 }
 
-var filterMutex sync.Mutex
-var filterCache map[string]*regexp.Regexp
+var regexpMutex sync.Mutex
+var regexpCache map[string]*regexp.Regexp
 
-func compileFilter(filter string) (result *regexp.Regexp) {
-	if filter == "" {
-		// Must provide a filter
+func compileRegexp(value string) (result *regexp.Regexp) {
+	if value == "" {
+		// Must not be empty
 		return nil
 	}
 	ok := false
 
 	// Cache hit?
 	(func() {
-		filterMutex.Lock()
-		defer filterMutex.Unlock()
-		if filterCache != nil {
-			result, ok = filterCache[filter]
+		regexpMutex.Lock()
+		defer regexpMutex.Unlock()
+		if regexpCache != nil {
+			result, ok = regexpCache[value]
 		}
 	})()
 	if ok {
@@ -706,18 +706,18 @@ func compileFilter(filter string) (result *regexp.Regexp) {
 	}
 
 	// Cache miss
-	result, err := regexp.Compile(filter)
+	result, err := regexp.Compile(value)
 	if err != nil {
 		return nil
 	}
 
 	// Cache for next time
-	filterMutex.Lock()
-	defer filterMutex.Unlock()
-	if filterCache == nil {
-		filterCache = make(map[string]*regexp.Regexp)
+	regexpMutex.Lock()
+	defer regexpMutex.Unlock()
+	if regexpCache == nil {
+		regexpCache = make(map[string]*regexp.Regexp)
 	}
-	filterCache[filter] = result
+	regexpCache[value] = result
 	return
 }
 
@@ -726,7 +726,7 @@ func CompileFilterForPlugin(pluginName string, kind string, filter string) (*reg
 		return nil, fmt.Errorf("[%s] %q is missing a filter", pluginName, kind)
 	}
 
-	result := compileFilter(filter)
+	result := compileRegexp(filter)
 	if result == nil {
 		return nil, fmt.Errorf("[%s] %q filter is not a valid Go regular expression: %q", pluginName, kind, filter)
 	}
@@ -734,8 +734,24 @@ func CompileFilterForPlugin(pluginName string, kind string, filter string) (*reg
 	return result, nil
 }
 
-func PluginAppliesToPath(path logger.Path, filter *regexp.Regexp, namespace string) bool {
-	return (namespace == "" || path.Namespace == namespace) && filter.MatchString(path.Text)
+func CompileExcludeForPlugin(pluginName string, kind string, exclude string) (*regexp.Regexp, error) {
+	if exclude == "" {
+		// exclude regex is optional
+		return nil, nil
+	}
+
+	result := compileRegexp(exclude)
+	if result == nil {
+		return nil, fmt.Errorf("[%s] %q exclude is not a valid Go regular expression: %q", pluginName, kind, exclude)
+	}
+
+	return result, nil
+}
+
+func PluginAppliesToPath(path logger.Path, filter *regexp.Regexp, exclude *regexp.Regexp, namespace string) bool {
+	return (namespace == "" || path.Namespace == namespace) &&
+	  	filter.MatchString(path.Text) &&
+		(exclude == nil || !exclude.MatchString(path.Text))
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -760,6 +776,7 @@ type OnStartResult struct {
 
 type OnResolve struct {
 	Filter    *regexp.Regexp
+	Exclude   *regexp.Regexp
 	Callback  func(OnResolveArgs) OnResolveResult
 	Name      string
 	Namespace string
@@ -790,6 +807,7 @@ type OnResolveResult struct {
 
 type OnLoad struct {
 	Filter    *regexp.Regexp
+	Exclude   *regexp.Regexp
 	Callback  func(OnLoadArgs) OnLoadResult
 	Name      string
 	Namespace string

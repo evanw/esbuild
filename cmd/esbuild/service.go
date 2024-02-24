@@ -829,6 +829,7 @@ func stringToResolveKind(kind string) (api.ResolveKind, bool) {
 func (service *serviceType) convertPlugins(key int, jsPlugins interface{}, activeBuild *activeBuild) ([]api.Plugin, bool, error) {
 	type filteredCallback struct {
 		filter     *regexp.Regexp
+		exclude    *regexp.Regexp
 		pluginName string
 		namespace  string
 		id         int
@@ -846,10 +847,16 @@ func (service *serviceType) convertPlugins(key int, jsPlugins interface{}, activ
 			if err != nil {
 				return nil, err
 			}
+			exclude, err := config.CompileExcludeForPlugin(pluginName, kind, item["exclude"].(string))
+			if err != nil {
+				return nil, err
+			}
+
 			result = append(result, filteredCallback{
 				pluginName: pluginName,
 				id:         item["id"].(int),
 				filter:     filter,
+				exclude:    exclude,
 				namespace:  item["namespace"].(string),
 			})
 		}
@@ -960,7 +967,7 @@ func (service *serviceType) convertPlugins(key int, jsPlugins interface{}, activ
 					var ids []interface{}
 					applyPath := logger.Path{Text: args.Path, Namespace: args.Namespace}
 					for _, item := range onResolveCallbacks {
-						if config.PluginAppliesToPath(applyPath, item.filter, item.namespace) {
+						if config.PluginAppliesToPath(applyPath, item.filter, item.exclude, item.namespace) {
 							ids = append(ids, item.id)
 						}
 					}
@@ -1045,7 +1052,7 @@ func (service *serviceType) convertPlugins(key int, jsPlugins interface{}, activ
 					var ids []interface{}
 					applyPath := logger.Path{Text: args.Path, Namespace: args.Namespace}
 					for _, item := range onLoadCallbacks {
-						if config.PluginAppliesToPath(applyPath, item.filter, item.namespace) {
+						if config.PluginAppliesToPath(applyPath, item.filter, item.exclude, item.namespace) {
 							ids = append(ids, item.id)
 						}
 					}
