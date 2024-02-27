@@ -42,6 +42,7 @@ export const knownUnixlikePackages: Record<string, string> = {
   'linux x64 LE': '@esbuild/linux-x64',
   'linux loong64 LE': '@esbuild/linux-loong64',
   'netbsd x64 LE': '@esbuild/netbsd-x64',
+  'openbsd arm64 LE': '@esbuild/openbsd-arm64',
   'openbsd x64 LE': '@esbuild/openbsd-x64',
   'sunos x64 LE': '@esbuild/sunos-x64',
 }

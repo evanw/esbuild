@@ -11,6 +11,7 @@ case $platform in
   'Linux arm64' | 'Linux aarch64') curl -fo "$tgz" "https://registry.npmjs.org/@esbuild/linux-arm64/-/linux-arm64-$ESBUILD_VERSION.tgz";;
   'Linux x86_64') curl -fo "$tgz" "https://registry.npmjs.org/@esbuild/linux-x64/-/linux-x64-$ESBUILD_VERSION.tgz";;
   'NetBSD amd64') curl -fo "$tgz" "https://registry.npmjs.org/@esbuild/netbsd-x64/-/netbsd-x64-$ESBUILD_VERSION.tgz";;
+  'OpenBSD arm64') curl -fo "$tgz" "https://registry.npmjs.org/@esbuild/openbsd-arm64/-/openbsd-arm64-$ESBUILD_VERSION.tgz";;
   'OpenBSD amd64') curl -fo "$tgz" "https://registry.npmjs.org/@esbuild/openbsd-x64/-/openbsd-x64-$ESBUILD_VERSION.tgz";;
   *) echo "error: Unsupported platform: $platform"; exit 1
 esac
