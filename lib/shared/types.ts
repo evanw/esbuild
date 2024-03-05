@@ -635,6 +635,12 @@ export declare function analyzeMetafileSync(metafile: Metafile | string, options
  */
 export declare function initialize(options: InitializeOptions): Promise<void>
 
+declare global {
+  namespace WebAssembly {
+    interface Module {}
+  }
+}
+
 export interface InitializeOptions {
   /**
    * The URL of the "esbuild.wasm" file. This must be provided when running
