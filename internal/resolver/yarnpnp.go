@@ -370,7 +370,7 @@ func (r resolverQuery) resolveViaFallback(manifest *pnpData, ident string) (pnpI
 	// Let referenceOrAlias be the entry from manifest.fallbackPool referenced by ident
 	referenceOrAlias, ok = manifest.fallbackPool[ident]
 
-	// Return it immediatly, whether it's defined or not
+	// Return it immediately, whether it's defined or not
 	if r.debugLogs != nil {
 		if ok {
 			r.debugLogs.addNote(fmt.Sprintf("    Found fallback for %q in \"fallbackPool\": [%s, %s]", ident,

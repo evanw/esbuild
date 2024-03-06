@@ -3370,7 +3370,7 @@ type cssImportOrder struct {
 // The only exception to this is "@layer". Evaluating a CSS file multiple
 // times is sort of equivalent to evaluating it once at the first location
 // as far as "@layer" is concerned. So we may in some cases keep both the
-// first and and last locations and only write out the "@layer" information
+// first and last locations and only write out the "@layer" information
 // for the first location.
 func (c *linkerContext) findImportedFilesInCSSOrder(entryPoints []uint32) (order []cssImportOrder) {
 	var visit func(uint32, []uint32, []css_ast.ImportConditions, []ast.ImportRecord)
@@ -3778,7 +3778,7 @@ func importConditionsAreEqual(a []css_ast.ImportConditions, b []css_ast.ImportCo
 // For "lib.css", the entry with the conditions [supports(display: flex)] should
 // make the entry with the conditions [supports(display: flex), screen] redundant.
 //
-// Note that all of this deliberately ignores the existance of "@layer" because
+// Note that all of this deliberately ignores the existence of "@layer" because
 // that is handled separately. All of this is only for handling unlayered styles.
 func isConditionalImportRedundant(earlier []css_ast.ImportConditions, later []css_ast.ImportConditions) bool {
 	if len(later) > len(earlier) {
