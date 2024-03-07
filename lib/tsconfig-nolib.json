@@ -1,0 +1,11 @@
+{
+  "compilerOptions": {
+    "module": "CommonJS", // Allow the "import assignment" syntax
+    "target": "es2017", // Allow calling APIs such as "Object.entries"
+    "strict": true,
+    "lib": [], // Omit "dom" to test what happens with the "WebAssembly" type, which is defined in "dom"
+  },
+  "include": [
+    "shared/types.ts",
+  ],
+}
