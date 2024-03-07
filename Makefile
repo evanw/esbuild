@@ -107,10 +107,13 @@ test-old-ts: platform-neutral | require/old-ts/node_modules
 node-unref-tests: | scripts/node_modules
 	node scripts/node-unref-tests.js
 
-lib-typecheck: lib-typecheck-node lib-typecheck-deno
+lib-typecheck: lib-typecheck-node lib-typecheck-node-nolib lib-typecheck-deno
 
 lib-typecheck-node: | lib/node_modules
 	cd lib && node_modules/.bin/tsc -noEmit -p tsconfig.json
+
+lib-typecheck-node-nolib: | lib/node_modules
+	cd lib && node_modules/.bin/tsc -noEmit -p tsconfig-nolib.json
 
 lib-typecheck-deno: lib/deno/lib.deno.d.ts | lib/node_modules
 	cd lib && node_modules/.bin/tsc -noEmit -p tsconfig-deno.json
