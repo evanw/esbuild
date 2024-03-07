@@ -35,6 +35,16 @@
     })(Foo || {});
     ```
 
+* Work around issues with Deno 1.31+ ([#3682](https://github.com/evanw/esbuild/issues/3682))
+
+    Version 0.20.0 of esbuild changed how the esbuild child process is run in esbuild's API for Deno. Previously it used `Deno.run` but that API is being removed in favor of `Deno.Command`. As part of this change, esbuild is now calling the new `unref` function on esbuild's long-lived child process, which is supposed to allow Deno to exit when your code has finished running even though the child process is still around (previously you had to explicitly call esbuild's `stop()` function to terminate the child process for Deno to be able to exit).
+
+    However, this introduced a problem for Deno's testing API which now fails some tests that use esbuild with `error: Promise resolution is still pending but the event loop has already resolved`. It's unclear to me why this is happening. The call to `unref` was recommended by someone on the Deno core team, and calling Node's equivalent `unref` API has been working fine for esbuild in Node for a long time. It could be that I'm using it incorrectly, or that there's some reference counting and/or garbage collection bug in Deno's internals, or that Deno's `unref` just works differently than Node's `unref`. In any case, it's not good for Deno tests that use esbuild to be failing.
+
+    In this release, I am removing the call to `unref` to fix this issue. This means that you will now have to call esbuild's `stop()` function to allow Deno to exit, just like you did before esbuild version 0.20.0 when this regression was introduced.
+
+    Note: This regression wasn't caught earlier because Deno doesn't seem to fail tests that have outstanding `setTimeout` calls, which esbuild's test harness was using to enforce a maximum test runtime. Adding a `setTimeout` was allowing esbuild's Deno tests to succeed. So this regression doesn't necessarily apply to all people using tests in Deno.
+
 ## 0.20.1
 
 * Fix a bug with the CSS nesting transform ([#3648](https://github.com/evanw/esbuild/issues/3648))

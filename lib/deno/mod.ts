@@ -192,8 +192,6 @@ type SpawnFn = (cmd: string, options: {
   read(): Promise<Uint8Array | null>
   close(): Promise<void> | void
   status(): Promise<{ code: number }>
-  unref(): void
-  ref(): void
 }
 
 // Deno ≥1.40
@@ -235,8 +233,6 @@ const spawnNew: SpawnFn = (cmd, { args, stdin, stdout, stderr }) => {
       await child.status
     },
     status: () => child.status,
-    unref: () => child.unref(),
-    ref: () => child.ref(),
   }
 }
 
@@ -277,8 +273,6 @@ const spawnOld: SpawnFn = (cmd, { args, stdin, stdout, stderr }) => {
       child.close()
     },
     status: () => child.status(),
-    unref: () => { },
-    ref: () => { },
   }
 }
 
@@ -334,20 +328,12 @@ const ensureServiceIsRunning = (): Promise<Service> => {
       })
       readMoreStdout()
 
-      let refCount = 0
-      child.unref() // Allow Deno to exit when esbuild is running
-
-      const refs: common.Refs = {
-        ref() { if (++refCount === 1) child.ref(); },
-        unref() { if (--refCount === 0) child.unref(); },
-      }
-
       return {
         build: (options: types.BuildOptions) =>
           new Promise<types.BuildResult>((resolve, reject) => {
             service.buildOrContext({
               callName: 'build',
-              refs,
+              refs: null,
               options,
               isTTY,
               defaultWD,
@@ -359,7 +345,7 @@ const ensureServiceIsRunning = (): Promise<Service> => {
           new Promise<types.BuildContext>((resolve, reject) =>
             service.buildOrContext({
               callName: 'context',
-              refs,
+              refs: null,
               options,
               isTTY,
               defaultWD,
@@ -370,7 +356,7 @@ const ensureServiceIsRunning = (): Promise<Service> => {
           new Promise<types.TransformResult>((resolve, reject) =>
             service.transform({
               callName: 'transform',
-              refs,
+              refs: null,
               input,
               options: options || {},
               isTTY,
@@ -403,7 +389,7 @@ const ensureServiceIsRunning = (): Promise<Service> => {
           new Promise((resolve, reject) =>
             service.formatMessages({
               callName: 'formatMessages',
-              refs,
+              refs: null,
               messages,
               options,
               callback: (err, res) => err ? reject(err) : resolve(res!),
@@ -413,7 +399,7 @@ const ensureServiceIsRunning = (): Promise<Service> => {
           new Promise((resolve, reject) =>
             service.analyzeMetafile({
               callName: 'analyzeMetafile',
-              refs,
+              refs: null,
               metafile: typeof metafile === 'string' ? metafile : JSON.stringify(metafile),
               options,
               callback: (err, res) => err ? reject(err) : resolve(res!),
