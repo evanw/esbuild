@@ -2064,6 +2064,9 @@ func TestDecorators(t *testing.T) {
 	expectParseError(t, "@x export @y class Foo {}", "<stdin>: ERROR: Decorators are not valid here\n")
 	expectParseError(t, "@x export default abstract", "<stdin>: ERROR: Decorators are not valid here\n")
 	expectParseError(t, "@x export @y default class {}", "<stdin>: ERROR: Decorators are not valid here\n<stdin>: ERROR: Unexpected \"default\"\n")
+
+	// Disallow TypeScript syntax in JavaScript
+	expectParseError(t, "@x!.y!.z class Foo {}", "<stdin>: ERROR: Unexpected \"!\"\n")
 }
 
 func TestGenerator(t *testing.T) {

@@ -6713,50 +6713,60 @@ func (p *parser) parseDecorator() js_ast.Expr {
 
 	memberExpr := js_ast.Expr{Loc: nameRange.Loc, Data: &js_ast.EIdentifier{Ref: p.storeNameInRef(name)}}
 
-	// "@x<y>() class{}"
-	if p.options.ts.Parse {
-		p.skipTypeScriptTypeArguments(skipTypeScriptTypeArgumentsOpts{})
-	}
-
-	for p.lexer.Token == js_lexer.TDot {
-		p.lexer.Next()
-
-		if p.lexer.Token == js_lexer.TPrivateIdentifier {
-			name := p.lexer.Identifier
-			memberExpr.Data = &js_ast.EIndex{
-				Target: memberExpr,
-				Index:  js_ast.Expr{Loc: p.lexer.Loc(), Data: &js_ast.EPrivateIdentifier{Ref: p.storeNameInRef(name)}},
+loop:
+	for {
+		switch p.lexer.Token {
+		case js_lexer.TExclamation:
+			// Skip over TypeScript non-null assertions
+			if p.lexer.HasNewlineBefore {
+				break loop
 			}
-			p.reportPrivateNameUsage(name.String)
+			if !p.options.ts.Parse {
+				p.lexer.Unexpected()
+			}
 			p.lexer.Next()
-		} else {
-			memberExpr.Data = &js_ast.EDot{
-				Target:  memberExpr,
-				Name:    p.lexer.Identifier.String,
-				NameLoc: p.lexer.Loc(),
+
+		case js_lexer.TDot:
+			p.lexer.Next()
+
+			if p.lexer.Token == js_lexer.TPrivateIdentifier {
+				name := p.lexer.Identifier
+				memberExpr.Data = &js_ast.EIndex{
+					Target: memberExpr,
+					Index:  js_ast.Expr{Loc: p.lexer.Loc(), Data: &js_ast.EPrivateIdentifier{Ref: p.storeNameInRef(name)}},
+				}
+				p.reportPrivateNameUsage(name.String)
+				p.lexer.Next()
+			} else {
+				memberExpr.Data = &js_ast.EDot{
+					Target:  memberExpr,
+					Name:    p.lexer.Identifier.String,
+					NameLoc: p.lexer.Loc(),
+				}
+				p.lexer.Expect(js_lexer.TIdentifier)
 			}
-			p.lexer.Expect(js_lexer.TIdentifier)
-		}
 
-		// "@x.y<z>() class{}"
-		if p.options.ts.Parse {
-			p.skipTypeScriptTypeArguments(skipTypeScriptTypeArgumentsOpts{})
-		}
-	}
+		case js_lexer.TQuestionDot:
+			// The grammar for "DecoratorMemberExpression" currently forbids "?."
+			p.lexer.Expect(js_lexer.TDot)
 
-	// The grammar for "DecoratorMemberExpression" currently forbids "?."
-	if p.lexer.Token == js_lexer.TQuestionDot {
-		p.lexer.Expect(js_lexer.TDot)
-	}
+		case js_lexer.TOpenParen:
+			args, closeParenLoc, isMultiLine := p.parseCallArgs()
+			memberExpr.Data = &js_ast.ECall{
+				Target:        memberExpr,
+				Args:          args,
+				CloseParenLoc: closeParenLoc,
+				IsMultiLine:   isMultiLine,
+				Kind:          js_ast.TargetWasOriginallyPropertyAccess,
+			}
+			break loop
 
-	if p.lexer.Token == js_lexer.TOpenParen {
-		args, closeParenLoc, isMultiLine := p.parseCallArgs()
-		memberExpr.Data = &js_ast.ECall{
-			Target:        memberExpr,
-			Args:          args,
-			CloseParenLoc: closeParenLoc,
-			IsMultiLine:   isMultiLine,
-			Kind:          js_ast.TargetWasOriginallyPropertyAccess,
+		default:
+			// "@x<y>"
+			// "@x.y<z>"
+			if !p.skipTypeScriptTypeArguments(skipTypeScriptTypeArgumentsOpts{}) {
+				break loop
+			}
 		}
 	}
 
