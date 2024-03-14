@@ -6713,6 +6713,10 @@ func (p *parser) parseDecorator() js_ast.Expr {
 
 	memberExpr := js_ast.Expr{Loc: nameRange.Loc, Data: &js_ast.EIdentifier{Ref: p.storeNameInRef(name)}}
 
+	// Custom error reporting for error recovery
+	var syntaxError logger.MsgData
+	wrapRange := nameRange
+
 loop:
 	for {
 		switch p.lexer.Token {
@@ -6724,10 +6728,17 @@ loop:
 			if !p.options.ts.Parse {
 				p.lexer.Unexpected()
 			}
+			wrapRange.Len = p.lexer.Range().End() - wrapRange.Loc.Start
 			p.lexer.Next()
 
-		case js_lexer.TDot:
+		case js_lexer.TDot, js_lexer.TQuestionDot:
+			// The grammar for "DecoratorMemberExpression" currently forbids "?."
+			if p.lexer.Token == js_lexer.TQuestionDot && syntaxError.Location == nil {
+				syntaxError = p.tracker.MsgData(p.lexer.Range(), "JavaScript decorator syntax does not allow \"?.\" here")
+			}
+
 			p.lexer.Next()
+			wrapRange.Len = p.lexer.Range().End() - wrapRange.Loc.Start
 
 			if p.lexer.Token == js_lexer.TPrivateIdentifier {
 				name := p.lexer.Identifier
@@ -6746,10 +6757,6 @@ loop:
 				p.lexer.Expect(js_lexer.TIdentifier)
 			}
 
-		case js_lexer.TQuestionDot:
-			// The grammar for "DecoratorMemberExpression" currently forbids "?."
-			p.lexer.Expect(js_lexer.TDot)
-
 		case js_lexer.TOpenParen:
 			args, closeParenLoc, isMultiLine := p.parseCallArgs()
 			memberExpr.Data = &js_ast.ECall{
@@ -6758,6 +6765,15 @@ loop:
 				CloseParenLoc: closeParenLoc,
 				IsMultiLine:   isMultiLine,
 				Kind:          js_ast.TargetWasOriginallyPropertyAccess,
+			}
+			wrapRange.Len = closeParenLoc.Start + 1 - wrapRange.Loc.Start
+
+			// The grammar for "DecoratorCallExpression" currently forbids anything after it
+			if p.lexer.Token == js_lexer.TDot {
+				if syntaxError.Location == nil {
+					syntaxError = p.tracker.MsgData(p.lexer.Range(), "JavaScript decorator syntax does not allow \".\" after a call expression")
+				}
+				continue
 			}
 			break loop
 
@@ -6768,6 +6784,21 @@ loop:
 				break loop
 			}
 		}
+	}
+
+	// Suggest that non-decorator expressions be wrapped in parentheses
+	if syntaxError.Location != nil {
+		var notes []logger.MsgData
+		if text := p.source.TextForRange(wrapRange); !strings.ContainsRune(text, '\n') {
+			note := p.tracker.MsgData(wrapRange, "Wrap this decorator in parentheses to allow arbitrary expressions:")
+			note.Location.Suggestion = fmt.Sprintf("(%s)", text)
+			notes = []logger.MsgData{note}
+		}
+		p.log.AddMsg(logger.Msg{
+			Kind:  logger.Error,
+			Data:  syntaxError,
+			Notes: notes,
+		})
 	}
 
 	return memberExpr
