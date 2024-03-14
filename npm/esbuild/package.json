@@ -36,7 +36,7 @@
     "@esbuild/linux-s390x": "0.20.1",
     "@esbuild/linux-x64": "0.20.1",
     "@esbuild/netbsd-x64": "0.20.1",
-		"@esbuild/openbsd-arm64": "0.20.1",
+    "@esbuild/openbsd-arm64": "0.20.1",
     "@esbuild/openbsd-x64": "0.20.1",
     "@esbuild/sunos-x64": "0.20.1",
     "@esbuild/win32-arm64": "0.20.1",
