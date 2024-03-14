@@ -8586,7 +8586,7 @@ func (p *parser) visitStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt {
 		for _, stmt := range before {
 			s, ok := stmt.Data.(*js_ast.SFunction)
 			if !ok {
-				// We may get non-function statements here in certain scenarious such as when "KeepNames" is enabled
+				// We may get non-function statements here in certain scenarios such as when "KeepNames" is enabled
 				nonFnStmts = append(nonFnStmts, stmt)
 				continue
 			}
