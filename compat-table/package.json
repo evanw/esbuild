@@ -1,12 +1,12 @@
 {
   "githubDependencies": {
     "kangax/compat-table": "1a1ccdc02b8b2158ab39a6146d8a7308f43c830b",
-    "williamkapke/node-compat-table": "cd9bf26864ac83dea133bf50059c5eb81e4518df"
+    "williamkapke/node-compat-table": "5159c0eea28c61b3a6795ac6cebe388e3a5fdc1b"
   },
   "dependencies": {
-    "@mdn/browser-compat-data": "5.5.4",
+    "@mdn/browser-compat-data": "5.5.15",
     "@types/caniuse-lite": "1.0.1",
     "@types/node": "20.3.2",
-    "caniuse-lite": "1.0.30001574"
+    "caniuse-lite": "1.0.30001597"
   }
 }
