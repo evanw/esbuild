@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.20.2
 
 * Support TypeScript experimental decorators on `abstract` class fields ([#3684](https://github.com/evanw/esbuild/issues/3684))
 
