@@ -65,6 +65,10 @@
     })(Foo || {});
     ```
 
+* Handle Yarn Plug'n'Play edge case with `tsconfig.json` ([#3698](https://github.com/evanw/esbuild/issues/3698))
+
+    Previously a `tsconfig.json` file that `extends` another file in a package with an `exports` map failed to work when Yarn's Plug'n'Play resolution was active. This edge case should work now starting with this release.
+
 * Work around issues with Deno 1.31+ ([#3682](https://github.com/evanw/esbuild/issues/3682))
 
     Version 0.20.0 of esbuild changed how the esbuild child process is run in esbuild's API for Deno. Previously it used `Deno.run` but that API is being removed in favor of `Deno.Command`. As part of this change, esbuild is now calling the new `unref` function on esbuild's long-lived child process, which is supposed to allow Deno to exit when your code has finished running even though the child process is still around (previously you had to explicitly call esbuild's `stop()` function to terminate the child process for Deno to be able to exit).

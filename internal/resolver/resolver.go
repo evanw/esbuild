@@ -1269,6 +1269,26 @@ func (r resolverQuery) parseTSConfigFromSource(source logger.Source, visited map
 					}
 					goto pnpError
 				} else if result.status == pnpSuccess {
+					// If Yarn PnP path resolution succeeded, run a custom abbreviated
+					// version of node's module resolution algorithm. The Yarn PnP
+					// specification says to use node's module resolution algorithm verbatim
+					// but that isn't what Yarn actually does. See this for more info:
+					// https://github.com/evanw/esbuild/issues/2473#issuecomment-1216774461
+					if entries, _, dirErr := r.fs.ReadDirectory(result.pkgDirPath); dirErr == nil {
+						if entry, _ := entries.Get("package.json"); entry != nil && entry.Kind(r.fs) == fs.FileEntry {
+							// Check the "exports" map
+							if packageJSON := r.parsePackageJSON(result.pkgDirPath); packageJSON != nil && packageJSON.exportsMap != nil {
+								if absolute, ok, _ := r.esmResolveAlgorithm(result.pkgIdent, "."+result.pkgSubpath, packageJSON, result.pkgDirPath, source.KeyPath.Text); ok {
+									base, err := r.parseTSConfig(absolute.Primary.Text, visited)
+									if result, shouldReturn := maybeFinishOurSearch(base, err, absolute.Primary.Text); shouldReturn {
+										return result
+									}
+								}
+								goto pnpError
+							}
+						}
+					}
+
 					// Continue with the module resolution algorithm from node.js
 					extends = r.fs.Join(result.pkgDirPath, result.pkgSubpath)
 				}
