@@ -328,6 +328,9 @@ func NewResolver(call config.APICall, fs fs.FS, log logger.Log, caches *cache.Ca
 			visited = make(map[string]bool)
 		}
 		if options.TSConfigPath != "" {
+			if r.log.Level <= logger.LevelDebug {
+				r.debugLogs = &debugLogs{what: fmt.Sprintf("Resolving tsconfig file %q", options.TSConfigPath)}
+			}
 			res.tsConfigOverride, err = r.parseTSConfig(options.TSConfigPath, visited)
 		} else {
 			source := logger.Source{
@@ -345,6 +348,8 @@ func NewResolver(call config.APICall, fs fs.FS, log logger.Log, caches *cache.Ca
 				r.log.AddError(nil, logger.Range{}, fmt.Sprintf("Cannot read file %q: %s",
 					PrettyPath(r.fs, logger.Path{Text: options.TSConfigPath, Namespace: "file"}), err.Error()))
 			}
+		} else {
+			r.flushDebugLogs(flushDueToSuccess)
 		}
 	}
 
@@ -1402,8 +1407,12 @@ func (r resolverQuery) parseTSConfigFromSource(source logger.Source, visited map
 		// Suppress warnings about missing base config files inside "node_modules"
 	pnpError:
 		if !helpers.IsInsideNodeModules(source.KeyPath.Text) {
-			r.log.AddID(logger.MsgID_TSConfigJSON_Missing, logger.Warning, &tracker, extendsRange,
-				fmt.Sprintf("Cannot find base config file %q", extends))
+			var notes []logger.MsgData
+			if r.debugLogs != nil {
+				notes = r.debugLogs.notes
+			}
+			r.log.AddIDWithNotes(logger.MsgID_TSConfigJSON_Missing, logger.Warning, &tracker, extendsRange,
+				fmt.Sprintf("Cannot find base config file %q", extends), notes)
 		}
 
 		return nil
