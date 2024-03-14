@@ -1062,10 +1062,10 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 			}
 		}
 
-		// If the field uses the TypeScript "declare" keyword, just omit it entirely.
-		// However, we must still keep any side-effects in the computed value and/or
-		// in the decorators.
-		if prop.Kind == js_ast.PropertyDeclare && prop.ValueOrNil.Data == nil {
+		// If the field uses the TypeScript "declare" or "abstract" keyword, just
+		// omit it entirely. However, we must still keep any side-effects in the
+		// computed value and/or in the decorators.
+		if prop.Kind == js_ast.PropertyDeclareOrAbstract && prop.ValueOrNil.Data == nil {
 			mustLowerField = true
 			shouldOmitFieldInitializer = true
 		}

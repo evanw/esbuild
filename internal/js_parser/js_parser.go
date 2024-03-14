@@ -2204,7 +2204,7 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 							//   https://github.com/evanw/esbuild/issues/1675
 							//   https://github.com/microsoft/TypeScript/issues/46345
 							//
-							prop.Kind = js_ast.PropertyDeclare
+							prop.Kind = js_ast.PropertyDeclareOrAbstract
 							return prop, true
 						}
 
@@ -2216,7 +2216,33 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 					if !p.lexer.HasNewlineBefore && opts.isClass && p.options.ts.Parse && !opts.isTSAbstract && raw == name.String {
 						opts.isTSAbstract = true
 						scopeIndex := len(p.scopesInOrder)
-						p.parseProperty(startLoc, kind, opts, nil)
+
+						if prop, ok := p.parseProperty(startLoc, kind, opts, nil); ok &&
+							prop.Kind == js_ast.PropertyNormal && prop.ValueOrNil.Data == nil &&
+							(p.options.ts.Config.ExperimentalDecorators == config.True && len(opts.decorators) > 0) {
+							// If this is a well-formed class field with the "abstract" keyword,
+							// only keep the declaration to preserve its side-effects when
+							// there are TypeScript experimental decorators present:
+							//
+							//   abstract class Foo {
+							//     // Remove this
+							//     abstract [(console.log('side effect 1'), 'foo')]
+							//
+							//     // Keep this
+							//     @decorator(console.log('side effect 2')) abstract bar
+							//   }
+							//
+							// This behavior is valid with TypeScript experimental decorators.
+							// TypeScript does not allow this with JavaScript decorators.
+							//
+							// References:
+							//
+							//   https://github.com/evanw/esbuild/issues/3684
+							//
+							prop.Kind = js_ast.PropertyDeclareOrAbstract
+							return prop, true
+						}
+
 						p.discardScopesUpTo(scopeIndex)
 						return js_ast.Property{}, false
 					}

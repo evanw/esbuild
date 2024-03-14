@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+* Support TypeScript experimental decorators on `abstract` class fields ([#3684](https://github.com/evanw/esbuild/issues/3684))
+
+    With this release, you can now use TypeScript experimental decorators on `abstract` class fields. This was silently compiled incorrectly in esbuild 0.19.7 and below, and was an error from esbuild 0.19.8 to esbuild 0.20.1. Code such as the following should now work correctly:
+
+    ```ts
+    // Original code
+    const log = (x: any, y: string) => console.log(y)
+    abstract class Foo { @log abstract foo: string }
+    new class extends Foo { foo = '' }
+
+    // Old output (with --loader=ts --tsconfig-raw={\"compilerOptions\":{\"experimentalDecorators\":true}})
+    const log = (x, y) => console.log(y);
+    class Foo {
+    }
+    new class extends Foo {
+      foo = "";
+    }();
+
+    // New output (with --loader=ts --tsconfig-raw={\"compilerOptions\":{\"experimentalDecorators\":true}})
+    const log = (x, y) => console.log(y);
+    class Foo {
+    }
+    __decorateClass([
+      log
+    ], Foo.prototype, "foo", 2);
+    new class extends Foo {
+      foo = "";
+    }();
+    ```
+
 * Improve dead code removal of `switch` statements ([#3659](https://github.com/evanw/esbuild/issues/3659))
 
     With this release, esbuild will now remove `switch` statements in branches when minifying if they are known to never be evaluated:
