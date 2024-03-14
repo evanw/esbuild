@@ -276,25 +276,6 @@ func validateLoader(value Loader) config.Loader {
 	}
 }
 
-func validateEngine(value EngineName) compat.Engine {
-	switch value {
-	case EngineChrome:
-		return compat.Chrome
-	case EngineEdge:
-		return compat.Edge
-	case EngineFirefox:
-		return compat.Firefox
-	case EngineIOS:
-		return compat.IOS
-	case EngineNode:
-		return compat.Node
-	case EngineSafari:
-		return compat.Safari
-	default:
-		panic("Invalid loader")
-	}
-}
-
 var versionRegex = regexp.MustCompile(`^([0-9]+)(?:\.([0-9]+))?(?:\.([0-9]+))?(-[A-Za-z0-9]+(?:\.[A-Za-z0-9]+)*)?$`)
 
 func validateFeatures(log logger.Log, target Target, engines []Engine) (compat.JSFeature, compat.CSSFeature, map[css_ast.D]compat.CSSPrefix, string) {
@@ -452,37 +433,6 @@ func validateExternals(log logger.Log, fs fs.FS, paths []string) config.External
 	}
 
 	return result
-}
-
-func esmParsePackageName(packageSpecifier string) (packageName string, packageSubpath string, ok bool) {
-	if packageSpecifier == "" {
-		return
-	}
-
-	slash := strings.IndexByte(packageSpecifier, '/')
-	if !strings.HasPrefix(packageSpecifier, "@") {
-		if slash == -1 {
-			slash = len(packageSpecifier)
-		}
-		packageName = packageSpecifier[:slash]
-	} else {
-		if slash == -1 {
-			return
-		}
-		slash2 := strings.IndexByte(packageSpecifier[slash+1:], '/')
-		if slash2 == -1 {
-			slash2 = len(packageSpecifier[slash+1:])
-		}
-		packageName = packageSpecifier[:slash+1+slash2]
-	}
-
-	if strings.HasPrefix(packageName, ".") || strings.ContainsAny(packageName, "\\%") {
-		return
-	}
-
-	packageSubpath = "." + packageSpecifier[len(packageName):]
-	ok = true
-	return
 }
 
 func validateAlias(log logger.Log, fs fs.FS, alias map[string]string) map[string]string {
