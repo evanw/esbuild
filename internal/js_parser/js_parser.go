@@ -7095,7 +7095,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		if !p.options.ts.Parse {
 			p.lexer.Unexpected()
 		}
-		return p.parseTypeScriptEnumStmt(loc, opts)
+		return p.parseTypeScriptEnumStmt(loc, opts, false)
 
 	case js_lexer.TAt:
 		// Parse decorators before class statements, which are potentially exported
@@ -7176,7 +7176,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		p.lexer.Next()
 
 		if p.options.ts.Parse && p.lexer.Token == js_lexer.TEnum {
-			return p.parseTypeScriptEnumStmt(loc, opts)
+			return p.parseTypeScriptEnumStmt(loc, opts, true)
 		}
 
 		decls := p.parseAndDeclareDecls(ast.SymbolConst, opts)
@@ -10940,8 +10940,8 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			}
 			p.recordUsage(s.Arg)
 
-			// String-valued enums do not form a two-way map
-			if hasStringValue {
+			// Const-based and string-valued enums do not form a two-way map
+			if hasStringValue || s.IsConst {
 				valueExprs = append(valueExprs, assignTarget)
 			} else {
 				// "Enum[assignTarget] = 'Name'"
@@ -10969,7 +10969,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 
 		// Wrap this enum definition in a closure
 		stmts = p.generateClosureForTypeScriptEnum(
-			stmts, stmt.Loc, s.IsExport, s.Name.Loc, s.Name.Ref, s.Arg, valueExprs, allValuesArePure)
+			stmts, stmt.Loc, s.IsConst, s.IsExport, s.Name.Loc, s.Name.Ref, s.Arg, valueExprs, allValuesArePure)
 		return stmts
 
 	case *js_ast.SNamespace:
