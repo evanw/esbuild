@@ -3,6 +3,7 @@ package js_parser
 import (
 	"fmt"
 
+	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_lexer"
@@ -142,6 +143,14 @@ func (p *jsonParser) parseExpr() js_ast.Expr {
 				Key:        key,
 				ValueOrNil: value,
 			}
+
+			// The key "__proto__" must not be a string literal in JavaScript because
+			// that actually modifies the prototype of the object. This can be
+			// avoided by using a computed property key instead of a string literal.
+			if helpers.UTF16EqualsString(keyString, "__proto__") && !p.options.UnsupportedJSFeatures.Has(compat.ObjectExtensions) {
+				property.Flags |= js_ast.PropertyIsComputed
+			}
+
 			properties = append(properties, property)
 		}
 
@@ -163,8 +172,9 @@ func (p *jsonParser) parseExpr() js_ast.Expr {
 }
 
 type JSONOptions struct {
-	Flavor      js_lexer.JSONFlavor
-	ErrorSuffix string
+	UnsupportedJSFeatures compat.JSFeature
+	Flavor                js_lexer.JSONFlavor
+	ErrorSuffix           string
 }
 
 func ParseJSON(log logger.Log, source logger.Source, options JSONOptions) (result js_ast.Expr, ok bool) {

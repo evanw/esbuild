@@ -244,7 +244,9 @@ func parseFile(args parseArgs) {
 		result.ok = true
 
 	case config.LoaderJSON, config.LoaderWithTypeJSON:
-		expr, ok := args.caches.JSONCache.Parse(args.log, source, js_parser.JSONOptions{})
+		expr, ok := args.caches.JSONCache.Parse(args.log, source, js_parser.JSONOptions{
+			UnsupportedJSFeatures: args.options.UnsupportedJSFeatures,
+		})
 		ast := js_parser.LazyExportAST(args.log, source, js_parser.OptionsFromConfig(&args.options), expr, "")
 		if loader == config.LoaderWithTypeJSON {
 			// The exports kind defaults to "none", in which case the linker picks

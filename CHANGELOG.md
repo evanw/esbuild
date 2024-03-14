@@ -32,6 +32,36 @@
     }();
     ```
 
+* JSON loader now preserves `__proto__` properties ([#3700](https://github.com/evanw/esbuild/issues/3700))
+
+    Copying JSON source code into a JavaScript file will change its meaning if a JSON object contains the `__proto__` key. A literal `__proto__` property in a JavaScript object literal sets the prototype of the object instead of adding a property named `__proto__`, while a literal `__proto__` property in a JSON object literal just adds a property named `__proto__`. With this release, esbuild will now work around this problem by converting JSON to JavaScript with a computed property key in this case:
+
+    ```js
+    // Original code
+    import data from 'data:application/json,{"__proto__":{"fail":true}}'
+    if (Object.getPrototypeOf(data)?.fail) throw 'fail'
+
+    // Old output (with --bundle)
+    (() => {
+      // <data:application/json,{"__proto__":{"fail":true}}>
+      var json_proto_fail_true_default = { __proto__: { fail: true } };
+
+      // entry.js
+      if (Object.getPrototypeOf(json_proto_fail_true_default)?.fail)
+        throw "fail";
+    })();
+
+    // New output (with --bundle)
+    (() => {
+      // <data:application/json,{"__proto__":{"fail":true}}>
+      var json_proto_fail_true_default = { ["__proto__"]: { fail: true } };
+
+      // example.mjs
+      if (Object.getPrototypeOf(json_proto_fail_true_default)?.fail)
+        throw "fail";
+    })();
+    ```
+
 * Improve dead code removal of `switch` statements ([#3659](https://github.com/evanw/esbuild/issues/3659))
 
     With this release, esbuild will now remove `switch` statements in branches when minifying if they are known to never be evaluated:
