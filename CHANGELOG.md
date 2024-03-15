@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.20.3
+
+* Re-enable `unref` behaviour for Deno
+
+    Version 0.20.0 of esbuild changed how the esbuild child process is run in esbuild's API for Deno. Previously it used `Deno.run` but that API is being removed in favor of `Deno.Command`. As part of this change, esbuild is now calling the new `unref` function on esbuild's long-lived child process, which is supposed to allow Deno to exit when your code has finished running even though the child process is still around (previously you had to explicitly call esbuild's `stop()` function to terminate the child process for Deno to be able to exit).
+
+    In version 0.20.2 of esbuild, this change was reverted because it was discovered that this change could result in the Deno process exiting when with an error with message `error: Promise resolution is still pending but the event loop has already resolved`, if the `stop()` function was called when there were no other ref'd pending async operations scheduled in the process.
+
+    It has now been determined that this was caused by a bug in the implementation of esbuild's `stop()` function. This function did not `ref` the child process again before waiting for it to exit. This meant that when a user explicitly called `stop()`, a promise was returned that was backed only by `unref`'d async operations. If the user then awaited this promise with no other operations pending, the event loop would starve, and the process would exit with the error message seen above. This has been fixed by re-`ref`ing the child process before waiting for it to exit.
+
+    This version of esbuild fixes this bug, and returns the `unref` behaviour to the behaviour present in esbuild's 0.20.0 release.
+
 ## 0.20.2
 
 * Support TypeScript experimental decorators on `abstract` class fields ([#3684](https://github.com/evanw/esbuild/issues/3684))
