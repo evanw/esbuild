@@ -2,7 +2,7 @@
 
 ## 0.20.3
 
-* Re-enable `unref` behaviour for Deno
+* Re-enable `unref` behaviour for Deno ([#3701](https://github.com/evanw/esbuild/issues/3701))
 
     Version 0.20.0 of esbuild changed how the esbuild child process is run in esbuild's API for Deno. Previously it used `Deno.run` but that API is being removed in favor of `Deno.Command`. As part of this change, esbuild is now calling the new `unref` function on esbuild's long-lived child process, which is supposed to allow Deno to exit when your code has finished running even though the child process is still around (previously you had to explicitly call esbuild's `stop()` function to terminate the child process for Deno to be able to exit).
 

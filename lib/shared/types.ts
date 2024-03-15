@@ -675,12 +675,13 @@ export let version: string
 // Another reason you might want to call this is if you are using esbuild from
 // within a Deno test. Deno fails tests that create a child process without
 // killing it before the test ends, so you have to call this function (and
-// await the returned promise) in every Deno test that uses esbuild.
+// await the returned promise) in every Deno test that starts esbuild.
 //
-// You may also start esbuild once at the top level of your test suite instead
-// of starting and stopping the esbuild process for every test. This will not
-// interfere with the resource sanitizer, and will improve the efficiency of
-// your tests because the esbuild process can be reused between tests. 
+// You may also start esbuild once at the top level of your test suite (by
+// calling `initialize()`) instead of starting and stopping the esbuild process
+// for every test. This will not interfere with the resource sanitizer, and will
+// improve the efficiency of your tests because the esbuild process can be
+// reused between tests. 
 export declare function stop(): Promise<void>
 
 // Note: These declarations exist to avoid type errors when you omit "dom" from
