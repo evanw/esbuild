@@ -309,6 +309,7 @@ type BuildOptions struct {
 	Bundle            bool              // Documentation: https://esbuild.github.io/api/#bundle
 	PreserveSymlinks  bool              // Documentation: https://esbuild.github.io/api/#preserve-symlinks
 	Splitting         bool              // Documentation: https://esbuild.github.io/api/#splitting
+	MinChunkSize      int               // Documentation:
 	Outfile           string            // Documentation: https://esbuild.github.io/api/#outfile
 	Metafile          bool              // Documentation: https://esbuild.github.io/api/#metafile
 	Outdir            string            // Documentation: https://esbuild.github.io/api/#outdir
