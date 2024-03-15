@@ -477,6 +477,7 @@ export interface Metafile {
   outputs: {
     [path: string]: {
       bytes: number
+      hash: string
       inputs: {
         [path: string]: {
           bytesInOutput: number
