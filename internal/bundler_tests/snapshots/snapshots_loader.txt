@@ -900,6 +900,30 @@ TestLoaderJSONNoBundleIIFE
 })();
 
 ================================================================================
+TestLoaderJSONPrototype
+---------- /out.js ----------
+// data.json
+var data_default = {
+  "": "The property below should be converted to a computed property:",
+  ["__proto__"]: { foo: "bar" }
+};
+
+// entry.js
+console.log(data_default);
+
+================================================================================
+TestLoaderJSONPrototypeES5
+---------- /out.js ----------
+// data.json
+var data_default = {
+  "": "The property below should NOT be converted to a computed property for ES5:",
+  __proto__: { foo: "bar" }
+};
+
+// entry.js
+console.log(data_default);
+
+================================================================================
 TestLoaderJSONSharedWithMultipleEntriesIssue413
 ---------- /out/a.js ----------
 // data.json

@@ -1545,7 +1545,7 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, level js_as
 		defer p.printDotThenSuffix()
 	}
 
-	// Make sure the comma operator is propertly wrapped
+	// Make sure the comma operator is properly wrapped
 	if meta.ExportsRef != ast.InvalidRef && level >= js_ast.LComma {
 		p.print("(")
 		defer p.print(")")

@@ -1632,3 +1632,46 @@ func TestLoaderBundleWithTypeJSONOnlyDefaultExport(t *testing.T) {
 `,
 	})
 }
+
+func TestLoaderJSONPrototype(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import data from "./data.json"
+				console.log(data)
+			`,
+			"/data.json": `{
+				"": "The property below should be converted to a computed property:",
+				"__proto__": { "foo": "bar" }
+			}`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			MinifySyntax:  true,
+		},
+	})
+}
+
+func TestLoaderJSONPrototypeES5(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import data from "./data.json"
+				console.log(data)
+			`,
+			"/data.json": `{
+				"": "The property below should NOT be converted to a computed property for ES5:",
+				"__proto__": { "foo": "bar" }
+			}`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                  config.ModeBundle,
+			AbsOutputFile:         "/out.js",
+			MinifySyntax:          true,
+			UnsupportedJSFeatures: es(5),
+		},
+	})
+}

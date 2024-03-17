@@ -2204,7 +2204,7 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 							//   https://github.com/evanw/esbuild/issues/1675
 							//   https://github.com/microsoft/TypeScript/issues/46345
 							//
-							prop.Kind = js_ast.PropertyDeclare
+							prop.Kind = js_ast.PropertyDeclareOrAbstract
 							return prop, true
 						}
 
@@ -2216,7 +2216,33 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 					if !p.lexer.HasNewlineBefore && opts.isClass && p.options.ts.Parse && !opts.isTSAbstract && raw == name.String {
 						opts.isTSAbstract = true
 						scopeIndex := len(p.scopesInOrder)
-						p.parseProperty(startLoc, kind, opts, nil)
+
+						if prop, ok := p.parseProperty(startLoc, kind, opts, nil); ok &&
+							prop.Kind == js_ast.PropertyNormal && prop.ValueOrNil.Data == nil &&
+							(p.options.ts.Config.ExperimentalDecorators == config.True && len(opts.decorators) > 0) {
+							// If this is a well-formed class field with the "abstract" keyword,
+							// only keep the declaration to preserve its side-effects when
+							// there are TypeScript experimental decorators present:
+							//
+							//   abstract class Foo {
+							//     // Remove this
+							//     abstract [(console.log('side effect 1'), 'foo')]
+							//
+							//     // Keep this
+							//     @decorator(console.log('side effect 2')) abstract bar
+							//   }
+							//
+							// This behavior is valid with TypeScript experimental decorators.
+							// TypeScript does not allow this with JavaScript decorators.
+							//
+							// References:
+							//
+							//   https://github.com/evanw/esbuild/issues/3684
+							//
+							prop.Kind = js_ast.PropertyDeclareOrAbstract
+							return prop, true
+						}
+
 						p.discardScopesUpTo(scopeIndex)
 						return js_ast.Property{}, false
 					}
@@ -6687,51 +6713,92 @@ func (p *parser) parseDecorator() js_ast.Expr {
 
 	memberExpr := js_ast.Expr{Loc: nameRange.Loc, Data: &js_ast.EIdentifier{Ref: p.storeNameInRef(name)}}
 
-	// "@x<y>() class{}"
-	if p.options.ts.Parse {
-		p.skipTypeScriptTypeArguments(skipTypeScriptTypeArgumentsOpts{})
-	}
+	// Custom error reporting for error recovery
+	var syntaxError logger.MsgData
+	wrapRange := nameRange
 
-	for p.lexer.Token == js_lexer.TDot {
-		p.lexer.Next()
-
-		if p.lexer.Token == js_lexer.TPrivateIdentifier {
-			name := p.lexer.Identifier
-			memberExpr.Data = &js_ast.EIndex{
-				Target: memberExpr,
-				Index:  js_ast.Expr{Loc: p.lexer.Loc(), Data: &js_ast.EPrivateIdentifier{Ref: p.storeNameInRef(name)}},
+loop:
+	for {
+		switch p.lexer.Token {
+		case js_lexer.TExclamation:
+			// Skip over TypeScript non-null assertions
+			if p.lexer.HasNewlineBefore {
+				break loop
 			}
-			p.reportPrivateNameUsage(name.String)
+			if !p.options.ts.Parse {
+				p.lexer.Unexpected()
+			}
+			wrapRange.Len = p.lexer.Range().End() - wrapRange.Loc.Start
 			p.lexer.Next()
-		} else {
-			memberExpr.Data = &js_ast.EDot{
-				Target:  memberExpr,
-				Name:    p.lexer.Identifier.String,
-				NameLoc: p.lexer.Loc(),
+
+		case js_lexer.TDot, js_lexer.TQuestionDot:
+			// The grammar for "DecoratorMemberExpression" currently forbids "?."
+			if p.lexer.Token == js_lexer.TQuestionDot && syntaxError.Location == nil {
+				syntaxError = p.tracker.MsgData(p.lexer.Range(), "JavaScript decorator syntax does not allow \"?.\" here")
 			}
-			p.lexer.Expect(js_lexer.TIdentifier)
-		}
 
-		// "@x.y<z>() class{}"
-		if p.options.ts.Parse {
-			p.skipTypeScriptTypeArguments(skipTypeScriptTypeArgumentsOpts{})
+			p.lexer.Next()
+			wrapRange.Len = p.lexer.Range().End() - wrapRange.Loc.Start
+
+			if p.lexer.Token == js_lexer.TPrivateIdentifier {
+				name := p.lexer.Identifier
+				memberExpr.Data = &js_ast.EIndex{
+					Target: memberExpr,
+					Index:  js_ast.Expr{Loc: p.lexer.Loc(), Data: &js_ast.EPrivateIdentifier{Ref: p.storeNameInRef(name)}},
+				}
+				p.reportPrivateNameUsage(name.String)
+				p.lexer.Next()
+			} else {
+				memberExpr.Data = &js_ast.EDot{
+					Target:  memberExpr,
+					Name:    p.lexer.Identifier.String,
+					NameLoc: p.lexer.Loc(),
+				}
+				p.lexer.Expect(js_lexer.TIdentifier)
+			}
+
+		case js_lexer.TOpenParen:
+			args, closeParenLoc, isMultiLine := p.parseCallArgs()
+			memberExpr.Data = &js_ast.ECall{
+				Target:        memberExpr,
+				Args:          args,
+				CloseParenLoc: closeParenLoc,
+				IsMultiLine:   isMultiLine,
+				Kind:          js_ast.TargetWasOriginallyPropertyAccess,
+			}
+			wrapRange.Len = closeParenLoc.Start + 1 - wrapRange.Loc.Start
+
+			// The grammar for "DecoratorCallExpression" currently forbids anything after it
+			if p.lexer.Token == js_lexer.TDot {
+				if syntaxError.Location == nil {
+					syntaxError = p.tracker.MsgData(p.lexer.Range(), "JavaScript decorator syntax does not allow \".\" after a call expression")
+				}
+				continue
+			}
+			break loop
+
+		default:
+			// "@x<y>"
+			// "@x.y<z>"
+			if !p.skipTypeScriptTypeArguments(skipTypeScriptTypeArgumentsOpts{}) {
+				break loop
+			}
 		}
 	}
 
-	// The grammar for "DecoratorMemberExpression" currently forbids "?."
-	if p.lexer.Token == js_lexer.TQuestionDot {
-		p.lexer.Expect(js_lexer.TDot)
-	}
-
-	if p.lexer.Token == js_lexer.TOpenParen {
-		args, closeParenLoc, isMultiLine := p.parseCallArgs()
-		memberExpr.Data = &js_ast.ECall{
-			Target:        memberExpr,
-			Args:          args,
-			CloseParenLoc: closeParenLoc,
-			IsMultiLine:   isMultiLine,
-			Kind:          js_ast.TargetWasOriginallyPropertyAccess,
+	// Suggest that non-decorator expressions be wrapped in parentheses
+	if syntaxError.Location != nil {
+		var notes []logger.MsgData
+		if text := p.source.TextForRange(wrapRange); !strings.ContainsRune(text, '\n') {
+			note := p.tracker.MsgData(wrapRange, "Wrap this decorator in parentheses to allow arbitrary expressions:")
+			note.Location.Suggestion = fmt.Sprintf("(%s)", text)
+			notes = []logger.MsgData{note}
 		}
+		p.log.AddMsg(logger.Msg{
+			Kind:  logger.Error,
+			Data:  syntaxError,
+			Notes: notes,
+		})
 	}
 
 	return memberExpr
@@ -8560,7 +8627,7 @@ func (p *parser) visitStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt {
 		for _, stmt := range before {
 			s, ok := stmt.Data.(*js_ast.SFunction)
 			if !ok {
-				// We may get non-function statements here in certain scenarious such as when "KeepNames" is enabled
+				// We may get non-function statements here in certain scenarios such as when "KeepNames" is enabled
 				nonFnStmts = append(nonFnStmts, stmt)
 				continue
 			}

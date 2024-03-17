@@ -664,16 +664,40 @@ export let version: string
 
 // Call this function to terminate esbuild's child process. The child process
 // is not terminated and re-created after each API call because it's more
-// efficient to keep it around when there are multiple API calls. This child
-// process normally exits automatically when the parent process exits, so you
-// usually don't need to call this function.
+// efficient to keep it around when there are multiple API calls.
 //
-// One reason you might want to call this is if you know you will not make any
-// more esbuild API calls and you want to clean up resources (since the esbuild
-// child process takes up some memory even when idle).
+// In node this happens automatically before the parent node process exits. So
+// you only need to call this if you know you will not make any more esbuild
+// API calls and you want to clean up resources.
+//
+// Unlike node, Deno lacks the necessary APIs to clean up child processes
+// automatically. You must manually call stop() in Deno when you're done
+// using esbuild or Deno will continue running forever.
 //
 // Another reason you might want to call this is if you are using esbuild from
 // within a Deno test. Deno fails tests that create a child process without
 // killing it before the test ends, so you have to call this function (and
 // await the returned promise) in every Deno test that uses esbuild.
 export declare function stop(): Promise<void>
+
+// Note: These declarations exist to avoid type errors when you omit "dom" from
+// "lib" in your "tsconfig.json" file. TypeScript confusingly declares the
+// global "WebAssembly" type in "lib.dom.d.ts" even though it has nothing to do
+// with the browser DOM and is present in many non-browser JavaScript runtimes
+// (e.g. node and deno). Declaring it here allows esbuild's API to be used in
+// these scenarios.
+//
+// There's an open issue about getting this problem corrected (although these
+// declarations will need to remain even if this is fixed for backward
+// compatibility with older TypeScript versions):
+//
+//   https://github.com/microsoft/TypeScript-DOM-lib-generator/issues/826
+//
+declare global {
+  namespace WebAssembly {
+    interface Module {
+    }
+  }
+  interface URL {
+  }
+}

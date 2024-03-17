@@ -2028,15 +2028,19 @@ func TestDecorators(t *testing.T) {
 	expectPrinted(t, "class Foo { #x = @y.#x.y.#x class {} }", "class Foo {\n  #x = @y.#x.y.#x class {\n  };\n}\n")
 	expectParseError(t, "@123 class Foo {}", "<stdin>: ERROR: Expected identifier but found \"123\"\n")
 	expectParseError(t, "@x[y] class Foo {}", "<stdin>: ERROR: Expected \";\" but found \"class\"\n")
-	expectParseError(t, "@x?.() class Foo {}", "<stdin>: ERROR: Expected \".\" but found \"?.\"\n")
-	expectParseError(t, "@x?.y() class Foo {}", "<stdin>: ERROR: Expected \".\" but found \"?.\"\n")
-	expectParseError(t, "@x?.[y]() class Foo {}", "<stdin>: ERROR: Expected \".\" but found \"?.\"\n")
+	expectParseError(t, "@x?.() class Foo {}", "<stdin>: ERROR: Expected identifier but found \"(\"\n")
+	expectParseError(t, "@x?.y() class Foo {}",
+		"<stdin>: ERROR: JavaScript decorator syntax does not allow \"?.\" here\n"+
+			"<stdin>: NOTE: Wrap this decorator in parentheses to allow arbitrary expressions:\n")
+	expectParseError(t, "@x?.[y]() class Foo {}", "<stdin>: ERROR: Expected identifier but found \"[\"\n")
 	expectParseError(t, "@new Function() class Foo {}", "<stdin>: ERROR: Expected identifier but found \"new\"\n")
 	expectParseError(t, "@() => {} class Foo {}", "<stdin>: ERROR: Unexpected \")\"\n")
 	expectParseError(t, "x = @y function() {}", "<stdin>: ERROR: Expected \"class\" but found \"function\"\n")
 
 	// See: https://github.com/microsoft/TypeScript/issues/55336
-	expectParseError(t, "@x().y() class Foo {}", "<stdin>: ERROR: Unexpected \".\"\n")
+	expectParseError(t, "@x().y() class Foo {}",
+		"<stdin>: ERROR: JavaScript decorator syntax does not allow \".\" after a call expression\n"+
+			"<stdin>: NOTE: Wrap this decorator in parentheses to allow arbitrary expressions:\n")
 
 	errorText := "<stdin>: ERROR: Transforming JavaScript decorators to the configured target environment is not supported yet\n"
 	expectParseErrorWithUnsupportedFeatures(t, compat.Decorators, "@dec class Foo {}", errorText)
@@ -2064,6 +2068,9 @@ func TestDecorators(t *testing.T) {
 	expectParseError(t, "@x export @y class Foo {}", "<stdin>: ERROR: Decorators are not valid here\n")
 	expectParseError(t, "@x export default abstract", "<stdin>: ERROR: Decorators are not valid here\n")
 	expectParseError(t, "@x export @y default class {}", "<stdin>: ERROR: Decorators are not valid here\n<stdin>: ERROR: Unexpected \"default\"\n")
+
+	// Disallow TypeScript syntax in JavaScript
+	expectParseError(t, "@x!.y!.z class Foo {}", "<stdin>: ERROR: Unexpected \"!\"\n")
 }
 
 func TestGenerator(t *testing.T) {

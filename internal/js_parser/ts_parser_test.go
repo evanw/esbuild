@@ -2051,8 +2051,14 @@ func TestTSExperimentalDecorator(t *testing.T) {
 	expectParseErrorExperimentalDecoratorTS(t, "@x export default abstract", "<stdin>: ERROR: Decorators are not valid here\n")
 	expectParseErrorExperimentalDecoratorTS(t, "@x export @y default class {}", "<stdin>: ERROR: Decorators are not valid here\n<stdin>: ERROR: Unexpected \"default\"\n")
 
-	// TypeScript experimental decorators are actually allowed on declared fields
+	// From the TypeScript team: "We do allow postfix ! because it's TypeScript only."
+	// https://github.com/microsoft/TypeScript/issues/57756
+	expectPrintedExperimentalDecoratorTS(t, "@x!.y!.z class Foo {}", "let Foo = class {\n};\nFoo = __decorateClass([\n  x.y.z\n], Foo);\n")
+
+	// TypeScript experimental decorators are actually allowed on declared and abstract fields
 	expectPrintedExperimentalDecoratorTS(t, "class Foo { @(() => {}) declare foo: any; @(() => {}) bar: any }",
+		"class Foo {\n  bar;\n}\n__decorateClass([\n  () => {\n  }\n], Foo.prototype, \"foo\", 2);\n__decorateClass([\n  () => {\n  }\n], Foo.prototype, \"bar\", 2);\n")
+	expectPrintedExperimentalDecoratorTS(t, "abstract class Foo { @(() => {}) abstract foo: any; @(() => {}) bar: any }",
 		"class Foo {\n  bar;\n}\n__decorateClass([\n  () => {\n  }\n], Foo.prototype, \"foo\", 2);\n__decorateClass([\n  () => {\n  }\n], Foo.prototype, \"bar\", 2);\n")
 }
 
@@ -2086,9 +2092,11 @@ func TestTSDecorators(t *testing.T) {
 	expectPrintedTS(t, "class Foo { #x = @y.#x.y.#x class {} }", "class Foo {\n  #x = @y.#x.y.#x class {\n  };\n}\n")
 	expectParseErrorTS(t, "@123 class Foo {}", "<stdin>: ERROR: Expected identifier but found \"123\"\n")
 	expectParseErrorTS(t, "@x[y] class Foo {}", "<stdin>: ERROR: Expected \";\" but found \"class\"\n")
-	expectParseErrorTS(t, "@x?.() class Foo {}", "<stdin>: ERROR: Expected \".\" but found \"?.\"\n")
-	expectParseErrorTS(t, "@x?.y() class Foo {}", "<stdin>: ERROR: Expected \".\" but found \"?.\"\n")
-	expectParseErrorTS(t, "@x?.[y]() class Foo {}", "<stdin>: ERROR: Expected \".\" but found \"?.\"\n")
+	expectParseErrorTS(t, "@x?.() class Foo {}", "<stdin>: ERROR: Expected identifier but found \"(\"\n")
+	expectParseErrorTS(t, "@x?.y() class Foo {}",
+		"<stdin>: ERROR: JavaScript decorator syntax does not allow \"?.\" here\n"+
+			"<stdin>: NOTE: Wrap this decorator in parentheses to allow arbitrary expressions:\n")
+	expectParseErrorTS(t, "@x?.[y]() class Foo {}", "<stdin>: ERROR: Expected identifier but found \"[\"\n")
 	expectParseErrorTS(t, "@new Function() class Foo {}", "<stdin>: ERROR: Expected identifier but found \"new\"\n")
 	expectParseErrorTS(t, "@() => {} class Foo {}", "<stdin>: ERROR: Unexpected \")\"\n")
 	expectParseErrorTS(t, "x = @y function() {}", "<stdin>: ERROR: Expected \"class\" but found \"function\"\n")
@@ -2101,7 +2109,9 @@ func TestTSDecorators(t *testing.T) {
 
 	// TypeScript 5.0+ allows this but Babel doesn't. I believe this is a bug
 	// with TypeScript: https://github.com/microsoft/TypeScript/issues/55336
-	expectParseErrorTS(t, "class Foo { @x<{}>().y<[], () => {}>() z: any }", "<stdin>: ERROR: Expected identifier but found \".\"\n")
+	expectParseErrorTS(t, "class Foo { @x<{}>().y<[], () => {}>() z: any }",
+		"<stdin>: ERROR: JavaScript decorator syntax does not allow \".\" after a call expression\n"+
+			"<stdin>: NOTE: Wrap this decorator in parentheses to allow arbitrary expressions:\n")
 
 	errorText := "<stdin>: ERROR: Transforming JavaScript decorators to the configured target environment is not supported yet\n"
 	expectParseErrorWithUnsupportedFeaturesTS(t, compat.Decorators, "@dec class Foo {}", errorText)
@@ -2130,8 +2140,14 @@ func TestTSDecorators(t *testing.T) {
 	expectParseErrorTS(t, "@x export default abstract", "<stdin>: ERROR: Decorators are not valid here\n")
 	expectParseErrorTS(t, "@x export @y default class {}", "<stdin>: ERROR: Decorators are not valid here\n<stdin>: ERROR: Unexpected \"default\"\n")
 
-	// JavaScript decorators are not allowed on declared fields
+	// From the TypeScript team: "We do allow postfix ! because it's TypeScript only."
+	// https://github.com/microsoft/TypeScript/issues/57756
+	expectPrintedTS(t, "@x!.y!.z class Foo {}", "@x.y.z class Foo {\n}\n")
+
+	// JavaScript decorators are not allowed on declared or abstract fields
 	expectParseErrorTS(t, "class Foo { @(() => {}) declare foo: any; @(() => {}) bar: any }",
+		"<stdin>: ERROR: Decorators are not valid here\n")
+	expectParseErrorTS(t, "abstract class Foo { @(() => {}) abstract foo: any; @(() => {}) bar: any }",
 		"<stdin>: ERROR: Decorators are not valid here\n")
 }
 

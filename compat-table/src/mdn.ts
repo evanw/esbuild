@@ -66,12 +66,9 @@ const cssFeatures: Partial<Record<CSSFeature, string | string[]>> = {
   Modern_RGB_HSL: [
     'css.types.color.hsl.alpha_parameter',
     'css.types.color.hsl.space_separated_parameters',
-    'css.types.color.hsla.space_separated_parameters',
     'css.types.color.rgb.alpha_parameter',
     'css.types.color.rgb.float_values',
     'css.types.color.rgb.space_separated_parameters',
-    'css.types.color.rgba.float_values',
-    'css.types.color.rgba.space_separated_parameters',
   ],
   Nesting: 'css.selectors.nesting',
   RebeccaPurple: 'css.types.color.named-color.rebeccapurple',

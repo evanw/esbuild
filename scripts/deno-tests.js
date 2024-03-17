@@ -15,22 +15,20 @@ try {
 Deno.mkdirSync(rootTestDir, { recursive: true })
 
 function test(name, backends, fn) {
-  const singleTest = (name, fn) => Deno.test({
-    name,
-    fn: () => new Promise((resolve, reject) => {
-      const minutes = 5
-      const timeout = setTimeout(() => reject(new Error(`Timeout for "${name}" after ${minutes} minutes`)), minutes * 60 * 1000)
-      const cancel = () => clearTimeout(timeout)
-      const promise = fn()
-      promise.then(cancel, cancel)
-      promise.then(resolve, reject)
-    }),
-  })
+  // Note: Do not try to add a timeout for the tests below. It turns out that
+  // calling "setTimeout" from within "Deno.test" changes how Deno waits for
+  // promises in a way that masks problems that would otherwise occur. We want
+  // test coverage for the way that people will likely be using these API calls.
+  //
+  // Specifically tests that Deno would otherwise have failed with "error:
+  // Promise resolution is still pending but the event loop has already
+  // resolved" were being allowed to pass instead. See this issue for more
+  // information: https://github.com/evanw/esbuild/issues/3682
 
   for (const backend of backends) {
     switch (backend) {
       case 'native':
-        singleTest(name + '-native', async () => {
+        Deno.test(name + '-native', async () => {
           let testDir = path.join(rootTestDir, name + '-native')
           await Deno.mkdir(testDir, { recursive: true })
           try {
@@ -43,7 +41,7 @@ function test(name, backends, fn) {
         break
 
       case 'wasm-main':
-        singleTest(name + '-wasm-main', async () => {
+        Deno.test(name + '-wasm-main', async () => {
           let testDir = path.join(rootTestDir, name + '-wasm-main')
           await esbuildWASM.initialize({ wasmModule, worker: false })
           await Deno.mkdir(testDir, { recursive: true })
@@ -57,7 +55,7 @@ function test(name, backends, fn) {
         break
 
       case 'wasm-worker':
-        singleTest(name + '-wasm-worker', async () => {
+        Deno.test(name + '-wasm-worker', async () => {
           let testDir = path.join(rootTestDir, name + '-wasm-worker')
           await esbuildWASM.initialize({ wasmModule, worker: true })
           await Deno.mkdir(testDir, { recursive: true })

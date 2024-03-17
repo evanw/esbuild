@@ -255,7 +255,7 @@ const (
 	PropertySet
 	PropertyAutoAccessor
 	PropertySpread
-	PropertyDeclare
+	PropertyDeclareOrAbstract
 	PropertyClassStaticBlock
 )
 

@@ -3528,6 +3528,43 @@ for (const minify of [[], ['--minify-syntax']]) {
       `,
     }),
   )
+
+  // https://github.com/evanw/esbuild/issues/3700
+  tests.push(
+    test(['in.js', '--bundle', '--outfile=node.js'].concat(minify), {
+      'in.js': `
+        import imported from './data.json'
+        const native = JSON.parse(\`{
+          "hello": "world",
+          "__proto__": {
+            "sky": "universe"
+          }
+        }\`)
+        const literal1 = {
+          "hello": "world",
+          "__proto__": {
+            "sky": "universe"
+          }
+        }
+        const literal2 = {
+          "hello": "world",
+          ["__proto__"]: {
+            "sky": "universe"
+          }
+        }
+        if (Object.getPrototypeOf(native)?.sky) throw 'fail: native'
+        if (!Object.getPrototypeOf(literal1)?.sky) throw 'fail: literal1'
+        if (Object.getPrototypeOf(literal2)?.sky) throw 'fail: literal2'
+        if (Object.getPrototypeOf(imported)?.sky) throw 'fail: imported'
+      `,
+      'data.json': `{
+        "hello": "world",
+        "__proto__": {
+          "sky": "universe"
+        }
+      }`,
+    }),
+  )
 }
 
 // Test minification of top-level symbols

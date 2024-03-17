@@ -204,7 +204,7 @@ func (r resolverQuery) resolveToUnqualified(specifier string, parentURL string, 
 			}
 
 			// If parentLocator isn't in manifest.fallbackExclusionList, then
-			if set, _ := manifest.fallbackExclusionList[parentLocator.ident]; !set[parentLocator.reference] {
+			if set := manifest.fallbackExclusionList[parentLocator.ident]; !set[parentLocator.reference] {
 				// Let fallback be RESOLVE_VIA_FALLBACK(manifest, ident)
 				fallback, _ := r.resolveViaFallback(manifest, ident)
 
@@ -302,9 +302,7 @@ func (r resolverQuery) findLocator(manifest *pnpData, moduleUrl string) (pnpIden
 	}
 
 	// The relative path must not start with ./; trim it if needed
-	if strings.HasPrefix(relativeUrl, "./") {
-		relativeUrl = relativeUrl[2:]
-	}
+	relativeUrl = strings.TrimPrefix(relativeUrl, "./")
 
 	// If relativeUrl matches manifest.ignorePatternData, then
 	if manifest.ignorePatternData != nil && manifest.ignorePatternData.MatchString(relativeUrl) {
@@ -370,7 +368,7 @@ func (r resolverQuery) resolveViaFallback(manifest *pnpData, ident string) (pnpI
 	// Let referenceOrAlias be the entry from manifest.fallbackPool referenced by ident
 	referenceOrAlias, ok = manifest.fallbackPool[ident]
 
-	// Return it immediatly, whether it's defined or not
+	// Return it immediately, whether it's defined or not
 	if r.debugLogs != nil {
 		if ok {
 			r.debugLogs.addNote(fmt.Sprintf("    Found fallback for %q in \"fallbackPool\": [%s, %s]", ident,

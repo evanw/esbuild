@@ -113,7 +113,7 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	maybeWriteResponseBody := func(bytes []byte) { res.Write(bytes) }
 	isHEAD := req.Method == "HEAD"
 	if isHEAD {
-		maybeWriteResponseBody = func(bytes []byte) { res.Write(nil) }
+		maybeWriteResponseBody = func([]byte) { res.Write(nil) }
 	}
 
 	// Handle GET and HEAD requests

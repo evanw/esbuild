@@ -190,7 +190,7 @@ func (p *parser) lowerNestingInRuleWithContext(rule css_ast.Rule, context *lower
 			r.Selectors = []css_ast.ComplexSelector{merged}
 		}
 
-		// Pass 2: Substitue "&" for the parent selector
+		// Pass 2: Substitute "&" for the parent selector
 		if !p.options.unsupportedCSSFeatures.Has(compat.IsPseudoClass) || len(context.parentSelectors) <= 1 {
 			// If we can use ":is", or we don't have to because there's only one
 			// parent selector, or we are using ":is()" to match zero parent selectors
