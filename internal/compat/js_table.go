@@ -811,7 +811,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		// Note: The latest version of "Rhino" failed 8 tests including: RegExp Unicode Property Escapes: Unicode 11
 		// Note: The latest version of "Safari" failed this test: RegExp Unicode Property Escapes: Unicode 15.1
 		ES:   {{start: v{2018, 0, 0}}},
-		Node: {{start: v{21, 3, 0}}},
+		Node: {{start: v{18, 20, 0}, end: v{19, 0, 0}}, {start: v{20, 12, 0}, end: v{21, 0, 0}}, {start: v{21, 3, 0}}},
 	},
 	RestArgument: {
 		// Note: The latest version of "Hermes" failed this test: rest parameters: function 'length' property
