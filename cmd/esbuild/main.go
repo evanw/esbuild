@@ -331,12 +331,16 @@ func main() {
 					for {
 						_, err := os.Stdin.Read(buffer)
 						if err != nil {
-							// Mention why watch mode was stopped to reduce confusion, and
-							// call out "--watch=forever" to get the alternative behavior
-							if isWatch {
-								if options := logger.OutputOptionsForArgs(osArgs); options.LogLevel <= logger.LevelInfo {
+							if options := logger.OutputOptionsForArgs(osArgs); options.LogLevel <= logger.LevelInfo {
+								if isWatch {
+									// Mention why watch mode was stopped to reduce confusion, and
+									// call out "--watch=forever" to get the alternative behavior
 									logger.PrintTextWithColor(os.Stderr, options.Color, func(colors logger.Colors) string {
-										return fmt.Sprintf("%s[watch] stopped because stdin was closed (use \"--watch=forever\" to keep watching even after stdin is closed)%s\n", colors.Dim, colors.Reset)
+										return fmt.Sprintf("%s[watch] stopped automatically because stdin was closed (use \"--watch=forever\" to keep watching even after stdin is closed)%s\n", colors.Dim, colors.Reset)
+									})
+								} else if isServeOrWatch {
+									logger.PrintTextWithColor(os.Stderr, options.Color, func(colors logger.Colors) string {
+										return fmt.Sprintf("%s[serve] stopped automatically because stdin was closed (keep stdin open to continue serving)%s\n", colors.Dim, colors.Reset)
 									})
 								}
 							}
