@@ -127,6 +127,7 @@ var helpText = func(colors logger.Colors) string {
   --supported:F=...         Consider syntax F to be supported (true | false)
   --tree-shaking=...        Force tree shaking on or off (false | true)
   --tsconfig=...            Use this tsconfig.json file instead of other ones
+  --tsconfig-raw=...        Override all tsconfig.json files with this string
   --version                 Print the current version (` + esbuildVersion + `) and exit
 
 ` + colors.Bold + `Examples:` + colors.Reset + `
