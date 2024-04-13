@@ -1068,7 +1068,7 @@ func (p *parser) pushScopeForParsePass(kind js_ast.ScopeKind, loc logger.Loc) in
 	p.currentScope = scope
 
 	// Enforce that scope locations are strictly increasing to help catch bugs
-	// where the pushed scopes are mistmatched between the first and second passes
+	// where the pushed scopes are mismatched between the first and second passes
 	if len(p.scopesInOrder) > 0 {
 		prevStart := p.scopesInOrder[len(p.scopesInOrder)-1].loc.Start
 		if prevStart >= loc.Start {
