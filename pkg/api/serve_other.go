@@ -763,13 +763,10 @@ func (ctx *internalContext) Serve(serveOptions ServeOptions) (ServeResult, error
 
 	// Pick the port
 	if serveOptions.Port == 0 {
-		// Default to picking a "800X" port
-		for port := 8000; port <= 8009; port++ {
-			if result, err := net.Listen(network, net.JoinHostPort(host, fmt.Sprintf("%d", port))); err == nil {
+		// Random Port that net.Listen() wil pick
+			if result, err := net.Listen(network,":0"); err == nil {
 				listener = result
-				break
 			}
-		}
 	}
 	if listener == nil {
 		// Otherwise pick the provided port
