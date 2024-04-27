@@ -225,7 +225,45 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        # Note: I'm excluding "macos-latest" here because GitHub recently
+        # changed their macOS CI VMs from x86_64 to aarch64 (i.e. from Intel
+        # to ARM) and it looks like old Deno versions have WASM bugs on ARM.
+        # Specifically, this test now crashes like this when run on macOS:
+        #
+        #   #
+        #   # Fatal error in , line 0
+        #   # Check failed: RwxMemoryWriteScope::IsAllowed().
+        #   #
+        #   #
+        #   #
+        #   #FailureMessage Object: 0x16f282368
+        #   ==== C stack trace ===============================
+        #
+        #       0   deno                                0x0000000101bb8e78 v8::base::debug::StackTrace::StackTrace() + 24
+        #       1   deno                                0x0000000101bbda84 v8::platform::(anonymous namespace)::PrintStackTrace() + 24
+        #       2   deno                                0x0000000101bb6230 V8_Fatal(char const*, ...) + 268
+        #       3   deno                                0x000000010227e468 v8::internal::wasm::WasmCodeManager::MemoryProtectionKeysEnabled() const + 0
+        #       4   deno                                0x0000000102299994 v8::internal::wasm::WasmEngine::InitializeOncePerProcess() + 44
+        #       5   deno                                0x0000000101e78fd0 v8::internal::V8::Initialize() + 1576
+        #       6   deno                                0x0000000101c3b7d8 v8::V8::Initialize(int) + 32
+        #       7   deno                                0x00000001011833dc _ZN3std4sync4once4Once9call_once28_$u7b$$u7b$closure$u7d$$u7d$17h2bbe74d315ab3e84E + 488
+        #       8   deno                                0x00000001017f8854 std::sync::once::Once::call_inner::h70fbdd48fe002a01 + 724
+        #       9   deno                                0x000000010115ca80 deno_core::runtime::JsRuntime::new::h9c5f1a9c910f1eed + 192
+        #       10  deno                                0x00000001014d3b50 deno_runtime::worker::MainWorker::bootstrap_from_options::h91a0eaac48dfc18e + 4260
+        #       11  deno                                0x0000000100ee692c deno::create_main_worker::h0d1622755821ae7f + 1608
+        #       12  deno                                0x0000000100f6c688 _ZN97_$LT$core..future..from_generator..GenFuture$LT$T$GT$$u20$as$u20$core..future..future..Future$GT$4poll17h87ddfac9566887c8E + 492
+        #       13  deno                                0x0000000100f6ba18 tokio::runtime::task::raw::poll::h7d51f1a7d5a61c15 + 1396
+        #       14  deno                                0x0000000101917b98 std::sys_common::backtrace::__rust_begin_short_backtrace::hd384935dcffe6f2d + 332
+        #       15  deno                                0x0000000101917954 _ZN4core3ops8function6FnOnce40call_once$u7b$$u7b$vtable.shim$u7d$$u7d$17he2755732d5d29cf0E + 124
+        #       16  deno                                0x0000000101829684 std::sys::unix::thread::Thread::new::thread_start::h432bc30153e41f60 + 48
+        #       17  libsystem_pthread.dylib             0x000000018a436f94 _pthread_start + 136
+        #       18  libsystem_pthread.dylib             0x000000018a431d34 thread_start + 8
+        #
+        # Hopefully running this old Deno version on Linux is sufficiently
+        # close to running it on macOS. For reference, I believe this is the
+        # change that GitHub made which broke this test:
+        # https://github.blog/changelog/2023-10-02-github-actions-apple-silicon-m1-macos-runners-are-now-available-in-public-beta/
+        os: [ubuntu-latest, windows-latest]
 
     steps:
       - name: Set up Go 1.x
