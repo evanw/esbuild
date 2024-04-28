@@ -7,7 +7,7 @@ export class B extends A {
   constructor(c) {
     var _a;
     super();
-    __privateAdd(this, _e, void 0);
+    __privateAdd(this, _e);
     __privateSet(this, _e, (_a = c.d) != null ? _a : "test");
   }
   f() {
@@ -1757,7 +1757,7 @@ var _foo, _bar, _s_foo, _s_bar;
 class Foo {
   constructor() {
     __privateAdd(this, _foo, 123);
-    __privateAdd(this, _bar, void 0);
+    __privateAdd(this, _bar);
     __publicField(this, "foo", 123);
     __publicField(this, "bar");
   }
@@ -1767,7 +1767,7 @@ _bar = new WeakMap();
 _s_foo = new WeakMap();
 _s_bar = new WeakMap();
 __privateAdd(Foo, _s_foo, 123);
-__privateAdd(Foo, _s_bar, void 0);
+__privateAdd(Foo, _s_bar);
 __publicField(Foo, "s_foo", 123);
 __publicField(Foo, "s_bar");
 
@@ -2121,7 +2121,7 @@ TestLowerPrivateClassBrandCheckUnsupported
 var _foo;
 class Foo {
   constructor() {
-    __privateAdd(this, _foo, void 0);
+    __privateAdd(this, _foo);
     this.#bar = void 0;
   }
   #bar;
@@ -2142,7 +2142,7 @@ var _field, _instances, method_fn, _a, _staticField, _static, staticMethod_fn;
 export let Foo = (_a = class {
   constructor() {
     __privateAdd(this, _instances);
-    __privateAdd(this, _field, void 0);
+    __privateAdd(this, _field);
   }
   foo() {
     var _a2;
@@ -2151,7 +2151,7 @@ export let Foo = (_a = class {
   }
 }, _field = new WeakMap(), _instances = new WeakSet(), method_fn = function() {
 }, _staticField = new WeakMap(), _static = new WeakSet(), staticMethod_fn = function() {
-}, __privateAdd(_a, _static), __privateAdd(_a, _staticField, void 0), _a);
+}, __privateAdd(_a, _static), __privateAdd(_a, _staticField), _a);
 
 ================================================================================
 TestLowerPrivateClassFieldOrder
@@ -2288,7 +2288,7 @@ TestLowerPrivateFieldAssignments2015NoBundle
 var _x;
 class Foo {
   constructor() {
-    __privateAdd(this, _x, void 0);
+    __privateAdd(this, _x);
   }
   unary() {
     __privateWrapper(this, _x)._++;
@@ -2324,7 +2324,7 @@ TestLowerPrivateFieldAssignments2019NoBundle
 var _x;
 class Foo {
   constructor() {
-    __privateAdd(this, _x, void 0);
+    __privateAdd(this, _x);
   }
   unary() {
     __privateWrapper(this, _x)._++;
@@ -2360,7 +2360,7 @@ TestLowerPrivateFieldAssignments2020NoBundle
 var _x;
 class Foo {
   constructor() {
-    __privateAdd(this, _x, void 0);
+    __privateAdd(this, _x);
   }
   unary() {
     __privateWrapper(this, _x)._++;
@@ -2426,7 +2426,7 @@ TestLowerPrivateFieldOptionalChain2019NoBundle
 var _x;
 class Foo {
   constructor() {
-    __privateAdd(this, _x, void 0);
+    __privateAdd(this, _x);
   }
   foo() {
     var _a;
@@ -2443,7 +2443,7 @@ TestLowerPrivateFieldOptionalChain2020NoBundle
 var _x;
 class Foo {
   constructor() {
-    __privateAdd(this, _x, void 0);
+    __privateAdd(this, _x);
   }
   foo() {
     this == null ? void 0 : __privateGet(this, _x).y;
@@ -2699,7 +2699,7 @@ var _field, _Foo_instances, method_fn;
 var Foo = class {
   constructor() {
     __privateAdd(this, _Foo_instances);
-    __privateAdd(this, _field, void 0);
+    __privateAdd(this, _field);
   }
   baseline() {
     var _a, _b, _c, _d, _e;
@@ -2744,7 +2744,7 @@ var _field, _Foo_instances, method_fn;
 var Foo = class {
   constructor() {
     __privateAdd(this, _Foo_instances);
-    __privateAdd(this, _field, void 0);
+    __privateAdd(this, _field);
   }
   baseline() {
     a().foo;
@@ -4525,7 +4525,7 @@ var _foo, _bar, _s_foo, _s_bar;
 class Foo {
   constructor() {
     __privateAdd(this, _foo, 123);
-    __privateAdd(this, _bar, void 0);
+    __privateAdd(this, _bar);
     this.foo = 123;
   }
 }
@@ -4534,7 +4534,7 @@ _bar = new WeakMap();
 _s_foo = new WeakMap();
 _s_bar = new WeakMap();
 __privateAdd(Foo, _s_foo, 123);
-__privateAdd(Foo, _s_bar, void 0);
+__privateAdd(Foo, _s_bar);
 Foo.s_foo = 123;
 
 ================================================================================
@@ -4721,7 +4721,7 @@ TestTSLowerPrivateFieldAndMethodAvoidNameCollision2015
 var _x;
 var WeakMap2 = class {
   constructor() {
-    __privateAdd(this, _x, void 0);
+    __privateAdd(this, _x);
   }
 };
 _x = new WeakMap();
@@ -4745,7 +4745,7 @@ TestTSLowerPrivateFieldOptionalChain2015NoBundle
 var _x;
 class Foo {
   constructor() {
-    __privateAdd(this, _x, void 0);
+    __privateAdd(this, _x);
   }
   foo() {
     var _a;
@@ -4777,5 +4777,5 @@ y_set = function(x) {
 z_fn = function() {
 };
 __privateAdd(_Foo, _Foo_static);
-__privateAdd(_Foo, _x, void 0);
+__privateAdd(_Foo, _x);
 let Foo = _Foo;

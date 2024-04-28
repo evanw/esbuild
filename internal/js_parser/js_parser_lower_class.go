@@ -797,11 +797,14 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 				p.recordUsage(ref)
 
 				// Add every newly-constructed instance into this map
-				memberExpr = p.callRuntime(loc, "__privateAdd", []js_ast.Expr{
-					target,
-					{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}},
-					init,
-				})
+				key := js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}}
+				var args []js_ast.Expr
+				if _, ok := init.Data.(*js_ast.EUndefined); ok {
+					args = []js_ast.Expr{target, key}
+				} else {
+					args = []js_ast.Expr{target, key, init}
+				}
+				memberExpr = p.callRuntime(loc, "__privateAdd", args)
 				p.recordUsage(ref)
 			} else if private == nil && class.UseDefineForClassFields {
 				var args []js_ast.Expr

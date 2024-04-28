@@ -117,7 +117,7 @@ func TestLowerNullishCoalescingAssign(t *testing.T) {
 	expectPrintedTarget(t, 2019, "class Foo { #x; constructor() { this.#x ??= 2 } }", `var _x;
 class Foo {
   constructor() {
-    __privateAdd(this, _x, void 0);
+    __privateAdd(this, _x);
     var _a;
     (_a = __privateGet(this, _x)) != null ? _a : __privateSet(this, _x, 2);
   }
@@ -134,7 +134,7 @@ _x = new WeakMap();
 	expectPrintedTarget(t, 2020, "class Foo { #x; constructor() { this.#x ??= 2 } }", `var _x;
 class Foo {
   constructor() {
-    __privateAdd(this, _x, void 0);
+    __privateAdd(this, _x);
     __privateGet(this, _x) ?? __privateSet(this, _x, 2);
   }
 }
@@ -150,7 +150,7 @@ _x = new WeakMap();
 	expectPrintedTarget(t, 2021, "class Foo { #x; constructor() { this.#x ??= 2 } }", `var _x;
 class Foo {
   constructor() {
-    __privateAdd(this, _x, void 0);
+    __privateAdd(this, _x);
     __privateGet(this, _x) ?? __privateSet(this, _x, 2);
   }
 }
@@ -175,7 +175,7 @@ func TestLowerLogicalAssign(t *testing.T) {
 	expectPrintedTarget(t, 2020, "class Foo { #x; constructor() { this.#x &&= 2 } }", `var _x;
 class Foo {
   constructor() {
-    __privateAdd(this, _x, void 0);
+    __privateAdd(this, _x);
     __privateGet(this, _x) && __privateSet(this, _x, 2);
   }
 }
@@ -191,7 +191,7 @@ _x = new WeakMap();
 	expectPrintedTarget(t, 2021, "class Foo { #x; constructor() { this.#x &&= 2 } }", `var _x;
 class Foo {
   constructor() {
-    __privateAdd(this, _x, void 0);
+    __privateAdd(this, _x);
     __privateGet(this, _x) && __privateSet(this, _x, 2);
   }
 }
@@ -207,7 +207,7 @@ _x = new WeakMap();
 	expectPrintedTarget(t, 2020, "class Foo { #x; constructor() { this.#x ||= 2 } }", `var _x;
 class Foo {
   constructor() {
-    __privateAdd(this, _x, void 0);
+    __privateAdd(this, _x);
     __privateGet(this, _x) || __privateSet(this, _x, 2);
   }
 }
@@ -223,7 +223,7 @@ _x = new WeakMap();
 	expectPrintedTarget(t, 2021, "class Foo { #x; constructor() { this.#x ||= 2 } }", `var _x;
 class Foo {
   constructor() {
-    __privateAdd(this, _x, void 0);
+    __privateAdd(this, _x);
     __privateGet(this, _x) || __privateSet(this, _x, 2);
   }
 }
