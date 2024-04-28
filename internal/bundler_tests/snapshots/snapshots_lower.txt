@@ -19,10 +19,10 @@ _e = new WeakMap();
 ================================================================================
 TestJavaScriptAutoAccessorES2021
 ---------- /out/js-define.js ----------
-var _one, __two, _two, two_get, two_set, _a, _a2, _four, __five, _five, five_get, five_set, _b, _b2;
+var _one, __two, _Foo_instances, two_get, two_set, _a, _a2, _four, __five, _Foo_static, five_get, five_set, _b, _b2;
 class Foo {
   constructor() {
-    __privateAdd(this, _two);
+    __privateAdd(this, _Foo_instances);
     __privateAdd(this, _one, 1);
     __privateAdd(this, __two, 2);
     __privateAdd(this, _a2, 3);
@@ -54,7 +54,7 @@ class Foo {
 }
 _one = new WeakMap();
 __two = new WeakMap();
-_two = new WeakSet();
+_Foo_instances = new WeakSet();
 two_get = function() {
   return __privateGet(this, __two);
 };
@@ -64,7 +64,7 @@ two_set = function(_) {
 _a2 = new WeakMap();
 _four = new WeakMap();
 __five = new WeakMap();
-_five = new WeakSet();
+_Foo_static = new WeakSet();
 five_get = function() {
   return __privateGet(this, __five);
 };
@@ -72,16 +72,16 @@ five_set = function(_) {
   __privateSet(this, __five, _);
 };
 _b2 = new WeakMap();
-__privateAdd(Foo, _five);
+__privateAdd(Foo, _Foo_static);
 __privateAdd(Foo, _four, 4);
 __privateAdd(Foo, __five, 5);
 __privateAdd(Foo, _b2, 6);
 
 ---------- /out/ts-define/ts-define.js ----------
-var _one, __two, _two, two_get, two_set, _a, _a2, _four, __five, _five, five_get, five_set, _b, _b2, _a3, __a, _a4, a_get, a_set, _a5, __a2, _a6, a_get2, a_set2;
+var _one, __two, _Foo_instances, two_get, two_set, _a, _a2, _four, __five, _Foo_static, five_get, five_set, _b, _b2, _a3, __a, _Private_instances, a_get, a_set, _a4, __a2, _StaticPrivate_static, a_get2, a_set2;
 class Foo {
   constructor() {
-    __privateAdd(this, _two);
+    __privateAdd(this, _Foo_instances);
     __privateAdd(this, _one, 1);
     __privateAdd(this, __two, 2);
     __privateAdd(this, _a2, 3);
@@ -113,7 +113,7 @@ class Foo {
 }
 _one = new WeakMap();
 __two = new WeakMap();
-_two = new WeakSet();
+_Foo_instances = new WeakSet();
 two_get = function() {
   return __privateGet(this, __two);
 };
@@ -123,7 +123,7 @@ two_set = function(_) {
 _a2 = new WeakMap();
 _four = new WeakMap();
 __five = new WeakMap();
-_five = new WeakSet();
+_Foo_static = new WeakSet();
 five_get = function() {
   return __privateGet(this, __five);
 };
@@ -131,7 +131,7 @@ five_set = function(_) {
   __privateSet(this, __five, _);
 };
 _b2 = new WeakMap();
-__privateAdd(Foo, _five);
+__privateAdd(Foo, _Foo_static);
 __privateAdd(Foo, _four, 4);
 __privateAdd(Foo, __five, 5);
 __privateAdd(Foo, _b2, 6);
@@ -150,13 +150,13 @@ class Normal {
 _a3 = new WeakMap();
 class Private {
   constructor() {
-    __privateAdd(this, _a4);
+    __privateAdd(this, _Private_instances);
     __privateAdd(this, __a, b);
     __publicField(this, "c", d);
   }
 }
 __a = new WeakMap();
-_a4 = new WeakSet();
+_Private_instances = new WeakSet();
 a_get = function() {
   return __privateGet(this, __a);
 };
@@ -165,34 +165,34 @@ a_set = function(_) {
 };
 class StaticNormal {
   static get a() {
-    return __privateGet(this, _a5);
+    return __privateGet(this, _a4);
   }
   static set a(_) {
-    __privateSet(this, _a5, _);
+    __privateSet(this, _a4, _);
   }
 }
-_a5 = new WeakMap();
-__privateAdd(StaticNormal, _a5, b);
+_a4 = new WeakMap();
+__privateAdd(StaticNormal, _a4, b);
 __publicField(StaticNormal, "c", d);
 class StaticPrivate {
 }
 __a2 = new WeakMap();
-_a6 = new WeakSet();
+_StaticPrivate_static = new WeakSet();
 a_get2 = function() {
   return __privateGet(this, __a2);
 };
 a_set2 = function(_) {
   __privateSet(this, __a2, _);
 };
-__privateAdd(StaticPrivate, _a6);
+__privateAdd(StaticPrivate, _StaticPrivate_static);
 __privateAdd(StaticPrivate, __a2, b);
 __publicField(StaticPrivate, "c", d);
 
 ---------- /out/ts-assign/ts-assign.js ----------
-var _one, __two, _two, two_get, two_set, _a, _a2, _four, __five, _five, five_get, five_set, _b, _b2, _a3, __a, _a4, a_get, a_set, _a5, __a2, _a6, a_get2, a_set2;
+var _one, __two, _Foo_instances, two_get, two_set, _a, _a2, _four, __five, _Foo_static, five_get, five_set, _b, _b2, _a3, __a, _Private_instances, a_get, a_set, _a4, __a2, _StaticPrivate_static, a_get2, a_set2;
 class Foo {
   constructor() {
-    __privateAdd(this, _two);
+    __privateAdd(this, _Foo_instances);
     __privateAdd(this, _one, 1);
     __privateAdd(this, __two, 2);
     __privateAdd(this, _a2, 3);
@@ -224,7 +224,7 @@ class Foo {
 }
 _one = new WeakMap();
 __two = new WeakMap();
-_two = new WeakSet();
+_Foo_instances = new WeakSet();
 two_get = function() {
   return __privateGet(this, __two);
 };
@@ -234,7 +234,7 @@ two_set = function(_) {
 _a2 = new WeakMap();
 _four = new WeakMap();
 __five = new WeakMap();
-_five = new WeakSet();
+_Foo_static = new WeakSet();
 five_get = function() {
   return __privateGet(this, __five);
 };
@@ -242,7 +242,7 @@ five_set = function(_) {
   __privateSet(this, __five, _);
 };
 _b2 = new WeakMap();
-__privateAdd(Foo, _five);
+__privateAdd(Foo, _Foo_static);
 __privateAdd(Foo, _four, 4);
 __privateAdd(Foo, __five, 5);
 __privateAdd(Foo, _b2, 6);
@@ -261,13 +261,13 @@ class Normal {
 _a3 = new WeakMap();
 class Private {
   constructor() {
-    __privateAdd(this, _a4);
+    __privateAdd(this, _Private_instances);
     __privateAdd(this, __a, b);
     this.c = d;
   }
 }
 __a = new WeakMap();
-_a4 = new WeakSet();
+_Private_instances = new WeakSet();
 a_get = function() {
   return __privateGet(this, __a);
 };
@@ -276,26 +276,26 @@ a_set = function(_) {
 };
 class StaticNormal {
   static get a() {
-    return __privateGet(this, _a5);
+    return __privateGet(this, _a4);
   }
   static set a(_) {
-    __privateSet(this, _a5, _);
+    __privateSet(this, _a4, _);
   }
 }
-_a5 = new WeakMap();
-__privateAdd(StaticNormal, _a5, b);
+_a4 = new WeakMap();
+__privateAdd(StaticNormal, _a4, b);
 StaticNormal.c = d;
 class StaticPrivate {
 }
 __a2 = new WeakMap();
-_a6 = new WeakSet();
+_StaticPrivate_static = new WeakSet();
 a_get2 = function() {
   return __privateGet(this, __a2);
 };
 a_set2 = function(_) {
   __privateSet(this, __a2, _);
 };
-__privateAdd(StaticPrivate, _a6);
+__privateAdd(StaticPrivate, _StaticPrivate_static);
 __privateAdd(StaticPrivate, __a2, b);
 StaticPrivate.c = d;
 
@@ -2086,15 +2086,15 @@ var e3;
 ================================================================================
 TestLowerPrivateClassAccessorOrder
 ---------- /out.js ----------
-var _foo, foo_get;
+var _Foo_instances, foo_get;
 class Foo {
   constructor() {
-    __privateAdd(this, _foo);
-    __publicField(this, "bar", __privateGet(this, _foo, foo_get));
+    __privateAdd(this, _Foo_instances);
+    __publicField(this, "bar", __privateGet(this, _Foo_instances, foo_get));
   }
   // This must be set before "bar" is initialized
 }
-_foo = new WeakSet();
+_Foo_instances = new WeakSet();
 foo_get = function() {
   return 123;
 };
@@ -2138,20 +2138,20 @@ _foo = new WeakMap();
 ================================================================================
 TestLowerPrivateClassExpr2020NoBundle
 ---------- /out.js ----------
-var _field, _method, method_fn, _a, _staticField, _staticMethod, staticMethod_fn;
+var _field, _instances, method_fn, _a, _staticField, _static, staticMethod_fn;
 export let Foo = (_a = class {
   constructor() {
-    __privateAdd(this, _method);
+    __privateAdd(this, _instances);
     __privateAdd(this, _field, void 0);
   }
   foo() {
     var _a2;
-    __privateSet(this, _field, __privateMethod(this, _method, method_fn).call(this));
-    __privateSet(Foo, _staticField, __privateMethod(_a2 = Foo, _staticMethod, staticMethod_fn).call(_a2));
+    __privateSet(this, _field, __privateMethod(this, _instances, method_fn).call(this));
+    __privateSet(Foo, _staticField, __privateMethod(_a2 = Foo, _static, staticMethod_fn).call(_a2));
   }
-}, _field = new WeakMap(), _method = new WeakSet(), method_fn = function() {
-}, _staticField = new WeakMap(), _staticMethod = new WeakSet(), staticMethod_fn = function() {
-}, __privateAdd(_a, _staticMethod), __privateAdd(_a, _staticField, void 0), _a);
+}, _field = new WeakMap(), _instances = new WeakSet(), method_fn = function() {
+}, _staticField = new WeakMap(), _static = new WeakSet(), staticMethod_fn = function() {
+}, __privateAdd(_a, _static), __privateAdd(_a, _staticField, void 0), _a);
 
 ================================================================================
 TestLowerPrivateClassFieldOrder
@@ -2171,21 +2171,19 @@ console.log(new Foo().bar === 123);
 TestLowerPrivateClassFieldStaticIssue1424
 ---------- /out.js ----------
 // entry.js
-var _a, a_fn, _b, b_fn;
+var _T_instances, a_fn, b_fn;
 var T = class {
   constructor() {
-    __privateAdd(this, _a);
-    __privateAdd(this, _b);
+    __privateAdd(this, _T_instances);
   }
   d() {
-    console.log(__privateMethod(this, _a, a_fn).call(this));
+    console.log(__privateMethod(this, _T_instances, a_fn).call(this));
   }
 };
-_a = new WeakSet();
+_T_instances = new WeakSet();
 a_fn = function() {
   return "a";
 };
-_b = new WeakSet();
 b_fn = function() {
   return "b";
 };
@@ -2195,15 +2193,15 @@ new T().d();
 ================================================================================
 TestLowerPrivateClassMethodOrder
 ---------- /out.js ----------
-var _foo, foo_fn;
+var _Foo_instances, foo_fn;
 class Foo {
   constructor() {
-    __privateAdd(this, _foo);
-    __publicField(this, "bar", __privateMethod(this, _foo, foo_fn).call(this));
+    __privateAdd(this, _Foo_instances);
+    __publicField(this, "bar", __privateMethod(this, _Foo_instances, foo_fn).call(this));
   }
   // This must be set before "bar" is initialized
 }
-_foo = new WeakSet();
+_Foo_instances = new WeakSet();
 foo_fn = function() {
   return 123;
 };
@@ -2212,27 +2210,27 @@ console.log(new Foo().bar === 123);
 ================================================================================
 TestLowerPrivateClassStaticAccessorOrder
 ---------- /out.js ----------
-var _foo, foo_get, _foo2, foo_get2;
+var _Foo_static, foo_get, _FooThis_static, foo_get2;
 const _Foo = class _Foo {
   // This must be set before "bar" is initialized
 };
-_foo = new WeakSet();
+_Foo_static = new WeakSet();
 foo_get = function() {
   return 123;
 };
-__privateAdd(_Foo, _foo);
-__publicField(_Foo, "bar", __privateGet(_Foo, _foo, foo_get));
+__privateAdd(_Foo, _Foo_static);
+__publicField(_Foo, "bar", __privateGet(_Foo, _Foo_static, foo_get));
 let Foo = _Foo;
 console.log(Foo.bar === 123);
 const _FooThis = class _FooThis {
   // This must be set before "bar" is initialized
 };
-_foo2 = new WeakSet();
+_FooThis_static = new WeakSet();
 foo_get2 = function() {
   return 123;
 };
-__privateAdd(_FooThis, _foo2);
-__publicField(_FooThis, "bar", __privateGet(_FooThis, _foo2, foo_get2));
+__privateAdd(_FooThis, _FooThis_static);
+__publicField(_FooThis, "bar", __privateGet(_FooThis, _FooThis_static, foo_get2));
 let FooThis = _FooThis;
 console.log(FooThis.bar === 123);
 
@@ -2260,27 +2258,27 @@ console.log(FooThis.bar === 123);
 ================================================================================
 TestLowerPrivateClassStaticMethodOrder
 ---------- /out.js ----------
-var _a, _foo, foo_fn, _b, _foo2, foo_fn2;
+var _a, _Foo_static, foo_fn, _b, _FooThis_static, foo_fn2;
 const _Foo = class _Foo {
   // This must be set before "bar" is initialized
 };
-_foo = new WeakSet();
+_Foo_static = new WeakSet();
 foo_fn = function() {
   return 123;
 };
-__privateAdd(_Foo, _foo);
-__publicField(_Foo, "bar", __privateMethod(_a = _Foo, _foo, foo_fn).call(_a));
+__privateAdd(_Foo, _Foo_static);
+__publicField(_Foo, "bar", __privateMethod(_a = _Foo, _Foo_static, foo_fn).call(_a));
 let Foo = _Foo;
 console.log(Foo.bar === 123);
 const _FooThis = class _FooThis {
   // This must be set before "bar" is initialized
 };
-_foo2 = new WeakSet();
+_FooThis_static = new WeakSet();
 foo_fn2 = function() {
   return 123;
 };
-__privateAdd(_FooThis, _foo2);
-__publicField(_FooThis, "bar", __privateMethod(_b = _FooThis, _foo2, foo_fn2).call(_b));
+__privateAdd(_FooThis, _FooThis_static);
+__publicField(_FooThis, "bar", __privateMethod(_b = _FooThis, _FooThis_static, foo_fn2).call(_b));
 let FooThis = _FooThis;
 console.log(FooThis.bar === 123);
 
@@ -2471,54 +2469,50 @@ class Foo {
 TestLowerPrivateGetterSetter2015
 ---------- /out.js ----------
 // entry.js
-var _foo, foo_get, _bar, bar_set, _prop, prop_get, prop_set;
+var _Foo_instances, foo_get, bar_set, prop_get, prop_set;
 var Foo = class {
   constructor() {
-    __privateAdd(this, _foo);
-    __privateAdd(this, _bar);
-    __privateAdd(this, _prop);
+    __privateAdd(this, _Foo_instances);
   }
   foo(fn) {
-    __privateGet(fn(), _foo, foo_get);
-    __privateSet(fn(), _bar, 1, bar_set);
-    __privateGet(fn(), _prop, prop_get);
-    __privateSet(fn(), _prop, 2, prop_set);
+    __privateGet(fn(), _Foo_instances, foo_get);
+    __privateSet(fn(), _Foo_instances, 1, bar_set);
+    __privateGet(fn(), _Foo_instances, prop_get);
+    __privateSet(fn(), _Foo_instances, 2, prop_set);
   }
   unary(fn) {
-    __privateWrapper(fn(), _prop, prop_set, prop_get)._++;
-    __privateWrapper(fn(), _prop, prop_set, prop_get)._--;
-    ++__privateWrapper(fn(), _prop, prop_set, prop_get)._;
-    --__privateWrapper(fn(), _prop, prop_set, prop_get)._;
+    __privateWrapper(fn(), _Foo_instances, prop_set, prop_get)._++;
+    __privateWrapper(fn(), _Foo_instances, prop_set, prop_get)._--;
+    ++__privateWrapper(fn(), _Foo_instances, prop_set, prop_get)._;
+    --__privateWrapper(fn(), _Foo_instances, prop_set, prop_get)._;
   }
   binary(fn) {
     var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p;
-    __privateSet(fn(), _prop, 1, prop_set);
-    __privateSet(_a = fn(), _prop, __privateGet(_a, _prop, prop_get) + 1, prop_set);
-    __privateSet(_b = fn(), _prop, __privateGet(_b, _prop, prop_get) - 1, prop_set);
-    __privateSet(_c = fn(), _prop, __privateGet(_c, _prop, prop_get) * 1, prop_set);
-    __privateSet(_d = fn(), _prop, __privateGet(_d, _prop, prop_get) / 1, prop_set);
-    __privateSet(_e = fn(), _prop, __privateGet(_e, _prop, prop_get) % 1, prop_set);
-    __privateSet(_f = fn(), _prop, __pow(__privateGet(_f, _prop, prop_get), 1), prop_set);
-    __privateSet(_g = fn(), _prop, __privateGet(_g, _prop, prop_get) << 1, prop_set);
-    __privateSet(_h = fn(), _prop, __privateGet(_h, _prop, prop_get) >> 1, prop_set);
-    __privateSet(_i = fn(), _prop, __privateGet(_i, _prop, prop_get) >>> 1, prop_set);
-    __privateSet(_j = fn(), _prop, __privateGet(_j, _prop, prop_get) & 1, prop_set);
-    __privateSet(_k = fn(), _prop, __privateGet(_k, _prop, prop_get) | 1, prop_set);
-    __privateSet(_l = fn(), _prop, __privateGet(_l, _prop, prop_get) ^ 1, prop_set);
-    __privateGet(_m = fn(), _prop, prop_get) && __privateSet(_m, _prop, 1, prop_set);
-    __privateGet(_n = fn(), _prop, prop_get) || __privateSet(_n, _prop, 1, prop_set);
-    (_p = __privateGet(_o = fn(), _prop, prop_get)) != null ? _p : __privateSet(_o, _prop, 1, prop_set);
+    __privateSet(fn(), _Foo_instances, 1, prop_set);
+    __privateSet(_a = fn(), _Foo_instances, __privateGet(_a, _Foo_instances, prop_get) + 1, prop_set);
+    __privateSet(_b = fn(), _Foo_instances, __privateGet(_b, _Foo_instances, prop_get) - 1, prop_set);
+    __privateSet(_c = fn(), _Foo_instances, __privateGet(_c, _Foo_instances, prop_get) * 1, prop_set);
+    __privateSet(_d = fn(), _Foo_instances, __privateGet(_d, _Foo_instances, prop_get) / 1, prop_set);
+    __privateSet(_e = fn(), _Foo_instances, __privateGet(_e, _Foo_instances, prop_get) % 1, prop_set);
+    __privateSet(_f = fn(), _Foo_instances, __pow(__privateGet(_f, _Foo_instances, prop_get), 1), prop_set);
+    __privateSet(_g = fn(), _Foo_instances, __privateGet(_g, _Foo_instances, prop_get) << 1, prop_set);
+    __privateSet(_h = fn(), _Foo_instances, __privateGet(_h, _Foo_instances, prop_get) >> 1, prop_set);
+    __privateSet(_i = fn(), _Foo_instances, __privateGet(_i, _Foo_instances, prop_get) >>> 1, prop_set);
+    __privateSet(_j = fn(), _Foo_instances, __privateGet(_j, _Foo_instances, prop_get) & 1, prop_set);
+    __privateSet(_k = fn(), _Foo_instances, __privateGet(_k, _Foo_instances, prop_get) | 1, prop_set);
+    __privateSet(_l = fn(), _Foo_instances, __privateGet(_l, _Foo_instances, prop_get) ^ 1, prop_set);
+    __privateGet(_m = fn(), _Foo_instances, prop_get) && __privateSet(_m, _Foo_instances, 1, prop_set);
+    __privateGet(_n = fn(), _Foo_instances, prop_get) || __privateSet(_n, _Foo_instances, 1, prop_set);
+    (_p = __privateGet(_o = fn(), _Foo_instances, prop_get)) != null ? _p : __privateSet(_o, _Foo_instances, 1, prop_set);
   }
 };
-_foo = new WeakSet();
+_Foo_instances = new WeakSet();
 foo_get = function() {
   return this.foo;
 };
-_bar = new WeakSet();
 bar_set = function(val) {
   this.bar = val;
 };
-_prop = new WeakSet();
 prop_get = function() {
   return this.prop;
 };
@@ -2533,54 +2527,50 @@ export {
 TestLowerPrivateGetterSetter2019
 ---------- /out.js ----------
 // entry.js
-var _foo, foo_get, _bar, bar_set, _prop, prop_get, prop_set;
+var _Foo_instances, foo_get, bar_set, prop_get, prop_set;
 var Foo = class {
   constructor() {
-    __privateAdd(this, _foo);
-    __privateAdd(this, _bar);
-    __privateAdd(this, _prop);
+    __privateAdd(this, _Foo_instances);
   }
   foo(fn) {
-    __privateGet(fn(), _foo, foo_get);
-    __privateSet(fn(), _bar, 1, bar_set);
-    __privateGet(fn(), _prop, prop_get);
-    __privateSet(fn(), _prop, 2, prop_set);
+    __privateGet(fn(), _Foo_instances, foo_get);
+    __privateSet(fn(), _Foo_instances, 1, bar_set);
+    __privateGet(fn(), _Foo_instances, prop_get);
+    __privateSet(fn(), _Foo_instances, 2, prop_set);
   }
   unary(fn) {
-    __privateWrapper(fn(), _prop, prop_set, prop_get)._++;
-    __privateWrapper(fn(), _prop, prop_set, prop_get)._--;
-    ++__privateWrapper(fn(), _prop, prop_set, prop_get)._;
-    --__privateWrapper(fn(), _prop, prop_set, prop_get)._;
+    __privateWrapper(fn(), _Foo_instances, prop_set, prop_get)._++;
+    __privateWrapper(fn(), _Foo_instances, prop_set, prop_get)._--;
+    ++__privateWrapper(fn(), _Foo_instances, prop_set, prop_get)._;
+    --__privateWrapper(fn(), _Foo_instances, prop_set, prop_get)._;
   }
   binary(fn) {
     var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p;
-    __privateSet(fn(), _prop, 1, prop_set);
-    __privateSet(_a = fn(), _prop, __privateGet(_a, _prop, prop_get) + 1, prop_set);
-    __privateSet(_b = fn(), _prop, __privateGet(_b, _prop, prop_get) - 1, prop_set);
-    __privateSet(_c = fn(), _prop, __privateGet(_c, _prop, prop_get) * 1, prop_set);
-    __privateSet(_d = fn(), _prop, __privateGet(_d, _prop, prop_get) / 1, prop_set);
-    __privateSet(_e = fn(), _prop, __privateGet(_e, _prop, prop_get) % 1, prop_set);
-    __privateSet(_f = fn(), _prop, __privateGet(_f, _prop, prop_get) ** 1, prop_set);
-    __privateSet(_g = fn(), _prop, __privateGet(_g, _prop, prop_get) << 1, prop_set);
-    __privateSet(_h = fn(), _prop, __privateGet(_h, _prop, prop_get) >> 1, prop_set);
-    __privateSet(_i = fn(), _prop, __privateGet(_i, _prop, prop_get) >>> 1, prop_set);
-    __privateSet(_j = fn(), _prop, __privateGet(_j, _prop, prop_get) & 1, prop_set);
-    __privateSet(_k = fn(), _prop, __privateGet(_k, _prop, prop_get) | 1, prop_set);
-    __privateSet(_l = fn(), _prop, __privateGet(_l, _prop, prop_get) ^ 1, prop_set);
-    __privateGet(_m = fn(), _prop, prop_get) && __privateSet(_m, _prop, 1, prop_set);
-    __privateGet(_n = fn(), _prop, prop_get) || __privateSet(_n, _prop, 1, prop_set);
-    (_p = __privateGet(_o = fn(), _prop, prop_get)) != null ? _p : __privateSet(_o, _prop, 1, prop_set);
+    __privateSet(fn(), _Foo_instances, 1, prop_set);
+    __privateSet(_a = fn(), _Foo_instances, __privateGet(_a, _Foo_instances, prop_get) + 1, prop_set);
+    __privateSet(_b = fn(), _Foo_instances, __privateGet(_b, _Foo_instances, prop_get) - 1, prop_set);
+    __privateSet(_c = fn(), _Foo_instances, __privateGet(_c, _Foo_instances, prop_get) * 1, prop_set);
+    __privateSet(_d = fn(), _Foo_instances, __privateGet(_d, _Foo_instances, prop_get) / 1, prop_set);
+    __privateSet(_e = fn(), _Foo_instances, __privateGet(_e, _Foo_instances, prop_get) % 1, prop_set);
+    __privateSet(_f = fn(), _Foo_instances, __privateGet(_f, _Foo_instances, prop_get) ** 1, prop_set);
+    __privateSet(_g = fn(), _Foo_instances, __privateGet(_g, _Foo_instances, prop_get) << 1, prop_set);
+    __privateSet(_h = fn(), _Foo_instances, __privateGet(_h, _Foo_instances, prop_get) >> 1, prop_set);
+    __privateSet(_i = fn(), _Foo_instances, __privateGet(_i, _Foo_instances, prop_get) >>> 1, prop_set);
+    __privateSet(_j = fn(), _Foo_instances, __privateGet(_j, _Foo_instances, prop_get) & 1, prop_set);
+    __privateSet(_k = fn(), _Foo_instances, __privateGet(_k, _Foo_instances, prop_get) | 1, prop_set);
+    __privateSet(_l = fn(), _Foo_instances, __privateGet(_l, _Foo_instances, prop_get) ^ 1, prop_set);
+    __privateGet(_m = fn(), _Foo_instances, prop_get) && __privateSet(_m, _Foo_instances, 1, prop_set);
+    __privateGet(_n = fn(), _Foo_instances, prop_get) || __privateSet(_n, _Foo_instances, 1, prop_set);
+    (_p = __privateGet(_o = fn(), _Foo_instances, prop_get)) != null ? _p : __privateSet(_o, _Foo_instances, 1, prop_set);
   }
 };
-_foo = new WeakSet();
+_Foo_instances = new WeakSet();
 foo_get = function() {
   return this.foo;
 };
-_bar = new WeakSet();
 bar_set = function(val) {
   this.bar = val;
 };
-_prop = new WeakSet();
 prop_get = function() {
   return this.prop;
 };
@@ -2595,54 +2585,50 @@ export {
 TestLowerPrivateGetterSetter2020
 ---------- /out.js ----------
 // entry.js
-var _foo, foo_get, _bar, bar_set, _prop, prop_get, prop_set;
+var _Foo_instances, foo_get, bar_set, prop_get, prop_set;
 var Foo = class {
   constructor() {
-    __privateAdd(this, _foo);
-    __privateAdd(this, _bar);
-    __privateAdd(this, _prop);
+    __privateAdd(this, _Foo_instances);
   }
   foo(fn) {
-    __privateGet(fn(), _foo, foo_get);
-    __privateSet(fn(), _bar, 1, bar_set);
-    __privateGet(fn(), _prop, prop_get);
-    __privateSet(fn(), _prop, 2, prop_set);
+    __privateGet(fn(), _Foo_instances, foo_get);
+    __privateSet(fn(), _Foo_instances, 1, bar_set);
+    __privateGet(fn(), _Foo_instances, prop_get);
+    __privateSet(fn(), _Foo_instances, 2, prop_set);
   }
   unary(fn) {
-    __privateWrapper(fn(), _prop, prop_set, prop_get)._++;
-    __privateWrapper(fn(), _prop, prop_set, prop_get)._--;
-    ++__privateWrapper(fn(), _prop, prop_set, prop_get)._;
-    --__privateWrapper(fn(), _prop, prop_set, prop_get)._;
+    __privateWrapper(fn(), _Foo_instances, prop_set, prop_get)._++;
+    __privateWrapper(fn(), _Foo_instances, prop_set, prop_get)._--;
+    ++__privateWrapper(fn(), _Foo_instances, prop_set, prop_get)._;
+    --__privateWrapper(fn(), _Foo_instances, prop_set, prop_get)._;
   }
   binary(fn) {
     var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
-    __privateSet(fn(), _prop, 1, prop_set);
-    __privateSet(_a = fn(), _prop, __privateGet(_a, _prop, prop_get) + 1, prop_set);
-    __privateSet(_b = fn(), _prop, __privateGet(_b, _prop, prop_get) - 1, prop_set);
-    __privateSet(_c = fn(), _prop, __privateGet(_c, _prop, prop_get) * 1, prop_set);
-    __privateSet(_d = fn(), _prop, __privateGet(_d, _prop, prop_get) / 1, prop_set);
-    __privateSet(_e = fn(), _prop, __privateGet(_e, _prop, prop_get) % 1, prop_set);
-    __privateSet(_f = fn(), _prop, __privateGet(_f, _prop, prop_get) ** 1, prop_set);
-    __privateSet(_g = fn(), _prop, __privateGet(_g, _prop, prop_get) << 1, prop_set);
-    __privateSet(_h = fn(), _prop, __privateGet(_h, _prop, prop_get) >> 1, prop_set);
-    __privateSet(_i = fn(), _prop, __privateGet(_i, _prop, prop_get) >>> 1, prop_set);
-    __privateSet(_j = fn(), _prop, __privateGet(_j, _prop, prop_get) & 1, prop_set);
-    __privateSet(_k = fn(), _prop, __privateGet(_k, _prop, prop_get) | 1, prop_set);
-    __privateSet(_l = fn(), _prop, __privateGet(_l, _prop, prop_get) ^ 1, prop_set);
-    __privateGet(_m = fn(), _prop, prop_get) && __privateSet(_m, _prop, 1, prop_set);
-    __privateGet(_n = fn(), _prop, prop_get) || __privateSet(_n, _prop, 1, prop_set);
-    __privateGet(_o = fn(), _prop, prop_get) ?? __privateSet(_o, _prop, 1, prop_set);
+    __privateSet(fn(), _Foo_instances, 1, prop_set);
+    __privateSet(_a = fn(), _Foo_instances, __privateGet(_a, _Foo_instances, prop_get) + 1, prop_set);
+    __privateSet(_b = fn(), _Foo_instances, __privateGet(_b, _Foo_instances, prop_get) - 1, prop_set);
+    __privateSet(_c = fn(), _Foo_instances, __privateGet(_c, _Foo_instances, prop_get) * 1, prop_set);
+    __privateSet(_d = fn(), _Foo_instances, __privateGet(_d, _Foo_instances, prop_get) / 1, prop_set);
+    __privateSet(_e = fn(), _Foo_instances, __privateGet(_e, _Foo_instances, prop_get) % 1, prop_set);
+    __privateSet(_f = fn(), _Foo_instances, __privateGet(_f, _Foo_instances, prop_get) ** 1, prop_set);
+    __privateSet(_g = fn(), _Foo_instances, __privateGet(_g, _Foo_instances, prop_get) << 1, prop_set);
+    __privateSet(_h = fn(), _Foo_instances, __privateGet(_h, _Foo_instances, prop_get) >> 1, prop_set);
+    __privateSet(_i = fn(), _Foo_instances, __privateGet(_i, _Foo_instances, prop_get) >>> 1, prop_set);
+    __privateSet(_j = fn(), _Foo_instances, __privateGet(_j, _Foo_instances, prop_get) & 1, prop_set);
+    __privateSet(_k = fn(), _Foo_instances, __privateGet(_k, _Foo_instances, prop_get) | 1, prop_set);
+    __privateSet(_l = fn(), _Foo_instances, __privateGet(_l, _Foo_instances, prop_get) ^ 1, prop_set);
+    __privateGet(_m = fn(), _Foo_instances, prop_get) && __privateSet(_m, _Foo_instances, 1, prop_set);
+    __privateGet(_n = fn(), _Foo_instances, prop_get) || __privateSet(_n, _Foo_instances, 1, prop_set);
+    __privateGet(_o = fn(), _Foo_instances, prop_get) ?? __privateSet(_o, _Foo_instances, 1, prop_set);
   }
 };
-_foo = new WeakSet();
+_Foo_instances = new WeakSet();
 foo_get = function() {
   return this.foo;
 };
-_bar = new WeakSet();
 bar_set = function(val) {
   this.bar = val;
 };
-_prop = new WeakSet();
 prop_get = function() {
   return this.prop;
 };
@@ -2709,10 +2695,10 @@ export {
 TestLowerPrivateMethod2019
 ---------- /out.js ----------
 // entry.js
-var _field, _method, method_fn;
+var _field, _Foo_instances, method_fn;
 var Foo = class {
   constructor() {
-    __privateAdd(this, _method);
+    __privateAdd(this, _Foo_instances);
     __privateAdd(this, _field, void 0);
   }
   baseline() {
@@ -2734,16 +2720,16 @@ var Foo = class {
   }
   privateMethod() {
     var _a, _b, _c, _d, _e, _f, _g, _h;
-    __privateMethod(a(), _method, method_fn);
-    __privateMethod(_a = b(), _method, method_fn).call(_a, x);
-    (_b = c()) == null ? void 0 : __privateMethod(_b, _method, method_fn).call(_b, x);
-    (_d = __privateMethod(_c = d(), _method, method_fn)) == null ? void 0 : _d.call(_c, x);
-    (_f = (_e = e()) == null ? void 0 : __privateMethod(_e, _method, method_fn)) == null ? void 0 : _f.call(_e, x);
-    (_g = f()) == null ? void 0 : __privateMethod(_h = _g.foo, _method, method_fn).call(_h, x).bar();
+    __privateMethod(a(), _Foo_instances, method_fn);
+    __privateMethod(_a = b(), _Foo_instances, method_fn).call(_a, x);
+    (_b = c()) == null ? void 0 : __privateMethod(_b, _Foo_instances, method_fn).call(_b, x);
+    (_d = __privateMethod(_c = d(), _Foo_instances, method_fn)) == null ? void 0 : _d.call(_c, x);
+    (_f = (_e = e()) == null ? void 0 : __privateMethod(_e, _Foo_instances, method_fn)) == null ? void 0 : _f.call(_e, x);
+    (_g = f()) == null ? void 0 : __privateMethod(_h = _g.foo, _Foo_instances, method_fn).call(_h, x).bar();
   }
 };
 _field = new WeakMap();
-_method = new WeakSet();
+_Foo_instances = new WeakSet();
 method_fn = function() {
 };
 export {
@@ -2754,10 +2740,10 @@ export {
 TestLowerPrivateMethod2020
 ---------- /out.js ----------
 // entry.js
-var _field, _method, method_fn;
+var _field, _Foo_instances, method_fn;
 var Foo = class {
   constructor() {
-    __privateAdd(this, _method);
+    __privateAdd(this, _Foo_instances);
     __privateAdd(this, _field, void 0);
   }
   baseline() {
@@ -2778,16 +2764,16 @@ var Foo = class {
   }
   privateMethod() {
     var _a, _b, _c, _d, _e, _f, _g;
-    __privateMethod(a(), _method, method_fn);
-    __privateMethod(_a = b(), _method, method_fn).call(_a, x);
-    (_b = c()) == null ? void 0 : __privateMethod(_b, _method, method_fn).call(_b, x);
-    (_d = __privateMethod(_c = d(), _method, method_fn)) == null ? void 0 : _d.call(_c, x);
-    ((_e = e()) == null ? void 0 : __privateMethod(_e, _method, method_fn))?.(x);
-    (_f = f()) == null ? void 0 : __privateMethod(_g = _f.foo, _method, method_fn).call(_g, x).bar();
+    __privateMethod(a(), _Foo_instances, method_fn);
+    __privateMethod(_a = b(), _Foo_instances, method_fn).call(_a, x);
+    (_b = c()) == null ? void 0 : __privateMethod(_b, _Foo_instances, method_fn).call(_b, x);
+    (_d = __privateMethod(_c = d(), _Foo_instances, method_fn)) == null ? void 0 : _d.call(_c, x);
+    ((_e = e()) == null ? void 0 : __privateMethod(_e, _Foo_instances, method_fn))?.(x);
+    (_f = f()) == null ? void 0 : __privateMethod(_g = _f.foo, _Foo_instances, method_fn).call(_g, x).bar();
   }
 };
 _field = new WeakMap();
-_method = new WeakSet();
+_Foo_instances = new WeakSet();
 method_fn = function() {
 };
 export {
@@ -2834,35 +2820,27 @@ export {
 TestLowerPrivateMethodWithModifiers2020
 ---------- /out.js ----------
 // entry.js
-var _g, g_fn, _a, a_fn, _ag, ag_fn, _sg, sg_fn, _sa, sa_fn, _sag, sag_fn;
+var _Foo_instances, g_fn, a_fn, ag_fn, _Foo_static, sg_fn, sa_fn, sag_fn;
 var Foo = class {
   constructor() {
-    __privateAdd(this, _g);
-    __privateAdd(this, _a);
-    __privateAdd(this, _ag);
+    __privateAdd(this, _Foo_instances);
   }
 };
-_g = new WeakSet();
+_Foo_instances = new WeakSet();
 g_fn = function* () {
 };
-_a = new WeakSet();
 a_fn = async function() {
 };
-_ag = new WeakSet();
 ag_fn = async function* () {
 };
-_sg = new WeakSet();
+_Foo_static = new WeakSet();
 sg_fn = function* () {
 };
-_sa = new WeakSet();
 sa_fn = async function() {
 };
-_sag = new WeakSet();
 sag_fn = async function* () {
 };
-__privateAdd(Foo, _sg);
-__privateAdd(Foo, _sa);
-__privateAdd(Foo, _sag);
+__privateAdd(Foo, _Foo_static);
 export {
   Foo
 };
@@ -2871,95 +2849,95 @@ export {
 TestLowerPrivateSuperES2021
 ---------- /out.js ----------
 // foo1.js
-var _foo, foo_fn;
+var _default_instances, foo_fn;
 var _foo1_default = class _foo1_default extends x {
   constructor() {
     super(...arguments);
-    __privateAdd(this, _foo);
+    __privateAdd(this, _default_instances);
   }
 };
-_foo = new WeakSet();
+_default_instances = new WeakSet();
 foo_fn = function() {
   __superGet(_foo1_default.prototype, this, "foo").call(this);
 };
 var foo1_default = _foo1_default;
 
 // foo2.js
-var _foo2, foo_fn2;
+var _default_instances2, foo_fn2;
 var _foo2_default = class _foo2_default extends x {
   constructor() {
     super(...arguments);
-    __privateAdd(this, _foo2);
+    __privateAdd(this, _default_instances2);
   }
 };
-_foo2 = new WeakSet();
+_default_instances2 = new WeakSet();
 foo_fn2 = function() {
   __superWrapper(_foo2_default.prototype, this, "foo")._++;
 };
 var foo2_default = _foo2_default;
 
 // foo3.js
-var _foo3, foo_fn3;
+var _default_static, foo_fn3;
 var _foo3_default = class _foo3_default extends x {
 };
-_foo3 = new WeakSet();
+_default_static = new WeakSet();
 foo_fn3 = function() {
   __superGet(_foo3_default, this, "foo").call(this);
 };
-__privateAdd(_foo3_default, _foo3);
+__privateAdd(_foo3_default, _default_static);
 var foo3_default = _foo3_default;
 
 // foo4.js
-var _foo4, foo_fn4;
+var _default_static2, foo_fn4;
 var _foo4_default = class _foo4_default extends x {
 };
-_foo4 = new WeakSet();
+_default_static2 = new WeakSet();
 foo_fn4 = function() {
   __superWrapper(_foo4_default, this, "foo")._++;
 };
-__privateAdd(_foo4_default, _foo4);
+__privateAdd(_foo4_default, _default_static2);
 var foo4_default = _foo4_default;
 
 // foo5.js
-var _foo5;
+var _foo;
 var foo5_default = class extends x {
   constructor() {
     super(...arguments);
-    __privateAdd(this, _foo5, () => {
+    __privateAdd(this, _foo, () => {
       super.foo();
     });
   }
 };
-_foo5 = new WeakMap();
+_foo = new WeakMap();
 
 // foo6.js
-var _foo6;
+var _foo2;
 var foo6_default = class extends x {
   constructor() {
     super(...arguments);
-    __privateAdd(this, _foo6, () => {
+    __privateAdd(this, _foo2, () => {
       super.foo++;
     });
   }
 };
-_foo6 = new WeakMap();
+_foo2 = new WeakMap();
 
 // foo7.js
-var _foo7;
+var _foo3;
 var _foo7_default = class _foo7_default extends x {
 };
-_foo7 = new WeakMap();
-__privateAdd(_foo7_default, _foo7, () => {
+_foo3 = new WeakMap();
+__privateAdd(_foo7_default, _foo3, () => {
   __superGet(_foo7_default, _foo7_default, "foo").call(this);
 });
 var foo7_default = _foo7_default;
 
 // foo8.js
-var _foo8;
+var _foo4;
 var _foo8_default = class _foo8_default extends x {
 };
-_foo8 = new WeakMap();
-__privateAdd(_foo8_default, _foo8, () => {
+_foo4 = new WeakMap();
+__privateAdd(_foo8_default, _foo4, () => {
   __superWrapper(_foo8_default, _foo8_default, "foo")._++;
 });
 var foo8_default = _foo8_default;
@@ -4747,13 +4725,13 @@ var WeakMap2 = class {
   }
 };
 _x = new WeakMap();
-var _y, y_fn;
+var _WeakSet_instances, y_fn;
 var WeakSet2 = class {
   constructor() {
-    __privateAdd(this, _y);
+    __privateAdd(this, _WeakSet_instances);
   }
 };
-_y = new WeakSet();
+_WeakSet_instances = new WeakSet();
 y_fn = function() {
 };
 export {
@@ -4781,25 +4759,23 @@ _x = new WeakMap();
 ================================================================================
 TestTSLowerPrivateStaticMembers2015NoBundle
 ---------- /out.js ----------
-var _x, _y, y_get, y_set, _z, z_fn;
+var _x, _Foo_static, y_get, y_set, z_fn;
 const _Foo = class _Foo {
   foo() {
     var _a;
     __privateSet(_Foo, _x, __privateGet(_Foo, _x) + 1);
-    __privateSet(_Foo, _y, __privateGet(_Foo, _y, y_get) + 1, y_set);
-    __privateMethod(_a = _Foo, _z, z_fn).call(_a);
+    __privateSet(_Foo, _Foo_static, __privateGet(_Foo, _Foo_static, y_get) + 1, y_set);
+    __privateMethod(_a = _Foo, _Foo_static, z_fn).call(_a);
   }
 };
 _x = new WeakMap();
-_y = new WeakSet();
+_Foo_static = new WeakSet();
 y_get = function() {
 };
 y_set = function(x) {
 };
-_z = new WeakSet();
 z_fn = function() {
 };
-__privateAdd(_Foo, _y);
-__privateAdd(_Foo, _z);
+__privateAdd(_Foo, _Foo_static);
 __privateAdd(_Foo, _x, void 0);
 let Foo = _Foo;

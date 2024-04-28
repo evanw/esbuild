@@ -1,6 +1,8 @@
 package js_parser
 
 import (
+	"fmt"
+
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
@@ -612,6 +614,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 	)
 
 	// Unpack the class from the statement or expression
+	var optionalNameHint string
 	var kind classKind
 	var class *js_ast.Class
 	var classLoc logger.Loc
@@ -622,6 +625,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 		kind = classKindExpr
 		if class.Name != nil {
 			symbol := &p.symbols[class.Name.Ref.InnerIndex]
+			optionalNameHint = symbol.OriginalName
 
 			// The inner class name inside the class expression should be the same as
 			// the class expression name itself
@@ -637,6 +641,9 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 		}
 	} else if s, ok := stmt.Data.(*js_ast.SClass); ok {
 		class = &s.Class
+		if class.Name != nil {
+			optionalNameHint = p.symbols[class.Name.Ref.InnerIndex].OriginalName
+		}
 		if s.IsExport {
 			kind = classKindExportStmt
 		} else {
@@ -646,6 +653,9 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 		s, _ := stmt.Data.(*js_ast.SExportDefault)
 		s2, _ := s.Value.Data.(*js_ast.SClass)
 		class = &s2.Class
+		if class.Name != nil {
+			optionalNameHint = p.symbols[class.Name.Ref.InnerIndex].OriginalName
+		}
 		defaultName = s.DefaultName
 		kind = classKindExportDefaultStmt
 	}
@@ -857,41 +867,56 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 
 	// If this returns true, the method property should be dropped as it has
 	// already been accounted for elsewhere (e.g. a lowered private method).
+	privateInstanceMethodRef := ast.InvalidRef
+	privateStaticMethodRef := ast.InvalidRef
 	lowerMethod := func(prop js_ast.Property, private *js_ast.EPrivateIdentifier) bool {
 		if private != nil && p.privateSymbolNeedsToBeLowered(private) {
-			loc := prop.Loc
+			// All private methods can share the same WeakSet
+			var ref *ast.Ref
+			if prop.Flags.Has(js_ast.PropertyIsStatic) {
+				ref = &privateStaticMethodRef
+			} else {
+				ref = &privateInstanceMethodRef
+			}
+			if *ref == ast.InvalidRef {
+				// Generate a new symbol to store the WeakSet
+				var name string
+				if prop.Flags.Has(js_ast.PropertyIsStatic) {
+					name = "_static"
+				} else {
+					name = "_instances"
+				}
+				if optionalNameHint != "" {
+					name = fmt.Sprintf("_%s%s", optionalNameHint, name)
+				}
+				*ref = p.generateTempRef(tempRefNeedsDeclare, name)
 
-			// Don't generate a symbol for a getter/setter pair twice
-			if p.symbols[private.Ref.InnerIndex].Link == ast.InvalidRef {
-				// Generate a new symbol for this private method
-				ref := p.generateTempRef(tempRefNeedsDeclare, "_"+p.symbols[private.Ref.InnerIndex].OriginalName[1:])
-				p.symbols[private.Ref.InnerIndex].Link = ref
-
-				// Initialize the private method to a new WeakSet
+				// Generate the initializer
 				if p.weakSetRef == ast.InvalidRef {
 					p.weakSetRef = p.newSymbol(ast.SymbolUnbound, "WeakSet")
 					p.moduleScope.Generated = append(p.moduleScope.Generated, p.weakSetRef)
 				}
 				privateMembers = append(privateMembers, js_ast.Assign(
-					js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}},
-					js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.ENew{Target: js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: p.weakSetRef}}}},
+					js_ast.Expr{Loc: classLoc, Data: &js_ast.EIdentifier{Ref: *ref}},
+					js_ast.Expr{Loc: classLoc, Data: &js_ast.ENew{Target: js_ast.Expr{Loc: classLoc, Data: &js_ast.EIdentifier{Ref: p.weakSetRef}}}},
 				))
-				p.recordUsage(ref)
+				p.recordUsage(*ref)
+				p.recordUsage(p.weakSetRef)
 
-				// Determine where to store the private method
+				// Determine what to store in the WeakSet
 				var target js_ast.Expr
 				if prop.Flags.Has(js_ast.PropertyIsStatic) {
 					target = nameFunc()
 				} else {
-					target = js_ast.Expr{Loc: loc, Data: js_ast.EThisShared}
+					target = js_ast.Expr{Loc: classLoc, Data: js_ast.EThisShared}
 				}
 
-				// Add every newly-constructed instance into this map
-				methodExpr := p.callRuntime(loc, "__privateAdd", []js_ast.Expr{
+				// Add every newly-constructed instance into this set
+				methodExpr := p.callRuntime(classLoc, "__privateAdd", []js_ast.Expr{
 					target,
-					{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}},
+					{Loc: classLoc, Data: &js_ast.EIdentifier{Ref: *ref}},
 				})
-				p.recordUsage(ref)
+				p.recordUsage(*ref)
 
 				// Make sure that adding to the map happens before any field
 				// initializers to handle cases like this:
@@ -906,9 +931,10 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 					staticPrivateMethods = append(staticPrivateMethods, methodExpr)
 				} else {
 					// Move this property to an assignment inside the class constructor
-					instancePrivateMethods = append(instancePrivateMethods, js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{Value: methodExpr}})
+					instancePrivateMethods = append(instancePrivateMethods, js_ast.Stmt{Loc: classLoc, Data: &js_ast.SExpr{Value: methodExpr}})
 				}
 			}
+			p.symbols[private.Ref.InnerIndex].Link = *ref
 
 			// Move the method definition outside the class body
 			methodRef := p.generateTempRef(tempRefNeedsDeclare, "_")

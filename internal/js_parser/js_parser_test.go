@@ -4490,25 +4490,25 @@ func TestMangleTemplate(t *testing.T) {
 	expectPrintedNormalAndMangle(t, "(null ?? x.y)``", "(0, x.y)``;\n", "(0, x.y)``;\n")
 	expectPrintedNormalAndMangle(t, "(null ?? x[y])``", "(0, x[y])``;\n", "(0, x[y])``;\n")
 
-	expectPrintedMangleTarget(t, 2015, "class Foo { #foo() { return this.#foo`` } }", `var _foo, foo_fn;
+	expectPrintedMangleTarget(t, 2015, "class Foo { #foo() { return this.#foo`` } }", `var _Foo_instances, foo_fn;
 class Foo {
   constructor() {
-    __privateAdd(this, _foo);
+    __privateAdd(this, _Foo_instances);
   }
 }
-_foo = new WeakSet(), foo_fn = function() {
-  return __privateMethod(this, _foo, foo_fn).bind(this)`+"``"+`;
+_Foo_instances = new WeakSet(), foo_fn = function() {
+  return __privateMethod(this, _Foo_instances, foo_fn).bind(this)`+"``"+`;
 };
 `)
 
-	expectPrintedMangleTarget(t, 2015, "class Foo { #foo() { return (0, this.#foo)`` } }", `var _foo, foo_fn;
+	expectPrintedMangleTarget(t, 2015, "class Foo { #foo() { return (0, this.#foo)`` } }", `var _Foo_instances, foo_fn;
 class Foo {
   constructor() {
-    __privateAdd(this, _foo);
+    __privateAdd(this, _Foo_instances);
   }
 }
-_foo = new WeakSet(), foo_fn = function() {
-  return __privateMethod(this, _foo, foo_fn)`+"``"+`;
+_Foo_instances = new WeakSet(), foo_fn = function() {
+  return __privateMethod(this, _Foo_instances, foo_fn)`+"``"+`;
 };
 `)
 

@@ -1,5 +1,80 @@
 # Changelog
 
+## Unreleased
+
+* Optimize the generated code for private methods
+
+    Previously when lowering private methods for old browsers, esbuild would generate one `WeakSet` for each private method. This mirrors similar logic for generating one `WeakSet` for each private field. Using a separate `WeakMap` for private fields is necessary as their assignment can be observable:
+
+    ```js
+    let it
+    class Bar {
+      constructor() {
+        it = this
+      }
+    }
+    class Foo extends Bar {
+      #x = 1
+      #y = null.foo
+      static check() {
+        console.log(#x in it, #y in it)
+      }
+    }
+    try { new Foo } catch {}
+    Foo.check()
+    ```
+
+    This prints `true false` because this partially-initialized instance has `#x` but not `#y`. In other words, it's not true that all class instances will always have all of their private fields. However, the assignment of private methods to a class instance is not observable. In other words, it's true that all class instances will always have all of their private methods. This means esbuild can lower private methods into code where all methods share a single `WeakSet`, which is smaller, faster, and uses less memory. Other JavaScript processing tools such as the TypeScript compiler already make this optimization. Here's what this change looks like:
+
+    ```js
+    // Original code
+    class Foo {
+      #x() { return this.#x() }
+      #y() { return this.#y() }
+      #z() { return this.#z() }
+    }
+
+    // Old output (--supported:class-private-method=false)
+    var _x, x_fn, _y, y_fn, _z, z_fn;
+    class Foo {
+      constructor() {
+        __privateAdd(this, _x);
+        __privateAdd(this, _y);
+        __privateAdd(this, _z);
+      }
+    }
+    _x = new WeakSet();
+    x_fn = function() {
+      return __privateMethod(this, _x, x_fn).call(this);
+    };
+    _y = new WeakSet();
+    y_fn = function() {
+      return __privateMethod(this, _y, y_fn).call(this);
+    };
+    _z = new WeakSet();
+    z_fn = function() {
+      return __privateMethod(this, _z, z_fn).call(this);
+    };
+
+    // New output (--supported:class-private-method=false)
+    var _Foo_instances, x_fn, y_fn, z_fn;
+    class Foo {
+      constructor() {
+        __privateAdd(this, _Foo_instances);
+      }
+    }
+    _Foo_instances = new WeakSet();
+    x_fn = function() {
+      return __privateMethod(this, _Foo_instances, x_fn).call(this);
+    };
+    y_fn = function() {
+      return __privateMethod(this, _Foo_instances, y_fn).call(this);
+    };
+    z_fn = function() {
+      return __privateMethod(this, _Foo_instances, z_fn).call(this);
+    };
+    ```
+
 ## 0.20.2
 
 * Support TypeScript experimental decorators on `abstract` class fields ([#3684](https://github.com/evanw/esbuild/issues/3684))
