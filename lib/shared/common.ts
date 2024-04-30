@@ -1292,6 +1292,7 @@ let handlePlugins = async (
           let registeredNote = extractCallerV8(new Error(registeredText), streamIn, 'onStart')
           onStartCallbacks.push({ name: name!, callback, note: registeredNote })
           plugin.onStart = true
+          return this
         },
 
         onEnd(callback) {
@@ -1299,6 +1300,7 @@ let handlePlugins = async (
           let registeredNote = extractCallerV8(new Error(registeredText), streamIn, 'onEnd')
           onEndCallbacks.push({ name: name!, callback, note: registeredNote })
           plugin.onEnd = true
+          return this
         },
 
         onResolve(options, callback) {
@@ -1312,6 +1314,7 @@ let handlePlugins = async (
           let id = nextCallbackID++
           onResolveCallbacks[id] = { name: name!, callback, note: registeredNote }
           plugin.onResolve.push({ id, filter: filter.source, namespace: namespace || '' })
+          return this
         },
 
         onLoad(options, callback) {
@@ -1325,10 +1328,12 @@ let handlePlugins = async (
           let id = nextCallbackID++
           onLoadCallbacks[id] = { name: name!, callback, note: registeredNote }
           plugin.onLoad.push({ id, filter: filter.source, namespace: namespace || '' })
+          return this
         },
 
         onDispose(callback) {
           onDisposeCallbacks.push(callback)
+          return this
         },
 
         esbuild: streamIn.esbuild,

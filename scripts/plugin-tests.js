@@ -3251,6 +3251,22 @@ let syncTests = {
     await onDisposePromise
     assert.strictEqual(onDisposeWasCalled, true)
   },
+
+  async pluginSubscribersChainable({ esbuild }) {
+    let noop = () => {}
+    await esbuild.build({
+      write: false,
+      plugins: [{
+        name: 'x', setup(build) {
+          assert.strictEqual(build.onStart(noop), build)
+          assert.strictEqual(build.onEnd(noop), build)
+          assert.strictEqual(build.onLoad({ filter: /./ }, noop), build)
+          assert.strictEqual(build.onResolve({ filter: /./ }, noop), build)
+          assert.strictEqual(build.onDispose(noop), build)
+        }
+      }]
+    })
+  },
 }
 
 async function main() {
