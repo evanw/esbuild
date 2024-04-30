@@ -1149,44 +1149,42 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 			}
 		}
 
-		// Handle decorators
-		if p.options.ts.Parse {
+		// Handle TypeScript experimental decorators
+		if len(propExperimentalDecorators) > 0 {
 			// Generate a single call to "__decorateClass()" for this property
-			if len(propExperimentalDecorators) > 0 {
-				loc := prop.Key.Loc
+			loc := prop.Key.Loc
 
-				// This code tells "__decorateClass()" if the descriptor should be undefined
-				descriptorKind := float64(1)
-				if !prop.Flags.Has(js_ast.PropertyIsMethod) && prop.Kind != js_ast.PropertyAutoAccessor {
-					descriptorKind = 2
-				}
+			// This code tells "__decorateClass()" if the descriptor should be undefined
+			descriptorKind := float64(1)
+			if !prop.Flags.Has(js_ast.PropertyIsMethod) && prop.Kind != js_ast.PropertyAutoAccessor {
+				descriptorKind = 2
+			}
 
-				// Instance properties use the prototype, static properties use the class
-				var target js_ast.Expr
-				if prop.Flags.Has(js_ast.PropertyIsStatic) {
-					target = nameFunc()
-				} else {
-					target = js_ast.Expr{Loc: loc, Data: &js_ast.EDot{Target: nameFunc(), Name: "prototype", NameLoc: loc}}
-				}
+			// Instance properties use the prototype, static properties use the class
+			var target js_ast.Expr
+			if prop.Flags.Has(js_ast.PropertyIsStatic) {
+				target = nameFunc()
+			} else {
+				target = js_ast.Expr{Loc: loc, Data: &js_ast.EDot{Target: nameFunc(), Name: "prototype", NameLoc: loc}}
+			}
 
-				values := make([]js_ast.Expr, len(propExperimentalDecorators))
-				for i, decorator := range propExperimentalDecorators {
-					values[i] = decorator.Value
-				}
-				prop.Decorators = nil
-				decorator := p.callRuntime(loc, "__decorateClass", []js_ast.Expr{
-					{Loc: loc, Data: &js_ast.EArray{Items: values}},
-					target,
-					cloneKeyForLowerClass(keyExprNoSideEffects),
-					{Loc: loc, Data: &js_ast.ENumber{Value: descriptorKind}},
-				})
+			values := make([]js_ast.Expr, len(propExperimentalDecorators))
+			for i, decorator := range propExperimentalDecorators {
+				values[i] = decorator.Value
+			}
+			prop.Decorators = nil
+			decorator := p.callRuntime(loc, "__decorateClass", []js_ast.Expr{
+				{Loc: loc, Data: &js_ast.EArray{Items: values}},
+				target,
+				cloneKeyForLowerClass(keyExprNoSideEffects),
+				{Loc: loc, Data: &js_ast.ENumber{Value: descriptorKind}},
+			})
 
-				// Static decorators are grouped after instance decorators
-				if prop.Flags.Has(js_ast.PropertyIsStatic) {
-					staticDecorators = append(staticDecorators, decorator)
-				} else {
-					instanceDecorators = append(instanceDecorators, decorator)
-				}
+			// Static decorators are grouped after instance decorators
+			if prop.Flags.Has(js_ast.PropertyIsStatic) {
+				staticDecorators = append(staticDecorators, decorator)
+			} else {
+				instanceDecorators = append(instanceDecorators, decorator)
 			}
 		}
 
@@ -1421,7 +1419,8 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 	}
 
 	// Pack the class back into an expression. We don't need to handle TypeScript
-	// decorators for class expressions because TypeScript doesn't support them.
+	// experimental decorators for class expressions because TypeScript doesn't
+	// support them.
 	if kind == classKindExpr {
 		// Calling "nameFunc" will replace "expr", so make sure to do that first
 		// before joining "expr" with any other expressions
