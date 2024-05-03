@@ -613,6 +613,7 @@ type lowerClassContext struct {
 	parameterFields        []js_ast.Stmt
 	instanceMembers        []js_ast.Stmt
 	instancePrivateMethods []js_ast.Stmt
+	autoAccessorCount      int
 
 	// These expressions are generated after the class body, in this order
 	computedPropertyCache js_ast.Expr
@@ -1009,7 +1010,6 @@ func (ctx *lowerClassContext) lowerMethod(p *parser, prop js_ast.Property, priva
 
 func (ctx *lowerClassContext) processProperties(p *parser, classLoweringInfo classLoweringInfo, result visitClassResult) {
 	properties := make([]js_ast.Property, 0, len(ctx.class.Properties))
-	autoAccessorCount := 0
 
 	for _, prop := range ctx.class.Properties {
 		if prop.Kind == js_ast.PropertyClassStaticBlock {
@@ -1197,121 +1197,7 @@ func (ctx *lowerClassContext) processProperties(p *parser, classLoweringInfo cla
 
 		// Generate get/set methods for auto-accessors
 		if rewriteAutoAccessorToGetSet {
-			var storageKind ast.SymbolKind
-			if prop.Flags.Has(js_ast.PropertyIsStatic) {
-				storageKind = ast.SymbolPrivateStaticField
-			} else {
-				storageKind = ast.SymbolPrivateField
-			}
-
-			// Generate the name of the private field to use for storage
-			var storageName string
-			switch k := keyExprNoSideEffects.Data.(type) {
-			case *js_ast.EString:
-				storageName = "#" + helpers.UTF16ToString(k.Value)
-			case *js_ast.EPrivateIdentifier:
-				storageName = "#_" + p.symbols[k.Ref.InnerIndex].OriginalName[1:]
-			default:
-				storageName = "#" + ast.DefaultNameMinifierJS.NumberToMinifiedName(autoAccessorCount)
-				autoAccessorCount++
-			}
-
-			// Generate the symbols we need
-			storageRef := p.newSymbol(storageKind, storageName)
-			argRef := p.newSymbol(ast.SymbolOther, "_")
-			result.bodyScope.Generated = append(result.bodyScope.Generated, storageRef)
-			result.bodyScope.Children = append(result.bodyScope.Children, &js_ast.Scope{Kind: js_ast.ScopeFunctionBody, Generated: []ast.Ref{argRef}})
-
-			// Replace this accessor with other properties
-			loc := keyExprNoSideEffects.Loc
-			storagePrivate := &js_ast.EPrivateIdentifier{Ref: storageRef}
-			storageNeedsToBeLowered := p.privateSymbolNeedsToBeLowered(storagePrivate)
-			storageProp := js_ast.Property{
-				Loc:              prop.Loc,
-				Kind:             js_ast.PropertyField,
-				Flags:            prop.Flags & js_ast.PropertyIsStatic,
-				Key:              js_ast.Expr{Loc: loc, Data: storagePrivate},
-				InitializerOrNil: prop.InitializerOrNil,
-			}
-			if !mustLowerField {
-				properties = append(properties, storageProp)
-			} else if prop, ok := ctx.lowerField(p, storageProp, storagePrivate, false, false); ok {
-				properties = append(properties, prop)
-			}
-
-			// Getter
-			var getExpr js_ast.Expr
-			if storageNeedsToBeLowered {
-				getExpr = p.lowerPrivateGet(js_ast.Expr{Loc: loc, Data: js_ast.EThisShared}, loc, storagePrivate)
-			} else {
-				p.recordUsage(storageRef)
-				getExpr = js_ast.Expr{Loc: loc, Data: &js_ast.EIndex{
-					Target: js_ast.Expr{Loc: loc, Data: js_ast.EThisShared},
-					Index:  js_ast.Expr{Loc: loc, Data: &js_ast.EPrivateIdentifier{Ref: storageRef}},
-				}}
-			}
-			getterProp := js_ast.Property{
-				Loc:   prop.Loc,
-				Kind:  js_ast.PropertyGetter,
-				Flags: prop.Flags,
-				Key:   prop.Key,
-				ValueOrNil: js_ast.Expr{Loc: loc, Data: &js_ast.EFunction{
-					Fn: js_ast.Fn{
-						Body: js_ast.FnBody{
-							Loc: loc,
-							Block: js_ast.SBlock{
-								Stmts: []js_ast.Stmt{
-									{Loc: loc, Data: &js_ast.SReturn{ValueOrNil: getExpr}},
-								},
-							},
-						},
-					},
-				}},
-			}
-			if !ctx.lowerMethod(p, getterProp, private) {
-				properties = append(properties, getterProp)
-			}
-
-			// Setter
-			var setExpr js_ast.Expr
-			if storageNeedsToBeLowered {
-				setExpr = p.lowerPrivateSet(js_ast.Expr{Loc: loc, Data: js_ast.EThisShared}, loc, storagePrivate,
-					js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: argRef}})
-			} else {
-				p.recordUsage(storageRef)
-				p.recordUsage(argRef)
-				setExpr = js_ast.Assign(
-					js_ast.Expr{Loc: loc, Data: &js_ast.EIndex{
-						Target: js_ast.Expr{Loc: loc, Data: js_ast.EThisShared},
-						Index:  js_ast.Expr{Loc: loc, Data: &js_ast.EPrivateIdentifier{Ref: storageRef}},
-					}},
-					js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: argRef}},
-				)
-			}
-			setterProp := js_ast.Property{
-				Loc:   prop.Loc,
-				Kind:  js_ast.PropertySetter,
-				Flags: prop.Flags,
-				Key:   cloneKeyForLowerClass(keyExprNoSideEffects),
-				ValueOrNil: js_ast.Expr{Loc: loc, Data: &js_ast.EFunction{
-					Fn: js_ast.Fn{
-						Args: []js_ast.Arg{
-							{Binding: js_ast.Binding{Loc: loc, Data: &js_ast.BIdentifier{Ref: argRef}}},
-						},
-						Body: js_ast.FnBody{
-							Loc: loc,
-							Block: js_ast.SBlock{
-								Stmts: []js_ast.Stmt{
-									{Loc: loc, Data: &js_ast.SExpr{Value: setExpr}},
-								},
-							},
-						},
-					},
-				}},
-			}
-			if !ctx.lowerMethod(p, setterProp, private) {
-				properties = append(properties, setterProp)
-			}
+			properties = ctx.rewriteAutoAccessorToGetSet(p, prop, properties, keyExprNoSideEffects, mustLowerField, private, result)
 			continue
 		}
 
@@ -1369,6 +1255,133 @@ loop:
 			CanBeUnwrappedIfUnused: p.astHelpers.StmtsCanBeRemovedIfUnused(block.Block.Stmts, 0),
 		}})
 	}
+}
+
+func (ctx *lowerClassContext) rewriteAutoAccessorToGetSet(
+	p *parser,
+	prop js_ast.Property,
+	properties []js_ast.Property,
+	keyExprNoSideEffects js_ast.Expr,
+	mustLowerField bool,
+	private *js_ast.EPrivateIdentifier,
+	result visitClassResult,
+) []js_ast.Property {
+	var storageKind ast.SymbolKind
+	if prop.Flags.Has(js_ast.PropertyIsStatic) {
+		storageKind = ast.SymbolPrivateStaticField
+	} else {
+		storageKind = ast.SymbolPrivateField
+	}
+
+	// Generate the name of the private field to use for storage
+	var storageName string
+	switch k := keyExprNoSideEffects.Data.(type) {
+	case *js_ast.EString:
+		storageName = "#" + helpers.UTF16ToString(k.Value)
+	case *js_ast.EPrivateIdentifier:
+		storageName = "#_" + p.symbols[k.Ref.InnerIndex].OriginalName[1:]
+	default:
+		storageName = "#" + ast.DefaultNameMinifierJS.NumberToMinifiedName(ctx.autoAccessorCount)
+		ctx.autoAccessorCount++
+	}
+
+	// Generate the symbols we need
+	storageRef := p.newSymbol(storageKind, storageName)
+	argRef := p.newSymbol(ast.SymbolOther, "_")
+	result.bodyScope.Generated = append(result.bodyScope.Generated, storageRef)
+	result.bodyScope.Children = append(result.bodyScope.Children, &js_ast.Scope{Kind: js_ast.ScopeFunctionBody, Generated: []ast.Ref{argRef}})
+
+	// Replace this accessor with other properties
+	loc := keyExprNoSideEffects.Loc
+	storagePrivate := &js_ast.EPrivateIdentifier{Ref: storageRef}
+	storageNeedsToBeLowered := p.privateSymbolNeedsToBeLowered(storagePrivate)
+	storageProp := js_ast.Property{
+		Loc:              prop.Loc,
+		Kind:             js_ast.PropertyField,
+		Flags:            prop.Flags & js_ast.PropertyIsStatic,
+		Key:              js_ast.Expr{Loc: loc, Data: storagePrivate},
+		InitializerOrNil: prop.InitializerOrNil,
+	}
+	if !mustLowerField {
+		properties = append(properties, storageProp)
+	} else if prop, ok := ctx.lowerField(p, storageProp, storagePrivate, false, false); ok {
+		properties = append(properties, prop)
+	}
+
+	// Getter
+	var getExpr js_ast.Expr
+	if storageNeedsToBeLowered {
+		getExpr = p.lowerPrivateGet(js_ast.Expr{Loc: loc, Data: js_ast.EThisShared}, loc, storagePrivate)
+	} else {
+		p.recordUsage(storageRef)
+		getExpr = js_ast.Expr{Loc: loc, Data: &js_ast.EIndex{
+			Target: js_ast.Expr{Loc: loc, Data: js_ast.EThisShared},
+			Index:  js_ast.Expr{Loc: loc, Data: &js_ast.EPrivateIdentifier{Ref: storageRef}},
+		}}
+	}
+	getterProp := js_ast.Property{
+		Loc:   prop.Loc,
+		Kind:  js_ast.PropertyGetter,
+		Flags: prop.Flags,
+		Key:   prop.Key,
+		ValueOrNil: js_ast.Expr{Loc: loc, Data: &js_ast.EFunction{
+			Fn: js_ast.Fn{
+				Body: js_ast.FnBody{
+					Loc: loc,
+					Block: js_ast.SBlock{
+						Stmts: []js_ast.Stmt{
+							{Loc: loc, Data: &js_ast.SReturn{ValueOrNil: getExpr}},
+						},
+					},
+				},
+			},
+		}},
+	}
+	if !ctx.lowerMethod(p, getterProp, private) {
+		properties = append(properties, getterProp)
+	}
+
+	// Setter
+	var setExpr js_ast.Expr
+	if storageNeedsToBeLowered {
+		setExpr = p.lowerPrivateSet(js_ast.Expr{Loc: loc, Data: js_ast.EThisShared}, loc, storagePrivate,
+			js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: argRef}})
+	} else {
+		p.recordUsage(storageRef)
+		p.recordUsage(argRef)
+		setExpr = js_ast.Assign(
+			js_ast.Expr{Loc: loc, Data: &js_ast.EIndex{
+				Target: js_ast.Expr{Loc: loc, Data: js_ast.EThisShared},
+				Index:  js_ast.Expr{Loc: loc, Data: &js_ast.EPrivateIdentifier{Ref: storageRef}},
+			}},
+			js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: argRef}},
+		)
+	}
+	setterProp := js_ast.Property{
+		Loc:   prop.Loc,
+		Kind:  js_ast.PropertySetter,
+		Flags: prop.Flags,
+		Key:   cloneKeyForLowerClass(keyExprNoSideEffects),
+		ValueOrNil: js_ast.Expr{Loc: loc, Data: &js_ast.EFunction{
+			Fn: js_ast.Fn{
+				Args: []js_ast.Arg{
+					{Binding: js_ast.Binding{Loc: loc, Data: &js_ast.BIdentifier{Ref: argRef}}},
+				},
+				Body: js_ast.FnBody{
+					Loc: loc,
+					Block: js_ast.SBlock{
+						Stmts: []js_ast.Stmt{
+							{Loc: loc, Data: &js_ast.SExpr{Value: setExpr}},
+						},
+					},
+				},
+			},
+		}},
+	}
+	if !ctx.lowerMethod(p, setterProp, private) {
+		properties = append(properties, setterProp)
+	}
+	return properties
 }
 
 func (ctx *lowerClassContext) flushComputedPropertyCache(p *parser) {
