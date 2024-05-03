@@ -1138,9 +1138,20 @@ func (ctx *lowerClassContext) processProperties(p *parser, classLoweringInfo cla
 		// Make sure the order of computed property keys doesn't change. These
 		// expressions have side effects and must be evaluated in order.
 		keyExprNoSideEffects := prop.Key
-		if prop.Flags.Has(js_ast.PropertyIsComputed) && (len(propExperimentalDecorators) > 0 || mustLowerField || staticFieldToBlockAssign || ctx.computedPropertyCache.Data != nil || rewriteAutoAccessorToGetSet) {
+		if prop.Flags.Has(js_ast.PropertyIsComputed) &&
+			(len(propExperimentalDecorators) > 0 ||
+				mustLowerField ||
+				staticFieldToBlockAssign ||
+				ctx.computedPropertyCache.Data != nil ||
+				rewriteAutoAccessorToGetSet) {
+
+			// Determine if we don't actually need the value of the key (only the side effects)
 			needsKey := true
-			if len(propExperimentalDecorators) == 0 && !rewriteAutoAccessorToGetSet && (prop.Kind.IsMethodDefinition() || shouldOmitFieldInitializer || (!mustLowerField && !staticFieldToBlockAssign)) {
+			if len(propExperimentalDecorators) == 0 &&
+				!rewriteAutoAccessorToGetSet &&
+				(prop.Kind.IsMethodDefinition() ||
+					shouldOmitFieldInitializer ||
+					(!mustLowerField && !staticFieldToBlockAssign)) {
 				needsKey = false
 			}
 
@@ -1148,6 +1159,7 @@ func (ctx *lowerClassContext) processProperties(p *parser, classLoweringInfo cla
 			switch prop.Key.Data.(type) {
 			case *js_ast.EString, *js_ast.ENameOfSymbol, *js_ast.ENumber:
 				// These have no side effects
+
 			default:
 				if !needsKey {
 					// Just evaluate the key for its side effects
@@ -1179,7 +1191,7 @@ func (ctx *lowerClassContext) processProperties(p *parser, classLoweringInfo cla
 
 			// This code tells "__decorateClass()" if the descriptor should be undefined
 			descriptorKind := float64(1)
-			if !prop.Kind.IsMethodDefinition() && prop.Kind != js_ast.PropertyAutoAccessor {
+			if prop.Kind == js_ast.PropertyField || prop.Kind == js_ast.PropertyDeclareOrAbstract {
 				descriptorKind = 2
 			}
 
@@ -1394,54 +1406,62 @@ func (ctx *lowerClassContext) flushComputedPropertyCache(p *parser) {
 }
 
 func (ctx *lowerClassContext) insertInitializersIntoConstructor(p *parser, classLoweringInfo classLoweringInfo, result visitClassResult) {
-	// Insert instance field initializers into the constructor
-	if len(ctx.parameterFields) > 0 || len(ctx.instancePrivateMethods) > 0 || len(ctx.instanceMembers) > 0 || (ctx.ctor != nil && result.superCtorRef != ast.InvalidRef) {
-		// Create a constructor if one doesn't already exist
-		if ctx.ctor == nil {
-			ctx.ctor = &js_ast.EFunction{Fn: js_ast.Fn{Body: js_ast.FnBody{Loc: ctx.classLoc}}}
+	if len(ctx.parameterFields) == 0 &&
+		len(ctx.instancePrivateMethods) == 0 &&
+		len(ctx.instanceMembers) == 0 &&
+		(ctx.ctor == nil || result.superCtorRef == ast.InvalidRef) {
+		// No need to generate a constructor
+		return
+	}
 
-			// Append it to the list to reuse existing allocation space
-			ctx.class.Properties = append(ctx.class.Properties, js_ast.Property{
-				Kind:       js_ast.PropertyMethod,
-				Loc:        ctx.classLoc,
-				Key:        js_ast.Expr{Loc: ctx.classLoc, Data: &js_ast.EString{Value: helpers.StringToUTF16("constructor")}},
-				ValueOrNil: js_ast.Expr{Loc: ctx.classLoc, Data: ctx.ctor},
-			})
+	// Create a constructor if one doesn't already exist
+	if ctx.ctor == nil {
+		ctx.ctor = &js_ast.EFunction{Fn: js_ast.Fn{Body: js_ast.FnBody{Loc: ctx.classLoc}}}
 
-			// Make sure the constructor has a super() call if needed
-			if ctx.class.ExtendsOrNil.Data != nil {
-				target := js_ast.Expr{Loc: ctx.classLoc, Data: js_ast.ESuperShared}
-				if classLoweringInfo.shimSuperCtorCalls {
-					p.recordUsage(result.superCtorRef)
-					target.Data = &js_ast.EIdentifier{Ref: result.superCtorRef}
-				}
-				argumentsRef := p.newSymbol(ast.SymbolUnbound, "arguments")
-				p.currentScope.Generated = append(p.currentScope.Generated, argumentsRef)
-				ctx.ctor.Fn.Body.Block.Stmts = append(ctx.ctor.Fn.Body.Block.Stmts, js_ast.Stmt{Loc: ctx.classLoc, Data: &js_ast.SExpr{Value: js_ast.Expr{Loc: ctx.classLoc, Data: &js_ast.ECall{
-					Target: target,
-					Args:   []js_ast.Expr{{Loc: ctx.classLoc, Data: &js_ast.ESpread{Value: js_ast.Expr{Loc: ctx.classLoc, Data: &js_ast.EIdentifier{Ref: argumentsRef}}}}},
-				}}}})
+		// Append it to the list to reuse existing allocation space
+		ctx.class.Properties = append(ctx.class.Properties, js_ast.Property{
+			Kind:       js_ast.PropertyMethod,
+			Loc:        ctx.classLoc,
+			Key:        js_ast.Expr{Loc: ctx.classLoc, Data: &js_ast.EString{Value: helpers.StringToUTF16("constructor")}},
+			ValueOrNil: js_ast.Expr{Loc: ctx.classLoc, Data: ctx.ctor},
+		})
+
+		// Make sure the constructor has a super() call if needed
+		if ctx.class.ExtendsOrNil.Data != nil {
+			target := js_ast.Expr{Loc: ctx.classLoc, Data: js_ast.ESuperShared}
+			if classLoweringInfo.shimSuperCtorCalls {
+				p.recordUsage(result.superCtorRef)
+				target.Data = &js_ast.EIdentifier{Ref: result.superCtorRef}
 			}
+			argumentsRef := p.newSymbol(ast.SymbolUnbound, "arguments")
+			p.currentScope.Generated = append(p.currentScope.Generated, argumentsRef)
+			ctx.ctor.Fn.Body.Block.Stmts = append(ctx.ctor.Fn.Body.Block.Stmts, js_ast.Stmt{Loc: ctx.classLoc, Data: &js_ast.SExpr{Value: js_ast.Expr{Loc: ctx.classLoc, Data: &js_ast.ECall{
+				Target: target,
+				Args:   []js_ast.Expr{{Loc: ctx.classLoc, Data: &js_ast.ESpread{Value: js_ast.Expr{Loc: ctx.classLoc, Data: &js_ast.EIdentifier{Ref: argumentsRef}}}}},
+			}}}})
 		}
+	}
 
-		// Make sure the instance field initializers come after "super()" since
-		// they need "this" to ba available
-		generatedStmts := make([]js_ast.Stmt, 0, len(ctx.parameterFields)+len(ctx.instancePrivateMethods)+len(ctx.instanceMembers))
-		generatedStmts = append(generatedStmts, ctx.parameterFields...)
-		generatedStmts = append(generatedStmts, ctx.instancePrivateMethods...)
-		generatedStmts = append(generatedStmts, ctx.instanceMembers...)
-		p.insertStmtsAfterSuperCall(&ctx.ctor.Fn.Body, generatedStmts, result.superCtorRef)
+	// Make sure the instance field initializers come after "super()" since
+	// they need "this" to ba available
+	generatedStmts := make([]js_ast.Stmt, 0,
+		len(ctx.parameterFields)+
+			len(ctx.instancePrivateMethods)+
+			len(ctx.instanceMembers))
+	generatedStmts = append(generatedStmts, ctx.parameterFields...)
+	generatedStmts = append(generatedStmts, ctx.instancePrivateMethods...)
+	generatedStmts = append(generatedStmts, ctx.instanceMembers...)
+	p.insertStmtsAfterSuperCall(&ctx.ctor.Fn.Body, generatedStmts, result.superCtorRef)
 
-		// Sort the constructor first to match the TypeScript compiler's output
-		for i := 0; i < len(ctx.class.Properties); i++ {
-			if ctx.class.Properties[i].ValueOrNil.Data == ctx.ctor {
-				ctorProp := ctx.class.Properties[i]
-				for j := i; j > 0; j-- {
-					ctx.class.Properties[j] = ctx.class.Properties[j-1]
-				}
-				ctx.class.Properties[0] = ctorProp
-				break
+	// Sort the constructor first to match the TypeScript compiler's output
+	for i := 0; i < len(ctx.class.Properties); i++ {
+		if ctx.class.Properties[i].ValueOrNil.Data == ctx.ctor {
+			ctorProp := ctx.class.Properties[i]
+			for j := i; j > 0; j-- {
+				ctx.class.Properties[j] = ctx.class.Properties[j-1]
 			}
+			ctx.class.Properties[0] = ctorProp
+			break
 		}
 	}
 }
