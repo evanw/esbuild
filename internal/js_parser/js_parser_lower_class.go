@@ -619,8 +619,10 @@ type lowerClassContext struct {
 	privateMembers        []js_ast.Expr
 	staticMembers         []js_ast.Expr
 	staticPrivateMethods  []js_ast.Expr
-	instanceDecorators    []js_ast.Expr
-	staticDecorators      []js_ast.Expr
+
+	// These contain calls to "__decorateClass" for TypeScript experimental decorators
+	instanceExperimentalDecorators []js_ast.Expr
+	staticExperimentalDecorators   []js_ast.Expr
 
 	// These are used by "lowerMethod"
 	privateInstanceMethodRef ast.Ref
@@ -1125,6 +1127,7 @@ func (ctx *lowerClassContext) processProperties(p *parser, classLoweringInfo cla
 		var propExperimentalDecorators []js_ast.Decorator
 		if p.options.ts.Parse && p.options.ts.Config.ExperimentalDecorators == config.True {
 			propExperimentalDecorators = prop.Decorators
+			prop.Decorators = nil
 		}
 		rewriteAutoAccessorToGetSet := prop.Kind == js_ast.PropertyAutoAccessor && (p.options.unsupportedJSFeatures.Has(compat.Decorators) || mustLowerField)
 
@@ -1207,7 +1210,6 @@ func (ctx *lowerClassContext) processProperties(p *parser, classLoweringInfo cla
 			for i, decorator := range propExperimentalDecorators {
 				values[i] = decorator.Value
 			}
-			prop.Decorators = nil
 			decorator := p.callRuntime(loc, "__decorateClass", []js_ast.Expr{
 				{Loc: loc, Data: &js_ast.EArray{Items: values}},
 				target,
@@ -1217,9 +1219,9 @@ func (ctx *lowerClassContext) processProperties(p *parser, classLoweringInfo cla
 
 			// Static decorators are grouped after instance decorators
 			if prop.Flags.Has(js_ast.PropertyIsStatic) {
-				ctx.staticDecorators = append(ctx.staticDecorators, decorator)
+				ctx.staticExperimentalDecorators = append(ctx.staticExperimentalDecorators, decorator)
 			} else {
-				ctx.instanceDecorators = append(ctx.instanceDecorators, decorator)
+				ctx.instanceExperimentalDecorators = append(ctx.instanceExperimentalDecorators, decorator)
 			}
 		}
 
@@ -1552,6 +1554,7 @@ func (ctx *lowerClassContext) finishAndGenerateCode(p *parser, result visitClass
 	var classExperimentalDecorators []js_ast.Decorator
 	if p.options.ts.Parse && p.options.ts.Config.ExperimentalDecorators == config.True {
 		classExperimentalDecorators = ctx.class.Decorators
+		ctx.class.Decorators = nil
 	}
 
 	// If this is true, we have removed some code from the class body that could
@@ -1564,8 +1567,8 @@ func (ctx *lowerClassContext) finishAndGenerateCode(p *parser, result visitClass
 			len(ctx.privateMembers) > 0 ||
 			len(ctx.staticPrivateMethods) > 0 ||
 			len(ctx.staticMembers) > 0 ||
-			len(ctx.instanceDecorators) > 0 ||
-			len(ctx.staticDecorators) > 0 ||
+			len(ctx.instanceExperimentalDecorators) > 0 ||
+			len(ctx.staticExperimentalDecorators) > 0 ||
 			len(classExperimentalDecorators) > 0)
 
 	// Pack the class back into a statement, with potentially some extra
@@ -1711,10 +1714,10 @@ func (ctx *lowerClassContext) finishAndGenerateCode(p *parser, result visitClass
 	for _, expr := range ctx.staticMembers {
 		stmts = append(stmts, js_ast.Stmt{Loc: ctx.classLoc, Data: &js_ast.SExpr{Value: expr}})
 	}
-	for _, expr := range ctx.instanceDecorators {
+	for _, expr := range ctx.instanceExperimentalDecorators {
 		stmts = append(stmts, js_ast.Stmt{Loc: ctx.classLoc, Data: &js_ast.SExpr{Value: expr}})
 	}
-	for _, expr := range ctx.staticDecorators {
+	for _, expr := range ctx.staticExperimentalDecorators {
 		stmts = append(stmts, js_ast.Stmt{Loc: ctx.classLoc, Data: &js_ast.SExpr{Value: expr}})
 	}
 	if outerClassNameDecl.Data != nil {
@@ -1726,7 +1729,6 @@ func (ctx *lowerClassContext) finishAndGenerateCode(p *parser, result visitClass
 		for i, decorator := range classExperimentalDecorators {
 			values[i] = decorator.Value
 		}
-		ctx.class.Decorators = nil
 		stmts = append(stmts, js_ast.AssignStmt(
 			js_ast.Expr{Loc: nameForClassDecorators.Loc, Data: &js_ast.EIdentifier{Ref: nameForClassDecorators.Ref}},
 			p.callRuntime(ctx.classLoc, "__decorateClass", []js_ast.Expr{
