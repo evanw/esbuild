@@ -1102,13 +1102,13 @@ func (p *printer) printProperty(property js_ast.Property) {
 	}
 
 	switch property.Kind {
-	case js_ast.PropertyGet:
+	case js_ast.PropertyGetter:
 		p.printSpaceBeforeIdentifier()
 		p.addSourceMapping(property.Loc)
 		p.print("get")
 		p.printSpace()
 
-	case js_ast.PropertySet:
+	case js_ast.PropertySetter:
 		p.printSpaceBeforeIdentifier()
 		p.addSourceMapping(property.Loc)
 		p.print("set")

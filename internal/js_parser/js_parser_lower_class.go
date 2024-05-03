@@ -941,7 +941,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 
 			// Move the method definition outside the class body
 			methodRef := p.generateTempRef(tempRefNeedsDeclare, "_")
-			if prop.Kind == js_ast.PropertySet {
+			if prop.Kind == js_ast.PropertySetter {
 				p.symbols[methodRef.InnerIndex].Link = p.privateSetters[private.Ref]
 			} else {
 				p.symbols[methodRef.InnerIndex].Link = p.privateGetters[private.Ref]
@@ -1245,7 +1245,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 			}
 			getterProp := js_ast.Property{
 				Loc:   prop.Loc,
-				Kind:  js_ast.PropertyGet,
+				Kind:  js_ast.PropertyGetter,
 				Flags: prop.Flags | js_ast.PropertyIsMethod,
 				Key:   prop.Key,
 				ValueOrNil: js_ast.Expr{Loc: loc, Data: &js_ast.EFunction{
@@ -1283,7 +1283,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 			}
 			setterProp := js_ast.Property{
 				Loc:   prop.Loc,
-				Kind:  js_ast.PropertySet,
+				Kind:  js_ast.PropertySetter,
 				Flags: prop.Flags | js_ast.PropertyIsMethod,
 				Key:   cloneKeyForLowerClass(keyExprNoSideEffects),
 				ValueOrNil: js_ast.Expr{Loc: loc, Data: &js_ast.EFunction{

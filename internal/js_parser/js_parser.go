@@ -964,9 +964,9 @@ func (p *parser) warnAboutDuplicateProperties(properties []js_ast.Property, in d
 				prevKey := keys[key]
 				nextKey := existingKey{kind: keyNormal, loc: property.Key.Loc}
 
-				if property.Kind == js_ast.PropertyGet {
+				if property.Kind == js_ast.PropertyGetter {
 					nextKey.kind = keyGet
-				} else if property.Kind == js_ast.PropertySet {
+				} else if property.Kind == js_ast.PropertySetter {
 					nextKey.kind = keySet
 				}
 
@@ -2149,13 +2149,13 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 				case "get":
 					if !opts.isAsync && raw == name.String {
 						p.markSyntaxFeature(compat.ObjectAccessors, nameRange)
-						return p.parseProperty(startLoc, js_ast.PropertyGet, opts, nil)
+						return p.parseProperty(startLoc, js_ast.PropertyGetter, opts, nil)
 					}
 
 				case "set":
 					if !opts.isAsync && raw == name.String {
 						p.markSyntaxFeature(compat.ObjectAccessors, nameRange)
-						return p.parseProperty(startLoc, js_ast.PropertySet, opts, nil)
+						return p.parseProperty(startLoc, js_ast.PropertySetter, opts, nil)
 					}
 
 				case "accessor":
@@ -2429,9 +2429,9 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 
 		if !hasError && opts.tsDeclareRange.Len != 0 {
 			what := "method"
-			if kind == js_ast.PropertyGet {
+			if kind == js_ast.PropertyGetter {
 				what = "getter"
-			} else if kind == js_ast.PropertySet {
+			} else if kind == js_ast.PropertySetter {
 				what = "setter"
 			}
 			p.log.AddError(&p.tracker, opts.tsDeclareRange, "\"declare\" cannot be used with a "+what)
@@ -2446,7 +2446,7 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 			hasError = true
 		}
 
-		if !hasError && p.lexer.Token == js_lexer.TOpenParen && kind != js_ast.PropertyGet && kind != js_ast.PropertySet && p.markSyntaxFeature(compat.ObjectExtensions, p.lexer.Range()) {
+		if !hasError && p.lexer.Token == js_lexer.TOpenParen && kind != js_ast.PropertyGetter && kind != js_ast.PropertySetter && p.markSyntaxFeature(compat.ObjectExtensions, p.lexer.Range()) {
 			hasError = true
 		}
 
@@ -2459,9 +2459,9 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 			if str, ok := key.Data.(*js_ast.EString); ok {
 				if !opts.isStatic && helpers.UTF16EqualsString(str.Value, "constructor") {
 					switch {
-					case kind == js_ast.PropertyGet:
+					case kind == js_ast.PropertyGetter:
 						p.log.AddError(&p.tracker, keyRange, "Class constructor cannot be a getter")
-					case kind == js_ast.PropertySet:
+					case kind == js_ast.PropertySetter:
 						p.log.AddError(&p.tracker, keyRange, "Class constructor cannot be a setter")
 					case opts.isAsync:
 						p.log.AddError(&p.tracker, keyRange, "Class constructor cannot be an async function")
@@ -2512,13 +2512,13 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 
 		// Enforce argument rules for accessors
 		switch kind {
-		case js_ast.PropertyGet:
+		case js_ast.PropertyGetter:
 			if len(fn.Args) > 0 {
 				r := js_lexer.RangeOfIdentifier(p.source, fn.Args[0].Binding.Loc)
 				p.log.AddError(&p.tracker, r, fmt.Sprintf("Getter %s must have zero arguments", p.keyNameForError(key)))
 			}
 
-		case js_ast.PropertySet:
+		case js_ast.PropertySetter:
 			if len(fn.Args) != 1 {
 				r := js_lexer.RangeOfIdentifier(p.source, key.Loc)
 				if len(fn.Args) > 1 {
@@ -2533,14 +2533,14 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 			var declare ast.SymbolKind
 			var suffix string
 			switch kind {
-			case js_ast.PropertyGet:
+			case js_ast.PropertyGetter:
 				if opts.isStatic {
 					declare = ast.SymbolPrivateStaticGet
 				} else {
 					declare = ast.SymbolPrivateGet
 				}
 				suffix = "_get"
-			case js_ast.PropertySet:
+			case js_ast.PropertySetter:
 				if opts.isStatic {
 					declare = ast.SymbolPrivateStaticSet
 				} else {
@@ -2561,7 +2561,7 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 			}
 			private.Ref = p.declareSymbol(declare, key.Loc, name)
 			methodRef := p.newSymbol(ast.SymbolOther, name[1:]+suffix)
-			if kind == js_ast.PropertySet {
+			if kind == js_ast.PropertySetter {
 				p.privateSetters[private.Ref] = methodRef
 			} else {
 				p.privateGetters[private.Ref] = methodRef
@@ -3270,7 +3270,7 @@ func (p *parser) convertExprToBinding(expr js_ast.Expr, invalidLog invalidLog) (
 			syntaxFeature{feature: compat.Destructuring, token: p.source.RangeOfOperatorAfter(expr.Loc, "{")})
 		properties := []js_ast.PropertyBinding{}
 		for _, property := range e.Properties {
-			if property.Flags.Has(js_ast.PropertyIsMethod) || property.Kind == js_ast.PropertyGet || property.Kind == js_ast.PropertySet {
+			if property.Flags.Has(js_ast.PropertyIsMethod) || property.Kind == js_ast.PropertyGetter || property.Kind == js_ast.PropertySetter {
 				invalidLog.invalidTokens = append(invalidLog.invalidTokens, js_lexer.RangeOfIdentifier(p.source, property.Key.Loc))
 				continue
 			}

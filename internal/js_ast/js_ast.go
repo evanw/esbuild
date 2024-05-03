@@ -251,8 +251,8 @@ type PropertyKind uint8
 
 const (
 	PropertyNormal PropertyKind = iota
-	PropertyGet
-	PropertySet
+	PropertyGetter
+	PropertySetter
 	PropertyAutoAccessor
 	PropertySpread
 	PropertyDeclareOrAbstract

@@ -2645,7 +2645,7 @@ func MangleObjectSpread(properties []Property) []Property {
 					// descriptor is not inlined into the caller. Since we are not
 					// evaluating code at compile time, just bail if we hit one
 					// and preserve the spread with the remaining properties.
-					if p.Kind == PropertyGet || p.Kind == PropertySet {
+					if p.Kind == PropertyGetter || p.Kind == PropertySetter {
 						// Don't mutate the original AST
 						clone := *v
 						clone.Properties = v.Properties[i:]
