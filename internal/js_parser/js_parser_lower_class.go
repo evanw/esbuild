@@ -1018,43 +1018,13 @@ func (ctx *lowerClassContext) processProperties(p *parser, classLoweringInfo cla
 				continue
 			}
 
+			// Lower this block if needed
 			if classLoweringInfo.lowerAllStaticFields {
-				block := *prop.ClassStaticBlock
-				isAllExprs := []js_ast.Expr{}
-
-				// Are all statements in the block expression statements?
-			loop:
-				for _, stmt := range block.Block.Stmts {
-					switch s := stmt.Data.(type) {
-					case *js_ast.SEmpty:
-						// Omit stray semicolons completely
-					case *js_ast.SExpr:
-						isAllExprs = append(isAllExprs, s.Value)
-					default:
-						isAllExprs = nil
-						break loop
-					}
-				}
-
-				if isAllExprs != nil {
-					// I think it should be safe to inline the static block IIFE here
-					// since all uses of "this" should have already been replaced by now.
-					ctx.staticMembers = append(ctx.staticMembers, isAllExprs...)
-				} else {
-					// But if there is a non-expression statement, fall back to using an
-					// IIFE since we may be in an expression context and can't use a block.
-					ctx.staticMembers = append(ctx.staticMembers, js_ast.Expr{Loc: prop.Loc, Data: &js_ast.ECall{
-						Target: js_ast.Expr{Loc: prop.Loc, Data: &js_ast.EArrow{Body: js_ast.FnBody{
-							Loc:   block.Loc,
-							Block: block.Block,
-						}}},
-						CanBeUnwrappedIfUnused: p.astHelpers.StmtsCanBeRemovedIfUnused(block.Block.Stmts, 0),
-					}})
-				}
+				ctx.lowerStaticBlock(p, prop.Loc, *prop.ClassStaticBlock)
 				continue
 			}
 
-			// Keep this property
+			// Otherwise, keep this property
 			properties = append(properties, prop)
 			continue
 		}
@@ -1365,6 +1335,40 @@ func (ctx *lowerClassContext) processProperties(p *parser, classLoweringInfo cla
 
 	// Finish the filtering operation
 	ctx.class.Properties = properties
+}
+
+func (ctx *lowerClassContext) lowerStaticBlock(p *parser, loc logger.Loc, block js_ast.ClassStaticBlock) {
+	isAllExprs := []js_ast.Expr{}
+
+	// Are all statements in the block expression statements?
+loop:
+	for _, stmt := range block.Block.Stmts {
+		switch s := stmt.Data.(type) {
+		case *js_ast.SEmpty:
+			// Omit stray semicolons completely
+		case *js_ast.SExpr:
+			isAllExprs = append(isAllExprs, s.Value)
+		default:
+			isAllExprs = nil
+			break loop
+		}
+	}
+
+	if isAllExprs != nil {
+		// I think it should be safe to inline the static block IIFE here
+		// since all uses of "this" should have already been replaced by now.
+		ctx.staticMembers = append(ctx.staticMembers, isAllExprs...)
+	} else {
+		// But if there is a non-expression statement, fall back to using an
+		// IIFE since we may be in an expression context and can't use a block.
+		ctx.staticMembers = append(ctx.staticMembers, js_ast.Expr{Loc: loc, Data: &js_ast.ECall{
+			Target: js_ast.Expr{Loc: loc, Data: &js_ast.EArrow{Body: js_ast.FnBody{
+				Loc:   block.Loc,
+				Block: block.Block,
+			}}},
+			CanBeUnwrappedIfUnused: p.astHelpers.StmtsCanBeRemovedIfUnused(block.Block.Stmts, 0),
+		}})
+	}
 }
 
 func (ctx *lowerClassContext) flushComputedPropertyCache(p *parser) {
