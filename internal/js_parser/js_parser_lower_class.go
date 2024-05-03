@@ -1008,6 +1008,88 @@ func (ctx *lowerClassContext) lowerMethod(p *parser, prop js_ast.Property, priva
 	return false
 }
 
+type propertyAnalysis struct {
+	private                     *js_ast.EPrivateIdentifier
+	propExperimentalDecorators  []js_ast.Decorator
+	mustLowerField              bool
+	needsValueOfKey             bool
+	rewriteAutoAccessorToGetSet bool
+	shouldOmitFieldInitializer  bool
+	staticFieldToBlockAssign    bool
+	willMoveProperty            bool
+}
+
+func (ctx *lowerClassContext) analyzeProperty(p *parser, prop js_ast.Property, classLoweringInfo classLoweringInfo) (analysis propertyAnalysis) {
+	// The TypeScript class field transform requires removing fields without
+	// initializers. If the field is removed, then we only need the key for
+	// its side effects and we don't need a temporary reference for the key.
+	// However, the TypeScript compiler doesn't remove the field when doing
+	// strict class field initialization, so we shouldn't either.
+	analysis.private, _ = prop.Key.Data.(*js_ast.EPrivateIdentifier)
+	mustLowerPrivate := analysis.private != nil && p.privateSymbolNeedsToBeLowered(analysis.private)
+	analysis.shouldOmitFieldInitializer = p.options.ts.Parse && !prop.Kind.IsMethodDefinition() && prop.InitializerOrNil.Data == nil &&
+		!ctx.class.UseDefineForClassFields && !mustLowerPrivate
+
+	// Class fields must be lowered if the environment doesn't support them
+	if !prop.Kind.IsMethodDefinition() {
+		if prop.Flags.Has(js_ast.PropertyIsStatic) {
+			analysis.mustLowerField = classLoweringInfo.lowerAllStaticFields
+		} else if prop.Kind == js_ast.PropertyField && p.options.ts.Parse && !ctx.class.UseDefineForClassFields && analysis.private == nil {
+			// Lower non-private instance fields (not accessors) if TypeScript's
+			// "useDefineForClassFields" setting is disabled. When all such fields
+			// have no initializers, we avoid setting the "lowerAllInstanceFields"
+			// flag as an optimization because we can just remove all class field
+			// declarations in that case without messing with the constructor. But
+			// we must set the "mustLowerField" flag here to cause this class field
+			// declaration to still be removed.
+			analysis.mustLowerField = true
+		} else {
+			analysis.mustLowerField = classLoweringInfo.lowerAllInstanceFields
+		}
+	}
+
+	// If the field uses the TypeScript "declare" or "abstract" keyword, just
+	// omit it entirely. However, we must still keep any side-effects in the
+	// computed value and/or in the decorators.
+	if prop.Kind == js_ast.PropertyDeclareOrAbstract && prop.ValueOrNil.Data == nil {
+		analysis.mustLowerField = true
+		analysis.shouldOmitFieldInitializer = true
+	}
+
+	if p.options.ts.Parse && p.options.ts.Config.ExperimentalDecorators == config.True {
+		analysis.propExperimentalDecorators = prop.Decorators
+	}
+	analysis.rewriteAutoAccessorToGetSet = prop.Kind == js_ast.PropertyAutoAccessor && (p.options.unsupportedJSFeatures.Has(compat.Decorators) || analysis.mustLowerField)
+
+	// Transform non-lowered static fields that use assign semantics into an
+	// assignment in an inline static block instead of lowering them. This lets
+	// us avoid having to unnecessarily lower static private fields when
+	// "useDefineForClassFields" is disabled.
+	analysis.staticFieldToBlockAssign = prop.Kind == js_ast.PropertyField && !analysis.mustLowerField && !ctx.class.UseDefineForClassFields &&
+		prop.Flags.Has(js_ast.PropertyIsStatic) && analysis.private == nil
+
+	// Make sure the order of computed property keys doesn't change. These
+	// expressions have side effects and must be evaluated in order.
+	if prop.Flags.Has(js_ast.PropertyIsComputed) &&
+		(len(analysis.propExperimentalDecorators) > 0 ||
+			analysis.mustLowerField ||
+			analysis.staticFieldToBlockAssign ||
+			analysis.rewriteAutoAccessorToGetSet) {
+		analysis.willMoveProperty = true
+
+		// Determine if we don't actually need the value of the key (only the side effects)
+		analysis.needsValueOfKey = true
+		if len(analysis.propExperimentalDecorators) == 0 &&
+			!analysis.rewriteAutoAccessorToGetSet &&
+			(prop.Kind.IsMethodDefinition() ||
+				analysis.shouldOmitFieldInitializer ||
+				(!analysis.mustLowerField && !analysis.staticFieldToBlockAssign)) {
+			analysis.needsValueOfKey = false
+		}
+	}
+	return
+}
+
 func (ctx *lowerClassContext) processProperties(p *parser, classLoweringInfo classLoweringInfo, result visitClassResult) {
 	properties := make([]js_ast.Property, 0, len(ctx.class.Properties))
 
@@ -1057,84 +1139,18 @@ func (ctx *lowerClassContext) processProperties(p *parser, classLoweringInfo cla
 			}
 		}
 
-		// The TypeScript class field transform requires removing fields without
-		// initializers. If the field is removed, then we only need the key for
-		// its side effects and we don't need a temporary reference for the key.
-		// However, the TypeScript compiler doesn't remove the field when doing
-		// strict class field initialization, so we shouldn't either.
-		private, _ := prop.Key.Data.(*js_ast.EPrivateIdentifier)
-		mustLowerPrivate := private != nil && p.privateSymbolNeedsToBeLowered(private)
-		shouldOmitFieldInitializer := p.options.ts.Parse && !prop.Kind.IsMethodDefinition() && prop.InitializerOrNil.Data == nil &&
-			!ctx.class.UseDefineForClassFields && !mustLowerPrivate
+		analysis := ctx.analyzeProperty(p, prop, classLoweringInfo)
 
-		// Class fields must be lowered if the environment doesn't support them
-		mustLowerField := false
-		if !prop.Kind.IsMethodDefinition() {
-			if prop.Flags.Has(js_ast.PropertyIsStatic) {
-				mustLowerField = classLoweringInfo.lowerAllStaticFields
-			} else if prop.Kind == js_ast.PropertyField && p.options.ts.Parse && !ctx.class.UseDefineForClassFields && private == nil {
-				// Lower non-private instance fields (not accessors) if TypeScript's
-				// "useDefineForClassFields" setting is disabled. When all such fields
-				// have no initializers, we avoid setting the "lowerAllInstanceFields"
-				// flag as an optimization because we can just remove all class field
-				// declarations in that case without messing with the constructor. But
-				// we must set the "mustLowerField" flag here to cause this class field
-				// declaration to still be removed.
-				mustLowerField = true
-			} else {
-				mustLowerField = classLoweringInfo.lowerAllInstanceFields
-			}
-		}
-
-		// If the field uses the TypeScript "declare" or "abstract" keyword, just
-		// omit it entirely. However, we must still keep any side-effects in the
-		// computed value and/or in the decorators.
-		if prop.Kind == js_ast.PropertyDeclareOrAbstract && prop.ValueOrNil.Data == nil {
-			mustLowerField = true
-			shouldOmitFieldInitializer = true
-		}
-
-		var propExperimentalDecorators []js_ast.Decorator
-		if p.options.ts.Parse && p.options.ts.Config.ExperimentalDecorators == config.True {
-			propExperimentalDecorators = prop.Decorators
-			prop.Decorators = nil
-		}
-		rewriteAutoAccessorToGetSet := prop.Kind == js_ast.PropertyAutoAccessor && (p.options.unsupportedJSFeatures.Has(compat.Decorators) || mustLowerField)
-
-		// Transform non-lowered static fields that use assign semantics into an
-		// assignment in an inline static block instead of lowering them. This lets
-		// us avoid having to unnecessarily lower static private fields when
-		// "useDefineForClassFields" is disabled.
-		staticFieldToBlockAssign := prop.Kind == js_ast.PropertyField && !mustLowerField && !ctx.class.UseDefineForClassFields &&
-			prop.Flags.Has(js_ast.PropertyIsStatic) && private == nil
-
-		// Make sure the order of computed property keys doesn't change. These
-		// expressions have side effects and must be evaluated in order.
+		// Potentially adjust computed property keys to preserve evaluation order
 		keyExprNoSideEffects := prop.Key
-		if prop.Flags.Has(js_ast.PropertyIsComputed) &&
-			(len(propExperimentalDecorators) > 0 ||
-				mustLowerField ||
-				staticFieldToBlockAssign ||
-				ctx.computedPropertyCache.Data != nil ||
-				rewriteAutoAccessorToGetSet) {
-
-			// Determine if we don't actually need the value of the key (only the side effects)
-			needsKey := true
-			if len(propExperimentalDecorators) == 0 &&
-				!rewriteAutoAccessorToGetSet &&
-				(prop.Kind.IsMethodDefinition() ||
-					shouldOmitFieldInitializer ||
-					(!mustLowerField && !staticFieldToBlockAssign)) {
-				needsKey = false
-			}
-
+		if analysis.willMoveProperty || ctx.computedPropertyCache.Data != nil {
 			// Assume all non-literal computed keys have important side effects
 			switch prop.Key.Data.(type) {
 			case *js_ast.EString, *js_ast.ENameOfSymbol, *js_ast.ENumber:
 				// These have no side effects
 
 			default:
-				if !needsKey {
+				if !analysis.needsValueOfKey {
 					// Just evaluate the key for its side effects
 					ctx.computedPropertyCache = js_ast.JoinWithComma(ctx.computedPropertyCache, prop.Key)
 				} else {
@@ -1150,7 +1166,7 @@ func (ctx *lowerClassContext) processProperties(p *parser, classLoweringInfo cla
 				// If this is a computed method, the property value will be used
 				// immediately. In this case we inline all computed properties so far to
 				// make sure all computed properties before this one are evaluated first.
-				if rewriteAutoAccessorToGetSet || (!mustLowerField && !staticFieldToBlockAssign) {
+				if analysis.rewriteAutoAccessorToGetSet || (!analysis.mustLowerField && !analysis.staticFieldToBlockAssign) {
 					prop.Key = ctx.computedPropertyCache
 					ctx.computedPropertyCache = js_ast.Expr{}
 				}
@@ -1158,7 +1174,9 @@ func (ctx *lowerClassContext) processProperties(p *parser, classLoweringInfo cla
 		}
 
 		// Handle TypeScript experimental decorators
-		if len(propExperimentalDecorators) > 0 {
+		if len(analysis.propExperimentalDecorators) > 0 {
+			prop.Decorators = nil
+
 			// Generate a single call to "__decorateClass()" for this property
 			loc := prop.Key.Loc
 
@@ -1176,8 +1194,8 @@ func (ctx *lowerClassContext) processProperties(p *parser, classLoweringInfo cla
 				target = js_ast.Expr{Loc: loc, Data: &js_ast.EDot{Target: ctx.nameFunc(), Name: "prototype", NameLoc: loc}}
 			}
 
-			values := make([]js_ast.Expr, len(propExperimentalDecorators))
-			for i, decorator := range propExperimentalDecorators {
+			values := make([]js_ast.Expr, len(analysis.propExperimentalDecorators))
+			for i, decorator := range analysis.propExperimentalDecorators {
 				values[i] = decorator.Value
 			}
 			decorator := p.callRuntime(loc, "__decorateClass", []js_ast.Expr{
@@ -1196,22 +1214,22 @@ func (ctx *lowerClassContext) processProperties(p *parser, classLoweringInfo cla
 		}
 
 		// Generate get/set methods for auto-accessors
-		if rewriteAutoAccessorToGetSet {
-			properties = ctx.rewriteAutoAccessorToGetSet(p, prop, properties, keyExprNoSideEffects, mustLowerField, private, result)
+		if analysis.rewriteAutoAccessorToGetSet {
+			properties = ctx.rewriteAutoAccessorToGetSet(p, prop, properties, keyExprNoSideEffects, analysis.mustLowerField, analysis.private, result)
 			continue
 		}
 
 		// Lower fields
-		if (!prop.Kind.IsMethodDefinition() && mustLowerField) || staticFieldToBlockAssign {
+		if (!prop.Kind.IsMethodDefinition() && analysis.mustLowerField) || analysis.staticFieldToBlockAssign {
 			var keep bool
-			prop, keep = ctx.lowerField(p, prop, private, shouldOmitFieldInitializer, staticFieldToBlockAssign)
+			prop, keep = ctx.lowerField(p, prop, analysis.private, analysis.shouldOmitFieldInitializer, analysis.staticFieldToBlockAssign)
 			if !keep {
 				continue
 			}
 		}
 
 		// Lower methods
-		if prop.Kind.IsMethodDefinition() && ctx.lowerMethod(p, prop, private) {
+		if prop.Kind.IsMethodDefinition() && ctx.lowerMethod(p, prop, analysis.private) {
 			continue
 		}
 
