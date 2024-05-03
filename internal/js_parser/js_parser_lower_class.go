@@ -1081,9 +1081,7 @@ func (ctx *lowerClassContext) analyzeProperty(p *parser, prop js_ast.Property, c
 		analysis.needsValueOfKey = true
 		if len(analysis.propExperimentalDecorators) == 0 &&
 			!analysis.rewriteAutoAccessorToGetSet &&
-			(prop.Kind.IsMethodDefinition() ||
-				analysis.shouldOmitFieldInitializer ||
-				(!analysis.mustLowerField && !analysis.staticFieldToBlockAssign)) {
+			analysis.shouldOmitFieldInitializer {
 			analysis.needsValueOfKey = false
 		}
 	}
