@@ -13,7 +13,7 @@ test:
 	@$(MAKE) --no-print-directory -j6 test-common
 
 # These tests are for development
-test-common: test-go vet-go no-filepath verify-source-map end-to-end-tests js-api-tests plugin-tests register-test node-unref-tests
+test-common: test-go vet-go no-filepath verify-source-map end-to-end-tests js-api-tests plugin-tests register-test node-unref-tests decorator-tests
 
 # These tests are for release (the extra tests are not included in "test" because they are pretty slow)
 test-all:
@@ -84,6 +84,16 @@ verify-source-map: version-go | scripts/node_modules
 end-to-end-tests: version-go
 	node scripts/esbuild.js npm/esbuild/package.json --version
 	node scripts/end-to-end-tests.js
+
+# Note: The TypeScript source code for these tests was copied from the repo
+# https://github.com/evanw/decorator-tests, which is the official location of
+# the source code for these tests. Any changes to these tests should be made
+# there first and then copied here afterward.
+decorator-tests: esbuild
+	./esbuild scripts/decorator-tests.ts --target=es2022 --outfile=scripts/decorator-tests.js
+	node scripts/decorator-tests.js
+	node scripts/decorator-tests.js | grep -q 'All checks passed'
+	git diff --exit-code scripts/decorator-tests.js
 
 js-api-tests: version-go
 	node scripts/esbuild.js npm/esbuild/package.json --version

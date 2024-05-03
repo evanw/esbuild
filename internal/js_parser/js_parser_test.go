@@ -2072,14 +2072,81 @@ func TestDecorators(t *testing.T) {
 		"<stdin>: ERROR: JavaScript decorator syntax does not allow \".\" after a call expression\n"+
 			"<stdin>: NOTE: Wrap this decorator in parentheses to allow arbitrary expressions:\n")
 
-	errorText := "<stdin>: ERROR: Transforming JavaScript decorators to the configured target environment is not supported yet\n"
-	expectParseErrorWithUnsupportedFeatures(t, compat.Decorators, "@dec class Foo {}", errorText)
-	expectParseErrorWithUnsupportedFeatures(t, compat.Decorators, "class Foo { @dec x }", errorText)
-	expectParseErrorWithUnsupportedFeatures(t, compat.Decorators, "class Foo { @dec x() {} }", errorText)
-	expectParseErrorWithUnsupportedFeatures(t, compat.Decorators, "class Foo { @dec accessor x }", errorText)
-	expectParseErrorWithUnsupportedFeatures(t, compat.Decorators, "class Foo { @dec static x }", errorText)
-	expectParseErrorWithUnsupportedFeatures(t, compat.Decorators, "class Foo { @dec static x() {} }", errorText)
-	expectParseErrorWithUnsupportedFeatures(t, compat.Decorators, "class Foo { @dec static accessor x }", errorText)
+	expectPrintedWithUnsupportedFeatures(t, compat.Decorators, "@dec class Foo {}",
+		`var _Foo_decorators, _init;
+_init = [, , ,];
+_Foo_decorators = [dec];
+class Foo {
+}
+Foo = __decorateElement(_init, 0, "Foo", _Foo_decorators, Foo);
+__runInitializers(_init, 1, Foo);
+`)
+	expectPrintedWithUnsupportedFeatures(t, compat.Decorators, "class Foo { @dec x }",
+		`var _x_dec, _init;
+_init = [, , ,];
+_x_dec = [dec];
+class Foo {
+  constructor() {
+    __publicField(this, "x", __runInitializers(_init, 6)), __runInitializers(_init, 9, this);
+  }
+}
+__decorateElement(_init, 5, "x", _x_dec, Foo);
+`)
+	expectPrintedWithUnsupportedFeatures(t, compat.Decorators, "class Foo { @dec x() {} }",
+		`var _x_dec, _init;
+_init = [, , ,];
+_x_dec = [dec];
+class Foo {
+  constructor() {
+    __runInitializers(_init, 5, this);
+  }
+  x() {
+  }
+}
+__decorateElement(_init, 1, "x", _x_dec, Foo);
+`)
+	expectPrintedWithUnsupportedFeatures(t, compat.Decorators, "class Foo { @dec accessor x }",
+		`var _x_dec, _init, _x;
+_init = [, , ,];
+_x_dec = [dec];
+class Foo {
+  constructor() {
+    __privateAdd(this, _x, __runInitializers(_init, 6)), __runInitializers(_init, 9, this);
+  }
+}
+_x = new WeakMap();
+__decorateElement(_init, 4, "x", _x_dec, Foo, _x);
+`)
+	expectPrintedWithUnsupportedFeatures(t, compat.Decorators, "class Foo { @dec static x }",
+		`var _x_dec, _init;
+_init = [, , ,];
+_x_dec = [dec];
+class Foo {
+}
+__decorateElement(_init, 13, "x", _x_dec, Foo);
+__publicField(Foo, "x", __runInitializers(_init, 6)), __runInitializers(_init, 9, Foo);
+`)
+	expectPrintedWithUnsupportedFeatures(t, compat.Decorators, "class Foo { @dec static x() {} }",
+		`var _x_dec, _init;
+_init = [, , ,];
+_x_dec = [dec];
+class Foo {
+  static x() {
+  }
+}
+__decorateElement(_init, 9, "x", _x_dec, Foo);
+__runInitializers(_init, 3, Foo);
+`)
+	expectPrintedWithUnsupportedFeatures(t, compat.Decorators, "class Foo { @dec static accessor x }",
+		`var _x_dec, _init, _x;
+_init = [, , ,];
+_x_dec = [dec];
+class Foo {
+}
+_x = new WeakMap();
+__decorateElement(_init, 12, "x", _x_dec, Foo, _x);
+__privateAdd(Foo, _x, __runInitializers(_init, 6)), __runInitializers(_init, 9, Foo);
+`)
 
 	// Check ASI for "abstract"
 	expectParseError(t, "@x abstract class Foo {}", "<stdin>: ERROR: Expected \";\" but found \"class\"\n")

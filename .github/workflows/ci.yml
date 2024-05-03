@@ -160,6 +160,10 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: make lib-typecheck
 
+      - name: Decorator Tests
+        if: matrix.os == 'ubuntu-latest'
+        run: make decorator-tests
+
       - name: WebAssembly API Tests (browser)
         if: matrix.os == 'ubuntu-latest'
         run: make test-wasm-browser
