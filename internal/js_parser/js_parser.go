@@ -9833,6 +9833,7 @@ func (p *parser) mangleIf(stmts []js_ast.Stmt, loc logger.Loc, s *js_ast.SIf) []
 				}
 				return appendIfOrLabelBodyPreservingScope(stmts, s.Yes)
 			} else {
+				// We have to keep the "no" branch
 			}
 		} else {
 			// The test is falsy
