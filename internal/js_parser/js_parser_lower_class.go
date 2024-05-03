@@ -1090,10 +1090,54 @@ func (ctx *lowerClassContext) analyzeProperty(p *parser, prop js_ast.Property, c
 	return
 }
 
+func (ctx *lowerClassContext) hoistComputedProperties(p *parser, classLoweringInfo classLoweringInfo) (hoistedPropertyKeys map[int]js_ast.Expr) {
+	for propIndex, prop := range ctx.class.Properties {
+		analysis := ctx.analyzeProperty(p, prop, classLoweringInfo)
+
+		// Potentially adjust computed property keys to preserve evaluation order
+		if analysis.willMoveProperty || ctx.computedPropertyCache.Data != nil {
+			// Assume all non-literal computed keys have important side effects
+			switch prop.Key.Data.(type) {
+			case *js_ast.EString, *js_ast.ENameOfSymbol, *js_ast.ENumber:
+				// These have no side effects
+				continue
+			}
+
+			if !analysis.needsValueOfKey {
+				// Just evaluate the key for its side effects
+				ctx.computedPropertyCache = js_ast.JoinWithComma(ctx.computedPropertyCache, prop.Key)
+			} else {
+				// Store the key in a temporary so we can assign to it later
+				ref := p.generateTempRef(tempRefNeedsDeclare, "")
+				p.recordUsage(ref)
+				ctx.computedPropertyCache = js_ast.JoinWithComma(ctx.computedPropertyCache,
+					js_ast.Assign(js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}}, prop.Key))
+				prop.Key = js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}}
+				if hoistedPropertyKeys == nil {
+					hoistedPropertyKeys = make(map[int]js_ast.Expr)
+				}
+				hoistedPropertyKeys[propIndex] = prop.Key
+			}
+
+			// If this is a computed method, the property value will be used
+			// immediately. In this case we inline all computed properties so far to
+			// make sure all computed properties before this one are evaluated first.
+			if analysis.rewriteAutoAccessorToGetSet || (!analysis.mustLowerField && !analysis.staticFieldToBlockAssign) {
+				prop.Key = ctx.computedPropertyCache
+				ctx.computedPropertyCache = js_ast.Expr{}
+			}
+
+			ctx.class.Properties[propIndex] = prop
+		}
+	}
+	return
+}
+
 func (ctx *lowerClassContext) processProperties(p *parser, classLoweringInfo classLoweringInfo, result visitClassResult) {
 	properties := make([]js_ast.Property, 0, len(ctx.class.Properties))
+	hoistedPropertyKeys := ctx.hoistComputedProperties(p, classLoweringInfo)
 
-	for _, prop := range ctx.class.Properties {
+	for propIndex, prop := range ctx.class.Properties {
 		if prop.Kind == js_ast.PropertyClassStaticBlock {
 			// Drop empty class blocks when minifying
 			if p.options.minifySyntax && len(prop.ClassStaticBlock.Block.Stmts) == 0 {
@@ -1140,37 +1184,9 @@ func (ctx *lowerClassContext) processProperties(p *parser, classLoweringInfo cla
 		}
 
 		analysis := ctx.analyzeProperty(p, prop, classLoweringInfo)
-
-		// Potentially adjust computed property keys to preserve evaluation order
 		keyExprNoSideEffects := prop.Key
-		if analysis.willMoveProperty || ctx.computedPropertyCache.Data != nil {
-			// Assume all non-literal computed keys have important side effects
-			switch prop.Key.Data.(type) {
-			case *js_ast.EString, *js_ast.ENameOfSymbol, *js_ast.ENumber:
-				// These have no side effects
-
-			default:
-				if !analysis.needsValueOfKey {
-					// Just evaluate the key for its side effects
-					ctx.computedPropertyCache = js_ast.JoinWithComma(ctx.computedPropertyCache, prop.Key)
-				} else {
-					// Store the key in a temporary so we can assign to it later
-					ref := p.generateTempRef(tempRefNeedsDeclare, "")
-					p.recordUsage(ref)
-					ctx.computedPropertyCache = js_ast.JoinWithComma(ctx.computedPropertyCache,
-						js_ast.Assign(js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}}, prop.Key))
-					prop.Key = js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}}
-					keyExprNoSideEffects = prop.Key
-				}
-
-				// If this is a computed method, the property value will be used
-				// immediately. In this case we inline all computed properties so far to
-				// make sure all computed properties before this one are evaluated first.
-				if analysis.rewriteAutoAccessorToGetSet || (!analysis.mustLowerField && !analysis.staticFieldToBlockAssign) {
-					prop.Key = ctx.computedPropertyCache
-					ctx.computedPropertyCache = js_ast.Expr{}
-				}
-			}
+		if key, ok := hoistedPropertyKeys[propIndex]; ok {
+			keyExprNoSideEffects = key
 		}
 
 		// Handle TypeScript experimental decorators

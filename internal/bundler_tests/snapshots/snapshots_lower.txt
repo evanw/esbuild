@@ -19,7 +19,7 @@ _e = new WeakMap();
 ================================================================================
 TestJavaScriptAutoAccessorES2021
 ---------- /out/js-define.js ----------
-var _one, __two, _Foo_instances, two_get, two_set, _a, _a2, _four, __five, _Foo_static, five_get, five_set, _b, _b2;
+var _a, _b, _one, __two, _Foo_instances, two_get, two_set, _a2, _four, __five, _Foo_static, five_get, five_set, _b2;
 class Foo {
   constructor() {
     __privateAdd(this, _Foo_instances);
@@ -78,7 +78,7 @@ __privateAdd(Foo, __five, 5);
 __privateAdd(Foo, _b2, 6);
 
 ---------- /out/ts-define/ts-define.js ----------
-var _one, __two, _Foo_instances, two_get, two_set, _a, _a2, _four, __five, _Foo_static, five_get, five_set, _b, _b2, _a3, __a, _Private_instances, a_get, a_set, _a4, __a2, _StaticPrivate_static, a_get2, a_set2;
+var _a, _b, _one, __two, _Foo_instances, two_get, two_set, _a2, _four, __five, _Foo_static, five_get, five_set, _b2, _a3, __a, _Private_instances, a_get, a_set, _a4, __a2, _StaticPrivate_static, a_get2, a_set2;
 class Foo {
   constructor() {
     __privateAdd(this, _Foo_instances);
@@ -189,7 +189,7 @@ __privateAdd(StaticPrivate, __a2, b);
 __publicField(StaticPrivate, "c", d);
 
 ---------- /out/ts-assign/ts-assign.js ----------
-var _one, __two, _Foo_instances, two_get, two_set, _a, _a2, _four, __five, _Foo_static, five_get, five_set, _b, _b2, _a3, __a, _Private_instances, a_get, a_set, _a4, __a2, _StaticPrivate_static, a_get2, a_set2;
+var _a, _b, _one, __two, _Foo_instances, two_get, two_set, _a2, _four, __five, _Foo_static, five_get, five_set, _b2, _a3, __a, _Private_instances, a_get, a_set, _a4, __a2, _StaticPrivate_static, a_get2, a_set2;
 class Foo {
   constructor() {
     __privateAdd(this, _Foo_instances);
