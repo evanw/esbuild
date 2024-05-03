@@ -250,7 +250,8 @@ type Decorator struct {
 type PropertyKind uint8
 
 const (
-	PropertyNormal PropertyKind = iota
+	PropertyField PropertyKind = iota
+	PropertyMethod
 	PropertyGetter
 	PropertySetter
 	PropertyAutoAccessor
@@ -258,6 +259,22 @@ const (
 	PropertyDeclareOrAbstract
 	PropertyClassStaticBlock
 )
+
+// This returns true if and only if this property matches the "MethodDefinition"
+// grammar from the specification. That means it's one of the following forms:
+//
+//	foo() {}
+//	*foo() {}
+//	async foo() {}
+//	async *foo() {}
+//	get foo() {}
+//	set foo(_) {}
+//
+// If this returns true, the "ValueOrNil" field of the property is always an
+// "EFunction" expression and it is always printed as a method.
+func (kind PropertyKind) IsMethodDefinition() bool {
+	return kind == PropertyMethod || kind == PropertyGetter || kind == PropertySetter
+}
 
 type ClassStaticBlock struct {
 	Block SBlock
@@ -268,7 +285,6 @@ type PropertyFlags uint8
 
 const (
 	PropertyIsComputed PropertyFlags = 1 << iota
-	PropertyIsMethod
 	PropertyIsStatic
 	PropertyWasShorthand
 	PropertyPreferQuotedKey

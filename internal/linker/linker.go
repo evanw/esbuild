@@ -4761,12 +4761,12 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 			var cjsArgs []js_ast.Expr
 			if c.options.ProfilerNames {
 				// "__commonJS({ 'file.js'(exports, module) { ... } })"
-				var flags js_ast.PropertyFlags
+				kind := js_ast.PropertyField
 				if !c.options.UnsupportedJSFeatures.Has(compat.ObjectExtensions) {
-					flags |= js_ast.PropertyIsMethod
+					kind = js_ast.PropertyMethod
 				}
 				cjsArgs = []js_ast.Expr{{Data: &js_ast.EObject{Properties: []js_ast.Property{{
-					Flags:      flags,
+					Kind:       kind,
 					Key:        js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16(file.InputFile.Source.PrettyPath)}},
 					ValueOrNil: js_ast.Expr{Data: &js_ast.EFunction{Fn: js_ast.Fn{Args: args, Body: js_ast.FnBody{Block: js_ast.SBlock{Stmts: stmts}}}}},
 				}}}}}
@@ -4833,12 +4833,12 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 			var esmArgs []js_ast.Expr
 			if c.options.ProfilerNames {
 				// "__esm({ 'file.js'() { ... } })"
-				var flags js_ast.PropertyFlags
+				kind := js_ast.PropertyField
 				if !c.options.UnsupportedJSFeatures.Has(compat.ObjectExtensions) {
-					flags |= js_ast.PropertyIsMethod
+					kind = js_ast.PropertyMethod
 				}
 				esmArgs = []js_ast.Expr{{Data: &js_ast.EObject{Properties: []js_ast.Property{{
-					Flags:      flags,
+					Kind:       kind,
 					Key:        js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16(file.InputFile.Source.PrettyPath)}},
 					ValueOrNil: js_ast.Expr{Data: &js_ast.EFunction{Fn: js_ast.Fn{Body: js_ast.FnBody{Block: js_ast.SBlock{Stmts: stmts}}, IsAsync: isAsync}}},
 				}}}}}

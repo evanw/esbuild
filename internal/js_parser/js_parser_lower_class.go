@@ -527,7 +527,7 @@ func (p *parser) computeClassLoweringInfo(class *js_ast.Class) (result classLowe
 		//
 		// In that case the initializer of "bar" would fail to call "#foo" because
 		// it's only added to the instance in the body of the constructor.
-		if prop.Flags.Has(js_ast.PropertyIsMethod) {
+		if prop.Kind.IsMethodDefinition() {
 			// We need to shim "super()" inside the constructor if this is a derived
 			// class and the constructor has any parameter properties, since those
 			// use "this" and we can only access "this" after "super()" is called
@@ -1035,7 +1035,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 		}
 
 		// Merge parameter decorators with method decorators
-		if p.options.ts.Parse && prop.Flags.Has(js_ast.PropertyIsMethod) {
+		if p.options.ts.Parse && prop.Kind.IsMethodDefinition() {
 			if fn, ok := prop.ValueOrNil.Data.(*js_ast.EFunction); ok {
 				isConstructor := false
 				if key, ok := prop.Key.Data.(*js_ast.EString); ok {
@@ -1069,15 +1069,15 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 		// strict class field initialization, so we shouldn't either.
 		private, _ := prop.Key.Data.(*js_ast.EPrivateIdentifier)
 		mustLowerPrivate := private != nil && p.privateSymbolNeedsToBeLowered(private)
-		shouldOmitFieldInitializer := p.options.ts.Parse && !prop.Flags.Has(js_ast.PropertyIsMethod) && prop.InitializerOrNil.Data == nil &&
+		shouldOmitFieldInitializer := p.options.ts.Parse && !prop.Kind.IsMethodDefinition() && prop.InitializerOrNil.Data == nil &&
 			!class.UseDefineForClassFields && !mustLowerPrivate
 
 		// Class fields must be lowered if the environment doesn't support them
 		mustLowerField := false
-		if !prop.Flags.Has(js_ast.PropertyIsMethod) {
+		if !prop.Kind.IsMethodDefinition() {
 			if prop.Flags.Has(js_ast.PropertyIsStatic) {
 				mustLowerField = classLoweringInfo.lowerAllStaticFields
-			} else if prop.Kind == js_ast.PropertyNormal && p.options.ts.Parse && !class.UseDefineForClassFields && private == nil {
+			} else if prop.Kind == js_ast.PropertyField && p.options.ts.Parse && !class.UseDefineForClassFields && private == nil {
 				// Lower non-private instance fields (not accessors) if TypeScript's
 				// "useDefineForClassFields" setting is disabled. When all such fields
 				// have no initializers, we avoid setting the "lowerAllInstanceFields"
@@ -1109,15 +1109,15 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 		// assignment in an inline static block instead of lowering them. This lets
 		// us avoid having to unnecessarily lower static private fields when
 		// "useDefineForClassFields" is disabled.
-		staticFieldToBlockAssign := prop.Kind == js_ast.PropertyNormal && !mustLowerField && !class.UseDefineForClassFields &&
-			!prop.Flags.Has(js_ast.PropertyIsMethod) && prop.Flags.Has(js_ast.PropertyIsStatic) && private == nil
+		staticFieldToBlockAssign := prop.Kind == js_ast.PropertyField && !mustLowerField && !class.UseDefineForClassFields &&
+			prop.Flags.Has(js_ast.PropertyIsStatic) && private == nil
 
 		// Make sure the order of computed property keys doesn't change. These
 		// expressions have side effects and must be evaluated in order.
 		keyExprNoSideEffects := prop.Key
 		if prop.Flags.Has(js_ast.PropertyIsComputed) && (len(propExperimentalDecorators) > 0 || mustLowerField || staticFieldToBlockAssign || computedPropertyCache.Data != nil || rewriteAutoAccessorToGetSet) {
 			needsKey := true
-			if len(propExperimentalDecorators) == 0 && !rewriteAutoAccessorToGetSet && (prop.Flags.Has(js_ast.PropertyIsMethod) || shouldOmitFieldInitializer || (!mustLowerField && !staticFieldToBlockAssign)) {
+			if len(propExperimentalDecorators) == 0 && !rewriteAutoAccessorToGetSet && (prop.Kind.IsMethodDefinition() || shouldOmitFieldInitializer || (!mustLowerField && !staticFieldToBlockAssign)) {
 				needsKey = false
 			}
 
@@ -1156,7 +1156,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 
 			// This code tells "__decorateClass()" if the descriptor should be undefined
 			descriptorKind := float64(1)
-			if !prop.Flags.Has(js_ast.PropertyIsMethod) && prop.Kind != js_ast.PropertyAutoAccessor {
+			if !prop.Kind.IsMethodDefinition() && prop.Kind != js_ast.PropertyAutoAccessor {
 				descriptorKind = 2
 			}
 
@@ -1221,7 +1221,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 			storageNeedsToBeLowered := p.privateSymbolNeedsToBeLowered(storagePrivate)
 			storageProp := js_ast.Property{
 				Loc:              prop.Loc,
-				Kind:             js_ast.PropertyNormal,
+				Kind:             js_ast.PropertyField,
 				Flags:            prop.Flags & js_ast.PropertyIsStatic,
 				Key:              js_ast.Expr{Loc: loc, Data: storagePrivate},
 				InitializerOrNil: prop.InitializerOrNil,
@@ -1246,7 +1246,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 			getterProp := js_ast.Property{
 				Loc:   prop.Loc,
 				Kind:  js_ast.PropertyGetter,
-				Flags: prop.Flags | js_ast.PropertyIsMethod,
+				Flags: prop.Flags,
 				Key:   prop.Key,
 				ValueOrNil: js_ast.Expr{Loc: loc, Data: &js_ast.EFunction{
 					Fn: js_ast.Fn{
@@ -1284,7 +1284,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 			setterProp := js_ast.Property{
 				Loc:   prop.Loc,
 				Kind:  js_ast.PropertySetter,
-				Flags: prop.Flags | js_ast.PropertyIsMethod,
+				Flags: prop.Flags,
 				Key:   cloneKeyForLowerClass(keyExprNoSideEffects),
 				ValueOrNil: js_ast.Expr{Loc: loc, Data: &js_ast.EFunction{
 					Fn: js_ast.Fn{
@@ -1309,7 +1309,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 		}
 
 		// Lower fields
-		if (!prop.Flags.Has(js_ast.PropertyIsMethod) && mustLowerField) || staticFieldToBlockAssign {
+		if (!prop.Kind.IsMethodDefinition() && mustLowerField) || staticFieldToBlockAssign {
 			var keep bool
 			prop, keep = lowerField(prop, private, shouldOmitFieldInitializer, staticFieldToBlockAssign)
 			if !keep {
@@ -1318,7 +1318,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 		}
 
 		// Lower methods
-		if prop.Flags.Has(js_ast.PropertyIsMethod) && lowerMethod(prop, private) {
+		if prop.Kind.IsMethodDefinition() && lowerMethod(prop, private) {
 			continue
 		}
 
@@ -1375,7 +1375,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 
 			// Append it to the list to reuse existing allocation space
 			class.Properties = append(class.Properties, js_ast.Property{
-				Flags:      js_ast.PropertyIsMethod,
+				Kind:       js_ast.PropertyMethod,
 				Loc:        classLoc,
 				Key:        js_ast.Expr{Loc: classLoc, Data: &js_ast.EString{Value: helpers.StringToUTF16("constructor")}},
 				ValueOrNil: js_ast.Expr{Loc: classLoc, Data: ctor},

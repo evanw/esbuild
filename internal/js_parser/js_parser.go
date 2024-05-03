@@ -2114,13 +2114,13 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 		key = expr
 
 	case js_lexer.TAsterisk:
-		if kind != js_ast.PropertyNormal || opts.isGenerator {
+		if kind != js_ast.PropertyField && (kind != js_ast.PropertyMethod || opts.isGenerator) {
 			p.lexer.Unexpected()
 		}
 		opts.isGenerator = true
 		opts.generatorRange = p.lexer.Range()
 		p.lexer.Next()
-		return p.parseProperty(startLoc, js_ast.PropertyNormal, opts, errors)
+		return p.parseProperty(startLoc, js_ast.PropertyMethod, opts, errors)
 
 	default:
 		name := p.lexer.Identifier
@@ -2132,7 +2132,7 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 		p.lexer.Next()
 
 		// Support contextual keywords
-		if kind == js_ast.PropertyNormal && !opts.isGenerator {
+		if kind == js_ast.PropertyField {
 			// Does the following token look like a key?
 			couldBeModifierKeyword := p.lexer.IsIdentifierOrKeyword()
 			if !couldBeModifierKeyword {
@@ -2167,7 +2167,7 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 					if !p.lexer.HasNewlineBefore && !opts.isAsync && raw == name.String {
 						opts.isAsync = true
 						opts.asyncRange = nameRange
-						return p.parseProperty(startLoc, kind, opts, nil)
+						return p.parseProperty(startLoc, js_ast.PropertyMethod, opts, nil)
 					}
 
 				case "static":
@@ -2182,7 +2182,7 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 						scopeIndex := len(p.scopesInOrder)
 
 						if prop, ok := p.parseProperty(startLoc, kind, opts, nil); ok &&
-							prop.Kind == js_ast.PropertyNormal && prop.ValueOrNil.Data == nil &&
+							prop.Kind == js_ast.PropertyField && prop.ValueOrNil.Data == nil &&
 							(p.options.ts.Config.ExperimentalDecorators == config.True && len(opts.decorators) > 0) {
 							// If this is a well-formed class field with the "declare" keyword,
 							// only keep the declaration to preserve its side-effects when
@@ -2219,7 +2219,7 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 						scopeIndex := len(p.scopesInOrder)
 
 						if prop, ok := p.parseProperty(startLoc, kind, opts, nil); ok &&
-							prop.Kind == js_ast.PropertyNormal && prop.ValueOrNil.Data == nil &&
+							prop.Kind == js_ast.PropertyField && prop.ValueOrNil.Data == nil &&
 							(p.options.ts.Config.ExperimentalDecorators == config.True && len(opts.decorators) > 0) {
 							// If this is a well-formed class field with the "abstract" keyword,
 							// only keep the declaration to preserve its side-effects when
@@ -2291,9 +2291,9 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 		}
 
 		// Parse a shorthand property
-		if !opts.isClass && kind == js_ast.PropertyNormal && p.lexer.Token != js_lexer.TColon &&
+		if !opts.isClass && kind == js_ast.PropertyField && p.lexer.Token != js_lexer.TColon &&
 			p.lexer.Token != js_lexer.TOpenParen && p.lexer.Token != js_lexer.TLessThan &&
-			!opts.isGenerator && !opts.isAsync && js_lexer.Keywords[name.String] == js_lexer.T(0) {
+			js_lexer.Keywords[name.String] == js_lexer.T(0) {
 
 			// Forbid invalid identifiers
 			if (p.fnOrArrowDataParse.await != allowIdent && name.String == "await") ||
@@ -2332,8 +2332,8 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 				// "class X { foo?: number }"
 				// "class X { foo?(): number }"
 				p.lexer.Next()
-			} else if p.lexer.Token == js_lexer.TExclamation && !p.lexer.HasNewlineBefore && !opts.isAsync &&
-				!opts.isGenerator && (kind == js_ast.PropertyNormal || kind == js_ast.PropertyAutoAccessor) {
+			} else if p.lexer.Token == js_lexer.TExclamation && !p.lexer.HasNewlineBefore &&
+				(kind == js_ast.PropertyField || kind == js_ast.PropertyAutoAccessor) {
 				// "class X { foo!: number }"
 				p.lexer.Next()
 				hasDefiniteAssignmentAssertionOperator = true
@@ -2348,7 +2348,7 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 	}
 
 	// Parse a class field with an optional initial value
-	if kind == js_ast.PropertyAutoAccessor || (opts.isClass && kind == js_ast.PropertyNormal && !opts.isAsync && !opts.isGenerator &&
+	if kind == js_ast.PropertyAutoAccessor || (opts.isClass && kind == js_ast.PropertyField &&
 		!hasTypeParameters && (p.lexer.Token != js_lexer.TOpenParen || hasDefiniteAssignmentAssertionOperator)) {
 		var initializerOrNil js_ast.Expr
 
@@ -2423,8 +2423,7 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 	}
 
 	// Parse a method expression
-	if p.lexer.Token == js_lexer.TOpenParen || kind != js_ast.PropertyNormal ||
-		opts.isClass || opts.isAsync || opts.isGenerator {
+	if p.lexer.Token == js_lexer.TOpenParen || kind.IsMethodDefinition() || opts.isClass {
 		hasError := false
 
 		if !hasError && opts.tsDeclareRange.Len != 0 {
@@ -2526,6 +2525,9 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 				}
 				p.log.AddError(&p.tracker, r, fmt.Sprintf("Setter %s must have exactly one argument", p.keyNameForError(key)))
 			}
+
+		default:
+			kind = js_ast.PropertyMethod
 		}
 
 		// Special-case private identifiers
@@ -2575,7 +2577,7 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 			Decorators:      opts.decorators,
 			Loc:             startLoc,
 			Kind:            kind,
-			Flags:           flags | js_ast.PropertyIsMethod,
+			Flags:           flags,
 			Key:             key,
 			ValueOrNil:      value,
 			CloseBracketLoc: closeBracketLoc,
@@ -3270,7 +3272,7 @@ func (p *parser) convertExprToBinding(expr js_ast.Expr, invalidLog invalidLog) (
 			syntaxFeature{feature: compat.Destructuring, token: p.source.RangeOfOperatorAfter(expr.Loc, "{")})
 		properties := []js_ast.PropertyBinding{}
 		for _, property := range e.Properties {
-			if property.Flags.Has(js_ast.PropertyIsMethod) || property.Kind == js_ast.PropertyGetter || property.Kind == js_ast.PropertySetter {
+			if property.Kind.IsMethodDefinition() {
 				invalidLog.invalidTokens = append(invalidLog.invalidTokens, js_lexer.RangeOfIdentifier(p.source, property.Key.Loc))
 				continue
 			}
@@ -3761,7 +3763,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 				}
 			} else {
 				// This property may turn out to be a type in TypeScript, which should be ignored
-				if property, ok := p.parseProperty(p.saveExprCommentsHere(), js_ast.PropertyNormal, propertyOpts{}, &selfErrors); ok {
+				if property, ok := p.parseProperty(p.saveExprCommentsHere(), js_ast.PropertyField, propertyOpts{}, &selfErrors); ok {
 					properties = append(properties, property)
 				}
 			}
@@ -6317,7 +6319,7 @@ func (p *parser) parseClass(classKeyword logger.Range, name *ast.LocRef, classOp
 		opts.decorators = p.parseDecorators(p.currentScope, classKeyword, opts.decoratorContext)
 
 		// This property may turn out to be a type in TypeScript, which should be ignored
-		if property, ok := p.parseProperty(p.saveExprCommentsHere(), js_ast.PropertyNormal, opts, nil); ok {
+		if property, ok := p.parseProperty(p.saveExprCommentsHere(), js_ast.PropertyField, opts, nil); ok {
 			properties = append(properties, property)
 
 			// Forbid decorators on class constructors
@@ -6326,7 +6328,7 @@ func (p *parser) parseClass(classKeyword logger.Range, name *ast.LocRef, classOp
 					p.log.AddError(&p.tracker, logger.Range{Loc: firstDecoratorLoc},
 						"Decorators are not allowed on class constructors")
 				}
-				if property.Flags.Has(js_ast.PropertyIsMethod) && !property.Flags.Has(js_ast.PropertyIsStatic) && !property.Flags.Has(js_ast.PropertyIsComputed) {
+				if property.Kind.IsMethodDefinition() && !property.Flags.Has(js_ast.PropertyIsStatic) && !property.Flags.Has(js_ast.PropertyIsComputed) {
 					if hasConstructor {
 						p.log.AddError(&p.tracker, js_lexer.RangeOfIdentifier(p.source, property.Key.Loc),
 							"Classes cannot contain more than one constructor")
@@ -11598,7 +11600,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 						// "class {['x'] = y}" => "class {'x' = y}"
 						isInvalidConstructor := false
 						if helpers.UTF16EqualsString(k.Value, "constructor") {
-							if !property.Flags.Has(js_ast.PropertyIsMethod) {
+							if !property.Kind.IsMethodDefinition() {
 								// "constructor" is an invalid name for both instance and static fields
 								isInvalidConstructor = true
 							} else if !property.Flags.Has(js_ast.PropertyIsStatic) {
@@ -11642,10 +11644,10 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 			// accesses inside them. Lowered private instance fields are initialized
 			// inside the constructor where "super" is valid, so those don't need to
 			// be rewritten.
-			if property.Flags.Has(js_ast.PropertyIsMethod) {
+			if property.Kind.IsMethodDefinition() {
 				p.fnOrArrowDataVisit.shouldLowerSuperPropertyAccess = true
 			}
-		} else if !property.Flags.Has(js_ast.PropertyIsMethod) && !property.Flags.Has(js_ast.PropertyIsComputed) &&
+		} else if !property.Kind.IsMethodDefinition() && !property.Flags.Has(js_ast.PropertyIsComputed) &&
 			((!property.Flags.Has(js_ast.PropertyIsStatic) && p.options.unsupportedJSFeatures.Has(compat.ClassField)) ||
 				(property.Flags.Has(js_ast.PropertyIsStatic) && p.options.unsupportedJSFeatures.Has(compat.ClassStaticField))) {
 			if str, ok := property.Key.Data.(*js_ast.EString); ok {
@@ -12270,7 +12272,7 @@ func (p *parser) maybeRewritePropertyAccess(
 				// "{ get a() {} }.a" must be preserved
 				// "{ set a(b) {} }.a = 1" must be preserved
 				// "{ a: 1, [String.fromCharCode(97)]: 2 }.a" must be 2
-				if prop.Kind == js_ast.PropertySpread || prop.Flags.Has(js_ast.PropertyIsComputed) || prop.Flags.Has(js_ast.PropertyIsMethod) {
+				if prop.Kind == js_ast.PropertySpread || prop.Flags.Has(js_ast.PropertyIsComputed) || prop.Kind.IsMethodDefinition() {
 					isUnsafe = true
 					break
 				}
@@ -13117,7 +13119,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				// See https://github.com/babel/babel/blob/e482c763466ba3f44cb9e3467583b78b7f030b4a/packages/babel-plugin-transform-react-jsx/src/create-plugin.ts#L352
 				seenPropsSpread := false
 				for _, property := range e.Properties {
-					if seenPropsSpread && property.Kind == js_ast.PropertyNormal {
+					if seenPropsSpread && property.Kind == js_ast.PropertyField {
 						if str, ok := property.Key.Data.(*js_ast.EString); ok && helpers.UTF16EqualsString(str.Value, "key") {
 							shouldUseCreateElement = true
 							break
@@ -13236,7 +13238,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 							Loc:  childrenValue.Loc,
 						},
 						ValueOrNil: childrenValue,
-						Kind:       js_ast.PropertyNormal,
+						Kind:       js_ast.PropertyField,
 						Loc:        childrenValue.Loc,
 					})
 				}
@@ -13259,17 +13261,17 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					args = append(args, js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EObject{
 						Properties: []js_ast.Property{
 							{
-								Kind:       js_ast.PropertyNormal,
+								Kind:       js_ast.PropertyField,
 								Key:        js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EString{Value: helpers.StringToUTF16("fileName")}},
 								ValueOrNil: js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EString{Value: helpers.StringToUTF16(p.source.PrettyPath)}},
 							},
 							{
-								Kind:       js_ast.PropertyNormal,
+								Kind:       js_ast.PropertyField,
 								Key:        js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EString{Value: helpers.StringToUTF16("lineNumber")}},
 								ValueOrNil: js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(jsxSourceLine + 1)}}, // 1-based lines
 							},
 							{
-								Kind:       js_ast.PropertyNormal,
+								Kind:       js_ast.PropertyField,
 								Key:        js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EString{Value: helpers.StringToUTF16("columnNumber")}},
 								ValueOrNil: js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: float64(jsxSourceColumn + 1)}}, // 1-based columns
 							},
@@ -14077,7 +14079,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 				// Forbid duplicate "__proto__" properties according to the specification
 				if !property.Flags.Has(js_ast.PropertyIsComputed) && !property.Flags.Has(js_ast.PropertyWasShorthand) &&
-					!property.Flags.Has(js_ast.PropertyIsMethod) && in.assignTarget == js_ast.AssignTargetNone {
+					property.Kind == js_ast.PropertyField && in.assignTarget == js_ast.AssignTargetNone {
 					if str, ok := key.Data.(*js_ast.EString); ok && helpers.UTF16EqualsString(str.Value, "__proto__") {
 						r := js_lexer.RangeOfIdentifier(p.source, key.Loc)
 						if protoRange.Len > 0 {
@@ -14128,7 +14130,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				// generate a temporary variable in case this async method contains a
 				// "super" property reference. If that happens, the "super" expression
 				// must be lowered which will need a reference to this object literal.
-				if property.Flags.Has(js_ast.PropertyIsMethod) && p.options.unsupportedJSFeatures.Has(compat.AsyncAwait) {
+				if property.Kind == js_ast.PropertyMethod && p.options.unsupportedJSFeatures.Has(compat.AsyncAwait) {
 					if fn, ok := property.ValueOrNil.Data.(*js_ast.EFunction); ok && fn.Fn.IsAsync {
 						if innerClassNameRef == ast.InvalidRef {
 							innerClassNameRef = p.generateTempRef(tempRefNeedsDeclareMayBeCapturedInsideLoop, "")
@@ -14216,7 +14218,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			// AST node.
 			if object, ok := e.OptionsOrNil.Data.(*js_ast.EObject); ok {
 				if len(object.Properties) == 1 {
-					if prop := object.Properties[0]; prop.Kind == js_ast.PropertyNormal && !prop.Flags.Has(js_ast.PropertyIsComputed) && !prop.Flags.Has(js_ast.PropertyIsMethod) {
+					if prop := object.Properties[0]; prop.Kind == js_ast.PropertyField && !prop.Flags.Has(js_ast.PropertyIsComputed) {
 						if str, ok := prop.Key.Data.(*js_ast.EString); ok && (helpers.UTF16EqualsString(str.Value, "assert") || helpers.UTF16EqualsString(str.Value, "with")) {
 							keyword := ast.WithKeyword
 							if helpers.UTF16EqualsString(str.Value, "assert") {
@@ -14225,7 +14227,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 							if value, ok := prop.ValueOrNil.Data.(*js_ast.EObject); ok {
 								entries := []ast.AssertOrWithEntry{}
 								for _, p := range value.Properties {
-									if p.Kind == js_ast.PropertyNormal && !p.Flags.Has(js_ast.PropertyIsComputed) && !p.Flags.Has(js_ast.PropertyIsMethod) {
+									if p.Kind == js_ast.PropertyField && !p.Flags.Has(js_ast.PropertyIsComputed) {
 										if key, ok := p.Key.Data.(*js_ast.EString); ok {
 											if value, ok := p.ValueOrNil.Data.(*js_ast.EString); ok {
 												entries = append(entries, ast.AssertOrWithEntry{

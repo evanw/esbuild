@@ -1121,7 +1121,7 @@ func (p *printer) printProperty(property js_ast.Property) {
 		p.printSpace()
 	}
 
-	if fn, ok := property.ValueOrNil.Data.(*js_ast.EFunction); property.Flags.Has(js_ast.PropertyIsMethod) && ok {
+	if fn, ok := property.ValueOrNil.Data.(*js_ast.EFunction); property.Kind.IsMethodDefinition() && ok {
 		if fn.Fn.IsAsync {
 			p.printSpaceBeforeIdentifier()
 			p.addSourceMapping(property.Loc)
@@ -1169,7 +1169,7 @@ func (p *printer) printProperty(property js_ast.Property) {
 		p.print("]")
 
 		if property.ValueOrNil.Data != nil {
-			if fn, ok := property.ValueOrNil.Data.(*js_ast.EFunction); property.Flags.Has(js_ast.PropertyIsMethod) && ok {
+			if fn, ok := property.ValueOrNil.Data.(*js_ast.EFunction); property.Kind.IsMethodDefinition() && ok {
 				p.printFn(fn.Fn)
 				return
 			}
@@ -1302,20 +1302,12 @@ func (p *printer) printProperty(property js_ast.Property) {
 		p.printExpr(property.Key, js_ast.LLowest, 0)
 	}
 
-	if property.Kind != js_ast.PropertyNormal {
-		f, ok := property.ValueOrNil.Data.(*js_ast.EFunction)
-		if ok {
-			p.printFn(f.Fn)
-			return
-		}
+	if fn, ok := property.ValueOrNil.Data.(*js_ast.EFunction); property.Kind.IsMethodDefinition() && ok {
+		p.printFn(fn.Fn)
+		return
 	}
 
 	if property.ValueOrNil.Data != nil {
-		if fn, ok := property.ValueOrNil.Data.(*js_ast.EFunction); property.Flags.Has(js_ast.PropertyIsMethod) && ok {
-			p.printFn(fn.Fn)
-			return
-		}
-
 		p.print(":")
 		p.printSpace()
 		p.printExprWithoutLeadingNewline(property.ValueOrNil, js_ast.LComma, 0)

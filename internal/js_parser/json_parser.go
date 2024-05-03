@@ -138,7 +138,7 @@ func (p *jsonParser) parseExpr() js_ast.Expr {
 			value := p.parseExpr()
 
 			property := js_ast.Property{
-				Kind:       js_ast.PropertyNormal,
+				Kind:       js_ast.PropertyField,
 				Loc:        keyRange.Loc,
 				Key:        key,
 				ValueOrNil: value,
@@ -221,7 +221,7 @@ func isValidJSON(value js_ast.Expr) bool {
 
 	case *js_ast.EObject:
 		for _, property := range e.Properties {
-			if property.Kind != js_ast.PropertyNormal || property.Flags&(js_ast.PropertyIsComputed|js_ast.PropertyIsMethod) != 0 {
+			if property.Kind != js_ast.PropertyField || property.Flags.Has(js_ast.PropertyIsComputed) {
 				return false
 			}
 			if _, ok := property.Key.Data.(*js_ast.EString); !ok {

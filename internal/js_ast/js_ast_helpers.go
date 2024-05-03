@@ -501,7 +501,7 @@ func ConvertBindingToExpr(binding Binding, wrapIdentifier func(logger.Loc, ast.R
 		properties := make([]Property, len(b.Properties))
 		for i, property := range b.Properties {
 			value := ConvertBindingToExpr(property.Value, wrapIdentifier)
-			kind := PropertyNormal
+			kind := PropertyField
 			if property.IsSpread {
 				kind = PropertySpread
 			}
@@ -2268,7 +2268,7 @@ func (ctx HelperContext) ClassCanBeRemovedIfUnused(class Class) bool {
 			return false
 		}
 
-		if property.Flags.Has(PropertyIsMethod) {
+		if property.Kind.IsMethodDefinition() {
 			if fn, ok := property.ValueOrNil.Data.(*EFunction); ok {
 				for _, arg := range fn.Fn.Args {
 					if len(arg.Decorators) > 0 {
@@ -2321,7 +2321,7 @@ func (ctx HelperContext) ClassCanBeRemovedIfUnused(class Class) bool {
 			//     static foo = 1
 			//   }
 			//
-			if !class.UseDefineForClassFields && !property.Flags.Has(PropertyIsMethod) {
+			if property.Kind == PropertyField && !class.UseDefineForClassFields {
 				return false
 			}
 		}
@@ -2657,7 +2657,7 @@ func MangleObjectSpread(properties []Property) []Property {
 					// Also bail if we hit a verbatim "__proto__" key. This will
 					// actually set the prototype of the object being spread so
 					// inlining it is not correct.
-					if p.Kind == PropertyNormal && !p.Flags.Has(PropertyIsComputed) && !p.Flags.Has(PropertyIsMethod) {
+					if p.Kind == PropertyField && !p.Flags.Has(PropertyIsComputed) {
 						if str, ok := p.Key.Data.(*EString); ok && helpers.UTF16EqualsString(str.Value, "__proto__") {
 							// Don't mutate the original AST
 							clone := *v
