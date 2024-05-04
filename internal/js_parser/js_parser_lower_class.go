@@ -1462,6 +1462,13 @@ func (ctx *lowerClassContext) rewriteAutoAccessorToGetSet(
 	// Replace this accessor with other properties
 	loc := keyExprNoSideEffects.Loc
 	storagePrivate := &js_ast.EPrivateIdentifier{Ref: storageRef}
+	if mustLowerField {
+		// Forward the accessor's lowering status on to the storage field. If we
+		// don't do this, then we risk having the underlying private symbol
+		// behaving differently than if it were authored manually (e.g. being
+		// placed outside of the class body, which is a syntax error).
+		p.symbols[storageRef.InnerIndex].Flags |= ast.PrivateSymbolMustBeLowered
+	}
 	storageNeedsToBeLowered := p.privateSymbolNeedsToBeLowered(storagePrivate)
 	storageProp := js_ast.Property{
 		Loc:              prop.Loc,

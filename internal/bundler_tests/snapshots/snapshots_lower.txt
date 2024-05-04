@@ -436,7 +436,7 @@ class StaticPrivate {
 }
 
 ---------- /out/ts-assign/ts-assign.js ----------
-var _a, _b;
+var _a, _b, _a2, __a;
 class Foo {
   #one = 1;
   get one() {
@@ -483,30 +483,30 @@ class Foo {
 }
 class Normal {
   constructor() {
-    this.#a = b;
+    __privateAdd(this, _a2, b);
     this.c = d;
   }
-  #a;
   get a() {
-    return this.#a;
+    return __privateGet(this, _a2);
   }
   set a(_) {
-    this.#a = _;
+    __privateSet(this, _a2, _);
   }
 }
+_a2 = new WeakMap();
 class Private {
   constructor() {
-    this.#_a = b;
+    __privateAdd(this, __a, b);
     this.c = d;
   }
-  #_a;
   get #a() {
-    return this.#_a;
+    return __privateGet(this, __a);
   }
   set #a(_) {
-    this.#_a = _;
+    __privateSet(this, __a, _);
   }
 }
+__a = new WeakMap();
 class StaticNormal {
   static #a = b;
   static get a() {
@@ -571,6 +571,7 @@ class StaticPrivate {
 }
 
 ---------- /out/ts-assign/ts-assign.js ----------
+var _a, __a;
 class Foo {
   accessor one = 1;
   accessor #two = 2;
@@ -581,30 +582,30 @@ class Foo {
 }
 class Normal {
   constructor() {
-    this.#a = b;
+    __privateAdd(this, _a, b);
     this.c = d;
   }
-  #a;
   get a() {
-    return this.#a;
+    return __privateGet(this, _a);
   }
   set a(_) {
-    this.#a = _;
+    __privateSet(this, _a, _);
   }
 }
+_a = new WeakMap();
 class Private {
   constructor() {
-    this.#_a = b;
+    __privateAdd(this, __a, b);
     this.c = d;
   }
-  #_a;
   get #a() {
-    return this.#_a;
+    return __privateGet(this, __a);
   }
   set #a(_) {
-    this.#_a = _;
+    __privateSet(this, __a, _);
   }
 }
+__a = new WeakMap();
 class StaticNormal {
   static accessor a = b;
   static {

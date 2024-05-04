@@ -794,4 +794,105 @@ func TestLowerAutoAccessors(t *testing.T) {
 		"class Foo {\n  static #x = null;\n  static get x() {\n    return this.#x;\n  }\n  static set x(_) {\n    this.#x = _;\n  }\n}\n")
 	expectPrintedWithUnsupportedFeatures(t, compat.Decorators, "class Foo { static accessor [x] = null }",
 		"var _a;\nclass Foo {\n  static #a = null;\n  static get [_a = x]() {\n    return this.#a;\n  }\n  static set [_a](_) {\n    this.#a = _;\n  }\n}\n")
+
+	// Test various combinations of flags
+	expectPrintedWithUnsupportedFeatures(t, compat.Decorators|compat.ClassPrivateField, "class Foo { accessor x = null }",
+		`var _x;
+class Foo {
+  constructor() {
+    __privateAdd(this, _x, null);
+  }
+  get x() {
+    return __privateGet(this, _x);
+  }
+  set x(_) {
+    __privateSet(this, _x, _);
+  }
+}
+_x = new WeakMap();
+`)
+	expectPrintedWithUnsupportedFeatures(t, compat.Decorators|compat.ClassPrivateStaticField, "class Foo { static accessor x = null }",
+		`var _x;
+class Foo {
+  static get x() {
+    return __privateGet(this, _x);
+  }
+  static set x(_) {
+    __privateSet(this, _x, _);
+  }
+}
+_x = new WeakMap();
+__privateAdd(Foo, _x, null);
+`)
+	expectPrintedWithUnsupportedFeatures(t, compat.Decorators|compat.ClassField|compat.ClassPrivateField, "class Foo { accessor x = null }",
+		`var _x;
+class Foo {
+  constructor() {
+    __privateAdd(this, _x, null);
+  }
+  get x() {
+    return __privateGet(this, _x);
+  }
+  set x(_) {
+    __privateSet(this, _x, _);
+  }
+}
+_x = new WeakMap();
+`)
+	expectPrintedWithUnsupportedFeatures(t, compat.Decorators|compat.ClassStaticField|compat.ClassPrivateStaticField, "class Foo { static accessor x = null }",
+		`var _x;
+class Foo {
+  static get x() {
+    return __privateGet(this, _x);
+  }
+  static set x(_) {
+    __privateSet(this, _x, _);
+  }
+}
+_x = new WeakMap();
+__privateAdd(Foo, _x, null);
+`)
+	expectPrintedWithUnsupportedFeatures(t, compat.Decorators|compat.ClassField|compat.ClassPrivateField, "class Foo { accessor x = 1; static accessor y = 2 }",
+		`var _x, _y;
+class Foo {
+  constructor() {
+    __privateAdd(this, _x, 1);
+  }
+  get x() {
+    return __privateGet(this, _x);
+  }
+  set x(_) {
+    __privateSet(this, _x, _);
+  }
+  static get y() {
+    return __privateGet(this, _y);
+  }
+  static set y(_) {
+    __privateSet(this, _y, _);
+  }
+}
+_x = new WeakMap();
+_y = new WeakMap();
+__privateAdd(Foo, _y, 2);
+`)
+	expectPrintedWithUnsupportedFeatures(t, compat.Decorators|compat.ClassStaticField|compat.ClassPrivateStaticField, "class Foo { accessor x = 1; static accessor y = 2 }",
+		`var _y;
+class Foo {
+  #x = 1;
+  get x() {
+    return this.#x;
+  }
+  set x(_) {
+    this.#x = _;
+  }
+  static get y() {
+    return __privateGet(this, _y);
+  }
+  static set y(_) {
+    __privateSet(this, _y, _);
+  }
+}
+_y = new WeakMap();
+__privateAdd(Foo, _y, 2);
+`)
 }

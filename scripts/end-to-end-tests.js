@@ -5732,6 +5732,26 @@ for (let flags of [['--target=es2022'], ['--target=es6'], ['--bundle', '--target
       }`,
     }),
 
+    // Check various combinations of flags
+    test(['in.ts', '--outfile=node.js', '--supported:class-field=false'].concat(flags), {
+      'in.ts': `
+        class Foo {
+          accessor foo = 1
+          static accessor bar = 2
+        }
+        if (new Foo().foo !== 1 || Foo.bar !== 2) throw 'fail'
+      `,
+    }),
+    test(['in.ts', '--outfile=node.js', '--supported:class-static-field=false'].concat(flags), {
+      'in.ts': `
+        class Foo {
+          accessor foo = 1
+          static accessor bar = 2
+        }
+        if (new Foo().foo !== 1 || Foo.bar !== 2) throw 'fail'
+      `,
+    }),
+
     // Make sure class body side effects aren't reordered
     test(['in.ts', '--outfile=node.js', '--supported:class-field=false'].concat(flags), {
       'in.ts': `
