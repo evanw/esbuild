@@ -744,16 +744,15 @@ Foo = __decorateClass([
 
 // all_computed.ts
 var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
-_k = mUndef(), _j = mDef(), _h = mDecl(), _g = mAbst(), xUndef(), _f = xDef(), yUndef(), _e = yDef(), _d = sUndef(), _c = sDef(), _a = mDecl();
 var Foo2 = class {
   constructor() {
     this[_j] = 1;
     this[_f] = 2;
   }
-  [_i = method()](arg0, arg1) {
+  [(_k = mUndef(), _j = mDef(), _i = method())](arg0, arg1) {
     return new Foo2();
   }
-  static [_b = sMethod()](arg0, arg1) {
+  static [(_h = mDecl(), _g = mAbst(), xUndef(), _f = xDef(), yUndef(), _e = yDef(), _d = sUndef(), _c = sDef(), _b = sMethod(), _a = mDecl(), _b)](arg0, arg1) {
     return new Foo2();
   }
 };

@@ -1137,72 +1137,81 @@ func (ctx *lowerClassContext) hoistComputedProperties(p *parser, classLoweringIn
 		if analysis.isComputedPropertyCopiedOrMoved {
 			inlineKey := prop.Key
 
-			if !analysis.needsValueOfKey {
-				// In certain cases, we only need to evaluate a property key for its
-				// side effects but we don't actually need the value of the key itself.
-				// For example, a TypeScript class field without an initializer is
-				// omitted when TypeScript's "useDefineForClassFields" setting is false.
-			} else {
-				// Store the key in a temporary so we can refer to it later
-				ref := p.generateTempRef(tempRefNeedsDeclare, "")
-				inlineKey = js_ast.Assign(js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}}, prop.Key)
-				p.recordUsage(ref)
+			// If this property is being duplicated instead of moved or removed, then
+			// we still need the assignment to the temporary so that we can reference
+			// it in multiple places, but we don't have to hoist the assignment to an
+			// earlier property (since this property is still there). In that case
+			// we can reduce generated code size by avoiding the hoist. One example
+			// of this case is a decorator on a class element with a computed
+			// property key:
+			//
+			//   class Foo {
+			//     @dec [a()]() {}
+			//   }
+			//
+			// We want to do this:
+			//
+			//   var _a;
+			//   class Foo {
+			//     [_a = a()]() {}
+			//   }
+			//   __decorateClass([dec], Foo.prototype, _a, 1);
+			//
+			// instead of this:
+			//
+			//   var _a;
+			//   _a = a();
+			//   class Foo {
+			//     [_a]() {}
+			//   }
+			//   __decorateClass([dec], Foo.prototype, _a, 1);
+			//
+			// So only do the hoist if this property is being moved or removed.
+			if !analysis.rewriteAutoAccessorToGetSet && (analysis.mustLowerField || analysis.staticFieldToBlockAssign) {
+				if !analysis.needsValueOfKey {
+					// In certain cases, we only need to evaluate a property key for its
+					// side effects but we don't actually need the value of the key itself.
+					// For example, a TypeScript class field without an initializer is
+					// omitted when TypeScript's "useDefineForClassFields" setting is false.
+				} else {
+					// Store the key in a temporary so we can refer to it later
+					ref := p.generateTempRef(tempRefNeedsDeclare, "")
+					inlineKey = js_ast.Assign(js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}}, prop.Key)
+					p.recordUsage(ref)
 
-				// If this property is being duplicated instead of moved or removed, then
-				// we still need the assignment to the temporary so that we can reference
-				// it in multiple places, but we don't have to hoist the assignment to an
-				// earlier property (since this property is still there). In that case
-				// we can reduce generated code size by avoiding the hoist. One example
-				// of this case is a decorator on a class element with a computed
-				// property key:
-				//
-				//   class Foo {
-				//     @dec [a()]() {}
-				//   }
-				//
-				// We want to do this:
-				//
-				//   var _a;
-				//   class Foo {
-				//     [_a = a()]() {}
-				//   }
-				//   __decorateClass([dec], Foo.prototype, _a, 1);
-				//
-				// instead of this:
-				//
-				//   var _a;
-				//   _a = a();
-				//   class Foo {
-				//     [_a]() {}
-				//   }
-				//   __decorateClass([dec], Foo.prototype, _a, 1);
-				//
-				if analysis.rewriteAutoAccessorToGetSet || (!analysis.mustLowerField && !analysis.staticFieldToBlockAssign) {
-					if propertyKeyTempRefs == nil {
-						propertyKeyTempRefs = make(map[int]ast.Ref)
-					}
-					prop.Key = inlineKey
-					propertyKeyTempRefs[propIndex] = ref
-					continue
+					// Replace this property key with a reference to the temporary. We
+					// don't need to store the temporary in the "propertyKeyTempRefs"
+					// map because all references will refer to the temporary, not just
+					// some of them.
+					prop.Key = js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}}
+					p.recordUsage(ref)
 				}
 
-				// Otherwise, replace this property key with a reference to the
-				// temporary. We don't need to store the temporary in the
-				// "propertyKeyTempRefs" map because all references will refer to
-				// the temporary, not just some of them.
-				prop.Key = js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}}
-				p.recordUsage(ref)
+				// Figure out where to stick this property's side effect to preserve its order
+				if nextComputedPropertyKey != nil {
+					// Insert it before everything that comes after it
+					*nextComputedPropertyKey = js_ast.JoinWithComma(inlineKey, *nextComputedPropertyKey)
+				} else {
+					// Insert it after the first thing that comes before it
+					ctx.computedPropertyChain = js_ast.JoinWithComma(inlineKey, ctx.computedPropertyChain)
+				}
+				continue
 			}
 
-			// Figure out where to stick this property's side effect to preserve its order
-			if nextComputedPropertyKey != nil {
-				// Insert it before everything that comes after it
-				*nextComputedPropertyKey = js_ast.JoinWithComma(inlineKey, *nextComputedPropertyKey)
-			} else {
-				// Insert it after the first thing that comes before it
-				ctx.computedPropertyChain = js_ast.JoinWithComma(inlineKey, ctx.computedPropertyChain)
+			// Otherwise, we keep the side effects in place (as described above) but
+			// just store the key in a temporary so we can refer to it later.
+			ref := p.generateTempRef(tempRefNeedsDeclare, "")
+			inlineKey = js_ast.Assign(js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}}, prop.Key)
+			p.recordUsage(ref)
+
+			// Use this temporary when creating duplicate references to this key
+			if propertyKeyTempRefs == nil {
+				propertyKeyTempRefs = make(map[int]ast.Ref)
 			}
-			continue
+			prop.Key = inlineKey
+			propertyKeyTempRefs[propIndex] = ref
+
+			// Deliberately continue to fall through to the "computed" case below:
 		}
 
 		// Otherwise, this computed property could be a good location to evaluate
@@ -1211,12 +1220,15 @@ func (ctx *lowerClassContext) hoistComputedProperties(p *parser, classLoweringIn
 			// If any side effects after this were hoisted here, then inline them now.
 			// We don't want to reorder any side effects.
 			if ctx.computedPropertyChain.Data != nil {
-				ref := p.generateTempRef(tempRefNeedsDeclare, "")
-				prop.Key = js_ast.JoinWithComma(js_ast.JoinWithComma(
-					js_ast.Assign(js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}}, prop.Key),
-					ctx.computedPropertyChain),
+				ref, ok := propertyKeyTempRefs[propIndex]
+				if !ok {
+					ref = p.generateTempRef(tempRefNeedsDeclare, "")
+					prop.Key = js_ast.Assign(js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}}, prop.Key)
+					p.recordUsage(ref)
+				}
+				prop.Key = js_ast.JoinWithComma(
+					js_ast.JoinWithComma(prop.Key, ctx.computedPropertyChain),
 					js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}})
-				p.recordUsage(ref)
 				p.recordUsage(ref)
 				ctx.computedPropertyChain = js_ast.Expr{}
 			}

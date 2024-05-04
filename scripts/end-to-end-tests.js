@@ -5795,6 +5795,36 @@ for (let flags of [['--target=es2022'], ['--target=es6'], ['--bundle', '--target
         if (log + '' !== '1,2,3') throw 'fail: ' + log
       `,
     }),
+    test(['in.ts', '--outfile=node.js'].concat(flags), {
+      'in.ts': `
+        const log = []
+        class Foo {
+          @(() => { log.push(3) }) [log.push(1)]() {}
+          [log.push(2)] = 123;
+        }
+        if (log + '' !== '1,2,3') throw 'fail: ' + log
+      `,
+      'tsconfig.json': `{
+        "compilerOptions": {
+          "experimentalDecorators": true
+        }
+      }`,
+    }),
+    test(['in.ts', '--outfile=node.js'].concat(flags), {
+      'in.ts': `
+        const log = []
+        class Foo {
+          @(() => { log.push(3) }) static [log.push(1)]() {}
+          static [log.push(2)] = 123;
+        }
+        if (log + '' !== '1,2,3') throw 'fail: ' + log
+      `,
+      'tsconfig.json': `{
+        "compilerOptions": {
+          "experimentalDecorators": true
+        }
+      }`,
+    }),
 
     // Check "await" in computed property names
     test(['in.ts', '--outfile=node.js', '--format=cjs', '--supported:class-field=false'].concat(flags), {
