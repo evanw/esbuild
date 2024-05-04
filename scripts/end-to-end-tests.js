@@ -5731,6 +5731,72 @@ for (let flags of [['--target=es2022'], ['--target=es6'], ['--bundle', '--target
         },
       }`,
     }),
+
+    // Make sure class body side effects aren't reordered
+    test(['in.ts', '--outfile=node.js', '--supported:class-field=false'].concat(flags), {
+      'in.ts': `
+        const log = []
+        class Foo extends (log.push(1), Object) {
+          [log.push(2)] = 123;
+          [log.push(3)] = 123;
+        }
+        if (log + '' !== '1,2,3') throw 'fail: ' + log
+      `,
+    }),
+    test(['in.ts', '--outfile=node.js', '--supported:class-static-field=false'].concat(flags), {
+      'in.ts': `
+        const log = []
+        class Foo extends (log.push(1), Object) {
+          static [log.push(2)] = 123;
+          static [log.push(3)] = 123;
+        }
+        if (log + '' !== '1,2,3') throw 'fail: ' + log
+      `,
+    }),
+    test(['in.ts', '--outfile=node.js', '--supported:class-field=false'].concat(flags), {
+      'in.ts': `
+        const log = []
+        class Foo {
+          static [log.push(1)]() {}
+          [log.push(2)] = 123;
+          static [log.push(3)]() {}
+        }
+        if (log + '' !== '1,2,3') throw 'fail: ' + log
+      `,
+    }),
+    test(['in.ts', '--outfile=node.js', '--supported:class-static-field=false'].concat(flags), {
+      'in.ts': `
+        const log = []
+        class Foo {
+          [log.push(1)]() {}
+          static [log.push(2)] = 123;
+          [log.push(3)]() {}
+        }
+        if (log + '' !== '1,2,3') throw 'fail: ' + log
+      `,
+    }),
+
+    // Check "await" in computed property names
+    test(['in.ts', '--outfile=node.js', '--format=cjs', '--supported:class-field=false'].concat(flags), {
+      'in.ts': `
+        exports.async = async () => {
+          class Foo {
+            [await Promise.resolve('foo')] = 123
+          }
+          if (new Foo().foo !== 123) throw 'fail'
+        }
+      `,
+    }, { async: true }),
+    test(['in.ts', '--outfile=node.js', '--format=cjs', '--supported:class-static-field=false'].concat(flags), {
+      'in.ts': `
+        exports.async = async () => {
+          class Foo {
+            static [await Promise.resolve('foo')] = 123
+          }
+          if (Foo.foo !== 123) throw 'fail'
+        }
+      `,
+    }, { async: true }),
   )
 
   // https://github.com/evanw/esbuild/issues/3177

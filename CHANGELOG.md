@@ -75,6 +75,77 @@
     };
     ```
 
+* Fix an obscure bug with lowering class members with computed property keys
+
+    When class members that use newer syntax features are transformed for older target environments, they sometimes need to be relocated. However, care must be taken to not reorder any side effects caused by computed property keys. For example, the following code must evaluate `a()` then `b()` then `c()`:
+
+    ```js
+    class Foo {
+      [a()]() {}
+      [b()];
+      static { c() }
+    }
+    ```
+
+    Previously esbuild did this by shifting the computed property key _forward_ to the next spot in the evaluation order. Classes evaluate all computed keys first and then all static class elements, so if the last computed key needs to be shifted, esbuild previously inserted a static block at start of the class body, ensuring it came before all other static class elements:
+
+    ```js
+    var _a;
+    class Foo {
+      constructor() {
+        __publicField(this, _a);
+      }
+      static {
+        _a = b();
+      }
+      [a()]() {
+      }
+      static {
+        c();
+      }
+    }
+    ```
+
+    However, this could cause esbuild to accidentally generate a syntax error if the computed property key contains code that isn't allowed in a static block, such as an `await` expression. With this release, esbuild fixes this problem by shifting the computed property key _backward_ to the previous spot in the evaluation order instead, which may push it into the `extends` clause or even before the class itself:
+
+    ```js
+    // Original code
+    class Foo {
+      [a()]() {}
+      [await b()];
+      static { c() }
+    }
+
+    // Old output (with --supported:class-field=false)
+    var _a;
+    class Foo {
+      constructor() {
+        __publicField(this, _a);
+      }
+      static {
+        _a = await b();
+      }
+      [a()]() {
+      }
+      static {
+        c();
+      }
+    }
+
+    // New output (with --supported:class-field=false)
+    var _a, _b;
+    class Foo {
+      constructor() {
+        __publicField(this, _a);
+      }
+      [(_b = a(), _a = await b(), _b)]() {
+      }
+      static {
+        c();
+      }
+    }
+    ```
+
 ## 0.20.2
 
 * Support TypeScript experimental decorators on `abstract` class fields ([#3684](https://github.com/evanw/esbuild/issues/3684))

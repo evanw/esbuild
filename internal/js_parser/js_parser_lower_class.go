@@ -616,7 +616,7 @@ type lowerClassContext struct {
 	autoAccessorCount      int
 
 	// These expressions are generated after the class body, in this order
-	computedPropertyCache js_ast.Expr
+	computedPropertyChain js_ast.Expr
 	privateMembers        []js_ast.Expr
 	staticMembers         []js_ast.Expr
 	staticPrivateMethods  []js_ast.Expr
@@ -704,7 +704,6 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 	classLoweringInfo := p.computeClassLoweringInfo(ctx.class)
 	ctx.enableNameCapture(p, result)
 	ctx.processProperties(p, classLoweringInfo, result)
-	ctx.flushComputedPropertyCache(p)
 	ctx.insertInitializersIntoConstructor(p, classLoweringInfo, result)
 	return ctx.finishAndGenerateCode(p, result)
 }
@@ -1009,14 +1008,14 @@ func (ctx *lowerClassContext) lowerMethod(p *parser, prop js_ast.Property, priva
 }
 
 type propertyAnalysis struct {
-	private                     *js_ast.EPrivateIdentifier
-	propExperimentalDecorators  []js_ast.Decorator
-	mustLowerField              bool
-	needsValueOfKey             bool
-	rewriteAutoAccessorToGetSet bool
-	shouldOmitFieldInitializer  bool
-	staticFieldToBlockAssign    bool
-	willMoveProperty            bool
+	private                         *js_ast.EPrivateIdentifier
+	propExperimentalDecorators      []js_ast.Decorator
+	mustLowerField                  bool
+	needsValueOfKey                 bool
+	rewriteAutoAccessorToGetSet     bool
+	shouldOmitFieldInitializer      bool
+	staticFieldToBlockAssign        bool
+	isComputedPropertyCopiedOrMoved bool
 }
 
 func (ctx *lowerClassContext) analyzeProperty(p *parser, prop js_ast.Property, classLoweringInfo classLoweringInfo) (analysis propertyAnalysis) {
@@ -1068,17 +1067,20 @@ func (ctx *lowerClassContext) analyzeProperty(p *parser, prop js_ast.Property, c
 	analysis.staticFieldToBlockAssign = prop.Kind == js_ast.PropertyField && !analysis.mustLowerField && !ctx.class.UseDefineForClassFields &&
 		prop.Flags.Has(js_ast.PropertyIsStatic) && analysis.private == nil
 
-	// Make sure the order of computed property keys doesn't change. These
-	// expressions have side effects and must be evaluated in order.
+	// Computed properties can't be copied or moved because they have side effects
+	// and we don't want to evaluate their side effects twice or change their
+	// evaluation order. We'll need to store them in temporary variables to keep
+	// their side effects in place when we reference them elsewhere.
+	analysis.needsValueOfKey = true
 	if prop.Flags.Has(js_ast.PropertyIsComputed) &&
 		(len(analysis.propExperimentalDecorators) > 0 ||
 			analysis.mustLowerField ||
 			analysis.staticFieldToBlockAssign ||
 			analysis.rewriteAutoAccessorToGetSet) {
-		analysis.willMoveProperty = true
+		analysis.isComputedPropertyCopiedOrMoved = true
 
-		// Determine if we don't actually need the value of the key (only the side effects)
-		analysis.needsValueOfKey = true
+		// Determine if we don't actually need the value of the key (only the side
+		// effects). In that case we don't need a temporary variable.
 		if len(analysis.propExperimentalDecorators) == 0 &&
 			!analysis.rewriteAutoAccessorToGetSet &&
 			analysis.shouldOmitFieldInitializer {
@@ -1088,52 +1090,181 @@ func (ctx *lowerClassContext) analyzeProperty(p *parser, prop js_ast.Property, c
 	return
 }
 
-func (ctx *lowerClassContext) hoistComputedProperties(p *parser, classLoweringInfo classLoweringInfo) (hoistedPropertyKeys map[int]js_ast.Expr) {
-	for propIndex, prop := range ctx.class.Properties {
-		analysis := ctx.analyzeProperty(p, prop, classLoweringInfo)
+func (ctx *lowerClassContext) hoistComputedProperties(p *parser, classLoweringInfo classLoweringInfo) (propertyKeyTempRefs map[int]ast.Ref) {
+	var nextComputedPropertyKey *js_ast.Expr
 
-		// Potentially adjust computed property keys to preserve evaluation order
-		if analysis.willMoveProperty || ctx.computedPropertyCache.Data != nil {
-			// Assume all non-literal computed keys have important side effects
-			switch prop.Key.Data.(type) {
-			case *js_ast.EString, *js_ast.ENameOfSymbol, *js_ast.ENumber:
-				// These have no side effects
-				continue
-			}
+	// Computed property keys must be evaluated in a specific order for their
+	// side effects. This order must be preserved even when we have to move a
+	// class element around. For example, this can happen when using class fields
+	// with computed property keys and targeting environments without class field
+	// support. For example:
+	//
+	//   class Foo {
+	//     [a()]() {}
+	//     static [b()] = null;
+	//     [c()]() {}
+	//   }
+	//
+	// If we need to lower the static field because static fields aren't supported,
+	// we still need to ensure that "b()" is called before "a()" and after "c()".
+	// That looks something like this:
+	//
+	//   var _a;
+	//   class Foo {
+	//     [a()]() {}
+	//     [(_a = b(), c())]() {}
+	//   }
+	//   __publicField(Foo, _a, null);
+	//
+	// Iterate in reverse so that any initializers are "pushed up" before the
+	// class body if there's nowhere else to put them. They can't be "pushed
+	// down" into a static block in the class body (the logical place to put
+	// them that's next in the evaluation order) because these expressions
+	// may contain "await" and static blocks do not allow "await".
+	for propIndex := len(ctx.class.Properties) - 1; propIndex >= 0; propIndex-- {
+		prop := &ctx.class.Properties[propIndex]
+
+		// Skip property keys that we know are side-effect free
+		switch prop.Key.Data.(type) {
+		case *js_ast.EString, *js_ast.ENameOfSymbol, *js_ast.ENumber:
+			continue
+		}
+
+		analysis := ctx.analyzeProperty(p, *prop, classLoweringInfo)
+
+		// If this key is referenced elsewhere, make sure to still preserve
+		// its side effects in the property's original location
+		if analysis.isComputedPropertyCopiedOrMoved {
+			inlineKey := prop.Key
 
 			if !analysis.needsValueOfKey {
-				// Just evaluate the key for its side effects
-				ctx.computedPropertyCache = js_ast.JoinWithComma(ctx.computedPropertyCache, prop.Key)
+				// In certain cases, we only need to evaluate a property key for its
+				// side effects but we don't actually need the value of the key itself.
+				// For example, a TypeScript class field without an initializer is
+				// omitted when TypeScript's "useDefineForClassFields" setting is false.
 			} else {
-				// Store the key in a temporary so we can assign to it later
+				// Store the key in a temporary so we can refer to it later
 				ref := p.generateTempRef(tempRefNeedsDeclare, "")
+				inlineKey = js_ast.Assign(js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}}, prop.Key)
 				p.recordUsage(ref)
-				ctx.computedPropertyCache = js_ast.JoinWithComma(ctx.computedPropertyCache,
-					js_ast.Assign(js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}}, prop.Key))
-				prop.Key = js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}}
-				if hoistedPropertyKeys == nil {
-					hoistedPropertyKeys = make(map[int]js_ast.Expr)
+
+				// If this property is being duplicated instead of moved or removed, then
+				// we still need the assignment to the temporary so that we can reference
+				// it in multiple places, but we don't have to hoist the assignment to an
+				// earlier property (since this property is still there). In that case
+				// we can reduce generated code size by avoiding the hoist. One example
+				// of this case is a decorator on a class element with a computed
+				// property key:
+				//
+				//   class Foo {
+				//     @dec [a()]() {}
+				//   }
+				//
+				// We want to do this:
+				//
+				//   var _a;
+				//   class Foo {
+				//     [_a = a()]() {}
+				//   }
+				//   __decorateClass([dec], Foo.prototype, _a, 1);
+				//
+				// instead of this:
+				//
+				//   var _a;
+				//   _a = a();
+				//   class Foo {
+				//     [_a]() {}
+				//   }
+				//   __decorateClass([dec], Foo.prototype, _a, 1);
+				//
+				if analysis.rewriteAutoAccessorToGetSet || (!analysis.mustLowerField && !analysis.staticFieldToBlockAssign) {
+					if propertyKeyTempRefs == nil {
+						propertyKeyTempRefs = make(map[int]ast.Ref)
+					}
+					prop.Key = inlineKey
+					propertyKeyTempRefs[propIndex] = ref
+					continue
 				}
-				hoistedPropertyKeys[propIndex] = prop.Key
+
+				// Otherwise, replace this property key with a reference to the
+				// temporary. We don't need to store the temporary in the
+				// "propertyKeyTempRefs" map because all references will refer to
+				// the temporary, not just some of them.
+				prop.Key = js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}}
+				p.recordUsage(ref)
 			}
 
-			// If this is a computed method, the property value will be used
-			// immediately. In this case we inline all computed properties so far to
-			// make sure all computed properties before this one are evaluated first.
-			if analysis.rewriteAutoAccessorToGetSet || (!analysis.mustLowerField && !analysis.staticFieldToBlockAssign) {
-				prop.Key = ctx.computedPropertyCache
-				ctx.computedPropertyCache = js_ast.Expr{}
+			// Figure out where to stick this property's side effect to preserve its order
+			if nextComputedPropertyKey != nil {
+				// Insert it before everything that comes after it
+				*nextComputedPropertyKey = js_ast.JoinWithComma(inlineKey, *nextComputedPropertyKey)
+			} else {
+				// Insert it after the first thing that comes before it
+				ctx.computedPropertyChain = js_ast.JoinWithComma(inlineKey, ctx.computedPropertyChain)
 			}
-
-			ctx.class.Properties[propIndex] = prop
+			continue
 		}
+
+		// Otherwise, this computed property could be a good location to evaluate
+		// something that comes before it. Remember this location for later.
+		if prop.Flags.Has(js_ast.PropertyIsComputed) {
+			// If any side effects after this were hoisted here, then inline them now.
+			// We don't want to reorder any side effects.
+			if ctx.computedPropertyChain.Data != nil {
+				ref := p.generateTempRef(tempRefNeedsDeclare, "")
+				prop.Key = js_ast.JoinWithComma(js_ast.JoinWithComma(
+					js_ast.Assign(js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}}, prop.Key),
+					ctx.computedPropertyChain),
+					js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}})
+				p.recordUsage(ref)
+				p.recordUsage(ref)
+				ctx.computedPropertyChain = js_ast.Expr{}
+			}
+
+			// Remember this location for later
+			nextComputedPropertyKey = &prop.Key
+		}
+	}
+
+	// If any side effects in the class body were hoisted up to the "extends"
+	// clause, then inline them before the "extends" clause is evaluated. We
+	// don't want to reorder any side effects. For example:
+	//
+	//   class Foo extends a() {
+	//     static [b()]
+	//   }
+	//
+	// We want to do this:
+	//
+	//   var _a, _b;
+	//   class Foo extends (_b = a(), _a = b(), _b) {
+	//   }
+	//   __publicField(Foo, _a);
+	//
+	// instead of this:
+	//
+	//   var _a;
+	//   _a = b();
+	//   class Foo extends a() {
+	//   }
+	//   __publicField(Foo, _a);
+	//
+	if ctx.computedPropertyChain.Data != nil && ctx.class.ExtendsOrNil.Data != nil {
+		ref := p.generateTempRef(tempRefNeedsDeclare, "")
+		ctx.class.ExtendsOrNil = js_ast.JoinWithComma(js_ast.JoinWithComma(
+			js_ast.Assign(js_ast.Expr{Loc: ctx.class.ExtendsOrNil.Loc, Data: &js_ast.EIdentifier{Ref: ref}}, ctx.class.ExtendsOrNil),
+			ctx.computedPropertyChain),
+			js_ast.Expr{Loc: ctx.class.ExtendsOrNil.Loc, Data: &js_ast.EIdentifier{Ref: ref}})
+		p.recordUsage(ref)
+		p.recordUsage(ref)
+		ctx.computedPropertyChain = js_ast.Expr{}
 	}
 	return
 }
 
 func (ctx *lowerClassContext) processProperties(p *parser, classLoweringInfo classLoweringInfo, result visitClassResult) {
 	properties := make([]js_ast.Property, 0, len(ctx.class.Properties))
-	hoistedPropertyKeys := ctx.hoistComputedProperties(p, classLoweringInfo)
+	propertyKeyTempRefs := ctx.hoistComputedProperties(p, classLoweringInfo)
 
 	for propIndex, prop := range ctx.class.Properties {
 		if prop.Kind == js_ast.PropertyClassStaticBlock {
@@ -1182,9 +1313,14 @@ func (ctx *lowerClassContext) processProperties(p *parser, classLoweringInfo cla
 		}
 
 		analysis := ctx.analyzeProperty(p, prop, classLoweringInfo)
+
+		// When the property key needs to be referenced multiple times, subsequent
+		// references may need to reference a temporary variable instead of copying
+		// the whole property key expression (since we only want to evaluate side
+		// effects once).
 		keyExprNoSideEffects := prop.Key
-		if key, ok := hoistedPropertyKeys[propIndex]; ok {
-			keyExprNoSideEffects = key
+		if ref, ok := propertyKeyTempRefs[propIndex]; ok {
+			keyExprNoSideEffects.Data = &js_ast.EIdentifier{Ref: ref}
 		}
 
 		// Handle TypeScript experimental decorators
@@ -1416,46 +1552,6 @@ func (ctx *lowerClassContext) rewriteAutoAccessorToGetSet(
 	return properties
 }
 
-func (ctx *lowerClassContext) flushComputedPropertyCache(p *parser) {
-	// If there are expressions with side effects left over and static blocks are
-	// supported, insert a static block at the start of the class body. This is
-	// necessary because computed static fields need to reference variables that
-	// are initialized in this expression:
-	//
-	//   class Foo {
-	//     static [x()] = 1
-	//   }
-	//
-	// The TypeScript compiler transforms that to this:
-	//
-	//   var _a;
-	//   class Foo {
-	//     static { _a = x(); }
-	//     static { this[_a] = 1; }
-	//   }
-	//
-	if ctx.computedPropertyCache.Data != nil && !p.options.unsupportedJSFeatures.Has(compat.ClassStaticBlocks) {
-		loc := ctx.computedPropertyCache.Loc
-		ctx.class.Properties = append(append(
-			make([]js_ast.Property, 0, 1+len(ctx.class.Properties)),
-			js_ast.Property{
-				Loc:  loc,
-				Kind: js_ast.PropertyClassStaticBlock,
-				ClassStaticBlock: &js_ast.ClassStaticBlock{
-					Loc: loc,
-					Block: js_ast.SBlock{
-						Stmts: []js_ast.Stmt{
-							{Loc: loc, Data: &js_ast.SExpr{Value: ctx.computedPropertyCache}},
-						},
-					},
-				},
-			}),
-			ctx.class.Properties...,
-		)
-		ctx.computedPropertyCache = js_ast.Expr{}
-	}
-}
-
 func (ctx *lowerClassContext) insertInitializersIntoConstructor(p *parser, classLoweringInfo classLoweringInfo, result visitClassResult) {
 	if len(ctx.parameterFields) == 0 &&
 		len(ctx.instancePrivateMethods) == 0 &&
@@ -1525,14 +1621,16 @@ func (ctx *lowerClassContext) finishAndGenerateCode(p *parser, result visitClass
 		// Calling "nameFunc" will replace "classExpr", so make sure to do that first
 		// before joining "classExpr" with any other expressions
 		var nameToJoin js_ast.Expr
-		if ctx.didCaptureClassExpr || ctx.computedPropertyCache.Data != nil ||
-			len(ctx.privateMembers) > 0 || len(ctx.staticPrivateMethods) > 0 || len(ctx.staticMembers) > 0 {
+		if ctx.didCaptureClassExpr ||
+			len(ctx.privateMembers) > 0 ||
+			len(ctx.staticPrivateMethods) > 0 ||
+			len(ctx.staticMembers) > 0 {
 			nameToJoin = ctx.nameFunc()
 		}
 
 		// Then join "classExpr" with any other expressions that apply
-		if ctx.computedPropertyCache.Data != nil {
-			ctx.classExpr = js_ast.JoinWithComma(ctx.classExpr, ctx.computedPropertyCache)
+		if ctx.computedPropertyChain.Data != nil {
+			ctx.classExpr = js_ast.JoinWithComma(ctx.computedPropertyChain, ctx.classExpr)
 		}
 		for _, value := range ctx.privateMembers {
 			ctx.classExpr = js_ast.JoinWithComma(ctx.classExpr, value)
@@ -1612,7 +1710,7 @@ func (ctx *lowerClassContext) finishAndGenerateCode(p *parser, result visitClass
 	// name binding to avoid incorrect behavior if the class is later re-assigned,
 	// since the removed code will no longer be in the class body scope.
 	hasPotentialInnerClassNameEscape := result.innerClassNameRef != ast.InvalidRef &&
-		(ctx.computedPropertyCache.Data != nil ||
+		(ctx.computedPropertyChain.Data != nil ||
 			len(ctx.privateMembers) > 0 ||
 			len(ctx.staticPrivateMethods) > 0 ||
 			len(ctx.staticMembers) > 0 ||
@@ -1626,6 +1724,13 @@ func (ctx *lowerClassContext) finishAndGenerateCode(p *parser, result visitClass
 	var outerClassNameDecl js_ast.Stmt
 	var nameForClassDecorators ast.LocRef
 	didGenerateLocalStmt := false
+
+	// Any of the computed property chain that we hoisted out of the class
+	// body needs to come before the class expression.
+	if ctx.computedPropertyChain.Data != nil {
+		stmts = append(stmts, js_ast.Stmt{Loc: ctx.classLoc, Data: &js_ast.SExpr{Value: ctx.computedPropertyChain}})
+	}
+
 	if len(classExperimentalDecorators) > 0 || hasPotentialInnerClassNameEscape || mustConvertStmtToExpr {
 		didGenerateLocalStmt = true
 
@@ -1751,9 +1856,6 @@ func (ctx *lowerClassContext) finishAndGenerateCode(p *parser, result visitClass
 
 	// The official TypeScript compiler adds generated code after the class body
 	// in this exact order. Matching this order is important for correctness.
-	if ctx.computedPropertyCache.Data != nil {
-		stmts = append(stmts, js_ast.Stmt{Loc: ctx.classLoc, Data: &js_ast.SExpr{Value: ctx.computedPropertyCache}})
-	}
 	for _, expr := range ctx.privateMembers {
 		stmts = append(stmts, js_ast.Stmt{Loc: ctx.classLoc, Data: &js_ast.SExpr{Value: expr}})
 	}

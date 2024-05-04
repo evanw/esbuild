@@ -33,10 +33,10 @@ class Foo {
   set one(_) {
     __privateSet(this, _one, _);
   }
-  get [_a = three()]() {
+  get [_b = three()]() {
     return __privateGet(this, _a2);
   }
-  set [_a](_) {
+  set [_b](_) {
     __privateSet(this, _a2, _);
   }
   static get four() {
@@ -45,10 +45,10 @@ class Foo {
   static set four(_) {
     __privateSet(this, _four, _);
   }
-  static get [_b = six()]() {
+  static get [_a = six()]() {
     return __privateGet(this, _b2);
   }
-  static set [_b](_) {
+  static set [_a](_) {
     __privateSet(this, _b2, _);
   }
 }
@@ -92,10 +92,10 @@ class Foo {
   set one(_) {
     __privateSet(this, _one, _);
   }
-  get [_a = three()]() {
+  get [_b = three()]() {
     return __privateGet(this, _a2);
   }
-  set [_a](_) {
+  set [_b](_) {
     __privateSet(this, _a2, _);
   }
   static get four() {
@@ -104,10 +104,10 @@ class Foo {
   static set four(_) {
     __privateSet(this, _four, _);
   }
-  static get [_b = six()]() {
+  static get [_a = six()]() {
     return __privateGet(this, _b2);
   }
-  static set [_b](_) {
+  static set [_a](_) {
     __privateSet(this, _b2, _);
   }
 }
@@ -203,10 +203,10 @@ class Foo {
   set one(_) {
     __privateSet(this, _one, _);
   }
-  get [_a = three()]() {
+  get [_b = three()]() {
     return __privateGet(this, _a2);
   }
-  set [_a](_) {
+  set [_b](_) {
     __privateSet(this, _a2, _);
   }
   static get four() {
@@ -215,10 +215,10 @@ class Foo {
   static set four(_) {
     __privateSet(this, _four, _);
   }
-  static get [_b = six()]() {
+  static get [_a = six()]() {
     return __privateGet(this, _b2);
   }
-  static set [_b](_) {
+  static set [_a](_) {
     __privateSet(this, _b2, _);
   }
 }
@@ -319,10 +319,10 @@ class Foo {
     this.#_two = _;
   }
   #a = 3;
-  get [_a = three()]() {
+  get [_b = three()]() {
     return this.#a;
   }
-  set [_a](_) {
+  set [_b](_) {
     this.#a = _;
   }
   static #four = 4;
@@ -340,10 +340,10 @@ class Foo {
     this.#_five = _;
   }
   static #b = 6;
-  static get [_b = six()]() {
+  static get [_a = six()]() {
     return this.#b;
   }
-  static set [_b](_) {
+  static set [_a](_) {
     this.#b = _;
   }
 }
@@ -366,10 +366,10 @@ class Foo {
     this.#_two = _;
   }
   #a = 3;
-  get [_a = three()]() {
+  get [_b = three()]() {
     return this.#a;
   }
-  set [_a](_) {
+  set [_b](_) {
     this.#a = _;
   }
   static #four = 4;
@@ -387,10 +387,10 @@ class Foo {
     this.#_five = _;
   }
   static #b = 6;
-  static get [_b = six()]() {
+  static get [_a = six()]() {
     return this.#b;
   }
-  static set [_b](_) {
+  static set [_a](_) {
     this.#b = _;
   }
 }
@@ -453,10 +453,10 @@ class Foo {
     this.#_two = _;
   }
   #a = 3;
-  get [_a = three()]() {
+  get [_b = three()]() {
     return this.#a;
   }
-  set [_a](_) {
+  set [_b](_) {
     this.#a = _;
   }
   static #four = 4;
@@ -474,10 +474,10 @@ class Foo {
     this.#_five = _;
   }
   static #b = 6;
-  static get [_b = six()]() {
+  static get [_a = six()]() {
     return this.#b;
   }
-  static set [_b](_) {
+  static set [_a](_) {
     this.#b = _;
   }
 }
@@ -1603,22 +1603,22 @@ class Derived2 extends Base {
   constructor() {
     super(...arguments);
     __publicField(this, "b", () => __async(this, null, function* () {
-      var _a, _b;
-      return _b = class {
+      var _a;
+      return _a = __superGet(Derived2.prototype, this, "foo"), class {
         constructor() {
           __publicField(this, _a, 123);
         }
-      }, _a = __superGet(Derived2.prototype, this, "foo"), _b;
+      };
     }));
   }
   a() {
     return __async(this, null, function* () {
-      var _a, _b;
-      return _b = class {
+      var _a;
+      return _a = __superGet(Derived2.prototype, this, "foo"), class {
         constructor() {
           __publicField(this, _a, 123);
         }
-      }, _a = __superGet(Derived2.prototype, this, "foo"), _b;
+      };
     });
   }
 }
@@ -1691,21 +1691,21 @@ class Derived2 extends Base {
   constructor() {
     super(...arguments);
     __publicField(this, "b", async () => {
-      var _a, _b;
-      return _b = class {
+      var _a;
+      return _a = super.foo, class {
         constructor() {
           __publicField(this, _a, 123);
         }
-      }, _a = super.foo, _b;
+      };
     });
   }
   async a() {
-    var _a, _b;
-    return _b = class {
+    var _a;
+    return _a = super.foo, class {
       constructor() {
         __publicField(this, _a, 123);
       }
-    }, _a = super.foo, _b;
+    };
   }
 }
 for (let i = 0; i < 3; i++) {
@@ -3334,22 +3334,22 @@ let fn = () => __async(this, null, function* () {
 const _Derived2 = class _Derived2 extends Base {
   static a() {
     return __async(this, null, function* () {
-      var _a, _b;
-      return _b = class {
+      var _a;
+      return _a = __superGet(_Derived2, this, "foo"), class {
         constructor() {
           __publicField(this, _a, 123);
         }
-      }, _a = __superGet(_Derived2, this, "foo"), _b;
+      };
     });
   }
 };
 __publicField(_Derived2, "b", () => __async(_Derived2, null, function* () {
-  var _a, _b;
-  return _b = class {
+  var _a;
+  return _a = __superGet(_Derived2, _Derived2, "foo"), class {
     constructor() {
       __publicField(this, _a, 123);
     }
-  }, _a = __superGet(_Derived2, _Derived2, "foo"), _b;
+  };
 }));
 let Derived2 = _Derived2;
 
@@ -3402,21 +3402,21 @@ let fn = async () => {
 };
 const _Derived2 = class _Derived2 extends Base {
   static async a() {
-    var _a, _b;
-    return _b = class {
+    var _a;
+    return _a = super.foo, class {
       constructor() {
         __publicField(this, _a, 123);
       }
-    }, _a = super.foo, _b;
+    };
   }
 };
 __publicField(_Derived2, "b", async () => {
-  var _a, _b;
-  return _b = class {
+  var _a;
+  return _a = __superGet(_Derived2, _Derived2, "foo"), class {
     constructor() {
       __publicField(this, _a, 123);
     }
-  }, _a = __superGet(_Derived2, _Derived2, "foo"), _b;
+  };
 });
 let Derived2 = _Derived2;
 

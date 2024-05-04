@@ -751,7 +751,7 @@ func TestTSClass(t *testing.T) {
 
 	expectPrintedAssignSemanticsTS(t, "class Foo { 'foo' = 0 }", "class Foo {\n  constructor() {\n    this[\"foo\"] = 0;\n  }\n}\n")
 	expectPrintedAssignSemanticsTS(t, "class Foo { ['foo'] = 0 }", "class Foo {\n  constructor() {\n    this[\"foo\"] = 0;\n  }\n}\n")
-	expectPrintedAssignSemanticsTS(t, "class Foo { [foo] = 0 }", "var _a;\nclass Foo {\n  constructor() {\n    this[_a] = 0;\n  }\n  static {\n    _a = foo;\n  }\n}\n")
+	expectPrintedAssignSemanticsTS(t, "class Foo { [foo] = 0 }", "var _a;\n_a = foo;\nclass Foo {\n  constructor() {\n    this[_a] = 0;\n  }\n}\n")
 	expectPrintedMangleAssignSemanticsTS(t, "class Foo { 'foo' = 0 }", "class Foo {\n  constructor() {\n    this.foo = 0;\n  }\n}\n")
 	expectPrintedMangleAssignSemanticsTS(t, "class Foo { ['foo'] = 0 }", "class Foo {\n  constructor() {\n    this.foo = 0;\n  }\n}\n")
 
@@ -2325,22 +2325,19 @@ func TestTSSuperCall(t *testing.T) {
 `)
 
 	expectPrintedAssignSemanticsTS(t, "class A extends B { [x] = 1; constructor() { foo(); super(1); } }",
-		`var _a;
-class A extends B {
+		`var _a, _b;
+class A extends (_b = B, _a = x, _b) {
   constructor() {
     foo();
     super(1);
     this[_a] = 1;
   }
-  static {
-    _a = x;
-  }
 }
 `)
 
 	expectPrintedAssignSemanticsTS(t, "class A extends B { [x] = 1; constructor() { foo(); y ||= super(1); } }",
-		`var _a;
-class A extends B {
+		`var _a, _b;
+class A extends (_b = B, _a = x, _b) {
   constructor() {
     var __super = (...args) => {
       super(...args);
@@ -2350,17 +2347,12 @@ class A extends B {
     foo();
     y ||= __super(1);
   }
-  static {
-    _a = x;
-  }
 }
 `)
 
 	expectPrintedAssignSemanticsTS(t, "class A extends B { [x]; constructor() { foo(); super(1); } }",
-		`class A extends B {
-  static {
-    x;
-  }
+		`var _a;
+class A extends (_a = B, x, _a) {
   constructor() {
     foo();
     super(1);
@@ -2369,10 +2361,8 @@ class A extends B {
 `)
 
 	expectPrintedAssignSemanticsTS(t, "class A extends B { [x]; constructor() { foo(); y ||= super(1); } }",
-		`class A extends B {
-  static {
-    x;
-  }
+		`var _a;
+class A extends (_a = B, x, _a) {
   constructor() {
     foo();
     y ||= super(1);
@@ -3051,22 +3041,19 @@ func TestTSClassSideEffectOrder(t *testing.T) {
 	static [g()]() {}
 	[h()];
 }
-`, `var _a, _b;
+`, `var _a, _b, _c;
 class Foo {
   constructor() {
-    this[_a] = 1;
-  }
-  static {
-    h();
+    this[_c] = 1;
   }
   [a()]() {
   }
-  [(b(), _a = c(), d())]() {
+  [(b(), _c = c(), d())]() {
   }
   static {
     this[_b] = 1;
   }
-  static [(e(), _b = f(), g())]() {
+  static [(e(), _b = f(), _a = g(), h(), _a)]() {
   }
 }
 `)
@@ -3074,10 +3061,8 @@ class Foo {
 	static [x()] = 1;
 }
 `, `var _a;
+_a = x();
 class Foo {
-  static {
-    _a = x();
-  }
   static {
     this[_a] = 1;
   }
@@ -3093,19 +3078,18 @@ class Foo {
 	static [g()]() {}
 	[h()];
 }
-`, `var _a, _b;
+`, `var _a, _b, _c;
 class Foo {
   constructor() {
-    this[_a] = 1;
+    this[_c] = 1;
   }
   [a()]() {
   }
-  [(b(), _a = c(), d())]() {
+  [(b(), _c = c(), d())]() {
   }
-  static [(e(), _b = f(), g())]() {
+  static [(e(), _b = f(), _a = g(), h(), _a)]() {
   }
 }
-h();
 Foo[_b] = 1;
 `)
 }
