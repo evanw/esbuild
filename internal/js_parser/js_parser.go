@@ -9676,11 +9676,9 @@ func (p *parser) visitBinding(binding js_ast.Binding, opts bindingOpts) {
 			p.visitBinding(item.Binding, opts)
 			if item.DefaultValueOrNil.Data != nil {
 				// Propagate the name to keep from the binding into the initializer
-				if p.options.keepNames {
-					if id, ok := item.Binding.Data.(*js_ast.BIdentifier); ok {
-						p.nameToKeep = p.symbols[id.Ref.InnerIndex].OriginalName
-						p.nameToKeepIsFor = item.DefaultValueOrNil.Data
-					}
+				if id, ok := item.Binding.Data.(*js_ast.BIdentifier); ok {
+					p.nameToKeep = p.symbols[id.Ref.InnerIndex].OriginalName
+					p.nameToKeepIsFor = item.DefaultValueOrNil.Data
 				}
 
 				item.DefaultValueOrNil = p.visitExpr(item.DefaultValueOrNil)
@@ -9697,11 +9695,9 @@ func (p *parser) visitBinding(binding js_ast.Binding, opts bindingOpts) {
 			p.visitBinding(property.Value, opts)
 			if property.DefaultValueOrNil.Data != nil {
 				// Propagate the name to keep from the binding into the initializer
-				if p.options.keepNames {
-					if id, ok := property.Value.Data.(*js_ast.BIdentifier); ok {
-						p.nameToKeep = p.symbols[id.Ref.InnerIndex].OriginalName
-						p.nameToKeepIsFor = property.DefaultValueOrNil.Data
-					}
+				if id, ok := property.Value.Data.(*js_ast.BIdentifier); ok {
+					p.nameToKeep = p.symbols[id.Ref.InnerIndex].OriginalName
+					p.nameToKeepIsFor = property.DefaultValueOrNil.Data
 				}
 
 				property.DefaultValueOrNil = p.visitExpr(property.DefaultValueOrNil)
@@ -10095,10 +10091,8 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		switch s2 := s.Value.Data.(type) {
 		case *js_ast.SExpr:
 			// Propagate the name to keep from the export into the value
-			if p.options.keepNames {
-				p.nameToKeep = "default"
-				p.nameToKeepIsFor = s2.Value.Data
-			}
+			p.nameToKeep = "default"
+			p.nameToKeepIsFor = s2.Value.Data
 
 			s2.Value = p.visitExpr(s2.Value)
 
@@ -10310,11 +10304,9 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 				p.shouldFoldTypeScriptConstantExpressions = p.options.minifySyntax && !p.currentScope.IsAfterConstLocalPrefix
 
 				// Propagate the name to keep from the binding into the initializer
-				if p.options.keepNames {
-					if id, ok := d.Binding.Data.(*js_ast.BIdentifier); ok {
-						p.nameToKeep = p.symbols[id.Ref.InnerIndex].OriginalName
-						p.nameToKeepIsFor = d.ValueOrNil.Data
-					}
+				if id, ok := d.Binding.Data.(*js_ast.BIdentifier); ok {
+					p.nameToKeep = p.symbols[id.Ref.InnerIndex].OriginalName
+					p.nameToKeepIsFor = d.ValueOrNil.Data
 				}
 
 				d.ValueOrNil = p.visitExpr(d.ValueOrNil)
@@ -11661,7 +11653,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 			p.propMethodDecoratorScope = result.bodyScope
 
 			// Propagate the name to keep from the method into the initializer
-			if p.options.keepNames && nameToKeep != "" {
+			if nameToKeep != "" {
 				p.nameToKeep = nameToKeep
 				p.nameToKeepIsFor = property.ValueOrNil.Data
 			}
@@ -11685,7 +11677,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 			}
 
 			// Propagate the name to keep from the field into the initializer
-			if p.options.keepNames && nameToKeep != "" {
+			if nameToKeep != "" {
 				p.nameToKeep = nameToKeep
 				p.nameToKeepIsFor = property.InitializerOrNil.Data
 			}
@@ -14029,11 +14021,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					e2.Left, _ = p.visitExprInOut(e2.Left, exprIn{assignTarget: js_ast.AssignTargetReplace})
 
 					// Propagate the name to keep from the binding into the initializer
-					if p.options.keepNames {
-						if id, ok := e2.Left.Data.(*js_ast.EIdentifier); ok {
-							p.nameToKeep = p.symbols[id.Ref.InnerIndex].OriginalName
-							p.nameToKeepIsFor = e2.Right.Data
-						}
+					if id, ok := e2.Left.Data.(*js_ast.EIdentifier); ok {
+						p.nameToKeep = p.symbols[id.Ref.InnerIndex].OriginalName
+						p.nameToKeepIsFor = e2.Right.Data
 					}
 
 					e2.Right = p.visitExpr(e2.Right)
@@ -14149,11 +14139,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 			if property.InitializerOrNil.Data != nil {
 				// Propagate the name to keep from the binding into the initializer
-				if p.options.keepNames {
-					if id, ok := property.ValueOrNil.Data.(*js_ast.EIdentifier); ok {
-						p.nameToKeep = p.symbols[id.Ref.InnerIndex].OriginalName
-						p.nameToKeepIsFor = property.InitializerOrNil.Data
-					}
+				if id, ok := property.ValueOrNil.Data.(*js_ast.EIdentifier); ok {
+					p.nameToKeep = p.symbols[id.Ref.InnerIndex].OriginalName
+					p.nameToKeepIsFor = property.InitializerOrNil.Data
 				}
 
 				property.InitializerOrNil = p.visitExpr(property.InitializerOrNil)
@@ -15049,7 +15037,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 		// Optionally preserve the name
-		if nameToKeep != "" {
+		if p.options.keepNames && nameToKeep != "" {
 			expr = p.keepExprSymbolName(expr, nameToKeep)
 		}
 
@@ -15247,11 +15235,9 @@ func (v *binaryExprVisitor) visitRightAndFinish(p *parser) js_ast.Expr {
 
 	case js_ast.BinOpAssign:
 		// Check for a propagated name to keep from the parent context
-		if p.options.keepNames {
-			if id, ok := e.Left.Data.(*js_ast.EIdentifier); ok {
-				p.nameToKeep = p.symbols[id.Ref.InnerIndex].OriginalName
-				p.nameToKeepIsFor = e.Right.Data
-			}
+		if id, ok := e.Left.Data.(*js_ast.EIdentifier); ok {
+			p.nameToKeep = p.symbols[id.Ref.InnerIndex].OriginalName
+			p.nameToKeepIsFor = e.Right.Data
 		}
 
 		e.Right = p.visitExpr(e.Right)
