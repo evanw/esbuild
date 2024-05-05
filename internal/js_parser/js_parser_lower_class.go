@@ -780,7 +780,13 @@ func (ctx *lowerClassContext) enableNameCapture(p *parser, result visitClassResu
 //
 // If this returns true, the return property should be added to the class
 // body. Otherwise the property should be omitted from the class body.
-func (ctx *lowerClassContext) lowerField(p *parser, prop js_ast.Property, private *js_ast.EPrivateIdentifier, shouldOmitFieldInitializer bool, staticFieldToBlockAssign bool) (js_ast.Property, bool) {
+func (ctx *lowerClassContext) lowerField(
+	p *parser,
+	prop js_ast.Property,
+	private *js_ast.EPrivateIdentifier,
+	shouldOmitFieldInitializer bool,
+	staticFieldToBlockAssign bool,
+) (js_ast.Property, bool) {
 	mustLowerPrivate := private != nil && p.privateSymbolNeedsToBeLowered(private)
 
 	// The TypeScript compiler doesn't follow the JavaScript spec for
@@ -825,20 +831,16 @@ func (ctx *lowerClassContext) lowerField(p *parser, prop js_ast.Property, privat
 
 			// Add every newly-constructed instance into this map
 			key := js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}}
-			var args []js_ast.Expr
-			if _, ok := init.Data.(*js_ast.EUndefined); ok {
-				args = []js_ast.Expr{target, key}
-			} else {
-				args = []js_ast.Expr{target, key, init}
+			args := []js_ast.Expr{target, key}
+			if _, ok := init.Data.(*js_ast.EUndefined); !ok {
+				args = append(args, init)
 			}
 			memberExpr = p.callRuntime(loc, "__privateAdd", args)
 			p.recordUsage(ref)
 		} else if private == nil && ctx.class.UseDefineForClassFields {
-			var args []js_ast.Expr
-			if _, ok := init.Data.(*js_ast.EUndefined); ok {
-				args = []js_ast.Expr{target, prop.Key}
-			} else {
-				args = []js_ast.Expr{target, prop.Key, init}
+			args := []js_ast.Expr{target, prop.Key}
+			if _, ok := init.Data.(*js_ast.EUndefined); !ok {
+				args = append(args, init)
 			}
 			memberExpr = js_ast.Expr{Loc: loc, Data: &js_ast.ECall{
 				Target: p.importFromRuntime(loc, "__publicField"),
@@ -1135,8 +1137,6 @@ func (ctx *lowerClassContext) hoistComputedProperties(p *parser, classLoweringIn
 		// If this key is referenced elsewhere, make sure to still preserve
 		// its side effects in the property's original location
 		if analysis.isComputedPropertyCopiedOrMoved {
-			inlineKey := prop.Key
-
 			// If this property is being duplicated instead of moved or removed, then
 			// we still need the assignment to the temporary so that we can reference
 			// it in multiple places, but we don't have to hoist the assignment to an
@@ -1168,6 +1168,8 @@ func (ctx *lowerClassContext) hoistComputedProperties(p *parser, classLoweringIn
 			//
 			// So only do the hoist if this property is being moved or removed.
 			if !analysis.rewriteAutoAccessorToGetSet && (analysis.mustLowerField || analysis.staticFieldToBlockAssign) {
+				inlineKey := prop.Key
+
 				if !analysis.needsValueOfKey {
 					// In certain cases, we only need to evaluate a property key for its
 					// side effects but we don't actually need the value of the key itself.
@@ -1201,14 +1203,13 @@ func (ctx *lowerClassContext) hoistComputedProperties(p *parser, classLoweringIn
 			// Otherwise, we keep the side effects in place (as described above) but
 			// just store the key in a temporary so we can refer to it later.
 			ref := p.generateTempRef(tempRefNeedsDeclare, "")
-			inlineKey = js_ast.Assign(js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}}, prop.Key)
+			prop.Key = js_ast.Assign(js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}}, prop.Key)
 			p.recordUsage(ref)
 
 			// Use this temporary when creating duplicate references to this key
 			if propertyKeyTempRefs == nil {
 				propertyKeyTempRefs = make(map[int]ast.Ref)
 			}
-			prop.Key = inlineKey
 			propertyKeyTempRefs[propIndex] = ref
 
 			// Deliberately continue to fall through to the "computed" case below:
