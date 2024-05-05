@@ -2708,7 +2708,7 @@ console.log([
 
 ================================================================================
 TestKeepNamesAllForms
----------- /out.js ----------
+---------- /out/keep.js ----------
 function fn() {
 }
 __name(fn, "fn");
@@ -2818,6 +2818,92 @@ __name(foo, "foo");
 }, "fn")] = [];
 ({ fn = /* @__PURE__ */ __name(function() {
 }, "fn") } = {});
+
+---------- /out/do-not-keep.js ----------
+class Foo0 {
+  static {
+    __name(this, "Foo0");
+  }
+  fn() {
+  }
+}
+class Foo1 {
+  static {
+    __name(this, "Foo1");
+  }
+  get fn() {
+  }
+}
+class Foo2 {
+  static {
+    __name(this, "Foo2");
+  }
+  set fn(_) {
+  }
+}
+class Foo3 {
+  static {
+    __name(this, "Foo3");
+  }
+  static fn() {
+  }
+}
+class Foo4 {
+  static {
+    __name(this, "Foo4");
+  }
+  static get fn() {
+  }
+}
+class Foo5 {
+  static {
+    __name(this, "Foo5");
+  }
+  static set fn(_) {
+  }
+}
+class Bar0 {
+  static {
+    __name(this, "Bar0");
+  }
+  #fn() {
+  }
+}
+class Bar1 {
+  static {
+    __name(this, "Bar1");
+  }
+  get #fn() {
+  }
+}
+class Bar2 {
+  static {
+    __name(this, "Bar2");
+  }
+  set #fn(_) {
+  }
+}
+class Bar3 {
+  static {
+    __name(this, "Bar3");
+  }
+  static #fn() {
+  }
+}
+class Bar4 {
+  static {
+    __name(this, "Bar4");
+  }
+  static get #fn() {
+  }
+}
+class Bar5 {
+  static {
+    __name(this, "Bar5");
+  }
+  static set #fn(_) {
+  }
+}
 
 ================================================================================
 TestKeepNamesClassStaticName

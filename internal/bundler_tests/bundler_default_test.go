@@ -5499,7 +5499,7 @@ NOTE: The expression "b['c']" has been configured to be replaced with a constant
 func TestKeepNamesAllForms(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
-			"/entry.js": `
+			"/keep.js": `
 				// Initializers
 				function fn() {}
 				function foo(fn = function() {}) {}
@@ -5534,12 +5534,32 @@ func TestKeepNamesAllForms(t *testing.T) {
 				[fn = function() {}] = [];
 				({ fn = function() {} } = {});
 			`,
+			"/do-not-keep.js": `
+				// Methods
+				class Foo0 { fn() {} }
+				class Foo1 { get fn() {} }
+				class Foo2 { set fn(_) {} }
+				class Foo3 { static fn() {} }
+				class Foo4 { static get fn() {} }
+				class Foo5 { static set fn(_) {} }
+
+				// Private methods
+				class Bar0 { #fn() {} }
+				class Bar1 { get #fn() {} }
+				class Bar2 { set #fn(_) {} }
+				class Bar3 { static #fn() {} }
+				class Bar4 { static get #fn() {} }
+				class Bar5 { static set #fn(_) {} }
+			`,
 		},
-		entryPaths: []string{"/entry.js"},
+		entryPaths: []string{
+			"/keep.js",
+			"/do-not-keep.js",
+		},
 		options: config.Options{
-			Mode:          config.ModePassThrough,
-			AbsOutputFile: "/out.js",
-			KeepNames:     true,
+			Mode:         config.ModePassThrough,
+			AbsOutputDir: "/out",
+			KeepNames:    true,
 		},
 	})
 }

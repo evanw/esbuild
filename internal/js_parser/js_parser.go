@@ -11629,7 +11629,9 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 		// will be transformed such that it is no longer an inline initializer.
 		nameToKeep := ""
 		if private, ok := property.Key.Data.(*js_ast.EPrivateIdentifier); ok {
-			nameToKeep = p.symbols[private.Ref.InnerIndex].OriginalName
+			if !property.Kind.IsMethodDefinition() || p.privateSymbolNeedsToBeLowered(private) {
+				nameToKeep = p.symbols[private.Ref.InnerIndex].OriginalName
+			}
 
 			// Lowered private methods (both instance and static) are initialized
 			// outside of the class body, so we must rewrite "super" property
