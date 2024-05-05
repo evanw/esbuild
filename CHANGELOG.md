@@ -146,6 +146,31 @@
     }
     ```
 
+* Fix some `--keep-names` edge cases
+
+    The [`NamedEvaluation` syntax-directed operation](https://tc39.es/ecma262/#sec-runtime-semantics-namedevaluation) in the JavaScript specification gives certain anonymous expressions a `name` property depending on where they are in the syntax tree. For example, the following initializers convey a `name` value:
+
+    ```js
+    var foo = function() {}
+    var bar = class {}
+    console.log(foo.name, bar.name)
+    ```
+
+    When you enable esbuild's `--keep-names` setting, esbuild generates additional code to represent this `NamedEvaluation` operation so that the value of the `name` property persists even when the identifiers are renamed (e.g. due to minification).
+
+    However, I recently learned that esbuild's implementation of `NamedEvaluation` is missing a few cases. Specifically esbuild was missing property definitions, class initializers, logical-assignment operators. These cases should now all be handled:
+
+    ```js
+    var obj = { foo: function() {} }
+    class Foo0 { foo = function() {} }
+    class Foo1 { static foo = function() {} }
+    class Foo2 { accessor foo = function() {} }
+    class Foo3 { static accessor foo = function() {} }
+    foo ||= function() {}
+    foo &&= function() {}
+    foo ??= function() {}
+    ```
+
 ## 0.20.2
 
 * Support TypeScript experimental decorators on `abstract` class fields ([#3684](https://github.com/evanw/esbuild/issues/3684))

@@ -11628,7 +11628,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 		// We need to explicitly assign the name to the property initializer if it
 		// will be transformed such that it is no longer an inline initializer.
 		nameToKeep := ""
-		if private, isPrivate := property.Key.Data.(*js_ast.EPrivateIdentifier); isPrivate && p.privateSymbolNeedsToBeLowered(private) {
+		if private, ok := property.Key.Data.(*js_ast.EPrivateIdentifier); ok {
 			nameToKeep = p.symbols[private.Ref.InnerIndex].OriginalName
 
 			// Lowered private methods (both instance and static) are initialized
@@ -11636,12 +11636,10 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 			// accesses inside them. Lowered private instance fields are initialized
 			// inside the constructor where "super" is valid, so those don't need to
 			// be rewritten.
-			if property.Kind.IsMethodDefinition() {
+			if property.Kind.IsMethodDefinition() && p.privateSymbolNeedsToBeLowered(private) {
 				p.fnOrArrowDataVisit.shouldLowerSuperPropertyAccess = true
 			}
-		} else if !property.Kind.IsMethodDefinition() && !property.Flags.Has(js_ast.PropertyIsComputed) &&
-			((!property.Flags.Has(js_ast.PropertyIsStatic) && p.options.unsupportedJSFeatures.Has(compat.ClassField)) ||
-				(property.Flags.Has(js_ast.PropertyIsStatic) && p.options.unsupportedJSFeatures.Has(compat.ClassStaticField))) {
+		} else if !property.Kind.IsMethodDefinition() && !property.Flags.Has(js_ast.PropertyIsComputed) {
 			if str, ok := property.Key.Data.(*js_ast.EString); ok {
 				nameToKeep = helpers.UTF16ToString(str.Value)
 			}
@@ -14131,6 +14129,12 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					}
 				}
 
+				// Propagate the name to keep from the property into the value
+				if str, ok := property.Key.Data.(*js_ast.EString); ok {
+					p.nameToKeep = helpers.UTF16ToString(str.Value)
+					p.nameToKeepIsFor = property.ValueOrNil.Data
+				}
+
 				property.ValueOrNil, _ = p.visitExprInOut(property.ValueOrNil, exprIn{assignTarget: in.assignTarget})
 
 				p.fnOnlyDataVisit.innerClassNameRef = oldInnerClassNameRef
@@ -15233,7 +15237,7 @@ func (v *binaryExprVisitor) visitRightAndFinish(p *parser) js_ast.Expr {
 			shouldMangleStringsAsProps: v.in.shouldMangleStringsAsProps,
 		})
 
-	case js_ast.BinOpAssign:
+	case js_ast.BinOpAssign, js_ast.BinOpLogicalOrAssign, js_ast.BinOpLogicalAndAssign, js_ast.BinOpNullishCoalescingAssign:
 		// Check for a propagated name to keep from the parent context
 		if id, ok := e.Left.Data.(*js_ast.EIdentifier); ok {
 			p.nameToKeep = p.symbols[id.Ref.InnerIndex].OriginalName
