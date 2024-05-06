@@ -76,7 +76,7 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 		var __reflectSet = Reflect.set
 
 		var __knownSymbol = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for('Symbol.' + name)
-		var __throwTypeError = msg => { throw TypeError(msg) }
+		var __typeError = msg => { throw TypeError(msg) }
 
 		export var __pow = Math.pow
 
@@ -255,8 +255,7 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 			for (var i = decorators.length - 1, decorator; i >= 0; i--)
 				if (decorator = decorators[i])
 					result = (kind ? decorator(target, key, result) : decorator(result)) || result
-			if (kind && result)
-				__defProp(target, key, result)
+			if (kind && result) __defProp(target, key, result)
 			return result
 		}
 		export var __decorateParam = (index, decorator) => (target, key) => decorator(target, key, index)
@@ -266,10 +265,10 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 			__defNormalProp(obj, typeof key !== 'symbol' ? key + '' : key, value)
 		)
 		var __accessCheck = (obj, member, msg) => (
-			member.has(obj) || __throwTypeError('Cannot ' + msg)
+			member.has(obj) || __typeError('Cannot ' + msg)
 		)
 		export var __privateIn = (member, obj) => (
-			Object(obj) !== obj ? __throwTypeError('Cannot use the "in" operator on this value') :
+			Object(obj) !== obj ? __typeError('Cannot use the "in" operator on this value') :
 			member.has(obj)
 		)
 		export var __privateGet = (obj, member, getter) => (
@@ -277,7 +276,7 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 			getter ? getter.call(obj) : member.get(obj)
 		)
 		export var __privateAdd = (obj, member, value) => (
-			member.has(obj) ? __throwTypeError('Cannot add the same private member more than once') :
+			member.has(obj) ? __typeError('Cannot add the same private member more than once') :
 			member instanceof WeakSet ? member.add(obj) : member.set(obj, value)
 		)
 		export var __privateSet = (obj, member, value, setter) => (
@@ -401,7 +400,7 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 						done: false,
 						value: new __await(new Promise(resolve => {
 							var x = obj[k](v)
-							if (!(x instanceof Object)) __throwTypeError('Object expected')
+							if (!(x instanceof Object)) __typeError('Object expected')
 							resolve(x)
 						}), 1),
 					}
@@ -453,11 +452,11 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 		// These are for the "using" statement in TypeScript 5.2+
 		export var __using = (stack, value, async) => {
 			if (value != null) {
-				if (typeof value !== 'object' && typeof value !== 'function') __throwTypeError('Object expected')
+				if (typeof value !== 'object' && typeof value !== 'function') __typeError('Object expected')
 				var dispose
 				if (async) dispose = value[__knownSymbol('asyncDispose')]
 				if (dispose === void 0) dispose = value[__knownSymbol('dispose')]
-				if (typeof dispose !== 'function') __throwTypeError('Object not disposable')
+				if (typeof dispose !== 'function') __typeError('Object not disposable')
 				stack.push([async, dispose, value])
 			} else if (async) {
 				stack.push([async])
