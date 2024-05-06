@@ -897,74 +897,78 @@ func (ctx *lowerClassContext) lowerField(
 	return prop, true
 }
 
+func (ctx *lowerClassContext) lowerPrivateMethod(p *parser, prop js_ast.Property, private *js_ast.EPrivateIdentifier) {
+	// All private methods can share the same WeakSet
+	var ref *ast.Ref
+	if prop.Flags.Has(js_ast.PropertyIsStatic) {
+		ref = &ctx.privateStaticMethodRef
+	} else {
+		ref = &ctx.privateInstanceMethodRef
+	}
+	if *ref == ast.InvalidRef {
+		// Generate a new symbol to store the WeakSet
+		var name string
+		if prop.Flags.Has(js_ast.PropertyIsStatic) {
+			name = "_static"
+		} else {
+			name = "_instances"
+		}
+		if ctx.optionalNameHint != "" {
+			name = fmt.Sprintf("_%s%s", ctx.optionalNameHint, name)
+		}
+		*ref = p.generateTempRef(tempRefNeedsDeclare, name)
+
+		// Generate the initializer
+		if p.weakSetRef == ast.InvalidRef {
+			p.weakSetRef = p.newSymbol(ast.SymbolUnbound, "WeakSet")
+			p.moduleScope.Generated = append(p.moduleScope.Generated, p.weakSetRef)
+		}
+		ctx.privateMembers = append(ctx.privateMembers, js_ast.Assign(
+			js_ast.Expr{Loc: ctx.classLoc, Data: &js_ast.EIdentifier{Ref: *ref}},
+			js_ast.Expr{Loc: ctx.classLoc, Data: &js_ast.ENew{Target: js_ast.Expr{Loc: ctx.classLoc, Data: &js_ast.EIdentifier{Ref: p.weakSetRef}}}},
+		))
+		p.recordUsage(*ref)
+		p.recordUsage(p.weakSetRef)
+
+		// Determine what to store in the WeakSet
+		var target js_ast.Expr
+		if prop.Flags.Has(js_ast.PropertyIsStatic) {
+			target = ctx.nameFunc()
+		} else {
+			target = js_ast.Expr{Loc: ctx.classLoc, Data: js_ast.EThisShared}
+		}
+
+		// Add every newly-constructed instance into this set
+		methodExpr := p.callRuntime(ctx.classLoc, "__privateAdd", []js_ast.Expr{
+			target,
+			{Loc: ctx.classLoc, Data: &js_ast.EIdentifier{Ref: *ref}},
+		})
+		p.recordUsage(*ref)
+
+		// Make sure that adding to the map happens before any field
+		// initializers to handle cases like this:
+		//
+		//   class A {
+		//     pub = this.#priv;
+		//     #priv() {}
+		//   }
+		//
+		if prop.Flags.Has(js_ast.PropertyIsStatic) {
+			// Move this property to an assignment after the class ends
+			ctx.staticPrivateMethods = append(ctx.staticPrivateMethods, methodExpr)
+		} else {
+			// Move this property to an assignment inside the class constructor
+			ctx.instancePrivateMethods = append(ctx.instancePrivateMethods, js_ast.Stmt{Loc: ctx.classLoc, Data: &js_ast.SExpr{Value: methodExpr}})
+		}
+	}
+	p.symbols[private.Ref.InnerIndex].Link = *ref
+}
+
 // If this returns true, the method property should be dropped as it has
 // already been accounted for elsewhere (e.g. a lowered private method).
 func (ctx *lowerClassContext) lowerMethod(p *parser, prop js_ast.Property, private *js_ast.EPrivateIdentifier) bool {
 	if private != nil && p.privateSymbolNeedsToBeLowered(private) {
-		// All private methods can share the same WeakSet
-		var ref *ast.Ref
-		if prop.Flags.Has(js_ast.PropertyIsStatic) {
-			ref = &ctx.privateStaticMethodRef
-		} else {
-			ref = &ctx.privateInstanceMethodRef
-		}
-		if *ref == ast.InvalidRef {
-			// Generate a new symbol to store the WeakSet
-			var name string
-			if prop.Flags.Has(js_ast.PropertyIsStatic) {
-				name = "_static"
-			} else {
-				name = "_instances"
-			}
-			if ctx.optionalNameHint != "" {
-				name = fmt.Sprintf("_%s%s", ctx.optionalNameHint, name)
-			}
-			*ref = p.generateTempRef(tempRefNeedsDeclare, name)
-
-			// Generate the initializer
-			if p.weakSetRef == ast.InvalidRef {
-				p.weakSetRef = p.newSymbol(ast.SymbolUnbound, "WeakSet")
-				p.moduleScope.Generated = append(p.moduleScope.Generated, p.weakSetRef)
-			}
-			ctx.privateMembers = append(ctx.privateMembers, js_ast.Assign(
-				js_ast.Expr{Loc: ctx.classLoc, Data: &js_ast.EIdentifier{Ref: *ref}},
-				js_ast.Expr{Loc: ctx.classLoc, Data: &js_ast.ENew{Target: js_ast.Expr{Loc: ctx.classLoc, Data: &js_ast.EIdentifier{Ref: p.weakSetRef}}}},
-			))
-			p.recordUsage(*ref)
-			p.recordUsage(p.weakSetRef)
-
-			// Determine what to store in the WeakSet
-			var target js_ast.Expr
-			if prop.Flags.Has(js_ast.PropertyIsStatic) {
-				target = ctx.nameFunc()
-			} else {
-				target = js_ast.Expr{Loc: ctx.classLoc, Data: js_ast.EThisShared}
-			}
-
-			// Add every newly-constructed instance into this set
-			methodExpr := p.callRuntime(ctx.classLoc, "__privateAdd", []js_ast.Expr{
-				target,
-				{Loc: ctx.classLoc, Data: &js_ast.EIdentifier{Ref: *ref}},
-			})
-			p.recordUsage(*ref)
-
-			// Make sure that adding to the map happens before any field
-			// initializers to handle cases like this:
-			//
-			//   class A {
-			//     pub = this.#priv;
-			//     #priv() {}
-			//   }
-			//
-			if prop.Flags.Has(js_ast.PropertyIsStatic) {
-				// Move this property to an assignment after the class ends
-				ctx.staticPrivateMethods = append(ctx.staticPrivateMethods, methodExpr)
-			} else {
-				// Move this property to an assignment inside the class constructor
-				ctx.instancePrivateMethods = append(ctx.instancePrivateMethods, js_ast.Stmt{Loc: ctx.classLoc, Data: &js_ast.SExpr{Value: methodExpr}})
-			}
-		}
-		p.symbols[private.Ref.InnerIndex].Link = *ref
+		ctx.lowerPrivateMethod(p, prop, private)
 
 		// Move the method definition outside the class body
 		methodRef := p.generateTempRef(tempRefNeedsDeclare, "_")
