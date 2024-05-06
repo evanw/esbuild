@@ -75,9 +75,8 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 		var __reflectGet = Reflect.get
 		var __reflectSet = Reflect.set
 
-		var __knownSymbol = (name, symbol) => {
-			return (symbol = Symbol[name]) ? symbol : Symbol.for('Symbol.' + name)
-		}
+		var __knownSymbol = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for('Symbol.' + name)
+		var __throwTypeError = msg => { throw TypeError(msg) }
 
 		export var __pow = Math.pow
 
@@ -263,30 +262,33 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 		export var __decorateParam = (index, decorator) => (target, key) => decorator(target, key, index)
 
 		// For class members
-		export var __publicField = (obj, key, value) => {
+		export var __publicField = (obj, key, value) => (
 			__defNormalProp(obj, typeof key !== 'symbol' ? key + '' : key, value)
-			return value
-		}
-		var __accessCheck = (obj, member, msg) => {
-			if (!member.has(obj)) throw TypeError('Cannot ' + msg)
-		}
-		export var __privateIn = (member, obj) => {
-			if (Object(obj) !== obj) throw TypeError('Cannot use the "in" operator on this value')
-			return member.has(obj)
-		}
-		export var __privateGet = (obj, member, getter) => {
-			__accessCheck(obj, member, 'read from private field')
-			return getter ? getter.call(obj) : member.get(obj)
-		}
-		export var __privateAdd = (obj, member, value) => {
-			if (member.has(obj)) throw TypeError('Cannot add the same private member more than once')
+		)
+		var __accessCheck = (obj, member, msg) => (
+			member.has(obj) || __throwTypeError('Cannot ' + msg)
+		)
+		export var __privateIn = (member, obj) => (
+			Object(obj) !== obj ? __throwTypeError('Cannot use the "in" operator on this value') :
+			member.has(obj)
+		)
+		export var __privateGet = (obj, member, getter) => (
+			__accessCheck(obj, member, 'read from private field'),
+			getter ? getter.call(obj) : member.get(obj)
+		)
+		export var __privateAdd = (obj, member, value) => (
+			member.has(obj) ? __throwTypeError('Cannot add the same private member more than once') :
 			member instanceof WeakSet ? member.add(obj) : member.set(obj, value)
-		}
-		export var __privateSet = (obj, member, value, setter) => {
-			__accessCheck(obj, member, 'write to private field')
-			setter ? setter.call(obj, value) : member.set(obj, value)
-			return value
-		}
+		)
+		export var __privateSet = (obj, member, value, setter) => (
+			__accessCheck(obj, member, 'write to private field'),
+			setter ? setter.call(obj, value) : member.set(obj, value),
+			value
+		)
+		export var __privateMethod = (obj, member, method) => (
+			__accessCheck(obj, member, 'access private method'),
+			method
+		)
 		export var __earlyAccess = (name) => {
 			throw ReferenceError('Cannot access "' + name + '" before initialization')
 		}
@@ -309,11 +311,6 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 	}
 
 	text += `
-		export var __privateMethod = (obj, member, method) => {
-			__accessCheck(obj, member, 'access private method')
-			return method
-		}
-
 		// For "super" property accesses
 		export var __superGet = (cls, obj, key) => __reflectGet(__getProtoOf(cls), key, obj)
 		export var __superSet = (cls, obj, key, val) => (__reflectSet(__getProtoOf(cls), key, val, obj), val)
@@ -378,9 +375,7 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 				} catch (e) {
 					no(e)
 				}
-			}
-			var method = k => it[k] = x => new Promise((yes, no) => resume(k, x, yes, no))
-			var it = {}
+			}, method = k => it[k] = x => new Promise((yes, no) => resume(k, x, yes, no)), it = {}
 			return generator = generator.apply(__this, __arguments),
 				it[__knownSymbol('asyncIterator')] = () => it,
 				method('next'),
@@ -389,10 +384,7 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 				it
 		}
 		export var __yieldStar = value => {
-			var obj = value[__knownSymbol('asyncIterator')]
-			var isAwait = false
-			var method
-			var it = {}
+			var obj = value[__knownSymbol('asyncIterator')], isAwait = false, method, it = {}
 			if (obj == null) {
 				obj = value[__knownSymbol('iterator')]()
 				method = k => it[k] = x => obj[k](x)
@@ -409,7 +401,7 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 						done: false,
 						value: new __await(new Promise(resolve => {
 							var x = obj[k](v)
-							if (!(x instanceof Object)) throw TypeError('Object expected')
+							if (!(x instanceof Object)) __throwTypeError('Object expected')
 							resolve(x)
 						}), 1),
 					}
@@ -461,11 +453,11 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 		// These are for the "using" statement in TypeScript 5.2+
 		export var __using = (stack, value, async) => {
 			if (value != null) {
-				if (typeof value !== 'object' && typeof value !== 'function') throw TypeError('Object expected')
+				if (typeof value !== 'object' && typeof value !== 'function') __throwTypeError('Object expected')
 				var dispose
 				if (async) dispose = value[__knownSymbol('asyncDispose')]
 				if (dispose === void 0) dispose = value[__knownSymbol('dispose')]
-				if (typeof dispose !== 'function') throw TypeError('Object not disposable')
+				if (typeof dispose !== 'function') __throwTypeError('Object not disposable')
 				stack.push([async, dispose, value])
 			} else if (async) {
 				stack.push([async])

@@ -905,8 +905,8 @@ export {
     const names2 = result2.outputFiles.map(x => path.basename(x.path)).sort()
 
     // Check that the public path is included in chunk hashes but not asset hashes
-    assert.deepStrictEqual(names1, ['data-BYATPJRB.bin', 'in-7SVE3DTC.js'])
-    assert.deepStrictEqual(names2, ['data-BYATPJRB.bin', 'in-E6EBO534.js'])
+    assert.deepStrictEqual(names1, ['data-BYATPJRB.bin', 'in-6QN3TZ3A.js'])
+    assert.deepStrictEqual(names2, ['data-BYATPJRB.bin', 'in-EJERHMG4.js'])
   },
 
   async fileLoaderPublicPath({ esbuild, testDir }) {
@@ -5536,10 +5536,7 @@ let transformTests = {
     })
     assert.strictEqual(code, `var __defProp = Object.defineProperty;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
-var __publicField = (obj, key, value) => {
-  __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
-  return value;
-};
+var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 class Foo {
   constructor() {
     __publicField(this, "foo");
