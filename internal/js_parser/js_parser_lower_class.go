@@ -1722,7 +1722,6 @@ func (ctx *lowerClassContext) finishAndGenerateCode(p *parser, result visitClass
 	}
 
 	var prefixExprs []js_ast.Expr
-	var middleExprs []js_ast.Expr
 	var suffixExprs []js_ast.Expr
 
 	// Any of the computed property chain that we hoisted out of the class
@@ -1731,13 +1730,19 @@ func (ctx *lowerClassContext) finishAndGenerateCode(p *parser, result visitClass
 		prefixExprs = append(prefixExprs, ctx.computedPropertyChain)
 	}
 
+	// WeakSets and WeakMaps
+	suffixExprs = append(suffixExprs, ctx.privateMembers...)
+
+	// Lowered initializers for static methods (including getters and setters)
+	suffixExprs = append(suffixExprs, ctx.staticPrivateMethods...)
+
+	// Lowered initializers for static fields, static accessors, and static blocks
+	suffixExprs = append(suffixExprs, ctx.staticMembers...)
+
 	// The official TypeScript compiler adds generated code after the class body
 	// in this exact order. Matching this order is important for correctness.
-	middleExprs = append(middleExprs, ctx.privateMembers...)
-	middleExprs = append(middleExprs, ctx.staticPrivateMethods...)
-	middleExprs = append(middleExprs, ctx.staticMembers...)
-	middleExprs = append(middleExprs, ctx.instanceExperimentalDecorators...)
-	middleExprs = append(middleExprs, ctx.staticExperimentalDecorators...)
+	suffixExprs = append(suffixExprs, ctx.instanceExperimentalDecorators...)
+	suffixExprs = append(suffixExprs, ctx.staticExperimentalDecorators...)
 
 	// Run TypeScript experimental class decorators at the end of class initialization
 	if len(classExperimentalDecorators) > 0 {
@@ -1762,13 +1767,12 @@ func (ctx *lowerClassContext) finishAndGenerateCode(p *parser, result visitClass
 		// Calling "nameFunc" will replace "classExpr", so make sure to do that first
 		// before joining "classExpr" with any other expressions
 		var nameToJoin js_ast.Expr
-		if ctx.didCaptureClassExpr || len(middleExprs) > 0 || len(suffixExprs) > 0 {
+		if ctx.didCaptureClassExpr || len(suffixExprs) > 0 {
 			nameToJoin = ctx.nameFunc()
 		}
 
 		// Insert expressions on either side of the class as appropriate
 		ctx.classExpr = js_ast.JoinWithComma(js_ast.JoinAllWithComma(prefixExprs), ctx.classExpr)
-		ctx.classExpr = js_ast.JoinWithComma(ctx.classExpr, js_ast.JoinAllWithComma(middleExprs))
 		ctx.classExpr = js_ast.JoinWithComma(ctx.classExpr, js_ast.JoinAllWithComma(suffixExprs))
 
 		// Finally join "classExpr" with the variable that holds the class object
@@ -1895,19 +1899,14 @@ func (ctx *lowerClassContext) finishAndGenerateCode(p *parser, result visitClass
 		}
 	}
 
-	// Insert expressions in between the class body and the outer class declaration
-	for _, expr := range middleExprs {
-		stmts = append(stmts, js_ast.Stmt{Loc: expr.Loc, Data: &js_ast.SExpr{Value: expr}})
-	}
-
-	if outerClassNameDecl.Data != nil {
-		// This must come after the class body initializers have finished
-		stmts = append(stmts, outerClassNameDecl)
-	}
-
 	// Insert expressions after the class as appropriate
 	for _, expr := range suffixExprs {
 		stmts = append(stmts, js_ast.Stmt{Loc: expr.Loc, Data: &js_ast.SExpr{Value: expr}})
+	}
+
+	// This must come after the class body initializers have finished
+	if outerClassNameDecl.Data != nil {
+		stmts = append(stmts, outerClassNameDecl)
 	}
 
 	if nameForClassDecorators.Ref != ast.InvalidRef && ctx.kind == classKindExportDefaultStmt {
