@@ -2397,8 +2397,7 @@ class A extends (_a = B, x, _a) {
 
 	expectPrintedAssignSemanticsTS(t, "class A extends B { constructor(public x = 1) { if (false) super(1); super(2); } }", `class A extends B {
   constructor(x = 1) {
-    if (false)
-      __super(1);
+    if (false) __super(1);
     super(2);
     this.x = x;
   }
@@ -2412,8 +2411,7 @@ class A extends (_a = B, x, _a) {
       this.x = x;
       return this;
     };
-    if (foo)
-      __super(1);
+    if (foo) __super(1);
     __super(2);
   }
 }
@@ -2426,10 +2424,8 @@ class A extends (_a = B, x, _a) {
       this.x = x;
       return this;
     };
-    if (foo)
-      __super(1);
-    else
-      __super(2);
+    if (foo) __super(1);
+    else __super(2);
   }
 }
 `)
@@ -2637,9 +2633,9 @@ func TestTSInstantiationExpression(t *testing.T) {
 	expectPrintedTS(t, "return Array < number > in x;", "return Array in x;\n")
 	expectPrintedTS(t, "return Array < Array < number >> in x;", "return Array in x;\n")
 	expectPrintedTS(t, "return Array < Array < number > > in x;", "return Array in x;\n")
-	expectPrintedTS(t, "for (var x = Array < number > in y) ;", "x = Array;\nfor (var x in y)\n  ;\n")
-	expectPrintedTS(t, "for (var x = Array < Array < number >> in y) ;", "x = Array;\nfor (var x in y)\n  ;\n")
-	expectPrintedTS(t, "for (var x = Array < Array < number > > in y) ;", "x = Array;\nfor (var x in y)\n  ;\n")
+	expectPrintedTS(t, "for (var x = Array < number > in y) ;", "x = Array;\nfor (var x in y) ;\n")
+	expectPrintedTS(t, "for (var x = Array < Array < number >> in y) ;", "x = Array;\nfor (var x in y) ;\n")
+	expectPrintedTS(t, "for (var x = Array < Array < number > > in y) ;", "x = Array;\nfor (var x in y) ;\n")
 
 	// See: https://github.com/microsoft/TypeScript/pull/49353
 	expectPrintedTS(t, "F<{}> 0", "F < {} > 0;\n")
@@ -2668,9 +2664,9 @@ func TestTSImport(t *testing.T) {
 	expectPrintedTS(t, "import * as ns from 'foo'; log(ns)", "import * as ns from \"foo\";\nlog(ns);\n")
 
 	// Dead control flow must not affect usage tracking
-	expectPrintedTS(t, "import {x} from 'foo'; if (false) log(x)", "import \"foo\";\nif (false)\n  log(x);\n")
-	expectPrintedTS(t, "import x from 'foo'; if (false) log(x)", "import \"foo\";\nif (false)\n  log(x);\n")
-	expectPrintedTS(t, "import * as ns from 'foo'; if (false) log(ns)", "import \"foo\";\nif (false)\n  log(ns);\n")
+	expectPrintedTS(t, "import {x} from 'foo'; if (false) log(x)", "import \"foo\";\nif (false) log(x);\n")
+	expectPrintedTS(t, "import x from 'foo'; if (false) log(x)", "import \"foo\";\nif (false) log(x);\n")
+	expectPrintedTS(t, "import * as ns from 'foo'; if (false) log(ns)", "import \"foo\";\nif (false) log(ns);\n")
 }
 
 // This is TypeScript-specific export syntax
@@ -2678,7 +2674,7 @@ func TestTSExportEquals(t *testing.T) {
 	// This use of the "export" keyword should not trigger strict mode because
 	// this syntax works in CommonJS modules, not in ECMAScript modules
 	expectPrintedTS(t, "export = []", "module.exports = [];\n")
-	expectPrintedTS(t, "export = []; with ({}) ;", "with ({})\n  ;\nmodule.exports = [];\n")
+	expectPrintedTS(t, "export = []; with ({}) ;", "with ({}) ;\nmodule.exports = [];\n")
 }
 
 // This is TypeScript-specific import syntax
@@ -2686,7 +2682,7 @@ func TestTSImportEquals(t *testing.T) {
 	// This use of the "export" keyword should not trigger strict mode because
 	// this syntax works in CommonJS modules, not in ECMAScript modules
 	expectPrintedTS(t, "import x = require('y')", "const x = require(\"y\");\n")
-	expectPrintedTS(t, "import x = require('y'); with ({}) ;", "const x = require(\"y\");\nwith ({})\n  ;\n")
+	expectPrintedTS(t, "import x = require('y'); with ({}) ;", "const x = require(\"y\");\nwith ({}) ;\n")
 
 	expectPrintedTS(t, "import x = require('foo'); x()", "const x = require(\"foo\");\nx();\n")
 	expectPrintedTS(t, "import x = require('foo')\nx()", "const x = require(\"foo\");\nx();\n")

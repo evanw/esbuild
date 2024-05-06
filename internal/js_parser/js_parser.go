@@ -7265,13 +7265,16 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		p.lexer.Expect(js_lexer.TOpenParen)
 		test := p.parseExpr(js_ast.LLowest)
 		p.lexer.Expect(js_lexer.TCloseParen)
+		isSingleLineYes := !p.lexer.HasNewlineBefore && p.lexer.Token != js_lexer.TOpenBrace
 		yes := p.parseStmt(parseStmtOpts{lexicalDecl: lexicalDeclAllowFnInsideIf})
 		var noOrNil js_ast.Stmt
+		var isSingleLineNo bool
 		if p.lexer.Token == js_lexer.TElse {
 			p.lexer.Next()
+			isSingleLineNo = !p.lexer.HasNewlineBefore && p.lexer.Token != js_lexer.TOpenBrace
 			noOrNil = p.parseStmt(parseStmtOpts{lexicalDecl: lexicalDeclAllowFnInsideIf})
 		}
-		return js_ast.Stmt{Loc: loc, Data: &js_ast.SIf{Test: test, Yes: yes, NoOrNil: noOrNil}}
+		return js_ast.Stmt{Loc: loc, Data: &js_ast.SIf{Test: test, Yes: yes, NoOrNil: noOrNil, IsSingleLineYes: isSingleLineYes, IsSingleLineNo: isSingleLineNo}}
 
 	case js_lexer.TDo:
 		p.lexer.Next()
@@ -7293,8 +7296,9 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		p.lexer.Expect(js_lexer.TOpenParen)
 		test := p.parseExpr(js_ast.LLowest)
 		p.lexer.Expect(js_lexer.TCloseParen)
+		isSingleLineBody := !p.lexer.HasNewlineBefore && p.lexer.Token != js_lexer.TOpenBrace
 		body := p.parseStmt(parseStmtOpts{})
-		return js_ast.Stmt{Loc: loc, Data: &js_ast.SWhile{Test: test, Body: body}}
+		return js_ast.Stmt{Loc: loc, Data: &js_ast.SWhile{Test: test, Body: body, IsSingleLineBody: isSingleLineBody}}
 
 	case js_lexer.TWith:
 		p.lexer.Next()
@@ -7307,10 +7311,11 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		// within the body from being renamed. Renaming them might change the
 		// semantics of the code.
 		p.pushScopeForParsePass(js_ast.ScopeWith, bodyLoc)
+		isSingleLineBody := !p.lexer.HasNewlineBefore && p.lexer.Token != js_lexer.TOpenBrace
 		body := p.parseStmt(parseStmtOpts{})
 		p.popScope()
 
-		return js_ast.Stmt{Loc: loc, Data: &js_ast.SWith{Value: test, BodyLoc: bodyLoc, Body: body}}
+		return js_ast.Stmt{Loc: loc, Data: &js_ast.SWith{Value: test, BodyLoc: bodyLoc, Body: body, IsSingleLineBody: isSingleLineBody}}
 
 	case js_lexer.TSwitch:
 		p.lexer.Next()
@@ -7542,8 +7547,9 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			p.lexer.Next()
 			value := p.parseExpr(js_ast.LComma)
 			p.lexer.Expect(js_lexer.TCloseParen)
+			isSingleLineBody := !p.lexer.HasNewlineBefore && p.lexer.Token != js_lexer.TOpenBrace
 			body := p.parseStmt(parseStmtOpts{})
-			return js_ast.Stmt{Loc: loc, Data: &js_ast.SForOf{Await: awaitRange, Init: initOrNil, Value: value, Body: body}}
+			return js_ast.Stmt{Loc: loc, Data: &js_ast.SForOf{Await: awaitRange, Init: initOrNil, Value: value, Body: body, IsSingleLineBody: isSingleLineBody}}
 		}
 
 		// Detect for-in loops
@@ -7561,8 +7567,9 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			p.lexer.Next()
 			value := p.parseExpr(js_ast.LLowest)
 			p.lexer.Expect(js_lexer.TCloseParen)
+			isSingleLineBody := !p.lexer.HasNewlineBefore && p.lexer.Token != js_lexer.TOpenBrace
 			body := p.parseStmt(parseStmtOpts{})
-			return js_ast.Stmt{Loc: loc, Data: &js_ast.SForIn{Init: initOrNil, Value: value, Body: body}}
+			return js_ast.Stmt{Loc: loc, Data: &js_ast.SForIn{Init: initOrNil, Value: value, Body: body, IsSingleLineBody: isSingleLineBody}}
 		}
 
 		p.lexer.Expect(js_lexer.TSemicolon)
@@ -7588,12 +7595,14 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		}
 
 		p.lexer.Expect(js_lexer.TCloseParen)
+		isSingleLineBody := !p.lexer.HasNewlineBefore && p.lexer.Token != js_lexer.TOpenBrace
 		body := p.parseStmt(parseStmtOpts{})
 		return js_ast.Stmt{Loc: loc, Data: &js_ast.SFor{
-			InitOrNil:   initOrNil,
-			TestOrNil:   testOrNil,
-			UpdateOrNil: updateOrNil,
-			Body:        body,
+			InitOrNil:        initOrNil,
+			TestOrNil:        testOrNil,
+			UpdateOrNil:      updateOrNil,
+			Body:             body,
+			IsSingleLineBody: isSingleLineBody,
 		}}
 
 	case js_lexer.TImport:
@@ -7915,8 +7924,9 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 					if opts.lexicalDecl == lexicalDeclAllowAll || opts.lexicalDecl == lexicalDeclAllowFnInsideLabel {
 						nestedOpts.lexicalDecl = lexicalDeclAllowFnInsideLabel
 					}
+					isSingleLineStmt := !p.lexer.HasNewlineBefore && p.lexer.Token != js_lexer.TOpenBrace
 					stmt := p.parseStmt(nestedOpts)
-					return js_ast.Stmt{Loc: loc, Data: &js_ast.SLabel{Name: name, Stmt: stmt}}
+					return js_ast.Stmt{Loc: loc, Data: &js_ast.SLabel{Name: name, Stmt: stmt, IsSingleLineStmt: isSingleLineStmt}}
 				}
 
 				if p.options.ts.Parse {
@@ -10515,7 +10525,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			}
 
 			// "while (a) {}" => "for (;a;) {}"
-			forS := &js_ast.SFor{TestOrNil: testOrNil, Body: s.Body}
+			forS := &js_ast.SFor{TestOrNil: testOrNil, Body: s.Body, IsSingleLineBody: s.IsSingleLineBody}
 			mangleFor(forS)
 			stmt = js_ast.Stmt{Loc: stmt.Loc, Data: forS}
 		}

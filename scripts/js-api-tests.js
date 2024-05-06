@@ -5858,12 +5858,12 @@ class Foo {
 
   async es6_import_to_esm({ esbuild }) {
     const { code } = await esbuild.transform(`import {exists} from "fs"; if (!exists) throw 'fail'`, { format: 'esm' })
-    assert.strictEqual(code, `import { exists } from "fs";\nif (!exists)\n  throw "fail";\n`)
+    assert.strictEqual(code, `import { exists } from "fs";\nif (!exists) throw "fail";\n`)
   },
 
   async es6_import_star_to_esm({ esbuild }) {
     const { code } = await esbuild.transform(`import * as fs from "fs"; if (!fs.exists) throw 'fail'`, { format: 'esm' })
-    assert.strictEqual(code, `import * as fs from "fs";\nif (!fs.exists)\n  throw "fail";\n`)
+    assert.strictEqual(code, `import * as fs from "fs";\nif (!fs.exists) throw "fail";\n`)
   },
 
   async es6_export_to_esm({ esbuild }) {
@@ -6021,12 +6021,12 @@ class Foo {
 
   async keepDebugger({ esbuild }) {
     const { code } = await esbuild.transform(`if (x) debugger`, { drop: [] })
-    assert.strictEqual(code, `if (x)\n  debugger;\n`)
+    assert.strictEqual(code, `if (x) debugger;\n`)
   },
 
   async dropDebugger({ esbuild }) {
     const { code } = await esbuild.transform(`if (x) debugger`, { drop: ['debugger'] })
-    assert.strictEqual(code, `if (x)\n  ;\n`)
+    assert.strictEqual(code, `if (x) ;\n`)
   },
 
   async define({ esbuild }) {

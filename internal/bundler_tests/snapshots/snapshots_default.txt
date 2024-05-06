@@ -598,58 +598,48 @@ for (
   /*foo*/
   a;
   ;
-)
-  ;
+) ;
 for (
   ;
   /*foo*/
   a;
-)
-  ;
+) ;
 for (
   ;
   ;
   /*foo*/
   a
-)
-  ;
+) ;
 for (
   /*foo*/
   a in b
-)
-  ;
+) ;
 for (
   a in
   /*foo*/
   b
-)
-  ;
+) ;
 for (
   /*foo*/
   a of b
-)
-  ;
+) ;
 for (
   a of
   /*foo*/
   b
-)
-  ;
+) ;
 if (
   /*foo*/
   a
-)
-  ;
+) ;
 with (
   /*foo*/
   a
-)
-  ;
+) ;
 while (
   /*foo*/
   a
-)
-  ;
+) ;
 do {
 } while (
   /*foo*/
@@ -859,24 +849,18 @@ TestConstWithLet
 console.log(1);
 console.log(2);
 unknownFn(3);
-for (let c = x; ; )
-  console.log(c);
-for (let d in x)
-  console.log(d);
-for (let e of x)
-  console.log(e);
+for (let c = x; ; ) console.log(c);
+for (let d in x) console.log(d);
+for (let e of x) console.log(e);
 
 ================================================================================
 TestConstWithLetNoBundle
 ---------- /out.js ----------
 const a = 1;
 console.log(1), console.log(2), unknownFn(3);
-for (const c = x; ; )
-  console.log(c);
-for (const d in x)
-  console.log(d);
-for (const e of x)
-  console.log(e);
+for (const c = x; ; ) console.log(c);
+for (const d in x) console.log(d);
+for (const e of x) console.log(e);
 
 ================================================================================
 TestConstWithLetNoMangle
@@ -888,12 +872,9 @@ if (true) {
   const b = 2;
   console.log(b);
 }
-for (const c = x; ; )
-  console.log(c);
-for (const d in x)
-  console.log(d);
-for (const e of x)
-  console.log(e);
+for (const c = x; ; ) console.log(c);
+for (const d in x) console.log(d);
+for (const e of x) console.log(e);
 
 ================================================================================
 TestDecoratorPrintingCJS
@@ -2789,23 +2770,17 @@ var [fn = /* @__PURE__ */ __name(function() {
 var { fn = /* @__PURE__ */ __name(function() {
 }, "fn") } = {};
 for (var [fn = /* @__PURE__ */ __name(function() {
-}, "fn")] = []; ; )
-  ;
+}, "fn")] = []; ; ) ;
 for (var { fn = /* @__PURE__ */ __name(function() {
-}, "fn") } = {}; ; )
-  ;
+}, "fn") } = {}; ; ) ;
 for (var [fn = /* @__PURE__ */ __name(function() {
-}, "fn")] in obj)
-  ;
+}, "fn")] in obj) ;
 for (var { fn = /* @__PURE__ */ __name(function() {
-}, "fn") } in obj)
-  ;
+}, "fn") } in obj) ;
 for (var [fn = /* @__PURE__ */ __name(function() {
-}, "fn")] of obj)
-  ;
+}, "fn")] of obj) ;
 for (var { fn = /* @__PURE__ */ __name(function() {
-}, "fn") } of obj)
-  ;
+}, "fn") } of obj) ;
 function foo([fn2 = /* @__PURE__ */ __name(function() {
 }, "fn")]) {
 }
@@ -5196,22 +5171,19 @@ TestMinifySiblingLabelsNoBundle
 ---------- /out.js ----------
 a: {
   b: {
-    if (x)
-      break b;
+    if (x) break b;
     break a;
   }
 }
 a: {
   b: {
-    if (x)
-      break b;
+    if (x) break b;
     break a;
   }
 }
 a: {
   b: {
-    if (x)
-      break b;
+    if (x) break b;
     break a;
   }
 }
@@ -5711,22 +5683,19 @@ TestRenameLabelsNoBundle
 ---------- /out.js ----------
 foo: {
   bar: {
-    if (x)
-      break bar;
+    if (x) break bar;
     break foo;
   }
 }
 foo2: {
   bar2: {
-    if (x)
-      break bar2;
+    if (x) break bar2;
     break foo2;
   }
 }
 foo: {
   bar: {
-    if (x)
-      break bar;
+    if (x) break bar;
     break foo;
   }
 }
@@ -6595,29 +6564,22 @@ await init_entry();
 TestTopLevelAwaitCJSDeadBranch
 ---------- /out.js ----------
 // entry.js
-if (false)
-  foo;
-if (false)
-  for (foo of bar)
-    ;
+if (false) foo;
+if (false) for (foo of bar) ;
 
 ================================================================================
 TestTopLevelAwaitESM
 ---------- /out.js ----------
 // entry.js
 await foo;
-for await (foo of bar)
-  ;
+for await (foo of bar) ;
 
 ================================================================================
 TestTopLevelAwaitESMDeadBranch
 ---------- /out.js ----------
 // entry.js
-if (false)
-  await foo;
-if (false)
-  for await (foo of bar)
-    ;
+if (false) await foo;
+if (false) for await (foo of bar) ;
 
 ================================================================================
 TestTopLevelAwaitForbiddenRequireDeadBranch
@@ -6627,9 +6589,7 @@ TestTopLevelAwaitForbiddenRequireDeadBranch
   var c_exports = {};
   var init_c = __esm({
     "c.js"() {
-      if (false)
-        for (let x of y)
-          ;
+      if (false) for (let x of y) ;
     }
   });
 
@@ -6657,9 +6617,7 @@ TestTopLevelAwaitForbiddenRequireDeadBranch
       init_b();
       init_c();
       init_entry();
-      if (false)
-        for (let x of y)
-          ;
+      if (false) for (let x of y) ;
     }
   });
   init_entry();
@@ -6670,63 +6628,46 @@ TestTopLevelAwaitIIFEDeadBranch
 ---------- /out.js ----------
 (() => {
   // entry.js
-  if (false)
-    foo;
-  if (false)
-    for (foo of bar)
-      ;
+  if (false) foo;
+  if (false) for (foo of bar) ;
 })();
 
 ================================================================================
 TestTopLevelAwaitNoBundle
 ---------- /out.js ----------
 await foo;
-for await (foo of bar)
-  ;
+for await (foo of bar) ;
 
 ================================================================================
 TestTopLevelAwaitNoBundleCommonJSDeadBranch
 ---------- /out.js ----------
-if (false)
-  foo;
-if (false)
-  for (foo of bar)
-    ;
+if (false) foo;
+if (false) for (foo of bar) ;
 
 ================================================================================
 TestTopLevelAwaitNoBundleDeadBranch
 ---------- /out.js ----------
-if (false)
-  await foo;
-if (false)
-  for await (foo of bar)
-    ;
+if (false) await foo;
+if (false) for await (foo of bar) ;
 
 ================================================================================
 TestTopLevelAwaitNoBundleESM
 ---------- /out.js ----------
 await foo;
-for await (foo of bar)
-  ;
+for await (foo of bar) ;
 
 ================================================================================
 TestTopLevelAwaitNoBundleESMDeadBranch
 ---------- /out.js ----------
-if (false)
-  await foo;
-if (false)
-  for await (foo of bar)
-    ;
+if (false) await foo;
+if (false) for await (foo of bar) ;
 
 ================================================================================
 TestTopLevelAwaitNoBundleIIFEDeadBranch
 ---------- /out.js ----------
 (() => {
-  if (false)
-    foo;
-  if (false)
-    for (foo of bar)
-      ;
+  if (false) foo;
+  if (false) for (foo of bar) ;
 })();
 
 ================================================================================
@@ -6795,29 +6736,22 @@ TestUseStrictDirectiveMinifyNoBundle
 TestVarRelocatingBundle
 ---------- /out/top-level.js ----------
 // top-level.js
-for (; 0; )
-  ;
+for (; 0; ) ;
 var b;
-for ({ c, x: [d] } = {}; 0; )
-  ;
+for ({ c, x: [d] } = {}; 0; ) ;
 var c;
 var d;
-for (e of [])
-  ;
+for (e of []) ;
 var e;
-for ({ f, x: [g] } of [])
-  ;
+for ({ f, x: [g] } of []) ;
 var f;
 var g;
-for (h in {})
-  ;
+for (h in {}) ;
 var h;
 i = 1;
-for (i in {})
-  ;
+for (i in {}) ;
 var i;
-for ({ j, x: [k] } in {})
-  ;
+for ({ j, x: [k] } in {}) ;
 var j;
 var k;
 
@@ -6827,21 +6761,14 @@ if (true) {
   let l = function() {
   };
   l2 = l;
-  for (; 0; )
-    ;
-  for ({ c, x: [d] } = {}; 0; )
-    ;
-  for (e of [])
-    ;
-  for ({ f, x: [g] } of [])
-    ;
-  for (h in {})
-    ;
+  for (; 0; ) ;
+  for ({ c, x: [d] } = {}; 0; ) ;
+  for (e of []) ;
+  for ({ f, x: [g] } of []) ;
+  for (h in {}) ;
   i = 1;
-  for (i in {})
-    ;
-  for ({ j, x: [k] } in {})
-    ;
+  for (i in {}) ;
+  for ({ j, x: [k] } in {}) ;
 }
 var a;
 var b;
@@ -6860,39 +6787,26 @@ var l2;
 // let.js
 if (true) {
   let a;
-  for (let b; 0; )
-    ;
-  for (let { c, x: [d] } = {}; 0; )
-    ;
-  for (let e of [])
-    ;
-  for (let { f, x: [g] } of [])
-    ;
-  for (let h in {})
-    ;
-  for (let { j, x: [k] } in {})
-    ;
+  for (let b; 0; ) ;
+  for (let { c, x: [d] } = {}; 0; ) ;
+  for (let e of []) ;
+  for (let { f, x: [g] } of []) ;
+  for (let h in {}) ;
+  for (let { j, x: [k] } in {}) ;
 }
 
 ---------- /out/function.js ----------
 // function.js
 function x() {
   var a;
-  for (var b; 0; )
-    ;
-  for (var { c, x: [d] } = {}; 0; )
-    ;
-  for (var e of [])
-    ;
-  for (var { f, x: [g] } of [])
-    ;
-  for (var h in {})
-    ;
+  for (var b; 0; ) ;
+  for (var { c, x: [d] } = {}; 0; ) ;
+  for (var e of []) ;
+  for (var { f, x: [g] } of []) ;
+  for (var h in {}) ;
   i = 1;
-  for (var i in {})
-    ;
-  for (var { j, x: [k] } in {})
-    ;
+  for (var i in {}) ;
+  for (var { j, x: [k] } in {}) ;
   function l() {
   }
 }
@@ -6906,21 +6820,14 @@ function x() {
     };
     var l = l2;
     var a;
-    for (var b; 0; )
-      ;
-    for (var { c, x: [d] } = {}; 0; )
-      ;
-    for (var e of [])
-      ;
-    for (var { f, x: [g] } of [])
-      ;
-    for (var h in {})
-      ;
+    for (var b; 0; ) ;
+    for (var { c, x: [d] } = {}; 0; ) ;
+    for (var e of []) ;
+    for (var { f, x: [g] } of []) ;
+    for (var h in {}) ;
     i = 1;
-    for (var i in {})
-      ;
-    for (var { j, x: [k] } in {})
-      ;
+    for (var i in {}) ;
+    for (var { j, x: [k] } in {}) ;
   }
 }
 x();
@@ -6929,21 +6836,14 @@ x();
 TestVarRelocatingNoBundle
 ---------- /out/top-level.js ----------
 var a;
-for (var b; 0; )
-  ;
-for (var { c, x: [d] } = {}; 0; )
-  ;
-for (var e of [])
-  ;
-for (var { f, x: [g] } of [])
-  ;
-for (var h in {})
-  ;
+for (var b; 0; ) ;
+for (var { c, x: [d] } = {}; 0; ) ;
+for (var e of []) ;
+for (var { f, x: [g] } of []) ;
+for (var h in {}) ;
 i = 1;
-for (var i in {})
-  ;
-for (var { j, x: [k] } in {})
-  ;
+for (var i in {}) ;
+for (var { j, x: [k] } in {}) ;
 function l() {
 }
 
@@ -6953,58 +6853,38 @@ if (true) {
   };
   var l2 = l;
   var a;
-  for (var b; 0; )
-    ;
-  for (var { c, x: [d] } = {}; 0; )
-    ;
-  for (var e of [])
-    ;
-  for (var { f, x: [g] } of [])
-    ;
-  for (var h in {})
-    ;
+  for (var b; 0; ) ;
+  for (var { c, x: [d] } = {}; 0; ) ;
+  for (var e of []) ;
+  for (var { f, x: [g] } of []) ;
+  for (var h in {}) ;
   i = 1;
-  for (var i in {})
-    ;
-  for (var { j, x: [k] } in {})
-    ;
+  for (var i in {}) ;
+  for (var { j, x: [k] } in {}) ;
 }
 
 ---------- /out/let.js ----------
 if (true) {
   let a;
-  for (let b; 0; )
-    ;
-  for (let { c, x: [d] } = {}; 0; )
-    ;
-  for (let e of [])
-    ;
-  for (let { f, x: [g] } of [])
-    ;
-  for (let h in {})
-    ;
-  for (let { j, x: [k] } in {})
-    ;
+  for (let b; 0; ) ;
+  for (let { c, x: [d] } = {}; 0; ) ;
+  for (let e of []) ;
+  for (let { f, x: [g] } of []) ;
+  for (let h in {}) ;
+  for (let { j, x: [k] } in {}) ;
 }
 
 ---------- /out/function.js ----------
 function x() {
   var a;
-  for (var b; 0; )
-    ;
-  for (var { c, x: [d] } = {}; 0; )
-    ;
-  for (var e of [])
-    ;
-  for (var { f, x: [g] } of [])
-    ;
-  for (var h in {})
-    ;
+  for (var b; 0; ) ;
+  for (var { c, x: [d] } = {}; 0; ) ;
+  for (var e of []) ;
+  for (var { f, x: [g] } of []) ;
+  for (var h in {}) ;
   i = 1;
-  for (var i in {})
-    ;
-  for (var { j, x: [k] } in {})
-    ;
+  for (var i in {}) ;
+  for (var { j, x: [k] } in {}) ;
   function l() {
   }
 }
@@ -7017,21 +6897,14 @@ function x() {
     };
     var l = l2;
     var a;
-    for (var b; 0; )
-      ;
-    for (var { c, x: [d] } = {}; 0; )
-      ;
-    for (var e of [])
-      ;
-    for (var { f, x: [g] } of [])
-      ;
-    for (var h in {})
-      ;
+    for (var b; 0; ) ;
+    for (var { c, x: [d] } = {}; 0; ) ;
+    for (var e of []) ;
+    for (var { f, x: [g] } of []) ;
+    for (var h in {}) ;
     i = 1;
-    for (var i in {})
-      ;
-    for (var { j, x: [k] } in {})
-      ;
+    for (var i in {}) ;
+    for (var { j, x: [k] } in {}) ;
   }
 }
 x();
@@ -7214,10 +7087,8 @@ TestWithStatementTaintingNoBundle
     let t = 5;
     hoisted++;
     t++;
-    if (1)
-      outer++;
-    if (0)
-      outerDead++;
+    if (1) outer++;
+    if (0) outerDead++;
   }
   if (1) {
     hoisted++;

@@ -770,7 +770,7 @@ func TestForAwait(t *testing.T) {
 	err = "<stdin>: ERROR: Top-level await is not available in the configured target environment\n"
 	expectParseErrorWithUnsupportedFeatures(t, compat.TopLevelAwait, "for await (x of y) ;", err)
 	expectParseErrorWithUnsupportedFeatures(t, compat.TopLevelAwait, "if (true) for await (x of y) ;", err)
-	expectPrintedWithUnsupportedFeatures(t, compat.TopLevelAwait, "if (false) for await (x of y) ;", "if (false)\n  for (x of y)\n    ;\n")
+	expectPrintedWithUnsupportedFeatures(t, compat.TopLevelAwait, "if (false) for await (x of y) ;", "if (false) for (x of y) ;\n")
 	expectParseErrorWithUnsupportedFeatures(t, compat.TopLevelAwait, "with (x) y; if (false) for await (x of y) ;",
 		"<stdin>: ERROR: With statements cannot be used in an ECMAScript module\n"+
 			"<stdin>: NOTE: This file is considered to be an ECMAScript module because of the top-level \"await\" keyword here:\n")

@@ -1067,34 +1067,40 @@ type SClass struct {
 }
 
 type SLabel struct {
-	Stmt Stmt
-	Name ast.LocRef
+	Stmt             Stmt
+	Name             ast.LocRef
+	IsSingleLineStmt bool
 }
 
 type SIf struct {
-	Test    Expr
-	Yes     Stmt
-	NoOrNil Stmt
+	Test            Expr
+	Yes             Stmt
+	NoOrNil         Stmt
+	IsSingleLineYes bool
+	IsSingleLineNo  bool
 }
 
 type SFor struct {
-	InitOrNil   Stmt // May be a SConst, SLet, SVar, or SExpr
-	TestOrNil   Expr
-	UpdateOrNil Expr
-	Body        Stmt
+	InitOrNil        Stmt // May be a SConst, SLet, SVar, or SExpr
+	TestOrNil        Expr
+	UpdateOrNil      Expr
+	Body             Stmt
+	IsSingleLineBody bool
 }
 
 type SForIn struct {
-	Init  Stmt // May be a SConst, SLet, SVar, or SExpr
-	Value Expr
-	Body  Stmt
+	Init             Stmt // May be a SConst, SLet, SVar, or SExpr
+	Value            Expr
+	Body             Stmt
+	IsSingleLineBody bool
 }
 
 type SForOf struct {
-	Init  Stmt // May be a SConst, SLet, SVar, or SExpr
-	Value Expr
-	Body  Stmt
-	Await logger.Range
+	Init             Stmt // May be a SConst, SLet, SVar, or SExpr
+	Value            Expr
+	Body             Stmt
+	Await            logger.Range
+	IsSingleLineBody bool
 }
 
 type SDoWhile struct {
@@ -1103,14 +1109,16 @@ type SDoWhile struct {
 }
 
 type SWhile struct {
-	Test Expr
-	Body Stmt
+	Test             Expr
+	Body             Stmt
+	IsSingleLineBody bool
 }
 
 type SWith struct {
-	Value   Expr
-	Body    Stmt
-	BodyLoc logger.Loc
+	Value            Expr
+	Body             Stmt
+	BodyLoc          logger.Loc
+	IsSingleLineBody bool
 }
 
 type Catch struct {

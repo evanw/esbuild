@@ -3502,13 +3502,11 @@ TestLowerStrictModeSyntax
 // for-in.js
 if (test) {
   a = b;
-  for (a in {})
-    ;
+  for (a in {}) ;
 }
 var a;
 x = y;
-for (x in {})
-  ;
+for (x in {}) ;
 var x;
 
 ================================================================================
@@ -4239,20 +4237,16 @@ function bar() {
 }
 
 ---------- /out/loops.js ----------
-for (using a of b)
-  c(() => a);
+for (using a of b) c(() => a);
 if (nested) {
-  for (using a of b)
-    c(() => a);
+  for (using a of b) c(() => a);
 }
 function foo() {
-  for (using a of b)
-    c(() => a);
+  for (using a of b) c(() => a);
 }
 function bar() {
   return __async(this, null, function* () {
-    for (using a of b)
-      c(() => a);
+    for (using a of b) c(() => a);
     for (var _d of e) {
       var _stack = [];
       try {
@@ -4648,8 +4642,7 @@ assign = __objRest({}, []);
   var x2 = __objRest(_s, []);
 } });
 x = __objRest(x, []);
-for (x = __objRest(x, []); 0; )
-  ;
+for (x = __objRest(x, []); 0; ) ;
 console.log((x = __objRest(_t = x, []), _t));
 console.log((_v = _u = { x }, { x } = _v, xx = __objRest(_v, ["x"]), _u));
 console.log(({ x: _x } = _w = { x }, xx = __objRest(_x, []), _w));
@@ -4685,14 +4678,10 @@ for (const { ...for_in_const } in { abc }) {
 }
 for (let { ...for_in_let } in { abc }) {
 }
-for (var { ...for_in_var } in { abc })
-  ;
-for (const { ...for_of_const } of [{}])
-  ;
-for (let { ...for_of_let } of [{}])
-  x();
-for (var { ...for_of_var } of [{}])
-  x();
+for (var { ...for_in_var } in { abc }) ;
+for (const { ...for_of_const } of [{}]) ;
+for (let { ...for_of_let } of [{}]) x();
+for (var { ...for_of_var } of [{}]) x();
 for (const { ...for_const } = {}; x; x = null) {
 }
 for (let { ...for_let } = {}; x; x = null) {
@@ -4709,8 +4698,7 @@ for ({ ...x } = {}; x; x = null) {
 ({ obj_method({ ...x2 }) {
 } });
 ({ ...x } = x);
-for ({ ...x } = x; 0; )
-  ;
+for ({ ...x } = x; 0; ) ;
 console.log({ ...x } = x);
 console.log({ x, ...xx } = { x });
 console.log({ x: { ...xx } } = { x });

@@ -128,15 +128,15 @@ TestSplittingCrossChunkAssignmentDependencies
 ---------- /out/a.js ----------
 import {
   setValue
-} from "./chunk-RPIUS5UE.js";
+} from "./chunk-3GNPIT25.js";
 
 // a.js
 setValue(123);
 
 ---------- /out/b.js ----------
-import "./chunk-RPIUS5UE.js";
+import "./chunk-3GNPIT25.js";
 
----------- /out/chunk-RPIUS5UE.js ----------
+---------- /out/chunk-3GNPIT25.js ----------
 // shared.js
 var observer;
 var value;
@@ -145,8 +145,7 @@ function getValue() {
 }
 function setValue(next) {
   value = next;
-  if (observer)
-    observer();
+  if (observer) observer();
 }
 sideEffects(getValue);
 

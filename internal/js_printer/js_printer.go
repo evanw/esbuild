@@ -287,6 +287,7 @@ type printer struct {
 	binaryExprStack        []binaryExprVisitor
 	options                Options
 	builder                sourcemap.ChunkBuilder
+	printNextIndentAsSpace bool
 
 	stmtStart          int
 	exportDefaultStart int
@@ -345,14 +346,22 @@ func (p *printer) addSourceMappingForName(loc logger.Loc, name string, ref ast.R
 }
 
 func (p *printer) printIndent() {
-	if !p.options.MinifyWhitespace {
-		indent := p.options.Indent
-		if p.options.LineLimit > 0 && indent*2 >= p.options.LineLimit {
-			indent = p.options.LineLimit / 2
-		}
-		for i := 0; i < indent; i++ {
-			p.print("  ")
-		}
+	if p.options.MinifyWhitespace {
+		return
+	}
+
+	if p.printNextIndentAsSpace {
+		p.print(" ")
+		p.printNextIndentAsSpace = false
+		return
+	}
+
+	indent := p.options.Indent
+	if p.options.LineLimit > 0 && indent*2 >= p.options.LineLimit {
+		indent = p.options.LineLimit / 2
+	}
+	for i := 0; i < indent; i++ {
+		p.print("  ")
 	}
 }
 
@@ -3630,11 +3639,14 @@ func (p *printer) printDecls(keyword string, decls []js_ast.Decl, flags printExp
 	}
 }
 
-func (p *printer) printBody(body js_ast.Stmt) {
+func (p *printer) printBody(body js_ast.Stmt, isSingleLine bool) {
 	if block, ok := body.Data.(*js_ast.SBlock); ok {
 		p.printSpace()
 		p.printBlock(body.Loc, *block)
 		p.printNewline()
+	} else if isSingleLine {
+		p.printNextIndentAsSpace = true
+		p.printStmt(body, 0)
 	} else {
 		p.printNewline()
 		p.options.Indent++
@@ -3752,10 +3764,7 @@ func (p *printer) printIf(s *js_ast.SIf) {
 			p.printNewline()
 		}
 	} else {
-		p.printNewline()
-		p.options.Indent++
-		p.printStmt(s.Yes, 0)
-		p.options.Indent--
+		p.printBody(s.Yes, s.IsSingleLineYes)
 
 		if no.Data != nil {
 			p.printIndent()
@@ -3774,10 +3783,7 @@ func (p *printer) printIf(s *js_ast.SIf) {
 		} else if ifStmt, ok := no.Data.(*js_ast.SIf); ok {
 			p.printIf(ifStmt)
 		} else {
-			p.printNewline()
-			p.options.Indent++
-			p.printStmt(no, 0)
-			p.options.Indent--
+			p.printBody(no, s.IsSingleLineNo)
 		}
 	}
 }
@@ -4326,7 +4332,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 			p.printIndent()
 		}
 		p.print(")")
-		p.printBody(s.Body)
+		p.printBody(s.Body, s.IsSingleLineBody)
 
 	case *js_ast.SForOf:
 		p.addSourceMapping(stmt.Loc)
@@ -4367,7 +4373,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 			p.printIndent()
 		}
 		p.print(")")
-		p.printBody(s.Body)
+		p.printBody(s.Body, s.IsSingleLineBody)
 
 	case *js_ast.SWhile:
 		p.addSourceMapping(stmt.Loc)
@@ -4388,7 +4394,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 			p.printExpr(s.Test, js_ast.LLowest, 0)
 		}
 		p.print(")")
-		p.printBody(s.Body)
+		p.printBody(s.Body, s.IsSingleLineBody)
 
 	case *js_ast.SWith:
 		p.addSourceMapping(stmt.Loc)
@@ -4410,12 +4416,12 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 		}
 		p.print(")")
 		p.withNesting++
-		p.printBody(s.Body)
+		p.printBody(s.Body, s.IsSingleLineBody)
 		p.withNesting--
 
 	case *js_ast.SLabel:
 		// Avoid printing a source mapping that masks the one from the label
-		if !p.options.MinifyWhitespace && p.options.Indent > 0 {
+		if !p.options.MinifyWhitespace && (p.options.Indent > 0 || p.printNextIndentAsSpace) {
 			p.addSourceMapping(stmt.Loc)
 			p.printIndent()
 		}
@@ -4425,7 +4431,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 		p.addSourceMappingForName(s.Name.Loc, name, s.Name.Ref)
 		p.printIdentifier(name)
 		p.print(":")
-		p.printBody(s.Stmt)
+		p.printBody(s.Stmt, s.IsSingleLineStmt)
 
 	case *js_ast.STry:
 		p.addSourceMapping(stmt.Loc)
@@ -4519,7 +4525,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 			p.printIndent()
 		}
 		p.print(")")
-		p.printBody(s.Body)
+		p.printBody(s.Body, s.IsSingleLineBody)
 
 	case *js_ast.SSwitch:
 		p.addSourceMapping(stmt.Loc)
@@ -4765,7 +4771,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 
 		// Avoid printing a source mapping when the expression would print one in
 		// the same spot. We don't want to accidentally mask the mapping it emits.
-		if !p.options.MinifyWhitespace && p.options.Indent > 0 {
+		if !p.options.MinifyWhitespace && (p.options.Indent > 0 || p.printNextIndentAsSpace) {
 			p.addSourceMapping(stmt.Loc)
 			p.printIndent()
 		}

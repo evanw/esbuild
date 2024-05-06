@@ -660,8 +660,7 @@ TestDCETypeOfEqualsString
 ---------- /out.js ----------
 (() => {
   // entry.js
-  if (false)
-    console.log(hasBar);
+  if (false) console.log(hasBar);
 })();
 
 ================================================================================
@@ -814,16 +813,12 @@ function testStmts() {
   do
     var b;
   while (x);
-  for (var c; ; )
-    ;
-  for (var d in x)
-    ;
-  for (var e of x)
-    ;
+  for (var c; ; ) ;
+  for (var d in x) ;
+  for (var e of x) ;
   if (x)
     var f;
-  if (!x)
-    var g;
+  if (!x) var g;
   var h, i;
 }
 testReturn();
@@ -865,14 +860,10 @@ export {
 TestDropLabels
 ---------- /out.js ----------
 // entry.js
-keep_1:
-  require("foo1");
+keep_1: require("foo1");
 exports.bar = function() {
-  if (x)
-    ;
-  if (y)
-    keep_2:
-      require("bar2");
+  if (x) ;
+  if (y) keep_2: require("bar2");
 };
 
 ================================================================================
@@ -915,8 +906,7 @@ foo();
 console.log(foo());
 console.log((foo(), void 0));
 console.log((foo(), void 0));
-for (; void 0; )
-  ;
+for (; void 0; ) ;
 foo();
 foo();
 foo();
@@ -1060,11 +1050,9 @@ export let shouldBeWrapped = [
 TestInlineFunctionCallForInitDecl
 ---------- /out/entry.js ----------
 // entry.js
-for (y = void 0; !1; )
-  ;
+for (y = void 0; !1; ) ;
 var y;
-for (z = 123; !1; )
-  ;
+for (z = 123; !1; ) ;
 var z;
 
 ================================================================================

@@ -163,14 +163,10 @@ var foo3 = "shimFoo";
 var bar3 = "shimBar";
 
 // Users/user/project/src/main.ts
-if (foo2 !== "foo")
-  throw "fail: foo";
-if (bar2 !== "bar")
-  throw "fail: bar";
-if (foo3 !== "shimFoo")
-  throw "fail: shimFoo";
-if (bar3 !== "shimBar")
-  throw "fail: shimBar";
+if (foo2 !== "foo") throw "fail: foo";
+if (bar2 !== "bar") throw "fail: bar";
+if (foo3 !== "shimFoo") throw "fail: shimFoo";
+if (bar3 !== "shimBar") throw "fail: shimBar";
 
 ================================================================================
 TestTsconfigIgnoredTargetSilent
@@ -755,8 +751,7 @@ TestTsconfigWithStatementAlwaysStrictFalse
 ---------- /Users/user/project/out.js ----------
 (() => {
   // Users/user/project/src/entry.ts
-  with (x)
-    y;
+  with (x) y;
 })();
 
 ================================================================================
@@ -764,8 +759,7 @@ TestTsconfigWithStatementStrictFalse
 ---------- /Users/user/project/out.js ----------
 (() => {
   // Users/user/project/src/entry.ts
-  with (x)
-    y;
+  with (x) y;
 })();
 
 ================================================================================
@@ -773,6 +767,5 @@ TestTsconfigWithStatementStrictTrueAlwaysStrictFalse
 ---------- /Users/user/project/out.js ----------
 (() => {
   // Users/user/project/src/entry.ts
-  with (x)
-    y;
+  with (x) y;
 })();
