@@ -1,10 +1,12 @@
 # Changelog
 
-## Unreleased
+## 0.21.0
+
+This release doesn't contain any deliberately-breaking changes. However, it contains a very complex new feature and while all of esbuild's tests pass, I would not be surprised if an important edge case turns out to be broken. So I'm releasing this as a breaking change release to avoid causing any trouble. As usual, make sure to test your code when you upgrade.
 
 * Implement the JavaScript decorators proposal ([#104](https://github.com/evanw/esbuild/issues/104))
 
-    With this release, esbuild now contains an implementation of the upcoming [JavaScript decorators proposal](https://github.com/tc39/proposal-decorators). This is the same feature that shipped in [TypeScript 5.0](https://devblogs.microsoft.com/typescript/announcing-typescript-5-0/#decorators). You can read more about them in that blog post and in this other (now slightly outdated) extensive blog post here: https://2ality.com/2022/10/javascript-decorators.html. Here's a quick example:
+    With this release, esbuild now contains an implementation of the upcoming [JavaScript decorators proposal](https://github.com/tc39/proposal-decorators). This is the same feature that shipped in [TypeScript 5.0](https://devblogs.microsoft.com/typescript/announcing-typescript-5-0/#decorators) and has been highly-requested on esbuild's issue tracker. You can read more about them in that blog post and in this other (now slightly outdated) extensive blog post here: https://2ality.com/2022/10/javascript-decorators.html. Here's a quick example:
 
     ```js
     const log = (fn, context) => function() {
