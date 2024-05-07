@@ -6641,15 +6641,11 @@ func (p *parser) parseDecorators(decoratorScope *js_ast.Scope, classKeyword logg
 					p.log.AddErrorWithNotes(&p.tracker, p.lexer.Range(), "Parameter decorators only work when experimental decorators are enabled", []logger.MsgData{{
 						Text: "You can enable experimental decorators by adding \"experimentalDecorators\": true to your \"tsconfig.json\" file.",
 					}})
-				} else {
-					p.markSyntaxFeature(compat.Decorators, p.lexer.Range())
 				}
 			}
 		} else {
 			if (context & decoratorInFnArgs) != 0 {
 				p.log.AddError(&p.tracker, p.lexer.Range(), "Parameter decorators are not allowed in JavaScript")
-			} else {
-				p.markSyntaxFeature(compat.Decorators, p.lexer.Range())
 			}
 		}
 	}

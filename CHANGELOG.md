@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+* Implement the JavaScript decorators proposal ([#104](https://github.com/evanw/esbuild/issues/104))
+
+    With this release, esbuild now contains an implementation of the upcoming [JavaScript decorators proposal](https://github.com/tc39/proposal-decorators). This is the same feature that shipped in [TypeScript 5.0](https://devblogs.microsoft.com/typescript/announcing-typescript-5-0/#decorators). You can read more about them in that blog post and in this other (now slightly outdated) extensive blog post here: https://2ality.com/2022/10/javascript-decorators.html. Here's a quick example:
+
+    ```js
+    const log = (fn, context) => function() {
+      console.log(`before ${context.name}`)
+      const it = fn.apply(this, arguments)
+      console.log(`after ${context.name}`)
+      return it
+    }
+
+    class Foo {
+      @log static foo() {
+        console.log('in foo')
+      }
+    }
+
+    // Logs "before foo", "in foo", "after foo"
+    Foo.foo()
+    ```
+
+    Note that this feature is different than the existing "TypeScript experimental decorators" feature that esbuild already implements. It uses similar syntax but behaves very differently, and the two are not compatible (although it's sometimes possible to write decorators that work with both). TypeScript experimental decorators will still be supported by esbuild going forward as they have been around for a long time, are very widely used, and let you do certain things that are not possible with JavaScript decorators (such as decorating function parameters). By default esbuild will parse and transform JavaScript decorators, but you can tell esbuild to parse and transform TypeScript experimental decorators instead by setting `"experimentalDecorators": true` in your `tsconfig.json` file.
+
+    Probably at least half of the work for this feature went into creating a test suite that exercises many of the proposal's edge cases: https://github.com/evanw/decorator-tests. It has given me a reasonable level of confidence that esbuild's initial implementation is acceptable. However, I don't have access to a significant sample of real code that uses JavaScript decorators. If you're currently using JavaScript decorators in a real code base, please try out esbuild's implementation and let me know if anything seems off.
+
+    **⚠️ WARNING ⚠️**
+
+    This proposal has been in the works for a very long time (work began around 10 years ago in 2014) and it is finally getting close to becoming part of the JavaScript language. However, it's still a work in progress and isn't a part of JavaScript yet, so keep in mind that any code that uses JavaScript decorators may need to be updated as the feature continues to evolve. The decorators proposal is pretty close to its final form but it can and likely will undergo some small behavioral adjustments before it ends up becoming a part of the standard. If/when that happens, I will update esbuild's implementation to match the specification. I will not be supporting old versions of the specification.
+
 * Optimize the generated code for private methods
 
     Previously when lowering private methods for old browsers, esbuild would generate one `WeakSet` for each private method. This mirrors similar logic for generating one `WeakSet` for each private field. Using a separate `WeakMap` for private fields is necessary as their assignment can be observable:
