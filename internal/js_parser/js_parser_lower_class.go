@@ -1232,9 +1232,10 @@ func (ctx *lowerClassContext) hoistComputedProperties(p *parser, classLoweringIn
 			for i, decorator := range analysis.propDecorators {
 				values[i] = decorator.Value
 			}
+			atLoc := analysis.propDecorators[0].AtLoc
 			decorators = js_ast.Assign(
-				js_ast.Expr{Loc: prop.Loc, Data: &js_ast.EIdentifier{Ref: ref}},
-				js_ast.Expr{Loc: prop.Loc, Data: &js_ast.EArray{Items: values, IsSingleLine: true}})
+				js_ast.Expr{Loc: atLoc, Data: &js_ast.EIdentifier{Ref: ref}},
+				js_ast.Expr{Loc: atLoc, Data: &js_ast.EArray{Items: values, IsSingleLine: true}})
 			p.recordUsage(ref)
 			if decoratorTempRefs == nil {
 				decoratorTempRefs = make(map[int]ast.Ref)
@@ -1483,12 +1484,13 @@ func (ctx *lowerClassContext) processProperties(p *parser, classLoweringInfo cla
 		for i, decorator := range ctx.class.Decorators {
 			values[i] = decorator.Value
 		}
+		atLoc := ctx.class.Decorators[0].AtLoc
 		ctx.computedPropertyChain = js_ast.JoinWithComma(js_ast.Assign(
-			js_ast.Expr{Loc: ctx.classLoc, Data: &js_ast.EIdentifier{Ref: decoratorsRef}},
-			js_ast.Expr{Loc: ctx.classLoc, Data: &js_ast.EArray{Items: values, IsSingleLine: true}},
+			js_ast.Expr{Loc: atLoc, Data: &js_ast.EIdentifier{Ref: decoratorsRef}},
+			js_ast.Expr{Loc: atLoc, Data: &js_ast.EArray{Items: values, IsSingleLine: true}},
 		), ctx.computedPropertyChain)
 		p.recordUsage(decoratorsRef)
-		ctx.decoratorClassDecorators = js_ast.Expr{Loc: ctx.classLoc, Data: &js_ast.EIdentifier{Ref: decoratorsRef}}
+		ctx.decoratorClassDecorators = js_ast.Expr{Loc: atLoc, Data: &js_ast.EIdentifier{Ref: decoratorsRef}}
 		p.recordUsage(decoratorsRef)
 		ctx.class.Decorators = nil
 	}
@@ -1594,7 +1596,9 @@ func (ctx *lowerClassContext) processProperties(p *parser, classLoweringInfo cla
 		initializerIndex := -1
 		if len(analysis.propDecorators) > 0 {
 			prop.Decorators = nil
-			loc := prop.Key.Loc
+			loc := prop.Loc
+			keyLoc := prop.Key.Loc
+			atLoc := analysis.propDecorators[0].AtLoc
 
 			// Encode information about this property using bit flags
 			var flags int
@@ -1635,7 +1639,7 @@ func (ctx *lowerClassContext) processProperties(p *parser, classLoweringInfo cla
 				{Loc: loc, Data: &js_ast.EIdentifier{Ref: ctx.decoratorContextRef}},
 				{Loc: loc, Data: &js_ast.ENumber{Value: float64(flags)}},
 				key,
-				{Loc: loc, Data: &js_ast.EIdentifier{Ref: decoratorsRef}},
+				{Loc: atLoc, Data: &js_ast.EIdentifier{Ref: decoratorsRef}},
 			}
 			p.recordUsage(ctx.decoratorContextRef)
 			p.recordUsage(decoratorsRef)
@@ -1644,7 +1648,7 @@ func (ctx *lowerClassContext) processProperties(p *parser, classLoweringInfo cla
 			privateFnRef := ast.InvalidRef
 			if analysis.private != nil {
 				// Add the "target" argument (the weak set)
-				args = append(args, js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: analysis.private.Ref}})
+				args = append(args, js_ast.Expr{Loc: keyLoc, Data: &js_ast.EIdentifier{Ref: analysis.private.Ref}})
 				p.recordUsage(analysis.private.Ref)
 
 				// Add the "extra" argument (the function)
@@ -1657,7 +1661,7 @@ func (ctx *lowerClassContext) processProperties(p *parser, classLoweringInfo cla
 					privateFnRef = p.privateSetters[analysis.private.Ref]
 				}
 				if privateFnRef != ast.InvalidRef {
-					args = append(args, js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: privateFnRef}})
+					args = append(args, js_ast.Expr{Loc: keyLoc, Data: &js_ast.EIdentifier{Ref: privateFnRef}})
 					p.recordUsage(privateFnRef)
 				}
 			} else {
@@ -1675,14 +1679,14 @@ func (ctx *lowerClassContext) processProperties(p *parser, classLoweringInfo cla
 
 				// Pass the WeakMap instance into the decorator helper
 				autoAccessorWeakMapRef = p.generateTempRef(tempRefNeedsDeclare, p.propertyNameHint(prop.Key, ""))
-				args = append(args, js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: autoAccessorWeakMapRef}})
+				args = append(args, js_ast.Expr{Loc: keyLoc, Data: &js_ast.EIdentifier{Ref: autoAccessorWeakMapRef}})
 				p.recordUsage(autoAccessorWeakMapRef)
 			}
 
 			// Assign the result
 			element := p.callRuntime(loc, "__decorateElement", args)
 			if privateFnRef != ast.InvalidRef {
-				element = js_ast.Assign(js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: privateFnRef}}, element)
+				element = js_ast.Assign(js_ast.Expr{Loc: keyLoc, Data: &js_ast.EIdentifier{Ref: privateFnRef}}, element)
 				p.recordUsage(privateFnRef)
 			} else if prop.Kind == js_ast.PropertyAutoAccessor && analysis.private != nil {
 				ref := p.generateTempRef(tempRefNeedsDeclare, "")
@@ -1697,10 +1701,10 @@ func (ctx *lowerClassContext) processProperties(p *parser, classLoweringInfo cla
 						js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: ref}},
 						element),
 					js_ast.Assign(
-						js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: privateGetFnRef}},
+						js_ast.Expr{Loc: keyLoc, Data: &js_ast.EIdentifier{Ref: privateGetFnRef}},
 						js_ast.Expr{Loc: loc, Data: &js_ast.EDot{Target: js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: ref}}, Name: "get", NameLoc: loc}})),
 					js_ast.Assign(
-						js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: privateSetFnRef}},
+						js_ast.Expr{Loc: keyLoc, Data: &js_ast.EIdentifier{Ref: privateSetFnRef}},
 						js_ast.Expr{Loc: loc, Data: &js_ast.EDot{Target: js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: ref}}, Name: "set", NameLoc: loc}}))
 				p.recordUsage(ref)
 				p.recordUsage(privateGetFnRef)
