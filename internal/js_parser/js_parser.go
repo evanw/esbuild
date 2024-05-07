@@ -94,7 +94,6 @@ type parser struct {
 	localTypeNames             map[string]bool
 	tsEnums                    map[ast.Ref]map[string]js_ast.TSEnumValue
 	constValues                map[ast.Ref]js_ast.ConstValue
-	propMethodValue            js_ast.E
 	propDerivedCtorValue       js_ast.E
 	propMethodDecoratorScope   *js_ast.Scope
 
@@ -11634,6 +11633,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 		// We need to explicitly assign the name to the property initializer if it
 		// will be transformed such that it is no longer an inline initializer.
 		nameToKeep := ""
+		isLoweredPrivateMethod := false
 		if private, ok := property.Key.Data.(*js_ast.EPrivateIdentifier); ok {
 			if !property.Kind.IsMethodDefinition() || p.privateSymbolNeedsToBeLowered(private) {
 				nameToKeep = p.symbols[private.Ref.InnerIndex].OriginalName
@@ -11645,7 +11645,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 			// inside the constructor where "super" is valid, so those don't need to
 			// be rewritten.
 			if property.Kind.IsMethodDefinition() && p.privateSymbolNeedsToBeLowered(private) {
-				p.fnOrArrowDataVisit.shouldLowerSuperPropertyAccess = true
+				isLoweredPrivateMethod = true
 			}
 		} else if !property.Kind.IsMethodDefinition() && !property.Flags.Has(js_ast.PropertyIsComputed) {
 			if str, ok := property.Key.Data.(*js_ast.EString); ok {
@@ -11655,7 +11655,6 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 
 		// Handle methods
 		if property.ValueOrNil.Data != nil {
-			p.propMethodValue = property.ValueOrNil.Data
 			p.propMethodDecoratorScope = result.bodyScope
 
 			// Propagate the name to keep from the method into the initializer
@@ -11671,7 +11670,10 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 				}
 			}
 
-			property.ValueOrNil = p.visitExpr(property.ValueOrNil)
+			property.ValueOrNil, _ = p.visitExprInOut(property.ValueOrNil, exprIn{
+				isMethod:               true,
+				isLoweredPrivateMethod: isLoweredPrivateMethod,
+			})
 		}
 
 		// Handle initialized fields
@@ -12395,6 +12397,9 @@ func (p *parser) maybeRewritePropertyAccess(
 }
 
 type exprIn struct {
+	isMethod               bool
+	isLoweredPrivateMethod bool
+
 	// This tells us if there are optional chain expressions (EDot, EIndex, or
 	// ECall) that are chained on to this expression. Because of the way the AST
 	// works, chaining expressions on to this expression means they are our
@@ -14131,7 +14136,6 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 						if innerClassNameRef == ast.InvalidRef {
 							innerClassNameRef = p.generateTempRef(tempRefNeedsDeclareMayBeCapturedInsideLoop, "")
 						}
-						p.propMethodValue = property.ValueOrNil.Data
 						p.fnOnlyDataVisit.isInStaticClassContext = true
 						p.fnOnlyDataVisit.innerClassNameRef = &innerClassNameRef
 					}
@@ -14143,7 +14147,10 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					p.nameToKeepIsFor = property.ValueOrNil.Data
 				}
 
-				property.ValueOrNil, _ = p.visitExprInOut(property.ValueOrNil, exprIn{assignTarget: in.assignTarget})
+				property.ValueOrNil, _ = p.visitExprInOut(property.ValueOrNil, exprIn{
+					isMethod:     property.Kind.IsMethodDefinition(),
+					assignTarget: in.assignTarget,
+				})
 
 				p.fnOnlyDataVisit.innerClassNameRef = oldInnerClassNameRef
 				p.fnOnlyDataVisit.isInStaticClassContext = oldIsInStaticClassContext
@@ -15061,8 +15068,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 		p.visitFn(&e.Fn, expr.Loc, visitFnOpts{
-			isClassMethod:      e == p.propMethodValue,
-			isDerivedClassCtor: e == p.propDerivedCtorValue,
+			isMethod:               in.isMethod,
+			isDerivedClassCtor:     e == p.propDerivedCtorValue,
+			isLoweredPrivateMethod: in.isLoweredPrivateMethod,
 		})
 		name := e.Fn.Name
 
@@ -15072,8 +15080,8 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			e.Fn.Name = nil
 		}
 
-		// Optionally preserve the name
-		if p.options.keepNames {
+		// Optionally preserve the name for functions, but not for methods
+		if p.options.keepNames && (!in.isMethod || in.isLoweredPrivateMethod) {
 			if name != nil {
 				expr = p.keepExprSymbolName(expr, p.symbols[name.Ref.InnerIndex].OriginalName)
 			} else if nameToKeep != "" {
@@ -16331,8 +16339,9 @@ func (p *parser) handleIdentifier(loc logger.Loc, e *js_ast.EIdentifier, opts id
 }
 
 type visitFnOpts struct {
-	isClassMethod      bool
-	isDerivedClassCtor bool
+	isMethod               bool
+	isDerivedClassCtor     bool
+	isLoweredPrivateMethod bool
 }
 
 func (p *parser) visitFn(fn *js_ast.Fn, scopeLoc logger.Loc, opts visitFnOpts) {
@@ -16343,7 +16352,7 @@ func (p *parser) visitFn(fn *js_ast.Fn, scopeLoc logger.Loc, opts visitFnOpts) {
 		isAsync:                        fn.IsAsync,
 		isGenerator:                    fn.IsGenerator,
 		isDerivedClassCtor:             opts.isDerivedClassCtor,
-		shouldLowerSuperPropertyAccess: fn.IsAsync && p.options.unsupportedJSFeatures.Has(compat.AsyncAwait),
+		shouldLowerSuperPropertyAccess: (fn.IsAsync && p.options.unsupportedJSFeatures.Has(compat.AsyncAwait)) || opts.isLoweredPrivateMethod,
 	}
 	p.fnOnlyDataVisit = fnOnlyDataVisit{
 		isThisNested:       true,
@@ -16351,13 +16360,10 @@ func (p *parser) visitFn(fn *js_ast.Fn, scopeLoc logger.Loc, opts visitFnOpts) {
 		argumentsRef:       &fn.ArgumentsRef,
 	}
 
-	if opts.isClassMethod {
+	if opts.isMethod {
 		decoratorScope = p.propMethodDecoratorScope
 		p.fnOnlyDataVisit.innerClassNameRef = oldFnOnlyData.innerClassNameRef
 		p.fnOnlyDataVisit.isInStaticClassContext = oldFnOnlyData.isInStaticClassContext
-		if oldFnOrArrowData.shouldLowerSuperPropertyAccess {
-			p.fnOrArrowDataVisit.shouldLowerSuperPropertyAccess = true
-		}
 	}
 
 	if fn.Name != nil {

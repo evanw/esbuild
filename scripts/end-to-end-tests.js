@@ -3772,6 +3772,29 @@ for (let flags of [[], ['--minify', '--keep-names']]) {
         if (foo.Foo.name !== 'Foo') throw 'fail: ' + foo.Foo.name
       `,
     }),
+
+    // See: https://github.com/evanw/esbuild/issues/3756
+    test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+      'in.js': `(() => { let obj = { fn() {} }; if (obj.fn.name !== 'fn') throw 'fail: ' + obj.fn.name })()`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+      'in.js': `(() => { let obj = { *fn() {} }; if (obj.fn.name !== 'fn') throw 'fail: ' + obj.fn.name })()`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+      'in.js': `(() => { let obj = { async fn() {} }; if (obj.fn.name !== 'fn') throw 'fail: ' + obj.fn.name })()`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+      'in.js': `(() => {
+        let obj = { get fn() {} }, { get } = Object.getOwnPropertyDescriptor(obj, 'fn')
+        if (get.name !== 'get fn') throw 'fail: ' + get.name
+      })()`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+      'in.js': `(() => {
+        let obj = { set fn(_) {} }, { set } = Object.getOwnPropertyDescriptor(obj, 'fn')
+        if (set.name !== 'set fn') throw 'fail: ' + set.name
+      })()`,
+    }),
   )
 }
 tests.push(

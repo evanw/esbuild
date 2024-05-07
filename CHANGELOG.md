@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+* Fix a regression with `--keep-names` ([#3756](https://github.com/evanw/esbuild/issues/3756))
+
+    The previous release introduced a regression with the `--keep-names` setting and object literals with `get`/`set` accessor methods, in which case the generated code contained syntax errors. This release fixes the regression:
+
+    ```js
+    // Original code
+    x = { get y() {} }
+
+    // Output from version 0.21.0 (with --keep-names)
+    x = { get y: /* @__PURE__ */ __name(function() {
+    }, "y") };
+
+    // Output from this version (with --keep-names)
+    x = { get y() {
+    } };
+    ```
+
 ## 0.21.0
 
 This release doesn't contain any deliberately-breaking changes. However, it contains a very complex new feature and while all of esbuild's tests pass, I would not be surprised if an important edge case turns out to be broken. So I'm releasing this as a breaking change release to avoid causing any trouble. As usual, make sure to test your code when you upgrade.
