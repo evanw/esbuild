@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.21.1
 
 * Fix a regression with `--keep-names` ([#3756](https://github.com/evanw/esbuild/issues/3756))
 
