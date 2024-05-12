@@ -850,9 +850,16 @@ func (ctx *lowerClassContext) lowerField(
 
 		// Optionally call registered decorator initializers
 		if initializerIndex != -1 {
+			var value js_ast.Expr
+			if prop.Flags.Has(js_ast.PropertyIsStatic) {
+				value = ctx.nameFunc()
+			} else {
+				value = js_ast.Expr{Loc: loc, Data: js_ast.EThisShared}
+			}
 			args := []js_ast.Expr{
 				{Loc: loc, Data: &js_ast.EIdentifier{Ref: ctx.decoratorContextRef}},
 				{Loc: loc, Data: &js_ast.ENumber{Value: float64((3 + 2*initializerIndex) << 1)}},
+				value,
 			}
 			if _, ok := init.Data.(*js_ast.EUndefined); !ok {
 				args = append(args, init)
@@ -1750,9 +1757,16 @@ func (ctx *lowerClassContext) processProperties(p *parser, classLoweringInfo cla
 
 				// Optionally call registered decorator initializers
 				if initializerIndex != -1 {
+					var value js_ast.Expr
+					if prop.Flags.Has(js_ast.PropertyIsStatic) {
+						value = ctx.nameFunc()
+					} else {
+						value = js_ast.Expr{Loc: loc, Data: js_ast.EThisShared}
+					}
 					args := []js_ast.Expr{
 						{Loc: loc, Data: &js_ast.EIdentifier{Ref: ctx.decoratorContextRef}},
 						{Loc: loc, Data: &js_ast.ENumber{Value: float64((3 + 2*initializerIndex) << 1)}},
+						value,
 					}
 					if _, ok := init.Data.(*js_ast.EUndefined); !ok {
 						args = append(args, init)

@@ -2132,7 +2132,7 @@ _init = [, , ,];
 _x_dec = [dec];
 class Foo {
   constructor() {
-    __publicField(this, "x", __runInitializers(_init, 6)), __runInitializers(_init, 9, this);
+    __publicField(this, "x", __runInitializers(_init, 6, this)), __runInitializers(_init, 9, this);
   }
 }
 __decorateElement(_init, 5, "x", _x_dec, Foo);
@@ -2156,7 +2156,7 @@ _init = [, , ,];
 _x_dec = [dec];
 class Foo {
   constructor() {
-    __privateAdd(this, _x, __runInitializers(_init, 6)), __runInitializers(_init, 9, this);
+    __privateAdd(this, _x, __runInitializers(_init, 6, this)), __runInitializers(_init, 9, this);
   }
 }
 _x = new WeakMap();
@@ -2169,7 +2169,7 @@ _x_dec = [dec];
 class Foo {
 }
 __decorateElement(_init, 13, "x", _x_dec, Foo);
-__publicField(Foo, "x", __runInitializers(_init, 6)), __runInitializers(_init, 9, Foo);
+__publicField(Foo, "x", __runInitializers(_init, 6, Foo)), __runInitializers(_init, 9, Foo);
 `)
 	expectPrintedWithUnsupportedFeaturesTS(t, compat.Decorators, "class Foo { @dec static x() {} }",
 		`var _x_dec, _init;
@@ -2190,7 +2190,7 @@ class Foo {
 }
 _x = new WeakMap();
 __decorateElement(_init, 12, "x", _x_dec, Foo, _x);
-__privateAdd(Foo, _x, __runInitializers(_init, 6)), __runInitializers(_init, 9, Foo);
+__privateAdd(Foo, _x, __runInitializers(_init, 6, Foo)), __runInitializers(_init, 9, Foo);
 `)
 
 	// Check ASI for "abstract"

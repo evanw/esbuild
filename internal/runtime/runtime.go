@@ -265,8 +265,8 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 		var __expectFn = fn => fn !== void 0 && typeof fn !== 'function' ? __typeError('Function expected') : fn
 		var __decoratorContext = (kind, name, done, fns) => ({ kind: __decoratorStrings[kind], name, addInitializer: fn =>
 			done._ ? __typeError('Already initialized') : fns.push(__expectFn(fn || null)), })
-		export var __runInitializers = (array, flags, value) => {
-			for (var i = 0, fns = array[flags >> 1], n = fns && fns.length; i < n; i++) flags & 1 ? fns[i].call(value) : value = (0, fns[i])(value)
+		export var __runInitializers = (array, flags, self, value) => {
+			for (var i = 0, fns = array[flags >> 1], n = fns && fns.length; i < n; i++) flags & 1 ? fns[i].call(self) : value = fns[i].call(self, value)
 			return value
 		}
 		export var __decorateElement = (array, flags, name, decorators, target, extra) => {

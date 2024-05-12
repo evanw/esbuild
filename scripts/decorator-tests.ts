@@ -799,9 +799,12 @@ const tests: Record<string, () => Promise<void> | void> = {
     lateAsserts!()
   },
   'Field decorators: Shim (instance field)': () => {
-    let log: number[] = []
+    let log: (boolean | number)[] = []
     const dec = (value: undefined, ctx: ClassFieldDecoratorContext) => {
-      return (x: number) => log.push(x)
+      return function (this: Foo, x: number) {
+        assertEq(() => this instanceof Foo, true)
+        return log.push('foo' in this, 'bar' in this, x)
+      }
     }
     class Foo {
       @dec foo = 123
@@ -809,82 +812,87 @@ const tests: Record<string, () => Promise<void> | void> = {
     }
     assertEq(() => log + '', '')
     var obj = new Foo
-    assertEq(() => obj.foo, 1)
-    assertEq(() => obj.bar, 2)
-    assertEq(() => log + '', '123,')
-    var obj = new Foo
     assertEq(() => obj.foo, 3)
-    assertEq(() => obj.bar, 4)
-    assertEq(() => log + '', '123,,123,')
+    assertEq(() => obj.bar, 6)
+    assertEq(() => log + '', 'false,false,123,true,false,')
   },
   'Field decorators: Shim (static field)': () => {
-    let log: number[] = []
+    let foo: typeof Foo
+    let log: (boolean | number)[] = []
     const dec = (value: undefined, ctx: ClassFieldDecoratorContext) => {
-      return (x: number) => log.push(x)
-    }
-    const fn = (foo: number, bar: number) => {
-      class Foo {
-        @dec static foo = 123
-        @dec static bar: number
+      return function (this: typeof Foo, x: number) {
+        assertEq(() => this, foo)
+        return log.push('foo' in this, 'bar' in this, x)
       }
-      assertEq(() => Foo.foo, foo)
-      assertEq(() => Foo.bar, bar)
     }
     assertEq(() => log + '', '')
-    fn(1, 2)
-    assertEq(() => log + '', '123,')
-    fn(3, 4)
-    assertEq(() => log + '', '123,,123,')
+    class Foo {
+      static {
+        foo = Foo
+      }
+      @dec static foo = 123
+      @dec static bar: number
+    }
+    assertEq(() => Foo.foo, 3)
+    assertEq(() => Foo.bar, 6)
+    assertEq(() => log + '', 'false,false,123,true,false,')
   },
   'Field decorators: Shim (private instance field)': () => {
-    let log: number[] = []
+    let log: (boolean | number)[] = []
     const dec = (value: undefined, ctx: ClassFieldDecoratorContext) => {
-      return (x: number) => log.push(x)
+      return function (this: Foo, x: number) {
+        assertEq(() => this instanceof Foo, true)
+        return log.push(has$foo(this), has$bar(this), x)
+      }
     }
+    let has$foo: (x: Foo) => boolean
+    let has$bar: (x: Foo) => boolean
     let get$foo: (x: Foo) => number
     let get$bar: (x: Foo) => number
     class Foo {
       @dec #foo = 123
       @dec #bar!: number
       static {
+        has$foo = x => #foo in x
+        has$bar = x => #bar in x
         get$foo = x => x.#foo
         get$bar = x => x.#bar
       }
     }
     assertEq(() => log + '', '')
     var obj = new Foo
-    assertEq(() => get$foo(obj), 1)
-    assertEq(() => get$bar(obj), 2)
-    assertEq(() => log + '', '123,')
-    var obj = new Foo
     assertEq(() => get$foo(obj), 3)
-    assertEq(() => get$bar(obj), 4)
-    assertEq(() => log + '', '123,,123,')
+    assertEq(() => get$bar(obj), 6)
+    assertEq(() => log + '', 'false,false,123,true,false,')
   },
   'Field decorators: Shim (private static field)': () => {
-    let log: number[] = []
+    let foo: typeof Foo
+    let log: (boolean | number)[] = []
     const dec = (value: undefined, ctx: ClassFieldDecoratorContext) => {
-      return (x: number) => log.push(x)
-    }
-    const fn = (foo: number, bar: number) => {
-      let get$foo: (x: typeof Foo) => number
-      let get$bar: (x: typeof Foo) => number
-      class Foo {
-        @dec static #foo = 123
-        @dec static #bar: number
-        static {
-          get$foo = x => x.#foo
-          get$bar = x => x.#bar
-        }
+      return function (this: typeof Foo, x: number) {
+        assertEq(() => this, foo)
+        return log.push(has$foo(this), has$bar(this), x)
       }
-      assertEq(() => get$foo(Foo), foo)
-      assertEq(() => get$bar(Foo), bar)
     }
     assertEq(() => log + '', '')
-    fn(1, 2)
-    assertEq(() => log + '', '123,')
-    fn(3, 4)
-    assertEq(() => log + '', '123,,123,')
+    let has$foo: (x: typeof Foo) => boolean
+    let has$bar: (x: typeof Foo) => boolean
+    let get$foo: (x: typeof Foo) => number
+    let get$bar: (x: typeof Foo) => number
+    class Foo {
+      static {
+        foo = Foo
+        has$foo = x => #foo in x
+        has$bar = x => #bar in x
+        get$foo = x => x.#foo
+        get$bar = x => x.#bar
+      }
+      @dec static #foo = 123
+      @dec static #bar: number
+    }
+    assertEq(() => get$foo(Foo), 3)
+    assertEq(() => get$bar(Foo), 6)
+    assertEq(() => log + '', 'false,false,123,true,false,')
   },
   'Field decorators: Order (instance field)': () => {
     const log: number[] = []
@@ -2084,7 +2092,10 @@ const tests: Record<string, () => Promise<void> | void> = {
     let get: (this: Foo) => number
     let set: (this: Foo, x: number) => void
     const dec = (target: ClassAccessorDecoratorTarget<Foo, number>, ctx: ClassAccessorDecoratorContext): ClassAccessorDecoratorResult<Foo, number> => {
-      const init = (x: number) => x + 1
+      function init(this: Foo, x: number): number {
+        assertEq(() => this instanceof Foo, true)
+        return x + 1
+      }
       get = function () { return target.get.call(this) * 10 }
       set = function (x) { target.set.call(this, x * 2) }
       return { get, set, init }
@@ -2100,15 +2111,22 @@ const tests: Record<string, () => Promise<void> | void> = {
     assertEq(() => obj.foo, (321 * 2) * 10)
   },
   'Auto-accessor decorators: Shim (static auto-accessor)': () => {
+    let foo: typeof Foo
     let get: (this: typeof Foo) => number
     let set: (this: typeof Foo, x: number) => void
     const dec = (target: ClassAccessorDecoratorTarget<typeof Foo, number>, ctx: ClassAccessorDecoratorContext): ClassAccessorDecoratorResult<typeof Foo, number> => {
-      const init = (x: number) => x + 1
+      function init(this: typeof Foo, x: number): number {
+        assertEq(() => this, foo)
+        return x + 1
+      }
       get = function () { return target.get.call(this) * 10 }
       set = function (x) { target.set.call(this, x * 2) }
       return { get, set, init }
     }
     class Foo {
+      static {
+        foo = Foo
+      }
       @dec static accessor foo = 123
     }
     assertEq(() => Object.getOwnPropertyDescriptor(Foo, 'foo')!.get, get!)
@@ -2121,7 +2139,10 @@ const tests: Record<string, () => Promise<void> | void> = {
     let get: (this: Foo) => number
     let set: (this: Foo, x: number) => void
     const dec = (target: ClassAccessorDecoratorTarget<Foo, number>, ctx: ClassAccessorDecoratorContext): ClassAccessorDecoratorResult<Foo, number> => {
-      const init = (x: number) => x + 1
+      function init(this: Foo, x: number): number {
+        assertEq(() => this instanceof Foo, true)
+        return x + 1
+      }
       get = function () { return target.get.call(this) * 10 }
       set = function (x) { target.set.call(this, x * 2) }
       return { get, set, init }
@@ -2141,10 +2162,14 @@ const tests: Record<string, () => Promise<void> | void> = {
     assertEq(() => get$foo(obj), (321 * 2) * 10)
   },
   'Auto-accessor decorators: Shim (private static auto-accessor)': () => {
+    let foo: typeof Foo
     let get: (this: typeof Foo) => number
     let set: (this: typeof Foo, x: number) => void
     const dec = (target: ClassAccessorDecoratorTarget<typeof Foo, number>, ctx: ClassAccessorDecoratorContext): ClassAccessorDecoratorResult<typeof Foo, number> => {
-      const init = (x: number) => x + 1
+      function init(this: typeof Foo, x: number): number {
+        assertEq(() => this, foo)
+        return x + 1
+      }
       get = function () { return target.get.call(this) * 10 }
       set = function (x) { target.set.call(this, x * 2) }
       return { get, set, init }
@@ -2152,11 +2177,12 @@ const tests: Record<string, () => Promise<void> | void> = {
     let get$foo: (x: typeof Foo) => number
     let set$foo: (x: typeof Foo, y: number) => void
     class Foo {
-      @dec static accessor #foo = 123
       static {
+        foo = Foo
         get$foo = x => x.#foo
         set$foo = (x, y) => { x.#foo = y }
       }
+      @dec static accessor #foo = 123
     }
     assertEq(() => get$foo(Foo), (123 + 1) * 10)
     assertEq(() => set$foo(Foo, 321), undefined)

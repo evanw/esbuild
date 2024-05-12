@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+* Correct `this` in field and accessor decorators ([#3761](https://github.com/evanw/esbuild/issues/3761))
+
+    This release changes the value of `this` in initializers for class field and accessor decorators from the module-level `this` value to the appropriate `this` value for the decorated element (either the class or the instance). It was previously incorrect due to lack of test coverage. Here's an example of a decorator that doesn't work without this change:
+
+    ```js
+    const dec = () => function() { this.bar = true }
+    class Foo { @dec static foo }
+    console.log(Foo.bar) // Should be "true"
+    ```
+
 * Allow `es2023` as a target environment ([#3762](https://github.com/evanw/esbuild/issues/3762))
 
     TypeScript recently [added `es2023`](https://github.com/microsoft/TypeScript/pull/58140) as a compilation target, so esbuild now supports this too. There is no difference between a target of `es2022` and `es2023` as far as esbuild is concerned since the 2023 edition of JavaScript doesn't introduce any new syntax features.
