@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.21.2
 
 * Correct `this` in field and accessor decorators ([#3761](https://github.com/evanw/esbuild/issues/3761))
 
