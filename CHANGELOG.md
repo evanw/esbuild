@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Allow `es2023` as a target environment ([#3762](https://github.com/evanw/esbuild/issues/3762))
+
+    TypeScript recently [added `es2023`](https://github.com/microsoft/TypeScript/pull/58140) as a compilation target, so esbuild now supports this too. There is no difference between a target of `es2022` and `es2023` as far as esbuild is concerned since the 2023 edition of JavaScript doesn't introduce any new syntax features.
+
 ## 0.21.1
 
 * Fix a regression with `--keep-names` ([#3756](https://github.com/evanw/esbuild/issues/3756))
