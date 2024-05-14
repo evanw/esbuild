@@ -823,8 +823,9 @@ func (ctx *lowerClassContext) lowerField(
 	shouldOmitFieldInitializer bool,
 	staticFieldToBlockAssign bool,
 	initializerIndex int,
-) (js_ast.Property, bool) {
+) (js_ast.Property, ast.Ref, bool) {
 	mustLowerPrivate := private != nil && p.privateSymbolNeedsToBeLowered(private)
+	ref := ast.InvalidRef
 
 	// The TypeScript compiler doesn't follow the JavaScript spec for
 	// uninitialized fields. They are supposed to be set to undefined but the
@@ -872,7 +873,7 @@ func (ctx *lowerClassContext) lowerField(
 		var memberExpr js_ast.Expr
 		if mustLowerPrivate {
 			// Generate a new symbol for this private field
-			ref := p.generateTempRef(tempRefNeedsDeclare, "_"+p.symbols[private.Ref.InnerIndex].OriginalName[1:])
+			ref = p.generateTempRef(tempRefNeedsDeclare, "_"+p.symbols[private.Ref.InnerIndex].OriginalName[1:])
 			p.symbols[private.Ref.InnerIndex].Link = ref
 
 			// Initialize the private field to a new WeakMap
@@ -949,7 +950,7 @@ func (ctx *lowerClassContext) lowerField(
 							{Loc: loc, Data: &js_ast.SExpr{Value: memberExpr}}},
 						},
 					},
-				}, true
+				}, ref, true
 			} else {
 				// Move this property to an assignment after the class ends
 				ctx.staticMembers = append(ctx.staticMembers, memberExpr)
@@ -962,12 +963,12 @@ func (ctx *lowerClassContext) lowerField(
 
 	if private == nil || mustLowerPrivate {
 		// Remove the field from the class body
-		return js_ast.Property{}, false
+		return js_ast.Property{}, ref, false
 	}
 
 	// Keep the private field but remove the initializer
 	prop.InitializerOrNil = js_ast.Expr{}
-	return prop, true
+	return prop, ref, true
 }
 
 func (ctx *lowerClassContext) lowerPrivateMethod(p *parser, prop js_ast.Property, private *js_ast.EPrivateIdentifier) {
@@ -1180,19 +1181,17 @@ func (ctx *lowerClassContext) analyzeProperty(p *parser, prop js_ast.Property, c
 	return
 }
 
-func (p *parser) propertyNameHint(key js_ast.Expr, suffix string) string {
-	var text string
+func (p *parser) propertyNameHint(key js_ast.Expr) string {
 	switch k := key.Data.(type) {
 	case *js_ast.EString:
-		text = helpers.UTF16ToString(k.Value)
+		return helpers.UTF16ToString(k.Value)
 	case *js_ast.EIdentifier:
-		text = p.symbols[k.Ref.InnerIndex].OriginalName
+		return p.symbols[k.Ref.InnerIndex].OriginalName
 	case *js_ast.EPrivateIdentifier:
-		text = p.symbols[k.Ref.InnerIndex].OriginalName[1:]
+		return p.symbols[k.Ref.InnerIndex].OriginalName[1:]
 	default:
-		return suffix
+		return ""
 	}
-	return fmt.Sprintf("_%s%s", text, suffix)
 }
 
 func (ctx *lowerClassContext) hoistComputedProperties(p *parser, classLoweringInfo classLoweringInfo) (
@@ -1234,7 +1233,12 @@ func (ctx *lowerClassContext) hoistComputedProperties(p *parser, classLoweringIn
 		// Evaluate the decorator expressions inline before computed property keys
 		var decorators js_ast.Expr
 		if len(analysis.propDecorators) > 0 {
-			ref := p.generateTempRef(tempRefNeedsDeclare, p.propertyNameHint(prop.Key, "_dec"))
+			name := p.propertyNameHint(prop.Key)
+			if name != "" {
+				name = "_" + name
+			}
+			name += "_dec"
+			ref := p.generateTempRef(tempRefNeedsDeclare, name)
 			values := make([]js_ast.Expr, len(analysis.propDecorators))
 			for i, decorator := range analysis.propDecorators {
 				values[i] = decorator.Value
@@ -1676,16 +1680,20 @@ func (ctx *lowerClassContext) processProperties(p *parser, classLoweringInfo cla
 				args = append(args, ctx.nameFunc())
 			}
 
-			autoAccessorWeakMapRef := ast.InvalidRef
+			// Auto-accessors will generate a private field for storage. Lower this
+			// field, which will generate a WeakMap instance, and then pass the
+			// WeakMap instance into the decorator helper so the lowered getter and
+			// setter can use it.
 			if prop.Kind == js_ast.PropertyAutoAccessor {
-				// Initialize the private field to a new WeakMap
-				if p.weakMapRef == ast.InvalidRef {
-					p.weakMapRef = p.newSymbol(ast.SymbolUnbound, "WeakMap")
-					p.moduleScope.Generated = append(p.moduleScope.Generated, p.weakMapRef)
+				var kind ast.SymbolKind
+				if prop.Flags.Has(js_ast.PropertyIsStatic) {
+					kind = ast.SymbolPrivateStaticField
+				} else {
+					kind = ast.SymbolPrivateField
 				}
-
-				// Pass the WeakMap instance into the decorator helper
-				autoAccessorWeakMapRef = p.generateTempRef(tempRefNeedsDeclare, p.propertyNameHint(prop.Key, ""))
+				ref := p.newSymbol(kind, "#"+p.propertyNameHint(prop.Key))
+				p.symbols[ref.InnerIndex].Flags |= ast.PrivateSymbolMustBeLowered
+				_, autoAccessorWeakMapRef, _ := ctx.lowerField(p, prop, &js_ast.EPrivateIdentifier{Ref: ref}, false, false, initializerIndex)
 				args = append(args, js_ast.Expr{Loc: keyLoc, Data: &js_ast.EIdentifier{Ref: autoAccessorWeakMapRef}})
 				p.recordUsage(autoAccessorWeakMapRef)
 			}
@@ -1739,80 +1747,6 @@ func (ctx *lowerClassContext) processProperties(p *parser, classLoweringInfo cla
 
 			// Omit decorated auto-accessors as they will be now generated at run-time instead
 			if prop.Kind == js_ast.PropertyAutoAccessor {
-				// Determine where to store the field
-				var target js_ast.Expr
-				if prop.Flags.Has(js_ast.PropertyIsStatic) && !analysis.staticFieldToBlockAssign {
-					target = ctx.nameFunc()
-				} else {
-					target = js_ast.Expr{Loc: loc, Data: js_ast.EThisShared}
-				}
-
-				// Generate the assignment initializer
-				var init js_ast.Expr
-				if prop.InitializerOrNil.Data != nil {
-					init = prop.InitializerOrNil
-				} else {
-					init = js_ast.Expr{Loc: loc, Data: js_ast.EUndefinedShared}
-				}
-
-				// Optionally call registered decorator initializers
-				if initializerIndex != -1 {
-					var value js_ast.Expr
-					if prop.Flags.Has(js_ast.PropertyIsStatic) {
-						value = ctx.nameFunc()
-					} else {
-						value = js_ast.Expr{Loc: loc, Data: js_ast.EThisShared}
-					}
-					args := []js_ast.Expr{
-						{Loc: loc, Data: &js_ast.EIdentifier{Ref: ctx.decoratorContextRef}},
-						{Loc: loc, Data: &js_ast.ENumber{Value: float64((3 + 2*initializerIndex) << 1)}},
-						value,
-					}
-					if _, ok := init.Data.(*js_ast.EUndefined); !ok {
-						args = append(args, init)
-					}
-					init = p.callRuntime(init.Loc, "__runInitializers", args)
-					p.recordUsage(ctx.decoratorContextRef)
-				}
-
-				// Initialize the private field to a new WeakMap
-				ctx.privateMembers = append(ctx.privateMembers, js_ast.Assign(
-					js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: autoAccessorWeakMapRef}},
-					js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.ENew{Target: js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: p.weakMapRef}}}},
-				))
-				p.recordUsage(autoAccessorWeakMapRef)
-
-				// Add every newly-constructed instance into this map
-				key := js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: autoAccessorWeakMapRef}}
-				args := []js_ast.Expr{target, key}
-				if _, ok := init.Data.(*js_ast.EUndefined); !ok {
-					args = append(args, init)
-				}
-				memberExpr := p.callRuntime(loc, "__privateAdd", args)
-				p.recordUsage(autoAccessorWeakMapRef)
-
-				// Run extra initializers
-				if initializerIndex != -1 {
-					var value js_ast.Expr
-					if prop.Flags.Has(js_ast.PropertyIsStatic) {
-						value = ctx.nameFunc()
-					} else {
-						value = js_ast.Expr{Loc: loc, Data: js_ast.EThisShared}
-					}
-					memberExpr = js_ast.JoinWithComma(memberExpr, p.callRuntime(loc, "__runInitializers", []js_ast.Expr{
-						{Loc: loc, Data: &js_ast.EIdentifier{Ref: ctx.decoratorContextRef}},
-						{Loc: loc, Data: &js_ast.ENumber{Value: float64(((4 + 2*initializerIndex) << 1) | 1)}},
-						value,
-					}))
-					p.recordUsage(ctx.decoratorContextRef)
-				}
-
-				if prop.Flags.Has(js_ast.PropertyIsStatic) {
-					ctx.staticMembers = append(ctx.staticMembers, memberExpr)
-				} else {
-					ctx.instanceMembers = append(ctx.instanceMembers, js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{Value: memberExpr}})
-				}
-
 				if analysis.private != nil {
 					ctx.lowerPrivateMethod(p, prop, analysis.private)
 				}
@@ -1829,7 +1763,7 @@ func (ctx *lowerClassContext) processProperties(p *parser, classLoweringInfo cla
 		// Lower fields
 		if (!prop.Kind.IsMethodDefinition() && analysis.mustLowerField) || analysis.staticFieldToBlockAssign {
 			var keep bool
-			prop, keep = ctx.lowerField(p, prop, analysis.private, analysis.shouldOmitFieldInitializer, analysis.staticFieldToBlockAssign, initializerIndex)
+			prop, _, keep = ctx.lowerField(p, prop, analysis.private, analysis.shouldOmitFieldInitializer, analysis.staticFieldToBlockAssign, initializerIndex)
 			if !keep {
 				continue
 			}
@@ -1936,7 +1870,7 @@ func (ctx *lowerClassContext) rewriteAutoAccessorToGetSet(
 	}
 	if !mustLowerField {
 		properties = append(properties, storageProp)
-	} else if prop, ok := ctx.lowerField(p, storageProp, storagePrivate, false, false, -1); ok {
+	} else if prop, _, ok := ctx.lowerField(p, storageProp, storagePrivate, false, false, -1); ok {
 		properties = append(properties, prop)
 	}
 
