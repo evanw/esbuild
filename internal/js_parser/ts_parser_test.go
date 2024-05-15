@@ -2119,27 +2119,26 @@ func TestTSDecorators(t *testing.T) {
 
 	expectPrintedWithUnsupportedFeaturesTS(t, compat.Decorators, "@dec class Foo {}",
 		`var _Foo_decorators, _init;
-_init = [, , ,];
 _Foo_decorators = [dec];
 class Foo {
 }
+_init = [, , ,];
 Foo = __decorateElement(_init, 0, "Foo", _Foo_decorators, Foo);
 __runInitializers(_init, 1, Foo);
 `)
 	expectPrintedWithUnsupportedFeaturesTS(t, compat.Decorators, "class Foo { @dec x }",
 		`var _x_dec, _init;
-_init = [, , ,];
 _x_dec = [dec];
 class Foo {
   constructor() {
     __publicField(this, "x", __runInitializers(_init, 6, this)), __runInitializers(_init, 9, this);
   }
 }
+_init = [, , ,];
 __decorateElement(_init, 5, "x", _x_dec, Foo);
 `)
 	expectPrintedWithUnsupportedFeaturesTS(t, compat.Decorators, "class Foo { @dec x() {} }",
 		`var _x_dec, _init;
-_init = [, , ,];
 _x_dec = [dec];
 class Foo {
   constructor() {
@@ -2148,46 +2147,47 @@ class Foo {
   x() {
   }
 }
+_init = [, , ,];
 __decorateElement(_init, 1, "x", _x_dec, Foo);
 `)
 	expectPrintedWithUnsupportedFeaturesTS(t, compat.Decorators, "class Foo { @dec accessor x }",
 		`var _x_dec, _init, _x;
-_init = [, , ,];
 _x_dec = [dec];
 class Foo {
   constructor() {
     __privateAdd(this, _x, __runInitializers(_init, 6, this)), __runInitializers(_init, 9, this);
   }
 }
+_init = [, , ,];
 _x = new WeakMap();
 __decorateElement(_init, 4, "x", _x_dec, Foo, _x);
 `)
 	expectPrintedWithUnsupportedFeaturesTS(t, compat.Decorators, "class Foo { @dec static x }",
 		`var _x_dec, _init;
-_init = [, , ,];
 _x_dec = [dec];
 class Foo {
 }
+_init = [, , ,];
 __decorateElement(_init, 13, "x", _x_dec, Foo);
 __publicField(Foo, "x", __runInitializers(_init, 6, Foo)), __runInitializers(_init, 9, Foo);
 `)
 	expectPrintedWithUnsupportedFeaturesTS(t, compat.Decorators, "class Foo { @dec static x() {} }",
 		`var _x_dec, _init;
-_init = [, , ,];
 _x_dec = [dec];
 class Foo {
   static x() {
   }
 }
+_init = [, , ,];
 __decorateElement(_init, 9, "x", _x_dec, Foo);
 __runInitializers(_init, 3, Foo);
 `)
 	expectPrintedWithUnsupportedFeaturesTS(t, compat.Decorators, "class Foo { @dec static accessor x }",
 		`var _x_dec, _init, _x;
-_init = [, , ,];
 _x_dec = [dec];
 class Foo {
 }
+_init = [, , ,];
 _x = new WeakMap();
 __decorateElement(_init, 12, "x", _x_dec, Foo, _x);
 __privateAdd(Foo, _x, __runInitializers(_init, 6, Foo)), __runInitializers(_init, 9, Foo);

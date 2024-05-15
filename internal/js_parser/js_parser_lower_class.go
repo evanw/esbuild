@@ -2145,7 +2145,7 @@ func (ctx *lowerClassContext) finishAndGenerateCode(p *parser, result visitClass
 
 	// If there are JavaScript decorators, start by allocating a context object
 	if ctx.decoratorContextRef != ast.InvalidRef {
-		prefixExprs = append(prefixExprs, js_ast.Assign(
+		suffixExprs = append(suffixExprs, js_ast.Assign(
 			js_ast.Expr{Loc: ctx.classLoc, Data: &js_ast.EIdentifier{Ref: ctx.decoratorContextRef}},
 			js_ast.Expr{Loc: ctx.classLoc, Data: &js_ast.EArray{IsSingleLine: true, Items: []js_ast.Expr{
 				{Loc: ctx.classLoc, Data: js_ast.EMissingShared}, // classExtraInitializers
