@@ -627,10 +627,10 @@ var _foo_dec, _init, _foo;
 _foo_dec = [dec];
 var _Foo = class _Foo {
   constructor() {
-    __privateAdd(this, _foo, __runInitializers(_init, 6, this, _Foo)), __runInitializers(_init, 9, this);
+    __privateAdd(this, _foo, __runInitializers(_init, 8, this, _Foo)), __runInitializers(_init, 11, this);
   }
 };
-_init = [, , ,];
+_init = __decoratorStart(null);
 _foo = new WeakMap();
 __decorateElement(_init, 4, "foo", _foo_dec, _Foo, _foo);
 var Foo = _Foo;
@@ -641,10 +641,10 @@ var _foo_dec, _init;
 _foo_dec = [dec];
 var _Foo = class _Foo {
   constructor() {
-    __publicField(this, "foo", __runInitializers(_init, 6, this, _Foo)), __runInitializers(_init, 9, this);
+    __publicField(this, "foo", __runInitializers(_init, 8, this, _Foo)), __runInitializers(_init, 11, this);
   }
 };
-_init = [, , ,];
+_init = __decoratorStart(null);
 __decorateElement(_init, 5, "foo", _foo_dec, _Foo);
 var Foo = _Foo;
 
@@ -660,7 +660,7 @@ var _Foo = class _Foo {
     return _Foo;
   }
 };
-_init = [, , ,];
+_init = __decoratorStart(null);
 __decorateElement(_init, 1, "foo", _foo_dec, _Foo);
 var Foo = _Foo;
 
@@ -670,10 +670,10 @@ var _foo_dec, _init, _foo;
 _foo_dec = [dec];
 var _Foo = class _Foo {
 };
-_init = [, , ,];
+_init = __decoratorStart(null);
 _foo = new WeakMap();
 __decorateElement(_init, 12, "foo", _foo_dec, _Foo, _foo);
-__privateAdd(_Foo, _foo, __runInitializers(_init, 6, _Foo, _Foo)), __runInitializers(_init, 9, _Foo);
+__privateAdd(_Foo, _foo, __runInitializers(_init, 8, _Foo, _Foo)), __runInitializers(_init, 11, _Foo);
 var Foo = _Foo;
 
 ---------- /out/base-static-field.js ----------
@@ -682,9 +682,9 @@ var _foo_dec, _init;
 _foo_dec = [dec];
 var _Foo = class _Foo {
 };
-_init = [, , ,];
+_init = __decoratorStart(null);
 __decorateElement(_init, 13, "foo", _foo_dec, _Foo);
-__publicField(_Foo, "foo", __runInitializers(_init, 6, _Foo, _Foo)), __runInitializers(_init, 9, _Foo);
+__publicField(_Foo, "foo", __runInitializers(_init, 8, _Foo, _Foo)), __runInitializers(_init, 11, _Foo);
 var Foo = _Foo;
 
 ---------- /out/base-static-method.js ----------
@@ -696,7 +696,7 @@ var _Foo = class _Foo {
     return _Foo;
   }
 };
-_init = [, , ,];
+_init = __decoratorStart(null);
 __decorateElement(_init, 9, "foo", _foo_dec, _Foo);
 __runInitializers(_init, 3, _Foo);
 var Foo = _Foo;
@@ -707,10 +707,10 @@ var _foo_dec, _a, _init, _foo;
 var _Foo = class _Foo extends (_a = Bar, _foo_dec = [dec], _a) {
   constructor() {
     super(...arguments);
-    __privateAdd(this, _foo, __runInitializers(_init, 6, this, _Foo)), __runInitializers(_init, 9, this);
+    __privateAdd(this, _foo, __runInitializers(_init, 8, this, _Foo)), __runInitializers(_init, 11, this);
   }
 };
-_init = [, , ,];
+_init = __decoratorStart(_a);
 _foo = new WeakMap();
 __decorateElement(_init, 4, "foo", _foo_dec, _Foo, _foo);
 var Foo = _Foo;
@@ -721,10 +721,10 @@ var _foo_dec, _a, _init;
 var _Foo = class _Foo extends (_a = Bar, _foo_dec = [dec], _a) {
   constructor() {
     super(...arguments);
-    __publicField(this, "foo", __runInitializers(_init, 6, this, _Foo)), __runInitializers(_init, 9, this);
+    __publicField(this, "foo", __runInitializers(_init, 8, this, _Foo)), __runInitializers(_init, 11, this);
   }
 };
-_init = [, , ,];
+_init = __decoratorStart(_a);
 __decorateElement(_init, 5, "foo", _foo_dec, _Foo);
 var Foo = _Foo;
 
@@ -740,7 +740,7 @@ var _Foo = class _Foo extends (_a = Bar, _foo_dec = [dec], _a) {
     return _Foo;
   }
 };
-_init = [, , ,];
+_init = __decoratorStart(_a);
 __decorateElement(_init, 1, "foo", _foo_dec, _Foo);
 var Foo = _Foo;
 
@@ -749,10 +749,10 @@ var Foo = _Foo;
 var _foo_dec, _a, _init, _foo;
 var _Foo = class _Foo extends (_a = Bar, _foo_dec = [dec], _a) {
 };
-_init = [, , ,];
+_init = __decoratorStart(_a);
 _foo = new WeakMap();
 __decorateElement(_init, 12, "foo", _foo_dec, _Foo, _foo);
-__privateAdd(_Foo, _foo, __runInitializers(_init, 6, _Foo, _Foo)), __runInitializers(_init, 9, _Foo);
+__privateAdd(_Foo, _foo, __runInitializers(_init, 8, _Foo, _Foo)), __runInitializers(_init, 11, _Foo);
 var Foo = _Foo;
 
 ---------- /out/derived-static-field.js ----------
@@ -760,9 +760,9 @@ var Foo = _Foo;
 var _foo_dec, _a, _init;
 var _Foo = class _Foo extends (_a = Bar, _foo_dec = [dec], _a) {
 };
-_init = [, , ,];
+_init = __decoratorStart(_a);
 __decorateElement(_init, 13, "foo", _foo_dec, _Foo);
-__publicField(_Foo, "foo", __runInitializers(_init, 6, _Foo, _Foo)), __runInitializers(_init, 9, _Foo);
+__publicField(_Foo, "foo", __runInitializers(_init, 8, _Foo, _Foo)), __runInitializers(_init, 11, _Foo);
 var Foo = _Foo;
 
 ---------- /out/derived-static-method.js ----------
@@ -773,7 +773,7 @@ var _Foo = class _Foo extends (_a = Bar, _foo_dec = [dec], _a) {
     return _Foo;
   }
 };
-_init = [, , ,];
+_init = __decoratorStart(_a);
 __decorateElement(_init, 9, "foo", _foo_dec, _Foo);
 __runInitializers(_init, 3, _Foo);
 var Foo = _Foo;

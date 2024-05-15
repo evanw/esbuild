@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+* Implement the decorator metadata proposal ([#3760](https://github.com/evanw/esbuild/issues/3760))
+
+    This release implements the [decorator metadata proposal](https://github.com/tc39/proposal-decorator-metadata), which is a sub-proposal of the [decorators proposal](https://github.com/tc39/proposal-decorators). Microsoft shipped the decorators proposal in [TypeScript 5.0](https://devblogs.microsoft.com/typescript/announcing-typescript-5-0/#decorators) and the decorator metadata proposal in [TypeScript 5.2](https://devblogs.microsoft.com/typescript/announcing-typescript-5-2/#decorator-metadata), so it's important that esbuild also supports both of these features. Here's a quick example:
+
+    ```js
+    // Shim the "Symbol.metadata" symbol
+    Symbol.metadata ??= Symbol('Symbol.metadata')
+
+    const track = (_, context) => {
+      (context.metadata.names ||= []).push(context.name)
+    }
+
+    class Foo {
+      @track foo = 1
+      @track bar = 2
+    }
+
+    // Prints ["foo", "bar"]
+    console.log(Foo[Symbol.metadata].names)
+    ```
+
+    **⚠️ WARNING ⚠️**
+
+    This proposal has been marked as "stage 3" which means "recommended for implementation". However, it's still a work in progress and isn't a part of JavaScript yet, so keep in mind that any code that uses JavaScript decorator metadata may need to be updated as the feature continues to evolve. If/when that happens, I will update esbuild's implementation to match the specification. I will not be supporting old versions of the specification.
+
 * Fix bundled decorators in derived classes ([#3768](https://github.com/evanw/esbuild/issues/3768))
 
     In certain cases, bundling code that uses decorators in a derived class with a class body that references its own class name could previously generate code that crashes at run-time due to an incorrect variable name. This problem has been fixed. Here is an example of code that was compiled incorrectly before this fix:

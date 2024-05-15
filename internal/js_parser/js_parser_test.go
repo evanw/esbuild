@@ -2077,7 +2077,7 @@ func TestDecorators(t *testing.T) {
 _Foo_decorators = [dec];
 class Foo {
 }
-_init = [, , ,];
+_init = __decoratorStart(null);
 Foo = __decorateElement(_init, 0, "Foo", _Foo_decorators, Foo);
 __runInitializers(_init, 1, Foo);
 `)
@@ -2086,10 +2086,10 @@ __runInitializers(_init, 1, Foo);
 _x_dec = [dec];
 class Foo {
   constructor() {
-    __publicField(this, "x", __runInitializers(_init, 6, this)), __runInitializers(_init, 9, this);
+    __publicField(this, "x", __runInitializers(_init, 8, this)), __runInitializers(_init, 11, this);
   }
 }
-_init = [, , ,];
+_init = __decoratorStart(null);
 __decorateElement(_init, 5, "x", _x_dec, Foo);
 `)
 	expectPrintedWithUnsupportedFeatures(t, compat.Decorators, "class Foo { @dec x() {} }",
@@ -2102,7 +2102,7 @@ class Foo {
   x() {
   }
 }
-_init = [, , ,];
+_init = __decoratorStart(null);
 __decorateElement(_init, 1, "x", _x_dec, Foo);
 `)
 	expectPrintedWithUnsupportedFeatures(t, compat.Decorators, "class Foo { @dec accessor x }",
@@ -2110,10 +2110,10 @@ __decorateElement(_init, 1, "x", _x_dec, Foo);
 _x_dec = [dec];
 class Foo {
   constructor() {
-    __privateAdd(this, _x, __runInitializers(_init, 6, this)), __runInitializers(_init, 9, this);
+    __privateAdd(this, _x, __runInitializers(_init, 8, this)), __runInitializers(_init, 11, this);
   }
 }
-_init = [, , ,];
+_init = __decoratorStart(null);
 _x = new WeakMap();
 __decorateElement(_init, 4, "x", _x_dec, Foo, _x);
 `)
@@ -2122,9 +2122,9 @@ __decorateElement(_init, 4, "x", _x_dec, Foo, _x);
 _x_dec = [dec];
 class Foo {
 }
-_init = [, , ,];
+_init = __decoratorStart(null);
 __decorateElement(_init, 13, "x", _x_dec, Foo);
-__publicField(Foo, "x", __runInitializers(_init, 6, Foo)), __runInitializers(_init, 9, Foo);
+__publicField(Foo, "x", __runInitializers(_init, 8, Foo)), __runInitializers(_init, 11, Foo);
 `)
 	expectPrintedWithUnsupportedFeatures(t, compat.Decorators, "class Foo { @dec static x() {} }",
 		`var _x_dec, _init;
@@ -2133,7 +2133,7 @@ class Foo {
   static x() {
   }
 }
-_init = [, , ,];
+_init = __decoratorStart(null);
 __decorateElement(_init, 9, "x", _x_dec, Foo);
 __runInitializers(_init, 3, Foo);
 `)
@@ -2142,10 +2142,10 @@ __runInitializers(_init, 3, Foo);
 _x_dec = [dec];
 class Foo {
 }
-_init = [, , ,];
+_init = __decoratorStart(null);
 _x = new WeakMap();
 __decorateElement(_init, 12, "x", _x_dec, Foo, _x);
-__privateAdd(Foo, _x, __runInitializers(_init, 6, Foo)), __runInitializers(_init, 9, Foo);
+__privateAdd(Foo, _x, __runInitializers(_init, 8, Foo)), __runInitializers(_init, 11, Foo);
 `)
 
 	// Check ASI for "abstract"
