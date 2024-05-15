@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.21.3
 
 * Implement the decorator metadata proposal ([#3760](https://github.com/evanw/esbuild/issues/3760))
 
