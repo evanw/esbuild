@@ -1165,6 +1165,13 @@ var errParseErrorAlreadyLogged = errors.New("(error already logged)")
 // Nested calls may also return "parseErrorImportCycle". In that case the
 // caller is responsible for logging an appropriate error message.
 func (r resolverQuery) parseTSConfig(file string, visited map[string]bool) (*TSConfigJSON, error) {
+	// Resolve any symlinks first before parsing the file
+	if !r.options.PreserveSymlinks {
+		if real, ok := r.fs.EvalSymlinks(file); ok {
+			file = real
+		}
+	}
+
 	// Don't infinite loop if a series of "extends" links forms a cycle
 	if visited[file] {
 		return nil, errParseErrorImportCycle

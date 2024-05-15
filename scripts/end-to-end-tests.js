@@ -218,6 +218,30 @@ tests.push(
       export let bar = 'bar'
     `,
   }),
+
+  // See: https://github.com/evanw/esbuild/issues/3767
+  test(['apps/client/src/index.ts', '--bundle', '--outfile=node.js'], {
+    'apps/client/src/index.ts': `
+      import { foo } from '~/foo'
+      if (foo !== 'foo') throw 'fail'
+    `,
+    'apps/client/src/foo.ts': `
+      export const foo = 'foo'
+    `,
+    'apps/client/tsconfig.json': `{
+      "extends": "@repo/tsconfig/base"
+    }`,
+    'apps/client/node_modules/@repo/tsconfig': {
+      symlink: `../../../../tooling/typescript`,
+    },
+    'tooling/typescript/base.json': `{
+      "compilerOptions": {
+        "paths": {
+          "~/*": ["../../apps/client/src/*"]
+        }
+      }
+    }`,
+  }),
 )
 
 // Test coverage for a special JSX error message

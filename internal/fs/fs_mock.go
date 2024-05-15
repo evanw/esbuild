@@ -281,6 +281,10 @@ func (fs *mockFS) Rel(base string, target string) (string, bool) {
 	return target, true
 }
 
+func (fs *mockFS) EvalSymlinks(path string) (string, bool) {
+	return "", false
+}
+
 func (fs *mockFS) kind(dir string, base string) (symlink string, kind EntryKind) {
 	panic("This should never be called")
 }

@@ -322,6 +322,10 @@ func (fs *zipFS) Rel(base string, target string) (string, bool) {
 	return fs.inner.Rel(base, target)
 }
 
+func (fs *zipFS) EvalSymlinks(path string) (string, bool) {
+	return fs.inner.EvalSymlinks(path)
+}
+
 func (fs *zipFS) kind(dir string, base string) (symlink string, kind EntryKind) {
 	return fs.inner.kind(dir, base)
 }

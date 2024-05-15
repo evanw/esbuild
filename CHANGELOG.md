@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix `tsconfig.json` files inside symlinked directories ([#3767](https://github.com/evanw/esbuild/issues/3767))
+
+    This release fixes an issue with a scenario involving a `tsconfig.json` file that `extends` another file from within a symlinked directory that uses the `paths` feature. In that case, the implicit `baseURL` value should be based on the real path (i.e. after expanding all symbolic links) instead of the original path. This was already done for other files that esbuild resolves but was not yet done for `tsconfig.json` because it's special-cased (the regular path resolver can't be used because the information inside `tsconfig.json` is involved in path resolution). Note that this fix no longer applies if the `--preserve-symlinks` setting is enabled.
+
 ## 0.21.2
 
 * Correct `this` in field and accessor decorators ([#3761](https://github.com/evanw/esbuild/issues/3761))
