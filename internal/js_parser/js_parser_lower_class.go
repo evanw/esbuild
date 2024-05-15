@@ -1993,7 +1993,7 @@ func (ctx *lowerClassContext) insertInitializersIntoConstructor(p *parser, class
 	if ctx.decoratorCallInstanceMethodExtraInitializers {
 		decoratorInstanceMethodExtraInitializers = p.callRuntime(ctx.classLoc, "__runInitializers", []js_ast.Expr{
 			{Loc: ctx.classLoc, Data: &js_ast.EIdentifier{Ref: ctx.decoratorContextRef}},
-			{Loc: ctx.classLoc, Data: &js_ast.ENumber{Value: 5}},
+			{Loc: ctx.classLoc, Data: &js_ast.ENumber{Value: (2 << 1) | 1}},
 			{Loc: ctx.classLoc, Data: js_ast.EThisShared},
 		})
 		p.recordUsage(ctx.decoratorContextRef)
@@ -2183,7 +2183,7 @@ func (ctx *lowerClassContext) finishAndGenerateCode(p *parser, result visitClass
 	if ctx.decoratorCallStaticMethodExtraInitializers {
 		suffixExprs = append(suffixExprs, p.callRuntime(ctx.classLoc, "__runInitializers", []js_ast.Expr{
 			{Loc: ctx.classLoc, Data: &js_ast.EIdentifier{Ref: ctx.decoratorContextRef}},
-			{Loc: ctx.classLoc, Data: &js_ast.ENumber{Value: 3}},
+			{Loc: ctx.classLoc, Data: &js_ast.ENumber{Value: (1 << 1) | 1}},
 			ctx.nameFunc(),
 		}))
 		p.recordUsage(ctx.decoratorContextRef)
@@ -2201,7 +2201,7 @@ func (ctx *lowerClassContext) finishAndGenerateCode(p *parser, result visitClass
 	if decorateClassExpr.Data != nil {
 		suffixExprs = append(suffixExprs, p.callRuntime(ctx.classLoc, "__runInitializers", []js_ast.Expr{
 			{Loc: ctx.classLoc, Data: &js_ast.EIdentifier{Ref: ctx.decoratorContextRef}},
-			{Loc: ctx.classLoc, Data: &js_ast.ENumber{Value: 1}},
+			{Loc: ctx.classLoc, Data: &js_ast.ENumber{Value: (0 << 1) | 1}},
 			ctx.nameFunc(),
 		}))
 		p.recordUsage(ctx.decoratorContextRef)
