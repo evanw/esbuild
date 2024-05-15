@@ -623,12 +623,12 @@ const (
 )
 
 type lowerClassContext struct {
-	optionalNameHint string
-	kind             classKind
-	class            *js_ast.Class
-	classLoc         logger.Loc
-	classExpr        js_ast.Expr // Only for "kind == classKindExpr", may be replaced by "nameFunc()"
-	defaultName      ast.LocRef
+	nameToKeep  string
+	kind        classKind
+	class       *js_ast.Class
+	classLoc    logger.Loc
+	classExpr   js_ast.Expr // Only for "kind == classKindExpr", may be replaced by "nameFunc()"
+	defaultName ast.LocRef
 
 	ctor                   *js_ast.EFunction
 	parameterFields        []js_ast.Stmt
@@ -679,8 +679,9 @@ type lowerClassContext struct {
 // body (e.g. the contents of initializers, methods, and static blocks). Those
 // have already been transformed by "visitClass" by this point. It's done that
 // way for performance so that we don't need to do another AST pass.
-func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClassResult) ([]js_ast.Stmt, js_ast.Expr) {
+func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClassResult, nameToKeep string) ([]js_ast.Stmt, js_ast.Expr) {
 	ctx := lowerClassContext{
+		nameToKeep:               nameToKeep,
 		decoratorContextRef:      ast.InvalidRef,
 		privateInstanceMethodRef: ast.InvalidRef,
 		privateStaticMethodRef:   ast.InvalidRef,
@@ -694,7 +695,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 		ctx.kind = classKindExpr
 		if ctx.class.Name != nil {
 			symbol := &p.symbols[ctx.class.Name.Ref.InnerIndex]
-			ctx.optionalNameHint = symbol.OriginalName
+			ctx.nameToKeep = symbol.OriginalName
 
 			// The inner class name inside the class expression should be the same as
 			// the class expression name itself
@@ -708,13 +709,10 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 				ctx.class.Name = nil
 			}
 		}
-		if p.nameToKeepIsFor == e {
-			ctx.optionalNameHint = p.nameToKeep
-		}
 	} else if s, ok := stmt.Data.(*js_ast.SClass); ok {
 		ctx.class = &s.Class
 		if ctx.class.Name != nil {
-			ctx.optionalNameHint = p.symbols[ctx.class.Name.Ref.InnerIndex].OriginalName
+			ctx.nameToKeep = p.symbols[ctx.class.Name.Ref.InnerIndex].OriginalName
 		}
 		if s.IsExport {
 			ctx.kind = classKindExportStmt
@@ -726,7 +724,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 		s2, _ := s.Value.Data.(*js_ast.SClass)
 		ctx.class = &s2.Class
 		if ctx.class.Name != nil {
-			ctx.optionalNameHint = p.symbols[ctx.class.Name.Ref.InnerIndex].OriginalName
+			ctx.nameToKeep = p.symbols[ctx.class.Name.Ref.InnerIndex].OriginalName
 		}
 		ctx.defaultName = s.DefaultName
 		ctx.kind = classKindExportDefaultStmt
@@ -987,8 +985,8 @@ func (ctx *lowerClassContext) lowerPrivateMethod(p *parser, prop js_ast.Property
 		} else {
 			name = "_instances"
 		}
-		if ctx.optionalNameHint != "" {
-			name = fmt.Sprintf("_%s%s", ctx.optionalNameHint, name)
+		if ctx.nameToKeep != "" {
+			name = fmt.Sprintf("_%s%s", ctx.nameToKeep, name)
 		}
 		*ref = p.generateTempRef(tempRefNeedsDeclare, name)
 
@@ -1486,7 +1484,7 @@ func (ctx *lowerClassContext) processProperties(p *parser, classLoweringInfo cla
 	// Evaluate the decorator expressions inline
 	if p.options.unsupportedJSFeatures.Has(compat.Decorators) && len(ctx.class.Decorators) > 0 &&
 		(!p.options.ts.Parse || p.options.ts.Config.ExperimentalDecorators != config.True) {
-		name := ctx.optionalNameHint
+		name := ctx.nameToKeep
 		if name == "" {
 			name = "class"
 		}
@@ -2092,7 +2090,7 @@ func (ctx *lowerClassContext) finishAndGenerateCode(p *parser, result visitClass
 		decorateClassExpr = p.callRuntime(ctx.classLoc, "__decorateElement", []js_ast.Expr{
 			{Loc: ctx.classLoc, Data: &js_ast.EIdentifier{Ref: ctx.decoratorContextRef}},
 			{Loc: ctx.classLoc, Data: &js_ast.ENumber{Value: 0}},
-			{Loc: ctx.classLoc, Data: &js_ast.EString{Value: helpers.StringToUTF16(ctx.optionalNameHint)}},
+			{Loc: ctx.classLoc, Data: &js_ast.EString{Value: helpers.StringToUTF16(ctx.nameToKeep)}},
 			classDecorators,
 			ctx.nameFunc(),
 		})

@@ -10158,7 +10158,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			result := p.visitClass(s.Value.Loc, &s2.Class, s.DefaultName.Ref, "default")
 
 			// Lower class field syntax for browsers that don't support it
-			classStmts, _ := p.lowerClass(stmt, js_ast.Expr{}, result)
+			classStmts, _ := p.lowerClass(stmt, js_ast.Expr{}, result, "")
 
 			// Remember if the class was side-effect free before lowering
 			if result.canBeRemovedIfUnused {
@@ -10856,7 +10856,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		}
 
 		// Lower class field syntax for browsers that don't support it
-		classStmts, _ := p.lowerClass(stmt, js_ast.Expr{}, result)
+		classStmts, _ := p.lowerClass(stmt, js_ast.Expr{}, result, "")
 
 		// Remember if the class was side-effect free before lowering
 		if result.canBeRemovedIfUnused {
@@ -15099,7 +15099,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		result := p.visitClass(expr.Loc, &e.Class, ast.InvalidRef, nameToKeep)
 
 		// Lower class field syntax for browsers that don't support it
-		_, expr = p.lowerClass(js_ast.Stmt{}, expr, result)
+		_, expr = p.lowerClass(js_ast.Stmt{}, expr, result, nameToKeep)
 
 		// We may be able to determine that a class is side-effect before lowering
 		// but not after lowering (e.g. due to "--keep-names" mutating the object).

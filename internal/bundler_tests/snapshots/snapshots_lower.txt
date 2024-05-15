@@ -2298,20 +2298,20 @@ _foo = new WeakMap();
 ================================================================================
 TestLowerPrivateClassExpr2020NoBundle
 ---------- /out.js ----------
-var _field, _instances, method_fn, _a, _staticField, _static, staticMethod_fn;
+var _field, _Foo_instances, method_fn, _a, _staticField, _Foo_static, staticMethod_fn;
 export let Foo = (_a = class {
   constructor() {
-    __privateAdd(this, _instances);
+    __privateAdd(this, _Foo_instances);
     __privateAdd(this, _field);
   }
   foo() {
     var _a2;
-    __privateSet(this, _field, __privateMethod(this, _instances, method_fn).call(this));
-    __privateSet(Foo, _staticField, __privateMethod(_a2 = Foo, _static, staticMethod_fn).call(_a2));
+    __privateSet(this, _field, __privateMethod(this, _Foo_instances, method_fn).call(this));
+    __privateSet(Foo, _staticField, __privateMethod(_a2 = Foo, _Foo_static, staticMethod_fn).call(_a2));
   }
-}, _field = new WeakMap(), _instances = new WeakSet(), method_fn = function() {
-}, _staticField = new WeakMap(), _static = new WeakSet(), staticMethod_fn = function() {
-}, __privateAdd(_a, _static), __privateAdd(_a, _staticField), _a);
+}, _field = new WeakMap(), _Foo_instances = new WeakSet(), method_fn = function() {
+}, _staticField = new WeakMap(), _Foo_static = new WeakSet(), staticMethod_fn = function() {
+}, __privateAdd(_a, _Foo_static), __privateAdd(_a, _staticField), _a);
 
 ================================================================================
 TestLowerPrivateClassFieldOrder
