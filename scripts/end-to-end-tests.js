@@ -6087,6 +6087,48 @@ for (let flags of [['--target=es2022'], ['--target=es6'], ['--bundle', '--target
       }`,
     }),
   )
+
+  // https://github.com/evanw/esbuild/issues/3768
+  tests.push(
+    test(['in.ts', '--outfile=node.js'].concat(flags), {
+      'in.ts': `
+        const bar = x => x
+        class Foo {
+          @bar baz() { return Foo }
+        }
+        if (new Foo().baz() !== Foo) throw 'fail'
+      `,
+    }),
+    test(['in.ts', '--outfile=node.js'].concat(flags), {
+      'in.ts': `
+        class Foo {}
+        const bar = x => x
+        class Baz extends Foo {
+          @bar baz() { return Baz }
+        }
+        if (new Baz().baz() !== Baz) throw 'fail'
+      `,
+    }),
+    test(['in.ts', '--outfile=node.js'].concat(flags), {
+      'in.ts': `
+        const bar = () => x => x
+        class Foo {
+          @bar baz = Foo
+        }
+        if (new Foo().baz !== Foo) throw 'fail'
+      `,
+    }),
+    test(['in.ts', '--outfile=node.js'].concat(flags), {
+      'in.ts': `
+        class Foo {}
+        const bar = () => x => x
+        class Baz extends Foo {
+          @bar baz = Baz
+        }
+        if (new Baz().baz !== Baz) throw 'fail'
+      `,
+    }),
+  )
 }
 
 // Async lowering tests

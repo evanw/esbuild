@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+* Fix bundled decorators in derived classes ([#3768](https://github.com/evanw/esbuild/issues/3768))
+
+    In certain cases, bundling code that uses decorators in a derived class with a class body that references its own class name could previously generate code that crashes at run-time due to an incorrect variable name. This problem has been fixed. Here is an example of code that was compiled incorrectly before this fix:
+
+    ```js
+    class Foo extends Object {
+      @(x => x) foo() {
+        return Foo
+      }
+    }
+    console.log(new Foo().foo())
+    ```
+
 * Fix `tsconfig.json` files inside symlinked directories ([#3767](https://github.com/evanw/esbuild/issues/3767))
 
     This release fixes an issue with a scenario involving a `tsconfig.json` file that `extends` another file from within a symlinked directory that uses the `paths` feature. In that case, the implicit `baseURL` value should be based on the real path (i.e. after expanding all symbolic links) instead of the original path. This was already done for other files that esbuild resolves but was not yet done for `tsconfig.json` because it's special-cased (the regular path resolver can't be used because the information inside `tsconfig.json` is involved in path resolution). Note that this fix no longer applies if the `--preserve-symlinks` setting is enabled.

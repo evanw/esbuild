@@ -2110,9 +2110,14 @@ func (ctx *lowerClassContext) finishAndGenerateCode(p *parser, result visitClass
 			len(ctx.privateMembers) > 0 ||
 			len(ctx.staticPrivateMethods) > 0 ||
 			len(ctx.staticMembers) > 0 ||
+
+			// TypeScript experimental decorators
 			len(ctx.instanceExperimentalDecorators) > 0 ||
 			len(ctx.staticExperimentalDecorators) > 0 ||
-			len(classExperimentalDecorators) > 0)
+			len(classExperimentalDecorators) > 0 ||
+
+			// JavaScript decorators
+			ctx.decoratorContextRef != ast.InvalidRef)
 
 	// If we need to represent the class as an expression (even if it's a
 	// statement), then generate another symbol to use as the class name
