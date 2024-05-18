@@ -2060,6 +2060,40 @@ export default [
           throw error[0];
       }
     }
+  }),
+  () => __async(void 0, null, function* () {
+    try {
+      label: for (var iter = __forAwait(y), more, temp, error; more = !(temp = yield iter.next()).done; more = false) {
+        const x2 = temp.value;
+        break label;
+      }
+    } catch (temp) {
+      error = [temp];
+    } finally {
+      try {
+        more && (temp = iter.return) && (yield temp.call(iter));
+      } finally {
+        if (error)
+          throw error[0];
+      }
+    }
+  }),
+  () => __async(void 0, null, function* () {
+    try {
+      label: for (var iter = __forAwait(y), more, temp, error; more = !(temp = yield iter.next()).done; more = false) {
+        const x2 = temp.value;
+        continue label;
+      }
+    } catch (temp) {
+      error = [temp];
+    } finally {
+      try {
+        more && (temp = iter.return) && (yield temp.call(iter));
+      } finally {
+        if (error)
+          throw error[0];
+      }
+    }
   })
 ];
 
@@ -2123,6 +2157,40 @@ export default [
       for (var iter = __forAwait(y), more, temp, error; more = !(temp = await iter.next()).done; more = false) {
         const x2 = temp.value;
         z(x2);
+      }
+    } catch (temp) {
+      error = [temp];
+    } finally {
+      try {
+        more && (temp = iter.return) && await temp.call(iter);
+      } finally {
+        if (error)
+          throw error[0];
+      }
+    }
+  },
+  async () => {
+    try {
+      label: for (var iter = __forAwait(y), more, temp, error; more = !(temp = await iter.next()).done; more = false) {
+        const x2 = temp.value;
+        break label;
+      }
+    } catch (temp) {
+      error = [temp];
+    } finally {
+      try {
+        more && (temp = iter.return) && await temp.call(iter);
+      } finally {
+        if (error)
+          throw error[0];
+      }
+    }
+  },
+  async () => {
+    try {
+      label: for (var iter = __forAwait(y), more, temp, error; more = !(temp = await iter.next()).done; more = false) {
+        const x2 = temp.value;
+        continue label;
       }
     } catch (temp) {
       error = [temp];

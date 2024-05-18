@@ -1,5 +1,65 @@
 # Changelog
 
+## Unreleased
+
+* Fix `for await` transform when a label is present
+
+    This release fixes a bug where the `for await` transform, which wraps the loop in a `try` statement, previously failed to also move the loop's label into the `try` statement. This bug only affects code that uses both of these features in combination. Here's an example of some affected code:
+
+    ```js
+    // Original code
+    async function test() {
+      outer: for await (const x of [Promise.resolve([0, 1])]) {
+        for (const y of x) if (y) break outer
+        throw 'fail'
+      }
+    }
+
+    // Old output (with --target=es6)
+    function test() {
+      return __async(this, null, function* () {
+        outer: try {
+          for (var iter = __forAwait([Promise.resolve([0, 1])]), more, temp, error; more = !(temp = yield iter.next()).done; more = false) {
+            const x = temp.value;
+            for (const y of x) if (y) break outer;
+            throw "fail";
+          }
+        } catch (temp) {
+          error = [temp];
+        } finally {
+          try {
+            more && (temp = iter.return) && (yield temp.call(iter));
+          } finally {
+            if (error)
+              throw error[0];
+          }
+        }
+      });
+    }
+
+    // New output (with --target=es6)
+    function test() {
+      return __async(this, null, function* () {
+        try {
+          outer: for (var iter = __forAwait([Promise.resolve([0, 1])]), more, temp, error; more = !(temp = yield iter.next()).done; more = false) {
+            const x = temp.value;
+            for (const y of x) if (y) break outer;
+            throw "fail";
+          }
+        } catch (temp) {
+          error = [temp];
+        } finally {
+          try {
+            more && (temp = iter.return) && (yield temp.call(iter));
+          } finally {
+            if (error)
+              throw error[0];
+          }
+        }
+      });
+    }
+    ```
+
 ## 0.21.3
 
 * Implement the decorator metadata proposal ([#3760](https://github.com/evanw/esbuild/issues/3760))

@@ -7149,6 +7149,23 @@ for (let flags of [[], ['--target=es2017'], ['--target=es6']]) {
         }
       `,
     }, { async: true }),
+
+    // https://github.com/arogozine/LinqToTypeScript/issues/29
+    test(['in.js', '--outfile=node.js'].concat(flags), {
+      'in.js': `
+        exports.async = async () => {
+          let total = 0
+        outer:
+          for await (const n of [Promise.resolve(1), Promise.resolve(2), Promise.resolve(5)]) {
+            for (let i = 1; i <= n; i++) {
+              if (i === 4) continue outer
+              total += i
+            }
+          }
+          if (total !== 1 + (1 + 2) + (1 + 2 + 3)) throw 'fail'
+        }
+      `,
+    }, { async: true }),
   )
 }
 

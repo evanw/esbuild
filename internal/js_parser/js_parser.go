@@ -10284,6 +10284,18 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			}
 		}
 
+		// Handle "for await" that has been lowered by moving this label inside the "try"
+		if try, ok := s.Stmt.Data.(*js_ast.STry); ok && len(try.Block.Stmts) > 0 {
+			if _, ok := try.Block.Stmts[0].Data.(*js_ast.SFor); ok {
+				try.Block.Stmts[0] = js_ast.Stmt{Loc: stmt.Loc, Data: &js_ast.SLabel{
+					Stmt:             try.Block.Stmts[0],
+					Name:             s.Name,
+					IsSingleLineStmt: s.IsSingleLineStmt,
+				}}
+				return append(stmts, s.Stmt)
+			}
+		}
+
 	case *js_ast.SLocal:
 		// Silently remove unsupported top-level "await" in dead code branches
 		if s.Kind == js_ast.LocalAwaitUsing && p.fnOrArrowDataVisit.isOutsideFnOrArrow {
