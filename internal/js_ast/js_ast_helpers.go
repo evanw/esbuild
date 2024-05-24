@@ -1208,6 +1208,11 @@ func ShouldFoldBinaryOperatorWhenMinifying(binary *EBinary) bool {
 			resultLen := approximatePrintedIntCharCount(float64(ToUint32(left) >> (ToUint32(right) & 31)))
 			return resultLen <= leftLen+3+rightLen
 		}
+
+	case BinOpLogicalAnd, BinOpLogicalOr, BinOpNullishCoalescing:
+		if IsPrimitiveLiteral(binary.Left.Data) {
+			return true
+		}
 	}
 	return false
 }
@@ -1325,6 +1330,33 @@ func FoldBinaryOperator(loc logger.Loc, e *EBinary) Expr {
 		}
 		if left, right, ok := extractStringValues(e.Left, e.Right); ok {
 			return Expr{Loc: loc, Data: &EBoolean{Value: stringCompareUCS2(left, right) != 0}}
+		}
+
+	case BinOpLogicalAnd:
+		if boolean, sideEffects, ok := ToBooleanWithSideEffects(e.Left.Data); ok {
+			if !boolean {
+				return e.Left
+			} else if sideEffects == NoSideEffects {
+				return e.Right
+			}
+		}
+
+	case BinOpLogicalOr:
+		if boolean, sideEffects, ok := ToBooleanWithSideEffects(e.Left.Data); ok {
+			if boolean {
+				return e.Left
+			} else if sideEffects == NoSideEffects {
+				return e.Right
+			}
+		}
+
+	case BinOpNullishCoalescing:
+		if isNullOrUndefined, sideEffects, ok := ToNullOrUndefinedWithSideEffects(e.Left.Data); ok {
+			if !isNullOrUndefined {
+				return e.Left
+			} else if sideEffects == NoSideEffects {
+				return e.Right
+			}
 		}
 	}
 
