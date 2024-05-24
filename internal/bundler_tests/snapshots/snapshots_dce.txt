@@ -293,7 +293,9 @@ console.log([
 ], [
   6 /* b */,
   3 /* a */,
-  3 /* a */
+  3 /* a */,
+  "y",
+  "n"
 ]);
 
 ---------- /out/const-entry.js ----------
@@ -331,7 +333,9 @@ console.log([
 ], [
   6,
   3,
-  3
+  3,
+  "y",
+  "n"
 ]);
 
 ---------- /out/nested-entry.js ----------
@@ -361,7 +365,9 @@ console.log([
 ], [
   "bar" /* b */,
   "foo" /* a */,
-  "foo" /* a */
+  "foo" /* a */,
+  "y",
+  "n"
 ]);
 
 ---------- /out/const-entry.js ----------
@@ -385,7 +391,9 @@ console.log([
 ], [
   a && b,
   a || b,
-  a ?? b
+  a ?? b,
+  a ? "y" : "n",
+  b ? "n" : "y"
 ]);
 
 ---------- /out/nested-entry.js ----------

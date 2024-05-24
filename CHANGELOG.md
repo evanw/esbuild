@@ -77,6 +77,35 @@
     }
     ```
 
+* Do additional constant folding after cross-module enum inlining ([#3416](https://github.com/evanw/esbuild/issues/3416), [#3425](https://github.com/evanw/esbuild/issues/3425))
+
+    This release adds a few more cases where esbuild does constant folding after cross-module enum inlining.
+
+    ```ts
+    // Original code: enum.ts
+    export enum Platform {
+      WINDOWS = 'windows',
+      MACOS = 'macos',
+      LINUX = 'linux',
+    }
+
+    // Original code: main.ts
+    import { Platform } from './enum';
+    declare const PLATFORM: string;
+    export function logPlatform() {
+      if (PLATFORM == Platform.WINDOWS) console.log('Windows');
+      else if (PLATFORM == Platform.MACOS) console.log('macOS');
+      else if (PLATFORM == Platform.LINUX) console.log('Linux');
+      else console.log('Other');
+    }
+
+    // Old output (with --bundle '--define:PLATFORM="macos"' --minify --format=esm)
+    function n(){"windows"=="macos"?console.log("Windows"):"macos"=="macos"?console.log("macOS"):"linux"=="macos"?console.log("Linux"):console.log("Other")}export{n as logPlatform};
+
+    // New output (with --bundle '--define:PLATFORM="macos"' --minify --format=esm)
+    function n(){console.log("macOS")}export{n as logPlatform};
+    ```
+
 * Formatting support for the `@position-try` rule ([#3773](https://github.com/evanw/esbuild/issues/3773))
 
     Chrome shipped this new CSS at-rule in version 125 as part of the [CSS anchor positioning API](https://developer.chrome.com/blog/anchor-positioning-api). With this release, esbuild now knows to expect a declaration list inside of the `@position-try` body block and will format it appropriately.

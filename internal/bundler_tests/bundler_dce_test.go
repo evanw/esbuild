@@ -3183,6 +3183,8 @@ func TestCrossModuleConstantFoldingNumber(t *testing.T) {
 					x.a && x.b,
 					x.a || x.b,
 					x.a ?? x.b,
+					x.a ? 'y' : 'n',
+					!x.b ? 'y' : 'n',
 				])
 			`,
 
@@ -3226,6 +3228,8 @@ func TestCrossModuleConstantFoldingNumber(t *testing.T) {
 					a && b,
 					a || b,
 					a ?? b,
+					a ? 'y' : 'n',
+					!b ? 'y' : 'n',
 				])
 			`,
 
@@ -3288,6 +3292,8 @@ func TestCrossModuleConstantFoldingString(t *testing.T) {
 					x.a && x.b,
 					x.a || x.b,
 					x.a ?? x.b,
+					x.a ? 'y' : 'n',
+					!x.b ? 'y' : 'n',
 				])
 			`,
 
@@ -3314,6 +3320,8 @@ func TestCrossModuleConstantFoldingString(t *testing.T) {
 					a && b,
 					a || b,
 					a ?? b,
+					a ? 'y' : 'n',
+					!b ? 'y' : 'n',
 				])
 			`,
 
