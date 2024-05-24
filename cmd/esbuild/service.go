@@ -919,6 +919,13 @@ func (service *serviceType) convertPlugins(key int, jsPlugins interface{}, activ
 				if value, ok := request["pluginData"]; ok {
 					options.PluginData = value.(int)
 				}
+				if value, ok := request["with"]; ok {
+					value := value.(map[string]interface{})
+					options.With = make(map[string]string, len(value))
+					for k, v := range value {
+						options.With[k] = v.(string)
+					}
+				}
 
 				result := build.Resolve(path, options)
 				return encodePacket(packet{
@@ -970,6 +977,11 @@ func (service *serviceType) convertPlugins(key int, jsPlugins interface{}, activ
 						return result, nil
 					}
 
+					with := make(map[string]interface{}, len(args.With))
+					for k, v := range args.With {
+						with[k] = v
+					}
+
 					response, ok := service.sendRequest(map[string]interface{}{
 						"command":    "on-resolve",
 						"key":        key,
@@ -980,6 +992,7 @@ func (service *serviceType) convertPlugins(key int, jsPlugins interface{}, activ
 						"resolveDir": args.ResolveDir,
 						"kind":       resolveKindToString(args.Kind),
 						"pluginData": args.PluginData,
+						"with":       with,
 					}).(map[string]interface{})
 					if !ok {
 						return result, errors.New("The service was stopped")
@@ -1055,7 +1068,7 @@ func (service *serviceType) convertPlugins(key int, jsPlugins interface{}, activ
 						return result, nil
 					}
 
-					with := make(map[string]interface{})
+					with := make(map[string]interface{}, len(args.With))
 					for k, v := range args.With {
 						with[k] = v
 					}
@@ -1266,11 +1279,11 @@ func decodeStringArray(values []interface{}) []string {
 func encodeOutputFiles(outputFiles []api.OutputFile) []interface{} {
 	values := make([]interface{}, len(outputFiles))
 	for i, outputFile := range outputFiles {
-		value := make(map[string]interface{})
-		values[i] = value
-		value["path"] = outputFile.Path
-		value["contents"] = outputFile.Contents
-		value["hash"] = outputFile.Hash
+		values[i] = map[string]interface{}{
+			"path":     outputFile.Path,
+			"contents": outputFile.Contents,
+			"hash":     outputFile.Hash,
+		}
 	}
 	return values
 }

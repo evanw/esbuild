@@ -170,6 +170,7 @@ export interface ResolveRequest {
   resolveDir?: string
   kind?: string
   pluginData?: number
+  with?: Record<string, string>
 }
 
 export interface ResolveResponse {
@@ -194,6 +195,7 @@ export interface OnResolveRequest {
   resolveDir: string
   kind: types.ImportKind
   pluginData: number
+  with: Record<string, string>
 }
 
 export interface OnResolveResponse {

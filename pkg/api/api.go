@@ -576,6 +576,7 @@ type ResolveOptions struct {
 	ResolveDir string
 	Kind       ResolveKind
 	PluginData interface{}
+	With       map[string]string
 }
 
 // Documentation: https://esbuild.github.io/plugins/#resolve-results
@@ -615,6 +616,7 @@ type OnResolveArgs struct {
 	ResolveDir string
 	Kind       ResolveKind
 	PluginData interface{}
+	With       map[string]string
 }
 
 // Documentation: https://esbuild.github.io/plugins/#on-resolve-results

@@ -1898,6 +1898,7 @@ func (impl *pluginImpl) onResolve(options OnResolveOptions, callback func(OnReso
 				ResolveDir: args.ResolveDir,
 				Kind:       importKindToResolveKind(args.Kind),
 				PluginData: args.PluginData,
+				With:       args.With.DecodeIntoMap(),
 			})
 			result.PluginName = response.PluginName
 			result.AbsWatchFiles = impl.validatePathsArray(response.WatchFiles, "watch file")
@@ -1940,16 +1941,12 @@ func (impl *pluginImpl) onLoad(options OnLoadOptions, callback func(OnLoadArgs) 
 		Filter:    filter,
 		Namespace: options.Namespace,
 		Callback: func(args config.OnLoadArgs) (result config.OnLoadResult) {
-			with := make(map[string]string)
-			for _, attr := range args.Path.ImportAttributes.Decode() {
-				with[attr.Key] = attr.Value
-			}
 			response, err := callback(OnLoadArgs{
 				Path:       args.Path.Text,
 				Namespace:  args.Path.Namespace,
 				PluginData: args.PluginData,
 				Suffix:     args.Path.IgnoredSuffix,
-				With:       with,
+				With:       args.Path.ImportAttributes.DecodeIntoMap(),
 			})
 			result.PluginName = response.PluginName
 			result.AbsWatchFiles = impl.validatePathsArray(response.WatchFiles, "watch file")
@@ -2054,6 +2051,7 @@ func loadPlugins(initialOptions *BuildOptions, fs fs.FS, log logger.Log, caches 
 				logger.Range{}, // importPathRange
 				logger.Path{Text: options.Importer, Namespace: options.Namespace},
 				path,
+				logger.EncodeImportAttributes(options.With),
 				kind,
 				absResolveDir,
 				options.PluginData,

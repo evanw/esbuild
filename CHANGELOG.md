@@ -106,6 +106,37 @@
     function n(){console.log("macOS")}export{n as logPlatform};
     ```
 
+* Pass import attributes to on-resolve plugins ([#3384](https://github.com/evanw/esbuild/issues/3384), [#3639](https://github.com/evanw/esbuild/issues/3639), [#3646](https://github.com/evanw/esbuild/issues/3646))
+
+    With this release, on-resolve plugins will now have access to the import attributes on the import via the `with` property of the arguments object. This mirrors the `with` property of the arguments object that's already passed to on-load plugins. In addition, you can now pass `with` to the `resolve()` API call which will then forward that value on to all relevant plugins. Here's an example of a plugin that can now be written:
+
+    ```js
+    const examplePlugin = {
+      name: 'Example plugin',
+      setup(build) {
+        build.onResolve({ filter: /.*/ }, args => {
+          if (args.with.type === 'external')
+            return { external: true }
+        })
+      }
+    }
+
+    require('esbuild').build({
+      stdin: {
+        contents: `
+          import foo from "./foo" with { type: "external" }
+          foo()
+        `,
+      },
+      bundle: true,
+      format: 'esm',
+      write: false,
+      plugins: [examplePlugin],
+    }).then(result => {
+      console.log(result.outputFiles[0].text)
+    })
+    ```
+
 * Formatting support for the `@position-try` rule ([#3773](https://github.com/evanw/esbuild/issues/3773))
 
     Chrome shipped this new CSS at-rule in version 125 as part of the [CSS anchor positioning API](https://developer.chrome.com/blog/anchor-positioning-api). With this release, esbuild now knows to expect a declaration list inside of the `@position-try` body block and will format it appropriately.
