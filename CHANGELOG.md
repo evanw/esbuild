@@ -77,6 +77,10 @@
     }
     ```
 
+* Formatting support for the `@position-try` rule ([#3773](https://github.com/evanw/esbuild/issues/3773))
+
+    Chrome shipped this new CSS at-rule in version 125 as part of the [CSS anchor positioning API](https://developer.chrome.com/blog/anchor-positioning-api). With this release, esbuild now knows to expect a declaration list inside of the `@position-try` body block and will format it appropriately.
+
 ## 0.21.3
 
 * Implement the decorator metadata proposal ([#3760](https://github.com/evanw/esbuild/issues/3760))

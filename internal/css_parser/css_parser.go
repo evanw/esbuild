@@ -1102,6 +1102,10 @@ var specialAtRules = map[string]atRuleKind{
 	// Defining before-change style: the @starting-style rule
 	// Reference: https://drafts.csswg.org/css-transitions-2/#defining-before-change-style-the-starting-style-rule
 	"starting-style": atRuleInheritContext,
+
+	// Anchor Positioning
+	// Reference: https://drafts.csswg.org/css-anchor-position-1/#at-ruledef-position-try
+	"position-try": atRuleDeclarations,
 }
 
 var atKnownRuleCanBeRemovedIfEmpty = map[string]bool{
