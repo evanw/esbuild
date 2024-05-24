@@ -342,6 +342,63 @@ console.log({
 });
 
 ================================================================================
+TestCrossModuleConstantFoldingString
+---------- /out/enum-entry.js ----------
+// enum-entry.ts
+console.log([
+  typeof "bar" /* b */
+], [
+  "foobar"
+], [
+  !1,
+  !0,
+  !1,
+  !0,
+  !1,
+  !0,
+  !1,
+  !0
+], [
+  "foo" /* a */ && "bar" /* b */,
+  "foo" /* a */ || "bar" /* b */,
+  "foo" /* a */ ?? "bar" /* b */
+]);
+
+---------- /out/const-entry.js ----------
+// const-constants.js
+var a = "foo", b = "bar";
+
+// const-entry.js
+console.log([
+  typeof b
+], [
+  a + b
+], [
+  a < b,
+  a > b,
+  a <= b,
+  a >= b,
+  a == b,
+  a != b,
+  a === b,
+  a !== b
+], [
+  a && b,
+  a || b,
+  a ?? b
+]);
+
+---------- /out/nested-entry.js ----------
+// nested-constants.ts
+var a = "foo", b = "bar", c = "baz";
+
+// nested-entry.ts
+console.log({
+  "should be foobarbaz": a + b + c,
+  "should be FOOBARBAZ": "FOOBARBAZ"
+});
+
+================================================================================
 TestDCEClassStaticBlocks
 ---------- /out.js ----------
 // entry.ts

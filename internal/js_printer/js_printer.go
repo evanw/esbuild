@@ -1758,17 +1758,22 @@ func (p *printer) lateConstantFoldUnaryOrBinaryExpr(expr js_ast.Expr) js_ast.Exp
 		}
 
 	case *js_ast.EDot:
-		if value, ok := p.tryToGetImportedEnumValue(e.Target, e.Name); ok && value.String == nil {
-			value := js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: value.Number}}
+		if value, ok := p.tryToGetImportedEnumValue(e.Target, e.Name); ok {
+			var inlinedValue js_ast.Expr
+			if value.String != nil {
+				inlinedValue = js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EString{Value: value.String}}
+			} else {
+				inlinedValue = js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENumber{Value: value.Number}}
+			}
 
 			if strings.Contains(e.Name, "*/") {
 				// Don't wrap with a comment
-				return value
+				return inlinedValue
 			}
 
 			// Wrap with a comment
-			return js_ast.Expr{Loc: value.Loc, Data: &js_ast.EInlinedEnum{
-				Value:   value,
+			return js_ast.Expr{Loc: inlinedValue.Loc, Data: &js_ast.EInlinedEnum{
+				Value:   inlinedValue,
 				Comment: e.Name,
 			}}
 		}

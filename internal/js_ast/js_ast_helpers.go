@@ -1167,6 +1167,11 @@ func ShouldFoldBinaryOperatorWhenMinifying(binary *EBinary) bool {
 			return true
 		}
 
+		// String addition should pretty much always be more compact when folded
+		if _, _, ok := extractStringValues(binary.Left, binary.Right); ok {
+			return true
+		}
+
 	case BinOpSub:
 		// Subtraction of small-ish integers can definitely be folded without issues
 		// "3 - 1" => "2"
@@ -1214,6 +1219,9 @@ func FoldBinaryOperator(loc logger.Loc, e *EBinary) Expr {
 	case BinOpAdd:
 		if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
 			return Expr{Loc: loc, Data: &ENumber{Value: left + right}}
+		}
+		if left, right, ok := extractStringValues(e.Left, e.Right); ok {
+			return Expr{Loc: loc, Data: &EString{Value: joinStrings(left, right)}}
 		}
 
 	case BinOpSub:
