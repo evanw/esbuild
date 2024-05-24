@@ -6229,6 +6229,17 @@ func TestImportAttributes(t *testing.T) {
 	expectPrintedWithUnsupportedFeatures(t, compat.ImportAssertions|compat.ImportAttributes,
 		"import 'x' with {y: 'z'}; import('x', {with: {y: 'z'}})",
 		"import \"x\";\nimport(\"x\");\n")
+
+	// Test the migration warning
+	expectParseErrorWithUnsupportedFeatures(t, compat.ImportAssertions,
+		"import x from 'y' assert {type: 'json'}",
+		"<stdin>: WARNING: The \"assert\" keyword is not supported in the configured target environment\nNOTE: Did you mean to use \"with\" instead of \"assert\"?\n")
+	expectParseErrorWithUnsupportedFeatures(t, compat.ImportAssertions,
+		"export {default} from 'y' assert {type: 'json'}",
+		"<stdin>: WARNING: The \"assert\" keyword is not supported in the configured target environment\nNOTE: Did you mean to use \"with\" instead of \"assert\"?\n")
+	expectParseErrorWithUnsupportedFeatures(t, compat.ImportAssertions,
+		"import('y', {assert: {type: 'json'}})",
+		"<stdin>: WARNING: The \"assert\" keyword is not supported in the configured target environment\nNOTE: Did you mean to use \"with\" instead of \"assert\"?\n")
 }
 
 func TestES5(t *testing.T) {

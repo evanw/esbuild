@@ -6480,6 +6480,9 @@ func (p *parser) parsePath() (logger.Range, string, *ast.ImportAssertOrWith, ast
 
 		closeBraceLoc := p.saveExprCommentsHere()
 		p.lexer.Expect(js_lexer.TCloseBrace)
+		if keyword == ast.AssertKeyword {
+			p.maybeWarnAboutAssertKeyword(keywordLoc)
+		}
 		assertOrWith = &ast.ImportAssertOrWith{
 			Entries:            entries,
 			Keyword:            keyword,
@@ -6490,6 +6493,20 @@ func (p *parser) parsePath() (logger.Range, string, *ast.ImportAssertOrWith, ast
 	}
 
 	return pathRange, pathText, assertOrWith, flags
+}
+
+// Let people know if they probably should be using "with" instead of "assert"
+func (p *parser) maybeWarnAboutAssertKeyword(loc logger.Loc) {
+	if p.options.unsupportedJSFeatures.Has(compat.ImportAssertions) && !p.options.unsupportedJSFeatures.Has(compat.ImportAttributes) {
+		where := config.PrettyPrintTargetEnvironment(p.options.originalTargetEnv, p.options.unsupportedJSFeatureOverridesMask)
+		msg := logger.Msg{
+			Kind:  logger.Warning,
+			Data:  p.tracker.MsgData(js_lexer.RangeOfIdentifier(p.source, loc), "The \"assert\" keyword is not supported in "+where),
+			Notes: []logger.MsgData{{Text: "Did you mean to use \"with\" instead of \"assert\"?"}},
+		}
+		msg.Data.Location.Suggestion = "with"
+		p.log.AddMsgID(logger.MsgID_JS_AssertToWith, msg)
+	}
 }
 
 // This assumes the "function" token has already been parsed
@@ -14277,6 +14294,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 									break
 								}
 								if entries != nil {
+									if keyword == ast.AssertKeyword {
+										p.maybeWarnAboutAssertKeyword(prop.Key.Loc)
+									}
 									assertOrWith = &ast.ImportAssertOrWith{
 										Entries:            entries,
 										Keyword:            keyword,

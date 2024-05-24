@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+* Update support for import assertions and import attributes in node ([#3778](https://github.com/evanw/esbuild/issues/3778))
+
+    Import assertions (the `assert` keyword) have been removed from node starting in v22.0.0. So esbuild will now strip them and generate a warning with `--target=node22` or above:
+
+    ```
+    ▲ [WARNING] The "assert" keyword is not supported in the configured target environment ("node22") [assert-to-with]
+
+        example.mjs:1:40:
+          1 │ import json from "esbuild/package.json" assert { type: "json" }
+            │                                         ~~~~~~
+            ╵                                         with
+
+      Did you mean to use "with" instead of "assert"?
+    ```
+
+    Import attributes (the `with` keyword) have been backported to node 18 starting in v18.20.0. So esbuild will no longer strip them with `--target=node18.N` if `N` is 20 or greater.
+
 * Fix `for await` transform when a label is present
 
     This release fixes a bug where the `for await` transform, which wraps the loop in a `try` statement, previously failed to also move the loop's label into the `try` statement. This bug only affects code that uses both of these features in combination. Here's an example of some affected code:
