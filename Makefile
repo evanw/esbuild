@@ -328,7 +328,7 @@ platform-unixlike: version-go
 	@test -n "$(GOARCH)" || (echo "The environment variable GOARCH must be provided" && false)
 	@test -n "$(NPMDIR)" || (echo "The environment variable NPMDIR must be provided" && false)
 	node scripts/esbuild.js "$(NPMDIR)/package.json" --version
-	CGO_ENABLED=0 GOOS="$(GOOS)" GOARCH="$(GOARCH)" go build $(GO_FLAGS) -o "$(NPMDIR)/bin/esbuild" ./cmd/esbuild
+	CGO_ENABLED=0 GOOS="$(GOOS)" GOARCH="$(GOARCH)" go build $(GO_FLAGS) -o "$(NPMDIR)/bin/esbuild$(EXTENSION)" ./cmd/esbuild
 
 platform-android-x64: platform-wasm
 	node scripts/esbuild.js npm/@esbuild/android-x64/package.json --version
@@ -359,6 +359,9 @@ platform-netbsd-x64:
 
 platform-openbsd-x64:
 	@$(MAKE) --no-print-directory GOOS=openbsd GOARCH=amd64 NPMDIR=npm/@esbuild/openbsd-x64 platform-unixlike
+
+platform-wasip1:
+	@$(MAKE) --no-print-directory GOOS=wasip1 GOARCH=wasm NPMDIR=npm/@esbuild/wasip1-wasm platform-unixlike EXTENSION=.wasm
 
 platform-linux-x64:
 	@$(MAKE) --no-print-directory GOOS=linux GOARCH=amd64 NPMDIR=npm/@esbuild/linux-x64 platform-unixlike
