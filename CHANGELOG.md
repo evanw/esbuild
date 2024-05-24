@@ -110,6 +110,10 @@
 
     Chrome shipped this new CSS at-rule in version 125 as part of the [CSS anchor positioning API](https://developer.chrome.com/blog/anchor-positioning-api). With this release, esbuild now knows to expect a declaration list inside of the `@position-try` body block and will format it appropriately.
 
+* Always allow internal string import and export aliases ([#3343](https://github.com/evanw/esbuild/issues/3343))
+
+    Import and export names can be string literals in ES2022+. Previously esbuild forbid any usage of these aliases when the target was below ES2022. Starting with this release, esbuild will only forbid such usage when the alias would otherwise end up in output as a string literal. String literal aliases that are only used internally in the bundle and are "compiled away" are no longer errors. This makes it possible to use string literal aliases with esbuild's `inject` feature even when the target is earlier than ES2022.
+
 ## 0.21.3
 
 * Implement the decorator metadata proposal ([#3760](https://github.com/evanw/esbuild/issues/3760))

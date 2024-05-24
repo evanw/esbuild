@@ -3029,8 +3029,6 @@ func TestImport(t *testing.T) {
 		"<stdin>: ERROR: This import alias is invalid because it contains the unpaired Unicode surrogate U+D800\n")
 	expectParseError(t, "import {'\\uDC00' as x} from 'foo'",
 		"<stdin>: ERROR: This import alias is invalid because it contains the unpaired Unicode surrogate U+DC00\n")
-	expectParseErrorTarget(t, 2020, "import {'' as x} from 'foo'",
-		"<stdin>: ERROR: Using a string as a module namespace identifier name is not supported in the configured target environment\n")
 
 	// String import alias with "import * as"
 	expectParseError(t, "import * as '' from 'foo'", "<stdin>: ERROR: Expected identifier but found \"''\"\n")
@@ -3083,8 +3081,6 @@ func TestExport(t *testing.T) {
 		"<stdin>: ERROR: This export alias is invalid because it contains the unpaired Unicode surrogate U+D800\n")
 	expectParseError(t, "let x; export {x as '\\uDC00'}",
 		"<stdin>: ERROR: This export alias is invalid because it contains the unpaired Unicode surrogate U+DC00\n")
-	expectParseErrorTarget(t, 2020, "let x; export {x as ''}",
-		"<stdin>: ERROR: Using a string as a module namespace identifier name is not supported in the configured target environment\n")
 
 	// String import alias with "export {} from"
 	expectPrinted(t, "export {'' as x} from 'foo'", "export { \"\" as x } from \"foo\";\n")
@@ -3095,8 +3091,6 @@ func TestExport(t *testing.T) {
 		"<stdin>: ERROR: This export alias is invalid because it contains the unpaired Unicode surrogate U+D800\n")
 	expectParseError(t, "export {'\\uDC00' as x} from 'foo'",
 		"<stdin>: ERROR: This export alias is invalid because it contains the unpaired Unicode surrogate U+DC00\n")
-	expectParseErrorTarget(t, 2020, "export {'' as x} from 'foo'",
-		"<stdin>: ERROR: Using a string as a module namespace identifier name is not supported in the configured target environment\n")
 
 	// String export alias with "export {} from"
 	expectPrinted(t, "export {x as ''} from 'foo'", "export { x as \"\" } from \"foo\";\n")
@@ -3107,8 +3101,6 @@ func TestExport(t *testing.T) {
 		"<stdin>: ERROR: This export alias is invalid because it contains the unpaired Unicode surrogate U+D800\n")
 	expectParseError(t, "export {x as '\\uDC00'} from 'foo'",
 		"<stdin>: ERROR: This export alias is invalid because it contains the unpaired Unicode surrogate U+DC00\n")
-	expectParseErrorTarget(t, 2020, "export {x as ''} from 'foo'",
-		"<stdin>: ERROR: Using a string as a module namespace identifier name is not supported in the configured target environment\n")
 
 	// String import and export alias with "export {} from"
 	expectPrinted(t, "export {'x'} from 'foo'", "export { x } from \"foo\";\n")
@@ -3125,8 +3117,6 @@ func TestExport(t *testing.T) {
 		"<stdin>: ERROR: This export alias is invalid because it contains the unpaired Unicode surrogate U+D800\n")
 	expectParseError(t, "export * as '\\uDC00' from 'foo'",
 		"<stdin>: ERROR: This export alias is invalid because it contains the unpaired Unicode surrogate U+DC00\n")
-	expectParseErrorTarget(t, 2020, "export * as '' from 'foo'",
-		"<stdin>: ERROR: Using a string as a module namespace identifier name is not supported in the configured target environment\n")
 }
 
 func TestExportDuplicates(t *testing.T) {

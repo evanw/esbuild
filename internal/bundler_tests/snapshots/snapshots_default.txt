@@ -2198,6 +2198,25 @@ console.log(
 );
 
 ================================================================================
+TestInjectWithStringExportNameBundle
+---------- /out.js ----------
+// inject.js
+var old = console.log;
+var fn = (...args) => old.apply(console, ["log:"].concat(args));
+
+// entry.js
+fn(test);
+fn(test);
+fn(test);
+
+================================================================================
+TestInjectWithStringExportNameNoBundle
+---------- /out.js ----------
+var old = console.log;
+var fn = (...args) => old.apply(console, ["log:"].concat(args));
+fn(test);
+
+================================================================================
 TestJSXAutomaticImportsCommonJS
 ---------- /out.js ----------
 // custom-react.js
@@ -6170,6 +6189,33 @@ export function outer() {
   }
 }
 __name(outer, "outer"), outer();
+
+================================================================================
+TestStringExportNamesCommonJS
+---------- /out.js ----------
+var entry_exports = {};
+__export(entry_exports, {
+  "all the stuff": () => all_the_stuff,
+  "some export": () => import_foo["some import"]
+});
+module.exports = __toCommonJS(entry_exports);
+var import_foo = require("./foo");
+var all_the_stuff = __toESM(require("./foo"));
+
+================================================================================
+TestStringExportNamesIIFE
+---------- /out.js ----------
+var global;
+(global ||= {}).name = (() => {
+  var entry_exports = {};
+  __export(entry_exports, {
+    "all the stuff": () => all_the_stuff,
+    "some export": () => import_foo["some import"]
+  });
+  var import_foo = require("./foo");
+  var all_the_stuff = __toESM(require("./foo"));
+  return __toCommonJS(entry_exports);
+})();
 
 ================================================================================
 TestSwitchScopeNoBundle

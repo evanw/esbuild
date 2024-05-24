@@ -5484,8 +5484,6 @@ func (p *parser) parseClauseAlias(kind string) js_lexer.MaybeSubstring {
 		if !ok {
 			p.log.AddError(&p.tracker, r,
 				fmt.Sprintf("This %s alias is invalid because it contains the unpaired Unicode surrogate U+%X", kind, problem))
-		} else {
-			p.markSyntaxFeature(compat.ArbitraryModuleNamespaceNames, r)
 		}
 		return js_lexer.MaybeSubstring{String: alias}
 	}
