@@ -3138,7 +3138,7 @@ func TestConstValueInliningDirectEval(t *testing.T) {
 	})
 }
 
-func TestCrossModuleConstantFolding(t *testing.T) {
+func TestCrossModuleConstantFoldingNumber(t *testing.T) {
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/enum-constants.ts": `

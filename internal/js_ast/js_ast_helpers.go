@@ -1133,9 +1133,15 @@ func approximatePrintedIntCharCount(intValue float64) int {
 	return count
 }
 
-func ShouldFoldBinaryArithmeticWhenMinifying(binary *EBinary) bool {
+func ShouldFoldBinaryOperatorWhenMinifying(binary *EBinary) bool {
 	switch binary.Op {
 	case
+		// Equality tests should always result in smaller code when folded
+		BinOpLooseEq,
+		BinOpLooseNe,
+		BinOpStrictEq,
+		BinOpStrictNe,
+
 		// Minification always folds right signed shift operations since they are
 		// unlikely to result in larger output. Note: ">>>" could result in
 		// bigger output such as "-1 >>> 0" becoming "4294967295".
@@ -1203,7 +1209,7 @@ func ShouldFoldBinaryArithmeticWhenMinifying(binary *EBinary) bool {
 
 // This function intentionally avoids mutating the input AST so it can be
 // called after the AST has been frozen (i.e. after parsing ends).
-func FoldBinaryArithmetic(loc logger.Loc, e *EBinary) Expr {
+func FoldBinaryOperator(loc logger.Loc, e *EBinary) Expr {
 	switch e.Op {
 	case BinOpAdd:
 		if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
@@ -1295,6 +1301,22 @@ func FoldBinaryArithmetic(loc logger.Loc, e *EBinary) Expr {
 		}
 		if left, right, ok := extractStringValues(e.Left, e.Right); ok {
 			return Expr{Loc: loc, Data: &EBoolean{Value: stringCompareUCS2(left, right) >= 0}}
+		}
+
+	case BinOpLooseEq, BinOpStrictEq:
+		if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
+			return Expr{Loc: loc, Data: &EBoolean{Value: left == right}}
+		}
+		if left, right, ok := extractStringValues(e.Left, e.Right); ok {
+			return Expr{Loc: loc, Data: &EBoolean{Value: stringCompareUCS2(left, right) == 0}}
+		}
+
+	case BinOpLooseNe, BinOpStrictNe:
+		if left, right, ok := extractNumericValues(e.Left, e.Right); ok {
+			return Expr{Loc: loc, Data: &EBoolean{Value: left != right}}
+		}
+		if left, right, ok := extractStringValues(e.Left, e.Right); ok {
+			return Expr{Loc: loc, Data: &EBoolean{Value: stringCompareUCS2(left, right) != 0}}
 		}
 	}
 
