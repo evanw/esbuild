@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.21.4
 
 * Update support for import assertions and import attributes in node ([#3778](https://github.com/evanw/esbuild/issues/3778))
 
