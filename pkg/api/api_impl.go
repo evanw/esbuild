@@ -1146,13 +1146,13 @@ func (ctx *internalContext) Dispose() {
 func prettyPrintByteCount(n int) string {
 	var size string
 	if n < 1024 {
-		size = fmt.Sprintf("%db ", n)
+		size = fmt.Sprintf("%dB  ", n)
 	} else if n < 1024*1024 {
-		size = fmt.Sprintf("%.1fkb", float64(n)/(1024))
+		size = fmt.Sprintf("%.1fKiB", float64(n)/(1024))
 	} else if n < 1024*1024*1024 {
-		size = fmt.Sprintf("%.1fmb", float64(n)/(1024*1024))
+		size = fmt.Sprintf("%.1fMiB", float64(n)/(1024*1024))
 	} else {
-		size = fmt.Sprintf("%.1fgb", float64(n)/(1024*1024*1024))
+		size = fmt.Sprintf("%.1fGiB", float64(n)/(1024*1024*1024))
 	}
 	return size
 }
