@@ -201,6 +201,7 @@ type FS interface {
 	Join(parts ...string) string
 	Cwd() string
 	Rel(base string, target string) (string, bool)
+	EvalSymlinks(path string) (string, bool)
 
 	// This is used in the implementation of "Entry"
 	kind(dir string, base string) (symlink string, kind EntryKind)

@@ -771,6 +771,7 @@ type OnResolveArgs struct {
 	PluginData interface{}
 	Importer   logger.Path
 	Kind       ast.ImportKind
+	With       logger.ImportAttributes
 }
 
 type OnResolveResult struct {

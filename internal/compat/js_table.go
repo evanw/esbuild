@@ -584,11 +584,16 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Chrome: {{start: v{91, 0, 0}}},
 		Deno:   {{start: v{1, 17, 0}}},
 		Edge:   {{start: v{91, 0, 0}}},
-		Node:   {{start: v{16, 14, 0}}},
+		Node:   {{start: v{16, 14, 0}, end: v{22, 0, 0}}},
 	},
 	ImportAttributes: {
-		Deno: {{start: v{1, 37, 0}}},
-		Node: {{start: v{20, 10, 0}}},
+		Chrome: {{start: v{123, 0, 0}}},
+		Deno:   {{start: v{1, 37, 0}}},
+		Edge:   {{start: v{123, 0, 0}}},
+		IOS:    {{start: v{17, 2, 0}}},
+		Node:   {{start: v{18, 20, 0}, end: v{19, 0, 0}}, {start: v{20, 10, 0}}},
+		Opera:  {{start: v{109, 0, 0}}},
+		Safari: {{start: v{17, 2, 0}}},
 	},
 	ImportMeta: {
 		Chrome:  {{start: v{64, 0, 0}}},
@@ -811,7 +816,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		// Note: The latest version of "Rhino" failed 8 tests including: RegExp Unicode Property Escapes: Unicode 11
 		// Note: The latest version of "Safari" failed this test: RegExp Unicode Property Escapes: Unicode 15.1
 		ES:   {{start: v{2018, 0, 0}}},
-		Node: {{start: v{21, 3, 0}}},
+		Node: {{start: v{18, 20, 0}, end: v{19, 0, 0}}, {start: v{20, 12, 0}, end: v{21, 0, 0}}, {start: v{21, 3, 0}}},
 	},
 	RestArgument: {
 		// Note: The latest version of "Hermes" failed this test: rest parameters: function 'length' property

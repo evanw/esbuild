@@ -3138,7 +3138,7 @@ func TestConstValueInliningDirectEval(t *testing.T) {
 	})
 }
 
-func TestCrossModuleConstantFolding(t *testing.T) {
+func TestCrossModuleConstantFoldingNumber(t *testing.T) {
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/enum-constants.ts": `
@@ -3183,6 +3183,8 @@ func TestCrossModuleConstantFolding(t *testing.T) {
 					x.a && x.b,
 					x.a || x.b,
 					x.a ?? x.b,
+					x.a ? 'y' : 'n',
+					!x.b ? 'y' : 'n',
 				])
 			`,
 
@@ -3226,6 +3228,8 @@ func TestCrossModuleConstantFolding(t *testing.T) {
 					a && b,
 					a || b,
 					a ?? b,
+					a ? 'y' : 'n',
+					!b ? 'y' : 'n',
 				])
 			`,
 
@@ -3244,6 +3248,98 @@ func TestCrossModuleConstantFolding(t *testing.T) {
 				console.log({
 					'should be 4': ~(~a & ~b) & (b | c),
 					'should be 32': ~(~x.a & ~x.b) & (x.b | x.c),
+				})
+			`,
+		},
+		entryPaths: []string{
+			"/enum-entry.ts",
+			"/const-entry.js",
+			"/nested-entry.ts",
+		},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			MinifySyntax: true,
+		},
+	})
+}
+
+func TestCrossModuleConstantFoldingString(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/enum-constants.ts": `
+				export enum x {
+					a = 'foo',
+					b = 'bar',
+				}
+			`,
+			"/enum-entry.ts": `
+				import { x } from './enum-constants'
+				console.log([
+					typeof x.b,
+				], [
+					x.a + x.b,
+				], [
+					x.a < x.b,
+					x.a > x.b,
+					x.a <= x.b,
+					x.a >= x.b,
+					x.a == x.b,
+					x.a != x.b,
+					x.a === x.b,
+					x.a !== x.b,
+				], [
+					x.a && x.b,
+					x.a || x.b,
+					x.a ?? x.b,
+					x.a ? 'y' : 'n',
+					!x.b ? 'y' : 'n',
+				])
+			`,
+
+			"/const-constants.js": `
+				export const a = 'foo'
+				export const b = 'bar'
+			`,
+			"/const-entry.js": `
+				import { a, b } from './const-constants'
+				console.log([
+					typeof b,
+				], [
+					a + b,
+				], [
+					a < b,
+					a > b,
+					a <= b,
+					a >= b,
+					a == b,
+					a != b,
+					a === b,
+					a !== b,
+				], [
+					a && b,
+					a || b,
+					a ?? b,
+					a ? 'y' : 'n',
+					!b ? 'y' : 'n',
+				])
+			`,
+
+			"/nested-constants.ts": `
+				export const a = 'foo'
+				export const b = 'bar'
+				export const c = 'baz'
+				export enum x {
+					a = 'FOO',
+					b = 'BAR',
+					c = 'BAZ',
+				}
+			`,
+			"/nested-entry.ts": `
+				import { a, b, c, x } from './nested-constants'
+				console.log({
+					'should be foobarbaz': a + b + c,
+					'should be FOOBARBAZ': x.a + x.b + x.c,
 				})
 			`,
 		},

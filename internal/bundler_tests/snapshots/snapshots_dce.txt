@@ -257,7 +257,7 @@ function foo() {
 }
 
 ================================================================================
-TestCrossModuleConstantFolding
+TestCrossModuleConstantFoldingNumber
 ---------- /out/enum-entry.js ----------
 // enum-entry.ts
 console.log([
@@ -278,10 +278,10 @@ console.log([
   !1,
   !0,
   !1,
-  3 /* a */ == 6 /* b */,
-  3 /* a */ != 6 /* b */,
-  3 /* a */ === 6 /* b */,
-  3 /* a */ !== 6 /* b */
+  !1,
+  !0,
+  !1,
+  !0
 ], [
   12,
   3,
@@ -291,9 +291,11 @@ console.log([
   7,
   5
 ], [
-  3 /* a */ && 6 /* b */,
-  3 /* a */ || 6 /* b */,
-  3 /* a */ ?? 6 /* b */
+  6 /* b */,
+  3 /* a */,
+  3 /* a */,
+  "y",
+  "n"
 ]);
 
 ---------- /out/const-entry.js ----------
@@ -316,10 +318,10 @@ console.log([
   !1,
   !0,
   !1,
-  3 == 6,
-  3 != 6,
-  3 === 6,
-  3 !== 6
+  !1,
+  !0,
+  !1,
+  !0
 ], [
   12,
   3,
@@ -329,9 +331,11 @@ console.log([
   7,
   5
 ], [
-  3 && 6,
-  3 || 6,
-  3 ?? 6
+  6,
+  3,
+  3,
+  "y",
+  "n"
 ]);
 
 ---------- /out/nested-entry.js ----------
@@ -339,6 +343,67 @@ console.log([
 console.log({
   "should be 4": 4,
   "should be 32": 32
+});
+
+================================================================================
+TestCrossModuleConstantFoldingString
+---------- /out/enum-entry.js ----------
+// enum-entry.ts
+console.log([
+  typeof "bar" /* b */
+], [
+  "foobar"
+], [
+  !1,
+  !0,
+  !1,
+  !0,
+  !1,
+  !0,
+  !1,
+  !0
+], [
+  "bar" /* b */,
+  "foo" /* a */,
+  "foo" /* a */,
+  "y",
+  "n"
+]);
+
+---------- /out/const-entry.js ----------
+// const-constants.js
+var a = "foo", b = "bar";
+
+// const-entry.js
+console.log([
+  typeof b
+], [
+  a + b
+], [
+  a < b,
+  a > b,
+  a <= b,
+  a >= b,
+  a == b,
+  a != b,
+  a === b,
+  a !== b
+], [
+  a && b,
+  a || b,
+  a ?? b,
+  a ? "y" : "n",
+  b ? "n" : "y"
+]);
+
+---------- /out/nested-entry.js ----------
+// nested-constants.ts
+var a = "foo", b = "bar", c = "baz";
+
+// nested-entry.ts
+console.log({
+  "should be foobarbaz": a + b + c,
+  "should be FOOBARBAZ": "FOOBARBAZ"
 });
 
 ================================================================================
@@ -660,8 +725,7 @@ TestDCETypeOfEqualsString
 ---------- /out.js ----------
 (() => {
   // entry.js
-  if (false)
-    console.log(hasBar);
+  if (false) console.log(hasBar);
 })();
 
 ================================================================================
@@ -814,16 +878,12 @@ function testStmts() {
   do
     var b;
   while (x);
-  for (var c; ; )
-    ;
-  for (var d in x)
-    ;
-  for (var e of x)
-    ;
+  for (var c; ; ) ;
+  for (var d in x) ;
+  for (var e of x) ;
   if (x)
     var f;
-  if (!x)
-    var g;
+  if (!x) var g;
   var h, i;
 }
 testReturn();
@@ -865,14 +925,10 @@ export {
 TestDropLabels
 ---------- /out.js ----------
 // entry.js
-keep_1:
-  require("foo1");
+keep_1: require("foo1");
 exports.bar = function() {
-  if (x)
-    ;
-  if (y)
-    keep_2:
-      require("bar2");
+  if (x) ;
+  if (y) keep_2: require("bar2");
 };
 
 ================================================================================
@@ -915,8 +971,7 @@ foo();
 console.log(foo());
 console.log((foo(), void 0));
 console.log((foo(), void 0));
-for (; void 0; )
-  ;
+for (; void 0; ) ;
 foo();
 foo();
 foo();
@@ -1060,11 +1115,9 @@ export let shouldBeWrapped = [
 TestInlineFunctionCallForInitDecl
 ---------- /out/entry.js ----------
 // entry.js
-for (y = void 0; !1; )
-  ;
+for (y = void 0; !1; ) ;
 var y;
-for (z = 123; !1; )
-  ;
+for (z = 123; !1; ) ;
 var z;
 
 ================================================================================

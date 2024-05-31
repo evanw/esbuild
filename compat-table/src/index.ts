@@ -477,12 +477,27 @@ import('./kangax').then(kangax => {
 
   // Import assertions (note: these were removed from the JavaScript specification and never standardized)
   {
-    // From https://github.com/nodejs/node/blob/master/doc/changelogs/CHANGELOG_V16.md#16.14.0
-    js.ImportAssertions.Node = { '16.14': { force: true } }
+    js.ImportAssertions.Node = {
+      // From https://github.com/nodejs/node/blob/master/doc/changelogs/CHANGELOG_V16.md#16.14.0
+      '16.14': { force: true },
+
+      // Manually tested using a binary from https://nodejs.org/en/download/prebuilt-binaries
+      '22': { force: false },
+    }
 
     // MDN data is wrong here: https://bugs.webkit.org/show_bug.cgi?id=251600
     delete js.ImportAssertions.IOS
     delete js.ImportAssertions.Safari
+  }
+
+  // Import attributes (the replacement for import assertions)
+  {
+    // Manually tested using binaries from https://nodejs.org/en/download/prebuilt-binaries
+    js.ImportAttributes.Node = {
+      '18.20': { force: true },
+      '19': { force: false },
+      '20.10': { force: true },
+    }
   }
 
   // MDN data is wrong here: https://www.chromestatus.com/feature/6482797915013120

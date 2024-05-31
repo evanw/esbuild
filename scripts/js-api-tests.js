@@ -905,8 +905,8 @@ export {
     const names2 = result2.outputFiles.map(x => path.basename(x.path)).sort()
 
     // Check that the public path is included in chunk hashes but not asset hashes
-    assert.deepStrictEqual(names1, ['data-BYATPJRB.bin', 'in-7SVE3DTC.js'])
-    assert.deepStrictEqual(names2, ['data-BYATPJRB.bin', 'in-E6EBO534.js'])
+    assert.deepStrictEqual(names1, ['data-BYATPJRB.bin', 'in-6QN3TZ3A.js'])
+    assert.deepStrictEqual(names2, ['data-BYATPJRB.bin', 'in-EJERHMG4.js'])
   },
 
   async fileLoaderPublicPath({ esbuild, testDir }) {
@@ -5536,10 +5536,7 @@ let transformTests = {
     })
     assert.strictEqual(code, `var __defProp = Object.defineProperty;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
-var __publicField = (obj, key, value) => {
-  __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
-  return value;
-};
+var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 class Foo {
   constructor() {
     __publicField(this, "foo");
@@ -5861,12 +5858,12 @@ class Foo {
 
   async es6_import_to_esm({ esbuild }) {
     const { code } = await esbuild.transform(`import {exists} from "fs"; if (!exists) throw 'fail'`, { format: 'esm' })
-    assert.strictEqual(code, `import { exists } from "fs";\nif (!exists)\n  throw "fail";\n`)
+    assert.strictEqual(code, `import { exists } from "fs";\nif (!exists) throw "fail";\n`)
   },
 
   async es6_import_star_to_esm({ esbuild }) {
     const { code } = await esbuild.transform(`import * as fs from "fs"; if (!fs.exists) throw 'fail'`, { format: 'esm' })
-    assert.strictEqual(code, `import * as fs from "fs";\nif (!fs.exists)\n  throw "fail";\n`)
+    assert.strictEqual(code, `import * as fs from "fs";\nif (!fs.exists) throw "fail";\n`)
   },
 
   async es6_export_to_esm({ esbuild }) {
@@ -6024,12 +6021,12 @@ class Foo {
 
   async keepDebugger({ esbuild }) {
     const { code } = await esbuild.transform(`if (x) debugger`, { drop: [] })
-    assert.strictEqual(code, `if (x)\n  debugger;\n`)
+    assert.strictEqual(code, `if (x) debugger;\n`)
   },
 
   async dropDebugger({ esbuild }) {
     const { code } = await esbuild.transform(`if (x) debugger`, { drop: ['debugger'] })
-    assert.strictEqual(code, `if (x)\n  ;\n`)
+    assert.strictEqual(code, `if (x) ;\n`)
   },
 
   async define({ esbuild }) {

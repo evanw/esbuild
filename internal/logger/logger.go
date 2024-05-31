@@ -272,7 +272,7 @@ type ImportAttribute struct {
 }
 
 // This returns a sorted array instead of a map to make determinism easier
-func (attrs ImportAttributes) Decode() (result []ImportAttribute) {
+func (attrs ImportAttributes) DecodeIntoArray() (result []ImportAttribute) {
 	if attrs.packedData == "" {
 		return nil
 	}
@@ -289,7 +289,20 @@ func (attrs ImportAttributes) Decode() (result []ImportAttribute) {
 	return result
 }
 
+func (attrs ImportAttributes) DecodeIntoMap() (result map[string]string) {
+	if array := attrs.DecodeIntoArray(); len(array) > 0 {
+		result = make(map[string]string, len(array))
+		for _, attr := range array {
+			result[attr.Key] = attr.Value
+		}
+	}
+	return
+}
+
 func EncodeImportAttributes(value map[string]string) ImportAttributes {
+	if len(value) == 0 {
+		return ImportAttributes{}
+	}
 	keys := make([]string, 0, len(value))
 	for k := range value {
 		keys = append(keys, k)

@@ -688,6 +688,11 @@ func (res *Resolver) ResolveGlob(sourceDir string, importPathPattern []helpers.G
 	visit = func(dirInfo *dirInfo, dir string) {
 		for _, key := range dirInfo.entries.SortedKeys() {
 			entry, _ := dirInfo.entries.Get(key)
+			if r.debugLogs != nil {
+				r.debugLogs.addNote(fmt.Sprintf("Considering entry %q", r.fs.Join(dirInfo.absPath, key)))
+				r.debugLogs.increaseIndent()
+			}
+
 			switch entry.Kind(r.fs) {
 			case fs.DirEntry:
 				// To avoid infinite loops, don't follow any symlinks
@@ -715,6 +720,10 @@ func (res *Resolver) ResolveGlob(sourceDir string, importPathPattern []helpers.G
 					r.finalizeResolve(&result)
 					results[relPath] = result
 				}
+			}
+
+			if r.debugLogs != nil {
+				r.debugLogs.decreaseIndent()
 			}
 		}
 	}
@@ -1156,6 +1165,13 @@ var errParseErrorAlreadyLogged = errors.New("(error already logged)")
 // Nested calls may also return "parseErrorImportCycle". In that case the
 // caller is responsible for logging an appropriate error message.
 func (r resolverQuery) parseTSConfig(file string, visited map[string]bool) (*TSConfigJSON, error) {
+	// Resolve any symlinks first before parsing the file
+	if !r.options.PreserveSymlinks {
+		if real, ok := r.fs.EvalSymlinks(file); ok {
+			file = real
+		}
+	}
+
 	// Don't infinite loop if a series of "extends" links forms a cycle
 	if visited[file] {
 		return nil, errParseErrorImportCycle

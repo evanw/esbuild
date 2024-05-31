@@ -117,7 +117,7 @@ func TestLowerNullishCoalescingAssign(t *testing.T) {
 	expectPrintedTarget(t, 2019, "class Foo { #x; constructor() { this.#x ??= 2 } }", `var _x;
 class Foo {
   constructor() {
-    __privateAdd(this, _x, void 0);
+    __privateAdd(this, _x);
     var _a;
     (_a = __privateGet(this, _x)) != null ? _a : __privateSet(this, _x, 2);
   }
@@ -134,7 +134,7 @@ _x = new WeakMap();
 	expectPrintedTarget(t, 2020, "class Foo { #x; constructor() { this.#x ??= 2 } }", `var _x;
 class Foo {
   constructor() {
-    __privateAdd(this, _x, void 0);
+    __privateAdd(this, _x);
     __privateGet(this, _x) ?? __privateSet(this, _x, 2);
   }
 }
@@ -150,7 +150,7 @@ _x = new WeakMap();
 	expectPrintedTarget(t, 2021, "class Foo { #x; constructor() { this.#x ??= 2 } }", `var _x;
 class Foo {
   constructor() {
-    __privateAdd(this, _x, void 0);
+    __privateAdd(this, _x);
     __privateGet(this, _x) ?? __privateSet(this, _x, 2);
   }
 }
@@ -175,7 +175,7 @@ func TestLowerLogicalAssign(t *testing.T) {
 	expectPrintedTarget(t, 2020, "class Foo { #x; constructor() { this.#x &&= 2 } }", `var _x;
 class Foo {
   constructor() {
-    __privateAdd(this, _x, void 0);
+    __privateAdd(this, _x);
     __privateGet(this, _x) && __privateSet(this, _x, 2);
   }
 }
@@ -191,7 +191,7 @@ _x = new WeakMap();
 	expectPrintedTarget(t, 2021, "class Foo { #x; constructor() { this.#x &&= 2 } }", `var _x;
 class Foo {
   constructor() {
-    __privateAdd(this, _x, void 0);
+    __privateAdd(this, _x);
     __privateGet(this, _x) && __privateSet(this, _x, 2);
   }
 }
@@ -207,7 +207,7 @@ _x = new WeakMap();
 	expectPrintedTarget(t, 2020, "class Foo { #x; constructor() { this.#x ||= 2 } }", `var _x;
 class Foo {
   constructor() {
-    __privateAdd(this, _x, void 0);
+    __privateAdd(this, _x);
     __privateGet(this, _x) || __privateSet(this, _x, 2);
   }
 }
@@ -223,7 +223,7 @@ _x = new WeakMap();
 	expectPrintedTarget(t, 2021, "class Foo { #x; constructor() { this.#x ||= 2 } }", `var _x;
 class Foo {
   constructor() {
-    __privateAdd(this, _x, void 0);
+    __privateAdd(this, _x);
     __privateGet(this, _x) || __privateSet(this, _x, 2);
   }
 }
@@ -259,23 +259,22 @@ func TestLowerClassSideEffectOrder(t *testing.T) {
 	static [g()]() {}
 	[h()];
 }
-`, `var _a, _b, _c, _d, _e;
+`, `var _a, _b, _c, _d, _e, _f;
 class Foo {
   constructor() {
+    __publicField(this, _f);
+    __publicField(this, _e, 1);
     __publicField(this, _a);
-    __publicField(this, _b, 1);
-    __publicField(this, _e);
   }
   [a()]() {
   }
-  [(_a = b(), _b = c(), d())]() {
+  [(_f = b(), _e = c(), d())]() {
   }
-  static [(_c = e(), _d = f(), g())]() {
+  static [(_d = e(), _c = f(), _b = g(), _a = h(), _b)]() {
   }
 }
-_e = h();
-__publicField(Foo, _c);
-__publicField(Foo, _d, 1);
+__publicField(Foo, _d);
+__publicField(Foo, _c, 1);
 `)
 }
 
@@ -285,16 +284,16 @@ func TestLowerClassInstance(t *testing.T) {
 	expectPrintedTarget(t, 2015, "class Foo { foo = null }", "class Foo {\n  constructor() {\n    __publicField(this, \"foo\", null);\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "class Foo { 123 }", "class Foo {\n  constructor() {\n    __publicField(this, 123);\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "class Foo { 123 = null }", "class Foo {\n  constructor() {\n    __publicField(this, 123, null);\n  }\n}\n")
-	expectPrintedTarget(t, 2015, "class Foo { [foo] }", "var _a;\nclass Foo {\n  constructor() {\n    __publicField(this, _a);\n  }\n}\n_a = foo;\n")
-	expectPrintedTarget(t, 2015, "class Foo { [foo] = null }", "var _a;\nclass Foo {\n  constructor() {\n    __publicField(this, _a, null);\n  }\n}\n_a = foo;\n")
+	expectPrintedTarget(t, 2015, "class Foo { [foo] }", "var _a;\n_a = foo;\nclass Foo {\n  constructor() {\n    __publicField(this, _a);\n  }\n}\n")
+	expectPrintedTarget(t, 2015, "class Foo { [foo] = null }", "var _a;\n_a = foo;\nclass Foo {\n  constructor() {\n    __publicField(this, _a, null);\n  }\n}\n")
 
 	expectPrintedTarget(t, 2015, "(class {})", "(class {\n});\n")
 	expectPrintedTarget(t, 2015, "(class { foo })", "(class {\n  constructor() {\n    __publicField(this, \"foo\");\n  }\n});\n")
 	expectPrintedTarget(t, 2015, "(class { foo = null })", "(class {\n  constructor() {\n    __publicField(this, \"foo\", null);\n  }\n});\n")
 	expectPrintedTarget(t, 2015, "(class { 123 })", "(class {\n  constructor() {\n    __publicField(this, 123);\n  }\n});\n")
 	expectPrintedTarget(t, 2015, "(class { 123 = null })", "(class {\n  constructor() {\n    __publicField(this, 123, null);\n  }\n});\n")
-	expectPrintedTarget(t, 2015, "(class { [foo] })", "var _a, _b;\n_b = class {\n  constructor() {\n    __publicField(this, _a);\n  }\n}, _a = foo, _b;\n")
-	expectPrintedTarget(t, 2015, "(class { [foo] = null })", "var _a, _b;\n_b = class {\n  constructor() {\n    __publicField(this, _a, null);\n  }\n}, _a = foo, _b;\n")
+	expectPrintedTarget(t, 2015, "(class { [foo] })", "var _a;\n_a = foo, class {\n  constructor() {\n    __publicField(this, _a);\n  }\n};\n")
+	expectPrintedTarget(t, 2015, "(class { [foo] = null })", "var _a;\n_a = foo, class {\n  constructor() {\n    __publicField(this, _a, null);\n  }\n};\n")
 
 	expectPrintedTarget(t, 2015, "class Foo extends Bar {}", `class Foo extends Bar {
 }
@@ -348,8 +347,8 @@ func TestLowerClassStatic(t *testing.T) {
 	expectPrintedTarget(t, 2015, "class Foo { static 123(a, b) {} }", "class Foo {\n  static 123(a, b) {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "class Foo { static get 123() {} }", "class Foo {\n  static get 123() {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "class Foo { static set 123(a) {} }", "class Foo {\n  static set 123(a) {\n  }\n}\n")
-	expectPrintedTarget(t, 2015, "class Foo { static [foo] }", "var _a;\nclass Foo {\n}\n_a = foo;\n__publicField(Foo, _a);\n")
-	expectPrintedTarget(t, 2015, "class Foo { static [foo] = null }", "var _a;\nclass Foo {\n}\n_a = foo;\n__publicField(Foo, _a, null);\n")
+	expectPrintedTarget(t, 2015, "class Foo { static [foo] }", "var _a;\n_a = foo;\nclass Foo {\n}\n__publicField(Foo, _a);\n")
+	expectPrintedTarget(t, 2015, "class Foo { static [foo] = null }", "var _a;\n_a = foo;\nclass Foo {\n}\n__publicField(Foo, _a, null);\n")
 	expectPrintedTarget(t, 2015, "class Foo { static [foo](a, b) {} }", "class Foo {\n  static [foo](a, b) {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "class Foo { static get [foo]() {} }", "class Foo {\n  static get [foo]() {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "class Foo { static set [foo](a) {} }", "class Foo {\n  static set [foo](a) {\n  }\n}\n")
@@ -364,8 +363,8 @@ func TestLowerClassStatic(t *testing.T) {
 	expectPrintedTarget(t, 2015, "export default class Foo { static 123(a, b) {} }", "export default class Foo {\n  static 123(a, b) {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "export default class Foo { static get 123() {} }", "export default class Foo {\n  static get 123() {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "export default class Foo { static set 123(a) {} }", "export default class Foo {\n  static set 123(a) {\n  }\n}\n")
-	expectPrintedTarget(t, 2015, "export default class Foo { static [foo] }", "var _a;\nexport default class Foo {\n}\n_a = foo;\n__publicField(Foo, _a);\n")
-	expectPrintedTarget(t, 2015, "export default class Foo { static [foo] = null }", "var _a;\nexport default class Foo {\n}\n_a = foo;\n__publicField(Foo, _a, null);\n")
+	expectPrintedTarget(t, 2015, "export default class Foo { static [foo] }", "var _a;\n_a = foo;\nexport default class Foo {\n}\n__publicField(Foo, _a);\n")
+	expectPrintedTarget(t, 2015, "export default class Foo { static [foo] = null }", "var _a;\n_a = foo;\nexport default class Foo {\n}\n__publicField(Foo, _a, null);\n")
 	expectPrintedTarget(t, 2015, "export default class Foo { static [foo](a, b) {} }", "export default class Foo {\n  static [foo](a, b) {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "export default class Foo { static get [foo]() {} }", "export default class Foo {\n  static get [foo]() {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "export default class Foo { static set [foo](a) {} }", "export default class Foo {\n  static set [foo](a) {\n  }\n}\n")
@@ -385,9 +384,9 @@ func TestLowerClassStatic(t *testing.T) {
 	expectPrintedTarget(t, 2015, "export default class { static get 123() {} }", "export default class {\n  static get 123() {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "export default class { static set 123(a) {} }", "export default class {\n  static set 123(a) {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "export default class { static [foo] }",
-		"var _a;\nexport default class stdin_default {\n}\n_a = foo;\n__publicField(stdin_default, _a);\n")
+		"var _a;\n_a = foo;\nexport default class stdin_default {\n}\n__publicField(stdin_default, _a);\n")
 	expectPrintedTarget(t, 2015, "export default class { static [foo] = null }",
-		"var _a;\nexport default class stdin_default {\n}\n_a = foo;\n__publicField(stdin_default, _a, null);\n")
+		"var _a;\n_a = foo;\nexport default class stdin_default {\n}\n__publicField(stdin_default, _a, null);\n")
 	expectPrintedTarget(t, 2015, "export default class { static [foo](a, b) {} }", "export default class {\n  static [foo](a, b) {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "export default class { static get [foo]() {} }", "export default class {\n  static get [foo]() {\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "export default class { static set [foo](a) {} }", "export default class {\n  static set [foo](a) {\n  }\n}\n")
@@ -402,8 +401,8 @@ func TestLowerClassStatic(t *testing.T) {
 	expectPrintedTarget(t, 2015, "(class Foo { static 123(a, b) {} })", "(class Foo {\n  static 123(a, b) {\n  }\n});\n")
 	expectPrintedTarget(t, 2015, "(class Foo { static get 123() {} })", "(class Foo {\n  static get 123() {\n  }\n});\n")
 	expectPrintedTarget(t, 2015, "(class Foo { static set 123(a) {} })", "(class Foo {\n  static set 123(a) {\n  }\n});\n")
-	expectPrintedTarget(t, 2015, "(class Foo { static [foo] })", "var _a, _b;\n_b = class {\n}, _a = foo, __publicField(_b, _a), _b;\n")
-	expectPrintedTarget(t, 2015, "(class Foo { static [foo] = null })", "var _a, _b;\n_b = class {\n}, _a = foo, __publicField(_b, _a, null), _b;\n")
+	expectPrintedTarget(t, 2015, "(class Foo { static [foo] })", "var _a, _b;\n_a = foo, _b = class {\n}, __publicField(_b, _a), _b;\n")
+	expectPrintedTarget(t, 2015, "(class Foo { static [foo] = null })", "var _a, _b;\n_a = foo, _b = class {\n}, __publicField(_b, _a, null), _b;\n")
 	expectPrintedTarget(t, 2015, "(class Foo { static [foo](a, b) {} })", "(class Foo {\n  static [foo](a, b) {\n  }\n});\n")
 	expectPrintedTarget(t, 2015, "(class Foo { static get [foo]() {} })", "(class Foo {\n  static get [foo]() {\n  }\n});\n")
 	expectPrintedTarget(t, 2015, "(class Foo { static set [foo](a) {} })", "(class Foo {\n  static set [foo](a) {\n  }\n});\n")
@@ -418,8 +417,8 @@ func TestLowerClassStatic(t *testing.T) {
 	expectPrintedTarget(t, 2015, "(class { static 123(a, b) {} })", "(class {\n  static 123(a, b) {\n  }\n});\n")
 	expectPrintedTarget(t, 2015, "(class { static get 123() {} })", "(class {\n  static get 123() {\n  }\n});\n")
 	expectPrintedTarget(t, 2015, "(class { static set 123(a) {} })", "(class {\n  static set 123(a) {\n  }\n});\n")
-	expectPrintedTarget(t, 2015, "(class { static [foo] })", "var _a, _b;\n_b = class {\n}, _a = foo, __publicField(_b, _a), _b;\n")
-	expectPrintedTarget(t, 2015, "(class { static [foo] = null })", "var _a, _b;\n_b = class {\n}, _a = foo, __publicField(_b, _a, null), _b;\n")
+	expectPrintedTarget(t, 2015, "(class { static [foo] })", "var _a, _b;\n_a = foo, _b = class {\n}, __publicField(_b, _a), _b;\n")
+	expectPrintedTarget(t, 2015, "(class { static [foo] = null })", "var _a, _b;\n_a = foo, _b = class {\n}, __publicField(_b, _a, null), _b;\n")
 	expectPrintedTarget(t, 2015, "(class { static [foo](a, b) {} })", "(class {\n  static [foo](a, b) {\n  }\n});\n")
 	expectPrintedTarget(t, 2015, "(class { static get [foo]() {} })", "(class {\n  static get [foo]() {\n  }\n});\n")
 	expectPrintedTarget(t, 2015, "(class { static set [foo](a) {} })", "(class {\n  static set [foo](a) {\n  }\n});\n")
@@ -482,7 +481,7 @@ func TestLowerClassStaticThis(t *testing.T) {
 	expectPrintedTarget(t, 2015, "class Foo { x = this }",
 		"class Foo {\n  constructor() {\n    __publicField(this, \"x\", this);\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "class Foo { [this.x] }",
-		"var _a;\nclass Foo {\n  constructor() {\n    __publicField(this, _a);\n  }\n}\n_a = this.x;\n")
+		"var _a;\n_a = this.x;\nclass Foo {\n  constructor() {\n    __publicField(this, _a);\n  }\n}\n")
 	expectPrintedTarget(t, 2015, "class Foo { static x = this }",
 		"const _Foo = class _Foo {\n};\n__publicField(_Foo, \"x\", _Foo);\nlet Foo = _Foo;\n")
 	expectPrintedTarget(t, 2015, "class Foo { static x = () => this }",
@@ -490,18 +489,18 @@ func TestLowerClassStaticThis(t *testing.T) {
 	expectPrintedTarget(t, 2015, "class Foo { static x = function() { return this } }",
 		"class Foo {\n}\n__publicField(Foo, \"x\", function() {\n  return this;\n});\n")
 	expectPrintedTarget(t, 2015, "class Foo { static [this.x] }",
-		"var _a;\nclass Foo {\n}\n_a = this.x;\n__publicField(Foo, _a);\n")
+		"var _a;\n_a = this.x;\nclass Foo {\n}\n__publicField(Foo, _a);\n")
 	expectPrintedTarget(t, 2015, "class Foo { static x = class { y = this } }",
 		"class Foo {\n}\n__publicField(Foo, \"x\", class {\n  constructor() {\n    __publicField(this, \"y\", this);\n  }\n});\n")
 	expectPrintedTarget(t, 2015, "class Foo { static x = class { [this.y] } }",
-		"var _a, _b;\nconst _Foo = class _Foo {\n};\n__publicField(_Foo, \"x\", (_b = class {\n  constructor() {\n    __publicField(this, _a);\n  }\n}, _a = _Foo.y, _b));\nlet Foo = _Foo;\n")
+		"var _a;\nconst _Foo = class _Foo {\n};\n__publicField(_Foo, \"x\", (_a = _Foo.y, class {\n  constructor() {\n    __publicField(this, _a);\n  }\n}));\nlet Foo = _Foo;\n")
 	expectPrintedTarget(t, 2015, "class Foo { static x = class extends this {} }",
 		"const _Foo = class _Foo {\n};\n__publicField(_Foo, \"x\", class extends _Foo {\n});\nlet Foo = _Foo;\n")
 
 	expectPrintedTarget(t, 2015, "x = class Foo { x = this }",
 		"x = class Foo {\n  constructor() {\n    __publicField(this, \"x\", this);\n  }\n};\n")
 	expectPrintedTarget(t, 2015, "x = class Foo { [this.x] }",
-		"var _a, _b;\nx = (_b = class {\n  constructor() {\n    __publicField(this, _a);\n  }\n}, _a = this.x, _b);\n")
+		"var _a;\nx = (_a = this.x, class Foo {\n  constructor() {\n    __publicField(this, _a);\n  }\n});\n")
 	expectPrintedTarget(t, 2015, "x = class Foo { static x = this }",
 		"var _a;\nx = (_a = class {\n}, __publicField(_a, \"x\", _a), _a);\n")
 	expectPrintedTarget(t, 2015, "x = class Foo { static x = () => this }",
@@ -509,18 +508,18 @@ func TestLowerClassStaticThis(t *testing.T) {
 	expectPrintedTarget(t, 2015, "x = class Foo { static x = function() { return this } }",
 		"var _a;\nx = (_a = class {\n}, __publicField(_a, \"x\", function() {\n  return this;\n}), _a);\n")
 	expectPrintedTarget(t, 2015, "x = class Foo { static [this.x] }",
-		"var _a, _b;\nx = (_b = class {\n}, _a = this.x, __publicField(_b, _a), _b);\n")
+		"var _a, _b;\nx = (_a = this.x, _b = class {\n}, __publicField(_b, _a), _b);\n")
 	expectPrintedTarget(t, 2015, "x = class Foo { static x = class { y = this } }",
 		"var _a;\nx = (_a = class {\n}, __publicField(_a, \"x\", class {\n  constructor() {\n    __publicField(this, \"y\", this);\n  }\n}), _a);\n")
 	expectPrintedTarget(t, 2015, "x = class Foo { static x = class { [this.y] } }",
-		"var _a, _b, _c;\nx = (_c = class {\n}, __publicField(_c, \"x\", (_b = class {\n  constructor() {\n    __publicField(this, _a);\n  }\n}, _a = _c.y, _b)), _c);\n")
+		"var _a, _b;\nx = (_b = class {\n}, __publicField(_b, \"x\", (_a = _b.y, class {\n  constructor() {\n    __publicField(this, _a);\n  }\n})), _b);\n")
 	expectPrintedTarget(t, 2015, "x = class Foo { static x = class extends this {} }",
 		"var _a;\nx = (_a = class {\n}, __publicField(_a, \"x\", class extends _a {\n}), _a);\n")
 
 	expectPrintedTarget(t, 2015, "x = class { x = this }",
 		"x = class {\n  constructor() {\n    __publicField(this, \"x\", this);\n  }\n};\n")
 	expectPrintedTarget(t, 2015, "x = class { [this.x] }",
-		"var _a, _b;\nx = (_b = class {\n  constructor() {\n    __publicField(this, _a);\n  }\n}, _a = this.x, _b);\n")
+		"var _a;\nx = (_a = this.x, class {\n  constructor() {\n    __publicField(this, _a);\n  }\n});\n")
 	expectPrintedTarget(t, 2015, "x = class { static x = this }",
 		"var _a;\nx = (_a = class {\n}, __publicField(_a, \"x\", _a), _a);\n")
 	expectPrintedTarget(t, 2015, "x = class { static x = () => this }",
@@ -528,11 +527,11 @@ func TestLowerClassStaticThis(t *testing.T) {
 	expectPrintedTarget(t, 2015, "x = class { static x = function() { return this } }",
 		"var _a;\nx = (_a = class {\n}, __publicField(_a, \"x\", function() {\n  return this;\n}), _a);\n")
 	expectPrintedTarget(t, 2015, "x = class { static [this.x] }",
-		"var _a, _b;\nx = (_b = class {\n}, _a = this.x, __publicField(_b, _a), _b);\n")
+		"var _a, _b;\nx = (_a = this.x, _b = class {\n}, __publicField(_b, _a), _b);\n")
 	expectPrintedTarget(t, 2015, "x = class { static x = class { y = this } }",
 		"var _a;\nx = (_a = class {\n}, __publicField(_a, \"x\", class {\n  constructor() {\n    __publicField(this, \"y\", this);\n  }\n}), _a);\n")
 	expectPrintedTarget(t, 2015, "x = class { static x = class { [this.y] } }",
-		"var _a, _b, _c;\nx = (_c = class {\n}, __publicField(_c, \"x\", (_b = class {\n  constructor() {\n    __publicField(this, _a);\n  }\n}, _a = _c.y, _b)), _c);\n")
+		"var _a, _b;\nx = (_b = class {\n}, __publicField(_b, \"x\", (_a = _b.y, class {\n  constructor() {\n    __publicField(this, _a);\n  }\n})), _b);\n")
 	expectPrintedTarget(t, 2015, "x = class Foo { static x = class extends this {} }",
 		"var _a;\nx = (_a = class {\n}, __publicField(_a, \"x\", class extends _a {\n}), _a);\n")
 }
@@ -771,7 +770,7 @@ func TestForAwait(t *testing.T) {
 	err = "<stdin>: ERROR: Top-level await is not available in the configured target environment\n"
 	expectParseErrorWithUnsupportedFeatures(t, compat.TopLevelAwait, "for await (x of y) ;", err)
 	expectParseErrorWithUnsupportedFeatures(t, compat.TopLevelAwait, "if (true) for await (x of y) ;", err)
-	expectPrintedWithUnsupportedFeatures(t, compat.TopLevelAwait, "if (false) for await (x of y) ;", "if (false)\n  for (x of y)\n    ;\n")
+	expectPrintedWithUnsupportedFeatures(t, compat.TopLevelAwait, "if (false) for await (x of y) ;", "if (false) for (x of y) ;\n")
 	expectParseErrorWithUnsupportedFeatures(t, compat.TopLevelAwait, "with (x) y; if (false) for await (x of y) ;",
 		"<stdin>: ERROR: With statements cannot be used in an ECMAScript module\n"+
 			"<stdin>: NOTE: This file is considered to be an ECMAScript module because of the top-level \"await\" keyword here:\n")
@@ -795,4 +794,105 @@ func TestLowerAutoAccessors(t *testing.T) {
 		"class Foo {\n  static #x = null;\n  static get x() {\n    return this.#x;\n  }\n  static set x(_) {\n    this.#x = _;\n  }\n}\n")
 	expectPrintedWithUnsupportedFeatures(t, compat.Decorators, "class Foo { static accessor [x] = null }",
 		"var _a;\nclass Foo {\n  static #a = null;\n  static get [_a = x]() {\n    return this.#a;\n  }\n  static set [_a](_) {\n    this.#a = _;\n  }\n}\n")
+
+	// Test various combinations of flags
+	expectPrintedWithUnsupportedFeatures(t, compat.Decorators|compat.ClassPrivateField, "class Foo { accessor x = null }",
+		`var _x;
+class Foo {
+  constructor() {
+    __privateAdd(this, _x, null);
+  }
+  get x() {
+    return __privateGet(this, _x);
+  }
+  set x(_) {
+    __privateSet(this, _x, _);
+  }
+}
+_x = new WeakMap();
+`)
+	expectPrintedWithUnsupportedFeatures(t, compat.Decorators|compat.ClassPrivateStaticField, "class Foo { static accessor x = null }",
+		`var _x;
+class Foo {
+  static get x() {
+    return __privateGet(this, _x);
+  }
+  static set x(_) {
+    __privateSet(this, _x, _);
+  }
+}
+_x = new WeakMap();
+__privateAdd(Foo, _x, null);
+`)
+	expectPrintedWithUnsupportedFeatures(t, compat.Decorators|compat.ClassField|compat.ClassPrivateField, "class Foo { accessor x = null }",
+		`var _x;
+class Foo {
+  constructor() {
+    __privateAdd(this, _x, null);
+  }
+  get x() {
+    return __privateGet(this, _x);
+  }
+  set x(_) {
+    __privateSet(this, _x, _);
+  }
+}
+_x = new WeakMap();
+`)
+	expectPrintedWithUnsupportedFeatures(t, compat.Decorators|compat.ClassStaticField|compat.ClassPrivateStaticField, "class Foo { static accessor x = null }",
+		`var _x;
+class Foo {
+  static get x() {
+    return __privateGet(this, _x);
+  }
+  static set x(_) {
+    __privateSet(this, _x, _);
+  }
+}
+_x = new WeakMap();
+__privateAdd(Foo, _x, null);
+`)
+	expectPrintedWithUnsupportedFeatures(t, compat.Decorators|compat.ClassField|compat.ClassPrivateField, "class Foo { accessor x = 1; static accessor y = 2 }",
+		`var _x, _y;
+class Foo {
+  constructor() {
+    __privateAdd(this, _x, 1);
+  }
+  get x() {
+    return __privateGet(this, _x);
+  }
+  set x(_) {
+    __privateSet(this, _x, _);
+  }
+  static get y() {
+    return __privateGet(this, _y);
+  }
+  static set y(_) {
+    __privateSet(this, _y, _);
+  }
+}
+_x = new WeakMap();
+_y = new WeakMap();
+__privateAdd(Foo, _y, 2);
+`)
+	expectPrintedWithUnsupportedFeatures(t, compat.Decorators|compat.ClassStaticField|compat.ClassPrivateStaticField, "class Foo { accessor x = 1; static accessor y = 2 }",
+		`var _y;
+class Foo {
+  #x = 1;
+  get x() {
+    return this.#x;
+  }
+  set x(_) {
+    this.#x = _;
+  }
+  static get y() {
+    return __privateGet(this, _y);
+  }
+  static set y(_) {
+    __privateSet(this, _y, _);
+  }
+}
+_y = new WeakMap();
+__privateAdd(Foo, _y, 2);
+`)
 }

@@ -59,13 +59,13 @@ TestGlobBasicSplitting
 ---------- /out/entry.js ----------
 import {
   require_a
-} from "./chunk-Z3PINQB2.js";
+} from "./chunk-KO426RN2.js";
 import {
   require_b
-} from "./chunk-XAB6ATD2.js";
+} from "./chunk-SGVK3D4Q.js";
 import {
   __glob
-} from "./chunk-NI2FVOS3.js";
+} from "./chunk-WCFE7E2E.js";
 
 // require("./src/**/*") in entry.js
 var globRequire_src = __glob({
@@ -75,8 +75,8 @@ var globRequire_src = __glob({
 
 // import("./src/**/*") in entry.js
 var globImport_src = __glob({
-  "./src/a.js": () => import("./a-G7HQS5H7.js"),
-  "./src/b.js": () => import("./b-DBW3WPXU.js")
+  "./src/a.js": () => import("./a-7QA47R6Z.js"),
+  "./src/b.js": () => import("./b-KY4MVCQS.js")
 });
 
 // entry.js
@@ -92,17 +92,17 @@ console.log({
   }
 });
 
----------- /out/a-G7HQS5H7.js ----------
+---------- /out/a-7QA47R6Z.js ----------
 import {
   require_a
-} from "./chunk-Z3PINQB2.js";
-import "./chunk-NI2FVOS3.js";
+} from "./chunk-KO426RN2.js";
+import "./chunk-WCFE7E2E.js";
 export default require_a();
 
----------- /out/chunk-Z3PINQB2.js ----------
+---------- /out/chunk-KO426RN2.js ----------
 import {
   __commonJS
-} from "./chunk-NI2FVOS3.js";
+} from "./chunk-WCFE7E2E.js";
 
 // src/a.js
 var require_a = __commonJS({
@@ -115,17 +115,17 @@ export {
   require_a
 };
 
----------- /out/b-DBW3WPXU.js ----------
+---------- /out/b-KY4MVCQS.js ----------
 import {
   require_b
-} from "./chunk-XAB6ATD2.js";
-import "./chunk-NI2FVOS3.js";
+} from "./chunk-SGVK3D4Q.js";
+import "./chunk-WCFE7E2E.js";
 export default require_b();
 
----------- /out/chunk-XAB6ATD2.js ----------
+---------- /out/chunk-SGVK3D4Q.js ----------
 import {
   __commonJS
-} from "./chunk-NI2FVOS3.js";
+} from "./chunk-WCFE7E2E.js";
 
 // src/b.js
 var require_b = __commonJS({
@@ -138,7 +138,7 @@ export {
   require_b
 };
 
----------- /out/chunk-NI2FVOS3.js ----------
+---------- /out/chunk-WCFE7E2E.js ----------
 export {
   __glob,
   __commonJS
@@ -321,13 +321,13 @@ TestTSGlobBasicSplitting
 ---------- /out/entry.js ----------
 import {
   require_a
-} from "./chunk-NW3BCH2J.js";
+} from "./chunk-YMCIDKCT.js";
 import {
   require_b
-} from "./chunk-LX6LSYGO.js";
+} from "./chunk-2BST4PYI.js";
 import {
   __glob
-} from "./chunk-NI2FVOS3.js";
+} from "./chunk-WCFE7E2E.js";
 
 // require("./src/**/*") in entry.ts
 var globRequire_src = __glob({
@@ -337,8 +337,8 @@ var globRequire_src = __glob({
 
 // import("./src/**/*") in entry.ts
 var globImport_src = __glob({
-  "./src/a.ts": () => import("./a-CIKLEGQA.js"),
-  "./src/b.ts": () => import("./b-UWTMLRMB.js")
+  "./src/a.ts": () => import("./a-YXM4MR7E.js"),
+  "./src/b.ts": () => import("./b-IPMBSSGN.js")
 });
 
 // entry.ts
@@ -354,17 +354,17 @@ console.log({
   }
 });
 
----------- /out/a-CIKLEGQA.js ----------
+---------- /out/a-YXM4MR7E.js ----------
 import {
   require_a
-} from "./chunk-NW3BCH2J.js";
-import "./chunk-NI2FVOS3.js";
+} from "./chunk-YMCIDKCT.js";
+import "./chunk-WCFE7E2E.js";
 export default require_a();
 
----------- /out/chunk-NW3BCH2J.js ----------
+---------- /out/chunk-YMCIDKCT.js ----------
 import {
   __commonJS
-} from "./chunk-NI2FVOS3.js";
+} from "./chunk-WCFE7E2E.js";
 
 // src/a.ts
 var require_a = __commonJS({
@@ -377,17 +377,17 @@ export {
   require_a
 };
 
----------- /out/b-UWTMLRMB.js ----------
+---------- /out/b-IPMBSSGN.js ----------
 import {
   require_b
-} from "./chunk-LX6LSYGO.js";
-import "./chunk-NI2FVOS3.js";
+} from "./chunk-2BST4PYI.js";
+import "./chunk-WCFE7E2E.js";
 export default require_b();
 
----------- /out/chunk-LX6LSYGO.js ----------
+---------- /out/chunk-2BST4PYI.js ----------
 import {
   __commonJS
-} from "./chunk-NI2FVOS3.js";
+} from "./chunk-WCFE7E2E.js";
 
 // src/b.ts
 var require_b = __commonJS({
@@ -400,7 +400,7 @@ export {
   require_b
 };
 
----------- /out/chunk-NI2FVOS3.js ----------
+---------- /out/chunk-WCFE7E2E.js ----------
 export {
   __glob,
   __commonJS

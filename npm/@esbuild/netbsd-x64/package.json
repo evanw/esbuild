@@ -1,6 +1,6 @@
 {
   "name": "@esbuild/netbsd-x64",
-  "version": "0.20.2",
+  "version": "0.21.4",
   "description": "The NetBSD AMD64 binary for esbuild, a JavaScript bundler.",
   "repository": {
     "type": "git",

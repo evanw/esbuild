@@ -1539,6 +1539,14 @@ func TestAtRule(t *testing.T) {
   }
 }
 `, "")
+
+	// https://drafts.csswg.org/css-anchor-position-1/#at-ruledef-position-try
+	expectPrinted(t, `@position-try --foo { top: 0 }`,
+		`@position-try --foo {
+  top: 0;
+}
+`, "")
+	expectPrintedMinify(t, `@position-try --foo { top: 0; }`, `@position-try --foo{top:0}`, "")
 }
 
 func TestAtCharset(t *testing.T) {

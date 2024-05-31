@@ -132,6 +132,7 @@ const (
 	ES2020
 	ES2021
 	ES2022
+	ES2023
 )
 
 type Loader uint16
@@ -575,6 +576,7 @@ type ResolveOptions struct {
 	ResolveDir string
 	Kind       ResolveKind
 	PluginData interface{}
+	With       map[string]string
 }
 
 // Documentation: https://esbuild.github.io/plugins/#resolve-results
@@ -614,6 +616,7 @@ type OnResolveArgs struct {
 	ResolveDir string
 	Kind       ResolveKind
 	PluginData interface{}
+	With       map[string]string
 }
 
 // Documentation: https://esbuild.github.io/plugins/#on-resolve-results

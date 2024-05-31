@@ -2337,6 +2337,8 @@ func TestLowerForAwait2017(t *testing.T) {
 					async () => { for await (x.y of y) z(x) },
 					async () => { for await (let x of y) z(x) },
 					async () => { for await (const x of y) z(x) },
+					async () => { label: for await (const x of y) break label },
+					async () => { label: for await (const x of y) continue label },
 				]
 			`,
 		},
@@ -2358,6 +2360,8 @@ func TestLowerForAwait2015(t *testing.T) {
 					async () => { for await (x.y of y) z(x) },
 					async () => { for await (let x of y) z(x) },
 					async () => { for await (const x of y) z(x) },
+					async () => { label: for await (const x of y) break label },
+					async () => { label: for await (const x of y) continue label },
 				]
 			`,
 		},
@@ -3159,6 +3163,34 @@ func TestLowerAsyncGeneratorNoAwait(t *testing.T) {
 			Mode:                  config.ModePassThrough,
 			AbsOutputDir:          "/out",
 			UnsupportedJSFeatures: compat.AsyncGenerator | compat.AsyncAwait,
+		},
+	})
+}
+
+func TestJavaScriptDecoratorsBundleIssue3768(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/base-instance-method.js":   `class Foo { @dec foo() { return Foo } }`,
+			"/base-instance-field.js":    `class Foo { @dec foo = Foo }`,
+			"/base-instance-accessor.js": `class Foo { @dec accessor foo = Foo }`,
+
+			"/base-static-method.js":   `class Foo { @dec static foo() { return Foo } }`,
+			"/base-static-field.js":    `class Foo { @dec static foo = Foo }`,
+			"/base-static-accessor.js": `class Foo { @dec static accessor foo = Foo }`,
+
+			"/derived-instance-method.js":   `class Foo extends Bar { @dec foo() { return Foo } }`,
+			"/derived-instance-field.js":    `class Foo extends Bar { @dec foo = Foo }`,
+			"/derived-instance-accessor.js": `class Foo extends Bar { @dec accessor foo = Foo }`,
+
+			"/derived-static-method.js":   `class Foo extends Bar { @dec static foo() { return Foo } }`,
+			"/derived-static-field.js":    `class Foo extends Bar { @dec static foo = Foo }`,
+			"/derived-static-accessor.js": `class Foo extends Bar { @dec static accessor foo = Foo }`,
+		},
+		entryPaths: []string{"/*"},
+		options: config.Options{
+			Mode:                  config.ModeBundle,
+			AbsOutputDir:          "/out",
+			UnsupportedJSFeatures: compat.Decorators,
 		},
 	})
 }

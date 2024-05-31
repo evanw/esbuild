@@ -2486,7 +2486,46 @@ error: Invalid path suffix "%what" returned from plugin (must start with "?" or 
     assert.strictEqual(result.outputFiles[0].text, 'console.log(/* @__PURE__ */ jay_ess_ex("div", null));\n')
   },
 
-  async importAttributes({ esbuild }) {
+  async importAttributesOnResolve({ esbuild }) {
+    const result = await esbuild.build({
+      entryPoints: ['entry'],
+      bundle: true,
+      format: 'esm',
+      charset: 'utf8',
+      write: false,
+      plugins: [{
+        name: 'name',
+        setup(build) {
+          build.onResolve({ filter: /.*/ }, args => {
+            if (args.with.type === 'cheese') return { path: 'cheese', namespace: 'ns' }
+            if (args.with.pizza === 'true') return { path: 'pizza', namespace: 'ns' }
+            return { path: args.path, namespace: 'ns' }
+          })
+          build.onLoad({ filter: /.*/ }, args => {
+            const entry = `
+              import a from 'foo' with { type: 'cheese' }
+              import b from 'foo' with { pizza: 'true' }
+              console.log(a, b)
+            `
+            if (args.path === 'entry') return { contents: entry }
+            if (args.path === 'cheese') return { contents: `export default "🧀"` }
+            if (args.path === 'pizza') return { contents: `export default "🍕"` }
+          })
+        },
+      }],
+    })
+    assert.strictEqual(result.outputFiles[0].text, `// ns:cheese
+var cheese_default = "🧀";
+
+// ns:pizza
+var pizza_default = "🍕";
+
+// ns:entry
+console.log(cheese_default, pizza_default);
+`)
+  },
+
+  async importAttributesOnLoad({ esbuild }) {
     const result = await esbuild.build({
       entryPoints: ['entry'],
       bundle: true,
@@ -2521,6 +2560,39 @@ var foo_default2 = "🍕";
 // ns:entry
 console.log(foo_default, foo_default2);
 `)
+  },
+
+  async importAttributesResolve({ esbuild }) {
+    const log = []
+    await esbuild.build({
+      entryPoints: [],
+      bundle: true,
+      format: 'esm',
+      charset: 'utf8',
+      write: false,
+      plugins: [{
+        name: 'name',
+        setup(build) {
+          build.onResolve({ filter: /.*/ }, args => {
+            log.push(args)
+            return { external: true }
+          })
+          build.onStart(() => {
+            build.resolve('foo', {
+              kind: 'require-call',
+              with: { type: 'cheese' },
+            })
+            build.resolve('bar', {
+              kind: 'import-statement',
+              with: { pizza: 'true' },
+            })
+          })
+        },
+      }],
+    })
+    assert.strictEqual(log.length, 2)
+    assert.strictEqual(log[0].with.type, 'cheese')
+    assert.strictEqual(log[1].with.pizza, 'true')
   },
 
   async internalCrashIssue3634({ esbuild }) {

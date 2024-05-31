@@ -119,10 +119,8 @@ console.log(a_exports, b_exports, c_exports, d_exports);
 TestTSAbstractClassFieldUseAssign
 ---------- /out.js ----------
 const keepThis = Symbol("keepThis");
+keepThis;
 class Foo {
-  static {
-    keepThis;
-  }
 }
 (() => new Foo())();
 
@@ -146,13 +144,11 @@ module.exports = null;
 TestTSComputedClassFieldUseDefineFalse
 ---------- /out.js ----------
 var _a, _b, _c;
+q, _c = r, _b = x, _a = y;
 class Foo {
   constructor() {
-    this[_a] = s;
-    this[_c] = z;
-  }
-  static {
-    q, _a = r, _b = x, _c = y;
+    this[_c] = s;
+    this[_a] = z;
   }
 }
 __decorateClass([
@@ -160,7 +156,7 @@ __decorateClass([
 ], Foo.prototype, _b, 2);
 __decorateClass([
   dec
-], Foo.prototype, _c, 2);
+], Foo.prototype, _a, 2);
 new Foo();
 
 ================================================================================
@@ -170,38 +166,36 @@ var _a, _b;
 class Foo {
   [q];
   [r] = s;
-  [_a = x];
-  [_b = y] = z;
+  [_b = x];
+  [_a = y] = z;
 }
 __decorateClass([
   dec
-], Foo.prototype, _a, 2);
+], Foo.prototype, _b, 2);
 __decorateClass([
   dec
-], Foo.prototype, _b, 2);
+], Foo.prototype, _a, 2);
 new Foo();
 
 ================================================================================
 TestTSComputedClassFieldUseDefineTrueLower
 ---------- /out.js ----------
 var _a, _b, _c, _d;
+_d = q, _c = r, _b = x, _a = y;
 class Foo {
   constructor() {
-    __publicField(this, _a);
-    __publicField(this, _b, s);
-    __publicField(this, _c);
-    __publicField(this, _d, z);
-  }
-  static {
-    _a = q, _b = r, _c = x, _d = y;
+    __publicField(this, _d);
+    __publicField(this, _c, s);
+    __publicField(this, _b);
+    __publicField(this, _a, z);
   }
 }
 __decorateClass([
   dec
-], Foo.prototype, _c, 2);
+], Foo.prototype, _b, 2);
 __decorateClass([
   dec
-], Foo.prototype, _d, 2);
+], Foo.prototype, _a, 2);
 new Foo();
 
 ================================================================================
@@ -229,10 +223,8 @@ var foo = bar();
 TestTSDeclareClassFields
 ---------- /out.js ----------
 // define-false/index.ts
+() => null, c, () => null, C;
 var Foo = class {
-  static {
-    () => null, c, () => null, C;
-  }
 };
 (() => new Foo())();
 
@@ -754,29 +746,26 @@ Foo = __decorateClass([
 var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
 var Foo2 = class {
   constructor() {
-    this[_b] = 1;
+    this[_j] = 1;
     this[_f] = 2;
   }
-  static {
-    _k = mDecl();
-  }
-  [(_a = mUndef(), _b = mDef(), _c = method())](arg0, arg1) {
+  [(_k = mUndef(), _j = mDef(), _i = method())](arg0, arg1) {
     return new Foo2();
   }
-  static [(_d = mDecl(), _e = mAbst(), xUndef(), _f = xDef(), yUndef(), _g = yDef(), _h = sUndef(), _i = sDef(), _j = sMethod())](arg0, arg1) {
+  static [(_h = mDecl(), _g = mAbst(), xUndef(), _f = xDef(), yUndef(), _e = yDef(), _d = sUndef(), _c = sDef(), _b = sMethod(), _a = mDecl(), _b)](arg0, arg1) {
     return new Foo2();
   }
 };
-Foo2[_g] = 3;
-Foo2[_i] = new Foo2();
+Foo2[_e] = 3;
+Foo2[_c] = new Foo2();
 __decorateClass([
   x,
   y
-], Foo2.prototype, _a, 2);
+], Foo2.prototype, _k, 2);
 __decorateClass([
   x,
   y
-], Foo2.prototype, _b, 2);
+], Foo2.prototype, _j, 2);
 __decorateClass([
   x,
   y,
@@ -784,23 +773,23 @@ __decorateClass([
   __decorateParam(0, y0),
   __decorateParam(1, x1),
   __decorateParam(1, y1)
-], Foo2.prototype, _c, 1);
+], Foo2.prototype, _i, 1);
 __decorateClass([
   x,
   y
-], Foo2.prototype, _d, 2);
+], Foo2.prototype, _h, 2);
 __decorateClass([
   x,
   y
-], Foo2.prototype, _e, 2);
+], Foo2.prototype, _g, 2);
 __decorateClass([
   x,
   y
-], Foo2, _h, 2);
+], Foo2, _d, 2);
 __decorateClass([
   x,
   y
-], Foo2, _i, 2);
+], Foo2, _c, 2);
 __decorateClass([
   x,
   y,
@@ -808,11 +797,11 @@ __decorateClass([
   __decorateParam(0, y0),
   __decorateParam(1, x1),
   __decorateParam(1, y1)
-], Foo2, _j, 1);
+], Foo2, _b, 1);
 __decorateClass([
   x,
   y
-], Foo2, _k, 2);
+], Foo2, _a, 2);
 Foo2 = __decorateClass([
   x?.[_ + "y"](),
   new y?.[_ + "x"]()

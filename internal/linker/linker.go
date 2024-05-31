@@ -1623,6 +1623,10 @@ func (c *linkerContext) scanImportsAndExports() {
 					continue
 				}
 
+				if c.options.OutputFormat == config.FormatESModule && c.options.UnsupportedJSFeatures.Has(compat.ArbitraryModuleNamespaceNames) && c.graph.Files[sourceIndex].IsEntryPoint() {
+					c.maybeForbidArbitraryModuleNamespaceIdentifier("export", export.SourceIndex, export.NameLoc, alias)
+				}
+
 				aliases = append(aliases, alias)
 			}
 			sort.Strings(aliases)
@@ -2835,6 +2839,15 @@ loop:
 	}
 
 	return
+}
+
+func (c *linkerContext) maybeForbidArbitraryModuleNamespaceIdentifier(kind string, sourceIndex uint32, loc logger.Loc, alias string) {
+	if !js_ast.IsIdentifier(alias) {
+		file := &c.graph.Files[sourceIndex]
+		where := config.PrettyPrintTargetEnvironment(c.options.OriginalTargetEnv, c.options.UnsupportedJSFeatureOverridesMask)
+		c.log.AddError(file.LineColumnTracker(), file.InputFile.Source.RangeOfString(loc), fmt.Sprintf(
+			"Using the string %q as an %s name is not supported in %s", alias, kind, where))
+	}
 }
 
 // Attempt to correct an import name with a typo
@@ -4307,6 +4320,12 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 				continue
 			}
 
+			if c.options.UnsupportedJSFeatures.Has(compat.ArbitraryModuleNamespaceNames) && s.Items != nil {
+				for _, item := range *s.Items {
+					c.maybeForbidArbitraryModuleNamespaceIdentifier("import", sourceIndex, item.AliasLoc, item.Alias)
+				}
+			}
+
 			// Make sure these don't end up in the wrapper closure
 			if shouldExtractESMStmtsForWrap {
 				stmtList.outsideWrapperPrefix = append(stmtList.outsideWrapperPrefix, stmt)
@@ -4318,6 +4337,10 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 			if s.Alias != nil {
 				if c.shouldRemoveImportExportStmt(sourceIndex, stmtList, stmt.Loc, s.NamespaceRef, s.ImportRecordIndex) {
 					continue
+				}
+
+				if c.options.UnsupportedJSFeatures.Has(compat.ArbitraryModuleNamespaceNames) {
+					c.maybeForbidArbitraryModuleNamespaceIdentifier("export", sourceIndex, s.Alias.Loc, s.Alias.OriginalName)
 				}
 
 				if shouldStripExports {
@@ -4426,6 +4449,15 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 				continue
 			}
 
+			if c.options.UnsupportedJSFeatures.Has(compat.ArbitraryModuleNamespaceNames) {
+				for _, item := range s.Items {
+					c.maybeForbidArbitraryModuleNamespaceIdentifier("export", sourceIndex, item.AliasLoc, item.Alias)
+					if item.AliasLoc != item.Name.Loc {
+						c.maybeForbidArbitraryModuleNamespaceIdentifier("import", sourceIndex, item.Name.Loc, item.OriginalName)
+					}
+				}
+			}
+
 			if shouldStripExports {
 				// Turn this statement into "import {foo} from 'path'"
 				for i, item := range s.Items {
@@ -4449,6 +4481,12 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 			if shouldStripExports {
 				// Remove export statements entirely
 				continue
+			}
+
+			if c.options.UnsupportedJSFeatures.Has(compat.ArbitraryModuleNamespaceNames) {
+				for _, item := range s.Items {
+					c.maybeForbidArbitraryModuleNamespaceIdentifier("export", sourceIndex, item.AliasLoc, item.Alias)
+				}
 			}
 
 			// Make sure these don't end up in the wrapper closure
@@ -4761,12 +4799,12 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 			var cjsArgs []js_ast.Expr
 			if c.options.ProfilerNames {
 				// "__commonJS({ 'file.js'(exports, module) { ... } })"
-				var flags js_ast.PropertyFlags
+				kind := js_ast.PropertyField
 				if !c.options.UnsupportedJSFeatures.Has(compat.ObjectExtensions) {
-					flags |= js_ast.PropertyIsMethod
+					kind = js_ast.PropertyMethod
 				}
 				cjsArgs = []js_ast.Expr{{Data: &js_ast.EObject{Properties: []js_ast.Property{{
-					Flags:      flags,
+					Kind:       kind,
 					Key:        js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16(file.InputFile.Source.PrettyPath)}},
 					ValueOrNil: js_ast.Expr{Data: &js_ast.EFunction{Fn: js_ast.Fn{Args: args, Body: js_ast.FnBody{Block: js_ast.SBlock{Stmts: stmts}}}}},
 				}}}}}
@@ -4833,12 +4871,12 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 			var esmArgs []js_ast.Expr
 			if c.options.ProfilerNames {
 				// "__esm({ 'file.js'() { ... } })"
-				var flags js_ast.PropertyFlags
+				kind := js_ast.PropertyField
 				if !c.options.UnsupportedJSFeatures.Has(compat.ObjectExtensions) {
-					flags |= js_ast.PropertyIsMethod
+					kind = js_ast.PropertyMethod
 				}
 				esmArgs = []js_ast.Expr{{Data: &js_ast.EObject{Properties: []js_ast.Property{{
-					Flags:      flags,
+					Kind:       kind,
 					Key:        js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16(file.InputFile.Source.PrettyPath)}},
 					ValueOrNil: js_ast.Expr{Data: &js_ast.EFunction{Fn: js_ast.Fn{Body: js_ast.FnBody{Block: js_ast.SBlock{Stmts: stmts}}, IsAsync: isAsync}}},
 				}}}}}

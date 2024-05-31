@@ -598,58 +598,48 @@ for (
   /*foo*/
   a;
   ;
-)
-  ;
+) ;
 for (
   ;
   /*foo*/
   a;
-)
-  ;
+) ;
 for (
   ;
   ;
   /*foo*/
   a
-)
-  ;
+) ;
 for (
   /*foo*/
   a in b
-)
-  ;
+) ;
 for (
   a in
   /*foo*/
   b
-)
-  ;
+) ;
 for (
   /*foo*/
   a of b
-)
-  ;
+) ;
 for (
   a of
   /*foo*/
   b
-)
-  ;
+) ;
 if (
   /*foo*/
   a
-)
-  ;
+) ;
 with (
   /*foo*/
   a
-)
-  ;
+) ;
 while (
   /*foo*/
   a
-)
-  ;
+) ;
 do {
 } while (
   /*foo*/
@@ -859,24 +849,18 @@ TestConstWithLet
 console.log(1);
 console.log(2);
 unknownFn(3);
-for (let c = x; ; )
-  console.log(c);
-for (let d in x)
-  console.log(d);
-for (let e of x)
-  console.log(e);
+for (let c = x; ; ) console.log(c);
+for (let d in x) console.log(d);
+for (let e of x) console.log(e);
 
 ================================================================================
 TestConstWithLetNoBundle
 ---------- /out.js ----------
 const a = 1;
 console.log(1), console.log(2), unknownFn(3);
-for (const c = x; ; )
-  console.log(c);
-for (const d in x)
-  console.log(d);
-for (const e of x)
-  console.log(e);
+for (const c = x; ; ) console.log(c);
+for (const d in x) console.log(d);
+for (const e of x) console.log(e);
 
 ================================================================================
 TestConstWithLetNoMangle
@@ -888,12 +872,9 @@ if (true) {
   const b = 2;
   console.log(b);
 }
-for (const c = x; ; )
-  console.log(c);
-for (const d in x)
-  console.log(d);
-for (const e of x)
-  console.log(e);
+for (const c = x; ; ) console.log(c);
+for (const d in x) console.log(d);
+for (const e of x) console.log(e);
 
 ================================================================================
 TestDecoratorPrintingCJS
@@ -2217,6 +2198,25 @@ console.log(
 );
 
 ================================================================================
+TestInjectWithStringExportNameBundle
+---------- /out.js ----------
+// inject.js
+var old = console.log;
+var fn = (...args) => old.apply(console, ["log:"].concat(args));
+
+// entry.js
+fn(test);
+fn(test);
+fn(test);
+
+================================================================================
+TestInjectWithStringExportNameNoBundle
+---------- /out.js ----------
+var old = console.log;
+var fn = (...args) => old.apply(console, ["log:"].concat(args));
+fn(test);
+
+================================================================================
 TestJSXAutomaticImportsCommonJS
 ---------- /out.js ----------
 // custom-react.js
@@ -2705,6 +2705,265 @@ console.log([
     /* @__PURE__ */ this(this, null, "y")
   ]);
 };
+
+================================================================================
+TestKeepNamesAllForms
+---------- /out/keep.js ----------
+function fn() {
+}
+__name(fn, "fn");
+function foo(fn2 = function() {
+}) {
+}
+__name(foo, "foo");
+var fn = /* @__PURE__ */ __name(function() {
+}, "fn");
+var obj = { "f n": /* @__PURE__ */ __name(function() {
+}, "f n") };
+class Foo0 {
+  static {
+    __name(this, "Foo0");
+  }
+  "f n" = /* @__PURE__ */ __name(function() {
+  }, "f n");
+}
+class Foo1 {
+  static {
+    __name(this, "Foo1");
+  }
+  static "f n" = /* @__PURE__ */ __name(function() {
+  }, "f n");
+}
+class Foo2 {
+  static {
+    __name(this, "Foo2");
+  }
+  accessor "f n" = /* @__PURE__ */ __name(function() {
+  }, "f n");
+}
+class Foo3 {
+  static {
+    __name(this, "Foo3");
+  }
+  static accessor "f n" = /* @__PURE__ */ __name(function() {
+  }, "f n");
+}
+class Foo4 {
+  static {
+    __name(this, "Foo4");
+  }
+  #fn = /* @__PURE__ */ __name(function() {
+  }, "#fn");
+}
+class Foo5 {
+  static {
+    __name(this, "Foo5");
+  }
+  static #fn = /* @__PURE__ */ __name(function() {
+  }, "#fn");
+}
+class Foo6 {
+  static {
+    __name(this, "Foo6");
+  }
+  accessor #fn = /* @__PURE__ */ __name(function() {
+  }, "#fn");
+}
+class Foo7 {
+  static {
+    __name(this, "Foo7");
+  }
+  static accessor #fn = /* @__PURE__ */ __name(function() {
+  }, "#fn");
+}
+fn = /* @__PURE__ */ __name(function() {
+}, "fn");
+fn ||= /* @__PURE__ */ __name(function() {
+}, "fn");
+fn &&= /* @__PURE__ */ __name(function() {
+}, "fn");
+fn ??= /* @__PURE__ */ __name(function() {
+}, "fn");
+var [fn = /* @__PURE__ */ __name(function() {
+}, "fn")] = [];
+var { fn = /* @__PURE__ */ __name(function() {
+}, "fn") } = {};
+for (var [fn = /* @__PURE__ */ __name(function() {
+}, "fn")] = []; ; ) ;
+for (var { fn = /* @__PURE__ */ __name(function() {
+}, "fn") } = {}; ; ) ;
+for (var [fn = /* @__PURE__ */ __name(function() {
+}, "fn")] in obj) ;
+for (var { fn = /* @__PURE__ */ __name(function() {
+}, "fn") } in obj) ;
+for (var [fn = /* @__PURE__ */ __name(function() {
+}, "fn")] of obj) ;
+for (var { fn = /* @__PURE__ */ __name(function() {
+}, "fn") } of obj) ;
+function foo([fn2 = /* @__PURE__ */ __name(function() {
+}, "fn")]) {
+}
+__name(foo, "foo");
+function foo({ fn: fn2 = /* @__PURE__ */ __name(function() {
+}, "fn") }) {
+}
+__name(foo, "foo");
+[fn = /* @__PURE__ */ __name(function() {
+}, "fn")] = [];
+({ fn = /* @__PURE__ */ __name(function() {
+}, "fn") } = {});
+
+---------- /out/do-not-keep.js ----------
+class Foo0 {
+  static {
+    __name(this, "Foo0");
+  }
+  fn() {
+  }
+}
+class Foo1 {
+  static {
+    __name(this, "Foo1");
+  }
+  *fn() {
+  }
+}
+class Foo2 {
+  static {
+    __name(this, "Foo2");
+  }
+  get fn() {
+  }
+}
+class Foo3 {
+  static {
+    __name(this, "Foo3");
+  }
+  set fn(_) {
+  }
+}
+class Foo4 {
+  static {
+    __name(this, "Foo4");
+  }
+  async fn() {
+  }
+}
+class Foo5 {
+  static {
+    __name(this, "Foo5");
+  }
+  static fn() {
+  }
+}
+class Foo6 {
+  static {
+    __name(this, "Foo6");
+  }
+  static *fn() {
+  }
+}
+class Foo7 {
+  static {
+    __name(this, "Foo7");
+  }
+  static get fn() {
+  }
+}
+class Foo8 {
+  static {
+    __name(this, "Foo8");
+  }
+  static set fn(_) {
+  }
+}
+class Foo9 {
+  static {
+    __name(this, "Foo9");
+  }
+  static async fn() {
+  }
+}
+class Bar0 {
+  static {
+    __name(this, "Bar0");
+  }
+  #fn() {
+  }
+}
+class Bar1 {
+  static {
+    __name(this, "Bar1");
+  }
+  *#fn() {
+  }
+}
+class Bar2 {
+  static {
+    __name(this, "Bar2");
+  }
+  get #fn() {
+  }
+}
+class Bar3 {
+  static {
+    __name(this, "Bar3");
+  }
+  set #fn(_) {
+  }
+}
+class Bar4 {
+  static {
+    __name(this, "Bar4");
+  }
+  async #fn() {
+  }
+}
+class Bar5 {
+  static {
+    __name(this, "Bar5");
+  }
+  static #fn() {
+  }
+}
+class Bar6 {
+  static {
+    __name(this, "Bar6");
+  }
+  static *#fn() {
+  }
+}
+class Bar7 {
+  static {
+    __name(this, "Bar7");
+  }
+  static get #fn() {
+  }
+}
+class Bar8 {
+  static {
+    __name(this, "Bar8");
+  }
+  static set #fn(_) {
+  }
+}
+class Bar9 {
+  static {
+    __name(this, "Bar9");
+  }
+  static async #fn(_) {
+  }
+}
+const Baz0 = { fn() {
+} };
+const Baz1 = { *fn() {
+} };
+const Baz2 = { get fn() {
+} };
+const Baz3 = { set fn(_) {
+} };
+const Baz4 = { async fn() {
+} };
 
 ================================================================================
 TestKeepNamesClassStaticName
@@ -4328,7 +4587,7 @@ copy
 import {
   __commonJS,
   __require
-} from "./chunk-WXLYCZIT.js";
+} from "./chunk-MQN2VSL5.js";
 
 // project/cjs.js
 var require_cjs = __commonJS({
@@ -4359,15 +4618,15 @@ console.log(
   e,
   __require("extern-cjs"),
   require_cjs(),
-  import("./dynamic-TGITTCVZ.js")
+  import("./dynamic-Q2DWDUFV.js")
 );
 var exported;
 export {
   exported
 };
 
----------- /out/dynamic-TGITTCVZ.js ----------
-import "./chunk-WXLYCZIT.js";
+---------- /out/dynamic-Q2DWDUFV.js ----------
+import "./chunk-MQN2VSL5.js";
 
 // project/dynamic.js
 var dynamic_default = 5;
@@ -4375,7 +4634,7 @@ export {
   dynamic_default as default
 };
 
----------- /out/chunk-WXLYCZIT.js ----------
+---------- /out/chunk-MQN2VSL5.js ----------
 export {
   __require,
   __commonJS
@@ -4532,7 +4791,7 @@ d {
     "out/entry.js": {
       "imports": [
         {
-          "path": "out/chunk-WXLYCZIT.js",
+          "path": "out/chunk-MQN2VSL5.js",
           "kind": "import-statement"
         },
         {
@@ -4554,7 +4813,7 @@ d {
           "external": true
         },
         {
-          "path": "out/dynamic-TGITTCVZ.js",
+          "path": "out/dynamic-Q2DWDUFV.js",
           "kind": "dynamic-import"
         }
       ],
@@ -4581,10 +4840,10 @@ d {
       },
       "bytes": 642
     },
-    "out/dynamic-TGITTCVZ.js": {
+    "out/dynamic-Q2DWDUFV.js": {
       "imports": [
         {
-          "path": "out/chunk-WXLYCZIT.js",
+          "path": "out/chunk-MQN2VSL5.js",
           "kind": "import-statement"
         }
       ],
@@ -4599,7 +4858,7 @@ d {
       },
       "bytes": 119
     },
-    "out/chunk-WXLYCZIT.js": {
+    "out/chunk-MQN2VSL5.js": {
       "imports": [],
       "exports": [
         "__commonJS",
@@ -4997,22 +5256,19 @@ TestMinifySiblingLabelsNoBundle
 ---------- /out.js ----------
 a: {
   b: {
-    if (x)
-      break b;
+    if (x) break b;
     break a;
   }
 }
 a: {
   b: {
-    if (x)
-      break b;
+    if (x) break b;
     break a;
   }
 }
 a: {
   b: {
-    if (x)
-      break b;
+    if (x) break b;
     break a;
   }
 }
@@ -5512,22 +5768,19 @@ TestRenameLabelsNoBundle
 ---------- /out.js ----------
 foo: {
   bar: {
-    if (x)
-      break bar;
+    if (x) break bar;
     break foo;
   }
 }
 foo2: {
   bar2: {
-    if (x)
-      break bar2;
+    if (x) break bar2;
     break foo2;
   }
 }
 foo: {
   bar: {
-    if (x)
-      break bar;
+    if (x) break bar;
     break foo;
   }
 }
@@ -5936,6 +6189,33 @@ export function outer() {
   }
 }
 __name(outer, "outer"), outer();
+
+================================================================================
+TestStringExportNamesCommonJS
+---------- /out.js ----------
+var entry_exports = {};
+__export(entry_exports, {
+  "all the stuff": () => all_the_stuff,
+  "some export": () => import_foo["some import"]
+});
+module.exports = __toCommonJS(entry_exports);
+var import_foo = require("./foo");
+var all_the_stuff = __toESM(require("./foo"));
+
+================================================================================
+TestStringExportNamesIIFE
+---------- /out.js ----------
+var global;
+(global ||= {}).name = (() => {
+  var entry_exports = {};
+  __export(entry_exports, {
+    "all the stuff": () => all_the_stuff,
+    "some export": () => import_foo["some import"]
+  });
+  var import_foo = require("./foo");
+  var all_the_stuff = __toESM(require("./foo"));
+  return __toCommonJS(entry_exports);
+})();
 
 ================================================================================
 TestSwitchScopeNoBundle
@@ -6396,29 +6676,22 @@ await init_entry();
 TestTopLevelAwaitCJSDeadBranch
 ---------- /out.js ----------
 // entry.js
-if (false)
-  foo;
-if (false)
-  for (foo of bar)
-    ;
+if (false) foo;
+if (false) for (foo of bar) ;
 
 ================================================================================
 TestTopLevelAwaitESM
 ---------- /out.js ----------
 // entry.js
 await foo;
-for await (foo of bar)
-  ;
+for await (foo of bar) ;
 
 ================================================================================
 TestTopLevelAwaitESMDeadBranch
 ---------- /out.js ----------
 // entry.js
-if (false)
-  await foo;
-if (false)
-  for await (foo of bar)
-    ;
+if (false) await foo;
+if (false) for await (foo of bar) ;
 
 ================================================================================
 TestTopLevelAwaitForbiddenRequireDeadBranch
@@ -6428,9 +6701,7 @@ TestTopLevelAwaitForbiddenRequireDeadBranch
   var c_exports = {};
   var init_c = __esm({
     "c.js"() {
-      if (false)
-        for (let x of y)
-          ;
+      if (false) for (let x of y) ;
     }
   });
 
@@ -6458,9 +6729,7 @@ TestTopLevelAwaitForbiddenRequireDeadBranch
       init_b();
       init_c();
       init_entry();
-      if (false)
-        for (let x of y)
-          ;
+      if (false) for (let x of y) ;
     }
   });
   init_entry();
@@ -6471,63 +6740,46 @@ TestTopLevelAwaitIIFEDeadBranch
 ---------- /out.js ----------
 (() => {
   // entry.js
-  if (false)
-    foo;
-  if (false)
-    for (foo of bar)
-      ;
+  if (false) foo;
+  if (false) for (foo of bar) ;
 })();
 
 ================================================================================
 TestTopLevelAwaitNoBundle
 ---------- /out.js ----------
 await foo;
-for await (foo of bar)
-  ;
+for await (foo of bar) ;
 
 ================================================================================
 TestTopLevelAwaitNoBundleCommonJSDeadBranch
 ---------- /out.js ----------
-if (false)
-  foo;
-if (false)
-  for (foo of bar)
-    ;
+if (false) foo;
+if (false) for (foo of bar) ;
 
 ================================================================================
 TestTopLevelAwaitNoBundleDeadBranch
 ---------- /out.js ----------
-if (false)
-  await foo;
-if (false)
-  for await (foo of bar)
-    ;
+if (false) await foo;
+if (false) for await (foo of bar) ;
 
 ================================================================================
 TestTopLevelAwaitNoBundleESM
 ---------- /out.js ----------
 await foo;
-for await (foo of bar)
-  ;
+for await (foo of bar) ;
 
 ================================================================================
 TestTopLevelAwaitNoBundleESMDeadBranch
 ---------- /out.js ----------
-if (false)
-  await foo;
-if (false)
-  for await (foo of bar)
-    ;
+if (false) await foo;
+if (false) for await (foo of bar) ;
 
 ================================================================================
 TestTopLevelAwaitNoBundleIIFEDeadBranch
 ---------- /out.js ----------
 (() => {
-  if (false)
-    foo;
-  if (false)
-    for (foo of bar)
-      ;
+  if (false) foo;
+  if (false) for (foo of bar) ;
 })();
 
 ================================================================================
@@ -6596,29 +6848,22 @@ TestUseStrictDirectiveMinifyNoBundle
 TestVarRelocatingBundle
 ---------- /out/top-level.js ----------
 // top-level.js
-for (; 0; )
-  ;
+for (; 0; ) ;
 var b;
-for ({ c, x: [d] } = {}; 0; )
-  ;
+for ({ c, x: [d] } = {}; 0; ) ;
 var c;
 var d;
-for (e of [])
-  ;
+for (e of []) ;
 var e;
-for ({ f, x: [g] } of [])
-  ;
+for ({ f, x: [g] } of []) ;
 var f;
 var g;
-for (h in {})
-  ;
+for (h in {}) ;
 var h;
 i = 1;
-for (i in {})
-  ;
+for (i in {}) ;
 var i;
-for ({ j, x: [k] } in {})
-  ;
+for ({ j, x: [k] } in {}) ;
 var j;
 var k;
 
@@ -6628,21 +6873,14 @@ if (true) {
   let l = function() {
   };
   l2 = l;
-  for (; 0; )
-    ;
-  for ({ c, x: [d] } = {}; 0; )
-    ;
-  for (e of [])
-    ;
-  for ({ f, x: [g] } of [])
-    ;
-  for (h in {})
-    ;
+  for (; 0; ) ;
+  for ({ c, x: [d] } = {}; 0; ) ;
+  for (e of []) ;
+  for ({ f, x: [g] } of []) ;
+  for (h in {}) ;
   i = 1;
-  for (i in {})
-    ;
-  for ({ j, x: [k] } in {})
-    ;
+  for (i in {}) ;
+  for ({ j, x: [k] } in {}) ;
 }
 var a;
 var b;
@@ -6661,39 +6899,26 @@ var l2;
 // let.js
 if (true) {
   let a;
-  for (let b; 0; )
-    ;
-  for (let { c, x: [d] } = {}; 0; )
-    ;
-  for (let e of [])
-    ;
-  for (let { f, x: [g] } of [])
-    ;
-  for (let h in {})
-    ;
-  for (let { j, x: [k] } in {})
-    ;
+  for (let b; 0; ) ;
+  for (let { c, x: [d] } = {}; 0; ) ;
+  for (let e of []) ;
+  for (let { f, x: [g] } of []) ;
+  for (let h in {}) ;
+  for (let { j, x: [k] } in {}) ;
 }
 
 ---------- /out/function.js ----------
 // function.js
 function x() {
   var a;
-  for (var b; 0; )
-    ;
-  for (var { c, x: [d] } = {}; 0; )
-    ;
-  for (var e of [])
-    ;
-  for (var { f, x: [g] } of [])
-    ;
-  for (var h in {})
-    ;
+  for (var b; 0; ) ;
+  for (var { c, x: [d] } = {}; 0; ) ;
+  for (var e of []) ;
+  for (var { f, x: [g] } of []) ;
+  for (var h in {}) ;
   i = 1;
-  for (var i in {})
-    ;
-  for (var { j, x: [k] } in {})
-    ;
+  for (var i in {}) ;
+  for (var { j, x: [k] } in {}) ;
   function l() {
   }
 }
@@ -6707,21 +6932,14 @@ function x() {
     };
     var l = l2;
     var a;
-    for (var b; 0; )
-      ;
-    for (var { c, x: [d] } = {}; 0; )
-      ;
-    for (var e of [])
-      ;
-    for (var { f, x: [g] } of [])
-      ;
-    for (var h in {})
-      ;
+    for (var b; 0; ) ;
+    for (var { c, x: [d] } = {}; 0; ) ;
+    for (var e of []) ;
+    for (var { f, x: [g] } of []) ;
+    for (var h in {}) ;
     i = 1;
-    for (var i in {})
-      ;
-    for (var { j, x: [k] } in {})
-      ;
+    for (var i in {}) ;
+    for (var { j, x: [k] } in {}) ;
   }
 }
 x();
@@ -6730,21 +6948,14 @@ x();
 TestVarRelocatingNoBundle
 ---------- /out/top-level.js ----------
 var a;
-for (var b; 0; )
-  ;
-for (var { c, x: [d] } = {}; 0; )
-  ;
-for (var e of [])
-  ;
-for (var { f, x: [g] } of [])
-  ;
-for (var h in {})
-  ;
+for (var b; 0; ) ;
+for (var { c, x: [d] } = {}; 0; ) ;
+for (var e of []) ;
+for (var { f, x: [g] } of []) ;
+for (var h in {}) ;
 i = 1;
-for (var i in {})
-  ;
-for (var { j, x: [k] } in {})
-  ;
+for (var i in {}) ;
+for (var { j, x: [k] } in {}) ;
 function l() {
 }
 
@@ -6754,58 +6965,38 @@ if (true) {
   };
   var l2 = l;
   var a;
-  for (var b; 0; )
-    ;
-  for (var { c, x: [d] } = {}; 0; )
-    ;
-  for (var e of [])
-    ;
-  for (var { f, x: [g] } of [])
-    ;
-  for (var h in {})
-    ;
+  for (var b; 0; ) ;
+  for (var { c, x: [d] } = {}; 0; ) ;
+  for (var e of []) ;
+  for (var { f, x: [g] } of []) ;
+  for (var h in {}) ;
   i = 1;
-  for (var i in {})
-    ;
-  for (var { j, x: [k] } in {})
-    ;
+  for (var i in {}) ;
+  for (var { j, x: [k] } in {}) ;
 }
 
 ---------- /out/let.js ----------
 if (true) {
   let a;
-  for (let b; 0; )
-    ;
-  for (let { c, x: [d] } = {}; 0; )
-    ;
-  for (let e of [])
-    ;
-  for (let { f, x: [g] } of [])
-    ;
-  for (let h in {})
-    ;
-  for (let { j, x: [k] } in {})
-    ;
+  for (let b; 0; ) ;
+  for (let { c, x: [d] } = {}; 0; ) ;
+  for (let e of []) ;
+  for (let { f, x: [g] } of []) ;
+  for (let h in {}) ;
+  for (let { j, x: [k] } in {}) ;
 }
 
 ---------- /out/function.js ----------
 function x() {
   var a;
-  for (var b; 0; )
-    ;
-  for (var { c, x: [d] } = {}; 0; )
-    ;
-  for (var e of [])
-    ;
-  for (var { f, x: [g] } of [])
-    ;
-  for (var h in {})
-    ;
+  for (var b; 0; ) ;
+  for (var { c, x: [d] } = {}; 0; ) ;
+  for (var e of []) ;
+  for (var { f, x: [g] } of []) ;
+  for (var h in {}) ;
   i = 1;
-  for (var i in {})
-    ;
-  for (var { j, x: [k] } in {})
-    ;
+  for (var i in {}) ;
+  for (var { j, x: [k] } in {}) ;
   function l() {
   }
 }
@@ -6818,21 +7009,14 @@ function x() {
     };
     var l = l2;
     var a;
-    for (var b; 0; )
-      ;
-    for (var { c, x: [d] } = {}; 0; )
-      ;
-    for (var e of [])
-      ;
-    for (var { f, x: [g] } of [])
-      ;
-    for (var h in {})
-      ;
+    for (var b; 0; ) ;
+    for (var { c, x: [d] } = {}; 0; ) ;
+    for (var e of []) ;
+    for (var { f, x: [g] } of []) ;
+    for (var h in {}) ;
     i = 1;
-    for (var i in {})
-      ;
-    for (var { j, x: [k] } in {})
-      ;
+    for (var i in {}) ;
+    for (var { j, x: [k] } in {}) ;
   }
 }
 x();
@@ -7015,10 +7199,8 @@ TestWithStatementTaintingNoBundle
     let t = 5;
     hoisted++;
     t++;
-    if (1)
-      outer++;
-    if (0)
-      outerDead++;
+    if (1) outer++;
+    if (0) outerDead++;
   }
   if (1) {
     hoisted++;

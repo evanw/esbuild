@@ -1249,6 +1249,7 @@ let handlePlugins = async (
         let resolveDir = getFlag(options, keys, 'resolveDir', mustBeString)
         let kind = getFlag(options, keys, 'kind', mustBeString)
         let pluginData = getFlag(options, keys, 'pluginData', canBeAnything)
+        let importAttributes = getFlag(options, keys, 'with', mustBeObject)
         checkForInvalidFlags(options, keys, 'in resolve() call')
 
         return new Promise((resolve, reject) => {
@@ -1265,6 +1266,7 @@ let handlePlugins = async (
           if (kind != null) request.kind = kind
           else throw new Error(`Must specify "kind" when calling "resolve"`)
           if (pluginData != null) request.pluginData = details.store(pluginData)
+          if (importAttributes != null) request.with = sanitizeStringMap(importAttributes, 'with')
 
           sendRequest<protocol.ResolveRequest, protocol.ResolveResponse>(refs, request, (error, response) => {
             if (error !== null) reject(new Error(error))
@@ -1382,6 +1384,7 @@ let handlePlugins = async (
           resolveDir: request.resolveDir,
           kind: request.kind,
           pluginData: details.load(request.pluginData),
+          with: request.with,
         })
 
         if (result != null) {
@@ -1800,6 +1803,16 @@ function sanitizeStringArray(values: any[], property: string): string[] {
   for (const value of values) {
     if (typeof value !== 'string') throw new Error(`${quote(property)} must be an array of strings`)
     result.push(value)
+  }
+  return result
+}
+
+function sanitizeStringMap(map: Record<string, any>, property: string): Record<string, string> {
+  const result: Record<string, string> = Object.create(null)
+  for (const key in map) {
+    const value = map[key]
+    if (typeof value !== 'string') throw new Error(`key ${quote(key)} in object ${quote(property)} must be a string`)
+    result[key] = value
   }
   return result
 }

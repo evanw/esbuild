@@ -78,9 +78,6 @@ func (p *parser) markSyntaxFeature(feature compat.JSFeature, r logger.Range) (di
 	case compat.NestedRestBinding:
 		name = "non-identifier array rest patterns"
 
-	case compat.Decorators:
-		name = "JavaScript decorators"
-
 	case compat.ImportAttributes:
 		p.log.AddError(&p.tracker, r, fmt.Sprintf(
 			"Using an arbitrary value as the second argument to \"import()\" is not possible in %s", where))
@@ -89,11 +86,6 @@ func (p *parser) markSyntaxFeature(feature compat.JSFeature, r logger.Range) (di
 	case compat.TopLevelAwait:
 		p.log.AddError(&p.tracker, r, fmt.Sprintf(
 			"Top-level await is not available in %s", where))
-		return
-
-	case compat.ArbitraryModuleNamespaceNames:
-		p.log.AddError(&p.tracker, r, fmt.Sprintf(
-			"Using a string as a module namespace identifier name is not supported in %s", where))
 		return
 
 	case compat.Bigint:

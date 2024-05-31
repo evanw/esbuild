@@ -250,14 +250,31 @@ type Decorator struct {
 type PropertyKind uint8
 
 const (
-	PropertyNormal PropertyKind = iota
-	PropertyGet
-	PropertySet
+	PropertyField PropertyKind = iota
+	PropertyMethod
+	PropertyGetter
+	PropertySetter
 	PropertyAutoAccessor
 	PropertySpread
 	PropertyDeclareOrAbstract
 	PropertyClassStaticBlock
 )
+
+// This returns true if and only if this property matches the "MethodDefinition"
+// grammar from the specification. That means it's one of the following forms:
+//
+//	foo() {}
+//	*foo() {}
+//	async foo() {}
+//	async *foo() {}
+//	get foo() {}
+//	set foo(_) {}
+//
+// If this returns true, the "ValueOrNil" field of the property is always an
+// "EFunction" expression and it is always printed as a method.
+func (kind PropertyKind) IsMethodDefinition() bool {
+	return kind == PropertyMethod || kind == PropertyGetter || kind == PropertySetter
+}
 
 type ClassStaticBlock struct {
 	Block SBlock
@@ -268,7 +285,6 @@ type PropertyFlags uint8
 
 const (
 	PropertyIsComputed PropertyFlags = 1 << iota
-	PropertyIsMethod
 	PropertyIsStatic
 	PropertyWasShorthand
 	PropertyPreferQuotedKey
@@ -1051,34 +1067,40 @@ type SClass struct {
 }
 
 type SLabel struct {
-	Stmt Stmt
-	Name ast.LocRef
+	Stmt             Stmt
+	Name             ast.LocRef
+	IsSingleLineStmt bool
 }
 
 type SIf struct {
-	Test    Expr
-	Yes     Stmt
-	NoOrNil Stmt
+	Test            Expr
+	Yes             Stmt
+	NoOrNil         Stmt
+	IsSingleLineYes bool
+	IsSingleLineNo  bool
 }
 
 type SFor struct {
-	InitOrNil   Stmt // May be a SConst, SLet, SVar, or SExpr
-	TestOrNil   Expr
-	UpdateOrNil Expr
-	Body        Stmt
+	InitOrNil        Stmt // May be a SConst, SLet, SVar, or SExpr
+	TestOrNil        Expr
+	UpdateOrNil      Expr
+	Body             Stmt
+	IsSingleLineBody bool
 }
 
 type SForIn struct {
-	Init  Stmt // May be a SConst, SLet, SVar, or SExpr
-	Value Expr
-	Body  Stmt
+	Init             Stmt // May be a SConst, SLet, SVar, or SExpr
+	Value            Expr
+	Body             Stmt
+	IsSingleLineBody bool
 }
 
 type SForOf struct {
-	Init  Stmt // May be a SConst, SLet, SVar, or SExpr
-	Value Expr
-	Body  Stmt
-	Await logger.Range
+	Init             Stmt // May be a SConst, SLet, SVar, or SExpr
+	Value            Expr
+	Body             Stmt
+	Await            logger.Range
+	IsSingleLineBody bool
 }
 
 type SDoWhile struct {
@@ -1087,14 +1109,16 @@ type SDoWhile struct {
 }
 
 type SWhile struct {
-	Test Expr
-	Body Stmt
+	Test             Expr
+	Body             Stmt
+	IsSingleLineBody bool
 }
 
 type SWith struct {
-	Value   Expr
-	Body    Stmt
-	BodyLoc logger.Loc
+	Value            Expr
+	Body             Stmt
+	BodyLoc          logger.Loc
+	IsSingleLineBody bool
 }
 
 type Catch struct {

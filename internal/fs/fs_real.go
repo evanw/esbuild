@@ -340,6 +340,13 @@ func (fs *realFS) Rel(base string, target string) (string, bool) {
 	return "", false
 }
 
+func (fs *realFS) EvalSymlinks(path string) (string, bool) {
+	if path, err := fs.fp.evalSymlinks(path); err == nil {
+		return path, true
+	}
+	return "", false
+}
+
 func (fs *realFS) readdir(dirname string) (entries []string, canonicalError error, originalError error) {
 	BeforeFileOpen()
 	defer AfterFileClose()

@@ -5496,6 +5496,89 @@ NOTE: The expression "b['c']" has been configured to be replaced with a constant
 	})
 }
 
+func TestKeepNamesAllForms(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/keep.js": `
+				// Initializers
+				function fn() {}
+				function foo(fn = function() {}) {}
+				var fn = function() {};
+				var obj = { "f n": function() {} };
+				class Foo0 { "f n" = function() {} }
+				class Foo1 { static "f n" = function() {} }
+				class Foo2 { accessor "f n" = function() {} }
+				class Foo3 { static accessor "f n" = function() {} }
+				class Foo4 { #fn = function() {} }
+				class Foo5 { static #fn = function() {} }
+				class Foo6 { accessor #fn = function() {} }
+				class Foo7 { static accessor #fn = function() {} }
+
+				// Assignments
+				fn = function() {};
+				fn ||= function() {};
+				fn &&= function() {};
+				fn ??= function() {};
+
+				// Destructuring
+				var [fn = function() {}] = [];
+				var { fn = function() {} } = {};
+				for (var [fn = function() {}] = []; ; ) ;
+				for (var { fn = function() {} } = {}; ; ) ;
+				for (var [fn = function() {}] in obj) ;
+				for (var { fn = function() {} } in obj) ;
+				for (var [fn = function() {}] of obj) ;
+				for (var { fn = function() {} } of obj) ;
+				function foo([fn = function() {}]) {}
+				function foo({ fn = function() {} }) {}
+				[fn = function() {}] = [];
+				({ fn = function() {} } = {});
+			`,
+			"/do-not-keep.js": `
+				// Class methods
+				class Foo0 { fn() {} }
+				class Foo1 { *fn() {} }
+				class Foo2 { get fn() {} }
+				class Foo3 { set fn(_) {} }
+				class Foo4 { async fn() {} }
+				class Foo5 { static fn() {} }
+				class Foo6 { static *fn() {} }
+				class Foo7 { static get fn() {} }
+				class Foo8 { static set fn(_) {} }
+				class Foo9 { static async fn() {} }
+
+				// Class private methods
+				class Bar0 { #fn() {} }
+				class Bar1 { *#fn() {} }
+				class Bar2 { get #fn() {} }
+				class Bar3 { set #fn(_) {} }
+				class Bar4 { async #fn() {} }
+				class Bar5 { static #fn() {} }
+				class Bar6 { static *#fn() {} }
+				class Bar7 { static get #fn() {} }
+				class Bar8 { static set #fn(_) {} }
+				class Bar9 { static async #fn(_) {} }
+
+				// Object methods
+				const Baz0 = { fn() {} }
+				const Baz1 = { *fn() {} }
+				const Baz2 = { get fn() {} }
+				const Baz3 = { set fn(_) {} }
+				const Baz4 = { async fn() {} }
+			`,
+		},
+		entryPaths: []string{
+			"/keep.js",
+			"/do-not-keep.js",
+		},
+		options: config.Options{
+			Mode:         config.ModePassThrough,
+			AbsOutputDir: "/out",
+			KeepNames:    true,
+		},
+	})
+}
+
 func TestKeepNamesTreeShaking(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
@@ -8808,6 +8891,207 @@ func TestObjectLiteralProtoSetterEdgeCasesMinifySyntax(t *testing.T) {
 		options: config.Options{
 			AbsOutputDir: "/out",
 			MinifySyntax: true,
+		},
+	})
+}
+
+func TestForbidStringImportNamesNoBundle(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import { "an import" as anImport } from "./foo"
+				export { "another import" as "an export" } from "./foo"
+				anImport()
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                  config.ModePassThrough,
+			AbsOutputFile:         "/out.js",
+			UnsupportedJSFeatures: compat.ArbitraryModuleNamespaceNames,
+		},
+		expectedCompileLog: `entry.js: ERROR: Using the string "an import" as an import name is not supported in the configured target environment
+entry.js: ERROR: Using the string "another import" as an import name is not supported in the configured target environment
+entry.js: ERROR: Using the string "an export" as an export name is not supported in the configured target environment
+`,
+	})
+}
+
+func TestForbidStringExportNamesNoBundle(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				let ok = true
+				export { ok as "ok", ok as "not ok" }
+				export { "same name" } from "./foo"
+				export { "name 1" as "name 2" } from "./foo"
+				export * as "name space" from "./foo"
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                  config.ModePassThrough,
+			AbsOutputFile:         "/out.js",
+			UnsupportedJSFeatures: compat.ArbitraryModuleNamespaceNames,
+		},
+		expectedCompileLog: `entry.js: ERROR: Using the string "not ok" as an export name is not supported in the configured target environment
+entry.js: ERROR: Using the string "same name" as an export name is not supported in the configured target environment
+entry.js: ERROR: Using the string "name 1" as an import name is not supported in the configured target environment
+entry.js: ERROR: Using the string "name 2" as an export name is not supported in the configured target environment
+entry.js: ERROR: Using the string "name space" as an export name is not supported in the configured target environment
+`,
+	})
+}
+
+func TestForbidStringImportNamesBundle(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import { "nest ed" as nested } from "./nested.js"
+				export { nested }
+			`,
+			"/nested.js": `
+				import { "some import" as nested } from "external"
+				export { nested as "nest ed" }
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                  config.ModeBundle,
+			AbsOutputFile:         "/out.js",
+			UnsupportedJSFeatures: compat.ArbitraryModuleNamespaceNames,
+			ExternalSettings: config.ExternalSettings{
+				PreResolve: config.ExternalMatchers{Exact: map[string]bool{
+					"external": true,
+				}},
+			},
+		},
+		expectedCompileLog: `nested.js: ERROR: Using the string "some import" as an import name is not supported in the configured target environment
+`,
+	})
+}
+
+func TestForbidStringExportNamesBundle(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import { "o.k." as ok } from "./internal.js"
+				export { ok as "ok", ok as "not ok" }
+				export * from "./nested.js"
+				export * as "name space" from "./nested.js"
+			`,
+			"/internal.js": `
+				let ok = true
+				export { ok as "o.k." }
+			`,
+			"/nested.js": `
+				export * from "./very-nested.js"
+				let nested = 1
+				export { nested as "nested name" }
+			`,
+			"/very-nested.js": `
+				let nested = 2
+				export { nested as "very nested name" }
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                  config.ModeBundle,
+			AbsOutputFile:         "/out.js",
+			UnsupportedJSFeatures: compat.ArbitraryModuleNamespaceNames,
+		},
+		expectedCompileLog: `entry.js: ERROR: Using the string "not ok" as an export name is not supported in the configured target environment
+entry.js: ERROR: Using the string "name space" as an export name is not supported in the configured target environment
+nested.js: ERROR: Using the string "nested name" as an export name is not supported in the configured target environment
+very-nested.js: ERROR: Using the string "very nested name" as an export name is not supported in the configured target environment
+`,
+	})
+}
+
+func TestInjectWithStringExportNameNoBundle(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log(test)
+			`,
+			"/inject.js": `
+				const old = console.log
+				const fn = (...args) => old.apply(console, ['log:'].concat(args))
+				export { fn as "console.log" }
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                  config.ModePassThrough,
+			AbsOutputFile:         "/out.js",
+			InjectPaths:           []string{"/inject.js"},
+			UnsupportedJSFeatures: compat.ArbitraryModuleNamespaceNames,
+		},
+	})
+}
+
+func TestInjectWithStringExportNameBundle(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log(test)
+				console.info(test)
+				console.warn(test)
+			`,
+			"/inject.js": `
+				const old = console.log
+				const fn = (...args) => old.apply(console, ['log:'].concat(args))
+				export { fn as "console.log" }
+				export { "console.log" as "console.info" } from "./inject.js"
+				import { "console.info" as info } from "./inject.js"
+				export { info as "console.warn" }
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                  config.ModeBundle,
+			AbsOutputFile:         "/out.js",
+			InjectPaths:           []string{"/inject.js"},
+			UnsupportedJSFeatures: compat.ArbitraryModuleNamespaceNames,
+		},
+	})
+}
+
+func TestStringExportNamesCommonJS(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import { "some import" as someImport } from "./foo"
+				export { someImport as "some export" }
+				export * as "all the stuff" from "./foo"
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                  config.ModeConvertFormat,
+			AbsOutputFile:         "/out.js",
+			OutputFormat:          config.FormatCommonJS,
+			UnsupportedJSFeatures: compat.ArbitraryModuleNamespaceNames,
+		},
+	})
+}
+
+func TestStringExportNamesIIFE(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import { "some import" as someImport } from "./foo"
+				export { someImport as "some export" }
+				export * as "all the stuff" from "./foo"
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                  config.ModeConvertFormat,
+			AbsOutputFile:         "/out.js",
+			OutputFormat:          config.FormatIIFE,
+			UnsupportedJSFeatures: compat.ArbitraryModuleNamespaceNames,
+			GlobalName:            []string{"global", "name"},
 		},
 	})
 }

@@ -463,6 +463,7 @@ func parseFile(args parseArgs) {
 							record.Range,
 							source.KeyPath,
 							record.Path.Text,
+							attrs,
 							record.Kind,
 							absResolveDir,
 							pluginData,
@@ -865,6 +866,7 @@ func RunOnResolvePlugins(
 	importPathRange logger.Range,
 	importer logger.Path,
 	path string,
+	importAttributes logger.ImportAttributes,
 	kind ast.ImportKind,
 	absResolveDir string,
 	pluginData interface{},
@@ -875,6 +877,7 @@ func RunOnResolvePlugins(
 		Kind:       kind,
 		PluginData: pluginData,
 		Importer:   importer,
+		With:       importAttributes,
 	}
 	applyPath := logger.Path{
 		Text:      path,
@@ -1057,7 +1060,7 @@ func runOnLoadPlugins(
 
 	// Reject unsupported import attributes
 	loader := config.LoaderDefault
-	for _, attr := range source.KeyPath.ImportAttributes.Decode() {
+	for _, attr := range source.KeyPath.ImportAttributes.DecodeIntoArray() {
 		if attr.Key == "type" {
 			if attr.Value == "json" {
 				loader = config.LoaderWithTypeJSON
@@ -1625,6 +1628,7 @@ func (s *scanner) preprocessInjectedFiles() {
 				logger.Range{},
 				importer,
 				importPath,
+				logger.ImportAttributes{},
 				ast.ImportEntryPoint,
 				injectAbsResolveDir,
 				nil,
@@ -1804,6 +1808,7 @@ func (s *scanner) addEntryPoints(entryPoints []EntryPoint) []graph.EntryPoint {
 				logger.Range{},
 				importer,
 				entryPoint.InputPath,
+				logger.ImportAttributes{},
 				ast.ImportEntryPoint,
 				entryPointAbsResolveDir,
 				nil,
@@ -2203,7 +2208,7 @@ func (s *scanner) processScannedFiles(entryPointMeta []graph.EntryPoint) []scann
 
 		for _, sourceIndex := range sourceIndices {
 			source := &s.results[sourceIndex].file.inputFile.Source
-			attrs := source.KeyPath.ImportAttributes.Decode()
+			attrs := source.KeyPath.ImportAttributes.DecodeIntoArray()
 			if len(attrs) == 0 {
 				continue
 			}
@@ -2491,7 +2496,7 @@ func (s *scanner) processScannedFiles(entryPointMeta []graph.EntryPoint) []scann
 			} else {
 				sb.WriteString("]")
 			}
-			if attrs := result.file.inputFile.Source.KeyPath.ImportAttributes.Decode(); len(attrs) > 0 {
+			if attrs := result.file.inputFile.Source.KeyPath.ImportAttributes.DecodeIntoArray(); len(attrs) > 0 {
 				sb.WriteString(",\n      \"with\": {")
 				for i, attr := range attrs {
 					if i > 0 {

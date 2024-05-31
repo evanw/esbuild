@@ -13,7 +13,7 @@ import (
 // <gradient>: <linear-gradient()> | <repeating-linear-gradient()> | <radial-gradient()> | <repeating-radial-gradient()>
 //
 // list-style-type: <counter-style> | <string> | none (where the string is a literal bullet marker)
-// <counter-style>: <counter-style-name> | <symnols()>
+// <counter-style>: <counter-style-name> | <symbols()>
 // <counter-style-name>: not: decimal | disc | square | circle | disclosure-open | disclosure-closed | <wide keyword>
 // when parsing a <custom-ident> with conflicts, only parse one if no other thing can claim it
 

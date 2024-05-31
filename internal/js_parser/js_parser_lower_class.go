@@ -1,6 +1,8 @@
 package js_parser
 
 import (
+	"fmt"
+
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
@@ -409,6 +411,27 @@ func (p *parser) computeClassLoweringInfo(class *js_ast.Class) (result classLowe
 		result.lowerAllStaticFields = true
 	}
 
+	// If something has decorators, just lower everything for now. It's possible
+	// that we could avoid lowering in certain cases, but doing so is very tricky
+	// due to the complexity of the decorator specification. The specification is
+	// also still evolving so trying to optimize it now is also potentially
+	// premature.
+	if p.options.unsupportedJSFeatures.Has(compat.Decorators) &&
+		(!p.options.ts.Parse || p.options.ts.Config.ExperimentalDecorators != config.True) {
+		for _, prop := range class.Properties {
+			if len(prop.Decorators) > 0 {
+				for _, prop := range class.Properties {
+					if private, ok := prop.Key.Data.(*js_ast.EPrivateIdentifier); ok {
+						p.symbols[private.Ref.InnerIndex].Flags |= ast.PrivateSymbolMustBeLowered
+					}
+				}
+				result.lowerAllStaticFields = true
+				result.lowerAllInstanceFields = true
+				break
+			}
+		}
+	}
+
 	// Conservatively lower fields of a given type (instance or static) when any
 	// member of that type needs to be lowered. This must be done to preserve
 	// evaluation order. For example:
@@ -525,7 +548,7 @@ func (p *parser) computeClassLoweringInfo(class *js_ast.Class) (result classLowe
 		//
 		// In that case the initializer of "bar" would fail to call "#foo" because
 		// it's only added to the instance in the body of the constructor.
-		if prop.Flags.Has(js_ast.PropertyIsMethod) {
+		if prop.Kind.IsMethodDefinition() {
 			// We need to shim "super()" inside the constructor if this is a derived
 			// class and the constructor has any parameter properties, since those
 			// use "this" and we can only access "this" after "super()" is called
@@ -590,6 +613,61 @@ func (p *parser) computeClassLoweringInfo(class *js_ast.Class) (result classLowe
 	return
 }
 
+type classKind uint8
+
+const (
+	classKindExpr classKind = iota
+	classKindStmt
+	classKindExportStmt
+	classKindExportDefaultStmt
+)
+
+type lowerClassContext struct {
+	nameToKeep  string
+	kind        classKind
+	class       *js_ast.Class
+	classLoc    logger.Loc
+	classExpr   js_ast.Expr // Only for "kind == classKindExpr", may be replaced by "nameFunc()"
+	defaultName ast.LocRef
+
+	ctor                   *js_ast.EFunction
+	extendsRef             ast.Ref
+	parameterFields        []js_ast.Stmt
+	instanceMembers        []js_ast.Stmt
+	instancePrivateMethods []js_ast.Stmt
+	autoAccessorCount      int
+
+	// These expressions are generated after the class body, in this order
+	computedPropertyChain js_ast.Expr
+	privateMembers        []js_ast.Expr
+	staticMembers         []js_ast.Expr
+	staticPrivateMethods  []js_ast.Expr
+
+	// These contain calls to "__decorateClass" for TypeScript experimental decorators
+	instanceExperimentalDecorators []js_ast.Expr
+	staticExperimentalDecorators   []js_ast.Expr
+
+	// These are used for implementing JavaScript decorators
+	decoratorContextRef                          ast.Ref
+	decoratorClassDecorators                     js_ast.Expr
+	decoratorPropertyToInitializerMap            map[int]int
+	decoratorCallInstanceMethodExtraInitializers bool
+	decoratorCallStaticMethodExtraInitializers   bool
+	decoratorStaticNonFieldElements              []js_ast.Expr
+	decoratorInstanceNonFieldElements            []js_ast.Expr
+	decoratorStaticFieldElements                 []js_ast.Expr
+	decoratorInstanceFieldElements               []js_ast.Expr
+
+	// These are used by "lowerMethod"
+	privateInstanceMethodRef ast.Ref
+	privateStaticMethodRef   ast.Ref
+
+	// These are only for class expressions that need to be captured
+	nameFunc            func() js_ast.Expr
+	wrapFunc            func(js_ast.Expr) js_ast.Expr
+	didCaptureClassExpr bool
+}
+
 // Apply all relevant transforms to a class object (either a statement or an
 // expression) including:
 //
@@ -602,77 +680,71 @@ func (p *parser) computeClassLoweringInfo(class *js_ast.Class) (result classLowe
 // body (e.g. the contents of initializers, methods, and static blocks). Those
 // have already been transformed by "visitClass" by this point. It's done that
 // way for performance so that we don't need to do another AST pass.
-func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClassResult) ([]js_ast.Stmt, js_ast.Expr) {
-	type classKind uint8
-	const (
-		classKindExpr classKind = iota
-		classKindStmt
-		classKindExportStmt
-		classKindExportDefaultStmt
-	)
+func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClassResult, nameToKeep string) ([]js_ast.Stmt, js_ast.Expr) {
+	ctx := lowerClassContext{
+		nameToKeep:               nameToKeep,
+		extendsRef:               ast.InvalidRef,
+		decoratorContextRef:      ast.InvalidRef,
+		privateInstanceMethodRef: ast.InvalidRef,
+		privateStaticMethodRef:   ast.InvalidRef,
+	}
 
 	// Unpack the class from the statement or expression
-	var kind classKind
-	var class *js_ast.Class
-	var classLoc logger.Loc
-	var defaultName ast.LocRef
 	if stmt.Data == nil {
 		e, _ := expr.Data.(*js_ast.EClass)
-		class = &e.Class
-		kind = classKindExpr
-		if class.Name != nil {
-			symbol := &p.symbols[class.Name.Ref.InnerIndex]
+		ctx.class = &e.Class
+		ctx.classExpr = expr
+		ctx.kind = classKindExpr
+		if ctx.class.Name != nil {
+			symbol := &p.symbols[ctx.class.Name.Ref.InnerIndex]
+			ctx.nameToKeep = symbol.OriginalName
 
 			// The inner class name inside the class expression should be the same as
 			// the class expression name itself
 			if result.innerClassNameRef != ast.InvalidRef {
-				p.mergeSymbols(result.innerClassNameRef, class.Name.Ref)
+				p.mergeSymbols(result.innerClassNameRef, ctx.class.Name.Ref)
 			}
 
 			// Remove unused class names when minifying. Check this after we merge in
 			// the inner class name above since that will adjust the use count.
 			if p.options.minifySyntax && symbol.UseCountEstimate == 0 {
-				class.Name = nil
+				ctx.class.Name = nil
 			}
 		}
 	} else if s, ok := stmt.Data.(*js_ast.SClass); ok {
-		class = &s.Class
+		ctx.class = &s.Class
+		if ctx.class.Name != nil {
+			ctx.nameToKeep = p.symbols[ctx.class.Name.Ref.InnerIndex].OriginalName
+		}
 		if s.IsExport {
-			kind = classKindExportStmt
+			ctx.kind = classKindExportStmt
 		} else {
-			kind = classKindStmt
+			ctx.kind = classKindStmt
 		}
 	} else {
 		s, _ := stmt.Data.(*js_ast.SExportDefault)
 		s2, _ := s.Value.Data.(*js_ast.SClass)
-		class = &s2.Class
-		defaultName = s.DefaultName
-		kind = classKindExportDefaultStmt
+		ctx.class = &s2.Class
+		if ctx.class.Name != nil {
+			ctx.nameToKeep = p.symbols[ctx.class.Name.Ref.InnerIndex].OriginalName
+		}
+		ctx.defaultName = s.DefaultName
+		ctx.kind = classKindExportDefaultStmt
 	}
 	if stmt.Data == nil {
-		classLoc = expr.Loc
+		ctx.classLoc = expr.Loc
 	} else {
-		classLoc = stmt.Loc
+		ctx.classLoc = stmt.Loc
 	}
 
-	var ctor *js_ast.EFunction
-	var parameterFields []js_ast.Stmt
-	var instanceMembers []js_ast.Stmt
-	var instancePrivateMethods []js_ast.Stmt
+	classLoweringInfo := p.computeClassLoweringInfo(ctx.class)
+	ctx.enableNameCapture(p, result)
+	ctx.processProperties(p, classLoweringInfo, result)
+	ctx.insertInitializersIntoConstructor(p, classLoweringInfo, result)
+	return ctx.finishAndGenerateCode(p, result)
+}
 
-	// These expressions are generated after the class body, in this order
-	var computedPropertyCache js_ast.Expr
-	var privateMembers []js_ast.Expr
-	var staticMembers []js_ast.Expr
-	var staticPrivateMethods []js_ast.Expr
-	var instanceDecorators []js_ast.Expr
-	var staticDecorators []js_ast.Expr
-
-	// These are only for class expressions that need to be captured
-	var nameFunc func() js_ast.Expr
-	var wrapFunc func(js_ast.Expr) js_ast.Expr
-	didCaptureClassExpr := false
-
+func (ctx *lowerClassContext) enableNameCapture(p *parser, result visitClassResult) {
 	// Class statements can be missing a name if they are in an
 	// "export default" statement:
 	//
@@ -680,17 +752,17 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 	//     static foo = 123
 	//   }
 	//
-	nameFunc = func() js_ast.Expr {
-		if kind == classKindExpr {
+	ctx.nameFunc = func() js_ast.Expr {
+		if ctx.kind == classKindExpr {
 			// If this is a class expression, capture and store it. We have to
 			// do this even if it has a name since the name isn't exposed
 			// outside the class body.
-			classExpr := &js_ast.EClass{Class: *class}
-			class = &classExpr.Class
-			nameFunc, wrapFunc = p.captureValueWithPossibleSideEffects(classLoc, 2, js_ast.Expr{Loc: classLoc, Data: classExpr}, valueDefinitelyNotMutated)
-			expr = nameFunc()
-			didCaptureClassExpr = true
-			name := nameFunc()
+			classExpr := &js_ast.EClass{Class: *ctx.class}
+			ctx.class = &classExpr.Class
+			ctx.nameFunc, ctx.wrapFunc = p.captureValueWithPossibleSideEffects(ctx.classLoc, 2, js_ast.Expr{Loc: ctx.classLoc, Data: classExpr}, valueDefinitelyNotMutated)
+			ctx.classExpr = ctx.nameFunc()
+			ctx.didCaptureClassExpr = true
+			name := ctx.nameFunc()
 
 			// If we're storing the class expression in a variable, remove the class
 			// name and rewrite all references to the class name with references to
@@ -709,9 +781,9 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 			//   let Bar = (_a = class {
 			//   }, _a.foo = 123, _a.bar = _a.foo, _a);
 			//
-			if class.Name != nil {
-				p.mergeSymbols(class.Name.Ref, name.Data.(*js_ast.EIdentifier).Ref)
-				class.Name = nil
+			if ctx.class.Name != nil {
+				p.mergeSymbols(ctx.class.Name.Ref, name.Data.(*js_ast.EIdentifier).Ref)
+				ctx.class.Name = nil
 			}
 
 			return name
@@ -721,292 +793,739 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 			// will come before the outer class name is initialized.
 			if result.innerClassNameRef != ast.InvalidRef {
 				p.recordUsage(result.innerClassNameRef)
-				return js_ast.Expr{Loc: class.Name.Loc, Data: &js_ast.EIdentifier{Ref: result.innerClassNameRef}}
+				return js_ast.Expr{Loc: ctx.class.Name.Loc, Data: &js_ast.EIdentifier{Ref: result.innerClassNameRef}}
 			}
 
 			// Otherwise we should just use the outer class name
-			if class.Name == nil {
-				if kind == classKindExportDefaultStmt {
-					class.Name = &defaultName
+			if ctx.class.Name == nil {
+				if ctx.kind == classKindExportDefaultStmt {
+					ctx.class.Name = &ctx.defaultName
 				} else {
-					class.Name = &ast.LocRef{Loc: classLoc, Ref: p.generateTempRef(tempRefNoDeclare, "")}
+					ctx.class.Name = &ast.LocRef{Loc: ctx.classLoc, Ref: p.generateTempRef(tempRefNoDeclare, "")}
 				}
 			}
-			p.recordUsage(class.Name.Ref)
-			return js_ast.Expr{Loc: class.Name.Loc, Data: &js_ast.EIdentifier{Ref: class.Name.Ref}}
+			p.recordUsage(ctx.class.Name.Ref)
+			return js_ast.Expr{Loc: ctx.class.Name.Loc, Data: &js_ast.EIdentifier{Ref: ctx.class.Name.Ref}}
 		}
 	}
+}
 
-	// Handle lowering of instance and static fields. Move their initializers
-	// from the class body to either the constructor (instance fields) or after
-	// the class (static fields).
-	//
-	// If this returns true, the return property should be added to the class
-	// body. Otherwise the property should be omitted from the class body.
-	lowerField := func(prop js_ast.Property, private *js_ast.EPrivateIdentifier, shouldOmitFieldInitializer bool, staticFieldToBlockAssign bool) (js_ast.Property, bool) {
-		mustLowerPrivate := private != nil && p.privateSymbolNeedsToBeLowered(private)
+// Handle lowering of instance and static fields. Move their initializers
+// from the class body to either the constructor (instance fields) or after
+// the class (static fields).
+//
+// If this returns true, the return property should be added to the class
+// body. Otherwise the property should be omitted from the class body.
+func (ctx *lowerClassContext) lowerField(
+	p *parser,
+	prop js_ast.Property,
+	private *js_ast.EPrivateIdentifier,
+	shouldOmitFieldInitializer bool,
+	staticFieldToBlockAssign bool,
+	initializerIndex int,
+) (js_ast.Property, ast.Ref, bool) {
+	mustLowerPrivate := private != nil && p.privateSymbolNeedsToBeLowered(private)
+	ref := ast.InvalidRef
 
-		// The TypeScript compiler doesn't follow the JavaScript spec for
-		// uninitialized fields. They are supposed to be set to undefined but the
-		// TypeScript compiler just omits them entirely.
-		if !shouldOmitFieldInitializer {
-			loc := prop.Loc
+	// The TypeScript compiler doesn't follow the JavaScript spec for
+	// uninitialized fields. They are supposed to be set to undefined but the
+	// TypeScript compiler just omits them entirely.
+	if !shouldOmitFieldInitializer {
+		loc := prop.Loc
 
-			// Determine where to store the field
-			var target js_ast.Expr
-			if prop.Flags.Has(js_ast.PropertyIsStatic) && !staticFieldToBlockAssign {
-				target = nameFunc()
+		// Determine where to store the field
+		var target js_ast.Expr
+		if prop.Flags.Has(js_ast.PropertyIsStatic) && !staticFieldToBlockAssign {
+			target = ctx.nameFunc()
+		} else {
+			target = js_ast.Expr{Loc: loc, Data: js_ast.EThisShared}
+		}
+
+		// Generate the assignment initializer
+		var init js_ast.Expr
+		if prop.InitializerOrNil.Data != nil {
+			init = prop.InitializerOrNil
+		} else {
+			init = js_ast.Expr{Loc: loc, Data: js_ast.EUndefinedShared}
+		}
+
+		// Optionally call registered decorator initializers
+		if initializerIndex != -1 {
+			var value js_ast.Expr
+			if prop.Flags.Has(js_ast.PropertyIsStatic) {
+				value = ctx.nameFunc()
 			} else {
-				target = js_ast.Expr{Loc: loc, Data: js_ast.EThisShared}
+				value = js_ast.Expr{Loc: loc, Data: js_ast.EThisShared}
 			}
-
-			// Generate the assignment initializer
-			var init js_ast.Expr
-			if prop.InitializerOrNil.Data != nil {
-				init = prop.InitializerOrNil
-			} else {
-				init = js_ast.Expr{Loc: loc, Data: js_ast.EUndefinedShared}
+			args := []js_ast.Expr{
+				{Loc: loc, Data: &js_ast.EIdentifier{Ref: ctx.decoratorContextRef}},
+				{Loc: loc, Data: &js_ast.ENumber{Value: float64((4 + 2*initializerIndex) << 1)}},
+				value,
 			}
+			if _, ok := init.Data.(*js_ast.EUndefined); !ok {
+				args = append(args, init)
+			}
+			init = p.callRuntime(init.Loc, "__runInitializers", args)
+			p.recordUsage(ctx.decoratorContextRef)
+		}
 
-			// Generate the assignment target
-			var memberExpr js_ast.Expr
-			if mustLowerPrivate {
-				// Generate a new symbol for this private field
-				ref := p.generateTempRef(tempRefNeedsDeclare, "_"+p.symbols[private.Ref.InnerIndex].OriginalName[1:])
-				p.symbols[private.Ref.InnerIndex].Link = ref
+		// Generate the assignment target
+		var memberExpr js_ast.Expr
+		if mustLowerPrivate {
+			// Generate a new symbol for this private field
+			ref = p.generateTempRef(tempRefNeedsDeclare, "_"+p.symbols[private.Ref.InnerIndex].OriginalName[1:])
+			p.symbols[private.Ref.InnerIndex].Link = ref
 
-				// Initialize the private field to a new WeakMap
-				if p.weakMapRef == ast.InvalidRef {
-					p.weakMapRef = p.newSymbol(ast.SymbolUnbound, "WeakMap")
-					p.moduleScope.Generated = append(p.moduleScope.Generated, p.weakMapRef)
-				}
-				privateMembers = append(privateMembers, js_ast.Assign(
-					js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}},
-					js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.ENew{Target: js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: p.weakMapRef}}}},
-				))
-				p.recordUsage(ref)
+			// Initialize the private field to a new WeakMap
+			if p.weakMapRef == ast.InvalidRef {
+				p.weakMapRef = p.newSymbol(ast.SymbolUnbound, "WeakMap")
+				p.moduleScope.Generated = append(p.moduleScope.Generated, p.weakMapRef)
+			}
+			ctx.privateMembers = append(ctx.privateMembers, js_ast.Assign(
+				js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}},
+				js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.ENew{Target: js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: p.weakMapRef}}}},
+			))
+			p.recordUsage(ref)
 
-				// Add every newly-constructed instance into this map
-				memberExpr = p.callRuntime(loc, "__privateAdd", []js_ast.Expr{
-					target,
-					{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}},
-					init,
-				})
-				p.recordUsage(ref)
-			} else if private == nil && class.UseDefineForClassFields {
-				var args []js_ast.Expr
-				if _, ok := init.Data.(*js_ast.EUndefined); ok {
-					args = []js_ast.Expr{target, prop.Key}
-				} else {
-					args = []js_ast.Expr{target, prop.Key, init}
-				}
-				memberExpr = js_ast.Expr{Loc: loc, Data: &js_ast.ECall{
-					Target: p.importFromRuntime(loc, "__publicField"),
-					Args:   args,
+			// Add every newly-constructed instance into this map
+			key := js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}}
+			args := []js_ast.Expr{target, key}
+			if _, ok := init.Data.(*js_ast.EUndefined); !ok {
+				args = append(args, init)
+			}
+			memberExpr = p.callRuntime(loc, "__privateAdd", args)
+			p.recordUsage(ref)
+		} else if private == nil && ctx.class.UseDefineForClassFields {
+			args := []js_ast.Expr{target, prop.Key}
+			if _, ok := init.Data.(*js_ast.EUndefined); !ok {
+				args = append(args, init)
+			}
+			memberExpr = js_ast.Expr{Loc: loc, Data: &js_ast.ECall{
+				Target: p.importFromRuntime(loc, "__publicField"),
+				Args:   args,
+			}}
+		} else {
+			if key, ok := prop.Key.Data.(*js_ast.EString); ok && !prop.Flags.Has(js_ast.PropertyIsComputed) && !prop.Flags.Has(js_ast.PropertyPreferQuotedKey) {
+				target = js_ast.Expr{Loc: loc, Data: &js_ast.EDot{
+					Target:  target,
+					Name:    helpers.UTF16ToString(key.Value),
+					NameLoc: prop.Key.Loc,
 				}}
 			} else {
-				if key, ok := prop.Key.Data.(*js_ast.EString); ok && !prop.Flags.Has(js_ast.PropertyIsComputed) && !prop.Flags.Has(js_ast.PropertyPreferQuotedKey) {
-					target = js_ast.Expr{Loc: loc, Data: &js_ast.EDot{
-						Target:  target,
-						Name:    helpers.UTF16ToString(key.Value),
-						NameLoc: prop.Key.Loc,
-					}}
-				} else {
-					target = js_ast.Expr{Loc: loc, Data: &js_ast.EIndex{
-						Target: target,
-						Index:  prop.Key,
-					}}
-				}
-
-				memberExpr = js_ast.Assign(target, init)
+				target = js_ast.Expr{Loc: loc, Data: &js_ast.EIndex{
+					Target: target,
+					Index:  prop.Key,
+				}}
 			}
 
+			memberExpr = js_ast.Assign(target, init)
+		}
+
+		// Run extra initializers
+		if initializerIndex != -1 {
+			var value js_ast.Expr
 			if prop.Flags.Has(js_ast.PropertyIsStatic) {
-				// Move this property to an assignment after the class ends
-				if staticFieldToBlockAssign {
-					// Use inline assignment in a static block instead of lowering
-					return js_ast.Property{
-						Loc:  loc,
-						Kind: js_ast.PropertyClassStaticBlock,
-						ClassStaticBlock: &js_ast.ClassStaticBlock{
-							Loc: loc,
-							Block: js_ast.SBlock{Stmts: []js_ast.Stmt{
-								{Loc: loc, Data: &js_ast.SExpr{Value: memberExpr}}},
-							},
-						},
-					}, true
-				} else {
-					// Move this property to an assignment after the class ends
-					staticMembers = append(staticMembers, memberExpr)
-				}
+				value = ctx.nameFunc()
 			} else {
-				// Move this property to an assignment inside the class constructor
-				instanceMembers = append(instanceMembers, js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{Value: memberExpr}})
+				value = js_ast.Expr{Loc: loc, Data: js_ast.EThisShared}
 			}
+			memberExpr = js_ast.JoinWithComma(memberExpr, p.callRuntime(loc, "__runInitializers", []js_ast.Expr{
+				{Loc: loc, Data: &js_ast.EIdentifier{Ref: ctx.decoratorContextRef}},
+				{Loc: loc, Data: &js_ast.ENumber{Value: float64(((5 + 2*initializerIndex) << 1) | 1)}},
+				value,
+			}))
+			p.recordUsage(ctx.decoratorContextRef)
 		}
 
-		if private == nil || mustLowerPrivate {
-			// Remove the field from the class body
-			return js_ast.Property{}, false
+		if prop.Flags.Has(js_ast.PropertyIsStatic) {
+			// Move this property to an assignment after the class ends
+			if staticFieldToBlockAssign {
+				// Use inline assignment in a static block instead of lowering
+				return js_ast.Property{
+					Loc:  loc,
+					Kind: js_ast.PropertyClassStaticBlock,
+					ClassStaticBlock: &js_ast.ClassStaticBlock{
+						Loc: loc,
+						Block: js_ast.SBlock{Stmts: []js_ast.Stmt{
+							{Loc: loc, Data: &js_ast.SExpr{Value: memberExpr}}},
+						},
+					},
+				}, ref, true
+			} else {
+				// Move this property to an assignment after the class ends
+				ctx.staticMembers = append(ctx.staticMembers, memberExpr)
+			}
+		} else {
+			// Move this property to an assignment inside the class constructor
+			ctx.instanceMembers = append(ctx.instanceMembers, js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{Value: memberExpr}})
 		}
-
-		// Keep the private field but remove the initializer
-		prop.InitializerOrNil = js_ast.Expr{}
-		return prop, true
 	}
 
-	// If this returns true, the method property should be dropped as it has
-	// already been accounted for elsewhere (e.g. a lowered private method).
-	lowerMethod := func(prop js_ast.Property, private *js_ast.EPrivateIdentifier) bool {
-		if private != nil && p.privateSymbolNeedsToBeLowered(private) {
-			loc := prop.Loc
+	if private == nil || mustLowerPrivate {
+		// Remove the field from the class body
+		return js_ast.Property{}, ref, false
+	}
 
-			// Don't generate a symbol for a getter/setter pair twice
-			if p.symbols[private.Ref.InnerIndex].Link == ast.InvalidRef {
-				// Generate a new symbol for this private method
-				ref := p.generateTempRef(tempRefNeedsDeclare, "_"+p.symbols[private.Ref.InnerIndex].OriginalName[1:])
-				p.symbols[private.Ref.InnerIndex].Link = ref
+	// Keep the private field but remove the initializer
+	prop.InitializerOrNil = js_ast.Expr{}
+	return prop, ref, true
+}
 
-				// Initialize the private method to a new WeakSet
-				if p.weakSetRef == ast.InvalidRef {
-					p.weakSetRef = p.newSymbol(ast.SymbolUnbound, "WeakSet")
-					p.moduleScope.Generated = append(p.moduleScope.Generated, p.weakSetRef)
-				}
-				privateMembers = append(privateMembers, js_ast.Assign(
-					js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}},
-					js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.ENew{Target: js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: p.weakSetRef}}}},
-				))
-				p.recordUsage(ref)
+func (ctx *lowerClassContext) lowerPrivateMethod(p *parser, prop js_ast.Property, private *js_ast.EPrivateIdentifier) {
+	// All private methods can share the same WeakSet
+	var ref *ast.Ref
+	if prop.Flags.Has(js_ast.PropertyIsStatic) {
+		ref = &ctx.privateStaticMethodRef
+	} else {
+		ref = &ctx.privateInstanceMethodRef
+	}
+	if *ref == ast.InvalidRef {
+		// Generate a new symbol to store the WeakSet
+		var name string
+		if prop.Flags.Has(js_ast.PropertyIsStatic) {
+			name = "_static"
+		} else {
+			name = "_instances"
+		}
+		if ctx.nameToKeep != "" {
+			name = fmt.Sprintf("_%s%s", ctx.nameToKeep, name)
+		}
+		*ref = p.generateTempRef(tempRefNeedsDeclare, name)
 
-				// Determine where to store the private method
-				var target js_ast.Expr
-				if prop.Flags.Has(js_ast.PropertyIsStatic) {
-					target = nameFunc()
-				} else {
-					target = js_ast.Expr{Loc: loc, Data: js_ast.EThisShared}
-				}
+		// Generate the initializer
+		if p.weakSetRef == ast.InvalidRef {
+			p.weakSetRef = p.newSymbol(ast.SymbolUnbound, "WeakSet")
+			p.moduleScope.Generated = append(p.moduleScope.Generated, p.weakSetRef)
+		}
+		ctx.privateMembers = append(ctx.privateMembers, js_ast.Assign(
+			js_ast.Expr{Loc: ctx.classLoc, Data: &js_ast.EIdentifier{Ref: *ref}},
+			js_ast.Expr{Loc: ctx.classLoc, Data: &js_ast.ENew{Target: js_ast.Expr{Loc: ctx.classLoc, Data: &js_ast.EIdentifier{Ref: p.weakSetRef}}}},
+		))
+		p.recordUsage(*ref)
+		p.recordUsage(p.weakSetRef)
 
-				// Add every newly-constructed instance into this map
-				methodExpr := p.callRuntime(loc, "__privateAdd", []js_ast.Expr{
-					target,
-					{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}},
-				})
-				p.recordUsage(ref)
-
-				// Make sure that adding to the map happens before any field
-				// initializers to handle cases like this:
-				//
-				//   class A {
-				//     pub = this.#priv;
-				//     #priv() {}
-				//   }
-				//
-				if prop.Flags.Has(js_ast.PropertyIsStatic) {
-					// Move this property to an assignment after the class ends
-					staticPrivateMethods = append(staticPrivateMethods, methodExpr)
-				} else {
-					// Move this property to an assignment inside the class constructor
-					instancePrivateMethods = append(instancePrivateMethods, js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{Value: methodExpr}})
-				}
-			}
-
-			// Move the method definition outside the class body
-			methodRef := p.generateTempRef(tempRefNeedsDeclare, "_")
-			if prop.Kind == js_ast.PropertySet {
-				p.symbols[methodRef.InnerIndex].Link = p.privateSetters[private.Ref]
-			} else {
-				p.symbols[methodRef.InnerIndex].Link = p.privateGetters[private.Ref]
-			}
-			p.recordUsage(methodRef)
-			privateMembers = append(privateMembers, js_ast.Assign(
-				js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: methodRef}},
-				prop.ValueOrNil,
-			))
-			return true
+		// Determine what to store in the WeakSet
+		var target js_ast.Expr
+		if prop.Flags.Has(js_ast.PropertyIsStatic) {
+			target = ctx.nameFunc()
+		} else {
+			target = js_ast.Expr{Loc: ctx.classLoc, Data: js_ast.EThisShared}
 		}
 
-		if key, ok := prop.Key.Data.(*js_ast.EString); ok && helpers.UTF16EqualsString(key.Value, "constructor") {
-			if fn, ok := prop.ValueOrNil.Data.(*js_ast.EFunction); ok {
-				// Remember where the constructor is for later
-				ctor = fn
+		// Add every newly-constructed instance into this set
+		methodExpr := p.callRuntime(ctx.classLoc, "__privateAdd", []js_ast.Expr{
+			target,
+			{Loc: ctx.classLoc, Data: &js_ast.EIdentifier{Ref: *ref}},
+		})
+		p.recordUsage(*ref)
 
-				// Initialize TypeScript constructor parameter fields
-				if p.options.ts.Parse {
-					for _, arg := range ctor.Fn.Args {
-						if arg.IsTypeScriptCtorField {
-							if id, ok := arg.Binding.Data.(*js_ast.BIdentifier); ok {
-								parameterFields = append(parameterFields, js_ast.AssignStmt(
-									js_ast.Expr{Loc: arg.Binding.Loc, Data: p.dotOrMangledPropVisit(
-										js_ast.Expr{Loc: arg.Binding.Loc, Data: js_ast.EThisShared},
-										p.symbols[id.Ref.InnerIndex].OriginalName,
-										arg.Binding.Loc,
-									)},
-									js_ast.Expr{Loc: arg.Binding.Loc, Data: &js_ast.EIdentifier{Ref: id.Ref}},
-								))
-							}
+		// Make sure that adding to the map happens before any field
+		// initializers to handle cases like this:
+		//
+		//   class A {
+		//     pub = this.#priv;
+		//     #priv() {}
+		//   }
+		//
+		if prop.Flags.Has(js_ast.PropertyIsStatic) {
+			// Move this property to an assignment after the class ends
+			ctx.staticPrivateMethods = append(ctx.staticPrivateMethods, methodExpr)
+		} else {
+			// Move this property to an assignment inside the class constructor
+			ctx.instancePrivateMethods = append(ctx.instancePrivateMethods, js_ast.Stmt{Loc: ctx.classLoc, Data: &js_ast.SExpr{Value: methodExpr}})
+		}
+	}
+	p.symbols[private.Ref.InnerIndex].Link = *ref
+}
+
+// If this returns true, the method property should be dropped as it has
+// already been accounted for elsewhere (e.g. a lowered private method).
+func (ctx *lowerClassContext) lowerMethod(p *parser, prop js_ast.Property, private *js_ast.EPrivateIdentifier) bool {
+	if private != nil && p.privateSymbolNeedsToBeLowered(private) {
+		ctx.lowerPrivateMethod(p, prop, private)
+
+		// Move the method definition outside the class body
+		methodRef := p.generateTempRef(tempRefNeedsDeclare, "_")
+		if prop.Kind == js_ast.PropertySetter {
+			p.symbols[methodRef.InnerIndex].Link = p.privateSetters[private.Ref]
+		} else {
+			p.symbols[methodRef.InnerIndex].Link = p.privateGetters[private.Ref]
+		}
+		p.recordUsage(methodRef)
+		ctx.privateMembers = append(ctx.privateMembers, js_ast.Assign(
+			js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: methodRef}},
+			prop.ValueOrNil,
+		))
+		return true
+	}
+
+	if key, ok := prop.Key.Data.(*js_ast.EString); ok && helpers.UTF16EqualsString(key.Value, "constructor") {
+		if fn, ok := prop.ValueOrNil.Data.(*js_ast.EFunction); ok {
+			// Remember where the constructor is for later
+			ctx.ctor = fn
+
+			// Initialize TypeScript constructor parameter fields
+			if p.options.ts.Parse {
+				for _, arg := range ctx.ctor.Fn.Args {
+					if arg.IsTypeScriptCtorField {
+						if id, ok := arg.Binding.Data.(*js_ast.BIdentifier); ok {
+							ctx.parameterFields = append(ctx.parameterFields, js_ast.AssignStmt(
+								js_ast.Expr{Loc: arg.Binding.Loc, Data: p.dotOrMangledPropVisit(
+									js_ast.Expr{Loc: arg.Binding.Loc, Data: js_ast.EThisShared},
+									p.symbols[id.Ref.InnerIndex].OriginalName,
+									arg.Binding.Loc,
+								)},
+								js_ast.Expr{Loc: arg.Binding.Loc, Data: &js_ast.EIdentifier{Ref: id.Ref}},
+							))
 						}
 					}
 				}
 			}
 		}
-
-		return false
 	}
 
-	classLoweringInfo := p.computeClassLoweringInfo(class)
-	properties := make([]js_ast.Property, 0, len(class.Properties))
-	autoAccessorCount := 0
+	return false
+}
 
-	for _, prop := range class.Properties {
+type propertyAnalysis struct {
+	private                         *js_ast.EPrivateIdentifier
+	propExperimentalDecorators      []js_ast.Decorator
+	propDecorators                  []js_ast.Decorator
+	mustLowerField                  bool
+	needsValueOfKey                 bool
+	rewriteAutoAccessorToGetSet     bool
+	shouldOmitFieldInitializer      bool
+	staticFieldToBlockAssign        bool
+	isComputedPropertyCopiedOrMoved bool
+}
+
+func (ctx *lowerClassContext) analyzeProperty(p *parser, prop js_ast.Property, classLoweringInfo classLoweringInfo) (analysis propertyAnalysis) {
+	// The TypeScript class field transform requires removing fields without
+	// initializers. If the field is removed, then we only need the key for
+	// its side effects and we don't need a temporary reference for the key.
+	// However, the TypeScript compiler doesn't remove the field when doing
+	// strict class field initialization, so we shouldn't either.
+	analysis.private, _ = prop.Key.Data.(*js_ast.EPrivateIdentifier)
+	mustLowerPrivate := analysis.private != nil && p.privateSymbolNeedsToBeLowered(analysis.private)
+	analysis.shouldOmitFieldInitializer = p.options.ts.Parse && !prop.Kind.IsMethodDefinition() && prop.InitializerOrNil.Data == nil &&
+		!ctx.class.UseDefineForClassFields && !mustLowerPrivate
+
+	// Class fields must be lowered if the environment doesn't support them
+	if !prop.Kind.IsMethodDefinition() {
+		if prop.Flags.Has(js_ast.PropertyIsStatic) {
+			analysis.mustLowerField = classLoweringInfo.lowerAllStaticFields
+		} else if prop.Kind == js_ast.PropertyField && p.options.ts.Parse && !ctx.class.UseDefineForClassFields && analysis.private == nil {
+			// Lower non-private instance fields (not accessors) if TypeScript's
+			// "useDefineForClassFields" setting is disabled. When all such fields
+			// have no initializers, we avoid setting the "lowerAllInstanceFields"
+			// flag as an optimization because we can just remove all class field
+			// declarations in that case without messing with the constructor. But
+			// we must set the "mustLowerField" flag here to cause this class field
+			// declaration to still be removed.
+			analysis.mustLowerField = true
+		} else {
+			analysis.mustLowerField = classLoweringInfo.lowerAllInstanceFields
+		}
+	}
+
+	// If the field uses the TypeScript "declare" or "abstract" keyword, just
+	// omit it entirely. However, we must still keep any side-effects in the
+	// computed value and/or in the decorators.
+	if prop.Kind == js_ast.PropertyDeclareOrAbstract && prop.ValueOrNil.Data == nil {
+		analysis.mustLowerField = true
+		analysis.shouldOmitFieldInitializer = true
+	}
+
+	// For convenience, split decorators off into separate fields based on how
+	// they will end up being lowered (if they are even being lowered at all)
+	if p.options.ts.Parse && p.options.ts.Config.ExperimentalDecorators == config.True {
+		analysis.propExperimentalDecorators = prop.Decorators
+	} else if p.options.unsupportedJSFeatures.Has(compat.Decorators) {
+		analysis.propDecorators = prop.Decorators
+	}
+
+	// Note: Auto-accessors use a different transform when they are decorated.
+	// This transform trades off worse run-time performance for better code size.
+	analysis.rewriteAutoAccessorToGetSet = len(analysis.propDecorators) == 0 && prop.Kind == js_ast.PropertyAutoAccessor &&
+		(p.options.unsupportedJSFeatures.Has(compat.Decorators) || analysis.mustLowerField)
+
+	// Transform non-lowered static fields that use assign semantics into an
+	// assignment in an inline static block instead of lowering them. This lets
+	// us avoid having to unnecessarily lower static private fields when
+	// "useDefineForClassFields" is disabled.
+	analysis.staticFieldToBlockAssign = prop.Kind == js_ast.PropertyField && !analysis.mustLowerField && !ctx.class.UseDefineForClassFields &&
+		prop.Flags.Has(js_ast.PropertyIsStatic) && analysis.private == nil
+
+	// Computed properties can't be copied or moved because they have side effects
+	// and we don't want to evaluate their side effects twice or change their
+	// evaluation order. We'll need to store them in temporary variables to keep
+	// their side effects in place when we reference them elsewhere.
+	analysis.needsValueOfKey = true
+	if prop.Flags.Has(js_ast.PropertyIsComputed) &&
+		(len(analysis.propExperimentalDecorators) > 0 ||
+			len(analysis.propDecorators) > 0 ||
+			analysis.mustLowerField ||
+			analysis.staticFieldToBlockAssign ||
+			analysis.rewriteAutoAccessorToGetSet) {
+		analysis.isComputedPropertyCopiedOrMoved = true
+
+		// Determine if we don't actually need the value of the key (only the side
+		// effects). In that case we don't need a temporary variable.
+		if len(analysis.propExperimentalDecorators) == 0 &&
+			len(analysis.propDecorators) == 0 &&
+			!analysis.rewriteAutoAccessorToGetSet &&
+			analysis.shouldOmitFieldInitializer {
+			analysis.needsValueOfKey = false
+		}
+	}
+	return
+}
+
+func (p *parser) propertyNameHint(key js_ast.Expr) string {
+	switch k := key.Data.(type) {
+	case *js_ast.EString:
+		return helpers.UTF16ToString(k.Value)
+	case *js_ast.EIdentifier:
+		return p.symbols[k.Ref.InnerIndex].OriginalName
+	case *js_ast.EPrivateIdentifier:
+		return p.symbols[k.Ref.InnerIndex].OriginalName[1:]
+	default:
+		return ""
+	}
+}
+
+func (ctx *lowerClassContext) hoistComputedProperties(p *parser, classLoweringInfo classLoweringInfo) (
+	propertyKeyTempRefs map[int]ast.Ref, decoratorTempRefs map[int]ast.Ref) {
+	var nextComputedPropertyKey *js_ast.Expr
+
+	// Computed property keys must be evaluated in a specific order for their
+	// side effects. This order must be preserved even when we have to move a
+	// class element around. For example, this can happen when using class fields
+	// with computed property keys and targeting environments without class field
+	// support. For example:
+	//
+	//   class Foo {
+	//     [a()]() {}
+	//     static [b()] = null;
+	//     [c()]() {}
+	//   }
+	//
+	// If we need to lower the static field because static fields aren't supported,
+	// we still need to ensure that "b()" is called before "a()" and after "c()".
+	// That looks something like this:
+	//
+	//   var _a;
+	//   class Foo {
+	//     [a()]() {}
+	//     [(_a = b(), c())]() {}
+	//   }
+	//   __publicField(Foo, _a, null);
+	//
+	// Iterate in reverse so that any initializers are "pushed up" before the
+	// class body if there's nowhere else to put them. They can't be "pushed
+	// down" into a static block in the class body (the logical place to put
+	// them that's next in the evaluation order) because these expressions
+	// may contain "await" and static blocks do not allow "await".
+	for propIndex := len(ctx.class.Properties) - 1; propIndex >= 0; propIndex-- {
+		prop := &ctx.class.Properties[propIndex]
+		analysis := ctx.analyzeProperty(p, *prop, classLoweringInfo)
+
+		// Evaluate the decorator expressions inline before computed property keys
+		var decorators js_ast.Expr
+		if len(analysis.propDecorators) > 0 {
+			name := p.propertyNameHint(prop.Key)
+			if name != "" {
+				name = "_" + name
+			}
+			name += "_dec"
+			ref := p.generateTempRef(tempRefNeedsDeclare, name)
+			values := make([]js_ast.Expr, len(analysis.propDecorators))
+			for i, decorator := range analysis.propDecorators {
+				values[i] = decorator.Value
+			}
+			atLoc := analysis.propDecorators[0].AtLoc
+			decorators = js_ast.Assign(
+				js_ast.Expr{Loc: atLoc, Data: &js_ast.EIdentifier{Ref: ref}},
+				js_ast.Expr{Loc: atLoc, Data: &js_ast.EArray{Items: values, IsSingleLine: true}})
+			p.recordUsage(ref)
+			if decoratorTempRefs == nil {
+				decoratorTempRefs = make(map[int]ast.Ref)
+			}
+			decoratorTempRefs[propIndex] = ref
+		}
+
+		// Skip property keys that we know are side-effect free
+		switch prop.Key.Data.(type) {
+		case *js_ast.EString, *js_ast.ENameOfSymbol, *js_ast.ENumber, *js_ast.EPrivateIdentifier:
+			// Figure out where to stick the decorator side effects to preserve their order
+			if nextComputedPropertyKey != nil {
+				// Insert it before everything that comes after it
+				*nextComputedPropertyKey = js_ast.JoinWithComma(decorators, *nextComputedPropertyKey)
+			} else {
+				// Insert it after the first thing that comes before it
+				ctx.computedPropertyChain = js_ast.JoinWithComma(decorators, ctx.computedPropertyChain)
+			}
+			continue
+
+		default:
+			// Otherwise, evaluate the decorators right before the property key
+			if decorators.Data != nil {
+				prop.Key = js_ast.JoinWithComma(decorators, prop.Key)
+				prop.Flags |= js_ast.PropertyIsComputed
+			}
+		}
+
+		// If this key is referenced elsewhere, make sure to still preserve
+		// its side effects in the property's original location
+		if analysis.isComputedPropertyCopiedOrMoved {
+			// If this property is being duplicated instead of moved or removed, then
+			// we still need the assignment to the temporary so that we can reference
+			// it in multiple places, but we don't have to hoist the assignment to an
+			// earlier property (since this property is still there). In that case
+			// we can reduce generated code size by avoiding the hoist. One example
+			// of this case is a decorator on a class element with a computed
+			// property key:
+			//
+			//   class Foo {
+			//     @dec [a()]() {}
+			//   }
+			//
+			// We want to do this:
+			//
+			//   var _a;
+			//   class Foo {
+			//     [_a = a()]() {}
+			//   }
+			//   __decorateClass([dec], Foo.prototype, _a, 1);
+			//
+			// instead of this:
+			//
+			//   var _a;
+			//   _a = a();
+			//   class Foo {
+			//     [_a]() {}
+			//   }
+			//   __decorateClass([dec], Foo.prototype, _a, 1);
+			//
+			// So only do the hoist if this property is being moved or removed.
+			if !analysis.rewriteAutoAccessorToGetSet && (analysis.mustLowerField || analysis.staticFieldToBlockAssign) {
+				inlineKey := prop.Key
+
+				if !analysis.needsValueOfKey {
+					// In certain cases, we only need to evaluate a property key for its
+					// side effects but we don't actually need the value of the key itself.
+					// For example, a TypeScript class field without an initializer is
+					// omitted when TypeScript's "useDefineForClassFields" setting is false.
+				} else {
+					// Store the key in a temporary so we can refer to it later
+					ref := p.generateTempRef(tempRefNeedsDeclare, "")
+					inlineKey = js_ast.Assign(js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}}, prop.Key)
+					p.recordUsage(ref)
+
+					// Replace this property key with a reference to the temporary. We
+					// don't need to store the temporary in the "propertyKeyTempRefs"
+					// map because all references will refer to the temporary, not just
+					// some of them.
+					prop.Key = js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}}
+					p.recordUsage(ref)
+				}
+
+				// Figure out where to stick this property's side effect to preserve its order
+				if nextComputedPropertyKey != nil {
+					// Insert it before everything that comes after it
+					*nextComputedPropertyKey = js_ast.JoinWithComma(inlineKey, *nextComputedPropertyKey)
+				} else {
+					// Insert it after the first thing that comes before it
+					ctx.computedPropertyChain = js_ast.JoinWithComma(inlineKey, ctx.computedPropertyChain)
+				}
+				continue
+			}
+
+			// Otherwise, we keep the side effects in place (as described above) but
+			// just store the key in a temporary so we can refer to it later.
+			ref := p.generateTempRef(tempRefNeedsDeclare, "")
+			prop.Key = js_ast.Assign(js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}}, prop.Key)
+			p.recordUsage(ref)
+
+			// Use this temporary when creating duplicate references to this key
+			if propertyKeyTempRefs == nil {
+				propertyKeyTempRefs = make(map[int]ast.Ref)
+			}
+			propertyKeyTempRefs[propIndex] = ref
+
+			// Deliberately continue to fall through to the "computed" case below:
+		}
+
+		// Otherwise, this computed property could be a good location to evaluate
+		// something that comes before it. Remember this location for later.
+		if prop.Flags.Has(js_ast.PropertyIsComputed) {
+			// If any side effects after this were hoisted here, then inline them now.
+			// We don't want to reorder any side effects.
+			if ctx.computedPropertyChain.Data != nil {
+				ref, ok := propertyKeyTempRefs[propIndex]
+				if !ok {
+					ref = p.generateTempRef(tempRefNeedsDeclare, "")
+					prop.Key = js_ast.Assign(js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}}, prop.Key)
+					p.recordUsage(ref)
+				}
+				prop.Key = js_ast.JoinWithComma(
+					js_ast.JoinWithComma(prop.Key, ctx.computedPropertyChain),
+					js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}})
+				p.recordUsage(ref)
+				ctx.computedPropertyChain = js_ast.Expr{}
+			}
+
+			// Remember this location for later
+			nextComputedPropertyKey = &prop.Key
+		}
+	}
+
+	// If any side effects in the class body were hoisted up to the "extends"
+	// clause, then inline them before the "extends" clause is evaluated. We
+	// don't want to reorder any side effects. For example:
+	//
+	//   class Foo extends a() {
+	//     static [b()]
+	//   }
+	//
+	// We want to do this:
+	//
+	//   var _a, _b;
+	//   class Foo extends (_b = a(), _a = b(), _b) {
+	//   }
+	//   __publicField(Foo, _a);
+	//
+	// instead of this:
+	//
+	//   var _a;
+	//   _a = b();
+	//   class Foo extends a() {
+	//   }
+	//   __publicField(Foo, _a);
+	//
+	if ctx.computedPropertyChain.Data != nil && ctx.class.ExtendsOrNil.Data != nil {
+		ctx.extendsRef = p.generateTempRef(tempRefNeedsDeclare, "")
+		ctx.class.ExtendsOrNil = js_ast.JoinWithComma(js_ast.JoinWithComma(
+			js_ast.Assign(js_ast.Expr{Loc: ctx.class.ExtendsOrNil.Loc, Data: &js_ast.EIdentifier{Ref: ctx.extendsRef}}, ctx.class.ExtendsOrNil),
+			ctx.computedPropertyChain),
+			js_ast.Expr{Loc: ctx.class.ExtendsOrNil.Loc, Data: &js_ast.EIdentifier{Ref: ctx.extendsRef}})
+		p.recordUsage(ctx.extendsRef)
+		p.recordUsage(ctx.extendsRef)
+		ctx.computedPropertyChain = js_ast.Expr{}
+	}
+	return
+}
+
+// This corresponds to the initialization order in the specification:
+//
+//  27. For each element e of staticElements, do
+//     a. If e is a ClassElementDefinition Record and e.[[Kind]] is not field, then
+//
+//  28. For each element e of instanceElements, do
+//     a. If e.[[Kind]] is not field, then
+//
+//  29. For each element e of staticElements, do
+//     a. If e.[[Kind]] is field, then
+//
+//  30. For each element e of instanceElements, do
+//     a. If e.[[Kind]] is field, then
+func fieldOrAccessorOrder(kind js_ast.PropertyKind, flags js_ast.PropertyFlags) (int, bool) {
+	if kind == js_ast.PropertyAutoAccessor {
+		if flags.Has(js_ast.PropertyIsStatic) {
+			return 0, true
+		} else {
+			return 1, true
+		}
+	} else if kind == js_ast.PropertyField {
+		if flags.Has(js_ast.PropertyIsStatic) {
+			return 2, true
+		} else {
+			return 3, true
+		}
+	}
+	return 0, false
+}
+
+func (ctx *lowerClassContext) processProperties(p *parser, classLoweringInfo classLoweringInfo, result visitClassResult) {
+	properties := make([]js_ast.Property, 0, len(ctx.class.Properties))
+	propertyKeyTempRefs, decoratorTempRefs := ctx.hoistComputedProperties(p, classLoweringInfo)
+
+	// Save the initializer index for each field and accessor element
+	if p.options.unsupportedJSFeatures.Has(compat.Decorators) && (!p.options.ts.Parse || p.options.ts.Config.ExperimentalDecorators != config.True) {
+		var counts [4]int
+
+		// Count how many initializers there are in each section
+		for _, prop := range ctx.class.Properties {
+			if len(prop.Decorators) > 0 {
+				if i, ok := fieldOrAccessorOrder(prop.Kind, prop.Flags); ok {
+					counts[i]++
+				} else if prop.Flags.Has(js_ast.PropertyIsStatic) {
+					ctx.decoratorCallStaticMethodExtraInitializers = true
+				} else {
+					ctx.decoratorCallInstanceMethodExtraInitializers = true
+				}
+			}
+		}
+
+		// Give each on an index for the order it will be initialized in
+		if counts[0] > 0 || counts[1] > 0 || counts[2] > 0 || counts[3] > 0 {
+			indices := [4]int{0, counts[0], counts[0] + counts[1], counts[0] + counts[1] + counts[2]}
+			ctx.decoratorPropertyToInitializerMap = make(map[int]int)
+
+			for propIndex, prop := range ctx.class.Properties {
+				if len(prop.Decorators) > 0 {
+					if i, ok := fieldOrAccessorOrder(prop.Kind, prop.Flags); ok {
+						ctx.decoratorPropertyToInitializerMap[propIndex] = indices[i]
+						indices[i]++
+					}
+				}
+			}
+		}
+	}
+
+	// Evaluate the decorator expressions inline
+	if p.options.unsupportedJSFeatures.Has(compat.Decorators) && len(ctx.class.Decorators) > 0 &&
+		(!p.options.ts.Parse || p.options.ts.Config.ExperimentalDecorators != config.True) {
+		name := ctx.nameToKeep
+		if name == "" {
+			name = "class"
+		}
+		decoratorsRef := p.generateTempRef(tempRefNeedsDeclare, fmt.Sprintf("_%s_decorators", name))
+		values := make([]js_ast.Expr, len(ctx.class.Decorators))
+		for i, decorator := range ctx.class.Decorators {
+			values[i] = decorator.Value
+		}
+		atLoc := ctx.class.Decorators[0].AtLoc
+		ctx.computedPropertyChain = js_ast.JoinWithComma(js_ast.Assign(
+			js_ast.Expr{Loc: atLoc, Data: &js_ast.EIdentifier{Ref: decoratorsRef}},
+			js_ast.Expr{Loc: atLoc, Data: &js_ast.EArray{Items: values, IsSingleLine: true}},
+		), ctx.computedPropertyChain)
+		p.recordUsage(decoratorsRef)
+		ctx.decoratorClassDecorators = js_ast.Expr{Loc: atLoc, Data: &js_ast.EIdentifier{Ref: decoratorsRef}}
+		p.recordUsage(decoratorsRef)
+		ctx.class.Decorators = nil
+	}
+
+	for propIndex, prop := range ctx.class.Properties {
 		if prop.Kind == js_ast.PropertyClassStaticBlock {
 			// Drop empty class blocks when minifying
 			if p.options.minifySyntax && len(prop.ClassStaticBlock.Block.Stmts) == 0 {
 				continue
 			}
 
+			// Lower this block if needed
 			if classLoweringInfo.lowerAllStaticFields {
-				block := *prop.ClassStaticBlock
-				isAllExprs := []js_ast.Expr{}
-
-				// Are all statements in the block expression statements?
-			loop:
-				for _, stmt := range block.Block.Stmts {
-					switch s := stmt.Data.(type) {
-					case *js_ast.SEmpty:
-						// Omit stray semicolons completely
-					case *js_ast.SExpr:
-						isAllExprs = append(isAllExprs, s.Value)
-					default:
-						isAllExprs = nil
-						break loop
-					}
-				}
-
-				if isAllExprs != nil {
-					// I think it should be safe to inline the static block IIFE here
-					// since all uses of "this" should have already been replaced by now.
-					staticMembers = append(staticMembers, isAllExprs...)
-				} else {
-					// But if there is a non-expression statement, fall back to using an
-					// IIFE since we may be in an expression context and can't use a block.
-					staticMembers = append(staticMembers, js_ast.Expr{Loc: prop.Loc, Data: &js_ast.ECall{
-						Target: js_ast.Expr{Loc: prop.Loc, Data: &js_ast.EArrow{Body: js_ast.FnBody{
-							Loc:   block.Loc,
-							Block: block.Block,
-						}}},
-						CanBeUnwrappedIfUnused: p.astHelpers.StmtsCanBeRemovedIfUnused(block.Block.Stmts, 0),
-					}})
-				}
+				ctx.lowerStaticBlock(p, prop.Loc, *prop.ClassStaticBlock)
 				continue
 			}
 
-			// Keep this property
+			// Otherwise, keep this property
 			properties = append(properties, prop)
 			continue
 		}
 
 		// Merge parameter decorators with method decorators
-		if p.options.ts.Parse && prop.Flags.Has(js_ast.PropertyIsMethod) {
+		if p.options.ts.Parse && prop.Kind.IsMethodDefinition() {
 			if fn, ok := prop.ValueOrNil.Data.(*js_ast.EFunction); ok {
 				isConstructor := false
 				if key, ok := prop.Key.Data.(*js_ast.EString); ok {
@@ -1018,7 +1537,7 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 						// Generate a call to "__decorateParam()" for this parameter decorator
 						var decorators *[]js_ast.Decorator = &prop.Decorators
 						if isConstructor {
-							decorators = &class.Decorators
+							decorators = &ctx.class.Decorators
 						}
 						*decorators = append(*decorators, js_ast.Decorator{
 							Value: p.callRuntime(decorator.Value.Loc, "__decorateParam", []js_ast.Expr{
@@ -1033,265 +1552,225 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 			}
 		}
 
-		// The TypeScript class field transform requires removing fields without
-		// initializers. If the field is removed, then we only need the key for
-		// its side effects and we don't need a temporary reference for the key.
-		// However, the TypeScript compiler doesn't remove the field when doing
-		// strict class field initialization, so we shouldn't either.
-		private, _ := prop.Key.Data.(*js_ast.EPrivateIdentifier)
-		mustLowerPrivate := private != nil && p.privateSymbolNeedsToBeLowered(private)
-		shouldOmitFieldInitializer := p.options.ts.Parse && !prop.Flags.Has(js_ast.PropertyIsMethod) && prop.InitializerOrNil.Data == nil &&
-			!class.UseDefineForClassFields && !mustLowerPrivate
+		analysis := ctx.analyzeProperty(p, prop, classLoweringInfo)
 
-		// Class fields must be lowered if the environment doesn't support them
-		mustLowerField := false
-		if !prop.Flags.Has(js_ast.PropertyIsMethod) {
-			if prop.Flags.Has(js_ast.PropertyIsStatic) {
-				mustLowerField = classLoweringInfo.lowerAllStaticFields
-			} else if prop.Kind == js_ast.PropertyNormal && p.options.ts.Parse && !class.UseDefineForClassFields && private == nil {
-				// Lower non-private instance fields (not accessors) if TypeScript's
-				// "useDefineForClassFields" setting is disabled. When all such fields
-				// have no initializers, we avoid setting the "lowerAllInstanceFields"
-				// flag as an optimization because we can just remove all class field
-				// declarations in that case without messing with the constructor. But
-				// we must set the "mustLowerField" flag here to cause this class field
-				// declaration to still be removed.
-				mustLowerField = true
-			} else {
-				mustLowerField = classLoweringInfo.lowerAllInstanceFields
-			}
-		}
-
-		// If the field uses the TypeScript "declare" or "abstract" keyword, just
-		// omit it entirely. However, we must still keep any side-effects in the
-		// computed value and/or in the decorators.
-		if prop.Kind == js_ast.PropertyDeclareOrAbstract && prop.ValueOrNil.Data == nil {
-			mustLowerField = true
-			shouldOmitFieldInitializer = true
-		}
-
-		var propExperimentalDecorators []js_ast.Decorator
-		if p.options.ts.Parse && p.options.ts.Config.ExperimentalDecorators == config.True {
-			propExperimentalDecorators = prop.Decorators
-		}
-		rewriteAutoAccessorToGetSet := prop.Kind == js_ast.PropertyAutoAccessor && (p.options.unsupportedJSFeatures.Has(compat.Decorators) || mustLowerField)
-
-		// Transform non-lowered static fields that use assign semantics into an
-		// assignment in an inline static block instead of lowering them. This lets
-		// us avoid having to unnecessarily lower static private fields when
-		// "useDefineForClassFields" is disabled.
-		staticFieldToBlockAssign := prop.Kind == js_ast.PropertyNormal && !mustLowerField && !class.UseDefineForClassFields &&
-			!prop.Flags.Has(js_ast.PropertyIsMethod) && prop.Flags.Has(js_ast.PropertyIsStatic) && private == nil
-
-		// Make sure the order of computed property keys doesn't change. These
-		// expressions have side effects and must be evaluated in order.
+		// When the property key needs to be referenced multiple times, subsequent
+		// references may need to reference a temporary variable instead of copying
+		// the whole property key expression (since we only want to evaluate side
+		// effects once).
 		keyExprNoSideEffects := prop.Key
-		if prop.Flags.Has(js_ast.PropertyIsComputed) && (len(propExperimentalDecorators) > 0 || mustLowerField || staticFieldToBlockAssign || computedPropertyCache.Data != nil || rewriteAutoAccessorToGetSet) {
-			needsKey := true
-			if len(propExperimentalDecorators) == 0 && !rewriteAutoAccessorToGetSet && (prop.Flags.Has(js_ast.PropertyIsMethod) || shouldOmitFieldInitializer || (!mustLowerField && !staticFieldToBlockAssign)) {
-				needsKey = false
+		if ref, ok := propertyKeyTempRefs[propIndex]; ok {
+			keyExprNoSideEffects.Data = &js_ast.EIdentifier{Ref: ref}
+		}
+
+		// Handle TypeScript experimental decorators
+		if len(analysis.propExperimentalDecorators) > 0 {
+			prop.Decorators = nil
+
+			// Generate a single call to "__decorateClass()" for this property
+			loc := prop.Key.Loc
+
+			// This code tells "__decorateClass()" if the descriptor should be undefined
+			descriptorKind := float64(1)
+			if prop.Kind == js_ast.PropertyField || prop.Kind == js_ast.PropertyDeclareOrAbstract {
+				descriptorKind = 2
 			}
 
-			// Assume all non-literal computed keys have important side effects
-			switch prop.Key.Data.(type) {
-			case *js_ast.EString, *js_ast.ENameOfSymbol, *js_ast.ENumber:
-				// These have no side effects
-			default:
-				if !needsKey {
-					// Just evaluate the key for its side effects
-					computedPropertyCache = js_ast.JoinWithComma(computedPropertyCache, prop.Key)
-				} else {
-					// Store the key in a temporary so we can assign to it later
-					ref := p.generateTempRef(tempRefNeedsDeclare, "")
-					p.recordUsage(ref)
-					computedPropertyCache = js_ast.JoinWithComma(computedPropertyCache,
-						js_ast.Assign(js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}}, prop.Key))
-					prop.Key = js_ast.Expr{Loc: prop.Key.Loc, Data: &js_ast.EIdentifier{Ref: ref}}
-					keyExprNoSideEffects = prop.Key
-				}
+			// Instance properties use the prototype, static properties use the class
+			var target js_ast.Expr
+			if prop.Flags.Has(js_ast.PropertyIsStatic) {
+				target = ctx.nameFunc()
+			} else {
+				target = js_ast.Expr{Loc: loc, Data: &js_ast.EDot{Target: ctx.nameFunc(), Name: "prototype", NameLoc: loc}}
+			}
 
-				// If this is a computed method, the property value will be used
-				// immediately. In this case we inline all computed properties so far to
-				// make sure all computed properties before this one are evaluated first.
-				if rewriteAutoAccessorToGetSet || (!mustLowerField && !staticFieldToBlockAssign) {
-					prop.Key = computedPropertyCache
-					computedPropertyCache = js_ast.Expr{}
-				}
+			values := make([]js_ast.Expr, len(analysis.propExperimentalDecorators))
+			for i, decorator := range analysis.propExperimentalDecorators {
+				values[i] = decorator.Value
+			}
+			decorator := p.callRuntime(loc, "__decorateClass", []js_ast.Expr{
+				{Loc: loc, Data: &js_ast.EArray{Items: values}},
+				target,
+				cloneKeyForLowerClass(keyExprNoSideEffects),
+				{Loc: loc, Data: &js_ast.ENumber{Value: descriptorKind}},
+			})
+
+			// Static decorators are grouped after instance decorators
+			if prop.Flags.Has(js_ast.PropertyIsStatic) {
+				ctx.staticExperimentalDecorators = append(ctx.staticExperimentalDecorators, decorator)
+			} else {
+				ctx.instanceExperimentalDecorators = append(ctx.instanceExperimentalDecorators, decorator)
 			}
 		}
 
-		// Handle decorators
-		if p.options.ts.Parse {
-			// Generate a single call to "__decorateClass()" for this property
-			if len(propExperimentalDecorators) > 0 {
-				loc := prop.Key.Loc
+		// Handle JavaScript decorators
+		initializerIndex := -1
+		if len(analysis.propDecorators) > 0 {
+			prop.Decorators = nil
+			loc := prop.Loc
+			keyLoc := prop.Key.Loc
+			atLoc := analysis.propDecorators[0].AtLoc
 
-				// This code tells "__decorateClass()" if the descriptor should be undefined
-				descriptorKind := float64(1)
-				if !prop.Flags.Has(js_ast.PropertyIsMethod) && prop.Kind != js_ast.PropertyAutoAccessor {
-					descriptorKind = 2
+			// Encode information about this property using bit flags
+			var flags int
+			switch prop.Kind {
+			case js_ast.PropertyMethod:
+				flags = 1
+			case js_ast.PropertyGetter:
+				flags = 2
+			case js_ast.PropertySetter:
+				flags = 3
+			case js_ast.PropertyAutoAccessor:
+				flags = 4
+			case js_ast.PropertyField:
+				flags = 5
+			}
+			if flags >= 4 {
+				initializerIndex = ctx.decoratorPropertyToInitializerMap[propIndex]
+			}
+			if prop.Flags.Has(js_ast.PropertyIsStatic) {
+				flags |= 8
+			}
+			if analysis.private != nil {
+				flags |= 16
+			}
+
+			// Start the arguments for the call to "__decorateElement"
+			var key js_ast.Expr
+			decoratorsRef := decoratorTempRefs[propIndex]
+			if ctx.decoratorContextRef == ast.InvalidRef {
+				ctx.decoratorContextRef = p.generateTempRef(tempRefNeedsDeclare, "_init")
+			}
+			if analysis.private != nil {
+				key = js_ast.Expr{Loc: loc, Data: &js_ast.EString{Value: helpers.StringToUTF16(p.symbols[analysis.private.Ref.InnerIndex].OriginalName)}}
+			} else {
+				key = cloneKeyForLowerClass(keyExprNoSideEffects)
+			}
+			args := []js_ast.Expr{
+				{Loc: loc, Data: &js_ast.EIdentifier{Ref: ctx.decoratorContextRef}},
+				{Loc: loc, Data: &js_ast.ENumber{Value: float64(flags)}},
+				key,
+				{Loc: atLoc, Data: &js_ast.EIdentifier{Ref: decoratorsRef}},
+			}
+			p.recordUsage(ctx.decoratorContextRef)
+			p.recordUsage(decoratorsRef)
+
+			// Append any optional additional arguments
+			privateFnRef := ast.InvalidRef
+			if analysis.private != nil {
+				// Add the "target" argument (the weak set)
+				args = append(args, js_ast.Expr{Loc: keyLoc, Data: &js_ast.EIdentifier{Ref: analysis.private.Ref}})
+				p.recordUsage(analysis.private.Ref)
+
+				// Add the "extra" argument (the function)
+				switch prop.Kind {
+				case js_ast.PropertyMethod:
+					privateFnRef = p.privateGetters[analysis.private.Ref]
+				case js_ast.PropertyGetter:
+					privateFnRef = p.privateGetters[analysis.private.Ref]
+				case js_ast.PropertySetter:
+					privateFnRef = p.privateSetters[analysis.private.Ref]
 				}
+				if privateFnRef != ast.InvalidRef {
+					args = append(args, js_ast.Expr{Loc: keyLoc, Data: &js_ast.EIdentifier{Ref: privateFnRef}})
+					p.recordUsage(privateFnRef)
+				}
+			} else {
+				// Add the "target" argument (the class object)
+				args = append(args, ctx.nameFunc())
+			}
 
-				// Instance properties use the prototype, static properties use the class
-				var target js_ast.Expr
+			// Auto-accessors will generate a private field for storage. Lower this
+			// field, which will generate a WeakMap instance, and then pass the
+			// WeakMap instance into the decorator helper so the lowered getter and
+			// setter can use it.
+			if prop.Kind == js_ast.PropertyAutoAccessor {
+				var kind ast.SymbolKind
 				if prop.Flags.Has(js_ast.PropertyIsStatic) {
-					target = nameFunc()
+					kind = ast.SymbolPrivateStaticField
 				} else {
-					target = js_ast.Expr{Loc: loc, Data: &js_ast.EDot{Target: nameFunc(), Name: "prototype", NameLoc: loc}}
+					kind = ast.SymbolPrivateField
 				}
+				ref := p.newSymbol(kind, "#"+p.propertyNameHint(prop.Key))
+				p.symbols[ref.InnerIndex].Flags |= ast.PrivateSymbolMustBeLowered
+				_, autoAccessorWeakMapRef, _ := ctx.lowerField(p, prop, &js_ast.EPrivateIdentifier{Ref: ref}, false, false, initializerIndex)
+				args = append(args, js_ast.Expr{Loc: keyLoc, Data: &js_ast.EIdentifier{Ref: autoAccessorWeakMapRef}})
+				p.recordUsage(autoAccessorWeakMapRef)
+			}
 
-				values := make([]js_ast.Expr, len(propExperimentalDecorators))
-				for i, decorator := range propExperimentalDecorators {
-					values[i] = decorator.Value
-				}
-				prop.Decorators = nil
-				decorator := p.callRuntime(loc, "__decorateClass", []js_ast.Expr{
-					{Loc: loc, Data: &js_ast.EArray{Items: values}},
-					target,
-					cloneKeyForLowerClass(keyExprNoSideEffects),
-					{Loc: loc, Data: &js_ast.ENumber{Value: descriptorKind}},
-				})
+			// Assign the result
+			element := p.callRuntime(loc, "__decorateElement", args)
+			if privateFnRef != ast.InvalidRef {
+				element = js_ast.Assign(js_ast.Expr{Loc: keyLoc, Data: &js_ast.EIdentifier{Ref: privateFnRef}}, element)
+				p.recordUsage(privateFnRef)
+			} else if prop.Kind == js_ast.PropertyAutoAccessor && analysis.private != nil {
+				ref := p.generateTempRef(tempRefNeedsDeclare, "")
+				privateGetFnRef := p.generateTempRef(tempRefNeedsDeclare, "_")
+				privateSetFnRef := p.generateTempRef(tempRefNeedsDeclare, "_")
+				p.symbols[privateGetFnRef.InnerIndex].Link = p.privateGetters[analysis.private.Ref]
+				p.symbols[privateSetFnRef.InnerIndex].Link = p.privateSetters[analysis.private.Ref]
 
-				// Static decorators are grouped after instance decorators
+				// Unpack the "get" and "set" properties from the returned property descriptor
+				element = js_ast.JoinWithComma(js_ast.JoinWithComma(
+					js_ast.Assign(
+						js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: ref}},
+						element),
+					js_ast.Assign(
+						js_ast.Expr{Loc: keyLoc, Data: &js_ast.EIdentifier{Ref: privateGetFnRef}},
+						js_ast.Expr{Loc: loc, Data: &js_ast.EDot{Target: js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: ref}}, Name: "get", NameLoc: loc}})),
+					js_ast.Assign(
+						js_ast.Expr{Loc: keyLoc, Data: &js_ast.EIdentifier{Ref: privateSetFnRef}},
+						js_ast.Expr{Loc: loc, Data: &js_ast.EDot{Target: js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: ref}}, Name: "set", NameLoc: loc}}))
+				p.recordUsage(ref)
+				p.recordUsage(privateGetFnRef)
+				p.recordUsage(ref)
+				p.recordUsage(privateSetFnRef)
+				p.recordUsage(ref)
+			}
+
+			// Put the call to the decorators in the right place
+			if prop.Kind == js_ast.PropertyField {
+				// Field
 				if prop.Flags.Has(js_ast.PropertyIsStatic) {
-					staticDecorators = append(staticDecorators, decorator)
+					ctx.decoratorStaticFieldElements = append(ctx.decoratorStaticFieldElements, element)
 				} else {
-					instanceDecorators = append(instanceDecorators, decorator)
+					ctx.decoratorInstanceFieldElements = append(ctx.decoratorInstanceFieldElements, element)
 				}
+			} else {
+				// Non-field
+				if prop.Flags.Has(js_ast.PropertyIsStatic) {
+					ctx.decoratorStaticNonFieldElements = append(ctx.decoratorStaticNonFieldElements, element)
+				} else {
+					ctx.decoratorInstanceNonFieldElements = append(ctx.decoratorInstanceNonFieldElements, element)
+				}
+			}
+
+			// Omit decorated auto-accessors as they will be now generated at run-time instead
+			if prop.Kind == js_ast.PropertyAutoAccessor {
+				if analysis.private != nil {
+					ctx.lowerPrivateMethod(p, prop, analysis.private)
+				}
+				continue
 			}
 		}
 
 		// Generate get/set methods for auto-accessors
-		if rewriteAutoAccessorToGetSet {
-			var storageKind ast.SymbolKind
-			if prop.Flags.Has(js_ast.PropertyIsStatic) {
-				storageKind = ast.SymbolPrivateStaticField
-			} else {
-				storageKind = ast.SymbolPrivateField
-			}
-
-			// Generate the name of the private field to use for storage
-			var storageName string
-			switch k := keyExprNoSideEffects.Data.(type) {
-			case *js_ast.EString:
-				storageName = "#" + helpers.UTF16ToString(k.Value)
-			case *js_ast.EPrivateIdentifier:
-				storageName = "#_" + p.symbols[k.Ref.InnerIndex].OriginalName[1:]
-			default:
-				storageName = "#" + ast.DefaultNameMinifierJS.NumberToMinifiedName(autoAccessorCount)
-				autoAccessorCount++
-			}
-
-			// Generate the symbols we need
-			storageRef := p.newSymbol(storageKind, storageName)
-			argRef := p.newSymbol(ast.SymbolOther, "_")
-			result.bodyScope.Generated = append(result.bodyScope.Generated, storageRef)
-			result.bodyScope.Children = append(result.bodyScope.Children, &js_ast.Scope{Kind: js_ast.ScopeFunctionBody, Generated: []ast.Ref{argRef}})
-
-			// Replace this accessor with other properties
-			loc := keyExprNoSideEffects.Loc
-			storagePrivate := &js_ast.EPrivateIdentifier{Ref: storageRef}
-			storageNeedsToBeLowered := p.privateSymbolNeedsToBeLowered(storagePrivate)
-			storageProp := js_ast.Property{
-				Loc:              prop.Loc,
-				Kind:             js_ast.PropertyNormal,
-				Flags:            prop.Flags & js_ast.PropertyIsStatic,
-				Key:              js_ast.Expr{Loc: loc, Data: storagePrivate},
-				InitializerOrNil: prop.InitializerOrNil,
-			}
-			if !mustLowerField {
-				properties = append(properties, storageProp)
-			} else if prop, ok := lowerField(storageProp, storagePrivate, false, false); ok {
-				properties = append(properties, prop)
-			}
-
-			// Getter
-			var getExpr js_ast.Expr
-			if storageNeedsToBeLowered {
-				getExpr = p.lowerPrivateGet(js_ast.Expr{Loc: loc, Data: js_ast.EThisShared}, loc, storagePrivate)
-			} else {
-				p.recordUsage(storageRef)
-				getExpr = js_ast.Expr{Loc: loc, Data: &js_ast.EIndex{
-					Target: js_ast.Expr{Loc: loc, Data: js_ast.EThisShared},
-					Index:  js_ast.Expr{Loc: loc, Data: &js_ast.EPrivateIdentifier{Ref: storageRef}},
-				}}
-			}
-			getterProp := js_ast.Property{
-				Loc:   prop.Loc,
-				Kind:  js_ast.PropertyGet,
-				Flags: prop.Flags | js_ast.PropertyIsMethod,
-				Key:   prop.Key,
-				ValueOrNil: js_ast.Expr{Loc: loc, Data: &js_ast.EFunction{
-					Fn: js_ast.Fn{
-						Body: js_ast.FnBody{
-							Loc: loc,
-							Block: js_ast.SBlock{
-								Stmts: []js_ast.Stmt{
-									{Loc: loc, Data: &js_ast.SReturn{ValueOrNil: getExpr}},
-								},
-							},
-						},
-					},
-				}},
-			}
-			if !lowerMethod(getterProp, private) {
-				properties = append(properties, getterProp)
-			}
-
-			// Setter
-			var setExpr js_ast.Expr
-			if storageNeedsToBeLowered {
-				setExpr = p.lowerPrivateSet(js_ast.Expr{Loc: loc, Data: js_ast.EThisShared}, loc, storagePrivate,
-					js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: argRef}})
-			} else {
-				p.recordUsage(storageRef)
-				p.recordUsage(argRef)
-				setExpr = js_ast.Assign(
-					js_ast.Expr{Loc: loc, Data: &js_ast.EIndex{
-						Target: js_ast.Expr{Loc: loc, Data: js_ast.EThisShared},
-						Index:  js_ast.Expr{Loc: loc, Data: &js_ast.EPrivateIdentifier{Ref: storageRef}},
-					}},
-					js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: argRef}},
-				)
-			}
-			setterProp := js_ast.Property{
-				Loc:   prop.Loc,
-				Kind:  js_ast.PropertySet,
-				Flags: prop.Flags | js_ast.PropertyIsMethod,
-				Key:   cloneKeyForLowerClass(keyExprNoSideEffects),
-				ValueOrNil: js_ast.Expr{Loc: loc, Data: &js_ast.EFunction{
-					Fn: js_ast.Fn{
-						Args: []js_ast.Arg{
-							{Binding: js_ast.Binding{Loc: loc, Data: &js_ast.BIdentifier{Ref: argRef}}},
-						},
-						Body: js_ast.FnBody{
-							Loc: loc,
-							Block: js_ast.SBlock{
-								Stmts: []js_ast.Stmt{
-									{Loc: loc, Data: &js_ast.SExpr{Value: setExpr}},
-								},
-							},
-						},
-					},
-				}},
-			}
-			if !lowerMethod(setterProp, private) {
-				properties = append(properties, setterProp)
-			}
+		if analysis.rewriteAutoAccessorToGetSet {
+			properties = ctx.rewriteAutoAccessorToGetSet(p, prop, properties, keyExprNoSideEffects, analysis.mustLowerField, analysis.private, result)
 			continue
 		}
 
 		// Lower fields
-		if (!prop.Flags.Has(js_ast.PropertyIsMethod) && mustLowerField) || staticFieldToBlockAssign {
+		if (!prop.Kind.IsMethodDefinition() && analysis.mustLowerField) || analysis.staticFieldToBlockAssign {
 			var keep bool
-			prop, keep = lowerField(prop, private, shouldOmitFieldInitializer, staticFieldToBlockAssign)
+			prop, _, keep = ctx.lowerField(p, prop, analysis.private, analysis.shouldOmitFieldInitializer, analysis.staticFieldToBlockAssign, initializerIndex)
 			if !keep {
 				continue
 			}
 		}
 
 		// Lower methods
-		if prop.Flags.Has(js_ast.PropertyIsMethod) && lowerMethod(prop, private) {
+		if prop.Kind.IsMethodDefinition() && ctx.lowerMethod(p, prop, analysis.private) {
 			continue
 		}
 
@@ -1300,132 +1779,254 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 	}
 
 	// Finish the filtering operation
-	class.Properties = properties
+	ctx.class.Properties = properties
+}
 
-	// If there are expressions with side effects left over and static blocks are
-	// supported, insert a static block at the start of the class body. This is
-	// necessary because computed static fields need to reference variables that
-	// are initialized in this expression:
-	//
-	//   class Foo {
-	//     static [x()] = 1
-	//   }
-	//
-	// The TypeScript compiler transforms that to this:
-	//
-	//   var _a;
-	//   class Foo {
-	//     static { _a = x(); }
-	//     static { this[_a] = 1; }
-	//   }
-	//
-	if computedPropertyCache.Data != nil && !p.options.unsupportedJSFeatures.Has(compat.ClassStaticBlocks) {
-		loc := computedPropertyCache.Loc
-		class.Properties = append(append(
-			make([]js_ast.Property, 0, 1+len(class.Properties)),
-			js_ast.Property{
-				Loc:  loc,
-				Kind: js_ast.PropertyClassStaticBlock,
-				ClassStaticBlock: &js_ast.ClassStaticBlock{
+func (ctx *lowerClassContext) lowerStaticBlock(p *parser, loc logger.Loc, block js_ast.ClassStaticBlock) {
+	isAllExprs := []js_ast.Expr{}
+
+	// Are all statements in the block expression statements?
+loop:
+	for _, stmt := range block.Block.Stmts {
+		switch s := stmt.Data.(type) {
+		case *js_ast.SEmpty:
+			// Omit stray semicolons completely
+		case *js_ast.SExpr:
+			isAllExprs = append(isAllExprs, s.Value)
+		default:
+			isAllExprs = nil
+			break loop
+		}
+	}
+
+	if isAllExprs != nil {
+		// I think it should be safe to inline the static block IIFE here
+		// since all uses of "this" should have already been replaced by now.
+		ctx.staticMembers = append(ctx.staticMembers, isAllExprs...)
+	} else {
+		// But if there is a non-expression statement, fall back to using an
+		// IIFE since we may be in an expression context and can't use a block.
+		ctx.staticMembers = append(ctx.staticMembers, js_ast.Expr{Loc: loc, Data: &js_ast.ECall{
+			Target: js_ast.Expr{Loc: loc, Data: &js_ast.EArrow{Body: js_ast.FnBody{
+				Loc:   block.Loc,
+				Block: block.Block,
+			}}},
+			CanBeUnwrappedIfUnused: p.astHelpers.StmtsCanBeRemovedIfUnused(block.Block.Stmts, 0),
+		}})
+	}
+}
+
+func (ctx *lowerClassContext) rewriteAutoAccessorToGetSet(
+	p *parser,
+	prop js_ast.Property,
+	properties []js_ast.Property,
+	keyExprNoSideEffects js_ast.Expr,
+	mustLowerField bool,
+	private *js_ast.EPrivateIdentifier,
+	result visitClassResult,
+) []js_ast.Property {
+	var storageKind ast.SymbolKind
+	if prop.Flags.Has(js_ast.PropertyIsStatic) {
+		storageKind = ast.SymbolPrivateStaticField
+	} else {
+		storageKind = ast.SymbolPrivateField
+	}
+
+	// Generate the name of the private field to use for storage
+	var storageName string
+	switch k := keyExprNoSideEffects.Data.(type) {
+	case *js_ast.EString:
+		storageName = "#" + helpers.UTF16ToString(k.Value)
+	case *js_ast.EPrivateIdentifier:
+		storageName = "#_" + p.symbols[k.Ref.InnerIndex].OriginalName[1:]
+	default:
+		storageName = "#" + ast.DefaultNameMinifierJS.NumberToMinifiedName(ctx.autoAccessorCount)
+		ctx.autoAccessorCount++
+	}
+
+	// Generate the symbols we need
+	storageRef := p.newSymbol(storageKind, storageName)
+	argRef := p.newSymbol(ast.SymbolOther, "_")
+	result.bodyScope.Generated = append(result.bodyScope.Generated, storageRef)
+	result.bodyScope.Children = append(result.bodyScope.Children, &js_ast.Scope{Kind: js_ast.ScopeFunctionBody, Generated: []ast.Ref{argRef}})
+
+	// Replace this accessor with other properties
+	loc := keyExprNoSideEffects.Loc
+	storagePrivate := &js_ast.EPrivateIdentifier{Ref: storageRef}
+	if mustLowerField {
+		// Forward the accessor's lowering status on to the storage field. If we
+		// don't do this, then we risk having the underlying private symbol
+		// behaving differently than if it were authored manually (e.g. being
+		// placed outside of the class body, which is a syntax error).
+		p.symbols[storageRef.InnerIndex].Flags |= ast.PrivateSymbolMustBeLowered
+	}
+	storageNeedsToBeLowered := p.privateSymbolNeedsToBeLowered(storagePrivate)
+	storageProp := js_ast.Property{
+		Loc:              prop.Loc,
+		Kind:             js_ast.PropertyField,
+		Flags:            prop.Flags & js_ast.PropertyIsStatic,
+		Key:              js_ast.Expr{Loc: loc, Data: storagePrivate},
+		InitializerOrNil: prop.InitializerOrNil,
+	}
+	if !mustLowerField {
+		properties = append(properties, storageProp)
+	} else if prop, _, ok := ctx.lowerField(p, storageProp, storagePrivate, false, false, -1); ok {
+		properties = append(properties, prop)
+	}
+
+	// Getter
+	var getExpr js_ast.Expr
+	if storageNeedsToBeLowered {
+		getExpr = p.lowerPrivateGet(js_ast.Expr{Loc: loc, Data: js_ast.EThisShared}, loc, storagePrivate)
+	} else {
+		p.recordUsage(storageRef)
+		getExpr = js_ast.Expr{Loc: loc, Data: &js_ast.EIndex{
+			Target: js_ast.Expr{Loc: loc, Data: js_ast.EThisShared},
+			Index:  js_ast.Expr{Loc: loc, Data: &js_ast.EPrivateIdentifier{Ref: storageRef}},
+		}}
+	}
+	getterProp := js_ast.Property{
+		Loc:   prop.Loc,
+		Kind:  js_ast.PropertyGetter,
+		Flags: prop.Flags,
+		Key:   prop.Key,
+		ValueOrNil: js_ast.Expr{Loc: loc, Data: &js_ast.EFunction{
+			Fn: js_ast.Fn{
+				Body: js_ast.FnBody{
 					Loc: loc,
 					Block: js_ast.SBlock{
 						Stmts: []js_ast.Stmt{
-							{Loc: loc, Data: &js_ast.SExpr{Value: computedPropertyCache}},
+							{Loc: loc, Data: &js_ast.SReturn{ValueOrNil: getExpr}},
 						},
 					},
 				},
-			}),
-			class.Properties...,
+			},
+		}},
+	}
+	if !ctx.lowerMethod(p, getterProp, private) {
+		properties = append(properties, getterProp)
+	}
+
+	// Setter
+	var setExpr js_ast.Expr
+	if storageNeedsToBeLowered {
+		setExpr = p.lowerPrivateSet(js_ast.Expr{Loc: loc, Data: js_ast.EThisShared}, loc, storagePrivate,
+			js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: argRef}})
+	} else {
+		p.recordUsage(storageRef)
+		p.recordUsage(argRef)
+		setExpr = js_ast.Assign(
+			js_ast.Expr{Loc: loc, Data: &js_ast.EIndex{
+				Target: js_ast.Expr{Loc: loc, Data: js_ast.EThisShared},
+				Index:  js_ast.Expr{Loc: loc, Data: &js_ast.EPrivateIdentifier{Ref: storageRef}},
+			}},
+			js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: argRef}},
 		)
-		computedPropertyCache = js_ast.Expr{}
+	}
+	setterProp := js_ast.Property{
+		Loc:   prop.Loc,
+		Kind:  js_ast.PropertySetter,
+		Flags: prop.Flags,
+		Key:   cloneKeyForLowerClass(keyExprNoSideEffects),
+		ValueOrNil: js_ast.Expr{Loc: loc, Data: &js_ast.EFunction{
+			Fn: js_ast.Fn{
+				Args: []js_ast.Arg{
+					{Binding: js_ast.Binding{Loc: loc, Data: &js_ast.BIdentifier{Ref: argRef}}},
+				},
+				Body: js_ast.FnBody{
+					Loc: loc,
+					Block: js_ast.SBlock{
+						Stmts: []js_ast.Stmt{
+							{Loc: loc, Data: &js_ast.SExpr{Value: setExpr}},
+						},
+					},
+				},
+			},
+		}},
+	}
+	if !ctx.lowerMethod(p, setterProp, private) {
+		properties = append(properties, setterProp)
+	}
+	return properties
+}
+
+func (ctx *lowerClassContext) insertInitializersIntoConstructor(p *parser, classLoweringInfo classLoweringInfo, result visitClassResult) {
+	if len(ctx.parameterFields) == 0 &&
+		!ctx.decoratorCallInstanceMethodExtraInitializers &&
+		len(ctx.instancePrivateMethods) == 0 &&
+		len(ctx.instanceMembers) == 0 &&
+		(ctx.ctor == nil || result.superCtorRef == ast.InvalidRef) {
+		// No need to generate a constructor
+		return
 	}
 
-	// Insert instance field initializers into the constructor
-	if len(parameterFields) > 0 || len(instancePrivateMethods) > 0 || len(instanceMembers) > 0 || (ctor != nil && result.superCtorRef != ast.InvalidRef) {
-		// Create a constructor if one doesn't already exist
-		if ctor == nil {
-			ctor = &js_ast.EFunction{Fn: js_ast.Fn{Body: js_ast.FnBody{Loc: classLoc}}}
+	// Create a constructor if one doesn't already exist
+	if ctx.ctor == nil {
+		ctx.ctor = &js_ast.EFunction{Fn: js_ast.Fn{Body: js_ast.FnBody{Loc: ctx.classLoc}}}
 
-			// Append it to the list to reuse existing allocation space
-			class.Properties = append(class.Properties, js_ast.Property{
-				Flags:      js_ast.PropertyIsMethod,
-				Loc:        classLoc,
-				Key:        js_ast.Expr{Loc: classLoc, Data: &js_ast.EString{Value: helpers.StringToUTF16("constructor")}},
-				ValueOrNil: js_ast.Expr{Loc: classLoc, Data: ctor},
-			})
+		// Append it to the list to reuse existing allocation space
+		ctx.class.Properties = append(ctx.class.Properties, js_ast.Property{
+			Kind:       js_ast.PropertyMethod,
+			Loc:        ctx.classLoc,
+			Key:        js_ast.Expr{Loc: ctx.classLoc, Data: &js_ast.EString{Value: helpers.StringToUTF16("constructor")}},
+			ValueOrNil: js_ast.Expr{Loc: ctx.classLoc, Data: ctx.ctor},
+		})
 
-			// Make sure the constructor has a super() call if needed
-			if class.ExtendsOrNil.Data != nil {
-				target := js_ast.Expr{Loc: classLoc, Data: js_ast.ESuperShared}
-				if classLoweringInfo.shimSuperCtorCalls {
-					p.recordUsage(result.superCtorRef)
-					target.Data = &js_ast.EIdentifier{Ref: result.superCtorRef}
-				}
-				argumentsRef := p.newSymbol(ast.SymbolUnbound, "arguments")
-				p.currentScope.Generated = append(p.currentScope.Generated, argumentsRef)
-				ctor.Fn.Body.Block.Stmts = append(ctor.Fn.Body.Block.Stmts, js_ast.Stmt{Loc: classLoc, Data: &js_ast.SExpr{Value: js_ast.Expr{Loc: classLoc, Data: &js_ast.ECall{
-					Target: target,
-					Args:   []js_ast.Expr{{Loc: classLoc, Data: &js_ast.ESpread{Value: js_ast.Expr{Loc: classLoc, Data: &js_ast.EIdentifier{Ref: argumentsRef}}}}},
-				}}}})
+		// Make sure the constructor has a super() call if needed
+		if ctx.class.ExtendsOrNil.Data != nil {
+			target := js_ast.Expr{Loc: ctx.classLoc, Data: js_ast.ESuperShared}
+			if classLoweringInfo.shimSuperCtorCalls {
+				p.recordUsage(result.superCtorRef)
+				target.Data = &js_ast.EIdentifier{Ref: result.superCtorRef}
 			}
+			argumentsRef := p.newSymbol(ast.SymbolUnbound, "arguments")
+			p.currentScope.Generated = append(p.currentScope.Generated, argumentsRef)
+			ctx.ctor.Fn.Body.Block.Stmts = append(ctx.ctor.Fn.Body.Block.Stmts, js_ast.Stmt{Loc: ctx.classLoc, Data: &js_ast.SExpr{Value: js_ast.Expr{Loc: ctx.classLoc, Data: &js_ast.ECall{
+				Target: target,
+				Args:   []js_ast.Expr{{Loc: ctx.classLoc, Data: &js_ast.ESpread{Value: js_ast.Expr{Loc: ctx.classLoc, Data: &js_ast.EIdentifier{Ref: argumentsRef}}}}},
+			}}}})
 		}
+	}
 
-		// Make sure the instance field initializers come after "super()" since
-		// they need "this" to ba available
-		generatedStmts := make([]js_ast.Stmt, 0, len(parameterFields)+len(instancePrivateMethods)+len(instanceMembers))
-		generatedStmts = append(generatedStmts, parameterFields...)
-		generatedStmts = append(generatedStmts, instancePrivateMethods...)
-		generatedStmts = append(generatedStmts, instanceMembers...)
-		p.insertStmtsAfterSuperCall(&ctor.Fn.Body, generatedStmts, result.superCtorRef)
+	// Run instanceMethodExtraInitializers if needed
+	var decoratorInstanceMethodExtraInitializers js_ast.Expr
+	if ctx.decoratorCallInstanceMethodExtraInitializers {
+		decoratorInstanceMethodExtraInitializers = p.callRuntime(ctx.classLoc, "__runInitializers", []js_ast.Expr{
+			{Loc: ctx.classLoc, Data: &js_ast.EIdentifier{Ref: ctx.decoratorContextRef}},
+			{Loc: ctx.classLoc, Data: &js_ast.ENumber{Value: (2 << 1) | 1}},
+			{Loc: ctx.classLoc, Data: js_ast.EThisShared},
+		})
+		p.recordUsage(ctx.decoratorContextRef)
+	}
 
-		// Sort the constructor first to match the TypeScript compiler's output
-		for i := 0; i < len(class.Properties); i++ {
-			if class.Properties[i].ValueOrNil.Data == ctor {
-				ctorProp := class.Properties[i]
-				for j := i; j > 0; j-- {
-					class.Properties[j] = class.Properties[j-1]
-				}
-				class.Properties[0] = ctorProp
-				break
+	// Make sure the instance field initializers come after "super()" since
+	// they need "this" to ba available
+	generatedStmts := make([]js_ast.Stmt, 0,
+		len(ctx.parameterFields)+
+			len(ctx.instancePrivateMethods)+
+			len(ctx.instanceMembers))
+	generatedStmts = append(generatedStmts, ctx.parameterFields...)
+	if decoratorInstanceMethodExtraInitializers.Data != nil {
+		generatedStmts = append(generatedStmts, js_ast.Stmt{Loc: decoratorInstanceMethodExtraInitializers.Loc, Data: &js_ast.SExpr{Value: decoratorInstanceMethodExtraInitializers}})
+	}
+	generatedStmts = append(generatedStmts, ctx.instancePrivateMethods...)
+	generatedStmts = append(generatedStmts, ctx.instanceMembers...)
+	p.insertStmtsAfterSuperCall(&ctx.ctor.Fn.Body, generatedStmts, result.superCtorRef)
+
+	// Sort the constructor first to match the TypeScript compiler's output
+	for i := 0; i < len(ctx.class.Properties); i++ {
+		if ctx.class.Properties[i].ValueOrNil.Data == ctx.ctor {
+			ctorProp := ctx.class.Properties[i]
+			for j := i; j > 0; j-- {
+				ctx.class.Properties[j] = ctx.class.Properties[j-1]
 			}
+			ctx.class.Properties[0] = ctorProp
+			break
 		}
 	}
+}
 
-	// Pack the class back into an expression. We don't need to handle TypeScript
-	// decorators for class expressions because TypeScript doesn't support them.
-	if kind == classKindExpr {
-		// Calling "nameFunc" will replace "expr", so make sure to do that first
-		// before joining "expr" with any other expressions
-		var nameToJoin js_ast.Expr
-		if didCaptureClassExpr || computedPropertyCache.Data != nil ||
-			len(privateMembers) > 0 || len(staticPrivateMethods) > 0 || len(staticMembers) > 0 {
-			nameToJoin = nameFunc()
-		}
-
-		// Then join "expr" with any other expressions that apply
-		if computedPropertyCache.Data != nil {
-			expr = js_ast.JoinWithComma(expr, computedPropertyCache)
-		}
-		for _, value := range privateMembers {
-			expr = js_ast.JoinWithComma(expr, value)
-		}
-		for _, value := range staticPrivateMethods {
-			expr = js_ast.JoinWithComma(expr, value)
-		}
-		for _, value := range staticMembers {
-			expr = js_ast.JoinWithComma(expr, value)
-		}
-
-		// Finally join "expr" with the variable that holds the class object
-		if nameToJoin.Data != nil {
-			expr = js_ast.JoinWithComma(expr, nameToJoin)
-		}
-		if wrapFunc != nil {
-			expr = wrapFunc(expr)
-		}
-		return nil, expr
-	}
-
+func (ctx *lowerClassContext) finishAndGenerateCode(p *parser, result visitClassResult) ([]js_ast.Stmt, js_ast.Expr) {
 	// When bundling is enabled, we convert top-level class statements to
 	// expressions:
 	//
@@ -1470,11 +2071,33 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 	// statements to variables during parsing and b) don't yet know whether this
 	// module will need to be lazily-evaluated or not in the parser. So we always
 	// do this just in case it's needed.
-	mustConvertStmtToExpr := p.currentScope.Parent == nil && (p.options.mode == config.ModeBundle || p.willWrapModuleInTryCatchForUsing)
+	mustConvertStmtToExpr := ctx.kind != classKindExpr && p.currentScope.Parent == nil && (p.options.mode == config.ModeBundle || p.willWrapModuleInTryCatchForUsing)
 
+	// Check to see if we have lowered decorators on the class itself
+	var classDecorators js_ast.Expr
 	var classExperimentalDecorators []js_ast.Decorator
 	if p.options.ts.Parse && p.options.ts.Config.ExperimentalDecorators == config.True {
-		classExperimentalDecorators = class.Decorators
+		classExperimentalDecorators = ctx.class.Decorators
+		ctx.class.Decorators = nil
+	} else if p.options.unsupportedJSFeatures.Has(compat.Decorators) {
+		classDecorators = ctx.decoratorClassDecorators
+	}
+
+	// Handle JavaScript decorators on the class itself
+	var decorateClassExpr js_ast.Expr
+	if classDecorators.Data != nil {
+		if ctx.decoratorContextRef == ast.InvalidRef {
+			ctx.decoratorContextRef = p.generateTempRef(tempRefNeedsDeclare, "_init")
+		}
+		decorateClassExpr = p.callRuntime(ctx.classLoc, "__decorateElement", []js_ast.Expr{
+			{Loc: ctx.classLoc, Data: &js_ast.EIdentifier{Ref: ctx.decoratorContextRef}},
+			{Loc: ctx.classLoc, Data: &js_ast.ENumber{Value: 0}},
+			{Loc: ctx.classLoc, Data: &js_ast.EString{Value: helpers.StringToUTF16(ctx.nameToKeep)}},
+			classDecorators,
+			ctx.nameFunc(),
+		})
+		p.recordUsage(ctx.decoratorContextRef)
+		decorateClassExpr = js_ast.Assign(ctx.nameFunc(), decorateClassExpr)
 	}
 
 	// If this is true, we have removed some code from the class body that could
@@ -1483,53 +2106,176 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 	// name binding to avoid incorrect behavior if the class is later re-assigned,
 	// since the removed code will no longer be in the class body scope.
 	hasPotentialInnerClassNameEscape := result.innerClassNameRef != ast.InvalidRef &&
-		(computedPropertyCache.Data != nil ||
-			len(privateMembers) > 0 ||
-			len(staticPrivateMethods) > 0 ||
-			len(staticMembers) > 0 ||
-			len(instanceDecorators) > 0 ||
-			len(staticDecorators) > 0 ||
-			len(classExperimentalDecorators) > 0)
+		(ctx.computedPropertyChain.Data != nil ||
+			len(ctx.privateMembers) > 0 ||
+			len(ctx.staticPrivateMethods) > 0 ||
+			len(ctx.staticMembers) > 0 ||
 
-	// Pack the class back into a statement, with potentially some extra
-	// statements afterwards
-	var stmts []js_ast.Stmt
-	var outerClassNameDecl js_ast.Stmt
-	var nameForClassDecorators ast.LocRef
-	didGenerateLocalStmt := false
+			// TypeScript experimental decorators
+			len(ctx.instanceExperimentalDecorators) > 0 ||
+			len(ctx.staticExperimentalDecorators) > 0 ||
+			len(classExperimentalDecorators) > 0 ||
+
+			// JavaScript decorators
+			ctx.decoratorContextRef != ast.InvalidRef)
+
+	// If we need to represent the class as an expression (even if it's a
+	// statement), then generate another symbol to use as the class name
+	nameForClassDecorators := ast.LocRef{Ref: ast.InvalidRef}
 	if len(classExperimentalDecorators) > 0 || hasPotentialInnerClassNameEscape || mustConvertStmtToExpr {
-		didGenerateLocalStmt = true
-
-		// Determine the name to use for decorators
-		if kind == classKindExpr {
+		if ctx.kind == classKindExpr {
 			// For expressions, the inner and outer class names are the same
-			name := nameFunc()
+			name := ctx.nameFunc()
 			nameForClassDecorators = ast.LocRef{Loc: name.Loc, Ref: name.Data.(*js_ast.EIdentifier).Ref}
 		} else {
 			// For statements we need to use the outer class name, not the inner one
-			if class.Name != nil {
-				nameForClassDecorators = *class.Name
-			} else if kind == classKindExportDefaultStmt {
-				nameForClassDecorators = defaultName
+			if ctx.class.Name != nil {
+				nameForClassDecorators = *ctx.class.Name
+			} else if ctx.kind == classKindExportDefaultStmt {
+				nameForClassDecorators = ctx.defaultName
 			} else {
-				nameForClassDecorators = ast.LocRef{Loc: classLoc, Ref: p.generateTempRef(tempRefNoDeclare, "")}
+				nameForClassDecorators = ast.LocRef{Loc: ctx.classLoc, Ref: p.generateTempRef(tempRefNoDeclare, "")}
 			}
 			p.recordUsage(nameForClassDecorators.Ref)
 		}
+	}
 
-		classExpr := js_ast.EClass{Class: *class}
-		class = &classExpr.Class
-		init := js_ast.Expr{Loc: classLoc, Data: &classExpr}
+	var prefixExprs []js_ast.Expr
+	var suffixExprs []js_ast.Expr
+
+	// If there are JavaScript decorators, start by allocating a context object
+	if ctx.decoratorContextRef != ast.InvalidRef {
+		base := js_ast.Expr{Loc: ctx.classLoc, Data: js_ast.ENullShared}
+		if ctx.class.ExtendsOrNil.Data != nil {
+			if ctx.extendsRef == ast.InvalidRef {
+				ctx.extendsRef = p.generateTempRef(tempRefNeedsDeclare, "")
+				ctx.class.ExtendsOrNil = js_ast.Assign(js_ast.Expr{Loc: ctx.class.ExtendsOrNil.Loc, Data: &js_ast.EIdentifier{Ref: ctx.extendsRef}}, ctx.class.ExtendsOrNil)
+				p.recordUsage(ctx.extendsRef)
+			}
+			base.Data = &js_ast.EIdentifier{Ref: ctx.extendsRef}
+		}
+		suffixExprs = append(suffixExprs, js_ast.Assign(
+			js_ast.Expr{Loc: ctx.classLoc, Data: &js_ast.EIdentifier{Ref: ctx.decoratorContextRef}},
+			p.callRuntime(ctx.classLoc, "__decoratorStart", []js_ast.Expr{base}),
+		))
+		p.recordUsage(ctx.decoratorContextRef)
+	}
+
+	// Any of the computed property chain that we hoisted out of the class
+	// body needs to come before the class expression.
+	if ctx.computedPropertyChain.Data != nil {
+		prefixExprs = append(prefixExprs, ctx.computedPropertyChain)
+	}
+
+	// WeakSets and WeakMaps
+	suffixExprs = append(suffixExprs, ctx.privateMembers...)
+
+	// Evaluate JavaScript decorators here
+	suffixExprs = append(suffixExprs, ctx.decoratorStaticNonFieldElements...)
+	suffixExprs = append(suffixExprs, ctx.decoratorInstanceNonFieldElements...)
+	suffixExprs = append(suffixExprs, ctx.decoratorStaticFieldElements...)
+	suffixExprs = append(suffixExprs, ctx.decoratorInstanceFieldElements...)
+
+	// Lowered initializers for static methods (including getters and setters)
+	suffixExprs = append(suffixExprs, ctx.staticPrivateMethods...)
+
+	// Run JavaScript class decorators at the end of class initialization
+	if decorateClassExpr.Data != nil {
+		suffixExprs = append(suffixExprs, decorateClassExpr)
+	}
+
+	// For each element initializer of staticMethodExtraInitializers
+	if ctx.decoratorCallStaticMethodExtraInitializers {
+		suffixExprs = append(suffixExprs, p.callRuntime(ctx.classLoc, "__runInitializers", []js_ast.Expr{
+			{Loc: ctx.classLoc, Data: &js_ast.EIdentifier{Ref: ctx.decoratorContextRef}},
+			{Loc: ctx.classLoc, Data: &js_ast.ENumber{Value: (1 << 1) | 1}},
+			ctx.nameFunc(),
+		}))
+		p.recordUsage(ctx.decoratorContextRef)
+	}
+
+	// Lowered initializers for static fields, static accessors, and static blocks
+	suffixExprs = append(suffixExprs, ctx.staticMembers...)
+
+	// The official TypeScript compiler adds generated code after the class body
+	// in this exact order. Matching this order is important for correctness.
+	suffixExprs = append(suffixExprs, ctx.instanceExperimentalDecorators...)
+	suffixExprs = append(suffixExprs, ctx.staticExperimentalDecorators...)
+
+	// For each element initializer of classExtraInitializers
+	if decorateClassExpr.Data != nil {
+		suffixExprs = append(suffixExprs, p.callRuntime(ctx.classLoc, "__runInitializers", []js_ast.Expr{
+			{Loc: ctx.classLoc, Data: &js_ast.EIdentifier{Ref: ctx.decoratorContextRef}},
+			{Loc: ctx.classLoc, Data: &js_ast.ENumber{Value: (0 << 1) | 1}},
+			ctx.nameFunc(),
+		}))
+		p.recordUsage(ctx.decoratorContextRef)
+	}
+
+	// Run TypeScript experimental class decorators at the end of class initialization
+	if len(classExperimentalDecorators) > 0 {
+		values := make([]js_ast.Expr, len(classExperimentalDecorators))
+		for i, decorator := range classExperimentalDecorators {
+			values[i] = decorator.Value
+		}
+		suffixExprs = append(suffixExprs, js_ast.Assign(
+			js_ast.Expr{Loc: nameForClassDecorators.Loc, Data: &js_ast.EIdentifier{Ref: nameForClassDecorators.Ref}},
+			p.callRuntime(ctx.classLoc, "__decorateClass", []js_ast.Expr{
+				{Loc: ctx.classLoc, Data: &js_ast.EArray{Items: values}},
+				{Loc: nameForClassDecorators.Loc, Data: &js_ast.EIdentifier{Ref: nameForClassDecorators.Ref}},
+			}),
+		))
+		p.recordUsage(nameForClassDecorators.Ref)
+		p.recordUsage(nameForClassDecorators.Ref)
+	}
+
+	// Our caller expects us to return the same form that was originally given to
+	// us. If the class was originally an expression, then return an expression.
+	if ctx.kind == classKindExpr {
+		// Calling "nameFunc" will replace "classExpr", so make sure to do that first
+		// before joining "classExpr" with any other expressions
+		var nameToJoin js_ast.Expr
+		if ctx.didCaptureClassExpr || len(suffixExprs) > 0 {
+			nameToJoin = ctx.nameFunc()
+		}
+
+		// Insert expressions on either side of the class as appropriate
+		ctx.classExpr = js_ast.JoinWithComma(js_ast.JoinAllWithComma(prefixExprs), ctx.classExpr)
+		ctx.classExpr = js_ast.JoinWithComma(ctx.classExpr, js_ast.JoinAllWithComma(suffixExprs))
+
+		// Finally join "classExpr" with the variable that holds the class object
+		ctx.classExpr = js_ast.JoinWithComma(ctx.classExpr, nameToJoin)
+		if ctx.wrapFunc != nil {
+			ctx.classExpr = ctx.wrapFunc(ctx.classExpr)
+		}
+		return nil, ctx.classExpr
+	}
+
+	// Otherwise, the class was originally a statement. Return an array of
+	// statements instead.
+	var stmts []js_ast.Stmt
+	var outerClassNameDecl js_ast.Stmt
+
+	// Insert expressions before the class as appropriate
+	for _, expr := range prefixExprs {
+		stmts = append(stmts, js_ast.Stmt{Loc: expr.Loc, Data: &js_ast.SExpr{Value: expr}})
+	}
+
+	// Handle converting a class statement to a class expression
+	if nameForClassDecorators.Ref != ast.InvalidRef {
+		classExpr := js_ast.EClass{Class: *ctx.class}
+		ctx.class = &classExpr.Class
+		init := js_ast.Expr{Loc: ctx.classLoc, Data: &classExpr}
 
 		// If the inner class name was referenced, then set the name of the class
 		// that we will end up printing to the inner class name. Otherwise if the
 		// inner class name was unused, we can just leave it blank.
 		if result.innerClassNameRef != ast.InvalidRef {
 			// "class Foo { x = Foo }" => "const Foo = class _Foo { x = _Foo }"
-			class.Name.Ref = result.innerClassNameRef
+			ctx.class.Name.Ref = result.innerClassNameRef
 		} else {
 			// "class Foo {}" => "const Foo = class {}"
-			class.Name = nil
+			ctx.class.Name = nil
 		}
 
 		// Generate the class initialization statement
@@ -1540,17 +2286,17 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 			// references in the class body to another temporary variable. This is
 			// basically what we're doing here.
 			p.recordUsage(nameForClassDecorators.Ref)
-			stmts = append(stmts, js_ast.Stmt{Loc: classLoc, Data: &js_ast.SLocal{
+			stmts = append(stmts, js_ast.Stmt{Loc: ctx.classLoc, Data: &js_ast.SLocal{
 				Kind:     p.selectLocalKind(js_ast.LocalLet),
-				IsExport: kind == classKindExportStmt,
+				IsExport: ctx.kind == classKindExportStmt,
 				Decls: []js_ast.Decl{{
 					Binding:    js_ast.Binding{Loc: nameForClassDecorators.Loc, Data: &js_ast.BIdentifier{Ref: nameForClassDecorators.Ref}},
 					ValueOrNil: init,
 				}},
 			}})
-			if class.Name != nil {
-				p.mergeSymbols(class.Name.Ref, nameForClassDecorators.Ref)
-				class.Name = nil
+			if ctx.class.Name != nil {
+				p.mergeSymbols(ctx.class.Name.Ref, nameForClassDecorators.Ref)
+				ctx.class.Name = nil
 			}
 		} else if hasPotentialInnerClassNameEscape {
 			// If the inner class name was used, then we explicitly generate a binding
@@ -1560,8 +2306,13 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 			p.currentScope.Generated = append(p.currentScope.Generated, captureRef)
 			p.recordDeclaredSymbol(captureRef)
 			p.mergeSymbols(result.innerClassNameRef, captureRef)
-			stmts = append(stmts, js_ast.Stmt{Loc: classLoc, Data: &js_ast.SLocal{
-				Kind: p.selectLocalKind(js_ast.LocalConst),
+			kind := js_ast.LocalConst
+			if classDecorators.Data != nil {
+				// Class decorators need to be able to potentially mutate this binding
+				kind = js_ast.LocalLet
+			}
+			stmts = append(stmts, js_ast.Stmt{Loc: ctx.classLoc, Data: &js_ast.SLocal{
+				Kind: p.selectLocalKind(kind),
 				Decls: []js_ast.Decl{{
 					Binding:    js_ast.Binding{Loc: nameForClassDecorators.Loc, Data: &js_ast.BIdentifier{Ref: captureRef}},
 					ValueOrNil: init,
@@ -1569,21 +2320,21 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 			}})
 			p.recordUsage(nameForClassDecorators.Ref)
 			p.recordUsage(captureRef)
-			outerClassNameDecl = js_ast.Stmt{Loc: classLoc, Data: &js_ast.SLocal{
+			outerClassNameDecl = js_ast.Stmt{Loc: ctx.classLoc, Data: &js_ast.SLocal{
 				Kind:     p.selectLocalKind(js_ast.LocalLet),
-				IsExport: kind == classKindExportStmt,
+				IsExport: ctx.kind == classKindExportStmt,
 				Decls: []js_ast.Decl{{
 					Binding:    js_ast.Binding{Loc: nameForClassDecorators.Loc, Data: &js_ast.BIdentifier{Ref: nameForClassDecorators.Ref}},
-					ValueOrNil: js_ast.Expr{Loc: classLoc, Data: &js_ast.EIdentifier{Ref: captureRef}},
+					ValueOrNil: js_ast.Expr{Loc: ctx.classLoc, Data: &js_ast.EIdentifier{Ref: captureRef}},
 				}},
 			}}
 		} else {
 			// Otherwise, the inner class name isn't needed and we can just
 			// use a single variable declaration for the outer class name.
 			p.recordUsage(nameForClassDecorators.Ref)
-			stmts = append(stmts, js_ast.Stmt{Loc: classLoc, Data: &js_ast.SLocal{
+			stmts = append(stmts, js_ast.Stmt{Loc: ctx.classLoc, Data: &js_ast.SLocal{
 				Kind:     p.selectLocalKind(js_ast.LocalLet),
-				IsExport: kind == classKindExportStmt,
+				IsExport: ctx.kind == classKindExportStmt,
 				Decls: []js_ast.Decl{{
 					Binding:    js_ast.Binding{Loc: nameForClassDecorators.Loc, Data: &js_ast.BIdentifier{Ref: nameForClassDecorators.Ref}},
 					ValueOrNil: init,
@@ -1591,21 +2342,22 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 			}})
 		}
 	} else {
-		switch kind {
+		// Generate the specific kind of class statement that was passed in to us
+		switch ctx.kind {
 		case classKindStmt:
-			stmts = append(stmts, js_ast.Stmt{Loc: classLoc, Data: &js_ast.SClass{Class: *class}})
+			stmts = append(stmts, js_ast.Stmt{Loc: ctx.classLoc, Data: &js_ast.SClass{Class: *ctx.class}})
 		case classKindExportStmt:
-			stmts = append(stmts, js_ast.Stmt{Loc: classLoc, Data: &js_ast.SClass{Class: *class, IsExport: true}})
+			stmts = append(stmts, js_ast.Stmt{Loc: ctx.classLoc, Data: &js_ast.SClass{Class: *ctx.class, IsExport: true}})
 		case classKindExportDefaultStmt:
-			stmts = append(stmts, js_ast.Stmt{Loc: classLoc, Data: &js_ast.SExportDefault{
-				DefaultName: defaultName,
-				Value:       js_ast.Stmt{Loc: classLoc, Data: &js_ast.SClass{Class: *class}},
+			stmts = append(stmts, js_ast.Stmt{Loc: ctx.classLoc, Data: &js_ast.SExportDefault{
+				DefaultName: ctx.defaultName,
+				Value:       js_ast.Stmt{Loc: ctx.classLoc, Data: &js_ast.SClass{Class: *ctx.class}},
 			}})
 		}
 
 		// The inner class name inside the class statement should be the same as
 		// the class statement name itself
-		if class.Name != nil && result.innerClassNameRef != ast.InvalidRef {
+		if ctx.class.Name != nil && result.innerClassNameRef != ast.InvalidRef {
 			// If the class body contains a direct eval call, then the inner class
 			// name will be marked as "MustNotBeRenamed" (because we have already
 			// popped the class body scope) but the outer class name won't be marked
@@ -1614,56 +2366,26 @@ func (p *parser) lowerClass(stmt js_ast.Stmt, expr js_ast.Expr, result visitClas
 			// don't end up accidentally renaming the outer class name to the inner
 			// class name.
 			if p.currentScope.ContainsDirectEval {
-				p.symbols[class.Name.Ref.InnerIndex].Flags |= (p.symbols[result.innerClassNameRef.InnerIndex].Flags & ast.MustNotBeRenamed)
+				p.symbols[ctx.class.Name.Ref.InnerIndex].Flags |= (p.symbols[result.innerClassNameRef.InnerIndex].Flags & ast.MustNotBeRenamed)
 			}
-			p.mergeSymbols(result.innerClassNameRef, class.Name.Ref)
+			p.mergeSymbols(result.innerClassNameRef, ctx.class.Name.Ref)
 		}
 	}
 
-	// The official TypeScript compiler adds generated code after the class body
-	// in this exact order. Matching this order is important for correctness.
-	if computedPropertyCache.Data != nil {
-		stmts = append(stmts, js_ast.Stmt{Loc: expr.Loc, Data: &js_ast.SExpr{Value: computedPropertyCache}})
-	}
-	for _, expr := range privateMembers {
+	// Insert expressions after the class as appropriate
+	for _, expr := range suffixExprs {
 		stmts = append(stmts, js_ast.Stmt{Loc: expr.Loc, Data: &js_ast.SExpr{Value: expr}})
 	}
-	for _, expr := range staticPrivateMethods {
-		stmts = append(stmts, js_ast.Stmt{Loc: expr.Loc, Data: &js_ast.SExpr{Value: expr}})
-	}
-	for _, expr := range staticMembers {
-		stmts = append(stmts, js_ast.Stmt{Loc: expr.Loc, Data: &js_ast.SExpr{Value: expr}})
-	}
-	for _, expr := range instanceDecorators {
-		stmts = append(stmts, js_ast.Stmt{Loc: expr.Loc, Data: &js_ast.SExpr{Value: expr}})
-	}
-	for _, expr := range staticDecorators {
-		stmts = append(stmts, js_ast.Stmt{Loc: expr.Loc, Data: &js_ast.SExpr{Value: expr}})
-	}
+
+	// This must come after the class body initializers have finished
 	if outerClassNameDecl.Data != nil {
-		// This must come after the class body initializers have finished
 		stmts = append(stmts, outerClassNameDecl)
 	}
-	if len(classExperimentalDecorators) > 0 {
-		values := make([]js_ast.Expr, len(classExperimentalDecorators))
-		for i, decorator := range classExperimentalDecorators {
-			values[i] = decorator.Value
-		}
-		class.Decorators = nil
-		stmts = append(stmts, js_ast.AssignStmt(
-			js_ast.Expr{Loc: nameForClassDecorators.Loc, Data: &js_ast.EIdentifier{Ref: nameForClassDecorators.Ref}},
-			p.callRuntime(classLoc, "__decorateClass", []js_ast.Expr{
-				{Loc: classLoc, Data: &js_ast.EArray{Items: values}},
-				{Loc: nameForClassDecorators.Loc, Data: &js_ast.EIdentifier{Ref: nameForClassDecorators.Ref}},
-			}),
-		))
-		p.recordUsage(nameForClassDecorators.Ref)
-		p.recordUsage(nameForClassDecorators.Ref)
-	}
-	if didGenerateLocalStmt && kind == classKindExportDefaultStmt {
+
+	if nameForClassDecorators.Ref != ast.InvalidRef && ctx.kind == classKindExportDefaultStmt {
 		// "export default class x {}" => "class x {} export {x as default}"
-		stmts = append(stmts, js_ast.Stmt{Loc: classLoc, Data: &js_ast.SExportClause{
-			Items: []js_ast.ClauseItem{{Alias: "default", Name: defaultName}},
+		stmts = append(stmts, js_ast.Stmt{Loc: ctx.classLoc, Data: &js_ast.SExportClause{
+			Items: []js_ast.ClauseItem{{Alias: "default", Name: ctx.defaultName}},
 		}})
 	}
 	return stmts, js_ast.Expr{}

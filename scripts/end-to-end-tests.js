@@ -218,6 +218,30 @@ tests.push(
       export let bar = 'bar'
     `,
   }),
+
+  // See: https://github.com/evanw/esbuild/issues/3767
+  test(['apps/client/src/index.ts', '--bundle', '--outfile=node.js'], {
+    'apps/client/src/index.ts': `
+      import { foo } from '~/foo'
+      if (foo !== 'foo') throw 'fail'
+    `,
+    'apps/client/src/foo.ts': `
+      export const foo = 'foo'
+    `,
+    'apps/client/tsconfig.json': `{
+      "extends": "@repo/tsconfig/base"
+    }`,
+    'apps/client/node_modules/@repo/tsconfig': {
+      symlink: `../../../../tooling/typescript`,
+    },
+    'tooling/typescript/base.json': `{
+      "compilerOptions": {
+        "paths": {
+          "~/*": ["../../apps/client/src/*"]
+        }
+      }
+    }`,
+  }),
 )
 
 // Test coverage for a special JSX error message
@@ -3772,6 +3796,29 @@ for (let flags of [[], ['--minify', '--keep-names']]) {
         if (foo.Foo.name !== 'Foo') throw 'fail: ' + foo.Foo.name
       `,
     }),
+
+    // See: https://github.com/evanw/esbuild/issues/3756
+    test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+      'in.js': `(() => { let obj = { fn() {} }; if (obj.fn.name !== 'fn') throw 'fail: ' + obj.fn.name })()`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+      'in.js': `(() => { let obj = { *fn() {} }; if (obj.fn.name !== 'fn') throw 'fail: ' + obj.fn.name })()`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+      'in.js': `(() => { let obj = { async fn() {} }; if (obj.fn.name !== 'fn') throw 'fail: ' + obj.fn.name })()`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+      'in.js': `(() => {
+        let obj = { get fn() {} }, { get } = Object.getOwnPropertyDescriptor(obj, 'fn')
+        if (get.name !== 'get fn') throw 'fail: ' + get.name
+      })()`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle'].concat(flags), {
+      'in.js': `(() => {
+        let obj = { set fn(_) {} }, { set } = Object.getOwnPropertyDescriptor(obj, 'fn')
+        if (set.name !== 'set fn') throw 'fail: ' + set.name
+      })()`,
+    }),
   )
 }
 tests.push(
@@ -5731,6 +5778,122 @@ for (let flags of [['--target=es2022'], ['--target=es6'], ['--bundle', '--target
         },
       }`,
     }),
+
+    // Check various combinations of flags
+    test(['in.ts', '--outfile=node.js', '--supported:class-field=false'].concat(flags), {
+      'in.ts': `
+        class Foo {
+          accessor foo = 1
+          static accessor bar = 2
+        }
+        if (new Foo().foo !== 1 || Foo.bar !== 2) throw 'fail'
+      `,
+    }),
+    test(['in.ts', '--outfile=node.js', '--supported:class-static-field=false'].concat(flags), {
+      'in.ts': `
+        class Foo {
+          accessor foo = 1
+          static accessor bar = 2
+        }
+        if (new Foo().foo !== 1 || Foo.bar !== 2) throw 'fail'
+      `,
+    }),
+
+    // Make sure class body side effects aren't reordered
+    test(['in.ts', '--outfile=node.js', '--supported:class-field=false'].concat(flags), {
+      'in.ts': `
+        const log = []
+        class Foo extends (log.push(1), Object) {
+          [log.push(2)] = 123;
+          [log.push(3)] = 123;
+        }
+        if (log + '' !== '1,2,3') throw 'fail: ' + log
+      `,
+    }),
+    test(['in.ts', '--outfile=node.js', '--supported:class-static-field=false'].concat(flags), {
+      'in.ts': `
+        const log = []
+        class Foo extends (log.push(1), Object) {
+          static [log.push(2)] = 123;
+          static [log.push(3)] = 123;
+        }
+        if (log + '' !== '1,2,3') throw 'fail: ' + log
+      `,
+    }),
+    test(['in.ts', '--outfile=node.js', '--supported:class-field=false'].concat(flags), {
+      'in.ts': `
+        const log = []
+        class Foo {
+          static [log.push(1)]() {}
+          [log.push(2)] = 123;
+          static [log.push(3)]() {}
+        }
+        if (log + '' !== '1,2,3') throw 'fail: ' + log
+      `,
+    }),
+    test(['in.ts', '--outfile=node.js', '--supported:class-static-field=false'].concat(flags), {
+      'in.ts': `
+        const log = []
+        class Foo {
+          [log.push(1)]() {}
+          static [log.push(2)] = 123;
+          [log.push(3)]() {}
+        }
+        if (log + '' !== '1,2,3') throw 'fail: ' + log
+      `,
+    }),
+    test(['in.ts', '--outfile=node.js'].concat(flags), {
+      'in.ts': `
+        const log = []
+        class Foo {
+          @(() => { log.push(3) }) [log.push(1)]() {}
+          [log.push(2)] = 123;
+        }
+        if (log + '' !== '1,2,3') throw 'fail: ' + log
+      `,
+      'tsconfig.json': `{
+        "compilerOptions": {
+          "experimentalDecorators": true
+        }
+      }`,
+    }),
+    test(['in.ts', '--outfile=node.js'].concat(flags), {
+      'in.ts': `
+        const log = []
+        class Foo {
+          @(() => { log.push(3) }) static [log.push(1)]() {}
+          static [log.push(2)] = 123;
+        }
+        if (log + '' !== '1,2,3') throw 'fail: ' + log
+      `,
+      'tsconfig.json': `{
+        "compilerOptions": {
+          "experimentalDecorators": true
+        }
+      }`,
+    }),
+
+    // Check "await" in computed property names
+    test(['in.ts', '--outfile=node.js', '--format=cjs', '--supported:class-field=false'].concat(flags), {
+      'in.ts': `
+        exports.async = async () => {
+          class Foo {
+            [await Promise.resolve('foo')] = 123
+          }
+          if (new Foo().foo !== 123) throw 'fail'
+        }
+      `,
+    }, { async: true }),
+    test(['in.ts', '--outfile=node.js', '--format=cjs', '--supported:class-static-field=false'].concat(flags), {
+      'in.ts': `
+        exports.async = async () => {
+          class Foo {
+            static [await Promise.resolve('foo')] = 123
+          }
+          if (Foo.foo !== 123) throw 'fail'
+        }
+      `,
+    }, { async: true }),
   )
 
   // https://github.com/evanw/esbuild/issues/3177
@@ -5922,6 +6085,48 @@ for (let flags of [['--target=es2022'], ['--target=es6'], ['--bundle', '--target
           "useDefineForClassFields": false,
         }
       }`,
+    }),
+  )
+
+  // https://github.com/evanw/esbuild/issues/3768
+  tests.push(
+    test(['in.ts', '--outfile=node.js'].concat(flags), {
+      'in.ts': `
+        const bar = x => x
+        class Foo {
+          @bar baz() { return Foo }
+        }
+        if (new Foo().baz() !== Foo) throw 'fail'
+      `,
+    }),
+    test(['in.ts', '--outfile=node.js'].concat(flags), {
+      'in.ts': `
+        class Foo {}
+        const bar = x => x
+        class Baz extends Foo {
+          @bar baz() { return Baz }
+        }
+        if (new Baz().baz() !== Baz) throw 'fail'
+      `,
+    }),
+    test(['in.ts', '--outfile=node.js'].concat(flags), {
+      'in.ts': `
+        const bar = () => x => x
+        class Foo {
+          @bar baz = Foo
+        }
+        if (new Foo().baz !== Foo) throw 'fail'
+      `,
+    }),
+    test(['in.ts', '--outfile=node.js'].concat(flags), {
+      'in.ts': `
+        class Foo {}
+        const bar = () => x => x
+        class Baz extends Foo {
+          @bar baz = Baz
+        }
+        if (new Baz().baz !== Baz) throw 'fail'
+      `,
     }),
   )
 }
@@ -6941,6 +7146,23 @@ for (let flags of [[], ['--target=es2017'], ['--target=es6']]) {
           for (const bar of await foo.x('foo'))
             if (foo !== bar)
               throw 'fail'
+        }
+      `,
+    }, { async: true }),
+
+    // https://github.com/arogozine/LinqToTypeScript/issues/29
+    test(['in.js', '--outfile=node.js'].concat(flags), {
+      'in.js': `
+        exports.async = async () => {
+          let total = 0
+        outer:
+          for await (const n of [Promise.resolve(1), Promise.resolve(2), Promise.resolve(5)]) {
+            for (let i = 1; i <= n; i++) {
+              if (i === 4) continue outer
+              total += i
+            }
+          }
+          if (total !== 1 + (1 + 2) + (1 + 2 + 3)) throw 'fail'
         }
       `,
     }, { async: true }),
