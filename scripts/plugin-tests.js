@@ -2563,7 +2563,9 @@ console.log(foo_default, foo_default2);
   },
 
   async importAttributesResolve({ esbuild }) {
-    const log = []
+    const onResolve = []
+    const resolve = []
+
     await esbuild.build({
       entryPoints: [],
       bundle: true,
@@ -2574,25 +2576,34 @@ console.log(foo_default, foo_default2);
         name: 'name',
         setup(build) {
           build.onResolve({ filter: /.*/ }, args => {
-            log.push(args)
+            onResolve.push(args)
             return { external: true }
           })
-          build.onStart(() => {
-            build.resolve('foo', {
+          build.onStart(async () => {
+            resolve.push(await build.resolve('foo', {
               kind: 'require-call',
               with: { type: 'cheese' },
-            })
-            build.resolve('bar', {
+            }))
+            resolve.push(await build.resolve('bar', {
               kind: 'import-statement',
               with: { pizza: 'true' },
-            })
+            }))
           })
         },
       }],
     })
-    assert.strictEqual(log.length, 2)
-    assert.strictEqual(log[0].with.type, 'cheese')
-    assert.strictEqual(log[1].with.pizza, 'true')
+
+    assert.strictEqual(onResolve.length, 2)
+    assert.strictEqual(onResolve[0].path, 'foo')
+    assert.strictEqual(onResolve[0].with.type, 'cheese')
+    assert.strictEqual(onResolve[1].path, 'bar')
+    assert.strictEqual(onResolve[1].with.pizza, 'true')
+
+    assert.strictEqual(resolve.length, 2)
+    assert.strictEqual(resolve[0].path, 'foo')
+    assert.strictEqual(resolve[0].external, true)
+    assert.strictEqual(resolve[1].path, 'bar')
+    assert.strictEqual(resolve[1].external, true)
   },
 
   async internalCrashIssue3634({ esbuild }) {
