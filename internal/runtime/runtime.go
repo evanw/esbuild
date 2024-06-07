@@ -280,7 +280,7 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 			`
 
 	// Avoid object extensions when not using ES6
-	if !unsupportedJSFeatures.Has(compat.ObjectExtensions) {
+	if !unsupportedJSFeatures.Has(compat.ObjectExtensions) && !unsupportedJSFeatures.Has(compat.ObjectAccessors) {
 		text += `__getOwnPropDesc(k < 4 ? target : { get [name]() { return __privateGet(this, extra) }, set [name](x) { return __privateSet(this, extra, x) } }, name)`
 	} else {
 		text += `(k < 4 ? __getOwnPropDesc(target, name) : { get: () => __privateGet(this, extra), set: x => __privateSet(this, extra, x) })`
