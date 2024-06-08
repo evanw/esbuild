@@ -6,6 +6,7 @@ import (
 
 	"github.com/evanw/esbuild/internal/cache"
 	"github.com/evanw/esbuild/internal/config"
+	"github.com/evanw/esbuild/internal/fs"
 	"github.com/evanw/esbuild/internal/helpers"
 	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/js_lexer"
@@ -95,6 +96,9 @@ func ParseTSConfigJSON(
 	log logger.Log,
 	source logger.Source,
 	jsonCache *cache.JSONCache,
+	fs fs.FS,
+	fileDir string,
+	configDir string,
 	extends func(string, logger.Range) *TSConfigJSON,
 ) *TSConfigJSON {
 	// Unfortunately "tsconfig.json" isn't actually JSON. It's some other
@@ -138,6 +142,10 @@ func ParseTSConfigJSON(
 		// Parse "baseUrl"
 		if valueJSON, _, ok := getProperty(compilerOptionsJSON, "baseUrl"); ok {
 			if value, ok := getString(valueJSON); ok {
+				value = getSubstitutedPathWithConfigDirTemplate(fs, value, configDir)
+				if !fs.IsAbs(value) {
+					value = fs.Join(fileDir, value)
+				}
 				result.BaseURL = &value
 			}
 		}
@@ -301,12 +309,7 @@ func ParseTSConfigJSON(
 		// Parse "paths"
 		if valueJSON, _, ok := getProperty(compilerOptionsJSON, "paths"); ok {
 			if paths, ok := valueJSON.Data.(*js_ast.EObject); ok {
-				hasBaseURL := result.BaseURL != nil
-				if hasBaseURL {
-					result.BaseURLForPaths = *result.BaseURL
-				} else {
-					result.BaseURLForPaths = "."
-				}
+				result.BaseURLForPaths = fileDir
 				result.Paths = &TSConfigPaths{Source: source, Map: make(map[string][]TSConfigPath)}
 				for _, prop := range paths.Properties {
 					if key, ok := getString(prop.Key); ok {
@@ -339,6 +342,7 @@ func ParseTSConfigJSON(
 							for _, item := range array.Items {
 								if str, ok := getString(item); ok {
 									if isValidTSConfigPathPattern(str, log, &source, &tracker, item.Loc) {
+										str = getSubstitutedPathWithConfigDirTemplate(fs, str, configDir)
 										result.Paths.Map[key] = append(result.Paths.Map[key], TSConfigPath{Text: str, Loc: item.Loc})
 									}
 								}
@@ -385,6 +389,14 @@ func ParseTSConfigJSON(
 	}
 
 	return &result
+}
+
+// See: https://github.com/microsoft/TypeScript/pull/58042
+func getSubstitutedPathWithConfigDirTemplate(fs fs.FS, value string, basePath string) string {
+	if strings.HasPrefix(value, "${configDir}") {
+		return fs.Join(basePath, "./"+value[12:])
+	}
+	return value
 }
 
 func parseMemberExpressionForJSX(log logger.Log, source *logger.Source, tracker *logger.LineColumnTracker, loc logger.Loc, text string) []string {

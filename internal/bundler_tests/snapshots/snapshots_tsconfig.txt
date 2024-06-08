@@ -261,6 +261,24 @@ var import_util = __toESM(require_util());
 console.log((0, import_util.default)());
 
 ================================================================================
+TestTsconfigJsonConfigDirBaseURL
+---------- /Users/user/project/out.js ----------
+// Users/user/project/lib/foo/bar
+console.log("works");
+
+================================================================================
+TestTsconfigJsonConfigDirBaseURLInheritedPaths
+---------- /Users/user/project/out.js ----------
+// Users/user/project/lib/foo/bar
+console.log("works");
+
+================================================================================
+TestTsconfigJsonConfigDirPaths
+---------- /Users/user/project/out.js ----------
+// Users/user/project/lib/foo/bar
+console.log("works");
+
+================================================================================
 TestTsconfigJsonExtends
 ---------- /out.js ----------
 // entry.jsx

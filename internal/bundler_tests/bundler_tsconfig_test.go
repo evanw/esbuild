@@ -2654,3 +2654,98 @@ func TestTsconfigPackageJsonExportsYarnPnP(t *testing.T) {
 		},
 	})
 }
+
+func TestTsconfigJsonConfigDirBaseURL(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import "foo/bar"
+			`,
+			"/Users/user/project/lib/foo/bar": `
+				console.log('works')
+			`,
+			"/Users/user/project/src/tsconfig.json": `
+				{
+					"extends": "@scope/configs/tsconfig"
+				}
+			`,
+			"/Users/user/project/node_modules/@scope/configs/tsconfig.json": `
+				{
+					"compilerOptions": {
+						"baseUrl": "${configDir}../lib"
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
+func TestTsconfigJsonConfigDirPaths(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import "library/foo/bar"
+			`,
+			"/Users/user/project/lib/foo/bar": `
+				console.log('works')
+			`,
+			"/Users/user/project/src/tsconfig.json": `
+				{
+					"extends": "@scope/configs/tsconfig"
+				}
+			`,
+			"/Users/user/project/node_modules/@scope/configs/tsconfig.json": `
+				{
+					"compilerOptions": {
+						"paths": {
+							"library/*": ["${configDir}../lib/*"]
+						}
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
+func TestTsconfigJsonConfigDirBaseURLInheritedPaths(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import "library/foo/bar"
+			`,
+			"/Users/user/project/lib/foo/bar": `
+				console.log('works')
+			`,
+			"/Users/user/project/src/tsconfig.json": `
+				{
+					"extends": "@scope/configs/tsconfig"
+				}
+			`,
+			"/Users/user/project/node_modules/@scope/configs/tsconfig.json": `
+				{
+					"compilerOptions": {
+						"baseUrl": "${configDir}..",
+						"paths": {
+							"library/*": ["./lib/*"]
+						}
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}

@@ -20,6 +20,22 @@
     import tasty from "./tasty.bagel" with { type: "bagel" }
     ```
 
+* Support `${configDir}` in `tsconfig.json` files ([#3782](https://github.com/evanw/esbuild/issues/3782))
+
+    This adds support for a new feature from the upcoming TypeScript 5.5 release. The character sequence `${configDir}` is now respected at the start of `baseUrl` and `paths` values, which are used by esbuild during bundling to correctly map import paths to file system paths. This feature lets base `tsconfig.json` files specified via `extends` refer to the directory of the top-level `tsconfig.json` file. Here is an example:
+
+    ```json
+    {
+      "compilerOptions": {
+        "paths": {
+          "js/*": ["${configDir}/dist/js/*"]
+        }
+      }
+    }
+    ```
+
+    You can read more in [TypeScript's blog post about their upcoming 5.5 release](https://devblogs.microsoft.com/typescript/announcing-typescript-5-5-rc/#the-configdir-template-variable-for-configuration-files). Note that this feature does not make use of template literals (you need to use `"${configDir}/dist/js/*"` not `` `${configDir}/dist/js/*` ``). The syntax for `tsconfig.json` is still just JSON with comments, and JSON syntax does not allow template literals. This feature only recognizes `${configDir}` in strings for certain path-like properties, and only at the beginning of the string.
+
 * Fix internal error with `--supported:object-accessors=false` ([#3794](https://github.com/evanw/esbuild/issues/3794))
 
     This release fixes a regression in 0.21.0 where some code that was added to esbuild's internal runtime library of helper functions for JavaScript decorators fails to parse when you configure esbuild with `--supported:object-accessors=false`. The reason is that esbuild introduced code that does `{ get [name]() {} }` which uses both the `object-extensions` feature for the `[name]` and the `object-accessors` feature for the `get`, but esbuild was incorrectly only checking for `object-extensions` and not for `object-accessors`. Additional tests have been added to avoid this type of issue in the future. A workaround for this issue in earlier releases is to also add `--supported:object-extensions=false`.
