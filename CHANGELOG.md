@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+* Allow unknown import attributes to be used with the `copy` loader ([#3792](https://github.com/evanw/esbuild/issues/3792))
+
+    Import attributes (the `with` keyword on `import` statements) are allowed to alter how that path is loaded. For example, esbuild cannot assume that it knows how to load `./bagel.js` as type `bagel`:
+
+    ```js
+    // This is an error with "--bundle" without also using "--external:./bagel.js"
+    import tasty from "./bagel.js" with { type: "bagel" }
+    ```
+
+    Because of that, bundling this code with esbuild is an error unless the file `./bagel.js` is external to the bundle (such as with `--bundle --external:./bagel.js`).
+
+    However, there is an additional case where it's ok for esbuild to allow this: if the file is loaded using the `copy` loader. That's because the `copy` loader behaves similarly to `--external` in that the file is left external to the bundle. The difference is that the `copy` loader copies the file into the output folder and rewrites the import path while `--external` doesn't. That means the following will now work with the `copy` loader (such as with `--bundle --loader:.bagel=copy`):
+
+    ```js
+    // This is no longer an error with "--bundle" and "--loader:.bagel=copy"
+    import tasty from "./tasty.bagel" with { type: "bagel" }
+    ```
+
 * Fix internal error with `--supported:object-accessors=false` ([#3794](https://github.com/evanw/esbuild/issues/3794))
 
     This release fixes a regression in 0.21.0 where some code that was added to esbuild's internal runtime library of helper functions for JavaScript decorators fails to parse when you configure esbuild with `--supported:object-accessors=false`. The reason is that esbuild introduced code that does `{ get [name]() {} }` which uses both the `object-extensions` feature for the `[name]` and the `object-accessors` feature for the `get`, but esbuild was incorrectly only checking for `object-extensions` and not for `object-accessors`. Additional tests have been added to avoid this type of issue in the future. A workaround for this issue in earlier releases is to also add `--supported:object-extensions=false`.

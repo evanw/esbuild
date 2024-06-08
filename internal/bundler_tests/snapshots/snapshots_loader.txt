@@ -269,6 +269,18 @@ var data_default2 = { works: true };
 console.log(data_default === data_default, data_default !== data_default2);
 
 ================================================================================
+TestLoaderBundleWithUnknownImportAttributesAndCopyLoader
+---------- /foo-AKINYSFH.thing ----------
+...
+---------- /bar-AXZXSLHF.thing ----------
+,,,
+---------- /out.js ----------
+// entry.js
+import foo from "./foo-AKINYSFH.thing" with { type: "whatever" };
+import bar from "./bar-AXZXSLHF.thing" with { whatever: "true" };
+console.log(foo, bar);
+
+================================================================================
 TestLoaderCopyEntryPointAdvanced
 ---------- /out/xyz-DYPYXS7B.copy ----------
 more stuff

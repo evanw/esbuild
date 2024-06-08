@@ -149,7 +149,6 @@ func parseFile(args parseArgs) {
 			&source,
 			args.importSource,
 			args.importPathRange,
-			args.importWith,
 			args.pluginData,
 			args.options.WatchMode,
 		)
@@ -173,6 +172,44 @@ func parseFile(args parseArgs) {
 	// The special "default" loader determines the loader from the file path
 	if loader == config.LoaderDefault {
 		loader = loaderFromFileExtension(args.options.ExtensionToLoader, base+ext)
+	}
+
+	// Reject unsupported import attributes when the loader isn't "copy" (since
+	// "copy" is kind of like "external"). But only do this if this file was not
+	// loaded by a plugin. Plugins are allowed to assign whatever semantics they
+	// want to import attributes.
+	if loader != config.LoaderCopy && pluginName == "" {
+		for _, attr := range source.KeyPath.ImportAttributes.DecodeIntoArray() {
+			var errorText string
+			var errorRange js_lexer.KeyOrValue
+
+			// We only currently handle "type: json"
+			if attr.Key != "type" {
+				errorText = fmt.Sprintf("Importing with the %q attribute is not supported", attr.Key)
+				errorRange = js_lexer.KeyRange
+			} else if attr.Value == "json" {
+				loader = config.LoaderWithTypeJSON
+				continue
+			} else {
+				errorText = fmt.Sprintf("Importing with a type attribute of %q is not supported", attr.Value)
+				errorRange = js_lexer.ValueRange
+			}
+
+			// Everything else is an error
+			r := args.importPathRange
+			if args.importWith != nil {
+				r = js_lexer.RangeOfImportAssertOrWith(*args.importSource, *ast.FindAssertOrWithEntry(args.importWith.Entries, attr.Key), errorRange)
+			}
+			tracker := logger.MakeLineColumnTracker(args.importSource)
+			args.log.AddError(&tracker, r, errorText)
+			if args.inject != nil {
+				args.inject <- config.InjectedFile{
+					Source: source,
+				}
+			}
+			args.results <- parseResult{}
+			return
+		}
 	}
 
 	if loader == config.LoaderEmpty {
@@ -991,7 +1028,6 @@ func runOnLoadPlugins(
 	source *logger.Source,
 	importSource *logger.Source,
 	importPathRange logger.Range,
-	importWith *ast.ImportAssertOrWith,
 	pluginData interface{},
 	isWatchMode bool,
 ) (loaderPluginResult, bool) {
@@ -1058,30 +1094,6 @@ func runOnLoadPlugins(
 		}
 	}
 
-	// Reject unsupported import attributes
-	loader := config.LoaderDefault
-	for _, attr := range source.KeyPath.ImportAttributes.DecodeIntoArray() {
-		if attr.Key == "type" {
-			if attr.Value == "json" {
-				loader = config.LoaderWithTypeJSON
-			} else {
-				r := importPathRange
-				if importWith != nil {
-					r = js_lexer.RangeOfImportAssertOrWith(*importSource, *ast.FindAssertOrWithEntry(importWith.Entries, attr.Key), js_lexer.ValueRange)
-				}
-				log.AddError(&tracker, r, fmt.Sprintf("Importing with a type attribute of %q is not supported", attr.Value))
-				return loaderPluginResult{}, false
-			}
-		} else {
-			r := importPathRange
-			if importWith != nil {
-				r = js_lexer.RangeOfImportAssertOrWith(*importSource, *ast.FindAssertOrWithEntry(importWith.Entries, attr.Key), js_lexer.KeyRange)
-			}
-			log.AddError(&tracker, r, fmt.Sprintf("Importing with the %q attribute is not supported", attr.Key))
-			return loaderPluginResult{}, false
-		}
-	}
-
 	// Force disabled modules to be empty
 	if source.KeyPath.IsDisabled() {
 		return loaderPluginResult{loader: config.LoaderEmpty}, true
@@ -1092,7 +1104,7 @@ func runOnLoadPlugins(
 		if contents, err, originalError := fsCache.ReadFile(fs, source.KeyPath.Text); err == nil {
 			source.Contents = contents
 			return loaderPluginResult{
-				loader:        loader,
+				loader:        config.LoaderDefault,
 				absResolveDir: fs.Dir(source.KeyPath.Text),
 			}, true
 		} else {
@@ -1121,9 +1133,6 @@ func runOnLoadPlugins(
 				return loaderPluginResult{loader: config.LoaderNone}, true
 			} else {
 				source.Contents = contents
-				if loader != config.LoaderDefault {
-					return loaderPluginResult{loader: loader}, true
-				}
 				if mimeType := parsed.DecodeMIMEType(); mimeType != resolver.MIMETypeUnsupported {
 					switch mimeType {
 					case resolver.MIMETypeTextCSS:
