@@ -513,7 +513,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	ForOf: {
 		// Note: The latest version of "IE" failed 9 tests including: for..of loops: iterator closing, break
-		// Note: The latest version of "Rhino" failed 4 tests including: for..of loops: iterator closing, break
+		// Note: The latest version of "Rhino" failed 2 tests including: for..of loops: iterator closing, break
 		Chrome:  {{start: v{51, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{15, 0, 0}}},
@@ -527,7 +527,6 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	FunctionNameConfigurable: {
 		// Note: The latest version of "IE" failed this test: function "name" property: isn't writable, is configurable
-		// Note: The latest version of "Rhino" failed this test: function "name" property: isn't writable, is configurable
 		Chrome:  {{start: v{43, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{12, 0, 0}}},
@@ -537,6 +536,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		IOS:     {{start: v{10, 0, 0}}},
 		Node:    {{start: v{4, 0, 0}}},
 		Opera:   {{start: v{30, 0, 0}}},
+		Rhino:   {{start: v{1, 7, 15}}},
 		Safari:  {{start: v{10, 0, 0}}},
 	},
 	FunctionOrClassPropertyAccess: {
@@ -556,7 +556,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	Generator: {
 		// Note: The latest version of "Hermes" failed 3 tests including: generators: computed shorthand generators, classes
 		// Note: The latest version of "IE" failed 27 tests including: generators: %GeneratorPrototype%
-		// Note: The latest version of "Rhino" failed 15 tests including: generators: %GeneratorPrototype%
+		// Note: The latest version of "Rhino" failed 11 tests including: generators: %GeneratorPrototype%
 		Chrome:  {{start: v{50, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{13, 0, 0}}},
@@ -569,7 +569,6 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	Hashbang: {
 		// Note: The latest version of "IE" failed this test: Hashbang Grammar
-		// Note: The latest version of "Rhino" failed this test: Hashbang Grammar
 		Chrome:  {{start: v{74, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{79, 0, 0}}},
@@ -578,6 +577,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		IOS:     {{start: v{13, 4, 0}}},
 		Node:    {{start: v{12, 5, 0}}},
 		Opera:   {{start: v{62, 0, 0}}},
+		Rhino:   {{start: v{1, 7, 15}}},
 		Safari:  {{start: v{13, 1, 0}}},
 	},
 	ImportAssertions: {
@@ -713,7 +713,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	OptionalCatchBinding: {
 		// Note: The latest version of "IE" failed 3 tests including: optional catch binding: await
-		// Note: The latest version of "Rhino" failed 3 tests including: optional catch binding: await
+		// Note: The latest version of "Rhino" failed this test: optional catch binding: await
 		Chrome:  {{start: v{66, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{79, 0, 0}}},
@@ -741,7 +741,6 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	RegexpDotAllFlag: {
 		// Note: The latest version of "IE" failed this test: s (dotAll) flag for regular expressions
-		// Note: The latest version of "Rhino" failed this test: s (dotAll) flag for regular expressions
 		Chrome:  {{start: v{62, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{79, 0, 0}}},
@@ -751,6 +750,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		IOS:     {{start: v{11, 3, 0}}},
 		Node:    {{start: v{8, 10, 0}}},
 		Opera:   {{start: v{49, 0, 0}}},
+		Rhino:   {{start: v{1, 7, 15}}},
 		Safari:  {{start: v{11, 1, 0}}},
 	},
 	RegexpLookbehindAssertions: {
@@ -795,7 +795,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	RegexpSetNotation: {},
 	RegexpStickyAndUnicodeFlags: {
 		// Note: The latest version of "IE" failed 6 tests including: RegExp "y" and "u" flags: "u" flag
-		// Note: The latest version of "Rhino" failed 6 tests including: RegExp "y" and "u" flags: "u" flag
+		// Note: The latest version of "Rhino" failed 4 tests including: RegExp "y" and "u" flags: "u" flag
 		Chrome:  {{start: v{50, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{13, 0, 0}}},
@@ -821,7 +821,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	RestArgument: {
 		// Note: The latest version of "Hermes" failed this test: rest parameters: function 'length' property
 		// Note: The latest version of "IE" failed 5 tests including: rest parameters: arguments object interaction
-		// Note: The latest version of "Rhino" failed 5 tests including: rest parameters: arguments object interaction
+		// Note: The latest version of "Rhino" failed 2 tests including: rest parameters: arguments object interaction
 		Chrome:  {{start: v{47, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{12, 0, 0}}},
@@ -835,7 +835,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	TemplateLiteral: {
 		// Note: The latest version of "Hermes" failed this test: template literals: TemplateStrings call site caching
 		// Note: The latest version of "IE" failed 7 tests including: template literals: TemplateStrings call site caching
-		// Note: The latest version of "Rhino" failed 2 tests including: template literals: basic functionality
+		// Note: The latest version of "Rhino" failed this test: template literals: toString conversion
 		Chrome:  {{start: v{41, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{13, 0, 0}}},
@@ -872,7 +872,6 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	UnicodeEscapes: {
 		// Note: The latest version of "IE" failed 2 tests including: Unicode code point escapes: in identifiers
-		// Note: The latest version of "Rhino" failed 4 tests including: Unicode code point escapes: in identifiers
 		Chrome:  {{start: v{44, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{12, 0, 0}}},
@@ -882,6 +881,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		IOS:     {{start: v{9, 0, 0}}},
 		Node:    {{start: v{4, 0, 0}}},
 		Opera:   {{start: v{31, 0, 0}}},
+		Rhino:   {{start: v{1, 7, 15}}},
 		Safari:  {{start: v{9, 0, 0}}},
 	},
 	Using: {},
