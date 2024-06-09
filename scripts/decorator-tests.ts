@@ -2,6 +2,9 @@
 if (!('metadata' in Symbol as any)) {
   (Symbol as any).metadata = Symbol('Symbol.metadata')
 }
+if (!(Symbol.metadata in Function)) {
+  Object.defineProperty((Function as any).prototype, Symbol.metadata, { value: null })
+}
 
 const tests: Record<string, () => Promise<void> | void> = {
   // Class decorators
@@ -2847,8 +2850,22 @@ const tests: Record<string, () => Promise<void> | void> = {
     const foo = Foo[Symbol.metadata]!
     const bar = Bar[Symbol.metadata]!
     assertEq(() => order(foo), '0,1,2,3,,,,,4,5,6,7,,,,,8,,9,,10,')
+    assertEq(() => Object.getPrototypeOf(foo), null)
     assertEq(() => order(bar), '0,1,2,3,11,12,13,14,4,5,6,7,15,16,17,18,8,19,9,20,10,21')
     assertEq(() => Object.getPrototypeOf(bar), foo)
+
+    // Test an undecorated class
+    class FooNoDec { }
+    class BarNoDec extends FooNoDec { }
+    assertEq(() => FooNoDec[Symbol.metadata], null)
+    assertEq(() => BarNoDec[Symbol.metadata], null)
+
+    // Test a class with no class decorator
+    class FooOneDec { @dec x: undefined }
+    class BarOneDec extends FooOneDec { @dec y: undefined }
+    assertEq(() => JSON.stringify(FooOneDec[Symbol.metadata]!), JSON.stringify({ x: 22 }))
+    assertEq(() => JSON.stringify(BarOneDec[Symbol.metadata]!), JSON.stringify({ y: 23 }))
+    assertEq(() => Object.getPrototypeOf(BarOneDec[Symbol.metadata]!), FooOneDec[Symbol.metadata]!)
   },
   'Decorator metadata: class expression': () => {
     let counter = 0
@@ -2892,8 +2909,22 @@ const tests: Record<string, () => Promise<void> | void> = {
     const foo = Foo[Symbol.metadata]!
     const bar = Bar[Symbol.metadata]!
     assertEq(() => order(foo), '0,1,2,3,,,,,4,5,6,7,,,,,8,,9,,10,')
+    assertEq(() => Object.getPrototypeOf(foo), null)
     assertEq(() => order(bar), '0,1,2,3,11,12,13,14,4,5,6,7,15,16,17,18,8,19,9,20,10,21')
     assertEq(() => Object.getPrototypeOf(bar), foo)
+
+    // Test an undecorated class
+    const FooNoDec = class { }
+    const BarNoDec = class extends FooNoDec { }
+    assertEq(() => FooNoDec[Symbol.metadata], null)
+    assertEq(() => BarNoDec[Symbol.metadata], null)
+
+    // Test a class with no class decorator
+    const FooOneDec = class { @dec x: undefined }
+    const BarOneDec = class extends FooOneDec { @dec y: undefined }
+    assertEq(() => JSON.stringify(FooOneDec[Symbol.metadata]!), JSON.stringify({ x: 22 }))
+    assertEq(() => JSON.stringify(BarOneDec[Symbol.metadata]!), JSON.stringify({ y: 23 }))
+    assertEq(() => Object.getPrototypeOf(BarOneDec[Symbol.metadata]!), FooOneDec[Symbol.metadata]!)
   },
 
   // Initializer order
@@ -3818,7 +3849,11 @@ const tests: Record<string, () => Promise<void> | void> = {
 function prettyPrint(x: any): any {
   if (x && x.prototype && x.prototype.constructor === x) return 'class'
   if (typeof x === 'string') return JSON.stringify(x)
-  return x
+  try {
+    return x + ''
+  } catch {
+    return 'typeof ' + typeof x // Handle values that don't implement "toString"
+  }
 }
 
 function assertEq<T>(callback: () => T, expected: T): boolean {

@@ -2083,9 +2083,9 @@ func (ctx *lowerClassContext) finishAndGenerateCode(p *parser, result visitClass
 		classDecorators = ctx.decoratorClassDecorators
 	}
 
-	// Handle JavaScript decorators on the class itself
 	var decorateClassExpr js_ast.Expr
 	if classDecorators.Data != nil {
+		// Handle JavaScript decorators on the class itself
 		if ctx.decoratorContextRef == ast.InvalidRef {
 			ctx.decoratorContextRef = p.generateTempRef(tempRefNeedsDeclare, "_init")
 		}
@@ -2098,6 +2098,12 @@ func (ctx *lowerClassContext) finishAndGenerateCode(p *parser, result visitClass
 		})
 		p.recordUsage(ctx.decoratorContextRef)
 		decorateClassExpr = js_ast.Assign(ctx.nameFunc(), decorateClassExpr)
+	} else if ctx.decoratorContextRef != ast.InvalidRef {
+		// Decorator metadata is present if there are any decorators on the class at all
+		decorateClassExpr = p.callRuntime(ctx.classLoc, "__decoratorMetadata", []js_ast.Expr{
+			{Loc: ctx.classLoc, Data: &js_ast.EIdentifier{Ref: ctx.decoratorContextRef}},
+			ctx.nameFunc(),
+		})
 	}
 
 	// If this is true, we have removed some code from the class body that could
@@ -2203,7 +2209,7 @@ func (ctx *lowerClassContext) finishAndGenerateCode(p *parser, result visitClass
 	suffixExprs = append(suffixExprs, ctx.staticExperimentalDecorators...)
 
 	// For each element initializer of classExtraInitializers
-	if decorateClassExpr.Data != nil {
+	if classDecorators.Data != nil {
 		suffixExprs = append(suffixExprs, p.callRuntime(ctx.classLoc, "__runInitializers", []js_ast.Expr{
 			{Loc: ctx.classLoc, Data: &js_ast.EIdentifier{Ref: ctx.decoratorContextRef}},
 			{Loc: ctx.classLoc, Data: &js_ast.ENumber{Value: (0 << 1) | 1}},

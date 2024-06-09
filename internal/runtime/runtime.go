@@ -266,6 +266,7 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 		var __expectFn = fn => fn !== void 0 && typeof fn !== 'function' ? __typeError('Function expected') : fn
 		var __decoratorContext = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings[kind], name, metadata, addInitializer: fn =>
 			done._ ? __typeError('Already initialized') : fns.push(__expectFn(fn || null)) })
+		export var __decoratorMetadata = (array, target) => __defNormalProp(target, __knownSymbol('metadata'), array[3])
 		export var __runInitializers = (array, flags, self, value) => {
 			for (var i = 0, fns = array[flags >> 1], n = fns && fns.length; i < n; i++) flags & 1 ? fns[i].call(self) : value = fns[i].call(self, value)
 			return value
@@ -306,7 +307,7 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 				else __expectFn(fn = it.get) && (desc.get = fn), __expectFn(fn = it.set) && (desc.set = fn), __expectFn(fn = it.init) && initializers.unshift(fn)
 			}
 
-			return k || (target[__knownSymbol('metadata')] = array[3]),
+			return k || __decoratorMetadata(array, target),
 				desc && __defProp(target, name, desc),
 				p ? k ^ 4 ? extra : desc : target
 		}
