@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.21.5
 
 * Fix `Symbol.metadata` on classes without a class decorator ([#3781](https://github.com/evanw/esbuild/issues/3781))
 
