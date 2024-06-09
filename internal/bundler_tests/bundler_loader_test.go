@@ -1303,6 +1303,21 @@ func TestWithTypeJSONOverrideLoader(t *testing.T) {
 	})
 }
 
+func TestWithTypeJSONOverrideLoaderGlob(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import("./foo" + bar, { with: { type: 'json' } }).then(console.log)
+			`,
+			"/foo.js": `{ "this is json not js": true }`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode: config.ModeBundle,
+		},
+	})
+}
+
 func TestWithBadType(t *testing.T) {
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{

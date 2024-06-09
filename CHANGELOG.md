@@ -20,6 +20,29 @@
     import tasty from "./tasty.bagel" with { type: "bagel" }
     ```
 
+* Support import attributes with glob-style imports ([#3797](https://github.com/evanw/esbuild/issues/3797))
+
+    This release adds support for import attributes (the `with` option) to glob-style imports (dynamic imports with certain string literal patterns as paths). These imports previously didn't support import attributes due to an oversight. So code like this will now work correctly:
+
+    ```ts
+    async function loadLocale(locale: string): Locale {
+      const data = await import(`./locales/${locale}.data`, { with: { type: 'json' } })
+      return unpackLocale(locale, data)
+    }
+    ```
+
+    Previously this didn't work even though esbuild normally supports forcing the JSON loader using an import attribute. Attempting to do this used to result in the following error:
+
+    ```
+    ✘ [ERROR] No loader is configured for ".data" files: locales/en-US.data
+
+        example.ts:2:28:
+          2 │   const data = await import(`./locales/${locale}.data`, { with: { type: 'json' } })
+            ╵                             ~~~~~~~~~~~~~~~~~~~~~~~~~~
+    ```
+
+    In addition, this change means plugins can now access the contents of `with` for glob-style imports.
+
 * Support `${configDir}` in `tsconfig.json` files ([#3782](https://github.com/evanw/esbuild/issues/3782))
 
     This adds support for a new feature from the upcoming TypeScript 5.5 release. The character sequence `${configDir}` is now respected at the start of `baseUrl` and `paths` values, which are used by esbuild during bundling to correctly map import paths to file system paths. This feature lets base `tsconfig.json` files specified via `extends` refer to the directory of the top-level `tsconfig.json` file. Here is an example:

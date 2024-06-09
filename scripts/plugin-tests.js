@@ -2562,6 +2562,38 @@ console.log(foo_default, foo_default2);
 `)
   },
 
+  async importAttributesOnLoadGlob({ esbuild, testDir }) {
+    const entry = path.join(testDir, 'entry.js')
+    const foo = path.join(testDir, 'foo.js')
+    await writeFileAsync(entry, `
+      Promise.all([
+        import('./foo' + js, { with: { type: 'cheese' } }),
+        import('./foo' + js, { with: { pizza: 'true' } }),
+      ]).then(resolve)
+    `)
+    await writeFileAsync(foo, `export default 123`)
+    const result = await esbuild.build({
+      entryPoints: [entry],
+      bundle: true,
+      format: 'esm',
+      charset: 'utf8',
+      write: false,
+      plugins: [{
+        name: 'name',
+        setup(build) {
+          build.onLoad({ filter: /.*/ }, args => {
+            if (args.with.type === 'cheese') return { contents: `export default "🧀"` }
+            if (args.with.pizza === 'true') return { contents: `export default "🍕"` }
+          })
+        },
+      }],
+    })
+    const callback = new Function('js', 'resolve', result.outputFiles[0].text)
+    const [cheese, pizza] = await new Promise(resolve => callback('.js', resolve))
+    assert.strictEqual(cheese.default, '🧀')
+    assert.strictEqual(pizza.default, '🍕')
+  },
+
   async importAttributesResolve({ esbuild }) {
     const onResolve = []
     const resolve = []

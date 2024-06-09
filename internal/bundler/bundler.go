@@ -435,6 +435,16 @@ func parseFile(args parseArgs) {
 						continue
 					}
 
+					// Encode the import attributes
+					var attrs logger.ImportAttributes
+					if record.AssertOrWith != nil && record.AssertOrWith.Keyword == ast.WithKeyword {
+						data := make(map[string]string, len(record.AssertOrWith.Entries))
+						for _, entry := range record.AssertOrWith.Entries {
+							data[helpers.UTF16ToString(entry.Key)] = helpers.UTF16ToString(entry.Value)
+						}
+						attrs = logger.EncodeImportAttributes(data)
+					}
+
 					// Special-case glob pattern imports
 					if record.GlobPattern != nil {
 						prettyPath := helpers.GlobPatternToString(record.GlobPattern.Parts)
@@ -450,6 +460,13 @@ func parseFile(args parseArgs) {
 							}
 							if result.globResolveResults == nil {
 								result.globResolveResults = make(map[uint32]globResolveResult)
+							}
+							for key, result := range results {
+								result.PathPair.Primary.ImportAttributes = attrs
+								if result.PathPair.HasSecondary() {
+									result.PathPair.Secondary.ImportAttributes = attrs
+								}
+								results[key] = result
 							}
 							result.globResolveResults[uint32(importRecordIndex)] = globResolveResult{
 								resolveResults: results,
@@ -467,16 +484,6 @@ func parseFile(args parseArgs) {
 					// type-only imports in TypeScript files.
 					if record.Flags.Has(ast.IsUnused) {
 						continue
-					}
-
-					// Encode the import attributes
-					var attrs logger.ImportAttributes
-					if record.AssertOrWith != nil && record.AssertOrWith.Keyword == ast.WithKeyword {
-						data := make(map[string]string, len(record.AssertOrWith.Entries))
-						for _, entry := range record.AssertOrWith.Entries {
-							data[helpers.UTF16ToString(entry.Key)] = helpers.UTF16ToString(entry.Value)
-						}
-						attrs = logger.EncodeImportAttributes(data)
 					}
 
 					// Cache the path in case it's imported multiple times in this file
