@@ -1142,12 +1142,13 @@ func runImpl(osArgs []string) int {
 
 	osArgs, analyze := filterAnalyzeFlags(osArgs)
 	buildOptions, transformOptions, extras, err := parseOptionsForRun(osArgs)
-	if analyze != analyzeDisabled {
-		addAnalyzePlugin(buildOptions, analyze, osArgs)
-	}
 
 	switch {
 	case buildOptions != nil:
+		if analyze != analyzeDisabled {
+			addAnalyzePlugin(buildOptions, analyze, osArgs)
+		}
+
 		// Read the "NODE_PATH" from the environment. This is part of node's
 		// module resolution algorithm. Documentation for this can be found here:
 		// https://nodejs.org/api/modules.html#modules_loading_from_the_global_folders
@@ -1323,6 +1324,10 @@ func runImpl(osArgs []string) int {
 		}
 
 	case transformOptions != nil:
+		if analyze != analyzeDisabled {
+			logger.PrintErrorWithNoteToStderr(osArgs, "--analyze not supported while transforming", "")
+			return 1
+		}
 		// Read the input from stdin
 		bytes, err := ioutil.ReadAll(os.Stdin)
 		if err != nil {
