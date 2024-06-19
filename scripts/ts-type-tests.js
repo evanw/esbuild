@@ -379,7 +379,11 @@ async function main() {
   const tsc = path.join(__dirname, 'node_modules', 'typescript', 'lib', 'tsc.js')
   const esbuild_d_ts = path.join(testDir, 'node_modules', 'esbuild', 'index.d.ts')
   fs.mkdirSync(path.dirname(esbuild_d_ts), { recursive: true })
-  fs.writeFileSync(esbuild_d_ts, types)
+  fs.writeFileSync(esbuild_d_ts, `
+    declare module 'esbuild' {
+      ${types.replace(/export declare/g, 'export')}
+    }
+  `)
   let allTestsPassed = true
 
   // Check tests without errors
