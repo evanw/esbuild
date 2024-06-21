@@ -516,5 +516,8 @@ mergeSupportMaps(css, mdn.css)
 mergePrefixMaps(cssPrefix, caniuse.cssPrefix)
 mergePrefixMaps(cssPrefix, mdn.cssPrefix)
 
+// MDN data is wrong here, Firefox 127 still has gradient interpolation rendering bugs: https://bugzilla.mozilla.org/show_bug.cgi?id=1904106
+css.GradientInterpolation.Firefox = {}
+
 const [cssVersionRanges] = supportMapToVersionRanges(css)
 generateTableForCSS(cssVersionRanges, cssPrefix)
