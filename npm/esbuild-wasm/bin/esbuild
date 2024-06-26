@@ -93,6 +93,7 @@ for (let key in process.env) {
 // Just to be safe, also make it "configurable" in case Go updates their
 // compiler such that it tries to reconfigure "globalThis.crypto" itself.
 Object.defineProperty(globalThis, 'crypto', {
+  value: globalThis.crypto || require('crypto').webcrypto,
   writable: true,
   configurable: true,
 });
