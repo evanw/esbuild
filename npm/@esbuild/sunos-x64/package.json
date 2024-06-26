@@ -9,7 +9,7 @@
   "license": "MIT",
   "preferUnplugged": true,
   "engines": {
-    "node": ">=12"
+    "node": ">=18"
   },
   "os": [
     "sunos"

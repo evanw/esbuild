@@ -12,7 +12,7 @@
   "main": "lib/main.js",
   "types": "lib/main.d.ts",
   "engines": {
-    "node": ">=12"
+    "node": ">=18"
   },
   "bin": {
     "esbuild": "bin/esbuild"
