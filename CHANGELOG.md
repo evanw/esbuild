@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased
+
+* Drop support for older versions of Windows ([#3802](https://github.com/evanw/esbuild/issues/3802))
+
+    This release drops support for the following operating systems:
+
+    * Windows 7
+    * Windows 8
+    * Windows Server 2008
+    * Windows Server 2012
+
+    This is because the Go programming language dropped support for these operating system versions in [Go 1.21](https://go.dev/doc/go1.21#windows), and this release updates esbuild from Go 1.20 to Go 1.22.
+
+    Note that this only affects the binary esbuild executables that are published to the `esbuild` npm package. It's still possible to compile esbuild's source code for these older operating systems. If you need to, you can compile esbuild for yourself using an older version of the Go compiler (before Go version 1.21). That might look something like this:
+
+    ```
+    git clone https://github.com/evanw/esbuild.git
+    cd esbuild
+    go build ./cmd/esbuild
+    ./esbuild.exe --version
+    ```
+
 ## 0.21.5
 
 * Fix `Symbol.metadata` on classes without a class decorator ([#3781](https://github.com/evanw/esbuild/issues/3781))
