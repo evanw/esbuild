@@ -24,6 +24,10 @@
 
     In addition, this release increases the minimum required node version for esbuild's JavaScript API from node 12 to node 18. Node 18 is the oldest version of node that is still being supported (see node's [release schedule](https://nodejs.org/en/about/previous-releases) for more information). This increase is because of an incompatibility between the JavaScript that the Go compiler generates for the `esbuild-wasm` package and versions of node before node 17.4 (specifically the `crypto.getRandomValues` function).
 
+* Update `await using` behavior to match TypeScript
+
+    TypeScript 5.5 subtly changes the way `await using` behaves. This release updates esbuild to match these changes in TypeScript. You can read more about these changes in [microsoft/TypeScript#58624](https://github.com/microsoft/TypeScript/pull/58624).
+
 ## 0.21.5
 
 * Fix `Symbol.metadata` on classes without a class decorator ([#3781](https://github.com/evanw/esbuild/issues/3781))

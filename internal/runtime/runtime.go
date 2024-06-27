@@ -505,10 +505,14 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 		export var __using = (stack, value, async) => {
 			if (value != null) {
 				if (typeof value !== 'object' && typeof value !== 'function') __typeError('Object expected')
-				var dispose
+				var dispose, inner
 				if (async) dispose = value[__knownSymbol('asyncDispose')]
-				if (dispose === void 0) dispose = value[__knownSymbol('dispose')]
+				if (dispose === void 0) {
+					dispose = value[__knownSymbol('dispose')]
+					if (async) inner = dispose
+				}
 				if (typeof dispose !== 'function') __typeError('Object not disposable')
+				if (inner) dispose = function() { try { inner.call(this) } catch (e) { return Promise.reject(e) } }
 				stack.push([async, dispose, value])
 			} else if (async) {
 				stack.push([async])
