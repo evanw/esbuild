@@ -981,6 +981,7 @@ func parseTargets(targets []string, arg string) (target api.Target, engines []ap
 		"es2021": api.ES2021,
 		"es2022": api.ES2022,
 		"es2023": api.ES2023,
+		"es2024": api.ES2024,
 	}
 
 outer:

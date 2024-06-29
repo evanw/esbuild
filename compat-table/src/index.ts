@@ -392,6 +392,9 @@ import('./kangax').then(kangax => {
   js.ArbitraryModuleNamespaceNames.ES = { 2022: { force: true } }
   js.RegexpMatchIndices.ES = { 2022: { force: true } }
 
+  // ES2024 features
+  js.RegexpSetNotation.ES = { 2024: { force: true } }
+
   // This is a problem specific to Internet Explorer. See https://github.com/tc39/ecma262/issues/1440
   for (const engine in engines) {
     if (engine as Engine !== 'ES' && engine as Engine !== 'IE') {

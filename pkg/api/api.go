@@ -133,6 +133,7 @@ const (
 	ES2021
 	ES2022
 	ES2023
+	ES2024
 )
 
 type Loader uint16

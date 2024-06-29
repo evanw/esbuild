@@ -28,6 +28,10 @@
 
     TypeScript 5.5 subtly changes the way `await using` behaves. This release updates esbuild to match these changes in TypeScript. You can read more about these changes in [microsoft/TypeScript#58624](https://github.com/microsoft/TypeScript/pull/58624).
 
+* Allow `es2024` as a target environment
+
+    The ECMAScript 2024 specification was just approved, so it has been added to esbuild as a possible compilation target. You can read more about the features that it adds here: [https://2ality.com/2024/06/ecmascript-2024.html](https://2ality.com/2024/06/ecmascript-2024.html). The only addition that's relevant for esbuild is the regular expression `/v` flag. With `--target=es2024`, regular expressions that use the `/v` flag will now be passed through untransformed instead of being transformed into a call to `new RegExp`.
+
 ## 0.21.5
 
 * Fix `Symbol.metadata` on classes without a class decorator ([#3781](https://github.com/evanw/esbuild/issues/3781))
