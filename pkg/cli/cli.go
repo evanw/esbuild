@@ -31,11 +31,10 @@ func Run(osArgs []string) int {
 	return runImpl(osArgs, []api.Plugin{})
 }
 
-// This function invokes the esbuild CLI. It takes an array of command-line
-// arguments (excluding the executable argument itself) and returns an exit
-// code. It also takes adds some plugins that need to be added to the run
-func RunWithPlugins(osArgs []string, plugin []api.Plugin) int {
-	return runImpl(osArgs, plugin)
+// This is similar to "Run()" but also takes an array of plugins to be used
+// during the build process.
+func RunWithPlugins(osArgs []string, plugins []api.Plugin) int {
+	return runImpl(osArgs, plugins)
 }
 
 // This parses an array of strings into an options object suitable for passing

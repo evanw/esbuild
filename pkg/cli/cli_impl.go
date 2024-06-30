@@ -1143,6 +1143,12 @@ func runImpl(osArgs []string, plugins []api.Plugin) int {
 
 	osArgs, analyze := filterAnalyzeFlags(osArgs)
 	buildOptions, transformOptions, extras, err := parseOptionsForRun(osArgs)
+
+	// Add any plugins from the caller after parsing the build options
+	if buildOptions != nil {
+		buildOptions.Plugins = append(buildOptions.Plugins, plugins...)
+	}
+
 	if analyze != analyzeDisabled {
 		addAnalyzePlugin(buildOptions, analyze, osArgs)
 	}
@@ -1280,7 +1286,6 @@ func runImpl(osArgs []string, plugins []api.Plugin) int {
 			}
 		}
 
-		buildOptions.Plugins = plugins
 		// Handle post-build actions with a plugin so they also work in watch mode
 		buildOptions.Plugins = append(buildOptions.Plugins, api.Plugin{
 			Name: "PostBuildActions",

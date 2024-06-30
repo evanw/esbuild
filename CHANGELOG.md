@@ -50,6 +50,12 @@
 
     Plugins that return values from `onResolve` without resolving the path (i.e. without setting either `path` or `external: true`) will now cause a warning. This is because esbuild only uses return values from `onResolve` if it successfully resolves the path, and it's not good for invalid input to be silently ignored.
 
+* Add a new Go API for running the CLI with plugins ([#3539](https://github.com/evanw/esbuild/pull/3539))
+
+    With esbuild's Go API, you can now call `cli.RunWithPlugins(args, plugins)` to pass an array of esbuild plugins to be used during the build process. This allows you to create a CLI that behaves similarly to esbuild's CLI but with additional Go plugins enabled.
+
+    This was contributed by [@edewit](https://github.com/edewit).
+
 ## 0.21.5
 
 * Fix `Symbol.metadata` on classes without a class decorator ([#3781](https://github.com/evanw/esbuild/issues/3781))
