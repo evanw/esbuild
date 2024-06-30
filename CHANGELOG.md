@@ -32,7 +32,7 @@
 
     The ECMAScript 2024 specification was just approved, so it has been added to esbuild as a possible compilation target. You can read more about the features that it adds here: [https://2ality.com/2024/06/ecmascript-2024.html](https://2ality.com/2024/06/ecmascript-2024.html). The only addition that's relevant for esbuild is the regular expression `/v` flag. With `--target=es2024`, regular expressions that use the `/v` flag will now be passed through untransformed instead of being transformed into a call to `new RegExp`.
 
-* Publish binaries for OpenBSD on 64-bit ARM ([#3674](https://github.com/evanw/esbuild/pull/3674))
+* Publish binaries for OpenBSD on 64-bit ARM ([#3665](https://github.com/evanw/esbuild/issues/3665), [#3674](https://github.com/evanw/esbuild/pull/3674))
 
     With this release, you should now be able to install the `esbuild` npm package in OpenBSD on 64-bit ARM, such as on an Apple device with an M1 chip.
 
