@@ -753,7 +753,7 @@ test-tsc: esbuild | github/tsc
 	cp -r github/tsc/src github/tsc/scripts demo/tsc
 	cp github/tsc/lib/*.d.ts demo/tsc/built/local
 	cd demo/tsc && node scripts/processDiagnosticMessages.mjs src/compiler/diagnosticMessages.json
-	./esbuild --bundle demo/tsc/src/tsc/tsc.ts --outfile=demo/tsc/built/local/tsc.js --platform=node --target=es2018 --packages=external
+	./esbuild --bundle demo/tsc/src/tsc/tsc.ts --outfile=demo/tsc/built/local/tsc.js --platform=node --target=es2018
 	echo '{"dependencies":{"@types/node":"20.2.5","@types/microsoft__typescript-etw":"0.1.1","@types/source-map-support":"0.5.6"}}' > demo/tsc/package.json
 	cd demo/tsc && npm i --silent && echo 'Type checking tsc using tsc...' && time -p node ./built/local/tsc.js -p src/compiler
 
@@ -769,6 +769,7 @@ TEST_ROLLUP_REPLACE += "paths": { "package.json": [".\/package.json"] },
 TEST_ROLLUP_FLAGS += --bundle
 TEST_ROLLUP_FLAGS += --external:fsevents
 TEST_ROLLUP_FLAGS += --outfile=dist/rollup.js
+TEST_ROLLUP_FLAGS += --packages=bundle
 TEST_ROLLUP_FLAGS += --platform=node
 TEST_ROLLUP_FLAGS += --target=es6
 TEST_ROLLUP_FLAGS += src/node-entry.ts

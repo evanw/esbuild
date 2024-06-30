@@ -613,12 +613,15 @@ func parseOptionsImpl(
 		case strings.HasPrefix(arg, "--packages=") && buildOpts != nil:
 			value := arg[len("--packages="):]
 			var packages api.Packages
-			if value == "external" {
+			switch value {
+			case "bundle":
+				packages = api.PackagesBundle
+			case "external":
 				packages = api.PackagesExternal
-			} else {
+			default:
 				return parseOptionsExtras{}, cli_helpers.MakeErrorWithNote(
 					fmt.Sprintf("Invalid value %q in %q", value, arg),
-					"The only valid value is \"external\".",
+					"Valid values are \"bundle\" or \"external\".",
 				)
 			}
 			buildOpts.Packages = packages

@@ -216,6 +216,19 @@ func validateASCIIOnly(value Charset) bool {
 	}
 }
 
+func validateExternalPackages(value Packages, platform Platform) bool {
+	switch value {
+	case PackagesDefault:
+		return platform == PlatformNode
+	case PackagesBundle:
+		return false
+	case PackagesExternal:
+		return true
+	default:
+		panic("Invalid packages")
+	}
+}
+
 func validateTreeShaking(value TreeShaking, bundle bool, format Format) bool {
 	switch value {
 	case TreeShakingDefault:
@@ -1267,7 +1280,7 @@ func validateBuildOptions(
 		ExtensionToLoader:     validateLoaders(log, buildOpts.Loader),
 		ExtensionOrder:        validateResolveExtensions(log, buildOpts.ResolveExtensions),
 		ExternalSettings:      validateExternals(log, realFS, buildOpts.External),
-		ExternalPackages:      buildOpts.Packages == PackagesExternal,
+		ExternalPackages:      validateExternalPackages(buildOpts.Packages, buildOpts.Platform),
 		PackageAliases:        validateAlias(log, realFS, buildOpts.Alias),
 		TSConfigPath:          validatePath(log, realFS, buildOpts.Tsconfig, "tsconfig path"),
 		TSConfigRaw:           buildOpts.TsconfigRaw,

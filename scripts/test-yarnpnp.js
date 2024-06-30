@@ -66,6 +66,7 @@ function runTests() {
     'in.mjs',
     '--bundle',
     '--log-level=debug',
+    '--packages=bundle',
     '--platform=node',
     '--outfile=out-native.js',
   ], { cwd: rootDir, stdio: 'inherit' })
@@ -73,12 +74,12 @@ function runTests() {
 
   // Test the WebAssembly build
   esbuild.buildWasmLib(ESBUILD_BINARY_PATH)
-  run('node ../../npm/esbuild-wasm/bin/esbuild in.mjs --bundle --log-level=debug --platform=node --outfile=out-wasm.js')
+  run('node ../../npm/esbuild-wasm/bin/esbuild in.mjs --bundle --log-level=debug --packages=bundle --platform=node --outfile=out-wasm.js')
   run('node out-wasm.js')
 
   // Test the WebAssembly build when run through Yarn's file system shim
   esbuild.buildWasmLib(ESBUILD_BINARY_PATH)
-  run('yarn node ../../npm/esbuild-wasm/bin/esbuild in.mjs --bundle --log-level=debug --platform=node --outfile=out-wasm-yarn.js')
+  run('yarn node ../../npm/esbuild-wasm/bin/esbuild in.mjs --bundle --log-level=debug --packages=bundle --platform=node --outfile=out-wasm-yarn.js')
   run('node out-wasm-yarn.js')
 }
 

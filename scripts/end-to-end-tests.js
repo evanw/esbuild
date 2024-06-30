@@ -8069,7 +8069,7 @@ for (const flags of [[], ['--bundle']]) {
         }
       }`,
     }),
-    test(['in.js', '--outfile=node.js', '--bundle', '--platform=node'].concat(flags), {
+    test(['in.js', '--outfile=node.js', '--bundle', '--platform=node', '--packages=bundle'].concat(flags), {
       'in.js': `import abc from 'pkg'; if (abc !== 'module') throw 'fail'`,
       'node_modules/pkg/default.js': `module.exports = 'default'`,
       'node_modules/pkg/module.js': `export default 'module'`,
@@ -8104,6 +8104,38 @@ for (const flags of [[], ['--bundle']]) {
           ".": {
             "module": "./module.js",
             "default": "./default.js"
+          }
+        }
+      }`,
+    }),
+
+    // Check the default behavior of "--platform=node"
+    test(['in.js', '--outfile=node.js', '--bundle', '--platform=node', '--format=esm'].concat(flags), {
+      'in.js': `import abc from 'pkg'; if (abc !== 'import') throw 'fail'`,
+      'node_modules/pkg/fail.js': `TEST FAILED`, // This package should not be bundled
+      'node_modules/pkg/require.cjs': `module.exports = 'require'`,
+      'node_modules/pkg/import.mjs': `export default 'import'`,
+      'node_modules/pkg/package.json': `{
+        "exports": {
+          ".": {
+            "module": "./fail.js",
+            "import": "./import.mjs",
+            "require": "./require.cjs"
+          }
+        }
+      }`,
+    }),
+    test(['in.js', '--outfile=node.js', '--bundle', '--platform=node', '--format=cjs'].concat(flags), {
+      'in.js': `import abc from 'pkg'; if (abc !== 'require') throw 'fail'`,
+      'node_modules/pkg/fail.js': `TEST FAILED`, // This package should not be bundled
+      'node_modules/pkg/require.cjs': `module.exports = 'require'`,
+      'node_modules/pkg/import.mjs': `export default 'import'`,
+      'node_modules/pkg/package.json': `{
+        "exports": {
+          ".": {
+            "module": "./fail.js",
+            "import": "./import.mjs",
+            "require": "./require.cjs"
           }
         }
       }`,

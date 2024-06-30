@@ -180,6 +180,7 @@ type Packages uint8
 
 const (
 	PackagesDefault Packages = iota
+	PackagesBundle
 	PackagesExternal
 )
 

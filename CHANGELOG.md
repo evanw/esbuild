@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+* Omit packages from bundle by default when targeting node ([#1874](https://github.com/evanw/esbuild/issues/1874), [#2830](https://github.com/evanw/esbuild/issues/2830), [#2846](https://github.com/evanw/esbuild/issues/2846), [#2915](https://github.com/evanw/esbuild/issues/2915), [#3145](https://github.com/evanw/esbuild/issues/3145), [#3294](https://github.com/evanw/esbuild/issues/3294), [#3323](https://github.com/evanw/esbuild/issues/3323), [#3582](https://github.com/evanw/esbuild/issues/3582), [#3809](https://github.com/evanw/esbuild/issues/3809), [#3815](https://github.com/evanw/esbuild/issues/3815))
+
+    This breaking change is an experiment. People are commonly confused when using esbuild to bundle code for node (i.e. for `--platform=node`) because some packages may not be intended for bundlers, and may use node-specific features that don't work with a bundler. Even though esbuild's "getting started" instructions say to use `--packages=external` to work around this problem, many people don't read the documentation and don't do this, and are then confused when it doesn't work. So arguably this is a bad default behavior for esbuild to have if people keep tripping over this.
+
+    With this release, esbuild will now omit packages from the bundle by default when the platform is `node` (i.e. the previous behavior of `--packages=external` is now the default in this case). If you don't want this behavior, you can do `--packages=bundle` to allow packages to be included in the bundle (i.e. the previous default behavior). Note that `--packages=bundle` doesn't mean all packages are bundled, just that packages are allowed to be bundled. You can still exclude individual packages from the bundle using `--external:` even when `--packages=bundle` is present.
+
+    The `--packages=` setting considers all import paths that "look like" package imports in the original source code to be packages. Specifically packages that don't start with a path segment of `/` or `.` or `..` are considered to be package imports. The only two exceptions to this rule are [subpath imports](https://nodejs.org/api/packages.html#subpath-imports) (which start with a `#` character) and TypeScript path remappings via `path` and/or `baseUrl` in `tsconfig.json` (which are applied first).
+
 * Drop support for older platforms ([#3802](https://github.com/evanw/esbuild/issues/3802))
 
     This release drops support for the following operating systems:
