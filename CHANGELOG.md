@@ -32,6 +32,12 @@
 
     The ECMAScript 2024 specification was just approved, so it has been added to esbuild as a possible compilation target. You can read more about the features that it adds here: [https://2ality.com/2024/06/ecmascript-2024.html](https://2ality.com/2024/06/ecmascript-2024.html). The only addition that's relevant for esbuild is the regular expression `/v` flag. With `--target=es2024`, regular expressions that use the `/v` flag will now be passed through untransformed instead of being transformed into a call to `new RegExp`.
 
+* Publish binaries for OpenBSD on 64-bit ARM ([#3674](https://github.com/evanw/esbuild/pull/3674))
+
+    With this release, you should now be able to install the `esbuild` npm package in OpenBSD on 64-bit ARM, such as on an Apple device with an M1 chip.
+
+    This was contributed by [@ikmckenz](https://github.com/ikmckenz).
+
 * Publish binaries for WASI (WebAssembly System Interface) preview 1 ([#3300](https://github.com/evanw/esbuild/issues/3300), [#3779](https://github.com/evanw/esbuild/pull/3779))
 
     The upcoming WASI (WebAssembly System Interface) standard is going to be a way to run WebAssembly outside of a JavaScript host environment. In this scenario you only need a `.wasm` file without any supporting JavaScript code. Instead of JavaScript providing the APIs for the host environment, the WASI standard specifies a "system interface" that WebAssembly code can access directly (e.g. for file system access).
