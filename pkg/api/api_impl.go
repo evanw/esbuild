@@ -2350,11 +2350,11 @@ func analyzeMetafileImpl(metafile string, opts AnalyzeMetafileOptions) string {
 				third := "100.0%"
 
 				table = append(table, tableEntry{
-					first:      fmt.Sprintf("%s%s%s", colors.Bold, entry.name, colors.Reset),
+					first:      entry.name,
 					firstLen:   utf8.RuneCountInString(entry.name),
-					second:     fmt.Sprintf("%s%s%s", colors.Bold, second, colors.Reset),
+					second:     second,
 					secondLen:  len(second),
-					third:      fmt.Sprintf("%s%s%s", colors.Bold, third, colors.Reset),
+					third:      third,
 					thirdLen:   len(third),
 					isTopLevel: true,
 				})
@@ -2431,8 +2431,10 @@ func analyzeMetafileImpl(metafile string, opts AnalyzeMetafileOptions) string {
 			// Render the columns now that we know the widths
 			for _, entry := range table {
 				prefix := "\n"
+				color := colors.Bold
 				if !entry.isTopLevel {
 					prefix = ""
+					color = ""
 				}
 
 				// Import paths don't have second and third columns
@@ -2454,17 +2456,23 @@ func analyzeMetafileImpl(metafile string, opts AnalyzeMetafileOptions) string {
 					extraSpace = 1
 				}
 
-				sb.WriteString(fmt.Sprintf("%s  %s %s%s%s %s %s%s%s %s\n",
+				sb.WriteString(fmt.Sprintf("%s  %s%s%s %s%s%s %s%s%s %s%s%s %s%s%s\n",
 					prefix,
+					color,
 					entry.first,
+					colors.Reset,
 					colors.Dim,
 					strings.Repeat(lineChar, extraSpace+maxFirstLen-entry.firstLen+maxSecondLen-entry.secondLen),
 					colors.Reset,
+					color,
 					secondTrimmed,
+					colors.Reset,
 					colors.Dim,
 					strings.Repeat(lineChar, extraSpace+maxThirdLen-entry.thirdLen+len(second)-len(secondTrimmed)),
 					colors.Reset,
+					color,
 					entry.third,
+					colors.Reset,
 				))
 			}
 
