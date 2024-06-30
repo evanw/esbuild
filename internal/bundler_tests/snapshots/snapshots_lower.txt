@@ -633,6 +633,7 @@ var _Foo = class _Foo {
 _init = __decoratorStart(null);
 _foo = new WeakMap();
 __decorateElement(_init, 4, "foo", _foo_dec, _Foo, _foo);
+__decoratorMetadata(_init, _Foo);
 var Foo = _Foo;
 
 ---------- /out/base-instance-field.js ----------
@@ -646,6 +647,7 @@ var _Foo = class _Foo {
 };
 _init = __decoratorStart(null);
 __decorateElement(_init, 5, "foo", _foo_dec, _Foo);
+__decoratorMetadata(_init, _Foo);
 var Foo = _Foo;
 
 ---------- /out/base-instance-method.js ----------
@@ -662,6 +664,7 @@ var _Foo = class _Foo {
 };
 _init = __decoratorStart(null);
 __decorateElement(_init, 1, "foo", _foo_dec, _Foo);
+__decoratorMetadata(_init, _Foo);
 var Foo = _Foo;
 
 ---------- /out/base-static-accessor.js ----------
@@ -673,6 +676,7 @@ var _Foo = class _Foo {
 _init = __decoratorStart(null);
 _foo = new WeakMap();
 __decorateElement(_init, 12, "foo", _foo_dec, _Foo, _foo);
+__decoratorMetadata(_init, _Foo);
 __privateAdd(_Foo, _foo, __runInitializers(_init, 8, _Foo, _Foo)), __runInitializers(_init, 11, _Foo);
 var Foo = _Foo;
 
@@ -684,6 +688,7 @@ var _Foo = class _Foo {
 };
 _init = __decoratorStart(null);
 __decorateElement(_init, 13, "foo", _foo_dec, _Foo);
+__decoratorMetadata(_init, _Foo);
 __publicField(_Foo, "foo", __runInitializers(_init, 8, _Foo, _Foo)), __runInitializers(_init, 11, _Foo);
 var Foo = _Foo;
 
@@ -698,6 +703,7 @@ var _Foo = class _Foo {
 };
 _init = __decoratorStart(null);
 __decorateElement(_init, 9, "foo", _foo_dec, _Foo);
+__decoratorMetadata(_init, _Foo);
 __runInitializers(_init, 3, _Foo);
 var Foo = _Foo;
 
@@ -713,6 +719,7 @@ var _Foo = class _Foo extends (_a = Bar, _foo_dec = [dec], _a) {
 _init = __decoratorStart(_a);
 _foo = new WeakMap();
 __decorateElement(_init, 4, "foo", _foo_dec, _Foo, _foo);
+__decoratorMetadata(_init, _Foo);
 var Foo = _Foo;
 
 ---------- /out/derived-instance-field.js ----------
@@ -726,6 +733,7 @@ var _Foo = class _Foo extends (_a = Bar, _foo_dec = [dec], _a) {
 };
 _init = __decoratorStart(_a);
 __decorateElement(_init, 5, "foo", _foo_dec, _Foo);
+__decoratorMetadata(_init, _Foo);
 var Foo = _Foo;
 
 ---------- /out/derived-instance-method.js ----------
@@ -742,6 +750,7 @@ var _Foo = class _Foo extends (_a = Bar, _foo_dec = [dec], _a) {
 };
 _init = __decoratorStart(_a);
 __decorateElement(_init, 1, "foo", _foo_dec, _Foo);
+__decoratorMetadata(_init, _Foo);
 var Foo = _Foo;
 
 ---------- /out/derived-static-accessor.js ----------
@@ -752,6 +761,7 @@ var _Foo = class _Foo extends (_a = Bar, _foo_dec = [dec], _a) {
 _init = __decoratorStart(_a);
 _foo = new WeakMap();
 __decorateElement(_init, 12, "foo", _foo_dec, _Foo, _foo);
+__decoratorMetadata(_init, _Foo);
 __privateAdd(_Foo, _foo, __runInitializers(_init, 8, _Foo, _Foo)), __runInitializers(_init, 11, _Foo);
 var Foo = _Foo;
 
@@ -762,6 +772,7 @@ var _Foo = class _Foo extends (_a = Bar, _foo_dec = [dec], _a) {
 };
 _init = __decoratorStart(_a);
 __decorateElement(_init, 13, "foo", _foo_dec, _Foo);
+__decoratorMetadata(_init, _Foo);
 __publicField(_Foo, "foo", __runInitializers(_init, 8, _Foo, _Foo)), __runInitializers(_init, 11, _Foo);
 var Foo = _Foo;
 
@@ -775,6 +786,7 @@ var _Foo = class _Foo extends (_a = Bar, _foo_dec = [dec], _a) {
 };
 _init = __decoratorStart(_a);
 __decorateElement(_init, 9, "foo", _foo_dec, _Foo);
+__decoratorMetadata(_init, _Foo);
 __runInitializers(_init, 3, _Foo);
 var Foo = _Foo;
 

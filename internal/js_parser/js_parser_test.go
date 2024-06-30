@@ -2091,6 +2091,7 @@ class Foo {
 }
 _init = __decoratorStart(null);
 __decorateElement(_init, 5, "x", _x_dec, Foo);
+__decoratorMetadata(_init, Foo);
 `)
 	expectPrintedWithUnsupportedFeatures(t, compat.Decorators, "class Foo { @dec x() {} }",
 		`var _x_dec, _init;
@@ -2104,6 +2105,7 @@ class Foo {
 }
 _init = __decoratorStart(null);
 __decorateElement(_init, 1, "x", _x_dec, Foo);
+__decoratorMetadata(_init, Foo);
 `)
 	expectPrintedWithUnsupportedFeatures(t, compat.Decorators, "class Foo { @dec accessor x }",
 		`var _x_dec, _init, _x;
@@ -2116,6 +2118,7 @@ class Foo {
 _init = __decoratorStart(null);
 _x = new WeakMap();
 __decorateElement(_init, 4, "x", _x_dec, Foo, _x);
+__decoratorMetadata(_init, Foo);
 `)
 	expectPrintedWithUnsupportedFeatures(t, compat.Decorators, "class Foo { @dec static x }",
 		`var _x_dec, _init;
@@ -2124,6 +2127,7 @@ class Foo {
 }
 _init = __decoratorStart(null);
 __decorateElement(_init, 13, "x", _x_dec, Foo);
+__decoratorMetadata(_init, Foo);
 __publicField(Foo, "x", __runInitializers(_init, 8, Foo)), __runInitializers(_init, 11, Foo);
 `)
 	expectPrintedWithUnsupportedFeatures(t, compat.Decorators, "class Foo { @dec static x() {} }",
@@ -2135,6 +2139,7 @@ class Foo {
 }
 _init = __decoratorStart(null);
 __decorateElement(_init, 9, "x", _x_dec, Foo);
+__decoratorMetadata(_init, Foo);
 __runInitializers(_init, 3, Foo);
 `)
 	expectPrintedWithUnsupportedFeatures(t, compat.Decorators, "class Foo { @dec static accessor x }",
@@ -2145,6 +2150,7 @@ class Foo {
 _init = __decoratorStart(null);
 _x = new WeakMap();
 __decorateElement(_init, 12, "x", _x_dec, Foo, _x);
+__decoratorMetadata(_init, Foo);
 __privateAdd(Foo, _x, __runInitializers(_init, 8, Foo)), __runInitializers(_init, 11, Foo);
 `)
 

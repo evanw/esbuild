@@ -87,15 +87,5 @@ for (let key in process.env) {
   }
 }
 
-// Node v19 introduced "globalThis.crypto" https://github.com/nodejs/node/pull/44897.
-// This broke Go's WebAssembly shim: https://github.com/golang/go/issues/56860.
-// Hack around this breakage by resetting "globalThis.crypto" to "writable".
-// Just to be safe, also make it "configurable" in case Go updates their
-// compiler such that it tries to reconfigure "globalThis.crypto" itself.
-Object.defineProperty(globalThis, 'crypto', {
-  writable: true,
-  configurable: true,
-});
-
 process.argv.splice(2, 0, esbuild_wasm);
 wrapper(module_.createRequire(wasm_exec_node), Object.assign(Object.create(WebAssembly), { instantiate }));

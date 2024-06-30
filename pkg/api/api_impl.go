@@ -307,6 +307,8 @@ func validateFeatures(log logger.Log, target Target, engines []Engine) (compat.J
 		constraints[compat.ES] = compat.Semver{Parts: []int{2022}}
 	case ES2023:
 		constraints[compat.ES] = compat.Semver{Parts: []int{2023}}
+	case ES2024:
+		constraints[compat.ES] = compat.Semver{Parts: []int{2024}}
 	case ESNext, DefaultTarget:
 	default:
 		panic("Invalid target")
@@ -1925,6 +1927,33 @@ func (impl *pluginImpl) onResolve(options OnResolveOptions, callback func(OnReso
 
 			// Convert log messages
 			result.Msgs = convertErrorsAndWarningsToInternal(response.Errors, response.Warnings)
+
+			// Warn if the plugin returned things without resolving the path
+			if response.Path == "" && !response.External {
+				var what string
+				if response.Namespace != "" {
+					what = "namespace"
+				} else if response.Suffix != "" {
+					what = "suffix"
+				} else if response.PluginData != nil {
+					what = "pluginData"
+				} else if response.WatchFiles != nil {
+					what = "watchFiles"
+				} else if response.WatchDirs != nil {
+					what = "watchDirs"
+				}
+				if what != "" {
+					path := "path"
+					if logger.API == logger.GoAPI {
+						what = strings.Title(what)
+						path = strings.Title(path)
+					}
+					result.Msgs = append(result.Msgs, logger.Msg{
+						Kind: logger.Warning,
+						Data: logger.MsgData{Text: fmt.Sprintf("Returning %q doesn't do anything when %q is empty", what, path)},
+					})
+				}
+			}
 			return
 		},
 	})
@@ -2321,11 +2350,11 @@ func analyzeMetafileImpl(metafile string, opts AnalyzeMetafileOptions) string {
 				third := "100.0%"
 
 				table = append(table, tableEntry{
-					first:      fmt.Sprintf("%s%s%s", colors.Bold, entry.name, colors.Reset),
+					first:      entry.name,
 					firstLen:   utf8.RuneCountInString(entry.name),
-					second:     fmt.Sprintf("%s%s%s", colors.Bold, second, colors.Reset),
+					second:     second,
 					secondLen:  len(second),
-					third:      fmt.Sprintf("%s%s%s", colors.Bold, third, colors.Reset),
+					third:      third,
 					thirdLen:   len(third),
 					isTopLevel: true,
 				})
@@ -2402,8 +2431,10 @@ func analyzeMetafileImpl(metafile string, opts AnalyzeMetafileOptions) string {
 			// Render the columns now that we know the widths
 			for _, entry := range table {
 				prefix := "\n"
+				color := colors.Bold
 				if !entry.isTopLevel {
 					prefix = ""
+					color = ""
 				}
 
 				// Import paths don't have second and third columns
@@ -2425,17 +2456,23 @@ func analyzeMetafileImpl(metafile string, opts AnalyzeMetafileOptions) string {
 					extraSpace = 1
 				}
 
-				sb.WriteString(fmt.Sprintf("%s  %s %s%s%s %s %s%s%s %s\n",
+				sb.WriteString(fmt.Sprintf("%s  %s%s%s %s%s%s %s%s%s %s%s%s %s%s%s\n",
 					prefix,
+					color,
 					entry.first,
+					colors.Reset,
 					colors.Dim,
 					strings.Repeat(lineChar, extraSpace+maxFirstLen-entry.firstLen+maxSecondLen-entry.secondLen),
 					colors.Reset,
+					color,
 					secondTrimmed,
+					colors.Reset,
 					colors.Dim,
 					strings.Repeat(lineChar, extraSpace+maxThirdLen-entry.thirdLen+len(second)-len(secondTrimmed)),
 					colors.Reset,
+					color,
 					entry.third,
+					colors.Reset,
 				))
 			}
 

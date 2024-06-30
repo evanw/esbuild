@@ -20,7 +20,7 @@ jobs:
       - name: Set up Go 1.x
         uses: actions/setup-go@v3
         with:
-          go-version: 1.20.12
+          go-version: 1.22.4
         id: go
 
       - name: Setup Node.js environment
@@ -50,7 +50,7 @@ jobs:
       - name: Set up Go 1.x
         uses: actions/setup-go@v3
         with:
-          go-version: 1.20.12
+          go-version: 1.22.4
         id: go
 
       - name: Setup Node.js environment
@@ -61,6 +61,7 @@ jobs:
       - name: Check out code into the Go module directory
         uses: actions/checkout@v3
 
+      # Note: These tests break with node version 18. Something about WebAssembly.
       - name: Rollup Tests
         run: make test-rollup
 
@@ -81,13 +82,13 @@ jobs:
       - name: Set up Go 1.x
         uses: actions/setup-go@v3
         with:
-          go-version: 1.20.12
+          go-version: 1.22.4
         id: go
 
       - name: Setup Node.js environment
         uses: actions/setup-node@v3
         with:
-          node-version: 16
+          node-version: 18
 
       - name: Setup Deno 1.40.0
         uses: denoland/setup-deno@main
@@ -273,7 +274,7 @@ jobs:
       - name: Set up Go 1.x
         uses: actions/setup-go@v3
         with:
-          go-version: 1.20.12
+          go-version: 1.22.4
         id: go
 
       # Make sure esbuild works with old versions of Deno. Note: It's important

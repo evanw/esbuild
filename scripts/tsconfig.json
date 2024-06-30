@@ -1,0 +1,5 @@
+{
+  "compilerOptions": {
+    "target": "ESNext", // Fix "Symbol.metadata" errors in decorator tests
+  }
+}

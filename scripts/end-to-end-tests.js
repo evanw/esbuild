@@ -8801,6 +8801,80 @@ for (const flags of [[], '--supported:async-await=false']) {
         }
       `,
     }, { async: true }),
+
+    // From https://github.com/microsoft/TypeScript/pull/58624
+    test(['in.ts', '--outfile=node.js', '--supported:using=false', '--format=esm'].concat(flags), {
+      'in.ts': `
+        Symbol.asyncDispose ||= Symbol.for('Symbol.asyncDispose')
+        Symbol.dispose ||= Symbol.for('Symbol.dispose')
+        export const output: any[] = [];
+        export async function main() {
+          const promiseDispose = new Promise<void>((resolve) => {
+            setTimeout(() => {
+              output.push("y dispose promise body");
+              resolve();
+            }, 0);
+          });
+          {
+            await using x = {
+              async [Symbol.asyncDispose]() {
+                output.push("x asyncDispose body");
+              },
+            };
+            await using y = {
+              [Symbol.dispose]() {
+                output.push("y dispose body");
+                return promiseDispose;
+              },
+            };
+          }
+          output.push("body");
+          await promiseDispose;
+          return output;
+        }
+        export let async = async () => {
+          const output = await main()
+          const expected = [
+            "y dispose body",
+            "x asyncDispose body",
+            "body",
+            "y dispose promise body",
+          ]
+          if (output.join(',') !== expected.join(',')) throw 'fail: ' + output
+        }
+      `,
+    }, { async: true }),
+    test(['in.ts', '--outfile=node.js', '--supported:using=false', '--format=esm'].concat(flags), {
+      'in.ts': `
+        Symbol.dispose ||= Symbol.for('Symbol.dispose')
+        export const output: any[] = [];
+        export async function main() {
+          const interleave = Promise.resolve().then(() => { output.push("interleave"); });
+          try {
+            await using x = {
+              [Symbol.dispose]() {
+                output.push("dispose");
+                throw null;
+              },
+            };
+          }
+          catch {
+            output.push("catch");
+          }
+          await interleave;
+          return output;
+        }
+        export let async = async () => {
+          const output = await main()
+          const expected = [
+            "dispose",
+            "interleave",
+            "catch",
+        ]
+          if (output.join(',') !== expected.join(',')) throw 'fail: ' + output
+        }
+      `,
+    }, { async: true }),
   )
 }
 

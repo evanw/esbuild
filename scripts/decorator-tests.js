@@ -11,6 +11,7 @@ var __decoratorStart = (base) => [, , , __create(base?.[__knownSymbol("metadata"
 var __decoratorStrings = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
 var __expectFn = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError("Function expected") : fn;
 var __decoratorContext = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError("Already initialized") : fns.push(__expectFn(fn || null)) });
+var __decoratorMetadata = (array, target) => __defNormalProp(target, __knownSymbol("metadata"), array[3]);
 var __runInitializers = (array, flags, self, value) => {
   for (var i = 0, fns = array[flags >> 1], n = fns && fns.length; i < n; i++) flags & 1 ? fns[i].call(self) : value = fns[i].call(self, value);
   return value;
@@ -37,7 +38,7 @@ var __decorateElement = (array, flags, name, decorators, target, extra) => {
     else if (typeof it !== "object" || it === null) __typeError("Object expected");
     else __expectFn(fn = it.get) && (desc.get = fn), __expectFn(fn = it.set) && (desc.set = fn), __expectFn(fn = it.init) && initializers.unshift(fn);
   }
-  return k || (target[__knownSymbol("metadata")] = array[3]), desc && __defProp(target, name, desc), p ? k ^ 4 ? extra : desc : target;
+  return k || __decoratorMetadata(array, target), desc && __defProp(target, name, desc), p ? k ^ 4 ? extra : desc : target;
 };
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 var __accessCheck = (obj, member, msg) => member.has(obj) || __typeError("Cannot " + msg);
@@ -48,6 +49,9 @@ var __privateSet = (obj, member, value, setter) => (__accessCheck(obj, member, "
 var __privateMethod = (obj, member, method) => (__accessCheck(obj, member, "access private method"), method);
 if (!("metadata" in Symbol)) {
   Symbol.metadata = Symbol("Symbol.metadata");
+}
+if (!(Symbol.metadata in Function)) {
+  Object.defineProperty(Function.prototype, Symbol.metadata, { value: null });
 }
 const tests = {
   // Class decorators
@@ -487,6 +491,7 @@ const tests = {
     __decorateElement(_init, 1, "foo", _foo_dec, Foo2);
     __decorateElement(_init, 1, _b, _bar_dec, Foo2);
     __decorateElement(_init, 1, _a, _baz_dec, Foo2);
+    __decoratorMetadata(_init, Foo2);
     assertEq(() => Foo2.prototype.foo, old["foo"]);
     assertEq(() => Foo2.prototype[bar], old[bar]);
     assertEq(() => Foo2.prototype[baz], old[baz]);
@@ -521,6 +526,7 @@ const tests = {
     __decorateElement(_init, 9, "foo", _foo_dec, Foo2);
     __decorateElement(_init, 9, _b, _bar_dec, Foo2);
     __decorateElement(_init, 9, _a, _baz_dec, Foo2);
+    __decoratorMetadata(_init, Foo2);
     __runInitializers(_init, 3, Foo2);
     assertEq(() => Foo2.foo, old["foo"]);
     assertEq(() => Foo2[bar], old[bar]);
@@ -558,6 +564,7 @@ const tests = {
     foo_fn = function() {
     };
     foo_fn = __decorateElement(_init, 17, "#foo", _foo_dec, _Foo_instances, foo_fn);
+    __decoratorMetadata(_init, _Foo);
     $foo = __privateMethod(new _Foo(), _Foo_instances, foo_fn);
     let Foo2 = _Foo;
     assertEq(() => $foo, old);
@@ -592,6 +599,7 @@ const tests = {
     };
     foo_fn = __decorateElement(_init, 25, "#foo", _foo_dec, _Foo_static, foo_fn);
     __privateAdd(_Foo, _Foo_static);
+    __decoratorMetadata(_init, _Foo);
     __runInitializers(_init, 3, _Foo);
     $foo = __privateMethod(_Foo, _Foo_static, foo_fn);
     let Foo2 = _Foo;
@@ -619,6 +627,7 @@ const tests = {
     }
     _init = __decoratorStart(null);
     __decorateElement(_init, 1, "foo", _foo_dec, Foo2);
+    __decoratorMetadata(_init, Foo2);
     assertEq(() => Foo2.prototype.foo, bar);
     assertEq(() => new Foo2().foo(), 124);
   },
@@ -639,6 +648,7 @@ const tests = {
     }
     _init = __decoratorStart(null);
     __decorateElement(_init, 9, "foo", _foo_dec, Foo2);
+    __decoratorMetadata(_init, Foo2);
     __runInitializers(_init, 3, Foo2);
     __publicField(Foo2, "bar", 123);
     assertEq(() => Foo2.foo, bar);
@@ -668,6 +678,7 @@ const tests = {
       return this.bar;
     };
     foo_fn = __decorateElement(_init, 17, "#foo", _foo_dec, _Foo_instances, foo_fn);
+    __decoratorMetadata(_init, _Foo);
     $foo = __privateMethod(new _Foo(), _Foo_instances, foo_fn);
     let Foo2 = _Foo;
     assertEq(() => $foo, bar);
@@ -693,6 +704,7 @@ const tests = {
     };
     foo_fn = __decorateElement(_init, 25, "#foo", _foo_dec, _Foo_static, foo_fn);
     __privateAdd(_Foo, _Foo_static);
+    __decoratorMetadata(_init, _Foo);
     __runInitializers(_init, 3, _Foo);
     __publicField(_Foo, "bar", 123);
     $foo = __privateMethod(_Foo, _Foo_static, foo_fn);
@@ -733,6 +745,7 @@ const tests = {
     }
     _init = __decoratorStart(null);
     __decorateElement(_init, 1, "foo", _foo_dec, Foo2);
+    __decoratorMetadata(_init, Foo2);
     log.push(3);
     new Foo2().foo();
     log.push(7);
@@ -769,6 +782,7 @@ const tests = {
     }
     _init = __decoratorStart(null);
     __decorateElement(_init, 9, "foo", _foo_dec, Foo2);
+    __decoratorMetadata(_init, Foo2);
     __runInitializers(_init, 3, Foo2);
     log.push(3);
     Foo2.foo();
@@ -812,6 +826,7 @@ const tests = {
       return log.push(6);
     };
     foo_fn = __decorateElement(_init, 17, "#foo", _foo_dec, _Foo_instances, foo_fn);
+    __decoratorMetadata(_init, _Foo);
     $foo = __privateMethod(new _Foo(), _Foo_instances, foo_fn);
     let Foo2 = _Foo;
     log.push(3);
@@ -853,6 +868,7 @@ const tests = {
     };
     foo_fn = __decorateElement(_init, 25, "#foo", _foo_dec, _Foo_static, foo_fn);
     __privateAdd(_Foo, _Foo_static);
+    __decoratorMetadata(_init, _Foo);
     __runInitializers(_init, 3, _Foo);
     $foo = __privateMethod(_Foo, _Foo_static, foo_fn);
     let Foo2 = _Foo;
@@ -878,6 +894,7 @@ const tests = {
       }
       _init = __decoratorStart(null);
       __decorateElement(_init, 1, "foo", _foo_dec, Foo2);
+      __decoratorMetadata(_init, Foo2);
     }, TypeError);
   },
   "Method decorators: Return null (static method)": () => {
@@ -893,6 +910,7 @@ const tests = {
       }
       _init = __decoratorStart(null);
       __decorateElement(_init, 9, "foo", _foo_dec, Foo2);
+      __decoratorMetadata(_init, Foo2);
       __runInitializers(_init, 3, Foo2);
     }, TypeError);
   },
@@ -914,6 +932,7 @@ const tests = {
       foo_fn = function() {
       };
       foo_fn = __decorateElement(_init, 17, "#foo", _foo_dec, _Foo_instances, foo_fn);
+      __decoratorMetadata(_init, Foo2);
     }, TypeError);
   },
   "Method decorators: Return null (private static method)": () => {
@@ -931,6 +950,7 @@ const tests = {
       };
       foo_fn = __decorateElement(_init, 25, "#foo", _foo_dec, _Foo_static, foo_fn);
       __privateAdd(Foo2, _Foo_static);
+      __decoratorMetadata(_init, Foo2);
       __runInitializers(_init, 3, Foo2);
     }, TypeError);
   },
@@ -950,6 +970,7 @@ const tests = {
       }
       _init = __decoratorStart(null);
       __decorateElement(_init, 1, "foo", _foo_dec, Foo2);
+      __decoratorMetadata(_init, Foo2);
     }, TypeError);
   },
   "Method decorators: Return object (static method)": () => {
@@ -965,6 +986,7 @@ const tests = {
       }
       _init = __decoratorStart(null);
       __decorateElement(_init, 9, "foo", _foo_dec, Foo2);
+      __decoratorMetadata(_init, Foo2);
       __runInitializers(_init, 3, Foo2);
     }, TypeError);
   },
@@ -986,6 +1008,7 @@ const tests = {
       foo_fn = function() {
       };
       foo_fn = __decorateElement(_init, 17, "#foo", _foo_dec, _Foo_instances, foo_fn);
+      __decoratorMetadata(_init, Foo2);
     }, TypeError);
   },
   "Method decorators: Return object (private static method)": () => {
@@ -1003,6 +1026,7 @@ const tests = {
       };
       foo_fn = __decorateElement(_init, 25, "#foo", _foo_dec, _Foo_static, foo_fn);
       __privateAdd(Foo2, _Foo_static);
+      __decoratorMetadata(_init, Foo2);
       __runInitializers(_init, 3, Foo2);
     }, TypeError);
   },
@@ -1029,6 +1053,7 @@ const tests = {
     }
     _init = __decoratorStart(null);
     __decorateElement(_init, 1, "foo", _foo_dec, Foo2);
+    __decoratorMetadata(_init, Foo2);
     assertEq(() => got, void 0);
     const instance = new Foo2();
     assertEq(() => got.this, instance);
@@ -1054,6 +1079,7 @@ const tests = {
     }
     _init = __decoratorStart(null);
     __decorateElement(_init, 9, "foo", _foo_dec, Foo2);
+    __decoratorMetadata(_init, Foo2);
     __runInitializers(_init, 3, Foo2);
     assertEq(() => got.this, Foo2);
     assertEq(() => got.args.length, 0);
@@ -1083,6 +1109,7 @@ const tests = {
     foo_fn = function() {
     };
     foo_fn = __decorateElement(_init, 17, "#foo", _foo_dec, _Foo_instances, foo_fn);
+    __decoratorMetadata(_init, Foo2);
     assertEq(() => got, void 0);
     const instance = new Foo2();
     assertEq(() => got.this, instance);
@@ -1110,6 +1137,7 @@ const tests = {
     };
     foo_fn = __decorateElement(_init, 25, "#foo", _foo_dec, _Foo_static, foo_fn);
     __privateAdd(Foo2, _Foo_static);
+    __decoratorMetadata(_init, Foo2);
     __runInitializers(_init, 3, Foo2);
     assertEq(() => got.this, Foo2);
     assertEq(() => got.args.length, 0);
@@ -1146,6 +1174,7 @@ const tests = {
     __decorateElement(_init, 5, "foo", _foo_dec, Foo2);
     __decorateElement(_init, 5, _b, _bar_dec, Foo2);
     __decorateElement(_init, 5, _a, _baz_dec, Foo2);
+    __decoratorMetadata(_init, Foo2);
     assertEq(() => new Foo2().foo, 123);
     assertEq(() => new Foo2()[bar], 123);
     assertEq(() => new Foo2()[baz], 123);
@@ -1176,6 +1205,7 @@ const tests = {
     __decorateElement(_init, 13, "foo", _foo_dec, Foo2);
     __decorateElement(_init, 13, _b, _bar_dec, Foo2);
     __decorateElement(_init, 13, _a, _baz_dec, Foo2);
+    __decoratorMetadata(_init, Foo2);
     __publicField(Foo2, "foo", __runInitializers(_init, 8, Foo2, 123)), __runInitializers(_init, 11, Foo2);
     __publicField(Foo2, _b, __runInitializers(_init, 12, Foo2, 123)), __runInitializers(_init, 15, Foo2);
     __publicField(Foo2, _a, __runInitializers(_init, 16, Foo2, 123)), __runInitializers(_init, 19, Foo2);
@@ -1213,6 +1243,7 @@ const tests = {
     _init = __decoratorStart(null);
     _foo = new WeakMap();
     __decorateElement(_init, 21, "#foo", _foo_dec, _foo);
+    __decoratorMetadata(_init, Foo2);
     get$foo = (x) => __privateGet(x, _foo);
     assertEq(() => get$foo(new Foo2()), 123);
     lateAsserts();
@@ -1243,6 +1274,7 @@ const tests = {
     _init = __decoratorStart(null);
     _foo = new WeakMap();
     __decorateElement(_init, 29, "#foo", _foo_dec, _foo);
+    __decoratorMetadata(_init, Foo2);
     __privateAdd(Foo2, _foo, __runInitializers(_init, 8, Foo2, 123)), __runInitializers(_init, 11, Foo2);
     get$foo = (x) => __privateGet(x, _foo);
     assertEq(() => get$foo(Foo2), 123);
@@ -1267,6 +1299,7 @@ const tests = {
     _init = __decoratorStart(null);
     __decorateElement(_init, 5, "foo", _foo_dec, Foo2);
     __decorateElement(_init, 5, "bar", _bar_dec, Foo2);
+    __decoratorMetadata(_init, Foo2);
     assertEq(() => log + "", "");
     var obj = new Foo2();
     assertEq(() => obj.foo, 3);
@@ -1290,6 +1323,7 @@ const tests = {
     _init = __decoratorStart(null);
     __decorateElement(_init, 13, "foo", _foo_dec, _Foo);
     __decorateElement(_init, 13, "bar", _bar_dec, _Foo);
+    __decoratorMetadata(_init, _Foo);
     foo = _Foo;
     __publicField(_Foo, "foo", __runInitializers(_init, 8, _Foo, 123)), __runInitializers(_init, 11, _Foo);
     __publicField(_Foo, "bar", __runInitializers(_init, 12, _Foo)), __runInitializers(_init, 15, _Foo);
@@ -1323,6 +1357,7 @@ const tests = {
     _bar = new WeakMap();
     __decorateElement(_init, 21, "#foo", _foo_dec, _foo);
     __decorateElement(_init, 21, "#bar", _bar_dec, _bar);
+    __decoratorMetadata(_init, Foo2);
     has$foo = (x) => __privateIn(_foo, x);
     has$bar = (x) => __privateIn(_bar, x);
     get$foo = (x) => __privateGet(x, _foo);
@@ -1356,6 +1391,7 @@ const tests = {
     _bar = new WeakMap();
     __decorateElement(_init, 29, "#foo", _foo_dec, _foo);
     __decorateElement(_init, 29, "#bar", _bar_dec, _bar);
+    __decoratorMetadata(_init, _Foo);
     foo = _Foo;
     has$foo = (x) => __privateIn(_foo, x);
     has$bar = (x) => __privateIn(_bar, x);
@@ -1388,6 +1424,7 @@ const tests = {
     }
     _init = __decoratorStart(null);
     __decorateElement(_init, 5, "foo", _foo_dec, Foo2);
+    __decoratorMetadata(_init, Foo2);
     log.push(3);
     var obj = new Foo2();
     log.push(6);
@@ -1411,6 +1448,7 @@ const tests = {
     }
     _init = __decoratorStart(null);
     __decorateElement(_init, 13, "foo", _foo_dec, Foo2);
+    __decoratorMetadata(_init, Foo2);
     __publicField(Foo2, "foo", __runInitializers(_init, 8, Foo2, 123)), __runInitializers(_init, 11, Foo2);
     log.push(5);
     assertEq(() => Foo2.foo, 5);
@@ -1438,6 +1476,7 @@ const tests = {
     _init = __decoratorStart(null);
     _foo = new WeakMap();
     __decorateElement(_init, 21, "#foo", _foo_dec, _foo);
+    __decoratorMetadata(_init, Foo2);
     get$foo = (x) => __privateGet(x, _foo);
     log.push(3);
     var obj = new Foo2();
@@ -1464,6 +1503,7 @@ const tests = {
     _init = __decoratorStart(null);
     _foo = new WeakMap();
     __decorateElement(_init, 29, "#foo", _foo_dec, _foo);
+    __decoratorMetadata(_init, Foo2);
     __privateAdd(Foo2, _foo, __runInitializers(_init, 8, Foo2, 123)), __runInitializers(_init, 11, Foo2);
     get$foo = (x) => __privateGet(x, _foo);
     log.push(5);
@@ -1484,6 +1524,7 @@ const tests = {
       }
       _init = __decoratorStart(null);
       __decorateElement(_init, 5, "foo", _foo_dec, Foo2);
+      __decoratorMetadata(_init, Foo2);
     }, TypeError);
   },
   "Field decorators: Return null (static field)": () => {
@@ -1497,6 +1538,7 @@ const tests = {
       }
       _init = __decoratorStart(null);
       __decorateElement(_init, 13, "foo", _foo_dec, Foo2);
+      __decoratorMetadata(_init, Foo2);
       __publicField(Foo2, "foo", __runInitializers(_init, 8, Foo2)), __runInitializers(_init, 11, Foo2);
     }, TypeError);
   },
@@ -1515,6 +1557,7 @@ const tests = {
       _init = __decoratorStart(null);
       _foo = new WeakMap();
       __decorateElement(_init, 21, "#foo", _foo_dec, _foo);
+      __decoratorMetadata(_init, Foo2);
     }, TypeError);
   },
   "Field decorators: Return null (private static field)": () => {
@@ -1529,6 +1572,7 @@ const tests = {
       _init = __decoratorStart(null);
       _foo = new WeakMap();
       __decorateElement(_init, 29, "#foo", _foo_dec, _foo);
+      __decoratorMetadata(_init, Foo2);
       __privateAdd(Foo2, _foo, __runInitializers(_init, 8, Foo2)), __runInitializers(_init, 11, Foo2);
     }, TypeError);
   },
@@ -1546,6 +1590,7 @@ const tests = {
       }
       _init = __decoratorStart(null);
       __decorateElement(_init, 5, "foo", _foo_dec, Foo2);
+      __decoratorMetadata(_init, Foo2);
     }, TypeError);
   },
   "Field decorators: Return object (static field)": () => {
@@ -1559,6 +1604,7 @@ const tests = {
       }
       _init = __decoratorStart(null);
       __decorateElement(_init, 13, "foo", _foo_dec, Foo2);
+      __decoratorMetadata(_init, Foo2);
       __publicField(Foo2, "foo", __runInitializers(_init, 8, Foo2)), __runInitializers(_init, 11, Foo2);
     }, TypeError);
   },
@@ -1577,6 +1623,7 @@ const tests = {
       _init = __decoratorStart(null);
       _foo = new WeakMap();
       __decorateElement(_init, 21, "#foo", _foo_dec, _foo);
+      __decoratorMetadata(_init, Foo2);
     }, TypeError);
   },
   "Field decorators: Return object (private static field)": () => {
@@ -1591,6 +1638,7 @@ const tests = {
       _init = __decoratorStart(null);
       _foo = new WeakMap();
       __decorateElement(_init, 29, "#foo", _foo_dec, _foo);
+      __decoratorMetadata(_init, Foo2);
       __privateAdd(Foo2, _foo, __runInitializers(_init, 8, Foo2)), __runInitializers(_init, 11, Foo2);
     }, TypeError);
   },
@@ -1615,6 +1663,7 @@ const tests = {
     }
     _init = __decoratorStart(null);
     __decorateElement(_init, 5, "foo", _foo_dec, Foo2);
+    __decoratorMetadata(_init, Foo2);
     assertEq(() => got, void 0);
     const instance = new Foo2();
     assertEq(() => got.this, instance);
@@ -1638,6 +1687,7 @@ const tests = {
     }
     _init = __decoratorStart(null);
     __decorateElement(_init, 13, "foo", _foo_dec, Foo2);
+    __decoratorMetadata(_init, Foo2);
     __publicField(Foo2, "foo", __runInitializers(_init, 8, Foo2)), __runInitializers(_init, 11, Foo2);
     assertEq(() => got.this, Foo2);
     assertEq(() => got.args.length, 0);
@@ -1664,6 +1714,7 @@ const tests = {
     _init = __decoratorStart(null);
     _foo = new WeakMap();
     __decorateElement(_init, 21, "#foo", _foo_dec, _foo);
+    __decoratorMetadata(_init, Foo2);
     assertEq(() => got, void 0);
     const instance = new Foo2();
     assertEq(() => got.this, instance);
@@ -1688,6 +1739,7 @@ const tests = {
     _init = __decoratorStart(null);
     _foo = new WeakMap();
     __decorateElement(_init, 29, "#foo", _foo_dec, _foo);
+    __decoratorMetadata(_init, Foo2);
     __privateAdd(Foo2, _foo, __runInitializers(_init, 8, Foo2)), __runInitializers(_init, 11, Foo2);
     assertEq(() => got.this, Foo2);
     assertEq(() => got.args.length, 0);
@@ -1728,6 +1780,7 @@ const tests = {
     __decorateElement(_init, 2, "foo", _foo_dec, Foo2);
     __decorateElement(_init, 2, _b, _bar_dec, Foo2);
     __decorateElement(_init, 2, _a, _baz_dec, Foo2);
+    __decoratorMetadata(_init, Foo2);
     assertEq(() => new Foo2().foo, 123);
     assertEq(() => new Foo2()[bar], 123);
     assertEq(() => new Foo2()[baz], 123);
@@ -1763,6 +1816,7 @@ const tests = {
     __decorateElement(_init, 10, "foo", _foo_dec, Foo2);
     __decorateElement(_init, 10, _b, _bar_dec, Foo2);
     __decorateElement(_init, 10, _a, _baz_dec, Foo2);
+    __decoratorMetadata(_init, Foo2);
     __runInitializers(_init, 3, Foo2);
     __publicField(Foo2, "bar", 123);
     assertEq(() => Foo2.foo, 123);
@@ -1802,6 +1856,7 @@ const tests = {
       return __privateGet(this, _bar);
     };
     foo_get = __decorateElement(_init, 18, "#foo", _foo_dec, _Foo_instances, foo_get);
+    __decoratorMetadata(_init, Foo2);
     get$foo = (x) => __privateGet(x, _Foo_instances, foo_get);
     assertEq(() => get$foo(new Foo2()), 123);
     lateAsserts();
@@ -1835,6 +1890,7 @@ const tests = {
     };
     foo_get = __decorateElement(_init, 26, "#foo", _foo_dec, _Foo_static, foo_get);
     __privateAdd(Foo2, _Foo_static);
+    __decoratorMetadata(_init, Foo2);
     __runInitializers(_init, 3, Foo2);
     __privateAdd(Foo2, _bar, 123);
     get$foo = (x) => __privateGet(x, _Foo_static, foo_get);
@@ -1862,6 +1918,7 @@ const tests = {
     }
     _init = __decoratorStart(null);
     __decorateElement(_init, 2, "foo", _foo_dec, Foo2);
+    __decoratorMetadata(_init, Foo2);
     assertEq(() => Object.getOwnPropertyDescriptor(Foo2.prototype, "foo").get, bar);
     assertEq(() => new Foo2().foo, 124);
   },
@@ -1882,6 +1939,7 @@ const tests = {
     }
     _init = __decoratorStart(null);
     __decorateElement(_init, 10, "foo", _foo_dec, Foo2);
+    __decoratorMetadata(_init, Foo2);
     __runInitializers(_init, 3, Foo2);
     __publicField(Foo2, "bar", 123);
     assertEq(() => Object.getOwnPropertyDescriptor(Foo2, "foo").get, bar);
@@ -1912,6 +1970,7 @@ const tests = {
       return __privateGet(this, _bar);
     };
     foo_get = __decorateElement(_init, 18, "#foo", _foo_dec, _Foo_instances, foo_get);
+    __decoratorMetadata(_init, Foo2);
     get$foo = (x) => __privateGet(x, _Foo_instances, foo_get);
     assertEq(() => get$foo(new Foo2()), 124);
   },
@@ -1936,6 +1995,7 @@ const tests = {
     };
     foo_get = __decorateElement(_init, 26, "#foo", _foo_dec, _Foo_static, foo_get);
     __privateAdd(Foo2, _Foo_static);
+    __decoratorMetadata(_init, Foo2);
     __runInitializers(_init, 3, Foo2);
     __privateAdd(Foo2, _bar, 123);
     get$foo = (x) => __privateGet(x, _Foo_static, foo_get);
@@ -1974,6 +2034,7 @@ const tests = {
     }
     _init = __decoratorStart(null);
     __decorateElement(_init, 2, "foo", _foo_dec, Foo2);
+    __decoratorMetadata(_init, Foo2);
     log.push(3);
     new Foo2().foo;
     log.push(7);
@@ -2010,6 +2071,7 @@ const tests = {
     }
     _init = __decoratorStart(null);
     __decorateElement(_init, 10, "foo", _foo_dec, Foo2);
+    __decoratorMetadata(_init, Foo2);
     __runInitializers(_init, 3, Foo2);
     log.push(3);
     Foo2.foo;
@@ -2053,6 +2115,7 @@ const tests = {
       return log.push(6);
     };
     foo_get = __decorateElement(_init, 18, "#foo", _foo_dec, _Foo_instances, foo_get);
+    __decoratorMetadata(_init, Foo2);
     get$foo = (x) => __privateGet(x, _Foo_instances, foo_get);
     log.push(3);
     assertEq(() => get$foo(new Foo2()), 7);
@@ -2092,6 +2155,7 @@ const tests = {
     };
     foo_get = __decorateElement(_init, 26, "#foo", _foo_dec, _Foo_static, foo_get);
     __privateAdd(Foo2, _Foo_static);
+    __decoratorMetadata(_init, Foo2);
     __runInitializers(_init, 3, Foo2);
     get$foo = (x) => __privateGet(x, _Foo_static, foo_get);
     log.push(3);
@@ -2116,6 +2180,7 @@ const tests = {
       }
       _init = __decoratorStart(null);
       __decorateElement(_init, 2, "foo", _foo_dec, Foo2);
+      __decoratorMetadata(_init, Foo2);
     }, TypeError);
   },
   "Getter decorators: Return null (static getter)": () => {
@@ -2132,6 +2197,7 @@ const tests = {
       }
       _init = __decoratorStart(null);
       __decorateElement(_init, 10, "foo", _foo_dec, Foo2);
+      __decoratorMetadata(_init, Foo2);
       __runInitializers(_init, 3, Foo2);
     }, TypeError);
   },
@@ -2154,6 +2220,7 @@ const tests = {
         return;
       };
       foo_get = __decorateElement(_init, 18, "#foo", _foo_dec, _Foo_instances, foo_get);
+      __decoratorMetadata(_init, Foo2);
     }, TypeError);
   },
   "Getter decorators: Return null (private static getter)": () => {
@@ -2172,6 +2239,7 @@ const tests = {
       };
       foo_get = __decorateElement(_init, 26, "#foo", _foo_dec, _Foo_static, foo_get);
       __privateAdd(Foo2, _Foo_static);
+      __decoratorMetadata(_init, Foo2);
       __runInitializers(_init, 3, Foo2);
     }, TypeError);
   },
@@ -2192,6 +2260,7 @@ const tests = {
       }
       _init = __decoratorStart(null);
       __decorateElement(_init, 2, "foo", _foo_dec, Foo2);
+      __decoratorMetadata(_init, Foo2);
     }, TypeError);
   },
   "Getter decorators: Return object (static getter)": () => {
@@ -2208,6 +2277,7 @@ const tests = {
       }
       _init = __decoratorStart(null);
       __decorateElement(_init, 10, "foo", _foo_dec, Foo2);
+      __decoratorMetadata(_init, Foo2);
       __runInitializers(_init, 3, Foo2);
     }, TypeError);
   },
@@ -2230,6 +2300,7 @@ const tests = {
         return;
       };
       foo_get = __decorateElement(_init, 18, "#foo", _foo_dec, _Foo_instances, foo_get);
+      __decoratorMetadata(_init, Foo2);
     }, TypeError);
   },
   "Getter decorators: Return object (private static getter)": () => {
@@ -2248,6 +2319,7 @@ const tests = {
       };
       foo_get = __decorateElement(_init, 26, "#foo", _foo_dec, _Foo_static, foo_get);
       __privateAdd(Foo2, _Foo_static);
+      __decoratorMetadata(_init, Foo2);
       __runInitializers(_init, 3, Foo2);
     }, TypeError);
   },
@@ -2275,6 +2347,7 @@ const tests = {
     }
     _init = __decoratorStart(null);
     __decorateElement(_init, 2, "foo", _foo_dec, Foo2);
+    __decoratorMetadata(_init, Foo2);
     assertEq(() => got, void 0);
     const instance = new Foo2();
     assertEq(() => got.this, instance);
@@ -2301,6 +2374,7 @@ const tests = {
     }
     _init = __decoratorStart(null);
     __decorateElement(_init, 10, "foo", _foo_dec, Foo2);
+    __decoratorMetadata(_init, Foo2);
     __runInitializers(_init, 3, Foo2);
     assertEq(() => got.this, Foo2);
     assertEq(() => got.args.length, 0);
@@ -2331,6 +2405,7 @@ const tests = {
       return;
     };
     foo_get = __decorateElement(_init, 18, "#foo", _foo_dec, _Foo_instances, foo_get);
+    __decoratorMetadata(_init, Foo2);
     assertEq(() => got, void 0);
     const instance = new Foo2();
     assertEq(() => got.this, instance);
@@ -2359,6 +2434,7 @@ const tests = {
     };
     foo_get = __decorateElement(_init, 26, "#foo", _foo_dec, _Foo_static, foo_get);
     __privateAdd(Foo2, _Foo_static);
+    __decoratorMetadata(_init, Foo2);
     __runInitializers(_init, 3, Foo2);
     assertEq(() => got.this, Foo2);
     assertEq(() => got.args.length, 0);
@@ -2402,6 +2478,7 @@ const tests = {
     __decorateElement(_init, 3, "foo", _foo_dec, Foo2);
     __decorateElement(_init, 3, _b, _bar_dec, Foo2);
     __decorateElement(_init, 3, _a, _baz_dec, Foo2);
+    __decoratorMetadata(_init, Foo2);
     var obj = new Foo2();
     obj.foo = 321;
     assertEq(() => obj.bar, 321);
@@ -2444,6 +2521,7 @@ const tests = {
     __decorateElement(_init, 11, "foo", _foo_dec, Foo2);
     __decorateElement(_init, 11, _b, _bar_dec, Foo2);
     __decorateElement(_init, 11, _a, _baz_dec, Foo2);
+    __decoratorMetadata(_init, Foo2);
     __runInitializers(_init, 3, Foo2);
     __publicField(Foo2, "bar", 0);
     Foo2.foo = 321;
@@ -2489,6 +2567,7 @@ const tests = {
       this.bar = x;
     };
     foo_set = __decorateElement(_init, 19, "#foo", _foo_dec, _Foo_instances, foo_set);
+    __decoratorMetadata(_init, Foo2);
     set$foo = (x, y) => {
       __privateSet(x, _Foo_instances, y, foo_set);
     };
@@ -2528,6 +2607,7 @@ const tests = {
     };
     foo_set = __decorateElement(_init, 27, "#foo", _foo_dec, _Foo_static, foo_set);
     __privateAdd(Foo2, _Foo_static);
+    __decoratorMetadata(_init, Foo2);
     __runInitializers(_init, 3, Foo2);
     __publicField(Foo2, "bar", 0);
     set$foo = (x, y) => {
@@ -2558,6 +2638,7 @@ const tests = {
     }
     _init = __decoratorStart(null);
     __decorateElement(_init, 3, "foo", _foo_dec, Foo2);
+    __decoratorMetadata(_init, Foo2);
     assertEq(() => Object.getOwnPropertyDescriptor(Foo2.prototype, "foo").set, bar);
     var obj = new Foo2();
     obj.foo = 321;
@@ -2580,6 +2661,7 @@ const tests = {
     }
     _init = __decoratorStart(null);
     __decorateElement(_init, 11, "foo", _foo_dec, Foo2);
+    __decoratorMetadata(_init, Foo2);
     __runInitializers(_init, 3, Foo2);
     __publicField(Foo2, "bar", 123);
     assertEq(() => Object.getOwnPropertyDescriptor(Foo2, "foo").set, bar);
@@ -2610,6 +2692,7 @@ const tests = {
       this.bar = x;
     };
     foo_set = __decorateElement(_init, 19, "#foo", _foo_dec, _Foo_instances, foo_set);
+    __decoratorMetadata(_init, Foo2);
     set$foo = (x, y) => {
       __privateSet(x, _Foo_instances, y, foo_set);
     };
@@ -2637,6 +2720,7 @@ const tests = {
     };
     foo_set = __decorateElement(_init, 27, "#foo", _foo_dec, _Foo_static, foo_set);
     __privateAdd(Foo2, _Foo_static);
+    __decoratorMetadata(_init, Foo2);
     __runInitializers(_init, 3, Foo2);
     __publicField(Foo2, "bar", 123);
     set$foo = (x, y) => {
@@ -2678,6 +2762,7 @@ const tests = {
     }
     _init = __decoratorStart(null);
     __decorateElement(_init, 3, "foo", _foo_dec, Foo2);
+    __decoratorMetadata(_init, Foo2);
     log.push(3);
     new Foo2().foo = 123;
     log.push(7);
@@ -2714,6 +2799,7 @@ const tests = {
     }
     _init = __decoratorStart(null);
     __decorateElement(_init, 11, "foo", _foo_dec, Foo2);
+    __decoratorMetadata(_init, Foo2);
     __runInitializers(_init, 3, Foo2);
     log.push(3);
     Foo2.foo = 123;
@@ -2757,6 +2843,7 @@ const tests = {
       log.push(6);
     };
     foo_set = __decorateElement(_init, 19, "#foo", _foo_dec, _Foo_instances, foo_set);
+    __decoratorMetadata(_init, Foo2);
     set$foo = (x, y) => {
       __privateSet(x, _Foo_instances, y, foo_set);
     };
@@ -2798,6 +2885,7 @@ const tests = {
     };
     foo_set = __decorateElement(_init, 27, "#foo", _foo_dec, _Foo_static, foo_set);
     __privateAdd(Foo2, _Foo_static);
+    __decoratorMetadata(_init, Foo2);
     __runInitializers(_init, 3, Foo2);
     set$foo = (x, y) => {
       __privateSet(x, _Foo_static, y, foo_set);
@@ -2823,6 +2911,7 @@ const tests = {
       }
       _init = __decoratorStart(null);
       __decorateElement(_init, 3, "foo", _foo_dec, Foo2);
+      __decoratorMetadata(_init, Foo2);
     }, TypeError);
   },
   "Setter decorators: Return null (static setter)": () => {
@@ -2838,6 +2927,7 @@ const tests = {
       }
       _init = __decoratorStart(null);
       __decorateElement(_init, 11, "foo", _foo_dec, Foo2);
+      __decoratorMetadata(_init, Foo2);
       __runInitializers(_init, 3, Foo2);
     }, TypeError);
   },
@@ -2859,6 +2949,7 @@ const tests = {
       foo_set = function(x) {
       };
       foo_set = __decorateElement(_init, 19, "#foo", _foo_dec, _Foo_instances, foo_set);
+      __decoratorMetadata(_init, Foo2);
     }, TypeError);
   },
   "Setter decorators: Return null (private static setter)": () => {
@@ -2876,6 +2967,7 @@ const tests = {
       };
       foo_set = __decorateElement(_init, 27, "#foo", _foo_dec, _Foo_static, foo_set);
       __privateAdd(Foo2, _Foo_static);
+      __decoratorMetadata(_init, Foo2);
       __runInitializers(_init, 3, Foo2);
     }, TypeError);
   },
@@ -2895,6 +2987,7 @@ const tests = {
       }
       _init = __decoratorStart(null);
       __decorateElement(_init, 3, "foo", _foo_dec, Foo2);
+      __decoratorMetadata(_init, Foo2);
     }, TypeError);
   },
   "Setter decorators: Return object (static setter)": () => {
@@ -2910,6 +3003,7 @@ const tests = {
       }
       _init = __decoratorStart(null);
       __decorateElement(_init, 11, "foo", _foo_dec, Foo2);
+      __decoratorMetadata(_init, Foo2);
       __runInitializers(_init, 3, Foo2);
     }, TypeError);
   },
@@ -2931,6 +3025,7 @@ const tests = {
       foo_set = function(x) {
       };
       foo_set = __decorateElement(_init, 19, "#foo", _foo_dec, _Foo_instances, foo_set);
+      __decoratorMetadata(_init, Foo2);
     }, TypeError);
   },
   "Setter decorators: Return object (private static setter)": () => {
@@ -2948,6 +3043,7 @@ const tests = {
       };
       foo_set = __decorateElement(_init, 27, "#foo", _foo_dec, _Foo_static, foo_set);
       __privateAdd(Foo2, _Foo_static);
+      __decoratorMetadata(_init, Foo2);
       __runInitializers(_init, 3, Foo2);
     }, TypeError);
   },
@@ -2974,6 +3070,7 @@ const tests = {
     }
     _init = __decoratorStart(null);
     __decorateElement(_init, 3, "foo", _foo_dec, Foo2);
+    __decoratorMetadata(_init, Foo2);
     assertEq(() => got, void 0);
     const instance = new Foo2();
     assertEq(() => got.this, instance);
@@ -2999,6 +3096,7 @@ const tests = {
     }
     _init = __decoratorStart(null);
     __decorateElement(_init, 11, "foo", _foo_dec, Foo2);
+    __decoratorMetadata(_init, Foo2);
     __runInitializers(_init, 3, Foo2);
     assertEq(() => got.this, Foo2);
     assertEq(() => got.args.length, 0);
@@ -3028,6 +3126,7 @@ const tests = {
     foo_set = function(x) {
     };
     foo_set = __decorateElement(_init, 19, "#foo", _foo_dec, _Foo_instances, foo_set);
+    __decoratorMetadata(_init, Foo2);
     assertEq(() => got, void 0);
     const instance = new Foo2();
     assertEq(() => got.this, instance);
@@ -3055,6 +3154,7 @@ const tests = {
     };
     foo_set = __decorateElement(_init, 27, "#foo", _foo_dec, _Foo_static, foo_set);
     __privateAdd(Foo2, _Foo_static);
+    __decoratorMetadata(_init, Foo2);
     __runInitializers(_init, 3, Foo2);
     assertEq(() => got.this, Foo2);
     assertEq(() => got.args.length, 0);
@@ -3097,6 +3197,7 @@ const tests = {
     __decorateElement(_init, 4, "foo", _foo_dec, Foo2, _foo);
     __decorateElement(_init, 4, _b, _bar_dec, Foo2, __b);
     __decorateElement(_init, 4, _a, _baz_dec, Foo2, __a);
+    __decoratorMetadata(_init, Foo2);
     var obj = new Foo2();
     obj.foo = 321;
     assertEq(() => obj.foo, 321);
@@ -3137,6 +3238,7 @@ const tests = {
     __decorateElement(_init, 12, "foo", _foo_dec, Foo2, _foo);
     __decorateElement(_init, 12, _b, _bar_dec, Foo2, __b);
     __decorateElement(_init, 12, _a, _baz_dec, Foo2, __a);
+    __decoratorMetadata(_init, Foo2);
     __privateAdd(Foo2, _foo, __runInitializers(_init, 8, Foo2, 0)), __runInitializers(_init, 11, Foo2);
     __privateAdd(Foo2, __b, __runInitializers(_init, 12, Foo2, 0)), __runInitializers(_init, 15, Foo2);
     __privateAdd(Foo2, __a, __runInitializers(_init, 16, Foo2, 0)), __runInitializers(_init, 19, Foo2);
@@ -3183,6 +3285,7 @@ const tests = {
     _foo = new WeakMap();
     _Foo_instances = new WeakSet();
     _a = __decorateElement(_init, 20, "#foo", _foo_dec, _Foo_instances, _foo), foo_get = _a.get, foo_set = _a.set;
+    __decoratorMetadata(_init, Foo2);
     get$foo = (x) => __privateGet(x, _Foo_instances, foo_get);
     set$foo = (x, y) => {
       __privateSet(x, _Foo_instances, y, foo_set);
@@ -3224,6 +3327,7 @@ const tests = {
     _Foo_static = new WeakSet();
     _a = __decorateElement(_init, 28, "#foo", _foo_dec, _Foo_static, _foo), foo_get = _a.get, foo_set = _a.set;
     __privateAdd(Foo2, _Foo_static);
+    __decoratorMetadata(_init, Foo2);
     __privateAdd(Foo2, _foo, __runInitializers(_init, 8, Foo2, 0)), __runInitializers(_init, 11, Foo2);
     get$foo = (x) => __privateGet(x, _Foo_static, foo_get);
     set$foo = (x, y) => {
@@ -3259,6 +3363,7 @@ const tests = {
     _init = __decoratorStart(null);
     _foo = new WeakMap();
     __decorateElement(_init, 4, "foo", _foo_dec, Foo2, _foo);
+    __decoratorMetadata(_init, Foo2);
     assertEq(() => Object.getOwnPropertyDescriptor(Foo2.prototype, "foo").get, get);
     assertEq(() => Object.getOwnPropertyDescriptor(Foo2.prototype, "foo").set, set);
     var obj = new Foo2();
@@ -3290,6 +3395,7 @@ const tests = {
     _init = __decoratorStart(null);
     _foo = new WeakMap();
     __decorateElement(_init, 12, "foo", _foo_dec, _Foo, _foo);
+    __decoratorMetadata(_init, _Foo);
     foo = _Foo;
     __privateAdd(_Foo, _foo, __runInitializers(_init, 8, _Foo, 123)), __runInitializers(_init, 11, _Foo);
     let Foo2 = _Foo;
@@ -3329,6 +3435,7 @@ const tests = {
     _foo = new WeakMap();
     _Foo_instances = new WeakSet();
     _a = __decorateElement(_init, 20, "#foo", _foo_dec, _Foo_instances, _foo), foo_get = _a.get, foo_set = _a.set;
+    __decoratorMetadata(_init, Foo2);
     get$foo = (x) => __privateGet(x, _Foo_instances, foo_get);
     set$foo = (x, y) => {
       __privateSet(x, _Foo_instances, y, foo_set);
@@ -3366,6 +3473,7 @@ const tests = {
     _Foo_static = new WeakSet();
     _a = __decorateElement(_init, 28, "#foo", _foo_dec, _Foo_static, _foo), foo_get = _a.get, foo_set = _a.set;
     __privateAdd(_Foo, _Foo_static);
+    __decoratorMetadata(_init, _Foo);
     foo = _Foo;
     get$foo = (x) => __privateGet(x, _Foo_static, foo_get);
     set$foo = (x, y) => {
@@ -3392,6 +3500,7 @@ const tests = {
       _init = __decoratorStart(null);
       _foo = new WeakMap();
       __decorateElement(_init, 4, "foo", _foo_dec, Foo2, _foo);
+      __decoratorMetadata(_init, Foo2);
     }, TypeError);
   },
   "Auto-accessor decorators: Return null (static auto-accessor)": () => {
@@ -3406,6 +3515,7 @@ const tests = {
       _init = __decoratorStart(null);
       _foo = new WeakMap();
       __decorateElement(_init, 12, "foo", _foo_dec, Foo2, _foo);
+      __decoratorMetadata(_init, Foo2);
       __privateAdd(Foo2, _foo, __runInitializers(_init, 8, Foo2)), __runInitializers(_init, 11, Foo2);
     }, TypeError);
   },
@@ -3426,6 +3536,7 @@ const tests = {
       _foo = new WeakMap();
       _Foo_instances = new WeakSet();
       _a = __decorateElement(_init, 20, "#foo", _foo_dec, _Foo_instances, _foo), foo_get = _a.get, foo_set = _a.set;
+      __decoratorMetadata(_init, Foo2);
     }, TypeError);
   },
   "Auto-accessor decorators: Return null (private static auto-accessor)": () => {
@@ -3442,6 +3553,7 @@ const tests = {
       _Foo_static = new WeakSet();
       _a = __decorateElement(_init, 28, "#foo", _foo_dec, _Foo_static, _foo), foo_get = _a.get, foo_set = _a.set;
       __privateAdd(Foo2, _Foo_static);
+      __decoratorMetadata(_init, Foo2);
       __privateAdd(Foo2, _foo, __runInitializers(_init, 8, Foo2)), __runInitializers(_init, 11, Foo2);
     }, TypeError);
   },
@@ -3467,6 +3579,7 @@ const tests = {
     _init = __decoratorStart(null);
     _foo = new WeakMap();
     __decorateElement(_init, 4, "foo", _foo_dec, Foo2, _foo);
+    __decoratorMetadata(_init, Foo2);
     assertEq(() => got, void 0);
     const instance = new Foo2();
     assertEq(() => got.this, instance);
@@ -3491,6 +3604,7 @@ const tests = {
     _init = __decoratorStart(null);
     _foo = new WeakMap();
     __decorateElement(_init, 12, "foo", _foo_dec, Foo2, _foo);
+    __decoratorMetadata(_init, Foo2);
     __privateAdd(Foo2, _foo, __runInitializers(_init, 8, Foo2)), __runInitializers(_init, 11, Foo2);
     assertEq(() => got.this, Foo2);
     assertEq(() => got.args.length, 0);
@@ -3519,6 +3633,7 @@ const tests = {
     _foo = new WeakMap();
     _Foo_instances = new WeakSet();
     _a = __decorateElement(_init, 20, "#foo", _foo_dec, _Foo_instances, _foo), foo_get = _a.get, foo_set = _a.set;
+    __decoratorMetadata(_init, Foo2);
     assertEq(() => got, void 0);
     const instance = new Foo2();
     assertEq(() => got.this, instance);
@@ -3545,6 +3660,7 @@ const tests = {
     _Foo_static = new WeakSet();
     _a = __decorateElement(_init, 28, "#foo", _foo_dec, _Foo_static, _foo), foo_get = _a.get, foo_set = _a.set;
     __privateAdd(Foo2, _Foo_static);
+    __decoratorMetadata(_init, Foo2);
     __privateAdd(Foo2, _foo, __runInitializers(_init, 8, Foo2)), __runInitializers(_init, 11, Foo2);
     assertEq(() => got.this, Foo2);
     assertEq(() => got.args.length, 0);
@@ -4153,7 +4269,7 @@ const tests = {
   },
   // Decorator metadata
   "Decorator metadata: class statement": () => {
-    var _staticSetter_dec, _staticGetter_dec, _staticMethod_dec, _staticAccessor_dec, _staticField_dec, _instanceSetter_dec, _instanceGetter_dec, _instanceMethod_dec, _instanceAccessor_dec, _instanceField_dec, _Foo_decorators, _init, _instanceAccessor, _staticAccessor, _staticSetter_dec2, _staticGetter_dec2, _staticMethod_dec2, _staticAccessor_dec2, _staticField_dec2, _instanceSetter_dec2, _instanceGetter_dec2, _instanceMethod_dec2, _instanceAccessor_dec2, _instanceField_dec2, _a, _Bar_decorators, _init2, _instanceField, _instanceAccessor2, _b, instanceAccessor_get, instanceAccessor_set, _Bar_instances, instanceMethod_fn, instanceGetter_get, instanceSetter_set, _staticField, _staticAccessor2, _c, staticAccessor_get, staticAccessor_set, _Bar_static, staticMethod_fn, staticGetter_get, staticSetter_set;
+    var _staticSetter_dec, _staticGetter_dec, _staticMethod_dec, _staticAccessor_dec, _staticField_dec, _instanceSetter_dec, _instanceGetter_dec, _instanceMethod_dec, _instanceAccessor_dec, _instanceField_dec, _Foo_decorators, _init, _instanceAccessor, _staticAccessor, _staticSetter_dec2, _staticGetter_dec2, _staticMethod_dec2, _staticAccessor_dec2, _staticField_dec2, _instanceSetter_dec2, _instanceGetter_dec2, _instanceMethod_dec2, _instanceAccessor_dec2, _instanceField_dec2, _a, _Bar_decorators, _init2, _instanceField, _instanceAccessor2, _b, instanceAccessor_get, instanceAccessor_set, _Bar_instances, instanceMethod_fn, instanceGetter_get, instanceSetter_set, _staticField, _staticAccessor2, _c, staticAccessor_get, staticAccessor_set, _Bar_static, staticMethod_fn, staticGetter_get, staticSetter_set, _x_dec, _init3, _y_dec, _d, _init4;
     let counter = 0;
     const dec = (_, ctx) => {
       ctx.metadata[ctx.name] = counter++;
@@ -4272,11 +4388,39 @@ const tests = {
     const foo = Foo2[Symbol.metadata];
     const bar = Bar[Symbol.metadata];
     assertEq(() => order(foo), "0,1,2,3,,,,,4,5,6,7,,,,,8,,9,,10,");
+    assertEq(() => Object.getPrototypeOf(foo), null);
     assertEq(() => order(bar), "0,1,2,3,11,12,13,14,4,5,6,7,15,16,17,18,8,19,9,20,10,21");
     assertEq(() => Object.getPrototypeOf(bar), foo);
+    class FooNoDec {
+    }
+    class BarNoDec extends FooNoDec {
+    }
+    assertEq(() => FooNoDec[Symbol.metadata], null);
+    assertEq(() => BarNoDec[Symbol.metadata], null);
+    _x_dec = [dec];
+    class FooOneDec {
+      constructor() {
+        __publicField(this, "x", __runInitializers(_init3, 8, this)), __runInitializers(_init3, 11, this);
+      }
+    }
+    _init3 = __decoratorStart(null);
+    __decorateElement(_init3, 5, "x", _x_dec, FooOneDec);
+    __decoratorMetadata(_init3, FooOneDec);
+    class BarOneDec extends (_d = FooOneDec, _y_dec = [dec], _d) {
+      constructor() {
+        super(...arguments);
+        __publicField(this, "y", __runInitializers(_init4, 8, this)), __runInitializers(_init4, 11, this);
+      }
+    }
+    _init4 = __decoratorStart(_d);
+    __decorateElement(_init4, 5, "y", _y_dec, BarOneDec);
+    __decoratorMetadata(_init4, BarOneDec);
+    assertEq(() => JSON.stringify(FooOneDec[Symbol.metadata]), JSON.stringify({ x: 22 }));
+    assertEq(() => JSON.stringify(BarOneDec[Symbol.metadata]), JSON.stringify({ y: 23 }));
+    assertEq(() => Object.getPrototypeOf(BarOneDec[Symbol.metadata]), FooOneDec[Symbol.metadata]);
   },
   "Decorator metadata: class expression": () => {
-    var _staticSetter_dec, _staticGetter_dec, _staticMethod_dec, _staticAccessor_dec, _staticField_dec, _instanceSetter_dec, _instanceGetter_dec, _instanceMethod_dec, _instanceAccessor_dec, _instanceField_dec, _Foo_decorators, _init, _a, _instanceAccessor, _staticAccessor, _staticSetter_dec2, _staticGetter_dec2, _staticMethod_dec2, _staticAccessor_dec2, _staticField_dec2, _instanceSetter_dec2, _instanceGetter_dec2, _instanceMethod_dec2, _instanceAccessor_dec2, _instanceField_dec2, _b, _Bar_decorators, _init2, _instanceField, _instanceAccessor2, _c, instanceAccessor_get, instanceAccessor_set, _Bar_instances, instanceMethod_fn, instanceGetter_get, instanceSetter_set, _d, _staticField, _staticAccessor2, _e, staticAccessor_get, staticAccessor_set, _Bar_static, staticMethod_fn, staticGetter_get, staticSetter_set;
+    var _staticSetter_dec, _staticGetter_dec, _staticMethod_dec, _staticAccessor_dec, _staticField_dec, _instanceSetter_dec, _instanceGetter_dec, _instanceMethod_dec, _instanceAccessor_dec, _instanceField_dec, _Foo_decorators, _init, _a, _instanceAccessor, _staticAccessor, _staticSetter_dec2, _staticGetter_dec2, _staticMethod_dec2, _staticAccessor_dec2, _staticField_dec2, _instanceSetter_dec2, _instanceGetter_dec2, _instanceMethod_dec2, _instanceAccessor_dec2, _instanceField_dec2, _b, _Bar_decorators, _init2, _instanceField, _instanceAccessor2, _c, instanceAccessor_get, instanceAccessor_set, _Bar_instances, instanceMethod_fn, instanceGetter_get, instanceSetter_set, _d, _staticField, _staticAccessor2, _e, staticAccessor_get, staticAccessor_set, _Bar_static, staticMethod_fn, staticGetter_get, staticSetter_set, _x_dec, _init3, _f, _y_dec, _g, _init4, _h;
     let counter = 0;
     const dec = (_, ctx) => {
       ctx.metadata[ctx.name] = counter++;
@@ -4345,8 +4489,29 @@ const tests = {
     const foo = Foo2[Symbol.metadata];
     const bar = Bar[Symbol.metadata];
     assertEq(() => order(foo), "0,1,2,3,,,,,4,5,6,7,,,,,8,,9,,10,");
+    assertEq(() => Object.getPrototypeOf(foo), null);
     assertEq(() => order(bar), "0,1,2,3,11,12,13,14,4,5,6,7,15,16,17,18,8,19,9,20,10,21");
     assertEq(() => Object.getPrototypeOf(bar), foo);
+    const FooNoDec = class {
+    };
+    const BarNoDec = class extends FooNoDec {
+    };
+    assertEq(() => FooNoDec[Symbol.metadata], null);
+    assertEq(() => BarNoDec[Symbol.metadata], null);
+    const FooOneDec = (_x_dec = [dec], _f = class {
+      constructor() {
+        __publicField(this, "x", __runInitializers(_init3, 8, this)), __runInitializers(_init3, 11, this);
+      }
+    }, _init3 = __decoratorStart(null), __decorateElement(_init3, 5, "x", _x_dec, _f), __decoratorMetadata(_init3, _f), _f);
+    const BarOneDec = (_h = class extends (_g = FooOneDec, _y_dec = [dec], _g) {
+      constructor() {
+        super(...arguments);
+        __publicField(this, "y", __runInitializers(_init4, 8, this)), __runInitializers(_init4, 11, this);
+      }
+    }, _init4 = __decoratorStart(_g), __decorateElement(_init4, 5, "y", _y_dec, _h), __decoratorMetadata(_init4, _h), _h);
+    assertEq(() => JSON.stringify(FooOneDec[Symbol.metadata]), JSON.stringify({ x: 22 }));
+    assertEq(() => JSON.stringify(BarOneDec[Symbol.metadata]), JSON.stringify({ y: 23 }));
+    assertEq(() => Object.getPrototypeOf(BarOneDec[Symbol.metadata]), FooOneDec[Symbol.metadata]);
   },
   // Initializer order
   "Initializer order (public members, class statement)": () => {
@@ -5152,7 +5317,11 @@ const tests = {
 function prettyPrint(x) {
   if (x && x.prototype && x.prototype.constructor === x) return "class";
   if (typeof x === "string") return JSON.stringify(x);
-  return x;
+  try {
+    return x + "";
+  } catch {
+    return "typeof " + typeof x;
+  }
 }
 function assertEq(callback, expected) {
   let details;

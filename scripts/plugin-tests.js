@@ -2148,6 +2148,25 @@ let pluginTests = {
     assert.deepStrictEqual({ ...esbuildFromBuild }, { ...esbuild })
   },
 
+  async onResolveSuffixWithoutPath({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    await writeFileAsync(input, `works()`)
+    const result = await esbuild.build({
+      entryPoints: [input],
+      logLevel: 'silent',
+      write: false,
+      plugins: [{
+        name: 'the-plugin',
+        setup(build) {
+          build.onResolve({ filter: /.*/ }, () => ({ suffix: '?just suffix without path' }))
+        },
+      }],
+    })
+    assert.strictEqual(result.warnings.length, 1)
+    assert.strictEqual(result.warnings[0].text, `Returning "suffix" doesn't do anything when "path" is empty`)
+    assert.strictEqual(result.warnings[0].pluginName, 'the-plugin')
+  },
+
   async onResolveInvalidPathSuffix({ esbuild }) {
     try {
       await esbuild.build({
@@ -2562,8 +2581,42 @@ console.log(foo_default, foo_default2);
 `)
   },
 
+  async importAttributesOnLoadGlob({ esbuild, testDir }) {
+    const entry = path.join(testDir, 'entry.js')
+    const foo = path.join(testDir, 'foo.js')
+    await writeFileAsync(entry, `
+      Promise.all([
+        import('./foo' + js, { with: { type: 'cheese' } }),
+        import('./foo' + js, { with: { pizza: 'true' } }),
+      ]).then(resolve)
+    `)
+    await writeFileAsync(foo, `export default 123`)
+    const result = await esbuild.build({
+      entryPoints: [entry],
+      bundle: true,
+      format: 'esm',
+      charset: 'utf8',
+      write: false,
+      plugins: [{
+        name: 'name',
+        setup(build) {
+          build.onLoad({ filter: /.*/ }, args => {
+            if (args.with.type === 'cheese') return { contents: `export default "🧀"` }
+            if (args.with.pizza === 'true') return { contents: `export default "🍕"` }
+          })
+        },
+      }],
+    })
+    const callback = new Function('js', 'resolve', result.outputFiles[0].text)
+    const [cheese, pizza] = await new Promise(resolve => callback('.js', resolve))
+    assert.strictEqual(cheese.default, '🧀')
+    assert.strictEqual(pizza.default, '🍕')
+  },
+
   async importAttributesResolve({ esbuild }) {
-    const log = []
+    const onResolve = []
+    const resolve = []
+
     await esbuild.build({
       entryPoints: [],
       bundle: true,
@@ -2574,25 +2627,34 @@ console.log(foo_default, foo_default2);
         name: 'name',
         setup(build) {
           build.onResolve({ filter: /.*/ }, args => {
-            log.push(args)
+            onResolve.push(args)
             return { external: true }
           })
-          build.onStart(() => {
-            build.resolve('foo', {
+          build.onStart(async () => {
+            resolve.push(await build.resolve('foo', {
               kind: 'require-call',
               with: { type: 'cheese' },
-            })
-            build.resolve('bar', {
+            }))
+            resolve.push(await build.resolve('bar', {
               kind: 'import-statement',
               with: { pizza: 'true' },
-            })
+            }))
           })
         },
       }],
     })
-    assert.strictEqual(log.length, 2)
-    assert.strictEqual(log[0].with.type, 'cheese')
-    assert.strictEqual(log[1].with.pizza, 'true')
+
+    assert.strictEqual(onResolve.length, 2)
+    assert.strictEqual(onResolve[0].path, 'foo')
+    assert.strictEqual(onResolve[0].with.type, 'cheese')
+    assert.strictEqual(onResolve[1].path, 'bar')
+    assert.strictEqual(onResolve[1].with.pizza, 'true')
+
+    assert.strictEqual(resolve.length, 2)
+    assert.strictEqual(resolve[0].path, 'foo')
+    assert.strictEqual(resolve[0].external, true)
+    assert.strictEqual(resolve[1].path, 'bar')
+    assert.strictEqual(resolve[1].external, true)
   },
 
   async internalCrashIssue3634({ esbuild }) {

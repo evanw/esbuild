@@ -191,8 +191,8 @@ var cssPrefixTable = map[css_ast.D][]prefixData{
 		{engine: Safari, prefix: WebkitPrefix, withoutPrefix: v{15, 4, 0}},
 	},
 	css_ast.DBackdropFilter: {
-		{engine: IOS, prefix: WebkitPrefix},
-		{engine: Safari, prefix: WebkitPrefix},
+		{engine: IOS, prefix: WebkitPrefix, withoutPrefix: v{18, 0, 0}},
+		{engine: Safari, prefix: WebkitPrefix, withoutPrefix: v{18, 0, 0}},
 	},
 	css_ast.DBackgroundClip: {
 		{engine: Chrome, prefix: WebkitPrefix, withoutPrefix: v{120, 0, 0}},

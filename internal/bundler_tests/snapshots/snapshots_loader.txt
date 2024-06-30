@@ -269,6 +269,18 @@ var data_default2 = { works: true };
 console.log(data_default === data_default, data_default !== data_default2);
 
 ================================================================================
+TestLoaderBundleWithUnknownImportAttributesAndCopyLoader
+---------- /foo-AKINYSFH.thing ----------
+...
+---------- /bar-AXZXSLHF.thing ----------
+,,,
+---------- /out.js ----------
+// entry.js
+import foo from "./foo-AKINYSFH.thing" with { type: "whatever" };
+import bar from "./bar-AXZXSLHF.thing" with { whatever: "true" };
+console.log(foo, bar);
+
+================================================================================
 TestLoaderCopyEntryPointAdvanced
 ---------- /out/xyz-DYPYXS7B.copy ----------
 more stuff
@@ -1023,3 +1035,26 @@ var foo_default = { "this is json not js": true };
 
 // entry.js
 console.log(foo_default);
+
+================================================================================
+TestWithTypeJSONOverrideLoaderGlob
+---------- entry.js ----------
+// foo.js
+var foo_exports = {};
+__export(foo_exports, {
+  default: () => foo_default
+});
+var foo_default;
+var init_foo = __esm({
+  "foo.js"() {
+    foo_default = { "this is json not js": true };
+  }
+});
+
+// import("./foo*") in entry.js
+var globImport_foo = __glob({
+  "./foo.js": () => Promise.resolve().then(() => (init_foo(), foo_exports))
+});
+
+// entry.js
+globImport_foo("./foo" + bar).then(console.log);

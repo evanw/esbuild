@@ -1,0 +1,10 @@
+{
+  "name": "@esbuild/wasi-preview1",
+  "version": "0.21.5",
+  "description": "The WASI (WebAssembly System Interface) preview 1 binary for esbuild, a JavaScript bundler.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/evanw/esbuild.git"
+  },
+  "license": "MIT"
+}

@@ -6824,7 +6824,7 @@ class Foo {
       check('es2021', `x2 = /y/d`, `x2 = new RegExp("y", "d");\n`),
 
       // RegExpSetNotation
-      check('esnext', `x1 = /[\\p{White_Space}&&\\p{ASCII}]/v`, `x1 = /[\\p{White_Space}&&\\p{ASCII}]/v;\n`),
+      check('es2024', `x1 = /[\\p{White_Space}&&\\p{ASCII}]/v`, `x1 = /[\\p{White_Space}&&\\p{ASCII}]/v;\n`),
       check('es2022', `x2 = /[\\p{White_Space}&&\\p{ASCII}]/v`, `x2 = new RegExp("[\\\\p{White_Space}&&\\\\p{ASCII}]", "v");\n`),
     ])
   },

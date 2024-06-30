@@ -1303,6 +1303,21 @@ func TestWithTypeJSONOverrideLoader(t *testing.T) {
 	})
 }
 
+func TestWithTypeJSONOverrideLoaderGlob(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import("./foo" + bar, { with: { type: 'json' } }).then(console.log)
+			`,
+			"/foo.js": `{ "this is json not js": true }`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode: config.ModeBundle,
+		},
+	})
+}
+
 func TestWithBadType(t *testing.T) {
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
@@ -1609,6 +1624,55 @@ func TestLoaderBundleWithImportAttributes(t *testing.T) {
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
 			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestLoaderBundleWithUnknownImportAttributesAndJSLoader(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import foo from "./foo.js" with { type: 'js' }
+				import bar from "./bar.js" with { js: 'true' }
+				import foo2 from "data:text/javascript,foo" with { type: 'js' }
+				import bar2 from "data:text/javascript,bar" with { js: 'true' }
+				console.log(foo, bar, foo2, bar2)
+			`,
+			"/foo.js": `...`,
+			"/bar.js": `,,,`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `entry.js: ERROR: Importing with a type attribute of "js" is not supported
+entry.js: ERROR: Importing with the "js" attribute is not supported
+entry.js: ERROR: Importing with a type attribute of "js" is not supported
+entry.js: ERROR: Importing with the "js" attribute is not supported
+`,
+	})
+}
+
+func TestLoaderBundleWithUnknownImportAttributesAndCopyLoader(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import foo from "./foo.thing" with { type: 'whatever' }
+				import bar from "./bar.thing" with { whatever: 'true' }
+				console.log(foo, bar)
+			`,
+			"/foo.thing": `...`,
+			"/bar.thing": `,,,`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode: config.ModeBundle,
+			ExtensionToLoader: map[string]config.Loader{
+				".js":    config.LoaderJS,
+				".thing": config.LoaderCopy,
+			},
 			AbsOutputFile: "/out.js",
 		},
 	})

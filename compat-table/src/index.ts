@@ -392,6 +392,9 @@ import('./kangax').then(kangax => {
   js.ArbitraryModuleNamespaceNames.ES = { 2022: { force: true } }
   js.RegexpMatchIndices.ES = { 2022: { force: true } }
 
+  // ES2024 features
+  js.RegexpSetNotation.ES = { 2024: { force: true } }
+
   // This is a problem specific to Internet Explorer. See https://github.com/tc39/ecma262/issues/1440
   for (const engine in engines) {
     if (engine as Engine !== 'ES' && engine as Engine !== 'IE') {
@@ -515,6 +518,9 @@ mergeSupportMaps(css, caniuse.css)
 mergeSupportMaps(css, mdn.css)
 mergePrefixMaps(cssPrefix, caniuse.cssPrefix)
 mergePrefixMaps(cssPrefix, mdn.cssPrefix)
+
+// MDN data is wrong here, Firefox 127 still has gradient interpolation rendering bugs: https://bugzilla.mozilla.org/show_bug.cgi?id=1904106
+css.GradientInterpolation.Firefox = {}
 
 const [cssVersionRanges] = supportMapToVersionRanges(css)
 generateTableForCSS(cssVersionRanges, cssPrefix)
