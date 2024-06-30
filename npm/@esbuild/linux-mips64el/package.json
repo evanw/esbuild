@@ -1,6 +1,6 @@
 {
   "name": "@esbuild/linux-mips64el",
-  "version": "0.21.5",
+  "version": "0.22.0",
   "description": "The Linux MIPS 64-bit Little Endian binary for esbuild, a JavaScript bundler.",
   "repository": {
     "type": "git",
