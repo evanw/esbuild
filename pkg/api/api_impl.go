@@ -1927,6 +1927,33 @@ func (impl *pluginImpl) onResolve(options OnResolveOptions, callback func(OnReso
 
 			// Convert log messages
 			result.Msgs = convertErrorsAndWarningsToInternal(response.Errors, response.Warnings)
+
+			// Warn if the plugin returned things without resolving the path
+			if response.Path == "" && !response.External {
+				var what string
+				if response.Namespace != "" {
+					what = "namespace"
+				} else if response.Suffix != "" {
+					what = "suffix"
+				} else if response.PluginData != nil {
+					what = "pluginData"
+				} else if response.WatchFiles != nil {
+					what = "watchFiles"
+				} else if response.WatchDirs != nil {
+					what = "watchDirs"
+				}
+				if what != "" {
+					path := "path"
+					if logger.API == logger.GoAPI {
+						what = strings.Title(what)
+						path = strings.Title(path)
+					}
+					result.Msgs = append(result.Msgs, logger.Msg{
+						Kind: logger.Warning,
+						Data: logger.MsgData{Text: fmt.Sprintf("Returning %q doesn't do anything when %q is empty", what, path)},
+					})
+				}
+			}
 			return
 		},
 	})

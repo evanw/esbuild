@@ -2148,6 +2148,25 @@ let pluginTests = {
     assert.deepStrictEqual({ ...esbuildFromBuild }, { ...esbuild })
   },
 
+  async onResolveSuffixWithoutPath({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    await writeFileAsync(input, `works()`)
+    const result = await esbuild.build({
+      entryPoints: [input],
+      logLevel: 'silent',
+      write: false,
+      plugins: [{
+        name: 'the-plugin',
+        setup(build) {
+          build.onResolve({ filter: /.*/ }, () => ({ suffix: '?just suffix without path' }))
+        },
+      }],
+    })
+    assert.strictEqual(result.warnings.length, 1)
+    assert.strictEqual(result.warnings[0].text, `Returning "suffix" doesn't do anything when "path" is empty`)
+    assert.strictEqual(result.warnings[0].pluginName, 'the-plugin')
+  },
+
   async onResolveInvalidPathSuffix({ esbuild }) {
     try {
       await esbuild.build({
