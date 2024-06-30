@@ -304,6 +304,7 @@ platform-all:
 		platform-linux-x64 \
 		platform-netbsd-x64 \
 		platform-neutral \
+		platform-openbsd-arm64 \
 		platform-openbsd-x64 \
 		platform-sunos-x64 \
 		platform-wasi-preview1 \
@@ -361,6 +362,9 @@ platform-freebsd-arm64:
 
 platform-netbsd-x64:
 	@$(MAKE) --no-print-directory GOOS=netbsd GOARCH=amd64 NPMDIR=npm/@esbuild/netbsd-x64 platform-unixlike
+
+platform-openbsd-arm64:
+	@$(MAKE) --no-print-directory GOOS=openbsd GOARCH=arm64 NPMDIR=npm/@esbuild/openbsd-arm64 platform-unixlike
 
 platform-openbsd-x64:
 	@$(MAKE) --no-print-directory GOOS=openbsd GOARCH=amd64 NPMDIR=npm/@esbuild/openbsd-x64 platform-unixlike
@@ -439,6 +443,7 @@ publish-all: check-go-version
 	@read OTP && OTP="$$OTP" $(MAKE) --no-print-directory -j4 \
 		publish-freebsd-x64 \
 		publish-freebsd-arm64 \
+		publish-openbsd-arm64 \
 		publish-openbsd-x64 \
 		publish-netbsd-x64
 
@@ -518,6 +523,9 @@ publish-freebsd-arm64: platform-freebsd-arm64
 
 publish-netbsd-x64: platform-netbsd-x64
 	test -n "$(OTP)" && cd npm/@esbuild/netbsd-x64 && npm publish --otp="$(OTP)"
+
+publish-openbsd-arm64: platform-openbsd-arm64
+	test -n "$(OTP)" && cd npm/@esbuild/openbsd-arm64 && npm publish --otp="$(OTP)"
 
 publish-openbsd-x64: platform-openbsd-x64
 	test -n "$(OTP)" && cd npm/@esbuild/openbsd-x64 && npm publish --otp="$(OTP)"
@@ -611,6 +619,7 @@ validate-builds:
 	@$(MAKE) --no-print-directory TARGET=platform-linux-s390x    SCOPE=@esbuild/ PACKAGE=linux-s390x     SUBPATH=bin/esbuild  validate-build
 	@$(MAKE) --no-print-directory TARGET=platform-linux-x64      SCOPE=@esbuild/ PACKAGE=linux-x64       SUBPATH=bin/esbuild  validate-build
 	@$(MAKE) --no-print-directory TARGET=platform-netbsd-x64     SCOPE=@esbuild/ PACKAGE=netbsd-x64      SUBPATH=bin/esbuild  validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-openbsd-arm64  SCOPE=@esbuild/ PACKAGE=openbsd-arm64   SUBPATH=bin/esbuild  validate-build
 	@$(MAKE) --no-print-directory TARGET=platform-openbsd-x64    SCOPE=@esbuild/ PACKAGE=openbsd-x64     SUBPATH=bin/esbuild  validate-build
 	@$(MAKE) --no-print-directory TARGET=platform-sunos-x64      SCOPE=@esbuild/ PACKAGE=sunos-x64       SUBPATH=bin/esbuild  validate-build
 	@$(MAKE) --no-print-directory TARGET=platform-wasi-preview1  SCOPE=@esbuild/ PACKAGE=wasi-preview1   SUBPATH=esbuild.wasm validate-build
@@ -646,6 +655,7 @@ clean:
 	rm -rf npm/@esbuild/linux-s390x/bin
 	rm -rf npm/@esbuild/linux-x64/bin
 	rm -rf npm/@esbuild/netbsd-x64/bin
+	rm -rf npm/@esbuild/openbsd-arm64/bin
 	rm -rf npm/@esbuild/openbsd-x64/bin
 	rm -rf npm/@esbuild/sunos-x64/bin
 	rm -rf npm/esbuild-wasm/esm
