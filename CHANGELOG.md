@@ -32,6 +32,14 @@
 
     The ECMAScript 2024 specification was just approved, so it has been added to esbuild as a possible compilation target. You can read more about the features that it adds here: [https://2ality.com/2024/06/ecmascript-2024.html](https://2ality.com/2024/06/ecmascript-2024.html). The only addition that's relevant for esbuild is the regular expression `/v` flag. With `--target=es2024`, regular expressions that use the `/v` flag will now be passed through untransformed instead of being transformed into a call to `new RegExp`.
 
+* Publish binaries for WASI (WebAssembly System Interface) preview 1 ([#3300](https://github.com/evanw/esbuild/issues/3300), [#3779](https://github.com/evanw/esbuild/pull/3779))
+
+    The upcoming WASI (WebAssembly System Interface) standard is going to be a way to run WebAssembly outside of a JavaScript host environment. In this scenario you only need a `.wasm` file without any supporting JavaScript code. Instead of JavaScript providing the APIs for the host environment, the WASI standard specifies a "system interface" that WebAssembly code can access directly (e.g. for file system access).
+
+    Development versions of the WASI specification are being released using preview numbers. The people behind WASI are currently working on preview 2 but the Go compiler has [released support for preview 1](https://go.dev/blog/wasi), which from what I understand is now considered an unsupported legacy release. However, some people have requested that esbuild publish binary executables that support WASI preview 1 so they can experiment with them.
+
+    This release publishes esbuild precompiled for WASI preview 1 to the `@esbuild/wasi-preview1` package on npm (specifically the file `@esbuild/wasi-preview1/esbuild.wasm`). This binary executable has not been tested and won't be officially supported, as it's for an old preview release of a specification that has since moved in another direction. If it works for you, great! If not, then you'll likely have to wait for the ecosystem to evolve before using esbuild with WASI. For example, it sounds like perhaps WASI preview 1 doesn't include support for opening network sockets so esbuild's local development server is unlikely to work with WASI preview 1.
+
 * Warn about `onResolve` plugins not setting a path ([#3790](https://github.com/evanw/esbuild/issues/3790))
 
     Plugins that return values from `onResolve` without resolving the path (i.e. without setting either `path` or `external: true`) will now cause a warning. This is because esbuild only uses return values from `onResolve` if it successfully resolves the path, and it's not good for invalid input to be silently ignored.
