@@ -392,6 +392,9 @@ import('./kangax').then(kangax => {
   js.ArbitraryModuleNamespaceNames.ES = { 2022: { force: true } }
   js.RegexpMatchIndices.ES = { 2022: { force: true } }
 
+  // ES2023 features
+  js.Hashbang.ES = { 2023: { force: true } }
+
   // ES2024 features
   js.RegexpSetNotation.ES = { 2024: { force: true } }
 
