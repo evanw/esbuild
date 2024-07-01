@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"encoding/base32"
 	"encoding/base64"
+	"encoding/binary"
 	"fmt"
 	"math/rand"
 	"net/http"
@@ -2589,6 +2590,8 @@ func (s *scanner) processScannedFiles(entryPointMeta []graph.EntryPoint) []scann
 				Ext:  &templateExt,
 			})) + ext
 
+			bytesHash := GenerateOutputFileHash(bytes)
+
 			// Optionally add metadata about the file
 			var jsonMetadataChunk string
 			if s.options.NeedsMetafile {
@@ -2597,9 +2600,10 @@ func (s *scanner) processScannedFiles(entryPointMeta []graph.EntryPoint) []scann
 					len(bytes),
 				)
 				jsonMetadataChunk = fmt.Sprintf(
-					"{\n      \"imports\": [],\n      \"exports\": [],\n      \"inputs\": %s,\n      \"bytes\": %d\n    }",
+					"{\n      \"imports\": [],\n      \"exports\": [],\n      \"inputs\": %s,\n      \"bytes\": %d,\n      \"hash\": \"%s\"\n    }",
 					inputs,
 					len(bytes),
+					bytesHash,
 				)
 			}
 
@@ -2607,6 +2611,7 @@ func (s *scanner) processScannedFiles(entryPointMeta []graph.EntryPoint) []scann
 			result.file.inputFile.AdditionalFiles = []graph.OutputFile{{
 				AbsPath:           s.fs.Join(s.options.AbsOutputDir, relPath),
 				Contents:          bytes,
+				Hash:              bytesHash,
 				JSONMetadataChunk: jsonMetadataChunk,
 			}}
 		}
@@ -3328,4 +3333,10 @@ func sanitizeFilePathForVirtualModulePath(path string) string {
 	// Note: An extension will be added to this base name, so there is no need to
 	// avoid forbidden file names such as ".." since ".js" is a valid file name.
 	return sb.String()
+}
+
+func GenerateOutputFileHash(bytes []byte) string {
+	var hashBytes [8]byte
+	binary.LittleEndian.PutUint64(hashBytes[:], xxhash.Sum64(bytes))
+	return base64.RawStdEncoding.EncodeToString(hashBytes[:])
 }
