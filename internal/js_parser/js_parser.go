@@ -5234,8 +5234,10 @@ func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
 		case js_lexer.TStringLiteral:
 			if p.options.jsx.Preserve {
 				nullableChildren = append(nullableChildren, js_ast.Expr{Loc: p.lexer.Loc(), Data: &js_ast.EJSXText{Raw: p.lexer.Raw()}})
+			} else if str := p.lexer.StringLiteral(); len(str) > 0 {
+				nullableChildren = append(nullableChildren, js_ast.Expr{Loc: p.lexer.Loc(), Data: &js_ast.EString{Value: str}})
 			} else {
-				nullableChildren = append(nullableChildren, js_ast.Expr{Loc: p.lexer.Loc(), Data: &js_ast.EString{Value: p.lexer.StringLiteral()}})
+				// Skip this token if it turned out to be empty after trimming
 			}
 			p.lexer.NextJSXElementChild()
 

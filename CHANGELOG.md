@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased
+
+* Fix preserving collapsed JSX whitespace ([#3818](https://github.com/evanw/esbuild/issues/3818))
+
+    When transformed, certain whitespace inside JSX elements is ignored completely if it collapses to an empty string. However, the whitespace should only be ignored if the JSX is being transformed, not if it's being preserved. This release fixes a bug where esbuild was previously incorrectly ignoring collapsed whitespace with `--jsx=preserve`. Here is an example:
+
+    ```jsx
+    // Original code
+    <Foo>
+      <Bar />
+    </Foo>
+
+    // Old output (with --jsx=preserve)
+    <Foo><Bar /></Foo>;
+
+    // New output (with --jsx=preserve)
+    <Foo>
+      <Bar />
+    </Foo>;
+    ```
+
 ## 0.22.0
 
 **This release deliberately contains backwards-incompatible changes.** To avoid automatically picking up releases like this, you should either be pinning the exact version of `esbuild` in your `package.json` file (recommended) or be using a version range syntax that only accepts patch upgrades such as `^0.21.0` or `~0.21.0`. See npm's documentation about [semver](https://docs.npmjs.com/cli/v6/using-npm/semver/) for more information.

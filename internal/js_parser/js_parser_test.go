@@ -160,9 +160,15 @@ func expectParseErrorJSX(t *testing.T, contents string, expected string) {
 	})
 }
 
-func expectPrintedJSX(t *testing.T, contents string, expected string) {
+func expectPrintedJSX(t *testing.T, contents string, expectedPreserve string, expectedTransform string) {
 	t.Helper()
-	expectPrintedCommon(t, contents, expected, config.Options{
+	expectPrintedCommon(t, contents, expectedPreserve, config.Options{
+		JSX: config.JSXOptions{
+			Parse:    true,
+			Preserve: true,
+		},
+	})
+	expectPrintedCommon(t, contents, expectedTransform, config.Options{
 		JSX: config.JSXOptions{
 			Parse: true,
 		},
@@ -4515,10 +4521,10 @@ func TestMangleObject(t *testing.T) {
 }
 
 func TestMangleObjectJSX(t *testing.T) {
-	expectPrintedJSX(t, "x = <foo bar {...{}} />", "x = /* @__PURE__ */ React.createElement(\"foo\", { bar: true, ...{} });\n")
-	expectPrintedJSX(t, "x = <foo bar {...null} />", "x = /* @__PURE__ */ React.createElement(\"foo\", { bar: true, ...null });\n")
-	expectPrintedJSX(t, "x = <foo bar {...{bar}} />", "x = /* @__PURE__ */ React.createElement(\"foo\", { bar: true, ...{ bar } });\n")
-	expectPrintedJSX(t, "x = <foo bar {...bar} />", "x = /* @__PURE__ */ React.createElement(\"foo\", { bar: true, ...bar });\n")
+	expectPrintedJSX(t, "x = <foo bar {...{}} />", "x = <foo bar {...{}} />;\n", "x = /* @__PURE__ */ React.createElement(\"foo\", { bar: true, ...{} });\n")
+	expectPrintedJSX(t, "x = <foo bar {...null} />", "x = <foo bar {...null} />;\n", "x = /* @__PURE__ */ React.createElement(\"foo\", { bar: true, ...null });\n")
+	expectPrintedJSX(t, "x = <foo bar {...{bar}} />", "x = <foo bar {...{ bar }} />;\n", "x = /* @__PURE__ */ React.createElement(\"foo\", { bar: true, ...{ bar } });\n")
+	expectPrintedJSX(t, "x = <foo bar {...bar} />", "x = <foo bar {...bar} />;\n", "x = /* @__PURE__ */ React.createElement(\"foo\", { bar: true, ...bar });\n")
 
 	expectPrintedMangleJSX(t, "x = <foo bar {...{}} />", "x = /* @__PURE__ */ React.createElement(\"foo\", { bar: true });\n")
 	expectPrintedMangleJSX(t, "x = <foo bar {...null} />", "x = /* @__PURE__ */ React.createElement(\"foo\", { bar: true });\n")
@@ -5430,19 +5436,19 @@ func TestUnicodeWhitespace(t *testing.T) {
 	// Test "js_lexer.NextInsideJSXElement()"
 	expectParseErrorJSX(t, "<x\u0008y/>", "<stdin>: ERROR: Expected \">\" but found \"\\b\"\n")
 	for _, s := range whitespace {
-		expectPrintedJSX(t, "<x"+s+"y/>", "/* @__PURE__ */ React.createElement(\"x\", { y: true });\n")
+		expectPrintedJSX(t, "<x"+s+"y/>", "<x y />;\n", "/* @__PURE__ */ React.createElement(\"x\", { y: true });\n")
 	}
 
 	// Test "js_lexer.NextJSXElementChild()"
-	expectPrintedJSX(t, "<x>\n\u0008\n</x>", "/* @__PURE__ */ React.createElement(\"x\", null, \"\\b\");\n")
+	expectPrintedJSX(t, "<x>\n\u0008\n</x>", "<x>\n\u0008\n</x>;\n", "/* @__PURE__ */ React.createElement(\"x\", null, \"\\b\");\n")
 	for _, s := range whitespace {
-		expectPrintedJSX(t, "<x>\n"+s+"\n</x>", "/* @__PURE__ */ React.createElement(\"x\", null);\n")
+		expectPrintedJSX(t, "<x>\n"+s+"\n</x>", "<x>\n"+s+"\n</x>;\n", "/* @__PURE__ */ React.createElement(\"x\", null);\n")
 	}
 
 	// Test "fixWhitespaceAndDecodeJSXEntities()"
-	expectPrintedJSX(t, "<x>\n\u0008&quot;\n</x>", "/* @__PURE__ */ React.createElement(\"x\", null, '\\b\"');\n")
+	expectPrintedJSX(t, "<x>\n\u0008&quot;\n</x>", "<x>\n\u0008&quot;\n</x>;\n", "/* @__PURE__ */ React.createElement(\"x\", null, '\\b\"');\n")
 	for _, s := range whitespace {
-		expectPrintedJSX(t, "<x>\n"+s+"&quot;\n</x>", "/* @__PURE__ */ React.createElement(\"x\", null, '\"');\n")
+		expectPrintedJSX(t, "<x>\n"+s+"&quot;\n</x>", "<x>\n"+s+"&quot;\n</x>;\n", "/* @__PURE__ */ React.createElement(\"x\", null, '\"');\n")
 	}
 
 	invalidWhitespaceInJS := []string{
@@ -5463,12 +5469,12 @@ func TestUnicodeWhitespace(t *testing.T) {
 
 	// Test "js_lexer.NextJSXElementChild()"
 	for _, s := range invalidWhitespaceInJS {
-		expectPrintedJSX(t, "<x>\n"+s+"\n</x>", "/* @__PURE__ */ React.createElement(\"x\", null, \""+s+"\");\n")
+		expectPrintedJSX(t, "<x>\n"+s+"\n</x>", "<x>\n"+s+"\n</x>;\n", "/* @__PURE__ */ React.createElement(\"x\", null, \""+s+"\");\n")
 	}
 
 	// Test "fixWhitespaceAndDecodeJSXEntities()"
 	for _, s := range invalidWhitespaceInJS {
-		expectPrintedJSX(t, "<x>\n"+s+"&quot;\n</x>", "/* @__PURE__ */ React.createElement(\"x\", null, '"+s+"\"');\n")
+		expectPrintedJSX(t, "<x>\n"+s+"&quot;\n</x>", "<x>\n"+s+"&quot;\n</x>;\n", "/* @__PURE__ */ React.createElement(\"x\", null, '"+s+"\"');\n")
 	}
 }
 
@@ -5482,7 +5488,7 @@ func TestReplacementCharacter(t *testing.T) {
 	expectPrinted(t, "`\uFFFD`", "`\uFFFD`;\n")
 	expectPrinted(t, "/\uFFFD/", "/\uFFFD/;\n")
 
-	expectPrintedJSX(t, "<a>\uFFFD</a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"\uFFFD\");\n")
+	expectPrintedJSX(t, "<a>\uFFFD</a>", "<a>\uFFFD</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \"\uFFFD\");\n")
 }
 
 func TestNewTarget(t *testing.T) {
@@ -5504,136 +5510,136 @@ func TestJSX(t *testing.T) {
 	expectParseErrorJSX(t, "<div>{1}}</div>",
 		"<stdin>: WARNING: The character \"}\" is not valid inside a JSX element\n"+
 			"NOTE: Did you mean to escape it as \"{'}'}\" instead?\n")
-	expectPrintedJSX(t, "<div>></div>", "/* @__PURE__ */ React.createElement(\"div\", null, \">\");\n")
-	expectPrintedJSX(t, "<div>{1}}</div>", "/* @__PURE__ */ React.createElement(\"div\", null, 1, \"}\");\n")
+	expectPrintedJSX(t, "<div>></div>", "<div>></div>;\n", "/* @__PURE__ */ React.createElement(\"div\", null, \">\");\n")
+	expectPrintedJSX(t, "<div>{1}}</div>", "<div>{1}}</div>;\n", "/* @__PURE__ */ React.createElement(\"div\", null, 1, \"}\");\n")
 
 	expectParseError(t, "<a/>", "<stdin>: ERROR: The JSX syntax extension is not currently enabled\n"+
 		"NOTE: The esbuild loader for this file is currently set to \"js\" but it must be set to \"jsx\" to be able to parse JSX syntax. "+
 		"You can use 'Loader: map[string]api.Loader{\".js\": api.LoaderJSX}' to do that.\n")
 
-	expectPrintedJSX(t, "<a/>", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
-	expectPrintedJSX(t, "<a></a>", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
-	expectPrintedJSX(t, "<A/>", "/* @__PURE__ */ React.createElement(A, null);\n")
-	expectPrintedJSX(t, "<a.b/>", "/* @__PURE__ */ React.createElement(a.b, null);\n")
-	expectPrintedJSX(t, "<_a/>", "/* @__PURE__ */ React.createElement(_a, null);\n")
-	expectPrintedJSX(t, "<a-b/>", "/* @__PURE__ */ React.createElement(\"a-b\", null);\n")
-	expectPrintedJSX(t, "<a0/>", "/* @__PURE__ */ React.createElement(\"a0\", null);\n")
+	expectPrintedJSX(t, "<a/>", "<a />;\n", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
+	expectPrintedJSX(t, "<a></a>", "<a />;\n", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
+	expectPrintedJSX(t, "<A/>", "<A />;\n", "/* @__PURE__ */ React.createElement(A, null);\n")
+	expectPrintedJSX(t, "<a.b/>", "<a.b />;\n", "/* @__PURE__ */ React.createElement(a.b, null);\n")
+	expectPrintedJSX(t, "<_a/>", "<_a />;\n", "/* @__PURE__ */ React.createElement(_a, null);\n")
+	expectPrintedJSX(t, "<a-b/>", "<a-b />;\n", "/* @__PURE__ */ React.createElement(\"a-b\", null);\n")
+	expectPrintedJSX(t, "<a0/>", "<a0 />;\n", "/* @__PURE__ */ React.createElement(\"a0\", null);\n")
 	expectParseErrorJSX(t, "<0a/>", "<stdin>: ERROR: Expected identifier but found \"0\"\n")
 
-	expectPrintedJSX(t, "<a b/>", "/* @__PURE__ */ React.createElement(\"a\", { b: true });\n")
-	expectPrintedJSX(t, "<a b=\"\\\"/>", "/* @__PURE__ */ React.createElement(\"a\", { b: \"\\\\\" });\n")
-	expectPrintedJSX(t, "<a b=\"<>\"/>", "/* @__PURE__ */ React.createElement(\"a\", { b: \"<>\" });\n")
-	expectPrintedJSX(t, "<a b=\"&lt;&gt;\"/>", "/* @__PURE__ */ React.createElement(\"a\", { b: \"<>\" });\n")
-	expectPrintedJSX(t, "<a b=\"&wrong;\"/>", "/* @__PURE__ */ React.createElement(\"a\", { b: \"&wrong;\" });\n")
-	expectPrintedJSX(t, "<a b={1, 2}/>", "/* @__PURE__ */ React.createElement(\"a\", { b: (1, 2) });\n")
-	expectPrintedJSX(t, "<a b={<c/>}/>", "/* @__PURE__ */ React.createElement(\"a\", { b: /* @__PURE__ */ React.createElement(\"c\", null) });\n")
-	expectPrintedJSX(t, "<a {...props}/>", "/* @__PURE__ */ React.createElement(\"a\", { ...props });\n")
-	expectPrintedJSX(t, "<a b=\"🙂\"/>", "/* @__PURE__ */ React.createElement(\"a\", { b: \"🙂\" });\n")
+	expectPrintedJSX(t, "<a b/>", "<a b />;\n", "/* @__PURE__ */ React.createElement(\"a\", { b: true });\n")
+	expectPrintedJSX(t, "<a b=\"\\\"/>", "<a b=\"\\\" />;\n", "/* @__PURE__ */ React.createElement(\"a\", { b: \"\\\\\" });\n")
+	expectPrintedJSX(t, "<a b=\"<>\"/>", "<a b=\"<>\" />;\n", "/* @__PURE__ */ React.createElement(\"a\", { b: \"<>\" });\n")
+	expectPrintedJSX(t, "<a b=\"&lt;&gt;\"/>", "<a b=\"&lt;&gt;\" />;\n", "/* @__PURE__ */ React.createElement(\"a\", { b: \"<>\" });\n")
+	expectPrintedJSX(t, "<a b=\"&wrong;\"/>", "<a b=\"&wrong;\" />;\n", "/* @__PURE__ */ React.createElement(\"a\", { b: \"&wrong;\" });\n")
+	expectPrintedJSX(t, "<a b={1, 2}/>", "<a b={(1, 2)} />;\n", "/* @__PURE__ */ React.createElement(\"a\", { b: (1, 2) });\n")
+	expectPrintedJSX(t, "<a b={<c/>}/>", "<a b={<c />} />;\n", "/* @__PURE__ */ React.createElement(\"a\", { b: /* @__PURE__ */ React.createElement(\"c\", null) });\n")
+	expectPrintedJSX(t, "<a {...props}/>", "<a {...props} />;\n", "/* @__PURE__ */ React.createElement(\"a\", { ...props });\n")
+	expectPrintedJSX(t, "<a b=\"🙂\"/>", "<a b=\"🙂\" />;\n", "/* @__PURE__ */ React.createElement(\"a\", { b: \"🙂\" });\n")
 
-	expectPrintedJSX(t, "<a>\n</a>", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
-	expectPrintedJSX(t, "<a>123</a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"123\");\n")
-	expectPrintedJSX(t, "<a>}</a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"}\");\n")
-	expectPrintedJSX(t, "<a>=</a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"=\");\n")
-	expectPrintedJSX(t, "<a>></a>", "/* @__PURE__ */ React.createElement(\"a\", null, \">\");\n")
-	expectPrintedJSX(t, "<a>>=</a>", "/* @__PURE__ */ React.createElement(\"a\", null, \">=\");\n")
-	expectPrintedJSX(t, "<a>>></a>", "/* @__PURE__ */ React.createElement(\"a\", null, \">>\");\n")
-	expectPrintedJSX(t, "<a>{}</a>", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
-	expectPrintedJSX(t, "<a>{/* comment */}</a>", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
-	expectPrintedJSX(t, "<a>b{}</a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"b\");\n")
-	expectPrintedJSX(t, "<a>b{/* comment */}</a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"b\");\n")
-	expectPrintedJSX(t, "<a>{}c</a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"c\");\n")
-	expectPrintedJSX(t, "<a>{/* comment */}c</a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"c\");\n")
-	expectPrintedJSX(t, "<a>b{}c</a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"b\", \"c\");\n")
-	expectPrintedJSX(t, "<a>b{/* comment */}c</a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"b\", \"c\");\n")
-	expectPrintedJSX(t, "<a>{1, 2}</a>", "/* @__PURE__ */ React.createElement(\"a\", null, (1, 2));\n")
-	expectPrintedJSX(t, "<a>&lt;&gt;</a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"<>\");\n")
-	expectPrintedJSX(t, "<a>&wrong;</a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"&wrong;\");\n")
-	expectPrintedJSX(t, "<a>🙂</a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"🙂\");\n")
-	expectPrintedJSX(t, "<a>{...children}</a>", "/* @__PURE__ */ React.createElement(\"a\", null, ...children);\n")
+	expectPrintedJSX(t, "<a>\n</a>", "<a>\n</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
+	expectPrintedJSX(t, "<a>123</a>", "<a>123</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \"123\");\n")
+	expectPrintedJSX(t, "<a>}</a>", "<a>}</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \"}\");\n")
+	expectPrintedJSX(t, "<a>=</a>", "<a>=</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \"=\");\n")
+	expectPrintedJSX(t, "<a>></a>", "<a>></a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \">\");\n")
+	expectPrintedJSX(t, "<a>>=</a>", "<a>>=</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \">=\");\n")
+	expectPrintedJSX(t, "<a>>></a>", "<a>>></a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \">>\");\n")
+	expectPrintedJSX(t, "<a>{}</a>", "<a>{}</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
+	expectPrintedJSX(t, "<a>{/* comment */}</a>", "<a>{\n  /* comment */\n}</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
+	expectPrintedJSX(t, "<a>b{}</a>", "<a>b{}</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \"b\");\n")
+	expectPrintedJSX(t, "<a>b{/* comment */}</a>", "<a>b{\n  /* comment */\n}</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \"b\");\n")
+	expectPrintedJSX(t, "<a>{}c</a>", "<a>{}c</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \"c\");\n")
+	expectPrintedJSX(t, "<a>{/* comment */}c</a>", "<a>{\n  /* comment */\n}c</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \"c\");\n")
+	expectPrintedJSX(t, "<a>b{}c</a>", "<a>b{}c</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \"b\", \"c\");\n")
+	expectPrintedJSX(t, "<a>b{/* comment */}c</a>", "<a>b{\n  /* comment */\n}c</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \"b\", \"c\");\n")
+	expectPrintedJSX(t, "<a>{1, 2}</a>", "<a>{(1, 2)}</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, (1, 2));\n")
+	expectPrintedJSX(t, "<a>&lt;&gt;</a>", "<a>&lt;&gt;</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \"<>\");\n")
+	expectPrintedJSX(t, "<a>&wrong;</a>", "<a>&wrong;</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \"&wrong;\");\n")
+	expectPrintedJSX(t, "<a>🙂</a>", "<a>🙂</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \"🙂\");\n")
+	expectPrintedJSX(t, "<a>{...children}</a>", "<a>{...children}</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, ...children);\n")
 
 	// Note: The TypeScript compiler and Babel disagree. This matches TypeScript.
-	expectPrintedJSX(t, "<a b=\"   c\"/>", "/* @__PURE__ */ React.createElement(\"a\", { b: \"   c\" });\n")
-	expectPrintedJSX(t, "<a b=\"   \nc\"/>", "/* @__PURE__ */ React.createElement(\"a\", { b: \"   \\nc\" });\n")
-	expectPrintedJSX(t, "<a b=\"\n   c\"/>", "/* @__PURE__ */ React.createElement(\"a\", { b: \"\\n   c\" });\n")
-	expectPrintedJSX(t, "<a b=\"c   \"/>", "/* @__PURE__ */ React.createElement(\"a\", { b: \"c   \" });\n")
-	expectPrintedJSX(t, "<a b=\"c   \n\"/>", "/* @__PURE__ */ React.createElement(\"a\", { b: \"c   \\n\" });\n")
-	expectPrintedJSX(t, "<a b=\"c\n   \"/>", "/* @__PURE__ */ React.createElement(\"a\", { b: \"c\\n   \" });\n")
-	expectPrintedJSX(t, "<a b=\"c   d\"/>", "/* @__PURE__ */ React.createElement(\"a\", { b: \"c   d\" });\n")
-	expectPrintedJSX(t, "<a b=\"c   \nd\"/>", "/* @__PURE__ */ React.createElement(\"a\", { b: \"c   \\nd\" });\n")
-	expectPrintedJSX(t, "<a b=\"c\n   d\"/>", "/* @__PURE__ */ React.createElement(\"a\", { b: \"c\\n   d\" });\n")
-	expectPrintedJSX(t, "<a b=\"   c\"/>", "/* @__PURE__ */ React.createElement(\"a\", { b: \"   c\" });\n")
-	expectPrintedJSX(t, "<a b=\"   \nc\"/>", "/* @__PURE__ */ React.createElement(\"a\", { b: \"   \\nc\" });\n")
-	expectPrintedJSX(t, "<a b=\"\n   c\"/>", "/* @__PURE__ */ React.createElement(\"a\", { b: \"\\n   c\" });\n")
+	expectPrintedJSX(t, "<a b=\"   c\"/>", "<a b=\"   c\" />;\n", "/* @__PURE__ */ React.createElement(\"a\", { b: \"   c\" });\n")
+	expectPrintedJSX(t, "<a b=\"   \nc\"/>", "<a b=\"   \nc\" />;\n", "/* @__PURE__ */ React.createElement(\"a\", { b: \"   \\nc\" });\n")
+	expectPrintedJSX(t, "<a b=\"\n   c\"/>", "<a b=\"\n   c\" />;\n", "/* @__PURE__ */ React.createElement(\"a\", { b: \"\\n   c\" });\n")
+	expectPrintedJSX(t, "<a b=\"c   \"/>", "<a b=\"c   \" />;\n", "/* @__PURE__ */ React.createElement(\"a\", { b: \"c   \" });\n")
+	expectPrintedJSX(t, "<a b=\"c   \n\"/>", "<a b=\"c   \n\" />;\n", "/* @__PURE__ */ React.createElement(\"a\", { b: \"c   \\n\" });\n")
+	expectPrintedJSX(t, "<a b=\"c\n   \"/>", "<a b=\"c\n   \" />;\n", "/* @__PURE__ */ React.createElement(\"a\", { b: \"c\\n   \" });\n")
+	expectPrintedJSX(t, "<a b=\"c   d\"/>", "<a b=\"c   d\" />;\n", "/* @__PURE__ */ React.createElement(\"a\", { b: \"c   d\" });\n")
+	expectPrintedJSX(t, "<a b=\"c   \nd\"/>", "<a b=\"c   \nd\" />;\n", "/* @__PURE__ */ React.createElement(\"a\", { b: \"c   \\nd\" });\n")
+	expectPrintedJSX(t, "<a b=\"c\n   d\"/>", "<a b=\"c\n   d\" />;\n", "/* @__PURE__ */ React.createElement(\"a\", { b: \"c\\n   d\" });\n")
+	expectPrintedJSX(t, "<a b=\"   c\"/>", "<a b=\"   c\" />;\n", "/* @__PURE__ */ React.createElement(\"a\", { b: \"   c\" });\n")
+	expectPrintedJSX(t, "<a b=\"   \nc\"/>", "<a b=\"   \nc\" />;\n", "/* @__PURE__ */ React.createElement(\"a\", { b: \"   \\nc\" });\n")
+	expectPrintedJSX(t, "<a b=\"\n   c\"/>", "<a b=\"\n   c\" />;\n", "/* @__PURE__ */ React.createElement(\"a\", { b: \"\\n   c\" });\n")
 
 	// Same test as above except with multi-byte Unicode characters
-	expectPrintedJSX(t, "<a b=\"   🙂\"/>", "/* @__PURE__ */ React.createElement(\"a\", { b: \"   🙂\" });\n")
-	expectPrintedJSX(t, "<a b=\"   \n🙂\"/>", "/* @__PURE__ */ React.createElement(\"a\", { b: \"   \\n🙂\" });\n")
-	expectPrintedJSX(t, "<a b=\"\n   🙂\"/>", "/* @__PURE__ */ React.createElement(\"a\", { b: \"\\n   🙂\" });\n")
-	expectPrintedJSX(t, "<a b=\"🙂   \"/>", "/* @__PURE__ */ React.createElement(\"a\", { b: \"🙂   \" });\n")
-	expectPrintedJSX(t, "<a b=\"🙂   \n\"/>", "/* @__PURE__ */ React.createElement(\"a\", { b: \"🙂   \\n\" });\n")
-	expectPrintedJSX(t, "<a b=\"🙂\n   \"/>", "/* @__PURE__ */ React.createElement(\"a\", { b: \"🙂\\n   \" });\n")
-	expectPrintedJSX(t, "<a b=\"🙂   🍕\"/>", "/* @__PURE__ */ React.createElement(\"a\", { b: \"🙂   🍕\" });\n")
-	expectPrintedJSX(t, "<a b=\"🙂   \n🍕\"/>", "/* @__PURE__ */ React.createElement(\"a\", { b: \"🙂   \\n🍕\" });\n")
-	expectPrintedJSX(t, "<a b=\"🙂\n   🍕\"/>", "/* @__PURE__ */ React.createElement(\"a\", { b: \"🙂\\n   🍕\" });\n")
-	expectPrintedJSX(t, "<a b=\"   🙂\"/>", "/* @__PURE__ */ React.createElement(\"a\", { b: \"   🙂\" });\n")
-	expectPrintedJSX(t, "<a b=\"   \n🙂\"/>", "/* @__PURE__ */ React.createElement(\"a\", { b: \"   \\n🙂\" });\n")
-	expectPrintedJSX(t, "<a b=\"\n   🙂\"/>", "/* @__PURE__ */ React.createElement(\"a\", { b: \"\\n   🙂\" });\n")
+	expectPrintedJSX(t, "<a b=\"   🙂\"/>", "<a b=\"   🙂\" />;\n", "/* @__PURE__ */ React.createElement(\"a\", { b: \"   🙂\" });\n")
+	expectPrintedJSX(t, "<a b=\"   \n🙂\"/>", "<a b=\"   \n🙂\" />;\n", "/* @__PURE__ */ React.createElement(\"a\", { b: \"   \\n🙂\" });\n")
+	expectPrintedJSX(t, "<a b=\"\n   🙂\"/>", "<a b=\"\n   🙂\" />;\n", "/* @__PURE__ */ React.createElement(\"a\", { b: \"\\n   🙂\" });\n")
+	expectPrintedJSX(t, "<a b=\"🙂   \"/>", "<a b=\"🙂   \" />;\n", "/* @__PURE__ */ React.createElement(\"a\", { b: \"🙂   \" });\n")
+	expectPrintedJSX(t, "<a b=\"🙂   \n\"/>", "<a b=\"🙂   \n\" />;\n", "/* @__PURE__ */ React.createElement(\"a\", { b: \"🙂   \\n\" });\n")
+	expectPrintedJSX(t, "<a b=\"🙂\n   \"/>", "<a b=\"🙂\n   \" />;\n", "/* @__PURE__ */ React.createElement(\"a\", { b: \"🙂\\n   \" });\n")
+	expectPrintedJSX(t, "<a b=\"🙂   🍕\"/>", "<a b=\"🙂   🍕\" />;\n", "/* @__PURE__ */ React.createElement(\"a\", { b: \"🙂   🍕\" });\n")
+	expectPrintedJSX(t, "<a b=\"🙂   \n🍕\"/>", "<a b=\"🙂   \n🍕\" />;\n", "/* @__PURE__ */ React.createElement(\"a\", { b: \"🙂   \\n🍕\" });\n")
+	expectPrintedJSX(t, "<a b=\"🙂\n   🍕\"/>", "<a b=\"🙂\n   🍕\" />;\n", "/* @__PURE__ */ React.createElement(\"a\", { b: \"🙂\\n   🍕\" });\n")
+	expectPrintedJSX(t, "<a b=\"   🙂\"/>", "<a b=\"   🙂\" />;\n", "/* @__PURE__ */ React.createElement(\"a\", { b: \"   🙂\" });\n")
+	expectPrintedJSX(t, "<a b=\"   \n🙂\"/>", "<a b=\"   \n🙂\" />;\n", "/* @__PURE__ */ React.createElement(\"a\", { b: \"   \\n🙂\" });\n")
+	expectPrintedJSX(t, "<a b=\"\n   🙂\"/>", "<a b=\"\n   🙂\" />;\n", "/* @__PURE__ */ React.createElement(\"a\", { b: \"\\n   🙂\" });\n")
 
-	expectPrintedJSX(t, "<a>   b</a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"   b\");\n")
-	expectPrintedJSX(t, "<a>   \nb</a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"b\");\n")
-	expectPrintedJSX(t, "<a>\n   b</a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"b\");\n")
-	expectPrintedJSX(t, "<a>b   </a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"b   \");\n")
-	expectPrintedJSX(t, "<a>b   \n</a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"b\");\n")
-	expectPrintedJSX(t, "<a>b\n   </a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"b\");\n")
-	expectPrintedJSX(t, "<a>b   c</a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"b   c\");\n")
-	expectPrintedJSX(t, "<a>b   \nc</a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"b c\");\n")
-	expectPrintedJSX(t, "<a>b\n   c</a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"b c\");\n")
-	expectPrintedJSX(t, "<a>   b</a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"   b\");\n")
-	expectPrintedJSX(t, "<a>   \nb</a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"b\");\n")
-	expectPrintedJSX(t, "<a>\n   b</a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"b\");\n")
+	expectPrintedJSX(t, "<a>   b</a>", "<a>   b</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \"   b\");\n")
+	expectPrintedJSX(t, "<a>   \nb</a>", "<a>   \nb</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \"b\");\n")
+	expectPrintedJSX(t, "<a>\n   b</a>", "<a>\n   b</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \"b\");\n")
+	expectPrintedJSX(t, "<a>b   </a>", "<a>b   </a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \"b   \");\n")
+	expectPrintedJSX(t, "<a>b   \n</a>", "<a>b   \n</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \"b\");\n")
+	expectPrintedJSX(t, "<a>b\n   </a>", "<a>b\n   </a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \"b\");\n")
+	expectPrintedJSX(t, "<a>b   c</a>", "<a>b   c</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \"b   c\");\n")
+	expectPrintedJSX(t, "<a>b   \nc</a>", "<a>b   \nc</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \"b c\");\n")
+	expectPrintedJSX(t, "<a>b\n   c</a>", "<a>b\n   c</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \"b c\");\n")
+	expectPrintedJSX(t, "<a>   b</a>", "<a>   b</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \"   b\");\n")
+	expectPrintedJSX(t, "<a>   \nb</a>", "<a>   \nb</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \"b\");\n")
+	expectPrintedJSX(t, "<a>\n   b</a>", "<a>\n   b</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \"b\");\n")
 
 	// Same test as above except with multi-byte Unicode characters
-	expectPrintedJSX(t, "<a>   🙂</a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"   🙂\");\n")
-	expectPrintedJSX(t, "<a>   \n🙂</a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"🙂\");\n")
-	expectPrintedJSX(t, "<a>\n   🙂</a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"🙂\");\n")
-	expectPrintedJSX(t, "<a>🙂   </a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"🙂   \");\n")
-	expectPrintedJSX(t, "<a>🙂   \n</a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"🙂\");\n")
-	expectPrintedJSX(t, "<a>🙂\n   </a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"🙂\");\n")
-	expectPrintedJSX(t, "<a>🙂   🍕</a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"🙂   🍕\");\n")
-	expectPrintedJSX(t, "<a>🙂   \n🍕</a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"🙂 🍕\");\n")
-	expectPrintedJSX(t, "<a>🙂\n   🍕</a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"🙂 🍕\");\n")
-	expectPrintedJSX(t, "<a>   🙂</a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"   🙂\");\n")
-	expectPrintedJSX(t, "<a>   \n🙂</a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"🙂\");\n")
-	expectPrintedJSX(t, "<a>\n   🙂</a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"🙂\");\n")
+	expectPrintedJSX(t, "<a>   🙂</a>", "<a>   🙂</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \"   🙂\");\n")
+	expectPrintedJSX(t, "<a>   \n🙂</a>", "<a>   \n🙂</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \"🙂\");\n")
+	expectPrintedJSX(t, "<a>\n   🙂</a>", "<a>\n   🙂</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \"🙂\");\n")
+	expectPrintedJSX(t, "<a>🙂   </a>", "<a>🙂   </a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \"🙂   \");\n")
+	expectPrintedJSX(t, "<a>🙂   \n</a>", "<a>🙂   \n</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \"🙂\");\n")
+	expectPrintedJSX(t, "<a>🙂\n   </a>", "<a>🙂\n   </a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \"🙂\");\n")
+	expectPrintedJSX(t, "<a>🙂   🍕</a>", "<a>🙂   🍕</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \"🙂   🍕\");\n")
+	expectPrintedJSX(t, "<a>🙂   \n🍕</a>", "<a>🙂   \n🍕</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \"🙂 🍕\");\n")
+	expectPrintedJSX(t, "<a>🙂\n   🍕</a>", "<a>🙂\n   🍕</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \"🙂 🍕\");\n")
+	expectPrintedJSX(t, "<a>   🙂</a>", "<a>   🙂</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \"   🙂\");\n")
+	expectPrintedJSX(t, "<a>   \n🙂</a>", "<a>   \n🙂</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \"🙂\");\n")
+	expectPrintedJSX(t, "<a>\n   🙂</a>", "<a>\n   🙂</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \"🙂\");\n")
 
 	// "<a>{x}</b></a>" with all combinations of "", " ", and "\n" inserted in between
-	expectPrintedJSX(t, "<a>{x}<b/></a>;", "/* @__PURE__ */ React.createElement(\"a\", null, x, /* @__PURE__ */ React.createElement(\"b\", null));\n")
-	expectPrintedJSX(t, "<a>\n{x}<b/></a>;", "/* @__PURE__ */ React.createElement(\"a\", null, x, /* @__PURE__ */ React.createElement(\"b\", null));\n")
-	expectPrintedJSX(t, "<a>{x}\n<b/></a>;", "/* @__PURE__ */ React.createElement(\"a\", null, x, /* @__PURE__ */ React.createElement(\"b\", null));\n")
-	expectPrintedJSX(t, "<a>\n{x}\n<b/></a>;", "/* @__PURE__ */ React.createElement(\"a\", null, x, /* @__PURE__ */ React.createElement(\"b\", null));\n")
-	expectPrintedJSX(t, "<a>{x}<b/>\n</a>;", "/* @__PURE__ */ React.createElement(\"a\", null, x, /* @__PURE__ */ React.createElement(\"b\", null));\n")
-	expectPrintedJSX(t, "<a>\n{x}<b/>\n</a>;", "/* @__PURE__ */ React.createElement(\"a\", null, x, /* @__PURE__ */ React.createElement(\"b\", null));\n")
-	expectPrintedJSX(t, "<a>{x}\n<b/>\n</a>;", "/* @__PURE__ */ React.createElement(\"a\", null, x, /* @__PURE__ */ React.createElement(\"b\", null));\n")
-	expectPrintedJSX(t, "<a>\n{x}\n<b/>\n</a>;", "/* @__PURE__ */ React.createElement(\"a\", null, x, /* @__PURE__ */ React.createElement(\"b\", null));\n")
-	expectPrintedJSX(t, "<a> {x}<b/></a>;", "/* @__PURE__ */ React.createElement(\"a\", null, \" \", x, /* @__PURE__ */ React.createElement(\"b\", null));\n")
-	expectPrintedJSX(t, "<a> {x}\n<b/></a>;", "/* @__PURE__ */ React.createElement(\"a\", null, \" \", x, /* @__PURE__ */ React.createElement(\"b\", null));\n")
-	expectPrintedJSX(t, "<a> {x}<b/>\n</a>;", "/* @__PURE__ */ React.createElement(\"a\", null, \" \", x, /* @__PURE__ */ React.createElement(\"b\", null));\n")
-	expectPrintedJSX(t, "<a> {x}\n<b/>\n</a>;", "/* @__PURE__ */ React.createElement(\"a\", null, \" \", x, /* @__PURE__ */ React.createElement(\"b\", null));\n")
-	expectPrintedJSX(t, "<a>{x} <b/></a>;", "/* @__PURE__ */ React.createElement(\"a\", null, x, \" \", /* @__PURE__ */ React.createElement(\"b\", null));\n")
-	expectPrintedJSX(t, "<a>\n{x} <b/></a>;", "/* @__PURE__ */ React.createElement(\"a\", null, x, \" \", /* @__PURE__ */ React.createElement(\"b\", null));\n")
-	expectPrintedJSX(t, "<a>{x} <b/>\n</a>;", "/* @__PURE__ */ React.createElement(\"a\", null, x, \" \", /* @__PURE__ */ React.createElement(\"b\", null));\n")
-	expectPrintedJSX(t, "<a>\n{x} <b/>\n</a>;", "/* @__PURE__ */ React.createElement(\"a\", null, x, \" \", /* @__PURE__ */ React.createElement(\"b\", null));\n")
-	expectPrintedJSX(t, "<a> {x} <b/></a>;", "/* @__PURE__ */ React.createElement(\"a\", null, \" \", x, \" \", /* @__PURE__ */ React.createElement(\"b\", null));\n")
-	expectPrintedJSX(t, "<a> {x} <b/>\n</a>;", "/* @__PURE__ */ React.createElement(\"a\", null, \" \", x, \" \", /* @__PURE__ */ React.createElement(\"b\", null));\n")
-	expectPrintedJSX(t, "<a>{x}<b/> </a>;", "/* @__PURE__ */ React.createElement(\"a\", null, x, /* @__PURE__ */ React.createElement(\"b\", null), \" \");\n")
-	expectPrintedJSX(t, "<a>\n{x}<b/> </a>;", "/* @__PURE__ */ React.createElement(\"a\", null, x, /* @__PURE__ */ React.createElement(\"b\", null), \" \");\n")
-	expectPrintedJSX(t, "<a>{x}\n<b/> </a>;", "/* @__PURE__ */ React.createElement(\"a\", null, x, /* @__PURE__ */ React.createElement(\"b\", null), \" \");\n")
-	expectPrintedJSX(t, "<a>\n{x}\n<b/> </a>;", "/* @__PURE__ */ React.createElement(\"a\", null, x, /* @__PURE__ */ React.createElement(\"b\", null), \" \");\n")
-	expectPrintedJSX(t, "<a> {x}<b/> </a>;", "/* @__PURE__ */ React.createElement(\"a\", null, \" \", x, /* @__PURE__ */ React.createElement(\"b\", null), \" \");\n")
-	expectPrintedJSX(t, "<a> {x}\n<b/> </a>;", "/* @__PURE__ */ React.createElement(\"a\", null, \" \", x, /* @__PURE__ */ React.createElement(\"b\", null), \" \");\n")
-	expectPrintedJSX(t, "<a>{x} <b/> </a>;", "/* @__PURE__ */ React.createElement(\"a\", null, x, \" \", /* @__PURE__ */ React.createElement(\"b\", null), \" \");\n")
-	expectPrintedJSX(t, "<a>\n{x} <b/> </a>;", "/* @__PURE__ */ React.createElement(\"a\", null, x, \" \", /* @__PURE__ */ React.createElement(\"b\", null), \" \");\n")
-	expectPrintedJSX(t, "<a> {x} <b/> </a>;", "/* @__PURE__ */ React.createElement(\"a\", null, \" \", x, \" \", /* @__PURE__ */ React.createElement(\"b\", null), \" \");\n")
+	expectPrintedJSX(t, "<a>{x}<b/></a>;", "<a>{x}<b /></a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, x, /* @__PURE__ */ React.createElement(\"b\", null));\n")
+	expectPrintedJSX(t, "<a>\n{x}<b/></a>;", "<a>\n{x}<b /></a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, x, /* @__PURE__ */ React.createElement(\"b\", null));\n")
+	expectPrintedJSX(t, "<a>{x}\n<b/></a>;", "<a>{x}\n<b /></a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, x, /* @__PURE__ */ React.createElement(\"b\", null));\n")
+	expectPrintedJSX(t, "<a>\n{x}\n<b/></a>;", "<a>\n{x}\n<b /></a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, x, /* @__PURE__ */ React.createElement(\"b\", null));\n")
+	expectPrintedJSX(t, "<a>{x}<b/>\n</a>;", "<a>{x}<b />\n</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, x, /* @__PURE__ */ React.createElement(\"b\", null));\n")
+	expectPrintedJSX(t, "<a>\n{x}<b/>\n</a>;", "<a>\n{x}<b />\n</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, x, /* @__PURE__ */ React.createElement(\"b\", null));\n")
+	expectPrintedJSX(t, "<a>{x}\n<b/>\n</a>;", "<a>{x}\n<b />\n</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, x, /* @__PURE__ */ React.createElement(\"b\", null));\n")
+	expectPrintedJSX(t, "<a>\n{x}\n<b/>\n</a>;", "<a>\n{x}\n<b />\n</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, x, /* @__PURE__ */ React.createElement(\"b\", null));\n")
+	expectPrintedJSX(t, "<a> {x}<b/></a>;", "<a> {x}<b /></a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \" \", x, /* @__PURE__ */ React.createElement(\"b\", null));\n")
+	expectPrintedJSX(t, "<a> {x}\n<b/></a>;", "<a> {x}\n<b /></a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \" \", x, /* @__PURE__ */ React.createElement(\"b\", null));\n")
+	expectPrintedJSX(t, "<a> {x}<b/>\n</a>;", "<a> {x}<b />\n</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \" \", x, /* @__PURE__ */ React.createElement(\"b\", null));\n")
+	expectPrintedJSX(t, "<a> {x}\n<b/>\n</a>;", "<a> {x}\n<b />\n</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \" \", x, /* @__PURE__ */ React.createElement(\"b\", null));\n")
+	expectPrintedJSX(t, "<a>{x} <b/></a>;", "<a>{x} <b /></a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, x, \" \", /* @__PURE__ */ React.createElement(\"b\", null));\n")
+	expectPrintedJSX(t, "<a>\n{x} <b/></a>;", "<a>\n{x} <b /></a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, x, \" \", /* @__PURE__ */ React.createElement(\"b\", null));\n")
+	expectPrintedJSX(t, "<a>{x} <b/>\n</a>;", "<a>{x} <b />\n</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, x, \" \", /* @__PURE__ */ React.createElement(\"b\", null));\n")
+	expectPrintedJSX(t, "<a>\n{x} <b/>\n</a>;", "<a>\n{x} <b />\n</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, x, \" \", /* @__PURE__ */ React.createElement(\"b\", null));\n")
+	expectPrintedJSX(t, "<a> {x} <b/></a>;", "<a> {x} <b /></a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \" \", x, \" \", /* @__PURE__ */ React.createElement(\"b\", null));\n")
+	expectPrintedJSX(t, "<a> {x} <b/>\n</a>;", "<a> {x} <b />\n</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \" \", x, \" \", /* @__PURE__ */ React.createElement(\"b\", null));\n")
+	expectPrintedJSX(t, "<a>{x}<b/> </a>;", "<a>{x}<b /> </a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, x, /* @__PURE__ */ React.createElement(\"b\", null), \" \");\n")
+	expectPrintedJSX(t, "<a>\n{x}<b/> </a>;", "<a>\n{x}<b /> </a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, x, /* @__PURE__ */ React.createElement(\"b\", null), \" \");\n")
+	expectPrintedJSX(t, "<a>{x}\n<b/> </a>;", "<a>{x}\n<b /> </a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, x, /* @__PURE__ */ React.createElement(\"b\", null), \" \");\n")
+	expectPrintedJSX(t, "<a>\n{x}\n<b/> </a>;", "<a>\n{x}\n<b /> </a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, x, /* @__PURE__ */ React.createElement(\"b\", null), \" \");\n")
+	expectPrintedJSX(t, "<a> {x}<b/> </a>;", "<a> {x}<b /> </a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \" \", x, /* @__PURE__ */ React.createElement(\"b\", null), \" \");\n")
+	expectPrintedJSX(t, "<a> {x}\n<b/> </a>;", "<a> {x}\n<b /> </a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \" \", x, /* @__PURE__ */ React.createElement(\"b\", null), \" \");\n")
+	expectPrintedJSX(t, "<a>{x} <b/> </a>;", "<a>{x} <b /> </a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, x, \" \", /* @__PURE__ */ React.createElement(\"b\", null), \" \");\n")
+	expectPrintedJSX(t, "<a>\n{x} <b/> </a>;", "<a>\n{x} <b /> </a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, x, \" \", /* @__PURE__ */ React.createElement(\"b\", null), \" \");\n")
+	expectPrintedJSX(t, "<a> {x} <b/> </a>;", "<a> {x} <b /> </a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \" \", x, \" \", /* @__PURE__ */ React.createElement(\"b\", null), \" \");\n")
 
 	expectParseErrorJSX(t, "<a b=true/>", "<stdin>: ERROR: Expected \"{\" but found \"true\"\n")
 	expectParseErrorJSX(t, "</a>", "<stdin>: ERROR: Expected identifier but found \"/\"\n")
@@ -5648,27 +5654,27 @@ func TestJSX(t *testing.T) {
 	expectParseErrorJSX(t, "<a-b.c>", "<stdin>: ERROR: Expected \">\" but found \".\"\n")
 	expectParseErrorJSX(t, "<a.b-c>", "<stdin>: ERROR: Unexpected \"-\"\n")
 
-	expectPrintedJSX(t, "< /**/ a/>", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
-	expectPrintedJSX(t, "< //\n a/>", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
-	expectPrintedJSX(t, "<a /**/ />", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
-	expectPrintedJSX(t, "<a //\n />", "/* @__PURE__ */ React.createElement(\n  \"a\",\n  null\n);\n")
-	expectPrintedJSX(t, "<a/ /**/ >", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
-	expectPrintedJSX(t, "<a/ //\n >", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
+	expectPrintedJSX(t, "< /**/ a/>", "<a />;\n", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
+	expectPrintedJSX(t, "< //\n a/>", "<a />;\n", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
+	expectPrintedJSX(t, "<a /**/ />", "<a />;\n", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
+	expectPrintedJSX(t, "<a //\n />", "<a />;\n", "/* @__PURE__ */ React.createElement(\n  \"a\",\n  null\n);\n")
+	expectPrintedJSX(t, "<a/ /**/ >", "<a />;\n", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
+	expectPrintedJSX(t, "<a/ //\n >", "<a />;\n", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
 
-	expectPrintedJSX(t, "<a>b< /**/ /a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"b\");\n")
-	expectPrintedJSX(t, "<a>b< //\n /a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"b\");\n")
-	expectPrintedJSX(t, "<a>b</ /**/ a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"b\");\n")
-	expectPrintedJSX(t, "<a>b</ //\n a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"b\");\n")
-	expectPrintedJSX(t, "<a>b</a /**/ >", "/* @__PURE__ */ React.createElement(\"a\", null, \"b\");\n")
-	expectPrintedJSX(t, "<a>b</a //\n >", "/* @__PURE__ */ React.createElement(\"a\", null, \"b\");\n")
+	expectPrintedJSX(t, "<a>b< /**/ /a>", "<a>b</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \"b\");\n")
+	expectPrintedJSX(t, "<a>b< //\n /a>", "<a>b</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \"b\");\n")
+	expectPrintedJSX(t, "<a>b</ /**/ a>", "<a>b</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \"b\");\n")
+	expectPrintedJSX(t, "<a>b</ //\n a>", "<a>b</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \"b\");\n")
+	expectPrintedJSX(t, "<a>b</a /**/ >", "<a>b</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \"b\");\n")
+	expectPrintedJSX(t, "<a>b</a //\n >", "<a>b</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \"b\");\n")
 
-	expectPrintedJSX(t, "<a> /**/ </a>", "/* @__PURE__ */ React.createElement(\"a\", null, \" /**/ \");\n")
-	expectPrintedJSX(t, "<a> //\n </a>", "/* @__PURE__ */ React.createElement(\"a\", null, \" //\");\n")
+	expectPrintedJSX(t, "<a> /**/ </a>", "<a> /**/ </a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \" /**/ \");\n")
+	expectPrintedJSX(t, "<a> //\n </a>", "<a> //\n </a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \" //\");\n")
 
 	// Unicode tests
-	expectPrintedJSX(t, "<\U00020000/>", "/* @__PURE__ */ React.createElement(\U00020000, null);\n")
-	expectPrintedJSX(t, "<a>\U00020000</a>", "/* @__PURE__ */ React.createElement(\"a\", null, \"\U00020000\");\n")
-	expectPrintedJSX(t, "<a \U00020000={0}/>", "/* @__PURE__ */ React.createElement(\"a\", { \"\U00020000\": 0 });\n")
+	expectPrintedJSX(t, "<\U00020000/>", "<\U00020000 />;\n", "/* @__PURE__ */ React.createElement(\U00020000, null);\n")
+	expectPrintedJSX(t, "<a>\U00020000</a>", "<a>\U00020000</a>;\n", "/* @__PURE__ */ React.createElement(\"a\", null, \"\U00020000\");\n")
+	expectPrintedJSX(t, "<a \U00020000={0}/>", "<a \U00020000={0} />;\n", "/* @__PURE__ */ React.createElement(\"a\", { \"\U00020000\": 0 });\n")
 
 	// Comment tests
 	expectParseErrorJSX(t, "<a /* />", "<stdin>: ERROR: Expected \"*/\" to terminate multi-line comment\n<stdin>: NOTE: The multi-line comment starts here:\n")
@@ -5686,27 +5692,27 @@ func TestJSX(t *testing.T) {
 
 	// JSX namespaced names
 	for _, colon := range []string{":", " :", ": ", " : "} {
-		expectPrintedJSX(t, "<a"+colon+"b/>", "/* @__PURE__ */ React.createElement(\"a:b\", null);\n")
-		expectPrintedJSX(t, "<a-b"+colon+"c-d/>", "/* @__PURE__ */ React.createElement(\"a-b:c-d\", null);\n")
-		expectPrintedJSX(t, "<a-"+colon+"b-/>", "/* @__PURE__ */ React.createElement(\"a-:b-\", null);\n")
-		expectPrintedJSX(t, "<Te"+colon+"st/>", "/* @__PURE__ */ React.createElement(\"Te:st\", null);\n")
-		expectPrintedJSX(t, "<x a"+colon+"b/>", "/* @__PURE__ */ React.createElement(\"x\", { \"a:b\": true });\n")
-		expectPrintedJSX(t, "<x a-b"+colon+"c-d/>", "/* @__PURE__ */ React.createElement(\"x\", { \"a-b:c-d\": true });\n")
-		expectPrintedJSX(t, "<x a-"+colon+"b-/>", "/* @__PURE__ */ React.createElement(\"x\", { \"a-:b-\": true });\n")
-		expectPrintedJSX(t, "<x Te"+colon+"st/>", "/* @__PURE__ */ React.createElement(\"x\", { \"Te:st\": true });\n")
-		expectPrintedJSX(t, "<x a"+colon+"b={0}/>", "/* @__PURE__ */ React.createElement(\"x\", { \"a:b\": 0 });\n")
-		expectPrintedJSX(t, "<x a-b"+colon+"c-d={0}/>", "/* @__PURE__ */ React.createElement(\"x\", { \"a-b:c-d\": 0 });\n")
-		expectPrintedJSX(t, "<x a-"+colon+"b-={0}/>", "/* @__PURE__ */ React.createElement(\"x\", { \"a-:b-\": 0 });\n")
-		expectPrintedJSX(t, "<x Te"+colon+"st={0}/>", "/* @__PURE__ */ React.createElement(\"x\", { \"Te:st\": 0 });\n")
-		expectPrintedJSX(t, "<a-b a-b={a-b}/>", "/* @__PURE__ */ React.createElement(\"a-b\", { \"a-b\": a - b });\n")
+		expectPrintedJSX(t, "<a"+colon+"b/>", "<a:b />;\n", "/* @__PURE__ */ React.createElement(\"a:b\", null);\n")
+		expectPrintedJSX(t, "<a-b"+colon+"c-d/>", "<a-b:c-d />;\n", "/* @__PURE__ */ React.createElement(\"a-b:c-d\", null);\n")
+		expectPrintedJSX(t, "<a-"+colon+"b-/>", "<a-:b- />;\n", "/* @__PURE__ */ React.createElement(\"a-:b-\", null);\n")
+		expectPrintedJSX(t, "<Te"+colon+"st/>", "<Te:st />;\n", "/* @__PURE__ */ React.createElement(\"Te:st\", null);\n")
+		expectPrintedJSX(t, "<x a"+colon+"b/>", "<x a:b />;\n", "/* @__PURE__ */ React.createElement(\"x\", { \"a:b\": true });\n")
+		expectPrintedJSX(t, "<x a-b"+colon+"c-d/>", "<x a-b:c-d />;\n", "/* @__PURE__ */ React.createElement(\"x\", { \"a-b:c-d\": true });\n")
+		expectPrintedJSX(t, "<x a-"+colon+"b-/>", "<x a-:b- />;\n", "/* @__PURE__ */ React.createElement(\"x\", { \"a-:b-\": true });\n")
+		expectPrintedJSX(t, "<x Te"+colon+"st/>", "<x Te:st />;\n", "/* @__PURE__ */ React.createElement(\"x\", { \"Te:st\": true });\n")
+		expectPrintedJSX(t, "<x a"+colon+"b={0}/>", "<x a:b={0} />;\n", "/* @__PURE__ */ React.createElement(\"x\", { \"a:b\": 0 });\n")
+		expectPrintedJSX(t, "<x a-b"+colon+"c-d={0}/>", "<x a-b:c-d={0} />;\n", "/* @__PURE__ */ React.createElement(\"x\", { \"a-b:c-d\": 0 });\n")
+		expectPrintedJSX(t, "<x a-"+colon+"b-={0}/>", "<x a-:b-={0} />;\n", "/* @__PURE__ */ React.createElement(\"x\", { \"a-:b-\": 0 });\n")
+		expectPrintedJSX(t, "<x Te"+colon+"st={0}/>", "<x Te:st={0} />;\n", "/* @__PURE__ */ React.createElement(\"x\", { \"Te:st\": 0 });\n")
+		expectPrintedJSX(t, "<a-b a-b={a-b}/>", "<a-b a-b={a - b} />;\n", "/* @__PURE__ */ React.createElement(\"a-b\", { \"a-b\": a - b });\n")
 		expectParseErrorJSX(t, "<x"+colon+"/>", "<stdin>: ERROR: Expected identifier after \"x:\" in namespaced JSX name\n")
 		expectParseErrorJSX(t, "<x"+colon+"y"+colon+"/>", "<stdin>: ERROR: Expected \">\" but found \":\"\n")
 		expectParseErrorJSX(t, "<x"+colon+"0y/>", "<stdin>: ERROR: Expected identifier after \"x:\" in namespaced JSX name\n")
 	}
 
 	// JSX elements as JSX attribute values
-	expectPrintedJSX(t, "<a b=<c/>/>", "/* @__PURE__ */ React.createElement(\"a\", { b: /* @__PURE__ */ React.createElement(\"c\", null) });\n")
-	expectPrintedJSX(t, "<a b=<></>/>", "/* @__PURE__ */ React.createElement(\"a\", { b: /* @__PURE__ */ React.createElement(React.Fragment, null) });\n")
+	expectPrintedJSX(t, "<a b=<c/>/>", "<a b=<c /> />;\n", "/* @__PURE__ */ React.createElement(\"a\", { b: /* @__PURE__ */ React.createElement(\"c\", null) });\n")
+	expectPrintedJSX(t, "<a b=<></>/>", "<a b=<></> />;\n", "/* @__PURE__ */ React.createElement(\"a\", { b: /* @__PURE__ */ React.createElement(React.Fragment, null) });\n")
 	expectParseErrorJSX(t, "<a b=</a>/>", "<stdin>: ERROR: Expected identifier but found \"/\"\n")
 	expectParseErrorJSX(t, "<a b=<>/>",
 		"<stdin>: WARNING: The character \">\" is not valid inside a JSX element\nNOTE: Did you mean to escape it as \"{'>'}\" instead?\n"+
@@ -5721,34 +5727,34 @@ func TestJSX(t *testing.T) {
 }
 
 func TestJSXSingleLine(t *testing.T) {
-	expectPrintedJSX(t, "<x/>", "/* @__PURE__ */ React.createElement(\"x\", null);\n")
-	expectPrintedJSX(t, "<x y/>", "/* @__PURE__ */ React.createElement(\"x\", { y: true });\n")
-	expectPrintedJSX(t, "<x\n/>", "/* @__PURE__ */ React.createElement(\n  \"x\",\n  null\n);\n")
-	expectPrintedJSX(t, "<x\ny/>", "/* @__PURE__ */ React.createElement(\n  \"x\",\n  {\n    y: true\n  }\n);\n")
-	expectPrintedJSX(t, "<x y\n/>", "/* @__PURE__ */ React.createElement(\n  \"x\",\n  {\n    y: true\n  }\n);\n")
-	expectPrintedJSX(t, "<x\n{...y}/>", "/* @__PURE__ */ React.createElement(\n  \"x\",\n  {\n    ...y\n  }\n);\n")
+	expectPrintedJSX(t, "<x/>", "<x />;\n", "/* @__PURE__ */ React.createElement(\"x\", null);\n")
+	expectPrintedJSX(t, "<x y/>", "<x y />;\n", "/* @__PURE__ */ React.createElement(\"x\", { y: true });\n")
+	expectPrintedJSX(t, "<x\n/>", "<x />;\n", "/* @__PURE__ */ React.createElement(\n  \"x\",\n  null\n);\n")
+	expectPrintedJSX(t, "<x\ny/>", "<x\n  y\n/>;\n", "/* @__PURE__ */ React.createElement(\n  \"x\",\n  {\n    y: true\n  }\n);\n")
+	expectPrintedJSX(t, "<x y\n/>", "<x\n  y\n/>;\n", "/* @__PURE__ */ React.createElement(\n  \"x\",\n  {\n    y: true\n  }\n);\n")
+	expectPrintedJSX(t, "<x\n{...y}/>", "<x\n  {...y}\n/>;\n", "/* @__PURE__ */ React.createElement(\n  \"x\",\n  {\n    ...y\n  }\n);\n")
 }
 
 func TestJSXPragmas(t *testing.T) {
-	expectPrintedJSX(t, "// @jsx h\n<a/>", "/* @__PURE__ */ h(\"a\", null);\n")
-	expectPrintedJSX(t, "/*@jsx h*/\n<a/>", "/* @__PURE__ */ h(\"a\", null);\n")
-	expectPrintedJSX(t, "/* @jsx h */\n<a/>", "/* @__PURE__ */ h(\"a\", null);\n")
-	expectPrintedJSX(t, "<a/>\n// @jsx h", "/* @__PURE__ */ h(\"a\", null);\n")
-	expectPrintedJSX(t, "<a/>\n/*@jsx h*/", "/* @__PURE__ */ h(\"a\", null);\n")
-	expectPrintedJSX(t, "<a/>\n/* @jsx h */", "/* @__PURE__ */ h(\"a\", null);\n")
-	expectPrintedJSX(t, "// @jsx a.b.c\n<a/>", "/* @__PURE__ */ a.b.c(\"a\", null);\n")
-	expectPrintedJSX(t, "/*@jsx a.b.c*/\n<a/>", "/* @__PURE__ */ a.b.c(\"a\", null);\n")
-	expectPrintedJSX(t, "/* @jsx a.b.c */\n<a/>", "/* @__PURE__ */ a.b.c(\"a\", null);\n")
+	expectPrintedJSX(t, "// @jsx h\n<a/>", "<a />;\n", "/* @__PURE__ */ h(\"a\", null);\n")
+	expectPrintedJSX(t, "/*@jsx h*/\n<a/>", "<a />;\n", "/* @__PURE__ */ h(\"a\", null);\n")
+	expectPrintedJSX(t, "/* @jsx h */\n<a/>", "<a />;\n", "/* @__PURE__ */ h(\"a\", null);\n")
+	expectPrintedJSX(t, "<a/>\n// @jsx h", "<a />;\n", "/* @__PURE__ */ h(\"a\", null);\n")
+	expectPrintedJSX(t, "<a/>\n/*@jsx h*/", "<a />;\n", "/* @__PURE__ */ h(\"a\", null);\n")
+	expectPrintedJSX(t, "<a/>\n/* @jsx h */", "<a />;\n", "/* @__PURE__ */ h(\"a\", null);\n")
+	expectPrintedJSX(t, "// @jsx a.b.c\n<a/>", "<a />;\n", "/* @__PURE__ */ a.b.c(\"a\", null);\n")
+	expectPrintedJSX(t, "/*@jsx a.b.c*/\n<a/>", "<a />;\n", "/* @__PURE__ */ a.b.c(\"a\", null);\n")
+	expectPrintedJSX(t, "/* @jsx a.b.c */\n<a/>", "<a />;\n", "/* @__PURE__ */ a.b.c(\"a\", null);\n")
 
-	expectPrintedJSX(t, "// @jsxFrag f\n<></>", "/* @__PURE__ */ React.createElement(f, null);\n")
-	expectPrintedJSX(t, "/*@jsxFrag f*/\n<></>", "/* @__PURE__ */ React.createElement(f, null);\n")
-	expectPrintedJSX(t, "/* @jsxFrag f */\n<></>", "/* @__PURE__ */ React.createElement(f, null);\n")
-	expectPrintedJSX(t, "<></>\n// @jsxFrag f", "/* @__PURE__ */ React.createElement(f, null);\n")
-	expectPrintedJSX(t, "<></>\n/*@jsxFrag f*/", "/* @__PURE__ */ React.createElement(f, null);\n")
-	expectPrintedJSX(t, "<></>\n/* @jsxFrag f */", "/* @__PURE__ */ React.createElement(f, null);\n")
-	expectPrintedJSX(t, "// @jsxFrag a.b.c\n<></>", "/* @__PURE__ */ React.createElement(a.b.c, null);\n")
-	expectPrintedJSX(t, "/*@jsxFrag a.b.c*/\n<></>", "/* @__PURE__ */ React.createElement(a.b.c, null);\n")
-	expectPrintedJSX(t, "/* @jsxFrag a.b.c */\n<></>", "/* @__PURE__ */ React.createElement(a.b.c, null);\n")
+	expectPrintedJSX(t, "// @jsxFrag f\n<></>", "<></>;\n", "/* @__PURE__ */ React.createElement(f, null);\n")
+	expectPrintedJSX(t, "/*@jsxFrag f*/\n<></>", "<></>;\n", "/* @__PURE__ */ React.createElement(f, null);\n")
+	expectPrintedJSX(t, "/* @jsxFrag f */\n<></>", "<></>;\n", "/* @__PURE__ */ React.createElement(f, null);\n")
+	expectPrintedJSX(t, "<></>\n// @jsxFrag f", "<></>;\n", "/* @__PURE__ */ React.createElement(f, null);\n")
+	expectPrintedJSX(t, "<></>\n/*@jsxFrag f*/", "<></>;\n", "/* @__PURE__ */ React.createElement(f, null);\n")
+	expectPrintedJSX(t, "<></>\n/* @jsxFrag f */", "<></>;\n", "/* @__PURE__ */ React.createElement(f, null);\n")
+	expectPrintedJSX(t, "// @jsxFrag a.b.c\n<></>", "<></>;\n", "/* @__PURE__ */ React.createElement(a.b.c, null);\n")
+	expectPrintedJSX(t, "/*@jsxFrag a.b.c*/\n<></>", "<></>;\n", "/* @__PURE__ */ React.createElement(a.b.c, null);\n")
+	expectPrintedJSX(t, "/* @jsxFrag a.b.c */\n<></>", "<></>;\n", "/* @__PURE__ */ React.createElement(a.b.c, null);\n")
 }
 
 func TestJSXAutomatic(t *testing.T) {
@@ -5861,39 +5867,39 @@ NOTE: Both "__source" and "__self" are set automatically by esbuild when using R
 		"<stdin>: NOTE: This file is implicitly in strict mode due to the JSX element here:\n" +
 		"NOTE: When React's \"automatic\" JSX transform is enabled, using a JSX element automatically inserts an \"import\" statement at the top of the file " +
 		"for the corresponding the JSX helper function. This means the file is considered an ECMAScript module, and all ECMAScript modules use strict mode.\n"
-	expectPrintedJSX(t, "with (x) y(<z/>)", "with (x) y(/* @__PURE__ */ React.createElement(\"z\", null));\n")
+	expectPrintedJSX(t, "with (x) y(<z/>)", "with (x) y(<z />);\n", "with (x) y(/* @__PURE__ */ React.createElement(\"z\", null));\n")
 	expectPrintedJSXAutomatic(t, p, "with (x) y", "with (x) y;\n")
 	expectParseErrorJSX(t, "with (x) y(<z/>) // @jsxRuntime automatic", strictModeError)
 	expectParseErrorJSXAutomatic(t, p, "with (x) y(<z/>)", strictModeError)
 }
 
 func TestJSXAutomaticPragmas(t *testing.T) {
-	expectPrintedJSX(t, "// @jsxRuntime automatic\n<a/>", "import { jsx } from \"react/jsx-runtime\";\n/* @__PURE__ */ jsx(\"a\", {});\n")
-	expectPrintedJSX(t, "/*@jsxRuntime automatic*/\n<a/>", "import { jsx } from \"react/jsx-runtime\";\n/* @__PURE__ */ jsx(\"a\", {});\n")
-	expectPrintedJSX(t, "/* @jsxRuntime automatic */\n<a/>", "import { jsx } from \"react/jsx-runtime\";\n/* @__PURE__ */ jsx(\"a\", {});\n")
-	expectPrintedJSX(t, "<a/>\n/*@jsxRuntime automatic*/", "import { jsx } from \"react/jsx-runtime\";\n/* @__PURE__ */ jsx(\"a\", {});\n")
-	expectPrintedJSX(t, "<a/>\n/* @jsxRuntime automatic */", "import { jsx } from \"react/jsx-runtime\";\n/* @__PURE__ */ jsx(\"a\", {});\n")
+	expectPrintedJSX(t, "// @jsxRuntime automatic\n<a/>", "<a />;\n", "import { jsx } from \"react/jsx-runtime\";\n/* @__PURE__ */ jsx(\"a\", {});\n")
+	expectPrintedJSX(t, "/*@jsxRuntime automatic*/\n<a/>", "<a />;\n", "import { jsx } from \"react/jsx-runtime\";\n/* @__PURE__ */ jsx(\"a\", {});\n")
+	expectPrintedJSX(t, "/* @jsxRuntime automatic */\n<a/>", "<a />;\n", "import { jsx } from \"react/jsx-runtime\";\n/* @__PURE__ */ jsx(\"a\", {});\n")
+	expectPrintedJSX(t, "<a/>\n/*@jsxRuntime automatic*/", "<a />;\n", "import { jsx } from \"react/jsx-runtime\";\n/* @__PURE__ */ jsx(\"a\", {});\n")
+	expectPrintedJSX(t, "<a/>\n/* @jsxRuntime automatic */", "<a />;\n", "import { jsx } from \"react/jsx-runtime\";\n/* @__PURE__ */ jsx(\"a\", {});\n")
 
-	expectPrintedJSX(t, "// @jsxRuntime classic\n<a/>", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
-	expectPrintedJSX(t, "/*@jsxRuntime classic*/\n<a/>", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
-	expectPrintedJSX(t, "/* @jsxRuntime classic */\n<a/>", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
-	expectPrintedJSX(t, "<a/>\n/*@jsxRuntime classic*/\n", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
-	expectPrintedJSX(t, "<a/>\n/* @jsxRuntime classic */\n", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
+	expectPrintedJSX(t, "// @jsxRuntime classic\n<a/>", "<a />;\n", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
+	expectPrintedJSX(t, "/*@jsxRuntime classic*/\n<a/>", "<a />;\n", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
+	expectPrintedJSX(t, "/* @jsxRuntime classic */\n<a/>", "<a />;\n", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
+	expectPrintedJSX(t, "<a/>\n/*@jsxRuntime classic*/\n", "<a />;\n", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
+	expectPrintedJSX(t, "<a/>\n/* @jsxRuntime classic */\n", "<a />;\n", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
 
 	expectParseErrorJSX(t, "// @jsxRuntime foo\n<a/>",
 		`<stdin>: WARNING: Invalid JSX runtime: "foo"
 NOTE: The JSX runtime can only be set to either "classic" or "automatic".
 `)
 
-	expectPrintedJSX(t, "// @jsxRuntime automatic @jsxImportSource src\n<a/>", "import { jsx } from \"src/jsx-runtime\";\n/* @__PURE__ */ jsx(\"a\", {});\n")
-	expectPrintedJSX(t, "/*@jsxRuntime automatic @jsxImportSource src*/\n<a/>", "import { jsx } from \"src/jsx-runtime\";\n/* @__PURE__ */ jsx(\"a\", {});\n")
-	expectPrintedJSX(t, "/*@jsxRuntime automatic*//*@jsxImportSource src*/\n<a/>", "import { jsx } from \"src/jsx-runtime\";\n/* @__PURE__ */ jsx(\"a\", {});\n")
-	expectPrintedJSX(t, "/* @jsxRuntime automatic */\n/* @jsxImportSource src */\n<a/>", "import { jsx } from \"src/jsx-runtime\";\n/* @__PURE__ */ jsx(\"a\", {});\n")
-	expectPrintedJSX(t, "<a/>\n/*@jsxRuntime automatic @jsxImportSource src*/", "import { jsx } from \"src/jsx-runtime\";\n/* @__PURE__ */ jsx(\"a\", {});\n")
-	expectPrintedJSX(t, "<a/>\n/*@jsxRuntime automatic*/\n/*@jsxImportSource src*/", "import { jsx } from \"src/jsx-runtime\";\n/* @__PURE__ */ jsx(\"a\", {});\n")
-	expectPrintedJSX(t, "<a/>\n/* @jsxRuntime automatic */\n/* @jsxImportSource src */", "import { jsx } from \"src/jsx-runtime\";\n/* @__PURE__ */ jsx(\"a\", {});\n")
+	expectPrintedJSX(t, "// @jsxRuntime automatic @jsxImportSource src\n<a/>", "<a />;\n", "import { jsx } from \"src/jsx-runtime\";\n/* @__PURE__ */ jsx(\"a\", {});\n")
+	expectPrintedJSX(t, "/*@jsxRuntime automatic @jsxImportSource src*/\n<a/>", "<a />;\n", "import { jsx } from \"src/jsx-runtime\";\n/* @__PURE__ */ jsx(\"a\", {});\n")
+	expectPrintedJSX(t, "/*@jsxRuntime automatic*//*@jsxImportSource src*/\n<a/>", "<a />;\n", "import { jsx } from \"src/jsx-runtime\";\n/* @__PURE__ */ jsx(\"a\", {});\n")
+	expectPrintedJSX(t, "/* @jsxRuntime automatic */\n/* @jsxImportSource src */\n<a/>", "<a />;\n", "import { jsx } from \"src/jsx-runtime\";\n/* @__PURE__ */ jsx(\"a\", {});\n")
+	expectPrintedJSX(t, "<a/>\n/*@jsxRuntime automatic @jsxImportSource src*/", "<a />;\n", "import { jsx } from \"src/jsx-runtime\";\n/* @__PURE__ */ jsx(\"a\", {});\n")
+	expectPrintedJSX(t, "<a/>\n/*@jsxRuntime automatic*/\n/*@jsxImportSource src*/", "<a />;\n", "import { jsx } from \"src/jsx-runtime\";\n/* @__PURE__ */ jsx(\"a\", {});\n")
+	expectPrintedJSX(t, "<a/>\n/* @jsxRuntime automatic */\n/* @jsxImportSource src */", "<a />;\n", "import { jsx } from \"src/jsx-runtime\";\n/* @__PURE__ */ jsx(\"a\", {});\n")
 
-	expectPrintedJSX(t, "// @jsxRuntime classic @jsxImportSource src\n<a/>", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
+	expectPrintedJSX(t, "// @jsxRuntime classic @jsxImportSource src\n<a/>", "<a />;\n", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
 	expectParseErrorJSX(t, "// @jsxRuntime classic @jsxImportSource src\n<a/>",
 		`<stdin>: WARNING: The JSX import source cannot be set without also enabling React's "automatic" JSX transform
 NOTE: You can enable React's "automatic" JSX transform for this file by using a "@jsxRuntime automatic" comment.
@@ -5903,16 +5909,16 @@ NOTE: You can enable React's "automatic" JSX transform for this file by using a 
 NOTE: You can enable React's "automatic" JSX transform for this file by using a "@jsxRuntime automatic" comment.
 `)
 
-	expectPrintedJSX(t, "// @jsxRuntime automatic @jsx h\n<a/>", "import { jsx } from \"react/jsx-runtime\";\n/* @__PURE__ */ jsx(\"a\", {});\n")
+	expectPrintedJSX(t, "// @jsxRuntime automatic @jsx h\n<a/>", "<a />;\n", "import { jsx } from \"react/jsx-runtime\";\n/* @__PURE__ */ jsx(\"a\", {});\n")
 	expectParseErrorJSX(t, "// @jsxRuntime automatic @jsx h\n<a/>", "<stdin>: WARNING: The JSX factory cannot be set when using React's \"automatic\" JSX transform\n")
 
-	expectPrintedJSX(t, "// @jsxRuntime automatic @jsxFrag f\n<></>", "import { Fragment, jsx } from \"react/jsx-runtime\";\n/* @__PURE__ */ jsx(Fragment, {});\n")
+	expectPrintedJSX(t, "// @jsxRuntime automatic @jsxFrag f\n<></>", "<></>;\n", "import { Fragment, jsx } from \"react/jsx-runtime\";\n/* @__PURE__ */ jsx(Fragment, {});\n")
 	expectParseErrorJSX(t, "// @jsxRuntime automatic @jsxFrag f\n<></>", "<stdin>: WARNING: The JSX fragment cannot be set when using React's \"automatic\" JSX transform\n")
 }
 
 func TestJSXSideEffects(t *testing.T) {
-	expectPrintedJSX(t, "<a/>", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
-	expectPrintedJSX(t, "<></>", "/* @__PURE__ */ React.createElement(React.Fragment, null);\n")
+	expectPrintedJSX(t, "<a/>", "<a />;\n", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
+	expectPrintedJSX(t, "<></>", "<></>;\n", "/* @__PURE__ */ React.createElement(React.Fragment, null);\n")
 
 	expectPrintedJSXSideEffects(t, "<a/>", "React.createElement(\"a\", null);\n")
 	expectPrintedJSXSideEffects(t, "<></>", "React.createElement(React.Fragment, null);\n")

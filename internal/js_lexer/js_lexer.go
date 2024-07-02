@@ -794,12 +794,6 @@ func (lexer *Lexer) NextJSXElementChild() {
 			if needsFixing {
 				// Slow path
 				lexer.decodedStringLiteralOrNil = fixWhitespaceAndDecodeJSXEntities(text)
-
-				// Skip this token if it turned out to be empty after trimming
-				if len(lexer.decodedStringLiteralOrNil) == 0 {
-					lexer.HasNewlineBefore = true
-					continue
-				}
 			} else {
 				// Fast path
 				n := len(text)
