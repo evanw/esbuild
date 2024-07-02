@@ -7,7 +7,7 @@ const ESBUILD_BINARY_PATH = esbuild.buildBinary()
 const rootDir = path.join(__dirname, '..', 'require', 'yarnpnp')
 
 function run(command) {
-  console.log('\n\033[37m' + '$ ' + command + '\033[0m')
+  console.log('\n\x1B[37m' + '$ ' + command + '\x1B[0m')
   child_process.execSync(command, { cwd: rootDir, stdio: 'inherit' })
 }
 
@@ -66,7 +66,6 @@ function runTests() {
     'in.mjs',
     '--bundle',
     '--log-level=debug',
-    '--packages=bundle',
     '--platform=node',
     '--outfile=out-native.js',
   ], { cwd: rootDir, stdio: 'inherit' })
@@ -74,12 +73,12 @@ function runTests() {
 
   // Test the WebAssembly build
   esbuild.buildWasmLib(ESBUILD_BINARY_PATH)
-  run('node ../../npm/esbuild-wasm/bin/esbuild in.mjs --bundle --log-level=debug --packages=bundle --platform=node --outfile=out-wasm.js')
+  run('node ../../npm/esbuild-wasm/bin/esbuild in.mjs --bundle --log-level=debug --platform=node --outfile=out-wasm.js')
   run('node out-wasm.js')
 
   // Test the WebAssembly build when run through Yarn's file system shim
   esbuild.buildWasmLib(ESBUILD_BINARY_PATH)
-  run('yarn node ../../npm/esbuild-wasm/bin/esbuild in.mjs --bundle --log-level=debug --packages=bundle --platform=node --outfile=out-wasm-yarn.js')
+  run('yarn node ../../npm/esbuild-wasm/bin/esbuild in.mjs --bundle --log-level=debug --platform=node --outfile=out-wasm-yarn.js')
   run('node out-wasm-yarn.js')
 }
 

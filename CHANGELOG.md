@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+* Revert the recent change to avoid bundling dependencies for node ([#3819](https://github.com/evanw/esbuild/issues/3819))
+
+    This release reverts the recent change in version 0.22.0 that made `--packages=external` the default behavior with `--platform=node`.  The default is now back to `--packages=bundle`.
+
+    I've just been made aware that Amazon doesn't pin their dependencies in their "AWS CDK" product, which means that whenever esbuild publishes a new release, many people (potentially everyone?) using their SDK around the world instantly starts using it without Amazon checking that it works first. This change in version 0.22.0 happened to break their SDK. I'm amazed that things haven't broken before this point. This revert attempts to avoid these problems for Amazon's customers. Hopefully Amazon will pin their dependencies in the future.
+
+    In addition, this is probably a sign that esbuild is used widely enough that it now needs to switch to a more complicated release model. I may have esbuild use a beta channel model for further development.
+
 * Fix preserving collapsed JSX whitespace ([#3818](https://github.com/evanw/esbuild/issues/3818))
 
     When transformed, certain whitespace inside JSX elements is ignored completely if it collapses to an empty string. However, the whitespace should only be ignored if the JSX is being transformed, not if it's being preserved. This release fixes a bug where esbuild was previously incorrectly ignoring collapsed whitespace with `--jsx=preserve`. Here is an example:
