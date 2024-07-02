@@ -50,6 +50,7 @@ var helpText = func(colors logger.Colors) string {
   --serve=...           Start a local HTTP server on this host:port for outputs
   --sourcemap           Emit a source map
   --splitting           Enable code splitting (currently only for esm)
+	--min-chunk-size			Control min chunk source size for code splitting (currently only for js)
   --target=...          Environment target (e.g. es2017, chrome58, firefox57,
                         safari11, edge16, node10, ie9, opera45, default esnext)
   --watch               Watch mode: rebuild on file system changes (stops when
