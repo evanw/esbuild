@@ -651,9 +651,11 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Safari:  {{start: v{10, 0, 0}}},
 	},
 	NodeColonPrefixImport: {
+		ES:   {{start: v{0, 0, 0}}},
 		Node: {{start: v{12, 20, 0}, end: v{13, 0, 0}}, {start: v{14, 13, 1}}},
 	},
 	NodeColonPrefixRequire: {
+		ES:   {{start: v{0, 0, 0}}},
 		Node: {{start: v{14, 18, 0}, end: v{15, 0, 0}}, {start: v{16, 0, 0}}},
 	},
 	NullishCoalescing: {

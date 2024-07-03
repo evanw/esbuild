@@ -3065,7 +3065,7 @@ import "after/alias";
         stdin: { contents: `import fs from 'node:fs'; import('node:fs'); fs()` },
         bundle: true,
         platform: 'node',
-        target,
+        target: target.split(','),
         format: 'esm',
         write: false,
       })
@@ -3079,6 +3079,7 @@ import "after/alias";
     assert.strictEqual(await tryTargetESM('node12.99'), `// <stdin>\nimport fs from "node:fs";\nimport("node:fs");\nfs();\n`)
     assert.strictEqual(await tryTargetESM('node12.20'), `// <stdin>\nimport fs from "node:fs";\nimport("node:fs");\nfs();\n`)
     assert.strictEqual(await tryTargetESM('node12.19'), `// <stdin>\nimport fs from "fs";\nPromise.resolve().then(() => __toESM(__require("fs")));\nfs();\n`)
+    assert.strictEqual(await tryTargetESM('node18,es6'), `// <stdin>\nimport fs from "node:fs";\nimport("node:fs");\nfs();\n`)
   },
 
   async nodeColonPrefixRequire({ esbuild }) {
@@ -3087,7 +3088,7 @@ import "after/alias";
         stdin: { contents: `require('node:fs'); require.resolve('node:fs')` },
         bundle: true,
         platform: 'node',
-        target,
+        target: target.split(','),
         format: 'cjs',
         write: false,
       })
@@ -3101,6 +3102,7 @@ import "after/alias";
     assert.strictEqual(await tryTargetESM('node14.99'), `// <stdin>\nrequire("node:fs");\nrequire.resolve("node:fs");\n`)
     assert.strictEqual(await tryTargetESM('node14.18'), `// <stdin>\nrequire("node:fs");\nrequire.resolve("node:fs");\n`)
     assert.strictEqual(await tryTargetESM('node14.17'), `// <stdin>\nrequire("fs");\nrequire.resolve("fs");\n`)
+    assert.strictEqual(await tryTargetESM('node18,es6'), `// <stdin>\nrequire("node:fs");\nrequire.resolve("node:fs");\n`)
   },
 
   async nodeColonPrefixImportTurnedIntoRequire({ esbuild }) {
@@ -3109,7 +3111,7 @@ import "after/alias";
         stdin: { contents: `import fs from 'node:fs'; import('node:fs'); fs()` },
         bundle: true,
         platform: 'node',
-        target,
+        target: target.split(','),
         format: 'cjs',
         write: false,
       })
@@ -3123,6 +3125,7 @@ import "after/alias";
     assert.strictEqual(await tryTargetESM('node14.99'), `// <stdin>\nvar import_node_fs = __toESM(require("node:fs"));\nimport("node:fs");\n(0, import_node_fs.default)();\n`)
     assert.strictEqual(await tryTargetESM('node14.18'), `// <stdin>\nvar import_node_fs = __toESM(require("node:fs"));\nimport("node:fs");\n(0, import_node_fs.default)();\n`)
     assert.strictEqual(await tryTargetESM('node14.17'), `// <stdin>\nvar import_node_fs = __toESM(require("fs"));\nimport("fs");\n(0, import_node_fs.default)();\n`)
+    assert.strictEqual(await tryTargetESM('node18,es6'), `// <stdin>\nvar import_node_fs = __toESM(require("node:fs"));\nimport("node:fs");\n(0, import_node_fs.default)();\n`)
   },
 
   async zipFile({ esbuild, testDir }) {

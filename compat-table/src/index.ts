@@ -466,6 +466,8 @@ import('./kangax').then(kangax => {
     '15': { force: false },
     '16': { force: true },
   }
+  js.NodeColonPrefixImport.ES = { 0: { force: true } }
+  js.NodeColonPrefixRequire.ES = { 0: { force: true } }
 
   // Arbitrary Module Namespace Names
   {

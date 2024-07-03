@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+* Allow using the `node:` import prefix with `es*` targets ([#3821](https://github.com/evanw/esbuild/issues/3821))
+
+    The [`node:` prefix on imports](https://nodejs.org/api/esm.html#node-imports) is an alternate way to import built-in node modules. For example, `import fs from "fs"` can also be written `import fs from "node:fs"`. This only works with certain newer versions of node, so esbuild removes it when you target older versions of node such as with `--target=node14` so that your code still works. With the way esbuild's platform-specific feature compatibility table works, this was added by saying that only newer versions of node support this feature. However, that means that a target such as `--target=node18,es2022` removes the `node:` prefix because none of the `es*` targets are known to support this feature. This release adds the support for the `node:` flag to esbuild's internal compatibility table for `es*` to allow you to use compound targets like this:
+
+    ```js
+    // Original code
+    import fs from 'node:fs'
+    fs.open
+
+    // Old output (with --bundle --format=esm --platform=node --target=node18,es2022)
+    import fs from "node";
+    fs.open;
+
+    // New output (with --bundle --format=esm --platform=node --target=node18,es2022)
+    import fs from "node:fs";
+    fs.open;
+    ```
+
 ## 0.23.0
 
 **_This release deliberately contains backwards-incompatible changes._** To avoid automatically picking up releases like this, you should either be pinning the exact version of `esbuild` in your `package.json` file (recommended) or be using a version range syntax that only accepts patch upgrades such as `^0.22.0` or `~0.22.0`. See npm's documentation about [semver](https://docs.npmjs.com/cli/v6/using-npm/semver/) for more information.
