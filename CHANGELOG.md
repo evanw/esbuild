@@ -12,7 +12,7 @@
     fs.open
 
     // Old output (with --bundle --format=esm --platform=node --target=node18,es2022)
-    import fs from "node";
+    import fs from "fs";
     fs.open;
 
     // New output (with --bundle --format=esm --platform=node --target=node18,es2022)
