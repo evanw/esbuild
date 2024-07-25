@@ -1605,7 +1605,7 @@ func (p *parser) hoistSymbols(scope *js_ast.Scope) {
 func (p *parser) declareBinding(kind ast.SymbolKind, binding js_ast.Binding, opts parseStmtOpts) {
 	js_ast.ForEachIdentifierBinding(binding, func(loc logger.Loc, b *js_ast.BIdentifier) {
 		if !opts.isTypeScriptDeclare || (opts.isNamespaceScope && opts.isExport) {
-			b.Ref = p.declareSymbol(kind, binding.Loc, p.loadNameFromRef(b.Ref))
+			b.Ref = p.declareSymbol(kind, loc, p.loadNameFromRef(b.Ref))
 		}
 	})
 }
