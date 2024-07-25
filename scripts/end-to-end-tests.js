@@ -8446,6 +8446,27 @@ tests.push(
   }),
 )
 
+// Tests for analyze
+tests.push(
+  test(['in.js', '--analyze', '--outfile=node.js'], {
+    'in.js': `let x = 1 + 2`,
+  }, {
+    expectedStderr: `
+  node.js   15b   100.0%
+   └ in.js  15b   100.0%
+
+`,
+  }),
+  test(['in.js', '--invalid-flag', '--analyze'], {
+    'in.js': `let x = 1 + 2`,
+  }, {
+    expectedStderr: `${errorIcon} [ERROR] Invalid build flag: "--invalid-flag"\n\n`,
+  }),
+  test(['--analyze'], {}, {
+    expectedStderr: `${errorIcon} [ERROR] Invalid transform flag: "--analyze"\n\n`,
+  }),
+)
+
 // Test writing to stdout
 tests.push(
   // These should succeed

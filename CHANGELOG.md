@@ -20,6 +20,10 @@
     fs.open;
     ```
 
+* Fix a panic when using the CLI with invalid build flags if `--analyze` is present ([#3834](https://github.com/evanw/esbuild/issues/3834))
+
+    Previously esbuild's CLI could crash if it was invoked with flags that aren't valid for a "build" API call and the `--analyze` flag is present. This was caused by esbuild's internals attempting to add a Go plugin (which is how `--analyze` is implemented) to a null build object. The panic has been fixed in this release.
+
 ## 0.23.0
 
 **_This release deliberately contains backwards-incompatible changes._** To avoid automatically picking up releases like this, you should either be pinning the exact version of `esbuild` in your `package.json` file (recommended) or be using a version range syntax that only accepts patch upgrades such as `^0.22.0` or `~0.22.0`. See npm's documentation about [semver](https://docs.npmjs.com/cli/v6/using-npm/semver/) for more information.

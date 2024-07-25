@@ -1023,11 +1023,15 @@ outer:
 	return
 }
 
+func isArgForBuild(arg string) bool {
+	return !strings.HasPrefix(arg, "-") || arg == "--bundle"
+}
+
 // This returns either BuildOptions, TransformOptions, or an error
 func parseOptionsForRun(osArgs []string) (*api.BuildOptions, *api.TransformOptions, parseOptionsExtras, *cli_helpers.ErrorWithNote) {
 	// If there's an entry point or we're bundling, then we're building
 	for _, arg := range osArgs {
-		if !strings.HasPrefix(arg, "-") || arg == "--bundle" {
+		if isArgForBuild(arg) {
 			options := newBuildOptions()
 
 			// Apply defaults appropriate for the CLI
@@ -1091,20 +1095,25 @@ const (
 )
 
 func filterAnalyzeFlags(osArgs []string) ([]string, analyzeMode) {
-	analyze := analyzeDisabled
-	end := 0
 	for _, arg := range osArgs {
-		switch arg {
-		case "--analyze":
-			analyze = analyzeEnabled
-		case "--analyze=verbose":
-			analyze = analyzeVerbose
-		default:
-			osArgs[end] = arg
-			end++
+		if isArgForBuild(arg) {
+			analyze := analyzeDisabled
+			end := 0
+			for _, arg := range osArgs {
+				switch arg {
+				case "--analyze":
+					analyze = analyzeEnabled
+				case "--analyze=verbose":
+					analyze = analyzeVerbose
+				default:
+					osArgs[end] = arg
+					end++
+				}
+			}
+			return osArgs[:end], analyze
 		}
 	}
-	return osArgs[:end], analyze
+	return osArgs, analyzeDisabled
 }
 
 // Print metafile analysis after the build if it's enabled
@@ -1150,10 +1159,11 @@ func runImpl(osArgs []string, plugins []api.Plugin) int {
 	// Add any plugins from the caller after parsing the build options
 	if buildOptions != nil {
 		buildOptions.Plugins = append(buildOptions.Plugins, plugins...)
-	}
 
-	if analyze != analyzeDisabled {
-		addAnalyzePlugin(buildOptions, analyze, osArgs)
+		// The "--analyze" flag is implemented as a plugin
+		if analyze != analyzeDisabled {
+			addAnalyzePlugin(buildOptions, analyze, osArgs)
+		}
 	}
 
 	switch {
