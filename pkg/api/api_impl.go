@@ -5,8 +5,6 @@ package api
 
 import (
 	"bytes"
-	"encoding/base64"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -36,7 +34,6 @@ import (
 	"github.com/evanw/esbuild/internal/linker"
 	"github.com/evanw/esbuild/internal/logger"
 	"github.com/evanw/esbuild/internal/resolver"
-	"github.com/evanw/esbuild/internal/xxhash"
 )
 
 func validatePathTemplate(template string) []config.PathTemplate {
@@ -1491,23 +1488,18 @@ func rebuildImpl(args rebuildArgs, oldHashes map[string]string) (rebuildState, m
 			result.Metafile = metafile
 
 			// Populate the results to return
-			var hashBytes [8]byte
 			result.OutputFiles = make([]OutputFile, len(results))
 			newHashes = make(map[string]string)
 			for i, item := range results {
 				if args.options.WriteToStdout {
 					item.AbsPath = "<stdout>"
 				}
-				hasher := xxhash.New()
-				hasher.Write(item.Contents)
-				binary.LittleEndian.PutUint64(hashBytes[:], hasher.Sum64())
-				hash := base64.RawStdEncoding.EncodeToString(hashBytes[:])
 				result.OutputFiles[i] = OutputFile{
 					Path:     item.AbsPath,
 					Contents: item.Contents,
-					Hash:     hash,
+					Hash:     item.Hash,
 				}
-				newHashes[item.AbsPath] = hash
+				newHashes[item.AbsPath] = item.Hash
 			}
 
 			// Write output files before "OnEnd" callbacks run so they can expect

@@ -42,6 +42,7 @@ type OutputFile struct {
 
 	AbsPath      string
 	Contents     []byte
+	Hash         string
 	IsExecutable bool
 }
 

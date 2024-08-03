@@ -1076,6 +1076,10 @@ body {
     assert.strictEqual(typeof json.outputs[makePath(outputCSS)].bytes, 'number')
     assert.strictEqual(typeof json.outputs[makePath(outputJS) + '.map'].bytes, 'number')
     assert.strictEqual(typeof json.outputs[makePath(outputCSS) + '.map'].bytes, 'number')
+    assert.strictEqual(typeof json.outputs[makePath(outputJS)].hash, 'string')
+    assert.strictEqual(typeof json.outputs[makePath(outputCSS)].hash, 'string')
+    assert.strictEqual(typeof json.outputs[makePath(outputJS) + '.map'].hash, 'string')
+    assert.strictEqual(typeof json.outputs[makePath(outputCSS) + '.map'].hash, 'string')
     assert.strictEqual(json.outputs[makePath(outputJS)].entryPoint, makePath(entry))
     assert.strictEqual(json.outputs[makePath(outputCSS)].entryPoint, undefined) // This is deliberately undefined
     assert.deepStrictEqual(json.outputs[makePath(outputJS) + '.map'].imports, [])
@@ -1548,6 +1552,7 @@ body {
         [makePath(output)]: {
           bytes: 253,
           entryPoint: makePath(entry),
+          hash: 'Ws3Hg5TfBow',
           imports: [
             { kind: 'url-token', path: 'data:image/png,an image' },
             { external: true, kind: 'url-token', path: 'https://example.com/external.png' },
@@ -1560,6 +1565,7 @@ body {
         [makePath(output + '.map')]: {
           bytes: 325,
           exports: [],
+          hash: 'JKHHyahtQbE',
           imports: [],
           inputs: {},
         },
@@ -1635,7 +1641,9 @@ body {
     const meta = value.metafile
     assert.strictEqual(meta.inputs[makePath(input)].bytes, inputCode.length)
     assert.strictEqual(meta.outputs[makePath(output)].bytes, js.length)
+    assert.strictEqual(meta.outputs[makePath(output)].hash, value.outputFiles[1].hash)
     assert.strictEqual(meta.outputs[makePath(output + '.map')].bytes, value.outputFiles[0].contents.length)
+    assert.strictEqual(meta.outputs[makePath(output + '.map')].hash, value.outputFiles[0].hash)
   },
 
   async allowOverwrite({ esbuild, testDir }) {

@@ -58,7 +58,8 @@ a {
       "imports": [],
       "exports": [],
       "inputs": {},
-      "bytes": 203
+      "bytes": 203,
+      "hash": "Bm4aUvCX2dw"
     },
     "entry.css": {
       "imports": [
@@ -74,7 +75,8 @@ a {
           "bytesInOutput": 27
         }
       },
-      "bytes": 43
+      "bytes": 43,
+      "hash": "UXY2JikiRN4"
     }
   }
 }
@@ -158,7 +160,8 @@ console.log(ns, import_c.default, void 0);
       "imports": [],
       "exports": [],
       "inputs": {},
-      "bytes": 377
+      "bytes": 377,
+      "hash": "W0RIyQIh2TA"
     },
     "entry.js": {
       "imports": [],
@@ -175,7 +178,8 @@ console.log(ns, import_c.default, void 0);
           "bytesInOutput": 111
         }
       },
-      "bytes": 253
+      "bytes": 253,
+      "hash": "biWEeH6oSCs"
     }
   }
 }

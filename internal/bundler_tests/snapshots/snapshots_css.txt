@@ -3395,7 +3395,8 @@ console.log("bar");
           "bytesInOutput": 20
         }
       },
-      "bytes": 36
+      "bytes": 36,
+      "hash": "br5jNYccCrA"
     },
     "out/css/DIO3TRUB.css": {
       "imports": [],
@@ -3404,7 +3405,8 @@ console.log("bar");
           "bytesInOutput": 23
         }
       },
-      "bytes": 40
+      "bytes": 40,
+      "hash": "pQk0CKFT9YM"
     },
     "out/js/MA6C7ZBK.js": {
       "imports": [],
@@ -3419,7 +3421,8 @@ console.log("bar");
           "bytesInOutput": 20
         }
       },
-      "bytes": 36
+      "bytes": 36,
+      "hash": "W/iiZ007tkU"
     }
   }
 }
