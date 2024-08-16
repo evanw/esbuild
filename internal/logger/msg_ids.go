@@ -74,6 +74,7 @@ const (
 
 	// package.json
 	MsgID_PackageJSON_FIRST // Keep this first
+	MsgID_PackageJSON_DeadCondition
 	MsgID_PackageJSON_InvalidBrowser
 	MsgID_PackageJSON_InvalidImportsOrExports
 	MsgID_PackageJSON_InvalidSideEffects

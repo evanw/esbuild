@@ -4,6 +4,14 @@ TestCommonJSVariableInESMTypeModule
 module.exports = null;
 
 ================================================================================
+TestPackageJsonBadExportsDefaultWarningIssue3867
+---------- /out.js ----------
+
+================================================================================
+TestPackageJsonBadExportsImportAndRequireWarningIssue3867
+---------- /out.js ----------
+
+================================================================================
 TestPackageJsonBadMain
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/node_modules/demo-pkg/index.js

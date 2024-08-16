@@ -675,6 +675,16 @@ func parseImportsExportsMap(source logger.Source, log logger.Log, json js_ast.Ex
 			firstToken := logger.Range{Loc: expr.Loc, Len: 1}
 			isConditionalSugar := false
 
+			type DeadCondition struct {
+				reason string
+				ranges []logger.Range
+				notes  []logger.MsgData
+			}
+			var foundDefault logger.Range
+			var foundImport logger.Range
+			var foundRequire logger.Range
+			var deadCondition DeadCondition
+
 			for i, property := range e.Properties {
 				keyStr, _ := property.Key.Data.(*js_ast.EString)
 				key := helpers.UTF16ToString(keyStr.Value)
@@ -697,6 +707,34 @@ func parseImportsExportsMap(source logger.Source, log logger.Log, json js_ast.Ex
 					}
 				}
 
+				// Track "dead" conditional branches that can never be reached
+				if foundDefault.Len != 0 || (foundImport.Len != 0 && foundRequire.Len != 0) {
+					deadCondition.ranges = append(deadCondition.ranges, keyRange)
+					if deadCondition.reason == "" {
+						if foundDefault.Len != 0 {
+							deadCondition.reason = "\"default\""
+							deadCondition.notes = []logger.MsgData{
+								tracker.MsgData(foundDefault, "The \"default\" condition comes earlier and will always be chosen:"),
+							}
+						} else {
+							deadCondition.reason = "both \"import\" and \"require\""
+							deadCondition.notes = []logger.MsgData{
+								tracker.MsgData(foundImport, "The \"import\" condition comes earlier and will be used for all \"import\" statements:"),
+								tracker.MsgData(foundRequire, "The \"require\" condition comes earlier and will be used for all \"require\" calls:"),
+							}
+						}
+					}
+				} else {
+					switch key {
+					case "default":
+						foundDefault = keyRange
+					case "import":
+						foundImport = keyRange
+					case "require":
+						foundRequire = keyRange
+					}
+				}
+
 				entry := pjMapEntry{
 					key:      key,
 					keyRange: keyRange,
@@ -714,6 +752,30 @@ func parseImportsExportsMap(source logger.Source, log logger.Log, json js_ast.Ex
 			// or containing only a single "*", sorted by the sorting function
 			// PATTERN_KEY_COMPARE which orders in descending order of specificity.
 			sort.Stable(expansionKeys)
+
+			// Warn about "dead" conditional branches that can never be reached
+			if deadCondition.reason != "" {
+				kind := logger.Warning
+				if helpers.IsInsideNodeModules(source.KeyPath.Text) {
+					kind = logger.Debug
+				}
+				var conditions string
+				conditionWord := "condition"
+				itComesWord := "it comes"
+				if len(deadCondition.ranges) > 1 {
+					conditionWord = "conditions"
+					itComesWord = "they come"
+				}
+				for i, r := range deadCondition.ranges {
+					if i > 0 {
+						conditions += " and "
+					}
+					conditions += source.TextForRange(r)
+				}
+				log.AddIDWithNotes(logger.MsgID_PackageJSON_DeadCondition, kind, &tracker, deadCondition.ranges[0],
+					fmt.Sprintf("The %s %s here will never be used as %s after %s", conditionWord, conditions, itComesWord, deadCondition.reason),
+					deadCondition.notes)
+			}
 
 			return pjEntry{
 				kind:          pjObject,

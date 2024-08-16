@@ -2908,3 +2908,97 @@ func TestPackageJsonSubpathImportNodeBuiltinIssue3485(t *testing.T) {
 		},
 	})
 }
+
+// See: https://github.com/evanw/esbuild/issues/3867
+func TestPackageJsonBadExportsImportAndRequireWarningIssue3867(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import "foo"
+			`,
+			"/node_modules/foo/package.json": `
+				{
+					"exports": {
+						".": {
+							"import": "./dist/node/index.js",
+							"require": "./dist/node/index.cjs",
+							"node": {
+								"import": "./dist/node/index.js",
+								"require": "./dist/node/index.cjs"
+							},
+							"browser": {
+								"import": "./dist/browser/index.js",
+								"require": "./dist/browser/index.cjs"
+							},
+							"worker": {
+								"import": "./dist/browser/index.js",
+								"require": "./dist/browser/index.cjs"
+							}
+						}
+					}
+				}
+			`,
+			"/node_modules/foo/dist/node/index.js":     ``,
+			"/node_modules/foo/dist/node/index.cjs":    ``,
+			"/node_modules/foo/dist/browser/index.js":  ``,
+			"/node_modules/foo/dist/browser/index.cjs": ``,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			Platform:      config.PlatformNode,
+			AbsOutputFile: "/out.js",
+		},
+		debugLogs: true,
+		expectedScanLog: `node_modules/foo/package.json: DEBUG: The conditions "node" and "browser" and "worker" here will never be used as they come after both "import" and "require"
+node_modules/foo/package.json: NOTE: The "import" condition comes earlier and will be used for all "import" statements:
+node_modules/foo/package.json: NOTE: The "require" condition comes earlier and will be used for all "require" calls:
+`,
+	})
+}
+
+// See: https://github.com/evanw/esbuild/issues/3867
+func TestPackageJsonBadExportsDefaultWarningIssue3867(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import "foo"
+			`,
+			"/node_modules/foo/package.json": `
+				{
+					"exports": {
+						".": {
+							"default": "./dist/node/index.js",
+							"node": {
+								"import": "./dist/node/index.js",
+								"require": "./dist/node/index.cjs"
+							},
+							"browser": {
+								"import": "./dist/browser/index.js",
+								"require": "./dist/browser/index.cjs"
+							},
+							"worker": {
+								"import": "./dist/browser/index.js",
+								"require": "./dist/browser/index.cjs"
+							}
+						}
+					}
+				}
+			`,
+			"/node_modules/foo/dist/node/index.js":     ``,
+			"/node_modules/foo/dist/node/index.cjs":    ``,
+			"/node_modules/foo/dist/browser/index.js":  ``,
+			"/node_modules/foo/dist/browser/index.cjs": ``,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			Platform:      config.PlatformNode,
+			AbsOutputFile: "/out.js",
+		},
+		debugLogs: true,
+		expectedScanLog: `node_modules/foo/package.json: DEBUG: The conditions "node" and "browser" and "worker" here will never be used as they come after "default"
+node_modules/foo/package.json: NOTE: The "default" condition comes earlier and will always be chosen:
+`,
+	})
+}
