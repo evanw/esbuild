@@ -4577,6 +4577,7 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 		for _, c := range s.Cases {
 			p.printSemicolonIfNeeded()
 			p.printIndent()
+			p.printExprCommentsAtLoc(c.Loc)
 			p.addSourceMapping(c.Loc)
 
 			if c.ValueOrNil.Data != nil {

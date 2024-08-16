@@ -28,6 +28,10 @@
 
     This release fixes a regression that caused certain errors relating to variable declarations to be reported at an incorrect location. The regression was introduced in version 0.18.7 of esbuild.
 
+* Print comments before case clauses in switch statements ([#3838](https://github.com/evanw/esbuild/issues/3838))
+
+    With this release, esbuild will attempt to print comments that come before case clauses in switch statements. This is similar to what esbuild already does for comments inside of certain types of expressions. Note that these types of comments are not printed if minification is enabled (specifically whitespace minification).
+
 ## 0.23.0
 
 **_This release deliberately contains backwards-incompatible changes._** To avoid automatically picking up releases like this, you should either be pinning the exact version of `esbuild` in your `package.json` file (recommended) or be using a version range syntax that only accepts patch upgrades such as `^0.22.0` or `~0.22.0`. See npm's documentation about [semver](https://docs.npmjs.com/cli/v6/using-npm/semver/) for more information.

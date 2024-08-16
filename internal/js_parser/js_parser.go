@@ -7346,7 +7346,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		for p.lexer.Token != js_lexer.TCloseBrace {
 			var value js_ast.Expr
 			body := []js_ast.Stmt{}
-			caseLoc := p.lexer.Loc()
+			caseLoc := p.saveExprCommentsHere()
 
 			if p.lexer.Token == js_lexer.TDefault {
 				if foundDefault {

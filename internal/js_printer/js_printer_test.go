@@ -517,6 +517,12 @@ func TestObject(t *testing.T) {
 	expectPrintedTarget(t, 5, "function foo(__proto__) { return { __proto__ } }", "function foo(__proto__) {\n  return { __proto__: __proto__ };\n}\n")
 }
 
+func TestSwitch(t *testing.T) {
+	// Ideally comments on case clauses would be preserved
+	expectPrinted(t, "switch (x) { /* 1 */ case 1: /* 2 */ case 2: /* default */ default: break }",
+		"switch (x) {\n  /* 1 */\n  case 1:\n  /* 2 */\n  case 2:\n  /* default */\n  default:\n    break;\n}\n")
+}
+
 func TestFor(t *testing.T) {
 	// Make sure "in" expressions are forbidden in the right places
 	expectPrinted(t, "for ((a in b);;);", "for ((a in b); ; ) ;\n")
