@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.23.1
 
 * Allow using the `node:` import prefix with `es*` targets ([#3821](https://github.com/evanw/esbuild/issues/3821))
 
