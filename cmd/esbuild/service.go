@@ -836,7 +836,6 @@ func (service *serviceType) convertPlugins(key int, jsPlugins interface{}, activ
 
 	var onResolveCallbacks []filteredCallback
 	var onLoadCallbacks []filteredCallback
-	hasOnStart := false
 	hasOnEnd := false
 
 	filteredCallbacks := func(pluginName string, kind string, items []interface{}) (result []filteredCallback, err error) {
@@ -859,10 +858,6 @@ func (service *serviceType) convertPlugins(key int, jsPlugins interface{}, activ
 	for _, p := range jsPlugins.([]interface{}) {
 		p := p.(map[string]interface{})
 		pluginName := p["name"].(string)
-
-		if p["onStart"].(bool) {
-			hasOnStart = true
-		}
 
 		if p["onEnd"].(bool) {
 			hasOnEnd = true
@@ -944,22 +939,20 @@ func (service *serviceType) convertPlugins(key int, jsPlugins interface{}, activ
 			}
 			activeBuild.mutex.Unlock()
 
-			// Only register "OnStart" if needed
-			if hasOnStart {
-				build.OnStart(func() (api.OnStartResult, error) {
-					response, ok := service.sendRequest(map[string]interface{}{
-						"command": "on-start",
-						"key":     key,
-					}).(map[string]interface{})
-					if !ok {
-						return api.OnStartResult{}, errors.New("The service was stopped")
-					}
-					return api.OnStartResult{
-						Errors:   decodeMessages(response["errors"].([]interface{})),
-						Warnings: decodeMessages(response["warnings"].([]interface{})),
-					}, nil
-				})
-			}
+			// Always register "OnStart" to clear "pluginData"
+			build.OnStart(func() (api.OnStartResult, error) {
+				response, ok := service.sendRequest(map[string]interface{}{
+					"command": "on-start",
+					"key":     key,
+				}).(map[string]interface{})
+				if !ok {
+					return api.OnStartResult{}, errors.New("The service was stopped")
+				}
+				return api.OnStartResult{
+					Errors:   decodeMessages(response["errors"].([]interface{})),
+					Warnings: decodeMessages(response["warnings"].([]interface{})),
+				}, nil
+			})
 
 			// Only register "OnResolve" if needed
 			if len(onResolveCallbacks) > 0 {
