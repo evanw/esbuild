@@ -474,6 +474,7 @@ type Options struct {
 	TreeShaking            bool
 	DropDebugger           bool
 	MangleQuoted           bool
+	LocalCSSPrefix         string
 	Platform               Platform
 	OutputFormat           Format
 	NeedsMetafile          bool

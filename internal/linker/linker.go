@@ -493,10 +493,10 @@ func (c *linkerContext) mangleLocalCSS(usedLocalNames map[string]bool) {
 		nextName := 0
 
 		for _, symbolCount := range sorted {
-			name := minifier.NumberToMinifiedName(nextName)
+			name := c.options.LocalCSSPrefix + minifier.NumberToMinifiedName(nextName)
 			for globalNames[name] || usedLocalNames[name] {
 				nextName++
-				name = minifier.NumberToMinifiedName(nextName)
+				name = c.options.LocalCSSPrefix + minifier.NumberToMinifiedName(nextName)
 			}
 
 			// Turn this local name into a global one
