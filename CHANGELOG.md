@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+* Drop support for older platforms ([#3902](https://github.com/evanw/esbuild/pull/3902))
+
+    This release drops support for the following operating system:
+
+    * macOS 10.15 Catalina
+
+    This is because the Go programming language dropped support for this operating system version in Go 1.23, and this release updates esbuild from Go 1.22 to Go 1.23. Go 1.23 now requires macOS 11 Big Sur or later.
+
+    Note that this only affects the binary esbuild executables that are published to the esbuild npm package. It's still possible to compile esbuild's source code for these older operating systems. If you need to, you can compile esbuild for yourself using an older version of the Go compiler (before Go version 1.23). That might look something like this:
+
+    ```
+    git clone https://github.com/evanw/esbuild.git
+    cd esbuild
+    go build ./cmd/esbuild
+    ./esbuild --version
+    ```
+
 ## 0.23.1
 
 * Allow using the `node:` import prefix with `es*` targets ([#3821](https://github.com/evanw/esbuild/issues/3821))
