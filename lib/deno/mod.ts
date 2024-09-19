@@ -203,11 +203,12 @@ const spawnNew: SpawnFn = (cmd, { args, stdin, stdout, stderr }) => {
     stdout,
     stderr,
   }).spawn()
-  const writer = child.stdin.getWriter()
-  const reader = child.stdout.getReader()
+  // If any stdio options are not set to "piped", accessing the corresponding field on the Command or its CommandOutput will throw a TypeError.
+  const writer = stdin === "piped" ? child.stdin.getWriter() : null;
+  const reader = stdout === "piped" ? child.stdout.getReader() : null;
   return {
-    write: bytes => writer.write(bytes),
-    read: () => reader.read().then(x => x.value || null),
+    write: writer === null ? null : bytes => writer.write(bytes),
+    read: reder === null ? null : () => reader.read().then(x => x.value || null),
     close: async () => {
       // We can't call "kill()" because it doesn't seem to work. Tests will
       // still fail with "A child process was opened during the test, but not
@@ -223,8 +224,8 @@ const spawnNew: SpawnFn = (cmd, { args, stdin, stdout, stderr }) => {
       // we can do.
       //
       // See this for more info: https://github.com/evanw/esbuild/pull/3611
-      await writer.close()
-      await reader.cancel()
+      await writer?.close()
+      await reader?.cancel()
 
       // Wait for the process to exit. The new "kill()" API doesn't flag the
       // process as having exited because processes can technically ignore the
