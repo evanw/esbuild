@@ -725,6 +725,12 @@ TestTsconfigRemoveUnusedImports
 console.log(1);
 
 ================================================================================
+TestTsconfigStackOverflowYarnPnP
+---------- /Users/user/project/out.js ----------
+// entry.jsx
+console.log(/* @__PURE__ */ success("div", null));
+
+================================================================================
 TestTsconfigUnrecognizedTargetWarning
 ---------- /Users/user/project/out.js ----------
 

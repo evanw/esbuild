@@ -1132,12 +1132,19 @@ func (r resolverQuery) dirInfoCached(path string) *dirInfo {
 
 	// Cache hit: stop now
 	if !ok {
+		// Update the cache to indicate failure. Even if the read failed, we don't
+		// want to retry again later. The directory is inaccessible so trying again
+		// is wasted. Doing this before calling "dirInfoUncached" prevents stack
+		// overflow in case this directory is recursively encountered again.
+		r.dirCache[path] = nil
+
 		// Cache miss: read the info
 		cached = r.dirInfoUncached(path)
 
-		// Update the cache unconditionally. Even if the read failed, we don't want to
-		// retry again later. The directory is inaccessible so trying again is wasted.
-		r.dirCache[path] = cached
+		// Only update the cache again on success
+		if cached != nil {
+			r.dirCache[path] = cached
+		}
 	}
 
 	if r.debugLogs != nil {
@@ -1294,7 +1301,8 @@ func (r resolverQuery) parseTSConfigFromSource(source logger.Source, visited map
 						if entry, _ := entries.Get("package.json"); entry != nil && entry.Kind(r.fs) == fs.FileEntry {
 							// Check the "exports" map
 							if packageJSON := r.parsePackageJSON(result.pkgDirPath); packageJSON != nil && packageJSON.exportsMap != nil {
-								if absolute, ok, _ := r.esmResolveAlgorithm(result.pkgIdent, "."+result.pkgSubpath, packageJSON, result.pkgDirPath, source.KeyPath.Text); ok {
+								if absolute, ok, _ := r.esmResolveAlgorithm(finalizeImportsExportsYarnPnPTSConfigExtends,
+									result.pkgIdent, "."+result.pkgSubpath, packageJSON, result.pkgDirPath, source.KeyPath.Text); ok {
 									base, err := r.parseTSConfig(absolute.Primary.Text, visited, configDir)
 									if result, shouldReturn := maybeFinishOurSearch(base, err, absolute.Primary.Text); shouldReturn {
 										return result
@@ -2236,6 +2244,7 @@ func (r resolverQuery) loadPackageImports(importPath string, dirInfoPackageJSON 
 	}
 
 	absolute, ok, diffCase := r.finalizeImportsExportsResult(
+		finalizeImportsExportsNormal,
 		dirInfoPackageJSON.absPath, conditions, *packageJSON.importsMap, packageJSON,
 		resolvedPath, status, debug,
 		"", "", "",
@@ -2243,7 +2252,14 @@ func (r resolverQuery) loadPackageImports(importPath string, dirInfoPackageJSON 
 	return absolute, ok, diffCase, nil
 }
 
-func (r resolverQuery) esmResolveAlgorithm(esmPackageName string, esmPackageSubpath string, packageJSON *packageJSON, absPkgPath string, absPath string) (PathPair, bool, *fs.DifferentCase) {
+func (r resolverQuery) esmResolveAlgorithm(
+	kind finalizeImportsExportsKind,
+	esmPackageName string,
+	esmPackageSubpath string,
+	packageJSON *packageJSON,
+	absPkgPath string,
+	absPath string,
+) (PathPair, bool, *fs.DifferentCase) {
 	if r.debugLogs != nil {
 		r.debugLogs.addNote(fmt.Sprintf("Looking for %q in \"exports\" map in %q", esmPackageSubpath, packageJSON.source.KeyPath.Text))
 		r.debugLogs.increaseIndent()
@@ -2278,6 +2294,7 @@ func (r resolverQuery) esmResolveAlgorithm(esmPackageName string, esmPackageSubp
 	resolvedPath, status, debug = r.esmHandlePostConditions(resolvedPath, status, debug)
 
 	return r.finalizeImportsExportsResult(
+		kind,
 		absPkgPath, conditions, *packageJSON.exportsMap, packageJSON,
 		resolvedPath, status, debug,
 		esmPackageName, esmPackageSubpath, absPath,
@@ -2358,7 +2375,7 @@ func (r resolverQuery) loadNodeModules(importPath string, dirInfo *dirInfo, forb
 			if pkgDirInfo := r.dirInfoCached(result.pkgDirPath); pkgDirInfo != nil {
 				// Check the "exports" map
 				if packageJSON := pkgDirInfo.packageJSON; packageJSON != nil && packageJSON.exportsMap != nil {
-					absolute, ok, diffCase := r.esmResolveAlgorithm(result.pkgIdent, "."+result.pkgSubpath, packageJSON, pkgDirInfo.absPath, absPath)
+					absolute, ok, diffCase := r.esmResolveAlgorithm(finalizeImportsExportsNormal, result.pkgIdent, "."+result.pkgSubpath, packageJSON, pkgDirInfo.absPath, absPath)
 					return absolute, ok, diffCase, nil
 				}
 
@@ -2393,7 +2410,7 @@ func (r resolverQuery) loadNodeModules(importPath string, dirInfo *dirInfo, forb
 	// Check for self-references
 	if dirInfoPackageJSON != nil {
 		if packageJSON := dirInfoPackageJSON.packageJSON; packageJSON.name == esmPackageName && packageJSON.exportsMap != nil {
-			absolute, ok, diffCase := r.esmResolveAlgorithm(esmPackageName, esmPackageSubpath, packageJSON,
+			absolute, ok, diffCase := r.esmResolveAlgorithm(finalizeImportsExportsNormal, esmPackageName, esmPackageSubpath, packageJSON,
 				dirInfoPackageJSON.absPath, r.fs.Join(dirInfoPackageJSON.absPath, esmPackageSubpath))
 			return absolute, ok, diffCase, nil
 		}
@@ -2412,7 +2429,7 @@ func (r resolverQuery) loadNodeModules(importPath string, dirInfo *dirInfo, forb
 			if pkgDirInfo := r.dirInfoCached(absPkgPath); pkgDirInfo != nil {
 				// Check the "exports" map
 				if packageJSON := pkgDirInfo.packageJSON; packageJSON != nil && packageJSON.exportsMap != nil {
-					absolute, ok, diffCase := r.esmResolveAlgorithm(esmPackageName, esmPackageSubpath, packageJSON, absPkgPath, absPath)
+					absolute, ok, diffCase := r.esmResolveAlgorithm(finalizeImportsExportsNormal, esmPackageName, esmPackageSubpath, packageJSON, absPkgPath, absPath)
 					return absolute, ok, diffCase, nil, true
 				}
 
@@ -2524,7 +2541,15 @@ func (r resolverQuery) checkForBuiltInNodeModules(importPath string) (PathPair, 
 	return PathPair{}, false, nil
 }
 
+type finalizeImportsExportsKind uint8
+
+const (
+	finalizeImportsExportsNormal finalizeImportsExportsKind = iota
+	finalizeImportsExportsYarnPnPTSConfigExtends
+)
+
 func (r resolverQuery) finalizeImportsExportsResult(
+	kind finalizeImportsExportsKind,
 	absDirPath string,
 	conditions map[string]bool,
 	importExportMap pjMap,
@@ -2549,6 +2574,14 @@ func (r resolverQuery) finalizeImportsExportsResult(
 		case pjStatusExact, pjStatusExactEndsWithStar:
 			if r.debugLogs != nil {
 				r.debugLogs.addNote(fmt.Sprintf("The resolved path %q is exact", absResolvedPath))
+			}
+
+			// Avoid calling "dirInfoCached" recursively for "tsconfig.json" extends with Yarn PnP
+			if kind == finalizeImportsExportsYarnPnPTSConfigExtends {
+				if r.debugLogs != nil {
+					r.debugLogs.addNote(fmt.Sprintf("Resolved to %q", absResolvedPath))
+				}
+				return PathPair{Primary: logger.Path{Text: absResolvedPath, Namespace: "file"}}, true, nil
 			}
 
 			resolvedDirInfo := r.dirInfoCached(r.fs.Dir(absResolvedPath))

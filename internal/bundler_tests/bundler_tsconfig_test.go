@@ -2749,3 +2749,71 @@ func TestTsconfigJsonConfigDirBaseURLInheritedPaths(t *testing.T) {
 		},
 	})
 }
+
+// https://github.com/evanw/esbuild/issues/3915
+func TestTsconfigStackOverflowYarnPnP(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/entry.jsx": `
+				console.log(<div />)
+			`,
+			"/Users/user/project/tsconfig.json": `
+				{
+					"extends": "tsconfigs/config"
+				}
+			`,
+			"/Users/user/project/packages/tsconfigs/package.json": `
+				{
+					"exports": {
+						"./config": "./configs/tsconfig.json"
+					}
+				}
+			`,
+			"/Users/user/project/packages/tsconfigs/configs/tsconfig.json": `
+				{
+					"compilerOptions": {
+						"jsxFactory": "success"
+					}
+				}
+			`,
+			"/Users/user/project/.pnp.data.json": `
+				{
+					"packageRegistryData": [
+						[null, [
+							[null, {
+								"packageLocation": "./",
+								"packageDependencies": [
+									["tsconfigs", "virtual:some-path"]
+								],
+								"linkType": "SOFT"
+							}]
+						]],
+						["tsconfigs", [
+							["virtual:some-path", {
+								"packageLocation": "./packages/tsconfigs/",
+								"packageDependencies": [
+									["tsconfigs", "virtual:some-path"]
+								],
+								"packagePeers": [],
+								"linkType": "SOFT"
+							}],
+							["workspace:packages/tsconfigs", {
+								"packageLocation": "./packages/tsconfigs/",
+								"packageDependencies": [
+									["tsconfigs", "workspace:packages/tsconfigs"]
+								],
+								"linkType": "SOFT"
+							}]
+						]]
+					]
+				}
+			`,
+		},
+		entryPaths:    []string{"/Users/user/project/entry.jsx"},
+		absWorkingDir: "/Users/user/project",
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}

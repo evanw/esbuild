@@ -3740,6 +3740,62 @@ import "after/alias";
 })();
 `)
   },
+
+  // https://github.com/evanw/esbuild/issues/3915
+  async yarnPnP_stackOverflow({ esbuild, testDir }) {
+    const entry = path.join(testDir, 'entry.jsx')
+
+    await writeFileAsync(entry, `console.log(<div />)`)
+    await writeFileAsync(path.join(testDir, 'tsconfig.json'), `{ "extends": "tsconfigs/config" }`)
+    await mkdirAsync(path.join(testDir, 'packages/tsconfigs/configs'), { recursive: true })
+    await writeFileAsync(path.join(testDir, 'packages/tsconfigs/package.json'), `{ "exports": { "./config": "./configs/tsconfig.json" } }`)
+    await writeFileAsync(path.join(testDir, 'packages/tsconfigs/configs/tsconfig.json'), `{ "compilerOptions": { "jsxFactory": "success" } }`)
+
+    await writeFileAsync(path.join(testDir, '.pnp.data.json'), `{
+      "packageRegistryData": [
+        [null, [
+          [null, {
+            "packageLocation": "./",
+            "packageDependencies": [
+              ["tsconfigs", "virtual:some-path"]
+            ],
+            "linkType": "SOFT"
+          }]
+        ]],
+        ["tsconfigs", [
+          ["virtual:some-path", {
+            "packageLocation": "./.yarn/__virtual__/tsconfigs-virtual-f56a53910e/1/packages/tsconfigs/",
+            "packageDependencies": [
+              ["tsconfigs", "virtual:some-path"]
+            ],
+            "packagePeers": [],
+            "linkType": "SOFT"
+          }],
+          ["workspace:packages/tsconfigs", {
+            "packageLocation": "./packages/tsconfigs/",
+            "packageDependencies": [
+              ["tsconfigs", "workspace:packages/tsconfigs"]
+            ],
+            "linkType": "SOFT"
+          }]
+        ]]
+      ]
+    }`)
+
+    const value = await esbuild.build({
+      entryPoints: [entry],
+      bundle: true,
+      write: false,
+      absWorkingDir: testDir,
+    })
+
+    assert.strictEqual(value.outputFiles.length, 1)
+    assert.strictEqual(value.outputFiles[0].text, `(() => {
+  // entry.jsx
+  console.log(/* @__PURE__ */ success("div", null));
+})();
+`)
+  },
 }
 
 function fetch(host, port, path, { headers, method = 'GET' } = {}) {
