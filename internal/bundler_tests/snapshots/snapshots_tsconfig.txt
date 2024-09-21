@@ -291,6 +291,12 @@ TestTsconfigJsonExtendsAbsolute
 console.log(/* @__PURE__ */ baseFactory("div", null), /* @__PURE__ */ baseFactory(derivedFragment, null));
 
 ================================================================================
+TestTsconfigJsonExtendsArrayIssue3898
+---------- /Users/user/project/out.js ----------
+import {} from "MUST_KEEP";
+console.log(SUCCESS(WORKS, null, SUCCESS("div", null)));
+
+================================================================================
 TestTsconfigJsonExtendsLoop
 ---------- /out.js ----------
 // entry.js

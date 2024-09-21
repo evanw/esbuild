@@ -1183,11 +1183,6 @@ func (r resolverQuery) parseTSConfig(file string, visited map[string]bool, confi
 	if visited[file] {
 		return nil, errParseErrorImportCycle
 	}
-	if visited != nil {
-		// This is only non-nil for "build" API calls. This is nil for "transform"
-		// API calls, which tells us to not process "extends" fields.
-		visited[file] = true
-	}
 
 	contents, err, originalError := r.caches.FSCache.ReadFile(r.fs, file)
 	if r.debugLogs != nil && originalError != nil {
@@ -1206,7 +1201,20 @@ func (r resolverQuery) parseTSConfig(file string, visited map[string]bool, confi
 		PrettyPath: PrettyPath(r.fs, keyPath),
 		Contents:   contents,
 	}
-	return r.parseTSConfigFromSource(source, visited, configDir)
+	if visited != nil {
+		// This is only non-nil for "build" API calls. This is nil for "transform"
+		// API calls, which tells us to not process "extends" fields.
+		visited[file] = true
+	}
+	result, err := r.parseTSConfigFromSource(source, visited, configDir)
+	if visited != nil {
+		// Reset this to back false in case something uses TypeScript 5.0's multiple
+		// inheritance feature for "tsconfig.json" files. It should be valid to visit
+		// the same base "tsconfig.json" file multiple times from different multiple
+		// inheritance subtrees.
+		visited[file] = false
+	}
+	return result, err
 }
 
 func (r resolverQuery) parseTSConfigFromSource(source logger.Source, visited map[string]bool, configDir string) (*TSConfigJSON, error) {

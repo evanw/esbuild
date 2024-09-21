@@ -2817,3 +2817,55 @@ func TestTsconfigStackOverflowYarnPnP(t *testing.T) {
 		},
 	})
 }
+
+func TestTsconfigJsonExtendsArrayIssue3898(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/index.tsx": `
+				import { type SomeType } from 'MUST_KEEP'
+				console.log(<>
+					<div/>
+				</>)
+			`,
+			"/Users/user/project/tsconfig.json": `
+				{
+					"extends": [
+						"./tsconfigs/a.json",
+						"./tsconfigs/b.json",
+					]
+				}
+			`,
+			"/Users/user/project/tsconfigs/base.json": `
+				{
+					"compilerOptions": {
+						"verbatimModuleSyntax": true,
+					}
+				}
+			`,
+			"/Users/user/project/tsconfigs/a.json": `
+				{
+					"extends": "./base.json",
+					"compilerOptions": {
+						"jsxFactory": "SUCCESS",
+					}
+				}
+			`,
+			"/Users/user/project/tsconfigs/b.json": `
+				{
+					"extends": "./base.json",
+					"compilerOptions": {
+						"jsxFragmentFactory": "WORKS",
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/index.tsx"},
+		options: config.Options{
+			Mode:          config.ModePassThrough,
+			AbsOutputFile: "/Users/user/project/out.js",
+			JSX: config.JSXOptions{
+				SideEffects: true,
+			},
+		},
+	})
+}

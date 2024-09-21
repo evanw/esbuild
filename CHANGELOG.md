@@ -19,6 +19,10 @@
     ./esbuild --version
     ```
 
+* Avoid incorrect cycle warning with `tsconfig.json` multiple inheritance ([#3898](https://github.com/evanw/esbuild/issues/3898))
+
+    TypeScript 5.0 introduced multiple inheritance for `tsconfig.json` files where `extends` can be an array of file paths. Previously esbuild would incorrectly treat files encountered more than once when processing separate subtrees of the multiple inheritance hierarchy as an inheritance cycle. With this release, `tsconfig.json` files containing this edge case should work correctly without generating a warning.
+
 * Handle Yarn Plug'n'Play stack overflow with `tsconfig.json` ([#3915](https://github.com/evanw/esbuild/issues/3915))
 
     Previously a `tsconfig.json` file that `extends` another file in a package with an `exports` map could cause a stack overflow when Yarn's Plug'n'Play resolution was active. This edge case should work now starting with this release.
