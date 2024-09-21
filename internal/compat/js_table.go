@@ -818,7 +818,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		// Note: The latest version of "Firefox" failed 2 tests including: RegExp Unicode Property Escapes: Unicode 15.1
 		// Note: The latest version of "Hermes" failed 8 tests including: RegExp Unicode Property Escapes: Unicode 11
 		// Note: The latest version of "IE" failed 8 tests including: RegExp Unicode Property Escapes: Unicode 11
-		// Note: The latest version of "IOS" failed this test: RegExp Unicode Property Escapes: Unicode 15.1
+		// Note: The latest version of "IOS" failed this test: RegExp Unicode Property Escapes: Unicode 16.0
 		// Note: The latest version of "Node" failed this test: RegExp Unicode Property Escapes: Unicode 16.0
 		// Note: The latest version of "Rhino" failed 8 tests including: RegExp Unicode Property Escapes: Unicode 11
 		// Note: The latest version of "Safari" failed this test: RegExp Unicode Property Escapes: Unicode 16.0
