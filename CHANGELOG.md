@@ -23,6 +23,12 @@
 
     Previously a `tsconfig.json` file that `extends` another file in a package with an `exports` map could cause a stack overflow when Yarn's Plug'n'Play resolution was active. This edge case should work now starting with this release.
 
+* Work around more issues with Deno 1.31+ ([#3917](https://github.com/evanw/esbuild/pull/3917))
+
+    This version of Deno broke the `stdin` and `stdout` properties on command objects for inherited streams, which matters when you run esbuild's Deno module as the entry point (i.e. when `import.meta.main` is `true`). Previously esbuild would crash in Deno 1.31+ if you ran esbuild like that. This should be fixed starting with this release.
+
+    This fix was contributed by [@Joshix-1](https://github.com/Joshix-1).
+
 ## 0.23.1
 
 * Allow using the `node:` import prefix with `es*` targets ([#3821](https://github.com/evanw/esbuild/issues/3821))

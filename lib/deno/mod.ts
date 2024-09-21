@@ -203,11 +203,12 @@ const spawnNew: SpawnFn = (cmd, { args, stdin, stdout, stderr }) => {
     stdout,
     stderr,
   }).spawn()
-  const writer = child.stdin.getWriter()
-  const reader = child.stdout.getReader()
+  // Note: Need to check for "piped" in Deno ≥1.31.0 to avoid a crash
+  const writer = stdin === 'piped' ? child.stdin.getWriter() : null
+  const reader = stdout === 'piped' ? child.stdout.getReader() : null
   return {
-    write: bytes => writer.write(bytes),
-    read: () => reader.read().then(x => x.value || null),
+    write: writer ? bytes => writer.write(bytes) : () => Promise.resolve(),
+    read: reader ? () => reader.read().then(x => x.value || null) : () => Promise.resolve(null),
     close: async () => {
       // We can't call "kill()" because it doesn't seem to work. Tests will
       // still fail with "A child process was opened during the test, but not
@@ -223,8 +224,8 @@ const spawnNew: SpawnFn = (cmd, { args, stdin, stdout, stderr }) => {
       // we can do.
       //
       // See this for more info: https://github.com/evanw/esbuild/pull/3611
-      await writer.close()
-      await reader.cancel()
+      if (writer) await writer.close()
+      if (reader) await reader.cancel()
 
       // Wait for the process to exit. The new "kill()" API doesn't flag the
       // process as having exited because processes can technically ignore the
