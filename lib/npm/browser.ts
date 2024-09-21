@@ -88,6 +88,9 @@ const startRunningService = async (wasmURL: string | URL, wasmModule: WebAssembl
     terminate: () => void
   }
 
+  let rejectAllWith: (error: unknown) => void
+  const rejectAllPromise = new Promise(resolve => rejectAllWith = resolve)
+
   if (useWorker) {
     // Run esbuild off the main thread
     let blob = new Blob([`onmessage=${WEB_WORKER_SOURCE_CODE}(postMessage)`], { type: 'text/javascript' })
@@ -98,7 +101,13 @@ const startRunningService = async (wasmURL: string | URL, wasmModule: WebAssembl
     let go: Go | undefined
     worker = {
       onmessage: null,
-      postMessage: data => setTimeout(() => go = onmessage({ data })),
+      postMessage: data => setTimeout(() => {
+        try {
+          go = onmessage({ data })
+        } catch (error) {
+          rejectAllWith(error) // Catch strange crashes (e.g. stack overflow)
+        }
+      }),
       terminate() {
         if (go)
           for (let timeout of go._scheduledTimeouts.values())
@@ -144,7 +153,8 @@ const startRunningService = async (wasmURL: string | URL, wasmModule: WebAssembl
 
   longLivedService = {
     build: (options: types.BuildOptions) =>
-      new Promise<types.BuildResult>((resolve, reject) =>
+      new Promise<types.BuildResult>((resolve, reject) => {
+        rejectAllPromise.then(reject)
         service.buildOrContext({
           callName: 'build',
           refs: null,
@@ -152,10 +162,12 @@ const startRunningService = async (wasmURL: string | URL, wasmModule: WebAssembl
           isTTY: false,
           defaultWD: '/',
           callback: (err, res) => err ? reject(err) : resolve(res as types.BuildResult),
-        })),
+        })
+      }),
 
     context: (options: types.BuildOptions) =>
-      new Promise<types.BuildContext>((resolve, reject) =>
+      new Promise<types.BuildContext>((resolve, reject) => {
+        rejectAllPromise.then(reject)
         service.buildOrContext({
           callName: 'context',
           refs: null,
@@ -163,10 +175,12 @@ const startRunningService = async (wasmURL: string | URL, wasmModule: WebAssembl
           isTTY: false,
           defaultWD: '/',
           callback: (err, res) => err ? reject(err) : resolve(res as types.BuildContext),
-        })),
+        })
+      }),
 
     transform: (input: string | Uint8Array, options?: types.TransformOptions) =>
-      new Promise<types.TransformResult>((resolve, reject) =>
+      new Promise<types.TransformResult>((resolve, reject) => {
+        rejectAllPromise.then(reject)
         service.transform({
           callName: 'transform',
           refs: null,
@@ -178,27 +192,32 @@ const startRunningService = async (wasmURL: string | URL, wasmModule: WebAssembl
             writeFile(_, callback) { callback(null); },
           },
           callback: (err, res) => err ? reject(err) : resolve(res!),
-        })),
+        })
+      }),
 
     formatMessages: (messages, options) =>
-      new Promise((resolve, reject) =>
+      new Promise((resolve, reject) => {
+        rejectAllPromise.then(reject)
         service.formatMessages({
           callName: 'formatMessages',
           refs: null,
           messages,
           options,
           callback: (err, res) => err ? reject(err) : resolve(res!),
-        })),
+        })
+      }),
 
     analyzeMetafile: (metafile, options) =>
-      new Promise((resolve, reject) =>
+      new Promise((resolve, reject) => {
+        rejectAllPromise.then(reject)
         service.analyzeMetafile({
           callName: 'analyzeMetafile',
           refs: null,
           metafile: typeof metafile === 'string' ? metafile : JSON.stringify(metafile),
           options,
           callback: (err, res) => err ? reject(err) : resolve(res!),
-        })),
+        })
+      }),
   }
 }
 
