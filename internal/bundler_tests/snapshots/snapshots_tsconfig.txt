@@ -83,6 +83,81 @@ var foo = 123;
 console.log(foo);
 
 ================================================================================
+TestTsconfigDecoratorsUseDefineForClassFieldsFalse
+---------- /Users/user/project/out/entry.js ----------
+// Users/user/project/src/entry.ts
+var Class = class {
+};
+var ClassMethod = class {
+  foo() {
+  }
+};
+var ClassField = class {
+  constructor() {
+    this.foo = 123;
+  }
+};
+var ClassAccessor = class {
+  accessor foo = 123;
+  accessor bar;
+};
+new Class();
+new ClassMethod();
+new ClassField();
+new ClassAccessor();
+
+---------- /Users/user/project/out/entrywithdec.js ----------
+// Users/user/project/src/entrywithdec.ts
+var _Class_decorators, _init;
+_Class_decorators = [dec];
+var Class = class {
+};
+_init = __decoratorStart(null);
+Class = __decorateElement(_init, 0, "Class", _Class_decorators, Class);
+__runInitializers(_init, 1, Class);
+var _foo_dec, _init2;
+_foo_dec = [dec];
+var ClassMethod = class {
+  constructor() {
+    __runInitializers(_init2, 5, this);
+  }
+  foo() {
+  }
+};
+_init2 = __decoratorStart(null);
+__decorateElement(_init2, 1, "foo", _foo_dec, ClassMethod);
+__decoratorMetadata(_init2, ClassMethod);
+var _bar_dec, _foo_dec2, _init3;
+_foo_dec2 = [dec], _bar_dec = [dec];
+var ClassField = class {
+  constructor() {
+    this.foo = __runInitializers(_init3, 8, this, 123), __runInitializers(_init3, 11, this);
+  }
+};
+_init3 = __decoratorStart(null);
+__decorateElement(_init3, 5, "foo", _foo_dec2, ClassField);
+__decorateElement(_init3, 5, "bar", _bar_dec, ClassField);
+__decoratorMetadata(_init3, ClassField);
+var _bar_dec2, _foo_dec3, _init4, _foo, _bar;
+_foo_dec3 = [dec], _bar_dec2 = [dec];
+var ClassAccessor = class {
+  constructor() {
+    __privateAdd(this, _foo, __runInitializers(_init4, 8, this, 123)), __runInitializers(_init4, 11, this);
+    __privateAdd(this, _bar, __runInitializers(_init4, 12, this)), __runInitializers(_init4, 15, this);
+  }
+};
+_init4 = __decoratorStart(null);
+_foo = new WeakMap();
+_bar = new WeakMap();
+__decorateElement(_init4, 4, "foo", _foo_dec3, ClassAccessor, _foo);
+__decorateElement(_init4, 4, "bar", _bar_dec2, ClassAccessor, _bar);
+__decoratorMetadata(_init4, ClassAccessor);
+new Class();
+new ClassMethod();
+new ClassField();
+new ClassAccessor();
+
+================================================================================
 TestTsconfigExtendsArray
 ---------- /Users/user/project/out/main.js ----------
 console.log(/* @__PURE__ */ h(frag, null, /* @__PURE__ */ h("div", null)));

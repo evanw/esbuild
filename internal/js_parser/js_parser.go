@@ -6353,6 +6353,33 @@ func (p *parser) parseClass(classKeyword logger.Range, name *ast.LocRef, classOp
 
 	closeBraceLoc := p.saveExprCommentsHere()
 	p.lexer.Expect(js_lexer.TCloseBrace)
+
+	// TypeScript has legacy behavior that uses assignment semantics instead of
+	// define semantics for class fields when "useDefineForClassFields" is enabled
+	// (in which case TypeScript behaves differently than JavaScript, which is
+	// arguably "wrong").
+	//
+	// This legacy behavior exists because TypeScript added class fields to
+	// TypeScript before they were added to JavaScript. They decided to go with
+	// assignment semantics for whatever reason. Later on TC39 decided to go with
+	// define semantics for class fields instead. This behaves differently if the
+	// base class has a setter with the same name.
+	//
+	// The value of "useDefineForClassFields" defaults to false when it's not
+	// specified and the target is earlier than "ES2022" since the class field
+	// language feature was added in ES2022. However, TypeScript's "target"
+	// setting currently defaults to "ES3" which unfortunately means that the
+	// "useDefineForClassFields" setting defaults to false (i.e. to "wrong").
+	//
+	// We default "useDefineForClassFields" to true (i.e. to "correct") instead.
+	// This is partially because our target defaults to "esnext", and partially
+	// because this is a legacy behavior that no one should be using anymore.
+	// Users that want the wrong behavior can either set "useDefineForClassFields"
+	// to false in "tsconfig.json" explicitly, or set TypeScript's "target" to
+	// "ES2021" or earlier in their in "tsconfig.json" file.
+	useDefineForClassFields := !p.options.ts.Parse || p.options.ts.Config.UseDefineForClassFields == config.True ||
+		(p.options.ts.Config.UseDefineForClassFields == config.Unspecified && p.options.ts.Config.Target != config.TSTargetBelowES2022)
+
 	return js_ast.Class{
 		ClassKeyword:  classKeyword,
 		Decorators:    classOpts.decorators,
@@ -6362,31 +6389,15 @@ func (p *parser) parseClass(classKeyword logger.Range, name *ast.LocRef, classOp
 		Properties:    properties,
 		CloseBraceLoc: closeBraceLoc,
 
-		// TypeScript has legacy behavior that uses assignment semantics instead of
-		// define semantics for class fields when "useDefineForClassFields" is enabled
-		// (in which case TypeScript behaves differently than JavaScript, which is
-		// arguably "wrong").
-		//
-		// This legacy behavior exists because TypeScript added class fields to
-		// TypeScript before they were added to JavaScript. They decided to go with
-		// assignment semantics for whatever reason. Later on TC39 decided to go with
-		// define semantics for class fields instead. This behaves differently if the
-		// base class has a setter with the same name.
-		//
-		// The value of "useDefineForClassFields" defaults to false when it's not
-		// specified and the target is earlier than "ES2022" since the class field
-		// language feature was added in ES2022. However, TypeScript's "target"
-		// setting currently defaults to "ES3" which unfortunately means that the
-		// "useDefineForClassFields" setting defaults to false (i.e. to "wrong").
-		//
-		// We default "useDefineForClassFields" to true (i.e. to "correct") instead.
-		// This is partially because our target defaults to "esnext", and partially
-		// because this is a legacy behavior that no one should be using anymore.
-		// Users that want the wrong behavior can either set "useDefineForClassFields"
-		// to false in "tsconfig.json" explicitly, or set TypeScript's "target" to
-		// "ES2021" or earlier in their in "tsconfig.json" file.
-		UseDefineForClassFields: !p.options.ts.Parse || p.options.ts.Config.UseDefineForClassFields == config.True ||
-			(p.options.ts.Config.UseDefineForClassFields == config.Unspecified && p.options.ts.Config.Target != config.TSTargetBelowES2022),
+		// Always lower standard decorators if they are present and TypeScript's
+		// "useDefineForClassFields" setting is false even if the configured target
+		// environment supports decorators. This setting changes the behavior of
+		// class fields, and so we must lower decorators so they behave correctly.
+		ShouldLowerStandardDecorators: (!p.options.ts.Parse && p.options.unsupportedJSFeatures.Has(compat.Decorators)) ||
+			(p.options.ts.Parse && p.options.ts.Config.ExperimentalDecorators != config.True &&
+				(p.options.unsupportedJSFeatures.Has(compat.Decorators) || !useDefineForClassFields)),
+
+		UseDefineForClassFields: useDefineForClassFields,
 	}
 }
 

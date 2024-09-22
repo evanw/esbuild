@@ -374,6 +374,15 @@ type Class struct {
 	BodyLoc       logger.Loc
 	CloseBraceLoc logger.Loc
 
+	// If true, JavaScript decorators (i.e. not TypeScript experimental
+	// decorators) should be lowered. This is the case either if JavaScript
+	// decorators are not supported in the configured target environment, or
+	// if "useDefineForClassFields" is set to false and this class has
+	// decorators on it. Note that this flag is not necessarily set to true if
+	// "useDefineForClassFields" is false and a class has an "accessor" even
+	// though the accessor feature comes from the decorator specification.
+	ShouldLowerStandardDecorators bool
+
 	// If true, property field initializers cannot be assumed to have no side
 	// effects. For example:
 	//

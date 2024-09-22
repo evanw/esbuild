@@ -2869,3 +2869,61 @@ func TestTsconfigJsonExtendsArrayIssue3898(t *testing.T) {
 		},
 	})
 }
+
+func TestTsconfigDecoratorsUseDefineForClassFieldsFalse(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.ts": `
+				class Class {
+				}
+				class ClassMethod {
+					foo() {}
+				}
+				class ClassField {
+					foo = 123
+					bar
+				}
+				class ClassAccessor {
+					accessor foo = 123
+					accessor bar
+				}
+				new Class
+				new ClassMethod
+				new ClassField
+				new ClassAccessor
+			`,
+			"/Users/user/project/src/entrywithdec.ts": `
+				@dec class Class {
+				}
+				class ClassMethod {
+					@dec foo() {}
+				}
+				class ClassField {
+					@dec foo = 123
+					@dec bar
+				}
+				class ClassAccessor {
+					@dec accessor foo = 123
+					@dec accessor bar
+				}
+				new Class
+				new ClassMethod
+				new ClassField
+				new ClassAccessor
+			`,
+			"/Users/user/project/src/tsconfig.json": `{
+				"compilerOptions": {
+					"useDefineForClassFields": false
+				}
+			}`,
+		},
+		entryPaths: []string{
+			"/Users/user/project/src/entry.ts",
+			"/Users/user/project/src/entrywithdec.ts",
+		},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/Users/user/project/out",
+		},
+	})
+}
