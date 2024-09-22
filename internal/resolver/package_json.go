@@ -710,7 +710,8 @@ func parseImportsExportsMap(source logger.Source, log logger.Log, json js_ast.Ex
 				// Track "dead" conditional branches that can never be reached
 				if foundDefault.Len != 0 || (foundImport.Len != 0 && foundRequire.Len != 0) {
 					deadCondition.ranges = append(deadCondition.ranges, keyRange)
-					if deadCondition.reason == "" {
+					// Note: Don't warn about the "default" condition as it's supposed to be a catch-all condition
+					if deadCondition.reason == "" && key != "default" {
 						if foundDefault.Len != 0 {
 							deadCondition.reason = "\"default\""
 							deadCondition.notes = []logger.MsgData{

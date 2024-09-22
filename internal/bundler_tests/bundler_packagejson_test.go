@@ -3002,3 +3002,36 @@ node_modules/foo/package.json: NOTE: The "default" condition comes earlier and w
 `,
 	})
 }
+
+// See: https://github.com/evanw/esbuild/issues/3887
+func TestPackageJsonExportsDefaultWarningIssue3887(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import "foo"
+			`,
+			"/node_modules/foo/dist/index.js": `
+				success()
+			`,
+			"/node_modules/foo/package.json": `
+				{
+					"exports": {
+						".": {
+							"node": "./dist/index.js",
+							"require": "./dist/index.js",
+							"import": "./dist/index.esm.js",
+							"default": "./dist/index.esm.js"
+						}
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			Platform:      config.PlatformNode,
+			AbsOutputFile: "/out.js",
+		},
+		debugLogs: true,
+	})
+}

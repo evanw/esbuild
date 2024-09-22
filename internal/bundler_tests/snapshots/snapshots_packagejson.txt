@@ -586,6 +586,12 @@ TestPackageJsonExportsDefaultOverImportAndRequire
 console.log("SUCCESS");
 
 ================================================================================
+TestPackageJsonExportsDefaultWarningIssue3887
+---------- /out.js ----------
+// node_modules/foo/dist/index.js
+success();
+
+================================================================================
 TestPackageJsonExportsEntryPointImportOverRequire
 ---------- /out.js ----------
 // node_modules/pkg/import.js
