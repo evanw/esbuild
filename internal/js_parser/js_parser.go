@@ -6287,6 +6287,7 @@ func (p *parser) parseClass(classKeyword logger.Range, name *ast.LocRef, classOp
 	bodyLoc := p.lexer.Loc()
 	p.lexer.Expect(js_lexer.TOpenBrace)
 	properties := []js_ast.Property{}
+	hasPropertyDecorator := false
 
 	// Allow "in" and private fields inside class bodies
 	oldAllowIn := p.allowIn
@@ -6316,6 +6317,9 @@ func (p *parser) parseClass(classKeyword logger.Range, name *ast.LocRef, classOp
 		firstDecoratorLoc := p.lexer.Loc()
 		scopeIndex := len(p.scopesInOrder)
 		opts.decorators = p.parseDecorators(p.currentScope, classKeyword, opts.decoratorContext)
+		if len(opts.decorators) > 0 {
+			hasPropertyDecorator = true
+		}
 
 		// This property may turn out to be a type in TypeScript, which should be ignored
 		if property, ok := p.parseProperty(p.saveExprCommentsHere(), js_ast.PropertyField, opts, nil); ok {
@@ -6393,9 +6397,10 @@ func (p *parser) parseClass(classKeyword logger.Range, name *ast.LocRef, classOp
 		// "useDefineForClassFields" setting is false even if the configured target
 		// environment supports decorators. This setting changes the behavior of
 		// class fields, and so we must lower decorators so they behave correctly.
-		ShouldLowerStandardDecorators: (!p.options.ts.Parse && p.options.unsupportedJSFeatures.Has(compat.Decorators)) ||
-			(p.options.ts.Parse && p.options.ts.Config.ExperimentalDecorators != config.True &&
-				(p.options.unsupportedJSFeatures.Has(compat.Decorators) || !useDefineForClassFields)),
+		ShouldLowerStandardDecorators: (len(classOpts.decorators) > 0 || hasPropertyDecorator) &&
+			((!p.options.ts.Parse && p.options.unsupportedJSFeatures.Has(compat.Decorators)) ||
+				(p.options.ts.Parse && p.options.ts.Config.ExperimentalDecorators != config.True &&
+					(p.options.unsupportedJSFeatures.Has(compat.Decorators) || !useDefineForClassFields))),
 
 		UseDefineForClassFields: useDefineForClassFields,
 	}

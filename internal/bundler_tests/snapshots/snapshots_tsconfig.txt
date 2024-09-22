@@ -132,6 +132,7 @@ _foo_dec2 = [dec], _bar_dec = [dec];
 var ClassField = class {
   constructor() {
     this.foo = __runInitializers(_init3, 8, this, 123), __runInitializers(_init3, 11, this);
+    this.bar = __runInitializers(_init3, 12, this), __runInitializers(_init3, 15, this);
   }
 };
 _init3 = __decoratorStart(null);

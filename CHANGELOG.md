@@ -19,6 +19,10 @@
     ./esbuild --version
     ```
 
+* Fix class field decorators in TypeScript if `useDefineForClassFields` is `false` ([#3913](https://github.com/evanw/esbuild/issues/3913))
+
+    Setting the `useDefineForClassFields` flag to `false` in `tsconfig.json` means class fields use the legacy TypeScript behavior instead of the standard JavaScript behavior. Specifically they use assign semantics instead of define semantics (e.g. setters are triggered) and fields without an initializer are not initialized at all. However, when this legacy behavior is combined with standard JavaScript decorators, TypeScript switches to always initializing all fields, even those without initializers. Previously esbuild incorrectly continued to omit field initializers for this edge case. These field initializers in this case should now be emitted starting with this release.
+
 * Avoid incorrect cycle warning with `tsconfig.json` multiple inheritance ([#3898](https://github.com/evanw/esbuild/issues/3898))
 
     TypeScript 5.0 introduced multiple inheritance for `tsconfig.json` files where `extends` can be an array of file paths. Previously esbuild would incorrectly treat files encountered more than once when processing separate subtrees of the multiple inheritance hierarchy as an inheritance cycle. With this release, `tsconfig.json` files containing this edge case should work correctly without generating a warning.

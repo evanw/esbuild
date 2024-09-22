@@ -5779,6 +5779,34 @@ for (let flags of [['--target=es2022'], ['--target=es6'], ['--bundle', '--target
       }`,
     }),
 
+    // https://github.com/evanw/esbuild/issues/3913
+    test(['in.ts', '--outfile=node.js'].concat(flags), {
+      'in.ts': `
+        function testDecorator(_value: unknown, context: DecoratorContext) {
+          if (context.kind === "field") {
+            return () => "dec-ok";
+          }
+        }
+
+        class DecClass {
+          @testDecorator
+          decInit = "init";
+
+          @testDecorator
+          decNoInit: any;
+        }
+
+        const foo = new DecClass
+        if (foo.decInit !== 'dec-ok') throw 'fail: decInit'
+        if (foo.decNoInit !== 'dec-ok') throw 'fail: decNoInit'
+      `,
+      'tsconfig.json': `{
+        "compilerOptions": {
+          "useDefineForClassFields": false,
+        },
+      }`,
+    }),
+
     // Check various combinations of flags
     test(['in.ts', '--outfile=node.js', '--supported:class-field=false'].concat(flags), {
       'in.ts': `
