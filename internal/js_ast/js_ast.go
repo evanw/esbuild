@@ -1055,6 +1055,7 @@ type SEnum struct {
 	Values   []EnumValue
 	Name     ast.LocRef
 	Arg      ast.Ref
+	IsConst  bool
 	IsExport bool
 }
 
