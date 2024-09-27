@@ -273,7 +273,14 @@ func (lexer *lexer) step() {
 	lexer.Token.Range.Len = int32(lexer.current) - lexer.Token.Range.Loc.Start
 	lexer.current += width
 }
-
+func ieHackHandle(lexer *lexer)  {
+	judgeIE := lexer.consumeName()
+	switch judgeIE {
+		case "\\0", "\\9","\\0\\9", "\\9\\0", "\\0screen":
+			lexer.step()
+			lexer.Token.Kind = TDelim
+	}
+}
 func (lexer *lexer) next() {
 	// Reference: https://www.w3.org/TR/css-syntax-3/
 
@@ -435,7 +442,7 @@ func (lexer *lexer) next() {
 				lexer.log.AddError(&lexer.tracker, lexer.Token.Range, "Invalid escape")
 				lexer.Token.Kind = TDelim
 			}
-
+			ieHackHandle(lexer)
 		case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 			lexer.Token.Kind = lexer.consumeNumeric()
 
