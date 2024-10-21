@@ -220,10 +220,9 @@ export let analyzeMetafileSync: typeof types.analyzeMetafileSync = (metafile, op
   return result!
 }
 
-export const stop = () => {
-  if (stopService) stopService()
+export const stop = async () => {
+  if (stopService) await stopService()
   if (workerThreadService) workerThreadService.stop()
-  return Promise.resolve()
 }
 
 let initializeWasCalled = false
@@ -249,7 +248,7 @@ interface Service {
 
 let defaultWD = process.cwd()
 let longLivedService: Service | undefined
-let stopService: (() => void) | undefined
+let stopService: (() => Promise<void>) | undefined
 
 let ensureServiceIsRunning = (): Service => {
   if (longLivedService) return longLivedService
@@ -285,7 +284,17 @@ let ensureServiceIsRunning = (): Service => {
   stdout.on('data', readFromStdout)
   stdout.on('end', afterClose)
 
-  stopService = () => {
+  stopService = async () => {
+    const exited = new Promise<void>(resolve => {
+      if (child.exitCode !== null || child.signalCode !== null) {
+        resolve()
+      } else {
+        // Re-ref the child so that this process's event loop doesn't starve
+        // if the user waits for the `stop` promise to resolve.
+        refs.ref()
+        child.on('exit', resolve)
+      }
+    })
     // Close all resources related to the subprocess.
     stdin.destroy()
     stdout.destroy()
@@ -293,6 +302,7 @@ let ensureServiceIsRunning = (): Service => {
     initializeWasCalled = false
     longLivedService = undefined
     stopService = undefined
+    await exited
   }
 
   let refCount = 0
