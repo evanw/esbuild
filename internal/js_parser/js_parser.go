@@ -2136,47 +2136,50 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 			couldBeModifierKeyword := p.lexer.IsIdentifierOrKeyword()
 			if !couldBeModifierKeyword {
 				switch p.lexer.Token {
-				case js_lexer.TOpenBracket, js_lexer.TNumericLiteral, js_lexer.TStringLiteral,
-					js_lexer.TAsterisk, js_lexer.TPrivateIdentifier:
+				case js_lexer.TOpenBracket, js_lexer.TNumericLiteral, js_lexer.TStringLiteral, js_lexer.TPrivateIdentifier:
 					couldBeModifierKeyword = true
+				case js_lexer.TAsterisk:
+					if opts.isAsync || (raw != "get" && raw != "set") {
+						couldBeModifierKeyword = true
+					}
 				}
 			}
 
 			// If so, check for a modifier keyword
 			if couldBeModifierKeyword {
-				switch name.String {
+				switch raw {
 				case "get":
-					if !opts.isAsync && raw == name.String {
+					if !opts.isAsync {
 						p.markSyntaxFeature(compat.ObjectAccessors, nameRange)
 						return p.parseProperty(startLoc, js_ast.PropertyGetter, opts, nil)
 					}
 
 				case "set":
-					if !opts.isAsync && raw == name.String {
+					if !opts.isAsync {
 						p.markSyntaxFeature(compat.ObjectAccessors, nameRange)
 						return p.parseProperty(startLoc, js_ast.PropertySetter, opts, nil)
 					}
 
 				case "accessor":
-					if !p.lexer.HasNewlineBefore && !opts.isAsync && opts.isClass && raw == name.String {
+					if !p.lexer.HasNewlineBefore && !opts.isAsync && opts.isClass {
 						return p.parseProperty(startLoc, js_ast.PropertyAutoAccessor, opts, nil)
 					}
 
 				case "async":
-					if !p.lexer.HasNewlineBefore && !opts.isAsync && raw == name.String {
+					if !p.lexer.HasNewlineBefore && !opts.isAsync {
 						opts.isAsync = true
 						opts.asyncRange = nameRange
 						return p.parseProperty(startLoc, js_ast.PropertyMethod, opts, nil)
 					}
 
 				case "static":
-					if !opts.isStatic && !opts.isAsync && opts.isClass && raw == name.String {
+					if !opts.isStatic && !opts.isAsync && opts.isClass {
 						opts.isStatic = true
 						return p.parseProperty(startLoc, kind, opts, nil)
 					}
 
 				case "declare":
-					if !p.lexer.HasNewlineBefore && opts.isClass && p.options.ts.Parse && opts.tsDeclareRange.Len == 0 && raw == name.String {
+					if !p.lexer.HasNewlineBefore && opts.isClass && p.options.ts.Parse && opts.tsDeclareRange.Len == 0 {
 						opts.tsDeclareRange = nameRange
 						scopeIndex := len(p.scopesInOrder)
 
@@ -2213,7 +2216,7 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 					}
 
 				case "abstract":
-					if !p.lexer.HasNewlineBefore && opts.isClass && p.options.ts.Parse && !opts.isTSAbstract && raw == name.String {
+					if !p.lexer.HasNewlineBefore && opts.isClass && p.options.ts.Parse && !opts.isTSAbstract {
 						opts.isTSAbstract = true
 						scopeIndex := len(p.scopesInOrder)
 
@@ -2249,7 +2252,7 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 
 				case "private", "protected", "public", "readonly", "override":
 					// Skip over TypeScript keywords
-					if opts.isClass && p.options.ts.Parse && raw == name.String {
+					if opts.isClass && p.options.ts.Parse {
 						return p.parseProperty(startLoc, kind, opts, nil)
 					}
 				}

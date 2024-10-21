@@ -820,6 +820,16 @@ func TestTSClass(t *testing.T) {
 	expectParseErrorTS(t, "class Foo { [foo]<T> }", "<stdin>: ERROR: Expected \"(\" but found \"}\"\n")
 	expectParseErrorTS(t, "class Foo { [foo]?<T> }", "<stdin>: ERROR: Expected \"(\" but found \"}\"\n")
 	expectParseErrorTS(t, "class Foo { [foo]!<T>() {} }", "<stdin>: ERROR: Expected \";\" but found \"<\"\n")
+
+	// See: https://github.com/microsoft/TypeScript/pull/60225
+	expectPrintedTS(t, "class A { get \n x() {} }", "class A {\n  get x() {\n  }\n}\n")
+	expectPrintedTS(t, "class A { set \n x(_) {} }", "class A {\n  set x(_) {\n  }\n}\n")
+	expectPrintedTS(t, "class A { get \n *x() {} }", "class A {\n  get;\n  *x() {\n  }\n}\n")
+	expectPrintedTS(t, "class A { set \n *x(_) {} }", "class A {\n  set;\n  *x(_) {\n  }\n}\n")
+	expectParseErrorTS(t, "class A { get \n async x() {} }", "<stdin>: ERROR: Expected \"(\" but found \"x\"\n")
+	expectParseErrorTS(t, "class A { set \n async x(_) {} }", "<stdin>: ERROR: Expected \"(\" but found \"x\"\n")
+	expectParseErrorTS(t, "class A { async get \n *x() {} }", "<stdin>: ERROR: Expected \"(\" but found \"*\"\n")
+	expectParseErrorTS(t, "class A { async set \n *x(_) {} }", "<stdin>: ERROR: Expected \"(\" but found \"*\"\n")
 }
 
 func TestTSAutoAccessors(t *testing.T) {

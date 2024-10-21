@@ -1372,6 +1372,14 @@ func TestObject(t *testing.T) {
 	expectPrintedMangle(t, "x = { '2147483648': y }", "x = { \"2147483648\": y };\n")
 	expectPrintedMangle(t, "x = { '-2147483648': y }", "x = { \"-2147483648\": y };\n")
 	expectPrintedMangle(t, "x = { '-2147483649': y }", "x = { \"-2147483649\": y };\n")
+
+	// See: https://github.com/microsoft/TypeScript/pull/60225
+	expectPrinted(t, "x = { get \n x() {} }", "x = { get x() {\n} };\n")
+	expectPrinted(t, "x = { set \n x(_) {} }", "x = { set x(_) {\n} };\n")
+	expectParseError(t, "x = { get \n *x() {} }", "<stdin>: ERROR: Expected \"}\" but found \"*\"\n")
+	expectParseError(t, "x = { set \n *x(_) {} }", "<stdin>: ERROR: Expected \"}\" but found \"*\"\n")
+	expectParseError(t, "x = { get \n async x() {} }", "<stdin>: ERROR: Expected \"(\" but found \"x\"\n")
+	expectParseError(t, "x = { set \n async x(_) {} }", "<stdin>: ERROR: Expected \"(\" but found \"x\"\n")
 }
 
 func TestComputedProperty(t *testing.T) {
@@ -1797,6 +1805,16 @@ func TestClass(t *testing.T) {
 
 	// Make sure direct "eval" doesn't cause the class name to change
 	expectPrinted(t, "class Foo { foo = [Foo, eval(bar)] }", "class Foo {\n  foo = [Foo, eval(bar)];\n}\n")
+
+	// See: https://github.com/microsoft/TypeScript/pull/60225
+	expectPrinted(t, "class A { get \n x() {} }", "class A {\n  get x() {\n  }\n}\n")
+	expectPrinted(t, "class A { set \n x(_) {} }", "class A {\n  set x(_) {\n  }\n}\n")
+	expectPrinted(t, "class A { get \n *x() {} }", "class A {\n  get;\n  *x() {\n  }\n}\n")
+	expectPrinted(t, "class A { set \n *x(_) {} }", "class A {\n  set;\n  *x(_) {\n  }\n}\n")
+	expectParseError(t, "class A { get \n async x() {} }", "<stdin>: ERROR: Expected \"(\" but found \"x\"\n")
+	expectParseError(t, "class A { set \n async x(_) {} }", "<stdin>: ERROR: Expected \"(\" but found \"x\"\n")
+	expectParseError(t, "class A { async get \n *x() {} }", "<stdin>: ERROR: Expected \"(\" but found \"*\"\n")
+	expectParseError(t, "class A { async set \n *x(_) {} }", "<stdin>: ERROR: Expected \"(\" but found \"*\"\n")
 }
 
 func TestSuperCall(t *testing.T) {
@@ -2185,8 +2203,8 @@ __privateAdd(Foo, _x, __runInitializers(_init, 8, Foo)), __runInitializers(_init
 func TestGenerator(t *testing.T) {
 	expectParseError(t, "(class { * foo })", "<stdin>: ERROR: Expected \"(\" but found \"}\"\n")
 	expectParseError(t, "(class { * *foo() {} })", "<stdin>: ERROR: Unexpected \"*\"\n")
-	expectParseError(t, "(class { get*foo() {} })", "<stdin>: ERROR: Unexpected \"*\"\n")
-	expectParseError(t, "(class { set*foo() {} })", "<stdin>: ERROR: Unexpected \"*\"\n")
+	expectParseError(t, "(class { get*foo() {} })", "<stdin>: ERROR: Expected \";\" but found \"*\"\n")
+	expectParseError(t, "(class { set*foo() {} })", "<stdin>: ERROR: Expected \";\" but found \"*\"\n")
 	expectParseError(t, "(class { *get foo() {} })", "<stdin>: ERROR: Expected \"(\" but found \"foo\"\n")
 	expectParseError(t, "(class { *set foo() {} })", "<stdin>: ERROR: Expected \"(\" but found \"foo\"\n")
 	expectParseError(t, "(class { *static foo() {} })", "<stdin>: ERROR: Expected \"(\" but found \"foo\"\n")
