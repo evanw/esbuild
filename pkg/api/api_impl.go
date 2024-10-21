@@ -28,6 +28,7 @@ import (
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/config"
 	"github.com/evanw/esbuild/internal/css_ast"
+	"github.com/evanw/esbuild/internal/css_lexer"
 	"github.com/evanw/esbuild/internal/fs"
 	"github.com/evanw/esbuild/internal/graph"
 	"github.com/evanw/esbuild/internal/helpers"
@@ -522,6 +523,23 @@ func validateJSXExpr(log logger.Log, text string, name string) config.DefineExpr
 		log.AddError(nil, logger.Range{}, fmt.Sprintf("Invalid JSX %s: %q", name, text))
 	}
 	return config.DefineExpr{}
+}
+
+func validateCSSIdentifier(log logger.Log, ident string) string {
+	for i, c := range ident {
+		if i == 0 {
+			if !css_lexer.IsNameStart(c) {
+				log.AddError(nil, logger.Range{}, fmt.Sprintf("Invalid CSS prefix: %q", ident))
+				return ""
+			}
+		} else {
+			if !css_lexer.IsNameContinue(c) {
+				log.AddError(nil, logger.Range{}, fmt.Sprintf("Invalid CSS prefix: %q", ident))
+				return ""
+			}
+		}
+	}
+	return ident
 }
 
 func validateDefines(
@@ -1257,6 +1275,7 @@ func validateBuildOptions(
 		MangleProps:           validateRegex(log, "mangle props", buildOpts.MangleProps),
 		ReserveProps:          validateRegex(log, "reserve props", buildOpts.ReserveProps),
 		MangleQuoted:          buildOpts.MangleQuoted == MangleQuotedTrue,
+		LocalCSSPrefix:        validateCSSIdentifier(log, buildOpts.LocalCSSPrefix),
 		DropLabels:            append([]string{}, buildOpts.DropLabels...),
 		DropDebugger:          (buildOpts.Drop & DropDebugger) != 0,
 		AllowOverwrite:        buildOpts.AllowOverwrite,
