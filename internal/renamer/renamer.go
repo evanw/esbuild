@@ -558,21 +558,22 @@ type nameUse uint8
 const (
 	nameUnused nameUse = iota
 	nameUsed
-	nameUsedInSameScope
 )
 
-func (s *numberScope) findNameUse(name string) nameUse {
-	original := s
+func (s *numberScope) findNameUse(name string) (nameUse, uint32) {
+	use := nameUnused
+	tries := uint32(1)
+	// Try to find an unused name by taking the maximum count across all scopes
 	for {
-		if _, ok := s.nameCounts[name]; ok {
-			if s == original {
-				return nameUsedInSameScope
+		if t, ok := s.nameCounts[name]; ok {
+			use = nameUsed
+			if t > tries {
+				tries = t
 			}
-			return nameUsed
 		}
 		s = s.parent
 		if s == nil {
-			return nameUnused
+			return use, tries
 		}
 	}
 }
@@ -589,33 +590,19 @@ func (s *numberScope) findUnusedName(name string, ns ast.SlotNamespace) string {
 		}
 	}
 
-	if use := s.findNameUse(name); use != nameUnused {
-		// If the name is already in use, generate a new name by appending a number
-		tries := uint32(1)
-		if use == nameUsedInSameScope {
-			// To avoid O(n^2) behavior, the number must start off being the number
-			// that we used last time there was a collision with this name. Otherwise
-			// if there are many collisions with the same name, each name collision
-			// would have to increment the counter past all previous name collisions
-			// which is a O(n^2) time algorithm. Only do this if this symbol comes
-			// from the same scope as the previous one since sibling scopes can reuse
-			// the same name without problems.
-			tries = s.nameCounts[name]
-		}
+	use, tries := s.findNameUse(name)
+	if use != nameUnused {
 		prefix := name
-
 		// Keep incrementing the number until the name is unused
 		for {
 			tries++
 			name = prefix + strconv.Itoa(int(tries))
 
 			// Make sure this new name is unused
-			if s.findNameUse(name) == nameUnused {
+			if newUse, _ := s.findNameUse(name); newUse == nameUnused {
 				// Store the count so we can start here next time instead of starting
 				// from 1. This means we avoid O(n^2) behavior.
-				if use == nameUsedInSameScope {
-					s.nameCounts[prefix] = tries
-				}
+				s.nameCounts[prefix] = tries
 				break
 			}
 		}
