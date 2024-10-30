@@ -1436,6 +1436,7 @@ func serveImpl(osArgs []string) {
 	// Apply defaults appropriate for the CLI
 	options.LogLimit = 5
 	options.LogLevel = api.LogLevelInfo
+	options.Write = true
 
 	filteredArgs, analyze := filterAnalyzeFlags(filteredArgs)
 	extras, errWithNote := parseOptionsImpl(filteredArgs, &options, nil, kindInternal)
