@@ -35,6 +35,7 @@
     "@esbuild/linux-riscv64": "0.24.0",
     "@esbuild/linux-s390x": "0.24.0",
     "@esbuild/linux-x64": "0.24.0",
+    "@esbuild/netbsd-arm64": "0.24.0",
     "@esbuild/netbsd-x64": "0.24.0",
     "@esbuild/openbsd-arm64": "0.24.0",
     "@esbuild/openbsd-x64": "0.24.0",
