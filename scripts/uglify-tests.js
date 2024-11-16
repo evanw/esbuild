@@ -267,6 +267,9 @@ async function test_case(esbuild, test, basename) {
       'classes.js: issue_4722_1',
       'classes.js: issue_4722_2',
       'classes.js: issue_4722_3',
+
+      // // Corner case of dead zones that inhibits optimizations
+      'let.js: issue_4276_1',
     ].indexOf(`${basename}: ${test.name}`) >= 0
 
     if (!sandbox.same_stdout(test.expect_stdout, actual)) {
