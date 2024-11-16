@@ -22,9 +22,9 @@ export function a(o = foo) {
   return o;
 }
 export class b {
-  fn(r = foo) {
-    var f;
-    return r;
+  fn(o = foo) {
+    var r;
+    return o;
   }
 }
 export let c = [
@@ -53,34 +53,34 @@ TestArgumentsSpecialCaseNoBundle
 ---------- /out.js ----------
 /* @__PURE__ */ (() => {
   var r;
-  function t(n = arguments) {
+  function t(r = arguments) {
     return arguments;
   }
-  (function(n = arguments) {
+  (function(r = arguments) {
     return arguments;
   });
-  ({ foo(n = arguments) {
+  ({ foo(r = arguments) {
     return arguments;
   } });
-  class u {
-    foo(e = arguments) {
+  class n {
+    foo(r = arguments) {
       return arguments;
     }
   }
   (class {
-    foo(n = arguments) {
+    foo(r = arguments) {
       return arguments;
     }
   });
-  function t(n = arguments) {
+  function t(r = arguments) {
     var arguments;
     return arguments;
   }
-  (function(n = arguments) {
+  (function(r = arguments) {
     var arguments;
     return arguments;
   });
-  ({ foo(n = arguments) {
+  ({ foo(r = arguments) {
     var arguments;
     return arguments;
   } });
@@ -131,14 +131,14 @@ TestArrowFnScope
 ---------- /out.js ----------
 // entry.js
 tests = {
-  0: (s = (e) => s + e, t) => s + t,
-  1: (s, t = (e) => t + e) => t + s,
-  2: (s = (a = (c) => s + a + c, b) => s + a + b, t, e) => s + t + e,
-  3: (s, t, e = (a, b = (c) => e + b + c) => e + b + a) => e + s + t,
+  0: (s = (t) => s + t, t) => s + t,
+  1: (s, t = (s) => t + s) => t + s,
+  2: (s = (t = (e) => s + t + e, e) => s + t + e, t, e) => s + t + e,
+  3: (s, t, e = (s, t = (s) => e + t + s) => e + t + s) => e + s + t,
   4: (x = (s) => x + s, y, x + y),
   5: (y, x = (s) => x + s, x + y),
-  6: (x = (s = (e) => x + s + e, t) => x + s + t, y, z, x + y + z),
-  7: (y, z, x = (s, t = (e) => x + t + e) => x + t + s, x + y + z)
+  6: (x = (s = (t) => x + s + t, t) => x + s + t, y, z, x + y + z),
+  7: (y, z, x = (s, t = (s) => x + t + s) => x + t + s, x + y + z)
 };
 
 ================================================================================
@@ -1111,25 +1111,25 @@ ok(
 TestDirectEvalTaintingNoBundle
 ---------- /out.js ----------
 function test1() {
-  function add(n, t) {
-    return n + t;
+  function add(t, n) {
+    return t + n;
   }
   eval("add(1, 2)");
 }
 function test2() {
-  function n(t, e) {
-    return t + e;
+  function t(t, n) {
+    return t + n;
   }
   (0, eval)("add(1, 2)");
 }
 function test3() {
-  function n(t, e) {
-    return t + e;
+  function t(t, n) {
+    return t + n;
   }
 }
 function test4(eval) {
-  function add(n, t) {
-    return n + t;
+  function add(t, n) {
+    return t + n;
   }
   eval("add(1, 2)");
 }
@@ -5235,7 +5235,7 @@ class Foo {
   };
   get #o() {
   }
-  set #o(a) {
+  set #o(o) {
   }
 }
 class Bar {
@@ -5247,7 +5247,7 @@ class Bar {
   };
   get #o() {
   }
-  set #o(a) {
+  set #o(o) {
   }
 }
 
@@ -5426,21 +5426,21 @@ console.log((0, import_demo_pkg.default)());
 TestNonDeterminismIssue2537
 ---------- /out.js ----------
 // entry.ts
-function i(o, e) {
+function b(n, e) {
   let r = "teun";
-  if (o) {
-    let u = function(n) {
+  if (n) {
+    let n = function(n) {
       return n * 2;
-    }, t = function(n) {
+    }, u = function(n) {
       return n / 2;
     };
-    var b = u, f = t;
-    r = u(e) + t(e);
+    var t = n, o = u;
+    r = n(e) + u(e);
   }
   return r;
 }
 export {
-  i as aap
+  b as aap
 };
 
 ================================================================================
@@ -7196,9 +7196,9 @@ TestWithStatementTaintingNoBundle
   let outerDead = 3;
   with ({}) {
     var hoisted = 4;
-    let t = 5;
+    let e = 5;
     hoisted++;
-    t++;
+    e++;
     if (1) outer++;
     if (0) outerDead++;
   }

@@ -1619,6 +1619,13 @@ func (p *parser) recordUsage(ref ast.Ref) {
 		use := p.symbolUses[ref]
 		use.CountEstimate++
 		p.symbolUses[ref] = use
+
+		if p.currentScope != nil {
+			if p.currentScope.Used == nil {
+				p.currentScope.Used = make(map[ast.Ref]uint32)
+			}
+			p.currentScope.Used[ref]++
+		}
 	}
 
 	// The correctness of TypeScript-to-JavaScript conversion relies on accurate
@@ -1639,6 +1646,16 @@ func (p *parser) ignoreUsage(ref ast.Ref) {
 			delete(p.symbolUses, ref)
 		} else {
 			p.symbolUses[ref] = use
+		}
+
+		if p.currentScope != nil && p.currentScope.Used != nil {
+			use := p.currentScope.Used[ref]
+			use--
+			if use == 0 {
+				delete(p.currentScope.Used, ref)
+			} else {
+				p.currentScope.Used[ref] = use
+			}
 		}
 	}
 
