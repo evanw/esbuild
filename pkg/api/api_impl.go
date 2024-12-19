@@ -680,7 +680,12 @@ func validateDefines(
 
 	// Processing defines is expensive. Process them once here so the same object
 	// can be shared between all parsers we create using these arguments.
-	processed := config.ProcessDefines(rawDefines)
+	definesArray := make([]config.DefineData, 0, len(rawDefines))
+	for key, define := range rawDefines {
+		define.KeyParts = strings.Split(key, ".")
+		definesArray = append(definesArray, define)
+	}
+	processed := config.ProcessDefines(definesArray)
 	return &processed, injectedDefines
 }
 

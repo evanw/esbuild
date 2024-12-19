@@ -1272,9 +1272,9 @@ func TestTreeShakingReactElements(t *testing.T) {
 }
 
 func TestDisableTreeShaking(t *testing.T) {
-	defines := config.ProcessDefines(map[string]config.DefineData{
-		"pure":    {Flags: config.CallCanBeUnwrappedIfUnused},
-		"some.fn": {Flags: config.CallCanBeUnwrappedIfUnused},
+	defines := config.ProcessDefines([]config.DefineData{
+		{KeyParts: []string{"pure"}, Flags: config.CallCanBeUnwrappedIfUnused},
+		{KeyParts: []string{"some", "fn"}, Flags: config.CallCanBeUnwrappedIfUnused},
 	})
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{

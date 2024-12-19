@@ -12022,8 +12022,8 @@ func (p *parser) instantiateDefineExpr(loc logger.Loc, expr config.DefineExpr, o
 		// Substitute user-specified defines
 		if defines, ok := p.options.defines.DotDefines[parts[len(parts)-1]]; ok {
 			for _, define := range defines {
-				if define.Data.DefineExpr != nil && helpers.StringArraysEqual(define.Parts, parts) {
-					return p.instantiateDefineExpr(loc, *define.Data.DefineExpr, opts)
+				if define.DefineExpr != nil && helpers.StringArraysEqual(define.KeyParts, parts) {
+					return p.instantiateDefineExpr(loc, *define.DefineExpr, opts)
 				}
 			}
 		}
@@ -12956,10 +12956,10 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		// Check both user-specified defines and known globals
 		if defines, ok := p.options.defines.DotDefines["meta"]; ok {
 			for _, define := range defines {
-				if p.isDotOrIndexDefineMatch(expr, define.Parts) {
+				if p.isDotOrIndexDefineMatch(expr, define.KeyParts) {
 					// Substitute user-specified defines
-					if define.Data.DefineExpr != nil {
-						return p.instantiateDefineExpr(expr.Loc, *define.Data.DefineExpr, identifierOpts{
+					if define.DefineExpr != nil {
+						return p.instantiateDefineExpr(expr.Loc, *define.DefineExpr, identifierOpts{
 							assignTarget:   in.assignTarget,
 							isCallTarget:   isCallTarget,
 							isDeleteTarget: isDeleteTarget,
@@ -13587,10 +13587,10 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		// Check both user-specified defines and known globals
 		if defines, ok := p.options.defines.DotDefines[e.Name]; ok {
 			for _, define := range defines {
-				if p.isDotOrIndexDefineMatch(expr, define.Parts) {
+				if p.isDotOrIndexDefineMatch(expr, define.KeyParts) {
 					// Substitute user-specified defines
-					if define.Data.DefineExpr != nil {
-						new := p.instantiateDefineExpr(expr.Loc, *define.Data.DefineExpr, identifierOpts{
+					if define.DefineExpr != nil {
+						new := p.instantiateDefineExpr(expr.Loc, *define.DefineExpr, identifierOpts{
 							assignTarget:   in.assignTarget,
 							isCallTarget:   isCallTarget,
 							isDeleteTarget: isDeleteTarget,
@@ -13606,13 +13606,13 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					}
 
 					// Copy the side effect flags over in case this expression is unused
-					if define.Data.Flags.Has(config.CanBeRemovedIfUnused) {
+					if define.Flags.Has(config.CanBeRemovedIfUnused) {
 						e.CanBeRemovedIfUnused = true
 					}
-					if define.Data.Flags.Has(config.CallCanBeUnwrappedIfUnused) && !p.options.ignoreDCEAnnotations {
+					if define.Flags.Has(config.CallCanBeUnwrappedIfUnused) && !p.options.ignoreDCEAnnotations {
 						e.CallCanBeUnwrappedIfUnused = true
 					}
-					if define.Data.Flags.Has(config.IsSymbolInstance) {
+					if define.Flags.Has(config.IsSymbolInstance) {
 						e.IsSymbolInstance = true
 					}
 					break
@@ -13709,10 +13709,10 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		if str, ok := e.Index.Data.(*js_ast.EString); ok {
 			if defines, ok := p.options.defines.DotDefines[helpers.UTF16ToString(str.Value)]; ok {
 				for _, define := range defines {
-					if p.isDotOrIndexDefineMatch(expr, define.Parts) {
+					if p.isDotOrIndexDefineMatch(expr, define.KeyParts) {
 						// Substitute user-specified defines
-						if define.Data.DefineExpr != nil {
-							new := p.instantiateDefineExpr(expr.Loc, *define.Data.DefineExpr, identifierOpts{
+						if define.DefineExpr != nil {
+							new := p.instantiateDefineExpr(expr.Loc, *define.DefineExpr, identifierOpts{
 								assignTarget:   in.assignTarget,
 								isCallTarget:   isCallTarget,
 								isDeleteTarget: isDeleteTarget,
@@ -13732,13 +13732,13 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 						}
 
 						// Copy the side effect flags over in case this expression is unused
-						if define.Data.Flags.Has(config.CanBeRemovedIfUnused) {
+						if define.Flags.Has(config.CanBeRemovedIfUnused) {
 							e.CanBeRemovedIfUnused = true
 						}
-						if define.Data.Flags.Has(config.CallCanBeUnwrappedIfUnused) && !p.options.ignoreDCEAnnotations {
+						if define.Flags.Has(config.CallCanBeUnwrappedIfUnused) && !p.options.ignoreDCEAnnotations {
 							e.CallCanBeUnwrappedIfUnused = true
 						}
-						if define.Data.Flags.Has(config.IsSymbolInstance) {
+						if define.Flags.Has(config.IsSymbolInstance) {
 							e.IsSymbolInstance = true
 						}
 						break
