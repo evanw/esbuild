@@ -6088,7 +6088,7 @@ class Foo {
     assert.strictEqual(code, `if (x) ;\n`)
   },
 
-  async define({ esbuild }) {
+  async defineProcessEnvNodeEnv({ esbuild }) {
     const define = { 'process.env.NODE_ENV': '"something"' }
 
     const { code: code1 } = await esbuild.transform(`console.log(process.env.NODE_ENV)`, { define })
@@ -6163,6 +6163,32 @@ class Foo {
         ╵                                   '"production"'
 
 `)
+  },
+
+  async defineQuotedPropertyNameTransform({ esbuild }) {
+    const { code: code1 } = await esbuild.transform(`return x.y['z']`, { define: { 'x.y["z"]': 'true' } })
+    assert.strictEqual(code1, `return true;\n`)
+
+    const { code: code2 } = await esbuild.transform(`foo(x['y'].z, x.y['z'], x['y']['z'])`, { define: { 'x.y.z': 'true' } })
+    assert.strictEqual(code2, `foo(true, true, true);\n`)
+
+    const { code: code3 } = await esbuild.transform(`foo(x['y'].z, x.y['z'], x['y']['z'])`, { define: { 'x["y"].z': 'true' } })
+    assert.strictEqual(code3, `foo(true, true, true);\n`)
+
+    const { code: code4 } = await esbuild.transform(`foo(x['y'].z, x.y['z'], x['y']['z'])`, { define: { 'x.y["z"]': 'true' } })
+    assert.strictEqual(code4, `foo(true, true, true);\n`)
+
+    const { code: code5 } = await esbuild.transform(`foo(x['y'].z, x.y['z'], x['y']['z'])`, { define: { 'x["y"][\'z\']': 'true' } })
+    assert.strictEqual(code5, `foo(true, true, true);\n`)
+  },
+
+  async defineQuotedPropertyNameBuild({ esbuild }) {
+    const { outputFiles } = await esbuild.build({
+      stdin: { contents: `return process.env['SOME-TEST-VAR']` },
+      define: { 'process.env["SOME-TEST-VAR"]': 'true' },
+      write: false,
+    })
+    assert.strictEqual(outputFiles[0].text, `return true;\n`)
   },
 
   async json({ esbuild }) {

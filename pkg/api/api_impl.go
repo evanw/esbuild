@@ -386,11 +386,11 @@ func validateSupported(log logger.Log, supported map[string]bool) (
 	return
 }
 
-func validateGlobalName(log logger.Log, text string) []string {
+func validateGlobalName(log logger.Log, text string, path string) []string {
 	if text != "" {
 		source := logger.Source{
-			KeyPath:    logger.Path{Text: "(global path)"},
-			PrettyPath: "(global name)",
+			KeyPath:    logger.Path{Text: path},
+			PrettyPath: path,
 			Contents:   text,
 		}
 
@@ -560,20 +560,11 @@ func validateDefines(
 
 	for _, key := range sortedKeys {
 		value := defines[key]
-		keyParts := strings.Split(key, ".")
-		mapKey := mapKeyForDefine(keyParts)
-
-		// The key must be a dot-separated identifier list
-		for _, part := range keyParts {
-			if !js_ast.IsIdentifier(part) {
-				if part == key {
-					log.AddError(nil, logger.Range{}, fmt.Sprintf("The define key %q must be a valid identifier", key))
-				} else {
-					log.AddError(nil, logger.Range{}, fmt.Sprintf("The define key %q contains invalid identifier %q", key, part))
-				}
-				continue
-			}
+		keyParts := validateGlobalName(log, key, "(define name)")
+		if keyParts == nil {
+			continue
 		}
+		mapKey := mapKeyForDefine(keyParts)
 
 		// Parse the value
 		defineExpr, injectExpr := js_parser.ParseDefineExprOrJSON(value)
@@ -678,16 +669,11 @@ func validateDefines(
 	}
 
 	for _, key := range pureFns {
-		keyParts := strings.Split(key, ".")
-		mapKey := mapKeyForDefine(keyParts)
-
-		// The key must be a dot-separated identifier list
-		for _, part := range keyParts {
-			if !js_ast.IsIdentifier(part) {
-				log.AddError(nil, logger.Range{}, fmt.Sprintf("Invalid pure function: %q", key))
-				continue
-			}
+		keyParts := validateGlobalName(log, key, "(pure name)")
+		if keyParts == nil {
+			continue
 		}
+		mapKey := mapKeyForDefine(keyParts)
 
 		// Merge with any previously-specified defines
 		define := rawDefines[mapKey]
@@ -1285,7 +1271,7 @@ func validateBuildOptions(
 		ASCIIOnly:             validateASCIIOnly(buildOpts.Charset),
 		IgnoreDCEAnnotations:  buildOpts.IgnoreAnnotations,
 		TreeShaking:           validateTreeShaking(buildOpts.TreeShaking, buildOpts.Bundle, buildOpts.Format),
-		GlobalName:            validateGlobalName(log, buildOpts.GlobalName),
+		GlobalName:            validateGlobalName(log, buildOpts.GlobalName, "(global name)"),
 		CodeSplitting:         buildOpts.Splitting,
 		OutputFormat:          validateFormat(buildOpts.Format),
 		AbsOutputFile:         validatePath(log, realFS, buildOpts.Outfile, "outfile path"),
@@ -1729,7 +1715,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		SourceRoot:            transformOpts.SourceRoot,
 		ExcludeSourcesContent: transformOpts.SourcesContent == SourcesContentExclude,
 		OutputFormat:          validateFormat(transformOpts.Format),
-		GlobalName:            validateGlobalName(log, transformOpts.GlobalName),
+		GlobalName:            validateGlobalName(log, transformOpts.GlobalName, "(global name)"),
 		MinifySyntax:          transformOpts.MinifySyntax,
 		MinifyWhitespace:      transformOpts.MinifyWhitespace,
 		MinifyIdentifiers:     transformOpts.MinifyIdentifiers,

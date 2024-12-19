@@ -21,6 +21,20 @@
 
     The above code will be considered valid starting with this release. This change to esbuild follows a [similar change to TypeScript](https://github.com/microsoft/TypeScript/pull/60225) which will allow this syntax starting with TypeScript 5.7.
 
+* Allow quoted property names in `--define` and `--pure` ([#4008](https://github.com/evanw/esbuild/issues/4008))
+
+    The `define` and `pure` API options now accept identifier expressions containing quoted property names. Previously all identifiers in the identifier expression had to be bare identifiers. This change now makes `--define` and `--pure` consistent with `--global-name`, which already supported quoted property names. For example, the following is now possible:
+
+    ```js
+    // The following code now transforms to "return true;\n"
+    console.log(esbuild.transformSync(
+      `return process.env['SOME-TEST-VAR']`,
+      { define: { 'process.env["SOME-TEST-VAR"]': 'true' } },
+    ))
+    ```
+
+    Note that if you're passing values like this on the command line using esbuild's `--define` flag, then you'll need to know how to escape quote characters for your shell. You may find esbuild's JavaScript API more ergonomic and portable than writing shell code.
+
 * Minify empty `try`/`catch`/`finally` blocks ([#4003](https://github.com/evanw/esbuild/issues/4003))
 
     With this release, esbuild will now attempt to minify empty `try` blocks:
