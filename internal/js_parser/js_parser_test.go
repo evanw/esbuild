@@ -6548,6 +6548,23 @@ func TestMangleCatch(t *testing.T) {
 	expectPrintedMangle(t, "if (y) try { throw 1 } catch (x) {} else eval('x')", "if (y) try {\n  throw 1;\n} catch {\n}\nelse eval(\"x\");\n")
 }
 
+func TestMangleEmptyTry(t *testing.T) {
+	expectPrintedMangle(t, "try { throw 0 } catch (e) { foo() }", "try {\n  throw 0;\n} catch {\n  foo();\n}\n")
+	expectPrintedMangle(t, "try {} catch (e) { var foo }", "try {\n} catch {\n  var foo;\n}\n")
+
+	expectPrintedMangle(t, "try {} catch (e) { foo() }", "")
+	expectPrintedMangle(t, "try {} catch (e) { foo() } finally {}", "")
+
+	expectPrintedMangle(t, "try {} finally { foo() }", "foo();\n")
+	expectPrintedMangle(t, "try {} catch (e) { foo() } finally { bar() }", "bar();\n")
+
+	expectPrintedMangle(t, "try {} finally { var x = foo() }", "var x = foo();\n")
+	expectPrintedMangle(t, "try {} catch (e) { foo() } finally { var x = bar() }", "var x = bar();\n")
+
+	expectPrintedMangle(t, "try {} finally { let x = foo() }", "{\n  let x = foo();\n}\n")
+	expectPrintedMangle(t, "try {} catch (e) { foo() } finally { let x = bar() }", "{\n  let x = bar();\n}\n")
+}
+
 func TestAutoPureForObjectCreate(t *testing.T) {
 	expectPrinted(t, "Object.create(null)", "/* @__PURE__ */ Object.create(null);\n")
 	expectPrinted(t, "Object.create({})", "/* @__PURE__ */ Object.create({});\n")

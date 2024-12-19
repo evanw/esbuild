@@ -21,6 +21,23 @@
 
     The above code will be considered valid starting with this release. This change to esbuild follows a [similar change to TypeScript](https://github.com/microsoft/TypeScript/pull/60225) which will allow this syntax starting with TypeScript 5.7.
 
+* Minify empty `try`/`catch`/`finally` blocks ([#4003](https://github.com/evanw/esbuild/issues/4003))
+
+    With this release, esbuild will now attempt to minify empty `try` blocks:
+
+    ```js
+    // Original code
+    try {} catch { foo() } finally { bar() }
+
+    // Old output (with --minify)
+    try{}catch{foo()}finally{bar()}
+
+    // New output (with --minify)
+    bar();
+    ```
+
+    This can sometimes expose additional minification opportunities.
+
 ## 0.24.0
 
 **_This release deliberately contains backwards-incompatible changes._** To avoid automatically picking up releases like this, you should either be pinning the exact version of `esbuild` in your `package.json` file (recommended) or be using a version range syntax that only accepts patch upgrades such as `^0.23.0` or `~0.23.0`. See npm's documentation about [semver](https://docs.npmjs.com/cli/v6/using-npm/semver/) for more information.

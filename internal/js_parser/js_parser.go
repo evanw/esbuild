@@ -10774,6 +10774,13 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		p.popScope()
 
 		if s.Catch != nil {
+			old := p.isControlFlowDead
+
+			// If the try body is empty, then the catch body is dead
+			if len(s.Block.Stmts) == 0 {
+				p.isControlFlowDead = true
+			}
+
 			p.pushScopeForVisitPass(js_ast.ScopeCatchBinding, s.Catch.Loc)
 			if s.Catch.BindingOrNil.Data != nil {
 				p.visitBinding(s.Catch.BindingOrNil, bindingOpts{})
@@ -10785,12 +10792,52 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 
 			p.lowerObjectRestInCatchBinding(s.Catch)
 			p.popScope()
+
+			p.isControlFlowDead = old
 		}
 
 		if s.Finally != nil {
 			p.pushScopeForVisitPass(js_ast.ScopeBlock, s.Finally.Loc)
 			s.Finally.Block.Stmts = p.visitStmts(s.Finally.Block.Stmts, stmtsNormal)
 			p.popScope()
+		}
+
+		// Drop the whole thing if the try body is empty
+		if p.options.minifySyntax && len(s.Block.Stmts) == 0 {
+			keepCatch := false
+
+			// Certain "catch" blocks need to be preserved:
+			//
+			//   try {} catch { let foo } // Can be removed
+			//   try {} catch { var foo } // Must be kept
+			//
+			if s.Catch != nil {
+				for _, stmt2 := range s.Catch.Block.Stmts {
+					if shouldKeepStmtInDeadControlFlow(stmt2) {
+						keepCatch = true
+						break
+					}
+				}
+			}
+
+			// Make sure to preserve the "finally" block if present
+			if !keepCatch {
+				if s.Finally == nil {
+					return stmts
+				}
+				finallyNeedsBlock := false
+				for _, stmt2 := range s.Finally.Block.Stmts {
+					if statementCaresAboutScope(stmt2) {
+						finallyNeedsBlock = true
+						break
+					}
+				}
+				if !finallyNeedsBlock {
+					return append(stmts, s.Finally.Block.Stmts...)
+				}
+				block := s.Finally.Block
+				stmt = js_ast.Stmt{Loc: s.Finally.Loc, Data: &block}
+			}
 		}
 
 	case *js_ast.SSwitch:

@@ -1405,6 +1405,31 @@ func TestDeadCodeFollowingJump(t *testing.T) {
 	})
 }
 
+func TestDeadCodeInsideEmptyTry(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				try { foo() }
+				catch { require('./a') }
+				finally { require('./b') }
+
+				try {}
+				catch { require('./c') }
+				finally { require('./d') }
+			`,
+			"/a.js": ``,
+			"/b.js": ``,
+			"/c.js": `TEST FAILED`, // Dead code paths should not import code
+			"/d.js": ``,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
 func TestRemoveTrailingReturn(t *testing.T) {
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
