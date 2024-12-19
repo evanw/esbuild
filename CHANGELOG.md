@@ -4,7 +4,19 @@
 
 * Allow `es2024` as a target in `tsconfig.json` ([#4004](https://github.com/evanw/esbuild/issues/4004))
 
-    TypeScript recently [added `es2024`](https://devblogs.microsoft.com/typescript/announcing-typescript-5-7/#support-for---target-es2024-and---lib-es2024) as a compilation target, so esbuild now supports this in the `target` field of `tsconfig.json` files. As a reminder, the only thing that esbuild uses this field for is determining whether or not to use legacy TypeScript behavior for class fields (you can read more in [the documentation](https://esbuild.github.io/content-types/#tsconfig-json)).
+    TypeScript recently [added `es2024`](https://devblogs.microsoft.com/typescript/announcing-typescript-5-7/#support-for---target-es2024-and---lib-es2024) as a compilation target, so esbuild now supports this in the `target` field of `tsconfig.json` files, such as in the following configuration file:
+
+    ```json
+    {
+      "compilerOptions": {
+        "target": "ES2024"
+      }
+    }
+    ```
+
+    As a reminder, the only thing that esbuild uses this field for is determining whether or not to use legacy TypeScript behavior for class fields. You can read more in [the documentation](https://esbuild.github.io/content-types/#tsconfig-json).
+
+    This fix was contributed by [@billyjanitsch](https://github.com/billyjanitsch).
 
 * Allow automatic semicolon insertion after `get`/`set`
 
