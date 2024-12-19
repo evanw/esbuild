@@ -815,15 +815,14 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	RegexpUnicodePropertyEscapes: {
 		// Note: The latest version of "Chrome" failed this test: RegExp Unicode Property Escapes: Unicode 16.0
 		// Note: The latest version of "Edge" failed this test: RegExp Unicode Property Escapes: Unicode 16.0
-		// Note: The latest version of "Firefox" failed 2 tests including: RegExp Unicode Property Escapes: Unicode 15.1
 		// Note: The latest version of "Hermes" failed 8 tests including: RegExp Unicode Property Escapes: Unicode 11
 		// Note: The latest version of "IE" failed 8 tests including: RegExp Unicode Property Escapes: Unicode 11
 		// Note: The latest version of "IOS" failed this test: RegExp Unicode Property Escapes: Unicode 16.0
-		// Note: The latest version of "Node" failed this test: RegExp Unicode Property Escapes: Unicode 16.0
 		// Note: The latest version of "Rhino" failed 8 tests including: RegExp Unicode Property Escapes: Unicode 11
 		// Note: The latest version of "Safari" failed this test: RegExp Unicode Property Escapes: Unicode 16.0
-		ES:    {{start: v{2018, 0, 0}}},
-		Opera: {{start: v{111, 0, 0}}},
+		ES:      {{start: v{2018, 0, 0}}},
+		Firefox: {{start: v{134, 0, 0}}},
+		Node:    {{start: v{22, 12, 0}, end: v{23, 0, 0}}, {start: v{23, 3, 0}}},
 	},
 	RestArgument: {
 		// Note: The latest version of "Hermes" failed this test: rest parameters: function 'length' property
