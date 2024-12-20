@@ -192,6 +192,27 @@ const toSearchCodeSplitting = {
   out: 'out.ts',
 }
 
+const testCaseCodeSplittingEmptyFile = {
+  'entry1.ts': `
+    import './a.ts'
+    import './empty.ts'
+    import './b.ts'
+  `,
+  'entry2.ts': `
+    import './a.ts'
+    import './empty.ts'
+    import './b.ts'
+  `,
+  'a.ts': `'foo'.print()`,
+  'empty.ts': `//! @preserve`,
+  'b.ts': `'bar'.print()`,
+}
+
+const toSearchCodeSplittingEmptyFile = {
+  foo: 'a.ts',
+  bar: 'b.ts',
+}
+
 const testCaseUnicode = {
   'entry.js': `
     import './a'
@@ -430,7 +451,7 @@ const toSearchNullSourcesContent = {
   bar: 'bar.ts',
 }
 
-async function check(kind, testCase, toSearch, { ext, flags, entryPoints, crlf, followUpFlags = [] }) {
+async function check(kind, testCase, toSearch, { ext, flags, entryPoints, crlf, followUpFlags = [], checkChunk }) {
   let failed = 0
 
   try {
@@ -470,6 +491,18 @@ async function check(kind, testCase, toSearch, { ext, flags, entryPoints, crlf, 
 
     let outCode
     let outCodeMap
+    let outPrefix = 'out'
+
+    // Optionally check the first chunk when splitting
+    if (checkChunk && flags.includes('--splitting')) {
+      const entries = await fs.readdir(tempDir)
+      for (const entry of entries.sort()) {
+        if (entry.startsWith('chunk-')) {
+          outPrefix = entry.slice(0, entry.indexOf('.'))
+          break
+        }
+      }
+    }
 
     if (isStdin) {
       outCode = stdout
@@ -478,9 +511,9 @@ async function check(kind, testCase, toSearch, { ext, flags, entryPoints, crlf, 
     }
 
     else {
-      outCode = await fs.readFile(path.join(tempDir, `out.${ext}`), 'utf8')
-      recordCheck(outCode.includes(`# sourceMappingURL=out.${ext}.map`), `.${ext} file must link to .${ext}.map`)
-      outCodeMap = await fs.readFile(path.join(tempDir, `out.${ext}.map`), 'utf8')
+      outCode = await fs.readFile(path.join(tempDir, `${outPrefix}.${ext}`), 'utf8')
+      recordCheck(outCode.includes(`# sourceMappingURL=${outPrefix}.${ext}.map`), `.${ext} file must link to .${ext}.map`)
+      outCodeMap = await fs.readFile(path.join(tempDir, `${outPrefix}.${ext}.map`), 'utf8')
     }
 
     // Check the mapping of various key locations back to the original source
@@ -558,7 +591,7 @@ async function check(kind, testCase, toSearch, { ext, flags, entryPoints, crlf, 
 
     // Bundle again to test nested source map chaining
     for (let order of [0, 1, 2]) {
-      const fileToTest = isStdin ? `stdout.${ext}` : `out.${ext}`
+      const fileToTest = isStdin ? `stdout.${ext}` : `${outPrefix}.${ext}`
       const nestedEntry = path.join(tempDir, `nested-entry.${ext}`)
       if (isStdin) await fs.writeFile(path.join(tempDir, fileToTest), outCode)
       await fs.writeFile(path.join(tempDir, `extra.${ext}`), `console.log('extra')`)
@@ -572,6 +605,7 @@ async function check(kind, testCase, toSearch, { ext, flags, entryPoints, crlf, 
         '--bundle',
         '--outfile=' + path.join(tempDir, `out2.${ext}`),
         '--sourcemap',
+        '--format=esm',
       ].concat(followUpFlags), { cwd: testDir })
 
       const out2Code = await fs.readFile(path.join(tempDir, `out2.${ext}`), 'utf8')
@@ -892,6 +926,15 @@ async function main() {
           entryPoints: ['foo.js'],
           crlf,
         }),
+
+        // This checks for issues with files in a bundle that don't emit source maps
+        check('splitting-empty' + suffix, testCaseCodeSplittingEmptyFile, toSearchCodeSplittingEmptyFile, {
+          ext: 'js',
+          flags: flags.concat('--outdir=.', '--bundle', '--splitting', '--format=esm'),
+          entryPoints: ['entry1.ts', 'entry2.ts'],
+          crlf,
+          checkChunk: true,
+        })
       )
     }
   }

@@ -5851,7 +5851,7 @@ func (c *linkerContext) generateChunkJS(chunkIndex int, chunkWaitGroup *sync.Wai
 				prevOffset.AdvanceBytes(compileResult.JS)
 
 				// Include a null entry in the source map
-				if c.options.SourceMap != config.SourceMapNone {
+				if len(compileResult.JS) > 0 && c.options.SourceMap != config.SourceMapNone {
 					if n := len(compileResultsForSourceMap); n > 0 && !compileResultsForSourceMap[n-1].isNullEntry {
 						compileResultsForSourceMap = append(compileResultsForSourceMap, compileResultForSourceMap{
 							sourceIndex: compileResult.sourceIndex,
@@ -6358,7 +6358,7 @@ func (c *linkerContext) generateChunkCSS(chunkIndex int, chunkWaitGroup *sync.Wa
 			prevOffset.AdvanceBytes(compileResult.CSS)
 
 			// Include a null entry in the source map
-			if c.options.SourceMap != config.SourceMapNone && compileResult.sourceIndex.IsValid() {
+			if len(compileResult.CSS) > 0 && c.options.SourceMap != config.SourceMapNone && compileResult.sourceIndex.IsValid() {
 				if n := len(compileResultsForSourceMap); n > 0 && !compileResultsForSourceMap[n-1].isNullEntry {
 					compileResultsForSourceMap = append(compileResultsForSourceMap, compileResultForSourceMap{
 						sourceIndex: compileResult.sourceIndex.GetIndex(),
