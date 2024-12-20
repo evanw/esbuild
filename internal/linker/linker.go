@@ -5973,7 +5973,7 @@ func (c *linkerContext) generateChunkJS(chunkIndex int, chunkWaitGroup *sync.Wai
 func (c *linkerContext) generateGlobalNamePrefix() string {
 	var text string
 	globalName := c.options.GlobalName
-	prefix := globalName[0]
+	prefix, globalName := globalName[0], globalName[1:]
 	space := " "
 	join := ";\n"
 
@@ -5982,9 +5982,18 @@ func (c *linkerContext) generateGlobalNamePrefix() string {
 		join = ";"
 	}
 
+	// Assume the "this" and "import.meta" objects always exist
+	isExistingObject := prefix == "this"
+	if prefix == "import" && len(globalName) > 0 && globalName[0] == "meta" {
+		prefix, globalName = "import.meta", globalName[1:]
+		isExistingObject = true
+	}
+
 	// Use "||=" to make the code more compact when it's supported
-	if len(globalName) > 1 && !c.options.UnsupportedJSFeatures.Has(compat.LogicalAssignment) {
-		if js_printer.CanEscapeIdentifier(prefix, c.options.UnsupportedJSFeatures, c.options.ASCIIOnly) {
+	if len(globalName) > 0 && !c.options.UnsupportedJSFeatures.Has(compat.LogicalAssignment) {
+		if isExistingObject {
+			// Keep the prefix as it is
+		} else if js_printer.CanEscapeIdentifier(prefix, c.options.UnsupportedJSFeatures, c.options.ASCIIOnly) {
 			if c.options.ASCIIOnly {
 				prefix = string(js_printer.QuoteIdentifier(nil, prefix, c.options.UnsupportedJSFeatures))
 			}
@@ -5992,7 +6001,7 @@ func (c *linkerContext) generateGlobalNamePrefix() string {
 		} else {
 			prefix = fmt.Sprintf("this[%s]", helpers.QuoteForJSON(prefix, c.options.ASCIIOnly))
 		}
-		for _, name := range globalName[1:] {
+		for _, name := range globalName {
 			var dotOrIndex string
 			if js_printer.CanEscapeIdentifier(name, c.options.UnsupportedJSFeatures, c.options.ASCIIOnly) {
 				if c.options.ASCIIOnly {
@@ -6002,12 +6011,19 @@ func (c *linkerContext) generateGlobalNamePrefix() string {
 			} else {
 				dotOrIndex = fmt.Sprintf("[%s]", helpers.QuoteForJSON(name, c.options.ASCIIOnly))
 			}
-			prefix = fmt.Sprintf("(%s%s||=%s{})%s", prefix, space, space, dotOrIndex)
+			if isExistingObject {
+				prefix = fmt.Sprintf("%s%s", prefix, dotOrIndex)
+				isExistingObject = false
+			} else {
+				prefix = fmt.Sprintf("(%s%s||=%s{})%s", prefix, space, space, dotOrIndex)
+			}
 		}
 		return fmt.Sprintf("%s%s%s=%s", text, prefix, space, space)
 	}
 
-	if js_printer.CanEscapeIdentifier(prefix, c.options.UnsupportedJSFeatures, c.options.ASCIIOnly) {
+	if isExistingObject {
+		text = fmt.Sprintf("%s%s=%s", prefix, space, space)
+	} else if js_printer.CanEscapeIdentifier(prefix, c.options.UnsupportedJSFeatures, c.options.ASCIIOnly) {
 		if c.options.ASCIIOnly {
 			prefix = string(js_printer.QuoteIdentifier(nil, prefix, c.options.UnsupportedJSFeatures))
 		}
@@ -6017,7 +6033,7 @@ func (c *linkerContext) generateGlobalNamePrefix() string {
 		text = fmt.Sprintf("%s%s=%s", prefix, space, space)
 	}
 
-	for _, name := range globalName[1:] {
+	for _, name := range globalName {
 		oldPrefix := prefix
 		if js_printer.CanEscapeIdentifier(name, c.options.UnsupportedJSFeatures, c.options.ASCIIOnly) {
 			if c.options.ASCIIOnly {

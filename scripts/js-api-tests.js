@@ -6009,6 +6009,22 @@ class Foo {
 π["π 𐀀"]["𐀀"]["𐀀 π"] = `)
   },
 
+  async iifeGlobalNameThis({ esbuild }) {
+    const { code } = await esbuild.transform(`export default 123`, { format: 'iife', globalName: 'this.foo.bar' })
+    const globals = {}
+    vm.createContext(globals)
+    vm.runInContext(code, globals)
+    assert.strictEqual(globals.foo.bar.default, 123)
+    assert.strictEqual(code.slice(0, code.indexOf('(() => {\n')), `(this.foo ||= {}).bar = `)
+  },
+
+  async iifeGlobalNameImportMeta({ esbuild }) {
+    const { code } = await esbuild.transform(`export default 123`, { format: 'iife', globalName: 'import.meta.foo.bar' })
+    const { default: import_meta } = await import('data:text/javascript,' + code + '\nexport default import.meta')
+    assert.strictEqual(import_meta.foo.bar.default, 123)
+    assert.strictEqual(code.slice(0, code.indexOf('(() => {\n')), `(import.meta.foo ||= {}).bar = `)
+  },
+
   async jsx({ esbuild }) {
     const { code } = await esbuild.transform(`console.log(<div/>)`, { loader: 'jsx' })
     assert.strictEqual(code, `console.log(/* @__PURE__ */ React.createElement("div", null));\n`)
@@ -6123,13 +6139,19 @@ class Foo {
   },
 
   async defineThis({ esbuild }) {
-    const { code } = await esbuild.transform(`console.log(a, b); export {}`, { define: { a: 'this', b: 'this.foo' }, format: 'esm' })
-    assert.strictEqual(code, `console.log(void 0, (void 0).foo);\n`)
+    const { code: code1 } = await esbuild.transform(`console.log(a, b); export {}`, { define: { a: 'this', b: 'this.foo' }, format: 'esm' })
+    assert.strictEqual(code1, `console.log(void 0, (void 0).foo);\n`)
+
+    const { code: code2 } = await esbuild.transform(`console.log(this, this.x); export {}`, { define: { this: 'a', 'this.x': 'b' }, format: 'esm' })
+    assert.strictEqual(code2, `console.log(a, b);\n`)
   },
 
   async defineImportMetaESM({ esbuild }) {
-    const { code } = await esbuild.transform(`console.log(a, b); export {}`, { define: { a: 'import.meta', b: 'import.meta.foo' }, format: 'esm' })
-    assert.strictEqual(code, `console.log(import.meta, import.meta.foo);\n`)
+    const { code: code1 } = await esbuild.transform(`console.log(a, b); export {}`, { define: { a: 'import.meta', b: 'import.meta.foo' }, format: 'esm' })
+    assert.strictEqual(code1, `console.log(import.meta, import.meta.foo);\n`)
+
+    const { code: code2 } = await esbuild.transform(`console.log(import.meta, import.meta.x); export {}`, { define: { 'import.meta': 'a', 'import.meta.x': 'b' }, format: 'esm' })
+    assert.strictEqual(code2, `console.log(a, b);\n`)
   },
 
   async defineImportMetaIIFE({ esbuild }) {

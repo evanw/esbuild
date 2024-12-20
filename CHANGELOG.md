@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix regression with `--define` and `import.meta` ([#4010](https://github.com/evanw/esbuild/issues/4010), [#4012](https://github.com/evanw/esbuild/issues/4012))
+
+    The previous change in version 0.24.1 to use a more expression-like parser for `define` values to allow quoted property names introduced a regression that removed the ability to use `--define:import.meta=...`. Even though `import` is normally a keyword that can't be used as an identifier, ES modules special-case the `import.meta` expression to behave like an identifier anyway. This change fixes the regression.
+
 ## 0.24.1
 
 * Allow `es2024` as a target in `tsconfig.json` ([#4004](https://github.com/evanw/esbuild/issues/4004))
