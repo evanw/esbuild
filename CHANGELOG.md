@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.24.2
 
 * Fix regression with `--define` and `import.meta` ([#4010](https://github.com/evanw/esbuild/issues/4010), [#4012](https://github.com/evanw/esbuild/issues/4012), [#4013](https://github.com/evanw/esbuild/pull/4013))
 
