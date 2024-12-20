@@ -25,23 +25,23 @@ var init_a = __esm({
 var B;
 var init_b = __esm({
   "src/b.js"() {
-    B = async () => (await Promise.resolve().then(() => (init_src(), src_exports))).A;
+    B = async () => (await Promise.resolve().then(() => (init_index(), index_exports))).A;
   }
 });
 
 // src/index.js
-var src_exports = {};
-__export(src_exports, {
+var index_exports = {};
+__export(index_exports, {
   A: () => A,
   B: () => B
 });
-var init_src = __esm({
+var init_index = __esm({
   "src/index.js"() {
     init_a();
     init_b();
   }
 });
-init_src();
+init_index();
 export {
   A,
   B

@@ -5946,23 +5946,23 @@ console.log("cache:", require.cache);
 TestRequireParentDirCommonJS
 ---------- /out.js ----------
 // Users/user/project/src/index.js
-var require_src = __commonJS({
+var require_index = __commonJS({
   "Users/user/project/src/index.js"(exports, module) {
     module.exports = 123;
   }
 });
 
 // Users/user/project/src/dir/entry.js
-console.log(require_src());
+console.log(require_index());
 
 ================================================================================
 TestRequireParentDirES6
 ---------- /out.js ----------
 // Users/user/project/src/index.js
-var src_default = 123;
+var index_default = 123;
 
 // Users/user/project/src/dir/entry.js
-console.log(src_default);
+console.log(index_default);
 
 ================================================================================
 TestRequirePropertyAccessCommonJS
@@ -6146,6 +6146,85 @@ function fn() {
 
 // entry.js
 console.log(fn());
+
+================================================================================
+TestSourceIdentifierNameIndexMultipleEntry
+---------- /Users/user/project/out/home/index.js ----------
+// Users/user/project/node_modules/pkg/index.js
+var require_pkg = __commonJS({
+  "Users/user/project/node_modules/pkg/index.js"(exports) {
+    exports.pkg = true;
+  }
+});
+
+// Users/user/project/common/index.js
+var require_common = __commonJS({
+  "Users/user/project/common/index.js"(exports) {
+    exports.common = true;
+  }
+});
+
+// Users/user/project/home/index.js
+var require_home = __commonJS({
+  "Users/user/project/home/index.js"() {
+    require_home();
+    require_pkg();
+    require_common();
+  }
+});
+export default require_home();
+
+---------- /Users/user/project/out/about/index.js ----------
+// Users/user/project/node_modules/pkg/index.js
+var require_pkg = __commonJS({
+  "Users/user/project/node_modules/pkg/index.js"(exports) {
+    exports.pkg = true;
+  }
+});
+
+// Users/user/project/common/index.js
+var require_common = __commonJS({
+  "Users/user/project/common/index.js"(exports) {
+    exports.common = true;
+  }
+});
+
+// Users/user/project/about/index.js
+var require_about = __commonJS({
+  "Users/user/project/about/index.js"() {
+    require_about();
+    require_pkg();
+    require_common();
+  }
+});
+export default require_about();
+
+================================================================================
+TestSourceIdentifierNameIndexSingleEntry
+---------- /Users/user/project/out/index.js ----------
+// Users/user/project/node_modules/pkg/index.js
+var require_pkg = __commonJS({
+  "Users/user/project/node_modules/pkg/index.js"(exports) {
+    exports.pkg = true;
+  }
+});
+
+// Users/user/project/nested/index.js
+var require_nested = __commonJS({
+  "Users/user/project/nested/index.js"(exports) {
+    exports.nested = true;
+  }
+});
+
+// Users/user/project/index.js
+var require_index = __commonJS({
+  "Users/user/project/index.js"() {
+    require_index();
+    require_pkg();
+    require_nested();
+  }
+});
+export default require_index();
 
 ================================================================================
 TestSourceMap

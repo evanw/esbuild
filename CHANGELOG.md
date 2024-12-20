@@ -64,6 +64,12 @@
 
     This can sometimes expose additional minification opportunities.
 
+* Avoid using the parent directory name for determinism ([#3998](https://github.com/evanw/esbuild/issues/3998))
+
+    To make generated code more readable, esbuild includes the name of the source file when generating certain variable names within the file. Specifically bundling a CommonJS file generates a variable to store the lazily-evaluated module initializer. However, if a file is named `index.js` (or with a different extension), esbuild will use the name of the parent directory instead for a better name (since many packages have files all named `index.js` but have unique directory names).
+
+    This is problematic when the bundle entry point is named `index.js` and the parent directory name is non-deterministic (e.g. a temporary directory created by a build script). To avoid non-determinism in esbuild's output, esbuild will now use `index` instead of the parent directory in this case. Specifically this will happen if the parent directory is equal to esbuild's `outbase` API option, which defaults to the [lowest common ancestor](https://en.wikipedia.org/wiki/Lowest_common_ancestor) of all user-specified entry point paths.
+
 * Experimental support for esbuild on NetBSD ([#3974](https://github.com/evanw/esbuild/pull/3974))
 
     With this release, esbuild now has a published binary executable for [NetBSD](https://www.netbsd.org/) in the [`@esbuild/netbsd-arm64`](https://www.npmjs.com/package/@esbuild/netbsd-arm64) npm package, and esbuild's installer has been modified to attempt to use it when on NetBSD. Hopefully this makes installing esbuild via npm work on NetBSD. This change was contributed by [@bsiegert](https://github.com/bsiegert).

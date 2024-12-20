@@ -9123,3 +9123,51 @@ func TestStringExportNamesIIFE(t *testing.T) {
 		},
 	})
 }
+
+func TestSourceIdentifierNameIndexSingleEntry(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			// Generate identifier names for top-level and nested files
+			"/Users/user/project/index.js": `
+				require('.')
+				require('pkg')
+				require('./nested')
+			`,
+			"/Users/user/project/nested/index.js":           `exports.nested = true`,
+			"/Users/user/project/node_modules/pkg/index.js": `exports.pkg = true`,
+		},
+		entryPaths: []string{"/Users/user/project/index.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/Users/user/project/out",
+		},
+	})
+}
+
+func TestSourceIdentifierNameIndexMultipleEntry(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			// Generate identifier names for top-level and nested files
+			"/Users/user/project/home/index.js": `
+				require('.')
+				require('pkg')
+				require('../common')
+			`,
+			"/Users/user/project/about/index.js": `
+				require('.')
+				require('pkg')
+				require('../common')
+			`,
+			"/Users/user/project/common/index.js":           `exports.common = true`,
+			"/Users/user/project/node_modules/pkg/index.js": `exports.pkg = true`,
+		},
+		entryPaths: []string{
+			"/Users/user/project/home/index.js",
+			"/Users/user/project/about/index.js",
+		},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/Users/user/project/out",
+		},
+	})
+}
