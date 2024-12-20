@@ -6188,7 +6188,7 @@ class Foo {
   },
 
   async defineQuotedPropertyNameTransform({ esbuild }) {
-    const { code: code1 } = await esbuild.transform(`return x.y['z']`, { define: { 'x.y["z"]': 'true' } })
+    const { code: code1 } = await esbuild.transform(`return x.y['z!']`, { define: { 'x.y["z!"]': 'true' } })
     assert.strictEqual(code1, `return true;\n`)
 
     const { code: code2 } = await esbuild.transform(`foo(x['y'].z, x.y['z'], x['y']['z'])`, { define: { 'x.y.z': 'true' } })
@@ -6202,7 +6202,20 @@ class Foo {
 
     const { code: code5 } = await esbuild.transform(`foo(x['y'].z, x.y['z'], x['y']['z'])`, { define: { 'x["y"][\'z\']': 'true' } })
     assert.strictEqual(code5, `foo(true, true, true);\n`)
+
+    const { code: code6 } = await esbuild.transform(`foo(import.meta['y'].z, import.meta.y['z'], import.meta['y']['z'])`, { define: { 'import.meta["y"].z': 'true' } })
+    assert.strictEqual(code6, `foo(true, true, true);\n`)
+
+    const { code: code7 } = await esbuild.transform(`foo(import.meta['y!'].z, import.meta.y['z!'], import.meta['y!']['z!'])`, {
+      define: {
+        'import.meta["y!"].z': 'true',
+        'import.meta.y["z!"]': 'true',
+        'import.meta["y!"]["z!"]': 'true'
+      },
+    })
+    assert.strictEqual(code7, `foo(true, true, true);\n`)
   },
+
 
   async defineQuotedPropertyNameBuild({ esbuild }) {
     const { outputFiles } = await esbuild.build({
@@ -6545,6 +6558,14 @@ class Foo {
     assert.strictEqual(code1, `console.log(123, foo);\n`)
 
     const { code: code2 } = await esbuild.transform(`console.log(123, foo)`, { minifySyntax: true, pure: ['console.log'] })
+    assert.strictEqual(code2, `foo;\n`)
+  },
+
+  async pureImportMeta({ esbuild }) {
+    const { code: code1 } = await esbuild.transform(`import.meta.foo(123, foo)`, { minifySyntax: true, pure: [] })
+    assert.strictEqual(code1, `import.meta.foo(123, foo);\n`)
+
+    const { code: code2 } = await esbuild.transform(`import.meta.foo(123, foo)`, { minifySyntax: true, pure: ['import.meta.foo'] })
     assert.strictEqual(code2, `foo;\n`)
   },
 
