@@ -316,14 +316,14 @@ func (pieces SourceMapPieces) Finalize(shifts []SourceMapShift) []byte {
 
 		potentialStartOfRun := current
 
-		// Skip over the original position information
-		_, current = DecodeVLQ(pieces.Mappings, current) // The original source
-		_, current = DecodeVLQ(pieces.Mappings, current) // The original line
-		_, current = DecodeVLQ(pieces.Mappings, current) // The original column
-
-		// Skip over the original name
+		// Skip over the original position information if present
 		if current < len(pieces.Mappings) {
-			if c := pieces.Mappings[current]; c != ',' && c != ';' {
+			_, current = DecodeVLQ(pieces.Mappings, current) // The original source
+			_, current = DecodeVLQ(pieces.Mappings, current) // The original line
+			_, current = DecodeVLQ(pieces.Mappings, current) // The original column
+
+			// Skip over the original name if present
+			if current < len(pieces.Mappings) {
 				_, current = DecodeVLQ(pieces.Mappings, current)
 			}
 		}
