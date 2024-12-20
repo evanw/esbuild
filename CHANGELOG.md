@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.24.1
 
 * Allow `es2024` as a target in `tsconfig.json` ([#4004](https://github.com/evanw/esbuild/issues/4004))
 
@@ -67,6 +67,12 @@
 * Include `entryPoint` metadata for the `copy` loader ([#3985](https://github.com/evanw/esbuild/issues/3985))
 
     Almost all entry points already include a `entryPoint` field in the `outputs` map in esbuild's build metadata. However, this wasn't the case for the `copy` loader as that loader is a special-case that doesn't behave like other loaders. This release adds the `entryPoint` field in this case.
+
+* Source mappings may now contain `null` entries ([#3310](https://github.com/evanw/esbuild/issues/3310), [#3878](https://github.com/evanw/esbuild/issues/3878))
+
+    With this change, sources that result in an empty source map may now emit a `null` source mapping (i.e. one with a generated position but without a source index or original position). This change improves source map accuracy by fixing a problem where minified code from a source without any source mappings could potentially still be associated with a mapping from another source file earlier in the generated output on the same minified line. It manifests as nonsensical files in source mapped stack traces. Now the `null` mapping "resets" the source map so that any lookups into the minified code without any mappings resolves to `null` (which appears as the output file in stack traces) instead of the incorrect source file.
+
+    This change shouldn't affect anything in most situations. I'm only mentioning it in the release notes in case it introduces a bug with source mapping. It's part of a work-in-progress future feature that will let you omit certain unimportant files from the generated source map to reduce source map size.
 
 * Avoid using the parent directory name for determinism ([#3998](https://github.com/evanw/esbuild/issues/3998))
 
