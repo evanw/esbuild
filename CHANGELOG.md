@@ -64,6 +64,10 @@
 
     This can sometimes expose additional minification opportunities.
 
+* Include `entryPoint` metadata for the `copy` loader ([#3985](https://github.com/evanw/esbuild/issues/3985))
+
+    Almost all entry points already include a `entryPoint` field in the `outputs` map in esbuild's build metadata. However, this wasn't the case for the `copy` loader as that loader is a special-case that doesn't behave like other loaders. This release adds the `entryPoint` field in this case.
+
 * Avoid using the parent directory name for determinism ([#3998](https://github.com/evanw/esbuild/issues/3998))
 
     To make generated code more readable, esbuild includes the name of the source file when generating certain variable names within the file. Specifically bundling a CommonJS file generates a variable to store the lazily-evaluated module initializer. However, if a file is named `index.js` (or with a different extension), esbuild will use the name of the parent directory instead for a better name (since many packages have files all named `index.js` but have unique directory names).

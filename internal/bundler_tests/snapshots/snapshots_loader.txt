@@ -337,6 +337,80 @@ console.log(x);
 body {
   background: url("../assets/some.file");
 }
+---------- metafile.json ----------
+{
+  "inputs": {
+    "Users/user/project/assets/some.file": {
+      "bytes": 5,
+      "imports": []
+    },
+    "Users/user/project/src/entry.js": {
+      "bytes": 63,
+      "imports": [
+        {
+          "path": "Users/user/project/assets/some.file",
+          "kind": "import-statement",
+          "original": "../assets/some.file"
+        }
+      ],
+      "format": "esm"
+    },
+    "Users/user/project/src/entry.css": {
+      "bytes": 64,
+      "imports": [
+        {
+          "path": "Users/user/project/assets/some.file",
+          "kind": "url-token",
+          "original": "../assets/some.file"
+        }
+      ]
+    }
+  },
+  "outputs": {
+    "out/assets/some.file": {
+      "imports": [],
+      "exports": [],
+      "entryPoint": "Users/user/project/assets/some.file",
+      "inputs": {
+        "Users/user/project/assets/some.file": {
+          "bytesInOutput": 5
+        }
+      },
+      "bytes": 5
+    },
+    "out/src/entry.js": {
+      "imports": [
+        {
+          "path": "out/assets/some.file",
+          "kind": "import-statement"
+        }
+      ],
+      "exports": [],
+      "entryPoint": "Users/user/project/src/entry.js",
+      "inputs": {
+        "Users/user/project/src/entry.js": {
+          "bytesInOutput": 53
+        }
+      },
+      "bytes": 88
+    },
+    "out/src/entry.css": {
+      "imports": [
+        {
+          "path": "out/assets/some.file",
+          "kind": "url-token"
+        }
+      ],
+      "entryPoint": "Users/user/project/src/entry.css",
+      "inputs": {
+        "Users/user/project/src/entry.css": {
+          "bytesInOutput": 51
+        }
+      },
+      "bytes": 90
+    }
+  }
+}
 
 ================================================================================
 TestLoaderCopyWithBundleFromCSS

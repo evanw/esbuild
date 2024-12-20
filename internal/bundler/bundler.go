@@ -2577,11 +2577,13 @@ func (s *scanner) processScannedFiles(entryPointMeta []graph.EntryPoint) []scann
 			// the entry point itself.
 			customFilePath := ""
 			useOutputFile := false
+			isEntryPoint := false
 			if result.file.inputFile.Loader == config.LoaderCopy {
 				if metaIndex, ok := entryPointSourceIndexToMetaIndex[uint32(sourceIndex)]; ok {
 					template = s.options.EntryPathTemplate
 					customFilePath = entryPointMeta[metaIndex].OutputPath
 					useOutputFile = s.options.AbsOutputFile != ""
+					isEntryPoint = true
 				}
 			}
 
@@ -2632,8 +2634,14 @@ func (s *scanner) processScannedFiles(entryPointMeta []graph.EntryPoint) []scann
 					helpers.QuoteForJSON(result.file.inputFile.Source.PrettyPath, s.options.ASCIIOnly),
 					len(bytes),
 				)
+				entryPointJSON := ""
+				if isEntryPoint {
+					entryPointJSON = fmt.Sprintf("\"entryPoint\": %s,\n      ",
+						helpers.QuoteForJSON(result.file.inputFile.Source.PrettyPath, s.options.ASCIIOnly))
+				}
 				jsonMetadataChunk = fmt.Sprintf(
-					"{\n      \"imports\": [],\n      \"exports\": [],\n      \"inputs\": %s,\n      \"bytes\": %d\n    }",
+					"{\n      \"imports\": [],\n      \"exports\": [],\n      %s\"inputs\": %s,\n      \"bytes\": %d\n    }",
+					entryPointJSON,
 					inputs,
 					len(bytes),
 				)
