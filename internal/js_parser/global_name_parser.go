@@ -6,7 +6,7 @@ import (
 	"github.com/evanw/esbuild/internal/logger"
 )
 
-func ParseGlobalName(log logger.Log, source logger.Source) (result []string, ok bool) {
+func ParseGlobalName(log logger.Log, source logger.Source, allowImportMeta bool) (result []string, ok bool) {
 	ok = true
 	defer func() {
 		r := recover()
@@ -18,10 +18,24 @@ func ParseGlobalName(log logger.Log, source logger.Source) (result []string, ok 
 	}()
 
 	lexer := js_lexer.NewLexerGlobalName(log, source)
-
-	// Start off with an identifier
-	result = append(result, lexer.Identifier.String)
-	lexer.Expect(js_lexer.TIdentifier)
+	// Start off with an identifier or `import`
+	if allowImportMeta {
+		if lexer.Token == js_lexer.TImport {
+			result = append(result, lexer.Identifier.String)
+			lexer.Next()
+			lexer.Expect(js_lexer.TDot)
+			result = append(result, lexer.Identifier.String)
+			lexer.Expect(js_lexer.TIdentifier)
+		} else if lexer.Token == js_lexer.TIdentifier {
+			result = append(result, lexer.Identifier.String)
+			lexer.Next()
+		} else {
+			lexer.Unexpected()
+		}
+	} else {
+		result = append(result, lexer.Identifier.String)
+		lexer.Expect(js_lexer.TIdentifier)
+	}
 
 	// Follow with dot or index expressions
 	for lexer.Token != js_lexer.TEndOfFile {

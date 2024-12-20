@@ -386,7 +386,7 @@ func validateSupported(log logger.Log, supported map[string]bool) (
 	return
 }
 
-func validateGlobalName(log logger.Log, text string, path string) []string {
+func validateGlobalName(log logger.Log, text string, path string, allowImportMeta bool) []string {
 	if text != "" {
 		source := logger.Source{
 			KeyPath:    logger.Path{Text: path},
@@ -394,7 +394,7 @@ func validateGlobalName(log logger.Log, text string, path string) []string {
 			Contents:   text,
 		}
 
-		if result, ok := js_parser.ParseGlobalName(log, source); ok {
+		if result, ok := js_parser.ParseGlobalName(log, source, allowImportMeta); ok {
 			return result
 		}
 	}
@@ -560,7 +560,7 @@ func validateDefines(
 
 	for _, key := range sortedKeys {
 		value := defines[key]
-		keyParts := validateGlobalName(log, key, "(define name)")
+		keyParts := validateGlobalName(log, key, "(define name)", true)
 		if keyParts == nil {
 			continue
 		}
@@ -669,7 +669,7 @@ func validateDefines(
 	}
 
 	for _, key := range pureFns {
-		keyParts := validateGlobalName(log, key, "(pure name)")
+		keyParts := validateGlobalName(log, key, "(pure name)", true)
 		if keyParts == nil {
 			continue
 		}
@@ -1271,7 +1271,7 @@ func validateBuildOptions(
 		ASCIIOnly:             validateASCIIOnly(buildOpts.Charset),
 		IgnoreDCEAnnotations:  buildOpts.IgnoreAnnotations,
 		TreeShaking:           validateTreeShaking(buildOpts.TreeShaking, buildOpts.Bundle, buildOpts.Format),
-		GlobalName:            validateGlobalName(log, buildOpts.GlobalName, "(global name)"),
+		GlobalName:            validateGlobalName(log, buildOpts.GlobalName, "(global name)", false),
 		CodeSplitting:         buildOpts.Splitting,
 		OutputFormat:          validateFormat(buildOpts.Format),
 		AbsOutputFile:         validatePath(log, realFS, buildOpts.Outfile, "outfile path"),
@@ -1715,7 +1715,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		SourceRoot:            transformOpts.SourceRoot,
 		ExcludeSourcesContent: transformOpts.SourcesContent == SourcesContentExclude,
 		OutputFormat:          validateFormat(transformOpts.Format),
-		GlobalName:            validateGlobalName(log, transformOpts.GlobalName, "(global name)"),
+		GlobalName:            validateGlobalName(log, transformOpts.GlobalName, "(global name)", false),
 		MinifySyntax:          transformOpts.MinifySyntax,
 		MinifyWhitespace:      transformOpts.MinifyWhitespace,
 		MinifyIdentifiers:     transformOpts.MinifyIdentifiers,
