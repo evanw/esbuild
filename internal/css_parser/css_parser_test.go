@@ -1261,6 +1261,7 @@ func TestNestedSelector(t *testing.T) {
 	expectPrintedLowerUnsupported(t, nesting, ".demo { .lg { &.triangle, &.circle { color: red } } }", ".demo .lg:is(.triangle, .circle) {\n  color: red;\n}\n", "")
 	expectPrintedLowerUnsupported(t, nesting, ".demo { .lg { .triangle, .circle { color: red } } }", ".demo .lg :is(.triangle, .circle) {\n  color: red;\n}\n", "")
 	expectPrintedLowerUnsupported(t, nesting, ".card { .featured & & & { color: red } }", ".featured .card .card .card {\n  color: red;\n}\n", "")
+	expectPrintedLowerUnsupported(t, nesting, ".a :has(> .c) { .b & { background-color: green; } }", ".b :is(.a :has(> .c)) {\n  background-color: green;\n}\n", "")
 
 	// These are invalid SASS-style nested suffixes
 	expectPrintedLower(t, ".card { &--header { color: red } }", ".card {\n  &--header {\n    color: red;\n  }\n}\n",
