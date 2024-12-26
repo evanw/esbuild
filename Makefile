@@ -363,7 +363,7 @@ platform-freebsd-arm64:
 	@$(MAKE) --no-print-directory GOOS=freebsd GOARCH=arm64 NPMDIR=npm/@esbuild/freebsd-arm64 platform-unixlike
 
 platform-netbsd-arm64:
-	@$(MAKE) --no-print-directory GOOS=netbsd GOARCH=amd64 NPMDIR=npm/@esbuild/netbsd-arm64 platform-unixlike
+	@$(MAKE) --no-print-directory GOOS=netbsd GOARCH=arm64 NPMDIR=npm/@esbuild/netbsd-arm64 platform-unixlike
 
 platform-netbsd-x64:
 	@$(MAKE) --no-print-directory GOOS=netbsd GOARCH=amd64 NPMDIR=npm/@esbuild/netbsd-x64 platform-unixlike

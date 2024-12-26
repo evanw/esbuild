@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix incorrect package for `@esbuild/netbsd-arm64` ([#4018](https://github.com/evanw/esbuild/issues/4018))
+
+    Due to a copy+paste typo, the binary published to `@esbuild/netbsd-arm64` was not actually for `arm64`, and didn't run in that environment. This release should fix running esbuild in that environment (NetBSD on 64-bit ARM). Sorry about the mistake.
+
 ## 0.24.2
 
 * Fix regression with `--define` and `import.meta` ([#4010](https://github.com/evanw/esbuild/issues/4010), [#4012](https://github.com/evanw/esbuild/issues/4012), [#4013](https://github.com/evanw/esbuild/pull/4013))
