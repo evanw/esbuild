@@ -799,6 +799,14 @@ func (s ComplexSelector) CloneWithoutLeadingCombinator() ComplexSelector {
 	return clone
 }
 
+func (s ComplexSelector) Clone() ComplexSelector {
+	clone := ComplexSelector{Selectors: make([]CompoundSelector, len(s.Selectors))}
+	for i, sel := range s.Selectors {
+		clone.Selectors[i] = sel.Clone()
+	}
+	return clone
+}
+
 func (sel ComplexSelector) IsRelative() bool {
 	if sel.Selectors[0].Combinator.Byte == 0 {
 		for _, inner := range sel.Selectors {
@@ -1199,7 +1207,7 @@ func (ss *SSPseudoClassWithSelectorList) Clone() SS {
 	clone := *ss
 	clone.Selectors = make([]ComplexSelector, len(ss.Selectors))
 	for i, sel := range ss.Selectors {
-		clone.Selectors[i] = sel.CloneWithoutLeadingCombinator()
+		clone.Selectors[i] = sel.Clone()
 	}
 	return &clone
 }
