@@ -1043,6 +1043,27 @@ var x_txt = require_x();
 console.log(x_txt, y_default);
 
 ================================================================================
+TestLoaderUmdDefineShouldBeShadowed
+---------- /out.js ----------
+var require_entry = __commonJS({
+  "entry.js"(exports, module, define) {
+    const LZString = "test";
+    if (typeof define === "function" && define.amd) {
+      define(function() {
+        return LZString;
+      });
+    } else if (typeof module !== "undefined" && module != null) {
+      module.exports = LZString;
+    } else if (typeof angular !== "undefined" && angular != null) {
+      angular.module("LZString", []).factory("LZString", function() {
+        return LZString;
+      });
+    }
+  }
+});
+export default require_entry();
+
+================================================================================
 TestRequireCustomExtensionBase64
 ---------- /out.js ----------
 // test.custom

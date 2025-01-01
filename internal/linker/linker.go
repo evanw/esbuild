@@ -4791,8 +4791,11 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 			args := []js_ast.Arg{}
 			if repr.AST.UsesExportsRef || repr.AST.UsesModuleRef {
 				args = append(args, js_ast.Arg{Binding: js_ast.Binding{Data: &js_ast.BIdentifier{Ref: repr.AST.ExportsRef}}})
-				if repr.AST.UsesModuleRef {
+				if repr.AST.UsesModuleRef || repr.AST.UsesDefineRef {
 					args = append(args, js_ast.Arg{Binding: js_ast.Binding{Data: &js_ast.BIdentifier{Ref: repr.AST.ModuleRef}}})
+					if repr.AST.UsesDefineRef {
+						args = append(args, js_ast.Arg{Binding: js_ast.Binding{Data: &js_ast.BIdentifier{Ref: repr.AST.DefineRef}}})
+					}
 				}
 			}
 
