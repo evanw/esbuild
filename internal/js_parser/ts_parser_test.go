@@ -1652,10 +1652,17 @@ bar = 0 /* FOO */;
 	expectPrintedTS(t, "(() => { const enum Foo { A } () => Foo.A })", `() => {
   let Foo;
   ((Foo) => {
-    Foo[Foo["A"] = 0] = "A";
+    Foo["A"] = 0;
   })(Foo || (Foo = {}));
   () => 0 /* A */;
 };
+`)
+
+	expectPrintedTS(t, "const enum Foo { A, B }", `var Foo = /* @__PURE__ */ ((Foo) => {
+  Foo["A"] = 0;
+  Foo["B"] = 1;
+  return Foo;
+})(Foo || {});
 `)
 }
 
