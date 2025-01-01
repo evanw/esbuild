@@ -1,7 +1,6 @@
 import type * as types from "../shared/types"
 import * as common from "../shared/common"
 import * as ourselves from "./mod"
-import * as denoflate from "https://deno.land/x/denoflate@1.2.1/mod.ts"
 
 declare const ESBUILD_VERSION: string
 
@@ -70,7 +69,7 @@ async function installFromNPM(name: string, subpath: string): Promise<string> {
   const npmRegistry = Deno.env.get("NPM_CONFIG_REGISTRY") || "https://registry.npmjs.org"
   const url = `${npmRegistry}/${name}/-/${name.replace("@esbuild/", "")}-${version}.tgz`
   const buffer = await fetch(url).then(r => r.arrayBuffer())
-  const executable = extractFileFromTarGzip(new Uint8Array(buffer), subpath)
+  const executable = await extractFileFromTarGzip(new Uint8Array(buffer), subpath)
 
   await Deno.mkdir(finalDir, {
     recursive: true,
@@ -117,9 +116,29 @@ function getCachePath(name: string): { finalPath: string, finalDir: string } {
   return { finalPath, finalDir }
 }
 
-function extractFileFromTarGzip(buffer: Uint8Array, file: string): Uint8Array {
+async function gunzip(data: Uint8Array): Promise<Uint8Array> {
+  const stream = new DecompressionStream('gzip');
+  const writer = stream.writable.getWriter();
+  const reader = stream.readable.getReader();
+  writer.write(data);
+  writer.close();
+  const chunks: Uint8Array[] = [];
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+  }
+  const result = new Uint8Array(chunks.reduce((sum, chunk) => sum + chunk.length, 0));
+  for (let i = 0, offset = 0; i < chunks.length; i++) {
+    result.set(chunks[i], offset);
+    offset += chunks[i].length;
+  }
+  return result;
+}
+
+async function extractFileFromTarGzip(buffer: Uint8Array, file: string): Promise<Uint8Array> {
   try {
-    buffer = denoflate.gunzip(buffer)
+    buffer = await gunzip(buffer)
   } catch (err: any) {
     throw new Error(`Invalid gzip data in archive: ${err && err.message || err}`)
   }
