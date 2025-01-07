@@ -2879,9 +2879,10 @@ func (p *parser) parseAsyncPrefixExpr(asyncRange logger.Range, level js_ast.L, f
 		// "async x => {}"
 		case js_lexer.TIdentifier:
 			if level <= js_ast.LAssign {
-				// See https://github.com/tc39/ecma262/issues/2034 for details
 				isArrowFn := true
 				if (flags&exprFlagForLoopInit) != 0 && p.lexer.Identifier.String == "of" {
+					// See https://github.com/tc39/ecma262/issues/2034 for details
+
 					// "for (async of" is only an arrow function if the next token is "=>"
 					isArrowFn = p.checkForArrowAfterTheCurrentToken()
 
@@ -2891,6 +2892,18 @@ func (p *parser) parseAsyncPrefixExpr(asyncRange logger.Range, level js_ast.L, f
 						p.log.AddError(&p.tracker, r, "For loop initializers cannot start with \"async of\"")
 						panic(js_lexer.LexerPanic{})
 					}
+				} else if p.options.ts.Parse && p.lexer.Token == js_lexer.TIdentifier {
+					// Make sure we can parse the following TypeScript code:
+					//
+					//   export function open(async?: boolean): void {
+					//     console.log(async as boolean)
+					//   }
+					//
+					// TypeScript solves this by using a two-token lookahead to check for
+					// "=>" after an identifier after the "async". This is done in
+					// "isUnParenthesizedAsyncArrowFunctionWorker" which was introduced
+					// here: https://github.com/microsoft/TypeScript/pull/8444
+					isArrowFn = p.checkForArrowAfterTheCurrentToken()
 				}
 
 				if isArrowFn {

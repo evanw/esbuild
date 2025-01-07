@@ -2307,7 +2307,7 @@ func TestTSArrow(t *testing.T) {
 
 	expectPrintedTS(t, "async (): void => {}", "async () => {\n};\n")
 	expectPrintedTS(t, "async (a): void => {}", "async (a) => {\n};\n")
-	expectParseErrorTS(t, "async x: void => {}", "<stdin>: ERROR: Expected \"=>\" but found \":\"\n")
+	expectParseErrorTS(t, "async x: void => {}", "<stdin>: ERROR: Expected \";\" but found \"x\"\n")
 
 	expectPrintedTS(t, "function foo(x: boolean): asserts x", "")
 	expectPrintedTS(t, "function foo(x: boolean): asserts<T>", "")
@@ -2331,6 +2331,11 @@ func TestTSArrow(t *testing.T) {
 	expectParseErrorTargetTS(t, 5, "return check ? (hover = 2, bar) : baz()", "")
 	expectParseErrorTargetTS(t, 5, "return check ? (hover = 2, bar) => 0 : baz()",
 		"<stdin>: ERROR: Transforming default arguments to the configured target environment is not supported yet\n")
+
+	// https://github.com/evanw/esbuild/issues/4027
+	expectPrintedTS(t, "function f(async?) { g(async in x) }", "function f(async) {\n  g(async in x);\n}\n")
+	expectPrintedTS(t, "function f(async?) { g(async as boolean) }", "function f(async) {\n  g(async);\n}\n")
+	expectPrintedTS(t, "function f() { g(async as => boolean) }", "function f() {\n  g(async (as) => boolean);\n}\n")
 }
 
 func TestTSSuperCall(t *testing.T) {
