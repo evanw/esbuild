@@ -151,6 +151,15 @@ func (p *parser) lowerNestingInRuleWithContext(rule css_ast.Rule, context *lower
 				} else if commonLeadingCombinator.Byte != combinator.Byte {
 					canUseGroupDescendantCombinator = false
 				}
+
+				// If the complex selector contains multiple combinators (e.g., "& «COMBINATOR» «something» «COMBINATOR» «something»"),
+				// we cannot safely transform it into "parent :is(...selectors)". See https://github.com/evanw/esbuild/issues/3620.
+				for _, subSelector := range sel.Selectors[2:] {
+					if subSelector.Combinator.Byte != 0 {
+						canUseGroupDescendantCombinator = false
+						break
+					}
+				}
 			}
 
 			// Are all children of the form "&«something»"?
