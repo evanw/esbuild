@@ -528,7 +528,7 @@ func (p *parser) parseListOfDeclarations(opts listOfDeclarationsOpts) (list []cs
 						n := 0
 						for _, rule := range list {
 							if rule, ok := rule.Data.(*css_ast.RSelector); ok && len(rule.Selectors) == 1 {
-								if sel := rule.Selectors[0]; len(sel.Selectors) == 1 && sel.Selectors[0].IsSingleAmpersand() {
+								if sel := rule.Selectors[0]; len(sel.Selectors) == 1 && sel.Selectors[0].IsOnlyAmpersand() {
 									inlineDecls = append(inlineDecls, rule.Rules...)
 									continue
 								}
@@ -570,7 +570,7 @@ func (p *parser) parseListOfDeclarations(opts listOfDeclarationsOpts) (list []cs
 				// to write rules in a specific order).
 				if sel, ok := rule.Data.(*css_ast.RSelector); ok && len(sel.Selectors) == 1 {
 					if first := sel.Selectors[0]; len(first.Selectors) == 1 {
-						if first := first.Selectors[0]; first.WasEmptyFromLocalOrGlobal && first.IsSingleAmpersand() {
+						if first := first.Selectors[0]; first.WasEmptyFromLocalOrGlobal && first.IsOnlyAmpersand() {
 							list = append(list, sel.Rules...)
 							continue
 						}
@@ -2068,7 +2068,7 @@ func (p *parser) parseSelectorRule(isTopLevel bool, opts parseSelectorOpts) css_
 			}
 
 			// Prepare for "composes" declarations
-			if opts.composesContext != nil && len(list) == 1 && len(list[0].Selectors) == 1 && list[0].Selectors[0].IsSingleAmpersand() {
+			if opts.composesContext != nil && len(list) == 1 && len(list[0].Selectors) == 1 && list[0].Selectors[0].IsOnlyAmpersand() {
 				// Support code like this:
 				//
 				//   .foo {

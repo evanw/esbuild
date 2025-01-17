@@ -1263,6 +1263,10 @@ func TestNestedSelector(t *testing.T) {
 	expectPrintedLowerUnsupported(t, nesting, ".card { .featured & & & { color: red } }", ".featured .card .card .card {\n  color: red;\n}\n", "")
 	expectPrintedLowerUnsupported(t, nesting, ".foo { color: blue; && { padding: 2ch; } }", ".foo {\n  color: blue;\n}\n.foo.foo {\n  padding: 2ch;\n}\n", "")
 	expectPrintedLowerUnsupported(t, nesting, ".foo { color: blue; &.a& { padding: 2ch; } }", ".foo {\n  color: blue;\n}\n.foo.foo.a {\n  padding: 2ch;\n}\n", "")
+	expectPrintedLowerUnsupported(t, nesting, ".foo { color: blue; & a, && b { padding: 2ch; } }", ".foo {\n  color: blue;\n}\n.foo a,\n.foo.foo b {\n  padding: 2ch;\n}\n", "")
+	expectPrintedLowerUnsupported(t, nesting, ".foo { color: blue; && a, && b { padding: 2ch; } }", ".foo {\n  color: blue;\n}\n.foo.foo :is(a, b) {\n  padding: 2ch;\n}\n", "")
+	expectPrintedLowerUnsupported(t, nesting, ".foo { color: blue; &.a, &&.b { padding: 2ch; } }", ".foo {\n  color: blue;\n}\n.foo.a,\n.foo.foo.b {\n  padding: 2ch;\n}\n", "")
+	expectPrintedLowerUnsupported(t, nesting, ".foo { color: blue; &&.a, &&.b { padding: 2ch; } }", ".foo {\n  color: blue;\n}\n.foo.foo:is(.a, .b) {\n  padding: 2ch;\n}\n", "")
 
 	// These are invalid SASS-style nested suffixes
 	expectPrintedLower(t, ".card { &--header { color: red } }", ".card {\n  &--header {\n    color: red;\n  }\n}\n",

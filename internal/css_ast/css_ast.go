@@ -904,7 +904,7 @@ func (sel *CompoundSelector) HasNestingSelector() bool {
 	return len(sel.NestingSelectorLocs) > 0 && sel.NestingSelectorLocs[0].IsValid()
 }
 
-func (sel CompoundSelector) IsSingleAmpersand() bool {
+func (sel CompoundSelector) IsOnlyAmpersand() bool {
 	return sel.HasNestingSelector() && sel.Combinator.Byte == 0 && sel.TypeSelector == nil && len(sel.SubclassSelectors) == 0
 }
 

@@ -234,7 +234,7 @@ const (
 
 func analyzeLeadingAmpersand(sel css_ast.ComplexSelector, isDeclarationContext bool) leadingAmpersand {
 	if len(sel.Selectors) > 1 {
-		if first := sel.Selectors[0]; first.IsSingleAmpersand() {
+		if first := sel.Selectors[0]; first.IsOnlyAmpersand() {
 			if second := sel.Selectors[1]; second.Combinator.Byte == 0 && second.HasNestingSelector() {
 				// ".foo { & &.bar {} }" => ".foo { & &.bar {} }"
 			} else if second.Combinator.Byte != 0 || second.TypeSelector == nil || !isDeclarationContext {

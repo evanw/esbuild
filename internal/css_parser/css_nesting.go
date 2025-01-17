@@ -121,6 +121,8 @@ func (p *parser) lowerNestingInRuleWithContext(rule css_ast.Rule, context *lower
 		canUseGroupDescendantCombinator := true // Can we do "parent «space» :is(...selectors)"?
 		canUseGroupSubSelector := true          // Can we do "parent«nospace»:is(...selectors)"?
 		var commonLeadingCombinator css_ast.Combinator
+		var commonAmpersandCountDescendantCombinator int
+		var commonAmpersandCountSubSelector int
 		for i := range r.Selectors {
 			sel := &r.Selectors[i]
 
@@ -138,24 +140,34 @@ func (p *parser) lowerNestingInRuleWithContext(rule css_ast.Rule, context *lower
 			}
 
 			// Are all children of the form "& «something»"?
-			if len(sel.Selectors) < 2 || !sel.Selectors[0].IsSingleAmpersand() {
+			if len(sel.Selectors) < 2 || !sel.Selectors[0].IsOnlyAmpersand() {
 				canUseGroupDescendantCombinator = false
 			} else {
-				// If all children are of the form "& «COMBINATOR» «something»", is «COMBINATOR» the same in all cases?
+				// If all children are of the form "& «COMBINATOR» «something»"
+				// Is «COMBINATOR» the same in all cases?
+				// Do all children have same number of &?
 				var combinator css_ast.Combinator
 				if len(sel.Selectors) >= 2 {
 					combinator = sel.Selectors[1].Combinator
 				}
 				if i == 0 {
 					commonLeadingCombinator = combinator
-				} else if commonLeadingCombinator.Byte != combinator.Byte {
+					commonAmpersandCountDescendantCombinator = len(sel.Selectors[0].NestingSelectorLocs)
+				} else if commonLeadingCombinator.Byte != combinator.Byte || commonAmpersandCountDescendantCombinator != len(sel.Selectors[0].NestingSelectorLocs) {
 					canUseGroupDescendantCombinator = false
 				}
 			}
 
 			// Are all children of the form "&«something»"?
-			if first := sel.Selectors[0]; !first.HasNestingSelector() || first.IsSingleAmpersand() {
+			// Do all children have same number of &?
+			if first := sel.Selectors[0]; !first.HasNestingSelector() || first.IsOnlyAmpersand() {
 				canUseGroupSubSelector = false
+			} else {
+				if i == 0 {
+					commonAmpersandCountSubSelector = len(sel.Selectors[0].NestingSelectorLocs)
+				} else if commonAmpersandCountSubSelector != len(sel.Selectors[0].NestingSelectorLocs) {
+					canUseGroupSubSelector = false
+				}
 			}
 		}
 
