@@ -460,11 +460,13 @@ func (p *printer) printCompoundSelector(sel css_ast.CompoundSelector, isFirst bo
 	}
 
 	if sel.HasNestingSelector() {
-		if p.options.AddSourceMappings {
-			p.builder.AddSourceMapping(logger.Loc{Start: int32(sel.NestingSelectorLoc.GetIndex())}, "", p.css)
-		}
+		for _, nestingSelectorLoc := range sel.NestingSelectorLocs {
+			if p.options.AddSourceMappings {
+				p.builder.AddSourceMapping(logger.Loc{Start: int32(nestingSelectorLoc.GetIndex())}, "", p.css)
+			}
 
-		p.print("&")
+			p.print("&")
+		}
 	}
 
 	for i, ss := range sel.SubclassSelectors {

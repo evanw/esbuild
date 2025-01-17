@@ -1049,7 +1049,7 @@ func TestNestedSelector(t *testing.T) {
 	expectPrinted(t, "a { &a|b {} }", "a {\n  &a|b {\n  }\n}\n", "<stdin>: WARNING: Cannot use type selector \"a|b\" directly after nesting selector \"&\"\n"+sassWarningWrap)
 	expectPrinted(t, "a { &[b] {} }", "a {\n  &[b] {\n  }\n}\n", "")
 
-	expectPrinted(t, "a { && {} }", "a {\n  & {\n  }\n}\n", "")
+	expectPrinted(t, "a { && {} }", "a {\n  && {\n  }\n}\n", "")
 	expectPrinted(t, "a { & + & {} }", "a {\n  & + & {\n  }\n}\n", "")
 	expectPrinted(t, "a { & > & {} }", "a {\n  & > & {\n  }\n}\n", "")
 	expectPrinted(t, "a { & ~ & {} }", "a {\n  & ~ & {\n  }\n}\n", "")
@@ -1262,6 +1262,7 @@ func TestNestedSelector(t *testing.T) {
 	expectPrintedLowerUnsupported(t, nesting, ".demo { .lg { .triangle, .circle { color: red } } }", ".demo .lg :is(.triangle, .circle) {\n  color: red;\n}\n", "")
 	expectPrintedLowerUnsupported(t, nesting, ".card { .featured & & & { color: red } }", ".featured .card .card .card {\n  color: red;\n}\n", "")
 	expectPrintedLowerUnsupported(t, nesting, ".foo { color: blue; && { padding: 2ch; } }", ".foo {\n  color: blue;\n}\n.foo.foo {\n  padding: 2ch;\n}\n", "")
+	expectPrintedLowerUnsupported(t, nesting, ".foo { color: blue; &.a& { padding: 2ch; } }", ".foo {\n  color: blue;\n}\n.foo.foo.a {\n  padding: 2ch;\n}\n", "")
 
 	// These are invalid SASS-style nested suffixes
 	expectPrintedLower(t, ".card { &--header { color: red } }", ".card {\n  &--header {\n    color: red;\n  }\n}\n",

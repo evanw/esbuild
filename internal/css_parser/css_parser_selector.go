@@ -98,7 +98,7 @@ func (p *parser) parseSelectorList(opts parseSelectorOpts) (list []css_ast.Compl
 func mergeCompoundSelectors(target *css_ast.CompoundSelector, source css_ast.CompoundSelector) {
 	// ".foo:local(&)" => "&.foo"
 	if source.HasNestingSelector() && !target.HasNestingSelector() {
-		target.NestingSelectorLoc = source.NestingSelectorLoc
+		target.NestingSelectorLocs = source.NestingSelectorLocs
 	}
 
 	if source.TypeSelector != nil {
@@ -210,7 +210,7 @@ func (p *parser) flattenLocalAndGlobalSelectors(list []css_ast.ComplexSelector, 
 		if len(selectors) == 0 {
 			// Treat a bare ":global" or ":local" as a bare "&" nesting selector
 			selectors = append(selectors, css_ast.CompoundSelector{
-				NestingSelectorLoc:        ast.MakeIndex32(uint32(sel.Selectors[0].Range().Loc.Start)),
+				NestingSelectorLocs:       []ast.Index32{ast.MakeIndex32(uint32(sel.Selectors[0].Range().Loc.Start))},
 				WasEmptyFromLocalOrGlobal: true,
 			})
 
@@ -330,7 +330,7 @@ func (p *parser) parseCompoundSelector(opts parseComplexSelectorOpts) (sel css_a
 	hasLeadingNestingSelector := p.peek(css_lexer.TDelimAmpersand)
 	if hasLeadingNestingSelector {
 		p.nestingIsPresent = true
-		sel.NestingSelectorLoc = ast.MakeIndex32(uint32(startLoc.Start))
+		sel.NestingSelectorLocs = append(sel.NestingSelectorLocs, ast.MakeIndex32(uint32(startLoc.Start)))
 		p.advance()
 	}
 
@@ -445,7 +445,7 @@ subclassSelectors:
 		case css_lexer.TDelimAmpersand:
 			// This is an extension: https://drafts.csswg.org/css-nesting-1/
 			p.nestingIsPresent = true
-			sel.NestingSelectorLoc = ast.MakeIndex32(uint32(subclassToken.Range.Loc.Start))
+			sel.NestingSelectorLocs = append(sel.NestingSelectorLocs, ast.MakeIndex32(uint32(subclassToken.Range.Loc.Start)))
 			p.advance()
 
 		default:

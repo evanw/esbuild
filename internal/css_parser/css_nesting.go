@@ -126,7 +126,7 @@ func (p *parser) lowerNestingInRuleWithContext(rule css_ast.Rule, context *lower
 
 			// Inject the implicit "&" now for simplicity later on
 			if sel.IsRelative() {
-				sel.Selectors = append([]css_ast.CompoundSelector{{NestingSelectorLoc: ast.MakeIndex32(uint32(rule.Loc.Start))}}, sel.Selectors...)
+				sel.Selectors = append([]css_ast.CompoundSelector{{NestingSelectorLocs: []ast.Index32{ast.MakeIndex32(uint32(rule.Loc.Start))}}}, sel.Selectors...)
 			}
 
 			// Pseudo-elements aren't supported by ":is" (i.e. ":is(div, div::before)"
@@ -169,24 +169,24 @@ func (p *parser) lowerNestingInRuleWithContext(rule css_ast.Rule, context *lower
 		if canUseGroupDescendantCombinator {
 			// "& a, & b {}" => "& :is(a, b) {}"
 			// "& > a, & > b {}" => "& > :is(a, b) {}"
-			nestingSelectorLoc := r.Selectors[0].Selectors[0].NestingSelectorLoc
+			nestingSelectorLocs := r.Selectors[0].Selectors[0].NestingSelectorLocs
 			for i := range r.Selectors {
 				sel := &r.Selectors[i]
 				sel.Selectors = sel.Selectors[1:]
 			}
 			merged := p.multipleComplexSelectorsToSingleComplexSelector(r.Selectors)(rule.Loc)
-			merged.Selectors = append([]css_ast.CompoundSelector{{NestingSelectorLoc: nestingSelectorLoc}}, merged.Selectors...)
+			merged.Selectors = append([]css_ast.CompoundSelector{{NestingSelectorLocs: nestingSelectorLocs}}, merged.Selectors...)
 			r.Selectors = []css_ast.ComplexSelector{merged}
 		} else if canUseGroupSubSelector {
 			// "&a, &b {}" => "&:is(a, b) {}"
 			// "> &a, > &b {}" => "> &:is(a, b) {}"
-			nestingSelectorLoc := r.Selectors[0].Selectors[0].NestingSelectorLoc
+			nestingSelectorLocs := r.Selectors[0].Selectors[0].NestingSelectorLocs
 			for i := range r.Selectors {
 				sel := &r.Selectors[i]
-				sel.Selectors[0].NestingSelectorLoc = ast.Index32{}
+				sel.Selectors[0].NestingSelectorLocs = []ast.Index32{}
 			}
 			merged := p.multipleComplexSelectorsToSingleComplexSelector(r.Selectors)(rule.Loc)
-			merged.Selectors[0].NestingSelectorLoc = nestingSelectorLoc
+			merged.Selectors[0].NestingSelectorLocs = nestingSelectorLocs
 			r.Selectors = []css_ast.ComplexSelector{merged}
 		}
 
@@ -352,67 +352,70 @@ func (p *parser) substituteAmpersandsInCompoundSelector(
 	strip leadingCombinatorStrip,
 ) []css_ast.CompoundSelector {
 	if sel.HasNestingSelector() {
-		nestingSelectorLoc := logger.Loc{Start: int32(sel.NestingSelectorLoc.GetIndex())}
-		sel.NestingSelectorLoc = ast.Index32{}
-		replacement := replacementFn(nestingSelectorLoc)
+		for _, nestingSelectorLoc := range sel.NestingSelectorLocs {
+			nestingSelectorLoc := logger.Loc{Start: int32(nestingSelectorLoc.GetIndex())}
+			replacement := replacementFn(nestingSelectorLoc)
 
-		// Convert the replacement to a single compound selector
-		var single css_ast.CompoundSelector
-		if sel.Combinator.Byte == 0 && (len(replacement.Selectors) == 1 || len(results) == 0) {
-			// ".foo { :hover & {} }" => ":hover .foo {}"
-			// ".foo .bar { &:hover {} }" => ".foo .bar:hover {}"
-			last := len(replacement.Selectors) - 1
-			results = append(results, replacement.Selectors[:last]...)
-			single = replacement.Selectors[last]
-			if strip == stripLeadingCombinator {
-				single.Combinator = css_ast.Combinator{}
-			}
-			sel.Combinator = single.Combinator
-		} else if len(replacement.Selectors) == 1 {
-			// ".foo { > &:hover {} }" => ".foo > .foo:hover {}"
-			single = replacement.Selectors[0]
-			if strip == stripLeadingCombinator {
-				single.Combinator = css_ast.Combinator{}
-			}
-		} else {
-			// ".foo .bar { :hover & {} }" => ":hover :is(.foo .bar) {}"
-			// ".foo .bar { > &:hover {} }" => ".foo .bar > :is(.foo .bar):hover {}"
-			p.reportNestingWithGeneratedPseudoClassIs(nestingSelectorLoc)
-			single = css_ast.CompoundSelector{
-				SubclassSelectors: []css_ast.SubclassSelector{{
-					Range: logger.Range{Loc: nestingSelectorLoc},
-					Data: &css_ast.SSPseudoClassWithSelectorList{
-						Kind:      css_ast.PseudoClassIs,
-						Selectors: []css_ast.ComplexSelector{replacement.CloneWithoutLeadingCombinator()},
-					},
-				}},
-			}
-		}
-
-		var subclassSelectorPrefix []css_ast.SubclassSelector
-
-		// Insert the type selector
-		if single.TypeSelector != nil {
-			if sel.TypeSelector != nil {
+			// Convert the replacement to a single compound selector
+			var single css_ast.CompoundSelector
+			if sel.Combinator.Byte == 0 && (len(replacement.Selectors) == 1 || len(results) == 0) {
+				// ".foo { :hover & {} }" => ":hover .foo {}"
+				// ".foo .bar { &:hover {} }" => ".foo .bar:hover {}"
+				last := len(replacement.Selectors) - 1
+				results = append(results, replacement.Selectors[:last]...)
+				single = replacement.Selectors[last]
+				if strip == stripLeadingCombinator {
+					single.Combinator = css_ast.Combinator{}
+				}
+				sel.Combinator = single.Combinator
+			} else if len(replacement.Selectors) == 1 {
+				// ".foo { > &:hover {} }" => ".foo > .foo:hover {}"
+				single = replacement.Selectors[0]
+				if strip == stripLeadingCombinator {
+					single.Combinator = css_ast.Combinator{}
+				}
+			} else {
+				// ".foo .bar { :hover & {} }" => ":hover :is(.foo .bar) {}"
+				// ".foo .bar { > &:hover {} }" => ".foo .bar > :is(.foo .bar):hover {}"
 				p.reportNestingWithGeneratedPseudoClassIs(nestingSelectorLoc)
-				subclassSelectorPrefix = append(subclassSelectorPrefix, css_ast.SubclassSelector{
-					Range: sel.TypeSelector.Range(),
-					Data: &css_ast.SSPseudoClassWithSelectorList{
-						Kind:      css_ast.PseudoClassIs,
-						Selectors: []css_ast.ComplexSelector{{Selectors: []css_ast.CompoundSelector{{TypeSelector: sel.TypeSelector}}}},
-					},
-				})
+				single = css_ast.CompoundSelector{
+					SubclassSelectors: []css_ast.SubclassSelector{{
+						Range: logger.Range{Loc: nestingSelectorLoc},
+						Data: &css_ast.SSPseudoClassWithSelectorList{
+							Kind:      css_ast.PseudoClassIs,
+							Selectors: []css_ast.ComplexSelector{replacement.CloneWithoutLeadingCombinator()},
+						},
+					}},
+				}
 			}
-			sel.TypeSelector = single.TypeSelector
+
+			var subclassSelectorPrefix []css_ast.SubclassSelector
+
+			// Insert the type selector
+			if single.TypeSelector != nil {
+				if sel.TypeSelector != nil {
+					p.reportNestingWithGeneratedPseudoClassIs(nestingSelectorLoc)
+					subclassSelectorPrefix = append(subclassSelectorPrefix, css_ast.SubclassSelector{
+						Range: sel.TypeSelector.Range(),
+						Data: &css_ast.SSPseudoClassWithSelectorList{
+							Kind:      css_ast.PseudoClassIs,
+							Selectors: []css_ast.ComplexSelector{{Selectors: []css_ast.CompoundSelector{{TypeSelector: sel.TypeSelector}}}},
+						},
+					})
+				}
+				sel.TypeSelector = single.TypeSelector
+			}
+
+			// Insert the subclass selectors
+			subclassSelectorPrefix = append(subclassSelectorPrefix, single.SubclassSelectors...)
+
+			// Write the changes back
+			if len(subclassSelectorPrefix) > 0 {
+				sel.SubclassSelectors = append(subclassSelectorPrefix, sel.SubclassSelectors...)
+			}
 		}
 
-		// Insert the subclass selectors
-		subclassSelectorPrefix = append(subclassSelectorPrefix, single.SubclassSelectors...)
-
-		// Write the changes back
-		if len(subclassSelectorPrefix) > 0 {
-			sel.SubclassSelectors = append(subclassSelectorPrefix, sel.SubclassSelectors...)
-		}
+		sel.NestingSelectorLocs = []ast.Index32{}
 	}
 
 	// "div { :is(&.foo) {} }" => ":is(div.foo) {}"
