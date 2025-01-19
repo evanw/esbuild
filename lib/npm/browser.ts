@@ -74,9 +74,10 @@ export const initialize: typeof types.initialize = options => {
   if (!wasmURL && !wasmModule) throw new Error('Must provide either the "wasmURL" option or the "wasmModule" option')
   if (initializePromise) throw new Error('Cannot call "initialize" more than once')
   initializePromise = startRunningService(wasmURL || '', wasmModule, useWorker)
-  initializePromise.catch(() => {
+  initializePromise.catch((error) => {
     // Let the caller try again if this fails
     initializePromise = void 0
+    throw error
   })
   return initializePromise
 }

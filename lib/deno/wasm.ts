@@ -75,9 +75,10 @@ export const initialize: typeof types.initialize = async (options) => {
   let useWorker = options.worker !== false
   if (initializePromise) throw new Error('Cannot call "initialize" more than once')
   initializePromise = startRunningService(wasmURL || 'esbuild.wasm', wasmModule, useWorker)
-  initializePromise.catch(() => {
+  initializePromise.catch((error) => {
     // Let the caller try again if this fails
     initializePromise = void 0
+    throw error
   })
   await initializePromise
 }
