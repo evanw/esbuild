@@ -1,7 +1,7 @@
 {
-  "name": "@esbuild/linux-ppc64",
+  "name": "@esbuild/netbsd-arm64",
   "version": "0.24.2",
-  "description": "The Linux PowerPC 64-bit Little Endian binary for esbuild, a JavaScript bundler.",
+  "description": "The NetBSD ARM 64-bit binary for esbuild, a JavaScript bundler.",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/evanw/esbuild.git"
@@ -12,9 +12,9 @@
     "node": ">=18"
   },
   "os": [
-    "linux"
+    "netbsd"
   ],
   "cpu": [
-    "ppc64"
+    "arm64"
   ]
 }

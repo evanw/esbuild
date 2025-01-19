@@ -19,9 +19,22 @@ func ParseGlobalName(log logger.Log, source logger.Source) (result []string, ok 
 
 	lexer := js_lexer.NewLexerGlobalName(log, source)
 
-	// Start off with an identifier
+	// Start off with an identifier or a keyword that results in an object
 	result = append(result, lexer.Identifier.String)
-	lexer.Expect(js_lexer.TIdentifier)
+	switch lexer.Token {
+	case js_lexer.TThis:
+		lexer.Next()
+
+	case js_lexer.TImport:
+		// Handle "import.meta"
+		lexer.Next()
+		lexer.Expect(js_lexer.TDot)
+		result = append(result, lexer.Identifier.String)
+		lexer.ExpectContextualKeyword("meta")
+
+	default:
+		lexer.Expect(js_lexer.TIdentifier)
+	}
 
 	// Follow with dot or index expressions
 	for lexer.Token != js_lexer.TEndOfFile {

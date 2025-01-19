@@ -820,6 +820,16 @@ func TestTSClass(t *testing.T) {
 	expectParseErrorTS(t, "class Foo { [foo]<T> }", "<stdin>: ERROR: Expected \"(\" but found \"}\"\n")
 	expectParseErrorTS(t, "class Foo { [foo]?<T> }", "<stdin>: ERROR: Expected \"(\" but found \"}\"\n")
 	expectParseErrorTS(t, "class Foo { [foo]!<T>() {} }", "<stdin>: ERROR: Expected \";\" but found \"<\"\n")
+
+	// See: https://github.com/microsoft/TypeScript/pull/60225
+	expectPrintedTS(t, "class A { get \n x() {} }", "class A {\n  get x() {\n  }\n}\n")
+	expectPrintedTS(t, "class A { set \n x(_) {} }", "class A {\n  set x(_) {\n  }\n}\n")
+	expectPrintedTS(t, "class A { get \n *x() {} }", "class A {\n  get;\n  *x() {\n  }\n}\n")
+	expectPrintedTS(t, "class A { set \n *x(_) {} }", "class A {\n  set;\n  *x(_) {\n  }\n}\n")
+	expectParseErrorTS(t, "class A { get \n async x() {} }", "<stdin>: ERROR: Expected \"(\" but found \"x\"\n")
+	expectParseErrorTS(t, "class A { set \n async x(_) {} }", "<stdin>: ERROR: Expected \"(\" but found \"x\"\n")
+	expectParseErrorTS(t, "class A { async get \n *x() {} }", "<stdin>: ERROR: Expected \"(\" but found \"*\"\n")
+	expectParseErrorTS(t, "class A { async set \n *x(_) {} }", "<stdin>: ERROR: Expected \"(\" but found \"*\"\n")
 }
 
 func TestTSAutoAccessors(t *testing.T) {
@@ -2297,7 +2307,7 @@ func TestTSArrow(t *testing.T) {
 
 	expectPrintedTS(t, "async (): void => {}", "async () => {\n};\n")
 	expectPrintedTS(t, "async (a): void => {}", "async (a) => {\n};\n")
-	expectParseErrorTS(t, "async x: void => {}", "<stdin>: ERROR: Expected \"=>\" but found \":\"\n")
+	expectParseErrorTS(t, "async x: void => {}", "<stdin>: ERROR: Expected \";\" but found \"x\"\n")
 
 	expectPrintedTS(t, "function foo(x: boolean): asserts x", "")
 	expectPrintedTS(t, "function foo(x: boolean): asserts<T>", "")
@@ -2321,6 +2331,11 @@ func TestTSArrow(t *testing.T) {
 	expectParseErrorTargetTS(t, 5, "return check ? (hover = 2, bar) : baz()", "")
 	expectParseErrorTargetTS(t, 5, "return check ? (hover = 2, bar) => 0 : baz()",
 		"<stdin>: ERROR: Transforming default arguments to the configured target environment is not supported yet\n")
+
+	// https://github.com/evanw/esbuild/issues/4027
+	expectPrintedTS(t, "function f(async?) { g(async in x) }", "function f(async) {\n  g(async in x);\n}\n")
+	expectPrintedTS(t, "function f(async?) { g(async as boolean) }", "function f(async) {\n  g(async);\n}\n")
+	expectPrintedTS(t, "function f() { g(async as => boolean) }", "function f() {\n  g(async (as) => boolean);\n}\n")
 }
 
 func TestTSSuperCall(t *testing.T) {

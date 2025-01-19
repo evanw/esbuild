@@ -6009,6 +6009,22 @@ class Foo {
 π["π 𐀀"]["𐀀"]["𐀀 π"] = `)
   },
 
+  async iifeGlobalNameThis({ esbuild }) {
+    const { code } = await esbuild.transform(`export default 123`, { format: 'iife', globalName: 'this.foo.bar' })
+    const globals = {}
+    vm.createContext(globals)
+    vm.runInContext(code, globals)
+    assert.strictEqual(globals.foo.bar.default, 123)
+    assert.strictEqual(code.slice(0, code.indexOf('(() => {\n')), `(this.foo ||= {}).bar = `)
+  },
+
+  async iifeGlobalNameImportMeta({ esbuild }) {
+    const { code } = await esbuild.transform(`export default 123`, { format: 'iife', globalName: 'import.meta.foo.bar' })
+    const { default: import_meta } = await import('data:text/javascript,' + code + '\nexport default import.meta')
+    assert.strictEqual(import_meta.foo.bar.default, 123)
+    assert.strictEqual(code.slice(0, code.indexOf('(() => {\n')), `(import.meta.foo ||= {}).bar = `)
+  },
+
   async jsx({ esbuild }) {
     const { code } = await esbuild.transform(`console.log(<div/>)`, { loader: 'jsx' })
     assert.strictEqual(code, `console.log(/* @__PURE__ */ React.createElement("div", null));\n`)
@@ -6088,7 +6104,7 @@ class Foo {
     assert.strictEqual(code, `if (x) ;\n`)
   },
 
-  async define({ esbuild }) {
+  async defineProcessEnvNodeEnv({ esbuild }) {
     const define = { 'process.env.NODE_ENV': '"something"' }
 
     const { code: code1 } = await esbuild.transform(`console.log(process.env.NODE_ENV)`, { define })
@@ -6123,13 +6139,19 @@ class Foo {
   },
 
   async defineThis({ esbuild }) {
-    const { code } = await esbuild.transform(`console.log(a, b); export {}`, { define: { a: 'this', b: 'this.foo' }, format: 'esm' })
-    assert.strictEqual(code, `console.log(void 0, (void 0).foo);\n`)
+    const { code: code1 } = await esbuild.transform(`console.log(a, b); export {}`, { define: { a: 'this', b: 'this.foo' }, format: 'esm' })
+    assert.strictEqual(code1, `console.log(void 0, (void 0).foo);\n`)
+
+    const { code: code2 } = await esbuild.transform(`console.log(this, this.x); export {}`, { define: { this: 'a', 'this.x': 'b' }, format: 'esm' })
+    assert.strictEqual(code2, `console.log(a, b);\n`)
   },
 
   async defineImportMetaESM({ esbuild }) {
-    const { code } = await esbuild.transform(`console.log(a, b); export {}`, { define: { a: 'import.meta', b: 'import.meta.foo' }, format: 'esm' })
-    assert.strictEqual(code, `console.log(import.meta, import.meta.foo);\n`)
+    const { code: code1 } = await esbuild.transform(`console.log(a, b); export {}`, { define: { a: 'import.meta', b: 'import.meta.foo' }, format: 'esm' })
+    assert.strictEqual(code1, `console.log(import.meta, import.meta.foo);\n`)
+
+    const { code: code2 } = await esbuild.transform(`console.log(import.meta, import.meta.x); export {}`, { define: { 'import.meta': 'a', 'import.meta.x': 'b' }, format: 'esm' })
+    assert.strictEqual(code2, `console.log(a, b);\n`)
   },
 
   async defineImportMetaIIFE({ esbuild }) {
@@ -6163,6 +6185,45 @@ class Foo {
         ╵                                   '"production"'
 
 `)
+  },
+
+  async defineQuotedPropertyNameTransform({ esbuild }) {
+    const { code: code1 } = await esbuild.transform(`return x.y['z!']`, { define: { 'x.y["z!"]': 'true' } })
+    assert.strictEqual(code1, `return true;\n`)
+
+    const { code: code2 } = await esbuild.transform(`foo(x['y'].z, x.y['z'], x['y']['z'])`, { define: { 'x.y.z': 'true' } })
+    assert.strictEqual(code2, `foo(true, true, true);\n`)
+
+    const { code: code3 } = await esbuild.transform(`foo(x['y'].z, x.y['z'], x['y']['z'])`, { define: { 'x["y"].z': 'true' } })
+    assert.strictEqual(code3, `foo(true, true, true);\n`)
+
+    const { code: code4 } = await esbuild.transform(`foo(x['y'].z, x.y['z'], x['y']['z'])`, { define: { 'x.y["z"]': 'true' } })
+    assert.strictEqual(code4, `foo(true, true, true);\n`)
+
+    const { code: code5 } = await esbuild.transform(`foo(x['y'].z, x.y['z'], x['y']['z'])`, { define: { 'x["y"][\'z\']': 'true' } })
+    assert.strictEqual(code5, `foo(true, true, true);\n`)
+
+    const { code: code6 } = await esbuild.transform(`foo(import.meta['y'].z, import.meta.y['z'], import.meta['y']['z'])`, { define: { 'import.meta["y"].z': 'true' } })
+    assert.strictEqual(code6, `foo(true, true, true);\n`)
+
+    const { code: code7 } = await esbuild.transform(`foo(import.meta['y!'].z, import.meta.y['z!'], import.meta['y!']['z!'])`, {
+      define: {
+        'import.meta["y!"].z': 'true',
+        'import.meta.y["z!"]': 'true',
+        'import.meta["y!"]["z!"]': 'true'
+      },
+    })
+    assert.strictEqual(code7, `foo(true, true, true);\n`)
+  },
+
+
+  async defineQuotedPropertyNameBuild({ esbuild }) {
+    const { outputFiles } = await esbuild.build({
+      stdin: { contents: `return process.env['SOME-TEST-VAR']` },
+      define: { 'process.env["SOME-TEST-VAR"]': 'true' },
+      write: false,
+    })
+    assert.strictEqual(outputFiles[0].text, `return true;\n`)
   },
 
   async json({ esbuild }) {
@@ -6497,6 +6558,14 @@ class Foo {
     assert.strictEqual(code1, `console.log(123, foo);\n`)
 
     const { code: code2 } = await esbuild.transform(`console.log(123, foo)`, { minifySyntax: true, pure: ['console.log'] })
+    assert.strictEqual(code2, `foo;\n`)
+  },
+
+  async pureImportMeta({ esbuild }) {
+    const { code: code1 } = await esbuild.transform(`import.meta.foo(123, foo)`, { minifySyntax: true, pure: [] })
+    assert.strictEqual(code1, `import.meta.foo(123, foo);\n`)
+
+    const { code: code2 } = await esbuild.transform(`import.meta.foo(123, foo)`, { minifySyntax: true, pure: ['import.meta.foo'] })
     assert.strictEqual(code2, `foo;\n`)
   },
 
