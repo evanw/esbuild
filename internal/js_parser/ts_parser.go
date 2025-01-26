@@ -1270,7 +1270,7 @@ func (p *parser) skipTypeScriptTypeStmt(opts parseStmtOpts) {
 	p.lexer.ExpectOrInsertSemicolon()
 }
 
-func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) js_ast.Stmt {
+func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts, isConst bool) js_ast.Stmt {
 	p.lexer.Expect(js_lexer.TEnum)
 	nameLoc := p.lexer.Loc()
 	nameText := p.lexer.Identifier.String
@@ -1445,6 +1445,7 @@ func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) js_
 		Name:     name,
 		Arg:      tsNamespace.ArgRef,
 		Values:   values,
+		IsConst:  isConst,
 		IsExport: opts.isExport,
 	}}
 }
@@ -1865,7 +1866,7 @@ func (p *parser) generateClosureForTypeScriptNamespaceOrEnum(
 }
 
 func (p *parser) generateClosureForTypeScriptEnum(
-	stmts []js_ast.Stmt, stmtLoc logger.Loc, isExport bool, nameLoc logger.Loc,
+	stmts []js_ast.Stmt, stmtLoc logger.Loc, isConst bool, isExport bool, nameLoc logger.Loc,
 	nameRef ast.Ref, argRef ast.Ref, exprsInsideClosure []js_ast.Expr,
 	allValuesArePure bool,
 ) []js_ast.Stmt {

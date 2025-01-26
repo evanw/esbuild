@@ -1736,9 +1736,9 @@ console.log("success");
 TestTSPrintNonFiniteNumberInsideWith
 ---------- /out.js ----------
 var Foo = /* @__PURE__ */ ((Foo2) => {
-  Foo2[Foo2["NAN"] = NaN] = "NAN";
-  Foo2[Foo2["POS_INF"] = Infinity] = "POS_INF";
-  Foo2[Foo2["NEG_INF"] = -Infinity] = "NEG_INF";
+  Foo2["NAN"] = NaN;
+  Foo2["POS_INF"] = Infinity;
+  Foo2["NEG_INF"] = -Infinity;
   return Foo2;
 })(Foo || {});
 //! It's ok to use "NaN" and "Infinity" here
