@@ -687,7 +687,7 @@ func (c *linkerContext) generateChunksInParallel(additionalFiles []graph.OutputF
 				})
 
 			// Generate the optional legal comments file for this chunk
-			if chunk.externalLegalComments != nil {
+			if len(chunk.externalLegalComments) > 0 {
 				finalRelPathForLegalComments := chunk.finalRelPath + ".LEGAL.txt"
 
 				// Link the file to the legal comments

@@ -3154,6 +3154,11 @@ c {
 /*! Copyright notice 1 */
 /*! Copyright notice 2 */
 
+---------- /out/empty.js ----------
+
+---------- /out/empty.css ----------
+/* empty.css */
+
 ================================================================================
 TestLegalCommentsEscapeSlashScriptAndStyleEndOfFile
 ---------- /out/entry.js ----------
@@ -3236,6 +3241,11 @@ c {
 
 /* entry.css */
 
+---------- /out/empty.js ----------
+
+---------- /out/empty.css ----------
+/* empty.css */
+
 ================================================================================
 TestLegalCommentsInline
 ---------- /out/entry.js ----------
@@ -3271,6 +3281,11 @@ c {
 /*! Copyright notice 2 */
 
 /* entry.css */
+
+---------- /out/empty.js ----------
+
+---------- /out/empty.css ----------
+/* empty.css */
 
 ================================================================================
 TestLegalCommentsLinked
@@ -3311,6 +3326,11 @@ c {
 
 /* entry.css */
 /*! For license information please see entry.css.LEGAL.txt */
+
+---------- /out/empty.js ----------
+
+---------- /out/empty.css ----------
+/* empty.css */
 
 ================================================================================
 TestLegalCommentsManyEndOfFile
@@ -3499,6 +3519,11 @@ c {
 }
 
 /* entry.css */
+
+---------- /out/empty.js ----------
+
+---------- /out/empty.css ----------
+/* empty.css */
 
 ================================================================================
 TestLineLimitMinified

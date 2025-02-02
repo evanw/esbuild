@@ -3289,6 +3289,7 @@ func TestImportMetaNoBundle(t *testing.T) {
 func TestLegalCommentsNone(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
+			"/empty.js": ``,
 			"/entry.js": `
 				import './a'
 				import './b'
@@ -3298,6 +3299,7 @@ func TestLegalCommentsNone(t *testing.T) {
 			"/b.js": `console.log('in b') //! Copyright notice 1`,
 			"/c.js": `console.log('in c') //! Copyright notice 2`,
 
+			"/empty.css": ``,
 			"/entry.css": `
 				@import "./a.css";
 				@import "./b.css";
@@ -3307,7 +3309,12 @@ func TestLegalCommentsNone(t *testing.T) {
 			"/b.css": `b { zoom: 2 } /*! Copyright notice 1 */`,
 			"/c.css": `c { zoom: 2 } /*! Copyright notice 2 */`,
 		},
-		entryPaths: []string{"/entry.js", "/entry.css"},
+		entryPaths: []string{
+			"/entry.js",
+			"/entry.css",
+			"/empty.js",
+			"/empty.css",
+		},
 		options: config.Options{
 			Mode:          config.ModeBundle,
 			AbsOutputDir:  "/out",
@@ -3319,6 +3326,7 @@ func TestLegalCommentsNone(t *testing.T) {
 func TestLegalCommentsInline(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
+			"/empty.js": ``,
 			"/entry.js": `
 				import './a'
 				import './b'
@@ -3328,6 +3336,7 @@ func TestLegalCommentsInline(t *testing.T) {
 			"/b.js": `console.log('in b') //! Copyright notice 1`,
 			"/c.js": `console.log('in c') //! Copyright notice 2`,
 
+			"/empty.css": ``,
 			"/entry.css": `
 				@import "./a.css";
 				@import "./b.css";
@@ -3337,7 +3346,12 @@ func TestLegalCommentsInline(t *testing.T) {
 			"/b.css": `b { zoom: 2 } /*! Copyright notice 1 */`,
 			"/c.css": `c { zoom: 2 } /*! Copyright notice 2 */`,
 		},
-		entryPaths: []string{"/entry.js", "/entry.css"},
+		entryPaths: []string{
+			"/entry.js",
+			"/entry.css",
+			"/empty.js",
+			"/empty.css",
+		},
 		options: config.Options{
 			Mode:          config.ModeBundle,
 			AbsOutputDir:  "/out",
@@ -3349,6 +3363,7 @@ func TestLegalCommentsInline(t *testing.T) {
 func TestLegalCommentsEndOfFile(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
+			"/empty.js": ``,
 			"/entry.js": `
 				import './a'
 				import './b'
@@ -3358,6 +3373,7 @@ func TestLegalCommentsEndOfFile(t *testing.T) {
 			"/b.js": `console.log('in b') //! Copyright notice 1`,
 			"/c.js": `console.log('in c') //! Copyright notice 2`,
 
+			"/empty.css": ``,
 			"/entry.css": `
 				@import "./a.css";
 				@import "./b.css";
@@ -3367,7 +3383,12 @@ func TestLegalCommentsEndOfFile(t *testing.T) {
 			"/b.css": `b { zoom: 2 } /*! Copyright notice 1 */`,
 			"/c.css": `c { zoom: 2 } /*! Copyright notice 2 */`,
 		},
-		entryPaths: []string{"/entry.js", "/entry.css"},
+		entryPaths: []string{
+			"/entry.js",
+			"/entry.css",
+			"/empty.js",
+			"/empty.css",
+		},
 		options: config.Options{
 			Mode:          config.ModeBundle,
 			AbsOutputDir:  "/out",
@@ -3379,6 +3400,7 @@ func TestLegalCommentsEndOfFile(t *testing.T) {
 func TestLegalCommentsLinked(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
+			"/empty.js": ``,
 			"/entry.js": `
 				import './a'
 				import './b'
@@ -3388,6 +3410,7 @@ func TestLegalCommentsLinked(t *testing.T) {
 			"/b.js": `console.log('in b') //! Copyright notice 1`,
 			"/c.js": `console.log('in c') //! Copyright notice 2`,
 
+			"/empty.css": ``,
 			"/entry.css": `
 				@import "./a.css";
 				@import "./b.css";
@@ -3397,7 +3420,12 @@ func TestLegalCommentsLinked(t *testing.T) {
 			"/b.css": `b { zoom: 2 } /*! Copyright notice 1 */`,
 			"/c.css": `c { zoom: 2 } /*! Copyright notice 2 */`,
 		},
-		entryPaths: []string{"/entry.js", "/entry.css"},
+		entryPaths: []string{
+			"/entry.js",
+			"/entry.css",
+			"/empty.js",
+			"/empty.css",
+		},
 		options: config.Options{
 			Mode:          config.ModeBundle,
 			AbsOutputDir:  "/out",
@@ -3409,6 +3437,7 @@ func TestLegalCommentsLinked(t *testing.T) {
 func TestLegalCommentsExternal(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
+			"/empty.js": ``,
 			"/entry.js": `
 				import './a'
 				import './b'
@@ -3418,6 +3447,7 @@ func TestLegalCommentsExternal(t *testing.T) {
 			"/b.js": `console.log('in b') //! Copyright notice 1`,
 			"/c.js": `console.log('in c') //! Copyright notice 2`,
 
+			"/empty.css": ``,
 			"/entry.css": `
 				@import "./a.css";
 				@import "./b.css";
@@ -3427,7 +3457,12 @@ func TestLegalCommentsExternal(t *testing.T) {
 			"/b.css": `b { zoom: 2 } /*! Copyright notice 1 */`,
 			"/c.css": `c { zoom: 2 } /*! Copyright notice 2 */`,
 		},
-		entryPaths: []string{"/entry.js", "/entry.css"},
+		entryPaths: []string{
+			"/entry.js",
+			"/entry.css",
+			"/empty.js",
+			"/empty.css",
+		},
 		options: config.Options{
 			Mode:          config.ModeBundle,
 			AbsOutputDir:  "/out",
