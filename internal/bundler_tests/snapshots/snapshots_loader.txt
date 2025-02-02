@@ -1043,6 +1043,18 @@ var x_txt = require_x();
 console.log(x_txt, y_default);
 
 ================================================================================
+TestLoaderTextUTF8BOM
+---------- /out.js ----------
+// data1.txt
+var data1_default = "text";
+
+// data2.txt
+var data2_default = "text\uFEFF";
+
+// entry.js
+console.log(data1_default, data2_default);
+
+================================================================================
 TestRequireCustomExtensionBase64
 ---------- /out.js ----------
 // test.custom

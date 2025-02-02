@@ -1740,3 +1740,22 @@ func TestLoaderJSONPrototypeES5(t *testing.T) {
 		},
 	})
 }
+
+func TestLoaderTextUTF8BOM(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import data1 from "./data1.txt"
+				import data2 from "./data2.txt"
+				console.log(data1, data2)
+			`,
+			"/data1.txt": "\xEF\xBB\xBFtext",
+			"/data2.txt": "text\xEF\xBB\xBF",
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}

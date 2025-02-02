@@ -322,6 +322,7 @@ func parseFile(args parseArgs) {
 		result.ok = ok
 
 	case config.LoaderText:
+		source.Contents = strings.TrimPrefix(source.Contents, "\xEF\xBB\xBF") // Strip any UTF-8 BOM from the text
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
 		expr := js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16(source.Contents)}}
 		ast := js_parser.LazyExportAST(args.log, source, js_parser.OptionsFromConfig(&args.options), expr, "")
