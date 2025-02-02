@@ -1484,10 +1484,12 @@ func rebuildImpl(args rebuildArgs, oldHashes map[string]string) (rebuildState, m
 	newHashes := oldHashes
 
 	// Stop now if there were errors
+	var results []graph.OutputFile
+	var metafile string
 	if !log.HasErrors() {
 		// Compile the bundle
 		result.MangleCache = cloneMangleCache(log, args.mangleCache)
-		results, metafile := bundle.Compile(log, timer, result.MangleCache, linker.Link)
+		results, metafile = bundle.Compile(log, timer, result.MangleCache, linker.Link)
 
 		// Canceling a build generates a single error at the end of the build
 		if args.options.CancelFlag.DidCancel() {
@@ -1497,92 +1499,94 @@ func rebuildImpl(args rebuildArgs, oldHashes map[string]string) (rebuildState, m
 		// Stop now if there were errors
 		if !log.HasErrors() {
 			result.Metafile = metafile
+		}
+	}
 
-			// Populate the results to return
-			var hashBytes [8]byte
-			result.OutputFiles = make([]OutputFile, len(results))
-			newHashes = make(map[string]string)
-			for i, item := range results {
-				if args.options.WriteToStdout {
-					item.AbsPath = "<stdout>"
+	// Populate the results to return
+	var hashBytes [8]byte
+	result.OutputFiles = make([]OutputFile, len(results))
+	newHashes = make(map[string]string)
+	for i, item := range results {
+		if args.options.WriteToStdout {
+			item.AbsPath = "<stdout>"
+		}
+		hasher := xxhash.New()
+		hasher.Write(item.Contents)
+		binary.LittleEndian.PutUint64(hashBytes[:], hasher.Sum64())
+		hash := base64.RawStdEncoding.EncodeToString(hashBytes[:])
+		result.OutputFiles[i] = OutputFile{
+			Path:     item.AbsPath,
+			Contents: item.Contents,
+			Hash:     hash,
+		}
+		newHashes[item.AbsPath] = hash
+	}
+
+	// Write output files before "OnEnd" callbacks run so they can expect
+	// output files to exist on the file system. "OnEnd" callbacks can be
+	// used to move output files to a different location after the build.
+	if args.write {
+		timer.Begin("Write output files")
+		if args.options.WriteToStdout {
+			// Special-case writing to stdout
+			if log.HasErrors() {
+				// No output is printed if there were any build errors
+			} else if len(results) != 1 {
+				log.AddError(nil, logger.Range{}, fmt.Sprintf(
+					"Internal error: did not expect to generate %d files when writing to stdout", len(results)))
+			} else {
+				// Print this later on, at the end of the current function
+				toWriteToStdout = results[0].Contents
+			}
+		} else {
+			// Delete old files that are no longer relevant
+			var toDelete []string
+			for absPath := range oldHashes {
+				if _, ok := newHashes[absPath]; !ok {
+					toDelete = append(toDelete, absPath)
 				}
-				hasher := xxhash.New()
-				hasher.Write(item.Contents)
-				binary.LittleEndian.PutUint64(hashBytes[:], hasher.Sum64())
-				hash := base64.RawStdEncoding.EncodeToString(hashBytes[:])
-				result.OutputFiles[i] = OutputFile{
-					Path:     item.AbsPath,
-					Contents: item.Contents,
-					Hash:     hash,
-				}
-				newHashes[item.AbsPath] = hash
 			}
 
-			// Write output files before "OnEnd" callbacks run so they can expect
-			// output files to exist on the file system. "OnEnd" callbacks can be
-			// used to move output files to a different location after the build.
-			if args.write {
-				timer.Begin("Write output files")
-				if args.options.WriteToStdout {
-					// Special-case writing to stdout
-					if len(results) != 1 {
-						log.AddError(nil, logger.Range{}, fmt.Sprintf(
-							"Internal error: did not expect to generate %d files when writing to stdout", len(results)))
-					} else {
-						// Print this later on, at the end of the current function
-						toWriteToStdout = results[0].Contents
-					}
-				} else {
-					// Delete old files that are no longer relevant
-					var toDelete []string
-					for absPath := range oldHashes {
-						if _, ok := newHashes[absPath]; !ok {
-							toDelete = append(toDelete, absPath)
+			// Process all file operations in parallel
+			waitGroup := sync.WaitGroup{}
+			waitGroup.Add(len(results) + len(toDelete))
+			for _, result := range results {
+				go func(result graph.OutputFile) {
+					defer waitGroup.Done()
+					fs.BeforeFileOpen()
+					defer fs.AfterFileClose()
+					if oldHash, ok := oldHashes[result.AbsPath]; ok && oldHash == newHashes[result.AbsPath] {
+						if contents, err := ioutil.ReadFile(result.AbsPath); err == nil && bytes.Equal(contents, result.Contents) {
+							// Skip writing out files that haven't changed since last time
+							return
 						}
 					}
-
-					// Process all file operations in parallel
-					waitGroup := sync.WaitGroup{}
-					waitGroup.Add(len(results) + len(toDelete))
-					for _, result := range results {
-						go func(result graph.OutputFile) {
-							defer waitGroup.Done()
-							fs.BeforeFileOpen()
-							defer fs.AfterFileClose()
-							if oldHash, ok := oldHashes[result.AbsPath]; ok && oldHash == newHashes[result.AbsPath] {
-								if contents, err := ioutil.ReadFile(result.AbsPath); err == nil && bytes.Equal(contents, result.Contents) {
-									// Skip writing out files that haven't changed since last time
-									return
-								}
-							}
-							if err := fs.MkdirAll(realFS, realFS.Dir(result.AbsPath), 0755); err != nil {
-								log.AddError(nil, logger.Range{}, fmt.Sprintf(
-									"Failed to create output directory: %s", err.Error()))
-							} else {
-								var mode os.FileMode = 0666
-								if result.IsExecutable {
-									mode = 0777
-								}
-								if err := ioutil.WriteFile(result.AbsPath, result.Contents, mode); err != nil {
-									log.AddError(nil, logger.Range{}, fmt.Sprintf(
-										"Failed to write to output file: %s", err.Error()))
-								}
-							}
-						}(result)
+					if err := fs.MkdirAll(realFS, realFS.Dir(result.AbsPath), 0755); err != nil {
+						log.AddError(nil, logger.Range{}, fmt.Sprintf(
+							"Failed to create output directory: %s", err.Error()))
+					} else {
+						var mode os.FileMode = 0666
+						if result.IsExecutable {
+							mode = 0777
+						}
+						if err := ioutil.WriteFile(result.AbsPath, result.Contents, mode); err != nil {
+							log.AddError(nil, logger.Range{}, fmt.Sprintf(
+								"Failed to write to output file: %s", err.Error()))
+						}
 					}
-					for _, absPath := range toDelete {
-						go func(absPath string) {
-							defer waitGroup.Done()
-							fs.BeforeFileOpen()
-							defer fs.AfterFileClose()
-							os.Remove(absPath)
-						}(absPath)
-					}
-					waitGroup.Wait()
-				}
-				timer.End("Write output files")
+				}(result)
 			}
+			for _, absPath := range toDelete {
+				go func(absPath string) {
+					defer waitGroup.Done()
+					fs.BeforeFileOpen()
+					defer fs.AfterFileClose()
+					os.Remove(absPath)
+				}(absPath)
+			}
+			waitGroup.Wait()
 		}
+		timer.End("Write output files")
 	}
 
 	// Only return the mangle cache for a successful build

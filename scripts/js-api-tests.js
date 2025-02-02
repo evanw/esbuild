@@ -4010,7 +4010,7 @@ let watchTests = {
         )
         assert.strictEqual(result2.errors.length, 1)
         assert.strictEqual(result2.errors[0].text, 'Expected ";" but found "2"')
-        assert.strictEqual(await readFileAsync(outfile, 'utf8'), 'throw 3;\n')
+        assert.strictEqual(fs.existsSync(outfile), false)
       }
 
       // Fourth rebuild: edit
@@ -4031,8 +4031,7 @@ let watchTests = {
           result => result.errors.length > 0,
         )
         assert.strictEqual(result2.errors.length, 1)
-        assert.strictEqual(await readFileAsync(outfile, 'utf8'), 'throw 4;\n')
-        assert.strictEqual(await readFileAsync(outfile, 'utf8'), 'throw 4;\n')
+        assert.strictEqual(fs.existsSync(outfile), false)
       }
 
       // Sixth rebuild: restore
