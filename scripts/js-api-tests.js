@@ -6080,17 +6080,57 @@ class Foo {
   },
 
   async dropConsole({ esbuild }) {
-    const { code } = await esbuild.transform(`
-      console('foo')
+    const { code: drop } = await esbuild.transform(`
       console.log('foo')
       console.log(foo())
+      console.log.call(console, foo())
+      console.log.apply(console, foo())
       x = console.log(bar())
+      console['log']('foo')
+    `, { drop: ['console'] })
+    assert.strictEqual(drop, `x = void 0;\n`)
+
+    const { code: keepArrow } = await esbuild.transform(`
+      console('foo')
       console.abc.xyz('foo')
       console['log']('foo')
       console[abc][xyz]('foo')
       console[foo()][bar()]('foo')
+      const x = {
+        log: console.log.bind(console),
+      }
     `, { drop: ['console'] })
-    assert.strictEqual(code, `console("foo");\nx = void 0;\n`)
+    assert.strictEqual(keepArrow, `console("foo");
+(() => {
+}).xyz("foo");
+console[abc][xyz]("foo");
+console[foo()][bar()]("foo");
+const x = {
+  log: (() => {
+  }).bind(console)
+};
+`)
+
+    const { code: keepFn } = await esbuild.transform(`
+      console('foo')
+      console.abc.xyz('foo')
+      console['log']('foo')
+      console[abc][xyz]('foo')
+      console[foo()][bar()]('foo')
+      const x = {
+        log: console.log.bind(console),
+      }
+    `, { drop: ['console'], supported: { arrow: false } })
+    assert.strictEqual(keepFn, `console("foo");
+(function() {
+}).xyz("foo");
+console[abc][xyz]("foo");
+console[foo()][bar()]("foo");
+const x = {
+  log: function() {
+  }.bind(console)
+};
+`)
   },
 
   async keepDebugger({ esbuild }) {

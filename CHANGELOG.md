@@ -28,6 +28,30 @@
 
     However, this prevents using esbuild with certain libraries that would otherwise work if BigInt literals were ignored, such as with old versions of the [`buffer` library](https://github.com/feross/buffer) before the library fixed support for running in environments without BigInt support. So with this release, esbuild will now turn BigInt literals into BigInt constructor calls (so `123n` becomes `BigInt(123)`) and generate a warning in this case. You can turn off the warning with `--log-override:bigint=silent` or restore the warning to an error with `--log-override:bigint=error` if needed.
 
+* Change how `console` API dropping works ([#4020](https://github.com/evanw/esbuild/issues/4020))
+
+    Previously the `--drop:console` feature replaced all method calls off of the `console` global with `undefined` regardless of how long the property access chain was (so it applied to `console.log()` and `console.log.call(console)` and `console.log.not.a.method()`). However, it was pointed out that this breaks uses of `console.log.bind(console)`. That's also incompatible with Terser's implementation of the feature, which is where this feature originally came from (it does support `bind`). So with this release, using this feature with esbuild will now only replace one level of method call (unless extended by `call` or `apply`) and will replace the method being called with an empty function in complex cases:
+
+    ```js
+    // Original code
+    const x = console.log('x')
+    const y = console.log.call(console, 'y')
+    const z = console.log.bind(console)('z')
+
+    // Old output (with --drop-console)
+    const x = void 0;
+    const y = void 0;
+    const z = (void 0)("z");
+
+    // New output (with --drop-console)
+    const x = void 0;
+    const y = void 0;
+    const z = (() => {
+    }).bind(console)("z");
+    ```
+
+    This should more closely match Terser's existing behavior.
+
 * The `text` loader now strips the UTF-8 BOM if present ([#3935](https://github.com/evanw/esbuild/issues/3935))
 
     Some software (such as Notepad on Windows) can create text files that start with the three bytes `0xEF 0xBB 0xBF`, which is referred to as the "byte order mark". This prefix is intended to be removed before using the text. Previously esbuild's `text` loader included this byte sequence in the string, which turns into a prefix of `\uFEFF` in a JavaScript string when decoded from UTF-8. With this release, esbuild's `text` loader will now remove these bytes when they occur at the start of the file.

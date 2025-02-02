@@ -12618,6 +12618,7 @@ type exprOut struct {
 
 	// If true and this is used as a call target, the whole call expression
 	// must be replaced with undefined.
+	callMustBeReplacedWithUndefined       bool
 	methodCallMustBeReplacedWithUndefined bool
 }
 
@@ -13721,12 +13722,23 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			return p.lowerOptionalChain(expr, in, out)
 		}
 
+		// Also erase "console.log.call(console, 123)" and "console.log.bind(console)"
+		if out.callMustBeReplacedWithUndefined {
+			if e.Name == "call" || e.Name == "apply" {
+				out.methodCallMustBeReplacedWithUndefined = true
+			} else if p.options.unsupportedJSFeatures.Has(compat.Arrow) {
+				e.Target.Data = &js_ast.EFunction{}
+			} else {
+				e.Target.Data = &js_ast.EArrow{}
+			}
+		}
+
 		// Potentially rewrite this property access
 		out = exprOut{
-			childContainsOptionalChain:            containsOptionalChain,
-			methodCallMustBeReplacedWithUndefined: out.methodCallMustBeReplacedWithUndefined,
-			thisArgFunc:                           out.thisArgFunc,
-			thisArgWrapFunc:                       out.thisArgWrapFunc,
+			childContainsOptionalChain:      containsOptionalChain,
+			callMustBeReplacedWithUndefined: out.methodCallMustBeReplacedWithUndefined,
+			thisArgFunc:                     out.thisArgFunc,
+			thisArgWrapFunc:                 out.thisArgWrapFunc,
 		}
 		if !in.hasChainParent {
 			out.thisArgFunc = nil
@@ -13885,10 +13897,10 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 		// Potentially rewrite this property access
 		out = exprOut{
-			childContainsOptionalChain:            containsOptionalChain,
-			methodCallMustBeReplacedWithUndefined: out.methodCallMustBeReplacedWithUndefined,
-			thisArgFunc:                           out.thisArgFunc,
-			thisArgWrapFunc:                       out.thisArgWrapFunc,
+			childContainsOptionalChain:      containsOptionalChain,
+			callMustBeReplacedWithUndefined: out.methodCallMustBeReplacedWithUndefined,
+			thisArgFunc:                     out.thisArgFunc,
+			thisArgWrapFunc:                 out.thisArgWrapFunc,
 		}
 		if !in.hasChainParent {
 			out.thisArgFunc = nil
@@ -14608,11 +14620,11 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		oldIsControlFlowDead := p.isControlFlowDead
 
 		// If we're removing this call, don't count any arguments as symbol uses
-		if out.methodCallMustBeReplacedWithUndefined {
+		if out.callMustBeReplacedWithUndefined {
 			if js_ast.IsPropertyAccess(e.Target) {
 				p.isControlFlowDead = true
 			} else {
-				out.methodCallMustBeReplacedWithUndefined = false
+				out.callMustBeReplacedWithUndefined = false
 			}
 		}
 
@@ -14684,7 +14696,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 		// Stop now if this call must be removed
-		if out.methodCallMustBeReplacedWithUndefined {
+		if out.callMustBeReplacedWithUndefined {
 			p.isControlFlowDead = oldIsControlFlowDead
 			return js_ast.Expr{Loc: expr.Loc, Data: js_ast.EUndefinedShared}, exprOut{}
 		}
