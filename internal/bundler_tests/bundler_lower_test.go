@@ -100,7 +100,7 @@ func TestLowerExponentiationOperatorNoBundle(t *testing.T) {
 			UnsupportedJSFeatures: es(2015),
 			AbsOutputFile:         "/out.js",
 		},
-		expectedScanLog: `entry.js: ERROR: Big integer literals are not available in the configured target environment
+		expectedScanLog: `entry.js: WARNING: Big integer literals are not available in the configured target environment and may crash at run-time
 `,
 	})
 }

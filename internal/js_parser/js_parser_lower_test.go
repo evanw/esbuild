@@ -722,6 +722,61 @@ func TestLowerOptionalCatchBinding(t *testing.T) {
 	expectPrintedTarget(t, 2018, "try {} catch {}", "try {\n} catch (e) {\n}\n")
 }
 
+func TestLowerBigInt(t *testing.T) {
+	expectPrintedTarget(t, 2019, "x = 0n", "x = /* @__PURE__ */ BigInt(\"0\");\n")
+	expectPrintedTarget(t, 2020, "x = 0n", "x = 0n;\n")
+
+	expectPrintedTarget(t, 2019, "x = 0b100101n", "x = /* @__PURE__ */ BigInt(\"0b100101\");\n")
+	expectPrintedTarget(t, 2019, "x = 0B100101n", "x = /* @__PURE__ */ BigInt(\"0B100101\");\n")
+	expectPrintedTarget(t, 2019, "x = 0o76543210n", "x = /* @__PURE__ */ BigInt(\"0o76543210\");\n")
+	expectPrintedTarget(t, 2019, "x = 0O76543210n", "x = /* @__PURE__ */ BigInt(\"0O76543210\");\n")
+	expectPrintedTarget(t, 2019, "x = 0xFEDCBA9876543210n", "x = /* @__PURE__ */ BigInt(\"0xFEDCBA9876543210\");\n")
+	expectPrintedTarget(t, 2019, "x = 0XFEDCBA9876543210n", "x = /* @__PURE__ */ BigInt(\"0XFEDCBA9876543210\");\n")
+	expectPrintedTarget(t, 2019, "x = 0xb0ba_cafe_f00dn", "x = /* @__PURE__ */ BigInt(\"0xb0bacafef00d\");\n")
+	expectPrintedTarget(t, 2019, "x = 0xB0BA_CAFE_F00Dn", "x = /* @__PURE__ */ BigInt(\"0xB0BACAFEF00D\");\n")
+	expectPrintedTarget(t, 2019, "x = 102030405060708090807060504030201n", "x = /* @__PURE__ */ BigInt(\"102030405060708090807060504030201\");\n")
+
+	expectPrintedTarget(t, 2019, "x = {0b100101n: 0}", "x = { \"37\": 0 };\n")
+	expectPrintedTarget(t, 2019, "x = {0B100101n: 0}", "x = { \"37\": 0 };\n")
+	expectPrintedTarget(t, 2019, "x = {0o76543210n: 0}", "x = { \"16434824\": 0 };\n")
+	expectPrintedTarget(t, 2019, "x = {0O76543210n: 0}", "x = { \"16434824\": 0 };\n")
+	expectPrintedTarget(t, 2019, "x = {0xFEDCBA9876543210n: 0}", "x = { \"18364758544493064720\": 0 };\n")
+	expectPrintedTarget(t, 2019, "x = {0XFEDCBA9876543210n: 0}", "x = { \"18364758544493064720\": 0 };\n")
+	expectPrintedTarget(t, 2019, "x = {0xb0ba_cafe_f00dn: 0}", "x = { \"194316316110861\": 0 };\n")
+	expectPrintedTarget(t, 2019, "x = {0xB0BA_CAFE_F00Dn: 0}", "x = { \"194316316110861\": 0 };\n")
+	expectPrintedTarget(t, 2019, "x = {102030405060708090807060504030201n: 0}", "x = { \"102030405060708090807060504030201\": 0 };\n")
+
+	expectPrintedTarget(t, 2019, "({0b100101n: x} = y)", "({ \"37\": x } = y);\n")
+	expectPrintedTarget(t, 2019, "({0B100101n: x} = y)", "({ \"37\": x } = y);\n")
+	expectPrintedTarget(t, 2019, "({0o76543210n: x} = y)", "({ \"16434824\": x } = y);\n")
+	expectPrintedTarget(t, 2019, "({0O76543210n: x} = y)", "({ \"16434824\": x } = y);\n")
+	expectPrintedTarget(t, 2019, "({0xFEDCBA9876543210n: x} = y)", "({ \"18364758544493064720\": x } = y);\n")
+	expectPrintedTarget(t, 2019, "({0XFEDCBA9876543210n: x} = y)", "({ \"18364758544493064720\": x } = y);\n")
+	expectPrintedTarget(t, 2019, "({0xb0ba_cafe_f00dn: x} = y)", "({ \"194316316110861\": x } = y);\n")
+	expectPrintedTarget(t, 2019, "({0xB0BA_CAFE_F00Dn: x} = y)", "({ \"194316316110861\": x } = y);\n")
+	expectPrintedTarget(t, 2019, "({102030405060708090807060504030201n: x} = y)", "({ \"102030405060708090807060504030201\": x } = y);\n")
+
+	expectPrintedMangleTarget(t, 2019, "x = {0b100101n: 0}", "x = { 37: 0 };\n")
+	expectPrintedMangleTarget(t, 2019, "x = {0B100101n: 0}", "x = { 37: 0 };\n")
+	expectPrintedMangleTarget(t, 2019, "x = {0o76543210n: 0}", "x = { 16434824: 0 };\n")
+	expectPrintedMangleTarget(t, 2019, "x = {0O76543210n: 0}", "x = { 16434824: 0 };\n")
+	expectPrintedMangleTarget(t, 2019, "x = {0xFEDCBA9876543210n: 0}", "x = { \"18364758544493064720\": 0 };\n")
+	expectPrintedMangleTarget(t, 2019, "x = {0XFEDCBA9876543210n: 0}", "x = { \"18364758544493064720\": 0 };\n")
+	expectPrintedMangleTarget(t, 2019, "x = {0xb0ba_cafe_f00dn: 0}", "x = { \"194316316110861\": 0 };\n")
+	expectPrintedMangleTarget(t, 2019, "x = {0xB0BA_CAFE_F00Dn: 0}", "x = { \"194316316110861\": 0 };\n")
+	expectPrintedMangleTarget(t, 2019, "x = {102030405060708090807060504030201n: 0}", "x = { \"102030405060708090807060504030201\": 0 };\n")
+
+	expectPrintedMangleTarget(t, 2019, "({0b100101n: x} = y)", "({ 37: x } = y);\n")
+	expectPrintedMangleTarget(t, 2019, "({0B100101n: x} = y)", "({ 37: x } = y);\n")
+	expectPrintedMangleTarget(t, 2019, "({0o76543210n: x} = y)", "({ 16434824: x } = y);\n")
+	expectPrintedMangleTarget(t, 2019, "({0O76543210n: x} = y)", "({ 16434824: x } = y);\n")
+	expectPrintedMangleTarget(t, 2019, "({0xFEDCBA9876543210n: x} = y)", "({ \"18364758544493064720\": x } = y);\n")
+	expectPrintedMangleTarget(t, 2019, "({0XFEDCBA9876543210n: x} = y)", "({ \"18364758544493064720\": x } = y);\n")
+	expectPrintedMangleTarget(t, 2019, "({0xb0ba_cafe_f00dn: x} = y)", "({ \"194316316110861\": x } = y);\n")
+	expectPrintedMangleTarget(t, 2019, "({0xB0BA_CAFE_F00Dn: x} = y)", "({ \"194316316110861\": x } = y);\n")
+	expectPrintedMangleTarget(t, 2019, "({102030405060708090807060504030201n: x} = y)", "({ \"102030405060708090807060504030201\": x } = y);\n")
+}
+
 func TestLowerExportStarAs(t *testing.T) {
 	expectPrintedTarget(t, 2020, "export * as ns from 'path'", "export * as ns from \"path\";\n")
 	expectPrintedTarget(t, 2019, "export * as ns from 'path'", "import * as ns from \"path\";\nexport { ns };\n")

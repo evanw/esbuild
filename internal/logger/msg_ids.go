@@ -17,6 +17,7 @@ const (
 	MsgID_JS_AssignToConstant
 	MsgID_JS_AssignToDefine
 	MsgID_JS_AssignToImport
+	MsgID_JS_BigInt
 	MsgID_JS_CallImportNamespace
 	MsgID_JS_ClassNameWillThrow
 	MsgID_JS_CommonJSVariableInESM
@@ -108,6 +109,8 @@ func StringToMsgIDs(str string, logLevel LogLevel, overrides map[MsgID]LogLevel)
 		overrides[MsgID_JS_AssignToDefine] = logLevel
 	case "assign-to-import":
 		overrides[MsgID_JS_AssignToImport] = logLevel
+	case "bigint":
+		overrides[MsgID_JS_BigInt] = logLevel
 	case "call-import-namespace":
 		overrides[MsgID_JS_CallImportNamespace] = logLevel
 	case "class-name-will-throw":
@@ -240,6 +243,8 @@ func MsgIDToString(id MsgID) string {
 		return "assign-to-define"
 	case MsgID_JS_AssignToImport:
 		return "assign-to-import"
+	case MsgID_JS_BigInt:
+		return "bigint"
 	case MsgID_JS_CallImportNamespace:
 		return "call-import-namespace"
 	case MsgID_JS_ClassNameWillThrow:

@@ -22,6 +22,9 @@ func expectPrintedCommon(t *testing.T, name string, contents string, expected st
 		msgs := log.Done()
 		text := ""
 		for _, msg := range msgs {
+			if msg.Kind != logger.Error {
+				continue
+			}
 			text += msg.String(logger.OutputOptions{}, logger.TerminalInfo{})
 		}
 		test.AssertEqualWithDiff(t, text, "")
@@ -1149,4 +1152,16 @@ func TestUsing(t *testing.T) {
 	expectPrinted(t, "await using x = y, z = _", "await using x = y, z = _;\n")
 	expectPrintedMinify(t, "await using x = y", "await using x=y;")
 	expectPrintedMinify(t, "await using x = y, z = _", "await using x=y,z=_;")
+}
+
+func TestMinifyBigInt(t *testing.T) {
+	expectPrintedTargetMangle(t, 2019, "x = 0b100101n", "x = /* @__PURE__ */ BigInt(37);\n")
+	expectPrintedTargetMangle(t, 2019, "x = 0B100101n", "x = /* @__PURE__ */ BigInt(37);\n")
+	expectPrintedTargetMangle(t, 2019, "x = 0o76543210n", "x = /* @__PURE__ */ BigInt(16434824);\n")
+	expectPrintedTargetMangle(t, 2019, "x = 0O76543210n", "x = /* @__PURE__ */ BigInt(16434824);\n")
+	expectPrintedTargetMangle(t, 2019, "x = 0xFEDCBA9876543210n", "x = /* @__PURE__ */ BigInt(\"0xFEDCBA9876543210\");\n")
+	expectPrintedTargetMangle(t, 2019, "x = 0XFEDCBA9876543210n", "x = /* @__PURE__ */ BigInt(\"0XFEDCBA9876543210\");\n")
+	expectPrintedTargetMangle(t, 2019, "x = 0xb0ba_cafe_f00dn", "x = /* @__PURE__ */ BigInt(0xb0bacafef00d);\n")
+	expectPrintedTargetMangle(t, 2019, "x = 0xB0BA_CAFE_F00Dn", "x = /* @__PURE__ */ BigInt(0xB0BACAFEF00D);\n")
+	expectPrintedTargetMangle(t, 2019, "x = 102030405060708090807060504030201n", "x = /* @__PURE__ */ BigInt(\"102030405060708090807060504030201\");\n")
 }
