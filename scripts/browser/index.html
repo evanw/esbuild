@@ -18,12 +18,40 @@
     }
   }
 
-  function assertStrictEqual(a, b) {
+  function assertStrictEqual(a, b, message = 'Assertion failed') {
     if (a !== b) {
-      throw new Error(`Assertion failed:
+      throw new Error(`${message}:
   Observed: ${JSON.stringify(a)}
   Expected: ${JSON.stringify(b)}`);
     }
+  }
+
+  async function assertSameColorsWithNestingTransform(esbuild, { css, html }) {
+    const crawlColors = node => {
+      const { color } = getComputedStyle(node)
+      const children = Array.from(node.children).map(crawlColors)
+      return children.length ? [color, children] : color
+    }
+    const style = document.querySelector('style')
+    document.body.innerHTML = html
+    style.textContent = css
+    const original = JSON.stringify(crawlColors(document.body))
+
+    // Test minified CSS
+    const minified = await esbuild.transform(css, {
+      loader: 'css',
+      minify: true,
+    })
+    style.textContent = minified.code
+    assertStrictEqual(original, JSON.stringify(crawlColors(document.body)), 'Compare minified CSS')
+
+    // Test lowered CSS
+    const lowered = await esbuild.transform(css, {
+      loader: 'css',
+      supported: { nesting: false },
+    })
+    style.textContent = lowered.code
+    assertStrictEqual(original, JSON.stringify(crawlColors(document.body)), 'Compare lowered CSS')
   }
 
   const coreTests = ({ esbuild }) => ({
@@ -177,6 +205,90 @@
       const [original, runAsserts] = setupForProblemCSS('pretty-print')
       const { code: minified } = await esbuild.transform(original, { loader: 'css', minify: true })
       runAsserts(minified)
+    },
+
+    // See: https://github.com/evanw/esbuild/issues/3877
+    async cssNestingIssue3877() {
+      return // TODO: Remove this
+      await assertSameColorsWithNestingTransform(esbuild, {
+        css: `
+          .a .b:has(> span) {
+            .a & span {
+              color: green;
+            }
+          }
+        `,
+        html: `
+          <div class="a">
+            <div class="b">
+              <span>1</span>
+              <div><span>2</span></div>
+            </div>
+            <div class="b">
+              <div><span>3</span></div>
+            </div>
+          </div>
+        `,
+      })
+    },
+
+    // See: https://github.com/evanw/esbuild/issues/3997
+    async cssNestingIssue3997() {
+      return // TODO: Remove this
+      await assertSameColorsWithNestingTransform(esbuild, {
+        css: `
+          .foo {
+            color: blue;
+            && { color: red; }
+            & { color: green; }
+          }
+        `,
+        html: `
+          <div class="foo">x</div>
+        `,
+      })
+    },
+
+    // See: https://github.com/evanw/esbuild/issues/4005
+    async cssNestingIssue4005() {
+      return // TODO: Remove this
+      await assertSameColorsWithNestingTransform(esbuild, {
+        css: `
+          .foo {
+            :where(& > .bar) {
+              color: red;
+            }
+          }
+        `,
+        html: `
+          <div class="foo">
+            <div class="bar">bar</div>
+          </div>
+        `,
+      })
+    },
+
+    // See: https://github.com/evanw/esbuild/pull/4037
+    async cssNestingIssue4037() {
+      return // TODO: Remove this
+      await assertSameColorsWithNestingTransform(esbuild, {
+        css: `
+          .parent {
+            > .a,
+            > .b1 > .b2 {
+              color: red;
+            }
+          }
+        `,
+        html: `
+          <div class="parent">
+            <div class="a">a</div>
+            <div class="b1">
+              <div class="b2">b2</div>
+            </div>
+          </div>
+        `,
+      })
     },
   })
 
