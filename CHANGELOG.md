@@ -64,6 +64,12 @@
 
     Previously configuring esbuild with `--legal-comment=external` or `--legal-comment=linked` would always generate a `.LEGAL.txt` output file even if it was empty. Starting with this release, esbuild will now only do this if the file will be non-empty. This should result in a more organized output directory in some cases.
 
+* Update Go from 1.23.1 to 1.23.5 ([#4056](https://github.com/evanw/esbuild/issues/4056), [#4057](https://github.com/evanw/esbuild/pull/4057))
+
+    This should have no effect on existing code as this version change does not change Go's operating system support. It may remove certain reports from vulnerability scanners that detect which version of the Go compiler esbuild uses.
+
+    This PR was contributed by [@MikeWillCook](https://github.com/MikeWillCook).
+
 ## 2024
 
 All esbuild versions published in the year 2024 (versions 0.19.12 through 0.24.2) can be found in [CHANGELOG-2024.md](./CHANGELOG-2024.md).
