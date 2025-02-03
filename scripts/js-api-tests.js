@@ -6265,6 +6265,11 @@ const x = {
     assert.strictEqual(outputFiles[0].text, `return true;\n`)
   },
 
+  async defineBigInt({ esbuild }) {
+    const { code } = await esbuild.transform(`console.log(a, b); export {}`, { define: { a: '0n', b: '{"x":[123n]}' }, format: 'esm' })
+    assert.strictEqual(code, `var define_b_default = { x: [123n] };\nconsole.log(0n, define_b_default);\n`)
+  },
+
   async json({ esbuild }) {
     const { code } = await esbuild.transform(`{ "x": "y" }`, { loader: 'json' })
     assert.strictEqual(code, `module.exports = { x: "y" };\n`)

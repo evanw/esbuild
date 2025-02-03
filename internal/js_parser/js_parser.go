@@ -17498,7 +17498,7 @@ func GlobResolveAST(log logger.Log, source logger.Source, importRecords []ast.Im
 	return p.toAST([]js_ast.Part{nsExportPart}, []js_ast.Part{part}, nil, "", nil)
 }
 
-func ParseDefineExprOrJSON(text string) (config.DefineExpr, js_ast.E) {
+func ParseDefineExpr(text string) (config.DefineExpr, js_ast.E) {
 	if text == "" {
 		return config.DefineExpr{}, nil
 	}
@@ -17524,16 +17524,18 @@ func ParseDefineExprOrJSON(text string) (config.DefineExpr, js_ast.E) {
 		return config.DefineExpr{Parts: parts}, nil
 	}
 
-	// Try parsing a JSON value
+	// Try parsing a value
 	log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug, nil)
-	expr, ok := ParseJSON(log, logger.Source{Contents: text}, JSONOptions{})
+	expr, ok := ParseJSON(log, logger.Source{Contents: text}, JSONOptions{
+		IsForDefine: true,
+	})
 	if !ok {
 		return config.DefineExpr{}, nil
 	}
 
 	// Only primitive literals are inlined directly
 	switch expr.Data.(type) {
-	case *js_ast.ENull, *js_ast.EBoolean, *js_ast.EString, *js_ast.ENumber:
+	case *js_ast.ENull, *js_ast.EBoolean, *js_ast.EString, *js_ast.ENumber, *js_ast.EBigInt:
 		return config.DefineExpr{Constant: expr.Data}, nil
 	}
 
@@ -17663,7 +17665,7 @@ func (p *parser) prepareForVisitPass() {
 			if p.options.jsx.AutomaticRuntime {
 				p.log.AddID(logger.MsgID_JS_UnsupportedJSXComment, logger.Warning, &p.tracker, jsxFactory.Range,
 					"The JSX factory cannot be set when using React's \"automatic\" JSX transform")
-			} else if expr, _ := ParseDefineExprOrJSON(jsxFactory.Text); len(expr.Parts) > 0 {
+			} else if expr, _ := ParseDefineExpr(jsxFactory.Text); len(expr.Parts) > 0 {
 				p.options.jsx.Factory = expr
 			} else {
 				p.log.AddID(logger.MsgID_JS_UnsupportedJSXComment, logger.Warning, &p.tracker, jsxFactory.Range,
@@ -17675,7 +17677,7 @@ func (p *parser) prepareForVisitPass() {
 			if p.options.jsx.AutomaticRuntime {
 				p.log.AddID(logger.MsgID_JS_UnsupportedJSXComment, logger.Warning, &p.tracker, jsxFragment.Range,
 					"The JSX fragment cannot be set when using React's \"automatic\" JSX transform")
-			} else if expr, _ := ParseDefineExprOrJSON(jsxFragment.Text); len(expr.Parts) > 0 || expr.Constant != nil {
+			} else if expr, _ := ParseDefineExpr(jsxFragment.Text); len(expr.Parts) > 0 || expr.Constant != nil {
 				p.options.jsx.Fragment = expr
 			} else {
 				p.log.AddID(logger.MsgID_JS_UnsupportedJSXComment, logger.Warning, &p.tracker, jsxFragment.Range,

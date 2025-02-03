@@ -165,6 +165,14 @@ func (p *jsonParser) parseExpr() js_ast.Expr {
 			CloseBraceLoc: closeBraceLoc,
 		}}
 
+	case js_lexer.TBigIntegerLiteral:
+		if !p.options.IsForDefine {
+			p.lexer.Unexpected()
+		}
+		value := p.lexer.Identifier
+		p.lexer.Next()
+		return js_ast.Expr{Loc: loc, Data: &js_ast.EBigInt{Value: value.String}}
+
 	default:
 		p.lexer.Unexpected()
 		return js_ast.Expr{}
@@ -175,6 +183,7 @@ type JSONOptions struct {
 	UnsupportedJSFeatures compat.JSFeature
 	Flavor                js_lexer.JSONFlavor
 	ErrorSuffix           string
+	IsForDefine           bool
 }
 
 func ParseJSON(log logger.Log, source logger.Source, options JSONOptions) (result js_ast.Expr, ok bool) {

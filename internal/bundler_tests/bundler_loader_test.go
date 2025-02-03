@@ -1741,6 +1741,27 @@ func TestLoaderJSONPrototypeES5(t *testing.T) {
 	})
 }
 
+func TestLoaderJSONWithBigInt(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import data from "./data.json"
+				console.log(data)
+			`,
+			"/data.json": `{
+				"invalid": [123n]
+			}`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `data.json: ERROR: Unexpected "123n" in JSON
+`,
+	})
+}
+
 func TestLoaderTextUTF8BOM(t *testing.T) {
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{

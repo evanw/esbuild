@@ -516,7 +516,7 @@ func validateLoaders(log logger.Log, loaders map[string]Loader) map[string]confi
 
 func validateJSXExpr(log logger.Log, text string, name string) config.DefineExpr {
 	if text != "" {
-		if expr, _ := js_parser.ParseDefineExprOrJSON(text); len(expr.Parts) > 0 || (name == "fragment" && expr.Constant != nil) {
+		if expr, _ := js_parser.ParseDefineExpr(text); len(expr.Parts) > 0 || (name == "fragment" && expr.Constant != nil) {
 			return expr
 		}
 		log.AddError(nil, logger.Range{}, fmt.Sprintf("Invalid JSX %s: %q", name, text))
@@ -567,7 +567,7 @@ func validateDefines(
 		mapKey := mapKeyForDefine(keyParts)
 
 		// Parse the value
-		defineExpr, injectExpr := js_parser.ParseDefineExprOrJSON(value)
+		defineExpr, injectExpr := js_parser.ParseDefineExpr(value)
 
 		// Define simple expressions
 		if defineExpr.Constant != nil || len(defineExpr.Parts) > 0 {
@@ -633,7 +633,7 @@ func validateDefines(
 		}
 
 		// Anything else is unsupported
-		log.AddError(nil, logger.Range{}, fmt.Sprintf("Invalid define value (must be an entity name or valid JSON syntax): %s", value))
+		log.AddError(nil, logger.Range{}, fmt.Sprintf("Invalid define value (must be an entity name or JS literal): %s", value))
 	}
 
 	// If we're bundling for the browser, add a special-cased define for
