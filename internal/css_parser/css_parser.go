@@ -2088,7 +2088,7 @@ func (p *parser) parseSelectorRule(isTopLevel bool, opts parseSelectorOpts) css_
 						composesContext.problemRange = logger.Range{Loc: first.Combinator.Loc, Len: 1}
 					} else if first.TypeSelector != nil {
 						composesContext.problemRange = first.TypeSelector.Range()
-					} else if first.NestingSelectorLoc.IsValid() {
+					} else if first.HasNestingSelector() {
 						composesContext.problemRange = logger.Range{Loc: logger.Loc{Start: int32(first.NestingSelectorLoc.GetIndex())}, Len: 1}
 					} else {
 						for i, ss := range first.SubclassSelectors {

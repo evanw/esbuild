@@ -419,12 +419,12 @@ func (p *printer) printComplexSelectors(selectors []css_ast.ComplexSelector, ind
 		}
 
 		for j, compound := range complex.Selectors {
-			p.printCompoundSelector(compound, j == 0, j+1 == len(complex.Selectors), indent)
+			p.printCompoundSelector(compound, j == 0, indent)
 		}
 	}
 }
 
-func (p *printer) printCompoundSelector(sel css_ast.CompoundSelector, isFirst bool, isLast bool, indent int32) {
+func (p *printer) printCompoundSelector(sel css_ast.CompoundSelector, isFirst bool, indent int32) {
 	if !isFirst && sel.Combinator.Byte == 0 {
 		// A space is required in between compound selectors if there is no
 		// combinator in the middle. It's fine to convert "a + b" into "a+b"

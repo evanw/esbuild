@@ -918,7 +918,7 @@ func (sel CompoundSelector) Range() (r logger.Range) {
 	if sel.TypeSelector != nil {
 		r.ExpandBy(sel.TypeSelector.Range())
 	}
-	if sel.NestingSelectorLoc.IsValid() {
+	if sel.HasNestingSelector() {
 		r.ExpandBy(logger.Range{Loc: logger.Loc{Start: int32(sel.NestingSelectorLoc.GetIndex())}, Len: 1})
 	}
 	if len(sel.SubclassSelectors) > 0 {
