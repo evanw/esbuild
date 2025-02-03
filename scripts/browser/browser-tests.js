@@ -99,14 +99,14 @@ async function main() {
     })
 
     page.exposeFunction('testBegin', args => {
-      const { esm, min, worker, mime, approach } = JSON.parse(args)
-      console.log(`💬 config: esm=${esm}, min=${min}, worker=${worker}, mime=${mime}, approach=${approach}`)
+      const config = Object.entries(JSON.parse(args)).map(([k, v]) => `${k}=${v}`).join(', ')
+      console.log(`💬 config: ${config}`)
     })
 
     page.exposeFunction('testEnd', args => {
       if (args === null) console.log(`👍 success`)
       else {
-        const { test, stack, error } = JSON.parse(args)
+        const { test, error } = JSON.parse(args)
         console.log(`❌ error${test ? ` [${test}]` : ``}: ${error}`)
         allTestsPassed = false
       }

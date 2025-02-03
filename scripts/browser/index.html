@@ -1,41 +1,14 @@
 <!DOCTYPE html>
+
+<head>
+  <meta charset="utf8">
+  <style></style>
+</head>
+
+<body>
+</body>
+
 <script>
-  function setupForProblemCSS(prefix) {
-    // https://github.com/tailwindlabs/tailwindcss/issues/2889
-    const original = `
-      /* Variant 1 */
-      .${prefix}-v1 { --a: ; --b: ; max-width: var(--a) var(--b); }
-      .${prefix}-a { --a: 1px; }
-      .${prefix}-b { --b: 2px; }
-
-      /* Variant 2 */
-      .${prefix}-v2 { max-width: var(--a, ) var(--b, ); }
-      .${prefix}-a { --a: 1px; }
-      .${prefix}-b { --b: 2px; }
-    `
-    const style = document.createElement('style')
-    const test1a = document.createElement('div')
-    const test1b = document.createElement('div')
-    const test2a = document.createElement('div')
-    const test2b = document.createElement('div')
-    document.head.appendChild(style)
-    document.body.appendChild(test1a)
-    document.body.appendChild(test1b)
-    document.body.appendChild(test2a)
-    document.body.appendChild(test2b)
-    test1a.className = `${prefix}-v1 ${prefix}-a`
-    test1b.className = `${prefix}-v1 ${prefix}-b`
-    test2a.className = `${prefix}-v2 ${prefix}-a`
-    test2b.className = `${prefix}-v2 ${prefix}-b`
-    return [original, css => {
-      style.textContent = css
-      assertStrictEqual(getComputedStyle(test1a).maxWidth, `1px`)
-      assertStrictEqual(getComputedStyle(test1b).maxWidth, `2px`)
-      assertStrictEqual(getComputedStyle(test2a).maxWidth, `1px`)
-      assertStrictEqual(getComputedStyle(test2b).maxWidth, `2px`)
-    }]
-  }
-
   async function expectThrownError(fn, err) {
     try {
       await fn()
@@ -53,137 +26,167 @@
     }
   }
 
-  async function runAllTests({ esbuild }) {
-    const tests = {
-      async defaultExport() {
-        assertStrictEqual(typeof esbuild.version, 'string')
-        assertStrictEqual(esbuild.version, esbuild.default.version)
-        assertStrictEqual(esbuild.version, esbuild.default.default.version)
-        assertStrictEqual(esbuild.version, esbuild.default.default.default.version)
-      },
+  const coreTests = ({ esbuild }) => ({
+    async defaultExport() {
+      assertStrictEqual(typeof esbuild.version, 'string')
+      assertStrictEqual(esbuild.version, esbuild.default.version)
+      assertStrictEqual(esbuild.version, esbuild.default.default.version)
+      assertStrictEqual(esbuild.version, esbuild.default.default.default.version)
+    },
 
-      async transformJS() {
-        const { code } = await esbuild.transform('1+2')
-        assertStrictEqual(code, '1 + 2;\n')
-      },
+    async transformJS() {
+      const { code } = await esbuild.transform('1+2')
+      assertStrictEqual(code, '1 + 2;\n')
+    },
 
-      async transformTS() {
-        const { code } = await esbuild.transform('1 as any + <any>2', { loader: 'ts' })
-        assertStrictEqual(code, '1 + 2;\n')
-      },
+    async transformTS() {
+      const { code } = await esbuild.transform('1 as any + <any>2', { loader: 'ts' })
+      assertStrictEqual(code, '1 + 2;\n')
+    },
 
-      async transformCSS() {
-        const { code } = await esbuild.transform('div { color: red }', { loader: 'css' })
-        assertStrictEqual(code, 'div {\n  color: red;\n}\n')
-      },
+    async transformCSS() {
+      const { code } = await esbuild.transform('div { color: red }', { loader: 'css' })
+      assertStrictEqual(code, 'div {\n  color: red;\n}\n')
+    },
 
-      async problemCSSOriginal() {
-        const [original, runAsserts] = setupForProblemCSS('original')
-        runAsserts(original)
-      },
-
-      async problemCSSPrettyPrinted() {
-        const [original, runAsserts] = setupForProblemCSS('pretty-print')
-        const { code: prettyPrinted } = await esbuild.transform(original, { loader: 'css' })
-        runAsserts(prettyPrinted)
-      },
-
-      async problemCSSMinified() {
-        const [original, runAsserts] = setupForProblemCSS('pretty-print')
-        const { code: minified } = await esbuild.transform(original, { loader: 'css', minify: true })
-        runAsserts(minified)
-      },
-
-      async buildFib() {
-        const fibonacciPlugin = {
-          name: 'fib',
-          setup(build) {
-            build.onResolve({ filter: /^fib\((\d+)\)/ }, args => {
-              return { path: args.path, namespace: 'fib' }
-            })
-            build.onLoad({ filter: /^fib\((\d+)\)/, namespace: 'fib' }, args => {
-              let match = /^fib\((\d+)\)/.exec(args.path), n = +match[1]
-              let contents = n < 2 ? `export default ${n}` : `
-                import n1 from 'fib(${n - 1}) ${args.path}'
-                import n2 from 'fib(${n - 2}) ${args.path}'
-                export default n1 + n2`
-              return { contents }
-            })
-          },
-        }
-        const result = await esbuild.build({
-          stdin: {
-            contents: `
-              import x from 'fib(10)'
-              module.exports = x
-            `,
-          },
-          format: 'cjs',
-          bundle: true,
-          plugins: [fibonacciPlugin],
-        })
-        assertStrictEqual(result.outputFiles.length, 1)
-        assertStrictEqual(result.outputFiles[0].path, '<stdout>')
-        const code = result.outputFiles[0].text
-        const answer = {}
-        new Function('module', code)(answer)
-        assertStrictEqual(answer.exports, 55)
-      },
-
-      async buildRelativeIssue693() {
-        const result = await esbuild.build({
-          stdin: {
-            contents: `const x=1`,
-          },
-          write: false,
-          outfile: 'esbuild.js',
-        });
-        assertStrictEqual(result.outputFiles.length, 1)
-        assertStrictEqual(result.outputFiles[0].path, '/esbuild.js')
-        assertStrictEqual(result.outputFiles[0].text, 'const x = 1;\n')
-      },
-
-      async watch() {
-        const context = await esbuild.context({})
-        try {
-          await expectThrownError(context.watch, 'Cannot use the "watch" API in this environment')
-        } finally {
-          context.dispose()
-        }
-      },
-
-      async serve() {
-        const context = await esbuild.context({})
-        try {
-          await expectThrownError(context.serve, 'Cannot use the "serve" API in this environment')
-        } finally {
-          context.dispose()
-        }
-      },
-
-      async esbuildBuildSync() {
-        await expectThrownError(esbuild.buildSync, 'The "buildSync" API only works in node')
-      },
-
-      async esbuildTransformSync() {
-        await expectThrownError(esbuild.transformSync, 'The "transformSync" API only works in node')
-      },
-    }
-
-    async function runTest(test) {
-      try {
-        await tests[test]()
-      } catch (e) {
-        e.test = test
-        throw e
+    async buildFib() {
+      const fibonacciPlugin = {
+        name: 'fib',
+        setup(build) {
+          build.onResolve({ filter: /^fib\((\d+)\)/ }, args => {
+            return { path: args.path, namespace: 'fib' }
+          })
+          build.onLoad({ filter: /^fib\((\d+)\)/, namespace: 'fib' }, args => {
+            let match = /^fib\((\d+)\)/.exec(args.path), n = +match[1]
+            let contents = n < 2 ? `export default ${n}` : `
+              import n1 from 'fib(${n - 1}) ${args.path}'
+              import n2 from 'fib(${n - 2}) ${args.path}'
+              export default n1 + n2`
+            return { contents }
+          })
+        },
       }
-    }
+      const result = await esbuild.build({
+        stdin: {
+          contents: `
+            import x from 'fib(10)'
+            module.exports = x
+          `,
+        },
+        format: 'cjs',
+        bundle: true,
+        plugins: [fibonacciPlugin],
+      })
+      assertStrictEqual(result.outputFiles.length, 1)
+      assertStrictEqual(result.outputFiles[0].path, '<stdout>')
+      const code = result.outputFiles[0].text
+      const answer = {}
+      new Function('module', code)(answer)
+      assertStrictEqual(answer.exports, 55)
+    },
 
-    const promises = []
-    for (const test in tests) {
-      promises.push(runTest(test))
+    async buildRelativeIssue693() {
+      const result = await esbuild.build({
+        stdin: {
+          contents: `const x=1`,
+        },
+        write: false,
+        outfile: 'esbuild.js',
+      });
+      assertStrictEqual(result.outputFiles.length, 1)
+      assertStrictEqual(result.outputFiles[0].path, '/esbuild.js')
+      assertStrictEqual(result.outputFiles[0].text, 'const x = 1;\n')
+    },
+
+    async watch() {
+      const context = await esbuild.context({})
+      try {
+        await expectThrownError(context.watch, 'Cannot use the "watch" API in this environment')
+      } finally {
+        context.dispose()
+      }
+    },
+
+    async serve() {
+      const context = await esbuild.context({})
+      try {
+        await expectThrownError(context.serve, 'Cannot use the "serve" API in this environment')
+      } finally {
+        context.dispose()
+      }
+    },
+
+    async esbuildBuildSync() {
+      await expectThrownError(esbuild.buildSync, 'The "buildSync" API only works in node')
+    },
+
+    async esbuildTransformSync() {
+      await expectThrownError(esbuild.transformSync, 'The "transformSync" API only works in node')
+    },
+  })
+
+  function setupForProblemCSS(prefix) {
+    // https://github.com/tailwindlabs/tailwindcss/issues/2889
+    const original = `
+      /* Variant 1 */
+      .${prefix}-v1 { --a: ; --b: ; max-width: var(--a) var(--b); }
+      .${prefix}-a { --a: 1px; }
+      .${prefix}-b { --b: 2px; }
+
+      /* Variant 2 */
+      .${prefix}-v2 { max-width: var(--a, ) var(--b, ); }
+      .${prefix}-a { --a: 1px; }
+      .${prefix}-b { --b: 2px; }
+    `
+    const style = document.querySelector('style')
+    const test1a = document.createElement('div')
+    const test1b = document.createElement('div')
+    const test2a = document.createElement('div')
+    const test2b = document.createElement('div')
+    test1a.className = `${prefix}-v1 ${prefix}-a`
+    test1b.className = `${prefix}-v1 ${prefix}-b`
+    test2a.className = `${prefix}-v2 ${prefix}-a`
+    test2b.className = `${prefix}-v2 ${prefix}-b`
+    return [original, css => {
+      style.textContent = css
+      document.body.innerHTML = ''
+      document.body.appendChild(test1a)
+      document.body.appendChild(test1b)
+      document.body.appendChild(test2a)
+      document.body.appendChild(test2b)
+      assertStrictEqual(getComputedStyle(test1a).maxWidth, `1px`)
+      assertStrictEqual(getComputedStyle(test1b).maxWidth, `2px`)
+      assertStrictEqual(getComputedStyle(test2a).maxWidth, `1px`)
+      assertStrictEqual(getComputedStyle(test2b).maxWidth, `2px`)
+    }]
+  }
+
+  const cssTests = ({ esbuild }) => ({
+    async problemCSSOriginal() {
+      const [original, runAsserts] = setupForProblemCSS('original')
+      runAsserts(original)
+    },
+
+    async problemCSSPrettyPrinted() {
+      const [original, runAsserts] = setupForProblemCSS('pretty-print')
+      const { code: prettyPrinted } = await esbuild.transform(original, { loader: 'css' })
+      runAsserts(prettyPrinted)
+    },
+
+    async problemCSSMinified() {
+      const [original, runAsserts] = setupForProblemCSS('pretty-print')
+      const { code: minified } = await esbuild.transform(original, { loader: 'css', minify: true })
+      runAsserts(minified)
+    },
+  })
+
+  async function runTest(test, fn) {
+    try {
+      await fn()
+    } catch (e) {
+      e.test = test
+      throw e
     }
-    await Promise.all(promises)
   }
 
   async function loadScript(url) {
@@ -200,9 +203,11 @@
   }
 
   async function testStart() {
+    let allTestsPassed = true
+
     if (!window.testBegin) window.testBegin = args => {
-      const { esm, min, worker, mime, approach } = JSON.parse(args)
-      console.log(`💬 config: esm=${esm}, min=${min}, worker=${worker}, mime=${mime}, approach=${approach}`)
+      const config = Object.entries(JSON.parse(args)).map(([k, v]) => `${k}=${v}`).join(', ')
+      console.log(`💬 config: ${config}`)
     }
 
     if (!window.testEnd) window.testEnd = args => {
@@ -210,13 +215,38 @@
       else {
         const { test, stack, error } = JSON.parse(args)
         console.log(`❌ error${test ? ` [${test}]` : ``}: ${error}`)
+        allTestsPassed = false
       }
     }
 
     if (!window.testDone) window.testDone = error => {
-      console.log(`✅ done`)
+      console.log(allTestsPassed ? `✅ done` : `❌ done`)
     }
 
+    // Just run CSS tests through a single configuration, but run each test separately
+    {
+      const url = '/npm/esbuild-wasm/esbuild.wasm?' + Math.random()
+      const initializePromise = import('/npm/esbuild-wasm/esm/browser.js?' + Math.random())
+        .then(esbuild => esbuild.initialize({ wasmURL: new URL(url, location.href) })
+          .then(() => esbuild))
+      const tests = cssTests({ esbuild: await initializePromise.catch(() => null) })
+      for (const test in tests) {
+        try {
+          testBegin(JSON.stringify({ type: 'css', test }))
+          await initializePromise
+          await runTest(test, tests[test])
+          testEnd(null)
+        } catch (e) {
+          testEnd(JSON.stringify({
+            test: e.test || null,
+            stack: e.stack || null,
+            error: (e && e.message || e) + '',
+          }))
+        }
+      }
+    }
+
+    // Run all core tests through every configuration, but run all tests together (stop after one failure)
     for (const esm of [false, true]) {
       for (const min of [false, true]) {
         for (const worker of [false, true]) {
@@ -237,7 +267,10 @@
                     .then(module => esbuild.initialize({ wasmModule: module, worker })),
                 }[approach]()
                 await initializePromise
-                await runAllTests({ esbuild })
+                const tests = coreTests({ esbuild })
+                const promises = []
+                for (const test in tests) promises.push(runTest(test, tests[test]))
+                await Promise.all(promises)
                 testEnd(null)
               } catch (e) {
                 testEnd(JSON.stringify({
