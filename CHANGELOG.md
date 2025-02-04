@@ -6,6 +6,35 @@
 
     It has been requested for esbuild to delete files when a build fails in watch mode. Previously esbuild left the old files in place, which could cause people to not immediately realize that the most recent build failed. With this release, esbuild will now delete all output files if a rebuild fails. Fixing the build error and triggering another rebuild will restore all output files again.
 
+* Fix correctness issues with the CSS nesting transform ([#3620](https://github.com/evanw/esbuild/issues/3620), [#4037](https://github.com/evanw/esbuild/pull/4037))
+
+    This release fixes the following problems:
+
+    * Naive expansion of CSS nesting can result in an exponential blow-up of generated CSS if each nesting level has multiple selectors. Previously esbuild sometimes collapsed individual nesting levels using `:is()` to limit expansion. However, this collapsing wasn't correct in some cases, so it has been removed to fix correctness issues.
+
+        ```css
+        /* Original code */
+        .parent {
+          > .a,
+          > .b1 > .b2 {
+            color: red;
+          }
+        }
+
+        /* Old output (with --supported:nesting=false) */
+        .parent > :is(.a, .b1 > .b2) {
+          color: red;
+        }
+
+        /* New output (with --supported:nesting=false) */
+        .parent > .a,
+        .parent > .b1 > .b2 {
+          color: red;
+        }
+        ```
+
+        Thanks to [@tim-we](https://github.com/tim-we) for working on a fix.
+
 * Fix incorrect package for `@esbuild/netbsd-arm64` ([#4018](https://github.com/evanw/esbuild/issues/4018))
 
     Due to a copy+paste typo, the binary published to `@esbuild/netbsd-arm64` was not actually for `arm64`, and didn't run in that environment. This release should fix running esbuild in that environment (NetBSD on 64-bit ARM). Sorry about the mistake.
