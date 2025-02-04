@@ -1262,6 +1262,7 @@ func TestNestedSelector(t *testing.T) {
 	expectPrintedLowerUnsupported(t, nesting, ".demo { .lg { &.triangle, &.circle { color: red } } }", ".demo .lg.triangle,\n.demo .lg.circle {\n  color: red;\n}\n", "")
 	expectPrintedLowerUnsupported(t, nesting, ".demo { .lg { .triangle, .circle { color: red } } }", ".demo .lg .triangle,\n.demo .lg .circle {\n  color: red;\n}\n", "")
 	expectPrintedLowerUnsupported(t, nesting, ".card { .featured & & & { color: red } }", ".featured .card .card .card {\n  color: red;\n}\n", "")
+	expectPrintedLowerUnsupported(t, nesting, ".a :has(> .c) { .b & { color: red } }", ".b :is(.a :has(> .c)) {\n  color: red;\n}\n", "")
 
 	// Duplicate "&" may be used to increase specificity
 	expectPrintedLowerUnsupported(t, nesting, ".foo { &&&.bar { color: red } }", ".foo.foo.foo.bar {\n  color: red;\n}\n", "")

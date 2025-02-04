@@ -788,12 +788,9 @@ func HashComplexSelectors(hash uint32, selectors []ComplexSelector) uint32 {
 	return hash
 }
 
-func (s ComplexSelector) CloneWithoutLeadingCombinator() ComplexSelector {
+func (s ComplexSelector) Clone() ComplexSelector {
 	clone := ComplexSelector{Selectors: make([]CompoundSelector, len(s.Selectors))}
 	for i, sel := range s.Selectors {
-		if i == 0 {
-			sel.Combinator = Combinator{}
-		}
 		clone.Selectors[i] = sel.Clone()
 	}
 	return clone
@@ -1195,7 +1192,7 @@ func (ss *SSPseudoClassWithSelectorList) Clone() SS {
 	clone := *ss
 	clone.Selectors = make([]ComplexSelector, len(ss.Selectors))
 	for i, sel := range ss.Selectors {
-		clone.Selectors[i] = sel.CloneWithoutLeadingCombinator()
+		clone.Selectors[i] = sel.Clone()
 	}
 	return &clone
 }

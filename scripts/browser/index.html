@@ -209,7 +209,6 @@
 
     // See: https://github.com/evanw/esbuild/issues/3877
     async cssNestingIssue3877() {
-      return // TODO: Remove this
       await assertSameColorsWithNestingTransform(esbuild, {
         css: `
           .a .b:has(> span) {

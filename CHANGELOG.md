@@ -6,7 +6,7 @@
 
     It has been requested for esbuild to delete files when a build fails in watch mode. Previously esbuild left the old files in place, which could cause people to not immediately realize that the most recent build failed. With this release, esbuild will now delete all output files if a rebuild fails. Fixing the build error and triggering another rebuild will restore all output files again.
 
-* Fix correctness issues with the CSS nesting transform ([#3620](https://github.com/evanw/esbuild/issues/3620), [#3997](https://github.com/evanw/esbuild/issues/3997), [#4037](https://github.com/evanw/esbuild/pull/4037), [#4038](https://github.com/evanw/esbuild/pull/4038))
+* Fix correctness issues with the CSS nesting transform ([#3620](https://github.com/evanw/esbuild/issues/3620), [#3877](https://github.com/evanw/esbuild/issues/3877), [#3933](https://github.com/evanw/esbuild/issues/3933), [#3997](https://github.com/evanw/esbuild/issues/3997), [#4037](https://github.com/evanw/esbuild/pull/4037), [#4038](https://github.com/evanw/esbuild/pull/4038))
 
     This release fixes the following problems:
 
@@ -62,6 +62,29 @@
         ```
 
         Thanks to [@CPunisher](https://github.com/CPunisher) for working on a fix.
+
+    * Previously transforming nested CSS incorrectly removed leading combinators from within pseudoclass selectors such as `:where()`. This edge case has been fixed and how has test coverage.
+
+        ```css
+        /* Original code */
+        a b:has(> span) {
+          a & {
+            color: green;
+          }
+        }
+
+        /* Old output (with --supported:nesting=false) */
+        a :is(a b:has(span)) {
+          color: green;
+        }
+
+        /* New output (with --supported:nesting=false) */
+        a :is(a b:has(> span)) {
+          color: green;
+        }
+        ```
+
+        This fix was contributed by [@NoremacNergfol](https://github.com/NoremacNergfol).
 
 * Fix incorrect package for `@esbuild/netbsd-arm64` ([#4018](https://github.com/evanw/esbuild/issues/4018))
 

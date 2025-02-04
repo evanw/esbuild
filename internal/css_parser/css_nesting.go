@@ -317,7 +317,7 @@ func (p *parser) substituteAmpersandsInCompoundSelector(
 					Range: logger.Range{Loc: nestingSelectorLoc},
 					Data: &css_ast.SSPseudoClassWithSelectorList{
 						Kind:      css_ast.PseudoClassIs,
-						Selectors: []css_ast.ComplexSelector{replacement.CloneWithoutLeadingCombinator()},
+						Selectors: []css_ast.ComplexSelector{replacement.Clone()},
 					},
 				}},
 			}
@@ -384,7 +384,7 @@ func (p *parser) multipleComplexSelectorsToSingleComplexSelector(selectors []css
 	for i, sel := range selectors {
 		// "> a, > b" => "> :is(a, b)" (the caller should have already checked that all leading combinators are the same)
 		leadingCombinator = sel.Selectors[0].Combinator
-		clones[i] = sel.CloneWithoutLeadingCombinator()
+		clones[i] = sel.Clone()
 	}
 
 	return func(loc logger.Loc) css_ast.ComplexSelector {
