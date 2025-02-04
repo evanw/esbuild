@@ -231,6 +231,22 @@
       })
     },
 
+    // See: https://github.com/evanw/esbuild/issues/3877#issuecomment-2631385559
+    async cssNestingIssue3877Comment2631385559() {
+      await assertSameColorsWithNestingTransform(esbuild, {
+        css: `
+          .a {
+            :has(>&) {
+              color: red;
+            }
+          }
+        `,
+        html: `
+          <div class="a">a</div>
+        `,
+      })
+    },
+
     // See: https://github.com/evanw/esbuild/issues/3997
     async cssNestingIssue3997() {
       await assertSameColorsWithNestingTransform(esbuild, {

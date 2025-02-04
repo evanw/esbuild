@@ -796,22 +796,31 @@ func (s ComplexSelector) Clone() ComplexSelector {
 	return clone
 }
 
-func (sel ComplexSelector) IsRelative() bool {
-	if sel.Selectors[0].Combinator.Byte == 0 {
-		for _, inner := range sel.Selectors {
-			if len(inner.NestingSelectorLocs) > 0 {
-				return false
-			}
-			for _, ss := range inner.SubclassSelectors {
-				if pseudo, ok := ss.Data.(*SSPseudoClassWithSelectorList); ok {
-					for _, nested := range pseudo.Selectors {
-						if !nested.IsRelative() {
-							return false
-						}
+func (sel ComplexSelector) ContainsNestingCombinator() bool {
+	for _, inner := range sel.Selectors {
+		if len(inner.NestingSelectorLocs) > 0 {
+			return true
+		}
+		for _, ss := range inner.SubclassSelectors {
+			if pseudo, ok := ss.Data.(*SSPseudoClassWithSelectorList); ok {
+				for _, nested := range pseudo.Selectors {
+					if nested.ContainsNestingCombinator() {
+						return true
 					}
 				}
 			}
 		}
+	}
+	return false
+}
+
+func (sel ComplexSelector) IsRelative() bool {
+	// https://www.w3.org/TR/css-nesting-1/#syntax
+	// "If a selector in the <relative-selector-list> does not start with a
+	// combinator but does contain the nesting selector, it is interpreted
+	// as a non-relative selector."
+	if sel.Selectors[0].Combinator.Byte == 0 && sel.ContainsNestingCombinator() {
+		return false
 	}
 	return true
 }
