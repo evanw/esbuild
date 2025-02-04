@@ -977,7 +977,7 @@ __decorateClass([
 ], Foo.prototype, "prop1", 2);
 __decorateClass([
   dec(2)
-], Foo.prototype, "a", 2);
+], Foo.prototype, /* @__KEY__ */ "a", 2);
 __decorateClass([
   dec(3)
 ], Foo.prototype, "prop3", 2);
@@ -1008,7 +1008,7 @@ __decorateClass([
 ], Foo.prototype, "prop1", 2);
 __decorateClass([
   dec(2)
-], Foo.prototype, "a", 2);
+], Foo.prototype, /* @__KEY__ */ "a", 2);
 __decorateClass([
   dec(3)
 ], Foo.prototype, "prop3", 2);
@@ -1045,7 +1045,7 @@ __decorateClass([
 ], Foo.prototype, "prop1", 1);
 __decorateClass([
   dec(2)
-], Foo.prototype, "a", 1);
+], Foo.prototype, /* @__KEY__ */ "a", 1);
 __decorateClass([
   dec(3)
 ], Foo.prototype, "prop3", 1);
@@ -1088,7 +1088,7 @@ __decorateClass([
 ], Foo, "prop1", 2);
 __decorateClass([
   dec(2)
-], Foo, "a", 2);
+], Foo, /* @__KEY__ */ "a", 2);
 __decorateClass([
   dec(3)
 ], Foo, "prop3", 2);
@@ -1119,7 +1119,7 @@ __decorateClass([
 ], Foo, "prop1", 2);
 __decorateClass([
   dec(2)
-], Foo, "a", 2);
+], Foo, /* @__KEY__ */ "a", 2);
 __decorateClass([
   dec(3)
 ], Foo, "prop3", 2);
@@ -1156,7 +1156,7 @@ __decorateClass([
 ], Foo, "prop1", 1);
 __decorateClass([
   dec(2)
-], Foo, "a", 1);
+], Foo, /* @__KEY__ */ "a", 1);
 __decorateClass([
   dec(3)
 ], Foo, "prop3", 1);

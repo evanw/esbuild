@@ -895,6 +895,11 @@ func (ctx *lowerClassContext) lowerField(
 			memberExpr = p.callRuntime(loc, "__privateAdd", args)
 			p.recordUsage(ref)
 		} else if private == nil && ctx.class.UseDefineForClassFields {
+			if p.shouldAddKeyComment {
+				if str, ok := prop.Key.Data.(*js_ast.EString); ok {
+					str.HasPropertyKeyComment = true
+				}
+			}
 			args := []js_ast.Expr{target, prop.Key}
 			if _, ok := init.Data.(*js_ast.EUndefined); !ok {
 				args = append(args, init)

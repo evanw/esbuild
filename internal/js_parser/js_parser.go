@@ -387,6 +387,7 @@ type parser struct {
 	latestReturnHadSemicolon    bool
 	messageAboutThisIsUndefined bool
 	isControlFlowDead           bool
+	shouldAddKeyComment         bool
 
 	// If this is true, then all top-level statements are wrapped in a try/catch
 	willWrapModuleInTryCatchForUsing bool
@@ -2305,7 +2306,10 @@ func (p *parser) parseProperty(startLoc logger.Loc, kind js_ast.PropertyKind, op
 		}
 
 		if p.isMangledProp(name.String) {
-			key = js_ast.Expr{Loc: nameRange.Loc, Data: &js_ast.ENameOfSymbol{Ref: p.storeNameInRef(name)}}
+			key = js_ast.Expr{Loc: nameRange.Loc, Data: &js_ast.ENameOfSymbol{
+				Ref:                   p.storeNameInRef(name),
+				HasPropertyKeyComment: true,
+			}}
 		} else {
 			key = js_ast.Expr{Loc: nameRange.Loc, Data: &js_ast.EString{Value: helpers.StringToUTF16(name.String)}}
 		}
@@ -12964,7 +12968,8 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		if in.shouldMangleStringsAsProps && p.options.mangleQuoted && !e.PreferTemplate {
 			if name := helpers.UTF16ToString(e.Value); p.isMangledProp(name) {
 				return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ENameOfSymbol{
-					Ref: p.symbolForMangledProp(name),
+					Ref:                   p.symbolForMangledProp(name),
+					HasPropertyKeyComment: e.HasPropertyKeyComment,
 				}}, exprOut{}
 			}
 		}
@@ -17077,6 +17082,12 @@ func newParser(log logger.Log, source logger.Source, lexer js_lexer.Lexer, optio
 		// For JSX runtime imports
 		jsxRuntimeImports: make(map[string]ast.LocRef),
 		jsxLegacyImports:  make(map[string]ast.LocRef),
+
+		// Add "/* @__KEY__ */" comments when mangling properties to support
+		// running esbuild (or other tools like Terser) again on the output.
+		// This checks both "--mangle-props" and "--reserve-props" so that
+		// you can turn this on with just "--reserve-props=." if you want to.
+		shouldAddKeyComment: options.mangleProps != nil || options.reserveProps != nil,
 
 		suppressWarningsAboutWeirdCode: helpers.IsInsideNodeModules(source.KeyPath.Text),
 	}

@@ -720,7 +720,8 @@ func (p *printer) printBinding(binding js_ast.Binding) {
 						p.addSourceMapping(property.Key.Loc)
 						p.printIdentifierUTF16(str.Value)
 					} else if mangled, ok := property.Key.Data.(*js_ast.ENameOfSymbol); ok {
-						if name := p.mangledPropName(mangled.Ref); p.canPrintIdentifier(name) {
+						name := p.mangledPropName(mangled.Ref)
+						if p.canPrintIdentifier(name) {
 							p.addSourceMappingForName(property.Key.Loc, name, mangled.Ref)
 							p.printIdentifier(name)
 
@@ -1205,7 +1206,8 @@ func (p *printer) printProperty(property js_ast.Property) {
 		p.printIdentifier(name)
 
 	case *js_ast.ENameOfSymbol:
-		if name := p.mangledPropName(key.Ref); p.canPrintIdentifier(name) {
+		name := p.mangledPropName(key.Ref)
+		if p.canPrintIdentifier(name) {
 			p.printSpaceBeforeIdentifier()
 			p.addSourceMappingForName(property.Key.Loc, name, key.Ref)
 			p.printIdentifier(name)
@@ -2934,7 +2936,10 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 				var inlinedValue js_ast.E
 				switch e2 := part.Value.Data.(type) {
 				case *js_ast.ENameOfSymbol:
-					inlinedValue = &js_ast.EString{Value: helpers.StringToUTF16(p.mangledPropName(e2.Ref))}
+					inlinedValue = &js_ast.EString{
+						Value:                 helpers.StringToUTF16(p.mangledPropName(e2.Ref)),
+						HasPropertyKeyComment: e2.HasPropertyKeyComment,
+					}
 				case *js_ast.EDot:
 					if value, ok := p.tryToGetImportedEnumValue(e2.Target, e2.Name); ok {
 						if value.String != nil {
