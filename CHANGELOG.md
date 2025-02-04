@@ -6,7 +6,7 @@
 
     It has been requested for esbuild to delete files when a build fails in watch mode. Previously esbuild left the old files in place, which could cause people to not immediately realize that the most recent build failed. With this release, esbuild will now delete all output files if a rebuild fails. Fixing the build error and triggering another rebuild will restore all output files again.
 
-* Fix correctness issues with the CSS nesting transform ([#3620](https://github.com/evanw/esbuild/issues/3620), [#3877](https://github.com/evanw/esbuild/issues/3877), [#3933](https://github.com/evanw/esbuild/issues/3933), [#3997](https://github.com/evanw/esbuild/issues/3997), [#4037](https://github.com/evanw/esbuild/pull/4037), [#4038](https://github.com/evanw/esbuild/pull/4038))
+* Fix correctness issues with the CSS nesting transform ([#3620](https://github.com/evanw/esbuild/issues/3620), [#3877](https://github.com/evanw/esbuild/issues/3877), [#3933](https://github.com/evanw/esbuild/issues/3933), [#3997](https://github.com/evanw/esbuild/issues/3997), [#4005](https://github.com/evanw/esbuild/issues/4005), [#4037](https://github.com/evanw/esbuild/pull/4037), [#4038](https://github.com/evanw/esbuild/pull/4038))
 
     This release fixes the following problems:
 
@@ -85,6 +85,22 @@
         ```
 
         This fix was contributed by [@NoremacNergfol](https://github.com/NoremacNergfol).
+
+    * The CSS minifier contains logic to remove the `&` selector when it can be implied, which happens when there is only one and it's the leading token. However, this logic was incorrectly also applied to selector lists inside of pseudo-class selectors such as `:where()`. With this release, the minifier will now avoid applying this logic in this edge case:
+
+        ```css
+        /* Original code */
+        .a {
+          & .b { color: red }
+          :where(& .b) { color: blue }
+        }
+
+        /* Old output (with --minify) */
+        .a{.b{color:red}:where(.b){color:#00f}}
+
+        /* New output (with --minify) */
+        .a{.b{color:red}:where(& .b){color:#00f}}
+        ```
 
 * Fix incorrect package for `@esbuild/netbsd-arm64` ([#4018](https://github.com/evanw/esbuild/issues/4018))
 

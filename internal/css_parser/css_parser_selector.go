@@ -68,7 +68,18 @@ func (p *parser) parseSelectorList(opts parseSelectorOpts) (list []css_ast.Compl
 		}
 	}
 
-	if p.options.minifySyntax {
+	// Remove the leading ampersand when minifying and it can be implied:
+	//
+	//   "a { & b {} }" => "a { b {} }"
+	//
+	// It can't be implied if it's not at the beginning, if there are multiple of
+	// them, or if the selector list is inside of a pseudo-class selector:
+	//
+	//   "a { b & {} }"
+	//   "a { & b & {} }"
+	//   "a { :has(& b) {} }"
+	//
+	if p.options.minifySyntax && !opts.stopOnCloseParen {
 		for i := 1; i < len(list); i++ {
 			if analyzeLeadingAmpersand(list[i], opts.isDeclarationContext) != cannotRemoveLeadingAmpersand {
 				list[i].Selectors = list[i].Selectors[1:]

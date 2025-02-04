@@ -1127,6 +1127,8 @@ func TestNestedSelector(t *testing.T) {
 	expectPrintedMangle(t, "div { .x & { color: red } }", "div {\n  .x & {\n    color: red;\n  }\n}\n", "")
 	expectPrintedMangle(t, "@media screen { & div { color: red } }", "@media screen {\n  div {\n    color: red;\n  }\n}\n", "")
 	expectPrintedMangle(t, "a { @media screen { & div { color: red } } }", "a {\n  @media screen {\n    & div {\n      color: red;\n    }\n  }\n}\n", "")
+	expectPrintedMangle(t, "a { :has(& b) { color: red } }", "a {\n  :has(& b) {\n    color: red;\n  }\n}\n", "")
+	expectPrintedMangle(t, "a { :has(& + b) { color: red } }", "a {\n  :has(& + b) {\n    color: red;\n  }\n}\n", "")
 
 	// Reorder selectors to enable removing "&"
 	expectPrintedMangle(t, "reorder { & first, .second { color: red } }", "reorder {\n  .second,\n  first {\n    color: red;\n  }\n}\n", "")
