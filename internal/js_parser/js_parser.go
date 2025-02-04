@@ -16356,7 +16356,7 @@ func (p *parser) handleIdentifier(loc logger.Loc, e *js_ast.EIdentifier, opts id
 	ref := e.Ref
 
 	// Substitute inlined constants
-	if p.options.minifySyntax {
+	if p.options.minifySyntax && !p.currentScope.ContainsDirectEval {
 		if value, ok := p.constValues[ref]; ok {
 			p.ignoreUsage(ref)
 			return js_ast.ConstValueToExpr(loc, value)

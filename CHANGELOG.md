@@ -174,6 +174,20 @@
 
     This PR was contributed by [@MikeWillCook](https://github.com/MikeWillCook).
 
+* Minification now avoids inlining constants with direct `eval` ([#4055](https://github.com/evanw/esbuild/issues/4055))
+
+    Direct `eval` can be used to introduce a new variable like this:
+
+    ```js
+    const variable = false
+    ;(function () {
+      eval("var variable = true")
+      console.log(variable)
+    })()
+    ```
+
+    Previously esbuild inlined `variable` here (which became `false`), which changed the behavior of the code. This inlining is now avoided, but please keep in mind that direct `eval` breaks many assumptions that JavaScript tools hold about normal code (especially when bundling) and I do not recommend using it. There are usually better alternatives that have a more localized impact on your code. You can read more about this here: https://esbuild.github.io/link/direct-eval/
+
 ## 2024
 
 All esbuild versions published in the year 2024 (versions 0.19.12 through 0.24.2) can be found in [CHANGELOG-2024.md](./CHANGELOG-2024.md).

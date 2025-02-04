@@ -3146,6 +3146,13 @@ func TestConstValueInliningDirectEval(t *testing.T) {
 					console.log(x, eval('x'))
 				}
 			`,
+			"/issue-4055.ts": `
+				const variable = false
+				;(function () {
+					eval("var variable = true")
+					console.log(variable)
+				})()
+			`,
 		},
 		entryPaths: []string{
 			"/top-level-no-eval.js",
@@ -3154,6 +3161,7 @@ func TestConstValueInliningDirectEval(t *testing.T) {
 			"/nested-eval.js",
 			"/ts-namespace-no-eval.ts",
 			"/ts-namespace-eval.ts",
+			"/issue-4055.ts",
 		},
 		options: config.Options{
 			Mode:         config.ModePassThrough,

@@ -126,6 +126,12 @@ var y;
 var z;
 ((z) => (z.x = 1, console.log(1, eval("x"))))(z ||= {});
 
+---------- /out/issue-4055.js ----------
+const variable = !1;
+(function() {
+  eval("var variable = true"), console.log(variable);
+})();
+
 ================================================================================
 TestConstValueInliningNoBundle
 ---------- /out/top-level.js ----------
