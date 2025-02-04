@@ -230,6 +230,13 @@ func expectPrintedJSXAutomatic(t *testing.T, options JSXAutomaticTestOptions, co
 	})
 }
 
+func TestUnOp(t *testing.T) {
+	// This was important to someone for a very obscure reason. See
+	// https://github.com/evanw/esbuild/issues/4041 for more info.
+	expectPrinted(t, "let x; void 0; x", "let x;\nx;\n")
+	expectPrinted(t, "let x; void x; x", "let x;\nvoid x;\nx;\n")
+}
+
 func TestBinOp(t *testing.T) {
 	for code, entry := range js_ast.OpTable {
 		opCode := js_ast.OpCode(code)

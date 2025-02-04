@@ -14033,7 +14033,25 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 				}
 
 			case js_ast.UnOpVoid:
-				if p.astHelpers.ExprCanBeRemovedIfUnused(e.Value) {
+				var shouldRemove bool
+				if p.options.minifySyntax {
+					shouldRemove = p.astHelpers.ExprCanBeRemovedIfUnused(e.Value)
+				} else {
+					// This special case was added for a very obscure reason. There's a
+					// custom dialect of JavaScript called Svelte that uses JavaScript
+					// syntax with different semantics. Specifically variable accesses
+					// have side effects (!). And someone wants to use "void x" instead
+					// of just "x" to trigger the side effect for some reason.
+					//
+					// Arguably this should not be supported, because you shouldn't be
+					// running esbuild on weird kinda-JavaScript-but-not languages and
+					// expecting it to work correctly. But this one special case seems
+					// harmless enough. This is definitely not fully supported though.
+					//
+					// More info: https://github.com/evanw/esbuild/issues/4041
+					shouldRemove = isUnsightlyPrimitive(e.Value.Data)
+				}
+				if shouldRemove {
 					return js_ast.Expr{Loc: expr.Loc, Data: js_ast.EUndefinedShared}, exprOut{}
 				}
 
