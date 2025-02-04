@@ -3,6 +3,7 @@ const { buildBinary, removeRecursiveSync } = require('./esbuild')
 const childProcess = require('child_process')
 const path = require('path')
 const util = require('util')
+const url = require('url')
 const fs = require('fs').promises
 
 const execFileAsync = util.promisify(childProcess.execFile)
@@ -451,6 +452,32 @@ const toSearchNullSourcesContent = {
   bar: 'bar.ts',
 }
 
+const testCaseFileNameWithSpaces = {
+  'file name with spaces.js': `console . log ( "test" )`,
+}
+
+const toSearchFileNameWithSpaces = {
+  test: 'file name with spaces.js',
+}
+
+const testCaseAbsoluteSourceMappingURL = {
+  'entry.js': `console.log("test");
+//# sourceMappingURL=file://{ABSOLUTE_DIRECTORY_URL}/entry.js.map
+`,
+  'entry.js.map': `{
+  "version": 3,
+  "sources": ["input.js"],
+  "sourcesContent": ["console . log ( \\\"test\\\" )"],
+  "mappings": "AAAA,QAAU,IAAM,MAAO;",
+  "names": []
+}
+`,
+}
+
+const toSearchAbsoluteSourceMappingURL = {
+  test: 'input.js',
+}
+
 async function check(kind, testCase, toSearch, { outfile, flags, entryPoints, crlf, followUpFlags = [], checkFirstChunk }) {
   let failed = 0
 
@@ -469,6 +496,7 @@ async function check(kind, testCase, toSearch, { outfile, flags, entryPoints, cr
       if (name !== '<stdin>') {
         const tempPath = path.join(tempDir, name)
         let code = testCase[name]
+          .replace('{ABSOLUTE_DIRECTORY_URL}', encodeURI(tempDir))
         await fs.mkdir(path.dirname(tempPath), { recursive: true })
         if (crlf) code = code.replace(/\n/g, '\r\n')
         await fs.writeFile(tempPath, code)
@@ -512,7 +540,7 @@ async function check(kind, testCase, toSearch, { outfile, flags, entryPoints, cr
 
     else {
       outCode = await fs.readFile(path.join(tempDir, outfile), 'utf8')
-      recordCheck(outCode.includes(`# sourceMappingURL=${outfile}.map`), `${outfile} file must link to ${outfile}.map`)
+      recordCheck(outCode.includes(`# sourceMappingURL=${encodeURIComponent(outfile)}.map`), `${outfile} file must link to ${outfile}.map`)
       outCodeMap = await fs.readFile(path.join(tempDir, `${outfile}.map`), 'utf8')
     }
 
@@ -610,7 +638,7 @@ async function check(kind, testCase, toSearch, { outfile, flags, entryPoints, cr
       ].concat(followUpFlags), { cwd: testDir })
 
       const out2Code = await fs.readFile(path.join(tempDir, outfile2), 'utf8')
-      recordCheck(out2Code.includes(`# sourceMappingURL=${outfile2}.map`), `${outfile2} file must link to ${outfile2}.map`)
+      recordCheck(out2Code.includes(`# sourceMappingURL=${encodeURIComponent(outfile2)}.map`), `${outfile2} file must link to ${outfile2}.map`)
       const out2CodeMap = await fs.readFile(path.join(tempDir, `${outfile2}.map`), 'utf8')
 
       const out2Map = await new SourceMapConsumer(out2CodeMap)
@@ -664,7 +692,7 @@ async function checkNames(kind, testCase, { outfile, flags, entryPoints, crlf })
     })
 
     const outCode = await fs.readFile(path.join(tempDir, outfile), 'utf8')
-    recordCheck(outCode.includes(`# sourceMappingURL=${outfile}.map`), `${outfile} file must link to ${outfile}.map`)
+    recordCheck(outCode.includes(`# sourceMappingURL=${encodeURIComponent(outfile)}.map`), `${outfile} file must link to ${outfile}.map`)
     const outCodeMap = await fs.readFile(path.join(tempDir, `${outfile}.map`), 'utf8')
 
     // Check the mapping of various key locations back to the original source
@@ -752,7 +780,7 @@ async function checkNames(kind, testCase, { outfile, flags, entryPoints, crlf })
       ], { cwd: testDir })
 
       const out2Code = await fs.readFile(path.join(tempDir, outfile2), 'utf8')
-      recordCheck(out2Code.includes(`# sourceMappingURL=${outfile2}.map`), `${outfile2} file must link to ${outfile2}.map`)
+      recordCheck(out2Code.includes(`# sourceMappingURL=${encodeURIComponent(outfile2)}.map`), `${outfile2} file must link to ${outfile2}.map`)
       const out2CodeMap = await fs.readFile(path.join(tempDir, `${outfile2}.map`), 'utf8')
 
       const out2Map = await new SourceMapConsumer(out2CodeMap)
@@ -890,6 +918,18 @@ async function main() {
           outfile: 'out.js',
           flags: flags.concat('--bundle', '--jsx=automatic', '--jsx-dev', '--external:react/jsx-dev-runtime'),
           entryPoints: ['entry.jsx'],
+          crlf,
+        }),
+        check('file-name-with-spaces' + suffix, testCaseFileNameWithSpaces, toSearchFileNameWithSpaces, {
+          outfile: 'output name with spaces.js',
+          flags: flags.concat('--bundle'),
+          entryPoints: ['file name with spaces.js'],
+          crlf,
+        }),
+        check('absolute-source-mapping-url' + suffix, testCaseAbsoluteSourceMappingURL, toSearchAbsoluteSourceMappingURL, {
+          outfile: 'out.js',
+          flags: flags.concat('--bundle'),
+          entryPoints: ['entry.js'],
           crlf,
         }),
 

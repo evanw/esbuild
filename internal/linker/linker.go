@@ -13,6 +13,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"hash"
+	"net/url"
 	"path"
 	"sort"
 	"strconv"
@@ -719,10 +720,11 @@ func (c *linkerContext) generateChunksInParallel(additionalFiles []graph.OutputF
 				case config.SourceMapLinkedWithComment:
 					importPath := c.pathBetweenChunks(finalRelDir, finalRelPathForSourceMap)
 					importPath = strings.TrimPrefix(importPath, "./")
+					importURL := url.URL{Path: importPath}
 					outputContentsJoiner.EnsureNewlineAtEnd()
 					outputContentsJoiner.AddString(commentPrefix)
 					outputContentsJoiner.AddString("# sourceMappingURL=")
-					outputContentsJoiner.AddString(importPath)
+					outputContentsJoiner.AddString(importURL.EscapedPath())
 					outputContentsJoiner.AddString(commentSuffix)
 					outputContentsJoiner.AddString("\n")
 

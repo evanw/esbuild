@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 	"sync"
@@ -815,38 +816,86 @@ func extractSourceMapFromComment(
 ) (logger.Path, *string) {
 	// Support data URLs
 	if parsed, ok := resolver.ParseDataURL(comment.Text); ok {
-		if contents, err := parsed.DecodeData(); err == nil {
-			return logger.Path{Text: source.PrettyPath, IgnoredSuffix: "#sourceMappingURL"}, &contents
-		} else {
+		contents, err := parsed.DecodeData()
+		if err != nil {
 			log.AddID(logger.MsgID_SourceMap_UnsupportedSourceMapComment, logger.Warning, tracker, comment.Range,
 				fmt.Sprintf("Unsupported source map comment: %s", err.Error()))
 			return logger.Path{}, nil
 		}
+		return logger.Path{Text: source.PrettyPath, IgnoredSuffix: "#sourceMappingURL"}, &contents
 	}
 
-	// Relative path in a file with an absolute path
-	if absResolveDir != "" {
-		absPath := fs.Join(absResolveDir, comment.Text)
-		path := logger.Path{Text: absPath, Namespace: "file"}
-		contents, err, originalError := fsCache.ReadFile(fs, absPath)
-		if log.Level <= logger.LevelDebug && originalError != nil {
-			log.AddID(logger.MsgID_None, logger.Debug, tracker, comment.Range, fmt.Sprintf("Failed to read file %q: %s", resolver.PrettyPath(fs, path), originalError.Error()))
+	// Support file URLs of two forms:
+	//
+	//   Relative: "./foo.js.map"
+	//   Absolute: "file:///Users/User/Desktop/foo.js.map"
+	//
+	var absPath string
+	if commentURL, err := url.Parse(comment.Text); err != nil {
+		// Show a warning if the comment can't be parsed as a URL
+		log.AddID(logger.MsgID_SourceMap_UnsupportedSourceMapComment, logger.Warning, tracker, comment.Range,
+			fmt.Sprintf("Unsupported source map comment: %s", err.Error()))
+		return logger.Path{}, nil
+	} else if commentURL.Scheme != "" && commentURL.Scheme != "file" {
+		// URLs with schemes other than "file" are unsupported (e.g. "https"),
+		// but don't warn the user about this because it's not a bug they can fix
+		log.AddID(logger.MsgID_SourceMap_UnsupportedSourceMapComment, logger.Debug, tracker, comment.Range,
+			fmt.Sprintf("Unsupported source map comment: Unsupported URL scheme %q", commentURL.Scheme))
+		return logger.Path{}, nil
+	} else if commentURL.Host != "" && commentURL.Host != "localhost" {
+		// File URLs with hosts are unsupported (e.g. "file://foo.js.map")
+		log.AddID(logger.MsgID_SourceMap_UnsupportedSourceMapComment, logger.Warning, tracker, comment.Range,
+			fmt.Sprintf("Unsupported source map comment: Unsupported host %q in file URL", commentURL.Host))
+		return logger.Path{}, nil
+	} else if commentURL.Scheme == "file" && strings.HasPrefix(commentURL.Path, "/") {
+		// Handle absolute file URLs
+		absPath = commentURL.Path
+	} else if absResolveDir == "" {
+		// Fail if plugins don't set a resolve directory
+		log.AddID(logger.MsgID_SourceMap_UnsupportedSourceMapComment, logger.Debug, tracker, comment.Range,
+			"Unsupported source map comment: Cannot resolve relative URL without a resolve directory")
+		return logger.Path{}, nil
+	} else {
+		// Append a trailing slash so that resolving the URL includes the trailing
+		// directory, and turn Windows-style paths with volumes into URL-style paths:
+		//
+		//   "/Users/User/Desktop" => "/Users/User/Desktop/"
+		//   "C:\\Users\\User\\Desktop" => "/C:/Users/User/Desktop/"
+		//
+		absResolveDir = strings.ReplaceAll(absResolveDir, "\\", "/")
+		if !strings.HasPrefix(absResolveDir, "/") {
+			absResolveDir = fmt.Sprintf("/%s/", absResolveDir)
+		} else {
+			absResolveDir += "/"
 		}
-		if err != nil {
-			kind := logger.Warning
-			if err == syscall.ENOENT {
-				// Don't report a warning because this is likely unactionable
-				kind = logger.Debug
-			}
-			log.AddID(logger.MsgID_SourceMap_MissingSourceMap, kind, tracker, comment.Range,
-				fmt.Sprintf("Cannot read file %q: %s", resolver.PrettyPath(fs, path), err.Error()))
-			return logger.Path{}, nil
-		}
+
+		// Join the (potentially relative) URL path from the comment text
+		// to the resolve directory path to form the final absolute path
+		absResolveURL := url.URL{Scheme: "file", Path: absResolveDir}
+		absPath = absResolveURL.ResolveReference(commentURL).Path
+	}
+
+	// Convert URL-style paths back into Windows-style paths if needed:
+	//
+	//   "/C:/Users/User/foo.js.map" => "C:/Users/User/foo.js.map"
+	//
+	if !strings.HasPrefix(fs.Cwd(), "/") {
+		absPath = strings.TrimPrefix(absPath, "/")
+	}
+
+	// Try to read the file contents
+	path := logger.Path{Text: absPath, Namespace: "file"}
+	if contents, err, _ := fsCache.ReadFile(fs, absPath); err == syscall.ENOENT {
+		log.AddID(logger.MsgID_SourceMap_MissingSourceMap, logger.Debug, tracker, comment.Range,
+			fmt.Sprintf("Cannot read file: %s", absPath))
+		return logger.Path{}, nil
+	} else if err != nil {
+		log.AddID(logger.MsgID_SourceMap_MissingSourceMap, logger.Warning, tracker, comment.Range,
+			fmt.Sprintf("Cannot read file %q: %s", resolver.PrettyPath(fs, path), err.Error()))
+		return logger.Path{}, nil
+	} else {
 		return path, &contents
 	}
-
-	// Anything else is unsupported
-	return logger.Path{}, nil
 }
 
 func sanitizeLocation(fs fs.FS, loc *logger.MsgLocation) {
@@ -1127,19 +1176,16 @@ func runOnLoadPlugins(
 
 	// Read normal modules from disk
 	if source.KeyPath.Namespace == "file" {
-		if contents, err, originalError := fsCache.ReadFile(fs, source.KeyPath.Text); err == nil {
+		if contents, err, _ := fsCache.ReadFile(fs, source.KeyPath.Text); err == nil {
 			source.Contents = contents
 			return loaderPluginResult{
 				loader:        config.LoaderDefault,
 				absResolveDir: fs.Dir(source.KeyPath.Text),
 			}, true
 		} else {
-			if log.Level <= logger.LevelDebug && originalError != nil {
-				log.AddID(logger.MsgID_None, logger.Debug, nil, logger.Range{}, fmt.Sprintf("Failed to read file %q: %s", source.KeyPath.Text, originalError.Error()))
-			}
 			if err == syscall.ENOENT {
 				log.AddError(&tracker, importPathRange,
-					fmt.Sprintf("Could not read from file: %s", source.KeyPath.Text))
+					fmt.Sprintf("Cannot read file: %s", source.KeyPath.Text))
 				return loaderPluginResult{}, false
 			} else {
 				log.AddError(&tracker, importPathRange,
