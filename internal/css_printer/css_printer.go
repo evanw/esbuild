@@ -459,9 +459,9 @@ func (p *printer) printCompoundSelector(sel css_ast.CompoundSelector, isFirst bo
 		p.printNamespacedName(*sel.TypeSelector, whitespace)
 	}
 
-	if sel.HasNestingSelector() {
+	for _, loc := range sel.NestingSelectorLocs {
 		if p.options.AddSourceMappings {
-			p.builder.AddSourceMapping(logger.Loc{Start: int32(sel.NestingSelectorLoc.GetIndex())}, "", p.css)
+			p.builder.AddSourceMapping(loc, "", p.css)
 		}
 
 		p.print("&")

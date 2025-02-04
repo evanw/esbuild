@@ -3,7 +3,6 @@ package css_parser
 import (
 	"fmt"
 
-	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/css_ast"
 	"github.com/evanw/esbuild/internal/logger"
@@ -123,7 +122,7 @@ func (p *parser) lowerNestingInRuleWithContext(rule css_ast.Rule, context *lower
 
 			// Inject the implicit "&" now for simplicity later on
 			if sel.IsRelative() {
-				sel.Selectors = append([]css_ast.CompoundSelector{{NestingSelectorLoc: ast.MakeIndex32(uint32(rule.Loc.Start))}}, sel.Selectors...)
+				sel.Selectors = append([]css_ast.CompoundSelector{{NestingSelectorLocs: []logger.Loc{rule.Loc}}}, sel.Selectors...)
 			}
 		}
 
@@ -288,9 +287,7 @@ func (p *parser) substituteAmpersandsInCompoundSelector(
 	results []css_ast.CompoundSelector,
 	strip leadingCombinatorStrip,
 ) []css_ast.CompoundSelector {
-	if sel.HasNestingSelector() {
-		nestingSelectorLoc := logger.Loc{Start: int32(sel.NestingSelectorLoc.GetIndex())}
-		sel.NestingSelectorLoc = ast.Index32{}
+	for _, nestingSelectorLoc := range sel.NestingSelectorLocs {
 		replacement := replacementFn(nestingSelectorLoc)
 
 		// Convert the replacement to a single compound selector
@@ -351,6 +348,7 @@ func (p *parser) substituteAmpersandsInCompoundSelector(
 			sel.SubclassSelectors = append(subclassSelectorPrefix, sel.SubclassSelectors...)
 		}
 	}
+	sel.NestingSelectorLocs = nil
 
 	// "div { :is(&.foo) {} }" => ":is(div.foo) {}"
 	for _, ss := range sel.SubclassSelectors {

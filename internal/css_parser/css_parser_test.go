@@ -1049,7 +1049,7 @@ func TestNestedSelector(t *testing.T) {
 	expectPrinted(t, "a { &a|b {} }", "a {\n  &a|b {\n  }\n}\n", "<stdin>: WARNING: Cannot use type selector \"a|b\" directly after nesting selector \"&\"\n"+sassWarningWrap)
 	expectPrinted(t, "a { &[b] {} }", "a {\n  &[b] {\n  }\n}\n", "")
 
-	expectPrinted(t, "a { && {} }", "a {\n  & {\n  }\n}\n", "")
+	expectPrinted(t, "a { && {} }", "a {\n  && {\n  }\n}\n", "")
 	expectPrinted(t, "a { & + & {} }", "a {\n  & + & {\n  }\n}\n", "")
 	expectPrinted(t, "a { & > & {} }", "a {\n  & > & {\n  }\n}\n", "")
 	expectPrinted(t, "a { & ~ & {} }", "a {\n  & ~ & {\n  }\n}\n", "")
@@ -1141,12 +1141,13 @@ func TestNestedSelector(t *testing.T) {
 
 	// Inline no-op nesting
 	expectPrintedMangle(t, "div { & { color: red } }", "div {\n  color: red;\n}\n", "")
-	expectPrintedMangle(t, "div { && { color: red } }", "div {\n  color: red;\n}\n", "")
+	expectPrintedMangle(t, "div { && { color: red } }", "div {\n  && {\n    color: red;\n  }\n}\n", "")
 	expectPrintedMangle(t, "div { zoom: 2; & { color: red } }", "div {\n  zoom: 2;\n  color: red;\n}\n", "")
-	expectPrintedMangle(t, "div { zoom: 2; && { color: red } }", "div {\n  zoom: 2;\n  color: red;\n}\n", "")
-	expectPrintedMangle(t, "div { &, && { color: red } zoom: 2 }", "div {\n  zoom: 2;\n  color: red;\n}\n", "")
-	expectPrintedMangle(t, "div { &&, & { color: red } zoom: 2 }", "div {\n  zoom: 2;\n  color: red;\n}\n", "")
-	expectPrintedMangle(t, "div { a: 1; & { b: 4 } b: 2; && { c: 5 } c: 3 }", "div {\n  a: 1;\n  b: 2;\n  c: 3;\n  b: 4;\n  c: 5;\n}\n", "")
+	expectPrintedMangle(t, "div { zoom: 2; && { color: red } }", "div {\n  zoom: 2;\n  && {\n    color: red;\n  }\n}\n", "")
+	expectPrintedMangle(t, "div { &, & { color: red } zoom: 2 }", "div {\n  zoom: 2;\n  color: red;\n}\n", "")
+	expectPrintedMangle(t, "div { &, && { color: red } zoom: 2 }", "div {\n  &,\n  && {\n    color: red;\n  }\n  zoom: 2;\n}\n", "")
+	expectPrintedMangle(t, "div { &&, & { color: red } zoom: 2 }", "div {\n  &&,\n  & {\n    color: red;\n  }\n  zoom: 2;\n}\n", "")
+	expectPrintedMangle(t, "div { a: 1; & { b: 4 } b: 2; && { c: 5 } c: 3 }", "div {\n  a: 1;\n  b: 2;\n  && {\n    c: 5;\n  }\n  c: 3;\n  b: 4;\n}\n", "")
 	expectPrintedMangle(t, "div { .b { x: 1 } & { x: 2 } }", "div {\n  .b {\n    x: 1;\n  }\n  x: 2;\n}\n", "")
 	expectPrintedMangle(t, "div { & { & { & { color: red } } & { & { zoom: 2 } } } }", "div {\n  color: red;\n  zoom: 2;\n}\n", "")
 
@@ -1261,6 +1262,24 @@ func TestNestedSelector(t *testing.T) {
 	expectPrintedLowerUnsupported(t, nesting, ".demo { .lg { &.triangle, &.circle { color: red } } }", ".demo .lg.triangle,\n.demo .lg.circle {\n  color: red;\n}\n", "")
 	expectPrintedLowerUnsupported(t, nesting, ".demo { .lg { .triangle, .circle { color: red } } }", ".demo .lg .triangle,\n.demo .lg .circle {\n  color: red;\n}\n", "")
 	expectPrintedLowerUnsupported(t, nesting, ".card { .featured & & & { color: red } }", ".featured .card .card .card {\n  color: red;\n}\n", "")
+
+	// Duplicate "&" may be used to increase specificity
+	expectPrintedLowerUnsupported(t, nesting, ".foo { &&&.bar { color: red } }", ".foo.foo.foo.bar {\n  color: red;\n}\n", "")
+	expectPrintedLowerUnsupported(t, nesting, ".foo { &&& .bar { color: red } }", ".foo.foo.foo .bar {\n  color: red;\n}\n", "")
+	expectPrintedLowerUnsupported(t, nesting, ".foo { .bar&&& { color: red } }", ".foo.foo.foo.bar {\n  color: red;\n}\n", "")
+	expectPrintedLowerUnsupported(t, nesting, ".foo { .bar &&& { color: red } }", ".bar .foo.foo.foo {\n  color: red;\n}\n", "")
+	expectPrintedLowerUnsupported(t, nesting, ".foo { &.bar&.baz& { color: red } }", ".foo.foo.foo.bar.baz {\n  color: red;\n}\n", "")
+	expectPrintedLowerUnsupported(t, nesting, "a { &&&.bar { color: red } }", "a:is(a):is(a).bar {\n  color: red;\n}\n", "")
+	expectPrintedLowerUnsupported(t, nesting, "a { &&& .bar { color: red } }", "a:is(a):is(a) .bar {\n  color: red;\n}\n", "")
+	expectPrintedLowerUnsupported(t, nesting, "a { .bar&&& { color: red } }", "a:is(a):is(a).bar {\n  color: red;\n}\n", "")
+	expectPrintedLowerUnsupported(t, nesting, "a { .bar &&& { color: red } }", ".bar a:is(a):is(a) {\n  color: red;\n}\n", "")
+	expectPrintedLowerUnsupported(t, nesting, "a { &.bar&.baz& { color: red } }", "a:is(a):is(a).bar.baz {\n  color: red;\n}\n", "")
+	expectPrintedLowerUnsupported(t, nesting, "a, b { &&&.bar { color: red } }", ":is(a, b):is(a, b):is(a, b).bar {\n  color: red;\n}\n", "")
+	expectPrintedLowerUnsupported(t, nesting, "a, b { &&& .bar { color: red } }", ":is(a, b):is(a, b):is(a, b) .bar {\n  color: red;\n}\n", "")
+	expectPrintedLowerUnsupported(t, nesting, "a, b { .bar&&& { color: red } }", ":is(a, b):is(a, b):is(a, b).bar {\n  color: red;\n}\n", "")
+	expectPrintedLowerUnsupported(t, nesting, "a, b { .bar &&& { color: red } }", ".bar :is(a, b):is(a, b):is(a, b) {\n  color: red;\n}\n", "")
+	expectPrintedLowerUnsupported(t, nesting, "a, b { &.bar&.baz& { color: red } }", ":is(a, b):is(a, b):is(a, b).bar.baz {\n  color: red;\n}\n", "")
+	expectPrintedLowerUnsupported(t, nesting, ".foo { &, &&.bar, &&& .baz { color: red } }", ".foo,\n.foo.foo.bar,\n.foo.foo.foo .baz {\n  color: red;\n}\n", "")
 
 	// These are invalid SASS-style nested suffixes
 	expectPrintedLower(t, ".card { &--header { color: red } }", ".card {\n  &--header {\n    color: red;\n  }\n}\n",

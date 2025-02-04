@@ -6,7 +6,7 @@
 
     It has been requested for esbuild to delete files when a build fails in watch mode. Previously esbuild left the old files in place, which could cause people to not immediately realize that the most recent build failed. With this release, esbuild will now delete all output files if a rebuild fails. Fixing the build error and triggering another rebuild will restore all output files again.
 
-* Fix correctness issues with the CSS nesting transform ([#3620](https://github.com/evanw/esbuild/issues/3620), [#4037](https://github.com/evanw/esbuild/pull/4037))
+* Fix correctness issues with the CSS nesting transform ([#3620](https://github.com/evanw/esbuild/issues/3620), [#3997](https://github.com/evanw/esbuild/issues/3997), [#4037](https://github.com/evanw/esbuild/pull/4037), [#4038](https://github.com/evanw/esbuild/pull/4038))
 
     This release fixes the following problems:
 
@@ -34,6 +34,34 @@
         ```
 
         Thanks to [@tim-we](https://github.com/tim-we) for working on a fix.
+
+    * The `&` CSS nesting selector can be repeated multiple times to increase CSS specificity. Previously esbuild ignored this possibility and incorrectly considered `&&` to have the same specificity as `&`. With this release, this should now work correctly:
+
+        ```css
+        /* Original code (color should be red) */
+        div {
+          && { color: red }
+          & { color: blue }
+        }
+
+        /* Old output (with --supported:nesting=false) */
+        div {
+          color: red;
+        }
+        div {
+          color: blue;
+        }
+
+        /* New output (with --supported:nesting=false) */
+        div:is(div) {
+          color: red;
+        }
+        div {
+          color: blue;
+        }
+        ```
+
+        Thanks to [@CPunisher](https://github.com/CPunisher) for working on a fix.
 
 * Fix incorrect package for `@esbuild/netbsd-arm64` ([#4018](https://github.com/evanw/esbuild/issues/4018))
 

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/css_ast"
 	"github.com/evanw/esbuild/internal/css_lexer"
 	"github.com/evanw/esbuild/internal/logger"
@@ -82,7 +81,7 @@ func (p *parser) parseSelectorList(opts parseSelectorOpts) (list []css_ast.Compl
 
 		case canRemoveLeadingAmpersandIfNotFirst:
 			for i := 1; i < len(list); i++ {
-				if sel := list[i].Selectors[0]; !sel.HasNestingSelector() && (sel.Combinator.Byte != 0 || sel.TypeSelector == nil) {
+				if sel := list[i].Selectors[0]; len(sel.NestingSelectorLocs) == 0 && (sel.Combinator.Byte != 0 || sel.TypeSelector == nil) {
 					list[0].Selectors = list[0].Selectors[1:]
 					list[0], list[i] = list[i], list[0]
 					break
@@ -97,8 +96,8 @@ func (p *parser) parseSelectorList(opts parseSelectorOpts) (list []css_ast.Compl
 
 func mergeCompoundSelectors(target *css_ast.CompoundSelector, source css_ast.CompoundSelector) {
 	// ".foo:local(&)" => "&.foo"
-	if source.HasNestingSelector() && !target.HasNestingSelector() {
-		target.NestingSelectorLoc = source.NestingSelectorLoc
+	if len(source.NestingSelectorLocs) > 0 && len(target.NestingSelectorLocs) == 0 {
+		target.NestingSelectorLocs = source.NestingSelectorLocs
 	}
 
 	if source.TypeSelector != nil {
@@ -210,7 +209,7 @@ func (p *parser) flattenLocalAndGlobalSelectors(list []css_ast.ComplexSelector, 
 		if len(selectors) == 0 {
 			// Treat a bare ":global" or ":local" as a bare "&" nesting selector
 			selectors = append(selectors, css_ast.CompoundSelector{
-				NestingSelectorLoc:        ast.MakeIndex32(uint32(sel.Selectors[0].Range().Loc.Start)),
+				NestingSelectorLocs:       []logger.Loc{sel.Selectors[0].Range().Loc},
 				WasEmptyFromLocalOrGlobal: true,
 			})
 
@@ -235,7 +234,7 @@ const (
 func analyzeLeadingAmpersand(sel css_ast.ComplexSelector, isDeclarationContext bool) leadingAmpersand {
 	if len(sel.Selectors) > 1 {
 		if first := sel.Selectors[0]; first.IsSingleAmpersand() {
-			if second := sel.Selectors[1]; second.Combinator.Byte == 0 && second.HasNestingSelector() {
+			if second := sel.Selectors[1]; second.Combinator.Byte == 0 && len(second.NestingSelectorLocs) > 0 {
 				// ".foo { & &.bar {} }" => ".foo { & &.bar {} }"
 			} else if second.Combinator.Byte != 0 || second.TypeSelector == nil || !isDeclarationContext {
 				// "& + div {}" => "+ div {}"
@@ -330,7 +329,7 @@ func (p *parser) parseCompoundSelector(opts parseComplexSelectorOpts) (sel css_a
 	hasLeadingNestingSelector := p.peek(css_lexer.TDelimAmpersand)
 	if hasLeadingNestingSelector {
 		p.nestingIsPresent = true
-		sel.NestingSelectorLoc = ast.MakeIndex32(uint32(startLoc.Start))
+		sel.NestingSelectorLocs = append(sel.NestingSelectorLocs, startLoc)
 		p.advance()
 	}
 
@@ -445,7 +444,7 @@ subclassSelectors:
 		case css_lexer.TDelimAmpersand:
 			// This is an extension: https://drafts.csswg.org/css-nesting-1/
 			p.nestingIsPresent = true
-			sel.NestingSelectorLoc = ast.MakeIndex32(uint32(subclassToken.Range.Loc.Start))
+			sel.NestingSelectorLocs = append(sel.NestingSelectorLocs, subclassToken.Range.Loc)
 			p.advance()
 
 		default:

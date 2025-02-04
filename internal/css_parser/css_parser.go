@@ -898,7 +898,7 @@ var nonDeprecatedElementsSupportedByIE7 = map[string]bool{
 func isSafeSelectors(complexSelectors []css_ast.ComplexSelector) bool {
 	for _, complex := range complexSelectors {
 		for _, compound := range complex.Selectors {
-			if compound.HasNestingSelector() {
+			if len(compound.NestingSelectorLocs) > 0 {
 				// Bail because this is an extension: https://drafts.csswg.org/css-nesting-1/
 				return false
 			}
@@ -2088,8 +2088,8 @@ func (p *parser) parseSelectorRule(isTopLevel bool, opts parseSelectorOpts) css_
 						composesContext.problemRange = logger.Range{Loc: first.Combinator.Loc, Len: 1}
 					} else if first.TypeSelector != nil {
 						composesContext.problemRange = first.TypeSelector.Range()
-					} else if first.HasNestingSelector() {
-						composesContext.problemRange = logger.Range{Loc: logger.Loc{Start: int32(first.NestingSelectorLoc.GetIndex())}, Len: 1}
+					} else if len(first.NestingSelectorLocs) > 0 {
+						composesContext.problemRange = logger.Range{Loc: first.NestingSelectorLocs[0], Len: 1}
 					} else {
 						for i, ss := range first.SubclassSelectors {
 							class, ok := ss.Data.(*css_ast.SSClass)
