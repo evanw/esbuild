@@ -451,7 +451,7 @@ const toSearchNullSourcesContent = {
   bar: 'bar.ts',
 }
 
-async function check(kind, testCase, toSearch, { ext, flags, entryPoints, crlf, followUpFlags = [], checkChunk }) {
+async function check(kind, testCase, toSearch, { outfile, flags, entryPoints, crlf, followUpFlags = [], checkFirstChunk }) {
   let failed = 0
 
   try {
@@ -475,6 +475,7 @@ async function check(kind, testCase, toSearch, { ext, flags, entryPoints, crlf, 
       }
     }
 
+    if (outfile && !flags.some(flag => flag.startsWith('--outdir='))) flags.push('--outfile=' + outfile)
     const args = ['--sourcemap', '--log-level=warning'].concat(flags)
     const isStdin = '<stdin>' in testCase
     let stdout = ''
@@ -491,14 +492,13 @@ async function check(kind, testCase, toSearch, { ext, flags, entryPoints, crlf, 
 
     let outCode
     let outCodeMap
-    let outPrefix = 'out'
 
     // Optionally check the first chunk when splitting
-    if (checkChunk && flags.includes('--splitting')) {
+    if (checkFirstChunk && flags.includes('--splitting')) {
       const entries = await fs.readdir(tempDir)
       for (const entry of entries.sort()) {
         if (entry.startsWith('chunk-')) {
-          outPrefix = entry.slice(0, entry.indexOf('.'))
+          outfile = entry
           break
         }
       }
@@ -506,14 +506,14 @@ async function check(kind, testCase, toSearch, { ext, flags, entryPoints, crlf, 
 
     if (isStdin) {
       outCode = stdout
-      recordCheck(outCode.includes(`# sourceMappingURL=data:application/json;base64,`), `.${ext} file must contain source map`)
+      recordCheck(outCode.includes(`# sourceMappingURL=data:application/json;base64,`), `stdin must contain source map`)
       outCodeMap = Buffer.from(outCode.slice(outCode.indexOf('base64,') + 'base64,'.length).trim(), 'base64').toString()
     }
 
     else {
-      outCode = await fs.readFile(path.join(tempDir, `${outPrefix}.${ext}`), 'utf8')
-      recordCheck(outCode.includes(`# sourceMappingURL=${outPrefix}.${ext}.map`), `.${ext} file must link to .${ext}.map`)
-      outCodeMap = await fs.readFile(path.join(tempDir, `${outPrefix}.${ext}.map`), 'utf8')
+      outCode = await fs.readFile(path.join(tempDir, outfile), 'utf8')
+      recordCheck(outCode.includes(`# sourceMappingURL=${outfile}.map`), `${outfile} file must link to ${outfile}.map`)
+      outCodeMap = await fs.readFile(path.join(tempDir, `${outfile}.map`), 'utf8')
     }
 
     // Check the mapping of various key locations back to the original source
@@ -591,26 +591,27 @@ async function check(kind, testCase, toSearch, { ext, flags, entryPoints, crlf, 
 
     // Bundle again to test nested source map chaining
     for (let order of [0, 1, 2]) {
-      const fileToTest = isStdin ? `stdout.${ext}` : `${outPrefix}.${ext}`
-      const nestedEntry = path.join(tempDir, `nested-entry.${ext}`)
-      if (isStdin) await fs.writeFile(path.join(tempDir, fileToTest), outCode)
-      await fs.writeFile(path.join(tempDir, `extra.${ext}`), `console.log('extra')`)
-      const importKeyword = ext === 'css' ? '@import' : 'import'
+      const infile = isStdin ? `stdout.js` : outfile
+      const outfile2 = 'nested.' + infile
+      const nestedEntry = path.join(tempDir, `nested-entry.${infile}`)
+      if (isStdin) await fs.writeFile(path.join(tempDir, infile), outCode)
+      await fs.writeFile(path.join(tempDir, `extra.${infile}`), `console.log('extra')`)
+      const importKeyword = path.extname(infile) === '.css' ? '@import' : 'import'
       await fs.writeFile(nestedEntry,
-        order === 1 ? `${importKeyword} './${fileToTest}'; ${importKeyword} './extra.${ext}'` :
-          order === 2 ? `${importKeyword} './extra.${ext}'; ${importKeyword} './${fileToTest}'` :
-            `${importKeyword} './${fileToTest}'`)
+        order === 1 ? `${importKeyword} './${infile}'; ${importKeyword} './extra.${infile}'` :
+          order === 2 ? `${importKeyword} './extra.${infile}'; ${importKeyword} './${infile}'` :
+            `${importKeyword} './${infile}'`)
       await execFileAsync(esbuildPath, [
         nestedEntry,
         '--bundle',
-        '--outfile=' + path.join(tempDir, `out2.${ext}`),
+        '--outfile=' + path.join(tempDir, outfile2),
         '--sourcemap',
         '--format=esm',
       ].concat(followUpFlags), { cwd: testDir })
 
-      const out2Code = await fs.readFile(path.join(tempDir, `out2.${ext}`), 'utf8')
-      recordCheck(out2Code.includes(`# sourceMappingURL=out2.${ext}.map`), `.${ext} file must link to .${ext}.map`)
-      const out2CodeMap = await fs.readFile(path.join(tempDir, `out2.${ext}.map`), 'utf8')
+      const out2Code = await fs.readFile(path.join(tempDir, outfile2), 'utf8')
+      recordCheck(out2Code.includes(`# sourceMappingURL=${outfile2}.map`), `${outfile2} file must link to ${outfile2}.map`)
+      const out2CodeMap = await fs.readFile(path.join(tempDir, `${outfile2}.map`), 'utf8')
 
       const out2Map = await new SourceMapConsumer(out2CodeMap)
       checkMap(out2Code, out2Map)
@@ -627,7 +628,7 @@ async function check(kind, testCase, toSearch, { ext, flags, entryPoints, crlf, 
   return failed
 }
 
-async function checkNames(kind, testCase, { ext, flags, entryPoints, crlf }) {
+async function checkNames(kind, testCase, { outfile, flags, entryPoints, crlf }) {
   let failed = 0
 
   try {
@@ -649,6 +650,7 @@ async function checkNames(kind, testCase, { ext, flags, entryPoints, crlf }) {
       await fs.writeFile(tempPath, code)
     }
 
+    if (outfile) flags.push('--outfile=' + outfile)
     const args = ['--sourcemap', '--log-level=warning'].concat(flags)
     let stdout = ''
 
@@ -661,9 +663,9 @@ async function checkNames(kind, testCase, { ext, flags, entryPoints, crlf }) {
       child.on('error', reject)
     })
 
-    const outCode = await fs.readFile(path.join(tempDir, `out.${ext}`), 'utf8')
-    recordCheck(outCode.includes(`# sourceMappingURL=out.${ext}.map`), `.${ext} file must link to .${ext}.map`)
-    const outCodeMap = await fs.readFile(path.join(tempDir, `out.${ext}.map`), 'utf8')
+    const outCode = await fs.readFile(path.join(tempDir, outfile), 'utf8')
+    recordCheck(outCode.includes(`# sourceMappingURL=${outfile}.map`), `${outfile} file must link to ${outfile}.map`)
+    const outCodeMap = await fs.readFile(path.join(tempDir, `${outfile}.map`), 'utf8')
 
     // Check the mapping of various key locations back to the original source
     const checkMap = (out, map) => {
@@ -734,23 +736,24 @@ async function checkNames(kind, testCase, { ext, flags, entryPoints, crlf }) {
 
     // Bundle again to test nested source map chaining
     for (let order of [0, 1, 2]) {
-      const fileToTest = `out.${ext}`
-      const nestedEntry = path.join(tempDir, `nested-entry.${ext}`)
-      await fs.writeFile(path.join(tempDir, `extra.${ext}`), `console.log('extra')`)
+      const infile = outfile
+      const outfile2 = 'nested.' + infile
+      const nestedEntry = path.join(tempDir, `nested-entry.${infile}`)
+      await fs.writeFile(path.join(tempDir, `extra.${infile}`), `console.log('extra')`)
       await fs.writeFile(nestedEntry,
-        order === 1 ? `import './${fileToTest}'; import './extra.${ext}'` :
-          order === 2 ? `import './extra.${ext}'; import './${fileToTest}'` :
-            `import './${fileToTest}'`)
+        order === 1 ? `import './${infile}'; import './extra.${infile}'` :
+          order === 2 ? `import './extra.${infile}'; import './${infile}'` :
+            `import './${infile}'`)
       await execFileAsync(esbuildPath, [
         nestedEntry,
         '--bundle',
-        '--outfile=' + path.join(tempDir, `out2.${ext}`),
+        '--outfile=' + path.join(tempDir, outfile2),
         '--sourcemap',
       ], { cwd: testDir })
 
-      const out2Code = await fs.readFile(path.join(tempDir, `out2.${ext}`), 'utf8')
-      recordCheck(out2Code.includes(`# sourceMappingURL=out2.${ext}.map`), `.${ext} file must link to .${ext}.map`)
-      const out2CodeMap = await fs.readFile(path.join(tempDir, `out2.${ext}.map`), 'utf8')
+      const out2Code = await fs.readFile(path.join(tempDir, outfile2), 'utf8')
+      recordCheck(out2Code.includes(`# sourceMappingURL=${outfile2}.map`), `${outfile2} file must link to ${outfile2}.map`)
+      const out2CodeMap = await fs.readFile(path.join(tempDir, `${outfile2}.map`), 'utf8')
 
       const out2Map = await new SourceMapConsumer(out2CodeMap)
       checkMap(out2Code, out2Map)
@@ -775,165 +778,163 @@ async function main() {
       const suffix = (crlf ? '-crlf' : '') + (minify ? '-min' : '')
       promises.push(
         check('commonjs' + suffix, testCaseCommonJS, toSearchBundle, {
-          ext: 'js',
-          flags: flags.concat('--outfile=out.js', '--bundle'),
+          outfile: 'out.js',
+          flags: flags.concat('--bundle'),
           entryPoints: ['a.js'],
           crlf,
         }),
         check('es6' + suffix, testCaseES6, toSearchBundle, {
-          ext: 'js',
-          flags: flags.concat('--outfile=out.js', '--bundle'),
+          outfile: 'out.js',
+          flags: flags.concat('--bundle'),
           entryPoints: ['a.js'],
           crlf,
         }),
         check('discontiguous' + suffix, testCaseDiscontiguous, toSearchBundle, {
-          ext: 'js',
-          flags: flags.concat('--outfile=out.js', '--bundle'),
+          outfile: 'out.js',
+          flags: flags.concat('--bundle'),
           entryPoints: ['a.js'],
           crlf,
         }),
         check('ts' + suffix, testCaseTypeScriptRuntime, toSearchNoBundleTS, {
-          ext: 'js',
-          flags: flags.concat('--outfile=out.js'),
+          outfile: 'out.js',
+          flags,
           entryPoints: ['a.ts'],
           crlf,
         }),
         check('stdin-stdout' + suffix, testCaseStdin, toSearchNoBundle, {
-          ext: 'js',
           flags: flags.concat('--sourcefile=<stdin>'),
           entryPoints: [],
           crlf,
         }),
         check('empty' + suffix, testCaseEmptyFile, toSearchEmptyFile, {
-          ext: 'js',
-          flags: flags.concat('--outfile=out.js', '--bundle'),
+          outfile: 'out.js',
+          flags: flags.concat('--bundle'),
           entryPoints: ['entry.js'],
           crlf,
         }),
         check('non-js' + suffix, testCaseNonJavaScriptFile, toSearchNonJavaScriptFile, {
-          ext: 'js',
-          flags: flags.concat('--outfile=out.js', '--bundle'),
+          outfile: 'out.js',
+          flags: flags.concat('--bundle'),
           entryPoints: ['entry.js'],
           crlf,
         }),
         check('splitting' + suffix, testCaseCodeSplitting, toSearchCodeSplitting, {
-          ext: 'js',
+          outfile: 'out.js',
           flags: flags.concat('--outdir=.', '--bundle', '--splitting', '--format=esm'),
           entryPoints: ['out.ts', 'other.ts'],
           crlf,
         }),
         check('unicode' + suffix, testCaseUnicode, toSearchUnicode, {
-          ext: 'js',
-          flags: flags.concat('--outfile=out.js', '--bundle', '--charset=utf8'),
+          outfile: 'out.js',
+          flags: flags.concat('--bundle', '--charset=utf8'),
           entryPoints: ['entry.js'],
           crlf,
         }),
         check('unicode-globalName' + suffix, testCaseUnicode, toSearchUnicode, {
-          ext: 'js',
-          flags: flags.concat('--outfile=out.js', '--bundle', '--global-name=πππ', '--charset=utf8'),
+          outfile: 'out.js',
+          flags: flags.concat('--bundle', '--global-name=πππ', '--charset=utf8'),
           entryPoints: ['entry.js'],
           crlf,
         }),
         check('dummy' + suffix, testCasePartialMappings, toSearchPartialMappings, {
-          ext: 'js',
-          flags: flags.concat('--outfile=out.js', '--bundle'),
+          outfile: 'out.js',
+          flags: flags.concat('--bundle'),
           entryPoints: ['entry.js'],
           crlf,
         }),
         check('dummy' + suffix, testCasePartialMappingsPercentEscape, toSearchPartialMappings, {
-          ext: 'js',
-          flags: flags.concat('--outfile=out.js', '--bundle'),
+          outfile: 'out.js',
+          flags: flags.concat('--bundle'),
           entryPoints: ['entry.js'],
           crlf,
         }),
         check('banner-footer' + suffix, testCaseES6, toSearchBundle, {
-          ext: 'js',
-          flags: flags.concat('--outfile=out.js', '--bundle', '--banner:js="/* LICENSE abc */"', '--footer:js="/* end of file banner */"'),
+          outfile: 'out.js',
+          flags: flags.concat('--bundle', '--banner:js="/* LICENSE abc */"', '--footer:js="/* end of file banner */"'),
           entryPoints: ['a.js'],
           crlf,
         }),
         check('complex' + suffix, testCaseComplex, toSearchComplex, {
-          ext: 'js',
-          flags: flags.concat('--outfile=out.js', '--bundle', '--define:process.env.NODE_ENV="production"'),
+          outfile: 'out.js',
+          flags: flags.concat('--bundle', '--define:process.env.NODE_ENV="production"'),
           entryPoints: ['entry.js'],
           crlf,
         }),
         check('dynamic-import' + suffix, testCaseDynamicImport, toSearchDynamicImport, {
-          ext: 'js',
-          flags: flags.concat('--outfile=out.js', '--bundle', '--external:./ext/*', '--format=esm'),
+          outfile: 'out.js',
+          flags: flags.concat('--bundle', '--external:./ext/*', '--format=esm'),
           entryPoints: ['entry.js'],
           crlf,
           followUpFlags: ['--external:./ext/*', '--format=esm'],
         }),
         check('dynamic-require' + suffix, testCaseDynamicImport, toSearchDynamicImport, {
-          ext: 'js',
-          flags: flags.concat('--outfile=out.js', '--bundle', '--external:./ext/*', '--format=cjs'),
+          outfile: 'out.js',
+          flags: flags.concat('--bundle', '--external:./ext/*', '--format=cjs'),
           entryPoints: ['entry.js'],
           crlf,
           followUpFlags: ['--external:./ext/*', '--format=cjs'],
         }),
         check('bundle-css' + suffix, testCaseBundleCSS, toSearchBundleCSS, {
-          ext: 'css',
-          flags: flags.concat('--outfile=out.css', '--bundle'),
+          outfile: 'out.css',
+          flags: flags.concat('--bundle'),
           entryPoints: ['entry.css'],
           crlf,
         }),
         check('jsx-runtime' + suffix, testCaseJSXRuntime, toSearchJSXRuntime, {
-          ext: 'js',
-          flags: flags.concat('--outfile=out.js', '--bundle', '--jsx=automatic', '--external:react/jsx-runtime'),
+          outfile: 'out.js',
+          flags: flags.concat('--bundle', '--jsx=automatic', '--external:react/jsx-runtime'),
           entryPoints: ['entry.jsx'],
           crlf,
         }),
         check('jsx-dev-runtime' + suffix, testCaseJSXRuntime, toSearchJSXRuntime, {
-          ext: 'js',
-          flags: flags.concat('--outfile=out.js', '--bundle', '--jsx=automatic', '--jsx-dev', '--external:react/jsx-dev-runtime'),
+          outfile: 'out.js',
+          flags: flags.concat('--bundle', '--jsx=automatic', '--jsx-dev', '--external:react/jsx-dev-runtime'),
           entryPoints: ['entry.jsx'],
           crlf,
         }),
 
         // Checks for the "names" field
         checkNames('names' + suffix, testCaseNames, {
-          ext: 'js',
-          flags: flags.concat('--outfile=out.js', '--bundle'),
+          outfile: 'out.js',
+          flags: flags.concat('--bundle'),
           entryPoints: ['entry.js'],
           crlf,
         }),
         checkNames('names-mangle' + suffix, testCaseNames, {
-          ext: 'js',
-          flags: flags.concat('--outfile=out.js', '--bundle', '--mangle-props=^mangle_$'),
+          outfile: 'out.js',
+          flags: flags.concat('--bundle', '--mangle-props=^mangle_$'),
           entryPoints: ['entry.js'],
           crlf,
         }),
         checkNames('names-mangle-quoted' + suffix, testCaseNames, {
-          ext: 'js',
-          flags: flags.concat('--outfile=out.js', '--bundle', '--mangle-props=^mangle_$', '--mangle-quoted'),
+          outfile: 'out.js',
+          flags: flags.concat('--bundle', '--mangle-props=^mangle_$', '--mangle-quoted'),
           entryPoints: ['entry.js'],
           crlf,
         }),
 
         // Checks for loading missing "sourcesContent" in nested source maps
         check('missing-sources-content' + suffix, testCaseMissingSourcesContent, toSearchMissingSourcesContent, {
-          ext: 'js',
-          flags: flags.concat('--outfile=out.js', '--bundle'),
+          outfile: 'out.js',
+          flags: flags.concat('--bundle'),
           entryPoints: ['foo.js'],
           crlf,
         }),
 
         // Checks for null entries in "sourcesContent" in nested source maps
         check('null-sources-content' + suffix, testCaseNullSourcesContent, toSearchNullSourcesContent, {
-          ext: 'js',
-          flags: flags.concat('--outfile=out.js', '--bundle'),
+          outfile: 'out.js',
+          flags: flags.concat('--bundle'),
           entryPoints: ['foo.js'],
           crlf,
         }),
 
         // This checks for issues with files in a bundle that don't emit source maps
         check('splitting-empty' + suffix, testCaseCodeSplittingEmptyFile, toSearchCodeSplittingEmptyFile, {
-          ext: 'js',
           flags: flags.concat('--outdir=.', '--bundle', '--splitting', '--format=esm'),
           entryPoints: ['entry1.ts', 'entry2.ts'],
           crlf,
-          checkChunk: true,
+          checkFirstChunk: true,
         })
       )
     }
