@@ -2860,14 +2860,14 @@ func TestConstantFolding(t *testing.T) {
 
 	expectPrinted(t, "x = 1 === 1", "x = true;\n")
 	expectPrinted(t, "x = 1 === 2", "x = false;\n")
-	expectPrinted(t, "x = 1 === '1'", "x = 1 === \"1\";\n")
+	expectPrinted(t, "x = 1 === '1'", "x = false;\n")
 	expectPrinted(t, "x = 1 == 1", "x = true;\n")
 	expectPrinted(t, "x = 1 == 2", "x = false;\n")
 	expectPrinted(t, "x = 1 == '1'", "x = 1 == \"1\";\n")
 
 	expectPrinted(t, "x = 1 !== 1", "x = false;\n")
 	expectPrinted(t, "x = 1 !== 2", "x = true;\n")
-	expectPrinted(t, "x = 1 !== '1'", "x = 1 !== \"1\";\n")
+	expectPrinted(t, "x = 1 !== '1'", "x = true;\n")
 	expectPrinted(t, "x = 1 != 1", "x = false;\n")
 	expectPrinted(t, "x = 1 != 2", "x = true;\n")
 	expectPrinted(t, "x = 1 != '1'", "x = 1 != \"1\";\n")
@@ -2932,6 +2932,8 @@ func TestConstantFolding(t *testing.T) {
 	expectPrinted(t, "x = 0n !== 1n", "x = true;\n")
 	expectPrinted(t, "x = 0n !== 0n", "x = false;\n")
 	expectPrinted(t, "x = 123n === 1_2_3n", "x = true;\n")
+	expectPrinted(t, "x = 0n === '1n'", "x = false;\n")
+	expectPrinted(t, "x = 0n !== '1n'", "x = true;\n")
 
 	expectPrinted(t, "x = 0n === 0b0n", "x = 0n === 0b0n;\n")
 	expectPrinted(t, "x = 0n === 0o0n", "x = 0n === 0o0n;\n")

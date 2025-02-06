@@ -1496,6 +1496,12 @@ func CheckEqualityIfNoSideEffects(left E, right E, kind EqualityKind) (equal boo
 		case *ENull, *EUndefined:
 			// "(not null or undefined) == undefined" is false
 			return false, true
+
+		default:
+			if kind == StrictEquality && IsPrimitiveLiteral(right) {
+				// "boolean === (not boolean)" is false
+				return false, true
+			}
 		}
 
 	case *ENumber:
@@ -1523,6 +1529,12 @@ func CheckEqualityIfNoSideEffects(left E, right E, kind EqualityKind) (equal boo
 		case *ENull, *EUndefined:
 			// "(not null or undefined) == undefined" is false
 			return false, true
+
+		default:
+			if kind == StrictEquality && IsPrimitiveLiteral(right) {
+				// "number === (not number)" is false
+				return false, true
+			}
 		}
 
 	case *EBigInt:
@@ -1535,6 +1547,12 @@ func CheckEqualityIfNoSideEffects(left E, right E, kind EqualityKind) (equal boo
 		case *ENull, *EUndefined:
 			// "(not null or undefined) == undefined" is false
 			return false, true
+
+		default:
+			if kind == StrictEquality && IsPrimitiveLiteral(right) {
+				// "bigint === (not bigint)" is false
+				return false, true
+			}
 		}
 
 	case *EString:
@@ -1547,6 +1565,12 @@ func CheckEqualityIfNoSideEffects(left E, right E, kind EqualityKind) (equal boo
 		case *ENull, *EUndefined:
 			// "(not null or undefined) == undefined" is false
 			return false, true
+
+		default:
+			if kind == StrictEquality && IsPrimitiveLiteral(right) {
+				// "string === (not string)" is false
+				return false, true
+			}
 		}
 	}
 
