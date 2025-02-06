@@ -28,6 +28,9 @@ let mustBeRegExp = (value: RegExp | undefined): string | null =>
 let mustBeInteger = (value: number | undefined): string | null =>
   typeof value === 'number' && value === (value | 0) ? null : 'an integer'
 
+let mustBeValidPortNumber = (value: number | undefined): string | null =>
+  typeof value === 'number' && value === (value | 0) && value >= 0 && value <= 0xFFFF ? null : 'a valid port number'
+
 let mustBeFunction = (value: Function | undefined): string | null =>
   typeof value === 'function' ? null : 'a function'
 
@@ -1091,7 +1094,7 @@ function buildOrContextImpl(
         serve: (options = {}) => new Promise((resolve, reject) => {
           if (!streamIn.hasFS) throw new Error(`Cannot use the "serve" API in this environment`)
           const keys: OptionKeys = {}
-          const port = getFlag(options, keys, 'port', mustBeInteger)
+          const port = getFlag(options, keys, 'port', mustBeValidPortNumber)
           const host = getFlag(options, keys, 'host', mustBeString)
           const servedir = getFlag(options, keys, 'servedir', mustBeString)
           const keyfile = getFlag(options, keys, 'keyfile', mustBeString)

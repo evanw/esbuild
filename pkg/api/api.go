@@ -472,7 +472,7 @@ func Transform(input string, options TransformOptions) TransformResult {
 
 // Documentation: https://esbuild.github.io/api/#serve-arguments
 type ServeOptions struct {
-	Port      uint16
+	Port      int
 	Host      string
 	Servedir  string
 	Keyfile   string

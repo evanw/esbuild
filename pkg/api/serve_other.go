@@ -773,7 +773,11 @@ func (ctx *internalContext) Serve(serveOptions ServeOptions) (ServeResult, error
 	}
 	if listener == nil {
 		// Otherwise pick the provided port
-		if result, err := net.Listen(network, net.JoinHostPort(host, fmt.Sprintf("%d", serveOptions.Port))); err != nil {
+		port := serveOptions.Port
+		if port < 0 || port > 0xFFFF {
+			port = 0 // Pick a random port if the provided port is out of range
+		}
+		if result, err := net.Listen(network, net.JoinHostPort(host, fmt.Sprintf("%d", port))); err != nil {
 			return ServeResult{}, err
 		} else {
 			listener = result

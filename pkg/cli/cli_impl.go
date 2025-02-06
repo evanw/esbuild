@@ -1370,7 +1370,7 @@ func runImpl(osArgs []string, plugins []api.Plugin) int {
 
 func parseServeOptionsImpl(osArgs []string) (api.ServeOptions, []string, error) {
 	host := ""
-	portText := "0"
+	portText := ""
 	servedir := ""
 	keyfile := ""
 	certfile := ""
@@ -1397,8 +1397,8 @@ func parseServeOptionsImpl(osArgs []string) (api.ServeOptions, []string, error) 
 	}
 
 	// Specifying the host is optional
+	var err error
 	if strings.ContainsRune(portText, ':') {
-		var err error
 		host, portText, err = net.SplitHostPort(portText)
 		if err != nil {
 			return api.ServeOptions{}, nil, err
@@ -1406,16 +1406,24 @@ func parseServeOptionsImpl(osArgs []string) (api.ServeOptions, []string, error) 
 	}
 
 	// Parse the port
-	port, err := strconv.ParseInt(portText, 10, 32)
-	if err != nil {
-		return api.ServeOptions{}, nil, err
-	}
-	if port < 0 || port > 0xFFFF {
-		return api.ServeOptions{}, nil, fmt.Errorf("Invalid port number: %s", portText)
+	var port int64
+	if portText != "" {
+		port, err = strconv.ParseInt(portText, 10, 32)
+		if err != nil {
+			return api.ServeOptions{}, nil, err
+		}
+		if port < 0 || port > 0xFFFF {
+			return api.ServeOptions{}, nil, fmt.Errorf("Invalid port number: %s", portText)
+		}
+		if port == 0 {
+			// 0 is the default value in Go, which we interpret as "try to
+			// pick port 8000". So Go uses -1 as the sentinel value instead.
+			port = -1
+		}
 	}
 
 	return api.ServeOptions{
-		Port:     uint16(port),
+		Port:     int(port),
 		Host:     host,
 		Servedir: servedir,
 		Keyfile:  keyfile,
