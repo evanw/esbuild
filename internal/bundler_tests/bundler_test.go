@@ -125,6 +125,9 @@ func (s *suite) __expectBundledImpl(t *testing.T, args bundled, fsKind fs.MockKi
 		if args.absWorkingDir == "" {
 			args.absWorkingDir = "/"
 		}
+		if args.options.AbsOutputDir == "" {
+			args.options.AbsOutputDir = args.absWorkingDir // Match the behavior of the API in this case
+		}
 
 		// Handle conversion to Windows-style paths
 		if fsKind == fs.MockWindows {

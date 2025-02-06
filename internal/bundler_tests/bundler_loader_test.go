@@ -1299,7 +1299,8 @@ func TestWithTypeJSONOverrideLoader(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			Mode: config.ModeBundle,
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
 		},
 	})
 }
@@ -1314,7 +1315,8 @@ func TestWithTypeJSONOverrideLoaderGlob(t *testing.T) {
 		},
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
-			Mode: config.ModeBundle,
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
 		},
 	})
 }
@@ -1383,6 +1385,7 @@ func TestEmptyLoaderJS(t *testing.T) {
 				".js":    config.LoaderJS,
 				".empty": config.LoaderEmpty,
 			},
+			AbsOutputFile: "/out.js",
 		},
 		expectedCompileLog: `entry.js: WARNING: Import "named" will always be undefined because the file "d.empty" has no exports
 `,
@@ -1408,6 +1411,7 @@ func TestEmptyLoaderCSS(t *testing.T) {
 				".css":   config.LoaderCSS,
 				".empty": config.LoaderEmpty,
 			},
+			AbsOutputFile: "/out.js",
 		},
 	})
 }
@@ -1427,6 +1431,7 @@ func TestExtensionlessLoaderJS(t *testing.T) {
 				".js": config.LoaderJS,
 				"":    config.LoaderJS,
 			},
+			AbsOutputFile: "/out.js",
 		},
 	})
 }
@@ -1446,6 +1451,7 @@ func TestExtensionlessLoaderCSS(t *testing.T) {
 				".css": config.LoaderCSS,
 				"":     config.LoaderCSS,
 			},
+			AbsOutputFile: "/out.js",
 		},
 	})
 }

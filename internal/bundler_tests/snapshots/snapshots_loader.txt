@@ -12,7 +12,7 @@ console.log(require_test());
 
 ================================================================================
 TestEmptyLoaderCSS
----------- entry.css.map ----------
+---------- /out.js.map ----------
 {
   "version": 3,
   "sources": ["entry.css"],
@@ -21,7 +21,7 @@ TestEmptyLoaderCSS
   "names": []
 }
 
----------- entry.css ----------
+---------- /out.js ----------
 /* entry.css */
 a {
   background: url();
@@ -54,13 +54,13 @@ a {
     }
   },
   "outputs": {
-    "entry.css.map": {
+    "out.js.map": {
       "imports": [],
       "exports": [],
       "inputs": {},
       "bytes": 203
     },
-    "entry.css": {
+    "out.js": {
       "imports": [
         {
           "path": "",
@@ -81,7 +81,7 @@ a {
 
 ================================================================================
 TestEmptyLoaderJS
----------- entry.js.map ----------
+---------- /out.js.map ----------
 {
   "version": 3,
   "sources": ["entry.js"],
@@ -90,7 +90,7 @@ TestEmptyLoaderJS
   "names": ["def"]
 }
 
----------- entry.js ----------
+---------- /out.js ----------
 // b.empty
 var require_b = __commonJS({
   "b.empty"() {
@@ -154,13 +154,13 @@ console.log(ns, import_c.default, void 0);
     }
   },
   "outputs": {
-    "entry.js.map": {
+    "out.js.map": {
       "imports": [],
       "exports": [],
       "inputs": {},
       "bytes": 377
     },
-    "entry.js": {
+    "out.js": {
       "imports": [],
       "exports": [],
       "entryPoint": "entry.js",
@@ -182,7 +182,7 @@ console.log(ns, import_c.default, void 0);
 
 ================================================================================
 TestExtensionlessLoaderCSS
----------- entry.css ----------
+---------- /out.js ----------
 /* what */
 .foo {
   color: red;
@@ -192,7 +192,7 @@ TestExtensionlessLoaderCSS
 
 ================================================================================
 TestExtensionlessLoaderJS
----------- entry.js ----------
+---------- /out.js ----------
 // what
 foo();
 
@@ -1115,7 +1115,7 @@ console.log(require_test());
 
 ================================================================================
 TestWithTypeJSONOverrideLoader
----------- entry.js ----------
+---------- /out.js ----------
 // foo.js
 var foo_default = { "this is json not js": true };
 
@@ -1124,7 +1124,7 @@ console.log(foo_default);
 
 ================================================================================
 TestWithTypeJSONOverrideLoaderGlob
----------- entry.js ----------
+---------- /out.js ----------
 // foo.js
 var foo_exports = {};
 __export(foo_exports, {
