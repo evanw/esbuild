@@ -645,16 +645,10 @@ func parseFile(args parseArgs) {
 						// Attempt to fill in null entries using the file system
 						for i, source := range sourceMap.Sources {
 							if sourceMap.SourcesContent[i].Value == nil {
-								var absPath string
-								if args.fs.IsAbs(source) {
-									absPath = source
-								} else if path.Namespace == "file" {
-									absPath = args.fs.Join(args.fs.Dir(path.Text), source)
-								} else {
-									continue
-								}
-								if contents, err, _ := args.caches.FSCache.ReadFile(args.fs, absPath); err == nil {
-									sourceMap.SourcesContent[i].Value = helpers.StringToUTF16(contents)
+								if sourceURL, err := url.Parse(source); err == nil && helpers.IsFileURL(sourceURL) {
+									if contents, err, _ := args.caches.FSCache.ReadFile(args.fs, helpers.FilePathFromFileURL(args.fs, sourceURL)); err == nil {
+										sourceMap.SourcesContent[i].Value = helpers.StringToUTF16(contents)
+									}
 								}
 							}
 						}
@@ -847,40 +841,22 @@ func extractSourceMapFromComment(
 		log.AddID(logger.MsgID_SourceMap_UnsupportedSourceMapComment, logger.Warning, tracker, comment.Range,
 			fmt.Sprintf("Unsupported source map comment: Unsupported host %q in file URL", commentURL.Host))
 		return logger.Path{}, nil
-	} else if commentURL.Scheme == "file" && strings.HasPrefix(commentURL.Path, "/") {
+	} else if helpers.IsFileURL(commentURL) {
 		// Handle absolute file URLs
-		absPath = commentURL.Path
+		absPath = helpers.FilePathFromFileURL(fs, commentURL)
 	} else if absResolveDir == "" {
 		// Fail if plugins don't set a resolve directory
 		log.AddID(logger.MsgID_SourceMap_UnsupportedSourceMapComment, logger.Debug, tracker, comment.Range,
 			"Unsupported source map comment: Cannot resolve relative URL without a resolve directory")
 		return logger.Path{}, nil
 	} else {
-		// Append a trailing slash so that resolving the URL includes the trailing
-		// directory, and turn Windows-style paths with volumes into URL-style paths:
-		//
-		//   "/Users/User/Desktop" => "/Users/User/Desktop/"
-		//   "C:\\Users\\User\\Desktop" => "/C:/Users/User/Desktop/"
-		//
-		absResolveDir = strings.ReplaceAll(absResolveDir, "\\", "/")
-		if !strings.HasPrefix(absResolveDir, "/") {
-			absResolveDir = fmt.Sprintf("/%s/", absResolveDir)
-		} else {
-			absResolveDir += "/"
-		}
-
 		// Join the (potentially relative) URL path from the comment text
 		// to the resolve directory path to form the final absolute path
-		absResolveURL := url.URL{Scheme: "file", Path: absResolveDir}
-		absPath = absResolveURL.ResolveReference(commentURL).Path
-	}
-
-	// Convert URL-style paths back into Windows-style paths if needed:
-	//
-	//   "/C:/Users/User/foo.js.map" => "C:/Users/User/foo.js.map"
-	//
-	if !strings.HasPrefix(fs.Cwd(), "/") {
-		absPath = strings.TrimPrefix(absPath, "/")
+		absResolveURL := helpers.FileURLFromFilePath(absResolveDir)
+		if !strings.HasSuffix(absResolveURL.Path, "/") {
+			absResolveURL.Path += "/"
+		}
+		absPath = helpers.FilePathFromFileURL(fs, absResolveURL.ResolveReference(commentURL))
 	}
 
 	// Try to read the file contents

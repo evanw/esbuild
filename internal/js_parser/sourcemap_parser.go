@@ -2,7 +2,9 @@ package js_parser
 
 import (
 	"fmt"
+	"net/url"
 	"sort"
+	"strings"
 
 	"github.com/evanw/esbuild/internal/ast"
 	"github.com/evanw/esbuild/internal/helpers"
@@ -26,10 +28,12 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 	}
 
 	var sources []string
+	var sourcesArray []js_ast.Expr
 	var sourcesContent []sourcemap.SourceContent
 	var names []string
 	var mappingsRaw []uint16
 	var mappingsStart int32
+	var sourceRoot string
 	hasVersion := false
 
 	for _, prop := range obj.Properties {
@@ -51,14 +55,18 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 				mappingsStart = prop.ValueOrNil.Loc.Start + 1
 			}
 
+		case "sourceRoot":
+			if value, ok := prop.ValueOrNil.Data.(*js_ast.EString); ok {
+				sourceRoot = helpers.UTF16ToString(value.Value)
+			}
+
 		case "sources":
 			if value, ok := prop.ValueOrNil.Data.(*js_ast.EArray); ok {
-				sources = []string{}
-				for _, item := range value.Items {
+				sources = make([]string, len(value.Items))
+				sourcesArray = value.Items
+				for i, item := range value.Items {
 					if element, ok := item.Data.(*js_ast.EString); ok {
-						sources = append(sources, helpers.UTF16ToString(element.Value))
-					} else {
-						sources = append(sources, "")
+						sources[i] = helpers.UTF16ToString(element.Value)
 					}
 				}
 			}
@@ -254,6 +262,44 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 		// because almost all source map generators always write out mappings in
 		// order as they write the output instead of scrambling the order.
 		sort.Stable(mappings)
+	}
+
+	// Try resolving relative source URLs into absolute source URLs.
+	// See https://tc39.es/ecma426/#resolving-sources for details.
+	var sourceURLPrefix string
+	var baseURL *url.URL
+	if sourceRoot != "" {
+		if index := strings.LastIndexByte(sourceRoot, '/'); index != -1 {
+			sourceURLPrefix = sourceRoot[:index+1]
+		} else {
+			sourceURLPrefix = sourceRoot + "/"
+		}
+	}
+	if source.KeyPath.Namespace == "file" {
+		baseURL = helpers.FileURLFromFilePath(source.KeyPath.Text)
+	}
+	for i, sourcePath := range sources {
+		if sourcePath == "" {
+			continue // Skip null entries
+		}
+		sourcePath = sourceURLPrefix + sourcePath
+		sourceURL, err := url.Parse(sourcePath)
+
+		// Report URL parse errors (such as "%XY" being an invalid escape)
+		if err != nil {
+			if urlErr, ok := err.(*url.Error); ok {
+				err = urlErr.Err // Use the underlying error to reduce noise
+			}
+			log.AddID(logger.MsgID_SourceMap_InvalidSourceURL, logger.Warning, &tracker, source.RangeOfString(sourcesArray[i].Loc),
+				fmt.Sprintf("Invalid source URL: %s", err.Error()))
+			continue
+		}
+
+		// Resolve this URL relative to the enclosing directory
+		if baseURL != nil {
+			sourceURL = baseURL.ResolveReference(sourceURL)
+		}
+		sources[i] = sourceURL.String()
 	}
 
 	return &sourcemap.SourceMap{

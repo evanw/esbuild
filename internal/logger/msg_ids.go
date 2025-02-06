@@ -69,8 +69,9 @@ const (
 
 	// Source maps
 	MsgID_SourceMap_InvalidSourceMappings
-	MsgID_SourceMap_SectionsInSourceMap
+	MsgID_SourceMap_InvalidSourceURL
 	MsgID_SourceMap_MissingSourceMap
+	MsgID_SourceMap_SectionsInSourceMap
 	MsgID_SourceMap_UnsupportedSourceMapComment
 
 	// package.json
@@ -207,10 +208,12 @@ func StringToMsgIDs(str string, logLevel LogLevel, overrides map[MsgID]LogLevel)
 	// Source maps
 	case "invalid-source-mappings":
 		overrides[MsgID_SourceMap_InvalidSourceMappings] = logLevel
-	case "sections-in-source-map":
-		overrides[MsgID_SourceMap_SectionsInSourceMap] = logLevel
+	case "invalid-source-url":
+		overrides[MsgID_SourceMap_InvalidSourceURL] = logLevel
 	case "missing-source-map":
 		overrides[MsgID_SourceMap_MissingSourceMap] = logLevel
+	case "sections-in-source-map":
+		overrides[MsgID_SourceMap_SectionsInSourceMap] = logLevel
 	case "unsupported-source-map-comment":
 		overrides[MsgID_SourceMap_UnsupportedSourceMapComment] = logLevel
 
@@ -341,10 +344,12 @@ func MsgIDToString(id MsgID) string {
 	// Source maps
 	case MsgID_SourceMap_InvalidSourceMappings:
 		return "invalid-source-mappings"
-	case MsgID_SourceMap_SectionsInSourceMap:
-		return "sections-in-source-map"
+	case MsgID_SourceMap_InvalidSourceURL:
+		return "invalid-source-url"
 	case MsgID_SourceMap_MissingSourceMap:
 		return "missing-source-map"
+	case MsgID_SourceMap_SectionsInSourceMap:
+		return "sections-in-source-map"
 	case MsgID_SourceMap_UnsupportedSourceMapComment:
 		return "unsupported-source-map-comment"
 

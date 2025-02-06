@@ -1,6 +1,11 @@
 package helpers
 
-import "strings"
+import (
+	"net/url"
+	"strings"
+
+	"github.com/evanw/esbuild/internal/fs"
+)
 
 func IsInsideNodeModules(path string) bool {
 	for {
@@ -19,4 +24,38 @@ func IsInsideNodeModules(path string) bool {
 		}
 		path = dir
 	}
+}
+
+func IsFileURL(fileURL *url.URL) bool {
+	return fileURL.Scheme == "file" && (fileURL.Host == "" || fileURL.Host == "localhost") && strings.HasPrefix(fileURL.Path, "/")
+}
+
+func FileURLFromFilePath(filePath string) *url.URL {
+	// Append a trailing slash so that resolving the URL includes the trailing
+	// directory, and turn Windows-style paths with volumes into URL-style paths:
+	//
+	//   "/Users/User/Desktop" => "/Users/User/Desktop/"
+	//   "C:\\Users\\User\\Desktop" => "/C:/Users/User/Desktop/"
+	//
+	filePath = strings.ReplaceAll(filePath, "\\", "/")
+	if !strings.HasPrefix(filePath, "/") {
+		filePath = "/" + filePath
+	}
+
+	return &url.URL{Scheme: "file", Path: filePath}
+}
+
+func FilePathFromFileURL(fs fs.FS, fileURL *url.URL) string {
+	path := fileURL.Path
+
+	// Convert URL-style paths back into Windows-style paths if needed:
+	//
+	//   "/C:/Users/User/foo.js.map" => "C:\\Users\\User\\foo.js.map"
+	//
+	if !strings.HasPrefix(fs.Cwd(), "/") {
+		path = strings.TrimPrefix(path, "/")
+		path = strings.ReplaceAll(path, "/", "\\") // This is needed for "filepath.Rel()" to work
+	}
+
+	return path
 }

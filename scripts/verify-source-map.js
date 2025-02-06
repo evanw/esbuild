@@ -278,8 +278,8 @@ const testCaseComplex = {
 }
 
 const toSearchComplex = {
-  '[object Array]': '../../node_modules/fuse.js/dist/webpack:/src/helpers/is_array.js',
-  'Score average:': '../../node_modules/fuse.js/dist/webpack:/src/index.js',
+  '[object Array]': 'webpack:///src/helpers/is_array.js',
+  'Score average:': 'webpack:///src/index.js',
   '0123456789': '../../node_modules/object-assign/index.js',
   'forceUpdate': '../../node_modules/react/cjs/react.production.min.js',
 };
@@ -421,7 +421,7 @@ console.log({ foo })
 }
 
 const toSearchMissingSourcesContent = {
-  bar: 'src/foo.ts',
+  bar: 'maps/src/foo.ts',
 }
 
 // The "null" should be filled in by the contents of "bar.ts"
@@ -462,7 +462,7 @@ const toSearchFileNameWithSpaces = {
 
 const testCaseAbsoluteSourceMappingURL = {
   'entry.js': `console.log("test");
-//# sourceMappingURL=file://{ABSOLUTE_DIRECTORY_URL}/entry.js.map
+//# sourceMappingURL={ABSOLUTE_FILE_URL}/entry.js.map
 `,
   'entry.js.map': `{
   "version": 3,
@@ -475,6 +475,24 @@ const testCaseAbsoluteSourceMappingURL = {
 }
 
 const toSearchAbsoluteSourceMappingURL = {
+  test: 'input.js',
+}
+
+const testCaseAbsoluteSourcesURL = {
+  'entry.js': `console.log("test");
+//# sourceMappingURL=entry.js.map
+`,
+  'entry.js.map': `{
+  "version": 3,
+  "sources": ["{ABSOLUTE_FILE_URL}/input.js"],
+  "sourcesContent": ["console . log ( \\\"test\\\" )"],
+  "mappings": "AAAA,QAAU,IAAM,MAAO;",
+  "names": []
+}
+`,
+}
+
+const toSearchAbsoluteSourcesURL = {
   test: 'input.js',
 }
 
@@ -496,7 +514,10 @@ async function check(kind, testCase, toSearch, { outfile, flags, entryPoints, cr
       if (name !== '<stdin>') {
         const tempPath = path.join(tempDir, name)
         let code = testCase[name]
-          .replace('{ABSOLUTE_DIRECTORY_URL}', encodeURI(tempDir))
+
+        // Make it possible to test absolute "file://" URLs
+        code = code.replace('{ABSOLUTE_FILE_URL}', url.pathToFileURL(tempDir).href)
+
         await fs.mkdir(path.dirname(tempPath), { recursive: true })
         if (crlf) code = code.replace(/\n/g, '\r\n')
         await fs.writeFile(tempPath, code)
@@ -555,8 +576,8 @@ async function check(kind, testCase, toSearch, { outfile, flags, entryPoints, cr
         let outColumn = outLastLine.length
         const { source, line, column } = map.originalPositionFor({ line: outLine, column: outColumn })
 
-        const inSource = isStdin ? '<stdin>' : toSearch[id];
-        recordCheck(source === inSource, `expected source: ${inSource}, observed source: ${source}`)
+        const inSource = isStdin ? '<stdin>' : toSearch[id]
+        recordCheck(decodeURI(source) === inSource, `expected source: ${inSource}, observed source: ${source}`)
 
         const inCode = map.sourceContentFor(source)
         if (inCode === null) throw new Error(`Got null for source content for "${source}"`)
@@ -927,6 +948,12 @@ async function main() {
           crlf,
         }),
         check('absolute-source-mapping-url' + suffix, testCaseAbsoluteSourceMappingURL, toSearchAbsoluteSourceMappingURL, {
+          outfile: 'out.js',
+          flags: flags.concat('--bundle'),
+          entryPoints: ['entry.js'],
+          crlf,
+        }),
+        check('absolute-sources-url' + suffix, testCaseAbsoluteSourcesURL, toSearchAbsoluteSourcesURL, {
           outfile: 'out.js',
           flags: flags.concat('--bundle'),
           entryPoints: ['entry.js'],
