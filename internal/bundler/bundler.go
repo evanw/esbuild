@@ -190,7 +190,7 @@ func parseFile(args parseArgs) {
 
 	// The special "default" loader determines the loader from the file path
 	if loader == config.LoaderDefault {
-		loader = loaderFromFileExtension(args.options.ExtensionToLoader, base+ext)
+		loader = config.LoaderFromFileExtension(args.options.ExtensionToLoader, base+ext)
 	}
 
 	// Reject unsupported import attributes when the loader isn't "copy" (since
@@ -1197,30 +1197,6 @@ func runOnLoadPlugins(
 
 	// Otherwise, fail to load the path
 	return loaderPluginResult{loader: config.LoaderNone}, true
-}
-
-func loaderFromFileExtension(extensionToLoader map[string]config.Loader, base string) config.Loader {
-	// Pick the loader with the longest matching extension. So if there's an
-	// extension for ".css" and for ".module.css", we want to match the one for
-	// ".module.css" before the one for ".css".
-	if i := strings.IndexByte(base, '.'); i != -1 {
-		for {
-			if loader, ok := extensionToLoader[base[i:]]; ok {
-				return loader
-			}
-			base = base[i+1:]
-			i = strings.IndexByte(base, '.')
-			if i == -1 {
-				break
-			}
-		}
-	} else {
-		// If there's no extension, explicitly check for an extensionless loader
-		if loader, ok := extensionToLoader[""]; ok {
-			return loader
-		}
-	}
-	return config.LoaderNone
 }
 
 // Identify the path by its lowercase absolute path name with Windows-specific

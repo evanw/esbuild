@@ -9206,3 +9206,43 @@ func TestSourceIdentifierNameIndexMultipleEntry(t *testing.T) {
 		},
 	})
 }
+
+func TestResolveExtensionsOrderIssue4053(t *testing.T) {
+	css_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import test from "./Test"
+				import image from "expo-image"
+				console.log(test === 'Test.web.tsx')
+				console.log(image === 'Image.web.tsx')
+			`,
+			"/Test.web.tsx": `export default 'Test.web.tsx'`,
+			"/Test.tsx":     `export default 'Test.tsx'`,
+			"/node_modules/expo-image/index.js": `
+				export { default } from "./Image"
+			`,
+			"/node_modules/expo-image/Image.web.tsx": `export default 'Image.web.tsx'`,
+			"/node_modules/expo-image/Image.tsx":     `export default 'Image.tsx'`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			ExtensionOrder: []string{
+				".web.mjs",
+				".mjs",
+				".web.js",
+				".js",
+				".web.mts",
+				".mts",
+				".web.ts",
+				".ts",
+				".web.jsx",
+				".jsx",
+				".web.tsx",
+				".tsx",
+				".json",
+			},
+		},
+	})
+}

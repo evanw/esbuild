@@ -256,6 +256,30 @@ func (loader Loader) CanHaveSourceMap() bool {
 	return false
 }
 
+func LoaderFromFileExtension(extensionToLoader map[string]Loader, base string) Loader {
+	// Pick the loader with the longest matching extension. So if there's an
+	// extension for ".css" and for ".module.css", we want to match the one for
+	// ".module.css" before the one for ".css".
+	if i := strings.IndexByte(base, '.'); i != -1 {
+		for {
+			if loader, ok := extensionToLoader[base[i:]]; ok {
+				return loader
+			}
+			base = base[i+1:]
+			i = strings.IndexByte(base, '.')
+			if i == -1 {
+				break
+			}
+		}
+	} else {
+		// If there's no extension, explicitly check for an extensionless loader
+		if loader, ok := extensionToLoader[""]; ok {
+			return loader
+		}
+	}
+	return LoaderNone
+}
+
 type Format uint8
 
 const (
