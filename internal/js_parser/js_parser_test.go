@@ -2776,6 +2776,43 @@ func TestSwitch(t *testing.T) {
 	expectPrinted(t, "switch (x) { default: }", "switch (x) {\n  default:\n}\n")
 	expectPrinted(t, "switch ((x => x + 1)(0)) { case 1: var y } y = 2", "switch (((x) => x + 1)(0)) {\n  case 1:\n    var y;\n}\ny = 2;\n")
 	expectParseError(t, "switch (x) { default: default: }", "<stdin>: ERROR: Multiple default clauses are not allowed\n")
+
+	expectPrintedMangle(t, "switch (x) {}", "x;\n")
+	expectPrintedMangle(t, "switch (x) { case x: a(); break; case y: b(); break }", "switch (x) {\n  case x:\n    a();\n    break;\n  case y:\n    b();\n    break;\n}\n")
+
+	expectPrintedMangle(t, "switch (0) { default: a() }", "a();\n")
+	expectPrintedMangle(t, "switch (x) { default: a() }", "switch (x) {\n  default:\n    a();\n}\n")
+
+	expectPrintedMangle(t, "switch (0) { case 0: a(); break; case 1: b(); break }", "a();\n")
+	expectPrintedMangle(t, "switch (1) { case 0: a(); break; case 1: b(); break }", "b();\n")
+	expectPrintedMangle(t, "switch (2) { case 0: a(); break; case 1: b(); break }", "")
+
+	expectPrintedMangle(t, "switch (0) { case 0: a(); case 1: b(); break }", "switch (0) {\n  case 0:\n    a();\n  case 1:\n    b();\n    break;\n}\n")
+	expectPrintedMangle(t, "switch (1) { case 0: a(); case 1: b(); break }", "b();\n")
+	expectPrintedMangle(t, "switch (2) { case 0: a(); case 1: b(); break }", "")
+
+	expectPrintedMangle(t, "switch (0) { case 0: a(); break; default: b(); break }", "a();\n")
+	expectPrintedMangle(t, "switch (1) { case 0: a(); break; default: b(); break }", "b();\n")
+
+	expectPrintedMangle(t, "switch (0) { case 0: { a(); break; } case 1: b(); break }", "a();\n")
+	expectPrintedMangle(t, "switch (0) { case 0: { var x = a(); break; } case 1: b(); break }", "var x = a();\n")
+	expectPrintedMangle(t, "switch (0) { case 0: { let x = a(); break; } case 1: b(); break }", "{\n  let x = a();\n}\n")
+	expectPrintedMangle(t, "switch (0) { case 0: { const x = a(); break; } case 1: b(); break }", "{\n  const x = a();\n}\n")
+
+	expectPrintedMangle(t, "for (x of y) switch (0) { case 0: a(); continue; default: b(); continue }", "for (x of y) a();\n")
+	expectPrintedMangle(t, "for (x of y) switch (1) { case 0: a(); continue; default: b(); continue }", "for (x of y) b();\n")
+
+	expectPrintedMangle(t, "for (x of y) switch (0) { case 0: throw a(); default: throw b() }", "for (x of y) throw a();\n")
+	expectPrintedMangle(t, "for (x of y) switch (1) { case 0: throw a(); default: throw b() }", "for (x of y) throw b();\n")
+
+	expectPrintedMangle(t, "for (x of y) switch (0) { case 0: return a(); default: return b() }", "for (x of y) return a();\n")
+	expectPrintedMangle(t, "for (x of y) switch (1) { case 0: return a(); default: return b() }", "for (x of y) return b();\n")
+
+	expectPrintedMangle(t, "z: for (x of y) switch (0) { case 0: a(); break z; default: b(); break z }", "z: for (x of y) switch (0) {\n  case 0:\n    a();\n    break z;\n}\n")
+	expectPrintedMangle(t, "z: for (x of y) switch (1) { case 0: a(); break z; default: b(); break z }", "z: for (x of y) switch (1) {\n  default:\n    b();\n    break z;\n}\n")
+
+	expectPrintedMangle(t, "for (x of y) z: switch (0) { case 0: a(); break z; default: b(); break z }", "for (x of y) z: switch (0) {\n  case 0:\n    a();\n    break z;\n}\n")
+	expectPrintedMangle(t, "for (x of y) z: switch (1) { case 0: a(); break z; default: b(); break z }", "for (x of y) z: switch (1) {\n  default:\n    b();\n    break z;\n}\n")
 }
 
 func TestConstantFolding(t *testing.T) {

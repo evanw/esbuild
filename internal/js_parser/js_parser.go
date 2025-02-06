@@ -59,6 +59,7 @@ type parser struct {
 	declaredSymbols            []js_ast.DeclaredSymbol
 	globPatternImports         []globPatternImport
 	runtimeImports             map[string]ast.LocRef
+	deadCaseChecker            deadCaseChecker
 	duplicateCaseChecker       duplicateCaseChecker
 	unrepresentableIdentifiers map[string]bool
 	legacyOctalLiterals        map[js_ast.E]logger.Range
@@ -745,6 +746,86 @@ type fnOnlyDataVisit struct {
 	//   };
 	//
 	silenceMessageAboutThisBeingUndefined bool
+}
+
+type livenessStatus uint8
+
+const (
+	livenessUnknown livenessStatus = iota
+	alwaysDead
+	alwaysLive
+)
+
+type deadCaseChecker struct {
+	test                     js_ast.E
+	earlierCaseWasMaybeTaken bool
+	furtherCasesAreDead      bool
+	mayHaveFallenThrough     bool
+}
+
+func (dc *deadCaseChecker) reset(p *parser, test js_ast.E) {
+	*dc = deadCaseChecker{
+		test:                test,
+		furtherCasesAreDead: p.isControlFlowDead,
+	}
+}
+
+func (dc *deadCaseChecker) checkCase(c js_ast.Case) (status livenessStatus) {
+	if dc.furtherCasesAreDead {
+		return alwaysDead
+	}
+
+	// Check for strict equality
+	var isEqualToTest bool
+	var isEqualityKnown bool
+	if c.ValueOrNil.Data != nil {
+		// Non-default case
+		isEqualToTest, isEqualityKnown = js_ast.CheckEqualityIfNoSideEffects(dc.test, c.ValueOrNil.Data, js_ast.StrictEquality)
+	} else {
+		// Default case
+		if !dc.earlierCaseWasMaybeTaken {
+			isEqualToTest = true
+			isEqualityKnown = true
+		}
+	}
+
+	// Check for potential fall-through by checking for a jump at the end of the body
+	canFallThrough := true
+	stmts := c.Body
+	for len(stmts) > 0 {
+		switch s := stmts[len(stmts)-1].Data.(type) {
+		case *js_ast.SBlock:
+			stmts = s.Stmts // If this ends with a block, check the block's body next
+			continue
+		case *js_ast.SBreak, *js_ast.SContinue, *js_ast.SReturn, *js_ast.SThrow:
+			canFallThrough = false
+		}
+		break
+	}
+
+	// Update the state machine
+	if isEqualityKnown {
+		if isEqualToTest {
+			// This branch will always be matched, and will be taken unless an earlier branch was taken
+			if !dc.earlierCaseWasMaybeTaken {
+				status = alwaysLive
+			}
+			if !canFallThrough {
+				dc.furtherCasesAreDead = true
+			}
+			dc.earlierCaseWasMaybeTaken = true
+		} else {
+			// This branch will never be matched, and will not be taken unless there was fall-through
+			if !dc.mayHaveFallenThrough {
+				status = alwaysDead
+			}
+		}
+	} else {
+		// This branch depends on run-time values and may or may not be matched
+		dc.earlierCaseWasMaybeTaken = true
+	}
+	dc.mayHaveFallenThrough = canFallThrough && status != alwaysDead
+	return
 }
 
 const bloomFilterSize = 251
@@ -10878,17 +10959,45 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		p.pushScopeForVisitPass(js_ast.ScopeBlock, s.BodyLoc)
 		oldIsInsideSwitch := p.fnOrArrowDataVisit.isInsideSwitch
 		p.fnOrArrowDataVisit.isInsideSwitch = true
-		for i, c := range s.Cases {
+		p.deadCaseChecker.reset(p, s.Test.Data)
+		end := 0
+		for _, c := range s.Cases {
+			// Visit the value for non-default cases
+			var status livenessStatus
 			if c.ValueOrNil.Data != nil {
 				c.ValueOrNil = p.visitExpr(c.ValueOrNil)
+				status = p.deadCaseChecker.checkCase(c)
 				p.warnAboutEqualityCheck("case", c.ValueOrNil, c.ValueOrNil.Loc)
 				p.warnAboutTypeofAndString(s.Test, c.ValueOrNil, onlyCheckOriginalOrder)
+			} else {
+				status = p.deadCaseChecker.checkCase(c)
+			}
+
+			// Potentially treat the case body as dead code
+			old := p.isControlFlowDead
+			if status == alwaysDead {
+				p.isControlFlowDead = true
 			}
 			c.Body = p.visitStmts(c.Body, stmtsSwitch)
+			p.isControlFlowDead = old
+
+			// Filter out this case when minifying if it's known to be dead. Visiting
+			// the body above should already have removed any statements that can be
+			// removed safely, so if the body isn't empty then that means it contains
+			// some statements that can't be removed safely (e.g. a hoisted "var").
+			// So don't remove this case if the body isn't empty.
+			if p.options.minifySyntax && status == alwaysDead && len(c.Body) == 0 {
+				continue
+			}
 
 			// Make sure the assignment to the body above is preserved
-			s.Cases[i] = c
+			s.Cases[end] = c
+			end++
 		}
+
+		// Filter out all removed cases
+		s.Cases = s.Cases[:end]
+
 		p.fnOrArrowDataVisit.isInsideSwitch = oldIsInsideSwitch
 		p.popScope()
 
@@ -10911,6 +11020,36 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		// "using" declarations inside switch statements must be special-cased
 		if lowered := p.maybeLowerUsingDeclarationsInSwitch(stmt.Loc, s); lowered != nil {
 			return append(stmts, lowered...)
+		}
+
+		// Attempt to remove statically-determined switch statements
+		if p.options.minifySyntax {
+			if len(s.Cases) == 0 {
+				if p.astHelpers.ExprCanBeRemovedIfUnused(s.Test) {
+					// Remove everything
+					return stmts
+				} else {
+					// Just keep the test expression
+					return append(stmts, js_ast.Stmt{Loc: s.Test.Loc, Data: &js_ast.SExpr{Value: s.Test}})
+				}
+			} else if len(s.Cases) == 1 {
+				c := s.Cases[0]
+				var isTaken bool
+				var ok bool
+				if c.ValueOrNil.Data != nil {
+					// Non-default case
+					isTaken, ok = js_ast.CheckEqualityIfNoSideEffects(s.Test.Data, c.ValueOrNil.Data, js_ast.StrictEquality)
+				} else {
+					// Default case
+					isTaken, ok = true, p.astHelpers.ExprCanBeRemovedIfUnused(s.Test)
+				}
+				if ok && isTaken {
+					if body, ok := tryToInlineCaseBody(s.BodyLoc, c.Body, s.CloseBraceLoc); ok {
+						// Inline the case body
+						return append(stmts, body...)
+					}
+				}
+			}
 		}
 
 	case *js_ast.SFunction:
@@ -11204,6 +11343,51 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 
 	stmts = append(stmts, stmt)
 	return stmts
+}
+
+func tryToInlineCaseBody(openBraceLoc logger.Loc, stmts []js_ast.Stmt, closeBraceLoc logger.Loc) ([]js_ast.Stmt, bool) {
+	if len(stmts) == 1 {
+		if block, ok := stmts[0].Data.(*js_ast.SBlock); ok {
+			return tryToInlineCaseBody(stmts[0].Loc, block.Stmts, block.CloseBraceLoc)
+		}
+	}
+
+	caresAboutScope := false
+
+loop:
+	for i, stmt := range stmts {
+		switch s := stmt.Data.(type) {
+		case *js_ast.SEmpty, *js_ast.SDirective, *js_ast.SComment, *js_ast.SExpr,
+			*js_ast.SDebugger, *js_ast.SContinue, *js_ast.SReturn, *js_ast.SThrow:
+			// These can all be inlined outside of the switch without problems
+			continue
+
+		case *js_ast.SLocal:
+			if s.Kind != js_ast.LocalVar {
+				caresAboutScope = true
+			}
+
+		case *js_ast.SBreak:
+			if s.Label != nil {
+				// The break label could target this switch, but we don't know whether that's the case or not here
+				return nil, false
+			}
+
+			// An unlabeled "break" inside a switch breaks out of the case
+			stmts = stmts[:i]
+			break loop
+
+		default:
+			// Assume anything else can't be inlined
+			return nil, false
+		}
+	}
+
+	// If we still need a scope, wrap the result in a block
+	if caresAboutScope {
+		return []js_ast.Stmt{{Loc: openBraceLoc, Data: &js_ast.SBlock{Stmts: stmts, CloseBraceLoc: closeBraceLoc}}}, true
+	}
+	return stmts, true
 }
 
 func isUnsightlyPrimitive(data js_ast.E) bool {

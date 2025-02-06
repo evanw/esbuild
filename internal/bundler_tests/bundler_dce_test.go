@@ -1430,6 +1430,89 @@ func TestDeadCodeInsideEmptyTry(t *testing.T) {
 	})
 }
 
+func TestDeadCodeInsideUnusedCases(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				// Unknown test value
+				switch (x) {
+					case 0: _ = require('./a'); break
+					case 1: _ = require('./b'); break
+				}
+
+				// Known test value
+				switch (1) {
+					case 0: _ = require('./FAIL-known-0'); break
+					case 1: _ = require('./a'); break
+					case 1: _ = require('./FAIL-known-1'); break
+					case 2: _ = require('./FAIL-known-2'); break
+				}
+
+				// Check for "default"
+				switch (1) {
+					case 1: _ = require('./a'); break
+					default: _ = require('./FAIL-default'); break
+				}
+				switch (0) {
+					case 1: _ = require('./FAIL-default-1'); break
+					default: _ = require('./a'); break
+					case 0: _ = require('./FAIL-default-0'); break
+				}
+
+				// Check for non-constant cases
+				switch (1) {
+					case x: _ = require('./a'); break
+					case 1: _ = require('./b'); break
+					case x: _ = require('./FAIL-x'); break
+					default: _ = require('./FAIL-x-default'); break
+				}
+
+				// Check for other kinds of jumps
+				for (const x of y)
+					switch (1) {
+						case 0: _ = require('./FAIL-continue-0'); continue
+						case 1: _ = require('./a'); continue
+						case 2: _ = require('./FAIL-continue-2'); continue
+					}
+				x = () => {
+					switch (1) {
+						case 0: _ = require('./FAIL-return-0'); return
+						case 1: _ = require('./a'); return
+						case 2: _ = require('./FAIL-return-2'); return
+					}
+				}
+
+				// Check for fall-through
+				switch ('b') {
+					case 'a': _ = require('./FAIL-fallthrough-a')
+					case 'b': _ = require('./a')
+					case 'c': _ = require('./b'); break
+					case 'd': _ = require('./FAIL-fallthrough-d')
+				}
+				switch ('b') {
+					case 'a': _ = require('./FAIL-fallthrough-a')
+					case 'b':
+					case 'c': _ = require('./a')
+					case 'd': _ = require('./b'); break
+					case 'e': _ = require('./FAIL-fallthrough-e')
+				}
+			`,
+			"/a.js": ``,
+			"/b.js": ``,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `entry.js: WARNING: This case clause will never be evaluated because it duplicates an earlier case clause
+entry.js: NOTE: The earlier case clause is here:
+entry.js: WARNING: This case clause will never be evaluated because it duplicates an earlier case clause
+entry.js: NOTE: The earlier case clause is here:
+`,
+	})
+}
+
 func TestRemoveTrailingReturn(t *testing.T) {
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
