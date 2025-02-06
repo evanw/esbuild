@@ -6555,7 +6555,7 @@ func TestMangleCatch(t *testing.T) {
 	expectPrintedMangle(t, "if (y) try { throw 1 } catch (x) {} else eval('x')", "if (y) try {\n  throw 1;\n} catch {\n}\nelse eval(\"x\");\n")
 }
 
-func TestMangleEmptyTry(t *testing.T) {
+func TestMangleTry(t *testing.T) {
 	expectPrintedMangle(t, "try { throw 0 } catch (e) { foo() }", "try {\n  throw 0;\n} catch {\n  foo();\n}\n")
 	expectPrintedMangle(t, "try {} catch (e) { var foo }", "try {\n} catch {\n  var foo;\n}\n")
 
@@ -6570,6 +6570,10 @@ func TestMangleEmptyTry(t *testing.T) {
 
 	expectPrintedMangle(t, "try {} finally { let x = foo() }", "{\n  let x = foo();\n}\n")
 	expectPrintedMangle(t, "try {} catch (e) { foo() } finally { let x = bar() }", "{\n  let x = bar();\n}\n")
+
+	// The Kotlin compiler apparently generates code like this.
+	// See https://github.com/evanw/esbuild/issues/4064 for info.
+	expectPrintedMangle(t, "x: try { while (true) ; break x } catch {}", "x: try {\n  for (; ; ) ;\n  break x;\n} catch {\n}\n")
 }
 
 func TestAutoPureForObjectCreate(t *testing.T) {
