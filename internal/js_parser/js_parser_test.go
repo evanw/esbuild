@@ -3793,8 +3793,12 @@ func TestMangleBooleanConstructor(t *testing.T) {
 	expectPrintedNormalAndMangle(t, "a = Boolean(b ? c > 0 : c < 0)", "a = Boolean(b ? c > 0 : c < 0);\n", "a = b ? c > 0 : c < 0;\n")
 
 	// Check for calling "SimplifyBooleanExpr" on the argument
-	expectPrintedNormalAndMangle(t, "a = Boolean((b | c) !== 0)", "a = Boolean((b | c) !== 0);\n", "a = !!(b | c);\n")
-	expectPrintedNormalAndMangle(t, "a = Boolean(b ? (c | d) !== 0 : (d | e) !== 0)", "a = Boolean(b ? (c | d) !== 0 : (d | e) !== 0);\n", "a = !!(b ? c | d : d | e);\n")
+	expectPrintedNormalAndMangle(t, "a = Boolean((b | c) !== 0)", "a = Boolean((b | c) !== 0);\n", "a = (b | c) !== 0;\n")
+	expectPrintedNormalAndMangle(t, "a = Boolean((b >>> c) !== 0)", "a = Boolean(b >>> c !== 0);\n", "a = !!(b >>> c);\n")
+	expectPrintedNormalAndMangle(t, "a = Boolean(b ? (c | d) !== 0 : (d | e) !== 0)",
+		"a = Boolean(b ? (c | d) !== 0 : (d | e) !== 0);\n", "a = b ? (c | d) !== 0 : (d | e) !== 0;\n")
+	expectPrintedNormalAndMangle(t, "a = Boolean(b ? (c >>> d) !== 0 : (d >>> e) !== 0)",
+		"a = Boolean(b ? c >>> d !== 0 : d >>> e !== 0);\n", "a = !!(b ? c >>> d : d >>> e);\n")
 }
 
 func TestMangleNumberConstructor(t *testing.T) {
@@ -4141,44 +4145,44 @@ func TestMangleIf(t *testing.T) {
 	expectPrintedNormalAndMangle(t, "if (!!a ? !!b : !!c) throw 0", "if (!!a ? !!b : !!c) throw 0;\n", "if (a ? b : c) throw 0;\n")
 
 	expectPrintedNormalAndMangle(t, "if ((a + b) !== 0) throw 0", "if (a + b !== 0) throw 0;\n", "if (a + b !== 0) throw 0;\n")
-	expectPrintedNormalAndMangle(t, "if ((a | b) !== 0) throw 0", "if ((a | b) !== 0) throw 0;\n", "if (a | b) throw 0;\n")
-	expectPrintedNormalAndMangle(t, "if ((a & b) !== 0) throw 0", "if ((a & b) !== 0) throw 0;\n", "if (a & b) throw 0;\n")
-	expectPrintedNormalAndMangle(t, "if ((a ^ b) !== 0) throw 0", "if ((a ^ b) !== 0) throw 0;\n", "if (a ^ b) throw 0;\n")
-	expectPrintedNormalAndMangle(t, "if ((a << b) !== 0) throw 0", "if (a << b !== 0) throw 0;\n", "if (a << b) throw 0;\n")
-	expectPrintedNormalAndMangle(t, "if ((a >> b) !== 0) throw 0", "if (a >> b !== 0) throw 0;\n", "if (a >> b) throw 0;\n")
+	expectPrintedNormalAndMangle(t, "if ((a | b) !== 0) throw 0", "if ((a | b) !== 0) throw 0;\n", "if ((a | b) !== 0) throw 0;\n")
+	expectPrintedNormalAndMangle(t, "if ((a & b) !== 0) throw 0", "if ((a & b) !== 0) throw 0;\n", "if ((a & b) !== 0) throw 0;\n")
+	expectPrintedNormalAndMangle(t, "if ((a ^ b) !== 0) throw 0", "if ((a ^ b) !== 0) throw 0;\n", "if ((a ^ b) !== 0) throw 0;\n")
+	expectPrintedNormalAndMangle(t, "if ((a << b) !== 0) throw 0", "if (a << b !== 0) throw 0;\n", "if (a << b !== 0) throw 0;\n")
+	expectPrintedNormalAndMangle(t, "if ((a >> b) !== 0) throw 0", "if (a >> b !== 0) throw 0;\n", "if (a >> b !== 0) throw 0;\n")
 	expectPrintedNormalAndMangle(t, "if ((a >>> b) !== 0) throw 0", "if (a >>> b !== 0) throw 0;\n", "if (a >>> b) throw 0;\n")
 	expectPrintedNormalAndMangle(t, "if (+a !== 0) throw 0", "if (+a !== 0) throw 0;\n", "if (+a != 0) throw 0;\n")
-	expectPrintedNormalAndMangle(t, "if (~a !== 0) throw 0", "if (~a !== 0) throw 0;\n", "if (~a) throw 0;\n")
+	expectPrintedNormalAndMangle(t, "if (~a !== 0) throw 0", "if (~a !== 0) throw 0;\n", "if (~a !== 0) throw 0;\n")
 
 	expectPrintedNormalAndMangle(t, "if (0 != (a + b)) throw 0", "if (0 != a + b) throw 0;\n", "if (a + b != 0) throw 0;\n")
-	expectPrintedNormalAndMangle(t, "if (0 != (a | b)) throw 0", "if (0 != (a | b)) throw 0;\n", "if (a | b) throw 0;\n")
-	expectPrintedNormalAndMangle(t, "if (0 != (a & b)) throw 0", "if (0 != (a & b)) throw 0;\n", "if (a & b) throw 0;\n")
-	expectPrintedNormalAndMangle(t, "if (0 != (a ^ b)) throw 0", "if (0 != (a ^ b)) throw 0;\n", "if (a ^ b) throw 0;\n")
-	expectPrintedNormalAndMangle(t, "if (0 != (a << b)) throw 0", "if (0 != a << b) throw 0;\n", "if (a << b) throw 0;\n")
-	expectPrintedNormalAndMangle(t, "if (0 != (a >> b)) throw 0", "if (0 != a >> b) throw 0;\n", "if (a >> b) throw 0;\n")
+	expectPrintedNormalAndMangle(t, "if (0 != (a | b)) throw 0", "if (0 != (a | b)) throw 0;\n", "if ((a | b) != 0) throw 0;\n")
+	expectPrintedNormalAndMangle(t, "if (0 != (a & b)) throw 0", "if (0 != (a & b)) throw 0;\n", "if ((a & b) != 0) throw 0;\n")
+	expectPrintedNormalAndMangle(t, "if (0 != (a ^ b)) throw 0", "if (0 != (a ^ b)) throw 0;\n", "if ((a ^ b) != 0) throw 0;\n")
+	expectPrintedNormalAndMangle(t, "if (0 != (a << b)) throw 0", "if (0 != a << b) throw 0;\n", "if (a << b != 0) throw 0;\n")
+	expectPrintedNormalAndMangle(t, "if (0 != (a >> b)) throw 0", "if (0 != a >> b) throw 0;\n", "if (a >> b != 0) throw 0;\n")
 	expectPrintedNormalAndMangle(t, "if (0 != (a >>> b)) throw 0", "if (0 != a >>> b) throw 0;\n", "if (a >>> b) throw 0;\n")
 	expectPrintedNormalAndMangle(t, "if (0 != +a) throw 0", "if (0 != +a) throw 0;\n", "if (+a != 0) throw 0;\n")
-	expectPrintedNormalAndMangle(t, "if (0 != ~a) throw 0", "if (0 != ~a) throw 0;\n", "if (~a) throw 0;\n")
+	expectPrintedNormalAndMangle(t, "if (0 != ~a) throw 0", "if (0 != ~a) throw 0;\n", "if (~a != 0) throw 0;\n")
 
 	expectPrintedNormalAndMangle(t, "if ((a + b) === 0) throw 0", "if (a + b === 0) throw 0;\n", "if (a + b === 0) throw 0;\n")
-	expectPrintedNormalAndMangle(t, "if ((a | b) === 0) throw 0", "if ((a | b) === 0) throw 0;\n", "if (!(a | b)) throw 0;\n")
-	expectPrintedNormalAndMangle(t, "if ((a & b) === 0) throw 0", "if ((a & b) === 0) throw 0;\n", "if (!(a & b)) throw 0;\n")
-	expectPrintedNormalAndMangle(t, "if ((a ^ b) === 0) throw 0", "if ((a ^ b) === 0) throw 0;\n", "if (!(a ^ b)) throw 0;\n")
-	expectPrintedNormalAndMangle(t, "if ((a << b) === 0) throw 0", "if (a << b === 0) throw 0;\n", "if (!(a << b)) throw 0;\n")
-	expectPrintedNormalAndMangle(t, "if ((a >> b) === 0) throw 0", "if (a >> b === 0) throw 0;\n", "if (!(a >> b)) throw 0;\n")
+	expectPrintedNormalAndMangle(t, "if ((a | b) === 0) throw 0", "if ((a | b) === 0) throw 0;\n", "if ((a | b) === 0) throw 0;\n")
+	expectPrintedNormalAndMangle(t, "if ((a & b) === 0) throw 0", "if ((a & b) === 0) throw 0;\n", "if ((a & b) === 0) throw 0;\n")
+	expectPrintedNormalAndMangle(t, "if ((a ^ b) === 0) throw 0", "if ((a ^ b) === 0) throw 0;\n", "if ((a ^ b) === 0) throw 0;\n")
+	expectPrintedNormalAndMangle(t, "if ((a << b) === 0) throw 0", "if (a << b === 0) throw 0;\n", "if (a << b === 0) throw 0;\n")
+	expectPrintedNormalAndMangle(t, "if ((a >> b) === 0) throw 0", "if (a >> b === 0) throw 0;\n", "if (a >> b === 0) throw 0;\n")
 	expectPrintedNormalAndMangle(t, "if ((a >>> b) === 0) throw 0", "if (a >>> b === 0) throw 0;\n", "if (!(a >>> b)) throw 0;\n")
 	expectPrintedNormalAndMangle(t, "if (+a === 0) throw 0", "if (+a === 0) throw 0;\n", "if (+a == 0) throw 0;\n")
-	expectPrintedNormalAndMangle(t, "if (~a === 0) throw 0", "if (~a === 0) throw 0;\n", "if (!~a) throw 0;\n")
+	expectPrintedNormalAndMangle(t, "if (~a === 0) throw 0", "if (~a === 0) throw 0;\n", "if (~a === 0) throw 0;\n")
 
 	expectPrintedNormalAndMangle(t, "if (0 == (a + b)) throw 0", "if (0 == a + b) throw 0;\n", "if (a + b == 0) throw 0;\n")
-	expectPrintedNormalAndMangle(t, "if (0 == (a | b)) throw 0", "if (0 == (a | b)) throw 0;\n", "if (!(a | b)) throw 0;\n")
-	expectPrintedNormalAndMangle(t, "if (0 == (a & b)) throw 0", "if (0 == (a & b)) throw 0;\n", "if (!(a & b)) throw 0;\n")
-	expectPrintedNormalAndMangle(t, "if (0 == (a ^ b)) throw 0", "if (0 == (a ^ b)) throw 0;\n", "if (!(a ^ b)) throw 0;\n")
-	expectPrintedNormalAndMangle(t, "if (0 == (a << b)) throw 0", "if (0 == a << b) throw 0;\n", "if (!(a << b)) throw 0;\n")
-	expectPrintedNormalAndMangle(t, "if (0 == (a >> b)) throw 0", "if (0 == a >> b) throw 0;\n", "if (!(a >> b)) throw 0;\n")
+	expectPrintedNormalAndMangle(t, "if (0 == (a | b)) throw 0", "if (0 == (a | b)) throw 0;\n", "if ((a | b) == 0) throw 0;\n")
+	expectPrintedNormalAndMangle(t, "if (0 == (a & b)) throw 0", "if (0 == (a & b)) throw 0;\n", "if ((a & b) == 0) throw 0;\n")
+	expectPrintedNormalAndMangle(t, "if (0 == (a ^ b)) throw 0", "if (0 == (a ^ b)) throw 0;\n", "if ((a ^ b) == 0) throw 0;\n")
+	expectPrintedNormalAndMangle(t, "if (0 == (a << b)) throw 0", "if (0 == a << b) throw 0;\n", "if (a << b == 0) throw 0;\n")
+	expectPrintedNormalAndMangle(t, "if (0 == (a >> b)) throw 0", "if (0 == a >> b) throw 0;\n", "if (a >> b == 0) throw 0;\n")
 	expectPrintedNormalAndMangle(t, "if (0 == (a >>> b)) throw 0", "if (0 == a >>> b) throw 0;\n", "if (!(a >>> b)) throw 0;\n")
 	expectPrintedNormalAndMangle(t, "if (0 == +a) throw 0", "if (0 == +a) throw 0;\n", "if (+a == 0) throw 0;\n")
-	expectPrintedNormalAndMangle(t, "if (0 == ~a) throw 0", "if (0 == ~a) throw 0;\n", "if (!~a) throw 0;\n")
+	expectPrintedNormalAndMangle(t, "if (0 == ~a) throw 0", "if (0 == ~a) throw 0;\n", "if (~a == 0) throw 0;\n")
 }
 
 func TestMangleWrapToAvoidAmbiguousElse(t *testing.T) {

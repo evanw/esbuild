@@ -1151,8 +1151,8 @@ tests.push(
 )
 
 // Check big integer lowering
-for (const target of [[], ['--target=es6']]) {
-  for (const minify of [[], '--minify']) {
+for (const minify of [[], '--minify']) {
+  for (const target of [[], ['--target=es6']]) {
     tests.push(test(['in.js', '--outfile=node.js', '--bundle', '--log-override:bigint=silent'].concat(target).concat(minify), {
       'in.js': `
         var BigInt = function() {
@@ -1177,6 +1177,57 @@ for (const target of [[], ['--target=es6']]) {
       `,
     }))
   }
+
+  tests.push(
+    test(['in.js', '--outfile=node.js'].concat(minify), {
+      'in.js': `
+        // Must not be minified to "if (!(a | b)) throw 'fail'"
+        function foo(a, b) { if ((a | b) === 0) throw 'fail' }
+        foo(0n, 0n)
+        foo(1n, 1n)
+      `,
+    }),
+    test(['in.js', '--outfile=node.js'].concat(minify), {
+      'in.js': `
+        // Must not be minified to "if (!(a & b)) throw 'fail'"
+        function foo(a, b) { if ((a & b) === 0) throw 'fail' }
+        foo(0n, 0n)
+        foo(1n, 1n)
+      `,
+    }),
+    test(['in.js', '--outfile=node.js'].concat(minify), {
+      'in.js': `
+        // Must not be minified to "if (!(a ^ b)) throw 'fail'"
+        function foo(a, b) { if ((a ^ b) === 0) throw 'fail' }
+        foo(0n, 0n)
+        foo(0n, 1n)
+      `,
+    }),
+    test(['in.js', '--outfile=node.js'].concat(minify), {
+      'in.js': `
+        // Must not be minified to "if (!(a << b)) throw 'fail'"
+        function foo(a, b) { if ((a << b) === 0) throw 'fail' }
+        foo(0n, 0n)
+        foo(1n, 1n)
+      `,
+    }),
+    test(['in.js', '--outfile=node.js'].concat(minify), {
+      'in.js': `
+        // Must not be minified to "if (!(a >> b)) throw 'fail'"
+        function foo(a, b) { if ((a >> b) === 0) throw 'fail' }
+        foo(1n, 0n)
+        foo(1n, 1n)
+      `,
+    }),
+    test(['in.js', '--outfile=node.js'].concat(minify), {
+      'in.js': `
+        // Must not be minified to "if (!~a) throw 'fail'"
+        function foo(a) { if (~a === 0) throw 'fail' }
+        foo(-1n)
+        foo(1n)
+      `,
+    }),
+  )
 }
 
 // Check template literal lowering

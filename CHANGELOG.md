@@ -116,6 +116,21 @@
 
     Due to a copy+paste typo, the binary published to `@esbuild/netbsd-arm64` was not actually for `arm64`, and didn't run in that environment. This release should fix running esbuild in that environment (NetBSD on 64-bit ARM). Sorry about the mistake.
 
+* Fix a minification bug with bitwise operators and bigints ([#4065](https://github.com/evanw/esbuild/issues/4065))
+
+    This change removes an incorrect assumption in esbuild that all bitwise operators result in a numeric integer. That assumption was correct up until the introduction of bigints in ES2020, but is no longer correct because almost all bitwise operators now operate on both numbers and bigints. Here's an example of the incorrect minification:
+
+    ```js
+    // Original code
+    if ((a & b) !== 0) found = true
+
+    // Old output (with --minify)
+    a&b&&(found=!0);
+
+    // New output (with --minify)
+    (a&b)!==0&&(found=!0);
+    ```
+
 * Fix esbuild incorrectly rejecting valid TypeScript edge case ([#4027](https://github.com/evanw/esbuild/issues/4027))
 
     The following TypeScript code is valid:
