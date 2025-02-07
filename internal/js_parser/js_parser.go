@@ -59,7 +59,6 @@ type parser struct {
 	declaredSymbols            []js_ast.DeclaredSymbol
 	globPatternImports         []globPatternImport
 	runtimeImports             map[string]ast.LocRef
-	deadCaseChecker            deadCaseChecker
 	duplicateCaseChecker       duplicateCaseChecker
 	unrepresentableIdentifiers map[string]bool
 	legacyOctalLiterals        map[js_ast.E]logger.Range
@@ -748,84 +747,87 @@ type fnOnlyDataVisit struct {
 	silenceMessageAboutThisBeingUndefined bool
 }
 
-type livenessStatus uint8
+type livenessStatus int8
 
 const (
-	livenessUnknown livenessStatus = iota
-	alwaysDead
-	alwaysLive
+	alwaysDead      livenessStatus = -1
+	livenessUnknown livenessStatus = 0
+	alwaysLive      livenessStatus = 1
 )
 
-type deadCaseChecker struct {
-	test                     js_ast.E
-	earlierCaseWasMaybeTaken bool
-	furtherCasesAreDead      bool
-	mayHaveFallenThrough     bool
+type switchCaseLiveness struct {
+	status         livenessStatus
+	canFallThrough bool
 }
 
-func (dc *deadCaseChecker) reset(p *parser, test js_ast.E) {
-	*dc = deadCaseChecker{
-		test:                test,
-		furtherCasesAreDead: p.isControlFlowDead,
-	}
-}
+func analyzeSwitchCasesForLiveness(s *js_ast.SSwitch) []switchCaseLiveness {
+	cases := make([]switchCaseLiveness, 0, len(s.Cases))
+	defaultIndex := -1
 
-func (dc *deadCaseChecker) checkCase(c js_ast.Case) (status livenessStatus) {
-	if dc.furtherCasesAreDead {
-		return alwaysDead
-	}
-
-	// Check for strict equality
-	var isEqualToTest bool
-	var isEqualityKnown bool
-	if c.ValueOrNil.Data != nil {
-		// Non-default case
-		isEqualToTest, isEqualityKnown = js_ast.CheckEqualityIfNoSideEffects(dc.test, c.ValueOrNil.Data, js_ast.StrictEquality)
-	} else {
-		// Default case
-		if !dc.earlierCaseWasMaybeTaken {
-			isEqualToTest = true
-			isEqualityKnown = true
+	// Determine the status of the individual cases independently
+	maxStatus := alwaysDead
+	for i, c := range s.Cases {
+		if c.ValueOrNil.Data == nil {
+			defaultIndex = i
 		}
-	}
 
-	// Check for potential fall-through by checking for a jump at the end of the body
-	canFallThrough := true
-	stmts := c.Body
-	for len(stmts) > 0 {
-		switch s := stmts[len(stmts)-1].Data.(type) {
-		case *js_ast.SBlock:
-			stmts = s.Stmts // If this ends with a block, check the block's body next
-			continue
-		case *js_ast.SBreak, *js_ast.SContinue, *js_ast.SReturn, *js_ast.SThrow:
-			canFallThrough = false
-		}
-		break
-	}
-
-	// Update the state machine
-	if isEqualityKnown {
-		if isEqualToTest {
-			// This branch will always be matched, and will be taken unless an earlier branch was taken
-			if !dc.earlierCaseWasMaybeTaken {
-				status = alwaysLive
+		// Check the value for strict equality
+		var status livenessStatus
+		if maxStatus == alwaysLive {
+			status = alwaysDead // Everything after an always-live case is always dead
+		} else if c.ValueOrNil.Data == nil {
+			status = alwaysDead // This is the default case, and will be filled in later
+		} else if isEqualToTest, ok := js_ast.CheckEqualityIfNoSideEffects(s.Test.Data, c.ValueOrNil.Data, js_ast.StrictEquality); ok {
+			if isEqualToTest {
+				status = alwaysLive // This branch will always be matched, and will be taken unless an earlier branch was taken
+			} else {
+				status = alwaysDead // This branch will never be matched, and will not be taken unless there was fall-through
 			}
-			if !canFallThrough {
-				dc.furtherCasesAreDead = true
-			}
-			dc.earlierCaseWasMaybeTaken = true
 		} else {
-			// This branch will never be matched, and will not be taken unless there was fall-through
-			if !dc.mayHaveFallenThrough {
-				status = alwaysDead
+			status = livenessUnknown // This branch depends on run-time values and may or may not be matched
+		}
+		if maxStatus < status {
+			maxStatus = status
+		}
+
+		// Check for potential fall-through by checking for a jump at the end of the body
+		canFallThrough := true
+		stmts := c.Body
+		for len(stmts) > 0 {
+			switch s := stmts[len(stmts)-1].Data.(type) {
+			case *js_ast.SBlock:
+				stmts = s.Stmts // If this ends with a block, check the block's body next
+				continue
+			case *js_ast.SBreak, *js_ast.SContinue, *js_ast.SReturn, *js_ast.SThrow:
+				canFallThrough = false
+			}
+			break
+		}
+
+		cases = append(cases, switchCaseLiveness{
+			status:         status,
+			canFallThrough: canFallThrough,
+		})
+	}
+
+	// Set the liveness for the default case last based on the other cases
+	if defaultIndex != -1 {
+		// The negation here transposes "always live" with "always dead"
+		cases[defaultIndex].status = -maxStatus
+	}
+
+	// Then propagate fall-through information in linear fall-through order
+	for i, c := range cases {
+		// Propagate state forward if this isn't dead. Note that the "can fall
+		// through" flag does not imply "must fall through". The body may have
+		// an embedded "break" inside an if statement, for example.
+		if c.status != alwaysDead {
+			for j := i + 1; j < len(cases) && cases[j-1].canFallThrough; j++ {
+				cases[j].status = livenessUnknown
 			}
 		}
-	} else {
-		// This branch depends on run-time values and may or may not be matched
-		dc.earlierCaseWasMaybeTaken = true
 	}
-	dc.mayHaveFallenThrough = canFallThrough && status != alwaysDead
-	return
+	return cases
 }
 
 const bloomFilterSize = 251
@@ -10959,23 +10961,36 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		p.pushScopeForVisitPass(js_ast.ScopeBlock, s.BodyLoc)
 		oldIsInsideSwitch := p.fnOrArrowDataVisit.isInsideSwitch
 		p.fnOrArrowDataVisit.isInsideSwitch = true
-		p.deadCaseChecker.reset(p, s.Test.Data)
-		end := 0
-		for _, c := range s.Cases {
-			// Visit the value for non-default cases
-			var status livenessStatus
+
+		// Visit case values first
+		for i := range s.Cases {
+			c := &s.Cases[i]
 			if c.ValueOrNil.Data != nil {
 				c.ValueOrNil = p.visitExpr(c.ValueOrNil)
-				status = p.deadCaseChecker.checkCase(c)
 				p.warnAboutEqualityCheck("case", c.ValueOrNil, c.ValueOrNil.Loc)
 				p.warnAboutTypeofAndString(s.Test, c.ValueOrNil, onlyCheckOriginalOrder)
-			} else {
-				status = p.deadCaseChecker.checkCase(c)
 			}
+		}
+
+		// Check for duplicate case values
+		p.duplicateCaseChecker.reset()
+		for _, c := range s.Cases {
+			if c.ValueOrNil.Data != nil {
+				p.duplicateCaseChecker.check(p, c.ValueOrNil)
+			}
+		}
+
+		// Then analyze the cases to determine which ones are live and/or dead
+		cases := analyzeSwitchCasesForLiveness(s)
+
+		// Then visit case bodies, and potentially filter out dead cases
+		end := 0
+		for i, c := range s.Cases {
+			isAlwaysDead := cases[i].status == alwaysDead
 
 			// Potentially treat the case body as dead code
 			old := p.isControlFlowDead
-			if status == alwaysDead {
+			if isAlwaysDead {
 				p.isControlFlowDead = true
 			}
 			c.Body = p.visitStmts(c.Body, stmtsSwitch)
@@ -10986,7 +11001,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			// removed safely, so if the body isn't empty then that means it contains
 			// some statements that can't be removed safely (e.g. a hoisted "var").
 			// So don't remove this case if the body isn't empty.
-			if p.options.minifySyntax && status == alwaysDead && len(c.Body) == 0 {
+			if p.options.minifySyntax && isAlwaysDead && len(c.Body) == 0 {
 				continue
 			}
 
@@ -10994,20 +11009,10 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			s.Cases[end] = c
 			end++
 		}
-
-		// Filter out all removed cases
 		s.Cases = s.Cases[:end]
 
 		p.fnOrArrowDataVisit.isInsideSwitch = oldIsInsideSwitch
 		p.popScope()
-
-		// Check for duplicate case values
-		p.duplicateCaseChecker.reset()
-		for _, c := range s.Cases {
-			if c.ValueOrNil.Data != nil {
-				p.duplicateCaseChecker.check(p, c.ValueOrNil)
-			}
-		}
 
 		// Unwrap switch statements in dead code
 		if p.options.minifySyntax && p.isControlFlowDead {

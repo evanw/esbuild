@@ -968,6 +968,14 @@ switch (1) {
     _ = null;
     break;
 }
+switch (0) {
+  case 1:
+    _ = null;
+    break;
+  default:
+    _ = require_a();
+    break;
+}
 switch (1) {
   case 1:
     _ = require_a();
@@ -981,10 +989,10 @@ switch (0) {
     _ = null;
     break;
   default:
-    _ = require_a();
+    _ = null;
     break;
   case 0:
-    _ = null;
+    _ = require_a();
     break;
 }
 switch (1) {

@@ -1449,14 +1449,18 @@ func TestDeadCodeInsideUnusedCases(t *testing.T) {
 				}
 
 				// Check for "default"
+				switch (0) {
+					case 1: _ = require('./FAIL-default-1'); break
+					default: _ = require('./a'); break
+				}
 				switch (1) {
 					case 1: _ = require('./a'); break
 					default: _ = require('./FAIL-default'); break
 				}
 				switch (0) {
 					case 1: _ = require('./FAIL-default-1'); break
-					default: _ = require('./a'); break
-					case 0: _ = require('./FAIL-default-0'); break
+					default: _ = require('./FAIL-default'); break
+					case 0: _ = require('./a'); break
 				}
 
 				// Check for non-constant cases
