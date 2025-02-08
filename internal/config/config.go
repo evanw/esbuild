@@ -483,6 +483,7 @@ type Options struct {
 	MinifySyntax      bool
 	ProfilerNames     bool
 	CodeSplitting     bool
+	MinChunkSize      int
 	WatchMode         bool
 	AllowOverwrite    bool
 	LegalComments     LegalComments
