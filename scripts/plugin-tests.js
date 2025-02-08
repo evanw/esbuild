@@ -3220,7 +3220,7 @@ let syncTests = {
 
       // Fetch once
       try {
-        await fetch(server.host, server.port, '/out.js')
+        await fetch(server.hosts[0], server.port, '/out.js')
         throw new Error('Expected an error to be thrown')
       } catch (err) {
         assert.strictEqual(err.statusCode, 503)
@@ -3232,7 +3232,7 @@ let syncTests = {
       await writeFileAsync(input, `console.log(1+2)`)
 
       // Fetch again
-      const buffer = await fetchUntilSuccessOrTimeout(server.host, server.port, '/out.js')
+      const buffer = await fetchUntilSuccessOrTimeout(server.hosts[0], server.port, '/out.js')
       assert.strictEqual(buffer.toString(), 'console.log(1 + 2);\n')
       assert.strictEqual(latestResult.errors.length, 0)
       assert.strictEqual(latestResult.outputFiles, undefined)
@@ -3270,7 +3270,7 @@ let syncTests = {
 
       // Fetch once
       try {
-        await fetch(server.host, server.port, '/out.js')
+        await fetch(server.hosts[0], server.port, '/out.js')
         throw new Error('Expected an error to be thrown')
       } catch (err) {
         assert.strictEqual(err.statusCode, 503)
@@ -3283,7 +3283,7 @@ let syncTests = {
       await writeFileAsync(input, `console.log(1+2)`)
 
       // Fetch again
-      const buffer = await fetchUntilSuccessOrTimeout(server.host, server.port, '/out.js')
+      const buffer = await fetchUntilSuccessOrTimeout(server.hosts[0], server.port, '/out.js')
       assert.strictEqual(buffer.toString(), 'console.log(1 + 2);\n')
       assert.strictEqual(latestResult.errors.length, 0)
       assert.strictEqual(latestResult.outputFiles.length, 1)
