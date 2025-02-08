@@ -20,7 +20,7 @@ async function tests() {
     const context = await esbuild.context({})
     try {
       const server = await context.serve({})
-      assert.strictEqual(server.host, '0.0.0.0')
+      assert(server.hosts.includes('127.0.0.1'))
       assert.strictEqual(typeof server.port, 'number')
     } finally {
       await context.dispose()
