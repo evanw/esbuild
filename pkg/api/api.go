@@ -491,8 +491,8 @@ type ServeOnRequestArgs struct {
 
 // Documentation: https://esbuild.github.io/api/#serve-return-values
 type ServeResult struct {
-	Port uint16
-	Host string
+	Port  uint16
+	Hosts []string
 }
 
 type WatchOptions struct {

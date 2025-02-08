@@ -424,11 +424,15 @@ func (service *serviceType) handleIncomingPacket(bytes []byte) {
 					if result, err := ctx.Serve(options); err != nil {
 						service.sendPacket(encodeErrorPacket(p.id, err))
 					} else {
+						hosts := make([]interface{}, len(result.Hosts))
+						for i, host := range result.Hosts {
+							hosts[i] = host
+						}
 						service.sendPacket(encodePacket(packet{
 							id: p.id,
 							value: map[string]interface{}{
-								"port": int(result.Port),
-								"host": result.Host,
+								"port":  int(result.Port),
+								"hosts": hosts,
 							},
 						}))
 					}

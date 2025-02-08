@@ -4271,7 +4271,7 @@ let serveTests = {
 
       // Try fetching the non-existent file
       try {
-        await fetch(server.host, server.port, '/' + path.basename(outfile))
+        await fetch(server.hosts[0], server.port, '/' + path.basename(outfile))
         throw new Error('Expected an error to be thrown')
       } catch (err) {
         if (err.statusCode !== 503) throw err
@@ -4288,7 +4288,7 @@ let serveTests = {
       }
 
       // Try fetching the file now
-      const data = await fetch(server.host, server.port, '/' + path.basename(outfile))
+      const data = await fetch(server.hosts[0], server.port, '/' + path.basename(outfile))
       assert.strictEqual(data.toString(), 'throw 4;\n')
     } finally {
       await context.dispose()
@@ -4312,13 +4312,13 @@ let serveTests = {
         host: '127.0.0.1',
         onRequest: args => onRequest(args),
       })
-      assert.strictEqual(result.host, '127.0.0.1');
+      assert.deepStrictEqual(result.hosts, ['127.0.0.1']);
       assert.strictEqual(typeof result.port, 'number');
 
       // GET /in.js
       {
         const singleRequestPromise = new Promise(resolve => { onRequest = resolve });
-        const buffer = await fetch(result.host, result.port, '/in.js')
+        const buffer = await fetch(result.hosts[0], result.port, '/in.js')
         assert.strictEqual(buffer.toString(), `console.log(123);\n`);
         assert.strictEqual(fs.readFileSync(input, 'utf8'), `console.log(123)`)
 
@@ -4333,7 +4333,7 @@ let serveTests = {
       // HEAD /in.js
       {
         const singleRequestPromise = new Promise(resolve => { onRequest = resolve });
-        const buffer = await fetch(result.host, result.port, '/in.js', { method: 'HEAD' })
+        const buffer = await fetch(result.hosts[0], result.port, '/in.js', { method: 'HEAD' })
         assert.strictEqual(buffer.toString(), ``); // HEAD omits the content
         assert.strictEqual(fs.readFileSync(input, 'utf8'), `console.log(123)`)
 
@@ -4389,10 +4389,10 @@ let serveTests = {
         certfile,
         onRequest,
       })
-      assert.strictEqual(result.host, '127.0.0.1');
+      assert.deepStrictEqual(result.hosts, ['127.0.0.1']);
       assert.strictEqual(typeof result.port, 'number');
 
-      const buffer = await fetchHTTPS(result.host, result.port, '/in.js', { certfile })
+      const buffer = await fetchHTTPS(result.hosts[0], result.port, '/in.js', { certfile })
       assert.strictEqual(buffer.toString(), `console.log(123);\n`);
       assert.strictEqual(fs.readFileSync(input, 'utf8'), `console.log(123)`)
 
@@ -4419,65 +4419,65 @@ let serveTests = {
         host: '127.0.0.1',
         servedir: testDir,
       })
-      assert.strictEqual(result.host, '127.0.0.1');
+      assert.deepStrictEqual(result.hosts, ['127.0.0.1']);
       assert.strictEqual(typeof result.port, 'number');
 
       // With a trailing slash
       {
-        const buffer = await fetch(result.host, result.port, '/nested/dir/index.html')
+        const buffer = await fetch(result.hosts[0], result.port, '/nested/dir/index.html')
         assert.strictEqual(buffer.toString(), `<!doctype html>`)
       }
       {
-        const buffer = await fetch(result.host, result.port, '/nested/dir/')
+        const buffer = await fetch(result.hosts[0], result.port, '/nested/dir/')
         assert.strictEqual(buffer.toString(), `<!doctype html>`)
       }
       {
-        const buffer = await fetch(result.host, result.port, '/nested/./dir/')
+        const buffer = await fetch(result.hosts[0], result.port, '/nested/./dir/')
         assert.strictEqual(buffer.toString(), `<!doctype html>`)
       }
       {
-        const buffer = await fetch(result.host, result.port, '/./nested/./dir/./')
+        const buffer = await fetch(result.hosts[0], result.port, '/./nested/./dir/./')
         assert.strictEqual(buffer.toString(), `<!doctype html>`)
       }
       {
-        const buffer = await fetch(result.host, result.port, '/nested/dir//')
+        const buffer = await fetch(result.hosts[0], result.port, '/nested/dir//')
         assert.strictEqual(buffer.toString(), `<!doctype html>`)
       }
       {
-        const buffer = await fetch(result.host, result.port, '/nested//dir/')
+        const buffer = await fetch(result.hosts[0], result.port, '/nested//dir/')
         assert.strictEqual(buffer.toString(), `<!doctype html>`)
       }
 
       // Without a trailing slash
       {
-        const res = await partialFetch(result.host, result.port, '/nested')
+        const res = await partialFetch(result.hosts[0], result.port, '/nested')
         assert.strictEqual(res.statusCode, 302)
         assert.strictEqual(res.headers.location, '/nested/')
       }
       {
-        const res = await partialFetch(result.host, result.port, '/nested/dir')
+        const res = await partialFetch(result.hosts[0], result.port, '/nested/dir')
         assert.strictEqual(res.statusCode, 302)
         assert.strictEqual(res.headers.location, '/nested/dir/')
       }
       {
-        const res = await partialFetch(result.host, result.port, '/nested//dir')
+        const res = await partialFetch(result.hosts[0], result.port, '/nested//dir')
         assert.strictEqual(res.statusCode, 302)
         assert.strictEqual(res.headers.location, '/nested/dir/')
       }
 
       // With leading double slashes (looks like a protocol-relative URL)
       {
-        const res = await partialFetch(result.host, result.port, '//nested')
+        const res = await partialFetch(result.hosts[0], result.port, '//nested')
         assert.strictEqual(res.statusCode, 302)
         assert.strictEqual(res.headers.location, '/nested/')
       }
       {
-        const res = await partialFetch(result.host, result.port, '//nested/dir')
+        const res = await partialFetch(result.hosts[0], result.port, '//nested/dir')
         assert.strictEqual(res.statusCode, 302)
         assert.strictEqual(res.headers.location, '/nested/dir/')
       }
       {
-        const res = await partialFetch(result.host, result.port, '//nested//dir')
+        const res = await partialFetch(result.hosts[0], result.port, '//nested//dir')
         assert.strictEqual(res.statusCode, 302)
         assert.strictEqual(res.headers.location, '/nested/dir/')
       }
@@ -4506,10 +4506,10 @@ let serveTests = {
         host: '127.0.0.1',
         onRequest,
       })
-      assert.strictEqual(result.host, '127.0.0.1');
+      assert.deepStrictEqual(result.hosts, ['127.0.0.1']);
       assert.strictEqual(typeof result.port, 'number');
 
-      const buffer = await fetch(result.host, result.port, '/out.js')
+      const buffer = await fetch(result.hosts[0], result.port, '/out.js')
       assert.strictEqual(buffer.toString(), `console.log(123);\n`);
 
       let singleRequest = await singleRequestPromise;
@@ -4520,7 +4520,7 @@ let serveTests = {
       assert.strictEqual(typeof singleRequest.timeInMS, 'number');
 
       try {
-        await fetch(result.host, result.port, '/in.js')
+        await fetch(result.hosts[0], result.port, '/in.js')
         throw new Error('Expected a 404 error for "/in.js"')
       } catch (err) {
         if (err.message !== '404 when fetching "/in.js": 404 - Not Found')
@@ -4563,13 +4563,13 @@ let serveTests = {
         onRequest: args => onRequest(args),
         servedir: wwwDir,
       })
-      assert.strictEqual(result.host, '127.0.0.1');
+      assert.deepStrictEqual(result.hosts, ['127.0.0.1']);
       assert.strictEqual(typeof result.port, 'number');
 
       let promise, buffer, req;
 
       promise = nextRequestPromise;
-      buffer = await fetch(result.host, result.port, '/in.js')
+      buffer = await fetch(result.hosts[0], result.port, '/in.js')
       assert.strictEqual(buffer.toString(), `console.log(123);\n`);
       assert.strictEqual(fs.existsSync(path.join(wwwDir, path.basename(input))), false);
       req = await promise;
@@ -4580,7 +4580,7 @@ let serveTests = {
       assert.strictEqual(typeof req.timeInMS, 'number');
 
       promise = nextRequestPromise;
-      buffer = await fetch(result.host, result.port, '/')
+      buffer = await fetch(result.hosts[0], result.port, '/')
       assert.strictEqual(buffer.toString(), `<!doctype html>`);
       req = await promise;
       assert.strictEqual(req.method, 'GET');
@@ -4660,13 +4660,13 @@ let serveTests = {
         onRequest: args => onRequest(args),
         servedir: wwwDir,
       })
-      assert.strictEqual(result.host, '127.0.0.1');
+      assert.deepStrictEqual(result.hosts, ['127.0.0.1']);
       assert.strictEqual(typeof result.port, 'number');
 
       let promise, buffer, req;
 
       promise = nextRequestPromise;
-      buffer = await fetch(result.host, result.port, '/out/in.js')
+      buffer = await fetch(result.hosts[0], result.port, '/out/in.js')
       assert.strictEqual(buffer.toString(), `console.log(123);\n`);
       req = await promise;
       assert.strictEqual(req.method, 'GET');
@@ -4676,7 +4676,7 @@ let serveTests = {
       assert.strictEqual(typeof req.timeInMS, 'number');
 
       promise = nextRequestPromise;
-      buffer = await fetch(result.host, result.port, '/')
+      buffer = await fetch(result.hosts[0], result.port, '/')
       assert.strictEqual(buffer.toString(), `<!doctype html>`);
       req = await promise;
       assert.strictEqual(req.method, 'GET');
@@ -4688,7 +4688,7 @@ let serveTests = {
       // Make sure the output directory prefix requires a slash separator
       promise = nextRequestPromise;
       try {
-        await fetch(result.host, result.port, '/outin.js')
+        await fetch(result.hosts[0], result.port, '/outin.js')
         throw new Error('Expected an error to be thrown')
       } catch (err) {
         if (err.statusCode !== 404) throw err
@@ -4727,13 +4727,13 @@ let serveTests = {
         onRequest: args => onRequest(args),
         servedir: testDir,
       })
-      assert.strictEqual(result.host, '127.0.0.1');
+      assert.deepStrictEqual(result.hosts, ['127.0.0.1']);
       assert.strictEqual(typeof result.port, 'number');
 
       let promise, buffer, req;
 
       promise = nextRequestPromise;
-      buffer = await fetch(result.host, result.port, '/')
+      buffer = await fetch(result.hosts[0], result.port, '/')
       assert.strictEqual(buffer.toString(), `<!doctype html>`);
       req = await promise;
       assert.strictEqual(req.method, 'GET');
@@ -4746,7 +4746,7 @@ let serveTests = {
       // "fs.FS" object in Go does not cache the result of calling "ReadDirectory")
       await fs.promises.unlink(index)
       promise = nextRequestPromise;
-      buffer = await fetch(result.host, result.port, '/')
+      buffer = await fetch(result.hosts[0], result.port, '/')
       assert.notStrictEqual(buffer.toString(), '<!doctype html>')
       req = await promise;
       assert.strictEqual(req.method, 'GET');
@@ -4783,12 +4783,11 @@ let serveTests = {
           // Subtract 1 because range headers are inclusive on both ends
           Range: `bytes=${start}-${start + length - 1}`,
         }
-        const fetched = await fetch(result.host, result.port, '/big.txt', { headers })
+        const fetched = await fetch(result.hosts[0], result.port, '/big.txt', { headers })
         delete fetched.headers.date // This changes every time
         delete fetched.headers.connection // Node v19+ no longer sends this
         const expected = buffer.slice(start, start + length)
         expected.headers = {
-          'access-control-allow-origin': '*',
           'content-length': `${length}`,
           'content-range': `bytes ${start}-${start + length - 1}/${byteCount}`,
           'content-type': 'application/octet-stream',
@@ -4819,14 +4818,14 @@ let serveTests = {
       })
       await context.watch()
 
-      const js = await fetch(server.host, server.port, '/out/script.js')
+      const js = await fetch(server.hosts[0], server.port, '/out/script.js')
       assert.strictEqual(js.toString(), `console.log(123);\n`);
 
-      const explicitHTML = await fetch(server.host, server.port, '/out/index.html')
+      const explicitHTML = await fetch(server.hosts[0], server.port, '/out/index.html')
       assert.strictEqual(explicitHTML.toString(), `<script src=script.js></script>`);
 
       // The server should support implicit "index.html" extensions on entry point files
-      const implicitHTML = await fetch(server.host, server.port, '/out/')
+      const implicitHTML = await fetch(server.hosts[0], server.port, '/out/')
       assert.strictEqual(implicitHTML.toString(), `<script src=script.js></script>`);
 
       // Make a change to the HTML
@@ -4862,7 +4861,7 @@ let serveTests = {
       const server = await context.serve({
         host: '127.0.0.1',
       })
-      const stream = await makeEventStream(server.host, server.port, '/esbuild')
+      const stream = await makeEventStream(server.hosts[0], server.port, '/esbuild')
       await context.rebuild().then(
         () => Promise.reject(new Error('Expected an error to be thrown')),
         () => { /* Ignore the build error due to the missing JS file */ },
@@ -4934,7 +4933,7 @@ let serveTests = {
         host: '127.0.0.1',
         servedir: testDir,
       })
-      const stream = await makeEventStream(server.host, server.port, '/esbuild')
+      const stream = await makeEventStream(server.hosts[0], server.port, '/esbuild')
       await context.rebuild().then(
         () => Promise.reject(new Error('Expected an error to be thrown')),
         () => { /* Ignore the build error due to the missing JS file */ },
@@ -5006,7 +5005,7 @@ let serveTests = {
       const server = await context.serve({
         host: '127.0.0.1',
       })
-      const stream = await makeEventStream(server.host, server.port, '/esbuild')
+      const stream = await makeEventStream(server.hosts[0], server.port, '/esbuild')
       await context.rebuild().then(
         () => Promise.reject(new Error('Expected an error to be thrown')),
         () => { /* Ignore the build error due to the missing JS file */ },
@@ -5079,7 +5078,7 @@ let serveTests = {
         host: '127.0.0.1',
         servedir: testDir,
       })
-      const stream = await makeEventStream(server.host, server.port, '/esbuild')
+      const stream = await makeEventStream(server.hosts[0], server.port, '/esbuild')
       await context.rebuild().then(
         () => Promise.reject(new Error('Expected an error to be thrown')),
         () => { /* Ignore the build error due to the missing JS file */ },
@@ -5154,25 +5153,154 @@ let serveTests = {
         servedir: wwwDir,
         fallback,
       })
-      assert.strictEqual(result.host, '127.0.0.1');
+      assert.deepStrictEqual(result.hosts, ['127.0.0.1']);
       assert.strictEqual(typeof result.port, 'number');
 
       let buffer;
 
-      buffer = await fetch(result.host, result.port, '/in.js')
+      buffer = await fetch(result.hosts[0], result.port, '/in.js')
       assert.strictEqual(buffer.toString(), `console.log(123);\n`);
 
-      buffer = await fetch(result.host, result.port, '/')
+      buffer = await fetch(result.hosts[0], result.port, '/')
       assert.strictEqual(buffer.toString(), `<p>fallback</p>`);
 
-      buffer = await fetch(result.host, result.port, '/app/')
+      buffer = await fetch(result.hosts[0], result.port, '/app/')
       assert.strictEqual(buffer.toString(), `<p>index</p>`);
 
-      buffer = await fetch(result.host, result.port, '/app/?foo')
+      buffer = await fetch(result.hosts[0], result.port, '/app/?foo')
       assert.strictEqual(buffer.toString(), `<p>index</p>`);
 
-      buffer = await fetch(result.host, result.port, '/app/foo')
+      buffer = await fetch(result.hosts[0], result.port, '/app/foo')
       assert.strictEqual(buffer.toString(), `<p>fallback</p>`);
+    } finally {
+      await context.dispose();
+    }
+  },
+
+  async serveHostCheckIPv4({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    await writeFileAsync(input, `console.log(123)`)
+
+    let onRequest;
+
+    const context = await esbuild.context({
+      entryPoints: [input],
+      format: 'esm',
+      outdir: testDir,
+      write: false,
+    });
+    try {
+      const result = await context.serve({
+        port: 0,
+        onRequest: args => onRequest(args),
+      })
+      assert(result.hosts.includes('127.0.0.1'));
+      assert.strictEqual(typeof result.port, 'number');
+
+      // GET /in.js from each host
+      for (const host of result.hosts) {
+        const singleRequestPromise = new Promise(resolve => { onRequest = resolve });
+        const buffer = await fetch(host, result.port, '/in.js')
+        assert.strictEqual(buffer.toString(), `console.log(123);\n`);
+        assert.strictEqual(fs.readFileSync(input, 'utf8'), `console.log(123)`)
+
+        let singleRequest = await singleRequestPromise;
+        assert.strictEqual(singleRequest.method, 'GET');
+        assert.strictEqual(singleRequest.path, '/in.js');
+        assert.strictEqual(singleRequest.status, 200);
+        assert.strictEqual(typeof singleRequest.remoteAddress, 'string');
+        assert.strictEqual(typeof singleRequest.timeInMS, 'number');
+      }
+
+      // GET /in.js with a forbidden host header
+      const forbiddenHosts = [
+        'evil.com',
+        'evil.com:666',
+        '1.2.3.4',
+        '1.2.3.4:666',
+        '::1234',
+        '[::1234]:666',
+        '[',
+      ]
+      for (const forbiddenHost of forbiddenHosts) {
+        const singleRequestPromise = new Promise(resolve => { onRequest = resolve });
+        try {
+          await fetch(result.hosts[0], result.port, '/in.js', { headers: { Host: forbiddenHost } })
+        } catch {
+        }
+
+        let singleRequest = await singleRequestPromise;
+        assert.strictEqual(singleRequest.method, 'GET');
+        assert.strictEqual(singleRequest.path, '/in.js');
+        assert.strictEqual(singleRequest.status, 403, forbiddenHost); // 403 means "Forbidden"
+        assert.strictEqual(typeof singleRequest.remoteAddress, 'string');
+        assert.strictEqual(typeof singleRequest.timeInMS, 'number');
+      }
+    } finally {
+      await context.dispose();
+    }
+  },
+
+  async serveHostCheckIPv6({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    await writeFileAsync(input, `console.log(123)`)
+
+    let onRequest;
+
+    const context = await esbuild.context({
+      entryPoints: [input],
+      format: 'esm',
+      outdir: testDir,
+      write: false,
+    });
+    try {
+      const result = await context.serve({
+        host: '::',
+        port: 0,
+        onRequest: args => onRequest(args),
+      })
+      assert(result.hosts.includes('::1'));
+      assert.strictEqual(typeof result.port, 'number');
+
+      // GET /in.js from each host
+      for (const host of result.hosts) {
+        const singleRequestPromise = new Promise(resolve => { onRequest = resolve });
+        const buffer = await fetch(host, result.port, '/in.js')
+        assert.strictEqual(buffer.toString(), `console.log(123);\n`);
+        assert.strictEqual(fs.readFileSync(input, 'utf8'), `console.log(123)`)
+
+        let singleRequest = await singleRequestPromise;
+        assert.strictEqual(singleRequest.method, 'GET');
+        assert.strictEqual(singleRequest.path, '/in.js');
+        assert.strictEqual(singleRequest.status, 200);
+        assert.strictEqual(typeof singleRequest.remoteAddress, 'string');
+        assert.strictEqual(typeof singleRequest.timeInMS, 'number');
+      }
+
+      // GET /in.js with a forbidden host header
+      const forbiddenHosts = [
+        'evil.com',
+        'evil.com:666',
+        '1.2.3.4',
+        '1.2.3.4:666',
+        '::1234',
+        '[::1234]:666',
+        '[',
+      ]
+      for (const forbiddenHost of forbiddenHosts) {
+        const singleRequestPromise = new Promise(resolve => { onRequest = resolve });
+        try {
+          await fetch(result.hosts[0], result.port, '/in.js', { headers: { Host: forbiddenHost } })
+        } catch {
+        }
+
+        let singleRequest = await singleRequestPromise;
+        assert.strictEqual(singleRequest.method, 'GET');
+        assert.strictEqual(singleRequest.path, '/in.js');
+        assert.strictEqual(singleRequest.status, 403, forbiddenHost); // 403 means "Forbidden"
+        assert.strictEqual(typeof singleRequest.remoteAddress, 'string');
+        assert.strictEqual(typeof singleRequest.timeInMS, 'number');
+      }
     } finally {
       await context.dispose();
     }
@@ -7522,7 +7650,7 @@ let childProcessTests = {
   },
 }
 
-let syncTests = {
+let serialTests = {
   async startStop({ esbuild }) {
     for (let i = 0; i < 3; i++) {
       let result1 = await esbuild.transform('1+2')
@@ -7564,7 +7692,6 @@ async function main() {
     process.exit(1)
   }, minutes * 60 * 1000)
 
-  // Run all tests concurrently
   const runTest = async (name, fn) => {
     let testDir = path.join(rootTestDir, name)
     try {
@@ -7589,6 +7716,7 @@ async function main() {
     ...Object.entries(childProcessTests),
   ]
 
+  // Run everything in "tests" concurrently
   let allTestsPassed = (await Promise.all(tests.map(([name, fn]) => {
     const promise = runTest(name, fn)
 
@@ -7601,7 +7729,8 @@ async function main() {
     return promise.finally(() => clearTimeout(timeout))
   }))).every(success => success)
 
-  for (let [name, fn] of Object.entries(syncTests)) {
+  // Run everything in "serialTests" in serial
+  for (let [name, fn] of Object.entries(serialTests)) {
     if (!await runTest(name, fn)) {
       allTestsPassed = false
     }

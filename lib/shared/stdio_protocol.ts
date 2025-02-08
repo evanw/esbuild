@@ -35,7 +35,7 @@ export interface ServeRequest {
 
 export interface ServeResponse {
   port: number
-  host: string
+  hosts: string[]
 }
 
 export interface BuildPlugin {
