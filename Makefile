@@ -416,6 +416,7 @@ platform-deno: platform-wasm
 	node scripts/esbuild.js ./esbuild --deno
 
 publish-all: check-go-version
+	@grep "## `cat version.txt`" CHANGELOG.md || (echo "Missing '## `cat version.txt`' in CHANGELOG.md (required for automatic release notes)" && false)
 	@npm --version > /dev/null || (echo "The 'npm' command must be in your path to publish" && false)
 	@echo "Checking for uncommitted/untracked changes..." && test -z "`git status --porcelain | grep -vE 'M (CHANGELOG\.md|version\.txt)'`" || \
 		(echo "Refusing to publish with these uncommitted/untracked changes:" && \
