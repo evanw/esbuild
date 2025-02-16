@@ -7059,7 +7059,13 @@ func (c *linkerContext) generateSourceMapForChunk(
 		offset := result.generatedOffset
 		sourcesIndex, ok := sourceIndexToSourcesIndex[result.sourceIndex]
 		if !ok {
-			continue
+			// If there's no sourcesIndex, then every mapping for this result's
+			// sourceIndex were null mappings. We still need to emit the null
+			// mapping, but its source index won't matter.
+			sourcesIndex = 0
+			if !result.isNullEntry {
+				panic("Internal error")
+			}
 		}
 
 		// This should have already been checked earlier
