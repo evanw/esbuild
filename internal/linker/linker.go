@@ -6963,13 +6963,13 @@ func (c *linkerContext) generateSourceMapForChunk(
 	items := make([]item, 0, len(results))
 	nextSourcesIndex := 0
 	for _, result := range results {
+		if result.isNullEntry {
+			continue
+		}
 		if _, ok := sourceIndexToSourcesIndex[result.sourceIndex]; ok {
 			continue
 		}
 		sourceIndexToSourcesIndex[result.sourceIndex] = nextSourcesIndex
-		if result.isNullEntry {
-			continue
-		}
 		file := &c.graph.Files[result.sourceIndex]
 
 		// Simple case: no nested source map
@@ -7057,7 +7057,10 @@ func (c *linkerContext) generateSourceMapForChunk(
 	for _, result := range results {
 		chunk := result.sourceMapChunk
 		offset := result.generatedOffset
-		sourcesIndex := sourceIndexToSourcesIndex[result.sourceIndex]
+		sourcesIndex, ok := sourceIndexToSourcesIndex[result.sourceIndex]
+		if !ok {
+			continue
+		}
 
 		// This should have already been checked earlier
 		if chunk.ShouldIgnore {
