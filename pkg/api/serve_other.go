@@ -383,6 +383,7 @@ func (h *apiHandler) serveEventStream(start time.Time, req *http.Request, res ht
 			res.Header().Set("Content-Type", "text/event-stream")
 			res.Header().Set("Connection", "keep-alive")
 			res.Header().Set("Cache-Control", "no-cache")
+			res.Header().Set("Access-Control-Allow-Origin", "*")
 			go h.notifyRequest(time.Since(start), req, http.StatusOK)
 			res.WriteHeader(http.StatusOK)
 			res.Write([]byte("retry: 500\n"))
