@@ -6804,3 +6804,8 @@ func TestUsing(t *testing.T) {
 	expectPrintedMangle(t, "using x = null, y = z", "using x = null, y = z;\n")
 	expectPrintedMangle(t, "using x = z, y = undefined", "using x = z, y = void 0;\n")
 }
+
+// Test for panic in v0.25.0: https://github.com/evanw/esbuild/issues/4088
+func TestSwitchCaseFunctions(t *testing.T) {
+	expectPrinted(t, "switch(0){case 1:x=function(){};case function(){}:break}", "switch (0) {\n  case 1:\n    x = function() {\n    };\n  case function() {\n  }:\n    break;\n}\n")
+}
