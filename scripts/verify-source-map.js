@@ -573,6 +573,43 @@ const toSearchNestedFoldersIssue4070 = {
   'bar': 'src/app/app.config.js',
 }
 
+const testCaseAbsolutePathIssue4075 = {
+  'entry.css': `
+    @import "./styles.css";
+    @import "./styles2.css";
+  `,
+  'styles.css': `/* You can add global styles to this file, and also import other style files */
+* {
+  content: "foo";
+}
+
+/*# sourceMappingURL=data:application/json;charset=utf-8,%7B%22version%22:3,` +
+    `%22sourceRoot%22:%22%22,%22sources%22:%5B%22file:///out/src/styles.scss` +
+    `%22%5D,%22names%22:%5B%5D,%22mappings%22:%22AAAA;AACA;EACE,SAAS%22,%22f` +
+    `ile%22:%22out%22,%22sourcesContent%22:%5B%22/*%20You%20can%20add%20glob` +
+    `al%20styles%20to%20this%20file,%20and%20also%20import%20other%20style%2` +
+    `0files%20%2A/%5Cn*%20%7B%5Cn%20%20content:%20%5C%22foo%5C%22%5Cn%7D%5Cn` +
+    `%22%5D%7D */`,
+  'styles2.css': `/* You can add global styles to this file, and also import other style files */
+* {
+  content: "bar";
+}
+
+/*# sourceMappingURL=data:application/json;charset=utf-8,%7B%22version%22:3,` +
+    `%22sourceRoot%22:%22%22,%22sources%22:%5B%22/out/src/styles2.scss%22%5D` +
+    `,%22names%22:%5B%5D,%22mappings%22:%22AAAA;AACA;EACE,SAAS%22,%22file%22` +
+    `:%22out%22,%22sourcesContent%22:%5B%22/*%20You%20can%20add%20global%20s` +
+    `tyles%20to%20this%20file,%20and%20also%20import%20other%20style%20files` +
+    `%20%2A/%5Cn*%20%7B%5Cn%20%20content:%20%5C%22bar%5C%22%5Cn%7D%5Cn%22%5D` +
+    `%7D */
+`,
+}
+
+const toSearchAbsolutePathIssue4075 = {
+  foo: path.relative(path.join(testDir, '(this test)'), '/out/src/styles.scss'),
+  bar: path.relative(path.join(testDir, '(this test)'), '/out/src/styles2.scss'),
+}
+
 const testCaseMissingSourcesIssue4104 = {
   'entry.js': `import { bootstrapApplication } from '@angular/platform-browser';
 import { AppComponent } from './app.js';
@@ -1089,6 +1126,12 @@ async function main() {
           outfile: 'out.js',
           flags: flags.concat('--bundle'),
           entryPoints: ['src/main.js'],
+          crlf,
+        }),
+        check('issue-4075' + suffix, testCaseAbsolutePathIssue4075, toSearchAbsolutePathIssue4075, {
+          outfile: 'out.css',
+          flags: flags.concat('--bundle'),
+          entryPoints: ['entry.css'],
           crlf,
         }),
         check('issue-4080' + suffix, testCaseNullMappingIssue4080, toSearchNullMappingIssue4080, {

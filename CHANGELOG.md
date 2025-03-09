@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-* Fix incorrect paths in inline source maps ([#4070](https://github.com/evanw/esbuild/issues/4070), [#4105](https://github.com/evanw/esbuild/issues/4105))
+* Fix incorrect paths in inline source maps ([#4070](https://github.com/evanw/esbuild/issues/4070), [#4075](https://github.com/evanw/esbuild/issues/4075), [#4105](https://github.com/evanw/esbuild/issues/4105))
 
     This fixes a regression from version 0.25.0 where esbuild didn't correctly resolve relative paths contained within source maps in inline `sourceMappingURL` data URLs. The paths were incorrectly being passed through as-is instead of being resolved relative to the source file containing the `sourceMappingURL` comment, which was due to the data URL not being a file URL. This regression has been fixed, and this case now has test coverage.
 
