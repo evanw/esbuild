@@ -552,6 +552,27 @@ const toSearchNullMappingIssue4080 = {
   'lib!': 'src/lib.js',
 }
 
+const testCaseNestedFoldersIssue4070 = {
+  'src/main.js': `import { appConfig } from "./app/app.config";
+appConfig("foo");
+//# sourceMappingURL=data:application/json;base64,ewogICJ2ZXJzaW9uIjogMywKIC` +
+    `Aic291cmNlcyI6IFsibWFpbi5qcyJdLAogICJzb3VyY2VzQ29udGVudCI6IFsiaW1wb3J0I` +
+    `HsgYXBwQ29uZmlnIH0gZnJvbSBcIi4vYXBwL2FwcC5jb25maWdcIjtcbmFwcENvbmZpZyhc` +
+    `ImZvb1wiKTsiXSwKICAibWFwcGluZ3MiOiAiQUFBQSxTQUFTLGlCQUFpQjtBQUMxQixVQUF` +
+    `VLEtBQUs7IiwKICAibmFtZXMiOiBbXQp9Cg==`,
+  'src/app/app.config.js': `export const appConfig = (x) => console.log(x, "bar");
+//# sourceMappingURL=data:application/json;base64,ewogICJ2ZXJzaW9uIjogMywKIC` +
+    `Aic291cmNlcyI6IFsiYXBwLmNvbmZpZy5qcyJdLAogICJzb3VyY2VzQ29udGVudCI6IFsiZ` +
+    `Xhwb3J0IGNvbnN0IGFwcENvbmZpZyA9IHggPT4gY29uc29sZS5sb2coeCwgXCJiYXJcIik7` +
+    `Il0sCiAgIm1hcHBpbmdzIjogIkFBQU8sYUFBTSxZQUFZLE9BQUssUUFBUSxJQUFJLEdBQUc` +
+    `sS0FBSzsiLAogICJuYW1lcyI6IFtdCn0K`,
+}
+
+const toSearchNestedFoldersIssue4070 = {
+  'foo': 'src/main.js',
+  'bar': 'src/app/app.config.js',
+}
+
 async function check(kind, testCase, toSearch, { outfile, flags, entryPoints, crlf, followUpFlags = [], checkFirstChunk }) {
   let failed = 0
 
@@ -1013,6 +1034,12 @@ async function main() {
           outfile: 'out.js',
           flags: flags.concat('--bundle'),
           entryPoints: ['entry.js'],
+          crlf,
+        }),
+        check('issue-4048' + suffix, testCaseNestedFoldersIssue4070, toSearchNestedFoldersIssue4070, {
+          outfile: 'out.js',
+          flags: flags.concat('--bundle'),
+          entryPoints: ['src/main.js'],
           crlf,
         }),
         check('issue-4048' + suffix, testCaseNullMappingIssue4080, toSearchNullMappingIssue4080, {

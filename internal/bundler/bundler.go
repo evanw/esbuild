@@ -816,7 +816,9 @@ func extractSourceMapFromComment(
 				fmt.Sprintf("Unsupported source map comment: %s", err.Error()))
 			return logger.Path{}, nil
 		}
-		return logger.Path{Text: source.PrettyPath, IgnoredSuffix: "#sourceMappingURL"}, &contents
+		path := source.KeyPath
+		path.IgnoredSuffix = "#sourceMappingURL"
+		return path, &contents
 	}
 
 	// Support file URLs of two forms:

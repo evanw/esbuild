@@ -13,7 +13,8 @@ import (
 	"github.com/evanw/esbuild/internal/sourcemap"
 )
 
-// Specification: https://sourcemaps.info/spec.html
+// New specification: https://tc39.es/ecma426/
+// Old specification: https://sourcemaps.info/spec.html
 func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 	expr, ok := ParseJSON(log, source, JSONOptions{ErrorSuffix: " in source map"})
 	if !ok {
