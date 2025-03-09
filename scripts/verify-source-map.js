@@ -573,6 +573,55 @@ const toSearchNestedFoldersIssue4070 = {
   'bar': 'src/app/app.config.js',
 }
 
+const testCaseMissingSourcesIssue4104 = {
+  'entry.js': `import { bootstrapApplication } from '@angular/platform-browser';
+import { AppComponent } from './app.js';
+
+bootstrapApplication(AppComponent)
+  .catch((err) => console.error(err));`,
+  'app.component.html': `<div>`,
+  'app.js': `import { __decorate } from "tslib";
+import __NG_CLI_RESOURCE__0 from "./app.component.html";
+import { Component } from '@angular/core';
+import { RouterOutlet } from '@angular/router';
+let AppComponent = class AppComponent {
+    title = 'ng19-sourcemap-repro';
+    onClick() {
+        debugger;
+    }
+};
+AppComponent = __decorate([
+    Component({
+        selector: 'app-root',
+        imports: [RouterOutlet],
+        template: __NG_CLI_RESOURCE__0,
+    })
+], AppComponent);
+export { AppComponent };
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIj` +
+    `oiYXBwLmNvbXBvbmVudC5qcyIsInNvdXJjZVJvb3QiOiIiLCJzb3VyY2VzIjpbImFwcC5jb` +
+    `21wb25lbnQudHMiXSwibmFtZXMiOltdLCJtYXBwaW5ncyI6Ijs7QUFBQSxPQUFPLEVBQUUs` +
+    `U0FBUyxFQUFFLE1BQU0sZUFBZSxDQUFDO0FBQzFDLE9BQU8sRUFBRSxZQUFZLEVBQUUsTUF` +
+    `BTSxpQkFBaUIsQ0FBQztBQU94QyxJQUFNLFlBQVksR0FBbEIsTUFBTSxZQUFZO0lBQ3ZCLE` +
+    `tBQUssR0FBRyxzQkFBc0IsQ0FBQztJQUUvQixPQUFPO1FBQ0wsUUFBUSxDQUFDO0lBQ1gsQ` +
+    `0FBQztDQUNGLENBQUE7QUFOWSxZQUFZO0lBTHhCLFNBQVMsQ0FBQztRQUNULFFBQVEsRUFB` +
+    `RSxVQUFVO1FBQ3BCLE9BQU8sRUFBRSxDQUFDLFlBQVksQ0FBQztRQUN2Qiw4QkFBbUM7S0F` +
+    `DcEMsQ0FBQztHQUNXLFlBQVksQ0FNeEIiLCJzb3VyY2VzQ29udGVudCI6WyJpbXBvcnQgey` +
+    `BDb21wb25lbnQgfSBmcm9tICdAYW5ndWxhci9jb3JlJztcbmltcG9ydCB7IFJvdXRlck91d` +
+    `GxldCB9IGZyb20gJ0Bhbmd1bGFyL3JvdXRlcic7XG5cbkBDb21wb25lbnQoe1xuICBzZWxl` +
+    `Y3RvcjogJ2FwcC1yb290JyxcbiAgaW1wb3J0czogW1JvdXRlck91dGxldF0sXG4gIHRlbXB` +
+    `sYXRlVXJsOiAnLi9hcHAuY29tcG9uZW50Lmh0bWwnLFxufSlcbmV4cG9ydCBjbGFzcyBBcH` +
+    `BDb21wb25lbnQge1xuICB0aXRsZSA9ICduZzE5LXNvdXJjZW1hcC1yZXBybyc7XG5cbiAgb` +
+    `25DbGljaygpIHtcbiAgICBkZWJ1Z2dlcjtcbiAgfVxufVxuIl19`,
+}
+
+const toSearchMissingSourcesIssue4104 = {
+  '@angular/platform-browser': 'entry.js',
+  '@angular/core': 'app.component.ts',
+  'ng19-sourcemap-repro': 'app.component.ts',
+  'app-root': 'app.component.ts',
+}
+
 async function check(kind, testCase, toSearch, { outfile, flags, entryPoints, crlf, followUpFlags = [], checkFirstChunk }) {
   let failed = 0
 
@@ -1047,6 +1096,13 @@ async function main() {
           flags: flags.concat('--bundle', '--format=esm'),
           entryPoints: ['entry.js'],
           crlf,
+        }),
+        check('issue-4104' + suffix, testCaseMissingSourcesIssue4104, toSearchMissingSourcesIssue4104, {
+          outfile: 'out.js',
+          flags: flags.concat('--format=esm', '--sourcemap', '--bundle', '--loader:.html=text', '--packages=external'),
+          entryPoints: ['entry.js'],
+          crlf,
+          followUpFlags: ['--packages=external'],
         }),
 
         // Checks for the "names" field
