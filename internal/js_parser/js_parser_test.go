@@ -2813,6 +2813,11 @@ func TestSwitch(t *testing.T) {
 
 	expectPrintedMangle(t, "for (x of y) z: switch (0) { case 0: a(); break z; default: b(); break z }", "for (x of y) z: switch (0) {\n  case 0:\n    a();\n    break z;\n}\n")
 	expectPrintedMangle(t, "for (x of y) z: switch (1) { case 0: a(); break z; default: b(); break z }", "for (x of y) z: switch (1) {\n  default:\n    b();\n    break z;\n}\n")
+
+	// Some people put functions inside case expressions, so make sure that works
+	// For more info, see: https://github.com/evanw/esbuild/issues/4088
+	expectPrinted(t, "switch (0) { case x(() => 1): y = () => 2; case x(() => 3): y = () => 4 }",
+		"switch (0) {\n  case x(() => 1):\n    y = () => 2;\n  case x(() => 3):\n    y = () => 4;\n}\n")
 }
 
 func TestConstantFolding(t *testing.T) {

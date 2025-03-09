@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+* Fix a crash with `switch` optimization ([#4088](https://github.com/evanw/esbuild/issues/4088))
+
+    The new code in the previous release to optimize dead code in switch statements accidentally introduced a crash in the edge case where one or more switch case values include a function expression. This is because esbuild now visits the case values first to determine whether any cases are dead code, and then visits the case values once the dead code status is known. That triggered some internal asserts that guard against traversing the AST in an unexpected order. This crash has been fixed by changing esbuild to expect the new traversal ordering. Here's an example of affected code:
+
+    ```js
+    switch (x) {
+      case '':
+        return y.map(z => z.value)
+      case y.map(z => z.key).join(','):
+        return []
+    }
+    ```
+
 ## 0.25.0
 
 **This release deliberately contains backwards-incompatible changes.** To avoid automatically picking up releases like this, you should either be pinning the exact version of `esbuild` in your `package.json` file (recommended) or be using a version range syntax that only accepts patch upgrades such as `^0.24.0` or `~0.24.0`. See npm's documentation about [semver](https://docs.npmjs.com/cli/v6/using-npm/semver/) for more information.

@@ -7477,11 +7477,14 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		p.lexer.Expect(js_lexer.TOpenBrace)
 		cases := []js_ast.Case{}
 		foundDefault := false
+		switchScopeStart := len(p.scopesInOrder)
+		var caseScopeMap map[*js_ast.Scope]struct{}
 
 		for p.lexer.Token != js_lexer.TCloseBrace {
 			var value js_ast.Expr
 			body := []js_ast.Stmt{}
 			caseLoc := p.saveExprCommentsHere()
+			caseScopeStart := len(p.scopesInOrder)
 
 			if p.lexer.Token == js_lexer.TDefault {
 				if foundDefault {
@@ -7497,6 +7500,27 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 				p.lexer.Expect(js_lexer.TColon)
 			}
 
+			// Keep track of any scopes created by case values. This can happen if
+			// code uses anonymous functions inside a case value. For example:
+			//
+			//   switch (x) {
+			//     case y.map(z => -z).join(':'):
+			//       return y
+			//   }
+			//
+			if caseScopeStart < len(p.scopesInOrder) {
+				if caseScopeMap == nil {
+					caseScopeMap = make(map[*js_ast.Scope]struct{})
+				}
+				for {
+					caseScopeMap[p.scopesInOrder[caseScopeStart].scope] = struct{}{}
+					caseScopeStart++
+					if caseScopeStart == len(p.scopesInOrder) {
+						break
+					}
+				}
+			}
+
 		caseBody:
 			for {
 				switch p.lexer.Token {
@@ -7509,6 +7533,40 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			}
 
 			cases = append(cases, js_ast.Case{ValueOrNil: value, Body: body, Loc: caseLoc})
+		}
+
+		// If any case contains values that create a scope, reorder those scopes to
+		// come first before any scopes created by case bodies. This reflects the
+		// order in which we will visit the AST in our second parsing pass. The
+		// second parsing pass visits things in a different order because it uses
+		// case values to determine liveness, and then uses the liveness information
+		// when visiting the case bodies (e.g. avoid "require()" calls in dead code).
+		// For example:
+		//
+		//   switch (1) {
+		//     case y(() => 1):
+		//       z = () => 2;
+		//       break;
+		//
+		//     case y(() => 3):
+		//       z = () => 4;
+		//       break;
+		//   }
+		//
+		// This is parsed in the order 1,2,3,4 but visited in the order 1,3,2,4.
+		if len(caseScopeMap) > 0 {
+			caseScopes := make([]scopeOrder, 0, len(caseScopeMap))
+			bodyScopes := make([]scopeOrder, 0, len(p.scopesInOrder)-switchScopeStart-len(caseScopeMap))
+			for i := switchScopeStart; i < len(p.scopesInOrder); i++ {
+				it := p.scopesInOrder[i]
+				if _, ok := caseScopeMap[it.scope]; ok {
+					caseScopes = append(caseScopes, it)
+				} else {
+					bodyScopes = append(bodyScopes, it)
+				}
+			}
+			copy(p.scopesInOrder[switchScopeStart:switchScopeStart+len(caseScopeMap)], caseScopes)
+			copy(p.scopesInOrder[switchScopeStart+len(caseScopeMap):], bodyScopes)
 		}
 
 		closeBraceLoc := p.lexer.Loc()
