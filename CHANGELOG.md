@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+* Fix invalid generated source maps ([#4080](https://github.com/evanw/esbuild/issues/4080), [#4082](https://github.com/evanw/esbuild/issues/4082), [#4107](https://github.com/evanw/esbuild/issues/4107))
+
+    This release fixes a regression from version 0.24.1 that could cause esbuild to generate invalid source maps. Specifically under certain conditions, esbuild could generate a mapping with an out-of-bounds source index. It was introduced by code that attempted to improve esbuild's handling of "null" entries in source maps (i.e. mappings with a generated position but no original position). This regression has been fixed.
+
+    This fix was contributed by [@jridgewell](https://github.com/jridgewell).
+
 * Fix a crash with `switch` optimization ([#4088](https://github.com/evanw/esbuild/issues/4088))
 
     The new code in the previous release to optimize dead code in switch statements accidentally introduced a crash in the edge case where one or more switch case values include a function expression. This is because esbuild now visits the case values first to determine whether any cases are dead code, and then visits the case values once the dead code status is known. That triggered some internal asserts that guard against traversing the AST in an unexpected order. This crash has been fixed by changing esbuild to expect the new traversal ordering. Here's an example of affected code:

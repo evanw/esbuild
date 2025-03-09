@@ -496,6 +496,62 @@ const toSearchAbsoluteSourcesURL = {
   test: 'input.js',
 }
 
+// This case covers a crash when esbuild would generate an invalid source map
+// containing a mapping with an index of a source that's out of bounds of the
+// "sources" array. This happened when generating the namespace exports chunk
+// which in this case is triggered by "export * as it from". For more
+// information, see: https://github.com/evanw/esbuild/issues/4080
+const testCaseNullMappingIssue4080 = {
+  'foo.js': `// foo.js
+here.is.some.code = "foo!";
+//# sourceMappingURL=foo.js.map
+`,
+  'foo.js.map': `{
+  "version": 3,
+  "sources": ["./src/foo.js"],
+  "sourcesContent": ["here\\n  .is\\n  .some\\n  .code\\n  = 'foo!'\\n"],
+  "mappings": ";AAAA,KACG,GACA,KACA,OACC;",
+  "names": []
+}`,
+  'bar.js': `// bar.js
+here.is.some.more.code = "bar!";
+//# sourceMappingURL=bar.js.map
+`,
+  'bar.js.map': `{
+  "version": 3,
+  "sources": ["./src/bar.js"],
+  "sourcesContent": ["here\\n  .is.some.more\\n  .code\\n  = 'bar!'\\n"],
+  "mappings": ";AAAA,KACG,GAAG,KAAK,KACR,OACC;",
+  "names": []
+}`,
+  'core.js': `// core.js
+import "./bar.js";
+
+// lib.js
+var value = "lib!";
+export {
+  value
+};
+//# sourceMappingURL=core.js.map
+`,
+  'core.js.map': `{
+  "version": 3,
+  "sources": ["./src/core.js", "./src/lib.js"],
+  "sourcesContent": ["import './bar.js'\\nexport { value } from './lib.js'\\n", "export const value = 'lib!'\\n"],
+  "mappings": ";AAAA,OAAO;;;ACAA,IAAM,QAAQ;",
+  "names": []
+}`,
+  'entry.js': `import './foo.js'
+export * as it from './core.js'
+`,
+}
+
+const toSearchNullMappingIssue4080 = {
+  'foo!': 'src/foo.js',
+  'bar!': 'src/bar.js',
+  'lib!': 'src/lib.js',
+}
+
 async function check(kind, testCase, toSearch, { outfile, flags, entryPoints, crlf, followUpFlags = [], checkFirstChunk }) {
   let failed = 0
 
@@ -956,6 +1012,12 @@ async function main() {
         check('absolute-sources-url' + suffix, testCaseAbsoluteSourcesURL, toSearchAbsoluteSourcesURL, {
           outfile: 'out.js',
           flags: flags.concat('--bundle'),
+          entryPoints: ['entry.js'],
+          crlf,
+        }),
+        check('issue-4048' + suffix, testCaseNullMappingIssue4080, toSearchNullMappingIssue4080, {
+          outfile: 'out.js',
+          flags: flags.concat('--bundle', '--format=esm'),
           entryPoints: ['entry.js'],
           crlf,
         }),
