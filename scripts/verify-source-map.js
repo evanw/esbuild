@@ -1036,13 +1036,13 @@ async function main() {
           entryPoints: ['entry.js'],
           crlf,
         }),
-        check('issue-4048' + suffix, testCaseNestedFoldersIssue4070, toSearchNestedFoldersIssue4070, {
+        check('issue-4070' + suffix, testCaseNestedFoldersIssue4070, toSearchNestedFoldersIssue4070, {
           outfile: 'out.js',
           flags: flags.concat('--bundle'),
           entryPoints: ['src/main.js'],
           crlf,
         }),
-        check('issue-4048' + suffix, testCaseNullMappingIssue4080, toSearchNullMappingIssue4080, {
+        check('issue-4080' + suffix, testCaseNullMappingIssue4080, toSearchNullMappingIssue4080, {
           outfile: 'out.js',
           flags: flags.concat('--bundle', '--format=esm'),
           entryPoints: ['entry.js'],
