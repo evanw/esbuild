@@ -6980,7 +6980,39 @@ func (c *linkerContext) generateSourceMapForChunk(
 			}
 			source := file.InputFile.Source.KeyPath.Text
 			if file.InputFile.Source.KeyPath.Namespace == "file" {
+				// Serialize the file path as a "file://" URL, since source maps encode
+				// sources as URLs. While we could output absolute "file://" URLs, it
+				// will be turned into a relative path when it's written out below for
+				// better readability and to be independent of build directory.
 				source = helpers.FileURLFromFilePath(source).String()
+			} else {
+				// If the path for this file isn't in the "file" namespace, then write
+				// out something arbitrary instead. Source maps encode sources as URLs
+				// but plugins are allowed to put almost anything in the "namespace"
+				// and "path" fields, so we don't attempt to control whether this forms
+				// a valid URL or not.
+				//
+				// The approach used here is to join the namespace with the path text
+				// using a ":" character. It's important to include the namespace
+				// because esbuild considers paths with different namespaces to have
+				// separate identities. And using a ":" means that the path is more
+				// likely to form a valid URL in the source map.
+				//
+				// For example, you could imagine a plugin that uses the "https"
+				// namespace and path text like "//example.com/foo.js", which would
+				// then be joined into the URL "https://example.com/foo.js" here.
+				//
+				// Note that this logic is currently mostly the same as the pretty-
+				// printed paths that esbuild shows to humans in error messages.
+				// However, this code has been forked below as these source map URLs
+				// are intended for code instead of humans, and we don't want the
+				// changes for humans to unintentionally break code that uses them.
+				//
+				// See https://github.com/evanw/esbuild/issues/4078 for more info.
+				if ns := file.InputFile.Source.KeyPath.Namespace; ns != "" {
+					source = fmt.Sprintf("%s:%s", ns, source)
+				}
+				source += file.InputFile.Source.KeyPath.IgnoredSuffix
 			}
 			items = append(items, item{
 				source:         source,

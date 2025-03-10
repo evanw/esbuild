@@ -2675,6 +2675,38 @@ console.log(foo_default, foo_default2);
       }],
     })
   },
+
+  async sourceMapNamespacePrefixIssue4078({ esbuild, testDir }) {
+    const entry = path.join(testDir, 'entry.js')
+    await writeFileAsync(entry, `
+      import 'foo'
+      console.log('entry')
+    `)
+
+    const result = await esbuild.build({
+      entryPoints: [entry],
+      bundle: true,
+      sourcemap: true,
+      write: false,
+      outdir: path.join(testDir, 'out'),
+      plugins: [{
+        name: 'example',
+        setup(build) {
+          build.onResolve({ filter: /foo/ }, () => {
+            return { path: 'lib/foo', namespace: 'mynamespace' }
+          })
+          build.onLoad({ filter: /foo/, namespace: 'mynamespace' }, () => {
+            return { contents: 'console.log("foo")' }
+          })
+        },
+      }],
+    })
+
+    assert.strictEqual(result.outputFiles.length, 2)
+    const map = result.outputFiles.find(file => file.path.endsWith('.js.map'))
+    const json = JSON.parse(map.text)
+    assert.deepStrictEqual(json.sources, ['mynamespace:lib/foo', '../entry.js'])
+  },
 }
 
 const makeRebuildUntilPlugin = () => {

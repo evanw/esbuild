@@ -573,41 +573,68 @@ const toSearchNestedFoldersIssue4070 = {
   'bar': 'src/app/app.config.js',
 }
 
+// This test checks what happens when you use absolute paths in inlined source
+// maps. This is done two ways, first using a "file://" URL and second using
+// an actual absolute path.
+//
+// Only the first way is supposed to be valid, at least according to the formal
+// specification (https://tc39.es/ecma426/) which says that each source is "a
+// string that is a (potentially relative) URL".
+//
+// However, for a long time source maps was poorly-specified. The old source map
+// specification (https://sourcemaps.info/spec.html) only says "sources" is "a
+// list of original sources used by the mappings entry".
+//
+// So it makes sense that software which predates the formal specification of
+// source maps might fill in the sources array with absolute file paths instead
+// of URLs. So we test for that here to make sure esbuild works either way.
+//
+// Windows paths make this complicated. Here are all five possible combinations
+// of absolute paths for the file "folder/file.js":
+//
+// - Unix URL: "file:///folder/file.js"
+// - Unix path: "/folder/file.js"
+// - Windows URL: "file:///C:/folder/file.js"
+// - Windows path v1: "C:/folder/file.js" (not covered here)
+// - Windows path v2: "C:\folder\file.js"
+//
+const rootDir = path.dirname(process.cwd().split(path.sep).slice(0, 2).join(path.sep))
+const pathIssue4075 = path.join(rootDir, 'out', 'src', 'styles')
+const urlIssue4075 = url.pathToFileURL(pathIssue4075)
+const urlIssue4075Encoded = encodeURIComponent(JSON.stringify(urlIssue4075 + '1.scss'))
+const pathIssue4075Encoded = encodeURIComponent(JSON.stringify(pathIssue4075 + '2.scss'))
 const testCaseAbsolutePathIssue4075 = {
   'entry.css': `
-    @import "./styles.css";
+    @import "./styles1.css";
     @import "./styles2.css";
   `,
-  'styles.css': `/* You can add global styles to this file, and also import other style files */
+  'styles1.css': `/* You can add global styles to this file, and also import other style files */
 * {
   content: "foo";
 }
 
 /*# sourceMappingURL=data:application/json;charset=utf-8,%7B%22version%22:3,` +
-    `%22sourceRoot%22:%22%22,%22sources%22:%5B%22file:///out/src/styles.scss` +
-    `%22%5D,%22names%22:%5B%5D,%22mappings%22:%22AAAA;AACA;EACE,SAAS%22,%22f` +
-    `ile%22:%22out%22,%22sourcesContent%22:%5B%22/*%20You%20can%20add%20glob` +
-    `al%20styles%20to%20this%20file,%20and%20also%20import%20other%20style%2` +
-    `0files%20%2A/%5Cn*%20%7B%5Cn%20%20content:%20%5C%22foo%5C%22%5Cn%7D%5Cn` +
-    `%22%5D%7D */`,
+    `%22sourceRoot%22:%22%22,%22sources%22:%5B${urlIssue4075Encoded}%5D,%22n` +
+    `ames%22:%5B%5D,%22mappings%22:%22AAAA;AACA;EACE,SAAS%22,%22file%22:%22o` +
+    `ut%22,%22sourcesContent%22:%5B%22/*%20You%20can%20add%20global%20styles` +
+    `%20to%20this%20file,%20and%20also%20import%20other%20style%20files%20%2` +
+    `A/%5Cn*%20%7B%5Cn%20%20content:%20%5C%22foo%5C%22%5Cn%7D%5Cn%22%5D%7D */`,
   'styles2.css': `/* You can add global styles to this file, and also import other style files */
 * {
   content: "bar";
 }
 
 /*# sourceMappingURL=data:application/json;charset=utf-8,%7B%22version%22:3,` +
-    `%22sourceRoot%22:%22%22,%22sources%22:%5B%22/out/src/styles2.scss%22%5D` +
-    `,%22names%22:%5B%5D,%22mappings%22:%22AAAA;AACA;EACE,SAAS%22,%22file%22` +
-    `:%22out%22,%22sourcesContent%22:%5B%22/*%20You%20can%20add%20global%20s` +
-    `tyles%20to%20this%20file,%20and%20also%20import%20other%20style%20files` +
-    `%20%2A/%5Cn*%20%7B%5Cn%20%20content:%20%5C%22bar%5C%22%5Cn%7D%5Cn%22%5D` +
-    `%7D */
-`,
+    `%22sourceRoot%22:%22%22,%22sources%22:%5B${pathIssue4075Encoded}%5D,%22` +
+    `names%22:%5B%5D,%22mappings%22:%22AAAA;AACA;EACE,SAAS%22,%22file%22:%22` +
+    `out%22,%22sourcesContent%22:%5B%22/*%20You%20can%20add%20global%20style` +
+    `s%20to%20this%20file,%20and%20also%20import%20other%20style%20files%20%` +
+    `2A/%5Cn*%20%7B%5Cn%20%20content:%20%5C%22bar%5C%22%5Cn%7D%5Cn%22%5D%7D */`,
 }
 
 const toSearchAbsolutePathIssue4075 = {
-  foo: path.relative(path.join(testDir, '(this test)'), '/out/src/styles.scss'),
-  bar: path.relative(path.join(testDir, '(this test)'), '/out/src/styles2.scss'),
+  foo: path.relative(path.join(testDir, '(this test)'), pathIssue4075 + '1.scss').replaceAll('\\', '/'),
+  bar: path.relative(path.join(testDir, '(this test)'), pathIssue4075 + '2.scss').replaceAll('\\', '/'),
 }
 
 const testCaseMissingSourcesIssue4104 = {
@@ -1190,7 +1217,7 @@ async function main() {
           entryPoints: ['entry1.ts', 'entry2.ts'],
           crlf,
           checkFirstChunk: true,
-        })
+        }),
       )
     }
   }

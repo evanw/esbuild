@@ -116,7 +116,7 @@ func (fs *mockFS) ModKey(path string) (ModKey, error) {
 }
 
 func win2unix(p string) string {
-	if strings.HasPrefix(p, "C:\\") {
+	if strings.HasPrefix(p, "C:\\") || strings.HasPrefix(p, "c:\\") {
 		p = p[2:]
 	}
 	p = strings.ReplaceAll(p, "\\", "/")

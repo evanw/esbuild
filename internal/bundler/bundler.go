@@ -642,8 +642,33 @@ func parseFile(args parseArgs) {
 							sourceMap.SourcesContent = slice
 						}
 
-						// Attempt to fill in null entries using the file system
 						for i, source := range sourceMap.Sources {
+							// Convert absolute paths to "file://" URLs, which is especially important
+							// for Windows where file paths don't look like URLs at all (they use "\"
+							// as a path separator and start with a "C:\" volume label instead of "/").
+							//
+							// The new source map specification (https://tc39.es/ecma426/) says that
+							// each source is "a string that is a (potentially relative) URL". So we
+							// should technically not be finding absolute paths here in the first place.
+							//
+							// However, for a long time source maps was poorly-specified. The old source
+							// map specification (https://sourcemaps.info/spec.html) only says "sources"
+							// is "a list of original sources used by the mappings entry" which could
+							// be anything, really.
+							//
+							// So it makes sense that software which predates the formal specification
+							// of source maps might fill in the sources array with absolute file paths
+							// instead of URLs. Here are some cases where that happened:
+							//
+							// - https://github.com/mozilla/source-map/issues/355
+							// - https://github.com/webpack/webpack/issues/8226
+							//
+							if path.Namespace == "file" && args.fs.IsAbs(source) {
+								source = helpers.FileURLFromFilePath(source).String()
+								sourceMap.Sources[i] = source
+							}
+
+							// Attempt to fill in null entries using the file system
 							if sourceMap.SourcesContent[i].Value == nil {
 								if sourceURL, err := url.Parse(source); err == nil && helpers.IsFileURL(sourceURL) {
 									if contents, err, _ := args.caches.FSCache.ReadFile(args.fs, helpers.FilePathFromFileURL(args.fs, sourceURL)); err == nil {
