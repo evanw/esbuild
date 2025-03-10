@@ -496,6 +496,169 @@ const toSearchAbsoluteSourcesURL = {
   test: 'input.js',
 }
 
+// This case covers a crash when esbuild would generate an invalid source map
+// containing a mapping with an index of a source that's out of bounds of the
+// "sources" array. This happened when generating the namespace exports chunk
+// which in this case is triggered by "export * as it from". For more
+// information, see: https://github.com/evanw/esbuild/issues/4080
+const testCaseNullMappingIssue4080 = {
+  'foo.js': `// foo.js
+here.is.some.code = "foo!";
+//# sourceMappingURL=foo.js.map
+`,
+  'foo.js.map': `{
+  "version": 3,
+  "sources": ["./src/foo.js"],
+  "sourcesContent": ["here\\n  .is\\n  .some\\n  .code\\n  = 'foo!'\\n"],
+  "mappings": ";AAAA,KACG,GACA,KACA,OACC;",
+  "names": []
+}`,
+  'bar.js': `// bar.js
+here.is.some.more.code = "bar!";
+//# sourceMappingURL=bar.js.map
+`,
+  'bar.js.map': `{
+  "version": 3,
+  "sources": ["./src/bar.js"],
+  "sourcesContent": ["here\\n  .is.some.more\\n  .code\\n  = 'bar!'\\n"],
+  "mappings": ";AAAA,KACG,GAAG,KAAK,KACR,OACC;",
+  "names": []
+}`,
+  'core.js': `// core.js
+import "./bar.js";
+
+// lib.js
+var value = "lib!";
+export {
+  value
+};
+//# sourceMappingURL=core.js.map
+`,
+  'core.js.map': `{
+  "version": 3,
+  "sources": ["./src/core.js", "./src/lib.js"],
+  "sourcesContent": ["import './bar.js'\\nexport { value } from './lib.js'\\n", "export const value = 'lib!'\\n"],
+  "mappings": ";AAAA,OAAO;;;ACAA,IAAM,QAAQ;",
+  "names": []
+}`,
+  'entry.js': `import './foo.js'
+export * as it from './core.js'
+`,
+}
+
+const toSearchNullMappingIssue4080 = {
+  'foo!': 'src/foo.js',
+  'bar!': 'src/bar.js',
+  'lib!': 'src/lib.js',
+}
+
+const testCaseNestedFoldersIssue4070 = {
+  'src/main.js': `import { appConfig } from "./app/app.config";
+appConfig("foo");
+//# sourceMappingURL=data:application/json;base64,ewogICJ2ZXJzaW9uIjogMywKIC` +
+    `Aic291cmNlcyI6IFsibWFpbi5qcyJdLAogICJzb3VyY2VzQ29udGVudCI6IFsiaW1wb3J0I` +
+    `HsgYXBwQ29uZmlnIH0gZnJvbSBcIi4vYXBwL2FwcC5jb25maWdcIjtcbmFwcENvbmZpZyhc` +
+    `ImZvb1wiKTsiXSwKICAibWFwcGluZ3MiOiAiQUFBQSxTQUFTLGlCQUFpQjtBQUMxQixVQUF` +
+    `VLEtBQUs7IiwKICAibmFtZXMiOiBbXQp9Cg==`,
+  'src/app/app.config.js': `export const appConfig = (x) => console.log(x, "bar");
+//# sourceMappingURL=data:application/json;base64,ewogICJ2ZXJzaW9uIjogMywKIC` +
+    `Aic291cmNlcyI6IFsiYXBwLmNvbmZpZy5qcyJdLAogICJzb3VyY2VzQ29udGVudCI6IFsiZ` +
+    `Xhwb3J0IGNvbnN0IGFwcENvbmZpZyA9IHggPT4gY29uc29sZS5sb2coeCwgXCJiYXJcIik7` +
+    `Il0sCiAgIm1hcHBpbmdzIjogIkFBQU8sYUFBTSxZQUFZLE9BQUssUUFBUSxJQUFJLEdBQUc` +
+    `sS0FBSzsiLAogICJuYW1lcyI6IFtdCn0K`,
+}
+
+const toSearchNestedFoldersIssue4070 = {
+  'foo': 'src/main.js',
+  'bar': 'src/app/app.config.js',
+}
+
+const testCaseAbsolutePathIssue4075 = {
+  'entry.css': `
+    @import "./styles.css";
+    @import "./styles2.css";
+  `,
+  'styles.css': `/* You can add global styles to this file, and also import other style files */
+* {
+  content: "foo";
+}
+
+/*# sourceMappingURL=data:application/json;charset=utf-8,%7B%22version%22:3,` +
+    `%22sourceRoot%22:%22%22,%22sources%22:%5B%22file:///out/src/styles.scss` +
+    `%22%5D,%22names%22:%5B%5D,%22mappings%22:%22AAAA;AACA;EACE,SAAS%22,%22f` +
+    `ile%22:%22out%22,%22sourcesContent%22:%5B%22/*%20You%20can%20add%20glob` +
+    `al%20styles%20to%20this%20file,%20and%20also%20import%20other%20style%2` +
+    `0files%20%2A/%5Cn*%20%7B%5Cn%20%20content:%20%5C%22foo%5C%22%5Cn%7D%5Cn` +
+    `%22%5D%7D */`,
+  'styles2.css': `/* You can add global styles to this file, and also import other style files */
+* {
+  content: "bar";
+}
+
+/*# sourceMappingURL=data:application/json;charset=utf-8,%7B%22version%22:3,` +
+    `%22sourceRoot%22:%22%22,%22sources%22:%5B%22/out/src/styles2.scss%22%5D` +
+    `,%22names%22:%5B%5D,%22mappings%22:%22AAAA;AACA;EACE,SAAS%22,%22file%22` +
+    `:%22out%22,%22sourcesContent%22:%5B%22/*%20You%20can%20add%20global%20s` +
+    `tyles%20to%20this%20file,%20and%20also%20import%20other%20style%20files` +
+    `%20%2A/%5Cn*%20%7B%5Cn%20%20content:%20%5C%22bar%5C%22%5Cn%7D%5Cn%22%5D` +
+    `%7D */
+`,
+}
+
+const toSearchAbsolutePathIssue4075 = {
+  foo: path.relative(path.join(testDir, '(this test)'), '/out/src/styles.scss'),
+  bar: path.relative(path.join(testDir, '(this test)'), '/out/src/styles2.scss'),
+}
+
+const testCaseMissingSourcesIssue4104 = {
+  'entry.js': `import { bootstrapApplication } from '@angular/platform-browser';
+import { AppComponent } from './app.js';
+
+bootstrapApplication(AppComponent)
+  .catch((err) => console.error(err));`,
+  'app.component.html': `<div>`,
+  'app.js': `import { __decorate } from "tslib";
+import __NG_CLI_RESOURCE__0 from "./app.component.html";
+import { Component } from '@angular/core';
+import { RouterOutlet } from '@angular/router';
+let AppComponent = class AppComponent {
+    title = 'ng19-sourcemap-repro';
+    onClick() {
+        debugger;
+    }
+};
+AppComponent = __decorate([
+    Component({
+        selector: 'app-root',
+        imports: [RouterOutlet],
+        template: __NG_CLI_RESOURCE__0,
+    })
+], AppComponent);
+export { AppComponent };
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIj` +
+    `oiYXBwLmNvbXBvbmVudC5qcyIsInNvdXJjZVJvb3QiOiIiLCJzb3VyY2VzIjpbImFwcC5jb` +
+    `21wb25lbnQudHMiXSwibmFtZXMiOltdLCJtYXBwaW5ncyI6Ijs7QUFBQSxPQUFPLEVBQUUs` +
+    `U0FBUyxFQUFFLE1BQU0sZUFBZSxDQUFDO0FBQzFDLE9BQU8sRUFBRSxZQUFZLEVBQUUsTUF` +
+    `BTSxpQkFBaUIsQ0FBQztBQU94QyxJQUFNLFlBQVksR0FBbEIsTUFBTSxZQUFZO0lBQ3ZCLE` +
+    `tBQUssR0FBRyxzQkFBc0IsQ0FBQztJQUUvQixPQUFPO1FBQ0wsUUFBUSxDQUFDO0lBQ1gsQ` +
+    `0FBQztDQUNGLENBQUE7QUFOWSxZQUFZO0lBTHhCLFNBQVMsQ0FBQztRQUNULFFBQVEsRUFB` +
+    `RSxVQUFVO1FBQ3BCLE9BQU8sRUFBRSxDQUFDLFlBQVksQ0FBQztRQUN2Qiw4QkFBbUM7S0F` +
+    `DcEMsQ0FBQztHQUNXLFlBQVksQ0FNeEIiLCJzb3VyY2VzQ29udGVudCI6WyJpbXBvcnQgey` +
+    `BDb21wb25lbnQgfSBmcm9tICdAYW5ndWxhci9jb3JlJztcbmltcG9ydCB7IFJvdXRlck91d` +
+    `GxldCB9IGZyb20gJ0Bhbmd1bGFyL3JvdXRlcic7XG5cbkBDb21wb25lbnQoe1xuICBzZWxl` +
+    `Y3RvcjogJ2FwcC1yb290JyxcbiAgaW1wb3J0czogW1JvdXRlck91dGxldF0sXG4gIHRlbXB` +
+    `sYXRlVXJsOiAnLi9hcHAuY29tcG9uZW50Lmh0bWwnLFxufSlcbmV4cG9ydCBjbGFzcyBBcH` +
+    `BDb21wb25lbnQge1xuICB0aXRsZSA9ICduZzE5LXNvdXJjZW1hcC1yZXBybyc7XG5cbiAgb` +
+    `25DbGljaygpIHtcbiAgICBkZWJ1Z2dlcjtcbiAgfVxufVxuIl19`,
+}
+
+const toSearchMissingSourcesIssue4104 = {
+  '@angular/platform-browser': 'entry.js',
+  '@angular/core': 'app.component.ts',
+  'ng19-sourcemap-repro': 'app.component.ts',
+  'app-root': 'app.component.ts',
+}
+
 async function check(kind, testCase, toSearch, { outfile, flags, entryPoints, crlf, followUpFlags = [], checkFirstChunk }) {
   let failed = 0
 
@@ -958,6 +1121,31 @@ async function main() {
           flags: flags.concat('--bundle'),
           entryPoints: ['entry.js'],
           crlf,
+        }),
+        check('issue-4070' + suffix, testCaseNestedFoldersIssue4070, toSearchNestedFoldersIssue4070, {
+          outfile: 'out.js',
+          flags: flags.concat('--bundle'),
+          entryPoints: ['src/main.js'],
+          crlf,
+        }),
+        check('issue-4075' + suffix, testCaseAbsolutePathIssue4075, toSearchAbsolutePathIssue4075, {
+          outfile: 'out.css',
+          flags: flags.concat('--bundle'),
+          entryPoints: ['entry.css'],
+          crlf,
+        }),
+        check('issue-4080' + suffix, testCaseNullMappingIssue4080, toSearchNullMappingIssue4080, {
+          outfile: 'out.js',
+          flags: flags.concat('--bundle', '--format=esm'),
+          entryPoints: ['entry.js'],
+          crlf,
+        }),
+        check('issue-4104' + suffix, testCaseMissingSourcesIssue4104, toSearchMissingSourcesIssue4104, {
+          outfile: 'out.js',
+          flags: flags.concat('--format=esm', '--sourcemap', '--bundle', '--loader:.html=text', '--packages=external'),
+          entryPoints: ['entry.js'],
+          crlf,
+          followUpFlags: ['--packages=external'],
         }),
 
         // Checks for the "names" field
