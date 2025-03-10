@@ -903,6 +903,56 @@ var file_default = "This should not be base64 encoded";
 console.log(file_default);
 
 ================================================================================
+TestLoaderInlineSourceMapAbsolutePathIssue4075Unix
+---------- /out/entry.css.map ----------
+{
+  "version": 3,
+  "sources": ["src/styles1.scss", "src/styles2.scss"],
+  "sourcesContent": ["/* You can add global styles to this file, and also import other style files */\n* {\n  content: \"foo\"\n}\n", "/* You can add global styles to this file, and also import other style files */\n* {\n  content: \"bar\"\n}\n"],
+  "mappings": ";AACA;AACE,WAAS;;;;ACDX;AACE,WAAS;;",
+  "names": []
+}
+
+---------- /out/entry.css ----------
+/* home/user/project/src/styles1.css */
+* {
+  content: "foo";
+}
+
+/* home/user/project/src/styles2.css */
+* {
+  content: "bar";
+}
+
+/* home/user/project/src/entry.css */
+/*# sourceMappingURL=entry.css.map */
+
+================================================================================
+TestLoaderInlineSourceMapAbsolutePathIssue4075Windows
+---------- /out/entry.css.map ----------
+{
+  "version": 3,
+  "sources": ["src/styles1.scss", "src/styles2.scss"],
+  "sourcesContent": ["/* You can add global styles to this file, and also import other style files */\n* {\n  content: \"foo\"\n}\n", "/* You can add global styles to this file, and also import other style files */\n* {\n  content: \"bar\"\n}\n"],
+  "mappings": ";AACA;AACE,WAAS;;;;ACDX;AACE,WAAS;;",
+  "names": []
+}
+
+---------- /out/entry.css ----------
+/* home/user/project/src/styles1.css */
+* {
+  content: "foo";
+}
+
+/* home/user/project/src/styles2.css */
+* {
+  content: "bar";
+}
+
+/* home/user/project/src/entry.css */
+/*# sourceMappingURL=entry.css.map */
+
+================================================================================
 TestLoaderJSONCommonJSAndES6
 ---------- /out.js ----------
 // x.json
