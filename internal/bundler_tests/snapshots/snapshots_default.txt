@@ -5432,6 +5432,27 @@ function confuseNode(exports2) {
 });
 
 ================================================================================
+TestNodeAnnotationInvalidIdentifierIssue4100
+---------- /out.js ----------
+// entry.mjs
+var entry_exports = {};
+__export(entry_exports, {
+  "...": () => baz,
+  foo: () => foo,
+  if: () => bar
+});
+module.exports = __toCommonJS(entry_exports);
+var foo;
+var bar;
+var baz;
+// Annotate the CommonJS export names for ESM import in node:
+0 && (module.exports = {
+  "...": null,
+  foo,
+  if: null
+});
+
+================================================================================
 TestNodeModules
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/node_modules/demo-pkg/index.js

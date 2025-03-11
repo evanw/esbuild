@@ -1698,6 +1698,27 @@ func TestNodeAnnotationFalsePositiveIssue3544(t *testing.T) {
 	})
 }
 
+// https://github.com/evanw/esbuild/issues/4100
+func TestNodeAnnotationInvalidIdentifierIssue4100(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.mjs": `
+				let foo, bar, baz
+				export {
+					foo, bar as if, baz as "..."
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.mjs"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			OutputFormat:  config.FormatCommonJS,
+			AbsOutputFile: "/out.js",
+			Platform:      config.PlatformNode,
+		},
+	})
+}
+
 func TestMinifiedBundleES6(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{

@@ -5078,7 +5078,7 @@ func (c *linkerContext) generateEntryPointTailJS(
 
 				// "{if: null}"
 				var valueOrNil js_ast.Expr
-				if _, ok := js_lexer.Keywords[export]; ok {
+				if _, ok := js_lexer.Keywords[export]; ok || !js_ast.IsIdentifier(export) {
 					// Make sure keywords don't cause a syntax error. This has to map to
 					// "null" instead of something shorter like "0" because the library
 					// "cjs-module-lexer" only supports identifiers in this position, and

@@ -2197,13 +2197,17 @@ tests.push(
 
 // Test external ES6 export
 tests.push(
-  test(['--bundle', 'foo.js', '--outfile=out.js', '--format=cjs'], {
+  test(['--bundle', 'foo.js', '--outfile=out.js', '--format=cjs', '--platform=node'], {
     'foo.js': `export const foo = 123`,
     'node.js': `const out = require('./out'); if (!out.__esModule || out.foo !== 123) throw 'fail'`,
   }),
-  test(['--bundle', 'foo.js', '--outfile=out.js', '--format=cjs'], {
+  test(['--bundle', 'foo.js', '--outfile=out.js', '--format=cjs', '--platform=node'], {
     'foo.js': `export default 123`,
     'node.js': `const out = require('./out'); if (!out.__esModule || out.default !== 123) throw 'fail'`,
+  }),
+  test(['--bundle', 'foo.js', '--outfile=out.js', '--format=cjs', '--platform=node'], {
+    'foo.js': `const something = 123; export { something as 'some name' }`,
+    'node.js': `const out = require('./out'); if (!out.__esModule || out['some name'] !== 123) throw 'fail'`,
   }),
   test(['--bundle', 'foo.js', '--outfile=out.js', '--format=esm'], {
     'foo.js': `export const foo = 123`,
@@ -2212,6 +2216,10 @@ tests.push(
   test(['--bundle', 'foo.js', '--outfile=out.js', '--format=esm'], {
     'foo.js': `export default 123`,
     'node.js': `import out from './out.js'; if (out !== 123) throw 'fail'`,
+  }),
+  test(['--bundle', 'foo.js', '--outfile=out.js', '--format=esm'], {
+    'foo.js': `const something = 123; export { something as 'some name' }`,
+    'node.js': `import { 'some name' as out } from './out.js'; if (out !== 123) throw 'fail'`,
   }),
   test(['--bundle', 'foo.js', '--outfile=out.js', '--format=cjs', '--platform=node'], {
     'foo.js': `

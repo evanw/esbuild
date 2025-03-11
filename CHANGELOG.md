@@ -1,5 +1,39 @@
 # Changelog
 
+## Unreleased
+
+* Fix node-specific annotations for string literal export names ([#4100](https://github.com/evanw/esbuild/issues/4100))
+
+    When node instantiates a CommonJS module, it scans the AST to look for names to expose via ESM named exports. This is a heuristic that looks for certain patterns such as `exports.NAME = ...` or `module.exports = { ... }`. This behavior is used by esbuild to "annotate" CommonJS code that was converted from ESM with the original ESM export names. For example, when converting the file `export let foo, bar` from ESM to CommonJS, esbuild appends this to the end of the file:
+
+    ```js
+    // Annotate the CommonJS export names for ESM import in node:
+    0 && (module.exports = {
+      bar,
+      foo
+    });
+    ```
+
+    However, this feature previously didn't work correctly for export names that are not valid identifiers, which can be constructed using string literal export names. The generated code contained a syntax error. That problem is fixed in this release:
+
+    ```js
+    // Original code
+    let foo
+    export { foo as "foo!" }
+
+    // Old output (with --format=cjs --platform=node)
+    ...
+    0 && (module.exports = {
+      "foo!"
+    });
+
+    // New output (with --format=cjs --platform=node)
+    ...
+    0 && (module.exports = {
+      "foo!": null
+    });
+    ```
+
 ## 0.25.1
 
 * Fix incorrect paths in inline source maps ([#4070](https://github.com/evanw/esbuild/issues/4070), [#4075](https://github.com/evanw/esbuild/issues/4075), [#4105](https://github.com/evanw/esbuild/issues/4105))
