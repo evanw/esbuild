@@ -241,7 +241,7 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 				break
 			}
 			sourceIndex += sourceIndexDelta
-			if sourceIndex < sourceOffset || sourceIndex >= sourceOffset + int32(sourcesLen) {
+			if sourceIndex < sourceOffset || sourceIndex >= sourceOffset+int32(sourcesLen) {
 				errorText = fmt.Sprintf("Invalid source index value: %d", sourceIndex)
 				errorLen = i
 				break
@@ -282,7 +282,7 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 			var optionalName ast.Index32
 			if originalNameDelta, i, ok := sourcemap.DecodeVLQUTF16(mappingsRaw[current:]); ok {
 				originalName += originalNameDelta
-				if originalName < nameOffset || originalName >= nameOffset + int32(namesLen) {
+				if originalName < nameOffset || originalName >= nameOffset+int32(namesLen) {
 					errorText = fmt.Sprintf("Invalid name index value: %d", originalName)
 					errorLen = i
 					break
@@ -362,7 +362,7 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 		}
 
 		if len(sourcesContentArray) > 0 {
-			sourcesContent = append(sourcesContent, make([]sourcemap.SourceContent, int(sourceOffset) - len(sourcesContent))...)
+			sourcesContent = append(sourcesContent, make([]sourcemap.SourceContent, int(sourceOffset)-len(sourcesContent))...)
 
 			for i, item := range sourcesContentArray {
 				if i == sourcesLen {
