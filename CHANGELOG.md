@@ -34,6 +34,16 @@
     });
     ```
 
+* Basic support for index source maps ([#3439](https://github.com/evanw/esbuild/issues/3439), [#4109](https://github.com/evanw/esbuild/pull/4109))
+
+    The source map specification has an optional mode called [index source maps](https://tc39.es/ecma426/#sec-index-source-map) that makes it easier for tools to create an aggregate JavaScript file by concatenating many smaller JavaScript files with source maps, and then generate an aggregate source map by simply providing the original source maps along with some offset information. My understanding is that this is rarely used in practice. I'm only aware of two uses of it in the wild: [ClojureScript](https://clojurescript.org/) and [Turbopack](https://turbo.build/pack/).
+
+    This release provides basic support for indexed source maps. However, the implementation has not been tested on a real app (just on very simple test input). If you are using index source maps in a real app, please try this out and report back if anything isn't working for you.
+
+    Note that this is also not a complete implementation. For example, index source maps technically allows nesting source maps to an arbitrary depth, while esbuild's implementation in this release only supports a single level of nesting. It's unclear whether supporting more than one level of nesting is important or not given the lack of available test cases.
+
+    This feature was contributed by [@clyfish](https://github.com/clyfish).
+
 ## 0.25.1
 
 * Fix incorrect paths in inline source maps ([#4070](https://github.com/evanw/esbuild/issues/4070), [#4075](https://github.com/evanw/esbuild/issues/4075), [#4105](https://github.com/evanw/esbuild/issues/4105))

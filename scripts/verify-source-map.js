@@ -496,6 +496,69 @@ const toSearchAbsoluteSourcesURL = {
   test: 'input.js',
 }
 
+// This test case was generated using the "shadow-cljs" tool by someone who has
+// no idea how to write Clojure code (i.e. me). See the following GitHub issue
+// for more details: https://github.com/evanw/esbuild/issues/3439
+//
+// Note that the mappings in the Clojure output strangely seem to be really
+// buggy. Many sub-expressions with two operands map the operands switched,
+// strings are way off, and there's even one mapping that's floating off in
+// space past the end of the line. This appears to just be bad output from the
+// Clojure tooling itself though, and not a problem with esbuild.
+//
+// For the example code below, I manually edited the mapping for the "done"
+// string to line up correctly so that this test can pass (it was off by
+// five lines).
+const testCaseIndexSourceMap = {
+  'entry.js': `
+    import './app.main.js'
+    console.log('testing')
+  `,
+  'app.main.js': `export const $APP = {};
+export const shadow$provide = {};
+export const $jscomp = {};
+/*
+
+ Copyright The Closure Library Authors.
+ SPDX-License-Identifier: Apache-2.0
+*/
+console.log(function $app$lib$log_many$$($G__6268$jscomp$1_i$jscomp$282$$, $collection$$) {
+  return $G__6268$jscomp$1_i$jscomp$282$$ < $collection$$.length ? (console.` +
+    `log($collection$$.at($G__6268$jscomp$1_i$jscomp$282$$)), $G__6268$jscom` +
+    `p$1_i$jscomp$282$$ += 1, $app$lib$log_many$$.$cljs$core$IFn$_invoke$ari` +
+    `ty$2$ ? $app$lib$log_many$$.$cljs$core$IFn$_invoke$arity$2$($G__6268$js` +
+    `comp$1_i$jscomp$282$$, $collection$$) : $app$lib$log_many$$.call(null, ` +
+    `$G__6268$jscomp$1_i$jscomp$282$$, $collection$$)) : "done";
+}(0, Object.keys(console)));
+export const render = {}.render;
+
+//# sourceMappingURL=app.main.js.map`,
+  'app.main.js.map': `{"version":3,"file":"app.main.js","sections":[{"offset` +
+    `":{"line":3,"column":0},"map":{"version":3,"file":"app.main.js","lineCo` +
+    `unt":10,"mappings":"A;;;;;AAGMA,OAAAA,CAAAA,GAAAA,CCDAC,QAAAA,oBAAAA,CA` +
+    `AUC,gCAAVD,EAAYE,aAAZF,CAAYE;AAAlB,SACSD,gCADT,GACWC,aAAUA,CAAAA,MADrB,` +
+    `IAGYH,OAAAA,CAAAA,GAAAA,CAAgBG,aAAAA,CAAAA,EAAAA,CAAWD,gCAAXC,CAAhBH,CA` +
+    `CN,EAAUE,gCAAV,IAAaA,CAAb,EAAAE,mBAAAC,CAAAA,+BAAA,GAAAD,mBAAAC,CAAAA,+` +
+    `BAAA,CAAAC,gCAAA,EAAkBH,aAAlB,CAAA,GAAAI,mBAAAA,CAAAA,IAAAA,CAAAA,IAAAA` +
+    `,EAAAD,gCAAAC,EAAkBJ,aAAlBI,CAJN,IAKI,MALJ;AAAkBJ,CDCD,CAACF,CAAD,EAAgB` +
+    `O,MAAOC,CAAAA,IAAP,CAAiBT,OAAjB,CAAhB,CAAXA,CAAAA;AEFN,sBFDkBU,EECaC,CA` +
+    `AAA,MAA/B;;","sources":["app/app.cljs","app/lib.cljs","shadow/module/ap` +
+    `p.main/append.js"],"sourcesContent":["(ns app.app\\n  (:require [app.li` +
+    `b :as lib]))\\n\\n(.log js/console (lib/log-many 0 (.keys js/Object js/` +
+    `console)))\\n","(ns app.lib)\\n\\n(defn log-many [i collection]\\n  (if` +
+    ` (< i (.-length collection))\\n    (do\\n      (.log js/console (.at co` +
+    `llection i))\\n      (log-many (+ i 1) collection))\\n    \\"done\\"))` +
+    `\\n","\\nshadow$export(\\"render\\",app.app.render);"],"names":["js/con` +
+    `sole","app.lib/log-many","i","collection","app.lib.log_manycljs$core$IF` +
+    `n$_invoke$arity$2","cljs$core$IFn$_invoke$arity$2","G__6268","G__6269",` +
+    `"Object","js/Object","app.apprender","render"],"x_google_ignoreList":[2` +
+    `]}}]}`,
+}
+
+const toSearchIndexSourceMap = {
+  'done': 'app/lib.cljs',
+}
+
 // This case covers a crash when esbuild would generate an invalid source map
 // containing a mapping with an index of a source that's out of bounds of the
 // "sources" array. This happened when generating the namespace exports chunk
@@ -1144,6 +1207,12 @@ async function main() {
           crlf,
         }),
         check('absolute-sources-url' + suffix, testCaseAbsoluteSourcesURL, toSearchAbsoluteSourcesURL, {
+          outfile: 'out.js',
+          flags: flags.concat('--bundle'),
+          entryPoints: ['entry.js'],
+          crlf,
+        }),
+        check('indexed-source-map' + suffix, testCaseIndexSourceMap, toSearchIndexSourceMap, {
           outfile: 'out.js',
           flags: flags.concat('--bundle'),
           entryPoints: ['entry.js'],

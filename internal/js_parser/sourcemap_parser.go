@@ -38,7 +38,7 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 	hasSections := false
 
 	for _, prop := range obj.Properties {
-		if helpers.UTF16ToString(prop.Key.Data.(*js_ast.EString).Value) != "sections" {
+		if !helpers.UTF16EqualsString(prop.Key.Data.(*js_ast.EString).Value, "sections") {
 			continue
 		}
 
@@ -66,11 +66,17 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 										}
 									}
 								}
+							} else {
+								log.AddError(&tracker, logger.Range{Loc: sectionProp.ValueOrNil.Loc}, "Expected \"offset\" to be an object")
+								return nil
 							}
 
 						case "map":
 							if mapValue, ok := sectionProp.ValueOrNil.Data.(*js_ast.EObject); ok {
 								sectionSourceMap = mapValue
+							} else {
+								log.AddError(&tracker, logger.Range{Loc: sectionProp.ValueOrNil.Loc}, "Expected \"map\" to be an object")
+								return nil
 							}
 						}
 					}
@@ -85,7 +91,7 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 				}
 			}
 		} else {
-			log.AddError(&tracker, logger.Range{Loc: prop.Key.Loc}, "Invalid \"sections\"")
+			log.AddError(&tracker, logger.Range{Loc: prop.ValueOrNil.Loc}, "Expected \"sections\" to be an array")
 			return nil
 		}
 
@@ -105,10 +111,6 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 	var mappings mappingArray
 	var generatedLine int32
 	var generatedColumn int32
-	var sourceIndex int32
-	var originalLine int32
-	var originalColumn int32
-	var originalName int32
 	needSort := false
 
 	for _, section := range sections {
@@ -180,10 +182,10 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 
 		generatedLine = lineOffset
 		generatedColumn = columnOffset
-		sourceIndex = sourceOffset
-		originalLine = 0
-		originalColumn = 0
-		originalName = nameOffset
+		sourceIndex := sourceOffset
+		var originalLine int32
+		var originalColumn int32
+		originalName := nameOffset
 
 		current := 0
 		errorText := ""
@@ -362,9 +364,25 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 		}
 
 		if len(sourcesContentArray) > 0 {
+			// It's possible that one of the source maps inside "sections" has
+			// different lengths for the "sources" and "sourcesContent" arrays.
+			// This is bad because we need to us a single index to get the name
+			// of the source from "sources[i]" and the content of the source
+			// from "sourcesContent[i]".
+			//
+			// So if a previous source map had a shorter "sourcesContent" array
+			// than its "sources" array (or if the previous source map just had
+			// no "sourcesContent" array), expand our aggregated array to the
+			// right length by padding it out with empty entries.
 			sourcesContent = append(sourcesContent, make([]sourcemap.SourceContent, int(sourceOffset)-len(sourcesContent))...)
 
 			for i, item := range sourcesContentArray {
+				// Make sure we don't ever record more "sourcesContent" entries
+				// than there are "sources" entries, which is possible because
+				// these are two separate arrays in the source map JSON. We need
+				// to avoid this because that would mess up our shared indexing
+				// of the "sources" and "sourcesContent" arrays. See the above
+				// comment for more details.
 				if i == sourcesLen {
 					break
 				}
