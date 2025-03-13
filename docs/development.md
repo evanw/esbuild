@@ -12,7 +12,7 @@ Assuming you have [Go](https://go.dev/) installed, you can compile esbuild by ru
 
 2. **Test**
 
-You can run the tests written in Go by running `make test-go` in the top-level directory (or `go test ./internal/...` if you don't have `make` installed).
+You can run the tests written in Go by running `make test-go` in the top-level directory (or `go test ./internal/... ./pkg/...` if you don't have `make` installed).
 
 If you want to run more kinds of tests, you can run `make test` instead. This requires installing [node](https://nodejs.org/). And it's possible to run even more tests than that with additional `make` commands (read the [`Makefile`](../Makefile) for details).
 
