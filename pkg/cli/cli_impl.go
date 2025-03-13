@@ -204,6 +204,10 @@ func parseOptionsImpl(
 			value := arg[len("--mangle-cache="):]
 			extras.mangleCache = &value
 
+		case strings.HasPrefix(arg, "--local-css-prefix=") && buildOpts != nil:
+			value := arg[len("--local-css-prefix="):]
+			buildOpts.LocalCSSPrefix = value
+
 		case strings.HasPrefix(arg, "--drop:"):
 			value := arg[len("--drop:"):]
 			switch value {
