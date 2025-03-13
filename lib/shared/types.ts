@@ -299,22 +299,22 @@ export interface PluginBuild {
 
   /** Documentation: https://esbuild.github.io/plugins/#on-start */
   onStart(callback: () =>
-    (OnStartResult | null | void | Promise<OnStartResult | null | void>)): void
+    (OnStartResult | null | void | Promise<OnStartResult | null | void>)): PluginBuild
 
   /** Documentation: https://esbuild.github.io/plugins/#on-end */
   onEnd(callback: (result: BuildResult) =>
-    (OnEndResult | null | void | Promise<OnEndResult | null | void>)): void
+    (OnEndResult | null | void | Promise<OnEndResult | null | void>)): PluginBuild
 
   /** Documentation: https://esbuild.github.io/plugins/#on-resolve */
   onResolve(options: OnResolveOptions, callback: (args: OnResolveArgs) =>
-    (OnResolveResult | null | undefined | Promise<OnResolveResult | null | undefined>)): void
+    (OnResolveResult | null | undefined | Promise<OnResolveResult | null | undefined>)): PluginBuild
 
   /** Documentation: https://esbuild.github.io/plugins/#on-load */
   onLoad(options: OnLoadOptions, callback: (args: OnLoadArgs) =>
-    (OnLoadResult | null | undefined | Promise<OnLoadResult | null | undefined>)): void
+    (OnLoadResult | null | undefined | Promise<OnLoadResult | null | undefined>)): PluginBuild
 
   /** Documentation: https://esbuild.github.io/plugins/#on-dispose */
-  onDispose(callback: () => void): void
+  onDispose(callback: () => void): PluginBuild
 
   // This is a full copy of the esbuild library in case you need it
   esbuild: {
