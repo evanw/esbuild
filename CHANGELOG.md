@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+* Support flags in regular expressions for the API ([#4121](https://github.com/evanw/esbuild/issues/4121))
+
+    The JavaScript plugin API for esbuild takes JavaScript regular expression objects for the `filter` option. Internally these are translated into Go regular expressions. However, this translation previously ignored the `flags` property of the regular expression. With this release, esbuild will now translate JavaScript regular expression flags into Go regular expression flags. Specifically the JavaScript regular expression `/\.[jt]sx?$/i` is turned into the Go regular expression `` `(?i)\.[jt]sx?$` `` internally inside of esbuild's API. This should make it possible to use JavaScript regular expressions with the `i` flag. Note that JavaScript and Go don't support all of the same regular expression features, so this mapping is only approximate.
+
 * Fix node-specific annotations for string literal export names ([#4100](https://github.com/evanw/esbuild/issues/4100))
 
     When node instantiates a CommonJS module, it scans the AST to look for names to expose via ESM named exports. This is a heuristic that looks for certain patterns such as `exports.NAME = ...` or `module.exports = { ... }`. This behavior is used by esbuild to "annotate" CommonJS code that was converted from ESM with the original ESM export names. For example, when converting the file `export let foo, bar` from ESM to CommonJS, esbuild appends this to the end of the file:

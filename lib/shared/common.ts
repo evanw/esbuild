@@ -190,8 +190,8 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   if (ignoreAnnotations) flags.push(`--ignore-annotations`)
   if (drop) for (let what of drop) flags.push(`--drop:${validateStringValue(what, 'drop')}`)
   if (dropLabels) flags.push(`--drop-labels=${Array.from(dropLabels).map(what => validateStringValue(what, 'dropLabels')).join(',')}`)
-  if (mangleProps) flags.push(`--mangle-props=${mangleProps.source}`)
-  if (reserveProps) flags.push(`--reserve-props=${reserveProps.source}`)
+  if (mangleProps) flags.push(`--mangle-props=${jsRegExpToGoRegExp(mangleProps)}`)
+  if (reserveProps) flags.push(`--reserve-props=${jsRegExpToGoRegExp(reserveProps)}`)
   if (mangleQuoted !== void 0) flags.push(`--mangle-quoted=${mangleQuoted}`)
 
   if (jsx) flags.push(`--jsx=${jsx}`)
@@ -1316,7 +1316,7 @@ let handlePlugins = async (
           if (filter == null) throw new Error(`onResolve() call is missing a filter`)
           let id = nextCallbackID++
           onResolveCallbacks[id] = { name: name!, callback, note: registeredNote }
-          plugin.onResolve.push({ id, filter: filter.source, namespace: namespace || '' })
+          plugin.onResolve.push({ id, filter: jsRegExpToGoRegExp(filter), namespace: namespace || '' })
         },
 
         onLoad(options, callback) {
@@ -1329,7 +1329,7 @@ let handlePlugins = async (
           if (filter == null) throw new Error(`onLoad() call is missing a filter`)
           let id = nextCallbackID++
           onLoadCallbacks[id] = { name: name!, callback, note: registeredNote }
-          plugin.onLoad.push({ id, filter: filter.source, namespace: namespace || '' })
+          plugin.onLoad.push({ id, filter: jsRegExpToGoRegExp(filter), namespace: namespace || '' })
         },
 
         onDispose(callback) {
@@ -1858,4 +1858,10 @@ function convertOutputFiles({ path, contents, hash }: protocol.BuildOutputFile):
       return text
     },
   }
+}
+
+function jsRegExpToGoRegExp(regexp: RegExp): string {
+  let result = regexp.source
+  if (regexp.flags) result = `(?${regexp.flags})${result}`
+  return result
 }

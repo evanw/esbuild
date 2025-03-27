@@ -145,6 +145,48 @@ let pluginTests = {
     }
   },
 
+  async caseInsensitiveRegExp({ esbuild, testDir }) {
+    const inputJs = path.join(testDir, 'in.js')
+    await writeFileAsync(inputJs, `export default 123`)
+
+    const inputCpp = path.join(testDir, 'in.CpP')
+    await writeFileAsync(inputCpp, `export default 123`)
+
+    // onResolve
+    const onResolveResult = await esbuild.build({
+      entryPoints: ['example.CpP'],
+      write: false,
+      plugins: [{
+        name: 'name',
+        setup(build) {
+          build.onResolve({ filter: /\.c(pp|xx)?$/i }, args => {
+            assert.strictEqual(args.path, 'example.CpP')
+            return { path: inputJs }
+          })
+        },
+      }],
+    })
+    assert.strictEqual(onResolveResult.outputFiles.length, 1)
+    assert.strictEqual(onResolveResult.outputFiles[0].text, `export default 123;\n`)
+
+    // onLoad
+    const onLoadResult = await esbuild.build({
+      entryPoints: [inputCpp],
+      write: false,
+      plugins: [{
+        name: 'name',
+        setup(build) {
+          build.onLoad({ filter: /\.c(pp|xx)?$/i }, args => {
+            assert(args.path.endsWith('in.CpP'))
+            return { contents: 'export default true' }
+          })
+        },
+      }],
+    })
+    assert.strictEqual(onLoadResult.outputFiles.length, 1)
+    assert.strictEqual(onLoadResult.outputFiles[0].text, `export default true;\n`)
+  },
+
   async pluginMissingName({ esbuild }) {
     try {
       await esbuild.build({
