@@ -310,7 +310,214 @@ func (r *MinifyRenamer) AssignNamesByFrequency(minifier *ast.NameMinifier) {
 	}
 }
 
-// Returns the number of nested slots
+type SymbolsInfo struct {
+	// Maps scopes to their enclosed symbols (symbols used but not declared in that scope)
+	enclosed map[*js_ast.Scope][]ast.Ref
+
+	// Maps symbols to the scope they were declared in
+	declared map[ast.Ref]*js_ast.Scope
+}
+
+func calculateSymbolsInfo(moduleScope *js_ast.Scope, symbols []ast.Symbol) SymbolsInfo {
+	// Traverse the scope tree using depth-first search
+	// On the way down (pushing to stack), collect where each symbol is declared
+	// On the way up (popping from stack), collect which symbols are captured(enclosed) by each scope
+	// that are not declared in that scope (including all descendant scopes)
+
+	info := SymbolsInfo{
+		enclosed: make(map[*js_ast.Scope][]ast.Ref),
+		declared: make(map[ast.Ref]*js_ast.Scope),
+	}
+
+	var visit func(*js_ast.Scope)
+	visit = func(scope *js_ast.Scope) {
+		// Collect symbols declared in this scope
+		// As we traverse top-down, when we encounter the same symbol multiple times,
+		// we can consider the first encountered scope as the declare scope.
+		// This is because if a symbol is hoisted, we will always encounter the hoisted one first.
+		for _, member := range scope.Members {
+			symbol := symbols[member.Ref.InnerIndex]
+			if symbol.Kind == ast.SymbolUnbound {
+				continue
+			}
+			if _, exists := info.declared[member.Ref]; !exists {
+				info.declared[member.Ref] = scope
+			}
+		}
+		for _, ref := range scope.Generated {
+			symbol := symbols[ref.InnerIndex]
+			if symbol.Kind == ast.SymbolUnbound {
+				continue
+			}
+			if _, exists := info.declared[ref]; !exists {
+				info.declared[ref] = scope
+			}
+		}
+
+		// Visit child scopes
+		for _, child := range scope.Children {
+			visit(child)
+		}
+
+		// Collect enclosed symbols
+		// enclosed symbols =
+		//	used symbols
+		//  + generated symbols (generated symbols may be hoisted and not be recorded as used in the scope)
+		//  + members
+		//	+ enclosed symbols from children
+		//	- symbols declared in this scope
+
+		enclosedSymbols := make(map[ast.Ref]struct{})
+		// Collect used symbols
+		for ref := range scope.Used {
+			// For unbounded symbols, declareScope is nil
+			if declareScope := info.declared[ref]; declareScope != scope {
+				enclosedSymbols[ref] = struct{}{}
+			}
+		}
+		// Collect generated symbols
+		for _, ref := range scope.Generated {
+			if declareScope := info.declared[ref]; declareScope != scope {
+				enclosedSymbols[ref] = struct{}{}
+			}
+		}
+		// Collect members
+		for _, member := range scope.Members {
+			if declareScope := info.declared[member.Ref]; declareScope != scope {
+				enclosedSymbols[member.Ref] = struct{}{}
+			}
+		}
+		for _, child := range scope.Children {
+			for _, ref := range info.enclosed[child] {
+				if declareScope := info.declared[ref]; declareScope != scope {
+					enclosedSymbols[ref] = struct{}{}
+				}
+			}
+		}
+
+		enclosed := make([]ast.Ref, 0, len(enclosedSymbols))
+		for ref := range enclosedSymbols {
+			enclosed = append(enclosed, ref)
+		}
+		info.enclosed[scope] = enclosed
+	}
+
+	visit(moduleScope)
+	return info
+
+}
+
+type slotAssigner struct {
+	slots ast.SlotCounts
+
+	// cursor tracks our position in the enclosed symbols array when assigning
+	// slots for ast.SlotDefault namespace. Starts at 1.
+	// 0 means there is no enclosed symbol so we can assign slots to any number.
+	cursor int
+
+	// enclosed contains the slot numbers already assigned to enclosed symbols,
+	// sorted in ascending order
+	enclosed []int
+}
+
+func newSlotAssigner(symbols []ast.Symbol, enclosed []ast.Ref, assignedSlots ast.SlotCounts) slotAssigner {
+	enclosedSlots := make([]int, 0, len(enclosed))
+
+	for _, ref := range enclosed {
+		// Because symbols with a link will eventually be output with the same name
+		// as the linked symbols, the slot of the enclosed symbol can be considered as the
+		// linked one.
+		//
+		// Note: here assumes that the linked symbol is always assigned before.
+		ref = followSymbols(symbols, ref)
+
+		symbol := &symbols[ref.InnerIndex]
+		// slot is always valid because enclosed symbols are already handled by parent scopes
+		slot := symbol.NestedScopeSlot.GetIndex()
+		if ns := symbol.SlotNamespace(); ns != ast.SlotMustNotBeRenamed {
+			enclosedSlots = append(enclosedSlots, int(slot))
+		}
+	}
+	sort.Ints(enclosedSlots)
+
+	cursor := 0
+	if len(enclosedSlots) > 0 {
+		cursor = 1
+	}
+
+	slots := [4]uint32{
+		ast.SlotDefault:     0,
+		ast.SlotLabel:       assignedSlots[ast.SlotLabel],
+		ast.SlotPrivateName: assignedSlots[ast.SlotPrivateName],
+		ast.SlotMangledProp: assignedSlots[ast.SlotMangledProp],
+	}
+
+	return slotAssigner{
+		cursor:   cursor,
+		enclosed: enclosedSlots,
+		slots:    slots,
+	}
+}
+
+func followSymbols(symbols []ast.Symbol, ref ast.Ref) ast.Ref {
+	symbol := &symbols[ref.InnerIndex]
+	if symbol.Link == ast.InvalidRef {
+		return ref
+	}
+
+	link := followSymbols(symbols, symbol.Link)
+
+	// Only write if needed to avoid concurrent map update hazards
+	if symbol.Link != link {
+		symbol.Link = link
+	}
+
+	return link
+}
+
+// AssignSlot assigns a slot for a symbol according to its namespace.
+// Slots are incremental in each scope with certain rules:
+//
+// - For namespace ast.SlotDefault, slots should be different from enclosed symbols.
+// - For other namespaces, slots should follow the slots of outer scope.
+func (sa *slotAssigner) AssignSlot(ns ast.SlotNamespace) ast.Index32 {
+	current := sa.slots[ns]
+
+	if ns == ast.SlotDefault {
+		cursor := sa.cursor
+		var upperBound uint32
+
+		for {
+			if cursor != 0 {
+				upperBound = uint32(sa.enclosed[cursor-1])
+			}
+
+			if cursor == 0 || current < upperBound {
+				break
+			}
+			// Current equals to the enclosed slot the cursor pointed,
+			// so increase the current and check with the next enclosed slot.
+			current++
+			cursor++
+
+			// All enclosed slots have been checked(excluded from the search space),
+			// so we can ignore them then.
+			if cursor > len(sa.enclosed) {
+				cursor = 0
+			}
+		}
+
+		sa.cursor = cursor
+		sa.slots[ns] = current + 1
+	} else {
+		sa.slots[ns]++
+	}
+
+	return ast.MakeIndex32(current)
+}
+
+// AssignNestedScopeSlots traverses the scope tree starting at moduleScope and assigns
+// slot numbers to all symbols in nested scopes. It returns the total slot counts needed.
 func AssignNestedScopeSlots(moduleScope *js_ast.Scope, symbols []ast.Symbol) (slotCounts ast.SlotCounts) {
 	// Temporarily set the nested scope slots of top-level symbols to valid so
 	// they aren't renamed in nested scopes. This prevents us from accidentally
@@ -325,9 +532,9 @@ func AssignNestedScopeSlots(moduleScope *js_ast.Scope, symbols []ast.Symbol) (sl
 		symbols[ref.InnerIndex].NestedScopeSlot = validSlot
 	}
 
-	// Assign nested scope slots independently for each nested scope
+	info := calculateSymbolsInfo(moduleScope, symbols)
 	for _, child := range moduleScope.Children {
-		slotCounts.UnionMax(assignNestedScopeSlotsHelper(child, symbols, ast.SlotCounts{}))
+		slotCounts.UnionMax(assignNestedScopeSlots(child, info, symbols, ast.SlotCounts{}))
 	}
 
 	// Then set the nested scope slots of top-level symbols back to zero. Top-
@@ -341,44 +548,46 @@ func AssignNestedScopeSlots(moduleScope *js_ast.Scope, symbols []ast.Symbol) (sl
 	return
 }
 
-func assignNestedScopeSlotsHelper(scope *js_ast.Scope, symbols []ast.Symbol, slot ast.SlotCounts) ast.SlotCounts {
+func assignNestedScopeSlots(scope *js_ast.Scope, info SymbolsInfo, symbols []ast.Symbol, assignedSlots ast.SlotCounts) ast.SlotCounts {
+	slotAllocator := newSlotAssigner(symbols, info.enclosed[scope], assignedSlots)
+
 	// Sort member map keys for determinism
 	sortedMembers := make([]int, 0, len(scope.Members))
 	for _, member := range scope.Members {
-		sortedMembers = append(sortedMembers, int(member.Ref.InnerIndex))
+		// do not rename enclosed symbols
+		if declareScope := info.declared[member.Ref]; declareScope == scope {
+			sortedMembers = append(sortedMembers, int(member.Ref.InnerIndex))
+		}
 	}
 	sort.Ints(sortedMembers)
 
 	// Assign slots for this scope's symbols. Only do this if the slot is
-	// not already assigned. Nested scopes have copies of symbols from parent
-	// scopes and we want to use the slot from the parent scope, not child scopes.
+	// not already assigned.
 	for _, innerIndex := range sortedMembers {
 		symbol := &symbols[innerIndex]
 		if ns := symbol.SlotNamespace(); ns != ast.SlotMustNotBeRenamed && !symbol.NestedScopeSlot.IsValid() {
-			symbol.NestedScopeSlot = ast.MakeIndex32(slot[ns])
-			slot[ns]++
+			symbol.NestedScopeSlot = slotAllocator.AssignSlot(ns)
 		}
 	}
 	for _, ref := range scope.Generated {
 		symbol := &symbols[ref.InnerIndex]
 		if ns := symbol.SlotNamespace(); ns != ast.SlotMustNotBeRenamed && !symbol.NestedScopeSlot.IsValid() {
-			symbol.NestedScopeSlot = ast.MakeIndex32(slot[ns])
-			slot[ns]++
+			symbol.NestedScopeSlot = slotAllocator.AssignSlot(ns)
 		}
 	}
 
 	// Labels are always declared in a nested scope, so we don't need to check.
 	if scope.Label.Ref != ast.InvalidRef {
 		symbol := &symbols[scope.Label.Ref.InnerIndex]
-		symbol.NestedScopeSlot = ast.MakeIndex32(slot[ast.SlotLabel])
-		slot[ast.SlotLabel]++
+		symbol.NestedScopeSlot = slotAllocator.AssignSlot(ast.SlotLabel)
 	}
 
 	// Assign slots for the symbols of child scopes
-	slotCounts := slot
+	slotCounts := slotAllocator.slots
 	for _, child := range scope.Children {
-		slotCounts.UnionMax(assignNestedScopeSlotsHelper(child, symbols, slot))
+		slotCounts.UnionMax(assignNestedScopeSlots(child, info, symbols, slotAllocator.slots))
 	}
+
 	return slotCounts
 }
 
