@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.25.2
 
 * Support flags in regular expressions for the API ([#4121](https://github.com/evanw/esbuild/issues/4121))
 
