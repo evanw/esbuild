@@ -195,10 +195,9 @@ jobs:
 
       - name: Yarn PnP tests
         run: |
-          # Note that Yarn recently deliberately broke "npm install -g yarn".
-          # They say you now have to run "corepack enable" to fix it. They have
-          # written about this here: https://yarnpkg.com/corepack
-          corepack enable
+          # Yarn recommends managing it's version though corepack.
+          # They have written about this here: https://yarnpkg.com/corepack
+          npm i -g corepack
 
           make test-yarnpnp
 
