@@ -1969,7 +1969,7 @@ func TestTSExperimentalDecorator(t *testing.T) {
 	// Check lowered use of "await"
 	expectPrintedTargetExperimentalDecoratorTS(t, 2015, "async function foo() { @dec(await x) class Foo {} }",
 		`function foo() {
-  return __async(this, null, function* () {
+  return __async(null, null, function* () {
     let Foo = class {
     };
     Foo = __decorateClass([
@@ -1980,7 +1980,7 @@ func TestTSExperimentalDecorator(t *testing.T) {
 `)
 	expectPrintedTargetExperimentalDecoratorTS(t, 2015, "async function foo() { class Foo { @dec(await x) foo() {} } }",
 		`function foo() {
-  return __async(this, null, function* () {
+  return __async(null, null, function* () {
     class Foo {
       foo() {
       }
@@ -1993,7 +1993,7 @@ func TestTSExperimentalDecorator(t *testing.T) {
 `)
 	expectPrintedTargetExperimentalDecoratorTS(t, 2015, "async function foo() { class Foo { foo(@dec(await x) y) {} } }",
 		`function foo() {
-  return __async(this, null, function* () {
+  return __async(null, null, function* () {
     class Foo {
       foo(y) {
       }

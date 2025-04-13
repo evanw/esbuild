@@ -235,13 +235,13 @@ func TestLowerAsyncFunctions(t *testing.T) {
 	// Lowered non-arrow functions with argument evaluations should merely use
 	// "arguments" rather than allocating a new array when forwarding arguments
 	expectPrintedTarget(t, 2015, "async function foo(a, b = couldThrowErrors()) {console.log(a, b);}", `function foo(_0) {
-  return __async(this, arguments, function* (a, b = couldThrowErrors()) {
+  return __async(null, arguments, function* (a, b = couldThrowErrors()) {
     console.log(a, b);
   });
 }
 `)
 	// Skip forwarding altogether when parameter evaluation obviously cannot throw
-	expectPrintedTarget(t, 2015, "async (a, b = 123) => {console.log(a, b);}", `(a, b = 123) => __async(this, null, function* () {
+	expectPrintedTarget(t, 2015, "async (a, b = 123) => {console.log(a, b);}", `(a, b = 123) => __async(null, null, function* () {
   console.log(a, b);
 });
 `)
