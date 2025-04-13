@@ -346,7 +346,7 @@ func (p *parser) lowerFunction(
 			false, /* isDeleteTarget */
 		)
 
-		if !p.fnOnlyDataVisit.hasThisUsage {
+		if isArrow && !p.fnOnlyDataVisit.hasThisUsage {
 			thisValue = js_ast.Expr{Loc: bodyLoc, Data: js_ast.ENullShared}
 		} else if !hasThisValue {
 			thisValue = js_ast.Expr{Loc: bodyLoc, Data: js_ast.EThisShared}

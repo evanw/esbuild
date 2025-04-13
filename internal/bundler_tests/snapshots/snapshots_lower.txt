@@ -819,7 +819,7 @@ function foo(_0) {
 }
 class Foo {
   foo() {
-    return __async(null, null, function* () {
+    return __async(this, null, function* () {
     });
   }
 }
@@ -840,18 +840,18 @@ export default [
   foo,
   Foo,
   function() {
-    return __async(null, null, function* () {
+    return __async(this, null, function* () {
     });
   },
   () => __async(null, null, function* () {
   }),
   { foo() {
-    return __async(null, null, function* () {
+    return __async(this, null, function* () {
     });
   } },
   class {
     foo() {
-      return __async(null, null, function* () {
+      return __async(this, null, function* () {
       });
     }
   },
@@ -982,7 +982,7 @@ var bar4_default = class _bar4_default extends x {
 // baz1.js
 var baz1_default = class _baz1_default extends x {
   baz1() {
-    return __async(null, null, function* () {
+    return __async(this, null, function* () {
       return () => __superGet(_baz1_default.prototype, this, "foo").call(this, "baz1");
     });
   }
@@ -991,7 +991,7 @@ var baz1_default = class _baz1_default extends x {
 // baz2.js
 var baz2_default = class _baz2_default extends x {
   baz2() {
-    return __async(null, null, function* () {
+    return __async(this, null, function* () {
       return () => () => __superGet(_baz2_default.prototype, this, "foo").call(this, "baz2");
     });
   }
@@ -999,7 +999,7 @@ var baz2_default = class _baz2_default extends x {
 
 // outer.js
 var outer_default = function() {
-  return __async(null, null, function* () {
+  return __async(this, null, function* () {
     class y extends z {
       constructor() {
         super(...arguments);
@@ -1110,7 +1110,7 @@ var bar4_default = class _bar4_default extends x {
 // baz1.js
 var baz1_default = class _baz1_default extends x {
   baz1() {
-    return __async(null, null, function* () {
+    return __async(this, null, function* () {
       return () => __superSet(_baz1_default.prototype, this, "foo", "baz1");
     });
   }
@@ -1119,7 +1119,7 @@ var baz1_default = class _baz1_default extends x {
 // baz2.js
 var baz2_default = class _baz2_default extends x {
   baz2() {
-    return __async(null, null, function* () {
+    return __async(this, null, function* () {
       return () => () => __superSet(_baz2_default.prototype, this, "foo", "baz2");
     });
   }
@@ -1127,7 +1127,7 @@ var baz2_default = class _baz2_default extends x {
 
 // outer.js
 var outer_default = function() {
-  return __async(null, null, function* () {
+  return __async(this, null, function* () {
     class y extends z {
       constructor() {
         super(...arguments);
@@ -1156,7 +1156,7 @@ export {
 TestLowerAsyncGenerator
 ---------- /out/entry.js ----------
 function foo() {
-  return __asyncGenerator(null, null, function* () {
+  return __asyncGenerator(this, null, function* () {
     var _stack2 = [];
     try {
       yield;
@@ -1209,7 +1209,7 @@ function foo() {
   });
 }
 foo = function() {
-  return __asyncGenerator(null, null, function* () {
+  return __asyncGenerator(this, null, function* () {
     var _stack2 = [];
     try {
       yield;
@@ -1262,7 +1262,7 @@ foo = function() {
   });
 };
 foo = { bar() {
-  return __asyncGenerator(null, null, function* () {
+  return __asyncGenerator(this, null, function* () {
     var _stack2 = [];
     try {
       yield;
@@ -1316,7 +1316,7 @@ foo = { bar() {
 } };
 class Foo {
   bar() {
-    return __asyncGenerator(null, null, function* () {
+    return __asyncGenerator(this, null, function* () {
       var _stack2 = [];
       try {
         yield;
@@ -1371,7 +1371,7 @@ class Foo {
 }
 Foo = class {
   bar() {
-    return __asyncGenerator(null, null, function* () {
+    return __asyncGenerator(this, null, function* () {
       var _stack2 = [];
       try {
         yield;
@@ -1436,7 +1436,7 @@ async function bar() {
 TestLowerAsyncGeneratorNoAwait
 ---------- /out/entry.js ----------
 function foo() {
-  return __asyncGenerator(null, null, function* () {
+  return __asyncGenerator(this, null, function* () {
     var _stack2 = [];
     try {
       yield;
@@ -1489,7 +1489,7 @@ function foo() {
   });
 }
 foo = function() {
-  return __asyncGenerator(null, null, function* () {
+  return __asyncGenerator(this, null, function* () {
     var _stack2 = [];
     try {
       yield;
@@ -1542,7 +1542,7 @@ foo = function() {
   });
 };
 foo = { bar() {
-  return __asyncGenerator(null, null, function* () {
+  return __asyncGenerator(this, null, function* () {
     var _stack2 = [];
     try {
       yield;
@@ -1596,7 +1596,7 @@ foo = { bar() {
 } };
 class Foo {
   bar() {
-    return __asyncGenerator(null, null, function* () {
+    return __asyncGenerator(this, null, function* () {
       var _stack2 = [];
       try {
         yield;
@@ -1651,7 +1651,7 @@ class Foo {
 }
 Foo = class {
   bar() {
-    return __asyncGenerator(null, null, function* () {
+    return __asyncGenerator(this, null, function* () {
       var _stack2 = [];
       try {
         yield;
@@ -1705,7 +1705,7 @@ Foo = class {
   }
 };
 function bar() {
-  return __async(null, null, function* () {
+  return __async(this, null, function* () {
     var _stack2 = [];
     try {
       const x = __using(_stack2, yield y, true);
@@ -1736,7 +1736,7 @@ TestLowerAsyncSuperES2016NoBundle
 ---------- /out.js ----------
 class Derived extends Base {
   test(key) {
-    return __async(null, null, function* () {
+    return __async(this, null, function* () {
       var _a, _b, _c, _d;
       return [
         yield __superGet(Derived.prototype, this, "foo"),
@@ -1797,7 +1797,7 @@ class Derived2 extends Base {
     }));
   }
   a() {
-    return __async(null, null, function* () {
+    return __async(this, null, function* () {
       var _a;
       return _a = __superGet(Derived2.prototype, this, "foo"), class {
         constructor() {
@@ -1816,7 +1816,7 @@ for (let i = 0; i < 3; i++) {
       }
     },
     bar() {
-      return __async(null, null, function* () {
+      return __async(this, null, function* () {
         return __superGet(_a, this, "foo").call(this);
       });
     }
@@ -3411,7 +3411,7 @@ var bar4_default = _bar4_default;
 // baz1.js
 var baz1_default = class _baz1_default extends x {
   static baz1() {
-    return __async(null, null, function* () {
+    return __async(this, null, function* () {
       return () => __superGet(_baz1_default, this, "foo").call(this, "baz1");
     });
   }
@@ -3420,7 +3420,7 @@ var baz1_default = class _baz1_default extends x {
 // baz2.js
 var baz2_default = class _baz2_default extends x {
   static baz2() {
-    return __async(null, null, function* () {
+    return __async(this, null, function* () {
       return () => () => __superGet(_baz2_default, this, "foo").call(this, "baz2");
     });
   }
@@ -3428,7 +3428,7 @@ var baz2_default = class _baz2_default extends x {
 
 // outer.js
 var outer_default = function() {
-  return __async(null, null, function* () {
+  return __async(this, null, function* () {
     const _y = class _y extends z {
     };
     __publicField(_y, "foo", () => __async(null, null, function* () {
@@ -3529,7 +3529,7 @@ var bar4_default = _bar4_default;
 // baz1.js
 var baz1_default = class _baz1_default extends x {
   static baz1() {
-    return __async(null, null, function* () {
+    return __async(this, null, function* () {
       return () => __superSet(_baz1_default, this, "foo", "baz1");
     });
   }
@@ -3538,7 +3538,7 @@ var baz1_default = class _baz1_default extends x {
 // baz2.js
 var baz2_default = class _baz2_default extends x {
   static baz2() {
-    return __async(null, null, function* () {
+    return __async(this, null, function* () {
       return () => () => __superSet(_baz2_default, this, "foo", "baz2");
     });
   }
@@ -3546,7 +3546,7 @@ var baz2_default = class _baz2_default extends x {
 
 // outer.js
 var outer_default = function() {
-  return __async(null, null, function* () {
+  return __async(this, null, function* () {
     const _y = class _y extends z {
     };
     __publicField(_y, "foo", () => __async(null, null, function* () {
@@ -3619,7 +3619,7 @@ let fn = () => __async(null, null, function* () {
 });
 const _Derived2 = class _Derived2 extends Base {
   static a() {
-    return __async(null, null, function* () {
+    return __async(this, null, function* () {
       var _a;
       return _a = __superGet(_Derived2, this, "foo"), class {
         constructor() {
@@ -4495,7 +4495,7 @@ function foo() {
   }
 }
 function bar() {
-  return __async(null, null, function* () {
+  return __async(this, null, function* () {
     var _stack2 = [];
     try {
       const a = __using(_stack2, b);
@@ -4530,7 +4530,7 @@ function foo() {
   for (using a of b) c(() => a);
 }
 function bar() {
-  return __async(null, null, function* () {
+  return __async(this, null, function* () {
     for (using a of b) c(() => a);
     for (var _d of e) {
       var _stack = [];
@@ -4556,7 +4556,7 @@ switch (foo) {
     using e = f;
 }
 function foo() {
-  return __async(null, null, function* () {
+  return __async(this, null, function* () {
     using x2 = y;
     switch (foo) {
       case 0:
@@ -4605,7 +4605,7 @@ function foo() {
   }
 }
 function bar() {
-  return __async(null, null, function* () {
+  return __async(this, null, function* () {
     var _stack2 = [];
     try {
       const a = __using(_stack2, b);
@@ -4670,7 +4670,7 @@ function foo() {
   }
 }
 function bar() {
-  return __async(null, null, function* () {
+  return __async(this, null, function* () {
     for (var _a of b) {
       var _stack3 = [];
       try {
@@ -4699,7 +4699,7 @@ function bar() {
 
 ---------- /out/switch.js ----------
 function foo() {
-  return __async(null, null, function* () {
+  return __async(this, null, function* () {
     var _stack5 = [];
     try {
       const x2 = __using(_stack5, y);
