@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Update Go from 1.23.7 to 1.23.8 ([#4133](https://github.com/evanw/esbuild/issues/4133), [#4134](https://github.com/evanw/esbuild/pull/4134))
+
+    This should have no effect on existing code as this version change does not change Go's operating system support. It may remove certain reports from vulnerability scanners that detect which version of the Go compiler esbuild uses. Fixed vulnerability CVE-2025-22871.
+
 ## 0.25.2
 
 * Support flags in regular expressions for the API ([#4121](https://github.com/evanw/esbuild/issues/4121))
