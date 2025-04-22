@@ -23,3 +23,7 @@ func createCpuprofileFile(osArgs []string, cpuprofileFile string) func() {
 	logger.PrintErrorToStderr(osArgs, "The \"--cpuprofile\" flag is not supported when using WebAssembly")
 	return nil
 }
+
+func isServeUnsupported() bool {
+	return true
+}

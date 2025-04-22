@@ -55,3 +55,7 @@ func createCpuprofileFile(osArgs []string, cpuprofileFile string) func() {
 		f.Close()
 	}
 }
+
+func isServeUnsupported() bool {
+	return false
+}

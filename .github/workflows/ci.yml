@@ -20,7 +20,7 @@ jobs:
       - name: Set up Go 1.x
         uses: actions/setup-go@v3
         with:
-          go-version: 1.23.7
+          go-version: 1.23.8
         id: go
 
       - name: Setup Node.js environment
@@ -50,7 +50,7 @@ jobs:
       - name: Set up Go 1.x
         uses: actions/setup-go@v3
         with:
-          go-version: 1.23.7
+          go-version: 1.23.8
         id: go
 
       - name: Setup Node.js environment
@@ -82,7 +82,7 @@ jobs:
       - name: Set up Go 1.x
         uses: actions/setup-go@v3
         with:
-          go-version: 1.23.7
+          go-version: 1.23.8
         id: go
 
       - name: Setup Node.js environment
@@ -274,7 +274,7 @@ jobs:
       - name: Set up Go 1.x
         uses: actions/setup-go@v3
         with:
-          go-version: 1.23.7
+          go-version: 1.23.8
         id: go
 
       # Make sure esbuild works with old versions of Deno. Note: It's important
