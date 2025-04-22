@@ -222,7 +222,7 @@ func main() {
 			// This may be a reasonable thing to do in a short-lived VM where all
 			// processes in the VM are only started once and then the VM is killed
 			// when the processes are no longer needed.
-			if arg == "--watch" {
+			if arg == "--watch" || arg == "--watch=true" {
 				isWatch = true
 			} else if arg == "--watch=forever" {
 				arg = "--watch"
@@ -300,7 +300,12 @@ func main() {
 			for _, arg := range osArgs {
 				if !strings.HasPrefix(arg, "-") {
 					nonFlagCount++
-				} else if arg == "--serve" || arg == "--watch" || strings.HasPrefix(arg, "--serve=") {
+				} else if arg == "--watch" ||
+					arg == "--watch=true" ||
+					arg == "--serve" ||
+					strings.HasPrefix(arg, "--serve=") ||
+					strings.HasPrefix(arg, "--servedir=") ||
+					strings.HasPrefix(arg, "--serve-fallback=") {
 					isServeOrWatch = true
 				}
 			}
