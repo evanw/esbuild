@@ -8,6 +8,8 @@
 
     This bug happened because esbuild disables the garbage collector when it's not run as a long-lived process for extra speed, but esbuild's checks for which arguments cause esbuild to be a long-lived process weren't updated for the new `--watch=true` style of boolean command-line flags. This has been an issue since this boolean flag syntax was added in version 0.14.24 in 2022. These checks are unfortunately separate from the regular argument parser because of how esbuild's internals are organized (the command-line interface is exposed as a separate [Go API](https://pkg.go.dev/github.com/evanw/esbuild/pkg/cli) so you can build your own custom esbuild CLI).
 
+    This fix was contributed by [@mxschmitt](https://github.com/mxschmitt).
+
 * Update Go from 1.23.7 to 1.23.8 ([#4133](https://github.com/evanw/esbuild/issues/4133), [#4134](https://github.com/evanw/esbuild/pull/4134))
 
     This should have no effect on existing code as this version change does not change Go's operating system support. It may remove certain reports from vulnerability scanners that detect which version of the Go compiler esbuild uses, such as for CVE-2025-22871.
