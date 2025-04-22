@@ -737,7 +737,7 @@ type fnOnlyDataVisit struct {
 	// has been shadowed and is now inaccessible.
 	isThisNested bool
 
-	// If true, this is used in current function scope.
+	// If true, "this" is used in current function scope.
 	hasThisUsage bool
 
 	// Do not warn about "this" being undefined for code that the TypeScript
