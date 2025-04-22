@@ -2172,7 +2172,7 @@ func (s *scanner) generateResultForGlobResolve(
 		PrettyPath: result.prettyPath,
 		Index:      sourceIndex,
 	}
-	ast := js_parser.GlobResolveAST(s.log, source, importRecords, &object, result.exportAlias)
+	ast := js_parser.GlobResolveAST(s.log, source, importRecords, &object, kind, result.exportAlias)
 
 	// Fill out "nil" for any additional imports (i.e. from the runtime)
 	for len(resolveResults) < len(ast.ImportRecords) {
