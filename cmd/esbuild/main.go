@@ -163,6 +163,7 @@ func main() {
 	sendPings := false
 	isWatch := false
 	isWatchForever := false
+	isServe := false
 
 	// Do an initial scan over the argument list
 	argsEnd := 0
@@ -226,7 +227,13 @@ func main() {
 				isWatch = true
 			} else if arg == "--watch=forever" {
 				arg = "--watch"
+				isWatch = true
 				isWatchForever = true
+			} else if arg == "--serve" ||
+				strings.HasPrefix(arg, "--serve=") ||
+				strings.HasPrefix(arg, "--servedir=") ||
+				strings.HasPrefix(arg, "--serve-fallback=") {
+				isServe = true
 			}
 
 			// Strip any arguments that were handled above
@@ -295,31 +302,30 @@ func main() {
 				exitCode = cli.Run(osArgs)
 			}
 		} else {
-			isServeOrWatch := false
-			nonFlagCount := 0
-			for _, arg := range osArgs {
-				if !strings.HasPrefix(arg, "-") {
-					nonFlagCount++
-				} else if arg == "--watch" ||
-					arg == "--watch=true" ||
-					arg == "--serve" ||
-					strings.HasPrefix(arg, "--serve=") ||
-					strings.HasPrefix(arg, "--servedir=") ||
-					strings.HasPrefix(arg, "--serve-fallback=") {
-					isServeOrWatch = true
-				}
-			}
-
-			if !isServeOrWatch {
+			if !isWatch && !isServe {
 				// If this is not a long-running process and there is at most a single
 				// entry point, then disable the GC since we're just going to allocate
 				// a bunch of memory and then exit anyway. This speedup is not
 				// insignificant. We don't do this when there are multiple entry points
 				// since otherwise esbuild could unnecessarily use much more memory
 				// than it might otherwise need to process many entry points.
+				nonFlagCount := 0
+				for _, arg := range osArgs {
+					if !strings.HasPrefix(arg, "-") {
+						nonFlagCount++
+					}
+				}
 				if nonFlagCount <= 1 {
 					debug.SetGCPercent(-1)
 				}
+			} else if isServe && isServeUnsupported() {
+				// The development server isn't supported on WebAssembly, so we will
+				// immediately call "os.Exit(1)" below, which will call "process.exit(1)"
+				// in node. However, node has a bug/feature where any pending calls to
+				// "fs.read(process.stdin.fd)" hold up "process.exit()" without seemingly
+				// any way to stop this from happening. So to avoid this bug/feature,
+				// we explicitly avoid listening to stdin in this case (when we know
+				// that we are about to exit due to an invalid flag).
 			} else if !isStdinTTY && !isWatchForever {
 				// If stdin isn't a TTY, watch stdin and abort in case it is closed.
 				// This is necessary when the esbuild binary executable is invoked via
@@ -344,7 +350,7 @@ func main() {
 									logger.PrintTextWithColor(os.Stderr, options.Color, func(colors logger.Colors) string {
 										return fmt.Sprintf("%s[watch] stopped automatically because stdin was closed (use \"--watch=forever\" to keep watching even after stdin is closed)%s\n", colors.Dim, colors.Reset)
 									})
-								} else if isServeOrWatch {
+								} else if isServe {
 									logger.PrintTextWithColor(os.Stderr, options.Color, func(colors logger.Colors) string {
 										return fmt.Sprintf("%s[serve] stopped automatically because stdin was closed (keep stdin open to continue serving)%s\n", colors.Dim, colors.Reset)
 									})
