@@ -4,7 +4,9 @@
 
 * Update Go from 1.23.7 to 1.23.8 ([#4133](https://github.com/evanw/esbuild/issues/4133), [#4134](https://github.com/evanw/esbuild/pull/4134))
 
-    This should have no effect on existing code as this version change does not change Go's operating system support. It may remove certain reports from vulnerability scanners that detect which version of the Go compiler esbuild uses. Fixed vulnerability CVE-2025-22871.
+    This should have no effect on existing code as this version change does not change Go's operating system support. It may remove certain reports from vulnerability scanners that detect which version of the Go compiler esbuild uses, such as for CVE-2025-22871.
+
+    As a reminder, esbuild's development server is intended for development, not for production, so I do not consider most networking-related vulnerabilities in Go to be vulnerabilities in esbuild. Please do not use esbuild's development server in production.
 
 ## 0.25.2
 
