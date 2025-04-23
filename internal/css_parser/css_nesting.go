@@ -101,6 +101,34 @@ func (p *parser) lowerNestingInRulesAndReturnRemaining(rules []css_ast.Rule, con
 	return rules[:n]
 }
 
+func compoundSelectorTermCount(sel css_ast.CompoundSelector) int {
+	count := 0
+	for _, ss := range sel.SubclassSelectors {
+		count++
+		if list, ok := ss.Data.(*css_ast.SSPseudoClassWithSelectorList); ok {
+			count += complexSelectorTermCount(list.Selectors)
+		}
+	}
+	return count
+}
+
+func complexSelectorTermCount(selectors []css_ast.ComplexSelector) int {
+	count := 0
+	for _, sel := range selectors {
+		for _, inner := range sel.Selectors {
+			count += compoundSelectorTermCount(inner)
+		}
+	}
+	return count
+}
+
+func (p *parser) addExpansionError(loc logger.Loc, n int) {
+	p.log.AddErrorWithNotes(&p.tracker, logger.Range{Loc: loc}, "CSS nesting is causing too much expansion",
+		[]logger.MsgData{{Text: fmt.Sprintf("CSS nesting expansion was terminated because a rule was generated with %d selectors. "+
+			"This limit exists to prevent esbuild from using too much time and/or memory. "+
+			"Please change your CSS to use fewer levels of nesting.", n)}})
+}
+
 type lowerNestingContext struct {
 	parentSelectors []css_ast.ComplexSelector
 	loweredRules    []css_ast.Rule
@@ -110,6 +138,7 @@ func (p *parser) lowerNestingInRuleWithContext(rule css_ast.Rule, context *lower
 	switch r := rule.Data.(type) {
 	case *css_ast.RSelector:
 		oldSelectorsLen := len(r.Selectors)
+		oldSelectorsComplexity := complexSelectorTermCount(r.Selectors)
 
 		// "a { & b {} }" => "a b {}"
 		// "a { &b {} }" => "a:is(b) {}"
@@ -229,13 +258,13 @@ func (p *parser) lowerNestingInRuleWithContext(rule css_ast.Rule, context *lower
 			r.Selectors = selectors
 		}
 
-		// Put limits on the combinatorial explosion to avoid using too much time
-		// and/or memory.
-		if n := len(r.Selectors); n > oldSelectorsLen && n > 0xFFFF {
-			p.log.AddErrorWithNotes(&p.tracker, logger.Range{Loc: rule.Loc}, "CSS nesting is causing too much expansion",
-				[]logger.MsgData{{Text: fmt.Sprintf("CSS nesting expansion was terminated because a rule was generated with %d selectors. "+
-					"This limit exists to prevent esbuild from using too much time and/or memory. "+
-					"Please change your CSS to use fewer levels of nesting.", n)}})
+		// Put limits on the combinatorial explosion to avoid using too much time and/or memory
+		if n := len(r.Selectors); n > oldSelectorsLen && n > 0xFF00 {
+			p.addExpansionError(rule.Loc, n)
+			return css_ast.Rule{}
+		}
+		if n := complexSelectorTermCount(r.Selectors); n > oldSelectorsComplexity && n > 0xFF00 {
+			p.addExpansionError(rule.Loc, n)
 			return css_ast.Rule{}
 		}
 
