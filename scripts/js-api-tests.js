@@ -5963,6 +5963,17 @@ class Foo {
     assert.strictEqual(code, `div{color:#abcd}\n`)
   },
 
+  async cssNestingExpansionLimit({ esbuild }) {
+    const css = `a,b{a,b{a,b{a,b{a,b{a,b{a,b{a,b{a,b{a,b{a,b{a,b{a,b{a,b{a,b{a,b{a,b{a,b{a,b{a,b{color:red}}}}}}}}}}}}}}}}}}}}`
+    try {
+      await esbuild.transform(css, { loader: 'css', target: 'safari1' })
+      throw new Error('Expected a transform failure')
+    } catch (e) {
+      assert.strictEqual(e.errors.length, 1)
+      assert.strictEqual(e.errors[0].text, 'CSS nesting is causing too much expansion')
+    }
+  },
+
   async cjs_require({ esbuild }) {
     const { code } = await esbuild.transform(`const {foo} = require('path')`, {})
     assert.strictEqual(code, `const { foo } = require("path");\n`)

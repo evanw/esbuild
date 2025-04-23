@@ -52,6 +52,28 @@
 
     Some libraries have many files and also use the same legal comment text in all files. Previously esbuild would copy each legal comment to the output file. Starting with this release, legal comments duplicated across separate files will now be grouped in the output file by unique comment content.
 
+* Add a limit to CSS nesting expansion ([#4114](https://github.com/evanw/esbuild/issues/4114))
+
+    With this release, esbuild will now fail with an error if there is too much CSS nesting expansion. This can happen when nested CSS is converted to CSS without nesting for older browsers as expanding CSS nesting is inherently exponential due to the resulting combinatorial explosion. The expansion limit is currently hard-coded and cannot be changed, but is extremely unlikely to trigger for real code. It exists to prevent esbuild from using too much time and/or memory. Here's an example:
+
+    ```css
+    a,b{a,b{a,b{a,b{a,b{a,b{a,b{a,b{a,b{a,b{a,b{a,b{a,b{a,b{a,b{a,b{a,b{a,b{a,b{a,b{color:red}}}}}}}}}}}}}}}}}}}}
+    ```
+
+    Previously, transforming this file with `--target=safari1` took 5 seconds and generated 40mb of CSS. Trying to do that will now generate the following error instead:
+
+    ```
+    ✘ [ERROR] CSS nesting is causing too much expansion
+
+        example.css:1:60:
+          1 │ a,b{a,b{a,b{a,b{a,b{a,b{a,b{a,b{a,b{a,b{a,b{a,b{a,b{a,b{a,b{a,b{a,b{a,b{a,b{a,b{color:red}}}}}}}}}}}}}}}}}}}}
+            ╵                                                             ^
+
+      CSS nesting expansion was terminated because a rule was generated with 65536 selectors. This limit
+      exists to prevent esbuild from using too much time and/or memory. Please change your CSS to use
+      fewer levels of nesting.
+    ```
+
 * Fix path resolution edge case ([#4144](https://github.com/evanw/esbuild/issues/4144))
 
     This fixes an edge case where esbuild's path resolution algorithm could deviate from node's path resolution algorithm. It involves a confusing situation where a directory shares the same file name as a file (but without the file extension). See the linked issue for specific details. This appears to be a case where esbuild is correctly following [node's published resolution algorithm](https://nodejs.org/api/modules.html#all-together) but where node itself is doing something different. Specifically the step `LOAD_AS_FILE` appears to be skipped when the input ends with `..`. This release changes esbuild's behavior for this edge case to match node's behavior.
