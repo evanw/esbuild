@@ -822,7 +822,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		// Note: The latest version of "Safari" failed this test: RegExp Unicode Property Escapes: Unicode 16.0
 		ES:      {{start: v{2018, 0, 0}}},
 		Firefox: {{start: v{134, 0, 0}}},
-		Node:    {{start: v{22, 12, 0}, end: v{23, 0, 0}}, {start: v{23, 3, 0}}},
+		Node:    {{start: v{20, 19, 0}, end: v{21, 0, 0}}, {start: v{22, 12, 0}, end: v{23, 0, 0}}, {start: v{23, 3, 0}}},
 	},
 	RestArgument: {
 		// Note: The latest version of "Hermes" failed this test: rest parameters: function 'length' property

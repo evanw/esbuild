@@ -205,7 +205,7 @@ var cssPrefixTable = map[css_ast.D][]prefixData{
 		{engine: Chrome, prefix: WebkitPrefix, withoutPrefix: v{130, 0, 0}},
 		{engine: Edge, prefix: WebkitPrefix, withoutPrefix: v{130, 0, 0}},
 		{engine: IOS, prefix: WebkitPrefix},
-		{engine: Opera, prefix: WebkitPrefix},
+		{engine: Opera, prefix: WebkitPrefix, withoutPrefix: v{116, 0, 0}},
 		{engine: Safari, prefix: WebkitPrefix},
 	},
 	css_ast.DClipPath: {
