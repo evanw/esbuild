@@ -4,6 +4,20 @@ TestCommonJSVariableInESMTypeModule
 module.exports = null;
 
 ================================================================================
+TestConfusingNameCollisionsIssue4144
+---------- /out.js ----------
+// node_modules/mydependency/package/utils/utils.js
+function it() {
+  return works;
+}
+
+// node_modules/mydependency/package/index.js
+var works = true;
+
+// entry.js
+console.log(it());
+
+================================================================================
 TestPackageJsonBadExportsDefaultWarningIssue3867
 ---------- /out.js ----------
 

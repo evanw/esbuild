@@ -48,6 +48,10 @@
 
     This fix was contributed by [@mxschmitt](https://github.com/mxschmitt).
 
+* Fix path resolution edge case ([#4144](https://github.com/evanw/esbuild/issues/4144))
+
+    This fixes an edge case where esbuild's path resolution algorithm could deviate from node's path resolution algorithm. It involves a confusing situation where a directory shares the same file name as a file (but without the file extension). See the linked issue for specific details. This appears to be a case where esbuild is correctly following [node's published resolution algorithm](https://nodejs.org/api/modules.html#all-together) but where node itself is doing something different. Specifically the step `LOAD_AS_FILE` appears to be skipped when the input ends with `..`. This release changes esbuild's behavior for this edge case to match node's behavior.
+
 * Update Go from 1.23.7 to 1.23.8 ([#4133](https://github.com/evanw/esbuild/issues/4133), [#4134](https://github.com/evanw/esbuild/pull/4134))
 
     This should have no effect on existing code as this version change does not change Go's operating system support. It may remove certain reports from vulnerability scanners that detect which version of the Go compiler esbuild uses, such as for CVE-2025-22871.

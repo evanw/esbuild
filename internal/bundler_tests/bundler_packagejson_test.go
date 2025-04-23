@@ -3035,3 +3035,37 @@ func TestPackageJsonExportsDefaultWarningIssue3887(t *testing.T) {
 		debugLogs: true,
 	})
 }
+
+// https://github.com/evanw/esbuild/issues/4144
+func TestConfusingNameCollisionsIssue4144(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import { it } from 'mydependency'
+				console.log(it())
+			`,
+			"/node_modules/mydependency/package.json": `
+				{
+					"main": "./package/index.js"
+				}
+			`,
+			"/node_modules/mydependency/package/index.js": `
+				export { it } from './utils'
+				export let works = true
+			`,
+			"/node_modules/mydependency/package/utils/index.js": `
+				export { it } from './utils'
+			`,
+			"/node_modules/mydependency/package/utils/utils.js": `
+				// This should resolve to "../index.js" not "../../package.json"
+				import { works } from '..'
+				export function it() { return works }
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
