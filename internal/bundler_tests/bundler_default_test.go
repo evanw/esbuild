@@ -3833,6 +3833,59 @@ func TestLegalCommentsManyLinked(t *testing.T) {
 	})
 }
 
+// https://github.com/evanw/esbuild/issues/4139
+func TestLegalCommentsMergeDuplicatesIssue4139(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/project/entry.js": `
+				import 'pkg/a'
+				import 'pkg/b'
+				import 'pkg/c'
+				import 'pkg/d'
+			`,
+			"/project/node_modules/pkg/a.js": `
+/*!-----------------------------------------------------------------------------
+ * Copyright (c) Example Corporation. All rights reserved.
+ * Version: 1.2.3
+ * Released under the MIT license
+ * https://example.com/LICENSE.txt
+ *-----------------------------------------------------------------------------*/
+			`,
+			"/project/node_modules/pkg/b.js": `
+/*!-----------------------------------------------------------------------------
+ * Copyright (c) Example Corporation. All rights reserved.
+ * Version: 1.2.3
+ * Released under the MIT license
+ * https://example.com/LICENSE.txt
+ *-----------------------------------------------------------------------------*/
+			`,
+			"/project/node_modules/pkg/c.js": `
+//! some other comment
+/*!-----------------------------------------------------------------------------
+ * Copyright (c) Example Corporation. All rights reserved.
+ * Version: 1.2.3
+ * Released under the MIT license
+ * https://example.com/LICENSE.txt
+ *-----------------------------------------------------------------------------*/
+			`,
+			"/project/node_modules/pkg/d.js": `
+/*!-----------------------------------------------------------------------------
+ * Copyright (c) Example Corporation. All rights reserved.
+ * Version: 1.2.3
+ * Released under the MIT license
+ * https://example.com/LICENSE.txt
+ *-----------------------------------------------------------------------------*/
+			`,
+		},
+		entryPaths: []string{"/project/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			LegalComments: config.LegalCommentsEndOfFile,
+		},
+	})
+}
+
 // The IIFE should not be an arrow function when targeting ES5
 func TestIIFE_ES5(t *testing.T) {
 	default_suite.expectBundled(t, bundled{

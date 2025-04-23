@@ -3427,6 +3427,31 @@ a{zoom:2}b{zoom:2}c{zoom:2}.some-other-pkg{zoom:2}
 /*! For license information please see entry.css.LEGAL.txt */
 
 ================================================================================
+TestLegalCommentsMergeDuplicatesIssue4139
+---------- /out.js ----------
+/*! Bundled license information:
+
+pkg/a.js:
+pkg/b.js:
+pkg/d.js:
+  (*!-----------------------------------------------------------------------------
+   * Copyright (c) Example Corporation. All rights reserved.
+   * Version: 1.2.3
+   * Released under the MIT license
+   * https://example.com/LICENSE.txt
+   *-----------------------------------------------------------------------------*)
+
+pkg/c.js:
+  (*! some other comment *)
+  (*!-----------------------------------------------------------------------------
+   * Copyright (c) Example Corporation. All rights reserved.
+   * Version: 1.2.3
+   * Released under the MIT license
+   * https://example.com/LICENSE.txt
+   *-----------------------------------------------------------------------------*)
+*/
+
+================================================================================
 TestLegalCommentsModifyIndent
 ---------- /out/entry.js ----------
 // entry.js

@@ -6526,8 +6526,8 @@ func (c *linkerContext) maybeAppendLegalComments(
 	}
 
 	type thirdPartyEntry struct {
-		packagePath string
-		comments    []string
+		packagePaths []string
+		comments     []string
 	}
 
 	var uniqueFirstPartyComments []string
@@ -6573,8 +6573,8 @@ func (c *linkerContext) maybeAppendLegalComments(
 
 		if packagePath != "" {
 			thirdPartyComments = append(thirdPartyComments, thirdPartyEntry{
-				packagePath: packagePath,
-				comments:    entry.comments,
+				packagePaths: []string{packagePath},
+				comments:     entry.comments,
 			})
 		} else {
 			for _, comment := range entry.comments {
@@ -6586,6 +6586,22 @@ func (c *linkerContext) maybeAppendLegalComments(
 		}
 	}
 
+	// Merge package paths with identical comments
+	identical := make(map[string]int)
+	end := 0
+	for _, entry := range thirdPartyComments {
+		key := strings.Join(entry.comments, "\x00")
+		if index, ok := identical[key]; ok {
+			existing := &thirdPartyComments[index]
+			existing.packagePaths = append(existing.packagePaths, entry.packagePaths...)
+		} else {
+			identical[key] = end
+			thirdPartyComments[end] = entry
+			end++
+		}
+	}
+	thirdPartyComments = thirdPartyComments[:end]
+
 	switch legalComments {
 	case config.LegalCommentsEndOfFile:
 		for _, comment := range uniqueFirstPartyComments {
@@ -6596,7 +6612,10 @@ func (c *linkerContext) maybeAppendLegalComments(
 		if len(thirdPartyComments) > 0 {
 			j.AddString("/*! Bundled license information:\n")
 			for _, entry := range thirdPartyComments {
-				j.AddString(fmt.Sprintf("\n%s:\n", helpers.EscapeClosingTag(entry.packagePath, slashTag)))
+				j.AddString("\n")
+				for _, packagePath := range entry.packagePaths {
+					j.AddString(fmt.Sprintf("%s:\n", helpers.EscapeClosingTag(packagePath, slashTag)))
+				}
 				for _, comment := range entry.comments {
 					comment = helpers.EscapeClosingTag(comment, slashTag)
 					if strings.HasPrefix(comment, "//") {
@@ -6623,7 +6642,10 @@ func (c *linkerContext) maybeAppendLegalComments(
 			}
 			jComments.AddString("Bundled license information:\n")
 			for _, entry := range thirdPartyComments {
-				jComments.AddString(fmt.Sprintf("\n%s:\n", entry.packagePath))
+				jComments.AddString("\n")
+				for _, packagePath := range entry.packagePaths {
+					jComments.AddString(fmt.Sprintf("%s:\n", packagePath))
+				}
 				for _, comment := range entry.comments {
 					jComments.AddString(fmt.Sprintf("  %s\n", strings.ReplaceAll(comment, "\n", "\n  ")))
 				}

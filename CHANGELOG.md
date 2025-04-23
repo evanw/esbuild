@@ -48,6 +48,10 @@
 
     This fix was contributed by [@mxschmitt](https://github.com/mxschmitt).
 
+* More concise output for repeated legal comments ([#4139](https://github.com/evanw/esbuild/issues/4139))
+
+    Some libraries have many files and also use the same legal comment text in all files. Previously esbuild would copy each legal comment to the output file. Starting with this release, legal comments duplicated across separate files will now be grouped in the output file by unique comment content.
+
 * Fix path resolution edge case ([#4144](https://github.com/evanw/esbuild/issues/4144))
 
     This fixes an edge case where esbuild's path resolution algorithm could deviate from node's path resolution algorithm. It involves a confusing situation where a directory shares the same file name as a file (but without the file extension). See the linked issue for specific details. This appears to be a case where esbuild is correctly following [node's published resolution algorithm](https://nodejs.org/api/modules.html#all-together) but where node itself is doing something different. Specifically the step `LOAD_AS_FILE` appears to be skipped when the input ends with `..`. This release changes esbuild's behavior for this edge case to match node's behavior.
