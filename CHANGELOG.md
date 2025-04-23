@@ -52,6 +52,12 @@
 
     Some libraries have many files and also use the same legal comment text in all files. Previously esbuild would copy each legal comment to the output file. Starting with this release, legal comments duplicated across separate files will now be grouped in the output file by unique comment content.
 
+* Allow a custom host with the development server ([#4110](https://github.com/evanw/esbuild/issues/4110))
+
+    With this release, you can now use a custom non-IP `host` with esbuild's local development server (either with `--serve=` for the CLI or with the `serve()` call for the API). This was previously possible, but was intentionally broken in [version 0.25.0](https://github.com/evanw/esbuild/releases/v0.25.0) to fix a security issue. This change adds the functionality back except that it's now opt-in and only for a single domain name that you provide.
+
+    For example, if you add a mapping in your `/etc/hosts` file from `local.example.com` to `127.0.0.1` and then use `esbuild --serve=local.example.com:8000`, you will now be able to visit http://local.example.com:8000/ in your browser and successfully connect to esbuild's development server (doing that would previously have been blocked by the browser). This should also work with HTTPS if it's enabled (see esbuild's documentation for how to do that).
+
 * Add a limit to CSS nesting expansion ([#4114](https://github.com/evanw/esbuild/issues/4114))
 
     With this release, esbuild will now fail with an error if there is too much CSS nesting expansion. This can happen when nested CSS is converted to CSS without nesting for older browsers as expanding CSS nesting is inherently exponential due to the resulting combinatorial explosion. The expansion limit is currently hard-coded and cannot be changed, but is extremely unlikely to trigger for real code. It exists to prevent esbuild from using too much time and/or memory. Here's an example:

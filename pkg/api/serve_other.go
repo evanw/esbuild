@@ -774,12 +774,19 @@ func (ctx *internalContext) Serve(serveOptions ServeOptions) (ServeResult, error
 	var listener net.Listener
 	network := "tcp4"
 	host := "0.0.0.0"
+	hostIsIP := true
 	if serveOptions.Host != "" {
 		host = serveOptions.Host
+		ip := net.ParseIP(host)
 
 		// Only use "tcp4" if this is an IPv4 address, otherwise use "tcp"
-		if ip := net.ParseIP(host); ip == nil || ip.To4() == nil {
+		if ip == nil || ip.To4() == nil {
 			network = "tcp"
+		}
+
+		// Remember whether the host is a valid IP address or not
+		if ip == nil {
+			hostIsIP = false
 		}
 	}
 
@@ -831,6 +838,14 @@ func (ctx *internalContext) Serve(serveOptions ServeOptions) (ServeResult, error
 		}
 	} else {
 		result.Hosts = append(result.Hosts, boundHost)
+	}
+
+	// If the host isn't a valid IP address, add it to the list of allowed hosts.
+	// For example, mapping "local.example.com" to "127.0.0.1" in "/etc/hosts"
+	// and then using "--serve=local.example.com:8000" should make it possible to
+	// successfully visit "http://local.example.com:8000/" in a browser.
+	if !hostIsIP {
+		result.Hosts = append(result.Hosts, host)
 	}
 
 	// HTTPS-related files should be absolute paths
