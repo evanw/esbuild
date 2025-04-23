@@ -2,6 +2,44 @@
 
 ## Unreleased
 
+* Fix lowered `async` arrow functions before `super()` ([#4141](https://github.com/evanw/esbuild/issues/4141), [#4142](https://github.com/evanw/esbuild/pull/4142))
+
+    This change makes it possible to call an `async` arrow function in a constructor before calling `super()` when targeting environments without `async` support, as long as the function body doesn't reference `this`. Here's an example (notice the change from `this` to `null`):
+
+    ```js
+    // Original code
+    class Foo extends Object {
+      constructor() {
+        (async () => await foo())()
+        super()
+      }
+    }
+
+    // Old output (with --target=es2016)
+    class Foo extends Object {
+      constructor() {
+        (() => __async(this, null, function* () {
+          return yield foo();
+        }))();
+        super();
+      }
+    }
+
+    // New output (with --target=es2016)
+    class Foo extends Object {
+      constructor() {
+        (() => __async(null, null, function* () {
+          return yield foo();
+        }))();
+        super();
+      }
+    }
+    ```
+
+    Some background: Arrow functions with the `async` keyword are transformed into generator functions for older language targets such as `--target=es2016`. Since arrow functions capture `this`, the generated code forwards `this` into the body of the generator function. However, JavaScript class syntax forbids using `this` in a constructor before calling `super()`, and this forwarding was problematic since previously happened even when the function body doesn't use `this`. Starting with this release, esbuild will now only forward `this` if it's used within the function body.
+
+    This fix was contributed by [@magic-akari](https://github.com/magic-akari).
+
 * Fix memory leak with `--watch=true` ([#4131](https://github.com/evanw/esbuild/issues/4131), [#4132](https://github.com/evanw/esbuild/pull/4132))
 
     This release fixes a memory leak with esbuild when `--watch=true` is used instead of `--watch`. Previously using `--watch=true` caused esbuild to continue to use more and more memory for every rebuild, but `--watch=true` should now behave like `--watch` and not leak memory.

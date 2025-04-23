@@ -737,6 +737,9 @@ type fnOnlyDataVisit struct {
 	// has been shadowed and is now inaccessible.
 	isThisNested bool
 
+	// If true, "this" is used in current function scope.
+	hasThisUsage bool
+
 	// Do not warn about "this" being undefined for code that the TypeScript
 	// compiler generates that looks like this:
 	//
@@ -13231,6 +13234,8 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 	case *js_ast.EThis:
 		isDeleteTarget := e == p.deleteTarget
 		isCallTarget := e == p.callTarget
+
+		p.fnOnlyDataVisit.hasThisUsage = true
 
 		if value, ok := p.valueForThis(expr.Loc, true /* shouldLog */, in.assignTarget, isDeleteTarget, isCallTarget); ok {
 			return value, exprOut{}

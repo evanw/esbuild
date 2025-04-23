@@ -241,7 +241,7 @@ func TestLowerAsyncFunctions(t *testing.T) {
 }
 `)
 	// Skip forwarding altogether when parameter evaluation obviously cannot throw
-	expectPrintedTarget(t, 2015, "async (a, b = 123) => {console.log(a, b);}", `(a, b = 123) => __async(this, null, function* () {
+	expectPrintedTarget(t, 2015, "async (a, b = 123) => {console.log(a, b);}", `(a, b = 123) => __async(null, null, function* () {
   console.log(a, b);
 });
 `)

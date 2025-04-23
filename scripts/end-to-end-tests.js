@@ -7282,6 +7282,27 @@ for (let flags of [[], ['--target=es2017'], ['--target=es6']]) {
         }
       `,
     }, { async: true }),
+
+    // https://github.com/evanw/esbuild/issues/4141
+    test(['in.js', '--outfile=node.js'].concat(flags), {
+      'in.js': `
+        exports.async = () => new Promise((resolve, reject) => {
+          new (class Foo extends class { } {
+            constructor() {
+              let x = 1;
+              (async () => {
+                if (x !== 1) reject('fail 1');  // (1) Sync phase
+                await 1;
+                if (x !== 2) reject('fail 2');  // (2) Async phase
+                resolve();
+              })();
+              super();
+              x = 2;
+            }
+          })();
+        })
+      `,
+    }, { async: true }),
   )
 }
 
