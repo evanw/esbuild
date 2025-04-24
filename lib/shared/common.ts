@@ -280,6 +280,7 @@ function flagsForBuildOptions(
   let write = getFlag(options, keys, 'write', mustBeBoolean) ?? writeDefault; // Default to true if not specified
   let allowOverwrite = getFlag(options, keys, 'allowOverwrite', mustBeBoolean)
   let mangleCache = getFlag(options, keys, 'mangleCache', mustBeObject)
+  let localCSSPrefix = getFlag(options, keys, 'localCSSPrefix', mustBeString)
   keys.plugins = true; // "plugins" has already been read earlier
   checkForInvalidFlags(options, keys, `in ${callName}() call`)
 
@@ -307,6 +308,7 @@ function flagsForBuildOptions(
   if (entryNames) flags.push(`--entry-names=${entryNames}`)
   if (chunkNames) flags.push(`--chunk-names=${chunkNames}`)
   if (assetNames) flags.push(`--asset-names=${assetNames}`)
+  if (localCSSPrefix) flags.push(`--local-css-prefix=${localCSSPrefix}`)
   if (mainFields) {
     let values: string[] = []
     for (let value of mainFields) {

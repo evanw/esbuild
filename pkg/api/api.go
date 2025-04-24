@@ -296,6 +296,7 @@ type BuildOptions struct {
 	TreeShaking       TreeShaking            // Documentation: https://esbuild.github.io/api/#tree-shaking
 	IgnoreAnnotations bool                   // Documentation: https://esbuild.github.io/api/#ignore-annotations
 	LegalComments     LegalComments          // Documentation: https://esbuild.github.io/api/#legal-comments
+	LocalCSSPrefix    string                 // Documentation: https://esbuild.github.io/api/#local-css-prefix
 
 	JSX             JSX    // Documentation: https://esbuild.github.io/api/#jsx-mode
 	JSXFactory      string // Documentation: https://esbuild.github.io/api/#jsx-factory
