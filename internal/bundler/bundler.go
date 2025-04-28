@@ -508,7 +508,7 @@ func parseFile(args parseArgs) {
 					}
 
 					var namedImports string
-					if args.options.UseNamedImports {
+					if !args.options.UseNamedImports {
 						namedImports = ""
 					} else {
 						if repr, ok := result.file.inputFile.Repr.(*graph.JSRepr); ok {
