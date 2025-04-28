@@ -171,6 +171,7 @@ export interface ResolveRequest {
   kind?: string
   pluginData?: number
   with?: Record<string, string>
+  namedImports?: string
 }
 
 export interface ResolveResponse {
@@ -196,6 +197,7 @@ export interface OnResolveRequest {
   kind: types.ImportKind
   pluginData: number
   with: Record<string, string>
+  namedImports?: string
 }
 
 export interface OnResolveResponse {

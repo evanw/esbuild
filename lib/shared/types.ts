@@ -168,6 +168,8 @@ export interface BuildOptions extends CommonOptions {
   absWorkingDir?: string
   /** Documentation: https://esbuild.github.io/api/#node-paths */
   nodePaths?: string[]; // The "NODE_PATH" variable from Node.js
+  /** Documentation: https://esbuild.github.io/api/#useNamedImports */
+  useNamedImports?:boolean;
 }
 
 export interface StdinOptions {
@@ -341,6 +343,7 @@ export interface ResolveOptions {
   kind?: ImportKind
   pluginData?: any
   with?: Record<string, string>
+  namedImports?: string
 }
 
 /** Documentation: https://esbuild.github.io/plugins/#resolve-results */
@@ -381,6 +384,7 @@ export interface OnResolveArgs {
   kind: ImportKind
   pluginData: any
   with: Record<string, string>
+  namedImports?: string
 }
 
 export type ImportKind =
