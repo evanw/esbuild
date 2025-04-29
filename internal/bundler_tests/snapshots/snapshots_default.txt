@@ -1564,6 +1564,39 @@ export default class o {
 }
 
 ================================================================================
+TestExportSpecialName
+---------- /out.js ----------
+var entry_exports = {};
+__export(entry_exports, {
+  ["__proto__"]: () => __proto__
+});
+module.exports = __toCommonJS(entry_exports);
+const __proto__ = 123;
+// Annotate the CommonJS export names for ESM import in node:
+0 && (module.exports = {
+  __proto__
+});
+
+================================================================================
+TestExportSpecialNameBundle
+---------- /out.js ----------
+// lib.mjs
+var lib_exports = {};
+__export(lib_exports, {
+  ["__proto__"]: () => __proto__
+});
+var __proto__;
+var init_lib = __esm({
+  "lib.mjs"() {
+    __proto__ = 123;
+  }
+});
+
+// entry.js
+var lib = (init_lib(), __toCommonJS(lib_exports));
+console.log(lib.__proto__);
+
+================================================================================
 TestExportWildcardFSNodeCommonJS
 ---------- /out.js ----------
 // entry.js
