@@ -6,6 +6,12 @@
 
     This fixes a regression in version 0.25.0 where `sources` in source maps that form invalid URLs were not being passed through to the output. Version 0.25.0 changed the interpretation of `sources` from file paths to URLs, which means that URL parsing can now fail. Previously URLs that couldn't be parsed were replaced with the empty string. With this release, invalid URLs in `sources` should now be passed through unmodified.
 
+* Handle exports named `__proto__` in ES modules ([#4162](https://github.com/evanw/esbuild/issues/4162), [#4163](https://github.com/evanw/esbuild/pull/4163))
+
+    In JavaScript, the special property name `__proto__` sets the prototype when used inside an object literal. Previously esbuild's ESM-to-CommonJS conversion didn't special-case the property name of exports named `__proto__` so the exported getter accidentally became the prototype of the object literal. It's unclear what this affects, if anything, but it's better practice to avoid this by using a computed property name in this case.
+
+    This fix was contributed by [@magic-akari](https://github.com/magic-akari).
+
 ## 0.25.3
 
 * Fix lowered `async` arrow functions before `super()` ([#4141](https://github.com/evanw/esbuild/issues/4141), [#4142](https://github.com/evanw/esbuild/pull/4142))

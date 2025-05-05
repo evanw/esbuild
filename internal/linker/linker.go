@@ -2294,19 +2294,18 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 			getter = js_ast.Expr{Data: &js_ast.EArrow{PreferExpr: true, Body: body}}
 		}
 
-		// Special case for __proto__ property - use computed property name to avoid it being treated as the object's prototype
-		if alias == "__proto__" {
-			properties = append(properties, js_ast.Property{
-				Flags:      js_ast.PropertyIsComputed,
-				Key:        js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16(alias)}},
-				ValueOrNil: getter,
-			})
-		} else {
-			properties = append(properties, js_ast.Property{
-				Key:        js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16(alias)}},
-				ValueOrNil: getter,
-			})
+		// Special case for __proto__ property: use a computed property
+		// name to avoid it being treated as the object's prototype
+		var flags js_ast.PropertyFlags
+		if alias == "__proto__" && !c.options.UnsupportedJSFeatures.Has(compat.ObjectExtensions) {
+			flags |= js_ast.PropertyIsComputed
 		}
+
+		properties = append(properties, js_ast.Property{
+			Flags:      flags,
+			Key:        js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16(alias)}},
+			ValueOrNil: getter,
+		})
 		nsExportSymbolUses[export.Ref] = js_ast.SymbolUse{CountEstimate: 1}
 
 		// Make sure the part that declares the export is included
