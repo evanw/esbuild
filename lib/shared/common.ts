@@ -8,10 +8,14 @@ const quote: (x: string) => string = JSON.stringify
 const buildLogLevelDefault = 'warning'
 const transformLogLevelDefault = 'silent'
 
-function validateTarget(target: string): string {
-  validateStringValue(target, 'target')
-  if (target.indexOf(',') >= 0) throw new Error(`Invalid target: ${target}`)
-  return target
+function validateAndJoinStringArray(values: string[], what: string): string {
+  const toJoin: string[] = []
+  for (const value of values) {
+    validateStringValue(value, what)
+    if (value.indexOf(',') >= 0) throw new Error(`Invalid ${what}: ${value}`)
+    toJoin.push(value)
+  }
+  return toJoin.join(',')
 }
 
 let canBeAnything = () => null
@@ -171,10 +175,7 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   if (legalComments) flags.push(`--legal-comments=${legalComments}`)
   if (sourceRoot !== void 0) flags.push(`--source-root=${sourceRoot}`)
   if (sourcesContent !== void 0) flags.push(`--sources-content=${sourcesContent}`)
-  if (target) {
-    if (Array.isArray(target)) flags.push(`--target=${Array.from(target).map(validateTarget).join(',')}`)
-    else flags.push(`--target=${validateTarget(target)}`)
-  }
+  if (target) flags.push(`--target=${validateAndJoinStringArray(Array.isArray(target) ? target : [target], 'target')}`)
   if (format) flags.push(`--format=${format}`)
   if (globalName) flags.push(`--global-name=${globalName}`)
   if (platform) flags.push(`--platform=${platform}`)
@@ -189,7 +190,7 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   if (treeShaking !== void 0) flags.push(`--tree-shaking=${treeShaking}`)
   if (ignoreAnnotations) flags.push(`--ignore-annotations`)
   if (drop) for (let what of drop) flags.push(`--drop:${validateStringValue(what, 'drop')}`)
-  if (dropLabels) flags.push(`--drop-labels=${Array.from(dropLabels).map(what => validateStringValue(what, 'dropLabels')).join(',')}`)
+  if (dropLabels) flags.push(`--drop-labels=${validateAndJoinStringArray(dropLabels, 'drop label')}`)
   if (mangleProps) flags.push(`--mangle-props=${jsRegExpToGoRegExp(mangleProps)}`)
   if (reserveProps) flags.push(`--reserve-props=${jsRegExpToGoRegExp(reserveProps)}`)
   if (mangleQuoted !== void 0) flags.push(`--mangle-quoted=${mangleQuoted}`)
@@ -294,37 +295,13 @@ function flagsForBuildOptions(
   if (outbase) flags.push(`--outbase=${outbase}`)
   if (tsconfig) flags.push(`--tsconfig=${tsconfig}`)
   if (packages) flags.push(`--packages=${packages}`)
-  if (resolveExtensions) {
-    let values: string[] = []
-    for (let value of resolveExtensions) {
-      validateStringValue(value, 'resolve extension')
-      if (value.indexOf(',') >= 0) throw new Error(`Invalid resolve extension: ${value}`)
-      values.push(value)
-    }
-    flags.push(`--resolve-extensions=${values.join(',')}`)
-  }
+  if (resolveExtensions) flags.push(`--resolve-extensions=${validateAndJoinStringArray(resolveExtensions, 'resolve extension')}`)
   if (publicPath) flags.push(`--public-path=${publicPath}`)
   if (entryNames) flags.push(`--entry-names=${entryNames}`)
   if (chunkNames) flags.push(`--chunk-names=${chunkNames}`)
   if (assetNames) flags.push(`--asset-names=${assetNames}`)
-  if (mainFields) {
-    let values: string[] = []
-    for (let value of mainFields) {
-      validateStringValue(value, 'main field')
-      if (value.indexOf(',') >= 0) throw new Error(`Invalid main field: ${value}`)
-      values.push(value)
-    }
-    flags.push(`--main-fields=${values.join(',')}`)
-  }
-  if (conditions) {
-    let values: string[] = []
-    for (let value of conditions) {
-      validateStringValue(value, 'condition')
-      if (value.indexOf(',') >= 0) throw new Error(`Invalid condition: ${value}`)
-      values.push(value)
-    }
-    flags.push(`--conditions=${values.join(',')}`)
-  }
+  if (mainFields) flags.push(`--main-fields=${validateAndJoinStringArray(mainFields, 'main field')}`)
+  if (conditions) flags.push(`--conditions=${validateAndJoinStringArray(conditions, 'condition')}`)
   if (external) for (let name of external) flags.push(`--external:${validateStringValue(name, 'external')}`)
   if (alias) {
     for (let old in alias) {
