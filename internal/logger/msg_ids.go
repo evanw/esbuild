@@ -69,7 +69,6 @@ const (
 
 	// Source maps
 	MsgID_SourceMap_InvalidSourceMappings
-	MsgID_SourceMap_InvalidSourceURL
 	MsgID_SourceMap_MissingSourceMap
 	MsgID_SourceMap_UnsupportedSourceMapComment
 
@@ -207,8 +206,6 @@ func StringToMsgIDs(str string, logLevel LogLevel, overrides map[MsgID]LogLevel)
 	// Source maps
 	case "invalid-source-mappings":
 		overrides[MsgID_SourceMap_InvalidSourceMappings] = logLevel
-	case "invalid-source-url":
-		overrides[MsgID_SourceMap_InvalidSourceURL] = logLevel
 	case "missing-source-map":
 		overrides[MsgID_SourceMap_MissingSourceMap] = logLevel
 	case "unsupported-source-map-comment":
@@ -341,8 +338,6 @@ func MsgIDToString(id MsgID) string {
 	// Source maps
 	case MsgID_SourceMap_InvalidSourceMappings:
 		return "invalid-source-mappings"
-	case MsgID_SourceMap_InvalidSourceURL:
-		return "invalid-source-url"
 	case MsgID_SourceMap_MissingSourceMap:
 		return "missing-source-map"
 	case MsgID_SourceMap_UnsupportedSourceMapComment:

@@ -1616,6 +1616,7 @@ func (s *scanner) preprocessInjectedFiles() {
 			KeyPath:        visitedKey,
 			PrettyPath:     resolver.PrettyPath(s.fs, visitedKey),
 			IdentifierName: js_ast.EnsureValidIdentifier(visitedKey.Text),
+			Contents:       define.Source.Contents,
 		}
 
 		// The first "len(InjectedDefine)" injected files intentionally line up

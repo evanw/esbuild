@@ -342,14 +342,9 @@ func ParseSourceMap(log logger.Log, source logger.Source) *sourcemap.SourceMap {
 				sourcePath := sourceURLPrefix + helpers.UTF16ToString(element.Value)
 				sourceURL, err := url.Parse(sourcePath)
 
-				// Report URL parse errors (such as "%XY" being an invalid escape)
+				// Ignore URL parse errors (such as "%XY" being an invalid escape)
 				if err != nil {
-					if urlErr, ok := err.(*url.Error); ok {
-						err = urlErr.Err // Use the underlying error to reduce noise
-					}
-					log.AddID(logger.MsgID_SourceMap_InvalidSourceURL, logger.Warning, &tracker, source.RangeOfString(item.Loc),
-						fmt.Sprintf("Invalid source URL: %s", err.Error()))
-					sources = append(sources, "")
+					sources = append(sources, sourcePath)
 					continue
 				}
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Pass through invalid URLs in source maps unmodified ([#4169](https://github.com/evanw/esbuild/issues/4169))
+
+    This fixes a regression in version 0.25.0 where `sources` in source maps that form invalid URLs were not being passed through to the output. Version 0.25.0 changed the interpretation of `sources` from file paths to URLs, which means that URL parsing can now fail. Previously URLs that couldn't be parsed were replaced with the empty string. With this release, invalid URLs in `sources` should now be passed through unmodified.
+
 ## 0.25.3
 
 * Fix lowered `async` arrow functions before `super()` ([#4141](https://github.com/evanw/esbuild/issues/4141), [#4142](https://github.com/evanw/esbuild/pull/4142))

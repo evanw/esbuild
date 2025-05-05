@@ -749,6 +749,15 @@ const toSearchMissingSourcesIssue4104 = {
   'app-root': 'app.component.ts',
 }
 
+const testCaseDefineWithObjectIssue4169 = {
+  'entry.js': `console.log(OBJECT, ARRAY);`,
+}
+
+const toSearchDefineWithObjectIssue4169 = {
+  'test object': '<define:OBJECT>',
+  'test array': '<define:ARRAY>',
+}
+
 async function check(kind, testCase, toSearch, { outfile, flags, entryPoints, crlf, followUpFlags = [], checkFirstChunk }) {
   let failed = 0
 
@@ -1242,6 +1251,12 @@ async function main() {
           entryPoints: ['entry.js'],
           crlf,
           followUpFlags: ['--packages=external'],
+        }),
+        check('issue-4169' + suffix, testCaseDefineWithObjectIssue4169, toSearchDefineWithObjectIssue4169, {
+          outfile: 'out.js',
+          flags: flags.concat('--format=esm', '--sourcemap', '--bundle', '--define:OBJECT={"test object":1}', '--define:ARRAY=["test array"]'),
+          entryPoints: ['entry.js'],
+          crlf,
         }),
 
         // Checks for the "names" field
