@@ -41,6 +41,9 @@ let mustBeFunction = (value: Function | undefined): string | null =>
 let mustBeArray = <T>(value: T[] | undefined): string | null =>
   Array.isArray(value) ? null : 'an array'
 
+let mustBeArrayOfStrings = (value: string[] | undefined): string | null =>
+  Array.isArray(value) && value.every(x => typeof x === 'string') ? null : 'an array of strings'
+
 let mustBeObject = (value: Object | undefined): string | null =>
   typeof value === 'object' && value !== null && !Array.isArray(value) ? null : 'an object'
 
@@ -153,8 +156,8 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   let minifyWhitespace = getFlag(options, keys, 'minifyWhitespace', mustBeBoolean)
   let minifyIdentifiers = getFlag(options, keys, 'minifyIdentifiers', mustBeBoolean)
   let lineLimit = getFlag(options, keys, 'lineLimit', mustBeInteger)
-  let drop = getFlag(options, keys, 'drop', mustBeArray)
-  let dropLabels = getFlag(options, keys, 'dropLabels', mustBeArray)
+  let drop = getFlag(options, keys, 'drop', mustBeArrayOfStrings)
+  let dropLabels = getFlag(options, keys, 'dropLabels', mustBeArrayOfStrings)
   let charset = getFlag(options, keys, 'charset', mustBeString)
   let treeShaking = getFlag(options, keys, 'treeShaking', mustBeBoolean)
   let ignoreAnnotations = getFlag(options, keys, 'ignoreAnnotations', mustBeBoolean)
@@ -167,7 +170,7 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   let define = getFlag(options, keys, 'define', mustBeObject)
   let logOverride = getFlag(options, keys, 'logOverride', mustBeObject)
   let supported = getFlag(options, keys, 'supported', mustBeObject)
-  let pure = getFlag(options, keys, 'pure', mustBeArray)
+  let pure = getFlag(options, keys, 'pure', mustBeArrayOfStrings)
   let keepNames = getFlag(options, keys, 'keepNames', mustBeBoolean)
   let platform = getFlag(options, keys, 'platform', mustBeString)
   let tsconfigRaw = getFlag(options, keys, 'tsconfigRaw', mustBeStringOrObject)
@@ -259,11 +262,11 @@ function flagsForBuildOptions(
   let outdir = getFlag(options, keys, 'outdir', mustBeString)
   let outbase = getFlag(options, keys, 'outbase', mustBeString)
   let tsconfig = getFlag(options, keys, 'tsconfig', mustBeString)
-  let resolveExtensions = getFlag(options, keys, 'resolveExtensions', mustBeArray)
-  let nodePathsInput = getFlag(options, keys, 'nodePaths', mustBeArray)
-  let mainFields = getFlag(options, keys, 'mainFields', mustBeArray)
-  let conditions = getFlag(options, keys, 'conditions', mustBeArray)
-  let external = getFlag(options, keys, 'external', mustBeArray)
+  let resolveExtensions = getFlag(options, keys, 'resolveExtensions', mustBeArrayOfStrings)
+  let nodePathsInput = getFlag(options, keys, 'nodePaths', mustBeArrayOfStrings)
+  let mainFields = getFlag(options, keys, 'mainFields', mustBeArrayOfStrings)
+  let conditions = getFlag(options, keys, 'conditions', mustBeArrayOfStrings)
+  let external = getFlag(options, keys, 'external', mustBeArrayOfStrings)
   let packages = getFlag(options, keys, 'packages', mustBeString)
   let alias = getFlag(options, keys, 'alias', mustBeObject)
   let loader = getFlag(options, keys, 'loader', mustBeObject)
@@ -272,7 +275,7 @@ function flagsForBuildOptions(
   let entryNames = getFlag(options, keys, 'entryNames', mustBeString)
   let chunkNames = getFlag(options, keys, 'chunkNames', mustBeString)
   let assetNames = getFlag(options, keys, 'assetNames', mustBeString)
-  let inject = getFlag(options, keys, 'inject', mustBeArray)
+  let inject = getFlag(options, keys, 'inject', mustBeArrayOfStrings)
   let banner = getFlag(options, keys, 'banner', mustBeObject)
   let footer = getFlag(options, keys, 'footer', mustBeObject)
   let entryPoints = getFlag(options, keys, 'entryPoints', mustBeEntryPoints)
@@ -1386,8 +1389,8 @@ let handlePlugins = async (
           let pluginData = getFlag(result, keys, 'pluginData', canBeAnything)
           let errors = getFlag(result, keys, 'errors', mustBeArray)
           let warnings = getFlag(result, keys, 'warnings', mustBeArray)
-          let watchFiles = getFlag(result, keys, 'watchFiles', mustBeArray)
-          let watchDirs = getFlag(result, keys, 'watchDirs', mustBeArray)
+          let watchFiles = getFlag(result, keys, 'watchFiles', mustBeArrayOfStrings)
+          let watchDirs = getFlag(result, keys, 'watchDirs', mustBeArrayOfStrings)
           checkForInvalidFlags(result, keys, `from onResolve() callback in plugin ${quote(name)}`)
 
           response.id = id
@@ -1435,8 +1438,8 @@ let handlePlugins = async (
           let loader = getFlag(result, keys, 'loader', mustBeString)
           let errors = getFlag(result, keys, 'errors', mustBeArray)
           let warnings = getFlag(result, keys, 'warnings', mustBeArray)
-          let watchFiles = getFlag(result, keys, 'watchFiles', mustBeArray)
-          let watchDirs = getFlag(result, keys, 'watchDirs', mustBeArray)
+          let watchFiles = getFlag(result, keys, 'watchFiles', mustBeArrayOfStrings)
+          let watchDirs = getFlag(result, keys, 'watchDirs', mustBeArrayOfStrings)
           checkForInvalidFlags(result, keys, `from onLoad() callback in plugin ${quote(name)}`)
 
           response.id = id
