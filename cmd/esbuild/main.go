@@ -68,6 +68,7 @@ var helpText = func(colors logger.Colors) string {
   --chunk-names=...         Path template to use for code splitting chunks
                             (default "[name]-[hash]")
   --color=...               Force use of color terminal escapes (true | false)
+  --cors-origin=...         Allow cross-origin requests from this origin
   --drop:...                Remove certain constructs (console | debugger)
   --drop-labels=...         Remove labeled statements with these label names
   --entry-names=...         Path template to use for entry point output paths

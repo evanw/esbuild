@@ -845,6 +845,7 @@ func parseOptionsImpl(
 				"chunk-names":        true,
 				"color":              true,
 				"conditions":         true,
+				"cors-origin":        true,
 				"drop-labels":        true,
 				"entry-names":        true,
 				"footer":             true,
@@ -1375,6 +1376,7 @@ func parseServeOptionsImpl(osArgs []string) (api.ServeOptions, []string, error) 
 	keyfile := ""
 	certfile := ""
 	fallback := ""
+	var corsOrigin []string
 
 	// Filter out server-specific flags
 	filteredArgs := make([]string, 0, len(osArgs))
@@ -1391,6 +1393,8 @@ func parseServeOptionsImpl(osArgs []string) (api.ServeOptions, []string, error) 
 			certfile = arg[len("--certfile="):]
 		} else if strings.HasPrefix(arg, "--serve-fallback=") {
 			fallback = arg[len("--serve-fallback="):]
+		} else if strings.HasPrefix(arg, "--cors-origin=") {
+			corsOrigin = strings.Split(arg[len("--cors-origin="):], ",")
 		} else {
 			filteredArgs = append(filteredArgs, arg)
 		}
@@ -1429,6 +1433,9 @@ func parseServeOptionsImpl(osArgs []string) (api.ServeOptions, []string, error) 
 		Keyfile:  keyfile,
 		Certfile: certfile,
 		Fallback: fallback,
+		CORS: api.CORSOptions{
+			Origin: corsOrigin,
+		},
 	}, filteredArgs, nil
 }
 

@@ -478,7 +478,13 @@ type ServeOptions struct {
 	Keyfile   string
 	Certfile  string
 	Fallback  string
+	CORS      CORSOptions
 	OnRequest func(ServeOnRequestArgs)
+}
+
+// Documentation: https://esbuild.github.io/api/#cors
+type CORSOptions struct {
+	Origin []string
 }
 
 type ServeOnRequestArgs struct {
