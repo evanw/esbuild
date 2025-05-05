@@ -1673,6 +1673,44 @@ func TestExportWildcardFSNodeCommonJS(t *testing.T) {
 	})
 }
 
+func TestExportSpecialName(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.mjs": `
+			export const __proto__ = 123;
+			`,
+		},
+		entryPaths: []string{"/entry.mjs"},
+		options: config.Options{
+			Mode:          config.ModeConvertFormat,
+			OutputFormat:  config.FormatCommonJS,
+			AbsOutputFile: "/out.js",
+			Platform:      config.PlatformNode,
+		},
+	})
+}
+
+func TestExportSpecialNameBundle(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				const lib = require('./lib.mjs');
+				console.log(lib.__proto__);
+			`,
+			"/lib.mjs": `
+				export const __proto__ = 123;
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			OutputFormat:  config.FormatCommonJS,
+			AbsOutputFile: "/out.js",
+			Platform:      config.PlatformNode,
+		},
+	})
+}
+
 // https://github.com/evanw/esbuild/issues/3544
 func TestNodeAnnotationFalsePositiveIssue3544(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
