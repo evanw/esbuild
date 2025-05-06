@@ -62,8 +62,8 @@ let mustBeStringOrBoolean = (value: string | boolean | undefined): string | null
 let mustBeStringOrObject = (value: string | Object | undefined): string | null =>
   typeof value === 'string' || typeof value === 'object' && value !== null && !Array.isArray(value) ? null : 'a string or an object'
 
-let mustBeStringOrArray = (value: string | string[] | undefined): string | null =>
-  typeof value === 'string' || Array.isArray(value) ? null : 'a string or an array'
+let mustBeStringOrArrayOfStrings = (value: string | string[] | undefined): string | null =>
+  typeof value === 'string' || (Array.isArray(value) && value.every(x => typeof x === 'string')) ? null : 'a string or an array of strings'
 
 let mustBeStringOrUint8Array = (value: string | Uint8Array | undefined): string | null =>
   typeof value === 'string' || value instanceof Uint8Array ? null : 'a string or a Uint8Array'
@@ -145,7 +145,7 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   let legalComments = getFlag(options, keys, 'legalComments', mustBeString)
   let sourceRoot = getFlag(options, keys, 'sourceRoot', mustBeString)
   let sourcesContent = getFlag(options, keys, 'sourcesContent', mustBeBoolean)
-  let target = getFlag(options, keys, 'target', mustBeStringOrArray)
+  let target = getFlag(options, keys, 'target', mustBeStringOrArrayOfStrings)
   let format = getFlag(options, keys, 'format', mustBeString)
   let globalName = getFlag(options, keys, 'globalName', mustBeString)
   let mangleProps = getFlag(options, keys, 'mangleProps', mustBeRegExp)
@@ -1080,6 +1080,7 @@ function buildOrContextImpl(
           const keyfile = getFlag(options, keys, 'keyfile', mustBeString)
           const certfile = getFlag(options, keys, 'certfile', mustBeString)
           const fallback = getFlag(options, keys, 'fallback', mustBeString)
+          const cors = getFlag(options, keys, 'cors', mustBeObject)
           const onRequest = getFlag(options, keys, 'onRequest', mustBeFunction)
           checkForInvalidFlags(options, keys, `in serve() call`)
 
@@ -1094,6 +1095,14 @@ function buildOrContextImpl(
           if (keyfile !== void 0) request.keyfile = keyfile
           if (certfile !== void 0) request.certfile = certfile
           if (fallback !== void 0) request.fallback = fallback
+
+          if (cors) {
+            const corsKeys: OptionKeys = {}
+            const origin = getFlag(cors, corsKeys, 'origin', mustBeStringOrArrayOfStrings)
+            checkForInvalidFlags(cors, corsKeys, `on "cors" object`)
+            if (Array.isArray(origin)) request.corsOrigin = origin
+            else if (origin !== void 0) request.corsOrigin = [origin]
+          }
 
           sendRequest<protocol.ServeRequest, protocol.ServeResponse>(refs, request, (error, response) => {
             if (error) return reject(new Error(error))

@@ -31,6 +31,7 @@ export interface ServeRequest {
   keyfile?: string
   certfile?: string
   fallback?: string
+  corsOrigin?: string[]
 }
 
 export interface ServeResponse {

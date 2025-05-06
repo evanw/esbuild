@@ -241,7 +241,13 @@ export interface ServeOptions {
   keyfile?: string
   certfile?: string
   fallback?: string
+  cors?: CORSOptions
   onRequest?: (args: ServeOnRequestArgs) => void
+}
+
+/** Documentation: https://esbuild.github.io/api/#cors */
+export interface CORSOptions {
+  origin?: string | string[]
 }
 
 export interface ServeOnRequestArgs {
