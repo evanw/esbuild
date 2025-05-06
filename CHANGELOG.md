@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.25.4
 
 * Add simple support for CORS to esbuild's development server ([#4125](https://github.com/evanw/esbuild/issues/4125))
 
