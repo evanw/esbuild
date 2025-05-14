@@ -395,6 +395,13 @@ func (fs *realFS) canonicalizeError(err error) error {
 		err = syscall.ENOENT
 	}
 
+	// On Windows, attempting to access a folder without read permissions 
+	// results in an "Access denied." error instead of EPERM.  
+	// To ensure consistency, this error is replaced with EPERM.
+	if fs.fp.isWindows && os.IsPermission(err) {
+		err = syscall.EPERM
+	}
+
 	// Windows returns ENOTDIR here even though nothing we've done yet has asked
 	// for a directory. This really means ENOENT on Windows. Return ENOENT here
 	// so callers that check for ENOENT will successfully detect this file as
