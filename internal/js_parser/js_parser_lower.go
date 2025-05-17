@@ -1892,7 +1892,6 @@ func (p *parser) lowerUsingDeclarationContext() lowerUsingDeclarationContext {
 	}
 }
 
-// If this returns "nil", then no lowering needed to be done
 func (ctx *lowerUsingDeclarationContext) scanStmts(p *parser, stmts []js_ast.Stmt) {
 	for _, stmt := range stmts {
 		if local, ok := stmt.Data.(*js_ast.SLocal); ok && local.Kind.IsUsing() {
@@ -2116,6 +2115,7 @@ func (p *parser) lowerUsingDeclarationInForOf(loc logger.Loc, init *js_ast.SLoca
 	id.Ref = tempRef
 }
 
+// If this returns "nil", then no lowering needed to be done
 func (p *parser) maybeLowerUsingDeclarationsInSwitch(loc logger.Loc, s *js_ast.SSwitch) []js_ast.Stmt {
 	// Check for a "using" declaration in any case
 	shouldLower := false
