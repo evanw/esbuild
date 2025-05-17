@@ -111,6 +111,7 @@ export const cssProperties = {
   DBoxDecorationBreak: true,
   DClipPath: true,
   DFontKerning: true,
+  DHeight: true,
   DHyphens: true,
   DInitialLetter: true,
   DMaskComposite: true,
@@ -119,6 +120,10 @@ export const cssProperties = {
   DMaskPosition: true,
   DMaskRepeat: true,
   DMaskSize: true,
+  DMaxHeight: true,
+  DMaxWidth: true,
+  DMinHeight: true,
+  DMinWidth: true,
   DPosition: true,
   DPrintColorAdjust: true,
   DTabSize: true,
@@ -131,6 +136,7 @@ export const cssProperties = {
   DTextOrientation: true,
   DTextSizeAdjust: true,
   DUserSelect: true,
+  DWidth: true,
 }
 
 export interface Support {

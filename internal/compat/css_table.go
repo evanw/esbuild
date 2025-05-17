@@ -220,6 +220,13 @@ var cssPrefixTable = map[css_ast.D][]prefixData{
 		{engine: Opera, prefix: WebkitPrefix, withoutPrefix: v{20, 0, 0}},
 		{engine: Safari, prefix: WebkitPrefix, withoutPrefix: v{9, 1, 0}},
 	},
+	css_ast.DHeight: {
+		{engine: Chrome, prefix: WebkitPrefix},
+		{engine: Edge, prefix: WebkitPrefix},
+		{engine: IOS, prefix: WebkitPrefix},
+		{engine: Opera, prefix: WebkitPrefix},
+		{engine: Safari, prefix: WebkitPrefix},
+	},
 	css_ast.DHyphens: {
 		{engine: Edge, prefix: MsPrefix, withoutPrefix: v{79, 0, 0}},
 		{engine: Firefox, prefix: MozPrefix, withoutPrefix: v{43, 0, 0}},
@@ -272,6 +279,34 @@ var cssPrefixTable = map[css_ast.D][]prefixData{
 		{engine: IOS, prefix: WebkitPrefix, withoutPrefix: v{15, 4, 0}},
 		{engine: Opera, prefix: WebkitPrefix, withoutPrefix: v{106, 0, 0}},
 		{engine: Safari, prefix: WebkitPrefix, withoutPrefix: v{15, 4, 0}},
+	},
+	css_ast.DMaxHeight: {
+		{engine: Chrome, prefix: WebkitPrefix},
+		{engine: Edge, prefix: WebkitPrefix},
+		{engine: IOS, prefix: WebkitPrefix},
+		{engine: Opera, prefix: WebkitPrefix},
+		{engine: Safari, prefix: WebkitPrefix},
+	},
+	css_ast.DMaxWidth: {
+		{engine: Chrome, prefix: WebkitPrefix},
+		{engine: Edge, prefix: WebkitPrefix},
+		{engine: IOS, prefix: WebkitPrefix},
+		{engine: Opera, prefix: WebkitPrefix},
+		{engine: Safari, prefix: WebkitPrefix},
+	},
+	css_ast.DMinHeight: {
+		{engine: Chrome, prefix: WebkitPrefix},
+		{engine: Edge, prefix: WebkitPrefix},
+		{engine: IOS, prefix: WebkitPrefix},
+		{engine: Opera, prefix: WebkitPrefix},
+		{engine: Safari, prefix: WebkitPrefix},
+	},
+	css_ast.DMinWidth: {
+		{engine: Chrome, prefix: WebkitPrefix},
+		{engine: Edge, prefix: WebkitPrefix},
+		{engine: IOS, prefix: WebkitPrefix},
+		{engine: Opera, prefix: WebkitPrefix},
+		{engine: Safari, prefix: WebkitPrefix},
 	},
 	css_ast.DPosition: {
 		{engine: IOS, prefix: WebkitPrefix, withoutPrefix: v{13, 0, 0}},
@@ -331,6 +366,14 @@ var cssPrefixTable = map[css_ast.D][]prefixData{
 		{engine: IOS, prefix: WebkitPrefix},
 		{engine: Opera, prefix: WebkitPrefix, withoutPrefix: v{41, 0, 0}},
 		{engine: Safari, prefix: KhtmlPrefix, withoutPrefix: v{3, 0, 0}},
+		{engine: Safari, prefix: WebkitPrefix},
+	},
+	css_ast.DWidth: {
+		{engine: Chrome, prefix: WebkitPrefix},
+		{engine: Edge, prefix: WebkitPrefix},
+		{engine: Firefox, prefix: MozPrefix},
+		{engine: IOS, prefix: WebkitPrefix},
+		{engine: Opera, prefix: WebkitPrefix},
 		{engine: Safari, prefix: WebkitPrefix},
 	},
 }

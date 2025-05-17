@@ -82,12 +82,17 @@ const similarPrefixedProperty: Record<string, { prefix: string, property: string
 }
 
 const cssPrefixFeatures: Record<string, CSSProperty> = {
+  'css.properties.height.stretch': 'DHeight',
   'css.properties.mask-composite': 'DMaskComposite',
   'css.properties.mask-image': 'DMaskImage',
   'css.properties.mask-origin': 'DMaskOrigin',
   'css.properties.mask-position': 'DMaskPosition',
   'css.properties.mask-repeat': 'DMaskRepeat',
   'css.properties.mask-size': 'DMaskSize',
+  'css.properties.max-height.stretch': 'DMaxHeight',
+  'css.properties.max-width.stretch': 'DMaxWidth',
+  'css.properties.min-height.stretch': 'DMinHeight',
+  'css.properties.min-width.stretch': 'DMinWidth',
   'css.properties.text-decoration-color': 'DTextDecorationColor',
   'css.properties.text-decoration-line': 'DTextDecorationLine',
   'css.properties.text-decoration-skip': 'DTextDecorationSkip',
@@ -95,6 +100,12 @@ const cssPrefixFeatures: Record<string, CSSProperty> = {
   'css.properties.text-emphasis-position': 'DTextEmphasisPosition',
   'css.properties.text-emphasis-style': 'DTextEmphasisStyle',
   'css.properties.user-select': 'DUserSelect',
+  'css.properties.width.stretch': 'DWidth',
+}
+
+const alternativeNameToPrefix: Record<string, string> = {
+  '-webkit-fill-available': '-webkit-',
+  '-moz-available': '-moz-',
 }
 
 export const js: SupportMap<JSFeature> = {} as SupportMap<JSFeature>
@@ -186,8 +197,8 @@ for (const fullKey in cssPrefixFeatures) {
       // its engine from EdgeHTML to Blink, basically becoming another browser)
       // but we ignore those cases for now.
       let version_unprefixed: string | undefined
-      for (const { prefix, flags, version_added, version_removed } of entries) {
-        if (!prefix && !flags && typeof version_added === 'string' && !version_removed && isSemver.test(version_added)) {
+      for (const { prefix, flags, version_added, version_removed, alternative_name } of entries) {
+        if (!prefix && !alternative_name && !flags && typeof version_added === 'string' && !version_removed && isSemver.test(version_added)) {
           version_unprefixed = version_added
         }
       }
@@ -208,15 +219,15 @@ for (const fullKey in cssPrefixFeatures) {
 
       // Find all version ranges where a given prefix is supported
       for (let i = 0; i < entries.length; i++) {
-        let { prefix, flags, version_added, version_removed } = entries[i]
+        let { prefix, flags, version_added, version_removed, alternative_name } = entries[i]
 
         if (similar) {
           if (prefix) throw new Error(`Unexpected prefix "${prefix}" for similar property "${similar.property}"`)
           prefix = similar.prefix
         }
 
-        if (prefix && !flags && typeof version_added === 'string' && isSemver.test(version_added)) {
-          const range: PrefixRange = { prefix, start: version_added }
+        if ((prefix || alternative_name) && !flags && typeof version_added === 'string' && isSemver.test(version_added)) {
+          const range: PrefixRange = { prefix: prefix || alternativeNameToPrefix[alternative_name!], start: version_added }
           let withoutPrefix: string | undefined
 
           // The prefix is no longer needed if support for the feature was removed

@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+* Add CSS prefixes for the `stretch` sizing value ([#4184](https://github.com/evanw/esbuild/issues/4184))
+
+    This release adds support for prefixing CSS declarations such as `div { width: stretch }`. That CSS is now transformed into this depending on what the `--target=` setting includes:
+
+    ```css
+    div {
+      width: -webkit-fill-available;
+      width: -moz-available;
+      width: stretch;
+    }
+    ```
+
 ## 0.25.4
 
 * Add simple support for CORS to esbuild's development server ([#4125](https://github.com/evanw/esbuild/issues/4125))
