@@ -511,6 +511,25 @@ import('./kangax').then(kangax => {
   // MDN data is wrong here: https://www.chromestatus.com/feature/6482797915013120
   js.ClassStaticBlocks.Chrome = { 91: { force: true } }
 
+  // WebKit has now been marked as not supporting top-level await because it
+  // turns out they have a pretty severe bug: Importing a module that uses
+  // top-level await twice causes the second import to fail. For more info see:
+  // https://bugs.webkit.org/show_bug.cgi?id=242740
+  //
+  // However, we're going to override this to say it's still supported because:
+  // - It always fails loudly when this happens (the import fails)
+  // - People would otherwise be blocked from using this feature at all in
+  //   WebKit-based browsers
+  // - From what I understand, most use of top-level await is in the entry-point
+  //   module, where this isn't an issue
+  // - When you bundle your code, nested modules become entry points so this
+  //   issue also wouldn't come up
+  // - The top-level await implementation in esbuild isn't even correct for
+  //   nested modules as they become linearized in the bundle (like Rollup, but
+  //   not like Webpack)
+  js.TopLevelAwait.IOS = { 15: { force: true } }
+  js.TopLevelAwait.Safari = { 15: { force: true } }
+
   const [jsVersionRanges, jsWhyNot] = supportMapToVersionRanges(js)
   generateTableForJS(jsVersionRanges, jsWhyNot)
 })
