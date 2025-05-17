@@ -223,7 +223,7 @@ func (p *parser) processDeclarations(rules []css_ast.Rule, composesContext *comp
 		case css_ast.DContainerName:
 			p.processContainerName(decl.Value)
 
-			// Animation name
+		// Animation name
 		case css_ast.DAnimation:
 			p.processAnimationShorthand(decl.Value)
 		case css_ast.DAnimationName:
@@ -237,7 +237,7 @@ func (p *parser) processDeclarations(rules []css_ast.Rule, composesContext *comp
 				p.processListStyleType(&decl.Value[0])
 			}
 
-			// Font
+		// Font
 		case css_ast.DFont:
 			if p.options.minifySyntax {
 				decl.Value = p.mangleFont(decl.Value)
@@ -253,7 +253,7 @@ func (p *parser) processDeclarations(rules []css_ast.Rule, composesContext *comp
 				decl.Value[0] = p.mangleFontWeight(decl.Value[0])
 			}
 
-			// Margin
+		// Margin
 		case css_ast.DMargin:
 			if p.options.minifySyntax {
 				margin.mangleSides(rewrittenRules, decl, p.options.minifyWhitespace)
