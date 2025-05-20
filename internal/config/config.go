@@ -503,6 +503,9 @@ type Options struct {
 	NeedsMetafile          bool
 	SourceMap              SourceMap
 	ExcludeSourcesContent  bool
+
+	// Whether to use the member's import name
+	UseNamedImports bool
 }
 
 type TSImportsNotUsedAsValues uint8
@@ -790,12 +793,13 @@ type OnResolve struct {
 }
 
 type OnResolveArgs struct {
-	Path       string
-	ResolveDir string
-	PluginData interface{}
-	Importer   logger.Path
-	Kind       ast.ImportKind
-	With       logger.ImportAttributes
+	Path         string
+	ResolveDir   string
+	PluginData   interface{}
+	Importer     logger.Path
+	Kind         ast.ImportKind
+	With         logger.ImportAttributes
+	NamedImports string
 }
 
 type OnResolveResult struct {
