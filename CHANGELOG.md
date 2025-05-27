@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.25.5
 
 * Fix a regression with `browser` in `package.json` ([#4187](https://github.com/evanw/esbuild/issues/4187))
 
