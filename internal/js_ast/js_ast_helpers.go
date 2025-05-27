@@ -706,6 +706,12 @@ func (ctx HelperContext) SimplifyUnusedExpr(expr Expr, unsupportedFeatures compa
 		case UnOpVoid, UnOpNot:
 			return ctx.SimplifyUnusedExpr(e.Value, unsupportedFeatures)
 
+		case UnOpNeg:
+			if _, ok := e.Value.Data.(*EBigInt); ok {
+				// Consider negated bigints to have no side effects
+				return Expr{}
+			}
+
 		case UnOpTypeof:
 			if _, ok := e.Value.Data.(*EIdentifier); ok && e.WasOriginallyTypeofIdentifier {
 				// "typeof x" must not be transformed into if "x" since doing so could
@@ -2546,6 +2552,12 @@ func (ctx HelperContext) ExprCanBeRemovedIfUnused(expr Expr) bool {
 		// such as "toString" or "valueOf". They must also never throw any exceptions.
 		case UnOpVoid, UnOpNot:
 			return ctx.ExprCanBeRemovedIfUnused(e.Value)
+
+		case UnOpNeg:
+			if _, ok := e.Value.Data.(*EBigInt); ok {
+				// Consider negated bigints to have no side effects
+				return true
+			}
 
 		// The "typeof" operator doesn't do any type conversions so it can be removed
 		// if the result is unused and the operand has no side effects. However, it

@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+* Consider negated bigints to have no side effects
+
+    While esbuild currently considers `1`, `-1`, and `1n` to all have no side effects, it didn't previously consider `-1n` to have no side effects. This is because esbuild does constant folding with numbers but not bigints. However, it meant that unused negative bigint constants were not tree-shaken. With this release, esbuild will now consider these expressions to also be side-effect free:
+
+    ```js
+    // Original code
+    let a = 1, b = -1, c = 1n, d = -1n
+
+    // Old output (with --bundle --minify)
+    (()=>{var n=-1n;})();
+
+    // New output (with --bundle --minify)
+    (()=>{})();
+    ```
+
 ## 0.25.5
 
 * Fix a regression with `browser` in `package.json` ([#4187](https://github.com/evanw/esbuild/issues/4187))

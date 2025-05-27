@@ -4844,3 +4844,21 @@ func TestDCEOfSymbolInstances(t *testing.T) {
 		},
 	})
 }
+
+func TestDCEOfNegatedBigints(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				let a = 1
+				let b = -1
+				let c = 1n
+				let d = -1n
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+	})
+}
