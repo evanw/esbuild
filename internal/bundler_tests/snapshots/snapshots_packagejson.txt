@@ -309,6 +309,26 @@ var import_demo_pkg = __toESM(require_main_browser());
 console.log((0, import_demo_pkg.default)());
 
 ================================================================================
+TestPackageJsonBrowserMatchingTrailingSlashIssue4187
+---------- /out.js ----------
+// node_modules/axios/browser/index.js
+var require_browser = __commonJS({
+  "node_modules/axios/browser/index.js"(exports, module) {
+    module.exports = { get: () => new Promise("Browser") };
+  }
+});
+
+// node_modules/axios/index.js
+var require_axios = __commonJS({
+  "node_modules/axios/index.js"(exports, module) {
+    module.exports = require_browser();
+  }
+});
+
+// entry.js
+var import_axios = __toESM(require_axios());
+
+================================================================================
 TestPackageJsonBrowserNoExt
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/src/demo-pkg/no-ext-browser.js

@@ -1012,6 +1012,21 @@ func (r resolverQuery) resolveWithoutSymlinks(sourceDir string, sourceDirInfo *d
 			strings.HasSuffix(importPath, "/.") ||
 			strings.HasSuffix(importPath, "/..")
 
+		// Check the "browser" map
+		if importDirInfo := r.dirInfoCached(r.fs.Dir(absPath)); importDirInfo != nil {
+			if remapped, ok := r.checkBrowserMap(importDirInfo, absPath, absolutePathKind); ok {
+				if remapped == nil {
+					return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: absPath, Namespace: "file", Flags: logger.PathDisabled}}}
+				}
+				if remappedResult, ok, diffCase, sideEffects := r.resolveWithoutRemapping(importDirInfo.enclosingBrowserScope, *remapped); ok {
+					result = ResolveResult{PathPair: remappedResult, DifferentCase: diffCase, PrimarySideEffectsData: sideEffects}
+					hasTrailingSlash = false
+					checkRelative = false
+					checkPackage = false
+				}
+			}
+		}
+
 		if hasTrailingSlash {
 			if absolute, ok, diffCase := r.loadAsDirectory(absPath); ok {
 				checkPackage = false
@@ -1020,20 +1035,6 @@ func (r resolverQuery) resolveWithoutSymlinks(sourceDir string, sourceDirInfo *d
 				return nil
 			}
 		} else {
-			// Check the "browser" map
-			if importDirInfo := r.dirInfoCached(r.fs.Dir(absPath)); importDirInfo != nil {
-				if remapped, ok := r.checkBrowserMap(importDirInfo, absPath, absolutePathKind); ok {
-					if remapped == nil {
-						return &ResolveResult{PathPair: PathPair{Primary: logger.Path{Text: absPath, Namespace: "file", Flags: logger.PathDisabled}}}
-					}
-					if remappedResult, ok, diffCase, sideEffects := r.resolveWithoutRemapping(importDirInfo.enclosingBrowserScope, *remapped); ok {
-						result = ResolveResult{PathPair: remappedResult, DifferentCase: diffCase, PrimarySideEffectsData: sideEffects}
-						checkRelative = false
-						checkPackage = false
-					}
-				}
-			}
-
 			if checkRelative {
 				if absolute, ok, diffCase := r.loadAsFileOrDirectory(absPath); ok {
 					checkPackage = false

@@ -3069,3 +3069,35 @@ func TestConfusingNameCollisionsIssue4144(t *testing.T) {
 		},
 	})
 }
+
+// https://github.com/evanw/esbuild/issues/4187
+func TestPackageJsonBrowserMatchingTrailingSlashIssue4187(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import axios from "axios"
+			`,
+			"/node_modules/axios/package.json": `
+				{
+					"browser": {
+						"./node/index.js": "./browser/index.js"
+					}
+				}
+			`,
+			"/node_modules/axios/index.js": `
+				module.exports = require('./node/');
+			`,
+			"/node_modules/axios/node/index.js": `
+				module.exports = { get: () => new Promise('Node') }
+			`,
+			"/node_modules/axios/browser/index.js": `
+				module.exports = { get: () => new Promise('Browser') }
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
