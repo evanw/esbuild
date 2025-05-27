@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+* Add support for certain keywords as TypeScript tuple labels ([#4192](https://github.com/evanw/esbuild/issues/4192))
+
+    Previously esbuild could incorrectly fail to parse certain keywords as TypeScript tuple labels that are parsed by the official TypeScript compiler if they were followed by a `?` modifier. These labels included `function`, `import`, `infer`, `new`, `readonly`, and `typeof`. With this release, these keywords will now be parsed correctly. Here's an example of some affected code:
+
+    ```ts
+    type Foo = [
+      value: any,
+      readonly?: boolean, // This is now parsed correctly
+    ]
+    ```
+
 * Add CSS prefixes for the `stretch` sizing value ([#4184](https://github.com/evanw/esbuild/issues/4184))
 
     This release adds support for prefixing CSS declarations such as `div { width: stretch }`. That CSS is now transformed into this depending on what the `--target=` setting includes:
