@@ -626,6 +626,13 @@ func parseOptionsImpl(
 			}
 			buildOpts.Packages = packages
 
+		case strings.HasPrefix(arg, "--use-named-imports") && buildOpts != nil:
+			if value, err := parseBoolFlag(arg, true); err != nil {
+				return parseOptionsExtras{}, err
+			} else {
+				buildOpts.UseNamedImports = value
+			}
+
 		case strings.HasPrefix(arg, "--external:") && buildOpts != nil:
 			buildOpts.External = append(buildOpts.External, arg[len("--external:"):])
 
