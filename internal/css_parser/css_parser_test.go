@@ -1309,6 +1309,16 @@ func TestNestedSelector(t *testing.T) {
 	expectPrintedLower(t, "a { & .foo, & ::before { color: red } }", "a .foo,\na ::before {\n  color: red;\n}\n", "")
 	expectPrintedLower(t, "a, b::before { color: blue; &.foo, &::after { color: red } }", "a,\nb::before {\n  color: blue;\n}\na.foo,\na::after {\n  color: red;\n}\n", "")
 
+	// Interaction between at rules and nesting
+	expectPrintedLower(t, "a::before { color: hotpink; @media screen { color: yellow; } }", "a::before {\n  color: hotpink;\n}\n@media screen {\n  a::before {\n    color: yellow;\n  }\n}\n", "")
+	expectPrintedLower(t, "a { &::before { color: hotpink; @media screen { color: yellow; } } }", "a::before {\n  color: hotpink;\n}\n@media screen {\n  a::before {\n    color: yellow;\n  }\n}\n", "")
+	expectPrintedLower(t, "a { &.b { &::before { color: hotpink; @media screen { color: yellow; } } } }", "a.b::before {\n  color: hotpink;\n}\n@media screen {\n  a.b::before {\n    color: yellow;\n  }\n}\n", "")
+	expectPrintedLower(t, "a::before, b::after { @media screen { color: yellow; } }", "@media screen {\n  a::before,\n  b::after {\n    color: yellow;\n  }\n}\n", "")
+	expectPrintedLower(t, "a { &::before, &::after { @media screen { color: yellow; } } }", "@media screen {\n  a::before,\n  a::after {\n    color: yellow;\n  }\n}\n", "")
+	expectPrintedLower(t, "a { &::part(foo) { @media screen { color: yellow; } } }", "@media screen {\n  a::part(foo) {\n    color: yellow;\n  }\n}\n", "")
+	expectPrintedLower(t, "a { &::-webkit-scrollbar { @media screen { width: 10px; } } }", "@media screen {\n  a::-webkit-scrollbar {\n    width: 10px;\n  }\n}\n", "")
+	expectPrintedLower(t, "a { &::before { color: red; @media screen { color: blue; @supports (display: flex) { color: green; } } } }", "a::before {\n  color: red;\n}\n@media screen {\n  a::before {\n    color: blue;\n  }\n  @supports (display: flex) {\n    a::before {\n      color: green;\n    }\n  }\n}\n", "")
+
 	// Test at-rules
 	expectPrintedLower(t, ".foo { @media screen {} }", "", "")
 	expectPrintedLower(t, ".foo { @media screen { color: red } }", "@media screen {\n  .foo {\n    color: red;\n  }\n}\n", "")
