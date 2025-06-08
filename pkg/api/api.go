@@ -79,6 +79,7 @@ package api
 import (
 	"time"
 
+	"github.com/evanw/esbuild/internal/io_fs"
 	"github.com/evanw/esbuild/internal/logger"
 )
 
@@ -274,6 +275,8 @@ type BuildOptions struct {
 	LogLimit    int                 // Documentation: https://esbuild.github.io/api/#log-limit
 	LogOverride map[string]LogLevel // Documentation: https://esbuild.github.io/api/#log-override
 
+	InputFS io_fs.FS // Read files from an [io/fs.FS]
+
 	Sourcemap      SourceMap      // Documentation: https://esbuild.github.io/api/#sourcemap
 	SourceRoot     string         // Documentation: https://esbuild.github.io/api/#source-root
 	SourcesContent SourcesContent // Documentation: https://esbuild.github.io/api/#sources-content
@@ -389,7 +392,7 @@ func Build(options BuildOptions) BuildResult {
 	// Print a summary of the generated files to stderr. Except don't do
 	// this if the terminal is already being used for something else.
 	if ctx.args.logOptions.LogLevel <= logger.LevelInfo && !ctx.args.options.WriteToStdout {
-		printSummary(ctx.args.logOptions.Color, result.OutputFiles, start)
+		printSummary(ctx.args.logOptions.Color, ctx.realFS, result.OutputFiles, start)
 	}
 
 	ctx.Dispose()
