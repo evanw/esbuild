@@ -22,6 +22,7 @@
     "@esbuild/android-arm": "0.25.5",
     "@esbuild/android-arm64": "0.25.5",
     "@esbuild/android-x64": "0.25.5",
+    "@esbuild/openharmony-arm64": "0.25.5",
     "@esbuild/darwin-arm64": "0.25.5",
     "@esbuild/darwin-x64": "0.25.5",
     "@esbuild/freebsd-arm64": "0.25.5",
