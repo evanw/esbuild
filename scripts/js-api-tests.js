@@ -584,6 +584,33 @@ let buildTests = {
     assert.strictEqual(json.sourcesContent[0], content)
   },
 
+  async sourceMapExcludePaths({ esbuild, testDir }) {
+    const input1 = path.join(testDir, 'in1.js')
+    const input2 = path.join(testDir, 'in2.js')
+    const output = path.join(testDir, 'out.js')
+    const content1 = 'import { foo } from "./in2.js"; export {foo}'
+    const content2 = 'exports.foo = 123'
+    await Promise.all([
+      await writeFileAsync(input1, content1),
+      await writeFileAsync(input2, content2)
+    ])
+    await esbuild.build({
+      entryPoints: [input1],
+      outfile: output,
+      sourcemap: 'inline',
+      excludeSourceMap: /in2.js/,
+    })
+    const result = require(output)
+    assert.strictEqual(result.foo, 123)
+    const outputFile = await readFileAsync(output, 'utf8')
+    const match = /\/\/# sourceMappingURL=data:application\/json;base64,(.*)/.exec(outputFile)
+    const json = JSON.parse(Buffer.from(match[1], 'base64').toString())
+    assert.strictEqual(json.version, 3)
+    assert.strictEqual(json.sources.length, 1)
+    assert.strictEqual(json.sources[0], path.basename(input1))
+    assert.strictEqual(json.sourcesContent[0], content1)
+  },
+
   async resolveExtensionOrder({ esbuild, testDir }) {
     const input = path.join(testDir, 'in.js');
     const inputBare = path.join(testDir, 'module.js')
