@@ -5849,7 +5849,7 @@ func (c *linkerContext) generateChunkJS(chunkIndex int, chunkWaitGroup *sync.Wai
 		}
 
 		// Don't include the runtime in source maps
-		if c.graph.Files[compileResult.sourceIndex].InputFile.OmitFromSourceMapsAndMetafile {
+		if c.graph.Files[compileResult.sourceIndex].InputFile.OmitFromSourceMaps {
 			prevOffset.AdvanceString(string(compileResult.JS))
 			j.AddBytes(compileResult.JS)
 		} else {

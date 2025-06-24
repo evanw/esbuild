@@ -1350,7 +1350,8 @@ func ScanBundle(
 					Repr: &graph.JSRepr{
 						AST: ast,
 					},
-					OmitFromSourceMapsAndMetafile: true,
+					OmitFromMetafile: true,
+					OmitFromSourceMaps: true,
 				},
 			},
 			ok: ok,
@@ -2250,7 +2251,8 @@ func (s *scanner) generateResultForGlobResolve(
 				Repr: &graph.JSRepr{
 					AST: ast,
 				},
-				OmitFromSourceMapsAndMetafile: true,
+				OmitFromMetafile: true,
+				OmitFromSourceMaps: true,
 			},
 		},
 		ok: true,
@@ -3156,7 +3158,7 @@ func (b *Bundle) generateMetadataJSON(results []graph.OutputFile, allReachableFi
 	// Write inputs
 	isFirst := true
 	for _, sourceIndex := range allReachableFiles {
-		if b.files[sourceIndex].inputFile.OmitFromSourceMapsAndMetafile {
+		if b.files[sourceIndex].inputFile.OmitFromMetafile {
 			continue
 		}
 		if file := &b.files[sourceIndex]; len(file.jsonMetadataChunk) > 0 {
