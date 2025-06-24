@@ -1258,6 +1258,7 @@ func validateBuildOptions(
 		LegalComments:         validateLegalComments(buildOpts.LegalComments, buildOpts.Bundle),
 		SourceRoot:            buildOpts.SourceRoot,
 		ExcludeSourcesContent: buildOpts.SourcesContent == SourcesContentExclude,
+		ExcludeSourceMap:      validateRegex(log, "exclude source map", buildOpts.ExcludeSourceMap),
 		MinifySyntax:          buildOpts.MinifySyntax,
 		MinifyWhitespace:      buildOpts.MinifyWhitespace,
 		MinifyIdentifiers:     buildOpts.MinifyIdentifiers,

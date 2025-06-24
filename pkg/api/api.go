@@ -277,6 +277,7 @@ type BuildOptions struct {
 	Sourcemap      SourceMap      // Documentation: https://esbuild.github.io/api/#sourcemap
 	SourceRoot     string         // Documentation: https://esbuild.github.io/api/#source-root
 	SourcesContent SourcesContent // Documentation: https://esbuild.github.io/api/#sources-content
+	ExcludeSourceMap string       // Documentation: TODO
 
 	Target    Target          // Documentation: https://esbuild.github.io/api/#target
 	Engines   []Engine        // Documentation: https://esbuild.github.io/api/#target

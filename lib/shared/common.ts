@@ -284,6 +284,7 @@ function flagsForBuildOptions(
   let write = getFlag(options, keys, 'write', mustBeBoolean) ?? writeDefault; // Default to true if not specified
   let allowOverwrite = getFlag(options, keys, 'allowOverwrite', mustBeBoolean)
   let mangleCache = getFlag(options, keys, 'mangleCache', mustBeObject)
+  let excludeSourceMap = getFlag(options, keys, 'excludeSourceMap', mustBeRegExp)
   keys.plugins = true; // "plugins" has already been read earlier
   checkForInvalidFlags(options, keys, `in ${callName}() call`)
 
@@ -305,6 +306,7 @@ function flagsForBuildOptions(
   if (assetNames) flags.push(`--asset-names=${assetNames}`)
   if (mainFields) flags.push(`--main-fields=${validateAndJoinStringArray(mainFields, 'main field')}`)
   if (conditions) flags.push(`--conditions=${validateAndJoinStringArray(conditions, 'condition')}`)
+  if (excludeSourceMap) flags.push(`--exclude-sourcemap=${jsRegExpToGoRegExp(excludeSourceMap)}`)
   if (external) for (let name of external) flags.push(`--external:${validateStringValue(name, 'external')}`)
   if (alias) {
     for (let old in alias) {

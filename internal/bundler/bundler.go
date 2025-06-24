@@ -235,12 +235,18 @@ func parseFile(args parseArgs) {
 		source.Contents = ""
 	}
 
+	var omitSourceMap bool = false
+	if args.options.ExcludeSourceMap != nil {
+		omitSourceMap = args.options.ExcludeSourceMap.MatchString(args.prettyPath)
+	}
+
 	result := parseResult{
 		file: scannerFile{
 			inputFile: graph.InputFile{
 				Source:      source,
 				Loader:      loader,
 				SideEffects: args.sideEffects,
+				OmitFromSourceMaps: omitSourceMap,
 			},
 			pluginData: pluginData,
 		},
@@ -593,7 +599,7 @@ func parseFile(args parseArgs) {
 		}
 
 		// Attempt to parse the source map if present
-		if loader.CanHaveSourceMap() && args.options.SourceMap != config.SourceMapNone {
+		if loader.CanHaveSourceMap() && args.options.SourceMap != config.SourceMapNone && !omitSourceMap {
 			var sourceMapComment logger.Span
 			switch repr := result.file.inputFile.Repr.(type) {
 			case *graph.JSRepr:
