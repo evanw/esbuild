@@ -986,6 +986,13 @@ func TestSelector(t *testing.T) {
 	expectPrinted(t, "a:is( c ) {}", "a:is(c) {\n}\n", "")
 	expectPrinted(t, "a:is( c , d ) {}", "a:is(c, d) {\n}\n", "")
 
+	// Check an empty <forgiving-selector-list> (see https://github.com/evanw/esbuild/issues/4232)
+	expectPrinted(t, ":is() {}", ":is() {\n}\n", "")
+	expectPrinted(t, ":where() {}", ":where() {\n}\n", "")
+	expectPrinted(t, ":not(:is()) {}", ":not(:is()) {\n}\n", "")
+	expectPrinted(t, ":not(:where()) {}", ":not(:where()) {\n}\n", "")
+	expectPrinted(t, ":not() {}", ":not() {\n}\n", "<stdin>: WARNING: Unexpected \")\"\n")
+
 	// These test cases previously caused a hang (see https://github.com/evanw/esbuild/issues/2276)
 	expectPrinted(t, ":x(", ":x() {\n}\n", "<stdin>: WARNING: Unexpected end of file\n")
 	expectPrinted(t, ":x( {}", ":x({}) {\n}\n", "<stdin>: WARNING: Expected \")\" to go with \"(\"\n<stdin>: NOTE: The unbalanced \"(\" is here:\n")

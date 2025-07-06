@@ -10,15 +10,22 @@ import (
 )
 
 type parseSelectorOpts struct {
-	composesContext        *composesContext
-	pseudoClassKind        css_ast.PseudoClassKind
-	isDeclarationContext   bool
-	stopOnCloseParen       bool
-	onlyOneComplexSelector bool
-	noLeadingCombinator    bool
+	composesContext         *composesContext
+	pseudoClassKind         css_ast.PseudoClassKind
+	isDeclarationContext    bool
+	stopOnCloseParen        bool
+	onlyOneComplexSelector  bool
+	isForgivingSelectorList bool
+	noLeadingCombinator     bool
 }
 
 func (p *parser) parseSelectorList(opts parseSelectorOpts) (list []css_ast.ComplexSelector, ok bool) {
+	// Potentially parse an empty list for ":is()" and ":where()"
+	if opts.isForgivingSelectorList && opts.stopOnCloseParen && p.current().Kind == css_lexer.TCloseParen {
+		ok = true
+		return
+	}
+
 	// Parse the first selector
 	sel, good := p.parseComplexSelector(parseComplexSelectorOpts{
 		parseSelectorOpts: opts,
@@ -699,9 +706,10 @@ func (p *parser) parsePseudoClassSelector(loc logger.Loc, isElement bool) (css_a
 					oldLocal := p.makeLocalSymbols
 					p.makeLocalSymbols = local
 					selectors, ok := p.parseSelectorList(parseSelectorOpts{
-						pseudoClassKind:        kind,
-						stopOnCloseParen:       true,
-						onlyOneComplexSelector: kind == css_ast.PseudoClassGlobal || kind == css_ast.PseudoClassLocal,
+						pseudoClassKind:         kind,
+						stopOnCloseParen:        true,
+						onlyOneComplexSelector:  kind == css_ast.PseudoClassGlobal || kind == css_ast.PseudoClassLocal,
+						isForgivingSelectorList: kind == css_ast.PseudoClassIs || kind == css_ast.PseudoClassWhere,
 					})
 					p.makeLocalSymbols = oldLocal
 
