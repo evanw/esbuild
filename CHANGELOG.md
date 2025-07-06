@@ -19,7 +19,7 @@
 
 * Update Go from 1.23.8 to 1.23.10 ([#4204](https://github.com/evanw/esbuild/issues/4204), [#4207](https://github.com/evanw/esbuild/pull/4207)
 
-    This should have no effect on existing code as this version change does not change Go's operating system support. It may remove certain reports from vulnerability scanners that detect which version of the Go compiler esbuild uses. Fixed vulnerabilities CVE-2025-4673 and CVE-2025-22874.
+    This should have no effect on existing code as this version change does not change Go's operating system support. It may remove certain false positive reports (specifically CVE-2025-4673 and CVE-2025-22874) from vulnerability scanners that only detect which version of the Go compiler esbuild uses.
 
 ## 0.25.5
 
