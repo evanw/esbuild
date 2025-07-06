@@ -265,6 +265,20 @@ const testsWithoutErrors = {
       }
     })
   `,
+  objectEntryPointBuild: `
+    export {}
+    import {build} from 'esbuild'
+    build({
+      entryPoints: { x: 'x', y: 'z' },
+    })
+  `,
+  mixedEntryPointBuild: `
+    export {}
+    import {build} from 'esbuild'
+    build({
+      entryPoints: ['x', { in: 'y', out: 'z' }],
+    })
+  `,
 }
 
 const testsWithErrors = {
