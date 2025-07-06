@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+* Fix a memory leak when `cancel()` is used on a build context ([#4231](https://github.com/evanw/esbuild/issues/4231))
+
+    Calling `rebuild()` followed by `cancel()` in rapid succession could previously leak memory. The bundler uses a producer/consumer model internally, and the resource leak was caused by the consumer being termianted while there were still remaining unreceived results from a producer. To avoid the leak, the consumer now waits for all producers to finish before terminating.
+
 * Consider negated bigints to have no side effects
 
     While esbuild currently considers `1`, `-1`, and `1n` to all have no side effects, it didn't previously consider `-1n` to have no side effects. This is because esbuild does constant folding with numbers but not bigints. However, it meant that unused negative bigint constants were not tree-shaken. With this release, esbuild will now consider these expressions to also be side-effect free:
