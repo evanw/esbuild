@@ -13,6 +13,9 @@
 /npm/@esbuild/android-x64/esbuild.wasm
 /npm/@esbuild/android-x64/wasm_exec_node.js
 /npm/@esbuild/android-x64/wasm_exec.js
+/npm/@esbuild/openharmony-arm64/esbuild.wasm
+/npm/@esbuild/openharmony-arm64/wasm_exec_node.js
+/npm/@esbuild/openharmony-arm64/wasm_exec.js
 /npm/@esbuild/wasi-preview1/esbuild.wasm
 /npm/esbuild-wasm/browser.js
 /npm/esbuild-wasm/esbuild.wasm

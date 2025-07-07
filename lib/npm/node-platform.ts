@@ -51,6 +51,7 @@ export const knownUnixlikePackages: Record<string, string> = {
 export const knownWebAssemblyFallbackPackages: Record<string, string> = {
   'android arm LE': '@esbuild/android-arm',
   'android x64 LE': '@esbuild/android-x64',
+  'openharmony arm64 LE': '@esbuild/openharmony-arm64',
 }
 
 export function pkgAndSubpathForCurrentPlatform(): { pkg: string, subpath: string, isWASM: boolean } {
