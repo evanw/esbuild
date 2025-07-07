@@ -186,8 +186,8 @@ function maybeOptimizePackage(binPath: string): void {
   // Docker. Avoid idempotency issues by just not optimizing when using Yarn.
   //
   // This also doesn't work with WASM because it is not a single binary executable
-  // file. See https://github.com/evanw/esbuild/issues/4209
-  // 
+  // file. See https://github.com/evanw/esbuild/issues/4209 for more info.
+  //
   // This optimization also doesn't apply when npm's "--ignore-scripts" flag is
   // used since in that case this install script will not be run.
   const { isWASM } = pkgAndSubpathForCurrentPlatform()
