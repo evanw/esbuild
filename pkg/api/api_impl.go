@@ -1301,6 +1301,7 @@ func validateBuildOptions(
 		CSSBanner:             bannerCSS,
 		CSSFooter:             footerCSS,
 		PreserveSymlinks:      buildOpts.PreserveSymlinks,
+		UseNamedImports:       buildOpts.UseNamedImports,
 	}
 	validateKeepNames(log, &options)
 	if buildOpts.Conditions != nil {
@@ -1740,6 +1741,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 			Contents:   input,
 			SourceFile: transformOpts.Sourcefile,
 		},
+		UseNamedImports: transformOpts.UseNamedImports,
 	}
 	validateKeepNames(log, &options)
 	if options.Stdin.Loader.IsCSS() {
@@ -1918,13 +1920,14 @@ func (impl *pluginImpl) onResolve(options OnResolveOptions, callback func(OnReso
 		Namespace: options.Namespace,
 		Callback: func(args config.OnResolveArgs) (result config.OnResolveResult) {
 			response, err := callback(OnResolveArgs{
-				Path:       args.Path,
-				Importer:   args.Importer.Text,
-				Namespace:  args.Importer.Namespace,
-				ResolveDir: args.ResolveDir,
-				Kind:       importKindToResolveKind(args.Kind),
-				PluginData: args.PluginData,
-				With:       args.With.DecodeIntoMap(),
+				Path:         args.Path,
+				Importer:     args.Importer.Text,
+				Namespace:    args.Importer.Namespace,
+				ResolveDir:   args.ResolveDir,
+				Kind:         importKindToResolveKind(args.Kind),
+				PluginData:   args.PluginData,
+				With:         args.With.DecodeIntoMap(),
+				NamedImports: args.NamedImports,
 			})
 			result.PluginName = response.PluginName
 			result.AbsWatchFiles = impl.validatePathsArray(response.WatchFiles, "watch file")
@@ -2108,6 +2111,7 @@ func loadPlugins(initialOptions *BuildOptions, fs fs.FS, log logger.Log, caches 
 				kind,
 				absResolveDir,
 				options.PluginData,
+				options.NamedImports,
 			)
 			msgs := log.Done()
 

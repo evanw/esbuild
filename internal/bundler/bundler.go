@@ -441,9 +441,10 @@ func parseFile(args parseArgs) {
 				}
 
 				type cacheKey struct {
-					kind  ast.ImportKind
-					path  string
-					attrs logger.ImportAttributes
+					kind         ast.ImportKind
+					path         string
+					attrs        logger.ImportAttributes
+					namedImports string
 				}
 				resolverCache := make(map[cacheKey]cacheEntry)
 				tracker := logger.MakeLineColumnTracker(&source)
@@ -506,11 +507,33 @@ func parseFile(args parseArgs) {
 						continue
 					}
 
+					var namedImports string
+					if !args.options.UseNamedImports {
+						namedImports = ""
+					} else {
+						if repr, ok := result.file.inputFile.Repr.(*graph.JSRepr); ok {
+							// 成功断言为 *graph.JSRepr 类型
+							var sb strings.Builder
+							first := true // 用于跟踪是否是第一个元素
+							for _, value := range repr.AST.NamedImports {
+								if value.ImportRecordIndex == uint32(importRecordIndex) {
+									if !first {
+										sb.WriteString(",") // 在非第一个元素前添加逗号和空格
+									}
+									sb.WriteString(value.Alias) // 写入 Alias 字段
+									first = false               // 更新标志
+								}
+							}
+							namedImports = sb.String()
+						}
+					}
+
 					// Cache the path in case it's imported multiple times in this file
 					cacheKey := cacheKey{
-						kind:  record.Kind,
-						path:  record.Path.Text,
-						attrs: attrs,
+						kind:         record.Kind,
+						path:         record.Path.Text,
+						attrs:        attrs,
+						namedImports: namedImports,
 					}
 					entry, ok := resolverCache[cacheKey]
 					if ok {
@@ -531,6 +554,7 @@ func parseFile(args parseArgs) {
 							record.Kind,
 							absResolveDir,
 							pluginData,
+							namedImports,
 						)
 						if resolveResult != nil {
 							resolveResult.PathPair.Primary.ImportAttributes = attrs
@@ -985,14 +1009,16 @@ func RunOnResolvePlugins(
 	kind ast.ImportKind,
 	absResolveDir string,
 	pluginData interface{},
+	namedImports string,
 ) (*resolver.ResolveResult, bool, resolver.DebugMeta) {
 	resolverArgs := config.OnResolveArgs{
-		Path:       path,
-		ResolveDir: absResolveDir,
-		Kind:       kind,
-		PluginData: pluginData,
-		Importer:   importer,
-		With:       importAttributes,
+		Path:         path,
+		ResolveDir:   absResolveDir,
+		Kind:         kind,
+		PluginData:   pluginData,
+		Importer:     importer,
+		With:         importAttributes,
+		NamedImports: namedImports,
 	}
 	applyPath := logger.Path{
 		Text:      path,
@@ -1704,6 +1730,7 @@ func (s *scanner) preprocessInjectedFiles() {
 				ast.ImportEntryPoint,
 				injectAbsResolveDir,
 				nil,
+				"",
 			)
 			if resolveResult != nil {
 				if resolveResult.PathPair.IsExternal {
@@ -1884,6 +1911,7 @@ func (s *scanner) addEntryPoints(entryPoints []EntryPoint) []graph.EntryPoint {
 				ast.ImportEntryPoint,
 				entryPointAbsResolveDir,
 				nil,
+				"",
 			)
 			if resolveResult != nil {
 				if resolveResult.PathPair.IsExternal {

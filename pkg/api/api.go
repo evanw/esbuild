@@ -342,10 +342,11 @@ type BuildOptions struct {
 	EntryPoints         []string     // Documentation: https://esbuild.github.io/api/#entry-points
 	EntryPointsAdvanced []EntryPoint // Documentation: https://esbuild.github.io/api/#entry-points
 
-	Stdin          *StdinOptions // Documentation: https://esbuild.github.io/api/#stdin
-	Write          bool          // Documentation: https://esbuild.github.io/api/#write
-	AllowOverwrite bool          // Documentation: https://esbuild.github.io/api/#allow-overwrite
-	Plugins        []Plugin      // Documentation: https://esbuild.github.io/plugins/
+	Stdin           *StdinOptions // Documentation: https://esbuild.github.io/api/#stdin
+	Write           bool          // Documentation: https://esbuild.github.io/api/#write
+	AllowOverwrite  bool          // Documentation: https://esbuild.github.io/api/#allow-overwrite
+	Plugins         []Plugin      // Documentation: https://esbuild.github.io/plugins/
+	UseNamedImports bool
 }
 
 type EntryPoint struct {
@@ -447,8 +448,9 @@ type TransformOptions struct {
 	Pure      []string          // Documentation: https://esbuild.github.io/api/#pure
 	KeepNames bool              // Documentation: https://esbuild.github.io/api/#keep-names
 
-	Sourcefile string // Documentation: https://esbuild.github.io/api/#sourcefile
-	Loader     Loader // Documentation: https://esbuild.github.io/api/#loader
+	Sourcefile      string // Documentation: https://esbuild.github.io/api/#sourcefile
+	Loader          Loader // Documentation: https://esbuild.github.io/api/#loader
+	UseNamedImports bool
 }
 
 type TransformResult struct {
@@ -580,13 +582,14 @@ type PluginBuild struct {
 
 // Documentation: https://esbuild.github.io/plugins/#resolve-options
 type ResolveOptions struct {
-	PluginName string
-	Importer   string
-	Namespace  string
-	ResolveDir string
-	Kind       ResolveKind
-	PluginData interface{}
-	With       map[string]string
+	PluginName   string
+	Importer     string
+	Namespace    string
+	ResolveDir   string
+	Kind         ResolveKind
+	PluginData   interface{}
+	With         map[string]string
+	NamedImports string
 }
 
 // Documentation: https://esbuild.github.io/plugins/#resolve-results
@@ -620,13 +623,14 @@ type OnResolveOptions struct {
 
 // Documentation: https://esbuild.github.io/plugins/#on-resolve-arguments
 type OnResolveArgs struct {
-	Path       string
-	Importer   string
-	Namespace  string
-	ResolveDir string
-	Kind       ResolveKind
-	PluginData interface{}
-	With       map[string]string
+	Path         string
+	Importer     string
+	Namespace    string
+	ResolveDir   string
+	Kind         ResolveKind
+	PluginData   interface{}
+	With         map[string]string
+	NamedImports string
 }
 
 // Documentation: https://esbuild.github.io/plugins/#on-resolve-results

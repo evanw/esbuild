@@ -995,16 +995,17 @@ func (service *serviceType) convertPlugins(key int, jsPlugins interface{}, activ
 					}
 
 					response, ok := service.sendRequest(map[string]interface{}{
-						"command":    "on-resolve",
-						"key":        key,
-						"ids":        ids,
-						"path":       args.Path,
-						"importer":   args.Importer,
-						"namespace":  args.Namespace,
-						"resolveDir": args.ResolveDir,
-						"kind":       resolveKindToString(args.Kind),
-						"pluginData": args.PluginData,
-						"with":       with,
+						"command":      "on-resolve",
+						"key":          key,
+						"ids":          ids,
+						"path":         args.Path,
+						"importer":     args.Importer,
+						"namespace":    args.Namespace,
+						"resolveDir":   args.ResolveDir,
+						"kind":         resolveKindToString(args.Kind),
+						"pluginData":   args.PluginData,
+						"with":         with,
+						"namedImports": args.NamedImports,
 					}).(map[string]interface{})
 					if !ok {
 						return result, errors.New("The service was stopped")
