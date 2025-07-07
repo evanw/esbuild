@@ -114,7 +114,7 @@ const (
 
 	// Identifiers
 	TIdentifier     // Contents are in lexer.Identifier (string)
-	TEscapedKeyword // A keyword that has been escaped as an identifer
+	TEscapedKeyword // A keyword that has been escaped as an identifier
 
 	// Reserved words
 	TBreak
