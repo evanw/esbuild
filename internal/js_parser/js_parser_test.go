@@ -5429,6 +5429,24 @@ func TestTrimCodeInDeadControlFlow(t *testing.T) {
 	expectPrintedMangle(t, "if (1) a(); else { for(;;){var a} }", "if (1) a();\nelse\n  for (; ; )\n    var a;\n")
 	expectPrintedMangle(t, "if (1) { a(); b() } else { var a; var b; }", "if (1)\n  a(), b();\nelse\n  var a, b;\n")
 	expectPrintedMangle(t, "if (1) a(); else { switch (1) { case 1: case 2: var a } }", "if (1) a();\nelse\n  var a;\n")
+
+	// See: https://github.com/evanw/esbuild/issues/4224
+	expectPrintedMangle(t, "return 'foo'; try { return 'bar' } catch {}", "return \"foo\";\n")
+	expectPrintedMangle(t, "return foo = true; try { var foo } catch {}", "return foo = true;\ntry {\n  var foo;\n} catch {\n}\n")
+	expectPrintedMangle(t, "return foo = true; try {} catch { var foo }", "return foo = true;\ntry {\n} catch {\n  var foo;\n}\n")
+	expectPrintedMangle(t, `
+		async function test() {
+			if (true) return { status: "disabled_for_development" };
+			try {
+				const response = await httpClients.releasesApi.get();
+				if (!response.ok) return { status: "no_release_found" };
+				if (response.statusCode === 204) return { status: "up_to_date" };
+			} catch (error) {
+				return { status: "no_release_found" };
+			}
+			return { status: "downloading" };
+		}
+	`, "async function test() {\n  return { status: \"disabled_for_development\" };\n}\n")
 }
 
 func TestPreservedComments(t *testing.T) {

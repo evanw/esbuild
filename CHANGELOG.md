@@ -281,6 +281,22 @@
     }
     ```
 
+* Improve tree-shaking of `try` statements in dead code ([#4224](https://github.com/evanw/esbuild/issues/4224))
+
+    With this release, esbuild will now remove certain `try` statements if esbuild considers them to be within dead code (i.e. code that is known to not ever be evaluated). For example:
+
+    ```js
+    // Original code
+    return 'foo'
+    try { return 'bar' } catch {}
+
+    // Old output (with --minify)
+    return"foo";try{return"bar"}catch{}
+
+    // New output (with --minify)
+    return"foo";
+    ```
+
 * Update Go from 1.23.5 to 1.23.7 ([#4076](https://github.com/evanw/esbuild/issues/4076), [#4077](https://github.com/evanw/esbuild/pull/4077))
 
     This should have no effect on existing code as this version change does not change Go's operating system support. It may remove certain reports from vulnerability scanners that detect which version of the Go compiler esbuild uses.
