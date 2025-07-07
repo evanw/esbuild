@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.25.6
 
 * Fix a memory leak when `cancel()` is used on a build context ([#4231](https://github.com/evanw/esbuild/issues/4231))
 
