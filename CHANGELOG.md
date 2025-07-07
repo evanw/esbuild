@@ -287,6 +287,10 @@
 
     This PR was contributed by [@MikeWillCook](https://github.com/MikeWillCook).
 
+* Experimental support for esbuild on OpenHarmony ([#4212](https://github.com/evanw/esbuild/pull/4212))
+
+    With this release, esbuild now publishes the [`@esbuild/openharmony-arm64`](https://www.npmjs.com/package/@esbuild/openharmony-arm64) npm package for [OpenHarmony](https://en.wikipedia.org/wiki/OpenHarmony). It contains a WebAssembly binary instead of a native binary because Go doesn't currently support OpenHarmony. Node does support it, however, so in theory esbuild should now work on OpenHarmony through WebAssembly. This change was contributed by [@hqzing](https://github.com/hqzing).
+
 ## 0.25.0
 
 **This release deliberately contains backwards-incompatible changes.** To avoid automatically picking up releases like this, you should either be pinning the exact version of `esbuild` in your `package.json` file (recommended) or be using a version range syntax that only accepts patch upgrades such as `^0.24.0` or `~0.24.0`. See npm's documentation about [semver](https://docs.npmjs.com/cli/v6/using-npm/semver/) for more information.

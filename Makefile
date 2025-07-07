@@ -289,7 +289,6 @@ platform-all:
 		platform-android-arm \
 		platform-android-arm64 \
 		platform-android-x64 \
-		platform-openharmony-arm64 \
 		platform-darwin-arm64 \
 		platform-darwin-x64 \
 		platform-deno \
@@ -309,6 +308,7 @@ platform-all:
 		platform-neutral \
 		platform-openbsd-arm64 \
 		platform-openbsd-x64 \
+		platform-openharmony-arm64 \
 		platform-sunos-x64 \
 		platform-wasi-preview1 \
 		platform-wasm \
@@ -524,9 +524,6 @@ publish-android-arm: platform-android-arm
 publish-android-arm64: platform-android-arm64
 	test -n "$(OTP)" && cd npm/@esbuild/android-arm64 && npm publish --otp="$(OTP)"
 
-publish-openharmony-arm64: platform-openharmony-arm64
-	test -n "$(OTP)" && cd npm/@esbuild/openharmony-arm64 && npm publish --otp="$(OTP)"
-
 publish-darwin-x64: platform-darwin-x64
 	test -n "$(OTP)" && cd npm/@esbuild/darwin-x64 && npm publish --otp="$(OTP)"
 
@@ -550,6 +547,9 @@ publish-openbsd-arm64: platform-openbsd-arm64
 
 publish-openbsd-x64: platform-openbsd-x64
 	test -n "$(OTP)" && cd npm/@esbuild/openbsd-x64 && npm publish --otp="$(OTP)"
+
+publish-openharmony-arm64: platform-openharmony-arm64
+	test -n "$(OTP)" && cd npm/@esbuild/openharmony-arm64 && npm publish --otp="$(OTP)"
 
 publish-linux-x64: platform-linux-x64
 	test -n "$(OTP)" && cd npm/@esbuild/linux-x64 && npm publish --otp="$(OTP)"
@@ -626,7 +626,6 @@ validate-builds:
 	@$(MAKE) --no-print-directory TARGET=platform-android-arm       SCOPE=@esbuild/ PACKAGE=android-arm         SUBPATH=esbuild.wasm validate-build
 	@$(MAKE) --no-print-directory TARGET=platform-android-arm64     SCOPE=@esbuild/ PACKAGE=android-arm64       SUBPATH=bin/esbuild  validate-build
 	@$(MAKE) --no-print-directory TARGET=platform-android-x64       SCOPE=@esbuild/ PACKAGE=android-x64         SUBPATH=esbuild.wasm validate-build
-	@$(MAKE) --no-print-directory TARGET=platform-openharmony-arm64 SCOPE=@esbuild/ PACKAGE=openharmony-arm64   SUBPATH=esbuild.wasm validate-build
 	@$(MAKE) --no-print-directory TARGET=platform-darwin-arm64      SCOPE=@esbuild/ PACKAGE=darwin-arm64        SUBPATH=bin/esbuild  validate-build
 	@$(MAKE) --no-print-directory TARGET=platform-darwin-x64        SCOPE=@esbuild/ PACKAGE=darwin-x64          SUBPATH=bin/esbuild  validate-build
 	@$(MAKE) --no-print-directory TARGET=platform-freebsd-arm64     SCOPE=@esbuild/ PACKAGE=freebsd-arm64       SUBPATH=bin/esbuild  validate-build
@@ -644,6 +643,7 @@ validate-builds:
 	@$(MAKE) --no-print-directory TARGET=platform-netbsd-x64        SCOPE=@esbuild/ PACKAGE=netbsd-x64          SUBPATH=bin/esbuild  validate-build
 	@$(MAKE) --no-print-directory TARGET=platform-openbsd-arm64     SCOPE=@esbuild/ PACKAGE=openbsd-arm64       SUBPATH=bin/esbuild  validate-build
 	@$(MAKE) --no-print-directory TARGET=platform-openbsd-x64       SCOPE=@esbuild/ PACKAGE=openbsd-x64         SUBPATH=bin/esbuild  validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-openharmony-arm64 SCOPE=@esbuild/ PACKAGE=openharmony-arm64   SUBPATH=esbuild.wasm validate-build
 	@$(MAKE) --no-print-directory TARGET=platform-sunos-x64         SCOPE=@esbuild/ PACKAGE=sunos-x64           SUBPATH=bin/esbuild  validate-build
 	@$(MAKE) --no-print-directory TARGET=platform-wasi-preview1     SCOPE=@esbuild/ PACKAGE=wasi-preview1       SUBPATH=esbuild.wasm validate-build
 	@$(MAKE) --no-print-directory TARGET=platform-wasm                              PACKAGE=esbuild-wasm        SUBPATH=esbuild.wasm validate-build
@@ -664,7 +664,6 @@ clean:
 	rm -rf npm/@esbuild/android-arm/bin npm/@esbuild/android-arm/esbuild.wasm npm/@esbuild/android-arm/wasm_exec*.js
 	rm -rf npm/@esbuild/android-arm64/bin
 	rm -rf npm/@esbuild/android-x64/bin npm/@esbuild/android-x64/esbuild.wasm npm/@esbuild/android-x64/wasm_exec*.js
-	rm -rf npm/@esbuild/openharmony-arm64/bin npm/@esbuild/openharmony-arm64/esbuild.wasm npm/@esbuild/openharmony-arm64/wasm_exec*.js
 	rm -rf npm/@esbuild/darwin-arm64/bin
 	rm -rf npm/@esbuild/darwin-x64/bin
 	rm -rf npm/@esbuild/freebsd-arm64/bin
@@ -682,6 +681,7 @@ clean:
 	rm -rf npm/@esbuild/netbsd-x64/bin
 	rm -rf npm/@esbuild/openbsd-arm64/bin
 	rm -rf npm/@esbuild/openbsd-x64/bin
+	rm -rf npm/@esbuild/openharmony-arm64/bin npm/@esbuild/openharmony-arm64/esbuild.wasm npm/@esbuild/openharmony-arm64/wasm_exec*.js
 	rm -rf npm/@esbuild/sunos-x64/bin
 	rm -rf npm/esbuild-wasm/esm
 	rm -rf npm/esbuild-wasm/lib
