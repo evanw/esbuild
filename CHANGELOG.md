@@ -51,13 +51,15 @@
 
     The TypeScript type definitions now allow you to pass a mixed array of both string literals and object literals to the `entryPoints` API option, such as `['foo.js', { out: 'lib', in: 'bar.js' }]`. This was always possible to do in JavaScript but the TypeScript type definitions were previously too restrictive.
 
-* Update Go from 1.23.8 to 1.23.10 ([#4204](https://github.com/evanw/esbuild/issues/4204), [#4207](https://github.com/evanw/esbuild/pull/4207)
+* Update Go from 1.23.8 to 1.23.10 ([#4204](https://github.com/evanw/esbuild/issues/4204), [#4207](https://github.com/evanw/esbuild/pull/4207))
 
     This should have no effect on existing code as this version change does not change Go's operating system support. It may remove certain false positive reports (specifically CVE-2025-4673 and CVE-2025-22874) from vulnerability scanners that only detect which version of the Go compiler esbuild uses.
 
 * Experimental support for esbuild on OpenHarmony ([#4212](https://github.com/evanw/esbuild/pull/4212))
 
-    With this release, esbuild now publishes the [`@esbuild/openharmony-arm64`](https://www.npmjs.com/package/@esbuild/openharmony-arm64) npm package for [OpenHarmony](https://en.wikipedia.org/wiki/OpenHarmony). It contains a WebAssembly binary instead of a native binary because Go doesn't currently support OpenHarmony. Node does support it, however, so in theory esbuild should now work on OpenHarmony through WebAssembly. This change was contributed by [@hqzing](https://github.com/hqzing).
+    With this release, esbuild now publishes the [`@esbuild/openharmony-arm64`](https://www.npmjs.com/package/@esbuild/openharmony-arm64) npm package for [OpenHarmony](https://en.wikipedia.org/wiki/OpenHarmony). It contains a WebAssembly binary instead of a native binary because Go doesn't currently support OpenHarmony. Node does support it, however, so in theory esbuild should now work on OpenHarmony through WebAssembly.
+
+    This change was contributed by [@hqzing](https://github.com/hqzing).
 
 ## 0.25.5
 
