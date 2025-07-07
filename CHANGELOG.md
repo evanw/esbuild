@@ -41,6 +41,12 @@
     (()=>{})();
     ```
 
+* Support a configurable delay in watch mode before rebuilding ([#3476](https://github.com/evanw/esbuild/issues/3476), [#4178](https://github.com/evanw/esbuild/issues/4178))
+
+    The `watch()` API now takes a `delay` option that lets you add a delay (in milliseconds) before rebuilding when a change is detected in watch mode. If you use a tool that regenerates multiple source files very slowly, this should make it more likely that esbuild's watch mode won't generate a broken intermediate build before the successful final build. This option is also available via the CLI using the `--watch-delay=` flag.
+
+    This should also help avoid confusion about the `watch()` API's options argument. It was previously empty to allow for future API expansion, which caused some people to think that the documentation was missing. It's no longer empty now that the `watch()` API has an option.
+
 * Allow mixed array for `entryPoints` API option ([#4223](https://github.com/evanw/esbuild/issues/4223))
 
     The TypeScript type definitions now allow you to pass a mixed array of both string literals and object literals to the `entryPoints` API option, such as `['foo.js', { out: 'lib', in: 'bar.js' }]`. This was always possible to do in JavaScript but the TypeScript type definitions were previously too restrictive.

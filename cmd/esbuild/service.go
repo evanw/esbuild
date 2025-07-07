@@ -334,7 +334,11 @@ func (service *serviceType) handleIncomingPacket(bytes []byte) {
 				go func() {
 					defer service.keepAliveWaitGroup.Done()
 					defer build.disposeWaitGroup.Done()
-					if err := ctx.Watch(api.WatchOptions{}); err != nil {
+					var options api.WatchOptions
+					if value, ok := request["delay"]; ok {
+						options.Delay = value.(int)
+					}
+					if err := ctx.Watch(options); err != nil {
 						service.sendPacket(encodeErrorPacket(p.id, err))
 					} else {
 						service.sendPacket(encodePacket(packet{

@@ -54,6 +54,7 @@ var helpText = func(colors logger.Colors) string {
                         safari11, edge16, node10, ie9, opera45, default esnext)
   --watch               Watch mode: rebuild on file system changes (stops when
                         stdin is closed, use "--watch=forever" to ignore stdin)
+  --watch-delay=...     How many milliseconds to wait before watch mode rebuilds
 
 ` + colors.Bold + `Advanced options:` + colors.Reset + `
   --allow-overwrite         Allow output files to overwrite input files

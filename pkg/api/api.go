@@ -501,7 +501,9 @@ type ServeResult struct {
 	Hosts []string
 }
 
+// Documentation: https://esbuild.github.io/api/#watch-arguments
 type WatchOptions struct {
+	Delay int // In milliseconds
 }
 
 type BuildContext interface {

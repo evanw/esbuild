@@ -513,7 +513,9 @@ export interface AnalyzeMetafileOptions {
   verbose?: boolean
 }
 
+/** Documentation: https://esbuild.github.io/api/#watch-arguments */
 export interface WatchOptions {
+  delay?: number // In milliseconds
 }
 
 export interface BuildContext<ProvidedOptions extends BuildOptions = BuildOptions> {

@@ -51,6 +51,7 @@ type watcher struct {
 	data              fs.WatchData
 	fs                fs.FS
 	rebuild           func() fs.WatchData
+	delayInMS         time.Duration
 	recentItems       []string
 	itemsToScan       []string
 	mutex             sync.Mutex
@@ -68,7 +69,11 @@ func (w *watcher) setWatchData(data fs.WatchData) {
 	// Print something for the end of the first build
 	if w.shouldLog && w.data.Paths == nil {
 		logger.PrintTextWithColor(os.Stderr, w.useColor, func(colors logger.Colors) string {
-			return fmt.Sprintf("%s[watch] build finished, watching for changes...%s\n", colors.Dim, colors.Reset)
+			var delay string
+			if w.delayInMS > 0 {
+				delay = fmt.Sprintf(" with a %dms delay", w.delayInMS)
+			}
+			return fmt.Sprintf("%s[watch] build finished, watching for changes%s...%s\n", colors.Dim, delay, colors.Reset)
 		})
 	}
 
@@ -100,6 +105,11 @@ func (w *watcher) start() {
 
 			// Rebuild if we're dirty
 			if absPath := w.tryToFindDirtyPath(); absPath != "" {
+				// Optionally wait before rebuilding
+				if w.delayInMS > 0 {
+					time.Sleep(w.delayInMS * time.Millisecond)
+				}
+
 				if w.shouldLog {
 					logger.PrintTextWithColor(os.Stderr, w.useColor, func(colors logger.Colors) string {
 						prettyPath := resolver.PrettyPath(w.fs, logger.Path{Text: absPath, Namespace: "file"})

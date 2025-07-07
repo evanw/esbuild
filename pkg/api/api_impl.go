@@ -1081,6 +1081,7 @@ func (ctx *internalContext) Watch(options WatchOptions) error {
 		rebuild: func() fs.WatchData {
 			return ctx.rebuild().watchData
 		},
+		delayInMS: time.Duration(options.Delay),
 	}
 
 	// All subsequent builds will be watch mode builds

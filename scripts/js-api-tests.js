@@ -4230,6 +4230,57 @@ let watchTests = {
       await context.dispose()
     }
   },
+
+  async watchDelay({ esbuild, testDir }) {
+    const srcDir = path.join(testDir, 'src')
+    const outdir = path.join(testDir, 'out')
+    const input = path.join(srcDir, 'in.js')
+    const output = path.join(outdir, 'in.js')
+    await mkdirAsync(srcDir, { recursive: true })
+    await writeFileAsync(input, `throw 1`)
+
+    const { rebuildUntil, plugin } = makeRebuildUntilPlugin()
+    const context = await esbuild.context({
+      entryPoints: [input],
+      outdir,
+      format: 'esm',
+      logLevel: 'silent',
+      plugins: [plugin],
+    })
+
+    try {
+      const delay = 2000
+      const result = await rebuildUntil(
+        () => context.watch({ delay }),
+        () => true,
+      )
+      assert.strictEqual(result.errors.length, 0)
+      assert.strictEqual(await readFileAsync(output, 'utf8'), 'throw 1;\n')
+
+      // Edit a file
+      const startTime = Date.now()
+      const editPromise = rebuildUntil(
+        () => writeFileAtomic(input, `throw 2`),
+        () => fs.readFileSync(output, 'utf8') === 'throw 2;\n',
+      )
+
+      // Wait for half the delay time
+      await new Promise(resolve => setTimeout(resolve, delay / 2))
+
+      // The rebuild should not have happened yet (check synchronously)
+      if (Date.now() - startTime < delay) {
+        assert.strictEqual(fs.readFileSync(output, 'utf8'), 'throw 1;\n')
+      } else {
+        // To avoid a flaky test, don't check and assert if the CPU is busy and we missed our window
+      }
+
+      // Wait for the rebuild to happen
+      const result2 = await editPromise
+      assert.strictEqual(result2.errors.length, 0)
+    } finally {
+      await context.dispose()
+    }
+  },
 }
 
 let serveTests = {

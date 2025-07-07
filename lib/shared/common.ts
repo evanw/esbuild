@@ -1060,11 +1060,13 @@ function buildOrContextImpl(
         watch: (options = {}) => new Promise((resolve, reject) => {
           if (!streamIn.hasFS) throw new Error(`Cannot use the "watch" API in this environment`)
           const keys: OptionKeys = {}
+          const delay = getFlag(options, keys, 'delay', mustBeInteger)
           checkForInvalidFlags(options, keys, `in watch() call`)
           const request: protocol.WatchRequest = {
             command: 'watch',
             key: buildKey,
           }
+          if (delay) request.delay = delay
           sendRequest<protocol.WatchRequest, null>(refs, request, error => {
             if (error) reject(new Error(error))
             else resolve(undefined)
