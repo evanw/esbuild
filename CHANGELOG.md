@@ -10,6 +10,22 @@
 
     Previously using these selectors with esbuild would generate a warning. That warning has been removed in this release for these cases.
 
+* Improve tree-shaking of `try` statements in dead code ([#4224](https://github.com/evanw/esbuild/issues/4224))
+
+    With this release, esbuild will now remove certain `try` statements if esbuild considers them to be within dead code (i.e. code that is known to not ever be evaluated). For example:
+
+    ```js
+    // Original code
+    return 'foo'
+    try { return 'bar' } catch {}
+
+    // Old output (with --minify)
+    return"foo";try{return"bar"}catch{}
+
+    // New output (with --minify)
+    return"foo";
+    ```
+
 * Consider negated bigints to have no side effects
 
     While esbuild currently considers `1`, `-1`, and `1n` to all have no side effects, it didn't previously consider `-1n` to have no side effects. This is because esbuild does constant folding with numbers but not bigints. However, it meant that unused negative bigint constants were not tree-shaken. With this release, esbuild will now consider these expressions to also be side-effect free:
@@ -32,6 +48,10 @@
 * Update Go from 1.23.8 to 1.23.10 ([#4204](https://github.com/evanw/esbuild/issues/4204), [#4207](https://github.com/evanw/esbuild/pull/4207)
 
     This should have no effect on existing code as this version change does not change Go's operating system support. It may remove certain false positive reports (specifically CVE-2025-4673 and CVE-2025-22874) from vulnerability scanners that only detect which version of the Go compiler esbuild uses.
+
+* Experimental support for esbuild on OpenHarmony ([#4212](https://github.com/evanw/esbuild/pull/4212))
+
+    With this release, esbuild now publishes the [`@esbuild/openharmony-arm64`](https://www.npmjs.com/package/@esbuild/openharmony-arm64) npm package for [OpenHarmony](https://en.wikipedia.org/wiki/OpenHarmony). It contains a WebAssembly binary instead of a native binary because Go doesn't currently support OpenHarmony. Node does support it, however, so in theory esbuild should now work on OpenHarmony through WebAssembly. This change was contributed by [@hqzing](https://github.com/hqzing).
 
 ## 0.25.5
 
@@ -281,31 +301,11 @@
     }
     ```
 
-* Improve tree-shaking of `try` statements in dead code ([#4224](https://github.com/evanw/esbuild/issues/4224))
-
-    With this release, esbuild will now remove certain `try` statements if esbuild considers them to be within dead code (i.e. code that is known to not ever be evaluated). For example:
-
-    ```js
-    // Original code
-    return 'foo'
-    try { return 'bar' } catch {}
-
-    // Old output (with --minify)
-    return"foo";try{return"bar"}catch{}
-
-    // New output (with --minify)
-    return"foo";
-    ```
-
 * Update Go from 1.23.5 to 1.23.7 ([#4076](https://github.com/evanw/esbuild/issues/4076), [#4077](https://github.com/evanw/esbuild/pull/4077))
 
     This should have no effect on existing code as this version change does not change Go's operating system support. It may remove certain reports from vulnerability scanners that detect which version of the Go compiler esbuild uses.
 
     This PR was contributed by [@MikeWillCook](https://github.com/MikeWillCook).
-
-* Experimental support for esbuild on OpenHarmony ([#4212](https://github.com/evanw/esbuild/pull/4212))
-
-    With this release, esbuild now publishes the [`@esbuild/openharmony-arm64`](https://www.npmjs.com/package/@esbuild/openharmony-arm64) npm package for [OpenHarmony](https://en.wikipedia.org/wiki/OpenHarmony). It contains a WebAssembly binary instead of a native binary because Go doesn't currently support OpenHarmony. Node does support it, however, so in theory esbuild should now work on OpenHarmony through WebAssembly. This change was contributed by [@hqzing](https://github.com/hqzing).
 
 ## 0.25.0
 
