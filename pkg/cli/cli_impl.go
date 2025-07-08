@@ -485,6 +485,30 @@ func parseOptionsImpl(
 				transformOpts.LogOverride[value[:equals]] = logLevel
 			}
 
+		case strings.HasPrefix(arg, "--abs-paths="):
+			values := splitWithEmptyCheck(arg[len("--abs-paths="):], ",")
+			var absPaths api.AbsPaths
+			for _, value := range values {
+				switch value {
+				case "code":
+					absPaths |= api.CodeAbsPath
+				case "log":
+					absPaths |= api.LogAbsPath
+				case "metafile":
+					absPaths |= api.MetafileAbsPath
+				default:
+					return parseOptionsExtras{}, cli_helpers.MakeErrorWithNote(
+						fmt.Sprintf("Invalid value %q in %q", value, arg),
+						"Valid values are \"code\", \"log\", or \"metafile\".",
+					)
+				}
+			}
+			if buildOpts != nil {
+				buildOpts.AbsPaths = absPaths
+			} else {
+				transformOpts.AbsPaths = absPaths
+			}
+
 		case strings.HasPrefix(arg, "--supported:"):
 			value := arg[len("--supported:"):]
 			equals := strings.IndexByte(value, '=')
@@ -848,6 +872,7 @@ func parseOptionsImpl(
 			}
 
 			equals := map[string]bool{
+				"abs-paths":          true,
 				"allow-overwrite":    true,
 				"asset-names":        true,
 				"banner":             true,

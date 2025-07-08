@@ -487,6 +487,11 @@ type Options struct {
 	AllowOverwrite    bool
 	LegalComments     LegalComments
 
+	LogPathStyle       logger.PathStyle
+	CodePathStyle      logger.PathStyle
+	MetafilePathStyle  logger.PathStyle
+	SourcemapPathStyle logger.PathStyle
+
 	// If true, make sure to generate a single file that can be written to stdout
 	WriteToStdout bool
 

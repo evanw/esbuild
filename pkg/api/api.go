@@ -265,6 +265,14 @@ const (
 	MangleQuotedTrue
 )
 
+type AbsPaths uint8
+
+const (
+	CodeAbsPath AbsPaths = 1 << iota
+	LogAbsPath
+	MetafileAbsPath
+)
+
 ////////////////////////////////////////////////////////////////////////////////
 // Build API
 
@@ -273,6 +281,7 @@ type BuildOptions struct {
 	LogLevel    LogLevel            // Documentation: https://esbuild.github.io/api/#log-level
 	LogLimit    int                 // Documentation: https://esbuild.github.io/api/#log-limit
 	LogOverride map[string]LogLevel // Documentation: https://esbuild.github.io/api/#log-override
+	AbsPaths    AbsPaths            // Documentation: https://esbuild.github.io/api/#abs-path
 
 	Sourcemap      SourceMap      // Documentation: https://esbuild.github.io/api/#sourcemap
 	SourceRoot     string         // Documentation: https://esbuild.github.io/api/#source-root
@@ -404,6 +413,7 @@ type TransformOptions struct {
 	LogLevel    LogLevel            // Documentation: https://esbuild.github.io/api/#log-level
 	LogLimit    int                 // Documentation: https://esbuild.github.io/api/#log-limit
 	LogOverride map[string]LogLevel // Documentation: https://esbuild.github.io/api/#log-override
+	AbsPaths    AbsPaths            // Documentation: https://esbuild.github.io/api/#abs-path
 
 	Sourcemap      SourceMap      // Documentation: https://esbuild.github.io/api/#sourcemap
 	SourceRoot     string         // Documentation: https://esbuild.github.io/api/#source-root

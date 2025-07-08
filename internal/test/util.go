@@ -29,7 +29,7 @@ func SourceForTest(contents string) logger.Source {
 	return logger.Source{
 		Index:          0,
 		KeyPath:        logger.Path{Text: "<stdin>"},
-		PrettyPath:     "<stdin>",
+		PrettyPaths:    logger.PrettyPaths{Abs: "<stdin>", Rel: "<stdin>"},
 		Contents:       contents,
 		IdentifierName: "stdin",
 	}

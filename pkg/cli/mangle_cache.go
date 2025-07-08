@@ -17,6 +17,7 @@ import (
 	"github.com/evanw/esbuild/internal/js_lexer"
 	"github.com/evanw/esbuild/internal/js_parser"
 	"github.com/evanw/esbuild/internal/logger"
+	"github.com/evanw/esbuild/internal/resolver"
 )
 
 func parseMangleCache(osArgs []string, fs fs.FS, absPath string) (map[string]interface{}, []string) {
@@ -44,10 +45,11 @@ func parseMangleCache(osArgs []string, fs fs.FS, absPath string) (map[string]int
 	}
 
 	// Use our JSON parser so we get pretty-printed error messages
+	keyPath := logger.Path{Text: absPath, Namespace: "file"}
 	source := logger.Source{
-		KeyPath:    logger.Path{Text: absPath, Namespace: "file"},
-		PrettyPath: prettyPath,
-		Contents:   string(bytes),
+		KeyPath:     keyPath,
+		PrettyPaths: resolver.MakePrettyPaths(fs, keyPath),
+		Contents:    string(bytes),
 	}
 	result, ok := js_parser.ParseJSON(log, source, js_parser.JSONOptions{})
 	if !ok || log.HasErrors() {

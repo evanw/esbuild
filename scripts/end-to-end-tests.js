@@ -59,6 +59,21 @@ tests.push(
   }),
 )
 
+// Test absolute paths in log messages
+tests.push(
+  test(['entry.js', '--bundle', '--abs-paths=log'], {
+    'entry.js': `import "./foo"`,
+  }, {
+    expectedStderr: `${errorIcon} [ERROR] Could not resolve "./foo"
+
+    $ABS_PATH_PREFIX$entry.js:1:7:
+      1 │ import "./foo"
+        ╵        ~~~~~~~
+
+`,
+  }),
+)
+
 // Test resolving paths with a question mark (an invalid path on Windows)
 tests.push(
   test(['entry.js', '--bundle', '--outfile=node.js'], {
@@ -9183,7 +9198,7 @@ function test(args, files, options) {
     const hasCJS = args.includes('--format=cjs')
     const hasESM = args.includes('--format=esm')
     const formats = hasIIFE ? ['iife'] : hasESM ? ['esm'] : hasCJS || !hasBundle ? ['cjs'] : ['cjs', 'esm']
-    const expectedStderr = options && options.expectedStderr || '';
+    const baseExpectedStderr = (options && options.expectedStderr || '')
 
     // If the test doesn't specify a format, test both formats
     for (const format of formats) {
@@ -9191,6 +9206,8 @@ function test(args, files, options) {
       const logLevelArgs = args.some(arg => arg.startsWith('--log-level=')) ? [] : ['--log-level=warning']
       const modifiedArgs = (!hasBundle || args.includes(formatArg) ? args : args.concat(formatArg)).concat(logLevelArgs)
       const thisTestDir = path.join(testDir, '' + testCount++)
+      const patchString = str => str.replace('$ABS_PATH_PREFIX$', path.join(thisTestDir, 'x').slice(0, -1))
+      const expectedStderr = Array.isArray(baseExpectedStderr) ? baseExpectedStderr.map(patchString) : patchString(baseExpectedStderr)
       await fs.mkdir(thisTestDir, { recursive: true })
 
       try {

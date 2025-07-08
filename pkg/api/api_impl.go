@@ -287,6 +287,14 @@ func validateLoader(value Loader) config.Loader {
 	}
 }
 
+func extractPathStyle(absPaths AbsPaths, flag AbsPaths) logger.PathStyle {
+	if (absPaths & flag) != 0 {
+		return logger.AbsPath
+	} else {
+		return logger.RelPath
+	}
+}
+
 var versionRegex = regexp.MustCompile(`^([0-9]+)(?:\.([0-9]+))?(?:\.([0-9]+))?(-[A-Za-z0-9]+(?:\.[A-Za-z0-9]+)*)?$`)
 
 func validateFeatures(log logger.Log, target Target, engines []Engine) (compat.JSFeature, compat.CSSFeature, map[css_ast.D]compat.CSSPrefix, string) {
@@ -389,9 +397,9 @@ func validateSupported(log logger.Log, supported map[string]bool) (
 func validateGlobalName(log logger.Log, text string, path string) []string {
 	if text != "" {
 		source := logger.Source{
-			KeyPath:    logger.Path{Text: path},
-			PrettyPath: path,
-			Contents:   text,
+			KeyPath:     logger.Path{Text: path},
+			PrettyPaths: logger.PrettyPaths{Abs: path, Rel: path},
+			Contents:    text,
 		}
 
 		if result, ok := js_parser.ParseGlobalName(log, source); ok {
@@ -583,7 +591,7 @@ func validateDefines(
 				switch logger.API {
 				case logger.CLIAPI:
 					data.Location = &logger.MsgLocation{
-						File:       "<cli>",
+						File:       logger.PrettyPaths{Abs: "<cli>", Rel: "<cli>"},
 						Line:       1,
 						Column:     30,
 						Length:     len(part),
@@ -593,7 +601,7 @@ func validateDefines(
 
 				case logger.JSAPI:
 					data.Location = &logger.MsgLocation{
-						File:       "<js>",
+						File:       logger.PrettyPaths{Abs: "<js>", Rel: "<js>"},
 						Line:       1,
 						Column:     34,
 						Length:     len(part) + 2,
@@ -603,7 +611,7 @@ func validateDefines(
 
 				case logger.GoAPI:
 					data.Location = &logger.MsgLocation{
-						File:       "<go>",
+						File:       logger.PrettyPaths{Abs: "<go>", Rel: "<go>"},
 						Line:       1,
 						Column:     50,
 						Length:     len(part) + 2,
@@ -751,10 +759,10 @@ func validateKeepNames(log logger.Log, options *config.Options) {
 	}
 }
 
-func convertLocationToPublic(loc *logger.MsgLocation) *Location {
+func convertLocationToPublic(loc *logger.MsgLocation, pathStyle logger.PathStyle) *Location {
 	if loc != nil {
 		return &Location{
-			File:       loc.File,
+			File:       loc.File.Select(pathStyle),
 			Namespace:  loc.Namespace,
 			Line:       loc.Line,
 			Column:     loc.Column,
@@ -766,7 +774,7 @@ func convertLocationToPublic(loc *logger.MsgLocation) *Location {
 	return nil
 }
 
-func convertMessagesToPublic(kind logger.MsgKind, msgs []logger.Msg) []Message {
+func convertMessagesToPublic(kind logger.MsgKind, msgs []logger.Msg, pathStyle logger.PathStyle) []Message {
 	var filtered []Message
 	for _, msg := range msgs {
 		if msg.Kind == kind {
@@ -774,14 +782,14 @@ func convertMessagesToPublic(kind logger.MsgKind, msgs []logger.Msg) []Message {
 			for _, note := range msg.Notes {
 				notes = append(notes, Note{
 					Text:     note.Text,
-					Location: convertLocationToPublic(note.Location),
+					Location: convertLocationToPublic(note.Location, pathStyle),
 				})
 			}
 			filtered = append(filtered, Message{
 				ID:         logger.MsgIDToString(msg.ID),
 				PluginName: msg.PluginName,
 				Text:       msg.Data.Text,
-				Location:   convertLocationToPublic(msg.Data.Location),
+				Location:   convertLocationToPublic(msg.Data.Location, pathStyle),
 				Notes:      notes,
 				Detail:     msg.Data.UserDetail,
 			})
@@ -797,7 +805,7 @@ func convertLocationToInternal(loc *Location) *logger.MsgLocation {
 			namespace = "file"
 		}
 		return &logger.MsgLocation{
-			File:       loc.File,
+			File:       logger.PrettyPaths{Abs: loc.File, Rel: loc.File},
 			Namespace:  namespace,
 			Line:       loc.Line,
 			Column:     loc.Column,
@@ -874,6 +882,7 @@ func contextImpl(buildOpts BuildOptions) (*internalContext, []Message) {
 		MessageLimit:  buildOpts.LogLimit,
 		Color:         validateColor(buildOpts.Color),
 		LogLevel:      validateLogLevel(buildOpts.LogLevel),
+		PathStyle:     extractPathStyle(buildOpts.AbsPaths, LogAbsPath),
 		Overrides:     validateLogOverrides(buildOpts.LogOverride),
 	}
 
@@ -890,7 +899,7 @@ func contextImpl(buildOpts BuildOptions) (*internalContext, []Message) {
 	if err != nil {
 		log := logger.NewStderrLog(logOptions)
 		log.AddError(nil, logger.Range{}, err.Error())
-		return nil, convertMessagesToPublic(logger.Error, log.Done())
+		return nil, convertMessagesToPublic(logger.Error, log.Done(), logOptions.PathStyle)
 	}
 
 	// Do not re-evaluate plugins when rebuilding. Also make sure the working
@@ -920,7 +929,7 @@ func contextImpl(buildOpts BuildOptions) (*internalContext, []Message) {
 			}
 			stderr.Done()
 		}
-		return nil, convertMessagesToPublic(logger.Error, msgs)
+		return nil, convertMessagesToPublic(logger.Error, msgs, options.LogPathStyle)
 	}
 
 	args := rebuildArgs{
@@ -1078,6 +1087,7 @@ func (ctx *internalContext) Watch(options WatchOptions) error {
 		fs:        ctx.realFS,
 		shouldLog: logLevel == logger.LevelInfo || logLevel == logger.LevelDebug || logLevel == logger.LevelVerbose,
 		useColor:  ctx.args.logOptions.Color,
+		pathStyle: ctx.args.logOptions.PathStyle,
 		rebuild: func() fs.WatchData {
 			return ctx.rebuild().watchData
 		},
@@ -1294,6 +1304,9 @@ func validateBuildOptions(
 		MainFields:            buildOpts.MainFields,
 		PublicPath:            buildOpts.PublicPath,
 		KeepNames:             buildOpts.KeepNames,
+		CodePathStyle:         extractPathStyle(buildOpts.AbsPaths, CodeAbsPath),
+		LogPathStyle:          extractPathStyle(buildOpts.AbsPaths, LogAbsPath),
+		MetafilePathStyle:     extractPathStyle(buildOpts.AbsPaths, MetafileAbsPath),
 		InjectPaths:           append([]string{}, buildOpts.Inject...),
 		AbsNodePaths:          make([]string, len(buildOpts.NodePaths)),
 		JSBanner:              bannerJS,
@@ -1597,8 +1610,8 @@ func rebuildImpl(args rebuildArgs, oldHashes map[string]string) (rebuildState, m
 
 	// Populate the result object with the messages so far
 	msgs := log.Peek()
-	result.Errors = convertMessagesToPublic(logger.Error, msgs)
-	result.Warnings = convertMessagesToPublic(logger.Warning, msgs)
+	result.Errors = convertMessagesToPublic(logger.Error, msgs, args.options.LogPathStyle)
+	result.Warnings = convertMessagesToPublic(logger.Warning, msgs, args.options.LogPathStyle)
 
 	// Run any registered "OnEnd" callbacks now. These always run regardless of
 	// whether the current build has bee canceled or not. They can check for
@@ -1675,6 +1688,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		MessageLimit:  transformOpts.LogLimit,
 		Color:         validateColor(transformOpts.Color),
 		LogLevel:      validateLogLevel(transformOpts.LogLevel),
+		PathStyle:     extractPathStyle(transformOpts.AbsPaths, LogAbsPath),
 		Overrides:     validateLogOverrides(transformOpts.LogOverride),
 	})
 	caches := cache.MakeCacheSet()
@@ -1735,6 +1749,9 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		TreeShaking:           validateTreeShaking(transformOpts.TreeShaking, false /* bundle */, transformOpts.Format),
 		AbsOutputFile:         transformOpts.Sourcefile + "-out",
 		KeepNames:             transformOpts.KeepNames,
+		CodePathStyle:         extractPathStyle(transformOpts.AbsPaths, CodeAbsPath),
+		LogPathStyle:          extractPathStyle(transformOpts.AbsPaths, LogAbsPath),
+		MetafilePathStyle:     extractPathStyle(transformOpts.AbsPaths, MetafileAbsPath),
 		Stdin: &config.StdinInfo{
 			Loader:     validateLoader(transformOpts.Loader),
 			Contents:   input,
@@ -1823,8 +1840,8 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 
 	msgs := log.Done()
 	return TransformResult{
-		Errors:        convertMessagesToPublic(logger.Error, msgs),
-		Warnings:      convertMessagesToPublic(logger.Warning, msgs),
+		Errors:        convertMessagesToPublic(logger.Error, msgs, options.LogPathStyle),
+		Warnings:      convertMessagesToPublic(logger.Warning, msgs, options.LogPathStyle),
 		Code:          code,
 		Map:           sourceMap,
 		LegalComments: legalComments,
@@ -2087,8 +2104,8 @@ func loadPlugins(initialOptions *BuildOptions, fs fs.FS, log logger.Log, caches 
 			absResolveDir := validatePath(log, fs, options.ResolveDir, "resolve directory")
 			if log.HasErrors() {
 				msgs := log.Done()
-				result.Errors = convertMessagesToPublic(logger.Error, msgs)
-				result.Warnings = convertMessagesToPublic(logger.Warning, msgs)
+				result.Errors = convertMessagesToPublic(logger.Error, msgs, optionsClone.LogPathStyle)
+				result.Warnings = convertMessagesToPublic(logger.Warning, msgs, optionsClone.LogPathStyle)
 				return
 			}
 
@@ -2108,12 +2125,13 @@ func loadPlugins(initialOptions *BuildOptions, fs fs.FS, log logger.Log, caches 
 				kind,
 				absResolveDir,
 				options.PluginData,
+				optionsClone.LogPathStyle,
 			)
 			msgs := log.Done()
 
 			// Populate the result
-			result.Errors = convertMessagesToPublic(logger.Error, msgs)
-			result.Warnings = convertMessagesToPublic(logger.Warning, msgs)
+			result.Errors = convertMessagesToPublic(logger.Error, msgs, optionsClone.LogPathStyle)
+			result.Warnings = convertMessagesToPublic(logger.Warning, msgs, optionsClone.LogPathStyle)
 			if resolveResult != nil {
 				result.Path = resolveResult.PathPair.Primary.Text
 				result.External = resolveResult.PathPair.IsExternal
@@ -2127,11 +2145,13 @@ func loadPlugins(initialOptions *BuildOptions, fs fs.FS, log logger.Log, caches 
 				if options.PluginName != "" {
 					pluginName = options.PluginName
 				}
-				text, _, notes := bundler.ResolveFailureErrorTextSuggestionNotes(resolver, path, kind, pluginName, fs, absResolveDir, optionsForResolve.Platform, "", "")
+				text, _, notes := bundler.ResolveFailureErrorTextSuggestionNotes(
+					resolver, path, kind, pluginName, fs, absResolveDir, optionsForResolve.Platform,
+					logger.PrettyPaths{}, "", optionsClone.LogPathStyle)
 				result.Errors = append(result.Errors, convertMessagesToPublic(logger.Error, []logger.Msg{{
 					Data:  logger.MsgData{Text: text},
 					Notes: notes,
-				}})...)
+				}}, optionsClone.LogPathStyle)...)
 			}
 			return
 		}

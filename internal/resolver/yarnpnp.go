@@ -614,9 +614,9 @@ func (r resolverQuery) extractYarnPnPDataFromJSON(pnpDataPath string, mode pnpDa
 	}
 	if err != nil {
 		if mode == pnpReportErrorsAboutMissingFiles || err != syscall.ENOENT {
-			r.log.AddError(nil, logger.Range{},
-				fmt.Sprintf("Cannot read file %q: %s",
-					PrettyPath(r.fs, logger.Path{Text: pnpDataPath, Namespace: "file"}), err.Error()))
+			prettyPaths := MakePrettyPaths(r.fs, logger.Path{Text: pnpDataPath, Namespace: "file"})
+			r.log.AddError(nil, logger.Range{}, fmt.Sprintf("Cannot read file %q: %s",
+				prettyPaths.Select(r.options.LogPathStyle), err.Error()))
 		}
 		return
 	}
@@ -625,9 +625,9 @@ func (r resolverQuery) extractYarnPnPDataFromJSON(pnpDataPath string, mode pnpDa
 	}
 	keyPath := logger.Path{Text: pnpDataPath, Namespace: "file"}
 	source = logger.Source{
-		KeyPath:    keyPath,
-		PrettyPath: PrettyPath(r.fs, keyPath),
-		Contents:   contents,
+		KeyPath:     keyPath,
+		PrettyPaths: MakePrettyPaths(r.fs, keyPath),
+		Contents:    contents,
 	}
 	result, _ = r.caches.JSONCache.Parse(r.log, source, js_parser.JSONOptions{})
 	return
@@ -640,9 +640,9 @@ func (r resolverQuery) tryToExtractYarnPnPDataFromJS(pnpDataPath string, mode pn
 	}
 	if err != nil {
 		if mode == pnpReportErrorsAboutMissingFiles || err != syscall.ENOENT {
-			r.log.AddError(nil, logger.Range{},
-				fmt.Sprintf("Cannot read file %q: %s",
-					PrettyPath(r.fs, logger.Path{Text: pnpDataPath, Namespace: "file"}), err.Error()))
+			prettyPaths := MakePrettyPaths(r.fs, logger.Path{Text: pnpDataPath, Namespace: "file"})
+			r.log.AddError(nil, logger.Range{}, fmt.Sprintf("Cannot read file %q: %s",
+				prettyPaths.Select(r.options.LogPathStyle), err.Error()))
 		}
 		return
 	}
@@ -652,9 +652,9 @@ func (r resolverQuery) tryToExtractYarnPnPDataFromJS(pnpDataPath string, mode pn
 
 	keyPath := logger.Path{Text: pnpDataPath, Namespace: "file"}
 	source = logger.Source{
-		KeyPath:    keyPath,
-		PrettyPath: PrettyPath(r.fs, keyPath),
-		Contents:   contents,
+		KeyPath:     keyPath,
+		PrettyPaths: MakePrettyPaths(r.fs, keyPath),
+		Contents:    contents,
 	}
 	ast, _ := r.caches.JSCache.Parse(r.log, source, js_parser.OptionsForYarnPnP())
 

@@ -1397,8 +1397,9 @@ func decodeLocationToPrivate(value interface{}) *logger.MsgLocation {
 	if namespace == "" {
 		namespace = "file"
 	}
+	file := loc["file"].(string)
 	return &logger.MsgLocation{
-		File:       loc["file"].(string),
+		File:       logger.PrettyPaths{Abs: file, Rel: file},
 		Namespace:  namespace,
 		Line:       loc["line"].(int),
 		Column:     loc["column"].(int),

@@ -56,6 +56,8 @@ var helpText = func(colors logger.Colors) string {
                         stdin is closed, use "--watch=forever" to ignore stdin)
 
 ` + colors.Bold + `Advanced options:` + colors.Reset + `
+  --abs-paths=...           Emit absolute instead of relative paths in these
+                            situations (code | log | metafile)
   --allow-overwrite         Allow output files to overwrite input files
   --analyze                 Print a report about the contents of the bundle
                             (use "--analyze=verbose" for a detailed report)

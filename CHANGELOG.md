@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+* Support optionally emitting absolute paths instead of relative paths ([#338](https://github.com/evanw/esbuild/issues/338), [#2082](https://github.com/evanw/esbuild/issues/2082), [#3023](https://github.com/evanw/esbuild/issues/3023))
+
+    This release introduces the `--abs-paths=` feature which takes a comma-separated list of situations where esbuild should use absolute paths instead of relative paths. There are currently three supported situations: `code` (comments and string literals), `log` (log message text and location info), and `metafile` (the JSON build metadata).
+
+    Using absolute paths instead of relative paths is not the default behavior because it means that the build results are no longer machine-independent (which means builds are no longer reproducible). Absolute paths can be useful when used with certain terminal emulators that allow you to click on absolute paths in the terminal text and/or when esbuild is being automatically invoked from several different directories within the same script.
+
 ## 0.25.6
 
 * Fix a memory leak when `cancel()` is used on a build context ([#4231](https://github.com/evanw/esbuild/issues/4231))

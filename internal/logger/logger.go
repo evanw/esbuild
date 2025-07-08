@@ -163,7 +163,7 @@ type MsgData struct {
 }
 
 type MsgLocation struct {
-	File       string
+	File       PrettyPaths
 	Namespace  string
 	LineText   string
 	Suggestion string
@@ -221,7 +221,7 @@ func (a SortableMsgs) Less(i int, j int) bool {
 		return aiLoc == nil && ajLoc != nil
 	}
 	if aiLoc.File != ajLoc.File {
-		return aiLoc.File < ajLoc.File
+		return aiLoc.File.Abs < ajLoc.File.Abs || (aiLoc.File.Abs == ajLoc.File.Abs && aiLoc.File.Rel < ajLoc.File.Rel)
 	}
 	if aiLoc.Line != ajLoc.Line {
 		return aiLoc.Line < ajLoc.Line
@@ -403,15 +403,41 @@ func PlatformIndependentPathDirBaseExt(path string) (dir string, base string, ex
 	return
 }
 
+type PrettyPaths struct {
+	// This option exists to help people that run esbuild in many different
+	// directories and want a unified way of reporting file paths. It avoids
+	// needing to code to convert from relative paths back to absolute paths
+	// to find the original file. It means builds are not reproducible across
+	// machines, however.
+	Abs string
+
+	// This is a mostly platform-independent path. It's relative to the current
+	// working directory and always uses standard path separators. This is the
+	// default behavior since it leads to reproducible builds across machines.
+	//
+	// Note that these paths still use the original case of the path, so they may
+	// still work differently on file systems that are case-insensitive vs.
+	// case-sensitive.
+	Rel string
+}
+
+type PathStyle uint8
+
+const (
+	RelPath PathStyle = iota
+	AbsPath
+)
+
+func (paths *PrettyPaths) Select(style PathStyle) string {
+	if style == AbsPath {
+		return paths.Abs
+	}
+	return paths.Rel
+}
+
 type Source struct {
 	// This is used for error messages and the metadata JSON file.
-	//
-	// This is a mostly platform-independent path. It's relative to the current
-	// working directory and always uses standard path separators. Use this for
-	// referencing a file in all output data. These paths still use the original
-	// case of the path so they may still work differently on file systems that
-	// are case-insensitive vs. case-sensitive.
-	PrettyPath string
+	PrettyPaths PrettyPaths
 
 	// An identifier that is mixed in to automatically-generated symbol names to
 	// improve readability. For example, if the identifier is "util" then the
@@ -1176,12 +1202,13 @@ type OutputOptions struct {
 	IncludeSource bool
 	Color         UseColor
 	LogLevel      LogLevel
+	PathStyle     PathStyle
 	Overrides     map[MsgID]LogLevel
 }
 
 func (msg Msg) String(options OutputOptions, terminalInfo TerminalInfo) string {
 	// Format the message
-	text := msgString(options.IncludeSource, terminalInfo, msg.ID, msg.Kind, msg.Data, msg.PluginName)
+	text := msgString(options.IncludeSource, options.PathStyle, terminalInfo, msg.ID, msg.Kind, msg.Data, msg.PluginName)
 
 	// Format the notes
 	var oldData MsgData
@@ -1189,7 +1216,7 @@ func (msg Msg) String(options OutputOptions, terminalInfo TerminalInfo) string {
 		if options.IncludeSource && (i == 0 || strings.IndexByte(oldData.Text, '\n') >= 0 || oldData.Location != nil) {
 			text += "\n"
 		}
-		text += msgString(options.IncludeSource, terminalInfo, MsgID_None, Note, note, "")
+		text += msgString(options.IncludeSource, options.PathStyle, terminalInfo, MsgID_None, Note, note, "")
 		oldData = note
 	}
 
@@ -1216,10 +1243,10 @@ func emptyMarginText(maxMargin int, isLast bool) string {
 	return fmt.Sprintf("      %s │ ", space)
 }
 
-func msgString(includeSource bool, terminalInfo TerminalInfo, id MsgID, kind MsgKind, data MsgData, pluginName string) string {
+func msgString(includeSource bool, pathStyle PathStyle, terminalInfo TerminalInfo, id MsgID, kind MsgKind, data MsgData, pluginName string) string {
 	if !includeSource {
 		if loc := data.Location; loc != nil {
-			return fmt.Sprintf("%s: %s: %s\n", loc.File, kind.String(), data.Text)
+			return fmt.Sprintf("%s: %s: %s\n", loc.File.Select(pathStyle), kind.String(), data.Text)
 		}
 		return fmt.Sprintf("%s: %s\n", kind.String(), data.Text)
 	}
@@ -1237,7 +1264,7 @@ func msgString(includeSource bool, terminalInfo TerminalInfo, id MsgID, kind Msg
 
 	if data.Location != nil {
 		maxMargin := len(fmt.Sprintf("%d", data.Location.Line))
-		d := detailStruct(data, terminalInfo, maxMargin)
+		d := detailStruct(data, pathStyle, terminalInfo, maxMargin)
 
 		if d.Suggestion != "" {
 			location = fmt.Sprintf("\n    %s:%d:%d:\n%s%s%s%s%s%s\n%s%s%s%s%s\n%s%s%s%s%s\n%s",
@@ -1462,7 +1489,7 @@ type MsgDetail struct {
 // the most important.
 type LineColumnTracker struct {
 	contents     string
-	prettyPath   string
+	prettyPaths  PrettyPaths
 	offset       int32
 	line         int32
 	lineStart    int32
@@ -1481,7 +1508,7 @@ func MakeLineColumnTracker(source *Source) LineColumnTracker {
 
 	return LineColumnTracker{
 		contents:     source.Contents,
-		prettyPath:   source.PrettyPath,
+		prettyPaths:  source.PrettyPaths,
 		hasLineStart: true,
 		hasSource:    true,
 	}
@@ -1603,7 +1630,7 @@ func (tracker *LineColumnTracker) MsgLocationOrNil(r Range) *MsgLocation {
 	lineCount, columnCount, lineStart, lineEnd := tracker.computeLineAndColumn(int(r.Loc.Start))
 
 	return &MsgLocation{
-		File:     tracker.prettyPath,
+		File:     tracker.prettyPaths,
 		Line:     lineCount + 1, // 0-based to 1-based
 		Column:   columnCount,
 		Length:   int(r.Len),
@@ -1611,7 +1638,7 @@ func (tracker *LineColumnTracker) MsgLocationOrNil(r Range) *MsgLocation {
 	}
 }
 
-func detailStruct(data MsgData, terminalInfo TerminalInfo, maxMargin int) MsgDetail {
+func detailStruct(data MsgData, pathStyle PathStyle, terminalInfo TerminalInfo, maxMargin int) MsgDetail {
 	// Only highlight the first line of the line text
 	loc := *data.Location
 	endOfFirstLine := len(loc.LineText)
@@ -1741,7 +1768,7 @@ func detailStruct(data MsgData, terminalInfo TerminalInfo, maxMargin int) MsgDet
 	margin := marginWithLineText(maxMargin, loc.Line)
 
 	return MsgDetail{
-		Path:   loc.File,
+		Path:   loc.File.Select(pathStyle),
 		Line:   loc.Line,
 		Column: loc.Column,
 

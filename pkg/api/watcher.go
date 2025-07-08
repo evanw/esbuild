@@ -59,6 +59,7 @@ type watcher struct {
 	shouldStop        int32
 	shouldLog         bool
 	useColor          logger.UseColor
+	pathStyle         logger.PathStyle
 	stopWaitGroup     sync.WaitGroup
 }
 
@@ -112,8 +113,9 @@ func (w *watcher) start() {
 
 				if w.shouldLog {
 					logger.PrintTextWithColor(os.Stderr, w.useColor, func(colors logger.Colors) string {
-						prettyPath := resolver.PrettyPath(w.fs, logger.Path{Text: absPath, Namespace: "file"})
-						return fmt.Sprintf("%s[watch] build started (change: %q)%s\n", colors.Dim, prettyPath, colors.Reset)
+						prettyPaths := resolver.MakePrettyPaths(w.fs, logger.Path{Text: absPath, Namespace: "file"})
+						return fmt.Sprintf("%s[watch] build started (change: %q)%s\n",
+							colors.Dim, prettyPaths.Select(w.pathStyle), colors.Reset)
 					})
 				}
 

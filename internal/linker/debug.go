@@ -81,7 +81,7 @@ func (c *linkerContext) generateExtraDataForFileJS(sourceIndex uint32) string {
 			} else {
 				sb.WriteByte(',')
 			}
-			path := c.graph.Files[record.SourceIndex.GetIndex()].InputFile.Source.PrettyPath
+			path := c.graph.Files[record.SourceIndex.GetIndex()].InputFile.Source.PrettyPaths.Rel
 			sb.WriteString(fmt.Sprintf(`{"source":%s}`, helpers.QuoteForJSON(path, c.options.ASCIIOnly)))
 		}
 		sb.WriteByte(']')
@@ -122,7 +122,7 @@ func (c *linkerContext) generateExtraDataForFileJS(sourceIndex uint32) string {
 				sb.WriteByte(',')
 			}
 			sb.WriteString(fmt.Sprintf(`{"source":%s,"partIndex":%d}`,
-				helpers.QuoteForJSON(c.graph.Files[dep.SourceIndex].InputFile.Source.PrettyPath, c.options.ASCIIOnly),
+				helpers.QuoteForJSON(c.graph.Files[dep.SourceIndex].InputFile.Source.PrettyPaths.Rel, c.options.ASCIIOnly),
 				dep.PartIndex,
 			))
 		}
