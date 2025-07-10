@@ -1085,22 +1085,25 @@ func (p *printer) printProperty(property js_ast.Property) {
 	}
 
 	// Handle key syntax compression for cross-module constant inlining of enums
+	var keyFlags printExprFlags
 	if p.options.MinifySyntax && property.Flags.Has(js_ast.PropertyIsComputed) {
-		if dot, ok := property.Key.Data.(*js_ast.EDot); ok {
-			if value, ok := p.tryToGetImportedEnumValue(dot.Target, dot.Name); ok {
-				if value.String != nil {
-					property.Key.Data = &js_ast.EString{Value: value.String}
+		property.Key = p.lateConstantFoldUnaryOrBinaryOrIfExpr(property.Key)
+		keyFlags |= parentWasUnaryOrBinaryOrIfTest
 
-					// Problematic key names must stay computed for correctness
-					if !helpers.UTF16EqualsString(value.String, "__proto__") &&
-						!helpers.UTF16EqualsString(value.String, "constructor") &&
-						!helpers.UTF16EqualsString(value.String, "prototype") {
-						property.Flags &= ^js_ast.PropertyIsComputed
-					}
-				} else {
-					property.Key.Data = &js_ast.ENumber{Value: value.Number}
-					property.Flags &= ^js_ast.PropertyIsComputed
-				}
+		if key, ok := property.Key.Data.(*js_ast.EInlinedEnum); ok {
+			property.Key = key.Value
+		}
+
+		// Remove the computed flag if it's no longer needed
+		switch key := property.Key.Data.(type) {
+		case *js_ast.ENumber:
+			property.Flags &= ^js_ast.PropertyIsComputed
+
+		case *js_ast.EString:
+			if !helpers.UTF16EqualsString(key.Value, "__proto__") &&
+				!helpers.UTF16EqualsString(key.Value, "constructor") &&
+				!helpers.UTF16EqualsString(key.Value, "prototype") {
+				property.Flags &= ^js_ast.PropertyIsComputed
 			}
 		}
 	}
@@ -1167,7 +1170,7 @@ func (p *printer) printProperty(property js_ast.Property) {
 			p.options.Indent++
 			p.printIndent()
 		}
-		p.printExpr(property.Key, js_ast.LComma, 0)
+		p.printExpr(property.Key, js_ast.LComma, keyFlags)
 		if isMultiLine {
 			p.printNewline()
 			p.printExprCommentsAfterCloseTokenAtLoc(property.CloseBracketLoc)
@@ -1311,7 +1314,7 @@ func (p *printer) printProperty(property js_ast.Property) {
 		}
 
 	default:
-		p.printExpr(property.Key, js_ast.LLowest, 0)
+		p.printExpr(property.Key, js_ast.LLowest, keyFlags)
 	}
 
 	if fn, ok := property.ValueOrNil.Data.(*js_ast.EFunction); property.Kind.IsMethodDefinition() && ok {

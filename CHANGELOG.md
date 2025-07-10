@@ -8,6 +8,24 @@
 
     Using absolute paths instead of relative paths is not the default behavior because it means that the build results are no longer machine-independent (which means builds are no longer reproducible). Absolute paths can be useful when used with certain terminal emulators that allow you to click on absolute paths in the terminal text and/or when esbuild is being automatically invoked from several different directories within the same script.
 
+* Inline small constant strings when minifying
+
+    Previously esbuild's minifier didn't inline string constants because strings can be arbitrarily long, and this isn't necessarily a size win if the string is used more than once. Starting with this release, esbuild will now inline string constants when the length of the string is three code units or less. For example:
+
+    ```js
+    // Original code
+    const foo = 'foo'
+    console.log({ [foo]: true })
+
+    // Old output (with --minify --bundle --format=esm)
+    var o="foo";console.log({[o]:!0});
+
+    // New output (with --minify --bundle --format=esm)
+    console.log({foo:!0});
+    ```
+
+    Note that esbuild's constant inlining only happens in very restrictive scenarios to avoid issues with TDZ handling. This change doesn't change when esbuild's constant inlining happens. It only expands the scope of it to include certain string literals in addition to numeric and boolean literals.
+
 ## 0.25.6
 
 * Fix a memory leak when `cancel()` is used on a build context ([#4231](https://github.com/evanw/esbuild/issues/4231))
