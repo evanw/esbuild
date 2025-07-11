@@ -1185,6 +1185,15 @@ func ShouldFoldBinaryOperatorWhenMinifying(binary *EBinary) bool {
 			return true
 		}
 
+	case BinOpMul:
+		// Allow multiplication of small-ish integers to be folded
+		// "1 * 2" => "3"
+		if left, right, ok := extractNumericValues(binary.Left, binary.Right); ok &&
+			left == math.Trunc(left) && math.Abs(left) <= 0xFF &&
+			right == math.Trunc(right) && math.Abs(right) <= 0xFF {
+			return true
+		}
+
 	case BinOpDiv:
 		// "0/0" => "NaN"
 		// "1/0" => "Infinity"
