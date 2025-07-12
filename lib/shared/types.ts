@@ -168,6 +168,8 @@ export interface BuildOptions extends CommonOptions {
   absWorkingDir?: string
   /** Documentation: https://esbuild.github.io/api/#node-paths */
   nodePaths?: string[]; // The "NODE_PATH" variable from Node.js
+  /** Documentation: TODO */
+  excludeSourceMap?: RegExp
 }
 
 export interface StdinOptions {
