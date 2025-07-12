@@ -47,7 +47,7 @@ func (p *parser) lowerNestingInRule(rule css_ast.Rule, results []css_ast.Rule) [
 			// Note: This is only for the parent selector list that is used to
 			// substitute "&" within child rules. Do not filter out the pseudo
 			// element from the top-level selector list.
-			if !sel.UsesPseudoElement() {
+			if !sel.UsesPseudoElement() || !containsNestingSelectors(r.Rules) {
 				parentSelectors = append(parentSelectors, css_ast.ComplexSelector{Selectors: substituted})
 			}
 		}
@@ -463,4 +463,20 @@ func (p *parser) reportNestingWithGeneratedPseudoClassIs(nestingSelectorLoc logg
 		p.log.AddIDWithNotes(logger.MsgID_CSS_UnsupportedCSSNesting, logger.Warning, &p.tracker, r, text, []logger.MsgData{{
 			Text: "The nesting transform for this case must generate an \":is(...)\" but the configured target environment does not support the \":is\" pseudo-class."}})
 	}
+}
+
+// Check if any of the rules contain nesting selectors
+func containsNestingSelectors(rules []css_ast.Rule) bool {
+	for _, rule := range rules {
+		if sel, ok := rule.Data.(*css_ast.RSelector); ok {
+			for _, complex := range sel.Selectors {
+				for _, compound := range complex.Selectors {
+					if len(compound.NestingSelectorLocs) > 0 {
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
 }
