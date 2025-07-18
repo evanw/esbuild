@@ -36,6 +36,17 @@
 
     Using absolute paths instead of relative paths is not the default behavior because it means that the build results are no longer machine-independent (which means builds are no longer reproducible). Absolute paths can be useful when used with certain terminal emulators that allow you to click on absolute paths in the terminal text and/or when esbuild is being automatically invoked from several different directories within the same script.
 
+* Fix a TypeScript parsing edge case ([#4241](https://github.com/evanw/esbuild/issues/4241))
+
+    This release fixes an edge case with parsing an arrow function in TypeScript with a return type that's in the middle of a `?:` ternary operator. For example:
+
+    ```ts
+    x = a ? (b) : c => d;
+    y = a ? (b) : c => d : e;
+    ```
+
+    The `:` token in the value assigned to `x` pairs with the `?` token, so it's not the start of a return type annotation. However, the first `:` token in the value assigned to `y` is the start of a return type annotation because after parsing the arrow function body, it turns out there's another `:` token that can be used to pair with the `?` token. This case is notable as it's the first TypeScript edge case that esbuild has needed a backtracking parser to parse. It has been addressed by a quick hack (cloning the whole parser) as it's a rare edge case and esbuild doesn't otherwise need a backtracking parser. Hopefully this is sufficient and doesn't cause any issues.
+
 * Inline small constant strings when minifying
 
     Previously esbuild's minifier didn't inline string constants because strings can be arbitrarily long, and this isn't necessarily a size win if the string is used more than once. Starting with this release, esbuild will now inline string constants when the length of the string is three code units or less. For example:

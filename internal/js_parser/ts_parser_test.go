@@ -2375,6 +2375,23 @@ func TestTSArrow(t *testing.T) {
 	expectPrintedTS(t, "function f(async?) { g(async in x) }", "function f(async) {\n  g(async in x);\n}\n")
 	expectPrintedTS(t, "function f(async?) { g(async as boolean) }", "function f(async) {\n  g(async);\n}\n")
 	expectPrintedTS(t, "function f() { g(async as => boolean) }", "function f() {\n  g(async (as) => boolean);\n}\n")
+
+	// https://github.com/evanw/esbuild/issues/4241
+	expectPrintedTS(t, "x = a ? (b = c) : d", "x = a ? b = c : d;\n")
+	expectPrintedTS(t, "x = a ? (b = c) : d => e", "x = a ? b = c : (d) => e;\n")
+	expectPrintedTS(t, "x = a ? (b = c) : T => d : (e = f)", "x = a ? (b = c) => d : e = f;\n")
+	expectPrintedTS(t, "x = a ? (b = c) : T => d : (e = f) : T => g", "x = a ? (b = c) => d : (e = f) => g;\n")
+	expectPrintedTS(t, "x = a ? b ? c : (d = e) : f => g", "x = a ? b ? c : d = e : (f) => g;\n")
+	expectPrintedTS(t, "x = a ? b ? (c = d) => e : (f = g) : h => i", "x = a ? b ? (c = d) => e : f = g : (h) => i;\n")
+	expectPrintedTS(t, "x = a ? b ? (c = d) : T => e : (f = g) : h => i", "x = a ? b ? (c = d) => e : f = g : (h) => i;\n")
+	expectPrintedTS(t, "x = a ? b ? (c = d) : T => e : (f = g) : (h = i) : T => j", "x = a ? b ? (c = d) => e : f = g : (h = i) => j;\n")
+	expectPrintedTS(t, "x = a ? (b) : T => c : d", "x = a ? (b) => c : d;\n")
+	expectPrintedTS(t, "x = a ? b - (c) : d => e", "x = a ? b - c : (d) => e;\n")
+	expectPrintedTS(t, "x = a ? b = (c) : T => d : e", "x = a ? b = (c) => d : e;\n")
+	expectParseErrorTS(t, "x = a ? (b = c) : T => d : (e = f) : g", "<stdin>: ERROR: Expected \";\" but found \":\"\n")
+	expectParseErrorTS(t, "x = a ? b ? (c = d) : T => e : (f = g)", "<stdin>: ERROR: Expected \":\" but found end of file\n")
+	expectParseErrorTS(t, "x = a ? - (b) : c => d : e", "<stdin>: ERROR: Expected \";\" but found \":\"\n")
+	expectParseErrorTS(t, "x = a ? b - (c) : d => e : f", "<stdin>: ERROR: Expected \";\" but found \":\"\n")
 }
 
 func TestTSSuperCall(t *testing.T) {

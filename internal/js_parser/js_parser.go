@@ -3118,8 +3118,9 @@ func (p *parser) parseFnExpr(loc logger.Loc, isAsync bool, asyncRange logger.Ran
 }
 
 type parenExprOpts struct {
-	asyncRange   logger.Range
-	forceArrowFn bool
+	asyncRange                    logger.Range
+	forceArrowFn                  bool
+	isAfterQuestionAndBeforeColon bool
 }
 
 // This assumes that the open parenthesis has already been parsed by the caller
@@ -3208,7 +3209,8 @@ func (p *parser) parseParenExpr(loc logger.Loc, level js_ast.L, opts parenExprOp
 	p.fnOrArrowDataParse = oldFnOrArrowData
 
 	// Are these arguments to an arrow function?
-	if p.lexer.Token == js_lexer.TEqualsGreaterThan || opts.forceArrowFn || (p.options.ts.Parse && p.lexer.Token == js_lexer.TColon) {
+	isArrowFn := p.lexer.Token == js_lexer.TEqualsGreaterThan
+	if isArrowFn || opts.forceArrowFn || (p.options.ts.Parse && p.lexer.Token == js_lexer.TColon) {
 		// Arrow functions are not allowed inside certain expressions
 		if level > js_ast.LAssign {
 			p.lexer.Unexpected()
@@ -3233,13 +3235,34 @@ func (p *parser) parseParenExpr(loc logger.Loc, level js_ast.L, opts parenExprOp
 			args = append(args, js_ast.Arg{Binding: binding, DefaultOrNil: initializerOrNil})
 		}
 
+		await := allowIdent
+		if isAsync {
+			await = allowExpr
+		}
+
 		// Avoid parsing TypeScript code like "a ? (1 + 2) : (3 + 4)" as an arrow
 		// function. The ":" after the ")" may be a return type annotation, so we
 		// attempt to convert the expressions to bindings first before deciding
 		// whether this is an arrow function, and only pick an arrow function if
 		// there were no conversion errors.
-		if p.lexer.Token == js_lexer.TEqualsGreaterThan || (len(invalidLog.invalidTokens) == 0 &&
-			p.trySkipTypeScriptArrowReturnTypeWithBacktracking()) || opts.forceArrowFn {
+		if p.options.ts.Parse && p.lexer.Token == js_lexer.TColon && len(invalidLog.invalidTokens) == 0 {
+			if opts.isAfterQuestionAndBeforeColon {
+				// Only do this very expensive check if we must
+				isArrowFn = p.isTypeScriptArrowReturnTypeAfterQuestionAndBeforeColon(await)
+				if isArrowFn {
+					// We know this will succeed because we've already done it once above
+					p.lexer.Next()
+					p.skipTypeScriptReturnType()
+				}
+			} else {
+				// Otherwise, do the less expensive check
+				isArrowFn = p.trySkipTypeScriptArrowReturnTypeWithBacktracking()
+			}
+		}
+
+		// Arrow function parsing may be forced if this parenthesized expression
+		// was prefixed by a TypeScript type parameter list such as "<T,>()"
+		if isArrowFn || opts.forceArrowFn {
 			if commaAfterSpread.Start != 0 {
 				p.log.AddError(&p.tracker, logger.Range{Loc: commaAfterSpread, Len: 1}, "Unexpected \",\" after rest pattern")
 			}
@@ -3258,11 +3281,6 @@ func (p *parser) parseParenExpr(loc logger.Loc, level js_ast.L, opts parenExprOp
 			// Also report syntax features used in bindings
 			for _, entry := range invalidLog.syntaxFeatures {
 				p.markSyntaxFeature(entry.feature, entry.token)
-			}
-
-			await := allowIdent
-			if isAsync {
-				await = allowExpr
 			}
 
 			arrow := p.parseArrowBody(args, fnOrArrowDataParse{
@@ -3448,6 +3466,7 @@ const (
 	exprFlagDecorator exprFlag = 1 << iota
 	exprFlagForLoopInit
 	exprFlagForAwaitLoopInit
+	exprFlagAfterQuestionAndBeforeColon
 )
 
 func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprFlag) js_ast.Expr {
@@ -3494,7 +3513,9 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 			return value
 		}
 
-		value := p.parseParenExpr(loc, level, parenExprOpts{})
+		value := p.parseParenExpr(loc, level, parenExprOpts{
+			isAfterQuestionAndBeforeColon: (flags & exprFlagAfterQuestionAndBeforeColon) != 0,
+		})
 		return value
 
 	case js_lexer.TFalse:
@@ -4487,12 +4508,12 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 			oldAllowIn := p.allowIn
 			p.allowIn = true
 
-			yes := p.parseExpr(js_ast.LComma)
+			yes := p.parseExprWithFlags(js_ast.LComma, exprFlagAfterQuestionAndBeforeColon)
 
 			p.allowIn = oldAllowIn
 
 			p.lexer.Expect(js_lexer.TColon)
-			no := p.parseExpr(js_ast.LComma)
+			no := p.parseExprWithFlags(js_ast.LComma, flags&exprFlagAfterQuestionAndBeforeColon)
 			left = js_ast.Expr{Loc: left.Loc, Data: &js_ast.EIf{Test: left, Yes: yes, No: no}}
 
 		case js_lexer.TExclamation:
