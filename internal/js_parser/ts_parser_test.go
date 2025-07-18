@@ -2388,6 +2388,7 @@ func TestTSArrow(t *testing.T) {
 	expectPrintedTS(t, "x = a ? (b) : T => c : d", "x = a ? (b) => c : d;\n")
 	expectPrintedTS(t, "x = a ? b - (c) : d => e", "x = a ? b - c : (d) => e;\n")
 	expectPrintedTS(t, "x = a ? b = (c) : T => d : e", "x = a ? b = (c) => d : e;\n")
+	expectPrintedTS(t, "x = (\n  a ? (b = c) : { d: e }\n)", "x = a ? b = c : { d: e };\n") // Note: Newlines are important (they trigger backtracking)
 	expectParseErrorTS(t, "x = a ? (b = c) : T => d : (e = f) : g", "<stdin>: ERROR: Expected \";\" but found \":\"\n")
 	expectParseErrorTS(t, "x = a ? b ? (c = d) : T => e : (f = g)", "<stdin>: ERROR: Expected \":\" but found end of file\n")
 	expectParseErrorTS(t, "x = a ? - (b) : c => d : e", "<stdin>: ERROR: Expected \";\" but found \":\"\n")

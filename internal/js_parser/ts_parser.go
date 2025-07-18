@@ -981,6 +981,7 @@ func (originalParser *parser) isTypeScriptArrowReturnTypeAfterQuestionAndBeforeC
 		options: originalParser.options,
 		source:  originalParser.source,
 		lexer:   originalParser.lexer,
+		log:     logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug, nil),
 		currentScope: &js_ast.Scope{
 			Kind:    js_ast.ScopeFunctionArgs,
 			Members: make(map[string]js_ast.ScopeMember),
