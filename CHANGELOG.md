@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.25.7
 
 * Parse and print JavaScript imports with an explicit phase ([#4238](https://github.com/evanw/esbuild/issues/4238))
 
