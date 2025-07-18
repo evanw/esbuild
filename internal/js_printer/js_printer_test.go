@@ -742,6 +742,12 @@ func TestImport(t *testing.T) {
 	expectPrinted(t, "import(/* webpackFoo: 1 */ 'path', { type: 'module' } /* webpackBar:2 */ );", "import(\n  /* webpackFoo: 1 */\n  \"path\",\n  { type: \"module\" }\n  /* webpackBar:2 */\n);\n")
 	expectPrinted(t, "import(new URL('path', /* webpackFoo: these can go anywhere */ import.meta.url))",
 		"import(new URL(\n  \"path\",\n  /* webpackFoo: these can go anywhere */\n  import.meta.url\n));\n")
+
+	// See: https://github.com/tc39/proposal-defer-import-eval
+	expectPrintedMinify(t, "import defer * as foo from 'bar'", "import defer*as foo from\"bar\";")
+
+	// See: https://github.com/tc39/proposal-source-phase-imports
+	expectPrintedMinify(t, "import source foo from 'bar'", "import source foo from\"bar\";")
 }
 
 func TestExportDefault(t *testing.T) {

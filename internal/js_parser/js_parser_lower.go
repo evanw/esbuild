@@ -88,6 +88,16 @@ func (p *parser) markSyntaxFeature(feature compat.JSFeature, r logger.Range) (di
 			"Top-level await is not available in %s", where))
 		return
 
+	case compat.ImportDefer:
+		p.log.AddError(&p.tracker, r, fmt.Sprintf(
+			"Deferred imports are not available in %s", where))
+		return
+
+	case compat.ImportSource:
+		p.log.AddError(&p.tracker, r, fmt.Sprintf(
+			"Source phase imports are not available in %s", where))
+		return
+
 	case compat.Bigint:
 		// This can't be polyfilled
 		kind := logger.Warning

@@ -400,6 +400,7 @@ type globPatternImport struct {
 	approximateRange logger.Range
 	ref              ast.Ref
 	kind             ast.ImportKind
+	phase            ast.ImportPhase
 }
 
 type namespaceImportItems struct {
@@ -4102,14 +4103,24 @@ func (p *parser) willNeedBindingPattern() bool {
 // Note: The caller has already parsed the "import" keyword
 func (p *parser) parseImportExpr(loc logger.Loc, level js_ast.L) js_ast.Expr {
 	// Parse an "import.meta" expression
+	phase := ast.EvaluationPhase
 	if p.lexer.Token == js_lexer.TDot {
 		p.lexer.Next()
-		if !p.lexer.IsContextualKeyword("meta") {
-			p.lexer.ExpectedString("\"meta\"")
+		if p.lexer.IsContextualKeyword("meta") {
+			p.esmImportMeta = logger.Range{Loc: loc, Len: p.lexer.Range().End() - loc.Start}
+			p.lexer.Next()
+			return js_ast.Expr{Loc: loc, Data: &js_ast.EImportMeta{RangeLen: p.esmImportMeta.Len}}
+		} else if p.lexer.IsContextualKeyword("defer") {
+			p.markSyntaxFeature(compat.ImportDefer, p.lexer.Range())
+			phase = ast.DeferPhase
+			p.lexer.Next()
+		} else if p.lexer.IsContextualKeyword("source") {
+			p.markSyntaxFeature(compat.ImportSource, p.lexer.Range())
+			phase = ast.SourcePhase
+			p.lexer.Next()
+		} else {
+			p.lexer.Unexpected()
 		}
-		p.esmImportMeta = logger.Range{Loc: loc, Len: p.lexer.Range().End() - loc.Start}
-		p.lexer.Next()
-		return js_ast.Expr{Loc: loc, Data: &js_ast.EImportMeta{RangeLen: p.esmImportMeta.Len}}
 	}
 
 	if level > js_ast.LCall {
@@ -4149,6 +4160,7 @@ func (p *parser) parseImportExpr(loc logger.Loc, level js_ast.L) js_ast.Expr {
 		Expr:          value,
 		OptionsOrNil:  optionsOrNil,
 		CloseParenLoc: closeParenLoc,
+		Phase:         phase,
 	}}
 }
 
@@ -7251,7 +7263,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 				name := js_ast.GenerateNonUniqueNameFromPath(pathText) + "_star"
 				namespaceRef = p.storeNameInRef(js_lexer.MaybeSubstring{String: name})
 			}
-			importRecordIndex := p.addImportRecord(ast.ImportStmt, pathRange, pathText, assertOrWith, flags)
+			importRecordIndex := p.addImportRecord(ast.ImportStmt, ast.EvaluationPhase, pathRange, pathText, assertOrWith, flags)
 
 			// Export-star statements anywhere in the file disable top-level const
 			// local prefix because import cycles can be used to trigger TDZ
@@ -7274,7 +7286,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 				// "export {} from 'path'"
 				p.lexer.Next()
 				pathLoc, pathText, assertOrWith, flags := p.parsePath()
-				importRecordIndex := p.addImportRecord(ast.ImportStmt, pathLoc, pathText, assertOrWith, flags)
+				importRecordIndex := p.addImportRecord(ast.ImportStmt, ast.EvaluationPhase, pathLoc, pathText, assertOrWith, flags)
 				name := "import_" + js_ast.GenerateNonUniqueNameFromPath(pathText)
 				namespaceRef := p.storeNameInRef(js_lexer.MaybeSubstring{String: name})
 
@@ -7822,6 +7834,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		p.esmImportStatementKeyword = p.lexer.Range()
 		p.lexer.Next()
 		stmt := js_ast.SImport{}
+		phase := ast.EvaluationPhase
 		wasOriginallyBareImport := false
 
 		// "export import foo = bar"
@@ -7885,8 +7898,35 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			}
 
 			defaultName := p.lexer.Identifier
-			stmt.DefaultName = &ast.LocRef{Loc: p.lexer.Loc(), Ref: p.storeNameInRef(defaultName)}
+			defaultLoc := p.lexer.Loc()
+			isDeferName := p.lexer.Raw() == "defer"
+			isSourceName := p.lexer.Raw() == "source"
 			p.lexer.Next()
+
+			if isDeferName && p.lexer.Token == js_lexer.TAsterisk {
+				// "import defer * as foo from 'bar';"
+				p.markSyntaxFeature(compat.ImportDefer, js_lexer.RangeOfIdentifier(p.source, defaultLoc))
+				phase = ast.DeferPhase
+				p.lexer.Next()
+				p.lexer.ExpectContextualKeyword("as")
+				stmt.NamespaceRef = p.storeNameInRef(p.lexer.Identifier)
+				starLoc := p.lexer.Loc()
+				stmt.StarNameLoc = &starLoc
+				p.lexer.Expect(js_lexer.TIdentifier)
+				p.lexer.ExpectContextualKeyword("from")
+				break
+			}
+
+			if isSourceName && p.lexer.Token == js_lexer.TIdentifier {
+				// "import source foo from 'bar';"
+				p.markSyntaxFeature(compat.ImportSource, js_lexer.RangeOfIdentifier(p.source, defaultLoc))
+				phase = ast.SourcePhase
+				defaultName = p.lexer.Identifier
+				defaultLoc = p.lexer.Loc()
+				p.lexer.Next()
+			}
+
+			stmt.DefaultName = &ast.LocRef{Loc: defaultLoc, Ref: p.storeNameInRef(defaultName)}
 
 			if p.options.ts.Parse {
 				// Skip over type-only imports
@@ -8001,7 +8041,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		if wasOriginallyBareImport {
 			flags |= ast.WasOriginallyBareImport
 		}
-		stmt.ImportRecordIndex = p.addImportRecord(ast.ImportStmt, pathLoc, pathText, assertOrWith, flags)
+		stmt.ImportRecordIndex = p.addImportRecord(ast.ImportStmt, phase, pathLoc, pathText, assertOrWith, flags)
 
 		if stmt.StarNameLoc != nil {
 			name := p.loadNameFromRef(stmt.NamespaceRef)
@@ -8286,13 +8326,21 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 	}
 }
 
-func (p *parser) addImportRecord(kind ast.ImportKind, pathRange logger.Range, text string, assertOrWith *ast.ImportAssertOrWith, flags ast.ImportRecordFlags) uint32 {
+func (p *parser) addImportRecord(
+	kind ast.ImportKind,
+	phase ast.ImportPhase,
+	pathRange logger.Range,
+	text string,
+	assertOrWith *ast.ImportAssertOrWith,
+	flags ast.ImportRecordFlags,
+) uint32 {
 	index := uint32(len(p.importRecords))
 	p.importRecords = append(p.importRecords, ast.ImportRecord{
 		Kind:         kind,
 		Range:        pathRange,
 		Path:         logger.Path{Text: text},
 		AssertOrWith: assertOrWith,
+		Phase:        phase,
 		Flags:        flags,
 	})
 	return index
@@ -14776,7 +14824,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					return js_ast.Expr{Loc: arg.Loc, Data: js_ast.ENullShared}
 				}
 
-				importRecordIndex := p.addImportRecord(ast.ImportDynamic, p.source.RangeOfString(arg.Loc), helpers.UTF16ToString(str.Value), assertOrWith, flags)
+				importRecordIndex := p.addImportRecord(ast.ImportDynamic, e.Phase, p.source.RangeOfString(arg.Loc), helpers.UTF16ToString(str.Value), assertOrWith, flags)
 				if isAwaitTarget && p.fnOrArrowDataVisit.tryBodyCount != 0 {
 					record := &p.importRecords[importRecordIndex]
 					record.Flags |= ast.HandlesImportErrors
@@ -14795,7 +14843,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 			// Handle glob patterns
 			if p.options.mode == config.ModeBundle {
-				if value := p.handleGlobPattern(arg, ast.ImportDynamic, "globImport", assertOrWith); value.Data != nil {
+				if value := p.handleGlobPattern(arg, ast.ImportDynamic, e.Phase, "globImport", assertOrWith); value.Data != nil {
 					return value
 				}
 			}
@@ -15137,7 +15185,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 								return js_ast.Expr{Loc: expr.Loc, Data: js_ast.ENullShared}
 							}
 
-							importRecordIndex := p.addImportRecord(ast.ImportRequireResolve, p.source.RangeOfString(e.Args[0].Loc), helpers.UTF16ToString(str.Value), nil, 0)
+							importRecordIndex := p.addImportRecord(ast.ImportRequireResolve, ast.EvaluationPhase, p.source.RangeOfString(e.Args[0].Loc), helpers.UTF16ToString(str.Value), nil, 0)
 							if p.fnOrArrowDataVisit.tryBodyCount != 0 {
 								record := &p.importRecords[importRecordIndex]
 								record.Flags |= ast.HandlesImportErrors
@@ -15333,7 +15381,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 									return js_ast.Expr{Loc: expr.Loc, Data: js_ast.ENullShared}
 								}
 
-								importRecordIndex := p.addImportRecord(ast.ImportRequire, p.source.RangeOfString(arg.Loc), helpers.UTF16ToString(str.Value), nil, 0)
+								importRecordIndex := p.addImportRecord(ast.ImportRequire, ast.EvaluationPhase, p.source.RangeOfString(arg.Loc), helpers.UTF16ToString(str.Value), nil, 0)
 								if p.fnOrArrowDataVisit.tryBodyCount != 0 {
 									record := &p.importRecords[importRecordIndex]
 									record.Flags |= ast.HandlesImportErrors
@@ -15356,7 +15404,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 							// Handle glob patterns
 							if p.options.mode == config.ModeBundle {
-								if value := p.handleGlobPattern(arg, ast.ImportRequire, "globRequire", nil); value.Data != nil {
+								if value := p.handleGlobPattern(arg, ast.ImportRequire, ast.EvaluationPhase, "globRequire", nil); value.Data != nil {
 									return value
 								}
 							}
@@ -16200,7 +16248,7 @@ func remapExprLocsInJSON(expr *js_ast.Expr, table []logger.StringInJSTableEntry)
 	}
 }
 
-func (p *parser) handleGlobPattern(expr js_ast.Expr, kind ast.ImportKind, prefix string, assertOrWith *ast.ImportAssertOrWith) js_ast.Expr {
+func (p *parser) handleGlobPattern(expr js_ast.Expr, kind ast.ImportKind, phase ast.ImportPhase, prefix string, assertOrWith *ast.ImportAssertOrWith) js_ast.Expr {
 	pattern, approximateRange := p.globPatternFromExpr(expr)
 	if pattern == nil {
 		return js_ast.Expr{}
@@ -16248,8 +16296,8 @@ func (p *parser) handleGlobPattern(expr js_ast.Expr, kind ast.ImportKind, prefix
 	// Don't generate duplicate glob imports
 outer:
 	for _, globPattern := range p.globPatternImports {
-		// Check the kind
-		if globPattern.kind != kind {
+		// Check the kind and phase
+		if globPattern.kind != kind || globPattern.phase != phase {
 			continue
 		}
 
@@ -16325,6 +16373,7 @@ outer:
 			approximateRange: approximateRange,
 			ref:              ref,
 			kind:             kind,
+			phase:            phase,
 		})
 	}
 
@@ -18125,7 +18174,7 @@ func (p *parser) generateImportStmt(
 	p.moduleScope.Generated = append(p.moduleScope.Generated, namespaceRef)
 	declaredSymbols := make([]js_ast.DeclaredSymbol, 1+len(imports))
 	clauseItems := make([]js_ast.ClauseItem, len(imports))
-	importRecordIndex := p.addImportRecord(ast.ImportStmt, pathRange, path, nil, 0)
+	importRecordIndex := p.addImportRecord(ast.ImportStmt, ast.EvaluationPhase, pathRange, path, nil, 0)
 	if sourceIndex != nil {
 		p.importRecords[importRecordIndex].SourceIndex = ast.MakeIndex32(*sourceIndex)
 	}
@@ -18213,6 +18262,7 @@ func (p *parser) toAST(before, parts, after []js_ast.Part, hashbang string, dire
 		before, importRecordIndex = p.generateImportStmt(helpers.GlobPatternToString(glob.parts), glob.approximateRange, []string{glob.name}, before, symbols, nil, nil)
 		record := &p.importRecords[importRecordIndex]
 		record.AssertOrWith = glob.assertOrWith
+		record.Phase = glob.phase
 		record.GlobPattern = &ast.GlobPattern{
 			Parts:       glob.parts,
 			ExportAlias: glob.name,

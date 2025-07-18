@@ -78,6 +78,18 @@ func (kind ImportKind) MustResolveToCSS() bool {
 	return false
 }
 
+type ImportPhase uint8
+
+const (
+	EvaluationPhase ImportPhase = iota
+
+	// See: https://github.com/tc39/proposal-defer-import-eval
+	DeferPhase
+
+	// See: https://github.com/tc39/proposal-source-phase-imports
+	SourcePhase
+)
+
 type ImportRecordFlags uint16
 
 const (
@@ -167,6 +179,7 @@ type ImportRecord struct {
 	CopySourceIndex Index32
 
 	Flags ImportRecordFlags
+	Phase ImportPhase
 	Kind  ImportKind
 }
 

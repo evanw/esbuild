@@ -1396,7 +1396,7 @@ func (p *printer) printQuotedUTF16(data []uint16, flags printQuotedFlags) {
 	p.print(c)
 }
 
-func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, level js_ast.L, flags printExprFlags, closeParenLoc logger.Loc) {
+func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, level js_ast.L, flags printExprFlags, closeParenLoc logger.Loc, phase ast.ImportPhase) {
 	record := &p.importRecords[importRecordIndex]
 
 	if level >= js_ast.LNew || (flags&forbidCall) != 0 {
@@ -1460,7 +1460,14 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, level js_as
 		kind := ast.ImportDynamic
 		if !p.options.UnsupportedFeatures.Has(compat.DynamicImport) {
 			p.printSpaceBeforeIdentifier()
-			p.print("import(")
+			switch phase {
+			case ast.DeferPhase:
+				p.print("import.defer(")
+			case ast.SourcePhase:
+				p.print("import.source(")
+			default:
+				p.print("import(")
+			}
 		} else {
 			kind = ast.ImportRequire
 			p.printSpaceBeforeIdentifier()
@@ -2441,7 +2448,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 
 	case *js_ast.ERequireString:
 		p.addSourceMapping(expr.Loc)
-		p.printRequireOrImportExpr(e.ImportRecordIndex, level, flags, e.CloseParenLoc)
+		p.printRequireOrImportExpr(e.ImportRecordIndex, level, flags, e.CloseParenLoc, ast.EvaluationPhase)
 
 	case *js_ast.ERequireResolveString:
 		recordLoc := p.importRecords[e.ImportRecordIndex].Range.Loc
@@ -2476,7 +2483,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 
 	case *js_ast.EImportString:
 		p.addSourceMapping(expr.Loc)
-		p.printRequireOrImportExpr(e.ImportRecordIndex, level, flags, e.CloseParenLoc)
+		p.printRequireOrImportExpr(e.ImportRecordIndex, level, flags, e.CloseParenLoc, p.importRecords[e.ImportRecordIndex].Phase)
 
 	case *js_ast.EImportCall:
 		// Only print the second argument if either import assertions or import attributes are supported
@@ -2491,7 +2498,14 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		}
 		p.printSpaceBeforeIdentifier()
 		p.addSourceMapping(expr.Loc)
-		p.print("import(")
+		switch e.Phase {
+		case ast.DeferPhase:
+			p.print("import.defer(")
+		case ast.SourcePhase:
+			p.print("import.source(")
+		default:
+			p.print("import(")
+		}
 		if isMultiLine {
 			p.printNewline()
 			p.options.Indent++
@@ -4691,7 +4705,14 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 		p.addSourceMapping(stmt.Loc)
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
-		p.print("import")
+		switch p.importRecords[s.ImportRecordIndex].Phase {
+		case ast.DeferPhase:
+			p.print("import defer")
+		case ast.SourcePhase:
+			p.print("import source")
+		default:
+			p.print("import")
+		}
 		p.printSpace()
 
 		if s.DefaultName != nil {

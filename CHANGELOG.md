@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+* Parse and print JavaScript imports with an explicit phase ([#4238](https://github.com/evanw/esbuild/issues/4238))
+
+    This release adds basic syntax support for the `defer` and `source` import phases in JavaScript:
+
+    * `defer`
+
+        This is a [stage 3 proposal](https://github.com/tc39/proposal-defer-import-eval) for an upcoming JavaScript feature that will provide one way to eagerly load but lazily initialize imported modules. The imported module is automatically initialized on first use. Support for this syntax will also be part of the upcoming release of [TypeScript 5.9](https://devblogs.microsoft.com/typescript/announcing-typescript-5-9-beta/#support-for-import-defer). The syntax looks like this:
+
+        ```js
+        import defer * as foo from "<specifier>";
+        const bar = await import.defer("<specifier>");
+        ```
+
+        Note that this feature deliberately cannot be used with the syntax `import defer foo from "<specifier>"` or `import defer { foo } from "<specifier>"`.
+
+    * `source`
+
+        This is a [stage 3 proposal](https://github.com/tc39/proposal-source-phase-imports) for an upcoming JavaScript feature that will provide another way to eagerly load but lazily initialize imported modules. The imported module is returned in an uninitialized state. Support for this syntax may or may not be a part of TypeScript 5.9 (see [this issue](https://github.com/microsoft/TypeScript/issues/61216) for details). The syntax looks like this:
+
+        ```js
+        import source foo from "<specifier>";
+        const bar = await import.source("<specifier>");
+        ```
+
+        Note that this feature deliberately cannot be used with the syntax `import defer * as foo from "<specifier>"` or `import defer { foo } from "<specifier>"`.
+
+    This change only adds support for this syntax. These imports cannot currently be bundled by esbuild. To use these new features with esbuild's bundler, the imported paths must be external to the bundle and the output format must be set to `esm`.
+
 * Support optionally emitting absolute paths instead of relative paths ([#338](https://github.com/evanw/esbuild/issues/338), [#2082](https://github.com/evanw/esbuild/issues/2082), [#3023](https://github.com/evanw/esbuild/issues/3023))
 
     This release introduces the `--abs-paths=` feature which takes a comma-separated list of situations where esbuild should use absolute paths instead of relative paths. There are currently three supported situations: `code` (comments and string literals), `log` (log message text and location info), and `metafile` (the JSON build metadata).

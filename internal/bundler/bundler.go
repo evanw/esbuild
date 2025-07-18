@@ -469,11 +469,18 @@ func parseFile(args parseArgs) {
 					// Special-case glob pattern imports
 					if record.GlobPattern != nil {
 						prettyPath := helpers.GlobPatternToString(record.GlobPattern.Parts)
+						phase := ""
+						switch record.Phase {
+						case ast.DeferPhase:
+							phase = ".defer"
+						case ast.SourcePhase:
+							phase = ".source"
+						}
 						switch record.GlobPattern.Kind {
 						case ast.ImportRequire:
-							prettyPath = fmt.Sprintf("require(%q)", prettyPath)
+							prettyPath = fmt.Sprintf("require%s(%q)", phase, prettyPath)
 						case ast.ImportDynamic:
-							prettyPath = fmt.Sprintf("import(%q)", prettyPath)
+							prettyPath = fmt.Sprintf("import%s(%q)", phase, prettyPath)
 						}
 						if results, msg := args.res.ResolveGlob(absResolveDir, record.GlobPattern.Parts, record.GlobPattern.Kind, prettyPath); results != nil {
 							if msg != nil {
@@ -482,7 +489,11 @@ func parseFile(args parseArgs) {
 							if result.globResolveResults == nil {
 								result.globResolveResults = make(map[uint32]globResolveResult)
 							}
+							allAreExternal := true
 							for key, result := range results {
+								if !result.PathPair.IsExternal {
+									allAreExternal = false
+								}
 								result.PathPair.Primary.ImportAttributes = attrs
 								if result.PathPair.HasSecondary() {
 									result.PathPair.Secondary.ImportAttributes = attrs
@@ -497,6 +508,12 @@ func parseFile(args parseArgs) {
 									Rel: fmt.Sprintf("%s in %s", prettyPath, result.file.inputFile.Source.PrettyPaths.Rel),
 								},
 								exportAlias: record.GlobPattern.ExportAlias,
+							}
+
+							// Forbid bundling of imports with explicit phases
+							if record.Phase != ast.EvaluationPhase {
+								reportExplicitPhaseImport(args.log, &tracker, record.Range,
+									record.Phase, allAreExternal, args.options.OutputFormat)
 							}
 						} else {
 							args.log.AddError(&tracker, record.Range, fmt.Sprintf("Could not resolve %s", prettyPath))
@@ -591,6 +608,12 @@ func parseFile(args parseArgs) {
 									"The handler for dynamic import failures is here:")})
 						}
 						continue
+					}
+
+					// Forbid bundling of imports with explicit phases
+					if record.Phase != ast.EvaluationPhase {
+						reportExplicitPhaseImport(args.log, &tracker, record.Range,
+							record.Phase, entry.resolveResult.PathPair.IsExternal, args.options.OutputFormat)
 					}
 
 					result.resolveResults[importRecordIndex] = entry.resolveResult
@@ -734,6 +757,30 @@ func parseFile(args parseArgs) {
 	}
 
 	args.results <- result
+}
+
+func reportExplicitPhaseImport(
+	log logger.Log,
+	tracker *logger.LineColumnTracker,
+	r logger.Range,
+	phase ast.ImportPhase,
+	isExternal bool,
+	format config.Format,
+) {
+	var phaseText string
+	switch phase {
+	case ast.DeferPhase:
+		phaseText = "deferred"
+	case ast.SourcePhase:
+		phaseText = "source phase"
+	default:
+		return
+	}
+	if format != config.FormatESModule {
+		log.AddError(tracker, r, fmt.Sprintf("Bundling %s imports with the %q output format is not supported", phaseText, format.String()))
+	} else if !isExternal {
+		log.AddError(tracker, r, fmt.Sprintf("Bundling with %s imports is not supported unless they are external", phaseText))
+	}
 }
 
 func ResolveFailureErrorTextSuggestionNotes(
@@ -2144,7 +2191,7 @@ func (s *scanner) scanAllDependencies() {
 						sourceIndex := s.allocateGlobSourceIndex(result.file.inputFile.Source.Index, uint32(importRecordIndex))
 						record.SourceIndex = ast.MakeIndex32(sourceIndex)
 						s.results[sourceIndex] = s.generateResultForGlobResolve(sourceIndex, globResults.absPath,
-							&result.file.inputFile.Source, record.Range, with, record.GlobPattern.Kind, globResults, record.AssertOrWith)
+							&result.file.inputFile.Source, record.Range, with, record.GlobPattern.Kind, record.Phase, globResults, record.AssertOrWith)
 					}
 					continue
 				}
@@ -2192,6 +2239,7 @@ func (s *scanner) generateResultForGlobResolve(
 	importRange logger.Range,
 	importWith *ast.ImportAssertOrWith,
 	kind ast.ImportKind,
+	phase ast.ImportPhase,
 	result globResolveResult,
 	assertions *ast.ImportAssertOrWith,
 ) parseResult {
@@ -2245,6 +2293,7 @@ func (s *scanner) generateResultForGlobResolve(
 			SourceIndex:  sourceIndex,
 			AssertOrWith: assertions,
 			Kind:         kind,
+			Phase:        phase,
 		})
 
 		switch kind {

@@ -3113,6 +3113,26 @@ func TestImport(t *testing.T) {
 
 	// String import alias with "import * as"
 	expectParseError(t, "import * as '' from 'foo'", "<stdin>: ERROR: Expected identifier but found \"''\"\n")
+
+	// See: https://github.com/tc39/proposal-defer-import-eval
+	expectPrinted(t, "import defer, { foo } from 'bar'", "import defer, { foo } from \"bar\";\n")
+	expectPrinted(t, "import defer * as foo from 'bar'", "import defer * as foo from \"bar\";\n")
+	expectPrinted(t, "import.defer('foo')", "import.defer(\"foo\");\n")
+	expectParseError(t, "import defer 'bar'", "<stdin>: ERROR: Expected \"from\" but found \"'bar'\"\n")
+	expectParseError(t, "import defer foo from 'bar'", "<stdin>: ERROR: Expected \"from\" but found \"foo\"\n")
+	expectParseError(t, "import defer { foo } from 'bar'", "<stdin>: ERROR: Expected \"from\" but found \"{\"\n")
+	expectParseErrorTarget(t, 6, "import defer * as foo from 'bar'", "<stdin>: ERROR: Deferred imports are not available in the configured target environment\n")
+	expectParseErrorTarget(t, 6, "import.defer('foo')", "<stdin>: ERROR: Deferred imports are not available in the configured target environment\n")
+
+	// See: https://github.com/tc39/proposal-source-phase-imports
+	expectPrinted(t, "import source, { foo } from 'bar'", "import source, { foo } from \"bar\";\n")
+	expectPrinted(t, "import source foo from 'bar'", "import source foo from \"bar\";\n")
+	expectPrinted(t, "import.source('foo')", "import.source(\"foo\");\n")
+	expectParseError(t, "import source 'bar'", "<stdin>: ERROR: Expected \"from\" but found \"'bar'\"\n")
+	expectParseError(t, "import source * as foo from 'bar'", "<stdin>: ERROR: Expected \"from\" but found \"*\"\n")
+	expectParseError(t, "import source { foo } from 'bar'", "<stdin>: ERROR: Expected \"from\" but found \"{\"\n")
+	expectParseErrorTarget(t, 6, "import source foo from 'bar'", "<stdin>: ERROR: Source phase imports are not available in the configured target environment\n")
+	expectParseErrorTarget(t, 6, "import.source('foo')", "<stdin>: ERROR: Source phase imports are not available in the configured target environment\n")
 }
 
 func TestExport(t *testing.T) {

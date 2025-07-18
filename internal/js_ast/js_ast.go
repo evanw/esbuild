@@ -920,6 +920,7 @@ type EImportCall struct {
 	Expr          Expr
 	OptionsOrNil  Expr
 	CloseParenLoc logger.Loc
+	Phase         ast.ImportPhase
 }
 
 type Stmt struct {
