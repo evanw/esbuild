@@ -143,6 +143,108 @@ let buildTests = {
     assert.strictEqual(require(bOut).y, true)
   },
 
+  async absPathsCodeTest({ esbuild, testDir }) {
+    let srcDir = path.join(testDir, 'src');
+    let outfile = path.join(testDir, 'out', 'result.js');
+    let entry = path.join(srcDir, 'entry.js');
+    fs.mkdirSync(srcDir, { recursive: true });
+    fs.writeFileSync(entry, `x = typeof y == "null"`);
+
+    const { metafile, warnings, outputFiles } = await esbuild.build({
+      entryPoints: [entry],
+      outfile,
+      bundle: true,
+      write: false,
+      metafile: true,
+      format: 'cjs',
+      logLevel: 'silent',
+      absPaths: ['code'],
+    })
+    const cwd = process.cwd()
+    const makePath = absPath => path.relative(cwd, absPath).split(path.sep).join('/')
+
+    assert.strictEqual(outputFiles.length, 1)
+    assert.deepStrictEqual(outputFiles[0].path, outfile)
+    assert.deepStrictEqual(outputFiles[0].text, `// ${entry}\nx = typeof y == "null";\n`)
+
+    assert.deepStrictEqual(Object.keys(metafile.inputs), [makePath(entry)])
+    assert.deepStrictEqual(Object.keys(metafile.outputs), [makePath(outfile)])
+    assert.strictEqual(metafile.inputs[makePath(entry)].imports.length, 0)
+    assert.strictEqual(metafile.outputs[makePath(outfile)].entryPoint, makePath(entry))
+
+    assert.strictEqual(warnings.length, 1)
+    assert.strictEqual(warnings[0].text, 'The "typeof" operator will never evaluate to "null"')
+    assert.strictEqual(warnings[0].location.file, makePath(entry))
+  },
+
+  async absPathsLogTest({ esbuild, testDir }) {
+    let srcDir = path.join(testDir, 'src');
+    let outfile = path.join(testDir, 'out', 'result.js');
+    let entry = path.join(srcDir, 'entry.js');
+    fs.mkdirSync(srcDir, { recursive: true });
+    fs.writeFileSync(entry, `x = typeof y == "null"`);
+
+    const { metafile, warnings, outputFiles } = await esbuild.build({
+      entryPoints: [entry],
+      outfile,
+      bundle: true,
+      write: false,
+      metafile: true,
+      format: 'cjs',
+      logLevel: 'silent',
+      absPaths: ['log'],
+    })
+    const cwd = process.cwd()
+    const makePath = absPath => path.relative(cwd, absPath).split(path.sep).join('/')
+
+    assert.strictEqual(outputFiles.length, 1)
+    assert.deepStrictEqual(outputFiles[0].path, outfile)
+    assert.deepStrictEqual(outputFiles[0].text, `// ${makePath(entry)}\nx = typeof y == "null";\n`)
+
+    assert.deepStrictEqual(Object.keys(metafile.inputs), [makePath(entry)])
+    assert.deepStrictEqual(Object.keys(metafile.outputs), [makePath(outfile)])
+    assert.strictEqual(metafile.inputs[makePath(entry)].imports.length, 0)
+    assert.strictEqual(metafile.outputs[makePath(outfile)].entryPoint, makePath(entry))
+
+    assert.strictEqual(warnings.length, 1)
+    assert.strictEqual(warnings[0].text, 'The "typeof" operator will never evaluate to "null"')
+    assert.strictEqual(warnings[0].location.file, entry)
+  },
+
+  async absPathsMetafileTest({ esbuild, testDir }) {
+    let srcDir = path.join(testDir, 'src');
+    let outfile = path.join(testDir, 'out', 'result.js');
+    let entry = path.join(srcDir, 'entry.js');
+    fs.mkdirSync(srcDir, { recursive: true });
+    fs.writeFileSync(entry, `x = typeof y == "null"`);
+
+    const { metafile, warnings, outputFiles } = await esbuild.build({
+      entryPoints: [entry],
+      outfile,
+      bundle: true,
+      write: false,
+      metafile: true,
+      format: 'cjs',
+      logLevel: 'silent',
+      absPaths: ['metafile'],
+    })
+    const cwd = process.cwd()
+    const makePath = absPath => path.relative(cwd, absPath).split(path.sep).join('/')
+
+    assert.strictEqual(outputFiles.length, 1)
+    assert.deepStrictEqual(outputFiles[0].path, outfile)
+    assert.deepStrictEqual(outputFiles[0].text, `// ${makePath(entry)}\nx = typeof y == "null";\n`)
+
+    assert.deepStrictEqual(Object.keys(metafile.inputs), [entry])
+    assert.deepStrictEqual(Object.keys(metafile.outputs), [outfile])
+    assert.strictEqual(metafile.inputs[entry].imports.length, 0)
+    assert.strictEqual(metafile.outputs[outfile].entryPoint, entry)
+
+    assert.strictEqual(warnings.length, 1)
+    assert.strictEqual(warnings[0].text, 'The "typeof" operator will never evaluate to "null"')
+    assert.strictEqual(warnings[0].location.file, makePath(entry))
+  },
+
   async aliasValidity({ esbuild }) {
     const valid = async alias => {
       const result = await esbuild.build({

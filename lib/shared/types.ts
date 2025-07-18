@@ -4,6 +4,7 @@ export type Loader = 'base64' | 'binary' | 'copy' | 'css' | 'dataurl' | 'default
 export type LogLevel = 'verbose' | 'debug' | 'info' | 'warning' | 'error' | 'silent'
 export type Charset = 'ascii' | 'utf8'
 export type Drop = 'console' | 'debugger'
+export type AbsPaths = 'code' | 'log' | 'metafile'
 
 interface CommonOptions {
   /** Documentation: https://esbuild.github.io/api/#sourcemap */
@@ -75,6 +76,8 @@ interface CommonOptions {
   /** Documentation: https://esbuild.github.io/api/#keep-names */
   keepNames?: boolean
 
+  /** Documentation: https://esbuild.github.io/api/#abs-paths */
+  absPaths?: AbsPaths[]
   /** Documentation: https://esbuild.github.io/api/#color */
   color?: boolean
   /** Documentation: https://esbuild.github.io/api/#log-level */
