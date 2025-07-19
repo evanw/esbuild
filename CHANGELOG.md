@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.25.8
 
 * Fix another TypeScript parsing edge case ([#4248](https://github.com/evanw/esbuild/issues/4248))
 
