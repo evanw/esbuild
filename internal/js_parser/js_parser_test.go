@@ -3115,6 +3115,7 @@ func TestImport(t *testing.T) {
 	expectParseError(t, "import * as '' from 'foo'", "<stdin>: ERROR: Expected identifier but found \"''\"\n")
 
 	// See: https://github.com/tc39/proposal-defer-import-eval
+	expectPrinted(t, "import defer from 'bar'", "import defer from \"bar\";\n")
 	expectPrinted(t, "import defer, { foo } from 'bar'", "import defer, { foo } from \"bar\";\n")
 	expectPrinted(t, "import defer * as foo from 'bar'", "import defer * as foo from \"bar\";\n")
 	expectPrinted(t, "import.defer('foo')", "import.defer(\"foo\");\n")
@@ -3125,8 +3126,11 @@ func TestImport(t *testing.T) {
 	expectParseErrorTarget(t, 6, "import.defer('foo')", "<stdin>: ERROR: Deferred imports are not available in the configured target environment\n")
 
 	// See: https://github.com/tc39/proposal-source-phase-imports
+	expectPrinted(t, "import source from 'bar'", "import source from \"bar\";\n")
 	expectPrinted(t, "import source, { foo } from 'bar'", "import source, { foo } from \"bar\";\n")
 	expectPrinted(t, "import source foo from 'bar'", "import source foo from \"bar\";\n")
+	expectPrinted(t, "import source from from 'bar'", "import source from from \"bar\";\n")
+	expectPrinted(t, "import source source from 'bar'", "import source source from \"bar\";\n")
 	expectPrinted(t, "import.source('foo')", "import.source(\"foo\");\n")
 	expectParseError(t, "import source 'bar'", "<stdin>: ERROR: Expected \"from\" but found \"'bar'\"\n")
 	expectParseError(t, "import source * as foo from 'bar'", "<stdin>: ERROR: Expected \"from\" but found \"*\"\n")

@@ -15,6 +15,18 @@
     }
     ```
 
+* Fix a regression with the parsing of source phase imports
+
+    The change in the previous release to parse [source phase imports](https://github.com/tc39/proposal-source-phase-imports) failed to properly handle the following cases:
+
+    ```ts
+    import source from 'bar'
+    import source from from 'bar'
+    import source type foo from 'bar'
+    ```
+
+    Parsing for these cases should now be fixed. The first case was incorrectly treated as a syntax error because esbuild was expecting the second case. And the last case was previously allowed but is now forbidden. TypeScript hasn't added this feature yet so it remains to be seen whether the last case will be allowed, but it's safer to disallow it for now. At least Babel doesn't allow the last case when parsing TypeScript, and Babel was involved with the source phase import specification.
+
 ## 0.25.7
 
 * Parse and print JavaScript imports with an explicit phase ([#4238](https://github.com/evanw/esbuild/issues/4238))

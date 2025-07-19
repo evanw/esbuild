@@ -7935,12 +7935,30 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			}
 
 			if isSourceName && p.lexer.Token == js_lexer.TIdentifier {
+				if p.lexer.Raw() == "from" {
+					nameSubstring := p.lexer.Identifier
+					nameLoc := p.lexer.Loc()
+					p.lexer.Next()
+					if p.lexer.IsContextualKeyword("from") {
+						// "import source from from 'foo';"
+						p.markSyntaxFeature(compat.ImportSource, js_lexer.RangeOfIdentifier(p.source, defaultLoc))
+						phase = ast.SourcePhase
+						stmt.DefaultName = &ast.LocRef{Loc: nameLoc, Ref: p.storeNameInRef(nameSubstring)}
+						p.lexer.Next()
+					} else {
+						// "import source from 'foo';"
+						stmt.DefaultName = &ast.LocRef{Loc: defaultLoc, Ref: p.storeNameInRef(defaultName)}
+					}
+					break
+				}
+
 				// "import source foo from 'bar';"
 				p.markSyntaxFeature(compat.ImportSource, js_lexer.RangeOfIdentifier(p.source, defaultLoc))
 				phase = ast.SourcePhase
-				defaultName = p.lexer.Identifier
-				defaultLoc = p.lexer.Loc()
+				stmt.DefaultName = &ast.LocRef{Loc: p.lexer.Loc(), Ref: p.storeNameInRef(p.lexer.Identifier)}
 				p.lexer.Next()
+				p.lexer.ExpectContextualKeyword("from")
+				break
 			}
 
 			stmt.DefaultName = &ast.LocRef{Loc: defaultLoc, Ref: p.storeNameInRef(defaultName)}

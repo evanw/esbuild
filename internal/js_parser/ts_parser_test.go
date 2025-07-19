@@ -2966,6 +2966,22 @@ func TestTSTypeOnlyImport(t *testing.T) {
 	expectParseErrorTS(t, "import { x, type 'y' as 'z' } from 'mod'", "<stdin>: ERROR: Expected identifier but found \"'z'\"\n")
 	expectParseErrorTS(t, "import { x, type as 'y' } from 'mod'", "<stdin>: ERROR: Expected \"}\" but found \"'y'\"\n")
 	expectParseErrorTS(t, "import { x, type y as 'z' } from 'mod'", "<stdin>: ERROR: Expected identifier but found \"'z'\"\n")
+
+	// See: https://github.com/tc39/proposal-defer-import-eval
+	expectPrintedTS(t, "import defer * as foo from 'bar'", "")
+	expectPrintedTS(t, "import defer * as foo from 'bar'; let x: foo.Type", "let x;\n")
+	expectPrintedTS(t, "import defer * as foo from 'bar'; let x = foo.value", "import defer * as foo from \"bar\";\nlet x = foo.value;\n")
+	expectPrintedTS(t, "import type defer from 'bar'", "")
+	expectParseErrorTS(t, "import type defer * as foo from 'bar'", "<stdin>: ERROR: Expected \"from\" but found \"*\"\n")
+
+	// See: https://github.com/tc39/proposal-source-phase-imports
+	expectPrintedTS(t, "import type source from 'bar'", "")
+	expectPrintedTS(t, "import source foo from 'bar'", "")
+	expectPrintedTS(t, "import source foo from 'bar'; let x: foo", "let x;\n")
+	expectPrintedTS(t, "import source foo from 'bar'; let x = foo", "import source foo from \"bar\";\nlet x = foo;\n")
+	expectPrintedTS(t, "import source type from 'bar'", "")
+	expectParseErrorTS(t, "import source type foo from 'bar'", "<stdin>: ERROR: Expected \"from\" but found \"foo\"\n")
+	expectParseErrorTS(t, "import type source foo from 'bar'", "<stdin>: ERROR: Expected \"from\" but found \"foo\"\n")
 }
 
 func TestTSTypeOnlyExport(t *testing.T) {
