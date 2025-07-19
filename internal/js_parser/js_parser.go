@@ -382,7 +382,6 @@ type parser struct {
 	shouldFoldTypeScriptConstantExpressions bool
 
 	allowIn                     bool
-	allowPrivateIdentifiers     bool
 	hasTopLevelReturn           bool
 	latestReturnHadSemicolon    bool
 	messageAboutThisIsUndefined bool
@@ -3538,7 +3537,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 		return js_ast.Expr{Loc: loc, Data: js_ast.EThisShared}
 
 	case js_lexer.TPrivateIdentifier:
-		if !p.allowPrivateIdentifiers || !p.allowIn || level >= js_ast.LCompare {
+		if !p.allowIn || level >= js_ast.LCompare {
 			p.lexer.Unexpected()
 		}
 
@@ -4263,7 +4262,7 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 		case js_lexer.TDot:
 			p.lexer.Next()
 
-			if p.lexer.Token == js_lexer.TPrivateIdentifier && p.allowPrivateIdentifiers {
+			if p.lexer.Token == js_lexer.TPrivateIdentifier {
 				// "a.#b"
 				// "a?.b.#c"
 				if _, ok := left.Data.(*js_ast.ESuper); ok {
@@ -4373,7 +4372,7 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 				}}
 
 			default:
-				if p.lexer.Token == js_lexer.TPrivateIdentifier && p.allowPrivateIdentifiers {
+				if p.lexer.Token == js_lexer.TPrivateIdentifier {
 					// "a?.#b"
 					name := p.lexer.Identifier
 					nameLoc := p.lexer.Loc()
@@ -6450,9 +6449,7 @@ func (p *parser) parseClass(classKeyword logger.Range, name *ast.LocRef, classOp
 
 	// Allow "in" and private fields inside class bodies
 	oldAllowIn := p.allowIn
-	oldAllowPrivateIdentifiers := p.allowPrivateIdentifiers
 	p.allowIn = true
-	p.allowPrivateIdentifiers = true
 
 	// A scope is needed for private identifiers
 	scopeIndex := p.pushScopeForParsePass(js_ast.ScopeClassBody, bodyLoc)
@@ -6512,7 +6509,6 @@ func (p *parser) parseClass(classKeyword logger.Range, name *ast.LocRef, classOp
 	}
 
 	p.allowIn = oldAllowIn
-	p.allowPrivateIdentifiers = oldAllowPrivateIdentifiers
 
 	closeBraceLoc := p.saveExprCommentsHere()
 	p.lexer.Expect(js_lexer.TCloseBrace)

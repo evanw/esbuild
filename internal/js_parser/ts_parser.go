@@ -979,7 +979,6 @@ func (originalParser *parser) isTypeScriptArrowReturnTypeAfterQuestionAndBeforeC
 	p := newParser(logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug, nil), originalParser.source, originalParser.lexer, &originalParser.options)
 
 	// Clone all state that the parser needs to parse this arrow function body
-	p.allowPrivateIdentifiers = originalParser.allowPrivateIdentifiers
 	p.allowIn = originalParser.allowIn
 	p.lexer.IsLogDisabled = true
 	p.pushScopeForParsePass(js_ast.ScopeEntry, logger.Loc{Start: 0})

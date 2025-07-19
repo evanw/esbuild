@@ -6065,10 +6065,10 @@ func TestPreserveOptionalChainParentheses(t *testing.T) {
 }
 
 func TestPrivateIdentifiers(t *testing.T) {
-	expectParseError(t, "#foo", "<stdin>: ERROR: Unexpected \"#foo\"\n")
-	expectParseError(t, "#foo in this", "<stdin>: ERROR: Unexpected \"#foo\"\n")
-	expectParseError(t, "this.#foo", "<stdin>: ERROR: Expected identifier but found \"#foo\"\n")
-	expectParseError(t, "this?.#foo", "<stdin>: ERROR: Expected identifier but found \"#foo\"\n")
+	expectParseError(t, "#foo", "<stdin>: ERROR: Expected \"in\" but found end of file\n")
+	expectParseError(t, "#foo in this", "<stdin>: ERROR: Private name \"#foo\" must be declared in an enclosing class\n")
+	expectParseError(t, "this.#foo", "<stdin>: ERROR: Private name \"#foo\" must be declared in an enclosing class\n")
+	expectParseError(t, "this?.#foo", "<stdin>: ERROR: Private name \"#foo\" must be declared in an enclosing class\n")
 	expectParseError(t, "({ #foo: 1 })", "<stdin>: ERROR: Expected identifier but found \"#foo\"\n")
 	expectParseError(t, "class Foo { x = { #foo: 1 } }", "<stdin>: ERROR: Expected identifier but found \"#foo\"\n")
 	expectParseError(t, "class Foo { x = #foo }", "<stdin>: ERROR: Expected \"in\" but found \"}\"\n")
