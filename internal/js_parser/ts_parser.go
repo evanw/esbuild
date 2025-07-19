@@ -976,18 +976,14 @@ func (originalParser *parser) isTypeScriptArrowReturnTypeAfterQuestionAndBeforeC
 	// future) from accidentally depending on some parser state that isn't cloned
 	// here. That could result in a parser panic when parsing a more complex
 	// version of this edge case.
-	p := parser{
-		// Clone all state that the parser needs to parse this arrow function body
-		options: originalParser.options,
-		source:  originalParser.source,
-		lexer:   originalParser.lexer,
-		log:     logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug, nil),
-		currentScope: &js_ast.Scope{
-			Kind:    js_ast.ScopeFunctionArgs,
-			Members: make(map[string]js_ast.ScopeMember),
-		},
-	}
+	p := newParser(logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug, nil), originalParser.source, originalParser.lexer, &originalParser.options)
+
+	// Clone all state that the parser needs to parse this arrow function body
+	p.allowPrivateIdentifiers = originalParser.allowPrivateIdentifiers
+	p.allowIn = originalParser.allowIn
 	p.lexer.IsLogDisabled = true
+	p.pushScopeForParsePass(js_ast.ScopeEntry, logger.Loc{Start: 0})
+	p.pushScopeForParsePass(js_ast.ScopeFunctionArgs, logger.Loc{Start: 1})
 
 	// Parse the return type
 	p.lexer.Expect(js_lexer.TColon)

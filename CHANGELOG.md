@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+* Fix another TypeScript parsing edge case ([#4248](https://github.com/evanw/esbuild/issues/4248))
+
+    This fixes a regression with a change in the previous release that tries to more accurately parse TypeScript arrow functions inside the `?:` operator. The regression specifically involves parsing an arrow function containing a `#private` identifier inside the middle of a `?:` ternary operator inside a class body. This was fixed by propagating private identifier state into the parser clone used to speculatively parse the arrow function body. Here is an example of some affected code:
+
+    ```ts
+    class CachedDict {
+      #has = (a: string) => dict.has(a);
+      has = window
+        ? (word: string): boolean => this.#has(word)
+        : this.#has;
+    }
+    ```
+
 ## 0.25.7
 
 * Parse and print JavaScript imports with an explicit phase ([#4238](https://github.com/evanw/esbuild/issues/4238))
