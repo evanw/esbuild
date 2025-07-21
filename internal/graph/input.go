@@ -31,7 +31,8 @@ type InputFile struct {
 	Source      logger.Source
 	Loader      config.Loader
 
-	OmitFromSourceMapsAndMetafile bool
+	OmitFromMetafile bool
+	OmitFromSourceMaps bool
 }
 
 type OutputFile struct {
