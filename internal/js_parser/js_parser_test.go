@@ -3556,7 +3556,7 @@ func TestMangleLoopJump(t *testing.T) {
 	expectPrintedMangle(t, "while (x) { y(); if (1) break; z(); }", "for (; x; ) {\n  y();\n  break;\n}\n")
 	expectPrintedMangle(t, "while (x) { y(); if (1) continue; z(); }", "for (; x; )\n  y();\n")
 	expectPrintedMangle(t, "while (x) { y(); debugger; if (1) continue; z(); }", "for (; x; ) {\n  y();\n  debugger;\n}\n")
-	expectPrintedMangle(t, "while (x) { let y = z(); if (1) continue; z(); }", "for (; x; ) {\n  let y = z();\n}\n")
+	expectPrintedMangle(t, "while (x) { let y = z(); if (1) continue; z(); }", "for (; x; )\n  z();\n")
 	expectPrintedMangle(t, "while (x) { debugger; if (y) { if (1) break; z() } }", "for (; x; ) {\n  debugger;\n  if (y)\n    break;\n}\n")
 	expectPrintedMangle(t, "while (x) { debugger; if (y) { if (1) continue; z() } }", "for (; x; ) {\n  debugger;\n  y;\n}\n")
 	expectPrintedMangle(t, "while (x) { debugger; if (1) { if (1) break; z() } }", "for (; x; ) {\n  debugger;\n  break;\n}\n")
@@ -3635,8 +3635,8 @@ func TestMangleIndex(t *testing.T) {
 
 func TestMangleBlock(t *testing.T) {
 	expectPrintedMangle(t, "while(1) { while (1) {} }", "for (; ; )\n  for (; ; )\n    ;\n")
-	expectPrintedMangle(t, "while(1) { const x = y; }", "for (; ; ) {\n  const x = y;\n}\n")
-	expectPrintedMangle(t, "while(1) { let x; }", "for (; ; ) {\n  let x;\n}\n")
+	expectPrintedMangle(t, "while(1) { const x = y; }", "for (; ; )\n  y;\n")
+	expectPrintedMangle(t, "while(1) { let x; }", "for (; ; )\n  ;\n")
 	expectPrintedMangle(t, "while(1) { var x; }", "for (; ; )\n  var x;\n")
 	expectPrintedMangle(t, "while(1) { class X {} }", "for (; ; ) {\n  class X {\n  }\n}\n")
 	expectPrintedMangle(t, "while(1) { function x() {} }", "for (; ; )\n  var x = function() {\n  };\n")
@@ -3997,17 +3997,17 @@ func TestMangleIf(t *testing.T) {
 	expectPrintedNormalAndMangle(t, "if (a) if (b) throw c", "if (a) {\n  if (b) throw c;\n}\n", "if (a && b) throw c;\n")
 
 	expectPrintedMangle(t, "if (true) { let a = b; if (c) throw d }",
-		"{\n  let a = b;\n  if (c) throw d;\n}\n")
+		"if (b, c) throw d;\n")
 	expectPrintedMangle(t, "if (true) { if (a) throw b; if (c) throw d }",
 		"if (a) throw b;\nif (c) throw d;\n")
 
 	expectPrintedMangle(t, "if (false) throw a; else { let b = c; if (d) throw e }",
-		"{\n  let b = c;\n  if (d) throw e;\n}\n")
+		"if (c, d) throw e;\n")
 	expectPrintedMangle(t, "if (false) throw a; else { if (b) throw c; if (d) throw e }",
 		"if (b) throw c;\nif (d) throw e;\n")
 
 	expectPrintedMangle(t, "if (a) { if (b) throw c; else { let d = e; if (f) throw g } }",
-		"if (a) {\n  if (b) throw c;\n  {\n    let d = e;\n    if (f) throw g;\n  }\n}\n")
+		"if (a) {\n  if (b) throw c;\n  if (e, f) throw g;\n}\n")
 	expectPrintedMangle(t, "if (a) { if (b) throw c; else if (d) throw e; else if (f) throw g }",
 		"if (a) {\n  if (b) throw c;\n  if (d) throw e;\n  if (f) throw g;\n}\n")
 
@@ -5182,7 +5182,7 @@ func TestMangleInlineLocals(t *testing.T) {
 			"function wrapper(arg0, arg1) {"+strings.ReplaceAll("\n"+b, "\n", "\n  ")+"\n}\n")
 	}
 
-	check("var x = 1; return x", "var x = 1;\nreturn x;")
+	check("var x = 1; return x", "return 1;")
 	check("let x = 1; return x", "return 1;")
 	check("const x = 1; return x", "return 1;")
 
@@ -5269,7 +5269,7 @@ func TestMangleInlineLocals(t *testing.T) {
 	check("let x = arg0; return y ? x : z;", "let x = arg0;\nreturn y ? x : z;")
 	check("let x = arg0; return y ? z : x;", "let x = arg0;\nreturn y ? z : x;")
 	check("let x = arg0; return (arg1 ? 1 : 2) ? x : 3;", "return arg0;")
-	check("let x = arg0; return (arg1 ? 1 : 2) ? 3 : x;", "let x = arg0;\nreturn 3;")
+	check("let x = arg0; return (arg1 ? 1 : 2) ? 3 : x;", "return 3;")
 	check("let x = arg0; return (arg1 ? y : 1) ? x : 2;", "let x = arg0;\nreturn !arg1 || y ? x : 2;")
 	check("let x = arg0; return (arg1 ? 1 : y) ? x : 2;", "let x = arg0;\nreturn arg1 || y ? x : 2;")
 	check("let x = arg0; return (arg1 ? y : 1) ? 2 : x;", "let x = arg0;\nreturn !arg1 || y ? 2 : x;")
@@ -5440,8 +5440,8 @@ func TestTrimCodeInDeadControlFlow(t *testing.T) {
 	expectPrintedMangle(t, "if (1) a(); else { switch (1) { case 1: b() } }", "a();\n")
 
 	expectPrintedMangle(t, "if (0) {let a = 1} else a()", "a();\n")
-	expectPrintedMangle(t, "if (1) {let a = 1} else a()", "{\n  let a = 1;\n}\n")
-	expectPrintedMangle(t, "if (0) a(); else {let a = 1}", "{\n  let a = 1;\n}\n")
+	expectPrintedMangle(t, "if (1) {let a = 1} else a()", "")
+	expectPrintedMangle(t, "if (0) a(); else {let a = 1}", "")
 	expectPrintedMangle(t, "if (1) a(); else {let a = 1}", "a();\n")
 
 	expectPrintedMangle(t, "if (1) a(); else { var a = b }", "if (1) a();\nelse\n  var a;\n")

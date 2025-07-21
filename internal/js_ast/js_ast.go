@@ -1288,6 +1288,9 @@ type Scope struct {
 	Replaced  []ScopeMember
 	Generated []ast.Ref
 
+	// Record symbols used in the current scope
+	Used map[ast.Ref]uint32
+
 	// The location of the "use strict" directive for ExplicitStrictMode
 	UseStrictLoc logger.Loc
 
