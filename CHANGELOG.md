@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+* Update Go from 1.23.10 to 1.23.11 ([#4257](https://github.com/evanw/esbuild/issues/4257), [#4258](https://github.com/evanw/esbuild/pull/4258)
+
+    This should have no effect on existing code as this version change does not change Go's operating system support. It may remove certain reports from vulnerability scanners that detect which version of the Go compiler esbuild uses. Fixes vulnerability CVE-2025-4674.
+
+
 ## 0.25.8
 
 * Fix another TypeScript parsing edge case ([#4248](https://github.com/evanw/esbuild/issues/4248))
