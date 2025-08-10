@@ -10277,6 +10277,24 @@ func (p *parser) keepClassOrFnSymbolName(loc logger.Loc, expr js_ast.Expr, name 
 	}}
 }
 
+// isSimplePureExpr returns true for expressions that are side-effect free
+func isSimplePureExpr(expr js_ast.Expr) bool {
+	switch e := expr.Data.(type) {
+	case *js_ast.ENull, *js_ast.EUndefined, *js_ast.EBoolean, *js_ast.ENumber, *js_ast.EBigInt, *js_ast.EString:
+		// Literal values are always pure
+		return true
+	case *js_ast.EBinary:
+		// Simple arithmetic operations are pure if both operands are pure literals
+		switch e.Op {
+		case js_ast.BinOpAdd, js_ast.BinOpSub, js_ast.BinOpMul, js_ast.BinOpDiv, js_ast.BinOpRem,
+			js_ast.BinOpPow, js_ast.BinOpLt, js_ast.BinOpGt, js_ast.BinOpLe, js_ast.BinOpGe,
+			js_ast.BinOpLooseEq, js_ast.BinOpLooseNe, js_ast.BinOpStrictEq, js_ast.BinOpStrictNe:
+			return isSimplePureExpr(e.Left) && isSimplePureExpr(e.Right)
+		}
+	}
+	return false
+}
+
 func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_ast.Stmt {
 	// By default any statement ends the const local prefix
 	wasAfterAfterConstLocalPrefix := p.currentScope.IsAfterConstLocalPrefix
@@ -10748,6 +10766,11 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		}
 
 	case *js_ast.SExpr:
+		// Pure expression statements do not end the const local prefix
+		if isSimplePureExpr(s.Value) {
+			p.currentScope.IsAfterConstLocalPrefix = wasAfterAfterConstLocalPrefix
+		}
+
 		shouldTrimUnsightlyPrimitives := !p.options.minifySyntax && !isUnsightlyPrimitive(s.Value.Data)
 		p.stmtExprValue = s.Value.Data
 		s.Value = p.visitExpr(s.Value)
