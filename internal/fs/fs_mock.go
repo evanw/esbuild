@@ -30,11 +30,10 @@ func MockFS(input map[string]string, kind MockKind, absWorkingDir string) FS {
 	files := make(map[string]string)
 
 	for k, v := range input {
-		key := k
+		files[k] = v
 		if kind == MockWindows {
-			key = "C:" + strings.ReplaceAll(key, "/", "\\")
+			k = win2unix(k)
 		}
-		files[key] = v
 		original := k
 
 		// Build the directory map
@@ -42,7 +41,7 @@ func MockFS(input map[string]string, kind MockKind, absWorkingDir string) FS {
 			kDir := path.Dir(k)
 			key := kDir
 			if kind == MockWindows {
-				key = "C:" + strings.ReplaceAll(key, "/", "\\")
+				key = unix2win(key)
 			}
 			dir, ok := dirs[key]
 			if !ok {

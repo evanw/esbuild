@@ -942,10 +942,10 @@ func TestTsconfigJsonExtendsAbsolute(t *testing.T) {
 
 	tsconfig_suite.expectBundledWindows(t, bundled{
 		files: map[string]string{
-			"/Users/user/project/entry.jsx": `
+			"C:\\Users\\user\\project\\entry.jsx": `
 				console.log(<div/>, <></>)
 			`,
-			"/Users/user/project/tsconfig.json": `
+			"C:\\Users\\user\\project\\tsconfig.json": `
 				{
 					"extends": "C:\\Users\\user\\project\\base.json",
 					"compilerOptions": {
@@ -953,7 +953,7 @@ func TestTsconfigJsonExtendsAbsolute(t *testing.T) {
 					}
 				}
 			`,
-			"/Users/user/project/base.json": `
+			"C:\\Users\\user\\project\\base.json": `
 				{
 					"compilerOptions": {
 						"jsxFactory": "baseFactory",
@@ -962,10 +962,10 @@ func TestTsconfigJsonExtendsAbsolute(t *testing.T) {
 				}
 			`,
 		},
-		entryPaths: []string{"/Users/user/project/entry.jsx"},
+		entryPaths: []string{"C:\\Users\\user\\project\\entry.jsx"},
 		options: config.Options{
 			Mode:          config.ModeBundle,
-			AbsOutputFile: "/out.js",
+			AbsOutputFile: "C:\\out.js",
 		},
 	})
 }

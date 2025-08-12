@@ -74,10 +74,10 @@ func TestMockFSBasicUnix(t *testing.T) {
 
 func TestMockFSBasicWindows(t *testing.T) {
 	fs := MockFS(map[string]string{
-		"/README.md":    "// README.md",
-		"/package.json": "// package.json",
-		"/src/index.js": "// src/index.js",
-		"/src/util.js":  "// src/util.js",
+		"C:\\README.md":     "// README.md",
+		"C:\\package.json":  "// package.json",
+		"C:\\src\\index.js": "// src/index.js",
+		"C:\\src\\util.js":  "// src/util.js",
 	}, MockWindows, "C:\\")
 
 	// Test a missing file

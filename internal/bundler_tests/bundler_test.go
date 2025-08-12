@@ -72,6 +72,47 @@ type suite struct {
 func (s *suite) expectBundled(t *testing.T, args bundled) {
 	t.Helper()
 	s.__expectBundledImpl(t, args, fs.MockUnix)
+
+	// Handle conversion to Windows-style paths
+	{
+		files := make(map[string]string)
+		for k, v := range args.files {
+			files[unix2win(k)] = v
+		}
+		args.files = files
+
+		args.entryPaths = append([]string{}, args.entryPaths...)
+		for i, entry := range args.entryPaths {
+			args.entryPaths[i] = unix2win(entry)
+		}
+		args.absWorkingDir = unix2win(args.absWorkingDir)
+
+		args.options.InjectPaths = append([]string{}, args.options.InjectPaths...)
+		for i, absPath := range args.options.InjectPaths {
+			args.options.InjectPaths[i] = unix2win(absPath)
+		}
+
+		aliases := make(map[string]string)
+		for k, v := range args.options.PackageAliases {
+			if strings.HasPrefix(v, "/") {
+				v = unix2win(v)
+			}
+			aliases[k] = v
+		}
+		args.options.PackageAliases = aliases
+
+		replace := make(map[string]bool)
+		for k, v := range args.options.ExternalSettings.PostResolve.Exact {
+			replace[unix2win(k)] = v
+		}
+		args.options.ExternalSettings.PostResolve.Exact = replace
+
+		args.options.AbsOutputFile = unix2win(args.options.AbsOutputFile)
+		args.options.AbsOutputBase = unix2win(args.options.AbsOutputBase)
+		args.options.AbsOutputDir = unix2win(args.options.AbsOutputDir)
+		args.options.TSConfigPath = unix2win(args.options.TSConfigPath)
+	}
+
 	s.__expectBundledImpl(t, args, fs.MockWindows)
 }
 
@@ -103,7 +144,11 @@ func (s *suite) __expectBundledImpl(t *testing.T, args bundled, fsKind fs.MockKi
 			args.options.ExtensionOrder = []string{".tsx", ".ts", ".jsx", ".js", ".css", ".json"}
 		}
 		if args.options.AbsOutputFile != "" {
-			args.options.AbsOutputDir = path.Dir(args.options.AbsOutputFile)
+			if fsKind == fs.MockWindows {
+				args.options.AbsOutputDir = unix2win(path.Dir(win2unix(args.options.AbsOutputFile)))
+			} else {
+				args.options.AbsOutputDir = path.Dir(args.options.AbsOutputFile)
+			}
 		}
 		if args.options.Mode == config.ModeBundle || (args.options.Mode == config.ModeConvertFormat && args.options.OutputFormat == config.FormatIIFE) {
 			// Apply this default to all tests since it was not configurable when the tests were written
@@ -123,40 +168,14 @@ func (s *suite) __expectBundledImpl(t *testing.T, args bundled, fsKind fs.MockKi
 		}
 		entryPoints = append(entryPoints, args.entryPathsAdvanced...)
 		if args.absWorkingDir == "" {
-			args.absWorkingDir = "/"
+			if fsKind == fs.MockWindows {
+				args.absWorkingDir = "C:\\"
+			} else {
+				args.absWorkingDir = "/"
+			}
 		}
 		if args.options.AbsOutputDir == "" {
 			args.options.AbsOutputDir = args.absWorkingDir // Match the behavior of the API in this case
-		}
-
-		// Handle conversion to Windows-style paths
-		if fsKind == fs.MockWindows {
-			for i, entry := range entryPoints {
-				entry.InputPath = unix2win(entry.InputPath)
-				entryPoints[i] = entry
-			}
-			args.absWorkingDir = unix2win(args.absWorkingDir)
-
-			for i, absPath := range args.options.InjectPaths {
-				args.options.InjectPaths[i] = unix2win(absPath)
-			}
-
-			for key, value := range args.options.PackageAliases {
-				if strings.HasPrefix(value, "/") {
-					args.options.PackageAliases[key] = unix2win(value)
-				}
-			}
-
-			replace := make(map[string]bool)
-			for k, v := range args.options.ExternalSettings.PostResolve.Exact {
-				replace[unix2win(k)] = v
-			}
-			args.options.ExternalSettings.PostResolve.Exact = replace
-
-			args.options.AbsOutputFile = unix2win(args.options.AbsOutputFile)
-			args.options.AbsOutputBase = unix2win(args.options.AbsOutputBase)
-			args.options.AbsOutputDir = unix2win(args.options.AbsOutputDir)
-			args.options.TSConfigPath = unix2win(args.options.TSConfigPath)
 		}
 
 		// Run the bundler
