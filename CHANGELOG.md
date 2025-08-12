@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+* Update the Go compiler from v1.23.12 to v1.25.3 ([#4208](https://github.com/evanw/esbuild/issues/4208), [#4311](https://github.com/evanw/esbuild/pull/4311))
+
+    This raises the operating system requirements for running esbuild:
+
+    * Linux: now requires a kernel version of 3.2 or later
+    * macOS: now requires macOS 12 (Monterey) or later
+
 ## 0.26.0
 
 * Enable trusted publishing ([#4281](https://github.com/evanw/esbuild/issues/4281))
