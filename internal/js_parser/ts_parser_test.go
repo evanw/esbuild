@@ -647,7 +647,7 @@ func TestTSSatisfies(t *testing.T) {
 	expectPrintedTS(t, "const t2 = { a: 1, b: 1 } satisfies I1;", "const t2 = { a: 1, b: 1 };\n")
 	expectPrintedTS(t, "const t3 = { } satisfies I1;", "const t3 = {};\n")
 	expectPrintedTS(t, "const t4: T1 = { a: 'a' } satisfies T1;", "const t4 = { a: \"a\" };\n")
-	expectPrintedTS(t, "const t5 = (m => m.substring(0)) satisfies T2;", "const t5 = (m) => m.substring(0);\n")
+	expectPrintedTS(t, "const t5 = (m => m.substring(0)) satisfies T2;", "const t5 = ((m) => m.substring(0));\n")
 	expectPrintedTS(t, "const t6 = [1, 2] satisfies [number, number];", "const t6 = [1, 2];\n")
 	expectPrintedTS(t, "let t7 = { a: 'test' } satisfies A;", "let t7 = { a: \"test\" };\n")
 	expectPrintedTS(t, "let t8 = { a: 'test', b: 'test' } satisfies A;", "let t8 = { a: \"test\", b: \"test\" };\n")
@@ -1688,7 +1688,7 @@ bar = 0 /* FOO */;
 `)
 
 	// https://github.com/evanw/esbuild/issues/3205
-	expectPrintedTS(t, "(() => { const enum Foo { A } () => Foo.A })", `() => {
+	expectPrintedTS(t, "() => { const enum Foo { A } () => Foo.A }", `() => {
   let Foo;
   ((Foo) => {
     Foo[Foo["A"] = 0] = "A";
@@ -1839,11 +1839,11 @@ func TestTSDecl(t *testing.T) {
 	expectParseErrorTS(t, "var a!, b", "<stdin>: ERROR: Expected \":\" but found \",\"\n")
 
 	expectPrinted(t, "a ? ({b}) => {} : c", "a ? ({ b }) => {\n} : c;\n")
-	expectPrinted(t, "a ? (({b}) => {}) : c", "a ? ({ b }) => {\n} : c;\n")
+	expectPrinted(t, "a ? (({b}) => {}) : c", "a ? (({ b }) => {\n}) : c;\n")
 	expectPrinted(t, "a ? (({b})) : c", "a ? { b } : c;\n")
 	expectParseError(t, "a ? (({b})) => {} : c", "<stdin>: ERROR: Invalid binding pattern\n")
 	expectPrintedTS(t, "a ? ({b}) => {} : c", "a ? ({ b }) => {\n} : c;\n")
-	expectPrintedTS(t, "a ? (({b}) => {}) : c", "a ? ({ b }) => {\n} : c;\n")
+	expectPrintedTS(t, "a ? (({b}) => {}) : c", "a ? (({ b }) => {\n}) : c;\n")
 	expectPrintedTS(t, "a ? (({b})) : c", "a ? { b } : c;\n")
 	expectParseErrorTS(t, "a ? (({b})) => {} : c", "<stdin>: ERROR: Invalid binding pattern\n")
 }
@@ -3150,12 +3150,12 @@ func TestTSJSX(t *testing.T) {
 	expectParseErrorTSX(t, "(<T>(x: X<Y>) => {}</Y></T>)", invalidWithHint)
 	expectParseErrorTSX(t, "(<T extends>(y) => {}</T>)", invalid)
 	expectParseErrorTSX(t, "(<T extends={false}>(y) => {}</T>)", invalid)
-	expectPrintedTSX(t, "(<T = X>(y) => {})", "(y) => {\n};\n")
-	expectPrintedTSX(t, "(<T extends X>(y) => {})", "(y) => {\n};\n")
-	expectPrintedTSX(t, "(<T extends X = Y>(y) => {})", "(y) => {\n};\n")
-	expectPrintedTSX(t, "(<T,>() => {})", "() => {\n};\n")
-	expectPrintedTSX(t, "(<T, X>(y) => {})", "(y) => {\n};\n")
-	expectPrintedTSX(t, "(<T, X>(y): (() => {}) => {})", "(y) => {\n};\n")
+	expectPrintedTSX(t, "(<T = X>(y) => {})", "((y) => {\n});\n")
+	expectPrintedTSX(t, "(<T extends X>(y) => {})", "((y) => {\n});\n")
+	expectPrintedTSX(t, "(<T extends X = Y>(y) => {})", "((y) => {\n});\n")
+	expectPrintedTSX(t, "(<T,>() => {})", "(() => {\n});\n")
+	expectPrintedTSX(t, "(<T, X>(y) => {})", "((y) => {\n});\n")
+	expectPrintedTSX(t, "(<T, X>(y): (() => {}) => {})", "((y) => {\n});\n")
 	expectParseErrorTSX(t, "(<T>() => {})", invalidWithHint+"<stdin>: ERROR: Unexpected end of file before a closing \"T\" tag\n<stdin>: NOTE: The opening \"T\" tag is here:\n")
 	expectParseErrorTSX(t, "(<T>(x: X<Y>) => {})", invalidWithHint+"<stdin>: ERROR: Unexpected end of file before a closing \"Y\" tag\n<stdin>: NOTE: The opening \"Y\" tag is here:\n")
 	expectParseErrorTSX(t, "(<T>(x: X<Y>) => {})</Y>", invalidWithHint+"<stdin>: ERROR: Unexpected end of file before a closing \"T\" tag\n<stdin>: NOTE: The opening \"T\" tag is here:\n")
@@ -3174,9 +3174,9 @@ func TestTSJSX(t *testing.T) {
 }
 
 func TestTSNoAmbiguousLessThan(t *testing.T) {
-	expectPrintedTSNoAmbiguousLessThan(t, "(<T,>() => {})", "() => {\n};\n")
-	expectPrintedTSNoAmbiguousLessThan(t, "(<T, X>() => {})", "() => {\n};\n")
-	expectPrintedTSNoAmbiguousLessThan(t, "(<T extends X>() => {})", "() => {\n};\n")
+	expectPrintedTSNoAmbiguousLessThan(t, "(<T,>() => {})", "(() => {\n});\n")
+	expectPrintedTSNoAmbiguousLessThan(t, "(<T, X>() => {})", "(() => {\n});\n")
+	expectPrintedTSNoAmbiguousLessThan(t, "(<T extends X>() => {})", "(() => {\n});\n")
 	expectParseErrorTSNoAmbiguousLessThan(t, "(<T>x)",
 		"<stdin>: ERROR: This syntax is not allowed in files with the \".mts\" or \".cts\" extension\n")
 	expectParseErrorTSNoAmbiguousLessThan(t, "(<T>() => {})",

@@ -998,7 +998,7 @@ var baz2_default = class _baz2_default extends x {
 };
 
 // outer.js
-var outer_default = function() {
+var outer_default = (function() {
   return __async(this, null, function* () {
     class y extends z {
       constructor() {
@@ -1010,7 +1010,7 @@ var outer_default = function() {
     }
     yield new y().foo()();
   });
-}();
+})();
 export {
   bar1_default as bar1,
   bar2_default as bar2,
@@ -1126,7 +1126,7 @@ var baz2_default = class _baz2_default extends x {
 };
 
 // outer.js
-var outer_default = function() {
+var outer_default = (function() {
   return __async(this, null, function* () {
     class y extends z {
       constructor() {
@@ -1138,7 +1138,7 @@ var outer_default = function() {
     }
     yield new y().foo()();
   });
-}();
+})();
 export {
   bar1_default as bar1,
   bar2_default as bar2,
@@ -3427,7 +3427,7 @@ var baz2_default = class _baz2_default extends x {
 };
 
 // outer.js
-var outer_default = function() {
+var outer_default = (function() {
   return __async(this, null, function* () {
     const _y = class _y extends z {
     };
@@ -3437,7 +3437,7 @@ var outer_default = function() {
     let y = _y;
     yield y.foo()();
   });
-}();
+})();
 export {
   bar1_default as bar1,
   bar2_default as bar2,
@@ -3545,7 +3545,7 @@ var baz2_default = class _baz2_default extends x {
 };
 
 // outer.js
-var outer_default = function() {
+var outer_default = (function() {
   return __async(this, null, function* () {
     const _y = class _y extends z {
     };
@@ -3555,7 +3555,7 @@ var outer_default = function() {
     let y = _y;
     yield y.foo()();
   });
-}();
+})();
 export {
   bar1_default as bar1,
   bar2_default as bar2,

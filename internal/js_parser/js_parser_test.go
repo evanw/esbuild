@@ -1580,6 +1580,10 @@ func TestFunction(t *testing.T) {
 	expectParseError(t, "switch (0) { case 1: let f; default: function f() {} }", redeclaredError)
 	expectParseError(t, "switch (0) { case 1: var f; default: function f() {} }", redeclaredError)
 	expectParseError(t, "switch (0) { case 1: var f; default: function *f() {} }", redeclaredError)
+
+	// Inject parentheses around IIFEs as they are an optimization hint for VMs
+	expectPrinted(t, "var x = function() { y() }()", "var x = (function() {\n  y();\n})();\n")
+	expectPrinted(t, "var x = (true && function() { y() })()", "var x = (function() {\n  y();\n})();\n")
 }
 
 func TestClass(t *testing.T) {
@@ -2331,12 +2335,12 @@ func TestAsync(t *testing.T) {
 	expectParseError(t, "new async => {}", "<stdin>: ERROR: Expected \";\" but found \"=>\"\n")
 	expectParseError(t, "new async () => {}", "<stdin>: ERROR: Expected \";\" but found \"=>\"\n")
 
-	expectPrinted(t, "(async x => y), z", "async (x) => y, z;\n")
+	expectPrinted(t, "(async x => y), z", "(async (x) => y), z;\n")
 	expectPrinted(t, "(async x => y, z)", "async (x) => y, z;\n")
-	expectPrinted(t, "(async x => (y, z))", "async (x) => (y, z);\n")
-	expectPrinted(t, "(async (x) => y), z", "async (x) => y, z;\n")
+	expectPrinted(t, "(async x => (y, z))", "(async (x) => (y, z));\n")
+	expectPrinted(t, "(async (x) => y), z", "(async (x) => y), z;\n")
 	expectPrinted(t, "(async (x) => y, z)", "async (x) => y, z;\n")
-	expectPrinted(t, "(async (x) => (y, z))", "async (x) => (y, z);\n")
+	expectPrinted(t, "(async (x) => (y, z))", "(async (x) => (y, z));\n")
 	expectPrinted(t, "async x => y, z", "async (x) => y, z;\n")
 	expectPrinted(t, "async x => (y, z)", "async (x) => (y, z);\n")
 	expectPrinted(t, "async (x) => y, z", "async (x) => y, z;\n")
@@ -2494,7 +2498,7 @@ func TestArrow(t *testing.T) {
 
 	expectPrinted(t, "x => function() {}", "(x) => function() {\n};\n")
 	expectPrinted(t, "(x) => function() {}", "(x) => function() {\n};\n")
-	expectPrinted(t, "(x => function() {})", "(x) => function() {\n};\n")
+	expectPrinted(t, "(x => function() {})", "((x) => function() {\n});\n")
 
 	expectPrinted(t, "(x = () => {}) => {}", "(x = () => {\n}) => {\n};\n")
 	expectPrinted(t, "async (x = () => {}) => {}", "async (x = () => {\n}) => {\n};\n")
@@ -4285,7 +4289,7 @@ func TestMangleNullOrUndefinedWithSideEffects(t *testing.T) {
 	expectPrintedNormalAndMangle(t, "x('' ?? 1)", "x(\"\");\n", "x(\"\");\n")
 	expectPrintedNormalAndMangle(t, "x(/./ ?? 1)", "x(/./);\n", "x(/./);\n")
 	expectPrintedNormalAndMangle(t, "x({} ?? 1)", "x({});\n", "x({});\n")
-	expectPrintedNormalAndMangle(t, "x((() => {}) ?? 1)", "x(() => {\n});\n", "x(() => {\n});\n")
+	expectPrintedNormalAndMangle(t, "x((() => {}) ?? 1)", "x((() => {\n}));\n", "x((() => {\n}));\n")
 	expectPrintedNormalAndMangle(t, "x(class {} ?? 1)", "x(class {\n});\n", "x(class {\n});\n")
 	expectPrintedNormalAndMangle(t, "x(function() {} ?? 1)", "x(function() {\n});\n", "x(function() {\n});\n")
 
@@ -4651,7 +4655,7 @@ func TestMangleIIFE(t *testing.T) {
 	expectPrintedNormalAndMangle(t, "(async () => { a() })()", "(async () => {\n  a();\n})();\n", "(async () => a())();\n")
 	expectPrintedNormalAndMangle(t, "(async () => { let b = a; b() })()", "(async () => {\n  let b = a;\n  b();\n})();\n", "(async () => a())();\n")
 
-	expectPrintedNormalAndMangle(t, "var a = (function() {})()", "var a = /* @__PURE__ */ function() {\n}();\n", "var a = /* @__PURE__ */ function() {\n}();\n")
+	expectPrintedNormalAndMangle(t, "var a = (function() {})()", "var a = /* @__PURE__ */ (function() {\n})();\n", "var a = /* @__PURE__ */ (function() {\n})();\n")
 	expectPrintedNormalAndMangle(t, "(function() {})()", "/* @__PURE__ */ (function() {\n})();\n", "")
 	expectPrintedNormalAndMangle(t, "(function*() {})()", "(function* () {\n})();\n", "")
 	expectPrintedNormalAndMangle(t, "(async function() {})()", "(async function() {\n})();\n", "")
@@ -4998,7 +5002,7 @@ func TestMangleUnused(t *testing.T) {
 	expectPrintedNormalAndMangle(t, "this", "this;\n", "")
 	expectPrintedNormalAndMangle(t, "/regex/", "/regex/;\n", "")
 	expectPrintedNormalAndMangle(t, "(function() {})", "(function() {\n});\n", "")
-	expectPrintedNormalAndMangle(t, "(() => {})", "() => {\n};\n", "")
+	expectPrintedNormalAndMangle(t, "(() => {})", "(() => {\n});\n", "")
 	expectPrintedNormalAndMangle(t, "import.meta", "import.meta;\n", "")
 
 	// Unary operators

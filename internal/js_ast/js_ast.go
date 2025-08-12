@@ -698,11 +698,19 @@ type EArrow struct {
 	HasRestArg bool
 	PreferExpr bool // Use shorthand if true and "Body" is a single return statement
 
+	// V8 uses parentheses as an optimization hint: https://v8.dev/blog/preparser#pife
+	IsParenthesized bool
+
 	// See: https://github.com/rollup/rollup/pull/5024
 	HasNoSideEffectsComment bool
 }
 
-type EFunction struct{ Fn Fn }
+type EFunction struct {
+	Fn Fn
+
+	// V8 uses parentheses as an optimization hint: https://v8.dev/blog/preparser#pife
+	IsParenthesized bool
+}
 
 type EClass struct{ Class Class }
 

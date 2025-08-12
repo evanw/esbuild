@@ -3505,7 +3505,12 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 			p.allowIn = true
 
 			value := p.parseExpr(js_ast.LLowest)
-			p.markExprAsParenthesized(value, loc, false)
+
+			// Don't consider the "@(...)" decorator syntax to be important parentheses to preserve
+			if (flags & exprFlagDecorator) == 0 {
+				p.markExprAsParenthesized(value, loc, false)
+			}
+
 			p.lexer.Expect(js_lexer.TCloseParen)
 
 			p.allowIn = oldAllowIn
@@ -11670,6 +11675,10 @@ func (p *parser) markExprAsParenthesized(value js_ast.Expr, openParenLoc logger.
 		e.IsParenthesized = true
 	case *js_ast.EObject:
 		e.IsParenthesized = true
+	case *js_ast.EFunction:
+		e.IsParenthesized = true
+	case *js_ast.EArrow:
+		e.IsParenthesized = true
 	}
 }
 
@@ -14987,7 +14996,12 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			storeThisArgForParentOptionalChain: e.OptionalChain == js_ast.OptionalChainStart || isParenthesizedOptionalChain,
 		})
 		e.Target = target
-		p.warnAboutImportNamespaceCall(e.Target, exprKindCall)
+		p.warnAboutImportNamespaceCall(target, exprKindCall)
+
+		// Automatically mark immediately-invoked function expressions for eager compilation
+		if fn, ok := target.Data.(*js_ast.EFunction); ok {
+			fn.IsParenthesized = true
+		}
 
 		hasSpread := false
 		oldIsControlFlowDead := p.isControlFlowDead
