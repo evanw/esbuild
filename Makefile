@@ -1,4 +1,5 @@
 ESBUILD_VERSION = $(shell cat version.txt)
+GO_VERSION = $(shell cat go.version)
 
 # Strip debug info
 GO_FLAGS += "-ldflags=-s -w"
@@ -20,7 +21,7 @@ test-all:
 	@$(MAKE) --no-print-directory -j6 test-common test-deno ts-type-tests test-wasm-node test-wasm-browser lib-typecheck test-yarnpnp
 
 check-go-version:
-	@go version | grep ' go1\.23\.10 ' || (echo 'Please install Go version 1.23.10' && false)
+	@go version | grep -F " go$(GO_VERSION) " || (echo 'Please install Go version $(GO_VERSION)' && false)
 
 # Note: Don't add "-race" here by default. The Go race detector is currently
 # only supported on the following configurations:
@@ -50,7 +51,7 @@ fmt-go:
 
 no-filepath:
 	@! grep --color --include '*.go' -r '"path/filepath"' cmd internal pkg || ( \
-		echo 'error: Use of "path/filepath" is disallowed. See http://golang.org/issue/43768.' && false)
+		echo 'error: Use of "path/filepath" is disallowed. See https://golang.org/issue/43768' && false)
 
 # This uses "env -i" to run in a clean environment with no environment
 # variables. It then adds some environment variables back as needed.

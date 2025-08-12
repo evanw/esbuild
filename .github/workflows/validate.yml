@@ -15,10 +15,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      - name: Read go.version
+        run: |
+          echo "GO_VERSION=$(cat go.version)" >> $GITHUB_ENV
+
       - name: Set up Go 1.x
         uses: actions/setup-go@v3
         with:
-          go-version: 1.23.10
+          go-version: ${{ env.GO_VERSION }}
         id: go
 
       - name: Validation checks
