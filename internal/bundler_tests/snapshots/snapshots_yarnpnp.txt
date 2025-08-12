@@ -1,0 +1,10 @@
+TestTsconfigPackageJsonExportsYarnPnP
+---------- /Users/user/project/out.js ----------
+// packages/app/index.tsx
+console.log(/* @__PURE__ */ success("div", null));
+
+================================================================================
+TestTsconfigStackOverflowYarnPnP
+---------- /Users/user/project/out.js ----------
+// entry.jsx
+console.log(/* @__PURE__ */ success("div", null));
