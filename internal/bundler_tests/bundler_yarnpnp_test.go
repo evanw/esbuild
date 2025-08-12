@@ -150,3 +150,57 @@ func TestTsconfigStackOverflowYarnPnP(t *testing.T) {
 		},
 	})
 }
+func TestWindowsCrossVolumeReferenceYarnPnP(t *testing.T) {
+	yarnpnp_suite.expectBundledWindows(t, bundled{
+		files: map[string]string{
+			"D:\\project\\entry.jsx": `
+				import * as React from 'react'
+				console.log(<div />)
+			`,
+			"C:\\Users\\user\\AppData\\Local\\Yarn\\Berry\\cache\\react.zip\\node_modules\\react\\index.js": `
+				export function createElement() {}
+			`,
+			"D:\\project\\.pnp.data.json": `
+				{
+					"packageRegistryData": [
+						[null, [
+							[null, {
+								"packageLocation": "./",
+								"packageDependencies": [
+									["react", "npm:19.1.1"],
+									["project", "workspace:."]
+								],
+								"linkType": "SOFT"
+							}]
+						]],
+						["react", [
+							["npm:19.1.1", {
+								"packageLocation": "../../C:/Users/user/AppData/Local/Yarn/Berry/cache/react.zip/node_modules/react/",
+								"packageDependencies": [
+									["react", "npm:19.1.1"]
+								],
+								"linkType": "HARD"
+							}]
+						]],
+						["project", [
+							["workspace:.", {
+								"packageLocation": "./",
+								"packageDependencies": [
+									["react", "npm:19.1.1"],
+									["project", "workspace:."]
+								],
+								"linkType": "SOFT"
+							}]
+						]]
+					]
+				}
+			`,
+		},
+		entryPaths:    []string{"D:\\project\\entry.jsx"},
+		absWorkingDir: "D:\\project",
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "D:\\project\\out.js",
+		},
+	})
+}

@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+* Better support building projects that use Yarn on Windows ([#3131](https://github.com/evanw/esbuild/issues/3131), [#3663](https://github.com/evanw/esbuild/issues/3663))
+
+    With this release, you can now use esbuild to bundle projects that use Yarn Plug'n'Play on Windows on drives other than the `C:` drive. The problem was as follows:
+
+    1. Yarn in Plug'n'Play mode on Windows stores its global module cache on the `C:` drive
+    2. Some developers put their projects on the `D:` drive
+    3. Yarn generates relative paths that use `../..` to get from the project directory to the cache directory
+    4. Windows-style paths don't support directory traversal between drives via `..` (so `D:\..` is just `D:`)
+    5. I didn't have access to a Windows machine for testing this edge case
+
+    Yarn works around this edge case by pretending Windows-style paths beginning with `C:\` are actually Unix-style paths beginning with `/C:/`, so the `../..` path segments are able to navigate across drives inside Yarn's implementation. This was broken for a long time in esbuild but I finally got access to a Windows machine and was able to debug and fix this edge case. So you should now be able to bundle these projects with esbuild.
+
 * Preserve parentheses around function expressions ([#4252](https://github.com/evanw/esbuild/issues/4252))
 
     The V8 JavaScript VM uses parentheses around function expressions as an optimization hint to immediately compile the function. Otherwise the function would be lazily-compiled, which has additional overhead if that function is always called immediately as lazy compilation involves parsing the function twice. You can read [V8's blog post about this](https://v8.dev/blog/preparser) for more details.

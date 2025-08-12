@@ -8,3 +8,13 @@ TestTsconfigStackOverflowYarnPnP
 ---------- /Users/user/project/out.js ----------
 // entry.jsx
 console.log(/* @__PURE__ */ success("div", null));
+
+================================================================================
+TestWindowsCrossVolumeReferenceYarnPnP
+---------- D:/project/out.js ----------
+// C:/Users/user/AppData/Local/Yarn/Berry/cache/react.zip/node_modules/react/index.js
+function createElement() {
+}
+
+// entry.jsx
+console.log(/* @__PURE__ */ createElement("div", null));

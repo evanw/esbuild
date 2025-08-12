@@ -4,6 +4,7 @@ package resolver
 
 import (
 	"fmt"
+	"path"
 	"regexp"
 	"strings"
 	"syscall"
@@ -278,7 +279,25 @@ func (r resolverQuery) resolveToUnqualified(specifier string, parentURL string, 
 	}
 
 	// Return path.resolve(manifest.dirPath, dependencyPkg.packageLocation, modulePath)
-	pkgDirPath := r.fs.Join(manifest.absDirPath, dependencyPkg.packageLocation)
+	absDirPath := manifest.absDirPath
+	isWindows := !strings.HasPrefix(absDirPath, "/")
+	if isWindows {
+		// Yarn converts Windows-style paths with volume labels into Unix-style
+		// paths with a "/" prefix for the purpose of joining them together here.
+		// So "C:\foo\bar.txt" becomes "/C:/foo/bar.txt". This is very important
+		// because Yarn also stores a single global cache on the "C:" drive, many
+		// developers do their work on the "D:" drive, and Yarn uses "../C:" to
+		// traverse between the "D:" drive and the "C:" drive. Windows doesn't
+		// allow you to do that ("D:\.." is just "D:\") so without temporarily
+		// swapping to Unix-style paths here, esbuild would otherwise fail in this
+		// case while Yarn itself would succeed.
+		absDirPath = "/" + strings.ReplaceAll(absDirPath, "\\", "/")
+	}
+	pkgDirPath := path.Join(absDirPath, dependencyPkg.packageLocation)
+	if isWindows && strings.HasPrefix(pkgDirPath, "/") {
+		// Convert the Unix-style path back into a Windows-style path afterwards
+		pkgDirPath = strings.ReplaceAll(pkgDirPath[1:], "\\", "//")
+	}
 	if r.debugLogs != nil {
 		r.debugLogs.addNote(fmt.Sprintf("  Resolved %q via Yarn PnP to %q with subpath %q", specifier, pkgDirPath, modulePath))
 	}
