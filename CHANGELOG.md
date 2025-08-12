@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.25.9
 
 * Better support building projects that use Yarn on Windows ([#3131](https://github.com/evanw/esbuild/issues/3131), [#3663](https://github.com/evanw/esbuild/issues/3663))
 
