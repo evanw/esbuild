@@ -1,6 +1,12 @@
 ESBUILD_VERSION = $(shell cat version.txt)
 GO_VERSION = $(shell cat go.version)
 
+# Stash the "node" executable because otherwise it breaks on GitHub Actions with Windows when "PATH" is changed
+NODE = $(shell which node)
+GO_DIR = $(shell pwd)/go/$(GO_VERSION)/go
+PATH_SEPARATOR = $(shell if uname | grep -qE "MINGW|WIN32|CYGWIN"; then echo ";"; else echo ":"; fi)
+GO_COMPILER = PATH="$(GO_DIR)/bin$(PATH_SEPARATOR)$(PATH)" GOROOT="$(GO_DIR)" CGO_ENABLED=0
+
 # Strip debug info
 GO_FLAGS += "-ldflags=-s -w"
 
@@ -48,6 +54,32 @@ vet-go:
 
 fmt-go:
 	test -z "$(shell go fmt ./cmd/... ./internal/... ./pkg/... )"
+
+go-compiler: go/$(GO_VERSION)
+
+# Build a custom version of the Go compiler that omits buildinfo from the
+# final executable (since there is no command-line option to disable this).
+# This is done in an attempt to avoid poorly-implemented "security" tools
+# from breaking esbuild for users solely on the basis of what version of
+# Go esbuild was compiled with.
+#
+# Most (all?) Go-related security tooling effectivelly runs the command
+# "go version ./esbuild" and then creates a false-positive report for
+# esbuild for every single CVE in Go's expansive standard library. There is
+# no consideration for whether or not the corresponding API is ever actually
+# used by esbuild. These reports are harmful to users as they prevent users
+# from using esbuild in enterprise environments where these tools are
+# mandatory.
+#
+# These reports are all false-positives because esbuild is not a security
+# boundary. It's just a tool to transform trusted text (your source code)
+# into other text, and a local development server that serves a read-only
+# view of your source code and is not intended for production use.
+go/$(GO_VERSION):
+	mkdir -p go/$(GO_VERSION) && cd go/$(GO_VERSION) && curl -LO https://go.dev/dl/go$(GO_VERSION).src.tar.gz && tar xzf go$(GO_VERSION).src.tar.gz
+	cd go/$(GO_VERSION)/go && grep -qF "ctxt.buildinfo()" src/cmd/link/internal/ld/main.go # Make sure this call is still there
+	cd go/$(GO_VERSION)/go/src/cmd/link/internal/ld && sed "s/ctxt.buildinfo/\\/\\/ctxt.buildinfo/" main.go > temp && mv temp main.go
+	cd go/$(GO_VERSION)/go/src && if uname | grep -qE "MINGW|WIN32|CYGWIN"; then ./make.bat; else ./make.bash; fi
 
 no-filepath:
 	@! grep --color --include '*.go' -r '"path/filepath"' cmd internal pkg || ( \
@@ -284,7 +316,7 @@ test-yarnpnp: platform-wasm
 version-go:
 	node scripts/esbuild.js --update-version-go
 
-platform-all:
+platform-all: go-compiler
 	@$(MAKE) --no-print-directory -j4 \
 		platform-aix-ppc64 \
 		platform-android-arm \
@@ -317,28 +349,28 @@ platform-all:
 		platform-win32-ia32 \
 		platform-win32-x64
 
-platform-win32-x64: version-go
+platform-win32-x64: version-go go-compiler
 	node scripts/esbuild.js npm/@esbuild/win32-x64/package.json --version
-	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build $(GO_FLAGS) -o npm/@esbuild/win32-x64/esbuild.exe ./cmd/esbuild
+	$(GO_COMPILER) GOOS=windows GOARCH=amd64 go build $(GO_FLAGS) -o npm/@esbuild/win32-x64/esbuild.exe ./cmd/esbuild
 
-platform-win32-ia32: version-go
+platform-win32-ia32: version-go go-compiler
 	node scripts/esbuild.js npm/@esbuild/win32-ia32/package.json --version
-	CGO_ENABLED=0 GOOS=windows GOARCH=386 go build $(GO_FLAGS) -o npm/@esbuild/win32-ia32/esbuild.exe ./cmd/esbuild
+	$(GO_COMPILER) GOOS=windows GOARCH=386 go build $(GO_FLAGS) -o npm/@esbuild/win32-ia32/esbuild.exe ./cmd/esbuild
 
-platform-win32-arm64: version-go
+platform-win32-arm64: version-go go-compiler
 	node scripts/esbuild.js npm/@esbuild/win32-arm64/package.json --version
-	CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build $(GO_FLAGS) -o npm/@esbuild/win32-arm64/esbuild.exe ./cmd/esbuild
+	$(GO_COMPILER) GOOS=windows GOARCH=arm64 go build $(GO_FLAGS) -o npm/@esbuild/win32-arm64/esbuild.exe ./cmd/esbuild
 
-platform-wasi-preview1: version-go
+platform-wasi-preview1: version-go go-compiler
 	node scripts/esbuild.js npm/@esbuild/wasi-preview1/package.json --version
-	CGO_ENABLED=0 GOOS=wasip1 GOARCH=wasm go build $(GO_FLAGS) -o npm/@esbuild/wasi-preview1/esbuild.wasm ./cmd/esbuild
+	$(GO_COMPILER) GOOS=wasip1 GOARCH=wasm go build $(GO_FLAGS) -o npm/@esbuild/wasi-preview1/esbuild.wasm ./cmd/esbuild
 
-platform-unixlike: version-go
+platform-unixlike: version-go go-compiler
 	@test -n "$(GOOS)" || (echo "The environment variable GOOS must be provided" && false)
 	@test -n "$(GOARCH)" || (echo "The environment variable GOARCH must be provided" && false)
 	@test -n "$(NPMDIR)" || (echo "The environment variable NPMDIR must be provided" && false)
 	node scripts/esbuild.js "$(NPMDIR)/package.json" --version
-	CGO_ENABLED=0 GOOS="$(GOOS)" GOARCH="$(GOARCH)" go build $(GO_FLAGS) -o "$(NPMDIR)/bin/esbuild" ./cmd/esbuild
+	$(GO_COMPILER) GOOS="$(GOOS)" GOARCH="$(GOARCH)" go build $(GO_FLAGS) -o "$(NPMDIR)/bin/esbuild" ./cmd/esbuild
 
 platform-android-x64: platform-wasm
 	node scripts/esbuild.js npm/@esbuild/android-x64/package.json --version
@@ -409,16 +441,16 @@ platform-linux-s390x:
 platform-sunos-x64:
 	@$(MAKE) --no-print-directory GOOS=illumos GOARCH=amd64 NPMDIR=npm/@esbuild/sunos-x64 platform-unixlike
 
-platform-wasm: esbuild
+platform-wasm: esbuild go-compiler
 	node scripts/esbuild.js npm/esbuild-wasm/package.json --version
-	node scripts/esbuild.js ./esbuild --wasm
+	$(GO_COMPILER) "$(NODE)" scripts/esbuild.js ./esbuild --wasm
 
 platform-neutral: esbuild
 	node scripts/esbuild.js npm/esbuild/package.json --version
 	node scripts/esbuild.js ./esbuild --neutral
 
-platform-deno: platform-wasm
-	node scripts/esbuild.js ./esbuild --deno
+platform-deno: platform-wasm go-compiler
+	$(GO_COMPILER) "$(NODE)" scripts/esbuild.js ./esbuild --deno
 
 publish-all: check-go-version
 	# Make sure the npm directory is pristine (including .gitignored files) since it will be published
