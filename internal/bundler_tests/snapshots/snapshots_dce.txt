@@ -135,7 +135,7 @@ const variable = !1;
 ================================================================================
 TestConstValueInliningNoBundle
 ---------- /out/top-level.js ----------
-const n_keep = null, u_keep = void 0, i_keep = 1234567, f_keep = 123.456, s_keep = "";
+const n_keep = null, u_keep = void 0, i_keep = 1234567, f_keep = 123.456, s_keep = "abc";
 console.log(
   // These are doubled to avoid the "inline const/let into next statement if used once" optimization
   null,
@@ -146,13 +146,13 @@ console.log(
   1234567,
   123.456,
   123.456,
-  s_keep,
-  s_keep
+  "abc",
+  "abc"
 );
 
 ---------- /out/nested-block.js ----------
 {
-  const s_keep = "";
+  const s_keep = "Long strings are not inlined as constants";
   console.log(
     // These are doubled to avoid the "inline const/let into next statement if used once" optimization
     null,
@@ -163,6 +163,8 @@ console.log(
     1234567,
     123.456,
     123.456,
+    "abc",
+    "abc",
     s_keep,
     s_keep
   );
@@ -170,7 +172,7 @@ console.log(
 
 ---------- /out/nested-function.js ----------
 function nested() {
-  const s_keep = "";
+  const s_keep = "Long strings are not inlined as constants";
   console.log(
     // These are doubled to avoid the "inline const/let into next statement if used once" optimization
     null,
@@ -181,6 +183,8 @@ function nested() {
     1234567,
     123.456,
     123.456,
+    "abc",
+    "abc",
     s_keep,
     s_keep
   );
@@ -263,6 +267,37 @@ function foo() {
 }
 
 ================================================================================
+TestCrossModuleConstantFoldingComputedPropertyName
+---------- /out/enum-entry.js ----------
+// enum-entry.ts
+console.log({
+  123: 123 /* a */,
+  abc: "abc" /* b */
+});
+var Foo = class {
+  ["__proto__"] = {};
+  ["prototype"] = {};
+  ["constructor"]() {
+  }
+};
+
+---------- /out/const-entry.js ----------
+// const-constants.js
+var proto = "__proto__", ptype = "prototype", ctor = "constructor";
+
+// const-entry.js
+console.log({
+  456: 456,
+  xyz: "xyz"
+});
+var Foo = class {
+  [proto] = {};
+  [ptype] = {};
+  [ctor]() {
+  }
+};
+
+================================================================================
 TestCrossModuleConstantFoldingNumber
 ---------- /out/enum-entry.js ----------
 // enum-entry.ts
@@ -275,7 +310,7 @@ console.log([
 ], [
   9,
   -3,
-  3 /* a */ * 6 /* b */,
+  18,
   3 /* a */ / 6 /* b */,
   3 /* a */ % 6 /* b */,
   3 /* a */ ** 6 /* b */
@@ -315,7 +350,7 @@ console.log([
 ], [
   9,
   -3,
-  3 * 6,
+  18,
   3 / 6,
   3 % 6,
   3 ** 6
@@ -377,38 +412,32 @@ console.log([
 ]);
 
 ---------- /out/const-entry.js ----------
-// const-constants.js
-var a = "foo", b = "bar";
-
 // const-entry.js
 console.log([
-  typeof b
+  typeof "bar"
 ], [
-  a + b
+  "foobar"
 ], [
-  a < b,
-  a > b,
-  a <= b,
-  a >= b,
-  a == b,
-  a != b,
-  a === b,
-  a !== b
+  !1,
+  !0,
+  !1,
+  !0,
+  !1,
+  !0,
+  !1,
+  !0
 ], [
-  a && b,
-  a || b,
-  a ?? b,
-  a ? "y" : "n",
-  b ? "n" : "y"
+  "bar",
+  "foo",
+  "foo",
+  "y",
+  "n"
 ]);
 
 ---------- /out/nested-entry.js ----------
-// nested-constants.ts
-var a = "foo", b = "bar", c = "baz";
-
 // nested-entry.ts
 console.log({
-  "should be foobarbaz": a + b + c,
+  "should be foobarbaz": "foobarbaz",
   "should be FOOBARBAZ": "FOOBARBAZ"
 });
 

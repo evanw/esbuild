@@ -2859,7 +2859,7 @@ func TestConstValueInliningNoBundle(t *testing.T) {
 				const u_keep = undefined
 				const i_keep = 1234567
 				const f_keep = 123.456
-				const s_keep = ''
+				const s_keep = 'abc'
 
 				// Values should still be inlined
 				console.log(
@@ -2877,13 +2877,15 @@ func TestConstValueInliningNoBundle(t *testing.T) {
 					const REMOVE_u = undefined
 					const REMOVE_i = 1234567
 					const REMOVE_f = 123.456
-					const s_keep = '' // String inlining is intentionally not supported right now
+					const REMOVE_s = 'abc' // String inlining is intentionally not supported right now
+					const s_keep = 'Long strings are not inlined as constants'
 					console.log(
 						// These are doubled to avoid the "inline const/let into next statement if used once" optimization
 						REMOVE_n, REMOVE_n,
 						REMOVE_u, REMOVE_u,
 						REMOVE_i, REMOVE_i,
 						REMOVE_f, REMOVE_f,
+						REMOVE_s, REMOVE_s,
 						s_keep, s_keep,
 					)
 				}
@@ -2894,13 +2896,15 @@ func TestConstValueInliningNoBundle(t *testing.T) {
 					const REMOVE_u = undefined
 					const REMOVE_i = 1234567
 					const REMOVE_f = 123.456
-					const s_keep = '' // String inlining is intentionally not supported right now
+					const REMOVE_s = 'abc' // String inlining is intentionally not supported right now
+					const s_keep = 'Long strings are not inlined as constants'
 					console.log(
 						// These are doubled to avoid the "inline const/let into next statement if used once" optimization
 						REMOVE_n, REMOVE_n,
 						REMOVE_u, REMOVE_u,
 						REMOVE_i, REMOVE_i,
 						REMOVE_f, REMOVE_f,
+						REMOVE_s, REMOVE_s,
 						s_keep, s_keep,
 					)
 				}
@@ -3467,6 +3471,63 @@ func TestCrossModuleConstantFoldingString(t *testing.T) {
 			"/enum-entry.ts",
 			"/const-entry.js",
 			"/nested-entry.ts",
+		},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			MinifySyntax: true,
+		},
+	})
+}
+
+func TestCrossModuleConstantFoldingComputedPropertyName(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/enum-constants.ts": `
+				export enum x {
+					a = 123,
+					b = 'abc',
+					proto = '__proto__',
+					ptype = 'prototype',
+					ctor = 'constructor',
+				}
+			`,
+			"/enum-entry.ts": `
+				import { x } from './enum-constants'
+				console.log({
+					[x.a]: x.a,
+					[x.b]: x.b,
+				})
+				class Foo {
+					[x.proto] = {};
+					[x.ptype] = {};
+					[x.ctor]() {};
+				}
+			`,
+
+			"/const-constants.js": `
+				export const a = 456
+				export const b = 'xyz'
+				export const proto = '__proto__'
+				export const ptype = 'prototype'
+				export const ctor = 'constructor'
+			`,
+			"/const-entry.js": `
+				import { a, b, proto, ptype, ctor } from './const-constants'
+				console.log({
+					[a]: a,
+					[b]: b,
+				})
+				class Foo {
+					[proto] = {};
+					[ptype] = {};
+					[ctor]() {};
+				}
+			`,
+		},
+		entryPaths: []string{
+			"/enum-entry.ts",
+			"/const-entry.js",
 		},
 		options: config.Options{
 			Mode:         config.ModeBundle,

@@ -174,6 +174,7 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   let keepNames = getFlag(options, keys, 'keepNames', mustBeBoolean)
   let platform = getFlag(options, keys, 'platform', mustBeString)
   let tsconfigRaw = getFlag(options, keys, 'tsconfigRaw', mustBeStringOrObject)
+  let absPaths = getFlag(options, keys, 'absPaths', mustBeArrayOfStrings)
 
   if (legalComments) flags.push(`--legal-comments=${legalComments}`)
   if (sourceRoot !== void 0) flags.push(`--source-root=${sourceRoot}`)
@@ -194,6 +195,7 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   if (ignoreAnnotations) flags.push(`--ignore-annotations`)
   if (drop) for (let what of drop) flags.push(`--drop:${validateStringValue(what, 'drop')}`)
   if (dropLabels) flags.push(`--drop-labels=${validateAndJoinStringArray(dropLabels, 'drop label')}`)
+  if (absPaths) flags.push(`--abs-paths=${validateAndJoinStringArray(absPaths, 'abs paths')}`)
   if (mangleProps) flags.push(`--mangle-props=${jsRegExpToGoRegExp(mangleProps)}`)
   if (reserveProps) flags.push(`--reserve-props=${jsRegExpToGoRegExp(reserveProps)}`)
   if (mangleQuoted !== void 0) flags.push(`--mangle-quoted=${mangleQuoted}`)
@@ -1060,11 +1062,13 @@ function buildOrContextImpl(
         watch: (options = {}) => new Promise((resolve, reject) => {
           if (!streamIn.hasFS) throw new Error(`Cannot use the "watch" API in this environment`)
           const keys: OptionKeys = {}
+          const delay = getFlag(options, keys, 'delay', mustBeInteger)
           checkForInvalidFlags(options, keys, `in watch() call`)
           const request: protocol.WatchRequest = {
             command: 'watch',
             key: buildKey,
           }
+          if (delay) request.delay = delay
           sendRequest<protocol.WatchRequest, null>(refs, request, error => {
             if (error) reject(new Error(error))
             else resolve(undefined)

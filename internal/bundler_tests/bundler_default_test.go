@@ -2568,18 +2568,18 @@ func TestImportAbsPathAsDir(t *testing.T) {
 
 	default_suite.expectBundledWindows(t, bundled{
 		files: map[string]string{
-			"/Users/user/project/entry.js": `
+			"C:\\Users\\user\\project\\entry.js": `
 				import pkg from 'C:\\Users\\user\\project\\node_modules\\pkg'
 				console.log(pkg)
 			`,
-			"/Users/user/project/node_modules/pkg/index.js": `
+			"C:\\Users\\user\\project\\node_modules\\pkg\\index.js": `
 				export default 123
 			`,
 		},
-		entryPaths: []string{"/Users/user/project/entry.js"},
+		entryPaths: []string{"C:\\Users\\user\\project\\entry.js"},
 		options: config.Options{
 			Mode:         config.ModeBundle,
-			AbsOutputDir: "/out",
+			AbsOutputDir: "C:\\out",
 		},
 	})
 }
@@ -4731,14 +4731,14 @@ func TestInjectMissing(t *testing.T) {
 
 	default_suite.expectBundledWindows(t, bundled{
 		files: map[string]string{
-			"/entry.js": ``,
+			"C:\\entry.js": ``,
 		},
-		entryPaths: []string{"/entry.js"},
+		entryPaths: []string{"C:\\entry.js"},
 		options: config.Options{
 			Mode:          config.ModeBundle,
-			AbsOutputFile: "/out.js",
+			AbsOutputFile: "C:\\out.js",
 			InjectPaths: []string{
-				"/inject.js",
+				"C:\\inject.js",
 			},
 		},
 		expectedScanLog: "ERROR: Could not resolve \"C:\\\\inject.js\"\n",

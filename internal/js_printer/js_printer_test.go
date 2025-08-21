@@ -541,7 +541,7 @@ func TestFor(t *testing.T) {
 	expectPrinted(t, "for (x(a in b);;);", "for (x(a in b); ; ) ;\n")
 	expectPrinted(t, "for (x[a in b];;);", "for (x[a in b]; ; ) ;\n")
 	expectPrinted(t, "for (x?.[a in b];;);", "for (x?.[a in b]; ; ) ;\n")
-	expectPrinted(t, "for ((x => a in b);;);", "for ((x) => (a in b); ; ) ;\n")
+	expectPrinted(t, "for ((x => a in b);;);", "for (((x) => a in b); ; ) ;\n")
 
 	// Make sure for-of loops with commas are wrapped in parentheses
 	expectPrinted(t, "for (let a in b, c);", "for (let a in b, c) ;\n")
@@ -574,7 +574,7 @@ func TestCommentsAndParentheses(t *testing.T) {
 	expectPrinted(t, "(/* foo */ function f() { foo(f) }());", "/* foo */\n(function f() {\n  foo(f);\n})();\n")
 	expectPrinted(t, "(/* foo */ class x { static y() { foo(x) } }.y());", "/* foo */\n(class x {\n  static y() {\n    foo(x);\n  }\n}).y();\n")
 	expectPrinted(t, "(/* @__PURE__ */ (() => foo())());", "/* @__PURE__ */ (() => foo())();\n")
-	expectPrinted(t, "export default (/* foo */ function f() {});", "export default (\n  /* foo */\n  function f() {\n  }\n);\n")
+	expectPrinted(t, "export default (/* foo */ function f() {});", "export default (\n  /* foo */\n  (function f() {\n  })\n);\n")
 	expectPrinted(t, "export default (/* foo */ class x {});", "export default (\n  /* foo */\n  class x {\n  }\n);\n")
 	expectPrinted(t, "x = () => (/* foo */ {});", "x = () => (\n  /* foo */\n  {}\n);\n")
 	expectPrinted(t, "for ((/* foo */ let).x of y) ;", "for (\n  /* foo */\n  (let).x of y\n) ;\n")
@@ -595,13 +595,13 @@ func TestPureComment(t *testing.T) {
 
 	expectPrinted(t,
 		"new (function() {})",
-		"new function() {\n}();\n")
+		"new (function() {\n})();\n")
 	expectPrinted(t,
 		"new (function() {})()",
-		"new function() {\n}();\n")
+		"new (function() {\n})();\n")
 	expectPrinted(t,
 		"/*@__PURE__*/new (function() {})()",
-		"/* @__PURE__ */ new function() {\n}();\n")
+		"/* @__PURE__ */ new (function() {\n})();\n")
 
 	expectPrinted(t,
 		"export default (function() { foo() })",
@@ -742,6 +742,12 @@ func TestImport(t *testing.T) {
 	expectPrinted(t, "import(/* webpackFoo: 1 */ 'path', { type: 'module' } /* webpackBar:2 */ );", "import(\n  /* webpackFoo: 1 */\n  \"path\",\n  { type: \"module\" }\n  /* webpackBar:2 */\n);\n")
 	expectPrinted(t, "import(new URL('path', /* webpackFoo: these can go anywhere */ import.meta.url))",
 		"import(new URL(\n  \"path\",\n  /* webpackFoo: these can go anywhere */\n  import.meta.url\n));\n")
+
+	// See: https://github.com/tc39/proposal-defer-import-eval
+	expectPrintedMinify(t, "import defer * as foo from 'bar'", "import defer*as foo from\"bar\";")
+
+	// See: https://github.com/tc39/proposal-source-phase-imports
+	expectPrintedMinify(t, "import source foo from 'bar'", "import source foo from\"bar\";")
 }
 
 func TestExportDefault(t *testing.T) {

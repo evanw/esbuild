@@ -1,4 +1,5 @@
 ESBUILD_VERSION = $(shell cat version.txt)
+GO_VERSION = $(shell cat go.version)
 
 # Strip debug info
 GO_FLAGS += "-ldflags=-s -w"
@@ -20,7 +21,7 @@ test-all:
 	@$(MAKE) --no-print-directory -j6 test-common test-deno ts-type-tests test-wasm-node test-wasm-browser lib-typecheck test-yarnpnp
 
 check-go-version:
-	@go version | grep ' go1\.23\.8 ' || (echo 'Please install Go version 1.23.8' && false)
+	@go version | grep -F " go$(GO_VERSION) " || (echo 'Please install Go version $(GO_VERSION)' && false)
 
 # Note: Don't add "-race" here by default. The Go race detector is currently
 # only supported on the following configurations:
@@ -50,7 +51,7 @@ fmt-go:
 
 no-filepath:
 	@! grep --color --include '*.go' -r '"path/filepath"' cmd internal pkg || ( \
-		echo 'error: Use of "path/filepath" is disallowed. See http://golang.org/issue/43768.' && false)
+		echo 'error: Use of "path/filepath" is disallowed. See https://golang.org/issue/43768' && false)
 
 # This uses "env -i" to run in a clean environment with no environment
 # variables. It then adds some environment variables back as needed.
@@ -308,6 +309,7 @@ platform-all:
 		platform-neutral \
 		platform-openbsd-arm64 \
 		platform-openbsd-x64 \
+		platform-openharmony-arm64 \
 		platform-sunos-x64 \
 		platform-wasi-preview1 \
 		platform-wasm \
@@ -343,6 +345,9 @@ platform-android-x64: platform-wasm
 
 platform-android-arm: platform-wasm
 	node scripts/esbuild.js npm/@esbuild/android-arm/package.json --version
+
+platform-openharmony-arm64: platform-wasm
+	node scripts/esbuild.js npm/@esbuild/openharmony-arm64/package.json --version
 
 platform-aix-ppc64:
 	@$(MAKE) --no-print-directory GOOS=aix GOARCH=ppc64 NPMDIR=npm/@esbuild/aix-ppc64 platform-unixlike
@@ -416,7 +421,7 @@ platform-deno: platform-wasm
 	node scripts/esbuild.js ./esbuild --deno
 
 publish-all: check-go-version
-	@grep "## `cat version.txt`" CHANGELOG.md || (echo "Missing '## `cat version.txt`' in CHANGELOG.md (required for automatic release notes)" && false)
+	@grep "## $(ESBUILD_VERSION)" CHANGELOG.md || (echo "Missing '## $(ESBUILD_VERSION)' in CHANGELOG.md (required for automatic release notes)" && false)
 	@npm --version > /dev/null || (echo "The 'npm' command must be in your path to publish" && false)
 	@echo "Checking for uncommitted/untracked changes..." && test -z "`git status --porcelain | grep -vE 'M (CHANGELOG\.md|version\.txt)'`" || \
 		(echo "Refusing to publish with these uncommitted/untracked changes:" && \
@@ -463,7 +468,8 @@ publish-all: check-go-version
 	@read OTP && OTP="$$OTP" $(MAKE) --no-print-directory -j4 \
 		publish-android-x64 \
 		publish-android-arm \
-		publish-android-arm64
+		publish-android-arm64 \
+		publish-openharmony-arm64
 
 	@echo Enter one-time password:
 	@read OTP && OTP="$$OTP" $(MAKE) --no-print-directory -j4 \
@@ -543,6 +549,9 @@ publish-openbsd-arm64: platform-openbsd-arm64
 publish-openbsd-x64: platform-openbsd-x64
 	test -n "$(OTP)" && cd npm/@esbuild/openbsd-x64 && npm publish --otp="$(OTP)"
 
+publish-openharmony-arm64: platform-openharmony-arm64
+	test -n "$(OTP)" && cd npm/@esbuild/openharmony-arm64 && npm publish --otp="$(OTP)"
+
 publish-linux-x64: platform-linux-x64
 	test -n "$(OTP)" && cd npm/@esbuild/linux-x64 && npm publish --otp="$(OTP)"
 
@@ -614,33 +623,34 @@ validate-build:
 # This checks that the published binaries are bitwise-identical to the locally-build binaries
 validate-builds:
 	git fetch --all --tags && git checkout "v$(ESBUILD_VERSION)"
-	@$(MAKE) --no-print-directory TARGET=platform-aix-ppc64      SCOPE=@esbuild/ PACKAGE=aix-ppc64       SUBPATH=bin/esbuild  validate-build
-	@$(MAKE) --no-print-directory TARGET=platform-android-arm    SCOPE=@esbuild/ PACKAGE=android-arm     SUBPATH=esbuild.wasm validate-build
-	@$(MAKE) --no-print-directory TARGET=platform-android-arm64  SCOPE=@esbuild/ PACKAGE=android-arm64   SUBPATH=bin/esbuild  validate-build
-	@$(MAKE) --no-print-directory TARGET=platform-android-x64    SCOPE=@esbuild/ PACKAGE=android-x64     SUBPATH=esbuild.wasm validate-build
-	@$(MAKE) --no-print-directory TARGET=platform-darwin-arm64   SCOPE=@esbuild/ PACKAGE=darwin-arm64    SUBPATH=bin/esbuild  validate-build
-	@$(MAKE) --no-print-directory TARGET=platform-darwin-x64     SCOPE=@esbuild/ PACKAGE=darwin-x64      SUBPATH=bin/esbuild  validate-build
-	@$(MAKE) --no-print-directory TARGET=platform-freebsd-arm64  SCOPE=@esbuild/ PACKAGE=freebsd-arm64   SUBPATH=bin/esbuild  validate-build
-	@$(MAKE) --no-print-directory TARGET=platform-freebsd-x64    SCOPE=@esbuild/ PACKAGE=freebsd-x64     SUBPATH=bin/esbuild  validate-build
-	@$(MAKE) --no-print-directory TARGET=platform-linux-arm      SCOPE=@esbuild/ PACKAGE=linux-arm       SUBPATH=bin/esbuild  validate-build
-	@$(MAKE) --no-print-directory TARGET=platform-linux-arm64    SCOPE=@esbuild/ PACKAGE=linux-arm64     SUBPATH=bin/esbuild  validate-build
-	@$(MAKE) --no-print-directory TARGET=platform-linux-ia32     SCOPE=@esbuild/ PACKAGE=linux-ia32      SUBPATH=bin/esbuild  validate-build
-	@$(MAKE) --no-print-directory TARGET=platform-linux-loong64  SCOPE=@esbuild/ PACKAGE=linux-loong64   SUBPATH=bin/esbuild  validate-build
-	@$(MAKE) --no-print-directory TARGET=platform-linux-mips64el SCOPE=@esbuild/ PACKAGE=linux-mips64el  SUBPATH=bin/esbuild  validate-build
-	@$(MAKE) --no-print-directory TARGET=platform-linux-ppc64    SCOPE=@esbuild/ PACKAGE=linux-ppc64     SUBPATH=bin/esbuild  validate-build
-	@$(MAKE) --no-print-directory TARGET=platform-linux-riscv64  SCOPE=@esbuild/ PACKAGE=linux-riscv64   SUBPATH=bin/esbuild  validate-build
-	@$(MAKE) --no-print-directory TARGET=platform-linux-s390x    SCOPE=@esbuild/ PACKAGE=linux-s390x     SUBPATH=bin/esbuild  validate-build
-	@$(MAKE) --no-print-directory TARGET=platform-linux-x64      SCOPE=@esbuild/ PACKAGE=linux-x64       SUBPATH=bin/esbuild  validate-build
-	@$(MAKE) --no-print-directory TARGET=platform-netbsd-arm64   SCOPE=@esbuild/ PACKAGE=netbsd-arm64    SUBPATH=bin/esbuild  validate-build
-	@$(MAKE) --no-print-directory TARGET=platform-netbsd-x64     SCOPE=@esbuild/ PACKAGE=netbsd-x64      SUBPATH=bin/esbuild  validate-build
-	@$(MAKE) --no-print-directory TARGET=platform-openbsd-arm64  SCOPE=@esbuild/ PACKAGE=openbsd-arm64   SUBPATH=bin/esbuild  validate-build
-	@$(MAKE) --no-print-directory TARGET=platform-openbsd-x64    SCOPE=@esbuild/ PACKAGE=openbsd-x64     SUBPATH=bin/esbuild  validate-build
-	@$(MAKE) --no-print-directory TARGET=platform-sunos-x64      SCOPE=@esbuild/ PACKAGE=sunos-x64       SUBPATH=bin/esbuild  validate-build
-	@$(MAKE) --no-print-directory TARGET=platform-wasi-preview1  SCOPE=@esbuild/ PACKAGE=wasi-preview1   SUBPATH=esbuild.wasm validate-build
-	@$(MAKE) --no-print-directory TARGET=platform-wasm                           PACKAGE=esbuild-wasm    SUBPATH=esbuild.wasm validate-build
-	@$(MAKE) --no-print-directory TARGET=platform-win32-arm64    SCOPE=@esbuild/ PACKAGE=win32-arm64     SUBPATH=esbuild.exe  validate-build
-	@$(MAKE) --no-print-directory TARGET=platform-win32-ia32     SCOPE=@esbuild/ PACKAGE=win32-ia32      SUBPATH=esbuild.exe  validate-build
-	@$(MAKE) --no-print-directory TARGET=platform-win32-x64      SCOPE=@esbuild/ PACKAGE=win32-x64       SUBPATH=esbuild.exe  validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-aix-ppc64         SCOPE=@esbuild/ PACKAGE=aix-ppc64           SUBPATH=bin/esbuild  validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-android-arm       SCOPE=@esbuild/ PACKAGE=android-arm         SUBPATH=esbuild.wasm validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-android-arm64     SCOPE=@esbuild/ PACKAGE=android-arm64       SUBPATH=bin/esbuild  validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-android-x64       SCOPE=@esbuild/ PACKAGE=android-x64         SUBPATH=esbuild.wasm validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-darwin-arm64      SCOPE=@esbuild/ PACKAGE=darwin-arm64        SUBPATH=bin/esbuild  validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-darwin-x64        SCOPE=@esbuild/ PACKAGE=darwin-x64          SUBPATH=bin/esbuild  validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-freebsd-arm64     SCOPE=@esbuild/ PACKAGE=freebsd-arm64       SUBPATH=bin/esbuild  validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-freebsd-x64       SCOPE=@esbuild/ PACKAGE=freebsd-x64         SUBPATH=bin/esbuild  validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-linux-arm         SCOPE=@esbuild/ PACKAGE=linux-arm           SUBPATH=bin/esbuild  validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-linux-arm64       SCOPE=@esbuild/ PACKAGE=linux-arm64         SUBPATH=bin/esbuild  validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-linux-ia32        SCOPE=@esbuild/ PACKAGE=linux-ia32          SUBPATH=bin/esbuild  validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-linux-loong64     SCOPE=@esbuild/ PACKAGE=linux-loong64       SUBPATH=bin/esbuild  validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-linux-mips64el    SCOPE=@esbuild/ PACKAGE=linux-mips64el      SUBPATH=bin/esbuild  validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-linux-ppc64       SCOPE=@esbuild/ PACKAGE=linux-ppc64         SUBPATH=bin/esbuild  validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-linux-riscv64     SCOPE=@esbuild/ PACKAGE=linux-riscv64       SUBPATH=bin/esbuild  validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-linux-s390x       SCOPE=@esbuild/ PACKAGE=linux-s390x         SUBPATH=bin/esbuild  validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-linux-x64         SCOPE=@esbuild/ PACKAGE=linux-x64           SUBPATH=bin/esbuild  validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-netbsd-arm64      SCOPE=@esbuild/ PACKAGE=netbsd-arm64        SUBPATH=bin/esbuild  validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-netbsd-x64        SCOPE=@esbuild/ PACKAGE=netbsd-x64          SUBPATH=bin/esbuild  validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-openbsd-arm64     SCOPE=@esbuild/ PACKAGE=openbsd-arm64       SUBPATH=bin/esbuild  validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-openbsd-x64       SCOPE=@esbuild/ PACKAGE=openbsd-x64         SUBPATH=bin/esbuild  validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-openharmony-arm64 SCOPE=@esbuild/ PACKAGE=openharmony-arm64   SUBPATH=esbuild.wasm validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-sunos-x64         SCOPE=@esbuild/ PACKAGE=sunos-x64           SUBPATH=bin/esbuild  validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-wasi-preview1     SCOPE=@esbuild/ PACKAGE=wasi-preview1       SUBPATH=esbuild.wasm validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-wasm                              PACKAGE=esbuild-wasm        SUBPATH=esbuild.wasm validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-win32-arm64       SCOPE=@esbuild/ PACKAGE=win32-arm64         SUBPATH=esbuild.exe  validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-win32-ia32        SCOPE=@esbuild/ PACKAGE=win32-ia32          SUBPATH=esbuild.exe  validate-build
+	@$(MAKE) --no-print-directory TARGET=platform-win32-x64         SCOPE=@esbuild/ PACKAGE=win32-x64           SUBPATH=esbuild.exe  validate-build
 
 clean:
 	go clean -cache
@@ -672,6 +682,7 @@ clean:
 	rm -rf npm/@esbuild/netbsd-x64/bin
 	rm -rf npm/@esbuild/openbsd-arm64/bin
 	rm -rf npm/@esbuild/openbsd-x64/bin
+	rm -rf npm/@esbuild/openharmony-arm64/bin npm/@esbuild/openharmony-arm64/esbuild.wasm npm/@esbuild/openharmony-arm64/wasm_exec*.js
 	rm -rf npm/@esbuild/sunos-x64/bin
 	rm -rf npm/esbuild-wasm/esm
 	rm -rf npm/esbuild-wasm/lib

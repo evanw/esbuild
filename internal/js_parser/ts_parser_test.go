@@ -647,7 +647,7 @@ func TestTSSatisfies(t *testing.T) {
 	expectPrintedTS(t, "const t2 = { a: 1, b: 1 } satisfies I1;", "const t2 = { a: 1, b: 1 };\n")
 	expectPrintedTS(t, "const t3 = { } satisfies I1;", "const t3 = {};\n")
 	expectPrintedTS(t, "const t4: T1 = { a: 'a' } satisfies T1;", "const t4 = { a: \"a\" };\n")
-	expectPrintedTS(t, "const t5 = (m => m.substring(0)) satisfies T2;", "const t5 = (m) => m.substring(0);\n")
+	expectPrintedTS(t, "const t5 = (m => m.substring(0)) satisfies T2;", "const t5 = ((m) => m.substring(0));\n")
 	expectPrintedTS(t, "const t6 = [1, 2] satisfies [number, number];", "const t6 = [1, 2];\n")
 	expectPrintedTS(t, "let t7 = { a: 'test' } satisfies A;", "let t7 = { a: \"test\" };\n")
 	expectPrintedTS(t, "let t8 = { a: 'test', b: 'test' } satisfies A;", "let t8 = { a: \"test\", b: \"test\" };\n")
@@ -1688,7 +1688,7 @@ bar = 0 /* FOO */;
 `)
 
 	// https://github.com/evanw/esbuild/issues/3205
-	expectPrintedTS(t, "(() => { const enum Foo { A } () => Foo.A })", `() => {
+	expectPrintedTS(t, "() => { const enum Foo { A } () => Foo.A }", `() => {
   let Foo;
   ((Foo) => {
     Foo[Foo["A"] = 0] = "A";
@@ -1839,11 +1839,11 @@ func TestTSDecl(t *testing.T) {
 	expectParseErrorTS(t, "var a!, b", "<stdin>: ERROR: Expected \":\" but found \",\"\n")
 
 	expectPrinted(t, "a ? ({b}) => {} : c", "a ? ({ b }) => {\n} : c;\n")
-	expectPrinted(t, "a ? (({b}) => {}) : c", "a ? ({ b }) => {\n} : c;\n")
+	expectPrinted(t, "a ? (({b}) => {}) : c", "a ? (({ b }) => {\n}) : c;\n")
 	expectPrinted(t, "a ? (({b})) : c", "a ? { b } : c;\n")
 	expectParseError(t, "a ? (({b})) => {} : c", "<stdin>: ERROR: Invalid binding pattern\n")
 	expectPrintedTS(t, "a ? ({b}) => {} : c", "a ? ({ b }) => {\n} : c;\n")
-	expectPrintedTS(t, "a ? (({b}) => {}) : c", "a ? ({ b }) => {\n} : c;\n")
+	expectPrintedTS(t, "a ? (({b}) => {}) : c", "a ? (({ b }) => {\n}) : c;\n")
 	expectPrintedTS(t, "a ? (({b})) : c", "a ? { b } : c;\n")
 	expectParseErrorTS(t, "a ? (({b})) => {} : c", "<stdin>: ERROR: Invalid binding pattern\n")
 }
@@ -2375,6 +2375,32 @@ func TestTSArrow(t *testing.T) {
 	expectPrintedTS(t, "function f(async?) { g(async in x) }", "function f(async) {\n  g(async in x);\n}\n")
 	expectPrintedTS(t, "function f(async?) { g(async as boolean) }", "function f(async) {\n  g(async);\n}\n")
 	expectPrintedTS(t, "function f() { g(async as => boolean) }", "function f() {\n  g(async (as) => boolean);\n}\n")
+
+	// https://github.com/evanw/esbuild/issues/4241
+	expectPrintedTS(t, "x = a ? (b = c) : d", "x = a ? b = c : d;\n")
+	expectPrintedTS(t, "x = a ? (b = c) : d => e", "x = a ? b = c : (d) => e;\n")
+	expectPrintedTS(t, "x = a ? (b = c) : T => d : (e = f)", "x = a ? (b = c) => d : e = f;\n")
+	expectPrintedTS(t, "x = a ? (b = c) : T => d : (e = f) : T => g", "x = a ? (b = c) => d : (e = f) => g;\n")
+	expectPrintedTS(t, "x = a ? b ? c : (d = e) : f => g", "x = a ? b ? c : d = e : (f) => g;\n")
+	expectPrintedTS(t, "x = a ? b ? (c = d) => e : (f = g) : h => i", "x = a ? b ? (c = d) => e : f = g : (h) => i;\n")
+	expectPrintedTS(t, "x = a ? b ? (c = d) : T => e : (f = g) : h => i", "x = a ? b ? (c = d) => e : f = g : (h) => i;\n")
+	expectPrintedTS(t, "x = a ? b ? (c = d) : T => e : (f = g) : (h = i) : T => j", "x = a ? b ? (c = d) => e : f = g : (h = i) => j;\n")
+	expectPrintedTS(t, "x = a ? (b) : T => c : d", "x = a ? (b) => c : d;\n")
+	expectPrintedTS(t, "x = a ? b - (c) : d => e", "x = a ? b - c : (d) => e;\n")
+	expectPrintedTS(t, "x = a ? b = (c) : T => d : e", "x = a ? b = (c) => d : e;\n")
+	expectParseErrorTS(t, "x = a ? (b = c) : T => d : (e = f) : g", "<stdin>: ERROR: Expected \";\" but found \":\"\n")
+	expectParseErrorTS(t, "x = a ? b ? (c = d) : T => e : (f = g)", "<stdin>: ERROR: Expected \":\" but found end of file\n")
+	expectParseErrorTS(t, "x = a ? - (b) : c => d : e", "<stdin>: ERROR: Expected \";\" but found \":\"\n")
+	expectParseErrorTS(t, "x = a ? b - (c) : d => e : f", "<stdin>: ERROR: Expected \";\" but found \":\"\n")
+
+	// Note: Newlines are important (they trigger backtracking)
+	expectPrintedTS(t, "x = (\n  a ? (b = c) : { d: e }\n)", "x = a ? b = c : { d: e };\n")
+
+	// Need to clone "#private" identifier state in the parser
+	expectPrintedTS(t, "x = class { #y; y = a ? (b : T) : T => this.#y : c }", "x = class {\n  #y;\n  y = a ? (b) => this.#y : c;\n};\n")
+
+	// Need to clone "in" operator state in the parser
+	expectPrintedTS(t, "for (x = a ? () : T => b in c : d; ; ) ;", "for (x = a ? () => b in c : d; ; ) ;\n")
 }
 
 func TestTSSuperCall(t *testing.T) {
@@ -2940,6 +2966,22 @@ func TestTSTypeOnlyImport(t *testing.T) {
 	expectParseErrorTS(t, "import { x, type 'y' as 'z' } from 'mod'", "<stdin>: ERROR: Expected identifier but found \"'z'\"\n")
 	expectParseErrorTS(t, "import { x, type as 'y' } from 'mod'", "<stdin>: ERROR: Expected \"}\" but found \"'y'\"\n")
 	expectParseErrorTS(t, "import { x, type y as 'z' } from 'mod'", "<stdin>: ERROR: Expected identifier but found \"'z'\"\n")
+
+	// See: https://github.com/tc39/proposal-defer-import-eval
+	expectPrintedTS(t, "import defer * as foo from 'bar'", "")
+	expectPrintedTS(t, "import defer * as foo from 'bar'; let x: foo.Type", "let x;\n")
+	expectPrintedTS(t, "import defer * as foo from 'bar'; let x = foo.value", "import defer * as foo from \"bar\";\nlet x = foo.value;\n")
+	expectPrintedTS(t, "import type defer from 'bar'", "")
+	expectParseErrorTS(t, "import type defer * as foo from 'bar'", "<stdin>: ERROR: Expected \"from\" but found \"*\"\n")
+
+	// See: https://github.com/tc39/proposal-source-phase-imports
+	expectPrintedTS(t, "import type source from 'bar'", "")
+	expectPrintedTS(t, "import source foo from 'bar'", "")
+	expectPrintedTS(t, "import source foo from 'bar'; let x: foo", "let x;\n")
+	expectPrintedTS(t, "import source foo from 'bar'; let x = foo", "import source foo from \"bar\";\nlet x = foo;\n")
+	expectPrintedTS(t, "import source type from 'bar'", "")
+	expectParseErrorTS(t, "import source type foo from 'bar'", "<stdin>: ERROR: Expected \"from\" but found \"foo\"\n")
+	expectParseErrorTS(t, "import type source foo from 'bar'", "<stdin>: ERROR: Expected \"from\" but found \"foo\"\n")
 }
 
 func TestTSTypeOnlyExport(t *testing.T) {
@@ -3108,12 +3150,12 @@ func TestTSJSX(t *testing.T) {
 	expectParseErrorTSX(t, "(<T>(x: X<Y>) => {}</Y></T>)", invalidWithHint)
 	expectParseErrorTSX(t, "(<T extends>(y) => {}</T>)", invalid)
 	expectParseErrorTSX(t, "(<T extends={false}>(y) => {}</T>)", invalid)
-	expectPrintedTSX(t, "(<T = X>(y) => {})", "(y) => {\n};\n")
-	expectPrintedTSX(t, "(<T extends X>(y) => {})", "(y) => {\n};\n")
-	expectPrintedTSX(t, "(<T extends X = Y>(y) => {})", "(y) => {\n};\n")
-	expectPrintedTSX(t, "(<T,>() => {})", "() => {\n};\n")
-	expectPrintedTSX(t, "(<T, X>(y) => {})", "(y) => {\n};\n")
-	expectPrintedTSX(t, "(<T, X>(y): (() => {}) => {})", "(y) => {\n};\n")
+	expectPrintedTSX(t, "(<T = X>(y) => {})", "((y) => {\n});\n")
+	expectPrintedTSX(t, "(<T extends X>(y) => {})", "((y) => {\n});\n")
+	expectPrintedTSX(t, "(<T extends X = Y>(y) => {})", "((y) => {\n});\n")
+	expectPrintedTSX(t, "(<T,>() => {})", "(() => {\n});\n")
+	expectPrintedTSX(t, "(<T, X>(y) => {})", "((y) => {\n});\n")
+	expectPrintedTSX(t, "(<T, X>(y): (() => {}) => {})", "((y) => {\n});\n")
 	expectParseErrorTSX(t, "(<T>() => {})", invalidWithHint+"<stdin>: ERROR: Unexpected end of file before a closing \"T\" tag\n<stdin>: NOTE: The opening \"T\" tag is here:\n")
 	expectParseErrorTSX(t, "(<T>(x: X<Y>) => {})", invalidWithHint+"<stdin>: ERROR: Unexpected end of file before a closing \"Y\" tag\n<stdin>: NOTE: The opening \"Y\" tag is here:\n")
 	expectParseErrorTSX(t, "(<T>(x: X<Y>) => {})</Y>", invalidWithHint+"<stdin>: ERROR: Unexpected end of file before a closing \"T\" tag\n<stdin>: NOTE: The opening \"T\" tag is here:\n")
@@ -3132,9 +3174,9 @@ func TestTSJSX(t *testing.T) {
 }
 
 func TestTSNoAmbiguousLessThan(t *testing.T) {
-	expectPrintedTSNoAmbiguousLessThan(t, "(<T,>() => {})", "() => {\n};\n")
-	expectPrintedTSNoAmbiguousLessThan(t, "(<T, X>() => {})", "() => {\n};\n")
-	expectPrintedTSNoAmbiguousLessThan(t, "(<T extends X>() => {})", "() => {\n};\n")
+	expectPrintedTSNoAmbiguousLessThan(t, "(<T,>() => {})", "(() => {\n});\n")
+	expectPrintedTSNoAmbiguousLessThan(t, "(<T, X>() => {})", "(() => {\n});\n")
+	expectPrintedTSNoAmbiguousLessThan(t, "(<T extends X>() => {})", "(() => {\n});\n")
 	expectParseErrorTSNoAmbiguousLessThan(t, "(<T>x)",
 		"<stdin>: ERROR: This syntax is not allowed in files with the \".mts\" or \".cts\" extension\n")
 	expectParseErrorTSNoAmbiguousLessThan(t, "(<T>() => {})",

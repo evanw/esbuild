@@ -757,7 +757,8 @@ func (c *linkerContext) generateChunksInParallel(additionalFiles []graph.OutputF
 			if c.options.NeedsMetafile {
 				jsonMetadataChunkPieces := c.breakJoinerIntoPieces(chunk.jsonMetadataChunkCallback(len(outputContents)))
 				jsonMetadataChunkBytes, _ := c.substituteFinalPaths(jsonMetadataChunkPieces, func(finalRelPathForImport string) string {
-					return resolver.PrettyPath(c.fs, logger.Path{Text: c.fs.Join(c.options.AbsOutputDir, finalRelPathForImport), Namespace: "file"})
+					prettyPaths := resolver.MakePrettyPaths(c.fs, logger.Path{Text: c.fs.Join(c.options.AbsOutputDir, finalRelPathForImport), Namespace: "file"})
+					return prettyPaths.Select(c.options.MetafilePathStyle)
 				})
 				jsonMetadataChunk = string(jsonMetadataChunkBytes.Done())
 			}
@@ -1339,7 +1340,8 @@ func (c *linkerContext) scanImportsAndExports() {
 								if global, ok := otherRepr.AST.GlobalScope[name.Alias]; ok {
 									var hint string
 									if otherFile.InputFile.Loader == config.LoaderCSS {
-										hint = fmt.Sprintf("Use the \"local-css\" loader for %q to enable local names.", otherFile.InputFile.Source.PrettyPath)
+										hint = fmt.Sprintf("Use the \"local-css\" loader for %q to enable local names.",
+											otherFile.InputFile.Source.PrettyPaths.Select(c.options.LogPathStyle))
 									} else {
 										hint = fmt.Sprintf("Use the \":local\" selector to change %q into a local name.", name.Alias)
 									}
@@ -1356,8 +1358,8 @@ func (c *linkerContext) scanImportsAndExports() {
 								} else {
 									c.log.AddError(file.LineColumnTracker(),
 										css_lexer.RangeOfIdentifier(file.InputFile.Source, name.AliasLoc),
-										fmt.Sprintf("The name %q never appears in %q",
-											name.Alias, otherFile.InputFile.Source.PrettyPath))
+										fmt.Sprintf("The name %q never appears in %q", name.Alias,
+											otherFile.InputFile.Source.PrettyPaths.Select(c.options.LogPathStyle)))
 								}
 							}
 						}
@@ -1605,12 +1607,15 @@ func (c *linkerContext) scanImportsAndExports() {
 							otherTracker := logger.MakeLineColumnTracker(&otherFile.Source)
 							ambiguousTracker := logger.MakeLineColumnTracker(&ambiguousFile.Source)
 							c.log.AddIDWithNotes(logger.MsgID_Bundler_AmbiguousReexport, logger.Debug, nil, logger.Range{},
-								fmt.Sprintf("Re-export of %q in %q is ambiguous and has been removed", alias, file.Source.PrettyPath),
+								fmt.Sprintf("Re-export of %q in %q is ambiguous and has been removed", alias,
+									file.Source.PrettyPaths.Select(c.options.LogPathStyle)),
 								[]logger.MsgData{
 									otherTracker.MsgData(js_lexer.RangeOfIdentifier(otherFile.Source, mainLoc),
-										fmt.Sprintf("One definition of %q comes from %q here:", alias, otherFile.Source.PrettyPath)),
+										fmt.Sprintf("One definition of %q comes from %q here:", alias,
+											otherFile.Source.PrettyPaths.Select(c.options.LogPathStyle))),
 									ambiguousTracker.MsgData(js_lexer.RangeOfIdentifier(ambiguousFile.Source, ambiguousLoc),
-										fmt.Sprintf("Another definition of %q comes from %q here:", alias, ambiguousFile.Source.PrettyPath)),
+										fmt.Sprintf("Another definition of %q comes from %q here:", alias,
+											ambiguousFile.Source.PrettyPaths.Select(c.options.LogPathStyle))),
 								},
 							)
 							continue nextAlias
@@ -2685,8 +2690,8 @@ loop:
 				c.log.AddID(logger.MsgID_Bundler_ImportIsUndefined, kind,
 					trackerFile.LineColumnTracker(),
 					js_lexer.RangeOfIdentifier(trackerFile.InputFile.Source, namedImport.AliasLoc),
-					fmt.Sprintf("Import %q will always be undefined because the file %q has no exports",
-						namedImport.Alias, c.graph.Files[nextTracker.sourceIndex].InputFile.Source.PrettyPath))
+					fmt.Sprintf("Import %q will always be undefined because the file %q has no exports", namedImport.Alias,
+						c.graph.Files[nextTracker.sourceIndex].InputFile.Source.PrettyPaths.Select(c.options.LogPathStyle)))
 			}
 
 		case importDynamicFallback:
@@ -2746,7 +2751,7 @@ loop:
 						Kind: logger.Warning,
 						Data: trackerFile.LineColumnTracker().MsgData(r, fmt.Sprintf(
 							"Import %q will always be undefined because there is no matching export in %q",
-							namedImport.Alias, nextFile.Source.PrettyPath)),
+							namedImport.Alias, nextFile.Source.PrettyPaths.Select(c.options.LogPathStyle))),
 					}
 					if helpers.IsInsideNodeModules(trackerFile.InputFile.Source.KeyPath.Text) {
 						msg.Kind = logger.Debug
@@ -2760,7 +2765,7 @@ loop:
 					Kind: logger.Error,
 					Data: trackerFile.LineColumnTracker().MsgData(r, fmt.Sprintf(
 						"No matching export in %q for import %q",
-						nextFile.Source.PrettyPath, namedImport.Alias)),
+						nextFile.Source.PrettyPaths.Select(c.options.LogPathStyle), namedImport.Alias)),
 				}
 				c.maybeCorrectObviousTypo(nextFile.Repr.(*graph.JSRepr), namedImport.Alias, &msg)
 				c.log.AddMsg(msg)
@@ -4816,7 +4821,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 				}
 				cjsArgs = []js_ast.Expr{{Data: &js_ast.EObject{Properties: []js_ast.Property{{
 					Kind:       kind,
-					Key:        js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16(file.InputFile.Source.PrettyPath)}},
+					Key:        js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16(file.InputFile.Source.PrettyPaths.Select(c.options.CodePathStyle))}},
 					ValueOrNil: js_ast.Expr{Data: &js_ast.EFunction{Fn: js_ast.Fn{Args: args, Body: js_ast.FnBody{Block: js_ast.SBlock{Stmts: stmts}}}}},
 				}}}}}
 			} else if c.options.UnsupportedJSFeatures.Has(compat.Arrow) {
@@ -4888,7 +4893,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 				}
 				esmArgs = []js_ast.Expr{{Data: &js_ast.EObject{Properties: []js_ast.Property{{
 					Kind:       kind,
-					Key:        js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16(file.InputFile.Source.PrettyPath)}},
+					Key:        js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16(file.InputFile.Source.PrettyPaths.Select(c.options.CodePathStyle))}},
 					ValueOrNil: js_ast.Expr{Data: &js_ast.EFunction{Fn: js_ast.Fn{Body: js_ast.FnBody{Block: js_ast.SBlock{Stmts: stmts}}, IsAsync: isAsync}}},
 				}}}}}
 			} else if c.options.UnsupportedJSFeatures.Has(compat.Arrow) {
@@ -5797,7 +5802,7 @@ func (c *linkerContext) generateChunkJS(chunkIndex int, chunkWaitGroup *sync.Wai
 		}
 		jMeta.AddString("],\n")
 		if chunk.isEntryPoint {
-			entryPoint := c.graph.Files[chunk.sourceIndex].InputFile.Source.PrettyPath
+			entryPoint := c.graph.Files[chunk.sourceIndex].InputFile.Source.PrettyPaths.Select(c.options.MetafilePathStyle)
 			jMeta.AddString(fmt.Sprintf("      \"entryPoint\": %s,\n", helpers.QuoteForJSON(entryPoint, c.options.ASCIIOnly)))
 		}
 		if chunkRepr.hasCSSChunk {
@@ -5832,7 +5837,7 @@ func (c *linkerContext) generateChunkJS(chunkIndex int, chunkWaitGroup *sync.Wai
 				j.AddString("\n")
 			}
 
-			path := c.graph.Files[compileResult.sourceIndex].InputFile.Source.PrettyPath
+			path := c.graph.Files[compileResult.sourceIndex].InputFile.Source.PrettyPaths.Select(c.options.CodePathStyle)
 
 			// Make sure newlines in the path can't cause a syntax error. This does
 			// not minimize allocations because it's expected that this case never
@@ -5965,7 +5970,7 @@ func (c *linkerContext) generateChunkJS(chunkIndex int, chunkWaitGroup *sync.Wai
 					count += c.accurateFinalByteCount(output, finalRelDir)
 				}
 				jMeta.AddString(fmt.Sprintf("\n        %s: {\n          \"bytesInOutput\": %d\n        %s}",
-					helpers.QuoteForJSON(c.graph.Files[sourceIndex].InputFile.Source.PrettyPath, c.options.ASCIIOnly),
+					helpers.QuoteForJSON(c.graph.Files[sourceIndex].InputFile.Source.PrettyPaths.Select(c.options.MetafilePathStyle), c.options.ASCIIOnly),
 					count, c.generateExtraDataForFileJS(sourceIndex)))
 			}
 			if len(metaOrder) > 0 {
@@ -6327,7 +6332,7 @@ func (c *linkerContext) generateChunkCSS(chunkIndex int, chunkWaitGroup *sync.Wa
 			// and there is already an output file for the JavaScript entry point.
 			if _, ok := file.InputFile.Repr.(*graph.CSSRepr); ok {
 				jMeta.AddString(fmt.Sprintf("],\n      \"entryPoint\": %s,\n      \"inputs\": {",
-					helpers.QuoteForJSON(file.InputFile.Source.PrettyPath, c.options.ASCIIOnly)))
+					helpers.QuoteForJSON(file.InputFile.Source.PrettyPaths.Select(c.options.MetafilePathStyle), c.options.ASCIIOnly)))
 			} else {
 				jMeta.AddString("],\n      \"inputs\": {")
 			}
@@ -6352,7 +6357,8 @@ func (c *linkerContext) generateChunkCSS(chunkIndex int, chunkWaitGroup *sync.Wa
 			if newlineBeforeComment {
 				newline = "\n"
 			}
-			comment := fmt.Sprintf("%s/* %s */\n", newline, c.graph.Files[compileResult.sourceIndex.GetIndex()].InputFile.Source.PrettyPath)
+			comment := fmt.Sprintf("%s/* %s */\n", newline,
+				c.graph.Files[compileResult.sourceIndex.GetIndex()].InputFile.Source.PrettyPaths.Select(c.options.CodePathStyle))
 			prevOffset.AdvanceString(comment)
 			j.AddString(comment)
 		}
@@ -6435,7 +6441,7 @@ func (c *linkerContext) generateChunkCSS(chunkIndex int, chunkWaitGroup *sync.Wa
 					jMeta.AddString(",")
 				}
 				jMeta.AddString(fmt.Sprintf("\n        %s: {\n          \"bytesInOutput\": %d\n        }",
-					helpers.QuoteForJSON(c.graph.Files[compileResult.sourceIndex.GetIndex()].InputFile.Source.PrettyPath, c.options.ASCIIOnly),
+					helpers.QuoteForJSON(c.graph.Files[compileResult.sourceIndex.GetIndex()].InputFile.Source.PrettyPaths.Select(c.options.MetafilePathStyle), c.options.ASCIIOnly),
 					c.accurateFinalByteCount(pieces[i], finalRelDir)))
 			}
 			if len(compileResults) > 0 {
@@ -6809,7 +6815,7 @@ func (c *linkerContext) generateIsolatedHash(chunk *chunkInfo, channel chan []by
 			if file.InputFile.Source.KeyPath.Namespace == "file" {
 				// Use the pretty path as the file name since it should be platform-
 				// independent (relative paths and the "/" path separator)
-				filePath = file.InputFile.Source.PrettyPath
+				filePath = file.InputFile.Source.PrettyPaths.Rel
 			} else {
 				// If this isn't in the "file" namespace, just use the full path text
 				// verbatim. This could be a source of cross-platform differences if
@@ -7235,7 +7241,8 @@ func (c *linkerContext) recoverInternalError(waitGroup *sync.WaitGroup, sourceIn
 	if r := recover(); r != nil {
 		text := fmt.Sprintf("panic: %v", r)
 		if sourceIndex != runtime.SourceIndex {
-			text = fmt.Sprintf("%s (while printing %q)", text, c.graph.Files[sourceIndex].InputFile.Source.PrettyPath)
+			text = fmt.Sprintf("%s (while printing %q)", text,
+				c.graph.Files[sourceIndex].InputFile.Source.PrettyPaths.Select(c.options.LogPathStyle))
 		}
 		c.log.AddErrorWithNotes(nil, logger.Range{}, text,
 			[]logger.MsgData{{Text: helpers.PrettyPrintedStack()}})

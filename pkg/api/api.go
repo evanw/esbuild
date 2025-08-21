@@ -266,6 +266,14 @@ const (
 	MangleQuotedTrue
 )
 
+type AbsPaths uint8
+
+const (
+	CodeAbsPath AbsPaths = 1 << iota
+	LogAbsPath
+	MetafileAbsPath
+)
+
 ////////////////////////////////////////////////////////////////////////////////
 // Build API
 
@@ -274,6 +282,7 @@ type BuildOptions struct {
 	LogLevel    LogLevel            // Documentation: https://esbuild.github.io/api/#log-level
 	LogLimit    int                 // Documentation: https://esbuild.github.io/api/#log-limit
 	LogOverride map[string]LogLevel // Documentation: https://esbuild.github.io/api/#log-override
+	AbsPaths    AbsPaths            // Documentation: https://esbuild.github.io/api/#abs-path
 
 	InputFS io_fs.FS // Read files from an [io/fs.FS]
 
@@ -407,6 +416,7 @@ type TransformOptions struct {
 	LogLevel    LogLevel            // Documentation: https://esbuild.github.io/api/#log-level
 	LogLimit    int                 // Documentation: https://esbuild.github.io/api/#log-limit
 	LogOverride map[string]LogLevel // Documentation: https://esbuild.github.io/api/#log-override
+	AbsPaths    AbsPaths            // Documentation: https://esbuild.github.io/api/#abs-path
 
 	Sourcemap      SourceMap      // Documentation: https://esbuild.github.io/api/#sourcemap
 	SourceRoot     string         // Documentation: https://esbuild.github.io/api/#source-root
@@ -504,7 +514,9 @@ type ServeResult struct {
 	Hosts []string
 }
 
+// Documentation: https://esbuild.github.io/api/#watch-arguments
 type WatchOptions struct {
+	Delay int // In milliseconds
 }
 
 type BuildContext interface {

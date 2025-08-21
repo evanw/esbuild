@@ -47,9 +47,9 @@ func TestYarnPnP(t *testing.T) {
 		}
 
 		source := logger.Source{
-			KeyPath:    logger.Path{Text: path},
-			PrettyPath: path,
-			Contents:   string(contents),
+			KeyPath:     logger.Path{Text: path},
+			PrettyPaths: logger.PrettyPaths{Abs: path, Rel: path},
+			Contents:    string(contents),
 		}
 		tempLog := logger.NewDeferLog(logger.DeferLogAll, nil)
 		expr, ok := js_parser.ParseJSON(tempLog, source, js_parser.JSONOptions{})

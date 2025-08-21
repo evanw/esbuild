@@ -185,9 +185,13 @@ function maybeOptimizePackage(binPath: string): void {
   // place multiple times from different platforms, especially when people use
   // Docker. Avoid idempotency issues by just not optimizing when using Yarn.
   //
+  // This also doesn't work with WASM because it is not a single binary executable
+  // file. See https://github.com/evanw/esbuild/issues/4209 for more info.
+  //
   // This optimization also doesn't apply when npm's "--ignore-scripts" flag is
   // used since in that case this install script will not be run.
-  if (os.platform() !== 'win32' && !isYarn()) {
+  const { isWASM } = pkgAndSubpathForCurrentPlatform()
+  if (os.platform() !== 'win32' && !isYarn() && !isWASM) {
     const tempPath = path.join(__dirname, 'bin-esbuild')
     try {
       // First link the binary with a temporary file. If this fails and throws an

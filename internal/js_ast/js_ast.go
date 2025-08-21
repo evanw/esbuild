@@ -698,11 +698,19 @@ type EArrow struct {
 	HasRestArg bool
 	PreferExpr bool // Use shorthand if true and "Body" is a single return statement
 
+	// V8 uses parentheses as an optimization hint: https://v8.dev/blog/preparser#pife
+	IsParenthesized bool
+
 	// See: https://github.com/rollup/rollup/pull/5024
 	HasNoSideEffectsComment bool
 }
 
-type EFunction struct{ Fn Fn }
+type EFunction struct {
+	Fn Fn
+
+	// V8 uses parentheses as an optimization hint: https://v8.dev/blog/preparser#pife
+	IsParenthesized bool
+}
 
 type EClass struct{ Class Class }
 
@@ -920,6 +928,7 @@ type EImportCall struct {
 	Expr          Expr
 	OptionsOrNil  Expr
 	CloseParenLoc logger.Loc
+	Phase         ast.ImportPhase
 }
 
 type Stmt struct {
@@ -1627,10 +1636,12 @@ const (
 	ConstValueTrue
 	ConstValueFalse
 	ConstValueNumber
+	ConstValueString
 )
 
 type ConstValue struct {
-	Number float64 // Use this for "ConstValueNumber"
+	Number float64  // Use this for "ConstValueNumber"
+	String []uint16 // Use this for "ConstValueString"
 	Kind   ConstValueKind
 }
 
@@ -1658,8 +1669,11 @@ func ExprToConstValue(expr Expr) ConstValue {
 		}
 
 	case *EString:
-		// I'm deliberately not inlining strings here. It seems more likely that
-		// people won't want them to be inlined since they can be arbitrarily long.
+		// Deliberately only inline small strings. We don't want to always
+		// inline all strings because they can be arbitrarily long.
+		if len(v.Value) <= 3 {
+			return ConstValue{Kind: ConstValueString, String: v.Value}
+		}
 
 	case *EBigInt:
 		// I'm deliberately not inlining bigints here for the same reason (they can
@@ -1685,6 +1699,9 @@ func ConstValueToExpr(loc logger.Loc, value ConstValue) Expr {
 
 	case ConstValueNumber:
 		return Expr{Loc: loc, Data: &ENumber{Value: value.Number}}
+
+	case ConstValueString:
+		return Expr{Loc: loc, Data: &EString{Value: value.String}}
 	}
 
 	panic("Internal error: invalid constant value")

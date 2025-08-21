@@ -84,31 +84,31 @@ TestArgumentsSpecialCaseNoBundle
     var arguments;
     return arguments;
   } });
+  ((n) => r);
+  (() => r);
+  (async () => r);
+  ((n = r) => r);
+  (async (n = r) => r);
   (n) => r;
   () => r;
   async () => r;
   (n = r) => r;
   async (n = r) => r;
-  (n) => r;
-  () => r;
-  async () => r;
-  (n = r) => r;
-  async (n = r) => r;
-  (n) => {
+  ((n) => {
     return r;
-  };
-  () => {
+  });
+  (() => {
     return r;
-  };
-  async () => {
+  });
+  (async () => {
     return r;
-  };
-  (n = r) => {
+  });
+  ((n = r) => {
     return r;
-  };
-  async (n = r) => {
+  });
+  (async (n = r) => {
     return r;
-  };
+  });
   (n) => {
     return r;
   };
@@ -131,10 +131,10 @@ TestArrowFnScope
 ---------- /out.js ----------
 // entry.js
 tests = {
-  0: (s = (e) => s + e, t) => s + t,
-  1: (s, t = (e) => t + e) => t + s,
-  2: (s = (a = (c) => s + a + c, b) => s + a + b, t, e) => s + t + e,
-  3: (s, t, e = (a, b = (c) => e + b + c) => e + b + a) => e + s + t,
+  0: ((s = (e) => s + e, t) => s + t),
+  1: ((s, t = (e) => t + e) => t + s),
+  2: ((s = (a = (c) => s + a + c, b) => s + a + b, t, e) => s + t + e),
+  3: ((s, t, e = (a, b = (c) => e + b + c) => e + b + a) => e + s + t),
   4: (x = (s) => x + s, y, x + y),
   5: (y, x = (s) => x + s, x + y),
   6: (x = (s = (e) => x + s + e, t) => x + s + t, y, z, x + y + z),

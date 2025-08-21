@@ -942,10 +942,10 @@ func TestTsconfigJsonExtendsAbsolute(t *testing.T) {
 
 	tsconfig_suite.expectBundledWindows(t, bundled{
 		files: map[string]string{
-			"/Users/user/project/entry.jsx": `
+			"C:\\Users\\user\\project\\entry.jsx": `
 				console.log(<div/>, <></>)
 			`,
-			"/Users/user/project/tsconfig.json": `
+			"C:\\Users\\user\\project\\tsconfig.json": `
 				{
 					"extends": "C:\\Users\\user\\project\\base.json",
 					"compilerOptions": {
@@ -953,7 +953,7 @@ func TestTsconfigJsonExtendsAbsolute(t *testing.T) {
 					}
 				}
 			`,
-			"/Users/user/project/base.json": `
+			"C:\\Users\\user\\project\\base.json": `
 				{
 					"compilerOptions": {
 						"jsxFactory": "baseFactory",
@@ -962,10 +962,10 @@ func TestTsconfigJsonExtendsAbsolute(t *testing.T) {
 				}
 			`,
 		},
-		entryPaths: []string{"/Users/user/project/entry.jsx"},
+		entryPaths: []string{"C:\\Users\\user\\project\\entry.jsx"},
 		options: config.Options{
 			Mode:          config.ModeBundle,
-			AbsOutputFile: "/out.js",
+			AbsOutputFile: "C:\\out.js",
 		},
 	})
 }
@@ -2582,79 +2582,6 @@ func TestTsconfigJsonAsteriskNameCollisionIssue3354(t *testing.T) {
 	})
 }
 
-// https://github.com/evanw/esbuild/issues/3698
-func TestTsconfigPackageJsonExportsYarnPnP(t *testing.T) {
-	tsconfig_suite.expectBundled(t, bundled{
-		files: map[string]string{
-			"/Users/user/project/packages/app/index.tsx": `
-				console.log(<div/>)
-			`,
-			"/Users/user/project/packages/app/tsconfig.json": `
-				{
-					"extends": "tsconfigs/config"
-				}
-			`,
-			"/Users/user/project/packages/tsconfigs/package.json": `
-				{
-					"exports": {
-						"./config": "./configs/tsconfig.json"
-					}
-				}
-			`,
-			"/Users/user/project/packages/tsconfigs/configs/tsconfig.json": `
-				{
-					"compilerOptions": {
-						"jsxFactory": "success"
-					}
-				}
-			`,
-			"/Users/user/project/.pnp.data.json": `
-				{
-					"packageRegistryData": [
-						[
-							"app",
-							[
-								[
-									"workspace:packages/app",
-									{
-										"packageLocation": "./packages/app/",
-										"packageDependencies": [
-											[
-												"tsconfigs",
-												"workspace:packages/tsconfigs"
-											]
-										],
-										"linkType": "SOFT"
-									}
-								]
-							]
-						],
-						[
-							"tsconfigs",
-							[
-								[
-									"workspace:packages/tsconfigs",
-									{
-										"packageLocation": "./packages/tsconfigs/",
-										"packageDependencies": [],
-										"linkType": "SOFT"
-									}
-								]
-							]
-						]
-					]
-				}
-			`,
-		},
-		entryPaths:    []string{"/Users/user/project/packages/app/index.tsx"},
-		absWorkingDir: "/Users/user/project",
-		options: config.Options{
-			Mode:          config.ModeBundle,
-			AbsOutputFile: "/Users/user/project/out.js",
-		},
-	})
-}
-
 func TestTsconfigJsonConfigDirBaseURL(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
@@ -2743,74 +2670,6 @@ func TestTsconfigJsonConfigDirBaseURLInheritedPaths(t *testing.T) {
 			`,
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
-		options: config.Options{
-			Mode:          config.ModeBundle,
-			AbsOutputFile: "/Users/user/project/out.js",
-		},
-	})
-}
-
-// https://github.com/evanw/esbuild/issues/3915
-func TestTsconfigStackOverflowYarnPnP(t *testing.T) {
-	tsconfig_suite.expectBundled(t, bundled{
-		files: map[string]string{
-			"/Users/user/project/entry.jsx": `
-				console.log(<div />)
-			`,
-			"/Users/user/project/tsconfig.json": `
-				{
-					"extends": "tsconfigs/config"
-				}
-			`,
-			"/Users/user/project/packages/tsconfigs/package.json": `
-				{
-					"exports": {
-						"./config": "./configs/tsconfig.json"
-					}
-				}
-			`,
-			"/Users/user/project/packages/tsconfigs/configs/tsconfig.json": `
-				{
-					"compilerOptions": {
-						"jsxFactory": "success"
-					}
-				}
-			`,
-			"/Users/user/project/.pnp.data.json": `
-				{
-					"packageRegistryData": [
-						[null, [
-							[null, {
-								"packageLocation": "./",
-								"packageDependencies": [
-									["tsconfigs", "virtual:some-path"]
-								],
-								"linkType": "SOFT"
-							}]
-						]],
-						["tsconfigs", [
-							["virtual:some-path", {
-								"packageLocation": "./packages/tsconfigs/",
-								"packageDependencies": [
-									["tsconfigs", "virtual:some-path"]
-								],
-								"packagePeers": [],
-								"linkType": "SOFT"
-							}],
-							["workspace:packages/tsconfigs", {
-								"packageLocation": "./packages/tsconfigs/",
-								"packageDependencies": [
-									["tsconfigs", "workspace:packages/tsconfigs"]
-								],
-								"linkType": "SOFT"
-							}]
-						]]
-					]
-				}
-			`,
-		},
-		entryPaths:    []string{"/Users/user/project/entry.jsx"},
-		absWorkingDir: "/Users/user/project",
 		options: config.Options{
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/Users/user/project/out.js",

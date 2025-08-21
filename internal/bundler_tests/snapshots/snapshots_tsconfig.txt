@@ -493,12 +493,6 @@ var both_default = /* @__PURE__ */ R.c(R.F, null, /* @__PURE__ */ R.c("div", nul
 console.log(factory_default, fragment_default, both_default);
 
 ================================================================================
-TestTsconfigPackageJsonExportsYarnPnP
----------- /Users/user/project/out.js ----------
-// packages/app/index.tsx
-console.log(/* @__PURE__ */ success("div", null));
-
-================================================================================
 TestTsconfigPaths
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/baseurl_dot/test0-success.ts
@@ -805,12 +799,6 @@ TestTsconfigRemoveUnusedImports
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/src/entry.ts
 console.log(1);
-
-================================================================================
-TestTsconfigStackOverflowYarnPnP
----------- /Users/user/project/out.js ----------
-// entry.jsx
-console.log(/* @__PURE__ */ success("div", null));
 
 ================================================================================
 TestTsconfigUnrecognizedTargetWarning

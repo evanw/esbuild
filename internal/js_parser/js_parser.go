@@ -382,7 +382,6 @@ type parser struct {
 	shouldFoldTypeScriptConstantExpressions bool
 
 	allowIn                     bool
-	allowPrivateIdentifiers     bool
 	hasTopLevelReturn           bool
 	latestReturnHadSemicolon    bool
 	messageAboutThisIsUndefined bool
@@ -400,6 +399,7 @@ type globPatternImport struct {
 	approximateRange logger.Range
 	ref              ast.Ref
 	kind             ast.ImportKind
+	phase            ast.ImportPhase
 }
 
 type namespaceImportItems struct {
@@ -477,6 +477,8 @@ type optionsThatSupportStructuralEquality struct {
 	mode                   config.Mode
 	platform               config.Platform
 	outputFormat           config.Format
+	logPathStyle           logger.PathStyle
+	codePathStyle          logger.PathStyle
 	asciiOnly              bool
 	keepNames              bool
 	minifySyntax           bool
@@ -532,6 +534,8 @@ func OptionsFromConfig(options *config.Options) Options {
 			treeShaking:                       options.TreeShaking,
 			dropDebugger:                      options.DropDebugger,
 			mangleQuoted:                      options.MangleQuoted,
+			logPathStyle:                      options.LogPathStyle,
+			codePathStyle:                     options.CodePathStyle,
 		},
 	}
 }
@@ -3113,8 +3117,9 @@ func (p *parser) parseFnExpr(loc logger.Loc, isAsync bool, asyncRange logger.Ran
 }
 
 type parenExprOpts struct {
-	asyncRange   logger.Range
-	forceArrowFn bool
+	asyncRange                    logger.Range
+	forceArrowFn                  bool
+	isAfterQuestionAndBeforeColon bool
 }
 
 // This assumes that the open parenthesis has already been parsed by the caller
@@ -3203,7 +3208,8 @@ func (p *parser) parseParenExpr(loc logger.Loc, level js_ast.L, opts parenExprOp
 	p.fnOrArrowDataParse = oldFnOrArrowData
 
 	// Are these arguments to an arrow function?
-	if p.lexer.Token == js_lexer.TEqualsGreaterThan || opts.forceArrowFn || (p.options.ts.Parse && p.lexer.Token == js_lexer.TColon) {
+	isArrowFn := p.lexer.Token == js_lexer.TEqualsGreaterThan
+	if isArrowFn || opts.forceArrowFn || (p.options.ts.Parse && p.lexer.Token == js_lexer.TColon) {
 		// Arrow functions are not allowed inside certain expressions
 		if level > js_ast.LAssign {
 			p.lexer.Unexpected()
@@ -3228,13 +3234,34 @@ func (p *parser) parseParenExpr(loc logger.Loc, level js_ast.L, opts parenExprOp
 			args = append(args, js_ast.Arg{Binding: binding, DefaultOrNil: initializerOrNil})
 		}
 
+		await := allowIdent
+		if isAsync {
+			await = allowExpr
+		}
+
 		// Avoid parsing TypeScript code like "a ? (1 + 2) : (3 + 4)" as an arrow
 		// function. The ":" after the ")" may be a return type annotation, so we
 		// attempt to convert the expressions to bindings first before deciding
 		// whether this is an arrow function, and only pick an arrow function if
 		// there were no conversion errors.
-		if p.lexer.Token == js_lexer.TEqualsGreaterThan || (len(invalidLog.invalidTokens) == 0 &&
-			p.trySkipTypeScriptArrowReturnTypeWithBacktracking()) || opts.forceArrowFn {
+		if p.options.ts.Parse && p.lexer.Token == js_lexer.TColon && len(invalidLog.invalidTokens) == 0 {
+			if opts.isAfterQuestionAndBeforeColon {
+				// Only do this very expensive check if we must
+				isArrowFn = p.isTypeScriptArrowReturnTypeAfterQuestionAndBeforeColon(await)
+				if isArrowFn {
+					// We know this will succeed because we've already done it once above
+					p.lexer.Next()
+					p.skipTypeScriptReturnType()
+				}
+			} else {
+				// Otherwise, do the less expensive check
+				isArrowFn = p.trySkipTypeScriptArrowReturnTypeWithBacktracking()
+			}
+		}
+
+		// Arrow function parsing may be forced if this parenthesized expression
+		// was prefixed by a TypeScript type parameter list such as "<T,>()"
+		if isArrowFn || opts.forceArrowFn {
 			if commaAfterSpread.Start != 0 {
 				p.log.AddError(&p.tracker, logger.Range{Loc: commaAfterSpread, Len: 1}, "Unexpected \",\" after rest pattern")
 			}
@@ -3253,11 +3280,6 @@ func (p *parser) parseParenExpr(loc logger.Loc, level js_ast.L, opts parenExprOp
 			// Also report syntax features used in bindings
 			for _, entry := range invalidLog.syntaxFeatures {
 				p.markSyntaxFeature(entry.feature, entry.token)
-			}
-
-			await := allowIdent
-			if isAsync {
-				await = allowExpr
 			}
 
 			arrow := p.parseArrowBody(args, fnOrArrowDataParse{
@@ -3443,6 +3465,7 @@ const (
 	exprFlagDecorator exprFlag = 1 << iota
 	exprFlagForLoopInit
 	exprFlagForAwaitLoopInit
+	exprFlagAfterQuestionAndBeforeColon
 )
 
 func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprFlag) js_ast.Expr {
@@ -3482,14 +3505,21 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 			p.allowIn = true
 
 			value := p.parseExpr(js_ast.LLowest)
-			p.markExprAsParenthesized(value, loc, false)
+
+			// Don't consider the "@(...)" decorator syntax to be important parentheses to preserve
+			if (flags & exprFlagDecorator) == 0 {
+				p.markExprAsParenthesized(value, loc, false)
+			}
+
 			p.lexer.Expect(js_lexer.TCloseParen)
 
 			p.allowIn = oldAllowIn
 			return value
 		}
 
-		value := p.parseParenExpr(loc, level, parenExprOpts{})
+		value := p.parseParenExpr(loc, level, parenExprOpts{
+			isAfterQuestionAndBeforeColon: (flags & exprFlagAfterQuestionAndBeforeColon) != 0,
+		})
 		return value
 
 	case js_lexer.TFalse:
@@ -3512,7 +3542,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 		return js_ast.Expr{Loc: loc, Data: js_ast.EThisShared}
 
 	case js_lexer.TPrivateIdentifier:
-		if !p.allowPrivateIdentifiers || !p.allowIn || level >= js_ast.LCompare {
+		if !p.allowIn || level >= js_ast.LCompare {
 			p.lexer.Unexpected()
 		}
 
@@ -4098,14 +4128,24 @@ func (p *parser) willNeedBindingPattern() bool {
 // Note: The caller has already parsed the "import" keyword
 func (p *parser) parseImportExpr(loc logger.Loc, level js_ast.L) js_ast.Expr {
 	// Parse an "import.meta" expression
+	phase := ast.EvaluationPhase
 	if p.lexer.Token == js_lexer.TDot {
 		p.lexer.Next()
-		if !p.lexer.IsContextualKeyword("meta") {
-			p.lexer.ExpectedString("\"meta\"")
+		if p.lexer.IsContextualKeyword("meta") {
+			p.esmImportMeta = logger.Range{Loc: loc, Len: p.lexer.Range().End() - loc.Start}
+			p.lexer.Next()
+			return js_ast.Expr{Loc: loc, Data: &js_ast.EImportMeta{RangeLen: p.esmImportMeta.Len}}
+		} else if p.lexer.IsContextualKeyword("defer") {
+			p.markSyntaxFeature(compat.ImportDefer, p.lexer.Range())
+			phase = ast.DeferPhase
+			p.lexer.Next()
+		} else if p.lexer.IsContextualKeyword("source") {
+			p.markSyntaxFeature(compat.ImportSource, p.lexer.Range())
+			phase = ast.SourcePhase
+			p.lexer.Next()
+		} else {
+			p.lexer.Unexpected()
 		}
-		p.esmImportMeta = logger.Range{Loc: loc, Len: p.lexer.Range().End() - loc.Start}
-		p.lexer.Next()
-		return js_ast.Expr{Loc: loc, Data: &js_ast.EImportMeta{RangeLen: p.esmImportMeta.Len}}
 	}
 
 	if level > js_ast.LCall {
@@ -4145,6 +4185,7 @@ func (p *parser) parseImportExpr(loc logger.Loc, level js_ast.L) js_ast.Expr {
 		Expr:          value,
 		OptionsOrNil:  optionsOrNil,
 		CloseParenLoc: closeParenLoc,
+		Phase:         phase,
 	}}
 }
 
@@ -4226,7 +4267,7 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 		case js_lexer.TDot:
 			p.lexer.Next()
 
-			if p.lexer.Token == js_lexer.TPrivateIdentifier && p.allowPrivateIdentifiers {
+			if p.lexer.Token == js_lexer.TPrivateIdentifier {
 				// "a.#b"
 				// "a?.b.#c"
 				if _, ok := left.Data.(*js_ast.ESuper); ok {
@@ -4336,7 +4377,7 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 				}}
 
 			default:
-				if p.lexer.Token == js_lexer.TPrivateIdentifier && p.allowPrivateIdentifiers {
+				if p.lexer.Token == js_lexer.TPrivateIdentifier {
 					// "a?.#b"
 					name := p.lexer.Identifier
 					nameLoc := p.lexer.Loc()
@@ -4471,12 +4512,12 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 			oldAllowIn := p.allowIn
 			p.allowIn = true
 
-			yes := p.parseExpr(js_ast.LComma)
+			yes := p.parseExprWithFlags(js_ast.LComma, exprFlagAfterQuestionAndBeforeColon)
 
 			p.allowIn = oldAllowIn
 
 			p.lexer.Expect(js_lexer.TColon)
-			no := p.parseExpr(js_ast.LComma)
+			no := p.parseExprWithFlags(js_ast.LComma, flags&exprFlagAfterQuestionAndBeforeColon)
 			left = js_ast.Expr{Loc: left.Loc, Data: &js_ast.EIf{Test: left, Yes: yes, No: no}}
 
 		case js_lexer.TExclamation:
@@ -6413,9 +6454,7 @@ func (p *parser) parseClass(classKeyword logger.Range, name *ast.LocRef, classOp
 
 	// Allow "in" and private fields inside class bodies
 	oldAllowIn := p.allowIn
-	oldAllowPrivateIdentifiers := p.allowPrivateIdentifiers
 	p.allowIn = true
-	p.allowPrivateIdentifiers = true
 
 	// A scope is needed for private identifiers
 	scopeIndex := p.pushScopeForParsePass(js_ast.ScopeClassBody, bodyLoc)
@@ -6475,7 +6514,6 @@ func (p *parser) parseClass(classKeyword logger.Range, name *ast.LocRef, classOp
 	}
 
 	p.allowIn = oldAllowIn
-	p.allowPrivateIdentifiers = oldAllowPrivateIdentifiers
 
 	closeBraceLoc := p.saveExprCommentsHere()
 	p.lexer.Expect(js_lexer.TCloseBrace)
@@ -7247,7 +7285,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 				name := js_ast.GenerateNonUniqueNameFromPath(pathText) + "_star"
 				namespaceRef = p.storeNameInRef(js_lexer.MaybeSubstring{String: name})
 			}
-			importRecordIndex := p.addImportRecord(ast.ImportStmt, pathRange, pathText, assertOrWith, flags)
+			importRecordIndex := p.addImportRecord(ast.ImportStmt, ast.EvaluationPhase, pathRange, pathText, assertOrWith, flags)
 
 			// Export-star statements anywhere in the file disable top-level const
 			// local prefix because import cycles can be used to trigger TDZ
@@ -7270,7 +7308,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 				// "export {} from 'path'"
 				p.lexer.Next()
 				pathLoc, pathText, assertOrWith, flags := p.parsePath()
-				importRecordIndex := p.addImportRecord(ast.ImportStmt, pathLoc, pathText, assertOrWith, flags)
+				importRecordIndex := p.addImportRecord(ast.ImportStmt, ast.EvaluationPhase, pathLoc, pathText, assertOrWith, flags)
 				name := "import_" + js_ast.GenerateNonUniqueNameFromPath(pathText)
 				namespaceRef := p.storeNameInRef(js_lexer.MaybeSubstring{String: name})
 
@@ -7818,6 +7856,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		p.esmImportStatementKeyword = p.lexer.Range()
 		p.lexer.Next()
 		stmt := js_ast.SImport{}
+		phase := ast.EvaluationPhase
 		wasOriginallyBareImport := false
 
 		// "export import foo = bar"
@@ -7881,8 +7920,53 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 			}
 
 			defaultName := p.lexer.Identifier
-			stmt.DefaultName = &ast.LocRef{Loc: p.lexer.Loc(), Ref: p.storeNameInRef(defaultName)}
+			defaultLoc := p.lexer.Loc()
+			isDeferName := p.lexer.Raw() == "defer"
+			isSourceName := p.lexer.Raw() == "source"
 			p.lexer.Next()
+
+			if isDeferName && p.lexer.Token == js_lexer.TAsterisk {
+				// "import defer * as foo from 'bar';"
+				p.markSyntaxFeature(compat.ImportDefer, js_lexer.RangeOfIdentifier(p.source, defaultLoc))
+				phase = ast.DeferPhase
+				p.lexer.Next()
+				p.lexer.ExpectContextualKeyword("as")
+				stmt.NamespaceRef = p.storeNameInRef(p.lexer.Identifier)
+				starLoc := p.lexer.Loc()
+				stmt.StarNameLoc = &starLoc
+				p.lexer.Expect(js_lexer.TIdentifier)
+				p.lexer.ExpectContextualKeyword("from")
+				break
+			}
+
+			if isSourceName && p.lexer.Token == js_lexer.TIdentifier {
+				if p.lexer.Raw() == "from" {
+					nameSubstring := p.lexer.Identifier
+					nameLoc := p.lexer.Loc()
+					p.lexer.Next()
+					if p.lexer.IsContextualKeyword("from") {
+						// "import source from from 'foo';"
+						p.markSyntaxFeature(compat.ImportSource, js_lexer.RangeOfIdentifier(p.source, defaultLoc))
+						phase = ast.SourcePhase
+						stmt.DefaultName = &ast.LocRef{Loc: nameLoc, Ref: p.storeNameInRef(nameSubstring)}
+						p.lexer.Next()
+					} else {
+						// "import source from 'foo';"
+						stmt.DefaultName = &ast.LocRef{Loc: defaultLoc, Ref: p.storeNameInRef(defaultName)}
+					}
+					break
+				}
+
+				// "import source foo from 'bar';"
+				p.markSyntaxFeature(compat.ImportSource, js_lexer.RangeOfIdentifier(p.source, defaultLoc))
+				phase = ast.SourcePhase
+				stmt.DefaultName = &ast.LocRef{Loc: p.lexer.Loc(), Ref: p.storeNameInRef(p.lexer.Identifier)}
+				p.lexer.Next()
+				p.lexer.ExpectContextualKeyword("from")
+				break
+			}
+
+			stmt.DefaultName = &ast.LocRef{Loc: defaultLoc, Ref: p.storeNameInRef(defaultName)}
 
 			if p.options.ts.Parse {
 				// Skip over type-only imports
@@ -7997,7 +8081,7 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 		if wasOriginallyBareImport {
 			flags |= ast.WasOriginallyBareImport
 		}
-		stmt.ImportRecordIndex = p.addImportRecord(ast.ImportStmt, pathLoc, pathText, assertOrWith, flags)
+		stmt.ImportRecordIndex = p.addImportRecord(ast.ImportStmt, phase, pathLoc, pathText, assertOrWith, flags)
 
 		if stmt.StarNameLoc != nil {
 			name := p.loadNameFromRef(stmt.NamespaceRef)
@@ -8282,13 +8366,21 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 	}
 }
 
-func (p *parser) addImportRecord(kind ast.ImportKind, pathRange logger.Range, text string, assertOrWith *ast.ImportAssertOrWith, flags ast.ImportRecordFlags) uint32 {
+func (p *parser) addImportRecord(
+	kind ast.ImportKind,
+	phase ast.ImportPhase,
+	pathRange logger.Range,
+	text string,
+	assertOrWith *ast.ImportAssertOrWith,
+	flags ast.ImportRecordFlags,
+) uint32 {
 	index := uint32(len(p.importRecords))
 	p.importRecords = append(p.importRecords, ast.ImportRecord{
 		Kind:         kind,
 		Range:        pathRange,
 		Path:         logger.Path{Text: text},
 		AssertOrWith: assertOrWith,
+		Phase:        phase,
 		Flags:        flags,
 	})
 	return index
@@ -8479,9 +8571,9 @@ func (p *parser) pushScopeForVisitPass(kind js_ast.ScopeKind, loc logger.Loc) {
 
 	// Sanity-check that the scopes generated by the first and second passes match
 	if order.loc != loc || order.scope.Kind != kind {
-		panic(fmt.Sprintf("Expected scope (%d, %d) in %s, found scope (%d, %d)",
+		panic(fmt.Sprintf("Expected scope (%d, %d) in %q, found scope (%d, %d)",
 			kind, loc.Start,
-			p.source.PrettyPath,
+			p.source.PrettyPaths.Select(p.options.logPathStyle),
 			order.scope.Kind, order.loc.Start))
 	}
 
@@ -8614,6 +8706,15 @@ func findIdentifiers(binding js_ast.Binding, identifiers []js_ast.Decl) []js_ast
 	return identifiers
 }
 
+func shouldKeepStmtsInDeadControlFlow(stmts []js_ast.Stmt) bool {
+	for _, child := range stmts {
+		if shouldKeepStmtInDeadControlFlow(child) {
+			return true
+		}
+	}
+	return false
+}
+
 // If this is in a dead branch, then we want to trim as much dead code as we
 // can. Everything can be trimmed except for hoisted declarations ("var" and
 // "function"), which affect the parent scope. For example:
@@ -8650,12 +8751,12 @@ func shouldKeepStmtInDeadControlFlow(stmt js_ast.Stmt) bool {
 		return true
 
 	case *js_ast.SBlock:
-		for _, child := range s.Stmts {
-			if shouldKeepStmtInDeadControlFlow(child) {
-				return true
-			}
-		}
-		return false
+		return shouldKeepStmtsInDeadControlFlow(s.Stmts)
+
+	case *js_ast.STry:
+		return shouldKeepStmtsInDeadControlFlow(s.Block.Stmts) ||
+			(s.Catch != nil && shouldKeepStmtsInDeadControlFlow(s.Catch.Block.Stmts)) ||
+			(s.Finally != nil && shouldKeepStmtsInDeadControlFlow(s.Finally.Block.Stmts))
 
 	case *js_ast.SIf:
 		return shouldKeepStmtInDeadControlFlow(s.Yes) || (s.NoOrNil.Data != nil && shouldKeepStmtInDeadControlFlow(s.NoOrNil))
@@ -9175,7 +9276,7 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 					body = append(body, stmts[i+1:]...)
 
 					// Don't do this transformation if the branch condition could
-					// potentially access symbols declared later on on this scope below.
+					// potentially access symbols declared later on this scope below.
 					// If so, inverting the branch condition and nesting statements after
 					// this in a block would break that access which is a behavior change.
 					//
@@ -11574,6 +11675,10 @@ func (p *parser) markExprAsParenthesized(value js_ast.Expr, openParenLoc logger.
 		e.IsParenthesized = true
 	case *js_ast.EObject:
 		e.IsParenthesized = true
+	case *js_ast.EFunction:
+		e.IsParenthesized = true
+	case *js_ast.EArrow:
+		e.IsParenthesized = true
 	}
 }
 
@@ -12404,7 +12509,8 @@ func (p *parser) instantiateInjectDotName(loc logger.Loc, name injectedDotName, 
 			p.log.AddErrorWithNotes(&p.tracker, r,
 				fmt.Sprintf("Cannot assign to %q because it's an import from an injected file", joined),
 				[]logger.MsgData{tracker.MsgData(js_lexer.RangeOfIdentifier(where.source, where.loc),
-					fmt.Sprintf("The symbol %q was exported from %q here:", joined, where.source.PrettyPath))})
+					fmt.Sprintf("The symbol %q was exported from %q here:",
+						joined, where.source.PrettyPaths.Select(p.options.logPathStyle)))})
 		}
 	}
 
@@ -13354,7 +13460,8 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					p.log.AddErrorWithNotes(&p.tracker, r,
 						fmt.Sprintf("Cannot assign to %q because it's an import from an injected file", name),
 						[]logger.MsgData{tracker.MsgData(js_lexer.RangeOfIdentifier(where.source, where.loc),
-							fmt.Sprintf("The symbol %q was exported from %q here:", name, where.source.PrettyPath))})
+							fmt.Sprintf("The symbol %q was exported from %q here:",
+								name, where.source.PrettyPaths.Select(p.options.logPathStyle)))})
 				}
 			}
 		}
@@ -13659,7 +13766,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 							{
 								Kind:       js_ast.PropertyField,
 								Key:        js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EString{Value: helpers.StringToUTF16("fileName")}},
-								ValueOrNil: js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EString{Value: helpers.StringToUTF16(p.source.PrettyPath)}},
+								ValueOrNil: js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EString{Value: helpers.StringToUTF16(p.source.PrettyPaths.Select(p.options.codePathStyle))}},
 							},
 							{
 								Kind:       js_ast.PropertyField,
@@ -14761,7 +14868,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					return js_ast.Expr{Loc: arg.Loc, Data: js_ast.ENullShared}
 				}
 
-				importRecordIndex := p.addImportRecord(ast.ImportDynamic, p.source.RangeOfString(arg.Loc), helpers.UTF16ToString(str.Value), assertOrWith, flags)
+				importRecordIndex := p.addImportRecord(ast.ImportDynamic, e.Phase, p.source.RangeOfString(arg.Loc), helpers.UTF16ToString(str.Value), assertOrWith, flags)
 				if isAwaitTarget && p.fnOrArrowDataVisit.tryBodyCount != 0 {
 					record := &p.importRecords[importRecordIndex]
 					record.Flags |= ast.HandlesImportErrors
@@ -14780,7 +14887,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 			// Handle glob patterns
 			if p.options.mode == config.ModeBundle {
-				if value := p.handleGlobPattern(arg, ast.ImportDynamic, "globImport", assertOrWith); value.Data != nil {
+				if value := p.handleGlobPattern(arg, ast.ImportDynamic, e.Phase, "globImport", assertOrWith); value.Data != nil {
 					return value
 				}
 			}
@@ -14889,7 +14996,12 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			storeThisArgForParentOptionalChain: e.OptionalChain == js_ast.OptionalChainStart || isParenthesizedOptionalChain,
 		})
 		e.Target = target
-		p.warnAboutImportNamespaceCall(e.Target, exprKindCall)
+		p.warnAboutImportNamespaceCall(target, exprKindCall)
+
+		// Automatically mark immediately-invoked function expressions for eager compilation
+		if fn, ok := target.Data.(*js_ast.EFunction); ok {
+			fn.IsParenthesized = true
+		}
 
 		hasSpread := false
 		oldIsControlFlowDead := p.isControlFlowDead
@@ -15122,7 +15234,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 								return js_ast.Expr{Loc: expr.Loc, Data: js_ast.ENullShared}
 							}
 
-							importRecordIndex := p.addImportRecord(ast.ImportRequireResolve, p.source.RangeOfString(e.Args[0].Loc), helpers.UTF16ToString(str.Value), nil, 0)
+							importRecordIndex := p.addImportRecord(ast.ImportRequireResolve, ast.EvaluationPhase, p.source.RangeOfString(e.Args[0].Loc), helpers.UTF16ToString(str.Value), nil, 0)
 							if p.fnOrArrowDataVisit.tryBodyCount != 0 {
 								record := &p.importRecords[importRecordIndex]
 								record.Flags |= ast.HandlesImportErrors
@@ -15318,7 +15430,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 									return js_ast.Expr{Loc: expr.Loc, Data: js_ast.ENullShared}
 								}
 
-								importRecordIndex := p.addImportRecord(ast.ImportRequire, p.source.RangeOfString(arg.Loc), helpers.UTF16ToString(str.Value), nil, 0)
+								importRecordIndex := p.addImportRecord(ast.ImportRequire, ast.EvaluationPhase, p.source.RangeOfString(arg.Loc), helpers.UTF16ToString(str.Value), nil, 0)
 								if p.fnOrArrowDataVisit.tryBodyCount != 0 {
 									record := &p.importRecords[importRecordIndex]
 									record.Flags |= ast.HandlesImportErrors
@@ -15341,7 +15453,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 							// Handle glob patterns
 							if p.options.mode == config.ModeBundle {
-								if value := p.handleGlobPattern(arg, ast.ImportRequire, "globRequire", nil); value.Data != nil {
+								if value := p.handleGlobPattern(arg, ast.ImportRequire, ast.EvaluationPhase, "globRequire", nil); value.Data != nil {
 									return value
 								}
 							}
@@ -16185,7 +16297,7 @@ func remapExprLocsInJSON(expr *js_ast.Expr, table []logger.StringInJSTableEntry)
 	}
 }
 
-func (p *parser) handleGlobPattern(expr js_ast.Expr, kind ast.ImportKind, prefix string, assertOrWith *ast.ImportAssertOrWith) js_ast.Expr {
+func (p *parser) handleGlobPattern(expr js_ast.Expr, kind ast.ImportKind, phase ast.ImportPhase, prefix string, assertOrWith *ast.ImportAssertOrWith) js_ast.Expr {
 	pattern, approximateRange := p.globPatternFromExpr(expr)
 	if pattern == nil {
 		return js_ast.Expr{}
@@ -16233,8 +16345,8 @@ func (p *parser) handleGlobPattern(expr js_ast.Expr, kind ast.ImportKind, prefix
 	// Don't generate duplicate glob imports
 outer:
 	for _, globPattern := range p.globPatternImports {
-		// Check the kind
-		if globPattern.kind != kind {
+		// Check the kind and phase
+		if globPattern.kind != kind || globPattern.phase != phase {
 			continue
 		}
 
@@ -16310,6 +16422,7 @@ outer:
 			approximateRange: approximateRange,
 			ref:              ref,
 			kind:             kind,
+			phase:            phase,
 		})
 	}
 
@@ -18110,7 +18223,7 @@ func (p *parser) generateImportStmt(
 	p.moduleScope.Generated = append(p.moduleScope.Generated, namespaceRef)
 	declaredSymbols := make([]js_ast.DeclaredSymbol, 1+len(imports))
 	clauseItems := make([]js_ast.ClauseItem, len(imports))
-	importRecordIndex := p.addImportRecord(ast.ImportStmt, pathRange, path, nil, 0)
+	importRecordIndex := p.addImportRecord(ast.ImportStmt, ast.EvaluationPhase, pathRange, path, nil, 0)
 	if sourceIndex != nil {
 		p.importRecords[importRecordIndex].SourceIndex = ast.MakeIndex32(*sourceIndex)
 	}
@@ -18198,6 +18311,7 @@ func (p *parser) toAST(before, parts, after []js_ast.Part, hashbang string, dire
 		before, importRecordIndex = p.generateImportStmt(helpers.GlobPatternToString(glob.parts), glob.approximateRange, []string{glob.name}, before, symbols, nil, nil)
 		record := &p.importRecords[importRecordIndex]
 		record.AssertOrWith = glob.assertOrWith
+		record.Phase = glob.phase
 		record.GlobPattern = &ast.GlobPattern{
 			Parts:       glob.parts,
 			ExportAlias: glob.name,

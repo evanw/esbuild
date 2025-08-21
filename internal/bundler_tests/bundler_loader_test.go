@@ -1837,11 +1837,11 @@ func TestLoaderInlineSourceMapAbsolutePathIssue4075Windows(t *testing.T) {
 
 	loader_suite.expectBundledWindows(t, bundled{
 		files: map[string]string{
-			"/home/user/project/src/entry.css": `
+			"C:\\home\\user\\project\\src\\entry.css": `
 				@import "./styles1.css";
 				@import "./styles2.css";
 			`,
-			"/home/user/project/src/styles1.css": `/* You can add global styles to this file, and also import other style files */
+			"C:\\home\\user\\project\\src\\styles1.css": `/* You can add global styles to this file, and also import other style files */
 			* {
 				content: "foo";
 			}
@@ -1852,7 +1852,7 @@ func TestLoaderInlineSourceMapAbsolutePathIssue4075Windows(t *testing.T) {
 				`ut%22,%22sourcesContent%22:%5B%22/*%20You%20can%20add%20global%20styles` +
 				`%20to%20this%20file,%20and%20also%20import%20other%20style%20files%20%2` +
 				`A/%5Cn*%20%7B%5Cn%20%20content:%20%5C%22foo%5C%22%5Cn%7D%5Cn%22%5D%7D */`,
-			"/home/user/project/src/styles2.css": `/* You can add global styles to this file, and also import other style files */
+			"C:\\home\\user\\project\\src\\styles2.css": `/* You can add global styles to this file, and also import other style files */
 			* {
 				content: "bar";
 			}
@@ -1864,11 +1864,11 @@ func TestLoaderInlineSourceMapAbsolutePathIssue4075Windows(t *testing.T) {
 				`s%20to%20this%20file,%20and%20also%20import%20other%20style%20files%20%` +
 				`2A/%5Cn*%20%7B%5Cn%20%20content:%20%5C%22bar%5C%22%5Cn%7D%5Cn%22%5D%7D */`,
 		},
-		entryPaths: []string{"/home/user/project/src/entry.css"},
+		entryPaths: []string{"C:\\home\\user\\project\\src\\entry.css"},
 		options: config.Options{
 			Mode:         config.ModeBundle,
 			SourceMap:    config.SourceMapLinkedWithComment,
-			AbsOutputDir: "/out",
+			AbsOutputDir: "C:\\out",
 		},
 	})
 }

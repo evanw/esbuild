@@ -74,10 +74,11 @@ func TestMockFSBasicUnix(t *testing.T) {
 
 func TestMockFSBasicWindows(t *testing.T) {
 	fs := MockFS(map[string]string{
-		"/README.md":    "// README.md",
-		"/package.json": "// package.json",
-		"/src/index.js": "// src/index.js",
-		"/src/util.js":  "// src/util.js",
+		"C:\\README.md":       "// README.md",
+		"C:\\package.json":    "// package.json",
+		"C:\\src\\index.js":   "// src/index.js",
+		"C:\\src\\util.js":    "// src/util.js",
+		"D:\\other\\file.txt": "// other/file.txt",
 	}, MockWindows, "C:\\")
 
 	// Test a missing file
@@ -104,6 +105,21 @@ func TestMockFSBasicWindows(t *testing.T) {
 		t.Fatalf("Incorrect contents for C:\\src\\index.js: %q", index)
 	}
 
+	// Test an existing nested file on another drive
+	file, err, _ := fs.ReadFile("D:\\other\\file.txt")
+	if err != nil {
+		t.Fatal("Expected to find D:\\other\\file.txt")
+	}
+	if file != "// other/file.txt" {
+		t.Fatalf("Incorrect contents for D:\\other/file.txt: %q", file)
+	}
+
+	// Should not find a file on another drive
+	_, err, _ = fs.ReadFile("C:\\other\\file.txt")
+	if err == nil {
+		t.Fatal("Unexpectedly found C:\\other\\file.txt")
+	}
+
 	// Test a missing directory
 	_, err, _ = fs.ReadDirectory("C:\\missing")
 	if err == nil {
@@ -121,6 +137,17 @@ func TestMockFSBasicWindows(t *testing.T) {
 		indexEntry == nil || indexEntry.Kind(fs) != FileEntry ||
 		utilEntry == nil || utilEntry.Kind(fs) != FileEntry {
 		t.Fatalf("Incorrect contents for C:\\src: %v", src)
+	}
+
+	// Test a nested directory on another drive
+	other, err, _ := fs.ReadDirectory("D:\\other")
+	if err != nil {
+		t.Fatal("Expected to find D:\\other")
+	}
+	fileEntry, _ := other.Get("file.txt")
+	if len(other.data) != 1 ||
+		fileEntry == nil || fileEntry.Kind(fs) != FileEntry {
+		t.Fatalf("Incorrect contents for D:\\other: %v", other)
 	}
 
 	// Test the top-level directory
@@ -177,34 +204,44 @@ func TestMockFSRelUnix(t *testing.T) {
 func TestMockFSRelWindows(t *testing.T) {
 	fs := MockFS(map[string]string{}, MockWindows, "C:\\")
 
-	expect := func(a string, b string, c string) {
+	expect := func(a string, b string, works bool, c string) {
 		t.Helper()
 		t.Run(fmt.Sprintf("Rel(%q, %q) == %q", a, b, c), func(t *testing.T) {
 			t.Helper()
 			rel, ok := fs.Rel(a, b)
-			if !ok {
-				t.Fatalf("!ok")
-			}
-			if rel != c {
-				t.Fatalf("Expected %q, got %q", c, rel)
+			if works {
+				if !ok {
+					t.Fatalf("!ok")
+				}
+				if rel != c {
+					t.Fatalf("Expected %q, got %q", c, rel)
+				}
+			} else {
+				if ok {
+					t.Fatalf("ok")
+				}
 			}
 		})
 	}
 
-	expect("C:\\a\\b", "C:\\a\\b", ".")
-	expect("C:\\a\\b", "C:\\a\\b\\c", "c")
-	expect("C:\\a\\b", "C:\\a\\b\\c\\d", "c\\d")
-	expect("C:\\a\\b\\c", "C:\\a\\b", "..")
-	expect("C:\\a\\b\\c\\d", "C:\\a\\b", "..\\..")
-	expect("C:\\a\\b\\c", "C:\\a\\b\\x", "..\\x")
-	expect("C:\\a\\b\\c\\d", "C:\\a\\b\\x", "..\\..\\x")
-	expect("C:\\a\\b\\c", "C:\\a\\b\\x\\y", "..\\x\\y")
-	expect("C:\\a\\b\\c\\d", "C:\\a\\b\\x\\y", "..\\..\\x\\y")
+	expect("C:\\a\\b", "C:\\a\\b", true, ".")
+	expect("C:\\a\\b", "C:\\a\\b\\c", true, "c")
+	expect("C:\\a\\b", "C:\\a\\b\\c\\d", true, "c\\d")
+	expect("C:\\a\\b\\c", "C:\\a\\b", true, "..")
+	expect("C:\\a\\b\\c\\d", "C:\\a\\b", true, "..\\..")
+	expect("C:\\a\\b\\c", "C:\\a\\b\\x", true, "..\\x")
+	expect("C:\\a\\b\\c\\d", "C:\\a\\b\\x", true, "..\\..\\x")
+	expect("C:\\a\\b\\c", "C:\\a\\b\\x\\y", true, "..\\x\\y")
+	expect("C:\\a\\b\\c\\d", "C:\\a\\b\\x\\y", true, "..\\..\\x\\y")
 
-	expect("a\\b", "a\\c", "..\\c")
-	expect(".\\a\\b", ".\\a\\c", "..\\c")
-	expect(".", ".\\a\\b", "a\\b")
-	expect(".", ".\\\\a\\b", "a\\b")
-	expect(".", ".\\.\\a\\b", "a\\b")
-	expect(".", ".\\.\\\\a\\b", "a\\b")
+	expect("a\\b", "a\\c", true, "..\\c")
+	expect(".\\a\\b", ".\\a\\c", true, "..\\c")
+	expect(".", ".\\a\\b", true, "a\\b")
+	expect(".", ".\\\\a\\b", true, "a\\b")
+	expect(".", ".\\.\\a\\b", true, "a\\b")
+	expect(".", ".\\.\\\\a\\b", true, "a\\b")
+
+	expect("C:\\a\\b", "\\a\\b", true, ".")
+	expect("\\a", "\\b", true, "..\\b")
+	expect("C:\\a", "D:\\a", false, "")
 }

@@ -51,6 +51,7 @@ const (
 
 type parseOptionsExtras struct {
 	watch       bool
+	watchDelay  int
 	metafile    *string
 	mangleCache *string
 }
@@ -126,6 +127,17 @@ func parseOptionsImpl(
 			} else {
 				extras.watch = value
 			}
+
+		case strings.HasPrefix(arg, "--watch-delay=") && buildOpts != nil:
+			value := arg[len("--watch-delay="):]
+			delay, err := strconv.Atoi(value)
+			if err != nil {
+				return parseOptionsExtras{}, cli_helpers.MakeErrorWithNote(
+					fmt.Sprintf("Invalid value %q in %q", value, arg),
+					"The watch delay must be an integer.",
+				)
+			}
+			extras.watchDelay = delay
 
 		case isBoolFlag(arg, "--minify"):
 			if value, err := parseBoolFlag(arg, true); err != nil {
@@ -471,6 +483,30 @@ func parseOptionsImpl(
 				buildOpts.LogOverride[value[:equals]] = logLevel
 			} else {
 				transformOpts.LogOverride[value[:equals]] = logLevel
+			}
+
+		case strings.HasPrefix(arg, "--abs-paths="):
+			values := splitWithEmptyCheck(arg[len("--abs-paths="):], ",")
+			var absPaths api.AbsPaths
+			for _, value := range values {
+				switch value {
+				case "code":
+					absPaths |= api.CodeAbsPath
+				case "log":
+					absPaths |= api.LogAbsPath
+				case "metafile":
+					absPaths |= api.MetafileAbsPath
+				default:
+					return parseOptionsExtras{}, cli_helpers.MakeErrorWithNote(
+						fmt.Sprintf("Invalid value %q in %q", value, arg),
+						"Valid values are \"code\", \"log\", or \"metafile\".",
+					)
+				}
+			}
+			if buildOpts != nil {
+				buildOpts.AbsPaths = absPaths
+			} else {
+				transformOpts.AbsPaths = absPaths
 			}
 
 		case strings.HasPrefix(arg, "--supported:"):
@@ -836,6 +872,7 @@ func parseOptionsImpl(
 			}
 
 			equals := map[string]bool{
+				"abs-paths":          true,
 				"allow-overwrite":    true,
 				"asset-names":        true,
 				"banner":             true,
@@ -893,6 +930,7 @@ func parseOptionsImpl(
 				"tsconfig-raw":       true,
 				"tsconfig":           true,
 				"watch":              true,
+				"watch-delay":        true,
 			}
 
 			colon := map[string]bool{
@@ -1329,7 +1367,9 @@ func runImpl(osArgs []string, plugins []api.Plugin) int {
 				return 1
 			}
 
-			ctx.Watch(api.WatchOptions{})
+			ctx.Watch(api.WatchOptions{
+				Delay: extras.watchDelay,
+			})
 
 			// Do not exit if we're in watch mode
 			<-make(chan struct{})

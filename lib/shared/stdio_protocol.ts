@@ -98,6 +98,7 @@ export interface CancelRequest {
 export interface WatchRequest {
   command: 'watch'
   key: number
+  delay?: number
 }
 
 export interface OnServeRequest {
