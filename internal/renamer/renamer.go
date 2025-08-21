@@ -578,52 +578,7 @@ func (s *numberScope) findNameUse(name string) nameUse {
 }
 
 func (s *numberScope) findUnusedName(name string, ns ast.SlotNamespace) string {
-	// We may not have a valid identifier if this is an internally-constructed name
-	if ns == ast.SlotPrivateName {
-		if id := name[1:]; !js_ast.IsIdentifier(id) {
-			name = js_ast.ForceValidIdentifier("#", id)
-		}
-	} else {
-		if !js_ast.IsIdentifier(name) {
-			name = js_ast.ForceValidIdentifier("", name)
-		}
-	}
-
-	if use := s.findNameUse(name); use != nameUnused {
-		// If the name is already in use, generate a new name by appending a number
-		tries := uint32(1)
-		if use == nameUsedInSameScope {
-			// To avoid O(n^2) behavior, the number must start off being the number
-			// that we used last time there was a collision with this name. Otherwise
-			// if there are many collisions with the same name, each name collision
-			// would have to increment the counter past all previous name collisions
-			// which is a O(n^2) time algorithm. Only do this if this symbol comes
-			// from the same scope as the previous one since sibling scopes can reuse
-			// the same name without problems.
-			tries = s.nameCounts[name]
-		}
-		prefix := name
-
-		// Keep incrementing the number until the name is unused
-		for {
-			tries++
-			name = prefix + strconv.Itoa(int(tries))
-
-			// Make sure this new name is unused
-			if s.findNameUse(name) == nameUnused {
-				// Store the count so we can start here next time instead of starting
-				// from 1. This means we avoid O(n^2) behavior.
-				if use == nameUsedInSameScope {
-					s.nameCounts[prefix] = tries
-				}
-				break
-			}
-		}
-	}
-
-	// Each name starts off with a count of 1 so that the first collision with
-	// "name" is called "name2"
-	s.nameCounts[name] = 1
+	// Keep the name unchanged
 	return name
 }
 
