@@ -1345,6 +1345,15 @@ func TestNestedSelector(t *testing.T) {
 	// https://github.com/w3c/csswg-drafts/issues/7961#issuecomment-1549874958
 	expectPrinted(t, "@media screen { a { x: y } x: y; b { x: y } }", "@media screen {\n  a {\n    x: y;\n  }\n  x: y;\n  b {\n    x: y;\n  }\n}\n", "")
 	expectPrinted(t, ":root { @media screen { a { x: y } x: y; b { x: y } } }", ":root {\n  @media screen {\n    a {\n      x: y;\n    }\n    x: y;\n    b {\n      x: y;\n    }\n  }\n}\n", "")
+
+	// Nested at-rules work with pseudo-elements while nested "&" rules do not
+	// See: https://github.com/evanw/esbuild/issues/4265
+	expectPrintedLower(t, "::placeholder { color: red; body & { color: green } }",
+		"::placeholder {\n  color: red;\n}\nbody :is() {\n  color: green;\n}\n", "")
+	expectPrintedLower(t, "::placeholder { color: red; @supports (color: green) { color: green } }",
+		"::placeholder {\n  color: red;\n}\n@supports (color: green) {\n  ::placeholder {\n    color: green;\n  }\n}\n", "")
+	expectPrintedLower(t, "::placeholder { opacity: 0.5; @layer base { color: green } }",
+		"::placeholder {\n  opacity: 0.5;\n}\n@layer base {\n  ::placeholder {\n    color: green;\n  }\n}\n", "")
 }
 
 func TestBadQualifiedRules(t *testing.T) {
