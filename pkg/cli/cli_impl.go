@@ -384,6 +384,10 @@ func parseOptionsImpl(
 				}
 			}
 
+		case strings.HasPrefix(arg, "--exclude-sourcemap=") && buildOpts != nil:
+			value := arg[len("--exclude-sourcemap="):]
+			buildOpts.ExcludeSourceMap = value
+
 		case strings.HasPrefix(arg, "--sourcefile="):
 			if buildOpts != nil {
 				if buildOpts.Stdin == nil {
@@ -885,6 +889,7 @@ func parseOptionsImpl(
 				"cors-origin":        true,
 				"drop-labels":        true,
 				"entry-names":        true,
+				"exclude-sourcemap":  true,
 				"footer":             true,
 				"format":             true,
 				"global-name":        true,
