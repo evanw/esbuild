@@ -79,6 +79,8 @@ package api
 import (
 	"time"
 
+	"github.com/evanw/esbuild/internal/ast"
+	"github.com/evanw/esbuild/internal/js_ast"
 	"github.com/evanw/esbuild/internal/logger"
 )
 
@@ -734,3 +736,95 @@ type AnalyzeMetafileOptions struct {
 func AnalyzeMetafile(metafile string, opts AnalyzeMetafileOptions) string {
 	return analyzeMetafileImpl(metafile, opts)
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// ParseAST API
+
+type ParseASTOptions struct {
+	// 基础选项
+	Sourcefile string // 源文件名
+	Loader     Loader // 文件类型 (LoaderJS/LoaderTS/LoaderJSX/LoaderTSX)
+
+	// 日志选项
+	Color    StderrColor
+	LogLevel LogLevel
+	LogLimit int
+
+	// 语言特性选项
+	Target      Target // ES版本目标
+	JSX         JSX    // JSX 处理模式
+	JSXFactory  string // JSX 工厂函数
+	JSXFragment string // JSX Fragment
+
+	// TypeScript 选项
+	TSConfig    string // tsconfig.json 路径
+	TSConfigRaw string // 内联 tsconfig
+}
+
+type ParseASTResult struct {
+	// 错误和警告
+	Errors   []Message
+	Warnings []Message
+
+	// AST 数据
+	AST *AST // 完整的 AST 结构
+
+	// 元信息
+	Symbols []ast.Symbol // 符号表
+	Scope   *Scope       // 根作用域
+}
+
+// ParseAST API - 解析源代码为 AST
+func ParseAST(input string, options ParseASTOptions) ParseASTResult {
+	return parseASTImpl(input, options)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// AST Types
+
+// 重新导出 js_ast 的核心类型供外部使用
+type (
+	// 核心 AST 类型
+	AST   = js_ast.AST
+	Expr  = js_ast.Expr
+	Stmt  = js_ast.Stmt
+	Scope = js_ast.Scope
+
+	// 接口类型
+	E = js_ast.E
+	S = js_ast.S
+
+	// 常用表达式类型
+	EIdentifier = js_ast.EIdentifier
+	ECall       = js_ast.ECall
+	EFunction   = js_ast.EFunction
+	EClass      = js_ast.EClass
+	EBinary     = js_ast.EBinary
+	EUnary      = js_ast.EUnary
+	EArray      = js_ast.EArray
+	EObject     = js_ast.EObject
+	EString     = js_ast.EString
+	ENumber     = js_ast.ENumber
+	EBoolean    = js_ast.EBoolean
+	ENull       = js_ast.ENull
+	EUndefined  = js_ast.EUndefined
+
+	// 常用语句类型
+	SBlock    = js_ast.SBlock
+	SExpr     = js_ast.SExpr
+	SFunction = js_ast.SFunction
+	SClass    = js_ast.SClass
+	SLocal    = js_ast.SLocal
+	SIf       = js_ast.SIf
+	SFor      = js_ast.SFor
+	SReturn   = js_ast.SReturn
+	SThrow    = js_ast.SThrow
+	STry      = js_ast.STry
+	SSwitch   = js_ast.SSwitch
+
+	// 其他重要类型
+	Binding = js_ast.Binding
+	Arg     = js_ast.Arg
+	Fn      = js_ast.Fn
+	Class   = js_ast.Class
+)
