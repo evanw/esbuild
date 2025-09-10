@@ -1850,6 +1850,95 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// ParseAST API
+
+func parseASTImpl(input string, options ParseASTOptions) ParseASTResult {
+	logOptions := logger.OutputOptions{
+		IncludeSource: true,
+		MessageLimit:  options.LogLimit,
+		Color:         validateColor(options.Color),
+		LogLevel:      validateLogLevel(options.LogLevel),
+		PathStyle:     logger.RelPath,
+		Overrides:     make(map[logger.MsgID]logger.LogLevel),
+	}
+	log := logger.NewStderrLog(logOptions)
+
+	// Apply default values
+	sourcefile := options.Sourcefile
+	if sourcefile == "" {
+		sourcefile = "<stdin>"
+	}
+	loader := options.Loader
+	if loader == LoaderNone {
+		loader = LoaderJS
+	}
+
+	// Create source
+	source := logger.Source{
+		KeyPath:     logger.Path{Text: sourcefile},
+		PrettyPaths: logger.PrettyPaths{Abs: sourcefile, Rel: sourcefile},
+		Contents:    input,
+	}
+
+	// Convert API options to parser options
+	jsFeatures, cssFeatures, cssPrefixData, targetEnv := validateFeatures(log, options.Target, nil)
+	platform := config.PlatformBrowser
+	defines, injectedDefines := validateDefines(log, nil, nil, platform, false, false, 0)
+
+	parserOptions := js_parser.OptionsFromConfig(&config.Options{
+		CSSPrefixData:          cssPrefixData,
+		UnsupportedJSFeatures:  jsFeatures,
+		UnsupportedCSSFeatures: cssFeatures,
+		OriginalTargetEnv:      targetEnv,
+		TSConfigRaw:            options.TSConfigRaw,
+		JSX: config.JSXOptions{
+			Preserve:         options.JSX == JSXPreserve,
+			AutomaticRuntime: options.JSX == JSXAutomatic,
+			Factory:          validateJSXExpr(log, options.JSXFactory, "factory"),
+			Fragment:         validateJSXExpr(log, options.JSXFragment, "fragment"),
+		},
+		Defines:         defines,
+		InjectedDefines: injectedDefines,
+		Platform:        platform,
+		SourceMap:       config.SourceMapNone,
+		LegalComments:   config.LegalCommentsNone,
+		AbsOutputFile:   sourcefile + "-out",
+		Stdin: &config.StdinInfo{
+			Loader:     validateLoader(loader),
+			Contents:   input,
+			SourceFile: sourcefile,
+		},
+	})
+
+	// Stop now if there were validation errors
+	if log.HasErrors() {
+		msgs := log.Done()
+		return ParseASTResult{
+			Errors:   convertMessagesToPublic(logger.Error, msgs, logOptions.PathStyle),
+			Warnings: convertMessagesToPublic(logger.Warning, msgs, logOptions.PathStyle),
+		}
+	}
+
+	// Parse the source
+	ast, ok := js_parser.Parse(log, source, parserOptions)
+
+	// Handle parse result
+	msgs := log.Done()
+	result := ParseASTResult{
+		Errors:   convertMessagesToPublic(logger.Error, msgs, logOptions.PathStyle),
+		Warnings: convertMessagesToPublic(logger.Warning, msgs, logOptions.PathStyle),
+	}
+
+	if ok {
+		result.AST = &ast
+		result.Symbols = ast.Symbols
+		result.Scope = ast.ModuleScope
+	}
+
+	return result
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // Plugin API
 
 type pluginImpl struct {
