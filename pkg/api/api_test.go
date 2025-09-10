@@ -319,3 +319,81 @@ func TestFormatMessages(t *testing.T) {
 `,
 	)
 }
+
+func TestParseAST(t *testing.T) {
+	// Test basic JavaScript parsing
+	result := api.ParseAST("const x = 42; function foo() { return x; }", api.ParseASTOptions{
+		Sourcefile: "test.js",
+		Loader:     api.LoaderJS,
+		Target:     api.ES2020,
+	})
+
+	// Should have no errors
+	if len(result.Errors) > 0 {
+		t.Errorf("Expected no errors, got %d errors", len(result.Errors))
+		for _, err := range result.Errors {
+			t.Errorf("Error: %s", err.Text)
+		}
+	}
+
+	// Should have AST
+	if result.AST == nil {
+		t.Errorf("Expected AST to be non-nil")
+	}
+
+	// Should have symbols
+	if len(result.Symbols) == 0 {
+		t.Errorf("Expected symbols to be present")
+	}
+
+	// Should have scope
+	if result.Scope == nil {
+		t.Errorf("Expected scope to be non-nil")
+	}
+
+	// Test TypeScript parsing
+	tsResult := api.ParseAST("interface User { name: string; } const user: User = { name: 'test' };", api.ParseASTOptions{
+		Sourcefile: "test.ts",
+		Loader:     api.LoaderTS,
+		Target:     api.ES2020,
+	})
+
+	if len(tsResult.Errors) > 0 {
+		t.Errorf("Expected no errors for TypeScript, got %d errors", len(tsResult.Errors))
+	}
+
+	if tsResult.AST == nil {
+		t.Errorf("Expected TypeScript AST to be non-nil")
+	}
+
+	// Test JSX parsing
+	jsxResult := api.ParseAST("const element = <div>Hello World</div>;", api.ParseASTOptions{
+		Sourcefile: "test.jsx",
+		Loader:     api.LoaderJSX,
+		Target:     api.ES2020,
+		JSX:        api.JSXTransform,
+	})
+
+	if len(jsxResult.Errors) > 0 {
+		t.Errorf("Expected no errors for JSX, got %d errors", len(jsxResult.Errors))
+	}
+
+	if jsxResult.AST == nil {
+		t.Errorf("Expected JSX AST to be non-nil")
+	}
+
+	// Test syntax error handling
+	errorResult := api.ParseAST("const x = ;", api.ParseASTOptions{
+		Sourcefile: "error.js",
+		Loader:     api.LoaderJS,
+	})
+
+	if len(errorResult.Errors) == 0 {
+		t.Errorf("Expected errors for invalid syntax, got none")
+	}
+
+	// AST should be nil on parse error
+	if errorResult.AST != nil {
+		t.Errorf("Expected AST to be nil on parse error")
+	}
+}

@@ -1885,13 +1885,21 @@ func parseASTImpl(input string, options ParseASTOptions) ParseASTResult {
 	platform := config.PlatformBrowser
 	defines, injectedDefines := validateDefines(log, nil, nil, platform, false, false, 0)
 
+	// Configure TypeScript parsing based on loader
+	tsOptions := config.TSOptions{}
+	if loader == LoaderTS || loader == LoaderTSX {
+		tsOptions.Parse = true
+	}
+
 	parserOptions := js_parser.OptionsFromConfig(&config.Options{
 		CSSPrefixData:          cssPrefixData,
 		UnsupportedJSFeatures:  jsFeatures,
 		UnsupportedCSSFeatures: cssFeatures,
 		OriginalTargetEnv:      targetEnv,
 		TSConfigRaw:            options.TSConfigRaw,
+		TS:                     tsOptions,
 		JSX: config.JSXOptions{
+			Parse:            loader == LoaderJSX || loader == LoaderTSX,
 			Preserve:         options.JSX == JSXPreserve,
 			AutomaticRuntime: options.JSX == JSXAutomatic,
 			Factory:          validateJSXExpr(log, options.JSXFactory, "factory"),
