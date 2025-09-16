@@ -2594,6 +2594,12 @@ func TestInlineIdentityFunctionCalls(t *testing.T) {
 				keep(foo())
 				keep(1)
 			`,
+
+			"/identity-simplify-unused-issue-4287.js": `
+				function id(x) { return x }
+				id({ x: id([123, foo()]) })
+				id({ x: id(123) })
+			`,
 		},
 		entryPaths: []string{
 			"/identity.js",
@@ -2615,6 +2621,7 @@ func TestInlineIdentityFunctionCalls(t *testing.T) {
 			"/not-identity-object.js",
 			"/not-identity-rest.js",
 			"/not-identity-return.js",
+			"/identity-simplify-unused-issue-4287.js",
 		},
 		options: config.Options{
 			Mode:         config.ModeBundle,

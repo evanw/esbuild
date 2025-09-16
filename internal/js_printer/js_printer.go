@@ -2333,6 +2333,9 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 				if _, ok := arg.Data.(*js_ast.ESpread); !ok {
 					if (flags & exprResultIsUnused) != 0 {
 						arg = p.astHelpers.SimplifyUnusedExpr(arg, p.options.UnsupportedFeatures)
+						if arg.Data == nil {
+							arg.Data = js_ast.EUndefinedShared
+						}
 					}
 					p.printExpr(p.guardAgainstBehaviorChangeDueToSubstitution(arg, flags), level, flags)
 					break

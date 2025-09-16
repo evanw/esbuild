@@ -1483,6 +1483,11 @@ console.log(keep(1));
 keep(foo());
 keep(1);
 
+---------- /out/identity-simplify-unused-issue-4287.js ----------
+// identity-simplify-unused-issue-4287.js
+foo();
+void 0;
+
 ================================================================================
 TestJSONLoaderRemoveUnused
 ---------- /out.js ----------
