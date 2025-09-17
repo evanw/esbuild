@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.25.10
 
 * Fix a panic in a minification edge case ([#4287](https://github.com/evanw/esbuild/issues/4287))
 
