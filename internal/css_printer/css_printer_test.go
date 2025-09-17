@@ -1,6 +1,7 @@
 package css_printer
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/evanw/esbuild/internal/ast"
@@ -19,13 +20,13 @@ func expectPrintedCommon(t *testing.T, name string, contents string, expected st
 			MinifyWhitespace: options.MinifyWhitespace,
 		}))
 		msgs := log.Done()
-		text := ""
+		var text strings.Builder
 		for _, msg := range msgs {
 			if msg.Kind == logger.Error {
-				text += msg.String(logger.OutputOptions{}, logger.TerminalInfo{})
+				text.WriteString(msg.String(logger.OutputOptions{}, logger.TerminalInfo{}))
 			}
 		}
-		test.AssertEqualWithDiff(t, text, "")
+		test.AssertEqualWithDiff(t, text.String(), "")
 		symbols := ast.NewSymbolMap(1)
 		symbols.SymbolsForSource[0] = tree.Symbols
 		result := Print(tree, symbols, options)

@@ -2,6 +2,7 @@ package js_parser
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/evanw/esbuild/internal/ast"
@@ -18,11 +19,11 @@ func expectParseErrorJSON(t *testing.T, contents string, expected string) {
 		log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug, nil)
 		ParseJSON(log, test.SourceForTest(contents), JSONOptions{})
 		msgs := log.Done()
-		text := ""
+		var text strings.Builder
 		for _, msg := range msgs {
-			text += msg.String(logger.OutputOptions{}, logger.TerminalInfo{})
+			text.WriteString(msg.String(logger.OutputOptions{}, logger.TerminalInfo{}))
 		}
-		test.AssertEqualWithDiff(t, text, expected)
+		test.AssertEqualWithDiff(t, text.String(), expected)
 	})
 }
 
@@ -41,11 +42,11 @@ func expectPrintedJSONWithWarning(t *testing.T, contents string, warning string,
 		log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug, nil)
 		expr, ok := ParseJSON(log, test.SourceForTest(contents), JSONOptions{})
 		msgs := log.Done()
-		text := ""
+		var text strings.Builder
 		for _, msg := range msgs {
-			text += msg.String(logger.OutputOptions{}, logger.TerminalInfo{})
+			text.WriteString(msg.String(logger.OutputOptions{}, logger.TerminalInfo{}))
 		}
-		test.AssertEqualWithDiff(t, text, warning)
+		test.AssertEqualWithDiff(t, text.String(), warning)
 		if !ok {
 			t.Fatal("Parse error")
 		}

@@ -34,11 +34,11 @@ func es(version int) compat.JSFeature {
 
 func assertLog(t *testing.T, msgs []logger.Msg, expected string) {
 	t.Helper()
-	text := ""
+	var text strings.Builder
 	for _, msg := range msgs {
-		text += msg.String(logger.OutputOptions{}, logger.TerminalInfo{})
+		text.WriteString(msg.String(logger.OutputOptions{}, logger.TerminalInfo{}))
 	}
-	test.AssertEqualWithDiff(t, text, expected)
+	test.AssertEqualWithDiff(t, text.String(), expected)
 }
 
 func hasErrors(msgs []logger.Msg) bool {
@@ -283,14 +283,14 @@ func (s *suite) updateSnapshots() {
 		keys = append(keys, key)
 	}
 	sort.Strings(keys)
-	contents := ""
+	var contents strings.Builder
 	for i, key := range keys {
 		if i > 0 {
-			contents += snapshotSplitter
+			contents.WriteString(snapshotSplitter)
 		}
-		contents += fmt.Sprintf("%s\n%s", key, s.generatedSnapshots[key])
+		contents.WriteString(fmt.Sprintf("%s\n%s", key, s.generatedSnapshots[key]))
 	}
-	if err := ioutil.WriteFile(s.path, []byte(contents), 0644); err != nil {
+	if err := ioutil.WriteFile(s.path, []byte(contents.String()), 0644); err != nil {
 		panic(err)
 	}
 }

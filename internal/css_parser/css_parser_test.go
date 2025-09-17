@@ -2,6 +2,7 @@ package css_parser
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/evanw/esbuild/internal/ast"
@@ -19,11 +20,11 @@ func expectPrintedCommon(t *testing.T, name string, contents string, expected st
 		log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug, nil)
 		tree := Parse(log, test.SourceForTest(contents), OptionsFromConfig(loader, &options))
 		msgs := log.Done()
-		text := ""
+		var text strings.Builder
 		for _, msg := range msgs {
-			text += msg.String(logger.OutputOptions{}, logger.TerminalInfo{})
+			text.WriteString(msg.String(logger.OutputOptions{}, logger.TerminalInfo{}))
 		}
-		test.AssertEqualWithDiff(t, text, expectedLog)
+		test.AssertEqualWithDiff(t, text.String(), expectedLog)
 		symbols := ast.NewSymbolMap(1)
 		symbols.SymbolsForSource[0] = tree.Symbols
 		result := css_printer.Print(tree, symbols, css_printer.Options{

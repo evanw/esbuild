@@ -1208,23 +1208,24 @@ type OutputOptions struct {
 
 func (msg Msg) String(options OutputOptions, terminalInfo TerminalInfo) string {
 	// Format the message
-	text := msgString(options.IncludeSource, options.PathStyle, terminalInfo, msg.ID, msg.Kind, msg.Data, msg.PluginName)
+	var text strings.Builder
+	text.WriteString(msgString(options.IncludeSource, options.PathStyle, terminalInfo, msg.ID, msg.Kind, msg.Data, msg.PluginName))
 
 	// Format the notes
 	var oldData MsgData
 	for i, note := range msg.Notes {
 		if options.IncludeSource && (i == 0 || strings.IndexByte(oldData.Text, '\n') >= 0 || oldData.Location != nil) {
-			text += "\n"
+			text.WriteString("\n")
 		}
-		text += msgString(options.IncludeSource, options.PathStyle, terminalInfo, MsgID_None, Note, note, "")
+		text.WriteString(msgString(options.IncludeSource, options.PathStyle, terminalInfo, MsgID_None, Note, note, ""))
 		oldData = note
 	}
 
 	// Add extra spacing between messages if source code is present
 	if options.IncludeSource {
-		text += "\n"
+		text.WriteString("\n")
 	}
-	return text
+	return text.String()
 }
 
 // The number of margin characters in addition to the line number

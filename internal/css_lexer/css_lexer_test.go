@@ -1,6 +1,7 @@
 package css_lexer
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/evanw/esbuild/internal/logger"
@@ -20,11 +21,11 @@ func lexToken(contents string) (T, string) {
 func lexerError(contents string) string {
 	log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug, nil)
 	Tokenize(log, test.SourceForTest(contents), Options{})
-	text := ""
+	var text strings.Builder
 	for _, msg := range log.Done() {
-		text += msg.String(logger.OutputOptions{}, logger.TerminalInfo{})
+		text.WriteString(msg.String(logger.OutputOptions{}, logger.TerminalInfo{}))
 	}
-	return text
+	return text.String()
 }
 
 func TestTokens(t *testing.T) {
