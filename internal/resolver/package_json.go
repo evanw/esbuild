@@ -760,7 +760,7 @@ func parseImportsExportsMap(source logger.Source, log logger.Log, json js_ast.Ex
 				if helpers.IsInsideNodeModules(source.KeyPath.Text) {
 					kind = logger.Debug
 				}
-				var conditions string
+				var conditions strings.Builder
 				conditionWord := "condition"
 				itComesWord := "it comes"
 				if len(deadCondition.ranges) > 1 {
@@ -769,12 +769,12 @@ func parseImportsExportsMap(source logger.Source, log logger.Log, json js_ast.Ex
 				}
 				for i, r := range deadCondition.ranges {
 					if i > 0 {
-						conditions += " and "
+						conditions.WriteString(" and ")
 					}
-					conditions += source.TextForRange(r)
+					conditions.WriteString(source.TextForRange(r))
 				}
 				log.AddIDWithNotes(logger.MsgID_PackageJSON_DeadCondition, kind, &tracker, deadCondition.ranges[0],
-					fmt.Sprintf("The %s %s here will never be used as %s after %s", conditionWord, conditions, itComesWord, deadCondition.reason),
+					fmt.Sprintf("The %s %s here will never be used as %s after %s", conditionWord, conditions.String(), itComesWord, deadCondition.reason),
 					deadCondition.notes)
 			}
 

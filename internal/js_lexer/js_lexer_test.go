@@ -53,11 +53,11 @@ func expectLexerError(t *testing.T, contents string, expected string) {
 			NewLexer(log, test.SourceForTest(contents), config.TSOptions{})
 		}()
 		msgs := log.Done()
-		text := ""
+		var text strings.Builder
 		for _, msg := range msgs {
-			text += msg.String(logger.OutputOptions{}, logger.TerminalInfo{})
+			text.WriteString(msg.String(logger.OutputOptions{}, logger.TerminalInfo{}))
 		}
-		test.AssertEqual(t, text, expected)
+		test.AssertEqual(t, text.String(), expected)
 	})
 }
 
@@ -437,11 +437,11 @@ func expectLexerErrorString(t *testing.T, contents string, expected string) {
 			lexer.StringLiteral()
 		}()
 		msgs := log.Done()
-		text := ""
+		var text strings.Builder
 		for _, msg := range msgs {
-			text += msg.String(logger.OutputOptions{}, logger.TerminalInfo{})
+			text.WriteString(msg.String(logger.OutputOptions{}, logger.TerminalInfo{}))
 		}
-		test.AssertEqual(t, text, expected)
+		test.AssertEqual(t, text.String(), expected)
 	})
 }
 

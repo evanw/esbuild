@@ -20,14 +20,14 @@ func expectPrintedCommon(t *testing.T, name string, contents string, expected st
 		log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug, nil)
 		tree, ok := js_parser.Parse(log, test.SourceForTest(contents), js_parser.OptionsFromConfig(&options))
 		msgs := log.Done()
-		text := ""
+		var text strings.Builder
 		for _, msg := range msgs {
 			if msg.Kind != logger.Error {
 				continue
 			}
-			text += msg.String(logger.OutputOptions{}, logger.TerminalInfo{})
+			text.WriteString(msg.String(logger.OutputOptions{}, logger.TerminalInfo{}))
 		}
-		test.AssertEqualWithDiff(t, text, "")
+		test.AssertEqualWithDiff(t, text.String(), "")
 		if !ok {
 			t.Fatal("Parse error")
 		}

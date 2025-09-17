@@ -23,11 +23,11 @@ func expectParseErrorCommon(t *testing.T, contents string, expected string, opti
 		log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug, nil)
 		Parse(log, test.SourceForTest(contents), OptionsFromConfig(&options))
 		msgs := log.Done()
-		text := ""
+		var text strings.Builder
 		for _, msg := range msgs {
-			text += msg.String(logger.OutputOptions{}, logger.TerminalInfo{})
+			text.WriteString(msg.String(logger.OutputOptions{}, logger.TerminalInfo{}))
 		}
-		test.AssertEqualWithDiff(t, text, expected)
+		test.AssertEqualWithDiff(t, text.String(), expected)
 	})
 }
 
@@ -67,13 +67,13 @@ func expectPrintedCommon(t *testing.T, contents string, expected string, options
 		options.OmitRuntimeForTests = true
 		tree, ok := Parse(log, test.SourceForTest(contents), OptionsFromConfig(&options))
 		msgs := log.Done()
-		text := ""
+		var text strings.Builder
 		for _, msg := range msgs {
 			if msg.Kind != logger.Warning {
-				text += msg.String(logger.OutputOptions{}, logger.TerminalInfo{})
+				text.WriteString(msg.String(logger.OutputOptions{}, logger.TerminalInfo{}))
 			}
 		}
-		test.AssertEqualWithDiff(t, text, "")
+		test.AssertEqualWithDiff(t, text.String(), "")
 		if !ok {
 			t.Fatal("Parse error")
 		}

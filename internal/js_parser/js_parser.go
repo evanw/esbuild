@@ -5156,7 +5156,8 @@ func (p *parser) parseJSXTag() (logger.Range, string, js_ast.Expr) {
 	tag := js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: p.storeNameInRef(tagName)}}
 
 	// Parse a member expression chain
-	chain := tagName.String
+	var chain strings.Builder
+	chain.WriteString(tagName.String)
 	for p.lexer.Token == js_lexer.TDot {
 		p.lexer.NextInsideJSXElement()
 		memberRange := p.lexer.Range()
@@ -5171,12 +5172,12 @@ func (p *parser) parseJSXTag() (logger.Range, string, js_ast.Expr) {
 			panic(js_lexer.LexerPanic{})
 		}
 
-		chain += "." + member.String
+		chain.WriteString("." + member.String)
 		tag = js_ast.Expr{Loc: loc, Data: p.dotOrMangledPropParse(tag, member, memberRange.Loc, js_ast.OptionalChainNone, wasOriginallyDot)}
 		tagRange.Len = memberRange.Loc.Start + memberRange.Len - tagRange.Loc.Start
 	}
 
-	return tagRange, chain, tag
+	return tagRange, chain.String(), tag
 }
 
 func (p *parser) parseJSXElement(loc logger.Loc) js_ast.Expr {
