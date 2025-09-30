@@ -7549,15 +7549,15 @@ let analyzeTests = {
       }
     }
     assert.strictEqual(await esbuild.analyzeMetafile(metafile), `
-  out.js       100b   100.0%
-   ├ lib.js     50b    50.0%
-   └ entry.js   25b    25.0%
+  out.js       100B    100.0%
+   ├ lib.js     50B     50.0%
+   └ entry.js   25B     25.0%
 `)
     assert.strictEqual(await esbuild.analyzeMetafile(metafile, { verbose: true }), `
-  out.js ────── 100b ── 100.0%
-   ├ lib.js ──── 50b ─── 50.0%
+  out.js ────── 100B ─── 100.0%
+   ├ lib.js ──── 50B ──── 50.0%
    │  └ entry.js
-   └ entry.js ── 25b ─── 25.0%
+   └ entry.js ── 25B ──── 25.0%
 `)
   },
 }
@@ -7779,15 +7779,15 @@ ${path.relative(process.cwd(), input).split(path.sep).join('/')}:1:2: ERROR: Une
       }
     }
     assert.strictEqual(esbuild.analyzeMetafileSync(metafile), `
-  out.js       100b   100.0%
-   ├ lib.js     50b    50.0%
-   └ entry.js   25b    25.0%
+  out.js       100B    100.0%
+   ├ lib.js     50B     50.0%
+   └ entry.js   25B     25.0%
 `)
     assert.strictEqual(esbuild.analyzeMetafileSync(metafile, { verbose: true }), `
-  out.js ────── 100b ── 100.0%
-   ├ lib.js ──── 50b ─── 50.0%
+  out.js ────── 100B ─── 100.0%
+   ├ lib.js ──── 50B ──── 50.0%
    │  └ entry.js
-   └ entry.js ── 25b ─── 25.0%
+   └ entry.js ── 25B ──── 25.0%
 `)
   },
 }
