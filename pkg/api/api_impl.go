@@ -886,20 +886,27 @@ func contextImpl(buildOpts BuildOptions) (*internalContext, []Message) {
 		Overrides:     validateLogOverrides(buildOpts.LogOverride),
 	}
 
-	// Validate that the current working directory is an absolute path
 	absWorkingDir := buildOpts.AbsWorkingDir
-	realFS, err := fs.RealFS(fs.RealFSOptions{
-		AbsWorkingDir: absWorkingDir,
 
-		// This is a long-lived file system object so do not cache calls to
-		// ReadDirectory() (they are normally cached for the duration of a build
-		// for performance).
-		DoNotCache: true,
-	})
-	if err != nil {
-		log := logger.NewStderrLog(logOptions)
-		log.AddError(nil, logger.Range{}, err.Error())
-		return nil, convertMessagesToPublic(logger.Error, log.Done(), logOptions.PathStyle)
+	var realFS fs.FS
+	if buildOpts.InputFS != nil {
+		realFS = fs.FromFS(buildOpts.InputFS)
+	} else {
+		// Validate that the current working directory is an absolute path
+		var err error
+		realFS, err = fs.RealFS(fs.RealFSOptions{
+			AbsWorkingDir: absWorkingDir,
+
+			// This is a long-lived file system object so do not cache calls to
+			// ReadDirectory() (they are normally cached for the duration of a build
+			// for performance).
+			DoNotCache: true,
+		})
+		if err != nil {
+			log := logger.NewStderrLog(logOptions)
+			log.AddError(nil, logger.Range{}, err.Error())
+			return nil, convertMessagesToPublic(logger.Error, log.Done(), logOptions.PathStyle)
+		}
 	}
 
 	// Do not re-evaluate plugins when rebuilding. Also make sure the working
@@ -943,6 +950,7 @@ func contextImpl(buildOpts BuildOptions) (*internalContext, []Message) {
 		mangleCache:        buildOpts.MangleCache,
 		absWorkingDir:      absWorkingDir,
 		write:              buildOpts.Write,
+		realFS:             realFS,
 	}
 
 	return &internalContext{
@@ -1189,30 +1197,26 @@ func prettyPrintByteCount(n int) string {
 	return size
 }
 
-func printSummary(color logger.UseColor, outputFiles []OutputFile, start time.Time) {
+func printSummary(color logger.UseColor, realFS fs.FS, outputFiles []OutputFile, start time.Time) {
 	if len(outputFiles) == 0 {
 		return
 	}
 
 	var table logger.SummaryTable = make([]logger.SummaryTableEntry, len(outputFiles))
 
-	if cwd, err := os.Getwd(); err == nil {
-		if realFS, err := fs.RealFS(fs.RealFSOptions{AbsWorkingDir: cwd}); err == nil {
-			for i, file := range outputFiles {
-				path, ok := realFS.Rel(realFS.Cwd(), file.Path)
-				if !ok {
-					path = file.Path
-				}
-				base := realFS.Base(path)
-				n := len(file.Contents)
-				table[i] = logger.SummaryTableEntry{
-					Dir:         path[:len(path)-len(base)],
-					Base:        base,
-					Size:        prettyPrintByteCount(n),
-					Bytes:       n,
-					IsSourceMap: strings.HasSuffix(base, ".map"),
-				}
-			}
+	for i, file := range outputFiles {
+		path, ok := realFS.Rel(realFS.Cwd(), file.Path)
+		if !ok {
+			path = file.Path
+		}
+		base := realFS.Base(path)
+		n := len(file.Contents)
+		table[i] = logger.SummaryTableEntry{
+			Dir:         path[:len(path)-len(base)],
+			Base:        base,
+			Size:        prettyPrintByteCount(n),
+			Bytes:       n,
+			IsSourceMap: strings.HasSuffix(base, ".map"),
 		}
 	}
 
@@ -1454,6 +1458,7 @@ type rebuildArgs struct {
 	mangleCache        map[string]interface{}
 	absWorkingDir      string
 	write              bool
+	realFS             fs.FS
 }
 
 type rebuildState struct {
@@ -1471,13 +1476,17 @@ func rebuildImpl(args rebuildArgs, oldHashes map[string]string) (rebuildState, m
 	}
 
 	// Convert and validate the buildOpts
-	realFS, err := fs.RealFS(fs.RealFSOptions{
-		AbsWorkingDir: args.absWorkingDir,
-		WantWatchData: args.options.WatchMode,
-	})
-	if err != nil {
-		// This should already have been checked by the caller
-		panic(err.Error())
+	realFS := args.realFS
+	if realFS == nil {
+		var err error
+		realFS, err = fs.RealFS(fs.RealFSOptions{
+			AbsWorkingDir: args.absWorkingDir,
+			WantWatchData: args.options.WatchMode,
+		})
+		if err != nil {
+			// This should already have been checked by the caller
+			panic(err.Error())
+		}
 	}
 
 	var result BuildResult
