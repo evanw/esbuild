@@ -1164,6 +1164,33 @@ var require_test = __commonJS({
 console.log(require_test());
 
 ================================================================================
+TestWithTypeBytesOverrideLoader
+---------- /out.js ----------
+// foo.js
+var foo_default = __toBinary("ZXhwb3J0IGRlZmF1bHQgJ2pzJw==");
+
+// entry.js
+console.log(foo_default);
+
+================================================================================
+TestWithTypeBytesOverrideLoaderGlob
+---------- /out.js ----------
+// foo.js
+var require_foo = __commonJS({
+  "foo.js"(exports, module) {
+    module.exports = __toBinary("ZXhwb3J0IGRlZmF1bHQgJ2pzJw==");
+  }
+});
+
+// import("./foo*") in entry.js
+var globImport_foo = __glob({
+  "./foo.js": () => Promise.resolve().then(() => __toESM(require_foo()))
+});
+
+// entry.js
+globImport_foo("./foo" + bar).then(console.log);
+
+================================================================================
 TestWithTypeJSONOverrideLoader
 ---------- /out.js ----------
 // foo.js

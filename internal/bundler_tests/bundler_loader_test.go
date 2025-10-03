@@ -1321,6 +1321,39 @@ func TestWithTypeJSONOverrideLoaderGlob(t *testing.T) {
 	})
 }
 
+func TestWithTypeBytesOverrideLoader(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import foo from './foo.js' with { type: 'bytes' }
+				console.log(foo)
+			`,
+			"/foo.js": `export default 'js'`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestWithTypeBytesOverrideLoaderGlob(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import("./foo" + bar, { with: { type: 'bytes' } }).then(console.log)
+			`,
+			"/foo.js": `export default 'js'`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
 func TestWithBadType(t *testing.T) {
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{

@@ -203,12 +203,15 @@ func parseFile(args parseArgs) {
 			var errorText string
 			var errorRange js_lexer.KeyOrValue
 
-			// We only currently handle "type: json"
+			// We only currently handle "type: json" and "type: bytes"
 			if attr.Key != "type" {
 				errorText = fmt.Sprintf("Importing with the %q attribute is not supported", attr.Key)
 				errorRange = js_lexer.KeyRange
 			} else if attr.Value == "json" {
 				loader = config.LoaderWithTypeJSON
+				continue
+			} else if attr.Value == "bytes" {
+				loader = config.LoaderBinary
 				continue
 			} else {
 				errorText = fmt.Sprintf("Importing with a type attribute of %q is not supported", attr.Value)
