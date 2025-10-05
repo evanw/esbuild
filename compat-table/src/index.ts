@@ -53,6 +53,7 @@ export const jsFeatures = {
   ExportStarAs: true,
   ForAwait: true,
   ForOf: true,
+  FromBase64: true,
   FunctionNameConfigurable: true,
   FunctionOrClassPropertyAccess: true,
   Generator: true,

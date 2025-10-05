@@ -18,6 +18,7 @@ const supportedEnvironments: Record<string, Engine> = {
 const jsFeatures: Partial<Record<JSFeature, string>> = {
   ClassStaticBlocks: 'javascript.classes.static.initialization_blocks',
   ExportStarAs: 'javascript.statements.export.namespace',
+  FromBase64: 'javascript.builtins.Uint8Array.fromBase64',
   ImportAssertions: 'javascript.statements.import.import_assertions',
   ImportAttributes: 'javascript.statements.import.import_attributes',
   ImportMeta: 'javascript.operators.import_meta',

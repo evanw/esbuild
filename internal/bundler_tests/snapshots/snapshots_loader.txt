@@ -1167,7 +1167,7 @@ console.log(require_test());
 TestWithTypeBytesOverrideLoader
 ---------- /out.js ----------
 // foo.js
-var foo_default = __toBinary("ZXhwb3J0IGRlZmF1bHQgJ2pzJw==");
+var foo_default = Uint8Array.fromBase64("ZXhwb3J0IGRlZmF1bHQgJ2pzJw==");
 
 // entry.js
 console.log(foo_default);
@@ -1178,7 +1178,7 @@ TestWithTypeBytesOverrideLoaderGlob
 // foo.js
 var require_foo = __commonJS({
   "foo.js"(exports, module) {
-    module.exports = __toBinary("ZXhwb3J0IGRlZmF1bHQgJ2pzJw==");
+    module.exports = Uint8Array.fromBase64("ZXhwb3J0IGRlZmF1bHQgJ2pzJw==");
   }
 });
 
