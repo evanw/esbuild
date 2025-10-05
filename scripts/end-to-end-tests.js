@@ -7923,11 +7923,11 @@ for (const length of [0, 1, 2, 3, 4, 5, 6, 7, 8, 256]) {
   `
   const data = Buffer.from([...' '.repeat(length)].map((_, i) => i ^ 0x55))
   tests.push(
-    test(['entry.js', '--bundle', '--outfile=node.js', '--loader:.bin=binary', '--platform=browser'], {
+    test(['entry.js', '--bundle', '--outfile=node.js', '--loader:.bin=binary', '--platform=browser', '--supported:from-base64=false'], {
       'entry.js': code,
       'data.bin': data,
     }),
-    test(['entry.js', '--bundle', '--outfile=node.js', '--loader:.bin=binary', '--platform=node'], {
+    test(['entry.js', '--bundle', '--outfile=node.js', '--loader:.bin=binary', '--platform=node', '--supported:from-base64=false'], {
       'entry.js': code,
       'data.bin': data,
     }),
