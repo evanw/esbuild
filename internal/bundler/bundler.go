@@ -307,7 +307,7 @@ func parseFile(args parseArgs) {
 		expr, ok := args.caches.JSONCache.Parse(args.log, source, js_parser.JSONOptions{
 			UnsupportedJSFeatures: args.options.UnsupportedJSFeatures,
 		})
-		ast := js_parser.LazyExportAST(args.log, source, js_parser.OptionsFromConfig(&args.options), expr, "")
+		ast := js_parser.LazyExportAST(args.log, source, js_parser.OptionsFromConfig(&args.options), expr, nil)
 		if loader == config.LoaderWithTypeJSON {
 			// The exports kind defaults to "none", in which case the linker picks
 			// either ESM or CommonJS depending on the situation. Dynamic imports
@@ -330,7 +330,7 @@ func parseFile(args parseArgs) {
 		source.Contents = strings.TrimPrefix(source.Contents, "\xEF\xBB\xBF") // Strip any UTF-8 BOM from the text
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
 		expr := js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16(source.Contents)}}
-		ast := js_parser.LazyExportAST(args.log, source, js_parser.OptionsFromConfig(&args.options), expr, "")
+		ast := js_parser.LazyExportAST(args.log, source, js_parser.OptionsFromConfig(&args.options), expr, nil)
 		ast.URLForCSS = "data:text/plain;base64," + encoded
 		if pluginName != "" {
 			result.file.inputFile.SideEffects.Kind = graph.NoSideEffects_PureData_FromPlugin
@@ -344,7 +344,7 @@ func parseFile(args parseArgs) {
 		mimeType := guessMimeType(ext, source.Contents)
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
 		expr := js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16(encoded)}}
-		ast := js_parser.LazyExportAST(args.log, source, js_parser.OptionsFromConfig(&args.options), expr, "")
+		ast := js_parser.LazyExportAST(args.log, source, js_parser.OptionsFromConfig(&args.options), expr, nil)
 		ast.URLForCSS = "data:" + mimeType + ";base64," + encoded
 		if pluginName != "" {
 			result.file.inputFile.SideEffects.Kind = graph.NoSideEffects_PureData_FromPlugin
@@ -357,9 +357,15 @@ func parseFile(args parseArgs) {
 	case config.LoaderBinary:
 		encoded := base64.StdEncoding.EncodeToString([]byte(source.Contents))
 		expr := js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16(encoded)}}
-		helper := "__toBinary"
-		if args.options.Platform == config.PlatformNode {
-			helper = "__toBinaryNode"
+		var helper *js_parser.HelperCall
+		if args.options.UnsupportedJSFeatures.Has(compat.FromBase64) {
+			if args.options.Platform == config.PlatformNode {
+				helper = &js_parser.HelperCall{Runtime: "__toBinaryNode"}
+			} else {
+				helper = &js_parser.HelperCall{Runtime: "__toBinary"}
+			}
+		} else {
+			helper = &js_parser.HelperCall{Global: []string{"Uint8Array", "fromBase64"}}
 		}
 		ast := js_parser.LazyExportAST(args.log, source, js_parser.OptionsFromConfig(&args.options), expr, helper)
 		ast.URLForCSS = "data:application/octet-stream;base64," + encoded
@@ -375,7 +381,7 @@ func parseFile(args parseArgs) {
 		mimeType := guessMimeType(ext, source.Contents)
 		url := helpers.EncodeStringAsShortestDataURL(mimeType, source.Contents)
 		expr := js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16(url)}}
-		ast := js_parser.LazyExportAST(args.log, source, js_parser.OptionsFromConfig(&args.options), expr, "")
+		ast := js_parser.LazyExportAST(args.log, source, js_parser.OptionsFromConfig(&args.options), expr, nil)
 		ast.URLForCSS = url
 		if pluginName != "" {
 			result.file.inputFile.SideEffects.Kind = graph.NoSideEffects_PureData_FromPlugin
@@ -392,7 +398,7 @@ func parseFile(args parseArgs) {
 			Value:             helpers.StringToUTF16(uniqueKeyPath),
 			ContainsUniqueKey: true,
 		}}
-		ast := js_parser.LazyExportAST(args.log, source, js_parser.OptionsFromConfig(&args.options), expr, "")
+		ast := js_parser.LazyExportAST(args.log, source, js_parser.OptionsFromConfig(&args.options), expr, nil)
 		ast.URLForCSS = uniqueKeyPath
 		if pluginName != "" {
 			result.file.inputFile.SideEffects.Kind = graph.NoSideEffects_PureData_FromPlugin
@@ -1711,7 +1717,7 @@ func (s *scanner) preprocessInjectedFiles() {
 
 		// Generate the file inline here since it has already been parsed
 		expr := js_ast.Expr{Data: define.Data}
-		ast := js_parser.LazyExportAST(s.log, source, js_parser.OptionsFromConfig(&s.options), expr, "")
+		ast := js_parser.LazyExportAST(s.log, source, js_parser.OptionsFromConfig(&s.options), expr, nil)
 		result := parseResult{
 			ok: true,
 			file: scannerFile{
@@ -2599,7 +2605,7 @@ func (s *scanner) processScannedFiles(entryPointMeta []graph.EntryPoint) []scann
 										Repr: &graph.JSRepr{
 											// Note: The actual export object will be filled in by the linker
 											AST: js_parser.LazyExportAST(s.log, source,
-												js_parser.OptionsFromConfig(&s.options), js_ast.Expr{Data: js_ast.ENullShared}, ""),
+												js_parser.OptionsFromConfig(&s.options), js_ast.Expr{Data: js_ast.ENullShared}, nil),
 											CSSSourceIndex: ast.MakeIndex32(record.SourceIndex.GetIndex()),
 										},
 									},
