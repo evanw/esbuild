@@ -1684,8 +1684,10 @@ TestTSNamespaceKeepNames
 // entry.ts
 var ns;
 ((ns2) => {
-  ns2.foo = /* @__PURE__ */ __name(() => {
-  }, "foo");
+  ns2.foo = /* @__PURE__ */ __firstValue({
+    foo: () => {
+    }
+  });
   function bar() {
   }
   ns2.bar = bar;
@@ -1704,8 +1706,10 @@ TestTSNamespaceKeepNamesTargetES2015
 // entry.ts
 var ns;
 ((ns2) => {
-  ns2.foo = /* @__PURE__ */ __name(() => {
-  }, "foo");
+  ns2.foo = /* @__PURE__ */ __firstValue({
+    foo: () => {
+    }
+  });
   function bar() {
   }
   ns2.bar = bar;

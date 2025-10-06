@@ -258,19 +258,19 @@ TestSplittingDynamicAndNotDynamicCommonJSIntoES6
 import {
   __toESM,
   require_foo
-} from "./chunk-X3UWZZCR.js";
+} from "./chunk-3FOKVS53.js";
 
 // entry.js
 var import_foo = __toESM(require_foo());
-import("./foo-BJYZ44Z3.js").then(({ default: { bar: b } }) => console.log(import_foo.bar, b));
+import("./foo-4JANTOJX.js").then(({ default: { bar: b } }) => console.log(import_foo.bar, b));
 
----------- /out/foo-BJYZ44Z3.js ----------
+---------- /out/foo-4JANTOJX.js ----------
 import {
   require_foo
-} from "./chunk-X3UWZZCR.js";
+} from "./chunk-3FOKVS53.js";
 export default require_foo();
 
----------- /out/chunk-X3UWZZCR.js ----------
+---------- /out/chunk-3FOKVS53.js ----------
 // foo.js
 var require_foo = __commonJS({
   "foo.js"(exports) {
@@ -313,9 +313,9 @@ export {
 TestSplittingDynamicCommonJSIntoES6
 ---------- /out/entry.js ----------
 // entry.js
-import("./foo-X6C7FV5C.js").then(({ default: { bar } }) => console.log(bar));
+import("./foo-FQOU3LFF.js").then(({ default: { bar } }) => console.log(bar));
 
----------- /out/foo-X6C7FV5C.js ----------
+---------- /out/foo-FQOU3LFF.js ----------
 // foo.js
 var require_foo = __commonJS({
   "foo.js"(exports) {
@@ -370,7 +370,7 @@ TestSplittingHybridESMAndCJSIssue617
 import {
   foo,
   init_a
-} from "./chunk-PDZFCFBH.js";
+} from "./chunk-OM5ZJZXR.js";
 init_a();
 export {
   foo
@@ -381,7 +381,7 @@ import {
   __toCommonJS,
   a_exports,
   init_a
-} from "./chunk-PDZFCFBH.js";
+} from "./chunk-OM5ZJZXR.js";
 
 // b.js
 var bar = (init_a(), __toCommonJS(a_exports));
@@ -389,7 +389,7 @@ export {
   bar
 };
 
----------- /out/chunk-PDZFCFBH.js ----------
+---------- /out/chunk-OM5ZJZXR.js ----------
 // a.js
 var a_exports = {};
 __export(a_exports, {
@@ -540,7 +540,7 @@ TestSplittingSharedCommonJSIntoES6
 ---------- /out/a.js ----------
 import {
   require_shared
-} from "./chunk-JQJBVS2P.js";
+} from "./chunk-H4QIU6J7.js";
 
 // a.js
 var { foo } = require_shared();
@@ -549,13 +549,13 @@ console.log(foo);
 ---------- /out/b.js ----------
 import {
   require_shared
-} from "./chunk-JQJBVS2P.js";
+} from "./chunk-H4QIU6J7.js";
 
 // b.js
 var { foo } = require_shared();
 console.log(foo);
 
----------- /out/chunk-JQJBVS2P.js ----------
+---------- /out/chunk-H4QIU6J7.js ----------
 // shared.js
 var require_shared = __commonJS({
   "shared.js"(exports) {
