@@ -10,7 +10,7 @@ import stage4 = require('../repos/kangax/compat-table/data-es2016plus.js')
 import environments = require('../repos/kangax/compat-table/environments.json')
 import parseEnvsVersions = require('../repos/kangax/compat-table/build-utils/parse-envs-versions.js')
 import interpolateAllResults = require('../repos/kangax/compat-table/build-utils/interpolate-all-results.js')
-import { Engine, JSFeature, SupportMap, jsFeatures } from './index'
+import { Engine, JSFeature, SupportMap } from './index'
 
 interpolateAllResults(es5.tests, environments)
 interpolateAllResults(es6.tests, environments)
