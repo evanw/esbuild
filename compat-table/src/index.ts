@@ -100,6 +100,7 @@ export const cssFeatures = {
   InlineStyle: true,
   InsetProperty: true,
   IsPseudoClass: true,
+  MediaRange: true,
   Modern_RGB_HSL: true,
   Nesting: true,
   RebeccaPurple: true,

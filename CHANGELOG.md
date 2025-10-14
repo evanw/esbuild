@@ -14,6 +14,28 @@
     console.log('size:', width + '\xD7' + height)
     ```
 
+* Lower CSS media query range syntax ([#3748](https://github.com/evanw/esbuild/issues/3748), [#4293](https://github.com/evanw/esbuild/issues/4293))
+
+    With this release, esbuild will now transform CSS media query range syntax into equivalent syntax using `min-`/`max-` prefixes for older browsers. For example, the following CSS:
+
+    ```css
+    @media (640px <= width <= 960px) {
+      main {
+        display: flex;
+      }
+    }
+    ```
+
+    will be transformed like this with a target such as `--target=chrome100` (or more specifically with `--supported:media-range=false` if desired):
+
+    ```css
+    @media (min-width: 640px) and (max-width: 960px) {
+      main {
+        display: flex;
+      }
+    }
+    ```
+
 ## 0.25.10
 
 * Fix a panic in a minification edge case ([#4287](https://github.com/evanw/esbuild/issues/4287))

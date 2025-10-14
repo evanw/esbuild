@@ -2625,6 +2625,40 @@ func TestMangleAtMedia(t *testing.T) {
 	expectPrintedMangle(t, "@media not (1px >= width) { a { color: red } }", "@media (1px < width) {\n  a {\n    color: red;\n  }\n}\n", "")
 }
 
+func TestLowerAtMediaRange(t *testing.T) {
+	expectPrintedLower(t, "@media (width = 1px) { a { color: red } }", "@media (width: 1px) {\n  a {\n    color: red;\n  }\n}\n", "")
+
+	expectPrintedLower(t, "@media (width < 1px) { a { color: red } }", "@media not (min-width: 1px) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedLower(t, "@media (width <= 1px) { a { color: red } }", "@media (max-width: 1px) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedLower(t, "@media (width > 1px) { a { color: red } }", "@media not (max-width: 1px) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedLower(t, "@media (width >= 1px) { a { color: red } }", "@media (min-width: 1px) {\n  a {\n    color: red;\n  }\n}\n", "")
+
+	expectPrintedLower(t, "@media (1px > width) { a { color: red } }", "@media not (min-width: 1px) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedLower(t, "@media (1px >= width) { a { color: red } }", "@media (max-width: 1px) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedLower(t, "@media (1px < width) { a { color: red } }", "@media not (max-width: 1px) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedLower(t, "@media (1px <= width) { a { color: red } }", "@media (min-width: 1px) {\n  a {\n    color: red;\n  }\n}\n", "")
+
+	expectPrintedLower(t, "@media (1px < width < 2px) { a { color: red } }", "@media (not (max-width: 1px)) and (not (min-width: 2px)) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedLower(t, "@media (2px > width > 1px) { a { color: red } }", "@media (not (min-width: 2px)) and (not (max-width: 1px)) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedLower(t, "@media (1px <= width <= 2px) { a { color: red } }", "@media (min-width: 1px) and (max-width: 2px) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedLower(t, "@media (2px >= width >= 1px) { a { color: red } }", "@media (max-width: 2px) and (min-width: 1px) {\n  a {\n    color: red;\n  }\n}\n", "")
+
+	expectPrintedLower(t, "@media (1px < width <= 2px) { a { color: red } }", "@media (not (max-width: 1px)) and (max-width: 2px) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedLower(t, "@media (2px > width >= 1px) { a { color: red } }", "@media (not (min-width: 2px)) and (min-width: 1px) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedLower(t, "@media (1px <= width < 2px) { a { color: red } }", "@media (min-width: 1px) and (not (min-width: 2px)) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedLower(t, "@media (2px >= width > 1px) { a { color: red } }", "@media (max-width: 2px) and (not (max-width: 1px)) {\n  a {\n    color: red;\n  }\n}\n", "")
+
+	expectPrintedLower(t, "@media not (1px < width < 2px) { a { color: red } }", "@media not ((not (max-width: 1px)) and (not (min-width: 2px))) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedLower(t, "@media not (2px > width > 1px) { a { color: red } }", "@media not ((not (min-width: 2px)) and (not (max-width: 1px))) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedLower(t, "@media not (1px <= width <= 2px) { a { color: red } }", "@media not ((min-width: 1px) and (max-width: 2px)) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedLower(t, "@media not (2px >= width >= 1px) { a { color: red } }", "@media not ((max-width: 2px) and (min-width: 1px)) {\n  a {\n    color: red;\n  }\n}\n", "")
+
+	expectPrintedLowerMangle(t, "@media not (1px < width < 2px) { a { color: red } }", "@media (max-width: 1px) or (min-width: 2px) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedLowerMangle(t, "@media not (2px > width > 1px) { a { color: red } }", "@media (min-width: 2px) or (max-width: 1px) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedLowerMangle(t, "@media not (1px <= width <= 2px) { a { color: red } }", "@media not ((min-width: 1px) and (max-width: 2px)) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedLowerMangle(t, "@media not (2px >= width >= 1px) { a { color: red } }", "@media not ((max-width: 2px) and (min-width: 1px)) {\n  a {\n    color: red;\n  }\n}\n", "")
+}
+
 func TestFontWeight(t *testing.T) {
 	expectPrintedMangle(t, "a { font-weight: normal }", "a {\n  font-weight: 400;\n}\n", "")
 	expectPrintedMangle(t, "a { font-weight: bold }", "a {\n  font-weight: 700;\n}\n", "")

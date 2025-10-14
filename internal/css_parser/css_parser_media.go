@@ -3,6 +3,7 @@ package css_parser
 import (
 	"strings"
 
+	"github.com/evanw/esbuild/internal/compat"
 	"github.com/evanw/esbuild/internal/css_ast"
 	"github.com/evanw/esbuild/internal/css_lexer"
 	"github.com/evanw/esbuild/internal/logger"
@@ -191,65 +192,108 @@ func (p *parser) parseMediaInParens() (css_ast.MediaQuery, bool) {
 		return css_ast.MediaQuery{}, false
 	}
 	tokens := p.convertTokens(p.tokens[start:end])
+	loc := tokens[0].Loc
 
 	// Potentially pattern-match the tokens inside the parentheses
 	if !isFunction && len(tokens) == 1 {
 		if children := tokens[0].Children; children != nil {
-			if mfPlain, ok := parsePlainOrBooleanMediaFeature(*children); ok {
-				return mfPlain, true
+			if term, ok := parsePlainOrBooleanMediaFeature(*children); ok {
+				return css_ast.MediaQuery{Loc: loc, Data: term}, true
 			}
-			if mfRange, ok := parseRangeMediaFeature(*children); ok {
-				return mfRange, true
+			if term, ok := parseRangeMediaFeature(*children); ok {
+				if p.options.unsupportedCSSFeatures.Has(compat.MediaRange) {
+					var terms []css_ast.MediaQuery
+					if term.BeforeCmp != css_ast.MQCmpNone {
+						terms = append(terms, lowerMediaRange(term.NameLoc, term.Name, term.BeforeCmp.Reverse(), term.Before))
+					}
+					if term.AfterCmp != css_ast.MQCmpNone {
+						terms = append(terms, lowerMediaRange(term.NameLoc, term.Name, term.AfterCmp, term.After))
+					}
+					if len(terms) == 1 {
+						return terms[0], true
+					} else {
+						return css_ast.MediaQuery{Loc: loc, Data: &css_ast.MQBinary{Op: css_ast.MQBinaryOpAnd, Terms: terms}}, true
+					}
+				}
+				return css_ast.MediaQuery{Loc: loc, Data: term}, true
 			}
 		}
 	}
-	return css_ast.MediaQuery{Loc: tokens[0].Loc, Data: &css_ast.MQGeneralEnclosed{Tokens: tokens}}, true
+	return css_ast.MediaQuery{Loc: loc, Data: &css_ast.MQGeneralEnclosed{Tokens: tokens}}, true
 }
 
-func parsePlainOrBooleanMediaFeature(tokens []css_ast.Token) (css_ast.MediaQuery, bool) {
+func lowerMediaRange(loc logger.Loc, name string, cmp css_ast.MQCmp, value []css_ast.Token) css_ast.MediaQuery {
+	switch cmp {
+	case css_ast.MQCmpLe:
+		// "foo <= 123" => "max-foo: 123"
+		return css_ast.MediaQuery{Loc: loc, Data: &css_ast.MQPlainOrBoolean{Name: "max-" + name, ValueOrNil: value}}
+
+	case css_ast.MQCmpGe:
+		// "foo >= 123" => "min-foo: 123"
+		return css_ast.MediaQuery{Loc: loc, Data: &css_ast.MQPlainOrBoolean{Name: "min-" + name, ValueOrNil: value}}
+
+	case css_ast.MQCmpLt:
+		// "foo < 123" => "not (min-foo: 123)"
+		return css_ast.MediaQuery{Loc: loc, Data: &css_ast.MQNot{
+			Inner: css_ast.MediaQuery{Loc: loc, Data: &css_ast.MQPlainOrBoolean{Name: "min-" + name, ValueOrNil: value}},
+		}}
+
+	case css_ast.MQCmpGt:
+		// "foo > 123" => "not (max-foo: 123)"
+		return css_ast.MediaQuery{Loc: loc, Data: &css_ast.MQNot{
+			Inner: css_ast.MediaQuery{Loc: loc, Data: &css_ast.MQPlainOrBoolean{Name: "max-" + name, ValueOrNil: value}},
+		}}
+
+	default:
+		// "foo = 123" => "foo: 123"
+		return css_ast.MediaQuery{Loc: loc, Data: &css_ast.MQPlainOrBoolean{Name: name, ValueOrNil: value}}
+	}
+}
+
+func parsePlainOrBooleanMediaFeature(tokens []css_ast.Token) (*css_ast.MQPlainOrBoolean, bool) {
 	if len(tokens) == 1 && tokens[0].Kind == css_lexer.TIdent {
-		return css_ast.MediaQuery{Loc: tokens[0].Loc, Data: &css_ast.MQPlainOrBoolean{Name: tokens[0].Text}}, true
+		return &css_ast.MQPlainOrBoolean{Name: tokens[0].Text}, true
 	}
 	if len(tokens) >= 3 && tokens[0].Kind == css_lexer.TIdent && tokens[1].Kind == css_lexer.TColon {
 		if value, rest := scanMediaValue(tokens[2:]); len(rest) == 0 {
-			return css_ast.MediaQuery{Loc: tokens[0].Loc, Data: &css_ast.MQPlainOrBoolean{Name: tokens[0].Text, ValueOrNil: value}}, true
+			return &css_ast.MQPlainOrBoolean{Name: tokens[0].Text, ValueOrNil: value}, true
 		}
 	}
-	return css_ast.MediaQuery{}, false
+	return nil, false
 }
 
-func parseRangeMediaFeature(tokens []css_ast.Token) (css_ast.MediaQuery, bool) {
+func parseRangeMediaFeature(tokens []css_ast.Token) (*css_ast.MQRange, bool) {
 	if first, tokens := scanMediaValue(tokens); len(first) > 0 {
 		if firstCmp, tokens := scanMediaComparison(tokens); firstCmp != css_ast.MQCmpNone {
 			if second, tokens := scanMediaValue(tokens); len(second) > 0 {
 				if len(tokens) == 0 {
 					if name, nameLoc, ok := isSingleIdent(first); ok {
-						return css_ast.MediaQuery{Loc: first[0].Loc, Data: &css_ast.MQRange{
+						return &css_ast.MQRange{
 							Name:     name,
 							NameLoc:  nameLoc,
 							AfterCmp: firstCmp,
 							After:    second,
-						}}, true
+						}, true
 					} else if name, nameLoc, ok := isSingleIdent(second); ok {
-						return css_ast.MediaQuery{Loc: first[0].Loc, Data: &css_ast.MQRange{
+						return &css_ast.MQRange{
 							Before:    first,
 							BeforeCmp: firstCmp,
 							Name:      name,
 							NameLoc:   nameLoc,
-						}}, true
+						}, true
 					}
 				} else if name, nameLoc, ok := isSingleIdent(second); ok {
 					if secondCmp, tokens := scanMediaComparison(tokens); secondCmp != css_ast.MQCmpNone {
 						if f, s := firstCmp.Dir(), secondCmp.Dir(); (f < 0 && s < 0) || (f > 0 && s > 0) {
 							if third, tokens := scanMediaValue(tokens); len(third) > 0 && len(tokens) == 0 {
-								return css_ast.MediaQuery{Loc: first[0].Loc, Data: &css_ast.MQRange{
+								return &css_ast.MQRange{
 									Before:    first,
 									BeforeCmp: firstCmp,
 									Name:      name,
 									NameLoc:   nameLoc,
 									AfterCmp:  secondCmp,
 									After:     third,
-								}}, true
+								}, true
 							}
 						}
 					}
@@ -257,7 +301,7 @@ func parseRangeMediaFeature(tokens []css_ast.Token) (css_ast.MediaQuery, bool) {
 			}
 		}
 	}
-	return css_ast.MediaQuery{}, false
+	return nil, false
 }
 
 func (p *parser) maybeSimplifyMediaNot(loc logger.Loc, inner css_ast.MediaQuery) css_ast.MediaQuery {

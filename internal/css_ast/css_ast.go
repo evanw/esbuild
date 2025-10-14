@@ -973,6 +973,20 @@ func (cmp MQCmp) Flip() MQCmp {
 	return cmp
 }
 
+func (cmp MQCmp) Reverse() MQCmp {
+	switch cmp {
+	case MQCmpLt:
+		return MQCmpGt
+	case MQCmpLe:
+		return MQCmpGe
+	case MQCmpGt:
+		return MQCmpLt
+	case MQCmpGe:
+		return MQCmpLe
+	}
+	return cmp
+}
+
 type ComplexSelector struct {
 	Selectors []CompoundSelector
 }
