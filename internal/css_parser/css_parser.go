@@ -30,7 +30,7 @@ type parser struct {
 	globalScope       map[string]ast.LocRef
 	nestingWarnings   map[logger.Loc]struct{}
 	tracker           logger.LineColumnTracker
-	enclosingAtMedia  [][]css_ast.Token
+	enclosingAtMedia  [][]css_ast.MediaQuery
 	layersPreImport   [][]string
 	layersPostImport  [][]string
 	enclosingLayer    []string
@@ -626,6 +626,11 @@ next:
 				continue
 			}
 
+		case *css_ast.RAtMedia:
+			if len(r.Rules) == 0 {
+				continue
+			}
+
 			// Unwrap "@media" rules that duplicate conditions from a parent "@media"
 			// rule. This is unlikely to be authored manually but can be automatically
 			// generated when using a CSS framework such as Tailwind.
@@ -653,12 +658,10 @@ next:
 			//   }
 			//
 			// Which can then be mangled further.
-			if strings.EqualFold(r.AtToken, "media") {
-				for _, prelude := range p.enclosingAtMedia {
-					if css_ast.TokensEqualIgnoringWhitespace(r.Prelude, prelude) {
-						mangledRules = append(mangledRules, r.Rules...)
-						continue next
-					}
+			for _, queries := range p.enclosingAtMedia {
+				if css_ast.MediaQueriesEqual(r.Queries, queries, nil) {
+					mangledRules = append(mangledRules, r.Rules...)
+					continue next
 				}
 			}
 
@@ -1222,7 +1225,7 @@ abortRuleParser:
 					}
 					p.parseComponentValue()
 				}
-				if p.current().Kind == css_lexer.TOpenBrace {
+				if p.peek(css_lexer.TOpenBrace) {
 					break // Avoid parsing an invalid "@import" rule
 				}
 				conditions.Media = p.convertTokens(p.tokens[importConditionsStart:p.index])
@@ -1523,6 +1526,43 @@ abortRuleParser:
 			p.unexpected()
 		}
 
+	case "media":
+		queries := p.parseMediaQueryList()
+		if queries == nil {
+			break abortRuleParser
+		}
+
+		// Expect a block after the query
+		matchingLoc := p.current().Range.Loc
+		if !p.expect(css_lexer.TOpenBrace) {
+			break
+		}
+		var rules []css_ast.Rule
+
+		// Push the "@media" conditions
+		p.enclosingAtMedia = append(p.enclosingAtMedia, queries)
+
+		// Parse the block for this rule
+		if context.isDeclarationList {
+			rules = p.parseListOfDeclarations(listOfDeclarationsOpts{
+				canInlineNoOpNesting: context.canInlineNoOpNesting,
+			})
+		} else {
+			rules = p.parseListOfRules(ruleContext{
+				parseSelectors: true,
+			})
+		}
+
+		// Pop the "@media" conditions
+		p.enclosingAtMedia = p.enclosingAtMedia[:len(p.enclosingAtMedia)-1]
+
+		closeBraceLoc := p.current().Range.Loc
+		if !p.expectWithMatchingLoc(css_lexer.TCloseBrace, matchingLoc) {
+			closeBraceLoc = logger.Loc{}
+		}
+
+		return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RAtMedia{AtToken: atToken, Queries: queries, Rules: rules, CloseBraceLoc: closeBraceLoc}}
+
 	default:
 		if kind == atRuleUnknown && lowerAtToken == "namespace" {
 			// CSS namespaces are a weird feature that appears to only really be
@@ -1613,12 +1653,6 @@ prelude:
 		p.expect(css_lexer.TOpenBrace)
 		var rules []css_ast.Rule
 
-		// Push the "@media" conditions
-		isAtMedia := lowerAtToken == "media"
-		if isAtMedia {
-			p.enclosingAtMedia = append(p.enclosingAtMedia, prelude)
-		}
-
 		// Parse the block for this rule
 		if context.isDeclarationList {
 			rules = p.parseListOfDeclarations(listOfDeclarationsOpts{
@@ -1628,11 +1662,6 @@ prelude:
 			rules = p.parseListOfRules(ruleContext{
 				parseSelectors: true,
 			})
-		}
-
-		// Pop the "@media" conditions
-		if isAtMedia {
-			p.enclosingAtMedia = p.enclosingAtMedia[:len(p.enclosingAtMedia)-1]
 		}
 
 		closeBraceLoc := p.current().Range.Loc

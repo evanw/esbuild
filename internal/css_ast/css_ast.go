@@ -694,7 +694,7 @@ func (a *RBadDeclaration) Equal(rule R, check *CrossFileEqualityCheck) bool {
 }
 
 func (r *RBadDeclaration) Hash() (uint32, bool) {
-	hash := uint32(11)
+	hash := uint32(7)
 	hash = HashTokens(hash, r.Tokens)
 	return hash, true
 }
@@ -709,7 +709,7 @@ func (a *RComment) Equal(rule R, check *CrossFileEqualityCheck) bool {
 }
 
 func (r *RComment) Hash() (uint32, bool) {
-	hash := uint32(12)
+	hash := uint32(8)
 	hash = helpers.HashCombineString(hash, r.Text)
 	return hash, true
 }
@@ -741,7 +741,7 @@ func (a *RAtLayer) Equal(rule R, check *CrossFileEqualityCheck) bool {
 }
 
 func (r *RAtLayer) Hash() (uint32, bool) {
-	hash := uint32(13)
+	hash := uint32(9)
 	hash = helpers.HashCombine(hash, uint32(len(r.Names)))
 	for _, parts := range r.Names {
 		hash = helpers.HashCombine(hash, uint32(len(parts)))
@@ -751,6 +751,226 @@ func (r *RAtLayer) Hash() (uint32, bool) {
 	}
 	hash = HashRules(hash, r.Rules)
 	return hash, true
+}
+
+type RAtMedia struct {
+	AtToken       string
+	Queries       []MediaQuery
+	Rules         []Rule
+	CloseBraceLoc logger.Loc
+}
+
+func (a *RAtMedia) Equal(rule R, check *CrossFileEqualityCheck) bool {
+	b, ok := rule.(*RAtMedia)
+	return ok && MediaQueriesEqual(a.Queries, b.Queries, check) && RulesEqual(a.Rules, b.Rules, check)
+}
+
+func (r *RAtMedia) Hash() (uint32, bool) {
+	hash := uint32(10)
+	hash = HashMediaQueries(hash, r.Queries)
+	hash = HashRules(hash, r.Rules)
+	return hash, true
+}
+
+type MediaQuery struct {
+	Loc  logger.Loc
+	Data MQ
+}
+
+type MQ interface {
+	Equal(query MQ, check *CrossFileEqualityCheck) bool
+	Hash() uint32
+}
+
+func MediaQueriesEqual(a []MediaQuery, b []MediaQuery, check *CrossFileEqualityCheck) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i, ai := range a {
+		if !ai.Data.Equal(b[i].Data, check) {
+			return false
+		}
+	}
+	return true
+}
+
+func HashMediaQueries(hash uint32, queries []MediaQuery) uint32 {
+	hash = helpers.HashCombine(hash, uint32(len(queries)))
+	for _, q := range queries {
+		hash = helpers.HashCombine(hash, q.Data.Hash())
+	}
+	return hash
+}
+
+type MQTypeOp uint8
+
+const (
+	MQTypeOpNone MQTypeOp = iota
+	MQTypeOpNot
+	MQTypeOpOnly
+)
+
+type MQType struct {
+	Op        MQTypeOp
+	Type      string
+	AndOrNull MediaQuery
+}
+
+func (q *MQType) Equal(query MQ, check *CrossFileEqualityCheck) bool {
+	p, ok := query.(*MQType)
+	return ok && q.Op == p.Op && q.Type == p.Type
+}
+
+func (q *MQType) Hash() uint32 {
+	hash := uint32(0)
+	hash = helpers.HashCombine(hash, uint32(q.Op))
+	hash = helpers.HashCombineString(hash, q.Type)
+	return hash
+}
+
+type MQNot struct {
+	Inner MediaQuery
+}
+
+func (q *MQNot) Equal(query MQ, check *CrossFileEqualityCheck) bool {
+	p, ok := query.(*MQNot)
+	return ok && q.Inner.Data.Equal(p.Inner.Data, check)
+}
+
+func (q *MQNot) Hash() uint32 {
+	hash := uint32(1)
+	hash = helpers.HashCombine(hash, q.Inner.Data.Hash())
+	return hash
+}
+
+type MQBinaryOp uint8
+
+const (
+	MQBinaryOpAnd MQBinaryOp = iota
+	MQBinaryOpOr
+)
+
+type MQBinary struct {
+	Op    MQBinaryOp
+	Terms []MediaQuery
+}
+
+func (q *MQBinary) Equal(query MQ, check *CrossFileEqualityCheck) bool {
+	p, ok := query.(*MQBinary)
+	return ok && q.Op == p.Op && MediaQueriesEqual(q.Terms, p.Terms, check)
+}
+
+func (q *MQBinary) Hash() uint32 {
+	hash := uint32(2)
+	hash = helpers.HashCombine(hash, uint32(q.Op))
+	hash = HashMediaQueries(hash, q.Terms)
+	return hash
+}
+
+type MQGeneralEnclosed struct {
+	Tokens []Token
+}
+
+func (q *MQGeneralEnclosed) Equal(query MQ, check *CrossFileEqualityCheck) bool {
+	p, ok := query.(*MQGeneralEnclosed)
+	return ok && TokensEqual(q.Tokens, p.Tokens, check)
+}
+
+func (q *MQGeneralEnclosed) Hash() uint32 {
+	hash := uint32(3)
+	hash = HashTokens(hash, q.Tokens)
+	return hash
+}
+
+type MQPlainOrBoolean struct {
+	Name       string
+	ValueOrNil []Token
+}
+
+func (q *MQPlainOrBoolean) Equal(query MQ, check *CrossFileEqualityCheck) bool {
+	p, ok := query.(*MQPlainOrBoolean)
+	return ok && q.Name == p.Name && TokensEqual(q.ValueOrNil, p.ValueOrNil, check)
+}
+
+func (q *MQPlainOrBoolean) Hash() uint32 {
+	hash := uint32(4)
+	hash = helpers.HashCombineString(hash, q.Name)
+	hash = HashTokens(hash, q.ValueOrNil)
+	return hash
+}
+
+type MQRange struct {
+	Before    []Token
+	Name      string
+	After     []Token
+	NameLoc   logger.Loc
+	BeforeCmp MQCmp
+	AfterCmp  MQCmp
+}
+
+func (q *MQRange) Equal(query MQ, check *CrossFileEqualityCheck) bool {
+	p, ok := query.(*MQRange)
+	return ok && q.BeforeCmp == p.BeforeCmp && q.AfterCmp == p.AfterCmp && q.Name == p.Name &&
+		TokensEqual(q.Before, p.Before, check) && TokensEqual(q.After, p.After, check)
+}
+
+func (q *MQRange) Hash() uint32 {
+	hash := uint32(5)
+	hash = HashTokens(hash, q.Before)
+	hash = helpers.HashCombine(hash, uint32(q.BeforeCmp))
+	hash = helpers.HashCombineString(hash, q.Name)
+	hash = helpers.HashCombine(hash, uint32(q.AfterCmp))
+	hash = HashTokens(hash, q.After)
+	return hash
+}
+
+type MQCmp uint8
+
+const (
+	MQCmpNone MQCmp = iota
+	MQCmpEq
+	MQCmpLt
+	MQCmpLe
+	MQCmpGt
+	MQCmpGe
+)
+
+func (cmp MQCmp) String() string {
+	switch cmp {
+	case MQCmpLt:
+		return "<"
+	case MQCmpLe:
+		return "<="
+	case MQCmpGt:
+		return ">"
+	case MQCmpGe:
+		return ">="
+	}
+	return "="
+}
+
+func (cmp MQCmp) Dir() int {
+	switch cmp {
+	case MQCmpLt, MQCmpLe:
+		return -1
+	case MQCmpGt, MQCmpGe:
+		return 1
+	}
+	return 0
+}
+
+func (cmp MQCmp) Flip() MQCmp {
+	switch cmp {
+	case MQCmpLt:
+		return MQCmpGe
+	case MQCmpLe:
+		return MQCmpGt
+	case MQCmpGt:
+		return MQCmpLe
+	case MQCmpGe:
+		return MQCmpLt
+	}
+	return cmp
 }
 
 type ComplexSelector struct {

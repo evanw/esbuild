@@ -2485,6 +2485,95 @@ func TestMangleDuplicateSelectorRules(t *testing.T) {
 	expectPrintedMangle(t, "c { color: green } a { color: red } /*!x*/ /*!y*/ a { color: red }", "c {\n  color: green;\n}\na {\n  color: red;\n}\n/*!x*/\n/*!y*/\n", "")
 }
 
+func TestAtMedia(t *testing.T) {
+	expectPrinted(t, "@media screen{}", "@media screen {\n}\n", "")
+	expectPrinted(t, "@media not screen{}", "@media not screen {\n}\n", "")
+	expectPrinted(t, "@media only screen{}", "@media only screen {\n}\n", "")
+	expectPrinted(t, "@media (color) {}", "@media (color) {\n}\n", "")
+	expectPrinted(t, "@media (((color))) {}", "@media (color) {\n}\n", "")
+	expectPrinted(t, "@media screen and (color) {}", "@media screen and (color) {\n}\n", "")
+	expectPrinted(t, "@media not screen and (color) and (opacity) {}", "@media not screen and (color) and (opacity) {\n}\n", "")
+	expectPrinted(t, "@media( color )and ( opacity ){}", "@media (color) and (opacity) {\n}\n", "")
+	expectPrinted(t, "@media test( general , enclosed ) {}", "@media test(general, enclosed) {\n}\n", "")
+	expectPrinted(t, "@media (width:1px) {}", "@media (width: 1px) {\n}\n", "")
+	expectPrinted(t, "@media ( width: 1px ) {}", "@media (width: 1px) {\n}\n", "")
+	expectPrinted(t, "@media ( width :1px ) {}", "@media (width: 1px) {\n}\n", "")
+
+	expectPrinted(t, "@media not (color) {}", "@media not (color) {\n}\n", "")
+	expectPrinted(t, "@media not (not (not (color))) {}", "@media not (not (not (color))) {\n}\n", "")
+
+	expectPrinted(t, "@media (resolution >= calc(3x - 1x)) { a { color: red } }", "@media (resolution >= calc(3x - 1x)) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedMangle(t, "@media (resolution >= calc(3x - 1x)) { a { color: red } }", "@media (resolution >= 2x) {\n  a {\n    color: red;\n  }\n}\n", "")
+
+	expectPrinted(t, "@media (width=1px) {}", "@media (width = 1px) {\n}\n", "")
+	expectPrinted(t, "@media (width<1px) {}", "@media (width < 1px) {\n}\n", "")
+	expectPrinted(t, "@media (width<=1px) {}", "@media (width <= 1px) {\n}\n", "")
+	expectPrinted(t, "@media (width>1px) {}", "@media (width > 1px) {\n}\n", "")
+	expectPrinted(t, "@media (width>=1px) {}", "@media (width >= 1px) {\n}\n", "")
+
+	expectPrinted(t, "@media (1px=width) {}", "@media (1px = width) {\n}\n", "")
+	expectPrinted(t, "@media (1px<width) {}", "@media (1px < width) {\n}\n", "")
+	expectPrinted(t, "@media (1px<=width) {}", "@media (1px <= width) {\n}\n", "")
+	expectPrinted(t, "@media (1px>width) {}", "@media (1px > width) {\n}\n", "")
+	expectPrinted(t, "@media (1px>=width) {}", "@media (1px >= width) {\n}\n", "")
+
+	// No whitespace is allowed between the "<" or ">" <delim-token>s and the following "=" <delim-token>, if it's present.
+	expectPrinted(t, "@media (width <=1px) {}", "@media (width <= 1px) {\n}\n", "")
+	expectPrinted(t, "@media (width<= 1px) {}", "@media (width <= 1px) {\n}\n", "")
+	expectPrinted(t, "@media (width< =1px) {}", "@media (width< =1px) {\n}\n", "")
+	expectPrinted(t, "@media (width >=1px) {}", "@media (width >= 1px) {\n}\n", "")
+	expectPrinted(t, "@media (width>= 1px) {}", "@media (width >= 1px) {\n}\n", "")
+	expectPrinted(t, "@media (width> =1px) {}", "@media (width> =1px) {\n}\n", "")
+
+	// Valid three-part ranges
+	expectPrinted(t, "@media (1px<width<2px) {}", "@media (1px < width < 2px) {\n}\n", "")
+	expectPrinted(t, "@media (1px<width<=2px) {}", "@media (1px < width <= 2px) {\n}\n", "")
+	expectPrinted(t, "@media (1px<=width<2px) {}", "@media (1px <= width < 2px) {\n}\n", "")
+	expectPrinted(t, "@media (1px<=width<=2px) {}", "@media (1px <= width <= 2px) {\n}\n", "")
+	expectPrinted(t, "@media (1px>width>2px) {}", "@media (1px > width > 2px) {\n}\n", "")
+	expectPrinted(t, "@media (1px>width>=2px) {}", "@media (1px > width >= 2px) {\n}\n", "")
+	expectPrinted(t, "@media (1px>=width>2px) {}", "@media (1px >= width > 2px) {\n}\n", "")
+	expectPrinted(t, "@media (1px>=width>=2px) {}", "@media (1px >= width >= 2px) {\n}\n", "")
+
+	// Invalid three-part ranges
+	expectPrinted(t, "@media (1px=width=2px) {}", "@media (1px=width=2px) {\n}\n", "")
+	expectPrinted(t, "@media (1px<width>2px) {}", "@media (1px<width>2px) {\n}\n", "")
+	expectPrinted(t, "@media (1px>width<2px) {}", "@media (1px>width<2px) {\n}\n", "")
+	expectPrinted(t, "@media (1px<=width>=2px) {}", "@media (1px<=width>=2px) {\n}\n", "")
+	expectPrinted(t, "@media (1px>=width<=2px) {}", "@media (1px>=width<=2px) {\n}\n", "")
+
+	// Whitespace is required between a "not", "and", or "or" keyword and the following "(" character, because without it that would instead parse as a <function-token>.
+	expectPrinted(t, "@media not(color) {}", "@media not(color) {\n}\n", "")
+	expectPrinted(t, "@media( color )or( opacity ){}", "@media (color)or(opacity) {\n}\n", "<stdin>: WARNING: Expected \"{\" but found \"or(\"\n")
+	expectPrinted(t, "@media( color )and( opacity ){}", "@media (color)and(opacity) {\n}\n", "<stdin>: WARNING: Expected \"{\" but found \"and(\"\n")
+
+	// Tests from https://drafts.csswg.org/mediaqueries-4/#error-handling
+	expectPrinted(t, "@media (example, all,), speech {}", "@media (example, all, ), speech {\n}\n", "")
+	expectPrinted(t, "@media &test, speech {}", "@media &test, speech {\n}\n", "<stdin>: WARNING: Expected identifier but found \"&\"\n")
+	expectPrinted(t, "@media (example, speech {}", "@media (example, speech {}) {\n}\n", "<stdin>: WARNING: Expected \")\" but found end of file\n")
+	expectPrinted(t, "@media test;,all { body { background: lime } }", "@media test;\n, all {\n  body {\n    background: lime;\n  }\n}\n",
+		"<stdin>: WARNING: Expected \"{\" but found \";\"\n<stdin>: WARNING: Unexpected \",\"\n")
+	expectPrinted(t, "@media and { div { color: red } }", "@media and {\n  div {\n    color: red;\n  }\n}\n", "<stdin>: WARNING: Unexpected \"and\"\n")
+	expectPrinted(t, "@media or { div { color: red } }", "@media or {\n  div {\n    color: red;\n  }\n}\n", "<stdin>: WARNING: Unexpected \"or\"\n")
+	expectPrinted(t, "@media not { div { color: red } }", "@media not {\n  div {\n    color: red;\n  }\n}\n", "<stdin>: WARNING: Expected identifier but found \"{\"\n")
+	expectPrinted(t, "@media only { div { color: red } }", "@media only {\n  div {\n    color: red;\n  }\n}\n", "<stdin>: WARNING: Expected identifier but found \"{\"\n")
+	expectPrinted(t, "@media not and { div { color: red } }", "@media not and {\n  div {\n    color: red;\n  }\n}\n", "<stdin>: WARNING: Unexpected \"and\"\n")
+	expectPrinted(t, "@media not or { div { color: red } }", "@media not or {\n  div {\n    color: red;\n  }\n}\n", "<stdin>: WARNING: Unexpected \"or\"\n")
+	expectPrinted(t, "@media not not { div { color: red } }", "@media not not {\n  div {\n    color: red;\n  }\n}\n", "<stdin>: WARNING: Unexpected \"not\"\n")
+	expectPrinted(t, "@media not only { div { color: red } }", "@media not only {\n  div {\n    color: red;\n  }\n}\n", "<stdin>: WARNING: Unexpected \"only\"\n")
+	expectPrinted(t, "@media screen and (min-width: 480px) screen and (device-width: 768px) {}",
+		"@media screen and (min-width: 480px) screen and (device-width: 768px) {\n}\n", "<stdin>: WARNING: Expected \"{\" but found \"screen\"\n")
+	expectPrinted(t, "@media layer { div { color: red } }", "@media layer {\n  div {\n    color: red;\n  }\n}\n", "<stdin>: WARNING: Unexpected \"layer\"\n")
+	expectPrinted(t, "@media not layer { div { color: red } }", "@media not layer {\n  div {\n    color: red;\n  }\n}\n", "<stdin>: WARNING: Unexpected \"layer\"\n")
+
+	expectPrinted(t, "@media screen or (color) {}", "@media screen or (color) {\n}\n", "<stdin>: WARNING: Expected \"{\" but found \"or\"\n")
+	expectPrinted(t, "@media screen and (color) or (opacity) {}", "@media screen and (color) or (opacity) {\n}\n", "<stdin>: WARNING: Expected \"{\" but found \"or\"\n")
+	expectPrinted(t, "@media (color) and (opacity) or (width) {}", "@media (color) and (opacity) or (width) {\n}\n", "<stdin>: WARNING: Expected \"{\" but found \"or\"\n")
+	expectPrinted(t, "@media (color) or (opacity) and (width) {}", "@media (color) or (opacity) and (width) {\n}\n", "<stdin>: WARNING: Expected \"{\" but found \"and\"\n")
+	expectPrinted(t, "@media not (color) and (opacity) {}", "@media not (color) and (opacity) {\n}\n", "<stdin>: WARNING: Expected \"{\" but found \"and\"\n")
+	expectPrinted(t, "@media not (not (color) and (opacity)) {}", "@media not (not (color) and (opacity)) {\n}\n", "<stdin>: WARNING: Expected \")\" but found \"and\"\n")
+}
+
 func TestMangleAtMedia(t *testing.T) {
 	expectPrinted(t, "@media screen { @media screen { a { color: red } } }", "@media screen {\n  @media screen {\n    a {\n      color: red;\n    }\n  }\n}\n", "")
 	expectPrintedMangle(t, "@media screen { @media screen { a { color: red } } }", "@media screen {\n  a {\n    color: red;\n  }\n}\n", "")
@@ -2494,6 +2583,46 @@ func TestMangleAtMedia(t *testing.T) {
 	expectPrintedMangle(t, "@media screen { a { color: red } @media screen { a { color: blue } } }", "@media screen {\n  a {\n    color: red;\n  }\n  a {\n    color: #00f;\n  }\n}\n", "")
 	expectPrintedMangle(t, "@media screen { .a { color: red; @media screen { .b { color: blue } } } }", "@media screen {\n  .a {\n    color: red;\n    .b {\n      color: #00f;\n    }\n  }\n}\n", "")
 	expectPrintedMangle(t, "@media screen { a { color: red } } @media screen { b { color: red } }", "@media screen {\n  a {\n    color: red;\n  }\n}\n@media screen {\n  b {\n    color: red;\n  }\n}\n", "")
+
+	expectPrinted(t, "@media ((a) and (b)) and (c) { a { color: red } }", "@media ((a) and (b)) and (c) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrinted(t, "@media ((a) or (b)) or (c) { a { color: red } }", "@media ((a) or (b)) or (c) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrinted(t, "@media (a) and ((b) and (c)) { a { color: red } }", "@media (a) and ((b) and (c)) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrinted(t, "@media (a) or ((b) or (c)) { a { color: red } }", "@media (a) or ((b) or (c)) {\n  a {\n    color: red;\n  }\n}\n", "")
+
+	expectPrintedMangle(t, "@media ((a) and (b)) and (c) { a { color: red } }", "@media (a) and (b) and (c) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedMangle(t, "@media ((a) or (b)) or (c) { a { color: red } }", "@media (a) or (b) or (c) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedMangle(t, "@media (a) and ((b) and (c)) { a { color: red } }", "@media (a) and (b) and (c) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedMangle(t, "@media (a) or ((b) or (c)) { a { color: red } }", "@media (a) or (b) or (c) {\n  a {\n    color: red;\n  }\n}\n", "")
+
+	expectPrintedMangle(t, "@media ((a) and (b)) or (c) { a { color: red } }", "@media ((a) and (b)) or (c) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedMangle(t, "@media ((a) or (b)) and (c) { a { color: red } }", "@media ((a) or (b)) and (c) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedMangle(t, "@media (a) and ((b) or (c)) { a { color: red } }", "@media (a) and ((b) or (c)) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedMangle(t, "@media (a) or ((b) and (c)) { a { color: red } }", "@media (a) or ((b) and (c)) {\n  a {\n    color: red;\n  }\n}\n", "")
+
+	expectPrintedMangle(t, "@media not (not (color)) { a { color: red } }", "@media (color) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedMangle(t, "@media not (not (not (color))) { a { color: red } }", "@media not (color) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedMangle(t, "@media not (not (not (not (color)))) { a { color: red } }", "@media (color) {\n  a {\n    color: red;\n  }\n}\n", "")
+
+	expectPrintedMangle(t, "@media not ((a) and (not (b))) { a { color: red } }", "@media not ((a) and (not (b))) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedMangle(t, "@media not ((a) or (not (b))) { a { color: red } }", "@media not ((a) or (not (b))) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedMangle(t, "@media not ((not (a)) and (b)) { a { color: red } }", "@media not ((not (a)) and (b)) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedMangle(t, "@media not ((not (a)) or (b)) { a { color: red } }", "@media not ((not (a)) or (b)) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedMangle(t, "@media not ((not (a)) and (not (b))) { a { color: red } }", "@media (a) or (b) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedMangle(t, "@media not ((not (a)) or (not (b))) { a { color: red } }", "@media (a) and (b) {\n  a {\n    color: red;\n  }\n}\n", "")
+
+	expectPrintedMangle(t, "@media not (width = 1px) { a { color: red } }", "@media not (width = 1px) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedMangle(t, "@media not (1px < width < 2px) { a { color: red } }", "@media not (1px < width < 2px) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedMangle(t, "@media not (2px > width > 1px) { a { color: red } }", "@media not (2px > width > 1px) {\n  a {\n    color: red;\n  }\n}\n", "")
+
+	expectPrintedMangle(t, "@media not (width < 1px) { a { color: red } }", "@media (width >= 1px) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedMangle(t, "@media not (width <= 1px) { a { color: red } }", "@media (width > 1px) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedMangle(t, "@media not (width > 1px) { a { color: red } }", "@media (width <= 1px) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedMangle(t, "@media not (width >= 1px) { a { color: red } }", "@media (width < 1px) {\n  a {\n    color: red;\n  }\n}\n", "")
+
+	expectPrintedMangle(t, "@media not (1px < width) { a { color: red } }", "@media (1px >= width) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedMangle(t, "@media not (1px <= width) { a { color: red } }", "@media (1px > width) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedMangle(t, "@media not (1px > width) { a { color: red } }", "@media (1px <= width) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedMangle(t, "@media not (1px >= width) { a { color: red } }", "@media (1px < width) {\n  a {\n    color: red;\n  }\n}\n", "")
 }
 
 func TestFontWeight(t *testing.T) {

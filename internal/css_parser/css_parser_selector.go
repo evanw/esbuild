@@ -21,7 +21,7 @@ type parseSelectorOpts struct {
 
 func (p *parser) parseSelectorList(opts parseSelectorOpts) (list []css_ast.ComplexSelector, ok bool) {
 	// Potentially parse an empty list for ":is()" and ":where()"
-	if opts.isForgivingSelectorList && opts.stopOnCloseParen && p.current().Kind == css_lexer.TCloseParen {
+	if opts.isForgivingSelectorList && opts.stopOnCloseParen && p.peek(css_lexer.TCloseParen) {
 		ok = true
 		return
 	}
@@ -423,7 +423,7 @@ subclassSelectors:
 		case css_lexer.TColon:
 			if p.next().Kind == css_lexer.TColon {
 				// Special-case the start of the pseudo-element selector section
-				for p.current().Kind == css_lexer.TColon {
+				for p.peek(css_lexer.TColon) {
 					firstColonLoc := p.current().Range.Loc
 					isElement := p.next().Kind == css_lexer.TColon
 					if isElement {

@@ -350,6 +350,19 @@ func TestAtMedia(t *testing.T) {
 	expectPrinted(t, "@media screen{div{color:red}}", "@media screen {\n  div {\n    color: red;\n  }\n}\n")
 	expectPrintedMinify(t, "@media screen { div { color: red } }", "@media screen{div{color:red}}")
 	expectPrintedMinify(t, "@media screen{div{color:red}}", "@media screen{div{color:red}}")
+
+	expectPrintedMinify(t, "@media (a) {div{color:red}}", "@media(a){div{color:red}}")
+	expectPrintedMinify(t, "@media (a) or (b) {div{color:red}}", "@media(a)or (b){div{color:red}}")
+	expectPrintedMinify(t, "@media (a) and (b) {div{color:red}}", "@media(a)and (b){div{color:red}}")
+	expectPrintedMinify(t, "@media not a {div{color:red}}", "@media not a{div{color:red}}")
+	expectPrintedMinify(t, "@media not a and (b) and (c) {div{color:red}}", "@media not a and (b)and (c){div{color:red}}")
+	expectPrintedMinify(t, "@media not (a) {div{color:red}}", "@media not (a){div{color:red}}")
+	expectPrintedMinify(t, "@media not ( (a) or (b) ) {div{color:red}}", "@media not ((a)or (b)){div{color:red}}")
+	expectPrintedMinify(t, "@media not ( (a) and (b) ) {div{color:red}}", "@media not ((a)and (b)){div{color:red}}")
+
+	expectPrintedMinify(t, "@media (width < 2px) {div{color:red}}", "@media(width<2px){div{color:red}}")
+	expectPrintedMinify(t, "@media (1px < width) {div{color:red}}", "@media(1px<width){div{color:red}}")
+	expectPrintedMinify(t, "@media (1px < width < 2px) {div{color:red}}", "@media(1px<width<2px){div{color:red}}")
 }
 
 func TestAtFontFace(t *testing.T) {
