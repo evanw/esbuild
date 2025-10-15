@@ -1218,6 +1218,34 @@ abortRuleParser:
 			if path, r, ok := p.expectURLOrString(); ok {
 				var conditions css_ast.ImportConditions
 				importConditionsStart := p.index
+
+				// Parse the optional "layer()"
+				p.eat(css_lexer.TWhitespace)
+				if (p.peek(css_lexer.TIdent) || p.peek(css_lexer.TFunction)) && strings.EqualFold(p.decoded(), "layer") {
+					p.parseComponentValue()
+					conditions.Layers = p.convertTokens(p.tokens[importConditionsStart:p.index])
+					importConditionsStart = p.index
+
+					// Remove leading and trailing whitespace
+					if len(conditions.Layers) > 0 {
+						conditions.Layers[0].Whitespace &= ^(css_ast.WhitespaceBefore | css_ast.WhitespaceAfter)
+					}
+				}
+
+				// Parse the optional "supports()"
+				p.eat(css_lexer.TWhitespace)
+				if p.peek(css_lexer.TFunction) && strings.EqualFold(p.decoded(), "supports") {
+					p.parseComponentValue()
+					conditions.Supports = p.convertTokens(p.tokens[importConditionsStart:p.index])
+					importConditionsStart = p.index
+
+					// Remove leading and trailing whitespace
+					if len(conditions.Supports) > 0 {
+						conditions.Supports[0].Whitespace &= ^(css_ast.WhitespaceBefore | css_ast.WhitespaceAfter)
+					}
+				}
+
+				// Parse the optional media query list
 				for {
 					if kind := p.current().Kind; kind == css_lexer.TSemicolon || kind == css_lexer.TOpenBrace ||
 						kind == css_lexer.TCloseBrace || kind == css_lexer.TEndOfFile {
@@ -1229,37 +1257,15 @@ abortRuleParser:
 					break // Avoid parsing an invalid "@import" rule
 				}
 				conditions.Media = p.convertTokens(p.tokens[importConditionsStart:p.index])
+				if n := len(conditions.Media); n > 0 {
+					conditions.Media[0].Whitespace &= ^css_ast.WhitespaceBefore
+					conditions.Media[n-1].Whitespace &= ^css_ast.WhitespaceAfter
+				}
 
-				// Insert or remove whitespace before the first token
+				// Check whether any import conditions are present
 				var importConditions *css_ast.ImportConditions
-				if len(conditions.Media) > 0 {
+				if len(conditions.Layers) > 0 || len(conditions.Supports) > 0 || len(conditions.Media) > 0 {
 					importConditions = &conditions
-
-					// Handle "layer()"
-					if t := conditions.Media[0]; (t.Kind == css_lexer.TIdent || t.Kind == css_lexer.TFunction) && strings.EqualFold(t.Text, "layer") {
-						conditions.Layers = conditions.Media[:1]
-						conditions.Media = conditions.Media[1:]
-					}
-
-					// Handle "supports()"
-					if len(conditions.Media) > 0 {
-						if t := conditions.Media[0]; t.Kind == css_lexer.TFunction && strings.EqualFold(t.Text, "supports") {
-							conditions.Supports = conditions.Media[:1]
-							conditions.Media = conditions.Media[1:]
-						}
-					}
-
-					// Remove leading and trailing whitespace
-					if len(conditions.Layers) > 0 {
-						conditions.Layers[0].Whitespace &= ^(css_ast.WhitespaceBefore | css_ast.WhitespaceAfter)
-					}
-					if len(conditions.Supports) > 0 {
-						conditions.Supports[0].Whitespace &= ^(css_ast.WhitespaceBefore | css_ast.WhitespaceAfter)
-					}
-					if n := len(conditions.Media); n > 0 {
-						conditions.Media[0].Whitespace &= ^css_ast.WhitespaceBefore
-						conditions.Media[n-1].Whitespace &= ^css_ast.WhitespaceAfter
-					}
 				}
 
 				p.expect(css_lexer.TSemicolon)
