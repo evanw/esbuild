@@ -1618,7 +1618,7 @@ func TestAtImport(t *testing.T) {
 	expectPrinted(t, "@import url(\"foo.css\") ;", "@import \"foo.css\";\n", "")
 	expectPrinted(t, "@import url( \"foo.css\" );", "@import \"foo.css\";\n", "")
 	expectPrinted(t, "@import url(\"foo.css\") print;", "@import \"foo.css\" print;\n", "")
-	expectPrinted(t, "@import url(\"foo.css\") screen and (orientation:landscape);", "@import \"foo.css\" screen and (orientation:landscape);\n", "")
+	expectPrinted(t, "@import url(\"foo.css\") screen and (orientation:landscape);", "@import \"foo.css\" screen and (orientation: landscape);\n", "")
 
 	expectPrinted(t, "@import;", "@import;\n", "<stdin>: WARNING: Expected URL token but found \";\"\n")
 	expectPrinted(t, "@import ;", "@import;\n", "<stdin>: WARNING: Expected URL token but found \";\"\n")
@@ -1636,6 +1636,11 @@ func TestAtImport(t *testing.T) {
 	expectPrinted(t, "@import \"foo\"\na { color: red }\nb { color: blue }", "@import \"foo\" a { color: red }\nb {\n  color: blue;\n}\n", "<stdin>: WARNING: Expected \";\"\n")
 
 	expectPrinted(t, "a { @import \"foo.css\" }", "a {\n  @import \"foo.css\";\n}\n", "<stdin>: WARNING: \"@import\" is only valid at the top level\n<stdin>: WARNING: Expected \";\"\n")
+}
+
+func TestLowerAtImportMediaRange(t *testing.T) {
+	expectPrinted(t, "@import \"foo.css\" (1px<=width<=2px);", "@import \"foo.css\" (1px <= width <= 2px);\n", "")
+	expectPrintedLower(t, "@import \"foo.css\" (1px<=width<=2px);", "@import \"foo.css\" (min-width: 1px) and (max-width: 2px);\n", "")
 }
 
 func TestLegalComment(t *testing.T) {
@@ -2541,6 +2546,9 @@ func TestAtMedia(t *testing.T) {
 	expectPrinted(t, "@media (1px>width<2px) {}", "@media (1px>width<2px) {\n}\n", "")
 	expectPrinted(t, "@media (1px<=width>=2px) {}", "@media (1px<=width>=2px) {\n}\n", "")
 	expectPrinted(t, "@media (1px>=width<=2px) {}", "@media (1px>=width<=2px) {\n}\n", "")
+
+	// Preserve invalid syntax and valid syntax in the same rule
+	expectPrinted(t, "@media junk(a<b),(a<b),junk(a<b) {}", "@media junk(a<b), (a < b), junk(a<b) {\n}\n", "")
 
 	// Whitespace is required between a "not", "and", or "or" keyword and the following "(" character, because without it that would instead parse as a <function-token>.
 	expectPrinted(t, "@media not(color) {}", "@media not(color) {\n}\n", "")

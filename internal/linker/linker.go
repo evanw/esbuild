@@ -3773,7 +3773,7 @@ func importConditionsAreEqual(a []css_ast.ImportConditions, b []css_ast.ImportCo
 		bi := b[i]
 		if !css_ast.TokensEqualIgnoringWhitespace(ai.Layers, bi.Layers) ||
 			!css_ast.TokensEqualIgnoringWhitespace(ai.Supports, bi.Supports) ||
-			!css_ast.TokensEqualIgnoringWhitespace(ai.Media, bi.Media) {
+			!css_ast.MediaQueriesEqualIgnoringWhitespace(ai.Queries, bi.Queries) {
 			return false
 		}
 	}
@@ -3821,7 +3821,7 @@ func isConditionalImportRedundant(earlier []css_ast.ImportConditions, later []cs
 		// Only compare "@supports" and "@media" if "@layers" is equal
 		if css_ast.TokensEqualIgnoringWhitespace(a.Layers, b.Layers) {
 			sameSupports := css_ast.TokensEqualIgnoringWhitespace(a.Supports, b.Supports)
-			sameMedia := css_ast.TokensEqualIgnoringWhitespace(a.Media, b.Media)
+			sameMedia := css_ast.MediaQueriesEqualIgnoringWhitespace(a.Queries, b.Queries)
 
 			// If the import conditions are exactly equal, then only keep
 			// the later one. The earlier one is redundant. Example:
@@ -3854,7 +3854,7 @@ func isConditionalImportRedundant(earlier []css_ast.ImportConditions, later []cs
 			//   @import "foo.css" layer(abc) supports(display: flex);
 			//
 			// The later one makes the earlier one redundant.
-			if sameSupports && len(b.Media) == 0 {
+			if sameSupports && len(b.Queries) == 0 {
 				continue
 			}
 		}
@@ -6505,12 +6505,11 @@ func wrapRulesWithConditions(
 
 		// Generate "@media" wrappers. This is not done if the rule block is
 		// empty because empty "@media" rules have no effect.
-		if len(rules) > 0 && len(item.Media) > 0 {
-			var prelude []css_ast.Token
-			prelude, importRecords = css_ast.CloneTokensWithImportRecords(item.Media, conditionImportRecords, nil, importRecords)
-			rules = []css_ast.Rule{{Data: &css_ast.RKnownAt{
-				AtToken: "media",
-				Prelude: prelude,
+		if len(rules) > 0 && len(item.Queries) > 0 {
+			var queries []css_ast.MediaQuery
+			queries, importRecords = css_ast.CloneMediaQueriesWithImportRecords(item.Queries, conditionImportRecords, nil, importRecords)
+			rules = []css_ast.Rule{{Data: &css_ast.RAtMedia{
+				Queries: queries,
 				Rules:   rules,
 			}}}
 		}

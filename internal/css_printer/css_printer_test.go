@@ -329,13 +329,23 @@ func TestAtImport(t *testing.T) {
 	expectPrinted(t, "@import \"foo.css\";", "@import \"foo.css\";\n")
 	expectPrinted(t, "@import url(foo.css);", "@import \"foo.css\";\n")
 	expectPrinted(t, "@import url(\"foo.css\");", "@import \"foo.css\";\n")
-	expectPrinted(t, "@import url(\"foo.css\") print;", "@import \"foo.css\" print;\n")
+	expectPrinted(t, "@import url(\"foo.css\") (a < 1);", "@import \"foo.css\" (a < 1);\n")
+	expectPrinted(t, "@import url(\"foo.css\") supports(foo) (a < 1);", "@import \"foo.css\" supports(foo) (a < 1);\n")
+	expectPrinted(t, "@import url(\"foo.css\") layer;", "@import \"foo.css\" layer;\n")
+	expectPrinted(t, "@import url(\"foo.css\") layer (a < 1);", "@import \"foo.css\" layer (a < 1);\n")
+	expectPrinted(t, "@import url(\"foo.css\") layer supports(foo);", "@import \"foo.css\" layer supports(foo);\n")
+	expectPrinted(t, "@import url(\"foo.css\") layer supports(foo) (a < 1);", "@import \"foo.css\" layer supports(foo) (a < 1);\n")
 
 	expectPrintedMinify(t, "@import\"foo.css\";", "@import\"foo.css\";")
 	expectPrintedMinify(t, "@import \"foo.css\";", "@import\"foo.css\";")
 	expectPrintedMinify(t, "@import url(foo.css);", "@import\"foo.css\";")
 	expectPrintedMinify(t, "@import url(\"foo.css\");", "@import\"foo.css\";")
-	expectPrintedMinify(t, "@import url(\"foo.css\") print;", "@import\"foo.css\"print;")
+	expectPrintedMinify(t, "@import url(\"foo.css\") (a < 1);", "@import\"foo.css\"(a<1);")
+	expectPrintedMinify(t, "@import url(\"foo.css\") supports(foo) (a < 1);", "@import\"foo.css\"supports(foo) (a<1);")
+	expectPrintedMinify(t, "@import url(\"foo.css\") layer;", "@import\"foo.css\"layer;")
+	expectPrintedMinify(t, "@import url(\"foo.css\") layer (a < 1);", "@import\"foo.css\"layer (a<1);")
+	expectPrintedMinify(t, "@import url(\"foo.css\") layer supports(foo);", "@import\"foo.css\"layer supports(foo);")
+	expectPrintedMinify(t, "@import url(\"foo.css\") layer supports(foo) (a < 1);", "@import\"foo.css\"layer supports(foo) (a<1);")
 }
 
 func TestAtKeyframes(t *testing.T) {
@@ -363,6 +373,7 @@ func TestAtMedia(t *testing.T) {
 	expectPrintedMinify(t, "@media (width < 2px) {div{color:red}}", "@media(width<2px){div{color:red}}")
 	expectPrintedMinify(t, "@media (1px < width) {div{color:red}}", "@media(1px<width){div{color:red}}")
 	expectPrintedMinify(t, "@media (1px < width < 2px) {div{color:red}}", "@media(1px<width<2px){div{color:red}}")
+	expectPrintedMinify(t, "@media junk(1, 2, 3) {div{color:red}}", "@media junk(1,2,3){div{color:red}}")
 }
 
 func TestAtFontFace(t *testing.T) {

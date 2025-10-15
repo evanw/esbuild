@@ -186,11 +186,20 @@ func (p *printer) printRule(rule css_ast.Rule, indent int32, omitTrailingSemicol
 				p.printTokens(conditions.Supports, printTokensOpts{})
 				space = true
 			}
-			if len(conditions.Media) > 0 {
+			if len(conditions.Queries) > 0 {
 				if space {
 					p.print(" ")
 				}
-				p.printTokens(conditions.Media, printTokensOpts{})
+				for i, query := range conditions.Queries {
+					if i > 0 {
+						if p.options.MinifyWhitespace {
+							p.print(",")
+						} else {
+							p.print(", ")
+						}
+					}
+					p.printMediaQuery(query, 0)
+				}
 			}
 		}
 		p.print(";")
@@ -385,8 +394,8 @@ const (
 )
 
 func (p *printer) printMediaQuery(query css_ast.MediaQuery, flags mqFlags) {
-	if q, ok := query.Data.(*css_ast.MQGeneralEnclosed); ok {
-		if (flags&mqAfterIdentifier) != 0 && q.Tokens[0].Kind == css_lexer.TFunction {
+	if q, ok := query.Data.(*css_ast.MQArbitraryTokens); ok {
+		if (flags & mqAfterIdentifier) != 0 {
 			p.print(" ")
 		}
 		p.printTokens(q.Tokens, printTokensOpts{})

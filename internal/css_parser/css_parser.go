@@ -1246,25 +1246,17 @@ abortRuleParser:
 				}
 
 				// Parse the optional media query list
-				for {
-					if kind := p.current().Kind; kind == css_lexer.TSemicolon || kind == css_lexer.TOpenBrace ||
-						kind == css_lexer.TCloseBrace || kind == css_lexer.TEndOfFile {
-						break
-					}
-					p.parseComponentValue()
-				}
+				conditions.Queries = p.parseMediaQueryListUntil(func(kind css_lexer.T) bool {
+					return kind == css_lexer.TSemicolon || kind == css_lexer.TOpenBrace ||
+						kind == css_lexer.TCloseBrace || kind == css_lexer.TEndOfFile
+				})
 				if p.peek(css_lexer.TOpenBrace) {
 					break // Avoid parsing an invalid "@import" rule
-				}
-				conditions.Media = p.convertTokens(p.tokens[importConditionsStart:p.index])
-				if n := len(conditions.Media); n > 0 {
-					conditions.Media[0].Whitespace &= ^css_ast.WhitespaceBefore
-					conditions.Media[n-1].Whitespace &= ^css_ast.WhitespaceAfter
 				}
 
 				// Check whether any import conditions are present
 				var importConditions *css_ast.ImportConditions
-				if len(conditions.Layers) > 0 || len(conditions.Supports) > 0 || len(conditions.Media) > 0 {
+				if len(conditions.Layers) > 0 || len(conditions.Supports) > 0 || len(conditions.Queries) > 0 {
 					importConditions = &conditions
 				}
 
@@ -1533,10 +1525,9 @@ abortRuleParser:
 		}
 
 	case "media":
-		queries := p.parseMediaQueryList()
-		if queries == nil {
-			break abortRuleParser
-		}
+		queries := p.parseMediaQueryListUntil(func(kind css_lexer.T) bool {
+			return kind == css_lexer.TOpenBrace
+		})
 
 		// Expect a block after the query
 		matchingLoc := p.current().Range.Loc
@@ -1567,7 +1558,7 @@ abortRuleParser:
 			closeBraceLoc = logger.Loc{}
 		}
 
-		return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RAtMedia{AtToken: atToken, Queries: queries, Rules: rules, CloseBraceLoc: closeBraceLoc}}
+		return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RAtMedia{Queries: queries, Rules: rules, CloseBraceLoc: closeBraceLoc}}
 
 	default:
 		if kind == atRuleUnknown && lowerAtToken == "namespace" {

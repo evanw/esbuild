@@ -10,13 +10,21 @@ import (
 )
 
 // Reference: https://drafts.csswg.org/mediaqueries-4/
-func (p *parser) parseMediaQueryList() []css_ast.MediaQuery {
+func (p *parser) parseMediaQueryListUntil(stop func(css_lexer.T) bool) []css_ast.MediaQuery {
 	var queries []css_ast.MediaQuery
 	p.eat(css_lexer.TWhitespace)
-	for !p.peek(css_lexer.TEndOfFile) && !p.peek(css_lexer.TOpenBrace) {
+	for !p.peek(css_lexer.TEndOfFile) && !stop(p.current().Kind) {
+		start := p.index
 		query, ok := p.parseMediaQuery()
 		if !ok {
-			return nil
+			// If parsing failed, parse an arbitrary sequence of tokens instead
+			p.index = start
+			loc := p.current().Range.Loc
+			for !p.peek(css_lexer.TEndOfFile) && !stop(p.current().Kind) && !p.peek(css_lexer.TComma) {
+				p.parseComponentValue()
+			}
+			tokens := p.convertTokens(p.tokens[start:p.index])
+			query = css_ast.MediaQuery{Loc: loc, Data: &css_ast.MQArbitraryTokens{Tokens: tokens}}
 		}
 		queries = append(queries, query)
 		p.eat(css_lexer.TWhitespace)
@@ -219,7 +227,7 @@ func (p *parser) parseMediaInParens() (css_ast.MediaQuery, bool) {
 			}
 		}
 	}
-	return css_ast.MediaQuery{Loc: loc, Data: &css_ast.MQGeneralEnclosed{Tokens: tokens}}, true
+	return css_ast.MediaQuery{Loc: loc, Data: &css_ast.MQArbitraryTokens{Tokens: tokens}}, true
 }
 
 func lowerMediaRange(loc logger.Loc, name string, cmp css_ast.MQCmp, value []css_ast.Token) css_ast.MediaQuery {
