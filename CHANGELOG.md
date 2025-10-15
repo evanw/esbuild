@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.25.11
 
 * Add support for `with { type: 'bytes' }` imports ([#4292](https://github.com/evanw/esbuild/issues/4292))
 
