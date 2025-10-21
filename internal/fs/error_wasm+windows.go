@@ -1,5 +1,4 @@
 //go:build (js && wasm) || windows
-// +build js,wasm windows
 
 package fs
 
