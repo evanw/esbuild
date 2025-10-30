@@ -2702,6 +2702,7 @@ func TestFontFamily(t *testing.T) {
 	expectPrintedMangleMinify(t, "a {font-family: 'unset', serif;}", "a{font-family:\"unset\",serif}", "")
 	expectPrintedMangleMinify(t, "a {font-family: 'revert', serif;}", "a{font-family:\"revert\",serif}", "")
 	expectPrintedMangleMinify(t, "a {font-family: 'revert-layer', 'Segoe UI', serif;}", "a{font-family:\"revert-layer\",Segoe UI,serif}", "")
+	expectPrintedMangleMinify(t, "a {font-family: 'revert-rule', 'Segoe UI', serif;}", "a{font-family:\"revert-rule\",Segoe UI,serif}", "")
 	expectPrintedMangleMinify(t, "a {font-family: 'default', serif;}", "a{font-family:\"default\",serif}", "")
 }
 
