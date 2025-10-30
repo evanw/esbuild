@@ -1749,6 +1749,16 @@ func TestAnimationName(t *testing.T) {
 	expectPrinted(t, "div { animation: 2s linear 'name 2', 3s infinite 'name 3' }", "div {\n  animation: 2s linear name\\ 2, 3s infinite name\\ 3;\n}\n", "")
 }
 
+func TestCSSWideKeywords(t *testing.T) {
+	expectPrinted(t, "div { color: inherit; }", "div {\n  color: inherit;\n}\n", "")
+	expectPrinted(t, "div { color: initial; }", "div {\n  color: initial;\n}\n", "")
+	expectPrinted(t, "div { color: unset; }", "div {\n  color: unset;\n}\n", "")
+	expectPrinted(t, "div { color: revert; }", "div {\n  color: revert;\n}\n", "")
+	expectPrinted(t, "div { color: revert-layer; }", "div {\n  color: revert-layer;\n}\n", "")
+	expectPrinted(t, "div { color: revert-rule; }", "div {\n  color: revert-rule;\n}\n", "")
+	expectPrinted(t, "div { color: if(style(--theme: dark): white; else: revert-rule) }", "div {\n  color: if(style(--theme: dark): white; else: revert-rule);\n}\n", "")
+}
+
 func TestAtRuleValidation(t *testing.T) {
 	expectPrinted(t, "a {} b {} c {} @charset \"UTF-8\";", "a {\n}\nb {\n}\nc {\n}\n@charset \"UTF-8\";\n",
 		"<stdin>: WARNING: \"@charset\" must be the first rule in the file\n"+
@@ -2706,6 +2716,7 @@ func TestFontFamily(t *testing.T) {
 	expectPrintedMangleMinify(t, "a {font-family: 'unset', serif;}", "a{font-family:\"unset\",serif}", "")
 	expectPrintedMangleMinify(t, "a {font-family: 'revert', serif;}", "a{font-family:\"revert\",serif}", "")
 	expectPrintedMangleMinify(t, "a {font-family: 'revert-layer', 'Segoe UI', serif;}", "a{font-family:\"revert-layer\",Segoe UI,serif}", "")
+	expectPrintedMangleMinify(t, "a {font-family: 'revert-rule', 'Segoe UI', serif;}", "a{font-family:\"revert-rule\",Segoe UI,serif}", "")
 	expectPrintedMangleMinify(t, "a {font-family: 'default', serif;}", "a{font-family:\"default\",serif}", "")
 }
 

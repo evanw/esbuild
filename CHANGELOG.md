@@ -1,5 +1,20 @@
 # Changelog
 
+* Add support for the new [`revert-rule`](https://drafts.csswg.org/css-cascade-5/#revert-rule-keyword) CSS-wide keyword ([#4312](https://github.com/evanw/esbuild/pull/4312))
+
+    The `revert-rule` keyword can be combined with `if()` to conditionally ignore a declaration:
+
+    ```css
+    div {
+      color: black;
+    }
+    .apply-sharp {
+      color: if(style(--theme: dark): white; else: revert-rule);
+    }
+    ```
+
+    This was contributed by [@yisibl](https://github.com/yisibl).
+
 * Add support for the new `@view-transition` CSS at rule ([#4313](https://github.com/evanw/esbuild/pull/4313))
 
     ```css
