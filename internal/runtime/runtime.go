@@ -484,8 +484,8 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 					it)
 
 		// This is for the "binary" loader (custom code is ~2x faster than "atob")
-		export var __toBinaryNode = base64 => new Uint8Array(Buffer.from(base64, 'base64'))
-		export var __toBinary = /* @__PURE__ */ (() => {
+		export var __toBinaryNode = Uint8Array.fromBase64 || (base64 => new Uint8Array(Buffer.from(base64, 'base64')))
+		export var __toBinary = Uint8Array.fromBase64 || /* @__PURE__ */ (() => {
 			var table = new Uint8Array(128)
 			for (var i = 0; i < 64; i++) table[i < 26 ? i + 65 : i < 52 ? i + 71 : i < 62 ? i - 4 : i * 4 - 205] = i
 			return base64 => {

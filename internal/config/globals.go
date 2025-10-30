@@ -207,6 +207,7 @@ var knownGlobals = [][]string{
 	{"Uint16Array"},
 	{"Uint32Array"},
 	{"Uint8Array"},
+	{"Uint8Array", "fromBase64"},
 	{"Uint8ClampedArray"},
 	{"WeakMap"},
 	{"WeakSet"},
