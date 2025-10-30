@@ -1109,6 +1109,9 @@ var specialAtRules = map[string]atRuleKind{
 	// Anchor Positioning
 	// Reference: https://drafts.csswg.org/css-anchor-position-1/#at-ruledef-position-try
 	"position-try": atRuleDeclarations,
+	// @property
+	// Reference: https://drafts.css-houdini.org/css-properties-values-api/#at-property-rule
+	"property": atRuleDeclarations,
 }
 
 var atKnownRuleCanBeRemovedIfEmpty = map[string]bool{
