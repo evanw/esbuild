@@ -91,6 +91,13 @@ func (p *parser) lowerNestingInRule(rule css_ast.Rule, results []css_ast.Rule) [
 			rules = p.lowerNestingInRule(child, rules)
 		}
 		r.Rules = rules
+
+	case *css_ast.RAtMedia:
+		var rules []css_ast.Rule
+		for _, child := range r.Rules {
+			rules = p.lowerNestingInRule(child, rules)
+		}
+		r.Rules = rules
 	}
 
 	return append(results, rule)
@@ -282,6 +289,29 @@ func (p *parser) lowerNestingInRuleWithContext(rule css_ast.Rule, context *lower
 		return css_ast.Rule{}
 
 	case *css_ast.RKnownAt:
+		childContext := lowerNestingContext{
+			parentSelectorsWithPseudo: context.parentSelectorsWithPseudo,
+			parentSelectorsNoPseudo:   context.parentSelectorsNoPseudo,
+		}
+		r.Rules = p.lowerNestingInRulesAndReturnRemaining(r.Rules, &childContext)
+
+		// "div { @supports (color: red) { color: red } }" "@supports (color: red) { div { color: red } }"
+		if len(r.Rules) > 0 {
+			childContext.loweredRules = append([]css_ast.Rule{{Loc: rule.Loc, Data: &css_ast.RSelector{
+				Selectors: context.parentSelectorsWithPseudo,
+				Rules:     r.Rules,
+			}}}, childContext.loweredRules...)
+		}
+
+		// "div { @supports (color: red) { &:hover { color: red } } }" "@supports (color: red) { div:hover { color: red } }"
+		if len(childContext.loweredRules) > 0 {
+			r.Rules = childContext.loweredRules
+			context.loweredRules = append(context.loweredRules, rule)
+		}
+
+		return css_ast.Rule{}
+
+	case *css_ast.RAtMedia:
 		childContext := lowerNestingContext{
 			parentSelectorsWithPseudo: context.parentSelectorsWithPseudo,
 			parentSelectorsNoPseudo:   context.parentSelectorsNoPseudo,

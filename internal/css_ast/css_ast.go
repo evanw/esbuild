@@ -430,6 +430,24 @@ func CloneTokensWithImportRecords(
 	return tokensOut, importRecordsOut
 }
 
+func CloneMediaQueriesWithImportRecords(
+	queriesIn []MediaQuery, importRecordsIn []ast.ImportRecord,
+	queriesOut []MediaQuery, importRecordsOut []ast.ImportRecord,
+) ([]MediaQuery, []ast.ImportRecord) {
+	// Preallocate the output array if we can
+	if queriesOut == nil {
+		queriesOut = make([]MediaQuery, 0, len(queriesIn))
+	}
+
+	// Recursively clone each query
+	for _, query := range queriesIn {
+		query.Data, importRecordsOut = query.Data.CloneWithImportRecords(importRecordsIn, importRecordsOut)
+		queriesOut = append(queriesOut, query)
+	}
+
+	return queriesOut, importRecordsOut
+}
+
 type Rule struct {
 	Data R
 	Loc  logger.Loc
@@ -495,7 +513,7 @@ type ImportConditions struct {
 	//   @import url(...) list-of-media-queries;
 	//
 	// From: https://developer.mozilla.org/en-US/docs/Web/CSS/@import#syntax
-	Media []Token
+	Queries []MediaQuery
 
 	// These two fields will only ever have zero or one tokens. However, they are
 	// implemented as arrays for convenience because most of esbuild's helper
@@ -508,7 +526,7 @@ func (c *ImportConditions) CloneWithImportRecords(importRecordsIn []ast.ImportRe
 	result := ImportConditions{}
 	result.Layers, importRecordsOut = CloneTokensWithImportRecords(c.Layers, importRecordsIn, nil, importRecordsOut)
 	result.Supports, importRecordsOut = CloneTokensWithImportRecords(c.Supports, importRecordsIn, nil, importRecordsOut)
-	result.Media, importRecordsOut = CloneTokensWithImportRecords(c.Media, importRecordsIn, nil, importRecordsOut)
+	result.Queries, importRecordsOut = CloneMediaQueriesWithImportRecords(c.Queries, importRecordsIn, nil, importRecordsOut)
 	return result, importRecordsOut
 }
 
@@ -694,7 +712,7 @@ func (a *RBadDeclaration) Equal(rule R, check *CrossFileEqualityCheck) bool {
 }
 
 func (r *RBadDeclaration) Hash() (uint32, bool) {
-	hash := uint32(11)
+	hash := uint32(7)
 	hash = HashTokens(hash, r.Tokens)
 	return hash, true
 }
@@ -709,7 +727,7 @@ func (a *RComment) Equal(rule R, check *CrossFileEqualityCheck) bool {
 }
 
 func (r *RComment) Hash() (uint32, bool) {
-	hash := uint32(12)
+	hash := uint32(8)
 	hash = helpers.HashCombineString(hash, r.Text)
 	return hash, true
 }
@@ -741,7 +759,7 @@ func (a *RAtLayer) Equal(rule R, check *CrossFileEqualityCheck) bool {
 }
 
 func (r *RAtLayer) Hash() (uint32, bool) {
-	hash := uint32(13)
+	hash := uint32(9)
 	hash = helpers.HashCombine(hash, uint32(len(r.Names)))
 	for _, parts := range r.Names {
 		hash = helpers.HashCombine(hash, uint32(len(parts)))
@@ -751,6 +769,332 @@ func (r *RAtLayer) Hash() (uint32, bool) {
 	}
 	hash = HashRules(hash, r.Rules)
 	return hash, true
+}
+
+type RAtMedia struct {
+	Queries       []MediaQuery
+	Rules         []Rule
+	CloseBraceLoc logger.Loc
+}
+
+func (a *RAtMedia) Equal(rule R, check *CrossFileEqualityCheck) bool {
+	b, ok := rule.(*RAtMedia)
+	return ok && MediaQueriesEqual(a.Queries, b.Queries, check) && RulesEqual(a.Rules, b.Rules, check)
+}
+
+func (r *RAtMedia) Hash() (uint32, bool) {
+	hash := uint32(10)
+	hash = HashMediaQueries(hash, r.Queries)
+	hash = HashRules(hash, r.Rules)
+	return hash, true
+}
+
+type MediaQuery struct {
+	Loc  logger.Loc
+	Data MQ
+}
+
+type MQ interface {
+	Equal(query MQ, check *CrossFileEqualityCheck) bool
+	EqualIgnoringWhitespace(query MQ) bool
+	Hash() uint32
+	CloneWithImportRecords(importRecordsIn []ast.ImportRecord, importRecordsOut []ast.ImportRecord) (MQ, []ast.ImportRecord)
+}
+
+func MediaQueriesEqual(a []MediaQuery, b []MediaQuery, check *CrossFileEqualityCheck) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i, ai := range a {
+		if !ai.Data.Equal(b[i].Data, check) {
+			return false
+		}
+	}
+	return true
+}
+
+func MediaQueriesEqualIgnoringWhitespace(a []MediaQuery, b []MediaQuery) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i, ai := range a {
+		if !ai.Data.EqualIgnoringWhitespace(b[i].Data) {
+			return false
+		}
+	}
+	return true
+}
+
+func HashMediaQueries(hash uint32, queries []MediaQuery) uint32 {
+	hash = helpers.HashCombine(hash, uint32(len(queries)))
+	for _, q := range queries {
+		hash = helpers.HashCombine(hash, q.Data.Hash())
+	}
+	return hash
+}
+
+type MQTypeOp uint8
+
+const (
+	MQTypeOpNone MQTypeOp = iota
+	MQTypeOpNot
+	MQTypeOpOnly
+)
+
+type MQType struct {
+	Op        MQTypeOp
+	Type      string
+	AndOrNull MediaQuery
+}
+
+func (q *MQType) Equal(query MQ, check *CrossFileEqualityCheck) bool {
+	p, ok := query.(*MQType)
+	return ok && q.Op == p.Op && q.Type == p.Type
+}
+
+func (q *MQType) EqualIgnoringWhitespace(query MQ) bool {
+	p, ok := query.(*MQType)
+	return ok && q.Op == p.Op && q.Type == p.Type
+}
+
+func (q *MQType) Hash() uint32 {
+	hash := uint32(0)
+	hash = helpers.HashCombine(hash, uint32(q.Op))
+	hash = helpers.HashCombineString(hash, q.Type)
+	return hash
+}
+
+func (q *MQType) CloneWithImportRecords(importRecordsIn []ast.ImportRecord, importRecordsOut []ast.ImportRecord) (MQ, []ast.ImportRecord) {
+	var andOrNull MQ
+	if q.AndOrNull.Data != nil {
+		andOrNull, importRecordsOut = q.AndOrNull.Data.CloneWithImportRecords(importRecordsIn, importRecordsOut)
+	}
+	return &MQType{Op: q.Op, Type: q.Type, AndOrNull: MediaQuery{Data: andOrNull}}, importRecordsOut
+}
+
+type MQNot struct {
+	Inner MediaQuery
+}
+
+func (q *MQNot) Equal(query MQ, check *CrossFileEqualityCheck) bool {
+	p, ok := query.(*MQNot)
+	return ok && q.Inner.Data.Equal(p.Inner.Data, check)
+}
+
+func (q *MQNot) EqualIgnoringWhitespace(query MQ) bool {
+	p, ok := query.(*MQNot)
+	return ok && q.Inner.Data.EqualIgnoringWhitespace(p.Inner.Data)
+}
+
+func (q *MQNot) Hash() uint32 {
+	hash := uint32(1)
+	hash = helpers.HashCombine(hash, q.Inner.Data.Hash())
+	return hash
+}
+
+func (q *MQNot) CloneWithImportRecords(importRecordsIn []ast.ImportRecord, importRecordsOut []ast.ImportRecord) (MQ, []ast.ImportRecord) {
+	inner, importRecordsOut := q.Inner.Data.CloneWithImportRecords(importRecordsIn, importRecordsOut)
+	return &MQNot{Inner: MediaQuery{Data: inner}}, importRecordsOut
+}
+
+type MQBinaryOp uint8
+
+const (
+	MQBinaryOpAnd MQBinaryOp = iota
+	MQBinaryOpOr
+)
+
+type MQBinary struct {
+	Op    MQBinaryOp
+	Terms []MediaQuery
+}
+
+func (q *MQBinary) Equal(query MQ, check *CrossFileEqualityCheck) bool {
+	p, ok := query.(*MQBinary)
+	return ok && q.Op == p.Op && MediaQueriesEqual(q.Terms, p.Terms, check)
+}
+
+func (q *MQBinary) EqualIgnoringWhitespace(query MQ) bool {
+	p, ok := query.(*MQBinary)
+	return ok && q.Op == p.Op && MediaQueriesEqualIgnoringWhitespace(q.Terms, p.Terms)
+}
+
+func (q *MQBinary) Hash() uint32 {
+	hash := uint32(2)
+	hash = helpers.HashCombine(hash, uint32(q.Op))
+	hash = HashMediaQueries(hash, q.Terms)
+	return hash
+}
+
+func (q *MQBinary) CloneWithImportRecords(importRecordsIn []ast.ImportRecord, importRecordsOut []ast.ImportRecord) (MQ, []ast.ImportRecord) {
+	terms := make([]MediaQuery, 0, len(q.Terms))
+	for _, term := range q.Terms {
+		var clone MQ
+		clone, importRecordsOut = term.Data.CloneWithImportRecords(importRecordsIn, importRecordsOut)
+		terms = append(terms, MediaQuery{Data: clone})
+	}
+	return &MQBinary{Op: q.Op, Terms: terms}, importRecordsOut
+}
+
+type MQArbitraryTokens struct {
+	Tokens []Token
+}
+
+func (q *MQArbitraryTokens) Equal(query MQ, check *CrossFileEqualityCheck) bool {
+	p, ok := query.(*MQArbitraryTokens)
+	return ok && TokensEqual(q.Tokens, p.Tokens, check)
+}
+
+func (q *MQArbitraryTokens) EqualIgnoringWhitespace(query MQ) bool {
+	p, ok := query.(*MQArbitraryTokens)
+	return ok && TokensEqualIgnoringWhitespace(q.Tokens, p.Tokens)
+}
+
+func (q *MQArbitraryTokens) Hash() uint32 {
+	hash := uint32(3)
+	hash = HashTokens(hash, q.Tokens)
+	return hash
+}
+
+func (q *MQArbitraryTokens) CloneWithImportRecords(importRecordsIn []ast.ImportRecord, importRecordsOut []ast.ImportRecord) (MQ, []ast.ImportRecord) {
+	tokens, importRecordsOut := CloneTokensWithImportRecords(q.Tokens, importRecordsIn, nil, importRecordsOut)
+	return &MQArbitraryTokens{Tokens: tokens}, importRecordsOut
+}
+
+type MQPlainOrBoolean struct {
+	Name       string
+	ValueOrNil []Token
+}
+
+func (q *MQPlainOrBoolean) Equal(query MQ, check *CrossFileEqualityCheck) bool {
+	p, ok := query.(*MQPlainOrBoolean)
+	return ok && q.Name == p.Name && TokensEqual(q.ValueOrNil, p.ValueOrNil, check)
+}
+
+func (q *MQPlainOrBoolean) EqualIgnoringWhitespace(query MQ) bool {
+	p, ok := query.(*MQPlainOrBoolean)
+	return ok && q.Name == p.Name && TokensEqualIgnoringWhitespace(q.ValueOrNil, p.ValueOrNil)
+}
+
+func (q *MQPlainOrBoolean) Hash() uint32 {
+	hash := uint32(4)
+	hash = helpers.HashCombineString(hash, q.Name)
+	hash = HashTokens(hash, q.ValueOrNil)
+	return hash
+}
+
+func (q *MQPlainOrBoolean) CloneWithImportRecords(importRecordsIn []ast.ImportRecord, importRecordsOut []ast.ImportRecord) (MQ, []ast.ImportRecord) {
+	var valueOrNil []Token
+	if q.ValueOrNil != nil {
+		valueOrNil, importRecordsOut = CloneTokensWithImportRecords(q.ValueOrNil, importRecordsIn, nil, importRecordsOut)
+	}
+	return &MQPlainOrBoolean{Name: q.Name, ValueOrNil: valueOrNil}, importRecordsOut
+}
+
+type MQRange struct {
+	Before    []Token
+	Name      string
+	After     []Token
+	NameLoc   logger.Loc
+	BeforeCmp MQCmp
+	AfterCmp  MQCmp
+}
+
+func (q *MQRange) Equal(query MQ, check *CrossFileEqualityCheck) bool {
+	p, ok := query.(*MQRange)
+	return ok && q.BeforeCmp == p.BeforeCmp && q.AfterCmp == p.AfterCmp && q.Name == p.Name &&
+		TokensEqual(q.Before, p.Before, check) && TokensEqual(q.After, p.After, check)
+}
+
+func (q *MQRange) EqualIgnoringWhitespace(query MQ) bool {
+	p, ok := query.(*MQRange)
+	return ok && q.BeforeCmp == p.BeforeCmp && q.AfterCmp == p.AfterCmp && q.Name == p.Name &&
+		TokensEqualIgnoringWhitespace(q.Before, p.Before) && TokensEqualIgnoringWhitespace(q.After, p.After)
+}
+
+func (q *MQRange) Hash() uint32 {
+	hash := uint32(5)
+	hash = HashTokens(hash, q.Before)
+	hash = helpers.HashCombine(hash, uint32(q.BeforeCmp))
+	hash = helpers.HashCombineString(hash, q.Name)
+	hash = helpers.HashCombine(hash, uint32(q.AfterCmp))
+	hash = HashTokens(hash, q.After)
+	return hash
+}
+
+func (q *MQRange) CloneWithImportRecords(importRecordsIn []ast.ImportRecord, importRecordsOut []ast.ImportRecord) (MQ, []ast.ImportRecord) {
+	before, importRecordsOut := CloneTokensWithImportRecords(q.Before, importRecordsIn, nil, importRecordsOut)
+	after, importRecordsOut := CloneTokensWithImportRecords(q.After, importRecordsIn, nil, importRecordsOut)
+	return &MQRange{
+		Before:    before,
+		BeforeCmp: q.BeforeCmp,
+		Name:      q.Name,
+		AfterCmp:  q.AfterCmp,
+		After:     after,
+	}, importRecordsOut
+}
+
+type MQCmp uint8
+
+const (
+	MQCmpNone MQCmp = iota
+	MQCmpEq
+	MQCmpLt
+	MQCmpLe
+	MQCmpGt
+	MQCmpGe
+)
+
+func (cmp MQCmp) String() string {
+	switch cmp {
+	case MQCmpLt:
+		return "<"
+	case MQCmpLe:
+		return "<="
+	case MQCmpGt:
+		return ">"
+	case MQCmpGe:
+		return ">="
+	}
+	return "="
+}
+
+func (cmp MQCmp) Dir() int {
+	switch cmp {
+	case MQCmpLt, MQCmpLe:
+		return -1
+	case MQCmpGt, MQCmpGe:
+		return 1
+	}
+	return 0
+}
+
+func (cmp MQCmp) Flip() MQCmp {
+	switch cmp {
+	case MQCmpLt:
+		return MQCmpGe
+	case MQCmpLe:
+		return MQCmpGt
+	case MQCmpGt:
+		return MQCmpLe
+	case MQCmpGe:
+		return MQCmpLt
+	}
+	return cmp
+}
+
+func (cmp MQCmp) Reverse() MQCmp {
+	switch cmp {
+	case MQCmpLt:
+		return MQCmpGt
+	case MQCmpLe:
+		return MQCmpGe
+	case MQCmpGt:
+		return MQCmpLt
+	case MQCmpGe:
+		return MQCmpLe
+	}
+	return cmp
 }
 
 type ComplexSelector struct {

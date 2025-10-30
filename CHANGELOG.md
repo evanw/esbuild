@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+* Use `Uint8Array.fromBase64` if available ([#4286](https://github.com/evanw/esbuild/issues/4286))
+
+    With this release, esbuild's `binary` loader will now use the new [`Uint8Array.fromBase64`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array/fromBase64) function unless it's unavailable in the configured target environment. If it's unavailable, esbuild's previous code for this will be used as a fallback.
+
+## 0.25.11
+
 * Add support for `with { type: 'bytes' }` imports ([#4292](https://github.com/evanw/esbuild/issues/4292))
 
     The [import bytes](https://github.com/tc39/proposal-import-bytes) proposal has reached stage 2.7 in the TC39 process, which means that although it isn't quite recommended for implementation, it's generally approved and ready for validation. Furthermore it has already been implemented by [Deno](https://docs.deno.com/examples/importing_bytes/) and [Webpack](https://github.com/webpack/webpack/pull/19928). So with this release, esbuild will also add support for this. It behaves exactly the same as esbuild's existing [`binary` loader](https://esbuild.github.io/content-types/#binary). Here's an example:
@@ -14,9 +20,27 @@
     console.log('size:', width + '\xD7' + height)
     ```
 
-* Use `Uint8Array.fromBase64` if available ([#4286](https://github.com/evanw/esbuild/issues/4286))
+* Lower CSS media query range syntax ([#3748](https://github.com/evanw/esbuild/issues/3748), [#4293](https://github.com/evanw/esbuild/issues/4293))
 
-    With this release, esbuild's `binary` loader will now use the new [`Uint8Array.fromBase64`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array/fromBase64) function unless it's unavailable in the configured target environment. If it's unavailable, esbuild's previous code for this will be used as a fallback.
+    With this release, esbuild will now transform CSS media query range syntax into equivalent syntax using `min-`/`max-` prefixes for older browsers. For example, the following CSS:
+
+    ```css
+    @media (640px <= width <= 960px) {
+      main {
+        display: flex;
+      }
+    }
+    ```
+
+    will be transformed like this with a target such as `--target=chrome100` (or more specifically with `--supported:media-range=false` if desired):
+
+    ```css
+    @media (min-width: 640px) and (max-width: 960px) {
+      main {
+        display: flex;
+      }
+    }
+    ```
 
 ## 0.25.10
 

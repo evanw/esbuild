@@ -29,6 +29,7 @@ const jsFeatures: Record<string, JSFeature> = {
 
 const cssFeatures: Record<string, CSSFeature> = {
   'css-matches-pseudo': 'IsPseudoClass',
+  'css-media-range-syntax': 'MediaRange',
 }
 
 const cssPrefixFeatures: Record<string, CSSProperty> = {

@@ -18,6 +18,7 @@ const (
 	InlineStyle
 	InsetProperty
 	IsPseudoClass
+	MediaRange
 	Modern_RGB_HSL
 	Nesting
 	RebeccaPurple
@@ -33,6 +34,7 @@ var StringToCSSFeature = map[string]CSSFeature{
 	"inline-style":             InlineStyle,
 	"inset-property":           InsetProperty,
 	"is-pseudo-class":          IsPseudoClass,
+	"media-range":              MediaRange,
 	"modern-rgb-hsl":           Modern_RGB_HSL,
 	"nesting":                  Nesting,
 	"rebecca-purple":           RebeccaPurple,
@@ -110,6 +112,14 @@ var cssTable = map[CSSFeature]map[Engine][]versionRange{
 		IOS:     {{start: v{14, 0, 0}}},
 		Opera:   {{start: v{75, 0, 0}}},
 		Safari:  {{start: v{14, 0, 0}}},
+	},
+	MediaRange: {
+		Chrome:  {{start: v{104, 0, 0}}},
+		Edge:    {{start: v{104, 0, 0}}},
+		Firefox: {{start: v{63, 0, 0}}},
+		IOS:     {{start: v{16, 4, 0}}},
+		Opera:   {{start: v{91, 0, 0}}},
+		Safari:  {{start: v{16, 4, 0}}},
 	},
 	Modern_RGB_HSL: {
 		Chrome:  {{start: v{66, 0, 0}}},
