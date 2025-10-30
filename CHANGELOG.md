@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Use `Uint8Array.fromBase64` if available ([#4286](https://github.com/evanw/esbuild/issues/4286))
+
+    With this release, esbuild's `binary` loader will now use the new [`Uint8Array.fromBase64`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array/fromBase64) function unless it's unavailable in the configured target environment. If it's unavailable, esbuild's previous code for this will be used as a fallback.
+
 ## 0.25.11
 
 * Add support for `with { type: 'bytes' }` imports ([#4292](https://github.com/evanw/esbuild/issues/4292))
