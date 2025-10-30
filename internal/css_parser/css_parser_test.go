@@ -1547,6 +1547,19 @@ func TestAtRule(t *testing.T) {
 	}
 }`, "@starting-style{h1{background-color:transparent}}", "")
 
+	// Test @property
+	expectPrintedMinify(t, `@property --property-name {
+  syntax: "<color>+";
+  inherits: false;
+  initial-value: #ff0000;
+}`, "@property --property-name{syntax:\"<color>+\";inherits:false;initial-value:#ff0000}", "")
+
+	expectPrintedMinify(t, `@property --❤️ {
+  syntax: "<length> |   <percentage>";
+  inherits: true;
+  initial-value: 90.6%;
+}`, "@property --❤️{syntax:\"<length> |   <percentage>\";inherits:true;initial-value:90.6%}", "")
+
 	// https://drafts.csswg.org/css-counter-styles/#the-counter-style-rule
 	expectPrinted(t, `
 		@counter-style box-corner {
