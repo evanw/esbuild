@@ -1,6 +1,8 @@
 # Changelog
 
-* Add support for the new `@view-transition` CSS at rule ([#4313](https://github.com/evanw/esbuild/pull/4313))
+* Add support for the new `@view-transition` CSS rule ([#4313](https://github.com/evanw/esbuild/pull/4313))
+
+    With this release, esbuild now has improved support for pretty-printing and minifying the new `@view-transition` rule (which esbuild was previously unaware of):
 
     ```css
     /* Original code */
@@ -8,11 +10,20 @@
       navigation: auto;
       types: check;
     }
-    /* Output */
-    @view-transition{navigation:auto;types:check}
+
+    /* Old output */
+    @view-transition { navigation: auto; types: check; }
+
+    /* New output */
+    @view-transition {
+      navigation: auto;
+      types: check;
+    }
     ```
 
-    This was contributed by [@yisibl](https://github.com/yisibl).
+    The new view transition feature provides a mechanism for creating animated transitions between documents in a multi-page app. You can read more about view transition rules [here](https://developer.mozilla.org/en-US/docs/Web/CSS/@view-transition).
+
+    This change was contributed by [@yisibl](https://github.com/yisibl).
 
 ## 0.25.11
 

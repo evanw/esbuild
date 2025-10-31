@@ -1516,8 +1516,15 @@ func TestAtRule(t *testing.T) {
 		}
 	}
 }`, "@supports (container-type: size){@container (width <= 150px){#inner{background-color:#87ceeb}}}", "")
-	expectPrintedMinify(t, `@view-transition {
+
+	// https://drafts.csswg.org/css-view-transitions-2/#view-transition-rule
+	expectPrinted(t, "@view-transition { navigation: auto; types: check; }", `@view-transition {
   navigation: auto;
+  types: check;
+}
+`, "")
+	expectPrintedMinify(t, `@view-transition {
+	navigation: auto;
 	types: check;
 }`, "@view-transition{navigation:auto;types:check}", "")
 
