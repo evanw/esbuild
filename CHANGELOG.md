@@ -1,5 +1,19 @@
 # Changelog
 
+* Add support for the new `@view-transition` CSS at rule ([#4313](https://github.com/evanw/esbuild/pull/4313))
+
+    ```css
+    /* Original code */
+    @view-transition {
+      navigation: auto;
+      types: check;
+    }
+    /* Output */
+    @view-transition{navigation:auto;types:check}
+    ```
+
+    This was contributed by [@yisibl](https://github.com/yisibl).
+
 ## 0.25.11
 
 * Add support for `with { type: 'bytes' }` imports ([#4292](https://github.com/evanw/esbuild/issues/4292))

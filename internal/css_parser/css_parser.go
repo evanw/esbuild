@@ -1109,6 +1109,10 @@ var specialAtRules = map[string]atRuleKind{
 	// Anchor Positioning
 	// Reference: https://drafts.csswg.org/css-anchor-position-1/#at-ruledef-position-try
 	"position-try": atRuleDeclarations,
+
+	// @view-transition
+	// Reference: https://drafts.csswg.org/css-view-transitions-2/#view-transition-rule
+	"view-transition": atRuleDeclarations,
 }
 
 var atKnownRuleCanBeRemovedIfEmpty = map[string]bool{
