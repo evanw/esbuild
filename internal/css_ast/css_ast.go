@@ -848,19 +848,28 @@ type MQType struct {
 }
 
 func (q *MQType) Equal(query MQ, check *CrossFileEqualityCheck) bool {
-	p, ok := query.(*MQType)
-	return ok && q.Op == p.Op && q.Type == p.Type
+	if p, ok := query.(*MQType); ok && q.Op == p.Op && q.Type == p.Type {
+		return (q.AndOrNull.Data == nil && p.AndOrNull.Data == nil) ||
+			(q.AndOrNull.Data != nil && p.AndOrNull.Data != nil && q.AndOrNull.Data.Equal(p.AndOrNull.Data, check))
+	}
+	return false
 }
 
 func (q *MQType) EqualIgnoringWhitespace(query MQ) bool {
-	p, ok := query.(*MQType)
-	return ok && q.Op == p.Op && q.Type == p.Type
+	if p, ok := query.(*MQType); ok && q.Op == p.Op && q.Type == p.Type {
+		return (q.AndOrNull.Data == nil && p.AndOrNull.Data == nil) ||
+			(q.AndOrNull.Data != nil && p.AndOrNull.Data != nil && q.AndOrNull.Data.EqualIgnoringWhitespace(p.AndOrNull.Data))
+	}
+	return false
 }
 
 func (q *MQType) Hash() uint32 {
 	hash := uint32(0)
 	hash = helpers.HashCombine(hash, uint32(q.Op))
 	hash = helpers.HashCombineString(hash, q.Type)
+	if q.AndOrNull.Data != nil {
+		hash = helpers.HashCombine(hash, q.AndOrNull.Data.Hash())
+	}
 	return hash
 }
 

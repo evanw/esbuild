@@ -2642,6 +2642,48 @@ func TestMangleAtMedia(t *testing.T) {
 	expectPrintedMangle(t, "@media not (1px <= width) { a { color: red } }", "@media (1px > width) {\n  a {\n    color: red;\n  }\n}\n", "")
 	expectPrintedMangle(t, "@media not (1px > width) { a { color: red } }", "@media (1px <= width) {\n  a {\n    color: red;\n  }\n}\n", "")
 	expectPrintedMangle(t, "@media not (1px >= width) { a { color: red } }", "@media (1px < width) {\n  a {\n    color: red;\n  }\n}\n", "")
+
+	// Merge
+	expectPrintedMangle(t, "b { @media (x) { a { color: red } } @media (x) { a { color: red } } }",
+		"b {\n  @media (x) {\n    a {\n      color: red;\n    }\n  }\n}\n", "")
+	expectPrintedMangle(t, "b { @media (x: y) { a { color: red } } @media (x: y) { a { color: red } } }",
+		"b {\n  @media (x: y) {\n    a {\n      color: red;\n    }\n  }\n}\n", "")
+	expectPrintedMangle(t, "b { @media (x < y > z) { a { color: red } } @media (x < y > z) { a { color: red } } }",
+		"b {\n  @media (x < y > z) {\n    a {\n      color: red;\n    }\n  }\n}\n", "")
+	expectPrintedMangle(t, "b { @media (x) or (y) { a { color: red } } @media (x) or (y) { a { color: red } } }",
+		"b {\n  @media (x) or (y) {\n    a {\n      color: red;\n    }\n  }\n}\n", "")
+	expectPrintedMangle(t, "b { @media (x) and (y) { a { color: red } } @media (x) and (y) { a { color: red } } }",
+		"b {\n  @media (x) and (y) {\n    a {\n      color: red;\n    }\n  }\n}\n", "")
+	expectPrintedMangle(t, "b { @media not (x) { a { color: red } } @media not (x) { a { color: red } } }",
+		"b {\n  @media not (x) {\n    a {\n      color: red;\n    }\n  }\n}\n", "")
+	expectPrintedMangle(t, "b { @media screen and (x) { a { color: red } } @media screen and (x) { a { color: red } } }",
+		"b {\n  @media screen and (x) {\n    a {\n      color: red;\n    }\n  }\n}\n", "")
+	expectPrintedMangle(t, "b { @media screen and (x ? y) { a { color: red } } @media screen and (x ? y) { a { color: red } } }",
+		"b {\n  @media screen and (x ? y) {\n    a {\n      color: red;\n    }\n  }\n}\n", "")
+
+	// Don't merge
+	expectPrintedMangle(t, "b { @media (x) { a { color: red } } @media (y) { a { color: red } } }",
+		"b {\n  @media (x) {\n    a {\n      color: red;\n    }\n  }\n  @media (y) {\n    a {\n      color: red;\n    }\n  }\n}\n", "")
+	expectPrintedMangle(t, "b { @media (x: y) { a { color: red } } @media (x: z) { a { color: red } } }",
+		"b {\n  @media (x: y) {\n    a {\n      color: red;\n    }\n  }\n  @media (x: z) {\n    a {\n      color: red;\n    }\n  }\n}\n", "")
+	expectPrintedMangle(t, "b { @media (x < y > z) { a { color: red } } @media (x < y < z) { a { color: red } } }",
+		"b {\n  @media (x < y > z) {\n    a {\n      color: red;\n    }\n  }\n  @media (x < y < z) {\n    a {\n      color: red;\n    }\n  }\n}\n", "")
+	expectPrintedMangle(t, "b { @media (x < y > z) { a { color: red } } @media (x > y > z) { a { color: red } } }",
+		"b {\n  @media (x < y > z) {\n    a {\n      color: red;\n    }\n  }\n  @media (x > y > z) {\n    a {\n      color: red;\n    }\n  }\n}\n", "")
+	expectPrintedMangle(t, "b { @media (x) or (y) { a { color: red } } @media (x) and (y) { a { color: red } } }",
+		"b {\n  @media (x) or (y) {\n    a {\n      color: red;\n    }\n  }\n  @media (x) and (y) {\n    a {\n      color: red;\n    }\n  }\n}\n", "")
+	expectPrintedMangle(t, "b { @media (x) { a { color: red } } @media not (x) { a { color: red } } }",
+		"b {\n  @media (x) {\n    a {\n      color: red;\n    }\n  }\n  @media not (x) {\n    a {\n      color: red;\n    }\n  }\n}\n", "")
+	expectPrintedMangle(t, "b { @media (x) { a { color: red } } @media screen and (x) { a { color: red } } }",
+		"b {\n  @media (x) {\n    a {\n      color: red;\n    }\n  }\n  @media screen and (x) {\n    a {\n      color: red;\n    }\n  }\n}\n", "")
+	expectPrintedMangle(t, "b { @media screen and (x) { a { color: red } } @media print and (x) { a { color: red } } }",
+		"b {\n  @media screen and (x) {\n    a {\n      color: red;\n    }\n  }\n  @media print and (x) {\n    a {\n      color: red;\n    }\n  }\n}\n", "")
+	expectPrintedMangle(t, "b { @media screen and (x) { a { color: red } } @media not screen and (x) { a { color: red } } }",
+		"b {\n  @media screen and (x) {\n    a {\n      color: red;\n    }\n  }\n  @media not screen and (x) {\n    a {\n      color: red;\n    }\n  }\n}\n", "")
+	expectPrintedMangle(t, "b { @media screen and (x) { a { color: red } } @media screen and (y) { a { color: red } } }",
+		"b {\n  @media screen and (x) {\n    a {\n      color: red;\n    }\n  }\n  @media screen and (y) {\n    a {\n      color: red;\n    }\n  }\n}\n", "")
+	expectPrintedMangle(t, "b { @media screen and (x) { a { color: red } } @media screen and (x) and (x) { a { color: red } } }",
+		"b {\n  @media screen and (x) {\n    a {\n      color: red;\n    }\n  }\n  @media screen and (x) and (x) {\n    a {\n      color: red;\n    }\n  }\n}\n", "")
 }
 
 func TestLowerAtMediaRange(t *testing.T) {

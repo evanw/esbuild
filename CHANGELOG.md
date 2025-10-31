@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* Fix a minification regression with CSS media queries ([#4315](https://github.com/evanw/esbuild/issues/4315))
+
+    The previous release introduced support for parsing media queries which unintentionally introduced a regression with the removal of duplicate media rules during minification. Specifically the grammar for `@media <media-type> and <media-condition-without-or> { ... }` was missing an equality check for the `<media-condition-without-or>` part, so rules with different suffix clauses in this position would incorrectly compare equal and be deduplicated. This release fixes the regression.
+
 * Add support for the new `@view-transition` CSS rule ([#4313](https://github.com/evanw/esbuild/pull/4313))
 
     With this release, esbuild now has improved support for pretty-printing and minifying the new `@view-transition` rule (which esbuild was previously unaware of):
