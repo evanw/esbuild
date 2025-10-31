@@ -239,12 +239,18 @@ func parseFile(args parseArgs) {
 		source.Contents = ""
 	}
 
+	var omitSourceMap bool = false
+	if args.options.ExcludeSourceMap != nil {
+		omitSourceMap = args.options.ExcludeSourceMap.MatchString(args.prettyPath)
+	}
+
 	result := parseResult{
 		file: scannerFile{
 			inputFile: graph.InputFile{
 				Source:      source,
 				Loader:      loader,
 				SideEffects: args.sideEffects,
+				OmitFromSourceMaps: omitSourceMap,
 			},
 			pluginData: pluginData,
 		},
@@ -625,7 +631,7 @@ func parseFile(args parseArgs) {
 		}
 
 		// Attempt to parse the source map if present
-		if loader.CanHaveSourceMap() && args.options.SourceMap != config.SourceMapNone {
+		if loader.CanHaveSourceMap() && args.options.SourceMap != config.SourceMapNone && !omitSourceMap {
 			var sourceMapComment logger.Span
 			switch repr := result.file.inputFile.Repr.(type) {
 			case *graph.JSRepr:
@@ -1419,7 +1425,8 @@ func ScanBundle(
 					Repr: &graph.JSRepr{
 						AST: ast,
 					},
-					OmitFromSourceMapsAndMetafile: true,
+					OmitFromMetafile: true,
+					OmitFromSourceMaps: true,
 				},
 			},
 			ok: ok,
@@ -2337,7 +2344,8 @@ func (s *scanner) generateResultForGlobResolve(
 				Repr: &graph.JSRepr{
 					AST: ast,
 				},
-				OmitFromSourceMapsAndMetafile: true,
+				OmitFromMetafile: true,
+				OmitFromSourceMaps: true,
 			},
 		},
 		ok: true,
@@ -3258,7 +3266,7 @@ func (b *Bundle) generateMetadataJSON(results []graph.OutputFile, allReachableFi
 	// Write inputs
 	isFirst := true
 	for _, sourceIndex := range allReachableFiles {
-		if b.files[sourceIndex].inputFile.OmitFromSourceMapsAndMetafile {
+		if b.files[sourceIndex].inputFile.OmitFromMetafile {
 			continue
 		}
 		if file := &b.files[sourceIndex]; len(file.jsonMetadataChunk) > 0 {
