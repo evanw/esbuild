@@ -668,7 +668,7 @@ func respondWithDirList(queryPath string, dirEntries map[string]bool, fileEntrie
 	for i, part := range parts {
 		if i+1 < len(parts) {
 			html.WriteString("<a href=\"")
-			html.WriteString(escapeForHTML(strings.Join(parts[:i+1], "/")))
+			html.WriteString(escapeForAttribute(strings.Join(parts[:i+1], "/")))
 			html.WriteString("/\">")
 		}
 		html.WriteString(escapeForHTML(part))
