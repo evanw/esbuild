@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+* Update Go from 1.23.12 to 1.24.9 ([#4311](https://github.com/evanw/esbuild/issues/4311), [#4301](https://github.com/evanw/esbuild/pull/4301))
+	
+	Go version 1.23 has been identified to contain security vulnerabilities in the stdlib library. Updating to 1.24.9 should address the following CVE issues: CVE-2025-47912, CVE-2025-58183, CVE-2025-58185, CVE-2025-58186, CVE-2025-58187, CVE-2025-58188, CVE-2025-58189, CVE-2025-61723, CVE-2025-61724, CVE-2025-61725
+
+
 * Add support for the new `@view-transition` CSS rule ([#4313](https://github.com/evanw/esbuild/pull/4313))
 
     With this release, esbuild now has improved support for pretty-printing and minifying the new `@view-transition` rule (which esbuild was previously unaware of):
