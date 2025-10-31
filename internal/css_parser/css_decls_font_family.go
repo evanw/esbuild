@@ -31,6 +31,7 @@ var cssWideAndReservedKeywords = map[string]bool{
 	// CSS Cascading and Inheritance Level 5: https://drafts.csswg.org/css-cascade-5/#defaulting-keywords
 	"revert":       true, // Cascade-dependent keyword
 	"revert-layer": true, // Cascade-dependent keyword
+	"revert-rule":  true, // Cascade-dependent keyword
 }
 
 // Font family names that happen to be the same as a keyword value must be
