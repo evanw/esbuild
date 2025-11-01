@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.25.12
 
 * Fix a minification regression with CSS media queries ([#4315](https://github.com/evanw/esbuild/issues/4315))
 
