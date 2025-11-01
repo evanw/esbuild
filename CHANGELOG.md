@@ -6,6 +6,33 @@
 
     The previous release introduced support for parsing media queries which unintentionally introduced a regression with the removal of duplicate media rules during minification. Specifically the grammar for `@media <media-type> and <media-condition-without-or> { ... }` was missing an equality check for the `<media-condition-without-or>` part, so rules with different suffix clauses in this position would incorrectly compare equal and be deduplicated. This release fixes the regression.
 
+* Update the list of known JavaScript globals ([#4310](https://github.com/evanw/esbuild/issues/4310))
+
+    This release updates esbuild's internal list of known JavaScript globals. These are globals that are known to not have side-effects when the property is accessed. For example, accessing the global `Array` property is considered to be side-effect free but accessing the global `scrollY` property can trigger a layout, which is a side-effect. This is used by esbuild's tree-shaking to safely remove unused code that is known to be side-effect free. This update adds the following global properties:
+
+    From [ES2017](https://tc39.es/ecma262/2017/):
+    - `Atomics`
+    - `SharedArrayBuffer`
+
+    From [ES2020](https://tc39.es/ecma262/2020/):
+    - `BigInt64Array`
+    - `BigUint64Array`
+
+    From [ES2021](https://tc39.es/ecma262/2021/):
+    - `FinalizationRegistry`
+    - `WeakRef`
+
+    From [ES2025](https://tc39.es/ecma262/2025/):
+    - `Float16Array`
+    - `Iterator`
+
+    Note that this does not indicate that constructing any of these objects is side-effect free, just that accessing the identifier is side-effect free. For example, this now allows esbuild to tree-shake classes that extend from `Iterator`:
+
+    ```js
+    // This can now be tree-shaken by esbuild:
+    class ExampleIterator extends Iterator {}
+    ```
+
 * Add support for the new `@view-transition` CSS rule ([#4313](https://github.com/evanw/esbuild/pull/4313))
 
     With this release, esbuild now has improved support for pretty-printing and minifying the new `@view-transition` rule (which esbuild was previously unaware of):

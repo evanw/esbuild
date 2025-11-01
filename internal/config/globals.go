@@ -27,18 +27,6 @@ var processedGlobals *ProcessedDefines
 // these functions has any side effects. It only says something about
 // referencing these function without calling them.
 var knownGlobals = [][]string{
-	// These global identifiers should exist in all JavaScript environments. This
-	// deliberately omits "NaN", "Infinity", and "undefined" because these are
-	// treated as automatically-inlined constants instead of identifiers.
-	{"Array"},
-	{"Boolean"},
-	{"Function"},
-	{"Math"},
-	{"Number"},
-	{"Object"},
-	{"RegExp"},
-	{"String"},
-
 	// Object: Static methods
 	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object#Static_methods
 	{"Object", "assign"},
@@ -166,36 +154,57 @@ var knownGlobals = [][]string{
 	{"JSON", "parse"},
 	{"JSON", "stringify"},
 
-	// Other globals present in both the browser and node (except "eval" because
-	// it has special behavior)
+	// Other globals present in both the browser and node. This should include at
+	// least the following properties:
+	// https://tc39.es/ecma262/multipage/global-object.html#sec-constructor-properties-of-the-global-object
+	//
+	// Exceptions:
+	// - Don't include "eval" because it has special behavior
+	// - Don't include "NaN", "Infinity", and "undefined" because esbuild treats
+	//   these as automatically-inlined constants instead of identifiers
 	{"AbortController"},
 	{"AbortSignal"},
 	{"AggregateError"},
+	{"Array"},
 	{"ArrayBuffer"},
+	{"Atomics"},
 	{"BigInt"},
+	{"BigInt64Array"},
+	{"BigUint64Array"},
+	{"Boolean"},
 	{"DataView"},
 	{"Date"},
 	{"Error"},
 	{"EvalError"},
 	{"Event"},
 	{"EventTarget"},
+	{"FinalizationRegistry"},
+	{"Float16Array"},
 	{"Float32Array"},
 	{"Float64Array"},
+	{"Function"},
 	{"Int16Array"},
 	{"Int32Array"},
 	{"Int8Array"},
 	{"Intl"},
+	{"Iterator"},
 	{"JSON"},
 	{"Map"},
+	{"Math"},
 	{"MessageChannel"},
 	{"MessageEvent"},
 	{"MessagePort"},
+	{"Number"},
+	{"Object"},
 	{"Promise"},
 	{"Proxy"},
 	{"RangeError"},
 	{"ReferenceError"},
 	{"Reflect"},
+	{"RegExp"},
 	{"Set"},
+	{"SharedArrayBuffer"},
+	{"String"},
 	{"Symbol"},
 	{"SyntaxError"},
 	{"TextDecoder"},
@@ -209,6 +218,7 @@ var knownGlobals = [][]string{
 	{"Uint8Array"},
 	{"Uint8ClampedArray"},
 	{"WeakMap"},
+	{"WeakRef"},
 	{"WeakSet"},
 	{"WebAssembly"},
 	{"clearInterval"},
