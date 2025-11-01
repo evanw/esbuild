@@ -164,10 +164,39 @@ var knownGlobals = [][]string{
 	{"Reflect", "set"},
 	{"Reflect", "setPrototypeOf"},
 
-	// JSON: Static Methods
+	// JSON: Static methods
 	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON#static_methods
 	{"JSON", "parse"},
 	{"JSON", "stringify"},
+
+	// TypedArray: Static methods
+	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/TypedArray#static_methods
+	{"BigInt64Array", "from"},
+	{"BigInt64Array", "of"},
+	{"BigUint64Array", "from"},
+	{"BigUint64Array", "of"},
+	{"Float16Array", "from"},
+	{"Float16Array", "of"},
+	{"Float32Array", "from"},
+	{"Float32Array", "of"},
+	{"Float64Array", "from"},
+	{"Float64Array", "of"},
+	{"Int16Array", "from"},
+	{"Int16Array", "of"},
+	{"Int32Array", "from"},
+	{"Int32Array", "of"},
+	{"Int8Array", "from"},
+	{"Int8Array", "of"},
+	{"Uint16Array", "from"},
+	{"Uint16Array", "of"},
+	{"Uint32Array", "from"},
+	{"Uint32Array", "of"},
+	{"Uint8Array", "from"},
+	{"Uint8Array", "fromBase64"},
+	{"Uint8Array", "fromHex"},
+	{"Uint8Array", "of"},
+	{"Uint8ClampedArray", "from"},
+	{"Uint8ClampedArray", "of"},
 
 	// Other globals present in both the browser and node. This should include at
 	// least the following properties:
