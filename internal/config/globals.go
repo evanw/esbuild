@@ -27,8 +27,23 @@ var processedGlobals *ProcessedDefines
 // these functions has any side effects. It only says something about
 // referencing these function without calling them.
 var knownGlobals = [][]string{
+	// Array: Static methods
+	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array#static_methods
+	{"Array", "from"},
+	{"Array", "fromAsync"},
+	{"Array", "isArray"},
+	{"Array", "of"},
+
+	// RegExp: Static methods
+	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/RegExp#static_methods
+	{"RegExp", "escape"},
+
+	// Map: Static methods
+	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Map#static_methods
+	{"Map", "groupBy"},
+
 	// Object: Static methods
-	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object#Static_methods
+	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object#static_methods
 	{"Object", "assign"},
 	{"Object", "create"},
 	{"Object", "defineProperties"},
@@ -52,7 +67,7 @@ var knownGlobals = [][]string{
 	{"Object", "values"},
 
 	// Object: Instance methods
-	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object#Instance_methods
+	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object#instance_methods
 	{"Object", "prototype", "__defineGetter__"},
 	{"Object", "prototype", "__defineSetter__"},
 	{"Object", "prototype", "__lookupGetter__"},
@@ -85,7 +100,7 @@ var knownGlobals = [][]string{
 	{"Symbol", "unscopables"},
 
 	// Math: Static properties
-	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Math#Static_properties
+	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Math#static_properties
 	{"Math", "E"},
 	{"Math", "LN10"},
 	{"Math", "LN2"},
@@ -96,7 +111,7 @@ var knownGlobals = [][]string{
 	{"Math", "SQRT2"},
 
 	// Math: Static methods
-	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Math#Static_methods
+	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Math#static_methods
 	{"Math", "abs"},
 	{"Math", "acos"},
 	{"Math", "acosh"},
