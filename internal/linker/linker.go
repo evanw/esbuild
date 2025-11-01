@@ -6110,9 +6110,9 @@ func (c *linkerContext) generateChunkCSS(chunkIndex int, chunkWaitGroup *sync.Wa
 	// in parallel, and must be done from the last rule to the first rule.
 	timer.Begin("Prepare CSS ASTs")
 	asts := make([]css_ast.AST, len(chunkRepr.importsInChunkInOrder))
-	var remover css_parser.DuplicateRuleRemover
+	var remover css_parser.DeadRuleRemover
 	if c.options.MinifySyntax {
-		remover = css_parser.MakeDuplicateRuleMangler(c.graph.Symbols)
+		remover = css_parser.MakeDeadRuleMangler(c.graph.Symbols)
 	}
 	for i := len(chunkRepr.importsInChunkInOrder) - 1; i >= 0; i-- {
 		entry := chunkRepr.importsInChunkInOrder[i]
@@ -6208,7 +6208,7 @@ func (c *linkerContext) generateChunkCSS(chunkIndex int, chunkWaitGroup *sync.Wa
 
 			// Remove top-level duplicate rules across files
 			if c.options.MinifySyntax {
-				rules = remover.RemoveDuplicateRulesInPlace(entry.sourceIndex, rules, ast.ImportRecords)
+				rules = remover.RemoveDeadRulesInPlace(entry.sourceIndex, rules, ast.ImportRecords)
 			}
 
 			ast.Rules = rules

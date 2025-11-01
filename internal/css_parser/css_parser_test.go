@@ -2454,6 +2454,27 @@ func TestMangleAlpha(t *testing.T) {
 	expectPrintedLowerMangle(t, "a { color: #000000FF }", "a {\n  color: #000;\n}\n", "")
 }
 
+func TestMangleDeadSelectors(t *testing.T) {
+	expectPrinted(t, "a { b { color: red } }", "a {\n  b {\n    color: red;\n  }\n}\n", "")
+	expectPrinted(t, "a { :is() { color: red } }", "a {\n  :is() {\n    color: red;\n  }\n}\n", "")
+	expectPrinted(t, "a { :where() { color: red } }", "a {\n  :where() {\n    color: red;\n  }\n}\n", "")
+
+	// Trimming away ":is()" can be relevant for automatically-generated style
+	// rules that are the result of a CSS nesting transform. For more info see
+	// https://github.com/evanw/esbuild/issues/4265
+	expectPrintedMangle(t, "a { color: green; :is() { color: red } }", "a {\n  color: green;\n}\n", "")
+	expectPrintedMangle(t, "a { color: green; :where() { color: red } }", "a {\n  color: green;\n}\n", "")
+	expectPrintedMangle(t, "a { color: green; div + :is() { color: red } }", "a {\n  color: green;\n}\n", "")
+	expectPrintedMangle(t, "a { color: green; div + :where() { color: red } }", "a {\n  color: green;\n}\n", "")
+
+	// Note: Style rules use an unforgiving selector list, so we can't trivially
+	// trim away known dead selectors from the list to keep the remaining
+	// selectors ("b" in the case below). Other parts of the known dead selector
+	// may be invalid, which would then render the whole style rule invalid.
+	expectPrintedMangle(t, "a { color: green; b, :foo :is() { color: red } }", "a {\n  color: green;\n  b,\n  :foo :is() {\n    color: red;\n  }\n}\n", "")
+	expectPrintedMangle(t, "a { color: green; b, :foo :where() { color: red } }", "a {\n  color: green;\n  b,\n  :foo :where() {\n    color: red;\n  }\n}\n", "")
+}
+
 func TestMangleDuplicateSelectors(t *testing.T) {
 	expectPrinted(t, "a, a { color: red }", "a,\na {\n  color: red;\n}\n", "")
 	expectPrintedMangle(t, "a, a { color: red }", "a {\n  color: red;\n}\n", "")
