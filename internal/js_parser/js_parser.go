@@ -15266,6 +15266,17 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 							}
 						}
 					}
+
+				case "escape":
+					// Recognize "RegExp.escape()" calls
+					if id, ok := t.Target.Data.(*js_ast.EIdentifier); ok {
+						if symbol := &p.symbols[id.Ref.InnerIndex]; symbol.Kind == ast.SymbolUnbound && symbol.OriginalName == "RegExp" {
+							if js_ast.KnownPrimitiveType(e.Args[0].Data) == js_ast.PrimitiveString {
+								// Mark "RegExp.escape" with a string literal as pure
+								e.CanBeUnwrappedIfUnused = true
+							}
+						}
+					}
 				}
 			}
 
