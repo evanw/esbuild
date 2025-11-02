@@ -71,7 +71,7 @@ function test(name, backends, fn) {
   }
 }
 
-window.addEventListener("unload", (e) => {
+addEventListener("unload", (e) => {
   try {
     Deno.removeSync(rootTestDir, { recursive: true })
   } catch {
