@@ -1,10 +1,15 @@
 name: Publish
 
 permissions:
-  contents: read
+  id-token: write
+  contents: write
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - version.txt
 
 jobs:
   publish:
@@ -13,17 +18,71 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Read go.version
+      - name: Read version info
         run: |
           echo "GO_VERSION=$(cat go.version)" >> $GITHUB_ENV
+          echo "ESBUILD_VERSION=$(cat version.txt)" >> $GITHUB_ENV
 
-      - name: Set up Go 1.x
+      # This is here to fail quickly if the release already exists
+      - name: Try to create the "v${{ env.ESBUILD_VERSION }}" tag
+        run: |
+          git fetch --tags
+          git tag "$ESBUILD_VERSION"
+
+      - name: Extract the release notes
+        run: |
+          CHANGELOG=$(awk -v "ver=$ESBUILD_VERSION" '/^## / { if (p) { exit }; if ($2 == ver) { p=1; next} } p' CHANGELOG.md)
+          echo "CHANGELOG<<EOF" >> $GITHUB_ENV
+          echo "$CHANGELOG" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      # Make sure we'll be able to generate release notes later on below
+      - name: Release notes must not be empty
+        run: |
+          test -n "$CHANGELOG"
+
+      - name: Set up Go ${{ env.GO_VERSION }}
         uses: actions/setup-go@v3
         with:
           go-version: ${{ env.GO_VERSION }}
-        id: go
 
       - name: Setup Node.js environment
         uses: actions/setup-node@v3
         with:
-          node-version: 18
+          node-version: 24
+
+      # This updates the version in all "package.json" files
+      - name: Build for all platforms
+        run: |
+          make platform-all
+
+      # All "package.json" files should have been updated already by running "make platform-all" and committing the results
+      - name: Reject uncommitted/untracked changes
+        run: |
+          git status --porcelain
+          test -z "$(git status --porcelain)"
+
+      # Trusted publishing requires this specific version of npm
+      - name: Install npm
+        run: |
+          npm install -g npm@11.5.1
+
+      - name: Publish packages
+        run: |
+          make publish-all
+
+      - name: Push the tag to GitHub
+        run: |
+          git push origin tag "v$ESBUILD_VERSION"
+
+      # Only do this after publishing was successful
+      - name: Create a GitHub Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ env.ESBUILD_VERSION }}
+          release_name: v${{ env.ESBUILD_VERSION }}
+          body: ${{ env.CHANGELOG }}
+          draft: false
+          prerelease: false
