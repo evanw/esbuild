@@ -14965,19 +14965,6 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			p.thenCatchChain.catchLoc = e.Args[1].Loc
 		}
 
-		// Prepare to recognize "require.resolve()" and "Object.create" calls
-		couldBeRequireResolve := false
-		couldBeObjectCreate := false
-		if len(e.Args) == 1 {
-			if dot, ok := e.Target.Data.(*js_ast.EDot); ok && dot.OptionalChain == js_ast.OptionalChainNone {
-				if p.options.mode != config.ModePassThrough && dot.Name == "resolve" {
-					couldBeRequireResolve = true
-				} else if dot.Name == "create" {
-					couldBeObjectCreate = true
-				}
-			}
-		}
-
 		wasIdentifierBeforeVisit := false
 		isParenthesizedOptionalChain := false
 		switch e2 := e.Target.Data.(type) {
@@ -15222,57 +15209,72 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			}
 
 		case *js_ast.EDot:
-			// Recognize "require.resolve()" calls
-			if couldBeRequireResolve && t.Name == "resolve" {
-				if id, ok := t.Target.Data.(*js_ast.EIdentifier); ok && id.Ref == p.requireRef {
-					p.ignoreUsage(p.requireRef)
-					return p.maybeTransposeIfExprChain(e.Args[0], func(arg js_ast.Expr) js_ast.Expr {
-						if str, ok := e.Args[0].Data.(*js_ast.EString); ok {
-							// Ignore calls to require.resolve() if the control flow is provably
-							// dead here. We don't want to spend time scanning the required files
-							// if they will never be used.
-							if p.isControlFlowDead {
-								return js_ast.Expr{Loc: expr.Loc, Data: js_ast.ENullShared}
-							}
+			if len(e.Args) == 1 {
+				switch t.Name {
+				case "resolve":
+					// Recognize "require.resolve()" calls
+					if t.OptionalChain == js_ast.OptionalChainNone && p.options.mode != config.ModePassThrough {
+						if id, ok := t.Target.Data.(*js_ast.EIdentifier); ok && id.Ref == p.requireRef {
+							p.ignoreUsage(p.requireRef)
+							return p.maybeTransposeIfExprChain(e.Args[0], func(arg js_ast.Expr) js_ast.Expr {
+								if str, ok := e.Args[0].Data.(*js_ast.EString); ok {
+									// Ignore calls to require.resolve() if the control flow is provably
+									// dead here. We don't want to spend time scanning the required files
+									// if they will never be used.
+									if p.isControlFlowDead {
+										return js_ast.Expr{Loc: expr.Loc, Data: js_ast.ENullShared}
+									}
 
-							importRecordIndex := p.addImportRecord(ast.ImportRequireResolve, ast.EvaluationPhase, p.source.RangeOfString(e.Args[0].Loc), helpers.UTF16ToString(str.Value), nil, 0)
-							if p.fnOrArrowDataVisit.tryBodyCount != 0 {
-								record := &p.importRecords[importRecordIndex]
-								record.Flags |= ast.HandlesImportErrors
-								record.ErrorHandlerLoc = p.fnOrArrowDataVisit.tryCatchLoc
-							}
-							p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
+									importRecordIndex := p.addImportRecord(ast.ImportRequireResolve, ast.EvaluationPhase, p.source.RangeOfString(e.Args[0].Loc), helpers.UTF16ToString(str.Value), nil, 0)
+									if p.fnOrArrowDataVisit.tryBodyCount != 0 {
+										record := &p.importRecords[importRecordIndex]
+										record.Flags |= ast.HandlesImportErrors
+										record.ErrorHandlerLoc = p.fnOrArrowDataVisit.tryCatchLoc
+									}
+									p.importRecordsForCurrentPart = append(p.importRecordsForCurrentPart, importRecordIndex)
 
-							// Create a new expression to represent the operation
-							return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ERequireResolveString{
-								ImportRecordIndex: importRecordIndex,
-								CloseParenLoc:     e.CloseParenLoc,
-							}}
+									// Create a new expression to represent the operation
+									return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ERequireResolveString{
+										ImportRecordIndex: importRecordIndex,
+										CloseParenLoc:     e.CloseParenLoc,
+									}}
+								}
+
+								// Otherwise just return a clone of the "require.resolve()" call
+								return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ECall{
+									Target: js_ast.Expr{Loc: e.Target.Loc, Data: &js_ast.EDot{
+										Target:  p.valueToSubstituteForRequire(t.Target.Loc),
+										Name:    t.Name,
+										NameLoc: t.NameLoc,
+									}},
+									Args:          []js_ast.Expr{arg},
+									Kind:          e.Kind,
+									CloseParenLoc: e.CloseParenLoc,
+								}}
+							}), exprOut{}
 						}
+					}
 
-						// Otherwise just return a clone of the "require.resolve()" call
-						return js_ast.Expr{Loc: expr.Loc, Data: &js_ast.ECall{
-							Target: js_ast.Expr{Loc: e.Target.Loc, Data: &js_ast.EDot{
-								Target:  p.valueToSubstituteForRequire(t.Target.Loc),
-								Name:    t.Name,
-								NameLoc: t.NameLoc,
-							}},
-							Args:          []js_ast.Expr{arg},
-							Kind:          e.Kind,
-							CloseParenLoc: e.CloseParenLoc,
-						}}
-					}), exprOut{}
-				}
-			}
+				case "create":
+					// Recognize "Object.create()" calls
+					if id, ok := t.Target.Data.(*js_ast.EIdentifier); ok {
+						if symbol := &p.symbols[id.Ref.InnerIndex]; symbol.Kind == ast.SymbolUnbound && symbol.OriginalName == "Object" {
+							switch e.Args[0].Data.(type) {
+							case *js_ast.ENull, *js_ast.EObject:
+								// Mark "Object.create(null)" and "Object.create({})" as pure
+								e.CanBeUnwrappedIfUnused = true
+							}
+						}
+					}
 
-			// Recognize "Object.create()" calls
-			if couldBeObjectCreate && t.Name == "create" {
-				if id, ok := t.Target.Data.(*js_ast.EIdentifier); ok {
-					if symbol := &p.symbols[id.Ref.InnerIndex]; symbol.Kind == ast.SymbolUnbound && symbol.OriginalName == "Object" {
-						switch e.Args[0].Data.(type) {
-						case *js_ast.ENull, *js_ast.EObject:
-							// Mark "Object.create(null)" and "Object.create({})" as pure
-							e.CanBeUnwrappedIfUnused = true
+				case "escape":
+					// Recognize "RegExp.escape()" calls
+					if id, ok := t.Target.Data.(*js_ast.EIdentifier); ok {
+						if symbol := &p.symbols[id.Ref.InnerIndex]; symbol.Kind == ast.SymbolUnbound && symbol.OriginalName == "RegExp" {
+							if js_ast.KnownPrimitiveType(e.Args[0].Data) == js_ast.PrimitiveString {
+								// Mark "RegExp.escape" with a string literal as pure
+								e.CanBeUnwrappedIfUnused = true
+							}
 						}
 					}
 				}
@@ -15281,7 +15283,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			if p.options.minifySyntax {
 				switch t.Name {
 				case "charCodeAt":
-					// Recognize "charCodeAt()" calls
+					// Recognize "'string'.charCodeAt()" calls
 					if str, ok := t.Target.Data.(*js_ast.EString); ok && len(e.Args) <= 1 {
 						index := 0
 						hasIndex := false
@@ -15301,7 +15303,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 					}
 
 				case "fromCharCode":
-					// Recognize "fromCharCode()" calls
+					// Recognize "String.fromCharCode()" calls
 					if id, ok := t.Target.Data.(*js_ast.EIdentifier); ok {
 						if symbol := &p.symbols[id.Ref.InnerIndex]; symbol.Kind == ast.SymbolUnbound && symbol.OriginalName == "String" {
 							charCodes := make([]uint16, 0, len(e.Args))

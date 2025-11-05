@@ -653,6 +653,13 @@ use(isNotPure);
 })();
 
 ================================================================================
+TestDCEOfIteratorSuperclassIssue4310
+---------- /out/entry.js ----------
+// entry.js
+var Keep = class extends NotIterator {
+};
+
+================================================================================
 TestDCEOfNegatedBigints
 ---------- /out/entry.js ----------
 

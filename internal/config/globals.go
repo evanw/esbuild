@@ -27,20 +27,23 @@ var processedGlobals *ProcessedDefines
 // these functions has any side effects. It only says something about
 // referencing these function without calling them.
 var knownGlobals = [][]string{
-	// These global identifiers should exist in all JavaScript environments. This
-	// deliberately omits "NaN", "Infinity", and "undefined" because these are
-	// treated as automatically-inlined constants instead of identifiers.
-	{"Array"},
-	{"Boolean"},
-	{"Function"},
-	{"Math"},
-	{"Number"},
-	{"Object"},
-	{"RegExp"},
-	{"String"},
+	// Array: Static methods
+	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array#static_methods
+	{"Array", "from"},
+	{"Array", "fromAsync"},
+	{"Array", "isArray"},
+	{"Array", "of"},
+
+	// RegExp: Static methods
+	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/RegExp#static_methods
+	{"RegExp", "escape"},
+
+	// Map: Static methods
+	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Map#static_methods
+	{"Map", "groupBy"},
 
 	// Object: Static methods
-	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object#Static_methods
+	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object#static_methods
 	{"Object", "assign"},
 	{"Object", "create"},
 	{"Object", "defineProperties"},
@@ -64,7 +67,7 @@ var knownGlobals = [][]string{
 	{"Object", "values"},
 
 	// Object: Instance methods
-	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object#Instance_methods
+	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object#instance_methods
 	{"Object", "prototype", "__defineGetter__"},
 	{"Object", "prototype", "__defineSetter__"},
 	{"Object", "prototype", "__lookupGetter__"},
@@ -97,7 +100,7 @@ var knownGlobals = [][]string{
 	{"Symbol", "unscopables"},
 
 	// Math: Static properties
-	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Math#Static_properties
+	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Math#static_properties
 	{"Math", "E"},
 	{"Math", "LN10"},
 	{"Math", "LN2"},
@@ -108,7 +111,7 @@ var knownGlobals = [][]string{
 	{"Math", "SQRT2"},
 
 	// Math: Static methods
-	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Math#Static_methods
+	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Math#static_methods
 	{"Math", "abs"},
 	{"Math", "acos"},
 	{"Math", "acosh"},
@@ -161,41 +164,91 @@ var knownGlobals = [][]string{
 	{"Reflect", "set"},
 	{"Reflect", "setPrototypeOf"},
 
-	// JSON: Static Methods
+	// JSON: Static methods
 	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON#static_methods
 	{"JSON", "parse"},
 	{"JSON", "stringify"},
 
-	// Other globals present in both the browser and node (except "eval" because
-	// it has special behavior)
+	// TypedArray: Static methods
+	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/TypedArray#static_methods
+	{"BigInt64Array", "from"},
+	{"BigInt64Array", "of"},
+	{"BigUint64Array", "from"},
+	{"BigUint64Array", "of"},
+	{"Float16Array", "from"},
+	{"Float16Array", "of"},
+	{"Float32Array", "from"},
+	{"Float32Array", "of"},
+	{"Float64Array", "from"},
+	{"Float64Array", "of"},
+	{"Int16Array", "from"},
+	{"Int16Array", "of"},
+	{"Int32Array", "from"},
+	{"Int32Array", "of"},
+	{"Int8Array", "from"},
+	{"Int8Array", "of"},
+	{"Uint16Array", "from"},
+	{"Uint16Array", "of"},
+	{"Uint32Array", "from"},
+	{"Uint32Array", "of"},
+	{"Uint8Array", "from"},
+	{"Uint8Array", "fromBase64"},
+	{"Uint8Array", "fromHex"},
+	{"Uint8Array", "of"},
+	{"Uint8ClampedArray", "from"},
+	{"Uint8ClampedArray", "of"},
+
+	// Other globals present in both the browser and node. This should include at
+	// least the following properties:
+	// https://tc39.es/ecma262/multipage/global-object.html#sec-constructor-properties-of-the-global-object
+	//
+	// Exceptions:
+	// - Don't include "eval" because it has special behavior
+	// - Don't include "NaN", "Infinity", and "undefined" because esbuild treats
+	//   these as automatically-inlined constants instead of identifiers
 	{"AbortController"},
 	{"AbortSignal"},
 	{"AggregateError"},
+	{"Array"},
 	{"ArrayBuffer"},
+	{"Atomics"},
 	{"BigInt"},
+	{"BigInt64Array"},
+	{"BigUint64Array"},
+	{"Boolean"},
 	{"DataView"},
 	{"Date"},
 	{"Error"},
 	{"EvalError"},
 	{"Event"},
 	{"EventTarget"},
+	{"FinalizationRegistry"},
+	{"Float16Array"},
 	{"Float32Array"},
 	{"Float64Array"},
+	{"Function"},
 	{"Int16Array"},
 	{"Int32Array"},
 	{"Int8Array"},
 	{"Intl"},
+	{"Iterator"},
 	{"JSON"},
 	{"Map"},
+	{"Math"},
 	{"MessageChannel"},
 	{"MessageEvent"},
 	{"MessagePort"},
+	{"Number"},
+	{"Object"},
 	{"Promise"},
 	{"Proxy"},
 	{"RangeError"},
 	{"ReferenceError"},
 	{"Reflect"},
+	{"RegExp"},
 	{"Set"},
+	{"SharedArrayBuffer"},
+	{"String"},
 	{"Symbol"},
 	{"SyntaxError"},
 	{"TextDecoder"},
@@ -209,6 +262,7 @@ var knownGlobals = [][]string{
 	{"Uint8Array"},
 	{"Uint8ClampedArray"},
 	{"WeakMap"},
+	{"WeakRef"},
 	{"WeakSet"},
 	{"WebAssembly"},
 	{"clearInterval"},

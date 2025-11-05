@@ -6751,6 +6751,18 @@ func TestAutoPureForDate(t *testing.T) {
 	expectPrinted(t, "new Date(foo ? x : y)", "new Date(foo ? x : y);\n")
 }
 
+func TestAutoPureForRegExpEscape(t *testing.T) {
+	expectPrinted(t, "RegExp.escape('x')", "/* @__PURE__ */ RegExp.escape(\"x\");\n")
+	expectPrinted(t, "RegExp.escape(`${x}`)", "/* @__PURE__ */ RegExp.escape(`${x}`);\n")
+	expectPrinted(t, "RegExp.escape(x ? 'y' : 'z')", "/* @__PURE__ */ RegExp.escape(x ? \"y\" : \"z\");\n")
+
+	expectPrinted(t, "RegExp.escape()", "RegExp.escape();\n")
+	expectPrinted(t, "RegExp.escape(x`y`)", "RegExp.escape(x`y`);\n")
+	expectPrinted(t, "RegExp.escape('x', 'y')", "RegExp.escape(\"x\", \"y\");\n")
+	expectPrinted(t, "RegExp.escape(x ? 'y' : z)", "RegExp.escape(x ? \"y\" : z);\n")
+	expectPrinted(t, "RegExp.escape(x ? y : 'z')", "RegExp.escape(x ? y : \"z\");\n")
+}
+
 // See: https://github.com/tc39/proposal-explicit-resource-management
 func TestUsing(t *testing.T) {
 	expectPrinted(t, "using x = y", "using x = y;\n")

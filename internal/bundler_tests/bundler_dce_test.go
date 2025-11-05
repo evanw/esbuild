@@ -4930,3 +4930,20 @@ func TestDCEOfNegatedBigints(t *testing.T) {
 		},
 	})
 }
+
+// https://github.com/evanw/esbuild/issues/4310
+func TestDCEOfIteratorSuperclassIssue4310(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class Keep extends NotIterator {}
+				class Remove extends Iterator {}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+		},
+	})
+}

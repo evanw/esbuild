@@ -705,8 +705,8 @@ next:
 	// Mangle non-top-level rules using a back-to-front pass. Top-level rules
 	// will be mangled by the linker instead for cross-file rule mangling.
 	if !isTopLevel {
-		remover := MakeDuplicateRuleMangler(ast.SymbolMap{})
-		mangledRules = remover.RemoveDuplicateRulesInPlace(p.source.Index, mangledRules, p.importRecords)
+		remover := MakeDeadRuleMangler(ast.SymbolMap{})
+		mangledRules = remover.RemoveDeadRulesInPlace(p.source.Index, mangledRules, p.importRecords)
 	}
 
 	return mangledRules
@@ -726,20 +726,20 @@ type callEntry struct {
 	sourceIndex   uint32
 }
 
-type DuplicateRuleRemover struct {
+type DeadRuleRemover struct {
 	entries map[uint32]hashEntry
 	calls   []callEntry
 	check   css_ast.CrossFileEqualityCheck
 }
 
-func MakeDuplicateRuleMangler(symbols ast.SymbolMap) DuplicateRuleRemover {
-	return DuplicateRuleRemover{
+func MakeDeadRuleMangler(symbols ast.SymbolMap) DeadRuleRemover {
+	return DeadRuleRemover{
 		entries: make(map[uint32]hashEntry),
 		check:   css_ast.CrossFileEqualityCheck{Symbols: symbols},
 	}
 }
 
-func (remover *DuplicateRuleRemover) RemoveDuplicateRulesInPlace(sourceIndex uint32, rules []css_ast.Rule, importRecords []ast.ImportRecord) []css_ast.Rule {
+func (remover *DeadRuleRemover) RemoveDeadRulesInPlace(sourceIndex uint32, rules []css_ast.Rule, importRecords []ast.ImportRecord) []css_ast.Rule {
 	// The caller may call this function multiple times, each with a different
 	// set of import records. Remember each set of import records for equality
 	// checks later.
@@ -757,6 +757,11 @@ func (remover *DuplicateRuleRemover) RemoveDuplicateRulesInPlace(sourceIndex uin
 skipRule:
 	for i := n - 1; i >= 0; i-- {
 		rule := rules[i]
+
+		// Remove rules with selectors that don't apply to anything (e.g. ":is()")
+		if r, ok := rule.Data.(*css_ast.RSelector); ok && allSelectorsAreDead(r.Selectors) {
+			continue skipRule
+		}
 
 		// For duplicate rules, omit all but the last copy
 		if hash, ok := rule.Data.Hash(); ok {
@@ -793,6 +798,28 @@ skipRule:
 	}
 
 	return rules[start:]
+}
+
+func containsDeadSelectors(selectors []css_ast.CompoundSelector) bool {
+	for _, sel := range selectors {
+		for _, ss := range sel.SubclassSelectors {
+			if pseudo, ok := ss.Data.(*css_ast.SSPseudoClassWithSelectorList); ok && len(pseudo.Selectors) == 0 &&
+				(pseudo.Kind == css_ast.PseudoClassIs || pseudo.Kind == css_ast.PseudoClassWhere) {
+				// ":is()" and ":where()" never match anything when empty
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func allSelectorsAreDead(selectors []css_ast.ComplexSelector) bool {
+	for _, sel := range selectors {
+		if !containsDeadSelectors(sel.Selectors) {
+			return false
+		}
+	}
+	return true
 }
 
 // Reference: https://developer.mozilla.org/en-US/docs/Web/HTML/Element
