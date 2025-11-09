@@ -17820,7 +17820,12 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 	return
 }
 
-func LazyExportAST(log logger.Log, source logger.Source, options Options, expr js_ast.Expr, apiCall string) js_ast.AST {
+type HelperCall struct {
+	Global  []string
+	Runtime string
+}
+
+func LazyExportAST(log logger.Log, source logger.Source, options Options, expr js_ast.Expr, helperCall *HelperCall) js_ast.AST {
 	// Don't create a new lexer using js_lexer.NewLexer() here since that will
 	// actually attempt to parse the first token, which might cause a syntax
 	// error.
@@ -17828,9 +17833,21 @@ func LazyExportAST(log logger.Log, source logger.Source, options Options, expr j
 	p.prepareForVisitPass()
 
 	// Optionally call a runtime API function to transform the expression
-	if apiCall != "" {
+	if helperCall != nil {
 		p.symbolUses = make(map[ast.Ref]js_ast.SymbolUse)
-		expr = p.callRuntime(expr.Loc, apiCall, []js_ast.Expr{expr})
+		if len(helperCall.Global) > 0 {
+			ref := p.newSymbol(ast.SymbolUnbound, helperCall.Global[0])
+			p.recordUsage(ref)
+			target := js_ast.Expr{Data: &js_ast.EIdentifier{Ref: ref}}
+			kind := js_ast.NormalCall
+			for _, name := range helperCall.Global[1:] {
+				target.Data = &js_ast.EDot{Target: target, Name: name}
+				kind = js_ast.TargetWasOriginallyPropertyAccess
+			}
+			expr.Data = &js_ast.ECall{Target: target, Args: []js_ast.Expr{expr}, Kind: kind}
+		} else {
+			expr = p.callRuntime(expr.Loc, helperCall.Runtime, []js_ast.Expr{expr})
+		}
 	}
 
 	// Add an empty part for the namespace export that we can fill in later

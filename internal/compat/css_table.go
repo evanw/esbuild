@@ -233,6 +233,7 @@ var cssPrefixTable = map[css_ast.D][]prefixData{
 	css_ast.DHeight: {
 		{engine: Chrome, prefix: WebkitPrefix, withoutPrefix: v{138, 0, 0}},
 		{engine: Edge, prefix: WebkitPrefix, withoutPrefix: v{138, 0, 0}},
+		{engine: Firefox, prefix: WebkitPrefix},
 		{engine: IOS, prefix: WebkitPrefix},
 		{engine: Opera, prefix: WebkitPrefix, withoutPrefix: v{122, 0, 0}},
 		{engine: Safari, prefix: WebkitPrefix},
@@ -381,7 +382,7 @@ var cssPrefixTable = map[css_ast.D][]prefixData{
 	css_ast.DWidth: {
 		{engine: Chrome, prefix: WebkitPrefix, withoutPrefix: v{138, 0, 0}},
 		{engine: Edge, prefix: WebkitPrefix, withoutPrefix: v{138, 0, 0}},
-		{engine: Firefox, prefix: MozPrefix},
+		{engine: Firefox, prefix: WebkitPrefix},
 		{engine: IOS, prefix: WebkitPrefix},
 		{engine: Opera, prefix: WebkitPrefix, withoutPrefix: v{122, 0, 0}},
 		{engine: Safari, prefix: WebkitPrefix},

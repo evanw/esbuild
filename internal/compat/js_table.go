@@ -86,6 +86,7 @@ const (
 	ExportStarAs
 	ForAwait
 	ForOf
+	FromBase64
 	FunctionNameConfigurable
 	FunctionOrClassPropertyAccess
 	Generator
@@ -149,6 +150,7 @@ var StringToJSFeature = map[string]JSFeature{
 	"export-star-as":                    ExportStarAs,
 	"for-await":                         ForAwait,
 	"for-of":                            ForOf,
+	"from-base64":                       FromBase64,
 	"function-name-configurable":        FunctionNameConfigurable,
 	"function-or-class-property-access": FunctionOrClassPropertyAccess,
 	"generator":                         Generator,
@@ -528,6 +530,16 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Node:    {{start: v{6, 5, 0}}},
 		Opera:   {{start: v{38, 0, 0}}},
 		Safari:  {{start: v{10, 0, 0}}},
+	},
+	FromBase64: {
+		Chrome:  {{start: v{140, 0, 0}}},
+		Deno:    {{start: v{2, 5, 0}}},
+		Edge:    {{start: v{140, 0, 0}}},
+		Firefox: {{start: v{133, 0, 0}}},
+		IOS:     {{start: v{18, 2, 0}}},
+		Node:    {{start: v{25, 0, 0}}},
+		Opera:   {{start: v{124, 0, 0}}},
+		Safari:  {{start: v{18, 2, 0}}},
 	},
 	FunctionNameConfigurable: {
 		// Note: The latest version of "IE" failed this test: function "name" property: isn't writable, is configurable

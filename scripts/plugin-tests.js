@@ -1000,6 +1000,7 @@ let pluginTests = {
       bundle: true,
       outfile: output,
       format: 'cjs',
+      target: process.version.replace('v', 'node'),
       plugins: [{
         name: 'name',
         setup(build) {
