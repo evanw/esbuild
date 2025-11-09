@@ -421,190 +421,128 @@ platform-deno: platform-wasm
 	node scripts/esbuild.js ./esbuild --deno
 
 publish-all: check-go-version
-	@grep "## $(ESBUILD_VERSION)" CHANGELOG.md || (echo "Missing '## $(ESBUILD_VERSION)' in CHANGELOG.md (required for automatic release notes)" && false)
-	@npm --version > /dev/null || (echo "The 'npm' command must be in your path to publish" && false)
-	@echo "Checking for uncommitted/untracked changes..." && test -z "`git status --porcelain | grep -vE 'M (CHANGELOG\.md|version\.txt)'`" || \
-		(echo "Refusing to publish with these uncommitted/untracked changes:" && \
-		git status --porcelain | grep -vE 'M (CHANGELOG\.md|version\.txt)' && false)
-	@echo "Checking for main branch..." && test main = "`git rev-parse --abbrev-ref HEAD`" || \
-		(echo "Refusing to publish from non-main branch `git rev-parse --abbrev-ref HEAD`" && false)
-	@echo "Checking for unpushed commits..." && git fetch
-	@test "" = "`git cherry`" || (echo "Refusing to publish with unpushed commits" && false)
-
-	# Prebuild now to prime go's compile cache and avoid timing issues later
-	@$(MAKE) --no-print-directory platform-all
-
-	# Commit now before publishing so git is clean for this: https://github.com/golang/go/issues/37475
-	# Note: If this fails, then the version number was likely not incremented before running this command
-	git commit -am "publish $(ESBUILD_VERSION) to npm"
-	git tag "v$(ESBUILD_VERSION)"
-	@test -z "`git status --porcelain`" || (echo "Aborting because git is somehow unclean after a commit" && false)
-
 	# Make sure the npm directory is pristine (including .gitignored files) since it will be published
 	rm -fr npm && git checkout npm
 
-	@echo Enter one-time password:
-	@read OTP && OTP="$$OTP" $(MAKE) --no-print-directory -j4 \
-		publish-win32-x64 \
-		publish-win32-ia32 \
-		publish-win32-arm64 \
-		publish-wasi-preview1
+	# Publish all platform-dependent packages first
+	@$(MAKE) --no-print-directory publish-aix-ppc64
+	@$(MAKE) --no-print-directory publish-android-arm
+	@$(MAKE) --no-print-directory publish-android-arm64
+	@$(MAKE) --no-print-directory publish-android-x64
+	@$(MAKE) --no-print-directory publish-darwin-arm64
+	@$(MAKE) --no-print-directory publish-darwin-x64
+	@$(MAKE) --no-print-directory publish-freebsd-arm64
+	@$(MAKE) --no-print-directory publish-freebsd-x64
+	@$(MAKE) --no-print-directory publish-linux-arm
+	@$(MAKE) --no-print-directory publish-linux-arm64
+	@$(MAKE) --no-print-directory publish-linux-ia32
+	@$(MAKE) --no-print-directory publish-linux-loong64
+	@$(MAKE) --no-print-directory publish-linux-mips64el
+	@$(MAKE) --no-print-directory publish-linux-ppc64
+	@$(MAKE) --no-print-directory publish-linux-riscv64
+	@$(MAKE) --no-print-directory publish-linux-s390x
+	@$(MAKE) --no-print-directory publish-linux-x64
+	@$(MAKE) --no-print-directory publish-netbsd-arm64
+	@$(MAKE) --no-print-directory publish-netbsd-x64
+	@$(MAKE) --no-print-directory publish-openbsd-arm64
+	@$(MAKE) --no-print-directory publish-openbsd-x64
+	@$(MAKE) --no-print-directory publish-openharmony-arm64
+	@$(MAKE) --no-print-directory publish-sunos-x64
+	@$(MAKE) --no-print-directory publish-wasi-preview1
+	@$(MAKE) --no-print-directory publish-win32-arm64
+	@$(MAKE) --no-print-directory publish-win32-ia32
+	@$(MAKE) --no-print-directory publish-win32-x64
 
-	@echo Enter one-time password:
-	@read OTP && OTP="$$OTP" $(MAKE) --no-print-directory -j4 \
-		publish-freebsd-arm64 \
-		publish-freebsd-x64 \
-		publish-openbsd-arm64 \
-		publish-openbsd-x64
-
-	@echo Enter one-time password:
-	@read OTP && OTP="$$OTP" $(MAKE) --no-print-directory -j4 \
-		publish-darwin-arm64 \
-		publish-darwin-x64 \
-		publish-netbsd-arm64 \
-		publish-netbsd-x64
-
-	@echo Enter one-time password:
-	@read OTP && OTP="$$OTP" $(MAKE) --no-print-directory -j4 \
-		publish-android-x64 \
-		publish-android-arm \
-		publish-android-arm64 \
-		publish-openharmony-arm64
-
-	@echo Enter one-time password:
-	@read OTP && OTP="$$OTP" $(MAKE) --no-print-directory -j4 \
-		publish-linux-x64 \
-		publish-linux-ia32 \
-		publish-linux-arm
-
-	@echo Enter one-time password:
-	@read OTP && OTP="$$OTP" $(MAKE) --no-print-directory -j4 \
-		publish-linux-arm64 \
-		publish-linux-riscv64 \
-		publish-linux-loong64 \
-		publish-linux-mips64el
-
-	@echo Enter one-time password:
-	@read OTP && OTP="$$OTP" $(MAKE) --no-print-directory -j4 \
-		publish-aix-ppc64 \
-		publish-linux-ppc64 \
-		publish-linux-s390x \
-		publish-sunos-x64
-
-	# Do these last to avoid race conditions
-	@echo Enter one-time password:
-	@read OTP && OTP="$$OTP" $(MAKE) --no-print-directory -j4 \
-		publish-neutral \
-		publish-deno \
-		publish-wasm \
-		publish-dl
-
-	git push origin main "v$(ESBUILD_VERSION)"
+	# Publish platform-independent packages last to avoid race conditions
+	@$(MAKE) --no-print-directory publish-neutral
+	@$(MAKE) --no-print-directory publish-wasm
 
 publish-win32-x64: platform-win32-x64
-	test -n "$(OTP)" && cd npm/@esbuild/win32-x64 && npm publish --otp="$(OTP)"
+	cd npm/@esbuild/win32-x64 && npm publish
 
 publish-win32-ia32: platform-win32-ia32
-	test -n "$(OTP)" && cd npm/@esbuild/win32-ia32 && npm publish --otp="$(OTP)"
+	cd npm/@esbuild/win32-ia32 && npm publish
 
 publish-win32-arm64: platform-win32-arm64
-	test -n "$(OTP)" && cd npm/@esbuild/win32-arm64 && npm publish --otp="$(OTP)"
+	cd npm/@esbuild/win32-arm64 && npm publish
 
 publish-wasi-preview1: platform-wasi-preview1
-	test -n "$(OTP)" && cd npm/@esbuild/wasi-preview1 && npm publish --otp="$(OTP)"
+	cd npm/@esbuild/wasi-preview1 && npm publish
 
 publish-aix-ppc64: platform-aix-ppc64
-	test -n "$(OTP)" && cd npm/@esbuild/aix-ppc64 && npm publish --otp="$(OTP)"
+	cd npm/@esbuild/aix-ppc64 && npm publish
 
 publish-android-x64: platform-android-x64
-	test -n "$(OTP)" && cd npm/@esbuild/android-x64 && npm publish --otp="$(OTP)"
+	cd npm/@esbuild/android-x64 && npm publish
 
 publish-android-arm: platform-android-arm
-	test -n "$(OTP)" && cd npm/@esbuild/android-arm && npm publish --otp="$(OTP)"
+	cd npm/@esbuild/android-arm && npm publish
 
 publish-android-arm64: platform-android-arm64
-	test -n "$(OTP)" && cd npm/@esbuild/android-arm64 && npm publish --otp="$(OTP)"
+	cd npm/@esbuild/android-arm64 && npm publish
 
 publish-darwin-x64: platform-darwin-x64
-	test -n "$(OTP)" && cd npm/@esbuild/darwin-x64 && npm publish --otp="$(OTP)"
+	cd npm/@esbuild/darwin-x64 && npm publish
 
 publish-darwin-arm64: platform-darwin-arm64
-	test -n "$(OTP)" && cd npm/@esbuild/darwin-arm64 && npm publish --otp="$(OTP)"
+	cd npm/@esbuild/darwin-arm64 && npm publish
 
 publish-freebsd-x64: platform-freebsd-x64
-	test -n "$(OTP)" && cd npm/@esbuild/freebsd-x64 && npm publish --otp="$(OTP)"
+	cd npm/@esbuild/freebsd-x64 && npm publish
 
 publish-freebsd-arm64: platform-freebsd-arm64
-	test -n "$(OTP)" && cd npm/@esbuild/freebsd-arm64 && npm publish --otp="$(OTP)"
+	cd npm/@esbuild/freebsd-arm64 && npm publish
 
 publish-netbsd-arm64: platform-netbsd-arm64
-	test -n "$(OTP)" && cd npm/@esbuild/netbsd-arm64 && npm publish --otp="$(OTP)"
+	cd npm/@esbuild/netbsd-arm64 && npm publish
 
 publish-netbsd-x64: platform-netbsd-x64
-	test -n "$(OTP)" && cd npm/@esbuild/netbsd-x64 && npm publish --otp="$(OTP)"
+	cd npm/@esbuild/netbsd-x64 && npm publish
 
 publish-openbsd-arm64: platform-openbsd-arm64
-	test -n "$(OTP)" && cd npm/@esbuild/openbsd-arm64 && npm publish --otp="$(OTP)"
+	cd npm/@esbuild/openbsd-arm64 && npm publish
 
 publish-openbsd-x64: platform-openbsd-x64
-	test -n "$(OTP)" && cd npm/@esbuild/openbsd-x64 && npm publish --otp="$(OTP)"
+	cd npm/@esbuild/openbsd-x64 && npm publish
 
 publish-openharmony-arm64: platform-openharmony-arm64
-	test -n "$(OTP)" && cd npm/@esbuild/openharmony-arm64 && npm publish --otp="$(OTP)"
+	cd npm/@esbuild/openharmony-arm64 && npm publish
 
 publish-linux-x64: platform-linux-x64
-	test -n "$(OTP)" && cd npm/@esbuild/linux-x64 && npm publish --otp="$(OTP)"
+	cd npm/@esbuild/linux-x64 && npm publish
 
 publish-linux-ia32: platform-linux-ia32
-	test -n "$(OTP)" && cd npm/@esbuild/linux-ia32 && npm publish --otp="$(OTP)"
+	cd npm/@esbuild/linux-ia32 && npm publish
 
 publish-linux-arm: platform-linux-arm
-	test -n "$(OTP)" && cd npm/@esbuild/linux-arm && npm publish --otp="$(OTP)"
+	cd npm/@esbuild/linux-arm && npm publish
 
 publish-linux-arm64: platform-linux-arm64
-	test -n "$(OTP)" && cd npm/@esbuild/linux-arm64 && npm publish --otp="$(OTP)"
+	cd npm/@esbuild/linux-arm64 && npm publish
 
 publish-linux-loong64: platform-linux-loong64
-	test -n "$(OTP)" && cd npm/@esbuild/linux-loong64 && npm publish --otp="$(OTP)"
+	cd npm/@esbuild/linux-loong64 && npm publish
 
 publish-linux-mips64el: platform-linux-mips64el
-	test -n "$(OTP)" && cd npm/@esbuild/linux-mips64el && npm publish --otp="$(OTP)"
+	cd npm/@esbuild/linux-mips64el && npm publish
 
 publish-linux-ppc64: platform-linux-ppc64
-	test -n "$(OTP)" && cd npm/@esbuild/linux-ppc64 && npm publish --otp="$(OTP)"
+	cd npm/@esbuild/linux-ppc64 && npm publish
 
 publish-linux-riscv64: platform-linux-riscv64
-	test -n "$(OTP)" && cd npm/@esbuild/linux-riscv64 && npm publish --otp="$(OTP)"
+	cd npm/@esbuild/linux-riscv64 && npm publish
 
 publish-linux-s390x: platform-linux-s390x
-	test -n "$(OTP)" && cd npm/@esbuild/linux-s390x && npm publish --otp="$(OTP)"
+	cd npm/@esbuild/linux-s390x && npm publish
 
 publish-sunos-x64: platform-sunos-x64
-	test -n "$(OTP)" && cd npm/@esbuild/sunos-x64 && npm publish --otp="$(OTP)"
+	cd npm/@esbuild/sunos-x64 && npm publish
 
 publish-wasm: platform-wasm
-	test -n "$(OTP)" && cd npm/esbuild-wasm && npm publish --otp="$(OTP)"
+	cd npm/esbuild-wasm && npm publish
 
 publish-neutral: platform-neutral
-	test -n "$(OTP)" && cd npm/esbuild && npm publish --otp="$(OTP)"
-
-publish-deno:
-	test -d deno/.git || (rm -fr deno && git clone git@github.com:esbuild/deno-esbuild.git deno)
-	cd deno && git fetch && git checkout main && git reset --hard origin/main
-	@$(MAKE) --no-print-directory platform-deno
-	cd deno && git add mod.js mod.d.ts wasm.js wasm.d.ts esbuild.wasm
-	cd deno && git commit -m "publish $(ESBUILD_VERSION) to deno"
-	cd deno && git tag "v$(ESBUILD_VERSION)"
-	cd deno && git push origin main "v$(ESBUILD_VERSION)"
-
-publish-dl:
-	test -d www/.git || (rm -fr www && git clone git@github.com:esbuild/esbuild.github.io.git www)
-	cd www && git fetch && git checkout gh-pages && git reset --hard origin/gh-pages
-	cd www && cat ../dl.sh | sed 's/$$ESBUILD_VERSION/$(ESBUILD_VERSION)/' > dl/latest
-	cd www && cat ../dl.sh | sed 's/$$ESBUILD_VERSION/$(ESBUILD_VERSION)/' > "dl/v$(ESBUILD_VERSION)"
-	cd www && git add dl/latest "dl/v$(ESBUILD_VERSION)"
-	cd www && git commit -m "publish download script for $(ESBUILD_VERSION)"
-	cd www && git push origin gh-pages
+	cd npm/esbuild && npm publish
 
 validate-build:
 	@test -n "$(TARGET)" || (echo "The environment variable TARGET must be provided" && false)
