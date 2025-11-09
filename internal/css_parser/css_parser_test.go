@@ -2924,7 +2924,7 @@ func TestPrefixInsertion(t *testing.T) {
 	expectPrintedWithAllPrefixes(t, "a { mask-composite: add, subtract, intersect, exclude }",
 		"a {\n  -webkit-mask-composite:\n    source-over,\n    source-out,\n    source-in,\n    xor;\n  mask-composite:\n    add,\n    subtract,\n    intersect,\n    exclude;\n}\n", "")
 	expectPrintedWithAllPrefixes(t, "a { width: stretch }",
-		"a {\n  width: -webkit-fill-available;\n  width: -moz-available;\n  width: stretch;\n}\n", "")
+		"a {\n  width: -webkit-fill-available;\n  width: stretch;\n}\n", "")
 
 	// Check that we insert prefixed rules each time an unprefixed rule is
 	// encountered. This matches the behavior of the popular "autoprefixer" tool.
@@ -2943,12 +2943,8 @@ func TestPrefixInsertion(t *testing.T) {
 	expectPrintedWithAllPrefixes(t,
 		"a { before: value; -ms-text-size-adjust: 2; text-size-adjust: 3; after: value }",
 		"a {\n  before: value;\n  -ms-text-size-adjust: 2;\n  -webkit-text-size-adjust: 3;\n  text-size-adjust: 3;\n  after: value;\n}\n", "")
-	expectPrintedWithAllPrefixes(t, "a { width: -moz-available; width: stretch }",
-		"a {\n  width: -moz-available;\n  width: -webkit-fill-available;\n  width: stretch;\n}\n", "")
 	expectPrintedWithAllPrefixes(t, "a { width: -webkit-fill-available; width: stretch }",
-		"a {\n  width: -webkit-fill-available;\n  width: -moz-available;\n  width: stretch;\n}\n", "")
-	expectPrintedWithAllPrefixes(t, "a { width: -webkit-fill-available; width: -moz-available; width: stretch }",
-		"a {\n  width: -webkit-fill-available;\n  width: -moz-available;\n  width: stretch;\n}\n", "")
+		"a {\n  width: -webkit-fill-available;\n  width: stretch;\n}\n", "")
 }
 
 func TestNthChild(t *testing.T) {
