@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.27.0
+
+**This release deliberately contains backwards-incompatible changes.** To avoid automatically picking up releases like this, you should either be pinning the exact version of `esbuild` in your `package.json` file (recommended) or be using a version range syntax that only accepts patch upgrades such as `^0.26.0` or `~0.26.0`. See npm's documentation about [semver](https://docs.npmjs.com/cli/v6/using-npm/semver/) for more information.
 
 * Use `Uint8Array.fromBase64` if available ([#4286](https://github.com/evanw/esbuild/issues/4286))
 
