@@ -27,7 +27,7 @@ jobs:
       - name: Try to create the "v${{ env.ESBUILD_VERSION }}" tag
         run: |
           git fetch --tags
-          git tag "$ESBUILD_VERSION"
+          git tag "v$ESBUILD_VERSION"
 
       - name: Extract the release notes
         run: |
