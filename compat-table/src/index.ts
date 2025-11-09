@@ -540,6 +540,9 @@ import('./kangax').then(kangax => {
   js.TopLevelAwait.IOS = { 15: { force: true } }
   js.TopLevelAwait.Safari = { 15: { force: true } }
 
+  // MDN data is incomplete here: https://github.com/mdn/browser-compat-data/issues/28228
+  js.FromBase64.Node = { 25: { force: true } }
+
   const [jsVersionRanges, jsWhyNot] = supportMapToVersionRanges(js)
   generateTableForJS(jsVersionRanges, jsWhyNot)
 })
