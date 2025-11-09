@@ -1,6 +1,6 @@
 {
   "name": "@esbuild/linux-arm",
-  "version": "0.25.12",
+  "version": "0.26.0",
   "description": "The Linux ARM binary for esbuild, a JavaScript bundler.",
   "repository": {
     "type": "git",

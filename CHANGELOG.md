@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.26.0
 
 * Enable trusted publishing ([#4281](https://github.com/evanw/esbuild/issues/4281))
 
