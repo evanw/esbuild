@@ -48,7 +48,7 @@ var __privateAdd = (obj, member, value) => member.has(obj) ? __typeError("Cannot
 var __privateSet = (obj, member, value, setter) => (__accessCheck(obj, member, "write to private field"), setter ? setter.call(obj, value) : member.set(obj, value), value);
 var __privateMethod = (obj, member, method) => (__accessCheck(obj, member, "access private method"), method);
 if (!("metadata" in Symbol)) {
-  Symbol.metadata = Symbol("Symbol.metadata");
+  Symbol.metadata = /* @__PURE__ */ Symbol("Symbol.metadata");
 }
 if (!(Symbol.metadata in Function)) {
   Object.defineProperty(Function.prototype, Symbol.metadata, { value: null });
@@ -474,8 +474,8 @@ const tests = {
       assertEq(() => "set" in ctx.access, false);
       old[key] = fn;
     };
-    const bar = Symbol("bar");
-    const baz = Symbol();
+    const bar = /* @__PURE__ */ Symbol("bar");
+    const baz = /* @__PURE__ */ Symbol();
     class Foo2 {
       constructor() {
         __runInitializers(_init, 5, this);
@@ -512,8 +512,8 @@ const tests = {
       assertEq(() => "set" in ctx.access, false);
       old[key] = fn;
     };
-    const bar = Symbol("bar");
-    const baz = Symbol();
+    const bar = /* @__PURE__ */ Symbol("bar");
+    const baz = /* @__PURE__ */ Symbol();
     class Foo2 {
       static foo() {
       }
@@ -1160,8 +1160,8 @@ const tests = {
         return obj[key];
       }, 321);
     };
-    const bar = Symbol("bar");
-    const baz = Symbol();
+    const bar = /* @__PURE__ */ Symbol("bar");
+    const baz = /* @__PURE__ */ Symbol();
     _foo_dec = [dec("foo")], _b = (_bar_dec = [dec(bar)], bar), _a = (_baz_dec = [dec(baz)], baz);
     class Foo2 {
       constructor() {
@@ -1196,8 +1196,8 @@ const tests = {
         return obj[key];
       }, 321);
     };
-    const bar = Symbol("bar");
-    const baz = Symbol();
+    const bar = /* @__PURE__ */ Symbol("bar");
+    const baz = /* @__PURE__ */ Symbol();
     _foo_dec = [dec("foo")], _b = (_bar_dec = [dec(bar)], bar), _a = (_baz_dec = [dec(baz)], baz);
     class Foo2 {
     }
@@ -1759,8 +1759,8 @@ const tests = {
       assertEq(() => ctx.access.get({ [key]: 123 }), 123);
       assertEq(() => "set" in ctx.access, false);
     };
-    const bar = Symbol("bar");
-    const baz = Symbol();
+    const bar = /* @__PURE__ */ Symbol("bar");
+    const baz = /* @__PURE__ */ Symbol();
     class Foo2 {
       constructor() {
         __runInitializers(_init, 5, this);
@@ -1799,8 +1799,8 @@ const tests = {
       assertEq(() => ctx.access.get({ [key]: 123 }), 123);
       assertEq(() => "set" in ctx.access, false);
     };
-    const bar = Symbol("bar");
-    const baz = Symbol();
+    const bar = /* @__PURE__ */ Symbol("bar");
+    const baz = /* @__PURE__ */ Symbol();
     class Foo2 {
       static get foo() {
         return this.bar;
@@ -2457,8 +2457,8 @@ const tests = {
       assertEq(() => obj2[key], 123);
       assertEq(() => "bar" in obj2, false);
     };
-    const bar = Symbol("bar");
-    const baz = Symbol();
+    const bar = /* @__PURE__ */ Symbol("bar");
+    const baz = /* @__PURE__ */ Symbol();
     class Foo2 {
       constructor() {
         __runInitializers(_init, 5, this);
@@ -2504,8 +2504,8 @@ const tests = {
       assertEq(() => obj[key], 123);
       assertEq(() => "bar" in obj, false);
     };
-    const bar = Symbol("bar");
-    const baz = Symbol();
+    const bar = /* @__PURE__ */ Symbol("bar");
+    const baz = /* @__PURE__ */ Symbol();
     class Foo2 {
       static set foo(x) {
         this.bar = x;
@@ -3180,8 +3180,8 @@ const tests = {
         return obj2[key];
       }, 123);
     };
-    const bar = Symbol("bar");
-    const baz = Symbol();
+    const bar = /* @__PURE__ */ Symbol("bar");
+    const baz = /* @__PURE__ */ Symbol();
     _foo_dec = [dec("foo", "get foo", "set foo")], _b = (_bar_dec = [dec(bar, "get [bar]", "set [bar]")], bar), _a = (_baz_dec = [dec(baz, "get ", "set ")], baz);
     class Foo2 {
       constructor() {
@@ -3226,8 +3226,8 @@ const tests = {
         return obj[key];
       }, 123);
     };
-    const bar = Symbol("bar");
-    const baz = Symbol();
+    const bar = /* @__PURE__ */ Symbol("bar");
+    const baz = /* @__PURE__ */ Symbol();
     _foo_dec = [dec("foo", "get foo", "set foo")], _b = (_bar_dec = [dec(bar, "get [bar]", "set [bar]")], bar), _a = (_baz_dec = [dec(baz, "get ", "set ")], baz);
     class Foo2 {
     }
@@ -3677,23 +3677,23 @@ const tests = {
     const computed = {
       get method() {
         log.push(log.length);
-        return Symbol("method");
+        return /* @__PURE__ */ Symbol("method");
       },
       get field() {
         log.push(log.length);
-        return Symbol("field");
+        return /* @__PURE__ */ Symbol("field");
       },
       get getter() {
         log.push(log.length);
-        return Symbol("getter");
+        return /* @__PURE__ */ Symbol("getter");
       },
       get setter() {
         log.push(log.length);
-        return Symbol("setter");
+        return /* @__PURE__ */ Symbol("setter");
       },
       get accessor() {
         log.push(log.length);
-        return Symbol("accessor");
+        return /* @__PURE__ */ Symbol("accessor");
       }
     };
     _Foo_decorators = [foo(0)];
@@ -3750,23 +3750,23 @@ const tests = {
     const computed = {
       get method() {
         log.push(log.length);
-        return Symbol("method");
+        return /* @__PURE__ */ Symbol("method");
       },
       get field() {
         log.push(log.length);
-        return Symbol("field");
+        return /* @__PURE__ */ Symbol("field");
       },
       get getter() {
         log.push(log.length);
-        return Symbol("getter");
+        return /* @__PURE__ */ Symbol("getter");
       },
       get setter() {
         log.push(log.length);
-        return Symbol("setter");
+        return /* @__PURE__ */ Symbol("setter");
       },
       get accessor() {
         log.push(log.length);
-        return Symbol("accessor");
+        return /* @__PURE__ */ Symbol("accessor");
       }
     };
     _class_decorators = [foo(0)], _k = class extends (_l = (foo(1), Object)) {
