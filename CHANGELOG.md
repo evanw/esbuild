@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+* Allow tree-shaking of the `Symbol` constructor
+
+    With this release, calling `Symbol` is now considered to be side-effect free when the argument is known to be a primitive value. This means esbuild can now tree-shake module-level symbol variables:
+
+    ```js
+    // Original code
+    const a = Symbol('foo')
+    const b = Symbol(bar)
+
+    // Old output (with --tree-shaking=true)
+    const a = Symbol("foo");
+    const b = Symbol(bar);
+
+    // New output (with --tree-shaking=true)
+    const b = Symbol(bar);
+    ```
+
 ## 0.27.0
 
 **This release deliberately contains backwards-incompatible changes.** To avoid automatically picking up releases like this, you should either be pinning the exact version of `esbuild` in your `package.json` file (recommended) or be using a version range syntax that only accepts patch upgrades such as `^0.26.0` or `~0.26.0`. See npm's documentation about [semver](https://docs.npmjs.com/cli/v6/using-npm/semver/) for more information.

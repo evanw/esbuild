@@ -118,7 +118,7 @@ console.log(a_exports, b_exports, c_exports, d_exports);
 ================================================================================
 TestTSAbstractClassFieldUseAssign
 ---------- /out.js ----------
-const keepThis = Symbol("keepThis");
+const keepThis = /* @__PURE__ */ Symbol("keepThis");
 keepThis;
 class Foo {
 }
@@ -127,7 +127,7 @@ class Foo {
 ================================================================================
 TestTSAbstractClassFieldUseDefine
 ---------- /out.js ----------
-const keepThisToo = Symbol("keepThisToo");
+const keepThisToo = /* @__PURE__ */ Symbol("keepThisToo");
 class Foo {
   keepThis;
   [keepThisToo];
