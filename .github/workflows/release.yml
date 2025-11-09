@@ -1,0 +1,43 @@
+name: Release
+
+permissions:
+  contents: write
+
+on:
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Read version info
+        run: |
+          echo "GO_VERSION=$(cat go.version)" >> $GITHUB_ENV
+          echo "ESBUILD_VERSION=$(cat version.txt)" >> $GITHUB_ENV
+
+      - name: Extract the release notes
+        run: |
+          CHANGELOG=$(awk -v "ver=$ESBUILD_VERSION" '/^## / { if (p) { exit }; if ($2 == ver) { p=1; next} } p' CHANGELOG.md)
+          echo "CHANGELOG<<EOF" >> $GITHUB_ENV
+          echo "$CHANGELOG" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      # Make sure we'll be able to generate release notes later on below
+      - name: Release notes must not be empty
+        run: |
+          test -n "$CHANGELOG"
+
+      # Only do this after publishing was successful
+      - name: Create a GitHub Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ env.ESBUILD_VERSION }}
+          release_name: v${{ env.ESBUILD_VERSION }}
+          body: ${{ env.CHANGELOG }}
+          draft: false
+          prerelease: false
