@@ -8,7 +8,7 @@ const denoDir = path.join(repoDir, 'deno')
 const npmDir = path.join(repoDir, 'npm', 'esbuild')
 const version = fs.readFileSync(path.join(repoDir, 'version.txt'), 'utf8').trim()
 const nodeTarget = 'node10'; // See: https://nodejs.org/en/about/releases/
-const denoTarget = 'deno1'; // See: https://nodejs.org/en/about/releases/
+const denoTarget = 'deno1'; // See: https://docs.deno.com/runtime/fundamentals/stability_and_releases/
 const umdBrowserTarget = 'es2015'; // Transpiles "async"
 const esmBrowserTarget = 'es2017'; // Preserves "async"
 
