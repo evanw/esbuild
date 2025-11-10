@@ -15266,6 +15266,16 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 						}
 					}
 
+				case "for":
+					// Calling "Symbol.for()" with a primitive will never throw
+					if id, ok := t.Target.Data.(*js_ast.EIdentifier); ok {
+						if symbol := &p.symbols[id.Ref.InnerIndex]; symbol.Kind == ast.SymbolUnbound && symbol.OriginalName == "Symbol" {
+							if js_ast.KnownPrimitiveType(e.Args[0].Data) != js_ast.PrimitiveUnknown {
+								e.CanBeUnwrappedIfUnused = true
+							}
+						}
+					}
+
 				case "create":
 					// Recognize "Object.create()" calls
 					if id, ok := t.Target.Data.(*js_ast.EIdentifier); ok {
