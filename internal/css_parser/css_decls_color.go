@@ -351,8 +351,11 @@ func (p *parser) lowerAndMinifyColor(token css_ast.Token, wouldClipColor *bool) 
 
 					// "rgb(1 2 3 / 4%)" => "rgba(1, 2, 3, 0.04)"
 					// "hsl(1 2% 3% / 4%)" => "hsla(1, 2%, 3%, 0.04)"
-					if args[0].Kind.IsNumeric() && args[1].Kind.IsNumeric() && args[2].Kind.IsNumeric() &&
-						args[3].Kind == css_lexer.TDelimSlash && args[4].Kind.IsNumeric() {
+					// "rgb(1 2 3 / var(--a))" => "rgba(1, 2, 3, var(--a))"
+					// "hsl(1 2% 3% / var(--a))" => "hsla(1, 2%, 3%, var(--a))"
+					if args[0].Kind.IsNumeric() && args[1].Kind.IsNumeric() &&
+						args[2].Kind.IsNumeric() && args[3].Kind == css_lexer.TDelimSlash &&
+						(args[4].Kind.IsNumeric() || (args[4].Kind == css_lexer.TFunction && strings.EqualFold(args[4].Text, "var"))) {
 						addAlpha = true
 						args[0].Whitespace = 0
 						args[1].Whitespace = 0

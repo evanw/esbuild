@@ -651,6 +651,7 @@ func TestColorRGBA(t *testing.T) {
 	expectPrintedLowerMangle(t, "a { color: rgba(1, 2, 3, 40%) }", "a {\n  color: rgba(1, 2, 3, .4);\n}\n", "")
 
 	expectPrintedLowerMangle(t, "a { color: rgb(var(--x) var(--y) var(--z)) }", "a {\n  color: rgb(var(--x) var(--y) var(--z));\n}\n", "")
+	expectPrintedLowerMangle(t, "a { color: rgb(1 2 3 / var(--a)) }", "a {\n  color: rgba(1, 2, 3, var(--a));\n}\n", "")
 }
 
 func TestColorHSLA(t *testing.T) {
@@ -670,6 +671,7 @@ func TestColorHSLA(t *testing.T) {
 	expectPrintedLowerMangle(t, "a { color: hsla(1, 2%, 3%, 40%) }", "a {\n  color: rgba(8, 8, 7, .4);\n}\n", "")
 
 	expectPrintedLowerMangle(t, "a { color: hsl(var(--x) var(--y) var(--z)) }", "a {\n  color: hsl(var(--x) var(--y) var(--z));\n}\n", "")
+	expectPrintedLowerMangle(t, "a { color: hsl(1 2% 3% / var(--a)) }", "a {\n  color: hsla(1, 2%, 3%, var(--a));\n}\n", "")
 }
 
 func TestLowerColor(t *testing.T) {
