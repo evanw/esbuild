@@ -9206,6 +9206,12 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 			}
 
 		case *js_ast.SExpr:
+			// Trim expressions without side effects
+			s.Value = p.astHelpers.SimplifyUnusedExpr(s.Value, p.options.unsupportedJSFeatures)
+			if s.Value.Data == nil {
+				continue
+			}
+
 			// Merge adjacent expression statements
 			if len(result) > 0 {
 				prevStmt := result[len(result)-1]
@@ -10767,14 +10773,6 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		// so we don't bother these people.
 		if shouldTrimUnsightlyPrimitives && isUnsightlyPrimitive(s.Value.Data) {
 			return stmts
-		}
-
-		// Trim expressions without side effects
-		if p.options.minifySyntax {
-			s.Value = p.astHelpers.SimplifyUnusedExpr(s.Value, p.options.unsupportedJSFeatures)
-			if s.Value.Data == nil {
-				return stmts
-			}
 		}
 
 	case *js_ast.SThrow:
