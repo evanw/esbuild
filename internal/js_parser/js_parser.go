@@ -252,6 +252,7 @@ type parser struct {
 	firstJSXElementLoc     logger.Loc
 
 	fnOrArrowDataVisit fnOrArrowDataVisit
+	singleStmtDepth    int
 
 	// ArrowFunction is a special case in the grammar. Although it appears to be
 	// a PrimaryExpression, it's actually an AssignmentExpression. This means if
@@ -9911,7 +9912,9 @@ func (p *parser) visitSingleStmt(stmt js_ast.Stmt, kind stmtsKind) js_ast.Stmt {
 		}
 	}
 
+	p.singleStmtDepth++
 	stmts := p.visitStmts([]js_ast.Stmt{stmt}, kind)
+	p.singleStmtDepth--
 
 	// Balance the fake block scope introduced above
 	if hasIfScope {
@@ -11623,7 +11626,7 @@ const (
 // instead of having to traverse recursively into the statement tree.
 func (p *parser) maybeRelocateVarsToTopLevel(decls []js_ast.Decl, mode relocateVarsMode) (js_ast.Stmt, bool) {
 	// Only do this when bundling, and not when the scope is already top-level
-	if p.options.mode != config.ModeBundle || p.currentScope == p.moduleScope {
+	if p.options.mode != config.ModeBundle || (p.currentScope == p.moduleScope && p.singleStmtDepth == 0) {
 		return js_ast.Stmt{}, false
 	}
 

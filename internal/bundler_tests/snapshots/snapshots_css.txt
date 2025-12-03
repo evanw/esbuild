@@ -14,6 +14,48 @@ a {
 }
 
 ================================================================================
+TestBundleESMWithNestedVarIssue4348
+---------- /out.js ----------
+// foo.js
+var foo_exports = {};
+__export(foo_exports, {
+  a: () => a,
+  b: () => b,
+  c: () => c,
+  d: () => d,
+  e: () => e,
+  f: () => f,
+  g: () => g,
+  h: () => h,
+  i: () => i,
+  j: () => j
+});
+var a, b, c, d, e, x, f, g, h, i, y, j, y;
+var init_foo = __esm({
+  "foo.js"() {
+    a = "a";
+    for (b = "b"; 0; ) ;
+    if (true) {
+      c = "c";
+    }
+    if (true) d = "d";
+    if (false) {
+    } else e = "e";
+    x = 1;
+    while (x--) f = "f";
+    do
+      g = "g";
+    while (0);
+    for (; x++; ) h = "h";
+    for (y in "y") i = "i";
+    for (y of "y") j = "j";
+  }
+});
+
+// entry.js
+init_foo();
+
+================================================================================
 TestCSSAndJavaScriptCodeSplittingIssue1064
 ---------- /out/a.js ----------
 import {

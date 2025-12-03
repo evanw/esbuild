@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+* Fix bundler bug with `var` nested inside `if` ([#4348](https://github.com/evanw/esbuild/issues/4348))
+
+    This release fixes a bug with the bundler that happens when importing an ES module using `require` (which causes it to be wrapped) and there's a top-level `var` inside an `if` statement without being wrapped in a `{ ... }` block (and a few other conditions). The bundling transform needed to hoist these `var` declarations outside of the lazy ES module wrapper for correctness. See the issue for details.
+
 * Fix minifier bug with `for` inside `try` inside label ([#4351](https://github.com/evanw/esbuild/issues/4351))
 
     This fixes an old regression from [version v0.21.4](https://github.com/evanw/esbuild/releases/v0.21.4). Some code was introduced to move the label inside the `try` statement to address a problem with transforming labeled `for await` loops to avoid the `await` (the transformation involves converting the `for await` loop into a `for` loop and wrapping it in a `try` statement). However, it introduces problems for cross-compiled JVM code that uses all three of these features heavily. This release restricts this transform to only apply to `for` loops that esbuild itself generates internally as part of the `for await` transform. Here is an example of some affected code:
