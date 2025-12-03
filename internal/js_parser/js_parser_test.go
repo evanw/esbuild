@@ -6668,6 +6668,11 @@ func TestMangleTry(t *testing.T) {
 	// The Kotlin compiler apparently generates code like this.
 	// See https://github.com/evanw/esbuild/issues/4064 for info.
 	expectPrintedMangle(t, "x: try { while (true) ; break x } catch {}", "x: try {\n  for (; ; ) ;\n  break x;\n} catch {\n}\n")
+
+	// The TeaVM compiler apparently generates code like this.
+	// See https://github.com/evanw/esbuild/issues/4351 for info.
+	expectPrintedMangle(t, "d: { e: { try { while (1) { break d } } catch { break e } } }",
+		"d:\n  e:\n    try {\n      for (; ; )\n        break d;\n    } catch {\n      break e;\n    }\n")
 }
 
 func TestAutoPureForObjectCreate(t *testing.T) {

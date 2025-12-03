@@ -10601,7 +10601,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 
 		// Handle "for await" that has been lowered by moving this label inside the "try"
 		if try, ok := s.Stmt.Data.(*js_ast.STry); ok && len(try.Block.Stmts) == 1 {
-			if _, ok := try.Block.Stmts[0].Data.(*js_ast.SFor); ok {
+			if loop, ok := try.Block.Stmts[0].Data.(*js_ast.SFor); ok && loop.IsLoweredForAwait {
 				try.Block.Stmts[0] = js_ast.Stmt{Loc: stmt.Loc, Data: &js_ast.SLabel{
 					Stmt:             try.Block.Stmts[0],
 					Name:             s.Name,

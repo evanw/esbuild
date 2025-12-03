@@ -3219,6 +3219,25 @@ tests.push(
       }
     `,
   }),
+
+  // https://github.com/evanw/esbuild/issues/4351
+  test(['in.js', '--outfile=node.js', '--minify'], {
+    'in.js': `
+    function f(x) {
+        d: {
+          e: {
+            try {
+              while (x()) { break d }
+            } catch { break e }
+          }
+          return 2
+        }
+        return 1
+      }
+      if (f(() => 1) !== 1) throw 'fail: 1'
+      if (f('empty') !== 2) throw 'fail: 2'
+    `,
+  }),
 )
 
 // Test cyclic import issues (shouldn't crash on evaluation)

@@ -1155,6 +1155,7 @@ func (p *parser) lowerForAwaitLoop(loc logger.Loc, loop *js_ast.SForOf, stmts []
 		BlockLoc: loc,
 		Block: js_ast.SBlock{
 			Stmts: []js_ast.Stmt{{Loc: loc, Data: &js_ast.SFor{
+				IsLoweredForAwait: true,
 				InitOrNil: js_ast.Stmt{Loc: loc, Data: &js_ast.SLocal{Kind: js_ast.LocalVar, Decls: []js_ast.Decl{
 					{Binding: js_ast.Binding{Loc: loc, Data: &js_ast.BIdentifier{Ref: iterRef}},
 						ValueOrNil: p.callRuntime(loc, "__forAwait", []js_ast.Expr{loop.Value})},

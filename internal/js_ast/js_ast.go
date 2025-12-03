@@ -1099,11 +1099,12 @@ type SIf struct {
 }
 
 type SFor struct {
-	InitOrNil        Stmt // May be a SConst, SLet, SVar, or SExpr
-	TestOrNil        Expr
-	UpdateOrNil      Expr
-	Body             Stmt
-	IsSingleLineBody bool
+	InitOrNil         Stmt // May be a SConst, SLet, SVar, or SExpr
+	TestOrNil         Expr
+	UpdateOrNil       Expr
+	Body              Stmt
+	IsSingleLineBody  bool
+	IsLoweredForAwait bool
 }
 
 type SForIn struct {

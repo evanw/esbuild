@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+* Fix minifier bug with `for` inside `try` inside label ([#4351](https://github.com/evanw/esbuild/issues/4351))
+
+    This fixes an old regression from [version v0.21.4](https://github.com/evanw/esbuild/releases/v0.21.4). Some code was introduced to move the label inside the `try` statement to address a problem with transforming labeled `for await` loops to avoid the `await` (the transformation involves converting the `for await` loop into a `for` loop and wrapping it in a `try` statement). However, it introduces problems for cross-compiled JVM code that uses all three of these features heavily. This release restricts this transform to only apply to `for` loops that esbuild itself generates internally as part of the `for await` transform. Here is an example of some affected code:
+
+    ```js
+    // Original code
+    d: {
+      e: {
+        try {
+          while (1) { break d }
+        } catch { break e; }
+      }
+    }
+
+    // Old output (with --minify)
+    a:try{e:for(;;)break a}catch{break e}
+
+    // New output (with --minify)
+    a:e:try{for(;;)break a}catch{break e}
+    ```
+
 * Allow tree-shaking of the `Symbol` constructor
 
     With this release, calling `Symbol` is now considered to be side-effect free when the argument is known to be a primitive value. This means esbuild can now tree-shake module-level symbol variables:
