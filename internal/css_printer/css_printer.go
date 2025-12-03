@@ -93,9 +93,9 @@ func (p *printer) recordImportPathForMetafile(importRecordIndex uint32) {
 		record := p.importRecords[importRecordIndex]
 		external := ""
 		if (record.Flags & ast.ShouldNotBeExternalInMetafile) == 0 {
-			external = ",\n          \"external\": true"
+			external = ",\"external\":true"
 		}
-		p.jsonMetadataImports = append(p.jsonMetadataImports, fmt.Sprintf("\n        {\n          \"path\": %s,\n          \"kind\": %s%s\n        }",
+		p.jsonMetadataImports = append(p.jsonMetadataImports, fmt.Sprintf("{\"path\":%s,\"kind\":%s%s}",
 			helpers.QuoteForJSON(record.Path.Text, p.options.ASCIIOnly),
 			helpers.QuoteForJSON(record.Kind.StringForMetafile(), p.options.ASCIIOnly),
 			external))
