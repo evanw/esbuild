@@ -4596,7 +4596,7 @@ func TestMangleObject(t *testing.T) {
 	expectPrintedNormalAndMangle(t, "x = {a, ...()=>{}, b}", "x = { a, ...() => {\n}, b };\n", "x = { a, b };\n")
 	expectPrintedNormalAndMangle(t, "x = {a, ...'123', b}", "x = { a, ...\"123\", b };\n", "x = { a, ...\"123\", b };\n")
 	expectPrintedNormalAndMangle(t, "x = {a, ...[1, 2, 3], b}", "x = { a, ...[1, 2, 3], b };\n", "x = { a, ...[1, 2, 3], b };\n")
-	expectPrintedNormalAndMangle(t, "x = {a, ...(()=>{})(), b}", "x = { a, .../* @__PURE__ */ (() => {\n})(), b };\n", "x = { a, .../* @__PURE__ */ (() => {\n})(), b };\n")
+	expectPrintedNormalAndMangle(t, "x = {a, ...(()=>{})(), b}", "x = { a, .../* @__PURE__ */ (() => {\n})(), b };\n", "x = { a, b };\n")
 
 	// Check simple cases of object simplification (advanced cases are checked in end-to-end tests)
 	expectPrintedNormalAndMangle(t, "x = {['y']: z}.y", "x = { [\"y\"]: z }.y;\n", "x = { y: z }.y;\n")
@@ -4644,11 +4644,13 @@ func TestMangleArrow(t *testing.T) {
 }
 
 func TestMangleIIFE(t *testing.T) {
-	expectPrintedNormalAndMangle(t, "var a = (() => {})()", "var a = /* @__PURE__ */ (() => {\n})();\n", "var a = /* @__PURE__ */ (() => {\n})();\n")
-	expectPrintedNormalAndMangle(t, "(() => {})()", "/* @__PURE__ */ (() => {\n})();\n", "")
+	expectPrintedNormalAndMangle(t, "var a = (() => {})()", "var a = /* @__PURE__ */ (() => {\n})();\n", "var a = void 0;\n")
+	expectPrintedNormalAndMangle(t, "(() => a)()", "(() => a)();\n", "a;\n")
+	expectPrintedNormalAndMangle(t, "(() => a)(...[])", "(() => a)(...[]);\n", "a;\n")
 	expectPrintedNormalAndMangle(t, "(() => a())()", "(() => a())();\n", "a();\n")
 	expectPrintedNormalAndMangle(t, "(() => { a() })()", "(() => {\n  a();\n})();\n", "a();\n")
 	expectPrintedNormalAndMangle(t, "(() => { return a() })()", "(() => {\n  return a();\n})();\n", "a();\n")
+	expectPrintedNormalAndMangle(t, "(() => {})()", "/* @__PURE__ */ (() => {\n})();\n", "")
 	expectPrintedNormalAndMangle(t, "(() => { let b = a; b() })()", "(() => {\n  let b = a;\n  b();\n})();\n", "a();\n")
 	expectPrintedNormalAndMangle(t, "(() => { let b = a; return b() })()", "(() => {\n  let b = a;\n  return b();\n})();\n", "a();\n")
 	expectPrintedNormalAndMangle(t, "(async () => {})()", "(async () => {\n})();\n", "")
@@ -4664,8 +4666,32 @@ func TestMangleIIFE(t *testing.T) {
 	expectPrintedNormalAndMangle(t, "(async function() { a() })()", "(async function() {\n  a();\n})();\n", "(async function() {\n  a();\n})();\n")
 
 	expectPrintedNormalAndMangle(t, "(() => x)()", "(() => x)();\n", "x;\n")
+	expectPrintedNormalAndMangle(t, "(() => { return x })()", "(() => {\n  return x;\n})();\n", "x;\n")
+	expectPrintedNormalAndMangle(t, "(() => { x })()", "(() => {\n  x;\n})();\n", "x;\n")
+
+	expectPrintedNormalAndMangle(t, "return (() => x)()", "return (() => x)();\n", "return x;\n")
+	expectPrintedNormalAndMangle(t, "return (() => { return x })()", "return (() => {\n  return x;\n})();\n", "return x;\n")
+	expectPrintedNormalAndMangle(t, "return (() => { x })()", "return (() => {\n  x;\n})();\n", "return void x;\n")
+
 	expectPrintedNormalAndMangle(t, "/* @__PURE__ */ (() => x)()", "/* @__PURE__ */ (() => x)();\n", "")
 	expectPrintedNormalAndMangle(t, "/* @__PURE__ */ (() => x)(y, z)", "/* @__PURE__ */ (() => x)(y, z);\n", "y, z;\n")
+
+	// https://github.com/evanw/esbuild/issues/4354
+	expectPrintedNormalAndMangle(t, "let x = () => { let y = () => z(); y() }",
+		"let x = () => {\n  let y = () => z();\n  y();\n};\n",
+		"let x = () => {\n  z();\n};\n")
+	expectPrintedNormalAndMangle(t, "let x = () => { let y = () => z(); return y() }",
+		"let x = () => {\n  let y = () => z();\n  return y();\n};\n",
+		"let x = () => z();\n")
+	expectPrintedNormalAndMangle(t, "let x = () => { let y = () => { z() }; y() }",
+		"let x = () => {\n  let y = () => {\n    z();\n  };\n  y();\n};\n",
+		"let x = () => {\n  z();\n};\n")
+	expectPrintedNormalAndMangle(t, "let x = () => { let y = () => { z() }; return y() }",
+		"let x = () => {\n  let y = () => {\n    z();\n  };\n  return y();\n};\n",
+		"let x = () => {\n  z();\n};\n")
+	expectPrintedNormalAndMangle(t, "let x = () => { let y = () => { z() }; let x = y(); foo(x) }",
+		"let x = () => {\n  let y = () => {\n    z();\n  };\n  let x = y();\n  foo(x);\n};\n",
+		"let x = () => {\n  let x = void z();\n  foo(x);\n};\n")
 }
 
 func TestMangleTemplate(t *testing.T) {

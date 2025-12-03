@@ -27,6 +27,26 @@
     a:e:try{for(;;)break a}catch{break e}
     ```
 
+* Inline IIFEs containing a single expression ([#4354](https://github.com/evanw/esbuild/issues/4354))
+
+    Previously inlining of IIFEs (immediately-invoked function expressions) only worked if the body contained a single `return` statement. Now it should also work if the body contains a single expression statement instead:
+
+    ```js
+    // Original code
+    const foo = () => {
+      const cb = () => {
+        console.log(x())
+      }
+      return cb()
+    }
+
+    // Old output (with --minify)
+    const foo=()=>(()=>{console.log(x())})();
+
+    // New output (with --minify)
+    const foo=()=>{console.log(x())};
+    ```
+
 * The minifier now strips empty `finally` clauses ([#4353](https://github.com/evanw/esbuild/issues/4353))
 
     This improvement means that `finally` clauses containing dead code can potentially cause the associated `try` statement to be removed from the output entirely in minified builds:

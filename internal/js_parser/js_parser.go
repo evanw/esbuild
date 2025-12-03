@@ -9444,9 +9444,14 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 			}
 
 		case stmtsFnBody:
-			// "function f() { x(); return; }" => "function f() { x(); }"
-			if returnS, ok := result[len(result)-1].Data.(*js_ast.SReturn); ok && returnS.ValueOrNil.Data == nil {
-				result = result[:len(result)-1]
+			if returnS, ok := result[len(result)-1].Data.(*js_ast.SReturn); ok {
+				if returnS.ValueOrNil.Data == nil {
+					// "function f() { x(); return; }" => "function f() { x(); }"
+					result = result[:len(result)-1]
+				} else if unary, ok := returnS.ValueOrNil.Data.(*js_ast.EUnary); ok && unary.Op == js_ast.UnOpVoid {
+					// "function f() { return void x(); }" => "function f() { x(); }"
+					result[len(result)-1].Data = &js_ast.SExpr{Value: unary.Value}
+				}
 			}
 		}
 	}
@@ -9807,6 +9812,12 @@ func (p *parser) substituteSingleUseSymbolInExpr(
 
 		if value, status := p.substituteSingleUseSymbolInExpr(e.Target, ref, replacement, replacementCanBeRemoved); status != substituteContinue {
 			e.Target = value
+			if status == substituteSuccess {
+				// "const y = () => x; y()" => "(() => x)()" => "x"
+				if value, ok := p.maybeInlineIIFE(expr.Loc, e); ok {
+					return value, substituteSuccess
+				}
+			}
 			return expr, status
 		}
 
@@ -11712,6 +11723,62 @@ func (p *parser) maybeTransposeIfExprChain(expr js_ast.Expr, visit func(js_ast.E
 		return expr
 	}
 	return visit(expr)
+}
+
+func (p *parser) maybeInlineIIFE(loc logger.Loc, e *js_ast.ECall) (js_ast.Expr, bool) {
+	if len(e.Args) != 0 {
+		return js_ast.Expr{}, false
+	}
+
+	// Note: Do not inline async arrow functions as they are not IIFEs. In
+	// particular, they are not necessarily invoked immediately, and any
+	// exceptions involved in their evaluation will be swallowed without
+	// bubbling up to the surrounding context.
+	if arrow, ok := e.Target.Data.(*js_ast.EArrow); ok && len(arrow.Args) == 0 && !arrow.IsAsync {
+		stmts := arrow.Body.Block.Stmts
+
+		// "(() => {})()" => "void 0"
+		if len(stmts) == 0 {
+			return js_ast.Expr{Loc: loc, Data: js_ast.EUndefinedShared}, true
+		}
+
+		if len(stmts) == 1 {
+			var value js_ast.Expr
+
+			switch s := stmts[0].Data.(type) {
+			// "(() => { return })()" => "void 0"
+			// "(() => { return 123 })()" => "123"
+			case *js_ast.SReturn:
+				value = s.ValueOrNil
+				if value.Data == nil {
+					value.Data = js_ast.EUndefinedShared
+				}
+
+			// "(() => { x })()" => "void x"
+			case *js_ast.SExpr:
+				value = s.Value
+				value.Data = &js_ast.EUnary{Op: js_ast.UnOpVoid, Value: value}
+			}
+
+			if value.Data != nil {
+				// Be careful about "/* @__PURE__ */" comments:
+				//
+				//   OK:  "(() => x)()"                 => "x"
+				//   BAD: "/* @__PURE__ */ (() => x)()" => "x"
+				//
+				// The comment indicates that the function body is eligible for
+				// dead code elimination. Since we don't have a direct AST node
+				// for that, we can't currently unwrap that and preserve the
+				// intent. So if it does have a pure comment, only remove it if
+				// the value itself is already pure.
+				if !e.CanBeUnwrappedIfUnused || p.astHelpers.ExprCanBeRemovedIfUnused(value) {
+					return value, true
+				}
+			}
+		}
+	}
+
+	return js_ast.Expr{}, false
 }
 
 func (p *parser) iifeCanBeRemovedIfUnused(args []js_ast.Arg, body js_ast.FnBody) bool {
@@ -15098,9 +15165,16 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			return js_ast.Expr{Loc: expr.Loc, Data: js_ast.EUndefinedShared}, exprOut{}
 		}
 
-		// "foo(1, ...[2, 3], 4)" => "foo(1, 2, 3, 4)"
-		if p.options.minifySyntax && hasSpread {
-			e.Args = js_ast.InlineSpreadsOfArrayLiterals(e.Args)
+		if p.options.minifySyntax {
+			// "foo(1, ...[2, 3], 4)" => "foo(1, 2, 3, 4)"
+			if hasSpread {
+				e.Args = js_ast.InlineSpreadsOfArrayLiterals(e.Args)
+			}
+
+			// "(() => x)()" => "x"
+			if value, ok := p.maybeInlineIIFE(expr.Loc, e); ok {
+				return value, exprOut{}
+			}
 		}
 
 		switch t := target.Data.(type) {
@@ -15613,14 +15687,9 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		p.popScope()
 
 		if p.options.minifySyntax && len(e.Body.Block.Stmts) == 1 {
-			if s, ok := e.Body.Block.Stmts[0].Data.(*js_ast.SReturn); ok {
-				if s.ValueOrNil.Data == nil {
-					// "() => { return }" => "() => {}"
-					e.Body.Block.Stmts = []js_ast.Stmt{}
-				} else {
-					// "() => { return x }" => "() => x"
-					e.PreferExpr = true
-				}
+			if s, ok := e.Body.Block.Stmts[0].Data.(*js_ast.SReturn); ok && s.ValueOrNil.Data != nil {
+				// "() => { return x }" => "() => x"
+				e.PreferExpr = true
 			}
 		}
 
