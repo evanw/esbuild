@@ -283,7 +283,10 @@ let ensureServiceIsRunning = (): Service => {
   const stdout: typeof child.stdout & { unref?(): void } = child.stdout
 
   stdout.on('data', readFromStdout)
-  stdout.on('end', afterClose)
+  stdout.on('end',  err => {
+    stopService?.()
+    afterClose(err)
+  })
 
   stopService = () => {
     // Close all resources related to the subprocess.
