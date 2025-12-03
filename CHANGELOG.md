@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.27.1
 
 * Fix bundler bug with `var` nested inside `if` ([#4348](https://github.com/evanw/esbuild/issues/4348))
 

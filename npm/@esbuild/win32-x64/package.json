@@ -1,6 +1,6 @@
 {
   "name": "@esbuild/win32-x64",
-  "version": "0.27.0",
+  "version": "0.27.1",
   "description": "The Windows 64-bit binary for esbuild, a JavaScript bundler.",
   "repository": {
     "type": "git",
