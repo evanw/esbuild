@@ -11084,41 +11084,62 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			p.popScope()
 		}
 
-		// Drop the whole thing if the try body is empty
-		if p.options.minifySyntax && len(s.Block.Stmts) == 0 {
-			keepCatch := false
+		if p.options.minifySyntax {
+			if len(s.Block.Stmts) == 0 {
+				// Try to drop the whole thing if the try body is empty
+				keepCatch := false
 
-			// Certain "catch" blocks need to be preserved:
-			//
-			//   try {} catch { let foo } // Can be removed
-			//   try {} catch { var foo } // Must be kept
-			//
-			if s.Catch != nil {
-				for _, stmt2 := range s.Catch.Block.Stmts {
-					if shouldKeepStmtInDeadControlFlow(stmt2) {
-						keepCatch = true
-						break
+				// Certain "catch" blocks need to be preserved:
+				//
+				//   try {} catch { let foo } // Can be removed
+				//   try {} catch { var foo } // Must be kept
+				//
+				if s.Catch != nil {
+					for _, stmt2 := range s.Catch.Block.Stmts {
+						if shouldKeepStmtInDeadControlFlow(stmt2) {
+							keepCatch = true
+							break
+						}
 					}
 				}
-			}
 
-			// Make sure to preserve the "finally" block if present
-			if !keepCatch {
-				if s.Finally == nil {
-					return stmts
-				}
-				finallyNeedsBlock := false
-				for _, stmt2 := range s.Finally.Block.Stmts {
-					if statementCaresAboutScope(stmt2) {
-						finallyNeedsBlock = true
-						break
+				// Make sure to preserve the "finally" block if present
+				if !keepCatch {
+					if s.Finally == nil {
+						return stmts
 					}
+					finallyNeedsBlock := false
+					for _, stmt2 := range s.Finally.Block.Stmts {
+						if statementCaresAboutScope(stmt2) {
+							finallyNeedsBlock = true
+							break
+						}
+					}
+					if !finallyNeedsBlock {
+						return append(stmts, s.Finally.Block.Stmts...)
+					}
+					block := s.Finally.Block
+					stmt = js_ast.Stmt{Loc: s.Finally.Loc, Data: &block}
 				}
-				if !finallyNeedsBlock {
-					return append(stmts, s.Finally.Block.Stmts...)
+			} else if s.Finally != nil && len(s.Finally.Block.Stmts) == 0 {
+				if s.Catch != nil {
+					// Just remove the "finally" block if there's a "catch"
+					s.Finally = nil
+				} else {
+					// Otherwise, try to unwrap the whole "try" statement
+					tryNeedsBlock := false
+					for _, stmt2 := range s.Block.Stmts {
+						if statementCaresAboutScope(stmt2) {
+							tryNeedsBlock = true
+							break
+						}
+					}
+					if !tryNeedsBlock {
+						return append(stmts, s.Block.Stmts...)
+					}
+					block := s.Block
+					stmt = js_ast.Stmt{Loc: s.Finally.Loc, Data: &block}
 				}
-				block := s.Finally.Block
-				stmt = js_ast.Stmt{Loc: s.Finally.Loc, Data: &block}
 			}
 		}
 

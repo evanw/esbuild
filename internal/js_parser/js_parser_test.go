@@ -6665,6 +6665,18 @@ func TestMangleTry(t *testing.T) {
 	expectPrintedMangle(t, "try {} finally { let x = foo() }", "{\n  let x = foo();\n}\n")
 	expectPrintedMangle(t, "try {} catch (e) { foo() } finally { let x = bar() }", "{\n  let x = bar();\n}\n")
 
+	expectPrintedMangle(t, "try { foo() } catch {}", "try {\n  foo();\n} catch {\n}\n")
+	expectPrintedMangle(t, "try { foo() } catch {} finally {}", "try {\n  foo();\n} catch {\n}\n")
+	expectPrintedMangle(t, "try { foo() } finally {}", "foo();\n")
+
+	expectPrintedMangle(t, "try { var x = foo() } catch {}", "try {\n  var x = foo();\n} catch {\n}\n")
+	expectPrintedMangle(t, "try { var x = foo() } catch {} finally {}", "try {\n  var x = foo();\n} catch {\n}\n")
+	expectPrintedMangle(t, "try { var x = foo() } finally {}", "var x = foo();\n")
+
+	expectPrintedMangle(t, "try { let x = foo() } catch {}", "try {\n  let x = foo();\n} catch {\n}\n")
+	expectPrintedMangle(t, "try { let x = foo() } catch {} finally {}", "try {\n  let x = foo();\n} catch {\n}\n")
+	expectPrintedMangle(t, "try { let x = foo() } finally {}", "{\n  let x = foo();\n}\n")
+
 	// The Kotlin compiler apparently generates code like this.
 	// See https://github.com/evanw/esbuild/issues/4064 for info.
 	expectPrintedMangle(t, "x: try { while (true) ; break x } catch {}", "x: try {\n  for (; ; ) ;\n  break x;\n} catch {\n}\n")

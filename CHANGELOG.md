@@ -27,6 +27,28 @@
     a:e:try{for(;;)break a}catch{break e}
     ```
 
+* The minifier now strips empty `finally` clauses ([#4353](https://github.com/evanw/esbuild/issues/4353))
+
+    This improvement means that `finally` clauses containing dead code can potentially cause the associated `try` statement to be removed from the output entirely in minified builds:
+
+    ```js
+    // Original code
+    function foo(callback) {
+      if (DEBUG) stack.push(callback.name);
+      try {
+        callback();
+      } finally {
+        if (DEBUG) stack.pop();
+      }
+    }
+
+    // Old output (with --minify --define:DEBUG=false)
+    function foo(a){try{a()}finally{}}
+
+    // New output (with --minify --define:DEBUG=false)
+    function foo(a){a()}
+    ```
+
 * Allow tree-shaking of the `Symbol` constructor
 
     With this release, calling `Symbol` is now considered to be side-effect free when the argument is known to be a primitive value. This means esbuild can now tree-shake module-level symbol variables:
