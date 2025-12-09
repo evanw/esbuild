@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased
+
+* Added CSS vendor prefix (`-webkit`) for the [mask](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/mask) shorthand property ([#4357](https://github.com/evanw/esbuild/issues/4357)).
+
+    ```css
+    /* Original code */
+    main {
+        mask: url(x.png) center/5rem no-repeat
+    }
+
+    /* Old output */
+    main {
+        mask: url(x.png) center/5rem no-repeat
+    }
+
+    /* New output */
+    main {
+        -webkit-mask: url(x.png) center/5rem no-repeat
+        mask: url(x.png) center/5rem no-repeat
+    }
+    ```
+
 ## 0.27.1
 
 * Fix bundler bug with `var` nested inside `if` ([#4348](https://github.com/evanw/esbuild/issues/4348))

@@ -118,6 +118,7 @@ export const cssProperties = {
   DHeight: true,
   DHyphens: true,
   DInitialLetter: true,
+  DMask: true,
   DMaskComposite: true,
   DMaskImage: true,
   DMaskOrigin: true,

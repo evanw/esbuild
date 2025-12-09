@@ -2864,6 +2864,7 @@ func TestPrefixInsertion(t *testing.T) {
 		"clip-path",
 		"font-kerning",
 		"initial-letter",
+		"mask",
 		"mask-image",
 		"mask-origin",
 		"mask-position",
