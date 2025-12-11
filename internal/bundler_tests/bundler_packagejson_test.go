@@ -2416,27 +2416,109 @@ NOTE: You can mark the path "#" as external to exclude it from the bundle, which
 	})
 }
 
-func TestPackageJsonImportsErrorStartsWithHashSlash(t *testing.T) {
+// Tests for new Node.js behavior: https://github.com/nodejs/node/pull/60864
+// The #/ prefix is now allowed in subpath imports when there's a matching pattern
+
+func TestPackageJsonImportsHashSlashWithWildcard(t *testing.T) {
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
-				import '#/foo'
+				import '#/foo.js'
+				import '#/bar/baz.js'
 			`,
 			"/Users/user/project/src/package.json": `
 				{
-					"imports": {}
+					"imports": {
+						"#/*": "./src/*"
+					}
 				}
 			`,
+			"/Users/user/project/src/src/foo.js":     `console.log('foo.js')`,
+			"/Users/user/project/src/src/bar/baz.js": `console.log('bar/baz.js')`,
 		},
 		entryPaths: []string{"/Users/user/project/src/entry.js"},
 		options: config.Options{
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/Users/user/project/out.js",
 		},
-		expectedScanLog: `Users/user/project/src/entry.js: ERROR: Could not resolve "#/foo"
-Users/user/project/src/package.json: NOTE: This "imports" map was ignored because the module specifier "#/foo" is invalid:
-NOTE: You can mark the path "#/foo" as external to exclude it from the bundle, which will remove this error and leave the unresolved path in the bundle.
-`,
+	})
+}
+
+func TestPackageJsonImportsHashSlashExactMatch(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import '#/'
+				import '#/utils'
+			`,
+			"/Users/user/project/src/package.json": `
+				{
+					"imports": {
+						"#/": "./index.js",
+						"#/utils": "./utils.js"
+					}
+				}
+			`,
+			"/Users/user/project/src/index.js": `console.log('index.js')`,
+			"/Users/user/project/src/utils.js": `console.log('utils.js')`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
+func TestPackageJsonImportsHashSlashWithConditions(t *testing.T) {
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import '#/lib'
+			`,
+			"/Users/user/project/src/package.json": `
+				{
+					"imports": {
+						"#/*": {
+							"import": "./esm/*.js",
+							"require": "./cjs/*.js"
+						}
+					}
+				}
+			`,
+			"/Users/user/project/src/esm/lib.js": `console.log('esm/lib.js')`,
+			"/Users/user/project/src/cjs/lib.js": `console.log('cjs/lib.js')`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
+	})
+}
+
+func TestPackageJsonImportsHashSlashSymmetricWithExports(t *testing.T) {
+	// Common pattern: symmetric imports/exports for root-relative imports
+	packagejson_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import '#/components/button.js'
+				import '#/utils/format.js'
+			`,
+			"/Users/user/project/src/package.json": `
+				{
+					"exports": { "./*": "./src/*" },
+					"imports": { "#/*": "./src/*" }
+				}
+			`,
+			"/Users/user/project/src/src/components/button.js": `console.log('button.js')`,
+			"/Users/user/project/src/src/utils/format.js":      `console.log('format.js')`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+		},
 	})
 }
 
