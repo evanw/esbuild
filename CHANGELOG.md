@@ -1,5 +1,42 @@
 # Changelog
 
+## Unreleased
+
+* Forbid `using` declarations inside `switch` clauses ([#4323](https://github.com/evanw/esbuild/issues/4323))
+
+    This is a rare change to remove something that was previously possible. The [Explicit Resource Management](https://github.com/tc39/proposal-explicit-resource-management) proposal introduced `using` declarations. These were previously allowed inside `case` and `default` clauses in `switch` statements. This had well-defined semantics and was already widely implemented (by V8, SpiderMonkey, TypeScript, esbuild, and others). However, it was considered to be too confusing because of how scope works in switch statements, so it has been removed from the specification. This edge case will now be a syntax error. See [tc39/proposal-explicit-resource-management#215](https://github.com/tc39/proposal-explicit-resource-management/issues/215) and [rbuckton/ecma262#14](https://github.com/rbuckton/ecma262/pull/14) for details.
+
+    Here is an example of code that is no longer allowed:
+
+    ```js
+    switch (mode) {
+      case 'read':
+        using readLock = db.read()
+        return readAll(readLock)
+
+      case 'write':
+        using writeLock = db.write()
+        return writeAll(writeLock)
+    }
+    ```
+
+    That code will now have to be modified to look like this instead (note the additional `{` and `}` block statements around each case body):
+
+    ```js
+    switch (mode) {
+      case 'read': {
+        using readLock = db.read()
+        return readAll(readLock)
+      }
+      case 'write': {
+        using writeLock = db.write()
+        return writeAll(writeLock)
+      }
+    }
+    ```
+
+    This is not being released in one of esbuild's breaking change releases since this feature hasn't been finalized yet, and esbuild always tracks the current state of the specification (so esbuild's previous behavior was arguably incorrect).
+
 ## 0.27.1
 
 * Fix bundler bug with `var` nested inside `if` ([#4348](https://github.com/evanw/esbuild/issues/4348))

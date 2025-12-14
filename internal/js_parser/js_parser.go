@@ -5003,7 +5003,9 @@ func (p *parser) parseExprOrLetOrUsingStmt(opts parseStmtOpts) (js_ast.Expr, js_
 		}
 	} else if couldBeUsing && p.lexer.Token == js_lexer.TIdentifier && !p.lexer.HasNewlineBefore && (!opts.isForLoopInit || p.lexer.Raw() != "of") {
 		// Handle a "using" declaration
-		if opts.lexicalDecl != lexicalDeclAllowAll {
+		if opts.isCaseBody {
+			p.forbidUsingInSwitch(tokenRange.Loc)
+		} else if opts.lexicalDecl != lexicalDeclAllowAll {
 			p.forbidLexicalDecl(tokenRange.Loc)
 		}
 		opts.isUsingStmt = true
@@ -5028,7 +5030,9 @@ func (p *parser) parseExprOrLetOrUsingStmt(opts parseStmtOpts) (js_ast.Expr, js_
 			p.lexer.Next()
 			if p.lexer.Token == js_lexer.TIdentifier && !p.lexer.HasNewlineBefore {
 				// It's an "await using" declaration if we get here
-				if opts.lexicalDecl != lexicalDeclAllowAll {
+				if opts.isCaseBody {
+					p.forbidUsingInSwitch(usingRange.Loc)
+				} else if opts.lexicalDecl != lexicalDeclAllowAll {
 					p.forbidLexicalDecl(usingRange.Loc)
 				}
 				opts.isUsingStmt = true
@@ -7020,6 +7024,7 @@ type parseStmtOpts struct {
 	allowDirectivePrologue  bool
 	hasNoSideEffectsComment bool
 	isUsingStmt             bool
+	isCaseBody              bool
 }
 
 func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
@@ -7571,7 +7576,10 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 					break caseBody
 
 				default:
-					body = append(body, p.parseStmt(parseStmtOpts{lexicalDecl: lexicalDeclAllowAll}))
+					body = append(body, p.parseStmt(parseStmtOpts{
+						lexicalDecl: lexicalDeclAllowAll,
+						isCaseBody:  true,
+					}))
 				}
 			}
 
@@ -8412,7 +8420,14 @@ func (p *parser) parseFnBody(data fnOrArrowDataParse) js_ast.FnBody {
 
 func (p *parser) forbidLexicalDecl(loc logger.Loc) {
 	r := js_lexer.RangeOfIdentifier(p.source, loc)
-	p.log.AddError(&p.tracker, r, "Cannot use a declaration in a single-statement context")
+	p.log.AddErrorWithNotes(&p.tracker, r, "Cannot use a declaration in a single-statement context",
+		[]logger.MsgData{{Text: "Wrap this declaration in a block statement to use it here."}})
+}
+
+func (p *parser) forbidUsingInSwitch(loc logger.Loc) {
+	r := js_lexer.RangeOfIdentifier(p.source, loc)
+	p.log.AddErrorWithNotes(&p.tracker, r, "Cannot use a \"using\" declaration directly inside a switch case",
+		[]logger.MsgData{{Text: "Wrap this declaration in a block statement to use it here."}})
 }
 
 func (p *parser) parseStmtsUpTo(end js_lexer.T, opts parseStmtOpts) []js_ast.Stmt {
@@ -8864,7 +8879,6 @@ type stmtsKind uint8
 
 const (
 	stmtsNormal stmtsKind = iota
-	stmtsSwitch
 	stmtsLoopBody
 	stmtsFnBody
 )
@@ -9028,7 +9042,7 @@ func (p *parser) visitStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt {
 	p.isControlFlowDead = oldIsControlFlowDead
 
 	// Lower using declarations
-	if kind != stmtsSwitch && p.shouldLowerUsingDeclarations(visited) {
+	if p.shouldLowerUsingDeclarations(visited) {
 		ctx := p.lowerUsingDeclarationContext()
 		ctx.scanStmts(p, visited)
 		visited = ctx.finalize(p, visited, p.currentScope.Parent == nil)
@@ -11189,7 +11203,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			if isAlwaysDead {
 				p.isControlFlowDead = true
 			}
-			c.Body = p.visitStmts(c.Body, stmtsSwitch)
+			c.Body = p.visitStmts(c.Body, stmtsNormal)
 			p.isControlFlowDead = old
 
 			// Filter out this case when minifying if it's known to be dead. Visiting
@@ -11216,11 +11230,6 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 				stmts = append(stmts, c.Body...)
 			}
 			return stmts
-		}
-
-		// "using" declarations inside switch statements must be special-cased
-		if lowered := p.maybeLowerUsingDeclarationsInSwitch(stmt.Loc, s); lowered != nil {
-			return append(stmts, lowered...)
 		}
 
 		// Attempt to remove statically-determined switch statements
