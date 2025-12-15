@@ -3666,6 +3666,10 @@ func TestMangleBlock(t *testing.T) {
 func TestMangleSwitch(t *testing.T) {
 	expectPrintedMangle(t, "x(); switch (y) { case z: return w; }", "switch (x(), y) {\n  case z:\n    return w;\n}\n")
 	expectPrintedMangle(t, "if (t) { x(); switch (y) { case z: return w; } }", "if (t)\n  switch (x(), y) {\n    case z:\n      return w;\n  }\n")
+
+	expectPrintedMangle(t, "switch (x) { case p: a(); break; case q: default: b() }", "switch (x) {\n  case p:\n    a();\n    break;\n  case q:\n  default:\n    b();\n}\n")
+	expectPrintedMangle(t, "switch (x) { case 0: a(); break; case 1: case 2: default: b() }", "switch (x) {\n  case 0:\n    a();\n    break;\n  default:\n    b();\n}\n")
+	expectPrintedMangle(t, "switch (x) { case 0: default: a(); break; case 0: b() }", "switch (x) {\n  case 0:\n  default:\n    a();\n    break;\n  case 0:\n    b();\n}\n")
 }
 
 func TestMangleAddEmptyString(t *testing.T) {

@@ -11232,8 +11232,19 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			return stmts
 		}
 
-		// Attempt to remove statically-determined switch statements
 		if p.options.minifySyntax {
+			// Trim empty cases before a trailing default clause
+			if len(s.Cases) > 0 {
+				if i := len(s.Cases) - 1; s.Cases[i].ValueOrNil.Data == nil {
+					// "switch (x) { case 0: default: y() }" => "switch (x) { default: y() }"
+					for i > 0 && len(s.Cases[i-1].Body) == 0 && js_ast.IsPrimitiveLiteral(s.Cases[i-1].ValueOrNil.Data) {
+						i--
+					}
+					s.Cases = append(s.Cases[:i], s.Cases[len(s.Cases)-1])
+				}
+			}
+
+			// Attempt to remove statically-determined switch statements
 			if len(s.Cases) == 0 {
 				if p.astHelpers.ExprCanBeRemovedIfUnused(s.Test) {
 					// Remove everything

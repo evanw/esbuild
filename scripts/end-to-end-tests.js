@@ -3406,6 +3406,95 @@ for (const minify of [[], ['--minify-syntax']]) {
         var x = class { static [-0xFFFF_FFFF_FFFF] = 1 }; if (x['-281474976710655'] !== 1) throw 'fail: -0xFFFF_FFFF_FFFF'
       `,
     }),
+    test(['in.js', '--outfile=node.js'].concat(minify), {
+      'in.js': `
+        function test(x) {
+          let log = ''
+          switch (x) {
+            case 0:
+              log += '0'
+            case 1:
+            default:
+              log += '1'
+          }
+          return log
+        }
+        if (test(0) !== '01') throw 'fail: 0'
+        if (test(1) !== '1') throw 'fail: 1'
+        if (test(2) !== '1') throw 'fail: 2'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js'].concat(minify), {
+      'in.js': `
+        function test(x) {
+          let log = ''
+          switch (x) {
+            case 0:
+              log += '0'
+              break
+            case 1:
+            default:
+              log += '1'
+          }
+          return log
+        }
+        if (test(0) !== '0') throw 'fail: 0'
+        if (test(1) !== '1') throw 'fail: 1'
+        if (test(2) !== '1') throw 'fail: 2'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js'].concat(minify), {
+      'in.js': `
+        function test(x) {
+          let log = ''
+          switch (x) {
+            case 0:
+              log += '0'
+            case 1:
+            default:
+              log += '1'
+            case 2:
+              log += '2'
+          }
+          return log
+        }
+        if (test(0) !== '012') throw 'fail: 0'
+        if (test(1) !== '12') throw 'fail: 1'
+        if (test(2) !== '2') throw 'fail: 2'
+        if (test(3) !== '12') throw 'fail: 3'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js'].concat(minify), {
+      'in.js': `
+        function test(x) {
+          let log = ''
+          switch (x) {
+            case 0: // Note: This case must not be removed
+            default:
+              log += '1'
+            case 0:
+              log += '2'
+          }
+          return log
+        }
+        if (test(0) !== '12') throw 'fail: 0'
+        if (test(1) !== '12') throw 'fail: 1'
+      `,
+    }, {
+      expectedStderr: `▲ [WARNING] This case clause will never be evaluated because it duplicates an earlier case clause [duplicate-case]
+
+    in.js:8:12:
+      8 │             case 0:
+        ╵             ~~~~
+
+  The earlier case clause is here:
+
+    in.js:5:12:
+      5 │             case 0: // Note: This case must not be removed
+        ╵             ~~~~
+
+`,
+    }),
 
     // See: https://github.com/evanw/esbuild/issues/3195
     test(['in.js', '--outfile=node.js', '--keep-names'].concat(minify), {
