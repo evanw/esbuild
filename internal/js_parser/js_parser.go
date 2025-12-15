@@ -9310,15 +9310,7 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 					//   if (a(() => b)) return; let b;
 					//   if (a(() => b)) { let b; }
 					//
-					canMoveBranchConditionOutsideScope := true
-					for _, stmt := range body {
-						if statementCaresAboutScope(stmt) {
-							canMoveBranchConditionOutsideScope = false
-							break
-						}
-					}
-
-					if canMoveBranchConditionOutsideScope {
+					if !stmtsCareAboutScope(body) {
 						body = p.mangleStmts(body, kind)
 						bodyLoc := s.Yes.Loc
 						if len(body) > 0 {
@@ -9960,7 +9952,7 @@ func stmtsToSingleStmt(loc logger.Loc, stmts []js_ast.Stmt, closeBraceLoc logger
 	if len(stmts) == 0 {
 		return js_ast.Stmt{Loc: loc, Data: js_ast.SEmptyShared}
 	}
-	if len(stmts) == 1 && !statementCaresAboutScope(stmts[0]) {
+	if len(stmts) == 1 && !stmtCaresAboutScope(stmts[0]) {
 		return stmts[0]
 	}
 	return js_ast.Stmt{Loc: loc, Data: &js_ast.SBlock{Stmts: stmts, CloseBraceLoc: closeBraceLoc}}
@@ -10064,7 +10056,7 @@ func (p *parser) visitBinding(binding js_ast.Binding, opts bindingOpts) {
 	}
 }
 
-func statementCaresAboutScope(stmt js_ast.Stmt) bool {
+func stmtCaresAboutScope(stmt js_ast.Stmt) bool {
 	switch s := stmt.Data.(type) {
 	case *js_ast.SBlock, *js_ast.SEmpty, *js_ast.SDebugger, *js_ast.SExpr, *js_ast.SIf,
 		*js_ast.SFor, *js_ast.SForIn, *js_ast.SForOf, *js_ast.SDoWhile, *js_ast.SWhile,
@@ -10080,11 +10072,20 @@ func statementCaresAboutScope(stmt js_ast.Stmt) bool {
 	}
 }
 
+func stmtsCareAboutScope(stmts []js_ast.Stmt) bool {
+	for _, stmt := range stmts {
+		if stmtCaresAboutScope(stmt) {
+			return true
+		}
+	}
+	return false
+}
+
 func dropFirstStatement(body js_ast.Stmt, replaceOrNil js_ast.Stmt) js_ast.Stmt {
 	if block, ok := body.Data.(*js_ast.SBlock); ok && len(block.Stmts) > 0 {
 		if replaceOrNil.Data != nil {
 			block.Stmts[0] = replaceOrNil
-		} else if len(block.Stmts) == 2 && !statementCaresAboutScope(block.Stmts[1]) {
+		} else if len(block.Stmts) == 2 && !stmtCaresAboutScope(block.Stmts[1]) {
 			return block.Stmts[1]
 		} else {
 			block.Stmts = block.Stmts[1:]
@@ -10150,23 +10151,12 @@ func mangleFor(s *js_ast.SFor) {
 }
 
 func appendIfOrLabelBodyPreservingScope(stmts []js_ast.Stmt, body js_ast.Stmt) []js_ast.Stmt {
-	if block, ok := body.Data.(*js_ast.SBlock); ok {
-		keepBlock := false
-		for _, stmt := range block.Stmts {
-			if statementCaresAboutScope(stmt) {
-				keepBlock = true
-				break
-			}
-		}
-		if !keepBlock {
-			return append(stmts, block.Stmts...)
-		}
+	if block, ok := body.Data.(*js_ast.SBlock); ok && !stmtsCareAboutScope(block.Stmts) {
+		return append(stmts, block.Stmts...)
 	}
-
-	if statementCaresAboutScope(body) {
+	if stmtCaresAboutScope(body) {
 		return append(stmts, js_ast.Stmt{Loc: body.Loc, Data: &js_ast.SBlock{Stmts: []js_ast.Stmt{body}}})
 	}
-
 	return append(stmts, body)
 }
 
@@ -10843,7 +10833,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		p.popScope()
 
 		if p.options.minifySyntax {
-			if len(s.Stmts) == 1 && !statementCaresAboutScope(s.Stmts[0]) {
+			if len(s.Stmts) == 1 && !stmtCaresAboutScope(s.Stmts[0]) {
 				// Unwrap blocks containing a single statement
 				stmt = s.Stmts[0]
 			} else if len(s.Stmts) == 0 {
@@ -11131,14 +11121,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 					if s.Finally == nil {
 						return stmts
 					}
-					finallyNeedsBlock := false
-					for _, stmt2 := range s.Finally.Block.Stmts {
-						if statementCaresAboutScope(stmt2) {
-							finallyNeedsBlock = true
-							break
-						}
-					}
-					if !finallyNeedsBlock {
+					if !stmtsCareAboutScope(s.Finally.Block.Stmts) {
 						return append(stmts, s.Finally.Block.Stmts...)
 					}
 					block := s.Finally.Block
@@ -11150,14 +11133,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 					s.Finally = nil
 				} else {
 					// Otherwise, try to unwrap the whole "try" statement
-					tryNeedsBlock := false
-					for _, stmt2 := range s.Block.Stmts {
-						if statementCaresAboutScope(stmt2) {
-							tryNeedsBlock = true
-							break
-						}
-					}
-					if !tryNeedsBlock {
+					if !stmtsCareAboutScope(s.Block.Stmts) {
 						return append(stmts, s.Block.Stmts...)
 					}
 					block := s.Block
