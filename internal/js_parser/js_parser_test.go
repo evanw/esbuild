@@ -6676,6 +6676,15 @@ func TestASCIIOnly(t *testing.T) {
 	expectPrintedASCII(t, "export var 𐀀", "export var \\u{10000};\n")
 	expectPrintedTargetASCII(t, 5, "export var π", "export var \\u03C0;\n")
 	expectParseErrorTargetASCII(t, 5, "export var 𐀀", es5)
+
+	expectPrinted(t, "/π/", "/π/;\n")
+	expectPrinted(t, "/𐀀/", "/𐀀/;\n")
+	expectPrintedASCII(t, "/π/", "new RegExp(\"\\u03C0\");\n")
+	expectPrintedASCII(t, "/𐀀/", "new RegExp(\"\\u{10000}\");\n")
+	expectPrintedASCII(t, "/𐀀/u", "new RegExp(\"\\u{10000}\", \"u\");\n")
+	expectPrintedTargetASCII(t, 5, "/π/", "new RegExp(\"\\u03C0\");\n")
+	expectPrintedTargetASCII(t, 5, "/𐀀/", "new RegExp(\"\\uD800\\uDC00\");\n")
+	expectPrintedTargetASCII(t, 5, "/𐀀/u", "new RegExp(\"\\uD800\\uDC00\", \"u\");\n")
 }
 
 func TestMangleCatch(t *testing.T) {
