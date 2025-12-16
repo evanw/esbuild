@@ -798,23 +798,9 @@ func analyzeSwitchCasesForLiveness(s *js_ast.SSwitch) []switchCaseLiveness {
 			maxStatus = status
 		}
 
-		// Check for potential fall-through by checking for a jump at the end of the body
-		canFallThrough := true
-		stmts := c.Body
-		for len(stmts) > 0 {
-			switch s := stmts[len(stmts)-1].Data.(type) {
-			case *js_ast.SBlock:
-				stmts = s.Stmts // If this ends with a block, check the block's body next
-				continue
-			case *js_ast.SBreak, *js_ast.SContinue, *js_ast.SReturn, *js_ast.SThrow:
-				canFallThrough = false
-			}
-			break
-		}
-
 		cases = append(cases, switchCaseLiveness{
 			status:         status,
-			canFallThrough: canFallThrough,
+			canFallThrough: caseBodyCouldHaveFallThrough(c.Body),
 		})
 	}
 
@@ -856,6 +842,21 @@ func analyzeSwitchCasesForLiveness(s *js_ast.SSwitch) []switchCaseLiveness {
 		}
 	}
 	return cases
+}
+
+// Check for potential fall-through by checking for a jump at the end of the body
+func caseBodyCouldHaveFallThrough(stmts []js_ast.Stmt) bool {
+	for len(stmts) > 0 {
+		switch s := stmts[len(stmts)-1].Data.(type) {
+		case *js_ast.SBlock:
+			stmts = s.Stmts // If this ends with a block, check the block's body next
+			continue
+		case *js_ast.SBreak, *js_ast.SContinue, *js_ast.SReturn, *js_ast.SThrow:
+			return false
+		}
+		break
+	}
+	return true
 }
 
 const bloomFilterSize = 251
@@ -11250,44 +11251,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		}
 
 		if p.options.minifySyntax {
-			// Trim empty cases before a trailing default clause
-			if len(s.Cases) > 0 {
-				if i := len(s.Cases) - 1; s.Cases[i].ValueOrNil.Data == nil {
-					// "switch (x) { case 0: default: y() }" => "switch (x) { default: y() }"
-					for i > 0 && len(s.Cases[i-1].Body) == 0 && js_ast.IsPrimitiveLiteral(s.Cases[i-1].ValueOrNil.Data) {
-						i--
-					}
-					s.Cases = append(s.Cases[:i], s.Cases[len(s.Cases)-1])
-				}
-			}
-
-			// Attempt to remove statically-determined switch statements
-			if len(s.Cases) == 0 {
-				if p.astHelpers.ExprCanBeRemovedIfUnused(s.Test) {
-					// Remove everything
-					return stmts
-				} else {
-					// Just keep the test expression
-					return append(stmts, js_ast.Stmt{Loc: s.Test.Loc, Data: &js_ast.SExpr{Value: s.Test}})
-				}
-			} else if len(s.Cases) == 1 {
-				c := s.Cases[0]
-				var isTaken bool
-				var ok bool
-				if c.ValueOrNil.Data != nil {
-					// Non-default case
-					isTaken, ok = js_ast.CheckEqualityIfNoSideEffects(s.Test.Data, c.ValueOrNil.Data, js_ast.StrictEquality)
-				} else {
-					// Default case
-					isTaken, ok = true, p.astHelpers.ExprCanBeRemovedIfUnused(s.Test)
-				}
-				if ok && isTaken {
-					if body, ok := tryToInlineCaseBody(s.BodyLoc, c.Body, s.CloseBraceLoc); ok {
-						// Inline the case body
-						return append(stmts, body...)
-					}
-				}
-			}
+			return p.minifySwitchStmt(stmt.Loc, s, stmts)
 		}
 
 	case *js_ast.SFunction:
@@ -11581,6 +11545,52 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 
 	stmts = append(stmts, stmt)
 	return stmts
+}
+
+func (p *parser) minifySwitchStmt(loc logger.Loc, s *js_ast.SSwitch, stmts []js_ast.Stmt) []js_ast.Stmt {
+	// Trim empty cases before a trailing default clause
+	if len(s.Cases) > 0 {
+		if i := len(s.Cases) - 1; s.Cases[i].ValueOrNil.Data == nil {
+			// "switch (x) { case 0: default: y() }" => "switch (x) { default: y() }"
+			for i > 0 && len(s.Cases[i-1].Body) == 0 && js_ast.IsPrimitiveLiteral(s.Cases[i-1].ValueOrNil.Data) {
+				i--
+			}
+			s.Cases = append(s.Cases[:i], s.Cases[len(s.Cases)-1])
+		}
+	}
+
+	// Handle empty switch statements
+	if len(s.Cases) == 0 {
+		if p.astHelpers.ExprCanBeRemovedIfUnused(s.Test) {
+			// Remove everything
+			return stmts
+		} else {
+			// Just keep the test expression
+			return append(stmts, js_ast.Stmt{Loc: s.Test.Loc, Data: &js_ast.SExpr{Value: s.Test}})
+		}
+	}
+
+	// Handle switch statements with only one case remaining
+	if len(s.Cases) == 1 {
+		c := s.Cases[0]
+		var isTaken bool
+		var ok bool
+		if c.ValueOrNil.Data != nil {
+			// Non-default case
+			isTaken, ok = js_ast.CheckEqualityIfNoSideEffects(s.Test.Data, c.ValueOrNil.Data, js_ast.StrictEquality)
+		} else {
+			// Default case
+			isTaken, ok = true, p.astHelpers.ExprCanBeRemovedIfUnused(s.Test)
+		}
+		if ok && isTaken {
+			if body, ok := tryToInlineCaseBody(s.BodyLoc, c.Body, s.CloseBraceLoc); ok {
+				// Inline the case body
+				return append(stmts, body...)
+			}
+		}
+	}
+
+	return append(stmts, js_ast.Stmt{Loc: loc, Data: s})
 }
 
 func tryToInlineCaseBody(openBraceLoc logger.Loc, stmts []js_ast.Stmt, closeBraceLoc logger.Loc) ([]js_ast.Stmt, bool) {

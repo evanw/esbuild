@@ -3676,6 +3676,7 @@ func TestMangleSwitch(t *testing.T) {
 	expectPrintedMangle(t, "switch (2) { case 0: let x; case 1: return x }", "")
 	expectPrintedMangle(t, "switch (2) { case 0: const x = 0; case 1: return x }", "")
 
+	// https://github.com/evanw/esbuild/issues/4359
 	expectPrintedMangle(t, "switch (x) { case p: a(); break; case q: default: b() }", "switch (x) {\n  case p:\n    a();\n    break;\n  case q:\n  default:\n    b();\n}\n")
 	expectPrintedMangle(t, "switch (x) { case 0: a(); break; case 1: case 2: default: b() }", "switch (x) {\n  case 0:\n    a();\n    break;\n  default:\n    b();\n}\n")
 	expectPrintedMangle(t, "switch (x) { case 0: default: a(); break; case 0: b() }", "switch (x) {\n  case 0:\n  default:\n    a();\n    break;\n  case 0:\n    b();\n}\n")
