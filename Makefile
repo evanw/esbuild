@@ -692,14 +692,17 @@ scripts/browser/node_modules:
 ################################################################################
 # This generates browser support mappings
 
-compat-table: esbuild
+compat-table: esbuild | compat-table/node_modules
 	./esbuild compat-table/src/index.ts --bundle --platform=node --external:./compat-table/repos/* --outfile=compat-table/out.js --log-level=warning --sourcemap
 	node --enable-source-maps compat-table/out.js
 
 update-compat-table: esbuild
-	cd compat-table && npm i @mdn/browser-compat-data@latest caniuse-lite@latest --silent
+	cd compat-table && npm i @mdn/browser-compat-data@latest caniuse-lite@latest --silent --save-exact
 	./esbuild compat-table/src/index.ts --bundle --platform=node --external:./compat-table/repos/* --outfile=compat-table/out.js --log-level=warning --sourcemap
 	node --enable-source-maps compat-table/out.js --update
+
+compat-table/node_modules:
+	cd compat-table && npm ci
 
 ################################################################################
 # This runs the test262 official JavaScript test suite through esbuild

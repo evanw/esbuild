@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+* Allow import path specifiers starting with `#/` ([#4361](https://github.com/evanw/esbuild/pull/4361))
+
+    Previously the specification for `package.json` disallowed import path specifiers starting with `#/`, but this restriction [has recently been relaxed](https://github.com/nodejs/node/pull/60864) and support for it is being added across the JavaScript ecosystem. One use case is using it for a wildcard pattern such as mapping `#/*` to `./src/*` (previously you had to use another character such as `#_*` instead, which was more confusing). There is some more context in [nodejs/node#49182](https://github.com/nodejs/node/issues/49182).
+
+    This change was contributed by [@hybrist](https://github.com/hybrist).
+
 * Added CSS vendor prefix (`-webkit`) for the [mask](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/mask) shorthand property ([#4357](https://github.com/evanw/esbuild/issues/4357)).
 
     ```css
@@ -21,6 +27,63 @@
         mask: url(x.png) center/5rem no-repeat
     }
     ```
+
+* Additional minification of `switch` statements ([#4176](https://github.com/evanw/esbuild/issues/4176), [#4359](https://github.com/evanw/esbuild/issues/4359))
+
+    This release contains additional minification patterns for reducing `switch` statements. Here is an example:
+
+    ```js
+    // Original code
+    switch (x) {
+      case 0:
+        foo()
+        break
+      case 1:
+      default:
+        bar()
+    }
+
+    // Old output (with --minify)
+    switch(x){case 0:foo();break;case 1:default:bar()}
+
+    // New output (with --minify)
+    x===0?foo():bar();
+    ```
+
+* Forbid `using` declarations inside `switch` clauses ([#4323](https://github.com/evanw/esbuild/issues/4323))
+
+    This is a rare change to remove something that was previously possible. The [Explicit Resource Management](https://github.com/tc39/proposal-explicit-resource-management) proposal introduced `using` declarations. These were previously allowed inside `case` and `default` clauses in `switch` statements. This had well-defined semantics and was already widely implemented (by V8, SpiderMonkey, TypeScript, esbuild, and others). However, it was considered to be too confusing because of how scope works in switch statements, so it has been removed from the specification. This edge case will now be a syntax error. See [tc39/proposal-explicit-resource-management#215](https://github.com/tc39/proposal-explicit-resource-management/issues/215) and [rbuckton/ecma262#14](https://github.com/rbuckton/ecma262/pull/14) for details.
+
+    Here is an example of code that is no longer allowed:
+
+    ```js
+    switch (mode) {
+      case 'read':
+        using readLock = db.read()
+        return readAll(readLock)
+
+      case 'write':
+        using writeLock = db.write()
+        return writeAll(writeLock)
+    }
+    ```
+
+    That code will now have to be modified to look like this instead (note the additional `{` and `}` block statements around each case body):
+
+    ```js
+    switch (mode) {
+      case 'read': {
+        using readLock = db.read()
+        return readAll(readLock)
+      }
+      case 'write': {
+        using writeLock = db.write()
+        return writeAll(writeLock)
+      }
+    }
+    ```
+
+    This is not being released in one of esbuild's breaking change releases since this feature hasn't been finalized yet, and esbuild always tracks the current state of the specification (so esbuild's previous behavior was arguably incorrect).
 
 ## 0.27.1
 

@@ -811,6 +811,39 @@ console.log("c.js");
 console.log("d.js");
 
 ================================================================================
+TestPackageJsonImportsHashSlashExactMatch
+---------- /Users/user/project/out.js ----------
+// Users/user/project/src/index.js
+console.log("index.js");
+
+// Users/user/project/src/utils.js
+console.log("utils.js");
+
+================================================================================
+TestPackageJsonImportsHashSlashSymmetricWithExports
+---------- /Users/user/project/out.js ----------
+// Users/user/project/src/src/components/button.js
+console.log("button.js");
+
+// Users/user/project/src/src/utils/format.js
+console.log("format.js");
+
+================================================================================
+TestPackageJsonImportsHashSlashWithConditions
+---------- /Users/user/project/out.js ----------
+// Users/user/project/src/esm/lib.js
+console.log("esm/lib.js");
+
+================================================================================
+TestPackageJsonImportsHashSlashWithWildcard
+---------- /Users/user/project/out.js ----------
+// Users/user/project/src/src/foo.js
+console.log("foo.js");
+
+// Users/user/project/src/src/bar/baz.js
+console.log("bar/baz.js");
+
+================================================================================
 TestPackageJsonMain
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/node_modules/demo-pkg/custom-main.js

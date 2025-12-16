@@ -3406,6 +3406,154 @@ for (const minify of [[], ['--minify-syntax']]) {
         var x = class { static [-0xFFFF_FFFF_FFFF] = 1 }; if (x['-281474976710655'] !== 1) throw 'fail: -0xFFFF_FFFF_FFFF'
       `,
     }),
+    test(['in.js', '--outfile=node.js'].concat(minify), {
+      'in.js': `
+        function test(x) {
+          let log = ''
+          switch (x) {
+            case 0:
+              log += '0'
+            case 1:
+            default:
+              log += '1'
+          }
+          return log
+        }
+        if (test(0) !== '01') throw 'fail: 0'
+        if (test(1) !== '1') throw 'fail: 1'
+        if (test(2) !== '1') throw 'fail: 2'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js'].concat(minify), {
+      'in.js': `
+        function test(x) {
+          let log = ''
+          switch (x) {
+            case 0:
+              log += '0'
+              break
+            case 1:
+            default:
+              log += '1'
+          }
+          return log
+        }
+        if (test(0) !== '0') throw 'fail: 0'
+        if (test(1) !== '1') throw 'fail: 1'
+        if (test(2) !== '1') throw 'fail: 2'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js'].concat(minify), {
+      'in.js': `
+        function test(x) {
+          let log = ''
+          switch (x) {
+            case 0:
+              log += '0'
+            case 1:
+            default:
+              log += '1'
+            case 2:
+              log += '2'
+          }
+          return log
+        }
+        if (test(0) !== '012') throw 'fail: 0'
+        if (test(1) !== '12') throw 'fail: 1'
+        if (test(2) !== '2') throw 'fail: 2'
+        if (test(3) !== '12') throw 'fail: 3'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js'].concat(minify), {
+      'in.js': `
+        function test(x) {
+          let log = ''
+          switch (x) {
+            case 0: // Note: This case must not be removed
+            default:
+              log += '1'
+            case 0:
+              log += '2'
+          }
+          return log
+        }
+        if (test(0) !== '12') throw 'fail: 0'
+        if (test(1) !== '12') throw 'fail: 1'
+      `,
+    }, {
+      expectedStderr: `▲ [WARNING] This case clause will never be evaluated because it duplicates an earlier case clause [duplicate-case]
+
+    in.js:8:12:
+      8 │             case 0:
+        ╵             ~~~~
+
+  The earlier case clause is here:
+
+    in.js:5:12:
+      5 │             case 0: // Note: This case must not be removed
+        ╵             ~~~~
+
+`,
+    }),
+
+    // We potentially need to keep let/const declarations in dead cases
+    test(['in.js', '--outfile=node.js'].concat(minify), {
+      'in.js': `
+        function test() {
+          switch (1) {
+            case 0:
+              var deadVarInSwitch // This must not be removed
+            case 1:
+            case 2:
+              return deadVarInSwitch
+          }
+        }
+        globalThis.deadVarInSwitch = 'fail'
+        if (test() !== undefined) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js'].concat(minify), {
+      'in.js': `
+        function test() {
+          switch (1) {
+            case 0:
+              let deadLetInSwitch // This must not be removed
+            case 1:
+            case 2:
+              return deadLetInSwitch
+          }
+        }
+        globalThis.deadLetInSwitch = 'fail'
+        try {
+          test()
+          throw 'fail'
+        } catch (e) {
+          if (!(e instanceof ReferenceError))
+            throw e
+        }
+      `,
+    }),
+    test(['in.js', '--outfile=node.js'].concat(minify), {
+      'in.js': `
+        function test() {
+          switch (1) {
+            case 0:
+              const deadConstInSwitch = 0 // This must not be removed (or inlined as a constant)
+            case 1:
+            case 2:
+              return deadConstInSwitch
+          }
+        }
+        globalThis.deadConstInSwitch = 'fail'
+        try {
+          test()
+          throw 'fail'
+        } catch (e) {
+          if (!(e instanceof ReferenceError))
+            throw e
+        }
+      `,
+    }),
 
     // See: https://github.com/evanw/esbuild/issues/3195
     test(['in.js', '--outfile=node.js', '--keep-names'].concat(minify), {

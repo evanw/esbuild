@@ -303,7 +303,8 @@ const supportMapToVersionRanges = <F extends string>(supportMap: SupportMap<F>):
   return [versionRangeMap, whyNotMap]
 }
 
-const updateGithubDependencies = (): void => {
+const installGitHubDependencies = (): void => {
+  const updateCommits = process.argv.includes('--update')
   const jsonPath = path.join(__dirname, 'package.json')
   const jsonData = JSON.parse(fs.readFileSync(jsonPath, 'utf8'))
 
@@ -315,18 +316,24 @@ const updateGithubDependencies = (): void => {
     }
 
     child_process.execFileSync('git', ['fetch'], { cwd: fullPath, stdio: 'inherit' })
-    child_process.execFileSync('git', ['reset', '--hard', '--quiet', 'origin/gh-pages'], { cwd: fullPath, stdio: 'inherit' })
 
-    const commit = child_process.execFileSync('git', ['rev-parse', 'HEAD'], { cwd: fullPath }).toString().trim()
-    jsonData.githubDependencies[repo] = commit
+    if (updateCommits) {
+      child_process.execFileSync('git', ['reset', '--hard', '--quiet', 'origin/gh-pages'], { cwd: fullPath, stdio: 'inherit' })
+      const commit = child_process.execFileSync('git', ['rev-parse', 'HEAD'], { cwd: fullPath }).toString().trim()
+      jsonData.githubDependencies[repo] = commit
+    } else {
+      const commit = jsonData.githubDependencies[repo]
+      child_process.execFileSync('git', ['reset', '--hard', '--quiet', commit], { cwd: fullPath, stdio: 'inherit' })
+    }
   })
 
-  fs.writeFileSync(jsonPath, JSON.stringify(jsonData, null, 2) + '\n')
+  if (updateCommits) {
+    fs.writeFileSync(jsonPath, JSON.stringify(jsonData, null, 2) + '\n')
+  }
 }
 
-if (process.argv.includes('--update')) {
-  updateGithubDependencies()
-}
+// These dependencies are not published on npm and are instead pulled from GitHub (but pinned to a specific commit)
+installGitHubDependencies()
 
 import('./kangax').then(kangax => {
   const js: SupportMap<JSFeature> = {} as SupportMap<JSFeature>
