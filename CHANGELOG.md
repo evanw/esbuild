@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+* Allow import path specifiers starting with `#/` ([#4361](https://github.com/evanw/esbuild/pull/4361))
+
+    Previously the specification for `package.json` disallowed import path specifiers starting with `#/`, but this restriction [has recently been relaxed](https://github.com/nodejs/node/pull/60864) and support for it is being added across the JavaScript ecosystem. One use case is using it for a wildcard pattern such as mapping `#/*` to `./src/*` (previously you had to use another character such as `#_*` instead, which was more confusing). There is some more context in [nodejs/node#49182](https://github.com/nodejs/node/issues/49182).
+
+    This change was contributed by [@hybrist](https://github.com/hybrist).
+
 * Additional minification of `switch` statements ([#4176](https://github.com/evanw/esbuild/issues/4176), [#4359](https://github.com/evanw/esbuild/issues/4359))
 
     This release contains additional minification patterns for reducing `switch` statements. Here is an example:
