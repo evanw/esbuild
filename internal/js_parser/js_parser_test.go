@@ -3682,6 +3682,10 @@ func TestMangleSwitch(t *testing.T) {
 	expectPrintedMangle(t, "switch (x) { case p: a(); break; case q: default: b() }", "switch (x) {\n  case p:\n    a();\n    break;\n  case q:\n  default:\n    b();\n}\n")
 	expectPrintedMangle(t, "switch (x) { case 0: a(); break; case 1: case 2: default: b() }", "x === 0 ? a() : b();\n")
 	expectPrintedMangle(t, "switch (x) { case 0: default: a(); break; case 0: b() }", "switch (x) {\n  case 0:\n  default:\n    a();\n    break;\n  case 0:\n    b();\n}\n")
+	expectPrintedMangle(t, "switch (x) { case 0: if (y) break; a(); break; default: b() }",
+		"switch (x) {\n  case 0:\n    if (y) break;\n    a();\n    break;\n  default:\n    b();\n}\n")
+	expectPrintedMangle(t, "switch (x) { case 0: a(); break; default: if (y) break; b() }",
+		"switch (x) {\n  case 0:\n    a();\n    break;\n  default:\n    if (y) break;\n    b();\n}\n")
 
 	// https://github.com/evanw/esbuild/issues/4176
 	expectPrintedMangle(t, "switch (1) { case 0: case 1: case 2: x() }", "x();\n")
