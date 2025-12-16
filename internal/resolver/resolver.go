@@ -2255,10 +2255,10 @@ func (r resolverQuery) loadPackageImports(importPath string, dirInfoPackageJSON 
 	}
 
 	// Filter out invalid module specifiers now where we have more information for
-	// a better error message instead of later when we're inside the algorithm
-	if importPath == "#" || strings.HasPrefix(importPath, "#/") {
+	// a better error message instead of later when we're inside the algorithm.
+	if importPath == "#" {
 		if r.debugLogs != nil {
-			r.debugLogs.addNote(fmt.Sprintf("The path %q must not equal \"#\" and must not start with \"#/\".", importPath))
+			r.debugLogs.addNote(fmt.Sprintf("The path %q must not equal \"#\".", importPath))
 		}
 		tracker := logger.MakeLineColumnTracker(&packageJSON.source)
 		r.debugMeta.notes = append(r.debugMeta.notes, tracker.MsgData(packageJSON.importsMap.root.firstToken,
