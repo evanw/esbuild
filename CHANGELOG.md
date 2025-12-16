@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-* More minifications for `switch` statements ([#4359](https://github.com/evanw/esbuild/issues/4359))
+* Additional minification of `switch` statements ([#4176](https://github.com/evanw/esbuild/issues/4176), [#4359](https://github.com/evanw/esbuild/issues/4359))
 
     This release contains additional minification patterns for reducing `switch` statements. Here is an example:
 

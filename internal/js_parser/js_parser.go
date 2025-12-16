@@ -11559,6 +11559,61 @@ func (p *parser) minifySwitchStmt(loc logger.Loc, s *js_ast.SSwitch, stmts []js_
 		}
 	}
 
+	// Attempt to partially-evaluate statically-determined switch statements
+	if js_ast.IsPrimitiveLiteral(s.Test.Data) {
+		allCasesArePrimitives := true
+		defaultIndex := -1
+
+		// Pass 1: Check for primitives and find the "default" case
+		for i, c := range s.Cases {
+			if c.ValueOrNil.Data == nil {
+				defaultIndex = i
+			} else if !js_ast.IsPrimitiveLiteral(c.ValueOrNil.Data) {
+				allCasesArePrimitives = false
+			}
+		}
+
+		// To simplify analysis, only continue when all cases are primitives
+		if allCasesArePrimitives {
+			takenIndex := -1
+
+			// Find the case that compares equal and will be taken
+			for i, c := range s.Cases {
+				if isEqualToTest, ok := js_ast.CheckEqualityIfNoSideEffects(s.Test.Data, c.ValueOrNil.Data, js_ast.StrictEquality); ok && isEqualToTest {
+					takenIndex = i
+					break
+				}
+			}
+			if takenIndex == -1 {
+				takenIndex = defaultIndex
+			}
+
+			// Partially evaluate the cases
+			if takenIndex != -1 {
+				isFallThrough := false
+				liveIndex := -1
+				end := 0
+				for i, c := range s.Cases {
+					isTaken := i == takenIndex
+					if isTaken {
+						liveIndex = end
+					}
+					if isFallThrough {
+						live := &s.Cases[liveIndex]
+						live.Body = append(live.Body, c.Body...)
+					} else if isTaken || len(c.Body) > 0 {
+						s.Cases[end] = c
+						end++
+					}
+					if isTaken || isFallThrough {
+						isFallThrough = caseBodyCouldHaveFallThrough(c.Body)
+					}
+				}
+				s.Cases = s.Cases[:end]
+			}
+		}
+	}
+
 	// Handle empty switch statements
 	if len(s.Cases) == 0 {
 		if p.astHelpers.ExprCanBeRemovedIfUnused(s.Test) {
