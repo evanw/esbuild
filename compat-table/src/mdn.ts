@@ -84,6 +84,7 @@ const similarPrefixedProperty: Record<string, { prefix: string, property: string
 
 const cssPrefixFeatures: Record<string, CSSProperty> = {
   'css.properties.height.stretch': 'DHeight',
+  'css.properties.mask': 'DMask',
   'css.properties.mask-composite': 'DMaskComposite',
   'css.properties.mask-image': 'DMaskImage',
   'css.properties.mask-origin': 'DMaskOrigin',

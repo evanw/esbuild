@@ -8,6 +8,26 @@
 
     This change was contributed by [@hybrist](https://github.com/hybrist).
 
+* Added CSS vendor prefix (`-webkit`) for the [mask](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/mask) shorthand property ([#4357](https://github.com/evanw/esbuild/issues/4357)).
+
+    ```css
+    /* Original code */
+    main {
+        mask: url(x.png) center/5rem no-repeat
+    }
+
+    /* Old output */
+    main {
+        mask: url(x.png) center/5rem no-repeat
+    }
+
+    /* New output */
+    main {
+        -webkit-mask: url(x.png) center/5rem no-repeat
+        mask: url(x.png) center/5rem no-repeat
+    }
+    ```
+
 * Additional minification of `switch` statements ([#4176](https://github.com/evanw/esbuild/issues/4176), [#4359](https://github.com/evanw/esbuild/issues/4359))
 
     This release contains additional minification patterns for reducing `switch` statements. Here is an example:
