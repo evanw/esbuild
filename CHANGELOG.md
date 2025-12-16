@@ -21,7 +21,7 @@
     switch(x){case 0:foo();break;case 1:default:bar()}
 
     // New output (with --minify)
-    switch(x){case 0:foo();break;default:bar()}
+    x===0?foo():bar();
     ```
 
 * Forbid `using` declarations inside `switch` clauses ([#4323](https://github.com/evanw/esbuild/issues/4323))

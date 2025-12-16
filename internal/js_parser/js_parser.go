@@ -11625,22 +11625,55 @@ func (p *parser) minifySwitchStmt(loc logger.Loc, s *js_ast.SSwitch, stmts []js_
 		}
 	}
 
-	// Handle switch statements with only one case remaining
+	// Handle a switch statement containing only a "default" clause
 	if len(s.Cases) == 1 {
-		c := s.Cases[0]
-		var isTaken bool
-		var ok bool
-		if c.ValueOrNil.Data != nil {
-			// Non-default case
-			isTaken, ok = js_ast.CheckEqualityIfNoSideEffects(s.Test.Data, c.ValueOrNil.Data, js_ast.StrictEquality)
-		} else {
-			// Default case
-			isTaken, ok = true, p.astHelpers.ExprCanBeRemovedIfUnused(s.Test)
-		}
-		if ok && isTaken {
+		if c := s.Cases[0]; c.ValueOrNil.Data == nil && p.astHelpers.ExprCanBeRemovedIfUnused(s.Test) {
 			if body, ok := tryToInlineCaseBody(s.BodyLoc, c.Body, s.CloseBraceLoc); ok {
-				// Inline the case body
 				return append(stmts, body...)
+			}
+		}
+	}
+
+	// Try to turn this into an if-else statement
+	var yesCase js_ast.Case
+	var noCase js_ast.Case
+	if len(s.Cases) == 1 {
+		if yes := s.Cases[0]; yes.ValueOrNil.Data != nil {
+			yesCase = yes
+		}
+	} else if len(s.Cases) == 2 {
+		// "switch (x) { case y: a(); break; default: b() }"
+		if yes := s.Cases[0]; yes.ValueOrNil.Data != nil && !caseBodyCouldHaveFallThrough(yes.Body) {
+			if no := s.Cases[1]; no.ValueOrNil.Data == nil {
+				yesCase = yes
+				noCase = no
+			}
+		}
+
+		// "switch (x) { default: a(); break; case y: b() }"
+		if no := s.Cases[0]; no.ValueOrNil.Data == nil && !caseBodyCouldHaveFallThrough(no.Body) {
+			if yes := s.Cases[1]; yes.ValueOrNil.Data != nil {
+				yesCase = yes
+				noCase = no
+			}
+		}
+	}
+	if yesCase.ValueOrNil.Data != nil {
+		if yesBody, ok := tryToInlineCaseBody(s.BodyLoc, yesCase.Body, s.CloseBraceLoc); ok {
+			if noBody, ok := tryToInlineCaseBody(s.BodyLoc, noCase.Body, s.CloseBraceLoc); ok {
+				ifElse := js_ast.SIf{
+					Test: js_ast.Expr{Loc: s.Test.Loc},
+					Yes:  stmtsToSingleStmt(yesCase.Loc, yesBody, logger.Loc{}),
+				}
+				if isEqualToTest, ok := js_ast.CheckEqualityIfNoSideEffects(s.Test.Data, yesCase.ValueOrNil.Data, js_ast.StrictEquality); ok {
+					ifElse.Test.Data = &js_ast.EBoolean{Value: isEqualToTest}
+				} else {
+					ifElse.Test.Data = &js_ast.EBinary{Op: js_ast.BinOpStrictEq, Left: s.Test, Right: yesCase.ValueOrNil}
+				}
+				if len(noBody) > 0 {
+					ifElse.NoOrNil = stmtsToSingleStmt(noCase.Loc, noBody, logger.Loc{})
+				}
+				return p.mangleIf(stmts, loc, &ifElse)
 			}
 		}
 	}

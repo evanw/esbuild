@@ -1865,7 +1865,7 @@ func TestSuperCall(t *testing.T) {
 	expectPrintedMangleTarget(t, 2015, "class A extends B { x = 1; constructor() { super(); if (c) throw c } }",
 		"class A extends B {\n  constructor() {\n    super();\n    __publicField(this, \"x\", 1);\n    if (c) throw c;\n  }\n}\n")
 	expectPrintedMangleTarget(t, 2015, "class A extends B { x = 1; constructor() { super(); switch (c) { case 0: throw c } } }",
-		"class A extends B {\n  constructor() {\n    super();\n    __publicField(this, \"x\", 1);\n    switch (c) {\n      case 0:\n        throw c;\n    }\n  }\n}\n")
+		"class A extends B {\n  constructor() {\n    super();\n    __publicField(this, \"x\", 1);\n    if (c === 0)\n      throw c;\n  }\n}\n")
 	expectPrintedMangleTarget(t, 2015, "class A extends B { x = 1; constructor() { super(); while (!c) throw c } }",
 		"class A extends B {\n  constructor() {\n    super();\n    __publicField(this, \"x\", 1);\n    for (; !c; ) throw c;\n  }\n}\n")
 	expectPrintedMangleTarget(t, 2015, "class A extends B { x = 1; constructor() { super(); return c } }",
@@ -3664,21 +3664,23 @@ func TestMangleBlock(t *testing.T) {
 }
 
 func TestMangleSwitch(t *testing.T) {
-	expectPrintedMangle(t, "x(); switch (y) { case z: return w; }", "switch (x(), y) {\n  case z:\n    return w;\n}\n")
-	expectPrintedMangle(t, "if (t) { x(); switch (y) { case z: return w; } }", "if (t)\n  switch (x(), y) {\n    case z:\n      return w;\n  }\n")
+	expectPrintedMangle(t, "x(); switch (y) { case z: return w; }", "if (x(), y === z)\n  return w;\n")
+	expectPrintedMangle(t, "if (t) { x(); switch (y) { case z: return w; } }", "if (t && (x(), y === z))\n  return w;\n")
 
 	// We potentially need to keep let/const declarations in dead cases
 	expectPrintedMangle(t, "switch (1) { case 0: x; case 1: return x }", "return x;\n")
 	expectPrintedMangle(t, "switch (1) { case 0: var x; case 1: return x }", "switch (1) {\n  case 0:\n    var x;\n  case 1:\n    return x;\n}\n")
 	expectPrintedMangle(t, "switch (1) { case 0: let x; case 1: return x }", "switch (1) {\n  case 0:\n    let x;\n  case 1:\n    return x;\n}\n")
 	expectPrintedMangle(t, "switch (1) { case 0: const x = 0; case 1: return x }", "switch (1) {\n  case 0:\n    const x = 0;\n  case 1:\n    return x;\n}\n")
-	expectPrintedMangle(t, "switch (2) { case 0: var x; case 1: return x }", "switch (2) {\n  case 0:\n    var x;\n}\n")
+	expectPrintedMangle(t, "switch (2) { case 0: var x; case 1: return x }", "if (0)\n  var x;\n")
 	expectPrintedMangle(t, "switch (2) { case 0: let x; case 1: return x }", "")
 	expectPrintedMangle(t, "switch (2) { case 0: const x = 0; case 1: return x }", "")
 
 	// https://github.com/evanw/esbuild/issues/4359
+	expectPrintedMangle(t, "switch (x) { case 0: a(); break; default: b() }", "x === 0 ? a() : b();\n")
+	expectPrintedMangle(t, "switch (x) { default: a(); break; case 0: b() }", "x === 0 ? b() : a();\n")
 	expectPrintedMangle(t, "switch (x) { case p: a(); break; case q: default: b() }", "switch (x) {\n  case p:\n    a();\n    break;\n  case q:\n  default:\n    b();\n}\n")
-	expectPrintedMangle(t, "switch (x) { case 0: a(); break; case 1: case 2: default: b() }", "switch (x) {\n  case 0:\n    a();\n    break;\n  default:\n    b();\n}\n")
+	expectPrintedMangle(t, "switch (x) { case 0: a(); break; case 1: case 2: default: b() }", "x === 0 ? a() : b();\n")
 	expectPrintedMangle(t, "switch (x) { case 0: default: a(); break; case 0: b() }", "switch (x) {\n  case 0:\n  default:\n    a();\n    break;\n  case 0:\n    b();\n}\n")
 
 	// https://github.com/evanw/esbuild/issues/4176
@@ -5389,7 +5391,7 @@ func TestMangleInlineLocals(t *testing.T) {
 	check("let x = arg0; throw x;", "throw arg0;")
 	check("let x = arg0; return x;", "return arg0;")
 	check("let x = arg0; if (x) return 1;", "if (arg0) return 1;")
-	check("let x = arg0; switch (x) { case 0: return 1; }", "switch (arg0) {\n  case 0:\n    return 1;\n}")
+	check("let x = arg0; switch (x) { case 0: return 1; }", "if (arg0 === 0)\n  return 1;")
 	check("let x = arg0; let y = x; return y + y;", "let y = arg0;\nreturn y + y;")
 
 	// Loops must not be substituted into because they evaluate multiple times
