@@ -3496,6 +3496,65 @@ for (const minify of [[], ['--minify-syntax']]) {
 `,
     }),
 
+    // We potentially need to keep let/const declarations in dead cases
+    test(['in.js', '--outfile=node.js'].concat(minify), {
+      'in.js': `
+        function test() {
+          switch (1) {
+            case 0:
+              var deadVarInSwitch // This must not be removed
+            case 1:
+            case 2:
+              return deadVarInSwitch
+          }
+        }
+        globalThis.deadVarInSwitch = 'fail'
+        if (test() !== undefined) throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js'].concat(minify), {
+      'in.js': `
+        function test() {
+          switch (1) {
+            case 0:
+              let deadLetInSwitch // This must not be removed
+            case 1:
+            case 2:
+              return deadLetInSwitch
+          }
+        }
+        globalThis.deadLetInSwitch = 'fail'
+        try {
+          test()
+          throw 'fail'
+        } catch (e) {
+          if (!(e instanceof ReferenceError))
+            throw e
+        }
+      `,
+    }),
+    test(['in.js', '--outfile=node.js'].concat(minify), {
+      'in.js': `
+        function test() {
+          switch (1) {
+            case 0:
+              const deadConstInSwitch = 0 // This must not be removed (or inlined as a constant)
+            case 1:
+            case 2:
+              return deadConstInSwitch
+          }
+        }
+        globalThis.deadConstInSwitch = 'fail'
+        try {
+          test()
+          throw 'fail'
+        } catch (e) {
+          if (!(e instanceof ReferenceError))
+            throw e
+        }
+      `,
+    }),
+
     // See: https://github.com/evanw/esbuild/issues/3195
     test(['in.js', '--outfile=node.js', '--keep-names'].concat(minify), {
       'in.js': `

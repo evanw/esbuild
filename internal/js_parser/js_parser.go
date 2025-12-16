@@ -821,7 +821,11 @@ func analyzeSwitchCasesForLiveness(s *js_ast.SSwitch) []switchCaseLiveness {
 	// Set the liveness for the default case last based on the other cases
 	if defaultIndex != -1 {
 		// The negation here transposes "always live" with "always dead"
-		cases[defaultIndex].status = -maxStatus
+		status := -maxStatus
+		if maxStatus < status {
+			maxStatus = status
+		}
+		cases[defaultIndex].status = status
 	}
 
 	// Then propagate fall-through information in linear fall-through order
@@ -833,6 +837,22 @@ func analyzeSwitchCasesForLiveness(s *js_ast.SSwitch) []switchCaseLiveness {
 			for j := i + 1; j < len(cases) && cases[j-1].canFallThrough; j++ {
 				cases[j].status = livenessUnknown
 			}
+		} else if maxStatus > alwaysDead && stmtsCareAboutScope(s.Cases[i].Body) {
+			// Since adjacent cases share a scope, dead cases can potentially still
+			// affect other cases that are live. Consider the following:
+			//
+			//   globalThis.foo = true
+			//   switch (1) {
+			//     case 0:
+			//       let foo
+			//     case 1:
+			//       return foo
+			//   }
+			//
+			// This code is supposed to throw a ReferenceError. But if we treat the
+			// first case as dead code, then "let foo" will end up being removed and
+			// the code will incorrectly return true instead.
+			cases[i].status = livenessUnknown
 		}
 	}
 	return cases
@@ -11147,6 +11167,27 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		p.pushScopeForVisitPass(js_ast.ScopeBlock, s.BodyLoc)
 		oldIsInsideSwitch := p.fnOrArrowDataVisit.isInsideSwitch
 		p.fnOrArrowDataVisit.isInsideSwitch = true
+
+		// Disable const inlining in switch cases. They all share the same scope
+		// and can be evaluated in an unusual order. For example:
+		//
+		//   // This should not become "return 0"
+		//   switch (1) {
+		//     case 0:
+		//       const x = 0
+		//     case 1:
+		//       return x
+		//   }
+		//
+		//   // This should not become "return 0"
+		//   switch (0) {
+		//     case 0:
+		//       return x
+		//     case 1:
+		//       const x = 0
+		//   }
+		//
+		p.currentScope.IsAfterConstLocalPrefix = true
 
 		// Visit case values first
 		for i := range s.Cases {
