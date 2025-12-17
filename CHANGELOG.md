@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.27.2
 
 * Allow import path specifiers starting with `#/` ([#4361](https://github.com/evanw/esbuild/pull/4361))
 
