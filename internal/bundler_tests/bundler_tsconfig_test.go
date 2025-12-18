@@ -2734,6 +2734,10 @@ func TestTsconfigDecoratorsUseDefineForClassFieldsFalse(t *testing.T) {
 		files: map[string]string{
 			"/Users/user/project/src/entry.ts": `
 				class Class {
+					foo
+				}
+				class ClassExtends extends Class {
+					bar
 				}
 				class ClassMethod {
 					foo() {}
@@ -2741,18 +2745,24 @@ func TestTsconfigDecoratorsUseDefineForClassFieldsFalse(t *testing.T) {
 				class ClassField {
 					foo = 123
 					bar
+					baz
 				}
 				class ClassAccessor {
 					accessor foo = 123
 					accessor bar
 				}
 				new Class
+				new ClassExtends
 				new ClassMethod
 				new ClassField
 				new ClassAccessor
 			`,
 			"/Users/user/project/src/entrywithdec.ts": `
 				@dec class Class {
+					foo
+		        }
+				@dec class ClassExtends extends Class {
+					bar
 				}
 				class ClassMethod {
 					@dec foo() {}
@@ -2760,14 +2770,21 @@ func TestTsconfigDecoratorsUseDefineForClassFieldsFalse(t *testing.T) {
 				class ClassField {
 					@dec foo = 123
 					@dec bar
+					baz
+				}
+				class ClassFieldExtends extends Class {
+					@dec bar
+					baz
 				}
 				class ClassAccessor {
 					@dec accessor foo = 123
 					@dec accessor bar
 				}
 				new Class
+				new ClassExtends
 				new ClassMethod
 				new ClassField
+				new ClassFieldExtends
 				new ClassAccessor
 			`,
 			"/Users/user/project/src/tsconfig.json": `{
