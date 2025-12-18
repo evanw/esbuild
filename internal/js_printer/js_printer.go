@@ -3936,9 +3936,9 @@ func (p *printer) printPath(importRecordIndex uint32, importKind ast.ImportKind)
 	if p.options.NeedsMetafile {
 		external := ""
 		if (record.Flags & ast.ShouldNotBeExternalInMetafile) == 0 {
-			external = ",\n          \"external\": true"
+			external = ",\"external\":true"
 		}
-		p.jsonMetadataImports = append(p.jsonMetadataImports, fmt.Sprintf("\n        {\n          \"path\": %s,\n          \"kind\": %s%s\n        }",
+		p.jsonMetadataImports = append(p.jsonMetadataImports, fmt.Sprintf("{\"path\":%s,\"kind\":%s%s}",
 			helpers.QuoteForJSON(record.Path.Text, p.options.ASCIIOnly),
 			helpers.QuoteForJSON(importKind.StringForMetafile(), p.options.ASCIIOnly),
 			external))

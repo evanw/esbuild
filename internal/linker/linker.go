@@ -706,7 +706,7 @@ func (c *linkerContext) generateChunksInParallel(additionalFiles []graph.OutputF
 					AbsPath:  c.fs.Join(c.options.AbsOutputDir, finalRelPathForLegalComments),
 					Contents: chunk.externalLegalComments,
 					JSONMetadataChunk: fmt.Sprintf(
-						"{\n      \"imports\": [],\n      \"exports\": [],\n      \"inputs\": {},\n      \"bytes\": %d\n    }", len(chunk.externalLegalComments)),
+						"{\"imports\":[],\"exports\":[],\"inputs\":{},\"bytes\":%d}", len(chunk.externalLegalComments)),
 				})
 			}
 
@@ -744,7 +744,7 @@ func (c *linkerContext) generateChunksInParallel(additionalFiles []graph.OutputF
 						AbsPath:  c.fs.Join(c.options.AbsOutputDir, finalRelPathForSourceMap),
 						Contents: outputSourceMap,
 						JSONMetadataChunk: fmt.Sprintf(
-							"{\n      \"imports\": [],\n      \"exports\": [],\n      \"inputs\": {},\n      \"bytes\": %d\n    }", len(outputSourceMap)),
+							"{\"imports\":[],\"exports\":[],\"inputs\":{},\"bytes\":%d}", len(outputSourceMap)),
 					})
 				}
 			}
@@ -4975,7 +4975,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 	}
 
 	if file.InputFile.Loader == config.LoaderFile {
-		result.JSONMetadataImports = append(result.JSONMetadataImports, fmt.Sprintf("\n        {\n          \"path\": %s,\n          \"kind\": \"file-loader\"\n        }",
+		result.JSONMetadataImports = append(result.JSONMetadataImports, fmt.Sprintf("{\"path\":%s,\"kind\":\"file-loader\"}",
 			helpers.QuoteForJSON(file.InputFile.UniqueKeyForAdditionalFile, c.options.ASCIIOnly)))
 	}
 
@@ -5742,7 +5742,7 @@ func (c *linkerContext) generateChunkJS(chunkIndex int, chunkWaitGroup *sync.Wai
 	if c.options.NeedsMetafile {
 		// Print imports
 		isFirstMeta := true
-		jMeta.AddString("{\n      \"imports\": [")
+		jMeta.AddString("{\"imports\":[")
 		for _, json := range jsonMetadataImports {
 			if isFirstMeta {
 				isFirstMeta = false
@@ -5761,12 +5761,9 @@ func (c *linkerContext) generateChunkJS(chunkIndex int, chunkWaitGroup *sync.Wai
 				jMeta.AddString(json)
 			}
 		}
-		if !isFirstMeta {
-			jMeta.AddString("\n      ")
-		}
 
 		// Print exports
-		jMeta.AddString("],\n      \"exports\": [")
+		jMeta.AddString("],\"exports\":[")
 		var aliases []string
 		if c.options.OutputFormat.KeepESMImportExportSyntax() {
 			if chunk.isEntryPoint {
@@ -5794,21 +5791,17 @@ func (c *linkerContext) generateChunkJS(chunkIndex int, chunkWaitGroup *sync.Wai
 			} else {
 				jMeta.AddString(",")
 			}
-			jMeta.AddString(fmt.Sprintf("\n        %s",
-				helpers.QuoteForJSON(alias, c.options.ASCIIOnly)))
+			jMeta.AddBytes(helpers.QuoteForJSON(alias, c.options.ASCIIOnly))
 		}
-		if !isFirstMeta {
-			jMeta.AddString("\n      ")
-		}
-		jMeta.AddString("],\n")
+		jMeta.AddString("],")
 		if chunk.isEntryPoint {
 			entryPoint := c.graph.Files[chunk.sourceIndex].InputFile.Source.PrettyPaths.Select(c.options.MetafilePathStyle)
-			jMeta.AddString(fmt.Sprintf("      \"entryPoint\": %s,\n", helpers.QuoteForJSON(entryPoint, c.options.ASCIIOnly)))
+			jMeta.AddString(fmt.Sprintf("\"entryPoint\":%s,", helpers.QuoteForJSON(entryPoint, c.options.ASCIIOnly)))
 		}
 		if chunkRepr.hasCSSChunk {
-			jMeta.AddString(fmt.Sprintf("      \"cssBundle\": %s,\n", helpers.QuoteForJSON(c.chunks[chunkRepr.cssChunkIndex].uniqueKey, c.options.ASCIIOnly)))
+			jMeta.AddString(fmt.Sprintf("\"cssBundle\":%s,", helpers.QuoteForJSON(c.chunks[chunkRepr.cssChunkIndex].uniqueKey, c.options.ASCIIOnly)))
 		}
-		jMeta.AddString("      \"inputs\": {")
+		jMeta.AddString("\"inputs\":{")
 	}
 
 	// Concatenate the generated JavaScript chunks together
@@ -5969,14 +5962,11 @@ func (c *linkerContext) generateChunkJS(chunkIndex int, chunkWaitGroup *sync.Wai
 				for _, output := range pieces[i] {
 					count += c.accurateFinalByteCount(output, finalRelDir)
 				}
-				jMeta.AddString(fmt.Sprintf("\n        %s: {\n          \"bytesInOutput\": %d\n        %s}",
+				jMeta.AddString(fmt.Sprintf("%s:{\"bytesInOutput\":%d%s}",
 					helpers.QuoteForJSON(c.graph.Files[sourceIndex].InputFile.Source.PrettyPaths.Select(c.options.MetafilePathStyle), c.options.ASCIIOnly),
 					count, c.generateExtraDataForFileJS(sourceIndex)))
 			}
-			if len(metaOrder) > 0 {
-				jMeta.AddString("\n      ")
-			}
-			jMeta.AddString(fmt.Sprintf("},\n      \"bytes\": %d\n    }", finalOutputSize))
+			jMeta.AddString(fmt.Sprintf("},\"bytes\":%d}", finalOutputSize))
 			return jMeta
 		}
 	}
@@ -6302,7 +6292,7 @@ func (c *linkerContext) generateChunkCSS(chunkIndex int, chunkWaitGroup *sync.Wa
 	jMeta := helpers.Joiner{}
 	if c.options.NeedsMetafile {
 		isFirstMeta := true
-		jMeta.AddString("{\n      \"imports\": [")
+		jMeta.AddString("{\"imports\":[")
 		for _, json := range jsonMetadataImports {
 			if isFirstMeta {
 				isFirstMeta = false
@@ -6321,9 +6311,6 @@ func (c *linkerContext) generateChunkCSS(chunkIndex int, chunkWaitGroup *sync.Wa
 				jMeta.AddString(json)
 			}
 		}
-		if !isFirstMeta {
-			jMeta.AddString("\n      ")
-		}
 		if chunk.isEntryPoint {
 			file := &c.graph.Files[chunk.sourceIndex]
 
@@ -6331,13 +6318,13 @@ func (c *linkerContext) generateChunkCSS(chunkIndex int, chunkWaitGroup *sync.Wa
 			// importing CSS into JavaScript. We want this to be a 1:1 relationship
 			// and there is already an output file for the JavaScript entry point.
 			if _, ok := file.InputFile.Repr.(*graph.CSSRepr); ok {
-				jMeta.AddString(fmt.Sprintf("],\n      \"entryPoint\": %s,\n      \"inputs\": {",
+				jMeta.AddString(fmt.Sprintf("],\"entryPoint\":%s,\"inputs\":{",
 					helpers.QuoteForJSON(file.InputFile.Source.PrettyPaths.Select(c.options.MetafilePathStyle), c.options.ASCIIOnly)))
 			} else {
-				jMeta.AddString("],\n      \"inputs\": {")
+				jMeta.AddString("],\"inputs\":{")
 			}
 		} else {
-			jMeta.AddString("],\n      \"inputs\": {")
+			jMeta.AddString("],\"inputs\":{")
 		}
 	}
 
@@ -6440,14 +6427,11 @@ func (c *linkerContext) generateChunkCSS(chunkIndex int, chunkWaitGroup *sync.Wa
 				} else {
 					jMeta.AddString(",")
 				}
-				jMeta.AddString(fmt.Sprintf("\n        %s: {\n          \"bytesInOutput\": %d\n        }",
+				jMeta.AddString(fmt.Sprintf("%s:{\"bytesInOutput\":%d}",
 					helpers.QuoteForJSON(c.graph.Files[compileResult.sourceIndex.GetIndex()].InputFile.Source.PrettyPaths.Select(c.options.MetafilePathStyle), c.options.ASCIIOnly),
 					c.accurateFinalByteCount(pieces[i], finalRelDir)))
 			}
-			if len(compileResults) > 0 {
-				jMeta.AddString("\n      ")
-			}
-			jMeta.AddString(fmt.Sprintf("},\n      \"bytes\": %d\n    }", finalOutputSize))
+			jMeta.AddString(fmt.Sprintf("},\"bytes\":%d}", finalOutputSize))
 			return jMeta
 		}
 	}

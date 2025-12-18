@@ -7,6 +7,8 @@ package bundler_tests
 // inspect the diff to ensure the expected values are valid.
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -216,7 +218,20 @@ func (s *suite) __expectBundledImpl(t *testing.T, args bundled, fsKind fs.MockKi
 			generated += fmt.Sprintf("---------- %s ----------\n%s", result.AbsPath, string(result.Contents))
 		}
 		if metafileJSON != "" {
-			generated += fmt.Sprintf("---------- metafile.json ----------\n%s", metafileJSON)
+			var buf bytes.Buffer
+			if err := json.Compact(&buf, []byte(metafileJSON)); err != nil {
+				t.Errorf("failed to compact metafile: %s", err)
+			} else if compacted := buf.String(); compacted != metafileJSON {
+				t.Errorf("metafile is not properly compacted")
+				test.AssertEqualWithDiff(t, compacted, metafileJSON)
+			}
+			buf.Reset()
+			if err := json.Indent(&buf, []byte(metafileJSON), "", "  "); err != nil {
+				t.Errorf("failed to indent metafile: %s", err)
+			} else {
+				metafileJSON = buf.String()
+			}
+			generated += fmt.Sprintf("---------- metafile.json ----------\n%s\n", metafileJSON)
 		}
 		s.compareSnapshot(t, testName, generated)
 	})
