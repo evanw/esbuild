@@ -2749,102 +2749,154 @@ function foo(fn2 = function() {
 }) {
 }
 __name(foo, "foo");
-var fn = /* @__PURE__ */ __name(function() {
-}, "fn");
-var obj = { "f n": /* @__PURE__ */ __name(function() {
-}, "f n") };
+var fn = /* @__PURE__ */ __firstValue({
+  fn: function() {
+  }
+});
+var obj = { "f n": /* @__PURE__ */ __firstValue({
+  "f n": function() {
+  }
+}) };
 class Foo0 {
   static {
     __name(this, "Foo0");
   }
-  "f n" = /* @__PURE__ */ __name(function() {
-  }, "f n");
+  "f n" = /* @__PURE__ */ __firstValue({
+    "f n": function() {
+    }
+  });
 }
 class Foo1 {
   static {
     __name(this, "Foo1");
   }
-  static "f n" = /* @__PURE__ */ __name(function() {
-  }, "f n");
+  static "f n" = /* @__PURE__ */ __firstValue({
+    "f n": function() {
+    }
+  });
 }
 class Foo2 {
   static {
     __name(this, "Foo2");
   }
-  accessor "f n" = /* @__PURE__ */ __name(function() {
-  }, "f n");
+  accessor "f n" = /* @__PURE__ */ __firstValue({
+    "f n": function() {
+    }
+  });
 }
 class Foo3 {
   static {
     __name(this, "Foo3");
   }
-  static accessor "f n" = /* @__PURE__ */ __name(function() {
-  }, "f n");
+  static accessor "f n" = /* @__PURE__ */ __firstValue({
+    "f n": function() {
+    }
+  });
 }
 class Foo4 {
   static {
     __name(this, "Foo4");
   }
-  #fn = /* @__PURE__ */ __name(function() {
-  }, "#fn");
+  #fn = /* @__PURE__ */ __firstValue({
+    "#fn": function() {
+    }
+  });
 }
 class Foo5 {
   static {
     __name(this, "Foo5");
   }
-  static #fn = /* @__PURE__ */ __name(function() {
-  }, "#fn");
+  static #fn = /* @__PURE__ */ __firstValue({
+    "#fn": function() {
+    }
+  });
 }
 class Foo6 {
   static {
     __name(this, "Foo6");
   }
-  accessor #fn = /* @__PURE__ */ __name(function() {
-  }, "#fn");
+  accessor #fn = /* @__PURE__ */ __firstValue({
+    "#fn": function() {
+    }
+  });
 }
 class Foo7 {
   static {
     __name(this, "Foo7");
   }
-  static accessor #fn = /* @__PURE__ */ __name(function() {
-  }, "#fn");
+  static accessor #fn = /* @__PURE__ */ __firstValue({
+    "#fn": function() {
+    }
+  });
 }
-fn = /* @__PURE__ */ __name(function() {
-}, "fn");
-fn ||= /* @__PURE__ */ __name(function() {
-}, "fn");
-fn &&= /* @__PURE__ */ __name(function() {
-}, "fn");
-fn ??= /* @__PURE__ */ __name(function() {
-}, "fn");
-var [fn = /* @__PURE__ */ __name(function() {
-}, "fn")] = [];
-var { fn = /* @__PURE__ */ __name(function() {
-}, "fn") } = {};
-for (var [fn = /* @__PURE__ */ __name(function() {
-}, "fn")] = []; ; ) ;
-for (var { fn = /* @__PURE__ */ __name(function() {
-}, "fn") } = {}; ; ) ;
-for (var [fn = /* @__PURE__ */ __name(function() {
-}, "fn")] in obj) ;
-for (var { fn = /* @__PURE__ */ __name(function() {
-}, "fn") } in obj) ;
-for (var [fn = /* @__PURE__ */ __name(function() {
-}, "fn")] of obj) ;
-for (var { fn = /* @__PURE__ */ __name(function() {
-}, "fn") } of obj) ;
-function foo([fn2 = /* @__PURE__ */ __name(function() {
-}, "fn")]) {
+fn = /* @__PURE__ */ __firstValue({
+  fn: function() {
+  }
+});
+fn ||= /* @__PURE__ */ __firstValue({
+  fn: function() {
+  }
+});
+fn &&= /* @__PURE__ */ __firstValue({
+  fn: function() {
+  }
+});
+fn ??= /* @__PURE__ */ __firstValue({
+  fn: function() {
+  }
+});
+var [fn = /* @__PURE__ */ __firstValue({
+  fn: function() {
+  }
+})] = [];
+var { fn = /* @__PURE__ */ __firstValue({
+  fn: function() {
+  }
+}) } = {};
+for (var [fn = /* @__PURE__ */ __firstValue({
+  fn: function() {
+  }
+})] = []; ; ) ;
+for (var { fn = /* @__PURE__ */ __firstValue({
+  fn: function() {
+  }
+}) } = {}; ; ) ;
+for (var [fn = /* @__PURE__ */ __firstValue({
+  fn: function() {
+  }
+})] in obj) ;
+for (var { fn = /* @__PURE__ */ __firstValue({
+  fn: function() {
+  }
+}) } in obj) ;
+for (var [fn = /* @__PURE__ */ __firstValue({
+  fn: function() {
+  }
+})] of obj) ;
+for (var { fn = /* @__PURE__ */ __firstValue({
+  fn: function() {
+  }
+}) } of obj) ;
+function foo([fn2 = /* @__PURE__ */ __firstValue({
+  fn: function() {
+  }
+})]) {
 }
 __name(foo, "foo");
-function foo({ fn: fn2 = /* @__PURE__ */ __name(function() {
-}, "fn") }) {
+function foo({ fn: fn2 = /* @__PURE__ */ __firstValue({
+  fn: function() {
+  }
+}) }) {
 }
 __name(foo, "foo");
-[fn = /* @__PURE__ */ __name(function() {
-}, "fn")] = [];
-({ fn = /* @__PURE__ */ __name(function() {
-}, "fn") } = {});
+[fn = /* @__PURE__ */ __firstValue({
+  fn: function() {
+  }
+})] = [];
+({ fn = /* @__PURE__ */ __firstValue({
+  fn: function() {
+  }
+}) } = {});
 
 ---------- /out/do-not-keep.js ----------
 class Foo0 {
@@ -3082,8 +3134,10 @@ function fnStmtKeep() {
 }
 __name(fnStmtKeep, "fnStmtKeep");
 x = fnStmtKeep;
-var fnExprKeep = /* @__PURE__ */ __name(function() {
-}, "keep");
+var fnExprKeep = /* @__PURE__ */ __firstValue({
+  keep: function() {
+  }
+});
 x = fnExprKeep;
 var clsStmtKeep = class {
   static {
@@ -4670,7 +4724,7 @@ copy
 import {
   __commonJS,
   __require
-} from "./chunk-MQN2VSL5.js";
+} from "./chunk-Q5ZK3UMZ.js";
 
 // project/cjs.js
 var require_cjs = __commonJS({
@@ -4701,15 +4755,15 @@ console.log(
   e,
   __require("extern-cjs"),
   require_cjs(),
-  import("./dynamic-Q2DWDUFV.js")
+  import("./dynamic-4NEUC7FD.js")
 );
 var exported;
 export {
   exported
 };
 
----------- /out/dynamic-Q2DWDUFV.js ----------
-import "./chunk-MQN2VSL5.js";
+---------- /out/dynamic-4NEUC7FD.js ----------
+import "./chunk-Q5ZK3UMZ.js";
 
 // project/dynamic.js
 var dynamic_default = 5;
@@ -4717,7 +4771,7 @@ export {
   dynamic_default as default
 };
 
----------- /out/chunk-MQN2VSL5.js ----------
+---------- /out/chunk-Q5ZK3UMZ.js ----------
 export {
   __require,
   __commonJS
@@ -4874,7 +4928,7 @@ d {
     "out/entry.js": {
       "imports": [
         {
-          "path": "out/chunk-MQN2VSL5.js",
+          "path": "out/chunk-Q5ZK3UMZ.js",
           "kind": "import-statement"
         },
         {
@@ -4896,7 +4950,7 @@ d {
           "external": true
         },
         {
-          "path": "out/dynamic-Q2DWDUFV.js",
+          "path": "out/dynamic-4NEUC7FD.js",
           "kind": "dynamic-import"
         }
       ],
@@ -4923,10 +4977,10 @@ d {
       },
       "bytes": 642
     },
-    "out/dynamic-Q2DWDUFV.js": {
+    "out/dynamic-4NEUC7FD.js": {
       "imports": [
         {
-          "path": "out/chunk-MQN2VSL5.js",
+          "path": "out/chunk-Q5ZK3UMZ.js",
           "kind": "import-statement"
         }
       ],
@@ -4941,7 +4995,7 @@ d {
       },
       "bytes": 119
     },
-    "out/chunk-MQN2VSL5.js": {
+    "out/chunk-Q5ZK3UMZ.js": {
       "imports": [],
       "exports": [
         "__commonJS",

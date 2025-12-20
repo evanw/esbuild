@@ -10309,13 +10309,30 @@ func (p *parser) mangleIf(stmts []js_ast.Stmt, loc logger.Loc, s *js_ast.SIf) []
 }
 
 func (p *parser) keepExprSymbolName(value js_ast.Expr, name string) js_ast.Expr {
-	value = p.callRuntime(value.Loc, "__name", []js_ast.Expr{value,
+	// For anonymous functions, transform to __firstValue({ foo: function() {} }) which allows native
+	// ECMAScript function name inference to apply (while still preventing the name from being removed
+	// by UglifyJS/Terser)
+	isAnonymousFnOrArrow := false
+	switch e := value.Data.(type) {
+	case *js_ast.EFunction:
+		isAnonymousFnOrArrow = (e.Fn.Name == nil)
+	case *js_ast.EArrow:
+		isAnonymousFnOrArrow = true
+	}
+	if isAnonymousFnOrArrow {
+		key := js_ast.Expr{Loc: value.Loc, Data: &js_ast.EString{Value: helpers.StringToUTF16(name)}}
+		obj := js_ast.Expr{Loc: value.Loc, Data: &js_ast.EObject{Properties: []js_ast.Property{{Key: key, ValueOrNil: value}}}}
+		call := p.callRuntime(value.Loc, "__firstValue", []js_ast.Expr{obj})
+		call.Data.(*js_ast.ECall).CanBeUnwrappedIfUnused = true
+		return call
+	}
+
+	// Otherwise, fall back to the __name helper
+	call := p.callRuntime(value.Loc, "__name", []js_ast.Expr{value,
 		{Loc: value.Loc, Data: &js_ast.EString{Value: helpers.StringToUTF16(name)}},
 	})
-
-	// Make sure tree shaking removes this if the function is never used
-	value.Data.(*js_ast.ECall).CanBeUnwrappedIfUnused = true
-	return value
+	call.Data.(*js_ast.ECall).CanBeUnwrappedIfUnused = true
+	return call
 }
 
 func (p *parser) keepClassOrFnSymbolName(loc logger.Loc, expr js_ast.Expr, name string) js_ast.Stmt {
