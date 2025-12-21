@@ -18115,7 +18115,7 @@ func LazyExportAST(log logger.Log, source logger.Source, options Options, expr j
 	return ast
 }
 
-func GlobResolveAST(log logger.Log, source logger.Source, importRecords []ast.ImportRecord, object *js_ast.EObject, name string) js_ast.AST {
+func GlobResolveAST(log logger.Log, source logger.Source, importRecords []ast.ImportRecord, object *js_ast.EObject, kind ast.ImportKind, name string) js_ast.AST {
 	// Don't create a new lexer using js_lexer.NewLexer() here since that will
 	// actually attempt to parse the first token, which might cause a syntax
 	// error.
@@ -18142,12 +18142,17 @@ func GlobResolveAST(log logger.Log, source logger.Source, importRecords []ast.Im
 	ref := p.newSymbol(ast.SymbolOther, name)
 	p.moduleScope.Generated = append(p.moduleScope.Generated, ref)
 
+	globFunc := "__glob"
+	if kind == ast.ImportDynamic {
+		globFunc = "__glob_dynamic"
+	}
+
 	part := js_ast.Part{
 		Stmts: []js_ast.Stmt{{Data: &js_ast.SLocal{
 			IsExport: true,
 			Decls: []js_ast.Decl{{
 				Binding:    js_ast.Binding{Data: &js_ast.BIdentifier{Ref: ref}},
-				ValueOrNil: p.callRuntime(logger.Loc{}, "__glob", []js_ast.Expr{{Data: object}}),
+				ValueOrNil: p.callRuntime(logger.Loc{}, globFunc, []js_ast.Expr{{Data: object}}),
 			}},
 		}}},
 		ImportRecordIndices: importRecordIndices,
