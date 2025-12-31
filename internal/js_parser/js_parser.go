@@ -13345,7 +13345,7 @@ func containsClosingScriptTag(text string) bool {
 	return false
 }
 
-func (p *parser) isUnsupportedRegularExpression(loc logger.Loc, value string) (pattern string, flags string, isUnsupported bool) {
+func (p *parser) shouldTransformRegularExpression(loc logger.Loc, value string, asciiOnly bool) (pattern string, flags string, shouldTransform bool) {
 	var what string
 	var r logger.Range
 
@@ -13389,7 +13389,7 @@ pattern:
 				if p.options.unsupportedJSFeatures.Has(compat.RegexpLookbehindAssertions) {
 					what = "Lookbehind assertions in regular expressions are not available"
 					r = logger.Range{Loc: logger.Loc{Start: loc.Start + int32(i) + 1}, Len: 3}
-					isUnsupported = true
+					shouldTransform = true
 					break pattern
 				}
 			} else if strings.HasPrefix(tail, "?<") {
@@ -13397,7 +13397,7 @@ pattern:
 					if end := strings.IndexByte(tail, '>'); end >= 0 {
 						what = "Named capture groups in regular expressions are not available"
 						r = logger.Range{Loc: logger.Loc{Start: loc.Start + int32(i) + 1}, Len: int32(end) + 1}
-						isUnsupported = true
+						shouldTransform = true
 						break pattern
 					}
 				}
@@ -13422,7 +13422,7 @@ pattern:
 					if end := strings.IndexByte(tail, '}'); end >= 0 {
 						what = "Unicode property escapes in regular expressions are not available"
 						r = logger.Range{Loc: logger.Loc{Start: loc.Start + int32(i)}, Len: int32(end) + 2}
-						isUnsupported = true
+						shouldTransform = true
 						break pattern
 					}
 				}
@@ -13432,7 +13432,7 @@ pattern:
 		}
 	}
 
-	if !isUnsupported {
+	if !shouldTransform {
 		for i, c := range flags {
 			switch c {
 			case 'g', 'i', 'm':
@@ -13464,12 +13464,25 @@ pattern:
 
 			r = logger.Range{Loc: logger.Loc{Start: loc.Start + int32(end+1) + int32(i)}, Len: 1}
 			what = fmt.Sprintf("The regular expression flag \"%c\" is not available", c)
-			isUnsupported = true
+			shouldTransform = true
 			break
 		}
 	}
 
-	if isUnsupported {
+	// If asciiOnly is set, we need check that the pattern is all ASCII characters.
+	// We transform regular expression literals to `new RegExp` calls instead of replacing the non-ASCII characters,
+	// for keeping the `.toString()` result of the created RegExp object unchanged.
+	if !shouldTransform && asciiOnly {
+		for i, c := range pattern {
+			if c >= 0x80 {
+				r = logger.Range{Loc: logger.Loc{Start: loc.Start + 1 + int32(i)}, Len: 1}
+				shouldTransform = true
+				break
+			}
+		}
+	}
+
+	if shouldTransform && what != "" {
 		where := config.PrettyPrintTargetEnvironment(p.options.originalTargetEnv, p.options.unsupportedJSFeatureOverridesMask)
 		p.log.AddIDWithNotes(logger.MsgID_JS_UnsupportedRegExp, logger.Debug, &p.tracker, r, fmt.Sprintf("%s in %s", what, where), []logger.MsgData{{
 			Text: "This regular expression literal has been converted to a \"new RegExp()\" constructor " +
@@ -13511,7 +13524,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 
 	case *js_ast.ERegExp:
 		// "/pattern/flags" => "new RegExp('pattern', 'flags')"
-		if pattern, flags, ok := p.isUnsupportedRegularExpression(expr.Loc, e.Value); ok {
+		if pattern, flags, ok := p.shouldTransformRegularExpression(expr.Loc, e.Value, p.options.asciiOnly); ok {
 			args := []js_ast.Expr{{
 				Loc:  logger.Loc{Start: expr.Loc.Start + 1},
 				Data: &js_ast.EString{Value: helpers.StringToUTF16(pattern)},
