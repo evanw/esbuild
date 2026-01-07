@@ -909,7 +909,12 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Rhino:   {{start: v{1, 7, 15}}},
 		Safari:  {{start: v{9, 0, 0}}},
 	},
-	Using: {},
+	Using: {
+		Chrome: {{start: v{134, 0, 0}}},
+		Deno:   {{start: v{2, 3, 0}}},
+		Edge:   {{start: v{134, 0, 0}}},
+		Node:   {{start: v{24, 0, 0}}},
+	},
 }
 
 // Return all features that are not available in at least one environment
