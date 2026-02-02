@@ -1151,6 +1151,10 @@ func (p *parser) lowerForAwaitLoop(loc logger.Loc, loop *js_ast.SForOf, stmts []
 	awaitIterNext = p.maybeLowerAwait(awaitIterNext.Loc, &js_ast.EAwait{Value: awaitIterNext})
 	awaitTempCallIter = p.maybeLowerAwait(awaitTempCallIter.Loc, &js_ast.EAwait{Value: awaitTempCallIter})
 
+	// these refs are used in the catch body but the catch body AST won't be visited, so we record their usage here
+	p.recordUsage(tempRef)
+	p.recordUsage(errorRef)
+
 	return append(stmts, js_ast.Stmt{Loc: loc, Data: &js_ast.STry{
 		BlockLoc: loc,
 		Block: js_ast.SBlock{

@@ -831,6 +831,11 @@ func TestForAwait(t *testing.T) {
 			"<stdin>: NOTE: This file is considered to be an ECMAScript module because of the top-level \"await\" keyword here:\n")
 }
 
+func TestForAwaitCatchBindingNotElided(t *testing.T) {
+	expectPrintedMangleWithUnsupportedFeatures(t, compat.ForAwait|compat.AsyncAwait, "async function test() { for await (const item of y) {} }",
+		"function test() {\n  return __async(this, null, function* () {\n    try {\n      for (var iter = __forAwait(y), more, temp, error; more = !(temp = yield iter.next()).done; more = false) {\n        const item = temp.value;\n        ;\n      }\n    } catch (temp) {\n      error = [temp];\n    } finally {\n      try {\n        more && (temp = iter.return) && (yield temp.call(iter));\n      } finally {\n        if (error)\n          throw error[0];\n      }\n    }\n  });\n}\n")
+}
+
 func TestLowerAutoAccessors(t *testing.T) {
 	expectPrintedWithUnsupportedFeatures(t, compat.Decorators, "class Foo { accessor x }",
 		"class Foo {\n  #x;\n  get x() {\n    return this.#x;\n  }\n  set x(_) {\n    this.#x = _;\n  }\n}\n")

@@ -124,6 +124,14 @@ func expectPrintedMangleTarget(t *testing.T, esVersion int, contents string, exp
 	})
 }
 
+func expectPrintedMangleWithUnsupportedFeatures(t *testing.T, unsupportedJSFeatures compat.JSFeature, contents string, expected string) {
+	t.Helper()
+	expectPrintedCommon(t, contents, expected, config.Options{
+		UnsupportedJSFeatures: unsupportedJSFeatures,
+		MinifySyntax:          true,
+	})
+}
+
 func expectPrintedASCII(t *testing.T, contents string, expected string) {
 	t.Helper()
 	expectPrintedCommon(t, contents, expected, config.Options{
