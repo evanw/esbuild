@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+* Update the Go compiler from v1.25.5 to v1.25.7 ([#4383](https://github.com/evanw/esbuild/issues/4383)
+
+
 ## 0.27.2
 
 * Allow import path specifiers starting with `#/` ([#4361](https://github.com/evanw/esbuild/pull/4361))
