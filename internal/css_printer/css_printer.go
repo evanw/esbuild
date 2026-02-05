@@ -377,6 +377,31 @@ func (p *printer) printRule(rule css_ast.Rule, indent int32, omitTrailingSemicol
 		}
 		p.printRuleBlock(r.Rules, indent, r.CloseBraceLoc)
 
+	case *css_ast.RAtScope:
+		p.print("@scope")
+		if len(r.Start) > 0 {
+			if p.options.MinifyWhitespace {
+				p.print("(")
+			} else {
+				p.print(" (")
+			}
+			p.printComplexSelectors(r.Start, indent, layoutSingleLine)
+			p.print(")")
+		}
+		if len(r.End) > 0 {
+			if p.options.MinifyWhitespace {
+				p.print("to (")
+			} else {
+				p.print(" to (")
+			}
+			p.printComplexSelectors(r.End, indent, layoutSingleLine)
+			p.print(")")
+		}
+		if !p.options.MinifyWhitespace {
+			p.print(" ")
+		}
+		p.printRuleBlock(r.Rules, indent, r.CloseBraceLoc)
+
 	default:
 		panic("Internal error")
 	}

@@ -2741,6 +2741,23 @@ func TestLowerAtMediaRange(t *testing.T) {
 	expectPrintedLowerMangle(t, "@media not (2px >= width >= 1px) { a { color: red } }", "@media not ((max-width: 2px) and (min-width: 1px)) {\n  a {\n    color: red;\n  }\n}\n", "")
 }
 
+func TestAtScope(t *testing.T) {
+	expectPrinted(t, "@scope { div { color: red } }", "@scope {\n  div {\n    color: red;\n  }\n}\n", "")
+	expectPrinted(t, "@scope (a) { div { color: red } }", "@scope (a) {\n  div {\n    color: red;\n  }\n}\n", "")
+	expectPrinted(t, "@scope to (a) { div { color: red } }", "@scope to (a) {\n  div {\n    color: red;\n  }\n}\n", "")
+	expectPrinted(t, "@scope(a)to (b){ div { color: red } }", "@scope (a) to (b) {\n  div {\n    color: red;\n  }\n}\n", "")
+	expectPrinted(t, "@scope (a>*) to (~b) { div { color: red } }", "@scope (a > *) to (~ b) {\n  div {\n    color: red;\n  }\n}\n", "")
+	expectPrinted(t, "@scope (a,b) to (c,d) { div { color: red } }", "@scope (a, b) to (c, d) {\n  div {\n    color: red;\n  }\n}\n", "")
+
+	expectPrinted(t, "@scope a { div { color: red } }", "@scope a {\n  div {\n    color: red;\n  }\n}\n", "<stdin>: WARNING: Expected \"{\" but found \"a\"\n")
+	expectPrinted(t, "@scope to a { div { color: red } }", "@scope to a {\n  div {\n    color: red;\n  }\n}\n", "<stdin>: WARNING: Expected \"(\" but found \"a\"\n")
+	expectPrinted(t, "@scope (a) to b { div { color: red } }", "@scope (a) to b {\n  div {\n    color: red;\n  }\n}\n", "<stdin>: WARNING: Expected \"(\" but found \"b\"\n")
+
+	warning := "<stdin>: WARNING: Unexpected \"{\"\n<stdin>: WARNING: Expected \")\" to go with \"(\"\n<stdin>: NOTE: The unbalanced \"(\" is here:\n"
+	expectPrinted(t, "@scope (a { div { color: red } }", "@scope (a { div { color: red } }) {\n}\n", warning)
+	expectPrinted(t, "@scope to (a { div { color: red } }", "@scope to (a { div { color: red } }) {\n}\n", warning)
+}
+
 func TestFontWeight(t *testing.T) {
 	expectPrintedMangle(t, "a { font-weight: normal }", "a {\n  font-weight: 400;\n}\n", "")
 	expectPrintedMangle(t, "a { font-weight: bold }", "a {\n  font-weight: 700;\n}\n", "")

@@ -376,6 +376,14 @@ func TestAtMedia(t *testing.T) {
 	expectPrintedMinify(t, "@media junk(1, 2, 3) {div{color:red}}", "@media junk(1,2,3){div{color:red}}")
 }
 
+func TestAtScope(t *testing.T) {
+	expectPrinted(t, "@scope { div { color: red } }", "@scope {\n  div {\n    color: red;\n  }\n}\n")
+	expectPrinted(t, "@scope (a, .b) to (c > *) { div { color: red } }", "@scope (a, .b) to (c > *) {\n  div {\n    color: red;\n  }\n}\n")
+
+	expectPrintedMinify(t, "@scope { div { color: red } }", "@scope{div{color:red}}")
+	expectPrintedMinify(t, "@scope (a, .b) to (c > *) { div { color: red } }", "@scope(a,.b)to (c>*){div{color:red}}")
+}
+
 func TestAtFontFace(t *testing.T) {
 	expectPrinted(t, "@font-face { font-family: 'Open Sans'; src: url('OpenSans.woff') format('woff') }",
 		"@font-face {\n  font-family: \"Open Sans\";\n  src: url(OpenSans.woff) format(\"woff\");\n}\n")

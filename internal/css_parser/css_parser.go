@@ -1507,6 +1507,8 @@ abortRuleParser:
 			} else {
 				p.anonLayerCount++
 			}
+
+			// Parse the block for this rule
 			var rules []css_ast.Rule
 			if context.isDeclarationList {
 				rules = p.parseListOfDeclarations(listOfDeclarationsOpts{
@@ -1517,6 +1519,7 @@ abortRuleParser:
 					parseSelectors: true,
 				})
 			}
+
 			if len(names) != 1 {
 				p.anonLayerCount--
 			}
@@ -1565,12 +1568,12 @@ abortRuleParser:
 		if !p.expect(css_lexer.TOpenBrace) {
 			break
 		}
-		var rules []css_ast.Rule
 
 		// Push the "@media" conditions
 		p.enclosingAtMedia = append(p.enclosingAtMedia, queries)
 
 		// Parse the block for this rule
+		var rules []css_ast.Rule
 		if context.isDeclarationList {
 			rules = p.parseListOfDeclarations(listOfDeclarationsOpts{
 				canInlineNoOpNesting: context.canInlineNoOpNesting,
@@ -1590,6 +1593,57 @@ abortRuleParser:
 		}
 
 		return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RAtMedia{Queries: queries, Rules: rules, CloseBraceLoc: closeBraceLoc}}
+
+	case "scope":
+		var ok bool
+
+		// Parse the start limit
+		var start []css_ast.ComplexSelector
+		p.eat(css_lexer.TWhitespace)
+		if p.eat(css_lexer.TOpenParen) {
+			if start, ok = p.parseSelectorList(parseSelectorOpts{stopOnCloseParen: true}); !ok || !p.expect(css_lexer.TCloseParen) {
+				break
+			}
+			p.eat(css_lexer.TWhitespace)
+		}
+
+		// Parse the end limit
+		var end []css_ast.ComplexSelector
+		if strings.EqualFold(p.decoded(), "to") && p.eat(css_lexer.TIdent) {
+			p.eat(css_lexer.TWhitespace)
+			if !p.expect(css_lexer.TOpenParen) {
+				break
+			}
+			if end, ok = p.parseSelectorList(parseSelectorOpts{stopOnCloseParen: true}); !ok || !p.expect(css_lexer.TCloseParen) {
+				break
+			}
+		}
+		p.eat(css_lexer.TWhitespace)
+
+		// Expect a block after the query
+		matchingLoc := p.current().Range.Loc
+		if !p.expect(css_lexer.TOpenBrace) {
+			break
+		}
+
+		// Parse the block for this rule
+		var rules []css_ast.Rule
+		if context.isDeclarationList {
+			rules = p.parseListOfDeclarations(listOfDeclarationsOpts{
+				canInlineNoOpNesting: context.canInlineNoOpNesting,
+			})
+		} else {
+			rules = p.parseListOfRules(ruleContext{
+				parseSelectors: true,
+			})
+		}
+
+		closeBraceLoc := p.current().Range.Loc
+		if !p.expectWithMatchingLoc(css_lexer.TCloseBrace, matchingLoc) {
+			closeBraceLoc = logger.Loc{}
+		}
+
+		return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RAtScope{Start: start, End: end, Rules: rules, CloseBraceLoc: closeBraceLoc}}
 
 	default:
 		if kind == atRuleUnknown && lowerAtToken == "namespace" {
@@ -1614,6 +1668,7 @@ abortRuleParser:
 	}
 
 	// Parse an unknown prelude
+	p.index = preludeStart
 prelude:
 	for {
 		switch p.current().Kind {
@@ -1679,9 +1734,9 @@ prelude:
 		// Parse known rules whose blocks consist of whatever the current context is
 		matchingLoc := p.current().Range.Loc
 		p.expect(css_lexer.TOpenBrace)
-		var rules []css_ast.Rule
 
 		// Parse the block for this rule
+		var rules []css_ast.Rule
 		if context.isDeclarationList {
 			rules = p.parseListOfDeclarations(listOfDeclarationsOpts{
 				canInlineNoOpNesting: context.canInlineNoOpNesting,
@@ -1699,7 +1754,7 @@ prelude:
 
 		// Handle local names for "@container"
 		if len(prelude) >= 1 && lowerAtToken == "container" {
-			if t := &prelude[0]; t.Kind == css_lexer.TIdent && strings.ToLower(t.Text) != "not" {
+			if t := &prelude[0]; t.Kind == css_lexer.TIdent && !strings.EqualFold(t.Text, "not") {
 				t.Kind = css_lexer.TSymbol
 				t.PayloadIndex = p.symbolForName(t.Loc, t.Text).Ref.InnerIndex
 			}

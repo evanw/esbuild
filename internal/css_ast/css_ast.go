@@ -1106,6 +1106,26 @@ func (cmp MQCmp) Reverse() MQCmp {
 	return cmp
 }
 
+type RAtScope struct {
+	Start         []ComplexSelector
+	End           []ComplexSelector
+	Rules         []Rule
+	CloseBraceLoc logger.Loc
+}
+
+func (a *RAtScope) Equal(rule R, check *CrossFileEqualityCheck) bool {
+	b, ok := rule.(*RAtScope)
+	return ok && ComplexSelectorsEqual(a.Start, b.Start, check) && ComplexSelectorsEqual(a.End, b.End, check) && RulesEqual(a.Rules, b.Rules, check)
+}
+
+func (r *RAtScope) Hash() (uint32, bool) {
+	hash := uint32(11)
+	hash = HashComplexSelectors(hash, r.Start)
+	hash = HashComplexSelectors(hash, r.End)
+	hash = HashRules(hash, r.Rules)
+	return hash, true
+}
+
 type ComplexSelector struct {
 	Selectors []CompoundSelector
 }

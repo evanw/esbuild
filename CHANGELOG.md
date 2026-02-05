@@ -51,6 +51,27 @@
     }
     ```
 
+* Parse and print CSS `@scope` rules ([#4322](https://github.com/evanw/esbuild/issues/4322))
+
+    This release includes dedicated support for parsing `@scope` rules in CSS. These rules include optional "start" and "end" selector lists. One important consequence of this is that the local/global status of names in selector lists is now respected, which improves the correctness of esbuild's support for [CSS modules](https://esbuild.github.io/content-types/#local-css). Minification of selectors inside `@scope` rules has also improved slightly.
+
+    Here's an example:
+
+    ```css
+    /* Original code */
+    @scope (:global(.foo)) to (:local(.bar)) {
+      .bar {
+        color: red;
+      }
+    }
+
+    /* Old output (with --loader=local-css --minify) */
+    @scope (:global(.foo)) to (:local(.bar)){.o{color:red}}
+
+    /* New output (with --loader=local-css --minify) */
+    @scope(.foo)to (.o){.o{color:red}}
+    ```
+
 * Fix a minification bug with lowering of `for await` ([#4378](https://github.com/evanw/esbuild/pull/4378), [#4385](https://github.com/evanw/esbuild/pull/4385))
 
     This release fixes a bug where the minifier would incorrectly strip the variable in the automatically-generated `catch` clause of lowered `for await` loops. The code that generated the loop previously failed to mark the internal variable references as used.
