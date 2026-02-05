@@ -153,11 +153,11 @@ const updateMap = (map: SupportMap<JSFeature>, feature: JSFeature, engine: Engin
   }
 }
 
-const mergeIndividualTestResults = (map: SupportMap<JSFeature>, feature: JSFeature, testName: string, res: Record<string, boolean | { val: boolean }>, omit: Engine[]): void => {
+const mergeIndividualTestResults = (map: SupportMap<JSFeature>, feature: JSFeature, testName: string, res: Record<string, boolean | { val: boolean }>): void => {
   const environments = parseEnvsVersions(res)
   for (const environment in environments) {
     const engine = environmentToEngine[environment]
-    if (engine && omit.indexOf(engine) < 0) {
+    if (engine) {
       for (const parsed of environments[environment]) {
         const version = parsed.version.join('.')
         if (/^\d+(?:\.\d+(?:\.\d+)?)?$/.test(version)) {
@@ -168,7 +168,7 @@ const mergeIndividualTestResults = (map: SupportMap<JSFeature>, feature: JSFeatu
   }
 }
 
-const mergeAllTestResults = (map: SupportMap<JSFeature>, tests: Test[], { omit = [] }: { omit?: Engine[] } = {}): void => {
+const mergeAllTestResults = (map: SupportMap<JSFeature>, tests: Test[]): void => {
   for (const test of tests) {
     const feature = features[test.name]
     if (feature) {
@@ -176,82 +176,21 @@ const mergeAllTestResults = (map: SupportMap<JSFeature>, tests: Test[], { omit =
         for (const subtest of test.subtests) {
           const fullName = `${test.name}: ${subtest.name}`
           if (subtestsToSkip[fullName]) continue
-          mergeIndividualTestResults(map, feature, fullName, subtest.res, omit)
+          mergeIndividualTestResults(map, feature, fullName, subtest.res)
         }
       } else {
-        mergeIndividualTestResults(map, feature, test.name, test.res, omit)
+        mergeIndividualTestResults(map, feature, test.name, test.res)
       }
     } else if (test.subtests) {
       for (const subtest of test.subtests) {
         const fullName = `${test.name}: ${subtest.name}`
         if (subtestsToSkip[fullName]) continue
         const feature = features[fullName]
-        if (feature) mergeIndividualTestResults(map, feature, fullName, subtest.res, omit)
+        if (feature) mergeIndividualTestResults(map, feature, fullName, subtest.res)
       }
     }
   }
-}
-
-// Node compatibility data is handled separately because the data source
-// https://github.com/williamkapke/node-compat-table is (for now at least)
-// more up to date than https://github.com/kangax/compat-table.
-const reformatNodeCompatTable = (): Test[] => {
-  const nodeCompatTableDir = path.join(__dirname, 'repos/williamkapke/node-compat-table/results/v8')
-  const testMap: Record<string, Test> = {}
-  const subtestMap: Record<string, Test> = {}
-  const tests: Test[] = []
-
-  // Format the data like the kangax table
-  for (const entry of fs.readdirSync(nodeCompatTableDir)) {
-    // Note: this omits data for the "0.x.y" releases because the data isn't clean
-    const match = /^([1-9]\d*\.\d+\.\d+)\.json$/.exec(entry)
-    if (match) {
-      const version = 'node' + match[1].replace(/\./g, '_')
-      const jsonPath = path.join(nodeCompatTableDir, entry)
-      const json = JSON.parse(fs.readFileSync(jsonPath, 'utf8'))
-
-      for (const key in json) {
-        if (key.startsWith('ES')) {
-          const object = json[key]
-
-          for (const key in object) {
-            const testResult = object[key]
-            const split = key.replace('<code>', '').replace('</code>', '').split('›')
-
-            if (split.length === 2) {
-              let test = testMap[split[1]]
-              if (!test) {
-                test = testMap[split[1]] = { name: split[1], res: {} }
-                tests.push(test)
-              }
-              test.res[version] = testResult
-            }
-
-            else if (split.length === 3) {
-              const subtestKey = `${split[1]}: ${split[2]}`
-              let subtest = subtestMap[subtestKey]
-              if (!subtest) {
-                let test = testMap[split[1]]
-                if (!test) {
-                  test = testMap[split[1]] = { name: split[1], res: {} }
-                  tests.push(test)
-                }
-                subtest = subtestMap[subtestKey] = { name: split[2], res: {} }
-                test.subtests ||= []
-                test.subtests.push(subtest)
-              }
-              subtest.res[version] = testResult
-            }
-          }
-        }
-      }
-    }
-  }
-
-  return tests
 }
 
 export const js: SupportMap<JSFeature> = {} as SupportMap<JSFeature>
-
-mergeAllTestResults(js, [...es5.tests, ...es6.tests, ...stage4.tests, ...stage1to3.tests], { omit: ['Node'] })
-mergeAllTestResults(js, reformatNodeCompatTable())
+mergeAllTestResults(js, [...es5.tests, ...es6.tests, ...stage4.tests, ...stage1to3.tests])
