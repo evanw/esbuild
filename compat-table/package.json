@@ -1,6 +1,6 @@
 {
   "githubDependencies": {
-    "kangax/compat-table": "f12538fe11c48c4fd35d6cdc7789653e10871b90",
+    "compat-table/compat-table": "f12538fe11c48c4fd35d6cdc7789653e10871b90",
     "williamkapke/node-compat-table": "499beb6f1daa36f10c26b85a7f3ec3b3448ded23"
   },
   "dependencies": {

@@ -3,13 +3,13 @@
 import fs = require('fs')
 import path = require('path')
 
-import es5 = require('../repos/kangax/compat-table/data-es5.js')
-import es6 = require('../repos/kangax/compat-table/data-es6.js')
-import stage1to3 = require('../repos/kangax/compat-table/data-esnext.js')
-import stage4 = require('../repos/kangax/compat-table/data-es2016plus.js')
-import environments = require('../repos/kangax/compat-table/environments.json')
-import parseEnvsVersions = require('../repos/kangax/compat-table/build-utils/parse-envs-versions.js')
-import interpolateAllResults = require('../repos/kangax/compat-table/build-utils/interpolate-all-results.js')
+import es5 = require('../repos/compat-table/compat-table/data-es5.js')
+import es6 = require('../repos/compat-table/compat-table/data-es6.js')
+import stage1to3 = require('../repos/compat-table/compat-table/data-esnext.js')
+import stage4 = require('../repos/compat-table/compat-table/data-es2016plus.js')
+import environments = require('../repos/compat-table/compat-table/environments.json')
+import parseEnvsVersions = require('../repos/compat-table/compat-table/build-utils/parse-envs-versions.js')
+import interpolateAllResults = require('../repos/compat-table/compat-table/build-utils/interpolate-all-results.js')
 import { Engine, JSFeature, SupportMap } from './index'
 
 interpolateAllResults(es5.tests, environments)
