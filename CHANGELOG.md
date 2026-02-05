@@ -55,6 +55,8 @@
 
     This release fixes a bug where the minifier would incorrectly strip the variable in the automatically-generated `catch` clause of lowered `for await` loops. The code that generated the loop previously failed to mark the internal variable references as used.
 
+* Update the Go compiler from v1.25.5 to v1.25.7 ([#4383](https://github.com/evanw/esbuild/issues/4383)
+
 ## 0.27.2
 
 * Allow import path specifiers starting with `#/` ([#4361](https://github.com/evanw/esbuild/pull/4361))
