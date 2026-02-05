@@ -60,6 +60,7 @@ const features: Record<string, JSFeature> = {
   'RegExp named capture groups': 'RegexpNamedCaptureGroups',
   'RegExp Unicode Property Escapes': 'RegexpUnicodePropertyEscapes',
   's (dotAll) flag for regular expressions': 'RegexpDotAllFlag',
+  'Explicit Resource Management': 'Using',
 
   // Public fields
   'instance class fields: computed instance class fields': 'ClassField',

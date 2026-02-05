@@ -909,7 +909,15 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Rhino:   {{start: v{1, 7, 15}}},
 		Safari:  {{start: v{9, 0, 0}}},
 	},
-	Using: {},
+	Using: {
+		// Note: The latest version of "IE" failed 7 tests including: Explicit Resource Management: AsyncDisposableStack
+		// Note: The latest version of "IOS" failed 7 tests including: Explicit Resource Management: AsyncDisposableStack
+		// Note: The latest version of "Safari" failed 7 tests including: Explicit Resource Management: AsyncDisposableStack
+		Chrome:  {{start: v{143, 0, 0}}},
+		Edge:    {{start: v{143, 0, 0}}},
+		Firefox: {{start: v{147, 0, 0}}},
+		Node:    {{start: v{25, 0, 0}}},
+	},
 }
 
 // Return all features that are not available in at least one environment
