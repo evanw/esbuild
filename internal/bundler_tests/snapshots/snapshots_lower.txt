@@ -25,7 +25,7 @@ async function test(b) {
       const a = temp.value;
       a();
     }
-  } catch {
+  } catch (temp) {
     error = [temp];
   } finally {
     try {
