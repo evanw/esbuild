@@ -1905,3 +1905,29 @@ func TestLoaderInlineSourceMapAbsolutePathIssue4075Windows(t *testing.T) {
 		},
 	})
 }
+
+// See: https://github.com/evanw/esbuild/issues/4370
+func TestLoaderDataURLHashSuffixIssue4370(t *testing.T) {
+	loader_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/icons.css": `
+				.triangle {
+					width: 10px;
+					height: 10px;
+					background: currentColor;
+					clip-path: url(./triangle.svg#x);
+				}
+			`,
+			"/triangle.svg": `<svg xmlns="http://www.w3.org/2000/svg"><defs><clipPath id="x"><path d="M0 0H10V10Z"/></clipPath></defs></svg>`,
+		},
+		entryPaths: []string{"/icons.css"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out/",
+			ExtensionToLoader: map[string]config.Loader{
+				".css": config.LoaderCSS,
+				".svg": config.LoaderDataURL,
+			},
+		},
+	})
+}

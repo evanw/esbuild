@@ -335,11 +335,11 @@ const installGitHubDependencies = (): void => {
 // These dependencies are not published on npm and are instead pulled from GitHub (but pinned to a specific commit)
 installGitHubDependencies()
 
-import('./kangax').then(kangax => {
+import('./compat-table').then(compatTable => {
   const js: SupportMap<JSFeature> = {} as SupportMap<JSFeature>
   for (const feature in jsFeatures) js[feature as JSFeature] = {}
 
-  mergeSupportMaps(js, kangax.js)
+  mergeSupportMaps(js, compatTable.js)
   mergeSupportMaps(js, caniuse.js)
   mergeSupportMaps(js, mdn.js)
 

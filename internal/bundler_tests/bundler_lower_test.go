@@ -3115,6 +3115,7 @@ func TestLowerAsyncGeneratorNoAwait(t *testing.T) {
 	})
 }
 
+// https://github.com/evanw/esbuild/issues/3768
 func TestJavaScriptDecoratorsBundleIssue3768(t *testing.T) {
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
@@ -3139,6 +3140,26 @@ func TestJavaScriptDecoratorsBundleIssue3768(t *testing.T) {
 			Mode:                  config.ModeBundle,
 			AbsOutputDir:          "/out",
 			UnsupportedJSFeatures: compat.Decorators,
+		},
+	})
+}
+
+// https://github.com/evanw/esbuild/issues/4378
+func TestForAwaitWithOptionalCatchIssue4378(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				async function test(b) {
+					for await (const a of b) a()
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                  config.ModePassThrough,
+			AbsOutputFile:         "/out.js",
+			UnsupportedJSFeatures: compat.ForAwait,
+			MinifySyntax:          true,
 		},
 	})
 }

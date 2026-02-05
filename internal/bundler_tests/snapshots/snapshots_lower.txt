@@ -17,6 +17,27 @@ export class B extends A {
 _e = new WeakMap();
 
 ================================================================================
+TestForAwaitWithOptionalCatchIssue4378
+---------- /out.js ----------
+async function test(b) {
+  try {
+    for (var iter = __forAwait(b), more, temp, error; more = !(temp = await iter.next()).done; more = !1) {
+      const a = temp.value;
+      a();
+    }
+  } catch (temp) {
+    error = [temp];
+  } finally {
+    try {
+      more && (temp = iter.return) && await temp.call(iter);
+    } finally {
+      if (error)
+        throw error[0];
+    }
+  }
+}
+
+================================================================================
 TestJavaScriptAutoAccessorES2021
 ---------- /out/js-define.js ----------
 var _a, _b, _one, __two, _Foo_instances, two_get, two_set, _a2, _four, __five, _Foo_static, five_get, five_set, _b2;

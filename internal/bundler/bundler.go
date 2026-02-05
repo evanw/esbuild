@@ -380,6 +380,10 @@ func parseFile(args parseArgs) {
 	case config.LoaderDataURL:
 		mimeType := guessMimeType(ext, source.Contents)
 		url := helpers.EncodeStringAsShortestDataURL(mimeType, source.Contents)
+		if strings.HasPrefix(source.KeyPath.IgnoredSuffix, "#") {
+			// Preserve URL fragments as they are meaningful in CSS
+			url += source.KeyPath.IgnoredSuffix
+		}
 		expr := js_ast.Expr{Data: &js_ast.EString{Value: helpers.StringToUTF16(url)}}
 		ast := js_parser.LazyExportAST(args.log, source, js_parser.OptionsFromConfig(&args.options), expr, nil)
 		ast.URLForCSS = url

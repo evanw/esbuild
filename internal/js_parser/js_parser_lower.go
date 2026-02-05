@@ -1097,6 +1097,11 @@ func (p *parser) lowerForAwaitLoop(loc logger.Loc, loop *js_ast.SForOf, stmts []
 	tempRef := p.generateTempRef(tempRefNoDeclare, "temp")
 	errorRef := p.generateTempRef(tempRefNoDeclare, "error")
 
+	p.recordUsage(iterRef)
+	p.recordUsage(moreRef)
+	p.recordUsage(tempRef)
+	p.recordUsage(errorRef)
+
 	switch init := loop.Init.Data.(type) {
 	case *js_ast.SLocal:
 		if len(init.Decls) == 1 {

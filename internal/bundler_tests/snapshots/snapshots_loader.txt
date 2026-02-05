@@ -627,6 +627,17 @@ export {
 };
 
 ================================================================================
+TestLoaderDataURLHashSuffixIssue4370
+---------- /out/icons.css ----------
+/* icons.css */
+.triangle {
+  width: 10px;
+  height: 10px;
+  background: currentColor;
+  clip-path: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"><defs><clipPath id="x"><path d="M0 0H10V10Z"/></clipPath></defs></svg>#x');
+}
+
+================================================================================
 TestLoaderDataURLTextCSS
 ---------- /out/entry.css ----------
 /* <data:text/css,body{color:%72%65%64}> */

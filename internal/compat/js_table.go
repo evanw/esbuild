@@ -326,7 +326,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		ES:      {{start: v{2022, 0, 0}}},
 		Firefox: {{start: v{90, 0, 0}}},
 		IOS:     {{start: v{15, 0, 0}}},
-		Node:    {{start: v{16, 4, 0}}},
+		Node:    {{start: v{16, 9, 0}}},
 		Opera:   {{start: v{77, 0, 0}}},
 		Safari:  {{start: v{15, 0, 0}}},
 	},
@@ -592,7 +592,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Firefox: {{start: v{67, 0, 0}}},
 		Hermes:  {{start: v{0, 7, 0}}},
 		IOS:     {{start: v{13, 4, 0}}},
-		Node:    {{start: v{12, 5, 0}}},
+		Node:    {{start: v{12, 0, 0}}},
 		Opera:   {{start: v{62, 0, 0}}},
 		Rhino:   {{start: v{1, 7, 15}}},
 		Safari:  {{start: v{13, 1, 0}}},
@@ -757,7 +757,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Firefox: {{start: v{74, 0, 0}}},
 		Hermes:  {{start: v{0, 12, 0}}},
 		IOS:     {{start: v{13, 4, 0}}},
-		Node:    {{start: v{16, 1, 0}}},
+		Node:    {{start: v{16, 9, 0}}},
 		Opera:   {{start: v{77, 0, 0}}},
 		Safari:  {{start: v{13, 1, 0}}},
 	},
@@ -838,7 +838,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		// Note: The latest version of "Hermes" failed 8 tests including: RegExp Unicode Property Escapes: Unicode 11
 		// Note: The latest version of "IE" failed 8 tests including: RegExp Unicode Property Escapes: Unicode 11
 		// Note: The latest version of "IOS" failed this test: RegExp Unicode Property Escapes: Unicode 17.0
-		// Note: The latest version of "Node" failed this test: RegExp Unicode Property Escapes: Unicode 17.0
+		// Note: The latest version of "Node" failed 2 tests including: RegExp Unicode Property Escapes: Unicode 16.0
 		// Note: The latest version of "Rhino" failed 9 tests including: RegExp Unicode Property Escapes: Unicode 11
 		// Note: The latest version of "Safari" failed this test: RegExp Unicode Property Escapes: Unicode 17.0
 		ES: {{start: v{2018, 0, 0}}},
@@ -867,7 +867,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		ES:      {{start: v{2015, 0, 0}}},
 		Firefox: {{start: v{53, 0, 0}}},
 		IOS:     {{start: v{13, 0, 0}}},
-		Node:    {{start: v{10, 0, 0}}},
+		Node:    {{start: v{8, 10, 0}}},
 		Opera:   {{start: v{49, 0, 0}}},
 		Safari:  {{start: v{13, 0, 0}}},
 	},
@@ -909,7 +909,15 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		Rhino:   {{start: v{1, 7, 15}}},
 		Safari:  {{start: v{9, 0, 0}}},
 	},
-	Using: {},
+	Using: {
+		// Note: The latest version of "IE" failed 7 tests including: Explicit Resource Management: AsyncDisposableStack
+		// Note: The latest version of "IOS" failed 7 tests including: Explicit Resource Management: AsyncDisposableStack
+		// Note: The latest version of "Safari" failed 7 tests including: Explicit Resource Management: AsyncDisposableStack
+		Chrome:  {{start: v{143, 0, 0}}},
+		Edge:    {{start: v{143, 0, 0}}},
+		Firefox: {{start: v{147, 0, 0}}},
+		Node:    {{start: v{25, 0, 0}}},
+	},
 }
 
 // Return all features that are not available in at least one environment
