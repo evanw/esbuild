@@ -707,25 +707,6 @@ func tryToExpandGradient(
 		stop.v0, stop.v1, stop.v2 = premultiply(v0, v1, v2, stop.alpha, colorSpace)
 	}
 
-	// Duplicate the endpoints if they should wrap around to themselves
-	if hueMethod == longerHue && colorSpace.isPolar() && len(colorStops) > 0 {
-		if first := colorStops[0]; len(first.positionTerms) == 1 {
-			if first.positionTerms[0].value.Value() < 0 {
-				colorStops[0].positionTerms[0].value = helpers.NewF64(0)
-			} else if first.positionTerms[0].value.Value() > 0 {
-				first.midpoint = nil
-				first.positionTerms = []valueWithUnit{{value: helpers.NewF64(0), unit: first.positionTerms[0].unit}}
-				colorStops = append([]parsedColorStop{first}, colorStops...)
-			}
-		}
-		if last := colorStops[len(colorStops)-1]; len(last.positionTerms) == 1 {
-			if last.positionTerms[0].unit != "%" || last.positionTerms[0].value.Value() < 100 {
-				last.positionTerms = []valueWithUnit{{value: helpers.NewF64(100), unit: "%"}}
-				colorStops = append(colorStops, last)
-			}
-		}
-	}
-
 	var newColorStops []colorStop
 	var generateColorStops func(
 		int, parsedColorStop, parsedColorStop,
