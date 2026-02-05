@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.27.3
 
 * Preserve URL fragments in data URLs ([#4370](https://github.com/evanw/esbuild/issues/4370))
 
