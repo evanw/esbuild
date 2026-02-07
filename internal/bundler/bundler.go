@@ -2423,7 +2423,7 @@ func (s *scanner) processScannedFiles(entryPointMeta []graph.EntryPoint) []scann
 		// Begin the metadata chunk
 		if s.options.NeedsMetafile {
 			sb.Write(helpers.QuoteForJSON(result.file.inputFile.Source.PrettyPaths.Select(s.options.MetafilePathStyle), s.options.ASCIIOnly))
-			sb.WriteString(fmt.Sprintf(": {\n      \"bytes\": %d,\n      \"imports\": [", len(result.file.inputFile.Source.Contents)))
+			sb.WriteString(fmt.Sprintf(":{\"bytes\":%d,\"imports\":[", len(result.file.inputFile.Source.Contents)))
 		}
 
 		// Don't try to resolve paths if we're not bundling
@@ -2439,17 +2439,16 @@ func (s *scanner) processScannedFiles(entryPointMeta []graph.EntryPoint) []scann
 				if s.options.NeedsMetafile {
 					if with := record.AssertOrWith; with != nil && with.Keyword == ast.WithKeyword && len(with.Entries) > 0 {
 						data := strings.Builder{}
-						data.WriteString(",\n          \"with\": {")
+						data.WriteString(",\"with\":{")
 						for i, entry := range with.Entries {
 							if i > 0 {
 								data.WriteByte(',')
 							}
-							data.WriteString("\n            ")
 							data.Write(helpers.QuoteForJSON(helpers.UTF16ToString(entry.Key), s.options.ASCIIOnly))
-							data.WriteString(": ")
+							data.WriteByte(':')
 							data.Write(helpers.QuoteForJSON(helpers.UTF16ToString(entry.Value), s.options.ASCIIOnly))
 						}
-						data.WriteString("\n          }")
+						data.WriteByte('}')
 						metafileWith = data.String()
 					}
 				}
@@ -2460,11 +2459,10 @@ func (s *scanner) processScannedFiles(entryPointMeta []graph.EntryPoint) []scann
 					if s.options.NeedsMetafile {
 						if isFirstImport {
 							isFirstImport = false
-							sb.WriteString("\n        ")
 						} else {
-							sb.WriteString(",\n        ")
+							sb.WriteByte(',')
 						}
-						sb.WriteString(fmt.Sprintf("{\n          \"path\": %s,\n          \"kind\": %s,\n          \"external\": true%s\n        }",
+						sb.WriteString(fmt.Sprintf("{\"path\":%s,\"kind\":%s,\"external\":true%s}",
 							helpers.QuoteForJSON(record.Path.Text, s.options.ASCIIOnly),
 							helpers.QuoteForJSON(record.Kind.StringForMetafile(), s.options.ASCIIOnly),
 							metafileWith))
@@ -2497,11 +2495,10 @@ func (s *scanner) processScannedFiles(entryPointMeta []graph.EntryPoint) []scann
 				if s.options.NeedsMetafile {
 					if isFirstImport {
 						isFirstImport = false
-						sb.WriteString("\n        ")
 					} else {
-						sb.WriteString(",\n        ")
+						sb.WriteByte(',')
 					}
-					sb.WriteString(fmt.Sprintf("{\n          \"path\": %s,\n          \"kind\": %s,\n          \"original\": %s%s\n        }",
+					sb.WriteString(fmt.Sprintf("{\"path\":%s,\"kind\":%s,\"original\":%s%s}",
 						helpers.QuoteForJSON(otherFile.inputFile.Source.PrettyPaths.Select(s.options.MetafilePathStyle), s.options.ASCIIOnly),
 						helpers.QuoteForJSON(record.Kind.StringForMetafile(), s.options.ASCIIOnly),
 						helpers.QuoteForJSON(record.Path.Text, s.options.ASCIIOnly),
@@ -2672,33 +2669,29 @@ func (s *scanner) processScannedFiles(entryPointMeta []graph.EntryPoint) []scann
 
 		// End the metadata chunk
 		if s.options.NeedsMetafile {
-			if !isFirstImport {
-				sb.WriteString("\n      ")
-			}
 			if repr, ok := result.file.inputFile.Repr.(*graph.JSRepr); ok &&
 				(repr.AST.ExportsKind == js_ast.ExportsCommonJS || repr.AST.ExportsKind == js_ast.ExportsESM) {
 				format := "cjs"
 				if repr.AST.ExportsKind == js_ast.ExportsESM {
 					format = "esm"
 				}
-				sb.WriteString(fmt.Sprintf("],\n      \"format\": %q", format))
+				sb.WriteString(fmt.Sprintf("],\"format\":%q", format))
 			} else {
 				sb.WriteString("]")
 			}
 			if attrs := result.file.inputFile.Source.KeyPath.ImportAttributes.DecodeIntoArray(); len(attrs) > 0 {
-				sb.WriteString(",\n      \"with\": {")
+				sb.WriteString(",\"with\":{")
 				for i, attr := range attrs {
 					if i > 0 {
 						sb.WriteByte(',')
 					}
-					sb.WriteString(fmt.Sprintf("\n        %s: %s",
-						helpers.QuoteForJSON(attr.Key, s.options.ASCIIOnly),
-						helpers.QuoteForJSON(attr.Value, s.options.ASCIIOnly),
-					))
+					sb.Write(helpers.QuoteForJSON(attr.Key, s.options.ASCIIOnly))
+					sb.WriteByte(':')
+					sb.Write(helpers.QuoteForJSON(attr.Value, s.options.ASCIIOnly))
 				}
-				sb.WriteString("\n      }")
+				sb.WriteByte('}')
 			}
-			sb.WriteString("\n    }")
+			sb.WriteByte('}')
 		}
 
 		result.file.jsonMetadataChunk = sb.String()
@@ -2767,17 +2760,17 @@ func (s *scanner) processScannedFiles(entryPointMeta []graph.EntryPoint) []scann
 			// Optionally add metadata about the file
 			var jsonMetadataChunk string
 			if s.options.NeedsMetafile {
-				inputs := fmt.Sprintf("{\n        %s: {\n          \"bytesInOutput\": %d\n        }\n      }",
+				inputs := fmt.Sprintf("{%s:{\"bytesInOutput\":%d}}",
 					helpers.QuoteForJSON(result.file.inputFile.Source.PrettyPaths.Select(s.options.MetafilePathStyle), s.options.ASCIIOnly),
 					len(bytes),
 				)
 				entryPointJSON := ""
 				if isEntryPoint {
-					entryPointJSON = fmt.Sprintf("\"entryPoint\": %s,\n      ",
+					entryPointJSON = fmt.Sprintf("\"entryPoint\":%s,",
 						helpers.QuoteForJSON(result.file.inputFile.Source.PrettyPaths.Select(s.options.MetafilePathStyle), s.options.ASCIIOnly))
 				}
 				jsonMetadataChunk = fmt.Sprintf(
-					"{\n      \"imports\": [],\n      \"exports\": [],\n      %s\"inputs\": %s,\n      \"bytes\": %d\n    }",
+					"{\"imports\":[],\"exports\":[],%s\"inputs\":%s,\"bytes\":%d}",
 					entryPointJSON,
 					inputs,
 					len(bytes),
@@ -3263,7 +3256,7 @@ func (b *Bundle) computeDataForSourceMapsInParallel(options *config.Options, rea
 
 func (b *Bundle) generateMetadataJSON(results []graph.OutputFile, allReachableFiles []uint32, asciiOnly bool) string {
 	sb := strings.Builder{}
-	sb.WriteString("{\n  \"inputs\": {")
+	sb.WriteString("{\"inputs\":{")
 
 	// Write inputs
 	isFirst := true
@@ -3274,15 +3267,14 @@ func (b *Bundle) generateMetadataJSON(results []graph.OutputFile, allReachableFi
 		if file := &b.files[sourceIndex]; len(file.jsonMetadataChunk) > 0 {
 			if isFirst {
 				isFirst = false
-				sb.WriteString("\n    ")
 			} else {
-				sb.WriteString(",\n    ")
+				sb.WriteByte(',')
 			}
 			sb.WriteString(file.jsonMetadataChunk)
 		}
 	}
 
-	sb.WriteString("\n  },\n  \"outputs\": {")
+	sb.WriteString("},\"outputs\":{")
 
 	// Write outputs
 	isFirst = true
@@ -3297,17 +3289,17 @@ func (b *Bundle) generateMetadataJSON(results []graph.OutputFile, allReachableFi
 			}
 			if isFirst {
 				isFirst = false
-				sb.WriteString("\n    ")
 			} else {
-				sb.WriteString(",\n    ")
+				sb.WriteByte(',')
 			}
 			pathMap[path] = struct{}{}
-			sb.WriteString(fmt.Sprintf("%s: ", helpers.QuoteForJSON(path, asciiOnly)))
+			sb.Write(helpers.QuoteForJSON(path, asciiOnly))
+			sb.WriteByte(':')
 			sb.WriteString(result.JSONMetadataChunk)
 		}
 	}
 
-	sb.WriteString("\n  }\n}\n")
+	sb.WriteString("}}")
 	return sb.String()
 }
 
