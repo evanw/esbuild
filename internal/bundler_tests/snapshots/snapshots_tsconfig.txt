@@ -88,6 +88,8 @@ TestTsconfigDecoratorsUseDefineForClassFieldsFalse
 // Users/user/project/src/entry.ts
 var Class = class {
 };
+var ClassExtends = class extends Class {
+};
 var ClassMethod = class {
   foo() {
   }
@@ -102,6 +104,7 @@ var ClassAccessor = class {
   accessor bar;
 };
 new Class();
+new ClassExtends();
 new ClassMethod();
 new ClassField();
 new ClassAccessor();
@@ -115,47 +118,66 @@ var Class = class {
 _init = __decoratorStart(null);
 Class = __decorateElement(_init, 0, "Class", _Class_decorators, Class);
 __runInitializers(_init, 1, Class);
-var _foo_dec, _init2;
+var _ClassExtends_decorators, _init2, _a;
+_ClassExtends_decorators = [dec];
+var ClassExtends = class extends (_a = Class) {
+};
+_init2 = __decoratorStart(_a);
+ClassExtends = __decorateElement(_init2, 0, "ClassExtends", _ClassExtends_decorators, ClassExtends);
+__runInitializers(_init2, 1, ClassExtends);
+var _foo_dec, _init3;
 _foo_dec = [dec];
 var ClassMethod = class {
   constructor() {
-    __runInitializers(_init2, 5, this);
+    __runInitializers(_init3, 5, this);
   }
   foo() {
   }
 };
-_init2 = __decoratorStart(null);
-__decorateElement(_init2, 1, "foo", _foo_dec, ClassMethod);
-__decoratorMetadata(_init2, ClassMethod);
-var _bar_dec, _foo_dec2, _init3;
+_init3 = __decoratorStart(null);
+__decorateElement(_init3, 1, "foo", _foo_dec, ClassMethod);
+__decoratorMetadata(_init3, ClassMethod);
+var _bar_dec, _foo_dec2, _init4;
 _foo_dec2 = [dec], _bar_dec = [dec];
 var ClassField = class {
   constructor() {
-    this.foo = __runInitializers(_init3, 8, this, 123), __runInitializers(_init3, 11, this);
-    this.bar = __runInitializers(_init3, 12, this), __runInitializers(_init3, 15, this);
-  }
-};
-_init3 = __decoratorStart(null);
-__decorateElement(_init3, 5, "foo", _foo_dec2, ClassField);
-__decorateElement(_init3, 5, "bar", _bar_dec, ClassField);
-__decoratorMetadata(_init3, ClassField);
-var _bar_dec2, _foo_dec3, _init4, _foo, _bar;
-_foo_dec3 = [dec], _bar_dec2 = [dec];
-var ClassAccessor = class {
-  constructor() {
-    __privateAdd(this, _foo, __runInitializers(_init4, 8, this, 123)), __runInitializers(_init4, 11, this);
-    __privateAdd(this, _bar, __runInitializers(_init4, 12, this)), __runInitializers(_init4, 15, this);
+    this.foo = __runInitializers(_init4, 8, this, 123), __runInitializers(_init4, 11, this);
+    this.bar = __runInitializers(_init4, 12, this), __runInitializers(_init4, 15, this);
   }
 };
 _init4 = __decoratorStart(null);
+__decorateElement(_init4, 5, "foo", _foo_dec2, ClassField);
+__decorateElement(_init4, 5, "bar", _bar_dec, ClassField);
+__decoratorMetadata(_init4, ClassField);
+var _bar_dec2, _a2, _init5;
+var ClassFieldExtends = class extends (_a2 = Class, _bar_dec2 = [dec], _a2) {
+  constructor() {
+    super(...arguments);
+    this.bar = __runInitializers(_init5, 8, this), __runInitializers(_init5, 11, this);
+  }
+};
+_init5 = __decoratorStart(_a2);
+__decorateElement(_init5, 5, "bar", _bar_dec2, ClassFieldExtends);
+__decoratorMetadata(_init5, ClassFieldExtends);
+var _bar_dec3, _foo_dec3, _init6, _foo, _bar;
+_foo_dec3 = [dec], _bar_dec3 = [dec];
+var ClassAccessor = class {
+  constructor() {
+    __privateAdd(this, _foo, __runInitializers(_init6, 8, this, 123)), __runInitializers(_init6, 11, this);
+    __privateAdd(this, _bar, __runInitializers(_init6, 12, this)), __runInitializers(_init6, 15, this);
+  }
+};
+_init6 = __decoratorStart(null);
 _foo = new WeakMap();
 _bar = new WeakMap();
-__decorateElement(_init4, 4, "foo", _foo_dec3, ClassAccessor, _foo);
-__decorateElement(_init4, 4, "bar", _bar_dec2, ClassAccessor, _bar);
-__decoratorMetadata(_init4, ClassAccessor);
+__decorateElement(_init6, 4, "foo", _foo_dec3, ClassAccessor, _foo);
+__decorateElement(_init6, 4, "bar", _bar_dec3, ClassAccessor, _bar);
+__decoratorMetadata(_init6, ClassAccessor);
 new Class();
+new ClassExtends();
 new ClassMethod();
 new ClassField();
+new ClassFieldExtends();
 new ClassAccessor();
 
 ================================================================================

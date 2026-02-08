@@ -1112,7 +1112,7 @@ func (ctx *lowerClassContext) analyzeProperty(p *parser, prop js_ast.Property, c
 	analysis.private, _ = prop.Key.Data.(*js_ast.EPrivateIdentifier)
 	mustLowerPrivate := analysis.private != nil && p.privateSymbolNeedsToBeLowered(analysis.private)
 	analysis.shouldOmitFieldInitializer = p.options.ts.Parse && !prop.Kind.IsMethodDefinition() && prop.InitializerOrNil.Data == nil &&
-		!ctx.class.UseDefineForClassFields && !mustLowerPrivate && !ctx.class.ShouldLowerStandardDecorators
+		!ctx.class.UseDefineForClassFields && !mustLowerPrivate && (!ctx.class.ShouldLowerStandardDecorators || prop.Decorators == nil)
 
 	// Class fields must be lowered if the environment doesn't support them
 	if !prop.Kind.IsMethodDefinition() {
