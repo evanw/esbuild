@@ -138,6 +138,37 @@ func TestSplittingDynamicAndNotDynamicCommonJSIntoES6(t *testing.T) {
 	})
 }
 
+func TestSplittingWithMinChunkSize(t *testing.T) {
+	splitting_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/a.js": `
+				import * as ns from './common_mini'
+				import * as nsl from './common_large'
+				export let a = 'a' + ns.foo
+				export let aa = 'a' + nsl.bar
+			`,
+			"/b.js": `
+				import * as ns from './common_mini'
+				export let b = 'b' + ns.foo
+			`,
+			"/c.js": `
+				import * as ns from './common_large'
+				export let b = 'b' + ns.bar
+			`,
+			"/common_mini.js":  `export let foo = 123`,
+			"/common_large.js": `export let bar = 1234`,
+		},
+		entryPaths: []string{"/a.js", "/b.js", "/c.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			CodeSplitting: true,
+			MinChunkSize:  21,
+			OutputFormat:  config.FormatESModule,
+			AbsOutputDir:  "/out",
+		},
+	})
+}
+
 func TestSplittingAssignToLocal(t *testing.T) {
 	splitting_suite.expectBundled(t, bundled{
 		files: map[string]string{
