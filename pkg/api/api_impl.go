@@ -2028,6 +2028,7 @@ func (impl *pluginImpl) onLoad(options OnLoadOptions, callback func(OnLoadArgs) 
 			}
 
 			result.Contents = response.Contents
+			result.Prepend = response.Prepend
 			result.Loader = validateLoader(response.Loader)
 			result.PluginData = response.PluginData
 			pathKind := fmt.Sprintf("resolve directory path for plugin %q", impl.plugin.Name)

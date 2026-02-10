@@ -1430,6 +1430,7 @@ let handlePlugins = async (
 
   requestCallbacks['on-load'] = async (id, request: protocol.OnLoadRequest) => {
     let response: protocol.OnLoadResponse = {}, name = '', callback, note
+    let prependParts: string[] = []
     for (let id of request.ids) {
       try {
         ({ name, callback, note } = onLoadCallbacks[id])
@@ -1446,6 +1447,7 @@ let handlePlugins = async (
           let keys: OptionKeys = {}
           let pluginName = getFlag(result, keys, 'pluginName', mustBeString)
           let contents = getFlag(result, keys, 'contents', mustBeStringOrUint8Array)
+          let prepend = getFlag(result, keys, 'prepend', mustBeString)
           let resolveDir = getFlag(result, keys, 'resolveDir', mustBeString)
           let pluginData = getFlag(result, keys, 'pluginData', canBeAnything)
           let loader = getFlag(result, keys, 'loader', mustBeString)
@@ -1454,6 +1456,13 @@ let handlePlugins = async (
           let watchFiles = getFlag(result, keys, 'watchFiles', mustBeArrayOfStrings)
           let watchDirs = getFlag(result, keys, 'watchDirs', mustBeArrayOfStrings)
           checkForInvalidFlags(result, keys, `from onLoad() callback in plugin ${quote(name)}`)
+
+          // Collect prepend text from this callback
+          if (prepend != null) prependParts.push(prepend)
+
+          // If this callback only provided prepend without contents, continue
+          // to the next callback so multiple plugins can each prepend text
+          if (contents == null && prepend != null) continue
 
           response.id = id
           if (pluginName != null) response.pluginName = pluginName
@@ -1473,6 +1482,7 @@ let handlePlugins = async (
         break
       }
     }
+    if (prependParts.length > 0) response.prepend = protocol.encodeUTF8(prependParts.join(''))
     sendResponse(id, response as any)
   }
 

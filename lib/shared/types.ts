@@ -447,6 +447,7 @@ export interface OnLoadResult {
   warnings?: PartialMessage[]
 
   contents?: string | Uint8Array
+  prepend?: string
   resolveDir?: string
   loader?: Loader
   pluginData?: any
