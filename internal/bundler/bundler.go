@@ -1192,6 +1192,7 @@ func runOnLoadPlugins(
 		PluginData: pluginData,
 	}
 	tracker := logger.MakeLineColumnTracker(importSource)
+	var prependParts []string
 
 	// Apply loader plugins in order until one succeeds
 	for _, plugin := range plugins {
@@ -1225,12 +1226,21 @@ func runOnLoadPlugins(
 				return loaderPluginResult{}, false
 			}
 
+			// Collect any Prepend text from this callback
+			if result.Prepend != nil && *result.Prepend != "" {
+				prependParts = append(prependParts, *result.Prepend)
+			}
+
 			// Otherwise, continue on to the next loader if this loader didn't succeed
 			if result.Contents == nil {
 				continue
 			}
 
-			source.Contents = *result.Contents
+			if len(prependParts) > 0 {
+				source.Contents = strings.Join(prependParts, "") + *result.Contents
+			} else {
+				source.Contents = *result.Contents
+			}
 			loader := result.Loader
 			if loader == config.LoaderNone {
 				loader = config.LoaderJS
@@ -1258,7 +1268,11 @@ func runOnLoadPlugins(
 	// Read normal modules from disk
 	if source.KeyPath.Namespace == "file" {
 		if contents, err, _ := fsCache.ReadFile(fs, source.KeyPath.Text); err == nil {
-			source.Contents = contents
+			if len(prependParts) > 0 {
+				source.Contents = strings.Join(prependParts, "") + contents
+			} else {
+				source.Contents = contents
+			}
 			return loaderPluginResult{
 				loader:        config.LoaderDefault,
 				absResolveDir: fs.Dir(source.KeyPath.Text),
