@@ -475,17 +475,18 @@ type Options struct {
 	UnsupportedCSSFeatureOverrides     compat.CSSFeature
 	UnsupportedCSSFeatureOverridesMask compat.CSSFeature
 
-	TS                TSOptions
-	Mode              Mode
-	PreserveSymlinks  bool
-	MinifyWhitespace  bool
-	MinifyIdentifiers bool
-	MinifySyntax      bool
-	ProfilerNames     bool
-	CodeSplitting     bool
-	WatchMode         bool
-	AllowOverwrite    bool
-	LegalComments     LegalComments
+	TS                          TSOptions
+	Mode                        Mode
+	PreserveSymlinks            bool
+	MinifyWhitespace            bool
+	MinifyIdentifiers           bool
+	MinifySyntax                bool
+	ProfilerNames               bool
+	CodeSplitting               bool
+	WatchMode                   bool
+	AllowOverwrite              bool
+	DeterministicLocalCSSNaming bool
+	LegalComments               LegalComments
 
 	LogPathStyle       logger.PathStyle
 	CodePathStyle      logger.PathStyle
