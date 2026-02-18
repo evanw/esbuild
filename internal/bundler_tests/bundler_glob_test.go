@@ -11,6 +11,7 @@ var glob_suite = suite{
 }
 
 func TestGlobBasicNoBundle(t *testing.T) {
+	t.Parallel()
 	glob_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -37,6 +38,7 @@ func TestGlobBasicNoBundle(t *testing.T) {
 }
 
 func TestGlobBasicNoSplitting(t *testing.T) {
+	t.Parallel()
 	glob_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -64,6 +66,7 @@ func TestGlobBasicNoSplitting(t *testing.T) {
 }
 
 func TestTSGlobBasicNoSplitting(t *testing.T) {
+	t.Parallel()
 	glob_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -91,6 +94,7 @@ func TestTSGlobBasicNoSplitting(t *testing.T) {
 }
 
 func TestGlobBasicSplitting(t *testing.T) {
+	t.Parallel()
 	glob_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -119,6 +123,7 @@ func TestGlobBasicSplitting(t *testing.T) {
 }
 
 func TestTSGlobBasicSplitting(t *testing.T) {
+	t.Parallel()
 	glob_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -147,6 +152,7 @@ func TestTSGlobBasicSplitting(t *testing.T) {
 }
 
 func TestGlobDirDoesNotExist(t *testing.T) {
+	t.Parallel()
 	glob_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -176,6 +182,7 @@ entry.js: ERROR: Could not resolve import("./src/**/*")
 }
 
 func TestGlobNoMatches(t *testing.T) {
+	t.Parallel()
 	glob_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -206,6 +213,7 @@ entry.js: WARNING: The glob pattern import("./src/**/*.json") did not match any 
 }
 
 func TestGlobEntryPointAbsPath(t *testing.T) {
+	t.Parallel()
 	glob_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -221,6 +229,7 @@ func TestGlobEntryPointAbsPath(t *testing.T) {
 }
 
 func TestGlobWildcardSlash(t *testing.T) {
+	t.Parallel()
 	glob_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -256,6 +265,7 @@ func TestGlobWildcardSlash(t *testing.T) {
 }
 
 func TestGlobWildcardNoSlash(t *testing.T) {
+	t.Parallel()
 	glob_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `

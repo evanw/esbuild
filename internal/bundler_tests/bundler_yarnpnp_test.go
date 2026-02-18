@@ -12,6 +12,7 @@ var yarnpnp_suite = suite{
 
 // https://github.com/evanw/esbuild/issues/3698
 func TestTsconfigPackageJsonExportsYarnPnP(t *testing.T) {
+	t.Parallel()
 	yarnpnp_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/packages/app/index.tsx": `
@@ -85,6 +86,7 @@ func TestTsconfigPackageJsonExportsYarnPnP(t *testing.T) {
 
 // https://github.com/evanw/esbuild/issues/3915
 func TestTsconfigStackOverflowYarnPnP(t *testing.T) {
+	t.Parallel()
 	yarnpnp_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/entry.jsx": `
@@ -151,6 +153,7 @@ func TestTsconfigStackOverflowYarnPnP(t *testing.T) {
 	})
 }
 func TestWindowsCrossVolumeReferenceYarnPnP(t *testing.T) {
+	t.Parallel()
 	yarnpnp_suite.expectBundledWindows(t, bundled{
 		files: map[string]string{
 			"D:\\project\\entry.jsx": `

@@ -1,3 +1,6 @@
+//go:build !js || !wasm
+// +build !js !wasm
+
 package api
 
 // This file implements a polling file watcher for esbuild (i.e. it detects
@@ -23,6 +26,7 @@ package api
 // be noticed almost instantly.
 
 import (
+	"errors"
 	"fmt"
 	"math/rand"
 	"os"
@@ -196,4 +200,56 @@ func (w *watcher) tryToFindDirtyPath() string {
 		}
 	}
 	return ""
+}
+
+func (ctx *internalContext) Watch(options WatchOptions) error {
+	ctx.mutex.Lock()
+	defer ctx.mutex.Unlock()
+
+	// Ignore disposed contexts
+	if ctx.didDispose {
+		return errors.New("Cannot watch a disposed context")
+	}
+
+	// Don't allow starting watch mode multiple times
+	if ctx.watcher != nil {
+		return errors.New("Watch mode has already been enabled")
+	}
+
+	logLevel := ctx.args.logOptions.LogLevel
+	ctx.watcher = &watcher{
+		fs:        ctx.realFS,
+		shouldLog: logLevel == logger.LevelInfo || logLevel == logger.LevelDebug || logLevel == logger.LevelVerbose,
+		useColor:  ctx.args.logOptions.Color,
+		pathStyle: ctx.args.logOptions.PathStyle,
+		rebuild: func() fs.WatchData {
+			return ctx.rebuild().watchData
+		},
+		delayInMS: time.Duration(options.Delay),
+	}
+
+	// All subsequent builds will be watch mode builds
+	ctx.args.options.WatchMode = true
+
+	// Start the file watcher goroutine
+	ctx.watcher.start()
+
+	// Do the first watch mode build on another goroutine
+	go func() {
+		ctx.mutex.Lock()
+		build := ctx.activeBuild
+		ctx.mutex.Unlock()
+
+		// If there's an active build, then it's not a watch build. Wait for it to
+		// finish first so we don't just get this build when we call "Rebuild()".
+		if build != nil {
+			build.waitGroup.Wait()
+		}
+
+		// Trigger a rebuild now that we know all future builds will pick up on
+		// our watcher. This build will populate the initial watch data, which is
+		// necessary to be able to know what file system changes are relevant.
+		ctx.Rebuild()
+	}()
+	return nil
 }

@@ -209,6 +209,14 @@ exports.buildWasmLib = async (esbuildPath) => {
   // Join with the asynchronous WebAssembly build
   await goBuildPromise
 
+  // Optionally run wasm-opt to reduce the binary size further
+  const wasmFile = path.join(npmWasmDir, 'esbuild.wasm')
+  try {
+    childProcess.execFileSync('wasm-opt', ['-Oz', '--enable-bulk-memory', wasmFile, '-o', wasmFile], { stdio: 'inherit' })
+  } catch (e) {
+    // wasm-opt is optional; skip if not installed
+  }
+
   // Also copy this into the WebAssembly shim directories
   for (const dir of [
     path.join(repoDir, 'npm', '@esbuild', 'android-arm'),

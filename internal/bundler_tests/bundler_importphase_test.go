@@ -11,6 +11,7 @@ var importphase_suite = suite{
 }
 
 func TestImportDeferExternalESM(t *testing.T) {
+	t.Parallel()
 	importphase_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -43,6 +44,7 @@ func TestImportDeferExternalESM(t *testing.T) {
 }
 
 func TestImportDeferExternalCommonJS(t *testing.T) {
+	t.Parallel()
 	importphase_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -82,6 +84,7 @@ entry.js: ERROR: Bundling deferred imports with the "cjs" output format is not s
 }
 
 func TestImportDeferExternalIIFE(t *testing.T) {
+	t.Parallel()
 	importphase_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -121,6 +124,7 @@ entry.js: ERROR: Bundling deferred imports with the "iife" output format is not 
 }
 
 func TestImportDeferInternalESM(t *testing.T) {
+	t.Parallel()
 	importphase_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -155,6 +159,7 @@ entry.js: ERROR: Bundling with deferred imports is not supported unless they are
 }
 
 func TestImportDeferInternalCommonJS(t *testing.T) {
+	t.Parallel()
 	importphase_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -189,6 +194,7 @@ entry.js: ERROR: Bundling deferred imports with the "cjs" output format is not s
 }
 
 func TestImportDeferInternalIIFE(t *testing.T) {
+	t.Parallel()
 	importphase_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -223,6 +229,7 @@ entry.js: ERROR: Bundling deferred imports with the "iife" output format is not 
 }
 
 func TestImportSourceExternalESM(t *testing.T) {
+	t.Parallel()
 	importphase_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -255,6 +262,7 @@ func TestImportSourceExternalESM(t *testing.T) {
 }
 
 func TestImportSourceExternalCommonJS(t *testing.T) {
+	t.Parallel()
 	importphase_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -294,6 +302,7 @@ entry.js: ERROR: Bundling source phase imports with the "cjs" output format is n
 }
 
 func TestImportSourceExternalIIFE(t *testing.T) {
+	t.Parallel()
 	importphase_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -333,6 +342,7 @@ entry.js: ERROR: Bundling source phase imports with the "iife" output format is 
 }
 
 func TestImportSourceInternalESM(t *testing.T) {
+	t.Parallel()
 	importphase_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -367,6 +377,7 @@ entry.js: ERROR: Bundling with source phase imports is not supported unless they
 }
 
 func TestImportSourceInternalCommonJS(t *testing.T) {
+	t.Parallel()
 	importphase_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -401,6 +412,7 @@ entry.js: ERROR: Bundling source phase imports with the "cjs" output format is n
 }
 
 func TestImportSourceInternalIIFE(t *testing.T) {
+	t.Parallel()
 	importphase_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `

@@ -13,6 +13,7 @@ var loader_suite = suite{
 }
 
 func TestLoaderFile(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -33,6 +34,7 @@ func TestLoaderFile(t *testing.T) {
 }
 
 func TestLoaderFileMultipleNoCollision(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -59,6 +61,7 @@ func TestLoaderFileMultipleNoCollision(t *testing.T) {
 }
 
 func TestJSXSyntaxInJSWithJSXLoader(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -77,6 +80,7 @@ func TestJSXSyntaxInJSWithJSXLoader(t *testing.T) {
 }
 
 func TestJSXPreserveCapitalLetter(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.jsx": `
@@ -100,6 +104,7 @@ func TestJSXPreserveCapitalLetter(t *testing.T) {
 }
 
 func TestJSXPreserveCapitalLetterMinify(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.jsx": `
@@ -124,6 +129,7 @@ func TestJSXPreserveCapitalLetterMinify(t *testing.T) {
 }
 
 func TestJSXPreserveCapitalLetterMinifyNested(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.jsx": `
@@ -147,6 +153,7 @@ func TestJSXPreserveCapitalLetterMinifyNested(t *testing.T) {
 }
 
 func TestRequireCustomExtensionString(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -167,6 +174,7 @@ func TestRequireCustomExtensionString(t *testing.T) {
 }
 
 func TestRequireCustomExtensionBase64(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -187,6 +195,7 @@ func TestRequireCustomExtensionBase64(t *testing.T) {
 }
 
 func TestRequireCustomExtensionDataURL(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -207,6 +216,7 @@ func TestRequireCustomExtensionDataURL(t *testing.T) {
 }
 
 func TestRequireCustomExtensionPreferLongest(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -229,6 +239,7 @@ func TestRequireCustomExtensionPreferLongest(t *testing.T) {
 }
 
 func TestAutoDetectMimeTypeFromExtension(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -249,6 +260,7 @@ func TestAutoDetectMimeTypeFromExtension(t *testing.T) {
 }
 
 func TestLoaderJSONCommonJSAndES6(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -274,6 +286,7 @@ func TestLoaderJSONCommonJSAndES6(t *testing.T) {
 }
 
 func TestLoaderJSONInvalidIdentifierES6(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -293,6 +306,7 @@ func TestLoaderJSONInvalidIdentifierES6(t *testing.T) {
 }
 
 func TestLoaderJSONMissingES6(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -311,6 +325,7 @@ func TestLoaderJSONMissingES6(t *testing.T) {
 }
 
 func TestLoaderTextCommonJSAndES6(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -330,6 +345,7 @@ func TestLoaderTextCommonJSAndES6(t *testing.T) {
 }
 
 func TestLoaderBase64CommonJSAndES6(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -353,6 +369,7 @@ func TestLoaderBase64CommonJSAndES6(t *testing.T) {
 }
 
 func TestLoaderDataURLCommonJSAndES6(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -376,6 +393,7 @@ func TestLoaderDataURLCommonJSAndES6(t *testing.T) {
 }
 
 func TestLoaderFileCommonJSAndES6(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -399,6 +417,7 @@ func TestLoaderFileCommonJSAndES6(t *testing.T) {
 }
 
 func TestLoaderFileRelativePathJS(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/src/entries/entry.js": `
@@ -421,6 +440,7 @@ func TestLoaderFileRelativePathJS(t *testing.T) {
 }
 
 func TestLoaderFileRelativePathCSS(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/src/entries/entry.css": `
@@ -444,6 +464,7 @@ func TestLoaderFileRelativePathCSS(t *testing.T) {
 }
 
 func TestLoaderFileRelativePathAssetNamesJS(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/src/entries/entry.js": `
@@ -471,6 +492,7 @@ func TestLoaderFileRelativePathAssetNamesJS(t *testing.T) {
 }
 
 func TestLoaderFileExtPathAssetNamesJS(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/src/entries/entry.js": `
@@ -501,6 +523,7 @@ func TestLoaderFileExtPathAssetNamesJS(t *testing.T) {
 }
 
 func TestLoaderFileRelativePathAssetNamesCSS(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/src/entries/entry.css": `
@@ -529,6 +552,7 @@ func TestLoaderFileRelativePathAssetNamesCSS(t *testing.T) {
 }
 
 func TestLoaderFilePublicPathJS(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/src/entries/entry.js": `
@@ -552,6 +576,7 @@ func TestLoaderFilePublicPathJS(t *testing.T) {
 }
 
 func TestLoaderFilePublicPathCSS(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/src/entries/entry.css": `
@@ -576,6 +601,7 @@ func TestLoaderFilePublicPathCSS(t *testing.T) {
 }
 
 func TestLoaderFilePublicPathAssetNamesJS(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/src/entries/entry.js": `
@@ -604,6 +630,7 @@ func TestLoaderFilePublicPathAssetNamesJS(t *testing.T) {
 }
 
 func TestLoaderFilePublicPathAssetNamesCSS(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/src/entries/entry.css": `
@@ -633,6 +660,7 @@ func TestLoaderFilePublicPathAssetNamesCSS(t *testing.T) {
 }
 
 func TestLoaderFileOneSourceTwoDifferentOutputPathsJS(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/src/entries/entry.js": `
@@ -664,6 +692,7 @@ func TestLoaderFileOneSourceTwoDifferentOutputPathsJS(t *testing.T) {
 }
 
 func TestLoaderFileOneSourceTwoDifferentOutputPathsCSS(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/src/entries/entry.css": `
@@ -696,6 +725,7 @@ func TestLoaderFileOneSourceTwoDifferentOutputPathsCSS(t *testing.T) {
 }
 
 func TestLoaderJSONNoBundle(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/test.json": `{"test": 123, "invalid-identifier": true}`,
@@ -708,6 +738,7 @@ func TestLoaderJSONNoBundle(t *testing.T) {
 }
 
 func TestLoaderJSONNoBundleES6(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/test.json": `{"test": 123, "invalid-identifier": true}`,
@@ -723,6 +754,7 @@ func TestLoaderJSONNoBundleES6(t *testing.T) {
 }
 
 func TestLoaderJSONNoBundleES6ArbitraryModuleNamespaceNames(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/test.json": `{"test": 123, "invalid-identifier": true}`,
@@ -737,6 +769,7 @@ func TestLoaderJSONNoBundleES6ArbitraryModuleNamespaceNames(t *testing.T) {
 }
 
 func TestLoaderJSONNoBundleCommonJS(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/test.json": `{"test": 123, "invalid-identifier": true}`,
@@ -751,6 +784,7 @@ func TestLoaderJSONNoBundleCommonJS(t *testing.T) {
 }
 
 func TestLoaderJSONNoBundleIIFE(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/test.json": `{"test": 123, "invalid-identifier": true}`,
@@ -765,6 +799,7 @@ func TestLoaderJSONNoBundleIIFE(t *testing.T) {
 }
 
 func TestLoaderJSONSharedWithMultipleEntriesIssue413(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.js": `
@@ -787,6 +822,7 @@ func TestLoaderJSONSharedWithMultipleEntriesIssue413(t *testing.T) {
 }
 
 func TestLoaderFileWithQueryParameter(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -810,6 +846,7 @@ func TestLoaderFileWithQueryParameter(t *testing.T) {
 }
 
 func TestLoaderFromExtensionWithQueryParameter(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -832,6 +869,7 @@ func TestLoaderFromExtensionWithQueryParameter(t *testing.T) {
 }
 
 func TestLoaderDataURLTextCSS(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.css": `
@@ -850,6 +888,7 @@ func TestLoaderDataURLTextCSS(t *testing.T) {
 }
 
 func TestLoaderDataURLTextCSSCannotImport(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.css": `
@@ -870,6 +909,7 @@ func TestLoaderDataURLTextCSSCannotImport(t *testing.T) {
 }
 
 func TestLoaderDataURLTextJavaScript(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -888,6 +928,7 @@ func TestLoaderDataURLTextJavaScript(t *testing.T) {
 }
 
 func TestLoaderDataURLTextJavaScriptCannotImport(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -909,6 +950,7 @@ func TestLoaderDataURLTextJavaScriptCannotImport(t *testing.T) {
 
 // The "+" character must not be interpreted as a " " character
 func TestLoaderDataURLTextJavaScriptPlusCharacter(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -924,6 +966,7 @@ func TestLoaderDataURLTextJavaScriptPlusCharacter(t *testing.T) {
 }
 
 func TestLoaderDataURLApplicationJSON(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -945,6 +988,7 @@ func TestLoaderDataURLApplicationJSON(t *testing.T) {
 }
 
 func TestLoaderDataURLUnknownMIME(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -962,6 +1006,7 @@ func TestLoaderDataURLUnknownMIME(t *testing.T) {
 }
 
 func TestLoaderDataURLExtensionBasedMIME(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.foo": `
@@ -1044,6 +1089,7 @@ func TestLoaderDataURLExtensionBasedMIME(t *testing.T) {
 // Percent-encoded data URLs should switch over to base64
 // data URLs if it would result in a smaller size
 func TestLoaderDataURLBase64VsPercentEncoding(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1076,6 +1122,7 @@ func TestLoaderDataURLBase64VsPercentEncoding(t *testing.T) {
 }
 
 func TestLoaderDataURLBase64InvalidUTF8(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1097,6 +1144,7 @@ func TestLoaderDataURLBase64InvalidUTF8(t *testing.T) {
 }
 
 func TestLoaderDataURLEscapePercents(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1122,6 +1170,7 @@ func TestLoaderDataURLEscapePercents(t *testing.T) {
 }
 
 func TestLoaderCopyWithBundleFromJS(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -1144,6 +1193,7 @@ func TestLoaderCopyWithBundleFromJS(t *testing.T) {
 }
 
 func TestLoaderCopyWithBundleFromCSS(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.css": `
@@ -1167,6 +1217,7 @@ func TestLoaderCopyWithBundleFromCSS(t *testing.T) {
 }
 
 func TestLoaderCopyWithBundleEntryPoint(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -1200,6 +1251,7 @@ func TestLoaderCopyWithBundleEntryPoint(t *testing.T) {
 }
 
 func TestLoaderCopyWithTransform(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js":     `console.log('entry')`,
@@ -1222,6 +1274,7 @@ func TestLoaderCopyWithTransform(t *testing.T) {
 }
 
 func TestLoaderCopyWithFormat(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js":     `console.log('entry')`,
@@ -1245,6 +1298,7 @@ func TestLoaderCopyWithFormat(t *testing.T) {
 }
 
 func TestJSXAutomaticNoNameCollision(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.jsx": `
@@ -1265,6 +1319,7 @@ func TestJSXAutomaticNoNameCollision(t *testing.T) {
 }
 
 func TestAssertTypeJSONWrongLoader(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1289,6 +1344,7 @@ NOTE: You need to either reconfigure esbuild to ensure that the loader for this 
 }
 
 func TestWithTypeJSONOverrideLoader(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1306,6 +1362,7 @@ func TestWithTypeJSONOverrideLoader(t *testing.T) {
 }
 
 func TestWithTypeJSONOverrideLoaderGlob(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1322,6 +1379,7 @@ func TestWithTypeJSONOverrideLoaderGlob(t *testing.T) {
 }
 
 func TestWithTypeBytesOverrideLoader(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1339,6 +1397,7 @@ func TestWithTypeBytesOverrideLoader(t *testing.T) {
 }
 
 func TestWithTypeBytesOverrideLoaderGlob(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1355,6 +1414,7 @@ func TestWithTypeBytesOverrideLoaderGlob(t *testing.T) {
 }
 
 func TestWithBadType(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1375,6 +1435,7 @@ entry.js: ERROR: Importing with a type attribute of "garbage" is not supported
 }
 
 func TestWithBadAttribute(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1395,6 +1456,7 @@ entry.js: ERROR: Importing with the "garbage" attribute is not supported
 }
 
 func TestEmptyLoaderJS(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1426,6 +1488,7 @@ func TestEmptyLoaderJS(t *testing.T) {
 }
 
 func TestEmptyLoaderCSS(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.css": `
@@ -1450,6 +1513,7 @@ func TestEmptyLoaderCSS(t *testing.T) {
 }
 
 func TestExtensionlessLoaderJS(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1470,6 +1534,7 @@ func TestExtensionlessLoaderJS(t *testing.T) {
 }
 
 func TestExtensionlessLoaderCSS(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.css": `
@@ -1491,6 +1556,7 @@ func TestExtensionlessLoaderCSS(t *testing.T) {
 
 // Make sure custom entry point output names are respected for the copy loader
 func TestLoaderCopyEntryPointAdvanced(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/project/entry.js": `
@@ -1528,6 +1594,7 @@ func TestLoaderCopyEntryPointAdvanced(t *testing.T) {
 // more useful names because lots of developers name their code "index.js" due
 // to node's implicit "index.js" path resolution logic.
 func TestLoaderCopyUseIndex(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/index.copy": `some stuff`,
@@ -1547,6 +1614,7 @@ func TestLoaderCopyUseIndex(t *testing.T) {
 // written out to that path. We don't want the file name to come from the
 // original source name instead of the "outfile" name, for example.
 func TestLoaderCopyExplicitOutputFile(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/project/TEST FAILED.copy": `some stuff`,
@@ -1563,6 +1631,7 @@ func TestLoaderCopyExplicitOutputFile(t *testing.T) {
 }
 
 func TestLoaderCopyStartsWithDotAbsPath(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/project/src/.htaccess": `some stuff`,
@@ -1587,6 +1656,7 @@ func TestLoaderCopyStartsWithDotAbsPath(t *testing.T) {
 }
 
 func TestLoaderCopyStartsWithDotRelPath(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/project/src/.htaccess": `some stuff`,
@@ -1612,6 +1682,7 @@ func TestLoaderCopyStartsWithDotRelPath(t *testing.T) {
 }
 
 func TestLoaderCopyWithInjectedFileNoBundle(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/src/entry.ts":  `console.log('in entry.ts')`,
@@ -1632,6 +1703,7 @@ func TestLoaderCopyWithInjectedFileNoBundle(t *testing.T) {
 }
 
 func TestLoaderCopyWithInjectedFileBundle(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/src/entry.ts":  `console.log('in entry.ts')`,
@@ -1651,6 +1723,7 @@ func TestLoaderCopyWithInjectedFileBundle(t *testing.T) {
 }
 
 func TestLoaderBundleWithImportAttributes(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1670,6 +1743,7 @@ func TestLoaderBundleWithImportAttributes(t *testing.T) {
 }
 
 func TestLoaderBundleWithUnknownImportAttributesAndJSLoader(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1696,6 +1770,7 @@ entry.js: ERROR: Importing with the "js" attribute is not supported
 }
 
 func TestLoaderBundleWithUnknownImportAttributesAndCopyLoader(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1719,6 +1794,7 @@ func TestLoaderBundleWithUnknownImportAttributesAndCopyLoader(t *testing.T) {
 }
 
 func TestLoaderBundleWithTypeJSONOnlyDefaultExport(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1738,6 +1814,7 @@ func TestLoaderBundleWithTypeJSONOnlyDefaultExport(t *testing.T) {
 }
 
 func TestLoaderJSONPrototype(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1759,6 +1836,7 @@ func TestLoaderJSONPrototype(t *testing.T) {
 }
 
 func TestLoaderJSONPrototypeES5(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1781,6 +1859,7 @@ func TestLoaderJSONPrototypeES5(t *testing.T) {
 }
 
 func TestLoaderJSONWithBigInt(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1802,6 +1881,7 @@ func TestLoaderJSONWithBigInt(t *testing.T) {
 }
 
 func TestLoaderTextUTF8BOM(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1822,6 +1902,7 @@ func TestLoaderTextUTF8BOM(t *testing.T) {
 
 // See: https://github.com/evanw/esbuild/issues/4075
 func TestLoaderInlineSourceMapAbsolutePathIssue4075Unix(t *testing.T) {
+	t.Parallel()
 	urlEncodedUnix := "%22file%3A%2F%2F%2Fout%2Fsrc%2Fstyles1.scss%22" // file:///out/src/styles1.scss
 	pathEncodedUnix := "%22%2Fout%2Fsrc%2Fstyles2.scss%22"             // /out/src/styles2.scss
 
@@ -1865,6 +1946,7 @@ func TestLoaderInlineSourceMapAbsolutePathIssue4075Unix(t *testing.T) {
 
 // See: https://github.com/evanw/esbuild/issues/4075
 func TestLoaderInlineSourceMapAbsolutePathIssue4075Windows(t *testing.T) {
+	t.Parallel()
 	urlEncodedWin := "%22file%3A%2F%2F%2FC%3A%2Fout%2Fsrc%2Fstyles1.scss%22" // file:///C:/out/src/styles1.scss
 	pathEncodedWin := "%22C%3A%5C%5Cout%5C%5Csrc%5C%5Cstyles2.scss%22"       // C:\out\src\styles2.scss
 
@@ -1908,6 +1990,7 @@ func TestLoaderInlineSourceMapAbsolutePathIssue4075Windows(t *testing.T) {
 
 // See: https://github.com/evanw/esbuild/issues/4370
 func TestLoaderDataURLHashSuffixIssue4370(t *testing.T) {
+	t.Parallel()
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/icons.css": `

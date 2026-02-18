@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"math"
-	"math/big"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -3104,9 +3103,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 
 		// When minifying, try to convert to a shorter form
 		if p.options.MinifySyntax {
-			var i big.Int
-			fmt.Sscan(value, &i)
-			str := i.String()
+			str := bigIntToDecimal(value)
 
 			// Print without quotes if it can be converted exactly
 			if num, err := strconv.ParseFloat(str, 64); err == nil && str == fmt.Sprintf("%.0f", num) {

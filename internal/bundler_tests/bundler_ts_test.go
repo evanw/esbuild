@@ -13,6 +13,7 @@ var ts_suite = suite{
 }
 
 func TestTSDeclareConst(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -33,6 +34,7 @@ func TestTSDeclareConst(t *testing.T) {
 }
 
 func TestTSDeclareLet(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -53,6 +55,7 @@ func TestTSDeclareLet(t *testing.T) {
 }
 
 func TestTSDeclareVar(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -73,6 +76,7 @@ func TestTSDeclareVar(t *testing.T) {
 }
 
 func TestTSDeclareClass(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -93,6 +97,7 @@ func TestTSDeclareClass(t *testing.T) {
 }
 
 func TestTSDeclareClassFields(t *testing.T) {
+	t.Parallel()
 	// Note: this test uses arrow functions to validate that
 	// scopes inside "declare" fields are correctly discarded
 	ts_suite.expectBundled(t, bundled{
@@ -145,6 +150,7 @@ func TestTSDeclareClassFields(t *testing.T) {
 }
 
 func TestTSDeclareFunction(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -165,6 +171,7 @@ func TestTSDeclareFunction(t *testing.T) {
 }
 
 func TestTSDeclareNamespace(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -185,6 +192,7 @@ func TestTSDeclareNamespace(t *testing.T) {
 }
 
 func TestTSDeclareEnum(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -205,6 +213,7 @@ func TestTSDeclareEnum(t *testing.T) {
 }
 
 func TestTSDeclareConstEnum(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -225,6 +234,7 @@ func TestTSDeclareConstEnum(t *testing.T) {
 }
 
 func TestTSConstEnumComments(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/bar.ts": `
@@ -260,6 +270,7 @@ func TestTSConstEnumComments(t *testing.T) {
 }
 
 func TestTSImportEmptyNamespace(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -280,6 +291,7 @@ func TestTSImportEmptyNamespace(t *testing.T) {
 }
 
 func TestTSImportMissingES6(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -302,6 +314,7 @@ entry.ts: ERROR: No matching export in "foo.js" for import "y"
 }
 
 func TestTSImportMissingUnusedES6(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -320,6 +333,7 @@ func TestTSImportMissingUnusedES6(t *testing.T) {
 }
 
 func TestTSExportMissingES6(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -343,6 +357,7 @@ func TestTSExportMissingES6(t *testing.T) {
 
 // It's an error to import from a file that does not exist
 func TestTSImportMissingFile(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -362,6 +377,7 @@ func TestTSImportMissingFile(t *testing.T) {
 
 // It's not an error to import a type from a file that does not exist
 func TestTSImportTypeOnlyFile(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -379,6 +395,7 @@ func TestTSImportTypeOnlyFile(t *testing.T) {
 }
 
 func TestTSExportEquals(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.ts": `
@@ -399,6 +416,7 @@ func TestTSExportEquals(t *testing.T) {
 }
 
 func TestTSExportNamespace(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.ts": `
@@ -424,6 +442,7 @@ func TestTSExportNamespace(t *testing.T) {
 }
 
 func TestTSNamespaceKeepNames(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -444,6 +463,7 @@ func TestTSNamespaceKeepNames(t *testing.T) {
 }
 
 func TestTSNamespaceKeepNamesTargetES2015(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -465,6 +485,7 @@ func TestTSNamespaceKeepNamesTargetES2015(t *testing.T) {
 }
 
 func TestTSMinifyEnum(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.ts": `
@@ -485,6 +506,7 @@ func TestTSMinifyEnum(t *testing.T) {
 }
 
 func TestTSMinifyNestedEnum(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.ts": `
@@ -505,6 +527,7 @@ func TestTSMinifyNestedEnum(t *testing.T) {
 }
 
 func TestTSMinifyNestedEnumNoLogicalAssignment(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.ts": `
@@ -526,6 +549,7 @@ func TestTSMinifyNestedEnumNoLogicalAssignment(t *testing.T) {
 }
 
 func TestTSMinifyNestedEnumNoArrow(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.ts": `
@@ -547,6 +571,7 @@ func TestTSMinifyNestedEnumNoArrow(t *testing.T) {
 }
 
 func TestTSMinifyNamespace(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.ts": `
@@ -575,6 +600,7 @@ func TestTSMinifyNamespace(t *testing.T) {
 }
 
 func TestTSMinifyNamespaceNoLogicalAssignment(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.ts": `
@@ -604,6 +630,7 @@ func TestTSMinifyNamespaceNoLogicalAssignment(t *testing.T) {
 }
 
 func TestTSMinifyNamespaceNoArrow(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.ts": `
@@ -633,6 +660,7 @@ func TestTSMinifyNamespaceNoArrow(t *testing.T) {
 }
 
 func TestTSMinifyDerivedClass(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -662,6 +690,7 @@ func TestTSMinifyDerivedClass(t *testing.T) {
 }
 
 func TestTSMinifyEnumPropertyNames(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -734,6 +763,7 @@ func TestTSMinifyEnumPropertyNames(t *testing.T) {
 	})
 }
 func TestTSMinifyEnumCrossFileInlineStringsIntoTemplates(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -766,6 +796,7 @@ func TestTSMinifyEnumCrossFileInlineStringsIntoTemplates(t *testing.T) {
 }
 
 func TestTSImportVsLocalCollisionAllTypes(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -789,6 +820,7 @@ func TestTSImportVsLocalCollisionAllTypes(t *testing.T) {
 }
 
 func TestTSImportVsLocalCollisionMixed(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -813,6 +845,7 @@ func TestTSImportVsLocalCollisionMixed(t *testing.T) {
 }
 
 func TestTSImportEqualsEliminationTest(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -836,6 +869,7 @@ func TestTSImportEqualsEliminationTest(t *testing.T) {
 }
 
 func TestTSImportEqualsTreeShakingFalse(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -855,6 +889,7 @@ func TestTSImportEqualsTreeShakingFalse(t *testing.T) {
 }
 
 func TestTSImportEqualsTreeShakingTrue(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -874,6 +909,7 @@ func TestTSImportEqualsTreeShakingTrue(t *testing.T) {
 }
 
 func TestTSImportEqualsBundle(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -899,6 +935,7 @@ func TestTSImportEqualsBundle(t *testing.T) {
 }
 
 func TestTSImportEqualsUndefinedImport(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -929,6 +966,7 @@ func TestTSImportEqualsUndefinedImport(t *testing.T) {
 }
 
 func TestTSMinifiedBundleES6(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -953,6 +991,7 @@ func TestTSMinifiedBundleES6(t *testing.T) {
 }
 
 func TestTSMinifiedBundleCommonJS(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -980,6 +1019,7 @@ func TestTSMinifiedBundleCommonJS(t *testing.T) {
 }
 
 func TestTSExperimentalDecoratorsNoConfig(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -1027,6 +1067,7 @@ func TestTSExperimentalDecoratorsNoConfig(t *testing.T) {
 }
 
 func TestTSExperimentalDecorators(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1181,6 +1222,7 @@ func TestTSExperimentalDecorators(t *testing.T) {
 }
 
 func TestTSExperimentalDecoratorsKeepNames(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -1204,6 +1246,7 @@ func TestTSExperimentalDecoratorsKeepNames(t *testing.T) {
 
 // See: https://github.com/evanw/esbuild/issues/2147
 func TestTSExperimentalDecoratorScopeIssue2147(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -1246,6 +1289,7 @@ func TestTSExperimentalDecoratorScopeIssue2147(t *testing.T) {
 }
 
 func TestTSExportDefaultTypeIssue316(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -1379,6 +1423,7 @@ func TestTSExportDefaultTypeIssue316(t *testing.T) {
 }
 
 func TestTSImplicitExtensions(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -1458,6 +1503,7 @@ func TestTSImplicitExtensions(t *testing.T) {
 }
 
 func TestTSImplicitExtensionsMissing(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -1487,6 +1533,7 @@ entry.ts: ERROR: Could not resolve "./jsx.jsx"
 }
 
 func TestExportTypeIssue379(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -1533,6 +1580,7 @@ func TestExportTypeIssue379(t *testing.T) {
 }
 
 func TestThisInsideFunctionTS(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -1574,6 +1622,7 @@ func TestThisInsideFunctionTS(t *testing.T) {
 }
 
 func TestThisInsideFunctionTSUseDefineForClassFields(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -1615,6 +1664,7 @@ func TestThisInsideFunctionTSUseDefineForClassFields(t *testing.T) {
 }
 
 func TestThisInsideFunctionTSNoBundle(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -1658,6 +1708,7 @@ func TestThisInsideFunctionTSNoBundle(t *testing.T) {
 }
 
 func TestThisInsideFunctionTSNoBundleUseDefineForClassFields(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -1699,6 +1750,7 @@ func TestThisInsideFunctionTSNoBundleUseDefineForClassFields(t *testing.T) {
 }
 
 func TestTSComputedClassFieldUseDefineFalse(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -1728,6 +1780,7 @@ func TestTSComputedClassFieldUseDefineFalse(t *testing.T) {
 }
 
 func TestTSComputedClassFieldUseDefineTrue(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -1757,6 +1810,7 @@ func TestTSComputedClassFieldUseDefineTrue(t *testing.T) {
 }
 
 func TestTSComputedClassFieldUseDefineTrueLower(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -1787,6 +1841,7 @@ func TestTSComputedClassFieldUseDefineTrueLower(t *testing.T) {
 }
 
 func TestTSAbstractClassFieldUseAssign(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -1814,6 +1869,7 @@ func TestTSAbstractClassFieldUseAssign(t *testing.T) {
 }
 
 func TestTSAbstractClassFieldUseDefine(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -1841,6 +1897,7 @@ func TestTSAbstractClassFieldUseDefine(t *testing.T) {
 }
 
 func TestTSImportMTS(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -1860,6 +1917,7 @@ func TestTSImportMTS(t *testing.T) {
 }
 
 func TestTSImportCTS(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -1879,6 +1937,7 @@ func TestTSImportCTS(t *testing.T) {
 }
 
 func TestTSSideEffectsFalseWarningTypeDeclarations(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -1918,6 +1977,7 @@ node_modules/some-ts/package.json: NOTE: "sideEffects" is false in the enclosing
 }
 
 func TestTSSiblingNamespace(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/let.ts": `
@@ -1956,6 +2016,7 @@ func TestTSSiblingNamespace(t *testing.T) {
 }
 
 func TestTSSiblingEnum(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/number.ts": `
@@ -2037,6 +2098,7 @@ func TestTSSiblingEnum(t *testing.T) {
 }
 
 func TestTSEnumTreeShaking(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/simple-member.ts": `
@@ -2095,6 +2157,7 @@ func TestTSEnumTreeShaking(t *testing.T) {
 }
 
 func TestTSEnumJSX(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/element.tsx": `
@@ -2128,6 +2191,7 @@ func TestTSEnumJSX(t *testing.T) {
 }
 
 func TestTSEnumDefine(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -2152,6 +2216,7 @@ func TestTSEnumDefine(t *testing.T) {
 }
 
 func TestTSEnumSameModuleInliningAccess(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -2195,6 +2260,7 @@ func TestTSEnumSameModuleInliningAccess(t *testing.T) {
 }
 
 func TestTSEnumCrossModuleInliningAccess(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -2244,6 +2310,7 @@ func TestTSEnumCrossModuleInliningAccess(t *testing.T) {
 }
 
 func TestTSEnumCrossModuleInliningDefinitions(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -2273,6 +2340,7 @@ func TestTSEnumCrossModuleInliningDefinitions(t *testing.T) {
 }
 
 func TestTSEnumCrossModuleInliningReExport(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2306,6 +2374,7 @@ func TestTSEnumCrossModuleInliningReExport(t *testing.T) {
 }
 
 func TestTSEnumCrossModuleInliningMinifyIndexIntoDot(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -2348,6 +2417,7 @@ func TestTSEnumCrossModuleInliningMinifyIndexIntoDot(t *testing.T) {
 }
 
 func TestTSEnumCrossModuleTreeShaking(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -2400,6 +2470,7 @@ func TestTSEnumCrossModuleTreeShaking(t *testing.T) {
 }
 
 func TestTSEnumExportClause(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -2440,6 +2511,7 @@ func TestTSEnumExportClause(t *testing.T) {
 //	  ...
 //	};
 func TestTSThisIsUndefinedWarning(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/warning1.ts": `export var foo = this`,
@@ -2473,6 +2545,7 @@ warning3.ts: NOTE: This file is considered to be an ECMAScript module because of
 }
 
 func TestTSCommonJSVariableInESMTypeModule(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts":     `module.exports = null`,
@@ -2491,6 +2564,7 @@ NOTE: Node's package format requires that CommonJS files in a "type": "module" p
 }
 
 func TestEnumRulesFrom_TypeScript_5_0(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/supported.ts": `
@@ -2665,6 +2739,7 @@ func TestEnumRulesFrom_TypeScript_5_0(t *testing.T) {
 }
 
 func TestTSEnumUseBeforeDeclare(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -2686,6 +2761,7 @@ func TestTSEnumUseBeforeDeclare(t *testing.T) {
 }
 
 func TestTSPreferJSOverTSInsideNodeModules(t *testing.T) {
+	t.Parallel()
 	// We now prefer ".js" over ".ts" inside "node_modules"
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
@@ -2720,6 +2796,7 @@ func TestTSPreferJSOverTSInsideNodeModules(t *testing.T) {
 }
 
 func TestTSExperimentalDecoratorsManglePropsDefineSemantics(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -2749,6 +2826,7 @@ func TestTSExperimentalDecoratorsManglePropsDefineSemantics(t *testing.T) {
 }
 
 func TestTSExperimentalDecoratorsManglePropsAssignSemantics(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -2778,6 +2856,7 @@ func TestTSExperimentalDecoratorsManglePropsAssignSemantics(t *testing.T) {
 }
 
 func TestTSExperimentalDecoratorsManglePropsMethods(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -2806,6 +2885,7 @@ func TestTSExperimentalDecoratorsManglePropsMethods(t *testing.T) {
 }
 
 func TestTSExperimentalDecoratorsManglePropsStaticDefineSemantics(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -2835,6 +2915,7 @@ func TestTSExperimentalDecoratorsManglePropsStaticDefineSemantics(t *testing.T) 
 }
 
 func TestTSExperimentalDecoratorsManglePropsStaticAssignSemantics(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -2864,6 +2945,7 @@ func TestTSExperimentalDecoratorsManglePropsStaticAssignSemantics(t *testing.T) 
 }
 
 func TestTSExperimentalDecoratorsManglePropsStaticMethods(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -2892,6 +2974,7 @@ func TestTSExperimentalDecoratorsManglePropsStaticMethods(t *testing.T) {
 }
 
 func TestTSPrintNonFiniteNumberInsideWith(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -2938,6 +3021,7 @@ func TestTSPrintNonFiniteNumberInsideWith(t *testing.T) {
 }
 
 func TestTSImportInNodeModulesNameCollisionWithCSS(t *testing.T) {
+	t.Parallel()
 	ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `

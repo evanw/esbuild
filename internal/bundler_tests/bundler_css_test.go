@@ -12,6 +12,7 @@ var css_suite = suite{
 }
 
 func TestCSSEntryPoint(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.css": `
@@ -29,6 +30,7 @@ func TestCSSEntryPoint(t *testing.T) {
 }
 
 func TestCSSAtImportMissing(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.css": `
@@ -46,6 +48,7 @@ func TestCSSAtImportMissing(t *testing.T) {
 }
 
 func TestCSSAtImportExternal(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.css": `
@@ -97,6 +100,7 @@ func TestCSSAtImportExternal(t *testing.T) {
 }
 
 func TestCSSAtImport(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.css": `
@@ -125,6 +129,7 @@ func TestCSSAtImport(t *testing.T) {
 }
 
 func TestCSSFromJSMissingImport(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -146,6 +151,7 @@ func TestCSSFromJSMissingImport(t *testing.T) {
 }
 
 func TestCSSFromJSMissingStarImport(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -167,6 +173,7 @@ func TestCSSFromJSMissingStarImport(t *testing.T) {
 }
 
 func TestImportGlobalCSSFromJS(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -200,6 +207,7 @@ b.js: WARNING: Import "b" will always be undefined because there is no matching 
 }
 
 func TestImportLocalCSSFromJS(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -236,6 +244,7 @@ func TestImportLocalCSSFromJS(t *testing.T) {
 }
 
 func TestImportLocalCSSFromJSMinifyIdentifiers(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -273,6 +282,7 @@ func TestImportLocalCSSFromJSMinifyIdentifiers(t *testing.T) {
 }
 
 func TestImportLocalCSSFromJSMinifyIdentifiersAvoidGlobalNames(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -304,6 +314,7 @@ func TestImportLocalCSSFromJSMinifyIdentifiersAvoidGlobalNames(t *testing.T) {
 
 // See: https://github.com/evanw/esbuild/issues/3295
 func TestImportLocalCSSFromJSMinifyIdentifiersMultipleEntryPoints(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.js": `
@@ -333,6 +344,7 @@ func TestImportLocalCSSFromJSMinifyIdentifiersMultipleEntryPoints(t *testing.T) 
 }
 
 func TestImportCSSFromJSLocalVsGlobal(t *testing.T) {
+	t.Parallel()
 	css := `
 		.top_level { color: #000 }
 
@@ -425,6 +437,7 @@ func TestImportCSSFromJSLocalVsGlobal(t *testing.T) {
 }
 
 func TestImportCSSFromJSLowerBareLocalAndGlobal(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -464,6 +477,7 @@ func TestImportCSSFromJSLowerBareLocalAndGlobal(t *testing.T) {
 }
 
 func TestImportCSSFromJSLocalAtKeyframes(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -505,6 +519,7 @@ func TestImportCSSFromJSLocalAtKeyframes(t *testing.T) {
 }
 
 func TestImportCSSFromJSLocalAtCounterStyle(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -584,6 +599,7 @@ func TestImportCSSFromJSLocalAtCounterStyle(t *testing.T) {
 }
 
 func TestImportCSSFromJSLocalAtContainer(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -629,6 +645,7 @@ func TestImportCSSFromJSLocalAtContainer(t *testing.T) {
 }
 
 func TestImportCSSFromJSNthIndexLocal(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -661,6 +678,7 @@ func TestImportCSSFromJSNthIndexLocal(t *testing.T) {
 }
 
 func TestImportCSSFromJSComposes(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -742,6 +760,7 @@ func TestImportCSSFromJSComposes(t *testing.T) {
 }
 
 func TestImportCSSFromJSComposesFromMissingImport(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -792,6 +811,7 @@ NOTE: Use the "local-css" loader for "file.css" to enable local names.
 }
 
 func TestImportCSSFromJSComposesFromNotCSS(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -826,6 +846,7 @@ NOTE: You can only use "composes" with CSS files and "file.txt" is not a CSS fil
 }
 
 func TestImportCSSFromJSComposesCircular(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -857,6 +878,7 @@ func TestImportCSSFromJSComposesCircular(t *testing.T) {
 }
 
 func TestImportCSSFromJSComposesFromCircular(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -890,6 +912,7 @@ func TestImportCSSFromJSComposesFromCircular(t *testing.T) {
 }
 
 func TestImportCSSFromJSComposesFromUndefined(t *testing.T) {
+	t.Parallel()
 	note := "NOTE: The specification of \"composes\" does not define an order when class declarations from separate files are composed together. " +
 		"The value of the \"zoom\" property for \"foo\" may change unpredictably as the code is edited. " +
 		"Make sure that all definitions of \"zoom\" for \"foo\" are in a single file."
@@ -985,6 +1008,7 @@ file-2.css: NOTE: The second definition of "zoom" is here:
 }
 
 func TestImportCSSFromJSWriteToStdout(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1005,6 +1029,7 @@ func TestImportCSSFromJSWriteToStdout(t *testing.T) {
 }
 
 func TestImportJSFromCSS(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1026,6 +1051,7 @@ NOTE: An "@import" rule can only be used to import another CSS file and "entry.j
 }
 
 func TestImportJSONFromCSS(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.json": `
@@ -1047,6 +1073,7 @@ NOTE: An "@import" rule can only be used to import another CSS file and "entry.j
 }
 
 func TestMissingImportURLInCSS(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/src/entry.css": `
@@ -1066,6 +1093,7 @@ src/entry.css: ERROR: Could not resolve "./two.png"
 }
 
 func TestExternalImportURLInCSS(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/src/entry.css": `
@@ -1096,6 +1124,7 @@ func TestExternalImportURLInCSS(t *testing.T) {
 }
 
 func TestInvalidImportURLInCSS(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.css": `
@@ -1137,6 +1166,7 @@ NOTE: You can't use a "url()" token to reference a CSS file, and "css.css" is a 
 }
 
 func TestTextImportURLInCSSText(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.css": `
@@ -1155,6 +1185,7 @@ func TestTextImportURLInCSSText(t *testing.T) {
 }
 
 func TestDataURLImportURLInCSS(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.css": `
@@ -1177,6 +1208,7 @@ func TestDataURLImportURLInCSS(t *testing.T) {
 }
 
 func TestBinaryImportURLInCSS(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.css": `
@@ -1199,6 +1231,7 @@ func TestBinaryImportURLInCSS(t *testing.T) {
 }
 
 func TestBase64ImportURLInCSS(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.css": `
@@ -1221,6 +1254,7 @@ func TestBase64ImportURLInCSS(t *testing.T) {
 }
 
 func TestFileImportURLInCSS(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.css": `
@@ -1248,6 +1282,7 @@ func TestFileImportURLInCSS(t *testing.T) {
 }
 
 func TestIgnoreURLsInAtRulePrelude(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.css": `
@@ -1266,6 +1301,7 @@ func TestIgnoreURLsInAtRulePrelude(t *testing.T) {
 }
 
 func TestPackageURLsInCSS(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.css": `
@@ -1294,6 +1330,7 @@ func TestPackageURLsInCSS(t *testing.T) {
 }
 
 func TestCSSAtImportExtensionOrderCollision(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			// This should avoid picking ".js" because it's explicitly configured as non-CSS
@@ -1315,6 +1352,7 @@ func TestCSSAtImportExtensionOrderCollision(t *testing.T) {
 }
 
 func TestCSSAtImportExtensionOrderCollisionUnsupported(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			// This still shouldn't pick ".js" even though ".sass" isn't ".css"
@@ -1338,6 +1376,7 @@ func TestCSSAtImportExtensionOrderCollisionUnsupported(t *testing.T) {
 }
 
 func TestCSSAtImportConditionsNoBundle(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.css": `@import "./print.css" print;`,
@@ -1351,6 +1390,7 @@ func TestCSSAtImportConditionsNoBundle(t *testing.T) {
 }
 
 func TestCSSAtImportConditionsBundleExternal(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.css": `@import "https://example.com/print.css" print;`,
@@ -1364,6 +1404,7 @@ func TestCSSAtImportConditionsBundleExternal(t *testing.T) {
 }
 
 func TestCSSAtImportConditionsBundleExternalConditionWithURL(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.css": `
@@ -1379,6 +1420,7 @@ func TestCSSAtImportConditionsBundleExternalConditionWithURL(t *testing.T) {
 }
 
 func TestCSSAtImportConditionsBundle(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.css": `
@@ -1436,6 +1478,7 @@ func TestCSSAtImportConditionsBundle(t *testing.T) {
 }
 
 func TestCSSAtImportConditionsWithImportRecordsBundle(t *testing.T) {
+	t.Parallel()
 	// This tests that esbuild correctly clones the import records for all import
 	// condition tokens. If they aren't cloned correctly, then something will
 	// likely crash with an out-of-bounds error.
@@ -1469,6 +1512,7 @@ func TestCSSAtImportConditionsWithImportRecordsBundle(t *testing.T) {
 // to test the changes is to bundle https://github.com/evanw/css-import-tests
 // and visually inspect a browser's rendering of the resulting CSS file.
 func TestCSSAtImportConditionsFromExternalRepo(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/001/default/a.css":     `.box { background-color: green; }`,
@@ -1806,6 +1850,7 @@ url-format/003/relative-url/style.css: NOTE: The unbalanced "(" is here:
 }
 
 func TestCSSAtImportConditionsAtLayerBundle(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/case1.css": `
@@ -1868,6 +1913,7 @@ func TestCSSAtImportConditionsAtLayerBundle(t *testing.T) {
 }
 
 func TestCSSAtImportConditionsAtLayerBundleAlternatingLayerInFile(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.css": `@layer first { body { color: red } }`,
@@ -1935,6 +1981,7 @@ func TestCSSAtImportConditionsAtLayerBundleAlternatingLayerInFile(t *testing.T) 
 }
 
 func TestCSSAtImportConditionsAtLayerBundleAlternatingLayerOnImport(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.css": `body { color: red }`,
@@ -2002,6 +2049,7 @@ func TestCSSAtImportConditionsAtLayerBundleAlternatingLayerOnImport(t *testing.T
 }
 
 func TestCSSAtImportConditionsChainExternal(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.css": `
@@ -2027,6 +2075,7 @@ func TestCSSAtImportConditionsChainExternal(t *testing.T) {
 
 // This test mainly just makes sure that this scenario doesn't crash
 func TestCSSAndJavaScriptCodeSplittingIssue1064(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.js": `
@@ -2068,6 +2117,7 @@ func TestCSSAndJavaScriptCodeSplittingIssue1064(t *testing.T) {
 }
 
 func TestCSSExternalQueryAndHashNoMatchIssue1822(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.css": `
@@ -2094,6 +2144,7 @@ NOTE: You can mark the path "foo/bar.png#baz" as external to exclude it from the
 }
 
 func TestCSSExternalQueryAndHashMatchIssue1822(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.css": `
@@ -2116,6 +2167,7 @@ func TestCSSExternalQueryAndHashMatchIssue1822(t *testing.T) {
 }
 
 func TestCSSNestingOldBrowser(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			// These are now the only two cases that warn about ":is" not being supported
@@ -2227,6 +2279,7 @@ NOTE: The nesting transform for this case must generate an ":is(...)" but the co
 // (since there isn't one JS entry point to point to). This test mainly exists
 // to document this edge case.
 func TestMetafileCSSBundleTwoToOne(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/foo/entry.js": `
@@ -2259,6 +2312,7 @@ func TestMetafileCSSBundleTwoToOne(t *testing.T) {
 }
 
 func TestDeduplicateRules(t *testing.T) {
+	t.Parallel()
 	// These are done as bundler tests instead of parser tests because rule
 	// deduplication now happens during linking (so that it has effects across files)
 	css_suite.expectBundled(t, bundled{
@@ -2312,6 +2366,7 @@ func TestDeduplicateRules(t *testing.T) {
 }
 
 func TestDeduplicateRulesGlobalVsLocalNames(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.css": `
@@ -2360,6 +2415,7 @@ func TestDeduplicateRulesGlobalVsLocalNames(t *testing.T) {
 // This test makes sure JS files that import local CSS names using the
 // wrong name (e.g. a typo) get a warning so that the problem is noticed.
 func TestUndefinedImportWarningCSS(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2460,6 +2516,7 @@ entry.js: WARNING: Import "foo" will always be undefined because there is no mat
 }
 
 func TestCSSMalformedAtImport(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.css": `
@@ -2497,6 +2554,7 @@ url-token-whitespace-eof.css: WARNING: Expected ";" but found end of file
 }
 
 func TestCSSAtLayerBeforeImportNoBundle(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.css": `
@@ -2515,6 +2573,7 @@ func TestCSSAtLayerBeforeImportNoBundle(t *testing.T) {
 }
 
 func TestCSSAtLayerBeforeImportBundle(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.css": `
@@ -2543,6 +2602,7 @@ func TestCSSAtLayerBeforeImportBundle(t *testing.T) {
 }
 
 func TestCSSAtLayerMergingWithImportConditions(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.css": `
@@ -2577,6 +2637,7 @@ func TestCSSAtLayerMergingWithImportConditions(t *testing.T) {
 }
 
 func TestCSSCaseInsensitivity(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.css": `
@@ -2619,6 +2680,7 @@ func TestCSSCaseInsensitivity(t *testing.T) {
 }
 
 func TestCSSAssetPathsWithSpacesBundle(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.css": `

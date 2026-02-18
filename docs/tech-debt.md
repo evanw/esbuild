@@ -30,7 +30,9 @@ This single function mixes constant folding, syntax lowering, TypeScript substit
 
 **File:** `internal/js_parser/ts_parser.go:940-978`
 
-Labeled "GROSS HACK" in a code comment, this implements a full parser state clone to handle the ambiguous grammar case `y = a ? (b) : c => d : e;`. The comment explicitly warns that any parser state added elsewhere that is not also cloned here will silently break TypeScript parsing in this edge case. This is a latent correctness risk with no automated guard.
+Labeled "GROSS HACK" in a code comment, this implements a full parser state clone to handle the ambiguous grammar case `y = a ? (b) : c => d : e;`. The comment explicitly warns that any parser state added elsewhere that is not also cloned here will silently break TypeScript parsing in this edge case.
+
+**Mitigated:** `TestParserStructFieldCount` in `ts_parser_test.go` now uses `reflect.TypeOf(parser{}).NumField()` to assert the field count (currently 116). Adding a new parser field will fail this test with a message directing the developer to check the backtracking hack.
 
 ### 5. CJS/ESM Interop Complexity
 
@@ -38,11 +40,11 @@ Labeled "GROSS HACK" in a code comment, this implements a full parser state clon
 
 The interop between CommonJS and ESM modules is explicitly described in code comments as "extremely complex and subtle." It requires `__toESM` and `__toCommonJS` runtime wrappers with a 4-step export resolution process. This complexity is load-bearing and very difficult to simplify without breaking existing behavior, but it is a significant source of bugs and makes the linker hard to modify.
 
-### 6. Bundler Test Parallelism
+### 6. Bundler Test Parallelism — RESOLVED
 
 **Files:** `internal/bundler_tests/`
 
-Benchmarks (6), fuzz tests (`FuzzParseJS`, `FuzzParseCSS`), and `t.Parallel()` (182 tests) now exist for the parsers. However, bundler tests still run sequentially due to the snapshot mutex preventing parallelism.
+Benchmarks (6), fuzz tests (`FuzzParseJS`, `FuzzParseCSS`), and `t.Parallel()` now exist for both parsers and bundler tests. The snapshot infrastructure was refactored from `sync.Mutex` to `sync.Once` + `sync.Map`, enabling concurrent test execution. All 1,060 bundler tests across 14 files now have `t.Parallel()`. Wall-clock time dropped ~34% (0.787s → 0.518s).
 
 ---
 
@@ -71,6 +73,8 @@ The current workaround hoists top-level exported symbols outside the closure. Th
 
 Golden-output snapshot tests catch regressions but are painful to maintain. Any code change that affects output — including whitespace, comment formatting, or symbol naming — requires re-running with `UPDATE_SNAPSHOTS=1` and manually inspecting diffs across potentially hundreds of test cases. `snapshots_default.txt` alone is 158KB covering 300 test cases. There is no mechanism to approve individual test changes without regenerating the whole set.
 
+**Note:** Parallelism (#6) reduces the wall-clock pain of running the full snapshot test suite.
+
 ### 10. Option Validation Duplication
 
 **Files:** `lib/shared/common.ts` (76KB), `pkg/cli/cli_impl.go`, `pkg/api/api.go`
@@ -81,9 +85,9 @@ There are 150+ option validation functions in `common.ts` that are duplicated in
 
 **Files:** `mcp/src/`
 
-18 vitest tests across 6 test files. 7 MCP tools registered: `esbuild_transform`, `esbuild_build`, `esbuild_analyze_metafile`, `esbuild_format_messages`, `esbuild_context`, `esbuild_serve`, `esbuild_watch`. Typed error handling via shared `formatErrorResponse()` helper in `errors.ts`. Coverage ~65%.
+21 vitest tests across 7 test files. 7 MCP tools registered: `esbuild_transform`, `esbuild_build`, `esbuild_analyze_metafile`, `esbuild_format_messages`, `esbuild_context`, `esbuild_serve`, `esbuild_watch`. All tools now use the shared `formatErrorResponse()` helper from `errors.ts` (serve.ts and watch.ts were previously using inline error formatting). Context tool now has dedicated tests covering incremental rebuild, consistency, and error handling.
 
-**Remaining**: Plugin support still missing. `esbuild.analyzeMetafile()` returns empty string on invalid JSON rather than throwing — this edge case is not handled.
+**Remaining**: Plugin support still missing. `esbuild.analyzeMetafile()` returns empty string on invalid JSON rather than throwing — this is an upstream esbuild behavior.
 
 ---
 
@@ -119,11 +123,11 @@ The code comments explicitly note that property mangling "does not currently acc
 
 Over 40 runtime helpers are defined in a single string template with conditional ES5 paths. Because helpers are embedded as a string rather than as separate Go files, they cannot be tree-shaken independently. Every build pays the cost of including the full runtime template even when only a few helpers are needed.
 
-### 17. `bundler_default_test.go`: 9,389-line File
+### 17. `bundler_default_test.go`: 9,389-line File — PARTIALLY RESOLVED
 
 **File:** `internal/bundler_tests/bundler_default_test.go`
 
-300 tests in a single file with no grouping by feature area and no parallelism. This makes it difficult to find related tests, run subsets, and adds to the serial test suite runtime.
+300 tests in a single file with no grouping by feature area. All 300 tests now have `t.Parallel()`, eliminating the serial runtime issue. The file is still large with no feature-area grouping, making it difficult to find related tests.
 
 ---
 

@@ -63,10 +63,10 @@ type bundled struct {
 
 type suite struct {
 	expectedSnapshots  map[string]string
-	generatedSnapshots map[string]string
+	generatedSnapshots sync.Map
 	name               string
 	path               string
-	mutex              sync.Mutex
+	once               sync.Once
 }
 
 func (s *suite) expectBundled(t *testing.T, args bundled) {
@@ -232,11 +232,8 @@ var globalUpdateSnapshots bool
 func (s *suite) compareSnapshot(t *testing.T, testName string, generated string) {
 	t.Helper()
 	// Initialize the test suite during the first test
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-	if s.path == "" {
+	s.once.Do(func() {
 		s.path = snapshotsDir + "/snapshots_" + s.name + ".txt"
-		s.generatedSnapshots = make(map[string]string)
 		s.expectedSnapshots = make(map[string]string)
 		if contents, err := ioutil.ReadFile(s.path); err == nil {
 			// Replacing CRLF with LF is necessary to fix tests in GitHub actions,
@@ -258,10 +255,10 @@ func (s *suite) compareSnapshot(t *testing.T, testName string, generated string)
 		}
 		globalSuites[s] = true
 		_, globalUpdateSnapshots = os.LookupEnv("UPDATE_SNAPSHOTS")
-	}
+	})
 
 	// Check against the stored snapshot if present
-	s.generatedSnapshots[testName] = generated
+	s.generatedSnapshots.Store(testName, generated)
 	if !globalUpdateSnapshots {
 		if expected, ok := s.expectedSnapshots[testName]; ok {
 			test.AssertEqualWithDiff(t, generated, expected)
@@ -278,17 +275,19 @@ func (s *suite) compareSnapshot(t *testing.T, testName string, generated string)
 
 func (s *suite) updateSnapshots() {
 	os.Mkdir(snapshotsDir, 0755)
-	keys := make([]string, 0, len(s.generatedSnapshots))
-	for key := range s.generatedSnapshots {
-		keys = append(keys, key)
-	}
+	var keys []string
+	s.generatedSnapshots.Range(func(key, value interface{}) bool {
+		keys = append(keys, key.(string))
+		return true
+	})
 	sort.Strings(keys)
 	var contents strings.Builder
 	for i, key := range keys {
 		if i > 0 {
 			contents.WriteString(snapshotSplitter)
 		}
-		contents.WriteString(fmt.Sprintf("%s\n%s", key, s.generatedSnapshots[key]))
+		value, _ := s.generatedSnapshots.Load(key)
+		contents.WriteString(fmt.Sprintf("%s\n%s", key, value.(string)))
 	}
 	if err := ioutil.WriteFile(s.path, []byte(contents.String()), 0644); err != nil {
 		panic(err)
@@ -298,7 +297,7 @@ func (s *suite) updateSnapshots() {
 func (s *suite) validateSnapshots() bool {
 	isValid := true
 	for key := range s.expectedSnapshots {
-		if _, ok := s.generatedSnapshots[key]; !ok {
+		if _, ok := s.generatedSnapshots.Load(key); !ok {
 			if isValid {
 				fmt.Printf("%s\n", s.path)
 			}

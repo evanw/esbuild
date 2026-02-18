@@ -11,6 +11,7 @@ var packagejson_suite = suite{
 }
 
 func TestPackageJsonMain(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -37,6 +38,7 @@ func TestPackageJsonMain(t *testing.T) {
 }
 
 func TestPackageJsonBadMain(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -63,6 +65,7 @@ func TestPackageJsonBadMain(t *testing.T) {
 }
 
 func TestPackageJsonSyntaxErrorComment(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -92,6 +95,7 @@ func TestPackageJsonSyntaxErrorComment(t *testing.T) {
 }
 
 func TestPackageJsonSyntaxErrorTrailingComma(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -121,6 +125,7 @@ func TestPackageJsonSyntaxErrorTrailingComma(t *testing.T) {
 }
 
 func TestPackageJsonModule(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -153,6 +158,7 @@ func TestPackageJsonModule(t *testing.T) {
 }
 
 func TestPackageJsonBrowserString(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -179,6 +185,7 @@ func TestPackageJsonBrowserString(t *testing.T) {
 }
 
 func TestPackageJsonBrowserMapRelativeToRelative(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -222,6 +229,7 @@ func TestPackageJsonBrowserMapRelativeToRelative(t *testing.T) {
 }
 
 func TestPackageJsonBrowserMapRelativeToModule(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -258,6 +266,7 @@ func TestPackageJsonBrowserMapRelativeToModule(t *testing.T) {
 }
 
 func TestPackageJsonBrowserMapRelativeDisabled(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -291,6 +300,7 @@ func TestPackageJsonBrowserMapRelativeDisabled(t *testing.T) {
 }
 
 func TestPackageJsonBrowserMapModuleToRelative(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -330,6 +340,7 @@ func TestPackageJsonBrowserMapModuleToRelative(t *testing.T) {
 }
 
 func TestPackageJsonBrowserMapModuleToModule(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -369,6 +380,7 @@ func TestPackageJsonBrowserMapModuleToModule(t *testing.T) {
 }
 
 func TestPackageJsonBrowserMapModuleDisabled(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -403,6 +415,7 @@ func TestPackageJsonBrowserMapModuleDisabled(t *testing.T) {
 }
 
 func TestPackageJsonBrowserMapNativeModuleDisabled(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -432,6 +445,7 @@ func TestPackageJsonBrowserMapNativeModuleDisabled(t *testing.T) {
 }
 
 func TestPackageJsonBrowserMapAvoidMissing(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -466,6 +480,7 @@ func TestPackageJsonBrowserMapAvoidMissing(t *testing.T) {
 }
 
 func TestPackageJsonBrowserOverModuleBrowser(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -505,6 +520,7 @@ func TestPackageJsonBrowserOverModuleBrowser(t *testing.T) {
 }
 
 func TestPackageJsonBrowserOverMainNode(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -544,6 +560,7 @@ func TestPackageJsonBrowserOverMainNode(t *testing.T) {
 }
 
 func TestPackageJsonBrowserWithModuleBrowser(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -591,6 +608,7 @@ func TestPackageJsonBrowserWithModuleBrowser(t *testing.T) {
 }
 
 func TestPackageJsonBrowserWithMainNode(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -638,6 +656,7 @@ func TestPackageJsonBrowserWithMainNode(t *testing.T) {
 }
 
 func TestPackageJsonBrowserNodeModulesNoExt(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -680,6 +699,7 @@ func TestPackageJsonBrowserNodeModulesNoExt(t *testing.T) {
 }
 
 func TestPackageJsonBrowserNodeModulesIndexNoExt(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -722,6 +742,7 @@ func TestPackageJsonBrowserNodeModulesIndexNoExt(t *testing.T) {
 }
 
 func TestPackageJsonBrowserNoExt(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -764,6 +785,7 @@ func TestPackageJsonBrowserNoExt(t *testing.T) {
 }
 
 func TestPackageJsonBrowserIndexNoExt(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -807,6 +829,7 @@ func TestPackageJsonBrowserIndexNoExt(t *testing.T) {
 
 // See https://github.com/evanw/esbuild/issues/2002
 func TestPackageJsonBrowserIssue2002A(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `require('pkg/sub')`,
@@ -828,6 +851,7 @@ func TestPackageJsonBrowserIssue2002A(t *testing.T) {
 }
 
 func TestPackageJsonBrowserIssue2002B(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `require('pkg/sub')`,
@@ -850,6 +874,7 @@ func TestPackageJsonBrowserIssue2002B(t *testing.T) {
 
 // See https://github.com/evanw/esbuild/issues/2239
 func TestPackageJsonBrowserIssue2002C(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `require('pkg/sub')`,
@@ -871,6 +896,7 @@ func TestPackageJsonBrowserIssue2002C(t *testing.T) {
 }
 
 func TestPackageJsonDualPackageHazardImportOnly(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -899,6 +925,7 @@ func TestPackageJsonDualPackageHazardImportOnly(t *testing.T) {
 }
 
 func TestPackageJsonDualPackageHazardRequireOnly(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -926,6 +953,7 @@ func TestPackageJsonDualPackageHazardRequireOnly(t *testing.T) {
 }
 
 func TestPackageJsonDualPackageHazardImportAndRequireSameFile(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -954,6 +982,7 @@ func TestPackageJsonDualPackageHazardImportAndRequireSameFile(t *testing.T) {
 }
 
 func TestPackageJsonDualPackageHazardImportAndRequireSeparateFiles(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -989,6 +1018,7 @@ func TestPackageJsonDualPackageHazardImportAndRequireSeparateFiles(t *testing.T)
 }
 
 func TestPackageJsonDualPackageHazardImportAndRequireForceModuleBeforeMain(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -1025,6 +1055,7 @@ func TestPackageJsonDualPackageHazardImportAndRequireForceModuleBeforeMain(t *te
 }
 
 func TestPackageJsonDualPackageHazardImportAndRequireImplicitMain(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -1059,6 +1090,7 @@ func TestPackageJsonDualPackageHazardImportAndRequireImplicitMain(t *testing.T) 
 }
 
 func TestPackageJsonDualPackageHazardImportAndRequireImplicitMainForceModuleBeforeMain(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -1094,6 +1126,7 @@ func TestPackageJsonDualPackageHazardImportAndRequireImplicitMainForceModuleBefo
 }
 
 func TestPackageJsonDualPackageHazardImportAndRequireBrowser(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -1139,6 +1172,7 @@ func TestPackageJsonDualPackageHazardImportAndRequireBrowser(t *testing.T) {
 }
 
 func TestPackageJsonMainFieldsA(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -1168,6 +1202,7 @@ func TestPackageJsonMainFieldsA(t *testing.T) {
 }
 
 func TestPackageJsonMainFieldsB(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -1197,6 +1232,7 @@ func TestPackageJsonMainFieldsB(t *testing.T) {
 }
 
 func TestPackageJsonNeutralNoDefaultMainFields(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -1234,6 +1270,7 @@ NOTE: You can mark the path "demo-pkg" as external to exclude it from the bundle
 }
 
 func TestPackageJsonNeutralExplicitMainFields(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -1263,6 +1300,7 @@ func TestPackageJsonNeutralExplicitMainFields(t *testing.T) {
 }
 
 func TestPackageJsonExportsErrorInvalidModuleSpecifier(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -1320,6 +1358,7 @@ NOTE: You can mark the path "pkg5" as external to exclude it from the bundle, wh
 }
 
 func TestPackageJsonExportsErrorInvalidPackageConfiguration(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -1351,6 +1390,7 @@ NOTE: You can mark the path "pkg2/foo" as external to exclude it from the bundle
 }
 
 func TestPackageJsonExportsErrorInvalidPackageTarget(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -1387,6 +1427,7 @@ NOTE: You can mark the path "pkg3" as external to exclude it from the bundle, wh
 }
 
 func TestPackageJsonExportsErrorPackagePathNotExported(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -1409,6 +1450,7 @@ NOTE: You can mark the path "pkg1/foo" as external to exclude it from the bundle
 }
 
 func TestPackageJsonExportsErrorModuleNotFound(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -1431,6 +1473,7 @@ NOTE: You can mark the path "pkg1" as external to exclude it from the bundle, wh
 }
 
 func TestPackageJsonExportsErrorUnsupportedDirectoryImport(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -1464,6 +1507,7 @@ NOTE: You can mark the path "pkg2" as external to exclude it from the bundle, wh
 }
 
 func TestPackageJsonImportsErrorUnsupportedDirectoryImport(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -1504,6 +1548,7 @@ NOTE: You can mark the path "#foo2/bar" as external to exclude it from the bundl
 }
 
 func TestPackageJsonExportsRequireOverImport(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -1534,6 +1579,7 @@ func TestPackageJsonExportsRequireOverImport(t *testing.T) {
 }
 
 func TestPackageJsonExportsImportOverRequire(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -1564,6 +1610,7 @@ func TestPackageJsonExportsImportOverRequire(t *testing.T) {
 }
 
 func TestPackageJsonExportsDefaultOverImportAndRequire(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -1597,6 +1644,7 @@ func TestPackageJsonExportsDefaultOverImportAndRequire(t *testing.T) {
 }
 
 func TestPackageJsonExportsEntryPointImportOverRequire(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/node_modules/pkg/package.json": `
@@ -1631,6 +1679,7 @@ func TestPackageJsonExportsEntryPointImportOverRequire(t *testing.T) {
 }
 
 func TestPackageJsonExportsEntryPointRequireOnly(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/node_modules/pkg/package.json": `
@@ -1665,6 +1714,7 @@ node_modules/pkg/package.json: NOTE: None of the conditions in the package defin
 }
 
 func TestPackageJsonExportsEntryPointModuleOverMain(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/node_modules/pkg/package.json": `
@@ -1689,6 +1739,7 @@ func TestPackageJsonExportsEntryPointModuleOverMain(t *testing.T) {
 }
 
 func TestPackageJsonExportsEntryPointMainOnly(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/node_modules/pkg/package.json": `
@@ -1709,6 +1760,7 @@ func TestPackageJsonExportsEntryPointMainOnly(t *testing.T) {
 }
 
 func TestPackageJsonExportsBrowser(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -1740,6 +1792,7 @@ func TestPackageJsonExportsBrowser(t *testing.T) {
 }
 
 func TestPackageJsonExportsNode(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -1771,6 +1824,7 @@ func TestPackageJsonExportsNode(t *testing.T) {
 }
 
 func TestPackageJsonExportsNeutral(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -1805,6 +1859,7 @@ func TestPackageJsonExportsNeutral(t *testing.T) {
 }
 
 func TestPackageJsonExportsOrderIndependent(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -1849,6 +1904,7 @@ func TestPackageJsonExportsOrderIndependent(t *testing.T) {
 }
 
 func TestPackageJsonExportsWildcard(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -1878,6 +1934,7 @@ func TestPackageJsonExportsWildcard(t *testing.T) {
 }
 
 func TestPackageJsonExportsErrorMissingTrailingSlash(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -1900,6 +1957,7 @@ NOTE: You can mark the path "pkg1/foo/bar" as external to exclude it from the bu
 }
 
 func TestPackageJsonExportsCustomConditions(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -1928,6 +1986,7 @@ func TestPackageJsonExportsCustomConditions(t *testing.T) {
 }
 
 func TestPackageJsonExportsNotExactMissingExtension(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -1953,6 +2012,7 @@ func TestPackageJsonExportsNotExactMissingExtension(t *testing.T) {
 }
 
 func TestPackageJsonExportsNotExactMissingExtensionPattern(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -1983,6 +2043,7 @@ NOTE: You can mark the path "pkg1/foo/bar" as external to exclude it from the bu
 }
 
 func TestPackageJsonExportsExactMissingExtension(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -2012,6 +2073,7 @@ NOTE: You can mark the path "pkg1/foo/bar" as external to exclude it from the bu
 }
 
 func TestPackageJsonExportsNoConditionsMatch(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -2054,6 +2116,7 @@ NOTE: You can mark the path "pkg1/foo.js" as external to exclude it from the bun
 }
 
 func TestPackageJsonExportsMustUseRequire(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -2096,6 +2159,7 @@ NOTE: You can mark the path "pkg1/foo.js" as external to exclude it from the bun
 }
 
 func TestPackageJsonExportsMustUseImport(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -2138,6 +2202,7 @@ NOTE: You can mark the path "pkg1/foo.js" as external to exclude it from the bun
 }
 
 func TestPackageJsonExportsReverseLookup(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -2179,6 +2244,7 @@ NOTE: You can mark the path "pkg/path/to/other/file" as external to exclude it f
 }
 
 func TestPackageJsonExportsPatternTrailers(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -2232,6 +2298,7 @@ func TestPackageJsonExportsPatternTrailers(t *testing.T) {
 // test case only exists to document that esbuild doesn't follow Webpack's
 // behavior here.
 func TestPackageJsonExportsAlternatives(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -2278,6 +2345,7 @@ NOTE: You can mark the path "pkg/books/red" as external to exclude it from the b
 }
 
 func TestPackageJsonImports(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/foo/entry.js": `
@@ -2310,6 +2378,7 @@ func TestPackageJsonImports(t *testing.T) {
 }
 
 func TestPackageJsonImportsRemapToOtherPackage(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -2342,6 +2411,7 @@ func TestPackageJsonImportsRemapToOtherPackage(t *testing.T) {
 }
 
 func TestPackageJsonImportsErrorMissingRemappedPackage(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -2368,6 +2438,7 @@ NOTE: You can mark the path "#foo" as external to exclude it from the bundle, wh
 }
 
 func TestPackageJsonImportsInvalidPackageConfiguration(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -2393,6 +2464,7 @@ Users/user/project/src/package.json: WARNING: The value for "imports" must be an
 }
 
 func TestPackageJsonImportsErrorEqualsHash(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -2420,6 +2492,7 @@ NOTE: You can mark the path "#" as external to exclude it from the bundle, which
 // The #/ prefix is now allowed in subpath imports when there's a matching pattern
 
 func TestPackageJsonImportsHashSlashWithWildcard(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -2445,6 +2518,7 @@ func TestPackageJsonImportsHashSlashWithWildcard(t *testing.T) {
 }
 
 func TestPackageJsonImportsHashSlashExactMatch(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -2471,6 +2545,7 @@ func TestPackageJsonImportsHashSlashExactMatch(t *testing.T) {
 }
 
 func TestPackageJsonImportsHashSlashWithConditions(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -2498,6 +2573,7 @@ func TestPackageJsonImportsHashSlashWithConditions(t *testing.T) {
 }
 
 func TestPackageJsonImportsHashSlashSymmetricWithExports(t *testing.T) {
+	t.Parallel()
 	// Common pattern: symmetric imports/exports for root-relative imports
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
@@ -2523,6 +2599,7 @@ func TestPackageJsonImportsHashSlashSymmetricWithExports(t *testing.T) {
 }
 
 func TestPackageJsonMainFieldsErrorMessageDefault(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -2546,6 +2623,7 @@ NOTE: You can mark the path "foo" as external to exclude it from the bundle, whi
 }
 
 func TestPackageJsonMainFieldsErrorMessageNotIncluded(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -2571,6 +2649,7 @@ NOTE: You can mark the path "foo" as external to exclude it from the bundle, whi
 }
 
 func TestPackageJsonMainFieldsErrorMessageEmpty(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -2596,6 +2675,7 @@ NOTE: You can mark the path "foo" as external to exclude it from the bundle, whi
 }
 
 func TestPackageJsonTypeShouldBeTypes(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/index.js": ``,
@@ -2619,6 +2699,7 @@ Users/user/project/package.json: NOTE: TypeScript type declarations use the "typ
 }
 
 func TestPackageJsonImportSelfUsingRequire(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/index.js": `
@@ -2657,6 +2738,7 @@ func TestPackageJsonImportSelfUsingRequire(t *testing.T) {
 }
 
 func TestPackageJsonImportSelfUsingImport(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/index.js": `
@@ -2694,6 +2776,7 @@ func TestPackageJsonImportSelfUsingImport(t *testing.T) {
 }
 
 func TestPackageJsonImportSelfUsingRequireScoped(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/index.js": `
@@ -2732,6 +2815,7 @@ func TestPackageJsonImportSelfUsingRequireScoped(t *testing.T) {
 }
 
 func TestPackageJsonImportSelfUsingImportScoped(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/index.js": `
@@ -2769,6 +2853,7 @@ func TestPackageJsonImportSelfUsingImportScoped(t *testing.T) {
 }
 
 func TestPackageJsonImportSelfUsingRequireFailure(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/index.js": `
@@ -2803,6 +2888,7 @@ NOTE: You can mark the path "xyz/src/foo.js" as external to exclude it from the 
 }
 
 func TestPackageJsonImportSelfUsingImportFailure(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/index.js": `
@@ -2837,6 +2923,7 @@ NOTE: You can mark the path "xyz/src/foo.js" as external to exclude it from the 
 }
 
 func TestCommonJSVariableInESMTypeModule(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js":     `module.exports = null`,
@@ -2855,6 +2942,7 @@ NOTE: Node's package format requires that CommonJS files in a "type": "module" p
 }
 
 func TestPackageJsonNodePathsIssue2752(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/src/entry.js": `
@@ -2888,6 +2976,7 @@ func TestPackageJsonNodePathsIssue2752(t *testing.T) {
 
 // See: https://github.com/evanw/esbuild/issues/3377
 func TestPackageJsonReversePackageExportsIssue3377(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/lib/msw-config.ts": `
@@ -2926,6 +3015,7 @@ NOTE: You can mark the path "msw/browser" as external to exclude it from the bun
 
 // See: https://github.com/evanw/esbuild/issues/3367
 func TestPackageJsonDisabledTypeModuleIssue3367(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2958,6 +3048,7 @@ func TestPackageJsonDisabledTypeModuleIssue3367(t *testing.T) {
 
 // See: https://github.com/evanw/esbuild/issues/3485
 func TestPackageJsonSubpathImportNodeBuiltinIssue3485(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2993,6 +3084,7 @@ func TestPackageJsonSubpathImportNodeBuiltinIssue3485(t *testing.T) {
 
 // See: https://github.com/evanw/esbuild/issues/3867
 func TestPackageJsonBadExportsImportAndRequireWarningIssue3867(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -3041,6 +3133,7 @@ node_modules/foo/package.json: NOTE: The "require" condition comes earlier and w
 
 // See: https://github.com/evanw/esbuild/issues/3867
 func TestPackageJsonBadExportsDefaultWarningIssue3867(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -3087,6 +3180,7 @@ node_modules/foo/package.json: NOTE: The "default" condition comes earlier and w
 
 // See: https://github.com/evanw/esbuild/issues/3887
 func TestPackageJsonExportsDefaultWarningIssue3887(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -3120,6 +3214,7 @@ func TestPackageJsonExportsDefaultWarningIssue3887(t *testing.T) {
 
 // https://github.com/evanw/esbuild/issues/4144
 func TestConfusingNameCollisionsIssue4144(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -3154,6 +3249,7 @@ func TestConfusingNameCollisionsIssue4144(t *testing.T) {
 
 // https://github.com/evanw/esbuild/issues/4187
 func TestPackageJsonBrowserMatchingTrailingSlashIssue4187(t *testing.T) {
+	t.Parallel()
 	packagejson_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `

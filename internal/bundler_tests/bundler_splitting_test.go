@@ -11,6 +11,7 @@ var splitting_suite = suite{
 }
 
 func TestSplittingSharedES6IntoES6(t *testing.T) {
+	t.Parallel()
 	splitting_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.js": `
@@ -34,6 +35,7 @@ func TestSplittingSharedES6IntoES6(t *testing.T) {
 }
 
 func TestSplittingSharedCommonJSIntoES6(t *testing.T) {
+	t.Parallel()
 	splitting_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.js": `
@@ -57,6 +59,7 @@ func TestSplittingSharedCommonJSIntoES6(t *testing.T) {
 }
 
 func TestSplittingDynamicES6IntoES6(t *testing.T) {
+	t.Parallel()
 	splitting_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -77,6 +80,7 @@ func TestSplittingDynamicES6IntoES6(t *testing.T) {
 }
 
 func TestSplittingDynamicCommonJSIntoES6(t *testing.T) {
+	t.Parallel()
 	splitting_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -97,6 +101,7 @@ func TestSplittingDynamicCommonJSIntoES6(t *testing.T) {
 }
 
 func TestSplittingDynamicAndNotDynamicES6IntoES6(t *testing.T) {
+	t.Parallel()
 	splitting_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -118,6 +123,7 @@ func TestSplittingDynamicAndNotDynamicES6IntoES6(t *testing.T) {
 }
 
 func TestSplittingDynamicAndNotDynamicCommonJSIntoES6(t *testing.T) {
+	t.Parallel()
 	splitting_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -139,6 +145,7 @@ func TestSplittingDynamicAndNotDynamicCommonJSIntoES6(t *testing.T) {
 }
 
 func TestSplittingAssignToLocal(t *testing.T) {
+	t.Parallel()
 	splitting_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.js": `
@@ -168,6 +175,7 @@ func TestSplittingAssignToLocal(t *testing.T) {
 }
 
 func TestSplittingSideEffectsWithoutDependencies(t *testing.T) {
+	t.Parallel()
 	splitting_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.js": `
@@ -195,6 +203,7 @@ func TestSplittingSideEffectsWithoutDependencies(t *testing.T) {
 }
 
 func TestSplittingNestedDirectories(t *testing.T) {
+	t.Parallel()
 	splitting_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/pages/pageA/page.js": `
@@ -223,6 +232,7 @@ func TestSplittingNestedDirectories(t *testing.T) {
 }
 
 func TestSplittingCircularReferenceIssue251(t *testing.T) {
+	t.Parallel()
 	splitting_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.js": `
@@ -245,6 +255,7 @@ func TestSplittingCircularReferenceIssue251(t *testing.T) {
 }
 
 func TestSplittingMissingLazyExport(t *testing.T) {
+	t.Parallel()
 	splitting_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.js": `
@@ -278,6 +289,7 @@ func TestSplittingMissingLazyExport(t *testing.T) {
 }
 
 func TestSplittingReExportIssue273(t *testing.T) {
+	t.Parallel()
 	splitting_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.js": `
@@ -298,6 +310,7 @@ func TestSplittingReExportIssue273(t *testing.T) {
 }
 
 func TestSplittingDynamicImportIssue272(t *testing.T) {
+	t.Parallel()
 	splitting_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.js": `
@@ -318,6 +331,7 @@ func TestSplittingDynamicImportIssue272(t *testing.T) {
 }
 
 func TestSplittingDynamicImportOutsideSourceTreeIssue264(t *testing.T) {
+	t.Parallel()
 	splitting_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry1.js": `
@@ -341,6 +355,7 @@ func TestSplittingDynamicImportOutsideSourceTreeIssue264(t *testing.T) {
 }
 
 func TestSplittingCrossChunkAssignmentDependencies(t *testing.T) {
+	t.Parallel()
 	splitting_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.js": `
@@ -377,6 +392,7 @@ func TestSplittingCrossChunkAssignmentDependencies(t *testing.T) {
 }
 
 func TestSplittingCrossChunkAssignmentDependenciesRecursive(t *testing.T) {
+	t.Parallel()
 	splitting_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.js": `
@@ -424,6 +440,7 @@ func TestSplittingCrossChunkAssignmentDependenciesRecursive(t *testing.T) {
 }
 
 func TestSplittingDuplicateChunkCollision(t *testing.T) {
+	t.Parallel()
 	splitting_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.js": `
@@ -457,6 +474,7 @@ func TestSplittingDuplicateChunkCollision(t *testing.T) {
 }
 
 func TestSplittingMinifyIdentifiersCrashIssue437(t *testing.T) {
+	t.Parallel()
 	splitting_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.js": `
@@ -486,6 +504,7 @@ func TestSplittingMinifyIdentifiersCrashIssue437(t *testing.T) {
 }
 
 func TestSplittingHybridESMAndCJSIssue617(t *testing.T) {
+	t.Parallel()
 	splitting_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.js": `
@@ -506,6 +525,7 @@ func TestSplittingHybridESMAndCJSIssue617(t *testing.T) {
 }
 
 func TestSplittingPublicPathEntryName(t *testing.T) {
+	t.Parallel()
 	splitting_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.js": `
@@ -527,6 +547,7 @@ func TestSplittingPublicPathEntryName(t *testing.T) {
 }
 
 func TestSplittingChunkPathDirPlaceholderImplicitOutbase(t *testing.T) {
+	t.Parallel()
 	splitting_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/project/entry.js": `
@@ -552,6 +573,7 @@ func TestSplittingChunkPathDirPlaceholderImplicitOutbase(t *testing.T) {
 }
 
 func TestEdgeCaseIssue2793WithSplitting(t *testing.T) {
+	t.Parallel()
 	splitting_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/src/a.js": `
@@ -576,6 +598,7 @@ func TestEdgeCaseIssue2793WithSplitting(t *testing.T) {
 }
 
 func TestEdgeCaseIssue2793WithoutSplitting(t *testing.T) {
+	t.Parallel()
 	splitting_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/src/a.js": `

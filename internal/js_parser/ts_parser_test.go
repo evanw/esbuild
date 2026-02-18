@@ -1,6 +1,7 @@
 package js_parser
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/evanw/esbuild/internal/compat"
@@ -3303,4 +3304,16 @@ func TestTSUsing(t *testing.T) {
 	expectPrintedTS(t, "using x: any = y, z: any = _", "using x = y, z = _;\n")
 	expectParseErrorTS(t, "export using x: any = y", "<stdin>: ERROR: Unexpected \"using\"\n")
 	expectParseErrorTS(t, "namespace ns { export using x: any = y }", "<stdin>: ERROR: Unexpected \"using\"\n")
+}
+
+func TestParserStructFieldCount(t *testing.T) {
+	// Guard for the TypeScript backtracking hack in ts_parser.go.
+	// When this fails, check whether the new field needs cloning
+	// in the "GROSS HACK" code (search ts_parser.go for that comment).
+	typ := reflect.TypeOf(parser{})
+	expected := 116
+	if typ.NumField() != expected {
+		t.Fatalf("parser struct has %d fields (expected %d). Check the "+
+			"GROSS HACK in ts_parser.go for backtracking safety.", typ.NumField(), expected)
+	}
 }

@@ -11,6 +11,7 @@ var tsconfig_suite = suite{
 }
 
 func TestTsconfigPaths(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/entry.ts": `
@@ -184,6 +185,7 @@ func TestTsconfigPaths(t *testing.T) {
 }
 
 func TestTsconfigPathsNoBaseURL(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/entry.ts": `
@@ -324,6 +326,7 @@ func TestTsconfigPathsNoBaseURL(t *testing.T) {
 }
 
 func TestTsconfigBadPathsNoBaseURL(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/entry.ts": `
@@ -382,6 +385,7 @@ Users/user/project/tsconfig.json: WARNING: Non-relative path "http://bad" is not
 
 // https://github.com/evanw/esbuild/issues/913
 func TestTsconfigPathsOverriddenBaseURL(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.ts": `
@@ -418,6 +422,7 @@ func TestTsconfigPathsOverriddenBaseURL(t *testing.T) {
 }
 
 func TestTsconfigPathsOverriddenBaseURLDifferentDir(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.ts": `
@@ -454,6 +459,7 @@ func TestTsconfigPathsOverriddenBaseURLDifferentDir(t *testing.T) {
 }
 
 func TestTsconfigPathsMissingBaseURL(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.ts": `
@@ -492,6 +498,7 @@ NOTE: You can mark the path "#/test" as external to exclude it from the bundle, 
 }
 
 func TestTsconfigPathsTypeOnly(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/entry.ts": `
@@ -530,6 +537,7 @@ func TestTsconfigPathsTypeOnly(t *testing.T) {
 }
 
 func TestTsconfigJSX(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/entry.tsx": `
@@ -553,6 +561,7 @@ func TestTsconfigJSX(t *testing.T) {
 }
 
 func TestTsconfigNestedJSX(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/entry.ts": `
@@ -602,6 +611,7 @@ func TestTsconfigNestedJSX(t *testing.T) {
 }
 
 func TestTsconfigPreserveJSX(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/entry.tsx": `
@@ -624,6 +634,7 @@ func TestTsconfigPreserveJSX(t *testing.T) {
 }
 
 func TestTsconfigPreserveJSXAutomatic(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/entry.tsx": `
@@ -654,6 +665,7 @@ func TestTsconfigPreserveJSXAutomatic(t *testing.T) {
 }
 
 func TestTsconfigReactJSX(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/entry.tsx": `
@@ -682,6 +694,7 @@ func TestTsconfigReactJSX(t *testing.T) {
 }
 
 func TestTsconfigReactJSXDev(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/entry.tsx": `
@@ -709,6 +722,7 @@ func TestTsconfigReactJSXDev(t *testing.T) {
 }
 
 func TestTsconfigReactJSXWithDevInMainConfig(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/entry.tsx": `
@@ -739,6 +753,7 @@ func TestTsconfigReactJSXWithDevInMainConfig(t *testing.T) {
 }
 
 func TestTsconfigJsonBaseUrl(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/app/entry.js": `
@@ -767,6 +782,7 @@ func TestTsconfigJsonBaseUrl(t *testing.T) {
 }
 
 func TestJsconfigJsonBaseUrl(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/app/entry.js": `
@@ -795,6 +811,7 @@ func TestJsconfigJsonBaseUrl(t *testing.T) {
 }
 
 func TestTsconfigJsonAbsoluteBaseUrl(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/app/entry.js": `
@@ -823,6 +840,7 @@ func TestTsconfigJsonAbsoluteBaseUrl(t *testing.T) {
 }
 
 func TestTsconfigJsonCommentAllowed(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/app/entry.js": `
@@ -852,6 +870,7 @@ func TestTsconfigJsonCommentAllowed(t *testing.T) {
 }
 
 func TestTsconfigJsonTrailingCommaAllowed(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/app/entry.js": `
@@ -880,6 +899,7 @@ func TestTsconfigJsonTrailingCommaAllowed(t *testing.T) {
 }
 
 func TestTsconfigJsonExtends(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.jsx": `
@@ -911,6 +931,7 @@ func TestTsconfigJsonExtends(t *testing.T) {
 }
 
 func TestTsconfigJsonExtendsAbsolute(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundledUnix(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/entry.jsx": `
@@ -971,6 +992,7 @@ func TestTsconfigJsonExtendsAbsolute(t *testing.T) {
 }
 
 func TestTsconfigJsonExtendsThreeLevels(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.jsx": `
@@ -1015,6 +1037,7 @@ func TestTsconfigJsonExtendsThreeLevels(t *testing.T) {
 }
 
 func TestTsconfigJsonExtendsLoop(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1042,6 +1065,7 @@ func TestTsconfigJsonExtendsLoop(t *testing.T) {
 }
 
 func TestTsconfigJsonExtendsPackage(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/app/entry.jsx": `
@@ -1069,6 +1093,7 @@ func TestTsconfigJsonExtendsPackage(t *testing.T) {
 }
 
 func TestTsconfigJsonOverrideMissing(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/app/entry.ts": `
@@ -1111,6 +1136,7 @@ func TestTsconfigJsonOverrideMissing(t *testing.T) {
 }
 
 func TestTsconfigJsonOverrideNodeModules(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/app/entry.ts": `
@@ -1156,6 +1182,7 @@ func TestTsconfigJsonOverrideNodeModules(t *testing.T) {
 }
 
 func TestTsconfigJsonOverrideInvalid(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": ``,
@@ -1172,6 +1199,7 @@ func TestTsconfigJsonOverrideInvalid(t *testing.T) {
 }
 
 func TestTsconfigJsonNodeModulesImplicitFile(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/app/entry.tsx": `
@@ -1200,6 +1228,7 @@ func TestTsconfigJsonNodeModulesImplicitFile(t *testing.T) {
 }
 
 func TestTsconfigJsonNodeModulesTsconfigPathExact(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/app/entry.tsx": `
@@ -1233,6 +1262,7 @@ func TestTsconfigJsonNodeModulesTsconfigPathExact(t *testing.T) {
 }
 
 func TestTsconfigJsonNodeModulesTsconfigPathImplicitJson(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/app/entry.tsx": `
@@ -1266,6 +1296,7 @@ func TestTsconfigJsonNodeModulesTsconfigPathImplicitJson(t *testing.T) {
 }
 
 func TestTsconfigJsonNodeModulesTsconfigPathDirectory(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/app/entry.tsx": `
@@ -1299,6 +1330,7 @@ func TestTsconfigJsonNodeModulesTsconfigPathDirectory(t *testing.T) {
 }
 
 func TestTsconfigJsonNodeModulesTsconfigPathBad(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/app/entry.tsx": `
@@ -1334,6 +1366,7 @@ func TestTsconfigJsonNodeModulesTsconfigPathBad(t *testing.T) {
 }
 
 func TestTsconfigJsonInsideNodeModules(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/app/entry.tsx": `
@@ -1359,6 +1392,7 @@ func TestTsconfigJsonInsideNodeModules(t *testing.T) {
 }
 
 func TestTsconfigWarningsInsideNodeModules(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.tsx": `
@@ -1383,6 +1417,7 @@ func TestTsconfigWarningsInsideNodeModules(t *testing.T) {
 }
 
 func TestTsconfigRemoveUnusedImports(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.ts": `
@@ -1404,6 +1439,7 @@ func TestTsconfigRemoveUnusedImports(t *testing.T) {
 }
 
 func TestTsconfigPreserveUnusedImports(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.ts": `
@@ -1430,6 +1466,7 @@ func TestTsconfigPreserveUnusedImports(t *testing.T) {
 }
 
 func TestTsconfigImportsNotUsedAsValuesPreserve(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.ts": `
@@ -1459,6 +1496,7 @@ func TestTsconfigImportsNotUsedAsValuesPreserve(t *testing.T) {
 }
 
 func TestTsconfigPreserveValueImports(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.ts": `
@@ -1494,6 +1532,7 @@ func TestTsconfigPreserveValueImports(t *testing.T) {
 }
 
 func TestTsconfigPreserveValueImportsAndImportsNotUsedAsValuesPreserve(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.ts": `
@@ -1530,6 +1569,7 @@ func TestTsconfigPreserveValueImportsAndImportsNotUsedAsValuesPreserve(t *testin
 }
 
 func TestTsconfigUseDefineForClassFieldsES2020(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.ts": `
@@ -1553,6 +1593,7 @@ func TestTsconfigUseDefineForClassFieldsES2020(t *testing.T) {
 }
 
 func TestTsconfigUseDefineForClassFieldsESNext(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.ts": `
@@ -1576,6 +1617,7 @@ func TestTsconfigUseDefineForClassFieldsESNext(t *testing.T) {
 }
 
 func TestTsconfigUnrecognizedTargetWarning(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.ts": `
@@ -1606,6 +1648,7 @@ func TestTsconfigUnrecognizedTargetWarning(t *testing.T) {
 }
 
 func TestTsconfigIgnoredTargetSilent(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.ts": `
@@ -1636,6 +1679,7 @@ func TestTsconfigIgnoredTargetSilent(t *testing.T) {
 }
 
 func TestTsconfigNoBaseURLExtendsPaths(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.ts": `
@@ -1669,6 +1713,7 @@ NOTE: You can mark the path "foo" as external to exclude it from the bundle, whi
 }
 
 func TestTsconfigBaseURLExtendsPaths(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.ts": `
@@ -1701,6 +1746,7 @@ func TestTsconfigBaseURLExtendsPaths(t *testing.T) {
 }
 
 func TestTsconfigPathsExtendsBaseURL(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.ts": `
@@ -1733,6 +1779,7 @@ func TestTsconfigPathsExtendsBaseURL(t *testing.T) {
 }
 
 func TestTsconfigPathsInNodeModulesIssue2386(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/main.js": `
@@ -1780,6 +1827,7 @@ func TestTsconfigPathsInNodeModulesIssue2386(t *testing.T) {
 }
 
 func TestTsconfigWithStatementAlwaysStrictFalse(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.ts": `
@@ -1801,6 +1849,7 @@ func TestTsconfigWithStatementAlwaysStrictFalse(t *testing.T) {
 }
 
 func TestTsconfigWithStatementAlwaysStrictTrue(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.ts": `
@@ -1824,6 +1873,7 @@ Users/user/project/tsconfig.json: NOTE: TypeScript's "alwaysStrict" setting was 
 }
 
 func TestTsconfigWithStatementStrictFalse(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.ts": `
@@ -1845,6 +1895,7 @@ func TestTsconfigWithStatementStrictFalse(t *testing.T) {
 }
 
 func TestTsconfigWithStatementStrictTrue(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.ts": `
@@ -1868,6 +1919,7 @@ Users/user/project/tsconfig.json: NOTE: TypeScript's "strict" setting was enable
 }
 
 func TestTsconfigWithStatementStrictFalseAlwaysStrictTrue(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.ts": `
@@ -1892,6 +1944,7 @@ Users/user/project/tsconfig.json: NOTE: TypeScript's "alwaysStrict" setting was 
 }
 
 func TestTsconfigWithStatementStrictTrueAlwaysStrictFalse(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.ts": `
@@ -1914,6 +1967,7 @@ func TestTsconfigWithStatementStrictTrueAlwaysStrictFalse(t *testing.T) {
 }
 
 func TestTsconfigAlwaysStrictTrueEmitDirectivePassThrough(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/implicit.ts": `
@@ -1941,6 +1995,7 @@ func TestTsconfigAlwaysStrictTrueEmitDirectivePassThrough(t *testing.T) {
 }
 
 func TestTsconfigAlwaysStrictTrueEmitDirectiveFormat(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/implicit.ts": `
@@ -1968,6 +2023,7 @@ func TestTsconfigAlwaysStrictTrueEmitDirectiveFormat(t *testing.T) {
 }
 
 func TestTsconfigAlwaysStrictTrueEmitDirectiveBundleIIFE(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/implicit.ts": `
@@ -1996,6 +2052,7 @@ func TestTsconfigAlwaysStrictTrueEmitDirectiveBundleIIFE(t *testing.T) {
 }
 
 func TestTsconfigAlwaysStrictTrueEmitDirectiveBundleCJS(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/implicit.ts": `
@@ -2024,6 +2081,7 @@ func TestTsconfigAlwaysStrictTrueEmitDirectiveBundleCJS(t *testing.T) {
 }
 
 func TestTsconfigAlwaysStrictTrueEmitDirectiveBundleESM(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/implicit.ts": `
@@ -2052,6 +2110,7 @@ func TestTsconfigAlwaysStrictTrueEmitDirectiveBundleESM(t *testing.T) {
 }
 
 func TestTsconfigExtendsDotWithoutSlash(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/main.tsx": `
@@ -2077,6 +2136,7 @@ func TestTsconfigExtendsDotWithoutSlash(t *testing.T) {
 }
 
 func TestTsconfigExtendsDotDotWithoutSlash(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/main.tsx": `
@@ -2101,6 +2161,7 @@ func TestTsconfigExtendsDotDotWithoutSlash(t *testing.T) {
 }
 
 func TestTsconfigExtendsDotWithSlash(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/main.tsx": `
@@ -2128,6 +2189,7 @@ func TestTsconfigExtendsDotWithSlash(t *testing.T) {
 }
 
 func TestTsconfigExtendsDotDotWithSlash(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/main.tsx": `
@@ -2154,6 +2216,7 @@ func TestTsconfigExtendsDotDotWithSlash(t *testing.T) {
 }
 
 func TestTsconfigExtendsWithExports(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/main.tsx": `
@@ -2183,6 +2246,7 @@ func TestTsconfigExtendsWithExports(t *testing.T) {
 }
 
 func TestTsconfigExtendsWithExportsStar(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/main.tsx": `
@@ -2212,6 +2276,7 @@ func TestTsconfigExtendsWithExportsStar(t *testing.T) {
 }
 
 func TestTsconfigExtendsWithExportsStarTrailing(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/main.tsx": `
@@ -2241,6 +2306,7 @@ func TestTsconfigExtendsWithExportsStarTrailing(t *testing.T) {
 }
 
 func TestTsconfigExtendsWithExportsRequire(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/main.tsx": `
@@ -2276,6 +2342,7 @@ func TestTsconfigExtendsWithExportsRequire(t *testing.T) {
 }
 
 func TestTsconfigVerbatimModuleSyntaxTrue(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/main.ts": `
@@ -2302,6 +2369,7 @@ func TestTsconfigVerbatimModuleSyntaxTrue(t *testing.T) {
 }
 
 func TestTsconfigVerbatimModuleSyntaxFalse(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/main.ts": `
@@ -2328,6 +2396,7 @@ func TestTsconfigVerbatimModuleSyntaxFalse(t *testing.T) {
 }
 
 func TestTsconfigExtendsArray(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/main.tsx": `
@@ -2361,6 +2430,7 @@ func TestTsconfigExtendsArray(t *testing.T) {
 }
 
 func TestTsconfigExtendsArrayNested(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/main.tsx": `
@@ -2415,6 +2485,7 @@ func TestTsconfigExtendsArrayNested(t *testing.T) {
 }
 
 func TestTsconfigIgnoreInsideNodeModules(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/main.ts": `
@@ -2459,6 +2530,7 @@ func TestTsconfigIgnoreInsideNodeModules(t *testing.T) {
 }
 
 func TestTsconfigJsonPackagesExternal(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -2490,6 +2562,7 @@ func TestTsconfigJsonPackagesExternal(t *testing.T) {
 }
 
 func TestTsconfigJsonTopLevelMistakeWarning(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.ts": `
@@ -2514,6 +2587,7 @@ func TestTsconfigJsonTopLevelMistakeWarning(t *testing.T) {
 
 // https://github.com/evanw/esbuild/issues/3307
 func TestTsconfigJsonBaseUrlIssue3307(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/tsconfig.json": `
@@ -2541,6 +2615,7 @@ func TestTsconfigJsonBaseUrlIssue3307(t *testing.T) {
 
 // https://github.com/evanw/esbuild/issues/3354
 func TestTsconfigJsonAsteriskNameCollisionIssue3354(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.ts": `
@@ -2583,6 +2658,7 @@ func TestTsconfigJsonAsteriskNameCollisionIssue3354(t *testing.T) {
 }
 
 func TestTsconfigJsonConfigDirBaseURL(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -2613,6 +2689,7 @@ func TestTsconfigJsonConfigDirBaseURL(t *testing.T) {
 }
 
 func TestTsconfigJsonConfigDirPaths(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -2645,6 +2722,7 @@ func TestTsconfigJsonConfigDirPaths(t *testing.T) {
 }
 
 func TestTsconfigJsonConfigDirBaseURLInheritedPaths(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -2678,6 +2756,7 @@ func TestTsconfigJsonConfigDirBaseURLInheritedPaths(t *testing.T) {
 }
 
 func TestTsconfigJsonExtendsArrayIssue3898(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/index.tsx": `
@@ -2730,6 +2809,7 @@ func TestTsconfigJsonExtendsArrayIssue3898(t *testing.T) {
 }
 
 func TestTsconfigDecoratorsUseDefineForClassFieldsFalse(t *testing.T) {
+	t.Parallel()
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.ts": `

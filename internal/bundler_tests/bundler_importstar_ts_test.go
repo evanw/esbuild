@@ -11,6 +11,7 @@ var importstar_ts_suite = suite{
 }
 
 func TestTSImportStarUnused(t *testing.T) {
+	t.Parallel()
 	importstar_ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -31,6 +32,7 @@ func TestTSImportStarUnused(t *testing.T) {
 }
 
 func TestTSImportStarCapture(t *testing.T) {
+	t.Parallel()
 	importstar_ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -51,6 +53,7 @@ func TestTSImportStarCapture(t *testing.T) {
 }
 
 func TestTSImportStarNoCapture(t *testing.T) {
+	t.Parallel()
 	importstar_ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -71,6 +74,7 @@ func TestTSImportStarNoCapture(t *testing.T) {
 }
 
 func TestTSImportStarExportImportStarUnused(t *testing.T) {
+	t.Parallel()
 	importstar_ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -95,6 +99,7 @@ func TestTSImportStarExportImportStarUnused(t *testing.T) {
 }
 
 func TestTSImportStarExportImportStarNoCapture(t *testing.T) {
+	t.Parallel()
 	importstar_ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -119,6 +124,7 @@ func TestTSImportStarExportImportStarNoCapture(t *testing.T) {
 }
 
 func TestTSImportStarExportImportStarCapture(t *testing.T) {
+	t.Parallel()
 	importstar_ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -143,6 +149,7 @@ func TestTSImportStarExportImportStarCapture(t *testing.T) {
 }
 
 func TestTSImportStarExportStarAsUnused(t *testing.T) {
+	t.Parallel()
 	importstar_ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -166,6 +173,7 @@ func TestTSImportStarExportStarAsUnused(t *testing.T) {
 }
 
 func TestTSImportStarExportStarAsNoCapture(t *testing.T) {
+	t.Parallel()
 	importstar_ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -189,6 +197,7 @@ func TestTSImportStarExportStarAsNoCapture(t *testing.T) {
 }
 
 func TestTSImportStarExportStarAsCapture(t *testing.T) {
+	t.Parallel()
 	importstar_ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -212,6 +221,7 @@ func TestTSImportStarExportStarAsCapture(t *testing.T) {
 }
 
 func TestTSImportStarExportStarUnused(t *testing.T) {
+	t.Parallel()
 	importstar_ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -235,6 +245,7 @@ func TestTSImportStarExportStarUnused(t *testing.T) {
 }
 
 func TestTSImportStarExportStarNoCapture(t *testing.T) {
+	t.Parallel()
 	importstar_ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -258,6 +269,7 @@ func TestTSImportStarExportStarNoCapture(t *testing.T) {
 }
 
 func TestTSImportStarExportStarCapture(t *testing.T) {
+	t.Parallel()
 	importstar_ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -281,6 +293,7 @@ func TestTSImportStarExportStarCapture(t *testing.T) {
 }
 
 func TestTSImportStarCommonJSUnused(t *testing.T) {
+	t.Parallel()
 	importstar_ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -301,6 +314,7 @@ func TestTSImportStarCommonJSUnused(t *testing.T) {
 }
 
 func TestTSImportStarCommonJSCapture(t *testing.T) {
+	t.Parallel()
 	importstar_ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -321,6 +335,7 @@ func TestTSImportStarCommonJSCapture(t *testing.T) {
 }
 
 func TestTSImportStarCommonJSNoCapture(t *testing.T) {
+	t.Parallel()
 	importstar_ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -341,6 +356,7 @@ func TestTSImportStarCommonJSNoCapture(t *testing.T) {
 }
 
 func TestTSImportStarAndCommonJS(t *testing.T) {
+	t.Parallel()
 	importstar_ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -361,6 +377,7 @@ func TestTSImportStarAndCommonJS(t *testing.T) {
 }
 
 func TestTSImportStarNoBundleUnused(t *testing.T) {
+	t.Parallel()
 	importstar_ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -377,6 +394,7 @@ func TestTSImportStarNoBundleUnused(t *testing.T) {
 }
 
 func TestTSImportStarNoBundleCapture(t *testing.T) {
+	t.Parallel()
 	importstar_ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -393,6 +411,7 @@ func TestTSImportStarNoBundleCapture(t *testing.T) {
 }
 
 func TestTSImportStarNoBundleNoCapture(t *testing.T) {
+	t.Parallel()
 	importstar_ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -409,6 +428,7 @@ func TestTSImportStarNoBundleNoCapture(t *testing.T) {
 }
 
 func TestTSImportStarMangleNoBundleUnused(t *testing.T) {
+	t.Parallel()
 	importstar_ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -426,6 +446,7 @@ func TestTSImportStarMangleNoBundleUnused(t *testing.T) {
 }
 
 func TestTSImportStarMangleNoBundleCapture(t *testing.T) {
+	t.Parallel()
 	importstar_ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -443,6 +464,7 @@ func TestTSImportStarMangleNoBundleCapture(t *testing.T) {
 }
 
 func TestTSImportStarMangleNoBundleNoCapture(t *testing.T) {
+	t.Parallel()
 	importstar_ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -460,6 +482,7 @@ func TestTSImportStarMangleNoBundleNoCapture(t *testing.T) {
 }
 
 func TestTSReExportTypeOnlyFileES6(t *testing.T) {
+	t.Parallel()
 	importstar_ts_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `

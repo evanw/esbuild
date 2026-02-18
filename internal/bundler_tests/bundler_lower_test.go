@@ -16,6 +16,7 @@ var lower_suite = suite{
 }
 
 func TestLowerOptionalCatchNameCollisionNoBundle(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -33,6 +34,7 @@ func TestLowerOptionalCatchNameCollisionNoBundle(t *testing.T) {
 }
 
 func TestLowerObjectSpreadNoBundle(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.jsx": `
@@ -61,6 +63,7 @@ func TestLowerObjectSpreadNoBundle(t *testing.T) {
 }
 
 func TestLowerExponentiationOperatorNoBundle(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -106,6 +109,7 @@ func TestLowerExponentiationOperatorNoBundle(t *testing.T) {
 }
 
 func TestLowerPrivateFieldAssignments2015NoBundle(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -147,6 +151,7 @@ func TestLowerPrivateFieldAssignments2015NoBundle(t *testing.T) {
 }
 
 func TestLowerPrivateFieldAssignments2019NoBundle(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -188,6 +193,7 @@ func TestLowerPrivateFieldAssignments2019NoBundle(t *testing.T) {
 }
 
 func TestLowerPrivateFieldAssignments2020NoBundle(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -229,6 +235,7 @@ func TestLowerPrivateFieldAssignments2020NoBundle(t *testing.T) {
 }
 
 func TestLowerPrivateFieldAssignmentsNextNoBundle(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -269,6 +276,7 @@ func TestLowerPrivateFieldAssignmentsNextNoBundle(t *testing.T) {
 }
 
 func TestLowerPrivateFieldOptionalChain2019NoBundle(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -291,6 +299,7 @@ func TestLowerPrivateFieldOptionalChain2019NoBundle(t *testing.T) {
 }
 
 func TestLowerPrivateFieldOptionalChain2020NoBundle(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -313,6 +322,7 @@ func TestLowerPrivateFieldOptionalChain2020NoBundle(t *testing.T) {
 }
 
 func TestLowerPrivateFieldOptionalChainNextNoBundle(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -334,6 +344,7 @@ func TestLowerPrivateFieldOptionalChainNextNoBundle(t *testing.T) {
 }
 
 func TestTSLowerPrivateFieldOptionalChain2015NoBundle(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -356,6 +367,7 @@ func TestTSLowerPrivateFieldOptionalChain2015NoBundle(t *testing.T) {
 }
 
 func TestTSLowerPrivateStaticMembers2015NoBundle(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -381,6 +393,7 @@ func TestTSLowerPrivateStaticMembers2015NoBundle(t *testing.T) {
 }
 
 func TestTSLowerPrivateFieldAndMethodAvoidNameCollision2015(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -402,6 +415,7 @@ func TestTSLowerPrivateFieldAndMethodAvoidNameCollision2015(t *testing.T) {
 }
 
 func TestLowerPrivateGetterSetter2015(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -453,6 +467,7 @@ func TestLowerPrivateGetterSetter2015(t *testing.T) {
 }
 
 func TestLowerPrivateGetterSetter2019(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -504,6 +519,7 @@ func TestLowerPrivateGetterSetter2019(t *testing.T) {
 }
 
 func TestLowerPrivateGetterSetter2020(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -555,6 +571,7 @@ func TestLowerPrivateGetterSetter2020(t *testing.T) {
 }
 
 func TestLowerPrivateGetterSetterNext(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -605,6 +622,7 @@ func TestLowerPrivateGetterSetterNext(t *testing.T) {
 }
 
 func TestLowerPrivateMethod2019(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -647,6 +665,7 @@ func TestLowerPrivateMethod2019(t *testing.T) {
 }
 
 func TestLowerPrivateMethod2020(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -689,6 +708,7 @@ func TestLowerPrivateMethod2020(t *testing.T) {
 }
 
 func TestLowerPrivateMethodNext(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -730,6 +750,7 @@ func TestLowerPrivateMethodNext(t *testing.T) {
 }
 
 func TestLowerPrivateClassExpr2020NoBundle(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -754,6 +775,7 @@ func TestLowerPrivateClassExpr2020NoBundle(t *testing.T) {
 }
 
 func TestLowerPrivateMethodWithModifiers2020(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -778,6 +800,7 @@ func TestLowerPrivateMethodWithModifiers2020(t *testing.T) {
 }
 
 func TestLowerAsync2016NoBundle(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -823,6 +846,7 @@ func TestLowerAsync2016NoBundle(t *testing.T) {
 }
 
 func TestLowerAsync2017NoBundle(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -856,6 +880,7 @@ func TestLowerAsync2017NoBundle(t *testing.T) {
 }
 
 func TestLowerAsyncThis2016CommonJS(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -872,6 +897,7 @@ func TestLowerAsyncThis2016CommonJS(t *testing.T) {
 }
 
 func TestLowerAsyncThis2016ES6(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -896,6 +922,7 @@ entry.js: NOTE: This file is considered to be an ECMAScript module because of th
 }
 
 func TestLowerAsyncES5(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -933,6 +960,7 @@ obj-method.js: ERROR: Transforming async functions to the configured target envi
 }
 
 func TestLowerAsyncSuperES2017NoBundle(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1009,6 +1037,7 @@ func TestLowerAsyncSuperES2017NoBundle(t *testing.T) {
 }
 
 func TestLowerAsyncSuperES2016NoBundle(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1085,6 +1114,7 @@ func TestLowerAsyncSuperES2016NoBundle(t *testing.T) {
 }
 
 func TestLowerStaticAsyncSuperES2021NoBundle(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1151,6 +1181,7 @@ func TestLowerStaticAsyncSuperES2021NoBundle(t *testing.T) {
 }
 
 func TestLowerStaticAsyncSuperES2016NoBundle(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1217,6 +1248,7 @@ func TestLowerStaticAsyncSuperES2016NoBundle(t *testing.T) {
 }
 
 func TestLowerStaticSuperES2021NoBundle(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1269,6 +1301,7 @@ func TestLowerStaticSuperES2021NoBundle(t *testing.T) {
 }
 
 func TestLowerStaticSuperES2016NoBundle(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1321,6 +1354,7 @@ func TestLowerStaticSuperES2016NoBundle(t *testing.T) {
 }
 
 func TestLowerAsyncArrowSuperES2016(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1366,6 +1400,7 @@ func TestLowerAsyncArrowSuperES2016(t *testing.T) {
 }
 
 func TestLowerAsyncArrowSuperSetterES2016(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1411,6 +1446,7 @@ func TestLowerAsyncArrowSuperSetterES2016(t *testing.T) {
 }
 
 func TestLowerStaticAsyncArrowSuperES2016(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1456,6 +1492,7 @@ func TestLowerStaticAsyncArrowSuperES2016(t *testing.T) {
 }
 
 func TestLowerStaticAsyncArrowSuperSetterES2016(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1501,6 +1538,7 @@ func TestLowerStaticAsyncArrowSuperSetterES2016(t *testing.T) {
 }
 
 func TestLowerPrivateSuperES2022(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1532,6 +1570,7 @@ func TestLowerPrivateSuperES2022(t *testing.T) {
 }
 
 func TestLowerPrivateSuperES2021(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1564,6 +1603,7 @@ func TestLowerPrivateSuperES2021(t *testing.T) {
 
 // https://github.com/evanw/esbuild/issues/2158
 func TestLowerPrivateSuperStaticBundleIssue2158(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1585,6 +1625,7 @@ func TestLowerPrivateSuperStaticBundleIssue2158(t *testing.T) {
 }
 
 func TestLowerClassField2020NoBundle(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1609,6 +1650,7 @@ func TestLowerClassField2020NoBundle(t *testing.T) {
 }
 
 func TestLowerClassFieldNextNoBundle(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1632,6 +1674,7 @@ func TestLowerClassFieldNextNoBundle(t *testing.T) {
 }
 
 func TestTSLowerClassField2020NoBundle(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -1661,6 +1704,7 @@ func TestTSLowerClassField2020NoBundle(t *testing.T) {
 }
 
 func TestTSLowerClassPrivateFieldNextNoBundle(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -1689,6 +1733,7 @@ func TestTSLowerClassPrivateFieldNextNoBundle(t *testing.T) {
 }
 
 func TestLowerClassFieldStrictTsconfigJson2020(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1731,6 +1776,7 @@ func TestLowerClassFieldStrictTsconfigJson2020(t *testing.T) {
 }
 
 func TestTSLowerClassFieldStrictTsconfigJson2020(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1773,6 +1819,7 @@ func TestTSLowerClassFieldStrictTsconfigJson2020(t *testing.T) {
 }
 
 func TestTSLowerObjectRest2017NoBundle(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -1821,6 +1868,7 @@ func TestTSLowerObjectRest2017NoBundle(t *testing.T) {
 }
 
 func TestTSLowerObjectRest2018NoBundle(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -1869,6 +1917,7 @@ func TestTSLowerObjectRest2018NoBundle(t *testing.T) {
 }
 
 func TestClassSuperThisIssue242NoBundle(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -1895,6 +1944,7 @@ func TestClassSuperThisIssue242NoBundle(t *testing.T) {
 }
 
 func TestLowerExportStarAsNameCollisionNoBundle(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1912,6 +1962,7 @@ func TestLowerExportStarAsNameCollisionNoBundle(t *testing.T) {
 }
 
 func TestLowerExportStarAsNameCollision(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1943,6 +1994,7 @@ func TestLowerExportStarAsNameCollision(t *testing.T) {
 }
 
 func TestLowerStrictModeSyntax(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1964,6 +2016,7 @@ func TestLowerStrictModeSyntax(t *testing.T) {
 }
 
 func TestLowerForbidStrictModeSyntax(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1999,6 +2052,7 @@ with.js: ERROR: With statements cannot be used with the "esm" output format due 
 }
 
 func TestLowerPrivateClassFieldOrder(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2019,6 +2073,7 @@ func TestLowerPrivateClassFieldOrder(t *testing.T) {
 }
 
 func TestLowerPrivateClassMethodOrder(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2039,6 +2094,7 @@ func TestLowerPrivateClassMethodOrder(t *testing.T) {
 }
 
 func TestLowerPrivateClassAccessorOrder(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2059,6 +2115,7 @@ func TestLowerPrivateClassAccessorOrder(t *testing.T) {
 }
 
 func TestLowerPrivateClassStaticFieldOrder(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2085,6 +2142,7 @@ func TestLowerPrivateClassStaticFieldOrder(t *testing.T) {
 }
 
 func TestLowerPrivateClassStaticMethodOrder(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2111,6 +2169,7 @@ func TestLowerPrivateClassStaticMethodOrder(t *testing.T) {
 }
 
 func TestLowerPrivateClassStaticAccessorOrder(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2137,6 +2196,7 @@ func TestLowerPrivateClassStaticAccessorOrder(t *testing.T) {
 }
 
 func TestLowerPrivateClassBrandCheckUnsupported(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2163,6 +2223,7 @@ func TestLowerPrivateClassBrandCheckUnsupported(t *testing.T) {
 }
 
 func TestLowerPrivateClassBrandCheckSupported(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2188,6 +2249,7 @@ func TestLowerPrivateClassBrandCheckSupported(t *testing.T) {
 }
 
 func TestLowerTemplateObject(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2216,6 +2278,7 @@ func TestLowerTemplateObject(t *testing.T) {
 
 // See https://github.com/evanw/esbuild/issues/1424 for more information
 func TestLowerPrivateClassFieldStaticIssue1424(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2239,6 +2302,7 @@ func TestLowerPrivateClassFieldStaticIssue1424(t *testing.T) {
 
 // See https://github.com/evanw/esbuild/issues/1493 for more information
 func TestLowerNullishCoalescingAssignmentIssue1493(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2260,6 +2324,7 @@ func TestLowerNullishCoalescingAssignmentIssue1493(t *testing.T) {
 }
 
 func TestStaticClassBlockESNext(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2291,6 +2356,7 @@ func TestStaticClassBlockESNext(t *testing.T) {
 }
 
 func TestStaticClassBlockES2021(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2323,6 +2389,7 @@ func TestStaticClassBlockES2021(t *testing.T) {
 }
 
 func TestLowerRegExpNameCollision(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2341,6 +2408,7 @@ func TestLowerRegExpNameCollision(t *testing.T) {
 }
 
 func TestLowerForAwait2017(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2364,6 +2432,7 @@ func TestLowerForAwait2017(t *testing.T) {
 }
 
 func TestLowerForAwait2015(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2387,6 +2456,7 @@ func TestLowerForAwait2015(t *testing.T) {
 }
 
 func TestLowerNestedFunctionDirectEval(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/1.js": "if (foo) { function x() {} }",
@@ -2416,6 +2486,7 @@ func TestLowerNestedFunctionDirectEval(t *testing.T) {
 }
 
 func TestJavaScriptDecoratorsESNext(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2440,6 +2511,7 @@ func TestJavaScriptDecoratorsESNext(t *testing.T) {
 }
 
 func TestJavaScriptAutoAccessorESNext(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/js-define.js": `
@@ -2507,6 +2579,7 @@ func TestJavaScriptAutoAccessorESNext(t *testing.T) {
 }
 
 func TestJavaScriptAutoAccessorES2022(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/js-define.js": `
@@ -2575,6 +2648,7 @@ func TestJavaScriptAutoAccessorES2022(t *testing.T) {
 }
 
 func TestJavaScriptAutoAccessorES2021(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/js-define.js": `
@@ -2643,6 +2717,7 @@ func TestJavaScriptAutoAccessorES2021(t *testing.T) {
 }
 
 func TestLowerUsing(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2707,6 +2782,7 @@ func TestLowerUsing(t *testing.T) {
 }
 
 func TestLowerUsingUnsupportedAsync(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2756,6 +2832,7 @@ func TestLowerUsingUnsupportedAsync(t *testing.T) {
 }
 
 func TestLowerUsingUnsupportedUsingAndAsync(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2805,6 +2882,7 @@ func TestLowerUsingUnsupportedUsingAndAsync(t *testing.T) {
 }
 
 func TestLowerUsingHoisting(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/hoist-use-strict.js": `
@@ -2976,6 +3054,7 @@ func TestLowerUsingHoisting(t *testing.T) {
 }
 
 func TestLowerUsingInsideTSNamespace(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -2996,6 +3075,7 @@ func TestLowerUsingInsideTSNamespace(t *testing.T) {
 }
 
 func TestLowerAsyncGenerator(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -3056,6 +3136,7 @@ func TestLowerAsyncGenerator(t *testing.T) {
 }
 
 func TestLowerAsyncGeneratorNoAwait(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -3117,6 +3198,7 @@ func TestLowerAsyncGeneratorNoAwait(t *testing.T) {
 
 // https://github.com/evanw/esbuild/issues/3768
 func TestJavaScriptDecoratorsBundleIssue3768(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/base-instance-method.js":   `class Foo { @dec foo() { return Foo } }`,
@@ -3146,6 +3228,7 @@ func TestJavaScriptDecoratorsBundleIssue3768(t *testing.T) {
 
 // https://github.com/evanw/esbuild/issues/4378
 func TestForAwaitWithOptionalCatchIssue4378(t *testing.T) {
+	t.Parallel()
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `

@@ -13,6 +13,7 @@ var dce_suite = suite{
 }
 
 func TestPackageJsonSideEffectsFalseKeepNamedImportES6(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -38,6 +39,7 @@ func TestPackageJsonSideEffectsFalseKeepNamedImportES6(t *testing.T) {
 }
 
 func TestPackageJsonSideEffectsFalseKeepNamedImportCommonJS(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -63,6 +65,7 @@ func TestPackageJsonSideEffectsFalseKeepNamedImportCommonJS(t *testing.T) {
 }
 
 func TestPackageJsonSideEffectsFalseKeepStarImportES6(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -88,6 +91,7 @@ func TestPackageJsonSideEffectsFalseKeepStarImportES6(t *testing.T) {
 }
 
 func TestPackageJsonSideEffectsFalseKeepStarImportCommonJS(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -113,6 +117,7 @@ func TestPackageJsonSideEffectsFalseKeepStarImportCommonJS(t *testing.T) {
 }
 
 func TestPackageJsonSideEffectsTrueKeepES6(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -138,6 +143,7 @@ func TestPackageJsonSideEffectsTrueKeepES6(t *testing.T) {
 }
 
 func TestPackageJsonSideEffectsTrueKeepCommonJS(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -163,6 +169,7 @@ func TestPackageJsonSideEffectsTrueKeepCommonJS(t *testing.T) {
 }
 
 func TestPackageJsonSideEffectsFalseKeepBareImportAndRequireES6(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -192,6 +199,7 @@ Users/user/project/node_modules/demo-pkg/package.json: NOTE: "sideEffects" is fa
 }
 
 func TestPackageJsonSideEffectsFalseKeepBareImportAndRequireCommonJS(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -221,6 +229,7 @@ Users/user/project/node_modules/demo-pkg/package.json: NOTE: "sideEffects" is fa
 }
 
 func TestPackageJsonSideEffectsFalseRemoveBareImportES6(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -249,6 +258,7 @@ Users/user/project/node_modules/demo-pkg/package.json: NOTE: "sideEffects" is fa
 }
 
 func TestPackageJsonSideEffectsFalseRemoveBareImportCommonJS(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -277,6 +287,7 @@ Users/user/project/node_modules/demo-pkg/package.json: NOTE: "sideEffects" is fa
 }
 
 func TestPackageJsonSideEffectsFalseRemoveNamedImportES6(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -302,6 +313,7 @@ func TestPackageJsonSideEffectsFalseRemoveNamedImportES6(t *testing.T) {
 }
 
 func TestPackageJsonSideEffectsFalseRemoveNamedImportCommonJS(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -327,6 +339,7 @@ func TestPackageJsonSideEffectsFalseRemoveNamedImportCommonJS(t *testing.T) {
 }
 
 func TestPackageJsonSideEffectsFalseRemoveStarImportES6(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -352,6 +365,7 @@ func TestPackageJsonSideEffectsFalseRemoveStarImportES6(t *testing.T) {
 }
 
 func TestPackageJsonSideEffectsFalseRemoveStarImportCommonJS(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -377,6 +391,7 @@ func TestPackageJsonSideEffectsFalseRemoveStarImportCommonJS(t *testing.T) {
 }
 
 func TestPackageJsonSideEffectsArrayRemove(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -402,6 +417,7 @@ func TestPackageJsonSideEffectsArrayRemove(t *testing.T) {
 }
 
 func TestPackageJsonSideEffectsArrayKeep(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -427,6 +443,7 @@ func TestPackageJsonSideEffectsArrayKeep(t *testing.T) {
 }
 
 func TestPackageJsonSideEffectsArrayKeepMainUseModule(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -459,6 +476,7 @@ func TestPackageJsonSideEffectsArrayKeepMainUseModule(t *testing.T) {
 }
 
 func TestPackageJsonSideEffectsArrayKeepMainUseMain(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -491,6 +509,7 @@ func TestPackageJsonSideEffectsArrayKeepMainUseMain(t *testing.T) {
 }
 
 func TestPackageJsonSideEffectsArrayKeepMainImplicitModule(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -522,6 +541,7 @@ func TestPackageJsonSideEffectsArrayKeepMainImplicitModule(t *testing.T) {
 }
 
 func TestPackageJsonSideEffectsArrayKeepMainImplicitMain(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -558,6 +578,7 @@ func TestPackageJsonSideEffectsArrayKeepMainImplicitMain(t *testing.T) {
 }
 
 func TestPackageJsonSideEffectsArrayKeepModuleUseModule(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -590,6 +611,7 @@ func TestPackageJsonSideEffectsArrayKeepModuleUseModule(t *testing.T) {
 }
 
 func TestPackageJsonSideEffectsArrayKeepModuleUseMain(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -622,6 +644,7 @@ func TestPackageJsonSideEffectsArrayKeepModuleUseMain(t *testing.T) {
 }
 
 func TestPackageJsonSideEffectsArrayKeepModuleImplicitModule(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -653,6 +676,7 @@ func TestPackageJsonSideEffectsArrayKeepModuleImplicitModule(t *testing.T) {
 }
 
 func TestPackageJsonSideEffectsArrayKeepModuleImplicitMain(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -689,6 +713,7 @@ func TestPackageJsonSideEffectsArrayKeepModuleImplicitMain(t *testing.T) {
 }
 
 func TestPackageJsonSideEffectsArrayGlob(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -723,6 +748,7 @@ Users/user/project/node_modules/demo-pkg/package.json: NOTE: It was excluded fro
 }
 
 func TestPackageJsonSideEffectsNestedDirectoryRemove(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -748,6 +774,7 @@ func TestPackageJsonSideEffectsNestedDirectoryRemove(t *testing.T) {
 }
 
 func TestPackageJsonSideEffectsKeepExportDefaultExpr(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -772,6 +799,7 @@ func TestPackageJsonSideEffectsKeepExportDefaultExpr(t *testing.T) {
 }
 
 func TestPackageJsonSideEffectsFalseNoWarningInNodeModulesIssue999(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -801,6 +829,7 @@ func TestPackageJsonSideEffectsFalseNoWarningInNodeModulesIssue999(t *testing.T)
 }
 
 func TestPackageJsonSideEffectsFalseIntermediateFilesUnused(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -826,6 +855,7 @@ func TestPackageJsonSideEffectsFalseIntermediateFilesUnused(t *testing.T) {
 }
 
 func TestPackageJsonSideEffectsFalseIntermediateFilesUsed(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -852,6 +882,7 @@ func TestPackageJsonSideEffectsFalseIntermediateFilesUsed(t *testing.T) {
 }
 
 func TestPackageJsonSideEffectsFalseIntermediateFilesChainAll(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -893,6 +924,7 @@ func TestPackageJsonSideEffectsFalseIntermediateFilesChainAll(t *testing.T) {
 }
 
 func TestPackageJsonSideEffectsFalseIntermediateFilesChainOne(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -925,6 +957,7 @@ func TestPackageJsonSideEffectsFalseIntermediateFilesChainOne(t *testing.T) {
 }
 
 func TestPackageJsonSideEffectsFalseIntermediateFilesDiamond(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -965,6 +998,7 @@ func TestPackageJsonSideEffectsFalseIntermediateFilesDiamond(t *testing.T) {
 }
 
 func TestPackageJsonSideEffectsFalseOneFork(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -997,6 +1031,7 @@ func TestPackageJsonSideEffectsFalseOneFork(t *testing.T) {
 }
 
 func TestPackageJsonSideEffectsFalseAllFork(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -1035,6 +1070,7 @@ func TestPackageJsonSideEffectsFalseAllFork(t *testing.T) {
 }
 
 func TestJSONLoaderRemoveUnused(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1052,6 +1088,7 @@ func TestJSONLoaderRemoveUnused(t *testing.T) {
 }
 
 func TestTextLoaderRemoveUnused(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1069,6 +1106,7 @@ func TestTextLoaderRemoveUnused(t *testing.T) {
 }
 
 func TestBase64LoaderRemoveUnused(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1090,6 +1128,7 @@ func TestBase64LoaderRemoveUnused(t *testing.T) {
 }
 
 func TestDataURLLoaderRemoveUnused(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1111,6 +1150,7 @@ func TestDataURLLoaderRemoveUnused(t *testing.T) {
 }
 
 func TestFileLoaderRemoveUnused(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1132,6 +1172,7 @@ func TestFileLoaderRemoveUnused(t *testing.T) {
 }
 
 func TestRemoveUnusedImportMeta(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1150,6 +1191,7 @@ func TestRemoveUnusedImportMeta(t *testing.T) {
 }
 
 func TestRemoveUnusedPureCommentCalls(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1223,6 +1265,7 @@ func TestRemoveUnusedPureCommentCalls(t *testing.T) {
 }
 
 func TestRemoveUnusedNoSideEffectsTaggedTemplates(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1248,6 +1291,7 @@ func TestRemoveUnusedNoSideEffectsTaggedTemplates(t *testing.T) {
 }
 
 func TestTreeShakingReactElements(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.jsx": `
@@ -1272,6 +1316,7 @@ func TestTreeShakingReactElements(t *testing.T) {
 }
 
 func TestDisableTreeShaking(t *testing.T) {
+	t.Parallel()
 	defines := config.ProcessDefines([]config.DefineData{
 		{KeyParts: []string{"pure"}, Flags: config.CallCanBeUnwrappedIfUnused},
 		{KeyParts: []string{"some", "fn"}, Flags: config.CallCanBeUnwrappedIfUnused},
@@ -1313,6 +1358,7 @@ func TestDisableTreeShaking(t *testing.T) {
 }
 
 func TestDeadCodeFollowingJump(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1406,6 +1452,7 @@ func TestDeadCodeFollowingJump(t *testing.T) {
 }
 
 func TestDeadCodeInsideEmptyTry(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1431,6 +1478,7 @@ func TestDeadCodeInsideEmptyTry(t *testing.T) {
 }
 
 func TestDeadCodeInsideUnusedCases(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1518,6 +1566,7 @@ entry.js: NOTE: The earlier case clause is here:
 }
 
 func TestRemoveTrailingReturn(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1562,6 +1611,7 @@ func TestRemoveTrailingReturn(t *testing.T) {
 }
 
 func TestImportReExportOfNamespaceImport(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/entry.js": `
@@ -1591,6 +1641,7 @@ func TestImportReExportOfNamespaceImport(t *testing.T) {
 }
 
 func TestTreeShakingImportIdentifier(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1615,6 +1666,7 @@ func TestTreeShakingImportIdentifier(t *testing.T) {
 }
 
 func TestTreeShakingObjectProperty(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1656,6 +1708,7 @@ func TestTreeShakingObjectProperty(t *testing.T) {
 }
 
 func TestTreeShakingClassProperty(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1695,6 +1748,7 @@ func TestTreeShakingClassProperty(t *testing.T) {
 }
 
 func TestTreeShakingClassStaticProperty(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1734,6 +1788,7 @@ func TestTreeShakingClassStaticProperty(t *testing.T) {
 }
 
 func TestTreeShakingUnaryOperators(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1764,6 +1819,7 @@ func TestTreeShakingUnaryOperators(t *testing.T) {
 }
 
 func TestTreeShakingBinaryOperators(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1825,6 +1881,7 @@ func TestTreeShakingBinaryOperators(t *testing.T) {
 }
 
 func TestTreeShakingNoBundleESM(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1843,6 +1900,7 @@ func TestTreeShakingNoBundleESM(t *testing.T) {
 }
 
 func TestTreeShakingNoBundleCJS(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1861,6 +1919,7 @@ func TestTreeShakingNoBundleCJS(t *testing.T) {
 }
 
 func TestTreeShakingNoBundleIIFE(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1879,6 +1938,7 @@ func TestTreeShakingNoBundleIIFE(t *testing.T) {
 }
 
 func TestTreeShakingInESMWrapper(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1905,6 +1965,7 @@ func TestTreeShakingInESMWrapper(t *testing.T) {
 }
 
 func TestDCETypeOf(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1938,6 +1999,7 @@ func TestDCETypeOf(t *testing.T) {
 }
 
 func TestDCETypeOfEqualsString(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1955,6 +2017,7 @@ func TestDCETypeOfEqualsString(t *testing.T) {
 }
 
 func TestDCETypeOfEqualsStringMangle(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1974,6 +2037,7 @@ func TestDCETypeOfEqualsStringMangle(t *testing.T) {
 }
 
 func TestDCETypeOfEqualsStringGuardCondition(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2078,6 +2142,7 @@ func TestDCETypeOfEqualsStringGuardCondition(t *testing.T) {
 }
 
 func TestDCETypeOfCompareStringGuardCondition(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2148,6 +2213,7 @@ func TestDCETypeOfCompareStringGuardCondition(t *testing.T) {
 // These unused imports should be removed since they aren't used, and removing
 // them makes the code shorter.
 func TestRemoveUnusedImports(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2168,6 +2234,7 @@ func TestRemoveUnusedImports(t *testing.T) {
 // These unused imports should be kept since the direct eval could potentially
 // reference them, even though they appear to be unused.
 func TestRemoveUnusedImportsEval(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2192,6 +2259,7 @@ func TestRemoveUnusedImportsEval(t *testing.T) {
 // access them of course, but that's very unlikely while module instantiation
 // failure is very likely so we bias towards the likely case here instead.
 func TestRemoveUnusedImportsEvalTS(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -2211,6 +2279,7 @@ func TestRemoveUnusedImportsEvalTS(t *testing.T) {
 }
 
 func TestDCEClassStaticBlocks(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -2256,6 +2325,7 @@ func TestDCEClassStaticBlocks(t *testing.T) {
 }
 
 func TestDCEClassStaticBlocksMinifySyntax(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -2302,6 +2372,7 @@ func TestDCEClassStaticBlocksMinifySyntax(t *testing.T) {
 }
 
 func TestDCEVarExports(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.js": `
@@ -2326,6 +2397,7 @@ func TestDCEVarExports(t *testing.T) {
 }
 
 func TestDCETemplateLiteral(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": "" +
@@ -2347,6 +2419,7 @@ func TestDCETemplateLiteral(t *testing.T) {
 
 // Calls to the runtime "__publicField" function are not considered side effects
 func TestTreeShakingLoweredClassStaticField(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2381,6 +2454,7 @@ func TestTreeShakingLoweredClassStaticField(t *testing.T) {
 }
 
 func TestTreeShakingLoweredClassStaticFieldMinified(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2417,6 +2491,7 @@ func TestTreeShakingLoweredClassStaticFieldMinified(t *testing.T) {
 
 // Assignments are considered side effects
 func TestTreeShakingLoweredClassStaticFieldAssignment(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -2451,6 +2526,7 @@ func TestTreeShakingLoweredClassStaticFieldAssignment(t *testing.T) {
 }
 
 func TestInlineIdentityFunctionCalls(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/identity.js": `
@@ -2632,6 +2708,7 @@ func TestInlineIdentityFunctionCalls(t *testing.T) {
 }
 
 func TestInlineEmptyFunctionCalls(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/empty.js": `
@@ -2767,6 +2844,7 @@ func TestInlineEmptyFunctionCalls(t *testing.T) {
 }
 
 func TestInlineFunctionCallBehaviorChanges(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2838,6 +2916,7 @@ func TestInlineFunctionCallBehaviorChanges(t *testing.T) {
 }
 
 func TestInlineFunctionCallForInitDecl(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2858,6 +2937,7 @@ func TestInlineFunctionCallForInitDecl(t *testing.T) {
 }
 
 func TestConstValueInliningNoBundle(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/top-level.js": `
@@ -3032,6 +3112,7 @@ func TestConstValueInliningNoBundle(t *testing.T) {
 }
 
 func TestConstValueInliningBundle(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/exported-entry.js": `
@@ -3181,6 +3262,7 @@ func TestConstValueInliningBundle(t *testing.T) {
 // time we discover the assignment. I think making these cases an error is
 // fine because it's bad code anyway.
 func TestConstValueInliningAssign(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/const-assign.js": `
@@ -3210,6 +3292,7 @@ const-update.js: NOTE: The symbol "x" was declared a constant here:
 }
 
 func TestConstValueInliningDirectEval(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/top-level-no-eval.js": `
@@ -3270,6 +3353,7 @@ func TestConstValueInliningDirectEval(t *testing.T) {
 }
 
 func TestCrossModuleConstantFoldingNumber(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/enum-constants.ts": `
@@ -3396,6 +3480,7 @@ func TestCrossModuleConstantFoldingNumber(t *testing.T) {
 }
 
 func TestCrossModuleConstantFoldingString(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/enum-constants.ts": `
@@ -3488,6 +3573,7 @@ func TestCrossModuleConstantFoldingString(t *testing.T) {
 }
 
 func TestCrossModuleConstantFoldingComputedPropertyName(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/enum-constants.ts": `
@@ -3545,6 +3631,7 @@ func TestCrossModuleConstantFoldingComputedPropertyName(t *testing.T) {
 }
 
 func TestMultipleDeclarationTreeShaking(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/var2.js": `
@@ -3587,6 +3674,7 @@ func TestMultipleDeclarationTreeShaking(t *testing.T) {
 }
 
 func TestMultipleDeclarationTreeShakingMinifySyntax(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/var2.js": `
@@ -3630,6 +3718,7 @@ func TestMultipleDeclarationTreeShakingMinifySyntax(t *testing.T) {
 
 // Pure call removal should still run iterators, which can have side effects
 func TestPureCallsWithSpread(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -3647,6 +3736,7 @@ func TestPureCallsWithSpread(t *testing.T) {
 }
 
 func TestTopLevelFunctionInliningWithSpread(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -3707,6 +3797,7 @@ func TestTopLevelFunctionInliningWithSpread(t *testing.T) {
 }
 
 func TestNestedFunctionInliningWithSpread(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -3771,6 +3862,7 @@ func TestNestedFunctionInliningWithSpread(t *testing.T) {
 }
 
 func TestPackageJsonSideEffectsFalseCrossPlatformSlash(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -3801,6 +3893,7 @@ func TestPackageJsonSideEffectsFalseCrossPlatformSlash(t *testing.T) {
 }
 
 func TestTreeShakingJSWithAssociatedCSS(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/project/test.jsx": `
@@ -3832,6 +3925,7 @@ func TestTreeShakingJSWithAssociatedCSS(t *testing.T) {
 }
 
 func TestTreeShakingJSWithAssociatedCSSReExportSideEffectsFalse(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/project/test.jsx": `
@@ -3862,6 +3956,7 @@ func TestTreeShakingJSWithAssociatedCSSReExportSideEffectsFalse(t *testing.T) {
 }
 
 func TestTreeShakingJSWithAssociatedCSSReExportSideEffectsFalseOnlyJS(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/project/test.jsx": `
@@ -3892,6 +3987,7 @@ func TestTreeShakingJSWithAssociatedCSSReExportSideEffectsFalseOnlyJS(t *testing
 }
 
 func TestTreeShakingJSWithAssociatedCSSExportStarSideEffectsFalse(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/project/test.jsx": `
@@ -3922,6 +4018,7 @@ func TestTreeShakingJSWithAssociatedCSSExportStarSideEffectsFalse(t *testing.T) 
 }
 
 func TestTreeShakingJSWithAssociatedCSSExportStarSideEffectsFalseOnlyJS(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/project/test.jsx": `
@@ -3952,6 +4049,7 @@ func TestTreeShakingJSWithAssociatedCSSExportStarSideEffectsFalseOnlyJS(t *testi
 }
 
 func TestTreeShakingJSWithAssociatedCSSUnusedNestedImportSideEffectsFalse(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/project/test.jsx": `
@@ -3982,6 +4080,7 @@ func TestTreeShakingJSWithAssociatedCSSUnusedNestedImportSideEffectsFalse(t *tes
 }
 
 func TestTreeShakingJSWithAssociatedCSSUnusedNestedImportSideEffectsFalseOnlyJS(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/project/test.jsx": `
@@ -4012,6 +4111,7 @@ func TestTreeShakingJSWithAssociatedCSSUnusedNestedImportSideEffectsFalseOnlyJS(
 }
 
 func TestPreserveDirectivesMinifyPassThrough(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -4040,6 +4140,7 @@ func TestPreserveDirectivesMinifyPassThrough(t *testing.T) {
 }
 
 func TestPreserveDirectivesMinifyIIFE(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -4069,6 +4170,7 @@ func TestPreserveDirectivesMinifyIIFE(t *testing.T) {
 }
 
 func TestPreserveDirectivesMinifyBundle(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -4115,6 +4217,7 @@ func TestPreserveDirectivesMinifyBundle(t *testing.T) {
 
 // See: https://github.com/rollup/rollup/pull/5024
 func TestNoSideEffectsComment(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/expr-fn.js": `
@@ -4255,6 +4358,7 @@ func TestNoSideEffectsComment(t *testing.T) {
 }
 
 func TestNoSideEffectsCommentIgnoreAnnotations(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/expr-fn.js": `
@@ -4388,6 +4492,7 @@ func TestNoSideEffectsCommentIgnoreAnnotations(t *testing.T) {
 }
 
 func TestNoSideEffectsCommentMinifyWhitespace(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/expr-fn.js": `
@@ -4521,6 +4626,7 @@ func TestNoSideEffectsCommentMinifyWhitespace(t *testing.T) {
 }
 
 func TestNoSideEffectsCommentUnusedCalls(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/stmt-fn.js": `
@@ -4575,6 +4681,7 @@ func TestNoSideEffectsCommentUnusedCalls(t *testing.T) {
 }
 
 func TestNoSideEffectsCommentTypeScriptDeclare(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -4603,6 +4710,7 @@ func TestNoSideEffectsCommentTypeScriptDeclare(t *testing.T) {
 }
 
 func TestDCEOfIIFE(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/remove-these.js": `
@@ -4645,6 +4753,7 @@ func TestDCEOfIIFE(t *testing.T) {
 }
 
 func TestDCEOfDestructuring(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -4673,6 +4782,7 @@ func TestDCEOfDestructuring(t *testing.T) {
 }
 
 func TestDCEOfDecorators(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/keep-these.js": `
@@ -4700,6 +4810,7 @@ func TestDCEOfDecorators(t *testing.T) {
 }
 
 func TestDCEOfExperimentalDecorators(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/keep-these.ts": `
@@ -4734,6 +4845,7 @@ func TestDCEOfExperimentalDecorators(t *testing.T) {
 }
 
 func TestDCEOfUsingDeclarations(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -4773,6 +4885,7 @@ func TestDCEOfUsingDeclarations(t *testing.T) {
 }
 
 func TestDCEOfExprAfterKeepNamesIssue3195(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -4797,6 +4910,7 @@ func TestDCEOfExprAfterKeepNamesIssue3195(t *testing.T) {
 }
 
 func TestDropLabels(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -4830,6 +4944,7 @@ func TestDropLabels(t *testing.T) {
 }
 
 func TestRemoveCodeAfterLabelWithReturn(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -4860,6 +4975,7 @@ func TestRemoveCodeAfterLabelWithReturn(t *testing.T) {
 }
 
 func TestDropLabelTreeShakingBugIssue3311(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -4881,6 +4997,7 @@ func TestDropLabelTreeShakingBugIssue3311(t *testing.T) {
 }
 
 func TestDCEOfSymbolInstances(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/class.js": `
@@ -4914,6 +5031,7 @@ func TestDCEOfSymbolInstances(t *testing.T) {
 }
 
 func TestDCEOfNegatedBigints(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -4933,6 +5051,7 @@ func TestDCEOfNegatedBigints(t *testing.T) {
 
 // https://github.com/evanw/esbuild/issues/4310
 func TestDCEOfIteratorSuperclassIssue4310(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -4949,6 +5068,7 @@ func TestDCEOfIteratorSuperclassIssue4310(t *testing.T) {
 }
 
 func TestDCEOfSymbolCtorCall(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -4979,6 +5099,7 @@ func TestDCEOfSymbolCtorCall(t *testing.T) {
 }
 
 func TestDCEOfSymbolForCall(t *testing.T) {
+	t.Parallel()
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `

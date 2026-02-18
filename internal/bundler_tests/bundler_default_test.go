@@ -18,6 +18,7 @@ var default_suite = suite{
 }
 
 func TestSimpleES6(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -39,6 +40,7 @@ func TestSimpleES6(t *testing.T) {
 }
 
 func TestSimpleCommonJS(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -63,6 +65,7 @@ func TestSimpleCommonJS(t *testing.T) {
 // scopes. It guards against bugs where require() calls are only recognized in
 // the top-level module scope.
 func TestNestedCommonJS(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -89,6 +92,7 @@ func TestNestedCommonJS(t *testing.T) {
 // This test makes sure that NewExpressions containing require() calls aren't
 // broken.
 func TestNewExpressionCommonJS(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -108,6 +112,7 @@ func TestNewExpressionCommonJS(t *testing.T) {
 }
 
 func TestCommonJSFromES6(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -135,6 +140,7 @@ func TestCommonJSFromES6(t *testing.T) {
 }
 
 func TestES6FromCommonJS(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -165,6 +171,7 @@ func TestES6FromCommonJS(t *testing.T) {
 // scopes. It guards against bugs where require() calls are only recognized in
 // the top-level module scope.
 func TestNestedES6FromCommonJS(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -188,6 +195,7 @@ func TestNestedES6FromCommonJS(t *testing.T) {
 }
 
 func TestExportFormsES6(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -214,6 +222,7 @@ func TestExportFormsES6(t *testing.T) {
 }
 
 func TestExportFormsIIFE(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -241,6 +250,7 @@ func TestExportFormsIIFE(t *testing.T) {
 }
 
 func TestExportFormsWithMinifyIdentifiersAndNoBundle(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.js": `
@@ -276,6 +286,7 @@ func TestExportFormsWithMinifyIdentifiersAndNoBundle(t *testing.T) {
 }
 
 func TestImportFormsWithNoBundle(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -301,6 +312,7 @@ func TestImportFormsWithNoBundle(t *testing.T) {
 }
 
 func TestImportFormsWithMinifyIdentifiersAndNoBundle(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -327,6 +339,7 @@ func TestImportFormsWithMinifyIdentifiersAndNoBundle(t *testing.T) {
 }
 
 func TestExportFormsCommonJS(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -367,6 +380,7 @@ func TestExportFormsCommonJS(t *testing.T) {
 }
 
 func TestExportChain(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -388,6 +402,7 @@ func TestExportChain(t *testing.T) {
 }
 
 func TestExportInfiniteCycle1(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -411,6 +426,7 @@ entry.js: ERROR: Detected cycle while resolving import "d"
 }
 
 func TestExportInfiniteCycle2(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -436,6 +452,7 @@ foo.js: ERROR: Detected cycle while resolving import "d"
 }
 
 func TestJSXImportsCommonJS(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.jsx": `
@@ -459,6 +476,7 @@ func TestJSXImportsCommonJS(t *testing.T) {
 }
 
 func TestJSXImportsES6(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.jsx": `
@@ -483,6 +501,7 @@ func TestJSXImportsES6(t *testing.T) {
 }
 
 func TestJSXSyntaxInJS(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -502,6 +521,7 @@ NOTE: The esbuild loader for this file is currently set to "js" but it must be s
 }
 
 func TestJSXConstantFragments(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -541,6 +561,7 @@ func TestJSXConstantFragments(t *testing.T) {
 }
 
 func TestJSXAutomaticImportsCommonJS(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.jsx": `
@@ -568,6 +589,7 @@ func TestJSXAutomaticImportsCommonJS(t *testing.T) {
 }
 
 func TestJSXAutomaticImportsES6(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.jsx": `
@@ -596,6 +618,7 @@ func TestJSXAutomaticImportsES6(t *testing.T) {
 }
 
 func TestJSXAutomaticSyntaxInJS(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -623,6 +646,7 @@ NOTE: The esbuild loader for this file is currently set to "js" but it must be s
 }
 
 func TestNodeModules(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -644,6 +668,7 @@ func TestNodeModules(t *testing.T) {
 }
 
 func TestRequireChildDirCommonJS(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -662,6 +687,7 @@ func TestRequireChildDirCommonJS(t *testing.T) {
 }
 
 func TestRequireChildDirES6(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -681,6 +707,7 @@ func TestRequireChildDirES6(t *testing.T) {
 }
 
 func TestRequireParentDirCommonJS(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/dir/entry.js": `
@@ -699,6 +726,7 @@ func TestRequireParentDirCommonJS(t *testing.T) {
 }
 
 func TestRequireParentDirES6(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/dir/entry.js": `
@@ -718,6 +746,7 @@ func TestRequireParentDirES6(t *testing.T) {
 }
 
 func TestImportMissingES6(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -740,6 +769,7 @@ entry.js: ERROR: No matching export in "foo.js" for import "y"
 }
 
 func TestImportMissingUnusedES6(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -761,6 +791,7 @@ entry.js: ERROR: No matching export in "foo.js" for import "y"
 }
 
 func TestImportMissingCommonJS(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -780,6 +811,7 @@ func TestImportMissingCommonJS(t *testing.T) {
 }
 
 func TestImportMissingNeitherES6NorCommonJS(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/named.js": `
@@ -828,6 +860,7 @@ star.js: WARNING: Import "y" will always be undefined because the file "foo.js" 
 }
 
 func TestExportMissingES6(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -853,6 +886,7 @@ bar.js: NOTE: Did you mean to import "button" instead?
 }
 
 func TestDotImport(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -872,6 +906,7 @@ func TestDotImport(t *testing.T) {
 }
 
 func TestRequireWithTemplate(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.js": `
@@ -891,6 +926,7 @@ func TestRequireWithTemplate(t *testing.T) {
 }
 
 func TestDynamicImportWithTemplateIIFE(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.js": `
@@ -911,6 +947,7 @@ func TestDynamicImportWithTemplateIIFE(t *testing.T) {
 }
 
 func TestRequireAndDynamicImportInvalidTemplate(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -948,6 +985,7 @@ func TestRequireAndDynamicImportInvalidTemplate(t *testing.T) {
 }
 
 func TestDynamicImportWithExpressionCJS(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.js": `
@@ -965,6 +1003,7 @@ func TestDynamicImportWithExpressionCJS(t *testing.T) {
 }
 
 func TestMinifiedDynamicImportWithExpressionCJS(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.js": `
@@ -983,6 +1022,7 @@ func TestMinifiedDynamicImportWithExpressionCJS(t *testing.T) {
 }
 
 func TestConditionalRequireResolve(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.js": `
@@ -1008,6 +1048,7 @@ func TestConditionalRequireResolve(t *testing.T) {
 }
 
 func TestConditionalRequire(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.js": `
@@ -1033,6 +1074,7 @@ func TestConditionalRequire(t *testing.T) {
 }
 
 func TestConditionalImport(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.js": `
@@ -1060,6 +1102,7 @@ func TestConditionalImport(t *testing.T) {
 }
 
 func TestRequireBadArgumentCount(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1082,6 +1125,7 @@ func TestRequireBadArgumentCount(t *testing.T) {
 }
 
 func TestRequireJson(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1104,6 +1148,7 @@ func TestRequireJson(t *testing.T) {
 }
 
 func TestRequireTxt(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1120,6 +1165,7 @@ func TestRequireTxt(t *testing.T) {
 }
 
 func TestRequireBadExtension(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1138,6 +1184,7 @@ func TestRequireBadExtension(t *testing.T) {
 }
 
 func TestFalseRequire(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1154,6 +1201,7 @@ func TestFalseRequire(t *testing.T) {
 }
 
 func TestRequireWithoutCall(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1170,6 +1218,7 @@ func TestRequireWithoutCall(t *testing.T) {
 }
 
 func TestNestedRequireWithoutCall(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1189,6 +1238,7 @@ func TestNestedRequireWithoutCall(t *testing.T) {
 
 // Test a workaround for the "debug" library
 func TestRequireWithCallInsideTry(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1211,6 +1261,7 @@ func TestRequireWithCallInsideTry(t *testing.T) {
 
 // Test a workaround for the "moment" library
 func TestRequireWithoutCallInsideTry(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1231,6 +1282,7 @@ func TestRequireWithoutCallInsideTry(t *testing.T) {
 }
 
 func TestRequirePropertyAccessCommonJS(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1253,6 +1305,7 @@ func TestRequirePropertyAccessCommonJS(t *testing.T) {
 
 // Test a workaround for code using "await import()"
 func TestAwaitImportInsideTry(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1274,6 +1327,7 @@ func TestAwaitImportInsideTry(t *testing.T) {
 }
 
 func TestImportInsideTry(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1298,6 +1352,7 @@ NOTE: You can mark the path "nope1" as external to exclude it from the bundle, w
 
 // Test a workaround for code using "import().catch()"
 func TestImportThenCatch(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1315,6 +1370,7 @@ func TestImportThenCatch(t *testing.T) {
 }
 
 func TestSourceMap(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -1345,6 +1401,7 @@ func TestSourceMap(t *testing.T) {
 // should be hoisted. This caused the renamer to name them different things to
 // avoid a collision, which changed the meaning of the code.
 func TestNestedScopeBug(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1368,6 +1425,7 @@ func TestNestedScopeBug(t *testing.T) {
 }
 
 func TestHashbangBundle(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `#!/usr/bin/env a
@@ -1387,6 +1445,7 @@ func TestHashbangBundle(t *testing.T) {
 }
 
 func TestHashbangNoBundle(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `#!/usr/bin/env node
@@ -1401,6 +1460,7 @@ func TestHashbangNoBundle(t *testing.T) {
 }
 
 func TestHashbangBannerUseStrictOrder(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `#! in file
@@ -1419,6 +1479,7 @@ func TestHashbangBannerUseStrictOrder(t *testing.T) {
 }
 
 func TestRequireFSBrowser(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1438,6 +1499,7 @@ NOTE: The package "fs" wasn't found on the file system but is built into node. A
 }
 
 func TestRequireFSNode(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1455,6 +1517,7 @@ func TestRequireFSNode(t *testing.T) {
 }
 
 func TestRequireFSNodeMinify(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1473,6 +1536,7 @@ func TestRequireFSNodeMinify(t *testing.T) {
 }
 
 func TestImportFSBrowser(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1496,6 +1560,7 @@ NOTE: The package "fs" wasn't found on the file system but is built into node. A
 }
 
 func TestImportFSNodeCommonJS(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1517,6 +1582,7 @@ func TestImportFSNodeCommonJS(t *testing.T) {
 }
 
 func TestImportFSNodeES6(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1538,6 +1604,7 @@ func TestImportFSNodeES6(t *testing.T) {
 }
 
 func TestExportFSBrowser(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1558,6 +1625,7 @@ NOTE: The package "fs" wasn't found on the file system but is built into node. A
 }
 
 func TestExportFSNode(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1575,6 +1643,7 @@ func TestExportFSNode(t *testing.T) {
 }
 
 func TestReExportFSNode(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1596,6 +1665,7 @@ func TestReExportFSNode(t *testing.T) {
 }
 
 func TestExportFSNodeInCommonJSModule(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1616,6 +1686,7 @@ func TestExportFSNodeInCommonJSModule(t *testing.T) {
 }
 
 func TestExportWildcardFSNodeES6(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1645,6 +1716,7 @@ func TestExportWildcardFSNodeES6(t *testing.T) {
 }
 
 func TestExportWildcardFSNodeCommonJS(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1674,6 +1746,7 @@ func TestExportWildcardFSNodeCommonJS(t *testing.T) {
 }
 
 func TestExportSpecialName(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.mjs": `
@@ -1691,6 +1764,7 @@ func TestExportSpecialName(t *testing.T) {
 }
 
 func TestExportSpecialNameBundle(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1713,6 +1787,7 @@ func TestExportSpecialNameBundle(t *testing.T) {
 
 // https://github.com/evanw/esbuild/issues/3544
 func TestNodeAnnotationFalsePositiveIssue3544(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.mjs": `
@@ -1738,6 +1813,7 @@ func TestNodeAnnotationFalsePositiveIssue3544(t *testing.T) {
 
 // https://github.com/evanw/esbuild/issues/4100
 func TestNodeAnnotationInvalidIdentifierIssue4100(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.mjs": `
@@ -1758,6 +1834,7 @@ func TestNodeAnnotationInvalidIdentifierIssue4100(t *testing.T) {
 }
 
 func TestMinifiedBundleES6(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1783,6 +1860,7 @@ func TestMinifiedBundleES6(t *testing.T) {
 }
 
 func TestMinifiedBundleCommonJS(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1810,6 +1888,7 @@ func TestMinifiedBundleCommonJS(t *testing.T) {
 }
 
 func TestMinifiedBundleEndingWithImportantSemicolon(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1827,6 +1906,7 @@ func TestMinifiedBundleEndingWithImportantSemicolon(t *testing.T) {
 }
 
 func TestRuntimeNameCollisionNoBundle(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1842,6 +1922,7 @@ func TestRuntimeNameCollisionNoBundle(t *testing.T) {
 }
 
 func TestTopLevelReturnForbiddenImport(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1861,6 +1942,7 @@ entry.js: NOTE: This file is considered to be an ECMAScript module because of th
 }
 
 func TestTopLevelReturnForbiddenExport(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1880,6 +1962,7 @@ entry.js: NOTE: This file is considered to be an ECMAScript module because of th
 }
 
 func TestTopLevelReturnForbiddenTLA(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1898,6 +1981,7 @@ entry.js: NOTE: This file is considered to be an ECMAScript module because of th
 }
 
 func TestThisOutsideFunction(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1928,6 +2012,7 @@ func TestThisOutsideFunction(t *testing.T) {
 }
 
 func TestThisInsideFunction(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1968,6 +2053,7 @@ func TestThisInsideFunction(t *testing.T) {
 // The value of "this" is "exports" in CommonJS modules and undefined in ES6
 // modules. This is determined by the presence of ES6 import/export syntax.
 func TestThisWithES6Syntax(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2091,6 +2177,7 @@ es6-import-meta.js: NOTE: This file is considered to be an ECMAScript module bec
 }
 
 func TestArrowFnScope(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2116,6 +2203,7 @@ func TestArrowFnScope(t *testing.T) {
 }
 
 func TestSwitchScopeNoBundle(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2132,6 +2220,7 @@ func TestSwitchScopeNoBundle(t *testing.T) {
 }
 
 func TestArgumentDefaultValueScopeNoBundle(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2154,6 +2243,7 @@ func TestArgumentDefaultValueScopeNoBundle(t *testing.T) {
 }
 
 func TestArgumentsSpecialCaseNoBundle(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2205,6 +2295,7 @@ func TestArgumentsSpecialCaseNoBundle(t *testing.T) {
 }
 
 func TestWithStatementTaintingNoBundle(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2238,6 +2329,7 @@ func TestWithStatementTaintingNoBundle(t *testing.T) {
 }
 
 func TestDirectEvalTaintingNoBundle(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2283,6 +2375,7 @@ func TestDirectEvalTaintingNoBundle(t *testing.T) {
 }
 
 func TestImportReExportES6Issue149(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/app.jsx": `
@@ -2318,6 +2411,7 @@ func TestImportReExportES6Issue149(t *testing.T) {
 }
 
 func TestExternalModuleExclusionPackage(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/index.js": `
@@ -2343,6 +2437,7 @@ func TestExternalModuleExclusionPackage(t *testing.T) {
 }
 
 func TestExternalModuleExclusionScopedPackage(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/index.js": `
@@ -2395,6 +2490,7 @@ NOTE: You can mark the path "@c1/c2/c3-c4" as external to exclude it from the bu
 }
 
 func TestScopedExternalModuleExclusion(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/index.js": `
@@ -2420,6 +2516,7 @@ func TestScopedExternalModuleExclusion(t *testing.T) {
 }
 
 func TestExternalModuleExclusionRelativePath(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/index.js": `
@@ -2454,6 +2551,7 @@ func TestExternalModuleExclusionRelativePath(t *testing.T) {
 // Webpack supports this case, so we do too. Some libraries apparently have
 // these paths: https://github.com/webpack/enhanced-resolve/issues/247
 func TestImportWithHashInPath(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2473,6 +2571,7 @@ func TestImportWithHashInPath(t *testing.T) {
 }
 
 func TestImportWithHashParameter(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2492,6 +2591,7 @@ func TestImportWithHashParameter(t *testing.T) {
 }
 
 func TestImportWithQueryParameter(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2511,6 +2611,7 @@ func TestImportWithQueryParameter(t *testing.T) {
 }
 
 func TestImportAbsPathWithQueryParameter(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/entry.js": `
@@ -2530,6 +2631,7 @@ func TestImportAbsPathWithQueryParameter(t *testing.T) {
 }
 
 func TestImportAbsPathAsFile(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/entry.js": `
@@ -2549,6 +2651,7 @@ func TestImportAbsPathAsFile(t *testing.T) {
 }
 
 func TestImportAbsPathAsDir(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundledUnix(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/entry.js": `
@@ -2585,6 +2688,7 @@ func TestImportAbsPathAsDir(t *testing.T) {
 }
 
 func TestAutoExternal(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2604,6 +2708,7 @@ func TestAutoExternal(t *testing.T) {
 }
 
 func TestAutoExternalNode(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2628,6 +2733,7 @@ func TestAutoExternalNode(t *testing.T) {
 }
 
 func TestExternalWithWildcard(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2663,6 +2769,7 @@ entry.js: ERROR: Could not resolve "./file.ping"
 }
 
 func TestExternalWildcardDoesNotMatchEntryPoint(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			// The "*" pattern should not apply to this entry point
@@ -2685,6 +2792,7 @@ func TestExternalWildcardDoesNotMatchEntryPoint(t *testing.T) {
 
 // This test case makes sure many entry points don't cause a crash
 func TestManyEntryPoints(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/shared.js": `export default 123`,
@@ -2747,6 +2855,7 @@ func TestManyEntryPoints(t *testing.T) {
 }
 
 func TestRenamePrivateIdentifiersNoBundle(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2780,6 +2889,7 @@ func TestRenamePrivateIdentifiersNoBundle(t *testing.T) {
 }
 
 func TestMinifyPrivateIdentifiersNoBundle(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2814,6 +2924,7 @@ func TestMinifyPrivateIdentifiersNoBundle(t *testing.T) {
 }
 
 func TestRenameLabelsNoBundle(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2846,6 +2957,7 @@ func TestRenameLabelsNoBundle(t *testing.T) {
 
 // These labels should all share the same minified names
 func TestMinifySiblingLabelsNoBundle(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2879,6 +2991,7 @@ func TestMinifySiblingLabelsNoBundle(t *testing.T) {
 
 // We shouldn't ever generate a label with the name "if"
 func TestMinifyNestedLabelsNoBundle(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2916,6 +3029,7 @@ func TestMinifyNestedLabelsNoBundle(t *testing.T) {
 }
 
 func TestExportsAndModuleFormatCommonJS(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2943,6 +3057,7 @@ func TestExportsAndModuleFormatCommonJS(t *testing.T) {
 }
 
 func TestMinifiedExportsAndModuleFormatCommonJS(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2972,6 +3087,7 @@ func TestMinifiedExportsAndModuleFormatCommonJS(t *testing.T) {
 }
 
 func TestEmptyExportClauseBundleAsCommonJSIssue910(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -2993,6 +3109,7 @@ func TestEmptyExportClauseBundleAsCommonJSIssue910(t *testing.T) {
 
 // The minifier should not remove "use strict" or join it with other expressions
 func TestUseStrictDirectiveMinifyNoBundle(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -3012,6 +3129,7 @@ func TestUseStrictDirectiveMinifyNoBundle(t *testing.T) {
 }
 
 func TestUseStrictDirectiveBundleIssue1837(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -3038,6 +3156,7 @@ func TestUseStrictDirectiveBundleIssue1837(t *testing.T) {
 }
 
 func TestUseStrictDirectiveBundleIIFEIssue2264(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -3055,6 +3174,7 @@ func TestUseStrictDirectiveBundleIIFEIssue2264(t *testing.T) {
 }
 
 func TestUseStrictDirectiveBundleCJSIssue2264(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -3072,6 +3192,7 @@ func TestUseStrictDirectiveBundleCJSIssue2264(t *testing.T) {
 }
 
 func TestUseStrictDirectiveBundleESMIssue2264(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -3089,6 +3210,7 @@ func TestUseStrictDirectiveBundleESMIssue2264(t *testing.T) {
 }
 
 func TestNoOverwriteInputFileError(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -3106,6 +3228,7 @@ func TestNoOverwriteInputFileError(t *testing.T) {
 }
 
 func TestDuplicateEntryPoint(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -3121,6 +3244,7 @@ func TestDuplicateEntryPoint(t *testing.T) {
 }
 
 func TestRelativeEntryPointError(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -3139,6 +3263,7 @@ NOTE: Use the relative path "./entry" to reference the file "entry.js". Without 
 }
 
 func TestMultipleEntryPointsSameNameCollision(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a/entry.js": `import {foo} from '../common.js'; console.log(foo)`,
@@ -3154,6 +3279,7 @@ func TestMultipleEntryPointsSameNameCollision(t *testing.T) {
 }
 
 func TestReExportCommonJSAsES6(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -3172,6 +3298,7 @@ func TestReExportCommonJSAsES6(t *testing.T) {
 }
 
 func TestReExportDefaultInternal(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -3194,6 +3321,7 @@ func TestReExportDefaultInternal(t *testing.T) {
 }
 
 func TestReExportDefaultExternalES6(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -3220,6 +3348,7 @@ func TestReExportDefaultExternalES6(t *testing.T) {
 }
 
 func TestReExportDefaultExternalCommonJS(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -3246,6 +3375,7 @@ func TestReExportDefaultExternalCommonJS(t *testing.T) {
 }
 
 func TestReExportDefaultNoBundle(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -3261,6 +3391,7 @@ func TestReExportDefaultNoBundle(t *testing.T) {
 }
 
 func TestReExportDefaultNoBundleES6(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -3278,6 +3409,7 @@ func TestReExportDefaultNoBundleES6(t *testing.T) {
 }
 
 func TestReExportDefaultNoBundleCommonJS(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -3295,6 +3427,7 @@ func TestReExportDefaultNoBundleCommonJS(t *testing.T) {
 }
 
 func TestImportMetaCommonJS(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -3316,6 +3449,7 @@ NOTE: You need to set the output format to "esm" for "import.meta" to work corre
 }
 
 func TestImportMetaES6(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -3332,6 +3466,7 @@ func TestImportMetaES6(t *testing.T) {
 }
 
 func TestImportMetaNoBundle(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -3346,6 +3481,7 @@ func TestImportMetaNoBundle(t *testing.T) {
 }
 
 func TestLegalCommentsNone(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/empty.js": ``,
@@ -3383,6 +3519,7 @@ func TestLegalCommentsNone(t *testing.T) {
 }
 
 func TestLegalCommentsInline(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/empty.js": ``,
@@ -3420,6 +3557,7 @@ func TestLegalCommentsInline(t *testing.T) {
 }
 
 func TestLegalCommentsEndOfFile(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/empty.js": ``,
@@ -3457,6 +3595,7 @@ func TestLegalCommentsEndOfFile(t *testing.T) {
 }
 
 func TestLegalCommentsLinked(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/empty.js": ``,
@@ -3494,6 +3633,7 @@ func TestLegalCommentsLinked(t *testing.T) {
 }
 
 func TestLegalCommentsExternal(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/empty.js": ``,
@@ -3531,6 +3671,7 @@ func TestLegalCommentsExternal(t *testing.T) {
 }
 
 func TestLegalCommentsModifyIndent(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -3559,6 +3700,7 @@ func TestLegalCommentsModifyIndent(t *testing.T) {
 }
 
 func TestLegalCommentsAvoidSlashTagInline(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -3580,6 +3722,7 @@ func TestLegalCommentsAvoidSlashTagInline(t *testing.T) {
 }
 
 func TestLegalCommentsAvoidSlashTagEndOfFile(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -3601,6 +3744,7 @@ func TestLegalCommentsAvoidSlashTagEndOfFile(t *testing.T) {
 }
 
 func TestLegalCommentsAvoidSlashTagExternal(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -3622,6 +3766,7 @@ func TestLegalCommentsAvoidSlashTagExternal(t *testing.T) {
 }
 
 func TestLegalCommentsManyEndOfFile(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/project/entry.js": `
@@ -3722,6 +3867,7 @@ func TestLegalCommentsManyEndOfFile(t *testing.T) {
 }
 
 func TestLegalCommentsEscapeSlashScriptAndStyleEndOfFile(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/project/entry.js":                     `import "js-pkg"; a /*! </script> */`,
@@ -3741,6 +3887,7 @@ func TestLegalCommentsEscapeSlashScriptAndStyleEndOfFile(t *testing.T) {
 }
 
 func TestLegalCommentsEscapeSlashScriptAndStyleExternal(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/project/entry.js":                     `import "js-pkg"; a /*! </script> */`,
@@ -3760,6 +3907,7 @@ func TestLegalCommentsEscapeSlashScriptAndStyleExternal(t *testing.T) {
 }
 
 func TestLegalCommentsNoEscapeSlashScriptEndOfFile(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/project/entry.js":                     `import "js-pkg"; a /*! </script> */`,
@@ -3780,6 +3928,7 @@ func TestLegalCommentsNoEscapeSlashScriptEndOfFile(t *testing.T) {
 }
 
 func TestLegalCommentsNoEscapeSlashStyleEndOfFile(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/project/entry.js":                     `import "js-pkg"; a /*! </script> */`,
@@ -3800,6 +3949,7 @@ func TestLegalCommentsNoEscapeSlashStyleEndOfFile(t *testing.T) {
 }
 
 func TestLegalCommentsManyLinked(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/project/entry.js": `
@@ -3873,6 +4023,7 @@ func TestLegalCommentsManyLinked(t *testing.T) {
 
 // https://github.com/evanw/esbuild/issues/4139
 func TestLegalCommentsMergeDuplicatesIssue4139(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/project/entry.js": `
@@ -3926,6 +4077,7 @@ func TestLegalCommentsMergeDuplicatesIssue4139(t *testing.T) {
 
 // The IIFE should not be an arrow function when targeting ES5
 func TestIIFE_ES5(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -3943,6 +4095,7 @@ func TestIIFE_ES5(t *testing.T) {
 }
 
 func TestOutputExtensionRemappingFile(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -3959,6 +4112,7 @@ func TestOutputExtensionRemappingFile(t *testing.T) {
 }
 
 func TestOutputExtensionRemappingDir(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -3975,6 +4129,7 @@ func TestOutputExtensionRemappingDir(t *testing.T) {
 }
 
 func TestTopLevelAwaitIIFE(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -3995,6 +4150,7 @@ entry.js: ERROR: Top-level await is currently not supported with the "iife" outp
 }
 
 func TestTopLevelAwaitIIFEDeadBranch(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -4012,6 +4168,7 @@ func TestTopLevelAwaitIIFEDeadBranch(t *testing.T) {
 }
 
 func TestTopLevelAwaitCJS(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -4032,6 +4189,7 @@ entry.js: ERROR: Top-level await is currently not supported with the "cjs" outpu
 }
 
 func TestTopLevelAwaitCJSDeadBranch(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -4049,6 +4207,7 @@ func TestTopLevelAwaitCJSDeadBranch(t *testing.T) {
 }
 
 func TestTopLevelAwaitESM(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -4066,6 +4225,7 @@ func TestTopLevelAwaitESM(t *testing.T) {
 }
 
 func TestTopLevelAwaitESMDeadBranch(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -4083,6 +4243,7 @@ func TestTopLevelAwaitESMDeadBranch(t *testing.T) {
 }
 
 func TestTopLevelAwaitNoBundle(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -4098,6 +4259,7 @@ func TestTopLevelAwaitNoBundle(t *testing.T) {
 }
 
 func TestTopLevelAwaitNoBundleDeadBranch(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -4113,6 +4275,7 @@ func TestTopLevelAwaitNoBundleDeadBranch(t *testing.T) {
 }
 
 func TestTopLevelAwaitNoBundleESM(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -4130,6 +4293,7 @@ func TestTopLevelAwaitNoBundleESM(t *testing.T) {
 }
 
 func TestTopLevelAwaitNoBundleESMDeadBranch(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -4147,6 +4311,7 @@ func TestTopLevelAwaitNoBundleESMDeadBranch(t *testing.T) {
 }
 
 func TestTopLevelAwaitNoBundleCommonJS(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -4167,6 +4332,7 @@ entry.js: ERROR: Top-level await is currently not supported with the "cjs" outpu
 }
 
 func TestTopLevelAwaitNoBundleCommonJSDeadBranch(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -4184,6 +4350,7 @@ func TestTopLevelAwaitNoBundleCommonJSDeadBranch(t *testing.T) {
 }
 
 func TestTopLevelAwaitNoBundleIIFE(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -4204,6 +4371,7 @@ entry.js: ERROR: Top-level await is currently not supported with the "iife" outp
 }
 
 func TestTopLevelAwaitNoBundleIIFEDeadBranch(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -4221,6 +4389,7 @@ func TestTopLevelAwaitNoBundleIIFEDeadBranch(t *testing.T) {
 }
 
 func TestTopLevelAwaitForbiddenRequire(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -4264,6 +4433,7 @@ entry.js: NOTE: The top-level await in "entry.js" is here:
 }
 
 func TestTopLevelAwaitForbiddenRequireDeadBranch(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -4293,6 +4463,7 @@ func TestTopLevelAwaitForbiddenRequireDeadBranch(t *testing.T) {
 }
 
 func TestTopLevelAwaitAllowedImportWithoutSplitting(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -4322,6 +4493,7 @@ func TestTopLevelAwaitAllowedImportWithoutSplitting(t *testing.T) {
 }
 
 func TestTopLevelAwaitAllowedImportWithSplitting(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -4352,6 +4524,7 @@ func TestTopLevelAwaitAllowedImportWithSplitting(t *testing.T) {
 }
 
 func TestAssignToImport(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -4446,6 +4619,7 @@ NOTE: Imports are immutable in JavaScript. To modify the value of this import, y
 }
 
 func TestAssignToImportNoBundle(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			// The cases labeled "uncaught" below are not caught when bundling is
@@ -4529,6 +4703,7 @@ NOTE: Imports are immutable in JavaScript. To modify the value of this import, y
 }
 
 func TestMinifyArguments(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -4557,6 +4732,7 @@ func TestMinifyArguments(t *testing.T) {
 }
 
 func TestWarningsInsideNodeModules(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundledUnix(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -4660,6 +4836,7 @@ write-getter.js: WARNING: Writing to getter-only property "#foo" will throw
 }
 
 func TestRequireResolve(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -4714,6 +4891,7 @@ entry.js: WARNING: "@scope/missing-pkg" should be marked as external for use wit
 }
 
 func TestInjectMissing(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundledUnix(t, bundled{
 		files: map[string]string{
 			"/entry.js": ``,
@@ -4747,6 +4925,7 @@ func TestInjectMissing(t *testing.T) {
 
 // Duplicates are allowed, and should only be injected once
 func TestInjectDuplicate(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js":  ``,
@@ -4765,6 +4944,7 @@ func TestInjectDuplicate(t *testing.T) {
 }
 
 func TestInject(t *testing.T) {
+	t.Parallel()
 	defines := config.ProcessDefines([]config.DefineData{
 		{
 			KeyParts: []string{"chain", "prop"},
@@ -4865,6 +5045,7 @@ func TestInject(t *testing.T) {
 }
 
 func TestInjectNoBundle(t *testing.T) {
+	t.Parallel()
 	defines := config.ProcessDefines([]config.DefineData{
 		{
 			KeyParts: []string{"chain", "prop"},
@@ -4959,6 +5140,7 @@ func TestInjectNoBundle(t *testing.T) {
 }
 
 func TestInjectJSX(t *testing.T) {
+	t.Parallel()
 	defines := config.ProcessDefines([]config.DefineData{
 		{
 			KeyParts: []string{"React", "createElement"},
@@ -4996,6 +5178,7 @@ func TestInjectJSX(t *testing.T) {
 }
 
 func TestInjectJSXDotNames(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.jsx": `
@@ -5022,6 +5205,7 @@ func TestInjectJSXDotNames(t *testing.T) {
 }
 
 func TestInjectImportTS(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -5049,6 +5233,7 @@ func TestInjectImportTS(t *testing.T) {
 }
 
 func TestInjectImportOrder(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -5084,6 +5269,7 @@ func TestInjectImportOrder(t *testing.T) {
 }
 
 func TestInjectAssign(t *testing.T) {
+	t.Parallel()
 	defines := config.ProcessDefines([]config.DefineData{{
 		KeyParts:   []string{"defined"},
 		DefineExpr: &config.DefineExpr{Parts: []string{"some", "define"}},
@@ -5123,6 +5309,7 @@ inject.js: NOTE: The symbol "some.define" was exported from "inject.js" here:
 }
 
 func TestInjectWithDefine(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -5172,6 +5359,7 @@ func TestInjectWithDefine(t *testing.T) {
 }
 
 func TestOutbase(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a/b/c.js": `
@@ -5191,6 +5379,7 @@ func TestOutbase(t *testing.T) {
 }
 
 func TestAvoidTDZ(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -5212,6 +5401,7 @@ func TestAvoidTDZ(t *testing.T) {
 }
 
 func TestAvoidTDZNoBundle(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -5233,6 +5423,7 @@ func TestAvoidTDZNoBundle(t *testing.T) {
 }
 
 func TestDefineImportMeta(t *testing.T) {
+	t.Parallel()
 	defines := config.ProcessDefines([]config.DefineData{
 		{
 			KeyParts: []string{"import", "meta"},
@@ -5280,6 +5471,7 @@ func TestDefineImportMeta(t *testing.T) {
 }
 
 func TestDefineImportMetaES5(t *testing.T) {
+	t.Parallel()
 	defines := config.ProcessDefines([]config.DefineData{
 		{
 			KeyParts: []string{"import", "meta", "x"},
@@ -5318,6 +5510,7 @@ kept.js: WARNING: "import.meta" is not available in the configured target enviro
 }
 
 func TestInjectImportMeta(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -5355,6 +5548,7 @@ func TestInjectImportMeta(t *testing.T) {
 }
 
 func TestDefineThis(t *testing.T) {
+	t.Parallel()
 	defines := config.ProcessDefines([]config.DefineData{
 		{
 			KeyParts: []string{"this"},
@@ -5424,6 +5618,7 @@ func TestDefineThis(t *testing.T) {
 }
 
 func TestDefineOptionalChain(t *testing.T) {
+	t.Parallel()
 	defines := config.ProcessDefines([]config.DefineData{{
 		KeyParts: []string{"a", "b", "c"},
 		DefineExpr: &config.DefineExpr{
@@ -5458,6 +5653,7 @@ func TestDefineOptionalChain(t *testing.T) {
 }
 
 func TestDefineOptionalChainLowered(t *testing.T) {
+	t.Parallel()
 	defines := config.ProcessDefines([]config.DefineData{{
 		KeyParts: []string{"a", "b", "c"},
 		DefineExpr: &config.DefineExpr{
@@ -5494,6 +5690,7 @@ func TestDefineOptionalChainLowered(t *testing.T) {
 
 // See: https://github.com/evanw/esbuild/issues/3551
 func TestDefineOptionalChainPanicIssue3551(t *testing.T) {
+	t.Parallel()
 	defines := config.ProcessDefines([]config.DefineData{
 		{
 			KeyParts: []string{"x"},
@@ -5554,6 +5751,7 @@ func TestDefineOptionalChainPanicIssue3551(t *testing.T) {
 
 // See: https://github.com/evanw/esbuild/issues/2407
 func TestDefineInfiniteLoopIssue2407(t *testing.T) {
+	t.Parallel()
 	defines := config.ProcessDefines([]config.DefineData{
 		{
 			KeyParts: []string{"a", "b"},
@@ -5597,6 +5795,7 @@ func TestDefineInfiniteLoopIssue2407(t *testing.T) {
 }
 
 func TestDefineAssignWarning(t *testing.T) {
+	t.Parallel()
 	defines := config.ProcessDefines([]config.DefineData{
 		{
 			KeyParts: []string{"a"},
@@ -5672,6 +5871,7 @@ NOTE: The expression "b['c']" has been configured to be replaced with a constant
 }
 
 func TestKeepNamesAllForms(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/keep.js": `
@@ -5755,6 +5955,7 @@ func TestKeepNamesAllForms(t *testing.T) {
 }
 
 func TestKeepNamesTreeShaking(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -5786,6 +5987,7 @@ func TestKeepNamesTreeShaking(t *testing.T) {
 }
 
 func TestKeepNamesClassStaticName(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -5821,6 +6023,7 @@ func TestKeepNamesClassStaticName(t *testing.T) {
 }
 
 func TestCharFreqIgnoreComments(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.js": `
@@ -5851,6 +6054,7 @@ func TestCharFreqIgnoreComments(t *testing.T) {
 }
 
 func TestImportRelativeAsPackage(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/Users/user/project/src/entry.js": `
@@ -5876,6 +6080,7 @@ NOTE: Use the relative path "./some/other/file" to reference the file "Users/use
 // reduce code size further) when bundling is active, so nested "const" also
 // needs to be an error in this case.
 func TestForbidConstAssignWhenBundling(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -5903,6 +6108,7 @@ entry.js: NOTE: The symbol "y" was declared a constant here:
 // Assigning to a top-level "const" that will be transformed into a "var" must
 // be an error at compile-time because it won't be an error at run-time
 func TestForbidConstAssignWhenLoweringUsing(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -5930,6 +6136,7 @@ entry.js: NOTE: The symbol "y" was declared a constant here:
 }
 
 func TestConstWithLet(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -5951,6 +6158,7 @@ func TestConstWithLet(t *testing.T) {
 }
 
 func TestConstWithLetNoBundle(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -5972,6 +6180,7 @@ func TestConstWithLetNoBundle(t *testing.T) {
 }
 
 func TestConstWithLetNoMangle(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -5991,6 +6200,7 @@ func TestConstWithLetNoMangle(t *testing.T) {
 }
 
 func TestRequireMainCacheCommonJS(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -6013,6 +6223,7 @@ func TestRequireMainCacheCommonJS(t *testing.T) {
 }
 
 func TestExternalES6ConvertedToCommonJS(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -6055,6 +6266,7 @@ func TestExternalES6ConvertedToCommonJS(t *testing.T) {
 }
 
 func TestCallImportNamespaceWarning(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/js.js": `
@@ -6135,6 +6347,7 @@ NOTE: Make sure to enable TypeScript's "esModuleInterop" setting so that TypeScr
 }
 
 func TestJSXThisValueCommonJS(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/factory.jsx": `
@@ -6175,6 +6388,7 @@ func TestJSXThisValueCommonJS(t *testing.T) {
 }
 
 func TestJSXThisValueESM(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/factory.jsx": `
@@ -6223,6 +6437,7 @@ fragment.jsx: NOTE: This file is considered to be an ECMAScript module because o
 }
 
 func TestJSXThisPropertyCommonJS(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/factory.jsx": `
@@ -6263,6 +6478,7 @@ func TestJSXThisPropertyCommonJS(t *testing.T) {
 }
 
 func TestJSXThisPropertyESM(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/factory.jsx": `
@@ -6311,6 +6527,7 @@ fragment.jsx: NOTE: This file is considered to be an ECMAScript module because o
 }
 
 func TestJSXImportMetaValue(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/factory.jsx": `
@@ -6361,6 +6578,7 @@ fragment.jsx: WARNING: "import.meta" is not available in the configured target e
 }
 
 func TestJSXImportMetaProperty(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/factory.jsx": `
@@ -6411,6 +6629,7 @@ fragment.jsx: WARNING: "import.meta" is not available in the configured target e
 }
 
 func TestBundlingFilesOutsideOfOutbase(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/src/entry.js": `
@@ -6506,6 +6725,7 @@ var relocateEntries = []string{
 }
 
 func TestVarRelocatingBundle(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files:      relocateFiles,
 		entryPaths: relocateEntries,
@@ -6518,6 +6738,7 @@ func TestVarRelocatingBundle(t *testing.T) {
 }
 
 func TestVarRelocatingNoBundle(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files:      relocateFiles,
 		entryPaths: relocateEntries,
@@ -6530,6 +6751,7 @@ func TestVarRelocatingNoBundle(t *testing.T) {
 }
 
 func TestImportNamespaceThisValue(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/a.js": `
@@ -6561,6 +6783,7 @@ func TestImportNamespaceThisValue(t *testing.T) {
 }
 
 func TestThisUndefinedWarningESM(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -6590,6 +6813,7 @@ node_modules/pkg/file2.js: NOTE: This file is considered to be an ECMAScript mod
 }
 
 func TestQuotedProperty(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -6612,6 +6836,7 @@ func TestQuotedProperty(t *testing.T) {
 }
 
 func TestQuotedPropertyMangle(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -6635,6 +6860,7 @@ func TestQuotedPropertyMangle(t *testing.T) {
 }
 
 func TestDuplicatePropertyWarning(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -6670,6 +6896,7 @@ outside-node-modules/package.json: NOTE: The original key "b" is here:
 }
 
 func TestRequireShimSubstitution(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -6708,6 +6935,7 @@ func TestRequireShimSubstitution(t *testing.T) {
 // declarations, name keeping, and initialized variable inlining. See this issue
 // for full context: https://github.com/evanw/esbuild/issues/1552.
 func TestStrictModeNestedFnDeclKeepNamesVariableInliningIssue1552(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -6734,6 +6962,7 @@ func TestStrictModeNestedFnDeclKeepNamesVariableInliningIssue1552(t *testing.T) 
 }
 
 func TestBuiltInNodeModulePrecedence(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -6769,6 +6998,7 @@ func TestBuiltInNodeModulePrecedence(t *testing.T) {
 }
 
 func TestEntryNamesNoSlashAfterDir(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/src/app1/main.ts": `console.log(1)`,
@@ -6793,6 +7023,7 @@ func TestEntryNamesNoSlashAfterDir(t *testing.T) {
 }
 
 func TestEntryNamesNonPortableCharacter(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry1-:.ts": `console.log(1)`,
@@ -6813,6 +7044,7 @@ func TestEntryNamesNonPortableCharacter(t *testing.T) {
 }
 
 func TestEntryNamesChunkNamesExtPlaceholder(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/src/entries/entry1.js":  `import "../lib/shared.js"; import "./entry1.css"; console.log('entry1')`,
@@ -6845,6 +7077,7 @@ func TestEntryNamesChunkNamesExtPlaceholder(t *testing.T) {
 }
 
 func TestMinifyIdentifiersImportPathFrequencyAnalysis(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/import.js": `
@@ -6873,6 +7106,7 @@ func TestMinifyIdentifiersImportPathFrequencyAnalysis(t *testing.T) {
 }
 
 func TestToESMWrapperOmission(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -6924,6 +7158,7 @@ func TestToESMWrapperOmission(t *testing.T) {
 //	  return foo2;
 //	};
 func TestNamedFunctionExpressionArgumentCollision(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -6943,6 +7178,7 @@ func TestNamedFunctionExpressionArgumentCollision(t *testing.T) {
 }
 
 func TestNoWarnCommonJSExportsInESMPassThrough(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/cjs-in-esm.js": `
@@ -6972,6 +7208,7 @@ func TestNoWarnCommonJSExportsInESMPassThrough(t *testing.T) {
 }
 
 func TestWarnCommonJSExportsInESMConvert(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/cjs-in-esm.js": `
@@ -7015,6 +7252,7 @@ cjs-in-esm2.js: NOTE: This file is considered to be an ECMAScript module because
 }
 
 func TestWarnCommonJSExportsInESMBundle(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/cjs-in-esm.js": `
@@ -7055,6 +7293,7 @@ cjs-in-esm.js: NOTE: This file is considered to be an ECMAScript module because 
 }
 
 func TestMangleProps(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry1.js": `
@@ -7111,6 +7350,7 @@ func TestMangleProps(t *testing.T) {
 }
 
 func TestManglePropsMinify(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			// These repeating characters test for frequency analysis
@@ -7171,6 +7411,7 @@ func TestManglePropsMinify(t *testing.T) {
 }
 
 func TestManglePropsKeywordPropertyMinify(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -7192,6 +7433,7 @@ func TestManglePropsKeywordPropertyMinify(t *testing.T) {
 }
 
 func TestManglePropsOptionalChain(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -7217,6 +7459,7 @@ func TestManglePropsOptionalChain(t *testing.T) {
 }
 
 func TestManglePropsLoweredOptionalChain(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -7243,6 +7486,7 @@ func TestManglePropsLoweredOptionalChain(t *testing.T) {
 }
 
 func TestReserveProps(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -7263,6 +7507,7 @@ func TestReserveProps(t *testing.T) {
 }
 
 func TestManglePropsImportExport(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			// These don't count as property names, and aren't mangled
@@ -7290,6 +7535,7 @@ func TestManglePropsImportExport(t *testing.T) {
 }
 
 func TestManglePropsImportExportBundled(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			// Note: import and export syntax does not count as a property name. That
@@ -7335,6 +7581,7 @@ func TestManglePropsImportExportBundled(t *testing.T) {
 }
 
 func TestManglePropsJSXTransform(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.jsx": `
@@ -7367,6 +7614,7 @@ func TestManglePropsJSXTransform(t *testing.T) {
 }
 
 func TestManglePropsJSXPreserve(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.jsx": `
@@ -7392,6 +7640,7 @@ func TestManglePropsJSXPreserve(t *testing.T) {
 }
 
 func TestManglePropsJSXTransformNamespace(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.jsx": `
@@ -7412,6 +7661,7 @@ func TestManglePropsJSXTransformNamespace(t *testing.T) {
 }
 
 func TestManglePropsAvoidCollisions(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -7434,6 +7684,7 @@ func TestManglePropsAvoidCollisions(t *testing.T) {
 }
 
 func TestManglePropsTypeScriptFeatures(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/parameter-properties.ts": `
@@ -7542,6 +7793,7 @@ func TestManglePropsTypeScriptFeatures(t *testing.T) {
 }
 
 func TestManglePropsShorthand(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -7560,6 +7812,7 @@ func TestManglePropsShorthand(t *testing.T) {
 }
 
 func TestManglePropsNoShorthand(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -7579,6 +7832,7 @@ func TestManglePropsNoShorthand(t *testing.T) {
 }
 
 func TestManglePropsLoweredClassFields(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -7604,6 +7858,7 @@ func TestManglePropsLoweredClassFields(t *testing.T) {
 // The fix was to prevent the property "constructor" from being mangled.
 // See: https://github.com/evanw/esbuild/issues/1976
 func TestManglePropsSuperCall(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -7625,6 +7880,7 @@ func TestManglePropsSuperCall(t *testing.T) {
 }
 
 func TestMangleNoQuotedProps(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -7653,6 +7909,7 @@ func TestMangleNoQuotedProps(t *testing.T) {
 }
 
 func TestMangleNoQuotedPropsMinifySyntax(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -7682,6 +7939,7 @@ func TestMangleNoQuotedPropsMinifySyntax(t *testing.T) {
 }
 
 func TestMangleQuotedProps(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/keep.js": `
@@ -7730,6 +7988,7 @@ func TestMangleQuotedProps(t *testing.T) {
 }
 
 func TestMangleQuotedPropsMinifySyntax(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/keep.js": `
@@ -7779,6 +8038,7 @@ func TestMangleQuotedPropsMinifySyntax(t *testing.T) {
 }
 
 func TestPreserveKeyComment(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -7796,6 +8056,7 @@ func TestPreserveKeyComment(t *testing.T) {
 }
 
 func TestManglePropsKeyComment(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -7819,6 +8080,7 @@ func TestManglePropsKeyComment(t *testing.T) {
 }
 
 func TestManglePropsKeyCommentMinify(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -7852,6 +8114,7 @@ func TestManglePropsKeyCommentMinify(t *testing.T) {
 }
 
 func TestIndirectRequireMessage(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/array.js":  `let x = [require]`,
@@ -7882,6 +8145,7 @@ ident.js: DEBUG: Indirect calls to "require" will not be bundled
 }
 
 func TestAmbiguousReexportMsg(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -7908,6 +8172,7 @@ b.js: NOTE: Another definition of "x" comes from "b.js" here:
 
 // See: https://github.com/evanw/esbuild/issues/2537
 func TestNonDeterminismIssue2537(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.ts": `
@@ -7944,6 +8209,7 @@ func TestNonDeterminismIssue2537(t *testing.T) {
 
 // See: https://github.com/evanw/esbuild/issues/2697
 func TestMinifiedJSXPreserveWithObjectSpread(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.jsx": `
@@ -7982,6 +8248,7 @@ func TestMinifiedJSXPreserveWithObjectSpread(t *testing.T) {
 }
 
 func TestPackageAlias(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -8033,6 +8300,7 @@ func TestPackageAlias(t *testing.T) {
 }
 
 func TestPackageAliasMatchLongest(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -8063,6 +8331,7 @@ func TestPackageAliasMatchLongest(t *testing.T) {
 }
 
 func TestErrorsForAssertTypeJSON(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/js-entry.js": `
@@ -8152,6 +8421,7 @@ NOTE: You can either keep the import assertion and only use the "default" import
 }
 
 func TestOutputForAssertTypeJSON(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/js-entry.js": `
@@ -8199,6 +8469,7 @@ NOTE: You can either keep the import assertion and only use the "default" import
 }
 
 func TestExternalPackages(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/project/entry.js": `
@@ -8232,6 +8503,7 @@ func TestExternalPackages(t *testing.T) {
 }
 
 func TestMetafileVariousCases(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/project/entry.js": `
@@ -8297,6 +8569,7 @@ func TestMetafileVariousCases(t *testing.T) {
 }
 
 func TestMetafileNoBundle(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/project/entry.js": `
@@ -8331,6 +8604,7 @@ func TestMetafileNoBundle(t *testing.T) {
 }
 
 func TestMetafileVeryLongExternalPaths(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/project/bytesInOutput should be at least 99 (1).js": `
@@ -8374,6 +8648,7 @@ func TestMetafileVeryLongExternalPaths(t *testing.T) {
 }
 
 func TestMetafileImportWithTypeJSON(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/project/entry.js": `
@@ -8394,6 +8669,7 @@ func TestMetafileImportWithTypeJSON(t *testing.T) {
 }
 
 func TestCommentPreservation(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -8560,6 +8836,7 @@ func TestCommentPreservation(t *testing.T) {
 }
 
 func TestCommentPreservationImportAssertions(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.jsx": `
@@ -8584,6 +8861,7 @@ func TestCommentPreservationImportAssertions(t *testing.T) {
 }
 
 func TestCommentPreservationTransformJSX(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.jsx": `
@@ -8620,6 +8898,7 @@ func TestCommentPreservationTransformJSX(t *testing.T) {
 }
 
 func TestCommentPreservationPreserveJSX(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.jsx": `
@@ -8659,6 +8938,7 @@ func TestCommentPreservationPreserveJSX(t *testing.T) {
 }
 
 func TestErrorMessageCrashStdinIssue2913(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/project/node_modules/fflate/package.json": `{ "main": "main.js" }`,
@@ -8680,6 +8960,7 @@ NOTE: You can mark the path "node_modules/fflate" as external to exclude it from
 }
 
 func TestLineLimitNotMinified(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/script.jsx": `
@@ -8740,6 +9021,7 @@ func TestLineLimitNotMinified(t *testing.T) {
 }
 
 func TestLineLimitMinified(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/script.jsx": `
@@ -8781,6 +9063,7 @@ func TestLineLimitMinified(t *testing.T) {
 }
 
 func TestBadImportErrorMessageWithHandlesImportErrorsFlag(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -8812,6 +9095,7 @@ NOTE: You can mark the path "bar" as external to exclude it from the bundle, whi
 }
 
 func TestDecoratorPrintingESM(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -8854,6 +9138,7 @@ func TestDecoratorPrintingESM(t *testing.T) {
 }
 
 func TestDecoratorPrintingCJS(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -8912,6 +9197,7 @@ func TestDecoratorPrintingCJS(t *testing.T) {
 // is produced in the future and it turns out esbuild should be doing something
 // else.
 func TestJSXDevSelfEdgeCases(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/function-this.jsx":             `export function Foo() { return <div/> }`,
@@ -8950,6 +9236,7 @@ func TestJSXDevSelfEdgeCases(t *testing.T) {
 }
 
 func TestObjectLiteralProtoSetterEdgeCases(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/local-shorthand.js": `
@@ -9010,6 +9297,7 @@ func TestObjectLiteralProtoSetterEdgeCases(t *testing.T) {
 }
 
 func TestObjectLiteralProtoSetterEdgeCasesMinifySyntax(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/local-computed.js": `
@@ -9071,6 +9359,7 @@ func TestObjectLiteralProtoSetterEdgeCasesMinifySyntax(t *testing.T) {
 }
 
 func TestForbidStringImportNamesNoBundle(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -9093,6 +9382,7 @@ entry.js: ERROR: Using the string "an export" as an export name is not supported
 }
 
 func TestForbidStringExportNamesNoBundle(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -9119,6 +9409,7 @@ entry.js: ERROR: Using the string "name space" as an export name is not supporte
 }
 
 func TestForbidStringImportNamesBundle(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -9147,6 +9438,7 @@ func TestForbidStringImportNamesBundle(t *testing.T) {
 }
 
 func TestForbidStringExportNamesBundle(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -9184,6 +9476,7 @@ very-nested.js: ERROR: Using the string "very nested name" as an export name is 
 }
 
 func TestInjectWithStringExportNameNoBundle(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -9206,6 +9499,7 @@ func TestInjectWithStringExportNameNoBundle(t *testing.T) {
 }
 
 func TestInjectWithStringExportNameBundle(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -9233,6 +9527,7 @@ func TestInjectWithStringExportNameBundle(t *testing.T) {
 }
 
 func TestStringExportNamesCommonJS(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -9252,6 +9547,7 @@ func TestStringExportNamesCommonJS(t *testing.T) {
 }
 
 func TestStringExportNamesIIFE(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -9272,6 +9568,7 @@ func TestStringExportNamesIIFE(t *testing.T) {
 }
 
 func TestSourceIdentifierNameIndexSingleEntry(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			// Generate identifier names for top-level and nested files
@@ -9292,6 +9589,7 @@ func TestSourceIdentifierNameIndexSingleEntry(t *testing.T) {
 }
 
 func TestSourceIdentifierNameIndexMultipleEntry(t *testing.T) {
+	t.Parallel()
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			// Generate identifier names for top-level and nested files
@@ -9320,6 +9618,7 @@ func TestSourceIdentifierNameIndexMultipleEntry(t *testing.T) {
 }
 
 func TestResolveExtensionsOrderIssue4053(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -9360,6 +9659,7 @@ func TestResolveExtensionsOrderIssue4053(t *testing.T) {
 }
 
 func TestBundleESMWithNestedVarIssue4348(t *testing.T) {
+	t.Parallel()
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `

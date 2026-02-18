@@ -12,7 +12,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"math/rand"
-	"net/http"
 	"net/url"
 	"sort"
 	"strings"
@@ -889,7 +888,7 @@ func isASCIIOnly(text string) bool {
 func guessMimeType(extension string, contents string) string {
 	mimeType := helpers.MimeTypeByExtension(extension)
 	if mimeType == "" {
-		mimeType = http.DetectContentType([]byte(contents))
+		mimeType = sniffMimeType([]byte(contents))
 	}
 
 	// Turn "text/plain; charset=utf-8" into "text/plain;charset=utf-8"

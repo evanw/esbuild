@@ -11,6 +11,7 @@ var importstar_suite = suite{
 }
 
 func TestImportStarUnused(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -31,6 +32,7 @@ func TestImportStarUnused(t *testing.T) {
 }
 
 func TestImportStarCapture(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -51,6 +53,7 @@ func TestImportStarCapture(t *testing.T) {
 }
 
 func TestImportStarNoCapture(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -71,6 +74,7 @@ func TestImportStarNoCapture(t *testing.T) {
 }
 
 func TestImportStarExportImportStarUnused(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -95,6 +99,7 @@ func TestImportStarExportImportStarUnused(t *testing.T) {
 }
 
 func TestImportStarExportImportStarNoCapture(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -119,6 +124,7 @@ func TestImportStarExportImportStarNoCapture(t *testing.T) {
 }
 
 func TestImportStarExportImportStarCapture(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -143,6 +149,7 @@ func TestImportStarExportImportStarCapture(t *testing.T) {
 }
 
 func TestImportStarExportStarAsUnused(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -166,6 +173,7 @@ func TestImportStarExportStarAsUnused(t *testing.T) {
 }
 
 func TestImportStarExportStarAsNoCapture(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -189,6 +197,7 @@ func TestImportStarExportStarAsNoCapture(t *testing.T) {
 }
 
 func TestImportStarExportStarAsCapture(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -212,6 +221,7 @@ func TestImportStarExportStarAsCapture(t *testing.T) {
 }
 
 func TestImportStarExportStarUnused(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -235,6 +245,7 @@ func TestImportStarExportStarUnused(t *testing.T) {
 }
 
 func TestImportStarExportStarNoCapture(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -258,6 +269,7 @@ func TestImportStarExportStarNoCapture(t *testing.T) {
 }
 
 func TestImportStarExportStarCapture(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -281,6 +293,7 @@ func TestImportStarExportStarCapture(t *testing.T) {
 }
 
 func TestImportStarCommonJSUnused(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -301,6 +314,7 @@ func TestImportStarCommonJSUnused(t *testing.T) {
 }
 
 func TestImportStarCommonJSCapture(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -321,6 +335,7 @@ func TestImportStarCommonJSCapture(t *testing.T) {
 }
 
 func TestImportStarCommonJSNoCapture(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -341,6 +356,7 @@ func TestImportStarCommonJSNoCapture(t *testing.T) {
 }
 
 func TestImportStarAndCommonJS(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -361,6 +377,7 @@ func TestImportStarAndCommonJS(t *testing.T) {
 }
 
 func TestImportStarNoBundleUnused(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -377,6 +394,7 @@ func TestImportStarNoBundleUnused(t *testing.T) {
 }
 
 func TestImportStarNoBundleCapture(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -393,6 +411,7 @@ func TestImportStarNoBundleCapture(t *testing.T) {
 }
 
 func TestImportStarNoBundleNoCapture(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -409,6 +428,7 @@ func TestImportStarNoBundleNoCapture(t *testing.T) {
 }
 
 func TestImportStarMangleNoBundleUnused(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -426,6 +446,7 @@ func TestImportStarMangleNoBundleUnused(t *testing.T) {
 }
 
 func TestImportStarMangleNoBundleCapture(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -443,6 +464,7 @@ func TestImportStarMangleNoBundleCapture(t *testing.T) {
 }
 
 func TestImportStarMangleNoBundleNoCapture(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -460,6 +482,7 @@ func TestImportStarMangleNoBundleNoCapture(t *testing.T) {
 }
 
 func TestImportStarExportStarOmitAmbiguous(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -488,6 +511,7 @@ func TestImportStarExportStarOmitAmbiguous(t *testing.T) {
 }
 
 func TestImportExportStarAmbiguousError(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -520,6 +544,7 @@ bar.js: NOTE: Another matching export is here:
 }
 
 func TestImportExportStarAmbiguousWarning(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -552,6 +577,7 @@ bar.js: NOTE: Another matching export is here:
 }
 
 func TestReExportStarNameCollisionNotAmbiguousImport(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -581,6 +607,7 @@ func TestReExportStarNameCollisionNotAmbiguousImport(t *testing.T) {
 }
 
 func TestReExportStarNameCollisionNotAmbiguousExport(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -607,6 +634,7 @@ func TestReExportStarNameCollisionNotAmbiguousExport(t *testing.T) {
 }
 
 func TestReExportStarNameShadowingNotAmbiguous(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -631,6 +659,7 @@ func TestReExportStarNameShadowingNotAmbiguous(t *testing.T) {
 }
 
 func TestReExportStarNameShadowingNotAmbiguousReExport(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -658,6 +687,7 @@ func TestReExportStarNameShadowingNotAmbiguousReExport(t *testing.T) {
 }
 
 func TestImportStarOfExportStarAs(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -680,6 +710,7 @@ func TestImportStarOfExportStarAs(t *testing.T) {
 }
 
 func TestImportOfExportStar(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -707,6 +738,7 @@ func TestImportOfExportStar(t *testing.T) {
 }
 
 func TestImportOfExportStarOfImport(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -737,6 +769,7 @@ func TestImportOfExportStarOfImport(t *testing.T) {
 }
 
 func TestExportSelfIIFE(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -754,6 +787,7 @@ func TestExportSelfIIFE(t *testing.T) {
 }
 
 func TestExportSelfIIFEWithName(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -772,6 +806,7 @@ func TestExportSelfIIFEWithName(t *testing.T) {
 }
 
 func TestExportSelfES6(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -789,6 +824,7 @@ func TestExportSelfES6(t *testing.T) {
 }
 
 func TestExportSelfCommonJS(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -806,6 +842,7 @@ func TestExportSelfCommonJS(t *testing.T) {
 }
 
 func TestExportSelfCommonJSMinified(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -824,6 +861,7 @@ func TestExportSelfCommonJSMinified(t *testing.T) {
 }
 
 func TestImportSelfCommonJS(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -842,6 +880,7 @@ func TestImportSelfCommonJS(t *testing.T) {
 }
 
 func TestExportSelfAsNamespaceES6(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -859,6 +898,7 @@ func TestExportSelfAsNamespaceES6(t *testing.T) {
 }
 
 func TestImportExportSelfAsNamespaceES6(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -877,6 +917,7 @@ func TestImportExportSelfAsNamespaceES6(t *testing.T) {
 }
 
 func TestReExportOtherFileExportSelfAsNamespaceES6(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -897,6 +938,7 @@ func TestReExportOtherFileExportSelfAsNamespaceES6(t *testing.T) {
 }
 
 func TestReExportOtherFileImportExportSelfAsNamespaceES6(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -918,6 +960,7 @@ func TestReExportOtherFileImportExportSelfAsNamespaceES6(t *testing.T) {
 }
 
 func TestOtherFileExportSelfAsNamespaceUnusedES6(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -938,6 +981,7 @@ func TestOtherFileExportSelfAsNamespaceUnusedES6(t *testing.T) {
 }
 
 func TestOtherFileImportExportSelfAsNamespaceUnusedES6(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -959,6 +1003,7 @@ func TestOtherFileImportExportSelfAsNamespaceUnusedES6(t *testing.T) {
 }
 
 func TestExportSelfAsNamespaceCommonJS(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -976,6 +1021,7 @@ func TestExportSelfAsNamespaceCommonJS(t *testing.T) {
 }
 
 func TestExportSelfAndRequireSelfCommonJS(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -993,6 +1039,7 @@ func TestExportSelfAndRequireSelfCommonJS(t *testing.T) {
 }
 
 func TestExportSelfAndImportSelfCommonJS(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1011,6 +1058,7 @@ func TestExportSelfAndImportSelfCommonJS(t *testing.T) {
 }
 
 func TestExportOtherAsNamespaceCommonJS(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1030,6 +1078,7 @@ func TestExportOtherAsNamespaceCommonJS(t *testing.T) {
 }
 
 func TestImportExportOtherAsNamespaceCommonJS(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1050,6 +1099,7 @@ func TestImportExportOtherAsNamespaceCommonJS(t *testing.T) {
 }
 
 func TestNamespaceImportMissingES6(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1071,6 +1121,7 @@ func TestNamespaceImportMissingES6(t *testing.T) {
 }
 
 func TestExportOtherCommonJS(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1090,6 +1141,7 @@ func TestExportOtherCommonJS(t *testing.T) {
 }
 
 func TestExportOtherNestedCommonJS(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1112,6 +1164,7 @@ func TestExportOtherNestedCommonJS(t *testing.T) {
 }
 
 func TestNamespaceImportUnusedMissingES6(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1133,6 +1186,7 @@ func TestNamespaceImportUnusedMissingES6(t *testing.T) {
 }
 
 func TestNamespaceImportMissingCommonJS(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1152,6 +1206,7 @@ func TestNamespaceImportMissingCommonJS(t *testing.T) {
 }
 
 func TestNamespaceImportUnusedMissingCommonJS(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1171,6 +1226,7 @@ func TestNamespaceImportUnusedMissingCommonJS(t *testing.T) {
 }
 
 func TestReExportNamespaceImportMissingES6(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1193,6 +1249,7 @@ func TestReExportNamespaceImportMissingES6(t *testing.T) {
 }
 
 func TestReExportNamespaceImportUnusedMissingES6(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1215,6 +1272,7 @@ func TestReExportNamespaceImportUnusedMissingES6(t *testing.T) {
 }
 
 func TestNamespaceImportReExportMissingES6(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1240,6 +1298,7 @@ foo.js: ERROR: No matching export in "bar.js" for import "foo"
 }
 
 func TestNamespaceImportReExportUnusedMissingES6(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1265,6 +1324,7 @@ foo.js: ERROR: No matching export in "bar.js" for import "foo"
 }
 
 func TestNamespaceImportReExportStarMissingES6(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1289,6 +1349,7 @@ func TestNamespaceImportReExportStarMissingES6(t *testing.T) {
 }
 
 func TestNamespaceImportReExportStarUnusedMissingES6(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1313,6 +1374,7 @@ func TestNamespaceImportReExportStarUnusedMissingES6(t *testing.T) {
 }
 
 func TestExportStarDefaultExportCommonJS(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1333,6 +1395,7 @@ func TestExportStarDefaultExportCommonJS(t *testing.T) {
 }
 
 func TestIssue176(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1358,6 +1421,7 @@ func TestIssue176(t *testing.T) {
 }
 
 func TestReExportStarExternalIIFE(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1380,6 +1444,7 @@ func TestReExportStarExternalIIFE(t *testing.T) {
 }
 
 func TestReExportStarExternalES6(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1401,6 +1466,7 @@ func TestReExportStarExternalES6(t *testing.T) {
 }
 
 func TestReExportStarExternalCommonJS(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1422,6 +1488,7 @@ func TestReExportStarExternalCommonJS(t *testing.T) {
 }
 
 func TestReExportStarIIFENoBundle(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1439,6 +1506,7 @@ func TestReExportStarIIFENoBundle(t *testing.T) {
 }
 
 func TestReExportStarES6NoBundle(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1455,6 +1523,7 @@ func TestReExportStarES6NoBundle(t *testing.T) {
 }
 
 func TestReExportStarCommonJSNoBundle(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1471,6 +1540,7 @@ func TestReExportStarCommonJSNoBundle(t *testing.T) {
 }
 
 func TestReExportStarAsExternalIIFE(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1493,6 +1563,7 @@ func TestReExportStarAsExternalIIFE(t *testing.T) {
 }
 
 func TestReExportStarAsExternalES6(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1514,6 +1585,7 @@ func TestReExportStarAsExternalES6(t *testing.T) {
 }
 
 func TestReExportStarAsExternalCommonJS(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1535,6 +1607,7 @@ func TestReExportStarAsExternalCommonJS(t *testing.T) {
 }
 
 func TestReExportStarAsIIFENoBundle(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1552,6 +1625,7 @@ func TestReExportStarAsIIFENoBundle(t *testing.T) {
 }
 
 func TestReExportStarAsES6NoBundle(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1568,6 +1642,7 @@ func TestReExportStarAsES6NoBundle(t *testing.T) {
 }
 
 func TestReExportStarAsCommonJSNoBundle(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
@@ -1584,6 +1659,7 @@ func TestReExportStarAsCommonJSNoBundle(t *testing.T) {
 }
 
 func TestImportDefaultNamespaceComboIssue446(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/external-default2.js": `
@@ -1668,6 +1744,7 @@ internal-ns-def.js: WARNING: Import "def" will always be undefined because there
 }
 
 func TestImportDefaultNamespaceComboNoDefault(t *testing.T) {
+	t.Parallel()
 	// Note: "entry-dead.js" checks that this warning doesn't happen for dead code
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
@@ -1712,6 +1789,7 @@ foo.js: NOTE: Did you mean to import "button" instead?
 }
 
 func TestImportNamespaceUndefinedPropertyEmptyFile(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry-nope.js": `
@@ -1761,6 +1839,7 @@ entry-nope.js: WARNING: Import "nope" will always be undefined because the file 
 }
 
 func TestImportNamespaceUndefinedPropertySideEffectFreeFile(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry-nope.js": `
@@ -1812,6 +1891,7 @@ entry-nope.js: WARNING: Import "nope" will always be undefined because the file 
 
 // Failure case due to a bug in https://github.com/evanw/esbuild/pull/2059
 func TestReExportStarEntryPointAndInnerFile(t *testing.T) {
+	t.Parallel()
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `

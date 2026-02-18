@@ -3,7 +3,6 @@ package js_parser
 import (
 	"fmt"
 	"math"
-	"math/big"
 	"regexp"
 	"sort"
 	"strings"
@@ -2151,9 +2150,7 @@ func (p *parser) parseStringLiteral() js_ast.Expr {
 
 func (p *parser) parseBigIntOrStringIfUnsupported() js_ast.Expr {
 	if p.options.unsupportedJSFeatures.Has(compat.Bigint) {
-		var i big.Int
-		fmt.Sscan(p.lexer.Identifier.String, &i)
-		return js_ast.Expr{Loc: p.lexer.Loc(), Data: &js_ast.EString{Value: helpers.StringToUTF16(i.String())}}
+		return js_ast.Expr{Loc: p.lexer.Loc(), Data: &js_ast.EString{Value: helpers.StringToUTF16(bigIntToDecimal(p.lexer.Identifier.String))}}
 	}
 	return js_ast.Expr{Loc: p.lexer.Loc(), Data: &js_ast.EBigInt{Value: p.lexer.Identifier.String}}
 }
