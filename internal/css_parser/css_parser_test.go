@@ -112,6 +112,7 @@ func expectPrintedLowerMinify(t *testing.T, contents string, expected string, ex
 }
 
 func TestSingleLineComment(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "a, // a\nb // b\n{}", "a, // a b // b {\n}\n",
 		"<stdin>: WARNING: Comments in CSS use \"/* ... */\" instead of \"//\"\n"+
 			"<stdin>: WARNING: Comments in CSS use \"/* ... */\" instead of \"//\"\n")
@@ -120,6 +121,7 @@ func TestSingleLineComment(t *testing.T) {
 }
 
 func TestEscapes(t *testing.T) {
+	t.Parallel()
 	// TIdent
 	expectPrinted(t, "a { value: id\\65nt }", "a {\n  value: ident;\n}\n", "")
 	expectPrinted(t, "a { value: \\69 dent }", "a {\n  value: ident;\n}\n", "")
@@ -295,6 +297,7 @@ func TestEscapes(t *testing.T) {
 }
 
 func TestString(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "a:after { content: 'a\\\rb' }", "a:after {\n  content: \"ab\";\n}\n", "")
 	expectPrinted(t, "a:after { content: 'a\\\nb' }", "a:after {\n  content: \"ab\";\n}\n", "")
 	expectPrinted(t, "a:after { content: 'a\\\fb' }", "a:after {\n  content: \"ab\";\n}\n", "")
@@ -331,6 +334,7 @@ func TestString(t *testing.T) {
 }
 
 func TestNumber(t *testing.T) {
+	t.Parallel()
 	for _, ext := range []string{"", "%", "px+"} {
 		expectPrinted(t, "a { width: .0"+ext+"; }", "a {\n  width: .0"+ext+";\n}\n", "")
 		expectPrinted(t, "a { width: .00"+ext+"; }", "a {\n  width: .00"+ext+";\n}\n", "")
@@ -377,6 +381,7 @@ func TestNumber(t *testing.T) {
 }
 
 func TestURL(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "a { background: url(foo.png) }", "a {\n  background: url(foo.png);\n}\n", "")
 	expectPrinted(t, "a { background: url('foo.png') }", "a {\n  background: url(foo.png);\n}\n", "")
 	expectPrinted(t, "a { background: url(\"foo.png\") }", "a {\n  background: url(foo.png);\n}\n", "")
@@ -398,6 +403,7 @@ func TestURL(t *testing.T) {
 }
 
 func TestHexColor(t *testing.T) {
+	t.Parallel()
 	// "#RGBA"
 
 	expectPrinted(t, "a { color: #1234 }", "a {\n  color: #1234;\n}\n", "")
@@ -524,6 +530,7 @@ func TestHexColor(t *testing.T) {
 }
 
 func TestColorFunctions(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "a { color: color(display-p3 0.5 0.0 0.0%) }", "a {\n  color: color(display-p3 0.5 0.0 0.0%);\n}\n", "")
 	expectPrinted(t, "a { color: color(display-p3 0.5 0.0 0.0% / 0.5) }", "a {\n  color: color(display-p3 0.5 0.0 0.0% / 0.5);\n}\n", "")
 
@@ -615,6 +622,7 @@ func TestColorFunctions(t *testing.T) {
 }
 
 func TestColorNames(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "a { color: #f00 }", "a {\n  color: #f00;\n}\n", "")
 	expectPrinted(t, "a { color: #f00f }", "a {\n  color: #f00f;\n}\n", "")
 	expectPrinted(t, "a { color: #ff0000 }", "a {\n  color: #ff0000;\n}\n", "")
@@ -638,6 +646,7 @@ func TestColorNames(t *testing.T) {
 }
 
 func TestColorRGBA(t *testing.T) {
+	t.Parallel()
 	expectPrintedMangle(t, "a { color: rgba(1 2 3 / 0.5) }", "a {\n  color: #01020380;\n}\n", "")
 	expectPrintedMangle(t, "a { color: rgba(1 2 3 / 50%) }", "a {\n  color: #0102037f;\n}\n", "")
 	expectPrintedMangle(t, "a { color: rgba(1, 2, 3, 0.5) }", "a {\n  color: #01020380;\n}\n", "")
@@ -654,6 +663,7 @@ func TestColorRGBA(t *testing.T) {
 }
 
 func TestColorHSLA(t *testing.T) {
+	t.Parallel()
 	expectPrintedMangle(t, ".red { color: hsl(0, 100%, 50%) }", ".red {\n  color: red;\n}\n", "")
 	expectPrintedMangle(t, ".orange { color: hsl(30deg, 100%, 50%) }", ".orange {\n  color: #ff8000;\n}\n", "")
 	expectPrintedMangle(t, ".yellow { color: hsl(60 100% 50%) }", ".yellow {\n  color: #ff0;\n}\n", "")
@@ -673,6 +683,7 @@ func TestColorHSLA(t *testing.T) {
 }
 
 func TestLowerColor(t *testing.T) {
+	t.Parallel()
 	expectPrintedLower(t, "a { color: rebeccapurple }", "a {\n  color: #663399;\n}\n", "")
 	expectPrintedLower(t, "a { color: ReBeCcApUrPlE }", "a {\n  color: #663399;\n}\n", "")
 
@@ -729,6 +740,7 @@ func TestLowerColor(t *testing.T) {
 }
 
 func TestBackground(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "a { background: #11223344 }", "a {\n  background: #11223344;\n}\n", "")
 	expectPrintedMangle(t, "a { background: #11223344 }", "a {\n  background: #1234;\n}\n", "")
 	expectPrintedLower(t, "a { background: #11223344 }", "a {\n  background: rgba(17, 34, 51, .267);\n}\n", "")
@@ -739,6 +751,7 @@ func TestBackground(t *testing.T) {
 }
 
 func TestGradient(t *testing.T) {
+	t.Parallel()
 	gradientKinds := []string{
 		"linear-gradient",
 		"radial-gradient",
@@ -877,6 +890,7 @@ func TestGradient(t *testing.T) {
 }
 
 func TestDeclaration(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, ".decl {}", ".decl {\n}\n", "")
 	expectPrinted(t, ".decl { a: b }", ".decl {\n  a: b;\n}\n", "")
 	expectPrinted(t, ".decl { a: b; }", ".decl {\n  a: b;\n}\n", "")
@@ -895,6 +909,7 @@ func TestDeclaration(t *testing.T) {
 }
 
 func TestSelector(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "a{}", "a {\n}\n", "")
 	expectPrinted(t, "a {}", "a {\n}\n", "")
 	expectPrinted(t, "a b {}", "a b {\n}\n", "")
@@ -1030,6 +1045,7 @@ func TestSelector(t *testing.T) {
 }
 
 func TestNestedSelector(t *testing.T) {
+	t.Parallel()
 	sassWarningWrap := "NOTE: CSS nesting syntax does not allow the \"&\" selector to come before " +
 		"a type selector. You can wrap this selector in \":is(...)\" as a workaround. " +
 		"This restriction exists to avoid problems with SASS nesting, where the same syntax " +
@@ -1358,6 +1374,7 @@ func TestNestedSelector(t *testing.T) {
 }
 
 func TestBadQualifiedRules(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "$bad: rule;", "$bad: rule; {\n}\n", "<stdin>: WARNING: Unexpected \"$\"\n")
 	expectPrinted(t, "$bad: rule; div { color: red }", "$bad: rule; div {\n  color: red;\n}\n", "<stdin>: WARNING: Unexpected \"$\"\n")
 	expectPrinted(t, "$bad { color: red }", "$bad {\n  color: red;\n}\n", "<stdin>: WARNING: Unexpected \"$\"\n")
@@ -1373,6 +1390,7 @@ func TestBadQualifiedRules(t *testing.T) {
 }
 
 func TestAtRule(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "@unknown", "@unknown;\n", "<stdin>: WARNING: Expected \"{\" but found end of file\n")
 	expectPrinted(t, "@unknown;", "@unknown;\n", "")
 	expectPrinted(t, "@unknown{}", "@unknown {}\n", "")
@@ -1602,6 +1620,7 @@ func TestAtRule(t *testing.T) {
 }
 
 func TestAtCharset(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "@charset \"UTF-8\";", "@charset \"UTF-8\";\n", "")
 	expectPrinted(t, "@charset 'UTF-8';", "@charset \"UTF-8\";\n", "")
 	expectPrinted(t, "@charset \"utf-8\";", "@charset \"utf-8\";\n", "")
@@ -1618,6 +1637,7 @@ func TestAtCharset(t *testing.T) {
 }
 
 func TestAtImport(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "@import\"foo.css\";", "@import \"foo.css\";\n", "")
 	expectPrinted(t, "@import \"foo.css\";", "@import \"foo.css\";\n", "")
 	expectPrinted(t, "@import \"foo.css\" ;", "@import \"foo.css\";\n", "")
@@ -1650,11 +1670,13 @@ func TestAtImport(t *testing.T) {
 }
 
 func TestLowerAtImportMediaRange(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "@import \"foo.css\" (1px<=width<=2px);", "@import \"foo.css\" (1px <= width <= 2px);\n", "")
 	expectPrintedLower(t, "@import \"foo.css\" (1px<=width<=2px);", "@import \"foo.css\" (min-width: 1px) and (max-width: 2px);\n", "")
 }
 
 func TestLegalComment(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "/*!*/@import \"x\";", "/*!*/\n@import \"x\";\n", "")
 	expectPrinted(t, "/*!*/@charset \"UTF-8\";", "/*!*/\n@charset \"UTF-8\";\n", "")
 	expectPrinted(t, "/*!*/ @import \"x\";", "/*!*/\n@import \"x\";\n", "")
@@ -1673,6 +1695,7 @@ func TestLegalComment(t *testing.T) {
 }
 
 func TestAtKeyframes(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "@keyframes {}", "@keyframes {}\n", "<stdin>: WARNING: Expected identifier but found \"{\"\n")
 	expectPrinted(t, "@keyframes name{}", "@keyframes name {\n}\n", "")
 	expectPrinted(t, "@keyframes name {}", "@keyframes name {\n}\n", "")
@@ -1741,6 +1764,7 @@ func TestAtKeyframes(t *testing.T) {
 }
 
 func TestAnimationName(t *testing.T) {
+	t.Parallel()
 	// Note: Strings as names is allowed in the CSS specification and works in
 	// Firefox and Safari but Chrome has strangely decided to deliberately not
 	// support this. We always turn all string names into identifiers to avoid
@@ -1757,6 +1781,7 @@ func TestAnimationName(t *testing.T) {
 }
 
 func TestAtRuleValidation(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "a {} b {} c {} @charset \"UTF-8\";", "a {\n}\nb {\n}\nc {\n}\n@charset \"UTF-8\";\n",
 		"<stdin>: WARNING: \"@charset\" must be the first rule in the file\n"+
 			"<stdin>: NOTE: This rule cannot come before a \"@charset\" rule\n")
@@ -1767,6 +1792,7 @@ func TestAtRuleValidation(t *testing.T) {
 }
 
 func TestAtLayer(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "@layer a, b;", "@layer a, b;\n", "")
 	expectPrinted(t, "@layer a {}", "@layer a {\n}\n", "")
 	expectPrinted(t, "@layer {}", "@layer {\n}\n", "")
@@ -1834,6 +1860,7 @@ func TestAtLayer(t *testing.T) {
 }
 
 func TestEmptyRule(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "div {}", "div {\n}\n", "")
 	expectPrinted(t, "@media screen {}", "@media screen {\n}\n", "")
 	expectPrinted(t, "@page { @top-left {} }", "@page {\n  @top-left {\n  }\n}\n", "")
@@ -1864,6 +1891,7 @@ func TestEmptyRule(t *testing.T) {
 }
 
 func TestMarginAndPaddingAndInset(t *testing.T) {
+	t.Parallel()
 	for _, x := range []string{"margin", "padding", "inset"} {
 		xTop := x + "-top"
 		xRight := x + "-right"
@@ -2009,6 +2037,7 @@ func TestMarginAndPaddingAndInset(t *testing.T) {
 }
 
 func TestBorderRadius(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "a { border-top-left-radius: 0 0 }", "a {\n  border-top-left-radius: 0 0;\n}\n", "")
 	expectPrintedMangle(t, "a { border-top-left-radius: 0 0 }", "a {\n  border-top-left-radius: 0;\n}\n", "")
 	expectPrintedMangle(t, "a { border-top-left-radius: 0 0px }", "a {\n  border-top-left-radius: 0;\n}\n", "")
@@ -2083,6 +2112,7 @@ func TestBorderRadius(t *testing.T) {
 }
 
 func TestBoxShadow(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "a { box-shadow: inset 0px 0px 0px 0px black }", "a {\n  box-shadow: inset 0px 0px 0px 0px black;\n}\n", "")
 	expectPrintedMangle(t, "a { box-shadow: 0px 0px 0px 0px inset black }", "a {\n  box-shadow: 0 0 inset #000;\n}\n", "")
 	expectPrintedMangle(t, "a { box-shadow: 0px 0px 0px 0px black inset }", "a {\n  box-shadow: 0 0 #000 inset;\n}\n", "")
@@ -2102,6 +2132,7 @@ func TestBoxShadow(t *testing.T) {
 }
 
 func TestMangleTime(t *testing.T) {
+	t.Parallel()
 	expectPrintedMangle(t, "a { animation: b 1s }", "a {\n  animation: b 1s;\n}\n", "")
 	expectPrintedMangle(t, "a { animation: b 1.s }", "a {\n  animation: b 1s;\n}\n", "")
 	expectPrintedMangle(t, "a { animation: b 1.0s }", "a {\n  animation: b 1s;\n}\n", "")
@@ -2140,6 +2171,7 @@ func TestMangleTime(t *testing.T) {
 }
 
 func TestCalc(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "a { b: calc(+(2)) }", "a {\n  b: calc(+(2));\n}\n", "<stdin>: WARNING: \"+\" can only be used as an infix operator, not a prefix operator\n")
 	expectPrinted(t, "a { b: calc(-(2)) }", "a {\n  b: calc(-(2));\n}\n", "<stdin>: WARNING: \"-\" can only be used as an infix operator, not a prefix operator\n")
 	expectPrinted(t, "a { b: calc(*(2)) }", "a {\n  b: calc(*(2));\n}\n", "")
@@ -2167,6 +2199,7 @@ func TestCalc(t *testing.T) {
 }
 
 func TestMinifyCalc(t *testing.T) {
+	t.Parallel()
 	expectPrintedMangleMinify(t, "a { b: calc(x + y) }", "a{b:calc(x + y)}", "")
 	expectPrintedMangleMinify(t, "a { b: calc(x - y) }", "a{b:calc(x - y)}", "")
 	expectPrintedMangleMinify(t, "a { b: calc(x * y) }", "a{b:calc(x*y)}", "")
@@ -2174,6 +2207,7 @@ func TestMinifyCalc(t *testing.T) {
 }
 
 func TestMangleCalc(t *testing.T) {
+	t.Parallel()
 	expectPrintedMangle(t, "a { b: calc(1) }", "a {\n  b: 1;\n}\n", "")
 	expectPrintedMangle(t, "a { b: calc((1)) }", "a {\n  b: 1;\n}\n", "")
 	expectPrintedMangle(t, "a { b: calc(calc(1)) }", "a {\n  b: 1;\n}\n", "")
@@ -2191,6 +2225,9 @@ func TestMangleCalc(t *testing.T) {
 	expectPrintedMangle(t, "a { b: calc(2 * 3px + 4 * 5px) }", "a {\n  b: 26px;\n}\n", "")
 	expectPrintedMangle(t, "a { b: calc(2px * 3 - 4px * 5) }", "a {\n  b: -14px;\n}\n", "")
 	expectPrintedMangle(t, "a { b: calc(2 * 3px - 4 * 5px) }", "a {\n  b: -14px;\n}\n", "")
+	expectPrintedMangle(t, "a { b: calc(2 * 3px * 4) }", "a {\n  b: 24px;\n}\n", "")
+	expectPrintedMangle(t, "a { b: calc(2 * 3 * 4px) }", "a {\n  b: 24px;\n}\n", "")
+	expectPrintedMangle(t, "a { b: calc(2 * 3 * 4) }", "a {\n  b: 24;\n}\n", "")
 
 	// Test negation
 	expectPrintedMangle(t, "a { b: calc(x + 1) }", "a {\n  b: calc(x + 1);\n}\n", "")
@@ -2259,6 +2296,7 @@ func TestMangleCalc(t *testing.T) {
 }
 
 func TestTransform(t *testing.T) {
+	t.Parallel()
 	expectPrintedMangle(t, "a { transform: matrix(1, 0, 0, 1, 0, 0) }", "a {\n  transform: scale(1);\n}\n", "")
 	expectPrintedMangle(t, "a { transform: matrix(2, 0, 0, 1, 0, 0) }", "a {\n  transform: scaleX(2);\n}\n", "")
 	expectPrintedMangle(t, "a { transform: matrix(1, 0, 0, 2, 0, 0) }", "a {\n  transform: scaleY(2);\n}\n", "")
@@ -2427,6 +2465,7 @@ func TestTransform(t *testing.T) {
 }
 
 func TestMangleAlpha(t *testing.T) {
+	t.Parallel()
 	alphas := []string{
 		"0", ".004", ".008", ".01", ".016", ".02", ".024", ".027", ".03", ".035", ".04", ".043", ".047", ".05", ".055", ".06",
 		".063", ".067", ".07", ".075", ".08", ".082", ".086", ".09", ".094", ".098", ".1", ".106", ".11", ".114", ".118", ".12",
@@ -2455,6 +2494,7 @@ func TestMangleAlpha(t *testing.T) {
 }
 
 func TestMangleDeadSelectors(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "a { b { color: red } }", "a {\n  b {\n    color: red;\n  }\n}\n", "")
 	expectPrinted(t, "a { :is() { color: red } }", "a {\n  :is() {\n    color: red;\n  }\n}\n", "")
 	expectPrinted(t, "a { :where() { color: red } }", "a {\n  :where() {\n    color: red;\n  }\n}\n", "")
@@ -2476,6 +2516,7 @@ func TestMangleDeadSelectors(t *testing.T) {
 }
 
 func TestMangleDuplicateSelectors(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "a, a { color: red }", "a,\na {\n  color: red;\n}\n", "")
 	expectPrintedMangle(t, "a, a { color: red }", "a {\n  color: red;\n}\n", "")
 	expectPrintedMangle(t, "a, b { color: red }", "a,\nb {\n  color: red;\n}\n", "")
@@ -2487,6 +2528,7 @@ func TestMangleDuplicateSelectors(t *testing.T) {
 }
 
 func TestMangleDuplicateSelectorRules(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "a { color: red } b { color: red }", "a {\n  color: red;\n}\nb {\n  color: red;\n}\n", "")
 	expectPrintedMangle(t, "a { color: red } b { color: red }", "a,\nb {\n  color: red;\n}\n", "")
 	expectPrintedMangle(t, "a { color: red } div {} b { color: red }", "a,\nb {\n  color: red;\n}\n", "")
@@ -2523,6 +2565,7 @@ func TestMangleDuplicateSelectorRules(t *testing.T) {
 }
 
 func TestAtMedia(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "@media screen{}", "@media screen {\n}\n", "")
 	expectPrinted(t, "@media not screen{}", "@media not screen {\n}\n", "")
 	expectPrinted(t, "@media only screen{}", "@media only screen {\n}\n", "")
@@ -2615,6 +2658,7 @@ func TestAtMedia(t *testing.T) {
 }
 
 func TestMangleAtMedia(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "@media screen { @media screen { a { color: red } } }", "@media screen {\n  @media screen {\n    a {\n      color: red;\n    }\n  }\n}\n", "")
 	expectPrintedMangle(t, "@media screen { @media screen { a { color: red } } }", "@media screen {\n  a {\n    color: red;\n  }\n}\n", "")
 	expectPrintedMangle(t, "@media screen { @media not print { a { color: red } } }", "@media screen {\n  @media not print {\n    a {\n      color: red;\n    }\n  }\n}\n", "")
@@ -2708,6 +2752,7 @@ func TestMangleAtMedia(t *testing.T) {
 }
 
 func TestLowerAtMediaRange(t *testing.T) {
+	t.Parallel()
 	expectPrintedLower(t, "@media (width = 1px) { a { color: red } }", "@media (width: 1px) {\n  a {\n    color: red;\n  }\n}\n", "")
 
 	expectPrintedLower(t, "@media (width < 1px) { a { color: red } }", "@media not (min-width: 1px) {\n  a {\n    color: red;\n  }\n}\n", "")
@@ -2742,6 +2787,7 @@ func TestLowerAtMediaRange(t *testing.T) {
 }
 
 func TestAtScope(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "@scope { div { color: red } }", "@scope {\n  div {\n    color: red;\n  }\n}\n", "")
 	expectPrinted(t, "@scope (a) { div { color: red } }", "@scope (a) {\n  div {\n    color: red;\n  }\n}\n", "")
 	expectPrinted(t, "@scope to (a) { div { color: red } }", "@scope to (a) {\n  div {\n    color: red;\n  }\n}\n", "")
@@ -2759,6 +2805,7 @@ func TestAtScope(t *testing.T) {
 }
 
 func TestFontWeight(t *testing.T) {
+	t.Parallel()
 	expectPrintedMangle(t, "a { font-weight: normal }", "a {\n  font-weight: 400;\n}\n", "")
 	expectPrintedMangle(t, "a { font-weight: bold }", "a {\n  font-weight: 700;\n}\n", "")
 	expectPrintedMangle(t, "a { font-weight: 400 }", "a {\n  font-weight: 400;\n}\n", "")
@@ -2769,6 +2816,7 @@ func TestFontWeight(t *testing.T) {
 }
 
 func TestFontFamily(t *testing.T) {
+	t.Parallel()
 	expectPrintedMangle(t, "a {font-family: aaa }", "a {\n  font-family: aaa;\n}\n", "")
 	expectPrintedMangle(t, "a {font-family: serif }", "a {\n  font-family: serif;\n}\n", "")
 	expectPrintedMangle(t, "a {font-family: 'serif' }", "a {\n  font-family: \"serif\";\n}\n", "")
@@ -2797,6 +2845,7 @@ func TestFontFamily(t *testing.T) {
 }
 
 func TestFont(t *testing.T) {
+	t.Parallel()
 	expectPrintedMangle(t, "a { font: caption }", "a {\n  font: caption;\n}\n", "")
 	expectPrintedMangle(t, "a { font: normal 1px }", "a {\n  font: normal 1px;\n}\n", "")
 	expectPrintedMangle(t, "a { font: normal bold }", "a {\n  font: normal bold;\n}\n", "")
@@ -2825,6 +2874,7 @@ func TestFont(t *testing.T) {
 }
 
 func TestWarningUnexpectedCloseBrace(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, ".red {\n  color: red;\n}\n}\n.blue {\n  color: blue;\n}\n.green {\n color: green;\n}\n",
 		`.red {
   color: red;
@@ -2841,6 +2891,7 @@ func TestWarningUnexpectedCloseBrace(t *testing.T) {
 }
 
 func TestPropertyTypoWarning(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "a { z-idnex: 0 }", "a {\n  z-idnex: 0;\n}\n", "<stdin>: WARNING: \"z-idnex\" is not a known CSS property\nNOTE: Did you mean \"z-index\" instead?\n")
 	expectPrinted(t, "a { x-index: 0 }", "a {\n  x-index: 0;\n}\n", "<stdin>: WARNING: \"x-index\" is not a known CSS property\nNOTE: Did you mean \"z-index\" instead?\n")
 
@@ -2852,6 +2903,7 @@ func TestPropertyTypoWarning(t *testing.T) {
 }
 
 func TestParseErrorRecovery(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "x { y: z", "x {\n  y: z;\n}\n", "<stdin>: WARNING: Expected \"}\" to go with \"{\"\n<stdin>: NOTE: The unbalanced \"{\" is here:\n")
 	expectPrinted(t, "x { y: (", "x {\n  y: ();\n}\n", "<stdin>: WARNING: Expected \")\" to go with \"(\"\n<stdin>: NOTE: The unbalanced \"(\" is here:\n")
 	expectPrinted(t, "x { y: [", "x {\n  y: [];\n}\n", "<stdin>: WARNING: Expected \"]\" to go with \"[\"\n<stdin>: NOTE: The unbalanced \"[\" is here:\n")
@@ -2874,6 +2926,7 @@ func TestParseErrorRecovery(t *testing.T) {
 }
 
 func TestPrefixInsertion(t *testing.T) {
+	t.Parallel()
 	// General "-webkit-" tests
 	for _, key := range []string{
 		"backdrop-filter",
@@ -2966,6 +3019,7 @@ func TestPrefixInsertion(t *testing.T) {
 }
 
 func TestNthChild(t *testing.T) {
+	t.Parallel()
 	for _, nth := range []string{"nth-child", "nth-last-child"} {
 		expectPrinted(t, ":"+nth+"(x) {}", ":"+nth+"(x) {\n}\n", "<stdin>: WARNING: Unexpected \"x\"\n")
 		expectPrinted(t, ":"+nth+"(1e2) {}", ":"+nth+"(1e2) {\n}\n", "<stdin>: WARNING: Unexpected \"1e2\"\n")
@@ -3065,6 +3119,7 @@ func TestNthChild(t *testing.T) {
 }
 
 func TestComposes(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, ".foo { composes: bar; color: red }", ".foo {\n  composes: bar;\n  color: red;\n}\n", "")
 	expectPrinted(t, ".foo .bar { composes: bar; color: red }", ".foo .bar {\n  composes: bar;\n  color: red;\n}\n", "")
 	expectPrinted(t, ".foo, .bar { composes: bar; color: red }", ".foo,\n.bar {\n  composes: bar;\n  color: red;\n}\n", "")

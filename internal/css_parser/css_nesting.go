@@ -274,7 +274,12 @@ func (p *parser) lowerNestingInRuleWithContext(rule css_ast.Rule, context *lower
 			r.Selectors = selectors
 		}
 
-		// Put limits on the combinatorial explosion to avoid using too much time and/or memory
+		// Put limits on the combinatorial explosion to avoid using too much time and/or memory.
+		// The 0xFF00 limit is chosen to be high enough to not interfere with any realistic
+		// stylesheets (typical nesting produces far fewer selectors) while still preventing
+		// pathological cases from consuming unbounded time/memory during nesting expansion.
+		// Both the total selector count and the combined complexity of compound selectors
+		// in terms are capped independently.
 		if n := len(r.Selectors); n > oldSelectorsLen && n > 0xFF00 {
 			p.addExpansionError(rule.Loc, n)
 			return css_ast.Rule{}

@@ -231,6 +231,7 @@ func expectPrintedJSXAutomatic(t *testing.T, options JSXAutomaticTestOptions, co
 }
 
 func TestUnOp(t *testing.T) {
+	t.Parallel()
 	// This was important to someone for a very obscure reason. See
 	// https://github.com/evanw/esbuild/issues/4041 for more info.
 	expectPrinted(t, "let x; void 0; x", "let x;\nx;\n")
@@ -238,6 +239,7 @@ func TestUnOp(t *testing.T) {
 }
 
 func TestBinOp(t *testing.T) {
+	t.Parallel()
 	for code, entry := range js_ast.OpTable {
 		opCode := js_ast.OpCode(code)
 
@@ -263,6 +265,7 @@ func TestBinOp(t *testing.T) {
 }
 
 func TestComments(t *testing.T) {
+	t.Parallel()
 	expectParseError(t, "throw //\n x", "<stdin>: ERROR: Unexpected newline after \"throw\"\n")
 	expectParseError(t, "throw /**/\n x", "<stdin>: ERROR: Unexpected newline after \"throw\"\n")
 	expectParseError(t, "throw <!--\n x",
@@ -294,6 +297,7 @@ func TestComments(t *testing.T) {
 }
 
 func TestStrictMode(t *testing.T) {
+	t.Parallel()
 	useStrict := "<stdin>: NOTE: Strict mode is triggered by the \"use strict\" directive here:\n"
 
 	expectPrinted(t, "'use strict'", "\"use strict\";\n")
@@ -608,6 +612,7 @@ func TestStrictMode(t *testing.T) {
 }
 
 func TestExponentiation(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "--x ** 2", "--x ** 2;\n")
 	expectPrinted(t, "++x ** 2", "++x ** 2;\n")
 	expectPrinted(t, "x-- ** 2", "x-- ** 2;\n")
@@ -670,6 +675,7 @@ func TestExponentiation(t *testing.T) {
 }
 
 func TestAwait(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "await x", "await x;\n")
 	expectPrinted(t, "await +x", "await +x;\n")
 	expectPrinted(t, "await -x", "await -x;\n")
@@ -715,6 +721,7 @@ func TestAwait(t *testing.T) {
 }
 
 func TestRegExp(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "/x/d", "/x/d;\n")
 	expectPrinted(t, "/x/g", "/x/g;\n")
 	expectPrinted(t, "/x/i", "/x/i;\n")
@@ -733,6 +740,7 @@ func TestRegExp(t *testing.T) {
 }
 
 func TestUnicodeIdentifierNames(t *testing.T) {
+	t.Parallel()
 	// There are two code points that are valid in identifiers in ES5 but not in ES6+:
 	//
 	//   U+30FB KATAKANA MIDDLE DOT
@@ -747,6 +755,7 @@ func TestUnicodeIdentifierNames(t *testing.T) {
 }
 
 func TestIdentifierEscapes(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "var _\\u0076\\u0061\\u0072", "var _var;\n")
 	expectParseError(t, "var \\u0076\\u0061\\u0072", "<stdin>: ERROR: Expected identifier but found \"\\\\u0076\\\\u0061\\\\u0072\"\n")
 	expectParseError(t, "\\u0076\\u0061\\u0072 foo", "<stdin>: ERROR: Unexpected \"\\\\u0076\\\\u0061\\\\u0072\"\n")
@@ -759,12 +768,14 @@ func TestIdentifierEscapes(t *testing.T) {
 }
 
 func TestSpecialIdentifiers(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "exports", "exports;\n")
 	expectPrinted(t, "require", "require;\n")
 	expectPrinted(t, "module", "module;\n")
 }
 
 func TestDecls(t *testing.T) {
+	t.Parallel()
 	expectParseError(t, "var x = 0", "")
 	expectParseError(t, "let x = 0", "")
 	expectParseError(t, "const x = 0", "")
@@ -873,6 +884,7 @@ func TestDecls(t *testing.T) {
 }
 
 func TestBreakAndContinue(t *testing.T) {
+	t.Parallel()
 	expectParseError(t, "break", "<stdin>: ERROR: Cannot use \"break\" here:\n")
 	expectParseError(t, "continue", "<stdin>: ERROR: Cannot use \"continue\" here:\n")
 
@@ -901,6 +913,7 @@ func TestBreakAndContinue(t *testing.T) {
 }
 
 func TestFor(t *testing.T) {
+	t.Parallel()
 	expectParseError(t, "for (; in x) ;", "<stdin>: ERROR: Unexpected \"in\"\n")
 	expectParseError(t, "for (; of x) ;", "<stdin>: ERROR: Expected \";\" but found \"x\"\n")
 	expectParseError(t, "for (; in; ) ;", "<stdin>: ERROR: Unexpected \"in\"\n")
@@ -1029,6 +1042,7 @@ func TestFor(t *testing.T) {
 }
 
 func TestScope(t *testing.T) {
+	t.Parallel()
 	errorText := `<stdin>: ERROR: The symbol "x" has already been declared
 <stdin>: NOTE: The symbol "x" was originally declared here:
 `
@@ -1179,6 +1193,7 @@ func TestScope(t *testing.T) {
 }
 
 func TestASI(t *testing.T) {
+	t.Parallel()
 	expectParseError(t, "throw\n0", "<stdin>: ERROR: Unexpected newline after \"throw\"\n")
 	expectParseError(t, "return\n0", "<stdin>: WARNING: The following expression is not returned because of an automatically-inserted semicolon\n")
 	expectPrinted(t, "return\n0", "return;\n0;\n")
@@ -1228,6 +1243,7 @@ func TestASI(t *testing.T) {
 }
 
 func TestLocal(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "var let = 0", "var let = 0;\n")
 	expectParseError(t, "let let = 0", "<stdin>: ERROR: Cannot use \"let\" as an identifier here:\n")
 	expectParseError(t, "const let = 0", "<stdin>: ERROR: Cannot use \"let\" as an identifier here:\n")
@@ -1256,6 +1272,7 @@ func TestLocal(t *testing.T) {
 }
 
 func TestArrays(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "[]", "[];\n")
 	expectPrinted(t, "[,]", "[,];\n")
 	expectPrinted(t, "[1]", "[1];\n")
@@ -1269,6 +1286,7 @@ func TestArrays(t *testing.T) {
 }
 
 func TestPattern(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "let {if: x} = y", "let { if: x } = y;\n")
 	expectParseError(t, "let {x: if} = y", "<stdin>: ERROR: Expected identifier but found \"if\"\n")
 
@@ -1283,6 +1301,7 @@ func TestPattern(t *testing.T) {
 }
 
 func TestAssignTarget(t *testing.T) {
+	t.Parallel()
 	expectParseError(t, "x = 0", "")
 	expectParseError(t, "x.y = 0", "")
 	expectParseError(t, "x[y] = 0", "")
@@ -1310,6 +1329,7 @@ func TestAssignTarget(t *testing.T) {
 }
 
 func TestObject(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "({foo})", "({ foo });\n")
 	expectPrinted(t, "({foo:0})", "({ foo: 0 });\n")
 	expectPrinted(t, "({1e9:0})", "({ 1e9: 0 });\n")
@@ -1391,6 +1411,7 @@ func TestObject(t *testing.T) {
 }
 
 func TestComputedProperty(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "({[a]: foo})", "({ [a]: foo });\n")
 	expectPrinted(t, "({[(a, b)]: foo})", "({ [(a, b)]: foo });\n")
 	expectParseError(t, "({[a, b]: foo})", "<stdin>: ERROR: Expected \"]\" but found \",\"\n")
@@ -1409,6 +1430,7 @@ func TestComputedProperty(t *testing.T) {
 }
 
 func TestQuotedProperty(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "x.x; y['y']", "x.x;\ny[\"y\"];\n")
 	expectPrinted(t, "({y: y, 'z': z} = x)", "({ y, \"z\": z } = x);\n")
 	expectPrinted(t, "var {y: y, 'z': z} = x", "var { y, \"z\": z } = x;\n")
@@ -1431,6 +1453,7 @@ func TestQuotedProperty(t *testing.T) {
 }
 
 func TestLexicalDecl(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "if (1) var x", "if (1) var x;\n")
 	expectPrinted(t, "if (1) function x() {}", "if (1) {\n  let x = function() {\n  };\n  var x = x;\n}\n")
 	expectPrinted(t, "if (1) {} else function x() {}", "if (1) {\n} else {\n  let x = function() {\n  };\n  var x = x;\n}\n")
@@ -1525,6 +1548,7 @@ func TestLexicalDecl(t *testing.T) {
 }
 
 func TestFunction(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "function f() {} function f() {}", "function f() {\n}\nfunction f() {\n}\n")
 	expectPrinted(t, "function f() {} function* f() {}", "function f() {\n}\nfunction* f() {\n}\n")
 	expectPrinted(t, "function* f() {} function* f() {}", "function* f() {\n}\nfunction* f() {\n}\n")
@@ -1591,6 +1615,7 @@ func TestFunction(t *testing.T) {
 }
 
 func TestClass(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "class Foo { foo() {} }", "class Foo {\n  foo() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { *foo() {} }", "class Foo {\n  *foo() {\n  }\n}\n")
 	expectPrinted(t, "class Foo { get foo() {} }", "class Foo {\n  get foo() {\n  }\n}\n")
@@ -1833,6 +1858,7 @@ func TestClass(t *testing.T) {
 }
 
 func TestSuperCall(t *testing.T) {
+	t.Parallel()
 	expectParseError(t, "super", "<stdin>: ERROR: Unexpected \"super\"\n")
 	expectParseError(t, "super()", "<stdin>: ERROR: Unexpected \"super\"\n")
 	expectParseError(t, "class Foo { foo = super() }", "<stdin>: ERROR: Unexpected \"super\"\n")
@@ -1879,6 +1905,7 @@ func TestSuperCall(t *testing.T) {
 }
 
 func TestSuperProp(t *testing.T) {
+	t.Parallel()
 	expectParseError(t, "super.x", "<stdin>: ERROR: Unexpected \"super\"\n")
 	expectParseError(t, "super[x]", "<stdin>: ERROR: Unexpected \"super\"\n")
 
@@ -1949,6 +1976,7 @@ func TestSuperProp(t *testing.T) {
 }
 
 func TestClassFields(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "class Foo { a }", "class Foo {\n  a;\n}\n")
 	expectPrinted(t, "class Foo { a = 1 }", "class Foo {\n  a = 1;\n}\n")
 	expectPrinted(t, "class Foo { a = 1; b }", "class Foo {\n  a = 1;\n  b;\n}\n")
@@ -2008,6 +2036,7 @@ func TestClassFields(t *testing.T) {
 }
 
 func TestClassStaticBlocks(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "class Foo { static {} }", "class Foo {\n  static {\n  }\n}\n")
 	expectPrinted(t, "class Foo { static {} x = 1 }", "class Foo {\n  static {\n  }\n  x = 1;\n}\n")
 	expectPrinted(t, "class Foo { static { this.foo() } }", "class Foo {\n  static {\n    this.foo();\n  }\n}\n")
@@ -2029,6 +2058,7 @@ func TestClassStaticBlocks(t *testing.T) {
 }
 
 func TestAutoAccessors(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "class Foo { accessor }", "class Foo {\n  accessor;\n}\n")
 	expectPrinted(t, "class Foo { accessor \n x }", "class Foo {\n  accessor;\n  x;\n}\n")
 	expectPrinted(t, "class Foo { static accessor }", "class Foo {\n  static accessor;\n}\n")
@@ -2069,6 +2099,7 @@ func TestAutoAccessors(t *testing.T) {
 }
 
 func TestDecorators(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "@x @y class Foo {}", "@x @y class Foo {\n}\n")
 	expectPrinted(t, "@x @y export class Foo {}", "@x @y export class Foo {\n}\n")
 	expectPrinted(t, "@x @y export default class Foo {}", "@x @y export default class Foo {\n}\n")
@@ -2216,6 +2247,7 @@ __privateAdd(Foo, _x, __runInitializers(_init, 8, Foo)), __runInitializers(_init
 }
 
 func TestGenerator(t *testing.T) {
+	t.Parallel()
 	expectParseError(t, "(class { * foo })", "<stdin>: ERROR: Expected \"(\" but found \"}\"\n")
 	expectParseError(t, "(class { * *foo() {} })", "<stdin>: ERROR: Unexpected \"*\"\n")
 	expectParseError(t, "(class { get*foo() {} })", "<stdin>: ERROR: Expected \";\" but found \"*\"\n")
@@ -2231,6 +2263,7 @@ func TestGenerator(t *testing.T) {
 }
 
 func TestYield(t *testing.T) {
+	t.Parallel()
 	expectParseError(t, "yield 100", "<stdin>: ERROR: Cannot use \"yield\" outside a generator function\n")
 	expectParseError(t, "-yield 100", "<stdin>: ERROR: Cannot use \"yield\" outside a generator function\n")
 	expectPrinted(t, "yield\n100", "yield;\n100;\n")
@@ -2296,6 +2329,7 @@ func TestYield(t *testing.T) {
 }
 
 func TestAsync(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "function foo() { await }", "function foo() {\n  await;\n}\n")
 	expectPrinted(t, "async function foo() { await 0 }", "async function foo() {\n  await 0;\n}\n")
 	expectParseError(t, "async function() {}", "<stdin>: ERROR: Expected identifier but found \"(\"\n")
@@ -2459,6 +2493,7 @@ func TestAsync(t *testing.T) {
 }
 
 func TestLabels(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "{a:b}", "{\n  a: b;\n}\n")
 	expectPrinted(t, "({a:b})", "({ a: b });\n")
 
@@ -2485,6 +2520,7 @@ func TestLabels(t *testing.T) {
 }
 
 func TestArrow(t *testing.T) {
+	t.Parallel()
 	expectParseError(t, "({a: b, c() {}}) => {}", "<stdin>: ERROR: Invalid binding pattern\n")
 	expectParseError(t, "({a: b, get c() {}}) => {}", "<stdin>: ERROR: Invalid binding pattern\n")
 	expectParseError(t, "({a: b, set c(x) {}}) => {}", "<stdin>: ERROR: Invalid binding pattern\n")
@@ -2659,6 +2695,7 @@ func TestArrow(t *testing.T) {
 }
 
 func TestTemplate(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "`\\0`", "`\\0`;\n")
 	expectPrinted(t, "`${'\\00'}`", "`${\"\\0\"}`;\n")
 
@@ -2781,6 +2818,7 @@ func TestTemplate(t *testing.T) {
 }
 
 func TestSwitch(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "switch (x) { default: }", "switch (x) {\n  default:\n}\n")
 	expectPrinted(t, "switch ((x => x + 1)(0)) { case 1: var y } y = 2", "switch (((x) => x + 1)(0)) {\n  case 1:\n    var y;\n}\ny = 2;\n")
 	expectParseError(t, "switch (x) { default: default: }", "<stdin>: ERROR: Multiple default clauses are not allowed\n")
@@ -2839,6 +2877,7 @@ func TestSwitch(t *testing.T) {
 }
 
 func TestConstantFolding(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "x = !false", "x = true;\n")
 	expectPrinted(t, "x = !true", "x = false;\n")
 
@@ -3049,6 +3088,7 @@ func TestConstantFolding(t *testing.T) {
 }
 
 func TestConstantFoldingScopes(t *testing.T) {
+	t.Parallel()
 	// Parsing will crash if somehow the scope traversal is misaligned between
 	// the parsing and binding passes. This checks for those cases.
 	expectPrintedMangle(t, "x; 1 ? 0 : ()=>{}; (()=>{})()", "x;\n")
@@ -3060,6 +3100,7 @@ func TestConstantFoldingScopes(t *testing.T) {
 }
 
 func TestImport(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "import \"foo\"", "import \"foo\";\n")
 	expectPrinted(t, "import {} from \"foo\"", "import {} from \"foo\";\n")
 	expectPrinted(t, "import {x} from \"foo\";x", "import { x } from \"foo\";\nx;\n")
@@ -3158,6 +3199,7 @@ func TestImport(t *testing.T) {
 }
 
 func TestExport(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "export default x", "export default x;\n")
 	expectPrinted(t, "export class x {}", "export class x {\n}\n")
 	expectPrinted(t, "export function x() {}", "export function x() {\n}\n")
@@ -3243,6 +3285,7 @@ func TestExport(t *testing.T) {
 }
 
 func TestExportDuplicates(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "export {x};let x", "export { x };\nlet x;\n")
 	expectPrinted(t, "export {x, x as y};let x", "export { x, x as y };\nlet x;\n")
 	expectPrinted(t, "export {x};export {x as y} from 'foo';let x", "export { x };\nexport { x as y } from \"foo\";\nlet x;\n")
@@ -3276,6 +3319,7 @@ func TestExportDuplicates(t *testing.T) {
 }
 
 func TestExportDefault(t *testing.T) {
+	t.Parallel()
 	expectParseError(t, "export default 1, 2", "<stdin>: ERROR: Expected \";\" but found \",\"\n")
 	expectPrinted(t, "export default (1, 2)", "export default (1, 2);\n")
 
@@ -3307,6 +3351,7 @@ func TestExportDefault(t *testing.T) {
 }
 
 func TestExportClause(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "export {x, y};let x, y", "export { x, y };\nlet x, y;\n")
 	expectPrinted(t, "export {x, y as z,};let x, y", "export { x, y as z };\nlet x, y;\n")
 	expectPrinted(t, "export {x, y} from 'path'", "export { x, y } from \"path\";\n")
@@ -3319,6 +3364,7 @@ func TestExportClause(t *testing.T) {
 }
 
 func TestCatch(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "try {} catch (e) {}", "try {\n} catch (e) {\n}\n")
 	expectPrinted(t, "try {} catch (e) { var e }", "try {\n} catch (e) {\n  var e;\n}\n")
 	expectPrinted(t, "var e; try {} catch (e) {}", "var e;\ntry {\n} catch (e) {\n}\n")
@@ -3343,6 +3389,7 @@ func TestCatch(t *testing.T) {
 }
 
 func TestWarningEqualsNegativeZero(t *testing.T) {
+	t.Parallel()
 	note := "NOTE: Floating-point equality is defined such that 0 and -0 are equal, so \"x === -0\" returns true for both 0 and -0. " +
 		"You need to use \"Object.is(x, -0)\" instead to test for -0.\n"
 
@@ -3360,6 +3407,7 @@ func TestWarningEqualsNegativeZero(t *testing.T) {
 }
 
 func TestWarningEqualsNewObject(t *testing.T) {
+	t.Parallel()
 	note := "NOTE: Equality with a new object is always false in JavaScript because the equality operator tests object identity. " +
 		"You need to write code to compare the contents of the object instead. " +
 		"For example, use \"Array.isArray(x) && x.length === 0\" instead of \"x === []\" to test for an empty array.\n"
@@ -3378,6 +3426,7 @@ func TestWarningEqualsNewObject(t *testing.T) {
 }
 
 func TestWarningEqualsNaN(t *testing.T) {
+	t.Parallel()
 	note := "NOTE: Floating-point equality is defined such that NaN is never equal to anything, so \"x === NaN\" always returns false. " +
 		"You need to use \"Number.isNaN(x)\" instead to test for NaN.\n"
 
@@ -3395,6 +3444,7 @@ func TestWarningEqualsNaN(t *testing.T) {
 }
 
 func TestWarningTypeofEquals(t *testing.T) {
+	t.Parallel()
 	note := "NOTE: The expression \"typeof x\" actually evaluates to \"object\" in JavaScript, not \"null\". " +
 		"You need to use \"x === null\" to test for null.\n"
 
@@ -3412,6 +3462,7 @@ func TestWarningTypeofEquals(t *testing.T) {
 }
 
 func TestWarningDeleteSuperProperty(t *testing.T) {
+	t.Parallel()
 	text := "<stdin>: WARNING: Attempting to delete a property of \"super\" will throw a ReferenceError\n"
 	expectParseError(t, "class Foo extends Bar { constructor() { delete super.foo } }", text)
 	expectParseError(t, "class Foo extends Bar { constructor() { delete super['foo'] } }", text)
@@ -3423,6 +3474,7 @@ func TestWarningDeleteSuperProperty(t *testing.T) {
 }
 
 func TestWarningDuplicateCase(t *testing.T) {
+	t.Parallel()
 	expectParseError(t, "switch (x) { case null: case undefined: }", "")
 	expectParseError(t, "switch (x) { case false: case true: }", "")
 	expectParseError(t, "switch (x) { case 0: case 1: }", "")
@@ -3456,6 +3508,7 @@ func TestWarningDuplicateCase(t *testing.T) {
 }
 
 func TestWarningDuplicateClassMember(t *testing.T) {
+	t.Parallel()
 	duplicateWarning := "<stdin>: WARNING: Duplicate member \"x\" in class body\n" +
 		"<stdin>: NOTE: The original member \"x\" is here:\n"
 
@@ -3488,6 +3541,7 @@ func TestWarningDuplicateClassMember(t *testing.T) {
 }
 
 func TestWarningNullishCoalescing(t *testing.T) {
+	t.Parallel()
 	expectParseError(t, "x = null ?? y", "")
 	expectParseError(t, "x = undefined ?? y", "")
 	expectParseError(t, "x = false ?? y", "")
@@ -3507,6 +3561,7 @@ func TestWarningNullishCoalescing(t *testing.T) {
 }
 
 func TestWarningLogicalOperator(t *testing.T) {
+	t.Parallel()
 	expectParseError(t, "x(a => b && a <= c)", "")
 	expectParseError(t, "x(a => b || a <= c)", "")
 	expectParseError(t, "x(a => (0 && a <= 1))", "")
@@ -3525,6 +3580,7 @@ func TestWarningLogicalOperator(t *testing.T) {
 }
 
 func TestMangleFor(t *testing.T) {
+	t.Parallel()
 	expectPrintedMangle(t, "var a; while (1) ;", "for (var a; ; ) ;\n")
 	expectPrintedMangle(t, "let a; while (1) ;", "let a;\nfor (; ; ) ;\n")
 	expectPrintedMangle(t, "const a=0; while (1) ;", "const a = 0;\nfor (; ; ) ;\n")
@@ -3567,6 +3623,7 @@ func TestMangleFor(t *testing.T) {
 }
 
 func TestMangleLoopJump(t *testing.T) {
+	t.Parallel()
 	// Trim after jump
 	expectPrintedMangle(t, "while (x) { if (1) break; z(); }", "for (; x; )\n  break;\n")
 	expectPrintedMangle(t, "while (x) { if (1) continue; z(); }", "for (; x; )\n  ;\n")
@@ -3603,6 +3660,7 @@ func TestMangleLoopJump(t *testing.T) {
 }
 
 func TestMangleUndefined(t *testing.T) {
+	t.Parallel()
 	// These should be transformed
 	expectPrintedNormalAndMangle(t, "console.log(undefined)", "console.log(void 0);\n", "console.log(void 0);\n")
 	expectPrintedNormalAndMangle(t, "console.log(+undefined)", "console.log(NaN);\n", "console.log(NaN);\n")
@@ -3626,6 +3684,7 @@ func TestMangleUndefined(t *testing.T) {
 }
 
 func TestMangleIndex(t *testing.T) {
+	t.Parallel()
 	expectPrintedNormalAndMangle(t, "x['y']", "x[\"y\"];\n", "x.y;\n")
 	expectPrintedNormalAndMangle(t, "x['y z']", "x[\"y z\"];\n", "x[\"y z\"];\n")
 	expectPrintedNormalAndMangle(t, "x?.['y']", "x?.[\"y\"];\n", "x?.y;\n")
@@ -3652,6 +3711,7 @@ func TestMangleIndex(t *testing.T) {
 }
 
 func TestMangleBlock(t *testing.T) {
+	t.Parallel()
 	expectPrintedMangle(t, "while(1) { while (1) {} }", "for (; ; )\n  for (; ; )\n    ;\n")
 	expectPrintedMangle(t, "while(1) { const x = y; }", "for (; ; ) {\n  const x = y;\n}\n")
 	expectPrintedMangle(t, "while(1) { let x; }", "for (; ; ) {\n  let x;\n}\n")
@@ -3664,6 +3724,7 @@ func TestMangleBlock(t *testing.T) {
 }
 
 func TestMangleSwitch(t *testing.T) {
+	t.Parallel()
 	expectPrintedMangle(t, "x(); switch (y) { case z: return w; }", "if (x(), y === z)\n  return w;\n")
 	expectPrintedMangle(t, "if (t) { x(); switch (y) { case z: return w; } }", "if (t && (x(), y === z))\n  return w;\n")
 
@@ -3698,6 +3759,7 @@ func TestMangleSwitch(t *testing.T) {
 }
 
 func TestMangleAddEmptyString(t *testing.T) {
+	t.Parallel()
 	expectPrintedNormalAndMangle(t, "a = '' + 0", "a = \"0\";\n", "a = \"0\";\n")
 	expectPrintedNormalAndMangle(t, "a = 0 + ''", "a = \"0\";\n", "a = \"0\";\n")
 	expectPrintedNormalAndMangle(t, "a = '' + b", "a = \"\" + b;\n", "a = \"\" + b;\n")
@@ -3775,6 +3837,7 @@ func TestMangleAddEmptyString(t *testing.T) {
 }
 
 func TestMangleStringLength(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "a = ''.length", "a = \"\".length;\n")
 	expectPrintedMangle(t, "''.length++", "\"\".length++;\n")
 	expectPrintedMangle(t, "''.length = a", "\"\".length = a;\n")
@@ -3790,6 +3853,7 @@ func TestMangleStringLength(t *testing.T) {
 }
 
 func TestMangleStringIndex(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "a = 'abc'[0]", "a = \"abc\"[0];\n")
 	expectPrintedMangle(t, "a = 'abc'[-1]", "a = \"abc\"[-1];\n")
 	expectPrintedMangle(t, "a = 'abc'[-0]", "a = \"a\";\n")
@@ -3804,6 +3868,7 @@ func TestMangleStringIndex(t *testing.T) {
 }
 
 func TestMangleNot(t *testing.T) {
+	t.Parallel()
 	// These can be mangled
 	expectPrintedNormalAndMangle(t, "a = !(b == c)", "a = !(b == c);\n", "a = b != c;\n")
 	expectPrintedNormalAndMangle(t, "a = !(b != c)", "a = !(b != c);\n", "a = b == c;\n")
@@ -3819,6 +3884,7 @@ func TestMangleNot(t *testing.T) {
 }
 
 func TestMangleDoubleNot(t *testing.T) {
+	t.Parallel()
 	expectPrintedNormalAndMangle(t, "a = !!b", "a = !!b;\n", "a = !!b;\n")
 
 	expectPrintedNormalAndMangle(t, "a = !!!b", "a = !!!b;\n", "a = !b;\n")
@@ -3858,6 +3924,7 @@ func TestMangleDoubleNot(t *testing.T) {
 }
 
 func TestMangleBooleanConstructor(t *testing.T) {
+	t.Parallel()
 	expectPrintedNormalAndMangle(t, "a = Boolean(b); var Boolean", "a = Boolean(b);\nvar Boolean;\n", "a = Boolean(b);\nvar Boolean;\n")
 
 	expectPrintedNormalAndMangle(t, "a = Boolean()", "a = Boolean();\n", "a = false;\n")
@@ -3878,6 +3945,7 @@ func TestMangleBooleanConstructor(t *testing.T) {
 }
 
 func TestMangleNumberConstructor(t *testing.T) {
+	t.Parallel()
 	expectPrintedNormalAndMangle(t, "a = Number(x)", "a = Number(x);\n", "a = Number(x);\n")
 	expectPrintedNormalAndMangle(t, "a = Number(0n)", "a = Number(0n);\n", "a = Number(0n);\n")
 	expectPrintedNormalAndMangle(t, "a = Number(false); var Number", "a = Number(false);\nvar Number;\n", "a = Number(false);\nvar Number;\n")
@@ -3893,6 +3961,7 @@ func TestMangleNumberConstructor(t *testing.T) {
 }
 
 func TestMangleStringConstructor(t *testing.T) {
+	t.Parallel()
 	expectPrintedNormalAndMangle(t, "a = String(x)", "a = String(x);\n", "a = String(x);\n")
 	expectPrintedNormalAndMangle(t, "a = String('x'); var String", "a = String(\"x\");\nvar String;\n", "a = String(\"x\");\nvar String;\n")
 
@@ -3902,6 +3971,7 @@ func TestMangleStringConstructor(t *testing.T) {
 }
 
 func TestMangleBigIntConstructor(t *testing.T) {
+	t.Parallel()
 	expectPrintedNormalAndMangle(t, "a = BigInt(x)", "a = BigInt(x);\n", "a = BigInt(x);\n")
 	expectPrintedNormalAndMangle(t, "a = BigInt(0n); var BigInt", "a = BigInt(0n);\nvar BigInt;\n", "a = BigInt(0n);\nvar BigInt;\n")
 
@@ -3916,6 +3986,7 @@ func TestMangleBigIntConstructor(t *testing.T) {
 }
 
 func TestMangleCharCodeAt(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "a = 'xy'.charCodeAt(0)", "a = \"xy\".charCodeAt(0);\n")
 
 	expectPrintedMangle(t, "a = 'xy'.charCodeAt()", "a = 120;\n")
@@ -3940,6 +4011,7 @@ func TestMangleCharCodeAt(t *testing.T) {
 }
 
 func TestMangleFromCharCode(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "a = String.fromCharCode(120, 121)", "a = String.fromCharCode(120, 121);\n")
 
 	expectPrintedMangle(t, "a = String.fromCharCode()", "a = \"\";\n")
@@ -3963,6 +4035,7 @@ func TestMangleFromCharCode(t *testing.T) {
 }
 
 func TestMangleToString(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "a = \"xy\".toString()", "a = \"xy\".toString();\n")
 
 	expectPrintedMangle(t, "a = false.toString()", "a = \"false\";\n")
@@ -4004,6 +4077,7 @@ func TestMangleToString(t *testing.T) {
 }
 
 func TestMangleIf(t *testing.T) {
+	t.Parallel()
 	expectPrintedNormalAndMangle(t, "1 ? a() : b()", "1 ? a() : b();\n", "a();\n")
 	expectPrintedNormalAndMangle(t, "0 ? a() : b()", "0 ? a() : b();\n", "b();\n")
 
@@ -4262,6 +4336,7 @@ func TestMangleIf(t *testing.T) {
 }
 
 func TestMangleWrapToAvoidAmbiguousElse(t *testing.T) {
+	t.Parallel()
 	expectPrintedMangle(t, "if (a) { if (b) return c } else return d", "if (a) {\n  if (b) return c;\n} else return d;\n")
 	expectPrintedMangle(t, "if (a) while (1) { if (b) return c } else return d", "if (a) {\n  for (; ; )\n    if (b) return c;\n} else return d;\n")
 	expectPrintedMangle(t, "if (a) for (;;) { if (b) return c } else return d", "if (a) {\n  for (; ; )\n    if (b) return c;\n} else return d;\n")
@@ -4272,6 +4347,7 @@ func TestMangleWrapToAvoidAmbiguousElse(t *testing.T) {
 }
 
 func TestMangleOptionalChain(t *testing.T) {
+	t.Parallel()
 	expectPrintedMangle(t, "let a; return a != null ? a.b : undefined", "let a;\nreturn a?.b;\n")
 	expectPrintedMangle(t, "let a; return a != null ? a[b] : undefined", "let a;\nreturn a?.[b];\n")
 	expectPrintedMangle(t, "let a; return a != null ? a(b) : undefined", "let a;\nreturn a?.(b);\n")
@@ -4323,6 +4399,7 @@ func TestMangleOptionalChain(t *testing.T) {
 }
 
 func TestMangleNullOrUndefinedWithSideEffects(t *testing.T) {
+	t.Parallel()
 	expectPrintedNormalAndMangle(t, "x(y ?? 1)", "x(y ?? 1);\n", "x(y ?? 1);\n")
 	expectPrintedNormalAndMangle(t, "x(y.z ?? 1)", "x(y.z ?? 1);\n", "x(y.z ?? 1);\n")
 	expectPrintedNormalAndMangle(t, "x(y[z] ?? 1)", "x(y[z] ?? 1);\n", "x(y[z] ?? 1);\n")
@@ -4383,6 +4460,7 @@ func TestMangleNullOrUndefinedWithSideEffects(t *testing.T) {
 }
 
 func TestMangleBooleanWithSideEffects(t *testing.T) {
+	t.Parallel()
 	falsyNoSideEffects := []string{"false", "\"\"", "0", "0n", "null", "void 0"}
 	truthyNoSideEffects := []string{"true", "\" \"", "1", "1n", "/./", "(() => {\n})", "function() {\n}", "[1, 2]", "{ a: 0 }"}
 
@@ -4461,6 +4539,7 @@ func TestMangleBooleanWithSideEffects(t *testing.T) {
 }
 
 func TestMangleReturn(t *testing.T) {
+	t.Parallel()
 	expectPrintedMangle(t, "function foo() { x(); return; }", "function foo() {\n  x();\n}\n")
 	expectPrintedMangle(t, "let foo = function() { x(); return; }", "let foo = function() {\n  x();\n};\n")
 	expectPrintedMangle(t, "let foo = () => { x(); return; }", "let foo = () => {\n  x();\n};\n")
@@ -4514,6 +4593,7 @@ func TestMangleReturn(t *testing.T) {
 }
 
 func TestMangleThrow(t *testing.T) {
+	t.Parallel()
 	expectPrintedNormalAndMangle(t,
 		"function foo() { a = b; if (a) throw a; if (b) c = b; throw c; }",
 		"function foo() {\n  a = b;\n  if (a) throw a;\n  if (b) c = b;\n  throw c;\n}\n",
@@ -4539,6 +4619,7 @@ func TestMangleThrow(t *testing.T) {
 }
 
 func TestMangleInitializer(t *testing.T) {
+	t.Parallel()
 	expectPrintedNormalAndMangle(t, "const a = undefined", "const a = void 0;\n", "const a = void 0;\n")
 	expectPrintedNormalAndMangle(t, "let a = undefined", "let a = void 0;\n", "let a;\n")
 	expectPrintedNormalAndMangle(t, "let {} = undefined", "let {} = void 0;\n", "let {} = void 0;\n")
@@ -4549,6 +4630,7 @@ func TestMangleInitializer(t *testing.T) {
 }
 
 func TestMangleCall(t *testing.T) {
+	t.Parallel()
 	expectPrintedNormalAndMangle(t, "x = foo(1, ...[], 2)", "x = foo(1, ...[], 2);\n", "x = foo(1, 2);\n")
 	expectPrintedNormalAndMangle(t, "x = foo(1, ...2, 3)", "x = foo(1, ...2, 3);\n", "x = foo(1, ...2, 3);\n")
 	expectPrintedNormalAndMangle(t, "x = foo(1, ...[2], 3)", "x = foo(1, ...[2], 3);\n", "x = foo(1, 2, 3);\n")
@@ -4561,6 +4643,7 @@ func TestMangleCall(t *testing.T) {
 }
 
 func TestMangleNew(t *testing.T) {
+	t.Parallel()
 	expectPrintedNormalAndMangle(t, "x = new foo(1, ...[], 2)", "x = new foo(1, ...[], 2);\n", "x = new foo(1, 2);\n")
 	expectPrintedNormalAndMangle(t, "x = new foo(1, ...2, 3)", "x = new foo(1, ...2, 3);\n", "x = new foo(1, ...2, 3);\n")
 	expectPrintedNormalAndMangle(t, "x = new foo(1, ...[2], 3)", "x = new foo(1, ...[2], 3);\n", "x = new foo(1, 2, 3);\n")
@@ -4573,6 +4656,7 @@ func TestMangleNew(t *testing.T) {
 }
 
 func TestMangleArray(t *testing.T) {
+	t.Parallel()
 	expectPrintedNormalAndMangle(t, "x = [1, ...[], 2]", "x = [1, ...[], 2];\n", "x = [1, 2];\n")
 	expectPrintedNormalAndMangle(t, "x = [1, ...2, 3]", "x = [1, ...2, 3];\n", "x = [1, ...2, 3];\n")
 	expectPrintedNormalAndMangle(t, "x = [1, ...[2], 3]", "x = [1, ...[2], 3];\n", "x = [1, 2, 3];\n")
@@ -4585,6 +4669,7 @@ func TestMangleArray(t *testing.T) {
 }
 
 func TestMangleObject(t *testing.T) {
+	t.Parallel()
 	expectPrintedNormalAndMangle(t, "x = {['y']: z}", "x = { [\"y\"]: z };\n", "x = { y: z };\n")
 	expectPrintedNormalAndMangle(t, "x = {['y']() {}}", "x = { [\"y\"]() {\n} };\n", "x = { y() {\n} };\n")
 	expectPrintedNormalAndMangle(t, "x = {get ['y']() {}}", "x = { get [\"y\"]() {\n} };\n", "x = { get y() {\n} };\n")
@@ -4665,6 +4750,7 @@ func TestMangleObject(t *testing.T) {
 }
 
 func TestMangleObjectJSX(t *testing.T) {
+	t.Parallel()
 	expectPrintedJSX(t, "x = <foo bar {...{}} />", "x = <foo bar {...{}} />;\n", "x = /* @__PURE__ */ React.createElement(\"foo\", { bar: true, ...{} });\n")
 	expectPrintedJSX(t, "x = <foo bar {...null} />", "x = <foo bar {...null} />;\n", "x = /* @__PURE__ */ React.createElement(\"foo\", { bar: true, ...null });\n")
 	expectPrintedJSX(t, "x = <foo bar {...{bar}} />", "x = <foo bar {...{ bar }} />;\n", "x = /* @__PURE__ */ React.createElement(\"foo\", { bar: true, ...{ bar } });\n")
@@ -4677,6 +4763,7 @@ func TestMangleObjectJSX(t *testing.T) {
 }
 
 func TestMangleArrow(t *testing.T) {
+	t.Parallel()
 	expectPrintedNormalAndMangle(t, "var a = () => {}", "var a = () => {\n};\n", "var a = () => {\n};\n")
 	expectPrintedNormalAndMangle(t, "var a = () => 123", "var a = () => 123;\n", "var a = () => 123;\n")
 	expectPrintedNormalAndMangle(t, "var a = () => void 0", "var a = () => void 0;\n", "var a = () => {\n};\n")
@@ -4687,6 +4774,7 @@ func TestMangleArrow(t *testing.T) {
 }
 
 func TestMangleIIFE(t *testing.T) {
+	t.Parallel()
 	expectPrintedNormalAndMangle(t, "var a = (() => {})()", "var a = /* @__PURE__ */ (() => {\n})();\n", "var a = void 0;\n")
 	expectPrintedNormalAndMangle(t, "(() => a)()", "(() => a)();\n", "a;\n")
 	expectPrintedNormalAndMangle(t, "(() => a)(...[])", "(() => a)(...[]);\n", "a;\n")
@@ -4738,6 +4826,7 @@ func TestMangleIIFE(t *testing.T) {
 }
 
 func TestMangleTemplate(t *testing.T) {
+	t.Parallel()
 	expectPrintedNormalAndMangle(t, "_ = `a${x}b${y}c`", "_ = `a${x}b${y}c`;\n", "_ = `a${x}b${y}c`;\n")
 	expectPrintedNormalAndMangle(t, "_ = `a${x}b${'y'}c`", "_ = `a${x}b${\"y\"}c`;\n", "_ = `a${x}byc`;\n")
 	expectPrintedNormalAndMangle(t, "_ = `a${'x'}b${y}c`", "_ = `a${\"x\"}b${y}c`;\n", "_ = `axb${y}c`;\n")
@@ -4794,6 +4883,7 @@ _Foo_instances = new WeakSet(), foo_fn = function() {
 }
 
 func TestMangleTypeofIdentifier(t *testing.T) {
+	t.Parallel()
 	expectPrintedNormalAndMangle(t, "return typeof (123, x)", "return typeof (123, x);\n", "return typeof (0, x);\n")
 	expectPrintedNormalAndMangle(t, "return typeof (123, x.y)", "return typeof (123, x.y);\n", "return typeof x.y;\n")
 	expectPrintedNormalAndMangle(t, "return typeof (123, x); var x", "return typeof (123, x);\nvar x;\n", "return typeof x;\nvar x;\n")
@@ -4808,6 +4898,7 @@ func TestMangleTypeofIdentifier(t *testing.T) {
 }
 
 func TestMangleTypeofEqualsUndefined(t *testing.T) {
+	t.Parallel()
 	expectPrintedNormalAndMangle(t, "return typeof x !== 'undefined'", "return typeof x !== \"undefined\";\n", "return typeof x < \"u\";\n")
 	expectPrintedNormalAndMangle(t, "return typeof x != 'undefined'", "return typeof x != \"undefined\";\n", "return typeof x < \"u\";\n")
 	expectPrintedNormalAndMangle(t, "return 'undefined' !== typeof x", "return \"undefined\" !== typeof x;\n", "return typeof x < \"u\";\n")
@@ -4820,6 +4911,7 @@ func TestMangleTypeofEqualsUndefined(t *testing.T) {
 }
 
 func TestMangleEquals(t *testing.T) {
+	t.Parallel()
 	expectPrintedNormalAndMangle(t, "return typeof x === y", "return typeof x === y;\n", "return typeof x === y;\n")
 	expectPrintedNormalAndMangle(t, "return typeof x !== y", "return typeof x !== y;\n", "return typeof x !== y;\n")
 	expectPrintedNormalAndMangle(t, "return y === typeof x", "return y === typeof x;\n", "return y === typeof x;\n")
@@ -4880,6 +4972,7 @@ func TestMangleEquals(t *testing.T) {
 }
 
 func TestMangleUnaryInsideComma(t *testing.T) {
+	t.Parallel()
 	expectPrintedNormalAndMangle(t, "return -(a, b)", "return -(a, b);\n", "return a, -b;\n")
 	expectPrintedNormalAndMangle(t, "return +(a, b)", "return +(a, b);\n", "return a, +b;\n")
 	expectPrintedNormalAndMangle(t, "return ~(a, b)", "return ~(a, b);\n", "return a, ~b;\n")
@@ -4890,6 +4983,7 @@ func TestMangleUnaryInsideComma(t *testing.T) {
 }
 
 func TestMangleBinaryInsideComma(t *testing.T) {
+	t.Parallel()
 	expectPrintedNormalAndMangle(t, "(a, b) && c", "(a, b) && c;\n", "a, b && c;\n")
 	expectPrintedNormalAndMangle(t, "(a, b) == c", "(a, b) == c;\n", "a, b == c;\n")
 	expectPrintedNormalAndMangle(t, "(a, b) + c", "(a, b) + c;\n", "a, b + c;\n")
@@ -4899,6 +4993,7 @@ func TestMangleBinaryInsideComma(t *testing.T) {
 }
 
 func TestMangleUnaryConstantFolding(t *testing.T) {
+	t.Parallel()
 	expectPrintedNormalAndMangle(t, "x = +5", "x = 5;\n", "x = 5;\n")
 	expectPrintedNormalAndMangle(t, "x = -5", "x = -5;\n", "x = -5;\n")
 	expectPrintedNormalAndMangle(t, "x = ~5", "x = ~5;\n", "x = -6;\n")
@@ -4918,6 +5013,7 @@ func TestMangleUnaryConstantFolding(t *testing.T) {
 }
 
 func TestMangleBinaryConstantFolding(t *testing.T) {
+	t.Parallel()
 	expectPrintedNormalAndMangle(t, "x = 3 + 6", "x = 3 + 6;\n", "x = 9;\n")
 	expectPrintedNormalAndMangle(t, "x = 3 - 6", "x = 3 - 6;\n", "x = -3;\n")
 	expectPrintedNormalAndMangle(t, "x = 3 * 6", "x = 3 * 6;\n", "x = 18;\n")
@@ -4982,6 +5078,7 @@ func TestMangleBinaryConstantFolding(t *testing.T) {
 }
 
 func TestMangleNestedLogical(t *testing.T) {
+	t.Parallel()
 	expectPrintedNormalAndMangle(t, "(a && b) && c", "a && b && c;\n", "a && b && c;\n")
 	expectPrintedNormalAndMangle(t, "a && (b && c)", "a && (b && c);\n", "a && b && c;\n")
 	expectPrintedNormalAndMangle(t, "(a || b) && c", "(a || b) && c;\n", "(a || b) && c;\n")
@@ -4994,6 +5091,7 @@ func TestMangleNestedLogical(t *testing.T) {
 }
 
 func TestMangleEqualsUndefined(t *testing.T) {
+	t.Parallel()
 	expectPrintedNormalAndMangle(t, "return a === void 0", "return a === void 0;\n", "return a === void 0;\n")
 	expectPrintedNormalAndMangle(t, "return a !== void 0", "return a !== void 0;\n", "return a !== void 0;\n")
 	expectPrintedNormalAndMangle(t, "return void 0 === a", "return void 0 === a;\n", "return a === void 0;\n")
@@ -5030,6 +5128,7 @@ func TestMangleEqualsUndefined(t *testing.T) {
 }
 
 func TestMangleUnusedFunctionExpressionNames(t *testing.T) {
+	t.Parallel()
 	expectPrintedNormalAndMangle(t, "x = function y() {}", "x = function y() {\n};\n", "x = function() {\n};\n")
 	expectPrintedNormalAndMangle(t, "x = function y() { return y }", "x = function y() {\n  return y;\n};\n", "x = function y() {\n  return y;\n};\n")
 	expectPrintedNormalAndMangle(t, "x = function y() { return eval('y') }", "x = function y() {\n  return eval(\"y\");\n};\n", "x = function y() {\n  return eval(\"y\");\n};\n")
@@ -5037,6 +5136,7 @@ func TestMangleUnusedFunctionExpressionNames(t *testing.T) {
 }
 
 func TestMangleClass(t *testing.T) {
+	t.Parallel()
 	expectPrintedNormalAndMangle(t, "class x {['y'] = z}", "class x {\n  [\"y\"] = z;\n}\n", "class x {\n  y = z;\n}\n")
 	expectPrintedNormalAndMangle(t, "class x {['y']() {}}", "class x {\n  [\"y\"]() {\n  }\n}\n", "class x {\n  y() {\n  }\n}\n")
 	expectPrintedNormalAndMangle(t, "class x {get ['y']() {}}", "class x {\n  get [\"y\"]() {\n  }\n}\n", "class x {\n  get y() {\n  }\n}\n")
@@ -5051,12 +5151,14 @@ func TestMangleClass(t *testing.T) {
 }
 
 func TestMangleUnusedClassExpressionNames(t *testing.T) {
+	t.Parallel()
 	expectPrintedNormalAndMangle(t, "x = class y {}", "x = class y {\n};\n", "x = class {\n};\n")
 	expectPrintedNormalAndMangle(t, "x = class y { foo() { return y } }", "x = class y {\n  foo() {\n    return y;\n  }\n};\n", "x = class y {\n  foo() {\n    return y;\n  }\n};\n")
 	expectPrintedNormalAndMangle(t, "x = class y { foo() { if (0) return y } }", "x = class y {\n  foo() {\n    if (0) return _y;\n  }\n};\n", "x = class {\n  foo() {\n  }\n};\n")
 }
 
 func TestMangleUnused(t *testing.T) {
+	t.Parallel()
 	expectPrintedNormalAndMangle(t, "null", "null;\n", "")
 	expectPrintedNormalAndMangle(t, "void 0", "", "")
 	expectPrintedNormalAndMangle(t, "void 0", "", "")
@@ -5249,6 +5351,7 @@ func TestMangleUnused(t *testing.T) {
 }
 
 func TestMangleInlineLocals(t *testing.T) {
+	t.Parallel()
 	check := func(a string, b string) {
 		t.Helper()
 		expectPrintedMangle(t, "function wrapper(arg0, arg1) {"+a+"}",
@@ -5496,6 +5599,7 @@ func TestMangleInlineLocals(t *testing.T) {
 }
 
 func TestTrimCodeInDeadControlFlow(t *testing.T) {
+	t.Parallel()
 	expectPrintedMangle(t, "if (1) a(); else { ; }", "a();\n")
 	expectPrintedMangle(t, "if (1) a(); else { b() }", "a();\n")
 	expectPrintedMangle(t, "if (1) a(); else { const b = c }", "a();\n")
@@ -5547,6 +5651,7 @@ func TestTrimCodeInDeadControlFlow(t *testing.T) {
 }
 
 func TestPreservedComments(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "//", "")
 	expectPrinted(t, "//preserve", "")
 	expectPrinted(t, "//@__PURE__", "")
@@ -5591,6 +5696,7 @@ func TestPreservedComments(t *testing.T) {
 }
 
 func TestUnicodeWhitespace(t *testing.T) {
+	t.Parallel()
 	whitespace := []string{
 		"\u0009", // character tabulation
 		"\u000B", // line tabulation
@@ -5668,6 +5774,7 @@ func TestUnicodeWhitespace(t *testing.T) {
 
 // Make sure we can handle the unicode replacement character "�" in various places
 func TestReplacementCharacter(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "//\uFFFD\n123", "123;\n")
 	expectPrinted(t, "/*\uFFFD*/123", "123;\n")
 
@@ -5680,6 +5787,7 @@ func TestReplacementCharacter(t *testing.T) {
 }
 
 func TestNewTarget(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "function f() { new.target }", "function f() {\n  new.target;\n}\n")
 	expectPrinted(t, "function f() { (new.target) }", "function f() {\n  new.target;\n}\n")
 	expectPrinted(t, "function f() { () => new.target }", "function f() {\n  () => new.target;\n}\n")
@@ -5692,6 +5800,7 @@ func TestNewTarget(t *testing.T) {
 }
 
 func TestJSX(t *testing.T) {
+	t.Parallel()
 	expectParseErrorJSX(t, "<div>></div>",
 		"<stdin>: WARNING: The character \">\" is not valid inside a JSX element\n"+
 			"NOTE: Did you mean to escape it as \"{'>'}\" instead?\n")
@@ -5915,6 +6024,7 @@ func TestJSX(t *testing.T) {
 }
 
 func TestJSXSingleLine(t *testing.T) {
+	t.Parallel()
 	expectPrintedJSX(t, "<x/>", "<x />;\n", "/* @__PURE__ */ React.createElement(\"x\", null);\n")
 	expectPrintedJSX(t, "<x y/>", "<x y />;\n", "/* @__PURE__ */ React.createElement(\"x\", { y: true });\n")
 	expectPrintedJSX(t, "<x\n/>", "<x />;\n", "/* @__PURE__ */ React.createElement(\n  \"x\",\n  null\n);\n")
@@ -5924,6 +6034,7 @@ func TestJSXSingleLine(t *testing.T) {
 }
 
 func TestJSXPragmas(t *testing.T) {
+	t.Parallel()
 	expectPrintedJSX(t, "// @jsx h\n<a/>", "<a />;\n", "/* @__PURE__ */ h(\"a\", null);\n")
 	expectPrintedJSX(t, "/*@jsx h*/\n<a/>", "<a />;\n", "/* @__PURE__ */ h(\"a\", null);\n")
 	expectPrintedJSX(t, "/* @jsx h */\n<a/>", "<a />;\n", "/* @__PURE__ */ h(\"a\", null);\n")
@@ -5946,6 +6057,7 @@ func TestJSXPragmas(t *testing.T) {
 }
 
 func TestJSXAutomatic(t *testing.T) {
+	t.Parallel()
 	// Prod, without runtime imports
 	p := JSXAutomaticTestOptions{Development: false, OmitJSXRuntimeForTests: true}
 	expectPrintedJSXAutomatic(t, p, "<div>></div>", "/* @__PURE__ */ jsx(\"div\", { children: \">\" });\n")
@@ -6062,6 +6174,7 @@ NOTE: Both "__source" and "__self" are set automatically by esbuild when using R
 }
 
 func TestJSXAutomaticPragmas(t *testing.T) {
+	t.Parallel()
 	expectPrintedJSX(t, "// @jsxRuntime automatic\n<a/>", "<a />;\n", "import { jsx } from \"react/jsx-runtime\";\n/* @__PURE__ */ jsx(\"a\", {});\n")
 	expectPrintedJSX(t, "/*@jsxRuntime automatic*/\n<a/>", "<a />;\n", "import { jsx } from \"react/jsx-runtime\";\n/* @__PURE__ */ jsx(\"a\", {});\n")
 	expectPrintedJSX(t, "/* @jsxRuntime automatic */\n<a/>", "<a />;\n", "import { jsx } from \"react/jsx-runtime\";\n/* @__PURE__ */ jsx(\"a\", {});\n")
@@ -6105,6 +6218,7 @@ NOTE: You can enable React's "automatic" JSX transform for this file by using a 
 }
 
 func TestJSXSideEffects(t *testing.T) {
+	t.Parallel()
 	expectPrintedJSX(t, "<a/>", "<a />;\n", "/* @__PURE__ */ React.createElement(\"a\", null);\n")
 	expectPrintedJSX(t, "<></>", "<></>;\n", "/* @__PURE__ */ React.createElement(React.Fragment, null);\n")
 
@@ -6113,6 +6227,7 @@ func TestJSXSideEffects(t *testing.T) {
 }
 
 func TestPreserveOptionalChainParentheses(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "a?.b.c", "a?.b.c;\n")
 	expectPrinted(t, "(a?.b).c", "(a?.b).c;\n")
 	expectPrinted(t, "a?.b.c.d", "a?.b.c.d;\n")
@@ -6142,6 +6257,7 @@ func TestPreserveOptionalChainParentheses(t *testing.T) {
 }
 
 func TestPrivateIdentifiers(t *testing.T) {
+	t.Parallel()
 	expectParseError(t, "#foo", "<stdin>: ERROR: Expected \"in\" but found end of file\n")
 	expectParseError(t, "#foo in this", "<stdin>: ERROR: Private name \"#foo\" must be declared in an enclosing class\n")
 	expectParseError(t, "this.#foo", "<stdin>: ERROR: Private name \"#foo\" must be declared in an enclosing class\n")
@@ -6272,6 +6388,7 @@ func TestPrivateIdentifiers(t *testing.T) {
 }
 
 func TestImportAssertions(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "import 'x' assert {}", "import \"x\" assert {};\n")
 	expectPrinted(t, "import 'x' assert {\n}", "import \"x\" assert {};\n")
 	expectPrinted(t, "import 'x' assert\n{}", "import \"x\" assert {};\n")
@@ -6347,6 +6464,7 @@ func TestImportAssertions(t *testing.T) {
 }
 
 func TestImportAttributes(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "import 'x' with {}", "import \"x\" with {};\n")
 	expectPrinted(t, "import 'x' with {\n}", "import \"x\" with {};\n")
 	expectPrinted(t, "import 'x' with\n{}", "import \"x\" with {};\n")
@@ -6433,6 +6551,7 @@ func TestImportAttributes(t *testing.T) {
 }
 
 func TestES5(t *testing.T) {
+	t.Parallel()
 	// Do not generate "let" when emulating block-level function declarations and targeting ES5
 	expectPrintedTarget(t, 2015, "if (1) function f() {}", "if (1) {\n  let f = function() {\n  };\n  var f = f;\n}\n")
 	expectPrintedTarget(t, 5, "if (1) function f() {}", "if (1) {\n  var f = function() {\n  };\n  var f = f;\n}\n")
@@ -6555,6 +6674,7 @@ func TestES5(t *testing.T) {
 }
 
 func TestASCIIOnly(t *testing.T) {
+	t.Parallel()
 	es5 := "<stdin>: ERROR: \"𐀀\" cannot be escaped in the configured target environment " +
 		"but you can set the charset to \"utf8\" to allow unescaped Unicode characters\n"
 
@@ -6704,6 +6824,7 @@ func TestASCIIOnly(t *testing.T) {
 }
 
 func TestMangleCatch(t *testing.T) {
+	t.Parallel()
 	expectPrintedMangle(t, "try { throw 0 } catch (e) { console.log(0) }", "try {\n  throw 0;\n} catch {\n  console.log(0);\n}\n")
 	expectPrintedMangle(t, "try { throw 0 } catch (e) { console.log(0, e) }", "try {\n  throw 0;\n} catch (e) {\n  console.log(0, e);\n}\n")
 	expectPrintedMangle(t, "try { throw 0 } catch (e) { 0 && console.log(0, e) }", "try {\n  throw 0;\n} catch {\n}\n")
@@ -6719,6 +6840,7 @@ func TestMangleCatch(t *testing.T) {
 }
 
 func TestMangleTry(t *testing.T) {
+	t.Parallel()
 	expectPrintedMangle(t, "try { throw 0 } catch (e) { foo() }", "try {\n  throw 0;\n} catch {\n  foo();\n}\n")
 	expectPrintedMangle(t, "try {} catch (e) { var foo }", "try {\n} catch {\n  var foo;\n}\n")
 
@@ -6757,6 +6879,7 @@ func TestMangleTry(t *testing.T) {
 }
 
 func TestAutoPureForObjectCreate(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "Object.create(null)", "/* @__PURE__ */ Object.create(null);\n")
 	expectPrinted(t, "Object.create({})", "/* @__PURE__ */ Object.create({});\n")
 
@@ -6766,6 +6889,7 @@ func TestAutoPureForObjectCreate(t *testing.T) {
 }
 
 func TestAutoPureForSet(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "new Set", "/* @__PURE__ */ new Set();\n")
 	expectPrinted(t, "new Set(null)", "/* @__PURE__ */ new Set(null);\n")
 	expectPrinted(t, "new Set(undefined)", "/* @__PURE__ */ new Set(void 0);\n")
@@ -6779,6 +6903,7 @@ func TestAutoPureForSet(t *testing.T) {
 }
 
 func TestAutoPureForMap(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "new Map", "/* @__PURE__ */ new Map();\n")
 	expectPrinted(t, "new Map(null)", "/* @__PURE__ */ new Map(null);\n")
 	expectPrinted(t, "new Map(undefined)", "/* @__PURE__ */ new Map(void 0);\n")
@@ -6794,6 +6919,7 @@ func TestAutoPureForMap(t *testing.T) {
 }
 
 func TestAutoPureForWeakSet(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "new WeakSet", "/* @__PURE__ */ new WeakSet();\n")
 	expectPrinted(t, "new WeakSet(null)", "/* @__PURE__ */ new WeakSet(null);\n")
 	expectPrinted(t, "new WeakSet(undefined)", "/* @__PURE__ */ new WeakSet(void 0);\n")
@@ -6807,6 +6933,7 @@ func TestAutoPureForWeakSet(t *testing.T) {
 }
 
 func TestAutoPureForWeakMap(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "new WeakMap", "/* @__PURE__ */ new WeakMap();\n")
 	expectPrinted(t, "new WeakMap(null)", "/* @__PURE__ */ new WeakMap(null);\n")
 	expectPrinted(t, "new WeakMap(undefined)", "/* @__PURE__ */ new WeakMap(void 0);\n")
@@ -6822,6 +6949,7 @@ func TestAutoPureForWeakMap(t *testing.T) {
 }
 
 func TestAutoPureForDate(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "new Date", "/* @__PURE__ */ new Date();\n")
 	expectPrinted(t, "new Date(0)", "/* @__PURE__ */ new Date(0);\n")
 	expectPrinted(t, "new Date('')", "/* @__PURE__ */ new Date(\"\");\n")
@@ -6838,6 +6966,7 @@ func TestAutoPureForDate(t *testing.T) {
 }
 
 func TestAutoPureForRegExpEscape(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "RegExp.escape('x')", "/* @__PURE__ */ RegExp.escape(\"x\");\n")
 	expectPrinted(t, "RegExp.escape(`${x}`)", "/* @__PURE__ */ RegExp.escape(`${x}`);\n")
 	expectPrinted(t, "RegExp.escape(x ? 'y' : 'z')", "/* @__PURE__ */ RegExp.escape(x ? \"y\" : \"z\");\n")
@@ -6851,6 +6980,7 @@ func TestAutoPureForRegExpEscape(t *testing.T) {
 
 // See: https://github.com/tc39/proposal-explicit-resource-management
 func TestUsing(t *testing.T) {
+	t.Parallel()
 	expectPrinted(t, "using x = y", "using x = y;\n")
 	expectPrinted(t, "using x = y; z", "using x = y;\nz;\n")
 	expectPrinted(t, "using x = y, z = _", "using x = y, z = _;\n")

@@ -3,7 +3,7 @@ import { getEsbuild } from "../esbuild-api.js";
 const TransformSchema = {
     code: z.string().describe("Source code to transform"),
     loader: z
-        .enum(["ts", "tsx", "jsx", "js", "css", "json", "text", "base64"])
+        .enum(["js", "jsx", "ts", "tsx", "css", "local-css", "json", "text", "base64", "binary", "dataurl", "copy", "default", "empty", "file"])
         .optional()
         .describe("Loader to use (default: ts)"),
     target: z

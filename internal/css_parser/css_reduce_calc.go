@@ -378,19 +378,33 @@ func (c *calcProduct) partiallySimplify() calcTerm {
 	// types that a math function can resolve to, return the result of multiplying all the
 	// values of the children (noting that the value of an Invert node is the reciprocal
 	// of its child’s value), expressed in the result’s canonical unit.
-	if len(terms) == 2 {
-		// Right now, only handle the case of two numbers, one of which has no unit
-		if first, ok := terms[0].data.(*calcNumeric); ok {
-			if second, ok := terms[1].data.(*calcNumeric); ok {
-				if first.unit == "" {
-					second.number *= first.number
-					return second
-				}
-				if second.unit == "" {
-					first.number *= second.number
-					return first
-				}
+	// If root contains only numeric values, and at most one has a unit,
+	// multiply them all together
+	{
+		allNumeric := true
+		var unitTerm *calcNumeric
+		product := 1.0
+		unitCount := 0
+		for _, term := range terms {
+			numeric, ok := term.data.(*calcNumeric)
+			if !ok {
+				allNumeric = false
+				break
 			}
+			if numeric.unit != "" {
+				unitCount++
+				unitTerm = numeric
+			} else {
+				product *= numeric.number
+			}
+		}
+		if allNumeric && unitCount <= 1 {
+			if unitTerm != nil {
+				unitTerm.number *= product
+				return unitTerm
+			}
+			// All unitless
+			return &calcNumeric{number: product, loc: terms[0].data.(*calcNumeric).loc}
 		}
 	}
 

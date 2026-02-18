@@ -32,6 +32,11 @@ const BuildSchema = {
         .describe("Global identifier replacements"),
     metafile: z.boolean().optional().describe("Include bundle analysis metafile"),
     sourcemap: z.boolean().optional().describe("Generate source maps"),
+    outdir: z.string().optional().describe("Output directory for multiple entry points"),
+    outfile: z.string().optional().describe("Output file for single entry point"),
+    loader: z.record(z.string(), z.enum(["js", "jsx", "ts", "tsx", "css", "local-css", "json", "text", "base64", "binary", "dataurl", "copy", "default", "empty", "file"])).optional().describe("File extension to loader mapping"),
+    treeShaking: z.boolean().optional().describe("Enable tree shaking"),
+    jsx: z.enum(["transform", "preserve", "automatic"]).optional().describe("JSX handling mode"),
 };
 export function registerBuildTool(server) {
     server.tool("esbuild_build", "Bundle entry point files using esbuild. Returns output contents in memory (does not write to disk).", BuildSchema, async (args) => {
@@ -49,6 +54,11 @@ export function registerBuildTool(server) {
                 define: args.define,
                 metafile: args.metafile,
                 sourcemap: args.sourcemap,
+                outdir: args.outdir,
+                outfile: args.outfile,
+                loader: args.loader,
+                treeShaking: args.treeShaking,
+                jsx: args.jsx,
                 write: false,
             });
             const output = {

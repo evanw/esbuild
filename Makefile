@@ -696,6 +696,14 @@ compat-table: esbuild | compat-table/node_modules
 	./esbuild compat-table/src/index.ts --bundle --platform=node --external:./compat-table/repos/* --outfile=compat-table/out.js --log-level=warning --sourcemap
 	node --enable-source-maps compat-table/out.js
 
+check-compat-table: compat-table
+	@if ! git diff --quiet internal/compat/js_table.go internal/compat/css_table.go 2>/dev/null; then \
+		echo "ERROR: Compat tables are out of date. Run 'make compat-table' and commit the changes."; \
+		git diff --stat internal/compat/js_table.go internal/compat/css_table.go; \
+		exit 1; \
+	fi
+	@echo "Compat tables are up to date."
+
 update-compat-table: esbuild
 	cd compat-table && npm i @mdn/browser-compat-data@latest caniuse-lite@latest --silent --save-exact
 	./esbuild compat-table/src/index.ts --bundle --platform=node --external:./compat-table/repos/* --outfile=compat-table/out.js --log-level=warning --sourcemap
