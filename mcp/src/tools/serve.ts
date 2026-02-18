@@ -1,16 +1,9 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod";
 import { getEsbuild } from "../esbuild-api.js";
+import { formatErrorResponse } from "../errors.js";
+import { BuildOnlySchema, CommonSchema, ServeOnlySchema, prepareBuildOptions } from "./schemas.js";
 
-const ServeSchema = {
-  entryPoints: z.array(z.string()).describe("File paths to use as entry points"),
-  bundle: z.boolean().optional().describe("Bundle imports into output (default: true)"),
-  format: z.enum(["iife", "cjs", "esm"]).optional().describe("Output format"),
-  port: z.number().optional().describe("Port to serve on (default: auto)"),
-  host: z.string().optional().describe("Host to serve on (default: 0.0.0.0)"),
-  servedir: z.string().optional().describe("Directory to serve static files from"),
-  outdir: z.string().optional().describe("Output directory"),
-};
+const ServeSchema = { ...BuildOnlySchema, ...CommonSchema, ...ServeOnlySchema };
 
 export function registerServeTool(server: McpServer): void {
   server.tool(
@@ -21,19 +14,22 @@ export function registerServeTool(server: McpServer): void {
       const esbuild = await getEsbuild();
 
       try {
-        const ctx = await esbuild.context({
-          entryPoints: args.entryPoints,
-          bundle: args.bundle ?? true,
-          format: args.format,
-          outdir: args.outdir,
-          write: true,
-        });
+        const { port, host, servedir, keyfile, certfile, fallback, ...buildArgs } = prepareBuildOptions(args) as any;
 
-        const result = await ctx.serve({
-          port: args.port,
-          host: args.host,
-          servedir: args.servedir,
-        });
+        buildArgs.bundle = buildArgs.bundle ?? true;
+        buildArgs.write = buildArgs.write ?? true;
+
+        const ctx = await esbuild.context(buildArgs);
+
+        const serveOptions: Record<string, unknown> = {};
+        if (port !== undefined) serveOptions.port = port;
+        if (host !== undefined) serveOptions.host = host;
+        if (servedir !== undefined) serveOptions.servedir = servedir;
+        if (keyfile !== undefined) serveOptions.keyfile = keyfile;
+        if (certfile !== undefined) serveOptions.certfile = certfile;
+        if (fallback !== undefined) serveOptions.fallback = fallback;
+
+        const result = await ctx.serve(serveOptions as any);
 
         return {
           content: [{
@@ -42,17 +38,7 @@ export function registerServeTool(server: McpServer): void {
           }],
         };
       } catch (err: unknown) {
-        const error = err as { errors?: unknown[]; warnings?: unknown[]; message?: string };
-        return {
-          content: [{
-            type: "text",
-            text: JSON.stringify({
-              errors: error.errors ?? [{ text: error.message ?? String(err) }],
-              warnings: error.warnings ?? [],
-            }, null, 2),
-          }],
-          isError: true,
-        };
+        return formatErrorResponse(err);
       }
     }
   );

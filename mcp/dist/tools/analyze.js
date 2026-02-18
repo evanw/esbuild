@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { getEsbuild } from "../esbuild-api.js";
+import { formatErrorResponse } from "../errors.js";
 const AnalyzeSchema = {
     metafile: z
         .string()
@@ -29,16 +30,7 @@ export function registerAnalyzeTool(server) {
             };
         }
         catch (err) {
-            const error = err;
-            return {
-                content: [
-                    {
-                        type: "text",
-                        text: `Error analyzing metafile: ${error.message ?? String(err)}`,
-                    },
-                ],
-                isError: true,
-            };
+            return formatErrorResponse(err);
         }
     });
 }

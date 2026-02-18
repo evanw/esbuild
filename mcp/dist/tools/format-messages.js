@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { getEsbuild } from "../esbuild-api.js";
+import { formatErrorResponse } from "../errors.js";
 const LocationSchema = z
     .object({
     file: z.string().optional(),
@@ -47,16 +48,7 @@ export function registerFormatMessagesTool(server) {
             };
         }
         catch (err) {
-            const error = err;
-            return {
-                content: [
-                    {
-                        type: "text",
-                        text: `Error formatting messages: ${error.message ?? String(err)}`,
-                    },
-                ],
-                isError: true,
-            };
+            return formatErrorResponse(err);
         }
     });
 }
