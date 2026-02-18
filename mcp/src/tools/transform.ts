@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { getEsbuild } from "../esbuild-api.js";
+import { formatErrorResponse } from "../errors.js";
 
 const TransformSchema = {
   code: z.string().describe("Source code to transform"),
@@ -59,22 +60,7 @@ export function registerTransformTool(server: McpServer): void {
           ],
         };
       } catch (err: unknown) {
-        const error = err as { errors?: unknown[]; message?: string };
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(
-                {
-                  errors: error.errors ?? [{ text: error.message ?? String(err) }],
-                },
-                null,
-                2
-              ),
-            },
-          ],
-          isError: true,
-        };
+        return formatErrorResponse(err);
       }
     }
   );

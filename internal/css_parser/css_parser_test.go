@@ -2218,6 +2218,11 @@ func TestMangleCalc(t *testing.T) {
 	expectPrintedMangle(t, "a { b: calc(2 + 3) }", "a {\n  b: 5;\n}\n", "")
 	expectPrintedMangle(t, "a { b: calc(6 - 2) }", "a {\n  b: 4;\n}\n", "")
 
+	// Test zero-term elimination
+	expectPrintedMangle(t, "a { b: calc(1px + 0px) }", "a {\n  b: 1px;\n}\n", "")
+	expectPrintedMangle(t, "a { b: calc(0px + 1px) }", "a {\n  b: 1px;\n}\n", "")
+	expectPrintedMangle(t, "a { b: calc(0% + 5%) }", "a {\n  b: 5%;\n}\n", "")
+
 	// Test product
 	expectPrintedMangle(t, "a { b: calc(2 * 3) }", "a {\n  b: 6;\n}\n", "")
 	expectPrintedMangle(t, "a { b: calc(6 / 2) }", "a {\n  b: 3;\n}\n", "")

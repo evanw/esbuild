@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { getEsbuild } from "../esbuild-api.js";
+import { formatErrorResponse } from "../errors.js";
 
 const ContextSchema = {
   entryPoints: z.array(z.string()).describe("File paths to use as entry points"),
@@ -61,17 +62,7 @@ export function registerContextTool(server: McpServer): void {
           await ctx.dispose();
         }
       } catch (err: unknown) {
-        const error = err as { errors?: unknown[]; warnings?: unknown[]; message?: string };
-        return {
-          content: [{
-            type: "text",
-            text: JSON.stringify({
-              errors: error.errors ?? [{ text: error.message ?? String(err) }],
-              warnings: error.warnings ?? [],
-            }, null, 2),
-          }],
-          isError: true,
-        };
+        return formatErrorResponse(err);
       }
     }
   );

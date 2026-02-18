@@ -329,6 +329,21 @@ func (c *calcSum) partiallySimplify() calcTerm {
 		}
 	}
 
+	// Eliminate zero-valued terms when multiple terms remain
+	if len(terms) > 1 {
+		end := 0
+		for _, term := range terms {
+			if numeric, ok := term.data.(*calcNumeric); ok && numeric.number == 0 {
+				continue
+			}
+			terms[end] = term
+			end++
+		}
+		if end > 0 {
+			terms = terms[:end]
+		}
+	}
+
 	// If root has only a single child at this point, return the child.
 	if len(terms) == 1 {
 		return terms[0].data

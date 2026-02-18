@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { getEsbuild } from "../esbuild-api.js";
+import { formatErrorResponse } from "../errors.js";
 
 const LocationSchema = z
   .object({
@@ -62,16 +63,7 @@ export function registerFormatMessagesTool(server: McpServer): void {
           ],
         };
       } catch (err: unknown) {
-        const error = err as { message?: string };
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Error formatting messages: ${error.message ?? String(err)}`,
-            },
-          ],
-          isError: true,
-        };
+        return formatErrorResponse(err);
       }
     }
   );
