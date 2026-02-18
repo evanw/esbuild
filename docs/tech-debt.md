@@ -38,11 +38,13 @@ Labeled "GROSS HACK" in a code comment, this implements a full parser state clon
 
 The interop between CommonJS and ESM modules is explicitly described in code comments as "extremely complex and subtle." It requires `__toESM`, `__toCommonJS`, and `__toCJS` runtime wrappers with a 4-step export resolution process. This complexity is load-bearing and very difficult to simplify without breaking existing behavior, but it is a significant source of bugs and makes the linker hard to modify.
 
-### 6. Zero Benchmarks and Zero Fuzzing
+### 6. ~~Zero Benchmarks and~~ Zero Fuzzing
 
 **Files:** `internal/bundler_tests/`, `internal/js_parser/`, `internal/css_parser/`
 
-The project has 1,061 bundler snapshot tests and 0 `testing.B` benchmark functions and 0 fuzz tests. The parsers accept arbitrary user input with no systematic edge-case discovery. All tests run sequentially — there are no `t.Parallel()` calls in the bundler test suite, meaning the suite runs slower than it needs to and regressions in parse performance are invisible.
+~~The project has 0 `testing.B` benchmark functions.~~ **PARTIALLY RESOLVED**: 6 benchmarks now exist — 3 JS parser (`BenchmarkParseJS`, `BenchmarkParseTypeScript`, `BenchmarkParseJSX`) + 3 CSS parser (`BenchmarkParseCSS`, `BenchmarkParseCSSMinify`, `BenchmarkPrintCSS`). 182 parser tests now run with `t.Parallel()` (130 js_parser + 52 css_parser).
+
+**Remaining**: Still zero fuzz tests — the parsers accept arbitrary user input with no systematic edge-case discovery. Bundler tests still run sequentially (snapshot mutex prevents parallelism).
 
 ---
 
@@ -52,7 +54,9 @@ The project has 1,061 bundler snapshot tests and 0 `testing.B` benchmark functio
 
 **Files:** `internal/compat/js_table.go` (936 lines), `internal/compat/css_table.go` (422 lines), `compat-table/src/`
 
-The compat tables merge three external data sources (kangax, caniuse-lite, MDN) through a manual process that requires resolving conflicts between them. The generated Go files are committed to the repo and must be manually regenerated when upstream tables update. The Firefox 120 gradient edge case required a hardcoded override (commit `ac54f06d`) because the automated process produced incorrect output — a sign that the merge logic is fragile.
+**PARTIALLY RESOLVED**: `make check-compat-table` target now exists for CI staleness detection.
+
+**Remaining**: The manual regeneration process itself is unchanged. The compat tables still merge three external data sources (kangax, caniuse-lite, MDN) through a manual process that requires resolving conflicts between them. The generated Go files are committed to the repo and must be manually regenerated when upstream tables update. The Firefox 120 gradient edge case required a hardcoded override (commit `ac54f06d`) because the automated process produced incorrect output — the merge logic fragility still exists.
 
 ### 8. TDZ Performance Workarounds
 
@@ -81,13 +85,9 @@ There are 150+ option validation functions in `common.ts` that are duplicated in
 
 **Files:** `mcp/src/`
 
-The MCP server has 0 tests, uses generic `catch` blocks throughout, and covers approximately 30% of the esbuild API surface. Missing capabilities:
+**PARTIALLY RESOLVED**: 14 vitest tests added across 4 test files (`transform`, `build`, `analyze`, `format-messages`). `context()` API now exposed via `esbuild_context` tool. Loader enum fixed (8 → 15 values), build schema expanded with `outdir`, `outfile`, `loader`, `treeShaking`, `jsx`. Coverage improved from ~30% to ~50%.
 
-- `serve()`, `watch()`, `context()` APIs
-- Plugin support
-- Typed errors
-
-Known schema errors: the `define` option type is wrong, the `loader` enum is incomplete, and `format` is missing the `preserve` value.
+**Remaining**: `serve()`, `watch()`, and plugin support still missing. Generic `catch` blocks still used throughout (note: `esbuild.analyzeMetafile()` returns empty string on invalid JSON rather than throwing — the generic catch may mask this). Typed errors not yet implemented.
 
 ---
 
@@ -105,11 +105,11 @@ The largest file in the audit scope. It implements 4-phase export resolution, pa
 
 The `hackListener` struct includes a 50ms sleep to work around a Linux TCP RST issue. This is a time-based race workaround — not a principled fix — and may fail under load or on slow systems.
 
-### 14. CSS Nesting Expansion Limit
+### 14. CSS Nesting Expansion Limit — RESOLVED
 
-**File:** `internal/css_parser/css_nesting.go:278`
+**File:** `internal/css_parser/css_nesting.go:277-282`
 
-An arbitrary cap of `0xFF00` on CSS nesting expansion with no comment explaining the basis for this specific value. If real-world CSS approaches this limit the behavior will be surprising.
+~~An arbitrary cap of `0xFF00` on CSS nesting expansion with no comment explaining the basis for this specific value.~~ The cap now has a detailed comment explaining its rationale.
 
 ### 15. Cyclic Chunk Import Deferral
 
@@ -129,20 +129,34 @@ The code comments explicitly note that property mangling "does not currently acc
 
 Over 40 runtime helpers are defined in a single string template with conditional ES5 paths. Because helpers are embedded as a string rather than as separate Go files, they cannot be tree-shaken independently. Every build pays the cost of including the full runtime template even when only a few helpers are needed.
 
-### 18. JS Feature Flags: uint64 Limit
+### 18. JS Feature Flags: uint64 Limit — RESOLVED
 
-**File:** `internal/compat/`
+**File:** `internal/compat/js_table.go:125-133`
 
-52 JS feature flags are packed into a `uint64`. The type is already near capacity — adding 13 or more features would overflow it and require refactoring to a wider type or a different representation.
+~~52 JS feature flags are packed into a `uint64`.~~ **Correction**: There are actually 61 features (iota 0-60), leaving only 3 bits of capacity. Now has a warning comment in the const block (`js_table.go:125-127`) and a compile-time overflow assertion (`const _ = uint64(Using) * 2` at `js_table.go:130-133`). Note: `Using` is already a bitmask value (`1 << 60`), not a raw iota, so `uint64(Using) * 2` correctly overflows when iota reaches 63.
 
-### 19. `calc()` Produces No Simplification
+### 19. `calc()` Produces Limited Simplification
 
 **File:** `internal/css_parser/css_reduce_calc.go`
 
-The `calc()` reducer handles structural reduction but never simplifies the result. `calc(1px + 0px)` is left as-is rather than being simplified to `1px`. This is a missed minification opportunity for CSS-heavy projects.
+**PARTIALLY RESOLVED**: Multi-term product simplification now works — `calc(2 * 3px * 4)` → `24px`. Previous code only handled exactly 2 terms; now handles any N terms with ≤1 unit.
+
+**Remaining**: Additive simplification is still incomplete. The sum simplifier (`calcSum.partiallySimplify`) correctly combines same-unit terms but doesn't eliminate zero-valued terms — `calc(1px + 0px)` stays as `1px + 0px` instead of simplifying to `1px`.
 
 ### 20. `bundler_default_test.go`: 9,389-line File
 
 **File:** `internal/bundler_tests/bundler_default_test.go`
 
 302 tests in a single file with no grouping by feature area and no parallelism. This makes it difficult to find related tests, run subsets, and adds to the serial test suite runtime.
+
+---
+
+## New Findings (Feb 2026 fix run)
+
+These were discovered during the 8-agent parallel fix run that addressed items above.
+
+1. **JSFeature compile-time assertion quirk**: The overflow guard for #18 couldn't use `1 << Using` as originally planned because `Using` is already a bitmask value (`1 << 60`), not a raw iota. `uint64(Using) * 2` was used instead, which correctly overflows when iota reaches 63.
+
+2. **`analyzeMetafile()` silent failure**: `esbuild.analyzeMetafile()` returns an empty string on invalid JSON input rather than throwing. The MCP analyze tool's generic catch block may mask this behavior — returning error text when it should return empty.
+
+3. **`calc()` zero-term elimination gap**: The additive simplifier (`calcSum.partiallySimplify`) correctly combines same-unit terms but doesn't eliminate zero-valued terms. For example, `calc(1px + 0px)` remains `1px + 0px` instead of simplifying to `1px`.
