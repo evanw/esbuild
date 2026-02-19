@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("123_456_78\xc4n")
