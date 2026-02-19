@@ -33,4 +33,6 @@
 /www
 bin
 esbuild.exe
+mcp/dist/
+mcp-wasm/dist/
 node_modules/
