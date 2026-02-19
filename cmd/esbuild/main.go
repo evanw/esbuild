@@ -186,9 +186,6 @@ func main() {
 		case strings.HasPrefix(arg, "--heap="):
 			heapFile = arg[len("--heap="):]
 
-		case strings.HasPrefix(arg, "--trace="):
-			traceFile = arg[len("--trace="):]
-
 		case strings.HasPrefix(arg, "--timing"):
 			// This is a hidden flag because it's only intended for debugging esbuild
 			// itself. The output is not documented and not stable.
@@ -263,15 +260,6 @@ func main() {
 	// Capture the defer statements below so the "done" message comes last
 	exitCode := 1
 	func() {
-		// To view a CPU trace, use "go tool trace [file]". Note that the trace
-		// viewer doesn't work under Windows Subsystem for Linux for some reason.
-		if traceFile != "" {
-			if done := createTraceFile(osArgs, traceFile); done == nil {
-				return
-			} else {
-				defer done()
-			}
-		}
 
 		// To view a heap trace, use "go tool pprof [file]" and type "top". You can
 		// also drop it into https://speedscope.app and use the "left heavy" or
