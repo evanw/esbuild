@@ -8,6 +8,7 @@ import { registerBuildTool } from "./tools/build.js";
 import { registerAnalyzeTool } from "./tools/analyze.js";
 import { registerFormatMessagesTool } from "./tools/format-messages.js";
 import { registerContextTool } from "./tools/context.js";
+import { registerBuildFromGithubTool } from "./tools/build-from-github.js";
 
 const server = new McpServer({
   name: "esbuild-wasm-mcp",
@@ -21,6 +22,7 @@ registerBuildTool(server);
 registerAnalyzeTool(server);
 registerFormatMessagesTool(server);
 registerContextTool(server);
+registerBuildFromGithubTool(server);
 
 const transport = new StdioServerTransport();
 await server.connect(transport);
