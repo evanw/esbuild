@@ -169,7 +169,7 @@ func validateLegalComments(value LegalComments, bundle bool) config.LegalComment
 	case LegalCommentsExternal:
 		return config.LegalCommentsExternalWithoutComment
 	default:
-		panic("Invalid source map")
+		panic("Invalid legal comments")
 	}
 }
 
