@@ -5678,7 +5678,7 @@ func (c *linkerContext) generateChunkJS(chunkIndex int, chunkWaitGroup *sync.Wai
 
 	// Start with the hashbang if there is one. This must be done before the
 	// banner because it only works if it's literally the first character.
-	if chunk.isEntryPoint {
+	if chunk.isEntryPoint && !c.options.UnsupportedJSFeatures.Has(compat.Hashbang) {
 		if repr := c.graph.Files[chunk.sourceIndex].InputFile.Repr.(*graph.JSRepr); repr.AST.Hashbang != "" {
 			hashbang := repr.AST.Hashbang + "\n"
 			prevOffset.AdvanceString(hashbang)
