@@ -121,7 +121,16 @@ const (
 	TypeofExoticObjectIsObject
 	UnicodeEscapes
 	Using
+
+	// WARNING: JSFeature is a uint64 bitmask. As of this writing, 61 of 64 bits are
+	// used (only 3 remaining). If more features are needed, the type must be widened
+	// or the representation changed.
 )
+
+// Compile-time assertion: fails if the number of JSFeature values reaches 64.
+// When the last iota equals 63, Using would be 1<<63 and doubling it overflows
+// uint64, causing a compile error. When iota reaches 64, the shift overflows to 0.
+const _ = uint64(Using) * 2
 
 var StringToJSFeature = map[string]JSFeature{
 	"arbitrary-module-namespace-names":  ArbitraryModuleNamespaceNames,
