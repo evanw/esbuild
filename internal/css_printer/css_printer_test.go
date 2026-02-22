@@ -370,6 +370,11 @@ func TestAtMedia(t *testing.T) {
 	expectPrintedMinify(t, "@media not ( (a) or (b) ) {div{color:red}}", "@media not ((a)or (b)){div{color:red}}")
 	expectPrintedMinify(t, "@media not ( (a) and (b) ) {div{color:red}}", "@media not ((a)and (b)){div{color:red}}")
 
+	// Nested "or" inside a media type must preserve outer parentheses (https://github.com/evanw/esbuild/issues/4395)
+	expectPrintedMinify(t, "@media only screen and ((min-width: 10px) or (min-height: 10px)) {div{color:red}}", "@media only screen and ((min-width:10px)or (min-height:10px)){div{color:red}}")
+	expectPrintedMinify(t, "@media screen and ((a) or (b)) {div{color:red}}", "@media screen and ((a)or (b)){div{color:red}}")
+	expectPrinted(t, "@media only screen and ((min-width: 10px) or (min-height: 10px)) { div { color: red } }", "@media only screen and ((min-width: 10px) or (min-height: 10px)) {\n  div {\n    color: red;\n  }\n}\n")
+
 	expectPrintedMinify(t, "@media (width < 2px) {div{color:red}}", "@media(width<2px){div{color:red}}")
 	expectPrintedMinify(t, "@media (1px < width) {div{color:red}}", "@media(1px<width){div{color:red}}")
 	expectPrintedMinify(t, "@media (1px < width < 2px) {div{color:red}}", "@media(1px<width<2px){div{color:red}}")

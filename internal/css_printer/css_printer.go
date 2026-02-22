@@ -444,7 +444,14 @@ func (p *printer) printMediaQuery(query css_ast.MediaQuery, flags mqFlags) {
 		p.printIdent(q.Type, identNormal, 0)
 		if q.AndOrNull.Data != nil {
 			p.print(" and ")
-			p.printMediaQuery(q.AndOrNull, 0)
+			// An "or" condition after a media type must be wrapped in parentheses
+			// to preserve grouping, e.g. "screen and ((a) or (b))" must keep the
+			// outer parentheses since "screen and (a) or (b)" is invalid CSS.
+			andFlags := mqFlags(0)
+			if binary, ok := q.AndOrNull.Data.(*css_ast.MQBinary); ok && binary.Op == css_ast.MQBinaryOpOr {
+				andFlags = mqNeedsParens
+			}
+			p.printMediaQuery(q.AndOrNull, andFlags)
 		}
 
 	case *css_ast.MQNot:
