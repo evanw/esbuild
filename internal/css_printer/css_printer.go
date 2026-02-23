@@ -444,7 +444,17 @@ func (p *printer) printMediaQuery(query css_ast.MediaQuery, flags mqFlags) {
 		p.printIdent(q.Type, identNormal, 0)
 		if q.AndOrNull.Data != nil {
 			p.print(" and ")
-			p.printMediaQuery(q.AndOrNull, 0)
+			// If the condition is a binary "or" expression, it needs to be wrapped
+			// in parentheses because CSS does not allow mixing "and" and "or" at the
+			// same nesting level. The grammar requires:
+			//   <media-condition-without-or> = <media-in-parens> [ 'and' <media-in-parens> ]*
+			// An "or" expression can only appear inside <media-in-parens>, which means
+			// it must be parenthesized.
+			andOrFlags := mqFlags(0)
+			if binary, ok := q.AndOrNull.Data.(*css_ast.MQBinary); ok && binary.Op == css_ast.MQBinaryOpOr {
+				andOrFlags = mqNeedsParens
+			}
+			p.printMediaQuery(q.AndOrNull, andOrFlags)
 		}
 
 	case *css_ast.MQNot:

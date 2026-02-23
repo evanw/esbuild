@@ -2739,6 +2739,14 @@ func TestLowerAtMediaRange(t *testing.T) {
 	expectPrintedLowerMangle(t, "@media not (2px > width > 1px) { a { color: red } }", "@media (min-width: 2px) or (max-width: 1px) {\n  a {\n    color: red;\n  }\n}\n", "")
 	expectPrintedLowerMangle(t, "@media not (1px <= width <= 2px) { a { color: red } }", "@media not ((min-width: 1px) and (max-width: 2px)) {\n  a {\n    color: red;\n  }\n}\n", "")
 	expectPrintedLowerMangle(t, "@media not (2px >= width >= 1px) { a { color: red } }", "@media not ((max-width: 2px) and (min-width: 1px)) {\n  a {\n    color: red;\n  }\n}\n", "")
+
+	// Parentheses must be preserved around "or" expressions after "<media-type> and"
+	expectPrinted(t, "@media screen and ((color) or (opacity)) { a { color: red } }", "@media screen and ((color) or (opacity)) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedMinify(t, "@media screen and ((color) or (opacity)) { a { color: red } }", "@media screen and ((color)or (opacity)){a{color:red}}", "")
+	expectPrintedMinify(t, "@media only screen and ((min-width: 10px) or (min-height: 10px)) { a { color: red } }", "@media only screen and ((min-width:10px)or (min-height:10px)){a{color:red}}", "")
+
+	// But "and" after "<media-type> and" should not get extra parentheses
+	expectPrintedMinify(t, "@media screen and (color) and (opacity) { a { color: red } }", "@media screen and (color)and (opacity){a{color:red}}", "")
 }
 
 func TestAtScope(t *testing.T) {
