@@ -2744,67 +2744,57 @@ TestKeepNamesAllForms
 ---------- /out/keep.js ----------
 function fn() {
 }
-__name(fn, "fn");
 function foo(fn2 = function() {
 }) {
 }
-__name(foo, "foo");
-var fn = /* @__PURE__ */ __name(function() {
-}, "fn");
+var fn = function() {
+};
 var obj = { "f n": /* @__PURE__ */ __name(function() {
 }, "f n") };
 class Foo0 {
   static {
-    __name(this, "Foo0");
   }
   "f n" = /* @__PURE__ */ __name(function() {
   }, "f n");
 }
 class Foo1 {
   static {
-    __name(this, "Foo1");
   }
   static "f n" = /* @__PURE__ */ __name(function() {
   }, "f n");
 }
 class Foo2 {
   static {
-    __name(this, "Foo2");
   }
   accessor "f n" = /* @__PURE__ */ __name(function() {
   }, "f n");
 }
 class Foo3 {
   static {
-    __name(this, "Foo3");
   }
   static accessor "f n" = /* @__PURE__ */ __name(function() {
   }, "f n");
 }
 class Foo4 {
   static {
-    __name(this, "Foo4");
   }
   #fn = /* @__PURE__ */ __name(function() {
   }, "#fn");
 }
 class Foo5 {
   static {
-    __name(this, "Foo5");
   }
   static #fn = /* @__PURE__ */ __name(function() {
   }, "#fn");
 }
 class Foo6 {
   static {
-    __name(this, "Foo6");
   }
   accessor #fn = /* @__PURE__ */ __name(function() {
   }, "#fn");
 }
 class Foo7 {
   static {
-    __name(this, "Foo7");
   }
   static accessor #fn = /* @__PURE__ */ __name(function() {
   }, "#fn");
@@ -2836,11 +2826,9 @@ for (var { fn = /* @__PURE__ */ __name(function() {
 function foo([fn2 = /* @__PURE__ */ __name(function() {
 }, "fn")]) {
 }
-__name(foo, "foo");
 function foo({ fn: fn2 = /* @__PURE__ */ __name(function() {
 }, "fn") }) {
 }
-__name(foo, "foo");
 [fn = /* @__PURE__ */ __name(function() {
 }, "fn")] = [];
 ({ fn = /* @__PURE__ */ __name(function() {
@@ -2849,140 +2837,120 @@ __name(foo, "foo");
 ---------- /out/do-not-keep.js ----------
 class Foo0 {
   static {
-    __name(this, "Foo0");
   }
   fn() {
   }
 }
 class Foo1 {
   static {
-    __name(this, "Foo1");
   }
   *fn() {
   }
 }
 class Foo2 {
   static {
-    __name(this, "Foo2");
   }
   get fn() {
   }
 }
 class Foo3 {
   static {
-    __name(this, "Foo3");
   }
   set fn(_) {
   }
 }
 class Foo4 {
   static {
-    __name(this, "Foo4");
   }
   async fn() {
   }
 }
 class Foo5 {
   static {
-    __name(this, "Foo5");
   }
   static fn() {
   }
 }
 class Foo6 {
   static {
-    __name(this, "Foo6");
   }
   static *fn() {
   }
 }
 class Foo7 {
   static {
-    __name(this, "Foo7");
   }
   static get fn() {
   }
 }
 class Foo8 {
   static {
-    __name(this, "Foo8");
   }
   static set fn(_) {
   }
 }
 class Foo9 {
   static {
-    __name(this, "Foo9");
   }
   static async fn() {
   }
 }
 class Bar0 {
   static {
-    __name(this, "Bar0");
   }
   #fn() {
   }
 }
 class Bar1 {
   static {
-    __name(this, "Bar1");
   }
   *#fn() {
   }
 }
 class Bar2 {
   static {
-    __name(this, "Bar2");
   }
   get #fn() {
   }
 }
 class Bar3 {
   static {
-    __name(this, "Bar3");
   }
   set #fn(_) {
   }
 }
 class Bar4 {
   static {
-    __name(this, "Bar4");
   }
   async #fn() {
   }
 }
 class Bar5 {
   static {
-    __name(this, "Bar5");
   }
   static #fn() {
   }
 }
 class Bar6 {
   static {
-    __name(this, "Bar6");
   }
   static *#fn() {
   }
 }
 class Bar7 {
   static {
-    __name(this, "Bar7");
   }
   static get #fn() {
   }
 }
 class Bar8 {
   static {
-    __name(this, "Bar8");
   }
   static set #fn(_) {
   }
 }
 class Bar9 {
   static {
-    __name(this, "Bar9");
   }
   static async #fn(_) {
   }
@@ -3003,7 +2971,6 @@ TestKeepNamesClassStaticName
 ---------- /out.js ----------
 class A {
   static {
-    __name(this, "A");
   }
   static foo;
 }
@@ -3051,7 +3018,6 @@ let f = class f3 {
 };
 let a2 = class {
   static {
-    __name(this, "a2");
   }
   static foo;
 };
@@ -3080,14 +3046,12 @@ TestKeepNamesTreeShaking
 // entry.js
 function fnStmtKeep() {
 }
-__name(fnStmtKeep, "fnStmtKeep");
 x = fnStmtKeep;
 var fnExprKeep = /* @__PURE__ */ __name(function() {
 }, "keep");
 x = fnExprKeep;
 var clsStmtKeep = class {
   static {
-    __name(this, "clsStmtKeep");
   }
 };
 new clsStmtKeep();
@@ -6366,12 +6330,11 @@ export function outer() {
     let inner = function() {
       return Math.random();
     };
-    __name(inner, "inner");
     const x = inner();
     console.log(x);
   }
 }
-__name(outer, "outer"), outer();
+outer();
 
 ================================================================================
 TestStringExportNamesCommonJS

@@ -10314,16 +10314,23 @@ func (p *parser) keepExprSymbolName(value js_ast.Expr, name string) js_ast.Expr 
 	})
 
 	// Make sure tree shaking removes this if the function is never used
-	value.Data.(*js_ast.ECall).CanBeUnwrappedIfUnused = true
+	call := value.Data.(*js_ast.ECall)
+	call.CanBeUnwrappedIfUnused = true
+	call.IsKeepName = true
+	call.KeepNameRef = ast.InvalidRef
 	return value
 }
 
 func (p *parser) keepClassOrFnSymbolName(loc logger.Loc, expr js_ast.Expr, name string) js_ast.Stmt {
+	value := p.callRuntime(loc, "__name", []js_ast.Expr{
+		expr,
+		{Loc: loc, Data: &js_ast.EString{Value: helpers.StringToUTF16(name)}},
+	})
+	call := value.Data.(*js_ast.ECall)
+	call.IsKeepName = true
+	call.KeepNameRef = ast.InvalidRef
 	return js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{
-		Value: p.callRuntime(loc, "__name", []js_ast.Expr{
-			expr,
-			{Loc: loc, Data: &js_ast.EString{Value: helpers.StringToUTF16(name)}},
-		}),
+		Value:                                   value,
 		IsFromClassOrFnThatCanBeRemovedIfUnused: true,
 	}}
 }
@@ -12437,11 +12444,25 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 			} else {
 				this = js_ast.Expr{Loc: class.BodyLoc, Data: js_ast.EThisShared}
 			}
+			keepNameStmt := p.keepClassOrFnSymbolName(class.BodyLoc, this, nameToKeep)
+
+			// When Args[0] is "this" (not lowered), store the class name ref
+			// so the printer can compare the final printed name against the
+			// string argument to decide if the __name() call is superfluous.
+			// When lowered, Args[0] is EIdentifier which the printer extracts directly.
+			if !classLoweringInfo.lowerAllStaticFields && class.Name != nil {
+				if sexpr, ok := keepNameStmt.Data.(*js_ast.SExpr); ok {
+					if call, ok2 := sexpr.Value.Data.(*js_ast.ECall); ok2 {
+						call.KeepNameRef = class.Name.Ref
+					}
+				}
+			}
+
 			properties := make([]js_ast.Property, 0, 1+len(class.Properties))
 			properties = append(properties, js_ast.Property{
 				Kind: js_ast.PropertyClassStaticBlock,
 				ClassStaticBlock: &js_ast.ClassStaticBlock{Loc: class.BodyLoc, Block: js_ast.SBlock{Stmts: []js_ast.Stmt{
-					p.keepClassOrFnSymbolName(class.BodyLoc, this, nameToKeep),
+					keepNameStmt,
 				}}},
 			})
 			class.Properties = append(properties, class.Properties...)

@@ -303,6 +303,7 @@ type printer struct {
 	oldLineStart         int
 	oldLineEnd           int
 	intToBytesBuffer     [64]byte
+	keepNameAssignRef    ast.Ref
 	needsSemicolon       bool
 	wasLazyExport        bool
 	prevOp               js_ast.OpCode
@@ -1683,6 +1684,11 @@ func (p *printer) simplifyUnusedExpr(expr js_ast.Expr) js_ast.Expr {
 		}
 
 	case *js_ast.ECall:
+		// Drop superfluous __name() calls entirely when unused
+		if p.isKeepNameSuperfluous(e) {
+			return js_ast.Expr{}
+		}
+
 		var symbolFlags ast.SymbolFlags
 		switch target := e.Target.Data.(type) {
 		case *js_ast.EIdentifier:
@@ -1714,6 +1720,48 @@ func (p *printer) simplifyUnusedExpr(expr js_ast.Expr) js_ast.Expr {
 	}
 
 	return expr
+}
+
+// isKeepNameSuperfluous returns true if this __name() call is unnecessary
+// because the symbol's final printed name already matches the desired name.
+// This avoids emitting runtime overhead when --keep-names is used without
+// any renaming (no --minify, no name collisions during --bundle).
+func (p *printer) isKeepNameSuperfluous(e *js_ast.ECall) bool {
+	if !e.IsKeepName || len(e.Args) < 2 {
+		return false
+	}
+	str, ok := e.Args[1].Data.(*js_ast.EString)
+	if !ok {
+		return false
+	}
+
+	ref := ast.InvalidRef
+	if e.KeepNameRef != ast.InvalidRef {
+		ref = e.KeepNameRef
+	} else {
+		switch arg := e.Args[0].Data.(type) {
+		case *js_ast.EIdentifier:
+			ref = arg.Ref
+		case *js_ast.EFunction:
+			if arg.Fn.Name != nil {
+				ref = arg.Fn.Name.Ref
+			}
+		case *js_ast.EClass:
+			if arg.Class.Name != nil {
+				ref = arg.Class.Name.Ref
+			}
+		}
+	}
+
+	// For anonymous expressions in variable declarations, use the binding ref
+	if ref == ast.InvalidRef && p.keepNameAssignRef != ast.InvalidRef {
+		ref = p.keepNameAssignRef
+	}
+
+	if ref == ast.InvalidRef {
+		return false
+	}
+	return helpers.UTF16EqualsString(str.Value, p.renamer.NameForSymbol(ref))
 }
 
 // This assumes the original expression was some form of indirect value, such
@@ -2301,6 +2349,12 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		}
 
 	case *js_ast.ECall:
+		// Omit superfluous __name() calls when the symbol wasn't renamed
+		if p.isKeepNameSuperfluous(e) {
+			p.printExpr(e.Args[0], level, flags)
+			break
+		}
+
 		if p.options.MinifySyntax {
 			var symbolFlags ast.SymbolFlags
 			switch target := e.Target.Data.(type) {
@@ -3748,7 +3802,16 @@ func (p *printer) printDecls(keyword string, decls []js_ast.Decl, flags printExp
 			p.printSpace()
 			p.print("=")
 			p.printSpace()
+
+			// Track the binding ref for anonymous __name() calls like
+			// "const bar = __name(function() {}, \"bar\")" so the printer
+			// can determine if the call is superfluous
+			oldKeepNameAssignRef := p.keepNameAssignRef
+			if id, ok := decl.Binding.Data.(*js_ast.BIdentifier); ok {
+				p.keepNameAssignRef = id.Ref
+			}
 			p.printExprWithoutLeadingNewline(decl.ValueOrNil, js_ast.LComma, flags)
+			p.keepNameAssignRef = oldKeepNameAssignRef
 		}
 	}
 }
@@ -4873,6 +4936,11 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 	case *js_ast.SExpr:
 		value := s.Value
 
+		// Omit superfluous __name() statement calls when the symbol wasn't renamed
+		if call, ok := value.Data.(*js_ast.ECall); ok && p.isKeepNameSuperfluous(call) {
+			break
+		}
+
 		// Omit calls to empty functions from the output completely
 		if p.options.MinifySyntax {
 			value = p.simplifyUnusedExpr(value)
@@ -4973,6 +5041,8 @@ func Print(tree js_ast.AST, symbols ast.SymbolMap, r renamer.Renamer, options Op
 		moduleType:    tree.ModuleTypeData.Type,
 		exprComments:  tree.ExprComments,
 		wasLazyExport: tree.HasLazyExport,
+
+		keepNameAssignRef: ast.InvalidRef,
 
 		stmtStart:          -1,
 		exportDefaultStart: -1,
