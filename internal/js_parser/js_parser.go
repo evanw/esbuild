@@ -12446,14 +12446,21 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 			}
 			keepNameStmt := p.keepClassOrFnSymbolName(class.BodyLoc, this, nameToKeep)
 
-			// When Args[0] is "this" (not lowered), store the class name ref
-			// so the printer can compare the final printed name against the
-			// string argument to decide if the __name() call is superfluous.
+			// When Args[0] is "this" (not lowered), store a ref so the printer
+			// can compare the final printed name against the string argument.
 			// When lowered, Args[0] is EIdentifier which the printer extracts directly.
 			if !classLoweringInfo.lowerAllStaticFields && class.Name != nil {
 				if sexpr, ok := keepNameStmt.Data.(*js_ast.SExpr); ok {
 					if call, ok2 := sexpr.Value.Data.(*js_ast.ECall); ok2 {
-						call.KeepNameRef = class.Name.Ref
+						if p.symbols[result.innerClassNameRef.InnerIndex].UseCountEstimate > 0 {
+							// Class has self-references and will be transformed to
+							// "var Foo = class _Foo {}". Use innerClassNameRef so the
+							// printer sees _Foo != "Foo" and keeps the __name() call.
+							call.KeepNameRef = result.innerClassNameRef
+						} else {
+							// No self-references, class name won't change.
+							call.KeepNameRef = class.Name.Ref
+						}
 					}
 				}
 			}
