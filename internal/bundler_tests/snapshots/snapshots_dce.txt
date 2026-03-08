@@ -298,6 +298,29 @@ var Foo = class {
 };
 
 ================================================================================
+TestCrossModuleConstantFoldingIfStmt
+---------- /out/entry.js ----------
+// entry.js
+console.log("production");
+
+================================================================================
+TestCrossModuleConstantFoldingIfStmtMultiple
+---------- /out/entry.js ----------
+// entry.js
+console.log("app");
+
+================================================================================
+TestCrossModuleConstantFoldingIfStmtThrow
+---------- /out/entry.js ----------
+// entry.js
+function reportError(msg) {
+  throw new Error("ERROR_CODE");
+}
+export {
+  reportError
+};
+
+================================================================================
 TestCrossModuleConstantFoldingNumber
 ---------- /out/enum-entry.js ----------
 // enum-entry.ts

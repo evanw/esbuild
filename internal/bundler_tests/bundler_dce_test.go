@@ -5007,3 +5007,77 @@ func TestDCEOfSymbolForCall(t *testing.T) {
 		},
 	})
 }
+
+func TestCrossModuleConstantFoldingIfStmt(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import { DEV } from './constants'
+				if (DEV) {
+					console.log("dev mode")
+				}
+				console.log("production")
+			`,
+			"/constants.js": `
+				export const DEV = false
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			MinifySyntax: true,
+		},
+	})
+}
+
+func TestCrossModuleConstantFoldingIfStmtThrow(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import { DEV } from './constants'
+				function reportError(msg) {
+					if (DEV) {
+						let detail = "detailed: " + msg
+						throw new Error(detail)
+					} else {
+						throw new Error("ERROR_CODE")
+					}
+				}
+				export { reportError }
+			`,
+			"/constants.js": `
+				export const DEV = false
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			MinifySyntax: true,
+		},
+	})
+}
+
+func TestCrossModuleConstantFoldingIfStmtMultiple(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import { DEBUG, VERBOSE } from './constants'
+				if (DEBUG) { console.log("debug") }
+				if (VERBOSE) { console.log("verbose") }
+				console.log("app")
+			`,
+			"/constants.js": `
+				export const DEBUG = false
+				export const VERBOSE = false
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			MinifySyntax: true,
+		},
+	})
+}
