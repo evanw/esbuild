@@ -2639,6 +2639,16 @@ func TestMangleAtMedia(t *testing.T) {
 	expectPrintedMangle(t, "@media (a) and ((b) or (c)) { a { color: red } }", "@media (a) and ((b) or (c)) {\n  a {\n    color: red;\n  }\n}\n", "")
 	expectPrintedMangle(t, "@media (a) or ((b) and (c)) { a { color: red } }", "@media (a) or ((b) and (c)) {\n  a {\n    color: red;\n  }\n}\n", "")
 
+	expectPrintedMangle(t, "@media screen and (((a) and (b)) and (c)) { a { color: red } }", "@media screen and (a) and (b) and (c) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedMangle(t, "@media screen and (((a) or (b)) or (c)) { a { color: red } }", "@media screen and ((a) or (b) or (c)) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedMangle(t, "@media screen and ((a) and ((b) and (c))) { a { color: red } }", "@media screen and (a) and (b) and (c) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedMangle(t, "@media screen and ((a) or ((b) or (c))) { a { color: red } }", "@media screen and ((a) or (b) or (c)) {\n  a {\n    color: red;\n  }\n}\n", "")
+
+	expectPrintedMangle(t, "@media screen and (((a) and (b)) or (c)) { a { color: red } }", "@media screen and (((a) and (b)) or (c)) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedMangle(t, "@media screen and (((a) or (b)) and (c)) { a { color: red } }", "@media screen and ((a) or (b)) and (c) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedMangle(t, "@media screen and ((a) and ((b) or (c))) { a { color: red } }", "@media screen and (a) and ((b) or (c)) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrintedMangle(t, "@media screen and ((a) or ((b) and (c))) { a { color: red } }", "@media screen and ((a) or ((b) and (c))) {\n  a {\n    color: red;\n  }\n}\n", "")
+
 	expectPrintedMangle(t, "@media not (not (color)) { a { color: red } }", "@media (color) {\n  a {\n    color: red;\n  }\n}\n", "")
 	expectPrintedMangle(t, "@media not (not (not (color))) { a { color: red } }", "@media not (color) {\n  a {\n    color: red;\n  }\n}\n", "")
 	expectPrintedMangle(t, "@media not (not (not (not (color)))) { a { color: red } }", "@media (color) {\n  a {\n    color: red;\n  }\n}\n", "")

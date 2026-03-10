@@ -444,7 +444,11 @@ func (p *printer) printMediaQuery(query css_ast.MediaQuery, flags mqFlags) {
 		p.printIdent(q.Type, identNormal, 0)
 		if q.AndOrNull.Data != nil {
 			p.print(" and ")
-			p.printMediaQuery(q.AndOrNull, 0)
+			var flags mqFlags
+			if binary, ok := q.AndOrNull.Data.(*css_ast.MQBinary); ok && binary.Op == css_ast.MQBinaryOpOr {
+				flags = mqNeedsParens
+			}
+			p.printMediaQuery(q.AndOrNull, flags)
 		}
 
 	case *css_ast.MQNot:

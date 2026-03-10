@@ -1,5 +1,34 @@
 # Changelog
 
+## Unreleased
+
+* Fix a regression with CSS media queries ([#4395](https://github.com/evanw/esbuild/issues/4395), [#4405](https://github.com/evanw/esbuild/issues/4405), [#4406](https://github.com/evanw/esbuild/issues/4406))
+
+    Version 0.25.11 of esbuild introduced support for parsing media queries. This unintentionally introduced a regression with printing media queries that use the `<media-type> and <media-condition-without-or>` grammar. Specifically, esbuild was failing to wrap an `or` clause with parentheses when inside `<media-condition-without-or>`. This release fixes the regression.
+
+    Here is an example:
+
+    ```css
+    /* Original code */
+    @media only screen and ((min-width: 10px) or (min-height: 10px)) {
+      a { color: red }
+    }
+
+    /* Old output (incorrect) */
+    @media only screen and (min-width: 10px) or (min-height: 10px) {
+      a {
+        color: red;
+      }
+    }
+
+    /* New output (correct) */
+    @media only screen and ((min-width: 10px) or (min-height: 10px)) {
+      a {
+        color: red;
+      }
+    }
+    ```
+
 ## 0.27.3
 
 * Preserve URL fragments in data URLs ([#4370](https://github.com/evanw/esbuild/issues/4370))
