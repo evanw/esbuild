@@ -4467,10 +4467,7 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 
 			if c.options.UnsupportedJSFeatures.Has(compat.ArbitraryModuleNamespaceNames) {
 				for _, item := range s.Items {
-					c.maybeForbidArbitraryModuleNamespaceIdentifier("export", sourceIndex, item.AliasLoc, item.Alias)
-					if item.AliasLoc != item.Name.Loc {
-						c.maybeForbidArbitraryModuleNamespaceIdentifier("import", sourceIndex, item.Name.Loc, item.OriginalName)
-					}
+					c.maybeForbidArbitraryModuleNamespaceIdentifier("import", sourceIndex, item.Name.Loc, item.OriginalName)
 				}
 			}
 
@@ -4484,6 +4481,12 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 					Items:             &s.Items,
 					ImportRecordIndex: s.ImportRecordIndex,
 					IsSingleLine:      s.IsSingleLine,
+				}
+			} else if c.options.UnsupportedJSFeatures.Has(compat.ArbitraryModuleNamespaceNames) {
+				for _, item := range s.Items {
+					if item.AliasLoc != item.Name.Loc {
+						c.maybeForbidArbitraryModuleNamespaceIdentifier("export", sourceIndex, item.AliasLoc, item.Alias)
+					}
 				}
 			}
 

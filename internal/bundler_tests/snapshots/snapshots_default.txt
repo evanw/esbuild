@@ -2250,6 +2250,12 @@ var fn = (...args) => old.apply(console, ["log:"].concat(args));
 fn(test);
 
 ================================================================================
+TestInjectWithStringReExportNameNoBundle
+---------- /out.js ----------
+import { fn } from "pkg";
+fn(test);
+
+================================================================================
 TestJSXAutomaticImportsCommonJS
 ---------- /out.js ----------
 // custom-react.js

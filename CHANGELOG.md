@@ -29,6 +29,23 @@
     }
     ```
 
+* Fix an edge case with the `inject` feature ([#4407](https://github.com/evanw/esbuild/issues/4407))
+
+    This release fixes an edge case where esbuild's `inject` feature could not be used with arbitrary module namespace names exported using an `export {} from` statement with bundling disabled and a target environment where arbitrary module namespace names is unsupported.
+
+    With the fix, the following `inject` file:
+
+    ```js
+    import jquery from 'jquery';
+    export { jquery as 'window.jQuery' };
+    ```
+
+    Can now always be rewritten as this without esbuild sometimes incorrectly generating an error:
+
+    ```js
+    export { default as 'window.jQuery' } from 'jquery';
+    ```
+
 ## 0.27.3
 
 * Preserve URL fragments in data URLs ([#4370](https://github.com/evanw/esbuild/issues/4370))

@@ -9110,7 +9110,7 @@ func TestForbidStringExportNamesNoBundle(t *testing.T) {
 			UnsupportedJSFeatures: compat.ArbitraryModuleNamespaceNames,
 		},
 		expectedCompileLog: `entry.js: ERROR: Using the string "not ok" as an export name is not supported in the configured target environment
-entry.js: ERROR: Using the string "same name" as an export name is not supported in the configured target environment
+entry.js: ERROR: Using the string "same name" as an import name is not supported in the configured target environment
 entry.js: ERROR: Using the string "name 1" as an import name is not supported in the configured target environment
 entry.js: ERROR: Using the string "name 2" as an export name is not supported in the configured target environment
 entry.js: ERROR: Using the string "name space" as an export name is not supported in the configured target environment
@@ -9225,6 +9225,26 @@ func TestInjectWithStringExportNameBundle(t *testing.T) {
 		entryPaths: []string{"/entry.js"},
 		options: config.Options{
 			Mode:                  config.ModeBundle,
+			AbsOutputFile:         "/out.js",
+			InjectPaths:           []string{"/inject.js"},
+			UnsupportedJSFeatures: compat.ArbitraryModuleNamespaceNames,
+		},
+	})
+}
+
+func TestInjectWithStringReExportNameNoBundle(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				console.log(test)
+			`,
+			"/inject.js": `
+				export { fn as "console.log" } from 'pkg'
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                  config.ModePassThrough,
 			AbsOutputFile:         "/out.js",
 			InjectPaths:           []string{"/inject.js"},
 			UnsupportedJSFeatures: compat.ArbitraryModuleNamespaceNames,
