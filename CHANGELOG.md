@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.27.4
 
 * Fix a regression with CSS media queries ([#4395](https://github.com/evanw/esbuild/issues/4395), [#4405](https://github.com/evanw/esbuild/issues/4405), [#4406](https://github.com/evanw/esbuild/issues/4406))
 
