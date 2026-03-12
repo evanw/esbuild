@@ -495,6 +495,9 @@ type Options struct {
 	// If true, make sure to generate a single file that can be written to stdout
 	WriteToStdout bool
 
+	// Large bundles minify the metafile JSON to reduce its size
+	MetafileFormat MetafileFormat
+
 	OmitRuntimeForTests    bool
 	OmitJSXRuntimeForTests bool
 	ASCIIOnly              bool
@@ -868,4 +871,31 @@ func PrettyPrintTargetEnvironment(originalTargetEnv string, unsupportedJSFeature
 		where = fmt.Sprintf("%s (%s%s)", where, originalTargetEnv, overrides)
 	}
 	return
+}
+
+type MetafileFormat uint8
+
+const (
+	UnminifiedMetafile MetafileFormat = iota
+	MinifiedMetafile
+)
+
+func (mf MetafileFormat) MaybeRemoveWhitespace(fmt string) string {
+	if mf == MinifiedMetafile {
+		resultLen := 0
+		for i := 0; i < len(fmt); i++ {
+			if c := fmt[i]; c != ' ' && c != '\n' {
+				resultLen++
+			}
+		}
+		var result strings.Builder
+		result.Grow(resultLen)
+		for i := 0; i < len(fmt); i++ {
+			if c := fmt[i]; c != ' ' && c != '\n' {
+				result.WriteByte(c)
+			}
+		}
+		return result.String()
+	}
+	return fmt
 }

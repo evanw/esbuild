@@ -51,6 +51,7 @@ type Options struct {
 	AddSourceMappings   bool
 	LegalComments       config.LegalComments
 	NeedsMetafile       bool
+	MetafileFormat      config.MetafileFormat
 }
 
 type PrintResult struct {
@@ -93,9 +94,10 @@ func (p *printer) recordImportPathForMetafile(importRecordIndex uint32) {
 		record := p.importRecords[importRecordIndex]
 		external := ""
 		if (record.Flags & ast.ShouldNotBeExternalInMetafile) == 0 {
-			external = ",\n          \"external\": true"
+			external = p.options.MetafileFormat.MaybeRemoveWhitespace(",\n          \"external\": true")
 		}
-		p.jsonMetadataImports = append(p.jsonMetadataImports, fmt.Sprintf("\n        {\n          \"path\": %s,\n          \"kind\": %s%s\n        }",
+		p.jsonMetadataImports = append(p.jsonMetadataImports, fmt.Sprintf(
+			p.options.MetafileFormat.MaybeRemoveWhitespace("\n        {\n          \"path\": %s,\n          \"kind\": %s%s\n        }"),
 			helpers.QuoteForJSON(record.Path.Text, p.options.ASCIIOnly),
 			helpers.QuoteForJSON(record.Kind.StringForMetafile(), p.options.ASCIIOnly),
 			external))
