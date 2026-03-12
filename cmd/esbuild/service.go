@@ -660,7 +660,7 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 			response["outputFiles"] = encodeOutputFiles(result.OutputFiles)
 		}
 		if options.Metafile {
-			response["metafile"] = result.Metafile
+			response["metafile"] = []byte(result.Metafile)
 		}
 		if options.MangleCache != nil {
 			response["mangleCache"] = result.MangleCache

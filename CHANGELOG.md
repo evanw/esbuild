@@ -46,6 +46,14 @@
     export { default as 'window.jQuery' } from 'jquery';
     ```
 
+* Attempt to improve API handling of huge metafiles ([#4329](https://github.com/evanw/esbuild/issues/4329), [#4415](https://github.com/evanw/esbuild/issues/4415))
+
+    This release contains a few changes that attempt to improve the behavior of esbuild's JavaScript API with huge metafiles (esbuild's name for the build metadata, formatted as a JSON object). The JavaScript API is designed to return the metafile JSON as a JavaScript object in memory, which makes it easy to access from within a JavaScript-based plugin. Multiple people have encountered issues where this API breaks down with a pathologically-large metafile.
+
+    The primary issue is that V8 has an implementation-specific maximum string length, so using the `JSON.parse` API with large enough strings is impossible. This release will now attempt to use a fallback JavaScript-based JSON parser that operates directly on the UTF8-encoded JSON bytes instead of using `JSON.parse` when the JSON metafile is too big to fit in a JavaScript string. The new fallback path has not yet been heavily-tested. The metafile will also now be generated with whitespace removed if the bundle is significantly large, which will reduce the size of the metafile JSON slightly.
+
+    However, hitting this case is potentially a sign that something else is wrong. Ideally you wouldn't be building something so enormous that the build metadata can't even fit inside a JavaScript string. You may want to consider optimizing your project, or breaking up your project into multiple parts that are built independently. Another option could potentially be to use esbuild's command-line API instead of its JavaScript API, which is more efficient (although of course then you can't use JavaScript plugins, so it may not be an option).
+
 ## 0.27.3
 
 * Preserve URL fragments in data URLs ([#4370](https://github.com/evanw/esbuild/issues/4370))

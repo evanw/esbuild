@@ -51,7 +51,7 @@ export interface BuildResponse {
   errors: types.Message[]
   warnings: types.Message[]
   outputFiles?: BuildOutputFile[]
-  metafile?: string
+  metafile?: Uint8Array
   mangleCache?: Record<string, string | false>
   writeToStdout?: Uint8Array
 }

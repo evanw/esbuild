@@ -1,5 +1,6 @@
 import type * as types from "./types"
 import * as protocol from "./stdio_protocol"
+import { JSON_parse } from "./uint8array_json_parser"
 
 declare const ESBUILD_VERSION: string
 
@@ -952,7 +953,7 @@ function buildOrContextImpl(
       const originalErrors = result.errors.slice()
       const originalWarnings = result.warnings.slice()
       if (response!.outputFiles) result.outputFiles = response!.outputFiles.map(convertOutputFiles)
-      if (response!.metafile) result.metafile = JSON.parse(response!.metafile)
+      if (response!.metafile) result.metafile = parseJSON(response!.metafile)
       if (response!.mangleCache) result.mangleCache = response!.mangleCache
       if (response!.writeToStdout !== void 0) console.log(protocol.decodeUTF8(response!.writeToStdout).replace(/\n$/, ''))
       runOnEndCallbacks(result, (onEndErrors, onEndWarnings) => {
@@ -1857,4 +1858,21 @@ function jsRegExpToGoRegExp(regexp: RegExp): string {
   let result = regexp.source
   if (regexp.flags) result = `(?${regexp.flags})${result}`
   return result
+}
+
+function parseJSON(bytes: Uint8Array): any {
+  let text: string
+  try {
+    // This may fail in V8 with the error "Cannot create a string longer than
+    // 0x1fffffe8 characters". Other JS engines may have similar limitations.
+    text = protocol.decodeUTF8(bytes)
+  } catch {
+    // In that case, we attempt to parse the JSON ourselves directly from the
+    // Uint8Array. This bypasses the string length limit as we no longer need
+    // to construct a string that's the length of the input. However, doing
+    // this is likely significantly slower (perhaps around ~4x slower?), so we
+    // only do it if we have to.
+    return JSON_parse(bytes)
+  }
+  return JSON.parse(text)
 }
