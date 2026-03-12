@@ -445,10 +445,12 @@ is not a problem with esbuild. You need to fix your environment instead.
 `)
 
 export function readUInt32LE(buffer: Uint8Array, offset: number): number {
-  return buffer[offset++] |
+  return (
+    buffer[offset++] |
     (buffer[offset++] << 8) |
     (buffer[offset++] << 16) |
     (buffer[offset++] << 24)
+  ) >>> 0
 }
 
 function writeUInt32LE(buffer: Uint8Array, value: number, offset: number): void {
