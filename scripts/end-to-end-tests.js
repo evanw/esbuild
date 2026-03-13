@@ -750,6 +750,32 @@ for (const flags of [[], ['--target=es6', '--target=es2017', '--supported:async-
     }, { async: true }),
     test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
       'in.js': `
+        async function* i() {
+          yield 1
+          yield 2
+        }
+        async function* f() {
+          yield* i()
+        }
+        export let async = async () => {
+          let it, stateA, stateB
+          it = f()
+          stateA = it.next()
+          stateB = it.next()
+
+          stateA = await stateA
+          stateB = await stateB
+
+          if (stateA.done !== false || stateA.value !== 1) throw 'fail: f: next A'
+          if (stateB.done !== false || stateB.value !== 2) throw 'fail: f: next B'
+
+          stateA = await it.next()
+          if (stateA.done !== true || stateA.value !== void 0) throw 'fail: f: done'
+        }
+      `,
+    }, { async: true }),
+    test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+      'in.js': `
         async function* f() {
           yield* {
             [Symbol.iterator]: () => ({ next: () => 123 }),

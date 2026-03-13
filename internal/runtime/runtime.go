@@ -414,13 +414,16 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 			this[0] = promise
 			this[1] = isYieldStar
 		}
+		export var __yieldStarResult = function (result) {
+			this[0] = result
+		}
 		export var __asyncGenerator = (__this, __arguments, generator) => {
 			var resume = (k, v, yes, no) => {
 				try {
 					var x = generator[k](v), isAwait = (v = x.value) instanceof __await, done = x.done
 					Promise.resolve(isAwait ? v[0] : v)
 						.then(y => isAwait
-							? resume(k === 'return' ? k : 'next', v[1] ? { done: y.done, value: y.value } : y, yes, no)
+							? resume(k === 'return' ? k : 'next', v[1] ? new __yieldStarResult({ done: y.done, value: y.value }) : y, yes, no)
 							: yes({ value: y, done }))
 						.catch(e => resume('throw', e, yes, no))
 				} catch (e) {
@@ -435,19 +438,17 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 				it
 		}
 		export var __yieldStar = value => {
-			var obj = value[__knownSymbol('asyncIterator')], isAwait = false, method, it = {}
+			var obj = value[__knownSymbol('asyncIterator')], method, it = {}
 			if (obj == null) {
 				obj = value[__knownSymbol('iterator')]()
 				method = k => it[k] = x => obj[k](x)
 			} else {
 				obj = obj.call(value)
 				method = k => it[k] = v => {
-					if (isAwait) {
-						isAwait = false
-						if (k === 'throw') throw v
-						return v
+					if (v instanceof __yieldStarResult) {
+						if (k === 'throw') throw v[0]
+						return v[0]
 					}
-					isAwait = true
 					return {
 						done: false,
 						value: new __await(new Promise(resolve => {
