@@ -418,15 +418,16 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 			var resume = (k, v, yes, no) => {
 				try {
 					var x = generator[k](v), isAwait = (v = x.value) instanceof __await, done = x.done
-					Promise.resolve(isAwait ? v[0] : v)
+					return q = Promise.resolve(isAwait ? v[0] : v)
 						.then(y => isAwait
 							? resume(k === 'return' ? k : 'next', v[1] ? { done: y.done, value: y.value } : y, yes, no)
 							: yes({ value: y, done }))
 						.catch(e => resume('throw', e, yes, no))
 				} catch (e) {
+					q = Promise.resolve()
 					no(e)
 				}
-			}, method = k => it[k] = x => new Promise((yes, no) => resume(k, x, yes, no)), it = {}
+			}, method = k => it[k] = x => q = q.then(() => new Promise((yes, no) => resume(k, x, yes, no))), q = Promise.resolve(), it = {}
 			return generator = generator.apply(__this, __arguments),
 				it[__knownSymbol('asyncIterator')] = () => it,
 				method('next'),
