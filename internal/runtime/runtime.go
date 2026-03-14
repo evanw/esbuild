@@ -427,7 +427,14 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 					q = Promise.resolve()
 					no(e)
 				}
-			}, method = k => it[k] = x => q = q.then(() => new Promise((yes, no) => resume(k, x, yes, no))), q = Promise.resolve(), it = {}
+			}, method = (k, call, wait, clear) => it[k] = x => (
+				call = new Promise((yes, no, run) => (
+					run = () => resume(k, x, yes, no), 
+					queue ? queue.then(run) : run())),
+				clear = () => queue === wait && (queue = void 0),
+				queue = wait = call.then(clear, clear),
+				call
+			), q, queue, it = {}
 			return generator = generator.apply(__this, __arguments),
 				it[__knownSymbol('asyncIterator')] = () => it,
 				method('next'),
