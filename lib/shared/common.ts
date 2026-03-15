@@ -1861,6 +1861,10 @@ function jsRegExpToGoRegExp(regexp: RegExp): string {
 }
 
 function parseJSON(bytes: Uint8Array): any {
+  // An empty buffer isn't valid JSON (`Unexpected end of JSON input`)
+  // it generally means the value is absent.
+  if (bytes.length === 0) return void 0;
+
   let text: string
   try {
     // This may fail in V8 with the error "Cannot create a string longer than
