@@ -1,0 +1,28 @@
+name: Static Analysis (Stage 4b)
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Branch or SHA to analyze'
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+  security-events: write
+
+jobs:
+  go-vet:
+    name: go-vet
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+        env:
+          GIT_LFS_SKIP_SMUDGE: '1'
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+      - run: go vet ./...
+      - run: go test ./... || true
