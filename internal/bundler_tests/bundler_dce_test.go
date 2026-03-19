@@ -5081,3 +5081,55 @@ func TestCrossModuleConstantFoldingIfStmtMultiple(t *testing.T) {
 		},
 	})
 }
+
+func TestCrossModuleConstantFoldingIfStmtTrueBranch(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import { DEV } from './constants'
+				if (DEV) {
+					console.log("dev mode")
+				} else {
+					console.log("production")
+				}
+			`,
+			"/constants.js": `
+				export const DEV = true
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			MinifySyntax: true,
+		},
+	})
+}
+
+func TestCrossModuleConstantFoldingIfStmtEnum(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				import { Mode } from './constants'
+				Mode.DEV
+				if (Mode.DEV) {
+					console.log("dev mode")
+				} else {
+					console.log("production")
+				}
+			`,
+			"/constants.ts": `
+				export enum Mode {
+					DEV = 0,
+					PROD = 1,
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			MinifySyntax: true,
+		},
+	})
+}

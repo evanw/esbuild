@@ -1860,7 +1860,15 @@ func (p *printer) lateConstantFoldUnaryOrBinaryOrIfExpr(expr js_ast.Expr) js_ast
 // inlining.
 func (p *printer) isLateConstantFoldedSideEffectFree(expr js_ast.Expr) bool {
 	folded := p.lateConstantFoldUnaryOrBinaryOrIfExpr(expr)
-	switch folded.Data.(type) {
+	data := folded.Data
+
+	// Unwrap EInlinedEnum to check the inner value (e.g., enum member
+	// expression statements like "Enum.Value;" that resolve to a constant)
+	if e, ok := data.(*js_ast.EInlinedEnum); ok {
+		data = e.Value.Data
+	}
+
+	switch data.(type) {
 	case *js_ast.ENull, *js_ast.EUndefined, *js_ast.EBoolean, *js_ast.ENumber, *js_ast.EBigInt, *js_ast.EString:
 		return true
 	}
