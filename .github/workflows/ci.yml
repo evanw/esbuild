@@ -1,12 +1,329 @@
 name: CI
-on: [push]
+
+on:
+  push:
+    branches: ['*']
+  pull_request:
+    branches: ['*']
+  workflow_dispatch:
+
+permissions:
+  contents: read  #  to fetch code (actions/checkout)
+
 jobs:
-  test:
-    runs-on: self-hosted
+  esbuild-platforms:
+    # Split this out into its own runner because it's slow
+    name: esbuild CI (All Platforms)
+    runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Read go.version
+        run: |
+          echo "GO_VERSION=$(cat go.version)" >> $GITHUB_ENV
+
+      - name: Set up Go 1.x
+        uses: actions/setup-go@v3
         with:
-          go-version: 'stable'
-      - run: go vet ./...
-      - run: go test ./...
+          go-version: ${{ env.GO_VERSION }}
+        id: go
+
+      - name: Setup Node.js environment
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Ensure all platforms can be built
+        run: make platform-all
+
+      # Plan 9 is not a supported platform, but someone wanted esbuild to be able to build for it anyway...
+      - name: Ensure esbuild can be built for Plan 9
+        run: |
+          GOOS=plan9 GOARCH=386 go build ./cmd/esbuild
+          GOOS=plan9 GOARCH=amd64 go build ./cmd/esbuild
+          GOOS=plan9 GOARCH=arm go build ./cmd/esbuild
+
+  esbuild-slow:
+    # Split these out into their own runner because they're very slow
+    name: esbuild CI (Slow Tests)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Read go.version
+        run: |
+          echo "GO_VERSION=$(cat go.version)" >> $GITHUB_ENV
+
+      - name: Set up Go 1.x
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ env.GO_VERSION }}
+        id: go
+
+      - name: Setup Node.js environment
+        uses: actions/setup-node@v3
+        with:
+          node-version: 16
+
+      # Note: These tests break with node version 18. Something about WebAssembly.
+      - name: Rollup Tests
+        run: make test-rollup
+
+      - name: Uglify Tests
+        run: CI=1 make uglify
+
+      - name: Type check tsc using tsc
+        run: make test-tsc
+
+  esbuild:
+    name: esbuild CI
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Read go.version (non-Windows)
+        if: matrix.os != 'windows-latest'
+        run: |
+          echo "GO_VERSION=$(cat go.version)" >> $GITHUB_ENV
+
+      - name: Read go.version (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          echo "GO_VERSION=$(cat go.version)" >> $Env:GITHUB_ENV
+
+      - name: Set up Go 1.x
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ env.GO_VERSION }}
+        id: go
+
+      - name: Setup Node.js environment
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Setup Deno 1.40.0
+        uses: denoland/setup-deno@main
+        with:
+          deno-version: v1.40.0
+
+      - name: go test
+        run: go test -race ./internal/...
+
+      - name: go vet
+        run: go vet ./cmd/... ./internal/... ./pkg/...
+
+      - name: Deno Tests (non-Windows)
+        if: matrix.os != 'windows-latest'
+        run: make test-deno
+
+      - name: Deno Tests (Windows)
+        if: matrix.os == 'windows-latest'
+        run: make test-deno-windows
+
+      - name: Test for path/filepath
+        if: matrix.os == 'ubuntu-latest'
+        run: make no-filepath
+
+      - name: Make sure "check-go-version" works (non-Windows)
+        if: matrix.os != 'windows-latest'
+        run: make check-go-version
+
+      - name: go fmt
+        if: matrix.os == 'macos-latest'
+        run: make fmt-go
+
+      - name: npm ci
+        run: cd scripts && npm ci
+
+      - name: Register Test (ESBUILD_WORKER_THREADS=0, non-Windows)
+        if: matrix.os != 'windows-latest'
+        run: ESBUILD_WORKER_THREADS=0 node scripts/register-test.js
+
+      - name: Register Test
+        run: node scripts/register-test.js
+
+      - name: Verify Source Map
+        run: node scripts/verify-source-map.js
+
+      - name: E2E Tests
+        run: node scripts/end-to-end-tests.js
+
+      - name: JS API Tests (ESBUILD_WORKER_THREADS=0, non-Windows)
+        if: matrix.os != 'windows-latest'
+        run: ESBUILD_WORKER_THREADS=0 node scripts/js-api-tests.js
+
+      - name: JS API Tests
+        run: node scripts/js-api-tests.js
+
+      - name: NodeJS Unref Tests
+        run: node scripts/node-unref-tests.js
+
+      - name: Plugin Tests
+        run: node scripts/plugin-tests.js
+
+      - name: TypeScript Type Definition Tests
+        if: matrix.os == 'ubuntu-latest'
+        run: node scripts/ts-type-tests.js
+
+      - name: JS API Type Check
+        if: matrix.os == 'ubuntu-latest'
+        run: make lib-typecheck
+
+      - name: Decorator Tests
+        if: matrix.os == 'ubuntu-latest'
+        run: make decorator-tests
+
+      - name: WebAssembly API Tests (browser)
+        if: matrix.os == 'ubuntu-latest'
+        run: make test-wasm-browser
+
+      - name: WebAssembly API Tests (node, Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: make test-wasm-node
+
+      - name: WebAssembly API Tests (node, non-Linux)
+        if: matrix.os != 'ubuntu-latest'
+        run: node scripts/wasm-tests.js
+
+      - name: Sucrase Tests
+        if: matrix.os == 'ubuntu-latest'
+        run: make test-sucrase
+
+      - name: Esprima Tests
+        if: matrix.os == 'ubuntu-latest'
+        run: make test-esprima
+
+      - name: Preact Splitting Tests
+        if: matrix.os == 'ubuntu-latest'
+        run: make test-preact-splitting
+
+      - name: Check the unicode table generator
+        if: matrix.os == 'ubuntu-latest'
+        run: cd scripts && node gen-unicode-table.js
+
+      - name: Yarn PnP tests
+        run: |
+          # Note that Yarn recently deliberately broke "npm install -g yarn".
+          # They say you now have to run "corepack enable" to fix it. They have
+          # written about this here: https://yarnpkg.com/corepack
+          corepack enable
+
+          make test-yarnpnp
+
+  esbuild-old-go-version:
+    name: esbuild CI (old Go version)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Go 1.13 (the minimum required Go version for esbuild)
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.13
+        id: go
+
+      - name: go build
+        run: go build ./cmd/esbuild
+
+      - name: go test
+        run: go test ./internal/...
+
+      - name: make test-old-ts
+        run: make test-old-ts
+
+  esbuild-old-deno-version:
+    name: esbuild CI (old Deno version)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        # Note: I'm excluding "macos-latest" here because GitHub recently
+        # changed their macOS CI VMs from x86_64 to aarch64 (i.e. from Intel
+        # to ARM) and it looks like old Deno versions have WASM bugs on ARM.
+        # Specifically, this test now crashes like this when run on macOS:
+        #
+        #   #
+        #   # Fatal error in , line 0
+        #   # Check failed: RwxMemoryWriteScope::IsAllowed().
+        #   #
+        #   #
+        #   #
+        #   #FailureMessage Object: 0x16f282368
+        #   ==== C stack trace ===============================
+        #
+        #       0   deno                                0x0000000101bb8e78 v8::base::debug::StackTrace::StackTrace() + 24
+        #       1   deno                                0x0000000101bbda84 v8::platform::(anonymous namespace)::PrintStackTrace() + 24
+        #       2   deno                                0x0000000101bb6230 V8_Fatal(char const*, ...) + 268
+        #       3   deno                                0x000000010227e468 v8::internal::wasm::WasmCodeManager::MemoryProtectionKeysEnabled() const + 0
+        #       4   deno                                0x0000000102299994 v8::internal::wasm::WasmEngine::InitializeOncePerProcess() + 44
+        #       5   deno                                0x0000000101e78fd0 v8::internal::V8::Initialize() + 1576
+        #       6   deno                                0x0000000101c3b7d8 v8::V8::Initialize(int) + 32
+        #       7   deno                                0x00000001011833dc _ZN3std4sync4once4Once9call_once28_$u7b$$u7b$closure$u7d$$u7d$17h2bbe74d315ab3e84E + 488
+        #       8   deno                                0x00000001017f8854 std::sync::once::Once::call_inner::h70fbdd48fe002a01 + 724
+        #       9   deno                                0x000000010115ca80 deno_core::runtime::JsRuntime::new::h9c5f1a9c910f1eed + 192
+        #       10  deno                                0x00000001014d3b50 deno_runtime::worker::MainWorker::bootstrap_from_options::h91a0eaac48dfc18e + 4260
+        #       11  deno                                0x0000000100ee692c deno::create_main_worker::h0d1622755821ae7f + 1608
+        #       12  deno                                0x0000000100f6c688 _ZN97_$LT$core..future..from_generator..GenFuture$LT$T$GT$$u20$as$u20$core..future..future..Future$GT$4poll17h87ddfac9566887c8E + 492
+        #       13  deno                                0x0000000100f6ba18 tokio::runtime::task::raw::poll::h7d51f1a7d5a61c15 + 1396
+        #       14  deno                                0x0000000101917b98 std::sys_common::backtrace::__rust_begin_short_backtrace::hd384935dcffe6f2d + 332
+        #       15  deno                                0x0000000101917954 _ZN4core3ops8function6FnOnce40call_once$u7b$$u7b$vtable.shim$u7d$$u7d$17he2755732d5d29cf0E + 124
+        #       16  deno                                0x0000000101829684 std::sys::unix::thread::Thread::new::thread_start::h432bc30153e41f60 + 48
+        #       17  libsystem_pthread.dylib             0x000000018a436f94 _pthread_start + 136
+        #       18  libsystem_pthread.dylib             0x000000018a431d34 thread_start + 8
+        #
+        # Hopefully running this old Deno version on Linux is sufficiently
+        # close to running it on macOS. For reference, I believe this is the
+        # change that GitHub made which broke this test:
+        # https://github.blog/changelog/2023-10-02-github-actions-apple-silicon-m1-macos-runners-are-now-available-in-public-beta/
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Read go.version (non-Windows)
+        if: matrix.os != 'windows-latest'
+        run: |
+          echo "GO_VERSION=$(cat go.version)" >> $GITHUB_ENV
+
+      - name: Read go.version (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          echo "GO_VERSION=$(cat go.version)" >> $Env:GITHUB_ENV
+
+      - name: Set up Go 1.x
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ env.GO_VERSION }}
+        id: go
+
+      # Make sure esbuild works with old versions of Deno. Note: It's important
+      # to test a version before 1.31.0, which introduced the "Deno.Command" API.
+      - name: Setup Deno 1.24.0
+        uses: denoland/setup-deno@main
+        with:
+          deno-version: v1.24.0
+
+      - name: Setup Node.js environment
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Deno Tests (non-Windows)
+        if: matrix.os != 'windows-latest'
+        run: make test-deno
+
+      - name: Deno Tests (Windows)
+        if: matrix.os == 'windows-latest'
+        run: make test-deno-windows
