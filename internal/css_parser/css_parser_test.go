@@ -2751,6 +2751,92 @@ func TestLowerAtMediaRange(t *testing.T) {
 	expectPrintedLowerMangle(t, "@media not (2px >= width >= 1px) { a { color: red } }", "@media not ((max-width: 2px) and (min-width: 1px)) {\n  a {\n    color: red;\n  }\n}\n", "")
 }
 
+func TestAtCustomMedia(t *testing.T) {
+	// Without lowering, @custom-media rules and references are preserved as-is
+	expectPrinted(t, "@custom-media --foo (color);", "@custom-media --foo (color);\n", "")
+	expectPrinted(t, "@custom-media --foo screen;", "@custom-media --foo screen;\n", "")
+	expectPrinted(t, "@custom-media --foo (min-width: 330px);", "@custom-media --foo (min-width: 330px);\n", "")
+	expectPrinted(t, "@media (--foo) { a { color: red } }", "@media (--foo) {\n  a {\n    color: red;\n  }\n}\n", "")
+	expectPrinted(t, "@custom-media --foo (color); @media (--foo) { a { color: red } }", "@custom-media --foo (color);\n@media (--foo) {\n  a {\n    color: red;\n  }\n}\n", "")
+}
+
+func TestLowerAtCustomMedia(t *testing.T) {
+	// Basic substitution
+	expectPrintedLowerUnsupported(t, compat.CustomMediaQueries,
+		"@custom-media --foo (min-width: 330px); @media (--foo) { a { color: red } }",
+		"@media (min-width: 330px) {\n  a {\n    color: red;\n  }\n}\n", "")
+
+	// Forward reference (definition appears after use)
+	expectPrintedLowerUnsupported(t, compat.CustomMediaQueries,
+		"@media (--foo) { a { color: red } } @custom-media --foo (min-width: 330px);",
+		"@media (min-width: 330px) {\n  a {\n    color: red;\n  }\n}\n", "")
+
+	// Chained custom media references
+	expectPrintedLowerUnsupported(t, compat.CustomMediaQueries,
+		"@custom-media --bar (min-width: 768px); @custom-media --foo (--bar); @media (--foo) { a { color: red } }",
+		"@media (min-width: 768px) {\n  a {\n    color: red;\n  }\n}\n", "")
+
+	// In "not" context
+	expectPrintedLowerUnsupported(t, compat.CustomMediaQueries,
+		"@custom-media --foo (color); @media not (--foo) { a { color: red } }",
+		"@media not (color) {\n  a {\n    color: red;\n  }\n}\n", "")
+
+	// In "and" context
+	expectPrintedLowerUnsupported(t, compat.CustomMediaQueries,
+		"@custom-media --foo (color); @media (--foo) and (width > 100px) { a { color: red } }",
+		"@media (color) and (width > 100px) {\n  a {\n    color: red;\n  }\n}\n", "")
+
+	// With a media type ("screen and (--foo)")
+	expectPrintedLowerUnsupported(t, compat.CustomMediaQueries,
+		"@custom-media --foo (color); @media screen and (--foo) { a { color: red } }",
+		"@media screen and (color) {\n  a {\n    color: red;\n  }\n}\n", "")
+
+	// Undefined reference is preserved as-is
+	expectPrintedLowerUnsupported(t, compat.CustomMediaQueries,
+		"@media (--foo) { a { color: red } }",
+		"@media (--foo) {\n  a {\n    color: red;\n  }\n}\n", "")
+
+	// Multiple @media queries with the same custom media
+	expectPrintedLowerUnsupported(t, compat.CustomMediaQueries,
+		"@custom-media --foo (color); @media (--foo) { a { color: red } } @media (--foo) { b { color: blue } }",
+		"@media (color) {\n  a {\n    color: red;\n  }\n}\n@media (color) {\n  b {\n    color: blue;\n  }\n}\n", "")
+
+	// Multiple conditions (comma-separated media queries in @media)
+	expectPrintedLowerUnsupported(t, compat.CustomMediaQueries,
+		"@custom-media --foo (color); @media screen, (--foo) { a { color: red } }",
+		"@media screen, (color) {\n  a {\n    color: red;\n  }\n}\n", "")
+
+	// @import conditions (@import must come before other rules, definition after is a forward reference)
+	expectPrintedLowerUnsupported(t, compat.CustomMediaQueries,
+		"@import \"foo.css\" (--foo); @custom-media --foo (color);",
+		"@import \"foo.css\" (color);\n", "")
+
+	// Circular references are left as-is rather than causing a stack overflow
+	expectPrintedLowerUnsupported(t, compat.CustomMediaQueries,
+		"@custom-media --a (--b); @custom-media --b (--a); @media (--a) { a { color: red } }",
+		"@media (--a) {\n  a {\n    color: red;\n  }\n}\n", "")
+
+	// Multi-query: top-level expansion (comma list expands to multiple top-level queries)
+	expectPrintedLowerUnsupported(t, compat.CustomMediaQueries,
+		"@custom-media --modern (color), (hover); @media (--modern) { a { color: red } }",
+		"@media (color), (hover) {\n  a {\n    color: red;\n  }\n}\n", "")
+
+	// Multi-query: in boolean context (comma list wraps in "or")
+	expectPrintedLowerUnsupported(t, compat.CustomMediaQueries,
+		"@custom-media --modern (color), (hover); @media (--modern) and (width > 1024px) { a { color: red } }",
+		"@media ((color) or (hover)) and (width > 1024px) {\n  a {\n    color: red;\n  }\n}\n", "")
+
+	// true keyword expands to "all"
+	expectPrintedLowerUnsupported(t, compat.CustomMediaQueries,
+		"@custom-media --always true; @media (--always) { a { color: red } }",
+		"@media all {\n  a {\n    color: red;\n  }\n}\n", "")
+
+	// false keyword expands to "not all"
+	expectPrintedLowerUnsupported(t, compat.CustomMediaQueries,
+		"@custom-media --never false; @media (--never) { a { color: red } }",
+		"@media not all {\n  a {\n    color: red;\n  }\n}\n", "")
+}
+
 func TestAtScope(t *testing.T) {
 	expectPrinted(t, "@scope { div { color: red } }", "@scope {\n  div {\n    color: red;\n  }\n}\n", "")
 	expectPrinted(t, "@scope (a) { div { color: red } }", "@scope (a) {\n  div {\n    color: red;\n  }\n}\n", "")

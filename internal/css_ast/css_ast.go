@@ -1106,6 +1106,23 @@ func (cmp MQCmp) Reverse() MQCmp {
 	return cmp
 }
 
+type RAtCustomMedia struct {
+	Name    string
+	Queries []MediaQuery
+}
+
+func (a *RAtCustomMedia) Equal(rule R, check *CrossFileEqualityCheck) bool {
+	b, ok := rule.(*RAtCustomMedia)
+	return ok && a.Name == b.Name && MediaQueriesEqual(a.Queries, b.Queries, check)
+}
+
+func (r *RAtCustomMedia) Hash() (uint32, bool) {
+	hash := uint32(12)
+	hash = helpers.HashCombineString(hash, r.Name)
+	hash = HashMediaQueries(hash, r.Queries)
+	return hash, true
+}
+
 type RAtScope struct {
 	Start         []ComplexSelector
 	End           []ComplexSelector

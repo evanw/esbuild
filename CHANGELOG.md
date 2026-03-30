@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.27.5
+
+* Lower CSS `@custom-media` rules ([#4430](https://github.com/evanw/esbuild/issues/4430))
+
+    With this release, esbuild will now transform CSS `@custom-media` rules (a [draft Media Queries Level 5 feature](https://drafts.csswg.org/mediaqueries-5/#custom-mq)) into standard CSS media queries. This happens when a browser target is specified (since no browser currently supports `@custom-media`), or when `--supported:custom-media-queries=false` is used explicitly. For example, the following CSS:
+
+    ```css
+    @custom-media --sm (width >= 640px);
+    @custom-media --lg (width >= 1024px);
+
+    @media (--sm) {
+      main { display: flex; }
+    }
+    @media (--lg) {
+      main { gap: 16px; }
+    }
+    ```
+
+    will be transformed like this with a target such as `--target=chrome100` (or with `--supported:custom-media-queries=false`):
+
+    ```css
+    @media (width >= 640px) {
+      main { display: flex; }
+    }
+    @media (width >= 1024px) {
+      main { gap: 16px; }
+    }
+    ```
+
+    References in `@media` and `@import` conditions are substituted, forward references (using a custom media name before its definition) are supported, and chained references (a custom media name that references another custom media name) are resolved recursively.
+
 ## 0.27.4
 
 * Fix a regression with CSS media queries ([#4395](https://github.com/evanw/esbuild/issues/4395), [#4405](https://github.com/evanw/esbuild/issues/4405), [#4406](https://github.com/evanw/esbuild/issues/4406))

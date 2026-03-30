@@ -93,6 +93,7 @@ export const jsFeatures = {
 export type CSSFeature = keyof typeof cssFeatures
 export const cssFeatures = {
   ColorFunctions: true,
+  CustomMediaQueries: true,
   GradientDoublePosition: true,
   GradientInterpolation: true,
   GradientMidpoints: true,

@@ -9,6 +9,133 @@ import (
 	"github.com/evanw/esbuild/internal/logger"
 )
 
+// Reference: https://drafts.csswg.org/mediaqueries-5/#custom-mq
+func lowerCustomMedia(rules []css_ast.Rule) []css_ast.Rule {
+	// Collect all top-level @custom-media definitions. Per the spec, @custom-media
+	// rules may only appear at the top level of a stylesheet.
+	defs := make(map[string][]css_ast.MediaQuery)
+	for _, rule := range rules {
+		if r, ok := rule.Data.(*css_ast.RAtCustomMedia); ok {
+			defs[r.Name] = r.Queries
+		}
+	}
+	if len(defs) == 0 {
+		return rules
+	}
+
+	// Second pass: substitute references and remove @custom-media rules
+	return substituteCustomMediaInRules(rules, defs)
+}
+
+func substituteCustomMediaInRules(rules []css_ast.Rule, defs map[string][]css_ast.MediaQuery) []css_ast.Rule {
+	visited := make(map[string]bool)
+	result := rules[:0:0]
+	for _, rule := range rules {
+		switch r := rule.Data.(type) {
+		case *css_ast.RAtCustomMedia:
+			continue // Remove from output
+
+		case *css_ast.RAtImport:
+			if r.ImportConditions != nil {
+				r.ImportConditions.Queries = substituteCustomMediaQueryList(r.ImportConditions.Queries, defs, visited)
+			}
+
+		case *css_ast.RAtMedia:
+			r.Queries = substituteCustomMediaQueryList(r.Queries, defs, visited)
+			r.Rules = substituteCustomMediaInRules(r.Rules, defs)
+
+		case *css_ast.RKnownAt:
+			r.Rules = substituteCustomMediaInRules(r.Rules, defs)
+
+		case *css_ast.RSelector:
+			r.Rules = substituteCustomMediaInRules(r.Rules, defs)
+
+		case *css_ast.RQualified:
+			r.Rules = substituteCustomMediaInRules(r.Rules, defs)
+		}
+		result = append(result, rule)
+	}
+	return result
+}
+
+// substituteCustomMediaQueryList substitutes custom media references in a
+// comma-separated query list. When a top-level item is a custom media reference
+// with multiple sub-queries, they are expanded into the list (since comma means
+// "or" at the top level). This preserves the logical evaluation semantics from
+// the spec instead of treating substitution as textual replacement.
+func substituteCustomMediaQueryList(queries []css_ast.MediaQuery, defs map[string][]css_ast.MediaQuery, visited map[string]bool) []css_ast.MediaQuery {
+	result := queries[:0:0]
+	for _, query := range queries {
+		result = expandCustomMediaQuery(result, query, defs, visited)
+	}
+	return result
+}
+
+// expandCustomMediaQuery appends query to result after substitution. If query
+// is a top-level custom media reference, its sub-queries are expanded into the
+// list directly. This handles chained references recursively.
+func expandCustomMediaQuery(result []css_ast.MediaQuery, query css_ast.MediaQuery, defs map[string][]css_ast.MediaQuery, visited map[string]bool) []css_ast.MediaQuery {
+	if q, ok := query.Data.(*css_ast.MQPlainOrBoolean); ok && strings.HasPrefix(q.Name, "--") && q.ValueOrNil == nil {
+		if substitution, found := defs[q.Name]; found && !visited[q.Name] {
+			visited[q.Name] = true
+			for _, sub := range substitution {
+				result = expandCustomMediaQuery(result, sub, defs, visited)
+			}
+			delete(visited, q.Name)
+			return result
+		}
+	}
+	return append(result, substituteCustomMediaQuery(query, defs, visited))
+}
+
+func substituteCustomMediaQuery(query css_ast.MediaQuery, defs map[string][]css_ast.MediaQuery, visited map[string]bool) css_ast.MediaQuery {
+	switch q := query.Data.(type) {
+	case *css_ast.MQPlainOrBoolean:
+		// A boolean-context custom media reference: (--name)
+		if strings.HasPrefix(q.Name, "--") && q.ValueOrNil == nil {
+			if substitution, ok := defs[q.Name]; ok && !visited[q.Name] {
+				visited[q.Name] = true
+				var result css_ast.MediaQuery
+				if len(substitution) == 1 {
+					result = substituteCustomMediaQuery(substitution[0], defs, visited)
+				} else {
+					// In boolean context, a custom media definition with multiple queries becomes
+					// an "or" expression instead of expanding into multiple top-level queries.
+					// Example: "(--modern) and (width > 1024px)" with
+					// "@custom-media --modern (color), (hover)" becomes
+					// "((color) or (hover)) and (width > 1024px)".
+					terms := make([]css_ast.MediaQuery, len(substitution))
+					for i, sub := range substitution {
+						terms[i] = substituteCustomMediaQuery(sub, defs, visited)
+					}
+					result = css_ast.MediaQuery{Loc: query.Loc, Data: &css_ast.MQBinary{Op: css_ast.MQBinaryOpOr, Terms: terms}}
+				}
+				delete(visited, q.Name)
+				return result
+			}
+		}
+
+	case *css_ast.MQNot:
+		inner := substituteCustomMediaQuery(q.Inner, defs, visited)
+		return css_ast.MediaQuery{Loc: query.Loc, Data: &css_ast.MQNot{Inner: inner}}
+
+	case *css_ast.MQBinary:
+		terms := make([]css_ast.MediaQuery, len(q.Terms))
+		for i, term := range q.Terms {
+			terms[i] = substituteCustomMediaQuery(term, defs, visited)
+		}
+		return css_ast.MediaQuery{Loc: query.Loc, Data: &css_ast.MQBinary{Op: q.Op, Terms: terms}}
+
+	case *css_ast.MQType:
+		if q.AndOrNull.Data != nil {
+			andOrNull := substituteCustomMediaQuery(q.AndOrNull, defs, visited)
+			return css_ast.MediaQuery{Loc: query.Loc, Data: &css_ast.MQType{Op: q.Op, Type: q.Type, AndOrNull: andOrNull}}
+		}
+	}
+
+	return query
+}
+
 // Reference: https://drafts.csswg.org/mediaqueries-4/
 func (p *parser) parseMediaQueryListUntil(stop func(css_lexer.T) bool) []css_ast.MediaQuery {
 	var queries []css_ast.MediaQuery

@@ -10,6 +10,7 @@ type CSSFeature uint16
 
 const (
 	ColorFunctions CSSFeature = 1 << iota
+	CustomMediaQueries
 	GradientDoublePosition
 	GradientInterpolation
 	GradientMidpoints
@@ -26,6 +27,7 @@ const (
 
 var StringToCSSFeature = map[string]CSSFeature{
 	"color-functions":          ColorFunctions,
+	"custom-media-queries":     CustomMediaQueries,
 	"gradient-double-position": GradientDoublePosition,
 	"gradient-interpolation":   GradientInterpolation,
 	"gradient-midpoints":       GradientMidpoints,
@@ -57,6 +59,7 @@ var cssTable = map[CSSFeature]map[Engine][]versionRange{
 		Opera:   {{start: v{97, 0, 0}}},
 		Safari:  {{start: v{15, 4, 0}}},
 	},
+	CustomMediaQueries: {},
 	GradientDoublePosition: {
 		Chrome:  {{start: v{72, 0, 0}}},
 		Edge:    {{start: v{79, 0, 0}}},

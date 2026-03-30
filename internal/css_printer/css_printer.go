@@ -355,6 +355,26 @@ func (p *printer) printRule(rule css_ast.Rule, indent int32, omitTrailingSemicol
 			p.printRuleBlock(r.Rules, indent, r.CloseBraceLoc)
 		}
 
+	case *css_ast.RAtCustomMedia:
+		// The space after @custom-media is always required: @custom-media--foo would
+		// lex as a single at-keyword, and --foo( would lex as a function call.
+		p.print("@custom-media ")
+		p.printIdent(r.Name, identNormal, canDiscardWhitespaceAfter)
+		if len(r.Queries) > 0 {
+			p.print(" ")
+			for i, query := range r.Queries {
+				if i > 0 {
+					if p.options.MinifyWhitespace {
+						p.print(",")
+					} else {
+						p.print(", ")
+					}
+				}
+				p.printMediaQuery(query, 0)
+			}
+		}
+		p.print(";")
+
 	case *css_ast.RAtMedia:
 		p.print("@media")
 		var flags mqFlags

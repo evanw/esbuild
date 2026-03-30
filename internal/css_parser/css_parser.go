@@ -141,6 +141,9 @@ func Parse(log logger.Log, source logger.Source, options Options) css_ast.AST {
 		isTopLevel:     true,
 		parseSelectors: true,
 	})
+	if options.unsupportedCSSFeatures.Has(compat.CustomMediaQueries) {
+		rules = lowerCustomMedia(rules)
+	}
 	p.expect(css_lexer.TEndOfFile)
 	return css_ast.AST{
 		Rules:                rules,
@@ -1556,6 +1559,29 @@ abortRuleParser:
 
 		default:
 			p.unexpected()
+		}
+
+	case "custom-media":
+		p.eat(css_lexer.TWhitespace)
+		if p.peek(css_lexer.TIdent) && strings.HasPrefix(p.decoded(), "--") {
+			name := p.decoded()
+			p.advance()
+			p.eat(css_lexer.TWhitespace)
+			var queries []css_ast.MediaQuery
+			// Handle the "true" and "false" boolean values from the spec
+			if p.peek(css_lexer.TIdent) && strings.EqualFold(p.decoded(), "true") {
+				p.advance()
+				queries = []css_ast.MediaQuery{{Data: &css_ast.MQType{Type: "all"}}}
+			} else if p.peek(css_lexer.TIdent) && strings.EqualFold(p.decoded(), "false") {
+				p.advance()
+				queries = []css_ast.MediaQuery{{Data: &css_ast.MQType{Op: css_ast.MQTypeOpNot, Type: "all"}}}
+			} else {
+				queries = p.parseMediaQueryListUntil(func(kind css_lexer.T) bool {
+					return kind == css_lexer.TSemicolon || kind == css_lexer.TOpenBrace || kind == css_lexer.TEndOfFile
+				})
+			}
+			p.expect(css_lexer.TSemicolon)
+			return css_ast.Rule{Loc: atRange.Loc, Data: &css_ast.RAtCustomMedia{Name: name, Queries: queries}}
 		}
 
 	case "media":
