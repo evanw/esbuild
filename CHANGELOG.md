@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.27.5
+## Unreleased
 
 * Lower CSS `@custom-media` rules ([#4430](https://github.com/evanw/esbuild/issues/4430))
 
