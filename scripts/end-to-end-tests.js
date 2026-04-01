@@ -750,6 +750,127 @@ for (const flags of [[], ['--target=es6', '--target=es2017', '--supported:async-
     }, { async: true }),
     test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
       'in.js': `
+        async function* i() {
+          yield 1
+          yield 2
+        }
+        async function* f() {
+          yield* i()
+        }
+        export let async = async () => {
+          let it, stateA, stateB
+          it = f()
+          stateA = it.next()
+          stateB = it.next()
+
+          stateA = await stateA
+          stateB = await stateB
+
+          if (stateA.done !== false || stateA.value !== 1) throw 'fail: f: next A'
+          if (stateB.done !== false || stateB.value !== 2) throw 'fail: f: next B'
+
+          stateA = await it.next()
+          if (stateA.done !== true || stateA.value !== void 0) throw 'fail: f: done'
+        }
+      `,
+    }, { async: true }),
+    test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+      'in.js': `
+        async function* i() {
+          yield 1
+          yield 2
+        }
+        async function* f() {
+          for await (const x of i())
+            yield x;
+        }
+        export let async = async () => {
+          let it, stateA, stateB
+          it = f()
+          stateA = it.next()
+          stateB = it.next()
+
+          stateA = await stateA
+          stateB = await stateB
+
+          if (stateA.done !== false || stateA.value !== 1) throw 'fail: f: next A'
+          if (stateB.done !== false || stateB.value !== 2) throw 'fail: f: next B'
+
+          stateA = await it.next()
+          if (stateA.done !== true || stateA.value !== void 0) throw 'fail: f: done'
+        }
+      `,
+    }, { async: true }),
+    test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+      'in.js': `
+        async function* f() {
+          await Promise.resolve()
+          return yield 1
+        }
+        export let async = async () => {
+          let it, stateA, stateB
+          it = f()
+          stateA = it.next()
+          stateB = it.next(2)
+
+          stateA = await stateA
+          stateB = await stateB
+
+          if (stateA.done !== false || stateA.value !== 1) throw 'fail: f: next'
+          if (stateB.done !== true || stateB.value !== 2) throw 'fail: f: done'
+        }
+      `,
+    }, { async: true }),
+    test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+      'in.js': `
+        async function* f(order) {
+          order.push('before')
+          await Promise.resolve()
+          return yield 1
+        }
+        export let async = async () => {
+          let it, stateA, stateB, order = []
+          it = f(order)
+          stateA = it.next()
+          stateB = it.next(2)
+          order.push('after')
+
+          stateA = await stateA
+          stateB = await stateB
+
+          if (order[0] !== 'before' || order[1] !== 'after') throw 'fail: f: order: ' + JSON.stringify(order)
+          if (stateA.done !== false || stateA.value !== 1) throw 'fail: f: next'
+          if (stateB.done !== true || stateB.value !== 2) throw 'fail: f: done'
+        }
+      `,
+    }, { async: true }),
+    test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+      'in.js': `
+        async function* f(order) {
+          yield 0
+          order.push('before')
+          await Promise.resolve()
+          return yield 1
+        }
+        export let async = async () => {
+          let it, stateA, stateB, order = []
+          it = f(order)
+          await it.next()
+          stateA = it.next()
+          order.push('after')
+          stateB = it.next(2)
+
+          stateA = await stateA
+          stateB = await stateB
+
+          if (order[0] !== 'before' || order[1] !== 'after') throw 'fail: f: order: ' + JSON.stringify(order)
+          if (stateA.done !== false || stateA.value !== 1) throw 'fail: f: next'
+          if (stateB.done !== true || stateB.value !== 2) throw 'fail: f: done'
+        }
+      `,
+    }, { async: true }),
+    test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+      'in.js': `
         async function* f() {
           yield* {
             [Symbol.iterator]: () => ({ next: () => 123 }),
