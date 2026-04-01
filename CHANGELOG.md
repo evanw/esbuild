@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+* Fix for an async generator edge case ([#4401](https://github.com/evanw/esbuild/issues/4401), [#4417](https://github.com/evanw/esbuild/pull/4417))
+
+    Support for transforming async generators into the equivalent state machine was added in version 0.19.0. However, the generated state machine didn't work correctly when polling async generators concurrently, such as in the following code:
+
+    ```js
+    async function* inner() { yield 1; yield 2 }
+    async function* outer() { yield* inner() }
+    let gen = outer()
+    for await (let x of [gen.next(), gen.next()]) console.log(x)
+    ```
+
+    Previously esbuild's output of the above code behaved incorrectly when async generators were transformed (such as with `--supported:async-generator=false`). The transformation should be fixed starting with this release.
+
+    This fix was contributed by [@2767mr](https://github.com/2767mr).
+
 * Fix a regression when `metafile` is enabled ([#4420](https://github.com/evanw/esbuild/issues/4420), [#4418](https://github.com/evanw/esbuild/pull/4418))
 
     This release fixes a regression introduced by the previous release. When `metafile: true` was enabled in esbuild's JavaScript API, builds with build errors were incorrectly throwing an error about an empty JSON string instead of an object containing the build errors.
