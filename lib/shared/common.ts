@@ -953,7 +953,7 @@ function buildOrContextImpl(
       const originalErrors = result.errors.slice()
       const originalWarnings = result.warnings.slice()
       if (response!.outputFiles) result.outputFiles = response!.outputFiles.map(convertOutputFiles)
-      if (response!.metafile) result.metafile = parseJSON(response!.metafile)
+      if (response!.metafile && response!.metafile.length) result.metafile = parseJSON(response!.metafile)
       if (response!.mangleCache) result.mangleCache = response!.mangleCache
       if (response!.writeToStdout !== void 0) console.log(protocol.decodeUTF8(response!.writeToStdout).replace(/\n$/, ''))
       runOnEndCallbacks(result, (onEndErrors, onEndWarnings) => {

@@ -1700,6 +1700,35 @@ body {
     assert.deepStrictEqual(json.outputs[fileKey].inputs, { [makePath(file)]: { bytesInOutput: 14 } })
   },
 
+  // See: https://github.com/evanw/esbuild/issues/4420
+  async metafileEmpty({ esbuild, testDir }) {
+    const entry = path.join(testDir, 'entry.ts')
+    const unknown = path.join(testDir, 'a.unknown')
+    await writeFileAsync(entry, `
+      import contents from "./a.unknown";
+      console.log(contents);
+    `)
+    await writeFileAsync(unknown, '')
+
+    // Generate a build with an empty metafile JSON string due to an error
+    let error
+    try {
+      await esbuild.build({
+        entryPoints: [entry],
+        bundle: true,
+        outdir: testDir,
+        metafile: true,
+        logLevel: 'silent',
+      })
+    } catch (e) {
+      error = e
+    }
+
+    // Make sure we get an error message about the unknown file extension
+    assert.strictEqual(error.errors.length, 1)
+    assert(error.errors[0].text.includes('.unknown'))
+  },
+
   // Test in-memory output files
   async writeFalse({ esbuild, testDir }) {
     const input = path.join(testDir, 'in.js')
