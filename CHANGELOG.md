@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+* Allow `es2025` as a target in `tsconfig.json` ([#4432](https://github.com/evanw/esbuild/issues/4432))
+
+    TypeScript recently [added `es2025`](https://devblogs.microsoft.com/typescript/announcing-typescript-6-0/#es2025-option-for-target-and-lib) as a compilation target, so esbuild now supports this in the `target` field of `tsconfig.json` files, such as in the following configuration file:
+
+    ```json
+    {
+      "compilerOptions": {
+        "target": "ES2025"
+      }
+    }
+    ```
+
+    As a reminder, the only thing that esbuild uses this field for is determining whether or not to use legacy TypeScript behavior for class fields. You can read more in [the documentation](https://esbuild.github.io/content-types/#tsconfig-json).
+
 ## 0.27.4
 
 * Fix a regression with CSS media queries ([#4395](https://github.com/evanw/esbuild/issues/4395), [#4405](https://github.com/evanw/esbuild/issues/4405), [#4406](https://github.com/evanw/esbuild/issues/4406))
