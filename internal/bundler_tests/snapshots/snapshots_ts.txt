@@ -116,6 +116,52 @@ var foo4 = 123;
 console.log(a_exports, b_exports, c_exports, d_exports);
 
 ================================================================================
+TestParameterPropsUseDefineForClassFieldsFalse
+---------- /out.js ----------
+// entry.ts
+var Foo = class {
+  constructor(b1 = 2.1, b2 = 2.2) {
+    this.b1 = b1;
+    this.b2 = b2;
+    this.a = 1;
+    this.c = 3;
+  }
+  static {
+    console.log("a");
+  }
+  static {
+    console.log("b");
+  }
+  static {
+    console.log("c");
+  }
+};
+
+================================================================================
+TestParameterPropsUseDefineForClassFieldsTrue
+---------- /out.js ----------
+// entry.ts
+var Foo = class {
+  constructor(b1 = 2.1, b2 = 2.2) {
+    this.b1 = b1;
+    this.b2 = b2;
+  }
+  b1;
+  b2;
+  static {
+    console.log("a");
+  }
+  a = 1;
+  static {
+    console.log("b");
+  }
+  static {
+    console.log("c");
+  }
+  c = 3;
+};
+
+================================================================================
 TestTSAbstractClassFieldUseAssign
 ---------- /out.js ----------
 const keepThis = /* @__PURE__ */ Symbol("keepThis");

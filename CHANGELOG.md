@@ -21,6 +21,32 @@
 
     This release fixes a regression introduced by the previous release. When `metafile: true` was enabled in esbuild's JavaScript API, builds with build errors were incorrectly throwing an error about an empty JSON string instead of an object containing the build errors.
 
+* Use define semantics for TypeScript parameter properties ([#4421](https://github.com/evanw/esbuild/issues/4421))
+
+    Parameter properties are a TypeScript-specific code generation feature that converts constructor parameters into class fields when they are prefixed by certain keywords. When `"useDefineForClassFields": true` is present in `tsconfig.json`, the TypeScript compiler automatically generates class field declarations for parameter properties. Previously esbuild didn't do this, but esbuild will now do this starting with this release:
+
+    ```ts
+    // Original code
+    class Foo {
+      constructor(public x: number) {}
+    }
+
+    // Old output (with --loader=ts)
+    class Foo {
+      constructor(x) {
+        this.x = x;
+      }
+    }
+
+    // New output (with --loader=ts)
+    class Foo {
+      constructor(x) {
+        this.x = x;
+      }
+      x;
+    }
+    ```
+
 * Allow `es2025` as a target in `tsconfig.json` ([#4432](https://github.com/evanw/esbuild/issues/4432))
 
     TypeScript recently [added `es2025`](https://devblogs.microsoft.com/typescript/announcing-typescript-6-0/#es2025-option-for-target-and-lib) as a compilation target, so esbuild now supports this in the `target` field of `tsconfig.json` files, such as in the following configuration file:

@@ -631,6 +631,7 @@ type lowerClassContext struct {
 
 	ctor                   *js_ast.EFunction
 	extendsRef             ast.Ref
+	parameterFieldProps    []js_ast.Property
 	parameterFields        []js_ast.Stmt
 	instanceMembers        []js_ast.Stmt
 	instancePrivateMethods []js_ast.Stmt
@@ -1073,14 +1074,24 @@ func (ctx *lowerClassContext) lowerMethod(p *parser, prop js_ast.Property, priva
 				for _, arg := range ctx.ctor.Fn.Args {
 					if arg.IsTypeScriptCtorField {
 						if id, ok := arg.Binding.Data.(*js_ast.BIdentifier); ok {
+							name := p.symbols[id.Ref.InnerIndex].OriginalName
 							ctx.parameterFields = append(ctx.parameterFields, js_ast.AssignStmt(
 								js_ast.Expr{Loc: arg.Binding.Loc, Data: p.dotOrMangledPropVisit(
 									js_ast.Expr{Loc: arg.Binding.Loc, Data: js_ast.EThisShared},
-									p.symbols[id.Ref.InnerIndex].OriginalName,
+									name,
 									arg.Binding.Loc,
 								)},
 								js_ast.Expr{Loc: arg.Binding.Loc, Data: &js_ast.EIdentifier{Ref: id.Ref}},
 							))
+
+							// See: https://github.com/evanw/esbuild/issues/4421
+							if ctx.class.UseDefineForClassFields {
+								ctx.parameterFieldProps = append(ctx.parameterFieldProps, js_ast.Property{
+									Kind: js_ast.PropertyField,
+									Loc:  arg.Binding.Loc,
+									Key:  js_ast.Expr{Loc: arg.Binding.Loc, Data: &js_ast.EString{Value: helpers.StringToUTF16(name)}},
+								})
+							}
 						}
 					}
 				}
@@ -1954,6 +1965,10 @@ func (ctx *lowerClassContext) rewriteAutoAccessorToGetSet(
 }
 
 func (ctx *lowerClassContext) insertInitializersIntoConstructor(p *parser, classLoweringInfo classLoweringInfo, result visitClassResult) {
+	if len(ctx.parameterFieldProps) > 0 {
+		ctx.class.Properties = append(ctx.parameterFieldProps, ctx.class.Properties...)
+	}
+
 	if len(ctx.parameterFields) == 0 &&
 		!ctx.decoratorCallInstanceMethodExtraInitializers &&
 		len(ctx.instancePrivateMethods) == 0 &&
