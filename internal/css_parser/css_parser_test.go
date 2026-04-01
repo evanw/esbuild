@@ -2835,6 +2835,12 @@ func TestLowerAtCustomMedia(t *testing.T) {
 	expectPrintedLowerUnsupported(t, compat.CustomMediaQueries,
 		"@custom-media --never false; @media (--never) { a { color: red } }",
 		"@media not all {\n  a {\n    color: red;\n  }\n}\n", "")
+
+	// Range syntax is lowered during parsing, before custom media substitution,
+	// so both features compose correctly
+	expectPrintedLowerUnsupported(t, compat.CustomMediaQueries|compat.MediaRange,
+		"@custom-media --sm (width >= 640px); @media (--sm) { a { color: red } }",
+		"@media (min-width: 640px) {\n  a {\n    color: red;\n  }\n}\n", "")
 }
 
 func TestAtScope(t *testing.T) {
