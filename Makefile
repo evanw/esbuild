@@ -8,7 +8,7 @@ PATH_SEPARATOR = $(shell if uname | grep -qE "MINGW|WIN32|CYGWIN"; then echo ";"
 GO_COMPILER = PATH="$(GO_DIR)/bin$(PATH_SEPARATOR)$(PATH)" GOROOT="$(GO_DIR)" CGO_ENABLED=0
 
 # Strip debug info and clear the build id for reproducible builds
-GO_FLAGS += "-ldflags=-s -w -buildid="
+GO_FLAGS += "-ldflags=-s -w -buildid=" -buildvcs=false
 
 # Avoid embedding the build path in the executable for more reproducible builds
 GO_FLAGS += -trimpath
