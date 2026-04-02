@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.27.6
 
 * Fix lowering of define semantics for TypeScript parameter properties ([#4421](https://github.com/evanw/esbuild/issues/4421))
 
