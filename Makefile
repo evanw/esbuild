@@ -316,146 +316,152 @@ test-yarnpnp: platform-wasm
 version-go:
 	node scripts/esbuild.js --update-version-go
 
-platform-all: go-compiler
-	@$(MAKE) --no-print-directory -j4 \
-		platform-aix-ppc64 \
-		platform-android-arm \
-		platform-android-arm64 \
-		platform-android-x64 \
-		platform-darwin-arm64 \
-		platform-darwin-x64 \
-		platform-deno \
-		platform-freebsd-arm64 \
-		platform-freebsd-x64 \
-		platform-linux-arm \
-		platform-linux-arm64 \
-		platform-linux-ia32 \
-		platform-linux-loong64 \
-		platform-linux-mips64el \
-		platform-linux-ppc64 \
-		platform-linux-riscv64 \
-		platform-linux-s390x \
-		platform-linux-x64 \
-		platform-netbsd-arm64 \
-		platform-netbsd-x64 \
-		platform-neutral \
-		platform-openbsd-arm64 \
-		platform-openbsd-x64 \
-		platform-openharmony-arm64 \
-		platform-sunos-x64 \
-		platform-wasi-preview1 \
-		platform-wasm \
-		platform-win32-arm64 \
-		platform-win32-ia32 \
-		platform-win32-x64
+platform-all: \
+	platform-aix-ppc64 \
+	platform-android-arm \
+	platform-android-arm64 \
+	platform-android-x64 \
+	platform-darwin-arm64 \
+	platform-darwin-x64 \
+	platform-deno \
+	platform-freebsd-arm64 \
+	platform-freebsd-x64 \
+	platform-linux-arm \
+	platform-linux-arm64 \
+	platform-linux-ia32 \
+	platform-linux-loong64 \
+	platform-linux-mips64el \
+	platform-linux-ppc64 \
+	platform-linux-riscv64 \
+	platform-linux-s390x \
+	platform-linux-x64 \
+	platform-netbsd-arm64 \
+	platform-netbsd-x64 \
+	platform-neutral \
+	platform-openbsd-arm64 \
+	platform-openbsd-x64 \
+	platform-openharmony-arm64 \
+	platform-sunos-x64 \
+	platform-wasi-preview1 \
+	platform-wasm \
+	platform-win32-arm64 \
+	platform-win32-ia32 \
+	platform-win32-x64
 
-platform-win32-x64: version-go go-compiler
-	node scripts/esbuild.js npm/@esbuild/win32-x64/package.json --version
-	$(GO_COMPILER) GOOS=windows GOARCH=amd64 go build $(GO_FLAGS) -o npm/@esbuild/win32-x64/esbuild.exe ./cmd/esbuild
-	@shasum -a 256 npm/@esbuild/win32-x64/esbuild.exe
-
-platform-win32-ia32: version-go go-compiler
-	node scripts/esbuild.js npm/@esbuild/win32-ia32/package.json --version
-	$(GO_COMPILER) GOOS=windows GOARCH=386 go build $(GO_FLAGS) -o npm/@esbuild/win32-ia32/esbuild.exe ./cmd/esbuild
-	@shasum -a 256 npm/@esbuild/win32-ia32/esbuild.exe
-
-platform-win32-arm64: version-go go-compiler
-	node scripts/esbuild.js npm/@esbuild/win32-arm64/package.json --version
-	$(GO_COMPILER) GOOS=windows GOARCH=arm64 go build $(GO_FLAGS) -o npm/@esbuild/win32-arm64/esbuild.exe ./cmd/esbuild
-	@shasum -a 256 npm/@esbuild/win32-arm64/esbuild.exe
-
-platform-wasi-preview1: version-go go-compiler
-	node scripts/esbuild.js npm/@esbuild/wasi-preview1/package.json --version
-	$(GO_COMPILER) GOOS=wasip1 GOARCH=wasm go build $(GO_FLAGS) -o npm/@esbuild/wasi-preview1/esbuild.wasm ./cmd/esbuild
-	@shasum -a 256 npm/@esbuild/wasi-preview1/esbuild.wasm
-
-platform-unixlike: version-go go-compiler
+platform-internal:
 	@test -n "$(GOOS)" || (echo "The environment variable GOOS must be provided" && false)
 	@test -n "$(GOARCH)" || (echo "The environment variable GOARCH must be provided" && false)
 	@test -n "$(NPMDIR)" || (echo "The environment variable NPMDIR must be provided" && false)
+	@test -n "$(BINPATH)" || (echo "The environment variable BINPATH must be provided" && false)
+	@echo
+	@echo "# Build: $(NPMDIR)"
 	node scripts/esbuild.js "$(NPMDIR)/package.json" --version
-	$(GO_COMPILER) GOOS="$(GOOS)" GOARCH="$(GOARCH)" go build $(GO_FLAGS) -o "$(NPMDIR)/bin/esbuild" ./cmd/esbuild
-	@shasum -a 256 "$(NPMDIR)/bin/esbuild"
+	$(GO_COMPILER) GOOS="$(GOOS)" GOARCH="$(GOARCH)" go build $(GO_FLAGS) -o "$(NPMDIR)/$(BINPATH)" ./cmd/esbuild
+	@shasum -a 256 "$(NPMDIR)/$(BINPATH)"
+
+platform-win32-x64: version-go go-compiler
+	@$(MAKE) --no-print-directory GOOS=windows GOARCH=amd64 NPMDIR=npm/@esbuild/win32-ia32 BINPATH=esbuild.exe platform-internal
+
+platform-win32-ia32: version-go go-compiler
+	@$(MAKE) --no-print-directory GOOS=windows GOARCH=386 NPMDIR=npm/@esbuild/win32-ia32 BINPATH=esbuild.exe platform-internal
+
+platform-win32-arm64: version-go go-compiler
+	@$(MAKE) --no-print-directory GOOS=windows GOARCH=arm64 NPMDIR=npm/@esbuild/win32-arm64 BINPATH=esbuild.exe platform-internal
+
+platform-wasi-preview1: version-go go-compiler
+	@$(MAKE) --no-print-directory GOOS=wasip1 GOARCH=wasm NPMDIR=npm/@esbuild/wasi-preview1 BINPATH=esbuild.wasm platform-internal
+
+platform-aix-ppc64: version-go go-compiler
+	@$(MAKE) --no-print-directory GOOS=aix GOARCH=ppc64 NPMDIR=npm/@esbuild/aix-ppc64 BINPATH=bin/esbuild platform-internal
+
+platform-android-arm64: version-go go-compiler
+	@$(MAKE) --no-print-directory GOOS=android GOARCH=arm64 NPMDIR=npm/@esbuild/android-arm64 BINPATH=bin/esbuild platform-internal
+
+platform-darwin-x64: version-go go-compiler
+	@$(MAKE) --no-print-directory GOOS=darwin GOARCH=amd64 NPMDIR=npm/@esbuild/darwin-x64 BINPATH=bin/esbuild platform-internal
+
+platform-darwin-arm64: version-go go-compiler
+	@$(MAKE) --no-print-directory GOOS=darwin GOARCH=arm64 NPMDIR=npm/@esbuild/darwin-arm64 BINPATH=bin/esbuild platform-internal
+
+platform-freebsd-x64: version-go go-compiler
+	@$(MAKE) --no-print-directory GOOS=freebsd GOARCH=amd64 NPMDIR=npm/@esbuild/freebsd-x64 BINPATH=bin/esbuild platform-internal
+
+platform-freebsd-arm64: version-go go-compiler
+	@$(MAKE) --no-print-directory GOOS=freebsd GOARCH=arm64 NPMDIR=npm/@esbuild/freebsd-arm64 BINPATH=bin/esbuild platform-internal
+
+platform-netbsd-arm64: version-go go-compiler
+	@$(MAKE) --no-print-directory GOOS=netbsd GOARCH=arm64 NPMDIR=npm/@esbuild/netbsd-arm64 BINPATH=bin/esbuild platform-internal
+
+platform-netbsd-x64: version-go go-compiler
+	@$(MAKE) --no-print-directory GOOS=netbsd GOARCH=amd64 NPMDIR=npm/@esbuild/netbsd-x64 BINPATH=bin/esbuild platform-internal
+
+platform-openbsd-arm64: version-go go-compiler
+	@$(MAKE) --no-print-directory GOOS=openbsd GOARCH=arm64 NPMDIR=npm/@esbuild/openbsd-arm64 BINPATH=bin/esbuild platform-internal
+
+platform-openbsd-x64: version-go go-compiler
+	@$(MAKE) --no-print-directory GOOS=openbsd GOARCH=amd64 NPMDIR=npm/@esbuild/openbsd-x64 BINPATH=bin/esbuild platform-internal
+
+platform-linux-x64: version-go go-compiler
+	@$(MAKE) --no-print-directory GOOS=linux GOARCH=amd64 NPMDIR=npm/@esbuild/linux-x64 BINPATH=bin/esbuild platform-internal
+
+platform-linux-ia32: version-go go-compiler
+	@$(MAKE) --no-print-directory GOOS=linux GOARCH=386 NPMDIR=npm/@esbuild/linux-ia32 BINPATH=bin/esbuild platform-internal
+
+platform-linux-arm: version-go go-compiler
+	@$(MAKE) --no-print-directory GOOS=linux GOARCH=arm NPMDIR=npm/@esbuild/linux-arm BINPATH=bin/esbuild platform-internal
+
+platform-linux-arm64: version-go go-compiler
+	@$(MAKE) --no-print-directory GOOS=linux GOARCH=arm64 NPMDIR=npm/@esbuild/linux-arm64 BINPATH=bin/esbuild platform-internal
+
+platform-linux-loong64: version-go go-compiler
+	@$(MAKE) --no-print-directory GOOS=linux GOARCH=loong64 NPMDIR=npm/@esbuild/linux-loong64 BINPATH=bin/esbuild platform-internal
+
+platform-linux-mips64el: version-go go-compiler
+	@$(MAKE) --no-print-directory GOOS=linux GOARCH=mips64le NPMDIR=npm/@esbuild/linux-mips64el BINPATH=bin/esbuild platform-internal
+
+platform-linux-ppc64: version-go go-compiler
+	@$(MAKE) --no-print-directory GOOS=linux GOARCH=ppc64le NPMDIR=npm/@esbuild/linux-ppc64 BINPATH=bin/esbuild platform-internal
+
+platform-linux-riscv64: version-go go-compiler
+	@$(MAKE) --no-print-directory GOOS=linux GOARCH=riscv64 NPMDIR=npm/@esbuild/linux-riscv64 BINPATH=bin/esbuild platform-internal
+
+platform-linux-s390x: version-go go-compiler
+	@$(MAKE) --no-print-directory GOOS=linux GOARCH=s390x NPMDIR=npm/@esbuild/linux-s390x BINPATH=bin/esbuild platform-internal
+
+platform-sunos-x64: version-go go-compiler
+	@$(MAKE) --no-print-directory GOOS=illumos GOARCH=amd64 NPMDIR=npm/@esbuild/sunos-x64 BINPATH=bin/esbuild platform-internal
 
 platform-android-x64: platform-wasm
+	@echo
+	@echo "# Build: npm/@esbuild/android-x64"
 	node scripts/esbuild.js npm/@esbuild/android-x64/package.json --version
 
 platform-android-arm: platform-wasm
+	@echo
+	@echo "# Build: npm/@esbuild/android-x64"
 	node scripts/esbuild.js npm/@esbuild/android-arm/package.json --version
 
 platform-openharmony-arm64: platform-wasm
+	@echo
+	@echo "# Build: npm/@esbuild/android-x64"
 	node scripts/esbuild.js npm/@esbuild/openharmony-arm64/package.json --version
 
-platform-aix-ppc64:
-	@$(MAKE) --no-print-directory GOOS=aix GOARCH=ppc64 NPMDIR=npm/@esbuild/aix-ppc64 platform-unixlike
-
-platform-android-arm64:
-	@$(MAKE) --no-print-directory GOOS=android GOARCH=arm64 NPMDIR=npm/@esbuild/android-arm64 platform-unixlike
-
-platform-darwin-x64:
-	@$(MAKE) --no-print-directory GOOS=darwin GOARCH=amd64 NPMDIR=npm/@esbuild/darwin-x64 platform-unixlike
-
-platform-darwin-arm64:
-	@$(MAKE) --no-print-directory GOOS=darwin GOARCH=arm64 NPMDIR=npm/@esbuild/darwin-arm64 platform-unixlike
-
-platform-freebsd-x64:
-	@$(MAKE) --no-print-directory GOOS=freebsd GOARCH=amd64 NPMDIR=npm/@esbuild/freebsd-x64 platform-unixlike
-
-platform-freebsd-arm64:
-	@$(MAKE) --no-print-directory GOOS=freebsd GOARCH=arm64 NPMDIR=npm/@esbuild/freebsd-arm64 platform-unixlike
-
-platform-netbsd-arm64:
-	@$(MAKE) --no-print-directory GOOS=netbsd GOARCH=arm64 NPMDIR=npm/@esbuild/netbsd-arm64 platform-unixlike
-
-platform-netbsd-x64:
-	@$(MAKE) --no-print-directory GOOS=netbsd GOARCH=amd64 NPMDIR=npm/@esbuild/netbsd-x64 platform-unixlike
-
-platform-openbsd-arm64:
-	@$(MAKE) --no-print-directory GOOS=openbsd GOARCH=arm64 NPMDIR=npm/@esbuild/openbsd-arm64 platform-unixlike
-
-platform-openbsd-x64:
-	@$(MAKE) --no-print-directory GOOS=openbsd GOARCH=amd64 NPMDIR=npm/@esbuild/openbsd-x64 platform-unixlike
-
-platform-linux-x64:
-	@$(MAKE) --no-print-directory GOOS=linux GOARCH=amd64 NPMDIR=npm/@esbuild/linux-x64 platform-unixlike
-
-platform-linux-ia32:
-	@$(MAKE) --no-print-directory GOOS=linux GOARCH=386 NPMDIR=npm/@esbuild/linux-ia32 platform-unixlike
-
-platform-linux-arm:
-	@$(MAKE) --no-print-directory GOOS=linux GOARCH=arm NPMDIR=npm/@esbuild/linux-arm platform-unixlike
-
-platform-linux-arm64:
-	@$(MAKE) --no-print-directory GOOS=linux GOARCH=arm64 NPMDIR=npm/@esbuild/linux-arm64 platform-unixlike
-
-platform-linux-loong64:
-	@$(MAKE) --no-print-directory GOOS=linux GOARCH=loong64 NPMDIR=npm/@esbuild/linux-loong64 platform-unixlike
-
-platform-linux-mips64el:
-	@$(MAKE) --no-print-directory GOOS=linux GOARCH=mips64le NPMDIR=npm/@esbuild/linux-mips64el platform-unixlike
-
-platform-linux-ppc64:
-	@$(MAKE) --no-print-directory GOOS=linux GOARCH=ppc64le NPMDIR=npm/@esbuild/linux-ppc64 platform-unixlike
-
-platform-linux-riscv64:
-	@$(MAKE) --no-print-directory GOOS=linux GOARCH=riscv64 NPMDIR=npm/@esbuild/linux-riscv64 platform-unixlike
-
-platform-linux-s390x:
-	@$(MAKE) --no-print-directory GOOS=linux GOARCH=s390x NPMDIR=npm/@esbuild/linux-s390x platform-unixlike
-
-platform-sunos-x64:
-	@$(MAKE) --no-print-directory GOOS=illumos GOARCH=amd64 NPMDIR=npm/@esbuild/sunos-x64 platform-unixlike
-
 platform-wasm: esbuild go-compiler
+	@echo
+	@echo "# Build: npm/esbuild-wasm"
 	node scripts/esbuild.js npm/esbuild-wasm/package.json --version
 	$(GO_COMPILER) "$(NODE)" scripts/esbuild.js ./esbuild --wasm
 	@shasum -a 256 npm/esbuild-wasm/esbuild.wasm
 
 platform-neutral: esbuild
+	@echo
+	@echo "# Build: npm/esbuild"
 	node scripts/esbuild.js npm/esbuild/package.json --version
 	node scripts/esbuild.js ./esbuild --neutral
 
 platform-deno: platform-wasm go-compiler
+	@echo
+	@echo "# Build: deno"
 	$(GO_COMPILER) "$(NODE)" scripts/esbuild.js ./esbuild --deno
 
 publish-all: check-go-version
