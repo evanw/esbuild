@@ -125,7 +125,7 @@ function generateBinaryHashes() {
     try {
       bytes = fs.readFileSync(path.join(repoDir, 'npm', key))
     } catch {
-      hashes[key] = null
+      hashes[key] = ''
       continue
     }
     hashes[key] = crypto.createHash('sha256').update(bytes).digest('hex')
