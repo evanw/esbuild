@@ -7,8 +7,8 @@ GO_DIR = $(shell pwd)/go/$(GO_VERSION)/go
 PATH_SEPARATOR = $(shell if uname | grep -qE "MINGW|WIN32|CYGWIN"; then echo ";"; else echo ":"; fi)
 GO_COMPILER = PATH="$(GO_DIR)/bin$(PATH_SEPARATOR)$(PATH)" GOROOT="$(GO_DIR)" CGO_ENABLED=0
 
-# Strip debug info
-GO_FLAGS += "-ldflags=-s -w"
+# Strip debug info and clear the build id for reproducible builds
+GO_FLAGS += "-ldflags=-s -w -buildid="
 
 # Avoid embedding the build path in the executable for more reproducible builds
 GO_FLAGS += -trimpath
@@ -352,18 +352,22 @@ platform-all: go-compiler
 platform-win32-x64: version-go go-compiler
 	node scripts/esbuild.js npm/@esbuild/win32-x64/package.json --version
 	$(GO_COMPILER) GOOS=windows GOARCH=amd64 go build $(GO_FLAGS) -o npm/@esbuild/win32-x64/esbuild.exe ./cmd/esbuild
+	@shasum -a 256 npm/@esbuild/win32-x64/esbuild.exe
 
 platform-win32-ia32: version-go go-compiler
 	node scripts/esbuild.js npm/@esbuild/win32-ia32/package.json --version
 	$(GO_COMPILER) GOOS=windows GOARCH=386 go build $(GO_FLAGS) -o npm/@esbuild/win32-ia32/esbuild.exe ./cmd/esbuild
+	@shasum -a 256 npm/@esbuild/win32-ia32/esbuild.exe
 
 platform-win32-arm64: version-go go-compiler
 	node scripts/esbuild.js npm/@esbuild/win32-arm64/package.json --version
 	$(GO_COMPILER) GOOS=windows GOARCH=arm64 go build $(GO_FLAGS) -o npm/@esbuild/win32-arm64/esbuild.exe ./cmd/esbuild
+	@shasum -a 256 npm/@esbuild/win32-arm64/esbuild.exe
 
 platform-wasi-preview1: version-go go-compiler
 	node scripts/esbuild.js npm/@esbuild/wasi-preview1/package.json --version
 	$(GO_COMPILER) GOOS=wasip1 GOARCH=wasm go build $(GO_FLAGS) -o npm/@esbuild/wasi-preview1/esbuild.wasm ./cmd/esbuild
+	@shasum -a 256 npm/@esbuild/wasi-preview1/esbuild.wasm
 
 platform-unixlike: version-go go-compiler
 	@test -n "$(GOOS)" || (echo "The environment variable GOOS must be provided" && false)
@@ -371,6 +375,7 @@ platform-unixlike: version-go go-compiler
 	@test -n "$(NPMDIR)" || (echo "The environment variable NPMDIR must be provided" && false)
 	node scripts/esbuild.js "$(NPMDIR)/package.json" --version
 	$(GO_COMPILER) GOOS="$(GOOS)" GOARCH="$(GOARCH)" go build $(GO_FLAGS) -o "$(NPMDIR)/bin/esbuild" ./cmd/esbuild
+	@shasum -a 256 "$(NPMDIR)/bin/esbuild"
 
 platform-android-x64: platform-wasm
 	node scripts/esbuild.js npm/@esbuild/android-x64/package.json --version
@@ -444,6 +449,7 @@ platform-sunos-x64:
 platform-wasm: esbuild go-compiler
 	node scripts/esbuild.js npm/esbuild-wasm/package.json --version
 	$(GO_COMPILER) "$(NODE)" scripts/esbuild.js ./esbuild --wasm
+	@shasum -a 256 npm/esbuild-wasm/esbuild.wasm
 
 platform-neutral: esbuild
 	node scripts/esbuild.js npm/esbuild/package.json --version
