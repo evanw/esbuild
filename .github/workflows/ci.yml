@@ -47,6 +47,9 @@ jobs:
           GOOS=plan9 GOARCH=amd64 go build ./cmd/esbuild
           GOOS=plan9 GOARCH=arm go build ./cmd/esbuild
 
+      - name: Test an old TypeScript version
+        run: make test-old-ts
+
   esbuild-slow:
     # Split these out into their own runner because they're very slow
     name: esbuild CI (Slow Tests)
@@ -60,7 +63,7 @@ jobs:
         run: |
           echo "GO_VERSION=$(cat go.version)" >> $GITHUB_ENV
 
-      - name: Set up Go 1.x
+      - name: Set up Go ${{ env.GO_VERSION }}
         uses: actions/setup-go@v3
         with:
           go-version: ${{ env.GO_VERSION }}
@@ -102,7 +105,7 @@ jobs:
         run: |
           echo "GO_VERSION=$(cat go.version)" >> $Env:GITHUB_ENV
 
-      - name: Set up Go 1.x
+      - name: Set up Go ${{ env.GO_VERSION }}
         uses: actions/setup-go@v3
         with:
           go-version: ${{ env.GO_VERSION }}
@@ -242,9 +245,6 @@ jobs:
       - name: go test
         run: go test ./internal/...
 
-      - name: make test-old-ts
-        run: make test-old-ts
-
   esbuild-old-deno-version:
     name: esbuild CI (old Deno version)
     runs-on: ${{ matrix.os }}
@@ -304,7 +304,7 @@ jobs:
         run: |
           echo "GO_VERSION=$(cat go.version)" >> $Env:GITHUB_ENV
 
-      - name: Set up Go 1.x
+      - name: Set up Go ${{ env.GO_VERSION }}
         uses: actions/setup-go@v3
         with:
           go-version: ${{ env.GO_VERSION }}
