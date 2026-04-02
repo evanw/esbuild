@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+* Add integrity checks to fallback download path ([#4343](https://github.com/evanw/esbuild/issues/4343))
+
+    Installing esbuild via npm is somewhat complicated with several different edge cases (see [esbuild's documentation](https://esbuild.github.io/getting-started/#additional-npm-flags) for details). If the regular installation of esbuild's platform-specific package fails, esbuild's install script attempts to download the platform-specific package itself (first with the `npm` command, and then with a HTTP request to `registry.npmjs.org` as a last resort).
+
+    This last resort path previously didn't have any integrity checks. With this release, esbuild will now verify that the hash of the downloaded binary matches the expected hash for the current release. This means the hashes for all of esbuild's platform-specific binary packages will now be embedded in the top-level `esbuild` package. Hopefully this should work without any problems. But just in case, this change is being done as a breaking change release.
+
 ## 0.27.7
 
 * Fix lowering of define semantics for TypeScript parameter properties ([#4421](https://github.com/evanw/esbuild/issues/4421))

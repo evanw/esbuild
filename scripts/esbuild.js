@@ -1,4 +1,5 @@
 const childProcess = require('child_process')
+const crypto = require('crypto')
 const path = require('path')
 const fs = require('fs')
 const os = require('os')
@@ -81,9 +82,49 @@ const buildNeutralLib = (esbuildPath) => {
 
   // Update "npm/esbuild/package.json"
   const pjPath = path.join(npmDir, 'package.json')
-  const package_json = JSON.parse(fs.readFileSync(pjPath, 'utf8'))
-  package_json.optionalDependencies = optionalDependencies
-  fs.writeFileSync(pjPath, JSON.stringify(package_json, null, 2) + '\n')
+  const packageJSON = JSON.parse(fs.readFileSync(pjPath, 'utf8'))
+  packageJSON.optionalDependencies = optionalDependencies
+  packageJSON['esbuild.binaryHashes'] = generateBinaryHashes()
+  fs.writeFileSync(pjPath, JSON.stringify(packageJSON, null, 2) + '\n')
+}
+
+function generateBinaryHashes() {
+  // Note: The dependency list here must match `platform-neutral` in `../Makefile`
+  const toHash = [
+    // Unix-like
+    '@esbuild/aix-ppc64/bin/esbuild',
+    '@esbuild/android-arm64/bin/esbuild',
+    '@esbuild/darwin-arm64/bin/esbuild',
+    '@esbuild/darwin-x64/bin/esbuild',
+    '@esbuild/freebsd-arm64/bin/esbuild',
+    '@esbuild/freebsd-x64/bin/esbuild',
+    '@esbuild/linux-arm/bin/esbuild',
+    '@esbuild/linux-arm64/bin/esbuild',
+    '@esbuild/linux-ia32/bin/esbuild',
+    '@esbuild/linux-loong64/bin/esbuild',
+    '@esbuild/linux-mips64el/bin/esbuild',
+    '@esbuild/linux-ppc64/bin/esbuild',
+    '@esbuild/linux-riscv64/bin/esbuild',
+    '@esbuild/linux-s390x/bin/esbuild',
+    '@esbuild/linux-x64/bin/esbuild',
+    '@esbuild/netbsd-arm64/bin/esbuild',
+    '@esbuild/netbsd-x64/bin/esbuild',
+    '@esbuild/openbsd-arm64/bin/esbuild',
+    '@esbuild/openbsd-x64/bin/esbuild',
+    '@esbuild/sunos-x64/bin/esbuild',
+
+    // Windows
+    '@esbuild/win32-arm64/esbuild.exe',
+    '@esbuild/win32-ia32/esbuild.exe',
+    '@esbuild/win32-x64/esbuild.exe',
+  ]
+
+  const hashes = {}
+  for (const key of toHash) {
+    const bytes = fs.readFileSync(path.join(repoDir, 'npm', key))
+    hashes[key] = crypto.createHash('sha256').update(bytes).digest('hex')
+  }
+  return hashes
 }
 
 async function generateWorkerCode({ esbuildPath, wasm_exec_js, minify, target }) {

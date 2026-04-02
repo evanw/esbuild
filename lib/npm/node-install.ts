@@ -5,9 +5,15 @@ import os = require('os')
 import path = require('path')
 import zlib = require('zlib')
 import https = require('https')
+import crypto = require('crypto')
 import child_process = require('child_process')
 
-const versionFromPackageJSON: string = require(path.join(__dirname, 'package.json')).version
+interface PackageJSON {
+  version: string
+  'esbuild.binaryHashes': Record<string, string>
+}
+
+const packageJSON: PackageJSON = require(path.join(__dirname, 'package.json')) as typeof import('../../npm/esbuild/package.json')
 const toPath = path.join(__dirname, 'bin', 'esbuild')
 let isToPathJS = true
 
@@ -48,8 +54,8 @@ which means the "esbuild" binary executable can't be run. You can either:
     }
     throw err
   }
-  if (stdout !== versionFromPackageJSON) {
-    throw new Error(`Expected ${JSON.stringify(versionFromPackageJSON)} but got ${JSON.stringify(stdout)}`)
+  if (stdout !== packageJSON.version) {
+    throw new Error(`Expected ${JSON.stringify(packageJSON.version)} but got ${JSON.stringify(stdout)}`)
   }
 }
 
@@ -115,13 +121,14 @@ function installUsingNPM(pkg: string, subpath: string, binPath: string): void {
     // command instead of a HTTP request so that it hopefully works in situations
     // where HTTP requests are blocked but the "npm" command still works due to,
     // for example, a custom configured npm registry and special firewall rules.
-    child_process.execSync(`npm install --loglevel=error --prefer-offline --no-audit --progress=false ${pkg}@${versionFromPackageJSON}`,
+    child_process.execSync(`npm install --loglevel=error --prefer-offline --no-audit --progress=false ${pkg}@${packageJSON.version}`,
       { cwd: installDir, stdio: 'pipe', env })
 
     // Move the downloaded binary executable into place. The destination path
     // is the same one that the JavaScript API code uses so it will be able to
     // find the binary executable here later.
     const installedBinPath = path.join(installDir, 'node_modules', pkg, subpath)
+    binaryIntegrityCheck(pkg, subpath, fs.readFileSync(installedBinPath))
     fs.renameSync(installedBinPath, binPath)
   } finally {
     // Try to clean up afterward so we don't unnecessarily waste file system
@@ -168,7 +175,7 @@ function applyManualBinaryPathOverride(overridePath: string): void {
   fs.writeFileSync(libMain, `var ESBUILD_BINARY_PATH = ${pathString};\n${code}`)
 }
 
-function maybeOptimizePackage(binPath: string): void {
+function maybeOptimizePackage(binPath: string, isWASM: boolean): void {
   // This package contains a "bin/esbuild" JavaScript file that finds and runs
   // the appropriate binary executable. However, this means that running the
   // "esbuild" command runs another instance of "node" which is way slower than
@@ -190,7 +197,6 @@ function maybeOptimizePackage(binPath: string): void {
   //
   // This optimization also doesn't apply when npm's "--ignore-scripts" flag is
   // used since in that case this install script will not be run.
-  const { isWASM } = pkgAndSubpathForCurrentPlatform()
   if (os.platform() !== 'win32' && !isYarn() && !isWASM) {
     const tempPath = path.join(__dirname, 'bin-esbuild')
     try {
@@ -219,13 +225,23 @@ function maybeOptimizePackage(binPath: string): void {
   }
 }
 
+function binaryIntegrityCheck(pkg: string, subpath: string, bytes: Uint8Array): void {
+  const hash = crypto.createHash('sha256').update(bytes).digest('hex')
+  const key = `${pkg}/${subpath}`
+  const expected = packageJSON['esbuild.binaryHashes'][key]
+  if (!expected) throw new Error(`Missing hash for "${key}"`)
+  if (hash !== expected) throw new Error(`"${hash.slice(0, 8)}..." doesn't match "${expected.slice(0, 8)}..."`)
+}
+
 async function downloadDirectlyFromNPM(pkg: string, subpath: string, binPath: string): Promise<void> {
   // If that fails, the user could have npm configured incorrectly or could not
   // have npm installed. Try downloading directly from npm as a last resort.
-  const url = `https://registry.npmjs.org/${pkg}/-/${pkg.replace('@esbuild/', '')}-${versionFromPackageJSON}.tgz`
+  const url = `https://registry.npmjs.org/${pkg}/-/${pkg.replace('@esbuild/', '')}-${packageJSON.version}.tgz`
   console.error(`[esbuild] Trying to download ${JSON.stringify(url)}`)
   try {
-    fs.writeFileSync(binPath, extractFileFromTarGzip(await fetch(url), subpath))
+    const bytes = extractFileFromTarGzip(await fetch(url), subpath)
+    binaryIntegrityCheck(pkg, subpath, bytes)
+    fs.writeFileSync(binPath, bytes)
     fs.chmodSync(binPath, 0o755)
   } catch (e: any) {
     console.error(`[esbuild] Failed to download ${JSON.stringify(url)}: ${e && e.message || e}`)
@@ -246,7 +262,7 @@ async function checkAndPreparePackage(): Promise<void> {
     }
   }
 
-  const { pkg, subpath } = pkgAndSubpathForCurrentPlatform()
+  const { pkg, subpath, isWASM } = pkgAndSubpathForCurrentPlatform()
 
   let binPath: string
   try {
@@ -261,6 +277,12 @@ package.json feature is used by esbuild to install the correct binary executable
 for your current platform. This install script will now attempt to work around
 this. If that fails, you need to remove the "--no-optional" flag to use esbuild.
 `)
+
+    // The "binary" in the WebAssembly package is not actually a binary, and is
+    // not self-contained. It's a JavaScript file that references another
+    // binary "esbuild.wasm" file. The fallback code below assumes that the
+    // binary is self-contained, so fail now if this is a WebAssembly fallback.
+    if (isWASM) throw new Error(`Failed to install package "${pkg}"`)
 
     // If that didn't work, then someone probably installed esbuild with the
     // "--no-optional" flag. Attempt to compensate for this by downloading the
@@ -289,7 +311,7 @@ this. If that fails, you need to remove the "--no-optional" flag to use esbuild.
     }
   }
 
-  maybeOptimizePackage(binPath)
+  maybeOptimizePackage(binPath, isWASM)
 }
 
 checkAndPreparePackage().then(() => {

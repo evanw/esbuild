@@ -45,5 +45,30 @@
     "@esbuild/win32-ia32": "0.27.7",
     "@esbuild/win32-x64": "0.27.7"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "esbuild.binaryHashes": {
+    "@esbuild/aix-ppc64/bin/esbuild": "e189c30ba15cbdf0ff36985af2b31d3c45921e5c4f7d7a20d0779ced42c9a461",
+    "@esbuild/android-arm64/bin/esbuild": "f98558df51a9c5bc7611f327e740a49b444eea45549418d5043cef623add2a6c",
+    "@esbuild/darwin-arm64/bin/esbuild": "b82c6243eb58d520d0bc55cddcf6993dd0f5572f3ab8dc2ba6d77058be043e62",
+    "@esbuild/darwin-x64/bin/esbuild": "616ac773dfd3ab720d8a000244cc8ef460245d7a2292e94a82a9d17c0919a826",
+    "@esbuild/freebsd-arm64/bin/esbuild": "55423b64f0d643ed537ec346b45c012e9e38b143331a57b18bc116bfb3010714",
+    "@esbuild/freebsd-x64/bin/esbuild": "7df169572f3b6f9ef598c83b52e9f132b68c0e20d67d6fc47f96ed4da885f755",
+    "@esbuild/linux-arm/bin/esbuild": "97d76dfa7aa0e7716eadf5f14a3bce2c010b7fd22b1940b11b89eae04d3135ac",
+    "@esbuild/linux-arm64/bin/esbuild": "57fa0b46e197f4ff8d67763cc2b1bdf28090578fc5e6bbe71b18473c296fcfcf",
+    "@esbuild/linux-ia32/bin/esbuild": "b61ad8f30aa458b7dfd79a4b6a744aa101971b85f4f9a508970f9ccf919e8386",
+    "@esbuild/linux-loong64/bin/esbuild": "d69c5174b36d5ce9c5d9e0455e5e9e97b6b0e007709d16d9761fe0d1c8646740",
+    "@esbuild/linux-mips64el/bin/esbuild": "ff85f4b896b656eeab590f9389f796792f8afa607200396a1955cf85624d095e",
+    "@esbuild/linux-ppc64/bin/esbuild": "6b6bdb97ba7523f77c015246579dfd13a7d0a321908221b84fc2f3788f3299f7",
+    "@esbuild/linux-riscv64/bin/esbuild": "8cb98fa08a9f13b43723387fdd47a842d41e481e4ebacaed8aa516890b5f77f4",
+    "@esbuild/linux-s390x/bin/esbuild": "03c3adfb52f099b1d61e126cf34738446730bd6160a50e5d52913c95984e8f2e",
+    "@esbuild/linux-x64/bin/esbuild": "c638273fcf95573ca74af586677800b4dd874c55f8f945adb54316d6902ba14b",
+    "@esbuild/netbsd-arm64/bin/esbuild": "2fe6fa1e6bd28ac94b0068d0608a26cef41fe264d0c69b4b941a56737b640474",
+    "@esbuild/netbsd-x64/bin/esbuild": "b7b6b75dad26113b545e5d33ed94c06f7b273f8ebcd0aa501ed6130dae0543c1",
+    "@esbuild/openbsd-arm64/bin/esbuild": "5f3e6a235bd9d1377011f29a9dca9daf95b8734904c51db2dfdb493529bff052",
+    "@esbuild/openbsd-x64/bin/esbuild": "79ffa254e3067803e76da4d71a6611cf18620de749fd271318e28abadeabce08",
+    "@esbuild/sunos-x64/bin/esbuild": "6406fd8a315d5a31c31170d8cf4dc9a97beeed1d24f4499588259edde7c1501f",
+    "@esbuild/win32-arm64/esbuild.exe": "3ed4a42ee89b22193e33e700b7eb834b1d70e5490f26f0437d65c94888f7d4b1",
+    "@esbuild/win32-ia32/esbuild.exe": "70d1ad7f1bc85e1fdc0334cf718d8b326bba3c123bf90aed55a6e8a1ea4b4b07",
+    "@esbuild/win32-x64/esbuild.exe": "44ce6728d54c891b1c5a6d7dbfb1a0f13419884cca0b090f1fbcf0dcd8bee0e9"
+  }
 }
