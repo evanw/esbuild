@@ -796,21 +796,6 @@ console.log("c.js");
 console.log("d.js");
 
 ================================================================================
-TestPackageJsonImportsRemapToOtherPackage
----------- /Users/user/project/out.js ----------
-// Users/user/project/src/node_modules/pkg/a.js
-console.log("a.js");
-
-// Users/user/project/src/node_modules/pkg/b.js
-console.log("b.js");
-
-// Users/user/project/src/node_modules/pkg/some-star/c.js
-console.log("c.js");
-
-// Users/user/project/src/node_modules/pkg/some-slash/d.js
-console.log("d.js");
-
-================================================================================
 TestPackageJsonImportsHashSlashExactMatch
 ---------- /Users/user/project/out.js ----------
 // Users/user/project/src/index.js
@@ -842,6 +827,21 @@ console.log("foo.js");
 
 // Users/user/project/src/src/bar/baz.js
 console.log("bar/baz.js");
+
+================================================================================
+TestPackageJsonImportsRemapToOtherPackage
+---------- /Users/user/project/out.js ----------
+// Users/user/project/src/node_modules/pkg/a.js
+console.log("a.js");
+
+// Users/user/project/src/node_modules/pkg/b.js
+console.log("b.js");
+
+// Users/user/project/src/node_modules/pkg/some-star/c.js
+console.log("c.js");
+
+// Users/user/project/src/node_modules/pkg/some-slash/d.js
+console.log("d.js");
 
 ================================================================================
 TestPackageJsonMain
