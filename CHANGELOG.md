@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+* Fix lowering of define semantics for TypeScript parameter properties ([#4421](https://github.com/evanw/esbuild/issues/4421))
+
+    The previous release incorrectly generated class fields for TypeScript parameter properties even when the configured target environment does not support class fields. With this release, the generated class fields will now be correctly lowered in this case:
+
+    ```ts
+    // Original code
+    class Foo {
+      constructor(public x = 1) {}
+      y = 2
+    }
+
+    // Old output (with --loader=ts --target=es2021)
+    class Foo {
+      constructor(x = 1) {
+        this.x = x;
+        __publicField(this, "y", 2);
+      }
+      x;
+    }
+
+    // New output (with --loader=ts --target=es2021)
+    class Foo {
+      constructor(x = 1) {
+        __publicField(this, "x", x);
+        __publicField(this, "y", 2);
+      }
+    }
+    ```
+
 * Update the Go compiler from 1.25.7 to 1.26.1
 
     This upgrade should not affect anything. However, there have been some significant internal changes to the Go compiler, so esbuild could potentially behave differently in certain edge cases:

@@ -162,6 +162,28 @@ var Foo = class {
 };
 
 ================================================================================
+TestParameterPropsUseDefineForClassFieldsTrueLowered
+---------- /out.js ----------
+// entry.ts
+var Foo = class {
+  constructor(b1 = 2.1, b2 = 2.2) {
+    __publicField(this, "b1", b1);
+    __publicField(this, "b2", b2);
+    __publicField(this, "a", 1);
+    __publicField(this, "c", 3);
+  }
+  static {
+    console.log("a");
+  }
+  static {
+    console.log("b");
+  }
+  static {
+    console.log("c");
+  }
+};
+
+================================================================================
 TestTSAbstractClassFieldUseAssign
 ---------- /out.js ----------
 const keepThis = /* @__PURE__ */ Symbol("keepThis");

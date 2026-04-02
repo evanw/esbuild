@@ -1074,23 +1074,29 @@ func (ctx *lowerClassContext) lowerMethod(p *parser, prop js_ast.Property, priva
 				for _, arg := range ctx.ctor.Fn.Args {
 					if arg.IsTypeScriptCtorField {
 						if id, ok := arg.Binding.Data.(*js_ast.BIdentifier); ok {
+							loc := arg.Binding.Loc
 							name := p.symbols[id.Ref.InnerIndex].OriginalName
-							ctx.parameterFields = append(ctx.parameterFields, js_ast.AssignStmt(
-								js_ast.Expr{Loc: arg.Binding.Loc, Data: p.dotOrMangledPropVisit(
-									js_ast.Expr{Loc: arg.Binding.Loc, Data: js_ast.EThisShared},
-									name,
-									arg.Binding.Loc,
-								)},
-								js_ast.Expr{Loc: arg.Binding.Loc, Data: &js_ast.EIdentifier{Ref: id.Ref}},
-							))
+							target := js_ast.Expr{Loc: loc, Data: js_ast.EThisShared}
+							init := js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: id.Ref}}
 
 							// See: https://github.com/evanw/esbuild/issues/4421
-							if ctx.class.UseDefineForClassFields {
-								ctx.parameterFieldProps = append(ctx.parameterFieldProps, js_ast.Property{
-									Kind: js_ast.PropertyField,
-									Loc:  arg.Binding.Loc,
-									Key:  js_ast.Expr{Loc: arg.Binding.Loc, Data: &js_ast.EString{Value: helpers.StringToUTF16(name)}},
-								})
+							if !ctx.class.UseDefineForClassFields || !p.options.unsupportedJSFeatures.Has(compat.ClassField) {
+								ctx.parameterFields = append(ctx.parameterFields, js_ast.AssignStmt(
+									js_ast.Expr{Loc: loc, Data: p.dotOrMangledPropVisit(target, name, loc)},
+									init,
+								))
+							} else if ctx.class.UseDefineForClassFields {
+								key := js_ast.Expr{Loc: loc, Data: &js_ast.EString{Value: helpers.StringToUTF16(name)}}
+								if p.options.unsupportedJSFeatures.Has(compat.ClassField) {
+									ctx.parameterFields = append(ctx.parameterFields, js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{
+										Value: js_ast.Expr{Loc: loc, Data: &js_ast.ECall{
+											Target: p.importFromRuntime(loc, "__publicField"),
+											Args:   []js_ast.Expr{target, key, init},
+										}},
+									}})
+								} else {
+									ctx.parameterFieldProps = append(ctx.parameterFieldProps, js_ast.Property{Kind: js_ast.PropertyField, Loc: loc, Key: key})
+								}
 							}
 						}
 					}

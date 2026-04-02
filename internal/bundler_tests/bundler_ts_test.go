@@ -3036,3 +3036,31 @@ func TestParameterPropsUseDefineForClassFieldsFalse(t *testing.T) {
 		},
 	})
 }
+
+// See: https://github.com/evanw/esbuild/issues/4421
+func TestParameterPropsUseDefineForClassFieldsTrueLowered(t *testing.T) {
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				class Foo {
+					static { console.log('a') }
+					a = 1
+					static { console.log('b') }
+					constructor(public b1 = 2.1, public b2 = 2.2) {
+					}
+					static { console.log('c') }
+					c = 3
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			TS: config.TSOptions{Config: config.TSConfig{
+				UseDefineForClassFields: config.True,
+			}},
+			UnsupportedJSFeatures: compat.ClassField,
+		},
+	})
+}
