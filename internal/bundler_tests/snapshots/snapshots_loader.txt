@@ -1232,3 +1232,30 @@ var globImport_foo = __glob({
 
 // entry.js
 globImport_foo("./foo" + bar).then(console.log);
+
+================================================================================
+TestWithTypeTextOverrideLoader
+---------- /out.js ----------
+// foo.js
+var foo_default = "export default 'js'";
+
+// entry.js
+console.log(foo_default);
+
+================================================================================
+TestWithTypeTextOverrideLoaderGlob
+---------- /out.js ----------
+// foo.js
+var require_foo = __commonJS({
+  "foo.js"(exports, module) {
+    module.exports = "export default 'js'";
+  }
+});
+
+// import("./foo*") in entry.js
+var globImport_foo = __glob({
+  "./foo.js": () => Promise.resolve().then(() => __toESM(require_foo()))
+});
+
+// entry.js
+globImport_foo("./foo" + bar).then(console.log);

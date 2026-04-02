@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+* Add support for `with { type: 'text' }` imports ([#4435](https://github.com/evanw/esbuild/issues/4435))
+
+    The [import text](https://github.com/tc39/proposal-import-text) proposal has reached stage 3 in the TC39 process, which means that it's recommended for implementation. It has also already been implemented by [Deno](https://docs.deno.com/examples/importing_text/) and [Bun](https://bun.com/docs/guides/runtime/import-html). So with this release, esbuild also adds support for it. This behaves exactly the same as esbuild's existing [`text` loader](https://esbuild.github.io/content-types/#text). Here's an example:
+
+    ```js
+    import string from './example.txt' with { type: 'text' }
+    console.log(string)
+    ```
+
 * Add integrity checks to fallback download path ([#4343](https://github.com/evanw/esbuild/issues/4343))
 
     Installing esbuild via npm is somewhat complicated with several different edge cases (see [esbuild's documentation](https://esbuild.github.io/getting-started/#additional-npm-flags) for details). If the regular installation of esbuild's platform-specific package fails, esbuild's install script attempts to download the platform-specific package itself (first with the `npm` command, and then with a HTTP request to `registry.npmjs.org` as a last resort).
