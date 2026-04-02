@@ -8,6 +8,17 @@
 
     This last resort path previously didn't have any integrity checks. With this release, esbuild will now verify that the hash of the downloaded binary matches the expected hash for the current release. This means the hashes for all of esbuild's platform-specific binary packages will now be embedded in the top-level `esbuild` package. Hopefully this should work without any problems. But just in case, this change is being done as a breaking change release.
 
+* Update the Go compiler from 1.25.7 to 1.26.1
+
+    This upgrade should not affect anything. However, there have been some significant internal changes to the Go compiler, so esbuild could potentially behave differently in certain edge cases:
+
+    - It now uses the [new garbage collector](https://go.dev/doc/go1.26#new-garbage-collector) that comes with Go 1.26.
+    - The Go compiler is now more aggressive with allocating memory on the stack.
+    - The executable format that the Go linker uses has undergone several changes.
+    - The WebAssembly build now unconditionally makes use of the sign extension and non-trapping floating-point to integer conversion instructions.
+
+    You can read the [Go 1.26 release notes](https://go.dev/doc/go1.26) for more information.
+
 ## 0.27.7
 
 * Fix lowering of define semantics for TypeScript parameter properties ([#4421](https://github.com/evanw/esbuild/issues/4421))
