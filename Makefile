@@ -142,9 +142,9 @@ ts-type-tests: | scripts/node_modules
 require/old-ts/node_modules:
 	cd require/old-ts && npm ci
 
-test-old-ts: platform-neutral | require/old-ts/node_modules
+test-old-ts: | require/old-ts/node_modules
 	rm -fr scripts/.test-old-ts && mkdir scripts/.test-old-ts
-	cp `find npm/esbuild -name '*.d.ts'` scripts/.test-old-ts
+	cp lib/shared/types.ts scripts/.test-old-ts/main.d.ts
 	cd scripts/.test-old-ts && ../../require/old-ts/node_modules/.bin/tsc *.d.ts
 	rm -fr scripts/.test-old-ts
 

@@ -35,19 +35,9 @@ jobs:
         with:
           node-version: 18
 
-      - name: Ensure all platforms can be built
+      - name: Ensure all supported platforms can be built
         run: |
           make platform-all
-
-      # Plan 9 is not a supported platform, but someone wanted esbuild to be able to build for it anyway...
-      - name: Ensure esbuild can be built for Plan 9
-        run: |
-          GOOS=plan9 GOARCH=386 go build ./cmd/esbuild
-          GOOS=plan9 GOARCH=amd64 go build ./cmd/esbuild
-          GOOS=plan9 GOARCH=arm go build ./cmd/esbuild
-
-      - name: Test an old TypeScript version
-        run: make test-old-ts
 
   esbuild-slow:
     # Split these out into their own runner because they're very slow
@@ -82,6 +72,16 @@ jobs:
 
       - name: Type check tsc using tsc
         run: make test-tsc
+
+      - name: Test an old TypeScript version
+        run: make test-old-ts
+
+      # Plan 9 is not a supported platform, but someone wanted esbuild to be able to build for it anyway...
+      - name: Ensure esbuild can be built for Plan 9
+        run: |
+          GOOS=plan9 GOARCH=386 go build ./cmd/esbuild
+          GOOS=plan9 GOARCH=amd64 go build ./cmd/esbuild
+          GOOS=plan9 GOARCH=arm go build ./cmd/esbuild
 
   esbuild:
     name: esbuild CI
