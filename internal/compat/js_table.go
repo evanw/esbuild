@@ -206,7 +206,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	ArraySpread: {
 		// Note: The latest version of "IE" failed 15 tests including: spread syntax for iterable objects: spreading non-iterables is a runtime error
-		// Note: The latest version of "Rhino" failed 15 tests including: spread syntax for iterable objects: spreading non-iterables is a runtime error
+		// Note: The latest version of "Rhino" failed 8 tests including: spread syntax for iterable objects: spreading non-iterables is a runtime error
 		Chrome:  {{start: v{46, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{13, 0, 0}}},
@@ -428,7 +428,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	ConstAndLet: {
 		// Note: The latest version of "Hermes" failed 20 tests including: const: for loop statement scope
 		// Note: The latest version of "IE" failed 6 tests including: const: for-in loop iteration scope
-		// Note: The latest version of "Rhino" failed 22 tests including: const: cannot be in statements
+		// Note: The latest version of "Rhino" failed 21 tests including: const: cannot be in statements
 		Chrome:  {{start: v{49, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{14, 0, 0}}},
@@ -456,17 +456,17 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	Destructuring: {
 		// Note: The latest version of "Hermes" failed 3 tests including: destructuring, declarations: defaults, let temporal dead zone
-		// Note: The latest version of "IE" failed 71 tests including: destructuring, assignment: chained iterable destructuring
-		// Note: The latest version of "Rhino" failed 28 tests including: destructuring, assignment: computed properties
+		// Note: The latest version of "IE" failed 73 tests including: destructuring, assignment: chained iterable destructuring
+		// Note: The latest version of "Rhino" failed 23 tests including: destructuring, assignment: computed properties
 		Chrome:  {{start: v{51, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{18, 0, 0}}},
 		ES:      {{start: v{2015, 0, 0}}},
 		Firefox: {{start: v{53, 0, 0}}},
-		IOS:     {{start: v{10, 0, 0}}},
+		IOS:     {{start: v{14, 5, 0}}},
 		Node:    {{start: v{6, 5, 0}}},
 		Opera:   {{start: v{38, 0, 0}}},
-		Safari:  {{start: v{10, 0, 0}}},
+		Safari:  {{start: v{14, 1, 0}}},
 	},
 	DynamicImport: {
 		Chrome:  {{start: v{63, 0, 0}}},
@@ -572,7 +572,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	Generator: {
 		// Note: The latest version of "Hermes" failed 3 tests including: generators: computed shorthand generators, classes
 		// Note: The latest version of "IE" failed 27 tests including: generators: %GeneratorPrototype%
-		// Note: The latest version of "Rhino" failed 8 tests including: generators: %GeneratorPrototype%
+		// Note: The latest version of "Rhino" failed 5 tests including: generators: %GeneratorPrototype% prototype chain
 		Chrome:  {{start: v{50, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{13, 0, 0}}},
@@ -721,7 +721,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	ObjectRestSpread: {
 		// Note: The latest version of "IE" failed 2 tests including: object rest/spread properties: object rest properties
-		// Note: The latest version of "Rhino" failed 2 tests including: object rest/spread properties: object rest properties
+		// Note: The latest version of "Rhino" failed this test: object rest/spread properties: object rest properties
 		Chrome:  {{start: v{60, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{79, 0, 0}}},
@@ -777,7 +777,6 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	RegexpLookbehindAssertions: {
 		// Note: The latest version of "IE" failed this test: RegExp Lookbehind Assertions
-		// Note: The latest version of "Rhino" failed this test: RegExp Lookbehind Assertions
 		Chrome:  {{start: v{62, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{79, 0, 0}}},
@@ -787,6 +786,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		IOS:     {{start: v{16, 4, 0}}},
 		Node:    {{start: v{8, 10, 0}}},
 		Opera:   {{start: v{49, 0, 0}}},
+		Rhino:   {{start: v{1, 9, 0}}},
 		Safari:  {{start: v{16, 4, 0}}},
 	},
 	RegexpMatchIndices: {
@@ -803,7 +803,6 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	RegexpNamedCaptureGroups: {
 		// Note: The latest version of "Hermes" failed this test: RegExp named capture groups
 		// Note: The latest version of "IE" failed this test: RegExp named capture groups
-		// Note: The latest version of "Rhino" failed this test: RegExp named capture groups
 		Chrome:  {{start: v{64, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{79, 0, 0}}},
@@ -812,6 +811,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		IOS:     {{start: v{11, 3, 0}}},
 		Node:    {{start: v{10, 0, 0}}},
 		Opera:   {{start: v{51, 0, 0}}},
+		Rhino:   {{start: v{1, 9, 0}}},
 		Safari:  {{start: v{11, 1, 0}}},
 	},
 	RegexpSetNotation: {
@@ -819,7 +819,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	},
 	RegexpStickyAndUnicodeFlags: {
 		// Note: The latest version of "IE" failed 6 tests including: RegExp "y" and "u" flags: "u" flag
-		// Note: The latest version of "Rhino" failed 4 tests including: RegExp "y" and "u" flags: "u" flag
+		// Note: The latest version of "Rhino" failed this test: RegExp "y" and "u" flags: "u" flag, case folding
 		Chrome:  {{start: v{50, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{13, 0, 0}}},
@@ -834,14 +834,14 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	RegexpUnicodePropertyEscapes: {
 		// Note: The latest version of "Chrome" failed 2 tests including: RegExp Unicode Property Escapes: Unicode 16.0
 		// Note: The latest version of "Edge" failed 2 tests including: RegExp Unicode Property Escapes: Unicode 16.0
-		// Note: The latest version of "Firefox" failed this test: RegExp Unicode Property Escapes: Unicode 17.0
 		// Note: The latest version of "Hermes" failed 8 tests including: RegExp Unicode Property Escapes: Unicode 11
 		// Note: The latest version of "IE" failed 8 tests including: RegExp Unicode Property Escapes: Unicode 11
 		// Note: The latest version of "IOS" failed this test: RegExp Unicode Property Escapes: Unicode 17.0
 		// Note: The latest version of "Node" failed 2 tests including: RegExp Unicode Property Escapes: Unicode 16.0
-		// Note: The latest version of "Rhino" failed 9 tests including: RegExp Unicode Property Escapes: Unicode 11
+		// Note: The latest version of "Rhino" failed 8 tests including: RegExp Unicode Property Escapes: Unicode 11
 		// Note: The latest version of "Safari" failed this test: RegExp Unicode Property Escapes: Unicode 17.0
-		ES: {{start: v{2018, 0, 0}}},
+		ES:      {{start: v{2018, 0, 0}}},
+		Firefox: {{start: v{147, 0, 0}}},
 	},
 	RestArgument: {
 		// Note: The latest version of "Hermes" failed this test: rest parameters: function 'length' property
@@ -860,7 +860,6 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	TemplateLiteral: {
 		// Note: The latest version of "Hermes" failed this test: template literals: TemplateStrings call site caching
 		// Note: The latest version of "IE" failed 7 tests including: template literals: TemplateStrings call site caching
-		// Note: The latest version of "Rhino" failed this test: template literals: toString conversion
 		Chrome:  {{start: v{62, 0, 0}}},
 		Deno:    {{start: v{1, 0, 0}}},
 		Edge:    {{start: v{79, 0, 0}}},
@@ -869,6 +868,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 		IOS:     {{start: v{13, 0, 0}}},
 		Node:    {{start: v{8, 10, 0}}},
 		Opera:   {{start: v{49, 0, 0}}},
+		Rhino:   {{start: v{1, 9, 0}}},
 		Safari:  {{start: v{13, 0, 0}}},
 	},
 	TopLevelAwait: {
@@ -912,10 +912,11 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	Using: {
 		// Note: The latest version of "IE" failed 7 tests including: Explicit Resource Management: AsyncDisposableStack
 		// Note: The latest version of "IOS" failed 7 tests including: Explicit Resource Management: AsyncDisposableStack
+		// Note: The latest version of "Rhino" failed 8 tests including: Explicit Resource Management: AsyncDisposableStack
 		// Note: The latest version of "Safari" failed 7 tests including: Explicit Resource Management: AsyncDisposableStack
-		Chrome:  {{start: v{143, 0, 0}}},
-		Edge:    {{start: v{143, 0, 0}}},
-		Firefox: {{start: v{147, 0, 0}}},
+		Chrome:  {{start: v{141, 0, 0}}},
+		Edge:    {{start: v{141, 0, 0}}},
+		Firefox: {{start: v{141, 0, 0}}},
 		Node:    {{start: v{25, 0, 0}}},
 	},
 }

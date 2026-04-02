@@ -1,11 +1,11 @@
 {
   "githubDependencies": {
-    "compat-table/compat-table": "f12538fe11c48c4fd35d6cdc7789653e10871b90"
+    "compat-table/compat-table": "8f4179ffb5e7a06a12739400fcd31b5a34ef7964"
   },
   "dependencies": {
-    "@mdn/browser-compat-data": "7.3.0",
+    "@mdn/browser-compat-data": "7.3.9",
     "@types/caniuse-lite": "1.0.1",
     "@types/node": "25.0.2",
-    "caniuse-lite": "1.0.30001768"
+    "caniuse-lite": "1.0.30001784"
   }
 }
