@@ -360,7 +360,7 @@ platform-internal:
 	@shasum -a 256 "$(NPMDIR)/$(BINPATH)"
 
 platform-win32-x64: version-go go-compiler
-	@$(MAKE) --no-print-directory GOOS=windows GOARCH=amd64 NPMDIR=npm/@esbuild/win32-ia32 BINPATH=esbuild.exe platform-internal
+	@$(MAKE) --no-print-directory GOOS=windows GOARCH=amd64 NPMDIR=npm/@esbuild/win32-x64 BINPATH=esbuild.exe platform-internal
 
 platform-win32-ia32: version-go go-compiler
 	@$(MAKE) --no-print-directory GOOS=windows GOARCH=386 NPMDIR=npm/@esbuild/win32-ia32 BINPATH=esbuild.exe platform-internal
