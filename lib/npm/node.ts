@@ -1,7 +1,9 @@
 import type * as types from "../shared/types"
 import * as common from "../shared/common"
-import * as ourselves from "./node"
 import { ESBUILD_BINARY_PATH, generateBinPath } from "./node-platform"
+
+// @ts-ignore TS2303: Circular definition of import alias 'ourselves'.
+import * as ourselves from "./node"
 
 import child_process = require('child_process')
 import crypto = require('crypto')

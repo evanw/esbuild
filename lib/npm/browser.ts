@@ -1,5 +1,7 @@
 import type * as types from "../shared/types"
 import * as common from "../shared/common"
+
+// @ts-ignore TS2303: Circular definition of import alias 'ourselves'.
 import * as ourselves from "./browser"
 
 interface Go {

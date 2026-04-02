@@ -262,7 +262,7 @@ export type Value =
   | Value[]
   | { [key: string]: Value }
 
-export function encodePacket(packet: Packet): Uint8Array {
+export function encodePacket(packet: Packet): Uint8Array<ArrayBuffer> {
   let visit = (value: Value) => {
     if (value === null) {
       bb.write8(0)
@@ -303,7 +303,7 @@ export function encodePacket(packet: Packet): Uint8Array {
   return bb.buf.subarray(0, bb.len)
 }
 
-export function decodePacket(bytes: Uint8Array): Packet {
+export function decodePacket(bytes: Uint8Array<ArrayBuffer>): Packet {
   let visit = (): Value => {
     switch (bb.read8()) {
       case 0: // null

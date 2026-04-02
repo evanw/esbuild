@@ -4,6 +4,9 @@
     "target": "es2017", // Allow calling APIs such as "Object.entries"
     "strict": true,
     "skipLibCheck": true,
+    "types": [
+      "node"
+    ],
   },
   "exclude": [
     "npm",
