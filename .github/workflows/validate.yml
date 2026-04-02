@@ -19,7 +19,7 @@ jobs:
         run: |
           echo "GO_VERSION=$(cat go.version)" >> $GITHUB_ENV
 
-      - name: Set up Go 1.x
+      - name: Set up Go ${{ env.GO_VERSION }}
         uses: actions/setup-go@v3
         with:
           go-version: ${{ env.GO_VERSION }}

@@ -54,7 +54,6 @@ jobs:
       # This updates the version in all "package.json" files
       - name: Build for all platforms
         run: |
-          git status
           make platform-all
 
       # All "package.json" files should have been updated already by running "make platform-all" and committing the results

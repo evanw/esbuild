@@ -37,7 +37,6 @@ jobs:
 
       - name: Ensure all platforms can be built
         run: |
-          git status
           make platform-all
 
       # Plan 9 is not a supported platform, but someone wanted esbuild to be able to build for it anyway...

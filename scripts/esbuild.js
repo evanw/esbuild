@@ -121,7 +121,13 @@ function generateBinaryHashes() {
 
   const hashes = {}
   for (const key of toHash) {
-    const bytes = fs.readFileSync(path.join(repoDir, 'npm', key))
+    let bytes
+    try {
+      bytes = fs.readFileSync(path.join(repoDir, 'npm', key))
+    } catch {
+      hashes[key] = null
+      continue
+    }
     hashes[key] = crypto.createHash('sha256').update(bytes).digest('hex')
   }
   return hashes
