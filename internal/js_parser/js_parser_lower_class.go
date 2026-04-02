@@ -1085,7 +1085,8 @@ func (ctx *lowerClassContext) lowerMethod(p *parser, prop js_ast.Property, priva
 									js_ast.Expr{Loc: loc, Data: p.dotOrMangledPropVisit(target, name, loc)},
 									init,
 								))
-							} else if ctx.class.UseDefineForClassFields {
+							}
+							if ctx.class.UseDefineForClassFields {
 								key := js_ast.Expr{Loc: loc, Data: &js_ast.EString{Value: helpers.StringToUTF16(name)}}
 								if p.options.unsupportedJSFeatures.Has(compat.ClassField) {
 									ctx.parameterFields = append(ctx.parameterFields, js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{
