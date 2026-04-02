@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.27.5
 
 * Fix for an async generator edge case ([#4401](https://github.com/evanw/esbuild/issues/4401), [#4417](https://github.com/evanw/esbuild/pull/4417))
 

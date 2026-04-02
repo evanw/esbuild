@@ -1,6 +1,6 @@
 {
   "name": "@esbuild/openharmony-arm64",
-  "version": "0.27.4",
+  "version": "0.27.5",
   "description": "A WebAssembly shim for esbuild on OpenHarmony ARM64.",
   "repository": {
     "type": "git",
