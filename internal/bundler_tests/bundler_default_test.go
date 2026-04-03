@@ -1400,6 +1400,21 @@ func TestHashbangNoBundle(t *testing.T) {
 	})
 }
 
+func TestHashbangUnsupported(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `#!/usr/bin/env node
+				process.exit(0);
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			AbsOutputFile: "/out.js",
+			UnsupportedJSFeatures: compat.Hashbang,
+		},
+	})
+}
+
 func TestHashbangBannerUseStrictOrder(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
