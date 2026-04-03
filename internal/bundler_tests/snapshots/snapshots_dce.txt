@@ -298,6 +298,41 @@ var Foo = class {
 };
 
 ================================================================================
+TestCrossModuleConstantFoldingIfStmt
+---------- /out/entry.js ----------
+// entry.js
+console.log("production");
+
+================================================================================
+TestCrossModuleConstantFoldingIfStmtEnum
+---------- /out/entry.js ----------
+// entry.ts
+console.log("production");
+
+================================================================================
+TestCrossModuleConstantFoldingIfStmtMultiple
+---------- /out/entry.js ----------
+// entry.js
+console.log("app");
+
+================================================================================
+TestCrossModuleConstantFoldingIfStmtThrow
+---------- /out/entry.js ----------
+// entry.js
+function reportError(msg) {
+  throw new Error("ERROR_CODE");
+}
+export {
+  reportError
+};
+
+================================================================================
+TestCrossModuleConstantFoldingIfStmtTrueBranch
+---------- /out/entry.js ----------
+// entry.js
+console.log("dev mode");
+
+================================================================================
 TestCrossModuleConstantFoldingNumber
 ---------- /out/enum-entry.js ----------
 // enum-entry.ts
