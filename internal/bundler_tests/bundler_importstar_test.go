@@ -1810,6 +1810,31 @@ entry-nope.js: WARNING: Import "nope" will always be undefined because the file 
 	})
 }
 
+// https://github.com/evanw/esbuild/issues/4440 — repeated `require()` of a
+// bundled ESM module must return the same wrapper object so that identity
+// matches Node.js CJS cache semantics. The inline-require path uses
+// "__toCommonJSCached" so the two `require()` calls below produce a single
+// wrapper.
+func TestRequireOfESMPreservesIdentity(t *testing.T) {
+	importstar_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				const a = require('./esm')
+				const b = require('./esm')
+				console.log(a === b)
+			`,
+			"/esm.js": `
+				export const value = 123
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
 // Failure case due to a bug in https://github.com/evanw/esbuild/pull/2059
 func TestReExportStarEntryPointAndInnerFile(t *testing.T) {
 	importstar_suite.expectBundled(t, bundled{

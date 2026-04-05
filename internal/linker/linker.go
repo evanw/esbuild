@@ -1979,8 +1979,11 @@ func (c *linkerContext) scanImportsAndExports() {
 			c.graph.GenerateRuntimeSymbolImportAndUse(sourceIndex, uint32(partIndex), "__toESM", toESMUses)
 
 			// If there's a CommonJS require of an ES6 module, then we're going to need the
-			// "__toCommonJS" symbol from the runtime to wrap the exports object
-			c.graph.GenerateRuntimeSymbolImportAndUse(sourceIndex, uint32(partIndex), "__toCommonJS", toCommonJSUses)
+			// "__toCommonJSCached" symbol from the runtime to wrap the exports object.
+			// The cached variant is used here (rather than "__toCommonJS") so that
+			// repeated require() of the same ESM module returns the same wrapper,
+			// matching Node.js CJS cache semantics.
+			c.graph.GenerateRuntimeSymbolImportAndUse(sourceIndex, uint32(partIndex), "__toCommonJSCached", toCommonJSUses)
 
 			// If there are unbundled calls to "require()" and we're not generating
 			// code for node, then substitute a "__require" wrapper for "require".
@@ -4659,6 +4662,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 	waitGroup *sync.WaitGroup,
 	partRange partRange,
 	toCommonJSRef ast.Ref,
+	toCommonJSCachedRef ast.Ref,
 	toESMRef ast.Ref,
 	runtimeRequireRef ast.Ref,
 	result *compileResultJS,
@@ -4957,6 +4961,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 		LineLimit:                    c.options.LineLimit,
 		ASCIIOnly:                    c.options.ASCIIOnly,
 		ToCommonJSRef:                toCommonJSRef,
+		ToCommonJSCachedRef:          toCommonJSCachedRef,
 		ToESMRef:                     toESMRef,
 		RuntimeRequireRef:            runtimeRequireRef,
 		TSEnums:                      c.graph.TSEnums,
@@ -5577,6 +5582,7 @@ func (c *linkerContext) generateChunkJS(chunkIndex int, chunkWaitGroup *sync.Wai
 	compileResults := make([]compileResultJS, 0, len(chunkRepr.partsInChunkInOrder))
 	runtimeMembers := c.graph.Files[runtime.SourceIndex].InputFile.Repr.(*graph.JSRepr).AST.ModuleScope.Members
 	toCommonJSRef := ast.FollowSymbols(c.graph.Symbols, runtimeMembers["__toCommonJS"].Ref)
+	toCommonJSCachedRef := ast.FollowSymbols(c.graph.Symbols, runtimeMembers["__toCommonJSCached"].Ref)
 	toESMRef := ast.FollowSymbols(c.graph.Symbols, runtimeMembers["__toESM"].Ref)
 	runtimeRequireRef := ast.FollowSymbols(c.graph.Symbols, runtimeMembers["__require"].Ref)
 	r := c.renameSymbolsInChunk(chunk, chunkRepr.filesInChunkInOrder, timer)
@@ -5609,6 +5615,7 @@ func (c *linkerContext) generateChunkJS(chunkIndex int, chunkWaitGroup *sync.Wai
 			&waitGroup,
 			partRange,
 			toCommonJSRef,
+			toCommonJSCachedRef,
 			toESMRef,
 			runtimeRequireRef,
 			compileResult,

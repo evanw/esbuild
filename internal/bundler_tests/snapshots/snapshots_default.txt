@@ -793,9 +793,9 @@ var init_bar = __esm({
 });
 
 // entry.js
-var { foo: foo2 } = (init_foo(), __toCommonJS(foo_exports));
+var { foo: foo2 } = (init_foo(), __toCommonJSCached(foo_exports));
 console.log(foo2(), bar2());
-var { bar: bar2 } = (init_bar(), __toCommonJS(bar_exports));
+var { bar: bar2 } = (init_bar(), __toCommonJSCached(bar_exports));
 
 ================================================================================
 TestConditionalImport
@@ -1230,7 +1230,7 @@ var init_types = __esm({
 });
 
 // entry.js
-console.log((init_types(), __toCommonJS(types_exports)));
+console.log((init_types(), __toCommonJSCached(types_exports)));
 
 ================================================================================
 TestEntryNamesChunkNamesExtPlaceholder
@@ -1593,7 +1593,7 @@ var init_lib = __esm({
 });
 
 // entry.js
-var lib = (init_lib(), __toCommonJS(lib_exports));
+var lib = (init_lib(), __toCommonJSCached(lib_exports));
 console.log(lib.__proto__);
 
 ================================================================================
@@ -3858,7 +3858,7 @@ var require_cjs = __commonJS({
 // entry-cjs.js
 var require_entry_cjs = __commonJS({
   "entry-cjs.js"(exports) {
-    var { b: esm_foo_2 } = (init_esm(), __toCommonJS(esm_exports));
+    var { b: esm_foo_2 } = (init_esm(), __toCommonJSCached(esm_exports));
     var { a: cjs_foo_ } = require_cjs();
     exports.c = [
       esm_foo_2,
@@ -6561,7 +6561,7 @@ var require_es6_import_stmt = __commonJS({
 // es6-import-assign.ts
 var require_es6_import_assign = __commonJS({
   "es6-import-assign.ts"(exports) {
-    var x2 = (init_dummy(), __toCommonJS(dummy_exports));
+    var x2 = (init_dummy(), __toCommonJSCached(dummy_exports));
     console.log(exports);
   }
 });
@@ -6757,7 +6757,7 @@ console.log(void 0);
 var import_es6_export_assign = __toESM(require_es6_export_assign());
 
 // es6-export-import-assign.ts
-var x = (init_dummy(), __toCommonJS(dummy_exports));
+var x = (init_dummy(), __toCommonJSCached(dummy_exports));
 console.log(void 0);
 
 // entry.js

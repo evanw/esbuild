@@ -14,7 +14,7 @@ var init_foo = __esm({
 
 // entry.js
 init_foo();
-var ns2 = (init_foo(), __toCommonJS(foo_exports));
+var ns2 = (init_foo(), __toCommonJSCached(foo_exports));
 console.log(foo, ns2.foo);
 
 ================================================================================
