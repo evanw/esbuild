@@ -3286,6 +3286,166 @@ console.log("file 2", button2, style_default2.b);
 }
 
 ================================================================================
+TestImportLocalCSSFromJSDeterministicLocalCSSNamingMinifyIdentifiersUnix
+---------- /out/entry.js ----------
+// dir1/style.css
+var t = "button_411aa6c3";
+var l = {
+  a: "a_411aa6c3",
+  button: t
+};
+
+// a.js
+console.log("file 1", t, l.a);
+
+// dir2/style.css
+var e = "button_20e83c1b";
+var n = {
+  b: "b_20e83c1b",
+  button: e
+};
+
+// b.js
+console.log("file 2", e, n.b);
+
+---------- /out/entry.css ----------
+/* dir1/style.css */
+.a_411aa6c3 {
+  color: red;
+}
+.button_411aa6c3 {
+  display: none;
+}
+
+/* dir2/style.css */
+.b_20e83c1b {
+  color: blue;
+}
+.button_20e83c1b {
+  display: none;
+}
+
+================================================================================
+TestImportLocalCSSFromJSDeterministicLocalCSSNamingMinifyIdentifiersWin
+---------- /out/entry.js ----------
+// dir1/style.css
+var t = "button_3b7f7807";
+var l = {
+  a: "a_3b7f7807",
+  button: t
+};
+
+// a.js
+console.log("file 1", t, l.a);
+
+// dir2/style.css
+var e = "button_ec1ae3bb";
+var n = {
+  b: "b_ec1ae3bb",
+  button: e
+};
+
+// b.js
+console.log("file 2", e, n.b);
+
+---------- /out/entry.css ----------
+/* dir1/style.css */
+.a_3b7f7807 {
+  color: red;
+}
+.button_3b7f7807 {
+  display: none;
+}
+
+/* dir2/style.css */
+.b_ec1ae3bb {
+  color: blue;
+}
+.button_ec1ae3bb {
+  display: none;
+}
+
+================================================================================
+TestImportLocalCSSFromJSDeterministicLocalCSSNamingUnix
+---------- /out/entry.js ----------
+// dir1/style.css
+var button = "button_411aa6c3_dir1-style";
+var style_default = {
+  a: "a_411aa6c3_dir1-style",
+  button
+};
+
+// a.js
+console.log("file 1", button, style_default.a);
+
+// dir2/style.css
+var button2 = "button_20e83c1b_dir2-style";
+var style_default2 = {
+  b: "b_20e83c1b_dir2-style",
+  button: button2
+};
+
+// b.js
+console.log("file 2", button2, style_default2.b);
+
+---------- /out/entry.css ----------
+/* dir1/style.css */
+.a_411aa6c3_dir1-style {
+  color: red;
+}
+.button_411aa6c3_dir1-style {
+  display: none;
+}
+
+/* dir2/style.css */
+.b_20e83c1b_dir2-style {
+  color: blue;
+}
+.button_20e83c1b_dir2-style {
+  display: none;
+}
+
+================================================================================
+TestImportLocalCSSFromJSDeterministicLocalCSSNamingWin
+---------- /out/entry.js ----------
+// dir1/style.css
+var button = "button_3b7f7807_dir1-style";
+var style_default = {
+  a: "a_3b7f7807_dir1-style",
+  button
+};
+
+// a.js
+console.log("file 1", button, style_default.a);
+
+// dir2/style.css
+var button2 = "button_ec1ae3bb_dir2-style";
+var style_default2 = {
+  b: "b_ec1ae3bb_dir2-style",
+  button: button2
+};
+
+// b.js
+console.log("file 2", button2, style_default2.b);
+
+---------- /out/entry.css ----------
+/* dir1/style.css */
+.a_3b7f7807_dir1-style {
+  color: red;
+}
+.button_3b7f7807_dir1-style {
+  display: none;
+}
+
+/* dir2/style.css */
+.b_ec1ae3bb_dir2-style {
+  color: blue;
+}
+.button_ec1ae3bb_dir2-style {
+  display: none;
+}
+
+================================================================================
 TestImportLocalCSSFromJSMinifyIdentifiers
 ---------- /out/entry.js ----------
 // dir1/style.css

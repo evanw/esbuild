@@ -5,6 +5,9 @@ package ast
 // a somewhat format-agnostic manner.
 
 import (
+	"crypto/sha1"
+	"encoding/hex"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -824,4 +827,47 @@ func (minifier NameMinifier) NumberToMinifiedName(i int) string {
 	}
 
 	return name.String()
+}
+
+func CssLocalHash(path string) string {
+	hash := sha1.Sum([]byte(path))
+	return hex.EncodeToString(hash[:])[0:8]
+}
+
+func CssLocalAppendice(path string) string {
+	// Remove the file extension
+	if ext := filepath.Ext(path); ext != "" {
+		path = path[:len(path)-len(ext)]
+	}
+
+	// Convert to CSS-safe class name by replacing invalid characters.
+	// CSS class names can contain letters, digits, hyphens, and underscores
+	// and must start with a letter, hyphen, or underscore
+	var safeName strings.Builder
+	safeName.Grow(len(path))
+	for _, ch := range path {
+		if (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
+			(ch >= '0' && ch <= '9') || ch == '-' || ch == '_' {
+			safeName.WriteRune(ch)
+		} else if ch == '/' || ch == '\\' || ch == '.' {
+			// Convert path separators and dots to hyphens
+			safeName.WriteRune('-')
+		} else {
+			// Replace other invalid characters with underscores
+			safeName.WriteRune('_')
+		}
+	}
+	path = safeName.String()
+
+	// Ensure it starts with a valid character for CSS class names
+	if len(path) > 0 {
+		firstChar := path[0]
+		if !((firstChar >= 'a' && firstChar <= 'z') ||
+			(firstChar >= 'A' && firstChar <= 'Z') ||
+			firstChar == '-' || firstChar == '_') {
+			path = "_" + path
+		}
+	}
+
+	return path
 }

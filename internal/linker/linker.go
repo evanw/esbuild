@@ -476,72 +476,89 @@ func (c *linkerContext) mangleLocalCSS(usedLocalNames map[string]bool) {
 		}
 	}
 
-	// Sort by use count (note: does not currently account for live vs. dead code)
-	sorted := make(renamer.StableSymbolCountArray, 0, len(localNames))
-	stableSourceIndices := c.graph.StableSourceIndices
-	for ref := range localNames {
-		sorted = append(sorted, renamer.StableSymbolCount{
-			StableSourceIndex: stableSourceIndices[ref.SourceIndex],
-			Ref:               ref,
-			Count:             c.graph.Symbols.Get(ref).UseCountEstimate,
-		})
-	}
-	sort.Sort(sorted)
+	if c.options.DeterministicLocalCSSNaming {
+		for ref := range localNames {
+			symbol := c.graph.Symbols.Get(ref)
+			absPath := c.graph.Files[ref.SourceIndex].InputFile.Source.PrettyPaths.Abs
+			relPath := c.graph.Files[ref.SourceIndex].InputFile.Source.PrettyPaths.Rel
 
-	// Rename all local names to avoid collisions
-	if c.options.MinifyIdentifiers {
-		minifier := ast.DefaultNameMinifierCSS.ShuffleByCharFreq(freq)
-		nextName := 0
-
-		for _, symbolCount := range sorted {
-			name := minifier.NumberToMinifiedName(nextName)
-			for globalNames[name] || usedLocalNames[name] {
-				nextName++
-				name = minifier.NumberToMinifiedName(nextName)
+			name := symbol.OriginalName + "_" + ast.CssLocalHash(absPath)
+			if !c.options.MinifyIdentifiers {
+				name = name + "_" + ast.CssLocalAppendice(relPath)
 			}
 
-			// Turn this local name into a global one
-			mangledProps[symbolCount.Ref] = name
+			mangledProps[ref] = name
 			usedLocalNames[name] = true
 		}
 	} else {
-		nameCounts := make(map[string]uint32)
 
-		for _, symbolCount := range sorted {
-			symbol := c.graph.Symbols.Get(symbolCount.Ref)
-			name := fmt.Sprintf("%s_%s", c.graph.Files[symbolCount.Ref.SourceIndex].InputFile.Source.IdentifierName, symbol.OriginalName)
+		// Sort by use count (note: does not currently account for live vs. dead code)
+		sorted := make(renamer.StableSymbolCountArray, 0, len(localNames))
+		stableSourceIndices := c.graph.StableSourceIndices
+		for ref := range localNames {
+			sorted = append(sorted, renamer.StableSymbolCount{
+				StableSourceIndex: stableSourceIndices[ref.SourceIndex],
+				Ref:               ref,
+				Count:             c.graph.Symbols.Get(ref).UseCountEstimate,
+			})
+		}
+		sort.Sort(sorted)
 
-			// If the name is already in use, generate a new name by appending a number
-			if globalNames[name] || usedLocalNames[name] {
-				// To avoid O(n^2) behavior, the number must start off being the number
-				// that we used last time there was a collision with this name. Otherwise
-				// if there are many collisions with the same name, each name collision
-				// would have to increment the counter past all previous name collisions
-				// which is a O(n^2) time algorithm.
-				tries, ok := nameCounts[name]
-				if !ok {
-					tries = 1
+		// Rename all local names to avoid collisions
+		if c.options.MinifyIdentifiers {
+			minifier := ast.DefaultNameMinifierCSS.ShuffleByCharFreq(freq)
+			nextName := 0
+
+			for _, symbolCount := range sorted {
+				name := minifier.NumberToMinifiedName(nextName)
+				for globalNames[name] || usedLocalNames[name] {
+					nextName++
+					name = minifier.NumberToMinifiedName(nextName)
 				}
-				prefix := name
 
-				// Keep incrementing the number until the name is unused
-				for {
-					tries++
-					name = prefix + strconv.Itoa(int(tries))
+				// Turn this local name into a global one
+				mangledProps[symbolCount.Ref] = name
+				usedLocalNames[name] = true
+			}
+		} else {
+			nameCounts := make(map[string]uint32)
 
-					// Make sure this new name is unused
-					if !globalNames[name] && !usedLocalNames[name] {
-						// Store the count so we can start here next time instead of starting
-						// from 1. This means we avoid O(n^2) behavior.
-						nameCounts[prefix] = tries
-						break
+			for _, symbolCount := range sorted {
+				symbol := c.graph.Symbols.Get(symbolCount.Ref)
+				name := fmt.Sprintf("%s_%s", c.graph.Files[symbolCount.Ref.SourceIndex].InputFile.Source.IdentifierName, symbol.OriginalName)
+
+				// If the name is already in use, generate a new name by appending a number
+				if globalNames[name] || usedLocalNames[name] {
+					// To avoid O(n^2) behavior, the number must start off being the number
+					// that we used last time there was a collision with this name. Otherwise
+					// if there are many collisions with the same name, each name collision
+					// would have to increment the counter past all previous name collisions
+					// which is a O(n^2) time algorithm.
+					tries, ok := nameCounts[name]
+					if !ok {
+						tries = 1
+					}
+					prefix := name
+
+					// Keep incrementing the number until the name is unused
+					for {
+						tries++
+						name = prefix + strconv.Itoa(int(tries))
+
+						// Make sure this new name is unused
+						if !globalNames[name] && !usedLocalNames[name] {
+							// Store the count so we can start here next time instead of starting
+							// from 1. This means we avoid O(n^2) behavior.
+							nameCounts[prefix] = tries
+							break
+						}
 					}
 				}
-			}
 
-			// Turn this local name into a global one
-			mangledProps[symbolCount.Ref] = name
-			usedLocalNames[name] = true
+				// Turn this local name into a global one
+				mangledProps[symbolCount.Ref] = name
+				usedLocalNames[name] = true
+			}
 		}
 	}
 }
