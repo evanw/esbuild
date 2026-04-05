@@ -3002,7 +3002,7 @@ var init_cjs = __esm({
 
 // entry.js
 init_lib();
-console.log(keep1(), (init_cjs(), __toCommonJS(cjs_exports)));
+console.log(keep1(), (init_cjs(), __toCommonJSCached(cjs_exports)));
 
 ================================================================================
 TestTreeShakingJSWithAssociatedCSS

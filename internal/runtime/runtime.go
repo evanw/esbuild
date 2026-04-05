@@ -246,6 +246,17 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 		// to "true", which overwrites any existing export named "__esModule".
 		export var __toCommonJS = mod => __copyProps(__defProp({}, '__esModule', { value: true }), mod)
 
+		// Same conversion as __toCommonJS but memoized. Used for inline
+		// "require()" of a bundled ESM module, where the call is emitted at
+		// every require site; without the cache, two require() calls for the
+		// same module would return distinct objects, breaking Node.js CJS
+		// cache semantics. Falls back to no cache when WeakMap is unavailable.
+		export var __toCommonJSCached = /* @__PURE__ */ (cache => (mod, result) => (
+			cache && (result = cache.get(mod)) || (
+				result = __toCommonJS(mod), cache && cache.set(mod, result)),
+			result
+		))(typeof WeakMap !== 'undefined' ? new WeakMap : 0)
+
 		// For TypeScript experimental decorators
 		// - kind === undefined: class
 		// - kind === 1: method, parameter
