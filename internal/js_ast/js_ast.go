@@ -628,12 +628,21 @@ type ECall struct {
 	// call itself is removed due to this annotation, the arguments must remain
 	// if they have side effects.
 	CanBeUnwrappedIfUnused bool
+
+	// True if this call is a __name() call inserted by the keep-names feature.
+	// The printer uses this to omit the call when the name has not been renamed.
+	IsKeepName bool
+
+	// For class static block __name(this, "name") calls, stores the class name
+	// ref so the printer can compare it even though Args[0] is "this".
+	KeepNameRef ast.Ref
 }
 
 func (a *ECall) HasSameFlagsAs(b *ECall) bool {
 	return a.OptionalChain == b.OptionalChain &&
 		a.Kind == b.Kind &&
-		a.CanBeUnwrappedIfUnused == b.CanBeUnwrappedIfUnused
+		a.CanBeUnwrappedIfUnused == b.CanBeUnwrappedIfUnused &&
+		a.IsKeepName == b.IsKeepName
 }
 
 type EDot struct {

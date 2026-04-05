@@ -1018,7 +1018,6 @@ TestTSExperimentalDecoratorsKeepNames
 // entry.ts
 var Foo = class {
 };
-__name(Foo, "Foo");
 Foo = __decorateClass([
   decoratorMustComeAfterName
 ], Foo);
@@ -1757,10 +1756,8 @@ var ns;
   function bar() {
   }
   ns2.bar = bar;
-  __name(bar, "bar");
   class Baz {
     static {
-      __name(this, "Baz");
     }
   }
   ns2.Baz = Baz;
@@ -1777,7 +1774,6 @@ var ns;
   function bar() {
   }
   ns2.bar = bar;
-  __name(bar, "bar");
   const _Baz = class _Baz {
   };
   __name(_Baz, "Baz");
