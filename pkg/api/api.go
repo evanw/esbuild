@@ -681,6 +681,7 @@ type OnLoadResult struct {
 	Warnings []Message
 
 	Contents   *string
+	Prepend    *string
 	ResolveDir string
 	Loader     Loader
 	PluginData interface{}

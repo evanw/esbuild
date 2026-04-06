@@ -2774,6 +2774,136 @@ const makeRebuildUntilPlugin = () => {
   }
 }
 
+// Tests for the "prepend" field in onLoad results
+let prependTests = {
+  async prependWithContents({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    const output = path.join(testDir, 'out.js')
+    await writeFileAsync(input, `export default 123`)
+    await esbuild.build({
+      entryPoints: [input],
+      bundle: true,
+      outfile: output,
+      format: 'cjs',
+      plugins: [{
+        name: 'prepend-plugin',
+        setup(build) {
+          build.onLoad({ filter: /\.js$/ }, () => {
+            const prepend = 'var injected = true;\n'
+            const contents = 'export default injected'
+            return { prepend: prepend, contents }
+          })
+        },
+      }],
+    })
+    const result = require(output)
+    assert.strictEqual(result.default, true)
+  },
+
+  async prependWithoutContents({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    const output = path.join(testDir, 'out.js')
+    await writeFileAsync(input, `export default __prepended`)
+    await esbuild.build({
+      entryPoints: [input],
+      bundle: true,
+      outfile: output,
+      format: 'cjs',
+      plugins: [{
+        name: 'prepend-plugin',
+        setup(build) {
+          build.onLoad({ filter: /\.js$/ }, () => {
+            return { prepend: 'var __prepended = 42;\n' }
+          })
+        },
+      }],
+    })
+    const result = require(output)
+    assert.strictEqual(result.default, 42)
+  },
+
+  async prependMultiplePlugins({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    const output = path.join(testDir, 'out.js')
+    await writeFileAsync(input, `export default __a + __b`)
+    await esbuild.build({
+      entryPoints: [input],
+      bundle: true,
+      outfile: output,
+      format: 'cjs',
+      plugins: [
+        {
+          name: 'plugin1',
+          setup(build) {
+            build.onLoad({ filter: /\.js$/ }, () => {
+              return { prepend: 'var __a = 10;\n' }
+            })
+          },
+        },
+        {
+          name: 'plugin2',
+          setup(build) {
+            build.onLoad({ filter: /\.js$/ }, () => {
+              return { prepend: 'var __b = 20;\n' }
+            })
+          },
+        },
+      ],
+    })
+    const result = require(output)
+    assert.strictEqual(result.default, 30)
+  },
+
+  async prependEmptyString({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    const output = path.join(testDir, 'out.js')
+    await writeFileAsync(input, `export default 456`)
+    await esbuild.build({
+      entryPoints: [input],
+      bundle: true,
+      outfile: output,
+      format: 'cjs',
+      plugins: [{
+        name: 'prepend-empty',
+        setup(build) {
+          build.onLoad({ filter: /\.js$/ }, () => {
+            return { prepend: '' }
+          })
+        },
+      }],
+    })
+    const result = require(output)
+    assert.strictEqual(result.default, 456)
+  },
+
+  async prependWithImportedFile({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    const dep = path.join(testDir, 'dep.js')
+    const output = path.join(testDir, 'out.js')
+    await writeFileAsync(input, `
+      import x from './dep.js'
+      export default x
+    `)
+    await writeFileAsync(dep, `export default __injected`)
+    await esbuild.build({
+      entryPoints: [input],
+      bundle: true,
+      outfile: output,
+      format: 'cjs',
+      plugins: [{
+        name: 'prepend-plugin',
+        setup(build) {
+          build.onLoad({ filter: /dep\.js$/ }, () => {
+            return { prepend: 'var __injected = 99;\n' }
+          })
+        },
+      }],
+    })
+    const result = require(output)
+    assert.strictEqual(result.default, 99)
+  },
+}
+
 // These tests have to run synchronously
 let syncTests = {
   async pluginWithWatchMode({ esbuild, testDir }) {
@@ -3489,7 +3619,7 @@ async function main() {
       return false
     }
   }
-  const tests = Object.entries(pluginTests)
+  const tests = [...Object.entries(pluginTests), ...Object.entries(prependTests)]
   let allTestsPassed = (await Promise.all(tests.map(runTest))).every(success => success)
 
   for (let test of Object.entries(syncTests)) {
