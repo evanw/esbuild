@@ -113,6 +113,7 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 
 		// Update the "name" property on the function or class for "--keep-names"
 		export var __name = (target, value) => __defProp(target, 'name', { value, configurable: true })
+		export var __firstValue = (obj) => { for (var k in obj) { if (__hasOwnProp.call(obj, k)) return obj[k]; } }
 
 		// This fallback "require" function exists so that "typeof require" can
 		// naturally be "function" even in non-CommonJS environments since esbuild
