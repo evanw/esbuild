@@ -1226,7 +1226,7 @@ var init_foo = __esm({
 });
 
 // import("./foo*") in entry.js
-var globImport_foo = __glob({
+var globImport_foo = __glob_dynamic({
   "./foo.js": () => Promise.resolve().then(() => (init_foo(), foo_exports))
 });
 

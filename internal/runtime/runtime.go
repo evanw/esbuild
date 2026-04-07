@@ -138,6 +138,14 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 			throw new Error('Module not found in bundle: ' + path)
 		}
 
+		// This is used for dynamic glob imports
+		export var __glob_dynamic = map => path => {
+			var fn = map[path]
+			if (fn) return fn()
+			return Promise.reject(new Error('Module not found in bundle: ' + path))
+		}
+
+
 		// For object rest patterns
 		export var __restKey = key => typeof key === 'symbol' ? key : key + ''
 		export var __objRest = (source, exclude) => {
