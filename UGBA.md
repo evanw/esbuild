@@ -1,5 +1,6 @@
 <p align="center">
   <picture>
+		<video>
     <source media="(prefers-color-scheme: dark)" srcset="./images/wordmark-dark.svg">
     <source media="(prefers-color-scheme: light)" srcset="./images/wordmark-light.svg">
     <img alt="esbuild: An extremely fast JavaScript bundler" src="./images/wordmark-light.svg">
