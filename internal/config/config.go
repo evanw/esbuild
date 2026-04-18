@@ -398,12 +398,13 @@ func (flag *CancelFlag) DidCancel() bool {
 }
 
 type Options struct {
-	ModuleTypeData js_ast.ModuleTypeData
-	Defines        *ProcessedDefines
-	TSAlwaysStrict *TSAlwaysStrict
-	MangleProps    *regexp.Regexp
-	ReserveProps   *regexp.Regexp
-	CancelFlag     *CancelFlag
+	ModuleTypeData       js_ast.ModuleTypeData
+	Defines              *ProcessedDefines
+	TSAlwaysStrict       *TSAlwaysStrict
+	MangleProps          *regexp.Regexp
+	ReserveProps         *regexp.Regexp
+	ManglePropNamespaces *regexp.Regexp
+	CancelFlag           *CancelFlag
 
 	// When mangling property names, call this function with a callback and do
 	// the property name mangling inside the callback. The callback takes an
@@ -420,6 +421,7 @@ type Options struct {
 	// has finished.
 	ExclusiveMangleCacheUpdate func(cb func(
 		mangleCache map[string]interface{},
+		mangleNamespaceCaches map[string]map[string]interface{},
 		cssUsedLocalNames map[string]bool,
 	))
 

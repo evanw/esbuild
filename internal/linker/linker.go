@@ -313,7 +313,7 @@ func Link(
 
 	// Stop now if there were errors
 	if c.log.HasErrors() {
-		c.options.ExclusiveMangleCacheUpdate(func(map[string]interface{}, map[string]bool) {
+		c.options.ExclusiveMangleCacheUpdate(func(map[string]interface{}, map[string]map[string]interface{}, map[string]bool) {
 			// Always do this so that we don't cause other entry points when there are errors
 		})
 		return []graph.OutputFile{}
@@ -335,10 +335,11 @@ func Link(
 	c.timer.Begin("Waiting for mangle cache")
 	c.options.ExclusiveMangleCacheUpdate(func(
 		mangleCache map[string]interface{},
+		mangleNamespaceCaches map[string]map[string]interface{},
 		cssUsedLocalNames map[string]bool,
 	) {
 		c.timer.End("Waiting for mangle cache")
-		c.mangleProps(mangleCache)
+		c.mangleProps(mangleCache, mangleNamespaceCaches)
 		c.mangleLocalCSS(cssUsedLocalNames)
 	})
 
@@ -349,7 +350,7 @@ func Link(
 	return c.generateChunksInParallel(additionalFiles)
 }
 
-func (c *linkerContext) mangleProps(mangleCache map[string]interface{}) {
+func (c *linkerContext) mangleProps(mangleCache map[string]interface{}, nsCaches map[string]map[string]interface{}) {
 	c.timer.Begin("Mangle props")
 	defer c.timer.End("Mangle props")
 
@@ -403,22 +404,109 @@ func (c *linkerContext) mangleProps(mangleCache map[string]interface{}) {
 		}
 	}
 
-	// Sort by use count (note: does not currently account for live vs. dead code)
-	sorted := make(renamer.StableSymbolCountArray, 0, len(mergedProps))
-	stableSourceIndices := c.graph.StableSourceIndices
-	for _, ref := range mergedProps {
-		sorted = append(sorted, renamer.StableSymbolCount{
-			StableSourceIndex: stableSourceIndices[ref.SourceIndex],
-			Ref:               ref,
-			Count:             c.graph.Symbols.Get(ref).UseCountEstimate,
-		})
-	}
-	sort.Sort(sorted)
-
-	// Assign names in order of use count
 	minifier := ast.DefaultNameMinifierJS.ShuffleByCharFreq(freq)
-	nextName := 0
-	for _, symbolCount := range sorted {
+	stableSourceIndices := c.graph.StableSourceIndices
+	nsRegex := c.options.ManglePropNamespaces
+
+	// If namespacing is not enabled, use the original single-lane algorithm
+	if nsRegex == nil {
+		// Sort by use count (note: does not currently account for live vs. dead code)
+		sorted := make(renamer.StableSymbolCountArray, 0, len(mergedProps))
+		for _, ref := range mergedProps {
+			sorted = append(sorted, renamer.StableSymbolCount{
+				StableSourceIndex: stableSourceIndices[ref.SourceIndex],
+				Ref:               ref,
+				Count:             c.graph.Symbols.Get(ref).UseCountEstimate,
+			})
+		}
+		sort.Sort(sorted)
+
+		nextName := 0
+		for _, symbolCount := range sorted {
+			symbol := c.graph.Symbols.Get(symbolCount.Ref)
+
+			// Don't change existing mappings
+			if existing, ok := mangleCache[symbol.OriginalName]; ok {
+				if existing != false {
+					mangledProps[symbolCount.Ref] = existing.(string)
+				}
+				continue
+			}
+
+			// Generate a new name
+			name := minifier.NumberToMinifiedName(nextName)
+			nextName++
+
+			// Avoid reserved properties
+			for reservedProps[name] {
+				name = minifier.NumberToMinifiedName(nextName)
+				nextName++
+			}
+
+			// Track the new mapping
+			if mangleCache != nil {
+				mangleCache[symbol.OriginalName] = name
+			}
+			mangledProps[symbolCount.Ref] = name
+		}
+		return
+	}
+
+	// Namespace-aware mangling: bucket properties by namespace
+	type namespacedProp struct {
+		ref       ast.Ref
+		localName string // property name with namespace match removed
+	}
+	globalProps := make(renamer.StableSymbolCountArray, 0)
+	nsBuckets := make(map[string][]namespacedProp)
+
+	for originalName, ref := range mergedProps {
+		loc := nsRegex.FindStringIndex(originalName)
+		if loc == nil || (loc[0] == 0 && loc[1] == len(originalName)) ||
+			(loc[0] != 0 && loc[1] != len(originalName)) {
+			// No match, match consumes the entire name, or match is in the
+			// middle (not anchored to either side) — goes in the global lane
+			globalProps = append(globalProps, renamer.StableSymbolCount{
+				StableSourceIndex: stableSourceIndices[ref.SourceIndex],
+				Ref:               ref,
+				Count:             c.graph.Symbols.Get(ref).UseCountEstimate,
+			})
+		} else {
+			var nsKey, localName string
+			if loc[0] == 0 {
+				nsKey = "^" + originalName[loc[0]:loc[1]]
+				localName = originalName[loc[1]:] // prefix namespace
+			} else {
+				nsKey = originalName[loc[0]:loc[1]] + "$"
+				localName = originalName[:loc[0]] // suffix namespace
+			}
+			nsBuckets[nsKey] = append(nsBuckets[nsKey], namespacedProp{
+				ref:       ref,
+				localName: localName,
+			})
+		}
+	}
+
+	// Reserve names from namespace caches too
+	// (Each namespace cache's reserved names only apply within that namespace,
+	// but we need to track them so they don't get assigned to the global lane)
+	globalReservedFromNS := make(map[string]bool)
+	if nsCaches != nil {
+		for _, nsCache := range nsCaches {
+			for _, remapped := range nsCache {
+				if remapped != false {
+					globalReservedFromNS[remapped.(string)] = true
+				}
+			}
+		}
+	}
+
+	// Step 1: Assign names to the global (un-namespaced) lane
+	// Sort by use count (note: does not currently account for live vs. dead code)
+	sort.Sort(globalProps)
+
+	nextGlobalName := 0
+	for _, symbolCount := range globalProps {
 		symbol := c.graph.Symbols.Get(symbolCount.Ref)
 
 		// Don't change existing mappings
@@ -429,21 +517,107 @@ func (c *linkerContext) mangleProps(mangleCache map[string]interface{}) {
 			continue
 		}
 
-		// Generate a new name
-		name := minifier.NumberToMinifiedName(nextName)
-		nextName++
-
-		// Avoid reserved properties
-		for reservedProps[name] {
-			name = minifier.NumberToMinifiedName(nextName)
-			nextName++
+		// Generate a new name, avoiding reserved props and names used by namespaces
+		name := minifier.NumberToMinifiedName(nextGlobalName)
+		nextGlobalName++
+		for reservedProps[name] || globalReservedFromNS[name] {
+			name = minifier.NumberToMinifiedName(nextGlobalName)
+			nextGlobalName++
 		}
 
-		// Track the new mapping
 		if mangleCache != nil {
 			mangleCache[symbol.OriginalName] = name
 		}
 		mangledProps[symbolCount.Ref] = name
+	}
+
+	// Collect all globally-assigned mangled names so namespace lanes avoid them
+	globalAssigned := make(map[string]bool)
+	for _, name := range mangledProps {
+		globalAssigned[name] = true
+	}
+
+	// Step 2: Assign names per namespace lane
+	// Sort namespace keys for determinism
+	nsKeys := make([]string, 0, len(nsBuckets))
+	for key := range nsBuckets {
+		nsKeys = append(nsKeys, key)
+	}
+	sort.Strings(nsKeys)
+
+	for _, nsPrefix := range nsKeys {
+		props := nsBuckets[nsPrefix]
+
+		// Sort by use count within this namespace (note: does not currently account for live vs. dead code)
+		sorted := make(renamer.StableSymbolCountArray, 0, len(props))
+		for _, prop := range props {
+			sorted = append(sorted, renamer.StableSymbolCount{
+				StableSourceIndex: stableSourceIndices[prop.ref.SourceIndex],
+				Ref:               prop.ref,
+				Count:             c.graph.Symbols.Get(prop.ref).UseCountEstimate,
+			})
+		}
+		sort.Sort(sorted)
+
+		// Build a map from ref to local name for this namespace
+		refToLocal := make(map[ast.Ref]string, len(props))
+		for _, prop := range props {
+			refToLocal[prop.ref] = prop.localName
+		}
+
+		// Get or create the namespace cache
+		var nsCache map[string]interface{}
+		if nsCaches != nil {
+			nsCache = nsCaches[nsPrefix]
+			if nsCache == nil {
+				nsCache = make(map[string]interface{})
+				nsCaches[nsPrefix] = nsCache
+			}
+		}
+
+		// Reserve names within this namespace from its cache
+		nsReserved := make(map[string]bool)
+		if nsCache != nil {
+			for localName, remapped := range nsCache {
+				if remapped == false {
+					nsReserved[localName] = true
+				} else {
+					nsReserved[remapped.(string)] = true
+				}
+			}
+		}
+
+		nextNSName := 0
+		for _, symbolCount := range sorted {
+			localName := refToLocal[symbolCount.Ref]
+
+			// Don't change existing mappings from cache
+			if nsCache != nil {
+				if existing, ok := nsCache[localName]; ok {
+					if existing != false {
+						mangledProps[symbolCount.Ref] = existing.(string)
+					}
+					continue
+				}
+			}
+
+			// Generate a new name, avoiding:
+			// - reserved props (JS keywords + --reserve-props)
+			// - globally-assigned names (from un-namespaced lane)
+			// - names already used within this namespace
+			name := minifier.NumberToMinifiedName(nextNSName)
+			nextNSName++
+			for reservedProps[name] || globalAssigned[name] || nsReserved[name] {
+				name = minifier.NumberToMinifiedName(nextNSName)
+				nextNSName++
+			}
+
+			nsReserved[name] = true
+			if nsCache != nil {
+				nsCache[localName] = name
+			}
+			mangledProps[symbolCount.Ref] = name
+		}
 	}
 }
 

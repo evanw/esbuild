@@ -122,6 +122,32 @@ function validateMangleCache(mangleCache: MangleCache | undefined): MangleCache 
   return validated
 }
 
+type MangleNamespaceCaches = Record<string, MangleCache>
+
+function validateMangleNamespaceCaches(caches: MangleNamespaceCaches | undefined): MangleNamespaceCaches | undefined {
+  let validated: MangleNamespaceCaches | undefined
+  if (caches !== undefined) {
+    validated = Object.create(null) as MangleNamespaceCaches
+    for (let nsKey in caches) {
+      let nsCache = caches[nsKey]
+      if (typeof nsCache !== 'object' || nsCache === null) {
+        throw new Error(`Expected ${quote(nsKey)} in mangle namespace caches to be an object`)
+      }
+      let validatedNS = Object.create(null) as MangleCache
+      for (let key in nsCache) {
+        let value = nsCache[key]
+        if (typeof value === 'string' || value === false) {
+          validatedNS[key] = value
+        } else {
+          throw new Error(`Expected ${quote(key)} in namespace ${quote(nsKey)} in mangle namespace caches to map to either a string or false`)
+        }
+      }
+      validated[nsKey] = validatedNS
+    }
+  }
+  return validated
+}
+
 type CommonOptions = types.BuildOptions | types.TransformOptions
 
 function pushLogFlags(flags: string[], options: CommonOptions, keys: OptionKeys, isTTY: boolean, logLevelDefault: types.LogLevel): void {
@@ -152,6 +178,7 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   let mangleProps = getFlag(options, keys, 'mangleProps', mustBeRegExp)
   let reserveProps = getFlag(options, keys, 'reserveProps', mustBeRegExp)
   let mangleQuoted = getFlag(options, keys, 'mangleQuoted', mustBeBoolean)
+  let manglePropNamespaces = getFlag(options, keys, 'manglePropNamespaces', mustBeRegExp)
   let minify = getFlag(options, keys, 'minify', mustBeBoolean)
   let minifySyntax = getFlag(options, keys, 'minifySyntax', mustBeBoolean)
   let minifyWhitespace = getFlag(options, keys, 'minifyWhitespace', mustBeBoolean)
@@ -200,6 +227,7 @@ function pushCommonFlags(flags: string[], options: CommonOptions, keys: OptionKe
   if (mangleProps) flags.push(`--mangle-props=${jsRegExpToGoRegExp(mangleProps)}`)
   if (reserveProps) flags.push(`--reserve-props=${jsRegExpToGoRegExp(reserveProps)}`)
   if (mangleQuoted !== void 0) flags.push(`--mangle-quoted=${mangleQuoted}`)
+  if (manglePropNamespaces) flags.push(`--mangle-prop-namespaces=${jsRegExpToGoRegExp(manglePropNamespaces)}`)
 
   if (jsx) flags.push(`--jsx=${jsx}`)
   if (jsxFactory) flags.push(`--jsx-factory=${jsxFactory}`)
@@ -247,6 +275,7 @@ function flagsForBuildOptions(
   absWorkingDir: string | undefined,
   nodePaths: string[],
   mangleCache: MangleCache | undefined,
+  mangleNamespaceCaches: MangleNamespaceCaches | undefined,
 } {
   let flags: string[] = []
   let entries: [string, string][] = []
@@ -287,6 +316,7 @@ function flagsForBuildOptions(
   let write = getFlag(options, keys, 'write', mustBeBoolean) ?? writeDefault; // Default to true if not specified
   let allowOverwrite = getFlag(options, keys, 'allowOverwrite', mustBeBoolean)
   let mangleCache = getFlag(options, keys, 'mangleCache', mustBeObject)
+  let mangleNamespaceCaches = getFlag(options, keys, 'mangleNamespaceCaches', mustBeObject)
   keys.plugins = true; // "plugins" has already been read earlier
   checkForInvalidFlags(options, keys, `in ${callName}() call`)
 
@@ -396,6 +426,7 @@ function flagsForBuildOptions(
     absWorkingDir,
     nodePaths,
     mangleCache: validateMangleCache(mangleCache),
+    mangleNamespaceCaches: validateMangleNamespaceCaches(mangleNamespaceCaches),
   }
 }
 
@@ -407,6 +438,7 @@ function flagsForTransformOptions(
 ): {
   flags: string[],
   mangleCache: MangleCache | undefined,
+  mangleNamespaceCaches: MangleNamespaceCaches | undefined,
 } {
   let flags: string[] = []
   let keys: OptionKeys = Object.create(null)
@@ -419,6 +451,7 @@ function flagsForTransformOptions(
   let banner = getFlag(options, keys, 'banner', mustBeString)
   let footer = getFlag(options, keys, 'footer', mustBeString)
   let mangleCache = getFlag(options, keys, 'mangleCache', mustBeObject)
+  let mangleNamespaceCaches = getFlag(options, keys, 'mangleNamespaceCaches', mustBeObject)
   checkForInvalidFlags(options, keys, `in ${callName}() call`)
 
   if (sourcemap) flags.push(`--sourcemap=${sourcemap === true ? 'external' : sourcemap}`)
@@ -430,6 +463,7 @@ function flagsForTransformOptions(
   return {
     flags,
     mangleCache: validateMangleCache(mangleCache),
+    mangleNamespaceCaches: validateMangleNamespaceCaches(mangleNamespaceCaches),
   }
 }
 
@@ -709,6 +743,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
         let {
           flags,
           mangleCache,
+          mangleNamespaceCaches,
         } = flagsForTransformOptions(callName, options, isTTY, transformLogLevelDefault)
         let request: protocol.TransformRequest = {
           command: 'transform',
@@ -719,6 +754,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
               : input,
         }
         if (mangleCache) request.mangleCache = mangleCache
+        if (mangleNamespaceCaches) request.mangleNamespaceCaches = mangleNamespaceCaches
         sendRequest<protocol.TransformRequest, protocol.TransformResponse>(refs, request, (error, response) => {
           if (error) return callback(new Error(error), null)
           let errors = replaceDetailsInMessages(response!.errors, details)
@@ -731,10 +767,12 @@ export function createChannel(streamIn: StreamIn): StreamOut {
                 code: response!.code,
                 map: response!.map,
                 mangleCache: undefined,
+                mangleNamespaceCaches: undefined,
                 legalComments: undefined,
               }
               if ('legalComments' in response!) result.legalComments = response?.legalComments
               if (response!.mangleCache) result.mangleCache = response?.mangleCache
+              if (response!.mangleNamespaceCaches) result.mangleNamespaceCaches = response?.mangleNamespaceCaches
               callback(null, result)
             }
           }
@@ -919,6 +957,7 @@ function buildOrContextImpl(
       absWorkingDir,
       nodePaths,
       mangleCache,
+      mangleNamespaceCaches,
     } = flagsForBuildOptions(callName, options, isTTY, buildLogLevelDefault, writeDefault)
     if (write && !streamIn.hasFS) throw new Error(`The "write" option is unavailable in this environment`)
 
@@ -937,6 +976,7 @@ function buildOrContextImpl(
     }
     if (requestPlugins) request.plugins = requestPlugins
     if (mangleCache) request.mangleCache = mangleCache
+    if (mangleNamespaceCaches) request.mangleNamespaceCaches = mangleNamespaceCaches
 
     // Factor out response handling so it can be reused for rebuilds
     const buildResponseToResult = (
@@ -949,12 +989,14 @@ function buildOrContextImpl(
         outputFiles: undefined,
         metafile: undefined,
         mangleCache: undefined,
+        mangleNamespaceCaches: undefined,
       }
       const originalErrors = result.errors.slice()
       const originalWarnings = result.warnings.slice()
       if (response!.outputFiles) result.outputFiles = response!.outputFiles.map(convertOutputFiles)
       if (response!.metafile && response!.metafile.length) result.metafile = parseJSON(response!.metafile)
       if (response!.mangleCache) result.mangleCache = response!.mangleCache
+      if (response!.mangleNamespaceCaches) result.mangleNamespaceCaches = response!.mangleNamespaceCaches
       if (response!.writeToStdout !== void 0) console.log(protocol.decodeUTF8(response!.writeToStdout).replace(/\n$/, ''))
       runOnEndCallbacks(result, (onEndErrors, onEndWarnings) => {
         if (originalErrors.length > 0 || onEndErrors.length > 0) {
