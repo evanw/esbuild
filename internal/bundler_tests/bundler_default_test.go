@@ -7433,6 +7433,123 @@ func TestManglePropsAvoidCollisions(t *testing.T) {
 	})
 }
 
+func TestManglePropNamespaces(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export let typeA = {
+					TypeA_foo_: 1,
+					TypeA_bar_: 2,
+				}
+				export let typeB = {
+					TypeB_foo_: 3,
+					TypeB_bar_: 4,
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                 config.ModePassThrough,
+			AbsOutputFile:        "/out.js",
+			MangleProps:          regexp.MustCompile("_$"),
+			ManglePropNamespaces: regexp.MustCompile(`^[A-Z][^_]*_`),
+		},
+	})
+}
+
+func TestManglePropNamespacesAvoidGlobalCollision(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export let global = {
+					global_prop_: 1,
+				}
+				export let typeA = {
+					TypeA_foo_: 2,
+				}
+				export let typeB = {
+					TypeB_foo_: 3,
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                 config.ModePassThrough,
+			AbsOutputFile:        "/out.js",
+			MangleProps:          regexp.MustCompile("_$"),
+			ManglePropNamespaces: regexp.MustCompile(`^[A-Z][^_]*_`),
+		},
+	})
+}
+
+func TestManglePropNamespacesNoReuse(t *testing.T) {
+	// Properties within the same namespace must not collide
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export let typeA = {
+					TypeA_x_: 1,
+					TypeA_y_: 2,
+					TypeA_z_: 3,
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                 config.ModePassThrough,
+			AbsOutputFile:        "/out.js",
+			MangleProps:          regexp.MustCompile("_$"),
+			ManglePropNamespaces: regexp.MustCompile(`^[A-Z][^_]*_`),
+		},
+	})
+}
+
+func TestManglePropNamespacesFullMatch(t *testing.T) {
+	// When the namespace regex consumes the entire property name, treat it as un-namespaced
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export let obj = {
+					TypeA_: 1,
+					TypeA_foo_: 2,
+					TypeB_foo_: 3,
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                 config.ModePassThrough,
+			AbsOutputFile:        "/out.js",
+			MangleProps:          regexp.MustCompile("_$"),
+			ManglePropNamespaces: regexp.MustCompile(`^[A-Z][^_]*_`),
+		},
+	})
+}
+
+func TestManglePropNamespacesSuffix(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export let typeA = {
+					foo_TypeA_: 1,
+					bar_TypeA_: 2,
+				}
+				export let typeB = {
+					foo_TypeB_: 3,
+					bar_TypeB_: 4,
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                 config.ModePassThrough,
+			AbsOutputFile:        "/out.js",
+			MangleProps:          regexp.MustCompile("_$"),
+			ManglePropNamespaces: regexp.MustCompile(`_[A-Z][^_]*_$`),
+		},
+	})
+}
+
 func TestManglePropsTypeScriptFeatures(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
