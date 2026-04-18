@@ -143,8 +143,8 @@ let buildTests = {
     assert.strictEqual(result.outputFiles[0].text, 'x = { a: 1, a: 2 };\n')
     assert.deepStrictEqual(result.mangleCache, {})
     assert.deepStrictEqual(result.mangleNamespaceCaches, {
-      'TypeA_': { 'foo_': 'a' },
-      'TypeB_': { 'foo_': 'a' },
+      '^TypeA_': { 'foo_': 'a' },
+      '^TypeB_': { 'foo_': 'a' },
     })
   },
 
@@ -163,8 +163,8 @@ let buildTests = {
     assert.strictEqual(result1.outputFiles[0].text, 'x = { a: 0, b: 1, b: 2 };\n')
     assert.deepStrictEqual(result1.mangleCache, { global_: 'a' })
     assert.deepStrictEqual(result1.mangleNamespaceCaches, {
-      'TypeA_': { 'foo_': 'b' },
-      'TypeB_': { 'foo_': 'b' },
+      '^TypeA_': { 'foo_': 'b' },
+      '^TypeB_': { 'foo_': 'b' },
     })
 
     // Second build with new properties should honor the cached mappings
@@ -181,8 +181,8 @@ let buildTests = {
     assert.strictEqual(result2.outputFiles[0].text, 'x = { a: 0, c: 9, b: 1, d: 2, b: 3 };\n')
     assert.deepStrictEqual(result2.mangleCache, { global_: 'a', other_: 'c' })
     assert.deepStrictEqual(result2.mangleNamespaceCaches, {
-      'TypeA_': { 'foo_': 'b', 'baz_': 'd' },
-      'TypeB_': { 'foo_': 'b' },
+      '^TypeA_': { 'foo_': 'b', 'baz_': 'd' },
+      '^TypeB_': { 'foo_': 'b' },
     })
   },
 
@@ -200,8 +200,8 @@ let buildTests = {
     assert.strictEqual(result.outputFiles[0].text, 'x = { a: 1, a: 2 };\n')
     assert.strictEqual(result.mangleCache, undefined)
     assert.deepStrictEqual(result.mangleNamespaceCaches, {
-      'TypeA_': { 'foo_': 'a' },
-      'TypeB_': { 'foo_': 'a' },
+      '^TypeA_': { 'foo_': 'a' },
+      '^TypeB_': { 'foo_': 'a' },
     })
   },
 
@@ -218,8 +218,8 @@ let buildTests = {
       write: false,
     })
     assert.deepStrictEqual(result1.mangleNamespaceCaches, {
-      '_TypeA_': { 'foo': 'a', 'bar': 'b' },
-      '_TypeB_': { 'foo': 'a' },
+      '_TypeA_$': { 'foo': 'a', 'bar': 'b' },
+      '_TypeB_$': { 'foo': 'a' },
     })
 
     // Second build should honor cached suffix mappings
@@ -234,8 +234,8 @@ let buildTests = {
       write: false,
     })
     assert.deepStrictEqual(result2.mangleNamespaceCaches, {
-      '_TypeA_': { 'foo': 'a', 'bar': 'b', 'baz': 'c' },
-      '_TypeB_': { 'foo': 'a' },
+      '_TypeA_$': { 'foo': 'a', 'bar': 'b', 'baz': 'c' },
+      '_TypeB_$': { 'foo': 'a' },
     })
   },
 
@@ -258,8 +258,8 @@ let buildTests = {
     assert.strictEqual(code, 'x = { a: 1, a: 2 };\n')
     assert.deepStrictEqual(mangleCache, {})
     assert.deepStrictEqual(mangleNamespaceCaches, {
-      'TypeA_': { 'foo_': 'a' },
-      'TypeB_': { 'foo_': 'a' },
+      '^TypeA_': { 'foo_': 'a' },
+      '^TypeB_': { 'foo_': 'a' },
     })
   },
 

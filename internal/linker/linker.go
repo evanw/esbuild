@@ -472,11 +472,12 @@ func (c *linkerContext) mangleProps(mangleCache map[string]interface{}, nsCaches
 				Count:             c.graph.Symbols.Get(ref).UseCountEstimate,
 			})
 		} else {
-			nsKey := originalName[loc[0]:loc[1]]
-			var localName string
+			var nsKey, localName string
 			if loc[0] == 0 {
+				nsKey = "^" + originalName[loc[0]:loc[1]]
 				localName = originalName[loc[1]:] // prefix namespace
 			} else {
+				nsKey = originalName[loc[0]:loc[1]] + "$"
 				localName = originalName[:loc[0]] // suffix namespace
 			}
 			nsBuckets[nsKey] = append(nsBuckets[nsKey], namespacedProp{
