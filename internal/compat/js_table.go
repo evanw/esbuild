@@ -629,7 +629,7 @@ var jsTable = map[JSFeature]map[Engine][]versionRange{
 	InlineScript: {},
 	LogicalAssignment: {
 		// Note: The latest version of "IE" failed 9 tests including: Logical Assignment: &&= basic support
-		// Note: The latest version of "Rhino" failed 3 tests including: Logical Assignment: &&= setter not unecessarily invoked
+		// Note: The latest version of "Rhino" failed 3 tests including: Logical Assignment: &&= setter not unnecessarily invoked
 		Chrome:  {{start: v{85, 0, 0}}},
 		Deno:    {{start: v{1, 2, 0}}},
 		Edge:    {{start: v{85, 0, 0}}},
