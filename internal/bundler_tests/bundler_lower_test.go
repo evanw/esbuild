@@ -86,7 +86,7 @@ func TestLowerExponentiationOperatorNoBundle(t *testing.T) {
 					13: a[123n] **= b,
 					14: a[this] **= b,
 
-					// These should need capturing (have object identitiy)
+					// These should need capturing (have object identity)
 					15: a[/x/] **= b,
 					16: a[{}] **= b,
 					17: a[[]] **= b,
