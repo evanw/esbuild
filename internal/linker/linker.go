@@ -2431,7 +2431,7 @@ func (c *linkerContext) createWrapperForFile(sourceIndex uint32) {
 	// However, that generation is special-cased for various reasons and is
 	// done later on. Still, we're going to need to ensure that this file
 	// both depends on the "__commonJS" symbol and declares the "require_foo"
-	// symbol. Instead of special-casing this during the reachablity analysis
+	// symbol. Instead of special-casing this during the reachability analysis
 	// below, we just append a dummy part to the end of the file with these
 	// dependencies and let the general-purpose reachablity analysis take care
 	// of it.
