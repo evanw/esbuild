@@ -5330,12 +5330,12 @@ func (c *linkerContext) renameSymbolsInChunk(chunk *chunkInfo, filesInOrder []ui
 	reservedNames := renamer.ComputeReservedNames(moduleScopes, c.graph.Symbols)
 
 	// Node contains code that scans CommonJS modules in an attempt to statically
-	// detect the  set of export names that a module will use. However, it doesn't
+	// detect the set of export names that a module will use. However, it doesn't
 	// do any scope analysis so it can be fooled by local variables with the same
 	// name as the CommonJS module-scope variables "exports" and "module". Avoid
 	// using these names in this case even if there is not a risk of a name
 	// collision because there is still a risk of node incorrectly detecting
-	// something in a nested scope as an top-level export. Here's a case where
+	// something in a nested scope as a top-level export. Here's a case where
 	// this happened: https://github.com/evanw/esbuild/issues/3544
 	if c.options.OutputFormat == config.FormatCommonJS && c.options.Platform == config.PlatformNode {
 		reservedNames["exports"] = 1

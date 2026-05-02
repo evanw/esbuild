@@ -1713,7 +1713,7 @@ func (lexer *Lexer) scanIdentifierWithEscapes(kind identifierKind) (MaybeSubstri
 	//   // This is an error (equivalent to "var foo;" except for this rule)
 	//   \u0076\u0061\u0072 foo;
 	//
-	//   // This is an fine (equivalent to "foo.var;")
+	//   // This is a fine (equivalent to "foo.var;")
 	//   foo.\u0076\u0061\u0072;
 	//
 	if Keywords[text] != 0 {
