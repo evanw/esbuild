@@ -170,10 +170,23 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 		// This is for lazily-initialized ESM code. This has two implementations, a
 		// compact one for minified code and a verbose one that generates friendly
 		// names in V8's profiler and in stack traces.
-		export var __esm = (fn, res) => function __init() {
-			return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res
+		//
+		// A thrown init error is captured and re-thrown on every later call, so a
+		// failed cold-start surfaces the real cause on subsequent requests instead
+		// of being silently replaced with "Cannot read properties of undefined" on
+		// long-lived runtimes (Workers, Deno Deploy, Lambda warm starts, a Node
+		// server). Re-running an init that threw is rarely safe; side effects may
+		// have run.
+		export var __esm = (fn, res, err) => function __init() {
+			if (err) throw err
+			if (fn) try { res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0) } catch (e) { err = e; throw e }
+			return res
 		}
-		export var __esmMin = (fn, res) => () => (fn && (res = fn(fn = 0)), res)
+		export var __esmMin = (fn, res, err) => () => {
+			if (err) throw err
+			if (fn) try { res = fn(fn = 0) } catch (e) { err = e; throw e }
+			return res
+		}
 
 		// Wraps a CommonJS closure and returns a require() function. This has two
 		// implementations, a compact one for minified code and a verbose one that
