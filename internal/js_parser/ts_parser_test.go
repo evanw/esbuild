@@ -1425,6 +1425,24 @@ func TestTSNamespaceExports(t *testing.T) {
 `)
 
 	expectPrintedTS(t, `
+		namespace A {
+			export var x = 0
+		}
+		namespace A {
+			console.log(x)
+			x = 0
+		}
+	`, `var A;
+((A) => {
+  A.x = 0;
+})(A || (A = {}));
+((A) => {
+  console.log(A.x);
+  A.x = 0;
+})(A || (A = {}));
+`)
+
+	expectPrintedTS(t, `
 		namespace ns {
 			export declare const L1
 			console.log(L1)
