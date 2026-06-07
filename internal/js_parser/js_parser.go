@@ -3488,6 +3488,7 @@ const (
 	exprFlagForLoopInit
 	exprFlagForAwaitLoopInit
 	exprFlagAfterQuestionAndBeforeColon
+	exprFlagIsNewTarget
 )
 
 func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprFlag) js_ast.Expr {
@@ -3819,7 +3820,7 @@ func (p *parser) parsePrefix(level js_ast.L, errors *deferredErrors, flags exprF
 			return js_ast.Expr{Loc: loc, Data: &js_ast.ENewTarget{Range: r}}
 		}
 
-		target := p.parseExprWithFlags(js_ast.LMember, flags)
+		target := p.parseExprWithFlags(js_ast.LMember, flags|exprFlagIsNewTarget)
 		args := []js_ast.Expr{}
 		var closeParenLoc logger.Loc
 		var isMultiLine bool
@@ -4320,6 +4321,11 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 			optionalChain = oldOptionalChain
 
 		case js_lexer.TQuestionDot:
+			if (flags & exprFlagIsNewTarget) != 0 {
+				p.log.AddError(&p.tracker, p.lexer.Range(), "Cannot use an unparenthesized optional chain inside the target of \"new\"")
+				flags &= ^exprFlagIsNewTarget // Don't report this error more than once in this spot
+			}
+
 			p.lexer.Next()
 			optionalStart := js_ast.OptionalChainStart
 

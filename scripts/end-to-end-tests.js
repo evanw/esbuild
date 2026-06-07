@@ -3038,6 +3038,39 @@ tests.push(
   }),
 )
 
+// These edge cases shouldn't be printed incorrectly
+// https://github.com/evanw/esbuild/issues/4477
+tests.push(
+  test(['in.js', '--outfile=node.js'], {
+    'in.js': `
+      class Foo {
+        constructor(x) {
+          this.x = x
+        }
+      }
+      var foo1 = () => Foo
+      var foo2 = () => () => Foo
+      if ((new (foo1\`bar\`)(1)).x !== 1) throw 'fail 1'
+      if ((new (foo2()\`bar\`)(2)).x !== 2) throw 'fail 2'
+    `,
+  }),
+  test(['in.js', '--outfile=node.js'], {
+    'in.js': `
+      class Foo {
+        constructor(x) {
+          this.x = x
+        }
+      }
+      var foo0 = { bar: Foo }
+      var foo1 = () => ({ bar: Foo })
+      if ((new (foo0?.bar)(1)).x !== 1) throw 'fail 1'
+      if ((new (foo1()?.bar)(2)).x !== 2) throw 'fail 2'
+      if ((new (foo0?.['bar'])(3)).x !== 3) throw 'fail 3'
+      if ((new (foo1()?.['bar'])(4)).x !== 4) throw 'fail 4'
+    `,
+  }),
+)
+
 // Check for file names of wrapped modules in non-minified stack traces (for profiling)
 // Context: https://github.com/evanw/esbuild/pull/1236
 tests.push(

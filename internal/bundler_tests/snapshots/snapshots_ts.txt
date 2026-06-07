@@ -872,7 +872,7 @@ __decorateClass([
 ], Foo2, _a, 2);
 Foo2 = __decorateClass([
   x?.[_ + "y"](),
-  new y?.[_ + "x"]()
+  new y()?.[_ + "x"]()
 ], Foo2);
 
 // a.ts

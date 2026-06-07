@@ -2558,11 +2558,11 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 				break
 			}
 		} else {
-			if (flags & hasNonOptionalChainParent) != 0 {
+			if (flags & (isNewTarget | hasNonOptionalChainParent)) != 0 {
 				wrap = true
 				p.print("(")
 			}
-			flags &= ^hasNonOptionalChainParent
+			flags &= ^(isNewTarget | hasNonOptionalChainParent)
 		}
 		p.printExpr(e.Target, js_ast.LPostfix, (flags&(isNewTarget|hasNonOptionalChainParent))|isPropertyAccessTarget)
 		if p.canPrintIdentifier(e.Name) {
@@ -2614,11 +2614,11 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 				}
 			}
 		} else {
-			if (flags & hasNonOptionalChainParent) != 0 {
+			if (flags & (isNewTarget | hasNonOptionalChainParent)) != 0 {
 				p.print("(")
 				defer p.print(")")
 			}
-			flags &= ^hasNonOptionalChainParent
+			flags &= ^(isNewTarget | hasNonOptionalChainParent)
 		}
 		p.printExpr(e.Target, js_ast.LPostfix, (flags&(isNewTarget|hasNonOptionalChainParent))|isPropertyAccessTarget)
 		if e.OptionalChain == js_ast.OptionalChainStart {
@@ -3022,7 +3022,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 				p.printExpr(e.TagOrNil, js_ast.LLowest, isCallTargetOrTemplateTag)
 				p.print(")")
 			} else {
-				p.printExpr(e.TagOrNil, js_ast.LPostfix, isCallTargetOrTemplateTag)
+				p.printExpr(e.TagOrNil, js_ast.LPostfix, isCallTargetOrTemplateTag|(flags&isNewTarget))
 			}
 		} else {
 			p.addSourceMapping(expr.Loc)

@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+* Fix some edge cases around the `new` operator ([#4477](https://github.com/evanw/esbuild/issues/4477))
+
+    Previously esbuild incorrectly printed certain edge cases involving complex expressions inside the target of a `new` expression (specifically an optional chain and/or a tagged template literal). The generated code for the `new` target was not correctly wrapped with parentheses, and either contained a syntax error or had different semantics. These edge cases have been fixed so that they now correctly wrap the `new` target in parentheses. Here is an example of some affected code:
+
+    ```js
+    // Original code
+    new (foo()`bar`)()
+    new (foo()?.bar)()
+
+    // Old output
+    new foo()`bar`();
+    new (foo())?.bar();
+
+    // New output
+    new (foo())`bar`();
+    new (foo()?.bar)();
+    ```
+
 ## 0.28.0
 
 * Add support for `with { type: 'text' }` imports ([#4435](https://github.com/evanw/esbuild/issues/4435))
