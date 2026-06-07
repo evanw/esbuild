@@ -1399,7 +1399,7 @@ func (p *printer) printQuotedUTF16(data []uint16, flags printQuotedFlags) {
 func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, level js_ast.L, flags printExprFlags, closeParenLoc logger.Loc, phase ast.ImportPhase) {
 	record := &p.importRecords[importRecordIndex]
 
-	if level >= js_ast.LNew || (flags&forbidCall) != 0 {
+	if level >= js_ast.LNew || (flags&isNewTarget) != 0 {
 		p.print("(")
 		defer p.print(")")
 		level = js_ast.LLowest
@@ -1989,7 +1989,7 @@ func (p *printer) printExprWithoutLeadingNewline(expr js_ast.Expr, level js_ast.
 type printExprFlags uint16
 
 const (
-	forbidCall printExprFlags = 1 << iota
+	isNewTarget printExprFlags = 1 << iota
 	forbidIn
 	hasNonOptionalChainParent
 	exprResultIsUnused
@@ -2253,7 +2253,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 		p.addSourceMapping(expr.Loc)
 		p.print("new")
 		p.printSpace()
-		p.printExpr(e.Target, js_ast.LNew, forbidCall)
+		p.printExpr(e.Target, js_ast.LNew, isNewTarget)
 
 		// Omit the "()" when minifying, but only when safe to do so
 		isMultiLine := !p.options.MinifyWhitespace && ((e.IsMultiLine && len(e.Args) > 0) ||
@@ -2373,7 +2373,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			}
 		}
 
-		wrap := level >= js_ast.LNew || (flags&forbidCall) != 0
+		wrap := level >= js_ast.LNew || (flags&isNewTarget) != 0
 		var targetFlags printExprFlags
 		if e.OptionalChain == js_ast.OptionalChainNone {
 			targetFlags = hasNonOptionalChainParent
@@ -2456,7 +2456,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 	case *js_ast.ERequireResolveString:
 		recordLoc := p.importRecords[e.ImportRecordIndex].Range.Loc
 		isMultiLine := p.willPrintExprCommentsAtLoc(recordLoc) || p.willPrintExprCommentsAtLoc(e.CloseParenLoc)
-		wrap := level >= js_ast.LNew || (flags&forbidCall) != 0
+		wrap := level >= js_ast.LNew || (flags&isNewTarget) != 0
 		if wrap {
 			p.print("(")
 		}
@@ -2495,7 +2495,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			(p.willPrintExprCommentsAtLoc(e.Expr.Loc) ||
 				(printImportAssertOrWith && p.willPrintExprCommentsAtLoc(e.OptionsOrNil.Loc)) ||
 				p.willPrintExprCommentsAtLoc(e.CloseParenLoc))
-		wrap := level >= js_ast.LNew || (flags&forbidCall) != 0
+		wrap := level >= js_ast.LNew || (flags&isNewTarget) != 0
 		if wrap {
 			p.print("(")
 		}
@@ -2564,7 +2564,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			}
 			flags &= ^hasNonOptionalChainParent
 		}
-		p.printExpr(e.Target, js_ast.LPostfix, (flags&(forbidCall|hasNonOptionalChainParent))|isPropertyAccessTarget)
+		p.printExpr(e.Target, js_ast.LPostfix, (flags&(isNewTarget|hasNonOptionalChainParent))|isPropertyAccessTarget)
 		if p.canPrintIdentifier(e.Name) {
 			if e.OptionalChain != js_ast.OptionalChainStart && p.needSpaceBeforeDot == len(p.js) {
 				// "1.toString" is a syntax error, so print "1 .toString" instead
@@ -2620,7 +2620,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			}
 			flags &= ^hasNonOptionalChainParent
 		}
-		p.printExpr(e.Target, js_ast.LPostfix, (flags&(forbidCall|hasNonOptionalChainParent))|isPropertyAccessTarget)
+		p.printExpr(e.Target, js_ast.LPostfix, (flags&(isNewTarget|hasNonOptionalChainParent))|isPropertyAccessTarget)
 		if e.OptionalChain == js_ast.OptionalChainStart {
 			p.print("?.")
 		}
@@ -3081,7 +3081,7 @@ func (p *printer) printExpr(expr js_ast.Expr, level js_ast.L, flags printExprFla
 			break
 		}
 
-		wrap := level >= js_ast.LNew || (flags&forbidCall) != 0
+		wrap := level >= js_ast.LNew || (flags&isNewTarget) != 0
 		hasPureComment := !p.options.MinifyWhitespace
 
 		if hasPureComment && level >= js_ast.LPostfix {
