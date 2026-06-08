@@ -2104,6 +2104,43 @@ for (const minify of [[], ['--minify']]) {
         export let async = async () => { if (42 !== await B()) throw 'fail' }
       `,
     }, { async: true }),
+
+    // https://github.com/evanw/esbuild/issues/4461
+    test(['--bundle', 'in.js', '--outfile=node.js', '--format=esm'].concat(minify), {
+      'in.js': `export let async = async () => {
+        let error
+        for (let i = 0; i < 3; i++) {
+          try {
+            await import('./foo')
+            throw new Error('Expected an error')
+          } catch (e) {
+            if (!e || e.message !== 'stop') throw 'fail ' + i + ': ' + e
+            if (i > 0 && e !== error) throw 'fail ' + i + ': wrong object'
+            error = e
+          }
+        }
+      }`,
+      'foo.js': `
+        export let foo
+        throw new Error('stop')
+      `,
+    }, { async: true }),
+    test(['--bundle', 'in.js', '--outfile=node.js', '--format=esm'].concat(minify), {
+      'in.js': `export let async = async () => {
+        for (let i = 0; i < 3; i++) {
+          try {
+            await import('./foo')
+            throw new Error('Expected an error')
+          } catch (e) {
+            if (e !== null) throw 'fail ' + i + ': ' + e
+          }
+        }
+      }`,
+      'foo.js': `
+        export let foo
+        throw null
+      `,
+    }, { async: true }),
   )
 }
 

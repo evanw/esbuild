@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+* Fix ES module evaluation when an error is thrown ([#4461](https://github.com/evanw/esbuild/issues/4461), [#4467](https://github.com/evanw/esbuild/pull/4467))
+
+    If an error is thrown during ES module evaluation, esbuild previously didn't preserve the state of the module for subsequent module references. This was observable if `import()` is used to import the module multiple times. The thrown error is supposed to be thrown by every call to `import()`, not just the first. With this release, esbuild will now throw the same error every time you call `import()` on a module that throws during its evaluation.
+
 * Fix some edge cases around the `new` operator ([#4477](https://github.com/evanw/esbuild/issues/4477))
 
     Previously esbuild incorrectly printed certain edge cases involving complex expressions inside the target of a `new` expression (specifically an optional chain and/or a tagged template literal). The generated code for the `new` target was not correctly wrapped with parentheses, and either contained a syntax error or had different semantics. These edge cases have been fixed so that they now correctly wrap the `new` target in parentheses. Here is an example of some affected code:
