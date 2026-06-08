@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "basic-ftp": "^5.2.0",
     "puppeteer": "23.11.1"
   }
 }
