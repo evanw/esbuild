@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "base-x": "^3.0.11",
     "parcel": "2.10.0",
     "typescript": "4.9.3"
   }
