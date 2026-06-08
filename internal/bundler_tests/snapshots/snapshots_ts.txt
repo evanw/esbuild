@@ -1606,7 +1606,7 @@ console.log(a, b, c, d, e, real);
 ================================================================================
 TestTSMinifiedBundleCommonJS
 ---------- /out.js ----------
-var t=e(r=>{r.foo=function(){return 123}});var n=e((l,c)=>{c.exports={test:!0}});var{foo:f}=t();console.log(f(),n());
+var t=e(r=>{r.foo=function(){return 123}});var n=e((q,f)=>{f.exports={test:!0}});var{foo:i}=t();console.log(i(),n());
 
 ================================================================================
 TestTSMinifiedBundleES6

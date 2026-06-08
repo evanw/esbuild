@@ -5201,7 +5201,7 @@ a {
 ================================================================================
 TestMinifiedBundleCommonJS
 ---------- /out.js ----------
-var t=e(r=>{r.foo=function(){return 123}});var n=e((l,c)=>{c.exports={test:!0}});var{foo:f}=t();console.log(f(),n());
+var t=e(r=>{r.foo=function(){return 123}});var n=e((q,f)=>{f.exports={test:!0}});var{foo:i}=t();console.log(i(),n());
 
 ================================================================================
 TestMinifiedBundleES6
@@ -5286,7 +5286,7 @@ TestMinifyIdentifiersImportPathFrequencyAnalysis
 var o=123;console.log(o,"no identifier in this file should be named W, X, Y, or Z");
 
 ---------- /out/require.js ----------
-var i=r((t,e)=>{e.exports=123});var s=i();console.log(s,"no identifier in this file should be named A, B, C, or D");
+var i=s((d,e)=>{e.exports=123});var l=i();console.log(l,"no identifier in this file should be named A, B, C, or D");
 
 ================================================================================
 TestMinifyNestedLabelsNoBundle
