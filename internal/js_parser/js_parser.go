@@ -1148,6 +1148,11 @@ func jumpStmtsLookTheSame(left js_ast.S, right js_ast.S) bool {
 }
 
 func (p *parser) selectLocalKind(kind js_ast.LocalKind) js_ast.LocalKind {
+	// Use "var" instead of "let" and "const" if they aren't supported
+	if (kind == js_ast.LocalLet || kind == js_ast.LocalConst) && p.options.unsupportedJSFeatures.Has(compat.ConstAndLet) {
+		return js_ast.LocalVar
+	}
+
 	// Use "var" instead of "let" and "const" if the variable declaration may
 	// need to be separated from the initializer. This allows us to safely move
 	// this declaration into a nested scope.

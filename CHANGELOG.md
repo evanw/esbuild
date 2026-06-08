@@ -20,6 +20,21 @@
     new (foo()?.bar)();
     ```
 
+* Emit `var` instead of `const` for certain TypeScript-only constructs for ES5 ([#4448](https://github.com/evanw/esbuild/issues/4448))
+
+    While esbuild doesn't generally support converting `const` to `var` for ES5 due to nested scoping rules (which is currently a build-time error), esbuild previously incorrectly converted TypeScript-only `import` assignment constructs into a `const` declaration even when targeting ES5. With this release, esbuild will now use `var` for this case instead:
+
+    ```js
+    // Original code
+    import x = require('y')
+
+    // Old output (with --target=es5)
+    const x = require("y");
+
+    // New output (with --target=es5)
+    var x = require("y");
+    ```
+
 ## 0.28.0
 
 * Add support for `with { type: 'text' }` imports ([#4435](https://github.com/evanw/esbuild/issues/4435))

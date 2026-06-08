@@ -2012,6 +2012,13 @@ var strict_default = class {
 console.log(loose_default, strict_default);
 
 ================================================================================
+TestLowerConstIssue4448
+---------- /out.js ----------
+var import_meta = {};
+var x = require("fs");
+console.log(import_meta.foo(x));
+
+================================================================================
 TestLowerExponentiationOperatorNoBundle
 ---------- /out.js ----------
 var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;

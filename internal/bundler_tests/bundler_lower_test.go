@@ -3163,3 +3163,23 @@ func TestForAwaitWithOptionalCatchIssue4378(t *testing.T) {
 		},
 	})
 }
+
+// https://github.com/evanw/esbuild/issues/4448
+func TestLowerConstIssue4448(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				import x = require('fs')
+				console.log(import.meta.foo(x))
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:                  config.ModePassThrough,
+			UnsupportedJSFeatures: compat.ConstAndLet | compat.ImportMeta,
+			AbsOutputFile:         "/out.js",
+		},
+		expectedScanLog: `entry.ts: WARNING: "import.meta" is not available in the configured target environment and will be empty
+`,
+	})
+}

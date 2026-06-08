@@ -2876,6 +2876,8 @@ func TestTSImportEquals(t *testing.T) {
 `
 	expectParseErrorTS(t, "import x = require('y'); x = require('z')", errorText)
 	expectParseErrorTS(t, "import x = y.z; x = z.y", errorText)
+
+	expectPrintedWithUnsupportedFeaturesTS(t, compat.ConstAndLet, "import x = require('y')", "var x = require(\"y\");\n")
 }
 
 func TestTSImportEqualsInNamespace(t *testing.T) {
@@ -2904,6 +2906,13 @@ func TestTSImportEqualsInNamespace(t *testing.T) {
 	expectParseErrorTS(t, "namespace ns { export import foo from 'bar' }", "<stdin>: ERROR: Expected \"=\" but found \"from\"\n")
 	expectParseErrorTS(t, "namespace ns { { import foo = bar } }", "<stdin>: ERROR: Unexpected \"foo\"\n")
 	expectParseErrorTS(t, "namespace ns { { export import foo = bar } }", "<stdin>: ERROR: Unexpected \"export\"\n")
+
+	expectPrintedWithUnsupportedFeaturesTS(t, compat.ConstAndLet, "namespace ns { import x = require('y'); x }", `var ns;
+((ns) => {
+  var x = require("y");
+  x;
+})(ns || (ns = {}));
+`)
 }
 
 func TestTSTypeOnlyImport(t *testing.T) {
