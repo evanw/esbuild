@@ -18228,7 +18228,7 @@ const (
 	whyESMImportStatement
 )
 
-// Say why this the current file is being considered an ES module
+// Say why the current file is being considered an ES module
 func (p *parser) whyESModule() (whyESM, []logger.MsgData) {
 	because := "This file is considered to be an ECMAScript module because"
 	switch {

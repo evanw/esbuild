@@ -1759,7 +1759,7 @@ func (p *printer) guardAgainstBehaviorChangeDueToSubstitution(expr js_ast.Expr, 
 
 // Constant folding is already implemented once in the parser. A smaller form
 // of constant folding (just for numbers) is implemented here to clean up cross-
-// module numeric constants and bitwise operations. This is not an general-
+// module numeric constants and bitwise operations. This is not a general-
 // purpose/optimal approach and never will be. For example, we can't affect
 // tree shaking at this stage because it has already happened.
 func (p *printer) lateConstantFoldUnaryOrBinaryOrIfExpr(expr js_ast.Expr) js_ast.Expr {
