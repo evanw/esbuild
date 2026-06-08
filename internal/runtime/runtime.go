@@ -175,7 +175,7 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 			try {
 				return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res
 			} catch (e) {
-				throw (err = [e]), e
+				throw err = [e], e
 			}
 		}
 		export var __esmMin = (fn, res, err) => () => {
@@ -183,7 +183,7 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 			try {
 				return fn && (res = fn(fn = 0)), res
 			} catch (e) {
-				throw (err = [e]), e
+				throw err = [e], e
 			}
 		}
 
@@ -191,9 +191,19 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 		// implementations, a compact one for minified code and a verbose one that
 		// generates friendly names in V8's profiler and in stack traces.
 		export var __commonJS = (cb, mod) => function __require() {
-			return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = {exports: {}}).exports, mod), mod.exports
+			try {
+				return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports
+			} catch (e) {
+				throw mod = 0, e
+			}
 		}
-		export var __commonJSMin = (cb, mod) => () => (mod || cb((mod = {exports: {}}).exports, mod), mod.exports)
+		export var __commonJSMin = (cb, mod) => () => {
+			try {
+				return mod || cb((mod = { exports: {} }).exports, mod), mod.exports
+			} catch (e) {
+				throw mod = 0, e
+			}
+		}
 
 		// Used to implement ESM exports both for "require()" and "import * as"
 		export var __export = (target, all) => {

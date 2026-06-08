@@ -2141,6 +2141,40 @@ for (const minify of [[], ['--minify']]) {
         throw null
       `,
     }, { async: true }),
+    test(['--bundle', 'in.js', '--outfile=node.js'].concat(minify), {
+      'in.js': `
+        let errors = []
+        for (let i = 0; i < 3; i++) {
+          try {
+            require('./foo')
+            throw new Error('Expected an error')
+          } catch (e) {
+            if (e.message !== 'stop1') throw 'fail ' + i + ': ' + e
+            if (errors.includes(e)) throw 'fail ' + i + ': wrong object'
+            errors.push(e)
+          }
+        }
+      `,
+      'foo.js': `
+        exports.counter = (exports.counter | 0) + 1
+        throw new Error('stop' + exports.counter)
+      `,
+    }),
+    test(['--bundle', 'in.js', '--outfile=node.js'].concat(minify), {
+      'in.js': `
+        for (let i = 0; i < 3; i++) {
+          try {
+            require('./foo')
+            throw new Error('Expected an error')
+          } catch (e) {
+            if (e !== null) throw 'fail ' + i + ': ' + e
+          }
+        }
+      `,
+      'foo.js': `
+        throw null
+      `,
+    }),
   )
 }
 

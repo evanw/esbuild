@@ -2,9 +2,9 @@
 
 ## Unreleased
 
-* Fix ES module evaluation when an error is thrown ([#4461](https://github.com/evanw/esbuild/issues/4461), [#4467](https://github.com/evanw/esbuild/pull/4467))
+* Fix module evaluation when an error is thrown ([#4461](https://github.com/evanw/esbuild/issues/4461), [#4467](https://github.com/evanw/esbuild/pull/4467))
 
-    If an error is thrown during ES module evaluation, esbuild previously didn't preserve the state of the module for subsequent module references. This was observable if `import()` is used to import the module multiple times. The thrown error is supposed to be thrown by every call to `import()`, not just the first. With this release, esbuild will now throw the same error every time you call `import()` on a module that throws during its evaluation.
+    If an error is thrown during module evaluation, esbuild previously didn't preserve the state of the module for subsequent module references. This was observable if `import()` or `require()` is used to import a module multiple times. The thrown error is supposed to be thrown by every call to `import()` or `require()`, not just the first. With this release, esbuild will now throw the same error every time you call `import()` or `require()` on a module that throws during its evaluation.
 
 * Fix some edge cases around the `new` operator ([#4477](https://github.com/evanw/esbuild/issues/4477))
 
