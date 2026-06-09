@@ -24,6 +24,10 @@
     new (foo()?.bar)();
     ```
 
+* Fix renaming of nested `var` declarations ([#4471](https://github.com/evanw/esbuild/issues/4471))
+
+    This release fixes a bug where `var` declarations in nested scopes that are hoisted up to module scope were not correctly being renamed during bundling. That could previously lead to name collisions when minification was disabled, which could potentially cause a behavior change. The bug has been fixed so that these hoisted declarations are now considered to be module-level symbols during the name collision avoidance pass.
+
 * Emit `var` instead of `const` for certain TypeScript-only constructs for ES5 ([#4448](https://github.com/evanw/esbuild/issues/4448))
 
     While esbuild doesn't generally support converting `const` to `var` for ES5 due to nested scoping rules (which is currently a build-time error), esbuild previously incorrectly converted TypeScript-only `import` assignment constructs into a `const` declaration even when targeting ES5. With this release, esbuild will now use `var` for this case instead:

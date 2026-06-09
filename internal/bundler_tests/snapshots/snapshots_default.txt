@@ -5898,6 +5898,33 @@ foo: {
 }
 
 ================================================================================
+TestRenameNestedVar
+---------- /out.js ----------
+// foo.js
+function foo(a, b) {
+}
+var topLevel = 0;
+{
+  nested = 1;
+}
+var nested;
+function fn() {
+  var inner = 2;
+}
+foo(topLevel, nested, fn);
+
+// entry.js
+var topLevel2 = 0;
+{
+  nested2 = 1;
+}
+var nested2;
+function fn2() {
+  var inner = 2;
+}
+foo(topLevel2, nested2, fn2);
+
+================================================================================
 TestRenamePrivateIdentifiersNoBundle
 ---------- /out.js ----------
 class Foo {
@@ -6444,10 +6471,10 @@ var Foo = class {
 };
 new Foo(foo(objFoo));
 if (nested) {
-  let bar = function(x = this) {
+  let bar2 = function(x = this) {
     console.log(this);
   };
-  bar2 = bar;
+  bar = bar2;
   const objBar = {
     foo(x = this) {
       console.log(this);
@@ -6463,9 +6490,9 @@ if (nested) {
       console.log(this);
     }
   }
-  new Bar(bar(objBar));
+  new Bar(bar2(objBar));
 }
-var bar2;
+var bar;
 
 ================================================================================
 TestThisOutsideFunction
@@ -7061,9 +7088,9 @@ var k;
 ---------- /out/nested.js ----------
 // nested.js
 if (true) {
-  let l = function() {
+  let l2 = function() {
   };
-  l2 = l;
+  l = l2;
   for (; 0; ) ;
   for ({ c, x: [d] } = {}; 0; ) ;
   for (e of []) ;
@@ -7084,7 +7111,7 @@ var h;
 var i;
 var j;
 var k;
-var l2;
+var l;
 
 ---------- /out/let.js ----------
 // let.js
@@ -7152,9 +7179,9 @@ function l() {
 
 ---------- /out/nested.js ----------
 if (true) {
-  let l = function() {
+  let l2 = function() {
   };
-  var l2 = l;
+  var l = l2;
   var a;
   for (var b; 0; ) ;
   for (var { c, x: [d] } = {}; 0; ) ;

@@ -1523,7 +1523,6 @@ func (p *parser) declareSymbol(kind ast.SymbolKind, loc logger.Loc, name string)
 	// Overwrite this name in the declaring scope
 	p.currentScope.Members[name] = js_ast.ScopeMember{Ref: ref, Loc: loc}
 	return ref
-
 }
 
 // This type is just so we can use Go's native sort function
@@ -10019,9 +10018,18 @@ func (p *parser) visitForLoopInit(stmt js_ast.Stmt, isInOrOf bool) js_ast.Stmt {
 }
 
 func (p *parser) recordDeclaredSymbol(ref ast.Ref) {
+	isTopLevel := p.currentScope == p.moduleScope
+
+	// Check whether this symbol was hoisted out of a nested scope into the module scope
+	if !isTopLevel {
+		if symbol := p.symbols[ref.InnerIndex]; symbol.Kind.IsHoisted() && p.moduleScope.Members[symbol.OriginalName].Ref == ref {
+			isTopLevel = true
+		}
+	}
+
 	p.declaredSymbols = append(p.declaredSymbols, js_ast.DeclaredSymbol{
 		Ref:        ref,
-		IsTopLevel: p.currentScope == p.moduleScope,
+		IsTopLevel: isTopLevel,
 	})
 }
 

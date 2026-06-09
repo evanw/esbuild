@@ -2080,10 +2080,10 @@ var Foo = class {
 };
 new Foo(foo(objFoo));
 if (nested) {
-  let bar = function(x = this) {
+  let bar2 = function(x = this) {
     console.log(this);
   };
-  bar2 = bar;
+  bar = bar2;
   const objBar = {
     foo(x = this) {
       console.log(this);
@@ -2103,9 +2103,9 @@ if (nested) {
       console.log(this);
     }
   }
-  new Bar(bar(objBar));
+  new Bar(bar2(objBar));
 }
-var bar2;
+var bar;
 
 ================================================================================
 TestThisInsideFunctionTSNoBundle
@@ -2229,10 +2229,10 @@ var Foo = class {
 };
 new Foo(foo(objFoo));
 if (nested) {
-  let bar = function(x = this) {
+  let bar2 = function(x = this) {
     console.log(this);
   };
-  bar2 = bar;
+  bar = bar2;
   const objBar = {
     foo(x = this) {
       console.log(this);
@@ -2248,6 +2248,6 @@ if (nested) {
       console.log(this);
     }
   }
-  new Bar(bar(objBar));
+  new Bar(bar2(objBar));
 }
-var bar2;
+var bar;

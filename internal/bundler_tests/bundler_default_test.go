@@ -2746,6 +2746,32 @@ func TestManyEntryPoints(t *testing.T) {
 	})
 }
 
+func TestRenameNestedVar(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import { foo } from './foo'
+				var topLevel = 0
+				{ var nested = 1 }
+				function fn() { var inner = 2 }
+				foo(topLevel, nested, fn)
+			`,
+			"/foo.js": `
+				export function foo(a, b) {}
+				var topLevel = 0
+				{ var nested = 1 }
+				function fn() { var inner = 2 }
+				foo(topLevel, nested, fn)
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
 func TestRenamePrivateIdentifiersNoBundle(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
