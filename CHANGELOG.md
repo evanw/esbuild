@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.28.1
 
 * Disallow `\\` in local development server HTTP requests ([GHSA-g7r4-m6w7-qqqr](https://github.com/evanw/esbuild/security/advisories/GHSA-g7r4-m6w7-qqqr))
 
