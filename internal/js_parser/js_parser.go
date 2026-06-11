@@ -9190,7 +9190,7 @@ func (p *parser) mangleStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt 
 				// should have visited all the uses of "let" and "const" declarations
 				// by now since they are scoped to this block which we just finished
 				// visiting.
-				if prevS, ok := result[len(result)-1].Data.(*js_ast.SLocal); ok && prevS.Kind != js_ast.LocalVar {
+				if prevS, ok := result[len(result)-1].Data.(*js_ast.SLocal); ok && (prevS.Kind == js_ast.LocalLet || prevS.Kind == js_ast.LocalConst) {
 					last := prevS.Decls[len(prevS.Decls)-1]
 
 					// The binding must be an identifier that is only used once.

@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+* Avoid inlining `using` and `await using` declarations ([#4482](https://github.com/evanw/esbuild/issues/4482))
+
+    Previously esbuild's minifier sometimes incorrectly inlined `using` and `await using` declarations into subsequent uses of that declaration, which then fails to dispose of the resource correctly. This bug happened because inlining was done for `let` and `const` declarations by avoiding doing it for `var` declarations, which no longer worked when more declaration types were added. Here's an example:
+
+    ```js
+    // Original code
+    {
+      using x = new Resource()
+      x.activate()
+    }
+
+    // Old output (with --minify)
+    new Resource().activate();
+
+    // New output (with --minify)
+    {using e=new Resource;e.activate()}
+    ```
+
 * Fix module evaluation when an error is thrown ([#4461](https://github.com/evanw/esbuild/issues/4461), [#4467](https://github.com/evanw/esbuild/pull/4467))
 
     If an error is thrown during module evaluation, esbuild previously didn't preserve the state of the module for subsequent module references. This was observable if `import()` or `require()` is used to import a module multiple times. The thrown error is supposed to be thrown by every call to `import()` or `require()`, not just the first. With this release, esbuild will now throw the same error every time you call `import()` or `require()` on a module that throws during its evaluation.
