@@ -154,6 +154,14 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		}
 	}
 
+	// All requests containing Windows-style path separators are invalid
+	if strings.ContainsRune(req.URL.Path, '\\') {
+		go h.notifyRequest(time.Since(start), req, http.StatusBadRequest)
+		res.WriteHeader(http.StatusBadRequest)
+		maybeWriteResponseBody([]byte("400 - Bad Request"))
+		return
+	}
+
 	// Special-case the esbuild event stream
 	if req.Method == "GET" && req.URL.Path == "/esbuild" && req.Header.Get("Accept") == "text/event-stream" {
 		h.serveEventStream(start, req, res)

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+* Disallow `\\` in local development server HTTP requests ([GHSA-g7r4-m6w7-qqqr](https://github.com/evanw/esbuild/security/advisories/GHSA-g7r4-m6w7-qqqr))
+
+    This release fixes a security issue where HTTP requests to esbuild's local development server could traverse outside of the serve directory on Windows using a `\\` backslash character. It happened due to the use of Go's `path.Clean()` function, which only handles Unix-style `/` characters. HTTP requests with paths containing `\\` are no longer allowed.
+
+    Thanks to [@dellalibera](https://github.com/dellalibera) for reporting this issue.
+
 * Avoid inlining `using` and `await using` declarations ([#4482](https://github.com/evanw/esbuild/issues/4482))
 
     Previously esbuild's minifier sometimes incorrectly inlined `using` and `await using` declarations into subsequent uses of that declaration, which then fails to dispose of the resource correctly. This bug happened because inlining was done for `let` and `const` declarations by avoiding doing it for `var` declarations, which no longer worked when more declaration types were added. Here's an example:

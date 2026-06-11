@@ -5602,6 +5602,62 @@ let serveTests = {
       await context.dispose();
     }
   },
+
+  // https://github.com/evanw/esbuild/security/advisories/GHSA-g7r4-m6w7-qqqr
+  async serveDirectoryTraversalUsingBackslash({ esbuild, testDir }) {
+    const failure = path.join(testDir, 'failure.txt')
+    const servedir = path.join(testDir, 'root')
+    const input = path.join(servedir, 'in.ts')
+    await mkdirAsync(servedir)
+    await writeFileAsync(failure, `TEST FAILURE`)
+    await writeFileAsync(input, `console.log(123)`)
+
+    let onRequest;
+
+    const context = await esbuild.context({
+      entryPoints: [input],
+      format: 'esm',
+      outdir: servedir,
+      write: false,
+    });
+    try {
+      const result = await context.serve({
+        host: '127.0.0.1',
+        servedir,
+        onRequest: args => onRequest(args),
+      })
+      assert.deepStrictEqual(result.hosts, ['127.0.0.1']);
+      assert.strictEqual(typeof result.port, 'number');
+
+      // GET ..\failure.txt
+      {
+        const singleRequestPromise = new Promise(resolve => { onRequest = resolve });
+        try {
+          const buffer = await fetch(result.hosts[0], result.port, '/..\\failure.txt')
+          throw new Error('Unexpected response: ' + buffer)
+        } catch (e) {
+          if (e.statusCode !== 400) throw e
+        }
+        const args = await singleRequestPromise
+        if (args.status !== 400) throw new Error('Unexpected args: ' + JSON.stringify(args))
+      }
+
+      // GET ..%5cfailure.txt
+      {
+        const singleRequestPromise = new Promise(resolve => { onRequest = resolve });
+        try {
+          const buffer = await fetch(result.hosts[0], result.port, '/..%5cfailure.txt')
+          throw new Error('Unexpected response: ' + buffer)
+        } catch (e) {
+          if (e.statusCode !== 400) throw e
+        }
+        const args = await singleRequestPromise
+        if (args.status !== 400) throw new Error('Unexpected args: ' + JSON.stringify(args))
+      }
+    } finally {
+      await context.dispose();
+    }
+  },
 }
 
 async function futureSyntax(esbuild, js, targetBelow, targetAbove) {
