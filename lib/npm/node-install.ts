@@ -230,7 +230,7 @@ function binaryIntegrityCheck(pkg: string, subpath: string, bytes: Uint8Array): 
   const key = `${pkg}/${subpath}`
   const expected = packageJSON['esbuild.binaryHashes'][key]
   if (!expected) throw new Error(`Missing hash for "${key}"`)
-  if (hash !== expected) throw new Error(`"${hash.slice(0, 8)}..." doesn't match "${expected.slice(0, 8)}..."`)
+  if (hash !== expected) throw new Error(`"${hash.slice(0, 8)}..." doesn't match "${expected.slice(0, 8)}..." for "${pkg}"`)
 }
 
 async function downloadDirectlyFromNPM(pkg: string, subpath: string, binPath: string): Promise<void> {

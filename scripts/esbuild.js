@@ -273,12 +273,14 @@ exports.buildWasmLib = async (esbuildPath) => {
 
 const buildDenoLib = async (esbuildPath) => {
   // Generate "deno/mod.js"
+  const packageJSON = JSON.parse(fs.readFileSync(path.join(npmDir, 'package.json'), 'utf8'))
   childProcess.execFileSync(esbuildPath, [
     path.join(repoDir, 'lib', 'deno', 'mod.ts'),
     '--bundle',
     '--outfile=' + path.join(denoDir, 'mod.js'),
     '--target=' + denoTarget,
     '--define:ESBUILD_VERSION=' + JSON.stringify(version),
+    '--define:ESBUILD_BINARY_HASHES=' + JSON.stringify(packageJSON['esbuild.binaryHashes'], null, 2),
     '--platform=neutral',
     '--log-level=warning',
     '--banner:js=/// <reference types="./mod.d.ts" />',

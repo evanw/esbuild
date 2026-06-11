@@ -4,6 +4,7 @@ import * as ourselves from "./mod"
 import * as denoflate from "https://deno.land/x/denoflate@1.2.1/mod.ts"
 
 declare const ESBUILD_VERSION: string
+declare const ESBUILD_BINARY_HASHES: Record<string, string>
 
 export let version = ESBUILD_VERSION
 
@@ -59,6 +60,15 @@ export const initialize: typeof types.initialize = async (options) => {
   initializeWasCalled = true
 }
 
+async function binaryIntegrityCheck(pkg: string, subpath: string, bytes: Uint8Array): Promise<void> {
+  const hashBuffer = await crypto.subtle.digest('SHA-256', bytes as Uint8Array<ArrayBuffer>)
+  const hash = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('')
+  const key = `${pkg}/${subpath}`
+  const expected = ESBUILD_BINARY_HASHES[key]
+  if (!expected) throw new Error(`Missing hash for "${key}"`)
+  if (hash !== expected) throw new Error(`"${hash.slice(0, 8)}..." doesn't match "${expected.slice(0, 8)}..." for "${pkg}"`)
+}
+
 async function installFromNPM(name: string, subpath: string): Promise<string> {
   const { finalPath, finalDir } = getCachePath(name)
   try {
@@ -71,6 +81,7 @@ async function installFromNPM(name: string, subpath: string): Promise<string> {
   const url = `${npmRegistry}/${name}/-/${name.replace("@esbuild/", "")}-${version}.tgz`
   const buffer = await fetch(url).then(r => r.arrayBuffer())
   const executable = extractFileFromTarGzip(new Uint8Array(buffer), subpath)
+  await binaryIntegrityCheck(name, subpath, executable)
 
   await Deno.mkdir(finalDir, {
     recursive: true,

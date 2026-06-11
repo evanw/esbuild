@@ -8,6 +8,14 @@
 
     Thanks to [@dellalibera](https://github.com/dellalibera) for reporting this issue.
 
+* Add integrity checks to the Deno API ([GHSA-gv7w-rqvm-qjhr](https://github.com/evanw/esbuild/security/advisories/GHSA-gv7w-rqvm-qjhr))
+
+    The previous release of esbuild added integrity checks to esbuild's npm install script. This release also adds integrity checks to esbuild's Deno install script. Now esbuild's Deno API will also fail with an error if the downloaded esbuild binary contains something other than the expected content.
+
+    Note that esbuild's Deno API installs from `registry.npmjs.org` by default, but allows the `NPM_CONFIG_REGISTRY` environment variable to override this with a custom package registry. This change means that the esbuild executable served by `NPM_CONFIG_REGISTRY` must now match the expected content.
+
+    Thanks to [@sondt99](https://github.com/sondt99) for reporting this issue.
+
 * Avoid inlining `using` and `await using` declarations ([#4482](https://github.com/evanw/esbuild/issues/4482))
 
     Previously esbuild's minifier sometimes incorrectly inlined `using` and `await using` declarations into subsequent uses of that declaration, which then fails to dispose of the resource correctly. This bug happened because inlining was done for `let` and `const` declarations by avoiding doing it for `var` declarations, which no longer worked when more declaration types were added. Here's an example:
