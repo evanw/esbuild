@@ -94,7 +94,7 @@ function extractFileFromTarGzip(buffer: Buffer, subpath: string): Buffer {
     let name = str(offset, 100)
     let size = parseInt(str(offset + 124, 12), 8)
     offset += 512
-    if (!isNaN(size)) {
+    if (!isNaN(size) && size >= 0) {
       if (name === subpath) return buffer.subarray(offset, offset + size)
       offset += (size + 511) & ~511
     }
