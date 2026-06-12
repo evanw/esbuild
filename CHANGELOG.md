@@ -2,9 +2,9 @@
 
 ## 0.28.1
 
-* Disallow `\\` in local development server HTTP requests ([GHSA-g7r4-m6w7-qqqr](https://github.com/evanw/esbuild/security/advisories/GHSA-g7r4-m6w7-qqqr))
+* Disallow ``\`` in local development server HTTP requests ([GHSA-g7r4-m6w7-qqqr](https://github.com/evanw/esbuild/security/advisories/GHSA-g7r4-m6w7-qqqr))
 
-    This release fixes a security issue where HTTP requests to esbuild's local development server could traverse outside of the serve directory on Windows using a `\\` backslash character. It happened due to the use of Go's `path.Clean()` function, which only handles Unix-style `/` characters. HTTP requests with paths containing `\\` are no longer allowed.
+    This release fixes a security issue where HTTP requests to esbuild's local development server could traverse outside of the serve directory on Windows using a ``\`` backslash character. It happened due to the use of Go's `path.Clean()` function, which only handles Unix-style `/` characters. HTTP requests with paths containing ``\`` are no longer allowed.
 
     Thanks to [@dellalibera](https://github.com/dellalibera) for reporting this issue.
 
