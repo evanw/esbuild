@@ -1125,6 +1125,10 @@ func (service *serviceType) convertPlugins(key int, jsPlugins interface{}, activ
 						contents := string(value.([]byte))
 						result.Contents = &contents
 					}
+					if value, ok := response["prepend"]; ok {
+						prepend := string(value.([]byte))
+						result.Prepend = &prepend
+					}
 					if value, ok := response["resolveDir"]; ok {
 						result.ResolveDir = value.(string)
 					}
