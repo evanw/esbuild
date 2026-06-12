@@ -17058,7 +17058,7 @@ func (p *parser) handleIdentifier(loc logger.Loc, e *js_ast.EIdentifier, opts id
 	}
 
 	// Substitute an EImportIdentifier now if this has a namespace alias
-	if opts.assignTarget == js_ast.AssignTargetNone && !opts.isDeleteTarget {
+	if !opts.isDeleteTarget {
 		symbol := &p.symbols[ref.InnerIndex]
 		if nsAlias := symbol.NamespaceAlias; nsAlias != nil {
 			data := p.dotOrMangledPropVisit(
@@ -17066,24 +17066,27 @@ func (p *parser) handleIdentifier(loc logger.Loc, e *js_ast.EIdentifier, opts id
 				symbol.OriginalName, loc)
 
 			// Handle references to namespaces or namespace members
-			if tsMemberData, ok := p.refToTSNamespaceMemberData[nsAlias.NamespaceRef]; ok {
-				if ns, ok := tsMemberData.(*js_ast.TSNamespaceMemberNamespace); ok {
-					if member, ok := ns.ExportedMembers[nsAlias.Alias]; ok {
-						switch m := member.Data.(type) {
-						case *js_ast.TSNamespaceMemberEnumNumber:
-							return p.wrapInlinedEnum(js_ast.Expr{Loc: loc, Data: &js_ast.ENumber{Value: m.Value}}, nsAlias.Alias)
+			if opts.assignTarget == js_ast.AssignTargetNone {
+				if tsMemberData, ok := p.refToTSNamespaceMemberData[nsAlias.NamespaceRef]; ok {
+					if ns, ok := tsMemberData.(*js_ast.TSNamespaceMemberNamespace); ok {
+						if member, ok := ns.ExportedMembers[nsAlias.Alias]; ok {
+							switch m := member.Data.(type) {
+							case *js_ast.TSNamespaceMemberEnumNumber:
+								return p.wrapInlinedEnum(js_ast.Expr{Loc: loc, Data: &js_ast.ENumber{Value: m.Value}}, nsAlias.Alias)
 
-						case *js_ast.TSNamespaceMemberEnumString:
-							return p.wrapInlinedEnum(js_ast.Expr{Loc: loc, Data: &js_ast.EString{Value: m.Value}}, nsAlias.Alias)
+							case *js_ast.TSNamespaceMemberEnumString:
+								return p.wrapInlinedEnum(js_ast.Expr{Loc: loc, Data: &js_ast.EString{Value: m.Value}}, nsAlias.Alias)
 
-						case *js_ast.TSNamespaceMemberNamespace:
-							p.tsNamespaceTarget = data
-							p.tsNamespaceMemberData = member.Data
+							case *js_ast.TSNamespaceMemberNamespace:
+								p.tsNamespaceTarget = data
+								p.tsNamespaceMemberData = member.Data
+							}
 						}
 					}
 				}
 			}
 
+			p.recordUsage(nsAlias.NamespaceRef)
 			return js_ast.Expr{Loc: loc, Data: data}
 		}
 	}
