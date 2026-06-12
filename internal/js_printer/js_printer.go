@@ -1854,6 +1854,27 @@ func (p *printer) lateConstantFoldUnaryOrBinaryOrIfExpr(expr js_ast.Expr) js_ast
 	return expr
 }
 
+// isLateConstantFoldedSideEffectFree returns true if the expression resolves
+// to a side-effect-free constant after late constant folding. This is used to
+// drop expression statements like "!1;" that result from cross-module constant
+// inlining.
+func (p *printer) isLateConstantFoldedSideEffectFree(expr js_ast.Expr) bool {
+	folded := p.lateConstantFoldUnaryOrBinaryOrIfExpr(expr)
+	data := folded.Data
+
+	// Unwrap EInlinedEnum to check the inner value (e.g., enum member
+	// expression statements like "Enum.Value;" that resolve to a constant)
+	if e, ok := data.(*js_ast.EInlinedEnum); ok {
+		data = e.Value.Data
+	}
+
+	switch data.(type) {
+	case *js_ast.ENull, *js_ast.EUndefined, *js_ast.EBoolean, *js_ast.ENumber, *js_ast.EBigInt, *js_ast.EString:
+		return true
+	}
+	return false
+}
+
 func (p *printer) isUnboundIdentifier(expr js_ast.Expr) bool {
 	id, ok := expr.Data.(*js_ast.EIdentifier)
 	return ok && p.symbols.Get(ast.FollowSymbols(p.symbols, id.Ref)).Kind == ast.SymbolUnbound
@@ -4378,6 +4399,29 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 		}
 
 	case *js_ast.SIf:
+		// Late constant folding: if the test expression can be resolved to a
+		// known boolean at print time (e.g. due to cross-module constant
+		// inlining via ConstValues), we can eliminate the dead branch entirely.
+		if p.options.MinifySyntax {
+			test := p.lateConstantFoldUnaryOrBinaryOrIfExpr(s.Test)
+			if boolean, sideEffects, ok := js_ast.ToBooleanWithSideEffects(test.Data); ok && sideEffects == js_ast.NoSideEffects {
+				if boolean {
+					// Condition is true: print only the "yes" branch
+					p.printStmt(s.Yes, flags)
+				} else if s.NoOrNil.Data != nil {
+					// Condition is false with else: print only the "no" branch
+					p.printStmt(s.NoOrNil, flags)
+				} else if (flags & canOmitStatement) == 0 {
+					// Condition is false without else and we can't omit: print empty statement
+					p.addSourceMapping(stmt.Loc)
+					p.printIndent()
+					p.print(";")
+					p.printNewline()
+				}
+				break
+			}
+		}
+
 		p.addSourceMapping(stmt.Loc)
 		p.printIndent()
 		p.printIf(s)
@@ -4887,6 +4931,19 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 					p.printNewline()
 				} else {
 					// "if (x) { empty(); }" => "if (x) {}"
+				}
+				break
+			}
+
+			// Late constant folding: drop side-effect-free constant expression
+			// statements that result from cross-module constant inlining (e.g.
+			// an imported "false" that becomes "!1;" after printing)
+			if p.isLateConstantFoldedSideEffectFree(value) {
+				if (flags & canOmitStatement) == 0 {
+					p.addSourceMapping(stmt.Loc)
+					p.printIndent()
+					p.print(";")
+					p.printNewline()
 				}
 				break
 			}
