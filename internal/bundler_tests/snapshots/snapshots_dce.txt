@@ -611,11 +611,10 @@ TestDCEOfExprAfterKeepNamesIssue3195
 (() => {
   function f() {
   }
-  __name(f, "f"), firstImportantSideEffect(void 0);
+  firstImportantSideEffect(void 0);
 })(), (() => {
   function g() {
   }
-  __name(g, "g");
   debugger;
   secondImportantSideEffect(void 0);
 })();
