@@ -78,7 +78,7 @@ var foo;
 var init_entry = __esm({
   "entry.js"() {
     foo = 123;
-    console.log((init_entry(), __toCommonJS(entry_exports)));
+    console.log((init_entry(), __toCommonJSCached(entry_exports)));
   }
 });
 init_entry();
@@ -459,7 +459,7 @@ var init_foo = __esm({
 
 // entry.js
 init_foo();
-var ns2 = (init_foo(), __toCommonJS(foo_exports));
+var ns2 = (init_foo(), __toCommonJSCached(foo_exports));
 console.log(foo, ns2.foo);
 
 ================================================================================
@@ -1039,3 +1039,23 @@ var x = 1;
 
 // entry.js
 console.log(x);
+
+================================================================================
+TestRequireOfESMPreservesIdentity
+---------- /out.js ----------
+// esm.js
+var esm_exports = {};
+__export(esm_exports, {
+  value: () => value
+});
+var value;
+var init_esm = __esm({
+  "esm.js"() {
+    value = 123;
+  }
+});
+
+// entry.js
+var a = (init_esm(), __toCommonJSCached(esm_exports));
+var b = (init_esm(), __toCommonJSCached(esm_exports));
+console.log(a === b);

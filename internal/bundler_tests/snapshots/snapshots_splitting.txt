@@ -370,7 +370,7 @@ TestSplittingHybridESMAndCJSIssue617
 import {
   foo,
   init_a
-} from "./chunk-PDZFCFBH.js";
+} from "./chunk-GBWBY5I7.js";
 init_a();
 export {
   foo
@@ -378,18 +378,18 @@ export {
 
 ---------- /out/b.js ----------
 import {
-  __toCommonJS,
+  __toCommonJSCached,
   a_exports,
   init_a
-} from "./chunk-PDZFCFBH.js";
+} from "./chunk-GBWBY5I7.js";
 
 // b.js
-var bar = (init_a(), __toCommonJS(a_exports));
+var bar = (init_a(), __toCommonJSCached(a_exports));
 export {
   bar
 };
 
----------- /out/chunk-PDZFCFBH.js ----------
+---------- /out/chunk-GBWBY5I7.js ----------
 // a.js
 var a_exports = {};
 __export(a_exports, {
@@ -402,7 +402,7 @@ var init_a = __esm({
 });
 
 export {
-  __toCommonJS,
+  __toCommonJSCached,
   foo,
   a_exports,
   init_a

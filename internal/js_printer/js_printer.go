@@ -1583,10 +1583,13 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, level js_as
 		p.print(",")
 		p.printSpace()
 
-		// Wrap this with a call to "__toCommonJS()" if this is an ESM file
+		// Wrap this with a call to "__toCommonJSCached()" if this is an ESM
+		// file. The cached variant is used (rather than "__toCommonJS") so
+		// that two require() calls for the same bundled ESM module return
+		// the same wrapper object, matching Node.js CJS cache semantics.
 		wrapWithTpCJS := record.Flags.Has(ast.WrapWithToCJS)
 		if wrapWithTpCJS {
-			p.printIdentifier(p.renamer.NameForSymbol(p.options.ToCommonJSRef))
+			p.printIdentifier(p.renamer.NameForSymbol(p.options.ToCommonJSCachedRef))
 			p.print("(")
 		}
 		p.printIdentifier(p.renamer.NameForSymbol(meta.ExportsRef))
@@ -4929,6 +4932,7 @@ type Options struct {
 	LineOffsetTables []sourcemap.LineOffsetTable
 
 	ToCommonJSRef       ast.Ref
+	ToCommonJSCachedRef ast.Ref
 	ToESMRef            ast.Ref
 	RuntimeRequireRef   ast.Ref
 	UnsupportedFeatures compat.JSFeature
