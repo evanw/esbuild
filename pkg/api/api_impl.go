@@ -425,6 +425,19 @@ func validateRegex(log logger.Log, what string, value string) *regexp.Regexp {
 	return regex
 }
 
+func validateNamespaceRegex(log logger.Log, value string) *regexp.Regexp {
+	regex := validateRegex(log, "mangle prop namespaces", value)
+	if regex != nil {
+		s := regex.String()
+		if !strings.HasPrefix(s, "^") && !strings.HasSuffix(s, "$") {
+			log.AddError(nil, logger.Range{},
+				"The \"mangle prop namespaces\" regular expression must be anchored with \"^\" or \"$\"")
+			return nil
+		}
+	}
+	return regex
+}
+
 func validateExternals(log logger.Log, fs fs.FS, paths []string) config.ExternalSettings {
 	result := config.ExternalSettings{
 		PreResolve:  config.ExternalMatchers{Exact: make(map[string]bool)},
@@ -875,6 +888,21 @@ func cloneMangleCache(log logger.Log, mangleCache map[string]interface{}) map[st
 	return clone
 }
 
+func cloneMangleNamespaceCaches(nsCaches map[string]map[string]interface{}) map[string]map[string]interface{} {
+	if nsCaches == nil {
+		return nil
+	}
+	clone := make(map[string]map[string]interface{}, len(nsCaches))
+	for nsKey, nsCache := range nsCaches {
+		innerClone := make(map[string]interface{}, len(nsCache))
+		for k, v := range nsCache {
+			innerClone[k] = v
+		}
+		clone[nsKey] = innerClone
+	}
+	return clone
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Build API
 
@@ -935,16 +963,17 @@ func contextImpl(buildOpts BuildOptions) (*internalContext, []Message) {
 	}
 
 	args := rebuildArgs{
-		caches:             caches,
-		onEndCallbacks:     onEndCallbacks,
-		onDisposeCallbacks: onDisposeCallbacks,
-		logOptions:         logOptions,
-		logWarnings:        msgs,
-		entryPoints:        entryPoints,
-		options:            options,
-		mangleCache:        buildOpts.MangleCache,
-		absWorkingDir:      absWorkingDir,
-		write:              buildOpts.Write,
+		caches:                caches,
+		onEndCallbacks:        onEndCallbacks,
+		onDisposeCallbacks:    onDisposeCallbacks,
+		logOptions:            logOptions,
+		logWarnings:           msgs,
+		entryPoints:           entryPoints,
+		options:               options,
+		mangleCache:           buildOpts.MangleCache,
+		mangleNamespaceCaches: buildOpts.MangleNamespaceCaches,
+		absWorkingDir:         absWorkingDir,
+		write:                 buildOpts.Write,
 	}
 
 	return &internalContext{
@@ -1277,6 +1306,7 @@ func validateBuildOptions(
 		LineLimit:             buildOpts.LineLimit,
 		MangleProps:           validateRegex(log, "mangle props", buildOpts.MangleProps),
 		ReserveProps:          validateRegex(log, "reserve props", buildOpts.ReserveProps),
+		ManglePropNamespaces:  validateNamespaceRegex(log, buildOpts.ManglePropNamespaces),
 		MangleQuoted:          buildOpts.MangleQuoted == MangleQuotedTrue,
 		DropLabels:            append([]string{}, buildOpts.DropLabels...),
 		DropDebugger:          (buildOpts.Drop & DropDebugger) != 0,
@@ -1446,16 +1476,17 @@ type onEndCallback struct {
 }
 
 type rebuildArgs struct {
-	caches             *cache.CacheSet
-	onEndCallbacks     []onEndCallback
-	onDisposeCallbacks []func()
-	logOptions         logger.OutputOptions
-	logWarnings        []logger.Msg
-	entryPoints        []bundler.EntryPoint
-	options            config.Options
-	mangleCache        map[string]interface{}
-	absWorkingDir      string
-	write              bool
+	caches                *cache.CacheSet
+	onEndCallbacks        []onEndCallback
+	onDisposeCallbacks    []func()
+	logOptions            logger.OutputOptions
+	logWarnings           []logger.Msg
+	entryPoints           []bundler.EntryPoint
+	options               config.Options
+	mangleCache           map[string]interface{}
+	mangleNamespaceCaches map[string]map[string]interface{}
+	absWorkingDir         string
+	write                 bool
 }
 
 type rebuildState struct {
@@ -1505,7 +1536,8 @@ func rebuildImpl(args rebuildArgs, oldHashes map[string]string) (rebuildState, m
 	if !log.HasErrors() {
 		// Compile the bundle
 		result.MangleCache = cloneMangleCache(log, args.mangleCache)
-		results, metafile = bundle.Compile(log, timer, result.MangleCache, linker.Link)
+		result.MangleNamespaceCaches = cloneMangleNamespaceCaches(args.mangleNamespaceCaches)
+		results, metafile = bundle.Compile(log, timer, result.MangleCache, result.MangleNamespaceCaches, linker.Link)
 
 		// Canceling a build generates a single error at the end of the build
 		if args.options.CancelFlag.DidCancel() {
@@ -1709,6 +1741,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 	platform := validatePlatform(transformOpts.Platform)
 	defines, injectedDefines := validateDefines(log, transformOpts.Define, transformOpts.Pure, platform, false /* isBuildAPI */, false /* minify */, transformOpts.Drop)
 	mangleCache := cloneMangleCache(log, transformOpts.MangleCache)
+	mangleNamespaceCaches := cloneMangleNamespaceCaches(transformOpts.MangleNamespaceCaches)
 	options := config.Options{
 		CSSPrefixData:                      cssPrefixData,
 		UnsupportedJSFeatures:              jsFeatures.ApplyOverrides(jsOverrides, jsMask),
@@ -1743,6 +1776,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		LineLimit:             transformOpts.LineLimit,
 		MangleProps:           validateRegex(log, "mangle props", transformOpts.MangleProps),
 		ReserveProps:          validateRegex(log, "reserve props", transformOpts.ReserveProps),
+		ManglePropNamespaces:  validateNamespaceRegex(log, transformOpts.ManglePropNamespaces),
 		MangleQuoted:          transformOpts.MangleQuoted == MangleQuotedTrue,
 		DropLabels:            append([]string{}, transformOpts.DropLabels...),
 		DropDebugger:          (transformOpts.Drop & DropDebugger) != 0,
@@ -1805,7 +1839,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		// Stop now if there were errors
 		if !log.HasErrors() {
 			// Compile the bundle
-			results, _ = bundle.Compile(log, timer, mangleCache, linker.Link)
+			results, _ = bundle.Compile(log, timer, mangleCache, mangleNamespaceCaches, linker.Link)
 		}
 
 		timer.Log(log)
@@ -1838,16 +1872,18 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 	// Only return the mangle cache for a successful build
 	if log.HasErrors() {
 		mangleCache = nil
+		mangleNamespaceCaches = nil
 	}
 
 	msgs := log.Done()
 	return TransformResult{
-		Errors:        convertMessagesToPublic(logger.Error, msgs, options.LogPathStyle),
-		Warnings:      convertMessagesToPublic(logger.Warning, msgs, options.LogPathStyle),
-		Code:          code,
-		Map:           sourceMap,
-		LegalComments: legalComments,
-		MangleCache:   mangleCache,
+		Errors:                convertMessagesToPublic(logger.Error, msgs, options.LogPathStyle),
+		Warnings:              convertMessagesToPublic(logger.Warning, msgs, options.LogPathStyle),
+		Code:                  code,
+		Map:                   sourceMap,
+		LegalComments:         legalComments,
+		MangleCache:           mangleCache,
+		MangleNamespaceCaches: mangleNamespaceCaches,
 	}
 }
 

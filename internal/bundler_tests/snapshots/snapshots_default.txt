@@ -3736,6 +3736,61 @@ var { _doNotMangleThis: x } = y;
 "_doNotMangleThis" in x, (y ? "_doNotMangleThis" : z) in x, (y ? z : "_doNotMangleThis") in x;
 
 ================================================================================
+TestManglePropNamespaces
+---------- /out.js ----------
+export let typeA = {
+  a: 1,
+  b: 2
+};
+export let typeB = {
+  a: 3,
+  b: 4
+};
+
+================================================================================
+TestManglePropNamespacesAvoidGlobalCollision
+---------- /out.js ----------
+export let global = {
+  a: 1
+};
+export let typeA = {
+  b: 2
+};
+export let typeB = {
+  b: 3
+};
+
+================================================================================
+TestManglePropNamespacesFullMatch
+---------- /out.js ----------
+export let obj = {
+  a: 1,
+  b: 2,
+  b: 3
+};
+
+================================================================================
+TestManglePropNamespacesNoReuse
+---------- /out.js ----------
+export let typeA = {
+  a: 1,
+  b: 2,
+  c: 3
+};
+
+================================================================================
+TestManglePropNamespacesSuffix
+---------- /out.js ----------
+export let typeA = {
+  a: 1,
+  b: 2
+};
+export let typeB = {
+  a: 3,
+  b: 4
+};
+
+================================================================================
 TestMangleProps
 ---------- /out/entry1.js ----------
 export function shouldMangle() {

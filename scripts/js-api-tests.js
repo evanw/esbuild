@@ -90,6 +90,179 @@ let buildTests = {
     assert.deepStrictEqual(result.mangleCache, { x_: 'FIXED', y_: 'a', z_: false })
   },
 
+  async manglePropNamespacesBuild({ esbuild }) {
+    var result = await esbuild.build({
+      stdin: {
+        contents: `x = { TypeA_foo_: 1, TypeA_bar_: 2, TypeB_foo_: 3, TypeB_bar_: 4 }`,
+      },
+      mangleProps: /_$/,
+      manglePropNamespaces: /^[A-Z][^_]*_/,
+      write: false,
+    })
+    // Properties in different namespaces should reuse mangled names
+    assert.strictEqual(result.outputFiles[0].text, 'x = { a: 1, b: 2, a: 3, b: 4 };\n')
+  },
+
+  async manglePropNamespacesSuffixBuild({ esbuild }) {
+    var result = await esbuild.build({
+      stdin: {
+        contents: `x = { foo_TypeA_: 1, bar_TypeA_: 2, foo_TypeB_: 3, bar_TypeB_: 4 }`,
+      },
+      mangleProps: /_$/,
+      manglePropNamespaces: /_[A-Z][^_]*_$/,
+      write: false,
+    })
+    // Suffix namespaces should also reuse mangled names
+    assert.strictEqual(result.outputFiles[0].text, 'x = { a: 1, b: 2, a: 3, b: 4 };\n')
+  },
+
+  async manglePropNamespacesAvoidGlobalBuild({ esbuild }) {
+    var result = await esbuild.build({
+      stdin: {
+        contents: `x = { global_: 1, TypeA_foo_: 2, TypeB_foo_: 3 }`,
+      },
+      mangleProps: /_$/,
+      manglePropNamespaces: /^[A-Z][^_]*_/,
+      write: false,
+    })
+    // Namespaced properties should not collide with global ones
+    assert.strictEqual(result.outputFiles[0].text, 'x = { a: 1, b: 2, b: 3 };\n')
+  },
+
+  async mangleNamespaceCachesBuild({ esbuild }) {
+    var result = await esbuild.build({
+      stdin: {
+        contents: `x = { TypeA_foo_: 1, TypeB_foo_: 2 }`,
+      },
+      mangleProps: /_$/,
+      manglePropNamespaces: /^[A-Z][^_]*_/,
+      mangleCache: {},
+      mangleNamespaceCaches: {},
+      write: false,
+    })
+    assert.strictEqual(result.outputFiles[0].text, 'x = { a: 1, a: 2 };\n')
+    assert.deepStrictEqual(result.mangleCache, {})
+    assert.deepStrictEqual(result.mangleNamespaceCaches, {
+      '^TypeA_': { 'foo_': 'a' },
+      '^TypeB_': { 'foo_': 'a' },
+    })
+  },
+
+  async mangleNamespaceCachesRoundTrip({ esbuild }) {
+    // First build populates both global and namespace caches
+    var result1 = await esbuild.build({
+      stdin: {
+        contents: `x = { global_: 0, TypeA_foo_: 1, TypeB_foo_: 2 }`,
+      },
+      mangleProps: /_$/,
+      manglePropNamespaces: /^[A-Z][^_]*_/,
+      mangleCache: {},
+      mangleNamespaceCaches: {},
+      write: false,
+    })
+    assert.strictEqual(result1.outputFiles[0].text, 'x = { a: 0, b: 1, b: 2 };\n')
+    assert.deepStrictEqual(result1.mangleCache, { global_: 'a' })
+    assert.deepStrictEqual(result1.mangleNamespaceCaches, {
+      '^TypeA_': { 'foo_': 'b' },
+      '^TypeB_': { 'foo_': 'b' },
+    })
+
+    // Second build with new properties should honor the cached mappings
+    var result2 = await esbuild.build({
+      stdin: {
+        contents: `x = { global_: 0, other_: 9, TypeA_foo_: 1, TypeA_baz_: 2, TypeB_foo_: 3 }`,
+      },
+      mangleProps: /_$/,
+      manglePropNamespaces: /^[A-Z][^_]*_/,
+      mangleCache: result1.mangleCache,
+      mangleNamespaceCaches: result1.mangleNamespaceCaches,
+      write: false,
+    })
+    assert.strictEqual(result2.outputFiles[0].text, 'x = { a: 0, c: 9, b: 1, d: 2, b: 3 };\n')
+    assert.deepStrictEqual(result2.mangleCache, { global_: 'a', other_: 'c' })
+    assert.deepStrictEqual(result2.mangleNamespaceCaches, {
+      '^TypeA_': { 'foo_': 'b', 'baz_': 'd' },
+      '^TypeB_': { 'foo_': 'b' },
+    })
+  },
+
+  async mangleNamespaceCachesWithoutMangleCache({ esbuild }) {
+    // Namespace caches should work even without mangleCache
+    var result = await esbuild.build({
+      stdin: {
+        contents: `x = { TypeA_foo_: 1, TypeB_foo_: 2 }`,
+      },
+      mangleProps: /_$/,
+      manglePropNamespaces: /^[A-Z][^_]*_/,
+      mangleNamespaceCaches: {},
+      write: false,
+    })
+    assert.strictEqual(result.outputFiles[0].text, 'x = { a: 1, a: 2 };\n')
+    assert.strictEqual(result.mangleCache, undefined)
+    assert.deepStrictEqual(result.mangleNamespaceCaches, {
+      '^TypeA_': { 'foo_': 'a' },
+      '^TypeB_': { 'foo_': 'a' },
+    })
+  },
+
+  async mangleNamespaceCachesSuffixRoundTrip({ esbuild }) {
+    // Suffix namespaces should round-trip through caches correctly
+    var result1 = await esbuild.build({
+      stdin: {
+        contents: `x = { foo_TypeA_: 1, bar_TypeA_: 2, foo_TypeB_: 3 }`,
+      },
+      mangleProps: /_$/,
+      manglePropNamespaces: /_[A-Z][^_]*_$/,
+      mangleCache: {},
+      mangleNamespaceCaches: {},
+      write: false,
+    })
+    assert.deepStrictEqual(result1.mangleNamespaceCaches, {
+      '_TypeA_$': { 'foo': 'a', 'bar': 'b' },
+      '_TypeB_$': { 'foo': 'a' },
+    })
+
+    // Second build should honor cached suffix mappings
+    var result2 = await esbuild.build({
+      stdin: {
+        contents: `x = { foo_TypeA_: 1, baz_TypeA_: 2, foo_TypeB_: 3 }`,
+      },
+      mangleProps: /_$/,
+      manglePropNamespaces: /_[A-Z][^_]*_$/,
+      mangleCache: result1.mangleCache,
+      mangleNamespaceCaches: result1.mangleNamespaceCaches,
+      write: false,
+    })
+    assert.deepStrictEqual(result2.mangleNamespaceCaches, {
+      '_TypeA_$': { 'foo': 'a', 'bar': 'b', 'baz': 'c' },
+      '_TypeB_$': { 'foo': 'a' },
+    })
+  },
+
+  async manglePropNamespacesTransform({ esbuild }) {
+    var { code } = await esbuild.transform(`x = { TypeA_foo_: 1, TypeB_foo_: 2 }`, {
+      mangleProps: /_$/,
+      manglePropNamespaces: /^[A-Z][^_]*_/,
+    })
+    assert.strictEqual(code, 'x = { a: 1, a: 2 };\n')
+  },
+
+  async mangleNamespaceCachesTransform({ esbuild }) {
+    var { code, mangleCache, mangleNamespaceCaches } = await esbuild.transform(
+      `x = { TypeA_foo_: 1, TypeB_foo_: 2 }`, {
+        mangleProps: /_$/,
+        manglePropNamespaces: /^[A-Z][^_]*_/,
+        mangleCache: {},
+        mangleNamespaceCaches: {},
+      })
+    assert.strictEqual(code, 'x = { a: 1, a: 2 };\n')
+    assert.deepStrictEqual(mangleCache, {})
+    assert.deepStrictEqual(mangleNamespaceCaches, {
+      '^TypeA_': { 'foo_': 'a' },
+      '^TypeB_': { 'foo_': 'a' },
+    })
+  },
+
   async windowsBackslashPathTest({ esbuild, testDir }) {
     let entry = path.join(testDir, 'entry.js');
     let nested = path.join(testDir, 'nested.js');

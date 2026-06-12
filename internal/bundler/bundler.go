@@ -3009,7 +3009,7 @@ type Linker func(
 	dataForSourceMaps func() []DataForSourceMap,
 ) []graph.OutputFile
 
-func (b *Bundle) Compile(log logger.Log, timer *helpers.Timer, mangleCache map[string]interface{}, link Linker) ([]graph.OutputFile, string) {
+func (b *Bundle) Compile(log logger.Log, timer *helpers.Timer, mangleCache map[string]interface{}, mangleNamespaceCaches map[string]map[string]interface{}, link Linker) ([]graph.OutputFile, string) {
 	timer.Begin("Compile phase")
 	defer timer.End("Compile phase")
 
@@ -3023,9 +3023,10 @@ func (b *Bundle) Compile(log logger.Log, timer *helpers.Timer, mangleCache map[s
 	cssUsedLocalNames := make(map[string]bool)
 	options.ExclusiveMangleCacheUpdate = func(cb func(
 		mangleCache map[string]interface{},
+		mangleNamespaceCaches map[string]map[string]interface{},
 		cssUsedLocalNames map[string]bool,
 	)) {
-		cb(mangleCache, cssUsedLocalNames)
+		cb(mangleCache, mangleNamespaceCaches, cssUsedLocalNames)
 	}
 
 	files := make([]graph.InputFile, len(b.files))
@@ -3061,12 +3062,13 @@ func (b *Bundle) Compile(log logger.Log, timer *helpers.Timer, mangleCache map[s
 				optionsClone := options
 				optionsClone.ExclusiveMangleCacheUpdate = func(cb func(
 					mangleCache map[string]interface{},
+					mangleNamespaceCaches map[string]map[string]interface{},
 					cssUsedLocalNames map[string]bool,
 				)) {
 					// Serialize all accesses to the mangle cache in entry point order for determinism
 					serializer.Enter(i)
 					defer serializer.Leave(i)
-					cb(mangleCache, cssUsedLocalNames)
+					cb(mangleCache, mangleNamespaceCaches, cssUsedLocalNames)
 				}
 
 				resultGroups[i] = link(&optionsClone, forked, log, b.fs, b.res, files, entryPoints,
