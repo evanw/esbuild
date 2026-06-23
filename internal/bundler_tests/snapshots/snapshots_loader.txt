@@ -7,8 +7,15 @@ var require_test = __commonJS({
   }
 });
 
+// test.mp3
+var require_test2 = __commonJS({
+  "test.mp3"(exports, module) {
+    module.exports = "data:audio/mpeg;base64,YQBigGP/ZA==";
+  }
+});
+
 // entry.js
-console.log(require_test());
+console.log(require_test(), require_test2());
 
 ================================================================================
 TestEmptyLoaderCSS

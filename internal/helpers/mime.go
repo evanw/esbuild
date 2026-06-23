@@ -24,6 +24,9 @@ var builtinTypesLower = map[string]string{
 	".svg":  "image/svg+xml",
 	".webp": "image/webp",
 
+	// Audio
+	".mp3": "audio/mpeg",
+
 	// Fonts
 	".eot":   "application/vnd.ms-fontobject",
 	".otf":   "font/otf",

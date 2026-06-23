@@ -232,8 +232,9 @@ func TestAutoDetectMimeTypeFromExtension(t *testing.T) {
 	loader_suite.expectBundled(t, bundled{
 		files: map[string]string{
 			"/entry.js": `
-				console.log(require('./test.svg'))
+				console.log(require('./test.svg'), require('./test.mp3'))
 			`,
+			"/test.mp3": "a\x00b\x80c\xFFd",
 			"/test.svg": "a\x00b\x80c\xFFd",
 		},
 		entryPaths: []string{"/entry.js"},
@@ -241,6 +242,7 @@ func TestAutoDetectMimeTypeFromExtension(t *testing.T) {
 			Mode:          config.ModeBundle,
 			AbsOutputFile: "/out.js",
 			ExtensionToLoader: map[string]config.Loader{
+				".mp3": config.LoaderDataURL,
 				".js":  config.LoaderJS,
 				".svg": config.LoaderDataURL,
 			},
