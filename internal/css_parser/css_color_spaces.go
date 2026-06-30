@@ -437,7 +437,7 @@ func gamut_mapping_xyz_to_srgb(x F64, y F64, z F64) (F64, F64, F64) {
 		}
 
 		clipped_r, clipped_g, clipped_b := clip(r), clip(g), clip(b)
-		L1, a1, b1 := srgb_to_oklab(clipped_r, clipped_b, clipped_g)
+		L1, a1, b1 := srgb_to_oklab(clipped_r, clipped_g, clipped_b)
 		L2, a2, b2 := srgb_to_oklab(r, g, b)
 		E := delta_eok(L1, a1, b1, L2, a2, b2)
 		if E.Value() < JND {
