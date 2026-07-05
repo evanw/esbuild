@@ -1,6 +1,8 @@
 package api_test
 
 import (
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/evanw/esbuild/internal/test"
@@ -318,4 +320,64 @@ func TestFormatMessages(t *testing.T) {
 
 `,
 	)
+}
+
+func TestNoOverwriteInputFile(t *testing.T) {
+	dir := t.TempDir()
+	entry := dir + "/entry.js"
+	contents := "/* @license MIT */ console.log(1 + 2)"
+	if err := os.WriteFile(entry, []byte(contents), 0666); err != nil {
+		t.Fatal(err)
+	}
+
+	result := api.Build(api.BuildOptions{
+		EntryPoints:      []string{entry},
+		Outfile:          entry,
+		MinifyWhitespace: true,
+		Sourcemap:        api.SourceMapLinked,
+		LegalComments:    api.LegalCommentsExternal,
+		Write:            true,
+		LogLevel:         api.LogLevelSilent,
+	})
+
+	if len(result.Errors) != 1 || !strings.Contains(result.Errors[0].Text, "Refusing to overwrite input file") {
+		t.Fatalf("Expected an error about refusing to overwrite an input file, got %v", result.Errors)
+	}
+
+	if len(result.OutputFiles) != 0 {
+		t.Fatalf("Output files must not include the input file %q", entry)
+	}
+
+	if observed, err := os.ReadFile(entry); err != nil || string(observed) != contents {
+		t.Fatalf("Input file %q was modified: %q", entry, observed)
+	}
+
+	if _, err := os.Stat(entry + ".map"); !os.IsNotExist(err) {
+		t.Fatalf("Source map for the input file %q must not be written", entry)
+	}
+
+	if _, err := os.Stat(entry + ".LEGAL.txt"); !os.IsNotExist(err) {
+		t.Fatalf("Legal comments for the input file %q must not be written", entry)
+	}
+
+	// An output file that just happens to be named like a companion file of an
+	// input file (e.g. "entry.js.map") should still be generated normally
+	result = api.Build(api.BuildOptions{
+		EntryPoints: []string{entry},
+		Outfile:     entry + ".map",
+		Write:       true,
+		LogLevel:    api.LogLevelSilent,
+	})
+
+	if len(result.Errors) != 0 {
+		t.Fatalf("Expected no errors, got %v", result.Errors)
+	}
+
+	if len(result.OutputFiles) != 1 {
+		t.Fatalf("Expected one output file, got %v", result.OutputFiles)
+	}
+
+	if _, err := os.Stat(entry + ".map"); err != nil {
+		t.Fatalf("Output file %q must be written: %v", entry+".map", err)
+	}
 }

@@ -3103,6 +3103,7 @@ func (b *Bundle) Compile(log logger.Log, timer *helpers.Timer, mangleCache map[s
 					sourceAbsPaths[absPathKey] = sourceIndex
 				}
 			}
+			rejectedAbsPaths := make(map[string]bool)
 			for _, outputFile := range outputFiles {
 				absPathKey := canonicalFileSystemPathForWindows(outputFile.AbsPath)
 				if sourceIndex, ok := sourceAbsPaths[absPathKey]; ok {
@@ -3118,7 +3119,25 @@ func (b *Bundle) Compile(log logger.Log, timer *helpers.Timer, mangleCache map[s
 					log.AddError(nil, logger.Range{},
 						fmt.Sprintf("Refusing to overwrite input file %q%s",
 							b.files[sourceIndex].inputFile.Source.PrettyPaths.Select(options.LogPathStyle), hint))
+					rejectedAbsPaths[absPathKey] = true
 				}
+			}
+
+			// Drop rejected output files along with their associated source map
+			// and legal comment files, if present
+			if len(rejectedAbsPaths) > 0 {
+				end := 0
+				for _, outputFile := range outputFiles {
+					absPathKey := canonicalFileSystemPathForWindows(outputFile.AbsPath)
+					if rejectedAbsPaths[absPathKey] ||
+						rejectedAbsPaths[strings.TrimSuffix(absPathKey, ".map")] ||
+						rejectedAbsPaths[strings.TrimSuffix(absPathKey, ".legal.txt")] {
+						continue
+					}
+					outputFiles[end] = outputFile
+					end++
+				}
+				outputFiles = outputFiles[:end]
 			}
 		}
 
