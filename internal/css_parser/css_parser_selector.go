@@ -252,8 +252,11 @@ const (
 func analyzeLeadingAmpersand(sel css_ast.ComplexSelector, isDeclarationContext bool) leadingAmpersand {
 	if len(sel.Selectors) > 1 {
 		if first := sel.Selectors[0]; first.IsSingleAmpersand() {
-			if second := sel.Selectors[1]; second.Combinator.Byte == 0 && len(second.NestingSelectorLocs) > 0 {
+			second := sel.Selectors[1]
+			rest := css_ast.ComplexSelector{Selectors: sel.Selectors[1:]}
+			if second.Combinator.Byte == 0 && rest.ContainsNestingCombinator() {
 				// ".foo { & &.bar {} }" => ".foo { & &.bar {} }"
+				// ".foo { & .bar:not(& .baz) {} }" => ".foo { & .bar:not(& .baz) {} }"
 			} else if second.Combinator.Byte != 0 || second.TypeSelector == nil || !isDeclarationContext {
 				// "& + div {}" => "+ div {}"
 				// "& div {}" => "div {}"
