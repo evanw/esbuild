@@ -639,6 +639,12 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 	}
 
 	activeBuild := service.createActiveBuild(key)
+	shouldDestroyActiveBuild := true
+	defer func() {
+		if shouldDestroyActiveBuild {
+			service.destroyActiveBuild(key)
+		}
+	}()
 
 	hasOnEndCallbacks := false
 	if plugins, ok := request["plugins"]; ok {
@@ -769,6 +775,7 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 		// Keep the build alive until "dispose" has been called
 		activeBuild.disposeWaitGroup.Add(1)
 		activeBuild.ctx = ctx
+		shouldDestroyActiveBuild = false
 
 		return encodePacket(packet{
 			id: id,
@@ -781,8 +788,6 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 
 	result := api.Build(options)
 	response := resultToResponse(result)
-
-	service.destroyActiveBuild(key)
 
 	return encodePacket(packet{
 		id:    id,
