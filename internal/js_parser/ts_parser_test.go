@@ -3336,14 +3336,22 @@ func TestTSWarningBinaryOperatorAfterCast(t *testing.T) {
 	expectParseErrorTS(t, "1 * 2 as number * 3", "")
 	expectParseErrorTS(t, "1 * 2 as number + 3", "")
 	expectParseErrorTS(t, "1 + 2 as number * 3", "<stdin>: WARNING: Operator \"*\" should not directly follow a TypeScript type cast after the \"+\" operator\n"+note)
+	expectParseErrorTS(t, "(1 + 2) as number * 3", "")
+	expectParseErrorTS(t, "(1 + 2 as number) * 3", "")
 	expectParseErrorTS(t, "1 satisfies number + 2", "")
 	expectParseErrorTS(t, "1 + 2 satisfies number + 3", "")
 	expectParseErrorTS(t, "1 + 2 satisfies number - 3", "")
 	expectParseErrorTS(t, "1 * 2 satisfies number * 3", "")
 	expectParseErrorTS(t, "1 * 2 satisfies number + 3", "")
 	expectParseErrorTS(t, "1 + 2 satisfies number * 3", "<stdin>: WARNING: Operator \"*\" should not directly follow a TypeScript type cast after the \"+\" operator\n"+note)
+	expectParseErrorTS(t, "(1 + 2) satisfies number * 3", "")
+	expectParseErrorTS(t, "(1 + 2 satisfies number) * 3", "")
 
 	// See: https://github.com/microsoft/TypeScript/issues/63661
 	expectParseErrorTS(t, "1 ** 2 as number ** 3", "<stdin>: WARNING: Operator \"**\" should not directly follow a TypeScript type cast after the \"**\" operator\n"+note)
+	expectParseErrorTS(t, "(1 ** 2) as number ** 3", "")
+	expectParseErrorTS(t, "(1 ** 2 as number) ** 3", "")
 	expectParseErrorTS(t, "1 ** 2 satisfies number ** 3", "<stdin>: WARNING: Operator \"**\" should not directly follow a TypeScript type cast after the \"**\" operator\n"+note)
+	expectParseErrorTS(t, "(1 ** 2) satisfies number ** 3", "")
+	expectParseErrorTS(t, "(1 ** 2 satisfies number) ** 3", "")
 }

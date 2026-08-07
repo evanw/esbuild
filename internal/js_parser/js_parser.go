@@ -4989,7 +4989,7 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 		// See: https://github.com/microsoft/TypeScript/issues/63527
 		if isAfterAs {
 			if binary, ok := left.Data.(*js_ast.EBinary); ok {
-				if binaryLeft, ok := binary.Left.Data.(*js_ast.EBinary); ok {
+				if binaryLeft, ok := binary.Left.Data.(*js_ast.EBinary); ok && !binaryLeft.IsParenthesized {
 					rightLevel := js_ast.OpTable[binary.Op].Level
 					if binary.Op.IsRightAssociative() {
 						rightLevel++
@@ -11905,6 +11905,8 @@ func (p *parser) markExprAsParenthesized(value js_ast.Expr, openParenLoc logger.
 	case *js_ast.EFunction:
 		e.IsParenthesized = true
 	case *js_ast.EArrow:
+		e.IsParenthesized = true
+	case *js_ast.EBinary:
 		e.IsParenthesized = true
 	}
 }

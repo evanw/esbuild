@@ -540,9 +540,10 @@ type EUnary struct {
 }
 
 type EBinary struct {
-	Left  Expr
-	Right Expr
-	Op    OpCode
+	Left            Expr
+	Right           Expr
+	Op              OpCode
+	IsParenthesized bool
 }
 
 type EBoolean struct{ Value bool }
