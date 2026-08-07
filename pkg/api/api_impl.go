@@ -345,10 +345,15 @@ func validateFeatures(log logger.Log, target Target, engines []Engine) (compat.J
 						parts = append(parts, patch)
 					}
 				}
-				constraints[convertEngineName(engine.Name)] = compat.Semver{
+				name := convertEngineName(engine.Name)
+				new := compat.Semver{
 					Parts:      parts,
 					PreRelease: match[4],
 				}
+				if old, ok := constraints[name]; ok && compat.CompareSemver(old, new) < 0 {
+					continue
+				}
+				constraints[name] = new
 				continue
 			}
 		}

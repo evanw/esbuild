@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+* Handle target collisions ([#4509](https://github.com/evanw/esbuild/issues/4509))
+
+    It's possible to specify the same target engine multiple times, such as with `--target=chrome1,chrome99`. This edge case wasn't anticipated and previously took the last version for the duplicated target engine instead of the minimum version (so `chrome99` in this case instead of `chrome1`). With this release, esbuild will now pick the minimum version between all duplicated target engines.
+
 * Force `.mp3` files to use the `audio/mpeg` MIME type ([#4485](https://github.com/evanw/esbuild/issues/4485))
 
     MIME type detection for esbuild's data URLs uses Go's built-in MIME type detection, which is based on the [MIME sniffing standard](https://mimesniff.spec.whatwg.org/). This works correctly for MP3 files that start with the byte sequence `ID3`, which is commonly the case. However, it's possible to construct valid MP3 files that do not start with `ID3`, and that perhaps Go's built-in MIME type detection doesn't implement the "Signature for MP3 without ID3" part of the algorithm. This results in some `.mp3` files incorrectly using the `application/octet-stream` MIME type instead of `audio/mpeg`. With this release, esbuild will now always use the `audio/mpeg` MIME type for files ending in `.mp3`.

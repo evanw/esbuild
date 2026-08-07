@@ -57,6 +57,92 @@ func compareVersions(a v, b Semver) int {
 	return diff
 }
 
+func CompareSemver(a Semver, b Semver) int {
+	an := len(a.Parts)
+	bn := len(b.Parts)
+
+	n := an
+	if bn > n {
+		n = bn
+	}
+
+	for i := 0; i < n; i++ {
+		ai := 0
+		bi := 0
+		if i < an {
+			ai = a.Parts[i]
+		}
+		if i < bn {
+			bi = b.Parts[i]
+		}
+		if ai != bi {
+			return ai - bi
+		}
+	}
+
+	if (a.PreRelease != "") != (b.PreRelease != "") {
+		return len(b.PreRelease) - len(a.PreRelease)
+	}
+
+	a_tail := strings.TrimPrefix(a.PreRelease, "-")
+	b_tail := strings.TrimPrefix(b.PreRelease, "-")
+
+	for a_tail != "" && b_tail != "" {
+		var a_head, b_head string
+		a_head, a_tail = splitOffNextPreReleasePart(a_tail)
+		b_head, b_tail = splitOffNextPreReleasePart(b_tail)
+		if a_head == b_head {
+			continue
+		}
+
+		// Check for numbers
+		a_num, a_isnum := preReleasePartToNumber(a_head)
+		b_num, b_isnum := preReleasePartToNumber(b_head)
+		if !a_isnum && !b_isnum {
+			// Lexicographic comparison for non-numbers
+			if a_head < b_head {
+				return -1
+			} else {
+				return 1
+			}
+		} else if a_isnum && b_isnum {
+			// Numeric comparison for numbers
+			if a_num != b_num {
+				return a_num - b_num
+			} else {
+				// Compare lengths for different text but equal numbers (e.g. "0" vs. "00")
+				return len(a_head) - len(b_head)
+			}
+		} else {
+			// One is a number and the other isn't
+			if a_isnum {
+				return -1
+			} else {
+				return 1
+			}
+		}
+	}
+
+	return len(a_tail) - len(b_tail)
+}
+
+func splitOffNextPreReleasePart(text string) (head string, tail string) {
+	if i := strings.IndexByte(text, '.'); i != -1 {
+		return text[:i], text[i+1:]
+	}
+	return text, ""
+}
+
+func preReleasePartToNumber(text string) (int, bool) {
+	for _, c := range text {
+		if c < '0' || c > '9' {
+			return 0, false
+		}
+	}
+	n, err := strconv.Atoi(text)
+	return n, err == nil
+}
+
 // The start is inclusive and the end is exclusive
 type versionRange struct {
 	start v

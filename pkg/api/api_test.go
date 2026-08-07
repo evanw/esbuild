@@ -319,3 +319,20 @@ func TestFormatMessages(t *testing.T) {
 `,
 	)
 }
+
+func TestEngines(t *testing.T) {
+	checkChromeVersions := func(a string, b string) string {
+		result := api.Transform("a ?? b", api.TransformOptions{
+			Engines: []api.Engine{
+				{Name: api.EngineChrome, Version: a},
+				{Name: api.EngineChrome, Version: b},
+			},
+		})
+		return string(result.Code)
+	}
+
+	test.AssertEqualWithDiff(t, checkChromeVersions("99", "99"), "a ?? b;\n")
+	test.AssertEqualWithDiff(t, checkChromeVersions("9", "9"), "a != null ? a : b;\n")
+	test.AssertEqualWithDiff(t, checkChromeVersions("9", "99"), "a != null ? a : b;\n")
+	test.AssertEqualWithDiff(t, checkChromeVersions("99", "9"), "a != null ? a : b;\n")
+}
