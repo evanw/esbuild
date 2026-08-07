@@ -350,7 +350,7 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 			if contentType := helpers.MimeTypeByExtension(h.fs.Ext(file.absPath)); contentType != "" {
 				res.Header().Set("Content-Type", contentType)
 			} else {
-				res.Header().Set("Content-Type", "application/octet-stream")
+				res.Header().Set("Content-Type", http.DetectContentType(fileBytes))
 			}
 			if isRange {
 				res.Header().Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", begin, end-1, fileContentsLen))

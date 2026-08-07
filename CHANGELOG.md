@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+* Force `.mp3` files to use the `audio/mpeg` MIME type ([#4485](https://github.com/evanw/esbuild/issues/4485))
+
+    MIME type detection for esbuild's data URLs uses Go's built-in MIME type detection, which is based on the [MIME sniffing standard](https://mimesniff.spec.whatwg.org/). This works correctly for MP3 files that start with the byte sequence `ID3`, which is commonly the case. However, it's possible to construct valid MP3 files that do not start with `ID3`, and that perhaps Go's built-in MIME type detection doesn't implement the "Signature for MP3 without ID3" part of the algorithm. This results in some `.mp3` files incorrectly using the `application/octet-stream` MIME type instead of `audio/mpeg`. With this release, esbuild will now always use the `audio/mpeg` MIME type for files ending in `.mp3`.
+
 * Add a new TypeScript syntax warning
 
     TypeScript 7 turned some previously-valid TypeScript syntax into a syntax error because it was confusing. TypeScript 6 accepts `1 + 2 as number * 3` as valid syntax but confusingly converts it to `(1 + 2) * 3` instead of the more intuitive conversion to `1 + (2 * 3)`. This syntax is now an error in TypeScript 7+. With this release, esbuild will now warn about the use of this syntax:
