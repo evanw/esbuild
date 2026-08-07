@@ -214,6 +214,12 @@ class Foo {
 _x = new WeakMap();
 `)
 
+	// Lowering generates an additional symbol use that must keep the declaration
+	expectPrintedMangleTarget(t, 2020, `let r;
+(P => (P[P.NOT_RECOGNIZED = 0] = "NOT_RECOGNIZED", P[P.SET = 1] = "SET"))(r ||= {});`, `let r;
+((P) => (P[P.NOT_RECOGNIZED = 0] = "NOT_RECOGNIZED", P[P.SET = 1] = "SET"))(r || (r = {}));
+`)
+
 	expectPrintedTarget(t, 2021, "a ||= b", "a ||= b;\n")
 	expectPrintedTarget(t, 2021, "a.b ||= c", "a.b ||= c;\n")
 	expectPrintedTarget(t, 2021, "a().b ||= c", "a().b ||= c;\n")

@@ -849,6 +849,9 @@ func (p *parser) lowerAssignmentOperator(value js_ast.Expr, callback func(js_ast
 		}
 
 	case *js_ast.EIdentifier:
+		// The assignment target was already recorded as one usage when it was
+		// visited. Lowering it generates a second usage, so record that too.
+		p.recordUsage(left.Ref)
 		return callback(
 			js_ast.Expr{Loc: value.Loc, Data: &js_ast.EIdentifier{Ref: left.Ref}},
 			value,
