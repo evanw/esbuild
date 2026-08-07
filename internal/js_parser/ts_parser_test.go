@@ -3324,3 +3324,26 @@ func TestTSUsing(t *testing.T) {
 	expectParseErrorTS(t, "export using x: any = y", "<stdin>: ERROR: Unexpected \"using\"\n")
 	expectParseErrorTS(t, "namespace ns { export using x: any = y }", "<stdin>: ERROR: Unexpected \"using\"\n")
 }
+
+func TestTSWarningBinaryOperatorAfterCast(t *testing.T) {
+	note := "<stdin>: NOTE: This is a syntax error in newer versions of TypeScript because the type cast has unintuitive precedence in this case. " +
+		"Surround the inner expression in parentheses to silence this warning:\n"
+
+	// See: https://github.com/microsoft/TypeScript/issues/63527
+	expectParseErrorTS(t, "1 as number + 2", "")
+	expectParseErrorTS(t, "1 + 2 as number + 3", "")
+	expectParseErrorTS(t, "1 + 2 as number - 3", "")
+	expectParseErrorTS(t, "1 * 2 as number * 3", "")
+	expectParseErrorTS(t, "1 * 2 as number + 3", "")
+	expectParseErrorTS(t, "1 + 2 as number * 3", "<stdin>: WARNING: Operator \"*\" should not directly follow a TypeScript type cast after the \"+\" operator\n"+note)
+	expectParseErrorTS(t, "1 satisfies number + 2", "")
+	expectParseErrorTS(t, "1 + 2 satisfies number + 3", "")
+	expectParseErrorTS(t, "1 + 2 satisfies number - 3", "")
+	expectParseErrorTS(t, "1 * 2 satisfies number * 3", "")
+	expectParseErrorTS(t, "1 * 2 satisfies number + 3", "")
+	expectParseErrorTS(t, "1 + 2 satisfies number * 3", "<stdin>: WARNING: Operator \"*\" should not directly follow a TypeScript type cast after the \"+\" operator\n"+note)
+
+	// See: https://github.com/microsoft/TypeScript/issues/63661
+	expectParseErrorTS(t, "1 ** 2 as number ** 3", "<stdin>: WARNING: Operator \"**\" should not directly follow a TypeScript type cast after the \"**\" operator\n"+note)
+	expectParseErrorTS(t, "1 ** 2 satisfies number ** 3", "<stdin>: WARNING: Operator \"**\" should not directly follow a TypeScript type cast after the \"**\" operator\n"+note)
+}

@@ -21,6 +21,7 @@ const (
 	MsgID_JS_CallImportNamespace
 	MsgID_JS_ClassNameWillThrow
 	MsgID_JS_CommonJSVariableInESM
+	MsgID_JS_ConfusingTypeScriptCast
 	MsgID_JS_DeleteSuperProperty
 	MsgID_JS_DirectEval
 	MsgID_JS_DuplicateCase
@@ -116,6 +117,8 @@ func StringToMsgIDs(str string, logLevel LogLevel, overrides map[MsgID]LogLevel)
 		overrides[MsgID_JS_ClassNameWillThrow] = logLevel
 	case "commonjs-variable-in-esm":
 		overrides[MsgID_JS_CommonJSVariableInESM] = logLevel
+	case "confusing-typescript-cast":
+		overrides[MsgID_JS_ConfusingTypeScriptCast] = logLevel
 	case "delete-super-property":
 		overrides[MsgID_JS_DeleteSuperProperty] = logLevel
 	case "direct-eval":
@@ -248,6 +251,8 @@ func MsgIDToString(id MsgID) string {
 		return "class-name-will-throw"
 	case MsgID_JS_CommonJSVariableInESM:
 		return "commonjs-variable-in-esm"
+	case MsgID_JS_ConfusingTypeScriptCast:
+		return "confusing-typescript-cast"
 	case MsgID_JS_DeleteSuperProperty:
 		return "delete-super-property"
 	case MsgID_JS_DirectEval:

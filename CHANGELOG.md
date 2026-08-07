@@ -1,5 +1,29 @@
 # Changelog
 
+## Unreleased
+
+* Add a new TypeScript syntax warning
+
+    TypeScript 7 turned some previously-valid TypeScript syntax into a syntax error because it was confusing. TypeScript 6 accepts `1 + 2 as number * 3` as valid syntax but confusingly converts it to `(1 + 2) * 3` instead of the more intuitive conversion to `1 + (2 * 3)`. This syntax is now an error in TypeScript 7+. With this release, esbuild will now warn about the use of this syntax:
+
+    ```ts
+    ▲ [WARNING] Operator "*" should not directly follow a TypeScript type cast after the "+" operator [confusing-typescript-cast]
+
+        example.ts:1:28:
+          1 │ console.log(1 + 2 as number * 3)
+            ╵                             ^
+
+      This is a syntax error in newer versions of TypeScript because the type cast has unintuitive
+      precedence in this case. Surround the inner expression in parentheses to silence this warning:
+
+        example.ts:1:12:
+          1 │ console.log(1 + 2 as number * 3)
+            │             ~~~~~~~~~~~~~~~
+            ╵             (             )
+    ```
+
+    See [microsoft/TypeScript#63527](https://github.com/microsoft/TypeScript/issues/63527) for more information.
+
 ## 0.28.1
 
 * Disallow ``\`` in local development server HTTP requests ([GHSA-g7r4-m6w7-qqqr](https://github.com/evanw/esbuild/security/advisories/GHSA-g7r4-m6w7-qqqr))

@@ -4262,6 +4262,7 @@ func (p *parser) parseExprCommon(level js_ast.L, errors *deferredErrors, flags e
 
 func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredErrors, flags exprFlag) js_ast.Expr {
 	optionalChain := js_ast.OptionalChainNone
+	afterAsLoc := logger.Loc{Start: -1}
 
 	for {
 		if p.lexer.Loc() == p.afterArrowBodyLoc {
@@ -4281,9 +4282,11 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 		}
 
 		// Stop now if this token is forbidden to follow a TypeScript "as" cast
-		if p.lexer.Loc() == p.forbidSuffixAfterAsLoc {
+		operatorRange := p.lexer.Range()
+		if operatorRange.Loc == p.forbidSuffixAfterAsLoc {
 			return left
 		}
+		isAfterAs := operatorRange.Loc == afterAsLoc
 
 		// Reset the optional chain flag by default. That way we won't accidentally
 		// treat "c.d" as OptionalChainContinue in "a?.b + c.d".
@@ -4976,10 +4979,38 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 					p.forbidSuffixAfterAsLoc = p.lexer.Loc()
 					return left
 				}
+				afterAsLoc = p.lexer.Loc()
 				continue
 			}
 
 			return left
+		}
+
+		// See: https://github.com/microsoft/TypeScript/issues/63527
+		if isAfterAs {
+			if binary, ok := left.Data.(*js_ast.EBinary); ok {
+				if binaryLeft, ok := binary.Left.Data.(*js_ast.EBinary); ok {
+					rightLevel := js_ast.OpTable[binary.Op].Level
+					if binary.Op.IsRightAssociative() {
+						rightLevel++
+					}
+					if rightLevel > js_ast.OpTable[binaryLeft.Op].Level {
+						start := binary.Left.Loc
+						end := p.source.LocBeforeWhitespace(operatorRange.Loc)
+						wrapRange := logger.Range{Loc: start, Len: end.Start - start.Start}
+						note := logger.MsgData{Text: "This is a syntax error in newer versions of TypeScript because the type cast has unintuitive precedence in this case."}
+						if text := p.source.TextForRange(wrapRange); !strings.ContainsRune(text, '\n') {
+							note = p.tracker.MsgData(wrapRange, note.Text+" Surround the inner expression in parentheses to silence this warning:")
+							note.Location.Suggestion = textForParenthesesSuggestion(text)
+						}
+						p.log.AddIDWithNotes(logger.MsgID_JS_ConfusingTypeScriptCast, logger.Warning, &p.tracker, operatorRange,
+							fmt.Sprintf("Operator %q should not directly follow a TypeScript type cast after the %q operator",
+								js_ast.OpTable[binary.Op].Text, js_ast.OpTable[binaryLeft.Op].Text),
+							[]logger.MsgData{note},
+						)
+					}
+				}
+			}
 		}
 	}
 }
@@ -7019,7 +7050,7 @@ loop:
 		var notes []logger.MsgData
 		if text := p.source.TextForRange(wrapRange); !strings.ContainsRune(text, '\n') {
 			note := p.tracker.MsgData(wrapRange, "Wrap this decorator in parentheses to allow arbitrary expressions:")
-			note.Location.Suggestion = fmt.Sprintf("(%s)", text)
+			note.Location.Suggestion = textForParenthesesSuggestion(text)
 			notes = []logger.MsgData{note}
 		}
 		p.log.AddMsg(logger.Msg{
@@ -7030,6 +7061,14 @@ loop:
 	}
 
 	return memberExpr
+}
+
+func textForParenthesesSuggestion(text string) string {
+	count := utf8.RuneCountInString(text) - 2
+	if count < 1 {
+		count = 1
+	}
+	return fmt.Sprintf("(%s)", strings.Repeat(" ", count))
 }
 
 type lexicalDecl uint8
