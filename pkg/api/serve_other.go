@@ -227,18 +227,19 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		// Check for a file in the "servedir" directory
 		if h.servedir != "" && kind != fs.FileEntry {
 			absPath := h.fs.Join(h.servedir, queryPath)
+			if symlink, ok := h.fs.EvalSymlinks(absPath); ok {
+				absPath = symlink
+			}
 			if absDir := h.fs.Dir(absPath); absDir != absPath {
 				if entries, err, _ := h.fs.ReadDirectory(absDir); err == nil {
 					if entry, _ := entries.Get(h.fs.Base(absPath)); entry != nil && entry.Kind(h.fs) == fs.FileEntry {
-						if h.keyfileToLower != "" || h.certfileToLower != "" {
-							if toLower := strings.ToLower(absPath); toLower == h.keyfileToLower || toLower == h.certfileToLower {
-								// Don't serve the HTTPS key or certificate. This uses a case-
-								// insensitive check because some file systems are case-sensitive.
-								go h.notifyRequest(time.Since(start), req, http.StatusForbidden)
-								res.WriteHeader(http.StatusForbidden)
-								maybeWriteResponseBody([]byte("403 - Forbidden"))
-								return
-							}
+						if strings.EqualFold(absPath, h.keyfileToLower) || strings.EqualFold(absPath, h.certfileToLower) {
+							// Don't serve the HTTPS key or certificate. This uses a case-
+							// insensitive check because some file systems are case-sensitive.
+							go h.notifyRequest(time.Since(start), req, http.StatusForbidden)
+							res.WriteHeader(http.StatusForbidden)
+							maybeWriteResponseBody([]byte("403 - Forbidden"))
+							return
 						}
 						if contents, err, _ := h.fs.OpenFile(absPath); err == nil {
 							defer contents.Close()
@@ -904,6 +905,12 @@ func (ctx *internalContext) Serve(serveOptions ServeOptions) (ServeResult, error
 	if isHTTPS {
 		serveOptions.Keyfile, _ = ctx.realFS.Abs(serveOptions.Keyfile)
 		serveOptions.Certfile, _ = ctx.realFS.Abs(serveOptions.Certfile)
+		if symlink, ok := ctx.realFS.EvalSymlinks(serveOptions.Keyfile); ok {
+			serveOptions.Keyfile = symlink
+		}
+		if symlink, ok := ctx.realFS.EvalSymlinks(serveOptions.Certfile); ok {
+			serveOptions.Certfile = symlink
+		}
 	}
 
 	var shouldStop int32
