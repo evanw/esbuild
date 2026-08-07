@@ -346,12 +346,28 @@ func (h *apiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 				return
 			}
 
-			// If we get here, the request was successful
-			if contentType := helpers.MimeTypeByExtension(h.fs.Ext(file.absPath)); contentType != "" {
-				res.Header().Set("Content-Type", contentType)
-			} else {
-				res.Header().Set("Content-Type", http.DetectContentType(fileBytes))
+			// Try to detect the MIME type
+			contentType := helpers.MimeTypeByExtension(h.fs.Ext(file.absPath))
+			if contentType == "" {
+				if begin == 0 {
+					contentType = http.DetectContentType(fileBytes)
+				} else {
+					// Read the file header for MIME type detection of HTTP range requests
+					limit := 512
+					if limit > fileContentsLen {
+						limit = fileContentsLen
+					}
+					if headerBytes, err := file.contents.Read(0, limit); err == nil {
+						contentType = http.DetectContentType(headerBytes)
+					}
+				}
 			}
+			if contentType == "" {
+				contentType = "application/octet-stream"
+			}
+
+			// If we get here, the request was successful
+			res.Header().Set("Content-Type", contentType)
 			if isRange {
 				res.Header().Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", begin, end-1, fileContentsLen))
 			}

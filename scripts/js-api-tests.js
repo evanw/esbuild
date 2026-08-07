@@ -4945,6 +4945,7 @@ let serveTests = {
     const big = path.join(testDir, 'big.txt')
     const byteCount = 16 * 1024 * 1024
     const buffer = require('crypto').randomBytes(byteCount)
+    for (let i = 0; i < 1; i++) buffer[i] = 0xFF - i // Make sure the MIME type is "application/octet-stream"
     await writeFileAsync(big, buffer)
 
     const context = await esbuild.context({});
