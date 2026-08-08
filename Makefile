@@ -76,7 +76,8 @@ go-compiler: go/$(GO_VERSION)
 # into other text, and a local development server that serves a read-only
 # view of your source code and is not intended for production use.
 go/$(GO_VERSION):
-	mkdir -p go/$(GO_VERSION) && cd go/$(GO_VERSION) && curl -LO https://go.dev/dl/go$(GO_VERSION).src.tar.gz && tar xzf go$(GO_VERSION).src.tar.gz
+	mkdir -p go/$(GO_VERSION) && touch go/go.mod # Disable the Go language server in this folder
+	cd go/$(GO_VERSION) && curl -LO https://go.dev/dl/go$(GO_VERSION).src.tar.gz && tar xzf go$(GO_VERSION).src.tar.gz
 	cd go/$(GO_VERSION)/go && grep -qF "ctxt.buildinfo()" src/cmd/link/internal/ld/main.go # Make sure this call is still there
 	cd go/$(GO_VERSION)/go/src/cmd/link/internal/ld && sed "s/ctxt.buildinfo/\\/\\/ctxt.buildinfo/" main.go > temp && mv temp main.go
 	cd go/$(GO_VERSION)/go/src && if uname | grep -qE "MINGW|WIN32|CYGWIN"; then ./make.bat; else ./make.bash; fi
