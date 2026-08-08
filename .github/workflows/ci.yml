@@ -121,6 +121,8 @@ jobs:
           deno-version: v1.40.0
 
       - name: go test
+        env:
+          WT_SESSION: 1 # Ensure that FormatMessages output on Windows matches macOS
         run: go test -race ./cmd/... ./internal/... ./pkg/...
 
       - name: go vet
