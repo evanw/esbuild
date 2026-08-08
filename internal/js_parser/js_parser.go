@@ -4919,7 +4919,7 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 			if e, ok := left.Data.(*js_ast.EUnary); ok && e.Op == js_ast.UnOpNot {
 				r := logger.Range{Loc: left.Loc, Len: p.source.LocBeforeWhitespace(p.lexer.Loc()).Start - left.Loc.Start}
 				data := p.tracker.MsgData(r, "Suspicious use of the \"!\" operator inside the \"in\" operator")
-				data.Location.Suggestion = fmt.Sprintf("(%s)", p.source.TextForRange(r))
+				data.Location.Suggestion = textForParenthesesSuggestion(p.source.TextForRange(r))
 				p.log.AddMsgID(logger.MsgID_JS_SuspiciousBooleanNot, logger.Msg{
 					Kind: kind,
 					Data: data,
@@ -4945,7 +4945,7 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 			if e, ok := left.Data.(*js_ast.EUnary); ok && e.Op == js_ast.UnOpNot {
 				r := logger.Range{Loc: left.Loc, Len: p.source.LocBeforeWhitespace(p.lexer.Loc()).Start - left.Loc.Start}
 				data := p.tracker.MsgData(r, "Suspicious use of the \"!\" operator inside the \"instanceof\" operator")
-				data.Location.Suggestion = fmt.Sprintf("(%s)", p.source.TextForRange(r))
+				data.Location.Suggestion = textForParenthesesSuggestion(p.source.TextForRange(r))
 				p.log.AddMsgID(logger.MsgID_JS_SuspiciousBooleanNot, logger.Msg{
 					Kind: kind,
 					Data: data,
