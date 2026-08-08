@@ -836,6 +836,19 @@ func parseOptionsImpl(
 				transformOpts.LogLevel = logLevel
 			}
 
+		// Make sure this stays in sync with "PrintErrorToStderr"
+		case strings.HasPrefix(arg, "--log-style="):
+			value := arg[len("--log-style="):]
+			logStyle, err := parseLogStyle(value, arg)
+			if err != nil {
+				return parseOptionsExtras{}, err
+			}
+			if buildOpts != nil {
+				buildOpts.LogStyle = logStyle
+			} else {
+				transformOpts.LogStyle = logStyle
+			}
+
 		case strings.HasPrefix(arg, "'--"):
 			return parseOptionsExtras{}, cli_helpers.MakeErrorWithNote(
 				fmt.Sprintf("Unexpected single quote character before flag: %s", arg),
@@ -1559,6 +1572,20 @@ func parseLogLevel(value string, arg string) (api.LogLevel, *cli_helpers.ErrorWi
 		return api.LogLevelSilent, cli_helpers.MakeErrorWithNote(
 			fmt.Sprintf("Invalid value %q in %q", value, arg),
 			"Valid values are \"verbose\", \"debug\", \"info\", \"warning\", \"error\", or \"silent\".",
+		)
+	}
+}
+
+func parseLogStyle(value string, arg string) (api.LogStyle, *cli_helpers.ErrorWithNote) {
+	switch value {
+	case "default":
+		return api.LogStyleDefault, nil
+	case "visualstudio":
+		return api.LogStyleVisualStudio, nil
+	default:
+		return api.LogStyleDefault, cli_helpers.MakeErrorWithNote(
+			fmt.Sprintf("Invalid value %q in %q", value, arg),
+			"Valid values are \"default\" or \"visualstudio\".",
 		)
 	}
 }

@@ -205,6 +205,17 @@ func validateLogLevel(value LogLevel) logger.LogLevel {
 	}
 }
 
+func validateLogStyle(value LogStyle) logger.LogStyle {
+	switch value {
+	case LogStyleDefault:
+		return logger.StyleDefault
+	case LogStyleVisualStudio:
+		return logger.StyleVisualStudio
+	default:
+		panic("Invalid log style")
+	}
+}
+
 func validateASCIIOnly(value Charset) bool {
 	switch value {
 	case CharsetDefault, CharsetASCII:
@@ -889,6 +900,7 @@ func contextImpl(buildOpts BuildOptions) (*internalContext, []Message) {
 		MessageLimit:  buildOpts.LogLimit,
 		Color:         validateColor(buildOpts.Color),
 		LogLevel:      validateLogLevel(buildOpts.LogLevel),
+		LogStyle:      validateLogStyle(buildOpts.LogStyle),
 		PathStyle:     extractPathStyle(buildOpts.AbsPaths, LogAbsPath),
 		Overrides:     validateLogOverrides(buildOpts.LogOverride),
 	}
@@ -1695,6 +1707,7 @@ func transformImpl(input string, transformOpts TransformOptions) TransformResult
 		MessageLimit:  transformOpts.LogLimit,
 		Color:         validateColor(transformOpts.Color),
 		LogLevel:      validateLogLevel(transformOpts.LogLevel),
+		LogStyle:      validateLogStyle(transformOpts.LogStyle),
 		PathStyle:     extractPathStyle(transformOpts.AbsPaths, LogAbsPath),
 		Overrides:     validateLogOverrides(transformOpts.LogOverride),
 	})
@@ -2204,6 +2217,7 @@ func formatMsgsImpl(msgs []Message, opts FormatMessagesOptions) []string {
 		strings[i] = msg.String(
 			logger.OutputOptions{
 				IncludeSource: true,
+				LogStyle:      validateLogStyle(opts.LogStyle),
 			},
 			logger.TerminalInfo{
 				UseColorEscapes: opts.Color,

@@ -1245,6 +1245,21 @@ func (service *serviceType) handleFormatMessagesRequest(id uint32, request map[s
 	if value, ok := request["terminalWidth"].(int); ok {
 		options.TerminalWidth = value
 	}
+	if logStyle, ok := request["logStyle"].(string); ok {
+		switch logStyle {
+		case "default":
+			options.LogStyle = api.LogStyleDefault
+		case "visualstudio":
+			options.LogStyle = api.LogStyleVisualStudio
+		default:
+			return encodePacket(packet{
+				id: id,
+				value: map[string]interface{}{
+					"error": fmt.Sprintf("Invalid log style: %q", logStyle),
+				},
+			})
+		}
+	}
 
 	result := api.FormatMessages(msgs, options)
 

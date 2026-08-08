@@ -128,11 +128,13 @@ function pushLogFlags(flags: string[], options: CommonOptions, keys: OptionKeys,
   let color = getFlag(options, keys, 'color', mustBeBoolean)
   let logLevel = getFlag(options, keys, 'logLevel', mustBeString)
   let logLimit = getFlag(options, keys, 'logLimit', mustBeInteger)
+  let logStyle = getFlag(options, keys, 'logStyle', mustBeString)
 
   if (color !== void 0) flags.push(`--color=${color}`)
   else if (isTTY) flags.push(`--color=true`); // This is needed to fix "execFileSync" which buffers stderr
   flags.push(`--log-level=${logLevel || logLevelDefault}`)
   flags.push(`--log-limit=${logLimit || 0}`)
+  if (logStyle) flags.push(`--log-style=${logStyle}`)
 }
 
 function validateStringValue(value: unknown, what: string, key?: string): string {
@@ -791,6 +793,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     let kind = getFlag(options, keys, 'kind', mustBeString)
     let color = getFlag(options, keys, 'color', mustBeBoolean)
     let terminalWidth = getFlag(options, keys, 'terminalWidth', mustBeInteger)
+    let logStyle = getFlag(options, keys, 'logStyle', mustBeString)
     checkForInvalidFlags(options, keys, `in ${callName}() call`)
     if (kind === void 0) throw new Error(`Missing "kind" in ${callName}() call`)
     if (kind !== 'error' && kind !== 'warning') throw new Error(`Expected "kind" to be "error" or "warning" in ${callName}() call`)
@@ -801,6 +804,7 @@ export function createChannel(streamIn: StreamIn): StreamOut {
     }
     if (color !== void 0) request.color = color
     if (terminalWidth !== void 0) request.terminalWidth = terminalWidth
+    if (logStyle !== void 0) request.logStyle = logStyle
     sendRequest<protocol.FormatMsgsRequest, protocol.FormatMsgsResponse>(refs, request, (error, response) => {
       if (error) return callback(new Error(error), null)
       callback(null, response!.messages)

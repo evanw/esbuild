@@ -7590,12 +7590,29 @@ let formatTests = {
     const messages = await esbuild.formatMessages([
       { text: 'This is an error' },
       { text: 'Another error', location: { file: 'file.js' } },
+      { text: 'Error with line and column', location: { file: 'file.js', line: 3, column: 6 } },
     ], {
       kind: 'error',
     })
-    assert.strictEqual(messages.length, 2)
+    assert.strictEqual(messages.length, 3)
     assert.strictEqual(messages[0], `${errorIcon} [ERROR] This is an error\n\n`)
     assert.strictEqual(messages[1], `${errorIcon} [ERROR] Another error\n\n    file.js:0:0:\n      0 │ \n        ╵ ^\n\n`)
+    assert.strictEqual(messages[2], `${errorIcon} [ERROR] Error with line and column\n\n    file.js:3:6:\n      3 │ \n        ╵ ^\n\n`)
+  },
+
+  async formatMessagesVisualStudio({ esbuild }) {
+    const messages = await esbuild.formatMessages([
+      { text: 'This is an error' },
+      { text: 'Another error', location: { file: 'file.js' } },
+      { text: 'Error with line and column', location: { file: 'file.js', line: 3, column: 6 } },
+    ], {
+      kind: 'error',
+      logStyle: 'visualstudio',
+    })
+    assert.strictEqual(messages.length, 3)
+    assert.strictEqual(messages[0], `esbuild: error: This is an error\n`)
+    assert.strictEqual(messages[1], `file.js: error: Another error\n`)
+    assert.strictEqual(messages[2], `file.js(3,7): error: Error with line and column\n`)
   },
 }
 

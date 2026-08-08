@@ -63,6 +63,19 @@
 
     See [microsoft/TypeScript#63527](https://github.com/microsoft/TypeScript/issues/63527) for more information.
 
+* Add support for formatting errors for Visual Studio ([#4460](https://github.com/evanw/esbuild/issues/4460))
+
+    Visual Studio has a specific style that it expects log messages to be in for them to show up in the UI when esbuild is run as a custom build step. The current log style that esbuild uses doesn't conform to this specific style.
+
+    With this release, esbuild has a new log style for Visual Studio (and other tools in the MSBuild ecosystem) that can be enabled with `--log-style=visualstudio`. Here is an example log message in this style:
+
+    ```
+    $ esbuild example.ts --log-style=visualstudio
+    /Users/evan/dev/esbuild/example.ts(1,29): warning: Operator "*" should not directly follow a TypeScript type cast after the "+" operator
+    ```
+
+    This visual style is also available via the JS and Go APIs, and can now be used with the existing `formatMessages` API.
+
 ## 0.28.1
 
 * Disallow ``\`` in local development server HTTP requests ([GHSA-g7r4-m6w7-qqqr](https://github.com/evanw/esbuild/security/advisories/GHSA-g7r4-m6w7-qqqr))

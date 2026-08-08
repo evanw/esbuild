@@ -135,6 +135,7 @@ export interface FormatMsgsRequest {
   isWarning: boolean
   color?: boolean
   terminalWidth?: number
+  logStyle?: string
 }
 
 export interface FormatMsgsResponse {

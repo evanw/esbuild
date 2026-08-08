@@ -2,6 +2,7 @@ export type Platform = 'browser' | 'node' | 'neutral'
 export type Format = 'iife' | 'cjs' | 'esm'
 export type Loader = 'base64' | 'binary' | 'copy' | 'css' | 'dataurl' | 'default' | 'empty' | 'file' | 'js' | 'json' | 'jsx' | 'local-css' | 'text' | 'ts' | 'tsx'
 export type LogLevel = 'verbose' | 'debug' | 'info' | 'warning' | 'error' | 'silent'
+export type LogStyle = 'default' | 'visualstudio'
 export type Charset = 'ascii' | 'utf8'
 export type Drop = 'console' | 'debugger'
 export type AbsPaths = 'code' | 'log' | 'metafile'
@@ -86,6 +87,8 @@ interface CommonOptions {
   logLimit?: number
   /** Documentation: https://esbuild.github.io/api/#log-override */
   logOverride?: Record<string, LogLevel>
+  /** Documentation: https://esbuild.github.io/api/#log-style */
+  logStyle?: LogStyle
 
   /** Documentation: https://esbuild.github.io/api/#tsconfig-raw */
   tsconfigRaw?: string | TsconfigRaw
@@ -509,6 +512,7 @@ export interface FormatMessagesOptions {
   kind: 'error' | 'warning'
   color?: boolean
   terminalWidth?: number
+  logStyle?: LogStyle
 }
 
 export interface AnalyzeMetafileOptions {
