@@ -153,7 +153,7 @@ func TestFormatMessages(t *testing.T) {
 		}},
 		`✘ [ERROR] This is a test
 
-    some file.js:100:59:
+    some file.js:100:200:
       100 │ ...defghi ABCDEFGHI
           ╵                    ^
 
