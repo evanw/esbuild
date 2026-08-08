@@ -116,6 +116,12 @@
 
     This log style is also available via the JS and Go APIs, and can now be used with the existing `formatMessages` API.
 
+* Fix a bug with CSS gamut mapping ([#4488](https://github.com/evanw/esbuild/pull/4488))
+
+    Due to a typo, the fallback colors generated for CSS colors outside of the sRGB gamut weren't correct. This release fixes the generated colors to use the intended algorithm.
+
+    This fix was submitted by [@chatman-media](https://github.com/chatman-media).
+
 ## 0.28.1
 
 * Disallow ``\`` in local development server HTTP requests ([GHSA-g7r4-m6w7-qqqr](https://github.com/evanw/esbuild/security/advisories/GHSA-g7r4-m6w7-qqqr))
