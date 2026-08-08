@@ -116,7 +116,8 @@ type globResolveResult struct {
 
 type tlaCheck struct {
 	parent            ast.Index32
-	depth             uint32
+	depth             ast.Index32
+	pass              uint32
 	importRecordIndex uint32
 }
 
@@ -2810,13 +2811,17 @@ func (s *scanner) processScannedFiles(entryPointMeta []graph.EntryPoint) []scann
 		s.results[sourceIndex] = result
 	}
 
+	// Traverse the graph to check top-level await
+	if s.iterativelyValidateTLA() {
+		s.reportInvalidTLA()
+	}
+
 	// The linker operates on an array of files, so construct that now. This
 	// can't be constructed earlier because we generate new parse results for
 	// JavaScript stub files for CSS imports above.
 	files := make([]scannerFile, len(s.results))
 	for sourceIndex := range s.results {
 		if result := &s.results[sourceIndex]; result.ok {
-			s.validateTLA(uint32(sourceIndex))
 			files[sourceIndex] = result.file
 		}
 	}
@@ -2824,33 +2829,69 @@ func (s *scanner) processScannedFiles(entryPointMeta []graph.EntryPoint) []scann
 	return files
 }
 
-func (s *scanner) validateTLA(sourceIndex uint32) tlaCheck {
+func (s *scanner) iterativelyValidateTLA() bool {
+	pass := uint32(1)
+	hasTLA := false
+
+	// Iterate until a fixed point has been reached to handle graph cycles
+	for {
+		didChange := false
+		for sourceIndex := range s.results {
+			s.recursivelyValidateTLA(uint32(sourceIndex), pass, &didChange)
+		}
+		if !didChange {
+			return hasTLA
+		}
+		pass++
+		hasTLA = true
+	}
+}
+
+func (s *scanner) recursivelyValidateTLA(sourceIndex uint32, pass uint32, didChange *bool) tlaCheck {
 	result := &s.results[sourceIndex]
 
-	if result.ok && result.tlaCheck.depth == 0 {
+	// Use a "pass" integer instead of a separate "visited" set
+	if result.ok && result.tlaCheck.pass != pass {
+		result.tlaCheck.pass = pass
+
 		if repr, ok := result.file.inputFile.Repr.(*graph.JSRepr); ok {
-			result.tlaCheck.depth = 1
-			if repr.AST.LiveTopLevelAwaitKeyword.Len > 0 {
+			// If this module contains top-level await, set its parent to itself
+			if repr.AST.LiveTopLevelAwaitKeyword.Len > 0 && result.tlaCheck.parent.GetIndex() != sourceIndex {
 				result.tlaCheck.parent = ast.MakeIndex32(sourceIndex)
+				result.tlaCheck.depth = ast.MakeIndex32(1)
+				*didChange = true
 			}
 
+			// Check all import statements and require calls (only import statements are valid)
 			for importRecordIndex, record := range repr.AST.ImportRecords {
 				if record.SourceIndex.IsValid() && (record.Kind == ast.ImportRequire || record.Kind == ast.ImportStmt) {
-					parent := s.validateTLA(record.SourceIndex.GetIndex())
-					if !parent.parent.IsValid() {
-						continue
-					}
+					parent := s.recursivelyValidateTLA(record.SourceIndex.GetIndex(), pass, didChange)
 
-					// Follow any import chains
-					if record.Kind == ast.ImportStmt && (!result.tlaCheck.parent.IsValid() || parent.depth < result.tlaCheck.depth) {
-						result.tlaCheck.depth = parent.depth + 1
+					// Track the shallowest top-level await parent (used to report invalid import chains later on)
+					if record.Kind == ast.ImportStmt && parent.depth.GetIndex() < result.tlaCheck.depth.GetIndex()-1 {
 						result.tlaCheck.parent = record.SourceIndex
+						result.tlaCheck.depth = ast.MakeIndex32(parent.depth.GetIndex() + 1)
 						result.tlaCheck.importRecordIndex = uint32(importRecordIndex)
+						*didChange = true
 						continue
 					}
+				}
+			}
+		}
+	}
 
+	return result.tlaCheck
+}
+
+func (s *scanner) reportInvalidTLA() {
+	for sourceIndex := range s.results {
+		result := &s.results[sourceIndex]
+
+		if result.ok && result.tlaCheck.parent.IsValid() {
+			if repr, ok := result.file.inputFile.Repr.(*graph.JSRepr); ok {
+				for _, record := range repr.AST.ImportRecords {
 					// Require of a top-level await chain is forbidden
-					if record.Kind == ast.ImportRequire {
+					if record.Kind == ast.ImportRequire && record.SourceIndex.IsValid() && s.results[record.SourceIndex.GetIndex()].tlaCheck.parent.IsValid() {
 						var notes []logger.MsgData
 						var tlaPrettyPaths logger.PrettyPaths
 						otherSourceIndex := record.SourceIndex.GetIndex()
@@ -2899,18 +2940,14 @@ func (s *scanner) validateTLA(sourceIndex uint32) tlaCheck {
 						s.log.AddErrorWithNotes(&tracker, record.Range, text, notes)
 					}
 				}
-			}
 
-			// Make sure that if we wrap this module in a closure, the closure is also
-			// async. This happens when you call "import()" on this module and code
-			// splitting is off.
-			if result.tlaCheck.parent.IsValid() {
+				// Make sure that if we wrap this module in a closure, the closure is also
+				// async. This happens when you call "import()" on this module and code
+				// splitting is off.
 				repr.Meta.IsAsyncOrHasAsyncDependency = true
 			}
 		}
 	}
-
-	return result.tlaCheck
 }
 
 func DefaultExtensionToLoaderMap() map[string]config.Loader {

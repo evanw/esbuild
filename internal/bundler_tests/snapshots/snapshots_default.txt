@@ -6898,6 +6898,50 @@ if (false) foo;
 if (false) for (foo of bar) ;
 
 ================================================================================
+TestTopLevelAwaitCyclicDependenciesIssue4498
+---------- /out/entry.js ----------
+// b.mjs
+function b() {
+  return typeof a;
+}
+var init_b = __esm({
+  async "b.mjs"() {
+    await init_a();
+  }
+});
+
+// dep.mjs
+var tla;
+var init_dep = __esm({
+  async "dep.mjs"() {
+    tla = await Promise.resolve("x");
+  }
+});
+
+// a.mjs
+function a() {
+  return b() + tla;
+}
+var init_a = __esm({
+  async "a.mjs"() {
+    await init_b();
+    await init_dep();
+  }
+});
+
+// main.mjs
+var main_exports = {};
+var init_main = __esm({
+  async "main.mjs"() {
+    await init_a();
+    console.log(a());
+  }
+});
+
+// entry.mjs
+await init_main().then(() => main_exports);
+
+================================================================================
 TestTopLevelAwaitESM
 ---------- /out.js ----------
 // entry.js

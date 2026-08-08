@@ -4377,6 +4377,39 @@ func TestTopLevelAwaitAllowedImportWithSplitting(t *testing.T) {
 	})
 }
 
+// https://github.com/evanw/esbuild/issues/4498
+func TestTopLevelAwaitCyclicDependenciesIssue4498(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.mjs": `
+				await import("./main.mjs");
+			`,
+			"/main.mjs": `
+				import { a } from "./a.mjs";
+				console.log(a());
+			`,
+			"/a.mjs": `
+				import { b } from "./b.mjs";
+				import { tla } from "./dep.mjs";
+				export function a() { return b() + tla; }
+			`,
+			"/b.mjs": `
+				import { a } from "./a.mjs";
+				export function b() { return typeof a; }
+			`,
+			"/dep.mjs": `
+				export const tla = await Promise.resolve("x");
+			`,
+		},
+		entryPaths: []string{"/entry.mjs"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			OutputFormat: config.FormatESModule,
+			AbsOutputDir: "/out",
+		},
+	})
+}
+
 func TestAssignToImport(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
