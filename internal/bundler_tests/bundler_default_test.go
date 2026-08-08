@@ -3131,6 +3131,47 @@ func TestNoOverwriteInputFileError(t *testing.T) {
 	})
 }
 
+// https://github.com/evanw/esbuild/issues/4411
+func TestDuplicateChunkNameIssue4411(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry-a1.js": `
+				import { add } from "./shared-a/shared.js"
+				export const addA1 = () => add("a1")
+			`,
+			"/entry-a2.js": `
+				import { add } from "./shared-a/shared.js"
+				export const addA2 = () => add("a2")
+			`,
+			"/entry-b1.js": `
+				import { add } from "./shared-b/shared.js"
+				export const addB1 = () => add("b1")
+			`,
+			"/entry-b2.js": `
+				import { add } from "./shared-b/shared.js"
+				export const addB2 = () => add("b2")
+			`,
+			"/shared-a/shared.js": `
+				const cache = []
+				export const add = str => cache.push(str)
+			`,
+			"/shared-b/shared.js": `
+				const cache = []
+				export const add = str => cache.push(str)
+			`,
+		},
+		entryPaths: []string{"/entry-a1.js", "/entry-a2.js", "/entry-b1.js", "/entry-b2.js"},
+		options: config.Options{
+			Mode:              config.ModeBundle,
+			AbsOutputDir:      "/out",
+			CodeSplitting:     true,
+			ChunkPathTemplate: []config.PathTemplate{{Placeholder: config.NamePlaceholder}},
+		},
+		expectedCompileLog: `ERROR: Two output files share the same path but have different contents: out/chunk.js
+`,
+	})
+}
+
 func TestDuplicateEntryPoint(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
@@ -3141,8 +3182,10 @@ func TestDuplicateEntryPoint(t *testing.T) {
 		entryPaths: []string{"/entry.js", "/entry.js"},
 		options: config.Options{
 			Mode:         config.ModeBundle,
-			AbsOutputDir: "/out.js",
+			AbsOutputDir: "/out",
 		},
+		expectedCompileLog: `ERROR: Two output files share the same path but have different contents: out/entry.js
+`,
 	})
 }
 
@@ -3156,7 +3199,7 @@ func TestRelativeEntryPointError(t *testing.T) {
 		entryPaths: []string{"entry"},
 		options: config.Options{
 			Mode:         config.ModeBundle,
-			AbsOutputDir: "/out.js",
+			AbsOutputDir: "/out",
 		},
 		expectedScanLog: `ERROR: Could not resolve "entry"
 NOTE: Use the relative path "./entry" to reference the file "entry.js". Without the leading "./", the path "entry" is being interpreted as a package path instead.
@@ -3174,8 +3217,26 @@ func TestMultipleEntryPointsSameNameCollision(t *testing.T) {
 		entryPaths: []string{"/a/entry.js", "/b/entry.js"},
 		options: config.Options{
 			Mode:         config.ModeBundle,
-			AbsOutputDir: "/out/",
+			AbsOutputDir: "/out",
 		},
+	})
+}
+
+func TestMultipleEntryPointsSameNameCollisionError(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/a/entry.js": `import {foo} from '../common.js'; console.log(foo)`,
+			"/b/entry.js": `import {foo} from '../common.js'; console.log(foo)`,
+			"/common.js":  `export let foo = 123`,
+		},
+		entryPaths: []string{"/a/entry.js", "/b/entry.js"},
+		options: config.Options{
+			Mode:              config.ModeBundle,
+			AbsOutputDir:      "/out",
+			EntryPathTemplate: []config.PathTemplate{{Placeholder: config.NamePlaceholder}},
+		},
+		expectedCompileLog: `ERROR: Two output files share the same path but have different contents: out/entry.js
+`,
 	})
 }
 

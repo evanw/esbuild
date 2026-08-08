@@ -2805,6 +2805,7 @@ func (s *scanner) processScannedFiles(entryPointMeta []graph.EntryPoint) []scann
 				AbsPath:           s.fs.Join(s.options.AbsOutputDir, relPath),
 				Contents:          bytes,
 				JSONMetadataChunk: jsonMetadataChunk,
+				CanBeMerged:       true,
 			}}
 		}
 
@@ -3165,22 +3166,25 @@ func (b *Bundle) Compile(log logger.Log, timer *helpers.Timer, mangleCache map[s
 		// Make an exception for files that have identical contents. In that case
 		// the duplicate is just silently filtered out. This can happen with the
 		// "file" loader, for example.
-		outputFileMap := make(map[string][]byte)
+		outputFileMap := make(map[string]graph.OutputFile)
 		end := 0
 		for _, outputFile := range outputFiles {
 			absPathKey := canonicalFileSystemPathForWindows(outputFile.AbsPath)
-			contents, ok := outputFileMap[absPathKey]
+			existingFile, ok := outputFileMap[absPathKey]
 
 			// If this isn't a duplicate, keep the output file
 			if !ok {
-				outputFileMap[absPathKey] = outputFile.Contents
+				outputFileMap[absPathKey] = outputFile
 				outputFiles[end] = outputFile
 				end++
 				continue
 			}
 
-			// If the names and contents are both the same, only keep the first one
-			if bytes.Equal(contents, outputFile.Contents) {
+			// If the names and contents are both the same, only keep the first one.
+			// We only do this for assets, not for code, as two identical code files
+			// need unique identity as they might need to have their own separate
+			// copies of internal state. See https://github.com/evanw/esbuild/issues/4411
+			if existingFile.CanBeMerged && outputFile.CanBeMerged && bytes.Equal(existingFile.Contents, outputFile.Contents) {
 				continue
 			}
 
@@ -3189,6 +3193,7 @@ func (b *Bundle) Compile(log logger.Log, timer *helpers.Timer, mangleCache map[s
 			if relPath, ok := b.fs.Rel(b.fs.Cwd(), outputPath); ok {
 				outputPath = relPath
 			}
+			outputPath = strings.ReplaceAll(outputPath, "\\", "/")
 			log.AddError(nil, logger.Range{}, "Two output files share the same path but have different contents: "+outputPath)
 		}
 		outputFiles = outputFiles[:end]

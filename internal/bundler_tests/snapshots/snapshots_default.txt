@@ -1157,12 +1157,6 @@ var import__ = __toESM(require_index());
 console.log(import__.x);
 
 ================================================================================
-TestDuplicateEntryPoint
----------- /out.js/entry.js ----------
-// entry.js
-console.log(123);
-
-================================================================================
 TestDuplicatePropertyWarning
 ---------- /out/entry.js ----------
 // outside-node-modules/index.jsx

@@ -663,6 +663,7 @@ func (c *linkerContext) generateChunksInParallel(additionalFiles []graph.OutputF
 			// output directory. This is used by the "file" and "copy" loaders.
 			var commentPrefix string
 			var commentSuffix string
+			var canBeMerged bool
 			switch chunkRepr := chunk.chunkRepr.(type) {
 			case *chunkReprJS:
 				for _, sourceIndex := range chunkRepr.filesInChunkInOrder {
@@ -678,6 +679,7 @@ func (c *linkerContext) generateChunksInParallel(additionalFiles []graph.OutputF
 				}
 				commentPrefix = "/*"
 				commentSuffix = " */"
+				canBeMerged = true
 			}
 
 			// Path substitution for the chunk itself
@@ -708,6 +710,7 @@ func (c *linkerContext) generateChunksInParallel(additionalFiles []graph.OutputF
 					JSONMetadataChunk: fmt.Sprintf(
 						c.options.MetafileFormat.MaybeRemoveWhitespace("{\n      \"imports\": [],\n      \"exports\": [],\n      \"inputs\": {},\n      \"bytes\": %d\n    }"),
 						len(chunk.externalLegalComments)),
+					CanBeMerged: true,
 				})
 			}
 
@@ -747,6 +750,7 @@ func (c *linkerContext) generateChunksInParallel(additionalFiles []graph.OutputF
 						JSONMetadataChunk: fmt.Sprintf(
 							c.options.MetafileFormat.MaybeRemoveWhitespace("{\n      \"imports\": [],\n      \"exports\": [],\n      \"inputs\": {},\n      \"bytes\": %d\n    }"),
 							len(outputSourceMap)),
+						CanBeMerged: true,
 					})
 				}
 			}
@@ -771,6 +775,7 @@ func (c *linkerContext) generateChunksInParallel(additionalFiles []graph.OutputF
 				Contents:          outputContents,
 				JSONMetadataChunk: jsonMetadataChunk,
 				IsExecutable:      chunk.isExecutable,
+				CanBeMerged:       canBeMerged,
 			})
 
 			results[chunkIndex] = outputFiles

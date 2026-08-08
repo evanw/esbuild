@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+* Emit an error when code splitting chunks would be merged ([#4411](https://github.com/evanw/esbuild/issues/4411))
+
+    It's possible to configure esbuild such that separate output files end up with the same output path. For example, you could name all code splitting chunks `chunk` via the `chunkNames` setting, which might generate multiple output files with the same path `chunk.js`. This does not happen by default since by default the chunk names include a hash to make sure they're unique (e.g. named something like `chunk-GX7G2SBE.js` instead).
+
+    Previously esbuild allowed output files to be merged if both the file path and content were the same. This behavior was intended for assets (e.g. images) but is not appropriate for code, as code modules may still have their own internal state that needs to stay separate. This configuration is no longer allowed starting with this release. Doing this is now a build error. If your code structure generates conflicting chunk names, then you should make sure the chunk names include a placeholder for the hash.
+
 ## 0.28.2
 
 * Fix tree shaking bug due to TypeScript import alias ([#4507](https://github.com/evanw/esbuild/issues/4507))

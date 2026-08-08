@@ -43,6 +43,7 @@ type OutputFile struct {
 	AbsPath      string
 	Contents     []byte
 	IsExecutable bool
+	CanBeMerged  bool
 }
 
 type SideEffects struct {
