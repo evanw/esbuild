@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+* Avoid overwriting input files without `--allow-overwrite` ([#4484](https://github.com/evanw/esbuild/issues/4484))
+
+    For example: `esbuild input.js --outfile=input.js` tells esbuild to overwrite `input.js` with the output of running esbuild on it. This was supposed to already be prevented by default, but it accidentally regressed in version 0.17.0 and apparently didn't have any test coverage. The error message was being printed but the input file was still being overwritten. Oops.
+
+    This release puts the original behavior back. With this release, esbuild should now actually avoid overwriting input files unless `--allow-overwrite` is explicitly present. This is done by not writing out any files when a build error is encountered.
+
 * Fix a minification bug with lowered logical assignment operators ([#4508](https://github.com/evanw/esbuild/issues/4508))
 
     This release fixes a bug that could cause esbuild to generate incorrect code for logical assignment operators when lowering them to an older target environment. Specifically the lowering process requires duplicating the left-hand side, but esbuild incorrectly failed to count the duplicate as a new usage when the left-hand side is an identifier. That then caused the minifier to believe that the left-hand side was only used once and could attempt to incorrectly inline an initializer into the first usage. This bug has now been fixed:

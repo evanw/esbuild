@@ -1511,10 +1511,7 @@ func rebuildImpl(args rebuildArgs, oldHashes map[string]string) (rebuildState, m
 	// Scan over the bundle
 	bundle := bundler.ScanBundle(config.BuildCall, log, realFS, args.caches, args.entryPoints, args.options, timer)
 	watchData = realFS.WatchData()
-
-	// The new build summary remains the same as the old one when there are
-	// errors. A failed build shouldn't erase the previous successful build.
-	newHashes := oldHashes
+	newHashes := make(map[string]string)
 
 	// Stop now if there were errors
 	var results []graph.OutputFile
@@ -1532,27 +1529,26 @@ func rebuildImpl(args rebuildArgs, oldHashes map[string]string) (rebuildState, m
 		// Stop now if there were errors
 		if !log.HasErrors() {
 			result.Metafile = metafile
-		}
-	}
 
-	// Populate the results to return
-	var hashBytes [8]byte
-	result.OutputFiles = make([]OutputFile, len(results))
-	newHashes = make(map[string]string)
-	for i, item := range results {
-		if args.options.WriteToStdout {
-			item.AbsPath = "<stdout>"
+			// Populate the results to return
+			var hashBytes [8]byte
+			result.OutputFiles = make([]OutputFile, len(results))
+			for i, item := range results {
+				if args.options.WriteToStdout {
+					item.AbsPath = "<stdout>"
+				}
+				hasher := xxhash.New()
+				hasher.Write(item.Contents)
+				binary.LittleEndian.PutUint64(hashBytes[:], hasher.Sum64())
+				hash := base64.RawStdEncoding.EncodeToString(hashBytes[:])
+				result.OutputFiles[i] = OutputFile{
+					Path:     item.AbsPath,
+					Contents: item.Contents,
+					Hash:     hash,
+				}
+				newHashes[item.AbsPath] = hash
+			}
 		}
-		hasher := xxhash.New()
-		hasher.Write(item.Contents)
-		binary.LittleEndian.PutUint64(hashBytes[:], hasher.Sum64())
-		hash := base64.RawStdEncoding.EncodeToString(hashBytes[:])
-		result.OutputFiles[i] = OutputFile{
-			Path:     item.AbsPath,
-			Contents: item.Contents,
-			Hash:     hash,
-		}
-		newHashes[item.AbsPath] = hash
 	}
 
 	// Write output files before "OnEnd" callbacks run so they can expect
@@ -1580,12 +1576,19 @@ func rebuildImpl(args rebuildArgs, oldHashes map[string]string) (rebuildState, m
 				}
 			}
 
+			// Only write output files if there were no errors. See this issue
+			// for why: https://github.com/evanw/esbuild/issues/3643
+			shouldWriteFiles := !log.HasErrors()
+
 			// Process all file operations in parallel
 			waitGroup := sync.WaitGroup{}
 			waitGroup.Add(len(results) + len(toDelete))
 			for _, result := range results {
 				go func(result graph.OutputFile) {
 					defer waitGroup.Done()
+					if !shouldWriteFiles {
+						return
+					}
 					fs.BeforeFileOpen()
 					defer fs.AfterFileClose()
 					if oldHash, ok := oldHashes[result.AbsPath]; ok && oldHash == newHashes[result.AbsPath] {
