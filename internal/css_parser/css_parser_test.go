@@ -606,6 +606,16 @@ func TestColorFunctions(t *testing.T) {
 	expectPrintedLower(t, "a { color: oklch(0.953 16% 134) }", "a {\n  color: #deface;\n}\n", "")
 	expectPrintedLower(t, "a { color: oklch(0.953 0.064 0.372turn) }", "a {\n  color: #deface;\n}\n", "")
 
+	// Check gamut mapping for out-of-gamut colors with distinct g/b channels.
+	// This exercises the binary-search clipping path in "gamut_mapping_xyz_to_srgb",
+	// which previously called "srgb_to_oklab" with the green and blue arguments
+	// swapped. That bug was masked by every other test case above because they
+	// either stay in-gamut or happen to have green ≈ blue, so the swap was a
+	// no-op. These colors have green and blue far enough apart for the bug to
+	// produce a visibly different (and less accurate) clipped color.
+	expectPrintedLower(t, "a { color: oklch(0.65 0.3 50) }", "a {\n  color: #e56300;\n  color: oklch(0.65 0.3 50);\n}\n", "")
+	expectPrintedLower(t, "a { color: oklch(0.8 0.3 200) }", "a {\n  color: #00dae4;\n  color: oklch(0.8 0.3 200);\n}\n", "")
+
 	// Test alpha
 	expectPrintedLower(t, "a { color: color(srgb 0.87 0.98 0.807 / 0.5) }", "a {\n  color: rgba(222, 250, 206, .5);\n}\n", "")
 	expectPrintedLower(t, "a { color: lab(95.38 -15 18 / 0.5) }", "a {\n  color: rgba(222, 250, 206, .5);\n}\n", "")
@@ -822,9 +832,9 @@ func TestGradient(t *testing.T) {
 		expectPrintedMangle(t, code, "a {\n  background: "+gradient+"(#ff0, color(display-p3 1 0 0));\n}\n", "")
 		expectPrintedMinify(t, code, "a{background:"+gradient+"(yellow,color(display-p3 1 0 0))}", "")
 		expectPrintedLowerUnsupported(t, compat.ColorFunctions, code,
-			"a {\n  background:\n    "+gradient+"(\n      #ffff00,\n      #ffe971,\n      #ffd472 25%,\n      "+
-				"#ffab5f,\n      #ff7b45 75%,\n      #ff5e38 87.5%,\n      #ff5534,\n      #ff4c30,\n      "+
-				"#ff412c,\n      #ff0e0e);\n  "+
+			"a {\n  background:\n    "+gradient+"(\n      #ffff00,\n      #ffe96c,\n      #ffd363 25%,\n      "+
+				"#ffa852,\n      #ff7a42 75%,\n      #ff562c 87.5%,\n      #ff4e29,\n      #ff4528,\n      "+
+				"#ff3a26,\n      #ff0e0e);\n  "+
 				"background:\n    "+gradient+"(\n      #ffff00,\n      color(xyz 0.734 0.805 0.111),\n      "+
 				"color(xyz 0.699 0.693 0.087) 25%,\n      color(xyz 0.627 0.501 0.048),\n      "+
 				"color(xyz 0.556 0.348 0.019) 75%,\n      color(xyz 0.521 0.284 0.009) 87.5%,\n      "+
