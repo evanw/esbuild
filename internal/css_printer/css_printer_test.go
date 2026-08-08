@@ -277,19 +277,19 @@ func TestVerbatimWhitespace(t *testing.T) {
 	expectPrintedMinify(t, "* { --x:[y ]; }", "*{--x:[y ]}")
 	expectPrintedMinify(t, "* { --x:[ y]; }", "*{--x:[ y]}")
 
-	// Note: These cases now behave like qualified rules
-	expectPrinted(t, "* { --x:{y}; }", "* {\n  --x: {\n    y;\n  }\n}\n")
-	expectPrinted(t, "* { --x:{y} ; }", "* {\n  --x: {\n    y;\n  }\n}\n")
-	expectPrinted(t, "* { --x: {y}; }", "* {\n  --x: {\n    y;\n  }\n}\n")
-	expectPrinted(t, "* { --x:{y }; }", "* {\n  --x: {\n    y;\n  }\n}\n")
-	expectPrinted(t, "* { --x:{ y}; }", "* {\n  --x: {\n    y;\n  }\n}\n")
+	// These cases temporarily behaved like qualified rules, but now they're back to being declarations
+	expectPrinted(t, "* { --x:{y}; }", "* {\n  --x:{y};\n}\n")
+	expectPrinted(t, "* { --x:{y} ; }", "* {\n  --x:{y} ;\n}\n")
+	expectPrinted(t, "* { --x: {y}; }", "* {\n  --x: {y};\n}\n")
+	expectPrinted(t, "* { --x:{y }; }", "* {\n  --x:{y };\n}\n")
+	expectPrinted(t, "* { --x:{ y}; }", "* {\n  --x:{ y};\n}\n")
 
-	// Note: These cases now behave like qualified rules
+	// These cases temporarily behaved like qualified rules, but now they're back to being declarations
 	expectPrintedMinify(t, "* { --x:{y}; }", "*{--x:{y}}")
-	expectPrintedMinify(t, "* { --x:{y} ; }", "*{--x:{y}}")
-	expectPrintedMinify(t, "* { --x: {y}; }", "*{--x:{y}}")
-	expectPrintedMinify(t, "* { --x:{y }; }", "*{--x:{y}}")
-	expectPrintedMinify(t, "* { --x:{ y}; }", "*{--x:{y}}")
+	expectPrintedMinify(t, "* { --x:{y} ; }", "*{--x:{y} }")
+	expectPrintedMinify(t, "* { --x: {y}; }", "*{--x: {y}}")
+	expectPrintedMinify(t, "* { --x:{y }; }", "*{--x:{y }}")
+	expectPrintedMinify(t, "* { --x:{ y}; }", "*{--x:{ y}}")
 
 	expectPrintedMinify(t, "@supports ( --x : y , z ) { a { color: red; } }", "@supports ( --x : y , z ){a{color:red}}")
 	expectPrintedMinify(t, "@supports ( --x : ) { a { color: red; } }", "@supports ( --x : ){a{color:red}}")

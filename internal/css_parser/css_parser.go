@@ -2309,7 +2309,50 @@ func (p *parser) scanForEndOfRule() (endOfRuleScan, int) {
 	var initialStack [4]css_lexer.T
 	stack := initialStack[:0]
 
+	// Small state machine to recognize "--foo:"
+	const (
+		customPropIdent = iota
+		customPropColon
+		customPropAccept
+		customPropReject
+	)
+	customProp := customPropIdent
+
 	for i, t := range p.tokens[p.index:] {
+		// People sometimes use CSS custom properties to store JSON. This is
+		// problematic because the "{...}" braces look like a CSS block unless
+		// this edge case is special-cased. See the (quite long) discussion on
+		// https://github.com/w3c/csswg-drafts/issues/7961 for more information.
+		//
+		// I couldn't find any actual specification for how this is supposed to
+		// work. Just a lot of discussion on GitHub. I did find this text, from
+		// https://drafts.csswg.org/css-syntax/#consume-a-declaration:
+		//
+		//   Otherwise, if decl’s value contains a top-level simple block with
+		//   an associated token of <{-token>, and also contains any other non-
+		//   <whitespace-token> value, return nothing. (That is, a top-level {}-
+		//   block is only allowed as the entire value of a non-custom property.)
+		//
+		// However, current browsers appear to accept custom properties with a
+		// {}-block contained anywhere inside them, not just as the entire value.
+		// So that's what I'm attempting to do here.
+		if customProp < customPropAccept {
+			switch customProp {
+			case customPropIdent:
+				if t.Kind == css_lexer.TIdent && strings.HasPrefix(p.source.Contents[t.Range.Loc.Start:], "--") {
+					customProp = customPropColon
+				} else if t.Kind != css_lexer.TWhitespace {
+					customProp = customPropReject
+				}
+			case customPropColon:
+				if t.Kind == css_lexer.TColon {
+					customProp = customPropAccept
+				} else if t.Kind != css_lexer.TWhitespace {
+					customProp = customPropReject
+				}
+			}
+		}
+
 		switch t.Kind {
 		case css_lexer.TSemicolon:
 			if len(stack) == 0 {
@@ -2323,7 +2366,7 @@ func (p *parser) scanForEndOfRule() (endOfRuleScan, int) {
 			stack = append(stack, css_lexer.TCloseBracket)
 
 		case css_lexer.TOpenBrace:
-			if len(stack) == 0 {
+			if len(stack) == 0 && customProp != customPropAccept {
 				return endOfRuleOpenBrace, p.index + i
 			}
 			stack = append(stack, css_lexer.TCloseBrace)

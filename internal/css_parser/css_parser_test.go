@@ -1361,6 +1361,15 @@ func TestNestedSelector(t *testing.T) {
 		"::placeholder {\n  opacity: 0.5;\n}\n@layer base {\n  ::placeholder {\n    color: green;\n  }\n}\n", "")
 }
 
+func TestCustomPropertyContainingBraces(t *testing.T) {
+	// CSS custom properties must be able to store JSON-like values
+	// See: https://github.com/w3c/csswg-drafts/issues/7961
+	expectPrinted(t, "div { --foo:hover{color:red}zoom:2; }", "div {\n  --foo:hover{color:red}zoom:2;\n}\n", "")
+	expectPrinted(t, "div { --foo:hover { color: red } zoom: 2; }", "div {\n  --foo:hover { color: red } zoom: 2;\n}\n", "")
+	expectPrinted(t, "div { --foo : hover { color : red } zoom : 2 ; }", "div {\n  --foo: hover { color : red } zoom : 2 ;\n}\n", "")
+	expectPrinted(t, "div { --foo + hover { color : red } zoom : 2 ; }", "div {\n  --foo + hover {\n    color: red;\n  }\n  zoom: 2;\n}\n", "")
+}
+
 func TestBadQualifiedRules(t *testing.T) {
 	expectPrinted(t, "$bad: rule;", "$bad: rule; {\n}\n", "<stdin>: WARNING: Unexpected \"$\"\n")
 	expectPrinted(t, "$bad: rule; div { color: red }", "$bad: rule; div {\n  color: red;\n}\n", "<stdin>: WARNING: Unexpected \"$\"\n")
