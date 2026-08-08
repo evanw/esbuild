@@ -7637,9 +7637,9 @@ let formatTests = {
       logStyle: 'visualstudio',
     })
     assert.strictEqual(messages.length, 3)
-    assert.strictEqual(messages[0], `esbuild: error: This is an error\n`)
-    assert.strictEqual(messages[1], `file.js: error: Another error\n`)
-    assert.strictEqual(messages[2], `file.js(3,7): error: Error with line and column\n`)
+    assert.strictEqual(messages[0], `esbuild: error ES0000: This is an error\n`)
+    assert.strictEqual(messages[1], `file.js: error ES0000: Another error\n`)
+    assert.strictEqual(messages[2], `file.js(3,7): error ES0000: Error with line and column\n`)
   },
 }
 

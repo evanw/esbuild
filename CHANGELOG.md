@@ -77,7 +77,7 @@
 
     ```
     $ esbuild example.ts --log-style=visualstudio
-    /Users/evan/dev/esbuild/example.ts(1,29): warning: Operator "*" should not directly follow a TypeScript type cast after the "+" operator
+    /Users/evan/dev/esbuild/example.ts(1,29): warning ES0010: Operator "*" should not directly follow a TypeScript type cast after the "+" operator
     ```
 
     This visual style is also available via the JS and Go APIs, and can now be used with the existing `formatMessages` API.
