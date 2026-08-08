@@ -160,6 +160,9 @@ _x = new WeakMap();
 	// Temporary variables should not come before "use strict"
 	expectPrintedTarget(t, 2019, "function f() { /*! @license */ 'use strict'; a.b ??= c.d }",
 		"function f() {\n  /*! @license */\n  \"use strict\";\n  var _a;\n  (_a = a.b) != null ? _a : a.b = c.d;\n}\n")
+
+	// https://github.com/evanw/esbuild/issues/4508
+	expectPrintedMangleTarget(t, 2020, "function foo() { let x; x ??= {} }", "function foo() {\n  let x;\n  x ?? (x = {});\n}\n")
 }
 
 func TestLowerLogicalAssign(t *testing.T) {
@@ -229,6 +232,10 @@ class Foo {
 }
 _x = new WeakMap();
 `)
+
+	// https://github.com/evanw/esbuild/issues/4508
+	expectPrintedMangleTarget(t, 2020, "function foo() { let x; x ||= {} }", "function foo() {\n  let x;\n  x || (x = {});\n}\n")
+	expectPrintedMangleTarget(t, 2020, "function foo() { let x; x &&= {} }", "function foo() {\n  let x;\n  x && (x = {});\n}\n")
 }
 
 func TestLowerAsyncFunctions(t *testing.T) {

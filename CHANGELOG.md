@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+* Fix a minification bug with lowered logical assignment operators ([#4508](https://github.com/evanw/esbuild/issues/4508))
+
+    This release fixes a bug that could cause esbuild to generate incorrect code for logical assignment operators when lowering them to an older target environment. Specifically the lowering process requires duplicating the left-hand side, but esbuild incorrectly failed to count the duplicate as a new usage when the left-hand side is an identifier. That then caused the minifier to believe that the left-hand side was only used once and could attempt to incorrectly inline an initializer into the first usage. This bug has now been fixed:
+
+    ```js
+    // Original code
+    function foo() {
+      let x
+      bar(x ||= {})
+    }
+
+    // Old output (with --minify-syntax --target=es6)
+    function foo() {
+      bar(void 0 || (x = {}));
+    }
+
+    // New output (with --minify-syntax --target=es6)
+    function foo() {
+      let x;
+      bar(x || (x = {}));
+    }
+    ```
+
 * Handle target collisions ([#4509](https://github.com/evanw/esbuild/issues/4509))
 
     It's possible to specify the same target engine multiple times, such as with `--target=chrome1,chrome99`. This edge case wasn't anticipated and previously took the last version for the duplicated target engine instead of the minimum version (so `chrome99` in this case instead of `chrome1`). With this release, esbuild will now pick the minimum version between all duplicated target engines.

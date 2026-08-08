@@ -849,6 +849,26 @@ func (p *parser) lowerAssignmentOperator(value js_ast.Expr, callback func(js_ast
 		}
 
 	case *js_ast.EIdentifier:
+		// Make sure we record this usage in the usage count so that duplicating
+		// a single-use reference means it's no longer considered a single-use
+		// reference. Otherwise the single-use reference inlining code may
+		// incorrectly inline the initializer into the first reference, leaving
+		// the second reference without a definition. For example:
+		//
+		//   let x;
+		//   x ||= {};
+		//
+		// We're changing that to this:
+		//
+		//   let x;
+		//   x || (x = {});
+		//
+		// And we don't want to believe that "x" still has a single reference, as
+		// then we may incorrectly inline the undefined value like this:
+		//
+		//   void 0 || (x = {});
+		//
+		p.recordUsage(left.Ref)
 		return callback(
 			js_ast.Expr{Loc: value.Loc, Data: &js_ast.EIdentifier{Ref: left.Ref}},
 			value,

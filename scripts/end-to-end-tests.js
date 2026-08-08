@@ -1519,6 +1519,45 @@ for (const target of ['--target=es5', '--target=es6', '--target=es2020']) {
   )
 }
 
+// Check lowering of logical assignment and nullish coalescing operators
+// See: https://github.com/evanw/esbuild/issues/4508
+for (const minify of [[], ['--minify']]) {
+  for (const target of ['es6', 'esnext']) {
+    tests.push(
+      test(['in.js', '--outfile=node.js', '--format=esm', '--target=' + target].concat(minify), {
+        'in.js': `
+          function foo() {
+            let x
+            x ||= {}
+            return 123
+          }
+          if (foo() !== 123) throw 'fail'
+        `,
+      }),
+      test(['in.js', '--outfile=node.js', '--format=esm', '--target=' + target].concat(minify), {
+        'in.js': `
+          function foo() {
+            let x
+            x &&= {}
+            return 123
+          }
+          if (foo() !== 123) throw 'fail'
+        `,
+      }),
+      test(['in.js', '--outfile=node.js', '--format=esm', '--target=' + target].concat(minify), {
+        'in.js': `
+          function foo() {
+            let x
+            x ??= {}
+            return 123
+          }
+          if (foo() !== 123) throw 'fail'
+        `,
+      }),
+    )
+  }
+}
+
 let simpleCyclicImportTestCase542 = {
   'in.js': `
     import {Test} from './lib';
