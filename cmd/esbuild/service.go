@@ -64,7 +64,7 @@ func (service *serviceType) createActiveBuild(key int) *activeBuild {
 	activeBuild := &activeBuild{}
 	service.activeBuilds[key] = activeBuild
 
-	// This pairs with "Done()" in "decRefCount"
+	// This pairs with "Done()" in "destroyActiveBuild"
 	service.keepAliveWaitGroup.Add(1)
 	return activeBuild
 }
@@ -77,7 +77,7 @@ func (service *serviceType) destroyActiveBuild(key int) {
 	delete(service.activeBuilds, key)
 	service.mutex.Unlock()
 
-	// This pairs with "Add()" in "trackActiveBuild"
+	// This pairs with "Add()" in "createActiveBuild"
 	service.keepAliveWaitGroup.Done()
 }
 

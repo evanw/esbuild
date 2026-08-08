@@ -25,6 +25,14 @@
     }
     ```
 
+* Fix a potential deadlock when the JavaScript API is used incorrectly ([#4503](https://github.com/evanw/esbuild/issues/4503), [#4506](https://github.com/evanw/esbuild/pull/4506))
+
+    The JavaScript API runs the native esbuild executable as a long-lived child process and communicates with it over stdin/stdout/stderr. Each API request is asynchronous and the executable stays open as long as it has work to do, which is as long as either stdin is still open (meaning there may be more API requests) or there are currently requests being processed.
+
+    Previously esbuild's tracking of outstanding API requests missed decrementing a reference count in an edge case where esbuild's JavaScript API was used incorrectly and the API request returned an error. This could in some cases cause esbuild's native executable to exit with an error message about a deadlock. This release fixes the reference counting bug.
+
+    This fix was submitted by [@ZuBB](https://github.com/ZuBB).
+
 * Handle target collisions ([#4509](https://github.com/evanw/esbuild/issues/4509))
 
     It's possible to specify the same target engine multiple times, such as with `--target=chrome1,chrome99`. This edge case wasn't anticipated and previously took the last version for the duplicated target engine instead of the minimum version (so `chrome99` in this case instead of `chrome1`). With this release, esbuild will now pick the minimum version between all duplicated target engines.
