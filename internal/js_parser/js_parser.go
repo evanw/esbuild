@@ -13405,6 +13405,21 @@ func containsClosingScriptTag(text string) bool {
 	return false
 }
 
+// containsInlineScriptHazard reports whether text contains a character
+// sequence that the HTML parser's script data state machine treats specially
+// inside a <script> element: "</script" (closes the element), "<!--" (enters
+// the "script data escaped" state), or "-->" (exits an escaped state). When
+// such a sequence appears in a tagged template literal, the printer cannot
+// escape it because the raw template content is emitted verbatim, so the
+// template must be lowered into a regular call first (mirroring Terser's
+// inline_script option, which escapes these sequences in string output).
+func containsInlineScriptHazard(text string) bool {
+	if containsClosingScriptTag(text) {
+		return true
+	}
+	return strings.Contains(text, "<!--") || strings.Contains(text, "-->")
+}
+
 func (p *parser) isUnsupportedRegularExpression(loc logger.Loc, value string) (pattern string, flags string, isUnsupported bool) {
 	var what string
 	var r logger.Range
@@ -14175,14 +14190,14 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 			shouldLowerTemplateLiteral = true
 		}
 
-		// Lower tagged template literals that include "</script"
-		// since we won't be able to escape it without lowering it
+		// Lower tagged template literals that include "</script", "<!--", or "-->"
+		// since we won't be able to escape them without lowering it
 		if !shouldLowerTemplateLiteral && !p.options.unsupportedJSFeatures.Has(compat.InlineScript) && e.TagOrNil.Data != nil {
-			if containsClosingScriptTag(e.HeadRaw) {
+			if containsInlineScriptHazard(e.HeadRaw) {
 				shouldLowerTemplateLiteral = true
 			} else {
 				for _, part := range e.Parts {
-					if containsClosingScriptTag(part.TailRaw) {
+					if containsInlineScriptHazard(part.TailRaw) {
 						shouldLowerTemplateLiteral = true
 						break
 					}

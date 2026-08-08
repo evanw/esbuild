@@ -1074,12 +1074,49 @@ func TestAvoidSlashScript(t *testing.T) {
 	expectPrinted(t, "String.raw`</ScRiPt`",
 		"import { __template } from \"<runtime>\";\nvar _a;\nString.raw(_a || (_a = __template([\"<\\/ScRiPt\"])));\n")
 
+	// HTML comment sequences "<!--" and "-->" are escaped to avoid putting the
+	// surrounding HTML parser into the "script data escaped" / "script data
+	// double escaped" states, which would prevent "</script>" from ending the
+	// script element. This mirrors Terser's inline_script option.
+	expectPrinted(t, "x = '<!--'", "x = \"\\x3c!--\";\n")
+	expectPrinted(t, "x = `<!--`", "x = `\\x3c!--`;\n")
+	expectPrinted(t, "x = `${y}<!--`", "x = `${y}\\x3c!--`;\n")
+	expectPrinted(t, "x = `<!--${y}`", "x = `\\x3c!--${y}`;\n")
+	expectPrinted(t, "x = '-->'", "x = \"--\\x3e\";\n")
+	expectPrinted(t, "x = `-->`", "x = `--\\x3e`;\n")
+	expectPrinted(t, "x = `${y}-->`", "x = `${y}--\\x3e`;\n")
+	expectPrinted(t, "x = `-->${y}`", "x = `--\\x3e${y}`;\n")
+	expectPrinted(t, "x = '<!-- <script>'", "x = \"\\x3c!-- <script>\";\n")
+	expectPrinted(t, "x = '<!-- --> <script>'", "x = \"\\x3c!-- --\\x3e <script>\";\n")
+	expectPrinted(t, "x = '--->'", "x = \"---\\x3e\";\n")
+	// "<!--->" is "<!--" + "->" (six chars: '<','!','-','-','-', '>'); the '<'
+	// opens an HTML comment and the trailing "-->" closes it, so both ends must
+	// be escaped, leaving the three dashes between verbatim.
+	expectPrinted(t, "x = '<!--->'", "x = \"\\x3c!---\\x3e\";\n")
+	// String.raw preserves the raw string value; the '\x3c'/'\x3e' escapes only
+	// hide the literal sequence from the HTML parser in the generated source.
+	expectPrinted(t, "x = String.raw`<!--`",
+		"import { __template } from \"<runtime>\";\nvar _a;\nx = String.raw(_a || (_a = __template([\"\\x3c!--\"])));\n")
+	expectPrinted(t, "x = String.raw`-->`",
+		"import { __template } from \"<runtime>\";\nvar _a;\nx = String.raw(_a || (_a = __template([\"--\\x3e\"])));\n")
+
 	// Negative cases
 	expectPrinted(t, "x = '</'", "x = \"</\";\n")
 	expectPrinted(t, "x = '</ script'", "x = \"</ script\";\n")
 	expectPrinted(t, "x = '< /script'", "x = \"< /script\";\n")
 	expectPrinted(t, "x = '/script>'", "x = \"/script>\";\n")
 	expectPrinted(t, "x = '<script>'", "x = \"<script>\";\n")
+	expectPrinted(t, "x = '<!-'", "x = \"<!-\";\n")
+	expectPrinted(t, "x = '<!-a'", "x = \"<!-a\";\n")
+	expectPrinted(t, "x = '<!a'", "x = \"<!a\";\n")
+	expectPrinted(t, "x = '<a'", "x = \"<a\";\n")
+	expectPrinted(t, "x = '<'", "x = \"<\";\n")
+	expectPrinted(t, "x = '>'", "x = \">\";\n")
+	expectPrinted(t, "x = '->'", "x = \"->\";\n")
+	expectPrinted(t, "x = '-a>'", "x = \"-a>\";\n")
+	expectPrinted(t, "x = 'a-b>'", "x = \"a-b>\";\n")
+	expectPrinted(t, "x = '<--'", "x = \"<--\";\n")
+	expectPrinted(t, "x = '<!- --'", "x = \"<!- --\";\n")
 	expectPrintedMinify(t, "x = 1 < / script/.exec(y).length", "x=1</ script/.exec(y).length;")
 	expectPrintedMinify(t, "x = 1 << / script/.exec(y).length", "x=1<</ script/.exec(y).length;")
 }

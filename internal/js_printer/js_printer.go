@@ -155,6 +155,33 @@ func (p *printer) printUnquotedUTF16(text []uint16, quote rune, flags printQuote
 			}
 			js = append(js, '/')
 
+		case '<':
+			// Avoid generating the sequence "<!--" in JS code. Per the HTML
+			// spec, "<!--" inside a script element puts the parser into the
+			// "script data escaped" state, where a later "<script" sequence
+			// would enter the "script data double escaped" state and prevent
+			// the closing "</script>" tag from ending the script element. Escape
+			// the "<" as "\x3c" to keep the string content inert, mirroring the
+			// inline_script option in Terser.
+			if !p.options.UnsupportedFeatures.Has(compat.InlineScript) && i+3 <= n &&
+				text[i] == '!' && text[i+1] == '-' && text[i+2] == '-' {
+				js = append(js, "\\x3c"...)
+			} else {
+				js = append(js, '<')
+			}
+
+		case '>':
+			// Avoid generating the sequence "-->" in JS code, which also
+			// participates in the HTML parser's script data state machine.
+			// Escape the ">" as "\x3e" to keep the string content inert,
+			// mirroring the inline_script option in Terser.
+			if !p.options.UnsupportedFeatures.Has(compat.InlineScript) && i >= 3 &&
+				text[i-2] == '-' && text[i-3] == '-' {
+				js = append(js, "\\x3e"...)
+			} else {
+				js = append(js, '>')
+			}
+
 		case '\'':
 			if quote == '\'' {
 				js = append(js, '\\')
