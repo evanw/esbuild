@@ -1752,12 +1752,16 @@ func (p *parser) ignoreUsage(ref ast.Ref) {
 	// Roll back the use count increment in recordUsage()
 	if !p.isControlFlowDead {
 		p.symbols[ref.InnerIndex].UseCountEstimate--
-		use := p.symbolUses[ref]
-		use.CountEstimate--
-		if use.CountEstimate == 0 {
-			delete(p.symbolUses, ref)
-		} else {
-			p.symbolUses[ref] = use
+
+		// Only remove this usage if we're currently processing a part
+		if p.symbolUses != nil {
+			use := p.symbolUses[ref]
+			use.CountEstimate--
+			if use.CountEstimate == 0 {
+				delete(p.symbolUses, ref)
+			} else {
+				p.symbolUses[ref] = use
+			}
 		}
 	}
 
@@ -17729,6 +17733,9 @@ func (p *parser) appendPart(parts []js_ast.Part, stmts []js_ast.Stmt) []js_ast.P
 		part.Scopes = p.scopesForCurrentPart
 		parts = append(parts, part)
 	}
+
+	// Reset the state for this part so we don't accidentally mutate it
+	p.symbolUses = nil
 	return parts
 }
 

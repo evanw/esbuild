@@ -2251,3 +2251,21 @@ if (nested) {
   new Bar(bar2(objBar));
 }
 var bar;
+
+================================================================================
+TestTreeShakingImportAliasIssue4507
+---------- /out.js ----------
+// dep.js
+var Base = class {
+  static hello() {
+    return "dep code is present";
+  }
+};
+
+// entry.ts
+function make() {
+  return new Base();
+}
+export {
+  make
+};

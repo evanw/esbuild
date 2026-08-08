@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+* Fix tree shaking bug due to TypeScript import alias ([#4507](https://github.com/evanw/esbuild/issues/4507))
+
+    This release fixes a bug that could cause esbuild to incorrectly tree-shake imports that are used in a TypeScript type alias under certain circumstances. Affected code uses a TypeScript-specific `import` assignment and looks something like this:
+
+    ```ts
+    import Base from './dep.js';
+    import Alias = Base.SomeType;
+    ```
+
 * Avoid overwriting input files without `--allow-overwrite` ([#4484](https://github.com/evanw/esbuild/issues/4484))
 
     For example: `esbuild input.js --outfile=input.js` tells esbuild to overwrite `input.js` with the output of running esbuild on it. This was supposed to already be prevented by default, but it accidentally regressed in version 0.17.0 and apparently didn't have any test coverage. The error message was being printed but the input file was still being overwritten. Oops.

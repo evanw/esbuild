@@ -3064,3 +3064,29 @@ func TestParameterPropsUseDefineForClassFieldsTrueLowered(t *testing.T) {
 		},
 	})
 }
+
+// See: https://github.com/evanw/esbuild/issues/4507
+func TestTreeShakingImportAliasIssue4507(t *testing.T) {
+	ts_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.ts": `
+				import Base from './dep.js';
+				import Alias = Base.SomeType;
+
+				export function make() {
+					return new Base();
+				}
+			`,
+			"/dep.js": `
+				export default class Base {
+					static hello() { return 'dep code is present'; }
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
