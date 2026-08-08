@@ -382,7 +382,7 @@ func (p *parser) lowerFunction(
 
 		// Forward the arguments to the wrapper function
 		usesArgumentsRef := !isArrow && p.fnOnlyDataVisit.argumentsRef != nil &&
-			p.symbolUses[*p.fnOnlyDataVisit.argumentsRef].CountEstimate > 0
+			p.currentPart.SymbolUses[*p.fnOnlyDataVisit.argumentsRef].CountEstimate > 0
 		var forwardedArgs js_ast.Expr
 		if !couldThrowErrors && !usesArgumentsRef {
 			// Simple case: the arguments can stay on the outer function. It's
@@ -2031,7 +2031,7 @@ func (ctx *lowerUsingDeclarationContext) finalize(p *parser, stmts []js_ast.Stmt
 	}
 	isTopLevel := scope == p.moduleScope
 	scope.Generated = append(scope.Generated, ctx.stackRef, caughtRef, errorRef, hasErrorRef)
-	p.declaredSymbols = append(p.declaredSymbols,
+	p.currentPart.DeclaredSymbols = append(p.currentPart.DeclaredSymbols,
 		js_ast.DeclaredSymbol{IsTopLevel: isTopLevel, Ref: ctx.stackRef},
 		js_ast.DeclaredSymbol{IsTopLevel: isTopLevel, Ref: caughtRef},
 		js_ast.DeclaredSymbol{IsTopLevel: isTopLevel, Ref: errorRef},
@@ -2054,7 +2054,7 @@ func (ctx *lowerUsingDeclarationContext) finalize(p *parser, stmts []js_ast.Stmt
 	if ctx.hasAwaitUsing {
 		promiseRef := p.generateTempRef(tempRefNoDeclare, "_promise")
 		scope.Generated = append(scope.Generated, promiseRef)
-		p.declaredSymbols = append(p.declaredSymbols, js_ast.DeclaredSymbol{IsTopLevel: isTopLevel, Ref: promiseRef})
+		p.currentPart.DeclaredSymbols = append(p.currentPart.DeclaredSymbols, js_ast.DeclaredSymbol{IsTopLevel: isTopLevel, Ref: promiseRef})
 
 		// "await" expressions turn into "yield" expressions when lowering
 		p.recordUsage(promiseRef)
