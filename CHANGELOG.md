@@ -11,6 +11,27 @@
     import Alias = Base.SomeType;
     ```
 
+* Fix CSS minification bug involving `&` ([#4497](https://github.com/evanw/esbuild/issues/4497))
+
+    This release fixes a bug where esbuild's CSS minifier incorrectly removed a `&` when it was unsafe to do so. Here is an example:
+
+    ```css
+    /* Original code */
+    .a .b {
+      & .b:not(& .c) {
+        color: red;
+      }
+    }
+
+    /* Old output (with --minify) */
+    .a .b{.b:not(& .c){color:red}}
+
+    /* New output (with --minify) */
+    .a .b{& .b:not(& .c){color:red}}
+    ```
+
+    This should match `<span class="a"><span class="b"><span class="b">yes</span></span></span>` but not `<span class="a"><span class="b">no</span></span>`. The old output incorrectly matched both.
+
 * Avoid overwriting input files without `--allow-overwrite` ([#4484](https://github.com/evanw/esbuild/issues/4484))
 
     For example: `esbuild input.js --outfile=input.js` tells esbuild to overwrite `input.js` with the output of running esbuild on it. This was supposed to already be prevented by default, but it accidentally regressed in version 0.17.0 and apparently didn't have any test coverage. The error message was being printed but the input file was still being overwritten. Oops.

@@ -302,6 +302,34 @@
         `,
       })
     },
+
+    // See: https://github.com/evanw/esbuild/issues/4497
+    async cssNestingIssue4497() {
+      await assertSameColorsWithNestingTransform(esbuild, {
+        css: `
+          .a {
+            color: red;
+
+            .b:not(.a .b .b) {
+              color: green;
+
+              & .b:not(& .b .b) {
+                color: blue;
+              }
+            }
+          }
+        `,
+        html: `
+          <div class="a">
+            <span>1</span>
+            <div class="b">
+              <span>2</span>
+              <div class="b"><span>3</span></div>
+            </div>
+          </div>
+        `,
+      })
+    },
   })
 
   async function runTest(test, fn) {

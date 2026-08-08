@@ -257,6 +257,12 @@ func analyzeLeadingAmpersand(sel css_ast.ComplexSelector, isDeclarationContext b
 			if second.Combinator.Byte == 0 && rest.ContainsNestingCombinator() {
 				// ".foo { & &.bar {} }" => ".foo { & &.bar {} }"
 				// ".foo { & .bar:not(& .baz) {} }" => ".foo { & .bar:not(& .baz) {} }"
+
+				// The specification says: "If a selector in the <relative-selector-list>
+				// does not start with a combinator but does contain the nesting selector,
+				// it is interpreted as a non-relative selector." So we don't want to
+				// remove the leading "&" here as that would change the meaning to a
+				// non-relative selector. See: https://www.w3.org/TR/css-nesting-1/
 			} else if second.Combinator.Byte != 0 || second.TypeSelector == nil || !isDeclarationContext {
 				// "& + div {}" => "+ div {}"
 				// "& div {}" => "div {}"
@@ -267,6 +273,30 @@ func analyzeLeadingAmpersand(sel css_ast.ComplexSelector, isDeclarationContext b
 			} else {
 				// ".foo { & div {} }"
 				// ".foo { .bar, & div {} }" => ".foo { .bar, div {} }"
+
+				// The first iteration of CSS nesting didn't support an implicit "&" if
+				// the selector started with an identifier. This was done to avoid
+				// confusion with declarations in the parser, as the parser would
+				// otherwise need unbounded lookahead to distinguish between the two.
+				// Consider the following:
+				//
+				//   span {
+				//     color:blue;
+				//     div:hover span {}
+				//   }
+				//
+				// The "color:blue" is a declaration while "div:hover" is actually a
+				// relative selector in a nested style rule. The parser would need to
+				// scan to the ";" or "{" to distinguish between the two cases.
+				// Generally you want to avoid parsers with unbounded lookahead.
+				//
+				// However, this edge case is commonly encountered and it's confusing
+				// that it doesn't work. So the CSS working group later added unbounded
+				// lookahead to fix it: https://github.com/w3c/csswg-drafts/issues/7961.
+				//
+				// We deliberately don't take advantage of that newest syntax addition
+				// here so that our output still works in browsers before that newest
+				// syntax addition. We still keep a leading "&" before identifiers.
 				return canRemoveLeadingAmpersandIfNotFirst
 			}
 		}

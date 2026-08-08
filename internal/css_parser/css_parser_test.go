@@ -1140,6 +1140,7 @@ func TestNestedSelector(t *testing.T) {
 	expectPrintedMangle(t, "a { & .b:not(& .c) { color: red } }", "a {\n  & .b:not(& .c) {\n    color: red;\n  }\n}\n", "")
 	expectPrintedMangle(t, "a { & .b:is(.c &) { color: red } }", "a {\n  & .b:is(.c &) {\n    color: red;\n  }\n}\n", "")
 	expectPrintedMangle(t, "a { & + .b:not(& .c) { color: red } }", "a {\n  + .b:not(& .c) {\n    color: red;\n  }\n}\n", "")
+	expectPrintedMangle(t, "a { & + .b:is(& .c) { color: red } }", "a {\n  + .b:is(& .c) {\n    color: red;\n  }\n}\n", "")
 
 	// Reorder selectors to enable removing "&"
 	expectPrintedMangle(t, "reorder { & first, .second { color: red } }", "reorder {\n  .second,\n  first {\n    color: red;\n  }\n}\n", "")
