@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.28.2
 
 * Fix tree shaking bug due to TypeScript import alias ([#4507](https://github.com/evanw/esbuild/issues/4507))
 
