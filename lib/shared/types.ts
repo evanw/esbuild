@@ -34,8 +34,12 @@ interface CommonOptions {
   reserveProps?: RegExp
   /** Documentation: https://esbuild.github.io/api/#mangle-props */
   mangleQuoted?: boolean
+  /** A regex that extracts a namespace prefix from mangled property names, allowing name reuse across namespaces */
+  manglePropNamespaces?: RegExp
   /** Documentation: https://esbuild.github.io/api/#mangle-props */
   mangleCache?: Record<string, string | false>
+  /** Per-namespace mangle caches, keyed by namespace prefix */
+  mangleNamespaceCaches?: Record<string, Record<string, string | false>>
   /** Documentation: https://esbuild.github.io/api/#drop */
   drop?: Drop[]
   /** Documentation: https://esbuild.github.io/api/#drop-labels */
@@ -232,6 +236,8 @@ export interface BuildResult<ProvidedOptions extends BuildOptions = BuildOptions
   metafile: Metafile | (ProvidedOptions['metafile'] extends true ? never : undefined)
   /** Only when "mangleCache" is present */
   mangleCache: Record<string, string | false> | (ProvidedOptions['mangleCache'] extends Object ? never : undefined)
+  /** Only when "mangleNamespaceCaches" is present */
+  mangleNamespaceCaches: Record<string, Record<string, string | false>> | (ProvidedOptions['mangleNamespaceCaches'] extends Object ? never : undefined)
 }
 
 export interface BuildFailure extends Error {
@@ -288,6 +294,8 @@ export interface TransformResult<ProvidedOptions extends TransformOptions = Tran
   warnings: Message[]
   /** Only when "mangleCache" is present */
   mangleCache: Record<string, string | false> | (ProvidedOptions['mangleCache'] extends Object ? never : undefined)
+  /** Only when "mangleNamespaceCaches" is present */
+  mangleNamespaceCaches: Record<string, Record<string, string | false>> | (ProvidedOptions['mangleNamespaceCaches'] extends Object ? never : undefined)
   /** Only when "legalComments" is "external" */
   legalComments: string | (ProvidedOptions['legalComments'] extends 'external' ? never : undefined)
 }

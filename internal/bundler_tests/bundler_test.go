@@ -193,7 +193,7 @@ func (s *suite) __expectBundledImpl(t *testing.T, args bundled, fsKind fs.MockKi
 		}
 
 		log = logger.NewDeferLog(logKind, nil)
-		results, metafileJSON := bundle.Compile(log, nil, nil, linker.Link)
+		results, metafileJSON := bundle.Compile(log, nil, nil, nil, linker.Link)
 		msgs = log.Done()
 		assertLog(t, msgs, args.expectedCompileLog)
 

@@ -47,6 +47,15 @@ const testsWithoutErrors = {
     esbuild.transform('', { mangleCache: {} })
       .then(result => result.mangleCache['x'])
   `,
+  mangleNamespaceCaches: `
+    import * as esbuild from 'esbuild'
+    esbuild.buildSync({ mangleNamespaceCaches: {} }).mangleNamespaceCaches['ns']['x']
+    esbuild.build({ mangleNamespaceCaches: {} })
+      .then(result => result.mangleNamespaceCaches['ns']['x'])
+    esbuild.transformSync('', { mangleNamespaceCaches: {} }).mangleNamespaceCaches['ns']['x']
+    esbuild.transform('', { mangleNamespaceCaches: {} })
+      .then(result => result.mangleNamespaceCaches['ns']['x'])
+  `,
   legalCommentsExternal: `
     import * as esbuild from 'esbuild'
     esbuild.transformSync('', { legalComments: 'external' }).legalComments.length
@@ -71,6 +80,12 @@ const testsWithoutErrors = {
     esbuild.context({ mangleCache: {} })
       .then(context => context.rebuild())
       .then(result => result.mangleCache['x'])
+  `,
+  contextMangleNamespaceCaches: `
+    import * as esbuild from 'esbuild'
+    esbuild.context({ mangleNamespaceCaches: {} })
+      .then(context => context.rebuild())
+      .then(result => result.mangleNamespaceCaches['ns']['x'])
   `,
   contextWriteFalseOutputFiles: `
     import * as esbuild from 'esbuild'
@@ -335,6 +350,24 @@ const testsWithErrors = {
   mangleCacheTransformSync_undefined: `
     import * as esbuild from 'esbuild'
     esbuild.transformSync('', {}).mangleCache['x']
+  `,
+
+  // mangleNamespaceCaches
+  mangleNamespaceCachesBuild_undefined: `
+    import * as esbuild from 'esbuild'
+    esbuild.build({}).then(result => result.mangleNamespaceCaches['ns']['x'])
+  `,
+  mangleNamespaceCachesBuildSync_undefined: `
+    import * as esbuild from 'esbuild'
+    esbuild.buildSync({}).mangleNamespaceCaches['ns']['x']
+  `,
+  mangleNamespaceCachesTransform_undefined: `
+    import * as esbuild from 'esbuild'
+    esbuild.transform('', {}).then(result => result.mangleNamespaceCaches['ns']['x'])
+  `,
+  mangleNamespaceCachesTransformSync_undefined: `
+    import * as esbuild from 'esbuild'
+    esbuild.transformSync('', {}).mangleNamespaceCaches['ns']['x']
   `,
 
   // legalComments

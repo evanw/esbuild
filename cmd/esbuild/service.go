@@ -605,6 +605,7 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 	options.AbsWorkingDir = request["absWorkingDir"].(string)
 	options.NodePaths = decodeStringArray(request["nodePaths"].([]interface{}))
 	options.MangleCache, _ = request["mangleCache"].(map[string]interface{})
+	options.MangleNamespaceCaches = decodeNamespaceCaches(request)
 
 	for _, entry := range entries {
 		entry := entry.([]interface{})
@@ -670,6 +671,9 @@ func (service *serviceType) handleBuildRequest(id uint32, request map[string]int
 		}
 		if options.MangleCache != nil {
 			response["mangleCache"] = result.MangleCache
+		}
+		if options.MangleNamespaceCaches != nil {
+			encodeNamespaceCaches(result.MangleNamespaceCaches, response)
 		}
 		if writeToStdout && len(result.OutputFiles) == 1 {
 			response["writeToStdout"] = result.OutputFiles[0].Contents
@@ -1166,6 +1170,7 @@ func (service *serviceType) handleTransformRequest(id uint32, request map[string
 		return encodeErrorPacket(id, err)
 	}
 	options.MangleCache, _ = request["mangleCache"].(map[string]interface{})
+	options.MangleNamespaceCaches = decodeNamespaceCaches(request)
 
 	transformInput := input
 	if inputFS {
@@ -1222,6 +1227,9 @@ func (service *serviceType) handleTransformRequest(id uint32, request map[string
 
 	if result.MangleCache != nil {
 		response["mangleCache"] = result.MangleCache
+	}
+	if result.MangleNamespaceCaches != nil {
+		encodeNamespaceCaches(result.MangleNamespaceCaches, response)
 	}
 
 	return encodePacket(packet{
@@ -1449,4 +1457,34 @@ func decodeMessageToPrivate(obj map[string]interface{}) logger.Msg {
 		})
 	}
 	return msg
+}
+
+// Decodes namespace caches from a protocol request. The protocol uses
+// map[string]interface{} but the Go API uses map[string]map[string]interface{}.
+func decodeNamespaceCaches(request map[string]interface{}) map[string]map[string]interface{} {
+	nsCaches, ok := request["mangleNamespaceCaches"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	converted := make(map[string]map[string]interface{}, len(nsCaches))
+	for nsKey, nsValue := range nsCaches {
+		if nsMap, ok := nsValue.(map[string]interface{}); ok {
+			converted[nsKey] = nsMap
+		}
+	}
+	return converted
+}
+
+// Encodes namespace caches into a protocol response. Converts
+// map[string]map[string]interface{} to map[string]interface{}
+// because the protocol encoder only handles the latter type.
+func encodeNamespaceCaches(nsCaches map[string]map[string]interface{}, response map[string]interface{}) {
+	if nsCaches == nil {
+		return
+	}
+	converted := make(map[string]interface{}, len(nsCaches))
+	for k, v := range nsCaches {
+		converted[k] = v
+	}
+	response["mangleNamespaceCaches"] = converted
 }

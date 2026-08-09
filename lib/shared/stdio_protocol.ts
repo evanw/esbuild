@@ -19,6 +19,7 @@ export interface BuildRequest {
   context: boolean
   plugins?: BuildPlugin[]
   mangleCache?: Record<string, string | false>
+  mangleNamespaceCaches?: Record<string, Record<string, string | false>>
 }
 
 export interface ServeRequest {
@@ -53,6 +54,7 @@ export interface BuildResponse {
   outputFiles?: BuildOutputFile[]
   metafile?: Uint8Array
   mangleCache?: Record<string, string | false>
+  mangleNamespaceCaches?: Record<string, Record<string, string | false>>
   writeToStdout?: Uint8Array
 }
 
@@ -113,6 +115,7 @@ export interface TransformRequest {
   input: Uint8Array
   inputFS: boolean
   mangleCache?: Record<string, string | false>
+  mangleNamespaceCaches?: Record<string, Record<string, string | false>>
 }
 
 export interface TransformResponse {
@@ -127,6 +130,7 @@ export interface TransformResponse {
 
   legalComments?: string
   mangleCache?: Record<string, string | false>
+  mangleNamespaceCaches?: Record<string, Record<string, string | false>>
 }
 
 export interface FormatMsgsRequest {
