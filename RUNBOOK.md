@@ -32,7 +32,10 @@ Pushing a change to [`version.txt`](./version.txt) causes the following:
     3. Commit and push these new scripts to the `gh-pages` branch of the `esbuild.github.io` repo
     4. GitHub Pages will then deploy these updates to https://esbuild.github.io/
 
-    You can also manually trigger this workflow if you want it to happen immediately.
+    You can also manually trigger this workflow if you want it to happen
+    immediately. Note that this workflow periodically disables itself due to
+    inactivity so it's important to check that it's still running after a
+    release.
 
 ## Adding a new package
 
