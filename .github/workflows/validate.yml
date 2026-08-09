@@ -6,21 +6,21 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read  #  to fetch code (actions/checkout)
+  contents: read # to fetch code (actions/checkout)
 
 jobs:
   release:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@a37ce9120846195fa4ece8f58b268e6043cb2f26 # actions/checkout@v3
 
       - name: Read go.version
         run: |
           echo "GO_VERSION=$(cat go.version)" >> $GITHUB_ENV
 
       - name: Set up Go ${{ env.GO_VERSION }}
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@be3c94b385c4f180051c996d336f57a34c397495 # actions/setup-go@v3
         with:
           go-version: ${{ env.GO_VERSION }}
         id: go

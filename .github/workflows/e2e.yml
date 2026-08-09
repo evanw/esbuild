@@ -6,17 +6,17 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read  #  to fetch code (actions/checkout)
+  contents: read # to fetch code (actions/checkout)
 
 jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@a37ce9120846195fa4ece8f58b268e6043cb2f26 # actions/checkout@v3
 
-      - name: Setup Node.js environment
-        uses: actions/setup-node@v3
+      - name: Set up Node 18
+        uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # actions/setup-node@v3
         with:
           node-version: 18
 

@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read  #  to fetch code (actions/checkout)
+  contents: read # to fetch code (actions/checkout)
 
 jobs:
   esbuild-platforms:
@@ -18,20 +18,20 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@a37ce9120846195fa4ece8f58b268e6043cb2f26 # actions/checkout@v3
 
       - name: Read go.version
         run: |
           echo "GO_VERSION=$(cat go.version)" >> $GITHUB_ENV
 
       - name: Set up Go ${{ env.GO_VERSION }}
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@be3c94b385c4f180051c996d336f57a34c397495 # actions/setup-go@v3
         with:
           go-version: ${{ env.GO_VERSION }}
         id: go
 
-      - name: Setup Node.js environment
-        uses: actions/setup-node@v3
+      - name: Set up Node 18
+        uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # actions/setup-node@v3
         with:
           node-version: 18
 
@@ -46,20 +46,20 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@a37ce9120846195fa4ece8f58b268e6043cb2f26 # actions/checkout@v3
 
       - name: Read go.version
         run: |
           echo "GO_VERSION=$(cat go.version)" >> $GITHUB_ENV
 
       - name: Set up Go ${{ env.GO_VERSION }}
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@be3c94b385c4f180051c996d336f57a34c397495 # actions/setup-go@v3
         with:
           go-version: ${{ env.GO_VERSION }}
         id: go
 
-      - name: Setup Node.js environment
-        uses: actions/setup-node@v3
+      - name: Set up Node 16
+        uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # actions/setup-node@v3
         with:
           node-version: 16
 
@@ -92,7 +92,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@a37ce9120846195fa4ece8f58b268e6043cb2f26 # actions/checkout@v3
 
       - name: Read go.version (non-Windows)
         if: matrix.os != 'windows-latest'
@@ -105,13 +105,13 @@ jobs:
           echo "GO_VERSION=$(cat go.version)" >> $Env:GITHUB_ENV
 
       - name: Set up Go ${{ env.GO_VERSION }}
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@be3c94b385c4f180051c996d336f57a34c397495 # actions/setup-go@v3
         with:
           go-version: ${{ env.GO_VERSION }}
         id: go
 
-      - name: Setup Node.js environment
-        uses: actions/setup-node@v3
+      - name: Set up Node 18
+        uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # actions/setup-node@v3
         with:
           node-version: 18
 
@@ -219,10 +219,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@a37ce9120846195fa4ece8f58b268e6043cb2f26 # actions/checkout@v3
 
       - name: Set up Go 1.13 (the minimum required Go version for esbuild)
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@be3c94b385c4f180051c996d336f57a34c397495 # actions/setup-go@v3
         with:
           go-version: 1.13
         id: go
