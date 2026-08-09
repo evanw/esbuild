@@ -47,13 +47,6 @@ const (
 	LevelSilent
 )
 
-type LogStyle int8
-
-const (
-	StyleDefault LogStyle = iota
-	StyleVisualStudio
-)
-
 type MsgKind uint8
 
 const (
@@ -858,6 +851,8 @@ func OutputOptionsForArgs(osArgs []string) OutputOptions {
 
 		case "--log-style=default":
 			options.LogStyle = StyleDefault
+		case "--log-level=clang":
+			options.LogStyle = StyleClang
 		case "--log-level=visualstudio":
 			options.LogStyle = StyleVisualStudio
 		}
@@ -1222,6 +1217,9 @@ type OutputOptions struct {
 
 func (msg Msg) String(options OutputOptions, terminalInfo TerminalInfo) string {
 	switch options.LogStyle {
+	case StyleClang:
+		return msgToStringClang(msg, options, terminalInfo)
+
 	case StyleVisualStudio:
 		return msgToStringVisualStudio(msg, options, terminalInfo)
 

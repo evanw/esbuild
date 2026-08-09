@@ -1249,6 +1249,8 @@ func (service *serviceType) handleFormatMessagesRequest(id uint32, request map[s
 		switch logStyle {
 		case "default":
 			options.LogStyle = api.LogStyleDefault
+		case "clang":
+			options.LogStyle = api.LogStyleClang
 		case "visualstudio":
 			options.LogStyle = api.LogStyleVisualStudio
 		default:

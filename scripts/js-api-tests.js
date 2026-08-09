@@ -7618,13 +7618,15 @@ let formatTests = {
       { text: 'This is an error' },
       { text: 'Another error', location: { file: 'file.js' } },
       { text: 'Error with line and column', location: { file: 'file.js', line: 3, column: 6 } },
+      { text: 'Error with source code', location: { file: 'file.js', line: 3, column: 6, length: 5, lineText: 'foo = 1 + 2;' } },
     ], {
       kind: 'error',
     })
-    assert.strictEqual(messages.length, 3)
+    assert.strictEqual(messages.length, 4)
     assert.strictEqual(messages[0], `${errorIcon} [ERROR] This is an error\n\n`)
     assert.strictEqual(messages[1], `${errorIcon} [ERROR] Another error\n\n    file.js:0:0:\n      0 │ \n        ╵ ^\n\n`)
     assert.strictEqual(messages[2], `${errorIcon} [ERROR] Error with line and column\n\n    file.js:3:6:\n      3 │ \n        ╵ ^\n\n`)
+    assert.strictEqual(messages[3], `${errorIcon} [ERROR] Error with source code\n\n    file.js:3:6:\n      3 │ foo = 1 + 2;\n        ╵       ~~~~~\n\n`)
   },
 
   async formatMessagesVisualStudio({ esbuild }) {
@@ -7632,14 +7634,33 @@ let formatTests = {
       { text: 'This is an error' },
       { text: 'Another error', location: { file: 'file.js' } },
       { text: 'Error with line and column', location: { file: 'file.js', line: 3, column: 6 } },
+      { text: 'Error with source code', location: { file: 'file.js', line: 3, column: 6, length: 5, lineText: 'foo = 1 + 2;' } },
     ], {
       kind: 'error',
       logStyle: 'visualstudio',
     })
-    assert.strictEqual(messages.length, 3)
+    assert.strictEqual(messages.length, 4)
     assert.strictEqual(messages[0], `esbuild: error ES0000: This is an error\n`)
     assert.strictEqual(messages[1], `file.js: error ES0000: Another error\n`)
     assert.strictEqual(messages[2], `file.js(3,7): error ES0000: Error with line and column\n`)
+    assert.strictEqual(messages[3], `file.js(3,7): error ES0000: Error with source code\n`)
+  },
+
+  async formatMessagesClang({ esbuild }) {
+    const messages = await esbuild.formatMessages([
+      { text: 'This is an error' },
+      { text: 'Another error', location: { file: 'file.js' } },
+      { text: 'Error with line and column', location: { file: 'file.js', line: 3, column: 6 } },
+      { text: 'Error with source code', location: { file: 'file.js', line: 3, column: 6, length: 5, lineText: 'foo = 1 + 2;' } },
+    ], {
+      kind: 'error',
+      logStyle: 'clang',
+    })
+    assert.strictEqual(messages.length, 4)
+    assert.strictEqual(messages[0], `error: This is an error\n`)
+    assert.strictEqual(messages[1], `file.js: error: Another error\n`)
+    assert.strictEqual(messages[2], `file.js:3:7: error: Error with line and column\n\n^\n`)
+    assert.strictEqual(messages[3], `file.js:3:7: error: Error with source code\nfoo = 1 + 2;\n      ~~~~~\n`)
   },
 }
 

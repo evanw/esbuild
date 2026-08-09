@@ -1581,12 +1581,14 @@ func parseLogStyle(value string, arg string) (api.LogStyle, *cli_helpers.ErrorWi
 	switch value {
 	case "default":
 		return api.LogStyleDefault, nil
+	case "clang":
+		return api.LogStyleClang, nil
 	case "visualstudio":
 		return api.LogStyleVisualStudio, nil
 	default:
 		return api.LogStyleDefault, cli_helpers.MakeErrorWithNote(
 			fmt.Sprintf("Invalid value %q in %q", value, arg),
-			"Valid values are \"default\" or \"visualstudio\".",
+			"Valid values are \"default\", \"clang\", or \"visualstudio\".",
 		)
 	}
 }

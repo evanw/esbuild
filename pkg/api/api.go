@@ -241,6 +241,7 @@ type LogStyle uint8
 
 const (
 	LogStyleDefault LogStyle = iota
+	LogStyleClang
 	LogStyleVisualStudio
 )
 

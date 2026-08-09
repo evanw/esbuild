@@ -209,6 +209,8 @@ func validateLogStyle(value LogStyle) logger.LogStyle {
 	switch value {
 	case LogStyleDefault:
 		return logger.StyleDefault
+	case LogStyleClang:
+		return logger.StyleClang
 	case LogStyleVisualStudio:
 		return logger.StyleVisualStudio
 	default:
