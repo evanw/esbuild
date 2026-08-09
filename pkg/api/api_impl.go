@@ -341,6 +341,8 @@ func validateFeatures(log logger.Log, target Target, engines []Engine) (compat.J
 		constraints[compat.ES] = compat.Semver{Parts: []int{2024}}
 	case ES2025:
 		constraints[compat.ES] = compat.Semver{Parts: []int{2025}}
+	case ES2026:
+		constraints[compat.ES] = compat.Semver{Parts: []int{2026}}
 	case ESNext, DefaultTarget:
 	default:
 		panic("Invalid target")

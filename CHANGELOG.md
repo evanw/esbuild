@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+* Allow `es2026` as a target in `tsconfig.json`
+
+    TypeScript is [adding `es2026`](https://github.com/microsoft/TypeScript/issues/63704) as a compilation target, so esbuild now supports this in the `target` field of `tsconfig.json` files, such as in the following configuration file:
+
+    ```json
+    {
+      "compilerOptions": {
+        "target": "ES2026"
+      }
+    }
+    ```
+
+    As a reminder, the only thing that esbuild uses this field for is determining whether or not to use legacy TypeScript behavior for class fields. You can read more in [the documentation](https://esbuild.github.io/content-types/#tsconfig-json).
+
 * Stop publishing to https://deno.land/x/esbuild
 
     Deno has made the https://deno.land/x package registry read-only, so new versions of esbuild can no longer be published to https://deno.land/x/esbuild. The last published version was [v0.28.1](https://deno.land/x/esbuild@v0.28.1). I have removed the parts of esbuild that publish a Deno-specific package. Instead you can install `npm:esbuild` to use esbuild in Deno (this wasn't the case when esbuild's Deno-specific package was first published).

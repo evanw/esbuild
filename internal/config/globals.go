@@ -144,6 +144,7 @@ var knownGlobals = [][]string{
 	{"Math", "sin"},
 	{"Math", "sinh"},
 	{"Math", "sqrt"},
+	{"Math", "sumPrecise"},
 	{"Math", "tan"},
 	{"Math", "tanh"},
 	{"Math", "trunc"},
@@ -166,7 +167,9 @@ var knownGlobals = [][]string{
 
 	// JSON: Static methods
 	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON#static_methods
+	{"JSON", "isRawJSON"},
 	{"JSON", "parse"},
+	{"JSON", "rawJSON"},
 	{"JSON", "stringify"},
 
 	// TypedArray: Static methods
