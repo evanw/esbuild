@@ -222,10 +222,9 @@ export let analyzeMetafileSync: typeof types.analyzeMetafileSync = (metafile, op
   return result!
 }
 
-export const stop = () => {
-  if (stopService) stopService()
+export const stop = async () => {
+  if (stopService) await stopService()
   if (workerThreadService) workerThreadService.stop()
-  return Promise.resolve()
 }
 
 let initializeWasCalled = false
@@ -251,7 +250,7 @@ interface Service {
 
 let defaultWD = process.cwd()
 let longLivedService: Service | undefined
-let stopService: (() => void) | undefined
+let stopService: (() => Promise<void>) | undefined
 
 let ensureServiceIsRunning = (): Service => {
   if (longLivedService) return longLivedService
@@ -288,13 +287,22 @@ let ensureServiceIsRunning = (): Service => {
   stdout.on('end', afterClose)
 
   stopService = () => {
-    // Close all resources related to the subprocess.
+    // Deno's implementation of node's API needs us to have a reference to the
+    // child while we kill it. See: https://github.com/evanw/esbuild/pull/3701
+    const promise = new Promise<void>(resolve => child.on('exit', () => {
+      child.unref()
+      resolve()
+    }))
+    child.ref()
+
+    // Close all resources related to the subprocess
     stdin.destroy()
     stdout.destroy()
     child.kill()
     initializeWasCalled = false
     longLivedService = undefined
     stopService = undefined
+    return promise
   }
 
   let refCount = 0
