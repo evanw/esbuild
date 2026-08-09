@@ -3,11 +3,9 @@
 .vscode/
 /bench/
 /demo/
-/deno/
 /esbuild
 /github/
 /go/
-/lib/deno/lib.deno.d.ts
 /npm/@esbuild/android-arm/esbuild.wasm
 /npm/@esbuild/android-arm/wasm_exec_node.js
 /npm/@esbuild/android-arm/wasm_exec.js

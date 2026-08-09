@@ -23,19 +23,6 @@ Pushing a change to [`version.txt`](./version.txt) causes the following:
     2. Create a tag for the release that looks like `v0.X.Y`
     3. Publish a [GitHub Release](https://github.com/evanw/esbuild/releases) containing the release notes in [`CHANGELOG.md`](./CHANGELOG.md)
 
-- The [`release.yml`](https://github.com/esbuild/deno-esbuild/blob/main/.github/workflows/release.yml)
-  workflow in the https://github.com/esbuild/deno-esbuild repo runs
-  occasionally. On the next run, it will notice the version change and:
-
-    1. Clone this repo
-    2. Run `make platform-deno`
-    3. Commit and push the new contents of the `deno` folder to the `deno-esbuild` repo
-    4. Create a tag for the release that looks like `v0.X.Y`
-    5. Post an event to the https://api.deno.land/webhook/gh/esbuild webhook
-    6. Deno will then add a new version to https://deno.land/x/esbuild
-
-    You can also manually trigger this workflow if you want it to happen immediately.
-
 - The [`release.yml`](https://github.com/esbuild/esbuild.github.io/blob/main/.github/workflows/release.yml)
   workflow in the https://github.com/esbuild/esbuild.github.io repo runs
   occasionally. On the next run, it will notice the version change and:

@@ -5,11 +5,9 @@ const fs = require('fs')
 const os = require('os')
 
 const repoDir = path.dirname(__dirname)
-const denoDir = path.join(repoDir, 'deno')
 const npmDir = path.join(repoDir, 'npm', 'esbuild')
 const version = fs.readFileSync(path.join(repoDir, 'version.txt'), 'utf8').trim()
 const nodeTarget = 'node10'; // See: https://nodejs.org/en/about/releases/
-const denoTarget = 'deno1'; // See: https://docs.deno.com/runtime/fundamentals/stability_and_releases/
 const umdBrowserTarget = 'es2015'; // Transpiles "async"
 const esmBrowserTarget = 'es2017'; // Preserves "async"
 
@@ -271,46 +269,6 @@ exports.buildWasmLib = async (esbuildPath) => {
   }
 }
 
-const buildDenoLib = async (esbuildPath) => {
-  // Generate "deno/mod.js"
-  const packageJSON = JSON.parse(fs.readFileSync(path.join(npmDir, 'package.json'), 'utf8'))
-  childProcess.execFileSync(esbuildPath, [
-    path.join(repoDir, 'lib', 'deno', 'mod.ts'),
-    '--bundle',
-    '--outfile=' + path.join(denoDir, 'mod.js'),
-    '--target=' + denoTarget,
-    '--define:ESBUILD_VERSION=' + JSON.stringify(version),
-    '--define:ESBUILD_BINARY_HASHES=' + JSON.stringify(packageJSON['esbuild.binaryHashes'], null, 2),
-    '--platform=neutral',
-    '--log-level=warning',
-    '--banner:js=/// <reference types="./mod.d.ts" />',
-  ], { cwd: repoDir })
-
-  // Generate "deno/wasm.js"
-  const GOROOT = childProcess.execFileSync('go', ['env', 'GOROOT']).toString().trim()
-  let wasm_exec_js = fs.readFileSync(path.join(GOROOT, 'lib', 'wasm', 'wasm_exec.js'), 'utf8')
-  const wasmWorkerCode = await generateWorkerCode({ esbuildPath, wasm_exec_js, minify: true, target: denoTarget })
-  const modWASM = childProcess.execFileSync(esbuildPath, [
-    path.join(repoDir, 'lib', 'deno', 'wasm.ts'),
-    '--bundle',
-    '--target=' + denoTarget,
-    '--define:ESBUILD_VERSION=' + JSON.stringify(version),
-    '--define:WEB_WORKER_SOURCE_CODE=' + JSON.stringify(wasmWorkerCode),
-    '--platform=neutral',
-    '--log-level=warning',
-    '--banner:js=/// <reference types="./wasm.d.ts" />',
-  ], { cwd: repoDir }).toString().replace('WEB_WORKER_FUNCTION', wasmWorkerCode)
-  fs.writeFileSync(path.join(denoDir, 'wasm.js'), modWASM)
-
-  // Generate "deno/mod.d.ts"
-  const types_ts = fs.readFileSync(path.join(repoDir, 'lib', 'shared', 'types.ts'), 'utf8')
-  fs.writeFileSync(path.join(denoDir, 'mod.d.ts'), types_ts)
-  fs.writeFileSync(path.join(denoDir, 'wasm.d.ts'), types_ts)
-
-  // And copy the WebAssembly file over to the Deno library as well
-  fs.copyFileSync(path.join(repoDir, 'npm', 'esbuild-wasm', 'esbuild.wasm'), path.join(repoDir, 'deno', 'esbuild.wasm'))
-}
-
 // Writing a file atomically is important for watch mode tests since we don't
 // want to read the file after it has been truncated but before the new contents
 // have been written.
@@ -402,7 +360,6 @@ exports.dirname = __dirname
 // The main Makefile invokes this script before publishing
 if (require.main === module) {
   if (process.argv.indexOf('--wasm') >= 0) exports.buildWasmLib(process.argv[2])
-  else if (process.argv.indexOf('--deno') >= 0) buildDenoLib(process.argv[2])
   else if (process.argv.indexOf('--version') >= 0) updateVersionPackageJSON(process.argv[2])
   else if (process.argv.indexOf('--neutral') >= 0) buildNeutralLib(process.argv[2])
   else if (process.argv.indexOf('--update-version-go') >= 0) updateVersionGo()

@@ -24,7 +24,7 @@ test-common: test-go vet-go no-filepath verify-source-map end-to-end-tests js-ap
 
 # These tests are for release (the extra tests are not included in "test" because they are pretty slow)
 test-all:
-	@$(MAKE) --no-print-directory -j6 test-common test-deno ts-type-tests test-wasm-node test-wasm-browser lib-typecheck test-yarnpnp
+	@$(MAKE) --no-print-directory -j6 test-common ts-type-tests test-wasm-node test-wasm-browser lib-typecheck test-yarnpnp
 
 check-go-version:
 	@go version | grep -F " go$(GO_VERSION) " || (echo 'Please install Go version $(GO_VERSION)' && false)
@@ -98,16 +98,6 @@ test-wasm-node: esbuild
 test-wasm-browser: platform-wasm | scripts/browser/node_modules
 	cd scripts/browser && node browser-tests.js
 
-test-deno: esbuild platform-deno
-	ESBUILD_BINARY_PATH="$(shell pwd)/esbuild" deno test --allow-run --allow-env --allow-net --allow-read --allow-write --no-check scripts/deno-tests.js
-	@echo '✅ deno tests passed' # I couldn't find a Deno API for telling when tests have failed, so I'm doing this here instead
-	ESBUILD_BINARY_PATH="$(shell pwd)/esbuild" deno eval 'import { transform, stop } from "file://$(shell pwd)/deno/mod.js"; console.log((await transform("1+2")).code); stop()' | grep "1 + 2;"
-	ESBUILD_BINARY_PATH="$(shell pwd)/esbuild" deno eval 'import { transform, stop } from "file://$(shell pwd)/deno/wasm.js"; console.log((await transform("1+2")).code); stop()' | grep "1 + 2;"
-	ESBUILD_BINARY_PATH="$(shell pwd)/esbuild" deno run -A './deno/mod.js' # See: https://github.com/evanw/esbuild/pull/3917
-
-test-deno-windows: esbuild platform-deno
-	ESBUILD_BINARY_PATH=./esbuild.exe deno test --allow-run --allow-env --allow-net --allow-read --allow-write --no-check scripts/deno-tests.js
-
 register-test: version-go | scripts/node_modules
 	node scripts/esbuild.js npm/esbuild/package.json --version
 	node scripts/register-test.js
@@ -152,7 +142,7 @@ test-old-ts: | require/old-ts/node_modules
 node-unref-tests: | scripts/node_modules
 	node scripts/node-unref-tests.js
 
-lib-typecheck: lib-typecheck-node lib-typecheck-node-nolib lib-typecheck-deno
+lib-typecheck: lib-typecheck-node lib-typecheck-node-nolib
 
 lib-typecheck-node: | lib/node_modules
 	cd lib && node_modules/.bin/tsc -noEmit -p tsconfig.json
@@ -160,14 +150,8 @@ lib-typecheck-node: | lib/node_modules
 lib-typecheck-node-nolib: | lib/node_modules
 	cd lib && node_modules/.bin/tsc -noEmit -p tsconfig-nolib.json
 
-lib-typecheck-deno: lib/deno/lib.deno.d.ts | lib/node_modules
-	cd lib && node_modules/.bin/tsc -noEmit -p tsconfig-deno.json
-
-lib/deno/lib.deno.d.ts:
-	deno types > lib/deno/lib.deno.d.ts
-
 # End-to-end tests
-test-e2e: test-e2e-npm test-e2e-pnpm test-e2e-yarn test-e2e-yarn-berry test-e2e-deno
+test-e2e: test-e2e-npm test-e2e-pnpm test-e2e-yarn test-e2e-yarn-berry
 
 test-e2e-npm:
 	# Test normal install
@@ -296,10 +280,6 @@ test-e2e-yarn-berry:
 	# Clean up
 	rm -fr e2e-yb
 
-test-e2e-deno:
-	deno eval 'import { transform, stop } from "https://deno.land/x/esbuild@v$(ESBUILD_VERSION)/mod.js"; console.log((await transform("1+2")).code); stop()' | grep "1 + 2;"
-	deno eval 'import { transform, stop } from "https://deno.land/x/esbuild@v$(ESBUILD_VERSION)/wasm.js"; console.log((await transform("1+2")).code); stop()' | grep "1 + 2;"
-
 test-yarnpnp: platform-wasm
 	node scripts/test-yarnpnp.js
 
@@ -320,7 +300,6 @@ version-go:
 platform-all: \
 	platform-android-arm \
 	platform-android-x64 \
-	platform-deno \
 	platform-neutral \
 	platform-openharmony-arm64 \
 	platform-wasi-preview1 \
@@ -462,11 +441,6 @@ platform-wasm: esbuild go-compiler
 	node scripts/esbuild.js npm/esbuild-wasm/package.json --version
 	$(GO_COMPILER) "$(NODE)" scripts/esbuild.js ./esbuild --wasm
 	@shasum -a 256 npm/esbuild-wasm/esbuild.wasm
-
-platform-deno: platform-wasm go-compiler
-	@echo
-	@echo "# Build: deno"
-	$(GO_COMPILER) "$(NODE)" scripts/esbuild.js ./esbuild --deno
 
 publish-all: check-go-version
 	# Make sure the npm directory is pristine (including .gitignored files) since it will be published

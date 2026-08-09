@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+* Stop publishing to https://deno.land/x/esbuild
+
+    Deno has made the https://deno.land/x package registry read-only, so new versions of esbuild can no longer be published to https://deno.land/x/esbuild. The last published version was [v0.28.1](https://deno.land/x/esbuild@v0.28.1). I have removed the parts of esbuild that publish a Deno-specific package. Instead you can install `npm:esbuild` to use esbuild in Deno (this wasn't the case when esbuild's Deno-specific package was first published).
+
 * Emit an error when code splitting chunks would be merged ([#4411](https://github.com/evanw/esbuild/issues/4411))
 
     It's possible to configure esbuild such that separate output files end up with the same output path. For example, you could name all code splitting chunks `chunk` via the `chunkNames` setting, which might generate multiple output files with the same path `chunk.js`. This does not happen by default since by default the chunk names include a hash to make sure they're unique (e.g. named something like `chunk-GX7G2SBE.js` instead).
