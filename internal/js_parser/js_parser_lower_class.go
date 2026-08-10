@@ -1064,7 +1064,11 @@ func (ctx *lowerClassContext) lowerMethod(p *parser, prop js_ast.Property, priva
 		return true
 	}
 
-	if key, ok := prop.Key.Data.(*js_ast.EString); ok && helpers.UTF16EqualsString(key.Value, "constructor") {
+	if key, ok := prop.Key.Data.(*js_ast.EString); ok &&
+		prop.Kind == js_ast.PropertyMethod &&
+		!prop.Flags.Has(js_ast.PropertyIsComputed) &&
+		!prop.Flags.Has(js_ast.PropertyIsStatic) &&
+		helpers.UTF16EqualsString(key.Value, "constructor") {
 		if fn, ok := prop.ValueOrNil.Data.(*js_ast.EFunction); ok {
 			// Remember where the constructor is for later
 			ctx.ctor = fn

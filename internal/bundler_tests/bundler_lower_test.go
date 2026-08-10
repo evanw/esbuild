@@ -1584,6 +1584,34 @@ func TestLowerPrivateSuperStaticBundleIssue2158(t *testing.T) {
 	})
 }
 
+// https://github.com/evanw/esbuild/issues/4495
+func TestLowerClassFieldComputedConstructorGetterIssue4495(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class Foo extends Error {
+					field = 1
+					constructor() {
+						super("test")
+					}
+					get ["constructor"]() {
+						return Error
+					}
+				}
+				if (new Foo().field !== 1) throw "fail"
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode: config.ModeBundle,
+			UnsupportedJSFeatures: compat.UnsupportedJSFeatures(map[compat.Engine]compat.Semver{
+				compat.Node: {Parts: []int{10}},
+			}),
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
 func TestLowerClassField2020NoBundle(t *testing.T) {
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{

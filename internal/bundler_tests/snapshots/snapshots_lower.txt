@@ -1978,6 +1978,21 @@ __publicField(Foo, "s_foo", 123);
 __publicField(Foo, "s_bar");
 
 ================================================================================
+TestLowerClassFieldComputedConstructorGetterIssue4495
+---------- /out.js ----------
+// entry.js
+var Foo = class extends Error {
+  constructor() {
+    super("test");
+    __publicField(this, "field", 1);
+  }
+  get ["constructor"]() {
+    return Error;
+  }
+};
+if (new Foo().field !== 1) throw "fail";
+
+================================================================================
 TestLowerClassFieldNextNoBundle
 ---------- /out.js ----------
 class Foo {
