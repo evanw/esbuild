@@ -5712,17 +5712,27 @@ func (c *linkerContext) generateChunkJS(chunkIndex int, chunkWaitGroup *sync.Wai
 		newlineBeforeComment = true
 	}
 
-	// Add the top-level directive if present (but omit "use strict" in ES
-	// modules because all ES modules are automatically in strict mode)
+	var entryPointDirectives []string
 	if chunk.isEntryPoint {
 		repr := c.graph.Files[chunk.sourceIndex].InputFile.Repr.(*graph.JSRepr)
-		for _, directive := range repr.AST.Directives {
-			if directive != "use strict" || c.options.OutputFormat != config.FormatESModule {
-				quoted := string(helpers.QuoteForJSON(directive, c.options.ASCIIOnly)) + ";" + newline
-				prevOffset.AdvanceString(quoted)
-				j.AddString(quoted)
-				newlineBeforeComment = true
-			}
+		entryPointDirectives = repr.AST.Directives
+	}
+	addDirective := func(directive string, indent string) {
+		quoted := string(helpers.QuoteForJSON(directive, c.options.ASCIIOnly)) + ";" + newline
+		if indent != "" && !c.options.MinifyWhitespace {
+			quoted = indent + quoted
+		}
+		prevOffset.AdvanceString(quoted)
+		j.AddString(quoted)
+	}
+
+	// Add the top-level directive if present (but omit "use strict" in ES
+	// modules because all ES modules are automatically in strict mode, and in
+	// IIFEs because it needs to be inside the IIFE)
+	for _, directive := range entryPointDirectives {
+		if directive != "use strict" || (c.options.OutputFormat != config.FormatESModule && c.options.OutputFormat != config.FormatIIFE) {
+			addDirective(directive, "")
+			newlineBeforeComment = true
 		}
 	}
 
@@ -5741,6 +5751,16 @@ func (c *linkerContext) generateChunkJS(chunkIndex int, chunkWaitGroup *sync.Wai
 		prevOffset.AdvanceString(text)
 		j.AddString(text)
 		newlineBeforeComment = false
+	}
+
+	// Put "use strict" inside the IIFE instead of before it
+	if c.options.OutputFormat == config.FormatIIFE {
+		for _, directive := range entryPointDirectives {
+			if directive == "use strict" {
+				addDirective(directive, indent)
+				newlineBeforeComment = false
+			}
+		}
 	}
 
 	// Put the cross-chunk prefix inside the IIFE

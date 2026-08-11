@@ -40,15 +40,15 @@ console.log('this file should not start with "use strict"');
 ================================================================================
 TestTsconfigAlwaysStrictTrueEmitDirectiveBundleIIFE
 ---------- /Users/user/project/out/implicit.js ----------
-"use strict";
 (() => {
+  "use strict";
   // Users/user/project/src/implicit.ts
   console.log('this file should start with "use strict"');
 })();
 
 ---------- /Users/user/project/out/explicit.js ----------
-"use strict";
 (() => {
+  "use strict";
   // Users/user/project/src/explicit.ts
   console.log('this file should start with "use strict"');
 })();
