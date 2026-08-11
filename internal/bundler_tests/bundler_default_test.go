@@ -1418,6 +1418,23 @@ func TestHashbangBannerUseStrictOrder(t *testing.T) {
 	})
 }
 
+func TestUseStrictInsideIIFE(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				'use strict'
+				foo()
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			OutputFormat:  config.FormatIIFE,
+		},
+	})
+}
+
 func TestRequireFSBrowser(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+* Keep `"use strict"` inside the IIFE wrapper when bundling with the `iife` format ([#4505](https://github.com/evanw/esbuild/issues/4505))
+
 * Allow `es2026` as a target in `tsconfig.json`
 
     TypeScript is [adding `es2026`](https://github.com/microsoft/TypeScript/issues/63704) as a compilation target, so esbuild now supports this in the `target` field of `tsconfig.json` files, such as in the following configuration file:
