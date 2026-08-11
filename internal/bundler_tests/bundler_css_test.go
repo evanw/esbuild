@@ -235,6 +235,156 @@ func TestImportLocalCSSFromJS(t *testing.T) {
 	})
 }
 
+func TestImportLocalCSSFromJSDeterministicLocalCSSNamingUnix(t *testing.T) {
+	css_suite.expectBundledUnix(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import "./a.js"
+				import "./b.js"
+			`,
+			"/a.js": `
+				import * as stylesA from "./dir1/style.css"
+				console.log('file 1', stylesA.button, stylesA.default.a)
+			`,
+			"/dir1/style.css": `
+				.a { color: red }
+				.button { display: none }
+			`,
+			"/b.js": `
+				import * as stylesB from "./dir2/style.css"
+				console.log('file 2', stylesB.button, stylesB.default.b)
+			`,
+			"/dir2/style.css": `
+				.b { color: blue }
+				.button { display: none }
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			ExtensionToLoader: map[string]config.Loader{
+				".js":  config.LoaderJS,
+				".css": config.LoaderLocalCSS,
+			},
+			DeterministicLocalCSSNaming: true,
+		},
+	})
+}
+
+func TestImportLocalCSSFromJSDeterministicLocalCSSNamingWin(t *testing.T) {
+	css_suite.expectBundledWindows(t, bundled{
+		files: map[string]string{
+			"C:\\entry.js": `
+				import "./a.js"
+				import "./b.js"
+			`,
+			"C:\\a.js": `
+				import * as stylesA from "./dir1/style.css"
+				console.log('file 1', stylesA.button, stylesA.default.a)
+			`,
+			"C:\\dir1\\style.css": `
+				.a { color: red }
+				.button { display: none }
+			`,
+			"C:\\b.js": `
+				import * as stylesB from "./dir2/style.css"
+				console.log('file 2', stylesB.button, stylesB.default.b)
+			`,
+			"C:\\dir2\\style.css": `
+				.b { color: blue }
+				.button { display: none }
+			`,
+		},
+		entryPaths: []string{"C:\\\\entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "C:\\\\out",
+			ExtensionToLoader: map[string]config.Loader{
+				".js":  config.LoaderJS,
+				".css": config.LoaderLocalCSS,
+			},
+			DeterministicLocalCSSNaming: true,
+		},
+	})
+}
+
+func TestImportLocalCSSFromJSDeterministicLocalCSSNamingMinifyIdentifiersUnix(t *testing.T) {
+	css_suite.expectBundledUnix(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import "./a.js"
+				import "./b.js"
+			`,
+			"/a.js": `
+				import * as stylesA from "./dir1/style.css"
+				console.log('file 1', stylesA.button, stylesA.default.a)
+			`,
+			"/dir1/style.css": `
+				.a { color: red }
+				.button { display: none }
+			`,
+			"/b.js": `
+				import * as stylesB from "./dir2/style.css"
+				console.log('file 2', stylesB.button, stylesB.default.b)
+			`,
+			"/dir2/style.css": `
+				.b { color: blue }
+				.button { display: none }
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "/out",
+			ExtensionToLoader: map[string]config.Loader{
+				".js":  config.LoaderJS,
+				".css": config.LoaderLocalCSS,
+			},
+			DeterministicLocalCSSNaming: true,
+			MinifyIdentifiers:           true,
+		},
+	})
+}
+
+func TestImportLocalCSSFromJSDeterministicLocalCSSNamingMinifyIdentifiersWin(t *testing.T) {
+	css_suite.expectBundledWindows(t, bundled{
+		files: map[string]string{
+			"C:\\entry.js": `
+				import "./a.js"
+				import "./b.js"
+			`,
+			"C:\\a.js": `
+				import * as stylesA from "./dir1/style.css"
+				console.log('file 1', stylesA.button, stylesA.default.a)
+			`,
+			"C:\\dir1\\style.css": `
+				.a { color: red }
+				.button { display: none }
+			`,
+			"C:\\b.js": `
+				import * as stylesB from "./dir2/style.css"
+				console.log('file 2', stylesB.button, stylesB.default.b)
+			`,
+			"C:\\dir2\\style.css": `
+				.b { color: blue }
+				.button { display: none }
+			`,
+		},
+		entryPaths: []string{"C:\\entry.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			AbsOutputDir: "C:\\out",
+			ExtensionToLoader: map[string]config.Loader{
+				".js":  config.LoaderJS,
+				".css": config.LoaderLocalCSS,
+			},
+			DeterministicLocalCSSNaming: true,
+			MinifyIdentifiers:           true,
+		},
+	})
+}
+
 func TestImportLocalCSSFromJSMinifyIdentifiers(t *testing.T) {
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
