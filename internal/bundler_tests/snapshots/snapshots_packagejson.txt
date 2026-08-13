@@ -503,7 +503,7 @@ var init_module = __esm({
 });
 
 // Users/user/project/src/test-main.js
-console.log((init_module(), __toCommonJS(module_exports)));
+console.log((init_module(), __toCommonJSCached(module_exports)));
 
 // Users/user/project/src/test-module.js
 init_module();
@@ -542,7 +542,7 @@ var init_module = __esm({
 });
 
 // Users/user/project/src/test-index.js
-console.log((init_module(), __toCommonJS(module_exports)));
+console.log((init_module(), __toCommonJSCached(module_exports)));
 
 // Users/user/project/src/test-module.js
 init_module();
