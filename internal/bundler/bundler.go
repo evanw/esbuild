@@ -1197,6 +1197,11 @@ func runOnLoadPlugins(
 	}
 	tracker := logger.MakeLineColumnTracker(importSource)
 
+	// Force disabled modules to be empty
+	if source.KeyPath.IsDisabled() {
+		return loaderPluginResult{loader: config.LoaderEmpty}, true
+	}
+
 	// Apply loader plugins in order until one succeeds
 	for _, plugin := range plugins {
 		for _, onLoad := range plugin.OnLoad {
@@ -1252,11 +1257,6 @@ func runOnLoadPlugins(
 				pluginData:    result.PluginData,
 			}, true
 		}
-	}
-
-	// Force disabled modules to be empty
-	if source.KeyPath.IsDisabled() {
-		return loaderPluginResult{loader: config.LoaderEmpty}, true
 	}
 
 	// Read normal modules from disk
