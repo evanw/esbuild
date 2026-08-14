@@ -2230,6 +2230,7 @@ func TestMangleCalc(t *testing.T) {
 	expectPrintedMangle(t, "a { b: calc(x / 4) }", "a {\n  b: calc(x / 4);\n}\n", "")
 	expectPrintedMangle(t, "a { b: calc(x * 0.25) }", "a {\n  b: calc(x / 4);\n}\n", "")
 	expectPrintedMangle(t, "a { b: calc(x / 0.25) }", "a {\n  b: calc(x * 4);\n}\n", "")
+	expectPrintedMangle(t, "a { b: calc(sibling-index() * 0.05s) }", "a {\n  b: calc(sibling-index() * .05s);\n}\n", "")
 
 	// Test operator precedence
 	expectPrintedMangle(t, "a { b: calc((a + b) + c) }", "a {\n  b: calc(a + b + c);\n}\n", "")

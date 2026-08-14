@@ -396,7 +396,7 @@ func (c *calcProduct) partiallySimplify() calcTerm {
 
 	// ALGORITHM DEVIATION: Divide instead of multiply if the reciprocal is shorter
 	for i := 1; i < len(terms); i++ {
-		if numeric, ok := terms[i].data.(*calcNumeric); ok {
+		if numeric, ok := terms[i].data.(*calcNumeric); ok && numeric.unit == "" {
 			reciprocal := 1 / numeric.number
 			if multiply, ok := floatToStringForCalc(numeric.number); ok {
 				if divide, ok := floatToStringForCalc(reciprocal); ok && len(divide) < len(multiply) {
