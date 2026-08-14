@@ -837,6 +837,7 @@ type OnLoadResult struct {
 	PluginName string
 
 	Contents      *string
+	Prepend       *string
 	AbsResolveDir string
 	PluginData    interface{}
 
