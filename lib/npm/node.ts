@@ -284,7 +284,10 @@ let ensureServiceIsRunning = (): Service => {
   const stdout: typeof child.stdout & { unref?(): void } = child.stdout
 
   stdout.on('data', readFromStdout)
-  stdout.on('end', afterClose)
+  stdout.on('end',  err => {
+    stopService?.()
+    afterClose(err)
+  })
 
   stopService = () => {
     // Deno's implementation of node's API needs us to have a reference to the
