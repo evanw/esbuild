@@ -1051,6 +1051,28 @@ let pluginTests = {
     assert.strictEqual(result.outputFiles[3].text, `// virtual-ns:input a/b/c.d.e\nconsole.log("input a/b/c.d.e");\n`)
   },
 
+  async emptyLoaderNoContents({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    const output = path.join(testDir, 'out.js')
+    await writeFileAsync(input, 'export default 123')
+    await esbuild.build({
+      entryPoints: [input],
+      bundle: true,
+      outfile: output,
+      format: 'cjs',
+      plugins: [{
+        name: 'name',
+        setup(build) {
+          build.onLoad({ filter: /\.js$/ }, args => {
+            return { loader: 'empty' }
+          })
+        },
+      }],
+    })
+    const result = await readFileAsync(output, 'utf-8')
+    assert.doesNotMatch(result, /123/);
+  },
+
   async entryPointFileNamespace({ esbuild, testDir }) {
     const input = path.join(testDir, 'in.js')
     let worked = false
