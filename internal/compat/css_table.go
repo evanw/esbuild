@@ -13,6 +13,7 @@ const (
 	GradientDoublePosition
 	GradientInterpolation
 	GradientMidpoints
+	GradientSingleColorStop
 	HWB
 	HexRGBA
 	InlineStyle
@@ -25,19 +26,20 @@ const (
 )
 
 var StringToCSSFeature = map[string]CSSFeature{
-	"color-functions":          ColorFunctions,
-	"gradient-double-position": GradientDoublePosition,
-	"gradient-interpolation":   GradientInterpolation,
-	"gradient-midpoints":       GradientMidpoints,
-	"hwb":                      HWB,
-	"hex-rgba":                 HexRGBA,
-	"inline-style":             InlineStyle,
-	"inset-property":           InsetProperty,
-	"is-pseudo-class":          IsPseudoClass,
-	"media-range":              MediaRange,
-	"modern-rgb-hsl":           Modern_RGB_HSL,
-	"nesting":                  Nesting,
-	"rebecca-purple":           RebeccaPurple,
+	"color-functions":            ColorFunctions,
+	"gradient-double-position":   GradientDoublePosition,
+	"gradient-interpolation":     GradientInterpolation,
+	"gradient-midpoints":         GradientMidpoints,
+	"gradient-single-color-stop": GradientSingleColorStop,
+	"hwb":                        HWB,
+	"hex-rgba":                   HexRGBA,
+	"inline-style":               InlineStyle,
+	"inset-property":             InsetProperty,
+	"is-pseudo-class":            IsPseudoClass,
+	"media-range":                MediaRange,
+	"modern-rgb-hsl":             Modern_RGB_HSL,
+	"nesting":                    Nesting,
+	"rebecca-purple":             RebeccaPurple,
 }
 
 func (features CSSFeature) Has(feature CSSFeature) bool {
@@ -80,6 +82,14 @@ var cssTable = map[CSSFeature]map[Engine][]versionRange{
 		IOS:     {{start: v{7, 0, 0}}},
 		Opera:   {{start: v{27, 0, 0}}},
 		Safari:  {{start: v{7, 0, 0}}},
+	},
+	GradientSingleColorStop: {
+		Chrome:  {{start: v{135, 0, 0}}},
+		Edge:    {{start: v{135, 0, 0}}},
+		Firefox: {{start: v{136, 0, 0}}},
+		IOS:     {{start: v{18, 4, 0}}},
+		Opera:   {{start: v{120, 0, 0}}},
+		Safari:  {{start: v{18, 4, 0}}},
 	},
 	HWB: {
 		Chrome:  {{start: v{101, 0, 0}}},

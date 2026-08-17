@@ -61,6 +61,10 @@ const cssFeatures: Partial<Record<CSSFeature, string | string[]>> = {
     'css.types.gradient.repeating-linear-gradient.interpolation_hints',
     'css.types.gradient.repeating-radial-gradient.interpolation_hints',
   ],
+  GradientSingleColorStop: [
+    'css.types.gradient.linear-gradient.single_color_stop',
+    'css.types.gradient.repeating-linear-gradient.single_color_stop',
+  ],
   HexRGBA: 'css.types.color.rgb_hexadecimal_notation.alpha_hexadecimal_notation',
   HWB: 'css.types.color.hwb',
   InsetProperty: 'css.properties.inset',

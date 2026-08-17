@@ -176,6 +176,12 @@ func (p *parser) lowerAndMinifyGradient(token css_ast.Token, wouldClipColor *boo
 	lowerMidpoints := p.options.unsupportedCSSFeatures.Has(compat.GradientMidpoints)
 	lowerColorSpaces := p.options.unsupportedCSSFeatures.Has(compat.ColorFunctions)
 	lowerInterpolation := p.options.unsupportedCSSFeatures.Has(compat.GradientInterpolation)
+	lowerSingleColorStop := p.options.unsupportedCSSFeatures.Has(compat.GradientSingleColorStop)
+
+	// Older browsers require linear gradients to have at least two color stops
+	if lowerSingleColorStop && gradient.kind == linearGradient && len(gradient.colorStops) == 1 {
+		gradient.colorStops = []colorStop{gradient.colorStops[0], gradient.colorStops[0]}
+	}
 
 	// Assume that if the browser doesn't support color spaces in gradients, then
 	// it doesn't correctly interpolate non-sRGB colors even when a color space
