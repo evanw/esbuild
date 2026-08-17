@@ -886,6 +886,22 @@ func TestGradient(t *testing.T) {
 	}
 }
 
+func TestGradientSingleColorStop(t *testing.T) {
+	code := "a { background: linear-gradient(red) }"
+	expectPrinted(t, code, "a {\n  background: linear-gradient(red);\n}\n", "")
+	expectPrintedLowerUnsupported(t, compat.GradientSingleColorStop, code,
+		"a {\n  background: linear-gradient(red, red);\n}\n", "")
+
+	code = "a { background: repeating-linear-gradient(red) }"
+	expectPrinted(t, code, "a {\n  background: repeating-linear-gradient(red);\n}\n", "")
+	expectPrintedLowerUnsupported(t, compat.GradientSingleColorStop, code,
+		"a {\n  background: repeating-linear-gradient(red, red);\n}\n", "")
+
+	code = "a { background: linear-gradient(to right, #abc 20%) }"
+	expectPrintedLowerUnsupported(t, compat.GradientSingleColorStop, code,
+		"a {\n  background:\n    linear-gradient(\n      to right,\n      #abc 20%,\n      #abc 20%);\n}\n", "")
+}
+
 func TestDeclaration(t *testing.T) {
 	expectPrinted(t, ".decl {}", ".decl {\n}\n", "")
 	expectPrinted(t, ".decl { a: b }", ".decl {\n  a: b;\n}\n", "")

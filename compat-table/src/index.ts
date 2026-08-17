@@ -96,6 +96,7 @@ export const cssFeatures = {
   GradientDoublePosition: true,
   GradientInterpolation: true,
   GradientMidpoints: true,
+  GradientSingleColorStop: true,
   HexRGBA: true,
   HWB: true,
   InlineStyle: true,
