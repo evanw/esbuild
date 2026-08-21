@@ -1503,8 +1503,26 @@ func (p *parser) lowerObjectRestHelper(
 	// If there is at least one rest binding, lower the whole expression
 	var visit func(js_ast.Expr, js_ast.Expr, []func() js_ast.Expr)
 
-	captureIntoRef := func(expr js_ast.Expr) ast.Ref {
+	// These temporaries are declared explicitly in the lowered declaration list
+	// when "declare" is tempRefNoDeclare. Record them as declared symbols so the
+	// linker can rename them across modules.
+	generateObjectRestTempRef := func() ast.Ref {
 		ref := p.generateTempRef(declare, "")
+		if declare == tempRefNoDeclare {
+			scope := p.currentScope
+			for !scope.Kind.StopsHoisting() {
+				scope = scope.Parent
+			}
+			p.currentPart.DeclaredSymbols = append(p.currentPart.DeclaredSymbols, js_ast.DeclaredSymbol{
+				Ref:        ref,
+				IsTopLevel: scope == p.moduleScope,
+			})
+		}
+		return ref
+	}
+
+	captureIntoRef := func(expr js_ast.Expr) ast.Ref {
+		ref := generateObjectRestTempRef()
 		assign(js_ast.Expr{Loc: expr.Loc, Data: &js_ast.EIdentifier{Ref: ref}}, expr)
 		p.recordUsage(ref)
 		return ref
@@ -1554,7 +1572,7 @@ func (p *parser) lowerObjectRestHelper(
 		}
 
 		// Swap the binding with a temporary
-		splitRef := p.generateTempRef(declare, "")
+		splitRef := generateObjectRestTempRef()
 		deferredBinding := *binding
 		binding.Data = &js_ast.EIdentifier{Ref: splitRef}
 		items := append(before, split)
@@ -1563,7 +1581,7 @@ func (p *parser) lowerObjectRestHelper(
 		var tailExpr js_ast.Expr
 		var tailInit js_ast.Expr
 		if len(after) > 0 {
-			tailRef := p.generateTempRef(declare, "")
+			tailRef := generateObjectRestTempRef()
 			loc := after[0].Loc
 			tailExpr = js_ast.Expr{Loc: loc, Data: &js_ast.EArray{Items: after, IsSingleLine: isSingleLine}}
 			tailInit = js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: tailRef}}
@@ -1605,7 +1623,7 @@ func (p *parser) lowerObjectRestHelper(
 		binding := &split.ValueOrNil
 
 		// Swap the binding with a temporary
-		splitRef := p.generateTempRef(declare, "")
+		splitRef := generateObjectRestTempRef()
 		deferredBinding := *binding
 		binding.Data = &js_ast.EIdentifier{Ref: splitRef}
 		p.recordUsage(splitRef)

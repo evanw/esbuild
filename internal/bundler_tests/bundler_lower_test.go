@@ -1868,6 +1868,103 @@ func TestTSLowerObjectRest2018NoBundle(t *testing.T) {
 	})
 }
 
+func TestTSLowerObjectRestNameCollision(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import { C } from './moduleA.js';
+				import { rest } from './moduleB.js';
+				console.log(C.make(), rest);
+			`,
+			"/moduleA.js": `
+				var _a;
+				export class C {
+					static make() {
+						return new _a();
+					}
+				}
+				_a = C;
+			`,
+			"/moduleB.js": `
+				const value = { a: 1, b: 2 };
+				export const { a, ...rest } = value;
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                  config.ModeBundle,
+			UnsupportedJSFeatures: es(2017),
+			AbsOutputFile:         "/out.js",
+		},
+	})
+}
+
+func TestTSLowerObjectRestNestedObjectNameCollision(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import { C } from './moduleA.js';
+				import { rest } from './moduleB.js';
+				console.log(C.make(), rest);
+			`,
+			"/moduleA.js": `
+				var _a;
+				export class C {
+					static make() {
+						return new _a();
+					}
+				}
+				_a = C;
+			`,
+			"/moduleB.js": `
+				const value = { nested: { a: 1, b: 2 } };
+				export const { nested: { ...rest } } = value;
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                  config.ModeBundle,
+			UnsupportedJSFeatures: es(2017),
+			AbsOutputFile:         "/out.js",
+		},
+	})
+}
+
+func TestTSLowerObjectRestNestedArrayNameCollision(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import { C } from './moduleA.js';
+				import { rest, tail } from './moduleB.js';
+				console.log(C.make(), C.value(), rest, tail);
+			`,
+			"/moduleA.js": `
+				var _a, _b;
+				export class C {
+					static make() {
+						return new _a();
+					}
+					static value() {
+						return _b;
+					}
+				}
+				_a = C;
+				_b = 42;
+			`,
+			"/moduleB.js": `
+				const value = [{ a: 1, b: 2 }, 3];
+				export const [{ ...rest }, tail] = value;
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                  config.ModeBundle,
+			UnsupportedJSFeatures: es(2017),
+			AbsOutputFile:         "/out.js",
+		},
+	})
+}
+
 func TestClassSuperThisIssue242NoBundle(t *testing.T) {
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
