@@ -2194,6 +2194,10 @@ func TestMinifyCalc(t *testing.T) {
 	expectPrintedMangleMinify(t, "a { b: calc(x - y) }", "a{b:calc(x - y)}", "")
 	expectPrintedMangleMinify(t, "a { b: calc(x * y) }", "a{b:calc(x*y)}", "")
 	expectPrintedMangleMinify(t, "a { b: calc(x / y) }", "a{b:calc(x/y)}", "")
+
+	// Division is only allowed by a plain number, so multiplying by a value
+	// with a unit must not be substituted with division by its reciprocal
+	expectPrintedMangleMinify(t, "a { b: calc(sibling-index() * 0.05s) }", "a{b:calc(sibling-index()*.05s)}", "")
 }
 
 func TestMangleCalc(t *testing.T) {
@@ -2230,6 +2234,12 @@ func TestMangleCalc(t *testing.T) {
 	expectPrintedMangle(t, "a { b: calc(x / 4) }", "a {\n  b: calc(x / 4);\n}\n", "")
 	expectPrintedMangle(t, "a { b: calc(x * 0.25) }", "a {\n  b: calc(x / 4);\n}\n", "")
 	expectPrintedMangle(t, "a { b: calc(x / 0.25) }", "a {\n  b: calc(x * 4);\n}\n", "")
+
+	// Division by anything other than a plain number is invalid CSS syntax,
+	// so this substitution must not happen when the number has a unit
+	expectPrintedMangle(t, "a { b: calc(sibling-index() * 0.05s) }", "a {\n  b: calc(sibling-index() * .05s);\n}\n", "")
+	expectPrintedMangle(t, "a { b: calc(x * 0.25s) }", "a {\n  b: calc(x * .25s);\n}\n", "")
+	expectPrintedMangle(t, "a { b: calc(x * 50%) }", "a {\n  b: calc(x * 50%);\n}\n", "")
 
 	// Test operator precedence
 	expectPrintedMangle(t, "a { b: calc((a + b) + c) }", "a {\n  b: calc(a + b + c);\n}\n", "")
