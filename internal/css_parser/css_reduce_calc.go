@@ -394,9 +394,12 @@ func (c *calcProduct) partiallySimplify() calcTerm {
 		}
 	}
 
-	// ALGORITHM DEVIATION: Divide instead of multiply if the reciprocal is shorter
+	// ALGORITHM DEVIATION: Divide instead of multiply if the reciprocal is shorter.
+	// This is only done when the value is a unitless number because the CSS
+	// specification only allows division by numbers, so turning something like
+	// "calc(x * 0.05s)" into "calc(x / 20s)" would generate invalid CSS syntax.
 	for i := 1; i < len(terms); i++ {
-		if numeric, ok := terms[i].data.(*calcNumeric); ok {
+		if numeric, ok := terms[i].data.(*calcNumeric); ok && numeric.unit == "" {
 			reciprocal := 1 / numeric.number
 			if multiply, ok := floatToStringForCalc(numeric.number); ok {
 				if divide, ok := floatToStringForCalc(reciprocal); ok && len(divide) < len(multiply) {
