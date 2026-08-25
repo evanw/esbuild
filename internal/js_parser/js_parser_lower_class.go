@@ -1064,39 +1064,43 @@ func (ctx *lowerClassContext) lowerMethod(p *parser, prop js_ast.Property, priva
 		return true
 	}
 
-	if key, ok := prop.Key.Data.(*js_ast.EString); ok && helpers.UTF16EqualsString(key.Value, "constructor") {
-		if fn, ok := prop.ValueOrNil.Data.(*js_ast.EFunction); ok {
-			// Remember where the constructor is for later
-			ctx.ctor = fn
+	// A method with a computed key that happens to be the string "constructor"
+	// is not a constructor (https://github.com/evanw/esbuild/issues/4495)
+	if !prop.Flags.Has(js_ast.PropertyIsComputed) {
+		if key, ok := prop.Key.Data.(*js_ast.EString); ok && helpers.UTF16EqualsString(key.Value, "constructor") {
+			if fn, ok := prop.ValueOrNil.Data.(*js_ast.EFunction); ok {
+				// Remember where the constructor is for later
+				ctx.ctor = fn
 
-			// Initialize TypeScript constructor parameter fields
-			if p.options.ts.Parse {
-				for _, arg := range ctx.ctor.Fn.Args {
-					if arg.IsTypeScriptCtorField {
-						if id, ok := arg.Binding.Data.(*js_ast.BIdentifier); ok {
-							loc := arg.Binding.Loc
-							name := p.symbols[id.Ref.InnerIndex].OriginalName
-							target := js_ast.Expr{Loc: loc, Data: js_ast.EThisShared}
-							init := js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: id.Ref}}
+				// Initialize TypeScript constructor parameter fields
+				if p.options.ts.Parse {
+					for _, arg := range ctx.ctor.Fn.Args {
+						if arg.IsTypeScriptCtorField {
+							if id, ok := arg.Binding.Data.(*js_ast.BIdentifier); ok {
+								loc := arg.Binding.Loc
+								name := p.symbols[id.Ref.InnerIndex].OriginalName
+								target := js_ast.Expr{Loc: loc, Data: js_ast.EThisShared}
+								init := js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: id.Ref}}
 
-							// See: https://github.com/evanw/esbuild/issues/4421
-							if !ctx.class.UseDefineForClassFields || !p.options.unsupportedJSFeatures.Has(compat.ClassField) {
-								ctx.parameterFields = append(ctx.parameterFields, js_ast.AssignStmt(
-									js_ast.Expr{Loc: loc, Data: p.dotOrMangledPropVisit(target, name, loc)},
-									init,
-								))
-							}
-							if ctx.class.UseDefineForClassFields {
-								key := js_ast.Expr{Loc: loc, Data: &js_ast.EString{Value: helpers.StringToUTF16(name)}}
-								if p.options.unsupportedJSFeatures.Has(compat.ClassField) {
-									ctx.parameterFields = append(ctx.parameterFields, js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{
-										Value: js_ast.Expr{Loc: loc, Data: &js_ast.ECall{
-											Target: p.importFromRuntime(loc, "__publicField"),
-											Args:   []js_ast.Expr{target, key, init},
-										}},
-									}})
-								} else {
-									ctx.parameterFieldProps = append(ctx.parameterFieldProps, js_ast.Property{Kind: js_ast.PropertyField, Loc: loc, Key: key})
+								// See: https://github.com/evanw/esbuild/issues/4421
+								if !ctx.class.UseDefineForClassFields || !p.options.unsupportedJSFeatures.Has(compat.ClassField) {
+									ctx.parameterFields = append(ctx.parameterFields, js_ast.AssignStmt(
+										js_ast.Expr{Loc: loc, Data: p.dotOrMangledPropVisit(target, name, loc)},
+										init,
+									))
+								}
+								if ctx.class.UseDefineForClassFields {
+									key := js_ast.Expr{Loc: loc, Data: &js_ast.EString{Value: helpers.StringToUTF16(name)}}
+									if p.options.unsupportedJSFeatures.Has(compat.ClassField) {
+										ctx.parameterFields = append(ctx.parameterFields, js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{
+											Value: js_ast.Expr{Loc: loc, Data: &js_ast.ECall{
+												Target: p.importFromRuntime(loc, "__publicField"),
+												Args:   []js_ast.Expr{target, key, init},
+											}},
+										}})
+									} else {
+										ctx.parameterFieldProps = append(ctx.parameterFieldProps, js_ast.Property{Kind: js_ast.PropertyField, Loc: loc, Key: key})
+									}
 								}
 							}
 						}
