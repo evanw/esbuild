@@ -341,6 +341,27 @@ func TestLowerClassInstance(t *testing.T) {
   }
 }
 `)
+
+	// A method with a computed key called "constructor" is not a constructor
+	// (https://github.com/evanw/esbuild/issues/4495)
+	expectPrintedTarget(t, 2015, "class Foo extends Bar { foo; get ['constructor']() {} constructor() { super() } }", `class Foo extends Bar {
+  constructor() {
+    super();
+    __publicField(this, "foo");
+  }
+  get ["constructor"]() {
+  }
+}
+`)
+	expectPrintedTarget(t, 2015, "class Foo extends Bar { foo; get ['constructor']() {} }", `class Foo extends Bar {
+  constructor() {
+    super(...arguments);
+    __publicField(this, "foo");
+  }
+  get ["constructor"]() {
+  }
+}
+`)
 }
 
 func TestLowerClassStatic(t *testing.T) {
