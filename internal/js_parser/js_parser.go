@@ -11621,6 +11621,21 @@ func (p *parser) minifySwitchStmt(loc logger.Loc, s *js_ast.SSwitch, stmts []js_
 		}
 	}
 
+	// Remove a trailing "default" clause if it has no effect
+	if len(s.Cases) > 0 {
+		if last := &s.Cases[len(s.Cases)-1]; last.ValueOrNil.Data == nil {
+			// "switch (x) { case 0: y(); default: }" => "switch (x) { case 0: y(); }"
+			if len(last.Body) == 0 {
+				s.Cases = s.Cases[:len(s.Cases)-1]
+			} else if len(last.Body) == 1 {
+				// "switch (x) { case 0: y(); default: break; }" => "switch (x) { case 0: y(); }"
+				if b, ok := last.Body[0].Data.(*js_ast.SBreak); ok && b.Label == nil {
+					s.Cases = s.Cases[:len(s.Cases)-1]
+				}
+			}
+		}
+	}
+
 	// Attempt to partially-evaluate statically-determined switch statements
 	if js_ast.IsPrimitiveLiteral(s.Test.Data) {
 		allCasesArePrimitives := true
