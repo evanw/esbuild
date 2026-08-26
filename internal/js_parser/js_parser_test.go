@@ -3702,6 +3702,16 @@ func TestMangleSwitch(t *testing.T) {
 	expectPrintedMangle(t, "switch (1) { case 0: x(); case 1: y(); break; case 2: z() }", "y();\n")
 	expectPrintedMangle(t, "switch (1) { case 0: x(); default: y(); break; case 2: z() }", "y();\n")
 	expectPrintedMangle(t, "switch (0) { case 0: case y: x() }", "switch (0) {\n  case 0:\n  case y:\n    x();\n}\n")
+
+	// https://github.com/evanw/esbuild/issues/4389
+	expectPrintedMangle(t, "switch (x) { case 0: y(); break; default: break; }", "x === 0 && y();\n")
+	expectPrintedMangle(t, "switch (x) { case 0: y(); break; default: }", "x === 0 && y();\n")
+	expectPrintedMangle(t, "switch (x) { case 0: y(); default: break; }", "x === 0 && y();\n")
+	expectPrintedMangle(t, "switch (x) { default: break; }", "x;\n")
+	expectPrintedMangle(t, "switch (x) { default: }", "x;\n")
+	expectPrintedMangle(t, "label: switch (x) { default: break label; }", "label: switch (x) {\n  default:\n    break label;\n}\n")
+	expectPrintedMangle(t, "while (x) { switch (y) { default: continue; } }", "for (; x; )\n  switch (y) {\n    default:\n      continue;\n  }\n")
+	expectPrintedMangle(t, "switch (x) { default: case 0: y(); }", "switch (x) {\n  default:\n  case 0:\n    y();\n}\n")
 }
 
 func TestMangleAddEmptyString(t *testing.T) {
