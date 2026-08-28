@@ -1540,7 +1540,11 @@ func (p *parser) parseTypeScriptEnumStmt(loc logger.Loc, opts parseStmtOpts) js_
 func (p *parser) parseTypeScriptImportEqualsStmt(loc logger.Loc, opts parseStmtOpts, defaultNameLoc logger.Loc, defaultName string) js_ast.Stmt {
 	p.lexer.Expect(js_lexer.TEquals)
 
-	kind := p.selectLocalKind(js_ast.LocalConst)
+	// This must be a "var" declaration instead of a "const" declaration to
+	// match the behavior of the TypeScript compiler. Unlike "const", a "var"
+	// is hoisted, so code compiled by "tsc" can observe the alias (as
+	// undefined) before its declaration has been evaluated. See issue #4449.
+	kind := js_ast.LocalVar
 	name := p.lexer.Identifier
 	value := js_ast.Expr{Loc: p.lexer.Loc(), Data: &js_ast.EIdentifier{Ref: p.storeNameInRef(name)}}
 	p.lexer.Expect(js_lexer.TIdentifier)
@@ -1578,6 +1582,10 @@ func (p *parser) parseTypeScriptImportEqualsStmt(loc logger.Loc, opts parseStmtO
 		return js_ast.Stmt{Loc: loc, Data: js_ast.STypeScriptShared}
 	}
 
+	// Note: This is still declared as a constant symbol even though the
+	// declaration is printed as "var", so that assigning to the alias keeps
+	// generating a warning. The TypeScript compiler makes such an assignment
+	// an error ("Cannot assign to 'x' because it is an import").
 	ref := p.declareSymbol(ast.SymbolConst, defaultNameLoc, defaultName)
 	decls := []js_ast.Decl{{
 		Binding:    js_ast.Binding{Loc: defaultNameLoc, Data: &js_ast.BIdentifier{Ref: ref}},
