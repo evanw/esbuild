@@ -256,21 +256,22 @@ console.log(123);
 TestSplittingDynamicAndNotDynamicCommonJSIntoES6
 ---------- /out/entry.js ----------
 import {
+  __toDynamicImportESM,
   __toESM,
   require_foo
-} from "./chunk-X3UWZZCR.js";
+} from "./chunk-YKC3HY2W.js";
 
 // entry.js
 var import_foo = __toESM(require_foo());
-import("./foo-BJYZ44Z3.js").then(({ default: { bar: b } }) => console.log(import_foo.bar, b));
+import("./foo-6HG4JAMC.js").then(__toDynamicImportESM()).then(({ default: { bar: b } }) => console.log(import_foo.bar, b));
 
----------- /out/foo-BJYZ44Z3.js ----------
+---------- /out/foo-6HG4JAMC.js ----------
 import {
   require_foo
-} from "./chunk-X3UWZZCR.js";
+} from "./chunk-YKC3HY2W.js";
 export default require_foo();
 
----------- /out/chunk-X3UWZZCR.js ----------
+---------- /out/chunk-YKC3HY2W.js ----------
 // foo.js
 var require_foo = __commonJS({
   "foo.js"(exports) {
@@ -280,6 +281,7 @@ var require_foo = __commonJS({
 
 export {
   __toESM,
+  __toDynamicImportESM,
   require_foo
 };
 
@@ -312,10 +314,18 @@ export {
 ================================================================================
 TestSplittingDynamicCommonJSIntoES6
 ---------- /out/entry.js ----------
-// entry.js
-import("./foo-X6C7FV5C.js").then(({ default: { bar } }) => console.log(bar));
+import {
+  __toDynamicImportESM
+} from "./chunk-GGXTN2YZ.js";
 
----------- /out/foo-X6C7FV5C.js ----------
+// entry.js
+import("./foo-THZCWWD5.js").then(__toDynamicImportESM()).then(({ default: { bar } }) => console.log(bar));
+
+---------- /out/foo-THZCWWD5.js ----------
+import {
+  __commonJS
+} from "./chunk-GGXTN2YZ.js";
+
 // foo.js
 var require_foo = __commonJS({
   "foo.js"(exports) {
@@ -323,6 +333,12 @@ var require_foo = __commonJS({
   }
 });
 export default require_foo();
+
+---------- /out/chunk-GGXTN2YZ.js ----------
+export {
+  __commonJS,
+  __toDynamicImportESM
+};
 
 ================================================================================
 TestSplittingDynamicES6IntoES6
@@ -370,7 +386,7 @@ TestSplittingHybridESMAndCJSIssue617
 import {
   foo,
   init_a
-} from "./chunk-PDZFCFBH.js";
+} from "./chunk-7MOKQDVB.js";
 init_a();
 export {
   foo
@@ -381,7 +397,7 @@ import {
   __toCommonJS,
   a_exports,
   init_a
-} from "./chunk-PDZFCFBH.js";
+} from "./chunk-7MOKQDVB.js";
 
 // b.js
 var bar = (init_a(), __toCommonJS(a_exports));
@@ -389,7 +405,7 @@ export {
   bar
 };
 
----------- /out/chunk-PDZFCFBH.js ----------
+---------- /out/chunk-7MOKQDVB.js ----------
 // a.js
 var a_exports = {};
 __export(a_exports, {

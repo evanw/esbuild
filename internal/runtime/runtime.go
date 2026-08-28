@@ -263,6 +263,15 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 				mod)
 		)
 
+		// Converts the default export of a dynamically-imported chunk from
+		// CommonJS to ESM. When code splitting is active, a dynamic "import()"
+		// of a CommonJS entry point resolves to that chunk's namespace object,
+		// which nests the CommonJS exports object on "default". Expanding it
+		// with "__toESM" gives "import()" the same ESM namespace it would have
+		// produced without code splitting.
+		export var __toDynamicImportESM = isNodeMode =>
+			mod => __toESM(mod.default, isNodeMode)
+
 		// Converts the module from ESM to CommonJS. This clones the input module
 		// object with the addition of a non-enumerable "__esModule" property set
 		// to "true", which overwrites any existing export named "__esModule".

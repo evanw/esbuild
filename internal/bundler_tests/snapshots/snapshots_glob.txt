@@ -59,13 +59,14 @@ TestGlobBasicSplitting
 ---------- /out/entry.js ----------
 import {
   require_a
-} from "./chunk-KO426RN2.js";
+} from "./chunk-VUD3HQVH.js";
 import {
   require_b
-} from "./chunk-SGVK3D4Q.js";
+} from "./chunk-MU7G2ISE.js";
 import {
-  __glob
-} from "./chunk-WCFE7E2E.js";
+  __glob,
+  __toDynamicImportESM
+} from "./chunk-5QFZ7U4C.js";
 
 // require("./src/**/*") in entry.js
 var globRequire_src = __glob({
@@ -75,8 +76,8 @@ var globRequire_src = __glob({
 
 // import("./src/**/*") in entry.js
 var globImport_src = __glob({
-  "./src/a.js": () => import("./a-7QA47R6Z.js"),
-  "./src/b.js": () => import("./b-KY4MVCQS.js")
+  "./src/a.js": () => import("./a-J4R5FRMT.js").then(__toDynamicImportESM()),
+  "./src/b.js": () => import("./b-OZJYBX6R.js").then(__toDynamicImportESM())
 });
 
 // entry.js
@@ -92,17 +93,17 @@ console.log({
   }
 });
 
----------- /out/a-7QA47R6Z.js ----------
+---------- /out/a-J4R5FRMT.js ----------
 import {
   require_a
-} from "./chunk-KO426RN2.js";
-import "./chunk-WCFE7E2E.js";
+} from "./chunk-VUD3HQVH.js";
+import "./chunk-5QFZ7U4C.js";
 export default require_a();
 
----------- /out/chunk-KO426RN2.js ----------
+---------- /out/chunk-VUD3HQVH.js ----------
 import {
   __commonJS
-} from "./chunk-WCFE7E2E.js";
+} from "./chunk-5QFZ7U4C.js";
 
 // src/a.js
 var require_a = __commonJS({
@@ -115,17 +116,17 @@ export {
   require_a
 };
 
----------- /out/b-KY4MVCQS.js ----------
+---------- /out/b-OZJYBX6R.js ----------
 import {
   require_b
-} from "./chunk-SGVK3D4Q.js";
-import "./chunk-WCFE7E2E.js";
+} from "./chunk-MU7G2ISE.js";
+import "./chunk-5QFZ7U4C.js";
 export default require_b();
 
----------- /out/chunk-SGVK3D4Q.js ----------
+---------- /out/chunk-MU7G2ISE.js ----------
 import {
   __commonJS
-} from "./chunk-WCFE7E2E.js";
+} from "./chunk-5QFZ7U4C.js";
 
 // src/b.js
 var require_b = __commonJS({
@@ -138,10 +139,11 @@ export {
   require_b
 };
 
----------- /out/chunk-WCFE7E2E.js ----------
+---------- /out/chunk-5QFZ7U4C.js ----------
 export {
   __glob,
-  __commonJS
+  __commonJS,
+  __toDynamicImportESM
 };
 
 ================================================================================
@@ -321,13 +323,14 @@ TestTSGlobBasicSplitting
 ---------- /out/entry.js ----------
 import {
   require_a
-} from "./chunk-YMCIDKCT.js";
+} from "./chunk-6JYTJ5H6.js";
 import {
   require_b
-} from "./chunk-2BST4PYI.js";
+} from "./chunk-VRRSEOC7.js";
 import {
-  __glob
-} from "./chunk-WCFE7E2E.js";
+  __glob,
+  __toDynamicImportESM
+} from "./chunk-5QFZ7U4C.js";
 
 // require("./src/**/*") in entry.ts
 var globRequire_src = __glob({
@@ -337,8 +340,8 @@ var globRequire_src = __glob({
 
 // import("./src/**/*") in entry.ts
 var globImport_src = __glob({
-  "./src/a.ts": () => import("./a-YXM4MR7E.js"),
-  "./src/b.ts": () => import("./b-IPMBSSGN.js")
+  "./src/a.ts": () => import("./a-FFF4IVGR.js").then(__toDynamicImportESM()),
+  "./src/b.ts": () => import("./b-AELWDXGO.js").then(__toDynamicImportESM())
 });
 
 // entry.ts
@@ -354,17 +357,17 @@ console.log({
   }
 });
 
----------- /out/a-YXM4MR7E.js ----------
+---------- /out/a-FFF4IVGR.js ----------
 import {
   require_a
-} from "./chunk-YMCIDKCT.js";
-import "./chunk-WCFE7E2E.js";
+} from "./chunk-6JYTJ5H6.js";
+import "./chunk-5QFZ7U4C.js";
 export default require_a();
 
----------- /out/chunk-YMCIDKCT.js ----------
+---------- /out/chunk-6JYTJ5H6.js ----------
 import {
   __commonJS
-} from "./chunk-WCFE7E2E.js";
+} from "./chunk-5QFZ7U4C.js";
 
 // src/a.ts
 var require_a = __commonJS({
@@ -377,17 +380,17 @@ export {
   require_a
 };
 
----------- /out/b-IPMBSSGN.js ----------
+---------- /out/b-AELWDXGO.js ----------
 import {
   require_b
-} from "./chunk-2BST4PYI.js";
-import "./chunk-WCFE7E2E.js";
+} from "./chunk-VRRSEOC7.js";
+import "./chunk-5QFZ7U4C.js";
 export default require_b();
 
----------- /out/chunk-2BST4PYI.js ----------
+---------- /out/chunk-VRRSEOC7.js ----------
 import {
   __commonJS
-} from "./chunk-WCFE7E2E.js";
+} from "./chunk-5QFZ7U4C.js";
 
 // src/b.ts
 var require_b = __commonJS({
@@ -400,8 +403,9 @@ export {
   require_b
 };
 
----------- /out/chunk-WCFE7E2E.js ----------
+---------- /out/chunk-5QFZ7U4C.js ----------
 export {
   __glob,
-  __commonJS
+  __commonJS,
+  __toDynamicImportESM
 };

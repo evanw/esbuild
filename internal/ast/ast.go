@@ -155,6 +155,13 @@ const (
 	// Unique keys are randomly-generated strings that are used to replace paths
 	// in the source code after it's printed. These must not ever be split apart.
 	ContainsUniqueKey
+
+	// Tell the printer to wrap this cross-chunk "import()" of a CommonJS
+	// entry point with a call to the "__toDynamicImportESM()" helper, which
+	// expands the chunk's default export (the CommonJS exports object) into
+	// an ESM namespace. This makes "import()" of a CommonJS file behave the
+	// same with and without code splitting.
+	WrapDynamicImportWithToESM
 )
 
 func (flags ImportRecordFlags) Has(flag ImportRecordFlags) bool {
