@@ -1527,6 +1527,21 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, level js_as
 			p.addSourceMapping(closeParenLoc)
 		}
 		p.print(")")
+
+		// Wrap the promise with a call to the "__toDynamicImportESM()" helper
+		// if this is a cross-chunk dynamic import of a CommonJS entry point.
+		// The chunk's namespace object nests the CommonJS exports object on
+		// "default", so it must be expanded into an ESM namespace to match
+		// the behavior of "import()" without code splitting.
+		if record.Flags.Has(ast.WrapDynamicImportWithToESM) && kind == ast.ImportDynamic && phase == ast.EvaluationPhase {
+			p.print(".then(")
+			p.printIdentifier(p.renamer.NameForSymbol(p.options.ToDynamicImportESMRef))
+			p.print("(")
+			if p.moduleType.IsESM() {
+				p.print("1")
+			}
+			p.print("))")
+		}
 		return
 	}
 
@@ -4928,22 +4943,23 @@ type Options struct {
 	// us do binary search on to figure out what line a given AST node came from
 	LineOffsetTables []sourcemap.LineOffsetTable
 
-	ToCommonJSRef       ast.Ref
-	ToESMRef            ast.Ref
-	RuntimeRequireRef   ast.Ref
-	UnsupportedFeatures compat.JSFeature
-	Indent              int
-	LineLimit           int
-	OutputFormat        config.Format
-	MinifyWhitespace    bool
-	MinifyIdentifiers   bool
-	MinifySyntax        bool
-	ASCIIOnly           bool
-	LegalComments       config.LegalComments
-	SourceMap           config.SourceMap
-	AddSourceMappings   bool
-	NeedsMetafile       bool
-	MetafileFormat      config.MetafileFormat
+	ToCommonJSRef         ast.Ref
+	ToESMRef              ast.Ref
+	ToDynamicImportESMRef ast.Ref
+	RuntimeRequireRef     ast.Ref
+	UnsupportedFeatures   compat.JSFeature
+	Indent                int
+	LineLimit             int
+	OutputFormat          config.Format
+	MinifyWhitespace      bool
+	MinifyIdentifiers     bool
+	MinifySyntax          bool
+	ASCIIOnly             bool
+	LegalComments         config.LegalComments
+	SourceMap             config.SourceMap
+	AddSourceMappings     bool
+	NeedsMetafile         bool
+	MetafileFormat        config.MetafileFormat
 }
 
 type RequireOrImportMeta struct {

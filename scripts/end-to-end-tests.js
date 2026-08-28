@@ -8175,6 +8175,52 @@ tests.push(
     `,
   }, { async: true }),
 
+  // Code splitting with a dynamic import of a CommonJS entry point must
+  // expand the CommonJS exports object into an ESM namespace, the same as
+  // "import()" of the same file without code splitting (see #4377)
+  test(['main.js', 'impl.js', '--outdir=out', '--splitting', '--format=esm', '--bundle'], {
+    'main.js': `
+      export default async function () {
+        const mod = await import('./impl.js')
+        return [mod.foo(), mod.default.foo()]
+      }
+    `,
+    'impl.js': `
+      exports.foo = () => 'success'
+    `,
+    'node.js': `
+      export let async = async () => {
+        const {default: fn} = await import('./out/main.js')
+        const [a, b] = await fn()
+        if (a !== 'success' || b !== 'success') throw 'fail'
+      }
+    `,
+  }, { async: true }),
+
+  // Code splitting with a dynamic import of a CommonJS entry point that has
+  // been converted from ESM with a Babel-compatible transform: the "default"
+  // export must be unwrapped the same way with and without code splitting
+  test(['main.js', 'babel.js', '--outdir=out', '--splitting', '--format=esm', '--bundle'], {
+    'main.js': `
+      export default async function () {
+        const mod = await import('./babel.js')
+        return [mod.default(), mod.named]
+      }
+    `,
+    'babel.js': `
+      Object.defineProperty(exports, '__esModule', { value: true })
+      exports.default = () => 'default export'
+      exports.named = 'named export'
+    `,
+    'node.js': `
+      export let async = async () => {
+        const {default: fn} = await import('./out/main.js')
+        const [a, b] = await fn()
+        if (a !== 'default export' || b !== 'named export') throw 'fail'
+      }
+    `,
+  }, { async: true }),
+
   // Identical output chunks should not be shared
   test(['a.js', 'b.js', 'c.js', '--outdir=out', '--splitting', '--format=esm', '--bundle', '--minify'], {
     'a.js': `

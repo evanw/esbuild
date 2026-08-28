@@ -1890,6 +1890,7 @@ func (c *linkerContext) scanImportsAndExports() {
 		for partIndex, part := range repr.AST.Parts {
 			toESMUses := uint32(0)
 			toCommonJSUses := uint32(0)
+			toDynamicImportESMUses := uint32(0)
 			runtimeRequireUses := uint32(0)
 
 			// Imports of wrapped files must depend on the wrapper
@@ -1898,6 +1899,19 @@ func (c *linkerContext) scanImportsAndExports() {
 
 				// Don't follow external imports (this includes import() expressions)
 				if !record.SourceIndex.IsValid() || c.isExternalDynamicImport(record, sourceIndex) {
+					// A cross-chunk dynamic import of a CommonJS entry point
+					// resolves to that chunk's namespace object, which nests the
+					// CommonJS exports object on "default". Unwrap it so that
+					// "import()" gets the same ESM namespace it would have gotten
+					// without code splitting.
+					if record.SourceIndex.IsValid() && record.Phase == ast.EvaluationPhase &&
+						!c.options.UnsupportedJSFeatures.Has(compat.DynamicImport) {
+						if otherRepr := c.graph.Files[record.SourceIndex.GetIndex()].InputFile.Repr.(*graph.JSRepr); otherRepr.AST.ExportsKind == js_ast.ExportsCommonJS {
+							record.Flags |= ast.WrapDynamicImportWithToESM
+							toDynamicImportESMUses++
+						}
+					}
+
 					// This is an external import. Check if it will be a "require()" call.
 					if record.Kind == ast.ImportRequire || !c.options.OutputFormat.KeepESMImportExportSyntax() ||
 						(record.Kind == ast.ImportDynamic && c.options.UnsupportedJSFeatures.Has(compat.DynamicImport)) {
@@ -1986,6 +2000,11 @@ func (c *linkerContext) scanImportsAndExports() {
 			// If there's a CommonJS require of an ES6 module, then we're going to need the
 			// "__toCommonJS" symbol from the runtime to wrap the exports object
 			c.graph.GenerateRuntimeSymbolImportAndUse(sourceIndex, uint32(partIndex), "__toCommonJS", toCommonJSUses)
+
+			// If there's a cross-chunk dynamic import of a CommonJS entry point,
+			// then we're going to need the "__toDynamicImportESM" symbol from the
+			// runtime to unwrap the chunk's default export
+			c.graph.GenerateRuntimeSymbolImportAndUse(sourceIndex, uint32(partIndex), "__toDynamicImportESM", toDynamicImportESMUses)
 
 			// If there are unbundled calls to "require()" and we're not generating
 			// code for node, then substitute a "__require" wrapper for "require".
@@ -4665,6 +4684,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 	partRange partRange,
 	toCommonJSRef ast.Ref,
 	toESMRef ast.Ref,
+	toDynamicImportESMRef ast.Ref,
 	runtimeRequireRef ast.Ref,
 	result *compileResultJS,
 	dataForSourceMaps []bundler.DataForSourceMap,
@@ -4963,6 +4983,7 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 		ASCIIOnly:                    c.options.ASCIIOnly,
 		ToCommonJSRef:                toCommonJSRef,
 		ToESMRef:                     toESMRef,
+		ToDynamicImportESMRef:        toDynamicImportESMRef,
 		RuntimeRequireRef:            runtimeRequireRef,
 		TSEnums:                      c.graph.TSEnums,
 		ConstValues:                  c.graph.ConstValues,
@@ -5583,6 +5604,7 @@ func (c *linkerContext) generateChunkJS(chunkIndex int, chunkWaitGroup *sync.Wai
 	runtimeMembers := c.graph.Files[runtime.SourceIndex].InputFile.Repr.(*graph.JSRepr).AST.ModuleScope.Members
 	toCommonJSRef := ast.FollowSymbols(c.graph.Symbols, runtimeMembers["__toCommonJS"].Ref)
 	toESMRef := ast.FollowSymbols(c.graph.Symbols, runtimeMembers["__toESM"].Ref)
+	toDynamicImportESMRef := ast.FollowSymbols(c.graph.Symbols, runtimeMembers["__toDynamicImportESM"].Ref)
 	runtimeRequireRef := ast.FollowSymbols(c.graph.Symbols, runtimeMembers["__require"].Ref)
 	r := c.renameSymbolsInChunk(chunk, chunkRepr.filesInChunkInOrder, timer)
 	dataForSourceMaps := c.dataForSourceMaps()
@@ -5615,6 +5637,7 @@ func (c *linkerContext) generateChunkJS(chunkIndex int, chunkWaitGroup *sync.Wai
 			partRange,
 			toCommonJSRef,
 			toESMRef,
+			toDynamicImportESMRef,
 			runtimeRequireRef,
 			compileResult,
 			dataForSourceMaps,
