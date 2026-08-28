@@ -2845,22 +2845,22 @@ func TestTSExportEquals(t *testing.T) {
 func TestTSImportEquals(t *testing.T) {
 	// This use of the "export" keyword should not trigger strict mode because
 	// this syntax works in CommonJS modules, not in ECMAScript modules
-	expectPrintedTS(t, "import x = require('y')", "const x = require(\"y\");\n")
-	expectPrintedTS(t, "import x = require('y'); with ({}) ;", "const x = require(\"y\");\nwith ({}) ;\n")
+	expectPrintedTS(t, "import x = require('y')", "var x = require(\"y\");\n")
+	expectPrintedTS(t, "import x = require('y'); with ({}) ;", "var x = require(\"y\");\nwith ({}) ;\n")
 
-	expectPrintedTS(t, "import x = require('foo'); x()", "const x = require(\"foo\");\nx();\n")
-	expectPrintedTS(t, "import x = require('foo')\nx()", "const x = require(\"foo\");\nx();\n")
-	expectPrintedTS(t, "import x = require\nx()", "const x = require;\nx();\n")
-	expectPrintedTS(t, "import x = foo.bar; x()", "const x = foo.bar;\nx();\n")
-	expectPrintedTS(t, "import x = foo.bar\nx()", "const x = foo.bar;\nx();\n")
+	expectPrintedTS(t, "import x = require('foo'); x()", "var x = require(\"foo\");\nx();\n")
+	expectPrintedTS(t, "import x = require('foo')\nx()", "var x = require(\"foo\");\nx();\n")
+	expectPrintedTS(t, "import x = require\nx()", "var x = require;\nx();\n")
+	expectPrintedTS(t, "import x = foo.bar; x()", "var x = foo.bar;\nx();\n")
+	expectPrintedTS(t, "import x = foo.bar\nx()", "var x = foo.bar;\nx();\n")
 	expectParseErrorTS(t, "import x = foo()", "<stdin>: ERROR: Expected \";\" but found \"(\"\n")
 	expectParseErrorTS(t, "import x = foo<T>.bar", "<stdin>: ERROR: Expected \";\" but found \"<\"\n")
 	expectParseErrorTS(t, "{ import x = foo.bar }", "<stdin>: ERROR: Unexpected \"x\"\n")
 
-	expectPrintedTS(t, "export import x = require('foo'); x()", "export const x = require(\"foo\");\nx();\n")
-	expectPrintedTS(t, "export import x = require('foo')\nx()", "export const x = require(\"foo\");\nx();\n")
-	expectPrintedTS(t, "export import x = foo.bar; x()", "export const x = foo.bar;\nx();\n")
-	expectPrintedTS(t, "export import x = foo.bar\nx()", "export const x = foo.bar;\nx();\n")
+	expectPrintedTS(t, "export import x = require('foo'); x()", "export var x = require(\"foo\");\nx();\n")
+	expectPrintedTS(t, "export import x = require('foo')\nx()", "export var x = require(\"foo\");\nx();\n")
+	expectPrintedTS(t, "export import x = foo.bar; x()", "export var x = foo.bar;\nx();\n")
+	expectPrintedTS(t, "export import x = foo.bar\nx()", "export var x = foo.bar;\nx();\n")
 
 	expectParseError(t, "export import foo = bar", "<stdin>: ERROR: Unexpected \"import\"\n")
 	expectParseErrorTS(t, "export import {foo} from 'bar'", "<stdin>: ERROR: Expected identifier but found \"{\"\n")
@@ -2885,7 +2885,7 @@ func TestTSImportEqualsInNamespace(t *testing.T) {
 	expectPrintedTS(t, "namespace ns { import foo = bar; type x = foo.x }", "")
 	expectPrintedTS(t, "namespace ns { import foo = bar.x; foo }", `var ns;
 ((ns) => {
-  const foo = bar.x;
+  var foo = bar.x;
   foo;
 })(ns || (ns = {}));
 `)
@@ -2927,9 +2927,9 @@ func TestTSTypeOnlyImport(t *testing.T) {
 	expectPrintedTS(t, "import type foo = bar.baz; x", "x;\n")
 	expectPrintedTS(t, "import type from = require('bar'); x", "x;\n")
 
-	expectPrintedTS(t, "import type = bar; type", "const type = bar;\ntype;\n")
-	expectPrintedTS(t, "import type = foo.bar; type", "const type = foo.bar;\ntype;\n")
-	expectPrintedTS(t, "import type = require('type'); type", "const type = require(\"type\");\ntype;\n")
+	expectPrintedTS(t, "import type = bar; type", "var type = bar;\ntype;\n")
+	expectPrintedTS(t, "import type = foo.bar; type", "var type = foo.bar;\ntype;\n")
+	expectPrintedTS(t, "import type = require('type'); type", "var type = require(\"type\");\ntype;\n")
 	expectPrintedTS(t, "import type from 'bar'; type", "import type from \"bar\";\ntype;\n")
 
 	expectPrintedTS(t, "import { type } from 'mod'; type", "import { type } from \"mod\";\ntype;\n")
@@ -2948,8 +2948,8 @@ func TestTSTypeOnlyImport(t *testing.T) {
 
 	expectPrintedTS(t, "import a = b; import c = a.c", "")
 	expectPrintedTS(t, "import c = a.c; import a = b", "")
-	expectPrintedTS(t, "import a = b; import c = a.c; c()", "const a = b;\nconst c = a.c;\nc();\n")
-	expectPrintedTS(t, "import c = a.c; import a = b; c()", "const c = a.c;\nconst a = b;\nc();\n")
+	expectPrintedTS(t, "import a = b; import c = a.c; c()", "var a = b;\nvar c = a.c;\nc();\n")
+	expectPrintedTS(t, "import c = a.c; import a = b; c()", "var c = a.c;\nvar a = b;\nc();\n")
 
 	expectParseErrorTS(t, "import type", "<stdin>: ERROR: Expected \"from\" but found end of file\n")
 	expectParseErrorTS(t, "import type * foo", "<stdin>: ERROR: Expected \"as\" but found \"foo\"\n")

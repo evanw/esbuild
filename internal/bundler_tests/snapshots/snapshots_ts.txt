@@ -1508,14 +1508,14 @@ export {
 TestTSImportEqualsTreeShakingFalse
 ---------- /out.js ----------
 import { foo } from "pkg";
-const used = foo.used;
+var used = foo.used;
 export { used };
 
 ================================================================================
 TestTSImportEqualsTreeShakingTrue
 ---------- /out.js ----------
 import { foo } from "pkg";
-const used = foo.used;
+var used = foo.used;
 export { used };
 
 ================================================================================
