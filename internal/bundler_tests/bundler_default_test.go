@@ -7556,6 +7556,7 @@ func TestManglePropsAvoidCollisions(t *testing.T) {
 func TestManglePropsTypeScriptFeatures(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
+			// https://github.com/evanw/esbuild/issues/4528
 			"/parameter-properties.ts": `
 				class Foo {
 					constructor(

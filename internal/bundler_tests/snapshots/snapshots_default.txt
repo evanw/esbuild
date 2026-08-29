@@ -4051,7 +4051,7 @@ class Foo {
     this.a = MANGLE_FIELD_;
   }
   KEEP_FIELD;
-  MANGLE_FIELD_;
+  a;
 }
 let foo = new Foo();
 console.log(foo.KEEP_FIELD, foo.a);
