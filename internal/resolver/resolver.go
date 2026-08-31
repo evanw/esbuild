@@ -1721,10 +1721,8 @@ func (r resolverQuery) dirInfoUncached(path string) *dirInfo {
 // See the discussion here for more historical context:
 // https://github.com/microsoft/TypeScript/issues/4595
 var rewrittenFileExtensions = map[string][]string{
-	// Note that the official compiler code always tries ".ts" before
-	// ".tsx" even if the original extension was ".jsx".
 	".js":  {".ts", ".tsx"},
-	".jsx": {".ts", ".tsx"},
+	".jsx": {".tsx", ".ts"},
 	".mjs": {".mts"},
 	".cjs": {".cts"},
 }
@@ -2660,10 +2658,11 @@ func (r resolverQuery) finalizeImportsExportsResult(
 						for _, ext := range exts {
 							baseWithExt := base[:lastDot] + ext
 							entry, diffCase = resolvedDirInfo.entries.Get(baseWithExt)
-							if entry != nil {
+							if entry != nil && entry.Kind(r.fs) == fs.FileEntry {
 								absResolvedPath = r.fs.Join(resolvedDirInfo.absPath, baseWithExt)
 								break
 							}
+							entry = nil
 						}
 						break
 					}

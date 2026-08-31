@@ -1386,15 +1386,20 @@ func TestTSImplicitExtensions(t *testing.T) {
 				import './pick-ts.js'
 				import './pick-jsx.jsx'
 				import './pick-tsx.jsx'
+				import './fallback-ts.jsx'
+				import './directory.jsx'
 				import './order-js.js'
 				import './order-jsx.jsx'
 
 				import 'pkg/foo-js.js'
 				import 'pkg/foo-jsx.jsx'
+				import 'pkg/directory.jsx'
 				import 'pkg-exports/xyz-js'
 				import 'pkg-exports/xyz-jsx'
+				import 'pkg-exports/xyz-directory'
 				import 'pkg-exports/foo-js.js'
 				import 'pkg-exports/foo-jsx.jsx'
+				import 'pkg-exports/directory.jsx'
 				import 'pkg-imports'
 			`,
 
@@ -1410,44 +1415,73 @@ func TestTSImplicitExtensions(t *testing.T) {
 			"/pick-tsx.js":  `console.log("wrong")`,
 			"/pick-tsx.tsx": `console.log("correct")`,
 
+			"/fallback-ts.ts": `console.log("correct")`,
+
+			"/directory.ts":           `console.log("correct")`,
+			"/directory.tsx/index.js": `console.log("wrong")`,
+
 			"/order-js.ts":  `console.log("correct")`,
 			"/order-js.tsx": `console.log("wrong")`,
 
-			"/order-jsx.ts":  `console.log("correct")`,
-			"/order-jsx.tsx": `console.log("wrong")`,
+			"/order-jsx.ts":  `console.log("wrong")`,
+			"/order-jsx.tsx": `console.log("correct")`,
 
-			"/node_modules/pkg/foo-js.ts":   `console.log("correct")`,
-			"/node_modules/pkg/foo-jsx.tsx": `console.log("correct")`,
+			"/node_modules/pkg/foo-js.ts":              `console.log("correct")`,
+			"/node_modules/pkg/foo-js.tsx":             `console.log("wrong")`,
+			"/node_modules/pkg/foo-jsx.ts":             `console.log("wrong")`,
+			"/node_modules/pkg/foo-jsx.tsx":            `console.log("correct")`,
+			"/node_modules/pkg/directory.ts":           `console.log("correct")`,
+			"/node_modules/pkg/directory.tsx/index.js": `console.log("wrong")`,
 
 			"/node_modules/pkg-exports/package.json": `{
 				"exports": {
 					"./xyz-js": "./abc-js.js",
 					"./xyz-jsx": "./abc-jsx.jsx",
+					"./xyz-directory": "./abc-directory.jsx",
 					"./*": "./lib/*"
 				}
 			}`,
-			"/node_modules/pkg-exports/abc-js.ts":       `console.log("correct")`,
-			"/node_modules/pkg-exports/abc-jsx.tsx":     `console.log("correct")`,
-			"/node_modules/pkg-exports/lib/foo-js.ts":   `console.log("correct")`,
-			"/node_modules/pkg-exports/lib/foo-jsx.tsx": `console.log("correct")`,
+			"/node_modules/pkg-exports/abc-js.ts":                  `console.log("correct")`,
+			"/node_modules/pkg-exports/abc-js.tsx":                 `console.log("wrong")`,
+			"/node_modules/pkg-exports/abc-jsx.ts":                 `console.log("wrong")`,
+			"/node_modules/pkg-exports/abc-jsx.tsx":                `console.log("correct")`,
+			"/node_modules/pkg-exports/abc-directory.ts":           `console.log("correct")`,
+			"/node_modules/pkg-exports/abc-directory.tsx/index.js": `console.log("wrong")`,
+			"/node_modules/pkg-exports/lib/foo-js.ts":              `console.log("correct")`,
+			"/node_modules/pkg-exports/lib/foo-js.tsx":             `console.log("wrong")`,
+			"/node_modules/pkg-exports/lib/foo-jsx.ts":             `console.log("wrong")`,
+			"/node_modules/pkg-exports/lib/foo-jsx.tsx":            `console.log("correct")`,
+			"/node_modules/pkg-exports/lib/directory.ts":           `console.log("correct")`,
+			"/node_modules/pkg-exports/lib/directory.tsx/index.js": `console.log("wrong")`,
 
 			"/node_modules/pkg-imports/package.json": `{
 				"imports": {
 					"#xyz-js": "./abc-js.js",
 					"#xyz-jsx": "./abc-jsx.jsx",
+					"#xyz-directory": "./abc-directory.jsx",
 					"#bar/*": "./lib/*"
 				}
 			}`,
 			"/node_modules/pkg-imports/index.js": `
 				import "#xyz-js"
 				import "#xyz-jsx"
+				import "#xyz-directory"
 				import "#bar/foo-js.js"
 				import "#bar/foo-jsx.jsx"
+				import "#bar/directory.jsx"
 			`,
-			"/node_modules/pkg-imports/abc-js.ts":       `console.log("correct")`,
-			"/node_modules/pkg-imports/abc-jsx.tsx":     `console.log("correct")`,
-			"/node_modules/pkg-imports/lib/foo-js.ts":   `console.log("correct")`,
-			"/node_modules/pkg-imports/lib/foo-jsx.tsx": `console.log("correct")`,
+			"/node_modules/pkg-imports/abc-js.ts":                  `console.log("correct")`,
+			"/node_modules/pkg-imports/abc-js.tsx":                 `console.log("wrong")`,
+			"/node_modules/pkg-imports/abc-jsx.ts":                 `console.log("wrong")`,
+			"/node_modules/pkg-imports/abc-jsx.tsx":                `console.log("correct")`,
+			"/node_modules/pkg-imports/abc-directory.ts":           `console.log("correct")`,
+			"/node_modules/pkg-imports/abc-directory.tsx/index.js": `console.log("wrong")`,
+			"/node_modules/pkg-imports/lib/foo-js.ts":              `console.log("correct")`,
+			"/node_modules/pkg-imports/lib/foo-js.tsx":             `console.log("wrong")`,
+			"/node_modules/pkg-imports/lib/foo-jsx.ts":             `console.log("wrong")`,
+			"/node_modules/pkg-imports/lib/foo-jsx.tsx":            `console.log("correct")`,
+			"/node_modules/pkg-imports/lib/directory.ts":           `console.log("correct")`,
+			"/node_modules/pkg-imports/lib/directory.tsx/index.js": `console.log("wrong")`,
 		},
 		entryPaths: []string{"/entry.ts"},
 		options: config.Options{

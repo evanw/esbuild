@@ -1425,10 +1425,16 @@ console.log("correct");
 // pick-tsx.tsx
 console.log("correct");
 
+// fallback-ts.ts
+console.log("correct");
+
+// directory.ts
+console.log("correct");
+
 // order-js.ts
 console.log("correct");
 
-// order-jsx.ts
+// order-jsx.tsx
 console.log("correct");
 
 // node_modules/pkg/foo-js.ts
@@ -1437,10 +1443,16 @@ console.log("correct");
 // node_modules/pkg/foo-jsx.tsx
 console.log("correct");
 
+// node_modules/pkg/directory.ts
+console.log("correct");
+
 // node_modules/pkg-exports/abc-js.ts
 console.log("correct");
 
 // node_modules/pkg-exports/abc-jsx.tsx
+console.log("correct");
+
+// node_modules/pkg-exports/abc-directory.ts
 console.log("correct");
 
 // node_modules/pkg-exports/lib/foo-js.ts
@@ -1449,16 +1461,25 @@ console.log("correct");
 // node_modules/pkg-exports/lib/foo-jsx.tsx
 console.log("correct");
 
+// node_modules/pkg-exports/lib/directory.ts
+console.log("correct");
+
 // node_modules/pkg-imports/abc-js.ts
 console.log("correct");
 
 // node_modules/pkg-imports/abc-jsx.tsx
 console.log("correct");
 
+// node_modules/pkg-imports/abc-directory.ts
+console.log("correct");
+
 // node_modules/pkg-imports/lib/foo-js.ts
 console.log("correct");
 
 // node_modules/pkg-imports/lib/foo-jsx.tsx
+console.log("correct");
+
+// node_modules/pkg-imports/lib/directory.ts
 console.log("correct");
 
 ================================================================================
