@@ -60,6 +60,9 @@ type LinkerFile struct {
 	// This is true if this file has been marked as live by the tree shaking
 	// algorithm.
 	IsLive bool
+
+	// This is true if a live part contains a dynamic import of this entry point.
+	IsLiveDynamicEntryPoint bool
 }
 
 func (f *LinkerFile) IsEntryPoint() bool {
