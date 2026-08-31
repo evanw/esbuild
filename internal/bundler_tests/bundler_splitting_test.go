@@ -76,6 +76,37 @@ func TestSplittingDynamicES6IntoES6(t *testing.T) {
 	})
 }
 
+func TestSplittingTreeShakenDynamicImport(t *testing.T) {
+	splitting_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import {light} from "./pkg/index.js"
+				import {shared} from "./pkg/shared.js"
+				console.log(light(), shared)
+			`,
+			"/pkg/package.json": `{"sideEffects": false}`,
+			"/pkg/index.js": `
+				export {light} from "./light.js"
+				export {loadHeavy} from "./feature.js"
+			`,
+			"/pkg/light.js": `export let light = () => "light"`,
+			"/pkg/feature.js": `
+				export let loadHeavy = () => import("./heavy.js")
+				export let loadShared = () => import("./shared.js")
+			`,
+			"/pkg/heavy.js":  `export let heavy = "unused"`,
+			"/pkg/shared.js": `export let shared = "shared"`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			CodeSplitting: true,
+			OutputFormat:  config.FormatESModule,
+			AbsOutputDir:  "/out",
+		},
+	})
+}
+
 func TestSplittingDynamicCommonJSIntoES6(t *testing.T) {
 	splitting_suite.expectBundled(t, bundled{
 		files: map[string]string{

@@ -3146,10 +3146,14 @@ func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTrack
 }
 
 func (c *linkerContext) treeShakingAndCodeSplitting() {
-	// Tree shaking: Each entry point marks all files reachable from itself
+	// Tree shaking: Each user-specified entry point marks all files reachable
+	// from itself. Dynamic import entry points are marked when the part containing
+	// the corresponding import is marked live.
 	c.timer.Begin("Tree shaking")
 	for _, entryPoint := range c.graph.EntryPoints() {
-		c.markFileLiveForTreeShaking(entryPoint.SourceIndex)
+		if c.graph.Files[entryPoint.SourceIndex].IsUserSpecifiedEntryPoint() {
+			c.markFileLiveForTreeShaking(entryPoint.SourceIndex)
+		}
 	}
 	c.timer.End("Tree shaking")
 
@@ -3159,7 +3163,10 @@ func (c *linkerContext) treeShakingAndCodeSplitting() {
 	// first before determining which entry points can reach which files.
 	c.timer.Begin("Code splitting")
 	for i, entryPoint := range c.graph.EntryPoints() {
-		c.markFileReachableForCodeSplitting(entryPoint.SourceIndex, uint(i), 0)
+		file := &c.graph.Files[entryPoint.SourceIndex]
+		if file.IsUserSpecifiedEntryPoint() || file.IsLiveDynamicEntryPoint {
+			c.markFileReachableForCodeSplitting(entryPoint.SourceIndex, uint(i), 0)
+		}
 	}
 	c.timer.End("Code splitting")
 }
@@ -3306,6 +3313,17 @@ func (c *linkerContext) markPartLiveForTreeShaking(sourceIndex uint32, partIndex
 	// Also include any dependencies
 	for _, dep := range part.Dependencies {
 		c.markPartLiveForTreeShaking(dep.SourceIndex, dep.PartIndex)
+	}
+
+	// A dynamic import entry point is only live if the import expression itself
+	// survives tree shaking. Otherwise code splitting would emit an orphan chunk.
+	for _, importRecordIndex := range part.ImportRecordIndices {
+		record := &repr.AST.ImportRecords[importRecordIndex]
+		if record.SourceIndex.IsValid() && c.isExternalDynamicImport(record, sourceIndex) {
+			otherFile := &c.graph.Files[record.SourceIndex.GetIndex()]
+			otherFile.IsLiveDynamicEntryPoint = true
+			c.markFileLiveForTreeShaking(record.SourceIndex.GetIndex())
+		}
 	}
 }
 
@@ -3882,6 +3900,12 @@ func (c *linkerContext) computeChunks() {
 	// Create chunks for entry points
 	for i, entryPoint := range c.graph.EntryPoints() {
 		file := &c.graph.Files[entryPoint.SourceIndex]
+
+		// A dynamic import in a tree-shaken part doesn't need a chunk. User-
+		// specified entry points are still emitted even if their output is empty.
+		if !file.IsUserSpecifiedEntryPoint() && !file.IsLiveDynamicEntryPoint {
+			continue
+		}
 
 		// Create a chunk for the entry point here to ensure that the chunk is
 		// always generated even if the resulting file is empty

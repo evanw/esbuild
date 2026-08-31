@@ -621,3 +621,15 @@ export {
   a,
   b
 };
+
+================================================================================
+TestSplittingTreeShakenDynamicImport
+---------- /out/entry.js ----------
+// pkg/light.js
+var light = () => "light";
+
+// pkg/shared.js
+var shared = "shared";
+
+// entry.js
+console.log(light(), shared);
