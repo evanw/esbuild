@@ -1481,6 +1481,15 @@ func TestLexicalDecl(t *testing.T) {
 	expectPrinted(t, "{function* f() {}} let f", "{\n  function* f() {\n  }\n}\nlet f;\n")
 	expectPrinted(t, "{async function f() {}} let f", "{\n  async function f() {\n  }\n}\nlet f;\n")
 
+	// Function declarations in a switch are instantiated for the whole CaseBlock,
+	// so a case that runs first can still call a function declared in a later case.
+	expectPrinted(t, "switch (0) { case 0: console.log(g()); case 1: function g() { return \"fn\"; } }",
+		"{\n  let g = function() {\n    return \"fn\";\n  };\n  switch (0) {\n    case 0:\n      console.log(g());\n    case 1:\n      var g = g;\n  }\n}\n")
+	expectPrinted(t, "'use strict'; switch (0) { case 0: console.log(g()); case 1: function g() { return \"fn\"; } }",
+		"\"use strict\";\n{\n  let g = function() {\n    return \"fn\";\n  };\n  switch (0) {\n    case 0:\n      console.log(g());\n    case 1:\n  }\n}\n")
+	expectPrintedMangle(t, "switch (0) { case 0: console.log(g()); case 1: function g() { return \"fn\"; } }",
+		"{\n  let g = function() {\n    return \"fn\";\n  };\n  console.log(g());\n  var g = g;\n}\n")
+
 	expectParseError(t, "if (1) label: function f() {} let f", singleStmtError)
 	expectParseError(t, "if (1) label: label2: function f() {} let f", singleStmtError)
 	expectParseError(t, "if (0) ; else label: function f() {} let f", singleStmtError)

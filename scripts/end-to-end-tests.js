@@ -3776,6 +3776,35 @@ for (const minify of [[], ['--minify-syntax']]) {
         if (test() !== undefined) throw 'fail'
       `,
     }),
+
+    // Function declarations in a switch are instantiated for the whole CaseBlock
+    test(['in.js', '--outfile=node.js'].concat(minify), {
+      'in.js': `
+        function test() {
+          switch (0) {
+            case 0: return g()
+            case 1: function g() { return "fn" }
+          }
+        }
+        if (test() !== 'fn') throw 'fail'
+      `,
+    }),
+    test(['in.js', '--outfile=node.js'].concat(minify), {
+      'in.js': `
+        function test() {
+          switch (0) {
+            case 0:
+              var result = g()
+              break
+            case 1: function g() { return "fn" }
+          }
+          return [result, typeof g]
+        }
+        const got = test()
+        if (got[0] !== 'fn') throw 'fail: inner ' + got[0]
+        if (got[1] !== 'undefined') throw 'fail: outer ' + got[1]
+      `,
+    }),
     test(['in.js', '--outfile=node.js'].concat(minify), {
       'in.js': `
         function test() {

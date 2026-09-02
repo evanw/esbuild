@@ -64,6 +64,12 @@ type parser struct {
 	// For strict mode handling
 	hoistedRefForSloppyModeBlockFn map[ast.Ref]ast.Ref
 
+	// Function declarations in a switch share the CaseBlock environment, so
+	// their lexical initializers must run when the switch is entered rather
+	// than when a particular case is selected. Collected while visiting
+	// case bodies and emitted around the switch.
+	switchCaseFnLetDecls []js_ast.Decl
+
 	// For lowering private methods
 	privateGetters map[ast.Ref]ast.Ref
 	privateSetters map[ast.Ref]ast.Ref
@@ -8955,6 +8961,7 @@ const (
 	stmtsNormal stmtsKind = iota
 	stmtsLoopBody
 	stmtsFnBody
+	stmtsSwitchCase
 )
 
 func (p *parser) visitStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt {
@@ -9087,12 +9094,19 @@ func (p *parser) visitStmts(stmts []js_ast.Stmt, kind stmtsKind) []js_ast.Stmt {
 
 		// Reuse memory from "before"
 		before = before[:0]
-		kind := js_ast.LocalLet
+		localKind := js_ast.LocalLet
 		if p.options.unsupportedJSFeatures.Has(compat.ConstAndLet) {
-			kind = js_ast.LocalVar
+			localKind = js_ast.LocalVar
+		}
+		// A switch CaseBlock is one lexical environment. Instantiating the
+		// lowered "let" at the start of a single case leaves it in the TDZ
+		// when another case runs first. Lift those lets to the switch.
+		if kind == stmtsSwitchCase && len(letDecls) > 0 {
+			p.switchCaseFnLetDecls = append(p.switchCaseFnLetDecls, letDecls...)
+			letDecls = nil
 		}
 		if len(letDecls) > 0 {
-			before = append(before, js_ast.Stmt{Loc: letDecls[0].ValueOrNil.Loc, Data: &js_ast.SLocal{Kind: kind, Decls: letDecls}})
+			before = append(before, js_ast.Stmt{Loc: letDecls[0].ValueOrNil.Loc, Data: &js_ast.SLocal{Kind: localKind, Decls: letDecls}})
 		}
 		if len(varDecls) > 0 {
 			// Potentially relocate "var" declarations to the top level
@@ -11230,6 +11244,8 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		p.pushScopeForVisitPass(js_ast.ScopeBlock, s.BodyLoc)
 		oldIsInsideSwitch := p.fnOrArrowDataVisit.isInsideSwitch
 		p.fnOrArrowDataVisit.isInsideSwitch = true
+		oldSwitchCaseFnLetDecls := p.switchCaseFnLetDecls
+		p.switchCaseFnLetDecls = nil
 
 		// Disable const inlining in switch cases. They all share the same scope
 		// and can be evaluated in an unusual order. For example:
@@ -11283,7 +11299,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 			if isAlwaysDead {
 				p.isControlFlowDead = true
 			}
-			c.Body = p.visitStmts(c.Body, stmtsNormal)
+			c.Body = p.visitStmts(c.Body, stmtsSwitchCase)
 			p.isControlFlowDead = old
 
 			// Filter out this case when minifying if it's known to be dead. Visiting
@@ -11304,17 +11320,44 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		p.fnOrArrowDataVisit.isInsideSwitch = oldIsInsideSwitch
 		p.popScope()
 
-		// Unwrap switch statements in dead code
+		var emitted []js_ast.Stmt
 		if p.options.minifySyntax && p.isControlFlowDead {
 			for _, c := range s.Cases {
-				stmts = append(stmts, c.Body...)
+				emitted = append(emitted, c.Body...)
 			}
-			return stmts
+		} else if p.options.minifySyntax {
+			emitted = p.minifySwitchStmt(stmt.Loc, s, nil)
+		} else {
+			emitted = []js_ast.Stmt{stmt}
 		}
 
-		if p.options.minifySyntax {
-			return p.minifySwitchStmt(stmt.Loc, s, stmts)
+		// Initialize lowered case-level function bindings when the switch is
+		// entered. Annex B's var assignment stays in the original case so it
+		// still only runs if that case is evaluated.
+		if len(p.switchCaseFnLetDecls) > 0 {
+			localKind := js_ast.LocalLet
+			if p.options.unsupportedJSFeatures.Has(compat.ConstAndLet) {
+				localKind = js_ast.LocalVar
+			}
+			hoisted := js_ast.Stmt{Loc: stmt.Loc, Data: &js_ast.SLocal{Kind: localKind, Decls: p.switchCaseFnLetDecls}}
+			if len(emitted) == 1 {
+				if block, ok := emitted[0].Data.(*js_ast.SBlock); ok {
+					block.Stmts = append([]js_ast.Stmt{hoisted}, block.Stmts...)
+				} else {
+					emitted = []js_ast.Stmt{{Loc: stmt.Loc, Data: &js_ast.SBlock{
+						Stmts: append([]js_ast.Stmt{hoisted}, emitted...),
+					}}}
+				}
+			} else {
+				emitted = []js_ast.Stmt{{Loc: stmt.Loc, Data: &js_ast.SBlock{
+					Stmts: append([]js_ast.Stmt{hoisted}, emitted...),
+				}}}
+			}
 		}
+
+		p.switchCaseFnLetDecls = oldSwitchCaseFnLetDecls
+		stmts = append(stmts, emitted...)
+		return stmts
 
 	case *js_ast.SFunction:
 		p.visitFn(&s.Fn, s.Fn.OpenParenLoc, visitFnOpts{})
@@ -13790,13 +13833,13 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 		return p.handleIdentifier(expr.Loc, e, identifierOpts{
-				assignTarget:            in.assignTarget,
-				isCallTarget:            isCallTarget,
-				isDeleteTarget:          isDeleteTarget,
-				wasOriginallyIdentifier: true,
-			}), exprOut{
-				methodCallMustBeReplacedWithUndefined: methodCallMustBeReplacedWithUndefined,
-			}
+			assignTarget:            in.assignTarget,
+			isCallTarget:            isCallTarget,
+			isDeleteTarget:          isDeleteTarget,
+			wasOriginallyIdentifier: true,
+		}), exprOut{
+			methodCallMustBeReplacedWithUndefined: methodCallMustBeReplacedWithUndefined,
+		}
 
 	case *js_ast.EJSXElement:
 		propsLoc := expr.Loc
