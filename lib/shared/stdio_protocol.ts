@@ -238,6 +238,7 @@ export interface OnLoadResponse {
   warnings?: types.PartialMessage[]
 
   contents?: Uint8Array
+  prepend?: Uint8Array
   resolveDir?: string
   loader?: string
   pluginData?: number
