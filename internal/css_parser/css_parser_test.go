@@ -2196,6 +2196,39 @@ func TestMinifyCalc(t *testing.T) {
 	expectPrintedMangleMinify(t, "a { b: calc(x / y) }", "a{b:calc(x/y)}", "")
 }
 
+func TestMangleCalcNegativeRange(t *testing.T) {
+	for _, entry := range []struct{ property, before, after string }{
+		{"width", "calc(5px - 10px)", "calc(-5px)"},
+		{"width", "calc(5% - 10%)", "calc(-5%)"},
+		{"flex-grow", "calc(1 - 2)", "calc(-1)"},
+		{"margin-left", "calc(5px - 10px)", "calc(-5px)"},
+		{"width", "calc(-5px)", "calc(-5px)"},
+		{"width", "calc(calc(5px - 10px) + 10px)", "5px"},
+		{"width", "calc(10px - 5px)", "5px"},
+		{"width", "calc(5px - 5px)", "0px"},
+		{"b", "calc(-0px)", "-0px"},
+		{"width", "calc(var(--width) - 10px)", "calc(var(--width) - 10px)"},
+	} {
+		input := "a { " + entry.property + ": " + entry.before + " }"
+		expectPrintedMangle(t, input, "a {\n  "+entry.property+": "+entry.after+";\n}\n", "")
+		expectPrintedMangleMinify(t, input, "a{"+entry.property+":"+entry.after+"}", "")
+	}
+
+	expectPrintedMangle(t, "a { width: 10px; width: calc(5px - 10px) }",
+		"a {\n  width: 10px;\n  width: calc(-5px);\n}\n", "")
+	expectPrintedMangleMinify(t, "a { width: 10px; width: calc(5px - 10px) }",
+		"a{width:10px;width:calc(-5px)}", "")
+	expectPrintedMangle(t, "a { width: min(10px, calc(5px - 10px)) }",
+		"a {\n  width: min(10px, calc(-5px));\n}\n", "")
+	expectPrintedMangleMinify(t, "a { width: min(10px, calc(5px - 10px)) }",
+		"a{width:min(10px,calc(-5px))}", "")
+	expectPrintedMangle(t, "a { --width: calc(5px - 10px); width: var(--width) }",
+		"a {\n  --width: calc(-5px);\n  width: var(--width);\n}\n", "")
+	expectPrintedMangleMinify(t, "a { --width: calc(5px - 10px); width: var(--width) }",
+		"a{--width: calc(-5px);width:var(--width)}", "")
+	expectPrintedMinify(t, "a { width: calc(5px - 10px) }", "a{width:calc(5px - 10px)}", "")
+}
+
 func TestMangleCalc(t *testing.T) {
 	expectPrintedMangle(t, "a { b: calc(1) }", "a {\n  b: 1;\n}\n", "")
 	expectPrintedMangle(t, "a { b: calc((1)) }", "a {\n  b: 1;\n}\n", "")
@@ -2212,8 +2245,8 @@ func TestMangleCalc(t *testing.T) {
 	expectPrintedMangle(t, "a { b: calc(6 / 2) }", "a {\n  b: 3;\n}\n", "")
 	expectPrintedMangle(t, "a { b: calc(2px * 3 + 4px * 5) }", "a {\n  b: 26px;\n}\n", "")
 	expectPrintedMangle(t, "a { b: calc(2 * 3px + 4 * 5px) }", "a {\n  b: 26px;\n}\n", "")
-	expectPrintedMangle(t, "a { b: calc(2px * 3 - 4px * 5) }", "a {\n  b: -14px;\n}\n", "")
-	expectPrintedMangle(t, "a { b: calc(2 * 3px - 4 * 5px) }", "a {\n  b: -14px;\n}\n", "")
+	expectPrintedMangle(t, "a { b: calc(2px * 3 - 4px * 5) }", "a {\n  b: calc(-14px);\n}\n", "")
+	expectPrintedMangle(t, "a { b: calc(2 * 3px - 4 * 5px) }", "a {\n  b: calc(-14px);\n}\n", "")
 
 	// Test negation
 	expectPrintedMangle(t, "a { b: calc(x + 1) }", "a {\n  b: calc(x + 1);\n}\n", "")
@@ -2265,7 +2298,7 @@ func TestMangleCalc(t *testing.T) {
 	expectPrintedMangle(t, "a { b: calc(100% / 100000) }", "a {\n  b: .001%;\n}\n", "")
 	expectPrintedMangle(t, "a { b: calc(100% / 1000000) }", "a {\n  b: calc(100% / 1000000);\n}\n", "") // This actually ends up as "100% * (1 / 1000000)" which is less precise
 	expectPrintedMangle(t, "a { b: calc(100% / -1000000) }", "a {\n  b: calc(100% / -1000000);\n}\n", "")
-	expectPrintedMangle(t, "a { b: calc(100% / -100000) }", "a {\n  b: -.001%;\n}\n", "")
+	expectPrintedMangle(t, "a { b: calc(100% / -100000) }", "a {\n  b: calc(-.001%);\n}\n", "")
 	expectPrintedMangle(t, "a { b: calc(3 * (2px + 1em / 7)) }", "a {\n  b: calc(3 * (2px + 1em / 7));\n}\n", "")
 	expectPrintedMangle(t, "a { b: calc(3 * (2px + 1em / 8)) }", "a {\n  b: calc(3 * (2px + .125em));\n}\n", "")
 
