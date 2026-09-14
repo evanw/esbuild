@@ -19,6 +19,12 @@ func (p *parser) tryToReduceCalcExpression(token css_ast.Token) css_ast.Token {
 		}
 		term = term.partiallySimplify()
 		if result, ok := term.convertToToken(whitespace); ok {
+			if numeric, ok := term.(*calcNumeric); ok && numeric.number < 0 {
+				// Values outside the allowed range are clamped inside calc() instead
+				// of invalidating the declaration. This property may disallow negatives.
+				token.Children = &[]css_ast.Token{result}
+				return token
+			}
 			if result.Kind == css_lexer.TOpenParen {
 				result.Kind = css_lexer.TFunction
 				result.Text = "calc"
