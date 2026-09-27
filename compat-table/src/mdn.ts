@@ -76,6 +76,30 @@ const cssFeatures: Partial<Record<CSSFeature, string | string[]>> = {
 }
 
 const similarPrefixedProperty: Record<string, { prefix: string, property: string }> = {
+  'css.properties.block-size.stretch': {
+    prefix: '-webkit-',
+    property: 'css.properties.height.stretch',
+  },
+  'css.properties.inline-size.stretch': {
+    prefix: '-webkit-',
+    property: 'css.properties.width.stretch',
+  },
+  'css.properties.max-block-size.stretch': {
+    prefix: '-webkit-',
+    property: 'css.properties.max-height.stretch',
+  },
+  'css.properties.max-inline-size.stretch': {
+    prefix: '-webkit-',
+    property: 'css.properties.max-width.stretch',
+  },
+  'css.properties.min-block-size.stretch': {
+    prefix: '-webkit-',
+    property: 'css.properties.min-height.stretch',
+  },
+  'css.properties.min-inline-size.stretch': {
+    prefix: '-webkit-',
+    property: 'css.properties.min-width.stretch',
+  },
   'css.properties.mask-composite': {
     prefix: '-webkit-',
     property: 'css.properties.-webkit-mask-composite',
@@ -83,7 +107,9 @@ const similarPrefixedProperty: Record<string, { prefix: string, property: string
 }
 
 const cssPrefixFeatures: Record<string, CSSProperty> = {
+  'css.properties.block-size.stretch': 'DBlockSize',
   'css.properties.height.stretch': 'DHeight',
+  'css.properties.inline-size.stretch': 'DInlineSize',
   'css.properties.mask': 'DMask',
   'css.properties.mask-composite': 'DMaskComposite',
   'css.properties.mask-image': 'DMaskImage',
@@ -91,9 +117,13 @@ const cssPrefixFeatures: Record<string, CSSProperty> = {
   'css.properties.mask-position': 'DMaskPosition',
   'css.properties.mask-repeat': 'DMaskRepeat',
   'css.properties.mask-size': 'DMaskSize',
+  'css.properties.max-block-size.stretch': 'DMaxBlockSize',
   'css.properties.max-height.stretch': 'DMaxHeight',
+  'css.properties.max-inline-size.stretch': 'DMaxInlineSize',
   'css.properties.max-width.stretch': 'DMaxWidth',
+  'css.properties.min-block-size.stretch': 'DMinBlockSize',
   'css.properties.min-height.stretch': 'DMinHeight',
+  'css.properties.min-inline-size.stretch': 'DMinInlineSize',
   'css.properties.min-width.stretch': 'DMinWidth',
   'css.properties.text-decoration-color': 'DTextDecorationColor',
   'css.properties.text-decoration-line': 'DTextDecorationLine',
@@ -281,4 +311,10 @@ for (const fullKey in cssPrefixFeatures) {
   }
 
   cssPrefix[cssPrefixFeatures[fullKey]] = prefixData
+}
+
+// MDN no longer includes Firefox's historical "-moz-available" alias.
+const widthPrefixData = cssPrefix.DWidth!
+if (!widthPrefixData.some(({ engine, prefix }) => engine === 'Firefox' && prefix === 'moz')) {
+  widthPrefixData.push({ engine: 'Firefox', prefix: 'moz' })
 }

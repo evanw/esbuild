@@ -446,8 +446,10 @@ func (p *parser) insertPrefixedDeclaration(rules []css_ast.Rule, prefix string, 
 		}
 
 	case css_ast.DWidth, css_ast.DMinWidth, css_ast.DMaxWidth,
-		css_ast.DHeight, css_ast.DMinHeight, css_ast.DMaxHeight:
-		// The prefix is only needed for "width: stretch"
+		css_ast.DHeight, css_ast.DMinHeight, css_ast.DMaxHeight,
+		css_ast.DInlineSize, css_ast.DMinInlineSize, css_ast.DMaxInlineSize,
+		css_ast.DBlockSize, css_ast.DMinBlockSize, css_ast.DMaxBlockSize:
+		// The prefix is only needed for a "stretch" sizing value
 		if len(decl.Value) != 1 || decl.Value[0].Kind != css_lexer.TIdent || !strings.EqualFold(decl.Value[0].Text, "stretch") {
 			return rules
 		}
@@ -463,7 +465,9 @@ func (p *parser) insertPrefixedDeclaration(rules []css_ast.Rule, prefix string, 
 		value[0].Text = "-webkit-sticky"
 
 	case css_ast.DWidth, css_ast.DMinWidth, css_ast.DMaxWidth,
-		css_ast.DHeight, css_ast.DMinHeight, css_ast.DMaxHeight:
+		css_ast.DHeight, css_ast.DMinHeight, css_ast.DMaxHeight,
+		css_ast.DInlineSize, css_ast.DMinInlineSize, css_ast.DMaxInlineSize,
+		css_ast.DBlockSize, css_ast.DMinBlockSize, css_ast.DMaxBlockSize:
 		// The prefix applies to the value, not the property
 		keyText = decl.KeyText
 
