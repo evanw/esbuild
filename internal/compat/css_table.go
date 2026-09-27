@@ -212,6 +212,14 @@ var cssPrefixTable = map[css_ast.D][]prefixData{
 		{engine: Opera, prefix: WebkitPrefix, withoutPrefix: v{106, 0, 0}},
 		{engine: Safari, prefix: WebkitPrefix, withoutPrefix: v{5, 0, 0}},
 	},
+	css_ast.DBlockSize: {
+		{engine: Chrome, prefix: WebkitPrefix, withoutPrefix: v{138, 0, 0}},
+		{engine: Edge, prefix: WebkitPrefix, withoutPrefix: v{138, 0, 0}},
+		{engine: Firefox, prefix: WebkitPrefix},
+		{engine: IOS, prefix: WebkitPrefix},
+		{engine: Opera, prefix: WebkitPrefix, withoutPrefix: v{122, 0, 0}},
+		{engine: Safari, prefix: WebkitPrefix},
+	},
 	css_ast.DBoxDecorationBreak: {
 		{engine: Chrome, prefix: WebkitPrefix, withoutPrefix: v{130, 0, 0}},
 		{engine: Edge, prefix: WebkitPrefix, withoutPrefix: v{130, 0, 0}},
@@ -248,6 +256,14 @@ var cssPrefixTable = map[css_ast.D][]prefixData{
 	},
 	css_ast.DInitialLetter: {
 		{engine: IOS, prefix: WebkitPrefix},
+		{engine: Safari, prefix: WebkitPrefix},
+	},
+	css_ast.DInlineSize: {
+		{engine: Chrome, prefix: WebkitPrefix, withoutPrefix: v{138, 0, 0}},
+		{engine: Edge, prefix: WebkitPrefix, withoutPrefix: v{138, 0, 0}},
+		{engine: Firefox, prefix: WebkitPrefix},
+		{engine: IOS, prefix: WebkitPrefix},
+		{engine: Opera, prefix: WebkitPrefix, withoutPrefix: v{122, 0, 0}},
 		{engine: Safari, prefix: WebkitPrefix},
 	},
 	css_ast.DMask: {
@@ -299,7 +315,21 @@ var cssPrefixTable = map[css_ast.D][]prefixData{
 		{engine: Opera, prefix: WebkitPrefix, withoutPrefix: v{106, 0, 0}},
 		{engine: Safari, prefix: WebkitPrefix, withoutPrefix: v{15, 4, 0}},
 	},
+	css_ast.DMaxBlockSize: {
+		{engine: Chrome, prefix: WebkitPrefix, withoutPrefix: v{138, 0, 0}},
+		{engine: Edge, prefix: WebkitPrefix, withoutPrefix: v{138, 0, 0}},
+		{engine: IOS, prefix: WebkitPrefix},
+		{engine: Opera, prefix: WebkitPrefix, withoutPrefix: v{122, 0, 0}},
+		{engine: Safari, prefix: WebkitPrefix},
+	},
 	css_ast.DMaxHeight: {
+		{engine: Chrome, prefix: WebkitPrefix, withoutPrefix: v{138, 0, 0}},
+		{engine: Edge, prefix: WebkitPrefix, withoutPrefix: v{138, 0, 0}},
+		{engine: IOS, prefix: WebkitPrefix},
+		{engine: Opera, prefix: WebkitPrefix, withoutPrefix: v{122, 0, 0}},
+		{engine: Safari, prefix: WebkitPrefix},
+	},
+	css_ast.DMaxInlineSize: {
 		{engine: Chrome, prefix: WebkitPrefix, withoutPrefix: v{138, 0, 0}},
 		{engine: Edge, prefix: WebkitPrefix, withoutPrefix: v{138, 0, 0}},
 		{engine: IOS, prefix: WebkitPrefix},
@@ -313,7 +343,21 @@ var cssPrefixTable = map[css_ast.D][]prefixData{
 		{engine: Opera, prefix: WebkitPrefix, withoutPrefix: v{122, 0, 0}},
 		{engine: Safari, prefix: WebkitPrefix},
 	},
+	css_ast.DMinBlockSize: {
+		{engine: Chrome, prefix: WebkitPrefix, withoutPrefix: v{138, 0, 0}},
+		{engine: Edge, prefix: WebkitPrefix, withoutPrefix: v{138, 0, 0}},
+		{engine: IOS, prefix: WebkitPrefix},
+		{engine: Opera, prefix: WebkitPrefix, withoutPrefix: v{122, 0, 0}},
+		{engine: Safari, prefix: WebkitPrefix},
+	},
 	css_ast.DMinHeight: {
+		{engine: Chrome, prefix: WebkitPrefix, withoutPrefix: v{138, 0, 0}},
+		{engine: Edge, prefix: WebkitPrefix, withoutPrefix: v{138, 0, 0}},
+		{engine: IOS, prefix: WebkitPrefix},
+		{engine: Opera, prefix: WebkitPrefix, withoutPrefix: v{122, 0, 0}},
+		{engine: Safari, prefix: WebkitPrefix},
+	},
+	css_ast.DMinInlineSize: {
 		{engine: Chrome, prefix: WebkitPrefix, withoutPrefix: v{138, 0, 0}},
 		{engine: Edge, prefix: WebkitPrefix, withoutPrefix: v{138, 0, 0}},
 		{engine: IOS, prefix: WebkitPrefix},
@@ -391,6 +435,7 @@ var cssPrefixTable = map[css_ast.D][]prefixData{
 		{engine: Chrome, prefix: WebkitPrefix, withoutPrefix: v{138, 0, 0}},
 		{engine: Edge, prefix: WebkitPrefix, withoutPrefix: v{138, 0, 0}},
 		{engine: Firefox, prefix: WebkitPrefix},
+		{engine: Firefox, prefix: MozPrefix},
 		{engine: IOS, prefix: WebkitPrefix},
 		{engine: Opera, prefix: WebkitPrefix, withoutPrefix: v{122, 0, 0}},
 		{engine: Safari, prefix: WebkitPrefix},
