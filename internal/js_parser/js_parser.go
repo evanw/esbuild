@@ -12519,6 +12519,24 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 	if p.symbols[result.innerClassNameRef.InnerIndex].UseCountEstimate == 0 {
 		// Don't generate a shadowing name if one isn't needed
 		result.innerClassNameRef = ast.InvalidRef
+
+		// Class expressions declare their name in this scope, but that symbol
+		// is overwritten by the unused inner name above. Restore it so the
+		// renamer will not reuse the printed class name for a symbol referenced
+		// from the extends clause (see #4273 and #3923). Class statements already
+		// declare the name in the enclosing scope, so leave them alone.
+		if class.Name != nil {
+			name := p.symbols[class.Name.Ref.InnerIndex].OriginalName
+			isClassStatement := false
+			if parent := p.currentScope.Parent; parent != nil {
+				if member, ok := parent.Members[name]; ok && member.Ref == class.Name.Ref {
+					isClassStatement = true
+				}
+			}
+			if !isClassStatement {
+				p.currentScope.Members[name] = js_ast.ScopeMember{Loc: class.Name.Loc, Ref: class.Name.Ref}
+			}
+		}
 	} else if class.Name == nil {
 		// If there was originally no class name but something inside needed one
 		// (e.g. there was a static property initializer that referenced "this"),
@@ -13790,13 +13808,13 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 		}
 
 		return p.handleIdentifier(expr.Loc, e, identifierOpts{
-				assignTarget:            in.assignTarget,
-				isCallTarget:            isCallTarget,
-				isDeleteTarget:          isDeleteTarget,
-				wasOriginallyIdentifier: true,
-			}), exprOut{
-				methodCallMustBeReplacedWithUndefined: methodCallMustBeReplacedWithUndefined,
-			}
+			assignTarget:            in.assignTarget,
+			isCallTarget:            isCallTarget,
+			isDeleteTarget:          isDeleteTarget,
+			wasOriginallyIdentifier: true,
+		}), exprOut{
+			methodCallMustBeReplacedWithUndefined: methodCallMustBeReplacedWithUndefined,
+		}
 
 	case *js_ast.EJSXElement:
 		propsLoc := expr.Loc

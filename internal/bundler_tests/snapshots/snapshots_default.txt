@@ -5375,6 +5375,37 @@ var foo = 123;
 console.log(foo);
 
 ================================================================================
+TestNamedClassExprExtendsImportAliasIssue4273
+---------- /out.js ----------
+// my-service.js
+var MyService = class {
+};
+
+// entry.js
+var factory = () => new class MyService2 extends MyService {
+}();
+export {
+  factory
+};
+
+================================================================================
+TestNamedClassExprInStaticFieldExtendsImportAliasIssue3923
+---------- /out.js ----------
+// a.js
+var A = class {
+  constructor() {
+    console.log("success");
+  }
+};
+
+// entry.js
+var A2 = class {
+  static C = class A3 extends A {
+  };
+};
+new A2.C();
+
+================================================================================
 TestNamedFunctionExpressionArgumentCollision
 ---------- /out/entry.js ----------
 let x = function(foo) {
