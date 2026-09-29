@@ -9499,6 +9499,51 @@ func TestResolveExtensionsOrderIssue4053(t *testing.T) {
 	})
 }
 
+func TestNamedClassExprExtendsImportAliasIssue4273(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import { MyService as RealMyService } from './my-service'
+				export const factory = () => new (class MyService extends RealMyService {})
+			`,
+			"/my-service.js": `
+				export class MyService {}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
+func TestNamedClassExprInStaticFieldExtendsImportAliasIssue3923(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import { A as B } from './a'
+				class A {
+					static C = class A extends B {}
+				}
+				new A.C()
+			`,
+			"/a.js": `
+				export class A {
+					constructor() {
+						console.log("success")
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
 func TestBundleESMWithNestedVarIssue4348(t *testing.T) {
 	css_suite.expectBundled(t, bundled{
 		files: map[string]string{
