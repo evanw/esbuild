@@ -5532,21 +5532,20 @@ console.log((0, import_demo_pkg.default)());
 TestNonDeterminismIssue2537
 ---------- /out.js ----------
 // entry.ts
-function i(o, e) {
-  let r = "teun";
-  if (o) {
-    let u = function(n) {
+function a(r, u) {
+  let e = "teun";
+  if (r) {
+    let t = function(n) {
       return n * 2;
-    }, t = function(n) {
+    }, o = function(n) {
       return n / 2;
     };
-    var b = u, f = t;
-    r = u(e) + t(e);
+    e = t(u) + o(u);
   }
-  return r;
+  return e;
 }
 export {
-  i as aap
+  a as aap
 };
 
 ================================================================================
