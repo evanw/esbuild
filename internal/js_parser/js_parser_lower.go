@@ -1095,7 +1095,7 @@ func (p *parser) lowerForAwaitLoop(loc logger.Loc, loop *js_ast.SForOf, stmts []
 	// is transformed into the following code:
 	//
 	//   try {
-	//     for (var iter = __forAwait(y), more, temp, error; more = !(temp = await iter.next()).done; more = false) {
+	//     for (var iter = __forAwait(y), more = void 0, temp = void 0, error = void 0; more = !(temp = await iter.next()).done; more = false) {
 	//       let x = temp.value;
 	//       z();
 	//     }
@@ -1111,6 +1111,8 @@ func (p *parser) lowerForAwaitLoop(loc logger.Loc, loop *js_ast.SForOf, stmts []
 	//
 	// except that "yield" is used instead of "await" if await is unsupported.
 	// This mostly follows TypeScript's implementation of the syntax transform.
+	// "more", "temp", and "error" are reset on each entry so an enclosing loop
+	// does not reuse a caught error (https://github.com/evanw/esbuild/issues/4544).
 
 	iterRef := p.generateTempRef(tempRefNoDeclare, "iter")
 	moreRef := p.generateTempRef(tempRefNoDeclare, "more")
@@ -1184,9 +1186,12 @@ func (p *parser) lowerForAwaitLoop(loc logger.Loc, loop *js_ast.SForOf, stmts []
 				InitOrNil: js_ast.Stmt{Loc: loc, Data: &js_ast.SLocal{Kind: js_ast.LocalVar, Decls: []js_ast.Decl{
 					{Binding: js_ast.Binding{Loc: loc, Data: &js_ast.BIdentifier{Ref: iterRef}},
 						ValueOrNil: p.callRuntime(loc, "__forAwait", []js_ast.Expr{loop.Value})},
-					{Binding: js_ast.Binding{Loc: loc, Data: &js_ast.BIdentifier{Ref: moreRef}}},
-					{Binding: js_ast.Binding{Loc: loc, Data: &js_ast.BIdentifier{Ref: tempRef}}},
-					{Binding: js_ast.Binding{Loc: loc, Data: &js_ast.BIdentifier{Ref: errorRef}}},
+					{Binding: js_ast.Binding{Loc: loc, Data: &js_ast.BIdentifier{Ref: moreRef}},
+						ValueOrNil: js_ast.Expr{Loc: loc, Data: js_ast.EUndefinedShared}},
+					{Binding: js_ast.Binding{Loc: loc, Data: &js_ast.BIdentifier{Ref: tempRef}},
+						ValueOrNil: js_ast.Expr{Loc: loc, Data: js_ast.EUndefinedShared}},
+					{Binding: js_ast.Binding{Loc: loc, Data: &js_ast.BIdentifier{Ref: errorRef}},
+						ValueOrNil: js_ast.Expr{Loc: loc, Data: js_ast.EUndefinedShared}},
 				}}},
 				TestOrNil: js_ast.Expr{Loc: loc, Data: &js_ast.EBinary{
 					Op:   js_ast.BinOpAssign,

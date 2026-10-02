@@ -1154,6 +1154,32 @@ for (const flags of [[], ['--target=es6', '--target=es2017', '--supported:for-aw
       `,
     }),
 
+    // A caught error must not leak into the next entry of the lowered loop
+    // https://github.com/evanw/esbuild/issues/4544
+    test(['in.js', '--outfile=node.js', '--format=esm'].concat(flags), {
+      'in.js': `
+        async function* source(attempt) {
+          if (attempt === 1) throw new Error('first attempt failed')
+          yield 'ok'
+        }
+        export let async = async () => {
+          let attempt = 0
+          for (;;) {
+            attempt++
+            try {
+              for await (const value of source(attempt)) {
+                if (value !== 'ok') throw 'fail: ' + value
+              }
+              if (attempt !== 2) throw 'fail: finished after ' + attempt
+              return
+            } catch (err) {
+              if (attempt >= 5) throw 'still failing after ' + attempt + ' attempts: ' + err.message
+            }
+          }
+        }
+      `,
+    }, { async: true }),
+
     // return() must be called in this case
     test(['in.js', '--outfile=node.js'].concat(flags), {
       'in.js': `
