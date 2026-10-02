@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+* Fix lowered `for await` rethrowing a previous iteration's error ([#4544](https://github.com/evanw/esbuild/issues/4544))
+
+    When `for await` is lowered, the generated loop stored a caught error in a `var` declared in the loop head without an initializer. If that loop ran inside another loop, the error from a failed attempt was still set on the next attempt, and the generated `finally` block rethrew it even when the later attempt completed normally. The lowered loop now resets that state on each entry.
+
 * Allow `es2026` as a target in `tsconfig.json`
 
     TypeScript is [adding `es2026`](https://github.com/microsoft/TypeScript/issues/63704) as a compilation target, so esbuild now supports this in the `target` field of `tsconfig.json` files, such as in the following configuration file:

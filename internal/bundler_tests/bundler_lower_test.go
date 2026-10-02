@@ -2340,6 +2340,34 @@ func TestLowerRegExpNameCollision(t *testing.T) {
 	})
 }
 
+// https://github.com/evanw/esbuild/issues/4544
+func TestLowerForAwaitErrorReset4544(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export async function run(source) {
+					for (let attempt = 0; ; attempt++) {
+						try {
+							for await (const value of source(attempt)) {
+								return value
+							}
+							return attempt
+						} catch (err) {
+							if (attempt >= 5) return err
+						}
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                  config.ModePassThrough,
+			AbsOutputFile:         "/out.js",
+			UnsupportedJSFeatures: es(2017),
+		},
+	})
+}
+
 func TestLowerForAwait2017(t *testing.T) {
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{

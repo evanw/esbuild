@@ -21,7 +21,7 @@ TestForAwaitWithOptionalCatchIssue4378
 ---------- /out.js ----------
 async function test(b) {
   try {
-    for (var iter = __forAwait(b), more, temp, error; more = !(temp = await iter.next()).done; more = !1) {
+    for (var iter = __forAwait(b), more = void 0, temp = void 0, error = void 0; more = !(temp = await iter.next()).done; more = !1) {
       const a = temp.value;
       a();
     }
@@ -1185,7 +1185,7 @@ function foo() {
       yield* __yieldStar(x);
       const x = __using(_stack2, yield new __await(y), true);
       try {
-        for (var iter = __forAwait(y), more, temp, error; more = !(temp = yield new __await(iter.next())).done; more = false) {
+        for (var iter = __forAwait(y), more = void 0, temp = void 0, error = void 0; more = !(temp = yield new __await(iter.next())).done; more = false) {
           let x2 = temp.value;
         }
       } catch (temp) {
@@ -1199,7 +1199,7 @@ function foo() {
         }
       }
       try {
-        for (var iter2 = __forAwait(y), more2, temp2, error2; more2 = !(temp2 = yield new __await(iter2.next())).done; more2 = false) {
+        for (var iter2 = __forAwait(y), more2 = void 0, temp2 = void 0, error2 = void 0; more2 = !(temp2 = yield new __await(iter2.next())).done; more2 = false) {
           var _x = temp2.value;
           var _stack = [];
           try {
@@ -1238,7 +1238,7 @@ foo = function() {
       yield* __yieldStar(x);
       const x = __using(_stack2, yield new __await(y), true);
       try {
-        for (var iter = __forAwait(y), more, temp, error; more = !(temp = yield new __await(iter.next())).done; more = false) {
+        for (var iter = __forAwait(y), more = void 0, temp = void 0, error = void 0; more = !(temp = yield new __await(iter.next())).done; more = false) {
           let x2 = temp.value;
         }
       } catch (temp) {
@@ -1252,7 +1252,7 @@ foo = function() {
         }
       }
       try {
-        for (var iter2 = __forAwait(y), more2, temp2, error2; more2 = !(temp2 = yield new __await(iter2.next())).done; more2 = false) {
+        for (var iter2 = __forAwait(y), more2 = void 0, temp2 = void 0, error2 = void 0; more2 = !(temp2 = yield new __await(iter2.next())).done; more2 = false) {
           var _x = temp2.value;
           var _stack = [];
           try {
@@ -1291,7 +1291,7 @@ foo = { bar() {
       yield* __yieldStar(x);
       const x = __using(_stack2, yield new __await(y), true);
       try {
-        for (var iter = __forAwait(y), more, temp, error; more = !(temp = yield new __await(iter.next())).done; more = false) {
+        for (var iter = __forAwait(y), more = void 0, temp = void 0, error = void 0; more = !(temp = yield new __await(iter.next())).done; more = false) {
           let x2 = temp.value;
         }
       } catch (temp) {
@@ -1305,7 +1305,7 @@ foo = { bar() {
         }
       }
       try {
-        for (var iter2 = __forAwait(y), more2, temp2, error2; more2 = !(temp2 = yield new __await(iter2.next())).done; more2 = false) {
+        for (var iter2 = __forAwait(y), more2 = void 0, temp2 = void 0, error2 = void 0; more2 = !(temp2 = yield new __await(iter2.next())).done; more2 = false) {
           var _x = temp2.value;
           var _stack = [];
           try {
@@ -1345,7 +1345,7 @@ class Foo {
         yield* __yieldStar(x);
         const x = __using(_stack2, yield new __await(y), true);
         try {
-          for (var iter = __forAwait(y), more, temp, error; more = !(temp = yield new __await(iter.next())).done; more = false) {
+          for (var iter = __forAwait(y), more = void 0, temp = void 0, error = void 0; more = !(temp = yield new __await(iter.next())).done; more = false) {
             let x2 = temp.value;
           }
         } catch (temp) {
@@ -1359,7 +1359,7 @@ class Foo {
           }
         }
         try {
-          for (var iter2 = __forAwait(y), more2, temp2, error2; more2 = !(temp2 = yield new __await(iter2.next())).done; more2 = false) {
+          for (var iter2 = __forAwait(y), more2 = void 0, temp2 = void 0, error2 = void 0; more2 = !(temp2 = yield new __await(iter2.next())).done; more2 = false) {
             var _x = temp2.value;
             var _stack = [];
             try {
@@ -1400,7 +1400,7 @@ Foo = class {
         yield* __yieldStar(x);
         const x = __using(_stack2, yield new __await(y), true);
         try {
-          for (var iter = __forAwait(y), more, temp, error; more = !(temp = yield new __await(iter.next())).done; more = false) {
+          for (var iter = __forAwait(y), more = void 0, temp = void 0, error = void 0; more = !(temp = yield new __await(iter.next())).done; more = false) {
             let x2 = temp.value;
           }
         } catch (temp) {
@@ -1414,7 +1414,7 @@ Foo = class {
           }
         }
         try {
-          for (var iter2 = __forAwait(y), more2, temp2, error2; more2 = !(temp2 = yield new __await(iter2.next())).done; more2 = false) {
+          for (var iter2 = __forAwait(y), more2 = void 0, temp2 = void 0, error2 = void 0; more2 = !(temp2 = yield new __await(iter2.next())).done; more2 = false) {
             var _x = temp2.value;
             var _stack = [];
             try {
@@ -1465,7 +1465,7 @@ function foo() {
       yield* __yieldStar(x);
       const x = __using(_stack2, yield new __await(y), true);
       try {
-        for (var iter = __forAwait(y), more, temp, error; more = !(temp = yield new __await(iter.next())).done; more = false) {
+        for (var iter = __forAwait(y), more = void 0, temp = void 0, error = void 0; more = !(temp = yield new __await(iter.next())).done; more = false) {
           let x2 = temp.value;
         }
       } catch (temp) {
@@ -1479,7 +1479,7 @@ function foo() {
         }
       }
       try {
-        for (var iter2 = __forAwait(y), more2, temp2, error2; more2 = !(temp2 = yield new __await(iter2.next())).done; more2 = false) {
+        for (var iter2 = __forAwait(y), more2 = void 0, temp2 = void 0, error2 = void 0; more2 = !(temp2 = yield new __await(iter2.next())).done; more2 = false) {
           var _x = temp2.value;
           var _stack = [];
           try {
@@ -1518,7 +1518,7 @@ foo = function() {
       yield* __yieldStar(x);
       const x = __using(_stack2, yield new __await(y), true);
       try {
-        for (var iter = __forAwait(y), more, temp, error; more = !(temp = yield new __await(iter.next())).done; more = false) {
+        for (var iter = __forAwait(y), more = void 0, temp = void 0, error = void 0; more = !(temp = yield new __await(iter.next())).done; more = false) {
           let x2 = temp.value;
         }
       } catch (temp) {
@@ -1532,7 +1532,7 @@ foo = function() {
         }
       }
       try {
-        for (var iter2 = __forAwait(y), more2, temp2, error2; more2 = !(temp2 = yield new __await(iter2.next())).done; more2 = false) {
+        for (var iter2 = __forAwait(y), more2 = void 0, temp2 = void 0, error2 = void 0; more2 = !(temp2 = yield new __await(iter2.next())).done; more2 = false) {
           var _x = temp2.value;
           var _stack = [];
           try {
@@ -1571,7 +1571,7 @@ foo = { bar() {
       yield* __yieldStar(x);
       const x = __using(_stack2, yield new __await(y), true);
       try {
-        for (var iter = __forAwait(y), more, temp, error; more = !(temp = yield new __await(iter.next())).done; more = false) {
+        for (var iter = __forAwait(y), more = void 0, temp = void 0, error = void 0; more = !(temp = yield new __await(iter.next())).done; more = false) {
           let x2 = temp.value;
         }
       } catch (temp) {
@@ -1585,7 +1585,7 @@ foo = { bar() {
         }
       }
       try {
-        for (var iter2 = __forAwait(y), more2, temp2, error2; more2 = !(temp2 = yield new __await(iter2.next())).done; more2 = false) {
+        for (var iter2 = __forAwait(y), more2 = void 0, temp2 = void 0, error2 = void 0; more2 = !(temp2 = yield new __await(iter2.next())).done; more2 = false) {
           var _x = temp2.value;
           var _stack = [];
           try {
@@ -1625,7 +1625,7 @@ class Foo {
         yield* __yieldStar(x);
         const x = __using(_stack2, yield new __await(y), true);
         try {
-          for (var iter = __forAwait(y), more, temp, error; more = !(temp = yield new __await(iter.next())).done; more = false) {
+          for (var iter = __forAwait(y), more = void 0, temp = void 0, error = void 0; more = !(temp = yield new __await(iter.next())).done; more = false) {
             let x2 = temp.value;
           }
         } catch (temp) {
@@ -1639,7 +1639,7 @@ class Foo {
           }
         }
         try {
-          for (var iter2 = __forAwait(y), more2, temp2, error2; more2 = !(temp2 = yield new __await(iter2.next())).done; more2 = false) {
+          for (var iter2 = __forAwait(y), more2 = void 0, temp2 = void 0, error2 = void 0; more2 = !(temp2 = yield new __await(iter2.next())).done; more2 = false) {
             var _x = temp2.value;
             var _stack = [];
             try {
@@ -1680,7 +1680,7 @@ Foo = class {
         yield* __yieldStar(x);
         const x = __using(_stack2, yield new __await(y), true);
         try {
-          for (var iter = __forAwait(y), more, temp, error; more = !(temp = yield new __await(iter.next())).done; more = false) {
+          for (var iter = __forAwait(y), more = void 0, temp = void 0, error = void 0; more = !(temp = yield new __await(iter.next())).done; more = false) {
             let x2 = temp.value;
           }
         } catch (temp) {
@@ -1694,7 +1694,7 @@ Foo = class {
           }
         }
         try {
-          for (var iter2 = __forAwait(y), more2, temp2, error2; more2 = !(temp2 = yield new __await(iter2.next())).done; more2 = false) {
+          for (var iter2 = __forAwait(y), more2 = void 0, temp2 = void 0, error2 = void 0; more2 = !(temp2 = yield new __await(iter2.next())).done; more2 = false) {
             var _x = temp2.value;
             var _stack = [];
             try {
@@ -2081,7 +2081,7 @@ TestLowerForAwait2015
 export default [
   () => __async(null, null, function* () {
     try {
-      for (var iter = __forAwait(y), more, temp, error; more = !(temp = yield iter.next()).done; more = false) {
+      for (var iter = __forAwait(y), more = void 0, temp = void 0, error = void 0; more = !(temp = yield iter.next()).done; more = false) {
         x = temp.value;
         z(x);
       }
@@ -2098,7 +2098,7 @@ export default [
   }),
   () => __async(null, null, function* () {
     try {
-      for (var iter = __forAwait(y), more, temp, error; more = !(temp = yield iter.next()).done; more = false) {
+      for (var iter = __forAwait(y), more = void 0, temp = void 0, error = void 0; more = !(temp = yield iter.next()).done; more = false) {
         x.y = temp.value;
         z(x);
       }
@@ -2115,7 +2115,7 @@ export default [
   }),
   () => __async(null, null, function* () {
     try {
-      for (var iter = __forAwait(y), more, temp, error; more = !(temp = yield iter.next()).done; more = false) {
+      for (var iter = __forAwait(y), more = void 0, temp = void 0, error = void 0; more = !(temp = yield iter.next()).done; more = false) {
         let x2 = temp.value;
         z(x2);
       }
@@ -2132,7 +2132,7 @@ export default [
   }),
   () => __async(null, null, function* () {
     try {
-      for (var iter = __forAwait(y), more, temp, error; more = !(temp = yield iter.next()).done; more = false) {
+      for (var iter = __forAwait(y), more = void 0, temp = void 0, error = void 0; more = !(temp = yield iter.next()).done; more = false) {
         const x2 = temp.value;
         z(x2);
       }
@@ -2149,7 +2149,7 @@ export default [
   }),
   () => __async(null, null, function* () {
     try {
-      label: for (var iter = __forAwait(y), more, temp, error; more = !(temp = yield iter.next()).done; more = false) {
+      label: for (var iter = __forAwait(y), more = void 0, temp = void 0, error = void 0; more = !(temp = yield iter.next()).done; more = false) {
         const x2 = temp.value;
         break label;
       }
@@ -2166,7 +2166,7 @@ export default [
   }),
   () => __async(null, null, function* () {
     try {
-      label: for (var iter = __forAwait(y), more, temp, error; more = !(temp = yield iter.next()).done; more = false) {
+      label: for (var iter = __forAwait(y), more = void 0, temp = void 0, error = void 0; more = !(temp = yield iter.next()).done; more = false) {
         const x2 = temp.value;
         continue label;
       }
@@ -2189,7 +2189,7 @@ TestLowerForAwait2017
 export default [
   async () => {
     try {
-      for (var iter = __forAwait(y), more, temp, error; more = !(temp = await iter.next()).done; more = false) {
+      for (var iter = __forAwait(y), more = void 0, temp = void 0, error = void 0; more = !(temp = await iter.next()).done; more = false) {
         x = temp.value;
         z(x);
       }
@@ -2206,7 +2206,7 @@ export default [
   },
   async () => {
     try {
-      for (var iter = __forAwait(y), more, temp, error; more = !(temp = await iter.next()).done; more = false) {
+      for (var iter = __forAwait(y), more = void 0, temp = void 0, error = void 0; more = !(temp = await iter.next()).done; more = false) {
         x.y = temp.value;
         z(x);
       }
@@ -2223,7 +2223,7 @@ export default [
   },
   async () => {
     try {
-      for (var iter = __forAwait(y), more, temp, error; more = !(temp = await iter.next()).done; more = false) {
+      for (var iter = __forAwait(y), more = void 0, temp = void 0, error = void 0; more = !(temp = await iter.next()).done; more = false) {
         let x2 = temp.value;
         z(x2);
       }
@@ -2240,7 +2240,7 @@ export default [
   },
   async () => {
     try {
-      for (var iter = __forAwait(y), more, temp, error; more = !(temp = await iter.next()).done; more = false) {
+      for (var iter = __forAwait(y), more = void 0, temp = void 0, error = void 0; more = !(temp = await iter.next()).done; more = false) {
         const x2 = temp.value;
         z(x2);
       }
@@ -2257,7 +2257,7 @@ export default [
   },
   async () => {
     try {
-      label: for (var iter = __forAwait(y), more, temp, error; more = !(temp = await iter.next()).done; more = false) {
+      label: for (var iter = __forAwait(y), more = void 0, temp = void 0, error = void 0; more = !(temp = await iter.next()).done; more = false) {
         const x2 = temp.value;
         break label;
       }
@@ -2274,7 +2274,7 @@ export default [
   },
   async () => {
     try {
-      label: for (var iter = __forAwait(y), more, temp, error; more = !(temp = await iter.next()).done; more = false) {
+      label: for (var iter = __forAwait(y), more = void 0, temp = void 0, error = void 0; more = !(temp = await iter.next()).done; more = false) {
         const x2 = temp.value;
         continue label;
       }
@@ -2290,6 +2290,34 @@ export default [
     }
   }
 ];
+
+================================================================================
+TestLowerForAwaitErrorReset4544
+---------- /out.js ----------
+export async function run(source) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      try {
+        for (var iter = __forAwait(source(attempt)), more = void 0, temp = void 0, error = void 0; more = !(temp = await iter.next()).done; more = false) {
+          const value = temp.value;
+          return value;
+        }
+      } catch (temp) {
+        error = [temp];
+      } finally {
+        try {
+          more && (temp = iter.return) && await temp.call(iter);
+        } finally {
+          if (error)
+            throw error[0];
+        }
+      }
+      return attempt;
+    } catch (err) {
+      if (attempt >= 5) return err;
+    }
+  }
+}
 
 ================================================================================
 TestLowerNestedFunctionDirectEval
