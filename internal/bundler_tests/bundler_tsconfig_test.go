@@ -1867,6 +1867,42 @@ Users/user/project/tsconfig.json: NOTE: TypeScript's "strict" setting was enable
 	})
 }
 
+func TestTsconfigAlwaysStrictBlockFunction(t *testing.T) {
+	tsconfig_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.ts": `
+				function head() {
+					console.log("head")
+				}
+
+				export function render() {
+					head()
+
+					{
+						function head() {
+							console.log("snippet")
+						}
+						head()
+					}
+				}
+
+				render()
+			`,
+			"/Users/user/project/tsconfig.json": `{
+				"compilerOptions": {
+					"strict": true
+				}
+			}`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.ts"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/Users/user/project/out.js",
+			OutputFormat:  config.FormatESModule,
+		},
+	})
+}
+
 func TestTsconfigWithStatementStrictFalseAlwaysStrictTrue(t *testing.T) {
 	tsconfig_suite.expectBundled(t, bundled{
 		files: map[string]string{

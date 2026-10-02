@@ -18323,7 +18323,7 @@ func (p *parser) prepareForVisitPass() {
 
 	// Force-enable strict mode if that's the way TypeScript is configured
 	if tsAlwaysStrict := p.options.tsAlwaysStrict; tsAlwaysStrict != nil && tsAlwaysStrict.Value {
-		p.currentScope.StrictMode = js_ast.ImplicitStrictModeTSAlwaysStrict
+		p.currentScope.RecursiveSetStrictMode(js_ast.ImplicitStrictModeTSAlwaysStrict)
 	}
 
 	// Determine whether or not this file is ESM
