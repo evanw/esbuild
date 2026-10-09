@@ -347,18 +347,22 @@ func (p *parser) lowerFunction(
 			*preferExpr = true
 		}
 
-		// Determine the value for "this"
-		thisValue, hasThisValue := p.valueForThis(
+		// Determine the value for "this". Arrow functions that don't use "this"
+		// don't need it, so avoid calling "valueForThis" in that case. It records
+		// a use of "exports" for top-level "this", which would otherwise cause the
+		// file to be considered CommonJS even though "this" is never used.
+		var thisValue js_ast.Expr
+		if isArrow && !p.fnOnlyDataVisit.hasThisUsage {
+			thisValue = js_ast.Expr{Loc: bodyLoc, Data: js_ast.ENullShared}
+		} else if value, ok := p.valueForThis(
 			bodyLoc,
 			false, /* shouldWarn */
 			js_ast.AssignTargetNone,
 			false, /* isCallTarget */
 			false, /* isDeleteTarget */
-		)
-
-		if isArrow && !p.fnOnlyDataVisit.hasThisUsage {
-			thisValue = js_ast.Expr{Loc: bodyLoc, Data: js_ast.ENullShared}
-		} else if !hasThisValue {
+		); ok {
+			thisValue = value
+		} else {
 			thisValue = js_ast.Expr{Loc: bodyLoc, Data: js_ast.EThisShared}
 		}
 

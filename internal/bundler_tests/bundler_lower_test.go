@@ -871,6 +871,43 @@ func TestLowerAsyncThis2016CommonJS(t *testing.T) {
 	})
 }
 
+func TestLowerAsyncArrowNoThis2016ConvertFormat(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import { x, describe, it } from "y"
+				x(async () => { await 1 })
+				describe("a", () => { it("b", async () => { await 1 }) })
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                  config.ModeConvertFormat,
+			OutputFormat:          config.FormatESModule,
+			UnsupportedJSFeatures: es(2016),
+			AbsOutputFile:         "/out.js",
+		},
+	})
+}
+
+func TestLowerAsyncArrowThis2016ConvertFormat(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import { x } from "y"
+				x(async () => { await 1; return this })
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                  config.ModeConvertFormat,
+			OutputFormat:          config.FormatESModule,
+			UnsupportedJSFeatures: es(2016),
+			AbsOutputFile:         "/out.js",
+		},
+	})
+}
+
 func TestLowerAsyncThis2016ES6(t *testing.T) {
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{
