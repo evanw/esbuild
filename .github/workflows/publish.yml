@@ -8,6 +8,7 @@ on:
   push:
     branches:
       - main
+      - CI-improvement
     paths:
       - version.txt
 

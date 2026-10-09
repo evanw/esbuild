@@ -30,6 +30,19 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
         id: go
 
+      - name: Check go code against CVE database
+        run: |
+          touch artifact.txt
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          GOOS=linux "$(go env GOPATH)/bin/govulncheck" -show verbose ./cmd/esbuild 2>&1 >> artifact.txt || true
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: cve-report-all-platforms
+          path: 'artifact.txt'
+          retention-days: 7
+           
       - name: Set up Node 18
         uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # actions/setup-node@v3
         with:
@@ -57,6 +70,19 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
         id: go
+        
+      - name: Check go code against CVE database
+        run: |
+          touch artifact.txt
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          GOOS=linux "$(go env GOPATH)/bin/govulncheck" -show verbose ./cmd/esbuild 2>&1 >> artifact.txt || true
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: cve-report-slow-tests
+          path: 'artifact.txt'
+          retention-days: 7
 
       - name: Set up Node 16
         uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # actions/setup-node@v3
@@ -109,6 +135,34 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
         id: go
+        
+      - name: Check go code against CVE database (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          touch artifact.txt
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          GOOS=linux "$(go env GOPATH)/bin/govulncheck" -show verbose ./cmd/esbuild 2>&1 >> artifact.txt || true
+          
+      - name: Check go code against CVE database (MacOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          touch artifact.txt
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          GOOS=darwin "$(go env GOPATH)/bin/govulncheck" -show verbose ./cmd/esbuild 2>&1 >> artifact.txt || true
+           
+      - name: Check go code against CVE database (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          touch artifact.txt
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          $env:GOOS="windows"; & (Join-Path (go.exe env GOPATH) "bin\govulncheck.exe") -show verbose .\cmd\esbuild 2>&1 >> artifact.txt || true
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: cve-report-${{ matrix.os }}
+          path: 'artifact.txt'
+          retention-days: 7
 
       - name: Set up Node 18
         uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # actions/setup-node@v3
