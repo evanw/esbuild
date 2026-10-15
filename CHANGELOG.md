@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+* Fix a case where lowering `async` arrows made a file into CommonJS ([#4551](https://github.com/evanw/esbuild/issues/4551))
+
+    When `async`/`await` was being lowered for an older target, lowering a top-level `async` arrow function that doesn't use `this` would cause esbuild to misclassify the file as CommonJS, wrap it in a `__commonJS` wrapper, and add an `export default` to the output. For example:
+
+    ```js
+    // Original code
+    import { x } from 'y'
+    x(async () => { await 1 })
+    ```
+
+    ```js
+    // Old output (with --format=esm --supported:async-await=false)
+    import { x } from "y";
+    var require_in = __commonJS({
+      "in.js"(exports) {
+        x(() => __async(null, null, function* () {
+          yield 1;
+        }));
+      }
+    });
+    export default require_in();
+
+    // New output (with --format=esm --supported:async-await=false)
+    import { x } from "y";
+    x(() => __async(null, null, function* () {
+      yield 1;
+    }));
+    ```
+
+    The lowering code was calling the helper that computes the surrounding `this` value for the generator unconditionally, even for arrow functions that don't reference `this`. The result was later thrown away in favor of `null`, but the helper had already recorded a use of `exports` for the top-level `this`, which is what caused the file to be treated as CommonJS. The fix is to skip the helper entirely in this case.
+
 * Allow `es2026` as a target in `tsconfig.json`
 
     TypeScript is [adding `es2026`](https://github.com/microsoft/TypeScript/issues/63704) as a compilation target, so esbuild now supports this in the `target` field of `tsconfig.json` files, such as in the following configuration file:

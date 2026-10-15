@@ -895,6 +895,30 @@ entry.js: NOTE: This file is considered to be an ECMAScript module because of th
 	})
 }
 
+// https://github.com/evanw/esbuild/issues/4551
+func TestLowerAsyncArrowNoThisPreservesESM(t *testing.T) {
+	// Lowering a top-level async arrow with no "this" usage must not record a
+	// use of "exports" for the top-level "this" value we would otherwise pass
+	// to "__async", or the file will be misclassified as CommonJS. The
+	// "import" statement makes this file ESM, so the output should also be
+	// ESM (no "__commonJS" wrapper and no added "export default").
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				import { x } from "y"
+				x(async () => { await 1 })
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                  config.ModeConvertFormat,
+			OutputFormat:          config.FormatESModule,
+			UnsupportedJSFeatures: es(2016),
+			AbsOutputFile:         "/out.js",
+		},
+	})
+}
+
 func TestLowerAsyncES5(t *testing.T) {
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{

@@ -348,18 +348,27 @@ func (p *parser) lowerFunction(
 		}
 
 		// Determine the value for "this"
-		thisValue, hasThisValue := p.valueForThis(
-			bodyLoc,
-			false, /* shouldWarn */
-			js_ast.AssignTargetNone,
-			false, /* isCallTarget */
-			false, /* isDeleteTarget */
-		)
-
+		var thisValue js_ast.Expr
 		if isArrow && !p.fnOnlyDataVisit.hasThisUsage {
+			// An arrow function that doesn't reference "this" doesn't actually
+			// need the surrounding "this" value forwarded to the generator. Skip
+			// calling "valueForThis" here because its side effects (such as
+			// recording a use of "exports" for a top-level "this" in a non-ESM
+			// file) would otherwise misclassify this file as CommonJS even
+			// though we never use the resulting expression.
 			thisValue = js_ast.Expr{Loc: bodyLoc, Data: js_ast.ENullShared}
-		} else if !hasThisValue {
-			thisValue = js_ast.Expr{Loc: bodyLoc, Data: js_ast.EThisShared}
+		} else {
+			var hasThisValue bool
+			thisValue, hasThisValue = p.valueForThis(
+				bodyLoc,
+				false, /* shouldWarn */
+				js_ast.AssignTargetNone,
+				false, /* isCallTarget */
+				false, /* isDeleteTarget */
+			)
+			if !hasThisValue {
+				thisValue = js_ast.Expr{Loc: bodyLoc, Data: js_ast.EThisShared}
+			}
 		}
 
 		// Move the code into a nested generator function

@@ -918,6 +918,14 @@ export default [
 ];
 
 ================================================================================
+TestLowerAsyncArrowNoThisPreservesESM
+---------- /out.js ----------
+import { x } from "y";
+x(() => __async(null, null, function* () {
+  yield 1;
+}));
+
+================================================================================
 TestLowerAsyncArrowSuperES2016
 ---------- /out.js ----------
 // foo1.js
