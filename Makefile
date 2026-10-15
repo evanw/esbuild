@@ -29,6 +29,9 @@ test-all:
 check-go-version:
 	@go version | grep -F " go$(GO_VERSION) " || (echo 'Please install Go version $(GO_VERSION)' && false)
 
+check-cve:
+	@go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
 # Note: Don't add "-race" here by default. The Go race detector is currently
 # only supported on the following configurations:
 #
