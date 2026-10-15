@@ -46,6 +46,11 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
 
+      # Check that the code and Go version have no known vulnerabilities
+      - name: Check for vulnerabilities
+        run: |
+          make check-cve
+
       - name: Set up Node 24
         uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # actions/setup-node@v3
         with:
