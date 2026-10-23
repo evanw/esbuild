@@ -455,6 +455,11 @@ type Options struct {
 	// equality comparison.
 	defines *config.ProcessedDefines
 
+	// The "package.json" source pointer in here is different for each build
+	// because "package.json" files are parsed again for each build. So this is
+	// compared by the contents of that source instead of by pointer.
+	moduleTypeData js_ast.ModuleTypeData
+
 	// This is an embedded struct. Always access these directly instead of off
 	// the name "optionsThatSupportStructuralEquality". This is only grouped like
 	// this to make the equality comparison easier and safer (and hopefully faster).
@@ -463,7 +468,6 @@ type Options struct {
 
 type optionsThatSupportStructuralEquality struct {
 	originalTargetEnv                 string
-	moduleTypeData                    js_ast.ModuleTypeData
 	unsupportedJSFeatures             compat.JSFeature
 	unsupportedJSFeatureOverrides     compat.JSFeature
 	unsupportedJSFeatureOverridesMask compat.JSFeature
@@ -508,6 +512,7 @@ func OptionsFromConfig(options *config.Options) Options {
 		mangleProps:    options.MangleProps,
 		reserveProps:   options.ReserveProps,
 		dropLabels:     options.DropLabels,
+		moduleTypeData: options.ModuleTypeData,
 
 		optionsThatSupportStructuralEquality: optionsThatSupportStructuralEquality{
 			unsupportedJSFeatures:             options.UnsupportedJSFeatures,
@@ -518,7 +523,6 @@ func OptionsFromConfig(options *config.Options) Options {
 			mode:                              options.Mode,
 			platform:                          options.Platform,
 			outputFormat:                      options.OutputFormat,
-			moduleTypeData:                    options.ModuleTypeData,
 			asciiOnly:                         options.ASCIIOnly,
 			keepNames:                         options.KeepNames,
 			minifySyntax:                      options.MinifySyntax,
@@ -539,6 +543,13 @@ func OptionsFromConfig(options *config.Options) Options {
 func (a *Options) Equal(b *Options) bool {
 	// Compare "optionsThatSupportStructuralEquality"
 	if a.optionsThatSupportStructuralEquality != b.optionsThatSupportStructuralEquality {
+		return false
+	}
+
+	// Compare "moduleTypeData"
+	if a.moduleTypeData.Type != b.moduleTypeData.Type || a.moduleTypeData.Range != b.moduleTypeData.Range ||
+		(a.moduleTypeData.Source == nil) != (b.moduleTypeData.Source == nil) ||
+		(a.moduleTypeData.Source != nil && *a.moduleTypeData.Source != *b.moduleTypeData.Source) {
 		return false
 	}
 
