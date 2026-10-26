@@ -1267,6 +1267,10 @@ func (r resolverQuery) parseTSConfigFromSource(source logger.Source, visited map
 		// and because it would deadlock since we're currently in the middle of
 		// populating the directory info cache.
 
+		originalExtends := extends
+		extendsDir := fileDir
+		var conditionsOverride map[string]bool
+
 		maybeFinishOurSearch := func(base *TSConfigJSON, err error, extendsFile string) (*TSConfigJSON, bool) {
 			if err == nil {
 				return base, true
@@ -1279,7 +1283,7 @@ func (r resolverQuery) parseTSConfigFromSource(source logger.Source, visited map
 
 			if err == errParseErrorImportCycle {
 				r.log.AddID(logger.MsgID_TSConfigJSON_Cycle, logger.Warning, &tracker, extendsRange,
-					fmt.Sprintf("Base config file %q forms cycle", extends))
+					fmt.Sprintf("Base config file %q forms cycle", originalExtends))
 			} else if err != errParseErrorAlreadyLogged {
 				prettyPaths := MakePrettyPaths(r.fs, logger.Path{Text: extendsFile, Namespace: "file"})
 				r.log.AddError(&tracker, extendsRange, fmt.Sprintf("Cannot read file %q: %s",
@@ -1288,13 +1292,78 @@ func (r resolverQuery) parseTSConfigFromSource(source logger.Source, visited map
 			return nil, true
 		}
 
+		if strings.HasPrefix(extends, "#") {
+			if extends == "#" {
+				goto extendsError
+			}
+
+			// Find the nearest package scope without using the directory info cache.
+			// A package without an "imports" map still hides maps in parent packages.
+			var packageJSON *packageJSON
+			for {
+				if entries, _, err := r.fs.ReadDirectory(extendsDir); err == nil {
+					if entry, _ := entries.Get("package.json"); entry != nil && entry.Kind(r.fs) == fs.FileEntry {
+						packageJSON = r.parsePackageJSON(extendsDir)
+						break
+					}
+				}
+				parent := r.fs.Dir(extendsDir)
+				if parent == extendsDir {
+					break
+				}
+				extendsDir = parent
+			}
+			if packageJSON == nil || packageJSON.importsMap == nil {
+				goto extendsError
+			}
+
+			if r.debugLogs != nil {
+				r.debugLogs.addNote(fmt.Sprintf("Looking for %q in \"imports\" map in %q", extends, packageJSON.source.KeyPath.Text))
+			}
+
+			// TypeScript resolves config files as CommonJS with these conditions,
+			// independent of the platform and conditions used to build the code.
+			conditionsOverride = map[string]bool{"require": true, "node": true, "types": true, "default": true}
+			resolvedPath, status, debug := r.esmPackageImportsResolve(extends, packageJSON.importsMap.root, conditionsOverride)
+			resolvedPath, status, _ = r.esmHandlePostConditions(resolvedPath, status, debug)
+			switch status {
+			case pjStatusExact, pjStatusExactEndsWithStar, pjStatusInexact:
+				// Unlike relative "extends" paths, mapped paths must name JSON files
+				// explicitly. Do not add extensions or search inside directories.
+				if strings.HasSuffix(resolvedPath, ".json") {
+					fileToCheck := r.fs.Join(extendsDir, resolvedPath)
+					if entries, _, err := r.fs.ReadDirectory(r.fs.Dir(fileToCheck)); err == nil {
+						if entry, _ := entries.Get(r.fs.Base(fileToCheck)); entry != nil && entry.Kind(r.fs) == fs.DirEntry {
+							goto extendsError
+						}
+					}
+					base, err := r.parseTSConfig(fileToCheck, visited, configDir)
+					if result, shouldReturn := maybeFinishOurSearch(base, err, fileToCheck); shouldReturn {
+						return result
+					}
+				}
+				goto extendsError
+
+			case pjStatusPackageResolve:
+				// Resolve package targets from the package containing the map. As with
+				// normal imports, don't apply another "imports" map to avoid loops.
+				if resolvedPath == "" || strings.HasPrefix(resolvedPath, "#") || !IsPackagePath(resolvedPath) || r.fs.IsAbs(resolvedPath) {
+					goto extendsError
+				}
+				extends = resolvedPath
+
+			default:
+				goto extendsError
+			}
+		}
+
 		// Check for a Yarn PnP manifest and use that to rewrite the path
 		if IsPackagePath(extends) {
 			pnpData := r.pnpManifest
 
 			// If we haven't loaded the Yarn PnP manifest yet, try to find one
 			if pnpData == nil {
-				current := fileDir
+				current := extendsDir
 				for {
 					if _, _, ok := fs.ParseYarnPnPVirtualPath(current); !ok {
 						absPath := r.fs.Join(current, ".pnp.data.json")
@@ -1326,11 +1395,11 @@ func (r resolverQuery) parseTSConfigFromSource(source logger.Source, visited map
 			}
 
 			if pnpData != nil {
-				if result := r.resolveToUnqualified(extends, fileDir, pnpData); result.status == pnpErrorGeneric {
+				if result := r.resolveToUnqualified(extends, extendsDir, pnpData); result.status == pnpErrorGeneric {
 					if r.debugLogs != nil {
 						r.debugLogs.addNote("The Yarn PnP path resolution algorithm returned an error")
 					}
-					goto pnpError
+					goto extendsError
 				} else if result.status == pnpSuccess {
 					// If Yarn PnP path resolution succeeded, run a custom abbreviated
 					// version of node's module resolution algorithm. The Yarn PnP
@@ -1342,13 +1411,13 @@ func (r resolverQuery) parseTSConfigFromSource(source logger.Source, visited map
 							// Check the "exports" map
 							if packageJSON := r.parsePackageJSON(result.pkgDirPath); packageJSON != nil && packageJSON.exportsMap != nil {
 								if absolute, ok, _ := r.esmResolveAlgorithm(finalizeImportsExportsYarnPnPTSConfigExtends,
-									result.pkgIdent, "."+result.pkgSubpath, packageJSON, result.pkgDirPath, source.KeyPath.Text); ok {
+									result.pkgIdent, "."+result.pkgSubpath, packageJSON, result.pkgDirPath, source.KeyPath.Text, conditionsOverride); ok {
 									base, err := r.parseTSConfig(absolute.Primary.Text, visited, configDir)
 									if result, shouldReturn := maybeFinishOurSearch(base, err, absolute.Primary.Text); shouldReturn {
 										return result
 									}
 								}
-								goto pnpError
+								goto extendsError
 							}
 						}
 					}
@@ -1366,7 +1435,7 @@ func (r resolverQuery) parseTSConfigFromSource(source logger.Source, visited map
 			}
 
 			// If this is still a package path, try to resolve it to a "node_modules" directory
-			current := fileDir
+			current := extendsDir
 			for {
 				// Skip "node_modules" folders
 				if r.fs.Base(current) != "node_modules" {
@@ -1397,6 +1466,9 @@ func (r resolverQuery) parseTSConfigFromSource(source logger.Source, visited map
 
 								// Note: TypeScript appears to always treat this as a "require" import
 								conditions := r.esmConditionsRequire
+								if conditionsOverride != nil {
+									conditions = conditionsOverride
+								}
 								resolvedPath, status, debug := r.esmPackageExportsResolve("/", esmPackageSubpath, packageJSON.exportsMap.root, conditions)
 								resolvedPath, status, debug = r.esmHandlePostConditions(resolvedPath, status, debug)
 
@@ -1463,7 +1535,7 @@ func (r resolverQuery) parseTSConfigFromSource(source logger.Source, visited map
 
 			// If this is a regular path, search relative to the enclosing directory
 			if !r.fs.IsAbs(extendsFile) {
-				extendsFile = r.fs.Join(fileDir, extendsFile)
+				extendsFile = r.fs.Join(extendsDir, extendsFile)
 			}
 			base, err := r.parseTSConfig(extendsFile, visited, configDir)
 
@@ -1489,14 +1561,14 @@ func (r resolverQuery) parseTSConfigFromSource(source logger.Source, visited map
 		}
 
 		// Suppress warnings about missing base config files inside "node_modules"
-	pnpError:
+	extendsError:
 		if !helpers.IsInsideNodeModules(source.KeyPath.Text) {
 			var notes []logger.MsgData
 			if r.debugLogs != nil {
 				notes = r.debugLogs.notes
 			}
 			r.log.AddIDWithNotes(logger.MsgID_TSConfigJSON_Missing, logger.Warning, &tracker, extendsRange,
-				fmt.Sprintf("Cannot find base config file %q", extends), notes)
+				fmt.Sprintf("Cannot find base config file %q", originalExtends), notes)
 		}
 
 		return nil
@@ -2313,6 +2385,7 @@ func (r resolverQuery) esmResolveAlgorithm(
 	packageJSON *packageJSON,
 	absPkgPath string,
 	absPath string,
+	conditions map[string]bool,
 ) (PathPair, bool, *fs.DifferentCase) {
 	if r.debugLogs != nil {
 		r.debugLogs.addNote(fmt.Sprintf("Looking for %q in \"exports\" map in %q", esmPackageSubpath, packageJSON.source.KeyPath.Text))
@@ -2320,22 +2393,25 @@ func (r resolverQuery) esmResolveAlgorithm(
 		defer r.debugLogs.decreaseIndent()
 	}
 
-	// The condition set is determined by the kind of import
-	conditions := r.esmConditionsDefault
-	switch r.kind {
-	case ast.ImportStmt, ast.ImportDynamic:
-		conditions = r.esmConditionsImport
-	case ast.ImportRequire, ast.ImportRequireResolve:
-		conditions = r.esmConditionsRequire
-	case ast.ImportEntryPoint:
-		// Treat entry points as imports instead of requires for consistency with
-		// Webpack and Rollup. More information:
-		//
-		// * https://github.com/evanw/esbuild/issues/1956
-		// * https://github.com/nodejs/node/issues/41686
-		// * https://github.com/evanw/entry-point-resolve-test
-		//
-		conditions = r.esmConditionsImport
+	// Unless overridden for a tsconfig import, the condition set is determined
+	// by the kind of import.
+	if conditions == nil {
+		conditions = r.esmConditionsDefault
+		switch r.kind {
+		case ast.ImportStmt, ast.ImportDynamic:
+			conditions = r.esmConditionsImport
+		case ast.ImportRequire, ast.ImportRequireResolve:
+			conditions = r.esmConditionsRequire
+		case ast.ImportEntryPoint:
+			// Treat entry points as imports instead of requires for consistency with
+			// Webpack and Rollup. More information:
+			//
+			// * https://github.com/evanw/esbuild/issues/1956
+			// * https://github.com/nodejs/node/issues/41686
+			// * https://github.com/evanw/entry-point-resolve-test
+			//
+			conditions = r.esmConditionsImport
+		}
 	}
 
 	// Resolve against the path "/", then join it with the absolute
@@ -2429,7 +2505,7 @@ func (r resolverQuery) loadNodeModules(importPath string, dirInfo *dirInfo, forb
 			if pkgDirInfo := r.dirInfoCached(result.pkgDirPath); pkgDirInfo != nil {
 				// Check the "exports" map
 				if packageJSON := pkgDirInfo.packageJSON; packageJSON != nil && packageJSON.exportsMap != nil {
-					absolute, ok, diffCase := r.esmResolveAlgorithm(finalizeImportsExportsNormal, result.pkgIdent, "."+result.pkgSubpath, packageJSON, pkgDirInfo.absPath, absPath)
+					absolute, ok, diffCase := r.esmResolveAlgorithm(finalizeImportsExportsNormal, result.pkgIdent, "."+result.pkgSubpath, packageJSON, pkgDirInfo.absPath, absPath, nil)
 					return absolute, ok, diffCase, nil
 				}
 
@@ -2465,7 +2541,7 @@ func (r resolverQuery) loadNodeModules(importPath string, dirInfo *dirInfo, forb
 	if dirInfoPackageJSON != nil {
 		if packageJSON := dirInfoPackageJSON.packageJSON; packageJSON.name == esmPackageName && packageJSON.exportsMap != nil {
 			absolute, ok, diffCase := r.esmResolveAlgorithm(finalizeImportsExportsNormal, esmPackageName, esmPackageSubpath, packageJSON,
-				dirInfoPackageJSON.absPath, r.fs.Join(dirInfoPackageJSON.absPath, esmPackageSubpath))
+				dirInfoPackageJSON.absPath, r.fs.Join(dirInfoPackageJSON.absPath, esmPackageSubpath), nil)
 			return absolute, ok, diffCase, nil
 		}
 	}
@@ -2483,7 +2559,7 @@ func (r resolverQuery) loadNodeModules(importPath string, dirInfo *dirInfo, forb
 			if pkgDirInfo := r.dirInfoCached(absPkgPath); pkgDirInfo != nil {
 				// Check the "exports" map
 				if packageJSON := pkgDirInfo.packageJSON; packageJSON != nil && packageJSON.exportsMap != nil {
-					absolute, ok, diffCase := r.esmResolveAlgorithm(finalizeImportsExportsNormal, esmPackageName, esmPackageSubpath, packageJSON, absPkgPath, absPath)
+					absolute, ok, diffCase := r.esmResolveAlgorithm(finalizeImportsExportsNormal, esmPackageName, esmPackageSubpath, packageJSON, absPkgPath, absPath, nil)
 					return absolute, ok, diffCase, nil, true
 				}
 

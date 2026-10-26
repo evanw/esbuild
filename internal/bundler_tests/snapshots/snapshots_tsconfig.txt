@@ -222,6 +222,144 @@ TestTsconfigExtendsWithExportsStarTrailing
 console.log(/* @__PURE__ */ success("div", null));
 
 ================================================================================
+TestTsconfigExtendsWithImports
+---------- /out/main.js ----------
+// project/src/main.tsx
+console.log(/* @__PURE__ */ success(fragment, null, /* @__PURE__ */ success("div", null)));
+
+================================================================================
+TestTsconfigExtendsWithImportsAcrossNodeModules
+---------- /out/main.js ----------
+// project/main.tsx
+console.log(/* @__PURE__ */ success("div", null));
+
+================================================================================
+TestTsconfigExtendsWithImportsConditions/default
+---------- /out/main.js ----------
+// project/main.tsx
+console.log(/* @__PURE__ */ success("div", null));
+
+================================================================================
+TestTsconfigExtendsWithImportsConditions/node
+---------- /out/main.js ----------
+// project/main.tsx
+console.log(/* @__PURE__ */ success("div", null));
+
+================================================================================
+TestTsconfigExtendsWithImportsConditions/require
+---------- /out/main.js ----------
+// project/main.tsx
+console.log(/* @__PURE__ */ success("div", null));
+
+================================================================================
+TestTsconfigExtendsWithImportsConditions/types
+---------- /out/main.js ----------
+// project/main.tsx
+console.log(/* @__PURE__ */ success("div", null));
+
+================================================================================
+TestTsconfigExtendsWithImportsCycle
+---------- /out/main.js ----------
+// project/main.tsx
+console.log(/* @__PURE__ */ success("div", null));
+
+================================================================================
+TestTsconfigExtendsWithImportsFailure/absolute
+---------- /out/main.js ----------
+// project/main.tsx
+console.log(/* @__PURE__ */ fallback("div", null));
+
+================================================================================
+TestTsconfigExtendsWithImportsFailure/alias
+---------- /out/main.js ----------
+// project/main.tsx
+console.log(/* @__PURE__ */ fallback("div", null));
+
+================================================================================
+TestTsconfigExtendsWithImportsFailure/alias-cycle
+---------- /out/main.js ----------
+// project/main.tsx
+console.log(/* @__PURE__ */ fallback("div", null));
+
+================================================================================
+TestTsconfigExtendsWithImportsFailure/directory
+---------- /out/main.js ----------
+// project/main.tsx
+console.log(/* @__PURE__ */ fallback("div", null));
+
+================================================================================
+TestTsconfigExtendsWithImportsFailure/empty
+---------- /out/main.js ----------
+// project/main.tsx
+console.log(/* @__PURE__ */ fallback("div", null));
+
+================================================================================
+TestTsconfigExtendsWithImportsFailure/extensionless
+---------- /out/main.js ----------
+// project/main.tsx
+console.log(/* @__PURE__ */ fallback("div", null));
+
+================================================================================
+TestTsconfigExtendsWithImportsFailure/invalid
+---------- /out/main.js ----------
+// project/main.tsx
+console.log(/* @__PURE__ */ fallback("div", null));
+
+================================================================================
+TestTsconfigExtendsWithImportsFailure/invalid-segment
+---------- /out/main.js ----------
+// project/main.tsx
+console.log(/* @__PURE__ */ fallback("div", null));
+
+================================================================================
+TestTsconfigExtendsWithImportsFailure/missing-entry
+---------- /out/main.js ----------
+// project/main.tsx
+console.log(/* @__PURE__ */ fallback("div", null));
+
+================================================================================
+TestTsconfigExtendsWithImportsFailure/missing-file
+---------- /out/main.js ----------
+// project/main.tsx
+console.log(/* @__PURE__ */ fallback("div", null));
+
+================================================================================
+TestTsconfigExtendsWithImportsFailure/missing-map
+---------- /out/main.js ----------
+// project/main.tsx
+console.log(/* @__PURE__ */ fallback("div", null));
+
+================================================================================
+TestTsconfigExtendsWithImportsFailure/null
+---------- /out/main.js ----------
+// project/main.tsx
+console.log(/* @__PURE__ */ fallback("div", null));
+
+================================================================================
+TestTsconfigExtendsWithImportsNearestPackage
+---------- /out/main.js ----------
+// project/packages/app/src/main.tsx
+console.log(/* @__PURE__ */ success("div", null));
+
+================================================================================
+TestTsconfigExtendsWithImportsPackageTarget
+---------- /out/main.js ----------
+// project/src/main.tsx
+console.log(/* @__PURE__ */ success("div", null));
+
+================================================================================
+TestTsconfigExtendsWithImportsPatternAndArray
+---------- /out/main.js ----------
+// project/main.tsx
+console.log(/* @__PURE__ */ success("div", null));
+
+================================================================================
+TestTsconfigExtendsWithImportsYarnPnP
+---------- /out/main.js ----------
+// packages/app/src/main.tsx
+console.log(/* @__PURE__ */ success("div", null));
+
+================================================================================
 TestTsconfigIgnoreInsideNodeModules
 ---------- /Users/user/project/out/main.js ----------
 // Users/user/project/node_modules/pkg/index.js
