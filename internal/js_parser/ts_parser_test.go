@@ -2152,6 +2152,7 @@ func TestTSDecorators(t *testing.T) {
 	expectPrintedTS(t, "@(a, b) class Foo {}", "@(a, b) class Foo {\n}\n")
 	expectPrintedTS(t, "@x() class Foo {}", "@x() class Foo {\n}\n")
 	expectPrintedTS(t, "@x.y() class Foo {}", "@x.y() class Foo {\n}\n")
+	expectPrintedTS(t, "@x.enum<T>() class Foo {}", "@x.enum() class Foo {\n}\n")
 	expectPrintedTS(t, "@(() => {}) class Foo {}", "@(() => {\n}) class Foo {\n}\n")
 	expectPrintedTS(t, "class Foo { #x = @y.#x.y.#x class {} }", "class Foo {\n  #x = @y.#x.y.#x class {\n  };\n}\n")
 	expectParseErrorTS(t, "@123 class Foo {}", "<stdin>: ERROR: Expected identifier but found \"123\"\n")

@@ -7009,12 +7009,15 @@ loop:
 				p.reportPrivateNameUsage(name.String)
 				p.lexer.Next()
 			} else {
+				if !p.lexer.IsIdentifierOrKeyword() {
+					p.lexer.Expect(js_lexer.TIdentifier)
+				}
 				memberExpr.Data = &js_ast.EDot{
 					Target:  memberExpr,
 					Name:    p.lexer.Identifier.String,
 					NameLoc: p.lexer.Loc(),
 				}
-				p.lexer.Expect(js_lexer.TIdentifier)
+				p.lexer.Next()
 			}
 
 		case js_lexer.TOpenParen:
