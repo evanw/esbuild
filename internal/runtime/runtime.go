@@ -437,25 +437,43 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 			this[1] = isYieldStar
 		}
 		export var __asyncGenerator = (__this, __arguments, generator) => {
-			var resume = (k, v, yes, no) => {
-				try {
-					var x = generator[k](v), isAwait = (v = x.value) instanceof __await, done = x.done
-					Promise.resolve(isAwait ? v[0] : v)
-						.then(y => isAwait
-							? resume(k === 'return' ? k : 'next', v[1] ? { done: y.done, value: y.value } : y, yes, no)
-							: yes({ value: y, done }))
-						.catch(e => resume('throw', e, yes, no))
-				} catch (e) {
-					no(e)
+			var front, back, it = {}
+			var advance = () => {
+				front = front.next
+				if (!front) back = void 0
+			}
+			var resume = (k, v) => {
+				while (front) {
+					try {
+						var x = generator[k](v), isAwait = (v = x.value) instanceof __await, done = x.done
+						Promise.resolve(isAwait ? v[0] : v).then(y => {
+							if (isAwait) {
+								resume(k === 'return' ? k : 'next', v[1] ? { done: y.done, value: y.value } : y)
+							} else {
+								front.yes({ value: y, done })
+								advance()
+								// Resume a queued request before the settled promise's reactions.
+								if (front) resume(front.k, front.v)
+							}
+						}).catch(e => resume('throw', e))
+						return
+					} catch (e) {
+						front.no(e)
+						advance()
+						if (front) k = front.k, v = front.v
+					}
 				}
-			}, method = (k, call, wait, clear) => it[k] = x => (
-				call = new Promise((yes, no, run) => (
-					run = () => resume(k, x, yes, no),
-					q ? q.then(run) : run())),
-				clear = () => q === wait && (q = 0),
-				q = wait = call.then(clear, clear),
-				call
-			), q, it = {}
+			}
+			var method = k => it[k] = v => new Promise((yes, no) => {
+				var request = { k, v, yes, no, next: void 0 }
+				if (back) {
+					back.next = request
+					back = request
+				} else {
+					front = back = request
+					resume(k, v)
+				}
+			})
 			return generator = generator.apply(__this, __arguments),
 				it[__knownSymbol('asyncIterator')] = () => it,
 				method('next'),

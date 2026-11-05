@@ -598,6 +598,46 @@ tests.push(
   }),
 )
 
+// Queued async generator requests resume before the previous promise's reactions.
+// https://github.com/evanw/esbuild/issues/4566
+for (const flags of [[], ['--target=es2015']]) {
+  tests.push(
+    test(['in.js', '--outfile=node.js'].concat(flags), {
+      'in.js': `
+        const assert = require('assert')
+        const log = []
+        async function* generate() {
+          log.push('start')
+          yield 1
+          log.push('mid')
+          const value = yield Promise.resolve(2)
+          log.push('value=' + value)
+          return 'end'
+        }
+        const iterator = generate()
+        const record = result => log.push(result)
+        const requests = [iterator.next().then(record), iterator.next('A').then(record), iterator.next('B').then(record)]
+        log.push('sync')
+        Promise.all(requests).then(() => assert.deepStrictEqual(log, [
+          'start', 'sync', 'mid', { value: 1, done: false },
+          'value=B', { value: 2, done: false }, { value: 'end', done: true },
+        ]))
+
+        async function* singleYield() {
+          yield 1
+        }
+        const second = singleYield()
+        const error = new Error('stop')
+        Promise.all([
+          second.next(),
+          assert.rejects(second.throw(error), err => err === error),
+          second.next().then(result => assert.deepStrictEqual(result, { value: undefined, done: true })),
+        ])
+      `,
+    }),
+  )
+}
+
 // Check async generator lowering
 for (const flags of [[], ['--target=es6', '--target=es2017', '--supported:async-generator=false', '--supported:async-await=false']]) {
   tests.push(
