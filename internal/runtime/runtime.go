@@ -141,11 +141,12 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 		// For object rest patterns
 		export var __restKey = key => typeof key === 'symbol' ? key : key + ''
 		export var __objRest = (source, exclude) => {
+			if (source === null || source === void 0) __typeError('Cannot destructure null or undefined')
 			var target = {}
 			for (var prop in source)
 				if (__hasOwnProp.call(source, prop) && exclude.indexOf(prop) < 0)
 					target[prop] = source[prop]
-			if (source != null && __getOwnPropSymbols)
+			if (__getOwnPropSymbols)
 	`
 
 	// Avoid "of" when not using ES6
