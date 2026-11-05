@@ -1196,6 +1196,25 @@ tests.push(
   }),
 )
 
+// Rest-only destructuring must reject null and undefined
+// https://github.com/evanw/esbuild/issues/4565
+tests.push(
+  test(['in.js', '--outfile=node.js', '--target=es2017'], {
+    'in.js': `
+      const assert = require('assert')
+      assert.throws(() => {
+        let rest;
+        ({ ...rest } = null)
+      }, TypeError)
+      assert.throws(() => {
+        var { ...rest } = undefined
+      }, TypeError)
+      const { ...rest } = 'ab'
+      assert.deepStrictEqual(rest, { 0: 'a', 1: 'b' })
+    `,
+  }),
+)
+
 // Check object spread lowering
 // https://github.com/evanw/esbuild/issues/1017
 const objectAssignSemantics = `
