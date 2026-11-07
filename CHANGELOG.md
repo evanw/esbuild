@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+* Remove an unused `import x = ...` alias inside a namespace
+
+    TypeScript drops an `import`-equals statement that only feeds type positions, and esbuild already did that at the top level. Inside a namespace body it did not, so the statement survived into the emitted closure and referenced a namespace that had itself been elided:
+
+    ```ts
+    namespace a { export interface I {} }
+    namespace c {
+      import b = a.I;
+      export var x: b;
+    }
+    ```
+
+    The output contained `const b = a.I` and threw `ReferenceError: a is not defined` when run. The alias is now removed there too, matching `tsc`.
+
 * Allow `es2026` as a target in `tsconfig.json`
 
     TypeScript is [adding `es2026`](https://github.com/microsoft/TypeScript/issues/63704) as a compilation target, so esbuild now supports this in the `target` field of `tsconfig.json` files, such as in the following configuration file:

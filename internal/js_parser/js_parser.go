@@ -11596,6 +11596,11 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		p.popScope()
 		p.enclosingNamespaceArgRef = oldEnclosingNamespaceArgRef
 
+		// An import-equals statement that only feeds type positions is dropped by
+		// TypeScript, but once the namespace is wrapped in a closure the scan that
+		// removes them never sees it. Do it here, where the symbols are all bound.
+		stmtsInsideNamespace = p.scanForUnusedTSImportEquals(stmtsInsideNamespace).stmts
+
 		// Generate a closure for this namespace
 		stmts = p.generateClosureForTypeScriptNamespaceOrEnum(
 			stmts, stmt.Loc, s.IsExport, s.Name.Loc, s.Name.Ref, s.Arg, stmtsInsideNamespace)
