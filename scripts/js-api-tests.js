@@ -5741,6 +5741,23 @@ let transformTests = {
     assert.strictEqual(result.code, `module.exports = "/w==";\n`)
   },
 
+  async continueToChainedLoopLabels({ esbuild }) {
+    for (const target of ['esnext', 'es2017']) {
+      const { code } = await esbuild.transform(`
+        async function visit() {
+          const result = []
+          outer: inner: for await (const value of [1, 2, 3, 4]) {
+            if (value === 2) continue outer
+            if (value === 3) continue inner
+            result.push(value)
+          }
+          return result
+        }
+      `, { target, minifySyntax: true })
+      assert.deepStrictEqual(await new Function(code + '\nreturn visit()')(), [1, 4])
+    }
+  },
+
   async avoidTDZ({ esbuild }) {
     var { code } = await esbuild.transform(`
       class Foo {
