@@ -11721,21 +11721,29 @@ func (p *parser) minifySwitchStmt(loc logger.Loc, s *js_ast.SSwitch, stmts []js_
 		}
 	}
 	if yesCase.ValueOrNil.Data != nil {
-		if yesBody, ok := tryToInlineCaseBody(s.BodyLoc, yesCase.Body, s.CloseBraceLoc); ok {
-			if noBody, ok := tryToInlineCaseBody(s.BodyLoc, noCase.Body, s.CloseBraceLoc); ok {
-				ifElse := js_ast.SIf{
-					Test: js_ast.Expr{Loc: s.Test.Loc},
-					Yes:  stmtsToSingleStmt(yesCase.Loc, yesBody, logger.Loc{}),
+		// A case test that is not a literal is evaluated in the switch body's
+		// lexical environment, so a closure in it may refer to bindings the body
+		// declares. Moving such a test into an if test would break that reference.
+		testCanCapture := !js_ast.IsPrimitiveLiteral(yesCase.ValueOrNil.Data) ||
+			(noCase.ValueOrNil.Data != nil && !js_ast.IsPrimitiveLiteral(noCase.ValueOrNil.Data))
+		bodyNeedsScope := caseBodyNeedsScope(yesCase.Body) || caseBodyNeedsScope(noCase.Body)
+		if !testCanCapture || !bodyNeedsScope {
+			if yesBody, ok := tryToInlineCaseBody(s.BodyLoc, yesCase.Body, s.CloseBraceLoc); ok {
+				if noBody, ok := tryToInlineCaseBody(s.BodyLoc, noCase.Body, s.CloseBraceLoc); ok {
+					ifElse := js_ast.SIf{
+						Test: js_ast.Expr{Loc: s.Test.Loc},
+						Yes:  stmtsToSingleStmt(yesCase.Loc, yesBody, logger.Loc{}),
+					}
+					if isEqualToTest, ok := js_ast.CheckEqualityIfNoSideEffects(s.Test.Data, yesCase.ValueOrNil.Data, js_ast.StrictEquality); ok {
+						ifElse.Test.Data = &js_ast.EBoolean{Value: isEqualToTest}
+					} else {
+						ifElse.Test.Data = &js_ast.EBinary{Op: js_ast.BinOpStrictEq, Left: s.Test, Right: yesCase.ValueOrNil}
+					}
+					if len(noBody) > 0 {
+						ifElse.NoOrNil = stmtsToSingleStmt(noCase.Loc, noBody, logger.Loc{})
+					}
+					return p.mangleIf(stmts, loc, &ifElse)
 				}
-				if isEqualToTest, ok := js_ast.CheckEqualityIfNoSideEffects(s.Test.Data, yesCase.ValueOrNil.Data, js_ast.StrictEquality); ok {
-					ifElse.Test.Data = &js_ast.EBoolean{Value: isEqualToTest}
-				} else {
-					ifElse.Test.Data = &js_ast.EBinary{Op: js_ast.BinOpStrictEq, Left: s.Test, Right: yesCase.ValueOrNil}
-				}
-				if len(noBody) > 0 {
-					ifElse.NoOrNil = stmtsToSingleStmt(noCase.Loc, noBody, logger.Loc{})
-				}
-				return p.mangleIf(stmts, loc, &ifElse)
 			}
 		}
 	}
@@ -11786,6 +11794,25 @@ loop:
 		return []js_ast.Stmt{{Loc: openBraceLoc, Data: &js_ast.SBlock{Stmts: stmts, CloseBraceLoc: closeBraceLoc}}}, true
 	}
 	return stmts, true
+}
+
+// The case test runs in the switch body's lexical environment, so a closure in
+// it may refer to bindings the body declares. Moving the test into an if test
+// takes it out of that environment.
+func caseBodyNeedsScope(stmts []js_ast.Stmt) bool {
+	for _, stmt := range stmts {
+		switch s := stmt.Data.(type) {
+		case *js_ast.SBlock:
+			if caseBodyNeedsScope(s.Stmts) {
+				return true
+			}
+		case *js_ast.SLocal:
+			if s.Kind != js_ast.LocalVar {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func isUnsightlyPrimitive(data js_ast.E) bool {

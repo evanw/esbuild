@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+* Keep a non-literal `switch` case test inside the switch body's scope
+
+    With `--minify-syntax`, a single-case switch was turned into an `if` even when the case test expression could reach the body's lexical bindings. A `switch` creates one lexical environment for the whole body before evaluating the case selectors, so this prints `A`:
+
+    ```js
+    function pick(kind) {
+      var get;
+      switch (kind) {
+        case (get = () => label, "a"):
+          let label = "A";
+          return get();
+      }
+    }
+    ```
+
+    After minification the arrow function moved into the `if` test, outside the block that declares `label`, and threw `ReferenceError: label is not defined`. A case whose test is a literal still becomes an `if`; one whose test is an arbitrary expression no longer does when the body declares lexical bindings.
+
 * Allow `es2026` as a target in `tsconfig.json`
 
     TypeScript is [adding `es2026`](https://github.com/microsoft/TypeScript/issues/63704) as a compilation target, so esbuild now supports this in the `target` field of `tsconfig.json` files, such as in the following configuration file:
