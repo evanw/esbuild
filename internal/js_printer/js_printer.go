@@ -4822,7 +4822,20 @@ func (p *printer) printStmt(stmt js_ast.Stmt, flags printStmtFlags) {
 		p.addSourceMapping(stmt.Loc)
 		p.printIndent()
 		p.printSpaceBeforeIdentifier()
-		p.printQuotedUTF16(s.Value, 0)
+		switch {
+		case s.IsParenthesized:
+			// Not a directive in the source either, so keep it out of the prologue
+			// on the next parse too.
+			p.print("(")
+			p.printQuotedUTF16(s.Value, 0)
+			p.print(")")
+		case s.IsEscapedUseStrict:
+			// A directive that is not a Use Strict Directive. Emit the same text
+			// with an escape so it stays a directive without enabling strict mode.
+			p.print("\"use\\x20strict\"")
+		default:
+			p.printQuotedUTF16(s.Value, 0)
+		}
 		p.printSemicolonAfterStatement()
 
 	case *js_ast.SBreak:

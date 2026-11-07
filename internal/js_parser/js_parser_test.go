@@ -297,6 +297,15 @@ func TestStrictMode(t *testing.T) {
 	useStrict := "<stdin>: NOTE: Strict mode is triggered by the \"use strict\" directive here:\n"
 
 	expectPrinted(t, "'use strict'", "\"use strict\";\n")
+	// A directive must be an unparenthesized string literal with no escapes
+	expectPrinted(t, "('use strict'); with (x) {}", "(\"use strict\");\nwith (x) {\n}\n")
+	expectPrinted(t, "\"use\\x20strict\"; with (x) {}", "\"use\\x20strict\";\nwith (x) {\n}\n")
+	// A parenthesized string ends the prologue, so a later "use strict" is an
+	// ordinary expression statement and strict mode stays off
+	expectPrinted(t, "('use strict'); 'use strict'; with (x) {}", "(\"use strict\");\n\"use strict\";\nwith (x) {\n}\n")
+	// An escaped "use strict" is still a directive, so it does not end the
+	// prologue and keeps its escape when printed
+	expectPrinted(t, "\"use\\x20strict\"; \"use strict\"; var o = {}", "\"use strict\";\n\"use\\x20strict\";\nvar o = {};\n")
 	expectPrinted(t, "`use strict`", "`use strict`;\n")
 	expectPrinted(t, "//! @legal comment\n 'use strict'", "\"use strict\";\n//! @legal comment\n")
 	expectPrinted(t, "/*! @legal comment */ 'use strict'", "\"use strict\";\n/*! @legal comment */\n")
@@ -313,6 +322,10 @@ func TestStrictMode(t *testing.T) {
 	expectParseError(t, "function f([x]) { 'use strict' }", nonSimple)
 	expectParseError(t, "function f({x}) { 'use strict' }", nonSimple)
 	expectParseError(t, "function f(x = 1) { 'use strict' }", nonSimple)
+	// A parenthesized or escaped literal is not a Use Strict Directive, so it is
+	// allowed alongside a non-simple parameter list
+	expectParseError(t, "function f(x = 1) { ('use strict') }", "")
+	expectParseError(t, "function f(x = 1) { 'use\\x20strict' }", "")
 	expectParseError(t, "function f(x, ...y) { 'use strict' }", nonSimple)
 	expectParseError(t, "(function() { 'use strict' })", "")
 	expectParseError(t, "(function(x) { 'use strict' })", "")

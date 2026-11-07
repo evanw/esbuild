@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+* Do not treat a parenthesized or escaped `"use strict"` as a directive
+
+    Per [ECMA-262 11.2.1](https://tc39.es/ecma262/#sec-directive-prologues-and-the-use-strict-directive), a directive is an unparenthesized string literal, and a Use Strict Directive additionally cannot contain escape sequences. esbuild was accepting both `("use strict")` and `"use\x20strict"`, which meant valid sloppy-mode code such as the following was rejected:
+
+    ```js
+    ("use strict");
+    var o = {};
+    with (o) {}
+    ```
+
+    and code that only looked strict was rewritten into code that really was:
+
+    ```js
+    function f() {
+      ("use strict");
+      return this;
+    }
+    ```
+
+    The escaped form is still a directive, just not a Use Strict Directive, so it keeps the directive prologue going and is printed with its escape intact. The parenthesized form is not a directive at all, so it ends the prologue and is printed with its parentheses.
+
 * Allow `es2026` as a target in `tsconfig.json`
 
     TypeScript is [adding `es2026`](https://github.com/microsoft/TypeScript/issues/63704) as a compilation target, so esbuild now supports this in the `target` field of `tsconfig.json` files, such as in the following configuration file:

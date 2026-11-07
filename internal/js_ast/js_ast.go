@@ -997,6 +997,18 @@ type SDebugger struct{}
 type SDirective struct {
 	Value          []uint16
 	LegacyOctalLoc logger.Loc
+
+	// Set when the source statement was a parenthesized string instead of a bare
+	// one. Such a statement is not a directive at all (ECMA-262 11.2.1), so it
+	// also ends the directive prologue, and it has to be printed back with
+	// parentheses or it would become a directive on the next parse.
+	IsParenthesized bool
+
+	// Set when a "use strict" literal is unparenthesized but contains escape
+	// sequences, which disqualifies it as a Use Strict Directive while leaving
+	// it a directive. It is printed with a synthesized escape for the same
+	// reason: the bare text would read as a real "use strict" next time.
+	IsEscapedUseStrict bool
 }
 
 type SExportClause struct {
