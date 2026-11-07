@@ -2814,6 +2814,11 @@ func TestSwitch(t *testing.T) {
 	expectPrintedMangle(t, "switch (0) { case 0: { let x = a(); break; } case 1: b(); break }", "{\n  let x = a();\n}\n")
 	expectPrintedMangle(t, "switch (0) { case 0: { const x = a(); break; } case 1: b(); break }", "{\n  const x = a();\n}\n")
 
+	// A non-literal case test is evaluated inside the switch body's lexical
+	// environment, so it must not be lifted into an if test
+	expectPrintedMangle(t, "switch (x) { case (f = () => y, 0): let y = 1; break }",
+		"switch (x) {\n  case (f = () => y, 0):\n    let y = 1;\n    break;\n}\n")
+
 	expectPrintedMangle(t, "for (x of y) switch (0) { case 0: a(); continue; default: b(); continue }", "for (x of y) a();\n")
 	expectPrintedMangle(t, "for (x of y) switch (1) { case 0: a(); continue; default: b(); continue }", "for (x of y) b();\n")
 
