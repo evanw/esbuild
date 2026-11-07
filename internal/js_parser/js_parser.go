@@ -8501,6 +8501,36 @@ func (p *parser) forbidUsingInSwitch(loc logger.Loc) {
 		[]logger.MsgData{{Text: "Wrap this declaration in a block statement to use it here."}})
 }
 
+// A directive is a bare StringLiteral statement, not an arbitrary expression
+// that happens to evaluate to a string: ECMA-262 11.2.1 leaves both a
+// parenthesized string and a string containing escapes out of the prologue's
+// reach for the "use strict" case. Reading the source is the only way to tell,
+// since the parse tree has dropped both the parentheses and the escapes.
+func (p *parser) stringDirectiveKind(loc logger.Loc) (isParenthesized bool, hasEscape bool) {
+	if loc.Start < 0 || loc.Start >= int32(len(p.source.Contents)) {
+		return true, false
+	}
+	contents := p.source.Contents[loc.Start:]
+	if len(contents) == 0 {
+		return true, false
+	}
+	quote := contents[0]
+	if quote != '"' && quote != '\'' {
+		return true, false
+	}
+	for i := 1; i < len(contents); i++ {
+		switch contents[i] {
+		case '\\':
+			return false, true
+		case quote:
+			return false, false
+		case '\n':
+			return true, false
+		}
+	}
+	return true, false
+}
+
 func (p *parser) parseStmtsUpTo(end js_lexer.T, opts parseStmtOpts) []js_ast.Stmt {
 	stmts := []js_ast.Stmt{}
 	returnWithoutSemicolonStart := int32(-1)
@@ -8540,10 +8570,20 @@ func (p *parser) parseStmtsUpTo(end js_lexer.T, opts parseStmtOpts) []js_ast.Stm
 			isDirectivePrologue = false
 			if expr, ok := stmt.Data.(*js_ast.SExpr); ok {
 				if str, ok := expr.Value.Data.(*js_ast.EString); ok && !str.PreferTemplate {
-					stmt.Data = &js_ast.SDirective{Value: str.Value, LegacyOctalLoc: str.LegacyOctalLoc}
-					isDirectivePrologue = true
+					isParenthesized, hasEscape := p.stringDirectiveKind(stmt.Loc)
+					isStrictDirective := helpers.UTF16EqualsString(str.Value, "use strict")
+					isEscapedUseStrict := hasEscape && isStrictDirective
+					stmt.Data = &js_ast.SDirective{
+						Value:              str.Value,
+						LegacyOctalLoc:     str.LegacyOctalLoc,
+						IsParenthesized:    isParenthesized,
+						IsEscapedUseStrict: isEscapedUseStrict,
+					}
+					// A parenthesized string is not a directive, so the prologue ends
+					// here. An escaped one still is a directive, so it continues.
+					isDirectivePrologue = !isParenthesized
 
-					if helpers.UTF16EqualsString(str.Value, "use strict") {
+					if !isParenthesized && !isEscapedUseStrict && isStrictDirective {
 						// Track "use strict" directives
 						p.currentScope.StrictMode = js_ast.ExplicitStrictMode
 						p.currentScope.UseStrictLoc = expr.Value.Loc
@@ -12564,7 +12604,10 @@ func fnBodyContainsUseStrict(body []js_ast.Stmt) (logger.Loc, bool) {
 		case *js_ast.SComment:
 			continue
 		case *js_ast.SDirective:
-			if helpers.UTF16EqualsString(s.Value, "use strict") {
+			// Only a real Use Strict Directive counts here; a parenthesized or
+			// escaped literal is not one (ECMA-262 11.2.1).
+			if !s.IsParenthesized && !s.IsEscapedUseStrict &&
+				helpers.UTF16EqualsString(s.Value, "use strict") {
 				return stmt.Loc, true
 			}
 		default:
@@ -17876,6 +17919,21 @@ func Parse(log logger.Log, source logger.Source, options Options) (result js_ast
 			case *js_ast.SDirective:
 				if p.isStrictMode() && s.LegacyOctalLoc.Start > 0 {
 					p.markStrictModeFeature(legacyOctalEscape, p.source.RangeOfLegacyOctalEscape(s.LegacyOctalLoc), "")
+				}
+				// A parenthesized string is not a directive, so it ends the prologue
+				// and stays in the list: re-emitting it as a directive would change how
+				// it parses next time. Everything after it is ordinary statements.
+				if s.IsParenthesized {
+					break
+				}
+				// An escaped "use strict" is still a directive but not a Use Strict
+				// Directive, so it continues the prologue and must stay in the list to
+				// keep its escape when printed.
+				if s.IsEscapedUseStrict {
+					stmts[keptCount] = stmt
+					keptCount++
+					totalCount++
+					continue
 				}
 				directive := helpers.UTF16ToString(s.Value)
 
