@@ -7444,6 +7444,15 @@ var Foo3 = class extends Bar {
 };
 
 ================================================================================
+TestWithStatementKeepsRenamedNamesOffPinnedSymbols
+---------- /out.js ----------
+function f(n) {
+  var a = 1, b = 2;
+  with (n) return a + b;
+}
+console.log(f({ a: 10 }), f({}), f({ b: 5 }));
+
+================================================================================
 TestWithStatementTaintingNoBundle
 ---------- /out.js ----------
 (() => {

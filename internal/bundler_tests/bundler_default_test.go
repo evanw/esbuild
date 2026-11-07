@@ -2237,6 +2237,25 @@ func TestWithStatementTaintingNoBundle(t *testing.T) {
 	})
 }
 
+func TestWithStatementKeepsRenamedNamesOffPinnedSymbols(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				function f(obj) {
+					var a = 1, b = 2
+					with (obj) return a + b
+				}
+				console.log(f({ a: 10 }), f({}), f({ b: 5 }))
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			MinifyIdentifiers: true,
+			AbsOutputFile:     "/out.js",
+		},
+	})
+}
+
 func TestDirectEvalTaintingNoBundle(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
