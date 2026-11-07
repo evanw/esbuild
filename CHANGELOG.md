@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+* Keep renamed symbols off names held by symbols inside a `with` statement
+
+    A binding referenced from inside a `with` body has to keep its name, since the reference may resolve to a property of the object instead. Generated names did not account for those, so another symbol in the same function could be renamed onto one:
+
+    ```js
+    function f(obj) {
+      var a = 1, b = 2;
+      with (obj) return a + b;
+    }
+    ```
+
+    `obj` became `a`, and `var a = 1` then overwrote the parameter before `with (a)` ran, turning `12 3 6` into `3 3 3`. Names held by such symbols are now treated as reserved when minified names are generated.
+
 * Allow `es2026` as a target in `tsconfig.json`
 
     TypeScript is [adding `es2026`](https://github.com/microsoft/TypeScript/issues/63704) as a compilation target, so esbuild now supports this in the `target` field of `tsconfig.json` files, such as in the following configuration file:

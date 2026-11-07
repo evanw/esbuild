@@ -95,6 +95,16 @@ type MinifyRenamer struct {
 }
 
 func NewMinifyRenamer(symbols ast.SymbolMap, firstTopLevelSlots ast.SlotCounts, reservedNames map[string]uint32) *MinifyRenamer {
+	// A symbol that keeps its original name still occupies that name. Generated
+	// names have to skip it, or a reference that resolves through a "with"
+	// statement could bind to the renamed symbol instead.
+	for _, sourceSymbols := range symbols.SymbolsForSource {
+		for _, symbol := range sourceSymbols {
+			if symbol.SlotNamespace() == ast.SlotMustNotBeRenamed && symbol.OriginalName != "" {
+				reservedNames[symbol.OriginalName] = 1
+			}
+		}
+	}
 	return &MinifyRenamer{
 		symbols:       symbols,
 		reservedNames: reservedNames,
