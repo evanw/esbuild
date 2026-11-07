@@ -11329,6 +11329,12 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 				// Mark if this function is an empty function
 				hasSideEffectFreeArguments := true
 				for _, arg := range s.Fn.Args {
+					// A default initializer runs when the argument is missing, so a
+					// call to this function is not removable after all
+					if arg.DefaultOrNil.Data != nil {
+						hasSideEffectFreeArguments = false
+						break
+					}
 					if _, ok := arg.Binding.Data.(*js_ast.BIdentifier); !ok {
 						hasSideEffectFreeArguments = false
 						break

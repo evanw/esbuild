@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+* Do not drop a call to a function whose parameters have default initializers
+
+    With `--minify-syntax`, a call to a function with an empty body was replaced by its arguments, which is only correct when the call itself has no effect. Default parameter initializers run when an argument is missing, so they are part of what the call does:
+
+    ```js
+    function init(a = console.log("side effect")) {}
+    init();
+    ```
+
+    The call was removed and the output printed nothing. Such a function is no longer treated as empty, so the call stays.
+
 * Allow `es2026` as a target in `tsconfig.json`
 
     TypeScript is [adding `es2026`](https://github.com/microsoft/TypeScript/issues/63704) as a compilation target, so esbuild now supports this in the `target` field of `tsconfig.json` files, such as in the following configuration file:

@@ -5063,6 +5063,34 @@ func TestMangleUnusedClassExpressionNames(t *testing.T) {
 	expectPrintedNormalAndMangle(t, "x = class y { foo() { if (0) return y } }", "x = class y {\n  foo() {\n    if (0) return _y;\n  }\n};\n", "x = class {\n  foo() {\n  }\n};\n")
 }
 
+func TestEmptyFunctionWithDefaultArgumentIsNotMarkedEmpty(t *testing.T) {
+	// The call can't be dropped: `init()` runs the default initializer.
+	// `init(a = sideEffect())` must not carry the IsEmptyFunction flag.
+	check := func(contents string, expectEmpty bool) {
+		t.Helper()
+		log := logger.NewDeferLog(logger.DeferLogNoVerboseOrDebug, nil)
+		configOptions := config.Options{MinifySyntax: true, OmitRuntimeForTests: true}
+		tree, ok := Parse(log, test.SourceForTest(contents), OptionsFromConfig(&configOptions))
+		for _, msg := range log.Done() {
+			if msg.Kind != logger.Warning {
+				t.Fatalf("unexpected message: %s", msg.String(logger.OutputOptions{}, logger.TerminalInfo{}))
+			}
+		}
+		if !ok {
+			t.Fatal("Parse error")
+		}
+		found := false
+		for _, sym := range tree.Symbols {
+			if sym.Flags&ast.IsEmptyFunction != 0 {
+				found = true
+			}
+		}
+		test.AssertEqualWithDiff(t, fmt.Sprintf("%v", found), fmt.Sprintf("%v", expectEmpty))
+	}
+	check("function init(a = sideEffect()) {}\ninit()", false)
+	check("function init(a) {}\ninit(1)", true)
+}
+
 func TestMangleUnused(t *testing.T) {
 	expectPrintedNormalAndMangle(t, "null", "null;\n", "")
 	expectPrintedNormalAndMangle(t, "void 0", "", "")
