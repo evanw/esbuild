@@ -677,7 +677,6 @@ type fnOrArrowDataVisit struct {
 	isGenerator                    bool
 	isInsideLoop                   bool
 	isInsideSwitch                 bool
-	isDerivedClassCtor             bool
 	isOutsideFnOrArrow             bool
 	shouldLowerSuperPropertyAccess bool
 }
@@ -736,6 +735,10 @@ type fnOnlyDataVisit struct {
 	// or a class declaration). That means the top-level module scope "this" value
 	// has been shadowed and is now inaccessible.
 	isThisNested bool
+
+	// If true, "this" refers to a derived class constructor's binding, which
+	// can't be accessed before "super()". Arrow functions share that binding.
+	isDerivedClassCtor bool
 
 	// If true, "this" is used in current function scope.
 	hasThisUsage bool
@@ -12398,6 +12401,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 		p.fnOrArrowDataVisit.shouldLowerSuperPropertyAccess = false
 		p.fnOnlyDataVisit.shouldReplaceThisWithInnerClassNameRef = false
 		p.fnOnlyDataVisit.isThisNested = true
+		p.fnOnlyDataVisit.isDerivedClassCtor = false
 		p.fnOnlyDataVisit.isNewTargetAllowed = true
 		p.fnOnlyDataVisit.isInStaticClassContext = property.Flags.Has(js_ast.PropertyIsStatic)
 		p.fnOnlyDataVisit.innerClassNameRef = &result.innerClassNameRef
@@ -12436,7 +12440,7 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 			}
 
 			// Propagate whether we're in a derived class constructor
-			if class.ExtendsOrNil.Data != nil && !property.Flags.Has(js_ast.PropertyIsComputed) {
+			if class.ExtendsOrNil.Data != nil && !property.Flags.Has(js_ast.PropertyIsComputed|js_ast.PropertyIsStatic) {
 				if str, ok := property.Key.Data.(*js_ast.EString); ok && helpers.UTF16EqualsString(str.Value, "constructor") {
 					p.propDerivedCtorValue = property.ValueOrNil.Data
 				}
@@ -14083,7 +14087,7 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 						} else if !p.fnOnlyDataVisit.isThisNested && p.options.mode != config.ModePassThrough {
 							// Replace top-level "this" with "undefined" if there's an output format
 							__self.Data = js_ast.EUndefinedShared
-						} else if p.fnOrArrowDataVisit.isDerivedClassCtor {
+						} else if p.fnOnlyDataVisit.isDerivedClassCtor {
 							// We can't use "this" here in case it comes before "super()"
 							__self.Data = js_ast.EUndefinedShared
 						}
@@ -17209,11 +17213,11 @@ func (p *parser) visitFn(fn *js_ast.Fn, scopeLoc logger.Loc, opts visitFnOpts) {
 	p.fnOrArrowDataVisit = fnOrArrowDataVisit{
 		isAsync:                        fn.IsAsync,
 		isGenerator:                    fn.IsGenerator,
-		isDerivedClassCtor:             opts.isDerivedClassCtor,
 		shouldLowerSuperPropertyAccess: (fn.IsAsync && p.options.unsupportedJSFeatures.Has(compat.AsyncAwait)) || opts.isLoweredPrivateMethod,
 	}
 	p.fnOnlyDataVisit = fnOnlyDataVisit{
 		isThisNested:       true,
+		isDerivedClassCtor: opts.isDerivedClassCtor,
 		isNewTargetAllowed: true,
 		argumentsRef:       &fn.ArgumentsRef,
 	}

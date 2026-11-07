@@ -6580,6 +6580,38 @@ class Foo {
     assert.strictEqual(code, `import { jsxDEV } from "react/jsx-dev-runtime";\nconsole.log(/* @__PURE__ */ jsxDEV("div", {}, void 0, false, {\n  fileName: "<stdin>",\n  lineNumber: 1,\n  columnNumber: 13\n}, this));\n`)
   },
 
+  async jsxDevDerivedConstructorArrow({ esbuild }) {
+    const { code } = await esbuild.transform(`
+      class Base {
+        constructor(self) {
+          this.self = self
+        }
+      }
+      class Derived extends Base {
+        constructor() {
+          super((() => (() => <div />)())())
+          this.regular = (function () { return (() => <div />)() }).call(this)
+          class Inner extends Base {
+            self = <div />
+            static constructor() {
+              return (() => <div />)()
+            }
+          }
+          this.inner = new Inner()
+          this.staticSelf = Inner.constructor()
+        }
+      }
+      new Derived()
+    `, { loader: 'jsx', jsx: 'automatic', jsxDev: true, format: 'cjs' })
+    const derived = vm.runInNewContext(code, {
+      require: () => ({ jsxDEV: (type, props, key, isStaticChildren, source, self) => self }),
+    })
+    assert.strictEqual(derived.self, undefined)
+    assert.strictEqual(derived.regular, derived)
+    assert.strictEqual(derived.inner.self, derived.inner)
+    assert.strictEqual(derived.staticSelf, derived.inner.constructor)
+  },
+
   async jsxImportSource({ esbuild }) {
     const { code } = await esbuild.transform(`console.log(<div/>)`, { loader: 'jsx', jsx: 'automatic', jsxImportSource: 'notreact' })
     assert.strictEqual(code, `import { jsx } from "notreact/jsx-runtime";\nconsole.log(/* @__PURE__ */ jsx("div", {}));\n`)
