@@ -2883,6 +2883,18 @@ func TestTSImportEquals(t *testing.T) {
 func TestTSImportEqualsInNamespace(t *testing.T) {
 	expectPrintedTS(t, "namespace ns { import foo = bar }", "")
 	expectPrintedTS(t, "namespace ns { import foo = bar; type x = foo.x }", "")
+	// A statement that only annotated a type is gone by the time the namespace
+	// becomes a closure, so the removal has to happen while visiting its body
+	expectPrintedTS(t, "namespace ns { import foo = bar.I; export var x: foo }", `var ns;
+((ns) => {
+})(ns || (ns = {}));
+`)
+	expectPrintedTS(t, "namespace ns { import foo = bar.I; export var x = foo }", `var ns;
+((ns) => {
+  const foo = bar.I;
+  ns.x = foo;
+})(ns || (ns = {}));
+`)
 	expectPrintedTS(t, "namespace ns { import foo = bar.x; foo }", `var ns;
 ((ns) => {
   const foo = bar.x;
