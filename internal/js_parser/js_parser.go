@@ -8299,6 +8299,14 @@ func (p *parser) parseStmt(opts parseStmtOpts) js_ast.Stmt {
 					}
 					isSingleLineStmt := !p.lexer.HasNewlineBefore && p.lexer.Token != js_lexer.TOpenBrace
 					stmt := p.parseStmt(nestedOpts)
+					switch stmt.Data.(type) {
+					case *js_ast.SLabel:
+						// A directly nested label is the only child scope. Reuse its
+						// result instead of walking the label chain again for each label.
+						p.currentScope.LabelStmtIsLoop = p.currentScope.Children[0].LabelStmtIsLoop
+					case *js_ast.SFor, *js_ast.SForIn, *js_ast.SForOf, *js_ast.SWhile, *js_ast.SDoWhile:
+						p.currentScope.LabelStmtIsLoop = true
+					}
 					return js_ast.Stmt{Loc: loc, Data: &js_ast.SLabel{Name: name, Stmt: stmt, IsSingleLineStmt: isSingleLineStmt}}
 				}
 
@@ -8776,6 +8784,16 @@ func (p *parser) findLabelSymbol(loc logger.Loc, name string) (ref ast.Ref, isLo
 	// Track how many times we've referenced this symbol
 	p.recordUsage(ref)
 	return
+}
+
+func unwrapLabels(data js_ast.S) js_ast.S {
+	for {
+		label, ok := data.(*js_ast.SLabel)
+		if !ok {
+			return data
+		}
+		data = label.Stmt.Data
+	}
 }
 
 func findIdentifiers(binding js_ast.Binding, identifiers []js_ast.Decl) []js_ast.Decl {
@@ -10673,10 +10691,6 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 		}
 
 		p.currentScope.Label = ast.LocRef{Loc: s.Name.Loc, Ref: ref}
-		switch s.Stmt.Data.(type) {
-		case *js_ast.SFor, *js_ast.SForIn, *js_ast.SForOf, *js_ast.SWhile, *js_ast.SDoWhile:
-			p.currentScope.LabelStmtIsLoop = true
-		}
 
 		// If we're dropping this statement, consider control flow to be dead
 		_, shouldDropLabel := p.dropLabelsMap[name]
@@ -10708,7 +10722,7 @@ func (p *parser) visitAndAppendStmt(stmts []js_ast.Stmt, stmt js_ast.Stmt) []js_
 
 		// Handle "for await" that has been lowered by moving this label inside the "try"
 		if try, ok := s.Stmt.Data.(*js_ast.STry); ok && len(try.Block.Stmts) == 1 {
-			if loop, ok := try.Block.Stmts[0].Data.(*js_ast.SFor); ok && loop.IsLoweredForAwait {
+			if loop, ok := unwrapLabels(try.Block.Stmts[0].Data).(*js_ast.SFor); ok && loop.IsLoweredForAwait {
 				try.Block.Stmts[0] = js_ast.Stmt{Loc: stmt.Loc, Data: &js_ast.SLabel{
 					Stmt:             try.Block.Stmts[0],
 					Name:             s.Name,
