@@ -16,6 +16,28 @@ const esbuildPath = buildBinary()
 const tests = []
 let testCount = 0
 
+// Comma expressions suppress inferred names for anonymous functions and classes.
+for (const minify of [['--minify-syntax'], ['--minify']]) {
+  for (const keepNames of [[], ['--keep-names']]) {
+    tests.push(test(['in.js', '--outfile=node.js', ...minify, ...keepNames], {
+      'in.js': `
+        const assert = require('assert');
+        function check() {
+          var f = (0, function () {});
+          var g = (0, () => {});
+          var h = (0, class {});
+          let assigned;
+          assigned = (0, function () {});
+          const object = { value: (0, function () {}) };
+          const { value = (0, function () {}) } = {};
+          assert.deepStrictEqual([f.name, g.name, h.name, assigned.name, object.value.name, value.name], ['', '', '', '', '', '']);
+        }
+        check();
+      `,
+    }));
+  }
+}
+
 // Tests for "--define"
 tests.push(
   test(['--define:foo=null', 'in.js', '--outfile=node.js'], { 'in.js': `if (foo !== null) throw 'fail'` }),
