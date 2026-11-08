@@ -16155,7 +16155,29 @@ func (v *binaryExprVisitor) visitRightAndFinish(p *parser) js_ast.Expr {
 		if p.options.minifySyntax {
 			e.Left = p.astHelpers.SimplifyUnusedExpr(e.Left, p.options.unsupportedJSFeatures)
 			if e.Left.Data == nil {
-				return e.Right
+				// Removing the comma must not turn an anonymous expression into
+				// a named definition in an initializer or assignment.
+				right := e.Right.Data
+				for {
+					annotation, ok := right.(*js_ast.EAnnotation)
+					if !ok {
+						break
+					}
+					right = annotation.Value.Data
+				}
+				anonymous := false
+				switch right := right.(type) {
+				case *js_ast.EArrow:
+					anonymous = true
+				case *js_ast.EFunction:
+					anonymous = right.Fn.Name == nil
+				case *js_ast.EClass:
+					anonymous = right.Class.Name == nil
+				}
+				if !anonymous {
+					return e.Right
+				}
+				e.Left = js_ast.Expr{Loc: v.loc, Data: &js_ast.ENumber{Value: 0}}
 			}
 		}
 
