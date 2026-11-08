@@ -2866,6 +2866,12 @@ func (s *scanner) recursivelyValidateTLA(sourceIndex uint32, pass uint32, didCha
 			// Check all import statements and require calls (only import statements are valid)
 			for importRecordIndex, record := range repr.AST.ImportRecords {
 				if record.SourceIndex.IsValid() && (record.Kind == ast.ImportRequire || record.Kind == ast.ImportStmt) {
+					// Only skip edges that tree shaking will remove regardless of whether
+					// the target is kept alive by another import.
+					if record.Flags.Has(ast.WasOriginallyBareImport) && s.options.TreeShaking && !s.options.IgnoreDCEAnnotations &&
+						s.results[record.SourceIndex.GetIndex()].file.inputFile.SideEffects.Kind != graph.HasSideEffects {
+						continue
+					}
 					parent := s.recursivelyValidateTLA(record.SourceIndex.GetIndex(), pass, didChange)
 
 					// Track the shallowest top-level await parent (used to report invalid import chains later on)
@@ -2888,7 +2894,7 @@ func (s *scanner) reportInvalidTLA() {
 	for sourceIndex := range s.results {
 		result := &s.results[sourceIndex]
 
-		if result.ok && result.tlaCheck.parent.IsValid() {
+		if result.ok {
 			if repr, ok := result.file.inputFile.Repr.(*graph.JSRepr); ok {
 				for _, record := range repr.AST.ImportRecords {
 					// Require of a top-level await chain is forbidden
@@ -2942,10 +2948,11 @@ func (s *scanner) reportInvalidTLA() {
 					}
 				}
 
-				// Make sure that if we wrap this module in a closure, the closure is also
-				// async. This happens when you call "import()" on this module and code
-				// splitting is off.
-				repr.Meta.IsAsyncOrHasAsyncDependency = true
+				// Async evaluation propagates through static imports, even when the
+				// module itself does not contain a top-level await.
+				if result.tlaCheck.parent.IsValid() {
+					repr.Meta.IsAsyncOrHasAsyncDependency = true
+				}
 			}
 		}
 	}

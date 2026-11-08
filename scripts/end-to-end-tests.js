@@ -2099,6 +2099,124 @@ for (const minify of [[], ['--minify']]) {
       'node.js': `export let async = async () => { try { await import('./out.js') } catch (e) { if (e === 'stop') return } throw 'fail' }`,
     }, { async: true }),
 
+    test(['--bundle', 'in.js', '--outfile=out.js', '--format=esm'].concat(minify), {
+      'in.js': `export * from './foo'; export const load = Promise => import('./foo')`,
+      'foo.js': `await new Promise(r => setTimeout(r, 0)); export const foo = 123`,
+      'node.js': `export let async = async () => { const out = await import('./out.js'); if (out.foo !== 123 || (await out.load(null)).foo !== 123) throw 'fail' }`,
+    }, { async: true }),
+    test(['--bundle', 'in.js', '--outfile=out.js', '--format=esm'].concat(minify), {
+      'in.js': `export * from './bar'; export const load = () => import('./bar')`,
+      'bar.js': `export * from './foo'`,
+      'foo.js': `await new Promise(r => setTimeout(r, 0)); export const foo = 123`,
+      'node.js': `export let async = async () => { const out = await import('./out.js'); if (out.foo !== 123 || (await out.load()).foo !== 123) throw 'fail' }`,
+    }, { async: true }),
+
+    // https://github.com/evanw/esbuild/issues/4574
+    test(['--bundle', 'in.js', '--outfile=out.js', '--format=esm'].concat(minify), {
+      'in.js': `import './m1'; export const c = 1; export const promise = import('./m1').then(ns => { if (ns.x !== 2) throw 'fail' })`,
+      'm1.js': `import './m2'; import { c } from './in'; export const x = 2`,
+      'm2.js': `await null`,
+      'node.js': `export let async = async () => { await (await import('./out.js')).promise }`,
+    }, { async: true }),
+
+    // An async cycle must finish before any of its members can be imported.
+    test(['--bundle', 'in.js', '--outfile=out.js', '--format=esm'].concat(minify), {
+      'in.js': `import { state } from './state'; export { state }; export const load = () => Promise.all([import('./bar'), import('./registry').then(ns => { if (!state.done) throw 'early'; return ns })])`,
+      'state.js': `export const state = { done: false, order: [] }`,
+      'bar.js': `export * from './foo'; import './registry'; import { state } from './state'; state.done = true; state.order.push('bar')`,
+      'registry.js': `import './bar'; import { state } from './state'; state.order.push('registry')`,
+      'foo.js': `import { state } from './state'; state.order.push('start'); await new Promise(r => setTimeout(r, 0)); state.order.push('end'); export const foo = 123`,
+      'node.js': `export let async = async () => { const out = await import('./out.js'); const [bar] = await out.load(); if (bar.foo !== 123 || '' + out.state.order !== 'start,registry,end,bar') throw 'fail' }`,
+    }, { async: true }),
+
+    // A synchronous cycle member must run before the next dependency's prefix.
+    test(['--bundle', 'in.js', '--outfile=out.js', '--format=esm'].concat(minify), {
+      'in.js': `export const load = () => import('./bar')`,
+      'bar.js': `import './registry'; export * from './foo'`,
+      'state.js': `export const state = { ready: false }`,
+      'registry.js': `import './bar'; import { state } from './state'; state.ready = true`,
+      'foo.js': `import { state } from './state'; if (!state.ready) throw 'not ready'; await 0; export const foo = 123`,
+      'node.js': `export let async = async () => { const out = await import('./out.js'); if ((await out.load()).foo !== 123) throw 'fail' }`,
+    }, { async: true }),
+
+    // A synchronous exception stops traversal before later siblings start.
+    test(['--bundle', 'in.js', '--outfile=out.js', '--format=esm'].concat(minify), {
+      'in.js': `export { state } from './state'; export const load = () => import('./bar')`,
+      'state.js': `export const state = { error: {}, started: false }`,
+      'bar.js': `import './registry'; export * from './foo'`,
+      'registry.js': `import './bar'; import { state } from './state'; throw state.error`,
+      'foo.js': `import { state } from './state'; state.started = true; await 0`,
+      'node.js': `export let async = async () => { const out = await import('./out.js'); for (let i = 0; i < 2; i++) if (await out.load().catch(e => e) !== out.state.error || out.state.started) throw 'fail' }`,
+    }, { async: true }),
+
+    // Rejection is cached for every member of the cycle, including sync members.
+    test(['--bundle', 'in.js', '--outfile=out.js', '--format=esm'].concat(minify), {
+      'in.js': `export { state } from './state'; export const load = () => Promise.allSettled([import('./bar'), import('./registry')])`,
+      'state.js': `export const state = { error: {} }`,
+      'bar.js': `export * from './foo'; import './registry'`,
+      'registry.js': `import './bar'`,
+      'foo.js': `import { state } from './state'; await 0; throw state.error`,
+      'node.js': `export let async = async () => { const out = await import('./out.js'); for (let i = 0; i < 2; i++) if ((await out.load()).some(r => r.status !== 'rejected' || r.reason !== out.state.error)) throw 'fail' }`,
+    }, { async: true }),
+
+    // Dynamic imports inside a cycle must not reenter its ongoing DFS traversal.
+    test(['--bundle', 'in.js', '--outfile=out.js', '--format=esm'].concat(minify), {
+      'in.js': `export const load = () => import('./bar')`,
+      'state.js': `export const state = { done: false }`,
+      'bar.js': `export * from './foo'; export * from './registry'; import { state } from './state'; state.done = true`,
+      'registry.js': `import './bar'; import { state } from './state'; export const promise = import('./registry').then(ns => { if (!state.done) throw 'early'; return ns })`,
+      'foo.js': `await new Promise(r => setTimeout(r, 0)); export const foo = 123`,
+      'node.js': `export let async = async () => { const out = await import('./out.js'); const bar = await out.load(); const registry = await bar.promise; if (bar.foo !== 123 || registry.promise !== bar.promise) throw 'fail' }`,
+    }, { async: true }),
+
+    // CommonJS imports and runtime re-exports keep their evaluation order.
+    test(['--bundle', 'in.js', '--outfile=out.js', '--format=esm'].concat(minify), {
+      'in.js': `export const load = () => import('./bar')`,
+      'bar.js': `import { a } from './a.cjs'; export * from './b.cjs'; export * from './foo'; export { a }`,
+      'state.cjs': `module.exports = []`,
+      'a.cjs': `require('./state.cjs').push('a'); exports.a = 1`,
+      'b.cjs': `require('./state.cjs').push('b'); exports.b = 2`,
+      'foo.js': `import order from './state.cjs'; if ('' + order !== 'a,b') throw 'order'; await 0; export const foo = 123`,
+      'node.js': `export let async = async () => { const out = await import('./out.js'); const bar = await out.load(); if (bar.foo !== 123 || bar.a !== 1 || bar.b !== 2) throw 'fail' }`,
+    }, { async: true }),
+
+    // Ignored side-effect imports do not make an otherwise sync module async.
+    test(['--bundle', 'in.js', '--outfile=out.js', '--format=esm', '--log-level=error'].concat(minify), {
+      'in.js': `export const answer = require('./barrel').answer; export const load = () => import('./barrel')`,
+      'barrel.js': `import 'pkg/x.js'; export const answer = 42`,
+      'node_modules/pkg/package.json': `{"sideEffects": false}`,
+      'node_modules/pkg/x.js': `throw await 'fail'`,
+      'node.js': `export let async = async () => { const out = await import('./out.js'); if (out.answer !== 42 || (await out.load()).answer !== 42) throw 'fail' }`,
+    }, { async: true }),
+
+    ...['--tree-shaking=false', '--ignore-annotations'].map(flag =>
+      test(['--bundle', 'in.js', '--outfile=out.js', '--format=esm', '--log-level=error', flag].concat(minify), {
+        'in.js': `import { x } from 'pkg/x.js'; console.log(x, require('./barrel'))`,
+        'barrel.js': `import 'pkg/x.js'; export const answer = 42`,
+        'node_modules/pkg/package.json': `{"sideEffects": false}`,
+        'node_modules/pkg/x.js': `await 0; export const x = 1`,
+      }, {
+        expectedStderr: `${errorIcon} [ERROR] This require call is not allowed because the transitive dependency "node_modules/pkg/x.js" contains a top-level await
+
+    in.js:1:53:
+      1 │ import { x } from 'pkg/x.js'; console.log(x, require('./barrel'))
+        ╵                                                      ~~~~~~~~~~
+
+  The file "barrel.js" imports the file "node_modules/pkg/x.js" here:
+
+    barrel.js:1:7:
+      1 │ import 'pkg/x.js'; export const answer = 42
+        ╵        ~~~~~~~~~~
+
+  The top-level await in "node_modules/pkg/x.js" is here:
+
+    node_modules/pkg/x.js:1:0:
+      1 │ await 0; export const x = 1
+        ╵ ~~~~~
+
+`,
+      })),
+
     // Self export
     test(['--bundle', 'in.js', '--outfile=node.js', '--format=esm'].concat(minify), {
       'in.js': `export default 123; export let async = async () => { const out = await import('./in'); if (out.default !== 123) throw 'fail' }`,

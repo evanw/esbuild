@@ -1540,8 +1540,9 @@ func (p *printer) printRequireOrImportExpr(importRecordIndex uint32, level js_as
 	// Internal "import()" of async ESM
 	if record.Kind == ast.ImportDynamic && meta.IsWrapperAsync {
 		p.printSpaceBeforeIdentifier()
+		p.print("Promise.resolve().then(")
 		p.printIdentifier(p.renamer.NameForSymbol(meta.WrapperRef))
-		p.print("()")
+		p.print(")")
 		if meta.ExportsRef != ast.InvalidRef {
 			p.printDotThenPrefix()
 			p.printSpaceBeforeIdentifier()

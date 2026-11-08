@@ -1357,6 +1357,85 @@ func TestIssue176(t *testing.T) {
 	})
 }
 
+func TestReExportStarAsync(t *testing.T) {
+	importstar_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export * from './async'
+				export const load = () => import('./async')
+			`,
+			"/async.js": `
+				await foo()
+				export const answer = 42
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			OutputFormat:  config.FormatESModule,
+		},
+	})
+}
+
+func TestReExportStarAsyncDependency(t *testing.T) {
+	importstar_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				export * from './middle'
+				export const load = () => import('./middle')
+			`,
+			"/middle.js": `
+				export * from './async'
+			`,
+			"/async.js": `
+				await foo()
+				export const answer = 42
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			OutputFormat:  config.FormatESModule,
+		},
+	})
+}
+
+func TestReExportStarAsyncCycle(t *testing.T) {
+	importstar_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js":    `export const load = () => import('./barrel')`,
+			"/barrel.js":   `export * from './async'; import './registry'`,
+			"/registry.js": `import './barrel'; register()`,
+			"/async.js":    `await foo(); export const answer = 42`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			OutputFormat:  config.FormatESModule,
+		},
+	})
+}
+
+func TestReExportStarAsyncRuntime(t *testing.T) {
+	importstar_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js":  `export const load = () => import('./barrel')`,
+			"/barrel.js": `export * from './cjs'; export * from './async'`,
+			"/cjs.js":    `module.exports = foo()`,
+			"/async.js":  `await foo(); export const answer = 42`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			AbsOutputFile: "/out.js",
+			OutputFormat:  config.FormatESModule,
+		},
+	})
+}
+
 func TestReExportStarExternalIIFE(t *testing.T) {
 	importstar_suite.expectBundled(t, bundled{
 		files: map[string]string{
