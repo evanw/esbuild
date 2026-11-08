@@ -942,6 +942,158 @@ var mod = (() => {
 })();
 
 ================================================================================
+TestReExportStarAsync
+---------- /out.js ----------
+// async.js
+var async_exports = {};
+__export(async_exports, {
+  answer: () => answer
+});
+var answer;
+var init_async = __esmAsync({
+  async "async.js"() {
+    await foo();
+    answer = 42;
+  }
+}, () => {
+  return [];
+}, true);
+
+// entry.js
+await init_async();
+var load = () => Promise.resolve().then(init_async).then(() => async_exports);
+export {
+  answer,
+  load
+};
+
+================================================================================
+TestReExportStarAsyncCycle
+---------- /out.js ----------
+// async.js
+var answer;
+var init_async = __esmAsync({
+  async "async.js"() {
+    await foo();
+    answer = 42;
+  }
+}, () => {
+  return [];
+}, true);
+
+// registry.js
+var init_registry = __esmAsync({
+  "registry.js"() {
+    register();
+  }
+}, () => {
+  return [
+    init_barrel
+  ];
+}, false);
+
+// barrel.js
+var barrel_exports = {};
+__export(barrel_exports, {
+  answer: () => answer
+});
+var init_barrel = __esmAsync({
+  "barrel.js"() {
+  }
+}, () => {
+  return [
+    init_async,
+    init_registry
+  ];
+}, false);
+
+// entry.js
+var load = () => Promise.resolve().then(init_barrel).then(() => barrel_exports);
+export {
+  load
+};
+
+================================================================================
+TestReExportStarAsyncDependency
+---------- /out.js ----------
+// async.js
+var answer;
+var init_async = __esmAsync({
+  async "async.js"() {
+    await foo();
+    answer = 42;
+  }
+}, () => {
+  return [];
+}, true);
+
+// middle.js
+var middle_exports = {};
+__export(middle_exports, {
+  answer: () => answer
+});
+var init_middle = __esmAsync({
+  "middle.js"() {
+  }
+}, () => {
+  return [
+    init_async
+  ];
+}, false);
+
+// entry.js
+await init_middle();
+var load = () => Promise.resolve().then(init_middle).then(() => middle_exports);
+export {
+  answer,
+  load
+};
+
+================================================================================
+TestReExportStarAsyncRuntime
+---------- /out.js ----------
+// cjs.js
+var require_cjs = __commonJS({
+  "cjs.js"(exports, module) {
+    module.exports = foo();
+  }
+});
+
+// async.js
+var answer;
+var init_async = __esmAsync({
+  async "async.js"() {
+    await foo();
+    answer = 42;
+  }
+}, () => {
+  return [];
+}, true);
+
+// barrel.js
+var barrel_exports = {};
+__export(barrel_exports, {
+  answer: () => answer
+});
+var init_barrel = __esmAsync({
+  "barrel.js"() {
+  }
+}, () => {
+  return [
+    () => {
+      __reExport(barrel_exports, __toESM(require_cjs()));
+    },
+    init_async
+  ];
+}, false);
+
+// entry.js
+var load = () => Promise.resolve().then(init_barrel).then(() => barrel_exports);
+export {
+  load
+};
+
+================================================================================
 TestReExportStarCommonJSNoBundle
 ---------- /out.js ----------
 var entry_exports = {};

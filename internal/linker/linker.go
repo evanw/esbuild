@@ -69,9 +69,10 @@ type linkerContext struct {
 	// We may need to refer to the CommonJS "module" symbol for exports
 	unboundModuleRef ast.Ref
 
-	// We may need to refer to the "__esm" and/or "__commonJS" runtime symbols
-	cjsRuntimeRef ast.Ref
-	esmRuntimeRef ast.Ref
+	// We may need to refer to the module initialization runtime symbols
+	cjsRuntimeRef      ast.Ref
+	esmRuntimeRef      ast.Ref
+	esmAsyncRuntimeRef ast.Ref
 }
 
 type partRange struct {
@@ -263,9 +264,11 @@ func Link(
 	// Use a smaller version of these functions if we don't need profiler names
 	runtimeRepr := c.graph.Files[runtime.SourceIndex].InputFile.Repr.(*graph.JSRepr)
 	if c.options.ProfilerNames {
+		c.esmAsyncRuntimeRef = runtimeRepr.AST.NamedExports["__esmAsync"].Ref
 		c.cjsRuntimeRef = runtimeRepr.AST.NamedExports["__commonJS"].Ref
 		c.esmRuntimeRef = runtimeRepr.AST.NamedExports["__esm"].Ref
 	} else {
+		c.esmAsyncRuntimeRef = runtimeRepr.AST.NamedExports["__esmAsyncMin"].Ref
 		c.cjsRuntimeRef = runtimeRepr.AST.NamedExports["__commonJSMin"].Ref
 		c.esmRuntimeRef = runtimeRepr.AST.NamedExports["__esmMin"].Ref
 	}
@@ -2474,11 +2477,15 @@ func (c *linkerContext) createWrapperForFile(sourceIndex uint32) {
 	//     ...
 	//   });
 	//
-	// This depends on the "__esm" symbol and declares the "init_foo" symbol
+	// This depends on "__esm" or "__esmAsync" and declares the "init_foo" symbol
 	// for similar reasons to the CommonJS closure above.
 	case graph.WrapESM:
 		runtimeRepr := c.graph.Files[runtime.SourceIndex].InputFile.Repr.(*graph.JSRepr)
-		esmParts := runtimeRepr.TopLevelSymbolToParts(c.esmRuntimeRef)
+		runtimeRef := c.esmRuntimeRef
+		if repr.Meta.IsAsyncOrHasAsyncDependency {
+			runtimeRef = c.esmAsyncRuntimeRef
+		}
+		esmParts := runtimeRepr.TopLevelSymbolToParts(runtimeRef)
 
 		// Generate the dummy part
 		dependencies := make([]js_ast.Dependency, len(esmParts))
@@ -2498,7 +2505,7 @@ func (c *linkerContext) createWrapperForFile(sourceIndex uint32) {
 			Dependencies: dependencies,
 		})
 		repr.Meta.WrapperPartIndex = ast.MakeIndex32(partIndex)
-		c.graph.GenerateSymbolImportAndUse(sourceIndex, partIndex, c.esmRuntimeRef, 1, runtime.SourceIndex)
+		c.graph.GenerateSymbolImportAndUse(sourceIndex, partIndex, runtimeRef, 1, runtime.SourceIndex)
 	}
 }
 
@@ -4281,13 +4288,18 @@ func (c *linkerContext) shouldRemoveImportExportStmt(
 
 	case graph.WrapCJS:
 		// Replace the statement with a call to "require()"
+		value := js_ast.Expr{Loc: record.Range.Loc, Data: &js_ast.ERequireString{ImportRecordIndex: importRecordIndex}}
+		if repr.Meta.Wrap == graph.WrapESM && repr.Meta.IsAsyncOrHasAsyncDependency {
+			stmtList.asyncDependencies = append(stmtList.asyncDependencies, c.wrapAsyncDependency([]js_ast.Stmt{
+				js_ast.AssignStmt(js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: namespaceRef}}, value),
+			}))
+			value = js_ast.Expr{}
+		}
 		stmtList.insideWrapperPrefix = append(stmtList.insideWrapperPrefix, js_ast.Stmt{
 			Loc: loc,
 			Data: &js_ast.SLocal{Decls: []js_ast.Decl{{
-				Binding: js_ast.Binding{Loc: loc, Data: &js_ast.BIdentifier{Ref: namespaceRef}},
-				ValueOrNil: js_ast.Expr{Loc: record.Range.Loc, Data: &js_ast.ERequireString{
-					ImportRecordIndex: importRecordIndex,
-				}},
+				Binding:    js_ast.Binding{Loc: loc, Data: &js_ast.BIdentifier{Ref: namespaceRef}},
+				ValueOrNil: value,
 			}}},
 		})
 
@@ -4299,18 +4311,34 @@ func (c *linkerContext) shouldRemoveImportExportStmt(
 			break
 		}
 
-		// Replace the statement with a call to "init()"
-		value := js_ast.Expr{Loc: loc, Data: &js_ast.ECall{Target: js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: otherRepr.AST.WrapperRef}}}}
-		if otherRepr.Meta.IsAsyncOrHasAsyncDependency {
-			// This currently evaluates sibling dependencies in serial instead of in
-			// parallel, which is incorrect. This should be changed to store a promise
-			// and await all stored promises after all imports but before any code.
-			value.Data = &js_ast.EAwait{Value: value}
-		}
-		stmtList.insideWrapperPrefix = append(stmtList.insideWrapperPrefix, js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{Value: value}})
+		c.appendESMInit(repr, stmtList, loc, otherRepr)
 	}
 
 	return true
+}
+
+func (c *linkerContext) wrapAsyncDependency(stmts []js_ast.Stmt) js_ast.Expr {
+	body := js_ast.FnBody{Block: js_ast.SBlock{Stmts: stmts}}
+	if c.options.UnsupportedJSFeatures.Has(compat.Arrow) {
+		return js_ast.Expr{Data: &js_ast.EFunction{Fn: js_ast.Fn{Body: body}}}
+	}
+	return js_ast.Expr{Data: &js_ast.EArrow{Body: body}}
+}
+
+func (c *linkerContext) appendESMInit(repr *graph.JSRepr, stmtList *stmtList, loc logger.Loc, otherRepr *graph.JSRepr) {
+	target := js_ast.Expr{Loc: loc, Data: &js_ast.EIdentifier{Ref: otherRepr.AST.WrapperRef}}
+	if repr.Meta.Wrap == graph.WrapESM && repr.Meta.IsAsyncOrHasAsyncDependency {
+		stmtList.asyncDependencies = append(stmtList.asyncDependencies, target)
+		return
+	}
+	value := js_ast.Expr{Loc: loc, Data: &js_ast.ECall{Target: target}}
+	if otherRepr.Meta.IsAsyncOrHasAsyncDependency {
+		// Unwrapped importers still evaluate sibling dependencies in serial instead of in
+		// parallel, which is incorrect. This should be changed to store a promise
+		// and await all stored promises after all imports but before any code.
+		value.Data = &js_ast.EAwait{Value: value}
+	}
+	stmtList.insideWrapperPrefix = append(stmtList.insideWrapperPrefix, js_ast.Stmt{Loc: loc, Data: &js_ast.SExpr{Value: value}})
 }
 
 func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtList, partStmts []js_ast.Stmt) {
@@ -4425,9 +4453,7 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 			} else {
 				if record.SourceIndex.IsValid() {
 					if otherRepr := c.graph.Files[record.SourceIndex.GetIndex()].InputFile.Repr.(*graph.JSRepr); otherRepr.Meta.Wrap == graph.WrapESM {
-						stmtList.insideWrapperPrefix = append(stmtList.insideWrapperPrefix, js_ast.Stmt{Loc: stmt.Loc,
-							Data: &js_ast.SExpr{Value: js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.ECall{
-								Target: js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: otherRepr.AST.WrapperRef}}}}}})
+						c.appendESMInit(repr, stmtList, stmt.Loc, otherRepr)
 					}
 				}
 
@@ -4453,13 +4479,18 @@ func (c *linkerContext) convertStmtsForChunk(sourceIndex uint32, stmtList *stmtL
 					if moduleExportsForReExportOrNil.Data != nil {
 						args = append(args, moduleExportsForReExportOrNil)
 					}
-					stmtList.insideWrapperPrefix = append(stmtList.insideWrapperPrefix, js_ast.Stmt{
+					reExport := js_ast.Stmt{
 						Loc: stmt.Loc,
 						Data: &js_ast.SExpr{Value: js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.ECall{
 							Target: js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: exportStarRef}},
 							Args:   args,
 						}}},
-					})
+					}
+					if _, isRequire := target.(*js_ast.ERequireString); isRequire && repr.Meta.Wrap == graph.WrapESM && repr.Meta.IsAsyncOrHasAsyncDependency {
+						stmtList.asyncDependencies = append(stmtList.asyncDependencies, c.wrapAsyncDependency([]js_ast.Stmt{reExport}))
+					} else {
+						stmtList.insideWrapperPrefix = append(stmtList.insideWrapperPrefix, reExport)
+					}
 				}
 
 				// Remove the export star statement
@@ -4628,6 +4659,8 @@ func mergeAdjacentLocalStmts(stmts []js_ast.Stmt) []js_ast.Stmt {
 }
 
 type stmtList struct {
+	asyncDependencies []js_ast.Expr
+
 	// These statements come first, and can be inside the wrapper
 	insideWrapperPrefix []js_ast.Stmt
 
@@ -4855,11 +4888,9 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 			}})
 
 		case graph.WrapESM:
-			// The wrapper only needs to be "async" if there is a transitive async
-			// dependency. For correctness, we must not use "async" if the module
-			// isn't async because then calling "require()" on that module would
-			// swallow any exceptions thrown during module initialization.
-			isAsync := repr.Meta.IsAsyncOrHasAsyncDependency
+			// Only an actual top-level await makes the body asynchronous. A synchronous
+			// exception must still abort traversal of the remaining dependencies.
+			isAsync := repr.AST.LiveTopLevelAwaitKeyword.Len > 0
 
 			// Hoist all top-level "var" and "function" declarations out of the closure
 			var decls []js_ast.Decl
@@ -4913,8 +4944,15 @@ func (c *linkerContext) generateCodeForFileInChunkJS(
 				// "__esm(() => { ... })"
 				esmArgs = []js_ast.Expr{{Data: &js_ast.EArrow{Body: js_ast.FnBody{Block: js_ast.SBlock{Stmts: stmts}}, IsAsync: isAsync}}}
 			}
+			runtimeRef := c.esmRuntimeRef
+			if repr.Meta.IsAsyncOrHasAsyncDependency {
+				runtimeRef = c.esmAsyncRuntimeRef
+				esmArgs = append(esmArgs, c.wrapAsyncDependency([]js_ast.Stmt{{Data: &js_ast.SReturn{
+					ValueOrNil: js_ast.Expr{Data: &js_ast.EArray{Items: stmtList.asyncDependencies}},
+				}}}), js_ast.Expr{Data: &js_ast.EBoolean{Value: isAsync}})
+			}
 			value := js_ast.Expr{Data: &js_ast.ECall{
-				Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: c.esmRuntimeRef}},
+				Target: js_ast.Expr{Data: &js_ast.EIdentifier{Ref: runtimeRef}},
 				Args:   esmArgs,
 			}}
 

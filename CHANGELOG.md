@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+* Fix async module evaluation in import cycles ([#4574](https://github.com/evanw/esbuild/issues/4574))
+
+    Bundling modules with top-level await without code splitting could cause an import cycle to deadlock, or allow an `export *` statement to expose a dependency before it finished evaluating. This release tracks async dependencies and cycle completion separately so that dynamic imports wait for the whole cycle, including when evaluation fails. Synchronous module wrappers are unchanged.
+
+* Restore errors for `require()` calls that reach top-level await
+
+    The fix for [#4498](https://github.com/evanw/esbuild/issues/4498) in version 0.28.2 accidentally stopped reporting some `require()` calls that reach a module with top-level await. This release restores those build errors, including calls in unused functions, since synchronous `require()` cannot wait for async module evaluation.
+
 * Allow `es2026` as a target in `tsconfig.json`
 
     TypeScript is [adding `es2026`](https://github.com/microsoft/TypeScript/issues/63704) as a compilation target, so esbuild now supports this in the `target` field of `tsconfig.json` files, such as in the following configuration file:

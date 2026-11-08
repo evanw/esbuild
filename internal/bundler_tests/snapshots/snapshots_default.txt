@@ -6824,7 +6824,7 @@ TestTopLevelAwaitAllowedImportWithSplitting
 import("./a-3BAWOBN3.js");
 import("./b-2IGVSUS7.js");
 import("./c-DMBKURS2.js");
-require_entry();
+Promise.resolve().then(require_entry);
 await 0;
 
 ---------- /out/c-DMBKURS2.js ----------
@@ -6849,39 +6849,49 @@ TestTopLevelAwaitAllowedImportWithoutSplitting
 ---------- /out.js ----------
 // c.js
 var c_exports = {};
-var init_c = __esm({
+var init_c = __esmAsync({
   async "c.js"() {
     await 0;
   }
-});
+}, () => {
+  return [];
+}, true);
 
 // b.js
 var b_exports = {};
-var init_b = __esm({
-  async "b.js"() {
-    await init_c();
+var init_b = __esmAsync({
+  "b.js"() {
   }
-});
+}, () => {
+  return [
+    init_c
+  ];
+}, false);
 
 // a.js
 var a_exports = {};
-var init_a = __esm({
-  async "a.js"() {
-    await init_b();
+var init_a = __esmAsync({
+  "a.js"() {
   }
-});
+}, () => {
+  return [
+    init_b
+  ];
+}, false);
 
 // entry.js
 var entry_exports = {};
-var init_entry = __esm({
+var init_entry = __esmAsync({
   async "entry.js"() {
-    init_a();
-    init_b();
-    init_c();
-    init_entry();
+    Promise.resolve().then(init_a);
+    Promise.resolve().then(init_b);
+    Promise.resolve().then(init_c);
+    Promise.resolve().then(init_entry);
     await 0;
   }
-});
+}, () => {
+  return [];
+}, true);
 await init_entry();
 
 ================================================================================
@@ -6898,42 +6908,53 @@ TestTopLevelAwaitCyclicDependenciesIssue4498
 function b() {
   return typeof a;
 }
-var init_b = __esm({
-  async "b.mjs"() {
-    await init_a();
+var init_b = __esmAsync({
+  "b.mjs"() {
   }
-});
+}, () => {
+  return [
+    init_a
+  ];
+}, false);
 
 // dep.mjs
 var tla;
-var init_dep = __esm({
+var init_dep = __esmAsync({
   async "dep.mjs"() {
     tla = await Promise.resolve("x");
   }
-});
+}, () => {
+  return [];
+}, true);
 
 // a.mjs
 function a() {
   return b() + tla;
 }
-var init_a = __esm({
-  async "a.mjs"() {
-    await init_b();
-    await init_dep();
+var init_a = __esmAsync({
+  "a.mjs"() {
   }
-});
+}, () => {
+  return [
+    init_b,
+    init_dep
+  ];
+}, false);
 
 // main.mjs
 var main_exports = {};
-var init_main = __esm({
-  async "main.mjs"() {
-    await init_a();
+var init_main = __esmAsync({
+  "main.mjs"() {
     console.log(a());
   }
-});
+}, () => {
+  return [
+    init_a
+  ];
+}, false);
 
 // entry.mjs
-await init_main().then(() => main_exports);
+await Promise.resolve().then(init_main).then(() => main_exports);
 
 ================================================================================
 TestTopLevelAwaitESM
@@ -6999,6 +7020,56 @@ TestTopLevelAwaitIIFEDeadBranch
   if (false) foo;
   if (false) for (foo of bar) ;
 })();
+
+================================================================================
+TestTopLevelAwaitIgnoredBareImport
+---------- /out/entry.js ----------
+// barrel.js
+var barrel_exports = {};
+__export(barrel_exports, {
+  answer: () => answer
+});
+var answer;
+var init_barrel = __esm({
+  "barrel.js"() {
+    answer = 42;
+  }
+});
+
+// entry.js
+var load = () => Promise.resolve().then(() => (init_barrel(), barrel_exports));
+console.log((init_barrel(), __toCommonJS(barrel_exports)));
+export {
+  load
+};
+
+---------- /out/live.js ----------
+// node_modules/pkg/x.js
+var x;
+var init_x = __esmAsync({
+  async "node_modules/pkg/x.js"() {
+    await 0;
+    x = 1;
+  }
+}, () => {
+  return [];
+}, true);
+
+// barrel.js
+var barrel_exports = {};
+__export(barrel_exports, {
+  answer: () => answer
+});
+var answer;
+var init_barrel = __esm({
+  "barrel.js"() {
+    answer = 42;
+  }
+});
+
+// live.js
+await init_x();
+console.log(x, (init_barrel(), __toCommonJS(barrel_exports)));
 
 ================================================================================
 TestTopLevelAwaitNoBundle

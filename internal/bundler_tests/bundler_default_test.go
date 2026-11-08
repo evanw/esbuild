@@ -4379,6 +4379,89 @@ func TestTopLevelAwaitForbiddenRequireDeadBranch(t *testing.T) {
 	})
 }
 
+func TestTopLevelAwaitForbiddenRequireFromSyncModule(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js":  `require('./barrel')`,
+			"/barrel.js": `export * from './async'`,
+			"/async.js":  `await 0; export const answer = 42`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			OutputFormat:  config.FormatESModule,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `entry.js: ERROR: This require call is not allowed because the transitive dependency "async.js" contains a top-level await
+barrel.js: NOTE: The file "barrel.js" imports the file "async.js" here:
+async.js: NOTE: The top-level await in "async.js" is here:
+`,
+	})
+}
+
+func TestTopLevelAwaitIgnoredBareImport(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js":                      `export const load = () => import('./barrel'); console.log(require('./barrel'))`,
+			"/live.js":                       `import { x } from 'pkg/x.js'; console.log(x, require('./barrel'))`,
+			"/barrel.js":                     `import 'pkg/x.js'; export const answer = 42`,
+			"/node_modules/pkg/package.json": `{"sideEffects": false}`,
+			"/node_modules/pkg/x.js":         `await 0; export const x = 1`,
+		},
+		entryPaths: []string{"/entry.js", "/live.js"},
+		options: config.Options{
+			Mode:         config.ModeBundle,
+			OutputFormat: config.FormatESModule,
+			AbsOutputDir: "/out",
+		},
+		expectedScanLog: `barrel.js: WARNING: Ignoring this import because "node_modules/pkg/x.js" was marked as having no side effects
+node_modules/pkg/package.json: NOTE: "sideEffects" is false in the enclosing "package.json" file:
+`,
+	})
+}
+
+func TestTopLevelAwaitBareAndNamedImport(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js":                      `require('./barrel')`,
+			"/barrel.js":                     `import 'pkg/x.js'; export { x } from 'pkg/x.js'`,
+			"/node_modules/pkg/package.json": `{"sideEffects": false}`,
+			"/node_modules/pkg/x.js":         `await 0; export const x = 1`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			OutputFormat:  config.FormatESModule,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `barrel.js: WARNING: Ignoring this import because "node_modules/pkg/x.js" was marked as having no side effects
+node_modules/pkg/package.json: NOTE: "sideEffects" is false in the enclosing "package.json" file:
+entry.js: ERROR: This require call is not allowed because the transitive dependency "node_modules/pkg/x.js" contains a top-level await
+barrel.js: NOTE: The file "barrel.js" imports the file "node_modules/pkg/x.js" here:
+node_modules/pkg/x.js: NOTE: The top-level await in "node_modules/pkg/x.js" is here:
+`,
+	})
+}
+
+func TestTopLevelAwaitForbiddenRequireInUnusedFunction(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `import { value } from './lib'; console.log(value)`,
+			"/lib.js":   `export function unused() { return require('./async') }; export const value = 1`,
+			"/async.js": `await 0`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			OutputFormat:  config.FormatESModule,
+			AbsOutputFile: "/out.js",
+		},
+		expectedScanLog: `lib.js: ERROR: This require call is not allowed because the imported file "async.js" contains a top-level await
+async.js: NOTE: The top-level await in "async.js" is here:
+`,
+	})
+}
+
 func TestTopLevelAwaitAllowedImportWithoutSplitting(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{

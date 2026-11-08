@@ -565,6 +565,144 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 			}
 			return next()
 		}
+		var __esmAsyncOrder = 0
+		var __esmAsyncRun = (module) => {
+			var body = module.body
+			module.body = 0
+			return body()
+		}
+		var __esmAsyncReject = (module, error) => {
+			if (module.status === 3) return
+			module.status = 3
+			module.error = [error]
+			module.async = false
+			module.body = module.deps = 0
+			for (var i = 0; i < module.parents.length; i++) __esmAsyncReject(module.parents[i], error)
+			module.parents = 0
+			if (module.promise) module.reject(error)
+		}
+		var __esmAsyncGather = (module, ready) => {
+			for (var i = 0; i < module.parents.length; i++) {
+				var parent = module.parents[i]
+				if (parent.pending && !parent.error && !parent.root.error) {
+					if (--parent.pending === 0) {
+						ready.push(parent)
+						if (!parent.tla) __esmAsyncGather(parent, ready)
+					}
+				}
+			}
+		}
+		var __esmAsyncFulfill = (module) => {
+			if (module.status === 3) return
+			module.status = 3
+			module.async = false
+			if (module.promise) module.resolve()
+			var ready = []
+			__esmAsyncGather(module, ready)
+			module.parents = 0
+			ready.sort((a, b) => a.order - b.order)
+			for (var i = 0; i < ready.length; i++) {
+				var parent = ready[i]
+				if (parent.error) continue
+				if (parent.tla) __esmAsyncExecute(parent)
+				else {
+					try {
+						__esmAsyncRun(parent)
+						parent.status = 3
+						parent.async = false
+						parent.parents = 0
+						if (parent.promise) parent.resolve()
+					} catch (error) {
+						__esmAsyncReject(parent, error)
+					}
+				}
+			}
+		}
+		var __esmAsyncExecute = (module) => {
+			__esmAsyncRun(module).then(() => __esmAsyncFulfill(module), (error) => __esmAsyncReject(module, error))
+		}
+		var __esmAsyncVisit = (module, stack) => {
+			// Only back edges to the current DFS traversal can bypass evaluation.
+			if (module.status >= 2) {
+				if (module.error) throw module.error[0]
+				return
+			}
+			if (module.status === 1) return
+			module.status = 1
+			var index = module.ancestor = stack.next++
+			stack.push(module)
+			var deps = module.deps()
+			module.deps = 0
+			for (var i = 0; i < deps.length; i++) {
+				var init = deps[i]
+				var child = init.__module
+				if (!child) {
+					init()
+					continue
+				}
+				__esmAsyncVisit(child, stack)
+				if (child.status === 1) module.ancestor = Math.min(module.ancestor, child.ancestor)
+				else {
+					child = child.root
+					if (child.error) throw child.error[0]
+				}
+				if (child.async) {
+					module.pending++
+					child.parents.push(module)
+				}
+			}
+			if (module.tla || module.pending) {
+				module.async = true
+				module.order = __esmAsyncOrder++
+				if (!module.pending) __esmAsyncExecute(module)
+			} else __esmAsyncRun(module)
+			if (module.ancestor === index) {
+				var member
+				do {
+					member = stack.pop()
+					member.status = member.async ? 2 : 3
+					member.root = module
+				} while (member !== module)
+			}
+		}
+		var __esmAsyncEvaluate = (module) => {
+			// Importing any cycle member waits for the cycle root, even if that
+			// member's own body has already completed.
+			if (module.status >= 2) module = module.root
+			if (module.promise) return module.promise
+			module.promise = new Promise((resolve, reject) => {
+				module.resolve = resolve
+				module.reject = reject
+			})
+			var stack = []
+			stack.next = 0
+			try {
+				__esmAsyncVisit(module, stack)
+				if (!module.async) module.resolve()
+			} catch (error) {
+				for (var i = 0; i < stack.length; i++) {
+					var member = stack[i]
+					member.status = 3
+					member.error = [error]
+					member.root = module
+					member.body = member.deps = 0
+				}
+				module.reject(error)
+			}
+			return module.promise
+		}
+
+		// Async modules must track the evaluation of the whole cycle. A dependency
+		// can finish its body before the cycle root, without making import() ready.
+		export var __esmAsync = (body, deps, tla) => __esmAsyncMin(body[__getOwnPropNames(body)[0]], deps, tla)
+		export var __esmAsyncMin = (body, deps, tla) => {
+			// Status: unvisited, evaluating, evaluating asynchronously, evaluated.
+			var module = { body, deps, tla, status: 0, pending: 0, parents: [] }
+			module.root = module
+			var init = () => __esmAsyncEvaluate(module)
+			init.__module = module
+			return init
+		}
 	`
 
 	return logger.Source{
