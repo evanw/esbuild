@@ -16155,7 +16155,16 @@ func (v *binaryExprVisitor) visitRightAndFinish(p *parser) js_ast.Expr {
 		if p.options.minifySyntax {
 			e.Left = p.astHelpers.SimplifyUnusedExpr(e.Left, p.options.unsupportedJSFeatures)
 			if e.Left.Data == nil {
-				return e.Right
+				// Removing the comma must not turn an anonymous function or
+				// class into a named definition, which would change its
+				// ".name". For example, "var f = (0, function() {})" must not
+				// become "var f = function() {}". Keep a zero left operand
+				// in that case.
+				if js_ast.IsAnonymousFunctionOrClass(e.Right.Data) {
+					e.Left = js_ast.Expr{Loc: v.loc, Data: &js_ast.ENumber{Value: 0}}
+				} else {
+					return e.Right
+				}
 			}
 		}
 

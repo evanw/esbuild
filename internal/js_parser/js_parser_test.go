@@ -4905,6 +4905,27 @@ func TestMangleBinaryInsideComma(t *testing.T) {
 	expectPrintedNormalAndMangle(t, "a + (b, c)", "a + (b, c);\n", "a + (b, c);\n")
 }
 
+func TestMangleCommaAnonymousFunction(t *testing.T) {
+	// Removing the comma must not turn an anonymous function or class into a
+	// named definition, which would change its ".name"
+	expectPrintedNormalAndMangle(t, "var f = (0, function () {})", "var f = (0, function() {\n});\n", "var f = (0, function() {\n});\n")
+	expectPrintedNormalAndMangle(t, "var g = (0, () => {})", "var g = (0, () => {\n});\n", "var g = (0, () => {\n});\n")
+	expectPrintedNormalAndMangle(t, "var h = (0, class {})", "var h = (0, class {\n});\n", "var h = (0, class {\n});\n")
+	expectPrintedNormalAndMangle(t, "x = (0, function () {})", "x = (0, function() {\n});\n", "x = (0, function() {\n});\n")
+	expectPrintedNormalAndMangle(t, "x = { y: (0, function () {}) }", "x = { y: (0, function() {\n}) };\n", "x = { y: (0, function() {\n}) };\n")
+	expectPrintedNormalAndMangle(t, "var { y = (0, function () {}) } = {}", "var { y = (0, function() {\n}) } = {};\n", "var { y = (0, function() {\n}) } = {};\n")
+
+	// Named functions and non-functions still drop the comma, except that an
+	// unused name is removed when minifying, which makes the function
+	// anonymous, so the comma is kept in that case
+	expectPrintedNormalAndMangle(t, "var f = (0, function foo() {})", "var f = (0, function foo() {\n});\n", "var f = (0, function() {\n});\n")
+	expectPrintedNormalAndMangle(t, "var f = (0, 1)", "var f = (0, 1);\n", "var f = 1;\n")
+
+	// Nested commas still collapse to a single zero left operand
+	expectPrintedNormalAndMangle(t, "var f = (0, 1, function () {})", "var f = (0, 1, function() {\n});\n", "var f = (0, function() {\n});\n")
+	expectPrintedNormalAndMangle(t, "var f = (0, (1, function () {}))", "var f = (0, 1, function() {\n});\n", "var f = (0, function() {\n});\n")
+}
+
 func TestMangleUnaryConstantFolding(t *testing.T) {
 	expectPrintedNormalAndMangle(t, "x = +5", "x = 5;\n", "x = 5;\n")
 	expectPrintedNormalAndMangle(t, "x = -5", "x = -5;\n", "x = -5;\n")

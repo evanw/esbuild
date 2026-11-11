@@ -461,6 +461,34 @@ func JoinWithComma(a Expr, b Expr) Expr {
 	return Expr{Loc: a.Loc, Data: &EBinary{Op: BinOpComma, Left: a, Right: b}}
 }
 
+// Returns true if the expression is an anonymous function, arrow function, or
+// class expression, ignoring annotations. Removing a comma operator in front
+// of such an expression can turn it into a named definition, which would
+// change its ".name" (e.g. "var f = (0, function() {})" must not become
+// "var f = function() {}").
+func IsAnonymousFunctionOrClass(data E) bool {
+	for {
+		if annotation, ok := data.(*EAnnotation); ok {
+			data = annotation.Value.Data
+			continue
+		}
+		break
+	}
+
+	switch data := data.(type) {
+	case *EArrow:
+		return true
+
+	case *EFunction:
+		return data.Fn.Name == nil
+
+	case *EClass:
+		return data.Class.Name == nil
+	}
+
+	return false
+}
+
 func JoinAllWithComma(all []Expr) (result Expr) {
 	for _, value := range all {
 		result = JoinWithComma(result, value)

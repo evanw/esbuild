@@ -3385,6 +3385,15 @@ func (v *binaryExprVisitor) checkAndPrepare(p *printer) bool {
 				right = p.simplifyUnusedExpr(right)
 			}
 			if left.Data != e.Left.Data || right.Data != e.Right.Data {
+				// Removing the comma must not turn an anonymous function or
+				// class into a named definition, which would change its
+				// ".name". For example, "var f = (empty(), function() {})"
+				// must not become "var f = function() {}". Keep a zero left
+				// operand in that case.
+				if left.Data == nil && (v.flags&exprResultIsUnused) == 0 && js_ast.IsAnonymousFunctionOrClass(e.Right.Data) {
+					left = js_ast.Expr{Loc: e.Left.Loc, Data: &js_ast.ENumber{Value: 0}}
+				}
+
 				// Pass a flag so we don't needlessly re-simplify the same expression
 				p.printExpr(p.guardAgainstBehaviorChangeDueToSubstitution(js_ast.JoinWithComma(left, right), v.flags), v.level, v.flags|didAlreadySimplifyUnusedExprs)
 				return false
