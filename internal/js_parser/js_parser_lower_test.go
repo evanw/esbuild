@@ -555,6 +555,28 @@ func TestLowerClassStaticBlocks(t *testing.T) {
 	expectPrintedMangleTarget(t, 2015, "class Foo { static { x } static {} static { y } }", "class Foo {\n}\nx, y;\n")
 }
 
+func TestLowerClassPrivateBrandCheck(t *testing.T) {
+	// https://github.com/evanw/esbuild/issues/4588
+	// Lowering "#x in a" must not move a static private field initializer
+	// outside the class while still using the private name. The static
+	// private field must be lowered too.
+	expectPrintedWithUnsupportedFeatures(t, compat.ClassPrivateBrandCheck,
+		"class Foo { #x = 1; static #y = null; m(a) { return #x in a } }",
+		`var _x, _y;
+class Foo {
+  constructor() {
+    __privateAdd(this, _x, 1);
+  }
+  m(a) {
+    return __privateIn(_x, a);
+  }
+}
+_x = new WeakMap();
+_y = new WeakMap();
+__privateAdd(Foo, _y, null);
+`)
+}
+
 func TestLowerOptionalChain(t *testing.T) {
 	expectPrintedTarget(t, 2019, "a?.b.c", "a == null ? void 0 : a.b.c;\n")
 	expectPrintedTarget(t, 2019, "(a?.b).c", "(a == null ? void 0 : a.b).c;\n")
