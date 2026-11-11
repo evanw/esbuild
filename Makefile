@@ -63,7 +63,7 @@ go-compiler: go/$(GO_VERSION)
 # from breaking esbuild for users solely on the basis of what version of
 # Go esbuild was compiled with.
 #
-# Most (all?) Go-related security tooling effectivelly runs the command
+# Most (all?) Go-related security tooling effectively runs the command
 # "go version ./esbuild" and then creates a false-positive report for
 # esbuild for every single CVE in Go's expansive standard library. There is
 # no consideration for whether or not the corresponding API is ever actually
