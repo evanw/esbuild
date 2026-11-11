@@ -12191,6 +12191,26 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 	classLoweringInfo := p.computeClassLoweringInfo(class)
 	recomputeClassLoweringInfo := false
 
+	// Conservatively lower all private names that have been used in a private
+	// brand check anywhere in the file. See the comment on this map for details.
+	if p.lowerAllOfThesePrivateNames != nil {
+		for _, prop := range class.Properties {
+			if private, ok := prop.Key.Data.(*js_ast.EPrivateIdentifier); ok {
+				if symbol := &p.symbols[private.Ref.InnerIndex]; p.lowerAllOfThesePrivateNames[symbol.OriginalName] {
+					symbol.Flags |= ast.PrivateSymbolMustBeLowered
+					recomputeClassLoweringInfo = true
+				}
+			}
+		}
+	}
+
+	// If we changed private symbol lowering decisions, then recompute class
+	// lowering info because that may have changed other decisions too
+	if recomputeClassLoweringInfo {
+		classLoweringInfo = p.computeClassLoweringInfo(class)
+		recomputeClassLoweringInfo = false
+	}
+
 	// Sometimes we need to lower private members even though they are supported.
 	// This flags them for lowering so that we lower references to them as we
 	// traverse the class body.
@@ -12198,6 +12218,12 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 	// We don't need to worry about possible references to the class shadowing
 	// symbol inside the class body changing our decision to lower private members
 	// later on because that shouldn't be possible.
+	//
+	// This must run after the recompute above because lowering a private brand
+	// check such as "#x in y" can newly decide to lower all static fields.
+	// Otherwise the initializer of a static private field would be moved
+	// outside the class while still using the private name, which is a syntax
+	// error. See https://github.com/evanw/esbuild/issues/4588.
 	if classLoweringInfo.lowerAllStaticFields {
 		for _, prop := range class.Properties {
 			// We need to lower all private members if fields of that type are lowered,
@@ -12223,21 +12249,8 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 		}
 	}
 
-	// Conservatively lower all private names that have been used in a private
-	// brand check anywhere in the file. See the comment on this map for details.
-	if p.lowerAllOfThesePrivateNames != nil {
-		for _, prop := range class.Properties {
-			if private, ok := prop.Key.Data.(*js_ast.EPrivateIdentifier); ok {
-				if symbol := &p.symbols[private.Ref.InnerIndex]; p.lowerAllOfThesePrivateNames[symbol.OriginalName] {
-					symbol.Flags |= ast.PrivateSymbolMustBeLowered
-					recomputeClassLoweringInfo = true
-				}
-			}
-		}
-	}
-
-	// If we changed private symbol lowering decisions, then recompute class
-	// lowering info because that may have changed other decisions too
+	// Lowering all private members above may have changed other decisions too,
+	// so recompute once more if anything changed
 	if recomputeClassLoweringInfo {
 		classLoweringInfo = p.computeClassLoweringInfo(class)
 	}

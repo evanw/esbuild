@@ -463,6 +463,21 @@ func (p *parser) computeClassLoweringInfo(class *js_ast.Class) (result classLowe
 	//   }
 	//   _foo = new WeakMap();
 	//
+	// Lowering an instance private member also lowers all static fields (see
+	// below), but only when the class actually has static fields or static
+	// blocks that would be moved outside the class body. Otherwise there is
+	// nothing to move, and setting "lowerAllStaticFields" would needlessly
+	// lower all other private members of the class as well. For example, a
+	// private brand check such as "#foo in x" should only lower "#foo", not
+	// every other private member. See https://github.com/evanw/esbuild/issues/4588.
+	hasStaticFieldOrBlock := false
+	for _, prop := range class.Properties {
+		if prop.Kind == js_ast.PropertyClassStaticBlock || prop.Flags.Has(js_ast.PropertyIsStatic) {
+			hasStaticFieldOrBlock = true
+			break
+		}
+	}
+
 	for _, prop := range class.Properties {
 		if prop.Kind == js_ast.PropertyClassStaticBlock {
 			if p.options.unsupportedJSFeatures.Has(compat.ClassStaticBlocks) {
@@ -504,7 +519,9 @@ func (p *parser) computeClassLoweringInfo(class *js_ast.Class) (result classLowe
 					// isn't great and it would be good to find a way to avoid this.
 					// The inner class name symbol substitution mechanism should probably
 					// be rethought.
-					result.lowerAllStaticFields = true
+					if hasStaticFieldOrBlock {
+						result.lowerAllStaticFields = true
+					}
 				}
 			}
 			continue
