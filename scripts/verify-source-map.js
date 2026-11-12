@@ -1081,8 +1081,71 @@ async function checkNames(kind, testCase, { outfile, flags, entryPoints, crlf })
   return failed
 }
 
+async function checkCSSSymbolLocations(flags) {
+  const kind = 'css-symbol-locations ' + flags.join(' ')
+  const tempDir = path.join(testDir, `css-symbol-locations-${tempDirCount++}`)
+  let failed = 0
+
+  try {
+    await fs.mkdir(tempDir, { recursive: true })
+    const contents = `.a:has(+ .card) { margin: 0; }
+.card { color: red; }
+#x .b { color: red; }
+#x { color: blue; }
+`
+    await fs.writeFile(path.join(tempDir, 'input.css'), contents)
+    await execFileAsync(esbuildPath, [
+      'input.css', '--outfile=out.css', '--sourcemap', '--log-level=warning', ...flags,
+    ], { cwd: tempDir })
+
+    // Also check a second build to exercise source map chaining.
+    await execFileAsync(esbuildPath, [
+      'out.css', '--outfile=nested.css', '--sourcemap', '--log-level=warning',
+    ], { cwd: tempDir })
+
+    for (const outfile of ['out.css', 'nested.css']) {
+      const map = await new SourceMapConsumer(await fs.readFile(path.join(tempDir, outfile + '.map'), 'utf8'))
+      try {
+        for (const match of contents.matchAll(/[.#](card|x)\b/g)) {
+          const lines = contents.slice(0, match.index + 1).split('\n')
+          const expected = { source: 'input.css', line: lines.length, column: lines[lines.length - 1].length }
+          const generated = map.allGeneratedPositionsFor(expected)
+          const found = generated.some(position => {
+            const original = map.originalPositionFor(position)
+            return original.source === expected.source && original.line === expected.line && original.column === expected.column
+          })
+          if (!found) {
+            console.error(`❌ [${kind}] ${outfile}: no mapping for ${JSON.stringify(expected)}`)
+            failed++
+          }
+        }
+      } finally {
+        map.destroy()
+      }
+    }
+
+    if (!failed) removeRecursiveSync(tempDir)
+  } catch (e) {
+    console.error(`❌ [${kind}] ${e && e.message || e}`)
+    failed++
+  }
+
+  return failed
+}
+
 async function main() {
   const promises = []
+  for (const loader of ['css', 'local-css', 'global-css']) {
+    for (const bundle of [false, true]) {
+      for (const minify of [false, true]) {
+        promises.push(checkCSSSymbolLocations([
+          '--loader:.css=' + loader,
+          ...(bundle ? ['--bundle'] : []),
+          ...(minify ? ['--minify-whitespace', '--minify-identifiers'] : []),
+        ]))
+      }
+    }
+  }
   for (const crlf of [false, true]) {
     for (const minify of [false, true]) {
       const flags = minify ? ['--minify'] : []

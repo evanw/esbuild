@@ -341,7 +341,7 @@ func (p *parser) symbolForName(loc logger.Loc, name string) ast.LocRef {
 	}
 
 	p.symbols[entry.Ref.InnerIndex].UseCountEstimate++
-	return entry
+	return ast.LocRef{Loc: loc, Ref: entry.Ref}
 }
 
 func (p *parser) recordAtLayerRule(layers [][]string) {
