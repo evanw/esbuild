@@ -35,6 +35,37 @@ tests.push(
   }),
 )
 
+// Test logical-assignment minification of mutable lexical bindings
+for (const op of ['||', '&&', '??']) {
+  for (const target of ['esnext', 'es2020']) {
+    tests.push(test(['in.js', '--minify', `--target=${target}`, '--outfile=node.js'], {
+      'in.js': `
+        const values = [undefined, null, false, true, 0, -0, NaN, 1, '', 'x', {}, []]
+        for (const value of values) {
+          let x = value, calls = 0
+          const result = (x = x ${op} (++calls, 42))
+          const expected = value ${op} 42
+          if (!Object.is(x, expected) || !Object.is(result, expected)) throw 'value'
+          if (calls !== (Object.is(expected, value) ? 0 : 1)) throw 'calls'
+        }
+        let events = []
+        const obj = { get x() { events.push('get'); return 1 }, set x(value) { events.push('set') } }
+        obj.x = obj.x ${op} 42
+        if (events.join() !== 'get,set') throw 'accessor'
+        let fn
+        fn = fn ${op} function() {}
+        if (fn && fn.name !== '') throw 'function name'
+        let arrow
+        arrow = arrow ${op} (() => {})
+        if (arrow && arrow.name !== '') throw 'arrow name'
+        let cls
+        cls = cls ${op} class {}
+        if (cls && cls.name !== '') throw 'class name'
+      `,
+    }))
+  }
+}
+
 // Test recursive directory creation
 tests.push(
   test(['entry.js', '--outfile=a/b/c/d/index.js'], {
