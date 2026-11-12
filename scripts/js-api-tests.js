@@ -4095,6 +4095,50 @@ const makeRebuildUntilPlugin = () => {
 }
 
 let watchTests = {
+  async watchSymlinkRetarget({ esbuild, testDir }) {
+    // Symlink tests are also disabled on Windows in end-to-end-tests.js.
+    if (process.platform === 'win32') return
+
+    const input = path.join(testDir, 'in.js')
+    const link = path.join(testDir, 'link.js')
+    const first = path.join(testDir, 'first.js')
+    const second = path.join(testDir, 'second.js')
+    await writeFileAsync(input, `import './link.js'`)
+    await writeFileAsync(first, `throw 1`)
+    await writeFileAsync(second, `throw 2`)
+    const date = new Date('2020-01-01T00:00:00Z')
+    await fs.promises.utimes(first, date, date)
+    await fs.promises.utimes(second, date, date)
+    await fs.promises.symlink('first.js', link)
+
+    const retarget = target => {
+      fs.symlinkSync(target, link + '.tmp')
+      fs.renameSync(link + '.tmp', link)
+    }
+    const { rebuildUntil, plugin } = makeRebuildUntilPlugin()
+    const context = await esbuild.context({
+      entryPoints: [input],
+      bundle: true,
+      write: false,
+      logLevel: 'silent',
+      plugins: [plugin],
+    })
+    const hasOutput = text => result => result.errors.length === 0 && result.outputFiles[0].text.includes(text)
+
+    try {
+      await rebuildUntil(() => context.watch(), hasOutput('throw 1;'))
+      await rebuildUntil(() => retarget('second.js'), hasOutput('throw 2;'))
+      await rebuildUntil(() => writeFileAtomic(second, `throw 3`), hasOutput('throw 3;'))
+      await rebuildUntil(() => retarget('first.js'), hasOutput('throw 1;'))
+
+      // A broken link should report an error and then recover when restored.
+      await rebuildUntil(() => retarget('missing.js'), result => result.errors.length > 0)
+      await rebuildUntil(() => retarget('second.js'), hasOutput('throw 3;'))
+    } finally {
+      await context.dispose()
+    }
+  },
+
   async watchTwice({ esbuild }) {
     const context = await esbuild.context({})
     try {
