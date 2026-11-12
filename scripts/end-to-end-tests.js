@@ -16,6 +16,63 @@ const esbuildPath = buildBinary()
 const tests = []
 let testCount = 0
 
+// Decorated auto-accessors must be non-enumerable, just like undecorated ones.
+for (const target of ['es2022', 'es2020', 'es2015']) {
+  for (const minify of [false, true]) {
+    tests.push(test([
+      'in.js', '--outfile=node.js', '--target=' + target,
+      ...(minify ? ['--minify'] : []),
+    ], {
+      'in.js': `
+        const symbol = Symbol('accessor')
+        function noop() {}
+        function wrap(value, context) {
+          context.addInitializer(function() {
+            if (Object.prototype.propertyIsEnumerable.call(context.static ? this : Object.getPrototypeOf(this), context.name))
+              throw 'enumerable in initializer'
+          })
+          return {
+            get() { return value.get.call(this) + 1 },
+            set(x) { value.set.call(this, x + 1) },
+            init(x) { return x + 1 },
+          }
+        }
+        class A {
+          @noop accessor plain = 1
+          @noop @wrap accessor [symbol] = 2
+          @noop static accessor plain = 3
+          @noop @wrap static accessor [symbol] = 4
+          accessor control = 5
+          static accessor control = 6
+          @noop method() {}
+          @noop static method() {}
+          @noop field = 7
+          @noop static field = 8
+        }
+        const a = new A
+        for (const owner of [A, A.prototype]) {
+          for (const key of ['plain', symbol, 'control', 'method']) {
+            const desc = Object.getOwnPropertyDescriptor(owner, key)
+            if (!desc || desc.enumerable !== false) throw 'enumerable: ' + String(key)
+            if (key !== 'method' && (typeof desc.get !== 'function' || typeof desc.set !== 'function'))
+              throw 'missing accessor: ' + String(key)
+          }
+          if (Object.keys(owner).includes('plain')) throw 'Object.keys'
+        }
+        const seen = []
+        for (const key in a) seen.push(key)
+        if (seen.includes('plain')) throw 'for in'
+        if (!Object.getOwnPropertyDescriptor(a, 'field').enumerable || !Object.getOwnPropertyDescriptor(A, 'field').enumerable)
+          throw 'field should stay enumerable'
+        if (a.plain !== 1 || A.plain !== 3 || a[symbol] !== 4 || A[symbol] !== 6) throw 'initial value'
+        a[symbol] = 10
+        A[symbol] = 20
+        if (a[symbol] !== 12 || A[symbol] !== 22) throw 'setter/getter'
+      `,
+    }))
+  }
+}
+
 // Tests for "--define"
 tests.push(
   test(['--define:foo=null', 'in.js', '--outfile=node.js'], { 'in.js': `if (foo !== null) throw 'fail'` }),
