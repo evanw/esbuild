@@ -25,6 +25,7 @@ var __decorateElement = (array, flags, name, decorators, target, extra) => {
   }, set [name](x) {
     return __privateSet(this, extra, x);
   } }, name));
+  if (k === 4) desc.enumerable = false;
   k ? p && k < 4 && __name(extra, (k > 2 ? "set " : k > 1 ? "get " : "") + name) : __name(target, name);
   for (var i = decorators.length - 1; i >= 0; i--) {
     ctx = __decoratorContext(k, name, done = {}, array[3], extraInitializers);

@@ -311,6 +311,7 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 
 	text += `
 			)
+			if (k === 4) desc.enumerable = false
 			k ? p && k < 4 && __name(extra, (k > 2 ? 'set ' : k > 1 ? 'get ' : '') + name) : __name(target, name)
 
 			for (var i = decorators.length - 1; i >= 0; i--) {
