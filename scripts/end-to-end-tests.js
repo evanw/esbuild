@@ -16,6 +16,63 @@ const esbuildPath = buildBinary()
 const tests = []
 let testCount = 0
 
+// A computed static "name" member must not be overwritten by --keep-names.
+for (const target of ['es2022', 'es2020', 'es2015']) {
+  for (const minify of [false, true]) {
+    tests.push(test([
+      'in.js', '--outfile=node.js', '--keep-names', '--target=' + target,
+      ...(minify ? ['--minify'] : []),
+    ], {
+      'in.js': `
+        let key = 'name', reads = 0, keys = 0
+        const computed = { toString() { keys++; return key } }
+        class Method { static [computed]() { return 'method' } }
+        class Getter { static get [key]() { reads++; return 'getter' } }
+        class Setter { static set [key](value) { reads += value } }
+        if (reads !== 0) throw 'getter invoked during definition'
+        if (typeof Method.name !== 'function' || Method.name() !== 'method') throw 'method overwritten'
+        if (Getter.name !== 'getter' || reads !== 1) throw 'getter overwritten'
+        Setter.name = 2
+        if (reads !== 3) throw 'setter overwritten'
+        if (keys !== 1) throw 'computed key converted more than once'
+        const expression = class { static [key]() { return 'expression' } }
+        if (typeof expression.name !== 'function' || expression.name() !== 'expression') throw 'expression overwritten'
+        key = 'other'
+        class Named { static [key]() {} }
+        const Inferred = class { static [key]() {} }
+        if (Named.name !== 'Named' || Inferred.name !== 'Inferred') throw 'ordinary class name not kept'
+        class Field { static [key]() {}; static originalName = this.name }
+        if (Field.originalName !== 'Field') throw 'static initialization order'
+        key = 'name'
+        class FieldOverride { static [key] = 'field' }
+        if (FieldOverride.name !== 'field') throw 'field overwritten'
+        class Literal { static name() { return 'literal' } }
+        if (Literal.name() !== 'literal') throw 'literal method overwritten'
+        class Auto { static accessor [key] = 'accessor' }
+        if (Auto.name !== 'accessor') throw 'auto accessor overwritten'
+        const symbol = Symbol('method')
+        class SymbolClass { static [symbol]() {} }
+        if (SymbolClass.name !== 'SymbolClass') throw 'symbol class name not kept'
+        class Numeric { static [123]() {} }
+        if (Numeric.name !== 'Numeric') throw 'numeric class name not kept'
+        class Parent { static get name() { throw 'inherited getter invoked' } }
+        key = 'other'
+        class Child extends Parent { static [key]() {} }
+        if (Child.name !== 'Child') throw 'inherited name'
+        const log = []
+        key = 'name'
+        class Ordered {
+          static first = (log.push(typeof this.name), 1)
+          static [key]() {}
+          static { log.push(typeof this.name) }
+        }
+        if (log + '' !== 'function,function') throw 'method installation order'
+
+      `,
+    }))
+  }
+}
+
 // Tests for "--define"
 tests.push(
   test(['--define:foo=null', 'in.js', '--outfile=node.js'], { 'in.js': `if (foo !== null) throw 'fail'` }),

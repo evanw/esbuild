@@ -567,6 +567,10 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 		}
 	`
 
+	text += `
+		export var __nameClass = (target, value) => typeof __getOwnPropDesc(target, 'name').value === 'string' && __name(target, value)
+	`
+
 	return logger.Source{
 		Index:          SourceIndex,
 		KeyPath:        logger.Path{Text: "<runtime>"},

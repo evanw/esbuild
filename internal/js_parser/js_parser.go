@@ -12484,9 +12484,13 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 	// Implement name keeping using a static block at the start of the class body
 	if p.options.keepNames && nameToKeep != "" {
 		propertyPreventsKeepNames := false
+		hasComputedStaticMethod := false
 		for _, prop := range class.Properties {
 			// A static property called "name" shadows the automatically-generated name
 			if prop.Flags.Has(js_ast.PropertyIsStatic) {
+				if prop.Flags.Has(js_ast.PropertyIsComputed) && (prop.Kind.IsMethodDefinition() || prop.Kind == js_ast.PropertyAutoAccessor) {
+					hasComputedStaticMethod = true
+				}
 				if str, ok := prop.Key.Data.(*js_ast.EString); ok && helpers.UTF16EqualsString(str.Value, "name") {
 					propertyPreventsKeepNames = true
 					break
@@ -12501,11 +12505,20 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 			} else {
 				this = js_ast.Expr{Loc: class.BodyLoc, Data: js_ast.EThisShared}
 			}
+			keepName := p.keepClassOrFnSymbolName(class.BodyLoc, this, nameToKeep)
+			if hasComputedStaticMethod {
+				// Methods are installed before static blocks run. Inspect the own
+				// descriptor so a computed "name" getter is not called or overwritten.
+				keepName.Data.(*js_ast.SExpr).Value = p.callRuntime(class.BodyLoc, "__nameClass", []js_ast.Expr{
+					this,
+					{Loc: class.BodyLoc, Data: &js_ast.EString{Value: helpers.StringToUTF16(nameToKeep)}},
+				})
+			}
 			properties := make([]js_ast.Property, 0, 1+len(class.Properties))
 			properties = append(properties, js_ast.Property{
 				Kind: js_ast.PropertyClassStaticBlock,
 				ClassStaticBlock: &js_ast.ClassStaticBlock{Loc: class.BodyLoc, Block: js_ast.SBlock{Stmts: []js_ast.Stmt{
-					p.keepClassOrFnSymbolName(class.BodyLoc, this, nameToKeep),
+					keepName,
 				}}},
 			})
 			class.Properties = append(properties, class.Properties...)
