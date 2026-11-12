@@ -16413,6 +16413,42 @@ func (v *binaryExprVisitor) visitRightAndFinish(p *parser) js_ast.Expr {
 		// All assignment operators below here
 
 	case js_ast.BinOpAssign:
+		// "let x; x = x || y" => "let x; x ||= y"
+		// Only mutable lexical bindings are considered here. Global variables,
+		// properties, and identifiers inside "with" may invoke setters, while
+		// assigning to an immutable binding must still throw on the short path.
+		if p.options.minifySyntax && v.in.assignTarget == js_ast.AssignTargetNone &&
+			!p.options.unsupportedJSFeatures.Has(compat.LogicalAssignment) {
+			if left, ok := e.Left.Data.(*js_ast.EIdentifier); ok && !left.MustKeepDueToWithStmt &&
+				p.symbols[left.Ref.InnerIndex].Kind == ast.SymbolOther {
+				if right, ok := e.Right.Data.(*js_ast.EBinary); ok {
+					if read, ok := right.Left.Data.(*js_ast.EIdentifier); ok && read.Ref == left.Ref && !read.MustKeepDueToWithStmt {
+						var op js_ast.OpCode
+						switch right.Op {
+						case js_ast.BinOpLogicalOr:
+							op = js_ast.BinOpLogicalOrAssign
+						case js_ast.BinOpLogicalAnd:
+							op = js_ast.BinOpLogicalAndAssign
+						case js_ast.BinOpNullishCoalescing:
+							op = js_ast.BinOpNullishCoalescingAssign
+						}
+						// Logical assignments infer names for anonymous functions and
+						// classes, unlike the logical expressions they replace.
+						switch right.Right.Data.(type) {
+						case *js_ast.EArrow, *js_ast.EFunction, *js_ast.EClass, *js_ast.EAnnotation:
+							op = 0
+						}
+						if op != 0 {
+							p.ignoreUsage(read.Ref)
+							e.Op = op
+							e.Right = right.Right
+							return js_ast.Expr{Loc: v.loc, Data: e}
+						}
+					}
+				}
+			}
+		}
+
 		if target, loc, private := p.extractPrivateIndex(e.Left); private != nil {
 			return p.lowerPrivateSet(target, loc, private, e.Right)
 		}

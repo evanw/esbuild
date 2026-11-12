@@ -6980,3 +6980,26 @@ func TestUsing(t *testing.T) {
 	expectPrintedMangle(t, "using x = null, y = z", "using x = null, y = z;\n")
 	expectPrintedMangle(t, "using x = z, y = undefined", "using x = z, y = void 0;\n")
 }
+
+func TestMangleLogicalAssignment(t *testing.T) {
+	for _, op := range []string{"||", "&&", "??"} {
+		expectPrintedMangle(t, "let x; x = x "+op+" y", "let x;\nx "+op+"= y;\n")
+		expectPrintedMangle(t, "let x; use(x = x "+op+" y)", "let x;\nuse(x "+op+"= y);\n")
+		expectPrintedMangle(t, "let x; x = x "+op+" (a, y)", "let x;\nx "+op+"= (a, y);\n")
+		expectPrintedMangle(t, "let x; [x = x "+op+" y] = z", "let x;\n[x = x "+op+" y] = z;\n")
+		expectPrintedMangle(t, "let x; x = x "+op+" (a ? b : c)", "let x;\nx "+op+"= a ? b : c;\n")
+		expectPrintedMangle(t, "let x, y; x = y "+op+" z", "let x, y;\nx = y "+op+" z;\n")
+		expectPrintedMangle(t, "x = x "+op+" y", "x = x "+op+" y;\n")
+		expectPrintedMangle(t, "var x; x = x "+op+" y", "var x;\nx = x "+op+" y;\n")
+		expectPrintedMangle(t, "let x; obj.x = obj.x "+op+" y", "let x;\nobj.x = obj.x "+op+" y;\n")
+		expectPrintedMangle(t, "let x; with (obj) x = x "+op+" y", "let x;\nwith (obj) x = x "+op+" y;\n")
+		expectPrintedMangle(t, "const x = y; x = x "+op+" z", "const x = y;\nx = x "+op+" z;\n")
+		expectPrintedMangle(t, "let x; x = x "+op+" (() => y)", "let x;\nx = x "+op+" (() => y);\n")
+		expectPrintedMangle(t, "let x; x = x "+op+" function() {}", "let x;\nx = x "+op+" function() {\n};\n")
+		expectPrintedMangle(t, "let x; x = x "+op+" class {}", "let x;\nx = x "+op+" class {\n};\n")
+		expectPrintedCommon(t, "let x; x = x "+op+" y", "let x;\nx = x "+op+" y;\n", config.Options{
+			MinifySyntax:          true,
+			UnsupportedJSFeatures: compat.LogicalAssignment,
+		})
+	}
+}
