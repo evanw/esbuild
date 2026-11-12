@@ -16,7 +16,8 @@ type realFS struct {
 	entries map[string]entriesOrErr
 
 	// This stores data that will end up being returned by "WatchData()"
-	watchData map[string]privateWatchData
+	watchData     map[string]privateWatchData
+	watchSymlinks map[string]string
 
 	// When building with WebAssembly, the Go compiler doesn't correctly handle
 	// platform-specific path behavior. Hack around these bugs by compiling
@@ -106,14 +107,17 @@ func RealFS(options RealFSOptions) (FS, error) {
 
 	// Only allocate memory for watch data if necessary
 	var watchData map[string]privateWatchData
+	var watchSymlinks map[string]string
 	if options.WantWatchData {
 		watchData = make(map[string]privateWatchData)
+		watchSymlinks = make(map[string]string)
 	}
 
 	var result FS = &realFS{
 		entries:           make(map[string]entriesOrErr),
 		fp:                fp,
 		watchData:         watchData,
+		watchSymlinks:     watchSymlinks,
 		doNotCacheEntries: options.DoNotCache,
 	}
 
@@ -421,6 +425,15 @@ func (fs *realFS) kind(dir string, base string) (symlink string, kind EntryKind)
 	// Follow symlinks now so the cache contains the translation
 	if (mode & os.ModeSymlink) != 0 {
 		link, err := fs.fp.evalSymlinks(entryPath)
+
+		// The resolved target is watched separately. Also watch the link itself
+		// so replacing it with a link to another target triggers a rebuild.
+		if fs.watchSymlinks != nil {
+			fs.watchMutex.Lock()
+			fs.watchSymlinks[entryPath] = link
+			fs.watchMutex.Unlock()
+		}
+
 		if err != nil {
 			return // Skip over this entry
 		}
@@ -534,6 +547,20 @@ func (fs *realFS) WatchData() WatchData {
 				}
 				return ""
 			}
+		}
+	}
+
+	for path, target := range fs.watchSymlinks {
+		path, target := path, target
+		check := paths[path]
+		paths[path] = func() string {
+			if link, _ := fs.fp.evalSymlinks(path); link != target {
+				return path
+			}
+			if check != nil {
+				return check()
+			}
+			return ""
 		}
 	}
 
