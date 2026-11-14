@@ -8089,6 +8089,101 @@ let childProcessTests = {
       child.kill()
     }
   },
+
+  // More info about this test case: https://github.com/evanw/esbuild/issues/4548
+  async testServiceDoesNotLockCwd({ testDir, esbuild }) {
+    const runChild = async (name, body) => {
+      const file = path.join(testDir, `${name}.js`)
+      const workDir = path.join(testDir, name)
+      fs.mkdirSync(workDir)
+      await writeFileAsync(file, `
+        const assert = require('assert')
+        const fs = require('fs')
+        const esbuildPkgPath = ${JSON.stringify(esbuild.ESBUILD_PACKAGE_PATH)}
+        const testDir = ${JSON.stringify(testDir)}
+        const workDir = ${JSON.stringify(workDir)}
+        ;(async () => {
+          ${body}
+          console.log('success')
+          process.exit(0)
+        })().catch(err => {
+          console.error(err)
+          process.exit(1)
+        })
+      `)
+      await new Promise((resolve, reject) => {
+        child_process.execFile('node', [file], (error, stdout, stderr) => {
+          if (error) reject(error)
+          else if (stdout !== 'success\n') reject(new Error('Unexpected stdout: ' + JSON.stringify(stdout)))
+          else if (stderr !== '') reject(new Error('Unexpected stderr: ' + JSON.stringify(stderr)))
+          else resolve()
+        })
+      })
+    }
+
+    await runChild('async-lock', `
+      process.chdir(workDir)
+      const esbuild = require(esbuildPkgPath)
+      const res = await esbuild.transform('let x = 1', { loader: 'js' })
+      assert.strictEqual(res.code, 'let x = 1;\\n')
+      process.chdir(testDir)
+      fs.rmdirSync(workDir)
+    `)
+
+    await runChild('sync-lock', `
+      process.chdir(workDir)
+      const esbuild = require(esbuildPkgPath)
+      const res = esbuild.transformSync('1 + 2', { loader: 'js' })
+      assert.strictEqual(res.code, '1 + 2;\\n')
+      process.chdir(testDir)
+      fs.rmdirSync(workDir)
+    `)
+
+    await runChild('deleted-default-wd', `
+      process.chdir(workDir)
+      const esbuild = require(esbuildPkgPath)
+      process.chdir(testDir)
+      fs.rmdirSync(workDir)
+      const asyncRes = await esbuild.transform('let y = 2', { loader: 'js' })
+      assert.strictEqual(asyncRes.code, 'let y = 2;\\n')
+      const syncRes = esbuild.transformSync('2 + 3', { loader: 'js' })
+      assert.strictEqual(syncRes.code, '2 + 3;\\n')
+    `)
+  },
+
+  async testServicePreservesDefaultWD({ testDir, esbuild }) {
+    const dirA = path.join(testDir, 'a')
+    const dirB = path.join(testDir, 'b')
+    const file = path.join(testDir, 'run.js')
+    fs.mkdirSync(dirA)
+    fs.mkdirSync(dirB)
+    await writeFileAsync(path.join(dirA, 'entry.js'), 'export default 42')
+    await writeFileAsync(file, `
+      const assert = require('assert')
+      ;(async () => {
+        process.chdir(${JSON.stringify(dirA)})
+        const esbuild = require(${JSON.stringify(esbuild.ESBUILD_PACKAGE_PATH)})
+        process.chdir(${JSON.stringify(dirB)})
+        const asyncRes = await esbuild.build({ entryPoints: ['entry.js'], bundle: true, format: 'cjs', write: false })
+        assert.ok(asyncRes.outputFiles[0].text.includes('42'))
+        const syncRes = esbuild.buildSync({ entryPoints: ['entry.js'], bundle: true, format: 'cjs', write: false })
+        assert.ok(syncRes.outputFiles[0].text.includes('42'))
+        console.log('success')
+        process.exit(0)
+      })().catch(err => {
+        console.error(err)
+        process.exit(1)
+      })
+    `)
+    await new Promise((resolve, reject) => {
+      child_process.execFile('node', [file], (error, stdout, stderr) => {
+        if (error) reject(error)
+        else if (stdout !== 'success\n') reject(new Error('Unexpected stdout: ' + JSON.stringify(stdout)))
+        else if (stderr !== '') reject(new Error('Unexpected stderr: ' + JSON.stringify(stderr)))
+        else resolve()
+      })
+    })
+  },
 }
 
 let serialTests = {
