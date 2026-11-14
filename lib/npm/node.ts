@@ -73,7 +73,8 @@ let esbuildCommandAndArgs = (): [string, string[]] => {
     if (isWASM) {
       return ['node', [binPath]]
     } else {
-      return [binPath, []]
+      // Resolve before spawning with cwd: os.tmpdir() in case ESBUILD_BINARY_PATH is relative
+      return [path.resolve(binPath), []]
     }
   }
 }
@@ -258,7 +259,9 @@ let ensureServiceIsRunning = (): Service => {
   let child = child_process.spawn(command, args.concat(`--service=${ESBUILD_VERSION}`, '--ping'), {
     windowsHide: true,
     stdio: ['pipe', 'pipe', 'inherit'],
-    cwd: defaultWD,
+    // Use os.tmpdir() instead of defaultWD so the long-lived service process doesn't
+    // keep defaultWD locked on Windows or fail with ENOENT if it is deleted later.
+    cwd: os.tmpdir(),
   })
 
   let { readFromStdout, afterClose, service } = common.createChannel({
@@ -392,7 +395,7 @@ let runServiceSync = (callback: (service: common.StreamService) => void): void =
   })
   callback(service)
   let stdout = child_process.execFileSync(command, args.concat(`--service=${ESBUILD_VERSION}`), {
-    cwd: defaultWD,
+    cwd: os.tmpdir(),
     windowsHide: true,
     input: stdin,
 
@@ -545,12 +548,12 @@ let startSyncServiceWorker = () => {
   }
 
   try {
-    let service = ensureServiceIsRunning()
-
     // Take the default working directory from the main thread because we want it
     // to be consistent. This will be the working directory that was current at
     // the time the "esbuild" package was first imported.
     defaultWD = worker_threads!.workerData.defaultWD
+
+    let service = ensureServiceIsRunning()
 
     parentPort.on('message', (msg: MainToWorkerMessage) => {
       (async () => {
