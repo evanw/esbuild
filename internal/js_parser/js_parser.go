@@ -60,6 +60,7 @@ type parser struct {
 	legacyOctalLiterals        map[js_ast.E]logger.Range
 	scopesInOrderForEnum       map[logger.Loc][]scopeOrder
 	binaryExprStack            []binaryExprVisitor
+	tsRanges                   []logger.Range
 
 	// For strict mode handling
 	hoistedRefForSloppyModeBlockFn map[ast.Ref]ast.Ref
@@ -4960,8 +4961,10 @@ func (p *parser) parseSuffix(left js_ast.Expr, level js_ast.L, errors *deferredE
 		default:
 			// Handle the TypeScript "as"/"satisfies" operator
 			if p.options.ts.Parse && level < js_ast.LCompare && !p.lexer.HasNewlineBefore && (p.lexer.IsContextualKeyword("as") || p.lexer.IsContextualKeyword("satisfies")) {
+				typeScriptStart := p.lexer.Loc().Start
 				p.lexer.Next()
 				p.skipTypeScriptType(js_ast.LLowest)
+				p.recordTypeScriptRange(typeScriptStart, p.lexer.Loc().Start)
 
 				// These tokens are not allowed to follow a cast expression. This isn't
 				// an outright error because it may be on a new line, in which case it's
@@ -6506,6 +6509,7 @@ func (p *parser) parseClass(classKeyword logger.Range, name *ast.LocRef, classOp
 	}
 
 	if p.options.ts.Parse && p.lexer.IsContextualKeyword("implements") {
+		typeScriptStart := p.lexer.Loc().Start
 		p.lexer.Next()
 		for {
 			p.skipTypeScriptType(js_ast.LLowest)
@@ -6514,6 +6518,7 @@ func (p *parser) parseClass(classKeyword logger.Range, name *ast.LocRef, classOp
 			}
 			p.lexer.Next()
 		}
+		p.recordTypeScriptRange(typeScriptStart, p.lexer.Loc().Start)
 	}
 
 	bodyLoc := p.lexer.Loc()
@@ -8531,6 +8536,9 @@ func (p *parser) parseStmtsUpTo(end js_lexer.T, opts parseStmtOpts) []js_ast.Stm
 		// Skip TypeScript types entirely
 		if p.options.ts.Parse {
 			if _, ok := stmt.Data.(*js_ast.STypeScript); ok {
+				if end := p.lexer.Loc().Start; end > stmt.Loc.Start {
+					p.recordTypeScriptRange(stmt.Loc.Start, end)
+				}
 				continue
 			}
 		}
@@ -18487,12 +18495,31 @@ func (p *parser) computeCharacterFrequency() *ast.CharFreq {
 	charFreq := &ast.CharFreq{}
 	charFreq.Scan(p.source.Contents, 1)
 
-	// Subtract out all comments
-	for _, commentRange := range p.lexer.AllComments {
-		charFreq.Scan(p.source.TextForRange(commentRange), -1)
+	// Subtract out comments and erased TypeScript ranges. Merge overlapping
+	// ranges first since erased TypeScript can contain comments or nested types.
+	excludedRanges := make([]logger.Range, 0, len(p.lexer.AllComments)+len(p.tsRanges))
+	excludedRanges = append(excludedRanges, p.lexer.AllComments...)
+	excludedRanges = append(excludedRanges, p.tsRanges...)
+	sort.Slice(excludedRanges, func(i, j int) bool {
+		return excludedRanges[i].Loc.Start < excludedRanges[j].Loc.Start
+	})
+	for i := 0; i < len(excludedRanges); {
+		rangeEnd := excludedRanges[i].End()
+		j := i + 1
+		for j < len(excludedRanges) && excludedRanges[j].Loc.Start <= rangeEnd {
+			if end := excludedRanges[j].End(); end > rangeEnd {
+				rangeEnd = end
+			}
+			j++
+		}
+		if rangeEnd > excludedRanges[i].Loc.Start {
+			charFreq.Scan(p.source.Contents[excludedRanges[i].Loc.Start:rangeEnd], -1)
+		}
+		i = j
 	}
 
-	// Subtract out all import paths
+	// Subtract out all import paths. Use the decoded path text instead of its
+	// source range to preserve the existing behavior for escaped string literals.
 	for _, record := range p.importRecords {
 		if !record.SourceIndex.IsValid() {
 			charFreq.Scan(record.Path.Text, -1)
@@ -18527,6 +18554,12 @@ func (p *parser) computeCharacterFrequency() *ast.CharFreq {
 	}
 
 	return charFreq
+}
+
+func (p *parser) recordTypeScriptRange(start, end int32) {
+	if p.options.minifyIdentifiers && end > start {
+		p.tsRanges = append(p.tsRanges, logger.Range{Loc: logger.Loc{Start: start}, Len: end - start})
+	}
 }
 
 func (p *parser) generateImportStmt(
