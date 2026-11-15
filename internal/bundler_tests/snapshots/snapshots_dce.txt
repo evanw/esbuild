@@ -2377,6 +2377,32 @@ console.log("foo");
 console.log("bar");
 
 ================================================================================
+TestPackageJsonSideEffectsFalseExportStarAndDynamicImport
+---------- /out.js ----------
+// Users/user/project/node_modules/demo-pkg/a.js
+var a_exports = {};
+__export(a_exports, {
+  MARKS: () => MARKS,
+  read: () => read
+});
+var MARKS, read;
+var init_a = __esm({
+  "Users/user/project/node_modules/demo-pkg/a.js"() {
+    MARKS = { one: 1 };
+    read = () => MARKS.one;
+  }
+});
+
+// Users/user/project/node_modules/demo-pkg/index.js
+init_a();
+
+// Users/user/project/node_modules/demo-pkg/lazy.js
+var later = () => Promise.resolve().then(() => (init_a(), a_exports));
+
+// Users/user/project/src/entry.js
+console.log(read(), typeof later);
+
+================================================================================
 TestPackageJsonSideEffectsFalseIntermediateFilesChainAll
 ---------- /out.js ----------
 // Users/user/project/node_modules/d/index.js

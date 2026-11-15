@@ -173,6 +173,11 @@ type ImportData struct {
 }
 
 type ExportData struct {
+	// These are the parts containing intermediate "export * from" statements
+	// in the chain before getting to the final symbol. They must be included
+	// when the export is used so wrapped modules are initialized first.
+	ReExports []js_ast.Dependency
+
 	// Export star resolution happens first before import resolution. That means
 	// it cannot yet determine if duplicate names from export star resolution are
 	// ambiguous (point to different symbols) or not (point to the same symbol).
