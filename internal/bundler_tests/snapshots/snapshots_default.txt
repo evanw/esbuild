@@ -298,6 +298,48 @@ export {
 };
 
 ================================================================================
+TestCharFreqIgnoreErasedTypeScript
+---------- /out/a.js ----------
+// a.ts
+function c(r, n) {
+  const o = r * n;
+  return o + r - n;
+}
+export {
+  c as area
+};
+
+---------- /out/b.js ----------
+// b.ts
+function c(r, n) {
+  const o = r * n;
+  return o + r - n;
+}
+export {
+  c as area
+};
+
+---------- /out/c.js ----------
+// c.ts
+function c(r, n) {
+  const o = r * n;
+  return o + r - n;
+}
+export {
+  c as area
+};
+
+---------- /out/d.js ----------
+// d.ts
+function c(r, n) {
+  const o = r * n;
+  return o + r - n;
+}
+export {
+  c as area
+};
+
+================================================================================
 TestCommentPreservation
 ---------- /out/entry.js ----------
 console.log(
@@ -5532,21 +5574,21 @@ console.log((0, import_demo_pkg.default)());
 TestNonDeterminismIssue2537
 ---------- /out.js ----------
 // entry.ts
-function i(o, e) {
-  let r = "teun";
-  if (o) {
-    let u = function(n) {
+function c(f, t) {
+  let e = "teun";
+  if (f) {
+    let r = function(n) {
       return n * 2;
-    }, t = function(n) {
+    }, u = function(n) {
       return n / 2;
     };
-    var b = u, f = t;
-    r = u(e) + t(e);
+    var i = r, o = u;
+    e = r(t) + u(t);
   }
-  return r;
+  return e;
 }
 export {
-  i as aap
+  c as aap
 };
 
 ================================================================================

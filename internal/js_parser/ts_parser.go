@@ -214,6 +214,12 @@ var tsTypeIdentifierMap = map[string]tsTypeIdentifierKind{
 }
 
 func (p *parser) skipTypeScriptTypeWithFlags(level js_ast.L, flags skipTypeFlags) {
+	start := p.lexer.Loc().Start
+	p.skipTypeScriptTypeWithFlagsImpl(level, flags)
+	p.recordTypeScriptRange(start, p.lexer.Loc().Start)
+}
+
+func (p *parser) skipTypeScriptTypeWithFlagsImpl(level js_ast.L, flags skipTypeFlags) {
 loop:
 	for {
 		switch p.lexer.Token {
@@ -676,6 +682,15 @@ const (
 // This is the type parameter declarations that go with other symbol
 // declarations (class, function, type, etc.)
 func (p *parser) skipTypeScriptTypeParameters(flags typeParameterFlags) skipTypeScriptTypeParametersResult {
+	start := p.lexer.Loc().Start
+	result := p.skipTypeScriptTypeParametersImpl(flags)
+	if result != didNotSkipAnything {
+		p.recordTypeScriptRange(start, p.lexer.Loc().Start)
+	}
+	return result
+}
+
+func (p *parser) skipTypeScriptTypeParametersImpl(flags typeParameterFlags) skipTypeScriptTypeParametersResult {
 	if p.lexer.Token != js_lexer.TLessThan {
 		return didNotSkipAnything
 	}
@@ -798,6 +813,15 @@ type skipTypeScriptTypeArgumentsOpts struct {
 }
 
 func (p *parser) skipTypeScriptTypeArguments(opts skipTypeScriptTypeArgumentsOpts) bool {
+	start := p.lexer.Loc().Start
+	result := p.skipTypeScriptTypeArgumentsImpl(opts)
+	if result {
+		p.recordTypeScriptRange(start, p.lexer.Loc().Start)
+	}
+	return result
+}
+
+func (p *parser) skipTypeScriptTypeArgumentsImpl(opts skipTypeScriptTypeArgumentsOpts) bool {
 	switch p.lexer.Token {
 	case js_lexer.TLessThan, js_lexer.TLessThanEquals,
 		js_lexer.TLessThanLessThan, js_lexer.TLessThanLessThanEquals:
@@ -842,6 +866,7 @@ func (p *parser) skipTypeScriptTypeArguments(opts skipTypeScriptTypeArgumentsOpt
 
 func (p *parser) trySkipTypeArgumentsInExpressionWithBacktracking() bool {
 	oldLexer := p.lexer
+	oldTSRangesLen := len(p.tsRanges)
 	p.lexer.IsLogDisabled = true
 
 	// Implement backtracking by restoring the lexer's memory to its original state
@@ -849,6 +874,7 @@ func (p *parser) trySkipTypeArgumentsInExpressionWithBacktracking() bool {
 		r := recover()
 		if _, isLexerPanic := r.(js_lexer.LexerPanic); isLexerPanic {
 			p.lexer = oldLexer
+			p.tsRanges = p.tsRanges[:oldTSRangesLen]
 		} else if r != nil {
 			panic(r)
 		}
@@ -869,6 +895,7 @@ func (p *parser) trySkipTypeArgumentsInExpressionWithBacktracking() bool {
 
 func (p *parser) trySkipTypeScriptTypeParametersThenOpenParenWithBacktracking() skipTypeScriptTypeParametersResult {
 	oldLexer := p.lexer
+	oldTSRangesLen := len(p.tsRanges)
 	p.lexer.IsLogDisabled = true
 
 	// Implement backtracking by restoring the lexer's memory to its original state
@@ -876,6 +903,7 @@ func (p *parser) trySkipTypeScriptTypeParametersThenOpenParenWithBacktracking() 
 		r := recover()
 		if _, isLexerPanic := r.(js_lexer.LexerPanic); isLexerPanic {
 			p.lexer = oldLexer
+			p.tsRanges = p.tsRanges[:oldTSRangesLen]
 		} else if r != nil {
 			panic(r)
 		}
@@ -894,6 +922,7 @@ func (p *parser) trySkipTypeScriptTypeParametersThenOpenParenWithBacktracking() 
 
 func (p *parser) trySkipTypeScriptArrowReturnTypeWithBacktracking() bool {
 	oldLexer := p.lexer
+	oldTSRangesLen := len(p.tsRanges)
 	p.lexer.IsLogDisabled = true
 
 	// Implement backtracking by restoring the lexer's memory to its original state
@@ -901,6 +930,7 @@ func (p *parser) trySkipTypeScriptArrowReturnTypeWithBacktracking() bool {
 		r := recover()
 		if _, isLexerPanic := r.(js_lexer.LexerPanic); isLexerPanic {
 			p.lexer = oldLexer
+			p.tsRanges = p.tsRanges[:oldTSRangesLen]
 		} else if r != nil {
 			panic(r)
 		}
@@ -1000,6 +1030,7 @@ func (originalParser *parser) isTypeScriptArrowReturnTypeAfterQuestionAndBeforeC
 
 func (p *parser) trySkipTypeScriptArrowArgsWithBacktracking() bool {
 	oldLexer := p.lexer
+	oldTSRangesLen := len(p.tsRanges)
 	p.lexer.IsLogDisabled = true
 
 	// Implement backtracking by restoring the lexer's memory to its original state
@@ -1007,6 +1038,7 @@ func (p *parser) trySkipTypeScriptArrowArgsWithBacktracking() bool {
 		r := recover()
 		if _, isLexerPanic := r.(js_lexer.LexerPanic); isLexerPanic {
 			p.lexer = oldLexer
+			p.tsRanges = p.tsRanges[:oldTSRangesLen]
 		} else if r != nil {
 			panic(r)
 		}
@@ -1023,6 +1055,7 @@ func (p *parser) trySkipTypeScriptArrowArgsWithBacktracking() bool {
 
 func (p *parser) trySkipTypeScriptConstraintOfInferTypeWithBacktracking(flags skipTypeFlags) bool {
 	oldLexer := p.lexer
+	oldTSRangesLen := len(p.tsRanges)
 	p.lexer.IsLogDisabled = true
 
 	// Implement backtracking by restoring the lexer's memory to its original state
@@ -1030,6 +1063,7 @@ func (p *parser) trySkipTypeScriptConstraintOfInferTypeWithBacktracking(flags sk
 		r := recover()
 		if _, isLexerPanic := r.(js_lexer.LexerPanic); isLexerPanic {
 			p.lexer = oldLexer
+			p.tsRanges = p.tsRanges[:oldTSRangesLen]
 		} else if r != nil {
 			panic(r)
 		}

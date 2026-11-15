@@ -5970,6 +5970,48 @@ func TestCharFreqIgnoreComments(t *testing.T) {
 	})
 }
 
+func TestCharFreqIgnoreErasedTypeScript(t *testing.T) {
+	default_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/a.ts": `
+				export function area(width: number, height: number): number {
+					const product = width * height
+					return product + width - height
+				}
+			`,
+			"/b.ts": `
+				type Wire = 'zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz' | 'qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq'
+				export function area(width: number, height: number): number {
+					const product = width * height
+					return product + width - height
+				}
+			`,
+			"/c.ts": `
+				interface Wire {
+					zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz: string
+					qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq: string
+				}
+				export function area(width: number, height: number): number {
+					const product = width * height
+					return product + width - height
+				}
+			`,
+			"/d.ts": `
+				export function area(width: number | 'zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz', height: number | 'qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq'): number {
+					const product = width * height
+					return product + width - height
+				}
+			`,
+		},
+		entryPaths: []string{"/a.ts", "/b.ts", "/c.ts", "/d.ts"},
+		options: config.Options{
+			Mode:              config.ModeBundle,
+			AbsOutputDir:      "/out",
+			MinifyIdentifiers: true,
+		},
+	})
+}
+
 func TestImportRelativeAsPackage(t *testing.T) {
 	default_suite.expectBundled(t, bundled{
 		files: map[string]string{
