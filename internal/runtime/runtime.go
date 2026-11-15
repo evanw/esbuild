@@ -110,6 +110,8 @@ func Source(unsupportedJSFeatures compat.JSFeature) logger.Source {
 			return a
 		}
 		export var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b))
+		export var __setProto = (obj, proto) => typeof proto == 'object' || typeof proto == 'function'
+			? Object.setPrototypeOf(obj, proto) : obj
 
 		// Update the "name" property on the function or class for "--keep-names"
 		export var __name = (target, value) => __defProp(target, 'name', { value, configurable: true })
