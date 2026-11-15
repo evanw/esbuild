@@ -60,6 +60,31 @@ func TestLowerObjectSpreadNoBundle(t *testing.T) {
 	})
 }
 
+func TestLowerObjectSpreadProtoNoBundle(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				let tests = [
+					{...a, __proto__: b},
+					{...a, __proto__: b, ...{ __proto__ }},
+					{...a, c, __proto__: b, d, ...e},
+					{...a, __proto__: null},
+					{...a, __proto__: 5},
+					{...a, ["__proto__"]: b},
+					{...a, __proto__},
+					{...a, __proto__() {}},
+					{__proto__: b, ...a},
+				]
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			UnsupportedJSFeatures: es(2017),
+			AbsOutputFile:         "/out.js",
+		},
+	})
+}
+
 func TestLowerExponentiationOperatorNoBundle(t *testing.T) {
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{

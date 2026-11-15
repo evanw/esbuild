@@ -2389,6 +2389,22 @@ let jsx = [
 ];
 
 ================================================================================
+TestLowerObjectSpreadProtoNoBundle
+---------- /out.js ----------
+let tests = [
+  __setProto(__spreadValues({}, a), b),
+  __spreadValues(__setProto(__spreadValues({}, a), b), { __proto__ }),
+  __spreadValues(__spreadProps(__setProto(__spreadProps(__spreadValues({}, a), { c }), b), { d }), e),
+  __setProto(__spreadValues({}, a), null),
+  __setProto(__spreadValues({}, a), 5),
+  __spreadProps(__spreadValues({}, a), { ["__proto__"]: b }),
+  __spreadProps(__spreadValues({}, a), { __proto__ }),
+  __spreadProps(__spreadValues({}, a), { __proto__() {
+  } }),
+  __spreadValues({ __proto__: b }, a)
+];
+
+================================================================================
 TestLowerOptionalCatchNameCollisionNoBundle
 ---------- /out.js ----------
 try {

@@ -1027,6 +1027,21 @@ func (p *parser) lowerObjectSpread(loc logger.Loc, e *js_ast.EObject) js_ast.Exp
 	properties := []js_ast.Property{}
 
 	for _, property := range e.Properties {
+		if result.Data != nil && property.Kind == js_ast.PropertyField &&
+			!property.Flags.Has(js_ast.PropertyIsComputed) && !property.Flags.Has(js_ast.PropertyWasShorthand) {
+			if str, ok := property.Key.Data.(*js_ast.EString); ok && helpers.UTF16EqualsString(str.Value, "__proto__") {
+				if len(properties) > 0 {
+					result = p.callRuntime(loc, "__spreadProps", []js_ast.Expr{result, {Loc: loc, Data: &js_ast.EObject{
+						Properties:   properties,
+						IsSingleLine: e.IsSingleLine,
+					}}})
+					properties = []js_ast.Property{}
+				}
+				result = p.callRuntime(loc, "__setProto", []js_ast.Expr{result, property.ValueOrNil})
+				continue
+			}
+		}
+
 		if property.Kind != js_ast.PropertySpread {
 			properties = append(properties, property)
 			continue
