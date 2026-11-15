@@ -851,6 +851,37 @@ func TestPackageJsonSideEffectsFalseIntermediateFilesUsed(t *testing.T) {
 	})
 }
 
+func TestPackageJsonSideEffectsFalseExportStarAndDynamicImport(t *testing.T) {
+	dce_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/Users/user/project/src/entry.js": `
+				import {read} from "demo-pkg"
+				import {later} from "demo-pkg/lazy.js"
+				console.log(read(), typeof later)
+			`,
+			"/Users/user/project/node_modules/demo-pkg/package.json": `
+				{ "sideEffects": false }
+			`,
+			"/Users/user/project/node_modules/demo-pkg/index.js": `
+				export * from "./a.js"
+			`,
+			"/Users/user/project/node_modules/demo-pkg/a.js": `
+				export const MARKS = {one: 1}
+				export const read = () => MARKS.one
+			`,
+			"/Users/user/project/node_modules/demo-pkg/lazy.js": `
+				export const later = () => import("./a.js")
+			`,
+		},
+		entryPaths: []string{"/Users/user/project/src/entry.js"},
+		options: config.Options{
+			Mode:          config.ModeBundle,
+			OutputFormat:  config.FormatESModule,
+			AbsOutputFile: "/out.js",
+		},
+	})
+}
+
 func TestPackageJsonSideEffectsFalseIntermediateFilesChainAll(t *testing.T) {
 	dce_suite.expectBundled(t, bundled{
 		files: map[string]string{

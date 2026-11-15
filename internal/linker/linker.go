@@ -1521,7 +1521,7 @@ func (c *linkerContext) scanImportsAndExports() {
 
 		// Propagate exports for export star statements
 		if len(repr.AST.ExportStarImportRecords) > 0 {
-			c.addExportsForExportStar(repr.Meta.ResolvedExports, sourceIndex, exportStarStack)
+			c.addExportsForExportStar(repr.Meta.ResolvedExports, sourceIndex, exportStarStack, nil)
 		}
 
 		// Also add a special export so import stars can bind to it. This must be
@@ -1836,6 +1836,7 @@ func (c *linkerContext) scanImportsAndExports() {
 
 			for _, alias := range repr.Meta.SortedAndFilteredExportAliases {
 				export := repr.Meta.ResolvedExports[alias]
+				dependencies = append(dependencies, export.ReExports...)
 				targetSourceIndex := export.SourceIndex
 				targetRef := export.Ref
 
@@ -2277,6 +2278,7 @@ func (c *linkerContext) createExportsForFile(sourceIndex uint32) {
 	nsExportSymbolUses := make(map[ast.Ref]js_ast.SymbolUse)
 	for _, alias := range repr.Meta.SortedAndFilteredExportAliases {
 		export := repr.Meta.ResolvedExports[alias]
+		nsExportDependencies = append(nsExportDependencies, export.ReExports...)
 
 		// If this is an export of an import, reference the symbol that the import
 		// was eventually resolved to. We need to do this because imports have
@@ -2657,7 +2659,7 @@ loop:
 		c.cycleDetector = append(c.cycleDetector, tracker)
 
 		// Resolve the import by one step
-		nextTracker, status, potentiallyAmbiguousExportStarRefs := c.advanceImportTracker(tracker)
+		nextTracker, status, potentiallyAmbiguousExportStarRefs, exportStarReExports := c.advanceImportTracker(tracker)
 		switch status {
 		case importCommonJS, importCommonJSWithoutExports, importExternal, importDisabled:
 			if status == importExternal && c.options.OutputFormat.KeepESMImportExportSyntax() {
@@ -2784,6 +2786,7 @@ loop:
 			result = matchImportResult{kind: matchImportProbablyTypeScriptType}
 
 		case importFound:
+			reExports = append(reExports, exportStarReExports...)
 			// If there are multiple ambiguous results due to use of "export * from"
 			// statements, trace them all to see if they point to different things.
 			for _, ambiguousTracker := range potentiallyAmbiguousExportStarRefs {
@@ -2791,6 +2794,7 @@ loop:
 				if _, ok := c.graph.Files[ambiguousTracker.SourceIndex].InputFile.Repr.(*graph.JSRepr).AST.NamedImports[ambiguousTracker.Ref]; ok {
 					// Save and restore the cycle detector to avoid mixing information
 					oldCycleDetector := c.cycleDetector
+					reExports = append(reExports, ambiguousTracker.ReExports...)
 					ambiguousResult, newReExportFiles := c.matchImportWithExport(importTracker{
 						sourceIndex: ambiguousTracker.SourceIndex,
 						importRef:   ambiguousTracker.Ref,
@@ -2799,6 +2803,7 @@ loop:
 					ambiguousResults = append(ambiguousResults, ambiguousResult)
 					reExports = newReExportFiles
 				} else {
+					reExports = append(reExports, ambiguousTracker.ReExports...)
 					ambiguousResults = append(ambiguousResults, matchImportResult{
 						kind:        matchImportNormal,
 						sourceIndex: ambiguousTracker.SourceIndex,
@@ -2971,6 +2976,7 @@ func (c *linkerContext) addExportsForExportStar(
 	resolvedExports map[string]graph.ExportData,
 	sourceIndex uint32,
 	sourceIndexStack []uint32,
+	reExports []js_ast.Dependency,
 ) {
 	// Avoid infinite loops due to cycles in the export star graph
 	for _, prevSourceIndex := range sourceIndexStack {
@@ -3002,6 +3008,31 @@ func (c *linkerContext) addExportsForExportStar(
 			continue
 		}
 
+		// Preserve the part containing this export star. This is needed to
+		// initialize wrapped modules when a named import reaches them through
+		// an export star chain.
+		starPart := uint32(0)
+		hasStarPart := false
+		for partIndex, part := range repr.AST.Parts {
+			for _, partImportRecordIndex := range part.ImportRecordIndices {
+				if partImportRecordIndex == importRecordIndex {
+					starPart = uint32(partIndex)
+					hasStarPart = true
+					break
+				}
+			}
+			if hasStarPart {
+				break
+			}
+		}
+		if !hasStarPart {
+			panic("Internal error")
+		}
+		starReExports := append(append([]js_ast.Dependency{}, reExports...), js_ast.Dependency{
+			SourceIndex: sourceIndex,
+			PartIndex:   starPart,
+		})
+
 		// Accumulate this file's exports
 	nextExport:
 		for alias, name := range otherRepr.AST.NamedExports {
@@ -3021,6 +3052,7 @@ func (c *linkerContext) addExportsForExportStar(
 			if existing, ok := resolvedExports[alias]; !ok {
 				// Initialize the re-export
 				resolvedExports[alias] = graph.ExportData{
+					ReExports:   starReExports,
 					Ref:         name.Ref,
 					SourceIndex: otherSourceIndex,
 					NameLoc:     name.AliasLoc,
@@ -3039,13 +3071,14 @@ func (c *linkerContext) addExportsForExportStar(
 						SourceIndex: otherSourceIndex,
 						Ref:         name.Ref,
 						NameLoc:     name.AliasLoc,
+						ReExports:   starReExports,
 					})
 				resolvedExports[alias] = existing
 			}
 		}
 
 		// Search further through this file's export stars
-		c.addExportsForExportStar(resolvedExports, otherSourceIndex, sourceIndexStack)
+		c.addExportsForExportStar(resolvedExports, otherSourceIndex, sourceIndexStack, starReExports)
 	}
 }
 
@@ -3084,7 +3117,7 @@ const (
 	importProbablyTypeScriptType
 )
 
-func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTracker, importStatus, []graph.ImportData) {
+func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTracker, importStatus, []graph.ImportData, []js_ast.Dependency) {
 	file := &c.graph.Files[tracker.sourceIndex]
 	repr := file.InputFile.Repr.(*graph.JSRepr)
 	namedImport := repr.AST.NamedImports[tracker.importRef]
@@ -3092,7 +3125,7 @@ func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTrack
 	// Is this an external file?
 	record := &repr.AST.ImportRecords[namedImport.ImportRecordIndex]
 	if !record.SourceIndex.IsValid() {
-		return importTracker{}, importExternal, nil
+		return importTracker{}, importExternal, nil, nil
 	}
 
 	// Is this a named import of a file without any exports?
@@ -3104,12 +3137,12 @@ func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTrack
 		// ESM exports
 		!otherRepr.AST.UsesExportsRef && !otherRepr.AST.UsesModuleRef {
 		// Just warn about it and replace the import with "undefined"
-		return importTracker{sourceIndex: otherSourceIndex, importRef: ast.InvalidRef}, importCommonJSWithoutExports, nil
+		return importTracker{sourceIndex: otherSourceIndex, importRef: ast.InvalidRef}, importCommonJSWithoutExports, nil, nil
 	}
 
 	// Is this a CommonJS file?
 	if otherRepr.AST.ExportsKind == js_ast.ExportsCommonJS {
-		return importTracker{sourceIndex: otherSourceIndex, importRef: ast.InvalidRef}, importCommonJS, nil
+		return importTracker{sourceIndex: otherSourceIndex, importRef: ast.InvalidRef}, importCommonJS, nil, nil
 	}
 
 	// Match this import star with an export star from the imported file
@@ -3119,7 +3152,7 @@ func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTrack
 			sourceIndex: matchingExport.SourceIndex,
 			importRef:   matchingExport.Ref,
 			nameLoc:     matchingExport.NameLoc,
-		}, importFound, matchingExport.PotentiallyAmbiguousExportStarRefs
+		}, importFound, matchingExport.PotentiallyAmbiguousExportStarRefs, matchingExport.ReExports
 	}
 
 	// Match this import up with an export from the imported file
@@ -3129,20 +3162,20 @@ func (c *linkerContext) advanceImportTracker(tracker importTracker) (importTrack
 			sourceIndex: matchingExport.SourceIndex,
 			importRef:   matchingExport.Ref,
 			nameLoc:     matchingExport.NameLoc,
-		}, importFound, matchingExport.PotentiallyAmbiguousExportStarRefs
+		}, importFound, matchingExport.PotentiallyAmbiguousExportStarRefs, matchingExport.ReExports
 	}
 
 	// Is this a file with dynamic exports?
 	if otherRepr.AST.ExportsKind == js_ast.ExportsESMWithDynamicFallback {
-		return importTracker{sourceIndex: otherSourceIndex, importRef: otherRepr.AST.ExportsRef}, importDynamicFallback, nil
+		return importTracker{sourceIndex: otherSourceIndex, importRef: otherRepr.AST.ExportsRef}, importDynamicFallback, nil, nil
 	}
 
 	// Missing re-exports in TypeScript files are indistinguishable from types
 	if file.InputFile.Loader.IsTypeScript() && namedImport.IsExported {
-		return importTracker{}, importProbablyTypeScriptType, nil
+		return importTracker{}, importProbablyTypeScriptType, nil, nil
 	}
 
-	return importTracker{sourceIndex: otherSourceIndex}, importNoMatch, nil
+	return importTracker{sourceIndex: otherSourceIndex}, importNoMatch, nil, nil
 }
 
 func (c *linkerContext) treeShakingAndCodeSplitting() {
