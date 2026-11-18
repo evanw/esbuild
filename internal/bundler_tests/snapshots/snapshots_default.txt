@@ -4185,14 +4185,14 @@ var { [(z, "a")]: x } = y;
 ================================================================================
 TestMangleQuotedPropsMinifySyntax
 ---------- /out/keep.js ----------
-foo("_keepThisProperty"), foo("_keepThisProperty"), foo(x ? "_keepThisProperty" : "_keepThisPropertyToo"), x[foo("_keepThisProperty")], x?.[foo("_keepThisProperty")], foo("_keepThisProperty") + "", class {
+foo("_keepThisProperty"), foo("_keepThisProperty"), foo(x ? "_keepThisProperty" : "_keepThisPropertyToo"), x[foo("_keepThisProperty")], x?.[foo("_keepThisProperty")], foo("_keepThisProperty") in {}, class {
   [foo("_keepThisProperty")] = x;
 };
 var { [foo("_keepThisProperty")]: x } = y;
 foo("_keepThisProperty") in x;
 
 ---------- /out/mangle.js ----------
-x.a, x?.a, x[y ? "a" : z], x?.[y ? "a" : z], x[y ? z : "a"], x?.[y ? z : "a"], x[y, "a"], x?.[y, "a"], (y, "a") + "", class {
+x.a, x?.a, x[y ? "a" : z], x?.[y ? "a" : z], x[y ? z : "a"], x?.[y ? z : "a"], x[y, "a"], x?.[y, "a"], (y, "a") in {}, class {
   [(y, "a")] = x;
 };
 var { a: x } = y, { ["a"]: x } = y, { [(z, "a")]: x } = y;

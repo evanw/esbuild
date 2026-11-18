@@ -5146,7 +5146,10 @@ func TestMangleUnused(t *testing.T) {
 	expectPrintedNormalAndMangle(t,
 		"({foo, x: 123, [y]: 123, z: z, bar})",
 		"({ foo, x: 123, [y]: 123, z, bar });\n",
-		"foo, y + \"\", z, bar;\n")
+		"foo, y in {}, z, bar;\n")
+	expectPrintedMangle(t,
+		"const s = Symbol('k'); /* @__PURE__ */ Object.freeze({ [s]: 1 }); ({ [Symbol.iterator]: 1 })",
+		"const s = /* @__PURE__ */ Symbol(\"k\");\ns in {}, Symbol.iterator;\n")
 	expectPrintedNormalAndMangle(t,
 		"var bound; ({x: 123, unbound, ...unbound, [unbound]: null, y: 234})",
 		"var bound;\n({ x: 123, unbound, ...unbound, [unbound]: null, y: 234 });\n",
