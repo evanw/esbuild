@@ -665,12 +665,17 @@ func (ctx HelperContext) SimplifyUnusedExpr(expr Expr, unsupportedFeatures compa
 		var result Expr
 		for _, property := range e.Properties {
 			if property.Flags.Has(PropertyIsComputed) {
-				// Make sure "ToString" is still evaluated on the key
-				result = JoinWithComma(result, Expr{Loc: property.Key.Loc, Data: &EBinary{
-					Op:    BinOpAdd,
-					Left:  property.Key,
-					Right: Expr{Loc: property.Key.Loc, Data: &EString{}},
-				}})
+				key := property.Key
+				if !IsSymbolInstance(key.Data) {
+					// "key in {}" performs ToPropertyKey, which accepts symbols and
+					// can have side effects when the key is an object.
+					key = Expr{Loc: key.Loc, Data: &EBinary{
+						Op:    BinOpIn,
+						Left:  key,
+						Right: Expr{Loc: key.Loc, Data: &EObject{}},
+					}}
+				}
+				result = JoinWithComma(result, key)
 			}
 			result = JoinWithComma(result, ctx.SimplifyUnusedExpr(property.ValueOrNil, unsupportedFeatures))
 		}
