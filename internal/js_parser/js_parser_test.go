@@ -4886,6 +4886,38 @@ func TestMangleEquals(t *testing.T) {
 	expectPrintedNormalAndMangle(t, "return (a ^= 1n) !== -1", "return (a ^= 1n) !== -1;\n", "return (a ^= 1n) !== -1;\n")
 }
 
+func TestMangleCommaAnonymousName(t *testing.T) {
+	for _, keepNames := range []bool{false, true} {
+		t.Run(fmt.Sprintf("KeepNames=%v", keepNames), func(t *testing.T) {
+			options := config.Options{MinifySyntax: true, KeepNames: keepNames}
+			for _, value := range []struct{ input, output string }{
+				{"function() {}", "function() {\n}"},
+				{"() => {}", "() => {\n}"},
+				{"class {}", "class {\n}"},
+			} {
+				// Initializers and assignments must not infer a name from "x".
+				expectPrintedCommon(t, "var x = (0, "+value.input+")", "var x = (0, "+value.output+");\n", options)
+				expectPrintedCommon(t, "x = (0, "+value.input+")", "x = (0, "+value.output+");\n", options)
+				expectPrintedCommon(t, "x ||= (0, "+value.input+")", "x ||= (0, "+value.output+");\n", options)
+				expectPrintedCommon(t, "let [x = (0, "+value.input+")] = y", "let [x = (0, "+value.output+")] = y;\n", options)
+
+				// Nested commas still only need one guard against name inference.
+				expectPrintedCommon(t, "var x = (0, (0, "+value.input+"))", "var x = (0, "+value.output+");\n", options)
+
+				// A comma can still be removed where no name would be inferred.
+				expectPrintedCommon(t, "y(0, (0, "+value.input+"))", "y(0, "+value.output+");\n", options)
+				expectPrintedCommon(t, "x.y = (0, "+value.input+")", "x.y = "+value.output+";\n", options)
+			}
+
+			// Visiting either operand can overwrite the name context.
+			expectPrintedCommon(t, "var f = (function() { var x = 1 }, function() { return y = 2 })",
+				"var f = (0, function() {\n  return y = 2;\n});\n", options)
+			expectPrintedCommon(t, "var g = (0, () => y = 2)", "var g = (0, () => y = 2);\n", options)
+			expectPrintedCommon(t, "var x = (0, 1)", "var x = 1;\n", options)
+		})
+	}
+}
+
 func TestMangleUnaryInsideComma(t *testing.T) {
 	expectPrintedNormalAndMangle(t, "return -(a, b)", "return -(a, b);\n", "return a, -b;\n")
 	expectPrintedNormalAndMangle(t, "return +(a, b)", "return +(a, b);\n", "return a, +b;\n")
