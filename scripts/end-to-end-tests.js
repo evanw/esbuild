@@ -6715,6 +6715,45 @@ for (let flags of [['--target=es2022'], ['--target=es6'], ['--bundle', '--target
   )
 }
 
+// Lowering private brand checks must also lower private names used by moved static initializers
+for (const flags of [[], ['--minify']]) {
+  for (const target of ['--target=node16', '--target=chrome90', '--supported:class-private-brand-check=false']) {
+    tests.push(
+      test(['in.js', '--outfile=node.js', target].concat(flags), {
+        'in.js': `
+          class Foo {
+            #x = 1
+            static #y = null
+            has(x) { return #x in x }
+            static get() { return this.#y }
+          }
+          const foo = new Foo()
+          if (!foo.has(foo) || foo.has({}) || Foo.get() !== null) throw 'fail'
+        `,
+      }),
+      test(['in.js', '--outfile=node.js', target].concat(flags), {
+        'in.js': `
+          const order = []
+          const Bar = class Foo extends class { static base = 10 } {
+            #x = 1
+            #method() { return this.#x }
+            get #getter() { return this.#method() }
+            static #y = (order.push(1), super.base)
+            static #staticMethod() { return this.#y }
+            static get #staticGetter() { return this.#staticMethod() }
+            static value = (order.push(2), new Foo().#getter + this.#staticGetter)
+            has(x) { return #x in x }
+            static get() { return this.#y }
+          }
+          const bar = new Bar()
+          if (!bar.has(bar) || bar.has({}) || Bar.get() !== 10 || Bar.value !== 11) throw 'fail'
+          if (order.join(',') !== '1,2') throw 'fail: ' + order
+        `,
+      }),
+    )
+  }
+}
+
 // Async lowering tests
 for (let flags of [[], ['--target=es2017'], ['--target=es6']]) {
   tests.push(
