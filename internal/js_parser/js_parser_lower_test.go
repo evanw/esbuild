@@ -457,6 +457,34 @@ let Bar = (_a = class {
 		"var _a;\n_a = class {\n}, /* @__PURE__ */ (() => {\n  try {\n  } finally {\n    /* @__PURE__ */ pureCall();\n  }\n})(), _a;\n")
 }
 
+func TestLowerClassPrivateBrandCheckWithStaticField(t *testing.T) {
+	expectPrintedWithUnsupportedFeatures(t, compat.ClassPrivateBrandCheck,
+		"class Foo { #x = 1; static #y = null; has(x) { return #x in x } }", `var _x, _y;
+class Foo {
+  constructor() {
+    __privateAdd(this, _x, 1);
+  }
+  has(x) {
+    return __privateIn(_x, x);
+  }
+}
+_x = new WeakMap();
+_y = new WeakMap();
+__privateAdd(Foo, _y, null);
+`)
+	expectPrintedWithUnsupportedFeatures(t, compat.ClassPrivateBrandCheck,
+		"const Bar = class Foo { #x = 1; static #y = null; has(x) { return #x in x } }", `var _x, _a, _y;
+const Bar = (_a = class {
+  constructor() {
+    __privateAdd(this, _x, 1);
+  }
+  has(x) {
+    return __privateIn(_x, x);
+  }
+}, _x = new WeakMap(), _y = new WeakMap(), __privateAdd(_a, _y, null), _a);
+`)
+}
+
 func TestLowerClassStaticThis(t *testing.T) {
 	expectPrinted(t, "class Foo { x = this }", "class Foo {\n  x = this;\n}\n")
 	expectPrinted(t, "class Foo { static x = this }", "class Foo {\n  static x = this;\n}\n")

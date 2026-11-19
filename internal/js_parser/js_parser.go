@@ -12184,6 +12184,20 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 		}
 	}
 
+	// Conservatively lower all private names that have been used in a private
+	// brand check anywhere in the file. See the comment on this map for details.
+	// Do this before computing class lowering info because lowering these names
+	// can cause static field initializers to move outside of the class body.
+	if p.lowerAllOfThesePrivateNames != nil {
+		for _, prop := range class.Properties {
+			if private, ok := prop.Key.Data.(*js_ast.EPrivateIdentifier); ok {
+				if symbol := &p.symbols[private.Ref.InnerIndex]; p.lowerAllOfThesePrivateNames[symbol.OriginalName] {
+					symbol.Flags |= ast.PrivateSymbolMustBeLowered
+				}
+			}
+		}
+	}
+
 	// Replace "this" with a reference to the class inside static field
 	// initializers if static fields are being lowered, since that relocates the
 	// field initializers outside of the class body and "this" will no longer
@@ -12219,19 +12233,6 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 			if private, ok := prop.Key.Data.(*js_ast.EPrivateIdentifier); ok {
 				p.symbols[private.Ref.InnerIndex].Flags |= ast.PrivateSymbolMustBeLowered
 				recomputeClassLoweringInfo = true
-			}
-		}
-	}
-
-	// Conservatively lower all private names that have been used in a private
-	// brand check anywhere in the file. See the comment on this map for details.
-	if p.lowerAllOfThesePrivateNames != nil {
-		for _, prop := range class.Properties {
-			if private, ok := prop.Key.Data.(*js_ast.EPrivateIdentifier); ok {
-				if symbol := &p.symbols[private.Ref.InnerIndex]; p.lowerAllOfThesePrivateNames[symbol.OriginalName] {
-					symbol.Flags |= ast.PrivateSymbolMustBeLowered
-					recomputeClassLoweringInfo = true
-				}
 			}
 		}
 	}
