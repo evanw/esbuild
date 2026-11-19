@@ -15974,6 +15974,20 @@ func (p *parser) visitExprInOut(expr js_ast.Expr, in exprIn) (js_ast.Expr, exprO
 	return expr, exprOut{}
 }
 
+func isAnonymousFunctionDefinition(data js_ast.E) bool {
+	switch e := data.(type) {
+	case *js_ast.EAnnotation:
+		return isAnonymousFunctionDefinition(e.Value.Data)
+	case *js_ast.EArrow:
+		return true
+	case *js_ast.EFunction:
+		return e.Fn.Name == nil
+	case *js_ast.EClass:
+		return e.Class.Name == nil
+	}
+	return false
+}
+
 // This exists to handle very deeply-nested ASTs. For example, the "grapheme-splitter"
 // package contains this monstrosity:
 //
@@ -16024,6 +16038,7 @@ type binaryExprVisitor struct {
 
 	// "Local variables" passed from "checkAndPrepare" to "visitRightAndFinish"
 	isStmtExpr                               bool
+	isNameInferenceTarget                    bool
 	oldSilenceWarningAboutThisBeingUndefined bool
 }
 
@@ -16052,6 +16067,7 @@ func (v *binaryExprVisitor) checkAndPrepare(p *parser) js_ast.Expr {
 	}
 
 	v.isStmtExpr = e == p.stmtExprValue
+	v.isNameInferenceTarget = e == p.nameToKeepIsFor
 	v.oldSilenceWarningAboutThisBeingUndefined = p.fnOnlyDataVisit.silenceMessageAboutThisBeingUndefined
 
 	if _, ok := e.Left.Data.(*js_ast.EThis); ok && e.Op == js_ast.BinOpLogicalAnd {
@@ -16155,7 +16171,13 @@ func (v *binaryExprVisitor) visitRightAndFinish(p *parser) js_ast.Expr {
 		if p.options.minifySyntax {
 			e.Left = p.astHelpers.SimplifyUnusedExpr(e.Left, p.options.unsupportedJSFeatures)
 			if e.Left.Data == nil {
-				return e.Right
+				// Keep "var f = (0, function() {})" from becoming "var f = function() {}",
+				// which would change the function's name from "" to "f".
+				if v.isNameInferenceTarget && isAnonymousFunctionDefinition(e.Right.Data) {
+					e.Left = js_ast.Expr{Loc: e.Left.Loc, Data: &js_ast.ENumber{Value: 0}}
+				} else {
+					return e.Right
+				}
 			}
 		}
 
