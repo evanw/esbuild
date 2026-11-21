@@ -14,6 +14,7 @@ const SupportsColorEscapes = true
 
 var kernel32 = syscall.NewLazyDLL("kernel32.dll")
 var getConsoleMode = kernel32.NewProc("GetConsoleMode")
+var setConsoleMode = kernel32.NewProc("SetConsoleMode")
 var setConsoleTextAttribute = kernel32.NewProc("SetConsoleTextAttribute")
 var getConsoleScreenBufferInfo = kernel32.NewProc("GetConsoleScreenBufferInfo")
 
@@ -46,7 +47,7 @@ func GetTerminalInfo(file *os.File) TerminalInfo {
 		IsTTY:           isTTY != 0,
 		Width:           int(info.dwSizeX) - 1,
 		Height:          int(info.dwSizeY) - 1,
-		UseColorEscapes: !hasNoColorEnvironmentVariable(),
+		UseColorEscapes: isTTY != 0 && !hasNoColorEnvironmentVariable(),
 	}
 }
 
@@ -94,6 +95,24 @@ var windowsEscapeSequenceMap = map[string]uint8{
 
 func writeStringWithColor(file *os.File, text string) {
 	fd := file.Fd()
+
+	// Let modern Windows consoles interpret ANSI escapes, including ones from
+	// plugins that aren't in windowsEscapeSequenceMap. Also preserve escapes
+	// when the output is redirected to a file or pipe.
+	var mode uint32
+	if ok, _, _ := getConsoleMode.Call(fd, uintptr(unsafe.Pointer(&mode))); ok == 0 {
+		file.WriteString(text)
+		return
+	}
+	const ENABLE_PROCESSED_OUTPUT = 0x0001
+	const ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004
+	if ok, _, _ := setConsoleMode.Call(fd, uintptr(mode|ENABLE_PROCESSED_OUTPUT|ENABLE_VIRTUAL_TERMINAL_PROCESSING)); ok != 0 {
+		defer setConsoleMode.Call(fd, uintptr(mode))
+		file.WriteString(text)
+		return
+	}
+
+	// Fall back to console API calls on older versions of Windows.
 	i := 0
 
 	for i < len(text) {
