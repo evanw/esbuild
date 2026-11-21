@@ -1,4 +1,5 @@
 const { installForTests, removeRecursiveSync, writeFileAtomic } = require('./esbuild')
+const childProcess = require('child_process')
 const assert = require('assert')
 const path = require('path')
 const util = require('util')
@@ -59,6 +60,36 @@ function fetchUntilSuccessOrTimeout(host, port, path) {
 }
 
 let pluginTests = {
+  async errorWithANSI({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.json')
+    const driver = path.join(testDir, 'driver.js')
+    const text = '\x1b[4m\x1b[2mhttp://eslint.org/docs/rules/\x1b[22m\x1b[24m' +
+      '\x1b[4m\x1b[91msome error here\x1b[39m\x1b[24m'
+    await writeFileAsync(input, '{}')
+    await writeFileAsync(driver, `
+      const esbuild = require(${JSON.stringify(esbuild.ESBUILD_PACKAGE_PATH)})
+      esbuild.build({
+        entryPoints: [${JSON.stringify(input)}],
+        write: false,
+        color: true,
+        logLevel: 'error',
+        plugins: [{
+          name: 'ansi',
+          setup(build) {
+            build.onLoad({ filter: /\\.json$/ }, () => ({
+              errors: [{ text: ${JSON.stringify(text)} }],
+            }))
+          },
+        }],
+      }).then(() => process.exit(1), error => {
+        if (error.errors[0].text !== ${JSON.stringify(text)}) process.exit(1)
+      })
+    `)
+    const { stdout, stderr } = await util.promisify(childProcess.execFile)(process.execPath, [driver])
+    assert.strictEqual(stdout, '')
+    assert(stderr.includes(text), JSON.stringify(stderr))
+  },
+
   async noPluginsWithBuildSync({ esbuild }) {
     try {
       esbuild.buildSync({
