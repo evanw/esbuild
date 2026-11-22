@@ -1080,6 +1080,7 @@ func TestNestedSelector(t *testing.T) {
 	expectPrinted(t, "a { .b {} }", "a {\n  .b {\n  }\n}\n", "")
 	expectPrinted(t, "a { #b {} }", "a {\n  #b {\n  }\n}\n", "")
 	expectPrinted(t, "a { :b {} }", "a {\n  :b {\n  }\n}\n", "")
+	expectPrintedLowerUnsupported(t, compat.Nesting, "a { :IS(&) { color: red } }", ":is(a) {\n  color: red;\n}\n", "")
 	expectPrinted(t, "a { [b] {} }", "a {\n  [b] {\n  }\n}\n", "")
 	expectPrinted(t, "a { * {} }", "a {\n  * {\n  }\n}\n", "")
 	expectPrinted(t, "a { |b {} }", "a {\n  |b {\n  }\n}\n", "")

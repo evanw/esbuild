@@ -663,8 +663,12 @@ func (p *parser) parsePseudoClassSelector(loc logger.Loc, isElement bool) (css_a
 			var kind css_ast.PseudoClassKind
 			local := p.makeLocalSymbols
 			ok := true
-			switch text {
+			switch strings.ToLower(text) {
 			case "global":
+				if text != "global" {
+					ok = false
+					break
+				}
 				kind = css_ast.PseudoClassGlobal
 				if p.options.symbolMode != symbolModeDisabled {
 					local = false
@@ -674,6 +678,10 @@ func (p *parser) parsePseudoClassSelector(loc logger.Loc, isElement bool) (css_a
 			case "is":
 				kind = css_ast.PseudoClassIs
 			case "local":
+				if text != "local" {
+					ok = false
+					break
+				}
 				kind = css_ast.PseudoClassLocal
 				if p.options.symbolMode != symbolModeDisabled {
 					local = true
