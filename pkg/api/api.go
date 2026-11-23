@@ -658,12 +658,13 @@ type OnResolveResult struct {
 	Errors   []Message
 	Warnings []Message
 
-	Path        string
-	External    bool
-	SideEffects SideEffects
-	Namespace   string
-	Suffix      string
-	PluginData  interface{}
+	Path            string
+	External        bool
+	SideEffects     SideEffects
+	PackageJSONType bool
+	Namespace       string
+	Suffix          string
+	PluginData      interface{}
 
 	WatchFiles []string
 	WatchDirs  []string

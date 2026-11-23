@@ -790,6 +790,23 @@ func (res *Resolver) ProbeResolvePackageAsRelative(sourceDir string, importPath 
 	return nil, debugMeta
 }
 
+// This returns the module type set by the "type" field in the nearest
+// enclosing "package.json" file, as it would be set for a path returned by
+// the resolver. It's used for paths returned by plugins.
+func (res *Resolver) ModuleTypeDataForPath(path string) js_ast.ModuleTypeData {
+	r := resolverQuery{Resolver: res}
+
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	if dirInfo := r.dirInfoCached(r.fs.Dir(path)); dirInfo != nil {
+		if pkgJSON := dirInfo.enclosingPackageJSON; pkgJSON != nil {
+			return pkgJSON.moduleTypeData
+		}
+	}
+	return js_ast.ModuleTypeData{}
+}
+
 type debugLogs struct {
 	what   string
 	indent string

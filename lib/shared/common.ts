@@ -1404,6 +1404,7 @@ let handlePlugins = async (
           let suffix = getFlag(result, keys, 'suffix', mustBeString)
           let external = getFlag(result, keys, 'external', mustBeBoolean)
           let sideEffects = getFlag(result, keys, 'sideEffects', mustBeBoolean)
+          let packageJsonType = getFlag(result, keys, 'packageJsonType', mustBeBoolean)
           let pluginData = getFlag(result, keys, 'pluginData', canBeAnything)
           let errors = getFlag(result, keys, 'errors', mustBeArray)
           let warnings = getFlag(result, keys, 'warnings', mustBeArray)
@@ -1418,6 +1419,7 @@ let handlePlugins = async (
           if (suffix != null) response.suffix = suffix
           if (external != null) response.external = external
           if (sideEffects != null) response.sideEffects = sideEffects
+          if (packageJsonType != null) response.packageJsonType = packageJsonType
           if (pluginData != null) response.pluginData = details.store(pluginData)
           if (errors != null) response.errors = sanitizeMessages(errors, 'errors', details, name, undefined)
           if (warnings != null) response.warnings = sanitizeMessages(warnings, 'warnings', details, name, undefined)

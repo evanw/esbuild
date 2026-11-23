@@ -1144,10 +1144,17 @@ func RunOnResolvePlugins(
 				}
 			}
 
+			// Plugins can opt into the "type" field in "package.json" files
+			var moduleTypeData js_ast.ModuleTypeData
+			if result.PackageJSONType && result.Path.Namespace == "file" && !result.External {
+				moduleTypeData = res.ModuleTypeDataForPath(result.Path.Text)
+			}
+
 			return &resolver.ResolveResult{
 				PathPair:               resolver.PathPair{Primary: result.Path, IsExternal: result.External},
 				PluginData:             result.PluginData,
 				PrimarySideEffectsData: sideEffectsData,
+				ModuleTypeData:         moduleTypeData,
 			}, false, resolver.DebugMeta{}
 		}
 	}

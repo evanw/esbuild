@@ -1991,6 +1991,7 @@ func (impl *pluginImpl) onResolve(options OnResolveOptions, callback func(OnReso
 			}
 			result.External = response.External
 			result.IsSideEffectFree = response.SideEffects == SideEffectsFalse
+			result.PackageJSONType = response.PackageJSONType
 			result.PluginData = response.PluginData
 
 			// Convert log messages
