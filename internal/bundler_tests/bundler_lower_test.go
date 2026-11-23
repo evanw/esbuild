@@ -2187,6 +2187,28 @@ func TestLowerPrivateClassBrandCheckSupported(t *testing.T) {
 	})
 }
 
+func TestLowerPrivateClassBrandCheckStaticFieldIssue4588(t *testing.T) {
+	lower_suite.expectBundled(t, bundled{
+		files: map[string]string{
+			"/entry.js": `
+				class Foo {
+					#foo = 1
+					static #bar = null
+					baz(x) {
+						return #foo in x
+					}
+				}
+			`,
+		},
+		entryPaths: []string{"/entry.js"},
+		options: config.Options{
+			Mode:                  config.ModePassThrough,
+			AbsOutputFile:         "/out.js",
+			UnsupportedJSFeatures: compat.ClassPrivateBrandCheck,
+		},
+	})
+}
+
 func TestLowerTemplateObject(t *testing.T) {
 	lower_suite.expectBundled(t, bundled{
 		files: map[string]string{

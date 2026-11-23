@@ -2415,6 +2415,22 @@ foo_get = function() {
 console.log(new Foo().bar === 123);
 
 ================================================================================
+TestLowerPrivateClassBrandCheckStaticFieldIssue4588
+---------- /out.js ----------
+var _foo, _bar;
+class Foo {
+  constructor() {
+    __privateAdd(this, _foo, 1);
+  }
+  baz(x) {
+    return __privateIn(_foo, x);
+  }
+}
+_foo = new WeakMap();
+_bar = new WeakMap();
+__privateAdd(Foo, _bar, null);
+
+================================================================================
 TestLowerPrivateClassBrandCheckSupported
 ---------- /out.js ----------
 class Foo {
@@ -2432,22 +2448,22 @@ class Foo {
 ================================================================================
 TestLowerPrivateClassBrandCheckUnsupported
 ---------- /out.js ----------
-var _foo;
+var _foo, _bar;
 class Foo {
   constructor() {
     __privateAdd(this, _foo);
-    this.#bar = void 0;
+    __privateAdd(this, _bar);
   }
-  #bar;
   baz() {
     return [
       __privateGet(this, _foo),
-      this.#bar,
+      __privateGet(this, _bar),
       __privateIn(_foo, this)
     ];
   }
 }
 _foo = new WeakMap();
+_bar = new WeakMap();
 
 ================================================================================
 TestLowerPrivateClassExpr2020NoBundle

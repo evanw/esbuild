@@ -12191,6 +12191,23 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 	classLoweringInfo := p.computeClassLoweringInfo(class)
 	recomputeClassLoweringInfo := false
 
+	// Conservatively lower all private names that have been used in a private
+	// brand check anywhere in the file. See the comment on this map for details.
+	if p.lowerAllOfThesePrivateNames != nil {
+		for _, prop := range class.Properties {
+			if private, ok := prop.Key.Data.(*js_ast.EPrivateIdentifier); ok {
+				if symbol := &p.symbols[private.Ref.InnerIndex]; p.lowerAllOfThesePrivateNames[symbol.OriginalName] {
+					symbol.Flags |= ast.PrivateSymbolMustBeLowered
+					recomputeClassLoweringInfo = true
+				}
+			}
+		}
+		if recomputeClassLoweringInfo {
+			classLoweringInfo = p.computeClassLoweringInfo(class)
+			recomputeClassLoweringInfo = false
+		}
+	}
+
 	// Sometimes we need to lower private members even though they are supported.
 	// This flags them for lowering so that we lower references to them as we
 	// traverse the class body.
@@ -12219,19 +12236,6 @@ func (p *parser) visitClass(nameScopeLoc logger.Loc, class *js_ast.Class, defaul
 			if private, ok := prop.Key.Data.(*js_ast.EPrivateIdentifier); ok {
 				p.symbols[private.Ref.InnerIndex].Flags |= ast.PrivateSymbolMustBeLowered
 				recomputeClassLoweringInfo = true
-			}
-		}
-	}
-
-	// Conservatively lower all private names that have been used in a private
-	// brand check anywhere in the file. See the comment on this map for details.
-	if p.lowerAllOfThesePrivateNames != nil {
-		for _, prop := range class.Properties {
-			if private, ok := prop.Key.Data.(*js_ast.EPrivateIdentifier); ok {
-				if symbol := &p.symbols[private.Ref.InnerIndex]; p.lowerAllOfThesePrivateNames[symbol.OriginalName] {
-					symbol.Flags |= ast.PrivateSymbolMustBeLowered
-					recomputeClassLoweringInfo = true
-				}
 			}
 		}
 	}
