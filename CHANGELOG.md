@@ -26,6 +26,25 @@
 
     Previously esbuild allowed output files to be merged if both the file path and content were the same. This behavior was intended for assets (e.g. images) but is not appropriate for code, as code modules may still have their own internal state that needs to stay separate. This configuration is no longer allowed starting with this release. Doing this is now a build error. If your code structure generates conflicting chunk names, then you should make sure the chunk names include a placeholder for the hash.
 
+* Allow `onResolve` plugins to use the `type` field in `package.json` ([#2958](https://github.com/evanw/esbuild/issues/2958))
+
+    When esbuild resolves a `.js` file itself, it uses the `type` field in the nearest enclosing `package.json` file to determine whether the file is an ECMAScript module. This affects how esbuild interprets the file, such as the value of a default import of a CommonJS module that sets `__esModule`: node uses `module.exports` in an ECMAScript module. However, this information was not available for paths returned by `onResolve` plugins, even when the plugin returned the result of `build.resolve()` unchanged. These files were then bundled differently than when esbuild resolved them itself.
+
+    With this release, `onResolve` plugins can now return `packageJsonType: true` to have esbuild use the `type` field in the nearest enclosing `package.json` file of the returned path, as it does for the paths it resolves itself. This is opt-in so that the behavior of existing plugins doesn't change. Plugins can't set the module type directly: it only depends on the path. Here's an example:
+
+    ```js
+    let plugin = {
+      name: 'example',
+      setup(build) {
+        build.onResolve({ filter: /^pkg$/ }, args => {
+          return { path: '/path/to/pkg/index.js', packageJsonType: true }
+        })
+      },
+    }
+    ```
+
+    The module type is determined when the file is first parsed, so if different `onResolve` callbacks return the same path, the first resolution determines whether the `type` field is used. This is the same as for `sideEffects`.
+
 ## 0.28.2
 
 * Fix tree shaking bug due to TypeScript import alias ([#4507](https://github.com/evanw/esbuild/issues/4507))

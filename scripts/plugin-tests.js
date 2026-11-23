@@ -2333,6 +2333,65 @@ error: Invalid path suffix "%what" returned from plugin (must start with "?" or 
     if (observed !== expected) throw new Error(`Observed ${observed}, expected ${expected}`)
   },
 
+  async resolveWithPackageJsonType({ esbuild, testDir }) {
+    const input = path.join(testDir, 'in.js')
+    const esmDir = path.join(testDir, 'esm')
+    const cjsDir = path.join(testDir, 'cjs')
+    await mkdirAsync(esmDir)
+    await mkdirAsync(cjsDir)
+
+    // A default import of a CommonJS module that sets "__esModule" is
+    // "module.exports" in node's ESM files and "exports.default" otherwise
+    const importDep = `import dep from '../dep.js'; export default dep && dep.value`
+    await writeFileAsync(path.join(testDir, 'dep.js'), `exports.__esModule = true; exports.value = 'node'`)
+    await writeFileAsync(path.join(esmDir, 'package.json'), `{ "type": "module" }`)
+    await writeFileAsync(path.join(cjsDir, 'package.json'), `{ "type": "commonjs" }`)
+    for (const name of ['native', 'true', 'false', 'none']) {
+      await writeFileAsync(path.join(esmDir, `${name}.js`), importDep)
+    }
+    await writeFileAsync(path.join(cjsDir, 'true.js'), importDep)
+    await writeFileAsync(input, `
+      import esmNative from './esm/native.js'
+      import esmTrue from 'plugin:esm/true.js'
+      import esmFalse from 'plugin:esm/false.js'
+      import esmNone from 'plugin:esm/none.js'
+      import cjsTrue from 'plugin:cjs/true.js'
+      use({ esmNative, esmTrue, esmFalse, esmNone, cjsTrue })
+    `)
+
+    const result = await esbuild.build({
+      entryPoints: [input],
+      bundle: true,
+      write: false,
+      format: 'cjs',
+      plugins: [{
+        name: 'name',
+        setup(build) {
+          build.onResolve({ filter: /^plugin:/ }, args => {
+            const file = args.path.slice('plugin:'.length)
+            return {
+              path: path.join(testDir, file),
+              packageJsonType:
+                file.endsWith('/true.js') ? true :
+                  file.endsWith('/false.js') ? false :
+                    undefined,
+            }
+          })
+        },
+      }],
+    })
+
+    let used
+    new Function('use', result.outputFiles[0].text)(x => used = x)
+    assert.deepStrictEqual(used, {
+      esmNative: 'node',
+      esmTrue: 'node',
+      esmFalse: undefined,
+      esmNone: undefined,
+      cjsTrue: undefined,
+    })
+  },
+
   async externalSideEffectsFalse({ esbuild }) {
     const build = await esbuild.build({
       entryPoints: ['entry'],

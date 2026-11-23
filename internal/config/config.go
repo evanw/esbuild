@@ -819,6 +819,7 @@ type OnResolveResult struct {
 	Path             logger.Path
 	External         bool
 	IsSideEffectFree bool
+	PackageJSONType  bool
 }
 
 type OnLoad struct {

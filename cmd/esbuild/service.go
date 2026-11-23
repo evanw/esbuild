@@ -1049,6 +1049,9 @@ func (service *serviceType) convertPlugins(key int, jsPlugins interface{}, activ
 							result.SideEffects = api.SideEffectsFalse
 						}
 					}
+					if value, ok := response["packageJsonType"]; ok {
+						result.PackageJSONType = value.(bool)
+					}
 					if value, ok := response["pluginData"]; ok {
 						result.PluginData = value.(int)
 					}
