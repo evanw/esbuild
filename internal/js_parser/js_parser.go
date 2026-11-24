@@ -16153,7 +16153,14 @@ func (v *binaryExprVisitor) visitRightAndFinish(p *parser) js_ast.Expr {
 		// "(1, 2)" => "2"
 		// "(sideEffects(), 2)" => "(sideEffects(), 2)"
 		if p.options.minifySyntax {
-			e.Left = p.astHelpers.SimplifyUnusedExpr(e.Left, p.options.unsupportedJSFeatures)
+			if inner, ok := e.Left.Data.(*js_ast.EBinary); ok && inner.Op == js_ast.BinOpComma {
+				// The left side was already simplified when it was visited, so only its
+				// right side is new. Simplifying the whole left side again would make
+				// long comma chains quadratic.
+				e.Left = js_ast.JoinWithComma(inner.Left, p.astHelpers.SimplifyUnusedExpr(inner.Right, p.options.unsupportedJSFeatures))
+			} else {
+				e.Left = p.astHelpers.SimplifyUnusedExpr(e.Left, p.options.unsupportedJSFeatures)
+			}
 			if e.Left.Data == nil {
 				return e.Right
 			}

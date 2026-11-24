@@ -5063,6 +5063,13 @@ func TestMangleUnusedClassExpressionNames(t *testing.T) {
 	expectPrintedNormalAndMangle(t, "x = class y { foo() { if (0) return y } }", "x = class y {\n  foo() {\n    if (0) return _y;\n  }\n};\n", "x = class {\n  foo() {\n  }\n};\n")
 }
 
+func TestLongCommaChain(t *testing.T) {
+	const n = 5000
+	chain := "a" + strings.Repeat(", 1, b()", n)
+	expectPrinted(t, "x = ("+chain+")", "x = ("+chain+");\n")
+	expectPrintedMangle(t, "x = ("+chain+")", "x = ("+chain[:1]+strings.Repeat(", b()", n)+");\n")
+}
+
 func TestMangleUnused(t *testing.T) {
 	expectPrintedNormalAndMangle(t, "null", "null;\n", "")
 	expectPrintedNormalAndMangle(t, "void 0", "", "")
