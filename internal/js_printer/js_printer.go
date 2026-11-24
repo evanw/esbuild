@@ -3460,8 +3460,9 @@ func (v *binaryExprVisitor) checkAndPrepare(p *printer) bool {
 	}
 
 	if e.Op == js_ast.BinOpComma {
-		// The result of the left operand of the comma operator is unused
-		v.leftFlags = (v.flags & forbidIn) | exprResultIsUnused | parentWasUnaryOrBinaryOrIfTest
+		// The result of the left operand of the comma operator is unused, and
+		// everything inside it was already simplified above
+		v.leftFlags = (v.flags & forbidIn) | exprResultIsUnused | didAlreadySimplifyUnusedExprs | parentWasUnaryOrBinaryOrIfTest
 	} else {
 		v.leftFlags = (v.flags & forbidIn) | parentWasUnaryOrBinaryOrIfTest
 	}
