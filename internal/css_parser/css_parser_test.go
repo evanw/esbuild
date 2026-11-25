@@ -1290,6 +1290,17 @@ func TestNestedSelector(t *testing.T) {
 	expectPrintedLowerUnsupported(t, nesting, "a { :has(&) { color: red } }", ":has(a) {\n  color: red;\n}\n", "")
 	expectPrintedLowerUnsupported(t, nesting, "a { :has(> &) { color: red } }", ":has(> a) {\n  color: red;\n}\n", "")
 
+	// Pseudo-class names are ASCII case-insensitive (https://github.com/evanw/esbuild/issues/4613)
+	expectPrintedLowerUnsupported(t, nesting, "a { :IS(&) { color: red } }", ":is(a) {\n  color: red;\n}\n", "")
+	expectPrintedLowerUnsupported(t, nesting, "a { :WHERE(&) { color: red } }", ":where(a) {\n  color: red;\n}\n", "")
+	expectPrintedLowerUnsupported(t, nesting, "a { :HAS(&) { color: red } }", ":has(a) {\n  color: red;\n}\n", "")
+	expectPrintedLowerUnsupported(t, nesting, "a { :HAS(> &) { color: red } }", ":has(> a) {\n  color: red;\n}\n", "")
+	expectPrintedLowerUnsupported(t, nesting, "a { :NOT(&) { color: red } }", ":not(a) {\n  color: red;\n}\n", "")
+	expectPrintedLowerUnsupported(t, nesting, "a { :Is(&) { color: red } }", ":is(a) {\n  color: red;\n}\n", "")
+	expectPrintedLowerUnsupported(t, nesting, "div { :wHeRe(&.foo) { color: red } }", ":where(div.foo) {\n  color: red;\n}\n", "")
+	expectPrintedLowerUnsupported(t, nesting, "a { :NTH-CHILD(2n of &) { color: red } }", ":nth-child(2n of a) {\n  color: red;\n}\n", "")
+	expectPrintedLowerUnsupported(t, nesting, "div { :WHERE(&, span:IS(.foo &)) { color: red } }", ":where(div, span:is(.foo div)) {\n  color: red;\n}\n", "")
+
 	// Duplicate "&" may be used to increase specificity
 	expectPrintedLowerUnsupported(t, nesting, ".foo { &&&.bar { color: red } }", ".foo.foo.foo.bar {\n  color: red;\n}\n", "")
 	expectPrintedLowerUnsupported(t, nesting, ".foo { &&& .bar { color: red } }", ".foo.foo.foo .bar {\n  color: red;\n}\n", "")

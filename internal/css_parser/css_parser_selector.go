@@ -658,12 +658,13 @@ func (p *parser) parsePseudoClassSelector(loc logger.Loc, isElement bool) (css_a
 		matchingLoc := logger.Loc{Start: p.current().Range.End() - 1}
 		p.advance()
 
-		// Potentially parse a pseudo-class with a selector list
+		// Potentially parse a pseudo-class with a selector list.
+		// Pseudo-class names are ASCII case-insensitive.
 		if !isElement {
 			var kind css_ast.PseudoClassKind
 			local := p.makeLocalSymbols
 			ok := true
-			switch text {
+			switch strings.ToLower(text) {
 			case "global":
 				kind = css_ast.PseudoClassGlobal
 				if p.options.symbolMode != symbolModeDisabled {
