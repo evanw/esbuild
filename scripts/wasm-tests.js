@@ -5,6 +5,50 @@ const path = require('path');
 const fs = require('fs');
 
 const tests = {
+  browserServiceReleasesBuildResults({ testDir }) {
+    const script = `
+      const fs = require('fs');
+      global.self = globalThis;
+      const browser = require(process.argv[2]);
+
+      async function makeGroup(index) {
+        const [a, b] = await Promise.all([
+          browser.build({ stdin: { contents: 'export default ' + index + ' + 1' }, bundle: true, write: false }),
+          browser.build({ stdin: { contents: 'export default ' + index + ' + 2' }, bundle: true, write: false }),
+        ]);
+        return [new WeakRef(a), new WeakRef(b)];
+      }
+
+      async function main() {
+        const wasmModule = await WebAssembly.compile(fs.readFileSync(process.argv[3]));
+        await browser.initialize({ wasmModule, worker: false });
+        const groups = [];
+        for (let i = 0; i < 8; i++) groups.push(await makeGroup(i));
+        await new Promise(resolve => setImmediate(resolve));
+        for (let i = 0; i < 4; i++) {
+          global.gc();
+          await new Promise(resolve => setImmediate(resolve));
+        }
+        const alive = groups.map(group => group.map(ref => !!ref.deref()));
+        await browser.stop();
+        process.stdout.write('GC_RESULT:' + JSON.stringify(alive));
+      }
+
+      main().catch(error => { console.error(error); process.exitCode = 1; });
+    `;
+    const browserPath = path.join(__dirname, '..', 'npm', 'esbuild-wasm', 'lib', 'browser.js');
+    const wasmPath = path.join(__dirname, '..', 'npm', 'esbuild-wasm', 'esbuild.wasm');
+    const scriptPath = path.join(testDir, 'gc-test.js');
+    fs.writeFileSync(scriptPath, script);
+    const output = child_process.execFileSync(process.execPath, [
+      '--expose-gc', scriptPath, browserPath, wasmPath,
+    ], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] });
+    const marker = 'GC_RESULT:';
+    const index = output.lastIndexOf(marker);
+    assert.notStrictEqual(index, -1);
+    assert.deepStrictEqual(JSON.parse(output.slice(index + marker.length)), Array.from({ length: 8 }, () => [false, false]));
+  },
+
   serveTest({ testDir, esbuildPathWASM }) {
     try {
       child_process.execFileSync('node', [

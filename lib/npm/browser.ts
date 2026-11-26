@@ -86,12 +86,12 @@ export const initialize: typeof types.initialize = options => {
 const startRunningService = async (wasmURL: string | URL, wasmModule: WebAssembly.Module | undefined, useWorker: boolean): Promise<void> => {
   let worker: {
     onmessage: ((event: any) => void) | null
+    onerror: ((event: any) => void) | null
     postMessage: (data: Uint8Array | ArrayBuffer | WebAssembly.Module) => void
     terminate: () => void
   }
 
-  let rejectAllWith: (error: unknown) => void
-  const rejectAllPromise = new Promise(resolve => rejectAllWith = resolve)
+  let afterClose: (error: Error | null) => void
 
   if (useWorker) {
     // Run esbuild off the main thread
@@ -103,11 +103,12 @@ const startRunningService = async (wasmURL: string | URL, wasmModule: WebAssembl
     let go: Go | undefined
     worker = {
       onmessage: null,
+      onerror: null,
       postMessage: data => setTimeout(() => {
         try {
           go = onmessage({ data })
         } catch (error) {
-          rejectAllWith(error) // Catch strange crashes (e.g. stack overflow)
+          afterClose(error as Error) // Catch strange crashes (e.g. stack overflow)
         }
       }),
       terminate() {
@@ -132,9 +133,7 @@ const startRunningService = async (wasmURL: string | URL, wasmModule: WebAssembl
     else firstMessageResolve()
   }
 
-  worker.postMessage(wasmModule || new URL(wasmURL, location.href).toString())
-
-  let { readFromStdout, service } = common.createChannel({
+  let { readFromStdout, afterClose: closeChannel, service } = common.createChannel({
     writeToStdin(bytes) {
       worker.postMessage(bytes)
     },
@@ -142,12 +141,22 @@ const startRunningService = async (wasmURL: string | URL, wasmModule: WebAssembl
     hasFS: false,
     esbuild: ourselves,
   })
+  afterClose = closeChannel
+
+  worker.onerror = event => {
+    let error = event.error || new Error(event.message)
+    afterClose(error)
+    firstMessageReject(error)
+  }
+
+  worker.postMessage(wasmModule || new URL(wasmURL, location.href).toString())
 
   // This will throw if WebAssembly module instantiation fails
   await firstMessagePromise
 
   stopService = () => {
     worker.terminate()
+    afterClose(null)
     initializePromise = undefined
     stopService = undefined
     longLivedService = undefined
@@ -156,7 +165,6 @@ const startRunningService = async (wasmURL: string | URL, wasmModule: WebAssembl
   longLivedService = {
     build: (options: types.BuildOptions) =>
       new Promise<types.BuildResult>((resolve, reject) => {
-        rejectAllPromise.then(reject)
         service.buildOrContext({
           callName: 'build',
           refs: null,
@@ -169,7 +177,6 @@ const startRunningService = async (wasmURL: string | URL, wasmModule: WebAssembl
 
     context: (options: types.BuildOptions) =>
       new Promise<types.BuildContext>((resolve, reject) => {
-        rejectAllPromise.then(reject)
         service.buildOrContext({
           callName: 'context',
           refs: null,
@@ -182,7 +189,6 @@ const startRunningService = async (wasmURL: string | URL, wasmModule: WebAssembl
 
     transform: (input: string | Uint8Array, options?: types.TransformOptions) =>
       new Promise<types.TransformResult>((resolve, reject) => {
-        rejectAllPromise.then(reject)
         service.transform({
           callName: 'transform',
           refs: null,
@@ -199,7 +205,6 @@ const startRunningService = async (wasmURL: string | URL, wasmModule: WebAssembl
 
     formatMessages: (messages, options) =>
       new Promise((resolve, reject) => {
-        rejectAllPromise.then(reject)
         service.formatMessages({
           callName: 'formatMessages',
           refs: null,
@@ -211,7 +216,6 @@ const startRunningService = async (wasmURL: string | URL, wasmModule: WebAssembl
 
     analyzeMetafile: (metafile, options) =>
       new Promise((resolve, reject) => {
-        rejectAllPromise.then(reject)
         service.analyzeMetafile({
           callName: 'analyzeMetafile',
           refs: null,
