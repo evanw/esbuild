@@ -8893,9 +8893,35 @@ func (p *parser) visitStmtsAndPrependTempRefs(stmts []js_ast.Stmt, opts prependT
 	if opts.fnBodyLoc != nil {
 		// Capture "this"
 		if ref := p.fnOnlyDataVisit.thisCaptureRef; ref != nil {
+			valueOrNil := js_ast.Expr{Loc: *opts.fnBodyLoc, Data: js_ast.EThisShared}
+
+			// In a derived constructor, "this" isn't initialized until "super()"
+			// has run. Defer the capture until after a direct "super()" statement.
+			if p.fnOrArrowDataVisit.isDerivedClassCtor && !p.options.unsupportedJSFeatures.Has(compat.Class) {
+				for i, stmt := range stmts {
+					if expr, ok := stmt.Data.(*js_ast.SExpr); ok {
+						if call, ok := expr.Value.Data.(*js_ast.ECall); ok {
+							if _, ok := call.Target.Data.(*js_ast.ESuper); ok {
+								valueOrNil = js_ast.Expr{}
+								p.recordUsage(*ref)
+								capture := js_ast.Stmt{Loc: stmt.Loc, Data: &js_ast.SExpr{Value: js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.EBinary{
+									Left:  js_ast.Expr{Loc: stmt.Loc, Data: &js_ast.EIdentifier{Ref: *ref}},
+									Op:    js_ast.BinOpAssign,
+									Right: js_ast.Expr{Loc: stmt.Loc, Data: js_ast.EThisShared},
+								}}}}
+								stmts = append(stmts, js_ast.Stmt{})
+								copy(stmts[i+2:], stmts[i+1:])
+								stmts[i+1] = capture
+								break
+							}
+						}
+					}
+				}
+			}
+
 			p.tempRefsToDeclare = append(p.tempRefsToDeclare, tempRef{
 				ref:        *ref,
-				valueOrNil: js_ast.Expr{Loc: *opts.fnBodyLoc, Data: js_ast.EThisShared},
+				valueOrNil: valueOrNil,
 			})
 			p.currentScope.Generated = append(p.currentScope.Generated, *ref)
 		}
