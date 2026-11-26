@@ -51,6 +51,12 @@ func TestLowerArrowFunction(t *testing.T) {
 		"var foo = function() {\n  return this;\n};\n")
 }
 
+func TestLowerArrowFunctionThisInDerivedConstructor(t *testing.T) {
+	expectPrintedWithUnsupportedFeatures(t, compat.Arrow,
+		"class Base {} class Derived extends Base { constructor() { super(); this.getSelf = () => this } }",
+		"class Base {\n}\nclass Derived extends Base {\n  constructor() {\n    var _this;\n    super();\n    _this = this;\n    this.getSelf = function() {\n      return _this;\n    };\n  }\n}\n")
+}
+
 func TestLowerNullishCoalescing(t *testing.T) {
 	expectParseError(t, "a ?? b && c",
 		"<stdin>: ERROR: Cannot use \"&&\" with \"??\" without parentheses\n"+
